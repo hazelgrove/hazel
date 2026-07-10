@@ -3569,6 +3569,195 @@ let comment_tests = [
   ),
 ];
 
+/* definition-line flows: Let<->TyAlias chain swaps, Seq statement
+   crossings, alias inline (2026-07-10 build) */
+let def_line_tests = [
+  test_case(
+    "def-line: hoist let past type line, slots exchange",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=HoistLet, "type t = Int in\nlet ¦a = 1 in\na")
+        |> text_of;
+      check(string, "hoist", "let a = 1 in\ntype t = Int in\na", z);
+    },
+  ),
+  test_case(
+    "def-line: sink let past type line",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=SinkLet, "let ¦a = 1 in\ntype t = Int in\na") |> text_of;
+      check(string, "sink", "type t = Int in\nlet a = 1 in\na", z);
+    },
+  ),
+  test_case(
+    "def-line: hoist TYPE line past let",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=HoistLet, "let k = 1 in\ntype ¦t = Int in\n(k : t)")
+        |> text_of;
+      check(string, "hoist", "type t = Int in\nlet k = 1 in\n(k : t)", z);
+    },
+  ),
+  test_case(
+    "def-line: hoist/sink round-trip is identity",
+    `Quick,
+    () => {
+      let src = "type t = Int in\nlet ¦a = 1 in\na";
+      let z = Test_Editing.parse_zipper(src);
+      let z' =
+        Test_Editing.perform(
+          z,
+          [Action.Refactor(HoistLet), Action.Refactor(SinkLet)],
+        );
+      check(
+        string,
+        "identity",
+        "type t = Int in\nlet a = 1 in\na",
+        text_of(z'),
+      );
+    },
+  ),
+  test_case("def-line: alias-alias swap gated on dependency", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(HoistLet, "type s = Int in\ntype ¦t = s in\n(1 : t)"),
+    )
+  }),
+  test_case(
+    "def-line: independent aliases swap",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=HoistLet, "type s = Int in\ntype ¦t = Bool in\n(1 : t)")
+        |> text_of;
+      check(string, "hoist", "type t = Bool in\ntype s = Int in\n(1 : t)", z);
+    },
+  ),
+  test_case(
+    "seq: sink let past a statement",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=SinkLet, "let ¦a = 1 in\n1 + 1;\na + 2") |> text_of;
+      check(string, "sink", "1 + 1;\nlet a = 1 in\na + 2", z);
+    },
+  ),
+  test_case(
+    "seq: hoist let back over a statement",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=HoistLet, "1 + 1;\nlet ¦a = 1 in\na + 2") |> text_of;
+      check(string, "hoist", "let a = 1 in\n1 + 1;\na + 2", z);
+    },
+  ),
+  test_case("seq: sink gated when the statement uses the binding", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(SinkLet, "let ¦a = 1 in\na + 1;\n2 + 2"),
+    )
+  }),
+  test_case(
+    "seq: extract from a mid-chain item lands just above it",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=ExtractLet, "let k = 1 in\n1 + 1;\nk + ¦2 * 3")
+        |> text_of;
+      check(
+        string,
+        "extract",
+        "let k = 1 in\n1 + 1;\nlet x = 2 in\nk + x * 3",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "seq: type line sinks past a statement",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=SinkLet, "type ¦t = Int in\n1 + 1;\n(2 : t)") |> text_of;
+      check(string, "sink", "1 + 1;\ntype t = Int in\n(2 : t)", z);
+    },
+  ),
+  test_case("seq: type line sink gated when statement mentions it", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(SinkLet, "type ¦t = Int in\n(1 : t);\n2 + 2"),
+    )
+  }),
+];
+
+let inline_alias_tests = [
+  test_case(
+    "inline alias: single use",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=InlineAlias, "type ¦t = Int in\nlet a: t = 1 in\na")
+        |> text_of;
+      check(string, "inline", "let a: Int = 1 in\na", z);
+    },
+  ),
+  test_case(
+    "inline alias: multi-use arrow type parenthesizes",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=InlineAlias,
+          "type ¦t = Int -> Int in\nlet f: t = fun x -> x in\nlet g: t = f in\ng(1)",
+        )
+        |> text_of;
+      check(
+        string,
+        "inline",
+        "let f: (Int -> Int) = fun x -> x in\nlet g: (Int -> Int) = f in\ng(1)",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "inline alias: rebinding alias below shadows its region",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=InlineAlias,
+          "type ¦t = Int in\n(1 : t);\ntype t = Bool in\n(2 : t)",
+        )
+        |> text_of;
+      check(string, "inline", "(1 : Int);\ntype t = Bool in\n(2 : t)", z);
+    },
+  ),
+  test_case("inline alias: self-referential def not offered", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(InlineAlias, "type ¦t = t -> Int in\n1"),
+    )
+  }),
+  test_case("inline alias: offered at the type line", `Quick, () => {
+    check(
+      bool,
+      "offered",
+      true,
+      offers(InlineAlias, "type ¦t = Int in\n(1 : t)"),
+    )
+  }),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -3700,6 +3889,8 @@ let tests = [
     @ whitespace_probe2
     @ tyalias_tests
     @ comment_tests
+    @ def_line_tests
+    @ inline_alias_tests
     @ beta_tests
     @ beta_step_tests
     @ reduce_tests

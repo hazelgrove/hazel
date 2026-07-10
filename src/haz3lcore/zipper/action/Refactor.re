@@ -1112,6 +1112,20 @@ let hit_let = (target: Id.t, e: Exp.t): bool =>
   | _ => false
   };
 
+/* a type line is targetable at its delimiters or its type pattern
+   (mirrors hit_let: the def side is not a line affordance) */
+let hit_tyalias = (target: Id.t, e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | TyAlias(tp, _, _) =>
+    hit_node(target, e) || List.mem(target, IdTagged.ids(tp))
+  | _ => false
+  };
+
+/* definition line items: lets and type aliases move through the
+   same flows (andrew: one definition flow) */
+let hit_def_line = (target: Id.t, e: Exp.t): bool =>
+  hit_let(target, e) || hit_tyalias(target, e);
+
 let hit_fun = (target: Id.t, e: Exp.t): bool =>
   switch (IdTagged.term_of(e)) {
   | Fun(p, _, _, _) =>
@@ -1702,6 +1716,163 @@ let remove_unused_let_impl: impl = {
     ),
 };
 
+/* === Inline type alias === */
+
+let typ_mentions = (names: list(string), t: Typ.t): bool => {
+  let found = ref(false);
+  let _ =
+    Typ.map_term(
+      ~f_typ=
+        (cont, t: Typ.t) => {
+          switch (IdTagged.term_of(t)) {
+          | Var(y) when List.mem(y, names) => found := true
+          | _ => ()
+          };
+          cont(t);
+        },
+      t,
+    );
+  found^;
+};
+
+let contains_use = (e: Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) => {
+          switch (IdTagged.term_of(e)) {
+          | Use(_) => found := true
+          | _ => ()
+          };
+          cont(e);
+        },
+      e,
+    );
+  found^;
+};
+
+let strip_typ_comments = (t: Typ.t): Typ.t => {
+  let keep = (ws: list(Secondary.t)) =>
+    ws |> List.filter(w => !is_comment_piece(w));
+  Typ.map_term(
+    ~f_typ=
+      (cont, t: Typ.t) => {
+        let (b, a) = t.annotation.secondary;
+        cont({
+          ...t,
+          annotation: {
+            ...t.annotation,
+            secondary: (keep(b), keep(a)),
+          },
+        });
+      },
+    t,
+  );
+};
+
+/* self-delimiting types substitute bare; everything else wraps */
+let typ_atomic = (t: Typ.t): bool =>
+  switch (IdTagged.term_of(t)) {
+  | Var(_)
+  | Atom(_)
+  | Unknown(_)
+  | List(_)
+  | Parens(_)
+  | Sig(_) => true
+  | _ => false
+  };
+
+/* substitute the alias def for Var(t) at every unshadowed typ use.
+   Mirrors exp inline: the copy's root adopts the use's ids (the
+   occurrence id stays valid); the FIRST copy's interior travels
+   (keeps the def's ids — P7), later copies are fresh and shed
+   prose. */
+let subst_alias = (~first: ref(bool), t: string, def: Typ.t, e: Exp.t): Exp.t => {
+  let bare = strip_typ_boundaries(def);
+  let at_use = (u: Typ.t): Typ.t => {
+    let is_first = first^;
+    first := false;
+    let d = is_first ? bare : strip_typ_comments(refresh_typ_ids(bare));
+    if (typ_atomic(d)) {
+      let (before, after) = u.annotation.secondary;
+      let (db, da) = d.annotation.secondary;
+      {
+        ...d,
+        annotation: {
+          ...d.annotation,
+          ids: u.annotation.ids,
+          secondary: (db @ before, da @ after),
+        },
+      };
+    } else {
+      {
+        annotation: {
+          ...IdTagged.IdTag.mk_internal(u.annotation.ids),
+          secondary: u.annotation.secondary,
+        },
+        term: Parens(d),
+      };
+    };
+  };
+  let in_typ = (ty: Typ.t): Typ.t =>
+    Typ.map_term(
+      ~f_typ=
+        (cont, ty: Typ.t) =>
+          switch (IdTagged.term_of(ty)) {
+          | Var(z) when z == t => at_use(ty)
+          /* rebound below: uses under these binders are the inner
+             alias's, not ours */
+          | Rec(tp, _)
+          | Poly(tp, _) when List.mem(t, tpat_names(tp)) => ty
+          | _ => cont(ty)
+          },
+      ty,
+    );
+  Exp.map_term(
+    ~f_exp=
+      (cont, e: Exp.t) =>
+        switch (IdTagged.term_of(e)) {
+        /* a rebinding tyalias shadows its body, but its own def
+           still sees the outer name */
+        | TyAlias(tp, d, b) when List.mem(t, tpat_names(tp)) => {
+            ...e,
+            term: TyAlias(tp, in_typ(d), b),
+          }
+        | TypFun(tp, _, _) when List.mem(t, tpat_names(tp)) => e
+        | _ => cont(e)
+        },
+    ~f_typ=(_cont, ty: Typ.t) => in_typ(ty),
+    e,
+  );
+};
+
+let inline_alias_impl: impl = {
+  label: "Inline",
+  tooltip: "Replace this type alias by substituting its definition into every use",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_node(
+      ~hit=hit_tyalias(target),
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | TyAlias(tp, ty, body) =>
+            switch (tpat_names(tp)) {
+            | [t] when !typ_mentions([t], ty) && !contains_use(body) =>
+              let first = ref(true);
+              let body' = subst_alias(~first, t, ty, body);
+              /* the type line dissolves: its break dies with it (the
+                 body sheds its own lead; comment leads stay) */
+              let body' = strip_leading_ws(body');
+              Some((body', Exp.rep_id(body')));
+            | _ => None
+            }
+          | _ => None
+          },
+      program,
+    ),
+};
+
 let exp_ty = (~info_map: Statics.Map.t, e: Exp.t): option(Typ.t) =>
   switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
   | Some(InfoExp({ty, _})) => Some(ty)
@@ -1965,6 +2136,10 @@ let copy_runs = (ws: list(Secondary.t)): list(Secondary.t) =>
 let line_child = (parent: Exp.t, child: Exp.t): bool =>
   switch (IdTagged.term_of(parent)) {
   | Let(_, _, body) => same_node(body, child)
+  /* a statement chain's tail is a line slot: extract inserts the
+     new let just above the target item, scoping over the remaining
+     items (definition nature of `;` — andrew) */
+  | Seq(_, tail) => same_node(tail, child)
   /* a type line is a definition line: extract binds BELOW it, not
      above (also keeps extracted ascriptions inside the alias scope) */
   | TyAlias(_, _, body) => same_node(body, child)
@@ -2837,6 +3012,77 @@ let names_mentioned = (names: list(string), e: Exp.t): bool =>
 let disjoint_names = (a: list(string), b: list(string)): bool =>
   !(a |> List.exists(n => List.mem(n, b)));
 
+/* === Definition lines ===
+ * A binding line item — let or type alias (module forms later).
+ * Chain movement treats them uniformly; both node kinds are
+ * shard-headed (`let`/`type` is the node's first token), so their
+ * line leads are node-level and node-level slot exchange is exact. */
+type def_line =
+  | LetLine(Pat.t, Exp.t)
+  | TypeLine(TPat.t, Typ.t);
+
+let def_line_of = (e: Exp.t): option((def_line, Exp.t)) =>
+  switch (IdTagged.term_of(e)) {
+  | Let(p, d, body) => Some((LetLine(p, d), body))
+  | TyAlias(tp, ty, body) => Some((TypeLine(tp, ty), body))
+  | _ => None
+  };
+
+let def_line_rebuild = (e: Exp.t, body: Exp.t): Exp.t =>
+  switch (IdTagged.term_of(e)) {
+  | Let(p, d, _) => {
+      ...e,
+      term: Let(p, d, body),
+    }
+  | TyAlias(tp, ty, _) => {
+      ...e,
+      term: TyAlias(tp, ty, body),
+    }
+  | _ => e
+  };
+
+let line_exp_names = (l: def_line): list(string) =>
+  switch (l) {
+  | LetLine(p, _) => pat_var_names(p)
+  | TypeLine(_) => []
+  };
+let line_typ_names = (l: def_line): list(string) =>
+  switch (l) {
+  | LetLine(_) => []
+  | TypeLine(tp, _) => tpat_names(tp)
+  };
+/* the line's own material (binder + def; body excluded) as an exp,
+   for the mention checks */
+let line_material = (l: def_line): Exp.t =>
+  switch (l) {
+  | LetLine(p, d) => fresh(Let(p, d, fresh(EmptyHole)))
+  | TypeLine(tp, ty) => fresh(TyAlias(tp, ty, fresh(EmptyHole)))
+  };
+
+/* may two adjacent definition lines exchange positions? Checked in
+   both orders (conservative, like the Let/Let chain gate): neither
+   line's material may reference names the other binds — exp names
+   or alias names (an annotation crossing its alias would unbind:
+   the tyalias soundness class) — and bound names stay disjoint per
+   namespace. */
+let lines_swappable = (a: def_line, b: def_line): bool => {
+  let ma = line_material(a);
+  let mb = line_material(b);
+  disjoint_names(line_exp_names(a), line_exp_names(b))
+  && disjoint_names(line_typ_names(a), line_typ_names(b))
+  && !names_mentioned(line_exp_names(a), mb)
+  && !names_mentioned(line_exp_names(b), ma)
+  && !mentions_typ_names(line_typ_names(a), mb)
+  && !mentions_typ_names(line_typ_names(b), ma);
+};
+
+/* may a def line cross one statement (Seq item)? The statement
+   enters/leaves the line's scope, so it must not reference the
+   line's names (either namespace). */
+let statement_crossable = (l: def_line, stmt: Exp.t): bool =>
+  !names_mentioned(line_exp_names(l), stmt)
+  && !mentions_typ_names(line_typ_names(l), stmt);
+
 /* one hoist step for the let at the end of ~path; returns the parent
  * node to rewrite, its replacement, and a focus id. ~fixup as in
  * sink_step: invocation moves the released body's textual lead into
@@ -2866,273 +3112,301 @@ let hoist_step =
       | Parens(_) when n >= 3 => (List.nth(path, n - 3), direct)
       | _ => (direct, l)
       };
-    switch (IdTagged.term_of(l)) {
-    | Let(lp, ldef, lbody) =>
-      let l_names = pat_var_names(lp);
-      switch (IdTagged.term_of(p)) {
-      | Let(mp, mdef, mbody)
+    /* def-line general moves first: chain swap with another
+       definition line, or one step up past a statement */
+    let chain_swap =
+      switch (def_line_of(l), def_line_of(p)) {
+      | (Some((bl, lbody)), Some((bp, pbody)))
           when
-            same_node(mbody, c)
+            same_node(pbody, c)
             && same_node(c, l)
-            && disjoint_names(l_names, pat_var_names(mp))
-            && !names_mentioned(pat_var_names(mp), ldef)
-            && !names_mentioned(l_names, mdef) =>
-        /* chain swap; the two lets exchange line slots */
+            && lines_swappable(bp, bl) =>
+        /* chain swap; the two lines exchange line slots */
         let m': Exp.t =
-          with_secondary(
-            l.annotation.secondary,
-            {
-              ...p,
-              term: Let(mp, mdef, lbody),
-            },
-          );
+          with_secondary(l.annotation.secondary, def_line_rebuild(p, lbody));
         let l': Exp.t =
-          with_secondary(
-            p.annotation.secondary,
-            {
-              ...l,
-              term: Let(lp, ldef, m'),
-            },
-          );
+          with_secondary(p.annotation.secondary, def_line_rebuild(l, m'));
         Some((p, l', Exp.rep_id(l)));
-      | Let(mp, mdef, mbody)
-          when
-            same_node(mdef, c)
-            && disjoint_names(l_names, pat_var_names(mp))
-            && !names_mentioned(l_names, mbody) =>
-        /* out of a def: above that line */
-        let c': Exp.t =
-          same_node(c, l)
-            /* the def slot's occupant is now lbody, which brings its
-               own lead; l's trailing run (before the outer in) stays
-               with the def position */
-            ? {
-              let (cb, ca) = lbody.annotation.secondary;
-              let (_, l_after) = l.annotation.secondary;
-              with_secondary((cb, ca @ l_after), lbody);
-            }
-            : {
-              let (_, after) = lbody.annotation.secondary;
-              {
-                ...c,
-                term: Parens(with_secondary(([], after), lbody)),
-              };
-            };
-        /* the pushed-down let starts a NEW line slot: synthesize its
-           lead from the slot above (P's own lead), else a bare newline
-           when the def was multiline, else stay inline */
-        let (p_lead, p_after) = p.annotation.secondary;
-        let (l_lead, _) = l.annotation.secondary;
-        let sep = {
-          let multiline =
-            has_newline(l_lead)
-            || has_newline(fst(lbody.annotation.secondary));
-          switch (p_lead) {
-          | [_, ..._] => sep_like(p_lead)
-          | [] => multiline ? newline() : []
-          };
-        };
-        let m': Exp.t =
-          with_secondary(
-            (sep, p_after),
-            {
-              ...p,
-              term: Let(mp, c', mbody),
-            },
-          );
-        let l': Exp.t =
-          with_secondary(
-            ([], []),
-            {
-              ...l,
-              term: Let(lp, ldef, m'),
-            },
-          );
-        Some((p, l', Exp.rep_id(l)));
-      | Match(scrut, rules)
-          when
-            same_node(c, l)
-            && rules
-            |> List.exists(((rp, rb)) =>
-                 same_node(rb, c)
-                 && disjoint_names(l_names, pat_var_names(rp))
-                 && !names_mentioned(pat_var_names(rp), ldef)
-               )
-            && !(
-                 l_names
-                 |> List.exists(x =>
-                      free_in(
-                        x,
-                        replace_node(
-                          ~at=Exp.rep_id(l),
-                          ~with_=fresh(EmptyHole),
-                          p,
-                        ),
-                      )
-                    )
-               ) =>
-        /* out of an arm: evaluates unconditionally now */
-        let rules' =
-          rules
-          |> List.map(((rp, rb)) =>
-               same_node(rb, c)
-                 ? (rp, occupy(l.annotation.secondary, lbody)) : (rp, rb)
-             );
-        /* the hoisted let takes the match's slot secondary; the
-           match (now the let's body) gets a FRESH COPY of the lead —
-           sharing the same secondary pieces in two nodes drops one
-           copy downstream (duplicate piece ids) */
-        let match': Exp.t =
-          with_secondary(
-            (sep_like(fst(p.annotation.secondary)), []),
-            {
-              ...p,
-              term: Match(scrut, rules'),
-            },
-          );
-        let l': Exp.t =
-          with_secondary(
-            p.annotation.secondary,
-            {
-              ...l,
-              term: Let(lp, ldef, match'),
-            },
-          );
-        Some((p, l', Exp.rep_id(l)));
-      | If(cond_, t_, alt_)
-          when
-            same_node(c, l)
-            && (same_node(t_, c) || same_node(alt_, c))
-            && !(
-                 l_names
-                 |> List.exists(x =>
-                      free_in(
-                        x,
-                        replace_node(
-                          ~at=Exp.rep_id(l),
-                          ~with_=fresh(EmptyHole),
-                          p,
-                        ),
-                      )
-                    )
-               ) =>
-        let sub = occupy(l.annotation.secondary, lbody);
-        let if': Exp.t = {
-          ...p,
-          term:
-            same_node(t_, c) ? If(cond_, sub, alt_) : If(cond_, t_, sub),
-        };
-        let l': Exp.t =
-          with_secondary(
-            p.annotation.secondary,
-            {
-              ...l,
-              term: Let(lp, ldef, if'),
-            },
-          );
-        Some((p, l', Exp.rep_id(l)));
-      | Fun(fp, fbody, ft, fn)
-          when
-            same_node(fbody, c)
-            && same_node(c, l)
-            && disjoint_names(l_names, pat_var_names(fp))
-            && !names_mentioned(pat_var_names(fp), ldef) =>
-        /* out of a lambda: evaluates once instead of per call. The
-           fun starts a NEW line slot; synthesize its lead like the
-           def-exit case */
-        let (p_lead, p_after) = p.annotation.secondary;
-        let (l_lead, _) = l.annotation.secondary;
-        let sep = {
-          let multiline =
-            has_newline(l_lead)
-            || has_newline(fst(lbody.annotation.secondary));
-          switch (p_lead) {
-          | [_, ..._] => sep_like(p_lead)
-          | [] => multiline ? newline() : []
-          };
-        };
-        let fun': Exp.t =
-          with_secondary(
-            (sep, p_after),
-            {
-              ...p,
-              term: Fun(fp, lbody, ft, fn),
-            },
-          );
-        let l': Exp.t =
-          with_secondary(
-            ([], []),
-            {
-              ...l,
-              term: Let(lp, ldef, fun'),
-            },
-          );
-        Some((p, l', Exp.rep_id(l)));
-      | Let(_)
-      | Fun(_)
-      | FixF(_) => None
-      /* an arm body whose exit was gated above (pattern binders used
-         in the def) must NOT fall into the generic case below — that
-         path knows nothing about the crossed binders */
-      | Match(_, rules)
-          when rules |> List.exists(((_, rb)) => same_node(rb, c)) =>
-        None
-      /* binder-introducing bodies the generic case can't gate: Use
-         imports names we can't enumerate here; the rest bind exp/typ
-         names the moving def could reference. Dead press beats
-         unbinding. */
-      | Use(_)
-      | TypFun(_)
-      | Theorem(_)
-      | Forall(_)
-      | ModuleExp(_) => None
-      /* a type binder IS enumerable: refuse only when the moving
-         parts (pat annotations, def) mention the alias name */
-      | TyAlias(tp, _, _)
-          when
-            mentions_typ_names(
-              tpat_names(tp),
-              fresh(Let(lp, ldef, fresh(EmptyHole))),
-            ) =>
-        None
-      | _ =>
-        /* generic tight position: g(let x = e in b) -> let x = e in
-           g(b). No binder is crossed (binder-introducing bodies are
-           handled above); gate on capture via free_in with l cut out */
-        same_node(c, l)
-        && !(
-             l_names
-             |> List.exists(x =>
-                  free_in(
-                    x,
-                    replace_node(
-                      ~at=Exp.rep_id(l),
-                      ~with_=fresh(EmptyHole),
-                      p,
-                    ),
-                  )
-                )
-           )
-          ? {
-            let p' =
-              replace_node(
-                ~at=Exp.rep_id(l),
-                ~with_=occupy(l.annotation.secondary, lbody),
-                p,
-              );
-            let l': Exp.t =
-              with_secondary(
-                ([], []),
-                {
-                  ...l,
-                  term: Let(lp, ldef, p'),
-                },
-              );
-            Some((p, l', Exp.rep_id(l)));
-          }
-          : None
+      | _ => None
       };
-    | _ => None
+    let seq_hoist =
+      switch (IdTagged.term_of(p), def_line_of(l)) {
+      | (Seq(s1, tail), Some((bl, lbody)))
+          when
+            same_node(tail, c)
+            && same_node(c, l)
+            && statement_crossable(bl, s1) =>
+        /* Seq(s1, line(rest)) -> line(Seq(s1, rest)): up past one
+           statement. Statement leads live on leaves, so the slot
+           exchange is textual (P3) — fixup only (gating can't
+           print). */
+        if (fixup) {
+          let sl = Slot.lead_of(l);
+          let ss = Slot.lead_of(s1);
+          let s1' = Slot.give(sl, Slot.drop(ss, s1));
+          let inner: Exp.t = {
+            ...p,
+            term: Seq(s1', lbody),
+          };
+          let result =
+            Slot.give(ss, def_line_rebuild(Slot.drop(sl, l), inner));
+          Some((p, result, Exp.rep_id(l)));
+        } else {
+          let inner: Exp.t = {
+            ...p,
+            term: Seq(s1, lbody),
+          };
+          Some((p, def_line_rebuild(l, inner), Exp.rep_id(l)));
+        }
+      | _ => None
+      };
+    switch (chain_swap, seq_hoist) {
+    | (Some(r), _)
+    | (_, Some(r)) => Some(r)
+    | (None, None) =>
+      switch (IdTagged.term_of(l)) {
+      | Let(lp, ldef, lbody) =>
+        let l_names = pat_var_names(lp);
+        switch (IdTagged.term_of(p)) {
+        | Let(mp, mdef, mbody)
+            when
+              same_node(mdef, c)
+              && disjoint_names(l_names, pat_var_names(mp))
+              && !names_mentioned(l_names, mbody) =>
+          /* out of a def: above that line */
+          let c': Exp.t =
+            same_node(c, l)
+              /* the def slot's occupant is now lbody, which brings its
+                 own lead; l's trailing run (before the outer in) stays
+                 with the def position */
+              ? {
+                let (cb, ca) = lbody.annotation.secondary;
+                let (_, l_after) = l.annotation.secondary;
+                with_secondary((cb, ca @ l_after), lbody);
+              }
+              : {
+                let (_, after) = lbody.annotation.secondary;
+                {
+                  ...c,
+                  term: Parens(with_secondary(([], after), lbody)),
+                };
+              };
+          /* the pushed-down let starts a NEW line slot: synthesize its
+             lead from the slot above (P's own lead), else a bare newline
+             when the def was multiline, else stay inline */
+          let (p_lead, p_after) = p.annotation.secondary;
+          let (l_lead, _) = l.annotation.secondary;
+          let sep = {
+            let multiline =
+              has_newline(l_lead)
+              || has_newline(fst(lbody.annotation.secondary));
+            switch (p_lead) {
+            | [_, ..._] => sep_like(p_lead)
+            | [] => multiline ? newline() : []
+            };
+          };
+          let m': Exp.t =
+            with_secondary(
+              (sep, p_after),
+              {
+                ...p,
+                term: Let(mp, c', mbody),
+              },
+            );
+          let l': Exp.t =
+            with_secondary(
+              ([], []),
+              {
+                ...l,
+                term: Let(lp, ldef, m'),
+              },
+            );
+          Some((p, l', Exp.rep_id(l)));
+        | Match(scrut, rules)
+            when
+              same_node(c, l)
+              && rules
+              |> List.exists(((rp, rb)) =>
+                   same_node(rb, c)
+                   && disjoint_names(l_names, pat_var_names(rp))
+                   && !names_mentioned(pat_var_names(rp), ldef)
+                 )
+              && !(
+                   l_names
+                   |> List.exists(x =>
+                        free_in(
+                          x,
+                          replace_node(
+                            ~at=Exp.rep_id(l),
+                            ~with_=fresh(EmptyHole),
+                            p,
+                          ),
+                        )
+                      )
+                 ) =>
+          /* out of an arm: evaluates unconditionally now */
+          let rules' =
+            rules
+            |> List.map(((rp, rb)) =>
+                 same_node(rb, c)
+                   ? (rp, occupy(l.annotation.secondary, lbody)) : (rp, rb)
+               );
+          /* the hoisted let takes the match's slot secondary; the
+             match (now the let's body) gets a FRESH COPY of the lead —
+             sharing the same secondary pieces in two nodes drops one
+             copy downstream (duplicate piece ids) */
+          let match': Exp.t =
+            with_secondary(
+              (sep_like(fst(p.annotation.secondary)), []),
+              {
+                ...p,
+                term: Match(scrut, rules'),
+              },
+            );
+          let l': Exp.t =
+            with_secondary(
+              p.annotation.secondary,
+              {
+                ...l,
+                term: Let(lp, ldef, match'),
+              },
+            );
+          Some((p, l', Exp.rep_id(l)));
+        | If(cond_, t_, alt_)
+            when
+              same_node(c, l)
+              && (same_node(t_, c) || same_node(alt_, c))
+              && !(
+                   l_names
+                   |> List.exists(x =>
+                        free_in(
+                          x,
+                          replace_node(
+                            ~at=Exp.rep_id(l),
+                            ~with_=fresh(EmptyHole),
+                            p,
+                          ),
+                        )
+                      )
+                 ) =>
+          let sub = occupy(l.annotation.secondary, lbody);
+          let if': Exp.t = {
+            ...p,
+            term:
+              same_node(t_, c) ? If(cond_, sub, alt_) : If(cond_, t_, sub),
+          };
+          let l': Exp.t =
+            with_secondary(
+              p.annotation.secondary,
+              {
+                ...l,
+                term: Let(lp, ldef, if'),
+              },
+            );
+          Some((p, l', Exp.rep_id(l)));
+        | Fun(fp, fbody, ft, fn)
+            when
+              same_node(fbody, c)
+              && same_node(c, l)
+              && disjoint_names(l_names, pat_var_names(fp))
+              && !names_mentioned(pat_var_names(fp), ldef) =>
+          /* out of a lambda: evaluates once instead of per call. The
+             fun starts a NEW line slot; synthesize its lead like the
+             def-exit case */
+          let (p_lead, p_after) = p.annotation.secondary;
+          let (l_lead, _) = l.annotation.secondary;
+          let sep = {
+            let multiline =
+              has_newline(l_lead)
+              || has_newline(fst(lbody.annotation.secondary));
+            switch (p_lead) {
+            | [_, ..._] => sep_like(p_lead)
+            | [] => multiline ? newline() : []
+            };
+          };
+          let fun': Exp.t =
+            with_secondary(
+              (sep, p_after),
+              {
+                ...p,
+                term: Fun(fp, lbody, ft, fn),
+              },
+            );
+          let l': Exp.t =
+            with_secondary(
+              ([], []),
+              {
+                ...l,
+                term: Let(lp, ldef, fun'),
+              },
+            );
+          Some((p, l', Exp.rep_id(l)));
+        | Let(_)
+        | Fun(_)
+        | FixF(_) => None
+        /* an arm body whose exit was gated above (pattern binders used
+           in the def) must NOT fall into the generic case below — that
+           path knows nothing about the crossed binders */
+        | Match(_, rules)
+            when rules |> List.exists(((_, rb)) => same_node(rb, c)) =>
+          None
+        /* binder-introducing bodies the generic case can't gate: Use
+           imports names we can't enumerate here; the rest bind exp/typ
+           names the moving def could reference. Dead press beats
+           unbinding. */
+        | Use(_)
+        | TypFun(_)
+        | Theorem(_)
+        | Forall(_)
+        | ModuleExp(_) => None
+        /* a type binder IS enumerable: refuse only when the moving
+           parts (pat annotations, def) mention the alias name */
+        | TyAlias(tp, _, _)
+            when
+              mentions_typ_names(
+                tpat_names(tp),
+                fresh(Let(lp, ldef, fresh(EmptyHole))),
+              ) =>
+          None
+        | _ =>
+          /* generic tight position: g(let x = e in b) -> let x = e in
+             g(b). No binder is crossed (binder-introducing bodies are
+             handled above); gate on capture via free_in with l cut out */
+          same_node(c, l)
+          && !(
+               l_names
+               |> List.exists(x =>
+                    free_in(
+                      x,
+                      replace_node(
+                        ~at=Exp.rep_id(l),
+                        ~with_=fresh(EmptyHole),
+                        p,
+                      ),
+                    )
+                  )
+             )
+            ? {
+              let p' =
+                replace_node(
+                  ~at=Exp.rep_id(l),
+                  ~with_=occupy(l.annotation.secondary, lbody),
+                  p,
+                );
+              let l': Exp.t =
+                with_secondary(
+                  ([], []),
+                  {
+                    ...l,
+                    term: Let(lp, ldef, p'),
+                  },
+                );
+              Some((p, l', Exp.rep_id(l)));
+            }
+            : None
+        };
+      | _ => None
+      }
     };
   };
 };
@@ -3216,200 +3490,235 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
         };
       };
     };
-  switch (IdTagged.term_of(l)) {
-  | Let(lp, ldef, lbody) =>
-    let l_names = pat_var_names(lp);
-    switch (IdTagged.term_of(lbody)) {
-    | Let(mp, mdef, mbody)
-        when
-          disjoint_names(l_names, pat_var_names(mp))
-          && !names_mentioned(l_names, mdef)
-          && !names_mentioned(pat_var_names(mp), ldef) =>
-      let l': Exp.t =
-        with_secondary(
-          lbody.annotation.secondary,
-          {
-            ...l,
-            term: Let(lp, ldef, mbody),
-          },
-        );
-      let m': Exp.t =
-        with_secondary(
-          l.annotation.secondary,
-          {
-            ...lbody,
-            term: Let(mp, mdef, l'),
-          },
-        );
-      Some((m', Exp.rep_id(l)));
-    | Let(mp, mdef, mbody)
-        when
-          disjoint_names(l_names, pat_var_names(mp))
-          && names_mentioned(l_names, mdef)
-          && !names_mentioned(l_names, mbody)
-          && is_proper_block(mdef) =>
-      /* into the def that solely uses it: pure scope-minimization
-         (same evaluation, narrower scope) — the missing edge of the
-         region graph; inverse of hoist-out-of-def */
-      let (d_lead, mdef') = take_lead(mdef);
-      /* a def gaining an internal let goes multiline (andrew): break
-         before the sunk let and after its `in`, indented past the
-         host line — unless the def already had its own layout */
-      let host_sep = () => fixup ? sep_like(Slot.lead_of(lbody).lead) : [];
-      let nesting = fixup && !has_newline(d_lead) && has_newline(host_sep());
-      let mdef' =
-        if (nesting) {
-          let (b, a) = mdef'.annotation.secondary;
-          {
-            ...mdef',
-            annotation: {
-              ...mdef'.annotation,
-              secondary: (host_sep() @ space() @ space() @ b, a),
-            },
-          };
-        } else if (fixup && has_newline(d_lead)) {
-          /* multiline block: the lead moved to the sunk let, so the
-             displaced first line gets a fresh copy — else both lets
-             land on one line and hoist/sink layouts oscillate */
-          let (b, a) = mdef'.annotation.secondary;
-          {
-            ...mdef',
-            annotation: {
-              ...mdef'.annotation,
-              secondary: (sep_like(d_lead) @ b, a),
-            },
-          };
-        } else {
-          mdef';
-        };
-      let l': Exp.t =
-        with_secondary(
-          (nesting ? host_sep() @ space() @ space() : d_lead, []),
-          {
-            ...l,
-            term: Let(lp, ldef, mdef'),
-          },
-        );
-      let m': Exp.t =
-        with_secondary(
-          l.annotation.secondary,
-          {
-            ...lbody,
-            term: Let(mp, l', mbody),
-          },
-        );
-      Some((m', Exp.rep_id(l)));
-    | Fun(fp, fbody, ft, fn)
-        when
-          disjoint_names(l_names, pat_var_names(fp))
-          && !names_mentioned(pat_var_names(fp), ldef)
-          && !is_bare_use(l_names, fbody) =>
-      /* into a lambda: evaluates per call */
-      let (fb_lead, fbody') = take_lead(fbody);
-      let fbody' = relead(fb_lead, fbody');
-      let l': Exp.t =
-        with_secondary(
-          (fb_lead, []),
-          {
-            ...l,
-            term: Let(lp, ldef, fbody'),
-          },
-        );
-      let fun': Exp.t =
-        with_secondary(
-          l.annotation.secondary,
-          {
-            ...lbody,
-            term: Fun(fp, l', ft, fn),
-          },
-        );
-      Some((fun', Exp.rep_id(l)));
-    | Match(scrut, rules) when !names_mentioned(l_names, scrut) =>
-      /* into the single arm that uses the binding */
-      switch (
-        rules
-        |> List.mapi((i, r) => (i, r))
-        |> List.filter(((_, (_, b))) => names_mentioned(l_names, b))
-      ) {
-      | [(i, (rp, rb))]
-          when
-            disjoint_names(l_names, pat_var_names(rp))
-            && !names_mentioned(pat_var_names(rp), ldef)
-            && !is_bare_use(l_names, rb) =>
-        let (rb_lead, rb') = take_lead(rb);
-        let rb' = relead(rb_lead, rb');
+  /* def-line general moves first: chain swap with the next
+     definition line, or one step down past a statement */
+  let chain_sink =
+    switch (def_line_of(l)) {
+    | Some((bl, lbody)) =>
+      switch (def_line_of(lbody)) {
+      | Some((bm, mbody)) when lines_swappable(bl, bm) =>
         let l': Exp.t =
           with_secondary(
-            (rb_lead, []),
-            {
-              ...l,
-              term: Let(lp, ldef, rb'),
-            },
+            lbody.annotation.secondary,
+            def_line_rebuild(l, mbody),
           );
-        let rules' = rules |> List.mapi((j, r) => j == i ? (rp, l') : r);
-        let match': Exp.t =
+        let m': Exp.t =
           with_secondary(
             l.annotation.secondary,
-            {
-              ...lbody,
-              term: Match(scrut, rules'),
-            },
+            def_line_rebuild(lbody, l'),
           );
-        Some((match', Exp.rep_id(l)));
+        Some((m', Exp.rep_id(l)));
       | _ => None
       }
-    | If(c, t, alt) when !names_mentioned(l_names, c) =>
-      switch (
-        names_mentioned(l_names, t) && !is_bare_use(l_names, t),
-        names_mentioned(l_names, alt) && !is_bare_use(l_names, alt),
-      ) {
-      | (true, false) when !names_mentioned(l_names, alt) =>
-        let (t_lead, t') = take_lead(t);
-        let t' = relead(t_lead, t');
-        let l': Exp.t =
-          with_secondary(
-            (t_lead, []),
-            {
-              ...l,
-              term: Let(lp, ldef, t'),
-            },
-          );
-        Some((
-          with_secondary(
-            l.annotation.secondary,
-            {
-              ...lbody,
-              term: If(c, l', alt),
-            },
-          ),
-          Exp.rep_id(l),
-        ));
-      | (false, true) when !names_mentioned(l_names, t) =>
-        let (a_lead, alt') = take_lead(alt);
-        let alt' = relead(a_lead, alt');
-        let l': Exp.t =
-          with_secondary(
-            (a_lead, []),
-            {
-              ...l,
-              term: Let(lp, ldef, alt'),
-            },
-          );
-        Some((
-          with_secondary(
-            l.annotation.secondary,
-            {
-              ...lbody,
-              term: If(c, t, l'),
-            },
-          ),
-          Exp.rep_id(l),
-        ));
-      | _ => None
-      }
-    | _ => None
+    | None => None
     };
-  | _ => None
+  let seq_sink =
+    switch (def_line_of(l)) {
+    | Some((bl, lbody)) =>
+      switch (IdTagged.term_of(lbody)) {
+      | Seq(s1, rest) when statement_crossable(bl, s1) =>
+        /* line(Seq(s1, rest)) -> Seq(s1, line(rest)): down past one
+           statement; textual slot exchange, fixup only */
+        if (fixup) {
+          let sl = Slot.lead_of(l);
+          let ss = Slot.lead_of(s1);
+          let s1' = Slot.give(sl, Slot.drop(ss, s1));
+          let inner =
+            Slot.give(ss, def_line_rebuild(Slot.drop(sl, l), rest));
+          let result: Exp.t = {
+            ...lbody,
+            term: Seq(s1', inner),
+          };
+          Some((result, Exp.rep_id(l)));
+        } else {
+          let result: Exp.t = {
+            ...lbody,
+            term: Seq(s1, def_line_rebuild(l, rest)),
+          };
+          Some((result, Exp.rep_id(l)));
+        }
+      | _ => None
+      }
+    | None => None
+    };
+  switch (chain_sink, seq_sink) {
+  | (Some(r), _)
+  | (_, Some(r)) => Some(r)
+  | (None, None) =>
+    switch (IdTagged.term_of(l)) {
+    | Let(lp, ldef, lbody) =>
+      let l_names = pat_var_names(lp);
+      switch (IdTagged.term_of(lbody)) {
+      | Let(mp, mdef, mbody)
+          when
+            disjoint_names(l_names, pat_var_names(mp))
+            && names_mentioned(l_names, mdef)
+            && !names_mentioned(l_names, mbody)
+            && is_proper_block(mdef) =>
+        /* into the def that solely uses it: pure scope-minimization
+           (same evaluation, narrower scope) — the missing edge of the
+           region graph; inverse of hoist-out-of-def */
+        let (d_lead, mdef') = take_lead(mdef);
+        /* a def gaining an internal let goes multiline (andrew): break
+           before the sunk let and after its `in`, indented past the
+           host line — unless the def already had its own layout */
+        let host_sep = () => fixup ? sep_like(Slot.lead_of(lbody).lead) : [];
+        let nesting =
+          fixup && !has_newline(d_lead) && has_newline(host_sep());
+        let mdef' =
+          if (nesting) {
+            let (b, a) = mdef'.annotation.secondary;
+            {
+              ...mdef',
+              annotation: {
+                ...mdef'.annotation,
+                secondary: (host_sep() @ space() @ space() @ b, a),
+              },
+            };
+          } else if (fixup && has_newline(d_lead)) {
+            /* multiline block: the lead moved to the sunk let, so the
+               displaced first line gets a fresh copy — else both lets
+               land on one line and hoist/sink layouts oscillate */
+            let (b, a) = mdef'.annotation.secondary;
+            {
+              ...mdef',
+              annotation: {
+                ...mdef'.annotation,
+                secondary: (sep_like(d_lead) @ b, a),
+              },
+            };
+          } else {
+            mdef';
+          };
+        let l': Exp.t =
+          with_secondary(
+            (nesting ? host_sep() @ space() @ space() : d_lead, []),
+            {
+              ...l,
+              term: Let(lp, ldef, mdef'),
+            },
+          );
+        let m': Exp.t =
+          with_secondary(
+            l.annotation.secondary,
+            {
+              ...lbody,
+              term: Let(mp, l', mbody),
+            },
+          );
+        Some((m', Exp.rep_id(l)));
+      | Fun(fp, fbody, ft, fn)
+          when
+            disjoint_names(l_names, pat_var_names(fp))
+            && !names_mentioned(pat_var_names(fp), ldef)
+            && !is_bare_use(l_names, fbody) =>
+        /* into a lambda: evaluates per call */
+        let (fb_lead, fbody') = take_lead(fbody);
+        let fbody' = relead(fb_lead, fbody');
+        let l': Exp.t =
+          with_secondary(
+            (fb_lead, []),
+            {
+              ...l,
+              term: Let(lp, ldef, fbody'),
+            },
+          );
+        let fun': Exp.t =
+          with_secondary(
+            l.annotation.secondary,
+            {
+              ...lbody,
+              term: Fun(fp, l', ft, fn),
+            },
+          );
+        Some((fun', Exp.rep_id(l)));
+      | Match(scrut, rules) when !names_mentioned(l_names, scrut) =>
+        /* into the single arm that uses the binding */
+        switch (
+          rules
+          |> List.mapi((i, r) => (i, r))
+          |> List.filter(((_, (_, b))) => names_mentioned(l_names, b))
+        ) {
+        | [(i, (rp, rb))]
+            when
+              disjoint_names(l_names, pat_var_names(rp))
+              && !names_mentioned(pat_var_names(rp), ldef)
+              && !is_bare_use(l_names, rb) =>
+          let (rb_lead, rb') = take_lead(rb);
+          let rb' = relead(rb_lead, rb');
+          let l': Exp.t =
+            with_secondary(
+              (rb_lead, []),
+              {
+                ...l,
+                term: Let(lp, ldef, rb'),
+              },
+            );
+          let rules' = rules |> List.mapi((j, r) => j == i ? (rp, l') : r);
+          let match': Exp.t =
+            with_secondary(
+              l.annotation.secondary,
+              {
+                ...lbody,
+                term: Match(scrut, rules'),
+              },
+            );
+          Some((match', Exp.rep_id(l)));
+        | _ => None
+        }
+      | If(c, t, alt) when !names_mentioned(l_names, c) =>
+        switch (
+          names_mentioned(l_names, t) && !is_bare_use(l_names, t),
+          names_mentioned(l_names, alt) && !is_bare_use(l_names, alt),
+        ) {
+        | (true, false) when !names_mentioned(l_names, alt) =>
+          let (t_lead, t') = take_lead(t);
+          let t' = relead(t_lead, t');
+          let l': Exp.t =
+            with_secondary(
+              (t_lead, []),
+              {
+                ...l,
+                term: Let(lp, ldef, t'),
+              },
+            );
+          Some((
+            with_secondary(
+              l.annotation.secondary,
+              {
+                ...lbody,
+                term: If(c, l', alt),
+              },
+            ),
+            Exp.rep_id(l),
+          ));
+        | (false, true) when !names_mentioned(l_names, t) =>
+          let (a_lead, alt') = take_lead(alt);
+          let alt' = relead(a_lead, alt');
+          let l': Exp.t =
+            with_secondary(
+              (a_lead, []),
+              {
+                ...l,
+                term: Let(lp, ldef, alt'),
+              },
+            );
+          Some((
+            with_secondary(
+              l.annotation.secondary,
+              {
+                ...lbody,
+                term: If(c, t, l'),
+              },
+            ),
+            Exp.rep_id(l),
+          ));
+        | _ => None
+        }
+      | _ => None
+      };
+    | _ => None
+    }
   };
 };
 
@@ -3417,7 +3726,7 @@ let hoist_let_impl: impl = {
   label: "Hoist",
   tooltip: "Move this binding up one level",
   prepare: (~info_map as _, ~target, program) =>
-    switch (find_path(~hit=hit_let(target), program)) {
+    switch (find_path(~hit=hit_def_line(target), program)) {
     | Some(path) =>
       switch (hoist_step(~fixup=true, path)) {
       /* movement never parenthesizes, so no invocation oracle: the
@@ -3441,7 +3750,7 @@ let sink_let_impl: impl = {
   tooltip: "Move this binding down into the scope that uses it",
   prepare: (~info_map as _, ~target, program) =>
     switch (
-      find_path(~hit=hit_let(target), program)
+      find_path(~hit=hit_def_line(target), program)
       |> Option.map(path => List.nth(path, List.length(path) - 1))
     ) {
     | Some(l) =>
@@ -5258,6 +5567,7 @@ let impl: Action.refactor => impl =
   | InlineLet => inline_let_impl
   | FeedLet => feed_let_impl
   | RemoveUnusedLet => remove_unused_let_impl
+  | InlineAlias => inline_alias_impl
   | AddTypeAnnotation => add_annotation_impl
   | EtaExpand => eta_expand_impl
   | EvaluateInPlace => evaluate_in_place_impl
@@ -5287,6 +5597,7 @@ let all: list(Action.refactor) = [
   InlineLet,
   FeedLet,
   RemoveUnusedLet,
+  InlineAlias,
   AddTypeAnnotation,
   EtaExpand,
   EvaluateInPlace,
@@ -5335,6 +5646,19 @@ let applies =
     )
     : bool =>
   switch (kind) {
+  | InlineAlias =>
+    switch (find_hit(~hit=hit_tyalias(target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | TyAlias(tp, ty, body) =>
+        switch (tpat_names(tp)) {
+        | [t] => !typ_mentions([t], ty) && !contains_use(body)
+        | _ => false
+        }
+      | _ => false
+      }
+    | None => false
+    }
   | InlineLet =>
     let at = let_applies(~pred=inline_matches);
     at(target, program)
@@ -5410,12 +5734,12 @@ let applies =
     | None => false
     }
   | HoistLet =>
-    switch (find_path(~hit=hit_let(target), program)) {
+    switch (find_path(~hit=hit_def_line(target), program)) {
     | Some(path) => Option.is_some(hoist_step(~fixup=false, path))
     | None => false
     }
   | SinkLet =>
-    switch (find_hit(~hit=hit_let(target), program)) {
+    switch (find_hit(~hit=hit_def_line(target), program)) {
     | Some(l) => Option.is_some(sink_step(~fixup=false, l))
     | None => false
     }
