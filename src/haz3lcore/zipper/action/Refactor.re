@@ -3604,18 +3604,20 @@ let ap_to_let_impl: impl = {
     | None => None
     | Some(e) =>
       let parens = {
+        /* no bounded ancestor just means the region IS the program:
+           run the oracle on it (one whole-program print+reparse per
+           invocation). The old blanket-parens rule here wrapped
+           every reduction at the program TAIL — exactly where
+           stepping happens — and the parens compounded per step
+           (andrew). */
         let region = bounded_region(Exp.rep_id(e), program);
-        same_node(region, program)
-          ? true
-          : (
-            switch (build(e)) {
-            | Some((bare, _)) =>
-              let candidate =
-                replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
-              !reparses_region(candidate);
-            | None => true
-            }
-          );
+        switch (build(e)) {
+        | Some((bare, _)) =>
+          let candidate =
+            replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
+          !reparses_region(candidate);
+        | None => true
+        };
       };
       rewrite_node(
         ~hit=hit_beta(target),
@@ -3797,18 +3799,16 @@ let reduce_prepare =
   | None => None
   | Some(e) =>
     let parens = {
+      /* region == program is fine: the oracle runs on the whole
+         program (blanket parens here wrapped every tail-position
+         reduction and compounded per step) */
       let region = bounded_region(Exp.rep_id(e), program);
-      same_node(region, program)
-        ? true
-        : (
-          switch (build(e)) {
-          | Some((bare, _)) =>
-            let candidate =
-              replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
-            !reparses_region(candidate);
-          | None => true
-          }
-        );
+      switch (build(e)) {
+      | Some((bare, _)) =>
+        let candidate = replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
+        !reparses_region(candidate);
+      | None => true
+      };
     };
     rewrite_node(
       ~hit,

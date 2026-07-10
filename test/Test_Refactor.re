@@ -3140,10 +3140,7 @@ let beta_step_tests = [
           "let y = 10 in ¦(fun x -> fun y -> x + y)(y)",
         )
         |> text_of;
-      /* the rotation's protective parens survive the composition —
-         redundant but reparse-safe; a shed-parens normalization is a
-         future nicety */
-      check(string, "renamed", "let y = 10 in (fun y1 -> y + y1)", got);
+      check(string, "renamed", "let y = 10 in fun y1 -> y + y1", got);
     },
   ),
   test_case(
