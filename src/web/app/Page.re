@@ -529,6 +529,16 @@ module Selection = {
          ),
          mk(
            ~section="Settings",
+           ~mdIcon="slow_motion_video",
+           ~action=
+             Bonsai.Effect.of_sync_fun(
+               () => CodeFlip.slow_mo := ! CodeFlip.slow_mo^,
+               (),
+             ),
+           "Toggle Slow Animations (3x)",
+         ),
+         mk(
+           ~section="Settings",
            ~mdIcon="tune",
            ~action=inject(Globals(Set(ShowDebugPanel))),
            "Toggle Debug Sidebar",

@@ -14,10 +14,16 @@ open Haz3lcore;
  * come from diffing Measured maps — pure arithmetic, no layout reads.
  * Companion to Animation.re (the caret's DOM-box FLIP). */
 
-/* Slightly statelier than the caret's 125ms (code moves farther);
- * for slow-motion debugging use ~560 / "ease-in-out" */
+/* Slightly statelier than the caret's 125ms (code moves farther) */
 let duration = 180;
 let easing = Animation.easeOutExpo;
+
+/* debug slow-motion: 3x all timed code animations (flights, enters,
+   rebounds, relaxes — scrubs are pointer-driven and unaffected).
+   Flipped from the command palette; deliberately NOT a settings
+   field (adding one resets persisted settings). */
+let slow_mo: ref(bool) = ref(false);
+let dur = (ms: int): int => slow_mo^ ? ms * 3 : ms;
 
 /* perf guard: a transition that moves this much is better skipped */
 let max_moved = 1500;
@@ -200,7 +206,7 @@ let animate_enter = (~from: option(float)=?, node: Js.t(Dom.node)): unit => {
   let run = keyframes => {
     let options =
       Animation.Js.options_unsafe({
-        duration: enter_duration,
+        duration: dur(enter_duration),
         /* NOT easeOutExpo: it front-loads so hard the entrance reads
            as a pop (91% visible at t=120ms); linear lets the grow
            register (andrew kept missing it) */
@@ -263,7 +269,7 @@ let animate_emerge =
     ]);
   let options =
     Animation.Js.options_unsafe({
-      duration,
+      duration: dur(duration),
       easing,
     });
   switch (
@@ -299,7 +305,7 @@ let animate_node =
     ]);
   let options =
     Animation.Js.options_unsafe({
-      duration,
+      duration: dur(duration),
       easing,
     });
   switch (

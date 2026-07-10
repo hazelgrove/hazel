@@ -274,7 +274,12 @@ let rebound = (node: Js.t(Dom.node), from: vec): unit => {
     |]);
   let options =
     Js.Unsafe.obj([|
-      ("duration", Js.Unsafe.inject(Js.number_of_float(180.))),
+      (
+        "duration",
+        Js.Unsafe.inject(
+          Js.number_of_float(float_of_int(CodeFlip.dur(180))),
+        ),
+      ),
       ("composite", Js.Unsafe.inject(Js.string("add"))),
       (
         "easing",
@@ -706,7 +711,12 @@ let relax_exits = (c: cand, t: float): unit =>
          |]);
        let options =
          Js.Unsafe.obj([|
-           ("duration", Js.Unsafe.inject(Js.number_of_float(150.))),
+           (
+             "duration",
+             Js.Unsafe.inject(
+               Js.number_of_float(float_of_int(CodeFlip.dur(150))),
+             ),
+           ),
            ("easing", Js.Unsafe.inject(Js.string("ease-out"))),
          |]);
        switch (
@@ -748,7 +758,12 @@ let relax_from = (c: cand, t: float): unit =>
            |]);
          let options =
            Js.Unsafe.obj([|
-             ("duration", Js.Unsafe.inject(Js.number_of_float(150.))),
+             (
+               "duration",
+               Js.Unsafe.inject(
+                 Js.number_of_float(float_of_int(CodeFlip.dur(150))),
+               ),
+             ),
              ("easing", Js.Unsafe.inject(Js.string("ease-out"))),
            |]);
          switch (
