@@ -144,7 +144,7 @@ let incomplete_subseg_before_blank_line =
 
 /* When a segment is incomplete, we try to complete it before calculating
  * indentation. This is necessarily a heuristic process. One obvious way
- * would be to consider dropping the backpack at the cursor, but making
+ * would be to consider dropping the missing shards at the cursor, but making
  * this calcuation cursor-sensitive (and hence active on movement) is
  * potentially expensive and janky. Thus we use a different indication
  * of user intent: leaving a blank line. In effect, this attempts to

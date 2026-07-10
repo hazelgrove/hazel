@@ -505,44 +505,6 @@ svg:has(.child-line) {
   stroke: var(--token-mpat);
 }
 
-/* BACKPACK DECO */
-
-.backpack {
-  z-index: var(--backpack-z);
-}
-
-.backpack.cant-put-down > * {
-  opacity: 40%;
-}
-
-.backpack-joiner {
-  z-index: var(--backpack-z);
-  width: 2px;
-  background-color: var(--backpack-joiner);
-}
-
-.backpack-selection {
-  white-space: nowrap;
-  border-radius: 0.2em 0.2em 0.2em 0em;
-  padding: 0 0.2em 0 0.2em;
-  line-height: var(--line-height);
-  width: fit-content;
-  background-color: var(--backpack-selection);
-  outline: 1px solid var(--backpack-selection-outline);
-  font-weight: bold;
-  color: var(--token-incomplete) !important;
-}
-
-.backpack-genie {
-  stroke-width: 0;
-  fill: var(--backpack-genie);
-  vector-effect: non-scaling-stroke;
-}
-
-.restructuring-genie {
-  z-index: var(--backpack-z);
-}
-
 /* QUIVER DECO (completion visualization) */
 
 .quiver-decorations {
@@ -610,16 +572,16 @@ svg:has(.child-line) {
 }
 
 .quiver-chip.chip-live .quiver-chip-pole-path {
-  fill: var(--backpack-selection);
+  fill: var(--shard-selected);
 }
 
 /* colorways. DEFAULT (obligation in another segment — error-like,
    keep it loud): solid gold, knockout text. LIVE (the caret is
-   somewhere this shard would pair — tab territory): the backpack
+   somewhere this shard would pair — tab territory): the classic pale
    scheme, pale selection backing with gold text. AT-CARET adds the
    red pole/stripe on top of LIVE. */
 .quiver-chip.chip-live .quiver-chip-body {
-  background: var(--backpack-selection);
+  background: var(--shard-selected);
   color: var(--token-incomplete);
 }
 
@@ -634,7 +596,7 @@ svg:has(.child-line) {
 }
 
 .quiver-chip:not(.chip-live) .chip-frac-rest {
-  color: var(--backpack-selection);
+  color: var(--shard-selected);
 }
 
 .quiver-chip .chip-seg-later {

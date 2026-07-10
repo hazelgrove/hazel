@@ -2,7 +2,7 @@
  * gated by CoreSettings.auto_reindent).
  *
  * When an edit completes a tile (a shard gloms onto its form, via typed
- * delimiter or backpack drop), the content it absorbed as children gets
+ * delimiter or put-down), the content it absorbed as children gets
  * re-indented, per child:
  * - deeply settled child (no incomplete tiles): canonical indentation
  *   is unambiguous — recompute every line (also repairs enter-indent's

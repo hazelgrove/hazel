@@ -5,7 +5,7 @@
  *   - Small triangles at insertion points (below text baseline)
  *   - Offside boxes showing what delimiters will be inserted
  *
- * Named to complement "Backpack" - the quiver holds completion arrows.
+ * The quiver holds completion arrows.
  */
 
 open Virtual_dom.Vdom;

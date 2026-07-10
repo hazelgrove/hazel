@@ -68,12 +68,6 @@ let semantics_group = (~globals) => {
         setting: Dynamics,
         tooltip: Some("Evaluate expressions and show results"),
       },
-      {
-        name: "Docs",
-        active: globals.settings.sidebar.show,
-        setting: Sidebar(ToggleShow),
-        tooltip: Some("Show documentation sidebar"),
-      },
     ],
   );
 };

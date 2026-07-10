@@ -572,18 +572,6 @@ module View = {
       ),
     ]
     @ (
-      globals.settings.backpack
-        ? [
-          Backpack.view(
-            ~font_metrics=globals.font_metrics,
-            ~measured=syntax.measured,
-            ~missing_shards=syntax.missing_shards,
-            z,
-          ),
-        ]
-        : []
-    )
-    @ (
       globals.settings.quiver
         ? [
           QuiverDec.view(
