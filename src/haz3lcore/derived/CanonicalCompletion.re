@@ -574,6 +574,38 @@ let opener_schedule =
             : j;
         skip(w);
       };
+    /* Sort clamp: a convex-left opener whose interior slot is a
+       clippable sort can't absorb left material that won't inhabit
+       it — the head restored to `... in b = 2 in b` lands at b (Pat
+       slot rejects the complete let), while a deleted `(` keeps its
+       maximal Exp wrap. Same table as clip_position. */
+    let clamp_sort = (t: Tile.t, at, idx) => {
+      let last = Tile.l_shard(t) - 1;
+      let (head_l, _) = Mold.nibs(~index=0, t.mold);
+      let (_, slot_r) = Mold.nibs(~index=last, t.mold);
+      let slice = (a, b) =>
+        ListUtil.split_n(b, subseg) |> fst |> ListUtil.split_n(a) |> snd;
+      switch (head_l.shape) {
+      | Concave(_) => at
+      | Convex =>
+        if (clippable_sort(slot_r.sort)) {
+          let rec fit = j =>
+            j >= idx || span_fits_sort(slice(j, idx), slot_r.sort)
+              ? j : fit(j + 1);
+          let rec skip = j =>
+            j < idx
+              ? switch (List.nth_opt(subseg, j)) {
+                | Some(Piece.Secondary(_)) => skip(j + 1)
+                | _ => j
+                }
+              : j;
+          let j = fit(at);
+          j == at ? at : skip(j);
+        } else {
+          at;
+        }
+      };
+    };
     /* Leading junction drops: a CONCAVE-LEFT leading shard (rules —
        bin-molded tiles) is shape-qualified to fill an operator hole,
        so it takes a unique sort-legal junction within its span over
@@ -710,8 +742,12 @@ let opener_schedule =
          index_of(t)
          |> Option.map(idx => {
               let at =
-                clamp(
-                  clamp_lines(clamp_walls(t, at_of(idx), idx), idx),
+                clamp_sort(
+                  t,
+                  clamp(
+                    clamp_lines(clamp_walls(t, at_of(idx), idx), idx),
+                    idx,
+                  ),
                   idx,
                 );
               switch (witness_for(t, at, idx)) {
@@ -1503,6 +1539,24 @@ let place_trailing_shards =
                   };
                 (seg, ins, agg, abs, stop + 1);
               | None =>
+                /* gluing a closer back across a trailing linebreak
+                   is aesthetic and only right for single-line forms;
+                   a multiline form takes its closer on its own line.
+                   Severance avoidance (below) overrides. */
+                let glue = back_over_boundary(seg, List.length(seg), cursor);
+                let multiline = {
+                  let rec has_lb = j =>
+                    j < glue
+                    && (
+                      switch (List.nth_opt(seg, j)) {
+                      | Some(Piece.Secondary(s))
+                          when Secondary.is_linebreak(s) =>
+                        true
+                      | _ => has_lb(j + 1)
+                      }
+                    );
+                  has_lb(cursor);
+                };
                 /* hole-minimizing append: a convex-right closer
                    after a span-final trailing operator severs its
                    operand into a hole; when content follows the
@@ -1537,12 +1591,30 @@ let place_trailing_shards =
                         ? shrink(j' - 1) : j';
                     };
                     let stop = shrink(List.length(seg));
-                    stop < List.length(seg) ? Some(stop) : None;
+                    if (stop < glue) {
+                      Some
+                        (stop); /* backs past a severing op: semantic */
+                    } else if (!multiline && stop < List.length(seg)) {
+                      Some(stop);
+                    } else {
+                      None;
+                    };
                   } else {
                     None;
                   };
                 };
-                switch (hole_min_stop) {
+                /* plain append glues over trailing secondaries and
+                   debris: a single-line form's closer must not land
+                   after a trailing linebreak (alone on the next or
+                   blank line) when its content ends here */
+                let backed =
+                  !multiline && glue < List.length(seg) ? Some(glue) : None;
+                switch (
+                  switch (hole_min_stop) {
+                  | Some(_) as s => s
+                  | None => backed
+                  }
+                ) {
                 | Some(stop) =>
                   let anchor = stop > 0 ? List.nth_opt(seg, stop - 1) : None;
                   let seg = insert_at(stop, piece, seg);

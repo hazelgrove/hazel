@@ -596,8 +596,8 @@ next|},
     ~input={|let x = 1
 
 y|},
-    ~expected={|let x = 1
-in
+    ~expected={|let x = 1in
+
 y|},
   ),
   /* Two lets with single linebreak: second let at column 0 triggers partition.
@@ -615,8 +615,8 @@ let y = 2in?|},
     ~input={|let x = 1
 
 let y = 2|},
-    ~expected={|let x = 1
-in
+    ~expected={|let x = 1in
+
 let y = 2in?|},
   ),
   /* Four segments separated by blank lines: all should get completed.
@@ -631,12 +631,12 @@ let b = 2
 let c = 3
 
 let d = 4|},
-    ~expected={|let a = 1
-in
-let b = 2
-in
-let c = 3
-in
+    ~expected={|let a = 1in
+
+let b = 2in
+
+let c = 3in
+
 let d = 4in?|},
   ),
   /* Mix of complete and incomplete segments separated by blank lines.
@@ -651,8 +651,8 @@ let b = 2
 let c = 3 in c|},
     ~expected={|let a = 1 in a
 
-~let b = 2
-in
+~let b = 2in
+
 let c = 3 in c|},
   ),
   /* Complete let followed by incomplete let, then column-0 content.
@@ -1596,11 +1596,72 @@ let entry_stability_tests = [
   ),
 ];
 
+/* Placement guards from the hygiene investigation: junction
+   restoration for deleted middle delimiters (incl. multiline) and
+   append landing at the content line's end, never after trailing
+   linebreaks. */
+let placement_guard_tests = [
+  edit_case(
+    ~name="deleted = restores at the definition junction",
+    ~acts=Test_Editing.mk("let x =¦ f 1 in x") @ [destruct_l],
+    ~expected="let x =f ~1 in x",
+  ),
+  edit_case(
+    ~name="deleted = multiline restores at line end",
+    ~acts=Test_Editing.mk("let x =¦\nf 1 in x") @ [destruct_l],
+    ~expected="let x =\nf ~1 in x",
+  ),
+  edit_case(
+    ~name="deleted rule arrow with next-line body restores exactly",
+    ~acts=
+      Test_Editing.mk("case v\n| Cons(x, xs) =>¦\ngo(xs)\nend")
+      @ [destruct_l, destruct_l],
+    ~expected="case v\n| Cons(x, xs) => go(xs)\nend",
+  ),
+  edit_case(
+    ~name="deleted in lands before the trailing linebreak",
+    ~acts=
+      Test_Editing.mk("type Result = Ok(Exp) in¦\n1")
+      @ [destruct_l, destruct_l],
+    ~expected="type Result = Ok(Exp)in \n1",
+  ),
+  edit_case(
+    ~name="entry in lands at the content line, not the blank line",
+    ~acts=Test_Editing.mk("let x = 1¦\n\n2"),
+    ~expected="let x = 1in\n\n2",
+  ),
+];
+
+/* Inline deleted form heads: the sort clamp lands a restored head
+   at the nearest span fitting its interior slot (clippable sorts),
+   while Exp-slot wrappers keep their maximal span. */
+let head_restoration_tests = [
+  edit_case(
+    ~name="inline second let head restores at its pattern",
+    ~acts=
+      Test_Editing.mk("let a = 1 in let¦ b = 2 in b")
+      @ [destruct_l, destruct_l, destruct_l],
+    ~expected="let a = 1 in  letb = 2 in b",
+  ),
+  edit_case(
+    ~name="inline second type head restores at its tpat",
+    ~acts=
+      Test_Editing.mk("type A = Int in type¦ B = Bool in x")
+      @ [destruct_l, destruct_l, destruct_l, destruct_l],
+    ~expected="type A = Int in  typeB = Bool in x",
+  ),
+  edit_case(
+    ~name="deleted open paren keeps maximal wrap",
+    ~acts=Test_Editing.mk("(¦let a = 1 in a)") @ [destruct_l],
+    ~expected="(let a = 1 in a)",
+  ),
+];
+
 let joint_tests = [
   edit_case(
     ~name="end+in double deletion: placements incompatible (KNOWN-BAD)",
     ~acts=dbl_del_inline,
-    ~expected="let f = case x | 1 => 2 | 3 => 4 endin  f",
+    ~expected="let f = case x | 1 => 2 | 3 => 4end in  f",
   ),
   /* control: in alone (end intact) — its deletion-debris junction
      should restore it in place */
@@ -1613,7 +1674,56 @@ let joint_tests = [
   ),
 ];
 
+/* === Clippable-sort guard ===
+ * clip_position clips only Pat/TPat/Typ slots; the justification is
+ * statistical: an Exp frontier is vacuous (nearly every label has an
+ * Exp mold) while Pat/TPat/Typ frontiers are real signal, and Rul
+ * defers to the case-wrap machinery. This pins the form-table
+ * coverage those decisions rest on — if the table drifts, re-decide
+ * clippable_sort rather than repinning blindly. */
+let clippable_guard_tests = {
+  let labels =
+    Form.forms
+    |> List.map(((_, f: Form.t)) => f.label)
+    |> List.sort_uniq(compare);
+  let n = List.length(labels);
+  let covered = (s: Sort.t): int =>
+    labels
+    |> List.filter(l =>
+         Form.Molds.get_base(l)
+         |> List.exists((m: Mold.t) => m.out == s || m.out == Sort.Any)
+       )
+    |> List.length;
+  let table =
+    [Sort.Exp, Sort.Pat, Sort.Typ, Sort.TPat, Sort.Rul]
+    |> List.map(s =>
+         Printf.sprintf("%s %d/%d", Sort.to_string(s), covered(s), n)
+       )
+    |> String.concat(" | ");
+  [
+    Alcotest.test_case("form-table sort coverage", `Quick, () =>
+      Alcotest.(check(string))(
+        "coverage",
+        "Exp 67/88 | Pat 8/88 | Typ 14/88 | TPat 2/88 | Rul 1/88",
+        table,
+      )
+    ),
+    Alcotest.test_case(
+      "clippable = the meaningfully partial sorts", `Quick, () =>
+      Alcotest.(check(list(bool)))(
+        "clippable",
+        [false, true, true, true, false],
+        List.map(
+          CanonicalCompletion.clippable_sort,
+          [Sort.Exp, Sort.Pat, Sort.Typ, Sort.TPat, Sort.Rul],
+        ),
+      )
+    ),
+  ];
+};
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
+  ("CanonicalCompletion: head-restoration", head_restoration_tests),
   ("CanonicalCompletion: reassociation-guards", probe_tests),
   ("CanonicalCompletion: closer-vs-separator", probe2_tests),
   ("CanonicalCompletion: tydi-gates", tydi_probe_tests),
@@ -1624,6 +1734,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
     materialize_tests @ [bogus_materialize_test],
   ),
   ("CanonicalCompletion: entry-stability", entry_stability_tests),
+  ("CanonicalCompletion: placement-guards", placement_guard_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
@@ -1669,4 +1780,5 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: wraps", run_completion_tests(wrap_tests)),
   ("CanonicalCompletion: wraps (edit-derived)", run_wrap_seg_tests),
   ("CanonicalCompletion: linebreaks", run_completion_tests(linebreak_tests)),
+  ("CanonicalCompletion: clippable-guard", clippable_guard_tests),
 ];

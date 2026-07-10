@@ -360,6 +360,82 @@ let strip_typ_boundaries = (t: Typ.t): Typ.t => {
   drop_secondary_typ(lead @ trail, t);
 };
 
+/* pat-side Slot ops: a compound pat (e.g. Some(x)) stores its lead
+   on its first LEAF, so node-level secondary exchange stacks the
+   slot's run on top of the traveling one — read/drop textually */
+let drop_secondary_pat = (ids: list(Id.t), p: Pat.t): Pat.t =>
+  Pat.map_term(
+    ~f_pat=
+      (cont, p: Pat.t) => {
+        let keep = (ws: list(Secondary.t)) =>
+          ws |> List.filter((w: Secondary.t) => !List.mem(w.id, ids));
+        let (before, after) = p.annotation.secondary;
+        {
+          ...p,
+          annotation: {
+            ...p.annotation,
+            secondary: (keep(before), keep(after)),
+          },
+        }
+        |> cont;
+      },
+    p,
+  );
+
+let pat_slot = (p: Pat.t): Slot.t => {
+  let seg = ExpToSegment.pat_to_segment(~settings=roundtrip_settings, p);
+  {
+    lead: secondary_run_pieces(seg),
+    trail: List.rev(secondary_run_pieces(List.rev(seg))),
+  };
+};
+let pat_slot_drop = (s: Slot.t, p: Pat.t): Pat.t =>
+  drop_secondary_pat(
+    List.map((w: Secondary.t) => w.id, s.lead @ s.trail),
+    p,
+  );
+let pat_slot_give = (s: Slot.t, p: Pat.t): Pat.t => {
+  let (b, a) = p.annotation.secondary;
+  {
+    ...p,
+    annotation: {
+      ...p.annotation,
+      secondary: (s.lead @ b, a @ s.trail),
+    },
+  };
+};
+let pat_slot_lead = (p: Pat.t): Slot.t => {
+  ...pat_slot(p),
+  trail: [],
+};
+
+let typ_slot = (t: Typ.t): Slot.t => {
+  let seg = ExpToSegment.typ_to_segment(~settings=roundtrip_settings, t);
+  {
+    lead: secondary_run_pieces(seg),
+    trail: List.rev(secondary_run_pieces(List.rev(seg))),
+  };
+};
+let typ_slot_lead = (t: Typ.t): Slot.t => {
+  ...typ_slot(t),
+  trail: [],
+};
+let typ_slot_drop = (s: Slot.t, t: Typ.t): Typ.t =>
+  drop_secondary_typ(
+    List.map((w: Secondary.t) => w.id, s.lead @ s.trail),
+    t,
+  );
+let typ_slot_give = (s: Slot.t, t: Typ.t): Typ.t => {
+  let (b, a) = t.annotation.secondary;
+  {
+    ...t,
+    annotation: {
+      ...t.annotation,
+      secondary: (s.lead @ b, a @ s.trail),
+    },
+  };
+};
+
 /* The inserted copy takes over the replaced occurrence's stored
  * whitespace (its slot in the line); the definition keeps its own
  * interior spacing */
@@ -4090,8 +4166,12 @@ let swap_exp_items = (~fixup: bool, i: int, items: list(Exp.t)): list(Exp.t) => 
 let swap_pat_items = (i: int, items: list(Pat.t)): list(Pat.t) => {
   let a = List.nth(items, i);
   let b = List.nth(items, i + 1);
-  let a' = with_secondary_pat(a.annotation.secondary, b);
-  let b' = with_secondary_pat(b.annotation.secondary, a);
+  /* slot-wise (leads), as swap_exp_items: node-level exchange stacks
+     runs on compound pats whose lead lives on a leaf */
+  let sa = pat_slot_lead(a);
+  let sb = pat_slot_lead(b);
+  let a' = pat_slot_give(sa, pat_slot_drop(sb, b));
+  let b' = pat_slot_give(sb, pat_slot_drop(sa, a));
   items
   |> List.mapi((j, x) =>
        if (j == i) {
@@ -4107,8 +4187,10 @@ let swap_pat_items = (i: int, items: list(Pat.t)): list(Pat.t) => {
 let swap_typ_items = (i: int, items: list(Typ.t)): list(Typ.t) => {
   let a = List.nth(items, i);
   let b = List.nth(items, i + 1);
-  let a' = with_secondary_typ(a.annotation.secondary, b);
-  let b' = with_secondary_typ(b.annotation.secondary, a);
+  let sa = typ_slot_lead(a);
+  let sb = typ_slot_lead(b);
+  let a' = typ_slot_give(sa, typ_slot_drop(sb, b));
+  let b' = typ_slot_give(sb, typ_slot_drop(sa, a));
   items
   |> List.mapi((j, x) =>
        if (j == i) {
@@ -4495,11 +4577,13 @@ let swap_arms_rewrite =
             with_secondary(bb.annotation.secondary, ba),
           );
         };
-      /* arm pats: node-level exchange suffices (parsed pats keep
-         their runs on leaves; no transform synthesizes node-level
-         pat runs yet) */
-      let pa' = with_secondary_pat(pa.annotation.secondary, pb);
-      let pb' = with_secondary_pat(pb.annotation.secondary, pa);
+      /* arm pats: slot-wise like the bodies — an atomic pat's run is
+         node-level but a compound pat's (Some(x)) lives on its first
+         leaf; node-level exchange stacked one space per swap */
+      let spa = pat_slot(pa);
+      let spb = pat_slot(pb);
+      let pa' = pat_slot_give(spa, pat_slot_drop(spb, pb));
+      let pb' = pat_slot_give(spb, pat_slot_drop(spa, pa));
       let rules' =
         rules
         |> List.mapi((j, r) =>

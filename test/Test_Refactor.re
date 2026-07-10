@@ -3530,6 +3530,230 @@ let reduce_tests = [
   ),
 ];
 
+let whitespace_probe2 = [
+  test_case(
+    "arm swap: double-swap identity, multiline",
+    `Quick,
+    () => {
+      let z = Test_Editing.parse_zipper("case c
+| ¦1 => 11
+| 2 => 22
+end");
+      let z' =
+        Test_Editing.perform(
+          z,
+          [Action.Refactor(SwapArms(0)), Action.Refactor(SwapArms(0))],
+        );
+      check(
+        string,
+        "identity",
+        "case c
+| 1 => 11
+| 2 => 22
+end",
+        text_of(z'),
+      );
+    },
+  ),
+  test_case(
+    "arm swap: double-swap identity, indented in let",
+    `Quick,
+    () => {
+      let src = "let x =
+  case c
+  | ¦1 => 11
+  | 2 => 22
+  end in x";
+      let z = Test_Editing.parse_zipper(src);
+      let z' =
+        Test_Editing.perform(
+          z,
+          [Action.Refactor(SwapArms(0)), Action.Refactor(SwapArms(0))],
+        );
+      check(
+        string,
+        "identity",
+        "let x =
+  case c
+  | 1 => 11
+  | 2 => 22
+  end in x",
+        text_of(z'),
+      );
+    },
+  ),
+  test_case(
+    "arm swap: double-swap identity, multiline bodies",
+    `Quick,
+    () => {
+      let src = "case c
+| ¦1 =>
+  11 + 1
+| 2 =>
+  22 + 2
+end";
+      let z = Test_Editing.parse_zipper(src);
+      let z' =
+        Test_Editing.perform(
+          z,
+          [Action.Refactor(SwapArms(0)), Action.Refactor(SwapArms(0))],
+        );
+      check(
+        string,
+        "identity",
+        "case c
+| 1 =>
+  11 + 1
+| 2 =>
+  22 + 2
+end",
+        text_of(z'),
+      );
+    },
+  ),
+  test_case(
+    "arm swap: quad-swap identity, ctor patterns",
+    `Quick,
+    () => {
+      let src = "case c
+| ¦Some(x) => x
+| None => 0
+end";
+      let z = Test_Editing.parse_zipper(src);
+      let z' =
+        Test_Editing.perform(
+          z,
+          [
+            Action.Refactor(SwapArms(0)),
+            Action.Refactor(SwapArms(0)),
+            Action.Refactor(SwapArms(0)),
+            Action.Refactor(SwapArms(0)),
+          ],
+        );
+      check(
+        string,
+        "identity",
+        "case c
+| Some(x) => x
+| None => 0
+end",
+        text_of(z'),
+      );
+    },
+  ),
+  test_case(
+    "param swap: quad-swap identity, ctor pattern",
+    `Quick,
+    () => {
+      /* caret on b: hit_param only anchors Var/Wild params */
+      let src = "let f = fun (Some(a), ¦b) -> b in f(1, 2)";
+      let z = Test_Editing.parse_zipper(src);
+      let z' =
+        Test_Editing.perform(
+          z,
+          [
+            Action.Refactor(SwapParams(0)),
+            Action.Refactor(SwapParams(0)),
+            Action.Refactor(SwapParams(0)),
+            Action.Refactor(SwapParams(0)),
+          ],
+        );
+      check(
+        string,
+        "identity",
+        "let f = fun (Some(a), b) -> b in f(1, 2)",
+        text_of(z'),
+      );
+    },
+  ),
+];
+
+let whitespace_probe = [
+  test_case(
+    "arm swap: inline byte-exact",
+    `Quick,
+    () => {
+      let once =
+        inline(~kind=SwapArms(0), "case c | ¦1 => 11 | 2 => 22 end")
+        |> text_of;
+      check(string, "once", "case c | 2 => 22 | 1 => 11 end", once);
+    },
+  ),
+  test_case(
+    "arm swap: multiline byte-exact",
+    `Quick,
+    () => {
+      let once =
+        inline(~kind=SwapArms(0), "case c
+| ¦1 => 11
+| 2 => 22
+end")
+        |> text_of;
+      check(string, "once", "case c
+| 2 => 22
+| 1 => 11
+end", once);
+    },
+  ),
+  test_case(
+    "arm swap: wide spacing stays with slots",
+    `Quick,
+    () => {
+      let once =
+        inline(~kind=SwapArms(0), "case c
+|   ¦1 =>   11
+| 2 => 22
+end")
+        |> text_of;
+      check(
+        string,
+        "slots keep spacing",
+        "case c
+|   2 =>   22
+| 1 => 11
+end",
+        once,
+      );
+    },
+  ),
+  test_case(
+    "param swap: wide spacing stays with slots",
+    `Quick,
+    () => {
+      let once =
+        inline(
+          ~kind=SwapParams(0),
+          "let f = fun (¦a,   b) -> a in f(1,   2)",
+        )
+        |> text_of;
+      check(
+        string,
+        "slots keep spacing",
+        "let f = fun (b,   a) -> a in f(2,   1)",
+        once,
+      );
+    },
+  ),
+  test_case(
+    "tuple-pat swap: wide spacing stays with slots",
+    `Quick,
+    () => {
+      let once =
+        inline(
+          ~kind=SwapTuplePat(0),
+          "let (¦lo,   hi) = (1,   2) in lo + hi",
+        )
+        |> text_of;
+      check(
+        string,
+        "slots keep spacing",
+        "let (hi,   lo) = (2,   1) in lo + hi",
+        once,
+      );
+    },
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -3660,6 +3884,8 @@ let tests = [
     @ landing_block_tests
     @ shard_anchor_tests
     @ regression_tests
+    @ whitespace_probe
+    @ whitespace_probe2
     @ beta_tests
     @ beta_step_tests
     @ reduce_tests
