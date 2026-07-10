@@ -629,21 +629,44 @@ let rename_syntactic = (y: string, y': string, e: Exp.t): Exp.t =>
     e,
   );
 
+let refresh_ids = (e: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (cont, e: Exp.t) =>
+        cont({
+          ...e,
+          annotation: refresh_annotation(e.annotation),
+        }),
+    ~f_pat=
+      (cont, p: Pat.t) =>
+        cont({
+          ...p,
+          annotation: refresh_annotation(p.annotation),
+        }),
+    ~f_typ=
+      (cont, t: Typ.t) =>
+        cont({
+          ...t,
+          annotation: refresh_annotation(t.annotation),
+        }),
+    e,
+  );
+
 /* Shadow-aware, capture-avoiding substitution of def for x, preserving
  * each occurrence's whitespace slot. Binders that would capture a free
  * variable of def (~avoid) are renamed to a fresh name first. */
 let rec subst =
         (
           ~parens_for: Exp.t => bool,
-          ~keep_ids: bool=false,
           ~avoid: list(string),
           ~used: ref(list(string)),
+          ~first: ref(bool),
           x: string,
           def: Exp.t,
           e: Exp.t,
         )
         : Exp.t => {
-  let go = subst(~parens_for, ~keep_ids, ~avoid, ~used, x, def);
+  let go = subst(~parens_for, ~avoid, ~used, ~first, x, def);
   /* rename p's avoid-colliding binders in p + the given scopes */
   let freshen = (p: Pat.t, scopes: list(Exp.t)): (Pat.t, list(Exp.t)) =>
     pat_var_names(p)
@@ -666,7 +689,16 @@ let rec subst =
        );
   let (term, rewrap) = Exp.unwrap(e);
   switch (term) {
-  | Var(y) when y == x => inserted(~parens=parens_for(e), ~keep_ids, def, e)
+  | Var(y) when y == x =>
+    /* the FIRST copy carries the def's ids INCLUDING its root (it
+       travels, and focus follows it — P7); later copies are minted
+       fresh HERE with occurrence-root adoption, rather than leaving
+       duplicates for dedupe_ids to heal silently (tests assert the
+       healer stays quiet) */
+    let is_first = first^;
+    first := false;
+    let d = is_first ? def : refresh_ids(def);
+    inserted(~parens=parens_for(e), ~keep_ids=is_first, d, e);
   | Let(p, d, body) =>
     let recursive =
       switch (IdTagged.term_of(d)) {
@@ -758,29 +790,6 @@ let vars_of = (e: Exp.t): list(string) => {
  * content and lexemes (Exp.replace_all_ids drops secondary, which
  * would strip a duplicated copy's spacing) */
 
-let refresh_ids = (e: Exp.t): Exp.t =>
-  Exp.map_term(
-    ~f_exp=
-      (cont, e: Exp.t) =>
-        cont({
-          ...e,
-          annotation: refresh_annotation(e.annotation),
-        }),
-    ~f_pat=
-      (cont, p: Pat.t) =>
-        cont({
-          ...p,
-          annotation: refresh_annotation(p.annotation),
-        }),
-    ~f_typ=
-      (cont, t: Typ.t) =>
-        cont({
-          ...t,
-          annotation: refresh_annotation(t.annotation),
-        }),
-    e,
-  );
-
 let refresh_pat_ids = (p: Pat.t): Pat.t =>
   Pat.map_term(
     ~f_pat=
@@ -798,6 +807,12 @@ let refresh_pat_ids = (p: Pat.t): Pat.t =>
     p,
   );
 
+/* healing counter: dedupe re-mints SILENTLY, which converts travel
+   into rebirth (animation identity loss) without failing anything —
+   tests reset this and assert it stayed zero, so a dupe-introducing
+   transform is caught even though its output looks clean */
+let dedupe_healed = ref(0);
+
 let dedupe_ids = (e: Exp.t): Exp.t => {
   let seen = ref(Id.Map.empty);
   Exp.map_term(
@@ -805,6 +820,7 @@ let dedupe_ids = (e: Exp.t): Exp.t => {
       (cont, e: Exp.t) => {
         let ids = IdTagged.ids(e);
         if (List.exists(id => Id.Map.mem(id, seen^), ids)) {
+          dedupe_healed := dedupe_healed^ + 1;
           refresh_ids(e);
         } else {
           List.iter(id => seen := Id.Map.add(id, (), seen^), ids);
@@ -1100,7 +1116,16 @@ let inline_let_impl: impl = {
         ~target,
         ~matches=
           (p, def, _) =>
-            let_head_name(p) != None
+            /* self-recursive defs are gated on BOTH paths: consuming
+               the binding would orphan the copied body's self-
+               references (feed still unfolds them one use at a time,
+               where the binding survives) */
+            (
+              switch (let_head_name(p)) {
+              | Some(f) => !free_in(f, def)
+              | None => false
+              }
+            )
             || (
               switch (sugar_fn_name(p)) {
               | Some(f) => !free_in(f, def)
@@ -1223,12 +1248,16 @@ let inline_let_impl: impl = {
                 : occurrences_of(x, body) |> List.map(Exp.rep_id);
             let parens_for = occ =>
               needs_parens(def) && !List.mem(Exp.rep_id(occ), bare_ids);
-            /* sole use: the def keeps its identity into the copy —
-               the binding dissolves and the value MOVES (P7);
-               multiple copies each adopt their occurrence's ids */
-            let sole = List.length(occurrences_of(x, body)) == 1;
             let body' =
-              subst(~parens_for, ~keep_ids=sole, ~avoid, ~used, x, def, body);
+              subst(
+                ~parens_for,
+                ~avoid,
+                ~used,
+                ~first=ref(true),
+                x,
+                def,
+                body,
+              );
             /* the def's BOUNDARY comments stay at the vacated line
                (andrew: comments live where they live) — the copies
                are stripped of them (never duplicate prose), so
@@ -1246,21 +1275,20 @@ let inline_let_impl: impl = {
                   },
                 };
               };
-            /* caret follows the substituted copy. Sole use: the
-               copy kept the DEF's ids, so focus is the def's rep
-               (P2: focus follows the moved content). Multiple: copy
-               roots adopt occurrence ids — see `inserted`. */
+            /* caret follows the substituted copy. The FIRST copy
+               (traversal order) carries the def's ids including its
+               root (P2/P7: focus follows the moved content); later
+               copies adopt their occurrence's root ids — see subst.
+               So: invoked at a non-first occurrence, focus is that
+               occurrence's id (its copy kept it); otherwise the
+               def's rep. */
             let occs = occurrences_of(x, body) |> List.map(Exp.rep_id);
             let focus =
-              if (sole) {
-                Exp.rep_id(def);
-              } else if (List.mem(target, occs)) {
-                target;
-              } else {
-                switch (occs) {
-                | [first, ..._] => first
-                | [] => Exp.rep_id(body')
-                };
+              switch (occs) {
+              | [] => Exp.rep_id(body')
+              | [first_occ, ..._] =>
+                List.mem(target, occs) && target != first_occ
+                  ? target : Exp.rep_id(def)
               };
             (body', focus);
           },
@@ -1404,7 +1432,12 @@ let feed_plan =
       let occs = occurrences_of(x, body);
       switch (occs) {
       | [] => None
-      | [_] => Some(Consume(l))
+      /* the last feed CONSUMES the binding — except for a
+         self-recursive def, whose copied body's self-references
+         would be orphaned: those feed WITHOUT consuming (the
+         binding survives; unfolding never eliminates a recursive
+         definition). `let f = ... in f(x)` steps this way. */
+      | [_] when !free_in(x, def) => Some(Consume(l))
       | _ =>
         let occ =
           switch (occ_pref) {
@@ -3416,6 +3449,7 @@ let rec is_value_literal = (e: Exp.t): bool =>
   | Constructor(_, _) => true
   | ListLit(xs)
   | Tuple(xs) => xs |> List.for_all(is_value_literal)
+  | TupLabel(_, x) => is_value_literal(x)
   | Parens(x) => is_value_literal(x)
   | Ap(Forward, f, arg) =>
     switch (IdTagged.term_of(f)) {
@@ -3511,6 +3545,425 @@ let evaluate_in_place_impl: impl = {
       };
     attempt(~parens=!bounded);
   },
+};
+
+/* === Bind Argument (beta via let-intro) ===
+ * `(fun p -> body)(arg)` becomes `let p = arg in body`: a pure
+ * structural rotation — nothing is substituted and no variable
+ * changes scope, so no capture can arise. Composed with the existing
+ * let toolkit (feed / inline / evaluate) this is beta reduction,
+ * decomposed; the binder, argument, and body all keep their ids
+ * (persistent elements — they travel, nothing is reborn). */
+
+let beta_parts = (e: Exp.t): option((Pat.t, Exp.t, Exp.t)) =>
+  switch (IdTagged.term_of(e)) {
+  | Ap(Forward, f, arg) =>
+    let rec fn = (f: Exp.t) =>
+      switch (IdTagged.term_of(f)) {
+      | Parens(inner) => fn(inner)
+      | Fun(p, body, _, _) => Some((p, body))
+      | _ => None
+      };
+    fn(f) |> Option.map(((p, body)) => (p, arg, body));
+  | _ => None
+  };
+
+/* targetable at the ap tile, the fn's parens, or the fun's own
+   delimiters */
+let hit_beta = (target: Id.t, e: Exp.t): bool =>
+  beta_parts(e) != None
+  && (
+    hit_node(target, e)
+    || (
+      switch (IdTagged.term_of(e)) {
+      | Ap(_, f, _) =>
+        let rec fn_ids = (f: Exp.t) =>
+          IdTagged.ids(f)
+          @ (
+            switch (IdTagged.term_of(f)) {
+            | Parens(inner) => fn_ids(inner)
+            | _ => []
+            }
+          );
+        List.mem(target, fn_ids(f));
+      | _ => false
+      }
+    )
+  );
+
+let ap_to_let_impl: impl = {
+  label: "Bind argument",
+  tooltip: "Rewrite this application of a function literal as a let binding its argument",
+  prepare: (~info_map as _, ~target, program) => {
+    let build = (e: Exp.t): option((Exp.t, Id.t)) =>
+      beta_parts(e)
+      |> Option.map(((p, arg, body)) => {
+           let p = pad(p);
+           let def = pad(arg |> strip_leading |> strip_trailing);
+           /* the body keeps its own lead: an inline fun body lands
+              inline after the in; a multiline one keeps its break */
+           (fresh(Let(p, def, body)), Pat.rep_id(p));
+         });
+    /* parens per the feed policy: region-scoped reparse oracle;
+       conservative parens when no bounded region (a root-level ap
+       can have right siblings the bare let would absorb) */
+    switch (find_hit(~hit=hit_beta(target), program)) {
+    | None => None
+    | Some(e) =>
+      let parens = {
+        let region = bounded_region(Exp.rep_id(e), program);
+        same_node(region, program)
+          ? true
+          : (
+            switch (build(e)) {
+            | Some((bare, _)) =>
+              let candidate =
+                replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
+              !reparses_region(candidate);
+            | None => true
+            }
+          );
+      };
+      rewrite_node(
+        ~hit=hit_beta(target),
+        ~rewrite=
+          e =>
+            build(e)
+            |> Option.map(((let_node, focus)) =>
+                 (parens ? fresh(Parens(let_node)) : let_node, focus)
+               ),
+        program,
+      );
+    };
+  },
+};
+
+/* === Beta-reduce ===
+ * One reduction step: `(fun x -> b)(a)` becomes `b` with `a`
+ * substituted for `x` — the ap-to-let rotation composed with inline,
+ * so capture renaming, per-occurrence parens, and whitespace policy
+ * are all inherited. Var-pattern parameters only (inline's own
+ * gate); tuple parameters keep Bind argument + tuple-let tooling. */
+
+let beta_reduce_impl: impl = {
+  label: "Beta-reduce",
+  tooltip: "Apply this function literal: substitute the argument for its parameter",
+  prepare: (~info_map, ~target, program) =>
+    switch (find_hit(~hit=hit_beta(target), program)) {
+    | None => None
+    | Some(e) =>
+      switch (beta_parts(e)) {
+      | Some((p, _, _)) when let_head_name(p) != None =>
+        switch (ap_to_let_impl.prepare(~info_map, ~target, program)) {
+        | Some((prog', binder_id)) =>
+          /* info_map is stale for prog' — inline at the binder is
+             syntactic (name, occurrences, subst), so it doesn't
+             matter */
+          inline_let_impl.prepare(~info_map, ~target=binder_id, prog')
+        | None => None
+        }
+      | _ => None
+      }
+    },
+};
+
+/* === Take branch / Take arm (if- and case-reduction) ===
+ * Syntactic reduction steps that work on OPEN branches (Evaluate
+ * can't): a decided literal condition commits the if to its live
+ * branch; a value-literal scrutinee matching an arm commits the case
+ * to that arm, binding its pattern variables via the same let-intro
+ * decomposition as beta (nested lets, ids preserved). */
+
+let rec lit_bool = (e: Exp.t): option(bool) =>
+  switch (IdTagged.term_of(e)) {
+  | Parens(inner) => lit_bool(inner)
+  | Atom(Bool(b)) => Some(b)
+  | _ => None
+  };
+
+/* three-valued syntactic matcher: an Unknown ABOVE the matching arm
+   gates the whole reduction (we can't soundly skip an arm we can't
+   decide) */
+type pat_match =
+  | Matched(list((Pat.t, Exp.t)))
+  | NoMatch
+  | Unknown;
+
+let rec match_value = (p: Pat.t, v: Exp.t): pat_match => {
+  let pat_ctor = (p: Pat.t) =>
+    switch (IdTagged.term_of(p)) {
+    | Constructor(name, _) => Some(name)
+    | _ => None
+    };
+  let exp_ctor = (v: Exp.t) =>
+    switch (IdTagged.term_of(v)) {
+    | Constructor(name, _) => Some(name)
+    | _ => None
+    };
+  let elementwise = (ps, vs) =>
+    List.length(ps) != List.length(vs)
+      ? NoMatch
+      : List.combine(ps, vs)
+        |> List.fold_left(
+             (acc, (p, v)) =>
+               switch (acc) {
+               | Matched(bs) =>
+                 switch (match_value(p, v)) {
+                 | Matched(bs') => Matched(bs @ bs')
+                 | r => r
+                 }
+               | r => r
+               },
+             Matched([]),
+           );
+  switch (IdTagged.term_of(p), IdTagged.term_of(v)) {
+  | (Parens(p'), _) => match_value(p', v)
+  | (_, Parens(v')) => match_value(p, v')
+  /* labels are positional wrappers (PatternMatch unwraps without
+     comparing names) — recurse through either side */
+  | (TupLabel(_, p'), _) => match_value(p', v)
+  | (_, TupLabel(_, v')) => match_value(p, v')
+  | (Wild, _) => Matched([])
+  | (Var(_), _) => Matched([(p, v)])
+  | (Atom(a), Atom(b)) => a == b ? Matched([]) : NoMatch
+  | (Constructor(cp, _), Constructor(cv, _)) =>
+    cp == cv ? Matched([]) : NoMatch
+  | (Constructor(_), Ap(_))
+  | (Ap(_), Constructor(_)) => NoMatch
+  | (Ap(pf, parg), Ap(Forward, vf, varg)) =>
+    switch (pat_ctor(pf), exp_ctor(vf)) {
+    | (Some(cp), Some(cv)) => cp == cv ? match_value(parg, varg) : NoMatch
+    | _ => Unknown
+    }
+  | (Tuple(ps), Tuple(vs))
+  | (ListLit(ps), ListLit(vs)) => elementwise(ps, vs)
+  /* cons vs list literal: split head/tail. The tail REUSES the
+     original list's node (same brackets, same ids) around the
+     surviving elements — the scrutinee dies in the reduction, so
+     nothing duplicates, and the brackets TRAVEL instead of being
+     reborn (andrew: reuse when possible) */
+  | (Cons(ph, pt), ListLit(vs)) =>
+    switch (vs) {
+    | [] => NoMatch
+    | [v0, ...vrest] =>
+      let tail: Exp.t = {
+        ...v,
+        term:
+          ListLit(
+            vrest |> List.mapi((i, el) => i == 0 ? strip_leading(el) : el),
+          ),
+      };
+      switch (match_value(ph, v0)) {
+      | Matched(bs) =>
+        switch (match_value(pt, tail)) {
+        | Matched(bs') => Matched(bs @ bs')
+        | r => r
+        }
+      | r => r
+      };
+    }
+  | _ => Unknown
+  };
+};
+
+/* the first arm the scrutinee decidably matches */
+let pick_arm =
+    (scrut: Exp.t, rules: list((Pat.t, Exp.t)))
+    : option((list((Pat.t, Exp.t)), Exp.t)) => {
+  let rec go = rules =>
+    switch (rules) {
+    | [] => None
+    | [(p, body), ...rest] =>
+      switch (match_value(p, scrut)) {
+      | Matched(bs) => Some((bs, body))
+      | NoMatch => go(rest)
+      | Unknown => None
+      }
+    };
+  go(rules);
+};
+
+/* nested lets over the bindings; each binder and value keeps its ids
+   (they travel), the final body keeps its own lead */
+let rec wrap_bindings = (bs: list((Pat.t, Exp.t)), body: Exp.t): Exp.t =>
+  switch (bs) {
+  | [] => body
+  | [(x, v), ...rest] =>
+    let inner = wrap_bindings(rest, body);
+    /* lead only: the nested let follows the outer `in`; its right
+       edge is the body's own end */
+    let inner = rest == [] ? inner : with_secondary((space(), []), inner);
+    fresh(Let(pad(x), pad(v |> strip_leading |> strip_trailing), inner));
+  };
+
+/* shared scaffold: replace `e` with `built` under the feed parens
+   policy (region-scoped reparse; conservative at an unbounded root) */
+let reduce_prepare =
+    (~hit: Exp.t => bool, ~build: Exp.t => option((Exp.t, Id.t)), program) =>
+  switch (find_hit(~hit, program)) {
+  | None => None
+  | Some(e) =>
+    let parens = {
+      let region = bounded_region(Exp.rep_id(e), program);
+      same_node(region, program)
+        ? true
+        : (
+          switch (build(e)) {
+          | Some((bare, _)) =>
+            let candidate =
+              replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
+            !reparses_region(candidate);
+          | None => true
+          }
+        );
+    };
+    rewrite_node(
+      ~hit,
+      ~rewrite=
+        e =>
+          build(e)
+          |> Option.map(((built, focus)) =>
+               (parens ? fresh(Parens(built)) : built, focus)
+             ),
+      program,
+    );
+  };
+
+let reduce_if_impl: impl = {
+  label: "Take branch",
+  tooltip: "The condition is decided: replace the if with the live branch",
+  prepare: (~info_map as _, ~target, program) => {
+    let hit = (e: Exp.t) =>
+      hit_node(target, e)
+      && (
+        switch (IdTagged.term_of(e)) {
+        | If(c, _, _) => lit_bool(c) != None
+        | _ => false
+        }
+      );
+    let build = (e: Exp.t) =>
+      switch (IdTagged.term_of(e)) {
+      | If(c, t, alt) =>
+        lit_bool(c)
+        |> Option.map(b => {
+             let branch = (b ? t : alt) |> strip_leading |> strip_trailing;
+             (branch, Exp.rep_id(branch));
+           })
+      | _ => None
+      };
+    reduce_prepare(~hit, ~build, program);
+  },
+};
+
+let case_hit = (~target, e: Exp.t) =>
+  hit_node(target, e)
+  && (
+    switch (IdTagged.term_of(e)) {
+    | Match(scrut, rules) =>
+      is_value_literal(scrut) && pick_arm(scrut, rules) != None
+    | _ => false
+    }
+  );
+
+/* the let-intro form: arm bindings become nested lets (the two-step
+   sibling, like Bind argument for beta) */
+let case_to_lets = (~target, program): option((Exp.t, Id.t)) => {
+  let build = (e: Exp.t) =>
+    switch (IdTagged.term_of(e)) {
+    | Match(scrut, rules) =>
+      pick_arm(scrut, rules)
+      |> Option.map(((bs, body)) => {
+           let body = body |> strip_leading |> strip_trailing;
+           let built = wrap_bindings(bs, body);
+           (built, Exp.rep_id(built));
+         })
+    | _ => None
+    };
+  reduce_prepare(~hit=case_hit(~target), ~build, program);
+};
+
+let bind_arm_impl: impl = {
+  label: "Bind arm",
+  tooltip: "Replace the case with its matching arm, binding the pattern via lets",
+  prepare: (~info_map as _, ~target, program) =>
+    /* only when there is something to bind — otherwise identical to
+       Take arm and the menu would stutter */
+    switch (find_hit(~hit=case_hit(~target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | Match(scrut, rules) =>
+        switch (pick_arm(scrut, rules)) {
+        | Some(([_, ..._], _)) => case_to_lets(~target, program)
+        | _ => None
+        }
+      | _ => None
+      }
+    | None => None
+    },
+};
+
+let reduce_case_impl: impl = {
+  label: "Take arm",
+  tooltip: "The scrutinee is a value: replace the case with its matching arm, substituting the pattern",
+  prepare: (~info_map, ~target, program) =>
+    /* the let-intro form composed with inline per binder — capture
+       renaming and whitespace policy inherited, like Beta-reduce */
+    switch (find_hit(~hit=case_hit(~target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | Match(scrut, rules) =>
+        switch (pick_arm(scrut, rules)) {
+        | Some((bs, _)) =>
+          let binder_ids = bs |> List.map(((x, _)) => Pat.rep_id(x));
+          binder_ids
+          |> List.fold_left(
+               (acc, bid) =>
+                 Option.bind(acc, ((prog, _)) =>
+                   inline_let_impl.prepare(~info_map, ~target=bid, prog)
+                 ),
+               case_to_lets(~target, program),
+             );
+        | None => None
+        }
+      | _ => None
+      }
+    | None => None
+    },
+};
+
+/* === Split let ===
+ * Destructure a pattern let over a structurally matching def:
+ * `let (a, b) = (e1, e2) in body` -> `let a = e1 in let b = e2 in
+ * body`. Components stay in order (cost/effect order preserved);
+ * wildcard components drop like unused lets; the nested lets share
+ * the original's rightward extent, so no parens question arises.
+ * Var-headed lets are Inline's territory, not Split's. */
+
+let split_let_impl: impl = {
+  label: "Split let",
+  tooltip: "Destructure this pattern binding into one let per variable",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_node(
+      ~hit=hit_let(target),
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | Let(p, def, body) when let_head_name(p) == None =>
+            switch (match_value(p, def)) {
+            | Matched(bs) =>
+              let built = wrap_bindings(bs, body);
+              let focus =
+                switch (bs) {
+                | [(x, _), ..._] => Pat.rep_id(x)
+                | [] => Exp.rep_id(built)
+                };
+              Some((built, focus));
+            | _ => None
+            }
+          | _ => None
+          },
+      program,
+    ),
 };
 
 /* === Expand Wildcard ===
@@ -4707,6 +5160,12 @@ let impl: Action.refactor => impl =
   | CaseToIf => case_to_if_impl
   | ExtractLet => extract_let_impl
   | EtaReduce => eta_reduce_impl
+  | BindArgument => ap_to_let_impl
+  | BetaReduce => beta_reduce_impl
+  | SplitLet => split_let_impl
+  | ReduceCase => reduce_case_impl
+  | BindArm => bind_arm_impl
+  | ReduceIf => reduce_if_impl
   | NegateIf => negate_if_impl;
 
 let all: list(Action.refactor) = [
@@ -4716,6 +5175,12 @@ let all: list(Action.refactor) = [
   AddTypeAnnotation,
   EtaExpand,
   EvaluateInPlace,
+  BetaReduce,
+  BindArgument,
+  SplitLet,
+  ReduceCase,
+  BindArm,
+  ReduceIf,
   AddCaseArm,
   ExpandWildcard,
   AddParameter,
@@ -4758,7 +5223,12 @@ let applies =
   | InlineLet =>
     let at =
       let_applies(~pred=(p, def, _) =>
-        let_head_name(p) != None
+        (
+          switch (let_head_name(p)) {
+          | Some(f) => !free_in(f, def)
+          | None => false
+          }
+        )
         || (
           switch (sugar_fn_name(p)) {
           | Some(f) => !free_in(f, def)
@@ -4872,13 +5342,23 @@ let applies =
        no-ops) */
     switch (find_hit(~hit=hit_node(target), program)) {
     | Some(e) =>
-      !is_value_literal(e)
+      /* a lambda's value is a closure — never spliceable surface
+         syntax, so evaluating AT a fun literal always refuses;
+         don't offer (andrew hit the dead press) */
+      let rec is_fun = (e: Exp.t) =>
+        switch (IdTagged.term_of(e)) {
+        | Parens(inner) => is_fun(inner)
+        | Fun(_) => true
+        | _ => false
+        };
+      !is_fun(e)
+      && !is_value_literal(e)
       && (
         switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
         | Some(InfoExp({co_ctx, _})) => co_ctx == []
         | _ => false
         }
-      )
+      );
     | None => false
     }
   | AddCaseArm =>
@@ -4932,6 +5412,64 @@ let applies =
         | (Some(a), Some(b)) => a != b
         | _ => false
         }
+      | _ => false
+      }
+    | None => false
+    }
+  | BindArgument => Option.is_some(find_hit(~hit=hit_beta(target), program))
+  | BetaReduce =>
+    switch (find_hit(~hit=hit_beta(target), program)) {
+    | Some(e) =>
+      switch (beta_parts(e)) {
+      | Some((p, _, _)) => let_head_name(p) != None
+      | None => false
+      }
+    | None => false
+    }
+  | SplitLet =>
+    switch (find_hit(~hit=hit_let(target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | Let(p, def, _) when let_head_name(p) == None =>
+        switch (match_value(p, def)) {
+        | Matched(_) => true
+        | _ => false
+        }
+      | _ => false
+      }
+    | None => false
+    }
+  | ReduceIf =>
+    switch (find_hit(~hit=hit_node(target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | If(c, _, _) => lit_bool(c) != None
+      | _ => false
+      }
+    | None => false
+    }
+  | ReduceCase =>
+    switch (find_hit(~hit=hit_node(target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | Match(scrut, rules) =>
+        is_value_literal(scrut) && pick_arm(scrut, rules) != None
+      | _ => false
+      }
+    | None => false
+    }
+  | BindArm =>
+    switch (find_hit(~hit=hit_node(target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | Match(scrut, rules) =>
+        is_value_literal(scrut)
+        && (
+          switch (pick_arm(scrut, rules)) {
+          | Some(([_, ..._], _)) => true
+          | _ => false
+          }
+        )
       | _ => false
       }
     | None => false

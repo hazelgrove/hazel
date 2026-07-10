@@ -170,6 +170,12 @@ type refactor =
   | CaseToIf
   | ExtractLet
   | EtaReduce
+  | BindArgument
+  | BetaReduce
+  | SplitLet
+  | ReduceCase
+  | BindArm
+  | ReduceIf
   | NegateIf;
 
 /* Directional refactor gestures (see Refactor.gesture): the caret's
