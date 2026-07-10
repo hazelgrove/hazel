@@ -571,7 +571,10 @@ let accept_pins = [
   ("type-adt", "40/2/0 of 42 | reverse 20/21"),
   ("tuple-list", "10/2/0 of 12 | reverse 6/6"),
   ("case-def-inline", "11/1/0 of 12 | reverse 5/6"),
-  ("case-def-multiline", "11/1/0 of 12 | reverse 5/6"),
+  /* end+in slot symmetric: neither closer glues (multiline form),
+     both share the aggregate anchor, so accepting either makes it
+     the other's anchor (fresh id) */
+  ("case-def-multiline", "10/2/0 of 12 | reverse 5/6"),
 ];
 
 let accept_tests =
