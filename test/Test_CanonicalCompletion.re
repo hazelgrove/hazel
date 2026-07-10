@@ -1512,6 +1512,36 @@ let tydi_probe_tests = [
    rule and never retreats — hole-min must not treat a rule as a
    severable trailing operator (it is case-content). Pins probe the
    full entry sequence; expecteds are raw prints. */
+/* Triple-click a rule delimiter: the selection covers the whole rule
+   and stops at the body's last content piece — no trailing linebreak
+   or indentation (andrew 2026-07-11: auto-indent exposed a shrink
+   loop that removed exactly one trailing piece) */
+let sel_case = (~name, ~acts, ~expected) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = Test_Editing.perform(Zipper.init(), acts);
+      check(string_testable, name, expected, print_seg(z.selection.content));
+    },
+  );
+let rule_selection_tests = [
+  sel_case(
+    ~name="triple-click mid rule selects rule sans trailing whitespace",
+    ~acts=
+      Test_Editing.mk("case x\n| 1 =>¦ 2\n| 3 => 4\nend")
+      @ [Select(Smart(2)), Select(Smart(3))],
+    ~expected="| 1 => 2",
+  ),
+  sel_case(
+    ~name="triple-click last rule stops at body end",
+    ~acts=
+      Test_Editing.mk("case x\n| 1 => 2\n| 3 =>¦ 4\nend")
+      @ [Select(Smart(2)), Select(Smart(3))],
+    ~expected="| 3 => 4",
+  ),
+];
+
 let entry_stability_tests = [
   edit_case(
     ~name="bar alone: end stays after the rule",
@@ -1556,6 +1586,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: closer-vs-separator", probe2_tests),
   ("CanonicalCompletion: tydi-gates", tydi_probe_tests),
   ("CanonicalCompletion: insertion-ordering", ordering_tests),
+  ("CanonicalCompletion: rule-selection", rule_selection_tests),
   ("CanonicalCompletion: entry-stability", entry_stability_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */

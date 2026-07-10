@@ -486,14 +486,23 @@ let containing_rule = (z: t): option(t) => {
     | _ => false;
   let grow_right_until_case_or_rule = z =>
     Zipper.do_until_piece(grow_left_by_piece, rule_or_end_of_seg_to_right, z);
-  let secondary_to_left =
-    fun
-    | (Some(Piece.Secondary(_)), _) => true
-    | _ => false;
-  let shrink_past_secondary = z =>
-    !secondary_to_left(Siblings.neighbors(z.relatives.siblings))
-      ? Some(z)
-      : Zipper.do_until_piece(shrink_right_by_piece, secondary_to_left, z);
+  /* the grow pass swept up everything to the next rule, including
+     the trailing linebreak and the next line's indentation — shrink
+     while the selection still ENDS in secondaries, so it stops
+     exactly at the rule body's last content piece. (The old
+     predicate read the piece left of the selection, which never
+     changes while shrinking: it removed exactly one piece — correct
+     only under pre-auto-indent formatting where the trailing run was
+     a lone linebreak.) */
+  let rec shrink_past_secondary = (z: t): option(t) =>
+    switch (ListUtil.last_opt(z.selection.content)) {
+    | Some(Piece.Secondary(_)) =>
+      switch (shrink_right_by_piece(z)) {
+      | Some(z) => shrink_past_secondary(z)
+      | None => Some(z)
+      }
+    | _ => Some(z)
+    };
   let* z = current_tile(z);
   let* z = grow_right_until_case_or_rule(z);
   let* z = shrink_past_secondary(z);
