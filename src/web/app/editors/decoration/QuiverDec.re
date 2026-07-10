@@ -276,6 +276,7 @@ let chip_view =
       ~caret_form: option((Direction.t, option(Direction.t))),
       ~live: bool,
       ~at_caret: bool,
+      ~body_shift: float=0.0,
       body: list(Node.t),
     )
     : Node.t => {
@@ -309,7 +310,8 @@ let chip_view =
       +. 0.5
       *. CaretDec.caret_width
     )
-    *. font_metrics.col_width;
+    *. font_metrics.col_width
+    +. body_shift;
   div(
     ~attrs=[
       Attr.classes(
@@ -359,25 +361,25 @@ let delimiters_len =
   |> List.fold_left((+), 0)
   |> (n => n + max(0, List.length(delimiters) - 1));
 
-/* Overlapping same-row chips coalesce into the earlier one — only
-   the first position survives its own application anyway. */
-let coalesce_overlaps =
+/* Chips at the SAME point stack into one bubble — they insert at
+   the same place, in order. Nearby-but-distinct chips stay separate
+   (a comma inside the parens and an `in` outside must never read as
+   one drop): the later bubble slides right just enough to clear its
+   neighbor while its pole stays on the true insertion column. */
+let layout_overlaps =
     (~font_metrics: FontMetrics.t, chips: list(positioned_insertion))
-    : list(positioned_insertion) => {
+    : list((positioned_insertion, float)) => {
   let chip_w = (c: positioned_insertion) =>
     float_of_int(delimiters_len(c.delimiters) + 2)
     *. font_metrics.col_width
     *. chip_font_scale;
-  let rec go = (acc, rest) =>
+  let rec merge_same = (acc, rest) =>
     switch (acc, rest) {
     | (_, []) => List.rev(acc)
-    | ([], [c, ...tl]) => go([c], tl)
+    | ([], [c, ...tl]) => merge_same([c], tl)
     | ([prev, ...acc_tl], [c, ...tl]) =>
-      let prev_right =
-        float_of_int(prev.col) *. font_metrics.col_width +. chip_w(prev);
-      let c_left = float_of_int(c.col) *. font_metrics.col_width;
-      prev.row == c.row && c_left < prev_right +. 4.
-        ? go(
+      prev.row == c.row && prev.col == c.col
+        ? merge_same(
             [
               {
                 ...prev,
@@ -387,9 +389,25 @@ let coalesce_overlaps =
             ],
             tl,
           )
-        : go([c, ...acc], tl);
+        : merge_same([c, ...acc], tl)
     };
-  go([], chips);
+  let rec shift = (prev: option((int, float)), cs) =>
+    switch (cs) {
+    | [] => []
+    | [c, ...tl] =>
+      let natural_left = float_of_int(c.col) *. font_metrics.col_width;
+      let dx =
+        switch (prev) {
+        | Some((row, right)) when row == c.row && natural_left < right +. 4. =>
+          right +. 4. -. natural_left
+        | _ => 0.
+        };
+      [
+        (c, dx),
+        ...shift(Some((c.row, natural_left +. dx +. chip_w(c))), tl),
+      ];
+    };
+  shift(None, merge_same([], chips));
 };
 
 /* Main view function: renders quiver decorations for a segment */
@@ -437,8 +455,8 @@ let view =
         positioned,
       );
     let chips =
-      coalesce_overlaps(~font_metrics, sorted)
-      |> List.map((ins: positioned_insertion) =>
+      layout_overlaps(~font_metrics, sorted)
+      |> List.map(((ins: positioned_insertion, body_shift)) =>
            chip_view(
              ~font_metrics,
              ~row=ins.row,
@@ -447,6 +465,7 @@ let view =
              ~caret_form,
              ~live=matches_droppable(droppable, ins.delimiters),
              ~at_caret=caret_pos == Some((ins.row, ins.col)),
+             ~body_shift,
              delimiter_nodes(~font_metrics, ~on_apply, ins.delimiters),
            )
          );
