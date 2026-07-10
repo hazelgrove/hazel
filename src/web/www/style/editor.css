@@ -628,44 +628,16 @@ svg:has(.child-line) {
 }
 
 .quiver-chip.chip-at-caret .quiver-chip-pole {
-  animation: 1s quiver-pole-blink step-end infinite;
+  display: none;
 }
 
-@keyframes quiver-pole-blink {
-  from,
-  to {
-    background: var(--caret-color);
-  }
+/* at-caret the REAL caret is authoritative — true shape against the
+   shard decorations, stock blink and restart — and the chip's own
+   pole steps aside; the pale flag simply docks above the caret. No
+   takeover, no separate red, no phase-sync problem: at-caret IS a
+   live chip with the caret standing at its foot. */
 
-  50% {
-    background: var(--backpack-selection);
-  }
-}
 
-/* at-caret: red pole + stripe over the LIVE scheme, blinking in sync
-   with (and in place of) the caret — the red beats back to each
-   part's regular color at the caret's own frequency */
-.quiver-chip.chip-at-caret .quiver-chip-body {
-  animation: 1s quiver-stripe-blink step-end infinite;
-}
-
-@keyframes quiver-stripe-blink {
-  from,
-  to {
-    box-shadow: inset var(--pole-w) 0 0 var(--caret-color);
-  }
-
-  50% {
-    box-shadow: inset var(--pole-w) 0 0 transparent;
-  }
-}
-
-/* visibility (not display): the scroll-to-caret machinery reads
-   #caret's geometry every update — display:none zeroes it and the
-   scroll jumps wildly */
-.code-container:has(.chip-at-caret) #caret {
-  visibility: hidden;
-}
 
 
 
