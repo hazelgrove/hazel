@@ -196,6 +196,13 @@
   );
   /* on the subdued dim background the live fade disappears; dim
      chips fade DARKER instead (toward the token color) */
+  /* at-caret colorway: gold text on the backpack-selection backing;
+     its fade mixes toward that backing */
+  --quiver-chip-text-faded-atcaret: color-mix(
+    in srgb,
+    var(--token-incomplete) 45%,
+    var(--backpack-selection)
+  );
   --quiver-chip-text-faded-dim: color-mix(
     in srgb,
     var(--token-incomplete) 62%,

@@ -609,8 +609,18 @@ svg:has(.child-line) {
   background: var(--caret-color);
 }
 
+/* at-caret the bubble takes the classic backpack colorway: pale
+   selection backing with the incomplete-delimiter gold as TEXT;
+   resting chips keep the solid-gold/knockout scheme */
 .quiver-chip.chip-at-caret .quiver-chip-body {
   box-shadow: inset var(--pole-w) 0 0 var(--caret-color);
+  background: var(--backpack-selection);
+  color: var(--token-incomplete);
+}
+
+.quiver-chip.chip-at-caret .chip-frac-typed,
+.quiver-chip.chip-at-caret .chip-seg-later {
+  color: var(--quiver-chip-text-faded-atcaret);
 }
 
 /* visibility (not display): the scroll-to-caret machinery reads
