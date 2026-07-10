@@ -321,6 +321,13 @@ let chip_view =
     ~attrs=[
       Attr.classes(
         ["quiver-chip"]
+        @ (
+          switch (dock_shape) {
+          | Some(Direction.Left) => ["chip-bend-left"]
+          | Some(Right) => ["chip-bend-right"]
+          | None => ["chip-straight"]
+          }
+        )
         @ (live ? ["chip-live"] : [])
         @ (at_caret ? ["chip-at-caret"] : []),
       ),

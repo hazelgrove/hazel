@@ -583,9 +583,7 @@ svg:has(.child-line) {
   position: absolute;
   transform: translateY(-50%);
   padding: 0px 4px 1px 4px;
-  /* square bottom-left: the bubble's left edge is flagpole-aligned
-     with the caret bar, and a radius there leaves a divot beside it */
-  border-radius: 4px 4px 4px 0;
+  border-radius: 4px;
   background: var(--quiver-chip);
   color: var(--quiver-chip-text);
   font-family: var(--code-font);
@@ -599,6 +597,12 @@ svg:has(.child-line) {
 .quiver-chip-pole {
   z-index: 14;
 }
+
+/* per-bend corner control: if the round bottom-left artifacts
+   against a particular chevron, square it selectively, e.g.
+   .quiver-chip.chip-bend-left .quiver-chip-body {
+     border-bottom-left-radius: 0;
+   } */
 
 .quiver-chip-pole-path {
   fill: var(--quiver-chip);
