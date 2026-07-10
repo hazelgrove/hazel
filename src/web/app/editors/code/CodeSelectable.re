@@ -52,7 +52,7 @@ module Update = {
         Probe(_) |
         Format(_) |
         AdjustIndent(_, _) |
-        Dump |
+        ApplyCompletion(_) |
         Introduce |
         ToggleLineComment,
       )

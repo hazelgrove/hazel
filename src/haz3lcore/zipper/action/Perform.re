@@ -532,6 +532,10 @@ let rec go =
     |> Option.map(maybe_reassoc)
     |> Option.map(LocalReformat.go(~before))
     |> return(Cant_insert);
+  | ApplyCompletion(All) => Ok(Materialize.all(z, ~root))
+  | ApplyCompletion(One(id)) =>
+    Materialize.one(z, ~root, id)
+    |> Result.of_option(~error=Action.Failure.Cant_put_down)
   | Put_down =>
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     Zipper.put_down(z, ~root)
@@ -541,23 +545,6 @@ let rec go =
     |> return(Cant_put_down);
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Format(Indent) => Ok(AutoFormat.zipper(z))
-  | Dump =>
-    /* Experimental: Use CanonicalCompletion instead of Dump */
-    let seg =
-      z
-      |> Zipper.clear_unparsed_buffer
-      |> Zipper.unselect_and_zip(~erase_buffer=true);
-    let result =
-      CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
-    Ok({
-      selection: Selection.mk([]),
-      relatives: {
-        siblings: ([], result.completed_seg),
-        ancestors: [],
-      },
-      caret: Outer,
-      refractors: z.refractors,
-    });
   | ToggleLineComment =>
     /* uncommenting can restore delimiters that complete enclosing
        forms; the comment-out direction leaves the trigger silent */

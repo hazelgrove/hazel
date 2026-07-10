@@ -1520,7 +1520,7 @@ module Agent = {
                 ),
               );
             } else {
-              let new_z = Dump.to_zipper(new_z, ~root=Exp);
+              let new_z = Materialize.all(new_z, ~root=Exp);
               let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
               let new_code_with_statics =
                 CodeWithStatics.Model.mk(new_editor_model);
@@ -1622,7 +1622,7 @@ module Agent = {
             | ToggleProbe(p) => p
             };
           let (new_z, paths_to_expand) = apply_probe_action(z, paths);
-          let new_z = Dump.to_zipper(new_z, ~root=Exp);
+          let new_z = Materialize.all(new_z, ~root=Exp);
           let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
           let new_cws =
             CodeWithStatics.Model.mk(
