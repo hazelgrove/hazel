@@ -691,14 +691,15 @@ let rec subst =
   switch (term) {
   | Var(y) when y == x =>
     /* the FIRST copy carries the def's ids INCLUDING its root (it
-       travels, and focus follows it — P7); later copies are minted
-       fresh HERE with occurrence-root adoption, rather than leaving
-       duplicates for dedupe_ids to heal silently (tests assert the
-       healer stays quiet) */
+       travels, and focus follows it — P7); later copies are FULLY
+       fresh, root included — occurrence-root adoption made them
+       pair as MOVES from the occurrence (an invisible shift) instead
+       of ENTERED clones flying from the def (the fan-out), and left
+       subtree duplicates for dedupe to heal besides */
     let is_first = first^;
     first := false;
     let d = is_first ? def : refresh_ids(def);
-    inserted(~parens=parens_for(e), ~keep_ids=is_first, d, e);
+    inserted(~parens=parens_for(e), ~keep_ids=true, d, e);
   | Let(p, d, body) =>
     let recursive =
       switch (IdTagged.term_of(d)) {
@@ -1275,21 +1276,13 @@ let inline_let_impl: impl = {
                   },
                 };
               };
-            /* caret follows the substituted copy. The FIRST copy
-               (traversal order) carries the def's ids including its
-               root (P2/P7: focus follows the moved content); later
-               copies adopt their occurrence's root ids — see subst.
-               So: invoked at a non-first occurrence, focus is that
-               occurrence's id (its copy kept it); otherwise the
-               def's rep. */
-            let occs = occurrences_of(x, body) |> List.map(Exp.rep_id);
+            /* caret follows the moved content (P2/P7): the def's
+               ids travel into the first copy; later copies are fully
+               fresh (they FLY as fan-out clones), so no occurrence
+               id survives to focus on. */
             let focus =
-              switch (occs) {
-              | [] => Exp.rep_id(body')
-              | [first_occ, ..._] =>
-                List.mem(target, occs) && target != first_occ
-                  ? target : Exp.rep_id(def)
-              };
+              occurrences_of(x, body) == []
+                ? Exp.rep_id(body') : Exp.rep_id(def);
             (body', focus);
           },
         program,
