@@ -101,6 +101,7 @@ let error_clses = (code, ~reify) =>
            | None => "?"
            }
          )
+      |> List.sort(compare)
       |> String.concat(" | ")
   );
 
