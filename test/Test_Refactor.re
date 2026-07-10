@@ -21,9 +21,56 @@ let collect_tile_ids = (z: Zipper.t): list(Id.t) => {
   go(Zipper.unselect_and_zip(z));
 };
 
+/* INVARIANT (checked on every transform in this file): no duplicate
+   piece ids anywhere in the result. dedupe_ids HEALS dupes at commit
+   (silently re-minting), so without this assert a dupe-introducing
+   transform would pass while quietly costing animation identity
+   (travel becomes rebirth). */
+let assert_unique_ids = (z: Zipper.t): unit => {
+  let ids = ref([]);
+  let rec collect = (seg: Segment.t) =>
+    seg
+    |> List.iter((piece: Piece.t) =>
+         switch (piece) {
+         | Tile(t) =>
+           ids := [t.id, ...ids^];
+           t.children |> List.iter(collect);
+         | Grout(g) => ids := [g.id, ...ids^]
+         | Secondary(w) => ids := [w.id, ...ids^]
+         | Projector(pr) => ids := [pr.id, ...ids^]
+         }
+       );
+  collect(Zipper.unselect_and_zip(z));
+  let all = ids^;
+  let uniq = List.sort_uniq(compare, all);
+  if (List.length(all) != List.length(uniq)) {
+    let dupes =
+      List.sort(compare, all)
+      |> List.fold_left(
+           ((seen, ds), id) =>
+             seen == Some(id) ? (seen, [id, ...ds]) : (Some(id), ds),
+           (None, []),
+         )
+      |> snd
+      |> List.map(Id.to_string)
+      |> String.concat(", ");
+    Alcotest.fail("duplicate piece ids after transform: " ++ dupes);
+  };
+};
+
 let inline = (~kind: Action.refactor=InlineLet, marked: string): Zipper.t => {
   let z = Test_Editing.parse_zipper(marked);
-  Test_Editing.perform(z, [Action.Refactor(kind)]);
+  Refactor.dedupe_healed := 0;
+  let z' = Test_Editing.perform(z, [Action.Refactor(kind)]);
+  assert_unique_ids(z');
+  if (Refactor.dedupe_healed^ > 0) {
+    Alcotest.fail(
+      "transform introduced duplicate ids (healed by dedupe_ids "
+      ++ string_of_int(Refactor.dedupe_healed^)
+      ++ "x — travel silently became rebirth)",
+    );
+  };
+  z';
 };
 
 let info_map_of = (z: Zipper.t) => {
@@ -2640,6 +2687,506 @@ let round3_tests = [
   ),
 ];
 
+let beta_tests = [
+  test_case(
+    "bind argument: basic rotation in a def slot",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=BindArgument, "let y = ¦(fun x -> x + 1)(5) in y")
+        |> text_of;
+      check(string, "rotated", "let y = let x = 5 in x + 1 in y", got);
+    },
+  ),
+  test_case(
+    "bind argument: root ap with right sibling takes parens",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=BindArgument, "¦(fun x -> x)(5) + 3") |> text_of;
+      check(string, "parens", "(let x = 5 in x) + 3", got);
+    },
+  ),
+  test_case(
+    "bind argument: tuple parameter",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=BindArgument,
+          "let z = ¦(fun (a, b) -> a + b)((1, 2)) in z",
+        )
+        |> text_of;
+      check(
+        string,
+        "tuple let",
+        "let z = let (a, b) = (1, 2) in a + b in z",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "bind argument: curried leaves the next lambda",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=BindArgument,
+          "let w = ¦(fun x -> fun y -> x + y)(3) in w(4)",
+        )
+        |> text_of;
+      check(
+        string,
+        "outer only",
+        "let w = let x = 3 in fun y -> x + y in w(4)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "bind argument: multiline body keeps its break",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=BindArgument, "let q = ¦(fun x ->
+  x * x)(7) in q")
+        |> text_of;
+      check(string, "break kept", "let q = let x = 7 in
+  x * x in q", got);
+    },
+  ),
+  test_case("bind argument: not offered on a variable ap", `Quick, () =>
+    check(bool, "no offer", false, offers(BindArgument, "¦f(5)"))
+  ),
+  test_case("bind argument: offered from the fun keyword", `Quick, () =>
+    check(bool, "offer", true, offers(BindArgument, "(f¦un x -> x)(5)"))
+  ),
+];
+
+let beta_step_tests = [
+  test_case(
+    "beta: one step substitutes the argument",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=BetaReduce, "let y = ¦(fun x -> x + 1)(5) in y")
+        |> text_of;
+      check(string, "stepped", "let y = 5 + 1 in y", got);
+    },
+  ),
+  test_case(
+    "beta: multiple uses all substituted",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=BetaReduce, "let y = ¦(fun x -> x + x)(5) in y")
+        |> text_of;
+      check(string, "both", "let y = 5 + 5 in y", got);
+    },
+  ),
+  test_case(
+    "beta: capture renames the inner binder",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=BetaReduce,
+          "let y = 10 in ¦(fun x -> fun y -> x + y)(y)",
+        )
+        |> text_of;
+      /* the rotation's protective parens survive the composition —
+         redundant but reparse-safe; a shed-parens normalization is a
+         future nicety */
+      check(string, "renamed", "let y = 10 in (fun y1 -> y + y1)", got);
+    },
+  ),
+  test_case(
+    "beta: tuple parameter not offered (Bind argument is)",
+    `Quick,
+    () => {
+      check(
+        bool,
+        "no beta",
+        false,
+        offers(BetaReduce, "¦(fun (a, b) -> a + b)((1, 2))"),
+      );
+      check(
+        bool,
+        "bind yes",
+        true,
+        offers(BindArgument, "¦(fun (a, b) -> a + b)((1, 2))"),
+      );
+    },
+  ),
+  test_case("evaluate: not offered on a bare lambda", `Quick, () =>
+    check(
+      bool,
+      "no offer",
+      false,
+      offers(EvaluateInPlace, "¦fun x -> x + 1"),
+    )
+  ),
+];
+
+let recursion_tests = [
+  test_case("inline: self-recursive let is gated (would unbind f)", `Quick, () =>
+    check(
+      bool,
+      "no offer",
+      false,
+      offers(InlineLet, "¦let f = fun x -> f(x) in f(1)"),
+    )
+  ),
+  test_case(
+    "feed: self-recursive let unfolds one use, binding survives",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=FeedLet, "¦let f = fun x -> f(x) in f(1) + f(2)")
+        |> text_of;
+      check(
+        string,
+        "one unfold",
+        "let f = fun x -> f(x) in (fun x -> f(x))(1) + f(2)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "feed: single use of a recursive def keeps the binding",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=FeedLet, "¦let f = fun x -> f(x) in f(1)") |> text_of;
+      check(
+        string,
+        "unfold, no consume",
+        "let f = fun x -> f(x) in (fun x -> f(x))(1)",
+        got,
+      );
+    },
+  ),
+];
+
+let eval_offer_tests = [
+  test_case("eval offer: at the operator of a closed binop", `Quick, () =>
+    check(bool, "a", true, offers(EvaluateInPlace, "2 ¦< 2"))
+  ),
+  test_case("eval offer: closed binop inside if-cond", `Quick, () =>
+    check(
+      bool,
+      "b",
+      true,
+      offers(EvaluateInPlace, "if 2 ¦< 2 then 1 else 3"),
+    )
+  ),
+  test_case("eval offer: inside parenthesized if in let body", `Quick, () =>
+    check(
+      bool,
+      "c",
+      true,
+      offers(
+        EvaluateInPlace,
+        "let f = fun n -> n in (if 2 ¦< 2 then 1 else f(2))",
+      ),
+    )
+  ),
+];
+
+let eval_midtrace_tests = [
+  test_case(
+    "eval offer: mid-reduction state (closed redex in open context)",
+    `Quick,
+    () =>
+    check(
+      bool,
+      "offer",
+      true,
+      offers(
+        EvaluateInPlace,
+        "let fact = fun n -> if n < 2 then 1 else n * fact(n - 1) in (if 2 ¦< 2 then 1 else 2 * fact(2 - 1))",
+      ),
+    )
+  ),
+];
+
+let split_tests = [
+  test_case(
+    "split let: tuple over tuple",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SplitLet, "¦let (a, b) = (1, 2) in a + b") |> text_of;
+      check(string, "split", "let a = 1 in let b = 2 in a + b", got);
+    },
+  ),
+  test_case(
+    "split let: components need not be values",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SplitLet, "¦let (a, b) = (f(1), g(2)) in a + b")
+        |> text_of;
+      check(
+        string,
+        "order kept",
+        "let a = f(1) in let b = g(2) in a + b",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "split let: nested tuple pattern",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SplitLet, "¦let (a, (b, c)) = (1, (2, 3)) in a + b + c")
+        |> text_of;
+      check(
+        string,
+        "deep",
+        "let a = 1 in let b = 2 in let c = 3 in a + b + c",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "split let: wildcard component drops",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SplitLet, "¦let (a, _) = (1, 2) in a") |> text_of;
+      check(string, "dropped", "let a = 1 in a", got);
+    },
+  ),
+  test_case(
+    "split let: var-headed let not offered (Inline territory)", `Quick, () =>
+    check(bool, "no offer", false, offers(SplitLet, "¦let x = (1, 2) in x"))
+  ),
+  test_case("split let: non-tuple def not offered", `Quick, () =>
+    check(
+      bool,
+      "no offer",
+      false,
+      offers(SplitLet, "¦let (a, b) = f(1) in a + b"),
+    )
+  ),
+];
+
+let matcher_tests = [
+  test_case(
+    "take arm direct: ctor payload substitutes",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ReduceCase,
+          "let y = ¦case Some(5) | None => 0 | Some(x) => x + 1 end in y",
+        )
+        |> text_of;
+      check(string, "direct", "let y = 5 + 1 in y", got);
+    },
+  ),
+  test_case(
+    "take arm direct: tuple payload substitutes",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ReduceCase,
+          "let y = ¦case (1, 2) | (a, b) => a + b end in y",
+        )
+        |> text_of;
+      check(string, "direct", "let y = 1 + 2 in y", got);
+    },
+  ),
+  test_case(
+    "take arm direct: unused binder drops",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ReduceCase,
+          "let y = ¦case Some(5) | Some(x) => 7 end in y",
+        )
+        |> text_of;
+      check(string, "dropped", "let y = 7 in y", got);
+    },
+  ),
+  test_case("bind arm: not offered when nothing binds", `Quick, () =>
+    check(
+      bool,
+      "no offer",
+      false,
+      offers(BindArm, "¦case 2 | 1 => 10 | _ => 0 end"),
+    )
+  ),
+  test_case(
+    "take arm: list literal elementwise",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ReduceCase,
+          "let y = ¦case [1, 2] | [a, b] => a + b | _ => 0 end in y",
+        )
+        |> text_of;
+      check(string, "list", "let y = 1 + 2 in y", got);
+    },
+  ),
+  test_case(
+    "take arm: cons splits head and synthesized tail",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ReduceCase,
+          "let y = ¦case [1, 2, 3] | h :: t => t | _ => [] end in y",
+        )
+        |> text_of;
+      check(string, "tail", "let y = [2, 3] in y", got);
+    },
+  ),
+  test_case(
+    "take arm: cons on empty list falls through",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ReduceCase,
+          "let y = ¦case [] | h :: t => 1 | _ => 0 end in y",
+        )
+        |> text_of;
+      check(string, "wild", "let y = 0 in y", got);
+    },
+  ),
+  test_case(
+    "take arm: labeled tuple matches positionally",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ReduceCase,
+          "let y = ¦case (a=1, b=2) | (a=p, b=q) => p + q | _ => 0 end in y",
+        )
+        |> text_of;
+      check(string, "labels", "let y = 1 + 2 in y", got);
+    },
+  ),
+];
+
+let reduce_tests = [
+  test_case(
+    "take branch: if true keeps then",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=ReduceIf, "let y = ¦if true then 1 else 2 in y")
+        |> text_of;
+      check(string, "then", "let y = 1 in y", got);
+    },
+  ),
+  test_case(
+    "take branch: if false keeps else, open branches ok",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ReduceIf,
+          "let f = fun x -> ¦if false then x + 1 else x * 2 in f(3)",
+        )
+        |> text_of;
+      check(string, "else", "let f = fun x -> x * 2 in f(3)", got);
+    },
+  ),
+  test_case(
+    "take arm: literal scrutinee picks the arm",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ReduceCase,
+          "let y = ¦case 2 | 1 => 10 | 2 => 20 | _ => 0 end in y",
+        )
+        |> text_of;
+      check(string, "arm", "let y = 20 in y", got);
+    },
+  ),
+  test_case(
+    "take arm: constructor payload binds via let",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=BindArm,
+          "let y = ¦case Some(5) | None => 0 | Some(x) => x + 1 end in y",
+        )
+        |> text_of;
+      check(string, "bound", "let y = let x = 5 in x + 1 in y", got);
+    },
+  ),
+  test_case(
+    "take arm: tuple pattern binds each var",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=BindArm,
+          "let y = ¦case (1, 2) | (a, b) => a + b end in y",
+        )
+        |> text_of;
+      check(
+        string,
+        "nested lets",
+        "let y = let a = 1 in let b = 2 in a + b in y",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "take arm: wildcard matches",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ReduceCase,
+          "let y = ¦case 9 | 1 => 0 | _ => 42 end in y",
+        )
+        |> text_of;
+      check(string, "wild", "let y = 42 in y", got);
+    },
+  ),
+  test_case(
+    "take arm: open arm bodies reduce (Evaluate cannot)",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=ReduceCase,
+          "let f = fun x -> ¦case true | true => x + 1 | false => x end in f(1)",
+        )
+        |> text_of;
+      check(string, "open", "let f = fun x -> x + 1 in f(1)", got);
+    },
+  ),
+  test_case("take arm: non-value scrutinee not offered", `Quick, () =>
+    check(
+      bool,
+      "no offer",
+      false,
+      offers(ReduceCase, "¦case f(1) | 1 => 0 | _ => 2 end"),
+    )
+  ),
+  test_case("take branch: computed condition not offered", `Quick, () =>
+    check(
+      bool,
+      "no offer",
+      false,
+      offers(ReduceIf, "¦if 1 < 2 then 1 else 2"),
+    )
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -2767,6 +3314,14 @@ let tests = [
     @ binding_tests
     @ sink_layout_tests
     @ landing_block_tests
+    @ beta_tests
+    @ beta_step_tests
+    @ reduce_tests
+    @ matcher_tests
+    @ recursion_tests
+    @ split_tests
+    @ eval_offer_tests
+    @ eval_midtrace_tests
     @ feed_tests
     @ reparse_safety_tests,
   ),
