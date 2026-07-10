@@ -595,12 +595,18 @@ svg:has(.child-line) {
   white-space: nowrap;
 }
 
-/* the pole is the caret's silhouette as a plain div: same coordinate
-   context as the bubble, so no sub-pixel drift between flag and pole */
+/* the pole is a ghost caret (SVG, true shape at its position) */
 .quiver-chip-pole {
-  position: absolute;
-  background: var(--quiver-chip);
   z-index: 14;
+}
+
+.quiver-chip-pole-path {
+  fill: var(--quiver-chip);
+  stroke: none;
+}
+
+.quiver-chip.chip-live .quiver-chip-pole-path {
+  fill: var(--backpack-selection);
 }
 
 /* colorways. DEFAULT (obligation in another segment — error-like,
@@ -613,11 +619,7 @@ svg:has(.child-line) {
   color: var(--token-incomplete);
 }
 
-/* pole and flag stay one color per scheme (the at-caret blink
-   overrides the pole with red) */
-.quiver-chip.chip-live .quiver-chip-pole {
-  background: var(--backpack-selection);
-}
+
 
 /* the typed prefix is CUT OUT — white on every scheme; the remainder
    takes the OPPOSITE pole of the scheme (brown on pale chips via the

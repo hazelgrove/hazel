@@ -13,10 +13,15 @@ open Node;
 open Haz3lcore;
 open Util;
 
-/* An insertion with its resolved position */
+/* An insertion with its resolved position. shape = the caret shape
+   at the pin (the pole renders as a GHOST CARET: exactly what the
+   real caret will look like if you move there — truthful by
+   construction, and it nests against the shard decorations the way
+   a straight bar cannot). */
 type positioned_insertion = {
   row: int,
   col: int,
+  shape: option(Util.Direction.t),
   delimiters: list(CanonicalCompletion.delimiter_info),
 };
 
@@ -121,6 +126,7 @@ let resolve_position =
       Some({
         row,
         col,
+        shape: None,
         delimiters: ins.delimiters,
       })
     | Some((sg, i, p)) =>
@@ -188,9 +194,20 @@ let resolve_position =
           )
         | _ => rest
         };
+      /* ghost-caret shape at the pin: the shared-nib facing between
+         the pieces around the insertion point, mirroring
+         Siblings.direction_between (right neighborhood first) */
+      let shape = {
+        let (before, after) = Util.ListUtil.split_n(i + 1, sg);
+        switch (Segment.edge_direction_of(Left, after)) {
+        | None => Segment.edge_direction_of(Right, before)
+        | d => d
+        };
+      };
       Some({
         row,
         col,
+        shape,
         delimiters: ins.delimiters,
       });
     };
@@ -259,6 +276,8 @@ let chip_view =
       ~font_metrics: FontMetrics.t,
       ~row: int,
       ~col: int,
+      ~shape: option(Direction.t),
+      ~caret_form: option((Direction.t, option(Direction.t))),
       ~live: bool,
       ~at_caret: bool,
       body: list(Node.t),
@@ -266,33 +285,38 @@ let chip_view =
     : Node.t => {
   let x = float_of_int(col) *. font_metrics.col_width;
   let y = float_of_int(row) *. font_metrics.row_height;
-  /* flagpole: pole and bubble are sibling divs in the same anchor,
-     sharing the SAME left offset float — one layout-rounding path,
-     so their left edges align exactly. Whole device pixels: the pole
-     div and the bubble's inset stripe must round identically or the
-     stripe renders a hair thicker than the pole. */
-  let pole_w =
-    Float.max(
-      1.0,
-      Float.round(CaretDec.caret_width *. font_metrics.col_width),
-    );
-  let body_left = -. (0.5 *. pole_w);
+  /* the pole is a GHOST CARET: the same path the real caret draws at
+     this position, so it nests against the shard decorations. Hidden
+     at coincidence (the real caret takes over). */
   let pole =
-    div(
-      ~attrs=[
-        Attr.classes(["quiver-chip-pole"]),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "left: %fpx; top: 0px; width: %fpx; height: %fpx;",
-            body_left,
-            pole_w,
-            font_metrics.row_height *. (1.0 +. ShardDec.shadow_dy),
-          ),
-        ),
-      ],
-      [],
+    DecUtil.code_svg(
+      ~font_metrics,
+      ~origin={
+        row,
+        col,
+      },
+      ~base_cls=["quiver-chip-pole"],
+      ~path_cls=["quiver-chip-pole-path"],
+      ~scale=1.0,
+      ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
+      CaretDec.caret_base_path(Direction.Right, shape),
     );
+  /* the flag's left edge kisses the top-left corner of whichever
+     caret stands at its foot: the ghost pole at rest, the REAL caret
+     at coincidence — same top-edge geometry, x =
+     -(shape_adjust + caret_width/2) */
+  let (dock_side, dock_shape) =
+    switch (at_caret, caret_form) {
+    | (true, Some((cs, csh))) => (cs, csh)
+    | _ => (Direction.Right, shape)
+    };
+  let body_left =
+    -. (
+      ShardDec.shape_adjust(dock_side, dock_shape)
+      +. 0.5
+      *. CaretDec.caret_width
+    )
+    *. font_metrics.col_width;
   div(
     ~attrs=[
       Attr.classes(
@@ -302,21 +326,16 @@ let chip_view =
       ),
     ],
     [
+      pole,
       div(
         ~attrs=[
           Attr.classes(["quiver-chip-anchor"]),
           Attr.create(
             "style",
-            Printf.sprintf(
-              "left: %fpx; top: %fpx; --pole-w: %fpx;",
-              x,
-              y,
-              pole_w,
-            ),
+            Printf.sprintf("left: %fpx; top: %fpx;", x, y),
           ),
         ],
         [
-          pole,
           div(
             ~attrs=[
               Attr.classes(["quiver-chip-body"]),
@@ -382,6 +401,7 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~droppable: option((Id.t, int))=None,
       ~caret_pos: option((int, int))=None,
+      ~caret_form: option((Direction.t, option(Direction.t)))=None,
       seg: Segment.t,
     )
     : Node.t => {
@@ -421,6 +441,8 @@ let view =
              ~font_metrics,
              ~row=ins.row,
              ~col=ins.col,
+             ~shape=ins.shape,
+             ~caret_form,
              ~live=matches_droppable(droppable, ins.delimiters),
              ~at_caret=caret_pos == Some((ins.row, ins.col)),
              delimiter_nodes(~font_metrics, ins.delimiters),
