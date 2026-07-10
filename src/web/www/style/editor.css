@@ -527,9 +527,6 @@ svg:has(.child-line) {
 .quiver-chip-body {
   position: absolute;
   transform: translateY(-50%);
-  /* absolute positioning near a line end leaves almost no available
-     width — without nowrap a multi-segment chip wraps vertically */
-  white-space: nowrap;
   /* pointer events only to test the modifier; unmodified clicks
      bubble through to the editor */
   pointer-events: auto;
