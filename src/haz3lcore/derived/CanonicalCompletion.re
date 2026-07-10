@@ -2322,3 +2322,54 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
 let for_editor = (seg: Segment.t): completion_result => {
   complete_segment_deep(~sort=Sort.Exp, seg);
 };
+
+/* The obligation whose insertion zone contains the caret — the chip
+   the caret is visually pinned to (chips pin coincidence-first, so a
+   caret anywhere in the inter-content whitespace around an anchor
+   coincides with its chip). Tab dispatches this. Zone matching:
+   whitespace/grout siblings around the caret match an insertion
+   anchored on them from either side; the bounding content pieces
+   match only insertions on their caret-facing side. */
+let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
+  switch (z.caret) {
+  | Inner(_) => None
+  | Outer =>
+    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+    let result = for_editor(seg);
+    let tid_of = (ins: insertion): option(Id.t) =>
+      switch (ins.delimiters) {
+      | [{of_shard: Some((tid, _)), _}, ..._] => Some(tid)
+      | _ => None
+      };
+    let find = (id: Id.t, sides: list(Direction.t)): option(Id.t) =>
+      result.insertions
+      |> List.find_opt((ins: insertion) =>
+           Id.equal(ins.adjacent_id, id) && List.mem(ins.side, sides)
+         )
+      |> Option.map(tid_of)
+      |> Option.join;
+    let is_content = (p: Piece.t): bool =>
+      switch (p) {
+      | Secondary(_)
+      | Grout(_) => false
+      | _ => true
+      };
+    let rec probe = (ps: list(Piece.t), ~facing: Direction.t) =>
+      switch (ps) {
+      | [] => None
+      | [p, ...rest] =>
+        if (is_content(p)) {
+          find(Piece.id(p), [facing]);
+        } else {
+          switch (find(Piece.id(p), [Direction.Left, Direction.Right])) {
+          | Some(_) as r => r
+          | None => probe(rest, ~facing)
+          };
+        }
+      };
+    let (l, r) = z.relatives.siblings;
+    switch (probe(List.rev(l), ~facing=Direction.Right)) {
+    | Some(_) as hit => hit
+    | None => probe(r, ~facing=Direction.Left)
+    };
+  };

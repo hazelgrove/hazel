@@ -1513,6 +1513,51 @@ let rule_selection_tests = [
   ),
 ];
 
+/* Tab dispatch: the caret pinned to a quiver chip discharges that
+   obligation via obligation_at_caret -> ApplyCompletion(One) — no
+   inline buffer needed (buffers only appear on edits; Tab must work
+   after pure movement too). */
+let move_l = Action.Move(Local(Left, ByChar));
+let move_r = Action.Move(Local(Right, ByChar));
+let tab_dispatch = (acts: list(Action.t)): string => {
+  let z = Test_Editing.perform(Zipper.init(), acts);
+  switch (CanonicalCompletion.obligation_at_caret(z)) {
+  | None => "NONE"
+  | Some(tid) =>
+    let z = Test_Editing.perform(z, [ApplyCompletion(One(tid))]);
+    print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z));
+  };
+};
+let tab_case = (~name, ~acts, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string_testable, name, expected, tab_dispatch(acts))
+  );
+
+let tab_dispatch_tests = [
+  tab_case(
+    ~name="tab after movement completes rule-arrow witness",
+    ~acts=
+      Test_Editing.mk("case x | 1 =¦") @ [move_l, move_l, move_r, move_r],
+    ~expected="case x | 1 =>?",
+  ),
+  tab_case(
+    ~name="tab in trailing whitespace zone dispatches append chip",
+    ~acts=Test_Editing.mk("let x = 1 ¦"),
+    ~expected="let x = 1in? ",
+  ),
+  tab_case(
+    ~name="tab away from any chip dispatches nothing",
+    ~acts=Test_Editing.mk("1 + 2¦"),
+    ~expected="NONE",
+  ),
+  tab_case(
+    ~name="tab at inner obligation dispatches only that tile",
+    /* coalesced chips (end + paren) dispatch innermost-first */
+    ~acts=Test_Editing.mk("(case x | 1 => 2¦"),
+    ~expected="(case x | 1 => 2end",
+  ),
+];
+
 /* Materialization: ALL = the joint result; ONE discharges a single
    tile and moves nothing else. */
 let materialize_tests = [
@@ -1735,6 +1780,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ),
   ("CanonicalCompletion: entry-stability", entry_stability_tests),
   ("CanonicalCompletion: placement-guards", placement_guard_tests),
+  ("CanonicalCompletion: tab-dispatch", tab_dispatch_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
