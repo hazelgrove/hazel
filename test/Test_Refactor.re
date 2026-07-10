@@ -3411,6 +3411,164 @@ end",
   ),
 ];
 
+/* tyalias soundness + definition-flow placement (2026-07-10) */
+let tyalias_tests = [
+  test_case("tyalias: hoist w/ annotation gated (capture)", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(HoistLet, "type t = Int in\nlet ¦a: t = 1 in a"),
+    )
+  }),
+  test_case("tyalias: hoist w/o annotation offered", `Quick, () => {
+    check(
+      bool,
+      "offered",
+      true,
+      offers(HoistLet, "type t = Int in\nlet ¦a = 1 in a"),
+    )
+  }),
+  test_case(
+    "tyalias: extract lands below the type line",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=ExtractLet, "let k = 1 in\ntype t = Int in\nk + ¦2 * 3")
+        |> text_of;
+      check(
+        string,
+        "extract",
+        "let k = 1 in\ntype t = Int in\nlet x = 2 in\nk + x * 3",
+        z,
+      );
+    },
+  ),
+  test_case("tyalias: inline gated when a crossed alias captures", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(InlineLet, "let ¦a = (1 : t) in\ntype t = Bool in\na"),
+    )
+  }),
+  test_case("tyalias: inline offered when no alias crossed", `Quick, () => {
+    check(
+      bool,
+      "offered",
+      true,
+      offers(InlineLet, "let ¦a = (1 : t) in\na"),
+    )
+  }),
+  test_case("tyalias: feed gated when a crossed alias captures", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(FeedLet, "let ¦a = (1 : t) in\ntype t = Bool in\na + a"),
+    )
+  }),
+  test_case("tyalias: feed offered when no alias crossed", `Quick, () => {
+    check(
+      bool,
+      "offered",
+      true,
+      offers(FeedLet, "let ¦a = (1 : t) in\na + a"),
+    )
+  }),
+];
+
+/* comment invariants: never deleted, never duplicated; positional
+   behavior characterized (doc blocks stay with the SLOT today —
+   flips if/when comment-block attachment lands) */
+let comment_tests = [
+  test_case(
+    "comment: hoist chain swap leaves doc block at its slot",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistLet,
+          "let a = 1 in\n# doc for b #\nlet ¦b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "hoist",
+        "let b = 2 in\n# doc for b #\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: sink chain swap leaves doc block at its slot",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkLet,
+          "# doc for a #\nlet ¦a = 1 in\nlet b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "sink",
+        "# doc for a #\nlet b = 2 in\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: inline multi re-homes def-lead comment ONCE",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=InlineLet,
+          "let ¦f =\n# helper #\nfun x -> x + 1 in\nf(1) + f(2)",
+        )
+        |> text_of;
+      check(
+        string,
+        "inline",
+        "# helper #\n\n(fun x -> x + 1)(1) + (fun x -> x + 1)(2)",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: remove unused keeps the doc block above",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=RemoveUnusedLet,
+          "# doc for a #\n# second line #\nlet ¦a = 1 in\n2 + 2",
+        )
+        |> text_of;
+      check(string, "remove", "# doc for a #\n# second line #\n2 + 2", z);
+    },
+  ),
+  test_case(
+    "comment: inline multi keeps interior prose on ONE copy",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=InlineLet,
+          "let ¦f = fun x ->\n# helper #\nx + 1 in\nf(1) + f(2)",
+        )
+        |> text_of;
+      check(
+        string,
+        "inline",
+        "(fun x ->\nx + 1)(1) + (fun x ->\n# helper #\nx + 1)(2)",
+        z,
+      );
+    },
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -3540,6 +3698,8 @@ let tests = [
     @ landing_block_tests
     @ whitespace_probe
     @ whitespace_probe2
+    @ tyalias_tests
+    @ comment_tests
     @ beta_tests
     @ beta_step_tests
     @ reduce_tests

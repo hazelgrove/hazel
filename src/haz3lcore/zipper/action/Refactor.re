@@ -158,6 +158,62 @@ let boundary_comments = (e: Exp.t): list(Secondary.t) =>
   @ Slot.of_exp(e).trail
   |> List.filter(is_comment_piece);
 
+/* prose belongs to the ORIGINAL: minted COPIES drop comments rather
+   than duplicating the text (the first/traveling copy keeps them) */
+let strip_comments = (e: Exp.t): Exp.t => {
+  /* a dropped comment takes its own line break with it (else the
+     copy keeps a blank line where the prose was) */
+  let is_break = (w: Secondary.t) =>
+    switch (w.content) {
+    | Whitespace("\n") => true
+    | _ => false
+    };
+  let rec keep = (ws: list(Secondary.t)) =>
+    switch (ws) {
+    | [] => []
+    | [c, nl, ...rest] when is_comment_piece(c) && is_break(nl) =>
+      keep(rest)
+    | [c, ...rest] when is_comment_piece(c) => keep(rest)
+    | [w, ...rest] => [w, ...keep(rest)]
+    };
+  Exp.map_term(
+    ~f_exp=
+      (cont, e: Exp.t) => {
+        let (b, a) = e.annotation.secondary;
+        cont({
+          ...e,
+          annotation: {
+            ...e.annotation,
+            secondary: (keep(b), keep(a)),
+          },
+        });
+      },
+    ~f_pat=
+      (cont, p: Pat.t) => {
+        let (b, a) = p.annotation.secondary;
+        cont({
+          ...p,
+          annotation: {
+            ...p.annotation,
+            secondary: (keep(b), keep(a)),
+          },
+        });
+      },
+    ~f_typ=
+      (cont, t: Typ.t) => {
+        let (b, a) = t.annotation.secondary;
+        cont({
+          ...t,
+          annotation: {
+            ...t.annotation,
+            secondary: (keep(b), keep(a)),
+          },
+        });
+      },
+    e,
+  );
+};
+
 /* strip a plain-whitespace lead; a lead containing COMMENTS is user
    content and stays put (RemoveUnusedLet once ate the next line's
    comment block via a bare strip) */
@@ -508,6 +564,32 @@ let pat_var_names = (p: Pat.t): list(string) => {
   acc^;
 };
 
+let tpat_names = (tp: TPat.t): list(string) =>
+  switch (IdTagged.term_of(tp)) {
+  | Var(name) => [name]
+  | _ => []
+  };
+
+/* type names mentioned in any type position of e (ascriptions, pat
+ * annotations, tyalias defs) — the capture check for moves across a
+ * type binder */
+let mentions_typ_names = (names: list(string), e: Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_typ=
+        (cont, t: Typ.t) => {
+          switch (IdTagged.term_of(t)) {
+          | Var(y) when List.mem(y, names) => found := true
+          | _ => ()
+          };
+          cont(t);
+        },
+      e,
+    );
+  found^;
+};
+
 /* Does the pattern bind this name? (occurrences under such binders are
  * shadowed and must not be substituted) */
 let binds = (x: string, p: Pat.t): bool => {
@@ -762,7 +844,7 @@ let rec subst =
        P7); later copies are minted fresh HERE, explicitly, rather
        than leaving duplicates for dedupe_ids to heal silently
        (tests assert the healer stays quiet) */
-    let d = first^ ? def : refresh_ids(def);
+    let d = first^ ? def : strip_comments(refresh_ids(def));
     first := false;
     inserted(~parens=parens_for(e), d, e);
   | Let(p, d, body) =>
@@ -1161,6 +1243,48 @@ let bounded_region = (occ_id: Id.t, program: Exp.t): Exp.t => {
   };
 };
 
+let typ_names_mentioned = (e: Exp.t): list(string) => {
+  let acc = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_typ=
+        (cont, t: Typ.t) => {
+          switch (IdTagged.term_of(t)) {
+          | Var(y) => acc := [y, ...acc^]
+          | _ => ()
+          };
+          cont(t);
+        },
+      e,
+    );
+  List.sort_uniq(compare, acc^);
+};
+
+/* would substituting `moved` at occ_id capture a type name? A
+   TyAlias crossed on the way rebinds its name; a crossed `use`
+   rebinds unknowably (refuse whenever moved mentions any type name).
+   Aliases aren't locally renameable, so capture means refusal. */
+let typ_captured_at = (occ_id: Id.t, moved: Exp.t, body: Exp.t): bool => {
+  let mentioned = typ_names_mentioned(moved);
+  mentioned == []
+    ? false
+    : (
+      switch (find_path(~hit=e => Exp.rep_id(e) == occ_id, body)) {
+      | None => false
+      | Some(path) =>
+        path
+        |> List.exists((e: Exp.t) =>
+             switch (IdTagged.term_of(e)) {
+             | TyAlias(tp, _, _) =>
+               tpat_names(tp) |> List.exists(n => List.mem(n, mentioned))
+             | Use(_) => true
+             | _ => false
+             }
+           )
+      }
+    );
+};
+
 let reparses_region = (region: Exp.t): bool => {
   let seg =
     ExpToSegment.exp_to_segment(~settings=roundtrip_settings, region)
@@ -1172,6 +1296,30 @@ let reparses_region = (region: Exp.t): bool => {
   };
 };
 
+/* shared inline gate (impl ~matches AND menu gating): non-recursive
+   def; no occurrence typ-captured under a rebinding tyalias/use. The
+   moved material is the def PLUS any pattern annotation (substitution
+   can re-introduce it as an ascription). */
+let inline_matches = (p: Pat.t, def: Exp.t, body: Exp.t): bool => {
+  let moved: Exp.t = fresh(Let(p, def, fresh(EmptyHole)));
+  let ok = f =>
+    !free_in(f, def)
+    && occurrences_of(f, body)
+    |> List.for_all(o => !typ_captured_at(Exp.rep_id(o), moved, body));
+  (
+    switch (let_head_name(p)) {
+    | Some(f) => ok(f)
+    | None => false
+    }
+  )
+  || (
+    switch (sugar_fn_name(p)) {
+    | Some(f) => ok(f)
+    | None => false
+    }
+  );
+};
+
 let inline_let_impl: impl = {
   label: "Inline",
   tooltip: "Replace this let by substituting its definition",
@@ -1180,24 +1328,11 @@ let inline_let_impl: impl = {
     let attempt = target =>
       rewrite_let(
         ~target,
-        ~matches=
-          (p, def, _) =>
-            /* self-recursive defs are gated on BOTH paths: consuming
-               the binding would orphan the copied body's self-
-               references (feed still unfolds them one use at a time,
-               where the binding survives) */
-            (
-              switch (let_head_name(p)) {
-              | Some(f) => !free_in(f, def)
-              | None => false
-              }
-            )
-            || (
-              switch (sugar_fn_name(p)) {
-              | Some(f) => !free_in(f, def)
-              | None => false
-              }
-            ),
+        /* self-recursive defs are gated on BOTH paths: consuming
+           the binding would orphan the copied body's self-
+           references (feed still unfolds them one use at a time,
+           where the binding survives) */
+        ~matches=inline_matches,
         ~rewrite=
           (p, def, body) => {
             /* An annotated head's type is analysis context, not
@@ -1468,7 +1603,8 @@ let feed_plan =
           let free = vars_of(def) |> List.filter(v => free_in(v, def));
           let captured =
             binders_over(Exp.rep_id(occ), body)
-            |> List.exists(b => List.mem(b, free));
+            |> List.exists(b => List.mem(b, free))
+            || typ_captured_at(Exp.rep_id(occ), def, body);
           captured ? None : Some(Feed(l, def, occ));
         };
       };
@@ -1501,8 +1637,9 @@ let feed_let_impl: impl = {
                 reparses_region(candidate);
               };
         };
-      /* the def survives, so the copy needs fresh interior ids */
-      let copy = inserted(~parens, refresh_ids(def), occ);
+      /* the def survives, so the copy needs fresh interior ids —
+         and sheds prose (the binding keeps the original comments) */
+      let copy = inserted(~parens, strip_comments(refresh_ids(def)), occ);
       let at_use =
         occ |> IdTagged.ids |> List.mem(target) ? Some(target) : None;
       let focus =
@@ -1828,6 +1965,9 @@ let copy_runs = (ws: list(Secondary.t)): list(Secondary.t) =>
 let line_child = (parent: Exp.t, child: Exp.t): bool =>
   switch (IdTagged.term_of(parent)) {
   | Let(_, _, body) => same_node(body, child)
+  /* a type line is a definition line: extract binds BELOW it, not
+     above (also keeps extracted ascriptions inside the alias scope) */
+  | TyAlias(_, _, body) => same_node(body, child)
   | Fun(_, body, _, _) => same_node(body, child)
   | FixF(_, body, _) => same_node(body, child)
   | Match(_, rules) =>
@@ -2936,6 +3076,24 @@ let hoist_step =
          path knows nothing about the crossed binders */
       | Match(_, rules)
           when rules |> List.exists(((_, rb)) => same_node(rb, c)) =>
+        None
+      /* binder-introducing bodies the generic case can't gate: Use
+         imports names we can't enumerate here; the rest bind exp/typ
+         names the moving def could reference. Dead press beats
+         unbinding. */
+      | Use(_)
+      | TypFun(_)
+      | Theorem(_)
+      | Forall(_)
+      | ModuleExp(_) => None
+      /* a type binder IS enumerable: refuse only when the moving
+         parts (pat annotations, def) mention the alias name */
+      | TyAlias(tp, _, _)
+          when
+            mentions_typ_names(
+              tpat_names(tp),
+              fresh(Let(lp, ldef, fresh(EmptyHole))),
+            ) =>
         None
       | _ =>
         /* generic tight position: g(let x = e in b) -> let x = e in
@@ -5178,21 +5336,7 @@ let applies =
     : bool =>
   switch (kind) {
   | InlineLet =>
-    let at =
-      let_applies(~pred=(p, def, _) =>
-        (
-          switch (let_head_name(p)) {
-          | Some(f) => !free_in(f, def)
-          | None => false
-          }
-        )
-        || (
-          switch (sugar_fn_name(p)) {
-          | Some(f) => !free_in(f, def)
-          | None => false
-          }
-        )
-      );
+    let at = let_applies(~pred=inline_matches);
     at(target, program)
     || (
       switch (binder_of_occurrence(~info_map, ~target, program)) {
