@@ -83,13 +83,16 @@ let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
   find_piece_ctx(sg, id) |> Option.map(((_, _, p)) => p);
 
 /* Resolve an insertion's position. COINCIDENCE-FIRST placement: a
-   pin's exact position within a run of grout/whitespace is
-   semantically free — materialization doesn't care — so spend the
-   freedom on caret alignment. The pin's free zone spans the
-   same-line grout/whitespace run around its anchor (bounded by the
-   surrounding content pieces); when the caret is inside the zone the
-   pin FOLLOWS it exactly (the takeover then shows one caret-like
-   object); otherwise it rests at the zone's left content edge. */
+   pin's exact position within a run of grout/whitespace — LINEBREAKS
+   INCLUDED — is semantically free: the material drop is structural,
+   so `let x = 1 in\nbody` and `let x = 1\nin body` are the same
+   program. The pin's free zone is the whole inter-content whitespace
+   region around its anchor; when the caret is inside it the pin
+   FOLLOWS the caret exactly (one caret-like object via the
+   takeover). Otherwise it RESTS at the engine's spot (left content
+   edge of the same-line run) — the resting position stays
+   layout-faithful to the engine's partition-aware choice; only the
+   following crosses lines. */
 let resolve_position =
     (
       ~seg: Segment.t,
@@ -108,78 +111,89 @@ let resolve_position =
       };
     let is_free = (p: Piece.t) =>
       switch (p) {
-      | Grout(_) => true
-      | Secondary(sec) => !Secondary.is_linebreak(sec)
+      | Grout(_)
+      | Secondary(_) => true
       | _ => false
       };
-    let col =
-      switch (find_piece_ctx(seg, ins.adjacent_id)) {
-      | None => col
-      | Some((sg, i, p)) =>
-        /* zone left bound: right edge of the previous content piece */
-        let rec prev_content = (j: int): option(Piece.t) =>
-          j <= 0
-            ? None
-            : (
-              switch (List.nth(sg, j - 1)) {
-              | q when is_free(q) => prev_content(j - 1)
-              | q => Some(q)
-              }
-            );
-        let left_edge =
-          switch (is_free(p) ? prev_content(i) : Some(p)) {
-          | Some(q) =>
-            switch (Measured.find_by_id(Piece.id(q), measured)) {
-            | Some(qm) when qm.last.row == row => Some(qm.last.col)
-            | _ => None
+    let leq = ((r1, c1), (r2, c2)) => r1 < r2 || r1 == r2 && c1 <= c2;
+    switch (find_piece_ctx(seg, ins.adjacent_id)) {
+    | None =>
+      Some({
+        row,
+        col,
+        delimiters: ins.delimiters,
+      })
+    | Some((sg, i, p)) =>
+      let rec prev_content = (j: int): option(Piece.t) =>
+        j <= 0
+          ? None
+          : (
+            switch (List.nth(sg, j - 1)) {
+            | q when is_free(q) => prev_content(j - 1)
+            | q => Some(q)
             }
-          | None => Some(0)
-          };
-        /* zone right bound: left edge of the next content piece on
-           the same line; an unbounded line end follows any column */
-        let n = List.length(sg);
-        let rec next_content = (j: int): option(Piece.t) =>
-          j >= n
-            ? None
-            : (
-              switch (List.nth(sg, j)) {
-              | q when is_free(q) => next_content(j + 1)
-              | Piece.Secondary(_) => None /* linebreak ends the zone */
-              | q => Some(q)
-              }
-            );
-        let right_edge =
-          switch (next_content(is_free(p) ? i : i + 1)) {
-          | Some(q) =>
-            switch (Measured.find_by_id(Piece.id(q), measured)) {
-            | Some(qm) when qm.origin.row == row => Some(qm.origin.col)
-            | _ => Some(col)
+          );
+      let n = List.length(sg);
+      let rec next_content = (j: int): option(Piece.t) =>
+        j >= n
+          ? None
+          : (
+            switch (List.nth(sg, j)) {
+            | q when is_free(q) => next_content(j + 1)
+            | q => Some(q)
             }
-          | None => None /* unbounded to the line end */
-          };
-        switch (left_edge) {
-        | None => col
-        | Some(left) =>
-          switch (caret_pos) {
-          | Some((r, c))
-              when
-                r == row
-                && c >= left
-                && (
-                  switch (right_edge) {
-                  | Some(right) => c <= right
-                  | None => true
-                  }
-                ) => c
-          | _ => min(left, col)
-          }
+          );
+      let measure_last = (q: Piece.t) =>
+        Measured.find_by_id(Piece.id(q), measured)
+        |> Option.map((qm: Measured.measurement) =>
+             (qm.last.row, qm.last.col)
+           );
+      let measure_origin = (q: Piece.t) =>
+        Measured.find_by_id(Piece.id(q), measured)
+        |> Option.map((qm: Measured.measurement) =>
+             (qm.origin.row, qm.origin.col)
+           );
+      /* zone bounds: previous/next content around the anchor's
+         whitespace run (whole-document edges when absent) */
+      let left_bound =
+        switch (is_free(p) ? prev_content(i) : Some(p)) {
+        | Some(q) => measure_last(q)
+        | None => Some((0, 0))
         };
-      };
-    Some({
-      row,
-      col,
-      delimiters: ins.delimiters,
-    });
+      let right_bound =
+        switch (next_content(is_free(p) ? i : i + 1)) {
+        | Some(q) => measure_origin(q)
+        | None => None /* unbounded to the segment end */
+        };
+      /* resting spot: the left content edge when it shares the pin's
+         line (the round-6 snap); the raw anchor position otherwise */
+      let rest =
+        switch (left_bound) {
+        | Some((lr, lc)) when lr == row => (row, min(lc, col))
+        | _ => (row, col)
+        };
+      let (row, col) =
+        switch (caret_pos, left_bound) {
+        | (Some((r, c)), Some(left))
+            when
+              leq(left, (r, c))
+              && (
+                switch (right_bound) {
+                | Some(right) => leq((r, c), right)
+                | None => true
+                }
+              ) => (
+            r,
+            c,
+          )
+        | _ => rest
+        };
+      Some({
+        row,
+        col,
+        delimiters: ins.delimiters,
+      });
+    };
   };
 
 /* Chip segment rendering. EMPHASIS INVERSION vs the old offside
