@@ -153,6 +153,7 @@ type refactor =
   | InlineLet
   | FeedLet
   | RemoveUnusedLet
+  | InlineAlias
   | AddTypeAnnotation
   | EtaExpand
   | EvaluateInPlace
