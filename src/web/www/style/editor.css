@@ -542,11 +542,6 @@ svg:has(.child-line) {
   /* pointer events only to test the modifier; unmodified clicks
      bubble through to the editor */
   pointer-events: auto;
-}
-
-/* pointer cursor only while meta is held (the ref-underline state) */
-.code-container.meta-down .quiver-chip-body .chip-seg {
-  cursor: pointer;
   padding: 0px 4px 1px 4px;
   border-radius: 4px;
   background: var(--quiver-chip);
@@ -556,6 +551,11 @@ svg:has(.child-line) {
   line-height: 1.25;
   font-weight: bold;
   white-space: nowrap;
+}
+
+/* pointer cursor only while meta is held (the ref-underline state) */
+.code-container.meta-down .quiver-chip-body .chip-seg {
+  cursor: pointer;
 }
 
 /* the pole is a ghost caret (SVG, true shape at its position) */
