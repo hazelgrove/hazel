@@ -601,9 +601,16 @@ svg:has(.child-line) {
 }
 
 /* the caret on a chip's pin: the POLE takes the caret's red — the
-   bubble keeps the incomplete gold, so labels never flip color */
+   bubble keeps the incomplete gold, so labels never flip color. The
+   inset shadow paints a pole-width red stripe inside the bubble's
+   left edge (zero layout impact, follows the top-left radius), so
+   pole and bubble join as one continuous caret-colored line. */
 .quiver-chip.chip-at-caret .quiver-chip-pole {
   background: var(--caret-color);
+}
+
+.quiver-chip.chip-at-caret .quiver-chip-body {
+  box-shadow: inset var(--pole-w) 0 0 var(--caret-color);
 }
 
 /* visibility (not display): the scroll-to-caret machinery reads
