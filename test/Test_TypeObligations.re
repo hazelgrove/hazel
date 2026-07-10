@@ -137,8 +137,75 @@ let reify_tests = [
   ),
 ];
 
+/* === Scenario traces ===
+ * Ergonomic walks: what the user sees owed at each state. Format
+ * pins present/expected + owed types; "none" = no chip. */
+let scenario_tests = [
+  /* left-to-right entry: obligations shrink monotonically, never
+     flicker to something weird mid-trajectory */
+  /* known gap: empty parens give no element anchor (M1 skips
+     k=0) — this is where the caret-local inline ghost belongs */
+  ob_case(~name="LR: f(", ~code=f2 ++ "f(¦", ~expected="none"),
+  ob_case(~name="LR: f(1", ~code=f2 ++ "f(1¦", ~expected="1/2 owes String"),
+  /* after the comma, regrout's hole IS the second element: tuple
+     complete, hole anas String — nothing owed */
+  ob_case(~name="LR: f(1,", ~code=f2 ++ "f(1,¦", ~expected="none"),
+  ob_case(
+    ~name="LR: f(1, \"a\"",
+    ~code=f2 ++ "f(1, \"a\"¦",
+    ~expected="none",
+  ),
+  ob_case(
+    ~name="LR: f(1, \"a\")",
+    ~code=f2 ++ "f(1, \"a\")¦",
+    ~expected="none",
+  ),
+  /* mid-entry operator: incomplete element must not distort count */
+  ob_case(
+    ~name="mid-entry: f(1 +",
+    ~code=f2 ++ "f(1 +¦",
+    ~expected="1/2 owes String",
+  ),
+  ob_case(
+    ~name="mid-entry: f(1 + 2",
+    ~code=f2 ++ "f(1 + 2¦",
+    ~expected="1/2 owes String",
+  ),
+  /* nonlinear: deficit is judged program-state-wise, lands at the
+     tuple end regardless of caret (contrast: the tydi-scaffold
+     branch piled it at the caret) */
+  ob_case(
+    ~name="nonlinear: caret mid-tuple, deficit at end",
+    ~code="let h : (Int, Int, Int, Int) -> Int = fun x -> 1 in h(1, ¦2, 3",
+    ~expected="3/4 owes Int",
+  ),
+  ob_case(
+    ~name="nonlinear: caret at start of deficient tuple",
+    ~code="let h : (Int, Int, Int, Int) -> Int = fun x -> 1 in h(¦1, 2",
+    ~expected="2/4 owes Int,Int",
+  ),
+  /* overfull: no insertion can fix excess — no obligation (errors
+     handle it); must not underflow */
+  ob_case(
+    ~name="overfull: f(1, 2, 3) at arity 2",
+    ~code=f2 ++ "f(1, 2, 3¦",
+    ~expected="none",
+  ),
+  /* multi-site persistence: BOTH deficient calls owe at once,
+     regardless of where the caret is — the non-local display the
+     buffer architecture could never do */
+  ob_case(
+    ~name="multi-site: two deficient calls owe simultaneously",
+    ~code=
+      f2
+      ++ "let g : (Bool, Bool, Bool) -> Int = fun y -> 2 in f(1¦) + g(true)",
+    ~expected="1/2 owes String | 1/3 owes Bool,Bool",
+  ),
+];
+
 let tests = [
   ("TypeObligations: reification", reify_tests),
+  ("TypeObligations: scenarios", scenario_tests),
   (
     "TypeObligations: derivation",
     [
