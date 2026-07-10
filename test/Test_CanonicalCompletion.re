@@ -1586,6 +1586,24 @@ let materialize_tests = [
   ),
 ];
 
+let bogus_materialize_test =
+  test_case(
+    "materialize one refuses a non-obligation id",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(Zipper.init(), Test_Editing.mk("let x = 1¦"));
+      let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+      check(
+        Alcotest.bool,
+        "bogus id",
+        true,
+        CanonicalCompletion.materialize_one(~sort=Sort.Exp, seg, Id.mk())
+        == None,
+      );
+    },
+  );
+
 let entry_stability_tests = [
   edit_case(
     ~name="bar alone: end stays after the rule",
@@ -1631,7 +1649,10 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: tydi-gates", tydi_probe_tests),
   ("CanonicalCompletion: insertion-ordering", ordering_tests),
   ("CanonicalCompletion: rule-selection", rule_selection_tests),
-  ("CanonicalCompletion: materialize", materialize_tests),
+  (
+    "CanonicalCompletion: materialize",
+    materialize_tests @ [bogus_materialize_test],
+  ),
   ("CanonicalCompletion: entry-stability", entry_stability_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */
