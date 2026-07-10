@@ -15,7 +15,6 @@ module Model = {
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
     quiver: bool, /* Show completion visualization (quiver arrows) */
-    backpack: bool, /* Show backpack display */
     /* Auto probe: automatically place a multi probe on the body of
        whichever top-level definition the cursor is currently inside */
     autoprobe_mode: bool,
@@ -82,7 +81,6 @@ module Model = {
       debug_collapsed: [],
     },
     quiver: true, /* On by default (andrew 2026-07-09) */
-    backpack: false, /* Off for now — quiver is the completion display (andrew 2026-07-09) */
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
@@ -169,7 +167,6 @@ module Update = {
     | DisplayWarnings
     | FlipAnimations
     | Quiver
-    | Backpack
     | AutoprobeMode
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
@@ -467,10 +464,6 @@ module Update = {
       | Quiver => {
           ...settings,
           quiver: !settings.quiver,
-        }
-      | Backpack => {
-          ...settings,
-          backpack: !settings.backpack,
         }
       | AutoprobeMode => {
           ...settings,
