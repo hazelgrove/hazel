@@ -490,7 +490,7 @@ let wave_tests = [
       check(
         string,
         "expanded",
-        "let f : Int -> Int = fun y -> y in (fun skree -> f(skree))",
+        "let f : Int -> Int = fun y -> y in (fun treeb -> f(treeb))",
         got,
       );
     },
@@ -508,7 +508,7 @@ let wave_tests = [
       check(
         string,
         "two params",
-        "let f : (Int, Bool) -> Int = fun (a, b) -> a in (fun (quux, mimsy) -> f(quux, mimsy))",
+        "let f : (Int, Bool) -> Int = fun (a, b) -> a in (fun (bloop, zoob) -> f(bloop, zoob))",
         got,
       );
     },
@@ -782,7 +782,7 @@ let more_tests = [
     `Quick,
     () => {
       let got = inline(~kind=ExtractLet, "1 ¦+ 2") |> text_of;
-      check(string, "extracted", "let floof = 1 + 2 in floof", got);
+      check(string, "extracted", "let baz = 1 + 2 in baz", got);
     },
   ),
   test_case(
@@ -794,7 +794,7 @@ let more_tests = [
       check(
         string,
         "fresh x1, hoisted to chain",
-        "let x = 1 in let skree = f(x) in x * skree",
+        "let x = 1 in let zonk = f(x) in x * zonk",
         got,
       );
     },
@@ -842,7 +842,7 @@ let more_tests = [
       check(
         string,
         "let covers the tuple line",
-        "let zug = f(2) in zug, 3",
+        "let glorp = f(2) in glorp, 3",
         got,
       );
     },
@@ -856,7 +856,7 @@ let more_tests = [
       check(
         string,
         "own line, chain order",
-        "let a = 1 in\nlet xyzzy = f(2) in\ng(xyzzy)",
+        "let a = 1 in\nlet wabe = f(2) in\ng(wabe)",
         got,
       );
     },
@@ -871,7 +871,7 @@ let more_tests = [
       check(
         string,
         "comment kept once",
-        "# note #\nlet a = 1 in\nlet xyzzy = f(2) in\ng(xyzzy)",
+        "# note #\nlet a = 1 in\nlet wabe = f(2) in\ng(wabe)",
         got,
       );
     },
@@ -885,7 +885,7 @@ let more_tests = [
       check(
         string,
         "above the def line",
-        "let borp = f(2) in let a = g(borp) in a + 1",
+        "let qux = f(2) in let a = g(qux) in a + 1",
         got,
       );
     },
@@ -898,7 +898,7 @@ let more_tests = [
       check(
         string,
         "fun body is the line",
-        "fun n -> let floof = f(2) in g(floof)",
+        "fun n -> let meep = f(2) in g(meep)",
         got,
       );
     },
@@ -913,7 +913,7 @@ let more_tests = [
       check(
         string,
         "arm body is the line",
-        "case a | 1 => let xyzzy = f(2) in g(xyzzy) | _ => 0 end",
+        "case a | 1 => let wabe = f(2) in g(wabe) | _ => 0 end",
         got,
       );
     },
@@ -928,7 +928,7 @@ let more_tests = [
       check(
         string,
         "case is the line",
-        "let a = 1 in let floof = f(2) in case floof | _ => 0 end",
+        "let a = 1 in let garg = f(2) in case garg | _ => 0 end",
         got,
       );
     },
@@ -946,7 +946,7 @@ let param_tests = [
       check(
         string,
         "param + hole arg",
-        "let f = fun (x, zort) -> x + 1 in f(2, ?)",
+        "let f = fun (x, zoob) -> x + 1 in f(2, ?)",
         got,
       );
     },
@@ -961,7 +961,7 @@ let param_tests = [
       check(
         string,
         "third param",
-        "let f = fun (a, b, quux) -> a in f(1, 2, ?)",
+        "let f = fun (a, b, bloop) -> a in f(1, 2, ?)",
         got,
       );
     },
@@ -976,7 +976,7 @@ let param_tests = [
       check(
         string,
         "both sites",
-        "let f = fun (x, qux) -> f(x, ?) in f(1, ?)",
+        "let f = fun (x, fnord) -> f(x, ?) in f(1, ?)",
         got,
       );
     },
@@ -1006,7 +1006,7 @@ let param_tests = [
       check(
         string,
         "sugar pat + call",
-        "let f(x, zort) = x + 1 in f(2, ?)",
+        "let f(x, zoob) = x + 1 in f(2, ?)",
         got,
       );
     },
@@ -1017,7 +1017,7 @@ let param_tests = [
     () => {
       let got =
         inline(~kind=AddParameter, "¦let f(a, b) = a in f(1, 2)") |> text_of;
-      check(string, "third", "let f(a, b, quux) = a in f(1, 2, ?)", got);
+      check(string, "third", "let f(a, b, bloop) = a in f(1, 2, ?)", got);
     },
   ),
   test_case(
@@ -1033,7 +1033,7 @@ let param_tests = [
       check(
         string,
         "arrow arg extended",
-        "let f : (Int, ?) -> Int = fun (x, zort) -> x in f(1, ?)",
+        "let f : (Int, ?) -> Int = fun (x, zoob) -> x in f(1, ?)",
         got,
       );
     },
@@ -1051,7 +1051,7 @@ let param_tests = [
       check(
         string,
         "prod extended",
-        "let f : (Int, Bool, ?) -> Int = fun (a, b, quux) -> a in f(1, true, ?)",
+        "let f : (Int, Bool, ?) -> Int = fun (a, b, bloop) -> a in f(1, true, ?)",
         got,
       );
     },
@@ -1088,7 +1088,7 @@ let param_tests = [
       check(
         string,
         "inner f kept",
-        "let f = fun (x, zug) -> x in let f = fun y -> y in f(1)",
+        "let f = fun (x, glorp) -> x in let f = fun y -> y in f(1)",
         got,
       );
     },
@@ -1971,7 +1971,7 @@ let caret_tests = [
         bool,
         "caret at binder: " ++ caret_text(z),
         true,
-        has_sub(caret_text(z), "let ¦baz = 1 + 2"),
+        has_sub(caret_text(z), "let ¦floof = 1 + 2"),
       );
     },
   ),
@@ -2067,7 +2067,7 @@ let extract_target_tests = [
       check(
         string,
         "application extracted",
-        "let garg = Error(e) in let y = f(garg) in y",
+        "let fnord = Error(e) in let y = f(fnord) in y",
         got,
       );
     },
@@ -2080,7 +2080,7 @@ let extract_target_tests = [
       check(
         string,
         "application extracted",
-        "let borp = g(2) in let y = h(borp) in y",
+        "let glorp = g(2) in let y = h(glorp) in y",
         got,
       );
     },
@@ -3462,7 +3462,7 @@ let tyalias_tests = [
       check(
         string,
         "extract",
-        "let k = 1 in\ntype t = Int in\nlet glorp = 2 in\nk + glorp * 3",
+        "let k = 1 in\ntype t = Int in\nlet tove = 2 in\nk + tove * 3",
         z,
       );
     },
@@ -3697,7 +3697,7 @@ let def_line_tests = [
       check(
         string,
         "extract",
-        "let k = 1 in\n1 + 1;\nlet glorp = 2 in\nk + glorp * 3",
+        "let k = 1 in\n1 + 1;\nlet tove = 2 in\nk + tove * 3",
         z,
       );
     },
