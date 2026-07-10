@@ -69,7 +69,7 @@ let run_initialize = (code: string, new_code: string) => {
           ),
         );
       } else {
-        Ok(Dump.to_zipper(new_z, ~root=Exp));
+        Ok(Materialize.all(new_z, ~root=Exp));
       };
     };
   };

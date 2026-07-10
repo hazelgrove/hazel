@@ -1542,6 +1542,50 @@ let rule_selection_tests = [
   ),
 ];
 
+/* Materialization: the virtual reading committed to the buffer.
+   ALL swaps in the engine's joint result; ONE discharges a single
+   tile's obligation and moves nothing else. */
+let materialize_tests = [
+  test_case(
+    "materialize all commits the joint completion",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(Zipper.init(), Test_Editing.mk("let x = 1¦"));
+      let z = Test_Editing.perform(z, [ApplyCompletion(All)]);
+      check(
+        string_testable,
+        "all",
+        "let x = 1in?",
+        print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z)),
+      );
+    },
+  ),
+  test_case(
+    "materialize one discharges only that tile",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.mk("(case x | 1 => 2¦"),
+        );
+      let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+      let case_id =
+        Segment.incomplete_tiles_deep(seg)
+        |> List.find((t: Tile.t) => List.mem("case", t.label))
+        |> ((t: Tile.t) => t.id);
+      let z = Test_Editing.perform(z, [ApplyCompletion(One(case_id))]);
+      check(
+        string_testable,
+        "one",
+        "(case x | 1 => 2end",
+        print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z)),
+      );
+    },
+  ),
+];
+
 let entry_stability_tests = [
   edit_case(
     ~name="bar alone: end stays after the rule",
@@ -1587,6 +1631,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: tydi-gates", tydi_probe_tests),
   ("CanonicalCompletion: insertion-ordering", ordering_tests),
   ("CanonicalCompletion: rule-selection", rule_selection_tests),
+  ("CanonicalCompletion: materialize", materialize_tests),
   ("CanonicalCompletion: entry-stability", entry_stability_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */

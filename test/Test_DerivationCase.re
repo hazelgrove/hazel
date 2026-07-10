@@ -17,7 +17,7 @@ let default_settings = {
    Editor.Update pipeline rather than Perform.go alone. This gives us the
    same TyDi buffer clearing, update, and calculate sequence the web runs
    on each character, which is what exercises CachedSyntax.mk and
-   Dump.to_segment (the paths most likely to hit Tile.reassemble). */
+   materialization (the paths most likely to hit Tile.reassemble). */
 let init_model = (~root, z: Zipper.t): Editor.Model.t =>
   Editor.Model.mk(z, ~root);
 

@@ -194,6 +194,11 @@ type format =
   | Preferred;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type apply_target =
+  | All
+  | One(Id.t);
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -207,6 +212,9 @@ type t =
   | Destruct(destruct)
   | Insert(string)
   | Put_down
+  /* Materialize canonical-completion insertions into the buffer:
+     one obligation (a tile's missing shards) or all of them */
+  | ApplyCompletion(apply_target)
   | Introduce
   | Refactor(refactor)
   | RefactorGesture(Gesture.t)
@@ -214,7 +222,6 @@ type t =
   | Format(format)
   /* indent/dedent the caret's line (or all selected lines) one level */
   | AdjustIndent(Direction.t, indent_gate)
-  | Dump
   | ToggleLineComment
   | Structural(Structural.t);
 
@@ -253,6 +260,7 @@ let is_edit: t => bool =
   | Insert(_)
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Introduce
   | Refactor(_)
   | RefactorGesture(_)
@@ -260,7 +268,6 @@ let is_edit: t => bool =
   | Format(_)
   | AdjustIndent(_, _)
   | Structural(_)
-  | Dump
   | ToggleLineComment => true
   | Copy
   | Move(_)
@@ -293,13 +300,13 @@ let is_historic: t => bool =
   | Insert(_)
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Introduce
   | Refactor(_)
   | RefactorGesture(_)
   | Format(_)
   | AdjustIndent(_, _)
   | Structural(_)
-  | Dump
   | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
@@ -327,13 +334,13 @@ let prevent_in_read_only_editor = (a: t) =>
   | Destruct(_)
   | Insert(_)
   | Put_down
+  | ApplyCompletion(_)
   | Introduce
   | Refactor(_)
   | RefactorGesture(_)
   | Format(_)
   | AdjustIndent(_, _)
   | Structural(_)
-  | Dump
   | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
@@ -370,6 +377,7 @@ let should_animate: t => bool =
   | Introduce
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
@@ -379,7 +387,6 @@ let should_animate: t => bool =
   | RefactorGesture(_)
   | Format(_)
   | AdjustIndent(_, _)
-  | Dump
   | ToggleLineComment => true
   | Project(p) =>
     switch (p) {

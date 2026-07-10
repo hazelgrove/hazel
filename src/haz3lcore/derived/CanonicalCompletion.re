@@ -1741,7 +1741,13 @@ let verify_holes =
    Fuel bounds the recursion; the incomplete-tile count strictly
    decreases per pass, so it never binds in practice. */
 let rec complete_segment =
-        (~use_indent_heuristic=true, ~fuel=24, sort: Sort.t, seg: Segment.t)
+        (
+          ~use_indent_heuristic=true,
+          ~fuel=24,
+          ~only_tile: option(Id.t)=None,
+          sort: Sort.t,
+          seg: Segment.t,
+        )
         : completion_result => {
   /* Single pass: partition AND collect incomplete tiles */
   let partitioned = partition_segment(~use_indent_heuristic, seg);
@@ -1776,7 +1782,11 @@ let rec complete_segment =
          let case_label = Form.get(Case).label;
          let has_incomplete_case =
            List.exists((t: Tile.t) => t.label == case_label, incomplete);
-         (subseg, incomplete, has_incomplete_case ? [] : wraps_of(subseg));
+         (
+           subseg,
+           incomplete,
+           has_incomplete_case || only_tile != None ? [] : wraps_of(subseg),
+         );
        });
 
   /* Extract all incomplete tiles for the fast-path check */
@@ -1885,7 +1895,12 @@ let rec complete_segment =
              List.filteri((qi, _) => qi > pi, partitioned)
              |> List.exists(((sg, _, _)) => has_content(sg));
            let chosen =
-             wraps != [] ? [] : choose(subseg, incomplete) |> Option.to_list;
+             switch (only_tile) {
+             | Some(id) =>
+               incomplete |> List.filter((t: Tile.t) => Id.equal(t.id, id))
+             | None =>
+               wraps != [] ? [] : choose(subseg, incomplete) |> Option.to_list
+             };
            let chosen_id =
              switch (chosen) {
              | [t] => Some(t.id)
@@ -2046,7 +2061,9 @@ let rec complete_segment =
        tile's children (the case remnant rides into the let's
        definition slot) and leaves un-chosen tiles for later passes:
        recurse on the result until nothing incomplete remains. */
-    if (fuel > 0 && Segment.incomplete_tiles_deep(completed_seg) != []) {
+    if (only_tile == None
+        && fuel > 0
+        && Segment.incomplete_tiles_deep(completed_seg) != []) {
       let rest =
         complete_segment_deep(
           ~use_indent_heuristic,
@@ -2184,7 +2201,13 @@ let rec complete_segment =
 /* Complete a segment recursively (descends into tile children).
  * Collects insertions from all levels for visualization. */
 and complete_segment_deep =
-    (~use_indent_heuristic=true, ~fuel=24, ~sort, seg: Segment.t)
+    (
+      ~use_indent_heuristic=true,
+      ~fuel=24,
+      ~only_tile: option(Id.t)=None,
+      ~sort,
+      seg: Segment.t,
+    )
     : completion_result => {
   /* Helper: complete all children of a tile, collecting insertions
      and shard_records */
@@ -2197,6 +2220,7 @@ and complete_segment_deep =
              complete_segment_deep(
                ~use_indent_heuristic,
                ~fuel,
+               ~only_tile,
                ~sort=child_sort,
                child,
              );
@@ -2239,6 +2263,7 @@ and complete_segment_deep =
     complete_segment(
       ~use_indent_heuristic,
       ~fuel,
+      ~only_tile,
       sort,
       seg_with_completed_children,
     );
@@ -2249,6 +2274,24 @@ and complete_segment_deep =
     insertions: child_insertions @ top_result.insertions,
     shard_records: child_records @ top_result.shard_records,
   };
+};
+
+/* === Materialization ===
+   The virtual reading, committed: turn completion insertions into
+   real buffer content. ALL = the engine's joint result verbatim.
+   ONE = a single pass with the chooser pinned to the given tile —
+   that tile's missing shards materialize, nothing else moves.
+   Returns None when the tile's obligation could not be discharged
+   (still incomplete afterwards). */
+let materialize_all = (~sort: Sort.t, seg: Segment.t): Segment.t =>
+  complete_segment_deep(~sort, seg).completed_seg;
+
+let materialize_one =
+    (~sort: Sort.t, seg: Segment.t, id: Id.t): option(Segment.t) => {
+  let result = complete_segment_deep(~sort, ~only_tile=Some(id), seg);
+  Segment.incomplete_tiles_deep(result.completed_seg)
+  |> List.exists((t: Tile.t) => Id.equal(t.id, id))
+    ? None : Some(result.completed_seg);
 };
 
 /* === Integration Points === */
