@@ -18,12 +18,12 @@ open Haz3lcore;
 let duration = 180;
 let easing = Animation.easeOutExpo;
 
-/* debug slow-motion: 3x all timed code animations (flights, enters,
+/* debug slow-motion: 5x all timed code animations (flights, enters,
    rebounds, relaxes — scrubs are pointer-driven and unaffected).
    Flipped from the command palette; deliberately NOT a settings
    field (adding one resets persisted settings). */
 let slow_mo: ref(bool) = ref(false);
-let dur = (ms: int): int => slow_mo^ ? ms * 3 : ms;
+let dur = (ms: int): int => slow_mo^ ? ms * 5 : ms;
 
 /* perf guard: a transition that moves this much is better skipped */
 let max_moved = 1500;

@@ -535,7 +535,7 @@ module Selection = {
                () => CodeFlip.slow_mo := ! CodeFlip.slow_mo^,
                (),
              ),
-           "Toggle Slow Animations (3x)",
+           "Toggle Slow Animations (5x)",
          ),
          mk(
            ~section="Settings",
