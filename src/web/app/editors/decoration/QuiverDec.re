@@ -231,13 +231,22 @@ let delimiter_nodes =
   |> List.mapi((k, d: CanonicalCompletion.delimiter_info) => {
        let sep = k > 0 ? [Node.text(" ")] : [];
        let seg_cls = k > 0 ? ["chip-seg", "chip-seg-later"] : ["chip-seg"];
-       /* each delimiter of a coalesced chip is its own double-click
-          target, discharging exactly its tile's obligation */
+       /* MODIFIER-click to complete (cmd on Mac / ctrl elsewhere),
+          per delimiter — coalesced segments individually. Unmodified
+          pointer events fall through untouched: the editor places
+          the caret on pointerdown as if the chip were not there. */
        let apply_attrs =
          switch (on_apply, d.of_shard) {
          | (Some(f), Some((tid, _))) => [
-             Attr.on_double_click(_ =>
-               Effect.Many([Effect.Stop_propagation, f(tid)])
+             Attr.on_pointerdown(evt =>
+               Js_of_ocaml.Js.to_bool(evt##.metaKey)
+               || Js_of_ocaml.Js.to_bool(evt##.ctrlKey)
+                 ? Effect.Many([
+                     Effect.Stop_propagation,
+                     Effect.Prevent_default,
+                     f(tid),
+                   ])
+                 : Effect.Ignore
              ),
            ]
          | _ => []
@@ -361,12 +370,6 @@ let chip_view =
             ~attrs=[
               Attr.classes(["quiver-chip-body"]),
               Attr.create("style", Printf.sprintf("left: %fpx;", body_left)),
-              /* swallow the single clicks too: a double-click's two
-                 mousedowns would otherwise reach the editor, move
-                 the caret, and the zone-following slides the bubble
-                 out from under the second click */
-              Attr.on_mousedown(_ => Effect.Stop_propagation),
-              Attr.on_click(_ => Effect.Stop_propagation),
             ],
             body,
           ),
