@@ -62,6 +62,27 @@ let find_meas = (m: Measured.t, k: key): option(Measured.measurement) =>
   | CommentK(id) => Id.Map.find_opt(id, m.secondary)
   };
 
+/* lookup with END-ALIGNED closing delimiters: a tile whose shard
+   count changed (cons-split drops a list comma) pairs naturally by
+   index EXCEPT its closing delimiter — `]` must fly from `]`, not
+   from the old last-comma slot. Interior separators are identical
+   glyphs, so from-start alignment is invisible for them. k is
+   indexed by `other`'s shard count; the lookup happens in `m`. */
+let find_meas_end_aligned =
+    (~other: Measured.t, m: Measured.t, k: key): option(Measured.measurement) =>
+  switch (k) {
+  | Shard(id, i) =>
+    switch (Id.Map.find_opt(id, m.tiles), Id.Map.find_opt(id, other.tiles)) {
+    | (Some(m_shards), Some(o_shards)) =>
+      let last = shards => shards |> List.map(fst) |> List.fold_left(max, 0);
+      let (m_last, o_last) = (last(m_shards), last(o_shards));
+      let i' = m_last != o_last && i == o_last ? m_last : i;
+      List.assoc_opt(i', m_shards);
+    | _ => find_meas(m, k)
+    }
+  | _ => find_meas(m, k)
+  };
+
 /* Pair entries with .code-text's childNodes; None on any mismatch
  * (bail out, skip animation — never guess at correlation) */
 let pair =
@@ -70,6 +91,15 @@ let pair =
   let rec walk = (entries, nodes, acc) =>
     switch (entries, nodes) {
     | ([], []) => Some(acc)
+    /* Code.view appends a zero-width-space TEXT node as a trailing
+       line-box filler (unconditionally) — tolerate it, or every
+       pairing fails and all token animation silently dies (it did,
+       from the moment that filler merged in upstream) */
+    | ([], [n]) =>
+      switch (n##.nodeType) {
+      | Dom.TEXT => Some(acc)
+      | _ => None
+      }
     | ([Txt, ...es], [n, ...ns]) =>
       switch (n##.nodeType) {
       | Dom.TEXT => walk(es, ns, acc)
@@ -610,7 +640,10 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                   let moved =
                     pairs
                     |> List.filter_map(((k, node)) =>
-                         switch (find_meas(old_m, k), find_meas(new_m, k)) {
+                         switch (
+                           find_meas_end_aligned(~other=new_m, old_m, k),
+                           find_meas(new_m, k),
+                         ) {
                          | (Some(o), Some(n))
                              when
                                o.origin != n.origin
@@ -720,40 +753,67 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                                     );
                                   })
                              );
-                    switch (windows) {
-                    | [w] =>
-                      List.iteri(
-                        (j, (sk, _)) => {
-                          let (k, node) = ents[w + j];
-                          switch (find_meas(old_m, sk), find_meas(new_m, k)) {
-                          | (Some(o), Some(n))
-                              when
-                                o.origin.row == o.last.row
-                                && n.origin.row == n.last.row =>
-                            animate_emerge(
-                              ~font_metrics,
-                              ~from=?enter_from,
-                              ~bump=bump_y,
-                              node,
-                              o.origin,
-                              n.origin,
-                            )
-                          | _ => animate_enter(node)
+                    /* FAN-OUT: when the matching windows are
+                       mutually disjoint, they are all certain — an
+                       inline with N surviving uses spawns N copies
+                       at the def and every one FLIES to its use
+                       (the fruit bowl, finally whole). Overlapping
+                       windows are genuinely ambiguous -> grow-in. */
+                    let disjoint =
+                      switch (windows) {
+                      | [] => false
+                      | ws =>
+                        let sorted = List.sort(compare, ws);
+                        let rec ok = w =>
+                          switch (w) {
+                          | []
+                          | [_] => true
+                          | [a, b, ...rest] =>
+                            b >= a + n_src && ok([b, ...rest])
                           };
-                        },
-                        srcs,
-                      );
+                        ok(sorted);
+                      };
+                    if (disjoint) {
+                      let in_window = i =>
+                        windows |> List.exists(w => i >= w && i < w + n_src);
+                      windows
+                      |> List.iter(w =>
+                           List.iteri(
+                             (j, (sk, _)) => {
+                               let (k, node) = ents[w + j];
+                               switch (
+                                 find_meas(old_m, sk),
+                                 find_meas(new_m, k),
+                               ) {
+                               | (Some(o), Some(n))
+                                   when
+                                     o.origin.row == o.last.row
+                                     && n.origin.row == n.last.row =>
+                                 animate_emerge(
+                                   ~font_metrics,
+                                   ~from=?enter_from,
+                                   ~bump=bump_y,
+                                   node,
+                                   o.origin,
+                                   n.origin,
+                                 )
+                               | _ => animate_enter(node)
+                               };
+                             },
+                             srcs,
+                           )
+                         );
                       ents
                       |> Array.iteri((i, (_, node)) =>
-                           i >= w && i < w + n_src ? () : animate_enter(node)
+                           in_window(i) ? () : animate_enter(node)
                          );
-                    | _ =>
+                    } else {
                       if (emerge != [] && entered != []) {
                         print_endline(
                           Printf.sprintf(
                             "CodeFlip: emerge staged (%d source tokens) but %s clone window among %d entered — grow-in fallback",
                             n_src,
-                            windows == [] ? "no" : "no unique",
+                            windows == [] ? "no" : "no disjoint",
                             List.length(entered),
                           ),
                         );

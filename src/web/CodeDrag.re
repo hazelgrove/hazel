@@ -1200,7 +1200,7 @@ let sync =
         |> List.filter_map(((k, node)) =>
              switch (
                CodeFlip.find_meas(measured, k),
-               CodeFlip.find_meas(cand_m, k),
+               CodeFlip.find_meas_end_aligned(~other=measured, cand_m, k),
              ) {
              | (Some(o), Some(n))
                  when o.origin.row == o.last.row && n.origin.row == n.last.row =>

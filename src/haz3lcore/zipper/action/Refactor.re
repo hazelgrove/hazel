@@ -5824,12 +5824,47 @@ let gesture =
    are not stable across speculative/commit runs. */
 let emerge_source =
     (~info_map, ~target, kind: Action.refactor, term): list(Id.t) =>
-  kind == FeedLet
-    ? switch (feed_plan(~info_map, ~target, term)) {
-      | Some(Feed(_, def, _)) => exp_subtree_ids(def)
+  switch (kind) {
+  | FeedLet =>
+    switch (feed_plan(~info_map, ~target, term)) {
+    | Some(Feed(_, def, _)) => exp_subtree_ids(def)
+    | _ => []
+    }
+  /* inline: every substituted copy emerges from the def (the first
+     copy MOVES — same ids — the rest fly as fan-out clones) */
+  | InlineLet =>
+    switch (find_hit(~hit=hit_let(target), term)) {
+    | Some(l) =>
+      switch (IdTagged.term_of(l)) {
+      | Let(_, def, _) => exp_subtree_ids(def)
       | _ => []
       }
-    : [];
+    | None =>
+      switch (binder_of_occurrence(~info_map, ~target, term)) {
+      | Some(binder) =>
+        switch (find_hit(~hit=hit_let(binder), term)) {
+        | Some(l) =>
+          switch (IdTagged.term_of(l)) {
+          | Let(_, def, _) => exp_subtree_ids(def)
+          | _ => []
+          }
+        | None => []
+        }
+      | None => []
+      }
+    }
+  /* beta: the copies emerge from the ARGUMENT */
+  | BetaReduce =>
+    switch (find_hit(~hit=hit_beta(target), term)) {
+    | Some(e) =>
+      switch (beta_parts(e)) {
+      | Some((_, arg, _)) => exp_subtree_ids(arg)
+      | None => []
+      }
+    | None => []
+    }
+  | _ => []
+  };
 
 let gesture_emerge_source =
     (~info_map, ~term, g: Action.Gesture.t, z: Zipper.t): list(Id.t) =>
