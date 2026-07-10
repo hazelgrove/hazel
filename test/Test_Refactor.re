@@ -859,7 +859,7 @@ let more_tests = [
       check(
         string,
         "binding takes its own line",
-        "let glorp = f(2) in\nzug, 3",
+        "let glorp = f(2) in\nglorp, 3",
         got,
       );
     },
@@ -930,7 +930,7 @@ let more_tests = [
       check(
         string,
         "arm body breaks to its own line",
-        "case a | 1 => let xyzzy = f(2) in\n  g(xyzzy) | _ => 0 end",
+        "case a | 1 => let wabe = f(2) in\n  g(wabe) | _ => 0 end",
         got,
       );
     },
