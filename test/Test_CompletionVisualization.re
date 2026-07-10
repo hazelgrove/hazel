@@ -181,8 +181,8 @@ let y = 2·    // in ?|},
     ~input={|let x = 1
 
 y|},
-    ~expected={|let x = 1
-·    // in
+    ~expected={|let x = 1·    // in
+
 y|},
   ),
   /* Multiple blank line partitions */
@@ -195,11 +195,24 @@ let b = 2
 let c = 3|},
     /* only the last let is at the true end: its in leaves a hole */
     ~expected=
-      {|let a = 1
-·    // in
-let b = 2
-·    // in
+      {|let a = 1·    // in
+
+let b = 2·    // in
+
 let c = 3·    // in ?|},
+  ),
+  /* multiline forms take closers on their own line (no glue) */
+  test(
+    ~name="multiline case def restores end in on the closer line",
+    /* escaped input: the indented blank line would be fmt-trimmed
+       in a {||} literal */
+    ~input="let f =\n  case x\n  | 1 => 2\n  | 3 => 4\n  \nf",
+    ~expected={|let f =
+  case x
+  | 1 => 2
+  | 3 => 4
+  ·    // end in
+f|},
   ),
   /* Mixed: complete let followed by incomplete */
   test(
