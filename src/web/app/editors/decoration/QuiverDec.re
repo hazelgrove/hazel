@@ -302,7 +302,12 @@ let chip_view =
           Attr.classes(["quiver-chip-anchor"]),
           Attr.create(
             "style",
-            Printf.sprintf("left: %fpx; top: %fpx;", x, y),
+            Printf.sprintf(
+              "left: %fpx; top: %fpx; --pole-w: %fpx;",
+              x,
+              y,
+              CaretDec.caret_width *. font_metrics.col_width,
+            ),
           ),
         ],
         [
