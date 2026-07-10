@@ -536,6 +536,13 @@ svg:has(.child-line) {
      unmodified clicks fall through to the editor (Effect.Ignore
      still bubbles), so the caret places through the bubble */
   pointer-events: auto;
+}
+
+/* the affordance shows only while it exists: meta held (the same
+   state that lights ref underlines) puts the pointer cursor on
+   chip segments */
+.code-container.meta-down .quiver-chip-body .chip-seg {
+  cursor: pointer;
   padding: 0px 4px 1px 4px;
   border-radius: 4px;
   background: var(--quiver-chip);
