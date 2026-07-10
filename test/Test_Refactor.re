@@ -507,7 +507,7 @@ let wave_tests = [
       check(
         string,
         "expanded",
-        "let f : Int -> Int = fun y -> y in (fun foo -> f(foo))",
+        "let f : Int -> Int = fun y -> y in (fun skree -> f(skree))",
         got,
       );
     },
@@ -525,7 +525,7 @@ let wave_tests = [
       check(
         string,
         "two params",
-        "let f : (Int, Bool) -> Int = fun (a, b) -> a in (fun (foo, bar) -> f(foo, bar))",
+        "let f : (Int, Bool) -> Int = fun (a, b) -> a in (fun (quux, mimsy) -> f(quux, mimsy))",
         got,
       );
     },
@@ -799,7 +799,7 @@ let more_tests = [
     `Quick,
     () => {
       let got = inline(~kind=ExtractLet, "1 ¦+ 2") |> text_of;
-      check(string, "extracted", "let foo = 1 + 2 in foo", got);
+      check(string, "extracted", "let floof = 1 + 2 in floof", got);
     },
   ),
   test_case(
@@ -811,7 +811,7 @@ let more_tests = [
       check(
         string,
         "fresh x1, own line",
-        "let x = 1 in let foo = f(x) in\n  x * foo",
+        "let x = 1 in let skree = f(x) in\n  x * skree",
         got,
       );
     },
@@ -859,7 +859,7 @@ let more_tests = [
       check(
         string,
         "binding takes its own line",
-        "let foo = f(2) in\nfoo, 3",
+        "let zug = f(2) in\nzug, 3",
         got,
       );
     },
@@ -873,7 +873,7 @@ let more_tests = [
       check(
         string,
         "own line, chain order",
-        "let a = 1 in\nlet foo = f(2) in\ng(foo)",
+        "let a = 1 in\nlet xyzzy = f(2) in\ng(xyzzy)",
         got,
       );
     },
@@ -888,7 +888,7 @@ let more_tests = [
       check(
         string,
         "comment kept once",
-        "# note #\nlet a = 1 in\nlet foo = f(2) in\ng(foo)",
+        "# note #\nlet a = 1 in\nlet xyzzy = f(2) in\ng(xyzzy)",
         got,
       );
     },
@@ -902,7 +902,7 @@ let more_tests = [
       check(
         string,
         "above the def line, own line",
-        "let foo = f(2) in\nlet a = g(foo) in a + 1",
+        "let borp = f(2) in\nlet a = g(borp) in a + 1",
         got,
       );
     },
@@ -915,7 +915,7 @@ let more_tests = [
       check(
         string,
         "fun body breaks to its own line",
-        "fun n -> let foo = f(2) in\n  g(foo)",
+        "fun n -> let floof = f(2) in\n  g(floof)",
         got,
       );
     },
@@ -930,7 +930,7 @@ let more_tests = [
       check(
         string,
         "arm body breaks to its own line",
-        "case a | 1 => let foo = f(2) in\n  g(foo) | _ => 0 end",
+        "case a | 1 => let xyzzy = f(2) in\n  g(xyzzy) | _ => 0 end",
         got,
       );
     },
@@ -945,7 +945,7 @@ let more_tests = [
       check(
         string,
         "case line breaks down",
-        "let a = 1 in let foo = f(2) in\n  case foo | _ => 0 end",
+        "let a = 1 in let floof = f(2) in\n  case floof | _ => 0 end",
         got,
       );
     },
@@ -963,7 +963,7 @@ let param_tests = [
       check(
         string,
         "param + hole arg",
-        "let f = fun (x, foo) -> x + 1 in f(2, ?)",
+        "let f = fun (x, zort) -> x + 1 in f(2, ?)",
         got,
       );
     },
@@ -978,7 +978,7 @@ let param_tests = [
       check(
         string,
         "third param",
-        "let f = fun (a, b, foo) -> a in f(1, 2, ?)",
+        "let f = fun (a, b, quux) -> a in f(1, 2, ?)",
         got,
       );
     },
@@ -993,7 +993,7 @@ let param_tests = [
       check(
         string,
         "both sites",
-        "let f = fun (x, foo) -> f(x, ?) in f(1, ?)",
+        "let f = fun (x, qux) -> f(x, ?) in f(1, ?)",
         got,
       );
     },
@@ -1023,7 +1023,7 @@ let param_tests = [
       check(
         string,
         "sugar pat + call",
-        "let f(x, foo) = x + 1 in f(2, ?)",
+        "let f(x, zort) = x + 1 in f(2, ?)",
         got,
       );
     },
@@ -1034,7 +1034,7 @@ let param_tests = [
     () => {
       let got =
         inline(~kind=AddParameter, "¦let f(a, b) = a in f(1, 2)") |> text_of;
-      check(string, "third", "let f(a, b, foo) = a in f(1, 2, ?)", got);
+      check(string, "third", "let f(a, b, quux) = a in f(1, 2, ?)", got);
     },
   ),
   test_case(
@@ -1050,7 +1050,7 @@ let param_tests = [
       check(
         string,
         "arrow arg extended",
-        "let f : (Int, ?) -> Int = fun (x, foo) -> x in f(1, ?)",
+        "let f : (Int, ?) -> Int = fun (x, zort) -> x in f(1, ?)",
         got,
       );
     },
@@ -1068,7 +1068,7 @@ let param_tests = [
       check(
         string,
         "prod extended",
-        "let f : (Int, Bool, ?) -> Int = fun (a, b, foo) -> a in f(1, true, ?)",
+        "let f : (Int, Bool, ?) -> Int = fun (a, b, quux) -> a in f(1, true, ?)",
         got,
       );
     },
@@ -1105,7 +1105,7 @@ let param_tests = [
       check(
         string,
         "inner f kept",
-        "let f = fun (x, foo) -> x in let f = fun y -> y in f(1)",
+        "let f = fun (x, zug) -> x in let f = fun y -> y in f(1)",
         got,
       );
     },
@@ -2312,7 +2312,7 @@ let caret_tests = [
         bool,
         "caret at binder: " ++ caret_text(z),
         true,
-        has_sub(caret_text(z), "let ¦foo = 1 + 2"),
+        has_sub(caret_text(z), "let ¦baz = 1 + 2"),
       );
     },
   ),
@@ -2408,7 +2408,7 @@ let extract_target_tests = [
       check(
         string,
         "application extracted",
-        "let foo = Error(e) in\nlet y = f(foo) in y",
+        "let garg = Error(e) in\nlet y = f(garg) in y",
         got,
       );
     },
@@ -2421,7 +2421,7 @@ let extract_target_tests = [
       check(
         string,
         "application extracted",
-        "let foo = g(2) in\nlet y = h(foo) in y",
+        "let borp = g(2) in\nlet y = h(borp) in y",
         got,
       );
     },
@@ -2611,6 +2611,24 @@ let gesture_tests = [
     Up,
     "let a = 1 in ¦let x = 2 in x + a",
     Some(HoistLet),
+  ),
+  check_gesture(
+    "up on mid-chain TYPE line = hoist, never extract",
+    Up,
+    "let k = 1 in ¦type t = Int in k",
+    Some(HoistLet),
+  ),
+  check_gesture(
+    "up on top type line is dead (no extract fall-through)",
+    Up,
+    "¦type t = Int in (1 : t)",
+    None,
+  ),
+  check_gesture(
+    "down on type line above a let = sink",
+    Down,
+    "¦type t = Int in let k = 1 in k",
+    Some(SinkLet),
   ),
   check_gesture(
     "up on top let is dead (no extract fall-through)",
@@ -3782,7 +3800,7 @@ let tyalias_tests = [
       check(
         string,
         "extract",
-        "let k = 1 in\ntype t = Int in\nlet foo = 2 in\nk + foo * 3",
+        "let k = 1 in\ntype t = Int in\nlet glorp = 2 in\nk + glorp * 3",
         z,
       );
     },
@@ -4017,7 +4035,7 @@ let def_line_tests = [
       check(
         string,
         "extract",
-        "let k = 1 in\n1 + 1;\nlet foo = 2 in\nk + foo * 3",
+        "let k = 1 in\n1 + 1;\nlet glorp = 2 in\nk + glorp * 3",
         z,
       );
     },
@@ -4089,6 +4107,31 @@ let inline_alias_tests = [
       "gated",
       false,
       offers(InlineAlias, "type ¦t = t -> Int in\n1"),
+    )
+  }),
+  test_case("extract never offered ON a type line", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(ExtractLet, "¦type t = Int in (1 : t)"),
+    )
+  }),
+  test_case(
+    "remove unused: dead alias line",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=RemoveUnusedLet, "type ¦t = Int in\n2 + 2") |> text_of;
+      check(string, "removed", "2 + 2", z);
+    },
+  ),
+  test_case("remove unused: used alias not offered", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(RemoveUnusedLet, "type ¦t = Int in\n(1 : t)"),
     )
   }),
   test_case("inline alias: offered at the type line", `Quick, () => {

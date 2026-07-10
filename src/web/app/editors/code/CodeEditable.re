@@ -187,8 +187,17 @@ module Update = {
       let action: Action.t =
         Selection.is_buffer(z.selection)
           ? Buffer(Accept)
-          : Zipper.can_put_down(z)
-              ? Put_down : Move(Goal(NextProblem(Right)));
+          : (
+            /* caret pinned to a quiver chip: Tab dispatches that
+               obligation, whether or not an inline buffer is showing
+               (buffers only appear on edits; the chip is always live) */
+            switch (CanonicalCompletion.obligation_at_caret(z)) {
+            | Some(tid) => ApplyCompletion(One(tid))
+            | None =>
+              Zipper.can_put_down(z)
+                ? Put_down : Move(Goal(NextProblem(Right)))
+            }
+          );
       perform(action, model);
     };
   };

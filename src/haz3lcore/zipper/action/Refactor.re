@@ -691,16 +691,25 @@ let used_names = (program: Exp.t): list(string) => {
 /* minted binder names come from the nonsense pool (obviously
    placeholders — see PlaceholderNames.re); numbered fallback only
    when the pool is exhausted */
-let pick_placeholder = (used: list(string)): string =>
-  switch (PlaceholderNames.pool |> List.find_opt(n => !List.mem(n, used))) {
-  | Some(n) => n
+let pick_placeholder = (used: list(string)): string => {
+  /* deterministic variety: rotate the pool by a hash of the names
+     in scope — the same program state always mints the same name
+     (tests, undo, replay stay stable) but different programs start
+     elsewhere in the pool */
+  let pool = PlaceholderNames.pool;
+  let n = List.length(pool);
+  let start = n == 0 ? 0 : Hashtbl.hash(used) mod n;
+  let rotated = List.init(n, i => List.nth(pool, (start + i) mod n));
+  switch (rotated |> List.find_opt(c => !List.mem(c, used))) {
+  | Some(c) => c
   | None =>
-    let rec pick = n => {
-      let cand = "x" ++ string_of_int(n);
-      List.mem(cand, used) ? pick(n + 1) : cand;
+    let rec pick = k => {
+      let cand = "x" ++ string_of_int(k);
+      List.mem(cand, used) ? pick(k + 1) : cand;
     };
     pick(1);
   };
+};
 
 let fresh_name = (program: Exp.t): string =>
   pick_placeholder(used_names(program));
@@ -1779,18 +1788,41 @@ let pat_unused = (~info_map: Statics.Map.t, p: Pat.t): bool =>
 let remove_unused_let_impl: impl = {
   label: "Remove unused",
   tooltip: "Delete this binding: its variable is never used",
-  prepare: (~info_map, ~target, program) =>
-    rewrite_let(
-      ~target,
-      ~matches=
-        (p, _, _) =>
-          switch (head_var_pat(p)) {
-          | Some(hv) => pat_unused(~info_map, hv)
-          | None => false
-          },
-      ~rewrite=(_, _, body) => (body, Exp.rep_id(body)),
-      program,
-    ),
+  prepare: (~info_map, ~target, program) => {
+    let as_let =
+      rewrite_let(
+        ~target,
+        ~matches=
+          (p, _, _) =>
+            switch (head_var_pat(p)) {
+            | Some(hv) => pat_unused(~info_map, hv)
+            | None => false
+            },
+        ~rewrite=(_, _, body) => (body, Exp.rep_id(body)),
+        program,
+      );
+    switch (as_let) {
+    | Some(_) => as_let
+    | None =>
+      /* an alias with no mention anywhere below is dead
+         (conservative: ANY mention keeps it) */
+      rewrite_node(
+        ~hit=hit_tyalias(target),
+        ~rewrite=
+          e =>
+            switch (IdTagged.term_of(e)) {
+            | TyAlias(tp, _, body)
+                when
+                  tpat_names(tp) != []
+                  && !mentions_typ_names(tpat_names(tp), body) =>
+              let body = strip_leading_ws(body);
+              Some((body, Exp.rep_id(body)));
+            | _ => None
+            },
+        program,
+      )
+    };
+  },
 };
 
 /* === Inline type alias === */
@@ -2110,6 +2142,9 @@ let extractable = (e: Exp.t): bool =>
   | Constructor(_)
   | EmptyHole
   | Let(_)
+  /* a definition line is not an expression to name: extracting a
+     TyAlias node would bind the whole rest of the program */
+  | TyAlias(_)
   | Seq(_)
   | Filter(_) => false
   /* extracting a parens node is redundant with extracting its child,
@@ -5797,6 +5832,17 @@ let applies =
       target,
       program,
     )
+    || (
+      switch (find_hit(~hit=hit_tyalias(target), program)) {
+      | Some(e) =>
+        switch (IdTagged.term_of(e)) {
+        | TyAlias(tp, _, body) =>
+          tpat_names(tp) != [] && !mentions_typ_names(tpat_names(tp), body)
+        | _ => false
+        }
+      | None => false
+      }
+    )
   | AddTypeAnnotation =>
     let_applies(
       ~pred=
@@ -6229,6 +6275,8 @@ let gesture =
       };
     let in_arm_zone = Option.is_some(find_hit(~hit=hit_arm(target), term));
     let in_let_zone = Option.is_some(find_hit(~hit=hit_let(target), term));
+    let in_def_zone =
+      Option.is_some(find_hit(~hit=hit_def_line(target), term));
     let node_is = (pred: Exp.t => bool) =>
       switch (find_hit(~hit=hit_node(target), term)) {
       | Some(e) => pred(e)
@@ -6290,7 +6338,7 @@ let gesture =
     | Up =>
       if (in_arm_zone) {
         arm_swap(-1);
-      } else if (in_let_zone) {
+      } else if (in_def_zone) {
         app(HoistLet);
       } else if (is_if && shard == Some(2)) {
         app(
@@ -6314,6 +6362,12 @@ let gesture =
         | Some(k) => Some(k)
         | None => app(FeedLet)
         };
+      } else if (in_def_zone) {
+        /* type line: movement only (no per-use alias feed yet;
+           inline-all stays a menu act — Down never mass-edits) */
+        app(
+          SinkLet,
+        );
       } else if (is_if && shard == Some(1)) {
         app(
           NegateIf /* the then-arm moves down */
