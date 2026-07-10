@@ -1507,6 +1507,33 @@ let tydi_probe_tests = [
     ~expected="tok:= | ci:NONE | buf:>",
   ),
 ];
+/* Trajectory stability for mid-entry case rules (andrew 2026-07-11):
+   from the first bar onward, the case's end sits AFTER the growing
+   rule and never retreats — hole-min must not treat a rule as a
+   severable trailing operator (it is case-content). Pins probe the
+   full entry sequence; expecteds are raw prints. */
+let entry_stability_tests = [
+  edit_case(
+    ~name="bar alone: end stays after the rule",
+    ~acts=Test_Editing.mk("let new_fun =\nfun foo ->\ncase foo\n|¦\n2"),
+    ~expected=
+      "let new_fun =\n  fun foo ->\n    case foo\n    |\n    2=>?endin?",
+  ),
+  edit_case(
+    ~name="bar pattern arrow: end stays after the rule",
+    ~acts=Test_Editing.mk("let new_fun =\nfun foo ->\ncase foo\n| 1 =>¦\n2"),
+    ~expected=
+      "let new_fun =\n  fun foo ->\n    case foo\n    | 1 =>\n      2endin?",
+  ),
+  edit_case(
+    ~name="complete rule: end after the rule body",
+    ~acts=
+      Test_Editing.mk("let new_fun =\nfun foo ->\ncase foo\n| 1 => 2¦\n3"),
+    ~expected=
+      "let new_fun =\n  fun foo ->\n    case foo\n    | 1 => 2end\n    in3",
+  ),
+];
+
 let joint_tests = [
   edit_case(
     ~name="end+in double deletion: placements incompatible (KNOWN-BAD)",
@@ -1529,6 +1556,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: closer-vs-separator", probe2_tests),
   ("CanonicalCompletion: tydi-gates", tydi_probe_tests),
   ("CanonicalCompletion: insertion-ordering", ordering_tests),
+  ("CanonicalCompletion: entry-stability", entry_stability_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),

@@ -1542,6 +1542,14 @@ let place_trailing_shards =
                     switch (p) {
                     | Tile(tt) =>
                       Tile.is_complete(tt)
+                      /* a rule is case-CONTENT, not a severable
+                         operator: the bar is a delimiter of the
+                         case's form in everything but the engine's
+                         type system, and every other mechanism
+                         treats it that way (walls exempt end, wraps
+                         adopt orphans). Mid-entry `case foo |` must
+                         keep its end AFTER the growing rule. */
+                      && tt.mold.out != Sort.Rul
                       && (
                         switch (snd(Tile.nibs(tt)).shape) {
                         | Concave(_) => true
