@@ -1,9 +1,7 @@
 open Util;
 
 /* Commit the virtual completion to the buffer: rebuild the zipper
- * around the materialized segment (CanonicalCompletion.materialize_*),
- * caret re-anchored to its old neighbor piece — content ids survive
- * materialization; only synthesized shards are new. */
+ * around the materialized segment, caret re-anchored by neighbor id. */
 
 let rezip = (z: Zipper.t, seg: Segment.t): Zipper.t => {
   let anchor = Zipper.representative_piece(z);

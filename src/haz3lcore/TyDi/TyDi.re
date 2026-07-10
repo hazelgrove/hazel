@@ -6,16 +6,10 @@ open Language;
  * Adjust this value to control when suggestions first appear. */
 let min_prefix_len = 2;
 
-/* Delimiter suggestions come from the COMPLETION ENGINE: an
-   insertion whose arrow anchors at the token left of the caret with
-   a typed prefix recorded is the engine recognizing that token as a
-   WITNESS of the delimiter it completes. Single recognition source —
-   the ghost and the quiver agree by construction, and symbolic
-   (- -> ->, = -> =>) and non-head obligations are covered. Purely
-   syntax-derived: needs no statics.
-   (Replaces the old head-of-local-missing-shards suggestion, whose
-   plain starts_with matching was both narrower — head only — and
-   looser — no witness gates — than the engine's recognition.) */
+/* Delimiter suggestions come from the completion engine: a witness
+   insertion anchored at the token left of the caret IS the engine
+   recognizing that token. One recognition source — ghost and quiver
+   agree by construction. Syntax-derived: needs no statics. */
 let suggest_witnesses = (z: Zipper.t): list(t) =>
   switch (z.caret, z.relatives.siblings |> fst |> List.rev) {
   | (Outer, [Tile({label: [tok], id, _}), ..._]) =>
@@ -167,11 +161,8 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
     | Normal => None
     };
   let* tok_to_left = token_to_left(z);
-  /* The missing-shard suggestion is derived from the SYNTAX alone —
-     no statics needed. This matters because ci is often None on
-     exactly the delimiter-prefix states it serves: canonical
-     completion CONSUMES the prefix token (els, -, =) when building
-     the semantics term, so no info exists at its id. */
+  /* witness suggestions need no statics — ci is None on exactly the
+     states they serve (completion consumed the prefix token) */
   let suggestions =
     switch (ci) {
     | Some(ci) => suggest(ci, z)
@@ -182,11 +173,8 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
     |> List.filter(({content, _}: TyDiSuggestion.t) =>
          String.starts_with(~prefix=tok_to_left, content)
        );
-  /* Short prefixes are noisy for the open-ended sources (ctx vars,
-     forms), but a 1-char prefix of a delimiter the syntax already
-     EXPECTS (the missing-shard suggestion: - for a fun's ->, = for a
-     rule's =>, e for a deleted else) is high-signal — expectation
-     bounds it, so it bypasses the length gate. */
+  /* expectation-backed suggestions bypass the length gate: a 1-char
+     prefix of a delimiter the syntax expects is high-signal */
   let expectation_backed =
     List.exists(
       ({strategy, _}: TyDiSuggestion.t) =>
