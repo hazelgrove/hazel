@@ -71,7 +71,7 @@ let to_zipper =
 };
 
 /* Check if the zipper is at a "safe split point": top level with
-   no incomplete tiles (empty backpack), caret between tokens,
+   no incomplete tiles (no missing shards), caret between tokens,
    and we just inserted a whitespace char (ensuring we're at a real
    token boundary, not mid-identifier like 't' before 'type'). */
 let is_split_point = (c: string, z: Zipper.t): bool =>
@@ -149,7 +149,7 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
 
 /* Quick O(n) check that clipboard has balanced parens/brackets/braces.
    to_segment drops unmatched delimiters (they end up in the parsing
-   zipper's backpack which is lost during segment extraction), so fast
+   zipper's missing-shard remnants, lost during segment extraction), so fast
    paste must not be used for unbalanced clipboard content.
    Conservative: delimiters inside string literals cause false negatives,
    falling back to the correct slow path. */

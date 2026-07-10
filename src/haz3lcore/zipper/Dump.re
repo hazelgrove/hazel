@@ -8,7 +8,7 @@
  * string; not sure if this is a hack or not, it may be compensating
  * for the put_down logic not working right with string lits. To test,
  * try to look at live evaluation while typing inside a string lit with
- * stuff left to drop in backpack with below set: Outer disabled. */
+ * missing shards left to drop with below set: Outer disabled. */
 let to_zipper = (z: Zipper.t, ~root) =>
   if (!Selection.is_empty(z.selection)) {
     z;
