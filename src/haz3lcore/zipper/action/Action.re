@@ -163,6 +163,7 @@ type refactor =
   | AddParameter
   | RemoveParameter
   | RenameFree(string, string)
+  | RenameTypFree(string, string)
   | SwapParams(int)
   | SwapArms(int)
   | SwapTuplePat(int)
