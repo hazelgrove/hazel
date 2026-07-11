@@ -2899,13 +2899,13 @@ let beta_step_tests = [
     },
   ),
   test_case(
-    "beta: tuple parameter not offered (Bind argument is)",
+    "beta: tuple parameter offered (destructures then inlines)",
     `Quick,
     () => {
       check(
         bool,
-        "no beta",
-        false,
+        "beta",
+        true,
         offers(BetaReduce, "¦(fun (a, b) -> a + b)((1, 2))"),
       );
       check(
@@ -4515,6 +4515,42 @@ let step_trace_tests = [
   ),
 ];
 
+let unfold_beta_tests = [
+  test_case(
+    "beta: tuple parameter reduces fully",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=BetaReduce, "¦(fun (a, b) -> a + b)(1, 2)") |> text_of;
+      check(string, "reduced", "1 + 2", z);
+    },
+  ),
+  check_gesture(
+    "Step at a tuple-param applied lambda = beta",
+    Step,
+    "¦(fun (a, b) -> a + b)(1, 2)",
+    Some(BetaReduce),
+  ),
+  test_case(
+    "unfold call: named function at a call site",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=UnfoldCall, "let f = fun x -> x + 1 in\n¦f(3) + f(4)")
+        |> text_of;
+      check(
+        string,
+        "unfolded",
+        "let f = fun x -> x + 1 in\n(let x = 3 in x + 1) + f(4)",
+        z,
+      );
+    },
+  ),
+  test_case("unfold call: not offered at non-fn vars", `Quick, () => {
+    check(bool, "gated", false, offers(UnfoldCall, "let k = 3 in\n¦k + 1"))
+  }),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -4648,6 +4684,7 @@ let tests = [
     @ comment_tests
     @ explode_tests
     @ step_trace_tests
+    @ unfold_beta_tests
     @ def_zone_tests
     @ eq_tests
     @ doc_carry_tests
