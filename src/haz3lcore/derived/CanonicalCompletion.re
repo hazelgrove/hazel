@@ -2353,6 +2353,232 @@ let materialize_one =
   };
 };
 
+/* === Diff-derived insertions (display) ===
+ * Chips are a PROJECTION of the landed material, never a note about
+ * it: linearize the completed segment into leaves tagged
+ * original/synthesized (shards by the tile's shard_record
+ * present-mask, pieces by id membership in the input), and each
+ * maximal synthesized run containing at least one shard becomes one
+ * insertion anchored at the nearest preceding original leaf
+ * (following leaf, side-Left, for leading runs). A shard anchors a
+ * run only from its tile's outermost original shard — a tile
+ * measures to its full visible extent. A witness-completed shard
+ * anchors at its absorbed token (still visible) with typed_len.
+ * Pure-grout runs are regrout debris, not insertions. */
+type leaf =
+  | LShard(Tile.t, int)
+  | LPiece(Piece.t);
+
+let derive_insertions =
+    (
+      ~original: Segment.t,
+      ~records: list(shard_record),
+      completed: Segment.t,
+    )
+    : list(insertion) => {
+  let orig_ids = Hashtbl.create(64);
+  let rec collect = (sg: Segment.t) =>
+    List.iter(
+      (p: Piece.t) => {
+        Hashtbl.replace(orig_ids, Piece.id(p), ());
+        switch (p) {
+        | Tile(t) => List.iter(collect, t.children)
+        | _ => ()
+        };
+      },
+      sg,
+    );
+  collect(original);
+  let rec_of = (tid: Id.t) =>
+    List.find_opt((r: shard_record) => Id.equal(r.tile_id, tid), records);
+  let originals_of = (t: Tile.t): list(int) =>
+    Hashtbl.mem(orig_ids, t.id)
+      ? switch (rec_of(t.id)) {
+        | Some(r) => r.original_shards
+        | None => t.shards
+        }
+      : [];
+  let shard_original = (t: Tile.t, i: int): bool =>
+    List.mem(i, originals_of(t));
+  let prefix_of = (t: Tile.t, i: int) =>
+    switch (rec_of(t.id)) {
+    | Some(r) =>
+      List.find_opt(
+        (sp: Language.IdTagged.IdTag.shard_prefix) => sp.shard == i,
+        r.prefixes,
+      )
+    | None => None
+    };
+  let rec leaves = (sg: Segment.t): list((leaf, bool)) =>
+    List.concat_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          let rec weave = (shards, children) =>
+            switch (shards) {
+            | [] => []
+            | [i] => [(LShard(t, i), shard_original(t, i))]
+            | [i, ...rest] =>
+              let (ch, chrest) =
+                switch (children) {
+                | [c, ...cr] => (leaves(c), cr)
+                | [] => ([], [])
+                };
+              [(LShard(t, i), shard_original(t, i)), ...ch]
+              @ weave(rest, chrest);
+            };
+          weave(t.shards, t.children);
+        | p => [(LPiece(p), Hashtbl.mem(orig_ids, Piece.id(p)))]
+        },
+      sg,
+    );
+  let ls = leaves(completed);
+  /* a leaf that can carry an anchor from the given side */
+  let anchor_of = (~right: bool, (l, orig): (leaf, bool)): option(Id.t) =>
+    if (!orig) {
+      None;
+    } else {
+      switch (l) {
+      | LPiece(Secondary(_))
+      | LPiece(Grout(_)) => None
+      | LPiece(p) => Some(Piece.id(p))
+      | LShard(t, i) =>
+        let os = originals_of(t);
+        let qualifies =
+          right
+            ? os != [] && i == List.nth(os, List.length(os) - 1)
+            : os != [] && i == List.hd(os);
+        qualifies ? Some(t.id) : None;
+      };
+    };
+  let arr = Array.of_list(ls);
+  let n = Array.length(arr);
+  /* whitespace and grout never anchor but never block the walk;
+     original CONTENT that can't anchor (a mid-tile shard) stops it —
+     better no chip than a chip on the wrong side of visible text */
+  let walkable = ((l, orig): (leaf, bool)): bool =>
+    switch (l) {
+    | LPiece(Secondary(_))
+    | LPiece(Grout(_)) => true
+    | _ => !orig
+    };
+  /* a run separated from its left content by a LINEBREAK lives on a
+     later line: anchor on the leaf immediately before it (the
+     indentation or the break itself) so line placement survives —
+     spaces on the same line stay walkable */
+  let anchor_left = (start: int) => {
+    let immediate =
+      start - 1 >= 0
+        ? switch (fst(arr[start - 1])) {
+          | LPiece(p) => Some(Piece.id(p))
+          | LShard(_) => None
+          }
+        : None;
+    let rec go = (j: int) =>
+      j < 0
+        ? None
+        : (
+          switch (anchor_of(~right=true, arr[j])) {
+          | Some(_) as a => a
+          | None =>
+            switch (fst(arr[j])) {
+            | LPiece(Secondary(w)) when Secondary.is_linebreak(w) => immediate
+            | _ => walkable(arr[j]) ? go(j - 1) : None
+            }
+          }
+        );
+    go(start - 1);
+  };
+  let rec anchor_right = (j: int) =>
+    j >= n
+      ? None
+      : (
+        switch (anchor_of(~right=false, arr[j])) {
+        | Some(_) as a => a
+        | None => walkable(arr[j]) ? anchor_right(j + 1) : None
+        }
+      );
+  /* runs: [start, stop) of consecutive synthesized leaves */
+  let rec runs = (j: int, acc) =>
+    if (j >= n) {
+      List.rev(acc);
+    } else if (snd(arr[j])) {
+      runs(j + 1, acc);
+    } else {
+      let rec stop = k => k < n && !snd(arr[k]) ? stop(k + 1) : k;
+      let k = stop(j);
+      runs(k, [(j, k), ...acc]);
+    };
+  runs(0, [])
+  |> List.filter_map(((a, b)) => {
+       let delims =
+         List.init(b - a, k => a + k)
+         |> List.filter_map(j =>
+              switch (fst(arr[j])) {
+              | LShard(t, i) =>
+                let needs_hole =
+                  j
+                  + 1 < b
+                  && (
+                    switch (fst(arr[j + 1])) {
+                    | LPiece(Grout(_)) => true
+                    | _ => false
+                    }
+                  );
+                Some({
+                  text: List.nth(t.label, i),
+                  needs_hole,
+                  typed_len:
+                    prefix_of(t, i)
+                    |> Option.map((sp: Language.IdTagged.IdTag.shard_prefix) =>
+                         sp.len
+                       ),
+                  of_shard: Some((t.id, i)),
+                });
+              | LPiece(_) => None
+              }
+            );
+       if (delims == []) {
+         None; /* pure grout: regrout debris */
+       } else {
+         /* witness runs anchor at the absorbed, still-visible token */
+         let witness_anchor =
+           List.init(b - a, k => a + k)
+           |> List.find_map(j =>
+                switch (fst(arr[j])) {
+                | LShard(t, i) =>
+                  prefix_of(t, i)
+                  |> Option.map((sp: Language.IdTagged.IdTag.shard_prefix) =>
+                       sp.token_id
+                     )
+                | _ => None
+                }
+              );
+         switch (witness_anchor, anchor_left(a), anchor_right(b)) {
+         | (Some(tok), _, _) =>
+           Some({
+             adjacent_id: tok,
+             side: Direction.Right,
+             delimiters: delims,
+           })
+         | (_, Some(id), _) =>
+           Some({
+             adjacent_id: id,
+             side: Direction.Right,
+             delimiters: delims,
+           })
+         | (_, None, Some(id)) =>
+           Some({
+             adjacent_id: id,
+             side: Direction.Left,
+             delimiters: delims,
+           })
+         | (_, None, None) => None /* never lie about placement */
+         };
+       };
+     });
+};
+
 /* === Integration Points === */
 
 let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
@@ -2361,7 +2587,16 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
 };
 
 let for_editor = (seg: Segment.t): completion_result => {
-  complete_segment_deep(~sort=Sort.Exp, seg);
+  let result = complete_segment_deep(~sort=Sort.Exp, seg);
+  {
+    ...result,
+    insertions:
+      derive_insertions(
+        ~original=seg,
+        ~records=result.shard_records,
+        result.completed_seg,
+      ),
+  };
 };
 
 /* The obligation whose insertion zone contains the caret — the chip
