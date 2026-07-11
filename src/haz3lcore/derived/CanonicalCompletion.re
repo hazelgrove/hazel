@@ -1439,6 +1439,24 @@ let place_trailing_shards =
       };
     go(from);
   };
+  /* the viz anchor must be a piece of the ORIGINAL program: shards
+     synthesized earlier in this same fold carry the tile's id, and
+     anchoring on one makes the chip render at the tile's visible
+     head (an in pinned to the let keyword) instead of where the
+     material actually lands */
+  let original_anchor =
+      (seg: Segment.t, stop: int, t: Tile.t): option(Piece.t) => {
+    let rec go = j =>
+      j > 0
+        ? (
+          switch (List.nth_opt(seg, j - 1)) {
+          | Some(p) when Id.equal(Piece.id(p), t.id) => go(j - 1)
+          | p => p
+          }
+        )
+        : None;
+    go(stop);
+  };
   let place_one = ((seg, ins, agg, abs), t: Tile.t) => {
     let entries =
       Tile.right_missing_shards(t)
@@ -1541,7 +1559,7 @@ let place_trailing_shards =
               switch (clip) {
               | Some(stop) =>
                 let stop = back_over_boundary(seg, stop, cursor);
-                let anchor = stop > 0 ? List.nth_opt(seg, stop - 1) : None;
+                let anchor = original_anchor(seg, stop, t);
                 let seg = insert_at(stop, piece, seg);
                 let ins =
                   switch (anchor) {
@@ -1641,7 +1659,7 @@ let place_trailing_shards =
                   }
                 ) {
                 | Some(stop) =>
-                  let anchor = stop > 0 ? List.nth_opt(seg, stop - 1) : None;
+                  let anchor = original_anchor(seg, stop, t);
                   let seg = insert_at(stop, piece, seg);
                   let ins =
                     switch (anchor) {
