@@ -4277,6 +4277,167 @@ let arrow_arity = (a: Typ.t): int =>
   | _ => 1
   };
 
+/* === Extract type alias === */
+
+let contains_typ_id = (target: Id.t, e: Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_typ=
+        (cont, t: Typ.t) => {
+          if (List.mem(target, IdTagged.ids(t))) {
+            found := true;
+          };
+          cont(t);
+        },
+      e,
+    );
+  found^;
+};
+
+/* the exp node that DIRECTLY owns the typ containing target (no exp
+   child's subtree contains it), plus the typ node itself */
+let typ_extract_site =
+    (~target: Id.t, program: Exp.t): option((list(Exp.t), Typ.t)) => {
+  let owns = (e: Exp.t) =>
+    contains_typ_id(target, e)
+    && !(children_of(e) |> List.exists(contains_typ_id(target)));
+  switch (find_path(~hit=owns, program)) {
+  | None => None
+  | Some(path) =>
+    let host = List.nth(path, List.length(path) - 1);
+    let t = ref(None);
+    let _ =
+      Exp.map_term(
+        ~f_typ=
+          (cont, ty: Typ.t) => {
+            if (t^ == None && List.mem(target, IdTagged.ids(ty))) {
+              t := Some(ty);
+            };
+            cont(ty);
+          },
+        host,
+      );
+    t^ |> Option.map(ty => (path, ty));
+  };
+};
+
+let replace_typ_node = (~at: Id.t, ~with_: Typ.t, e: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_typ=
+      (cont, ty: Typ.t) => IdTagged.rep_id(ty) == at ? with_ : cont(ty),
+    e,
+  );
+
+/* alias-escape guard: the extracted type moves up to `line`; any
+   type binder crossed on the way (alias/typfun between line and the
+   host) that it mentions would be escaped — refuse (no rename fixes
+   an escape) */
+let crossed_typ_binders = (line: Exp.t, path: list(Exp.t)): list(string) => {
+  let rec go = (started: bool, path: list(Exp.t)): list(string) =>
+    switch (path) {
+    | [parent, child, ...rest] =>
+      let started = started || same_node(parent, line);
+      let here =
+        started
+          ? switch (IdTagged.term_of(parent)) {
+            | TyAlias(tp, _, _)
+            | TypFun(tp, _, _) => tpat_names(tp)
+            | _ => []
+            }
+          : [];
+      here @ go(started, [child, ...rest]);
+    | _ => []
+    };
+  go(false, path);
+};
+
+/* extraction targets: not a bare Var (alias-of-alias pair), not the
+   whole def of an existing alias (same pair) */
+let alias_extractable = (path: list(Exp.t), ty: Typ.t): bool => {
+  let host = List.nth(path, List.length(path) - 1);
+  let whole_alias_def =
+    switch (IdTagged.term_of(host)) {
+    | TyAlias(_, d, _) => IdTagged.rep_id(d) == IdTagged.rep_id(ty)
+    | _ => false
+    };
+  (
+    switch (IdTagged.term_of(ty)) {
+    | Var(_)
+    | Unknown(_) => false
+    | _ => true
+    }
+  )
+  && !whole_alias_def;
+};
+
+let extract_alias_impl: impl = {
+  label: "Extract",
+  tooltip: "Name this type with a fresh alias at the enclosing line",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (typ_extract_site(~target, program)) {
+    | None => None
+    | Some((path, ty)) when alias_extractable(path, ty) =>
+      let line = lowest_line(path);
+      let blocked =
+        crossed_typ_binders(line, path)
+        |> List.exists(n => typ_mentions([n], ty));
+      if (blocked) {
+        None;
+      } else {
+        let name =
+          pick_placeholder(used_names(program) @ typ_names_in(program));
+        let s = typ_slot(ty);
+        let def =
+          typ_slot_give(
+            {
+              Slot.lead: space(),
+              trail: space(),
+            },
+            typ_slot_drop(s, ty),
+          );
+        /* fresh use var: the extracted content travels WHOLESALE to
+           the def (ids kept — P7); focus goes to the new tpat */
+        let use: Typ.t =
+          typ_slot_give(
+            s,
+            {
+              annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+              term: Var(name),
+            },
+          );
+        let tp: TPat.t = {
+          annotation: {
+            ...IdTagged.IdTag.mk_internal([Id.mk()]),
+            secondary: (space(), space()),
+          },
+          term: Var(name),
+        };
+        let sep = sep_like(Slot.of_exp(line).lead);
+        rewrite_node(
+          ~hit=same_node(line),
+          ~rewrite=
+            ln => {
+              let body =
+                replace_typ_node(~at=IdTagged.rep_id(ty), ~with_=use, ln);
+              let (b, a) = body.annotation.secondary;
+              let body = {
+                ...body,
+                annotation: {
+                  ...body.annotation,
+                  secondary: (sep @ b, a),
+                },
+              };
+              let alias_node = fresh(TyAlias(tp, def, body));
+              Some((alias_node, IdTagged.rep_id(tp)));
+            },
+          program,
+        );
+      };
+    | Some(_) => None
+    },
+};
+
 let eta_expand_impl: impl = {
   label: "Eta-Expand",
   tooltip: "Wrap this function value as fun x -> f(x)",
@@ -6050,6 +6211,7 @@ let impl: Action.refactor => impl =
   | FeedLet => feed_let_impl
   | RemoveUnusedLet => remove_unused_let_impl
   | InlineAlias => inline_alias_impl
+  | ExtractAlias => extract_alias_impl
   | AddTypeAnnotation => add_annotation_impl
   | EtaExpand => eta_expand_impl
   | EvaluateInPlace => evaluate_in_place_impl
@@ -6096,6 +6258,7 @@ let all: list(Action.refactor) = [
   HoistLet,
   SinkLet,
   ExtractLet,
+  ExtractAlias,
   EtaReduce,
   IfToCase,
   CaseToIf,
@@ -6312,6 +6475,16 @@ let applies =
     | None => false
     }
   | ExtractLet => Option.is_some(extract_path(~target, program))
+  | ExtractAlias =>
+    switch (typ_extract_site(~target, program)) {
+    | Some((path, ty)) when alias_extractable(path, ty) =>
+      let line = lowest_line(path);
+      !(
+        crossed_typ_binders(line, path)
+        |> List.exists(n => typ_mentions([n], ty))
+      );
+    | _ => false
+    }
   | EtaReduce =>
     switch (find_hit(~hit=hit_node(target), program)) {
     | Some(e) =>
@@ -6698,7 +6871,10 @@ let gesture =
                whole-case extract firing from it reads as an accident —
                extract stays on the `case` kw and in the menu */
       } else {
-        app(ExtractLet);
+        switch (app(ExtractLet)) {
+        | Some(k) => Some(k)
+        | None => app(ExtractAlias)
+        };
       }
     | Down =>
       if (in_arm_zone) {

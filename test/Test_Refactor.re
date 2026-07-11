@@ -3934,6 +3934,58 @@ let inline_alias_tests = [
       offers(FeedLet, "type ¦t = Int in\n(1 : t)"),
     )
   }),
+  test_case(
+    "extract alias: annotation type to a named alias",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=ExtractAlias,
+          "let f: ¦Int -> Int = fun x -> x in\nf(1)",
+        )
+        |> text_of;
+      check(
+        string,
+        "extracted",
+        "type zoob = Int in let f: zoob -> Int = fun x -> x in\nf(1)",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "extract alias: lands at the enclosing line, use travels",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=ExtractAlias,
+          "let k = 1 in\nlet f: ¦Int -> Int = fun x -> x in\nf(k)",
+        )
+        |> text_of;
+      check(
+        string,
+        "extracted",
+        "let k = 1 in\ntype borp = Int in\nlet f: borp -> Int = fun x -> x in\nf(k)",
+        z,
+      );
+    },
+  ),
+  test_case("extract alias: bare Var target refused", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(ExtractAlias, "type t = Int in\nlet a: ¦t = 1 in\na"),
+    )
+  }),
+  test_case("extract alias: whole alias def refused", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(ExtractAlias, "type t = Int ¦-> Int in\n(1 : t)"),
+    )
+  }),
   test_case("inline alias: offered at the type line", `Quick, () => {
     check(
       bool,
