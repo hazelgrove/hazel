@@ -1346,13 +1346,11 @@ let typ_names_mentioned = (e: Exp.t): list(string) => {
   List.sort_uniq(compare, acc^);
 };
 
-/* would substituting `moved` at occ_id capture a type name? A
-   TyAlias crossed on the way rebinds its name; a crossed `use`
-   rebinds unknowably (refuse whenever moved mentions any type name).
-   Aliases aren't locally renameable, so capture means refusal. */
-let typ_captured_at = (occ_id: Id.t, moved: Exp.t, body: Exp.t): bool => {
-  let mentioned = typ_names_mentioned(moved);
-  mentioned == []
+/* capture by a crossed `use` only — the refusal that remains after
+   alias-capture was upgraded to freshening (imports can't be
+   enumerated, so they can't be renamed around) */
+let typ_captured_by_use_at = (occ_id: Id.t, moved: Exp.t, body: Exp.t): bool =>
+  typ_names_mentioned(moved) == []
     ? false
     : (
       switch (find_path(~hit=e => Exp.rep_id(e) == occ_id, body)) {
@@ -1361,14 +1359,150 @@ let typ_captured_at = (occ_id: Id.t, moved: Exp.t, body: Exp.t): bool => {
         path
         |> List.exists((e: Exp.t) =>
              switch (IdTagged.term_of(e)) {
-             | TyAlias(tp, _, _) =>
-               tpat_names(tp) |> List.exists(n => List.mem(n, mentioned))
              | Use(_) => true
              | _ => false
              }
            )
       }
     );
+
+/* rename type name x to y throughout e's typ positions, respecting
+   rebinding (an inner binder of x ends the rename; a rebinding
+   tyalias's own def still sees the outer x). Renamed tokens keep
+   their ids (P7); lexeme cleared so the printer respells. */
+let rename_typ_var = (x: string, y: string, e: Exp.t): Exp.t => {
+  let in_typ = (ty: Typ.t): Typ.t =>
+    Typ.map_term(
+      ~f_typ=
+        (cont, t: Typ.t) =>
+          switch (IdTagged.term_of(t)) {
+          | Var(z) when z == x => {
+              annotation: {
+                ...t.annotation,
+                lexeme: None,
+              },
+              term: Var(y),
+            }
+          | Rec(tp, _)
+          | Poly(tp, _) when List.mem(x, tpat_names(tp)) => t
+          | _ => cont(t)
+          },
+      ty,
+    );
+  Exp.map_term(
+    ~f_exp=
+      (cont, e: Exp.t) =>
+        switch (IdTagged.term_of(e)) {
+        | TyAlias(tp, d, b) when List.mem(x, tpat_names(tp)) => {
+            ...e,
+            term: TyAlias(tp, in_typ(d), b),
+          }
+        | TypFun(tp, _, _) when List.mem(x, tpat_names(tp)) => e
+        | _ => cont(e)
+        },
+    ~f_typ=(_cont, ty: Typ.t) => in_typ(ty),
+    e,
+  );
+};
+
+/* all type names visible in e (mentioned or bound) — the avoid set
+   for freshening */
+let typ_names_in = (e: Exp.t): list(string) => {
+  let acc = ref(typ_names_mentioned(e));
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) => {
+          switch (IdTagged.term_of(e)) {
+          | TyAlias(tp, _, _)
+          | TypFun(tp, _, _) => acc := tpat_names(tp) @ acc^
+          | _ => ()
+          };
+          cont(e);
+        },
+      e,
+    );
+  List.sort_uniq(compare, acc^);
+};
+
+/* rename the alias BOUND at this TyAlias node to y: the binder
+   token morphs in place (ids kept) and its scope's uses follow */
+let rename_alias_binding = (~alias_id: Id.t, y: string, e: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (cont, e: Exp.t) =>
+        if (IdTagged.rep_id(e) == alias_id) {
+          switch (IdTagged.term_of(e)) {
+          | TyAlias(tp, d, b) =>
+            switch (tpat_names(tp)) {
+            | [x] =>
+              let tp': TPat.t = {
+                annotation: {
+                  ...tp.annotation,
+                  lexeme: None,
+                },
+                term: Var(y),
+              };
+              {
+                ...e,
+                term: TyAlias(tp', d, rename_typ_var(x, y, b)),
+              };
+            | _ => cont(e)
+            }
+          | _ => cont(e)
+          };
+        } else {
+          cont(e);
+        },
+    e,
+  );
+
+/* Crossed aliases that would capture the moved material's type
+   names at an occurrence of x are FRESHENED (t -> t1, binder +
+   scope) — mirroring the exp-var rename strategy. This is the
+   incidental half of alias capture; ESCAPES (a reference moving
+   above its own binder, the hoist direction) stay refusals. */
+let freshen_crossed_aliases = (~x: string, ~moved: Exp.t, body: Exp.t): Exp.t => {
+  let mentioned = typ_names_mentioned(moved);
+  if (mentioned == []) {
+    body;
+  } else {
+    let victims = ref([]);
+    let _ =
+      Exp.map_term(
+        ~f_exp=
+          (cont, e: Exp.t) => {
+            switch (IdTagged.term_of(e)) {
+            | TyAlias(tp, _, b)
+                when
+                  tpat_names(tp)
+                  |> List.exists(n => List.mem(n, mentioned))
+                  && occurrences_of(x, b) != [] =>
+              switch (tpat_names(tp)) {
+              | [n] => victims := [(IdTagged.rep_id(e), n), ...victims^]
+              | _ => ()
+              }
+            | _ => ()
+            };
+            cont(e);
+          },
+        body,
+      );
+    let used = ref(typ_names_in(body) @ mentioned);
+    victims^
+    |> List.fold_left(
+         (acc, (id, n)) => {
+           let rec pick = k => {
+             let c = n ++ string_of_int(k);
+             List.mem(c, used^) ? pick(k + 1) : c;
+           };
+           let y = pick(1);
+           used := [y, ...used^];
+           rename_alias_binding(~alias_id=id, y, acc);
+         },
+         body,
+       );
+  };
 };
 
 let reparses_region = (region: Exp.t): bool => {
@@ -1391,7 +1525,7 @@ let inline_matches = (p: Pat.t, def: Exp.t, body: Exp.t): bool => {
   let ok = f =>
     !free_in(f, def)
     && occurrences_of(f, body)
-    |> List.for_all(o => !typ_captured_at(Exp.rep_id(o), moved, body));
+    |> List.for_all(o => !typ_captured_by_use_at(Exp.rep_id(o), moved, body));
   (
     switch (let_head_name(p)) {
     | Some(f) => ok(f)
@@ -1535,6 +1669,9 @@ let inline_let_impl: impl = {
                 : occurrences_of(x, body) |> List.map(Exp.rep_id);
             let parens_for = occ =>
               needs_parens(def) && !List.mem(Exp.rep_id(occ), bare_ids);
+            /* a crossed same-name alias is freshened rather than
+               refused (see freshen_crossed_aliases) */
+            let body = freshen_crossed_aliases(~x, ~moved=def, body);
             let body' =
               subst(
                 ~parens_for,
@@ -1690,126 +1827,13 @@ let feed_plan =
           let captured =
             binders_over(Exp.rep_id(occ), body)
             |> List.exists(b => List.mem(b, free))
-            || typ_captured_at(Exp.rep_id(occ), def, body);
+            || typ_captured_by_use_at(Exp.rep_id(occ), def, body);
           captured ? None : Some(Feed(l, def, occ));
         };
       };
     | _ => None
     }
   };
-
-let feed_let_impl: impl = {
-  label: "Inline next use",
-  tooltip: "Substitute the definition into its nearest use; the last use consumes the binding",
-  prepare: (~info_map, ~target, program) =>
-    switch (feed_plan(~info_map, ~target, program)) {
-    | None => None
-    | Some(Consume) => inline_let_impl.prepare(~info_map, ~target, program)
-    | Some(Feed(l, def, occ)) =>
-      /* parens: the same per-occurrence policy as inline */
-      let parens =
-        needs_parens(def)
-        && {
-          let region = bounded_region(Exp.rep_id(occ), program);
-          same_node(region, program)
-            ? true
-            : !{
-                let candidate =
-                  replace_node(
-                    ~at=Exp.rep_id(occ),
-                    ~with_=inserted(~parens=false, def, occ),
-                    region,
-                  );
-                reparses_region(candidate);
-              };
-        };
-      /* the def survives, so the copy needs fresh interior ids —
-         and sheds prose (the binding keeps the original comments) */
-      let copy = inserted(~parens, strip_comments(refresh_ids(def)), occ);
-      let at_use =
-        occ |> IdTagged.ids |> List.mem(target) ? Some(target) : None;
-      let focus =
-        switch (at_use) {
-        /* invoked at the use: caret follows the copy */
-        | Some(oid) => oid
-        /* invoked at the let: caret stays for the next feed */
-        | None => Exp.rep_id(l)
-        };
-      rewrite_node(
-        ~hit=same_node(l),
-        ~rewrite=
-          e =>
-            switch (IdTagged.term_of(e)) {
-            | Let(p', def', body') =>
-              let body'' =
-                replace_node(~at=Exp.rep_id(occ), ~with_=copy, body');
-              Some((
-                {
-                  ...e,
-                  term: Let(p', def', body''),
-                },
-                focus,
-              ));
-            | _ => None
-            },
-        program,
-      );
-    },
-};
-
-/* Statics-gated: the binding's pattern var carries an UnusedVar
- * warning (co-ctx says the body never uses it) */
-let pat_unused = (~info_map: Statics.Map.t, p: Pat.t): bool =>
-  switch (Id.Map.find_opt(Pat.rep_id(p), info_map)) {
-  | Some(InfoPat({warnings, _})) =>
-    warnings
-    |> List.exists((w: Warning.list_item) =>
-         switch (w) {
-         | Pat(UnusedVar(_)) => true
-         }
-       )
-  | _ => false
-  };
-
-let remove_unused_let_impl: impl = {
-  label: "Remove unused",
-  tooltip: "Delete this binding: its variable is never used",
-  prepare: (~info_map, ~target, program) => {
-    let as_let =
-      rewrite_let(
-        ~target,
-        ~matches=
-          (p, _, _) =>
-            switch (head_var_pat(p)) {
-            | Some(hv) => pat_unused(~info_map, hv)
-            | None => false
-            },
-        ~rewrite=(_, _, body) => (body, Exp.rep_id(body)),
-        program,
-      );
-    switch (as_let) {
-    | Some(_) => as_let
-    | None =>
-      /* an alias with no mention anywhere below is dead
-         (conservative: ANY mention keeps it) */
-      rewrite_node(
-        ~hit=hit_tyalias(target),
-        ~rewrite=
-          e =>
-            switch (IdTagged.term_of(e)) {
-            | TyAlias(tp, _, body)
-                when
-                  tpat_names(tp) != []
-                  && !mentions_typ_names(tpat_names(tp), body) =>
-              let body = strip_leading_ws(body);
-              Some((body, Exp.rep_id(body)));
-            | _ => None
-            },
-        program,
-      )
-    };
-  },
-};
 
 /* === Inline type alias === */
 
@@ -1966,6 +1990,268 @@ let inline_alias_impl: impl = {
           },
       program,
     ),
+};
+
+/* unshadowed typ uses of alias t in body (count + one-shot subst
+   share the walk shape with subst_alias) */
+let count_typ_uses = (t: string, body: Exp.t): int => {
+  let n = ref(0);
+  let in_typ = (ty: Typ.t): Typ.t =>
+    Typ.map_term(
+      ~f_typ=
+        (cont, u: Typ.t) =>
+          switch (IdTagged.term_of(u)) {
+          | Var(z) when z == t =>
+            n := n^ + 1;
+            u;
+          | Rec(tp, _)
+          | Poly(tp, _) when List.mem(t, tpat_names(tp)) => u
+          | _ => cont(u)
+          },
+      ty,
+    );
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) =>
+          switch (IdTagged.term_of(e)) {
+          | TyAlias(tp, d, b) when List.mem(t, tpat_names(tp)) =>
+            let _ = in_typ(d);
+            {
+              ...e,
+              term: TyAlias(tp, d, b),
+            };
+          | TypFun(tp, _, _) when List.mem(t, tpat_names(tp)) => e
+          | _ => cont(e)
+          },
+      ~f_typ=(_cont, ty: Typ.t) => in_typ(ty),
+      body,
+    );
+  n^;
+};
+
+/* substitute ONE use of the alias — the TEXTUALLY FIRST (map_term
+   visits right-to-left, so that's the ~visit_target-th visit);
+   the binding survives, so the copy is fully fresh and sheds prose */
+let subst_alias_one =
+    (~visit_target: int, t: string, def: Typ.t, body: Exp.t): Exp.t => {
+  let bare = strip_typ_boundaries(def);
+  let seen = ref(0);
+  let at_use = (u: Typ.t): Typ.t => {
+    let d = strip_typ_comments(refresh_typ_ids(bare));
+    if (typ_atomic(d)) {
+      let (before, after) = u.annotation.secondary;
+      let (db, da) = d.annotation.secondary;
+      {
+        ...d,
+        annotation: {
+          ...d.annotation,
+          ids: u.annotation.ids,
+          secondary: (db @ before, da @ after),
+        },
+      };
+    } else {
+      {
+        annotation: {
+          ...IdTagged.IdTag.mk_internal(u.annotation.ids),
+          secondary: u.annotation.secondary,
+        },
+        term: Parens(d),
+      };
+    };
+  };
+  let in_typ = (ty: Typ.t): Typ.t =>
+    Typ.map_term(
+      ~f_typ=
+        (cont, u: Typ.t) =>
+          switch (IdTagged.term_of(u)) {
+          | Var(z) when z == t =>
+            seen := seen^ + 1;
+            seen^ == visit_target ? at_use(u) : u;
+          | Rec(tp, _)
+          | Poly(tp, _) when List.mem(t, tpat_names(tp)) => u
+          | _ => cont(u)
+          },
+      ty,
+    );
+  Exp.map_term(
+    ~f_exp=
+      (cont, e: Exp.t) =>
+        switch (IdTagged.term_of(e)) {
+        | TyAlias(tp, d, b) when List.mem(t, tpat_names(tp)) => {
+            ...e,
+            term: TyAlias(tp, in_typ(d), b),
+          }
+        | TypFun(tp, _, _) when List.mem(t, tpat_names(tp)) => e
+        | _ => cont(e)
+        },
+    ~f_typ=(_cont, ty: Typ.t) => in_typ(ty),
+    body,
+  );
+};
+
+/* feed for a type line: substitute one use per press; the last use
+   consumes the alias (inline_alias). Mirrors let-feed semantics. */
+let feed_alias_route =
+    (~info_map: Statics.Map.t, ~target: Id.t, program: Exp.t)
+    : option((Exp.t, Id.t)) =>
+  switch (find_hit(~hit=hit_tyalias(target), program)) {
+  | Some(e) =>
+    switch (IdTagged.term_of(e)) {
+    | TyAlias(tp, ty, body) =>
+      switch (tpat_names(tp)) {
+      | [t] when !typ_mentions([t], ty) && !contains_use(body) =>
+        switch (count_typ_uses(t, body)) {
+        | 0 => None
+        | 1 => inline_alias_impl.prepare(~info_map, ~target, program)
+        | _ =>
+          rewrite_node(
+            ~hit=same_node(e),
+            ~rewrite=
+              e' =>
+                switch (IdTagged.term_of(e')) {
+                | TyAlias(tp', ty', body') =>
+                  let n = count_typ_uses(t, body');
+                  Some((
+                    {
+                      ...e',
+                      term:
+                        TyAlias(
+                          tp',
+                          ty',
+                          subst_alias_one(~visit_target=n, t, ty', body'),
+                        ),
+                    },
+                    Exp.rep_id(e'),
+                  ));
+                | _ => None
+                },
+            program,
+          )
+        }
+      | _ => None
+      }
+    | _ => None
+    }
+  | None => None
+  };
+
+let feed_let_impl: impl = {
+  label: "Inline next use",
+  tooltip: "Substitute the definition into its nearest use; the last use consumes the binding",
+  prepare: (~info_map, ~target, program) =>
+    switch (feed_plan(~info_map, ~target, program)) {
+    | None => feed_alias_route(~info_map, ~target, program)
+    | Some(Consume) => inline_let_impl.prepare(~info_map, ~target, program)
+    | Some(Feed(l, def, occ)) =>
+      /* parens: the same per-occurrence policy as inline */
+      let parens =
+        needs_parens(def)
+        && {
+          let region = bounded_region(Exp.rep_id(occ), program);
+          same_node(region, program)
+            ? true
+            : !{
+                let candidate =
+                  replace_node(
+                    ~at=Exp.rep_id(occ),
+                    ~with_=inserted(~parens=false, def, occ),
+                    region,
+                  );
+                reparses_region(candidate);
+              };
+        };
+      /* the def survives, so the copy needs fresh interior ids —
+         and sheds prose (the binding keeps the original comments) */
+      let copy = inserted(~parens, strip_comments(refresh_ids(def)), occ);
+      let at_use =
+        occ |> IdTagged.ids |> List.mem(target) ? Some(target) : None;
+      let focus =
+        switch (at_use) {
+        /* invoked at the use: caret follows the copy */
+        | Some(oid) => oid
+        /* invoked at the let: caret stays for the next feed */
+        | None => Exp.rep_id(l)
+        };
+      rewrite_node(
+        ~hit=same_node(l),
+        ~rewrite=
+          e =>
+            switch (IdTagged.term_of(e)) {
+            | Let(p', def', body') =>
+              let body' =
+                switch (let_head_name(p')) {
+                | Some(x) => freshen_crossed_aliases(~x, ~moved=def', body')
+                | None => body'
+                };
+              let body'' =
+                replace_node(~at=Exp.rep_id(occ), ~with_=copy, body');
+              Some((
+                {
+                  ...e,
+                  term: Let(p', def', body''),
+                },
+                focus,
+              ));
+            | _ => None
+            },
+        program,
+      );
+    },
+};
+
+/* Statics-gated: the binding's pattern var carries an UnusedVar
+ * warning (co-ctx says the body never uses it) */
+let pat_unused = (~info_map: Statics.Map.t, p: Pat.t): bool =>
+  switch (Id.Map.find_opt(Pat.rep_id(p), info_map)) {
+  | Some(InfoPat({warnings, _})) =>
+    warnings
+    |> List.exists((w: Warning.list_item) =>
+         switch (w) {
+         | Pat(UnusedVar(_)) => true
+         }
+       )
+  | _ => false
+  };
+
+let remove_unused_let_impl: impl = {
+  label: "Remove unused",
+  tooltip: "Delete this binding: its variable is never used",
+  prepare: (~info_map, ~target, program) => {
+    let as_let =
+      rewrite_let(
+        ~target,
+        ~matches=
+          (p, _, _) =>
+            switch (head_var_pat(p)) {
+            | Some(hv) => pat_unused(~info_map, hv)
+            | None => false
+            },
+        ~rewrite=(_, _, body) => (body, Exp.rep_id(body)),
+        program,
+      );
+    switch (as_let) {
+    | Some(_) => as_let
+    | None =>
+      /* an alias with no mention anywhere below is dead
+         (conservative: ANY mention keeps it) */
+      rewrite_node(
+        ~hit=hit_tyalias(target),
+        ~rewrite=
+          e =>
+            switch (IdTagged.term_of(e)) {
+            | TyAlias(tp, _, body)
+                when
+                  tpat_names(tp) != []
+                  && !mentions_typ_names(tpat_names(tp), body) =>
+              let body = strip_leading_ws(body);
+              Some((body, Exp.rep_id(body)));
+            | _ => None
+            },
+        program,
+      )
+    };
+  },
 };
 
 let exp_ty = (~info_map: Statics.Map.t, e: Exp.t): option(Typ.t) =>
@@ -5864,7 +6150,25 @@ let applies =
       | None => false
       }
     );
-  | FeedLet => Option.is_some(feed_plan(~info_map, ~target, program))
+  | FeedLet =>
+    Option.is_some(feed_plan(~info_map, ~target, program))
+    || (
+      switch (find_hit(~hit=hit_tyalias(target), program)) {
+      | Some(e) =>
+        switch (IdTagged.term_of(e)) {
+        | TyAlias(tp, ty, body) =>
+          switch (tpat_names(tp)) {
+          | [t] =>
+            !typ_mentions([t], ty)
+            && !contains_use(body)
+            && count_typ_uses(t, body) > 0
+          | _ => false
+          }
+        | _ => false
+        }
+      | None => false
+      }
+    )
   | RemoveUnusedLet =>
     let_applies(
       ~pred=
@@ -6407,11 +6711,12 @@ let gesture =
         | None => app(FeedLet)
         };
       } else if (in_def_zone) {
-        /* type line: movement only (no per-use alias feed yet;
-           inline-all stays a menu act — Down never mass-edits) */
-        app(
-          SinkLet,
-        );
+        /* type line: movement rung, else the alias flows one use
+           at a time (the last feed consumes — let-feed parity) */
+        switch (app(SinkLet)) {
+        | Some(k) => Some(k)
+        | None => app(FeedLet)
+        };
       } else if (is_if && shard == Some(1)) {
         app(
           NegateIf /* the then-arm moves down */

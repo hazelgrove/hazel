@@ -3467,14 +3467,16 @@ let tyalias_tests = [
       );
     },
   ),
-  test_case("tyalias: inline gated when a crossed alias captures", `Quick, () => {
-    check(
-      bool,
-      "gated",
-      false,
-      offers(InlineLet, "let ¦a = (1 : t) in\ntype t = Bool in\na"),
-    )
-  }),
+  test_case(
+    "tyalias: inline freshens a crossed same-name alias",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=InlineLet, "let ¦a = (1 : t) in\ntype t = Bool in\na")
+        |> text_of;
+      check(string, "freshened", "type t1 = Bool in\n(1 : t)", z);
+    },
+  ),
   test_case("tyalias: inline offered when no alias crossed", `Quick, () => {
     check(
       bool,
@@ -3483,14 +3485,21 @@ let tyalias_tests = [
       offers(InlineLet, "let ¦a = (1 : t) in\na"),
     )
   }),
-  test_case("tyalias: feed gated when a crossed alias captures", `Quick, () => {
-    check(
-      bool,
-      "gated",
-      false,
-      offers(FeedLet, "let ¦a = (1 : t) in\ntype t = Bool in\na + a"),
-    )
-  }),
+  test_case(
+    "tyalias: feed freshens a crossed same-name alias",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=FeedLet, "let ¦a = (1 : t) in\ntype t = Bool in\na + a")
+        |> text_of;
+      check(
+        string,
+        "freshened",
+        "let a = (1 : t) in\ntype t1 = Bool in\n(1 : t) + a",
+        z,
+      );
+    },
+  ),
   test_case("tyalias: feed offered when no alias crossed", `Quick, () => {
     check(
       bool,
@@ -3884,6 +3893,45 @@ let inline_alias_tests = [
       "gated",
       false,
       offers(RemoveUnusedLet, "type ¦t = Int in\n(1 : t)"),
+    )
+  }),
+  test_case(
+    "tyalias: freshened alias renames its own uses too",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=InlineLet,
+          "let ¦a = (1 : t) in\ntype t = Bool in\n(a, (2 : t))",
+        )
+        |> text_of;
+      check(string, "freshened", "type t1 = Bool in\n((1 : t), (2 : t1))", z);
+    },
+  ),
+  test_case(
+    "alias feed: one use per press",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=FeedLet, "type ¦t = Int in\n(1 : t);\n(2 : t)")
+        |> text_of;
+      check(string, "fed", "type t = Int in\n(1 : Int);\n(2 : t)", z);
+    },
+  ),
+  test_case(
+    "alias feed: last use consumes the line",
+    `Quick,
+    () => {
+      let z = inline(~kind=FeedLet, "type ¦t = Int in\n(1 : t)") |> text_of;
+      check(string, "consumed", "(1 : Int)", z);
+    },
+  ),
+  test_case("alias feed: offered when uses exist", `Quick, () => {
+    check(
+      bool,
+      "offered",
+      true,
+      offers(FeedLet, "type ¦t = Int in\n(1 : t)"),
     )
   }),
   test_case("inline alias: offered at the type line", `Quick, () => {
