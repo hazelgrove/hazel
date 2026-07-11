@@ -90,6 +90,17 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowDown" => now(Select(Resize(Vertical(Down, modif))))
     | _ => None
     }
+  /* Refactor gesture MACRO layer (shift = closure of the base
+   * axis): shift+Up = explode (extract to fixpoint), shift+Down =
+   * implode (inline the chain back). Dead press when inapplicable,
+   * like any gesture. Left/Right reserved (iterated swaps). */
+  | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Down, alt: Up, _}
+  | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Down, _} =>
+    switch (key) {
+    | "ArrowUp" => now(Refactor(Explode))
+    | "ArrowDown" => now(Refactor(Implode))
+    | _ => None
+    }
   /* Refactor gestures: move the indicated construct spatially
    * (Cmd+Ctrl on Mac, Ctrl+Alt on PC) */
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Down, alt: Up, _}
