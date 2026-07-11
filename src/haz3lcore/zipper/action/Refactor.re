@@ -3689,21 +3689,8 @@ let hoist_step =
     /* def-line general moves first: absorption of an identical
        neighbor, chain swap with another definition line, or one
        step up past a statement */
-    let absorb =
-      switch (def_line_of(l), def_line_of(p)) {
-      | (Some((_, lbody)), Some((_, pbody)))
-          when same_node(pbody, c) && same_node(c, l) && absorbable(p, l) =>
-        switch (IdTagged.term_of(l)) {
-        | Let(lp, _, _) =>
-          switch (absorb_lines(~survivor=p, ~dissolved_head=lp, lbody)) {
-          | Some((scope', focus)) =>
-            Some((p, def_line_rebuild(p, scope'), focus, [Exp.rep_id(p)]))
-          | None => None
-          }
-        | _ => None
-        }
-      | _ => None
-      };
+    /* absorption of twins is its OWN refactoring (MergeUp) — the
+       gesture ladder discriminates; movement stays a pure swap */
     let chain_swap =
       switch (def_line_of(l), def_line_of(p)) {
       | (Some((bl, lbody)), Some((bp, pbody)))
@@ -3757,11 +3744,10 @@ let hoist_step =
         }
       | _ => None
       };
-    switch (absorb, chain_swap, seq_hoist) {
-    | (Some(r), _, _)
-    | (_, Some(r), _)
-    | (_, _, Some(r)) => Some(r)
-    | (None, None, None) =>
+    switch (chain_swap, seq_hoist) {
+    | (Some(r), _)
+    | (_, Some(r)) => Some(r)
+    | (None, None) =>
       switch (IdTagged.term_of(l)) {
       | Let(lp, ldef, lbody) =>
         let l_names = pat_var_names(lp);
@@ -4091,25 +4077,8 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
   /* def-line general moves first: absorption of an identical
      neighbor, chain swap with the next definition line, or one step
      down past a statement */
-  let absorb =
-    switch (def_line_of(l)) {
-    | Some((_, lbody)) when absorbable(l, lbody) =>
-      switch (IdTagged.term_of(l), IdTagged.term_of(lbody)) {
-      | (Let(lp, _, _), Let(_, _, mbody)) =>
-        switch (absorb_lines(~survivor=lbody, ~dissolved_head=lp, mbody)) {
-        | Some((mbody', focus)) =>
-          /* the dissolved upper line's break dies with it */
-          Some((
-            strip_leading_ws(def_line_rebuild(lbody, mbody')),
-            focus,
-            [Exp.rep_id(lbody)],
-          ))
-        | None => None
-        }
-      | _ => None
-      }
-    | _ => None
-    };
+  /* absorption = MergeDown, its own refactoring; the ladder
+     discriminates — movement stays a pure swap */
   let chain_sink =
     switch (def_line_of(l)) {
     | Some((bl, lbody)) =>
@@ -4159,11 +4128,10 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
       }
     | None => None
     };
-  switch (absorb, chain_sink, seq_sink) {
-  | (Some(r), _, _)
-  | (_, Some(r), _)
-  | (_, _, Some(r)) => Some(r)
-  | (None, None, None) =>
+  switch (chain_sink, seq_sink) {
+  | (Some(r), _)
+  | (_, Some(r)) => Some(r)
+  | (None, None) =>
     switch (IdTagged.term_of(l)) {
     | Let(lp, ldef, lbody) =>
       let l_names = pat_var_names(lp);
@@ -4444,6 +4412,122 @@ let carry_attached_docs =
          post,
        );
   };
+};
+
+/* === Merge (absorption as a named refactoring) ===
+ * The menu is the vocabulary: one entry, one contract. MergeUp
+ * dissolves this definition into its identical twin ABOVE (the twin
+ * survives, uses repoint); MergeDown into the twin BELOW. Gestures
+ * discriminate (Up = merge-when-applicable, else hoist — the same
+ * ladder shape as Down's sink-else-feed). */
+let survivor_name_free = (survivor: Exp.t, scope: Exp.t): bool =>
+  switch (IdTagged.term_of(survivor)) {
+  | Let(sp, _, _) =>
+    switch (let_head_name(sp)) {
+    | Some(sn) => !binds_somewhere(sn, scope)
+    | None => false
+    }
+  | _ => false
+  };
+
+let merge_site_up = (~target, program): option((Exp.t, Exp.t)) =>
+  /* (parent twin = survivor, this line) — the parent's body is l */
+  switch (find_path(~hit=hit_def_line(target), program)) {
+  | Some(path) when List.length(path) >= 2 =>
+    let n = List.length(path);
+    let l = List.nth(path, n - 1);
+    let p = List.nth(path, n - 2);
+    switch (def_line_of(p), def_line_of(l)) {
+    | (Some((_, pbody)), Some((_, lbody)))
+        when
+          same_node(pbody, l)
+          && absorbable(p, l)
+          && survivor_name_free(p, lbody) =>
+      Some((p, l))
+    | _ => None
+    };
+  | _ => None
+  };
+
+let merge_site_down = (~target, program): option(Exp.t) =>
+  switch (find_hit(~hit=hit_def_line(target), program)) {
+  | Some(l) =>
+    switch (def_line_of(l)) {
+    | Some((_, lbody)) when absorbable(l, lbody) =>
+      switch (IdTagged.term_of(lbody)) {
+      | Let(_, _, mbody) when survivor_name_free(lbody, mbody) => Some(l)
+      | _ => None
+      }
+    | _ => None
+    }
+  | None => None
+  };
+
+let merge_up_impl: impl = {
+  label: "Merge up",
+  tooltip: "Dissolve this definition into its identical twin above",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (merge_site_up(~target, program)) {
+    | Some((p, l)) =>
+      switch (IdTagged.term_of(l)) {
+      | Let(lp, _, lbody) =>
+        switch (absorb_lines(~survivor=p, ~dissolved_head=lp, lbody)) {
+        | Some((scope', focus)) =>
+          rewrite_node(
+            ~hit=same_node(p),
+            ~rewrite=_ => Some((def_line_rebuild(p, scope'), focus)),
+            program,
+          )
+        | None => None
+        }
+      | _ => None
+      }
+    | None => None
+    },
+};
+
+let merge_down_impl: impl = {
+  label: "Merge down",
+  tooltip: "Dissolve this definition into its identical twin below",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (merge_site_down(~target, program)) {
+    | Some(l) =>
+      switch (IdTagged.term_of(l)) {
+      | Let(lp, _, lbody) =>
+        switch (IdTagged.term_of(lbody)) {
+        | Let(_, _, mbody) =>
+          switch (absorb_lines(~survivor=lbody, ~dissolved_head=lp, mbody)) {
+          | Some((mbody', focus)) =>
+            /* the dissolved upper line's break dies with it; the
+               surviving line moves up a slot — its docs ride along */
+            rewrite_node(
+              ~hit=same_node(l),
+              ~rewrite=
+                _ =>
+                  Some((
+                    strip_leading_ws(def_line_rebuild(lbody, mbody')),
+                    focus,
+                  )),
+              program,
+            )
+            |> Option.map(((prog', f)) =>
+                 (
+                   carry_attached_docs(
+                     ~line_ids=[Exp.rep_id(lbody)],
+                     ~pre=program,
+                     prog',
+                   ),
+                   f,
+                 )
+               )
+          | None => None
+          }
+        | _ => None
+        }
+      | _ => None
+      }
+    | None => None
+    },
 };
 
 let hoist_let_impl: impl = {
@@ -6533,6 +6617,8 @@ let impl: Action.refactor => impl =
   | SwapTuplePat(i) => swap_tuple_pat_impl(i)
   | HoistLet => hoist_let_impl
   | SinkLet => sink_let_impl
+  | MergeUp => merge_up_impl
+  | MergeDown => merge_down_impl
   | IfToCase => if_to_case_impl
   | CaseToIf => case_to_if_impl
   | ExtractLet => extract_let_impl
@@ -6565,6 +6651,8 @@ let all: list(Action.refactor) = [
   RemoveParameter,
   HoistLet,
   SinkLet,
+  MergeUp,
+  MergeDown,
   ExtractLet,
   ExtractAlias,
   EtaReduce,
@@ -6727,6 +6815,8 @@ let applies =
     | Some(l) => Option.is_some(sink_step(~fixup=false, l))
     | None => false
     }
+  | MergeUp => Option.is_some(merge_site_up(~target, program))
+  | MergeDown => Option.is_some(merge_site_down(~target, program))
   | EtaExpand =>
     switch (find_hit(~hit=hit_node(target), program)) {
     | Some(e) =>
@@ -6907,6 +6997,30 @@ let label_override =
     )
     : option(string) =>
   switch (kind) {
+  | MergeUp =>
+    switch (merge_site_up(~target, term)) {
+    | Some((p, _)) =>
+      switch (IdTagged.term_of(p)) {
+      | Let(sp, _, _) =>
+        let_head_name(sp) |> Option.map(n => "Merge into " ++ n)
+      | _ => None
+      }
+    | None => None
+    }
+  | MergeDown =>
+    switch (merge_site_down(~target, term)) {
+    | Some(l) =>
+      switch (IdTagged.term_of(l)) {
+      | Let(_, _, lbody) =>
+        switch (IdTagged.term_of(lbody)) {
+        | Let(sp, _, _) =>
+          let_head_name(sp) |> Option.map(n => "Merge into " ++ n)
+        | _ => None
+        }
+      | _ => None
+      }
+    | None => None
+    }
   | AddCaseArm =>
     switch (find_hit(~hit=hit_node(target), term)) {
     | Some(e) =>
@@ -7182,7 +7296,12 @@ let gesture =
       if (in_arm_zone) {
         arm_swap(-1);
       } else if (in_def_zone) {
-        app(HoistLet);
+        /* absorption preempts the swap rung when a twin is above
+           (menu keeps both; the gesture picks the smart one) */
+        switch (app(MergeUp)) {
+        | Some(k) => Some(k)
+        | None => app(HoistLet)
+        };
       } else if (is_if && shard == Some(2)) {
         app(
           NegateIf /* the else-arm moves up */
@@ -7204,9 +7323,13 @@ let gesture =
       } else if (in_let_zone) {
         /* movement rung if one exists, else the value flows: feed the
            nearest use (the last feed consumes the let) */
-        switch (app(SinkLet)) {
+        switch (app(MergeDown)) {
         | Some(k) => Some(k)
-        | None => app(FeedLet)
+        | None =>
+          switch (app(SinkLet)) {
+          | Some(k) => Some(k)
+          | None => app(FeedLet)
+          }
         };
       } else if (in_def_zone) {
         /* type line: movement rung, else the alias flows one use

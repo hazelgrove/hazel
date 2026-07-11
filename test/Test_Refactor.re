@@ -4009,50 +4009,67 @@ let inline_alias_tests = [
     },
   ),
   test_case(
-    "absorb: hoist onto an identical def merges (survivor above)",
+    "merge up: dissolve into the twin above",
     `Quick,
     () => {
       let z =
-        inline(~kind=HoistLet, "let a = f(1) in\nlet ¦b = f(1) in\na + b")
+        inline(~kind=MergeUp, "let a = f(1) in\nlet ¦b = f(1) in\na + b")
         |> text_of;
       check(string, "absorbed", "let a = f(1) in\na + a", z);
     },
   ),
   test_case(
-    "absorb: sink onto an identical def merges (survivor below)",
+    "merge down: dissolve into the twin below",
     `Quick,
     () => {
       let z =
-        inline(~kind=SinkLet, "let ¦a = f(1) in\nlet b = f(1) in\na + b")
+        inline(~kind=MergeDown, "let ¦a = f(1) in\nlet b = f(1) in\na + b")
         |> text_of;
       check(string, "absorbed", "let b = f(1) in\nb + b", z);
     },
   ),
   test_case(
-    "absorb: whitespace differences don't block the merge",
+    "merge: whitespace differences don't block it",
     `Quick,
     () => {
       let z =
-        inline(~kind=HoistLet, "let a = f( 1 ) in\nlet ¦b = f(1) in\na + b")
+        inline(~kind=MergeUp, "let a = f( 1 ) in\nlet ¦b = f(1) in\na + b")
         |> text_of;
       check(string, "absorbed", "let a = f( 1 ) in\na + a", z);
     },
   ),
   test_case(
-    "absorb: guarded when the survivor name is rebound below",
+    "merge: not offered when the survivor name is rebound below", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(
+        MergeUp,
+        "let a = f(1) in\nlet ¦b = f(1) in\nlet a = 9 in\na + b",
+      ),
+    )
+  }),
+  test_case(
+    "movement stays pure: hoist at a twin SWAPS",
     `Quick,
     () => {
       let z =
-        inline(
-          ~kind=HoistLet,
-          "let a = f(1) in\nlet ¦b = f(1) in\nlet a = 9 in\na + b",
-        )
+        inline(~kind=HoistLet, "let a = f(1) in\nlet ¦b = f(1) in\na + b")
         |> text_of;
+      check(string, "swapped", "let b = f(1) in\nlet a = f(1) in\na + b", z);
+    },
+  ),
+  test_case(
+    "menu offers both Merge and Hoist at a twin",
+    `Quick,
+    () => {
+      let ls = labels_at("let aa = f(1) in\nlet ¦bb = f(1) in\naa + bb");
       check(
-        string,
-        "swapped instead",
-        "let b = f(1) in\nlet a = f(1) in\nlet a = 9 in\na + b",
-        z,
+        bool,
+        "both present",
+        true,
+        List.mem("Merge into aa", ls) && List.mem("Hoist", ls),
       );
     },
   ),
