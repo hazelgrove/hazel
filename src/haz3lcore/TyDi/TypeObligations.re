@@ -34,11 +34,43 @@ let prod_elements = (ctx: Ctx.t, ty: Typ.t): option(list(Typ.t)) => {
    to its own wrapper entry; a single element consistent with the
    whole Prod DEFEATS the presumption — unknown types never
    suppress (incomplete content is not evidence of satisfaction). */
+/* juxtaposed operands (an operator hole between elements) count as
+   elements: the concave grout is JUNCTION evidence — a separator
+   slot awaiting its comma */
+let juxtaposed = (e: Exp.t): option(int) =>
+  switch (Exp.term_of(e)) {
+  | MultiHole(things) =>
+    let exps =
+      things
+      |> List.filter((a: Any.t) =>
+           switch (a) {
+           | Exp(_) => true
+           | _ => false
+           }
+         );
+    List.length(exps) == List.length(things) && things != []
+      ? Some(List.length(exps)) : None;
+  | _ => None
+  };
+
 let present_of = (inner: Exp.t, info_map: Statics.Map.t): option(int) =>
   switch (Exp.term_of(inner)) {
-  | Tuple(es) => Some(List.length(es))
+  | Tuple(es) =>
+    es
+    |> List.fold_left(
+         (acc, e) =>
+           switch (acc) {
+           | None => None
+           | Some(k) =>
+             switch (juxtaposed(e)) {
+             | Some(j) => Some(k + j)
+             | None => Some(k + 1)
+             }
+           },
+         Some(0),
+       )
+  | MultiHole(_) => juxtaposed(inner)
   | EmptyHole
-  | MultiHole(_)
   | Parens(_) => None
   | _ =>
     switch (Id.Map.find_opt(Exp.rep_id(inner), info_map)) {
@@ -52,6 +84,18 @@ let present_of = (inner: Exp.t, info_map: Statics.Map.t): option(int) =>
     }
   };
 
+let juxtaposed_anywhere = (inner: Exp.t): bool => {
+  let is_juxt = e =>
+    switch (juxtaposed(e)) {
+    | Some(_) => true
+    | None => false
+    };
+  switch (Exp.term_of(inner)) {
+  | Tuple(es) => List.exists(is_juxt, es)
+  | _ => is_juxt(inner)
+  };
+};
+
 let mk = (site, ~present as k, tys): t => {
   site,
   present: k,
@@ -64,6 +108,9 @@ let of_wrapper =
     : option(t) =>
   switch (present_of(inner, info_map)) {
   | Some(k) when k < List.length(tys) => Some(mk(site, ~present=k, tys))
+  | Some(k) when k == List.length(tys) && juxtaposed_anywhere(inner) =>
+    /* arity satisfied but separators owed (junction-only site) */
+    Some(mk(site, ~present=k, tys))
   | _ => None /* satisfied, overfull, or no presumption */
   };
 
@@ -206,27 +253,91 @@ let comma_delims = (n: int): list(CanonicalCompletion.delimiter_info) =>
     }
   );
 
+let rec find_tile = (site: Id.t, ps: Segment.t): option(Tile.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (acc, p) {
+      | (Some(_), _) => acc
+      | (None, Tile(t)) =>
+        Id.equal(t.id, site)
+          ? Some(t)
+          : List.fold_left(
+              (acc, child) => acc == None ? find_tile(site, child) : acc,
+              None,
+              t.children,
+            )
+      | (None, _) => None
+      },
+    None,
+    ps,
+  );
+
+/* the sibling list containing a piece, with its index there */
+let rec sibling_ctx = (ps: Segment.t, id: Id.t): option((Segment.t, int)) => {
+  let rec go = (i, rest) =>
+    switch (rest) {
+    | [] => None
+    | [p, ...tl] =>
+      if (Id.equal(Piece.id(p), id)) {
+        Some((ps, i));
+      } else {
+        let deeper =
+          switch ((p: Piece.t)) {
+          | Tile(t) =>
+            List.fold_left(
+              (acc, ch) => acc == None ? sibling_ctx(ch, id) : acc,
+              None,
+              t.children,
+            )
+          | _ => None
+          };
+        deeper == None ? go(i + 1, tl) : deeper;
+      }
+    };
+  go(0, ps);
+};
+
+/* junction sites: concave grout between the site's juxtaposed
+   elements — inside the tile's child when it's complete; in the
+   flat pending region (site tile up to the closer chip's anchor,
+   ~upto) when the closer is still owed */
+let junction_grouts =
+    (~upto: option(Id.t)=?, seg: Segment.t, site: Id.t): list(Id.t) => {
+  let grouts = ps =>
+    ps
+    |> List.filter_map((p: Piece.t) =>
+         switch (p) {
+         | Grout({id, shape: Concave}) => Some(id)
+         | _ => None
+         }
+       );
+  switch (find_tile(site, seg)) {
+  | Some({children: [_, ..._] as children, _}) =>
+    switch (Util.ListUtil.split_last_opt(children)) {
+    | Some((_, child)) => grouts(child)
+    | None => []
+    }
+  | Some(_) =>
+    switch (upto, sibling_ctx(seg, site)) {
+    | (Some(stop), Some((sg, i))) =>
+      let rec take = (ps: Segment.t, acc) =>
+        switch (ps) {
+        | [] => List.rev(acc)
+        | [p, ..._] when Id.equal(Piece.id(p), stop) => List.rev(acc)
+        | [Piece.Grout({id, shape: Concave}), ...tl] =>
+          take(tl, [id, ...acc])
+        | [_, ...tl] => take(tl, acc)
+        };
+      take(Util.ListUtil.split_n(i + 1, sg) |> snd, []);
+    | _ => []
+    }
+  | None => []
+  };
+};
+
 /* last content piece inside the (complete) site tile's child */
 let anchor_of_site = (seg: Segment.t, site: Id.t): option(Id.t) => {
-  let rec find_tile = (ps: Segment.t): option(Tile.t) =>
-    List.fold_left(
-      (acc, p: Piece.t) =>
-        switch (acc, p) {
-        | (Some(_), _) => acc
-        | (None, Tile(t)) =>
-          Id.equal(t.id, site)
-            ? Some(t)
-            : List.fold_left(
-                (acc, child) => acc == None ? find_tile(child) : acc,
-                None,
-                t.children,
-              )
-        | (None, _) => None
-        },
-      None,
-      ps,
-    );
-  switch (find_tile(seg)) {
+  switch (find_tile(site, seg)) {
   | Some(t) =>
     switch (List.rev(t.children)) {
     | [child, ..._] =>
@@ -261,17 +372,45 @@ let as_insertions =
          | None => false
          }
        );
+  /* a junction owes its comma AT the junction (chip on the grout,
+     no hole — both sides have content); only the trailing deficit
+     adds elements at the end */
+  let junction_chips = (ob: t) => {
+    let upto =
+      existing
+      |> List.find_opt(ins => holds_site(ins, ob.site))
+      |> Option.map((ins: CanonicalCompletion.insertion) => ins.adjacent_id);
+    junction_grouts(~upto?, seg, ob.site)
+    |> List.map(gid =>
+         CanonicalCompletion.{
+           adjacent_id: gid,
+           side: Direction.Left,
+           delimiters: [
+             CanonicalCompletion.{
+               text: ",",
+               needs_hole: false,
+               typed_len: None,
+               of_shard: None,
+             },
+           ],
+         }
+       );
+  };
   let (existing, fresh) =
     List.fold_left(
-      ((existing, fresh), ob) =>
-        if (List.exists(ins => holds_site(ins, ob.site), existing)) {
+      ((existing, fresh), ob) => {
+        let fresh = junction_chips(ob) @ fresh;
+        let trailing = deficit(ob);
+        if (trailing <= 0) {
+          (existing, fresh);
+        } else if (List.exists(ins => holds_site(ins, ob.site), existing)) {
           (
             existing
             |> List.map((ins: CanonicalCompletion.insertion) =>
                  holds_site(ins, ob.site)
                    ? {
                      ...ins,
-                     delimiters: comma_delims(deficit(ob)) @ ins.delimiters,
+                     delimiters: comma_delims(trailing) @ ins.delimiters,
                    }
                    : ins
                ),
@@ -285,14 +424,15 @@ let as_insertions =
                 CanonicalCompletion.{
                   adjacent_id: anchor,
                   side: Direction.Right,
-                  delimiters: comma_delims(deficit(ob)),
+                  delimiters: comma_delims(trailing),
                 },
                 ...fresh,
               ],
             )
           | None => (existing, fresh)
           };
-        },
+        };
+      },
       (existing, []),
       obs,
     );
@@ -341,6 +481,14 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
       ),
     );
   };
+  let comma_for = (gid: Id.t): Piece.t =>
+    Piece.Tile({
+      id: Id.next(gid),
+      label: Form.get(CommaExp).label,
+      mold: Form.get(CommaExp).mold,
+      shards: [0],
+      children: [],
+    });
   let rec go = (ps: Segment.t): Segment.t =>
     ps
     |> List.map((p: Piece.t) =>
@@ -354,10 +502,20 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
            | Some(n) =>
              switch (Util.ListUtil.split_last_opt(t.children)) {
              | Some((init, last)) =>
+               /* junction grout realizes as its comma in place */
+               let last =
+                 last
+                 |> List.map((q: Piece.t) =>
+                      switch (q) {
+                      | Grout({id, shape: Concave}) => comma_for(id)
+                      | q => q
+                      }
+                    );
                Piece.Tile({
                  ...t,
-                 children: init @ [last @ owed_pieces(t.id, n)],
-               })
+                 children:
+                   init @ [n > 0 ? last @ owed_pieces(t.id, n) : last],
+               });
              | None => Piece.Tile(t)
              }
            | None => Piece.Tile(t)
@@ -377,7 +535,9 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
  * order before closers in the chip, so Tab consumes the T1 chunk
  * first; once the deficit is filled the same position dispatches
  * the closer (T0). */
-let at_caret = (z: Zipper.t, obs: list(t)): option(t) =>
+/* Tab payload: a junction owes a bare comma (content both sides);
+   a trailing slot owes comma + space, caret ready for the element */
+let at_caret = (z: Zipper.t, obs: list(t)): option(string) =>
   switch (z.caret, obs) {
   | (_, [])
   | (Inner(_), _) => None
@@ -402,14 +562,39 @@ let at_caret = (z: Zipper.t, obs: list(t)): option(t) =>
       };
     };
     let anchored =
-      obs |> List.filter_map(ob => anchor_of(ob) |> Option.map(a => (a, ob)));
+      (
+        obs
+        |> List.filter_map(ob =>
+             deficit(ob) > 0
+               ? anchor_of(ob) |> Option.map(a => (a, ", ")) : None
+           )
+      )
+      @ (
+        obs
+        |> List.concat_map(ob => {
+             let upto =
+               existing
+               |> List.find_map((ins: CanonicalCompletion.insertion) =>
+                    ins.delimiters
+                    |> List.exists((d: CanonicalCompletion.delimiter_info) =>
+                         switch (d.of_shard) {
+                         | Some((tid, _)) => Id.equal(tid, ob.site)
+                         | None => false
+                         }
+                       )
+                      ? Some(ins.adjacent_id) : None
+                  );
+             junction_grouts(~upto?, seg, ob.site)
+             |> List.map(gid => (gid, ","));
+           })
+      );
     let is_content = (p: Piece.t): bool =>
       switch (p) {
       | Secondary(_)
       | Grout(_) => false
       | _ => true
       };
-    let find = (id: Id.t): option(t) =>
+    let find = (id: Id.t): option(string) =>
       anchored
       |> List.find_opt(((a, _)) => Id.equal(a, id))
       |> Option.map(snd);

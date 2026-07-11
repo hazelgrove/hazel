@@ -133,7 +133,7 @@ module Update = {
                live). Type-shape chunks (owed commas) order before
                the closer in the chip, so they dispatch first. */
             switch (TypeObligations.at_caret(z, model.statics.obligations)) {
-            | Some(_) => Paste(", ")
+            | Some(text) => Paste(text)
             | None =>
               switch (CanonicalCompletion.obligation_at_caret(z)) {
               | Some(tid) => ApplyCompletion(One(tid))

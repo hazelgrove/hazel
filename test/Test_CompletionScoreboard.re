@@ -568,7 +568,11 @@ let accept_pins = [
   ("let-chain", "2/0/0 of 2 | reverse 1/1"),
   ("fun-ap", "10/2/0 of 12 | reverse 5/6"),
   ("case-multiline", "12/0/0 of 12 | reverse 6/6"),
-  ("type-adt", "40/2/0 of 42 | reverse 20/21"),
+  /* junction crossing clamp (typed-juxtaposition reading wins over
+     the joint )+=> deletion reading — byte-identical states, entry
+     stability precedent; costs one pair-exactness, gains a reverse
+     convergence) */
+  ("type-adt", "40/2/0 of 42 | reverse 21/21"),
   ("tuple-list", "10/2/0 of 12 | reverse 6/6"),
   ("case-def-inline", "11/1/0 of 12 | reverse 5/6"),
   /* end+in slot symmetric: neither closer glues (multiline form),
@@ -612,7 +616,7 @@ let pair_pins = [
   ("if-else-inline", "1/0/1"),
   ("if-else-multiline", "1/0/1"),
   ("case-multiline", "6/0/6"),
-  ("type-adt", "21/0/21"),
+  ("type-adt", "20/0/21"),
   ("tuple-list", "6/0/6"),
   ("case-def-inline", "6/0/6"), /* end+in restores exactly */
   ("case-def-multiline", "6/0/6"),

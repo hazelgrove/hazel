@@ -1328,6 +1328,30 @@ let find_trailing_site =
     switch (r_nib.shape) {
     | Convex => None
     | Concave(_) =>
+      /* a junction inside an unmatched opener's pending span belongs
+         to that opener's own family: an enclosing tile's delimiter
+         must not dive into an unclosed subregion (fun x -> f(1  2:
+         the juxtaposition junction is the ap's territory, not a
+         deletion site for the let's in). The junction is inside the
+         pending span iff the content PAST it still fits the opener's
+         pending slot sort — `2` fits the paren's Exp slot, so the
+         paren absorbs across; `f` can't be a case's Rul content, so
+         a deleted-end+in junction there stays claimable. */
+      let crosses_open = (j: int) =>
+        slice(cursor, j, seg)
+        |> List.exists((p: Piece.t) =>
+             switch (p) {
+             | Tile(tt) when Tile.right_missing_shards(tt) != [] =>
+               switch (snd(Tile.nibs(tt)).shape) {
+               | Convex => false
+               | Concave(_) =>
+                 let right = slice(j + 1, strong_end, seg);
+                 has_content(right)
+                 && span_fits_sort(right, snd(Tile.nibs(tt)).sort);
+               }
+             | _ => false
+             }
+           );
       let legal =
         List.init(max(strong_end - cursor, 0), k => cursor + k)
         |> List.filter(j =>
@@ -1341,6 +1365,7 @@ let find_trailing_site =
              let right = slice(j + 1, strong_end, seg);
              has_content(left)
              && has_content(right)
+             && !crosses_open(j)
              && span_fits_sort(left, l_nib.sort)
              && span_fits_sort(right, r_nib.sort);
            });

@@ -204,9 +204,136 @@ let scenario_tests = [
   ),
 ];
 
+/* Junction evidence: an operator hole between juxtaposed elements
+   is a separator slot — the comma is owed AT the junction, and
+   reification realizes it in place. */
+let junction_tests = [
+  ob_case(
+    ~name="juxtaposed elements count: g(1  2",
+    ~code=g3 ++ "g(1  2¦",
+    ~expected="2/3 owes Bool",
+  ),
+  ob_case(
+    ~name="junction-only site: f(1  2 at arity 2",
+    ~code="let f : (Int, Int) -> Int = fun x -> 1 in f(1  2¦",
+    ~expected="2/2 owes ",
+  ),
+  ob_case(
+    ~name="mixed: g(1, 2  3 counts three",
+    ~code=g3 ++ "g(1, 2  3¦",
+    ~expected="3/3 owes ",
+  ),
+  /* type-fitting juxtaposed elements: junction comma realizes in
+     place, term is clean */
+  reify_case(
+    ~name="junction reifies in place",
+    ~code="let h : (Int, Int, Bool) -> Int = fun x -> 1 in h(1  2¦",
+    ~raw=1,
+    ~reified=0,
+  ),
+  /* ill-fitting juxtaposed element errors exactly as the hand-typed
+     g(1, 2, ?) would: element + tuple cascade */
+  reify_case(
+    ~name="junction reify keeps genuine element error",
+    ~code=g3 ++ "g(1  2¦",
+    ~raw=1,
+    ~reified=2,
+  ),
+];
+
+let completed_of = (code: string): string => {
+  let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  CanonicalCompletion.materialize_all(~sort=Sort.Exp, seg)
+  |> Printer.of_segment(~holes="?", ~concave_holes="~");
+};
+
+let probe_chips = [
+  /* the juxtaposition junction belongs to the unclosed ap, not the
+     enclosing let's in (crossing clamp): both contexts complete
+     uniformly, closer after the juxtaposed elements */
+  test_case("junction inside open paren is not an in-site", `Quick, () =>
+    check(
+      string_testable,
+      "cmp",
+      "A: let f : (Int, String, Bool)->Int = fun x -> f(1  ~2)in? ||| B: let g : (Int, String, Bool) -> Int = fun x -> 1 in g(1  ~2)",
+      "A: "
+      ++ completed_of("let f : (Int, String, Bool)->Int = fun x -> f(1  2¦")
+      ++ " ||| B: "
+      ++ completed_of(
+           "let g : (Int, String, Bool) -> Int = fun x -> 1 in g(1  2¦",
+         ),
+    )
+  ),
+  test_case(
+    "incomplete site: junction chip + merged end chip",
+    `Quick,
+    () => {
+      let code = "let f : (Int, String, Bool)->Int = fun x -> f(1  2¦";
+      let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
+      let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+      let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
+      let (info_map, _) =
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+      let obs = TypeObligations.derive(info_map);
+      let existing = CanonicalCompletion.for_editor(seg).insertions;
+      let show = (ins: CanonicalCompletion.insertion) =>
+        ins.delimiters
+        |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
+        |> String.concat("+");
+      let all =
+        TypeObligations.as_insertions(~seg, ~existing, obs)
+        |> List.map(show)
+        |> String.concat(" | ");
+      let arg_shape =
+        Id.Map.fold(
+          (_, info: Info.t, acc) =>
+            switch (info) {
+            | InfoExp({user_term, _}) =>
+              switch (Exp.term_of(user_term)) {
+              | Ap(Forward, _, arg) =>
+                let d =
+                  switch (Exp.term_of(arg)) {
+                  | MultiHole(ts) =>
+                    Printf.sprintf("MultiHole(%d)", List.length(ts))
+                  | Tuple(es) => Printf.sprintf("Tuple(%d)", List.length(es))
+                  | Parens(_) => "Parens"
+                  | EmptyHole => "EmptyHole"
+                  | t => Cls.show(Exp(Exp.cls_of_term(t)))
+                  };
+                acc == "" ? d : acc ++ ";" ++ d;
+              | _ => acc
+              }
+            | _ => acc
+            },
+          info_map,
+          "",
+        );
+      check(
+        string_testable,
+        "chips",
+        "obs=[2/3] arg=MultiHole(2) existing=[)+in] all=[,+)+in | ,]",
+        Printf.sprintf(
+          "obs=[%s] arg=%s existing=[%s] all=[%s]",
+          obs
+          |> List.map((ob: TypeObligations.t) =>
+               Printf.sprintf("%d/%d", ob.present, ob.expected)
+             )
+          |> String.concat(","),
+          arg_shape,
+          existing |> List.map(show) |> String.concat(" | "),
+          all,
+        ),
+      );
+    },
+  ),
+];
+
 let tests = [
   ("TypeObligations: reification", reify_tests),
   ("TypeObligations: scenarios", scenario_tests),
+  ("TypeObligations: junctions", junction_tests),
+  ("TypeObligations: chip-probe", probe_chips),
   (
     "TypeObligations: derivation",
     [
