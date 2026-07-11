@@ -7564,55 +7564,17 @@ let merge_target =
       IdTagged.ids(e) @ pat_subtree_ids(p) @ exp_subtree_ids(d)
     | _ => IdTagged.ids(e)
     };
-  let absorb_pair = (survivor: Exp.t, mover: Exp.t, scope: Exp.t): bool =>
-    absorbable(survivor, mover)
-    && (
-      switch (IdTagged.term_of(survivor)) {
-      | Let(sp, _, _) =>
-        switch (let_head_name(sp)) {
-        | Some(sn) => !binds_somewhere(sn, scope)
-        | None => false
-        }
-      | _ => false
-      }
-    );
   switch (kind) {
-  | HoistLet =>
-    switch (find_path(~hit=hit_def_line(target), term)) {
-    | Some(path) when List.length(path) >= 2 =>
-      let n = List.length(path);
-      let l = List.nth(path, n - 1);
-      let direct = List.nth(path, n - 2);
-      let (p, c) =
-        switch (IdTagged.term_of(direct)) {
-        | Parens(_) when n >= 3 => (List.nth(path, n - 3), direct)
-        | _ => (direct, l)
-        };
-      switch (def_line_of(l), def_line_of(p)) {
-      | (Some((_, lbody)), Some((_, pbody)))
-          when
-            same_node(pbody, c)
-            && same_node(c, l)
-            && absorb_pair(p, l, lbody) => (
-          line_ids(l),
-          line_ids(p),
-        )
-      | _ => ([], [])
-      };
-    | _ => ([], [])
+  | MergeUp =>
+    switch (merge_site_up(~target, term)) {
+    | Some((p, l)) => (line_ids(l), line_ids(p))
+    | None => ([], [])
     }
-  | SinkLet =>
-    switch (find_hit(~hit=hit_def_line(target), term)) {
+  | MergeDown =>
+    switch (merge_site_down(~target, term)) {
     | Some(l) =>
       switch (def_line_of(l)) {
-      | Some((_, lbody)) =>
-        switch (IdTagged.term_of(lbody)) {
-        | Let(_, _, mbody) when absorb_pair(lbody, l, mbody) => (
-            line_ids(l),
-            line_ids(lbody),
-          )
-        | _ => ([], [])
-        }
+      | Some((_, lbody)) => (line_ids(l), line_ids(lbody))
       | None => ([], [])
       }
     | None => ([], [])
