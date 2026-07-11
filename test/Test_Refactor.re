@@ -1984,7 +1984,7 @@ let identity_tests = [
     `Quick,
     () => {
       let got = inline(~kind=FeedLet, "let x = 2 ¦+ 3 in x + 1") |> text_of;
-      check(string, "fed", "(2 + 3) + 1", got);
+      check(string, "fed", "2 + 3 + 1", got);
     },
   ),
 ];
