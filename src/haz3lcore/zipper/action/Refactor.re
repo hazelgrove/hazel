@@ -1549,6 +1549,28 @@ let freshen_crossed_aliases = (~x: string, ~moved: Exp.t, body: Exp.t): Exp.t =>
   };
 };
 
+/* The reparse oracle costs ~80ms + ~6ms/line (print + normalize +
+   parse + remake) — fine for the small delimiter-bounded regions it
+   was built for, misery when the region is the WHOLE PROGRAM on a
+   big buffer (and inline pays per occurrence). Root regions run the
+   oracle only under this size cap; above it we take the old
+   conservative parens (redundant but safe). The principled endgame
+   is a static precedence check at the splice point. */
+let oracle_size_cap = 250;
+let small_enough_for_oracle = (e: Exp.t): bool => {
+  let n = ref(0);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) => {
+          incr(n);
+          n^ > oracle_size_cap ? e : cont(e);
+        },
+      e,
+    );
+  n^ <= oracle_size_cap;
+};
+
 let reparses_region = (region: Exp.t): bool => {
   let seg =
     ExpToSegment.exp_to_segment(~settings=roundtrip_settings, region)
@@ -1694,17 +1716,19 @@ let inline_let_impl: impl = {
                 ? occurrences_of(x, body)
                   |> List.filter_map(occ => {
                        let region = bounded_region(Exp.rep_id(occ), program);
-                       /* root regions run the oracle too (blanket
-                          parens left superfluous ones after
-                          semicolons — andrew; invocation-only) */
-                       let candidate =
-                         replace_node(
-                           ~at=Exp.rep_id(occ),
-                           ~with_=inserted(~parens=false, def, occ),
-                           region,
-                         );
-                       reparses_region(candidate)
-                         ? Some(Exp.rep_id(occ)) : None;
+                       if (same_node(region, program)
+                           && !small_enough_for_oracle(program)) {
+                         None;
+                       } else {
+                         let candidate =
+                           replace_node(
+                             ~at=Exp.rep_id(occ),
+                             ~with_=inserted(~parens=false, def, occ),
+                             region,
+                           );
+                         reparses_region(candidate)
+                           ? Some(Exp.rep_id(occ)) : None;
+                       };
                      })
                 : occurrences_of(x, body) |> List.map(Exp.rep_id);
             let parens_for = occ =>
@@ -2202,16 +2226,20 @@ let feed_let_impl: impl = {
          andrew; invocation-only cost) */
       let parens =
         needs_parens(def)
-        && !{
-             let region = bounded_region(Exp.rep_id(occ), program);
-             let candidate =
-               replace_node(
-                 ~at=Exp.rep_id(occ),
-                 ~with_=inserted(~parens=false, def, occ),
-                 region,
-               );
-             reparses_region(candidate);
-           };
+        && {
+          let region = bounded_region(Exp.rep_id(occ), program);
+          if (same_node(region, program) && !small_enough_for_oracle(program)) {
+            true;
+          } else {
+            let candidate =
+              replace_node(
+                ~at=Exp.rep_id(occ),
+                ~with_=inserted(~parens=false, def, occ),
+                region,
+              );
+            !reparses_region(candidate);
+          };
+        };
       /* the def survives, so the copy needs fresh interior ids —
          and sheds prose (the binding keeps the original comments) */
       let copy = inserted(~parens, strip_comments(refresh_ids(def)), occ);
@@ -5405,12 +5433,16 @@ let ap_to_let_impl: impl = {
     | Some(e) =>
       let parens = {
         let region = bounded_region(Exp.rep_id(e), program);
-        switch (build(e)) {
-        | Some((bare, _)) =>
-          let candidate =
-            replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
-          !reparses_region(candidate);
-        | None => true
+        if (same_node(region, program) && !small_enough_for_oracle(program)) {
+          true;
+        } else {
+          switch (build(e)) {
+          | Some((bare, _)) =>
+            let candidate =
+              replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
+            !reparses_region(candidate);
+          | None => true
+          };
         };
       };
       rewrite_node(
@@ -5594,11 +5626,16 @@ let reduce_prepare =
   | Some(e) =>
     let parens = {
       let region = bounded_region(Exp.rep_id(e), program);
-      switch (build(e)) {
-      | Some((bare, _)) =>
-        let candidate = replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
-        !reparses_region(candidate);
-      | None => true
+      if (same_node(region, program) && !small_enough_for_oracle(program)) {
+        true;
+      } else {
+        switch (build(e)) {
+        | Some((bare, _)) =>
+          let candidate =
+            replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
+          !reparses_region(candidate);
+        | None => true
+        };
       };
     };
     rewrite_node(
