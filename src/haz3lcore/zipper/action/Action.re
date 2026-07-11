@@ -178,6 +178,7 @@ type refactor =
   | Implode
   | EtaReduce
   | BindArgument
+  | UnfoldCall
   | BetaReduce
   | SplitLet
   | ReduceCase

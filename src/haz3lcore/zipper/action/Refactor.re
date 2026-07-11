@@ -404,7 +404,13 @@ let refresh_annotation = (a: IdTagged.IdTag.t): IdTagged.IdTag.t => {
        );
   let (before, after) = a.secondary;
   {
-    ids: [Id.mk()],
+    /* fresh id PER id — the tail carries real structure (a Match's
+       rule-tile ids live there); truncating to one id starved the
+       printer into deriving rule ids from Id.invalid, which is
+       base-independent — every starved case in the program got THE
+       SAME derived ids (duplicate |=> tiles: glommed indication,
+       caret jumping to the wrong twin) */
+    ids: a.ids == [] ? [Id.mk()] : a.ids |> List.map(_ => Id.mk()),
     secondary: (refresh_sec(before), refresh_sec(after)),
     incomplete: [],
     lexeme: a.lexeme,
@@ -5851,32 +5857,71 @@ let ap_to_let_impl: impl = {
   },
 };
 
-/* === Beta-reduce ===
- * One reduction step: `(fun x -> b)(a)` becomes `b` with `a`
- * substituted for `x` — the ap-to-let rotation composed with inline,
- * so capture renaming, per-occurrence parens, and whitespace policy
- * are all inherited. Var-pattern parameters only (inline's own
- * gate); tuple parameters keep Bind argument + tuple-let tooling. */
-
-let beta_reduce_impl: impl = {
-  label: "Beta-reduce",
-  tooltip: "Apply this function literal: substitute the argument for its parameter",
-  prepare: (~info_map, ~target, program) =>
-    switch (find_hit(~hit=hit_beta(target), program)) {
-    | None => None
-    | Some(e) =>
-      switch (beta_parts(e)) {
-      | Some((p, _, _)) when let_head_name(p) != None =>
-        switch (ap_to_let_impl.prepare(~info_map, ~target, program)) {
-        | Some((prog', binder_id)) =>
-          /* info_map is stale for prog' — inline at the binder is
-             syntactic (name, occurrences, subst), so it doesn't
-             matter */
-          inline_let_impl.prepare(~info_map, ~target=binder_id, prog')
-        | None => None
+/* === Unfold call ===
+ * At f(args) where f is a let-bound function: substitute f's
+ * definition INTO this call (a one-use feed — the binding survives
+ * for other uses) and rotate the resulting lambda application to a
+ * let. Skips beta's two menu steps when stepping through calls of
+ * named functions; deliberately stops at the let (staged, not
+ * substituted — andrew: it's already skipping a step). */
+let unfold_site = (~info_map, ~target, program): option(Id.t) =>
+  switch (find_hit(~hit=hit_node(target), program)) {
+  | Some(e) =>
+    let ap_of = (e: Exp.t) =>
+      switch (IdTagged.term_of(e)) {
+      | Ap(Forward, f, _) =>
+        switch (IdTagged.term_of(f)) {
+        | Var(_) =>
+          switch (
+            binder_of_occurrence(~info_map, ~target=Exp.rep_id(f), program)
+          ) {
+          | Some(binder) =>
+            switch (find_hit(~hit=hit_let(binder), program)) {
+            | Some(l) =>
+              switch (IdTagged.term_of(l)) {
+              | Let(_, def, _) =>
+                switch (IdTagged.term_of(def)) {
+                | Fun(_) => Some(Exp.rep_id(f))
+                | _ => None
+                }
+              | _ => None
+              }
+            | None => None
+            }
+          | None => None
+          }
+        | _ => None
         }
       | _ => None
+      };
+    /* the caret may sit on the ap tile or the fn var itself */
+    switch (ap_of(e)) {
+    | Some(fid) => Some(fid)
+    | None =>
+      switch (find_path(~hit=hit_node(target), program)) {
+      | Some(path) when List.length(path) >= 2 =>
+        ap_of(List.nth(path, List.length(path) - 2))
+      | _ => None
       }
+    };
+  | None => None
+  };
+
+let unfold_call_impl: impl = {
+  label: "Unfold call",
+  tooltip: "Substitute the called function here and bind its argument",
+  prepare: (~info_map, ~target, program) =>
+    switch (unfold_site(~info_map, ~target, program)) {
+    | Some(f_use) =>
+      /* feed f's def into THIS use (occurrence-targeted feed) */
+      switch (feed_let_impl.prepare(~info_map, ~target=f_use, program)) {
+      | Some((prog', _)) =>
+        /* the lambda now sits where the var was — rotate its
+           application; f_use survives as the copy's root id */
+        ap_to_let_impl.prepare(~info_map, ~target=f_use, prog')
+      | None => None
+      }
+    | None => None
     },
 };
 
@@ -6146,6 +6191,88 @@ let split_let_impl: impl = {
           },
       program,
     ),
+};
+
+/* === Beta-reduce ===
+ * One reduction step: `(fun x -> b)(a)` becomes `b` with `a`
+ * substituted for `x` — the ap-to-let rotation composed with inline,
+ * so capture renaming, per-occurrence parens, and whitespace policy
+ * are all inherited. Var-pattern parameters only (inline's own
+ * gate); tuple parameters keep Bind argument + tuple-let tooling. */
+
+let beta_reduce_impl: impl = {
+  label: "Beta-reduce",
+  tooltip: "Apply this function literal: substitute the argument for its parameter",
+  prepare: (~info_map, ~target, program) =>
+    switch (find_hit(~hit=hit_beta(target), program)) {
+    | None => None
+    | Some(e) =>
+      switch (beta_parts(e)) {
+      | Some((p, _, _)) when let_head_name(p) != None =>
+        switch (ap_to_let_impl.prepare(~info_map, ~target, program)) {
+        | Some((prog', binder_id)) =>
+          /* info_map is stale for prog' — inline at the binder is
+             syntactic (name, occurrences, subst), so it doesn't
+             matter */
+          inline_let_impl.prepare(~info_map, ~target=binder_id, prog')
+        | None => None
+        }
+      | Some((_p, _arg, _)) =>
+        /* tuple/pattern parameter: bind, destructure the pattern
+           over the argument (split-let's matcher gates), then
+           inline each var binder — Step is never dead at an applied
+           lambda just because its parameter is a tuple */
+        switch (ap_to_let_impl.prepare(~info_map, ~target, program)) {
+        | Some((prog', binder_id)) =>
+          let hit_binder = (e: Exp.t) =>
+            switch (IdTagged.term_of(e)) {
+            | Let(p'', _, _) => Pat.rep_id(p'') == binder_id
+            | _ => false
+            };
+          switch (find_hit(~hit=hit_binder, prog')) {
+          | Some(l) =>
+            switch (IdTagged.term_of(l)) {
+            | Let(p', _, _) =>
+              /* the split keeps the pattern's var nodes as the new
+                 binders (ids travel), so their ids are known up
+                 front; wildcards bind nothing and drop */
+              let binder_ids = {
+                let acc = ref([]);
+                let _ =
+                  Pat.map_term(
+                    ~f_pat=
+                      (cont, q: Pat.t) => {
+                        switch (IdTagged.term_of(q)) {
+                        | Var(_) => acc := [Pat.rep_id(q), ...acc^]
+                        | _ => ()
+                        };
+                        cont(q);
+                      },
+                    p',
+                  );
+                List.rev(acc^);
+              };
+              binder_ids
+              |> List.fold_left(
+                   (acc, bid) =>
+                     Option.bind(acc, ((prog, _)) =>
+                       inline_let_impl.prepare(~info_map, ~target=bid, prog)
+                     ),
+                   split_let_impl.prepare(
+                     ~info_map,
+                     ~target=binder_id,
+                     prog',
+                   ),
+                 );
+            | _ => None
+            }
+          | None => None
+          };
+        | None => None
+        }
+      | None => None
+      }
+    },
 };
 
 /* === Expand Wildcard ===
@@ -7419,6 +7546,7 @@ let impl: Action.refactor => impl =
   | EtaReduce => eta_reduce_impl
   | BindArgument => ap_to_let_impl
   | BetaReduce => beta_reduce_impl
+  | UnfoldCall => unfold_call_impl
   | SplitLet => split_let_impl
   | ReduceCase => reduce_case_impl
   | BindArm => bind_arm_impl
@@ -7435,6 +7563,7 @@ let all: list(Action.refactor) = [
   EvaluateInPlace,
   BetaReduce,
   BindArgument,
+  UnfoldCall,
   SplitLet,
   ReduceCase,
   BindArm,
@@ -7740,11 +7869,19 @@ let applies =
     | None => false
     }
   | BindArgument => Option.is_some(find_hit(~hit=hit_beta(target), program))
+  | UnfoldCall => Option.is_some(unfold_site(~info_map, ~target, program))
   | BetaReduce =>
     switch (find_hit(~hit=hit_beta(target), program)) {
     | Some(e) =>
       switch (beta_parts(e)) {
-      | Some((p, _, _)) => let_head_name(p) != None
+      | Some((p, arg, _)) =>
+        let_head_name(p) != None
+        || (
+          switch (match_value(p, arg)) {
+          | Matched(_) => true
+          | _ => false
+          }
+        )
       | None => false
       }
     | None => false
@@ -8108,13 +8245,19 @@ let gesture =
     switch (g) {
     | Step =>
       /* take a step of evaluation here: the reduce family, context-
-         resolved like the spatial arrows */
+         resolved like the spatial arrows; a closed non-value with no
+         syntactic step falls through to full evaluation (reduce
+         takes priority when both apply) */
       switch (app(BetaReduce)) {
       | Some(k) => Some(k)
       | None =>
         switch (app(ReduceCase)) {
         | Some(k) => Some(k)
-        | None => app(ReduceIf)
+        | None =>
+          switch (app(ReduceIf)) {
+          | Some(k) => Some(k)
+          | None => app(EvaluateInPlace)
+          }
         }
       }
     | Bind =>
