@@ -1519,42 +1519,85 @@ let rule_selection_tests = [
    after pure movement too). */
 let move_l = Action.Move(Local(Left, ByChar));
 let move_r = Action.Move(Local(Right, ByChar));
-let tab_dispatch = (acts: list(Action.t)): string => {
+/* mirrors the editor's TAB policy exactly: paste the chip's next
+   chunk through the normal pipeline. Output is the CARET-MARKED
+   printer (¦), so these pin text, spacing, AND caret together. */
+let tab_once = (z: Zipper.t): option(Zipper.t) =>
+  switch (CanonicalCompletion.chip_at_caret(z)) {
+  | Some(ins) =>
+    switch (CanonicalCompletion.tab_text(z, ins)) {
+    | Some(text) => Some(Test_Editing.perform(z, [Paste(text)]))
+    | None => None
+    }
+  | None => None
+  };
+
+let tab_dispatch = (~tabs=1, acts: list(Action.t)): string => {
   let z = Test_Editing.perform(Zipper.init(), acts);
-  switch (CanonicalCompletion.obligation_at_caret(z)) {
+  let rec go = (z, k) =>
+    k <= 0
+      ? Some(z)
+      : (
+        switch (tab_once(z)) {
+        | Some(z) => go(z, k - 1)
+        | None => None
+        }
+      );
+  switch (go(z, tabs)) {
   | None => "NONE"
-  | Some(tid) =>
-    let z = Test_Editing.perform(z, [ApplyCompletion(One(tid))]);
-    print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z));
+  | Some(z) => Test_Editing.printer(z)
   };
 };
-let tab_case = (~name, ~acts, ~expected) =>
+
+let tab_case = (~name, ~acts, ~tabs=1, ~expected, ()) =>
   test_case(name, `Quick, () =>
-    check(string_testable, name, expected, tab_dispatch(acts))
+    check(string_testable, name, expected, tab_dispatch(~tabs, acts))
   );
 
 let tab_dispatch_tests = [
   tab_case(
-    ~name="tab after movement completes rule-arrow witness",
-    ~acts=
-      Test_Editing.mk("case x | 1 =¦") @ [move_l, move_l, move_r, move_r],
-    ~expected="case x | 1 =>?",
+    ~name="tab after 4: space, in, caret past",
+    ~acts=Test_Editing.mk("let a = 4¦"),
+    ~expected="let a = 4 in ¦?",
+    (),
   ),
   tab_case(
-    ~name="tab in trailing whitespace zone dispatches append chip",
-    ~acts=Test_Editing.mk("let x = 1 ¦"),
-    ~expected="let x = 1in? ",
+    ~name="tab after 4 and a space: no double space, caret past",
+    ~acts=Test_Editing.mk("let a = 4 ¦"),
+    ~expected="let a = 4 in ¦?",
+    (),
+  ),
+  tab_case(
+    ~name="multi-delimiter chip: one delimiter per tab",
+    ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
+    ~expected="let _: (Int, Bool) =¦?",
+    (),
+  ),
+  tab_case(
+    ~name="multi-delimiter chip: second tab takes the next",
+    ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
+    ~tabs=2,
+    ~expected="let _: (Int, Bool) =?in ¦?",
+    (),
+  ),
+  tab_case(
+    ~name="witness: tab completes the arrow like typing",
+    ~acts=
+      Test_Editing.mk("case x | 1 =¦") @ [move_l, move_l, move_r, move_r],
+    ~expected="case x | 1 =>¦?",
+    (),
   ),
   tab_case(
     ~name="tab away from any chip dispatches nothing",
     ~acts=Test_Editing.mk("1 + 2¦"),
     ~expected="NONE",
+    (),
   ),
   tab_case(
-    ~name="tab at inner obligation dispatches only that tile",
-    /* coalesced chips (end + paren) dispatch innermost-first */
+    ~name="coalesced end+paren: innermost only, symbolic spacing",
     ~acts=Test_Editing.mk("(case x | 1 => 2¦"),
-    ~expected="(case x | 1 => 2end",
+    ~expected="(case x | 1 => 2 end ¦",
+    (),
   ),
 ];
 
