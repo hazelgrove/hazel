@@ -110,6 +110,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowDown" => now(RefactorGesture(Down))
     | "ArrowLeft" => now(RefactorGesture(Left))
     | "ArrowRight" => now(RefactorGesture(Right))
+    | "Enter" => now(RefactorGesture(Step))
+    | " " => now(RefactorGesture(Bind))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up, _} =>

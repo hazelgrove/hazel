@@ -234,7 +234,12 @@ let refactor_tests = [
     `Quick,
     () => {
       let got = inline("¦let x = 1 + 2 in x + 3") |> text_of;
-      check(string, "parens: unbounded region", "(1 + 2) + 3", got);
+      check(
+        string,
+        "parens: root region runs the oracle (shed)",
+        "1 + 2 + 3",
+        got,
+      );
     },
   ),
   test_case(
@@ -2272,6 +2277,37 @@ let gesture_tests = [
     Some(HoistLet),
   ),
   check_gesture(
+    "Step at an applied lambda = beta",
+    Step,
+    "¦(fun x -> x + 1)(3)",
+    Some(BetaReduce),
+  ),
+  check_gesture(
+    "Bind at an applied lambda = bind argument",
+    Bind,
+    "¦(fun x -> x + 1)(3)",
+    Some(BindArgument),
+  ),
+  check_gesture(
+    "Step at a decided case = take arm",
+    Step,
+    "¦case Some(2) | Some(x) => x | None => 0 end",
+    Some(ReduceCase),
+  ),
+  check_gesture(
+    "Bind at a decided case = bind arm",
+    Bind,
+    "¦case Some(2) | Some(x) => x | None => 0 end",
+    Some(BindArm),
+  ),
+  check_gesture(
+    "Step at a decided if = take branch",
+    Step,
+    "¦if true then 1 else 2",
+    Some(ReduceIf),
+  ),
+  check_gesture("Step elsewhere is dead", Step, "1 + ¦f", None),
+  check_gesture(
     "up at a twin = merge, not hoist",
     Up,
     "let aa = f(1) in ¦let bb = f(1) in aa + bb",
@@ -2832,7 +2868,7 @@ let beta_step_tests = [
       /* the rotation's protective parens survive the composition —
          redundant but reparse-safe; a shed-parens normalization is a
          future nicety */
-      check(string, "renamed", "let y = 10 in (fun y1 -> y + y1)", got);
+      check(string, "renamed", "let y = 10 in fun y1 -> y + y1", got);
     },
   ),
   test_case(
@@ -4345,6 +4381,63 @@ let explode_tests = [
   ),
 ];
 
+let def_zone_tests = [
+  test_case(
+    "def interior is NOT the let zone (subterm dead)",
+    `Quick,
+    () => {
+      let z = Test_Editing.parse_zipper("one + 1;\nlet a = 1 + ¦f in\na");
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let g = Refactor.gesture(~info_map=info_map_of(z), ~term, Down, z);
+      let show =
+        switch (g) {
+        | Some(k) => Action.show_refactor(k)
+        | None => "DEAD"
+        };
+      check(string, "resolved", "DEAD", show);
+    },
+  ),
+  test_case(
+    "def interior right edge dead too",
+    `Quick,
+    () => {
+      let z = Test_Editing.parse_zipper("one + 1;\nlet a = 1 + f¦ in\na");
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let g = Refactor.gesture(~info_map=info_map_of(z), ~term, Down, z);
+      let show =
+        switch (g) {
+        | Some(k) => Action.show_refactor(k)
+        | None => "DEAD"
+        };
+      check(string, "resolved", "DEAD", show);
+    },
+  ),
+  test_case(
+    "def ROOT delimiter feeds (on-the-def rule)",
+    `Quick,
+    () => {
+      let z = Test_Editing.parse_zipper("one + 1;\nlet a = 1 ¦+ f in\na");
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let g = Refactor.gesture(~info_map=info_map_of(z), ~term, Down, z);
+      let show =
+        switch (g) {
+        | Some(k) => Action.show_refactor(k)
+        | None => "DEAD"
+        };
+      check(string, "resolved", "FeedLet", show);
+    },
+  ),
+  test_case(
+    "feed-consume after semicolon sheds parens",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=FeedLet, "one + 1;\nlet ¦a = 1 + f in\na") |> text_of;
+      check(string, "fed", "one + 1;\n1 + f", z);
+    },
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -4477,6 +4570,7 @@ let tests = [
     @ tyalias_tests
     @ comment_tests
     @ explode_tests
+    @ def_zone_tests
     @ eq_tests
     @ doc_carry_tests
     @ def_line_tests

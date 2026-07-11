@@ -1694,21 +1694,17 @@ let inline_let_impl: impl = {
                 ? occurrences_of(x, body)
                   |> List.filter_map(occ => {
                        let region = bounded_region(Exp.rep_id(occ), program);
-                       /* an unbounded (whole-program) region would
-                          mean a whole-program reparse: just take
-                          parens there */
-                       if (same_node(region, program)) {
-                         None;
-                       } else {
-                         let candidate =
-                           replace_node(
-                             ~at=Exp.rep_id(occ),
-                             ~with_=inserted(~parens=false, def, occ),
-                             region,
-                           );
-                         reparses_region(candidate)
-                           ? Some(Exp.rep_id(occ)) : None;
-                       };
+                       /* root regions run the oracle too (blanket
+                          parens left superfluous ones after
+                          semicolons — andrew; invocation-only) */
+                       let candidate =
+                         replace_node(
+                           ~at=Exp.rep_id(occ),
+                           ~with_=inserted(~parens=false, def, occ),
+                           region,
+                         );
+                       reparses_region(candidate)
+                         ? Some(Exp.rep_id(occ)) : None;
                      })
                 : occurrences_of(x, body) |> List.map(Exp.rep_id);
             let parens_for = occ =>
@@ -1819,6 +1815,14 @@ let feed_site =
     | Let(p, _, _) => let_head_name(p) |> Option.map(x => (l, x, occ))
     | _ => None
     };
+  /* the def ROOT's own delimiters count as "on the def" (andrew:
+     the root term between = and in; its interior does NOT — a
+     random subterm must not feed the enclosing let) */
+  let hit_def_root = (e: Exp.t): bool =>
+    switch (IdTagged.term_of(e)) {
+    | Let(_, def, _) => List.mem(target, IdTagged.ids(def))
+    | _ => false
+    };
   switch (find_hit(~hit=hit_let(target), program)) {
   | Some(l) => of_let(l, None)
   | None =>
@@ -1828,7 +1832,11 @@ let feed_site =
       | Some(l) => of_let(l, Some(target))
       | None => None
       }
-    | None => None
+    | None =>
+      switch (find_hit(~hit=hit_def_root, program)) {
+      | Some(l) => of_let(l, None)
+      | None => None
+      }
     }
   };
 };
@@ -2189,22 +2197,21 @@ let feed_let_impl: impl = {
     | Some(Consume) => inline_let_impl.prepare(~info_map, ~target, program)
     | Some(Feed(l, def, occ)) =>
       /* parens: the same per-occurrence policy as inline */
+      /* root-region occurrences run the oracle too (a blanket
+         parens rule left superfluous parens after semicolons —
+         andrew; invocation-only cost) */
       let parens =
         needs_parens(def)
-        && {
-          let region = bounded_region(Exp.rep_id(occ), program);
-          same_node(region, program)
-            ? true
-            : !{
-                let candidate =
-                  replace_node(
-                    ~at=Exp.rep_id(occ),
-                    ~with_=inserted(~parens=false, def, occ),
-                    region,
-                  );
-                reparses_region(candidate);
-              };
-        };
+        && !{
+             let region = bounded_region(Exp.rep_id(occ), program);
+             let candidate =
+               replace_node(
+                 ~at=Exp.rep_id(occ),
+                 ~with_=inserted(~parens=false, def, occ),
+                 region,
+               );
+             reparses_region(candidate);
+           };
       /* the def survives, so the copy needs fresh interior ids —
          and sheds prose (the binding keeps the original comments) */
       let copy = inserted(~parens, strip_comments(refresh_ids(def)), occ);
@@ -5398,17 +5405,13 @@ let ap_to_let_impl: impl = {
     | Some(e) =>
       let parens = {
         let region = bounded_region(Exp.rep_id(e), program);
-        same_node(region, program)
-          ? true
-          : (
-            switch (build(e)) {
-            | Some((bare, _)) =>
-              let candidate =
-                replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
-              !reparses_region(candidate);
-            | None => true
-            }
-          );
+        switch (build(e)) {
+        | Some((bare, _)) =>
+          let candidate =
+            replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
+          !reparses_region(candidate);
+        | None => true
+        };
       };
       rewrite_node(
         ~hit=hit_beta(target),
@@ -5591,17 +5594,12 @@ let reduce_prepare =
   | Some(e) =>
     let parens = {
       let region = bounded_region(Exp.rep_id(e), program);
-      same_node(region, program)
-        ? true
-        : (
-          switch (build(e)) {
-          | Some((bare, _)) =>
-            let candidate =
-              replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
-            !reparses_region(candidate);
-          | None => true
-          }
-        );
+      switch (build(e)) {
+      | Some((bare, _)) =>
+        let candidate = replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
+        !reparses_region(candidate);
+      | None => true
+      };
     };
     rewrite_node(
       ~hit,
@@ -7685,6 +7683,23 @@ let gesture =
       | None => None
       };
     switch (g) {
+    | Step =>
+      /* take a step of evaluation here: the reduce family, context-
+         resolved like the spatial arrows */
+      switch (app(BetaReduce)) {
+      | Some(k) => Some(k)
+      | None =>
+        switch (app(ReduceCase)) {
+        | Some(k) => Some(k)
+        | None => app(ReduceIf)
+        }
+      }
+    | Bind =>
+      /* stage the step: introduce the binding without substituting */
+      switch (app(BindArgument)) {
+      | Some(k) => Some(k)
+      | None => app(BindArm)
+      }
     | Up =>
       if (in_arm_zone) {
         arm_swap(-1);
