@@ -257,9 +257,20 @@ let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) =>
   | Some(z) => Some(z)
   };
 
-let to_start: t => t = do_to_extreme(local(ByToken, Left));
+/* P8: structural placement — rebuild the zipper at the extreme
+   instead of token-walking there (the walk costs ~90ms/press on a
+   few-page buffer; zip + rebuild is one pass) */
+let to_start: t => t =
+  z => {
+    ...Zipper.unzip(~direction=Left, Zipper.unselect_and_zip(z)),
+    refractors: z.refractors,
+  };
 
-let to_end: t => t = do_to_extreme(local(ByToken, Right));
+let to_end: t => t =
+  z => {
+    ...Zipper.unzip(~direction=Right, Zipper.unselect_and_zip(z)),
+    refractors: z.refractors,
+  };
 
 /* Check if neighbor in direction d is a space (horizontal whitespace, not linebreak) */
 let space_on = (d: Direction.t, z: t): bool =>

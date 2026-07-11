@@ -1683,6 +1683,106 @@ else f|});
     ~acts=mk({|(1, 2,¦ 3, 4)|}) @ [Action.Select(All)] @ mv_r_token(1),
     ~goal={|(1, 2, 3, 4)¦|},
   ),
+  /* P8 coverage: extremes + select-all behavior locks (conversion
+     to structural placement must preserve all of these) */
+  test(
+    ~name="Move(Start) from mid multiline buffer",
+    ~acts=mk({|let a = 1 in
+let b = ¦2 in
+a + b|}) @ [Action.Move(Start)],
+    ~goal={|¦let a = 1 in
+let b = 2 in
+a + b|},
+  ),
+  test(
+    ~name="Move(End) from mid multiline buffer",
+    ~acts=mk({|let a = ¦1 in
+let b = 2 in
+a + b|}) @ [Action.Move(End)],
+    ~goal={|let a = 1 in
+let b = 2 in
+a + b¦|},
+  ),
+  test(
+    ~name="Move(Start) with active selection collapses to top",
+    ~acts=
+      mk({|(1, 2,¦ 3, 4)|})
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Move(Start)],
+    ~goal={|¦(1, 2, 3, 4)|},
+  ),
+  test(
+    ~name="Move(End) then insert appends",
+    ~acts=mk({|1 + ¦2 in|}) @ [Action.Move(End)] @ [Action.Insert("3")],
+    ~goal={|1 + 2 in3¦|},
+  ),
+  test(
+    ~name="Select(All) then typing replaces the buffer",
+    ~acts=mk({|1 +¦ 2|}) @ [Action.Select(All)] @ [Action.Insert("9")],
+    ~goal={|9¦|},
+  ),
+  test(
+    ~name="Select(All) on a single token",
+    ~acts=mk({|¦word|}) @ [Action.Select(All)] @ mv_r_token(1),
+    ~goal={|word¦|},
+  ),
+  /* differential + timing: structural extremes vs the token walk
+     they replaced (P8) — equivalence on a large buffer */
+  Alcotest.test_case(
+    "P8: structural extremes match the walk (large buffer)",
+    `Quick,
+    () => {
+      let big =
+        List.init(400, i =>
+          "let x" ++ string_of_int(i) ++ " = " ++ string_of_int(i) ++ " in"
+        )
+        |> String.concat("\n")
+        |> (defs => defs ++ "\n¦0");
+      let mid = parse_zipper(big);
+      let time = (f, x) => {
+        let t0 = Stdlib.Sys.time();
+        let r = ref(f(x));
+        for (_ in 1 to 19) {
+          r := f(x);
+        };
+        (r^, (Stdlib.Sys.time() -. t0) /. 20. *. 1000.);
+      };
+      let walk = z => Zipper.do_to_extreme(Move.local(ByToken, Left), z);
+      let (zw, tw) = time(walk, mid);
+      let (zs, ts) = time(Move.to_start, mid);
+      Printf.eprintf("P8 to_start: walk %.2fms structural %.2fms\n", tw, ts);
+      Alcotest.(check(string))(
+        "text+caret equal",
+        printer(zw),
+        printer(zs),
+      );
+      let walk_all = z =>
+        z
+        |> (z => Zipper.do_to_extreme(Move.local(ByToken, Left), z))
+        |> Zipper.do_to_extreme(Select.local(Direction.Right));
+      let (aw, taw) = time(walk_all, mid);
+      let (as_, tas) = time(Select.all, mid);
+      Printf.eprintf(
+        "P8 select-all: walk %.2fms structural %.2fms\n",
+        taw,
+        tas,
+      );
+      Alcotest.(check(string))(
+        "select-all equal",
+        printer(aw),
+        printer(as_),
+      );
+    },
+  ),
+  test(
+    ~name="Select(All) twice is stable",
+    ~acts=
+      mk({|1 ¦+ 2|})
+      @ [Action.Select(All)]
+      @ [Action.Select(All)]
+      @ mv_l_token(1),
+    ~goal={|¦1 + 2|},
+  ),
   test(
     ~name="Move extreme left with multiline selection",
     ~acts=
