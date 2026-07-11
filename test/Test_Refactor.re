@@ -589,6 +589,33 @@ let wave_tests = [
   test_case("evaluate gated on values", `Quick, () =>
     check(bool, "no", false, offers(EvaluateInPlace, "let x = ¦6 in x"))
   ),
+  test_case(
+    "evaluate: constructor equality (local type context)",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=EvaluateInPlace, "type T = A + B in\nA ¦== A")
+        |> text_of;
+      check(string, "ctor eq", "type T = A + B in\ntrue", got);
+    },
+  ),
+  test_case(
+    "evaluate: ctor payload comparison via alias",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=EvaluateInPlace,
+          "type T = A(Int) + B in\nA(1) ¦== A(2)",
+        )
+        |> text_of;
+      check(string, "payload eq", "type T = A(Int) + B in\nfalse", got);
+    },
+  ),
+  test_case(
+    "evaluate: context vars still refuse (types, not values)", `Quick, () =>
+    check(bool, "no", false, offers(EvaluateInPlace, "let x = 1 in x ¦+ 1"))
+  ),
 ];
 
 let wave2_tests = [
