@@ -68,21 +68,62 @@ let find_meas = (m: Measured.t, k: key): option(Measured.measurement) =>
   | CommentK(id) => Id.Map.find_opt(id, m.secondary)
   };
 
+/* a tile's label, found anywhere in a segment */
+let rec tile_label = (seg: Segment.t, id: Id.t): option(list(string)) =>
+  seg
+  |> List.find_map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         t.id == id
+           ? Some(t.label)
+           : t.children |> List.find_map(c => tile_label(c, id))
+       | _ => None
+       }
+     );
+
 /* lookup with END-ALIGNED closing delimiters: a tile whose shard
    count changed (cons-split drops a list comma) pairs naturally by
    index EXCEPT its closing delimiter — `]` must fly from `]`, not
    from the old last-comma slot. Interior separators are identical
    glyphs, so from-start alignment is invisible for them. k is
-   indexed by `other`'s shard count; the lookup happens in `m`. */
+   indexed by `other`'s shard count; the lookup happens in `m`.
+   GUARD (andrew's typing-a-let bug): end-alignment only holds when
+   the two last shards are the SAME DELIMITER TEXT — a tile GROWING
+   (`let x` gaining its `=`, then its `in`) also changes its last
+   index, and blind remapping flew each new delimiter in from the
+   previous one (and back, on deletion). With segments provided the
+   glyphs gate the remap; a new distinct delimiter gets no old
+   counterpart and correctly enters instead of flying. */
 let find_meas_end_aligned =
-    (~other: Measured.t, m: Measured.t, k: key): option(Measured.measurement) =>
+    (
+      ~m_seg: option(Segment.t)=?,
+      ~other_seg: option(Segment.t)=?,
+      ~other: Measured.t,
+      m: Measured.t,
+      k: key,
+    )
+    : option(Measured.measurement) =>
   switch (k) {
   | Shard(id, i) =>
     switch (Id.Map.find_opt(id, m.tiles), Id.Map.find_opt(id, other.tiles)) {
     | (Some(m_shards), Some(o_shards)) =>
       let last = shards => shards |> List.map(fst) |> List.fold_left(max, 0);
       let (m_last, o_last) = (last(m_shards), last(o_shards));
-      let i' = m_last != o_last && i == o_last ? m_last : i;
+      let same_glyph =
+        switch (m_seg, other_seg) {
+        | (Some(ms), Some(os)) =>
+          switch (tile_label(ms, id), tile_label(os, id)) {
+          | (Some(ml), Some(ol)) =>
+            switch (List.nth_opt(ml, m_last), List.nth_opt(ol, o_last)) {
+            | (Some(a), Some(b)) => a == b
+            | _ => false
+            }
+          | _ => false
+          }
+        /* no syntax in hand (drag candidates): legacy behavior */
+        | _ => true
+        };
+      let i' = m_last != o_last && i == o_last && same_glyph ? m_last : i;
       List.assoc_opt(i', m_shards);
     | _ => find_meas(m, k)
     }
@@ -821,7 +862,13 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                     pairs
                     |> List.filter_map(((k, node)) =>
                          switch (
-                           find_meas_end_aligned(~other=new_m, old_m, k),
+                           find_meas_end_aligned(
+                             ~m_seg=old_seg,
+                             ~other_seg=syntax.segment,
+                             ~other=new_m,
+                             old_m,
+                             k,
+                           ),
                            find_meas(new_m, k),
                          ) {
                          | (Some(o), Some(n))
