@@ -150,39 +150,55 @@ let jump_to_binding_data =
   | _ => []
   };
 
-/* Gesture-bound refactorings show their chord (see Refactor.gesture) */
-let gesture_hint = (kind: Action.refactor, label: string): option(string) => {
-  let g = glyph => Some((Os.is_mac^ ? "⌘⌃" : "Ctrl+Alt+") ++ glyph);
-  switch (kind) {
-  | HoistLet
-  | ExtractLet => g("↑")
-  | SinkLet
-  | FeedLet
-  | AddCaseArm => g("↓")
-  | SwapParams(_)
-  | SwapTuplePat(_) => g("↔")
-  | RemoveParameter => g("←")
-  | NegateIf => g("↕")
-  | SwapArms(_) => g(label == "Move arm up" ? "↑" : "↓")
-  | ExpandWildcard => g("→")
-  | _ => None
-  };
-};
-
+/* Gesture-bound refactorings show their chord, resolved against the
+   CURRENT context by the same dispatcher the keys use (Refactor.
+   gesture) — the hint names exactly what the press would do, and a
+   ladder's lower rungs stay unhinted when a higher rung preempts
+   them. The shift layer (Explode/Implode) is direct-bound, so those
+   hint statically. */
 let refactor_data =
     (~info_map: Language.Statics.Map.t, ~term: Language.Exp.t, z: Zipper.t)
     : list(Menu.item(Action.t)) => {
+  let chord = glyph => (Os.is_mac^ ? "⌘⌃" : "Ctrl+Alt+") ++ glyph;
+  let shift_chord = glyph =>
+    (Os.is_mac^ ? "⌘⌃⇧" : "Ctrl+Alt+Shift+") ++ glyph;
+  let resolved: list((Action.refactor, string)) =
+    [
+      (Action.Gesture.Up, "↑"),
+      (Down, "↓"),
+      (Left, "←"),
+      (Right, "→"),
+      (Step, "⏎"),
+      (Bind, "="),
+    ]
+    |> List.filter_map(((g, glyph)) =>
+         Refactor.gesture(~info_map, ~term, g, z)
+         |> Option.map(k => (k, glyph))
+       );
+  let hint = (kind: Action.refactor): option(string) =>
+    switch (kind) {
+    | Explode => Some(shift_chord("↑"))
+    | Implode => Some(shift_chord("↓"))
+    | _ =>
+      let glyphs =
+        resolved |> List.filter(((k, _)) => k == kind) |> List.map(snd);
+      let has = g => List.mem(g, glyphs);
+      switch (glyphs) {
+      | [] => None
+      | _ when has("↑") && has("↓") => Some(chord("↕"))
+      | _ when has("←") && has("→") => Some(chord("↔"))
+      | [g, ..._] => Some(chord(g))
+      };
+    };
   /* gesture-bound entries gather at the top (stable within groups) */
   let (spatial, rest) =
     Refactor.menu_items(~info_map, ~term, z)
-    |> List.partition(((kind, label, _)) =>
-         gesture_hint(kind, label) != None
-       );
+    |> List.partition(((kind, _, _)) => hint(kind) != None);
   spatial
   @ rest
   |> List.map(((kind, label, tooltip)) =>
        action_item(
-         ~shortcut=?gesture_hint(kind, label),
+         ~shortcut=?hint(kind),
          ~tooltip,
          label,
          Action.Refactor(kind),
