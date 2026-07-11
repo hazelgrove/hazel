@@ -206,10 +206,9 @@ let start = default_model => {
         /* Play any pending code-movement ghosts (see CodeFlip.re) */
         try({
           let page = model.model.current.current;
-          CodeFlip.go(
-            ~syntax=Page.Update.get_editor(page).editor.syntax,
-            ~font_metrics=page.globals.font_metrics,
-          );
+          let syntax = Page.Update.get_editor(page).editor.syntax;
+          IdWatch.check(syntax.segment);
+          CodeFlip.go(~syntax, ~font_metrics=page.globals.font_metrics);
         }) {
         | _ => ()
         };
