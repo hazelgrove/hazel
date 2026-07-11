@@ -28,6 +28,11 @@ type t = {
   shape_info_map: Language.Statics.Map.t,
   shape_dyn_map: Language.Dynamics.Map.t,
   shape_elaborated: option(Language.Exp.t),
+  /* Inline ghost completion: (id, shard) marks of pieces spliced into
+   * `segment` at their insertion's anchor for display only — the
+   * zipper never contains them. Shard-precise so a ghost closer
+   * doesn't gray its tile's real opener. Empty = no ghost. */
+  ghost_marks: list((Id.t, option(int))),
 };
 
 // should not be serializing
@@ -36,8 +41,20 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
+let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
+  /* display fork: ghost pieces splice in at their insertion's anchor;
+   * everything downstream (term_data, measured, view) sees them, the
+   * zipper does not */
+  let (segment, ghost_marks) =
+    switch (ghost) {
+    | Some((ins, pieces)) =>
+      switch (CanonicalCompletion.splice_ghost(segment, ~ins, ~pieces)) {
+      | Some((segment, marks)) => (segment, marks)
+      | None => (segment, [])
+      }
+    | None => (segment, [])
+    };
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     MakeTerm.go(segment);
   let (projector_shapes, projector_errors) =
@@ -66,6 +83,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
+    ghost_marks,
   };
 };
 
@@ -123,9 +141,10 @@ let elaborated_phys_eq =
  *   - `old.old` flag (segment changed from an edit/buffer clear) → full `mk`
  *   - statics-input refs changed (info_map / dyn_map / elaborated) → refresh shapes
  *   - otherwise just update selection_ids (cheap cursor-only path) */
-let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
+let calculate =
+    (z: Zipper.t, info_map, dyn_map, ~elaborated=None, ~ghost=None, old: t) =>
   if (old.old) {
-    mk(z, ~info_map, ~dyn_map, ~elaborated);
+    mk(z, ~info_map, ~dyn_map, ~elaborated, ~ghost);
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)) {

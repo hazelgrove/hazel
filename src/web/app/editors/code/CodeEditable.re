@@ -123,23 +123,8 @@ module Update = {
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
       let z = model.editor.state.zipper;
-      /* a chip-ghost buffer is display only: Tab must still chunk
-         through the chip path, not accept the whole ghost */
-      /* a structural (piece-bearing) buffer is the chip ghost —
-         display only; TyDi text buffers hold a single comment */
-      let buffer_is_chip_ghost =
-        Selection.is_buffer(z.selection)
-        && List.exists(
-             (p: Haz3lcore.Piece.t) =>
-               switch (p) {
-               | Tile(_)
-               | Grout(_) => true
-               | _ => false
-               },
-             z.selection.content,
-           );
       let action: Action.t =
-        Selection.is_buffer(z.selection) && !buffer_is_chip_ghost
+        Selection.is_buffer(z.selection)
           ? Buffer(Accept)
           : (
             /* caret pinned to a quiver chip: Tab dispatches one chunk of

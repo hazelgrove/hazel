@@ -200,7 +200,16 @@ module View = {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
+          syntax:
+            {
+              measured,
+              selection_ids,
+              segment,
+              shape_map,
+              term_data,
+              ghost_marks,
+              _,
+            },
           state: {zipper: z, _},
           _,
         },
@@ -215,6 +224,7 @@ module View = {
         ~measured,
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
+        ~ghost_marks,
         ~shape_map,
         ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
         ~refine_sort,

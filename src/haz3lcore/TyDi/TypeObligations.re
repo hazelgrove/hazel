@@ -456,6 +456,20 @@ let anchor_of_site = (seg: Segment.t, site: Id.t): option(Id.t) => {
   };
 };
 
+/* last piece of the site's child, grout/whitespace included — the
+   position truth for splicing owed trailing commas (the content
+   anchor above skips grout, which would misorder past a real hole) */
+let splice_of_site = (seg: Segment.t, site: Id.t): option(Id.t) => {
+  switch (find_tile(site, seg)) {
+  | Some(t) =>
+    switch (List.rev(t.children)) {
+    | [child, ..._] => Util.ListUtil.last_opt(child) |> Option.map(Piece.id)
+    | [] => None
+    }
+  | None => None
+  };
+};
+
 let as_insertions =
     (
       ~seg: Segment.t,
@@ -484,6 +498,7 @@ let as_insertions =
          CanonicalCompletion.{
            adjacent_id: gid,
            side: Direction.Left,
+           splice: Some((gid, None, Direction.Left)),
            delimiters: [
              CanonicalCompletion.{
                text: ",",
@@ -523,6 +538,9 @@ let as_insertions =
                 CanonicalCompletion.{
                   adjacent_id: anchor,
                   side: Direction.Right,
+                  splice:
+                    splice_of_site(seg, ob.site)
+                    |> Option.map(id => (id, None, Direction.Right)),
                   delimiters: comma_delims(trailing),
                 },
                 ...fresh,
@@ -721,83 +739,7 @@ let at_caret = (z: Zipper.t, obs: list(t)): option(string) =>
     };
   };
 
-/* === Inline ghost (caret-local completion display) ===
- * The chip whose zone holds the caret, with T1 commas merged in,
- * rendered as ghost text for the suggestion buffer. Activation
- * follows TyDi exactly: set on edits only (Editor.calculate),
- * cleared on any other action — layout-participating indication
- * must never appear on movement. */
-let ghost_text =
-    (z: Zipper.t, ins: CanonicalCompletion.insertion): option(string) => {
-  let alnum = c =>
-    switch (c) {
-    | 'a' .. 'z'
-    | 'A' .. 'Z'
-    | '0' .. '9'
-    | '_' => true
-    | _ => false
-    };
-  /* F1 naturalistic join: space between tokens EXCEPT before
-     ,/)/]/} and after (/[ — yields ", ?, ?)" and "= ? in ?" */
-  let tokens =
-    ins.delimiters
-    |> List.concat_map((d: CanonicalCompletion.delimiter_info) => {
-         let text =
-           switch (d.typed_len) {
-           | Some(n) when n < String.length(d.text) =>
-             String.sub(d.text, n, String.length(d.text) - n)
-           | _ => d.text
-           };
-         [text] @ (d.needs_hole ? ["?"] : []);
-       });
-  let hugs_left = t =>
-    String.length(t) > 0
-    && (
-      switch (t.[0]) {
-      | ','
-      | ')'
-      | ']'
-      | '}' => true
-      | _ => false
-      }
-    );
-  let opens_right = t =>
-    String.length(t) > 0
-    && (
-      switch (t.[String.length(t) - 1]) {
-      | '('
-      | '[' => true
-      | _ => false
-      }
-    );
-  switch (ins.delimiters, tokens) {
-  | ([], _)
-  | (_, []) => None
-  | ([d0, ..._], [t0, ...trest]) =>
-    let body =
-      List.fold_left(
-        ((acc, prev), t) =>
-          (acc ++ (hugs_left(t) || opens_right(prev) ? "" : " ") ++ t, t),
-        (t0, t0),
-        trest,
-      )
-      |> fst;
-    let jam =
-      d0.typed_len == None
-      && (
-        switch (z.relatives.siblings |> fst |> List.rev) {
-        | [Tile({label: [tok], _}), ..._] when Token.length(tok) > 0 =>
-          alnum(tok.[Token.length(tok) - 1])
-          && String.length(body) > 0
-          && alnum(body.[0])
-        | _ => false
-        }
-      );
-    Some((jam ? " " : "") ++ body);
-  };
-};
-
-/* Display-fork v1: the ghost as STRUCTURAL pieces — real comma
+/* Display fork: the ghost as STRUCTURAL pieces — real comma
    tiles, real grout, the real tile's own closer shards — so the
    display shows actual holes with actual shapes and can't drift
    from the material. Spacing per the F1 join rule. */
@@ -866,11 +808,3 @@ let ghost_pieces =
   | ds => build(ds, !hugs_left(List.hd(ds).text) ? false : true)
   };
 };
-
-let ghost_at_caret =
-    (z: Zipper.t, ~assist: list(CanonicalCompletion.insertion))
-    : option(string) =>
-  switch (CanonicalCompletion.chip_among(z, assist)) {
-  | Some(ins) => ghost_text(z, ins)
-  | None => None
-  };

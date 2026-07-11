@@ -82,6 +82,10 @@ let view =
          The default leaves the mold sort unchanged. */
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~buffer_ids: list(Id.t),
+      /* (id, shard) marks of display-only ghost pieces spliced into the
+         segment (CachedSyntax.ghost_marks); shard-precise so a ghost
+         closer doesn't gray its tile's real opener */
+      ~ghost_marks: list((Id.t, option(int)))=[],
       segment: Segment.t,
     ) => {
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
@@ -89,11 +93,22 @@ let view =
   let g_convex = EmptyHoleDec.view(font_metrics, Convex);
   let g_concave = EmptyHoleDec.view(font_metrics, Concave);
 
+  /* Node.t's None/Some shadow option's, so match structurally */
+  let ghost_mark = (id: Id.t, shard: option(int)): bool =>
+    List.exists(
+      ((mid, msh): (Id.t, option(int))) =>
+        Id.equal(mid, id) && msh == shard,
+      ghost_marks,
+    );
+
   let of_grout = (g: Grout.t): t => {
-    switch (g.shape) {
-    | Convex => g_convex
-    | Concave => g_concave
-    };
+    let hole =
+      switch (g.shape) {
+      | Convex => g_convex
+      | Concave => g_concave
+      };
+    ghost_mark(g.id, Option.none)
+      ? span_c("in-parsed-buffer", [hole]) : hole;
   };
 
   let lb_icon = settings.secondary_icons ? "⏎" : "";
@@ -127,7 +142,7 @@ let view =
       List.length(t.label),
       sort,
       is_consistent(sort, t),
-      List.mem(t.id, buffer_ids),
+      List.mem(t.id, buffer_ids) || ghost_mark(t.id, Option.some(i)),
       Tile.is_complete(t),
       Mold.is_infix_op(t.mold)
       && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),

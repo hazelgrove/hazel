@@ -67,7 +67,13 @@ type delimiter_info = {
 type insertion = {
   adjacent_id: Id.t, /* ID of piece adjacent to insertion point */
   side: Direction.t, /* Which side of the adjacent piece (Left or Right) */
-  delimiters: list(delimiter_info) /* The delimiter tokens with hole info */
+  delimiters: list(delimiter_info), /* The delimiter tokens with hole info */
+  /* The run's exact flanking leaf in the completed segment — unlike
+     adjacent_id (the CONTENT anchor for chip zones, which skips
+     grout/whitespace), this preserves position truth for display
+     splicing: (piece/tile id, shard index for tile leaves, side the
+     run sits on). None = not spliceable (witness runs, legacy). */
+  splice: option((Id.t, option(int), Direction.t)),
 };
 
 /* Result of completing a segment */
@@ -858,6 +864,7 @@ let leading_insertions =
        |> Option.map(p =>
             {
               adjacent_id: Piece.id(p),
+              splice: None,
               /* a witness arrow sits at the END of the typed prefix
                  (the continuation point); splices/junctions point at
                  the position itself */
@@ -924,6 +931,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                    {
                      adjacent_id: aid,
                      side: aside,
+                     splice: None,
                      delimiters: [
                        {
                          text: List.nth(t.label, m),
@@ -948,6 +956,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                      {
                        adjacent_id: Piece.id(p),
                        side: Direction.Right,
+                       splice: None,
                        delimiters: [
                          {
                            text: List.nth(t.label, m),
@@ -1534,6 +1543,7 @@ let place_trailing_shards =
                     {
                       adjacent_id: Piece.id(a),
                       side: anchor_side,
+                      splice: None,
                       delimiters: [
                         {
                           text: List.nth(t.label, i),
@@ -1565,6 +1575,7 @@ let place_trailing_shards =
                       {
                         adjacent_id: Piece.id(a),
                         side: Direction.Right,
+                        splice: None,
                         delimiters: [
                           {
                             text: List.nth(t.label, i),
@@ -1665,6 +1676,7 @@ let place_trailing_shards =
                         {
                           adjacent_id: Piece.id(a),
                           side: Direction.Right,
+                          splice: None,
                           delimiters: [
                             {
                               text: List.nth(t.label, i),
@@ -1716,6 +1728,7 @@ let place_trailing_shards =
         {
           adjacent_id: Piece.id(pc),
           side: Direction.Right,
+          splice: None,
           delimiters,
         },
       ]
@@ -1984,6 +1997,7 @@ let rec complete_segment =
                       {
                         adjacent_id: Piece.id(lp),
                         side: Direction.Left,
+                        splice: None,
                         delimiters: [
                           {
                             text: "case",
@@ -1996,6 +2010,7 @@ let rec complete_segment =
                       {
                         adjacent_id: Piece.id(rp),
                         side: Direction.Right,
+                        splice: None,
                         delimiters: [
                           {
                             text: "end",
@@ -2554,23 +2569,43 @@ let derive_insertions =
                 | _ => None
                 }
               );
+         /* position truth: the run's immediate original neighbor,
+            grout/whitespace included (the anchor walks skip those) */
+         let splice_ref = ((l, _): (leaf, bool)): (Id.t, option(int)) =>
+           switch (l) {
+           | LPiece(p) => (Piece.id(p), None)
+           | LShard(t, i) => (t.id, Some(i))
+           };
+         let splice =
+           if (a > 0) {
+             let (id, sh) = splice_ref(arr[a - 1]);
+             Some((id, sh, Direction.Right));
+           } else if (b < n) {
+             let (id, sh) = splice_ref(arr[b]);
+             Some((id, sh, Direction.Left));
+           } else {
+             None;
+           };
          switch (witness_anchor, anchor_left(a), anchor_right(b)) {
          | (Some(tok), _, _) =>
            Some({
              adjacent_id: tok,
              side: Direction.Right,
+             splice: None /* witness: TyDi's, never spliced */,
              delimiters: delims,
            })
          | (_, Some(id), _) =>
            Some({
              adjacent_id: id,
              side: Direction.Right,
+             splice,
              delimiters: delims,
            })
          | (_, None, Some(id)) =>
            Some({
              adjacent_id: id,
              side: Direction.Left,
+             splice,
              delimiters: delims,
            })
          | (_, None, None) => None /* never lie about placement */
@@ -2675,6 +2710,117 @@ let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
       let trail = alnum(d.text.[String.length(d.text) - 1]) || d.text == ",";
       Some((jam_left ? " " : "") ++ d.text ++ (trail ? " " : ""));
     }
+  };
+};
+
+/* === Ghost splicing (display fork v2) ===
+ * Splice ghost pieces into a DISPLAY segment at an insertion's true
+ * run position (the splice ref) — the real zipper is untouched.
+ * Returns the spliced segment plus (id, shard) marks so the view can
+ * style ghosts by membership; shard-precise marks keep a ghost
+ * closer from graying its tile's real opener. */
+let ghost_marks = (pieces: Segment.t): list((Id.t, option(int))) =>
+  pieces
+  |> List.concat_map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) => t.shards |> List.map(i => (t.id, Some(i)))
+       | _ => [(Piece.id(p), None)]
+       }
+     );
+
+let splice_ghost =
+    (seg: Segment.t, ~ins: insertion, ~pieces: Segment.t)
+    : option((Segment.t, list((Id.t, option(int))))) => {
+  switch (ins.splice) {
+  | None => None
+  | Some((id, shard, side)) =>
+    let shard_pos = (i: int, shards: list(int)): option(int) => {
+      let rec go = (k, s) =>
+        switch (s) {
+        | [] => None
+        | [x, ..._] when x == i => Some(k)
+        | [_, ...tl] => go(k + 1, tl)
+        };
+      go(0, shards);
+    };
+    /* Some(replacement) when this piece is the splice point. A shard
+       ref mid-tile splices inside the flanking child; a last/first
+       shard (or a whole-piece ref) splices beside the piece. */
+    let try_piece = (p: Piece.t): option(list(Piece.t)) =>
+      if (!Id.equal(Piece.id(p), id)) {
+        None;
+      } else {
+        switch (p, shard) {
+        | (Tile(t), Some(i)) =>
+          switch (shard_pos(i, t.shards), side) {
+          | (None, _) => None /* shard lives in a split-off piece */
+          | (Some(k), Direction.Right) when k == List.length(t.shards) - 1 =>
+            Some([p] @ pieces)
+          | (Some(0), Direction.Left) => Some(pieces @ [p])
+          | (Some(k), Direction.Right) =>
+            List.nth_opt(t.children, k)
+            |> Option.map(child =>
+                 [
+                   Piece.Tile({
+                     ...t,
+                     children:
+                       ListUtil.put_nth(k, pieces @ child, t.children),
+                   }),
+                 ]
+               )
+          | (Some(k), Direction.Left) =>
+            List.nth_opt(t.children, k - 1)
+            |> Option.map(child =>
+                 [
+                   Piece.Tile({
+                     ...t,
+                     children:
+                       ListUtil.put_nth(k - 1, child @ pieces, t.children),
+                   }),
+                 ]
+               )
+          }
+        | (_, _) =>
+          switch (side) {
+          | Direction.Right => Some([p] @ pieces)
+          | Direction.Left => Some(pieces @ [p])
+          }
+        };
+      };
+    let rec go_seg = (ps: Segment.t): option(Segment.t) =>
+      switch (ps) {
+      | [] => None
+      | [p, ...rest] =>
+        switch (try_piece(p)) {
+        | Some(repl) => Some(repl @ rest)
+        | None =>
+          switch (p) {
+          | Tile(t) =>
+            switch (go_children(t.children)) {
+            | Some(children) =>
+              Some([
+                Piece.Tile({
+                  ...t,
+                  children,
+                }),
+                ...rest,
+              ])
+            | None => go_seg(rest) |> Option.map(r => [p, ...r])
+            }
+          | _ => go_seg(rest) |> Option.map(r => [p, ...r])
+          }
+        }
+      }
+    and go_children = (cs: list(Segment.t)): option(list(Segment.t)) =>
+      switch (cs) {
+      | [] => None
+      | [c, ...rest] =>
+        switch (go_seg(c)) {
+        | Some(c') => Some([c', ...rest])
+        | None => go_children(rest) |> Option.map(r => [c, ...r])
+        }
+      };
+    go_seg(seg) |> Option.map(seg' => (seg', ghost_marks(pieces)));
   };
 };
 

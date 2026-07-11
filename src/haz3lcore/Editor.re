@@ -129,6 +129,16 @@ module Update = {
             ~elaborated=Some(old_statics.elaborated),
             syntax,
           );
+        } else if (syntax.ghost_marks != []) {
+          /* same hazard for a spliced chip ghost: this action must
+             resolve against ghost-free measured */
+          CachedSyntax.calculate(
+            state.zipper,
+            old_statics.info_map,
+            old_dynamics,
+            ~elaborated=Some(old_statics.elaborated),
+            CachedSyntax.mark_old(syntax),
+          );
         } else {
           syntax;
         };
@@ -207,26 +217,24 @@ module Update = {
       } else {
         state.zipper;
       };
-    /* inline chip ghost: when TyDi has no suggestion but the caret
-       sits in a chip's zone right after an edit, show the chip's
-       pending content inline (same activation pattern as TyDi —
-       never on movement) */
-    let zipper =
+    /* inline chip ghost (display fork): when TyDi has no suggestion
+       but the caret sits in a chip's zone right after an edit, the
+       chip's pending content splices into the DISPLAY segment at its
+       anchor (CachedSyntax) — the zipper stays untouched. Same
+       activation pattern as TyDi: never on movement. */
+    let ghost =
       if (settings.assist
           && settings.statics
           && is_edited
           && !Selection.is_buffer(zipper.selection)) {
         switch (CanonicalCompletion.chip_among(zipper, statics.assist)) {
         | Some(ins) =>
-          switch (TypeObligations.ghost_pieces(zipper, ins)) {
-          | Some(pieces) =>
-            Zipper.set_buffer(zipper, ~content=pieces, ~mode=Unparsed)
-          | None => zipper
-          }
-        | None => zipper
+          TypeObligations.ghost_pieces(zipper, ins)
+          |> Option.map(pieces => (ins, pieces))
+        | None => None
         };
       } else {
-        zipper;
+        None;
       };
 
     /* 2. Recalculate syntax cache. `CachedSyntax.calculate` detects
@@ -240,6 +248,7 @@ module Update = {
         statics.info_map,
         new_dynamics,
         ~elaborated=Some(statics.elaborated),
+        ~ghost,
         syntax,
       );
 
