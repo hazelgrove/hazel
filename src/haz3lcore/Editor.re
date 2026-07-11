@@ -207,6 +207,32 @@ module Update = {
       } else {
         state.zipper;
       };
+    /* inline chip ghost: when TyDi has no suggestion but the caret
+       sits in a chip's zone right after an edit, show the chip's
+       pending content inline (same activation pattern as TyDi —
+       never on movement) */
+    let zipper =
+      if (settings.assist
+          && settings.statics
+          && is_edited
+          && !Selection.is_buffer(zipper.selection)) {
+        switch (
+          TypeObligations.ghost_at_caret(
+            zipper,
+            ~obligations=statics.obligations,
+          )
+        ) {
+        | Some(text) =>
+          Zipper.set_buffer(
+            zipper,
+            ~content=TyDi.mk_unparsed_buffer(text),
+            ~mode=Unparsed,
+          )
+        | None => zipper
+        };
+      } else {
+        zipper;
+      };
 
     /* 2. Recalculate syntax cache. `CachedSyntax.calculate` detects
      * input changes (info_map/dyn_map/elaborated refs) and chooses

@@ -356,11 +356,52 @@ let overfull_tests = [
   ),
 ];
 
+/* Inline ghost: the merged chip's pending content as buffer text.
+   Obligations MUST derive from the same zipper as the display
+   (typing mints fresh ids per run — a re-typed statics harness
+   produces an unrelated id universe and silently never merges). */
+let ghost = (code: string): string => {
+  let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  let obs = TypeObligations.derive(info_map);
+  switch (TypeObligations.ghost_at_caret(z, ~obligations=obs)) {
+  | None => "NONE"
+  | Some(t) => "<" ++ t ++ ">"
+  };
+};
+
+let ghost_case = (~name, ~code, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(string_testable, name, expected, ghost(code))
+  );
+
+let ghost_tests = [
+  ghost_case(~name="ghost: f(1", ~code=f2 ++ "f(1¦", ~expected="<, ? )>"),
+  ghost_case(
+    ~name="ghost: annotated let",
+    ~code="let _: (Int, Bool) ¦",
+    ~expected="<= ? in ?>",
+  ),
+  ghost_case(
+    ~name="ghost: let a = 4",
+    ~code="let a = 4¦",
+    ~expected="< in ?>",
+  ),
+  ghost_case(
+    ~name="ghost: none in complete code",
+    ~code="1 + 2¦",
+    ~expected="NONE",
+  ),
+];
+
 let tests = [
   ("TypeObligations: reification", reify_tests),
   ("TypeObligations: scenarios", scenario_tests),
   ("TypeObligations: junctions", junction_tests),
   ("TypeObligations: overfull", overfull_tests),
+  ("TypeObligations: ghost", ghost_tests),
   ("TypeObligations: chip-probe", probe_chips),
   (
     "TypeObligations: derivation",

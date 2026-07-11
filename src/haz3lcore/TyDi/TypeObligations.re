@@ -720,3 +720,89 @@ let at_caret = (z: Zipper.t, obs: list(t)): option(string) =>
     | None => probe(r)
     };
   };
+
+/* === Inline ghost (caret-local completion display) ===
+ * The chip whose zone holds the caret, with T1 commas merged in,
+ * rendered as ghost text for the suggestion buffer. Activation
+ * follows TyDi exactly: set on edits only (Editor.calculate),
+ * cleared on any other action — layout-participating indication
+ * must never appear on movement. */
+let merged_chip_at_caret =
+    (z: Zipper.t, ~obligations: list(t))
+    : option(CanonicalCompletion.insertion) =>
+  switch (z.caret) {
+  | Inner(_) => None
+  | Outer =>
+    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+    let existing = CanonicalCompletion.for_editor(seg).insertions;
+    let merged = as_insertions(~seg, ~existing, obligations);
+    let find = (id: Id.t): option(CanonicalCompletion.insertion) =>
+      merged
+      |> List.find_opt((ins: CanonicalCompletion.insertion) =>
+           Id.equal(ins.adjacent_id, id)
+         );
+    let is_content = (p: Piece.t): bool =>
+      switch (p) {
+      | Secondary(_)
+      | Grout(_) => false
+      | _ => true
+      };
+    let rec probe = (ps: list(Piece.t)) =>
+      switch (ps) {
+      | [] => None
+      | [p, ...rest] =>
+        switch (find(Piece.id(p))) {
+        | Some(_) as hit => hit
+        | None => is_content(p) ? None : probe(rest)
+        }
+      };
+    let (l, r) = z.relatives.siblings;
+    switch (probe(List.rev(l))) {
+    | Some(_) as hit => hit
+    | None => probe(r)
+    };
+  };
+
+let ghost_text =
+    (z: Zipper.t, ins: CanonicalCompletion.insertion): option(string) => {
+  let alnum = c =>
+    switch (c) {
+    | 'a' .. 'z'
+    | 'A' .. 'Z'
+    | '0' .. '9'
+    | '_' => true
+    | _ => false
+    };
+  let part = (d: CanonicalCompletion.delimiter_info): string => {
+    let text =
+      switch (d.typed_len) {
+      | Some(n) when n < String.length(d.text) =>
+        String.sub(d.text, n, String.length(d.text) - n)
+      | _ => d.text
+      };
+    text ++ (d.needs_hole ? " ?" : "");
+  };
+  switch (ins.delimiters) {
+  | [] => None
+  | [d0, ..._] =>
+    let body = ins.delimiters |> List.map(part) |> String.concat(" ");
+    let jam =
+      d0.typed_len == None
+      && (
+        switch (z.relatives.siblings |> fst |> List.rev) {
+        | [Tile({label: [tok], _}), ..._] when Token.length(tok) > 0 =>
+          alnum(tok.[Token.length(tok) - 1])
+          && String.length(body) > 0
+          && alnum(body.[0])
+        | _ => false
+        }
+      );
+    Some((jam ? " " : "") ++ body);
+  };
+};
+
+let ghost_at_caret = (z: Zipper.t, ~obligations: list(t)): option(string) =>
+  switch (merged_chip_at_caret(z, ~obligations)) {
+  | Some(ins) => ghost_text(z, ins)
+  | None => None
+  };

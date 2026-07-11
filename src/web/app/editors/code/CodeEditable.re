@@ -123,8 +123,17 @@ module Update = {
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
       let z = model.editor.state.zipper;
-      let action: Action.t =
+      /* a chip-ghost buffer is display only: Tab must still chunk
+         through the chip path, not accept the whole ghost */
+      let buffer_is_chip_ghost =
         Selection.is_buffer(z.selection)
+        && TyDi.get_unparsed_buffer(z)
+        == TypeObligations.ghost_at_caret(
+             z,
+             ~obligations=model.statics.obligations,
+           );
+      let action: Action.t =
+        Selection.is_buffer(z.selection) && !buffer_is_chip_ghost
           ? Buffer(Accept)
           : (
             /* caret pinned to a quiver chip: Tab dispatches that
