@@ -401,9 +401,18 @@ let view =
       ~caret_pos: option((int, int))=None,
       ~caret_form: option((Direction.t, option(Direction.t)))=None,
       ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
+      /* the engine must see the user's REAL program: the display
+         segment (CachedSyntax) still contains the suggestion-buffer
+         ghost, which perturbs placement (an in anchoring at line
+         start while a ghost completes Bo -> Bool). Anchor pieces
+         exist in both segments, so engine insertions resolve fine
+         against the display's measured map. */
+      ~engine_seg: Segment.t,
       seg: Segment.t,
     )
     : Node.t => {
+  ignore(seg);
+  let seg = engine_seg;
   /* Get completion result with insertions */
   let result = CanonicalCompletion.for_editor(seg);
   let insertions = result.insertions;
