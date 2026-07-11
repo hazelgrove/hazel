@@ -131,7 +131,7 @@ let completed_tokens = (z: Zipper.t): list(string) => {
     z
     |> Zipper.clear_unparsed_buffer
     |> Zipper.unselect_and_zip(~erase_buffer=true);
-  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  let result = CanonicalCompletion.for_editor(seg);
   tokens(result.completed_seg);
 };
 
@@ -340,8 +340,7 @@ let run_pairs = (name: string, text: string): joint_outcome => {
           z'
           |> Zipper.clear_unparsed_buffer
           |> Zipper.unselect_and_zip(~erase_buffer=true);
-        let result =
-          CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+        let result = CanonicalCompletion.for_editor(seg);
         let got = tokens(result.completed_seg);
         let ok = got == original;
         let inc =
@@ -566,11 +565,12 @@ let run_accept = (name: string, text: string): accept_outcome => {
    (end+in definition slot; fun-ap's paren). */
 let accept_pins = [
   ("let-chain", "2/0/0 of 2 | reverse 1/1"),
-  ("fun-ap", "10/2/0 of 12 | reverse 5/6"),
+  /* diff-derived anchors: +1 stable */
+  ("fun-ap", "11/1/0 of 12 | reverse 5/6"),
   ("case-multiline", "12/0/0 of 12 | reverse 6/6"),
   ("type-adt", "40/2/0 of 42 | reverse 20/21"),
   ("tuple-list", "10/2/0 of 12 | reverse 6/6"),
-  ("case-def-inline", "11/1/0 of 12 | reverse 5/6"),
+  ("case-def-inline", "11/1/0 of 12 | reverse 6/6"),
   /* end+in slot symmetric: neither closer glues (multiline form),
      both share the aggregate anchor, so accepting either makes it
      the other's anchor (fresh id) */

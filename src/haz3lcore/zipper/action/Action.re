@@ -194,7 +194,12 @@ module Gesture = {
     | Up
     | Down
     | Left
-    | Right;
+    | Right
+    /* the temporal axis: Step advances evaluation one rewrite
+       (beta / take arm / take branch); Bind stages it (introduce
+       the binding without substituting) */
+    | Step
+    | Bind;
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
