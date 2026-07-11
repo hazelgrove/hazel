@@ -1602,6 +1602,70 @@ let tab_dispatch_tests = [
   ),
 ];
 
+/* The two accept gestures must agree: tabbing a completion to its
+   fixpoint and materializing it wholesale converge to the same
+   program modulo whitespace. Guards the type-it-for-me / make-it-so
+   split from semantic drift. */
+let strip_ws = (s: string): string =>
+  String.to_seq(s) |> Seq.filter(c => c != ' ' && c != '\n') |> String.of_seq;
+
+let tabs_vs_materialize = (~name, ~acts, ()) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z0 = Test_Editing.perform(Zipper.init(), acts);
+      let via_mat =
+        CanonicalCompletion.materialize_all(
+          ~sort=Sort.Exp,
+          Zipper.unselect_and_zip(~erase_buffer=true, z0),
+        )
+        |> print_seg;
+      let rec tab_out = (z, fuel) =>
+        fuel <= 0
+          ? z
+          : (
+            switch (tab_once(z)) {
+            | Some(z) => tab_out(z, fuel - 1)
+            | None => z
+            }
+          );
+      let via_tabs =
+        tab_out(z0, 8)
+        |> Zipper.unselect_and_zip(~erase_buffer=true)
+        |> print_seg;
+      check(string_testable, name, strip_ws(via_mat), strip_ws(via_tabs));
+    },
+  );
+
+let tab_materialize_equiv_tests = [
+  tabs_vs_materialize(
+    ~name="equiv: let missing in",
+    ~acts=Test_Editing.mk("let a = 4¦"),
+    (),
+  ),
+  tabs_vs_materialize(
+    ~name="equiv: annotated let missing = and in",
+    ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
+    (),
+  ),
+  tabs_vs_materialize(
+    ~name="equiv: paren case missing end and closer",
+    ~acts=Test_Editing.mk("(case x | 1 => 2¦"),
+    (),
+  ),
+  tabs_vs_materialize(
+    ~name="equiv: rule arrow witness",
+    ~acts=Test_Editing.mk("case x | 1 =¦"),
+    (),
+  ),
+  tabs_vs_materialize(
+    ~name="equiv: nested second let",
+    ~acts=Test_Editing.mk("let a = 2 in\nlet _: (Int, Bo¦"),
+    (),
+  ),
+];
+
 /* Materialization: ALL = the joint result; ONE discharges a single
    tile and moves nothing else. */
 let materialize_tests = [
@@ -1825,6 +1889,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: entry-stability", entry_stability_tests),
   ("CanonicalCompletion: placement-guards", placement_guard_tests),
   ("CanonicalCompletion: tab-dispatch", tab_dispatch_tests),
+  ("CanonicalCompletion: tab-materialize-equiv", tab_materialize_equiv_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
