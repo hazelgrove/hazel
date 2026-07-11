@@ -128,6 +128,28 @@ let pair =
  * and inline-style mutations get clobbered by later vdom patches. */
 let active: ref(list(Js.Unsafe.any)) = ref([]);
 
+/* mergeInto targets (D2 emerge REVERSED — emergeMode=clone is
+   bidirectional in dragology's lerp; our exits leave the DOM, so the
+   reverse direction runs on synthetic ghosts): the dissolved
+   window's ids (old segment) and the surviving window's ids (live).
+   Ghost copies of the dissolved tokens converge onto the survivor at
+   full opacity and are removed on arrival — landing on identical
+   text, the removal is invisible. */
+let merge_staged: ref((list(Id.t), list(Id.t))) = ref(([], []));
+let set_merge = ((dissolved, survivor): (list(Id.t), list(Id.t))): unit =>
+  merge_staged := (dissolved, survivor);
+
+let merge_overlay_id = "code-flip-merge-overlay";
+let remove_merge_overlay = (): unit =>
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##getElementById(Js.string(merge_overlay_id)),
+    )
+  ) {
+  | Some(el) => Js.Opt.iter(el##.parentNode, p => Dom.removeChild(p, el))
+  | None => ()
+  };
+
 let cancel_active = (): unit => {
   active^
   |> List.iter(anim =>
@@ -137,6 +159,7 @@ let cancel_active = (): unit => {
        }
      );
   active := [];
+  remove_merge_overlay();
 };
 
 /* EXPERIMENT (andrew): newly created elements fade in (they used to
@@ -198,6 +221,39 @@ let rec keyed_tokens_of_segment =
          | Comment(c) when List.mem(s.id, ids) => [(CommentK(s.id), c)]
          | _ => []
          }
+       | Projector(_) => []
+       }
+     );
+
+/* keyed tokens of a window with their Code.view classes — the merge
+   ghosts are REAL-styled spans (same recipe as the drag ghosts) */
+let rec keyed_cls_tokens_of_segment =
+        (ids: list(Id.t), seg: Segment.t): list((key, string, string)) =>
+  seg
+  |> List.concat_map((piece: Piece.t) =>
+       switch (piece) {
+       | Tile(t) =>
+         let plurality = List.length(t.label) == 1 ? "mono" : "poly";
+         let sort_cls = Sort.class_of(t.mold.out);
+         (
+           List.mem(t.id, ids)
+             ? t.shards
+               |> List.filter_map(i =>
+                    switch (List.nth_opt(t.label, i)) {
+                    | Some(txt) =>
+                      let cls =
+                        ["token", sort_cls, plurality]
+                        @ (Token.is_keyword(txt) ? ["keyword"] : [])
+                        |> String.concat(" ");
+                      Some((Shard(t.id, i), txt, cls));
+                    | None => None
+                    }
+                  )
+             : []
+         )
+         @ List.concat_map(keyed_cls_tokens_of_segment(ids), t.children);
+       | Grout(_)
+       | Secondary(_)
        | Projector(_) => []
        }
      );
@@ -608,6 +664,8 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
     drag_enter_from := None;
     let emerge = emerge_src^;
     emerge_src := [];
+    let (merge_dissolved, merge_survivor) = merge_staged^;
+    merge_staged := ([], []);
     let bump_y =
       switch (scroll_bump^) {
       | Some((el, rows)) =>
@@ -643,6 +701,122 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                   /* pair() builds by prepending — restore traversal
                      order (the emerge zip is positional) */
                   let pairs = List.rev(pairs);
+                  /* mergeInto (emerge reversed): ghost copies of the
+                     dissolved window depart their old positions and
+                     converge onto the surviving window, full opacity
+                     (D2 clone), removed on arrival — the identical
+                     text beneath makes the removal invisible. */
+                  if (merge_dissolved != [] && merge_survivor != []) {
+                    let olds =
+                      keyed_cls_tokens_of_segment(merge_dissolved, old_seg)
+                      |> List.filter_map(((k, txt, cls)) =>
+                           find_meas(old_m, k)
+                           |> Option.map((m: Measured.measurement) =>
+                                (txt, cls, m.origin)
+                              )
+                         );
+                    let news =
+                      keyed_cls_tokens_of_segment(
+                        merge_survivor,
+                        syntax.segment,
+                      )
+                      |> List.filter_map(((k, _, _)) =>
+                           find_meas(new_m, k)
+                           |> Option.map((m: Measured.measurement) =>
+                                m.origin
+                              )
+                         );
+                    if (List.length(olds) == List.length(news) && olds != []) {
+                      let rect =
+                        Js.Unsafe.meth_call(
+                          ct,
+                          "getBoundingClientRect",
+                          [||],
+                        );
+                      let base_x: float = Js.Unsafe.get(rect, "left");
+                      let base_y: float = Js.Unsafe.get(rect, "top");
+                      remove_merge_overlay();
+                      let overlay = Dom_html.createDiv(Dom_html.document);
+                      overlay##.id := Js.string(merge_overlay_id);
+                      overlay##.className := Js.string("code");
+                      overlay##.style##.cssText :=
+                        Js.string(
+                          "position:fixed;inset:0;pointer-events:none;z-index:999999;",
+                        );
+                      Dom.appendChild(Dom_html.document##.body, overlay);
+                      let px = (pt: Measured.Point.t) => (
+                        base_x
+                        +. float_of_int(pt.col)
+                        *. font_metrics.col_width,
+                        base_y
+                        +. float_of_int(pt.row)
+                        *. font_metrics.row_height,
+                      );
+                      let first = ref(true);
+                      List.combine(olds, news)
+                      |> List.iter((((txt, cls, o), n)) => {
+                           let (ox, oy) = px(o);
+                           let (nx, ny) = px(n);
+                           let span = Dom_html.createSpan(Dom_html.document);
+                           span##.className := Js.string(cls);
+                           span##.textContent := Js.some(Js.string(txt));
+                           span##.style##.cssText :=
+                             Js.string(
+                               Printf.sprintf(
+                                 "position:absolute;left:%fpx;top:%fpx;",
+                                 nx,
+                                 ny,
+                               ),
+                             );
+                           Dom.appendChild(overlay, span);
+                           let keyframes =
+                             Animation.Js.keyframes_unsafe([
+                               (
+                                 "transform",
+                                 Printf.sprintf(
+                                   "translate(%fpx, %fpx)",
+                                   ox -. nx,
+                                   oy -. ny,
+                                 ),
+                               ),
+                               ("transform", "translate(0px, 0px)"),
+                             ]);
+                           let options =
+                             Animation.Js.options_unsafe({
+                               duration: dur(duration),
+                               easing,
+                             });
+                           switch (
+                             Js.Unsafe.meth_call(
+                               span,
+                               "animate",
+                               [|
+                                 Js.Unsafe.inject(keyframes),
+                                 Js.Unsafe.inject(options),
+                               |],
+                             )
+                           ) {
+                           | exception _ => ()
+                           | anim =>
+                             active := [anim, ...active^];
+                             if (first^) {
+                               first := false;
+                               Js.Unsafe.set(
+                                 anim,
+                                 "onfinish",
+                                 Js.wrap_callback(_ => remove_merge_overlay()),
+                               );
+                             };
+                           };
+                         });
+                    } else if (olds != []) {
+                      Printf.eprintf(
+                        "CodeFlip: merge staged but windows differ (%d old vs %d new tokens) — no convergence\n",
+                        List.length(olds),
+                        List.length(news),
+                      );
+                    };
+                  };
                   let moved =
                     pairs
                     |> List.filter_map(((k, node)) =>

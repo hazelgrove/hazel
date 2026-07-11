@@ -149,6 +149,15 @@ module Update = {
               | _ => []
               },
             );
+            CodeFlip.set_merge(
+              switch (action) {
+              | RefactorGesture(g) =>
+                Refactor.gesture_merge_target(~info_map, ~term, g, z)
+              | Refactor(kind) =>
+                Refactor.refactor_merge_target(~info_map, ~term, kind, z)
+              | _ => ([], [])
+              },
+            );
           };
           CodeFlip.request(model.editor.syntax);
         | _ when settings.core.animate_all_edits && Action.is_edit(action) =>

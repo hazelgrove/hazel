@@ -7428,6 +7428,124 @@ let emerge_source =
   | _ => []
   };
 
+/* mergeInto targets (D2 emerge reversed): when this invocation will
+   ABSORB (identical definitions merging) or GLOM (extract reusing an
+   identical existing def), the dissolved window's ids + the
+   surviving window's ids — staged for the convergence flight. */
+let merge_target =
+    (~info_map as _, ~target, kind: Action.refactor, term)
+    : (list(Id.t), list(Id.t)) => {
+  let line_ids = (e: Exp.t): list(Id.t) =>
+    switch (IdTagged.term_of(e)) {
+    | Let(p, d, _) =>
+      IdTagged.ids(e) @ pat_subtree_ids(p) @ exp_subtree_ids(d)
+    | _ => IdTagged.ids(e)
+    };
+  let absorb_pair = (survivor: Exp.t, mover: Exp.t, scope: Exp.t): bool =>
+    absorbable(survivor, mover)
+    && (
+      switch (IdTagged.term_of(survivor)) {
+      | Let(sp, _, _) =>
+        switch (let_head_name(sp)) {
+        | Some(sn) => !binds_somewhere(sn, scope)
+        | None => false
+        }
+      | _ => false
+      }
+    );
+  switch (kind) {
+  | HoistLet =>
+    switch (find_path(~hit=hit_def_line(target), term)) {
+    | Some(path) when List.length(path) >= 2 =>
+      let n = List.length(path);
+      let l = List.nth(path, n - 1);
+      let direct = List.nth(path, n - 2);
+      let (p, c) =
+        switch (IdTagged.term_of(direct)) {
+        | Parens(_) when n >= 3 => (List.nth(path, n - 3), direct)
+        | _ => (direct, l)
+        };
+      switch (def_line_of(l), def_line_of(p)) {
+      | (Some((_, lbody)), Some((_, pbody)))
+          when
+            same_node(pbody, c)
+            && same_node(c, l)
+            && absorb_pair(p, l, lbody) => (
+          line_ids(l),
+          line_ids(p),
+        )
+      | _ => ([], [])
+      };
+    | _ => ([], [])
+    }
+  | SinkLet =>
+    switch (find_hit(~hit=hit_def_line(target), term)) {
+    | Some(l) =>
+      switch (def_line_of(l)) {
+      | Some((_, lbody)) =>
+        switch (IdTagged.term_of(lbody)) {
+        | Let(_, _, mbody) when absorb_pair(lbody, l, mbody) => (
+            line_ids(l),
+            line_ids(lbody),
+          )
+        | _ => ([], [])
+        }
+      | None => ([], [])
+      }
+    | None => ([], [])
+    }
+  | ExtractLet =>
+    switch (extract_path(~target, term)) {
+    | Some(path) =>
+      let t = List.nth(path, List.length(path) - 1);
+      let line = lowest_line(path);
+      let blocked =
+        crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
+      let rec host = (path: list(Exp.t)) =>
+        switch (path) {
+        | [parent, child, ..._] when same_node(child, line) => Some(parent)
+        | [_, ...rest] => host(rest)
+        | [] => None
+        };
+      switch (blocked ? None : host(path)) {
+      | Some(h) =>
+        switch (IdTagged.term_of(h)) {
+        | Let(lp, ldef, lbody)
+            when same_node(lbody, line) && eq_defs(ldef, t) =>
+          switch (let_head_name(lp)) {
+          | Some(nm) when !List.mem(nm, binders_over(Exp.rep_id(t), lbody)) => (
+              exp_subtree_ids(t),
+              exp_subtree_ids(ldef),
+            )
+          | _ => ([], [])
+          }
+        | _ => ([], [])
+        }
+      | None => ([], [])
+      };
+    | None => ([], [])
+    }
+  | _ => ([], [])
+  };
+};
+
+let gesture_merge_target =
+    (~info_map, ~term, g: Action.Gesture.t, z: Zipper.t)
+    : (list(Id.t), list(Id.t)) =>
+  switch (Indicated.index(z), gesture(~info_map, ~term, g, z)) {
+  | (Some(target), Some(kind)) =>
+    merge_target(~info_map, ~target, kind, term)
+  | _ => ([], [])
+  };
+
+let refactor_merge_target =
+    (~info_map, ~term, kind: Action.refactor, z: Zipper.t)
+    : (list(Id.t), list(Id.t)) =>
+  switch (Indicated.index(z)) {
+  | Some(target) => merge_target(~info_map, ~target, kind, term)
+  | None => ([], [])
+  };
+
 let gesture_emerge_source =
     (~info_map, ~term, g: Action.Gesture.t, z: Zipper.t): list(Id.t) =>
   switch (Indicated.index(z), gesture(~info_map, ~term, g, z)) {
