@@ -1,0 +1,394 @@
+/* Exercise mode styles. This may also contain
+ * some styling around test decorations which
+ * could be factored out */
+
+#main.Exercises {
+  justify-content: space-between;
+}
+
+#main.Exercises .context-entry {
+  max-width: fit-content;
+  /* Correct implementation type sigs */
+}
+
+/* DERIVATION */
+
+.cell-derivation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.derivation-panel.cell-item {
+  padding-top: 0;
+  gap: 0;
+  /* background-color: var(--test-panel-bkg); */
+}
+
+.code-text:after {
+  content: "";
+}
+
+.code.fakecode {
+  display: flex;
+  align-items: center;
+}
+
+.code.fakecode .code-text {
+  z-index: auto;
+}
+
+.deduction-concl {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.deduction-concl .cell {
+  position: relative;
+  border-left: none !important;
+}
+
+.deduction-concl .cell-item {
+  padding: 0.3em 0.5em;
+}
+
+.deduction-concl .code.fakecode {
+  height: 2.2rem;
+}
+
+.deduction-prems-label {
+  display: flex;
+  align-items: flex-end;
+  border-bottom: var(--BR2) 0.1em solid;
+  border-bottom-right-radius: 0.6rem;
+  position: relative;
+}
+
+.deduction-prems {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.drv-explainthis {
+  font-family: math;
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+}
+
+.drv-explainthis .deduction-test:not(:empty) {
+  background-color: var(--cell-active);
+  border-radius: 1rem;
+  padding: 0 0.4rem;
+}
+
+.drv-explainthis .deduction-test .token {
+  opacity: 0.6;
+}
+
+#explain-this .drv-explainthis-section.section {
+  display: grid;
+  overflow-y: scroll;
+  gap: 0;
+}
+
+.hline {
+  border: none;
+  border-top: var(--BR2) 0.1em solid;
+  width: 100%;
+}
+
+.add-abbr-btn,
+.add-premise-btn {
+  opacity: 0;
+  cursor: pointer;
+  color: var(--BR1);
+  border-radius: 2rem;
+  -webkit-transition: all 0.3s;
+  -moz-transition: all 0.3s;
+  -o-transition: all 0.3s;
+  -ms-transition: all 0.3s;
+  transition: all 0.3s;
+}
+
+.add-premise-btn {
+  margin-top: 0.3rem;
+  margin-bottom: 0.1rem;
+  width: 1.4em;
+  height: 2em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-abbr-btn {
+  display: inline;
+  width: auto;
+}
+
+.add-abbr-btn .code .token {
+  color: var(--BR1);
+}
+
+.add-abbr-btn:hover .code .token {
+  color: var(--BR2);
+}
+
+.add-abbr-btn:hover,
+.add-premise-btn:hover {
+  background: var(--cell-active);
+  /* filter: drop-shadow(0px 0px 1px var(--BR4)); */
+  color: var(--BR2);
+}
+
+.add-premise-btn:hover,
+.deduction-just:hover:has(>div>div>.deduction-just-wrapper:only-child) .add-premise-btn,
+.deduction-just-wrapper:has(>div>.deduction-concl:hover):not(:has(.add-premise-btn:hover))+.deduction-just-wrapper>.add-premise-btn,
+.deduction-just-wrapper:has(>div>.deduction-concl:hover)>.add-premise-btn,
+.add-abbr-btn:hover,
+.cell-derivation:hover:has(.deduction-just~:hover)+.cell-derivation .add-abbr-btn,
+.cell-derivation:hover:not(:has(.deduction-just~:hover)):not(:has(.deduction-just:hover)) .add-abbr-btn,
+.cell-derivation:only-child .add-abbr-btn {
+  opacity: 1;
+}
+
+
+.add-premise-btn::after {
+  content: "•";
+}
+
+.add-premise-btn:hover::after {
+  content: "+";
+  font-weight: bold;
+}
+
+.deduction-label-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: 0.2rem;
+}
+
+.deduction-prems-label .test-result {
+  position: absolute;
+  right: -0.5rem;
+  bottom: -1.0rem;
+}
+
+/* Dropdown button */
+.deduction-label {
+  color: var(--ui-bkg);
+  padding: 0 0.3rem;
+  font-size: 0.8rem;
+  height: 1.1rem;
+  min-width: 0.5rem;
+  border-radius: 0.6rem;
+  border: 0.1rem solid var(--BR2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-wrap: nowrap;
+  background-color: var(--BR2);
+  position: relative;
+  bottom: -0.05rem;
+}
+
+/* Dropdown content (hidden by default) */
+.dropdown {
+  display: none;
+  flex-direction: column;
+  position: absolute;
+  left: 0;
+  bottom: 1.1rem;
+  background-color: var(--ui-bkg);
+  border: var(--BR2) 0.1rem solid;
+  border-radius: 0.6em;
+  border-bottom-left-radius: 0;
+  z-index: var(--top-bar-z);
+}
+
+.abbr-wrapper .deduction-just {
+  padding-left: 1.4rem;
+}
+
+.abbr-wrapper .deduction-just .deduction-just {
+  padding-left: 0;
+}
+
+.deduction-just-wrapper {
+  display: flex;
+  align-items: flex-end;
+}
+
+.dropdown.correct,
+.deduction-prems-label.correct {
+  border-color: var(--test-pass);
+}
+
+.deduction-label.correct {
+  background-color: var(--test-pass);
+  border: 0.1rem solid var(--test-pass);
+}
+
+.dropdown.partial-correct,
+.deduction-prems-label.partial-correct {
+  border-color: var(--test-indet);
+}
+
+.deduction-label.partial-correct {
+  background-color: transparent;
+  border: 0.1rem solid var(--test-indet);
+  color: var(--test-indet);
+}
+
+.dropdown.incorrect,
+.deduction-prems-label.incorrect {
+  border-color: var(--test-fail);
+}
+
+.deduction-label.incorrect {
+  background-color: transparent;
+  border: 0.1rem solid var(--test-fail);
+  color: var(--test-fail);
+}
+
+/* Show the dropdown menu on hover */
+/* .deduction-label-wrapper:hover {
+  filter: drop-shadow(0px 0px 4px var(--BR4));
+} */
+
+.deduction-label-wrapper:hover .dropdown {
+  display: flex;
+}
+
+.dropdown:hover::before {
+  content: "";
+  position: absolute;
+  top: -1rem;
+  /* Adjust this value to control the extra hover area */
+  right: -1rem;
+  bottom: 0;
+  left: -1rem;
+  z-index: -1;
+  /* Ensure it stays behind the dropdown */
+}
+
+.deduction-label-wrapper:hover .deduction-label {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.deduction-label-wrapper .named-menu-item {
+  height: 1.4rem;
+  font-size: 0.8rem;
+  text-wrap: nowrap;
+  background: var(--menu-bkg);
+  color: var(--token-exp);
+  border-bottom: var(--BR2) 0.1rem solid;
+  border-top-left-radius: 0.6rem;
+  border-top-right-radius: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.3rem;
+  z-index: var(--top-bar-z);
+}
+
+.deduction-label-wrapper .named-menu-item:last-child {
+  border-bottom: none;
+  border-radius: 0.6rem;
+}
+
+.deduction-label-wrapper .named-menu-item .icon {
+  transform: scale(0.7);
+}
+
+.deduction-label-wrapper .named-menu-item:hover {
+  background-color: var(--cell-active);
+}
+
+.deduction-label-wrapper .named-menu-item.default {
+  color: var(--token-explicit-hole);
+  text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
+}
+
+/* Add a grey background color to dropdown links on hover */
+.deduction-label-wrapper .named-menu-item:hover {
+  cursor: pointer;
+  text-decoration: strong;
+}
+
+.deduction-label-wrapper .named-menu-item .code.fakecode {
+  height: auto;
+}
+
+#ninja-keys-rules::part(actions-list) {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.rule-set-select {
+  align-self: flex-start;
+  width: fit-content;
+  border-radius: 1em;
+  background: transparent;
+  color: var(--ui-text);
+  padding: 0.2em 0.8em;
+  border: 1px solid var(--BR2);
+}
+
+.rule-set-select option {
+  color: var(--ui-text);
+  background: var(--T1);
+}
+
+.rule-set-select:hover {
+  border-color: var(--cell-selected-accent);
+}
+
+.hover-rule-spec {
+  background: var(--cell-active);
+  border: solid var(--BR1) 1px;
+  padding: 0.5rem;
+  border-radius: 1rem;
+  display: block;
+  position: fixed;
+  z-index: 1000;
+}
+
+#page .hover-rule-spec {
+  display: none;
+}
+
+#ninja-keys-rules {
+  opacity: 0.8;
+}
+
+#main.Exercises #prompt-textarea-container {
+  position: relative;
+  width: 100%;
+  margin-bottom: 0.5em;
+}
+
+#main.Exercises #prompt-input-box {
+  width: 96%;
+  min-height: 100px;
+  padding: 0.5em;
+  border: 1px solid var(--BR2);
+  border-radius: 4px;
+  color: var(--ui-text);
+  font-family: inherit;
+  font-size: inherit;
+  resize: vertical;
+  overflow-y: auto;
+}
+
+#main.Exercises #prompt-input-box:focus {
+  outline: none;
+  border-color: var(--BR2);
+}

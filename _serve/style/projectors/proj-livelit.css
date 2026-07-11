@@ -1,0 +1,32 @@
+.livelit > * {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    z-index: var(--projector-z);
+    width: 100%;
+    height: 100%;
+}
+
+.livelit > .slider > input {
+  margin: 0;
+  filter: sepia(1);
+  cursor: pointer;
+  outline: none;
+  width: 90%;
+}
+
+.livelit > .emotion {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+.livelit > .emotion input {
+    margin: 0;
+    filter: sepia(1);
+    cursor: pointer;
+    outline: none;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
