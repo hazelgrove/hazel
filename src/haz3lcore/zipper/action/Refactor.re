@@ -5825,43 +5825,115 @@ let hit_beta = (target: Id.t, e: Exp.t): bool =>
     )
   );
 
+/* does the construct span lines? Its aggregated lead/trail runs say
+   where it SITS (they can live on leftmost/rightmost descendants),
+   so strip them and scan what remains. */
+let interior_has_newline = (e: Exp.t): bool => {
+  let e = e |> strip_leading |> strip_trailing;
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e2: Exp.t) => {
+          let (b, a) = e2.annotation.secondary;
+          if (has_newline(b) || has_newline(a)) {
+            found := true;
+          };
+          cont(e2);
+        },
+      e,
+    );
+  found^;
+};
+
+/* a sep is spliced at several positions — each use mints fresh ids */
+let sep_copy = (run: list(Secondary.t)): list(Secondary.t) =>
+  run
+  |> List.map((w: Secondary.t) =>
+       {
+         Secondary.id: Id.mk(),
+         content: w.content,
+       }
+     );
+
+/* landing-block for INTRODUCED bindings (bind-arm / bind-argument /
+   split-let; unfold-call inherits): a construct that spans lines
+   keeps its vertical extent when rotated into lets — every
+   introduced `in` breaks, one binding per line (the movement
+   family's landing rule extended to the staging family). One-line
+   constructs stay one-line. Indent copies the physical line the
+   construct starts on (nearest self-or-ancestor lead with a break).
+   Direct reductions pass ~landing=false: their lets are transient
+   and the substituted result keeps the site's own layout. */
+let intro_sep = (~program: Exp.t, ~at: Id.t): option(list(Secondary.t)) =>
+  switch (find_path(~hit=hit_node(at), program)) {
+  | None => None
+  | Some(path) =>
+    let self = List.nth(path, List.length(path) - 1);
+    if (!interior_has_newline(self)) {
+      None;
+    } else {
+      Some(
+        path
+        |> List.rev
+        |> List.find_opt(e => has_newline(Slot.of_exp(e).lead))
+        |> Option.map(e => sep_like(Slot.of_exp(e).lead))
+        |> Option.value(~default=newline()),
+      );
+    };
+  };
+
+let ap_to_let_prepare = (~landing=true, ~info_map as _, ~target, program) => {
+  let build = (e: Exp.t): option((Exp.t, Id.t)) =>
+    beta_parts(e)
+    |> Option.map(((p, arg, body)) => {
+         let p = pad(p);
+         let def = pad(arg |> strip_leading |> strip_trailing);
+         /* landing block: a multiline construct breaks after the
+            in; a body with its own break keeps it; inline stays
+            inline */
+         let body: Exp.t = body;
+         let body =
+           switch (landing ? intro_sep(~program, ~at=Exp.rep_id(e)) : None) {
+           | Some(sep) when !has_newline(Slot.of_exp(body).lead) =>
+             with_secondary(
+               (sep_copy(sep), snd(body.annotation.secondary)),
+               body,
+             )
+           | _ => body
+           };
+         (fresh(Let(p, def, body)), Pat.rep_id(p));
+       });
+  /* parens per the feed policy: region-scoped reparse oracle;
+     conservative parens when no bounded region (a root-level ap
+     can have right siblings the bare let would absorb) */
+  switch (find_hit(~hit=hit_beta(target), program)) {
+  | None => None
+  | Some(e) =>
+    let parens =
+      switch (build(e)) {
+      | Some((bare, _)) =>
+        splice_parens_needed(~program, ~at=Exp.rep_id(e), bare)
+      | None => true
+      };
+    rewrite_node(
+      ~hit=hit_beta(target),
+      ~rewrite=
+        e =>
+          build(e)
+          |> Option.map(((let_node, focus)) =>
+               (parens ? fresh(Parens(let_node)) : let_node, focus)
+             ),
+      program,
+    );
+  };
+};
+
 let ap_to_let_impl: impl = {
   label: "Bind argument",
   tooltip: "Rewrite this application of a function literal as a let binding its argument",
-  prepare: (~info_map as _, ~target, program) => {
-    let build = (e: Exp.t): option((Exp.t, Id.t)) =>
-      beta_parts(e)
-      |> Option.map(((p, arg, body)) => {
-           let p = pad(p);
-           let def = pad(arg |> strip_leading |> strip_trailing);
-           /* the body keeps its own lead: an inline fun body lands
-              inline after the in; a multiline one keeps its break */
-           (fresh(Let(p, def, body)), Pat.rep_id(p));
-         });
-    /* parens per the feed policy: region-scoped reparse oracle;
-       conservative parens when no bounded region (a root-level ap
-       can have right siblings the bare let would absorb) */
-    switch (find_hit(~hit=hit_beta(target), program)) {
-    | None => None
-    | Some(e) =>
-      let parens =
-        switch (build(e)) {
-        | Some((bare, _)) =>
-          splice_parens_needed(~program, ~at=Exp.rep_id(e), bare)
-        | None => true
-        };
-      rewrite_node(
-        ~hit=hit_beta(target),
-        ~rewrite=
-          e =>
-            build(e)
-            |> Option.map(((let_node, focus)) =>
-                 (parens ? fresh(Parens(let_node)) : let_node, focus)
-               ),
-        program,
-      );
-    };
-  },
+  prepare: (~info_map, ~target, program) =>
+    ap_to_let_prepare(~info_map, ~target, program),
 };
 
 /* === Unfold call ===
@@ -6051,14 +6123,32 @@ let pick_arm =
 
 /* nested lets over the bindings; each binder and value keeps its ids
    (they travel), the final body keeps its own lead */
-let rec wrap_bindings = (bs: list((Pat.t, Exp.t)), body: Exp.t): Exp.t =>
+let rec wrap_bindings =
+        (
+          ~sep: option(list(Secondary.t))=None,
+          bs: list((Pat.t, Exp.t)),
+          body: Exp.t,
+        )
+        : Exp.t =>
   switch (bs) {
   | [] => body
   | [(x, v), ...rest] =>
-    let inner = wrap_bindings(rest, body);
-    /* lead only: the nested let follows the outer `in`; its right
-       edge is the body's own end */
-    let inner = rest == [] ? inner : with_secondary((space(), []), inner);
+    let inner = wrap_bindings(~sep, rest, body);
+    let inner =
+      switch (sep) {
+      /* landing block: each binding takes its own line; a body
+         that already breaks keeps its own lead */
+      | Some(sp) =>
+        rest == [] && has_newline(Slot.of_exp(inner).lead)
+          ? inner
+          : with_secondary(
+              (sep_copy(sp), snd(inner.annotation.secondary)),
+              inner,
+            )
+      /* lead only: the nested let follows the outer `in`; its right
+         edge is the body's own end */
+      | None => rest == [] ? inner : with_secondary((space(), []), inner)
+      };
     fresh(Let(pad(x), pad(v |> strip_leading |> strip_trailing), inner));
   };
 
@@ -6102,14 +6192,15 @@ let case_hit = (~target, e: Exp.t) =>
 
 /* the let-intro form: arm bindings become nested lets (the two-step
    sibling, like Bind argument for beta) */
-let case_to_lets = (~target, program): option((Exp.t, Id.t)) => {
+let case_to_lets = (~landing: bool, ~target, program): option((Exp.t, Id.t)) => {
   let build = (e: Exp.t) =>
     switch (IdTagged.term_of(e)) {
     | Match(scrut, rules) =>
       pick_arm(scrut, rules)
       |> Option.map(((bs, body)) => {
+           let sep = landing ? intro_sep(~program, ~at=Exp.rep_id(e)) : None;
            let body = body |> strip_leading |> strip_trailing;
-           let built = wrap_bindings(bs, body);
+           let built = wrap_bindings(~sep, bs, body);
            (built, Exp.rep_id(built));
          })
     | _ => None
@@ -6128,7 +6219,8 @@ let bind_arm_impl: impl = {
       switch (IdTagged.term_of(e)) {
       | Match(scrut, rules) =>
         switch (pick_arm(scrut, rules)) {
-        | Some(([_, ..._], _)) => case_to_lets(~target, program)
+        | Some(([_, ..._], _)) =>
+          case_to_lets(~landing=true, ~target, program)
         | _ => None
         }
       | _ => None
@@ -6156,7 +6248,7 @@ let reduce_case_impl: impl = {
                  Option.bind(acc, ((prog, _)) =>
                    inline_let_impl.prepare(~info_map, ~target=bid, prog)
                  ),
-               case_to_lets(~target, program),
+               case_to_lets(~landing=false, ~target, program),
              );
         | None => None
         }
@@ -6174,31 +6266,36 @@ let reduce_case_impl: impl = {
  * the original's rightward extent, so no parens question arises.
  * Var-headed lets are Inline's territory, not Split's. */
 
+let split_let_prepare = (~landing=true, ~info_map as _, ~target, program) =>
+  rewrite_node(
+    ~hit=hit_let(target),
+    ~rewrite=
+      e =>
+        switch (IdTagged.term_of(e)) {
+        | Let(p, def, body) when let_head_name(p) == None =>
+          switch (match_value(p, def)) {
+          | Matched(bs) =>
+            let sep =
+              landing ? intro_sep(~program, ~at=Exp.rep_id(e)) : None;
+            let built = wrap_bindings(~sep, bs, body);
+            let focus =
+              switch (bs) {
+              | [(x, _), ..._] => Pat.rep_id(x)
+              | [] => Exp.rep_id(built)
+              };
+            Some((built, focus));
+          | _ => None
+          }
+        | _ => None
+        },
+    program,
+  );
+
 let split_let_impl: impl = {
   label: "Split let",
   tooltip: "Destructure this pattern binding into one let per variable",
-  prepare: (~info_map as _, ~target, program) =>
-    rewrite_node(
-      ~hit=hit_let(target),
-      ~rewrite=
-        e =>
-          switch (IdTagged.term_of(e)) {
-          | Let(p, def, body) when let_head_name(p) == None =>
-            switch (match_value(p, def)) {
-            | Matched(bs) =>
-              let built = wrap_bindings(bs, body);
-              let focus =
-                switch (bs) {
-                | [(x, _), ..._] => Pat.rep_id(x)
-                | [] => Exp.rep_id(built)
-                };
-              Some((built, focus));
-            | _ => None
-            }
-          | _ => None
-          },
-      program,
-    ),
+  prepare: (~info_map, ~target, program) =>
+    split_let_prepare(~info_map, ~target, program),
 };
 
 /* === Beta-reduce ===
@@ -6217,7 +6314,9 @@ let beta_reduce_impl: impl = {
     | Some(e) =>
       switch (beta_parts(e)) {
       | Some((p, _, _)) when let_head_name(p) != None =>
-        switch (ap_to_let_impl.prepare(~info_map, ~target, program)) {
+        switch (
+          ap_to_let_prepare(~landing=false, ~info_map, ~target, program)
+        ) {
         | Some((prog', binder_id)) =>
           /* info_map is stale for prog' — inline at the binder is
              syntactic (name, occurrences, subst), so it doesn't
@@ -6230,7 +6329,9 @@ let beta_reduce_impl: impl = {
            over the argument (split-let's matcher gates), then
            inline each var binder — Step is never dead at an applied
            lambda just because its parameter is a tuple */
-        switch (ap_to_let_impl.prepare(~info_map, ~target, program)) {
+        switch (
+          ap_to_let_prepare(~landing=false, ~info_map, ~target, program)
+        ) {
         | Some((prog', binder_id)) =>
           let hit_binder = (e: Exp.t) =>
             switch (IdTagged.term_of(e)) {
@@ -6266,7 +6367,8 @@ let beta_reduce_impl: impl = {
                      Option.bind(acc, ((prog, _)) =>
                        inline_let_impl.prepare(~info_map, ~target=bid, prog)
                      ),
-                   split_let_impl.prepare(
+                   split_let_prepare(
+                     ~landing=false,
                      ~info_map,
                      ~target=binder_id,
                      prog',
