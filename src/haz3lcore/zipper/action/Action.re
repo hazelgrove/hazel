@@ -154,6 +154,7 @@ type refactor =
   | FeedLet
   | RemoveUnusedLet
   | InlineAlias
+  | ExtractAlias
   | AddTypeAnnotation
   | EtaExpand
   | EvaluateInPlace

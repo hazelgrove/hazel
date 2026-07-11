@@ -3805,14 +3805,16 @@ let tyalias_tests = [
       );
     },
   ),
-  test_case("tyalias: inline gated when a crossed alias captures", `Quick, () => {
-    check(
-      bool,
-      "gated",
-      false,
-      offers(InlineLet, "let ¦a = (1 : t) in\ntype t = Bool in\na"),
-    )
-  }),
+  test_case(
+    "tyalias: inline freshens a crossed same-name alias",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=InlineLet, "let ¦a = (1 : t) in\ntype t = Bool in\na")
+        |> text_of;
+      check(string, "freshened", "type t1 = Bool in\n(1 : t)", z);
+    },
+  ),
   test_case("tyalias: inline offered when no alias crossed", `Quick, () => {
     check(
       bool,
@@ -3821,14 +3823,21 @@ let tyalias_tests = [
       offers(InlineLet, "let ¦a = (1 : t) in\na"),
     )
   }),
-  test_case("tyalias: feed gated when a crossed alias captures", `Quick, () => {
-    check(
-      bool,
-      "gated",
-      false,
-      offers(FeedLet, "let ¦a = (1 : t) in\ntype t = Bool in\na + a"),
-    )
-  }),
+  test_case(
+    "tyalias: feed freshens a crossed same-name alias",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=FeedLet, "let ¦a = (1 : t) in\ntype t = Bool in\na + a")
+        |> text_of;
+      check(
+        string,
+        "freshened",
+        "let a = (1 : t) in\ntype t1 = Bool in\n(1 : t) + a",
+        z,
+      );
+    },
+  ),
   test_case("tyalias: feed offered when no alias crossed", `Quick, () => {
     check(
       bool,
@@ -3844,7 +3853,7 @@ let tyalias_tests = [
    flips if/when comment-block attachment lands) */
 let comment_tests = [
   test_case(
-    "comment: hoist chain swap leaves doc block at its slot",
+    "comment: doc block FOLLOWS its definition on hoist",
     `Quick,
     () => {
       let z =
@@ -3856,13 +3865,31 @@ let comment_tests = [
       check(
         string,
         "hoist",
-        "let b = 2 in\n# doc for b #\nlet a = 1 in\na + b",
+        "# doc for b #\nlet b = 2 in\nlet a = 1 in\na + b",
         z,
       );
     },
   ),
   test_case(
-    "comment: sink chain swap leaves doc block at its slot",
+    "comment: doc block FOLLOWS its definition on sink",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkLet,
+          "let z = 0 in\n# doc for a #\nlet ¦a = 1 in\nlet b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "sink",
+        "let z = 0 in\nlet b = 2 in\n# doc for a #\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: buffer-start doc block follows its definition",
     `Quick,
     () => {
       let z =
@@ -3874,7 +3901,79 @@ let comment_tests = [
       check(
         string,
         "sink",
-        "# doc for a #\nlet b = 2 in\nlet a = 1 in\na + b",
+        "let b = 2 in\n# doc for a #\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: free-standing block (blank below) stays put",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkLet,
+          "# header #\n\nlet ¦a = 1 in\nlet b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "sink",
+        "# header #\n\nlet b = 2 in\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: comment-fn-comment-fn style, both blocks follow",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkLet,
+          "let z = 0 in\n# doc a #\nlet ¦a = 1 in\n# doc b #\nlet b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "sink",
+        "let z = 0 in\n# doc b #\nlet b = 2 in\n# doc a #\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: multi-line doc block travels whole",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistLet,
+          "let a = 1 in\n# doc one #\n# doc two #\nlet ¦b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "hoist",
+        "# doc one #\n# doc two #\nlet b = 2 in\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: doc block rides a statement crossing",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkLet,
+          "let z = 0 in\n# doc a #\nlet ¦a = 1 in\n1 + 1;\na + 2",
+        )
+        |> text_of;
+      check(
+        string,
+        "sink",
+        "let z = 0 in\n1 + 1;\n# doc a #\nlet a = 1 in\na + 2",
         z,
       );
     },
@@ -4134,6 +4233,97 @@ let inline_alias_tests = [
       offers(RemoveUnusedLet, "type ¦t = Int in\n(1 : t)"),
     )
   }),
+  test_case(
+    "tyalias: freshened alias renames its own uses too",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=InlineLet,
+          "let ¦a = (1 : t) in\ntype t = Bool in\n(a, (2 : t))",
+        )
+        |> text_of;
+      check(string, "freshened", "type t1 = Bool in\n((1 : t), (2 : t1))", z);
+    },
+  ),
+  test_case(
+    "alias feed: one use per press",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=FeedLet, "type ¦t = Int in\n(1 : t);\n(2 : t)")
+        |> text_of;
+      check(string, "fed", "type t = Int in\n(1 : Int);\n(2 : t)", z);
+    },
+  ),
+  test_case(
+    "alias feed: last use consumes the line",
+    `Quick,
+    () => {
+      let z = inline(~kind=FeedLet, "type ¦t = Int in\n(1 : t)") |> text_of;
+      check(string, "consumed", "(1 : Int)", z);
+    },
+  ),
+  test_case("alias feed: offered when uses exist", `Quick, () => {
+    check(
+      bool,
+      "offered",
+      true,
+      offers(FeedLet, "type ¦t = Int in\n(1 : t)"),
+    )
+  }),
+  test_case(
+    "extract alias: annotation type to a named alias",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=ExtractAlias,
+          "let f: ¦Int -> Int = fun x -> x in\nf(1)",
+        )
+        |> text_of;
+      check(
+        string,
+        "extracted",
+        "type zoob = Int in let f: zoob -> Int = fun x -> x in\nf(1)",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "extract alias: lands at the enclosing line, use travels",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=ExtractAlias,
+          "let k = 1 in\nlet f: ¦Int -> Int = fun x -> x in\nf(k)",
+        )
+        |> text_of;
+      check(
+        string,
+        "extracted",
+        "let k = 1 in\ntype borp = Int in\nlet f: borp -> Int = fun x -> x in\nf(k)",
+        z,
+      );
+    },
+  ),
+  test_case("extract alias: bare Var target refused", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(ExtractAlias, "type t = Int in\nlet a: ¦t = 1 in\na"),
+    )
+  }),
+  test_case("extract alias: whole alias def refused", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(ExtractAlias, "type t = Int ¦-> Int in\n(1 : t)"),
+    )
+  }),
   test_case("inline alias: offered at the type line", `Quick, () => {
     check(
       bool,
@@ -4142,6 +4332,63 @@ let inline_alias_tests = [
       offers(InlineAlias, "type ¦t = Int in\n(1 : t)"),
     )
   }),
+];
+
+let doc_carry_tests = [
+  test_case(
+    "comment: mid-chain doc block travels on hoist",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistLet,
+          "let z = 0 in\nlet a = 1 in\n# doc b #\nlet ¦b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "h",
+        "let z = 0 in\n# doc b #\nlet b = 2 in\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: crossed line's doc block stays ITS doc",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistLet,
+          "let z = 0 in\n# doc a #\nlet a = 1 in\nlet ¦b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "h",
+        "let z = 0 in\nlet b = 2 in\n# doc a #\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: mid-chain doc block rides a sink",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkLet,
+          "let z = 0 in\nlet ¦a = 1 in\n# doc b #\nlet b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "s",
+        "let z = 0 in\n# doc b #\nlet b = 2 in\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
 ];
 
 let landing_block_tests = [
@@ -4278,6 +4525,7 @@ let tests = [
     @ whitespace_probe2
     @ tyalias_tests
     @ comment_tests
+    @ doc_carry_tests
     @ def_line_tests
     @ inline_alias_tests
     @ beta_tests
