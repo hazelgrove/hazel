@@ -4578,6 +4578,95 @@ let unfold_beta_tests = [
   }),
 ];
 
+let intro_landing_tests = [
+  test_case(
+    "bind arm: multiline case lands one let per line",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=BindArm,
+          "let r =\n¦case Lam(\"yo\", Var(\"yo\"))\n| Var(n) => Error(\"free\")\n| Lam(x, body) => Ok(Lam(x, body))\nend in\nr",
+        )
+        |> text_of;
+      check(
+        string,
+        "own lines",
+        "let r =\nlet x = \"yo\" in\nlet body = Var(\"yo\") in\nOk(Lam(x, body)) in\nr",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "bind arm: inline case stays inline",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=BindArm, "¦case (1, 2) | (a, b) => a + b end")
+        |> text_of;
+      check(string, "flat", "let a = 1 in let b = 2 in a + b", got);
+    },
+  ),
+  test_case(
+    "bind arm: indent copies the construct's line",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=BindArm,
+          "test\n  (¦case (1, 2)\n  | (a, b) => a + b\n  end) == 3 end",
+        )
+        |> text_of;
+      check(
+        string,
+        "indented",
+        "test\n  (let a = 1 in\n  let b = 2 in\n  a + b) == 3 end",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "split let: multiline lands one let per line",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SplitLet, "¦let (a, b) = (1, 2) in\na + b") |> text_of;
+      check(string, "own lines", "let a = 1 in\nlet b = 2 in\na + b", got);
+    },
+  ),
+  test_case(
+    "split let: one-liner stays flat",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=SplitLet, "¦let (a, b) = (1, 2) in a + b") |> text_of;
+      check(string, "flat", "let a = 1 in let b = 2 in a + b", got);
+    },
+  ),
+  test_case(
+    "bind argument: multiline lambda breaks after in",
+    `Quick,
+    () => {
+      let got =
+        inline(~kind=BindArgument, "¦(fun x ->\nx + x)(7)") |> text_of;
+      check(string, "block", "let x = 7 in\nx + x", got);
+    },
+  ),
+  test_case(
+    "beta unchanged: transient lets stay flat",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=BetaReduce,
+          "let r =\n¦(fun (a, b) -> a + b)((1, 2))\nin r",
+        )
+        |> text_of;
+      check(string, "substituted", "let r =\n1 + 2\nin r", got);
+    },
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -4704,6 +4793,7 @@ let tests = [
     @ round3_tests
     @ binding_tests
     @ sink_layout_tests
+    @ intro_landing_tests
     @ landing_block_tests
     @ whitespace_probe
     @ whitespace_probe2
