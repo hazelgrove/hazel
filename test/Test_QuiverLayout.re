@@ -81,7 +81,8 @@ let probe2 = [
       check(
         string_testable,
         "states",
-        "PROBE",
+        "A: )+=+in@1:10  MAT<let a = 2 in\nlet _: (  ?)=?in?>\n"
+        ++ "B: in@1:19 | =@1:19  MAT<let a = 2 in\nlet _: (Int, Bool)=?in? >",
         "A: "
         ++ full("let a = 2 in\nlet _: (  ¦")
         ++ "\nB: "
