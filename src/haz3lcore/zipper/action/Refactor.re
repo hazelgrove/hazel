@@ -404,7 +404,13 @@ let refresh_annotation = (a: IdTagged.IdTag.t): IdTagged.IdTag.t => {
        );
   let (before, after) = a.secondary;
   {
-    ids: [Id.mk()],
+    /* fresh id PER id — the tail carries real structure (a Match's
+       rule-tile ids live there); truncating to one id starved the
+       printer into deriving rule ids from Id.invalid, which is
+       base-independent — every starved case in the program got THE
+       SAME derived ids (duplicate |=> tiles: glommed indication,
+       caret jumping to the wrong twin) */
+    ids: a.ids == [] ? [Id.mk()] : a.ids |> List.map(_ => Id.mk()),
     secondary: (refresh_sec(before), refresh_sec(after)),
     incomplete: [],
     lexeme: a.lexeme,
@@ -7983,13 +7989,19 @@ let gesture =
     switch (g) {
     | Step =>
       /* take a step of evaluation here: the reduce family, context-
-         resolved like the spatial arrows */
+         resolved like the spatial arrows; a closed non-value with no
+         syntactic step falls through to full evaluation (reduce
+         takes priority when both apply) */
       switch (app(BetaReduce)) {
       | Some(k) => Some(k)
       | None =>
         switch (app(ReduceCase)) {
         | Some(k) => Some(k)
-        | None => app(ReduceIf)
+        | None =>
+          switch (app(ReduceIf)) {
+          | Some(k) => Some(k)
+          | None => app(EvaluateInPlace)
+          }
         }
       }
     | Bind =>

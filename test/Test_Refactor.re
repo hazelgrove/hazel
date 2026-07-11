@@ -28,15 +28,32 @@ let collect_tile_ids = (z: Zipper.t): list(Id.t) => {
    (travel becomes rebirth). */
 let assert_unique_ids = (z: Zipper.t): unit => {
   let ids = ref([]);
+  let describe = ref([]);
   let rec collect = (seg: Segment.t) =>
     seg
     |> List.iter((piece: Piece.t) =>
          switch (piece) {
          | Tile(t) =>
            ids := [t.id, ...ids^];
+           describe :=
+             [(t.id, "tile:" ++ String.concat("", t.label)), ...describe^];
            t.children |> List.iter(collect);
-         | Grout(g) => ids := [g.id, ...ids^]
-         | Secondary(w) => ids := [w.id, ...ids^]
+         | Grout(g) =>
+           ids := [g.id, ...ids^];
+           describe := [(g.id, "grout"), ...describe^];
+         | Secondary(w) =>
+           ids := [w.id, ...ids^];
+           describe :=
+             [
+               (
+                 w.id,
+                 switch (w.content) {
+                 | Whitespace(x) => "ws:" ++ String.escaped(x)
+                 | Comment(c) => "comment:" ++ c
+                 },
+               ),
+               ...describe^,
+             ];
          | Projector(pr) => ids := [pr.id, ...ids^]
          }
        );
@@ -52,7 +69,17 @@ let assert_unique_ids = (z: Zipper.t): unit => {
            (None, []),
          )
       |> snd
-      |> List.map(Id.to_string)
+      |> List.map(id =>
+           Id.to_string(id)
+           ++ " ["
+           ++ (
+             describe^
+             |> List.filter(((i, _)) => i == id)
+             |> List.map(snd)
+             |> String.concat(" & ")
+           )
+           ++ "]"
+         )
       |> String.concat(", ");
     Alcotest.fail("duplicate piece ids after transform: " ++ dupes);
   };
@@ -4438,6 +4465,56 @@ let def_zone_tests = [
   ),
 ];
 
+let step_trace_tests = [
+  test_case(
+    "lambda-calc stepping: 7-step trace, ids unique throughout",
+    `Quick,
+    () => {
+      let slide = "type Exp =\n+ Var(String)\n+ Lam(String, Exp)\n+ Ap(Exp, Exp) in\nlet subst: (Exp, String, Exp) -> Exp =\nfun (v, name, e) ->\ncase e\n| Var(x) =>\nif x == name then v else e\n| Lam(x, body) =>\nLam(x, subst(v, name, body))\n| Ap(f, arg) =>\nAp(subst(v, name, f), subst(v, name, arg)) end in\nlet go: Exp -> Result =\nfun e ->\ncase e\n| Var(_n) => Error(\"Free Variable\")\n| Lam(x, body) => Ok(Lam(x, body))\n| Ap(e1,e2) =>\ncase go(e1)\n| Ok(Lam(x, body))=>\ncase go(e2)\n| Error(err) => Error(err)\n| Ok(arg) => go(subst(arg, x, body)) end\n| _ => Error(\"Not a Function\") end end in\ntest\ngo(Ap(Lam(\"yo\", Var(\"yo\")), Lam(\"bro\", Var(\"bro\"))))\n== Ok(Lam(\"bro\", Var(\"bro\"))) end";
+      /* helper: mark before the first occurrence of a needle AFTER a
+         given position marker */
+      let mark = (text, needle) => {
+        let i = Str.search_forward(Str.regexp_string(needle), text, 0);
+        String.sub(text, 0, i)
+        ++ "\xc2\xa6"
+        ++ String.sub(text, i, String.length(text) - i);
+      };
+      let step = (~kind, ~at, text) => {
+        let z = inline(~kind, mark(text, at));
+        text_of(z);
+      };
+      /* A: feed go at the test call site */
+      Printf.eprintf("STEP A...\n%!");
+      let t1 = step(~kind=FeedLet, ~at="go(Ap(", slide);
+      Printf.eprintf("STEP A OK\nSTEP B...\n%!");
+      /* B: beta the applied lambda */
+      let t2 = step(~kind=BetaReduce, ~at="(fun e ->", t1);
+      Printf.eprintf("STEP B OK\nSTEP C...\n%!");
+      /* C: take the Ap arm of the outer case */
+      let t3 = step(~kind=ReduceCase, ~at="case Ap(", t2);
+      Printf.eprintf("STEP C OK\nSTEP D...\n%!");
+      /* D: feed go at the inner scrutinee call */
+      let t4 = step(~kind=FeedLet, ~at="go(Lam(\"yo\"", t3);
+      Printf.eprintf("STEP D OK\nSTEP E...\n%!");
+      /* E: beta that application */
+      let t5 = step(~kind=BetaReduce, ~at="(fun e ->", t4);
+      Printf.eprintf("STEP E OK\nSTEP F...\n%!");
+      /* F: take the Lam arm */
+      let t6 = step(~kind=ReduceCase, ~at="case Lam(\"yo\"", t5);
+      Printf.eprintf("STEP F OK\nSTEP G...\n%!");
+      /* G: take the Ok(Lam(x, body)) arm — nested ctor payload match */
+      let t7 = step(~kind=ReduceCase, ~at="case Ok(", t6);
+      Printf.eprintf("STEP G OK\n%!");
+      check(
+        string,
+        "trace",
+        "type Exp =\n+ Var(String)\n+ Lam(String, Exp)\n+ Ap(Exp, Exp) in\nlet subst: (Exp, String, Exp) -> Exp =\nfun (v, name, e) ->\ncase e\n| Var(x) =>\nif x == name then v else e\n| Lam(x, body) =>\nLam(x, subst(v, name, body))\n| Ap(f, arg) =>\nAp(subst(v, name, f), subst(v, name, arg)) end in\nlet go: Exp -> Result =\nfun e ->\ncase e\n| Var(_n) => Error(\"Free Variable\")\n| Lam(x, body) => Ok(Lam(x, body))\n| Ap(e1,e2) =>\ncase go(e1)\n| Ok(Lam(x, body)) =>\ncase go(e2)\n| Error(err) => Error(err)\n| Ok(arg) => go(subst(arg, x, body)) end\n| _ => Error(\"Not a Function\") end end in\ntest\n(case go(Lam(\"bro\", Var(\"bro\")))\n| Error(err) => Error(err)\n| Ok(arg) => go(subst(arg, \"yo\", Var(\"yo\"))) end)\n== Ok(Lam(\"bro\", Var(\"bro\"))) end",
+        t7,
+      );
+    },
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -4570,6 +4647,7 @@ let tests = [
     @ tyalias_tests
     @ comment_tests
     @ explode_tests
+    @ step_trace_tests
     @ def_zone_tests
     @ eq_tests
     @ doc_carry_tests
