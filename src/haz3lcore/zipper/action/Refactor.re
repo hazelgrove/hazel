@@ -5915,10 +5915,11 @@ let unfold_call_impl: impl = {
     | Some(f_use) =>
       /* feed f's def into THIS use (occurrence-targeted feed) */
       switch (feed_let_impl.prepare(~info_map, ~target=f_use, program)) {
-      | Some((prog', _)) =>
+      | Some((prog', fed)) =>
         /* the lambda now sits where the var was — rotate its
-           application; f_use survives as the copy's root id */
-        ap_to_let_impl.prepare(~info_map, ~target=f_use, prog')
+           application. Chain on feed's focus id, not f_use: the
+           copy's root id is branch policy (drag clones fresh). */
+        ap_to_let_impl.prepare(~info_map, ~target=fed, prog')
       | None => None
       }
     | None => None
