@@ -2613,6 +2613,18 @@ let gesture_tests = [
     Some(HoistLet),
   ),
   check_gesture(
+    "up at a twin = merge, not hoist",
+    Up,
+    "let aa = f(1) in ¦let bb = f(1) in aa + bb",
+    Some(MergeUp),
+  ),
+  check_gesture(
+    "down at a twin = merge, not sink",
+    Down,
+    "¦let aa = f(1) in let bb = f(1) in aa + bb",
+    Some(MergeDown),
+  ),
+  check_gesture(
     "up on mid-chain TYPE line = hoist, never extract",
     Up,
     "let k = 1 in ¦type t = Int in k",
