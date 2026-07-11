@@ -236,13 +236,35 @@ let resolve_position =
         | _ => rest
         };
       /* ghost-caret shape at the pin: the shared-nib facing between
-         the pieces around the insertion point, mirroring
-         Siblings.direction_between (right neighborhood first) */
+         the pieces around the insertion point. A side-Right insertion
+         reads the right neighborhood first (mirroring
+         Siblings.direction_between); a side-Left one (junction: the
+         material lands against the content on its LEFT) reads the
+         left neighborhood first — the chevron faces the content the
+         pin docks to. */
       let shape = {
-        let (before, after) = Util.ListUtil.split_n(i + 1, sg);
-        switch (Segment.edge_direction_of(Left, after)) {
-        | None => Segment.edge_direction_of(Right, before)
-        | d => d
+        /* the insertion point is right of the anchor for side-Right,
+           left of it for side-Left — split so the anchor sits on the
+           material's side, then read the facing neighborhood */
+        let (before, after) =
+          Util.ListUtil.split_n(
+            switch (ins.side) {
+            | Right => i + 1
+            | Left => i
+            },
+            sg,
+          );
+        switch (ins.side) {
+        | Right =>
+          switch (Segment.edge_direction_of(Left, after)) {
+          | None => Segment.edge_direction_of(Right, before)
+          | d => d
+          }
+        | Left =>
+          switch (Segment.edge_direction_of(Left, after)) {
+          | None => Segment.edge_direction_of(Right, before)
+          | d => d
+          }
         };
       };
       Some({
@@ -424,10 +446,12 @@ let delimiters_len =
 let layout_overlaps =
     (~font_metrics: FontMetrics.t, chips: list(positioned_insertion))
     : list((positioned_insertion, float)) => {
+  /* rendered body width: scaled text + 4px padding each side */
   let chip_w = (c: positioned_insertion) =>
-    float_of_int(delimiters_len(c.delimiters) + 2)
+    float_of_int(delimiters_len(c.delimiters))
     *. font_metrics.col_width
-    *. chip_font_scale;
+    *. chip_font_scale
+    +. 8.;
   let rec merge_same = (acc, rest) =>
     switch (acc, rest) {
     | (_, []) => List.rev(acc)
@@ -453,8 +477,8 @@ let layout_overlaps =
       let natural_left = float_of_int(c.col) *. font_metrics.col_width;
       let dx =
         switch (prev) {
-        | Some((row, right)) when row == c.row && natural_left < right +. 4. =>
-          right +. 4. -. natural_left
+        | Some((row, right)) when row == c.row && natural_left < right +. 2. =>
+          right +. 2. -. natural_left
         | _ => 0.
         };
       [
