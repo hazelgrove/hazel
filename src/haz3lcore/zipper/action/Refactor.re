@@ -1561,6 +1561,28 @@ let freshen_crossed_aliases = (~x: string, ~moved: Exp.t, body: Exp.t): Exp.t =>
   };
 };
 
+/* The reparse oracle costs ~80ms + ~6ms/line (print + normalize +
+   parse + remake) — fine for the small delimiter-bounded regions it
+   was built for, misery when the region is the WHOLE PROGRAM on a
+   big buffer (and inline pays per occurrence). Root regions run the
+   oracle only under this size cap; above it we take the old
+   conservative parens (redundant but safe). The principled endgame
+   is a static precedence check at the splice point. */
+let oracle_size_cap = 250;
+let small_enough_for_oracle = (e: Exp.t): bool => {
+  let n = ref(0);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) => {
+          incr(n);
+          n^ > oracle_size_cap ? e : cont(e);
+        },
+      e,
+    );
+  n^ <= oracle_size_cap;
+};
+
 let reparses_region = (region: Exp.t): bool => {
   let seg =
     ExpToSegment.exp_to_segment(~settings=roundtrip_settings, region)
@@ -1706,17 +1728,19 @@ let inline_let_impl: impl = {
                 ? occurrences_of(x, body)
                   |> List.filter_map(occ => {
                        let region = bounded_region(Exp.rep_id(occ), program);
-                       /* root regions run the oracle too (blanket
-                          parens left superfluous ones after
-                          semicolons — andrew; invocation-only) */
-                       let candidate =
-                         replace_node(
-                           ~at=Exp.rep_id(occ),
-                           ~with_=inserted(~parens=false, def, occ),
-                           region,
-                         );
-                       reparses_region(candidate)
-                         ? Some(Exp.rep_id(occ)) : None;
+                       if (same_node(region, program)
+                           && !small_enough_for_oracle(program)) {
+                         None;
+                       } else {
+                         let candidate =
+                           replace_node(
+                             ~at=Exp.rep_id(occ),
+                             ~with_=inserted(~parens=false, def, occ),
+                             region,
+                           );
+                         reparses_region(candidate)
+                           ? Some(Exp.rep_id(occ)) : None;
+                       };
                      })
                 : occurrences_of(x, body) |> List.map(Exp.rep_id);
             let parens_for = occ =>
@@ -1958,20 +1982,22 @@ let feed_prepare = (~prefer_def_host=false, ~info_map, ~target, program) =>
     inline_let_impl.prepare(~info_map, ~target=Exp.rep_id(l), program)
   | Some(Feed(l, def, occ)) =>
     /* parens: the same per-occurrence policy as inline */
-    /* root-region occurrences run the oracle too (blanket parens
-       left superfluous ones after semicolons — andrew) */
     let parens =
       needs_parens(def)
-      && !{
-           let region = bounded_region(Exp.rep_id(occ), program);
-           let candidate =
-             replace_node(
-               ~at=Exp.rep_id(occ),
-               ~with_=inserted(~parens=false, def, occ),
-               region,
-             );
-           reparses_region(candidate);
-         };
+      && {
+        let region = bounded_region(Exp.rep_id(occ), program);
+        if (same_node(region, program) && !small_enough_for_oracle(program)) {
+          true;
+        } else {
+          let candidate =
+            replace_node(
+              ~at=Exp.rep_id(occ),
+              ~with_=inserted(~parens=false, def, occ),
+              region,
+            );
+          !reparses_region(candidate);
+        };
+      };
     /* the copy is a SPAWNED CLONE (dragology's fruit-bowl: the def
        survives, so the copy is wholly new — fresh ids throughout,
        keep_ids so the root doesn't adopt the occurrence's). The
@@ -5412,15 +5438,19 @@ let reduce_prepare =
   | None => None
   | Some(e) =>
     let parens = {
-      /* region == program is fine: the oracle runs on the whole
-         program (blanket parens here wrapped every tail-position
-         reduction and compounded per step) */
+      /* the root oracle is size-capped (seconds on big buffers);
+         over the cap the conservative parens return */
       let region = bounded_region(Exp.rep_id(e), program);
-      switch (build(e)) {
-      | Some((bare, _)) =>
-        let candidate = replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
-        !reparses_region(candidate);
-      | None => true
+      if (same_node(region, program) && !small_enough_for_oracle(program)) {
+        true;
+      } else {
+        switch (build(e)) {
+        | Some((bare, _)) =>
+          let candidate =
+            replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
+          !reparses_region(candidate);
+        | None => true
+        };
       };
     };
     rewrite_node(
@@ -5541,12 +5571,16 @@ let ap_to_let_impl: impl = {
            stepping happens — and the parens compounded per step
            (andrew). */
         let region = bounded_region(Exp.rep_id(e), program);
-        switch (build(e)) {
-        | Some((bare, _)) =>
-          let candidate =
-            replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
-          !reparses_region(candidate);
-        | None => true
+        if (same_node(region, program) && !small_enough_for_oracle(program)) {
+          true;
+        } else {
+          switch (build(e)) {
+          | Some((bare, _)) =>
+            let candidate =
+              replace_node(~at=Exp.rep_id(e), ~with_=bare, region);
+            !reparses_region(candidate);
+          | None => true
+          };
         };
       };
       rewrite_node(
