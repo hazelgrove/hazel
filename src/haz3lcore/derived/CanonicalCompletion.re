@@ -2824,6 +2824,57 @@ let splice_ghost =
   };
 };
 
+/* The ghost hugs the caret when only spaces separate it from the
+   run's true position: Tab lands at the caret, and a closer drawn
+   left of the caret would portray typing OUTSIDE the completed
+   form. Sliding is space-only — never across content or holes (the
+   caret-lock misorder janks) and never across a linebreak
+   (multiline closers keep their own line). */
+let slide_to_caret = (z: Zipper.t, ins: insertion): insertion =>
+  switch (ins.splice, z.caret) {
+  | (Some((id, sh, Direction.Right)), Outer) =>
+    let (l, _) = z.relatives.siblings;
+    let ref_ok = (p: Piece.t) =>
+      Id.equal(Piece.id(p), id)
+      && (
+        switch (p, sh) {
+        | (Tile(t), Some(i)) =>
+          /* a mid-tile ref lives INSIDE the tile — sliding past the
+             whole piece would cross its later shards */
+          switch (List.rev(t.shards)) {
+          | [last, ..._] => last == i
+          | [] => false
+          }
+        | _ => true
+        }
+      );
+    let all_spaces =
+      List.for_all((q: Piece.t) =>
+        switch (q) {
+        | Secondary(w) => Secondary.is_space(w)
+        | _ => false
+        }
+      );
+    let rec go = (ps: list(Piece.t)) =>
+      switch (ps) {
+      | [] => None
+      | [p, ...rest] when ref_ok(p) =>
+        rest != [] && all_spaces(rest)
+          ? Util.ListUtil.last_opt(rest)
+            |> Option.map(last => (Piece.id(last), None, Direction.Right))
+          : None
+      | [_, ...rest] => go(rest)
+      };
+    switch (go(l)) {
+    | Some(splice) => {
+        ...ins,
+        splice: Some(splice),
+      }
+    | None => ins
+    };
+  | _ => ins
+  };
+
 let chip_at_caret = (z: Zipper.t): option(insertion) => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   chip_among(z, for_editor(seg).insertions);

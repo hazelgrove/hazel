@@ -33,6 +33,12 @@ type t = {
    * zipper never contains them. Shard-precise so a ghost closer
    * doesn't gray its tile's real opener. Empty = no ghost. */
   ghost_marks: list((Id.t, option(int))),
+  /* Edit-armed ghost state: set by an edit, cleared by any other
+   * action (Editor.Update). While armed, a statics refresh re-forks
+   * the display — statics are DEBOUNCED during typing, so the frame
+   * that has fresh assist data is the deferred refresh, not the edit
+   * frame itself. Movement never arms: activation stays edit-only. */
+  ghost_armed: bool,
 };
 
 // should not be serializing
@@ -84,6 +90,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
     ghost_marks,
+    ghost_armed: false,
   };
 };
 

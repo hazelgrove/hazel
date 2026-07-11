@@ -147,7 +147,12 @@ module Update = {
           ...state,
           zipper: Buffer.buffer_clear(state.zipper),
         },
-        CachedSyntax.mark_old(syntax),
+        /* any dismissing action also DISARMS the chip ghost — only
+           the edit in calculate re-arms, so movement can't conjure */
+        CachedSyntax.mark_old({
+          ...syntax,
+          ghost_armed: false,
+        }),
       );
     } else {
       (state, syntax);
@@ -221,16 +226,23 @@ module Update = {
        but the caret sits in a chip's zone right after an edit, the
        chip's pending content splices into the DISPLAY segment at its
        anchor (CachedSyntax) — the zipper stays untouched. Same
-       activation pattern as TyDi: never on movement. */
+       activation pattern as TyDi: an edit ARMS the ghost, any other
+       action disarms (Update.clear_buffer) — but statics are
+       DEBOUNCED during typing, so the frame with fresh assist data
+       is the deferred refresh, not the edit frame. While armed, a
+       statics refresh recomputes the ghost and re-forks the display;
+       movement never arms. */
+    let armed = is_edited || syntax.ghost_armed;
     let ghost =
       if (settings.assist
           && settings.statics
-          && is_edited
+          && armed
           && !Selection.is_buffer(zipper.selection)) {
         switch (CanonicalCompletion.chip_among(zipper, statics.assist)) {
         | Some(ins) =>
+          let ins = CanonicalCompletion.slide_to_caret(zipper, ins);
           TypeObligations.ghost_pieces(zipper, ins)
-          |> Option.map(pieces => (ins, pieces))
+          |> Option.map(pieces => (ins, pieces));
         | None => None
         };
       } else {
@@ -241,7 +253,10 @@ module Update = {
      * input changes (info_map/dyn_map/elaborated refs) and chooses
      * between full `mk`, shape-only refresh, or cheap selection-only
      * update — so callers don't need to plumb "statics changed" signals. */
-    let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
+    let statics_refreshed = statics.info_map !== syntax.shape_info_map;
+    let syntax =
+      is_edited || armed && statics_refreshed
+        ? CachedSyntax.mark_old(syntax) : syntax;
     let syntax =
       CachedSyntax.calculate(
         zipper,
@@ -251,6 +266,10 @@ module Update = {
         ~ghost,
         syntax,
       );
+    let syntax = {
+      ...syntax,
+      ghost_armed: armed,
+    };
 
     /* 3. Probe effects: collision cleanup, auto-probe regeneration,
      *    step-into focus resolution, and cursor reset. May mutate

@@ -50,6 +50,7 @@ let display_parts =
     let (seg, marks) =
       switch (CanonicalCompletion.chip_among(z, assist)) {
       | Some(ins) =>
+        let ins = CanonicalCompletion.slide_to_caret(z, ins);
         switch (TypeObligations.ghost_pieces(z, ins)) {
         | Some(pieces) =>
           switch (CanonicalCompletion.splice_ghost(seg, ~ins, ~pieces)) {
@@ -57,7 +58,7 @@ let display_parts =
           | None => (seg, [])
           }
         | None => (seg, [])
-        }
+        };
       | None => (seg, [])
       };
     (seg, z, marks, assist);
@@ -266,6 +267,11 @@ string_replace(a, b, c)¦   CHIPS[]|},
       display_case("string_replace(a, b,¦?⟪)⟫"),
       display_case("string_replace(a, b, c¦⟪)⟫"),
       display_case("let x = 4 i¦⟪n⟫?"),
+      /* trailing space: the ghost hugs the caret (slide_to_caret) —
+         a closer drawn left of the caret would portray typing
+         outside the completed call */
+      display_case("string_replace(a, b, c ¦⟪)⟫"),
+      display_case("string_replace(a, b, c  ¦⟪)⟫"),
     ],
   ),
 ];
