@@ -169,6 +169,8 @@ type refactor =
   | SwapTuplePat(int)
   | HoistLet
   | SinkLet
+  | MergeUp
+  | MergeDown
   | IfToCase
   | CaseToIf
   | ExtractLet
