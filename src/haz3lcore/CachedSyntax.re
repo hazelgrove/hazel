@@ -39,6 +39,12 @@ type t = {
    * that has fresh assist data is the deferred refresh, not the edit
    * frame itself. Movement never arms: activation stays edit-only. */
   ghost_armed: bool,
+  /* THE assist stream (A1 single source), assembled frame-fresh by
+   * Editor.calculate from this frame's syntax + statics' type facts.
+   * Cached here because it depends only on (erased segment,
+   * obligations) — caret-free — so movement frames reuse it.
+   * Chips, the inline ghost, and Tab all read this one list. */
+  assist: list(CanonicalCompletion.insertion),
 };
 
 // should not be serializing
@@ -60,6 +66,18 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
       | None => (segment, [])
       }
     | None => (segment, [])
+    };
+  /* system-material formatting rides with the ghost: the promised
+   * ", ?" keeps its space after the comma is typed (display-only,
+   * unstyled — formatting has no provenance) */
+  let segment =
+    switch (ghost_marks, CanonicalCompletion.format_space_target(z)) {
+    | ([_, ..._], Some(gid)) =>
+      switch (CanonicalCompletion.splice_space_before(segment, gid)) {
+      | Some(segment) => segment
+      | None => segment
+      }
+    | _ => segment
     };
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     MakeTerm.go(segment);
@@ -91,6 +109,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
     shape_elaborated: elaborated,
     ghost_marks,
     ghost_armed: false,
+    assist: [],
   };
 };
 

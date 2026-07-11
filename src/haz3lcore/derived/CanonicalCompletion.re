@@ -2824,6 +2824,61 @@ let splice_ghost =
   };
 };
 
+/* System material carries canonical formatting: the promise showed
+   ", ?", so typing the comma must not retract the space (constancy
+   — the display changes provenance, not text). While the ghost is
+   active and the caret sits between a typed comma and its real
+   hole, splice a display-only space before the hole. User material
+   is never reformatted. */
+let splice_space_before = (seg: Segment.t, gid: Id.t): option(Segment.t) => {
+  let space: Piece.t =
+    Secondary({
+      id: Id.mk(),
+      content: Whitespace(" "),
+    });
+  let rec go = (ps: Segment.t): option(Segment.t) =>
+    switch (ps) {
+    | [] => None
+    | [Piece.Grout(g) as p, ...rest] when Id.equal(g.id, gid) =>
+      Some([space, p, ...rest])
+    | [Piece.Tile(t) as p, ...rest] =>
+      switch (go_children(t.children)) {
+      | Some(children) =>
+        Some([
+          Piece.Tile({
+            ...t,
+            children,
+          }),
+          ...rest,
+        ])
+      | None => go(rest) |> Option.map(r => [p, ...r])
+      }
+    | [p, ...rest] => go(rest) |> Option.map(r => [p, ...r])
+    }
+  and go_children = (cs: list(Segment.t)): option(list(Segment.t)) =>
+    switch (cs) {
+    | [] => None
+    | [c, ...rest] =>
+      switch (go(c)) {
+      | Some(c') => Some([c', ...rest])
+      | None => go_children(rest) |> Option.map(r => [c, ...r])
+      }
+    };
+  go(seg);
+};
+
+/* the real hole owed its canonical space by the rule above: caret
+   between a comma (left) and a convex grout (right) */
+let format_space_target = (z: Zipper.t): option(Id.t) =>
+  switch (z.relatives.siblings) {
+  | (l, [Grout({shape: Convex, id, _}), ..._]) =>
+    switch (List.rev(l)) {
+    | [Tile({label: [","], _}), ..._] => Some(id)
+    | _ => None
+    }
+  | _ => None
+  };
+
 /* The ghost hugs the caret when only spaces separate it from the
    run's true position: Tab lands at the caret, and a closer drawn
    left of the caret would portray typing OUTSIDE the completed

@@ -131,14 +131,21 @@ module Update = {
           );
         } else if (syntax.ghost_marks != []) {
           /* same hazard for a spliced chip ghost: this action must
-             resolve against ghost-free measured */
-          CachedSyntax.calculate(
-            state.zipper,
-            old_statics.info_map,
-            old_dynamics,
-            ~elaborated=Some(old_statics.elaborated),
-            CachedSyntax.mark_old(syntax),
-          );
+             resolve against ghost-free measured. The full mk resets
+             the cached assist; keep it — the segment is unchanged
+             and chips must not vanish on movement. */
+          let recalced =
+            CachedSyntax.calculate(
+              state.zipper,
+              old_statics.info_map,
+              old_dynamics,
+              ~elaborated=Some(old_statics.elaborated),
+              CachedSyntax.mark_old(syntax),
+            );
+          {
+            ...recalced,
+            assist: syntax.assist,
+          };
         } else {
           syntax;
         };
@@ -222,23 +229,36 @@ module Update = {
       } else {
         state.zipper;
       };
+    /* THE assist stream, assembled FRAME-FRESH: anchors and element
+       counts from this frame's syntax, type facts from statics
+       (debounce-stale during typing — exact anyway along the
+       promised trajectory). Caret-free, so movement frames reuse
+       the cached assembly. */
+    let statics_refreshed = statics.info_map !== syntax.shape_info_map;
+    let assist =
+      if (settings.assist && settings.statics) {
+        is_edited || statics_refreshed
+          ? TypeObligations.assist_stream(zipper, statics.obligations)
+          : syntax.assist;
+      } else {
+        [];
+      };
+
     /* inline chip ghost (display fork): when TyDi has no suggestion
        but the caret sits in a chip's zone right after an edit, the
        chip's pending content splices into the DISPLAY segment at its
        anchor (CachedSyntax) — the zipper stays untouched. Same
        activation pattern as TyDi: an edit ARMS the ghost, any other
-       action disarms (Update.clear_buffer) — but statics are
-       DEBOUNCED during typing, so the frame with fresh assist data
-       is the deferred refresh, not the edit frame. While armed, a
-       statics refresh recomputes the ghost and re-forks the display;
-       movement never arms. */
+       action disarms (Update.clear_buffer); movement never arms.
+       While armed, a statics refresh re-forks the display (type
+       facts may have changed the promise). */
     let armed = is_edited || syntax.ghost_armed;
     let ghost =
       if (settings.assist
           && settings.statics
           && armed
           && !Selection.is_buffer(zipper.selection)) {
-        switch (CanonicalCompletion.chip_among(zipper, statics.assist)) {
+        switch (CanonicalCompletion.chip_among(zipper, assist)) {
         | Some(ins) =>
           let ins = CanonicalCompletion.slide_to_caret(zipper, ins);
           TypeObligations.ghost_pieces(zipper, ins)
@@ -253,7 +273,6 @@ module Update = {
      * input changes (info_map/dyn_map/elaborated refs) and chooses
      * between full `mk`, shape-only refresh, or cheap selection-only
      * update — so callers don't need to plumb "statics changed" signals. */
-    let statics_refreshed = statics.info_map !== syntax.shape_info_map;
     let syntax =
       is_edited || armed && statics_refreshed
         ? CachedSyntax.mark_old(syntax) : syntax;
@@ -269,6 +288,7 @@ module Update = {
     let syntax = {
       ...syntax,
       ghost_armed: armed,
+      assist,
     };
 
     /* 3. Probe effects: collision cleanup, auto-probe regeneration,

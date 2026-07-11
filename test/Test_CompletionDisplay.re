@@ -2,11 +2,24 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* THE display-state harness: render what the user actually sees —
-   the DISPLAY segment with ghosts spliced at their anchors (v2),
-   caret as ¦, ghost runs in ⟪⟫ — plus the chip stream. The string
-   IS the test: display_case("string_replace(a,¦ ?⟪, ?)⟫") types the
-   text before ¦ and asserts the whole rendering. */
+/* Completion-display harness: render what the user actually sees —
+   the DISPLAY segment with ghosts spliced at their anchors, caret
+   as ¦, ghost runs in ⟪⟫ — plus the chip stream. The string IS the
+   test: display_case("string_replace(a,¦ ?⟪, ?)⟫") types the text
+   before ¦ and asserts the whole rendering.
+
+   REVIEW STANDARD (not just pass/fail): a pinned trajectory is a
+   user experience. Before pinning, read it in the user's frame —
+   what moved that didn't need to? what was promised and then
+   retracted? The load-bearing property is CONSTANCY: typing a
+   promised character changes provenance styling only, never the
+   rendered text (the promise defines a trajectory; along it the
+   display must be still). constancy_audit checks this mechanically,
+   but it's an ALARM, not a judge — when it fires, either the
+   display regressed or the property mis-specifies the ergonomics;
+   judge before pinning either way. Formatting compromises (promised
+   spacing that vanishes on materialization) get flagged to andrew,
+   not silently pinned. */
 
 let string_testable = testable(Fmt.string, String.equal);
 
@@ -26,13 +39,7 @@ let display_parts =
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let obs = TypeObligations.derive(info_map);
-  let eseg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-  let assist =
-    TypeObligations.as_insertions(
-      ~seg=eseg,
-      ~existing=CanonicalCompletion.for_editor(eseg).insertions,
-      obs,
-    );
+  let assist = TypeObligations.assist_stream(z, obs);
   let z_tydi =
     switch (TyDi.set_buffer(~ci=Indicated.ci_for_completion(z, info_map), z)) {
     | Some(z) => z
@@ -60,6 +67,16 @@ let display_parts =
         | None => (seg, [])
         };
       | None => (seg, [])
+      };
+    /* system-material formatting rides with the ghost (CachedSyntax) */
+    let seg =
+      switch (marks, CanonicalCompletion.format_space_target(z)) {
+      | ([_, ..._], Some(gid)) =>
+        switch (CanonicalCompletion.splice_space_before(seg, gid)) {
+        | Some(seg) => seg
+        | None => seg
+        }
+      | _ => seg
       };
     (seg, z, marks, assist);
   };
@@ -199,6 +216,56 @@ let strip_ghosts = (s: string): string => {
   go(s);
 };
 
+/* CONSTANCY: for each keystroke that matches the first character
+   right of the caret in the prior display (= typing the promised
+   material, ghost or promised formatting), the marker-stripped
+   renders before and after must be equal. Returns violation lines;
+   trajectories pin the empty string. */
+let constancy_audit = (text: string): string => {
+  let acts = Test_Editing.mk(text ++ "¦");
+  let n_acts = List.length(acts);
+  let state = k =>
+    display_state(
+      ~chips=false,
+      Test_Editing.perform(
+        Zipper.init(),
+        List.filteri((i, _) => i < k, acts),
+      ),
+    );
+  let remove_all = (needle: string, s: string): string => {
+    let rec go = s =>
+      switch (split_first(needle, s)) {
+      | None => s
+      | Some((pre, post)) => pre ++ go(post)
+      };
+    go(s);
+  };
+  let strip = (s: string): string =>
+    s |> remove_all("¦") |> remove_all("⟪") |> remove_all("⟫");
+  /* first char right of the caret, markers skipped */
+  let promised = (s: string): option(char) =>
+    switch (split_first("¦", s)) {
+    | None => None
+    | Some((_, r)) =>
+      let r = r |> remove_all("⟪") |> remove_all("⟫");
+      String.length(r) > 0 ? Some(r.[0]) : None;
+    };
+  let violations = ref([]);
+  let prev = ref(state(1));
+  for (k in 2 to n_acts) {
+    let cur = state(k);
+    let key = String.length(text) >= k ? Some(text.[k - 1]) : None;
+    switch (key, promised(prev^)) {
+    | (Some(c), Some(p)) when c == p && strip(prev^) != strip(cur) =>
+      violations :=
+        [Printf.sprintf("'%c': %s -> %s", c, prev^, cur), ...violations^]
+    | _ => ()
+    };
+    prev := cur;
+  };
+  List.rev(violations^) |> String.concat("\n");
+};
+
 let display_case = (spec: string) =>
   test_case(
     spec,
@@ -217,7 +284,7 @@ let display_case = (spec: string) =>
 
 let tests = [
   (
-    "DisplayState: target-0",
+    "CompletionDisplay: target-0",
     [
       /* SNAPSHOT: left-to-right entry of the string_replace call.
          v2 anchored splice — ghosts land at their run's true
@@ -243,10 +310,10 @@ string_replac¦⟪e⟫   CHIPS[]
 string_replace¦   CHIPS[]
 string_replace(¦?⟪)⟫   CHIPS[)]
 string_replace(a¦⟪, ?, ?)⟫   CHIPS[,+,+)]
-string_replace(a,¦?⟪, ?)⟫   CHIPS[,+)]
+string_replace(a,¦ ?⟪, ?)⟫   CHIPS[,+)]
 string_replace(a, ¦?⟪, ?)⟫   CHIPS[,+)]
 string_replace(a, b¦⟪, ?)⟫   CHIPS[,+)]
-string_replace(a, b,¦?⟪)⟫   CHIPS[)]
+string_replace(a, b,¦ ?⟪)⟫   CHIPS[)]
 string_replace(a, b, ¦?⟪)⟫   CHIPS[)]
 string_replace(a, b, c¦⟪)⟫   CHIPS[)]
 string_replace(a, b, c)¦   CHIPS[]|},
@@ -256,15 +323,15 @@ string_replace(a, b, c)¦   CHIPS[]|},
     ],
   ),
   (
-    "DisplayState: one-liners",
+    "CompletionDisplay: one-liners",
     /* the string IS the test: text before ¦ is typed, the whole
        string is the expected rendering (ghost order = true landing
        order — the two middle cases were v1's buffer-jank states) */
     [
       display_case("string_replace(¦?⟪)⟫"),
       display_case("string_replace(a¦⟪, ?, ?)⟫"),
-      display_case("string_replace(a,¦?⟪, ?)⟫"),
-      display_case("string_replace(a, b,¦?⟪)⟫"),
+      display_case("string_replace(a,¦ ?⟪, ?)⟫"),
+      display_case("string_replace(a, b,¦ ?⟪)⟫"),
       display_case("string_replace(a, b, c¦⟪)⟫"),
       display_case("let x = 4 i¦⟪n⟫?"),
       /* trailing space: the ghost hugs the caret (slide_to_caret) —
@@ -272,6 +339,19 @@ string_replace(a, b, c)¦   CHIPS[]|},
          outside the completed call */
       display_case("string_replace(a, b, c ¦⟪)⟫"),
       display_case("string_replace(a, b, c  ¦⟪)⟫"),
+    ],
+  ),
+  (
+    "CompletionDisplay: constancy",
+    [
+      test_case("string_replace entry types through its promise", `Quick, () =>
+        check(
+          string_testable,
+          "no constancy violations",
+          "",
+          constancy_audit("string_replace(a, b, c)"),
+        )
+      ),
     ],
   ),
 ];

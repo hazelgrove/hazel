@@ -287,7 +287,7 @@ let probe_chips = [
         |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
         |> String.concat("+");
       let all =
-        TypeObligations.as_insertions(~seg, ~existing, obs)
+        TypeObligations.assist_stream(z, obs)
         |> List.map(show)
         |> String.concat(" | ");
       let arg_shape =
@@ -366,13 +366,7 @@ let ghost = (code: string): string => {
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let obs = TypeObligations.derive(info_map);
-  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-  let assist =
-    TypeObligations.as_insertions(
-      ~seg,
-      ~existing=CanonicalCompletion.for_editor(seg).insertions,
-      obs,
-    );
+  let assist = TypeObligations.assist_stream(z, obs);
   switch (CanonicalCompletion.chip_among(z, assist)) {
   | None => "NONE"
   | Some(ins) =>

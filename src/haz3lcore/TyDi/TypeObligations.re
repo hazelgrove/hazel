@@ -470,9 +470,39 @@ let splice_of_site = (seg: Segment.t, site: Id.t): option(Id.t) => {
   };
 };
 
+/* Frame-fresh element count at a site, read off the COMPLETED
+   segment (inner tiles are reassembled there, so nested commas
+   can't leak into the count; the site tile itself is always
+   complete there). Elements = 1 + top-level separators of the
+   site's last child: comma tiles and junction grout. This is the
+   syntactic half of an obligation — `expected` comes from types
+   (statics cadence), `present` from this frame's syntax, so typing
+   a presumed comma updates the deficit instantly. */
+let present_now = (completed: Segment.t, site: Id.t): option(int) =>
+  switch (find_tile(site, completed)) {
+  | Some({children: [_, ..._] as children, _}) =>
+    switch (Util.ListUtil.split_last_opt(children)) {
+    | Some((_, child)) =>
+      let seps =
+        child
+        |> List.filter((p: Piece.t) =>
+             switch (p) {
+             | Tile({label: [","], _}) => true
+             | Grout({shape: Concave, _}) => true
+             | _ => false
+             }
+           )
+        |> List.length;
+      Some(1 + seps);
+    | None => None
+    }
+  | _ => None
+  };
+
 let as_insertions =
     (
       ~seg: Segment.t,
+      ~completed: Segment.t,
       ~existing: list(CanonicalCompletion.insertion),
       obs: list(t),
     )
@@ -510,11 +540,19 @@ let as_insertions =
          }
        );
   };
+  /* deficit from the FRESH syntax: `expected` (type fact) minus this
+     frame's element count — a typed comma discharges its owed chip
+     immediately instead of one statics-debounce later */
+  let deficit_now = (ob: t): int =>
+    switch (present_now(completed, ob.site)) {
+    | Some(k) => ob.expected - k
+    | None => deficit(ob)
+    };
   let (existing, fresh) =
     List.fold_left(
       ((existing, fresh), ob) => {
         let fresh = junction_chips(ob) @ fresh;
-        let trailing = deficit(ob);
+        let trailing = deficit_now(ob);
         if (trailing <= 0) {
           (existing, fresh);
         } else if (List.exists(ins => holds_site(ins, ob.site), existing)) {
@@ -554,6 +592,27 @@ let as_insertions =
       obs,
     );
   existing @ fresh;
+};
+
+/* THE assist stream (A1 single source), assembled FRAME-FRESH:
+   anchors, splice points, and element counts from this frame's
+   syntax; type facts (expected arities, grouping choices) from the
+   last statics pass, which may be debounce-stale. Exact along the
+   promised trajectory — typing presumed material is statics-stable
+   by construction (statics ran on the reified program that already
+   contains it) — and stale at most one debounce when the TYPES
+   changed, the same lag as any type feedback. Chips, the inline
+   ghost, and Tab all consume this one list. */
+let assist_stream =
+    (z: Zipper.t, obs: list(t)): list(CanonicalCompletion.insertion) => {
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let r = CanonicalCompletion.for_editor(seg);
+  as_insertions(
+    ~seg,
+    ~completed=r.completed_seg,
+    ~existing=r.insertions,
+    obs,
+  );
 };
 
 /* === Reification ===

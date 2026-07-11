@@ -130,7 +130,9 @@ module Update = {
             /* caret pinned to a quiver chip: Tab dispatches one chunk of
                THE assist stream (A1) — type-it-for-me through the
                normal pipeline; spacing and caret land as if typed */
-            switch (CanonicalCompletion.chip_among(z, model.statics.assist)) {
+            switch (
+              CanonicalCompletion.chip_among(z, model.editor.syntax.assist)
+            ) {
             | Some(ins) =>
               switch (CanonicalCompletion.tab_text(z, ins)) {
               | Some(text) => Paste(text)
@@ -631,7 +633,7 @@ module View = {
             ~expand_selection?,
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
-            ~obligations=model.statics.assist,
+            ~obligations=model.editor.syntax.assist,
             ~globals,
             ~on_apply=
               Some(id => inject(Perform(ApplyCompletion(One(id))))),
