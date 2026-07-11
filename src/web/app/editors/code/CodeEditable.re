@@ -136,24 +136,16 @@ module Update = {
             | Some(text) => Paste(text)
             | None =>
               switch (CanonicalCompletion.chip_at_caret(z)) {
-              | Some({
-                  delimiters:
-                    [{of_shard: Some((tid, _)), _}] |
-                    [
-                      {of_shard: Some((tid, _)), typed_len: Some(_), _},
-                      ..._,
-                    ],
-                  _,
-                }) =>
-                /* one pending delimiter (or a witness leader):
-                   materialize exactly */
-                ApplyCompletion(One(tid))
-              | Some({delimiters: [d, ..._], _}) =>
-                /* several pending: Tab is NOT eager — type just the
-                   first through the normal pipeline; the chip
-                   re-derives smaller */
-                Paste(d.text ++ " ")
-              | Some({delimiters: [], _})
+              | Some(ins) =>
+                /* Tab = "type it for me": one chunk through the
+                   normal pipeline — spacing and caret land exactly
+                   as if the user typed it; the chip re-derives */
+                switch (CanonicalCompletion.tab_text(z, ins)) {
+                | Some(text) => Paste(text)
+                | None =>
+                  Zipper.can_put_down(z)
+                    ? Put_down : Move(Goal(NextProblem(Right)))
+                }
               | None =>
                 Zipper.can_put_down(z)
                   ? Put_down : Move(Goal(NextProblem(Right)))

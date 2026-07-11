@@ -2643,6 +2643,40 @@ let chip_at_caret = (z: Zipper.t): option(insertion) =>
     };
   };
 
+/* Tab = "type it for me": the paste text for the chip's next chunk.
+   A witness chip pastes the token REMAINDER (no spaces — it merges
+   into the typed prefix exactly as typing would); a plain delimiter
+   gets a leading space when it would jam against an alphanumeric
+   left neighbor and a trailing space when wordish. */
+let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
+  let alnum = c =>
+    switch (c) {
+    | 'a' .. 'z'
+    | 'A' .. 'Z'
+    | '0' .. '9'
+    | '_' => true
+    | _ => false
+    };
+  switch (ins.delimiters) {
+  | [] => None
+  | [d, ..._] =>
+    switch (d.typed_len) {
+    | Some(n) when n < String.length(d.text) =>
+      Some(String.sub(d.text, n, String.length(d.text) - n))
+    | Some(_) => None
+    | None =>
+      let jam_left =
+        switch (z.relatives.siblings |> fst |> List.rev) {
+        | [Tile({label: [tok], _}), ..._] when Token.length(tok) > 0 =>
+          alnum(tok.[Token.length(tok) - 1]) && alnum(d.text.[0])
+        | _ => false
+        };
+      let wordish_last = alnum(d.text.[String.length(d.text) - 1]);
+      Some((jam_left ? " " : "") ++ d.text ++ (wordish_last ? " " : ""));
+    }
+  };
+};
+
 let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
   chip_at_caret(z)
   |> Option.map((ins: insertion) =>
