@@ -135,8 +135,25 @@ module Update = {
             switch (TypeObligations.at_caret(z, model.statics.obligations)) {
             | Some(text) => Paste(text)
             | None =>
-              switch (CanonicalCompletion.obligation_at_caret(z)) {
-              | Some(tid) => ApplyCompletion(One(tid))
+              switch (CanonicalCompletion.chip_at_caret(z)) {
+              | Some({
+                  delimiters:
+                    [{of_shard: Some((tid, _)), _}] |
+                    [
+                      {of_shard: Some((tid, _)), typed_len: Some(_), _},
+                      ..._,
+                    ],
+                  _,
+                }) =>
+                /* one pending delimiter (or a witness leader):
+                   materialize exactly */
+                ApplyCompletion(One(tid))
+              | Some({delimiters: [d, ..._], _}) =>
+                /* several pending: Tab is NOT eager — type just the
+                   first through the normal pipeline; the chip
+                   re-derives smaller */
+                Paste(d.text ++ " ")
+              | Some({delimiters: [], _})
               | None =>
                 Zipper.can_put_down(z)
                   ? Put_down : Move(Goal(NextProblem(Right)))

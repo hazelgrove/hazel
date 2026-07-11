@@ -2606,24 +2606,17 @@ let for_editor = (seg: Segment.t): completion_result => {
    whitespace/grout siblings around the caret match an insertion
    anchored on them from either side; the bounding content pieces
    match only insertions on their caret-facing side. */
-let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
+let chip_at_caret = (z: Zipper.t): option(insertion) =>
   switch (z.caret) {
   | Inner(_) => None
   | Outer =>
     let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
     let result = for_editor(seg);
-    let tid_of = (ins: insertion): option(Id.t) =>
-      switch (ins.delimiters) {
-      | [{of_shard: Some((tid, _)), _}, ..._] => Some(tid)
-      | _ => None
-      };
-    let find = (id: Id.t, sides: list(Direction.t)): option(Id.t) =>
+    let find = (id: Id.t, sides: list(Direction.t)): option(insertion) =>
       result.insertions
       |> List.find_opt((ins: insertion) =>
            Id.equal(ins.adjacent_id, id) && List.mem(ins.side, sides)
-         )
-      |> Option.map(tid_of)
-      |> Option.join;
+         );
     let is_content = (p: Piece.t): bool =>
       switch (p) {
       | Secondary(_)
@@ -2649,3 +2642,13 @@ let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
     | None => probe(r, ~facing=Direction.Left)
     };
   };
+
+let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
+  chip_at_caret(z)
+  |> Option.map((ins: insertion) =>
+       switch (ins.delimiters) {
+       | [{of_shard: Some((tid, _)), _}, ..._] => Some(tid)
+       | _ => None
+       }
+     )
+  |> Option.join;

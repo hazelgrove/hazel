@@ -1519,42 +1519,84 @@ let rule_selection_tests = [
    after pure movement too). */
 let move_l = Action.Move(Local(Left, ByChar));
 let move_r = Action.Move(Local(Right, ByChar));
-let tab_dispatch = (acts: list(Action.t)): string => {
+/* mirrors the editor's TAB policy: single delimiter (or witness
+   leader) materializes; several pending = NOT eager, type just the
+   first */
+let tab_once = (z: Zipper.t): option(Zipper.t) =>
+  switch (CanonicalCompletion.chip_at_caret(z)) {
+  | Some({
+      delimiters:
+        [{of_shard: Some((tid, _)), _}] |
+        [{of_shard: Some((tid, _)), typed_len: Some(_), _}, ..._],
+      _,
+    }) =>
+    Some(Test_Editing.perform(z, [ApplyCompletion(One(tid))]))
+  | Some({delimiters: [d, ..._], _}) =>
+    Some(Test_Editing.perform(z, [Paste(d.text ++ " ")]))
+  | _ => None
+  };
+
+let tab_dispatch = (~tabs=1, acts: list(Action.t)): string => {
   let z = Test_Editing.perform(Zipper.init(), acts);
-  switch (CanonicalCompletion.obligation_at_caret(z)) {
+  let rec go = (z, k) =>
+    k <= 0
+      ? Some(z)
+      : (
+        switch (tab_once(z)) {
+        | Some(z) => go(z, k - 1)
+        | None => None
+        }
+      );
+  switch (go(z, tabs)) {
   | None => "NONE"
-  | Some(tid) =>
-    let z = Test_Editing.perform(z, [ApplyCompletion(One(tid))]);
-    print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z));
+  | Some(z) => print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z))
   };
 };
-let tab_case = (~name, ~acts, ~expected) =>
+let tab_case = (~name, ~acts, ~tabs=1, ~expected, ()) =>
   test_case(name, `Quick, () =>
-    check(string_testable, name, expected, tab_dispatch(acts))
+    check(string_testable, name, expected, tab_dispatch(~tabs, acts))
   );
 
 let tab_dispatch_tests = [
+  tab_case(
+    ~name="multi-delimiter chip: tab one delimiter at a time",
+    ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
+    ~expected="let _: (Int, Bool) = ?",
+    (),
+  ),
+  tab_case(
+    ~name="multi-delimiter chip: second tab takes the next",
+    ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
+    ~tabs=2,
+    ~expected="let _: (Int, Bool) = ?in?",
+    (),
+  ),
   tab_case(
     ~name="tab after movement completes rule-arrow witness",
     ~acts=
       Test_Editing.mk("case x | 1 =¦") @ [move_l, move_l, move_r, move_r],
     ~expected="case x | 1 =>?",
+    (),
   ),
   tab_case(
     ~name="tab in trailing whitespace zone dispatches append chip",
     ~acts=Test_Editing.mk("let x = 1 ¦"),
     ~expected="let x = 1in? ",
+    (),
   ),
   tab_case(
     ~name="tab away from any chip dispatches nothing",
     ~acts=Test_Editing.mk("1 + 2¦"),
     ~expected="NONE",
+    (),
   ),
   tab_case(
     ~name="tab at inner obligation dispatches only that tile",
-    /* coalesced chips (end + paren) dispatch innermost-first */
+    /* coalesced chips (end + paren): NOT eager — one Tab types just
+       the innermost delimiter */
     ~acts=Test_Editing.mk("(case x | 1 => 2¦"),
-    ~expected="(case x | 1 => 2end",
+    ~expected="(case x | 1 => 2end ",
+    (),
   ),
 ];
 
