@@ -4514,6 +4514,175 @@ let eq_tests = [
   ),
 ];
 
+/* Explode / Implode (2026-07-11, andrew's depth rule: class-blind
+   full normalization; containers hold depth-1 components; opaque
+   units named whole) */
+let explode_tests = [
+  test_case(
+    "explode: nested call",
+    `Quick,
+    () => {
+      let z = inline(~kind=Explode, "let ¦y = f(g(2)) in\ny") |> text_of;
+      check(string, "x", "let bar = g(2) in\nlet y = f(bar) in\ny", z);
+    },
+  ),
+  test_case(
+    "explode: siblings in eval order",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=Explode, "let ¦y = f(g(2), h(3)) in\ny") |> text_of;
+      check(
+        string,
+        "x",
+        "let zug = g(2) in\nlet zort = h(3) in\nlet y = f(zug, zort) in\ny",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "explode: operator arg breaks (class-blind)",
+    `Quick,
+    () => {
+      let z = inline(~kind=Explode, "let ¦y = f(c + 1) in\ny") |> text_of;
+      check(string, "x", "let tove = c + 1 in\nlet y = f(tove) in\ny", z);
+    },
+  ),
+  test_case(
+    "explode: chain splits into partials",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=Explode, "let ¦y = a + b + c + d in\ny") |> text_of;
+      check(
+        string,
+        "x",
+        "let blort = a + b in\nlet blog = blort + c in\nlet y = blog + d in\ny",
+        z,
+      );
+    },
+  ),
+  test_case("explode: ctor wrap holds one op (stays)", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(Explode, "let ¦y = Some(f(2)) in\ny"),
+    )
+  }),
+  test_case("explode: tuple of one-op components stays", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(Explode, "let ¦y = (a + 1, b * 2) in\ny"),
+    )
+  }),
+  test_case(
+    "explode: deep tuple component reduces to depth 1",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=Explode, "let ¦y = (f(g(2)), 3) in\ny") |> text_of;
+      check(string, "x", "let bar = g(2) in\nlet y = (f(bar), 3) in\ny", z);
+    },
+  ),
+  test_case(
+    "explode: lambda arg lifts whole",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=Explode,
+          "let ¦y = fold(fun acc -> acc + 1, 0, xs) in\ny",
+        )
+        |> text_of;
+      check(
+        string,
+        "x",
+        "let qux = fun acc -> acc + 1 in\nlet y = fold(qux, 0, xs) in\ny",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "explode: if condition chain",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=Explode, "let ¦y = if f(2) > 3 then a else b in\ny")
+        |> text_of;
+      check(
+        string,
+        "x",
+        "let meep = f(2) in\nlet norf = meep > 3 in\nlet y = if norf then a else b in\ny",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "explode: scrutinee, arms untouched",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=Explode,
+          "let ¦y = case f(g(2)) | Some(x) => x | None => 0 end in\ny",
+        )
+        |> text_of;
+      check(
+        string,
+        "x",
+        "let borp = g(2) in\nlet fnord = f(borp) in\nlet y = case fnord | Some(x) => x | None => 0 end in\ny",
+        z,
+      );
+    },
+  ),
+  test_case("explode: sugar-headed def not offered", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(Explode, "let ¦f(x) = g(h(x)) in\nf(1)"),
+    )
+  }),
+  test_case("explode: lambda def not offered", `Quick, () => {
+    check(
+      bool,
+      "gated",
+      false,
+      offers(Explode, "let ¦f = fun x -> g(h(x)) in\nf(1)"),
+    )
+  }),
+  test_case(
+    "implode: exact inverse on a call chain",
+    `Quick,
+    () => {
+      let src = "let ¦y = f(g(h(2))) in\ny";
+      let z = Test_Editing.parse_zipper(src);
+      let z' =
+        Test_Editing.perform(
+          z,
+          [Action.Refactor(Explode), Action.Refactor(Implode)],
+        );
+      check(string, "roundtrip", "let y = f(g(h(2))) in\ny", text_of(z'));
+    },
+  ),
+  test_case(
+    "implode: stops at multi-use bindings",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=Implode,
+          "let a = f(1) in\nlet b = g(a) in\nlet ¦y = a + b in\ny",
+        )
+        |> text_of;
+      check(string, "x", "let a = f(1) in\nlet y = a + g(a) in\ny", z);
+    },
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -4648,6 +4817,7 @@ let tests = [
     @ whitespace_probe2
     @ tyalias_tests
     @ comment_tests
+    @ explode_tests
     @ eq_tests
     @ doc_carry_tests
     @ def_line_tests
