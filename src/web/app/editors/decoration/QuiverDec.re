@@ -45,26 +45,49 @@ let matches_droppable =
   };
 
 /* Find a piece by id along with its containing segment and index */
-let rec find_piece_ctx =
-        (sg: Segment.t, id: Id.t): option((Segment.t, int, Piece.t)) => {
-  let rec go = (i, ps): option((Segment.t, int, Piece.t)) =>
+/* The anchor's sibling list, its index there, and — when that list
+   is a tile's child — the IMMEDIATE enclosing (tile, child index):
+   the zone bounds below need the parent's shards as walls. */
+type piece_ctx = {
+  sg: Segment.t,
+  i: int,
+  p: Piece.t,
+  parent: option((Tile.t, int)),
+};
+
+let rec find_piece_ctx = (sg: Segment.t, id: Id.t): option(piece_ctx) => {
+  let rec go = (i, ps): option(piece_ctx) =>
     switch (ps) {
     | [] => None
     | [p, ...rest] =>
       if (Id.equal(Piece.id(p), id)) {
-        Some((sg, i, p));
+        Some({
+          sg,
+          i,
+          p,
+          parent: None,
+        });
       } else {
         let deeper =
           switch ((p: Piece.t)) {
           | Tile(t) =>
             List.fold_left(
-              (acc, ch) =>
+              (acc, (ci, ch)) =>
                 switch (acc) {
                 | Some(_) => acc
-                | None => find_piece_ctx(ch, id)
+                | None =>
+                  find_piece_ctx(ch, id)
+                  |> Option.map(ctx =>
+                       ctx.parent == None
+                         ? {
+                           ...ctx,
+                           parent: Some((t, ci)),
+                         }
+                         : ctx
+                     )
                 },
               None,
-              t.children,
+              List.mapi((ci, ch) => (ci, ch), t.children),
             )
           | _ => None
           };
@@ -78,7 +101,7 @@ let rec find_piece_ctx =
 };
 
 let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
-  find_piece_ctx(sg, id) |> Option.map(((_, _, p)) => p);
+  find_piece_ctx(sg, id) |> Option.map(ctx => ctx.p);
 
 /* Coincidence-first placement: a pin's position within its
    inter-content whitespace region (linebreaks included) is
@@ -115,7 +138,7 @@ let resolve_position =
         shape: None,
         delimiters: ins.delimiters,
       })
-    | Some((sg, i, p)) =>
+    | Some({sg, i, p, parent}) =>
       let rec prev_content = (j: int): option(Piece.t) =>
         j <= 0
           ? None
@@ -145,17 +168,49 @@ let resolve_position =
         |> Option.map((qm: Measured.measurement) =>
              (qm.origin.row, qm.origin.col)
            );
-      /* zone bounds: previous/next content around the anchor's
-         whitespace run (whole-document edges when absent) */
+      /* Zone = the positions where this insertion lands
+         identically: the whitespace run around the anchor, bounded
+         by sibling content — or, in a tile's child, by the parent's
+         SHARDS (a comma owed inside parens must never follow the
+         caret past the `)`). Only at the top level does a missing
+         bound mean open frontier. Dispatch (obligation_at_caret /
+         TypeObligations.at_caret) matches this definition
+         structurally by walking the caret's own siblings. */
+      let parent_shard_wall = (which: Direction.t): option((int, int)) =>
+        switch (parent) {
+        | None => None
+        | Some((t, ci)) =>
+          let shard_idx =
+            switch (which) {
+            | Left => List.nth_opt(t.shards, ci)
+            | Right => List.nth_opt(t.shards, ci + 1)
+            };
+          switch (shard_idx) {
+          | None => None
+          | Some(si) =>
+            switch (Measured.find_shards(t, measured) |> List.assoc_opt(si)) {
+            | Some(sm: Measured.measurement) =>
+              switch (which) {
+              | Left => Some((sm.last.row, sm.last.col))
+              | Right => Some((sm.origin.row, sm.origin.col))
+              }
+            | None => None
+            }
+          };
+        };
       let left_bound =
         switch (is_free(p) ? prev_content(i) : Some(p)) {
         | Some(q) => measure_last(q)
-        | None => Some((0, 0))
+        | None =>
+          switch (parent_shard_wall(Left)) {
+          | Some(_) as wall => wall
+          | None => Some((0, 0))
+          }
         };
       let right_bound =
         switch (next_content(is_free(p) ? i : i + 1)) {
         | Some(q) => measure_origin(q)
-        | None => None /* unbounded to the segment end */
+        | None => parent_shard_wall(Right) /* None only at top level */
         };
       /* resting spot: the left content edge when it shares the pin's
          line (the round-6 snap); the raw anchor position otherwise */
