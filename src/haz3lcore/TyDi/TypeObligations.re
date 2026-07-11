@@ -797,6 +797,76 @@ let ghost_text =
   };
 };
 
+/* Display-fork v1: the ghost as STRUCTURAL pieces — real comma
+   tiles, real grout, the real tile's own closer shards — so the
+   display shows actual holes with actual shapes and can't drift
+   from the material. Spacing per the F1 join rule. */
+let ghost_pieces =
+    (z: Zipper.t, ins: CanonicalCompletion.insertion): option(Segment.t) => {
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let space = (): Piece.t =>
+    Secondary({
+      id: Id.mk(),
+      content: Whitespace(" "),
+    });
+  let hole = (): Piece.t =>
+    Grout({
+      id: Id.mk(),
+      shape: Convex,
+    });
+  let hugs_left = t =>
+    String.length(t) > 0
+    && (
+      switch (t.[0]) {
+      | ','
+      | ')'
+      | ']'
+      | '}' => true
+      | _ => false
+      }
+    );
+  let piece_of = (d: CanonicalCompletion.delimiter_info): option(Piece.t) =>
+    switch (d.of_shard) {
+    | Some((tid, i)) =>
+      switch (find_tile(tid, seg)) {
+      | Some(t) => Some(Piece.Tile(Tile.shard_of(t, i)))
+      | None => None
+      }
+    | None =>
+      /* T1 comma */
+      Some(
+        Piece.Tile({
+          id: Id.mk(),
+          label: Form.get(CommaExp).label,
+          mold: Form.get(CommaExp).mold,
+          shards: [0],
+          children: [],
+        }),
+      )
+    };
+  let rec build = (ds: list(CanonicalCompletion.delimiter_info), first) =>
+    switch (ds) {
+    | [] => Some([])
+    | [d, ...rest] =>
+      switch (piece_of(d)) {
+      | None => None
+      | Some(p) =>
+        switch (build(rest, false)) {
+        | None => None
+        | Some(tail) =>
+          let sep = first || hugs_left(d.text) ? [] : [space()];
+          let hole_part = d.needs_hole ? [space(), hole()] : [];
+          Some(sep @ [p] @ hole_part @ tail);
+        }
+      }
+    };
+  switch (ins.delimiters) {
+  | [] => None
+  | [d0, ..._] when d0.typed_len != None => None /* witness: TyDi's */
+  | ds => build(ds, !hugs_left(List.hd(ds).text) ? false : true)
+  };
+};
+
 let ghost_at_caret =
     (z: Zipper.t, ~assist: list(CanonicalCompletion.insertion))
     : option(string) =>

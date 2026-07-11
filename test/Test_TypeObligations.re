@@ -373,9 +373,14 @@ let ghost = (code: string): string => {
       ~existing=CanonicalCompletion.for_editor(seg).insertions,
       obs,
     );
-  switch (TypeObligations.ghost_at_caret(z, ~assist)) {
+  switch (CanonicalCompletion.chip_among(z, assist)) {
   | None => "NONE"
-  | Some(t) => "<" ++ t ++ ">"
+  | Some(ins) =>
+    switch (TypeObligations.ghost_pieces(z, ins)) {
+    | None => "NONE"
+    | Some(pieces) =>
+      "<" ++ Printer.of_segment(~holes="?", ~concave_holes="~", pieces) ++ ">"
+    }
   };
 };
 
@@ -389,7 +394,7 @@ let ghost_tests = [
   ghost_case(
     ~name="ghost: annotated let",
     ~code="let _: (Int, Bool) ¦",
-    ~expected="<= ? in ?>",
+    ~expected="< = ? in ?>",
   ),
   ghost_case(
     ~name="ghost: let a = 4",

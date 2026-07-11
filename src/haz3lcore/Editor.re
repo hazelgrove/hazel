@@ -216,15 +216,13 @@ module Update = {
           && settings.statics
           && is_edited
           && !Selection.is_buffer(zipper.selection)) {
-        switch (
-          TypeObligations.ghost_at_caret(zipper, ~assist=statics.assist)
-        ) {
-        | Some(text) =>
-          Zipper.set_buffer(
-            zipper,
-            ~content=TyDi.mk_unparsed_buffer(text),
-            ~mode=Unparsed,
-          )
+        switch (CanonicalCompletion.chip_among(zipper, statics.assist)) {
+        | Some(ins) =>
+          switch (TypeObligations.ghost_pieces(zipper, ins)) {
+          | Some(pieces) =>
+            Zipper.set_buffer(zipper, ~content=pieces, ~mode=Unparsed)
+          | None => zipper
+          }
         | None => zipper
         };
       } else {
