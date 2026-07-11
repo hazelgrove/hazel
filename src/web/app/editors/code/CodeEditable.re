@@ -557,6 +557,7 @@ module View = {
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
             ~obligations,
+            ~engine_seg=Zipper.unselect_and_zip(~erase_buffer=true, z),
             ~caret_pos={
               let p = Zipper.Caret.point(syntax.measured, z);
               Some((p.row, p.col));
