@@ -85,6 +85,15 @@ let drop_secondary = (ids: list(Id.t), e: Exp.t): Exp.t =>
  * TEXTUALLY — print the region, take the edge Secondary runs — never
  * structurally. Refactorings that replace or move a node keep the
  * slot in place: the new occupant takes it over. */
+/* A term's OUTER whitespace, read off the printed form. Use these —
+   not fst/snd(e.annotation.secondary) — whenever the question is
+   "what sits before/after this construct": edge runs live on
+   whichever descendant prints first/last (see the trap note on
+   IdTagged.secondary_runs), and these aggregate correctly for every
+   form. Corollary for scanners: a subtree CONTAINS its own
+   sitting-position runs, so "does e span lines" must strip
+   lead/trail first (strip_leading/strip_trailing) before scanning —
+   interior_has_newline does this. */
 module Slot = {
   type t = {
     lead: list(Secondary.t),
