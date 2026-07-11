@@ -5603,9 +5603,9 @@ let space_commas = (e: Exp.t): Exp.t =>
   );
 
 let evaluate_in_place_impl: impl = {
-  label: "Evaluate",
-  tooltip: "Replace this expression with its value",
-  prepare: (~info_map as _, ~target, program) => {
+  label: "Evaluate closed",
+  tooltip: "Replace this self-contained expression with its value",
+  prepare: (~info_map, ~target, program) => {
     let attempt = (~parens: bool) =>
       rewrite_node(
         ~hit=hit_node(target),
@@ -5614,13 +5614,21 @@ let evaluate_in_place_impl: impl = {
             if (is_value_literal(e)) {
               None;
             } else {
-              /* elaborate the subterm standalone: free vars elaborate
-                 to holes, evaluate to indet, and fail the value gate —
-                 so closedness needs no separate check here */
+              /* elaborate in the LOCAL TYPE context — constructors
+                 keep their ADT membership (ctor equality needs a
+                 definite elaborated type; standalone they are free
+                 and poly_equal goes indet). Closedness still holds:
+                 evaluation runs in the builtin env only, so context
+                 VARS have types but no values — any use evaluates
+                 indeterminate and fails the value gate. */
+              let ctx =
+                Id.Map.find_opt(Exp.rep_id(e), info_map)
+                |> Option.map(Info.ctx_of);
               let elab =
                 CachedStatics.init_from_term(
                   ~settings=CoreSettings.on,
                   ~is_dynamic_term=false,
+                  ~ctx?,
                   e,
                 ).
                   elaborated;
@@ -5633,7 +5641,9 @@ let evaluate_in_place_impl: impl = {
               ) {
               | Completed((v, _)) when is_value_literal(v) =>
                 let v = space_commas(v);
-                let v = parens ? fresh(Parens(v)) : v;
+                /* atoms/ctors/lists self-delimit; only leaky value
+                   forms (tuples) need the unbounded-slot parens */
+                let v = parens && needs_parens(v) ? fresh(Parens(v)) : v;
                 Some((v, Exp.rep_id(v)));
               | _ => None
               };
