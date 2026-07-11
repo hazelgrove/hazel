@@ -1448,12 +1448,10 @@ let place_trailing_shards =
       (seg: Segment.t, stop: int, t: Tile.t): option(Piece.t) => {
     let rec go = j =>
       j > 0
-        ? (
-          switch (List.nth_opt(seg, j - 1)) {
+        ? switch (List.nth_opt(seg, j - 1)) {
           | Some(p) when Id.equal(Piece.id(p), t.id) => go(j - 1)
           | p => p
           }
-        )
         : None;
     go(stop);
   };

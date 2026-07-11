@@ -65,7 +65,34 @@ let pin_case = (~name, ~code, ~tydi=true, ~expected, ()) =>
   );
 let _ = pin_case;
 
+let probe2 = [
+  test_case(
+    "PROBE andrew states",
+    `Quick,
+    () => {
+      let full = code => {
+        let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
+        let eseg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+        let mat =
+          CanonicalCompletion.materialize_all(~sort=Sort.Exp, eseg)
+          |> Printer.of_segment(~holes="?", ~concave_holes="~");
+        pins(code) ++ "  MAT<" ++ mat ++ ">";
+      };
+      check(
+        string_testable,
+        "states",
+        "PROBE",
+        "A: "
+        ++ full("let a = 2 in\nlet _: (  ¦")
+        ++ "\nB: "
+        ++ full("let a = 2 in\nlet _: (Int, Bool) ¦"),
+      );
+    },
+  ),
+];
+
 let tests = [
+  ("QuiverLayout: probe2", probe2),
   (
     "QuiverLayout: placement",
     [

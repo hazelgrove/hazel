@@ -284,7 +284,22 @@ let layout_overlaps =
             [
               {
                 ...prev,
-                delimiters: prev.delimiters @ c.delimiters,
+                /* same-tile delimiters stack in shard order (= before
+                   in), whatever order their records arrived in */
+                delimiters:
+                  List.stable_sort(
+                    (
+                      a: CanonicalCompletion.delimiter_info,
+                      b: CanonicalCompletion.delimiter_info,
+                    ) =>
+                      switch (a.of_shard, b.of_shard) {
+                      | (Some((t1, i1)), Some((t2, i2)))
+                          when Id.equal(t1, t2) =>
+                        compare(i1, i2)
+                      | _ => 0
+                      },
+                    prev.delimiters @ c.delimiters,
+                  ),
               },
               ...acc_tl,
             ],
