@@ -20,12 +20,17 @@ let derive = (code: string): string => {
     obs
     |> List.map((ob: TypeObligations.t) =>
          Printf.sprintf(
-           "%d/%d owes %s",
+           "%d/%d owes %s%s",
            ob.present,
            ob.expected,
            ob.remaining_tys
            |> List.map(Typ.pretty_print)
            |> String.concat(","),
+           switch (ob.commas_at) {
+           | None => ""
+           | Some(idxs) =>
+             " @" ++ (idxs |> List.map(string_of_int) |> String.concat(","))
+           },
          )
        )
     |> List.sort(compare)
@@ -329,10 +334,33 @@ let probe_chips = [
   ),
 ];
 
+/* Overfull juxtaposition: comma count is forced, placement chosen
+   by type fit; ambiguity stays silent. */
+let f2i = "let f : (Int, String) -> Int = fun x -> 1 in ";
+let overfull_tests = [
+  ob_case(
+    ~name="overfull 3-into-2: type-fit picks the first junction",
+    ~code=f2i ++ "f(1 2 3¦",
+    ~expected="2/2 owes  @0",
+  ),
+  ob_case(
+    ~name="overfull ambiguous: no presumption",
+    ~code="let g : (Int, Int) -> Int = fun x -> 1 in g(1 2 3¦",
+    ~expected="none",
+  ),
+  reify_case(
+    ~name="overfull reify localizes the leftover juxtaposition",
+    ~code=f2i ++ "f(1 2 3¦",
+    ~raw=1,
+    ~reified=1,
+  ),
+];
+
 let tests = [
   ("TypeObligations: reification", reify_tests),
   ("TypeObligations: scenarios", scenario_tests),
   ("TypeObligations: junctions", junction_tests),
+  ("TypeObligations: overfull", overfull_tests),
   ("TypeObligations: chip-probe", probe_chips),
   (
     "TypeObligations: derivation",

@@ -16,7 +16,14 @@ type t = {
   site: Id.t, /* the paren/ap tile whose child owes structure */
   present: int,
   expected: int,
-  remaining_tys: list(Typ.t) /* element types still owed */
+  remaining_tys: list(Typ.t), /* element types still owed */
+  /* which junctions realize as commas: None = all of them (k <= n,
+     every juxtaposed item is its own element); Some(idxs) = the
+     type-fit grouping of an OVERFULL juxtaposition (k > n: the
+     comma COUNT is forced at n-1, only placement is ambiguous —
+     presumed only when a unique least-contradictory grouping
+     exists) */
+  commas_at: option(list(int)),
 };
 
 let deficit = (ob: t): int => ob.expected - ob.present;
@@ -96,12 +103,93 @@ let juxtaposed_anywhere = (inner: Exp.t): bool => {
   };
 };
 
-let mk = (site, ~present as k, tys): t => {
+let mk = (~commas_at=None, site, ~present as k, tys): t => {
   site,
   present: k,
   expected: List.length(tys),
   remaining_tys: List.filteri((i, _) => i >= k, tys),
+  commas_at,
 };
+
+let syn_of = (e: Exp.t, info_map): option((Ctx.t, Typ.t)) =>
+  switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
+  | Some(Info.InfoExp({elab_syn_ty, ctx, _})) =>
+    Some((ctx, Typ.weak_head_normalize(ctx, elab_syn_ty)))
+  | _ => None
+  };
+
+/* Overfull juxtaposition (k items, n < k slots): the comma count is
+   forced (n-1); placement is chosen by element-type fit. Enumerate
+   the C(k-1, n-1) ordered groupings; a slot holding a SINGLE item
+   with a known synthesized type inconsistent with the slot's type is
+   a contradiction (groups and unknowns are neutral). A unique
+   least-contradictory grouping is presumed; ties stay silent. */
+let overfull_grouping =
+    (items: list(Exp.t), tys: list(Typ.t), info_map: Statics.Map.t)
+    : option(list(int)) => {
+  let k = List.length(items);
+  let n = List.length(tys);
+  let rec choose = (from: int, needed: int): list(list(int)) =>
+    if (needed == 0) {
+      [[]];
+    } else if (k - 1 - from < needed) {
+      [];
+    } else {
+      (choose(from + 1, needed - 1) |> List.map(rest => [from, ...rest]))
+      @ choose(from + 1, needed);
+    };
+  let score = (cut: list(int)): int => {
+    /* groups = items split after each junction index in cut */
+    let bounds = [(-1), ...cut] @ [k - 1];
+    let rec groups = (bs: list(int)) =>
+      switch (bs) {
+      | [a, b, ...rest] => [
+          List.filteri((i, _) => i > a && i <= b, items),
+          ...groups([b, ...rest]),
+        ]
+      | _ => []
+      };
+    List.combine(groups(bounds), tys)
+    |> List.filter(((group, ty)) =>
+         switch (group) {
+         | [item] =>
+           switch (syn_of(item, info_map)) {
+           | Some((ctx, syn)) =>
+             switch (Typ.term_of(syn)) {
+             | Unknown(_) => false
+             | _ => !Typ.is_consistent(ctx, syn, ty)
+             }
+           | None => false
+           }
+         | _ => false /* multi-item groups and empties are neutral */
+         }
+       )
+    |> List.length;
+  };
+  let scored = choose(0, n - 1) |> List.map(cut => (score(cut), cut));
+  let best =
+    scored |> List.fold_left((acc, (sc, _)) => min(acc, sc), max_int);
+  switch (scored |> List.filter(((sc, _)) => sc == best)) {
+  | [(_, cut)] => Some(cut)
+  | _ => None /* ambiguous: no presumption */
+  };
+};
+
+let multihole_items = (inner: Exp.t): option(list(Exp.t)) =>
+  switch (Exp.term_of(inner)) {
+  | MultiHole(things) =>
+    let exps =
+      things
+      |> List.filter_map((a: Any.t) =>
+           switch (a) {
+           | Exp(e) => Some(e)
+           | _ => None
+           }
+         );
+    List.length(exps) == List.length(things) && exps != []
+      ? Some(exps) : None;
+  | _ => None
+  };
 
 let of_wrapper =
     (site: Id.t, inner: Exp.t, ~tys: list(Typ.t), info_map: Statics.Map.t)
@@ -111,20 +199,24 @@ let of_wrapper =
   | Some(k) when k == List.length(tys) && juxtaposed_anywhere(inner) =>
     /* arity satisfied but separators owed (junction-only site) */
     Some(mk(site, ~present=k, tys))
-  | _ => None /* satisfied, overfull, or no presumption */
+  | Some(k) when k > List.length(tys) && List.length(tys) >= 2 =>
+    /* overfull bare juxtaposition: forced comma count, type-fit
+       placement */
+    switch (multihole_items(inner)) {
+    | Some(items) when List.length(items) == k =>
+      overfull_grouping(items, tys, info_map)
+      |> Option.map(cut =>
+           mk(~commas_at=Some(cut), site, ~present=List.length(tys), tys)
+         )
+    | _ => None
+    }
+  | _ => None /* satisfied, overfull-ambiguous, or no presumption */
   };
 
 let ana_elements = (e: Exp.t, info_map): option((Ctx.t, list(Typ.t))) =>
   switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
   | Some(Info.InfoExp({ana, ctx, _})) =>
     prod_elements(ctx, ana) |> Option.map(tys => (ctx, tys))
-  | _ => None
-  };
-
-let syn_of = (e: Exp.t, info_map): option((Ctx.t, Typ.t)) =>
-  switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
-  | Some(Info.InfoExp({elab_syn_ty, ctx, _})) =>
-    Some((ctx, Typ.weak_head_normalize(ctx, elab_syn_ty)))
   | _ => None
   };
 
@@ -297,6 +389,13 @@ let rec sibling_ctx = (ps: Segment.t, id: Id.t): option((Segment.t, int)) => {
   go(0, ps);
 };
 
+/* an obligation's chosen junction grouts (all, or the type-fit cut) */
+let chosen = (ob: t, grouts: list(Id.t)): list(Id.t) =>
+  switch (ob.commas_at) {
+  | None => grouts
+  | Some(idxs) => grouts |> List.filteri((i, _) => List.mem(i, idxs))
+  };
+
 /* junction sites: concave grout between the site's juxtaposed
    elements — inside the tile's child when it's complete; in the
    flat pending region (site tile up to the closer chip's anchor,
@@ -380,7 +479,7 @@ let as_insertions =
       existing
       |> List.find_opt(ins => holds_site(ins, ob.site))
       |> Option.map((ins: CanonicalCompletion.insertion) => ins.adjacent_id);
-    junction_grouts(~upto?, seg, ob.site)
+    chosen(ob, junction_grouts(~upto?, seg, ob.site))
     |> List.map(gid =>
          CanonicalCompletion.{
            adjacent_id: gid,
@@ -448,10 +547,7 @@ let as_insertions =
  * interior slots, so their chain is unused by syntactic completion. */
 let reify = (obs: list(t), seg: Segment.t): Segment.t => {
   let sites =
-    obs
-    |> List.map(ob => (ob.site, deficit(ob)))
-    |> List.to_seq
-    |> Hashtbl.of_seq;
+    obs |> List.map(ob => (ob.site, ob)) |> List.to_seq |> Hashtbl.of_seq;
   let owed_pieces = (site: Id.t, n: int): list(Piece.t) => {
     let seed = ref(site);
     let mint = () => {
@@ -499,18 +595,29 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
              children: List.map(go, t.children),
            };
            switch (Hashtbl.find_opt(sites, t.id)) {
-           | Some(n) =>
+           | Some(ob) =>
              switch (Util.ListUtil.split_last_opt(t.children)) {
              | Some((init, last)) =>
-               /* junction grout realizes as its comma in place */
+               /* chosen junction grout realizes as its comma in
+                  place; unchosen junctions stay holes (their
+                  errors localize inside the presumed slot) */
+               let jdx = ref(0);
                let last =
                  last
                  |> List.map((q: Piece.t) =>
                       switch (q) {
-                      | Grout({id, shape: Concave}) => comma_for(id)
+                      | Grout({id, shape: Concave}) =>
+                        let i = jdx^;
+                        incr(jdx);
+                        switch (ob.commas_at) {
+                        | None => comma_for(id)
+                        | Some(idxs) =>
+                          List.mem(i, idxs) ? comma_for(id) : q
+                        };
                       | q => q
                       }
                     );
+               let n = deficit(ob);
                Piece.Tile({
                  ...t,
                  children:
@@ -584,7 +691,7 @@ let at_caret = (z: Zipper.t, obs: list(t)): option(string) =>
                        )
                       ? Some(ins.adjacent_id) : None
                   );
-             junction_grouts(~upto?, seg, ob.site)
+             chosen(ob, junction_grouts(~upto?, seg, ob.site))
              |> List.map(gid => (gid, ","));
            })
       );
