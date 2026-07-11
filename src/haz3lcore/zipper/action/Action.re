@@ -174,6 +174,8 @@ type refactor =
   | IfToCase
   | CaseToIf
   | ExtractLet
+  | Explode
+  | Implode
   | EtaReduce
   | BindArgument
   | BetaReduce

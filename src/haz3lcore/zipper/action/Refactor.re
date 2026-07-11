@@ -4769,6 +4769,377 @@ let extract_alias_impl: impl = {
     },
 };
 
+/* === Explode / Implode (definition normalization) ===
+ * EXPLODE POLICY — tune here (andrew). Class-blind: operators,
+ * calls, and builtins all count as ONE OPERATION (the operator/call
+ * split is language trivia, not user knowledge). Atoms: variables,
+ * literals, holes, bare constructors. A definition is REDUCED when
+ * it is one operation over atoms; CONTAINERS (tuples, lists,
+ * constructor wraps) carry no information of their own, nest
+ * freely, and may hold one operation level inline in each
+ * component; fun/case/if are opaque units (conditional or
+ * binder-scoped interiors can't lift) whose scrutinee/condition is
+ * an ordinary strict operand. Future knobs live here: a complexity
+ * budget over operator chains, an "explode fully" variant. */
+
+let rec x_atomic = (e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | Var(_)
+  | Atom(_)
+  | EmptyHole
+  | Label(_)
+  | Undefined
+  | Deferral(_)
+  | BuiltinFun(_)
+  | LivelitName(_)
+  | Constructor(_, _) => true
+  | Parens(x) => x_atomic(x)
+  | TupLabel(l, x) => x_atomic(l) && x_atomic(x)
+  | Tuple(xs)
+  | ListLit(xs) => List.for_all(x_atomic, xs)
+  | _ => false
+  };
+
+let ctor_headed = (e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | Ap(_, f, _) =>
+    switch (IdTagged.term_of(f)) {
+    | Constructor(_, _) => true
+    | _ => false
+    }
+  | _ => false
+  };
+
+/* call args: unwrap the arg parens/tuple to the component list */
+let arg_components = (arg: Exp.t): list(Exp.t) => {
+  let rec inner = (e: Exp.t) =>
+    switch (IdTagged.term_of(e)) {
+    | Parens(x) => inner(x)
+    | Tuple(xs) => xs
+    | _ => [e]
+    };
+  inner(arg);
+};
+
+/* one operation over atoms (the reduced-line shape) */
+let x_one_op = (e: Exp.t): bool =>
+  switch (IdTagged.term_of(e)) {
+  | BinOp(_, a, b)
+  | Cons(a, b)
+  | ListConcat(a, b)
+  | Dot(a, b) => x_atomic(a) && x_atomic(b)
+  | UnOp(_, a) => x_atomic(a)
+  | TypAp(a, _) => x_atomic(a)
+  | Ap(_, f, arg) =>
+    x_atomic(f) && arg_components(arg) |> List.for_all(x_atomic)
+  | _ => false
+  };
+
+/* already-reduced definition (the gate: explode offers only when
+   this is false) */
+let rec x_reduced = (e: Exp.t): bool =>
+  x_atomic(e)
+  || x_one_op(e)
+  || (
+    switch (IdTagged.term_of(e)) {
+    | Parens(x) => x_reduced(x)
+    /* containers: each component atomic or one op; containers of
+       containers recurse */
+    | Tuple(xs)
+    | ListLit(xs) => xs |> List.for_all(x_component_reduced)
+    | TupLabel(_, x) => x_component_reduced(x)
+    | Ap(_, f, arg) when ctor_headed(e) =>
+      ignore(f);
+      arg_components(arg) |> List.for_all(x_component_reduced);
+    /* opaque units: interiors untouched; strict head must be atomic */
+    | Fun(_)
+    | TypFun(_) => true
+    | Match(scrut, _) => x_atomic(scrut)
+    | If(c, _, _) => x_atomic(c)
+    | _ => false
+    }
+  )
+and x_component_reduced = (e: Exp.t): bool =>
+  x_atomic(e)
+  || x_one_op(e)
+  || (
+    switch (IdTagged.term_of(e)) {
+    | Parens(x) => x_component_reduced(x)
+    | Tuple(xs)
+    | ListLit(xs) => xs |> List.for_all(x_component_reduced)
+    | TupLabel(_, x) => x_component_reduced(x)
+    | Ap(_, _, arg) when ctor_headed(e) =>
+      arg_components(arg) |> List.for_all(x_component_reduced)
+    | _ => false
+    }
+  );
+
+let explode_impl: impl = {
+  label: "Explode",
+  tooltip: "Name every intermediate computation with its own binding",
+  prepare: (~info_map as _, ~target, program) =>
+    rewrite_node(
+      ~hit=hit_let(target),
+      ~rewrite=
+        e =>
+          switch (IdTagged.term_of(e)) {
+          | Let(p, def, body)
+              when
+                let_head_name(p) != None
+                && sugar_fn_name(p) == None
+                && !x_reduced(def) =>
+            let used = ref(used_names(program));
+            let bindings: ref(list((string, Exp.t))) = ref([]);
+            /* lift: the subtree travels wholesale (ids kept); the
+               replacement var takes over its textual slot; the
+               lifted def normalizes recursively (inner bindings
+               emit first = evaluation order) */
+            let rec lift = (sub: Exp.t): Exp.t => {
+              let s = Slot.of_exp(sub);
+              let d = norm_root(Slot.drop(s, sub));
+              let name = pick_placeholder(used^);
+              used := [name, ...used^];
+              bindings := [(name, d), ...bindings^];
+              Slot.give(s, fresh(Var(name)));
+            }
+            and ensure_atom = (x: Exp.t): Exp.t => x_atomic(x) ? x : lift(x)
+            and op_rebuild = (x: Exp.t): Exp.t =>
+              switch (IdTagged.term_of(x)) {
+              | BinOp(op, a, b) => {
+                  ...x,
+                  term: BinOp(op, ensure_atom(a), ensure_atom(b)),
+                }
+              | Cons(a, b) => {
+                  ...x,
+                  term: Cons(ensure_atom(a), ensure_atom(b)),
+                }
+              | ListConcat(a, b) => {
+                  ...x,
+                  term: ListConcat(ensure_atom(a), ensure_atom(b)),
+                }
+              | Dot(a, b) => {
+                  ...x,
+                  term: Dot(ensure_atom(a), b),
+                }
+              | UnOp(op, a) => {
+                  ...x,
+                  term: UnOp(op, ensure_atom(a)),
+                }
+              | TypAp(a, t) => {
+                  ...x,
+                  term: TypAp(ensure_atom(a), t),
+                }
+              | Ap(dir, f, arg) => {
+                  ...x,
+                  term: Ap(dir, ensure_atom(f), args_rebuild(arg)),
+                }
+              | _ => x
+              }
+            and args_rebuild = (arg: Exp.t): Exp.t =>
+              switch (IdTagged.term_of(arg)) {
+              | Parens(x) => {
+                  ...arg,
+                  term: Parens(args_rebuild(x)),
+                }
+              | Tuple(xs) => {
+                  ...arg,
+                  term: Tuple(List.map(ensure_atom, xs)),
+                }
+              | _ => ensure_atom(arg)
+              }
+            and component = (x: Exp.t): Exp.t =>
+              if (x_atomic(x)) {
+                x;
+              } else {
+                switch (IdTagged.term_of(x)) {
+                | Parens(inner) => {
+                    ...x,
+                    term: Parens(component(inner)),
+                  }
+                | Tuple(xs) => {
+                    ...x,
+                    term: Tuple(List.map(component, xs)),
+                  }
+                | ListLit(xs) => {
+                    ...x,
+                    term: ListLit(List.map(component, xs)),
+                  }
+                | TupLabel(l, inner) => {
+                    ...x,
+                    term: TupLabel(l, component(inner)),
+                  }
+                | Ap(_) when ctor_headed(x) => ctor_rebuild(x)
+                | BinOp(_)
+                | Cons(_)
+                | ListConcat(_)
+                | Dot(_)
+                | UnOp(_)
+                | TypAp(_)
+                | Ap(_) => op_rebuild(x)
+                | _ => lift(x)
+                };
+              }
+            and ctor_rebuild = (x: Exp.t): Exp.t =>
+              switch (IdTagged.term_of(x)) {
+              | Ap(dir, f, arg) => {
+                  ...x,
+                  term: Ap(dir, f, ctor_args(arg)),
+                }
+              | _ => x
+              }
+            and ctor_args = (arg: Exp.t): Exp.t =>
+              switch (IdTagged.term_of(arg)) {
+              | Parens(x) => {
+                  ...arg,
+                  term: Parens(ctor_args(x)),
+                }
+              | Tuple(xs) => {
+                  ...arg,
+                  term: Tuple(List.map(component, xs)),
+                }
+              | _ => component(arg)
+              }
+            and norm_root = (x: Exp.t): Exp.t =>
+              if (x_atomic(x)) {
+                x;
+              } else {
+                switch (IdTagged.term_of(x)) {
+                | Parens(inner) => {
+                    ...x,
+                    term: Parens(norm_root(inner)),
+                  }
+                | Tuple(_)
+                | ListLit(_)
+                | TupLabel(_) => component(x)
+                | Ap(_) when ctor_headed(x) => ctor_rebuild(x)
+                | BinOp(_)
+                | Cons(_)
+                | ListConcat(_)
+                | Dot(_)
+                | UnOp(_)
+                | TypAp(_)
+                | Ap(_) => op_rebuild(x)
+                | Match(scrut, arms) => {
+                    ...x,
+                    term: Match(ensure_atom(scrut), arms),
+                  }
+                | If(c, t, alt) => {
+                    ...x,
+                    term: If(ensure_atom(c), t, alt),
+                  }
+                | _ => x
+                };
+              };
+            let def' = norm_root(def);
+            switch (List.rev(bindings^)) {
+            | [] => None
+            | bs =>
+              /* one binding per line, always (the point is
+                 probe-able intermediates) — inherit indent when the
+                 line has one, else a bare break */
+              let sep = {
+                let s = sep_like(Slot.of_exp(e).lead);
+                has_newline(s) ? s : newline();
+              };
+              let with_sep = (x: Exp.t): Exp.t => {
+                let (b, a) = x.annotation.secondary;
+                {
+                  ...x,
+                  annotation: {
+                    ...x.annotation,
+                    secondary: (copy_runs(sep) @ b, a),
+                  },
+                };
+              };
+              let inner: Exp.t = {
+                ...e,
+                term: Let(p, def', body),
+              };
+              let result =
+                List.fold_right(
+                  ((n, d), acc) =>
+                    fresh(
+                      Let(pad(fresh_pat(Var(n))), pad(d), with_sep(acc)),
+                    ),
+                  bs,
+                  inner,
+                );
+              Some((result, Pat.rep_id(p)));
+            };
+          | _ => None
+          },
+      program,
+    ),
+};
+
+/* IMPLODE: explode's inverse, conservative-transitive — repeatedly
+   fold the binding DIRECTLY ABOVE into this definition when it is
+   single-use and its use lies in the def region (not in the
+   continuation below). Each step is a plain InlineLet, so capture
+   freshening, comment rules, and id travel are inherited. */
+/* the parent binding an implode step would fold in — the cheap
+   shape check (gating-safe: no printing) */
+let implode_parent = (~y_id: Id.t, program: Exp.t): option(Id.t) =>
+  switch (find_path(~hit=e => Exp.rep_id(e) == y_id, program)) {
+  | Some(path) when List.length(path) >= 2 =>
+    let n = List.length(path);
+    let y = List.nth(path, n - 1);
+    let parent = List.nth(path, n - 2);
+    switch (IdTagged.term_of(parent), IdTagged.term_of(y)) {
+    | (Let(pp, _, pbody), Let(_, _, ybody))
+        when same_node(pbody, y) && sugar_fn_name(pp) == None =>
+      switch (let_head_name(pp)) {
+      | Some(x) =>
+        switch (occurrences_of(x, pbody)) {
+        | [occ] when !List.mem(Exp.rep_id(occ), exp_subtree_ids(ybody)) =>
+          Some(Exp.rep_id(parent))
+        | _ => None
+        }
+      | None => None
+      }
+    | _ => None
+    };
+  | _ => None
+  };
+
+let implode_step = (~info_map, ~y_id: Id.t, program: Exp.t): option(Exp.t) =>
+  switch (implode_parent(~y_id, program)) {
+  | Some(pid) =>
+    inline_let_impl.prepare(~info_map, ~target=pid, program)
+    |> Option.map(fst)
+  | None => None
+  };
+
+let implode_impl: impl = {
+  label: "Implode",
+  tooltip: "Fold the single-use bindings above back into this definition",
+  prepare: (~info_map, ~target, program) =>
+    switch (find_hit(~hit=hit_let(target), program)) {
+    | Some(y) =>
+      let y_id = Exp.rep_id(y);
+      let rec go = (prog: Exp.t, k: int): option(Exp.t) =>
+        switch (implode_step(~info_map, ~y_id, prog)) {
+        | Some(prog') => go(prog', k + 1)
+        | None => k > 0 ? Some(prog) : None
+        };
+      switch (go(program, 0)) {
+      | Some(prog') =>
+        let focus =
+          switch (find_hit(~hit=e => Exp.rep_id(e) == y_id, prog')) {
+          | Some(y') =>
+            switch (IdTagged.term_of(y')) {
+            | Let(p, _, _) => Pat.rep_id(p)
+            | _ => y_id
+            }
+          | None => y_id
+          };
+        Some((prog', focus));
+      | None => None
+      };
+    | None => None
+    },
+};
+
 let eta_expand_impl: impl = {
   label: "Eta-Expand",
   tooltip: "Wrap this function value as fun x -> f(x)",
@@ -6622,6 +6993,8 @@ let impl: Action.refactor => impl =
   | IfToCase => if_to_case_impl
   | CaseToIf => case_to_if_impl
   | ExtractLet => extract_let_impl
+  | Explode => explode_impl
+  | Implode => implode_impl
   | EtaReduce => eta_reduce_impl
   | BindArgument => ap_to_let_impl
   | BetaReduce => beta_reduce_impl
@@ -6654,6 +7027,8 @@ let all: list(Action.refactor) = [
   MergeUp,
   MergeDown,
   ExtractLet,
+  Explode,
+  Implode,
   ExtractAlias,
   EtaReduce,
   IfToCase,
@@ -6817,6 +7192,24 @@ let applies =
     }
   | MergeUp => Option.is_some(merge_site_up(~target, program))
   | MergeDown => Option.is_some(merge_site_down(~target, program))
+  | Explode =>
+    switch (find_hit(~hit=hit_let(target), program)) {
+    | Some(e) =>
+      switch (IdTagged.term_of(e)) {
+      | Let(p, def, _) =>
+        let_head_name(p) != None
+        && sugar_fn_name(p) == None
+        && !x_reduced(def)
+      | _ => false
+      }
+    | None => false
+    }
+  | Implode =>
+    switch (find_hit(~hit=hit_let(target), program)) {
+    | Some(y) =>
+      Option.is_some(implode_parent(~y_id=Exp.rep_id(y), program))
+    | None => false
+    }
   | EtaExpand =>
     switch (find_hit(~hit=hit_node(target), program)) {
     | Some(e) =>
