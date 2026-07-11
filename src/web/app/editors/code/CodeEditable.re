@@ -128,37 +128,25 @@ module Update = {
       let buffer_is_chip_ghost =
         Selection.is_buffer(z.selection)
         && TyDi.get_unparsed_buffer(z)
-        == TypeObligations.ghost_at_caret(
-             z,
-             ~obligations=model.statics.obligations,
-           );
+        == TypeObligations.ghost_at_caret(z, ~assist=model.statics.assist);
       let action: Action.t =
         Selection.is_buffer(z.selection) && !buffer_is_chip_ghost
           ? Buffer(Accept)
           : (
-            /* caret pinned to a quiver chip: Tab dispatches that
-               obligation, whether or not an inline buffer is showing
-               (buffers only appear on edits; the chip is always
-               live). Type-shape chunks (owed commas) order before
-               the closer in the chip, so they dispatch first. */
-            switch (TypeObligations.at_caret(z, model.statics.obligations)) {
-            | Some(text) => Paste(text)
-            | None =>
-              switch (CanonicalCompletion.chip_at_caret(z)) {
-              | Some(ins) =>
-                /* Tab = "type it for me": one chunk through the
-                   normal pipeline — spacing and caret land exactly
-                   as if the user typed it; the chip re-derives */
-                switch (CanonicalCompletion.tab_text(z, ins)) {
-                | Some(text) => Paste(text)
-                | None =>
-                  Zipper.can_put_down(z)
-                    ? Put_down : Move(Goal(NextProblem(Right)))
-                }
+            /* caret pinned to a quiver chip: Tab dispatches one chunk of
+               THE assist stream (A1) — type-it-for-me through the
+               normal pipeline; spacing and caret land as if typed */
+            switch (CanonicalCompletion.chip_among(z, model.statics.assist)) {
+            | Some(ins) =>
+              switch (CanonicalCompletion.tab_text(z, ins)) {
+              | Some(text) => Paste(text)
               | None =>
                 Zipper.can_put_down(z)
                   ? Put_down : Move(Goal(NextProblem(Right)))
               }
+            | None =>
+              Zipper.can_put_down(z)
+                ? Put_down : Move(Goal(NextProblem(Right)))
             }
           );
       perform(action, model);
@@ -527,7 +515,7 @@ module View = {
         ~expand_selection=false,
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
-        ~obligations: list(Haz3lcore.TypeObligations.t)=[],
+        ~obligations: list(Haz3lcore.CanonicalCompletion.insertion)=[],
         ~globals: Globals.t,
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
@@ -574,7 +562,7 @@ module View = {
           QuiverDec.view(
             ~measured=syntax.measured,
             ~font_metrics=globals.font_metrics,
-            ~obligations,
+            ~assist=obligations,
             ~engine_seg=Zipper.unselect_and_zip(~erase_buffer=true, z),
             ~caret_pos={
               let p = Zipper.Caret.point(syntax.measured, z);
@@ -649,7 +637,7 @@ module View = {
             ~expand_selection?,
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
-            ~obligations=model.statics.obligations,
+            ~obligations=model.statics.assist,
             ~globals,
             ~on_apply=
               Some(id => inject(Perform(ApplyCompletion(One(id))))),

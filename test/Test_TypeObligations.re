@@ -366,7 +366,14 @@ let ghost = (code: string): string => {
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let obs = TypeObligations.derive(info_map);
-  switch (TypeObligations.ghost_at_caret(z, ~obligations=obs)) {
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let assist =
+    TypeObligations.as_insertions(
+      ~seg,
+      ~existing=CanonicalCompletion.for_editor(seg).insertions,
+      obs,
+    );
+  switch (TypeObligations.ghost_at_caret(z, ~assist)) {
   | None => "NONE"
   | Some(t) => "<" ++ t ++ ">"
   };
@@ -378,7 +385,7 @@ let ghost_case = (~name, ~code, ~expected) =>
   );
 
 let ghost_tests = [
-  ghost_case(~name="ghost: f(1", ~code=f2 ++ "f(1¦", ~expected="<, ? )>"),
+  ghost_case(~name="ghost: f(1", ~code=f2 ++ "f(1¦", ~expected="<, ?)>"),
   ghost_case(
     ~name="ghost: annotated let",
     ~code="let _: (Int, Bool) ¦",

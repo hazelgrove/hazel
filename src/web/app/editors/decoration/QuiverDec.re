@@ -47,7 +47,22 @@ let delimiter_nodes =
     : list(Node.t) =>
   delimiters
   |> List.mapi((k, d: CanonicalCompletion.delimiter_info) => {
-       let sep = k > 0 ? [Node.text(" ")] : [];
+       /* F1: no space before commas/closers (", ?, ?)" not ", ? , ? )") */
+       let sep =
+         k > 0
+         && !(
+              String.length(d.text) > 0
+              && (
+                switch (d.text.[0]) {
+                | ','
+                | ')'
+                | ']'
+                | '}' => true
+                | _ => false
+                }
+              )
+            )
+           ? [Node.text(" ")] : [];
        let seg_cls = k > 0 ? ["chip-seg", "chip-seg-later"] : ["chip-seg"];
        /* modifier-click completes this delimiter's tile; unmodified
           pointer events fall through to the editor */
@@ -197,7 +212,7 @@ let view =
       ~caret_pos: option((int, int))=None,
       ~caret_form: option((Direction.t, option(Direction.t)))=None,
       ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
-      ~obligations: list(TypeObligations.t)=[],
+      ~assist: list(CanonicalCompletion.insertion),
       /* the engine must see the user's REAL program: the display
          segment (CachedSyntax) still contains the suggestion-buffer
          ghost, which perturbs placement (an in anchoring at line
@@ -210,15 +225,9 @@ let view =
     : Node.t => {
   ignore(seg);
   let seg = engine_seg;
-  /* Get completion result with insertions */
-  let result = CanonicalCompletion.for_editor(seg);
-  let insertions = result.insertions;
-  /* T1 tuple-shape obligations join the same chip stream: merged
-     into the site's closer chip when it exists, else fresh. They
-     arrive from CachedStatics (pass-1 derivation) — with
-     reification on, the live info_map no longer shows the deficit */
-  let insertions =
-    TypeObligations.as_insertions(~seg, ~existing=insertions, obligations);
+  /* A1: chips render THE assist stream (computed once in
+     CachedStatics) — the same list the ghost and Tab consume */
+  let insertions = assist;
 
   /* reset even when nothing draws: a vanished quiver must not leave
      stale row claims displacing probe offsides */

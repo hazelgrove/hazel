@@ -727,42 +727,6 @@ let at_caret = (z: Zipper.t, obs: list(t)): option(string) =>
  * follows TyDi exactly: set on edits only (Editor.calculate),
  * cleared on any other action — layout-participating indication
  * must never appear on movement. */
-let merged_chip_at_caret =
-    (z: Zipper.t, ~obligations: list(t))
-    : option(CanonicalCompletion.insertion) =>
-  switch (z.caret) {
-  | Inner(_) => None
-  | Outer =>
-    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-    let existing = CanonicalCompletion.for_editor(seg).insertions;
-    let merged = as_insertions(~seg, ~existing, obligations);
-    let find = (id: Id.t): option(CanonicalCompletion.insertion) =>
-      merged
-      |> List.find_opt((ins: CanonicalCompletion.insertion) =>
-           Id.equal(ins.adjacent_id, id)
-         );
-    let is_content = (p: Piece.t): bool =>
-      switch (p) {
-      | Secondary(_)
-      | Grout(_) => false
-      | _ => true
-      };
-    let rec probe = (ps: list(Piece.t)) =>
-      switch (ps) {
-      | [] => None
-      | [p, ...rest] =>
-        switch (find(Piece.id(p))) {
-        | Some(_) as hit => hit
-        | None => is_content(p) ? None : probe(rest)
-        }
-      };
-    let (l, r) = z.relatives.siblings;
-    switch (probe(List.rev(l))) {
-    | Some(_) as hit => hit
-    | None => probe(r)
-    };
-  };
-
 let ghost_text =
     (z: Zipper.t, ins: CanonicalCompletion.insertion): option(string) => {
   let alnum = c =>
@@ -773,19 +737,51 @@ let ghost_text =
     | '_' => true
     | _ => false
     };
-  let part = (d: CanonicalCompletion.delimiter_info): string => {
-    let text =
-      switch (d.typed_len) {
-      | Some(n) when n < String.length(d.text) =>
-        String.sub(d.text, n, String.length(d.text) - n)
-      | _ => d.text
-      };
-    text ++ (d.needs_hole ? " ?" : "");
-  };
-  switch (ins.delimiters) {
-  | [] => None
-  | [d0, ..._] =>
-    let body = ins.delimiters |> List.map(part) |> String.concat(" ");
+  /* F1 naturalistic join: space between tokens EXCEPT before
+     ,/)/]/} and after (/[ — yields ", ?, ?)" and "= ? in ?" */
+  let tokens =
+    ins.delimiters
+    |> List.concat_map((d: CanonicalCompletion.delimiter_info) => {
+         let text =
+           switch (d.typed_len) {
+           | Some(n) when n < String.length(d.text) =>
+             String.sub(d.text, n, String.length(d.text) - n)
+           | _ => d.text
+           };
+         [text] @ (d.needs_hole ? ["?"] : []);
+       });
+  let hugs_left = t =>
+    String.length(t) > 0
+    && (
+      switch (t.[0]) {
+      | ','
+      | ')'
+      | ']'
+      | '}' => true
+      | _ => false
+      }
+    );
+  let opens_right = t =>
+    String.length(t) > 0
+    && (
+      switch (t.[String.length(t) - 1]) {
+      | '('
+      | '[' => true
+      | _ => false
+      }
+    );
+  switch (ins.delimiters, tokens) {
+  | ([], _)
+  | (_, []) => None
+  | ([d0, ..._], [t0, ...trest]) =>
+    let body =
+      List.fold_left(
+        ((acc, prev), t) =>
+          (acc ++ (hugs_left(t) || opens_right(prev) ? "" : " ") ++ t, t),
+        (t0, t0),
+        trest,
+      )
+      |> fst;
     let jam =
       d0.typed_len == None
       && (
@@ -801,8 +797,10 @@ let ghost_text =
   };
 };
 
-let ghost_at_caret = (z: Zipper.t, ~obligations: list(t)): option(string) =>
-  switch (merged_chip_at_caret(z, ~obligations)) {
+let ghost_at_caret =
+    (z: Zipper.t, ~assist: list(CanonicalCompletion.insertion))
+    : option(string) =>
+  switch (CanonicalCompletion.chip_among(z, assist)) {
   | Some(ins) => ghost_text(z, ins)
   | None => None
   };

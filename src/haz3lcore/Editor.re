@@ -217,10 +217,7 @@ module Update = {
           && is_edited
           && !Selection.is_buffer(zipper.selection)) {
         switch (
-          TypeObligations.ghost_at_caret(
-            zipper,
-            ~obligations=statics.obligations,
-          )
+          TypeObligations.ghost_at_caret(zipper, ~assist=statics.assist)
         ) {
         | Some(text) =>
           Zipper.set_buffer(

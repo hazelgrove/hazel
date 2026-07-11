@@ -2606,14 +2606,15 @@ let for_editor = (seg: Segment.t): completion_result => {
    whitespace/grout siblings around the caret match an insertion
    anchored on them from either side; the bounding content pieces
    match only insertions on their caret-facing side. */
-let chip_at_caret = (z: Zipper.t): option(insertion) =>
+/* THE zone matcher (A1): the insertion from the given stream whose
+   zone holds the caret. All interactive surfaces use this. */
+let chip_among =
+    (z: Zipper.t, insertions: list(insertion)): option(insertion) =>
   switch (z.caret) {
   | Inner(_) => None
   | Outer =>
-    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-    let result = for_editor(seg);
     let find = (id: Id.t, sides: list(Direction.t)): option(insertion) =>
-      result.insertions
+      insertions
       |> List.find_opt((ins: insertion) =>
            Id.equal(ins.adjacent_id, id) && List.mem(ins.side, sides)
          );
@@ -2671,10 +2672,15 @@ let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
           alnum(tok.[Token.length(tok) - 1]) && alnum(d.text.[0])
         | _ => false
         };
-      let wordish_last = alnum(d.text.[String.length(d.text) - 1]);
-      Some((jam_left ? " " : "") ++ d.text ++ (wordish_last ? " " : ""));
+      let trail = alnum(d.text.[String.length(d.text) - 1]) || d.text == ",";
+      Some((jam_left ? " " : "") ++ d.text ++ (trail ? " " : ""));
     }
   };
+};
+
+let chip_at_caret = (z: Zipper.t): option(insertion) => {
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  chip_among(z, for_editor(seg).insertions);
 };
 
 let obligation_at_caret = (z: Zipper.t): option(Id.t) =>

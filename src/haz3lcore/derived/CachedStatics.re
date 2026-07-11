@@ -13,6 +13,11 @@ type t = {
      the view must show what is owed even though (with reification
      on) the final info_map no longer exhibits the deficit. */
   obligations: list(TypeObligations.t),
+  /* THE assist stream (A1 single-source invariant): T0 insertions
+     merged with T1 obligations, computed once per edit on the
+     erased zip. Chips, the inline ghost, and Tab all consume this
+     one list — they cannot disagree. */
+  assist: list(CanonicalCompletion.insertion),
 };
 
 let empty: t = {
@@ -29,6 +34,7 @@ let empty: t = {
   warning_ids: [],
   targets: Sample.no_targets,
   obligations: [],
+  assist: [],
 };
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
@@ -126,6 +132,7 @@ let init_from_term =
     warning_ids,
     targets,
     obligations: [],
+    assist: [],
   };
 };
 
@@ -171,12 +178,21 @@ let init =
      spliced term (per-element ana, no arity error). Obligations are
      kept from pass 1 for display either way. One step reaches the
      fixpoint: the spliced tuples are complete. */
-  switch (TypeObligations.derive(statics.info_map)) {
-  | [] => statics
-  | obs when !settings.reify_obligations => {
+  let with_assist = (statics: t, obs: list(TypeObligations.t)): t => {
+    let seg =
+      z
+      |> Zipper.clear_unparsed_buffer
+      |> Zipper.unselect_and_zip(~erase_buffer=true);
+    let t0 = CanonicalCompletion.for_editor(seg).insertions;
+    {
       ...statics,
       obligations: obs,
-    }
+      assist: TypeObligations.as_insertions(~seg, ~existing=t0, obs),
+    };
+  };
+  switch (TypeObligations.derive(statics.info_map)) {
+  | [] => with_assist(statics, [])
+  | obs when !settings.reify_obligations => with_assist(statics, obs)
   | obs =>
     let make_term_result =
       MakeTerm.from_zip_for_sem_spliced(
@@ -194,10 +210,7 @@ let init =
         ~probe_ids,
         term,
       );
-    {
-      ...statics,
-      obligations: obs,
-    };
+    with_assist(statics, obs);
   };
 };
 
