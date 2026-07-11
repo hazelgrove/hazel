@@ -738,7 +738,7 @@ let used_names = (program: Exp.t): list(string) => {
 /* minted binder names come from the nonsense pool (obviously
    placeholders — see PlaceholderNames.re); numbered fallback only
    when the pool is exhausted */
-let pick_placeholder = (used: list(string)): string => {
+let pick_placeholder = (~transform=x => x, used: list(string)): string => {
   /* deterministic variety: rotate the pool by a hash of the names
      in scope — the same program state always mints the same name
      (tests, undo, replay stay stable) but different programs start
@@ -746,12 +746,13 @@ let pick_placeholder = (used: list(string)): string => {
   let pool = PlaceholderNames.pool;
   let n = List.length(pool);
   let start = n == 0 ? 0 : Hashtbl.hash(used) mod n;
-  let rotated = List.init(n, i => List.nth(pool, (start + i) mod n));
+  let rotated =
+    List.init(n, i => transform(List.nth(pool, (start + i) mod n)));
   switch (rotated |> List.find_opt(c => !List.mem(c, used))) {
   | Some(c) => c
   | None =>
     let rec pick = k => {
-      let cand = "x" ++ string_of_int(k);
+      let cand = transform("x" ++ string_of_int(k));
       List.mem(cand, used) ? pick(k + 1) : cand;
     };
     pick(1);
@@ -1371,6 +1372,11 @@ let typ_captured_by_use_at = (occ_id: Id.t, moved: Exp.t, body: Exp.t): bool =>
    tyalias's own def still sees the outer x). Renamed tokens keep
    their ids (P7); lexeme cleared so the printer respells. */
 let rename_typ_var = (x: string, y: string, e: Exp.t): Exp.t => {
+  /* stop under rebinders of x (not ours) AND of y (renamed
+     occurrences there would capture); a rebinding tyalias's own
+     def still sees the outer names */
+  let stops = tp =>
+    List.mem(x, tpat_names(tp)) || List.mem(y, tpat_names(tp));
   let in_typ = (ty: Typ.t): Typ.t =>
     Typ.map_term(
       ~f_typ=
@@ -1384,7 +1390,7 @@ let rename_typ_var = (x: string, y: string, e: Exp.t): Exp.t => {
               term: Var(y),
             }
           | Rec(tp, _)
-          | Poly(tp, _) when List.mem(x, tpat_names(tp)) => t
+          | Poly(tp, _) when stops(tp) => t
           | _ => cont(t)
           },
       ty,
@@ -1393,16 +1399,54 @@ let rename_typ_var = (x: string, y: string, e: Exp.t): Exp.t => {
     ~f_exp=
       (cont, e: Exp.t) =>
         switch (IdTagged.term_of(e)) {
-        | TyAlias(tp, d, b) when List.mem(x, tpat_names(tp)) => {
+        | TyAlias(tp, d, b) when stops(tp) => {
             ...e,
             term: TyAlias(tp, in_typ(d), b),
           }
-        | TypFun(tp, _, _) when List.mem(x, tpat_names(tp)) => e
+        | TypFun(tp, _, _) when stops(tp) => e
         | _ => cont(e)
         },
     ~f_typ=(_cont, ty: Typ.t) => in_typ(ty),
     e,
   );
+};
+
+/* is this type name mentioned FREELY in e (some occurrence not
+   under a rebinder)? Same pruned walk as rename_typ_var. */
+let mentions_typ_free = (x: string, e: Exp.t): bool => {
+  let found = ref(false);
+  let in_typ = (ty: Typ.t): Typ.t =>
+    Typ.map_term(
+      ~f_typ=
+        (cont, t: Typ.t) =>
+          switch (IdTagged.term_of(t)) {
+          | Var(z) when z == x =>
+            found := true;
+            t;
+          | Rec(tp, _)
+          | Poly(tp, _) when List.mem(x, tpat_names(tp)) => t
+          | _ => cont(t)
+          },
+      ty,
+    );
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) =>
+          switch (IdTagged.term_of(e)) {
+          | TyAlias(tp, d, b) when List.mem(x, tpat_names(tp)) =>
+            let _ = in_typ(d);
+            {
+              ...e,
+              term: TyAlias(tp, d, b),
+            };
+          | TypFun(tp, _, _) when List.mem(x, tpat_names(tp)) => e
+          | _ => cont(e)
+          },
+      ~f_typ=(_cont, ty: Typ.t) => in_typ(ty),
+      e,
+    );
+  found^;
 };
 
 /* all type names visible in e (mentioned or bound) — the avoid set
@@ -2575,6 +2619,73 @@ let crossed_rec_binders = (line: Exp.t, path: list(Exp.t)): list(string) => {
   go(false, path);
 };
 
+/* structural equality modulo whitespace/comments and ids (strip all
+   secondary, compare syntactically); outer parens transparent */
+let strip_all_secondary = (e: Exp.t): Exp.t => {
+  let clear = ((_, _)) => ([], []);
+  Exp.map_term(
+    ~f_exp=
+      (cont, e: Exp.t) =>
+        cont({
+          ...e,
+          annotation: {
+            ...e.annotation,
+            secondary: clear(e.annotation.secondary),
+          },
+        }),
+    ~f_pat=
+      (cont, p: Pat.t) =>
+        cont({
+          ...p,
+          annotation: {
+            ...p.annotation,
+            secondary: clear(p.annotation.secondary),
+          },
+        }),
+    ~f_typ=
+      (cont, t: Typ.t) =>
+        cont({
+          ...t,
+          annotation: {
+            ...t.annotation,
+            secondary: clear(t.annotation.secondary),
+          },
+        }),
+    e,
+  );
+};
+
+let rec unparens = (e: Exp.t): Exp.t =>
+  switch (IdTagged.term_of(e)) {
+  | Parens(inner) => unparens(inner)
+  | _ => e
+  };
+
+let eq_defs = (a: Exp.t, b: Exp.t): bool =>
+  Exp.fast_equal(
+    strip_all_secondary(unparens(a)),
+    strip_all_secondary(unparens(b)),
+  );
+
+/* does anything in e BIND this name? (conservative capture guard
+   for absorption's use-repointing) */
+let binds_somewhere = (x: string, e: Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_pat=
+        (cont, p: Pat.t) => {
+          switch (IdTagged.term_of(p)) {
+          | Var(z) when z == x => found := true
+          | _ => ()
+          };
+          cont(p);
+        },
+      e,
+    );
+  found^;
+};
+
 let extract_let_impl: impl = {
   label: "Extract",
   tooltip: "Bind this expression to a fresh variable at the enclosing line",
@@ -2610,6 +2721,48 @@ let extract_let_impl: impl = {
           },
         program,
       );
+    /* GLOM (CSE): the landing line already binds this exact
+       expression — reuse its binder instead of minting a duplicate
+       (the extracted occurrence just becomes a use; nothing new is
+       created). Gated on the name reaching the occurrence unshadowed. */
+    let glom_at = (host: Exp.t, line: Exp.t, t: Exp.t) =>
+      switch (IdTagged.term_of(host)) {
+      | Let(lp, ldef, lbody) when same_node(lbody, line) && eq_defs(ldef, t) =>
+        switch (let_head_name(lp)) {
+        | Some(n) when !List.mem(n, binders_over(Exp.rep_id(t), lbody)) =>
+          let s = Slot.of_exp(t);
+          let use = Slot.give(s, fresh(Var(n)));
+          rewrite_node(
+            ~hit=same_node(line),
+            ~rewrite=
+              ln => {
+                let ln' = replace_node(~at=Exp.rep_id(t), ~with_=use, ln);
+                Some((ln', Exp.rep_id(use)));
+              },
+            program,
+          );
+        | _ => None
+        }
+      | _ => None
+      };
+    let glom = (~path: list(Exp.t), line: Exp.t, t: Exp.t) => {
+      /* the definition the new binding would land directly UNDER:
+         the line's parent when the line is its body */
+      let host = {
+        let rec find = (path: list(Exp.t)) =>
+          switch (path) {
+          | [parent, child, ..._] when same_node(child, line) =>
+            Some(parent)
+          | [_, ...rest] => find(rest)
+          | [] => None
+          };
+        find(path);
+      };
+      switch (host) {
+      | Some(host) => glom_at(host, line, t)
+      | None => None
+      };
+    };
     /* the new binding lands at the nearest enclosing line; the use
        site takes over the extracted node's whitespace slot, and the
        line keeps its layout via a fresh copy of its leading run */
@@ -2650,8 +2803,12 @@ let extract_let_impl: impl = {
       let line = lowest_line(path);
       let blocked =
         crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
-      !blocked && !same_node(line, t)
-        ? to_block(line, t) : in_place(~parens=!same_node(line, t), t);
+      switch (blocked ? None : glom(~path, line, t)) {
+      | Some(r) => Some(r)
+      | None =>
+        !blocked && !same_node(line, t)
+          ? to_block(line, t) : in_place(~parens=!same_node(line, t), t)
+      };
     };
   },
 };
@@ -3471,6 +3628,36 @@ let statement_crossable = (l: def_line, stmt: Exp.t): bool =>
  * node to rewrite, its replacement, and a focus id. ~fixup as in
  * sink_step: invocation moves the released body's textual lead into
  * the vacated slot (prints; gating passes false). */
+/* === Absorption ===
+ * Two IDENTICAL definitions merge when one moves onto the other:
+ * the STATIONARY binding survives (ids kept — P7), the moving one
+ * dissolves, and its uses repoint to the survivor. Gates: simple
+ * var heads, syntactically identical defs (modulo whitespace and
+ * parens), and the survivor's name is never rebound in the
+ * dissolved scope (capture guard, conservative). */
+let absorb_lines =
+    (~survivor: Exp.t, ~dissolved_head: Pat.t, scope: Exp.t)
+    : option((Exp.t, Id.t)) =>
+  switch (IdTagged.term_of(survivor)) {
+  | Let(sp, _, _) =>
+    switch (let_head_name(sp), let_head_name(dissolved_head)) {
+    | (Some(sn), Some(dn)) when !binds_somewhere(sn, scope) =>
+      let scope' = sn == dn ? scope : rename_syntactic(dn, sn, scope);
+      Some((scope', Pat.rep_id(sp)));
+    | _ => None
+    }
+  | _ => None
+  };
+
+let absorbable = (upper: Exp.t, lower: Exp.t): bool =>
+  switch (IdTagged.term_of(upper), IdTagged.term_of(lower)) {
+  | (Let(up, ud, _), Let(lp, ld, _)) =>
+    Option.is_some(let_head_name(up))
+    && Option.is_some(let_head_name(lp))
+    && eq_defs(ud, ld)
+  | _ => false
+  };
+
 /* 4th component: rep ids of the definition lines whose attached doc
    blocks should be re-homed after the rewrite (carry_attached_docs) */
 let hoist_step =
@@ -3499,8 +3686,24 @@ let hoist_step =
       | Parens(_) when n >= 3 => (List.nth(path, n - 3), direct)
       | _ => (direct, l)
       };
-    /* def-line general moves first: chain swap with another
-       definition line, or one step up past a statement */
+    /* def-line general moves first: absorption of an identical
+       neighbor, chain swap with another definition line, or one
+       step up past a statement */
+    let absorb =
+      switch (def_line_of(l), def_line_of(p)) {
+      | (Some((_, lbody)), Some((_, pbody)))
+          when same_node(pbody, c) && same_node(c, l) && absorbable(p, l) =>
+        switch (IdTagged.term_of(l)) {
+        | Let(lp, _, _) =>
+          switch (absorb_lines(~survivor=p, ~dissolved_head=lp, lbody)) {
+          | Some((scope', focus)) =>
+            Some((p, def_line_rebuild(p, scope'), focus, [Exp.rep_id(p)]))
+          | None => None
+          }
+        | _ => None
+        }
+      | _ => None
+      };
     let chain_swap =
       switch (def_line_of(l), def_line_of(p)) {
       | (Some((bl, lbody)), Some((bp, pbody)))
@@ -3554,10 +3757,11 @@ let hoist_step =
         }
       | _ => None
       };
-    switch (chain_swap, seq_hoist) {
-    | (Some(r), _)
-    | (_, Some(r)) => Some(r)
-    | (None, None) =>
+    switch (absorb, chain_swap, seq_hoist) {
+    | (Some(r), _, _)
+    | (_, Some(r), _)
+    | (_, _, Some(r)) => Some(r)
+    | (None, None, None) =>
       switch (IdTagged.term_of(l)) {
       | Let(lp, ldef, lbody) =>
         let l_names = pat_var_names(lp);
@@ -3884,8 +4088,28 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
         };
       };
     };
-  /* def-line general moves first: chain swap with the next
-     definition line, or one step down past a statement */
+  /* def-line general moves first: absorption of an identical
+     neighbor, chain swap with the next definition line, or one step
+     down past a statement */
+  let absorb =
+    switch (def_line_of(l)) {
+    | Some((_, lbody)) when absorbable(l, lbody) =>
+      switch (IdTagged.term_of(l), IdTagged.term_of(lbody)) {
+      | (Let(lp, _, _), Let(_, _, mbody)) =>
+        switch (absorb_lines(~survivor=lbody, ~dissolved_head=lp, mbody)) {
+        | Some((mbody', focus)) =>
+          /* the dissolved upper line's break dies with it */
+          Some((
+            strip_leading_ws(def_line_rebuild(lbody, mbody')),
+            focus,
+            [Exp.rep_id(lbody)],
+          ))
+        | None => None
+        }
+      | _ => None
+      }
+    | _ => None
+    };
   let chain_sink =
     switch (def_line_of(l)) {
     | Some((bl, lbody)) =>
@@ -3935,10 +4159,11 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
       }
     | None => None
     };
-  switch (chain_sink, seq_sink) {
-  | (Some(r), _)
-  | (_, Some(r)) => Some(r)
-  | (None, None) =>
+  switch (absorb, chain_sink, seq_sink) {
+  | (Some(r), _, _)
+  | (_, Some(r), _)
+  | (_, _, Some(r)) => Some(r)
+  | (None, None, None) =>
     switch (IdTagged.term_of(l)) {
     | Let(lp, ldef, lbody) =>
       let l_names = pat_var_names(lp);
@@ -4168,6 +4393,25 @@ let carry_attached_docs =
          | None => None
          }
        );
+  /* a carried line must still EXIST in the result (absorption
+     dissolves lines): docs of a vanished line stay put — relocate
+     or leave, never drop */
+  let still_there = id => {
+    let found = ref(false);
+    let _ =
+      Exp.map_term(
+        ~f_exp=
+          (cont, e: Exp.t) => {
+            if (IdTagged.rep_id(e) == id) {
+              found := true;
+            };
+            cont(e);
+          },
+        post,
+      );
+    found^;
+  };
+  let moves = moves |> List.filter(((id, _)) => still_there(id));
   if (moves == []) {
     post;
   } else {
@@ -4386,7 +4630,10 @@ let extract_alias_impl: impl = {
         None;
       } else {
         let name =
-          pick_placeholder(used_names(program) @ typ_names_in(program));
+          pick_placeholder(
+            ~transform=String.capitalize_ascii,
+            used_names(program) @ typ_names_in(program),
+          );
         let s = typ_slot(ty);
         let def =
           typ_slot_give(
@@ -6205,6 +6452,66 @@ let remove_param_impl: impl = {
     },
 };
 
+/* free type names in the alias's scope: rename x to this alias
+   (the typo-repair mirror of RenameFree; binder = the affordance) */
+let rename_typ_pairs =
+    (~target: Id.t, program: Exp.t): list((string, string)) =>
+  switch (find_hit(~hit=hit_tyalias(target), program)) {
+  | Some(e) =>
+    switch (IdTagged.term_of(e)) {
+    | TyAlias(tp, _, body) =>
+      switch (tpat_names(tp)) {
+      | [t] =>
+        let enclosing =
+          switch (find_path(~hit=same_node(e), program)) {
+          | Some(path) =>
+            path
+            |> List.concat_map((a: Exp.t) =>
+                 switch (IdTagged.term_of(a)) {
+                 | TyAlias(atp, _, _)
+                 | TypFun(atp, _, _) => tpat_names(atp)
+                 | _ => []
+                 }
+               )
+          | None => []
+          };
+        typ_names_mentioned(body)
+        |> List.filter(x =>
+             x != t && !List.mem(x, enclosing) && mentions_typ_free(x, body)
+           )
+        |> List.map(x => (x, t));
+      | _ => []
+      }
+    | _ => []
+    }
+  | None => []
+  };
+
+let rename_typ_free_impl = (x: string, t: string): impl => {
+  label: "Rename " ++ x ++ " to " ++ t,
+  tooltip: "Bind free type mentions of " ++ x ++ " at this alias",
+  prepare: (~info_map as _, ~target, program) =>
+    x == t
+      ? None
+      : rewrite_node(
+          ~hit=hit_tyalias(target),
+          ~rewrite=
+            e =>
+              switch (IdTagged.term_of(e)) {
+              | TyAlias(tp, d, body) when tpat_names(tp) == [t] =>
+                Some((
+                  {
+                    ...e,
+                    term: TyAlias(tp, d, rename_typ_var(x, t, body)),
+                  },
+                  IdTagged.rep_id(tp),
+                ))
+              | _ => None
+              },
+          program,
+        ),
+};
+
 let impl: Action.refactor => impl =
   fun
   | InlineLet => inline_let_impl
@@ -6220,6 +6527,7 @@ let impl: Action.refactor => impl =
   | AddParameter => add_param_impl
   | RemoveParameter => remove_param_impl
   | RenameFree(x, y) => rename_free_impl(x, y)
+  | RenameTypFree(x, t) => rename_typ_free_impl(x, t)
   | SwapParams(i) => swap_params_impl(i)
   | SwapArms(i) => swap_arms_impl(i)
   | SwapTuplePat(i) => swap_tuple_pat_impl(i)
@@ -6384,6 +6692,8 @@ let applies =
       }
     | None => false
     }
+  | RenameTypFree(x, t) =>
+    rename_typ_pairs(~target, program) |> List.mem((x, t))
   | RenameFree(x, y) =>
     switch (find_hit(~hit=hit_rename(target), program)) {
     | Some(e) => rename_pairs(~info_map, ~target, e) |> List.mem((x, y))
@@ -6656,19 +6966,31 @@ let label_override =
  * name), with labels naming names */
 let rename_items =
     (~info_map: Statics.Map.t, ~target: Id.t, term: Exp.t)
-    : list((Action.refactor, string, string)) =>
-  switch (find_hit(~hit=hit_rename(target), term)) {
-  | Some(e) =>
-    rename_pairs(~info_map, ~target, e)
-    |> List.map(((x, y)) =>
-         (
-           Action.RenameFree(x, y),
-           "Rename " ++ x ++ " to " ++ y,
-           "Bind free occurrences of " ++ x ++ " at this binding",
+    : list((Action.refactor, string, string)) => {
+  let exp_items =
+    switch (find_hit(~hit=hit_rename(target), term)) {
+    | Some(e) =>
+      rename_pairs(~info_map, ~target, e)
+      |> List.map(((x, y)) =>
+           (
+             Action.RenameFree(x, y),
+             "Rename " ++ x ++ " to " ++ y,
+             "Bind free occurrences of " ++ x ++ " at this binding",
+           )
          )
-       )
-  | None => []
-  };
+    | None => []
+    };
+  let typ_items =
+    rename_typ_pairs(~target, term)
+    |> List.map(((x, t)) =>
+         (
+           Action.RenameTypFree(x, t),
+           "Rename " ++ x ++ " to " ++ t,
+           "Bind free type mentions of " ++ x ++ " at this alias",
+         )
+       );
+  exp_items @ typ_items;
+};
 
 let menu_items =
     (~info_map: Statics.Map.t, ~term: Exp.t, z: Zipper.t)

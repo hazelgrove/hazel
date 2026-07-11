@@ -3947,7 +3947,7 @@ let inline_alias_tests = [
       check(
         string,
         "extracted",
-        "type zoob = Int in let f: zoob -> Int = fun x -> x in\nf(1)",
+        "type Zoob = Int in let f: Zoob -> Int = fun x -> x in\nf(1)",
         z,
       );
     },
@@ -3965,7 +3965,7 @@ let inline_alias_tests = [
       check(
         string,
         "extracted",
-        "let k = 1 in\ntype borp = Int in\nlet f: borp -> Int = fun x -> x in\nf(k)",
+        "let k = 1 in\ntype Borp = Int in\nlet f: Borp -> Int = fun x -> x in\nf(k)",
         z,
       );
     },
@@ -3986,6 +3986,76 @@ let inline_alias_tests = [
       offers(ExtractAlias, "type t = Int ¦-> Int in\n(1 : t)"),
     )
   }),
+  test_case(
+    "rename alias: free type name repaired at the alias",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=RenameTypFree("cord", "coord"),
+          "type ¦coord = Int in\n(1 : cord)",
+        )
+        |> text_of;
+      check(string, "renamed", "type coord = Int in\n(1 : coord)", z);
+    },
+  ),
+  test_case(
+    "glom: extract onto an identical adjacent def reuses it",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=ExtractLet, "let dist = f(2) in\ng(¦f(2))") |> text_of;
+      check(string, "glommed", "let dist = f(2) in\ng(dist)", z);
+    },
+  ),
+  test_case(
+    "absorb: hoist onto an identical def merges (survivor above)",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=HoistLet, "let a = f(1) in\nlet ¦b = f(1) in\na + b")
+        |> text_of;
+      check(string, "absorbed", "let a = f(1) in\na + a", z);
+    },
+  ),
+  test_case(
+    "absorb: sink onto an identical def merges (survivor below)",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=SinkLet, "let ¦a = f(1) in\nlet b = f(1) in\na + b")
+        |> text_of;
+      check(string, "absorbed", "let b = f(1) in\nb + b", z);
+    },
+  ),
+  test_case(
+    "absorb: whitespace differences don't block the merge",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=HoistLet, "let a = f( 1 ) in\nlet ¦b = f(1) in\na + b")
+        |> text_of;
+      check(string, "absorbed", "let a = f( 1 ) in\na + a", z);
+    },
+  ),
+  test_case(
+    "absorb: guarded when the survivor name is rebound below",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistLet,
+          "let a = f(1) in\nlet ¦b = f(1) in\nlet a = 9 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "swapped instead",
+        "let b = f(1) in\nlet a = f(1) in\nlet a = 9 in\na + b",
+        z,
+      );
+    },
+  ),
   test_case("inline alias: offered at the type line", `Quick, () => {
     check(
       bool,
@@ -4049,6 +4119,30 @@ let doc_carry_tests = [
         "let z = 0 in\n# doc b #\nlet b = 2 in\nlet a = 1 in\na + b",
         z,
       );
+    },
+  ),
+];
+
+let eq_tests = [
+  test_case(
+    "eq_defs: syntactic modulo whitespace/parens",
+    `Quick,
+    () => {
+      let term_of = src => {
+        let z = Test_Editing.parse_zipper(src);
+        MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      };
+      let a = term_of("¦f(2)");
+      let b = term_of("¦f(2)");
+      check(bool, "identical parses eq", true, Refactor.eq_defs(a, b));
+      check(bool, "self eq", true, Refactor.eq_defs(a, a));
+      check(
+        bool,
+        "ws-insensitive",
+        true,
+        Refactor.eq_defs(a, term_of("¦f( 2 )")),
+      );
+      check(bool, "neq", false, Refactor.eq_defs(a, term_of("¦f(3)")));
     },
   ),
 ];
@@ -4184,6 +4278,7 @@ let tests = [
     @ whitespace_probe2
     @ tyalias_tests
     @ comment_tests
+    @ eq_tests
     @ doc_carry_tests
     @ def_line_tests
     @ inline_alias_tests
