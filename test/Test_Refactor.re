@@ -3506,7 +3506,7 @@ let tyalias_tests = [
    flips if/when comment-block attachment lands) */
 let comment_tests = [
   test_case(
-    "comment: hoist chain swap leaves doc block at its slot",
+    "comment: doc block FOLLOWS its definition on hoist",
     `Quick,
     () => {
       let z =
@@ -3518,13 +3518,31 @@ let comment_tests = [
       check(
         string,
         "hoist",
-        "let b = 2 in\n# doc for b #\nlet a = 1 in\na + b",
+        "# doc for b #\nlet b = 2 in\nlet a = 1 in\na + b",
         z,
       );
     },
   ),
   test_case(
-    "comment: sink chain swap leaves doc block at its slot",
+    "comment: doc block FOLLOWS its definition on sink",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkLet,
+          "let z = 0 in\n# doc for a #\nlet ¦a = 1 in\nlet b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "sink",
+        "let z = 0 in\nlet b = 2 in\n# doc for a #\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: buffer-start doc block follows its definition",
     `Quick,
     () => {
       let z =
@@ -3536,7 +3554,79 @@ let comment_tests = [
       check(
         string,
         "sink",
-        "# doc for a #\nlet b = 2 in\nlet a = 1 in\na + b",
+        "let b = 2 in\n# doc for a #\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: free-standing block (blank below) stays put",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkLet,
+          "# header #\n\nlet ¦a = 1 in\nlet b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "sink",
+        "# header #\n\nlet b = 2 in\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: comment-fn-comment-fn style, both blocks follow",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkLet,
+          "let z = 0 in\n# doc a #\nlet ¦a = 1 in\n# doc b #\nlet b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "sink",
+        "let z = 0 in\n# doc b #\nlet b = 2 in\n# doc a #\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: multi-line doc block travels whole",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistLet,
+          "let a = 1 in\n# doc one #\n# doc two #\nlet ¦b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "hoist",
+        "# doc one #\n# doc two #\nlet b = 2 in\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: doc block rides a statement crossing",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkLet,
+          "let z = 0 in\n# doc a #\nlet ¦a = 1 in\n1 + 1;\na + 2",
+        )
+        |> text_of;
+      check(
+        string,
+        "sink",
+        "let z = 0 in\n1 + 1;\n# doc a #\nlet a = 1 in\na + 2",
         z,
       );
     },
@@ -3806,6 +3896,63 @@ let inline_alias_tests = [
   }),
 ];
 
+let doc_carry_tests = [
+  test_case(
+    "comment: mid-chain doc block travels on hoist",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistLet,
+          "let z = 0 in\nlet a = 1 in\n# doc b #\nlet ¦b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "h",
+        "let z = 0 in\n# doc b #\nlet b = 2 in\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: crossed line's doc block stays ITS doc",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistLet,
+          "let z = 0 in\n# doc a #\nlet a = 1 in\nlet ¦b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "h",
+        "let z = 0 in\nlet b = 2 in\n# doc a #\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: mid-chain doc block rides a sink",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkLet,
+          "let z = 0 in\nlet ¦a = 1 in\n# doc b #\nlet b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "s",
+        "let z = 0 in\n# doc b #\nlet b = 2 in\nlet a = 1 in\na + b",
+        z,
+      );
+    },
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -3937,6 +4084,7 @@ let tests = [
     @ whitespace_probe2
     @ tyalias_tests
     @ comment_tests
+    @ doc_carry_tests
     @ def_line_tests
     @ inline_alias_tests
     @ beta_tests

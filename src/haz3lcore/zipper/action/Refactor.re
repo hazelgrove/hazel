@@ -214,6 +214,61 @@ let strip_comments = (e: Exp.t): Exp.t => {
   );
 };
 
+/* Split a line's lead at its ATTACHED DOC BLOCK: the trailing run
+   of comment lines touching the content below (no blank line between
+   block and content — andrew's heuristic; no blank required above,
+   so comment-fn-comment-fn style attaches each block down). The
+   attached part starts at the first comment after the last blank-
+   line boundary and carries its own line breaks + trailing indent;
+   the break separating it from what's ABOVE stays with the position.
+   Movement redistributes the two parts — pieces are only relocated,
+   never dropped or copied (comments exist once, always). */
+let split_doc_block =
+    (ws: list(Secondary.t)): (list(Secondary.t), list(Secondary.t)) => {
+  let is_break = (w: Secondary.t) =>
+    switch (w.content) {
+    | Whitespace(x) => String.contains(x, '\n')
+    | _ => false
+    };
+  let is_space = (w: Secondary.t) =>
+    switch (w.content) {
+    | Whitespace(x) => !String.contains(x, '\n')
+    | _ => false
+    };
+  let arr = Array.of_list(ws);
+  let n = Array.length(arr);
+  /* last blank-line boundary: two breaks with only spaces between */
+  let last_blank_end = ref(0);
+  let prev_break = ref(false);
+  Array.iteri(
+    (i, w) =>
+      if (is_break(w)) {
+        if (prev_break^) {
+          last_blank_end := i + 1;
+        };
+        prev_break := true;
+      } else if (!is_space(w)) {
+        prev_break := false;
+      },
+    arr,
+  );
+  let first_comment = ref(-1);
+  Array.iteri(
+    (i, w) =>
+      if (first_comment^ < 0 && i >= last_blank_end^ && is_comment_piece(w)) {
+        first_comment := i;
+      },
+    arr,
+  );
+  switch (first_comment^) {
+  | c when c >= 0 => (
+      Array.to_list(Array.sub(arr, 0, c)),
+      Array.to_list(Array.sub(arr, c, n - c)),
+    )
+  | _ => (ws, [])
+  };
+};
+
 /* strip a plain-whitespace lead; a lead containing COMMENTS is user
    content and stays put (RemoveUnusedLet once ate the next line's
    comment block via a bare strip) */
@@ -3130,8 +3185,11 @@ let statement_crossable = (l: def_line, stmt: Exp.t): bool =>
  * node to rewrite, its replacement, and a focus id. ~fixup as in
  * sink_step: invocation moves the released body's textual lead into
  * the vacated slot (prints; gating passes false). */
+/* 4th component: rep ids of the definition lines whose attached doc
+   blocks should be re-homed after the rewrite (carry_attached_docs) */
 let hoist_step =
-    (~fixup: bool, path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
+    (~fixup: bool, path: list(Exp.t))
+    : option((Exp.t, Exp.t, Id.t, list(Id.t))) => {
   let occupy =
       (slot: (list(Secondary.t), list(Secondary.t)), region: Exp.t) =>
     if (fixup) {
@@ -3164,12 +3222,14 @@ let hoist_step =
             same_node(pbody, c)
             && same_node(c, l)
             && lines_swappable(bp, bl) =>
-        /* chain swap; the two lines exchange line slots */
+        /* chain swap; the two lines exchange line slots (attached
+           doc blocks are re-homed by carry_attached_docs, from the
+           textual pre-image — holders of a line's lead vary) */
         let m': Exp.t =
           with_secondary(l.annotation.secondary, def_line_rebuild(p, lbody));
         let l': Exp.t =
           with_secondary(p.annotation.secondary, def_line_rebuild(l, m'));
-        Some((p, l', Exp.rep_id(l)));
+        Some((p, l', Exp.rep_id(l), [Exp.rep_id(l), Exp.rep_id(p)]));
       | _ => None
       };
     let seq_hoist =
@@ -3193,13 +3253,18 @@ let hoist_step =
           };
           let result =
             Slot.give(ss, def_line_rebuild(Slot.drop(sl, l), inner));
-          Some((p, result, Exp.rep_id(l)));
+          Some((
+            p,
+            result,
+            Exp.rep_id(l),
+            [Exp.rep_id(l), Exp.rep_id(s1)],
+          ));
         } else {
           let inner: Exp.t = {
             ...p,
             term: Seq(s1, lbody),
           };
-          Some((p, def_line_rebuild(l, inner), Exp.rep_id(l)));
+          Some((p, def_line_rebuild(l, inner), Exp.rep_id(l), []));
         }
       | _ => None
       };
@@ -3264,7 +3329,7 @@ let hoist_step =
                 term: Let(lp, ldef, m'),
               },
             );
-          Some((p, l', Exp.rep_id(l)));
+          Some((p, l', Exp.rep_id(l), [Exp.rep_id(l)]));
         | Match(scrut, rules)
             when
               same_node(c, l)
@@ -3314,7 +3379,7 @@ let hoist_step =
                 term: Let(lp, ldef, match'),
               },
             );
-          Some((p, l', Exp.rep_id(l)));
+          Some((p, l', Exp.rep_id(l), [Exp.rep_id(l)]));
         | If(cond_, t_, alt_)
             when
               same_node(c, l)
@@ -3346,7 +3411,7 @@ let hoist_step =
                 term: Let(lp, ldef, if'),
               },
             );
-          Some((p, l', Exp.rep_id(l)));
+          Some((p, l', Exp.rep_id(l), [Exp.rep_id(l)]));
         | Fun(fp, fbody, ft, fn)
             when
               same_node(fbody, c)
@@ -3383,7 +3448,7 @@ let hoist_step =
                 term: Let(lp, ldef, fun'),
               },
             );
-          Some((p, l', Exp.rep_id(l)));
+          Some((p, l', Exp.rep_id(l), [Exp.rep_id(l)]));
         | Let(_)
         | Fun(_)
         | FixF(_) => None
@@ -3444,7 +3509,7 @@ let hoist_step =
                     term: Let(lp, ldef, p'),
                   },
                 );
-              Some((p, l', Exp.rep_id(l)));
+              Some((p, l', Exp.rep_id(l), [Exp.rep_id(l)]));
             }
             : None
         };
@@ -3487,7 +3552,7 @@ let rec is_bare_use = (names: list(string), e: Exp.t): bool =>
   | _ => false
   };
 
-let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
+let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
   let take_lead = (region: Exp.t): (list(Secondary.t), Exp.t) =>
     if (fixup) {
       let s = Slot.lead_of(region);
@@ -3550,7 +3615,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
             l.annotation.secondary,
             def_line_rebuild(lbody, l'),
           );
-        Some((m', Exp.rep_id(l)));
+        Some((m', Exp.rep_id(l), [Exp.rep_id(l), Exp.rep_id(lbody)]));
       | _ => None
       }
     | None => None
@@ -3572,13 +3637,13 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
             ...lbody,
             term: Seq(s1', inner),
           };
-          Some((result, Exp.rep_id(l)));
+          Some((result, Exp.rep_id(l), [Exp.rep_id(l), Exp.rep_id(s1)]));
         } else {
           let result: Exp.t = {
             ...lbody,
             term: Seq(s1, def_line_rebuild(l, rest)),
           };
-          Some((result, Exp.rep_id(l)));
+          Some((result, Exp.rep_id(l), []));
         }
       | _ => None
       }
@@ -3649,7 +3714,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
               term: Let(mp, l', mbody),
             },
           );
-        Some((m', Exp.rep_id(l)));
+        Some((m', Exp.rep_id(l), [Exp.rep_id(l)]));
       | Fun(fp, fbody, ft, fn)
           when
             disjoint_names(l_names, pat_var_names(fp))
@@ -3674,7 +3739,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
               term: Fun(fp, l', ft, fn),
             },
           );
-        Some((fun', Exp.rep_id(l)));
+        Some((fun', Exp.rep_id(l), [Exp.rep_id(l)]));
       | Match(scrut, rules) when !names_mentioned(l_names, scrut) =>
         /* into the single arm that uses the binding */
         switch (
@@ -3706,7 +3771,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
                 term: Match(scrut, rules'),
               },
             );
-          Some((match', Exp.rep_id(l)));
+          Some((match', Exp.rep_id(l), [Exp.rep_id(l)]));
         | _ => None
         }
       | If(c, t, alt) when !names_mentioned(l_names, c) =>
@@ -3734,6 +3799,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
               },
             ),
             Exp.rep_id(l),
+            [Exp.rep_id(l)],
           ));
         | (false, true) when !names_mentioned(l_names, t) =>
           let (a_lead, alt') = take_lead(alt);
@@ -3755,6 +3821,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
               },
             ),
             Exp.rep_id(l),
+            [Exp.rep_id(l)],
           ));
         | _ => None
         }
@@ -3762,6 +3829,90 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
       };
     | _ => None
     }
+  };
+};
+
+/* the flat Secondary run printed immediately before the piece with
+   this id, searched recursively (tiles nest) */
+let rec run_before_in_seg =
+        (id: Id.t, seg: Segment.t): option(list(Secondary.t)) => {
+  let rec go = (i, prev: list(Secondary.t), rest: Segment.t) =>
+    switch (rest) {
+    | [] => None
+    | [pc, ...tail] =>
+      if (Piece.id(pc) == id) {
+        Some(List.rev(prev));
+      } else {
+        let deeper =
+          switch (pc) {
+          | Piece.Tile({children, _}) =>
+            children |> List.find_map(run_before_in_seg(id))
+          | _ => None
+          };
+        switch (deeper) {
+        | Some(r) => Some(r)
+        | None =>
+          switch (pc) {
+          | Piece.Secondary(w) => go(i + 1, [w, ...prev], tail)
+          | _ => go(i + 1, [], tail)
+          }
+        };
+      }
+    };
+  go(0, [], seg);
+};
+
+/* Re-home attached doc blocks after a line movement: read each
+   moved line's block from the TEXTUAL pre-image (holders of a
+   line's lead vary — parent after-runs, node before-runs), drop
+   those pieces from the result wherever they landed, and append
+   them to the moved line's lead. Pieces are relocated, never
+   copied or dropped; a block outside the term (buffer start)
+   never prints in the pre-image, so it stays untouched. */
+let carry_attached_docs =
+    (~line_ids: list(Id.t), ~pre: Exp.t, post: Exp.t): Exp.t => {
+  let seg = ExpToSegment.exp_to_segment(~settings=roundtrip_settings, pre);
+  let moves =
+    line_ids
+    |> List.filter_map(id =>
+         switch (run_before_in_seg(id, seg)) {
+         | Some(run) =>
+           let (_, att) = split_doc_block(run);
+           att == [] ? None : Some((id, att));
+         | None => None
+         }
+       );
+  if (moves == []) {
+    post;
+  } else {
+    let att_ids =
+      moves
+      |> List.concat_map(((_, att)) =>
+           att |> List.map((w: Secondary.t) => w.id)
+         );
+    let post = drop_secondary(att_ids, post);
+    moves
+    |> List.fold_left(
+         (acc, (id, att)) =>
+           Exp.map_term(
+             ~f_exp=
+               (cont, e: Exp.t) =>
+                 if (IdTagged.rep_id(e) == id) {
+                   let (b, a) = e.annotation.secondary;
+                   {
+                     ...e,
+                     annotation: {
+                       ...e.annotation,
+                       secondary: (b @ att, a),
+                     },
+                   };
+                 } else {
+                   cont(e);
+                 },
+             acc,
+           ),
+         post,
+       );
   };
 };
 
@@ -3776,12 +3927,15 @@ let hoist_let_impl: impl = {
          whole-program reparse cost ~0.5s per press on a few-page
          buffer. Reparse-safety is covered by the movement reparse
          tests in Test_Refactor instead. */
-      | Some((pnode, result, focus)) =>
+      | Some((pnode, result, focus, carry)) =>
         rewrite_node(
           ~hit=same_node(pnode),
           ~rewrite=_ => Some((result, focus)),
           program,
         )
+        |> Option.map(((prog', f)) =>
+             (carry_attached_docs(~line_ids=carry, ~pre=program, prog'), f)
+           )
       | None => None
       }
     | None => None
@@ -3798,12 +3952,15 @@ let sink_let_impl: impl = {
     ) {
     | Some(l) =>
       switch (sink_step(~fixup=true, l)) {
-      | Some((result, focus)) =>
+      | Some((result, focus, carry)) =>
         rewrite_node(
           ~hit=same_node(l),
           ~rewrite=_ => Some((result, focus)),
           program,
         )
+        |> Option.map(((prog', f)) =>
+             (carry_attached_docs(~line_ids=carry, ~pre=program, prog'), f)
+           )
       | None => None
       }
     | None => None
