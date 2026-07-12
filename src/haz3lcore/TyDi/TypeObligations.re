@@ -880,6 +880,13 @@ let ghost_pieces =
   switch (ins.delimiters) {
   | [] => None
   | [d0, ..._] when d0.typed_len != None => None /* witness: TyDi's */
-  | ds => build(ds, !hugs_left(List.hd(ds).text) ? false : true)
+  | ds =>
+    /* leading space only when the left context doesn't already
+       separate (typed trailing space, line start, opener) — padding
+       when needed for formatting, invisible when not */
+    build(
+      ds,
+      hugs_left(List.hd(ds).text) || CanonicalCompletion.left_separated(z),
+    )
   };
 };

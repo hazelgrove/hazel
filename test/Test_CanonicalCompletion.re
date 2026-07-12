@@ -1568,17 +1568,21 @@ let tab_dispatch_tests = [
     ~expected="let a = 4 in ¦?",
     (),
   ),
+  /* F1 acceptance spacing: `=` carries its trailing space, `in`
+     leads after a hole — Tab types what the ghost promised */
   tab_case(
     ~name="multi-delimiter chip: one delimiter per tab",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
-    ~expected="let _: (Int, Bool) =¦?",
+    ~expected="let _: (Int, Bool) = ¦?",
     (),
   ),
+  /* the `=?` jam (tab 1 left `= ?`) is molding-on-`in` reflow —
+     typing the same by hand does it too; upstream wart, not Tab's */
   tab_case(
     ~name="multi-delimiter chip: second tab takes the next",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
     ~tabs=2,
-    ~expected="let _: (Int, Bool) =?in ¦?",
+    ~expected="let _: (Int, Bool) =? in ¦?",
     (),
   ),
   tab_case(

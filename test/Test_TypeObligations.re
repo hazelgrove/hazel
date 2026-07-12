@@ -386,10 +386,12 @@ let ghost_case = (~name, ~code, ~expected) =>
 
 let ghost_tests = [
   ghost_case(~name="ghost: f(1", ~code=f2 ++ "f(1¦", ~expected="<, ?)>"),
+  /* caret follows a typed space: the ghost drops its leading pad
+     (left context already separates — no double space) */
   ghost_case(
     ~name="ghost: annotated let",
     ~code="let _: (Int, Bool) ¦",
-    ~expected="< = ? in ?>",
+    ~expected="<= ? in ?>",
   ),
   ghost_case(
     ~name="ghost: let a = 4",

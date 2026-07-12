@@ -79,6 +79,12 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
       }
     | _ => segment
     };
+  /* ghost shards may complete a tile whose shards were split across
+   * the segment (e.g. a keyword's = / in) — reassemble or the
+   * parser (Skel) sees an impossible all-present-unassembled run */
+  let segment =
+    ghost_marks == []
+      ? segment : CanonicalCompletion.deep_reassemble(segment);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     MakeTerm.go(segment);
   let (projector_shapes, projector_errors) =

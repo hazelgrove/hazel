@@ -92,10 +92,26 @@ let resolve_position =
   switch (Measured.find_by_id(ins.adjacent_id, measured)) {
   | None => None
   | Some(m) =>
+    let point_of = (pm: Measured.measurement, side: Direction.t) =>
+      switch (side) {
+      | Right => (pm.last.row, pm.last.col)
+      | Left => (pm.origin.row, pm.origin.col)
+      };
+    /* rest at the run's TRUE position (the splice ref — grout and
+       whitespace included), not the content anchor: a chip for
+       material landing after `..., ?` parks after the hole, not
+       after the comma. Content anchor is the fallback (witnesses,
+       unmeasured refs; shard refs use the tile's extent). */
     let (row, col) =
-      switch (ins.side) {
-      | Right => (m.last.row, m.last.col)
-      | Left => (m.origin.row, m.origin.col)
+      switch (
+        ins.splice
+        |> Util.OptUtil.and_then(((id, _, sside)) =>
+             Measured.find_by_id(id, measured)
+             |> Option.map((sm: Measured.measurement) => point_of(sm, sside))
+           )
+      ) {
+      | Some(p) => p
+      | None => point_of(m, ins.side)
       };
     let is_free = (p: Piece.t) =>
       switch (p) {

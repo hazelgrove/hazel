@@ -326,6 +326,27 @@ let middle_split_plan =
   };
 };
 
+/* Recursive same-id shard reassembly. Used by the completion
+ * pipeline (Phase 3) and by the display fork after ghost shards
+ * splice in: a segment holding a tile's shards as separate pieces
+ * (all present, unassembled) is unparseable — Skel sees an
+ * impossible sequence. Must recurse: an opener splice can capture
+ * still-unmerged shard pairs inside a fresh tile's child, which a
+ * top-level pass never revisits. */
+let rec deep_reassemble = (seg: Segment.t): Segment.t =>
+  seg
+  |> Segment.reassemble
+  |> List.map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         Piece.Tile({
+           ...t,
+           children: List.map(deep_reassemble, t.children),
+         })
+       | p => p
+       }
+     );
+
 /* Middle-missing shards (`let x in 2`, `if true else 2` — targeted
  * put-down can leave an interior delimiter still missing). The
  * missing shard cannot be appended to the segment like leading/trailing
@@ -2115,19 +2136,6 @@ let rec complete_segment =
        correct molds. Must recurse: an opener splice can capture
        still-unmerged shard pairs inside a fresh tile's child, which a
        top-level pass never revisits. */
-    let rec deep_reassemble = (seg: Segment.t): Segment.t =>
-      seg
-      |> Segment.reassemble
-      |> List.map((p: Piece.t) =>
-           switch (p) {
-           | Tile(t) =>
-             Piece.Tile({
-               ...t,
-               children: List.map(deep_reassemble, t.children),
-             })
-           | p => p
-           }
-         );
     let reassembled = deep_reassemble(regrouted) |> Segment.remold(_, sort);
 
     /* Phase 4: Regrout again based on NEW molds (remold may have changed shapes) */
@@ -2701,15 +2709,55 @@ let chip_among =
    into the typed prefix exactly as typing would); a plain delimiter
    gets a leading space when it would jam against an alphanumeric
    left neighbor and a trailing space when wordish. */
-let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
-  let alnum = c =>
-    switch (c) {
-    | 'a' .. 'z'
-    | 'A' .. 'Z'
-    | '0' .. '9'
-    | '_' => true
+/* F1 predicates shared by ghost display and Tab acceptance — the
+   ghost's spacing IS the promise of what Tab types */
+let f1_hugs_left = (t: string): bool =>
+  String.length(t) > 0
+  && (
+    switch (t.[0]) {
+    | ','
+    | ')'
+    | ']'
+    | '}' => true
     | _ => false
-    };
+    }
+  );
+let f1_closes = (t: string): bool =>
+  String.length(t) > 0
+  && (
+    switch (t.[String.length(t) - 1]) {
+    | ')'
+    | ']'
+    | '}' => true
+    | _ => false
+    }
+  );
+let f1_opens = (t: string): bool =>
+  String.length(t) > 0
+  && (
+    switch (t.[String.length(t) - 1]) {
+    | '('
+    | '[' => true
+    | _ => false
+    }
+  );
+
+/* whether the caret's left neighborhood already provides separation
+   (space, linebreak, line start, or an opener's inside edge) — a
+   non-hugging delimiter accepted here needs no leading space */
+let left_separated = (z: Zipper.t): bool =>
+  switch (z.relatives.siblings |> fst |> List.rev) {
+  | [] => true
+  | [Secondary(_), ..._] => true
+  | [Tile(t), ..._] =>
+    switch (Util.ListUtil.last_opt(t.shards)) {
+    | Some(i) => f1_opens(List.nth(t.label, i))
+    | None => false
+    }
+  | _ => false
+  };
+
+let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
   switch (ins.delimiters) {
   | [] => None
   | [d, ..._] =>
@@ -2718,14 +2766,9 @@ let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
       Some(String.sub(d.text, n, String.length(d.text) - n))
     | Some(_) => None
     | None =>
-      let jam_left =
-        switch (z.relatives.siblings |> fst |> List.rev) {
-        | [Tile({label: [tok], _}), ..._] when Token.length(tok) > 0 =>
-          alnum(tok.[Token.length(tok) - 1]) && alnum(d.text.[0])
-        | _ => false
-        };
-      let trail = alnum(d.text.[String.length(d.text) - 1]) || d.text == ",";
-      Some((jam_left ? " " : "") ++ d.text ++ (trail ? " " : ""));
+      let lead = !f1_hugs_left(d.text) && !left_separated(z);
+      let trail = !f1_closes(d.text) && !f1_opens(d.text);
+      Some((lead ? " " : "") ++ d.text ++ (trail ? " " : ""));
     }
   };
 };

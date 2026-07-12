@@ -78,12 +78,16 @@ let display_parts =
         }
       | _ => seg
       };
+    let seg = marks == [] ? seg : CanonicalCompletion.deep_reassemble(seg);
     (seg, z, marks, assist);
   };
 };
 
 let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
   let (seg, zc, marks, assist) = display_parts(z);
+  /* live runs MakeTerm on the spliced display segment (CachedSyntax
+     term_data) — the splice must keep the segment parseable */
+  let _ = MakeTerm.go(seg);
   let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
   let is_marked = (id: Id.t, sh: option(int)) =>
     List.exists(
@@ -356,6 +360,39 @@ string_replace(a, b, c)¦   CHIPS[]|},
       /* caret INSIDE the auto-closed string literal: the promise is
          anchored on the host token, so Inner carets still ghost */
       display_case("string_replace(\"¦\"⟪, ?, ?)⟫"),
+    ],
+  ),
+  (
+    "CompletionDisplay: crash-repro",
+    [
+      test_case(
+        "keyword completion above later content",
+        `Quick,
+        () => {
+          /* le¦ on line 1, string_replace("") on line 3; typing t
+             completes the let keyword — the spliced display segment
+             must stay parseable (Skel.push_output crash) */
+          let z =
+            Test_Editing.perform(
+              Zipper.init(),
+              Test_Editing.mk("le\n\nstring_replace(\"\")¦"),
+            );
+          let z =
+            Test_Editing.perform(
+              z,
+              [
+                Test_Editing.move_point(~row=0, ~col=2, ()),
+                Action.Insert("t"),
+              ],
+            );
+          check(
+            string_testable,
+            "no crash",
+            "let¦?⟪ = ? in⟫\n\nstring_replace(\"\")   CHIPS[,+,]",
+            display_state(z),
+          );
+        },
+      ),
     ],
   ),
   (
