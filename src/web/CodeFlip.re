@@ -193,8 +193,12 @@ let num = (x: float): Js.Unsafe.any =>
   Js.Unsafe.inject(Js.number_of_float(x));
 let int_ = (x: int): Js.Unsafe.any => num(float_of_int(x));
 
-/* watch a created animation's fate */
-let watch_anim = (kind: string, anim: Js.Unsafe.any): unit =>
+/* watch a created animation's fate; conn records whether the node
+   was still in the document at end time — a "finish" with
+   conn=false is the silent kill (a vdom patch replaced the node;
+   nothing was on screen) */
+let watch_anim =
+    (kind: string, node: Js.t(Dom.node), anim: Js.Unsafe.any): unit =>
   try({
     let t0 = Js.Unsafe.eval_string("performance.now()");
     let mk = how =>
@@ -208,6 +212,7 @@ let watch_anim = (kind: string, anim: Js.Unsafe.any): unit =>
             Js.Unsafe.js_expr("performance.now()") |> Js.Unsafe.inject,
           ),
           ("t0", t0),
+          ("conn", Js.Unsafe.inject(Js.Unsafe.get(node, "isConnected"))),
         ])
       );
     Js.Unsafe.set(anim, "onfinish", mk("finish"));
@@ -424,7 +429,9 @@ let animate_emerge =
     )
   ) {
   | exception _ => ()
-  | anim => active := [anim, ...active^]
+  | anim =>
+    watch_anim("emerge", node, anim);
+    active := [anim, ...active^];
   };
 };
 
@@ -461,7 +468,7 @@ let animate_node =
   ) {
   | exception _ => () /* no WAAPI: just show the final state */
   | anim =>
-    watch_anim("flight", anim);
+    watch_anim("flight", node, anim);
     active := [anim, ...active^];
   };
 };
