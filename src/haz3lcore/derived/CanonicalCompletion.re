@@ -403,9 +403,98 @@ let f1_opens = (t: string): bool =>
  *     commas). System material = ghost-marked edges, minted grout,
  *     and any grout inside a ghost-bearing tile. User material is
  *     never reformatted: real-real adjacencies are left alone. */
+/* the atom (piece, or tile shard) immediately left of the caret —
+   the boundary for the no-changes-before-the-cursor policy */
+let caret_left_atom = (z: Zipper.t): option((Id.t, int)) => {
+  let of_piece = (p: Piece.t) =>
+    switch (p) {
+    | Tile(t) =>
+      switch (Util.ListUtil.last_opt(t.shards)) {
+      | Some(i) => (t.id, i)
+      | None => (t.id, (-1))
+      }
+    | p => (Piece.id(p), (-1))
+    };
+  switch (Util.ListUtil.last_opt(fst(z.relatives.siblings))) {
+  | Some(p) => Some(of_piece(p))
+  | None =>
+    let rec go = ancs =>
+      switch (ancs) {
+      | [] => None
+      | [(a: Ancestor.t, sibs: Siblings.t), ...rest] =>
+        switch (Util.ListUtil.last_opt(fst(a.shards))) {
+        | Some(i) => Some((a.id, i))
+        | None =>
+          switch (Util.ListUtil.last_opt(fst(sibs))) {
+          | Some(p) => Some(of_piece(p))
+          | None => go(rest)
+          }
+        }
+      };
+    go(z.relatives.ancestors);
+  };
+};
+
 let finish_display =
-    (~marks: list((Id.t, option(int))), ~raw: Segment.t, seg: Segment.t)
+    (
+      ~marks: list((Id.t, option(int))),
+      ~raw: Segment.t,
+      ~caret_after: option((Id.t, int))=None,
+      seg: Segment.t,
+    )
     : Segment.t => {
+  /* reading-order ranks so pads can be confined to gaps AT or AFTER
+     the caret (andrew's policy: the display never changes strictly
+     before the cursor — no shaking the user) */
+  let rank: Hashtbl.t((Id.t, int), int) = Hashtbl.create(64);
+  let ctr = ref(0);
+  let rec walk_seg = (ps: Segment.t) => List.iter(walk_piece, ps)
+  and walk_piece = (p: Piece.t) =>
+    switch (p) {
+    | Tile(t) =>
+      let rec go = (shards, children) =>
+        switch (shards) {
+        | [] => ()
+        | [i, ...srest] =>
+          incr(ctr);
+          Hashtbl.replace(rank, (t.id, i), ctr^);
+          switch (srest, children) {
+          | ([], _) => ()
+          | (_, [c, ...crest]) =>
+            walk_seg(c);
+            go(srest, crest);
+          | (_, []) => go(srest, [])
+          };
+        };
+      go(t.shards, t.children);
+    | p =>
+      incr(ctr);
+      Hashtbl.replace(rank, (Piece.id(p), (-1)), ctr^);
+    };
+  let caret_rank =
+    switch (caret_after) {
+    | None => None
+    | Some(key) => Hashtbl.find_opt(rank, key)
+    };
+  /* a pad site is identified by the atom LEFT of the gap */
+  let pad_allowed = (left: (Id.t, int)): bool =>
+    switch (caret_rank) {
+    | None => true
+    | Some(cr) =>
+      switch (Hashtbl.find_opt(rank, left)) {
+      | Some(r) => r >= cr
+      | None => true
+      }
+    };
+  let right_edge_atom = (p: Piece.t): (Id.t, int) =>
+    switch (p) {
+    | Tile(t) =>
+      switch (Util.ListUtil.last_opt(t.shards)) {
+      | Some(i) => (t.id, i)
+      | None => (t.id, (-1))
+      }
+    | p => (Piece.id(p), (-1))
+    };
   let raw_ids = Hashtbl.create(64);
   let rec collect = (sg: Segment.t) =>
     List.iter(
@@ -491,7 +580,12 @@ let finish_display =
           edge(~hot, a, ~side=Direction.Right),
           edge(~hot, b, ~side=Direction.Left),
         ) {
-        | (Some(l), Some(r)) when needs_pad(l, r) => [a, space(), ...rest]
+        | (Some(l), Some(r))
+            when needs_pad(l, r) && pad_allowed(right_edge_atom(a)) => [
+            a,
+            space(),
+            ...rest,
+          ]
         | _ => [a, ...rest]
         }
       | [] => [a]
@@ -513,7 +607,13 @@ let finish_display =
                switch (c) {
                | [first, ..._] =>
                  switch (edge(~hot, first, ~side=Direction.Left)) {
-                 | Some(r) when needs_pad(bound(k), r) => [space(), ...c]
+                 | Some(r)
+                     when
+                       needs_pad(bound(k), r)
+                       && pad_allowed((t.id, List.nth(t.shards, k))) => [
+                     space(),
+                     ...c,
+                   ]
                  | _ => c
                  }
                | [] => c
@@ -521,7 +621,11 @@ let finish_display =
              switch (Util.ListUtil.last_opt(c)) {
              | Some(last) =>
                switch (edge(~hot, last, ~side=Direction.Right)) {
-               | Some(l) when needs_pad(l, bound(k + 1)) => c @ [space()]
+               | Some(l)
+                   when
+                     needs_pad(l, bound(k + 1))
+                     && pad_allowed(right_edge_atom(last)) =>
+                 c @ [space()]
                | _ => c
                }
              | None => c
@@ -533,7 +637,10 @@ let finish_display =
       });
     | p => p
     };
-  seg |> reorder |> pad_seq(~hot=false);
+  /* rank AFTER reorder — hopped grout must carry its final position */
+  let seg = reorder(seg);
+  walk_seg(seg);
+  pad_seq(~hot=false, seg);
 };
 
 /* Middle-missing shards (`let x in 2`, `if true else 2` — targeted

@@ -81,6 +81,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
         |> CanonicalCompletion.finish_display(
              ~marks=ghost_marks,
              ~raw=raw_segment,
+             ~caret_after=CanonicalCompletion.caret_left_atom(z),
            );
   /* FAIL OPEN: the fork is display-only — a splice the parser can't
    * take means no ghost this frame, never a crash */

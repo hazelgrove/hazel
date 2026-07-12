@@ -135,6 +135,15 @@ let view =
       }
     };
 
+  /* a tile whose shards are only display-ghosts is still INCOMPLETE
+     to the user — keep the incomplete-delimiter color it had before
+     the ghost spliced in */
+  let tile_ghosted = (t: Piece.tile): bool =>
+    List.exists(
+      ((mid, _): (Id.t, option(int))) => Id.equal(mid, t.id),
+      ghost_marks,
+    );
+
   let of_delim = (t: Piece.tile, i: int): t => {
     let sort = sort(t);
     of_delim'(
@@ -143,7 +152,7 @@ let view =
       sort,
       is_consistent(sort, t),
       List.mem(t.id, buffer_ids) || ghost_mark(t.id, Option.some(i)),
-      Tile.is_complete(t),
+      Tile.is_complete(t) && !tile_ghosted(t),
       Mold.is_infix_op(t.mold)
       && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
       font_metrics,

@@ -77,6 +77,7 @@ let display_parts =
           |> CanonicalCompletion.finish_display(
                ~marks,
                ~raw=Zipper.unselect_and_zip(z),
+               ~caret_after=CanonicalCompletion.caret_left_atom(z),
              );
     /* FAIL OPEN like live (CachedSyntax): a splice the parser can't
        take means no ghost this frame, never a crash — but surface it
@@ -222,6 +223,24 @@ let trajectory_in = (~ctx="¦", text: string): string => {
 };
 
 let trajectory = (text: string): string => trajectory_in(~ctx="¦", text);
+
+/* per-backspace trajectory from the ¦ in ctx — DELETION flows jank
+   differently than entry (promises grow instead of shrinking) */
+let trajectory_bk = (~ctx: string, n: int): string => {
+  let base = Test_Editing.mk(ctx);
+  let rec steps = (k, acc) =>
+    if (k > n) {
+      List.rev(acc);
+    } else {
+      let z =
+        Test_Editing.perform(
+          Zipper.init(),
+          base @ List.init(k, _ => Action.Destruct(Local(Left, ByChar))),
+        );
+      steps(k + 1, [display_state(z), ...acc]);
+    };
+  steps(1, []) |> String.concat("\n");
+};
 
 /* One-liner form: the string is both input and expectation. Text
    before ¦ (ghosts stripped) is typed left-to-right; the rendered
@@ -446,6 +465,28 @@ string_replace(a, b, c)   CHIPS[in]
 let x = 1 in¦
 string_replace(a, b, c)   CHIPS[]|},
           trajectory_in(~ctx="¦\nstring_replace(a, b, c)", "let x = 1 in"),
+        )
+      ),
+      /* DELETION (andrew's backspace repro): back through
+         `let  =  in` — watch for pre-caret reflow (policy: display
+         never changes strictly before the cursor) and the prefix
+         behavior when `in` decays to `i`. Pre-caret text is
+         byte-stable throughout (policy holds). KNOWN JANK, first
+         line: witness absorption doesn't fire for a decayed keyword
+         shard, so `i` gets a synthesized `in` beside it instead of
+         prefix-joining (`i¦⟪n⟫`) — needs middle-shard witness in the
+         completion engine. */
+      test_case("backspace through let = in", `Quick, () =>
+        check(
+          string_testable,
+          "let-bk",
+          {|let ?  =  i¦ ⟪in ?⟫   CHIPS[]
+let ?  =  ¦? ⟪in ?⟫   CHIPS[]
+let ?  = ¦? ⟪in ?⟫   CHIPS[]
+let ?  =¦ ? ⟪in ?⟫   CHIPS[]
+let  ¦? ⟪= ? in ?⟫   CHIPS[]
+let ¦? ⟪= ? in ?⟫   CHIPS[]|},
+          trajectory_bk(~ctx="let  =  in¦", 6),
         )
       ),
       /* CLEAN: mid-program insertion into a hole reads right
