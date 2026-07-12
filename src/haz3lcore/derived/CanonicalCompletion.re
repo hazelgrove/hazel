@@ -3139,12 +3139,35 @@ let splice_ghost =
           }
         };
       };
+    /* a side-Right beside-splice hoists immediately-following
+       COMMENT secondaries before the ghost: a TyDi witness ghost
+       (a display comment) completes the token FIRST — chip material
+       lands after it */
+    let hoist_comments = (anchor: Piece.t, rest: Segment.t) => {
+      let rec take = (acc, rest) =>
+        switch (rest) {
+        | [Piece.Secondary(w) as c, ...tl] when Secondary.is_comment(w) =>
+          take([c, ...acc], tl)
+        | _ => (List.rev(acc), rest)
+        };
+      let (cmts, rest) = take([], rest);
+      ([anchor] @ cmts @ pieces, rest);
+    };
     let rec go_seg = (ps: Segment.t): option(Segment.t) =>
       switch (ps) {
       | [] => None
       | [p, ...rest] =>
         switch (try_piece(p)) {
-        | Some(repl) => Some(repl @ rest)
+        | Some(repl) =>
+          /* beside-Right shape [anchor, ...ghost]: hoist comments */
+          let (repl, rest) =
+            switch (side, repl) {
+            | (Direction.Right, [anchor, ...tl])
+                when anchor === p && tl != [] =>
+              hoist_comments(anchor, rest)
+            | _ => (repl, rest)
+            };
+          Some(repl @ rest);
         | None =>
           switch (p) {
           | Tile(t) =>

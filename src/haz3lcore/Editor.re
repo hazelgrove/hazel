@@ -248,22 +248,29 @@ module Update = {
         [];
       };
 
-    /* inline chip ghost (display fork): when TyDi has no suggestion
-       but the caret sits in a chip's zone right after an edit, the
-       chip's pending content splices into the DISPLAY segment at its
-       anchor (CachedSyntax) — the zipper stays untouched. Same
-       activation pattern as TyDi: an edit ARMS the ghost, any other
-       action disarms (Update.clear_buffer); movement never arms.
-       While armed, a statics refresh re-forks the display (type
-       facts may have changed the promise). */
+    /* inline chip ghost (display fork): when the caret sits in a
+       chip's zone right after an edit, the chip's pending content
+       splices into the DISPLAY segment at its anchor (CachedSyntax)
+       — the zipper stays untouched. Same activation pattern as
+       TyDi: an edit ARMS the ghost, any other action disarms
+       (Update.clear_buffer); movement never arms. While armed, a
+       statics refresh re-forks the display. COEXISTS with a TyDi
+       buffer: TyDi owns the witness at the caret; chip ghosts
+       splice at their own anchors (pure-witness insertions are
+       excluded here — they're TyDi's). */
     let armed = is_edited || syntax.ghost_armed;
     let ghost =
-      if (settings.assist
-          && settings.statics
-          && armed
-          && !Selection.is_buffer(zipper.selection)) {
+      if (settings.assist && settings.statics && armed) {
+        let ghostable =
+          assist
+          |> List.filter((ins: CanonicalCompletion.insertion) =>
+               switch (ins.delimiters) {
+               | [{typed_len: Some(_), _}, ..._] => false
+               | _ => true
+               }
+             );
         switch (
-          CanonicalCompletion.chip_among(zipper, assist)
+          CanonicalCompletion.chip_among(zipper, ghostable)
           |> Option.map(CanonicalCompletion.slide_to_caret(zipper))
         ) {
         /* guard AFTER the slide: a ghost that hugs the caret through

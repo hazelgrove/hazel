@@ -45,54 +45,59 @@ let display_parts =
     | Some(z) => z
     | None => z
     };
-  if (Selection.is_buffer(z_tydi.selection)) {
-    (
-      Zipper.unselect_and_zip(z_tydi),
-      z_tydi,
-      CanonicalCompletion.ghost_marks(z_tydi.selection.content),
-      assist,
-    );
-  } else {
-    let seg = Zipper.unselect_and_zip(z);
-    let (seg, marks) =
-      switch (
-        CanonicalCompletion.chip_among(z, assist)
-        |> Option.map(CanonicalCompletion.slide_to_caret(z))
-      ) {
-      | Some(ins) when !CanonicalCompletion.splice_precedes_caret(z, ins) =>
-        switch (TypeObligations.ghost_pieces(z, ins)) {
-        | Some(pieces) =>
-          switch (CanonicalCompletion.splice_ghost(seg, ~ins, ~pieces)) {
-          | Some(r) => r
-          | None => (seg, [])
-          }
+  /* COEXISTENCE: TyDi's witness ghost lives in the buffer (at the
+     caret); chip ghosts splice at their anchors — both render */
+  let has_buffer =
+    Selection.is_buffer(z_tydi.selection) && z_tydi.selection.content != [];
+  let base_z = has_buffer ? z_tydi : z;
+  let seg = Zipper.unselect_and_zip(base_z);
+  let tydi_marks =
+    has_buffer
+      ? CanonicalCompletion.ghost_marks(z_tydi.selection.content) : [];
+  let ghostable =
+    assist
+    |> List.filter((ins: CanonicalCompletion.insertion) =>
+         switch (ins.delimiters) {
+         | [{typed_len: Some(_), _}, ..._] => false
+         | _ => true
+         }
+       );
+  let (seg, chip_marks) =
+    switch (
+      CanonicalCompletion.chip_among(z, ghostable)
+      |> Option.map(CanonicalCompletion.slide_to_caret(z))
+    ) {
+    | Some(ins) when !CanonicalCompletion.splice_precedes_caret(z, ins) =>
+      switch (TypeObligations.ghost_pieces(z, ins)) {
+      | Some(pieces) =>
+        switch (CanonicalCompletion.splice_ghost(seg, ~ins, ~pieces)) {
+        | Some(r) => r
         | None => (seg, [])
         }
-      | _ => (seg, [])
-      };
-    /* normalize + padding oracle, exactly like live (CachedSyntax) */
-    let seg =
-      marks == []
-        ? seg
-        : seg
-          |> CanonicalCompletion.normalize_display
-          |> CanonicalCompletion.finish_display(
-               ~marks,
-               ~raw=Zipper.unselect_and_zip(z),
-               ~caret_after=CanonicalCompletion.caret_left_atom(z),
-             );
-    /* FAIL OPEN like live (CachedSyntax): a splice the parser can't
-       take means no ghost this frame, never a crash — but surface it
-       in the render so the jank is visible, not silent */
-    switch (MakeTerm.go(seg)) {
-    | _ => (seg, z, marks, assist)
-    | exception _ when marks != [] => (
-        Zipper.unselect_and_zip(z),
-        z,
-        [],
-        assist,
-      )
+      | None => (seg, [])
+      }
+    | _ => (seg, [])
     };
+  /* normalize + padding oracle, exactly like live (CachedSyntax) */
+  let seg =
+    chip_marks == []
+      ? seg
+      : seg
+        |> CanonicalCompletion.normalize_display
+        |> CanonicalCompletion.finish_display(
+             ~marks=chip_marks,
+             ~raw=Zipper.unselect_and_zip(base_z),
+             ~caret_after=CanonicalCompletion.caret_left_atom(base_z),
+           );
+  /* FAIL OPEN like live: unparseable splice = no chip ghost */
+  switch (MakeTerm.go(seg)) {
+  | _ => (seg, base_z, tydi_marks @ chip_marks, assist)
+  | exception _ when chip_marks != [] => (
+      Zipper.unselect_and_zip(base_z),
+      base_z,
+      tydi_marks,
+      assist,
+    )
   };
 };
 
@@ -182,7 +187,7 @@ let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
   /* live suppression: a ghosted chip never also shows as a chip
      (chip ghosts only — a TyDi buffer ghost isn't a chip) */
   let chips_shown =
-    marks != [] && !Selection.is_buffer(zc.selection)
+    marks != []
       ? switch (CanonicalCompletion.chip_among(zc, assist)) {
         | Some(ghosted) =>
           List.filter(
@@ -427,7 +432,7 @@ let x =¦ ? ⟪in ?⟫   CHIPS[]
 let x = ¦? ⟪in ?⟫   CHIPS[]
 let x = 1¦ ⟪in ?⟫   CHIPS[]
 let x = 1 ¦⟪in ?⟫   CHIPS[]
-let x = 1 i¦⟪n⟫?   CHIPS[in]
+let x = 1 i¦⟪n⟫?   CHIPS[]
 let x = 1 in¦?   CHIPS[]|},
           trajectory("let x = 1 in"),
         )
@@ -463,7 +468,7 @@ string_replace(a, b, c)   CHIPS[]
 let x = 1 ¦⟪in⟫
 string_replace(a, b, c)   CHIPS[]
 let x = 1 i¦⟪n⟫
-string_replace(a, b, c)   CHIPS[in]
+string_replace(a, b, c)   CHIPS[]
 let x = 1 in¦
 string_replace(a, b, c)   CHIPS[]|},
           trajectory_in(~ctx="¦\nstring_replace(a, b, c)", "let x = 1 in"),
@@ -565,16 +570,16 @@ if 1 <¦ ? ⟪then ? else ?⟫   CHIPS[]|},
           trajectory("if 1 <"),
         )
       ),
-      /* KNOWN JANK, last line: a TyDi witness (`St` -> `ring`)
-         SUPPRESSES the chip ghosts (`) = ? in` vanish to chips) —
-         the TyDi-first gate; fix = coexistence (queued) */
+      /* COEXISTENCE: TyDi's witness completes the token, chip
+         promise follows — one continuous ghost (was: witness
+         suppressed the chip ghosts to chips) */
       test_case("annotation tuple: TyDi x chip ghosts", `Quick, () =>
         check(
           string_testable,
           "annot-tydi",
           {|let a : (¦?⟪) = ? in ?⟫   CHIPS[]
 let a : (S¦⟪) = ? in ?⟫   CHIPS[]
-let a : (St¦⟪ring⟫   CHIPS[)+=+in]|},
+let a : (St¦⟪ring) = ? in ?⟫   CHIPS[]|},
           trajectory_in(~ctx="let a : ¦", "(St"),
         )
       ),
