@@ -78,7 +78,7 @@ let display_parts =
         }
       | _ => seg
       };
-    let seg = marks == [] ? seg : CanonicalCompletion.deep_reassemble(seg);
+    let seg = marks == [] ? seg : CanonicalCompletion.normalize_display(seg);
     /* FAIL OPEN like live (CachedSyntax): a splice the parser can't
        take means no ghost this frame, never a crash — but surface it
        in the render so the jank is visible, not silent */
@@ -410,13 +410,12 @@ let x = 1 in¦?   CHIPS[]|},
           trajectory("let x = 1 in"),
         )
       ),
-      /* KNOWN JANK: with content below, the splice fails to parse
-         exactly when a let slot holds a REAL token (x, 1) — those
-         steps FAIL OPEN to chips (`let x¦~ ... CHIPS[=+in]`), no
-         ghost. Grout-slot steps splice fine. Root cause open. Also:
-         `let? ¦` — regrout puts the typed space AFTER the hole, so
-         the caret visually jumps past it (zipper behavior, not
-         display). */
+      /* Full shape normalization (regrout/reassemble/remold) keeps
+         every step parseable — real-token slots included. KNOWN
+         JANK remaining: missing hole pads (as above); and `let? ¦`
+         — regrout puts the typed space AFTER the hole, so the caret
+         visually jumps past it (zipper behavior, predates the
+         fork — investigate vs dev). */
       test_case("let entry above existing content", `Quick, () =>
         check(
           string_testable,
@@ -429,18 +428,18 @@ let¦?⟪ = ? in⟫
 string_replace(a, b, c)   CHIPS[]
 let? ¦⟪= ? in⟫
 string_replace(a, b, c)   CHIPS[]
-let x¦~
-string_replace(a, b, c)   CHIPS[=+in]
-let x ¦~
-string_replace(a, b, c)   CHIPS[=+in]
+let x¦⟪ = ? in⟫
+string_replace(a, b, c)   CHIPS[]
+let x ¦⟪= ? in⟫
+string_replace(a, b, c)   CHIPS[]
 let x =¦?⟪ in⟫
 string_replace(a, b, c)   CHIPS[]
 let x =? ¦⟪in⟫
 string_replace(a, b, c)   CHIPS[]
-let x = 1¦~
-string_replace(a, b, c)   CHIPS[in]
-let x = 1 ¦~
-string_replace(a, b, c)   CHIPS[in]
+let x = 1¦⟪ in⟫
+string_replace(a, b, c)   CHIPS[]
+let x = 1 ¦⟪in⟫
+string_replace(a, b, c)   CHIPS[]
 let x = 1 i¦⟪n⟫
 string_replace(a, b, c)   CHIPS[in]
 let x = 1 in¦

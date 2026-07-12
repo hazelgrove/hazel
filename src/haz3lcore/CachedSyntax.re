@@ -84,7 +84,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
    * parser (Skel) sees an impossible all-present-unassembled run */
   let segment =
     ghost_marks == []
-      ? segment : CanonicalCompletion.deep_reassemble(segment);
+      ? segment : CanonicalCompletion.normalize_display(segment);
   /* FAIL OPEN: the fork is display-only — a splice the parser can't
    * take means no ghost this frame, never a crash */
   let (segment, ghost_marks, parsed) =

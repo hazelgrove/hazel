@@ -347,6 +347,18 @@ let rec deep_reassemble = (seg: Segment.t): Segment.t =>
        }
      );
 
+/* Full shape normalization for a spliced DISPLAY segment — the same
+   phases completion runs (regrout, reassemble, remold, regrout).
+   Reassembly alone is not enough: ghost shards change the shape
+   context, and un-regrouted/un-remolded arrangements can violate
+   the tile shards/children invariant downstream (Skel). */
+let normalize_display = (seg: Segment.t): Segment.t =>
+  seg
+  |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _)
+  |> deep_reassemble
+  |> Segment.remold(_, Sort.Exp)
+  |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _);
+
 /* Middle-missing shards (`let x in 2`, `if true else 2` — targeted
  * put-down can leave an interior delimiter still missing). The
  * missing shard cannot be appended to the segment like leading/trailing
