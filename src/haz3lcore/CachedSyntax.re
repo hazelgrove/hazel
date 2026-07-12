@@ -54,18 +54,18 @@ let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
 let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
-  let segment = Zipper.unselect_and_zip(z);
+  let raw_segment = Zipper.unselect_and_zip(z);
   /* display fork: ghost pieces splice in at their insertion's anchor;
    * everything downstream (term_data, measured, view) sees them, the
    * zipper does not */
   let (segment, ghost_marks) =
     switch (ghost) {
     | Some((ins, pieces)) =>
-      switch (CanonicalCompletion.splice_ghost(segment, ~ins, ~pieces)) {
+      switch (CanonicalCompletion.splice_ghost(raw_segment, ~ins, ~pieces)) {
       | Some((segment, marks)) => (segment, marks)
-      | None => (segment, [])
+      | None => (raw_segment, [])
       }
-    | None => (segment, [])
+    | None => (raw_segment, [])
     };
   /* system-material formatting rides with the ghost: the promised
    * ", ?" keeps its space after the comma is typed (display-only,
@@ -85,8 +85,18 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
   let segment =
     ghost_marks == []
       ? segment : CanonicalCompletion.deep_reassemble(segment);
-  let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
-    MakeTerm.go(segment);
+  /* FAIL OPEN: the fork is display-only — a splice the parser can't
+   * take means no ghost this frame, never a crash */
+  let (segment, ghost_marks, parsed) =
+    switch (MakeTerm.go(segment)) {
+    | r => (segment, ghost_marks, r)
+    | exception _ when ghost_marks != [] => (
+        raw_segment,
+        [],
+        MakeTerm.go(raw_segment),
+      )
+    };
+  let MakeTerm.{term: _, terms, projectors, projector_list, term_data} = parsed;
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,

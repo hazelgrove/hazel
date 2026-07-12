@@ -79,7 +79,18 @@ let display_parts =
       | _ => seg
       };
     let seg = marks == [] ? seg : CanonicalCompletion.deep_reassemble(seg);
-    (seg, z, marks, assist);
+    /* FAIL OPEN like live (CachedSyntax): a splice the parser can't
+       take means no ghost this frame, never a crash — but surface it
+       in the render so the jank is visible, not silent */
+    switch (MakeTerm.go(seg)) {
+    | _ => (seg, z, marks, assist)
+    | exception _ when marks != [] => (
+        Zipper.unselect_and_zip(z),
+        z,
+        [],
+        assist,
+      )
+    };
   };
 };
 
@@ -187,21 +198,28 @@ let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
   show_chips ? disp ++ "   CHIPS[" ++ chips_str ++ "]" : disp;
 };
 
-let trajectory = (text: string): string => {
-  let acts = Test_Editing.mk(text ++ "¦");
+/* Per-keystroke trajectory of typing `text` at the ¦ in `ctx` — the
+   SCENARIO MATRIX axis: same form entered on a blank editor, above
+   existing content, between content, or into a hole mid-program.
+   Contexts are typed first (real ids), then each step renders. */
+let trajectory_in = (~ctx="¦", text: string): string => {
+  let base = Test_Editing.mk(ctx);
+  let ins = Token.to_list(text) |> List.map(c => Action.Insert(c));
   let rec steps = (k, acc) =>
-    if (k > List.length(acts)) {
+    if (k > List.length(ins)) {
       List.rev(acc);
     } else {
       let z =
         Test_Editing.perform(
           Zipper.init(),
-          List.filteri((i, _) => i < k, acts),
+          base @ List.filteri((i, _) => i < k, ins),
         );
       steps(k + 1, [display_state(z), ...acc]);
     };
   steps(1, []) |> String.concat("\n");
 };
+
+let trajectory = (text: string): string => trajectory_in(~ctx="¦", text);
 
 /* One-liner form: the string is both input and expectation. Text
    before ¦ (ghosts stripped) is typed left-to-right; the rendered
@@ -360,6 +378,101 @@ string_replace(a, b, c)¦   CHIPS[]|},
       /* caret INSIDE the auto-closed string literal: the promise is
          anchored on the host token, so Inner carets still ghost */
       display_case("string_replace(\"¦\"⟪, ?, ?)⟫"),
+    ],
+  ),
+  (
+    "CompletionDisplay: matrix",
+    /* forms x contexts: the same entry must read sensibly on a blank
+       editor, above existing content, and into a hole mid-program.
+       PROBE first, felt-read, then pin. */
+    [
+      /* KNOWN JANK snapshot (fixes show as diffs): real holes miss
+         their system pad against tokens (`let¦?`, `?=`, `=?`, `in¦?`)
+         — the fmt-space rule is comma-only; and the ghost's lead pad
+         reads the CARET's left context instead of the SPLICE point's
+         (`¦?⟪= ...` should read `¦? ⟪= ...`). */
+      test_case("let entry, blank editor", `Quick, () =>
+        check(
+          string_testable,
+          "let-blank",
+          {|l¦   CHIPS[]
+le¦⟪t ⟫   CHIPS[]
+let¦?⟪ = ? in ?⟫   CHIPS[]
+let ¦?⟪= ? in ?⟫   CHIPS[]
+let x¦⟪ = ? in ?⟫   CHIPS[]
+let x ¦⟪= ? in ?⟫   CHIPS[]
+let x =¦?⟪ in ?⟫   CHIPS[]
+let x = ¦?⟪in ?⟫   CHIPS[]
+let x = 1¦⟪ in ?⟫   CHIPS[]
+let x = 1 ¦⟪in ?⟫   CHIPS[]
+let x = 1 i¦⟪n⟫?   CHIPS[in]
+let x = 1 in¦?   CHIPS[]|},
+          trajectory("let x = 1 in"),
+        )
+      ),
+      /* KNOWN JANK: with content below, the splice fails to parse
+         exactly when a let slot holds a REAL token (x, 1) — those
+         steps FAIL OPEN to chips (`let x¦~ ... CHIPS[=+in]`), no
+         ghost. Grout-slot steps splice fine. Root cause open. Also:
+         `let? ¦` — regrout puts the typed space AFTER the hole, so
+         the caret visually jumps past it (zipper behavior, not
+         display). */
+      test_case("let entry above existing content", `Quick, () =>
+        check(
+          string_testable,
+          "let-above",
+          {|l¦~
+string_replace(a, b, c)   CHIPS[]
+le¦⟪t ⟫~
+string_replace(a, b, c)   CHIPS[]
+let¦?⟪ = ? in⟫
+string_replace(a, b, c)   CHIPS[]
+let? ¦⟪= ? in⟫
+string_replace(a, b, c)   CHIPS[]
+let x¦~
+string_replace(a, b, c)   CHIPS[=+in]
+let x ¦~
+string_replace(a, b, c)   CHIPS[=+in]
+let x =¦?⟪ in⟫
+string_replace(a, b, c)   CHIPS[]
+let x =? ¦⟪in⟫
+string_replace(a, b, c)   CHIPS[]
+let x = 1¦~
+string_replace(a, b, c)   CHIPS[in]
+let x = 1 ¦~
+string_replace(a, b, c)   CHIPS[in]
+let x = 1 i¦⟪n⟫
+string_replace(a, b, c)   CHIPS[in]
+let x = 1 in¦
+string_replace(a, b, c)   CHIPS[]|},
+          trajectory_in(~ctx="¦\nstring_replace(a, b, c)", "let x = 1 in"),
+        )
+      ),
+      /* CLEAN: mid-program insertion into a hole reads right
+         throughout */
+      test_case("ap entry into a hole mid-program", `Quick, () =>
+        check(
+          string_testable,
+          "ap-in-hole",
+          {|let a = s¦ in a + 1   CHIPS[]
+let a = st¦⟪ring_capitalize⟫ in a + 1   CHIPS[]
+let a = str¦⟪ing_capitalize⟫ in a + 1   CHIPS[]
+let a = stri¦⟪ng_capitalize⟫ in a + 1   CHIPS[]
+let a = strin¦⟪g_capitalize⟫ in a + 1   CHIPS[]
+let a = string¦⟪_capitalize⟫ in a + 1   CHIPS[]
+let a = string_¦⟪capitalize⟫ in a + 1   CHIPS[]
+let a = string_r¦⟪eplace⟫ in a + 1   CHIPS[]
+let a = string_re¦⟪place⟫ in a + 1   CHIPS[]
+let a = string_rep¦⟪lace⟫ in a + 1   CHIPS[]
+let a = string_repl¦⟪ace⟫ in a + 1   CHIPS[]
+let a = string_repla¦⟪ce⟫ in a + 1   CHIPS[]
+let a = string_replac¦⟪e⟫ in a + 1   CHIPS[]
+let a = string_replace¦ in a + 1   CHIPS[]
+let a = string_replace(¦?⟪, ?, ?)⟫ in a + 1   CHIPS[]
+let a = string_replace(x¦⟪, ?, ?)⟫ in a + 1   CHIPS[]|},
+          trajectory_in(~ctx="let a = ¦ in a + 1", "string_replace(x"),
+        )
+      ),
     ],
   ),
   (
