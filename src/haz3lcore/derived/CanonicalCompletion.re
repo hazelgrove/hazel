@@ -447,18 +447,27 @@ let caret_left_atom = (z: Zipper.t): option((Id.t, int)) => {
     | p => (Piece.id(p), (-1))
     };
   /* an Inner caret sits INSIDE a token — that host token is partly
-     left of the caret (e.g. deleting `(` can land the caret Inner
-     in the preceding name) */
+     left of the caret (e.g. deleting `(` lands the caret Inner in
+     the preceding name; typing `=` before `>` gloms to `=>` with an
+     Inner caret). The host is the TOKEN neighbor, whichever side it
+     sits on (mirrors Zipper.Caret.inner_offset's preference) —
+     picking a grout neighbor let pads mint left of the caret. */
   switch (z.caret) {
   | Inner(_) =>
-    switch (
-      Util.ListUtil.last_opt(fst(z.relatives.siblings)),
-      z.relatives.siblings |> snd,
-    ) {
-    | (Some(p), _) => Some(of_piece(p))
-    | (None, [p, ..._]) => Some(of_piece(p))
-    | (None, []) => None
-    }
+    let ll = Util.ListUtil.last_opt(fst(z.relatives.siblings));
+    let rh =
+      switch (snd(z.relatives.siblings)) {
+      | [p, ..._] => Some(p)
+      | [] => None
+      };
+    let host =
+      switch (ll, rh) {
+      | (Some(Piece.Tile(_)), _) => ll
+      | (_, Some(Piece.Tile(_))) => rh
+      | (Some(_), _) => ll
+      | _ => rh
+      };
+    host |> Option.map(of_piece);
   | Outer =>
     /* selection content renders at the caret's left when focus is
        Right (e.g. a delimiter deletion leaving content selected) */
@@ -3122,7 +3131,14 @@ let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
     | Some(_) => None
     | None =>
       let lead = !f1_hugs_left(d.text) && !left_separated(z);
-      let trail = !f1_closes(d.text) && !f1_opens(d.text);
+      /* no trailing pad when the accepted delimiter ends its line —
+         the next material lives on a later line already */
+      let next_is_break =
+        switch (snd(z.relatives.siblings)) {
+        | [Secondary(w), ..._] => Secondary.is_linebreak(w)
+        | _ => false
+        };
+      let trail = !f1_closes(d.text) && !f1_opens(d.text) && !next_is_break;
       Some((lead ? " " : "") ++ d.text ++ (trail ? " " : ""));
     }
   };

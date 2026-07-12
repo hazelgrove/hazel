@@ -28,7 +28,7 @@ let plain = (z: Zipper.t): t => {
   };
 };
 
-let mk =
+let mk_inner =
     (
       ~info_map: Statics.Map.t,
       ~obligations: list(TypeObligations.t),
@@ -64,35 +64,64 @@ let mk =
       None;
     };
   let raw = Zipper.unselect_and_zip(z);
-  let (segment, ghost_marks) =
-    switch (ghost) {
-    | Some((ins, pieces)) =>
-      switch (CanonicalCompletion.splice_ghost(raw, ~ins, ~pieces)) {
-      | Some((segment, marks)) => (segment, marks)
+  /* FAIL OPEN around the WHOLE fork, not just the parse: the fork is
+     display-only, so ANY exception in splice/normalize/pads (e.g. a
+     shards/children mismatch the fuzzer found via `case fun |`)
+     means no ghost this frame — never a crash */
+  let forked = () => {
+    let (segment, ghost_marks) =
+      switch (ghost) {
+      | Some((ins, pieces)) =>
+        switch (CanonicalCompletion.splice_ghost(raw, ~ins, ~pieces)) {
+        | Some((segment, marks)) => (segment, marks)
+        | None => (raw, [])
+        }
       | None => (raw, [])
-      }
-    | None => (raw, [])
+      };
+    /* ghost shards may complete a tile whose shards were split
+       across the segment — reassemble or the parser (Skel) sees an
+       impossible all-present-unassembled run. Then the padding
+       oracle: F1 spacing around system material, applied LAST so
+       nothing can reorder it. */
+    let segment =
+      ghost_marks == []
+        ? segment
+        : segment
+          |> CanonicalCompletion.normalize_display
+          |> CanonicalCompletion.finish_display(
+               ~marks=ghost_marks,
+               ~raw,
+               ~caret_after=CanonicalCompletion.caret_left_atom(z),
+             );
+    /* a splice can produce a tile violating the shards/children
+       arity invariant (Base.re) yet still PARSE — the renderer's
+       Aba walk crashes on it (fuzzer: `case fun in |`). Validate
+       before accepting the fork. */
+    let rec tiles_well_formed = (sg: Segment.t): bool =>
+      List.for_all(
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
+            List.length(t.children) == List.length(t.shards)
+            - 1
+            && List.for_all(
+                 i => i >= 0 && i < List.length(t.label),
+                 t.shards,
+               )
+            && List.for_all(tiles_well_formed, t.children)
+          | _ => true
+          },
+        sg,
+      );
+    if (ghost_marks != [] && !tiles_well_formed(segment)) {
+      failwith("DisplayFork: malformed splice");
     };
-  /* ghost shards may complete a tile whose shards were split across
-     the segment — reassemble or the parser (Skel) sees an impossible
-     all-present-unassembled run. Then the padding oracle: F1 spacing
-     around system material, applied LAST so nothing can reorder it. */
-  let segment =
-    ghost_marks == []
-      ? segment
-      : segment
-        |> CanonicalCompletion.normalize_display
-        |> CanonicalCompletion.finish_display(
-             ~marks=ghost_marks,
-             ~raw,
-             ~caret_after=CanonicalCompletion.caret_left_atom(z),
-           );
-  /* FAIL OPEN: the fork is display-only — a splice the parser can't
-     take means no ghost this frame, never a crash */
+    (segment, ghost_marks, MakeTerm.go(segment));
+  };
   let (segment, ghost_marks, parsed) =
-    switch (MakeTerm.go(segment)) {
-    | parsed => (segment, ghost_marks, parsed)
-    | exception _ when ghost_marks != [] => (raw, [], MakeTerm.go(raw))
+    switch (forked()) {
+    | r => r
+    | exception _ => (raw, [], MakeTerm.go(raw))
     };
   {
     segment,
@@ -101,3 +130,20 @@ let mk =
     parsed,
   };
 };
+
+/* The fork's contract: it can NEVER crash the editor. An exception
+   anywhere — assist derivation included (the fuzzer found an
+   out-of-range shard index from a case/fun/in interleave) — means
+   this frame shows the raw segment with no assist at all. */
+let mk =
+    (
+      ~info_map: Statics.Map.t,
+      ~obligations: list(TypeObligations.t),
+      ~armed: bool,
+      z: Zipper.t,
+    )
+    : t =>
+  switch (mk_inner(~info_map, ~obligations, ~armed, z)) {
+  | fork => fork
+  | exception _ => plain(z)
+  };

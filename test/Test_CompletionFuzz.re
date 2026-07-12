@@ -435,13 +435,12 @@ let flat = (s: string): string =>
    record substring) so the suite is green but honest — any violation
    outside these classes reds the suite */
 let known_classes: list((string, string)) = [
-  /* keyword-completion display crash: pinned "case fun |" */
+  /* PRE-CARET(inner) exclusion removed 2026-07-12 (Inner-caret
+     hosts prefer the token side). NO-CRASH narrowed to the ENGINE
+     bug (Failure nth in MakeTerm's completion, case/fun/in — see
+     crash_stage_probe); the display fork itself is now totally
+     fail-open. */
   ("NO-CRASH", "Failure(\"nth\")"),
-  /* pad minted left of the token holding an Inner caret shifts the
-     rendered caret against the raw zipper: pinned "( > L =" (op glom),
-     "c a s e SP n SP \"" (string literal); an OUTER-caret PRE-CARET
-     violation still reds the suite */
-  ("PRE-CARET(inner)", ""),
   /* finish_display is systemically non-idempotent: pass 2 re-pads
      gaps pass 1 already padded (minted whitespace isn't in raw_ids),
      latent live because live applies it once: pinned "l e t SP" */
@@ -600,7 +599,76 @@ let known_case = (name: string, script: string, expected: string) =>
     )
   );
 
+/* ENGINE CRASH (pre-existing, fuzzer-found, affects
+   completion-provenance too): canonical completion inside
+   MakeTerm.from_zip_for_sem raises Failure("nth") completing the
+   case/fun/in interleave — this is STATICS territory, not the
+   display fork (the fork's total fail-open can't help; live
+   CachedStatics.init calls from_zip_for_sem unguarded). Tracked
+   here as a stage-bisected repro until the engine fix. */
+let crash_stage_probe = {
+  let acts = Test_Editing.mk("case fun in ¦") @ [Action.Insert("|")];
+  let z = Test_Editing.perform(Zipper.init(), acts);
+  let stage = ref("maketerm");
+  let out =
+    switch (
+      {
+        let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
+        stage := "statics";
+        let (info_map, _) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+        stage := "derive";
+        let obs = TypeObligations.derive(info_map);
+        stage := "set_buffer";
+        let zb =
+          Buffer.set_tydi_buffer(
+            Indicated.ci_for_completion(z, info_map),
+            z,
+          );
+        stage := "fork";
+        let fork =
+          DisplayFork.mk(~info_map, ~obligations=obs, ~armed=true, zb);
+        ignore(fork);
+        stage := "display_parts";
+        let (seg, zc, _marks, _assist) =
+          Test_CompletionDisplay.display_parts(z);
+        stage := "measured";
+        let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
+        stage := "caret";
+        let caret = Zipper.Caret.point(measured, zc);
+        stage := "printer";
+        let text =
+          Printer.of_segment(
+            ~holes="?",
+            ~concave_holes="~",
+            ~indent=" ",
+            ~measured,
+            seg,
+          );
+        stage := "insert";
+        let rows =
+          Printer.insert_string(
+            "|",
+            caret,
+            String.split_on_char('\n', text),
+          );
+        stage := "done";
+        String.concat("/", rows);
+      }
+    ) {
+    | r => r
+    | exception (Failure(m)) => "RAISED " ++ m ++ " at " ++ stage^
+    | exception _ => "RAISED ? at " ++ stage^
+    };
+  [
+    test_case("crash stage probe", `Quick, () =>
+      check(string_testable, "stage", "RAISED nth at maketerm", out)
+    ),
+  ];
+};
+
 let tests = [
+  ("CompletionFuzz: crash-stage", crash_stage_probe),
   (
     "CompletionFuzz: invariants",
     [
@@ -635,14 +703,14 @@ let tests = [
       known_case(
         "inner caret in glommed op",
         "( > L =",
-        "PRE-CARET(inner) disp-pre=(?  raw-pre=(?=",
+        "" /* FIXED: Inner-caret host prefers the token side */,
       ),
       /* INV 2 PRE-CARET(inner), string-literal variant: caret inside
          the auto-closed literal, pad minted before the opening quote */
       known_case(
         "inner caret in string literal",
         "c a s e SP n SP \"",
-        "PRE-CARET(inner) disp-pre=case n ~  raw-pre=case n ~\\\"",
+        "" /* FIXED: Inner-caret host prefers the token side */,
       ),
       /* INV 4 PAD-IDEMPOTENCE: second finish_display pass re-pads the
          `= ?` gap its first pass already padded (minted whitespace
@@ -668,7 +736,7 @@ let tests = [
       known_case(
         "inner caret in glommed | op",
         "n , L > n = ( |",
-        "PRE-CARET(inner) disp-pre=n>n=(?  raw-pre=n>n=(?|",
+        "" /* FIXED: Inner-caret host prefers the token side */,
       ),
     ],
   ),
