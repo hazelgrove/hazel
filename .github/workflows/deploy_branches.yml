@@ -108,7 +108,9 @@ jobs:
           eval $(opam env)
           make ci
         working-directory: ./source
-        timeout-minutes: 20
+        # full instrumented suite passed at 991s on 2026-07-11 and has
+        # only grown; 20 was a cliff we were grazing
+        timeout-minutes: 35
       - name: Test Report
         uses: dorny/test-reporter@v1
         with:
