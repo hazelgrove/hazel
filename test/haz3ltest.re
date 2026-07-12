@@ -47,6 +47,7 @@ let (suite, _) =
     @ Test_TypeObligations.tests
     @ Test_QuiverLayout.tests
     @ Test_CompletionDisplay.tests
+    @ Test_CompletionFuzz.tests
     @ Test_CompletionScoreboard.tests
     @ Test_CompletionVisualization.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
