@@ -631,20 +631,15 @@ module View = {
           ),
       (),
     );
-    /* a chip whose content is currently ghosted inline is strictly
-       redundant (and its chevron reads engine-side, not display-side)
-       — show one or the other, never both */
-    let obligations = {
-      let assist = model.editor.syntax.assist;
-      model.editor.syntax.ghost_marks != []
-        ? switch (
-            CanonicalCompletion.chip_among(model.editor.state.zipper, assist)
-          ) {
-          | Some(ghosted) => List.filter(ins => ins !== ghosted, assist)
-          | None => assist
-          }
-        : assist;
-    };
+    /* a chip whose content is currently ghosted inline — by the chip
+       ghost or a TyDi witness — never also shows as a chip (ONE
+       policy home, shared with the harness) */
+    let obligations =
+      CanonicalCompletion.chips_displayed(
+        model.editor.state.zipper,
+        ~chip_ghost_active=model.editor.syntax.ghost_marks != [],
+        model.editor.syntax.assist,
+      );
     let edit_decos =
       selected
         ? deco(

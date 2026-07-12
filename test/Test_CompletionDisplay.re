@@ -184,19 +184,17 @@ let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
          String.split_on_char('\n', text),
        )
     |> String.concat("\n");
-  /* live suppression: a ghosted chip never also shows as a chip
-     (chip ghosts only — a TyDi buffer ghost isn't a chip) */
-  let chips_shown =
-    marks != []
-      ? switch (CanonicalCompletion.chip_among(zc, assist)) {
-        | Some(ghosted) =>
-          List.filter(
-            (i: CanonicalCompletion.insertion) => i !== ghosted,
-            assist,
-          )
-        | None => assist
-        }
-      : assist;
+  /* suppression comes from THE one policy home; chip-ghost marks =
+     marks not belonging to the TyDi buffer content */
+  let chips_shown = {
+    let sel_ids = Selection.selection_ids(zc.selection);
+    let chip_ghost_active =
+      marks
+      |> List.exists(((id, _): (Id.t, option(int))) =>
+           !List.exists(Id.equal(id), sel_ids)
+         );
+    CanonicalCompletion.chips_displayed(zc, ~chip_ghost_active, assist);
+  };
   let chips_str =
     chips_shown
     |> List.map((i: CanonicalCompletion.insertion) =>
@@ -530,11 +528,11 @@ let a = string_replace(x¦⟪, ?, ?)⟫ in a + 1   CHIPS[]|},
     /* exploratory sweep (andrew): new forms, leaving things
        incomplete, refactors that break existing form delimiters */
     [
-      /* KNOWN JANK, `=¦` line: mid-arrow witness — the inline
-         display drops while typing `=>` (typed_len witness is
-         TyDi's domain; TyDi doesn't fire on the case arrow — the
-         known tydi-backpack-case-arrow issue). Recovers next
-         keystroke. */
+      /* `=¦` line: the end-ghost survives mid-arrow typing (witness
+         boundaries); the `=>` witness itself still shows as a chip
+         because TyDi doesn't fire on the case arrow (the known
+         tydi-backpack-case-arrow issue) — would ghost once that's
+         fixed */
       test_case("case entry, blank editor", `Quick, () =>
         check(
           string_testable,
@@ -550,7 +548,7 @@ case 1 |¦ ? ⟪=> ? end⟫   CHIPS[]
 case 1 | ¦? ⟪=> ? end⟫   CHIPS[]
 case 1 | 2¦ ⟪=> ? end⟫   CHIPS[]
 case 1 | 2 ¦⟪=> ? end⟫   CHIPS[]
-case 1 | 2 =¦?   CHIPS[=> | end]
+case 1 | 2 =¦ ? ⟪end⟫   CHIPS[=>]
 case 1 | 2 =>¦ ? ⟪end⟫   CHIPS[]
 case 1 | 2 => ¦? ⟪end⟫   CHIPS[]
 case 1 | 2 => 3¦ ⟪end⟫   CHIPS[]|},
@@ -649,6 +647,43 @@ string_replace(a~
             let after_more = display_state(z);
             after_typing ++ "\n---\n" ++ after_move ++ "\n---\n" ++ after_more;
           },
+        )
+      ),
+    ],
+  ),
+  (
+    "CompletionDisplay: probes-andrew-3",
+    /* andrew's live reports 2026-07-12, all fixed: (1) witness chip
+       suppressed while TyDi ghosts it — suppression now has ONE home
+       (chips_displayed) shared by deco and harness; (2) `ue then`
+       spaced — comments are content-width in the oracle, not
+       separators; (3) else-promise anchors AFTER the visible
+       witnessed `t(hen)` — witnessed shards are walk boundaries
+       anchoring at their absorbed token */
+    [
+      test_case("let a = 1 i: ghost + chip both?", `Quick, () =>
+        check(
+          string_testable,
+          "p1",
+          {|let a = 1 i¦⟪n⟫?   CHIPS[]|},
+          trajectory_in(~ctx="let a = 1 ¦", "i"),
+        )
+      ),
+      test_case("if tr: TyDi + then-ghost spacing", `Quick, () =>
+        check(
+          string_testable,
+          "p2",
+          {|if t¦ ⟪then ? else ?⟫   CHIPS[]
+if tr¦⟪ue then ? else ?⟫   CHIPS[]|},
+          trajectory_in(~ctx="if ¦", "tr"),
+        )
+      ),
+      test_case("if true t: else chip before then?", `Quick, () =>
+        check(
+          string_testable,
+          "p3",
+          {|if true t¦⟪hen⟫ ? ⟪else ?⟫   CHIPS[]|},
+          trajectory_in(~ctx="if true ¦", "t"),
         )
       ),
     ],

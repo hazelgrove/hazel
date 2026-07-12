@@ -578,6 +578,13 @@ let finish_display =
       (~hot: bool, p: Piece.t, ~side: Direction.t): option((string, bool)) =>
     switch (p) {
     | Grout(g) => Some(("?", minted(g.id) || hot))
+    /* a comment is content-width material (a TyDi ghost IS a
+       display comment) — it separates nothing */
+    | Secondary(w) when Secondary.is_comment(w) =>
+      switch (w.content) {
+      | Comment(c) => Some((c, minted(w.id)))
+      | Whitespace(_) => None
+      }
     | Secondary(_)
     | Projector(_) => None
     | Tile(t) =>
@@ -2803,12 +2810,21 @@ let derive_insertions =
   let n = Array.length(arr);
   /* whitespace and grout never anchor but never block the walk;
      original CONTENT that can't anchor (a mid-tile shard) stops it —
-     better no chip than a chip on the wrong side of visible text */
-  let walkable = ((l, orig): (leaf, bool)): bool =>
+     better no chip than a chip on the wrong side of visible text.
+     A WITNESSED shard is visible material (its absorbed token is on
+     screen): it blocks the walk and anchors at that token. */
+  let witness_token = ((l, _): (leaf, bool)): option(Id.t) =>
+    switch (l) {
+    | LShard(t, i) =>
+      prefix_of(t, i)
+      |> Option.map((sp: Language.IdTagged.IdTag.shard_prefix) => sp.token_id)
+    | _ => None
+    };
+  let walkable = ((l, orig) as leaf: (leaf, bool)): bool =>
     switch (l) {
     | LPiece(Secondary(_))
     | LPiece(Grout(_)) => true
-    | _ => !orig
+    | _ => !orig && witness_token(leaf) == None
     };
   /* a run separated from its left content by a LINEBREAK lives on a
      later line: anchor on the leaf immediately before it (the
@@ -2829,9 +2845,13 @@ let derive_insertions =
           switch (anchor_of(~right=true, arr[j])) {
           | Some(_) as a => a
           | None =>
-            switch (fst(arr[j])) {
-            | LPiece(Secondary(w)) when Secondary.is_linebreak(w) => immediate
-            | _ => walkable(arr[j]) ? go(j - 1) : None
+            switch (witness_token(arr[j])) {
+            | Some(tok) => Some(tok)
+            | None =>
+              switch (fst(arr[j])) {
+              | LPiece(Secondary(w)) when Secondary.is_linebreak(w) => immediate
+              | _ => walkable(arr[j]) ? go(j - 1) : None
+              }
             }
           }
         );
@@ -2911,8 +2931,12 @@ let derive_insertions =
            };
          let splice =
            if (a > 0) {
-             let (id, sh) = splice_ref(arr[a - 1]);
-             Some((id, sh, Direction.Right));
+             switch (witness_token(arr[a - 1])) {
+             | Some(tok) => Some((tok, None, Direction.Right))
+             | None =>
+               let (id, sh) = splice_ref(arr[a - 1]);
+               Some((id, sh, Direction.Right));
+             };
            } else if (b < n) {
              let (id, sh) = splice_ref(arr[b]);
              Some((id, sh, Direction.Left));
@@ -3027,6 +3051,45 @@ let chip_among =
     | None => probe(r, ~facing=Direction.Left)
     };
   };
+};
+
+/* The chip stream as DISPLAYED: a chip whose content is ghosted
+   inline — by the chip ghost (non-witness) or by a TyDi buffer
+   (witness) — never also shows as a chip. ONE home for this policy:
+   the live deco and the test harness both call it. */
+let is_pure_witness = (ins: insertion): bool =>
+  switch (ins.delimiters) {
+  | [{typed_len: Some(_), _}, ..._] => true
+  | _ => false
+  };
+
+let chips_displayed =
+    (z: Zipper.t, ~chip_ghost_active: bool, assist: list(insertion))
+    : list(insertion) => {
+  let tydi_active =
+    Selection.is_buffer(z.selection) && z.selection.content != [];
+  let suppress_w =
+    tydi_active ? chip_among(z, List.filter(is_pure_witness, assist)) : None;
+  let suppress_g =
+    chip_ghost_active
+      ? chip_among(z, List.filter(i => !is_pure_witness(i), assist)) : None;
+  assist
+  |> List.filter(ins =>
+       !(
+         (
+           switch (suppress_w) {
+           | Some(w) => ins === w
+           | None => false
+           }
+         )
+         || (
+           switch (suppress_g) {
+           | Some(g) => ins === g
+           | None => false
+           }
+         )
+       )
+     );
 };
 
 /* Tab = "type it for me": the paste text for the chip's next chunk.
