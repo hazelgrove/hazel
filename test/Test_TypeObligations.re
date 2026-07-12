@@ -149,22 +149,23 @@ let reify_tests = [
 let scenario_tests = [
   /* left-to-right entry: obligations shrink monotonically, never
      flicker to something weird mid-trajectory */
-  /* known gap: empty parens give no element anchor (M1 skips
-     k=0) — this is where the caret-local inline ghost belongs */
-  ob_case(~name="LR: f(", ~code=f2 ++ "f(¦", ~expected="none"),
+  /* empty parens PRESUME (gap closed 2026-07-11): the common case
+     is the comma'd application, so the promise shows from `(` on;
+     a tuple-typed single element still defeats at the next pass */
+  ob_case(~name="LR: f(", ~code=f2 ++ "f(¦", ~expected="1/2 owes String"),
   ob_case(~name="LR: f(1", ~code=f2 ++ "f(1¦", ~expected="1/2 owes String"),
   /* after the comma, regrout's hole IS the second element: tuple
-     complete, hole anas String — nothing owed */
-  ob_case(~name="LR: f(1,", ~code=f2 ++ "f(1,¦", ~expected="none"),
+     complete; the satisfied record stays (frame recount fact) */
+  ob_case(~name="LR: f(1,", ~code=f2 ++ "f(1,¦", ~expected="2/2 owes "),
   ob_case(
     ~name="LR: f(1, \"a\"",
     ~code=f2 ++ "f(1, \"a\"¦",
-    ~expected="none",
+    ~expected="2/2 owes ",
   ),
   ob_case(
     ~name="LR: f(1, \"a\")",
     ~code=f2 ++ "f(1, \"a\")¦",
-    ~expected="none",
+    ~expected="2/2 owes ",
   ),
   /* mid-entry operator: incomplete element must not distort count */
   ob_case(
@@ -427,22 +428,28 @@ let tests = [
         ~code=g3 ++ "g(1, \"a\"¦",
         ~expected="2/3 owes Bool",
       ),
+      /* satisfied sites KEEP their record (deficit 0, chip-inert):
+         it's the type fact the frame assembly recounts against —
+         without it, deleting the last comma has no arity fact until
+         the next statics pass and the promise flashes */
       ob_case(
-        ~name="complete call: no obligation",
+        ~name="complete call: satisfied record kept",
         ~code=f2 ++ "f(1, \"a\")¦",
-        ~expected="none",
+        ~expected="2/2 owes ",
       ),
+      /* the DEFEATED site emits nothing; the 2/2 is the (1, "a")
+         literal in p's definition — a satisfied fact, not f(p) */
       ob_case(
         ~name="tuple-typed var defeats the presumption",
         ~code=
           "let f : (Int, String) -> Int = fun x -> 1 in let p : (Int, String) = (1, \"a\") in f(p¦",
-        ~expected="none",
+        ~expected="2/2 owes ",
       ),
       ob_case(
         ~name="wrong-arity tuple var does not defeat",
         ~code=
           "let g : (Int, String, Bool) -> Int = fun x -> 1 in let p : (Int, String) = (1, \"a\") in g(p¦",
-        ~expected="1/3 owes String,Bool",
+        ~expected="1/3 owes String,Bool | 2/2 owes ",
       ),
       ob_case(
         ~name="explicit tuple parens under annotation",

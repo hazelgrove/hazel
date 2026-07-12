@@ -24,6 +24,9 @@ type t = {
      presumed only when a unique least-contradictory grouping
      exists) */
   commas_at: option(list(int)),
+  /* site had juxtaposed elements at derive time — reification must
+     realize their junction grout even when the arity deficit is 0 */
+  junctions: bool,
 };
 
 let deficit = (ob: t): int => ob.expected - ob.present;
@@ -77,7 +80,10 @@ let present_of = (inner: Exp.t, info_map: Statics.Map.t): option(int) =>
          Some(0),
        )
   | MultiHole(_) => juxtaposed(inner)
-  | EmptyHole
+  /* empty parens presume too: the common case IS the comma'd
+     application, so the promise shows from `(` on; a tuple-typed
+     single element still defeats it at the next statics pass */
+  | EmptyHole => Some(1)
   | Parens(_) => None
   | _ =>
     switch (Id.Map.find_opt(Exp.rep_id(inner), info_map)) {
@@ -103,12 +109,13 @@ let juxtaposed_anywhere = (inner: Exp.t): bool => {
   };
 };
 
-let mk = (~commas_at=None, site, ~present as k, tys): t => {
+let mk = (~commas_at=None, ~junctions=false, site, ~present as k, tys): t => {
   site,
   present: k,
   expected: List.length(tys),
   remaining_tys: List.filteri((i, _) => i >= k, tys),
   commas_at,
+  junctions,
 };
 
 let syn_of = (e: Exp.t, info_map): option((Ctx.t, Typ.t)) =>
@@ -195,10 +202,13 @@ let of_wrapper =
     (site: Id.t, inner: Exp.t, ~tys: list(Typ.t), info_map: Statics.Map.t)
     : option(t) =>
   switch (present_of(inner, info_map)) {
-  | Some(k) when k < List.length(tys) => Some(mk(site, ~present=k, tys))
-  | Some(k) when k == List.length(tys) && juxtaposed_anywhere(inner) =>
-    /* arity satisfied but separators owed (junction-only site) */
-    Some(mk(site, ~present=k, tys))
+  | Some(k) when k <= List.length(tys) =>
+    /* emit even when satisfied (deficit 0): the record is the
+       cadence-stable TYPE FACT the frame assembly recounts against.
+       Without it, crossing the satisfied boundary (deleting the
+       last comma) has no arity fact until the next statics pass —
+       the promise flashes off and back. */
+    Some(mk(site, ~present=k, tys, ~junctions=juxtaposed_anywhere(inner)))
   | Some(k) when k > List.length(tys) && List.length(tys) >= 2 =>
     /* overfull bare juxtaposition: forced comma count, type-fit
        placement */
@@ -206,11 +216,17 @@ let of_wrapper =
     | Some(items) when List.length(items) == k =>
       overfull_grouping(items, tys, info_map)
       |> Option.map(cut =>
-           mk(~commas_at=Some(cut), site, ~present=List.length(tys), tys)
+           mk(
+             ~commas_at=Some(cut),
+             ~junctions=true,
+             site,
+             ~present=List.length(tys),
+             tys,
+           )
          )
     | _ => None
     }
-  | _ => None /* satisfied, overfull-ambiguous, or no presumption */
+  | _ => None /* overfull-ambiguous or no presumption */
   };
 
 let ana_elements = (e: Exp.t, info_map): option((Ctx.t, list(Typ.t))) =>

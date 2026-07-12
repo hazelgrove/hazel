@@ -179,9 +179,18 @@ let init =
     ...statics,
     obligations: obs,
   };
+  /* satisfied records (deficit 0, no junctions) are TYPE FACTS for
+     the frame assembly, not reification work — don't pay the second
+     statics pass for them */
+  let needs_reify = (obs: list(TypeObligations.t)) =>
+    obs
+    |> List.exists((ob: TypeObligations.t) =>
+         TypeObligations.deficit(ob) > 0 || ob.junctions
+       );
   switch (TypeObligations.derive(statics.info_map)) {
   | [] => with_obligations(statics, [])
-  | obs when !settings.reify_obligations => with_obligations(statics, obs)
+  | obs when !settings.reify_obligations || !needs_reify(obs) =>
+    with_obligations(statics, obs)
   | obs =>
     let make_term_result =
       MakeTerm.from_zip_for_sem_spliced(

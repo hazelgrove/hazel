@@ -2644,15 +2644,31 @@ let for_editor = (seg: Segment.t): completion_result => {
 /* THE zone matcher (A1): the insertion from the given stream whose
    zone holds the caret. All interactive surfaces use this. */
 let chip_among =
-    (z: Zipper.t, insertions: list(insertion)): option(insertion) =>
+    (z: Zipper.t, insertions: list(insertion)): option(insertion) => {
+  let find = (id: Id.t, sides: list(Direction.t)): option(insertion) =>
+    insertions
+    |> List.find_opt((ins: insertion) =>
+         Id.equal(ins.adjacent_id, id) && List.mem(ins.side, sides)
+       );
   switch (z.caret) {
-  | Inner(_) => None
+  | Inner(_) =>
+    /* caret inside a token (e.g. a string literal): the promise
+       anchored on the host token still applies — match the
+       immediate neighbors only. The old Outer-only rule was a
+       buffer-era artifact: caret-rendered ghosts made no sense
+       mid-token; anchored ghosts don't care where the caret is. */
+    let both = [Direction.Left, Direction.Right];
+    let try_head = (ps: list(Piece.t)) =>
+      switch (ps) {
+      | [p, ..._] => find(Piece.id(p), both)
+      | [] => None
+      };
+    let (l, r) = z.relatives.siblings;
+    switch (try_head(List.rev(l))) {
+    | Some(_) as hit => hit
+    | None => try_head(r)
+    };
   | Outer =>
-    let find = (id: Id.t, sides: list(Direction.t)): option(insertion) =>
-      insertions
-      |> List.find_opt((ins: insertion) =>
-           Id.equal(ins.adjacent_id, id) && List.mem(ins.side, sides)
-         );
     let is_content = (p: Piece.t): bool =>
       switch (p) {
       | Secondary(_)
@@ -2678,6 +2694,7 @@ let chip_among =
     | None => probe(r, ~facing=Direction.Left)
     };
   };
+};
 
 /* Tab = "type it for me": the paste text for the chip's next chunk.
    A witness chip pastes the token REMAINDER (no spaces — it merges

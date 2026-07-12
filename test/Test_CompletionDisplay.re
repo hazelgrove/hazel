@@ -159,8 +159,21 @@ let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
          String.split_on_char('\n', text),
        )
     |> String.concat("\n");
+  /* live suppression: a ghosted chip never also shows as a chip
+     (chip ghosts only — a TyDi buffer ghost isn't a chip) */
+  let chips_shown =
+    marks != [] && !Selection.is_buffer(zc.selection)
+      ? switch (CanonicalCompletion.chip_among(zc, assist)) {
+        | Some(ghosted) =>
+          List.filter(
+            (i: CanonicalCompletion.insertion) => i !== ghosted,
+            assist,
+          )
+        | None => assist
+        }
+      : assist;
   let chips_str =
-    assist
+    chips_shown
     |> List.map((i: CanonicalCompletion.insertion) =>
          i.delimiters
          |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
@@ -308,14 +321,14 @@ string_repl¦⟪ace⟫   CHIPS[]
 string_repla¦⟪ce⟫   CHIPS[]
 string_replac¦⟪e⟫   CHIPS[]
 string_replace¦   CHIPS[]
-string_replace(¦?⟪)⟫   CHIPS[)]
-string_replace(a¦⟪, ?, ?)⟫   CHIPS[,+,+)]
-string_replace(a,¦ ?⟪, ?)⟫   CHIPS[,+)]
-string_replace(a, ¦?⟪, ?)⟫   CHIPS[,+)]
-string_replace(a, b¦⟪, ?)⟫   CHIPS[,+)]
-string_replace(a, b,¦ ?⟪)⟫   CHIPS[)]
-string_replace(a, b, ¦?⟪)⟫   CHIPS[)]
-string_replace(a, b, c¦⟪)⟫   CHIPS[)]
+string_replace(¦?⟪, ?, ?)⟫   CHIPS[]
+string_replace(a¦⟪, ?, ?)⟫   CHIPS[]
+string_replace(a,¦ ?⟪, ?)⟫   CHIPS[]
+string_replace(a, ¦?⟪, ?)⟫   CHIPS[]
+string_replace(a, b¦⟪, ?)⟫   CHIPS[]
+string_replace(a, b,¦ ?⟪)⟫   CHIPS[]
+string_replace(a, b, ¦?⟪)⟫   CHIPS[]
+string_replace(a, b, c¦⟪)⟫   CHIPS[]
 string_replace(a, b, c)¦   CHIPS[]|},
           trajectory("string_replace(a, b, c)"),
         )
@@ -328,7 +341,8 @@ string_replace(a, b, c)¦   CHIPS[]|},
        string is the expected rendering (ghost order = true landing
        order — the two middle cases were v1's buffer-jank states) */
     [
-      display_case("string_replace(¦?⟪)⟫"),
+      /* empty parens presume: the full promise from `(` on */
+      display_case("string_replace(¦?⟪, ?, ?)⟫"),
       display_case("string_replace(a¦⟪, ?, ?)⟫"),
       display_case("string_replace(a,¦ ?⟪, ?)⟫"),
       display_case("string_replace(a, b,¦ ?⟪)⟫"),
@@ -339,6 +353,9 @@ string_replace(a, b, c)¦   CHIPS[]|},
          outside the completed call */
       display_case("string_replace(a, b, c ¦⟪)⟫"),
       display_case("string_replace(a, b, c  ¦⟪)⟫"),
+      /* caret INSIDE the auto-closed string literal: the promise is
+         anchored on the host token, so Inner carets still ghost */
+      display_case("string_replace(\"¦\"⟪, ?, ?)⟫"),
     ],
   ),
   (

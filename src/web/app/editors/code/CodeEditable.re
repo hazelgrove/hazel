@@ -133,13 +133,17 @@ module Update = {
             switch (
               CanonicalCompletion.chip_among(z, model.editor.syntax.assist)
             ) {
-            | Some(ins) =>
+            /* Inner caret (e.g. inside a string literal): the zone
+               matches for display, but Paste would land INSIDE the
+               token — fall through to hole navigation */
+            | Some(ins) when z.caret == Outer =>
               switch (CanonicalCompletion.tab_text(z, ins)) {
               | Some(text) => Paste(text)
               | None =>
                 Zipper.can_put_down(z)
                   ? Put_down : Move(Goal(NextProblem(Right)))
               }
+            | Some(_)
             | None =>
               Zipper.can_put_down(z)
                 ? Put_down : Move(Goal(NextProblem(Right)))
@@ -627,13 +631,27 @@ module View = {
           ),
       (),
     );
+    /* a chip whose content is currently ghosted inline is strictly
+       redundant (and its chevron reads engine-side, not display-side)
+       — show one or the other, never both */
+    let obligations = {
+      let assist = model.editor.syntax.assist;
+      model.editor.syntax.ghost_marks != []
+        ? switch (
+            CanonicalCompletion.chip_among(model.editor.state.zipper, assist)
+          ) {
+          | Some(ghosted) => List.filter(ins => ins !== ghosted, assist)
+          | None => assist
+          }
+        : assist;
+    };
     let edit_decos =
       selected
         ? deco(
             ~expand_selection?,
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
-            ~obligations=model.editor.syntax.assist,
+            ~obligations,
             ~globals,
             ~on_apply=
               Some(id => inject(Perform(ApplyCompletion(One(id))))),
