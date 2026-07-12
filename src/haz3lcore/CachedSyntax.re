@@ -40,7 +40,7 @@ type t = {
    * frame itself. Movement never arms: activation stays edit-only. */
   ghost_armed: bool,
   /* THE assist stream (A1 single source), assembled frame-fresh by
-   * Editor.calculate from this frame's syntax + statics' type facts.
+   * DisplayFork.mk from this frame's syntax + statics' type facts.
    * Cached here because it depends only on (erased segment,
    * obligations) — caret-free — so movement frames reuse it.
    * Chips, the inline ghost, and Tab all read this one list. */
@@ -53,47 +53,27 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
-  let raw_segment = Zipper.unselect_and_zip(z);
-  /* display fork: ghost pieces splice in at their insertion's anchor;
-   * everything downstream (term_data, measured, view) sees them, the
-   * zipper does not */
-  let (segment, ghost_marks) =
-    switch (ghost) {
-    | Some((ins, pieces)) =>
-      switch (CanonicalCompletion.splice_ghost(raw_segment, ~ins, ~pieces)) {
-      | Some((segment, marks)) => (segment, marks)
-      | None => (raw_segment, [])
-      }
-    | None => (raw_segment, [])
+/* `obligations = None` means the assist machinery is off (settings
+ * gate, init paths): no assist stream, no ghost. Some(obs) threads
+ * the frame's type obligations to THE display fork (DisplayFork.mk),
+ * the single zipper→displayed-segment pipeline shared with the test
+ * harness. */
+let mk =
+    (
+      ~info_map,
+      ~dyn_map,
+      ~elaborated=None,
+      ~obligations=None,
+      ~armed=false,
+      z,
+    )
+    : t => {
+  let fork =
+    switch (obligations) {
+    | Some(obligations) => DisplayFork.mk(~info_map, ~obligations, ~armed, z)
+    | None => DisplayFork.plain(z)
     };
-  /* ghost shards may complete a tile whose shards were split across
-   * the segment (e.g. a keyword's = / in) — reassemble or the
-   * parser (Skel) sees an impossible all-present-unassembled run.
-   * Then the padding oracle: F1 spacing around system material,
-   * applied LAST so nothing can reorder it (display-only, unstyled
-   * — formatting has no provenance). */
-  let segment =
-    ghost_marks == []
-      ? segment
-      : segment
-        |> CanonicalCompletion.normalize_display
-        |> CanonicalCompletion.finish_display(
-             ~marks=ghost_marks,
-             ~raw=raw_segment,
-             ~caret_after=CanonicalCompletion.caret_left_atom(z),
-           );
-  /* FAIL OPEN: the fork is display-only — a splice the parser can't
-   * take means no ghost this frame, never a crash */
-  let (segment, ghost_marks, parsed) =
-    switch (MakeTerm.go(segment)) {
-    | r => (segment, ghost_marks, r)
-    | exception _ when ghost_marks != [] => (
-        raw_segment,
-        [],
-        MakeTerm.go(raw_segment),
-      )
-    };
+  let DisplayFork.{segment, ghost_marks, assist, parsed} = fork;
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} = parsed;
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
@@ -123,7 +103,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
     shape_elaborated: elaborated,
     ghost_marks,
     ghost_armed: false,
-    assist: [],
+    assist,
   };
 };
 
@@ -142,7 +122,14 @@ let mark_old: t => t =
  * so a full `mk` would be wasteful but shapes/measured need the new
  * elaborated expression (e.g. TableProj placeholder size). */
 let refresh_shapes =
-    (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+    (
+      z: Zipper.t,
+      info_map,
+      dyn_map,
+      ~elaborated=None,
+      ~obligations=None,
+      old: t,
+    ) => {
   let (shape_map, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       old.projectors,
@@ -154,6 +141,17 @@ let refresh_shapes =
   let refractor_shape_map = Id.Map.empty;
   let measured =
     Measured.of_segment(old.segment, shape_map, refractor_shape_map);
+  /* the assist stream depends on obligations, which derive from
+   * statics — a statics refresh refreshes it too (a dyn/elaborated
+   * -only refresh recomputes the same value; obligations gone means
+   * assist off) */
+  let assist =
+    switch (obligations) {
+    | Some(obligations) when info_map !== old.shape_info_map =>
+      TypeObligations.assist_stream(z, ~info_map, obligations)
+    | Some(_) => old.assist
+    | None => []
+    };
   {
     ...old,
     shape_map,
@@ -162,6 +160,7 @@ let refresh_shapes =
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
+    assist,
   };
 };
 
@@ -182,13 +181,21 @@ let elaborated_phys_eq =
  *   - statics-input refs changed (info_map / dyn_map / elaborated) → refresh shapes
  *   - otherwise just update selection_ids (cheap cursor-only path) */
 let calculate =
-    (z: Zipper.t, info_map, dyn_map, ~elaborated=None, ~ghost=None, old: t) =>
+    (
+      z: Zipper.t,
+      info_map,
+      dyn_map,
+      ~elaborated=None,
+      ~obligations=None,
+      ~armed=false,
+      old: t,
+    ) =>
   if (old.old) {
-    mk(z, ~info_map, ~dyn_map, ~elaborated, ~ghost);
+    mk(z, ~info_map, ~dyn_map, ~elaborated, ~obligations, ~armed);
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)) {
-    refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
+    refresh_shapes(z, info_map, dyn_map, ~elaborated, ~obligations, old);
   } else {
     {
       ...old,
