@@ -92,8 +92,8 @@ let drop_secondary = (ids: list(Id.t), e: Exp.t): Exp.t =>
    IdTagged.secondary_runs), and these aggregate correctly for every
    form. Corollary for scanners: a subtree CONTAINS its own
    sitting-position runs, so "does e span lines" must strip
-   lead/trail first (strip_leading/strip_trailing) before scanning —
-   interior_has_newline does this. */
+   lead/trail first (strip_leading/strip_trailing) before
+   scanning. */
 module Slot = {
   type t = {
     lead: list(Secondary.t),
@@ -5714,27 +5714,6 @@ let hit_beta = (target: Id.t, e: Exp.t): bool =>
     )
   );
 
-/* does the construct span lines? Its aggregated lead/trail runs say
-   where it SITS (they can live on leftmost/rightmost descendants),
-   so strip them and scan what remains. */
-let interior_has_newline = (e: Exp.t): bool => {
-  let e = e |> strip_leading |> strip_trailing;
-  let found = ref(false);
-  let _ =
-    Exp.map_term(
-      ~f_exp=
-        (cont, e2: Exp.t) => {
-          let (b, a) = e2.annotation.secondary;
-          if (has_newline(b) || has_newline(a)) {
-            found := true;
-          };
-          cont(e2);
-        },
-      e,
-    );
-  found^;
-};
-
 /* a sep is spliced at several positions — each use mints fresh ids */
 let sep_copy = (run: list(Secondary.t)): list(Secondary.t) =>
   run
@@ -5746,30 +5725,24 @@ let sep_copy = (run: list(Secondary.t)): list(Secondary.t) =>
      );
 
 /* landing-block for INTRODUCED bindings (bind-arm / bind-argument /
-   split-let; unfold-call inherits): a construct that spans lines
-   keeps its vertical extent when rotated into lets — every
-   introduced `in` breaks, one binding per line (the movement
-   family's landing rule extended to the staging family). One-line
-   constructs stay one-line. Indent copies the physical line the
-   construct starts on (nearest self-or-ancestor lead with a break).
-   Direct reductions pass ~landing=false: their lets are transient
-   and the substituted result keeps the site's own layout. */
-let intro_sep = (~program: Exp.t, ~at: Id.t): option(list(Secondary.t)) =>
+   split-let; unfold-call inherits): every introduced `in` breaks —
+   one binding per line, unconditionally (andrew 2026-07-12: a let
+   is a definition-shaped form and gets line structure regardless of
+   the rotated construct's extent; slot-aware refinement possible
+   later if parenthesized mid-expression lets read badly). Indent
+   copies the physical line the construct starts on (nearest
+   self-or-ancestor lead with a break). Direct reductions pass
+   ~landing=false: their lets are transient and the substituted
+   result keeps the site's own layout. */
+let intro_sep = (~program: Exp.t, ~at: Id.t): list(Secondary.t) =>
   switch (find_path(~hit=hit_node(at), program)) {
-  | None => None
+  | None => newline()
   | Some(path) =>
-    let self = List.nth(path, List.length(path) - 1);
-    if (!interior_has_newline(self)) {
-      None;
-    } else {
-      Some(
-        path
-        |> List.rev
-        |> List.find_opt(e => has_newline(Slot.of_exp(e).lead))
-        |> Option.map(e => sep_like(Slot.of_exp(e).lead))
-        |> Option.value(~default=newline()),
-      );
-    };
+    path
+    |> List.rev
+    |> List.find_opt(e => has_newline(Slot.of_exp(e).lead))
+    |> Option.map(e => sep_like(Slot.of_exp(e).lead))
+    |> Option.value(~default=newline())
   };
 
 let ap_to_let_prepare = (~landing=true, ~info_map as _, ~target, program) => {
@@ -5783,12 +5756,15 @@ let ap_to_let_prepare = (~landing=true, ~info_map as _, ~target, program) => {
             inline */
          let body: Exp.t = body;
          let body =
-           switch (landing ? intro_sep(~program, ~at=Exp.rep_id(e)) : None) {
+           switch (
+             landing ? Some(intro_sep(~program, ~at=Exp.rep_id(e))) : None
+           ) {
            | Some(sep) when !has_newline(Slot.of_exp(body).lead) =>
+             let body = strip_leading(body);
              with_secondary(
                (sep_copy(sep), snd(body.annotation.secondary)),
                body,
-             )
+             );
            | _ => body
            };
          (fresh(Let(p, def, body)), Pat.rep_id(p));
@@ -6030,10 +6006,15 @@ let rec wrap_bindings =
       | Some(sp) =>
         rest == [] && has_newline(Slot.of_exp(inner).lead)
           ? inner
-          : with_secondary(
+          /* strip the aggregated lead first — the old inline space
+             can live on a descendant (see the Slot trap note) */
+          : {
+            let inner = strip_leading(inner);
+            with_secondary(
               (sep_copy(sp), snd(inner.annotation.secondary)),
               inner,
-            )
+            );
+          }
       /* lead only: the nested let follows the outer `in`; its right
          edge is the body's own end */
       | None => rest == [] ? inner : with_secondary((space(), []), inner)
@@ -6110,7 +6091,8 @@ let case_to_lets = (~landing: bool, ~target, program): option((Exp.t, Id.t)) => 
     | Match(scrut, rules) =>
       pick_arm(scrut, rules)
       |> Option.map(((bs, body)) => {
-           let sep = landing ? intro_sep(~program, ~at=Exp.rep_id(e)) : None;
+           let sep =
+             landing ? Some(intro_sep(~program, ~at=Exp.rep_id(e))) : None;
            let body = body |> strip_leading |> strip_trailing;
            let built = wrap_bindings(~sep, bs, body);
            (built, Exp.rep_id(built));
@@ -6188,7 +6170,7 @@ let split_let_prepare = (~landing=true, ~info_map as _, ~target, program) =>
           switch (match_value(p, def)) {
           | Matched(bs) =>
             let sep =
-              landing ? intro_sep(~program, ~at=Exp.rep_id(e)) : None;
+              landing ? Some(intro_sep(~program, ~at=Exp.rep_id(e))) : None;
             let built = wrap_bindings(~sep, bs, body);
             let focus =
               switch (bs) {
