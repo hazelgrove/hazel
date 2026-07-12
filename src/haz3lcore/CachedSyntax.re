@@ -67,24 +67,21 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, ~ghost=None, z): t => {
       }
     | None => (raw_segment, [])
     };
-  /* system-material formatting rides with the ghost: the promised
-   * ", ?" keeps its space after the comma is typed (display-only,
-   * unstyled — formatting has no provenance) */
-  let segment =
-    switch (ghost_marks, CanonicalCompletion.format_space_target(z)) {
-    | ([_, ..._], Some(gid)) =>
-      switch (CanonicalCompletion.splice_space_before(segment, gid)) {
-      | Some(segment) => segment
-      | None => segment
-      }
-    | _ => segment
-    };
   /* ghost shards may complete a tile whose shards were split across
    * the segment (e.g. a keyword's = / in) — reassemble or the
-   * parser (Skel) sees an impossible all-present-unassembled run */
+   * parser (Skel) sees an impossible all-present-unassembled run.
+   * Then the padding oracle: F1 spacing around system material,
+   * applied LAST so nothing can reorder it (display-only, unstyled
+   * — formatting has no provenance). */
   let segment =
     ghost_marks == []
-      ? segment : CanonicalCompletion.normalize_display(segment);
+      ? segment
+      : segment
+        |> CanonicalCompletion.normalize_display
+        |> CanonicalCompletion.finish_display(
+             ~marks=ghost_marks,
+             ~raw=raw_segment,
+           );
   /* FAIL OPEN: the fork is display-only — a splice the parser can't
    * take means no ghost this frame, never a crash */
   let (segment, ghost_marks, parsed) =

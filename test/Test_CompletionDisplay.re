@@ -68,17 +68,16 @@ let display_parts =
         };
       | None => (seg, [])
       };
-    /* system-material formatting rides with the ghost (CachedSyntax) */
+    /* normalize + padding oracle, exactly like live (CachedSyntax) */
     let seg =
-      switch (marks, CanonicalCompletion.format_space_target(z)) {
-      | ([_, ..._], Some(gid)) =>
-        switch (CanonicalCompletion.splice_space_before(seg, gid)) {
-        | Some(seg) => seg
-        | None => seg
-        }
-      | _ => seg
-      };
-    let seg = marks == [] ? seg : CanonicalCompletion.normalize_display(seg);
+      marks == []
+        ? seg
+        : seg
+          |> CanonicalCompletion.normalize_display
+          |> CanonicalCompletion.finish_display(
+               ~marks,
+               ~raw=Zipper.unselect_and_zip(z),
+             );
     /* FAIL OPEN like live (CachedSyntax): a splice the parser can't
        take means no ghost this frame, never a crash — but surface it
        in the render so the jank is visible, not silent */
@@ -105,8 +104,8 @@ let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
       ((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh,
       marks,
     );
-  /* reading-order (marked, measurement) atoms of the display segment */
-  let rec atoms = (sg: Segment.t): list((bool, Measured.measurement)) =>
+  /* reading-order (marked, is_ws, measurement) atoms */
+  let rec atoms = (sg: Segment.t): list((bool, bool, Measured.measurement)) =>
     List.concat_map(
       (p: Piece.t) =>
         switch (p) {
@@ -114,28 +113,31 @@ let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
           let ms = Measured.find_shards(~msg="DisplayState", t, measured);
           Util.Aba.mk(t.shards, t.children)
           |> Util.Aba.join(
-               i => [(is_marked(t.id, Some(i)), List.assoc(i, ms))],
+               i =>
+                 [(is_marked(t.id, Some(i)), false, List.assoc(i, ms))],
                atoms,
              )
           |> List.concat;
         | Grout(g) => [
-            (is_marked(g.id, None), Measured.find_g(g, measured)),
+            (is_marked(g.id, None), false, Measured.find_g(g, measured)),
           ]
         | Secondary(w) => [
-            (is_marked(w.id, None), Measured.find_w(w, measured)),
+            (is_marked(w.id, None), true, Measured.find_w(w, measured)),
           ]
         | Projector(_) => []
         },
       sg,
     );
-  /* contiguous marked runs → ⟪ at first origin, ⟫ at last end */
+  /* marked runs → ⟪ at first origin, ⟫ at last end; unmarked
+     whitespace BRIDGES a run (oracle pads carry no provenance) but
+     never extends its end */
   let runs = {
     let (closed, open_) =
       List.fold_left(
-        ((rs, cur), (m, meas: Measured.measurement)) =>
+        ((rs, cur), (m, ws, meas: Measured.measurement)) =>
           switch (m, cur) {
           | (false, None) => (rs, None)
-          | (false, Some(r)) => ([r, ...rs], None)
+          | (false, Some(r)) => ws ? (rs, Some(r)) : ([r, ...rs], None)
           | (true, None) => (rs, Some((meas.origin, meas.last)))
           | (true, Some((o, _))) => (rs, Some((o, meas.last)))
           },
@@ -386,24 +388,23 @@ string_replace(a, b, c)¦   CHIPS[]|},
        editor, above existing content, and into a hole mid-program.
        PROBE first, felt-read, then pin. */
     [
-      /* KNOWN JANK snapshot (fixes show as diffs): real holes miss
-         their system pad against tokens (`let¦?`, `?=`, `=?`, `in¦?`)
-         — the fmt-space rule is comma-only; and the ghost's lead pad
-         reads the CARET's left context instead of the SPLICE point's
-         (`¦?⟪= ...` should read `¦? ⟪= ...`). */
+      /* padding oracle: holes padded, typed spaces consume pads —
+         text constant through every promised keystroke. Residual:
+         the TyDi witness line's trailing `in?` (buffer path, no
+         marks — matches plain dev rendering). */
       test_case("let entry, blank editor", `Quick, () =>
         check(
           string_testable,
           "let-blank",
           {|l¦   CHIPS[]
 le¦⟪t ⟫   CHIPS[]
-let¦?⟪ = ? in ?⟫   CHIPS[]
-let ¦?⟪= ? in ?⟫   CHIPS[]
-let x¦⟪ = ? in ?⟫   CHIPS[]
+let¦ ? ⟪= ? in ?⟫   CHIPS[]
+let ¦? ⟪= ? in ?⟫   CHIPS[]
+let x¦ ⟪= ? in ?⟫   CHIPS[]
 let x ¦⟪= ? in ?⟫   CHIPS[]
-let x =¦?⟪ in ?⟫   CHIPS[]
-let x = ¦?⟪in ?⟫   CHIPS[]
-let x = 1¦⟪ in ?⟫   CHIPS[]
+let x =¦ ? ⟪in ?⟫   CHIPS[]
+let x = ¦? ⟪in ?⟫   CHIPS[]
+let x = 1¦ ⟪in ?⟫   CHIPS[]
 let x = 1 ¦⟪in ?⟫   CHIPS[]
 let x = 1 i¦⟪n⟫?   CHIPS[in]
 let x = 1 in¦?   CHIPS[]|},
@@ -424,19 +425,19 @@ let x = 1 in¦?   CHIPS[]|},
 string_replace(a, b, c)   CHIPS[]
 le¦⟪t ⟫~
 string_replace(a, b, c)   CHIPS[]
-let¦?⟪ = ? in⟫
+let¦ ? ⟪= ? in⟫
 string_replace(a, b, c)   CHIPS[]
-let? ¦⟪= ? in⟫
+let ¦? ⟪= ? in⟫
 string_replace(a, b, c)   CHIPS[]
-let x¦⟪ = ? in⟫
+let x¦ ⟪= ? in⟫
 string_replace(a, b, c)   CHIPS[]
 let x ¦⟪= ? in⟫
 string_replace(a, b, c)   CHIPS[]
-let x =¦?⟪ in⟫
+let x =¦ ? ⟪in⟫
 string_replace(a, b, c)   CHIPS[]
-let x =? ¦⟪in⟫
+let x = ¦? ⟪in⟫
 string_replace(a, b, c)   CHIPS[]
-let x = 1¦⟪ in⟫
+let x = 1¦ ⟪in⟫
 string_replace(a, b, c)   CHIPS[]
 let x = 1 ¦⟪in⟫
 string_replace(a, b, c)   CHIPS[]
@@ -510,13 +511,11 @@ let a = string_replace(x¦⟪, ?, ?)⟫ in a + 1   CHIPS[]|},
           check(
             string_testable,
             "raw vs display",
-            /* KNOWN JANK: raw zipper is correct (caret snug after the
-               typed space, matching dev) — normalize_display's regrout
-               mints a display grout BEFORE the space, so the rendered
-               caret jumps two. Fix = deterministic grout-vs-whitespace
-               ordering (plan: unified padding model). */
+            /* FIXED: minted display grout hops after typed spaces
+               (finish_display reorder) — the rendered caret matches
+               the zipper; the display only ADDS material right of it */
             {|raw[let ]: let ¦?
-disp[let ]: let ¦?⟪= ? in ?⟫
+disp[let ]: let ¦? ⟪= ? in ?⟫
 raw[let x ]: let x ¦
 disp[let x ]: let x ¦⟪= ? in ?⟫
 raw[above]: let ¦
@@ -585,7 +584,7 @@ string_replace(a, b, c)|},
           check(
             string_testable,
             "no crash",
-            "let¦?⟪ = ? in⟫\n\nstring_replace(\"\")   CHIPS[,+,]",
+            "let¦ ? ⟪= ? in⟫\n\nstring_replace(\"\")   CHIPS[,+,]",
             display_state(z),
           );
         },

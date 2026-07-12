@@ -359,6 +359,183 @@ let normalize_display = (seg: Segment.t): Segment.t =>
   |> Segment.remold(_, Sort.Exp)
   |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _);
 
+/* F1 predicates shared by ghost display and Tab acceptance — the
+   ghost's spacing IS the promise of what Tab types */
+let f1_hugs_left = (t: string): bool =>
+  String.length(t) > 0
+  && (
+    switch (t.[0]) {
+    | ','
+    | ')'
+    | ']'
+    | '}' => true
+    | _ => false
+    }
+  );
+let f1_closes = (t: string): bool =>
+  String.length(t) > 0
+  && (
+    switch (t.[String.length(t) - 1]) {
+    | ')'
+    | ']'
+    | '}' => true
+    | _ => false
+    }
+  );
+let f1_opens = (t: string): bool =>
+  String.length(t) > 0
+  && (
+    switch (t.[String.length(t) - 1]) {
+    | '('
+    | '[' => true
+    | _ => false
+    }
+  );
+
+/* === Display padding oracle ===
+ * ONE deterministic rule for whitespace around system material,
+ * applied AFTER normalization so nothing downstream can reorder it:
+ * (a) display-MINTED grout hops rightward over adjacent real spaces
+ *     — material the zipper doesn't have must never displace the
+ *     rendered caret from its typed neighbors;
+ * (b) every adjacency involving system material gets an F1 pad
+ *     unless the boundary hugs (after openers, before closers and
+ *     commas). System material = ghost-marked edges, minted grout,
+ *     and any grout inside a ghost-bearing tile. User material is
+ *     never reformatted: real-real adjacencies are left alone. */
+let finish_display =
+    (~marks: list((Id.t, option(int))), ~raw: Segment.t, seg: Segment.t)
+    : Segment.t => {
+  let raw_ids = Hashtbl.create(64);
+  let rec collect = (sg: Segment.t) =>
+    List.iter(
+      (p: Piece.t) => {
+        Hashtbl.replace(raw_ids, Piece.id(p), ());
+        switch (p) {
+        | Tile(t) => List.iter(collect, t.children)
+        | _ => ()
+        };
+      },
+      sg,
+    );
+  collect(raw);
+  let minted = (id: Id.t) => !Hashtbl.mem(raw_ids, id);
+  let is_space = (p: Piece.t) =>
+    switch (p) {
+    | Secondary(w) => Secondary.is_space(w)
+    | _ => false
+    };
+  let rec reorder = (ps: Segment.t): Segment.t =>
+    switch (ps) {
+    | [] => []
+    | [Piece.Grout(g) as pg, ...rest] when minted(g.id) =>
+      let rec take = (acc, rest) =>
+        switch (rest) {
+        | [p, ...tl] when is_space(p) => take([p, ...acc], tl)
+        | _ => (List.rev(acc), rest)
+        };
+      let (sps, rest) = take([], rest);
+      sps @ [pg, ...reorder(rest)];
+    | [Piece.Tile(t), ...rest] => [
+        Piece.Tile({
+          ...t,
+          children: List.map(reorder, t.children),
+        }),
+        ...reorder(rest),
+      ]
+    | [p, ...rest] => [p, ...reorder(rest)]
+    };
+  let mark_mem = (id: Id.t, sh: option(int)) =>
+    List.exists(
+      ((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh,
+      marks,
+    );
+  let tile_hot = (t: Tile.t) =>
+    List.exists(
+      ((mid, _): (Id.t, option(int))) => Id.equal(mid, t.id),
+      marks,
+    );
+  /* facing token + system-ness of a piece's edge; None = separator */
+  let edge =
+      (~hot: bool, p: Piece.t, ~side: Direction.t): option((string, bool)) =>
+    switch (p) {
+    | Grout(g) => Some(("?", minted(g.id) || hot))
+    | Secondary(_)
+    | Projector(_) => None
+    | Tile(t) =>
+      let sh =
+        side == Direction.Left
+          ? List.nth_opt(t.shards, 0) : Util.ListUtil.last_opt(t.shards);
+      switch (sh) {
+      | None => None
+      | Some(i) => Some((List.nth(t.label, i), mark_mem(t.id, Some(i))))
+      };
+    };
+  let needs_pad = ((lt, lsys), (rt, rsys)) =>
+    (lsys || rsys) && !f1_opens(lt) && !f1_hugs_left(rt);
+  let space = (): Piece.t =>
+    Secondary({
+      id: Id.mk(),
+      content: Whitespace(" "),
+    });
+  let rec pad_seq = (~hot: bool, ps: Segment.t): Segment.t =>
+    switch (ps) {
+    | [] => []
+    | [p] => [pad_piece(~hot, p)]
+    | [a, ...rest] =>
+      let a = pad_piece(~hot, a);
+      let rest = pad_seq(~hot, rest);
+      switch (rest) {
+      | [b, ..._] =>
+        switch (
+          edge(~hot, a, ~side=Direction.Right),
+          edge(~hot, b, ~side=Direction.Left),
+        ) {
+        | (Some(l), Some(r)) when needs_pad(l, r) => [a, space(), ...rest]
+        | _ => [a, ...rest]
+        }
+      | [] => [a]
+      };
+    }
+  and pad_piece = (~hot: bool, p: Piece.t): Piece.t =>
+    switch (p) {
+    | Tile(t) =>
+      let hot = hot || tile_hot(t);
+      let bound = (k: int) => {
+        let i = List.nth(t.shards, k);
+        (List.nth(t.label, i), mark_mem(t.id, Some(i)));
+      };
+      let children =
+        t.children
+        |> List.mapi((k, c) => {
+             let c = pad_seq(~hot, c);
+             let c =
+               switch (c) {
+               | [first, ..._] =>
+                 switch (edge(~hot, first, ~side=Direction.Left)) {
+                 | Some(r) when needs_pad(bound(k), r) => [space(), ...c]
+                 | _ => c
+                 }
+               | [] => c
+               };
+             switch (Util.ListUtil.last_opt(c)) {
+             | Some(last) =>
+               switch (edge(~hot, last, ~side=Direction.Right)) {
+               | Some(l) when needs_pad(l, bound(k + 1)) => c @ [space()]
+               | _ => c
+               }
+             | None => c
+             };
+           });
+      Piece.Tile({
+        ...t,
+        children,
+      });
+    | p => p
+    };
+  seg |> reorder |> pad_seq(~hot=false);
+};
+
 /* Middle-missing shards (`let x in 2`, `if true else 2` — targeted
  * put-down can leave an interior delimiter still missing). The
  * missing shard cannot be appended to the segment like leading/trailing
@@ -2721,39 +2898,6 @@ let chip_among =
    into the typed prefix exactly as typing would); a plain delimiter
    gets a leading space when it would jam against an alphanumeric
    left neighbor and a trailing space when wordish. */
-/* F1 predicates shared by ghost display and Tab acceptance — the
-   ghost's spacing IS the promise of what Tab types */
-let f1_hugs_left = (t: string): bool =>
-  String.length(t) > 0
-  && (
-    switch (t.[0]) {
-    | ','
-    | ')'
-    | ']'
-    | '}' => true
-    | _ => false
-    }
-  );
-let f1_closes = (t: string): bool =>
-  String.length(t) > 0
-  && (
-    switch (t.[String.length(t) - 1]) {
-    | ')'
-    | ']'
-    | '}' => true
-    | _ => false
-    }
-  );
-let f1_opens = (t: string): bool =>
-  String.length(t) > 0
-  && (
-    switch (t.[String.length(t) - 1]) {
-    | '('
-    | '[' => true
-    | _ => false
-    }
-  );
-
 /* whether the caret's left neighborhood already provides separation
    (space, linebreak, line start, or an opener's inside edge) — a
    non-hugging delimiter accepted here needs no leading space */
@@ -2895,61 +3039,6 @@ let splice_ghost =
     go_seg(seg) |> Option.map(seg' => (seg', ghost_marks(pieces)));
   };
 };
-
-/* System material carries canonical formatting: the promise showed
-   ", ?", so typing the comma must not retract the space (constancy
-   — the display changes provenance, not text). While the ghost is
-   active and the caret sits between a typed comma and its real
-   hole, splice a display-only space before the hole. User material
-   is never reformatted. */
-let splice_space_before = (seg: Segment.t, gid: Id.t): option(Segment.t) => {
-  let space: Piece.t =
-    Secondary({
-      id: Id.mk(),
-      content: Whitespace(" "),
-    });
-  let rec go = (ps: Segment.t): option(Segment.t) =>
-    switch (ps) {
-    | [] => None
-    | [Piece.Grout(g) as p, ...rest] when Id.equal(g.id, gid) =>
-      Some([space, p, ...rest])
-    | [Piece.Tile(t) as p, ...rest] =>
-      switch (go_children(t.children)) {
-      | Some(children) =>
-        Some([
-          Piece.Tile({
-            ...t,
-            children,
-          }),
-          ...rest,
-        ])
-      | None => go(rest) |> Option.map(r => [p, ...r])
-      }
-    | [p, ...rest] => go(rest) |> Option.map(r => [p, ...r])
-    }
-  and go_children = (cs: list(Segment.t)): option(list(Segment.t)) =>
-    switch (cs) {
-    | [] => None
-    | [c, ...rest] =>
-      switch (go(c)) {
-      | Some(c') => Some([c', ...rest])
-      | None => go_children(rest) |> Option.map(r => [c, ...r])
-      }
-    };
-  go(seg);
-};
-
-/* the real hole owed its canonical space by the rule above: caret
-   between a comma (left) and a convex grout (right) */
-let format_space_target = (z: Zipper.t): option(Id.t) =>
-  switch (z.relatives.siblings) {
-  | (l, [Grout({shape: Convex, id, _}), ..._]) =>
-    switch (List.rev(l)) {
-    | [Tile({label: [","], _}), ..._] => Some(id)
-    | _ => None
-    }
-  | _ => None
-  };
 
 /* The ghost hugs the caret when only spaces separate it from the
    run's true position: Tab lands at the caret, and a closer drawn

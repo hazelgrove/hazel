@@ -384,19 +384,20 @@ let ghost_case = (~name, ~code, ~expected) =>
     check(string_testable, name, expected, ghost(code))
   );
 
+/* ghost_pieces is BARE (tokens + holes, no spacing) — all display
+   spacing belongs to the padding oracle, asserted by the rendered
+   pins in Test_CompletionDisplay */
 let ghost_tests = [
-  ghost_case(~name="ghost: f(1", ~code=f2 ++ "f(1¦", ~expected="<, ?)>"),
-  /* caret follows a typed space: the ghost drops its leading pad
-     (left context already separates — no double space) */
+  ghost_case(~name="ghost: f(1", ~code=f2 ++ "f(1¦", ~expected="<,?)>"),
   ghost_case(
     ~name="ghost: annotated let",
     ~code="let _: (Int, Bool) ¦",
-    ~expected="<= ? in ?>",
+    ~expected="<=?in?>",
   ),
   ghost_case(
     ~name="ghost: let a = 4",
     ~code="let a = 4¦",
-    ~expected="< in ?>",
+    ~expected="<in?>",
   ),
   ghost_case(
     ~name="ghost: none in complete code",
