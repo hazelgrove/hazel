@@ -482,21 +482,32 @@ let animate_node =
 /* warn once per class: a batch may mix covered and uncovered kinds */
 let warned: ref(list(string)) = ref([]);
 
+/* one getComputedStyle per element CLASS ever — probing every node
+   forces a style recalc against the freshly-patched tree (36ms of a
+   600ms edit frame, trace-attributed); the guard's job is to catch
+   NEW element kinds, so vet by class first, probe once */
+let vetted: ref(list(string)) = ref([]);
+
 let warn_invisible = (node: Js.t(Dom.node)): unit =>
   switch (
     {
-      let name =
-        Js.to_string(Js.Unsafe.get(node, "nodeName"))
-        |> String.lowercase_ascii;
-      let display =
-        Js.Unsafe.meth_call(
-          Js.Unsafe.global##.window,
-          "getComputedStyle",
-          [|Js.Unsafe.inject(node)|],
-        )
-        |> (cs => Js.to_string(Js.Unsafe.get(cs, "display")));
-      name != "svg" && display == "inline"
-        ? Some(Js.to_string(Js.Unsafe.get(node, "className"))) : None;
+      let cls = Js.to_string(Js.Unsafe.get(node, "className"));
+      if (List.mem(cls, vetted^)) {
+        None;
+      } else {
+        vetted := [cls, ...vetted^];
+        let name =
+          Js.to_string(Js.Unsafe.get(node, "nodeName"))
+          |> String.lowercase_ascii;
+        let display =
+          Js.Unsafe.meth_call(
+            Js.Unsafe.global##.window,
+            "getComputedStyle",
+            [|Js.Unsafe.inject(node)|],
+          )
+          |> (cs => Js.to_string(Js.Unsafe.get(cs, "display")));
+        name != "svg" && display == "inline" ? Some(cls) : None;
+      };
     }
   ) {
   | exception _ => ()
