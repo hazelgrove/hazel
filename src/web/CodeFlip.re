@@ -169,6 +169,53 @@ let pair =
  * and inline-style mutations get clobbered by later vdom patches. */
 let active: ref(list(Js.Unsafe.any)) = ref([]);
 
+/* flip telemetry: every render and flight outcome journals into
+   window.__flipLog (ring, last 1000). Inspect raw, or summarize:
+     __flipLog.filter(e => e.k == "end").map(e => e.how)
+   Exists because "did the animation play" is unanswerable by eye at
+   125ms — skips have four distinct causes (cancelled by the next
+   batch, node replaced by a vdom patch, pairing bailed, cap) and
+   only a journal tells them apart. Negligible cost. */
+let flip_log = (fields: list((string, Js.Unsafe.any))): unit =>
+  try({
+    let push =
+      Js.Unsafe.js_expr(
+        "(function(e){var l=(window.__flipLog=window.__flipLog||[]);l.push(e);if(l.length>1000)l.shift();})",
+      );
+    let now = Js.Unsafe.js_expr("performance.now()");
+    let obj = Js.Unsafe.obj(Array.of_list([("t", now), ...fields]));
+    Js.Unsafe.fun_call(push, [|obj|]) |> ignore;
+  }) {
+  | _ => ()
+  };
+let str = (x: string): Js.Unsafe.any => Js.Unsafe.inject(Js.string(x));
+let num = (x: float): Js.Unsafe.any =>
+  Js.Unsafe.inject(Js.number_of_float(x));
+let int_ = (x: int): Js.Unsafe.any => num(float_of_int(x));
+
+/* watch a created animation's fate */
+let watch_anim = (kind: string, anim: Js.Unsafe.any): unit =>
+  try({
+    let t0 = Js.Unsafe.eval_string("performance.now()");
+    let mk = how =>
+      Js.wrap_callback(_ =>
+        flip_log([
+          ("k", str("end")),
+          ("kind", str(kind)),
+          ("how", str(how)),
+          (
+            "age",
+            Js.Unsafe.js_expr("performance.now()") |> Js.Unsafe.inject,
+          ),
+          ("t0", t0),
+        ])
+      );
+    Js.Unsafe.set(anim, "onfinish", mk("finish"));
+    Js.Unsafe.set(anim, "oncancel", mk("cancel"));
+  }) {
+  | _ => ()
+  };
+
 /* mergeInto targets (D2 emerge REVERSED — emergeMode=clone is
    bidirectional in dragology's lerp; our exits leave the DOM, so the
    reverse direction runs on synthetic ghosts): the dissolved
@@ -413,7 +460,9 @@ let animate_node =
     )
   ) {
   | exception _ => () /* no WAAPI: just show the final state */
-  | anim => active := [anim, ...active^]
+  | anim =>
+    watch_anim("flight", anim);
+    active := [anim, ...active^];
   };
 };
 
@@ -692,8 +741,12 @@ let set_scroll_bump = (~rows: int, ~near: Js.t(Dom_html.element)): unit => {
  * rendered inside probe projections further down the container). */
 let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
   switch (pending^) {
-  | None => ()
+  | None => flip_log([("k", str("render"))])
   | Some((old_m, old_seg, enters_ok)) =>
+    flip_log([
+      ("k", str("batch")),
+      ("cancelled_prior", int_(List.length(active^))),
+    ]);
     pending := None;
     /* stale animations — including adopted drag scrubs (fill:both,
        they'd re-assert after any new flight ends) — must not outlive
@@ -737,7 +790,8 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
               ct => {
                 let nodes = Dom.list_of_nodeList(ct##.childNodes);
                 switch (pair(entries_of_segment(syntax.segment), nodes)) {
-                | None => ()
+                | None =>
+                  flip_log([("k", str("bail")), ("why", str("pair"))])
                 | Some(pairs) =>
                   /* pair() builds by prepending — restore traversal
                      order (the emerge zip is positional) */
@@ -893,6 +947,20 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                              | _ => None
                              }
                            );
+                  flip_log([
+                    ("k", str("staged")),
+                    ("moved", int_(List.length(moved))),
+                    ("entered", int_(List.length(entered))),
+                    (
+                      "capped",
+                      Js.Unsafe.inject(
+                        Js.bool(
+                          List.length(moved)
+                          + List.length(entered) > max_moved,
+                        ),
+                      ),
+                    ),
+                  ]);
                   if ((moved != [] || entered != [])
                       && List.length(moved)
                       + List.length(entered) <= max_moved) {
