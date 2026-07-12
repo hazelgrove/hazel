@@ -4573,6 +4573,18 @@ let unfold_beta_tests = [
       );
     },
   ),
+  check_gesture(
+    "Down at a fn-position use = unfold call",
+    Down,
+    "let f = fun x -> x + 1 in\n¦f(3) + f(4)",
+    Some(UnfoldCall),
+  ),
+  check_gesture(
+    "Down at a plain occurrence still feeds",
+    Down,
+    "let k = 3 in\n¦k + k",
+    Some(FeedLet),
+  ),
   test_case("unfold call: not offered at non-fn vars", `Quick, () => {
     check(bool, "gated", false, offers(UnfoldCall, "let k = 3 in\n¦k + 1"))
   }),

@@ -8300,9 +8300,13 @@ let gesture =
           AddCaseArm /* grow the sequence at its `end` */
         );
       } else {
-        app(
-          FeedLet /* at an occurrence: the definition feeds THIS use */
-        );
+        /* a fn-position use unfolds — feed composed with the
+           rotation, the smarter feed there (andrew); other
+           occurrences: the definition feeds THIS use */
+        switch (app(UnfoldCall)) {
+        | Some(k) => Some(k)
+        | None => app(FeedLet)
+        };
       }
     | Left =>
       switch (param_swap(-1)) {
