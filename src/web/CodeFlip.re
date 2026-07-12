@@ -180,7 +180,7 @@ let flip_log = (fields: list((string, Js.Unsafe.any))): unit =>
   try({
     let push =
       Js.Unsafe.js_expr(
-        "(function(e){var l=(window.__flipLog=window.__flipLog||[]);l.push(e);if(l.length>1000)l.shift();})",
+        "(window.__flipPush=window.__flipPush||function(e){var l=(window.__flipLog=window.__flipLog||[]);l.push(e);if(l.length>1000)l.shift();})",
       );
     let now = Js.Unsafe.js_expr("performance.now()");
     let obj = Js.Unsafe.obj(Array.of_list([("t", now), ...fields]));
@@ -192,6 +192,73 @@ let str = (x: string): Js.Unsafe.any => Js.Unsafe.inject(Js.string(x));
 let num = (x: float): Js.Unsafe.any =>
   Js.Unsafe.inject(Js.number_of_float(x));
 let int_ = (x: int): Js.Unsafe.any => num(float_of_int(x));
+
+/* FREEZE COMPENSATION (prototype, andrew 2026-07-12): the WAAPI
+   clock is wall-time and never pauses, but the screen stops
+   presenting during main-thread longtasks (trace-verified: flights
+   composite, yet the perpetual frame pipeline holds the compositor
+   in wait-for-main mode — nothing presents until the post-edit
+   commit, and eval-results tasks freeze presentation again
+   mid-flight). Frames lost to a freeze are flight lifetime consumed
+   invisibly. While flights are active, watch rAF cadence; on resume
+   after a gap, REWIND every running animation by the frozen span so
+   the motion continues from the last frame the user actually saw.
+   The front stall falls out for free: the watcher's first tick
+   fires at the first post-commit rendering opportunity, sees the
+   whole stall as its gap, and rewinds flights to ~0 — the full
+   flight plays after the freeze instead of being eaten by it. */
+let freeze_watcher: Js.Unsafe.any =
+  Js.Unsafe.js_expr(
+    {|(function(getRunning){
+        if (window.__flipFreezeOn) return; window.__flipFreezeOn = true;
+        var last = performance.now();
+        function tick(t){
+          var gap = t - last; last = t;
+          var anims = getRunning();
+          if (gap > 40 && anims.length) {
+            for (var i = 0; i < anims.length; i++) {
+              try {
+                var ct = anims[i].currentTime;
+                if (typeof ct === 'number' && ct > 0) {
+                  var back = ct - (gap - 17);
+                  anims[i].currentTime = back > 0 ? back : 0;
+                }
+              } catch (e) {}
+            }
+            if (window.__flipPush)
+              window.__flipPush({t: t, k: 'rewind', gap: Math.round(gap), n: anims.length});
+          }
+          if (anims.length) { requestAnimationFrame(tick); }
+          else { window.__flipFreezeOn = false; }
+        }
+        requestAnimationFrame(tick);
+      })|},
+  );
+
+let start_freeze_watch = (): unit =>
+  try({
+    let get_running =
+      Js.wrap_callback(() =>
+        active^
+        |> List.filter(a =>
+             try(
+               switch (Js.to_string(Js.Unsafe.get(a, "playState"))) {
+               | "running"
+               | "pending" => true
+               | _ => false
+               }
+             ) {
+             | _ => false
+             }
+           )
+        |> Array.of_list
+        |> Js.array
+      );
+    Js.Unsafe.fun_call(freeze_watcher, [|Js.Unsafe.inject(get_running)|])
+    |> ignore;
+  }) {
+  | _ => ()
+  };
 
 /* watch a created animation's fate; conn records whether the node
    was still in the document at end time — a "finish" with
@@ -1127,6 +1194,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
                     };
                     moved
                     |> List.iter(((_, node, _, _)) => warn_invisible(node));
+                    start_freeze_watch();
                   };
                 };
               },
