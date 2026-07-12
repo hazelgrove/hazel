@@ -3161,7 +3161,7 @@ let beta_tests = [
       let got =
         inline(~kind=BindArgument, "let y = ¦(fun x -> x + 1)(5) in y")
         |> text_of;
-      check(string, "rotated", "let y = let x = 5 in x + 1 in y", got);
+      check(string, "rotated", "let y = let x = 5 in\nx + 1 in y", got);
     },
   ),
   test_case(
@@ -3170,7 +3170,7 @@ let beta_tests = [
     () => {
       let got =
         inline(~kind=BindArgument, "¦(fun x -> x)(5) + 3") |> text_of;
-      check(string, "parens", "(let x = 5 in x) + 3", got);
+      check(string, "parens", "(let x = 5 in\nx) + 3", got);
     },
   ),
   test_case(
@@ -3186,7 +3186,7 @@ let beta_tests = [
       check(
         string,
         "tuple let",
-        "let z = let (a, b) = (1, 2) in a + b in z",
+        "let z = let (a, b) = (1, 2) in\na + b in z",
         got,
       );
     },
@@ -3204,7 +3204,7 @@ let beta_tests = [
       check(
         string,
         "outer only",
-        "let w = let x = 3 in fun y -> x + y in w(4)",
+        "let w = let x = 3 in\nfun y -> x + y in w(4)",
         got,
       );
     },
@@ -3383,7 +3383,7 @@ let split_tests = [
     () => {
       let got =
         inline(~kind=SplitLet, "¦let (a, b) = (1, 2) in a + b") |> text_of;
-      check(string, "split", "let a = 1 in let b = 2 in a + b", got);
+      check(string, "split", "let a = 1 in\nlet b = 2 in\na + b", got);
     },
   ),
   test_case(
@@ -3396,7 +3396,7 @@ let split_tests = [
       check(
         string,
         "order kept",
-        "let a = f(1) in let b = g(2) in a + b",
+        "let a = f(1) in\nlet b = g(2) in\na + b",
         got,
       );
     },
@@ -3411,7 +3411,7 @@ let split_tests = [
       check(
         string,
         "deep",
-        "let a = 1 in let b = 2 in let c = 3 in a + b + c",
+        "let a = 1 in\nlet b = 2 in\nlet c = 3 in\na + b + c",
         got,
       );
     },
@@ -3422,7 +3422,7 @@ let split_tests = [
     () => {
       let got =
         inline(~kind=SplitLet, "¦let (a, _) = (1, 2) in a") |> text_of;
-      check(string, "dropped", "let a = 1 in a", got);
+      check(string, "dropped", "let a = 1 in\na", got);
     },
   ),
   test_case(
@@ -3588,7 +3588,7 @@ let reduce_tests = [
           "let y = ¦case Some(5) | None => 0 | Some(x) => x + 1 end in y",
         )
         |> text_of;
-      check(string, "bound", "let y = let x = 5 in x + 1 in y", got);
+      check(string, "bound", "let y = let x = 5 in\nx + 1 in y", got);
     },
   ),
   test_case(
@@ -3604,7 +3604,7 @@ let reduce_tests = [
       check(
         string,
         "nested lets",
-        "let y = let a = 1 in let b = 2 in a + b in y",
+        "let y = let a = 1 in\nlet b = 2 in\na + b in y",
         got,
       );
     },
@@ -4909,7 +4909,7 @@ let unfold_beta_tests = [
       check(
         string,
         "unfolded",
-        "let f = fun x -> x + 1 in\n(let x = 3 in x + 1) + f(4)",
+        "let f = fun x -> x + 1 in\n(let x = 3 in\nx + 1) + f(4)",
         z,
       );
     },
@@ -4939,13 +4939,13 @@ let intro_landing_tests = [
     },
   ),
   test_case(
-    "bind arm: inline case stays inline",
+    "bind arm: one-liner also breaks (always-break)",
     `Quick,
     () => {
       let got =
         inline(~kind=BindArm, "¦case (1, 2) | (a, b) => a + b end")
         |> text_of;
-      check(string, "flat", "let a = 1 in let b = 2 in a + b", got);
+      check(string, "flat", "let a = 1 in\nlet b = 2 in\na + b", got);
     },
   ),
   test_case(
@@ -4976,12 +4976,12 @@ let intro_landing_tests = [
     },
   ),
   test_case(
-    "split let: one-liner stays flat",
+    "split let: one-liner also breaks (always-break)",
     `Quick,
     () => {
       let got =
         inline(~kind=SplitLet, "¦let (a, b) = (1, 2) in a + b") |> text_of;
-      check(string, "flat", "let a = 1 in let b = 2 in a + b", got);
+      check(string, "flat", "let a = 1 in\nlet b = 2 in\na + b", got);
     },
   ),
   test_case(
