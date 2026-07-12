@@ -652,6 +652,104 @@ string_replace(a~
     ],
   ),
   (
+    "CompletionDisplay: matrix-2",
+    /* second sweep: fun, list literal, nested call, breaking an
+       inner delimiter inside an outer complete form */
+    [
+      /* last line: mid-arrow witness (`-` of `->`) — same class
+         as the case arrow: symbolic witness not TyDi-ghosted, chip
+         holds the promise */
+      test_case("fun entry, blank editor", `Quick, () =>
+        check(
+          string_testable,
+          "fun-entry",
+          {|f¦   CHIPS[]
+fu¦⟪n ⟫   CHIPS[]
+fun¦ ? ⟪-> ?⟫   CHIPS[]
+fun ¦? ⟪-> ?⟫   CHIPS[]
+fun x¦ ⟪-> ?⟫   CHIPS[]
+fun x ¦⟪-> ?⟫   CHIPS[]
+fun x -¦?   CHIPS[->]|},
+          trajectory("fun x -"),
+        )
+      ),
+      test_case("list literal entry", `Quick, () =>
+        check(
+          string_testable,
+          "list-entry",
+          {|[¦?⟪]⟫   CHIPS[]
+[1¦⟪]⟫   CHIPS[]
+[1,¦ ?⟪]⟫   CHIPS[]
+[1, ¦?⟪]⟫   CHIPS[]
+[1, 2¦⟪]⟫   CHIPS[]|},
+          trajectory("[1, 2"),
+        )
+      ),
+      /* KNOWN JANK, mid-witness states: the merged
+         witness+opener+closer+comma insertion assembles garbled
+         ghost content — `( ), ,,` where the promise should read
+         `(?), ?, ?)` (empty padded parens, doubled commas).
+         Recovers fully once `(` is typed. Ghost-piece assembly for
+         multi-delimiter witness merges needs the same order/holes
+         treatment the diff gives plain runs. */
+      test_case("nested call entry", `Quick, () =>
+        check(
+          string_testable,
+          "nested-call",
+          {|let s = s¦ in s   CHIPS[]
+let s = st¦⟪ring_capitalize⟫ in s   CHIPS[]
+let s = str¦⟪ing_capitalize⟫ in s   CHIPS[]
+let s = stri¦⟪ng_capitalize⟫ in s   CHIPS[]
+let s = strin¦⟪g_capitalize⟫ in s   CHIPS[]
+let s = string¦⟪_capitalize⟫ in s   CHIPS[]
+let s = string_¦⟪capitalize⟫ in s   CHIPS[]
+let s = string_r¦⟪eplace⟫ in s   CHIPS[]
+let s = string_re¦⟪place⟫ in s   CHIPS[]
+let s = string_rep¦⟪lace⟫ in s   CHIPS[]
+let s = string_repl¦⟪ace⟫ in s   CHIPS[]
+let s = string_repla¦⟪ce⟫ in s   CHIPS[]
+let s = string_replac¦⟪e⟫ in s   CHIPS[]
+let s = string_replace¦ in s   CHIPS[]
+let s = string_replace(¦?⟪, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(s¦⟪, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(st¦⟪ring_capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(str¦⟪ing_capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(stri¦⟪ng_capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(strin¦⟪g_capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string¦⟪_capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_¦⟪capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_c¦⟪apitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_ca¦⟪pitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_cap¦⟪italize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capi¦⟪talize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capit¦⟪alize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capita¦⟪lize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capital¦⟪ize( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capitali¦⟪ze( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capitaliz¦⟪e( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capitalize¦⟪( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capitalize(¦?⟪, ?, ?))⟫ in s   CHIPS[]
+let s = string_replace(string_capitalize(x¦⟪, ?, ?))⟫ in s   CHIPS[]|},
+          trajectory_in(
+            ~ctx="let s = ¦ in s",
+            "string_replace(string_capitalize(x",
+          ),
+        )
+      ),
+      /* CLEAN: inner closer deletion recovers in place under the
+         outer complete let */
+      test_case("break inner paren inside complete let", `Quick, () =>
+        check(
+          string_testable,
+          "break-inner",
+          {|let y = (1 + 2¦⟪)⟫ in y   CHIPS[]
+let y = (1 + ¦?⟪)⟫ in y   CHIPS[]|},
+          trajectory_bk(~ctx="let y = (1 + 2)¦ in y", 2),
+        )
+      ),
+    ],
+  ),
+  (
     "CompletionDisplay: probes-andrew-3",
     /* andrew's live reports 2026-07-12, all fixed: (1) witness chip
        suppressed while TyDi ghosts it — suppression now has ONE home
