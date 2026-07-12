@@ -475,6 +475,91 @@ let a = string_replace(x¦⟪, ?, ?)⟫ in a + 1   CHIPS[]|},
     ],
   ),
   (
+    "CompletionDisplay: raw-vs-display",
+    [
+      test_case(
+        "space after let: zipper order vs display order",
+        `Quick,
+        () => {
+          /* raw zipper rendering, no display fork — localizes the
+             caret-jump: if raw is `let ¦?` and display is `let? ¦`,
+             the DISPLAY regrout (normalize_display) reordered it */
+          let raw_state = (code: string): string => {
+            let z =
+              Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
+            let seg = Zipper.unselect_and_zip(z);
+            let measured =
+              Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
+            let caret = Zipper.Caret.point(measured, z);
+            Printer.of_segment(
+              ~holes="?",
+              ~concave_holes="~",
+              ~indent=" ",
+              ~measured,
+              seg,
+            )
+            |> String.split_on_char('\n')
+            |> Printer.insert_string("¦", caret)
+            |> String.concat("\n");
+          };
+          let disp = (code: string): string => {
+            let z =
+              Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
+            display_state(~chips=false, z);
+          };
+          check(
+            string_testable,
+            "raw vs display",
+            /* KNOWN JANK: raw zipper is correct (caret snug after the
+               typed space, matching dev) — normalize_display's regrout
+               mints a display grout BEFORE the space, so the rendered
+               caret jumps two. Fix = deterministic grout-vs-whitespace
+               ordering (plan: unified padding model). */
+            {|raw[let ]: let ¦?
+disp[let ]: let ¦?⟪= ? in ?⟫
+raw[let x ]: let x ¦
+disp[let x ]: let x ¦⟪= ? in ?⟫
+raw[above]: let ¦
+string_replace(a, b, c)|},
+            "raw[let ]: "
+            ++ raw_state("let ¦")
+            ++ "\ndisp[let ]: "
+            ++ disp("let ¦")
+            ++ "\nraw[let x ]: "
+            ++ raw_state("let x ¦")
+            ++ "\ndisp[let x ]: "
+            ++ disp("let x ¦")
+            ++ "\nraw[above]: "
+            ++ {
+              let z =
+                Test_Editing.perform(
+                  Zipper.init(),
+                  Test_Editing.mk("¦\nstring_replace(a, b, c)")
+                  @ (
+                    Token.to_list("let ") |> List.map(c => Action.Insert(c))
+                  ),
+                );
+              let seg = Zipper.unselect_and_zip(z);
+              let measured =
+                Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
+              let caret = Zipper.Caret.point(measured, z);
+              Printer.of_segment(
+                ~holes="?",
+                ~concave_holes="~",
+                ~indent=" ",
+                ~measured,
+                seg,
+              )
+              |> String.split_on_char('\n')
+              |> Printer.insert_string("¦", caret)
+              |> String.concat("\n");
+            },
+          );
+        },
+      ),
+    ],
+  ),
+  (
     "CompletionDisplay: crash-repro",
     [
       test_case(
