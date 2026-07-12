@@ -23,10 +23,11 @@ open Language;
 
 let string_testable = testable(Fmt.string, String.equal);
 
-/* replicate the live pipeline (Editor.calculate → CachedSyntax):
-   TyDi buffer first, chip ghost splice fallback. Statics derive from
-   the SAME zipper we render — a re-typed program mints fresh ids and
-   every id-keyed merge silently misses. */
+/* the LIVE pipeline, not a mirror of it: TyDi buffer set exactly as
+   Editor.calculate does, then DisplayFork.mk — the same single home
+   CachedSyntax renders from. Statics derive from the SAME zipper we
+   render — a re-typed program mints fresh ids and every id-keyed
+   merge silently misses. */
 let display_parts =
     (z: Zipper.t)
     : (
@@ -38,74 +39,20 @@ let display_parts =
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let obs = TypeObligations.derive(info_map);
-  let assist = TypeObligations.assist_stream(z, ~info_map, obs);
-  let z_tydi =
-    switch (TyDi.set_buffer(~ci=Indicated.ci_for_completion(z, info_map), z)) {
-    | Some(z) => z
-    | None => z
-    };
+  let obligations = TypeObligations.derive(info_map);
+  let z =
+    Buffer.set_tydi_buffer(Indicated.ci_for_completion(z, info_map), z);
   /* COEXISTENCE: TyDi's witness ghost lives in the buffer (at the
      caret); chip ghosts splice at their anchors — both render */
-  let has_buffer =
-    Selection.is_buffer(z_tydi.selection) && z_tydi.selection.content != [];
-  let base_z = has_buffer ? z_tydi : z;
-  let seg = Zipper.unselect_and_zip(base_z);
   let tydi_marks =
-    has_buffer
-      ? CanonicalCompletion.ghost_marks(z_tydi.selection.content) : [];
-  let ghostable =
-    assist
-    |> List.filter((ins: CanonicalCompletion.insertion) =>
-         switch (ins.delimiters) {
-         | [{typed_len: Some(_), _}, ..._] => false
-         | _ => true
-         }
-       );
-  let (seg, chip_marks) =
-    switch (
-      CanonicalCompletion.chip_among(z, ghostable)
-      |> Option.map(CanonicalCompletion.slide_to_caret(z))
-    ) {
-    | Some(ins) when !CanonicalCompletion.splice_precedes_caret(z, ins) =>
-      switch (TypeObligations.ghost_pieces(z, ins)) {
-      | Some(pieces) =>
-        switch (CanonicalCompletion.splice_ghost(seg, ~ins, ~pieces)) {
-        | Some(r) => r
-        | None => (seg, [])
-        }
-      | None => (seg, [])
-      }
-    | _ => (seg, [])
-    };
-  /* normalize + padding oracle, exactly like live (CachedSyntax) */
-  let seg =
-    chip_marks == []
-      ? seg
-      : seg
-        |> CanonicalCompletion.normalize_display
-        |> CanonicalCompletion.finish_display(
-             ~marks=chip_marks,
-             ~raw=Zipper.unselect_and_zip(base_z),
-             ~caret_after=CanonicalCompletion.caret_left_atom(base_z),
-           );
-  /* FAIL OPEN like live: unparseable splice = no chip ghost */
-  switch (MakeTerm.go(seg)) {
-  | _ => (seg, base_z, tydi_marks @ chip_marks, assist)
-  | exception _ when chip_marks != [] => (
-      Zipper.unselect_and_zip(base_z),
-      base_z,
-      tydi_marks,
-      assist,
-    )
-  };
+    Selection.is_buffer(z.selection) && z.selection.content != []
+      ? CanonicalCompletion.ghost_marks(z.selection.content) : [];
+  let fork = DisplayFork.mk(~info_map, ~obligations, ~armed=true, z);
+  (fork.segment, z, tydi_marks @ fork.ghost_marks, fork.assist);
 };
 
 let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
   let (seg, zc, marks, assist) = display_parts(z);
-  /* live runs MakeTerm on the spliced display segment (CachedSyntax
-     term_data) — the splice must keep the segment parseable */
-  let _ = MakeTerm.go(seg);
   let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
   let is_marked = (id: Id.t, sh: option(int)) =>
     List.exists(

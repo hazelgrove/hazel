@@ -127,25 +127,22 @@ module Update = {
             old_statics.info_map,
             old_dynamics,
             ~elaborated=Some(old_statics.elaborated),
+            ~obligations=Some(old_statics.obligations),
             syntax,
           );
         } else if (syntax.ghost_marks != []) {
           /* same hazard for a spliced chip ghost: this action must
-             resolve against ghost-free measured. The full mk resets
-             the cached assist; keep it — the segment is unchanged
-             and chips must not vanish on movement. */
-          let recalced =
-            CachedSyntax.calculate(
-              state.zipper,
-              old_statics.info_map,
-              old_dynamics,
-              ~elaborated=Some(old_statics.elaborated),
-              CachedSyntax.mark_old(syntax),
-            );
-          {
-            ...recalced,
-            assist: syntax.assist,
-          };
+             resolve against ghost-free measured (~armed=false, the
+             disarm). mk recomputes assist from the unchanged
+             segment + obligations, so chips persist on movement. */
+          CachedSyntax.calculate(
+            state.zipper,
+            old_statics.info_map,
+            old_dynamics,
+            ~elaborated=Some(old_statics.elaborated),
+            ~obligations=Some(old_statics.obligations),
+            CachedSyntax.mark_old(syntax),
+          );
         } else {
           syntax;
         };
@@ -229,61 +226,18 @@ module Update = {
       } else {
         state.zipper;
       };
-    /* THE assist stream, assembled FRAME-FRESH: anchors and element
-       counts from this frame's syntax, type facts from statics
-       (debounce-stale during typing — exact anyway along the
-       promised trajectory). Caret-free, so movement frames reuse
-       the cached assembly. */
+    /* The assist stream and the inline chip ghost (display fork) are
+       computed by DisplayFork.mk inside CachedSyntax — the single
+       zipper→displayed-segment pipeline shared with the test harness.
+       Editor only owns the ARMING state: an edit ARMS the ghost, any
+       other action disarms (Update.clear_buffer); movement never
+       arms. While armed, a statics refresh re-forks the display —
+       statics are DEBOUNCED during typing, so the frame with fresh
+       assist data is the deferred refresh, not the edit frame. */
     let statics_refreshed = statics.info_map !== syntax.shape_info_map;
-    let assist =
-      if (settings.assist && settings.statics) {
-        is_edited || statics_refreshed
-          ? TypeObligations.assist_stream(
-              zipper,
-              ~info_map=statics.info_map,
-              statics.obligations,
-            )
-          : syntax.assist;
-      } else {
-        [];
-      };
-
-    /* inline chip ghost (display fork): when the caret sits in a
-       chip's zone right after an edit, the chip's pending content
-       splices into the DISPLAY segment at its anchor (CachedSyntax)
-       — the zipper stays untouched. Same activation pattern as
-       TyDi: an edit ARMS the ghost, any other action disarms
-       (Update.clear_buffer); movement never arms. While armed, a
-       statics refresh re-forks the display. COEXISTS with a TyDi
-       buffer: TyDi owns the witness at the caret; chip ghosts
-       splice at their own anchors (pure-witness insertions are
-       excluded here — they're TyDi's). */
     let armed = is_edited || syntax.ghost_armed;
-    let ghost =
-      if (settings.assist && settings.statics && armed) {
-        let ghostable =
-          assist
-          |> List.filter((ins: CanonicalCompletion.insertion) =>
-               switch (ins.delimiters) {
-               | [{typed_len: Some(_), _}, ..._] => false
-               | _ => true
-               }
-             );
-        switch (
-          CanonicalCompletion.chip_among(zipper, ghostable)
-          |> Option.map(CanonicalCompletion.slide_to_caret(zipper))
-        ) {
-        /* guard AFTER the slide: a ghost that hugs the caret through
-           whitespace is at-caret, not pre-caret */
-        | Some(ins)
-            when !CanonicalCompletion.splice_precedes_caret(zipper, ins) =>
-          TypeObligations.ghost_pieces(zipper, ins)
-          |> Option.map(pieces => (ins, pieces))
-        | _ => None
-        };
-      } else {
-        None;
-      };
+    let obligations =
+      settings.assist && settings.statics ? Some(statics.obligations) : None;
 
     /* 2. Recalculate syntax cache. `CachedSyntax.calculate` detects
      * input changes (info_map/dyn_map/elaborated refs) and chooses
@@ -298,13 +252,13 @@ module Update = {
         statics.info_map,
         new_dynamics,
         ~elaborated=Some(statics.elaborated),
-        ~ghost,
+        ~obligations,
+        ~armed,
         syntax,
       );
     let syntax = {
       ...syntax,
       ghost_armed: armed,
-      assist,
     };
 
     /* 3. Probe effects: collision cleanup, auto-probe regeneration,
