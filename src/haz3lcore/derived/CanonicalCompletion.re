@@ -403,49 +403,8 @@ let f1_opens = (t: string): bool =>
  *     commas). System material = ghost-marked edges, minted grout,
  *     and any grout inside a ghost-bearing tile. User material is
  *     never reformatted: real-real adjacencies are left alone. */
-/* the atom (piece, or tile shard) immediately left of the caret —
-   the boundary for the no-changes-before-the-cursor policy */
-let caret_left_atom = (z: Zipper.t): option((Id.t, int)) => {
-  let of_piece = (p: Piece.t) =>
-    switch (p) {
-    | Tile(t) =>
-      switch (Util.ListUtil.last_opt(t.shards)) {
-      | Some(i) => (t.id, i)
-      | None => (t.id, (-1))
-      }
-    | p => (Piece.id(p), (-1))
-    };
-  switch (Util.ListUtil.last_opt(fst(z.relatives.siblings))) {
-  | Some(p) => Some(of_piece(p))
-  | None =>
-    let rec go = ancs =>
-      switch (ancs) {
-      | [] => None
-      | [(a: Ancestor.t, sibs: Siblings.t), ...rest] =>
-        switch (Util.ListUtil.last_opt(fst(a.shards))) {
-        | Some(i) => Some((a.id, i))
-        | None =>
-          switch (Util.ListUtil.last_opt(fst(sibs))) {
-          | Some(p) => Some(of_piece(p))
-          | None => go(rest)
-          }
-        }
-      };
-    go(z.relatives.ancestors);
-  };
-};
-
-let finish_display =
-    (
-      ~marks: list((Id.t, option(int))),
-      ~raw: Segment.t,
-      ~caret_after: option((Id.t, int))=None,
-      seg: Segment.t,
-    )
-    : Segment.t => {
-  /* reading-order ranks so pads can be confined to gaps AT or AFTER
-     the caret (andrew's policy: the display never changes strictly
-     before the cursor — no shaking the user) */
+/* reading-order ranks of (piece id, shard idx | -1) atoms */
+let rank_map = (seg: Segment.t): Hashtbl.t((Id.t, int), int) => {
   let rank: Hashtbl.t((Id.t, int), int) = Hashtbl.create(64);
   let ctr = ref(0);
   let rec walk_seg = (ps: Segment.t) => List.iter(walk_piece, ps)
@@ -471,17 +430,87 @@ let finish_display =
       incr(ctr);
       Hashtbl.replace(rank, (Piece.id(p), (-1)), ctr^);
     };
-  let caret_rank =
+  walk_seg(seg);
+  rank;
+};
+
+/* the atom (piece, or tile shard) immediately left of the caret —
+   the boundary for the no-changes-before-the-cursor policy */
+let caret_left_atom = (z: Zipper.t): option((Id.t, int)) => {
+  let of_piece = (p: Piece.t) =>
+    switch (p) {
+    | Tile(t) =>
+      switch (Util.ListUtil.last_opt(t.shards)) {
+      | Some(i) => (t.id, i)
+      | None => (t.id, (-1))
+      }
+    | p => (Piece.id(p), (-1))
+    };
+  /* an Inner caret sits INSIDE a token — that host token is partly
+     left of the caret (e.g. deleting `(` can land the caret Inner
+     in the preceding name) */
+  switch (z.caret) {
+  | Inner(_) =>
+    switch (
+      Util.ListUtil.last_opt(fst(z.relatives.siblings)),
+      z.relatives.siblings |> snd,
+    ) {
+    | (Some(p), _) => Some(of_piece(p))
+    | (None, [p, ..._]) => Some(of_piece(p))
+    | (None, []) => None
+    }
+  | Outer =>
+    /* selection content renders at the caret's left when focus is
+       Right (e.g. a delimiter deletion leaving content selected) */
+    switch (z.selection.content, z.selection.focus) {
+    | ([_, ..._] as content, Direction.Right) =>
+      Util.ListUtil.last_opt(content) |> Option.map(of_piece)
+    | _ =>
+      switch (Util.ListUtil.last_opt(fst(z.relatives.siblings))) {
+      | Some(p) => Some(of_piece(p))
+      | None =>
+        let rec go = ancs =>
+          switch (ancs) {
+          | [] => None
+          | [(a: Ancestor.t, sibs: Siblings.t), ...rest] =>
+            switch (Util.ListUtil.last_opt(fst(a.shards))) {
+            | Some(i) => Some((a.id, i))
+            | None =>
+              switch (Util.ListUtil.last_opt(fst(sibs))) {
+              | Some(p) => Some(of_piece(p))
+              | None => go(rest)
+              }
+            }
+          };
+        go(z.relatives.ancestors);
+      }
+    }
+  };
+};
+
+let finish_display =
+    (
+      ~marks: list((Id.t, option(int))),
+      ~raw: Segment.t,
+      ~caret_after: option((Id.t, int))=None,
+      seg: Segment.t,
+    )
+    : Segment.t => {
+  /* ranks confine pads to gaps AT or AFTER the caret (andrew's
+     policy: the display never changes strictly before the cursor);
+     computed AFTER the reorder pass, so late-bound via a cell */
+  let rank = ref(Hashtbl.create(0));
+  let caret_rank = () =>
     switch (caret_after) {
     | None => None
-    | Some(key) => Hashtbl.find_opt(rank, key)
+    | Some(key) => Hashtbl.find_opt(rank^, key)
     };
   /* a pad site is identified by the atom LEFT of the gap */
   let pad_allowed = (left: (Id.t, int)): bool =>
-    switch (caret_rank) {
+    switch (caret_rank()) {
     | None => true
     | Some(cr) =>
-      switch (Hashtbl.find_opt(rank, left)) {
+      switch (Hashtbl.find_opt(rank^, left)) {
       | Some(r) => r >= cr
       | None => true
       }
@@ -639,7 +668,7 @@ let finish_display =
     };
   /* rank AFTER reorder — hopped grout must carry its final position */
   let seg = reorder(seg);
-  walk_seg(seg);
+  rank := rank_map(seg);
   pad_seq(~hot=false, seg);
 };
 
@@ -3146,6 +3175,35 @@ let splice_ghost =
     go_seg(seg) |> Option.map(seg' => (seg', ghost_marks(pieces)));
   };
 };
+
+/* A ghost may never appear strictly BEFORE the caret (andrew's
+   policy — pre-caret ghosts shake the cursor; e.g. deleting a `(`
+   makes completion propose an opener at line start). Side-Right
+   splices land after their ref: pre-caret iff ref < caret's left
+   atom. Side-Left splices land before their ref: pre-caret iff
+   ref <= it. Suppressed ghosts keep their chip. */
+let splice_precedes_caret = (z: Zipper.t, ins: insertion): bool =>
+  switch (ins.splice, caret_left_atom(z)) {
+  | (None, _)
+  | (_, None) => false
+  | (Some((id, sh, side)), Some(caret_key)) =>
+    let rank = rank_map(Zipper.unselect_and_zip(z));
+    let key = (
+      id,
+      switch (sh) {
+      | Some(i) => i
+      | None => (-1)
+      },
+    );
+    switch (Hashtbl.find_opt(rank, key), Hashtbl.find_opt(rank, caret_key)) {
+    | (Some(r), Some(cr)) =>
+      switch (side) {
+      | Direction.Right => r < cr
+      | Direction.Left => r <= cr
+      }
+    | _ => false
+    };
+  };
 
 /* The ghost hugs the caret when only spaces separate it from the
    run's true position: Tab lands at the caret, and a closer drawn

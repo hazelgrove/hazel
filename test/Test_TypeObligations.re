@@ -288,7 +288,7 @@ let probe_chips = [
         |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
         |> String.concat("+");
       let all =
-        TypeObligations.assist_stream(z, obs)
+        TypeObligations.assist_stream(z, ~info_map, obs)
         |> List.map(show)
         |> String.concat(" | ");
       let arg_shape =
@@ -367,7 +367,7 @@ let ghost = (code: string): string => {
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let obs = TypeObligations.derive(info_map);
-  let assist = TypeObligations.assist_stream(z, obs);
+  let assist = TypeObligations.assist_stream(z, ~info_map, obs);
   switch (CanonicalCompletion.chip_among(z, assist)) {
   | None => "NONE"
   | Some(ins) =>
@@ -383,6 +383,71 @@ let ghost_case = (~name, ~code, ~expected) =>
   test_case(name, `Quick, () =>
     check(string_testable, name, expected, ghost(code))
   );
+
+/* Stale-pass synthesis: the frame after typing `(` has no
+   obligation record for the new site — the fn's type comes from the
+   LAST statics pass (id lookup; name-in-stale-ctx fallback when the
+   name itself was typed since). show = the chip stream assembled
+   with STALE obs + STALE info_map against the FRESH zipper. */
+let stale_tests = {
+  let show = ins =>
+    ins
+    |> List.map((i: CanonicalCompletion.insertion) =>
+         i.delimiters
+         |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
+         |> String.concat("+")
+       )
+    |> String.concat(" | ");
+  let statics_at = (code: string) => {
+    let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
+    let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
+    fst(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term));
+  };
+  let stale_case = (~name, ~stale: string, ~typed: string, ~expected) =>
+    test_case(
+      name,
+      `Quick,
+      () => {
+        let info_map = statics_at(stale);
+        let obs = TypeObligations.derive(info_map);
+        let z =
+          Test_Editing.perform(
+            Zipper.init(),
+            Test_Editing.mk(stale)
+            @ (Token.to_list(typed) |> List.map(c => Action.Insert(c))),
+          );
+        check(
+          string_testable,
+          name,
+          expected,
+          show(TypeObligations.assist_stream(z, ~info_map, obs)),
+        );
+      },
+    );
+  [
+    /* fn token existed at the last pass: id lookup */
+    stale_case(
+      ~name="stale: ( after known fn — commas instantly",
+      ~stale=f2 ++ "f¦",
+      ~typed="(",
+      ~expected=",+)",
+    ),
+    /* whole name typed since the last pass: name-in-ctx fallback */
+    stale_case(
+      ~name="stale: burst-typed name — ctx fallback",
+      ~stale=f2 ++ "¦",
+      ~typed="f(",
+      ~expected=",+)",
+    ),
+    /* unknown name: no synthesis, closer only */
+    stale_case(
+      ~name="stale: unknown fn — no comma presumption",
+      ~stale="¦",
+      ~typed="q(",
+      ~expected=")",
+    ),
+  ];
+};
 
 /* ghost_pieces is BARE (tokens + holes, no spacing) — all display
    spacing belongs to the padding oracle, asserted by the rendered
@@ -409,6 +474,7 @@ let ghost_tests = [
 let tests = [
   ("TypeObligations: reification", reify_tests),
   ("TypeObligations: scenarios", scenario_tests),
+  ("TypeObligations: stale-pass synthesis", stale_tests),
   ("TypeObligations: junctions", junction_tests),
   ("TypeObligations: overfull", overfull_tests),
   ("TypeObligations: ghost", ghost_tests),

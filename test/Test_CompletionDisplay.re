@@ -39,7 +39,7 @@ let display_parts =
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let obs = TypeObligations.derive(info_map);
-  let assist = TypeObligations.assist_stream(z, obs);
+  let assist = TypeObligations.assist_stream(z, ~info_map, obs);
   let z_tydi =
     switch (TyDi.set_buffer(~ci=Indicated.ci_for_completion(z, info_map), z)) {
     | Some(z) => z
@@ -55,9 +55,11 @@ let display_parts =
   } else {
     let seg = Zipper.unselect_and_zip(z);
     let (seg, marks) =
-      switch (CanonicalCompletion.chip_among(z, assist)) {
-      | Some(ins) =>
-        let ins = CanonicalCompletion.slide_to_caret(z, ins);
+      switch (
+        CanonicalCompletion.chip_among(z, assist)
+        |> Option.map(CanonicalCompletion.slide_to_caret(z))
+      ) {
+      | Some(ins) when !CanonicalCompletion.splice_precedes_caret(z, ins) =>
         switch (TypeObligations.ghost_pieces(z, ins)) {
         | Some(pieces) =>
           switch (CanonicalCompletion.splice_ghost(seg, ~ins, ~pieces)) {
@@ -65,8 +67,8 @@ let display_parts =
           | None => (seg, [])
           }
         | None => (seg, [])
-        };
-      | None => (seg, [])
+        }
+      | _ => (seg, [])
       };
     /* normalize + padding oracle, exactly like live (CachedSyntax) */
     let seg =
@@ -475,15 +477,17 @@ string_replace(a, b, c)   CHIPS[]|},
          line: witness absorption doesn't fire for a decayed keyword
          shard, so `i` gets a synthesized `in` beside it instead of
          prefix-joining (`i¦⟪n⟫`) — needs middle-shard witness in the
-         completion engine. */
+         completion engine. `let?` snug: the pre-caret pad is
+         correctly WITHHELD (policy) — matches the raw zipper and
+         dev; pads appear only once the caret returns there. */
       test_case("backspace through let = in", `Quick, () =>
         check(
           string_testable,
           "let-bk",
-          {|let ?  =  i¦ ⟪in ?⟫   CHIPS[]
-let ?  =  ¦? ⟪in ?⟫   CHIPS[]
-let ?  = ¦? ⟪in ?⟫   CHIPS[]
-let ?  =¦ ? ⟪in ?⟫   CHIPS[]
+          {|let?  =  i¦ ⟪in ?⟫   CHIPS[]
+let?  =  ¦? ⟪in ?⟫   CHIPS[]
+let?  = ¦? ⟪in ?⟫   CHIPS[]
+let?  =¦ ? ⟪in ?⟫   CHIPS[]
 let  ¦? ⟪= ? in ?⟫   CHIPS[]
 let ¦? ⟪= ? in ?⟫   CHIPS[]|},
           trajectory_bk(~ctx="let  =  in¦", 6),
@@ -512,6 +516,134 @@ let a = string_replace¦ in a + 1   CHIPS[]
 let a = string_replace(¦?⟪, ?, ?)⟫ in a + 1   CHIPS[]
 let a = string_replace(x¦⟪, ?, ?)⟫ in a + 1   CHIPS[]|},
           trajectory_in(~ctx="let a = ¦ in a + 1", "string_replace(x"),
+        )
+      ),
+    ],
+  ),
+  (
+    "CompletionDisplay: inventory",
+    /* exploratory sweep (andrew): new forms, leaving things
+       incomplete, refactors that break existing form delimiters */
+    [
+      /* KNOWN JANK, `=¦` line: mid-arrow witness — the inline
+         display drops while typing `=>` (typed_len witness is
+         TyDi's domain; TyDi doesn't fire on the case arrow — the
+         known tydi-backpack-case-arrow issue). Recovers next
+         keystroke. */
+      test_case("case entry, blank editor", `Quick, () =>
+        check(
+          string_testable,
+          "case-entry",
+          {|c¦   CHIPS[]
+ca¦⟪se ⟫   CHIPS[]
+cas¦⟪e ⟫   CHIPS[]
+case¦ ? ⟪end⟫   CHIPS[]
+case ¦? ⟪end⟫   CHIPS[]
+case 1¦ ⟪end⟫   CHIPS[]
+case 1 ¦⟪end⟫   CHIPS[]
+case 1 |¦ ? ⟪=> ? end⟫   CHIPS[]
+case 1 | ¦? ⟪=> ? end⟫   CHIPS[]
+case 1 | 2¦ ⟪=> ? end⟫   CHIPS[]
+case 1 | 2 ¦⟪=> ? end⟫   CHIPS[]
+case 1 | 2 =¦?   CHIPS[=> | end]
+case 1 | 2 =>¦ ? ⟪end⟫   CHIPS[]
+case 1 | 2 => ¦? ⟪end⟫   CHIPS[]
+case 1 | 2 => 3¦ ⟪end⟫   CHIPS[]|},
+          trajectory("case 1 | 2 => 3"),
+        )
+      ),
+      test_case("if entry, blank editor", `Quick, () =>
+        check(
+          string_testable,
+          "if-entry",
+          {|i¦   CHIPS[]
+if¦ ? ⟪then ? else ?⟫   CHIPS[]
+if ¦? ⟪then ? else ?⟫   CHIPS[]
+if 1¦ ⟪then ? else ?⟫   CHIPS[]
+if 1 ¦⟪then ? else ?⟫   CHIPS[]
+if 1 <¦ ? ⟪then ? else ?⟫   CHIPS[]|},
+          trajectory("if 1 <"),
+        )
+      ),
+      /* KNOWN JANK, last line: a TyDi witness (`St` -> `ring`)
+         SUPPRESSES the chip ghosts (`) = ? in` vanish to chips) —
+         the TyDi-first gate; fix = coexistence (queued) */
+      test_case("annotation tuple: TyDi x chip ghosts", `Quick, () =>
+        check(
+          string_testable,
+          "annot-tydi",
+          {|let a : (¦?⟪) = ? in ?⟫   CHIPS[]
+let a : (S¦⟪) = ? in ?⟫   CHIPS[]
+let a : (St¦⟪ring⟫   CHIPS[)+=+in]|},
+          trajectory_in(~ctx="let a : ¦", "(St"),
+        )
+      ),
+      /* CLEAN: deleting `)` inside a complete let recovers in place —
+         ghost closer immediately, `in y` unmoved, pads correct */
+      test_case("break the closer of a complete call", `Quick, () =>
+        check(
+          string_testable,
+          "break-closer",
+          {|let y = string_replace(a, b, c¦⟪)⟫ in y   CHIPS[]
+let y = string_replace(a, b, ¦?⟪)⟫ in y   CHIPS[]
+let y = string_replace(a, b,¦ ?⟪)⟫ in y   CHIPS[]|},
+          trajectory_bk(~ctx="let y = string_replace(a, b, c)¦ in y", 3),
+        )
+      ),
+      /* deleting the `(` of a complete call: the completion proposes
+         re-opening from the LEFT (side-Left leading run) — as a
+         ghost that would sit strictly before the caret, so it is
+         SUPPRESSED to a chip (splice_precedes_caret; the caret is
+         Inner in the preceding name after this deletion) */
+      test_case("break the opener of a complete call", `Quick, () =>
+        check(
+          string_testable,
+          "break-opener",
+          "string_replace\xc2\xa6a, b, c)   CHIPS[(]",
+          trajectory_bk(~ctx="string_replace(\xc2\xa6a, b, c)", 1),
+        )
+      ),
+      /* CLEAN: moving away dismisses the ghost, chips persist for
+         the abandoned site, typing below never re-conjures it, and
+         line 1 stays byte-stable (the ~ is the real junction hole
+         joining the incomplete call to the next line) */
+      test_case("abandon incomplete call, work below", `Quick, () =>
+        check(
+          string_testable,
+          "abandon",
+          {|string_replace(a¦⟪, ?, ?)⟫ ~
+1 + 1   CHIPS[]
+---
+string_replace(a~
+1 + 1¦   CHIPS[,+,+)]
+---
+string_replace(a~
+1 + 1 + 2¦   CHIPS[,+,+)]|},
+          {
+            let z =
+              Test_Editing.perform(
+                Zipper.init(),
+                Test_Editing.mk("¦\n1 + 1")
+                @ (
+                  Token.to_list("string_replace(a")
+                  |> List.map(c => Action.Insert(c))
+                ),
+              );
+            let after_typing = display_state(z);
+            let z =
+              Test_Editing.perform(
+                z,
+                [Test_Editing.move_point(~row=1, ~col=5, ())],
+              );
+            let after_move = display_state(z);
+            let z =
+              Test_Editing.perform(
+                z,
+                Token.to_list(" + 2") |> List.map(c => Action.Insert(c)),
+              );
+            let after_more = display_state(z);
+            after_typing ++ "\n---\n" ++ after_move ++ "\n---\n" ++ after_more;
+          },
         )
       ),
     ],

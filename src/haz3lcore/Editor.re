@@ -238,7 +238,11 @@ module Update = {
     let assist =
       if (settings.assist && settings.statics) {
         is_edited || statics_refreshed
-          ? TypeObligations.assist_stream(zipper, statics.obligations)
+          ? TypeObligations.assist_stream(
+              zipper,
+              ~info_map=statics.info_map,
+              statics.obligations,
+            )
           : syntax.assist;
       } else {
         [];
@@ -258,12 +262,17 @@ module Update = {
           && settings.statics
           && armed
           && !Selection.is_buffer(zipper.selection)) {
-        switch (CanonicalCompletion.chip_among(zipper, assist)) {
-        | Some(ins) =>
-          let ins = CanonicalCompletion.slide_to_caret(zipper, ins);
+        switch (
+          CanonicalCompletion.chip_among(zipper, assist)
+          |> Option.map(CanonicalCompletion.slide_to_caret(zipper))
+        ) {
+        /* guard AFTER the slide: a ghost that hugs the caret through
+           whitespace is at-caret, not pre-caret */
+        | Some(ins)
+            when !CanonicalCompletion.splice_precedes_caret(zipper, ins) =>
           TypeObligations.ghost_pieces(zipper, ins)
-          |> Option.map(pieces => (ins, pieces));
-        | None => None
+          |> Option.map(pieces => (ins, pieces))
+        | _ => None
         };
       } else {
         None;

@@ -610,6 +610,77 @@ let as_insertions =
   existing @ fresh;
 };
 
+/* Frame-side type facts for BRAND-NEW sites: a paren typed just now
+   has no obligation record until the next statics pass — but the
+   applied function's type usually IS in the last pass (you apply
+   names statics has seen). Look up by the fn token's id, falling
+   back to the name in a stale ctx (TyDi precedent: suggestions read
+   the stale ctx every keystroke). Gated to sites ABSENT from the
+   stale info_map, so a defeat judgment (site seen, presumption
+   suppressed) is never overridden. Misses only functions defined in
+   the same typing burst. */
+let synthesize_new_sites =
+    (~info_map: Statics.Map.t, ~seg: Segment.t, obs: list(t)): list(t) => {
+  let known = obs |> List.map(ob => ob.site);
+  let arrow_arg_tys = (ctx: Ctx.t, ty: Typ.t): option(list(Typ.t)) =>
+    switch (Typ.term_of(Typ.weak_head_normalize(ctx, ty))) {
+    | Arrow(lhs, _) => prod_elements(ctx, lhs)
+    | _ => None
+    };
+  let fn_tys = (fn: Tile.t): option(list(Typ.t)) =>
+    switch (fn.label) {
+    | [name] =>
+      switch (Id.Map.find_opt(fn.id, info_map)) {
+      | Some(Info.InfoExp({elab_syn_ty, ctx, _})) =>
+        arrow_arg_tys(ctx, elab_syn_ty)
+      | _ =>
+        /* burst-typed name: its id postdates the pass — the BINDING
+           doesn't; find it by name in any stale entry's ctx */
+        Id.Map.fold(
+          (_, info, acc) =>
+            switch (acc, info) {
+            | (Some(_), _) => acc
+            | (None, Info.InfoExp({ctx, _})) =>
+              switch (Ctx.lookup_var(ctx, name)) {
+              | Some(entry) => arrow_arg_tys(ctx, entry.typ)
+              | None => None
+              }
+            | (None, _) => None
+            },
+          info_map,
+          None,
+        )
+      }
+    | _ => None
+    };
+  let rec scan = (ps: Segment.t, acc: list(t)): list(t) =>
+    switch (ps) {
+    | [] => acc
+    | [p, ...rest] =>
+      let acc =
+        switch (p) {
+        | Piece.Tile(t) =>
+          List.fold_left((a, c) => scan(c, a), acc, t.children)
+        | _ => acc
+        };
+      let acc =
+        switch (p, rest) {
+        | (Piece.Tile(fn), [Piece.Tile(ap), ..._])
+            when
+              ap.label == ["(", ")"]
+              && !List.exists(Id.equal(ap.id), known)
+              && Id.Map.find_opt(ap.id, info_map) == None =>
+          switch (fn_tys(fn)) {
+          | Some(tys) => [mk(ap.id, ~present=1, tys), ...acc]
+          | None => acc
+          }
+        | _ => acc
+        };
+      scan(rest, acc);
+    };
+  scan(seg, []);
+};
+
 /* THE assist stream (A1 single source), assembled FRAME-FRESH:
    anchors, splice points, and element counts from this frame's
    syntax; type facts (expected arities, grouping choices) from the
@@ -620,9 +691,11 @@ let as_insertions =
    changed, the same lag as any type feedback. Chips, the inline
    ghost, and Tab all consume this one list. */
 let assist_stream =
-    (z: Zipper.t, obs: list(t)): list(CanonicalCompletion.insertion) => {
+    (z: Zipper.t, ~info_map: Statics.Map.t, obs: list(t))
+    : list(CanonicalCompletion.insertion) => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let r = CanonicalCompletion.for_editor(seg);
+  let obs = obs @ synthesize_new_sites(~info_map, ~seg, obs);
   as_insertions(
     ~seg,
     ~completed=r.completed_seg,
