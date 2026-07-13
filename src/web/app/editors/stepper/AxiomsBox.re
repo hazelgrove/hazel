@@ -111,6 +111,10 @@ module Selection = {
   };
 };
 
+let rewrite_enabled_for_profile =
+    (profile: Axioms.math_profile, rewrite: TrigRewrite.rewrite) =>
+  Axioms.visible_rule_enabled(profile.step_policy, rewrite.rule_id);
+
 module View = {
   let view =
       (
@@ -126,6 +130,7 @@ module View = {
         ~add_written_step:
            (RewriteChecker.trace_summary, int, Exp.t, Exp.t) =>
            Ui_effect.t(unit),
+        ~profile: Axioms.math_profile,
         ~rewrite_level: Axioms.rewrite_level,
         ~show_mode_warning: bool,
         model: Model.t,
@@ -135,9 +140,8 @@ module View = {
       |> Calc.get_saved_exc(~print="view_step_rewrites");
     let filter = model.filter |> Calc.get_value;
     let allowed_trig_rule_ids =
-      Axioms.allowed_groups(rewrite_level)
-      |> List.concat_map((group: Axioms.rewrite_group) => group.rules)
-      |> List.map((rule: Axioms.rewrite_rule) => rule.id)
+      profile.step_policy.visible_rules
+      |> List.map((rule: Axioms.visible_rule_policy) => rule.rule_id)
       |> List.filter(TrigRewrite.is_trig_rule_id);
     let rewrite_allowed = (rewrite: TrigRewrite.rewrite) =>
       AxiomSearch.unsupported_constructs_for_rewrite(
@@ -169,9 +173,18 @@ module View = {
               || StringUtil.subseq_search(rewrite.rule_id, filter),
             rewrites,
           );
+    let algebra_identity_actions =
+      AlgebraIdentityRewrite.applicable_at_root(selected_exp)
+      |> List.filter((rewrite: TrigRewrite.rewrite) =>
+           rewrite_enabled_for_profile(profile, rewrite)
+         )
+      |> List.filter(rewrite_allowed)
+      |> filter_rewrites;
     let algebra_enabled =
-      Axioms.rewrite_level_rank(rewrite_level)
-      >= Axioms.rewrite_level_rank(Axioms.Algebra);
+      profile.step_policy.visible_rules
+      |> List.exists((rule: Axioms.visible_rule_policy) =>
+           String.starts_with(~prefix="alg.", rule.rule_id)
+         );
     let simplification_actions =
       (
         algebra_enabled
@@ -210,6 +223,9 @@ module View = {
           : []
       )
       |> List.filter(rewrite_allowed)
+      |> List.filter((rewrite: TrigRewrite.rewrite) =>
+           rewrite_enabled_for_profile(profile, rewrite)
+         )
       |> filter_rewrites;
     let selected_exp_idx =
       try(ProofHacks.exp_idx(selected_exp, full_exp)) {
@@ -283,17 +299,28 @@ module View = {
         ],
       );
     let trace_summary_for_simplification = (rewrite: TrigRewrite.rewrite) => {
-      let fallback = () =>
-        ProofSearchBackend.collapsed_macro_summary(
-          ProofSearchBackend.{
-            backend: JSCoqTacticSearch,
-            level: rewrite_level,
-            max_depth: 4,
-            max_states: 80,
-            source: selected_exp,
-            target: rewrite.after_exp,
-          },
-        );
+      let normalization_summary = () =>
+        RewriteChecker.{
+          justification: "trigonometry argument normalization",
+          group_name: Some("trigonometry"),
+          from_normal_exp: rewrite.after_exp,
+          to_normal_exp: rewrite.after_exp,
+          from_rule_ids: [rewrite.rule_id],
+          to_rule_ids: [],
+          rule_ids: [rewrite.rule_id],
+          prover_steps: [
+            prover_step(
+              ~origin=Normalization,
+              ~rule_id=rewrite.rule_id,
+              ~before_full_exp=selected_exp,
+              ~after_full_exp=rewrite.after_exp,
+              ~before_exp=rewrite.before_exp,
+              ~after_exp=rewrite.after_exp,
+              ~detail="normalize scalar products in trig argument",
+            ),
+          ],
+          exportable: true,
+        };
       switch (
         RewriteChecker.check_single_step_trace_at_level(
           ~level=rewrite_level,
@@ -305,7 +332,7 @@ module View = {
       ) {
       | Some({prover_steps: [_, ..._], _} as summary) => summary
       | Some(_)
-      | None => fallback()
+      | None => normalization_summary()
       };
     };
     let simplification_action_view = (rewrite: TrigRewrite.rewrite) =>
@@ -336,61 +363,55 @@ module View = {
         ],
       );
     let trace_summary_for_algebra_shape = (rewrite: TrigRewrite.rewrite) =>
+      RewriteChecker.check_single_step_result_for_profile(
+        ~profile,
+        ~settings=globals.settings.core,
+        ~env,
+        selected_exp,
+        rewrite.after_exp,
+      )
+      |> Option.map(RewriteChecker.trace_summary_of_result);
+    let algebra_shape_action_view = (rewrite: TrigRewrite.rewrite) =>
+      trace_summary_for_algebra_shape(rewrite)
+      |> Option.map(summary =>
+           div_c(
+             "assumption-box",
+             [
+               Widgets.button_d(
+                 Node.text("==>"),
+                 add_written_step(
+                   summary,
+                   selected_exp_idx,
+                   selected_exp,
+                   rewrite.after_exp,
+                 ),
+                 ~disabled=false,
+               ),
+               Node.text(" " ++ rewrite.label ++ ": "),
+               CodeViewable.view_any(
+                 ~globals,
+                 ~settings=
+                   Haz3lcore.ExpToSegment.Settings.of_core(
+                     ~inline=true,
+                     ~fold_fn_bodies=`Text,
+                     globals.settings.core,
+                   ),
+                 Exp(rewrite.after_exp),
+               ),
+             ],
+           )
+         );
+    let algebra_shape_section =
       switch (
-        RewriteChecker.check_single_step_trace_at_level(
-          ~level=rewrite_level,
-          ~settings=globals.settings.core,
-          ~env,
-          selected_exp,
-          rewrite.after_exp,
+        List.filter_map(
+          algebra_shape_action_view,
+          algebra_identity_actions @ algebra_shape_actions,
         )
       ) {
-      | Some(summary) => summary
-      | None =>
-        ProofSearchBackend.collapsed_macro_summary(
-          ProofSearchBackend.{
-            backend: JSCoqTacticSearch,
-            level: rewrite_level,
-            max_depth: 4,
-            max_states: 80,
-            source: selected_exp,
-            target: rewrite.after_exp,
-          },
-        )
-      };
-    let algebra_shape_action_view = (rewrite: TrigRewrite.rewrite) =>
-      div_c(
-        "assumption-box",
-        [
-          Widgets.button_d(
-            Node.text("==>"),
-            add_written_step(
-              trace_summary_for_algebra_shape(rewrite),
-              selected_exp_idx,
-              selected_exp,
-              rewrite.after_exp,
-            ),
-            ~disabled=false,
-          ),
-          Node.text(" " ++ rewrite.label ++ ": "),
-          CodeViewable.view_any(
-            ~globals,
-            ~settings=
-              Haz3lcore.ExpToSegment.Settings.of_core(
-                ~inline=true,
-                ~fold_fn_bodies=`Text,
-                globals.settings.core,
-              ),
-            Exp(rewrite.after_exp),
-          ),
-        ],
-      );
-    let algebra_shape_section =
-      switch (algebra_shape_actions) {
       | [] => []
-      | actions => [
+      | action_views => [
           div_c("assumption-box", [Node.text("Algebra")]),
-          ...List.map(algebra_shape_action_view, actions),
+          ...action_views,
         ]
       };
     let simplification_section =

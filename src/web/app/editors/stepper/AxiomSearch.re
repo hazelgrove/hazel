@@ -353,7 +353,8 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
          )
        )
   | _ =>
-    TrigRewrite.apply_rule_at_root(rule_id, exp)
+    AlgebraIdentityRewrite.apply_rule_at_root(rule_id, exp)
+    @ TrigRewrite.apply_rule_at_root(rule_id, exp)
     |> List.map((rewrite: TrigRewrite.rewrite) => rewrite.after_exp)
   };
 };

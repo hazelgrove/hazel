@@ -35,6 +35,148 @@ type rocq_domain_policy =
   | IntegersByDefault
   | RealsByDefault;
 
+type rocq_tactic_mode =
+  | Once
+  | TryOnce
+  | RepeatUntilStuck
+  | RepeatFuel(int)
+  | FinishOnly;
+
+type rocq_tactic_step = {
+  id: string,
+  label: string,
+  tactic: string,
+  mode: rocq_tactic_mode,
+  rule_ids: list(string),
+};
+
+type rocq_tactic_plan = {
+  id: string,
+  label: string,
+  steps: list(rocq_tactic_step),
+};
+
+type rocq_tactic_plan_purpose =
+  | ValidatePrimitiveStep
+  | ValidateMacroStep
+  | CheckResult
+  | AutoSimplify;
+
+type cleanup_capability =
+  | AddAssoc
+  | AddComm
+  | MulAssoc
+  | MulComm
+  | AddIdentity
+  | MulIdentity
+  | ConstFold
+  | PowerNotation
+  | CollectLikeTerms;
+
+type operation_metadata = {
+  id: string,
+  name: string,
+  short_name: string,
+  example: string,
+};
+
+type visible_step_mode =
+  | VisibleOnce
+  | VisibleRepeatFuel(int)
+  | VisibleRepeatUntilStuck;
+
+type visible_rule_policy = {
+  rule_id: string,
+  metadata: operation_metadata,
+  mode: visible_step_mode,
+  allowed_cleanup: list(cleanup_capability),
+};
+
+type step_policy = {
+  visible_rules: list(visible_rule_policy),
+  default_cleanup: list(cleanup_capability),
+};
+
+type math_rule_kind =
+  | VisibleRule
+  | CleanupRule
+  | NormalizationRule
+  | TacticOnlyRule;
+
+type math_rule_direction =
+  | Forward
+  | Backward
+  | BothDirections;
+
+type hazel_rule_backend =
+  | ArithmeticAddComm
+  | ArithmeticConstFold
+  | ArithmeticMulConst
+  | ArithmeticMulIdentity
+  | AlgebraIdentity
+  | AlgebraDistributeMulAdd
+  | AlgebraFactorCommon
+  | AlgebraCancelCommonAdd
+  | TrigIdentity;
+
+type rocq_domain =
+  | RocqIntegers
+  | RocqReals;
+
+type rocq_domain_tactics = {
+  integers: list(string),
+  reals: list(string),
+};
+
+type rocq_rule_backend = {
+  tactic: string,
+  mode: rocq_tactic_mode,
+  search_tactics: rocq_domain_tactics,
+  replay_tactics: rocq_domain_tactics,
+};
+
+type rocq_cleanup_backend = {
+  capability: cleanup_capability,
+  search_tactics: rocq_domain_tactics,
+};
+
+type math_rule = {
+  id: string,
+  metadata: operation_metadata,
+  level: rewrite_level,
+  kind: math_rule_kind,
+  direction: math_rule_direction,
+  hazel_backend: option(hazel_rule_backend),
+  rocq_backend: option(rocq_rule_backend),
+  visible_levels: list(rewrite_level),
+  visible_mode: visible_step_mode,
+  allowed_cleanup: list(cleanup_capability),
+};
+
+type planned_visible_rule = {
+  rule: math_rule,
+  mode: visible_step_mode,
+  allowed_cleanup: list(cleanup_capability),
+};
+
+type stage_plan = {
+  stage: automation_stage,
+  pre_cleanup: list(cleanup_capability),
+  visible_rules: list(planned_visible_rule),
+  post_cleanup: list(cleanup_capability),
+  normalization_backends: list(rocq_rule_backend),
+  rocq_plan: rocq_tactic_plan,
+};
+
+type distribution_step_policy =
+  | StrictDistributedForm
+  | DistributionMaySimplify;
+
+type one_step_policy = {
+  distribution_step_policy,
+  allow_polynomial_expansion: bool,
+};
+
 type math_profile = {
   level: rewrite_level,
   rank: int,
@@ -42,8 +184,12 @@ type math_profile = {
   detail: string,
   enabled: bool,
   groups: list(rewrite_group),
+  one_step_policy,
+  step_policy,
   rocq_macro_rule_id: string,
   rocq_tactic_group: string,
+  rocq_tactic_plan,
+  rocq_tactic_plans: list((rocq_tactic_plan_purpose, rocq_tactic_plan)),
   rocq_domain_policy,
 };
 
@@ -434,6 +580,11 @@ let arithmetic_rewrite_group = {
       prover_hints: [lean("rw [mul_add, add_mul, one_mul]")],
     },
     {
+      id: "arith.mul_identity",
+      label: "remove multiplicative identity",
+      prover_hints: [lean("rw [one_mul, mul_one]")],
+    },
+    {
       id: "arith.collect_like_terms",
       label: "collect like terms",
       prover_hints: [lean("rw [← add_mul, ← mul_add]")],
@@ -492,8 +643,53 @@ let algebra_rewrite_group = {
       label: "cancel common additive term",
       prover_hints: [lean("rw [add_assoc, add_left_neg, add_right_neg]")],
     },
+    {
+      id: "alg.difference_of_squares",
+      label: "difference of squares",
+      prover_hints: [lean("ring")],
+    },
+    {
+      id: "alg.square_of_sum",
+      label: "square of a sum",
+      prover_hints: [lean("ring")],
+    },
+    {
+      id: "alg.square_of_difference",
+      label: "square of a difference",
+      prover_hints: [lean("ring")],
+    },
+    {
+      id: "alg.difference_of_cubes",
+      label: "difference of cubes",
+      prover_hints: [lean("ring")],
+    },
+    {
+      id: "alg.sum_of_cubes",
+      label: "sum of cubes",
+      prover_hints: [lean("ring")],
+    },
+    {
+      id: "alg.cube_of_sum",
+      label: "cube of a sum",
+      prover_hints: [lean("ring")],
+    },
+    {
+      id: "alg.cube_of_difference",
+      label: "cube of a difference",
+      prover_hints: [lean("ring")],
+    },
   ],
 };
+
+let algebra_identity_rule_ids = [
+  "alg.difference_of_squares",
+  "alg.square_of_sum",
+  "alg.square_of_difference",
+  "alg.difference_of_cubes",
+  "alg.sum_of_cubes",
+  "alg.cube_of_sum",
+  "alg.cube_of_difference",
+];
 
 let trigonometry_rewrite_group = {
   name: "trigonometry",
@@ -636,6 +832,1600 @@ let allowed_groups = level => {
   |> List.filter((group: rewrite_group) => group.rank <= max_rank);
 };
 
+let rocq_tactic_step = (~id, ~label, ~tactic, ~mode, ~rule_ids) => {
+  id,
+  label,
+  tactic,
+  mode,
+  rule_ids,
+};
+
+let rocq_tactic_mode_label =
+  fun
+  | Once => "once"
+  | TryOnce => "try_once"
+  | RepeatUntilStuck => "repeat_until_stuck"
+  | RepeatFuel(fuel) => "repeat_fuel:" ++ string_of_int(fuel)
+  | FinishOnly => "finish_only";
+
+let rocq_tactic_plan_purpose_label =
+  fun
+  | ValidatePrimitiveStep => "validate_primitive_step"
+  | ValidateMacroStep => "validate_macro_step"
+  | CheckResult => "check_result"
+  | AutoSimplify => "auto_simplify";
+
+let distribution_step_policy_label =
+  fun
+  | StrictDistributedForm => "strict_distributed_form"
+  | DistributionMaySimplify => "distribution_may_simplify";
+
+let cleanup_capability_label =
+  fun
+  | AddAssoc => "add.assoc"
+  | AddComm => "add.comm"
+  | MulAssoc => "mul.assoc"
+  | MulComm => "mul.comm"
+  | AddIdentity => "add.identity"
+  | MulIdentity => "mul.identity"
+  | ConstFold => "const.fold"
+  | PowerNotation => "power.notation"
+  | CollectLikeTerms => "collect.like_terms";
+
+let operation_metadata = (~id, ~name, ~short_name, ~example) => {
+  id,
+  name,
+  short_name,
+  example,
+};
+
+let cleanup_capability_metadata =
+  fun
+  | AddAssoc =>
+    operation_metadata(
+      ~id=cleanup_capability_label(AddAssoc),
+      ~name="Reassociate addition",
+      ~short_name="Assoc +",
+      ~example="(1 + 2) + x = 1 + (2 + x)",
+    )
+  | AddComm =>
+    operation_metadata(
+      ~id=cleanup_capability_label(AddComm),
+      ~name="Commute addition",
+      ~short_name="Comm +",
+      ~example="1 + 2 = 2 + 1",
+    )
+  | MulAssoc =>
+    operation_metadata(
+      ~id=cleanup_capability_label(MulAssoc),
+      ~name="Reassociate multiplication",
+      ~short_name="Assoc *",
+      ~example="(2 * 3) * x = 2 * (3 * x)",
+    )
+  | MulComm =>
+    operation_metadata(
+      ~id=cleanup_capability_label(MulComm),
+      ~name="Commute multiplication",
+      ~short_name="Comm *",
+      ~example="2 * x = x * 2",
+    )
+  | AddIdentity =>
+    operation_metadata(
+      ~id=cleanup_capability_label(AddIdentity),
+      ~name="Remove additive identity",
+      ~short_name="+ 0",
+      ~example="x + 0 = x",
+    )
+  | MulIdentity =>
+    operation_metadata(
+      ~id=cleanup_capability_label(MulIdentity),
+      ~name="Remove multiplicative identity",
+      ~short_name="* 1",
+      ~example="x * 1 = x",
+    )
+  | ConstFold =>
+    operation_metadata(
+      ~id=cleanup_capability_label(ConstFold),
+      ~name="Fold constants",
+      ~short_name="Fold",
+      ~example="3 + 4 = 7",
+    )
+  | PowerNotation =>
+    operation_metadata(
+      ~id=cleanup_capability_label(PowerNotation),
+      ~name="Use power notation",
+      ~short_name="Power",
+      ~example="x * x = x**2",
+    )
+  | CollectLikeTerms =>
+    operation_metadata(
+      ~id=cleanup_capability_label(CollectLikeTerms),
+      ~name="Collect like terms",
+      ~short_name="Collect",
+      ~example="x + x = 2 * x",
+    );
+
+let visible_rule_metadata = rule_id =>
+  switch (rule_id) {
+  | "arith.add_comm" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Commute addition",
+      ~short_name="Comm +",
+      ~example="1 + 2 = 2 + 1",
+    )
+  | "arith.const_fold" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Evaluate constants",
+      ~short_name="Eval",
+      ~example="3 + 4 = 7",
+    )
+  | "arith.mul_const" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Distribute constant multiplication",
+      ~short_name="Dist",
+      ~example="2 * (3 + 4) = 2 * 3 + 2 * 4",
+    )
+  | "arith.mul_identity" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Remove multiplicative identity",
+      ~short_name="* 1",
+      ~example="1 * x = x",
+    )
+  | "alg.distribute_mul_add" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Distribute multiplication over addition",
+      ~short_name="Dist",
+      ~example="x * (a + b) = x * a + x * b",
+    )
+  | "alg.factor_common" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Factor a common term",
+      ~short_name="Factor",
+      ~example="x * a + x * b = x * (a + b)",
+    )
+  | "alg.cancel_common_add" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Cancel a common additive term",
+      ~short_name="Cancel +",
+      ~example="x + y - y = x",
+    )
+  | "alg.difference_of_squares" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use the difference of squares identity",
+      ~short_name="a^2-b^2",
+      ~example="a**2 - b**2 = (a + b) * (a - b)",
+    )
+  | "alg.square_of_sum" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Expand or factor the square of a sum",
+      ~short_name="(a+b)^2",
+      ~example="(a + b)**2 = a**2 + 2*a*b + b**2",
+    )
+  | "alg.square_of_difference" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Expand or factor the square of a difference",
+      ~short_name="(a-b)^2",
+      ~example="(a - b)**2 = a**2 - 2*a*b + b**2",
+    )
+  | "alg.difference_of_cubes" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use the difference of cubes identity",
+      ~short_name="a^3-b^3",
+      ~example="a**3 - b**3 = (a - b) * (a**2 + a*b + b**2)",
+    )
+  | "alg.sum_of_cubes" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use the sum of cubes identity",
+      ~short_name="a^3+b^3",
+      ~example="a**3 + b**3 = (a + b) * (a**2 - a*b + b**2)",
+    )
+  | "alg.cube_of_sum" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Expand or factor the cube of a sum",
+      ~short_name="(a+b)^3",
+      ~example="(a + b)**3 = a**3 + 3*a**2*b + 3*a*b**2 + b**3",
+    )
+  | "alg.cube_of_difference" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Expand or factor the cube of a difference",
+      ~short_name="(a-b)^3",
+      ~example="(a - b)**3 = a**3 - 3*a**2*b + 3*a*b**2 - b**3",
+    )
+  | "trig.pythagorean_sin_cos"
+  | "trig.pythagorean_cos_sin" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use the Pythagorean trigonometry identity",
+      ~short_name="Pythagorean",
+      ~example="sin(x)**2 + cos(x)**2 = 1",
+    )
+  | "trig.cos_squared_pythagorean" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Rewrite cosine squared with sine",
+      ~short_name="Cos^2",
+      ~example="cos(x)**2 = 1 - sin(x)**2",
+    )
+  | "trig.sin_squared_pythagorean" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Rewrite sine squared with cosine",
+      ~short_name="Sin^2",
+      ~example="sin(x)**2 = 1 - cos(x)**2",
+    )
+  | "trig.sin_sum" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Expand sine of a sum",
+      ~short_name="Sin +",
+      ~example="sin(x + y) = sin(x)*cos(y) + cos(x)*sin(y)",
+    )
+  | "trig.sin_diff" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Expand sine of a difference",
+      ~short_name="Sin -",
+      ~example="sin(x - y) = sin(x)*cos(y) - cos(x)*sin(y)",
+    )
+  | "trig.cos_sum" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Expand cosine of a sum",
+      ~short_name="Cos +",
+      ~example="cos(x + y) = cos(x)*cos(y) - sin(x)*sin(y)",
+    )
+  | "trig.cos_diff" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Expand cosine of a difference",
+      ~short_name="Cos -",
+      ~example="cos(x - y) = cos(x)*cos(y) + sin(x)*sin(y)",
+    )
+  | "trig.sin_double" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use the sine double-angle identity",
+      ~short_name="Sin 2x",
+      ~example="sin(2*x) = 2*sin(x)*cos(x)",
+    )
+  | "trig.sin_double_sum_square" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use sine double-angle sum-square form",
+      ~short_name="Sin 2x sq",
+      ~example="sin(2*x)**2 = 4*sin(x)**2*cos(x)**2",
+    )
+  | "trig.cos_double_square" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use the cosine double-angle identity",
+      ~short_name="Cos 2x",
+      ~example="cos(2*x) = cos(x)**2 - sin(x)**2",
+    )
+  | "trig.cos_double_cos" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use cosine double-angle with cosine squared",
+      ~short_name="Cos 2x cos",
+      ~example="cos(2*x) = 2*cos(x)**2 - 1",
+    )
+  | "trig.cos_double_sin" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use cosine double-angle with sine squared",
+      ~short_name="Cos 2x sin",
+      ~example="cos(2*x) = 1 - 2*sin(x)**2",
+    )
+  | "trig.sin_squared_double" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Rewrite sine squared with double angle",
+      ~short_name="Sin^2 half",
+      ~example="sin(x)**2 = (1 - cos(2*x)) / 2",
+    )
+  | "trig.cos_squared_double" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Rewrite cosine squared with double angle",
+      ~short_name="Cos^2 half",
+      ~example="cos(x)**2 = (1 + cos(2*x)) / 2",
+    )
+  | "trig.sin_half_squared" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use sine half-angle identity",
+      ~short_name="Sin half",
+      ~example="sin(x/2)**2 = (1 - cos(x)) / 2",
+    )
+  | "trig.cos_half_squared" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use cosine half-angle identity",
+      ~short_name="Cos half",
+      ~example="cos(x/2)**2 = (1 + cos(x)) / 2",
+    )
+  | "trig.sin_cofunction" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use sine cofunction identity",
+      ~short_name="Sin cofn",
+      ~example="sin(pi/2 - x) = cos(x)",
+    )
+  | "trig.cos_cofunction" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use cosine cofunction identity",
+      ~short_name="Cos cofn",
+      ~example="cos(pi/2 - x) = sin(x)",
+    )
+  | "trig.sin_pi_sub" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use sine reflection identity",
+      ~short_name="Sin refl",
+      ~example="sin(pi - x) = sin(x)",
+    )
+  | "trig.cos_pi_sub" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use cosine reflection identity",
+      ~short_name="Cos refl",
+      ~example="cos(pi - x) = -cos(x)",
+    )
+  | "trig.sin_neg" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use sine negative-angle identity",
+      ~short_name="Sin neg",
+      ~example="sin(-x) = -sin(x)",
+    )
+  | "trig.cos_neg" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use cosine negative-angle identity",
+      ~short_name="Cos neg",
+      ~example="cos(-x) = cos(x)",
+    )
+  | "trig.tan_neg" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Use tangent negative-angle identity",
+      ~short_name="Tan neg",
+      ~example="tan(-x) = -tan(x)",
+    )
+  | _ =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name=rule_id,
+      ~short_name=rule_id,
+      ~example="",
+    )
+  };
+
+let visible_step_mode_label =
+  fun
+  | VisibleOnce => "once"
+  | VisibleRepeatFuel(fuel) => "repeat_fuel:" ++ string_of_int(fuel)
+  | VisibleRepeatUntilStuck => "repeat_until_stuck";
+
+let visible_step_mode_display_label =
+  fun
+  | VisibleOnce => "Counts as one step"
+  | VisibleRepeatFuel(fuel) =>
+    "May repeat up to " ++ string_of_int(fuel) ++ " times"
+  | VisibleRepeatUntilStuck => "May repeat automatically";
+
+let visible_once_rule = (~rule_id, ~allowed_cleanup) => {
+  rule_id,
+  metadata: visible_rule_metadata(rule_id),
+  mode: VisibleOnce,
+  allowed_cleanup,
+};
+
+let ac_cleanup = [AddAssoc, AddComm, MulAssoc, MulComm];
+
+let structural_identity_cleanup = [AddIdentity, MulIdentity];
+
+let assoc_cleanup = [AddAssoc, MulAssoc];
+
+let rocq_domain_tactics = (~integers, ~reals) => {
+  integers,
+  reals,
+};
+
+let rocq_rule_backend = (~tactic, ~integers, ~reals) => {
+  tactic,
+  mode: Once,
+  search_tactics: rocq_domain_tactics(~integers, ~reals),
+  replay_tactics:
+    rocq_domain_tactics(
+      ~integers=integers |> List.map(tactic => "try " ++ tactic),
+      ~reals=reals |> List.map(tactic => "try " ++ tactic),
+    ),
+};
+
+let rocq_rule_backend_with_replay =
+    (~tactic, ~integers, ~reals, ~replay_integers, ~replay_reals) => {
+  tactic,
+  mode: Once,
+  search_tactics: rocq_domain_tactics(~integers, ~reals),
+  replay_tactics:
+    rocq_domain_tactics(~integers=replay_integers, ~reals=replay_reals),
+};
+
+let factor_tactics = (~left_lemma, ~right_lemma) => [
+  "lazymatch goal with | |- ?lhs = _ => lazymatch lhs with | context [?a * ?b + ?a * ?c] => rewrite <- "
+  ++ left_lemma
+  ++ " end end",
+  "lazymatch goal with | |- ?lhs = _ => lazymatch lhs with | context [?a * ?b + ?a * ?c] => rewrite <- "
+  ++ right_lemma
+  ++ " end end",
+  "lazymatch goal with | |- ?lhs = _ => lazymatch lhs with | context [?a * ?c + ?b * ?c] => rewrite <- "
+  ++ left_lemma
+  ++ " end end",
+  "lazymatch goal with | |- ?lhs = _ => lazymatch lhs with | context [?a * ?c + ?b * ?c] => rewrite <- "
+  ++ right_lemma
+  ++ " end end",
+];
+
+let rocq_backend_for_rule_id =
+  fun
+  | "arith.mul_comm" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_rewrite_step",
+        ~integers=["rewrite Z.mul_comm"],
+        ~reals=["rewrite Rmult_comm"],
+      ),
+    )
+  | "arith.add_assoc" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_rewrite_step",
+        ~integers=["rewrite Z.add_assoc"],
+        ~reals=["rewrite Rplus_assoc"],
+        ~replay_integers=["repeat rewrite Z.add_assoc"],
+        ~replay_reals=["repeat rewrite Rplus_assoc"],
+      ),
+    )
+  | "arith.mul_assoc" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_rewrite_step",
+        ~integers=["rewrite Z.mul_assoc"],
+        ~reals=["rewrite Rmult_assoc"],
+        ~replay_integers=[
+          "try rewrite Z.mul_assoc",
+          "try rewrite <- Z.mul_assoc",
+        ],
+        ~replay_reals=[
+          "try rewrite Rmult_assoc",
+          "try rewrite <- Rmult_assoc",
+        ],
+      ),
+    )
+  | "arith.add_zero" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_rewrite_step",
+        ~integers=["rewrite Z.add_0_l", "rewrite Z.add_0_r"],
+        ~reals=["rewrite Rplus_0_l", "rewrite Rplus_0_r"],
+        ~replay_integers=[
+          "repeat rewrite Z.add_0_l",
+          "repeat rewrite Z.add_0_r",
+        ],
+        ~replay_reals=[
+          "repeat rewrite Rplus_0_l",
+          "repeat rewrite Rplus_0_r",
+        ],
+      ),
+    )
+  | "arith.add_neg" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_rewrite_step",
+        ~integers=["rewrite Z.add_opp_diag_l", "rewrite Z.add_opp_diag_r"],
+        ~reals=[],
+        ~replay_integers=[
+          "repeat rewrite Z.add_opp_diag_l",
+          "repeat rewrite Z.add_opp_diag_r",
+        ],
+        ~replay_reals=[],
+      ),
+    )
+  | "arith.add_comm" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_rewrite_step",
+        ~integers=["rewrite Z.add_comm"],
+        ~reals=["rewrite Rplus_comm"],
+      ),
+    )
+  | "arith.const_fold" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_arithmetic",
+        ~integers=["cbn"],
+        ~reals=["cbn"],
+      ),
+    )
+  | "arith.mul_const"
+  | "alg.distribute_mul_add" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_rewrite_step",
+        ~integers=["rewrite Z.mul_add_distr_l", "rewrite Z.mul_add_distr_r"],
+        ~reals=["rewrite Rmult_plus_distr_l", "rewrite Rmult_plus_distr_r"],
+        ~replay_integers=[
+          "repeat rewrite Z.mul_add_distr_l",
+          "repeat rewrite Z.mul_add_distr_r",
+        ],
+        ~replay_reals=[
+          "repeat rewrite Rmult_plus_distr_l",
+          "repeat rewrite Rmult_plus_distr_r",
+        ],
+      ),
+    )
+  | "arith.mul_identity" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_rewrite_step",
+        ~integers=["rewrite Z.mul_1_l", "rewrite Z.mul_1_r"],
+        ~reals=["rewrite Rmult_1_l", "rewrite Rmult_1_r"],
+      ),
+    )
+  | rule_id when List.mem(rule_id, algebra_identity_rule_ids) =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_integer_polynomial",
+        ~integers=[],
+        ~reals=[],
+        ~replay_integers=["ring"],
+        ~replay_reals=["ring"],
+      ),
+    )
+  | "alg.expand_polynomial" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_rewrite_step",
+        ~integers=["rewrite Z.mul_add_distr_l", "rewrite Z.mul_add_distr_r"],
+        ~reals=["rewrite Rmult_plus_distr_l", "rewrite Rmult_plus_distr_r"],
+        ~replay_integers=[
+          "repeat rewrite Z.mul_add_distr_l",
+          "repeat rewrite Z.mul_add_distr_r",
+          "repeat rewrite Z.add_assoc",
+          "cbn",
+        ],
+        ~replay_reals=[
+          "repeat rewrite Rmult_plus_distr_l",
+          "repeat rewrite Rmult_plus_distr_r",
+          "repeat rewrite Rplus_assoc",
+          "cbn",
+        ],
+      ),
+    )
+  | "alg.factor_common" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_rewrite_step",
+        ~integers=
+          factor_tactics(
+            ~left_lemma="Z.mul_add_distr_l",
+            ~right_lemma="Z.mul_add_distr_r",
+          ),
+        ~reals=
+          factor_tactics(
+            ~left_lemma="Rmult_plus_distr_l",
+            ~right_lemma="Rmult_plus_distr_r",
+          ),
+        ~replay_integers=[
+          "repeat rewrite <- Z.mul_add_distr_l",
+          "repeat rewrite <- Z.mul_add_distr_r",
+        ],
+        ~replay_reals=[
+          "repeat rewrite <- Rmult_plus_distr_l",
+          "repeat rewrite <- Rmult_plus_distr_r",
+        ],
+      ),
+    )
+  | "alg.cancel_common_add" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_rewrite_step",
+        ~integers=[
+          "rewrite Z.add_simpl_r",
+          "rewrite Z.add_simpl_l",
+          "rewrite Z.sub_simpl_r",
+          "rewrite Z.sub_add",
+        ],
+        ~reals=[
+          "unfold Rminus; rewrite <- Rplus_assoc; rewrite Rplus_opp_r; rewrite Rplus_0_r",
+          "unfold Rminus; rewrite Rplus_assoc; rewrite Rplus_opp_l; rewrite Rplus_0_l",
+        ],
+      ),
+    )
+  | "alg.power_add"
+  | "alg.power_mul" => {
+      let backend =
+        rocq_rule_backend_with_replay(
+          ~tactic="hazel_power_normalize",
+          ~integers=["hazel_power_normalize"],
+          ~reals=["hazel_power_normalize"],
+          ~replay_integers=[
+            "cbn",
+            "repeat rewrite Z.mul_1_r",
+            "repeat rewrite Z.mul_1_l",
+            "repeat rewrite Z.mul_assoc",
+          ],
+          ~replay_reals=[
+            "cbn",
+            "try unfold Rsqr",
+            "repeat rewrite Rmult_1_r",
+            "repeat rewrite Rmult_1_l",
+            "repeat rewrite Rmult_assoc",
+          ],
+        );
+      Some({
+        ...backend,
+        mode: FinishOnly,
+      });
+    }
+  | "arith.collect_like_terms"
+  | "alg.collect_like_terms" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_algebra",
+        ~integers=[],
+        ~reals=[],
+        ~replay_integers=[
+          "first [hazel_algebra | hazel_rewrite_search 10%nat | reflexivity]",
+        ],
+        ~replay_reals=[
+          "first [hazel_algebra | hazel_rewrite_search 10%nat | reflexivity]",
+        ],
+      ),
+    )
+  | "arith.reorder_add_terms" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_rewrite_search 8%nat",
+        ~integers=[],
+        ~reals=[],
+        ~replay_integers=["hazel_rewrite_search 8%nat"],
+        ~replay_reals=["hazel_rewrite_search 8%nat"],
+      ),
+    )
+  | "arith.reorder_mul_factors" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_mul_reorder",
+        ~integers=[],
+        ~reals=[],
+        ~replay_integers=["hazel_mul_reorder"],
+        ~replay_reals=["hazel_mul_reorder"],
+      ),
+    )
+  | "trig.pythagorean_sin_cos"
+  | "trig.pythagorean_cos_sin" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_pythagorean",
+        ~integers=[],
+        ~reals=["hazel_pythagorean"],
+        ~replay_integers=[],
+        ~replay_reals=["try hazel_pythagorean"],
+      ),
+    )
+  | "trig.cos_squared_pythagorean" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite cos2"],
+      ),
+    )
+  | "trig.sin_squared_pythagorean" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite sin2"],
+      ),
+    )
+  | "trig.sin_sum" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite sin_plus"],
+      ),
+    )
+  | "trig.sin_diff" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite sin_minus"],
+      ),
+    )
+  | "trig.cos_sum" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite cos_plus"],
+      ),
+    )
+  | "trig.cos_diff" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite cos_minus"],
+      ),
+    )
+  | "trig.sin_double" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite sin_2a"],
+      ),
+    )
+  | "trig.sin_double_sum_square" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["hazel_sin_double_sum_square"],
+      ),
+    )
+  | "trig.cos_double_square" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite cos_2a"],
+        ~replay_integers=[],
+        ~replay_reals=["try rewrite cos_2a", "try unfold Rsqr"],
+      ),
+    )
+  | "trig.cos_double_cos" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite cos_2a_cos"],
+        ~replay_integers=[],
+        ~replay_reals=[
+          "try rewrite cos_2a_cos",
+          "try unfold Rsqr",
+          "try rewrite <- Rmult_assoc",
+        ],
+      ),
+    )
+  | "trig.cos_double_sin" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite cos_2a_sin"],
+        ~replay_integers=[],
+        ~replay_reals=[
+          "try rewrite cos_2a_sin",
+          "try unfold Rsqr",
+          "try rewrite <- Rmult_assoc",
+        ],
+      ),
+    )
+  | "trig.sin_squared_double" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["hazel_sin_squared_double"],
+      ),
+    )
+  | "trig.cos_squared_double" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["hazel_cos_squared_double"],
+      ),
+    )
+  | "trig.sin_half_squared" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["hazel_sin_half_squared"],
+      ),
+    )
+  | "trig.cos_half_squared" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["hazel_cos_half_squared"],
+      ),
+    )
+  | "trig.sin_cofunction" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite sin_shift"],
+      ),
+    )
+  | "trig.cos_cofunction" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite cos_shift"],
+      ),
+    )
+  | "trig.sin_pi_sub" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite sin_PI_x"],
+      ),
+    )
+  | "trig.cos_pi_sub" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["hazel_cos_pi_sub"],
+      ),
+    )
+  | "trig.sin_neg" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite sin_neg"],
+      ),
+    )
+  | "trig.cos_neg" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite cos_neg"],
+      ),
+    )
+  | "trig.tan_neg" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_trigonometry",
+        ~integers=[],
+        ~reals=["rewrite tan_neg"],
+      ),
+    )
+  | _ => None;
+
+let rocq_tactics_for_domain = (~domain, tactics) =>
+  switch (domain) {
+  | RocqIntegers => tactics.integers
+  | RocqReals => tactics.reals
+  };
+
+let rocq_cleanup_backend = (~capability, ~integers, ~reals) => {
+  capability,
+  search_tactics: rocq_domain_tactics(~integers, ~reals),
+};
+
+let rocq_cleanup_catalog = [
+  rocq_cleanup_backend(
+    ~capability=AddAssoc,
+    ~integers=["rewrite Z.add_assoc"],
+    ~reals=["rewrite Rplus_assoc"],
+  ),
+  rocq_cleanup_backend(
+    ~capability=AddComm,
+    ~integers=["rewrite Z.add_comm"],
+    ~reals=["rewrite Rplus_comm"],
+  ),
+  rocq_cleanup_backend(
+    ~capability=MulAssoc,
+    ~integers=["rewrite Z.mul_assoc"],
+    ~reals=["rewrite Rmult_assoc"],
+  ),
+  rocq_cleanup_backend(
+    ~capability=MulComm,
+    ~integers=["rewrite Z.mul_comm"],
+    ~reals=["rewrite Rmult_comm"],
+  ),
+  rocq_cleanup_backend(
+    ~capability=AddIdentity,
+    ~integers=["rewrite Z.add_0_l", "rewrite Z.add_0_r"],
+    ~reals=["rewrite Rplus_0_l", "rewrite Rplus_0_r"],
+  ),
+  rocq_cleanup_backend(
+    ~capability=MulIdentity,
+    ~integers=["rewrite Z.mul_1_l", "rewrite Z.mul_1_r"],
+    ~reals=["rewrite Rmult_1_l", "rewrite Rmult_1_r"],
+  ),
+  rocq_cleanup_backend(
+    ~capability=ConstFold,
+    ~integers=["cbn"],
+    ~reals=["cbn"],
+  ),
+  rocq_cleanup_backend(
+    ~capability=PowerNotation,
+    ~integers=["rewrite Z.pow_2_r"],
+    ~reals=["unfold Rsqr"],
+  ),
+  rocq_cleanup_backend(
+    ~capability=CollectLikeTerms,
+    ~integers=["ring"],
+    ~reals=["ring"],
+  ),
+];
+
+let rocq_cleanup_tactics = (~domain, capability) =>
+  rocq_cleanup_catalog
+  |> List.find_opt((backend: rocq_cleanup_backend) =>
+       backend.capability == capability
+     )
+  |> Option.map((backend: rocq_cleanup_backend) =>
+       rocq_tactics_for_domain(~domain, backend.search_tactics)
+     )
+  |> Option.value(~default=[]);
+
+let trig_argument_normalization_backend =
+  rocq_rule_backend(
+    ~tactic="hazel_trig_argument_algebra",
+    ~integers=[],
+    ~reals=["hazel_trig_argument_algebra"],
+  );
+
+let level_for_rule_id = rule_id =>
+  rewrite_groups
+  |> List.find_opt((group: rewrite_group) =>
+       group.rules |> List.exists((rule: rewrite_rule) => rule.id == rule_id)
+     )
+  |> Option.map((group: rewrite_group) => group.level);
+
+let catalog_rule_with_kind =
+    (
+      ~id,
+      ~kind,
+      ~direction,
+      ~hazel_backend,
+      ~visible_levels,
+      ~allowed_cleanup,
+    ) =>
+  level_for_rule_id(id)
+  |> Option.map(level =>
+       {
+         id,
+         metadata: visible_rule_metadata(id),
+         level,
+         kind,
+         direction,
+         hazel_backend,
+         rocq_backend: rocq_backend_for_rule_id(id),
+         visible_levels,
+         visible_mode: VisibleOnce,
+         allowed_cleanup,
+       }
+     );
+
+let catalog_rule =
+    (~id, ~direction, ~hazel_backend, ~visible_levels, ~allowed_cleanup) =>
+  catalog_rule_with_kind(
+    ~id,
+    ~kind=VisibleRule,
+    ~direction,
+    ~hazel_backend,
+    ~visible_levels,
+    ~allowed_cleanup,
+  );
+
+let math_rule_catalog = {
+  let factor_polynomial_backend =
+    rocq_rule_backend(
+      ~tactic="hazel_factor_polynomial",
+      ~integers=["hazel_factor_polynomial"],
+      ~reals=[],
+    );
+  let factor_polynomial_rule = {
+    id: "alg.factor_polynomial_normalize",
+    metadata:
+      operation_metadata(
+        ~id="alg.factor_polynomial_normalize",
+        ~name="Verify a factored integer polynomial",
+        ~short_name="Factor poly",
+        ~example="x**2 + 3*x - 4 = (x - 1) * (x + 4)",
+      ),
+    level: Algebra,
+    kind: NormalizationRule,
+    direction: BothDirections,
+    hazel_backend: None,
+    rocq_backend:
+      Some({
+        ...factor_polynomial_backend,
+        mode: FinishOnly,
+      }),
+    visible_levels: [],
+    visible_mode: VisibleOnce,
+    allowed_cleanup: [],
+  };
+  let rational_square_backend =
+    rocq_rule_backend(
+      ~tactic="hazel_rational_square_normalize",
+      ~integers=[],
+      ~reals=["hazel_rational_square_normalize"],
+    );
+  let rational_square_rule = {
+    id: "alg.rational_square_normalize",
+    metadata:
+      operation_metadata(
+        ~id="alg.rational_square_normalize",
+        ~name="Normalize a squared rational binomial",
+        ~short_name="Square /",
+        ~example="2*((1-x)/2)**2 = 1/2-x+1/2*x**2",
+      ),
+    level: Algebra,
+    kind: NormalizationRule,
+    direction: Forward,
+    hazel_backend: None,
+    rocq_backend:
+      Some({
+        ...rational_square_backend,
+        mode: FinishOnly,
+      }),
+    visible_levels: [],
+    visible_mode: VisibleOnce,
+    allowed_cleanup: [],
+  };
+  let arithmetic_rules = [
+    catalog_rule(
+      ~id="arith.add_comm",
+      ~direction=BothDirections,
+      ~hazel_backend=Some(ArithmeticAddComm),
+      ~visible_levels=[Arithmetic],
+      ~allowed_cleanup=[AddAssoc],
+    ),
+    catalog_rule(
+      ~id="arith.const_fold",
+      ~direction=Forward,
+      ~hazel_backend=Some(ArithmeticConstFold),
+      ~visible_levels=[Arithmetic],
+      ~allowed_cleanup=[AddAssoc],
+    ),
+    catalog_rule(
+      ~id="arith.mul_const",
+      ~direction=BothDirections,
+      ~hazel_backend=Some(ArithmeticMulConst),
+      ~visible_levels=[Arithmetic],
+      ~allowed_cleanup=[AddAssoc, MulAssoc],
+    ),
+    catalog_rule(
+      ~id="arith.mul_identity",
+      ~direction=Forward,
+      ~hazel_backend=Some(ArithmeticMulIdentity),
+      ~visible_levels=[Arithmetic, Algebra, Trigonometry],
+      ~allowed_cleanup=[],
+    ),
+  ];
+  let algebra_rules =
+    [
+      catalog_rule(
+        ~id="alg.distribute_mul_add",
+        ~direction=BothDirections,
+        ~hazel_backend=Some(AlgebraDistributeMulAdd),
+        ~visible_levels=[Algebra, Trigonometry],
+        ~allowed_cleanup=ac_cleanup @ [PowerNotation],
+      ),
+      catalog_rule(
+        ~id="alg.factor_common",
+        ~direction=BothDirections,
+        ~hazel_backend=Some(AlgebraFactorCommon),
+        ~visible_levels=[Algebra, Trigonometry],
+        ~allowed_cleanup=ac_cleanup,
+      ),
+      catalog_rule(
+        ~id="alg.cancel_common_add",
+        ~direction=BothDirections,
+        ~hazel_backend=Some(AlgebraCancelCommonAdd),
+        ~visible_levels=[Algebra, Trigonometry],
+        ~allowed_cleanup=[AddAssoc, AddComm],
+      ),
+      catalog_rule(
+        ~id="alg.expand_polynomial",
+        ~direction=BothDirections,
+        ~hazel_backend=Some(AlgebraDistributeMulAdd),
+        ~visible_levels=[],
+        ~allowed_cleanup=ac_cleanup @ structural_identity_cleanup,
+      ),
+    ]
+    @ (
+      algebra_identity_rule_ids
+      |> List.map(id =>
+           catalog_rule(
+             ~id,
+             ~direction=BothDirections,
+             ~hazel_backend=Some(AlgebraIdentity),
+             ~visible_levels=[Algebra, Trigonometry],
+             ~allowed_cleanup=[],
+           )
+         )
+    );
+  let replay_only_rules =
+    [
+      "arith.mul_comm",
+      "arith.add_assoc",
+      "arith.mul_assoc",
+      "arith.add_zero",
+      "arith.add_neg",
+      "arith.collect_like_terms",
+      "arith.reorder_add_terms",
+      "arith.reorder_mul_factors",
+      "alg.power_add",
+      "alg.power_mul",
+      "alg.collect_like_terms",
+    ]
+    |> List.map(id =>
+         catalog_rule_with_kind(
+           ~id,
+           ~kind=
+             List.mem(id, ["alg.power_add", "alg.power_mul"])
+               ? NormalizationRule : CleanupRule,
+           ~direction=BothDirections,
+           ~hazel_backend=None,
+           ~visible_levels=[],
+           ~allowed_cleanup=[],
+         )
+       );
+  let trig_rules =
+    trigonometry_rewrite_group.rules
+    |> List.map((rule: rewrite_rule) =>
+         catalog_rule(
+           ~id=rule.id,
+           ~direction=BothDirections,
+           ~hazel_backend=Some(TrigIdentity),
+           ~visible_levels=[Trigonometry],
+           ~allowed_cleanup=[],
+         )
+       );
+  arithmetic_rules
+  @ algebra_rules
+  @ replay_only_rules
+  @ trig_rules
+  @ [Some(factor_polynomial_rule), Some(rational_square_rule)]
+  |> List.filter_map(value => value);
+};
+
+let profile_default_cleanup = [
+  (Arithmetic, [AddAssoc]),
+  (Algebra, ac_cleanup @ structural_identity_cleanup),
+  (Trigonometry, ac_cleanup @ structural_identity_cleanup),
+  (FunctionsAndLists, []),
+  (Calculus, []),
+];
+
+let step_policy = level => {
+  visible_rules:
+    math_rule_catalog
+    |> List.filter((rule: math_rule) =>
+         List.mem(level, rule.visible_levels)
+       )
+    |> List.map((rule: math_rule) =>
+         {
+           rule_id: rule.id,
+           metadata: rule.metadata,
+           mode: rule.visible_mode,
+           allowed_cleanup: rule.allowed_cleanup,
+         }
+       ),
+  default_cleanup:
+    profile_default_cleanup
+    |> List.find_opt(((candidate_level, _cleanup)) =>
+         candidate_level == level
+       )
+    |> Option.map(((_level, cleanup)) => cleanup)
+    |> Option.value(~default=[]),
+};
+
+let catalog_rule_by_id = rule_id =>
+  math_rule_catalog |> List.find_opt((rule: math_rule) => rule.id == rule_id);
+
+let unresolved_visible_rule_ids = (policy: step_policy) =>
+  policy.visible_rules
+  |> List.filter_map((rule: visible_rule_policy) =>
+       catalog_rule_by_id(rule.rule_id) |> Option.is_some
+         ? None : Some(rule.rule_id)
+     );
+
+let visible_catalog_rules = (policy: step_policy) =>
+  policy.visible_rules
+  |> List.filter_map((rule: visible_rule_policy) =>
+       catalog_rule_by_id(rule.rule_id)
+     );
+
+let planned_visible_rules = (policy: step_policy) =>
+  policy.visible_rules
+  |> List.filter_map((rule_policy: visible_rule_policy) =>
+       catalog_rule_by_id(rule_policy.rule_id)
+       |> Option.map(rule =>
+            {
+              rule,
+              mode: rule_policy.mode,
+              allowed_cleanup: rule_policy.allowed_cleanup,
+            }
+          )
+     );
+
+let visible_rule_policy_for_rule = (policy: step_policy, rule_id) =>
+  policy.visible_rules
+  |> List.find_opt((rule_policy: visible_rule_policy) =>
+       rule_policy.rule_id == rule_id
+     );
+
+let visible_rule_enabled = (policy: step_policy, rule_id) =>
+  visible_rule_policy_for_rule(policy, rule_id) |> Option.is_some;
+
+let cleanup_for_visible_rule = (policy: step_policy, rule_id) =>
+  visible_rule_policy_for_rule(policy, rule_id)
+  |> Option.map((rule_policy: visible_rule_policy) =>
+       rule_policy.allowed_cleanup
+     )
+  |> Option.value(~default=policy.default_cleanup);
+
+let one_step_policy = level =>
+  switch (level) {
+  | Arithmetic => {
+      distribution_step_policy: StrictDistributedForm,
+      allow_polynomial_expansion: false,
+    }
+  | Algebra
+  | Trigonometry => {
+      distribution_step_policy: StrictDistributedForm,
+      allow_polynomial_expansion: true,
+    }
+  | FunctionsAndLists
+  | Calculus => {
+      distribution_step_policy: StrictDistributedForm,
+      allow_polynomial_expansion: false,
+    }
+  };
+
+let rocq_finish_step = (~id, ~label, ~tactic, ~rule_ids) =>
+  rocq_tactic_step(~id, ~label, ~tactic, ~mode=FinishOnly, ~rule_ids);
+
+let rocq_try_step = (~id, ~label, ~tactic, ~rule_ids) =>
+  rocq_tactic_step(~id, ~label, ~tactic, ~mode=TryOnce, ~rule_ids);
+
+let rocq_once_step = (~id, ~label, ~tactic, ~rule_ids) =>
+  rocq_tactic_step(~id, ~label, ~tactic, ~mode=Once, ~rule_ids);
+
+let rocq_repeat_fuel_step = (~id, ~label, ~tactic, ~fuel, ~rule_ids) =>
+  rocq_tactic_step(~id, ~label, ~tactic, ~mode=RepeatFuel(fuel), ~rule_ids);
+
+let rocq_check_result_tactic_plan = level => {
+  switch (level) {
+  | Arithmetic => {
+      id: "hazel_arithmetic_plan",
+      label: "Arithmetic tactic plan",
+      steps: [
+        rocq_try_step(
+          ~id="arith_power_normalize",
+          ~label="normalize powers and identities",
+          ~tactic="hazel_power_normalize",
+          ~rule_ids=["arith.mul_const"],
+        ),
+        rocq_try_step(
+          ~id="arith_mul_reorder",
+          ~label="reorder multiplication",
+          ~tactic="hazel_mul_reorder",
+          ~rule_ids=["arith.reorder_mul_factors"],
+        ),
+        rocq_finish_step(
+          ~id="arith_finish",
+          ~label="finish arithmetic goal",
+          ~tactic="hazel_arithmetic",
+          ~rule_ids=[
+            "arith.const_fold",
+            "arith.reorder_add_terms",
+            "arith.reorder_mul_factors",
+          ],
+        ),
+      ],
+    }
+  | Algebra => {
+      id: "hazel_algebra_plan",
+      label: "Algebra tactic plan",
+      steps: [
+        rocq_try_step(
+          ~id="alg_power_normalize",
+          ~label="normalize powers and identities",
+          ~tactic="hazel_power_normalize",
+          ~rule_ids=["alg.power_add", "alg.power_mul"],
+        ),
+        rocq_try_step(
+          ~id="alg_bounded_rewrite_search",
+          ~label="bounded algebra rewrite search",
+          ~tactic="hazel_rewrite_search 10%nat",
+          ~rule_ids=[
+            "alg.distribute_mul_add",
+            "alg.factor_common",
+            "alg.cancel_common_add",
+          ],
+        ),
+        rocq_try_step(
+          ~id="alg_mul_reorder",
+          ~label="reorder multiplication",
+          ~tactic="hazel_mul_reorder",
+          ~rule_ids=["arith.reorder_mul_factors"],
+        ),
+        rocq_finish_step(
+          ~id="alg_finish",
+          ~label="finish algebra goal",
+          ~tactic="hazel_algebra",
+          ~rule_ids=[
+            "alg.expand_polynomial",
+            "alg.collect_like_terms",
+            "alg.factor_common",
+          ],
+        ),
+      ],
+    }
+  | Trigonometry => {
+      id: "hazel_trigonometry_plan",
+      label: "Trigonometry tactic plan",
+      steps: [
+        rocq_try_step(
+          ~id="trig_pythagorean",
+          ~label="try Pythagorean identity",
+          ~tactic="hazel_pythagorean",
+          ~rule_ids=["trig.pythagorean_sin_cos", "trig.pythagorean_cos_sin"],
+        ),
+        rocq_try_step(
+          ~id="trig_argument_algebra",
+          ~label="try trig argument algebra",
+          ~tactic="hazel_trig_argument_algebra",
+          ~rule_ids=["arith.simplify_scalar_products"],
+        ),
+        rocq_try_step(
+          ~id="trig_power_normalize",
+          ~label="normalize powers and identities",
+          ~tactic="hazel_power_normalize",
+          ~rule_ids=["alg.power_add", "alg.power_mul"],
+        ),
+        rocq_try_step(
+          ~id="trig_context_solve",
+          ~label="try trig context simplification",
+          ~tactic="hazel_trig_context_solve",
+          ~rule_ids=["trig.sin_squared_double", "trig.cos_squared_double"],
+        ),
+        rocq_finish_step(
+          ~id="trig_finish",
+          ~label="finish trigonometry goal",
+          ~tactic="hazel_trigonometry",
+          ~rule_ids=["trig.pythagorean_sin_cos"],
+        ),
+      ],
+    }
+  | FunctionsAndLists => {
+      id: "hazel_functions_plan",
+      label: "Functions/lists tactic plan",
+      steps: [
+        rocq_finish_step(
+          ~id="functions_finish",
+          ~label="finish functions/lists goal",
+          ~tactic="hazel_functions",
+          ~rule_ids=[],
+        ),
+      ],
+    }
+  | Calculus => {
+      id: "hazel_calculus_plan",
+      label: "Calculus tactic plan",
+      steps: [
+        rocq_finish_step(
+          ~id="calculus_finish",
+          ~label="finish calculus goal",
+          ~tactic="hazel_calculus",
+          ~rule_ids=[],
+        ),
+      ],
+    }
+  };
+};
+
+let rocq_validate_primitive_tactic_plan = level => {
+  switch (level) {
+  | Arithmetic => {
+      id: "hazel_arithmetic_primitive_plan",
+      label: "Arithmetic primitive-step tactic plan",
+      steps: [
+        rocq_try_step(
+          ~id="arith_power_normalize_once",
+          ~label="try one arithmetic normalization",
+          ~tactic="hazel_power_normalize",
+          ~rule_ids=["arith.mul_const"],
+        ),
+        rocq_once_step(
+          ~id="arith_mul_reorder_once",
+          ~label="try one multiplication reorder",
+          ~tactic="hazel_mul_reorder",
+          ~rule_ids=["arith.reorder_mul_factors"],
+        ),
+      ],
+    }
+  | Algebra => {
+      id: "hazel_algebra_primitive_plan",
+      label: "Algebra primitive-step tactic plan",
+      steps: [
+        rocq_try_step(
+          ~id="alg_power_normalize_once",
+          ~label="try one algebra normalization",
+          ~tactic="hazel_power_normalize",
+          ~rule_ids=["alg.power_add", "alg.power_mul"],
+        ),
+        rocq_once_step(
+          ~id="alg_rewrite_once",
+          ~label="try one algebra rewrite",
+          ~tactic="hazel_rewrite_search 1%nat",
+          ~rule_ids=[
+            "alg.distribute_mul_add",
+            "alg.factor_common",
+            "alg.cancel_common_add",
+          ],
+        ),
+      ],
+    }
+  | Trigonometry => {
+      id: "hazel_trigonometry_primitive_plan",
+      label: "Trigonometry primitive-step tactic plan",
+      steps: [
+        rocq_once_step(
+          ~id="trig_pythagorean_once",
+          ~label="try one trig identity",
+          ~tactic="hazel_pythagorean",
+          ~rule_ids=["trig.pythagorean_sin_cos", "trig.pythagorean_cos_sin"],
+        ),
+        rocq_try_step(
+          ~id="trig_argument_algebra_once",
+          ~label="try one trig argument simplification",
+          ~tactic="hazel_trig_argument_algebra",
+          ~rule_ids=["arith.simplify_scalar_products"],
+        ),
+      ],
+    }
+  | FunctionsAndLists => {
+      id: "hazel_functions_primitive_plan",
+      label: "Functions/lists primitive-step tactic plan",
+      steps: [],
+    }
+  | Calculus => {
+      id: "hazel_calculus_primitive_plan",
+      label: "Calculus primitive-step tactic plan",
+      steps: [],
+    }
+  };
+};
+
+let rocq_validate_macro_tactic_plan = level => {
+  switch (level) {
+  | Arithmetic => {
+      id: "hazel_arithmetic_macro_plan",
+      label: "Arithmetic macro-step tactic plan",
+      steps: [
+        rocq_repeat_fuel_step(
+          ~id="arith_power_normalize_macro",
+          ~label="normalize arithmetic powers",
+          ~tactic="hazel_power_normalize",
+          ~fuel=4,
+          ~rule_ids=["arith.mul_const"],
+        ),
+        rocq_try_step(
+          ~id="arith_mul_reorder_macro",
+          ~label="reorder arithmetic multiplication",
+          ~tactic="hazel_mul_reorder",
+          ~rule_ids=["arith.reorder_mul_factors"],
+        ),
+      ],
+    }
+  | Algebra => {
+      id: "hazel_algebra_macro_plan",
+      label: "Algebra macro-step tactic plan",
+      steps: [
+        rocq_repeat_fuel_step(
+          ~id="alg_rewrite_macro",
+          ~label="bounded algebra rewrite macro",
+          ~tactic="hazel_rewrite_step",
+          ~fuel=10,
+          ~rule_ids=[
+            "alg.distribute_mul_add",
+            "alg.factor_common",
+            "alg.cancel_common_add",
+          ],
+        ),
+        rocq_try_step(
+          ~id="alg_mul_reorder_macro",
+          ~label="reorder multiplication",
+          ~tactic="hazel_mul_reorder",
+          ~rule_ids=["arith.reorder_mul_factors"],
+        ),
+      ],
+    }
+  | Trigonometry => {
+      id: "hazel_trigonometry_macro_plan",
+      label: "Trigonometry macro-step tactic plan",
+      steps: [
+        rocq_repeat_fuel_step(
+          ~id="trig_rewrite_macro",
+          ~label="bounded trigonometry rewrite macro",
+          ~tactic="hazel_rewrite_step",
+          ~fuel=12,
+          ~rule_ids=["trig.pythagorean_sin_cos", "trig.pythagorean_cos_sin"],
+        ),
+        rocq_try_step(
+          ~id="trig_context_macro",
+          ~label="simplify trig context",
+          ~tactic="hazel_trig_context_solve",
+          ~rule_ids=["trig.sin_squared_double", "trig.cos_squared_double"],
+        ),
+      ],
+    }
+  | FunctionsAndLists => rocq_validate_primitive_tactic_plan(level)
+  | Calculus => rocq_validate_primitive_tactic_plan(level)
+  };
+};
+
+let rocq_auto_simplify_tactic_plan = level => {
+  let check_plan = rocq_check_result_tactic_plan(level);
+  {
+    ...check_plan,
+    id: check_plan.id ++ "_auto_simplify",
+    label: check_plan.label ++ " for auto simplification",
+  };
+};
+
+let rocq_tactic_plan = level => rocq_check_result_tactic_plan(level);
+
+let rocq_tactic_plan_for_purpose = (level, purpose) =>
+  switch (purpose) {
+  | ValidatePrimitiveStep => rocq_validate_primitive_tactic_plan(level)
+  | ValidateMacroStep => rocq_validate_macro_tactic_plan(level)
+  | CheckResult => rocq_check_result_tactic_plan(level)
+  | AutoSimplify => rocq_auto_simplify_tactic_plan(level)
+  };
+
+let rocq_tactic_plans = level => [
+  (
+    ValidatePrimitiveStep,
+    rocq_tactic_plan_for_purpose(level, ValidatePrimitiveStep),
+  ),
+  (
+    ValidateMacroStep,
+    rocq_tactic_plan_for_purpose(level, ValidateMacroStep),
+  ),
+  (CheckResult, rocq_tactic_plan_for_purpose(level, CheckResult)),
+  (AutoSimplify, rocq_tactic_plan_for_purpose(level, AutoSimplify)),
+];
+
 let math_profile = level => {
   let rocq_config =
     switch (level) {
@@ -673,11 +2463,68 @@ let math_profile = level => {
     detail: rewrite_level_detail(level),
     enabled: rewrite_level_enabled(level),
     groups: allowed_groups(level),
+    one_step_policy: one_step_policy(level),
+    step_policy: step_policy(level),
     rocq_macro_rule_id,
     rocq_tactic_group,
+    rocq_tactic_plan: rocq_tactic_plan(level),
+    rocq_tactic_plans: rocq_tactic_plans(level),
     rocq_domain_policy,
   };
 };
+
+let rocq_tactic_plan_for_profile = (profile, purpose) =>
+  profile.rocq_tactic_plans
+  |> List.find_opt(((candidate_purpose, _plan)) =>
+       candidate_purpose == purpose
+     )
+  |> Option.map(((_purpose, plan)) => plan)
+  |> Option.value(~default=profile.rocq_tactic_plan);
+
+let tactic_plan_purpose_for_stage =
+  fun
+  | Manual => ValidatePrimitiveStep
+  | MultiStepCheck => CheckResult
+  | AutoEval => AutoSimplify;
+
+let normalization_backends_for_profile = (profile: math_profile) => {
+  let catalog_backends =
+    math_rule_catalog
+    |> List.filter((rule: math_rule) =>
+         rule.kind == NormalizationRule
+         && rewrite_level_rank(rule.level) <= profile.rank
+       )
+    |> List.filter_map((rule: math_rule) => rule.rocq_backend);
+  switch (profile.level) {
+  | Trigonometry => catalog_backends @ [trig_argument_normalization_backend]
+  | _ => catalog_backends
+  };
+};
+
+let stage_plan_for_profile = (profile: math_profile, stage) => {
+  let unresolved = unresolved_visible_rule_ids(profile.step_policy);
+  switch (unresolved) {
+  | [rule_id, ..._] =>
+    invalid_arg("Unknown math rule in profile stage plan: " ++ rule_id)
+  | [] =>
+    let cleanup = profile.step_policy.default_cleanup;
+    {
+      stage,
+      pre_cleanup: cleanup,
+      visible_rules: planned_visible_rules(profile.step_policy),
+      post_cleanup: cleanup,
+      normalization_backends: normalization_backends_for_profile(profile),
+      rocq_plan:
+        rocq_tactic_plan_for_profile(
+          profile,
+          tactic_plan_purpose_for_stage(stage),
+        ),
+    };
+  };
+};
+
+let stage_plan_for_level = (level, stage) =>
+  stage_plan_for_profile(math_profile(level), stage);
 
 let math_profiles = rewrite_levels |> List.map(math_profile);
 
@@ -706,10 +2553,11 @@ let effective_profile_for_rewrite = (~requested_level, source, target) =>
   math_profile(export_level_for_rewrite(~requested_level, source, target));
 
 let rewrite_group_by_name = name =>
-  rewrite_groups |> List.find_opt(group => group.name == name);
+  rewrite_groups
+  |> List.find_opt((group: rewrite_group) => group.name == name);
 
 let rewrite_rule_by_id = (group, id) =>
-  group.rules |> List.find_opt(rule => rule.id == id);
+  group.rules |> List.find_opt((rule: rewrite_rule) => rule.id == id);
 
 let v: ProofCtx.t =
   []

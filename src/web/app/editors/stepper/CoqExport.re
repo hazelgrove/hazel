@@ -153,6 +153,7 @@ let string_of_d = (d: Language.DHExp.t) => {
       ++ ""
       ++ loop(arg2)
       ++ ")"
+    | UnOp(Int(Minus) | SInt(Minus), exp) => "(-" ++ loop(exp) ++ ")"
     | Atom(Int(n))
     | Atom(Nat(n)) => Bigint.to_string(n)
     | Atom(SInt(n)) => string_of_int(n)

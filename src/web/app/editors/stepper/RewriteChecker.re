@@ -895,17 +895,42 @@ let complete_positive_square = exp =>
   | _ => None
   };
 
-let distribute_factor_over_additive = (times_op, factor, additive) => {
+let plus_op_for_minus =
+  fun
+  | Operators.Int(Operators.Minus) => Some(Operators.Int(Operators.Plus))
+  | SInt(Minus) => Some(SInt(Plus))
+  | _ => None;
+
+let distribute_factor_over_additive_candidates = (times_op, factor, additive) => {
   let additive = strip_math_wrappers(additive);
   switch (additive.term) {
-  | BinOp(add_op, add_left, add_right)
-      when is_plus_op(add_op) || is_minus_op(add_op) =>
+  | BinOp(add_op, _, _) when is_plus_op(add_op) => [
+      shape_sum_terms(additive)
+      |> List.map(term => times_exp_with_op(times_op, factor, term))
+      |> trace_sum_exp,
+    ]
+  | BinOp(add_op, add_left, add_right) when is_minus_op(add_op) =>
     let left_product = times_exp_with_op(times_op, factor, add_left);
     let right_product = times_exp_with_op(times_op, factor, add_right);
-    Some(distributed_additive_exp(add_op, left_product, right_product));
-  | _ => None
+    let subtraction =
+      distributed_additive_exp(add_op, left_product, right_product);
+    switch (plus_op_for_minus(add_op)) {
+    | Some(plus_op) =>
+      let negative_right_product =
+        times_exp_with_op(times_op, factor, negate_exp(add_right));
+      [
+        subtraction,
+        plus_exp_with_op(plus_op, left_product, negative_right_product),
+      ];
+    | None => [subtraction]
+    };
+  | _ => []
   };
 };
+
+let distribute_factor_over_additive = (times_op, factor, additive) =>
+  distribute_factor_over_additive_candidates(times_op, factor, additive)
+  |> ListUtil.hd_opt;
 
 let distribute_factor_over_quotient_numerator = (times_op, factor, quotient) => {
   let quotient = strip_math_wrappers(quotient);
@@ -946,6 +971,26 @@ let distribute_mul_over_add = (exp: Exp.t): option(Exp.t) => {
     | _ => None
     };
   | _ => None
+  };
+};
+
+let distribute_mul_over_add_candidates = (exp: Exp.t): list(Exp.t) => {
+  let exp = strip_math_wrappers(exp);
+  switch (exp.term) {
+  | BinOp(times_op, left, right) when is_times_op(times_op) =>
+    let left = strip_math_wrappers(left);
+    let right = strip_math_wrappers(right);
+    distribute_factor_over_additive_candidates(times_op, left, right)
+    @ distribute_factor_over_additive_candidates(times_op, right, left)
+    @ (
+      distribute_factor_over_quotient_numerator(times_op, left, right)
+      |> Option.to_list
+    )
+    @ (
+      distribute_factor_over_quotient_numerator(times_op, right, left)
+      |> Option.to_list
+    );
+  | _ => []
   };
 };
 
@@ -1033,6 +1078,124 @@ let rec product_factors = (exp: Exp.t): list(Exp.t) => {
   | _ => [exp]
   };
 };
+
+let cleanup_has = (capability, cleanup) =>
+  cleanup
+  |> List.exists((candidate: Axioms.cleanup_capability) =>
+       candidate == capability
+     );
+
+let rec exp_same_up_to_cleanup = (cleanup, left, right) => {
+  let left = strip_math_wrappers(left);
+  let right = strip_math_wrappers(right);
+  let cleanup_without_power =
+    cleanup
+    |> List.filter((capability: Axioms.cleanup_capability) =>
+         capability != Axioms.PowerNotation
+       );
+
+  let ordered_equal = (left_items, right_items) =>
+    List.length(left_items) == List.length(right_items)
+    && List.for_all2(
+         (left_item, right_item) =>
+           exp_same_up_to_cleanup(cleanup, left_item, right_item),
+         left_items,
+         right_items,
+       );
+
+  let rec remove_first_matching = (target, candidates) =>
+    switch (candidates) {
+    | [] => None
+    | [candidate, ...rest]
+        when exp_same_up_to_cleanup(cleanup, target, candidate) =>
+      Some(rest)
+    | [candidate, ...rest] =>
+      remove_first_matching(target, rest)
+      |> Option.map(rest => [candidate, ...rest])
+    };
+
+  let rec unordered_equal = (left_items, right_items) =>
+    switch (left_items) {
+    | [] => right_items == []
+    | [left_item, ...left_rest] =>
+      switch (remove_first_matching(left_item, right_items)) {
+      | Some(right_rest) => unordered_equal(left_rest, right_rest)
+      | None => false
+      }
+    };
+
+  let square_base = (exp: Exp.t) =>
+    switch (exp.term) {
+    | BinOp(power_op, base, exponent)
+        when is_power_op(power_op) && is_int_two(exponent) =>
+      Some(base)
+    | _ => None
+    };
+
+  let product_square_base = (exp: Exp.t) =>
+    switch (product_factors(exp)) {
+    | [left_factor, right_factor]
+        when
+          exp_same_up_to_cleanup(
+            cleanup_without_power,
+            left_factor,
+            right_factor,
+          ) =>
+      Some(left_factor)
+    | _ => None
+    };
+
+  let same_up_to_power_notation =
+    switch (square_base(left), product_square_base(right)) {
+    | (Some(left_base), Some(right_base)) =>
+      exp_same_up_to_cleanup(cleanup_without_power, left_base, right_base)
+    | _ =>
+      switch (product_square_base(left), square_base(right)) {
+      | (Some(left_base), Some(right_base)) =>
+        exp_same_up_to_cleanup(cleanup_without_power, left_base, right_base)
+      | _ => false
+      }
+    };
+
+  if (cleanup_has(Axioms.PowerNotation, cleanup) && same_up_to_power_notation) {
+    true;
+  } else if (cleanup_has(Axioms.AddAssoc, cleanup)) {
+    let left_terms = sum_terms(left);
+    let right_terms = sum_terms(right);
+    if (List.length(left_terms) > 1 || List.length(right_terms) > 1) {
+      cleanup_has(Axioms.AddComm, cleanup)
+        ? unordered_equal(left_terms, right_terms)
+        : ordered_equal(left_terms, right_terms);
+    } else if (cleanup_has(Axioms.MulAssoc, cleanup)) {
+      let left_factors = product_factors(left);
+      let right_factors = product_factors(right);
+      if (List.length(left_factors) > 1 || List.length(right_factors) > 1) {
+        cleanup_has(Axioms.MulComm, cleanup)
+          ? unordered_equal(left_factors, right_factors)
+          : ordered_equal(left_factors, right_factors);
+      } else {
+        exp_same(left, right);
+      };
+    } else {
+      exp_same(left, right);
+    };
+  } else if (cleanup_has(Axioms.MulAssoc, cleanup)) {
+    let left_factors = product_factors(left);
+    let right_factors = product_factors(right);
+    if (List.length(left_factors) > 1 || List.length(right_factors) > 1) {
+      cleanup_has(Axioms.MulComm, cleanup)
+        ? unordered_equal(left_factors, right_factors)
+        : ordered_equal(left_factors, right_factors);
+    } else {
+      exp_same(left, right);
+    };
+  } else {
+    exp_same(left, right);
+  };
+};
+
+let exp_same_up_to_add_assoc = (left, right) =>
+  exp_same_up_to_cleanup([Axioms.AddAssoc], left, right);
 
 let rec remove_first_exp = (target, factors) =>
   switch (factors) {
@@ -1644,39 +1807,41 @@ let whole_local_rewrite = (~detail, from_, to_) => {
   detail,
 };
 
-let find_distributed_additive_term = (from_, to_): option(local_rewrite) => {
+let find_distributed_additive_term =
+    (cleanup, from_, to_): option(local_rewrite) => {
   let rec loop = (prefix, occurrence, terms) =>
     switch (terms) {
     | [] => None
     | [term, ...rest] =>
-      switch (distribute_mul_over_add(term)) {
+      switch (
+        distribute_mul_over_add_candidates(term)
+        |> List.find_opt(after_term => {
+             let candidate =
+               trace_sum_exp(prefix @ sum_terms(after_term) @ rest);
+             exp_same_up_to_cleanup(cleanup, candidate, to_);
+           })
+      ) {
       | Some(after_term) =>
-        let candidate = trace_sum_exp(prefix @ sum_terms(after_term) @ rest);
-        if (exp_same(candidate, to_)
-            || polynomial_equivalent_exps(candidate, to_)) {
-          Some({
-            before_exp: term,
-            after_exp: after_term,
-            occurrence,
-            detail:
-              "single distribution at additive term "
-              ++ string_of_int(occurrence),
-          });
-        } else {
-          loop(prefix @ [term], occurrence + 1, rest);
-        };
+        Some({
+          before_exp: term,
+          after_exp: after_term,
+          occurrence,
+          detail:
+            "single distribution at additive term "
+            ++ string_of_int(occurrence),
+        })
       | None => loop(prefix @ [term], occurrence + 1, rest)
       }
     };
   loop([], 1, sum_terms(from_));
 };
 
-let has_single_distributed_additive_term = (from_, to_) =>
-  find_distributed_additive_term(from_, to_) |> Option.is_some;
+let has_single_distributed_additive_term = (cleanup, from_, to_) =>
+  find_distributed_additive_term(cleanup, from_, to_) |> Option.is_some;
 
 let local_rewrite_for_algebra = (rule_ids, from_, to_) =>
   if (has_rule_id("alg.distribute_mul_add", rule_ids)) {
-    switch (find_distributed_additive_term(from_, to_)) {
+    switch (find_distributed_additive_term(Axioms.ac_cleanup, from_, to_)) {
     | Some(local) => local
     | None =>
       whole_local_rewrite(
@@ -1731,24 +1896,71 @@ let check_single_cancel_common_add = (group, from_, to_) =>
   | _ => None
   };
 
-let check_single_distribution_or_expansion = (group, from_, to_) =>
-  if ((
-        product_has_sum_factor(from_)
-        || has_single_distributed_additive_term(from_, to_)
-      )
-      && exp_has_sum(to_)
-      && (
-        has_single_distributed_additive_term(from_, to_)
-        || polynomial_equivalent_exps(from_, to_)
-      )) {
-    let rule_ids =
-      product_factors(from_) |> List.filter(exp_has_sum) |> List.length > 1
-        ? ["alg.expand_polynomial", "alg.distribute_mul_add"]
-        : ["alg.distribute_mul_add"];
-    Some(single_algebra_result(group, rule_ids, from_, to_));
-  } else {
+let distribution_policy_allows_simplification =
+  fun
+  | Axioms.StrictDistributedForm => false
+  | DistributionMaySimplify => true;
+
+let check_single_distribution_or_expansion = (group, profile, from_, to_) => {
+  let policy = profile.Axioms.one_step_policy;
+  let is_named_algebra_identity =
+    AlgebraIdentityRewrite.applicable_at_root(from_)
+    |> List.exists((rewrite: TrigRewrite.rewrite) =>
+         TrigRewrite.exp_same(rewrite.after_exp, to_)
+       );
+  if (is_named_algebra_identity) {
     None;
+  } else if (!
+               Axioms.visible_rule_enabled(
+                 profile.step_policy,
+                 "alg.distribute_mul_add",
+               )) {
+    None;
+  } else {
+    let distribution_cleanup =
+      Axioms.cleanup_for_visible_rule(
+        profile.step_policy,
+        "alg.distribute_mul_add",
+      );
+    let sum_factor_count =
+      product_factors(from_) |> List.filter(exp_has_sum) |> List.length;
+    let may_simplify_distribution =
+      distribution_policy_allows_simplification(
+        policy.Axioms.distribution_step_policy,
+      );
+    if (exp_has_sum(to_)
+        && has_single_distributed_additive_term(
+             distribution_cleanup,
+             from_,
+             to_,
+           )) {
+      Some(
+        single_algebra_result(group, ["alg.distribute_mul_add"], from_, to_),
+      );
+    } else if (may_simplify_distribution
+               && product_has_sum_factor(from_)
+               && exp_has_sum(to_)
+               && polynomial_equivalent_exps(from_, to_)) {
+      Some(
+        single_algebra_result(group, ["alg.distribute_mul_add"], from_, to_),
+      );
+    } else if (sum_factor_count > 1
+               && policy.allow_polynomial_expansion
+               && exp_has_sum(to_)
+               && polynomial_equivalent_exps(from_, to_)) {
+      Some(
+        single_algebra_result(
+          group,
+          ["alg.expand_polynomial", "alg.distribute_mul_add"],
+          from_,
+          to_,
+        ),
+      );
+    } else {
+      None;
+    };
   };
+};
 
 let check_single_factor_common = (group, from_, to_) => {
   let syntactic_factor =
@@ -1764,6 +1976,41 @@ let check_single_factor_common = (group, from_, to_) => {
     None;
   };
 };
+
+let check_single_algebra_identity = (group, profile, from_, to_) =>
+  AlgebraIdentityRewrite.applicable_at_root(from_)
+  |> List.find_map((rewrite: TrigRewrite.rewrite) =>
+       if (Axioms.visible_rule_enabled(
+             profile.Axioms.step_policy,
+             rewrite.rule_id,
+           )
+           && TrigRewrite.exp_same(rewrite.after_exp, to_)) {
+         let trace = trace_rules(group, [rewrite.rule_id]);
+         Some({
+           justification: "algebra identity one step",
+           group: Some(group),
+           from_normal_exp: from_,
+           to_normal_exp: to_,
+           from_trace: trace,
+           to_trace: [],
+           trace,
+           prover_steps: [
+             prover_step(
+               ~origin=ManualRewrite,
+               ~rule_id=rewrite.rule_id,
+               ~before_full_exp=from_,
+               ~after_full_exp=to_,
+               ~before_exp=rewrite.before_exp,
+               ~after_exp=rewrite.after_exp,
+               ~detail="single algebra identity",
+             ),
+           ],
+           exportable: true,
+         });
+       } else {
+         None;
+       }
+     );
 
 let normalize_by_evaluation =
     (~settings as _: CoreSettings.t, ~env, exp: Exp.t): option(normalized) => {
@@ -1989,6 +2236,58 @@ let int_constant = exp => {
   };
 };
 
+let rec exp_is_integer_arithmetic = exp => {
+  let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
+  switch (exp.term) {
+  | Atom(Int(_))
+  | Atom(Nat(_))
+  | Atom(SInt(_)) => true
+  | BinOp(op, left, right)
+      when is_plus_op(op) || is_minus_op(op) || is_times_op(op) =>
+    exp_is_integer_arithmetic(left) && exp_is_integer_arithmetic(right)
+  | _ => false
+  };
+};
+
+let exactly_one_integer_distribution = (profile, from_, to_) => {
+  let policy = profile.Axioms.one_step_policy;
+  let distribution_cleanup =
+    Axioms.cleanup_for_visible_rule(profile.step_policy, "arith.mul_const");
+  Axioms.visible_rule_enabled(profile.step_policy, "arith.mul_const")
+  && exp_is_integer_arithmetic(from_)
+  && exp_has_sum(to_)
+  && distribute_mul_over_add_candidates(from_)
+  |> List.exists(distributed =>
+       exp_same_up_to_cleanup(distribution_cleanup, distributed, to_)
+       || distribution_policy_allows_simplification(
+            policy.Axioms.distribution_step_policy,
+          )
+       && polynomial_equivalent_exps(from_, to_)
+     );
+};
+
+let exactly_one_mul_identity = (profile, from_, to_) =>
+  if (!
+        Axioms.visible_rule_enabled(
+          profile.Axioms.step_policy,
+          "arith.mul_identity",
+        )) {
+    false;
+  } else {
+    let from_ = from_ |> DHExp.strip_ascriptions |> strip_math_wrappers;
+    switch (from_.term) {
+    | BinOp(op, left, right) when is_times_op(op) =>
+      switch (int_constant(left), int_constant(right)) {
+      | (Some(value), _) when Bigint.equal(value, Bigint.one) =>
+        exp_same(right, to_)
+      | (_, Some(value)) when Bigint.equal(value, Bigint.one) =>
+        exp_same(left, to_)
+      | _ => false
+      }
+    | _ => false
+    };
+  };
+
 let exactly_one_adjacent_const_fold = (left, right) => {
   let rec loop = (left, right) =>
     switch (left, right) {
@@ -2013,9 +2312,15 @@ let exactly_one_adjacent_const_fold = (left, right) => {
   List.length(left) == List.length(right) + 1 && loop(left, right);
 };
 
-let check_single_arithmetic_rule_result_at_level =
-    (~level, ~settings as _: CoreSettings.t, ~env as _, from_, to_) => {
-  switch (arithmetic_group_at_level(level)) {
+let check_single_arithmetic_rule_result_for_profile =
+    (
+      ~profile: Axioms.math_profile,
+      ~settings as _: CoreSettings.t,
+      ~env as _,
+      from_,
+      to_,
+    ) => {
+  switch (arithmetic_group_at_level(profile.level)) {
   | None => None
   | Some(group) =>
     switch (flatten_addition(from_), flatten_addition(to_)) {
@@ -2067,39 +2372,124 @@ let check_single_arithmetic_rule_result_at_level =
         ],
         exportable: true,
       });
+    | _ when exactly_one_integer_distribution(profile, from_, to_) =>
+      let trace = trace_rules(group, ["arith.mul_const"]);
+      Some({
+        justification: "arithmetic one step",
+        group: Some(group),
+        from_normal_exp: from_ |> DHExp.strip_ascriptions,
+        to_normal_exp: to_ |> DHExp.strip_ascriptions,
+        from_trace: trace,
+        to_trace: [],
+        trace,
+        prover_steps: [
+          prover_step(
+            ~origin=ManualRewrite,
+            ~rule_id="arith.mul_const",
+            ~before_full_exp=from_,
+            ~after_full_exp=to_,
+            ~before_exp=from_,
+            ~after_exp=to_,
+            ~detail="single integer distribution",
+          ),
+        ],
+        exportable: true,
+      });
+    | _ when exactly_one_mul_identity(profile, from_, to_) =>
+      let trace = trace_rules(group, ["arith.mul_identity"]);
+      Some({
+        justification: "arithmetic one step",
+        group: Some(group),
+        from_normal_exp: from_ |> DHExp.strip_ascriptions,
+        to_normal_exp: to_ |> DHExp.strip_ascriptions,
+        from_trace: trace,
+        to_trace: [],
+        trace,
+        prover_steps: [
+          prover_step(
+            ~origin=ManualRewrite,
+            ~rule_id="arith.mul_identity",
+            ~before_full_exp=from_,
+            ~after_full_exp=to_,
+            ~before_exp=from_,
+            ~after_exp=to_,
+            ~detail="remove multiplicative identity",
+          ),
+        ],
+        exportable: true,
+      });
     | _ => None
     }
   };
 };
 
-let check_single_algebra_rule_result_at_level =
-    (~level, ~settings as _: CoreSettings.t, ~env as _, from_, to_) => {
-  switch (algebra_group_at_level(level)) {
+let check_single_arithmetic_rule_result_at_level =
+    (~level, ~settings, ~env, from_, to_) =>
+  check_single_arithmetic_rule_result_for_profile(
+    ~profile=Axioms.math_profile(level),
+    ~settings,
+    ~env,
+    from_,
+    to_,
+  );
+
+let check_single_algebra_rule_result_for_profile =
+    (
+      ~profile: Axioms.math_profile,
+      ~settings as _: CoreSettings.t,
+      ~env as _,
+      from_,
+      to_,
+    ) => {
+  switch (algebra_group_at_level(profile.level)) {
   | None => None
   | Some(group) =>
     let from_ = from_ |> DHExp.strip_ascriptions |> strip_math_wrappers;
     let to_ = to_ |> DHExp.strip_ascriptions |> strip_math_wrappers;
-    switch (check_single_cancel_common_add(group, from_, to_)) {
+    switch (check_single_algebra_identity(group, profile, from_, to_)) {
     | Some(result) => Some(result)
     | None =>
-      switch (check_single_distribution_or_expansion(group, from_, to_)) {
+      switch (check_single_cancel_common_add(group, from_, to_)) {
       | Some(result) => Some(result)
-      | None => check_single_factor_common(group, from_, to_)
+      | None =>
+        switch (
+          check_single_distribution_or_expansion(group, profile, from_, to_)
+        ) {
+        | Some(result) => Some(result)
+        | None => check_single_factor_common(group, from_, to_)
+        }
       }
     };
   };
 };
 
-let check_single_trig_rule_result_at_level =
-    (~level, ~settings as _: CoreSettings.t, ~env as _, from_, to_) => {
-  switch (trigonometry_group_at_level(level)) {
+let check_single_algebra_rule_result_at_level =
+    (~level, ~settings, ~env, from_, to_) =>
+  check_single_algebra_rule_result_for_profile(
+    ~profile=Axioms.math_profile(level),
+    ~settings,
+    ~env,
+    from_,
+    to_,
+  );
+
+let check_single_trig_rule_result_for_profile =
+    (
+      ~profile: Axioms.math_profile,
+      ~settings as _: CoreSettings.t,
+      ~env as _,
+      from_,
+      to_,
+    ) => {
+  switch (trigonometry_group_at_level(profile.level)) {
   | None => None
   | Some(group) =>
     let from_ = from_ |> DHExp.strip_ascriptions |> strip_math_wrappers;
     let to_ = to_ |> DHExp.strip_ascriptions |> strip_math_wrappers;
     TrigRewrite.applicable_at_root(from_)
     |> List.find_map((rewrite: TrigRewrite.rewrite) =>
-         if (TrigRewrite.exp_same(rewrite.after_exp, to_)) {
+         if (Axioms.visible_rule_enabled(profile.step_policy, rewrite.rule_id)
+             && TrigRewrite.exp_same(rewrite.after_exp, to_)) {
            let trace = trace_rules(group, [rewrite.rule_id]);
            Some({
              justification: "trigonometry one step",
@@ -2129,11 +2519,113 @@ let check_single_trig_rule_result_at_level =
   };
 };
 
-let check_single_step_result_at_level =
-    (~level, ~settings, ~env, from_: Exp.t, to_: Exp.t) =>
+let check_single_trig_rule_result_at_level =
+    (~level, ~settings, ~env, from_, to_) =>
+  check_single_trig_rule_result_for_profile(
+    ~profile=Axioms.math_profile(level),
+    ~settings,
+    ~env,
+    from_,
+    to_,
+  );
+
+let check_result_uses_rule = (rule: Axioms.math_rule, result) =>
+  result.trace
+  |> List.exists((trace_rule: Axioms.rewrite_rule) =>
+       trace_rule.id == rule.id
+     );
+
+let check_single_catalog_rule =
+    (
+      ~profile,
+      ~settings,
+      ~env,
+      from_,
+      to_,
+      planned_rule: Axioms.planned_visible_rule,
+    ) => {
+  let rule = planned_rule.rule;
+  let rule_policy: Axioms.visible_rule_policy = {
+    rule_id: rule.id,
+    metadata: rule.metadata,
+    mode: planned_rule.mode,
+    allowed_cleanup: planned_rule.allowed_cleanup,
+  };
+  let rule_profile: Axioms.math_profile = {
+    ...profile,
+    step_policy: {
+      ...profile.Axioms.step_policy,
+      visible_rules: [rule_policy],
+    },
+  };
+  let result =
+    switch (rule.hazel_backend) {
+    | Some(ArithmeticAddComm)
+    | Some(ArithmeticConstFold)
+    | Some(ArithmeticMulConst)
+    | Some(ArithmeticMulIdentity) =>
+      check_single_arithmetic_rule_result_for_profile(
+        ~profile=rule_profile,
+        ~settings,
+        ~env,
+        from_,
+        to_,
+      )
+    | Some(AlgebraDistributeMulAdd)
+    | Some(AlgebraFactorCommon)
+    | Some(AlgebraCancelCommonAdd) =>
+      check_single_algebra_rule_result_for_profile(
+        ~profile=rule_profile,
+        ~settings,
+        ~env,
+        from_,
+        to_,
+      )
+    | Some(AlgebraIdentity) =>
+      check_single_algebra_rule_result_for_profile(
+        ~profile=rule_profile,
+        ~settings,
+        ~env,
+        from_,
+        to_,
+      )
+    | Some(TrigIdentity) =>
+      check_single_trig_rule_result_for_profile(
+        ~profile=rule_profile,
+        ~settings,
+        ~env,
+        from_,
+        to_,
+      )
+    | None => None
+    };
+  switch (result) {
+  | Some(result) when check_result_uses_rule(rule, result) => Some(result)
+  | _ => None
+  };
+};
+
+let check_single_step_result_for_stage_plan =
+    (
+      ~profile,
+      ~plan: Axioms.stage_plan,
+      ~settings,
+      ~env,
+      from_: Exp.t,
+      to_: Exp.t,
+    ) =>
+  plan.visible_rules
+  |> List.find_map(rule =>
+       check_single_catalog_rule(~profile, ~settings, ~env, from_, to_, rule)
+     );
+
+let check_single_step_result_for_profile =
+    (~profile: Axioms.math_profile, ~settings, ~env, from_: Exp.t, to_: Exp.t) => {
+  let plan = Axioms.stage_plan_for_profile(profile, Manual);
   switch (
-    check_single_arithmetic_rule_result_at_level(
-      ~level,
+    check_single_step_result_for_stage_plan(
+      ~profile,
+      ~plan,
       ~settings,
       ~env,
       from_,
@@ -2141,32 +2633,19 @@ let check_single_step_result_at_level =
     )
   ) {
   | Some(result) => Some(result)
-  | None =>
-    switch (
-      check_single_algebra_rule_result_at_level(
-        ~level,
-        ~settings,
-        ~env,
-        from_,
-        to_,
-      )
-    ) {
-    | Some(result) => Some(result)
-    | None =>
-      switch (
-        check_single_trig_rule_result_at_level(
-          ~level,
-          ~settings,
-          ~env,
-          from_,
-          to_,
-        )
-      ) {
-      | Some(result) => Some(result)
-      | None => check_single_eval_step_result(~settings, ~env, from_, to_)
-      }
-    }
+  | None => check_single_eval_step_result(~settings, ~env, from_, to_)
   };
+};
+
+let check_single_step_result_at_level =
+    (~level, ~settings, ~env, from_: Exp.t, to_: Exp.t) =>
+  check_single_step_result_for_profile(
+    ~profile=Axioms.math_profile(level),
+    ~settings,
+    ~env,
+    from_,
+    to_,
+  );
 
 let check_single_step_trace_at_level =
     (~level, ~settings, ~env, from_: Exp.t, to_: Exp.t)
@@ -2257,6 +2736,35 @@ let check_written_step_trace_at_level =
   check_written_step_result_at_level(~level, ~settings, ~env, from_, to_)
   |> Option.map(trace_summary_of_result);
 };
+
+let trace_rule_allowed_by_profile = (profile: Axioms.math_profile, rule_id) =>
+  switch (Axioms.catalog_rule_by_id(rule_id)) {
+  | Some(rule) when List.mem(profile.level, rule.visible_levels) =>
+    Axioms.visible_rule_enabled(profile.step_policy, rule_id)
+  | Some(_) => true
+  | None => false
+  };
+
+let check_written_step_trace_for_profile =
+    (~profile: Axioms.math_profile, ~settings, ~env, from_: Exp.t, to_: Exp.t)
+    : option(trace_summary) =>
+  switch (
+    check_written_step_trace_at_level(
+      ~level=profile.level,
+      ~settings,
+      ~env,
+      from_,
+      to_,
+    )
+  ) {
+  | Some(summary)
+      when
+        summary.rule_ids
+        |> List.for_all(trace_rule_allowed_by_profile(profile)) =>
+    Some(summary)
+  | Some(_)
+  | None => None
+  };
 
 let check_written_step_trace =
     (~settings, ~env, from_: Exp.t, to_: Exp.t): option(trace_summary) => {

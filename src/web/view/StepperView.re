@@ -302,17 +302,19 @@ module View = {
             globals.settings.core.evaluation,
           )
         : [];
-    StepperBase.Stepper.view_with_automation(
-      ~globals,
-      ~take_focus=f => signal(MakeActive(f)),
-      ~hide_stepper=signal(HideStepper),
-      ~inject=u => inject(StepperAction(u)),
-      ~rewrite_level=model.rewrite_level,
-      ~automation_stage=model.automation_stage,
-      ~is_toplevel,
-      ~focus=selected,
-      model.root,
-    )
+    let inline_automation_controls = is_toplevel ? [] : [automation_controls];
+    inline_automation_controls
+    @ StepperBase.Stepper.view_with_automation(
+        ~globals,
+        ~take_focus=f => signal(MakeActive(f)),
+        ~hide_stepper=signal(HideStepper),
+        ~inject=u => inject(StepperAction(u)),
+        ~rewrite_level=model.rewrite_level,
+        ~automation_stage=model.automation_stage,
+        ~is_toplevel,
+        ~focus=selected,
+        model.root,
+      )
     @ settings_modal;
   };
 };

@@ -22,134 +22,35 @@ let is_trig_rule_id = rule_id => {
   && String.sub(rule_id, 0, prefix_len) == prefix;
 };
 
-let rewrite_tactics_for_rule_id = (~domain=CoqExport.Integers, rule_id) =>
-  switch (domain, rule_id) {
-  | (CoqExport.Reals, "arith.add_comm") => ["try rewrite Rplus_comm"]
-  | (CoqExport.Reals, "arith.mul_comm") => ["try rewrite Rmult_comm"]
-  | (CoqExport.Reals, "arith.mul_assoc") => [
-      "try rewrite Rmult_assoc",
-      "try rewrite <- Rmult_assoc",
-    ]
-  | (CoqExport.Reals, "arith.reorder_mul_factors") => []
-  | (CoqExport.Reals, "trig.sin_sum") => ["try rewrite sin_plus"]
-  | (CoqExport.Reals, "trig.sin_diff") => ["try rewrite sin_minus"]
-  | (CoqExport.Reals, "trig.cos_sum") => ["try rewrite cos_plus"]
-  | (CoqExport.Reals, "trig.cos_diff") => ["try rewrite cos_minus"]
-  | (CoqExport.Reals, "trig.sin_double") => ["try rewrite sin_2a"]
-  | (CoqExport.Reals, "trig.sin_double_sum_square") => [
-      "try hazel_sin_double_sum_square",
-    ]
-  | (CoqExport.Reals, "trig.cos_double_square") => [
-      "try rewrite cos_2a",
-      "try unfold Rsqr",
-    ]
-  | (CoqExport.Reals, "trig.cos_double_cos") => [
-      "try rewrite cos_2a_cos",
-      "try unfold Rsqr",
-      "try rewrite <- Rmult_assoc",
-    ]
-  | (CoqExport.Reals, "trig.cos_double_sin") => [
-      "try rewrite cos_2a_sin",
-      "try unfold Rsqr",
-      "try rewrite <- Rmult_assoc",
-    ]
-  | (CoqExport.Reals, "trig.sin_squared_double") => [
-      "try hazel_sin_squared_double",
-    ]
-  | (CoqExport.Reals, "trig.cos_squared_double") => [
-      "try hazel_cos_squared_double",
-    ]
-  | (CoqExport.Reals, "trig.sin_half_squared") => [
-      "try hazel_sin_half_squared",
-    ]
-  | (CoqExport.Reals, "trig.cos_half_squared") => [
-      "try hazel_cos_half_squared",
-    ]
-  | (CoqExport.Reals, "trig.pythagorean_sin_cos") => [
-      "try rewrite sin2_cos2",
-    ]
-  | (CoqExport.Reals, "trig.pythagorean_cos_sin") => [
-      "try rewrite Rplus_comm",
-      "try rewrite sin2_cos2",
-    ]
-  | (CoqExport.Reals, "trig.cos_squared_pythagorean") => ["try rewrite cos2"]
-  | (CoqExport.Reals, "trig.sin_squared_pythagorean") => ["try rewrite sin2"]
-  | (CoqExport.Reals, "trig.sin_cofunction") => ["try rewrite sin_shift"]
-  | (CoqExport.Reals, "trig.cos_cofunction") => ["try rewrite cos_shift"]
-  | (CoqExport.Reals, "trig.sin_pi_sub") => ["try rewrite sin_PI_x"]
-  | (CoqExport.Reals, "trig.cos_pi_sub") => ["try hazel_cos_pi_sub"]
-  | (CoqExport.Reals, "trig.sin_neg") => ["try rewrite sin_neg"]
-  | (CoqExport.Reals, "trig.cos_neg") => ["try rewrite cos_neg"]
-  | (CoqExport.Reals, "trig.tan_neg") => ["try rewrite tan_neg"]
-  | (CoqExport.Reals, "alg.power_add") => [
-      "cbn",
-      "try unfold Rsqr",
-      "repeat rewrite Rmult_1_r",
-      "repeat rewrite Rmult_1_l",
-      "repeat rewrite Rmult_assoc",
-    ]
-  | (CoqExport.Reals, "alg.power_mul") => [
-      "cbn",
-      "try unfold Rsqr",
-      "repeat rewrite Rmult_1_r",
-      "repeat rewrite Rmult_1_l",
-      "repeat rewrite Rmult_assoc",
-    ]
-  | (CoqExport.Reals, _) => []
-  | (_, "arith.add_comm") => ["try rewrite Z.add_comm"]
-  | (_, "arith.mul_comm") => ["try rewrite Z.mul_comm"]
-  | (_, "arith.add_assoc") => ["repeat rewrite Z.add_assoc"]
-  | (_, "arith.mul_assoc") => [
-      "try rewrite Z.mul_assoc",
-      "try rewrite <- Z.mul_assoc",
-    ]
-  | (_, "arith.add_zero") => [
-      "repeat rewrite Z.add_0_l",
-      "repeat rewrite Z.add_0_r",
-    ]
-  | (_, "arith.add_neg") => [
-      "repeat rewrite Z.add_opp_diag_l",
-      "repeat rewrite Z.add_opp_diag_r",
-    ]
-  | (_, "arith.const_fold")
-  | (_, "arith.mul_const") => ["cbn"]
-  | (_, "arith.simplify_scalar_products") => []
-  | (_, "arith.collect_like_terms") => []
-  | (_, "arith.reorder_add_terms") => []
-  | (_, "arith.reorder_mul_factors") => []
-  | (_, "alg.distribute_mul_add") => [
-      "repeat rewrite Z.mul_add_distr_l",
-      "repeat rewrite Z.mul_add_distr_r",
-    ]
-  | (_, "alg.factor_common") => [
-      "repeat rewrite <- Z.mul_add_distr_l",
-      "repeat rewrite <- Z.mul_add_distr_r",
-    ]
-  | (_, "alg.expand_polynomial") => [
-      "repeat rewrite Z.mul_add_distr_l",
-      "repeat rewrite Z.mul_add_distr_r",
-      "repeat rewrite Z.add_assoc",
-      "cbn",
-    ]
-  | (_, "alg.power_add") => [
-      "cbn",
-      "repeat rewrite Z.mul_1_r",
-      "repeat rewrite Z.mul_1_l",
-      "repeat rewrite Z.mul_assoc",
-    ]
-  | (_, "alg.power_mul") => [
-      "cbn",
-      "repeat rewrite Z.mul_1_r",
-      "repeat rewrite Z.mul_1_l",
-      "repeat rewrite Z.mul_assoc",
-    ]
-  | (_, "alg.collect_like_terms")
-  | (_, "alg.cancel_common_add") => []
+let legacy_rewrite_tactics_for_rule_id = rule_id =>
+  switch (rule_id) {
+  | "arith.simplify_scalar_products" => []
   | _ => []
+  };
+
+let catalog_domain =
+  fun
+  | CoqExport.Integers => Axioms.RocqIntegers
+  | Reals => RocqReals;
+
+let rewrite_tactics_for_rule_id = (~domain=CoqExport.Integers, rule_id) =>
+  switch (Axioms.catalog_rule_by_id(rule_id)) {
+  | Some({rocq_backend: Some(backend), _}) =>
+    Axioms.rocq_tactics_for_domain(
+      ~domain=catalog_domain(domain),
+      backend.replay_tactics,
+    )
+  | _ => legacy_rewrite_tactics_for_rule_id(rule_id)
   };
 
 let tactic_script = tactics =>
   tactics |> List.map(tactic => tactic ++ ".") |> String.concat("\n");
+
+let tactic_sequence_script = tactics =>
+  switch (tactics) {
+  | [] => "idtac."
+  | tactics => String.concat("; ", tactics) ++ "."
+  };
 
 let cut_name = index => "H_hazel_step_" ++ string_of_int(index);
 
@@ -162,32 +63,11 @@ let tactic_for_prover_step = (~domain, step: RewriteChecker.prover_step) => {
       tactic_script([
         "first [hazel_power_normalize | hazel_rewrite_search 8%nat | hazel_mul_reorder | reflexivity]",
       ])
-    | "trig.sin_double_sum_square" =>
-      tactic_script(["hazel_sin_double_sum_square"])
-    | "trig.sin_squared_double" => tactic_script(["hazel_sin_squared_double"])
-    | "trig.cos_squared_double" => tactic_script(["hazel_cos_squared_double"])
-    | "trig.sin_half_squared" => tactic_script(["hazel_sin_half_squared"])
-    | "trig.cos_half_squared" => tactic_script(["hazel_cos_half_squared"])
-    | "trig.cos_pi_sub" => tactic_script(["hazel_cos_pi_sub"])
-    | "arith.const_fold"
-    | "arith.mul_const" => tactic_script(["hazel_arithmetic"])
-    | "arith.reorder_add_terms" =>
-      tactic_script(["hazel_rewrite_search 8%nat"])
-    | "arith.reorder_mul_factors" => tactic_script(["hazel_mul_reorder"])
     | "arith.simplify_scalar_products" => tactic_script(["hazel_algebra"])
-    | "arith.collect_like_terms"
-    | "alg.distribute_mul_add"
-    | "alg.factor_common"
-    | "alg.expand_polynomial"
-    | "alg.collect_like_terms"
-    | "alg.cancel_common_add" =>
-      tactic_script([
-        "first [hazel_algebra | hazel_rewrite_search 10%nat | reflexivity]",
-      ])
     | _ =>
       rewrite_tactics_for_rule_id(~domain, step.rule_id)
       @ ["cbn", "reflexivity"]
-      |> tactic_script
+      |> tactic_sequence_script
     }
   };
 };
@@ -281,7 +161,7 @@ let tactic_for_symbolic_arithmetic_summary =
   | Some("arithmetic") => "(* Temporary affine fallback while symbolic normalization emits finer local breadcrumbs. *)\nlia."
   | _ =>
     let domain = domain_for_summary(summary);
-    tactics_for_summary(~domain, summary) |> tactic_script;
+    tactics_for_summary(~domain, summary) |> tactic_sequence_script;
   };
 
 let tactic_for_written_summary = (~forall_str, ~domain, summary) => {
@@ -374,7 +254,17 @@ let written_trace_comment = (summary: RewriteChecker.trace_summary) => {
 let invocation = index =>
   Printf.sprintf("try rewrite <- equiv_exp%d.", index);
 
-let prelude = "(* Generated by Hazel.\n   Export policy: replay Hazel prover steps. The data model now records\n   per-rule proof steps with local and whole-expression before/after terms;\n   the next pass should generate fine local fragments for every math rule. *)\nFrom Stdlib Require Import ZArith Lia Ring.\nOpen Scope Z_scope.\n\nLtac hazel_rewrite_step :=\n  first [\n    rewrite Z.add_0_l\n  | rewrite Z.add_0_r\n  | rewrite Z.mul_0_l\n  | rewrite Z.mul_0_r\n  | rewrite Z.mul_1_l\n  | rewrite Z.mul_1_r\n  | rewrite Z.add_opp_diag_l\n  | rewrite Z.add_opp_diag_r\n  | rewrite Z.mul_add_distr_l\n  | rewrite Z.mul_add_distr_r\n  | rewrite <- Z.mul_add_distr_l\n  | rewrite <- Z.mul_add_distr_r\n  | rewrite Z.add_assoc\n  | rewrite <- Z.add_assoc\n  | rewrite Z.mul_assoc\n  | rewrite <- Z.mul_assoc\n  | rewrite Z.add_comm\n  | rewrite Z.mul_comm\n  ].\n\nLtac hazel_rewrite_search n :=\n  match n with\n  | O => reflexivity\n  | S ?n' => first [reflexivity | hazel_rewrite_step; hazel_rewrite_search n']\n  end.\n\nLtac hazel_power_normalize :=\n  cbn;\n  repeat rewrite Z.mul_1_r;\n  repeat rewrite Z.mul_1_l;\n  repeat rewrite Z.mul_assoc;\n  reflexivity.\n\nLtac hazel_integer_polynomial :=\n  repeat rewrite Z.pow_2_r;\n  first [ring | nia].\n\nLtac hazel_mul_reorder :=\n  repeat rewrite Z.mul_assoc;\n  match goal with\n  | |- ?a * ?b = ?a * ?c =>\n    replace b with c by (rewrite Z.mul_comm; reflexivity); reflexivity\n  | |- context [?a * ?b] =>\n    replace (a * b) with (b * a) by (rewrite Z.mul_comm; reflexivity); reflexivity\n  | |- _ => try rewrite Z.mul_comm; reflexivity\n  end.\n\nLtac hazel_arithmetic :=\n  first [lia | hazel_power_normalize | hazel_rewrite_search 8%nat | hazel_mul_reorder | reflexivity].\n\nLtac hazel_algebra :=\n  first [hazel_integer_polynomial | nia | lia | hazel_power_normalize | hazel_rewrite_search 10%nat | hazel_mul_reorder | reflexivity].\n\nLtac hazel_trigonometry := hazel_algebra.\n\n";
+let prelude = "(* Generated by Hazel.\n   Export policy: replay Hazel prover steps. The data model now records\n   per-rule proof steps with local and whole-expression before/after terms;\n   the next pass should generate fine local fragments for every math rule. *)\nFrom Stdlib Require Import ZArith Lia Ring.\nOpen Scope Z_scope.\n\nLtac hazel_repeat_fuel n tac :=\n  lazymatch n with\n  | O => idtac\n  | S ?n' => first [progress tac; hazel_repeat_fuel n' tac | idtac]\n  end.\n\nLtac hazel_rewrite_step :=\n  first [\n    rewrite Z.add_0_l\n  | rewrite Z.add_0_r\n  | rewrite Z.mul_0_l\n  | rewrite Z.mul_0_r\n  | rewrite Z.mul_1_l\n  | rewrite Z.mul_1_r\n  | rewrite Z.add_opp_diag_l\n  | rewrite Z.add_opp_diag_r\n  | rewrite Z.mul_add_distr_l\n  | rewrite Z.mul_add_distr_r\n  | rewrite <- Z.mul_add_distr_l\n  | rewrite <- Z.mul_add_distr_r\n  | rewrite Z.add_assoc\n  | rewrite <- Z.add_assoc\n  | rewrite Z.mul_assoc\n  | rewrite <- Z.mul_assoc\n  | rewrite Z.add_comm\n  | rewrite Z.mul_comm\n  ].\n\nLtac hazel_rewrite_search n :=\n  match n with\n  | O => reflexivity\n  | S ?n' => first [reflexivity | hazel_rewrite_step; hazel_rewrite_search n']\n  end.\n\nLtac hazel_power_normalize :=\n  cbn;\n  repeat rewrite Z.mul_1_r;\n  repeat rewrite Z.mul_1_l;\n  repeat rewrite Z.mul_assoc;\n  reflexivity.\n\nLtac hazel_integer_polynomial :=\n  repeat rewrite Z.pow_2_r;\n  first [ring | nia].\n\nLtac hazel_mul_reorder :=\n  repeat rewrite Z.mul_assoc;\n  match goal with\n  | |- ?a * ?b = ?a * ?c =>\n    replace b with c by (rewrite Z.mul_comm; reflexivity); reflexivity\n  | |- context [?a * ?b] =>\n    replace (a * b) with (b * a) by (rewrite Z.mul_comm; reflexivity); reflexivity\n  | |- _ => try rewrite Z.mul_comm; reflexivity\n  end.\n\nLtac hazel_arithmetic :=\n  first [lia | hazel_power_normalize | hazel_rewrite_search 8%nat | hazel_mul_reorder | reflexivity].\n\nLtac hazel_algebra :=\n  first [hazel_integer_polynomial | nia | lia | hazel_power_normalize | hazel_rewrite_search 10%nat | hazel_mul_reorder | reflexivity].\n\nLtac hazel_trigonometry := hazel_algebra.\n\n";
+
+let prelude =
+  prelude
+  ++ "Ltac hazel_factor_polynomial :=\n"
+  ++ "  repeat rewrite Z.pow_2_r;\n"
+  ++ "  repeat rewrite Z.mul_add_distr_l;\n"
+  ++ "  repeat rewrite Z.mul_add_distr_r;\n"
+  ++ "  repeat rewrite Z.mul_sub_distr_l;\n"
+  ++ "  repeat rewrite Z.mul_sub_distr_r;\n"
+  ++ "  lia.\n\n";
 
 let real_prelude =
   "(* Generated by Hazel.\n"
@@ -382,6 +272,11 @@ let real_prelude =
   ++ "   Some trigonometry macros use ring/lra internally and should be lowered later. *)\n"
   ++ "From Stdlib Require Import Rbase Rfunctions Rtrigo1 Cos_plus Lra Ring.\n"
   ++ "Open Scope R_scope.\n\n"
+  ++ "Ltac hazel_repeat_fuel n tac :=\n"
+  ++ "  lazymatch n with\n"
+  ++ "  | O => idtac\n"
+  ++ "  | S ?n' => first [progress tac; hazel_repeat_fuel n' tac | idtac]\n"
+  ++ "  end.\n\n"
   ++ "Ltac hazel_sin_double_sum_square :=\n"
   ++ "  match goal with\n"
   ++ "  | |- sin (2 * ?x) = Rsqr (sin ?x + cos ?x) - 1 =>\n"
@@ -525,6 +420,48 @@ let real_prelude =
   ++ "  | O => reflexivity\n"
   ++ "  | S ?n' => first [reflexivity | hazel_rewrite_step; hazel_rewrite_search n']\n"
   ++ "  end.\n\n"
+  ++ "Ltac hazel_rational_square_normalize :=\n"
+  ++ "  rewrite Rsqr_div';\n"
+  ++ "  rewrite Rsqr_minus;\n"
+  ++ "  unfold Rsqr, Rdiv;\n"
+  ++ "  cbn;\n"
+  ++ "  rewrite Rinv_mult;\n"
+  ++ "  match goal with\n"
+  ++ "  | |- 2 * (?a * (/ 2 * / 2)) = _ =>\n"
+  ++ "    rewrite <- (Rmult_assoc 2 a (/ 2 * / 2));\n"
+  ++ "    rewrite (Rmult_comm 2 a);\n"
+  ++ "    rewrite (Rmult_assoc a 2 (/ 2 * / 2));\n"
+  ++ "    rewrite <- (Rmult_assoc 2 (/ 2) (/ 2))\n"
+  ++ "  end;\n"
+  ++ "  rewrite Rinv_r by lra;\n"
+  ++ "  repeat rewrite Rmult_1_l;\n"
+  ++ "  repeat rewrite Rmult_1_r;\n"
+  ++ "  unfold Rminus;\n"
+  ++ "  repeat rewrite Rmult_plus_distr_r;\n"
+  ++ "  repeat rewrite Rmult_1_l;\n"
+  ++ "  repeat rewrite Rmult_1_r;\n"
+  ++ "  match goal with\n"
+  ++ "  | |- context [-(2 * ?c) * / 2] =>\n"
+  ++ "    rewrite Ropp_mult_distr_l_reverse;\n"
+  ++ "    replace ((2 * c) * / 2) with c by\n"
+  ++ "      (rewrite Rmult_assoc;\n"
+  ++ "       rewrite (Rmult_comm c (/ 2));\n"
+  ++ "       rewrite <- Rmult_assoc;\n"
+  ++ "       rewrite Rinv_r by lra;\n"
+  ++ "       rewrite Rmult_1_l;\n"
+  ++ "       reflexivity)\n"
+  ++ "  end;\n"
+  ++ "  match goal with\n"
+  ++ "  | |- context [(?c * ?c) * / 2] =>\n"
+  ++ "    rewrite (Rmult_comm (c * c) (/ 2))\n"
+  ++ "  end;\n"
+  ++ "  match goal with\n"
+  ++ "  | |- (?a + ?b) + ?c = _ =>\n"
+  ++ "    rewrite (Rplus_assoc a b c);\n"
+  ++ "    rewrite (Rplus_comm b c);\n"
+  ++ "    rewrite <- (Rplus_assoc a c b)\n"
+  ++ "  end;\n"
+  ++ "  reflexivity.\n\n"
   ++ "Ltac hazel_power_normalize :=\n"
   ++ "  cbn;\n"
   ++ "  try unfold Rsqr;\n"
