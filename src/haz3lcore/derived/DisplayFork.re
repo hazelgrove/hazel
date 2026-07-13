@@ -78,10 +78,14 @@ let mk_inner =
      shards/children mismatch the fuzzer found via `case fun |`)
      means no ghost this frame — never a crash */
   let forked = () => {
-    /* splice in DESCENDING ref order so same-ref ghosts land in
-       material order (each splice inserts directly after its ref) */
+    /* splice in DESCENDING (slid ref, original ref) order: each
+       splice inserts directly after its ref, so the LAST-spliced
+       lands closest — later refs must go first, and same-slid-ref
+       ties (several insertions slid to the caret) resolve by
+       ORIGINAL material order (the `_ ¦` arm case: `=>` slid across
+       the typed space must land before `end in`) */
     let rank = CanonicalCompletion.rank_map(raw);
-    let ref_rank = ((_, ins, _): (_, CanonicalCompletion.insertion, _)) =>
+    let rank_of = (ins: CanonicalCompletion.insertion) =>
       switch (ins.splice) {
       | Some((id, sh, _)) =>
         switch (
@@ -101,9 +105,13 @@ let mk_inner =
         }
       | None => max_int
       };
+    let key = ((orig, ins, _): (CanonicalCompletion.insertion, _, _)) => (
+      rank_of(ins),
+      rank_of(orig),
+    );
     let (segment, ghost_marks) =
       ghosts
-      |> List.sort((a, b) => compare(ref_rank(b), ref_rank(a)))
+      |> List.sort((a, b) => compare(key(b), key(a)))
       |> List.fold_left(
            ((seg, marks), (_, ins, pieces)) =>
              switch (CanonicalCompletion.splice_ghost(seg, ~ins, ~pieces)) {

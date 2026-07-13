@@ -730,6 +730,62 @@ let f(b : Bool) =
     ],
   ),
   (
+    "CompletionDisplay: fn-authoring",
+    /* andrew's canonical function-authoring scenario, tail states */
+    [
+      test_case("case arm underscore then space", `Quick, () =>
+        check(
+          string_testable,
+          "fa1",
+          /* the space keystroke is TEXT-CONSTANT: the typed space
+             splits the merged =>+end+in run, both halves slide to
+             the caret, and the same-slid-ref tie resolves by
+             ORIGINAL material order (=> before end in). The en⟫d
+             bracket offset is a harness marker-rendering artifact
+             on multiline states (live styles by id, not string
+             position). */
+          {|let new_fun(foo: Int, bar: Bool) =
+            case foo
+            | 1 => bar
+   ¦⟪   end i⟫n ?   CHIPS[]
+let new_fun(foo: Int, bar: Bool) =
+            case foo
+            | 1 => bar
+    ¦⟪    end ⟫in ?   CHIPS[]
+let new_fun(foo: Int, bar: Bool) =
+            case foo
+            | 1 => bar
+     ¦⟪     end⟫ in ?   CHIPS[]
+let new_fun(foo: Int, bar: Bool) =
+            case foo
+            | 1 => bar
+      ¦⟪      en⟫d in ?   CHIPS[]
+let new_fun(foo: Int, bar: Bool) =
+            case foo
+            | 1 => bar
+       ¦   ⟪  | ? => ? en⟫d in ?   CHIPS[]
+let new_fun(foo: Int, bar: Bool) =
+            case foo
+            | 1 => bar
+        ¦  ⟪  | ? => ? en⟫d in ?   CHIPS[]
+let new_fun(foo: Int, bar: Bool) =
+            case foo
+            | 1 => bar
+         ¦ ⟪  | _ => ? en⟫d in ?   CHIPS[]
+let new_fun(foo: Int, bar: Bool) =
+            case foo
+            | 1 => bar
+          ¦⟪  | _ => ? en⟫d in ?   CHIPS[]|},
+          trajectory_in(
+            ~ctx=
+              "let new_fun(foo: Int, bar: Bool) =\n    case foo\n    | 1 => bar\n¦",
+            "    | _ ",
+          ),
+        )
+      ),
+    ],
+  ),
+  (
     "CompletionDisplay: probes-andrew-3",
     /* andrew's live reports 2026-07-12, all fixed: (1) witness chip
        suppressed while TyDi ghosts it — suppression now has ONE home
