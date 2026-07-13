@@ -277,6 +277,8 @@
         <div class="toc-title">Outline</div>
         <nav>
           <a href="#current-state">Current State</a>
+          <a href="#profiles">Profiles</a>
+          <a href="#unified-rule-plans">Unified Rule Plans</a>
           <a href="#checker-pipeline">Checker Pipeline</a>
           <a href="#math-levels">Math Levels</a>
           <a href="#capabilities">Capabilities</a>
@@ -285,6 +287,7 @@
           <a href="#known-gaps">Known Gaps</a>
           <a href="#test-cases">Manual Tests</a>
           <a href="#source-map">Source Map</a>
+          <a href="#todo">TODOs</a>
         </nav>
       </aside>
 
@@ -304,8 +307,8 @@
               Users can write the next expression and have Hazel check it.
             </div>
             <div class="metric">
-              <strong>Level-gated math</strong>
-              Arithmetic, Algebra, and Trigonometry are active levels.
+              <strong>Profile-gated math</strong>
+              Arithmetic, Algebra, and Trigonometry are editable presets.
             </div>
             <div class="metric">
               <strong>Export traces</strong>
@@ -330,11 +333,19 @@
             </li>
             <li>
               <code>Axioms.re</code> is the source of truth for math levels,
-              automation stages, rewrite groups, rule ids, and prover hints.
+              automation stages, rewrite groups, rule ids, operation display
+              metadata, step policies, and Rocq tactic plans.
             </li>
             <li>
               <code>RewriteChecker.re</code> owns normalization, equivalence
-              checks, trace summaries, and prover-step breadcrumbs.
+              checks, profile-aware one-step validation, trace summaries, and
+              prover-step breadcrumbs.
+            </li>
+            <li>
+              <code>ProfileBoard.re</code> is the current proof-of-concept
+              customization surface. It starts from the selected built-in
+              profile and stores in-memory visible-operation toggles plus
+              profile-level cleanup toggles.
             </li>
             <li>
               Coq/Rocq export replays stored prover steps where they exist and
@@ -349,12 +360,202 @@
           </div>
         </section>
 
+        <section id="profiles">
+          <h2>Profiles And Custom Math Modes</h2>
+          <p>
+            Math modes are now best understood as profiles. A built-in mode such
+            as Arithmetic, Algebra, or Trigonometry is a preset profile with a
+            checked set of visible operations, profile-level cleanup toggles,
+            examples, and prover plans. A future user-defined math mode should
+            be the same kind of profile document with different choices.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Layer</th>
+                <th>Current implementation</th>
+                <th>Intended customization path</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Operation catalog</td>
+                <td>
+                  <code>Axioms.operation_metadata</code> records stable ids,
+                  natural-language names, short labels such as
+                  <code>Comm +</code>, and examples such as
+                  <code>1 + 2 = 2 + 1</code>.
+                </td>
+                <td>
+                  Use this metadata as the UI-facing registry for all built-in
+                  and verified custom operations.
+                </td>
+              </tr>
+              <tr>
+                <td>Visible step policy</td>
+                <td>
+                  <code>step_policy.visible_rules</code> declares which named
+                  operations count as student-visible steps and which cleanup
+                  capabilities each operation is allowed to tolerate. The active
+                  profile then applies global cleanup toggles across those
+                  per-operation guardrails.
+                </td>
+                <td>
+                  Let instructors and users enable/disable operations, adjust
+                  profile-level cleanup, and choose whether operations are
+                  one-step or repeatable once repeat semantics are implemented.
+                </td>
+              </tr>
+              <tr>
+                <td>Profile board</td>
+                <td>
+                  The Profile button opens a modal that renders generated
+                  controls from the selected profile. Overrides are currently
+                  in-memory and keyed by visible operation id or cleanup
+                  capability id.
+                </td>
+                <td>
+                  Persist the same override object as a course/user profile,
+                  support import/export, and attach selected profiles to
+                  assignments or scratchpads.
+                </td>
+              </tr>
+              <tr>
+                <td>Validation</td>
+                <td>
+                  Arithmetic, algebra, and trigonometry one-step checks now read
+                  the active profile. Disabling a visible rule removes that rule
+                  from profile-aware validation.
+                </td>
+                <td>
+                  Route written-step checking, proof search, browser JSCoq, and
+                  file export through the same resolved profile value.
+                </td>
+              </tr>
+              <tr>
+                <td>Custom identities</td>
+                <td>
+                  Not implemented as user input yet. Built-in trig identities
+                  are cataloged and shown in Trigonometry profiles.
+                </td>
+                <td>
+                  Accept declarative equations, verify them with Rocq/JSCoq,
+                  then register verified identities as normal catalog
+                  operations with matcher/search/export support.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="callout">
+            The stable ids remain internal and prover-facing. The profile UI
+            should show names, short labels, examples, and explanatory mode text
+            such as <code>Counts as one step</code>, not raw ids like
+            <code>alg.distribute_mul_add</code> or implementation labels like
+            <code>once</code>.
+          </div>
+        </section>
+
+        <section id="unified-rule-plans">
+          <h2>Unified Rule Plans</h2>
+          <p>
+            The desired end state is one profile execution plan shared by Hazel
+            checking, browser JSCoq/Rocq validation, file export, and the UI. The
+            current code is moving in this direction, but one-step matching and
+            Rocq tactic plans are still only partially unified.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Concept</th>
+                <th>Design</th>
+                <th>Current status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Rule catalog</td>
+                <td>
+                  Each rule should have a stable id, display metadata, level,
+                  direction, Hazel matcher or normalizer, Rocq lemma/tactic atom,
+                  and optional cleanup classification.
+                </td>
+                <td>
+                  Rule ids, display metadata, cleanup capabilities, and Rocq
+                  tactic-plan atoms exist. Hazel matchers are still mostly
+                  hand-wired in <code>RewriteChecker.re</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>One Step</td>
+                <td>
+                  Apply exactly one student-visible operation, with permitted
+                  cleanup before/after or modulo comparison. This is one visible
+                  math move, not one primitive rewrite.
+                </td>
+                <td>
+                  Works for the main arithmetic/algebra/trig cases, including
+                  profile-aware visible-rule toggles and global cleanup toggles.
+                  The execution engine is not yet generic over all catalog rules.
+                </td>
+              </tr>
+              <tr>
+                <td>Check Result</td>
+                <td>
+                  Search or normalize with many allowed profile rules, using the
+                  same rule set as One Step but a different application policy:
+                  bounded search, repeat, and optional finishers.
+                </td>
+                <td>
+                  Rocq tactic plans are purpose-specific, and the UI exposes
+                  Check Result. The Hazel and Rocq paths still need a shared
+                  stage-plan interpreter.
+                </td>
+              </tr>
+              <tr>
+                <td>Auto Eval</td>
+                <td>
+                  Run deterministic profile-approved simplification to produce
+                  Hazel's preferred next expression. Export should replay or
+                  certify the same rule plan.
+                </td>
+                <td>
+                  Auto simplification exists through current stepper paths, but
+                  it is not yet driven by the same declarative rule application
+                  plan as One Step and Check Result.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <pre><code>profile
+  -> stage plan
+     -> Hazel checker/search
+     -> Rocq tactic program
+     -> UI controls
+     -> export metadata</code></pre>
+          <p>
+            A stage plan should be a small sequence of phases. For example, an
+            Algebra One Step plan can allow cleanup normalization, then exactly
+            one visible rule such as distribution or factoring, then cleanup
+            normalization again. Check Result can use the same rule catalog with
+            bounded search or repeat-until-stuck policies. Auto Eval can use a
+            deterministic repeat plan.
+          </p>
+          <div class="callout">
+            The key invariant should be: if Hazel accepts a One Step move using
+            a profile rule, Rocq export should know which tactic atom or lemma
+            certifies that same rule. If Rocq proves something broader, it may be
+            acceptable for Check Result, but it should not silently become a
+            One Step proof.
+          </div>
+        </section>
+
         <section id="checker-pipeline">
           <h2>Checker Pipeline</h2>
           <p>
             The stepper separates the math level from the automation stage. The
-            level controls which objects and rules are legal; the stage controls
-            how much help Hazel provides.
+            selected profile controls which objects, visible operations, cleanup
+            capabilities, and prover plans are legal; the stage controls how
+            much help Hazel provides.
           </p>
           <div class="flow">
             <div>
@@ -378,9 +579,10 @@
             </div>
           </div>
           <pre><code>selected expression + user target
-  -> level gate in Axioms.re
-  -> RewriteChecker normalizer or rewrite target
-  -> trace_summary with rule ids and prover_steps
+  -> selected built-in or custom profile
+  -> construct gate and visible-rule policy in Axioms.re
+  -> RewriteChecker normalizer, rewrite target, or profile-aware one-step rule
+  -> trace_summary with rule ids, profile-sensitive cleanup, and prover_steps
   -> StepperBase stores the accepted proof step
   -> CoqProofExport replays or validates the trace</code></pre>
         </section>
@@ -388,9 +590,9 @@
         <section id="math-levels">
           <h2>Math Levels</h2>
           <p>
-            Levels are cumulative by rank. A higher level can use lower-level
-            operations, but export should still pick the smallest tactic group
-            that matches the actual subgoal.
+            Built-in profiles are cumulative by rank. A higher profile can use
+            lower-level operations, but export should still pick the smallest
+            tactic group that matches the actual subgoal.
           </p>
           <table>
             <thead>
@@ -405,19 +607,29 @@
               <tr>
                 <td><code>Arithmetic</code></td>
                 <td>Active</td>
-                <td>Constants, affine terms, adjacent arithmetic steps.</td>
+                <td>
+                  Constants, affine terms, adjacent arithmetic steps, constant
+                  folds, and constant distribution as a one-step operation.
+                </td>
                 <td><code>hazel_arithmetic</code></td>
               </tr>
               <tr>
                 <td><code>Algebra</code></td>
                 <td>Active</td>
-                <td>Distribution, factoring, cancellation, polynomial normal forms.</td>
+                <td>
+                  Distribution, factoring, cancellation, AC cleanup around
+                  selected operations, and polynomial normal forms.
+                </td>
                 <td><code>hazel_algebra</code></td>
               </tr>
               <tr>
                 <td><code>Trigonometry</code></td>
                 <td>Active</td>
-                <td>Sin/cos/tan identities plus arithmetic and algebra around them.</td>
+                <td>
+                  Algebra profile operations plus cataloged sin/cos/tan
+                  identities such as Pythagorean, sum/difference, double-angle,
+                  half-angle, cofunction, reflection, and negative-angle rules.
+                </td>
                 <td><code>hazel_trigonometry</code></td>
               </tr>
               <tr>
@@ -437,7 +649,9 @@
           <p>
             Construct gating rejects expressions that require a higher level,
             such as trig calls in Arithmetic mode or unknown function calls
-            before the Functions/lists level exists.
+            before the Functions/lists level exists. Profile operation toggles
+            additionally reject specific visible rewrites even when the
+            expression is legal at the selected level.
           </p>
         </section>
 
@@ -629,29 +843,34 @@
         </section>
 
         <section id="known-gaps">
-          <h2>Known Gaps And Priority TODOs</h2>
+          <h2>Known Gaps</h2>
           <ol>
             <li>
-              Finish the associative flattening design for presentation and
-              selection. Avoid eager unparenthesize behavior that treats a
-              descendant selection as if the parenthesized expression itself was
-              selected.
+              Profile editing is still an in-memory proof-of-concept. It does
+              not yet persist custom math modes, import/export profile JSON, or
+              attach a profile to an assignment.
             </li>
             <li>
-              Convert more algebra targets from coarse macro summaries into
-              replayable primitive prover steps.
+              Repeatable visible-step modes are displayable but not generally
+              interpreted by the Hazel one-step matcher. Current profile-aware
+              validation is primarily one visible operation plus allowed
+              cleanup.
             </li>
             <li>
-              Keep local <code>coqc</code> export checks and browser JSCoq checks
-              aligned. If one passes and the other fails, track it as an export bug.
+              Cleanup capabilities are profile-aware in Hazel, but the Rocq
+              certificate path does not yet replay each cleanup atom from the
+              same catalog entry.
             </li>
             <li>
-              Add repeatable browser regression coverage for JSCoq cleanup,
-              logging, timeouts, and manager reuse.
+              Custom identities are not user-authored yet. Built-in identities
+              have rule ids and metadata, but user identities need declaration,
+              validation, matcher/search registration, and export support.
             </li>
             <li>
-              Implement Functions/lists only after the arithmetic and algebra
-              export traces are stable.
+              Browser automation remains brittle in this repo because Playwright
+              may be installed without a managed browser binary, and Chrome can
+              fail under sandboxed execution. Treat local browser tests as
+              useful but not currently dependable CI evidence.
             </li>
           </ol>
         </section>
@@ -692,6 +911,24 @@
                 <td><code>((1 - cos(2 * x)) / 2) ** 2</code></td>
                 <td>Click <code>simplify with algebrite</code>, then validate with Rocq search.</td>
               </tr>
+              <tr>
+                <td>Profile customization</td>
+                <td><code>x * (1 + 2 + x)</code></td>
+                <td>
+                  In Algebra / One Step, verify <code>1*x + 2*x + x*x</code>
+                  is valid by default, becomes invalid when <code>Comm *</code>
+                  cleanup is disabled, and <code>x*1 + x*2 + x*x</code> stays valid.
+                </td>
+              </tr>
+              <tr>
+                <td>Trig profile customization</td>
+                <td><code>sin(pi/2 - x)</code></td>
+                <td>
+                  In Trigonometry / One Step, verify <code>cos(x)</code> is
+                  valid by default and becomes invalid if the sine cofunction
+                  operation is disabled in the Profile modal.
+                </td>
+              </tr>
             </tbody>
           </table>
         </section>
@@ -704,6 +941,7 @@
             <li><code>src/web/app/editors/stepper/MissingStep.re</code></li>
             <li><code>src/web/app/editors/stepper/AxiomsBox.re</code></li>
             <li><code>src/web/app/editors/stepper/AxiomSearch.re</code></li>
+            <li><code>src/web/app/editors/stepper/ProfileBoard.re</code></li>
             <li><code>src/web/app/editors/stepper/RewriteChecker.re</code></li>
             <li><code>src/web/app/editors/stepper/TrigRewrite.re</code></li>
             <li><code>src/web/app/editors/stepper/ProofSearchBackend.re</code></li>
@@ -714,11 +952,78 @@
           </ul>
           <p>
             The next implementation pass should follow
-            <code>analysis/thesis-proposal-roadmap.html</code>, especially the
-            near-term focus on arithmetic validation, cumulative algebra rewrite
-            groups, and polynomial normalization before expanding into
-            trigonometry, calculus, or functions/lists.
+            <code>analysis/generic-step-policy-and-profile-board-plan.md</code>
+            and <code>analysis/rocq-tactic-plan-architecture.md</code>. The
+            roadmap now centers on making profiles durable, replayable, and
+            shared by Hazel validation, JSCoq checking, and file export.
           </p>
+        </section>
+
+        <section id="todo">
+          <h2>TODOs</h2>
+          <ol>
+            <li>
+              Replace the temporary in-memory profile board model with a
+              serializable profile document: profile id, base profile, enabled
+              visible rules, enabled profile-level cleanup capabilities,
+              display metadata, and tactic-plan references.
+            </li>
+            <li>
+              Add profile import/export and round-trip tests. Unknown rule ids,
+              cleanup ids, or tactic atoms should produce profile validation
+              errors rather than silently falling back.
+            </li>
+            <li>
+              Route every written-step path through the resolved profile value:
+              One Step, Check Result, Auto Simplify, proof search, browser
+              JSCoq, and Coq/Rocq file export.
+            </li>
+            <li>
+              Implement real semantics for repeatable visible-step modes:
+              <code>Counts as one step</code>, bounded repeat, and repeat-until-
+              stuck. The UI labels exist; the Hazel matcher still needs generic
+              repeat execution.
+            </li>
+            <li>
+              Add a shared stage-plan interpreter for <code>One Step</code>,
+              <code>Check Result</code>, and <code>Auto Eval</code>. The same
+              profile rules should compile to both Hazel execution and Rocq
+              tactic execution.
+            </li>
+            <li>
+              Move cleanup replay toward the same operation catalog. If a
+              profile permits <code>Comm +</code> or <code>Assoc *</code> as
+              cleanup, export should be able to cite the same permitted atom
+              rather than relying on broad tactic fallbacks.
+            </li>
+            <li>
+              Generalize one-step recognition beyond hard-coded distribution,
+              factoring, cancellation, and trig identity cases. Each catalog
+              operation should eventually provide or reference a matcher/search
+              strategy and an export strategy.
+            </li>
+            <li>
+              Add custom identity authoring: accept a declarative equation,
+              verify it with Rocq/JSCoq, assign operation metadata, and register
+              it as a normal profile-visible rewrite rule.
+            </li>
+            <li>
+              Add advanced profile editing for per-operation cleanup guardrails
+              only after the basic global cleanup controls are stable. Avoid
+              showing raw ids unless a developer/debug toggle is enabled.
+            </li>
+            <li>
+              Add manual and automated tests for profile toggles in Arithmetic,
+              Algebra, and Trigonometry, including negative cases where a
+              disabled rule or cleanup capability makes a previously valid step
+              invalid.
+            </li>
+            <li>
+              Keep local <code>coqc</code> proof export and browser JSCoq
+              validation aligned. Any mismatch should be treated as a prover
+              integration bug, not as a UI-only issue.
+            </li>
+          </ol>
         </section>
       </main>
     </div>
