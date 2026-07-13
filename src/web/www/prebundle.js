@@ -12,6 +12,21 @@ window.HazelAlgebrite = {
     const result = window.Algebrite.simplify(input);
     return result && result.toString ? result.toString() : String(result);
   },
+  factorToString(input) {
+    if (!window.Algebrite || !window.Algebrite.factor) {
+      throw new Error('Algebrite factoring is not available.');
+    }
+    const result = window.Algebrite.factor(input);
+    return result && result.toString ? result.toString() : String(result);
+  },
+  hasNontrivialFactorization(input) {
+    if (!window.Algebrite || !window.Algebrite.factor || !window.Algebrite.run) {
+      return false;
+    }
+    const factored = window.Algebrite.factor(input).toString();
+    const canonicalInput = window.Algebrite.run(input).toString();
+    return factored !== canonicalInput;
+  },
 };
 
 let jscoqModulePromise = null;
@@ -84,15 +99,23 @@ const ensureCoqHost = ({
 };
 
 window.HazelJSCoq = {
+  // Temporary diagnostic switch: capture generated Rocq programs without
+  // starting JSCoq or its warmup worker.
+  debugSkipRocqSearch: false,
+  debugPrograms: [],
   manager: null,
+  managerPromise: null,
   warmupPromise: null,
   checkCounter: 0,
   activeChecks: new Map(),
+  searchRequests: new Map(),
   completedChecks: [],
   maxCompletedChecks: 20,
   retiredManagers: [],
   maxRetiredManagers: 2,
   managerRetirementDelayMs: 5000,
+  warmupLibraryCode:
+    'From Coq Require Import ZArith Lia Ring Rbase Rfunctions Rtrigo1 Cos_plus Lra.\n',
 
   jscoqPaths() {
     return {
@@ -102,9 +125,30 @@ window.HazelJSCoq = {
     };
   },
 
+  settleCancellationFutures(manager, sid) {
+    if (!sid || !manager || !manager.coq || !manager.coq.sids) return;
+    for (const [futureSid, future] of Object.entries(manager.coq.sids)) {
+      if (+futureSid >= sid && future) {
+        // JSCoq rejects these bookkeeping futures with `undefined` when
+        // Cancel is sent. Settle them first so an intentional Hazel
+        // cancellation does not become an unhandled page rejection.
+        if (typeof future.resolve === 'function') future.resolve(null);
+        else if (future.promise) future.promise.catch(() => {});
+      }
+    }
+  },
+
   installHiddenManagerGuards(manager) {
     if (!manager || manager.__hazelHiddenGuardsInstalled) return;
     manager.__hazelHiddenGuardsInstalled = true;
+
+    if (manager.coq && typeof manager.coq.cancel === 'function') {
+      const rawCancel = manager.coq.cancel.bind(manager.coq);
+      manager.coq.cancel = sid => {
+        this.settleCancellationFutures(manager, sid);
+        return rawCancel(sid);
+      };
+    }
 
     const markError = (sid, loc, msg) => {
       const stm = manager.doc && manager.doc.stm_id
@@ -132,7 +176,17 @@ window.HazelJSCoq = {
       }
     };
     manager.coqCoqExn = ({pp, msg, sids} = {}) => {
-      markError(sids && sids.length > 0 ? sids[0] : 0, undefined, pp || msg);
+      const activeSentence = manager.doc && manager.doc.sentences
+        ? manager.doc.sentences.slice().reverse().find(stm =>
+            stm && (stm.phase === 'pending' || stm.phase === 'adding' ||
+              stm.phase === 'added' || stm.phase === 'processing'))
+        : null;
+      const sid = sids && sids.length > 0
+        ? sids[0]
+        : activeSentence && activeSentence.coq_sid
+          ? activeSentence.coq_sid
+          : 0;
+      markError(sid, undefined, pp || msg);
     };
     if (manager.pprint) manager.pprint.adjustBreaks = () => {};
   },
@@ -161,6 +215,9 @@ window.HazelJSCoq = {
     host.style.display = show ? 'block' : 'none';
 
     const { JsCoq } = await loadJsCoq();
+    const needsReals = !fresh || code.includes('Require Import Reals');
+    const initPackages = ['init', 'coq-base', 'coq-arith'];
+    if (needsReals) initPackages.push('coq-reals');
     const {jscoqBasePath, jscoqPkgPath, nodeModulesPath} = this.jscoqPaths();
     const manager = await JsCoq.start(
       jscoqBasePath,
@@ -174,7 +231,7 @@ window.HazelJSCoq = {
         prelaunch: true,
         prelude: true,
         implicit_libs: true,
-        init_pkgs: ['init', 'coq-base', 'coq-arith', 'coq-reals'],
+        init_pkgs: initPackages,
         all_pkgs: ['coq'],
         show,
         focus: false,
@@ -276,15 +333,94 @@ window.HazelJSCoq = {
       });
   },
 
+  cancelManagerWork(manager) {
+    if (!manager || !manager.doc) return false;
+    const activeSentence = manager.doc.sentences.slice().reverse().find(stm =>
+      stm && (stm.phase === 'pending' || stm.phase === 'adding' ||
+        stm.phase === 'added' || stm.phase === 'processing')
+    );
+    if (!activeSentence) return false;
+    try {
+      const sid = activeSentence.coq_sid;
+      if (typeof manager.cancel === 'function') manager.cancel(activeSentence);
+      else if (manager.coq && typeof manager.coq.cancel === 'function' &&
+          sid) {
+        manager.coq.cancel(sid);
+      } else return false;
+      return true;
+    } catch (error) {
+      console.warn('[Hazel JSCoq] active proof cancellation failed', error);
+      return false;
+    }
+  },
+
+  abortActiveCheck(activeCheck, reason = 'The Hazel proof goal changed.') {
+    if (!activeCheck || activeCheck.aborted) return false;
+    activeCheck.aborted = true;
+    activeCheck.abortReason = reason;
+    this.cancelManagerWork(activeCheck.manager);
+    return true;
+  },
+
+  cancelSearch(requestId, reason = 'The Hazel proof goal changed.') {
+    const request = this.searchRequests.get(requestId);
+    if (!request || request.settled || request.cancelled) return false;
+    request.cancelled = true;
+    request.cancelReason = reason;
+    if (!request.callbackDelivered && request.callback) {
+      request.callbackDelivered = true;
+      request.callback('cancelled', reason);
+    }
+    if (request.activeCheckId != null) {
+      this.abortActiveCheck(
+        this.activeChecks.get(request.activeCheckId),
+        reason,
+      );
+    }
+    console.log('[Hazel JSCoq] cancelled obsolete Rocq search', {requestId, reason});
+    return true;
+  },
+
+  cancelSearchesExcept(requestId = null) {
+    let cancelled = 0;
+    for (const id of this.searchRequests.keys()) {
+      if (requestId == null || id !== requestId) {
+        if (this.cancelSearch(id)) cancelled += 1;
+      }
+    }
+    return cancelled;
+  },
+
+  waitForActiveChecks({request = null, timeoutMs = 5000} = {}) {
+    return new Promise(resolve => {
+      const startedAt = performance.now();
+      const poll = () => {
+        if (request && request.cancelled) resolve({idle: false, cancelled: true});
+        else if (this.activeChecks.size === 0) resolve({idle: true});
+        else if (performance.now() - startedAt >= timeoutMs) {
+          resolve({idle: false, cancelled: false});
+        } else window.setTimeout(poll, 20);
+      };
+      poll();
+    });
+  },
+
   reset({clearModule = false} = {}) {
     console.warn('[Hazel JSCoq] resetting JSCoq bridge state');
     for (const check of this.activeChecks.values()) {
+      check.aborted = true;
       this.cleanupManager(check.manager, {force: true});
     }
     this.activeChecks.clear();
+    for (const request of this.searchRequests.values()) {
+      request.cancelled = true;
+      request.settled = true;
+    }
+    this.searchRequests.clear();
     this.cleanupRetiredManagers({force: true});
     this.cleanupManager(this.manager, {force: true});
     this.manager = null;
+    this.managerPromise = null;
     this.warmupPromise = null;
     document
       .querySelectorAll('.hazel-jscoq-host[id^="hazel-jscoq-check-host-"]')
@@ -296,6 +432,7 @@ window.HazelJSCoq = {
   stats() {
     return {
       activeChecks: this.activeChecks.size,
+      activeSearchRequests: this.searchRequests.size,
       completedChecks: this.completedChecks.slice(),
       checkCounter: this.checkCounter,
       hasWarmManager: !!this.manager,
@@ -325,34 +462,113 @@ window.HazelJSCoq = {
     ensureStyle('jscoq/frontend/classic/css/coq-base.css');
     ensureStyle('jscoq/frontend/classic/css/coq-light.css');
 
-    if (!this.manager) {
-      this.manager = await this.makeManager({code, show, fresh: false});
+    if (!this.managerPromise) {
+      this.managerPromise = this.makeManager({code, show, fresh: false})
+        .then(manager => {
+          this.manager = manager;
+          return manager;
+        })
+        .catch(error => {
+          this.managerPromise = null;
+          throw error;
+        });
     }
 
-    return this.manager;
+    return this.managerPromise;
   },
 
-  async check(code, {show = true, advanceLimit = 200} = {}) {
+  async replaceManagerDocument(manager, code) {
+    const prefixSentences = manager.__hazelWarmupPrefixSentences ||
+      manager.doc.sentences.slice(0, 1);
+    const firstState = manager.doc.sentences
+      .slice(prefixSentences.length)
+      .find(stm => stm && stm.coq_sid);
+    if (firstState) {
+      const sid = firstState.coq_sid;
+      manager.coq.cancel(sid);
+      await new Promise((resolve, reject) => {
+        const startedAt = performance.now();
+        const poll = () => {
+          if (!manager.doc.stm_id[sid]) resolve();
+          else if (performance.now() - startedAt > 3000) {
+            reject(new Error('Timed out while clearing the previous JSCoq document.'));
+          } else window.setTimeout(poll, 20);
+        };
+        poll();
+      });
+    }
+
+    manager.provider.retract();
+    manager.doc.sentences = prefixSentences.slice();
+    manager.doc.stm_id = [];
+    for (const sentence of prefixSentences) {
+      if (sentence && sentence.coq_sid) {
+        manager.doc.stm_id[sentence.coq_sid] = sentence;
+      }
+    }
+    manager.error = [];
+    const snippet = manager.provider.snippets && manager.provider.snippets[0];
+    if (!snippet || !snippet.editor) {
+      throw new Error('JSCoq document provider is not ready.');
+    }
+    const suffix = manager.__hazelWarmupPrefixCode
+      ? code.replace(/^From (?:Coq|Stdlib) Require Import [^\n]*\.\s*$/gm, '')
+      : code;
+    snippet.editor.setValue((manager.__hazelWarmupPrefixCode || '') + suffix);
+  },
+
+  async check(
+    code,
+    {show = true, advanceLimit = 200, kind = 'validation', request = null} = {},
+  ) {
     // The browser-bundled JSCoq currently uses the pre-Coq-9 logical prefix,
     // while downloaded files target modern coqc with Stdlib.
     const jscoqCode = code.replaceAll('From Stdlib Require', 'From Coq Require');
     const startedAt = performance.now();
     const checkId = ++this.checkCounter;
+    const activeCheck = {
+      manager: null,
+      aborted: !!(request && request.cancelled),
+      abortReason: request && request.cancelReason,
+      startedAt,
+      codeBytes: jscoqCode.length,
+    };
+    this.activeChecks.set(checkId, activeCheck);
+    if (request) request.activeCheckId = checkId;
     console.log(
       '[Hazel JSCoq] starting check',
-      {checkId, codeBytes: jscoqCode.length, advanceLimit},
+      {checkId, kind, codeBytes: jscoqCode.length, advanceLimit},
     );
-    const manager = await this.makeManager({
-      code: jscoqCode,
-      show,
-      fresh: true,
-    });
-    this.activeChecks.set(checkId, {manager, startedAt, codeBytes: jscoqCode.length});
-    await manager.when_ready.promise;
-
+    let manager;
+    try {
+      manager = await this.start({code: '', show});
+      activeCheck.manager = manager;
+      await manager.when_ready.promise;
+      if (activeCheck.aborted || (request && request.cancelled)) {
+        activeCheck.aborted = true;
+      } else {
+        await this.replaceManagerDocument(manager, jscoqCode);
+      }
+    } catch (error) {
+      this.activeChecks.delete(checkId);
+      throw error;
+    }
+    if (activeCheck.aborted) {
+      this.activeChecks.delete(checkId);
+      return {
+        ok: false,
+        steps: 0,
+        errors: [activeCheck.abortReason || 'JSCoq check was cancelled during startup.'],
+        cancelled: true,
+        manager,
+        checkId,
+        durationMs: Math.round(performance.now() - startedAt),
+        codeBytes: jscoqCode.length,
+      };
+    }
     const waitForSettled = () => new Promise(resolve => {
       const poll = () => {
-        if (manager.__hazelAborted) {
+        if (activeCheck.aborted || manager.__hazelAborted || manager.error.length > 0) {
           resolve();
           return;
         }
@@ -368,22 +584,25 @@ window.HazelJSCoq = {
 
     let steps = 0;
     while (steps < advanceLimit) {
-      if (manager.__hazelAborted) break;
+      if (activeCheck.aborted || manager.__hazelAborted) break;
       const advanced = manager.goNext(false);
       if (!advanced) break;
       steps += 1;
       await waitForSettled();
-      if (manager.__hazelAborted) break;
+      if (activeCheck.aborted || manager.__hazelAborted) break;
       if (manager.error.length > 0) break;
     }
 
     const durationMs = Math.round(performance.now() - startedAt);
     const result = {
-      ok: !manager.__hazelAborted && manager.error.length === 0,
+      ok: !activeCheck.aborted && !manager.__hazelAborted && manager.error.length === 0,
       steps,
-      errors: manager.__hazelAborted
-        ? ['JSCoq check was aborted.']
+      errors: activeCheck.aborted
+        ? [activeCheck.abortReason || 'JSCoq check was cancelled.']
+        : manager.__hazelAborted
+          ? ['JSCoq check was aborted.']
         : manager.error,
+      cancelled: activeCheck.aborted,
       manager,
       checkId,
       durationMs,
@@ -392,66 +611,61 @@ window.HazelJSCoq = {
     this.activeChecks.delete(checkId);
     this.recordCompletedCheck({
       checkId,
+      kind,
       ok: result.ok,
       steps,
       durationMs,
       codeBytes: jscoqCode.length,
       errorCount: manager.error.length,
+      cancelled: activeCheck.aborted,
     });
     console.log('[Hazel JSCoq] finished check', this.completedChecks[this.completedChecks.length - 1]);
-    if (!show) this.retireManager(manager);
     return result;
   },
 
   warmupSearch(opts = {}) {
+    if (this.debugSkipRocqSearch) {
+      if (!this.warmupPromise) {
+        console.warn('[Hazel Rocq debug] JSCoq warmup is disabled.');
+        this.warmupPromise = Promise.resolve({
+          ok: false,
+          steps: 0,
+          errors: ['JSCoq execution disabled for generated-program debugging.'],
+          debugSkipped: true,
+        });
+      }
+      return this.warmupPromise;
+    }
+
     if (!this.warmupPromise) {
-      const warmupCode = [
-        'From Coq Require Import Reals.',
-        'Open Scope R_scope.',
-        'Theorem hazel_jscoq_warmup : forall x : R, sin x = sin x.',
-        'Proof. intros. reflexivity. Qed.',
-      ].join('\n');
-      console.log('[Hazel JSCoq] warming up Rocq tactic search');
-      this.warmupPromise = this.start({code: warmupCode, show: false})
+      console.log('[Hazel JSCoq] initializing persistent Rocq worker');
+      this.warmupPromise = this.start({code: '', show: false})
         .then(async manager => {
           await manager.when_ready.promise;
-          const waitForSettled = () => new Promise(resolve => {
-            const poll = () => {
-              const active = manager.doc.sentences.some(stm =>
-                stm && (stm.phase === 'pending' || stm.phase === 'adding' ||
-                  stm.phase === 'added' || stm.phase === 'processing')
-              );
-              if (!active) resolve();
-              else window.setTimeout(poll, 20);
-            };
-            poll();
-          });
-
-          let steps = 0;
-          const advanceLimit = opts.advanceLimit || 80;
-          while (steps < advanceLimit) {
-            const advanced = manager.goNext(false);
-            if (!advanced) break;
-            steps += 1;
-            await waitForSettled();
-            if (manager.error.length > 0) break;
+          console.log('[Hazel JSCoq] preloading Hazel Rocq libraries');
+          const preload = await this.check(
+            this.warmupLibraryCode,
+            {show: false, advanceLimit: 20, kind: 'warmup'},
+          );
+          if (!preload.ok) {
+            throw new Error('JSCoq failed while preloading Hazel Rocq libraries.');
           }
-          return {
-            ok: manager.error.length === 0,
-            steps,
-            errors: manager.error,
-            manager,
-          };
+          manager.__hazelWarmupPrefixCode = this.warmupLibraryCode;
+          manager.__hazelWarmupPrefixSentences = manager.doc.sentences.slice();
+          return preload;
         })
         .then(result => {
           console.log(
             '[Hazel JSCoq]',
-            result.ok ? 'Rocq tactic search warmup passed.' : 'Rocq tactic search warmup failed.',
+            result.ok
+              ? 'Persistent Rocq worker and libraries ready.'
+              : 'Persistent Rocq worker failed.',
+            {durationMs: result.durationMs, steps: result.steps},
           );
           return result;
         })
         .catch(error => {
-          this.warmupPromise = null;
+          this.reset();
           console.warn('[Hazel JSCoq] Rocq tactic search warmup failed to run', error);
           return {ok: false, errors: [error]};
         });
@@ -460,17 +674,39 @@ window.HazelJSCoq = {
   },
 
   checkAndReport(code, callback, opts = {}) {
+    const request = opts.request || null;
+    const errorText = (error, seen = new Set()) => {
+      if (error == null) return '';
+      if (typeof error === 'string') return error;
+      if (typeof error === 'number' || typeof error === 'boolean') return String(error);
+      if (seen.has(error)) return '';
+      if (typeof error === 'object') seen.add(error);
+      if (Array.isArray(error)) {
+        return error.map(item => errorText(item, seen)).filter(Boolean).join(' ');
+      }
+      if (error.message) return errorText(error.message, seen);
+      if (error.msg) return errorText(error.msg, seen);
+      if (error.pp) return errorText(error.pp, seen);
+      if (error.feedback) return errorText(error.feedback, seen);
+      if (error.textContent) return String(error.textContent);
+      try {
+        const text = String(error);
+        return text === '[object Object]' ? JSON.stringify(error) : text;
+      } catch (_) {
+        return '';
+      }
+    };
     const formatErrors = errors => {
       if (!errors || errors.length === 0) return 'no JSCoq errors reported';
-      return errors.map(error => {
-        if (typeof error === 'string') return error;
-        if (error && error.message) return error.message;
-        try {
-          return JSON.stringify(error);
-        } catch (_) {
-          return String(error);
-        }
-      }).join('\n');
+      return errors.map(error => errorText(error) || 'unknown JSCoq error').join('\n');
+    };
+    const reportCancellation = result => {
+      if (request && !request.callbackDelivered) {
+        request.callbackDelivered = true;
+        request.settled = true;
+        callback('cancelled', request.cancelReason || 'Rocq search cancelled.');
+      }
+      return result;
     };
 
     console.log(
@@ -478,19 +714,40 @@ window.HazelJSCoq = {
       {codeBytes: code.length, activeChecks: this.activeChecks.size},
     );
     const timeoutMs = opts.timeoutMs || 45000;
-    const timeout = new Promise(resolve => {
-      window.setTimeout(
-        () => resolve({
+    return this.warmupSearch().then(warmup => {
+      if (!warmup || !warmup.ok) {
+        throw new Error('Persistent Rocq worker failed to become ready.');
+      }
+      if (request && request.cancelled) {
+        return reportCancellation({
           ok: false,
           steps: 0,
-          errors: [`JSCoq check timed out after ${timeoutMs}ms.`],
-        }),
-        timeoutMs,
-      );
-    });
-    const startedAt = performance.now();
-    return Promise.race([this.check(code, {show: false, ...opts}), timeout])
+          errors: [request.cancelReason || 'JSCoq check was cancelled.'],
+          cancelled: true,
+        });
+      }
+      let timeoutId;
+      const timeout = new Promise(resolve => {
+        timeoutId = window.setTimeout(
+          () => resolve({
+            ok: false,
+            steps: 0,
+            errors: [`JSCoq check timed out after ${timeoutMs}ms.`],
+          }),
+          timeoutMs,
+        );
+      });
+      const startedAt = performance.now();
+      return Promise.race([this.check(code, {show: false, ...opts}), timeout])
       .then(result => {
+        window.clearTimeout(timeoutId);
+        if (result.cancelled || (request && request.cancelled)) {
+          console.log('[Hazel JSCoq] obsolete check stopped', {
+            durationMs: Math.round(performance.now() - startedAt),
+            stats: this.stats(),
+          });
+          return reportCancellation(result);
+        }
         if (result && result.errors && result.errors.some(error =>
           typeof error === 'string' && error.includes('timed out')
         )) {
@@ -504,10 +761,19 @@ window.HazelJSCoq = {
           message,
           {durationMs: Math.round(performance.now() - startedAt), stats: this.stats()},
         );
+        if (request) request.settled = true;
         callback(result.ok ? 'ok' : 'error', message);
         return result;
-      })
+      });
+    })
       .catch(error => {
+        if (request && request.cancelled) {
+          return reportCancellation({
+            ok: false,
+            errors: [request.cancelReason || 'JSCoq check was cancelled.'],
+            cancelled: true,
+          });
+        }
         const message = `JSCoq check failed to run: ${error && error.message ? error.message : String(error)}`;
         console.error('[Hazel JSCoq]', message, error);
         this.reset();
@@ -517,9 +783,84 @@ window.HazelJSCoq = {
   },
 
   searchAndReport(code, callback, opts = {}) {
-    console.log('[Hazel JSCoq] running Rocq tactic search candidate');
-    console.log('[Hazel JSCoq] Rocq tactic search candidate source:\n' + code);
-    return this.checkAndReport(code, callback, {show: false, ...opts});
+    const kind = code.includes('hazel_profile_search')
+      ? 'profile search'
+      : 'equivalence fallback';
+    console.log(`[Hazel Rocq debug] generated ${kind} program:\n${code}`);
+    const requestId = opts.requestId;
+    const request = requestId == null
+      ? null
+      : {
+          id: requestId,
+          callback,
+          activeCheckId: null,
+          cancelled: false,
+          settled: false,
+        };
+    if (request) {
+      this.cancelSearch(requestId, 'A newer Rocq search replaced this request.');
+      this.searchRequests.set(requestId, request);
+    }
+    const finishRequest = promise => promise.finally(() => {
+      if (!request) return;
+      request.settled = true;
+      if (this.searchRequests.get(requestId) === request) {
+        this.searchRequests.delete(requestId);
+      }
+    });
+
+    if (this.debugSkipRocqSearch) {
+      const record = {
+        kind,
+        code,
+        capturedAt: new Date().toISOString(),
+      };
+      this.debugPrograms.push(record);
+      const message =
+        `JSCoq execution disabled for debugging; captured ${kind} program in ` +
+        'window.HazelJSCoq.debugPrograms.';
+      console.warn('[Hazel Rocq debug]', message, record);
+      const result = {
+        ok: false,
+        steps: 0,
+        errors: [message],
+        debugSkipped: true,
+      };
+      return finishRequest(Promise.resolve().then(() => {
+        callback('error', message);
+        return result;
+      }));
+    }
+
+    // Warmup itself uses `check`, so it temporarily appears in activeChecks.
+    // Do not mistake that background preload for an older user validation.
+    const runWhenIdle = this.warmupSearch()
+    .then(() => this.waitForActiveChecks({request}))
+    .then(waitResult => {
+      if (waitResult.cancelled) {
+        return this.checkAndReport(
+          code,
+          callback,
+          {show: false, ...opts, request},
+        );
+      }
+      if (!waitResult.idle) {
+        const message = 'The previous JSCoq check did not stop in time.';
+        console.warn('[Hazel JSCoq]', message, this.stats());
+        if (!request || !request.callbackDelivered) {
+          if (request) request.callbackDelivered = true;
+          callback('error', message);
+        }
+        return {ok: false, steps: 0, errors: [message]};
+      }
+      console.log('[Hazel JSCoq] running Rocq tactic search candidate');
+      return this.checkAndReport(
+        code,
+        callback,
+        {show: false, ...opts, request},
+      );
+    });
+    return finishRequest(runWhenIdle);
   },
 };
 
