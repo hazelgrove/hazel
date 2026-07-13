@@ -45,6 +45,9 @@ type t = {
    * obligations) — caret-free — so movement frames reuse it.
    * Chips, the inline ghost, and Tab all read this one list. */
   assist: list(CanonicalCompletion.insertion),
+  /* insertions actually ghosted this frame (physical members of
+   * assist) — chip suppression matches exactly these */
+  ghosted: list(CanonicalCompletion.insertion),
 };
 
 // should not be serializing
@@ -73,7 +76,7 @@ let mk =
     | Some(obligations) => DisplayFork.mk(~info_map, ~obligations, ~armed, z)
     | None => DisplayFork.plain(z)
     };
-  let DisplayFork.{segment, ghost_marks, assist, parsed} = fork;
+  let DisplayFork.{segment, ghost_marks, assist, ghosted, parsed} = fork;
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} = parsed;
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
@@ -104,6 +107,7 @@ let mk =
     ghost_marks,
     ghost_armed: false,
     assist,
+    ghosted,
   };
 };
 

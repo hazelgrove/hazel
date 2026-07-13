@@ -3009,58 +3009,72 @@ let for_editor = (seg: Segment.t): completion_result => {
    match only insertions on their caret-facing side. */
 /* THE zone matcher (A1): the insertion from the given stream whose
    zone holds the caret. All interactive surfaces use this. */
-let chip_among =
-    (z: Zipper.t, insertions: list(insertion)): option(insertion) => {
-  let find = (id: Id.t, sides: list(Direction.t)): option(insertion) =>
+/* ALL insertions whose zone holds the caret, in walk order (left
+   walk before right; nearer pieces first). The walk mirrors the
+   original single-match semantics exactly: content pieces match
+   only on their caret-facing side and STOP the walk; whitespace and
+   grout match either side and are walked through. */
+let chip_zone_all =
+    (z: Zipper.t, insertions: list(insertion)): list(insertion) => {
+  let find_all = (id: Id.t, sides: list(Direction.t)): list(insertion) =>
     insertions
-    |> List.find_opt((ins: insertion) =>
+    |> List.filter((ins: insertion) =>
          Id.equal(ins.adjacent_id, id) && List.mem(ins.side, sides)
        );
-  switch (z.caret) {
-  | Inner(_) =>
-    /* caret inside a token (e.g. a string literal): the promise
-       anchored on the host token still applies — match the
-       immediate neighbors only. The old Outer-only rule was a
-       buffer-era artifact: caret-rendered ghosts made no sense
-       mid-token; anchored ghosts don't care where the caret is. */
-    let both = [Direction.Left, Direction.Right];
-    let try_head = (ps: list(Piece.t)) =>
-      switch (ps) {
-      | [p, ..._] => find(Piece.id(p), both)
-      | [] => None
+  let matches =
+    switch (z.caret) {
+    | Inner(_) =>
+      /* caret inside a token (e.g. a string literal): the promise
+         anchored on the host token still applies — match the
+         immediate neighbors only. The old Outer-only rule was a
+         buffer-era artifact. */
+      let both = [Direction.Left, Direction.Right];
+      let try_head = (ps: list(Piece.t)) =>
+        switch (ps) {
+        | [p, ..._] => find_all(Piece.id(p), both)
+        | [] => []
+        };
+      let (l, r) = z.relatives.siblings;
+      switch (try_head(List.rev(l))) {
+      | [] => try_head(r)
+      | hits => hits
       };
-    let (l, r) = z.relatives.siblings;
-    switch (try_head(List.rev(l))) {
-    | Some(_) as hit => hit
-    | None => try_head(r)
+    | Outer =>
+      let is_content = (p: Piece.t): bool =>
+        switch (p) {
+        | Secondary(_)
+        | Grout(_) => false
+        | _ => true
+        };
+      let rec probe = (ps: list(Piece.t), ~facing: Direction.t) =>
+        switch (ps) {
+        | [] => []
+        | [p, ...rest] =>
+          if (is_content(p)) {
+            find_all(Piece.id(p), [facing]);
+          } else {
+            find_all(Piece.id(p), [Direction.Left, Direction.Right])
+            @ probe(rest, ~facing);
+          }
+        };
+      let (l, r) = z.relatives.siblings;
+      probe(List.rev(l), ~facing=Direction.Right)
+      @ probe(r, ~facing=Direction.Left);
     };
-  | Outer =>
-    let is_content = (p: Piece.t): bool =>
-      switch (p) {
-      | Secondary(_)
-      | Grout(_) => false
-      | _ => true
-      };
-    let rec probe = (ps: list(Piece.t), ~facing: Direction.t) =>
-      switch (ps) {
-      | [] => None
-      | [p, ...rest] =>
-        if (is_content(p)) {
-          find(Piece.id(p), [facing]);
-        } else {
-          switch (find(Piece.id(p), [Direction.Left, Direction.Right])) {
-          | Some(_) as r => r
-          | None => probe(rest, ~facing)
-          };
-        }
-      };
-    let (l, r) = z.relatives.siblings;
-    switch (probe(List.rev(l), ~facing=Direction.Right)) {
-    | Some(_) as hit => hit
-    | None => probe(r, ~facing=Direction.Left)
-    };
-  };
+  /* dedupe by physical identity (an insertion can match both walks) */
+  List.fold_left(
+    (acc, ins) => List.memq(ins, acc) ? acc : acc @ [ins],
+    [],
+    matches,
+  );
 };
+
+let chip_among =
+    (z: Zipper.t, insertions: list(insertion)): option(insertion) =>
+  switch (chip_zone_all(z, insertions)) {
+  | [ins, ..._] => Some(ins)
+  | [] => None
+  };
 
 /* The chip stream as DISPLAYED: a chip whose content is ghosted
    inline — by the chip ghost (non-witness) or by a TyDi buffer
@@ -3073,31 +3087,21 @@ let is_pure_witness = (ins: insertion): bool =>
   };
 
 let chips_displayed =
-    (z: Zipper.t, ~chip_ghost_active: bool, assist: list(insertion))
+    (z: Zipper.t, ~ghosted: list(insertion), assist: list(insertion))
     : list(insertion) => {
   let tydi_active =
     Selection.is_buffer(z.selection) && z.selection.content != [];
   let suppress_w =
     tydi_active ? chip_among(z, List.filter(is_pure_witness, assist)) : None;
-  let suppress_g =
-    chip_ghost_active
-      ? chip_among(z, List.filter(i => !is_pure_witness(i), assist)) : None;
   assist
   |> List.filter(ins =>
-       !(
-         (
-           switch (suppress_w) {
-           | Some(w) => ins === w
-           | None => false
-           }
-         )
-         || (
-           switch (suppress_g) {
-           | Some(g) => ins === g
-           | None => false
-           }
-         )
-       )
+       !List.memq(ins, ghosted)
+       && !(
+            switch (suppress_w) {
+            | Some(w) => ins === w
+            | None => false
+            }
+          )
      );
 };
 
@@ -3310,9 +3314,10 @@ let splice_precedes_caret = (z: Zipper.t, ins: insertion): bool =>
 /* The ghost hugs the caret when only spaces separate it from the
    run's true position: Tab lands at the caret, and a closer drawn
    left of the caret would portray typing OUTSIDE the completed
-   form. Sliding is space-only — never across content or holes (the
-   caret-lock misorder janks) and never across a linebreak
-   (multiline closers keep their own line). */
+   form. Sliding crosses WHITESPACE only — never content or holes
+   (the caret-lock misorder janks). Linebreaks are whitespace: a
+   caret on a fresh line is a valid drop position, and a closer
+   ghosted there sits on its own line (andrew's post-Enter case). */
 let slide_to_caret = (z: Zipper.t, ins: insertion): insertion =>
   switch (ins.splice, z.caret) {
   | (Some((id, sh, Direction.Right)), Outer) =>
@@ -3334,7 +3339,7 @@ let slide_to_caret = (z: Zipper.t, ins: insertion): insertion =>
     let all_spaces =
       List.for_all((q: Piece.t) =>
         switch (q) {
-        | Secondary(w) => Secondary.is_space(w)
+        | Secondary(_) => true
         | _ => false
         }
       );

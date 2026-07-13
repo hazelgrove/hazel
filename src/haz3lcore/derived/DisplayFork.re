@@ -14,6 +14,9 @@ type t = {
   /* THE assist stream (A1 single source): chips, the inline ghost,
      and Tab all read this one list */
   assist: list(CanonicalCompletion.insertion),
+  /* the insertions actually ghosted this frame (physical members of
+     `assist`) — chip suppression matches against exactly these */
+  ghosted: list(CanonicalCompletion.insertion),
   parsed: MakeTerm.t,
 };
 
@@ -24,6 +27,7 @@ let plain = (z: Zipper.t): t => {
     segment,
     ghost_marks: [],
     assist: [],
+    ghosted: [],
     parsed: MakeTerm.go(segment),
   };
 };
@@ -44,24 +48,29 @@ let mk_inner =
      the buffer); the splice_precedes_caret guard runs AFTER the
      slide — a ghost hugging the caret through whitespace is
      at-caret, not pre-caret. */
-  let ghost =
+  /* MULTI-GHOST: every insertion whose zone holds the caret ghosts
+     (a linebreak can split one merged promise into several
+     insertions all valid at the caret — one used to ghost and the
+     rest fell back to chips). Each is slid/guarded independently;
+     each splices at its own ref. `ghosted` keeps the ORIGINAL
+     (unslid) insertions for suppression identity. */
+  let ghosts =
     if (armed) {
       let ghostable =
         List.filter(
           ins => !CanonicalCompletion.is_pure_witness(ins),
           assist,
         );
-      switch (
-        CanonicalCompletion.chip_among(z, ghostable)
-        |> Option.map(CanonicalCompletion.slide_to_caret(z))
-      ) {
-      | Some(ins) when !CanonicalCompletion.splice_precedes_caret(z, ins) =>
-        TypeObligations.ghost_pieces(z, ins)
-        |> Option.map(pieces => (ins, pieces))
-      | _ => None
-      };
+      CanonicalCompletion.chip_zone_all(z, ghostable)
+      |> List.filter_map(orig => {
+           let ins = CanonicalCompletion.slide_to_caret(z, orig);
+           CanonicalCompletion.splice_precedes_caret(z, ins)
+             ? None
+             : TypeObligations.ghost_pieces(z, ins)
+               |> Option.map(pieces => (orig, ins, pieces));
+         });
     } else {
-      None;
+      [];
     };
   let raw = Zipper.unselect_and_zip(z);
   /* FAIL OPEN around the WHOLE fork, not just the parse: the fork is
@@ -69,15 +78,40 @@ let mk_inner =
      shards/children mismatch the fuzzer found via `case fun |`)
      means no ghost this frame — never a crash */
   let forked = () => {
-    let (segment, ghost_marks) =
-      switch (ghost) {
-      | Some((ins, pieces)) =>
-        switch (CanonicalCompletion.splice_ghost(raw, ~ins, ~pieces)) {
-        | Some((segment, marks)) => (segment, marks)
-        | None => (raw, [])
+    /* splice in DESCENDING ref order so same-ref ghosts land in
+       material order (each splice inserts directly after its ref) */
+    let rank = CanonicalCompletion.rank_map(raw);
+    let ref_rank = ((_, ins, _): (_, CanonicalCompletion.insertion, _)) =>
+      switch (ins.splice) {
+      | Some((id, sh, _)) =>
+        switch (
+          Hashtbl.find_opt(
+            rank,
+            (
+              id,
+              switch (sh) {
+              | Some(i) => i
+              | None => (-1)
+              },
+            ),
+          )
+        ) {
+        | Some(r) => r
+        | None => max_int
         }
-      | None => (raw, [])
+      | None => max_int
       };
+    let (segment, ghost_marks) =
+      ghosts
+      |> List.sort((a, b) => compare(ref_rank(b), ref_rank(a)))
+      |> List.fold_left(
+           ((seg, marks), (_, ins, pieces)) =>
+             switch (CanonicalCompletion.splice_ghost(seg, ~ins, ~pieces)) {
+             | Some((seg, more)) => (seg, marks @ more)
+             | None => (seg, marks)
+             },
+           (raw, []),
+         );
     /* ghost shards may complete a tile whose shards were split
        across the segment — reassemble or the parser (Skel) sees an
        impossible all-present-unassembled run. Then the padding
@@ -127,6 +161,7 @@ let mk_inner =
     segment,
     ghost_marks,
     assist,
+    ghosted: ghost_marks == [] ? [] : List.map(((o, _, _)) => o, ghosts),
     parsed,
   };
 };

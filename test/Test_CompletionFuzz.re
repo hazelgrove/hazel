@@ -310,7 +310,7 @@ let check_invariants =
     switch (Test_CompletionDisplay.display_parts(z)) {
     | exception e =>
       add("PAD-IDEMPOTENCE (parts raised: " ++ Printexc.to_string(e) ++ ")")
-    | (seg, zc, marks, _) =>
+    | (seg, zc, marks, _, _) =>
       let sel_ids = Selection.selection_ids(zc.selection);
       let chip_marks =
         List.filter(
@@ -630,7 +630,7 @@ let crash_stage_probe = {
           DisplayFork.mk(~info_map, ~obligations=obs, ~armed=true, zb);
         ignore(fork);
         stage := "display_parts";
-        let (seg, zc, _marks, _assist) =
+        let (seg, zc, _marks, _assist, _ghosted) =
           Test_CompletionDisplay.display_parts(z);
         stage := "measured";
         let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);

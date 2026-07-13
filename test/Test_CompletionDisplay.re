@@ -35,6 +35,7 @@ let display_parts =
         Zipper.t,
         list((Id.t, option(int))),
         list(CanonicalCompletion.insertion),
+        list(CanonicalCompletion.insertion),
       ) => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
   let (info_map, _) =
@@ -48,11 +49,11 @@ let display_parts =
     Selection.is_buffer(z.selection) && z.selection.content != []
       ? CanonicalCompletion.ghost_marks(z.selection.content) : [];
   let fork = DisplayFork.mk(~info_map, ~obligations, ~armed=true, z);
-  (fork.segment, z, tydi_marks @ fork.ghost_marks, fork.assist);
+  (fork.segment, z, tydi_marks @ fork.ghost_marks, fork.assist, fork.ghosted);
 };
 
 let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
-  let (seg, zc, marks, assist) = display_parts(z);
+  let (seg, zc, marks, assist, ghosted) = display_parts(z);
   let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
   let is_marked = (id: Id.t, sh: option(int)) =>
     List.exists(
@@ -131,17 +132,8 @@ let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
          String.split_on_char('\n', text),
        )
     |> String.concat("\n");
-  /* suppression comes from THE one policy home; chip-ghost marks =
-     marks not belonging to the TyDi buffer content */
-  let chips_shown = {
-    let sel_ids = Selection.selection_ids(zc.selection);
-    let chip_ghost_active =
-      marks
-      |> List.exists(((id, _): (Id.t, option(int))) =>
-           !List.exists(Id.equal(id), sel_ids)
-         );
-    CanonicalCompletion.chips_displayed(zc, ~chip_ghost_active, assist);
-  };
+  /* suppression comes from THE one policy home */
+  let chips_shown = CanonicalCompletion.chips_displayed(zc, ~ghosted, assist);
   let chips_str =
     chips_shown
     |> List.map((i: CanonicalCompletion.insertion) =>
@@ -692,6 +684,47 @@ let s = string_replace(string_capitalize(x¦⟪, ?, ?))⟫ in s   CHIPS[]|},
           {|let y = (1 + 2¦⟪)⟫ in y   CHIPS[]
 let y = (1 + ¦?⟪)⟫ in y   CHIPS[]|},
           trajectory_bk(~ctx="let y = (1 + 2)¦ in y", 2),
+        )
+      ),
+    ],
+  ),
+  (
+    "CompletionDisplay: multi-ghost",
+    /* a linebreak can split one merged promise into several
+       insertions all valid at the caret — every caret-zone insertion
+       ghosts now (one used to ghost, the rest fell back to chips:
+       andrew's ghost-vs-quiver-after-Enter report) */
+    [
+      test_case("case bar + Enter: end AND in both ghost", `Quick, () =>
+        check(
+          string_testable,
+          "mg1",
+          /* last line: end AND in both ghost at the caret, quiver
+             empty (was CHIPS[end]). The `⟪  end` doubled space is
+             the pre-existing indentation-seam pad jank, tracked in
+             the padding-oracle notes. */
+          {|let f(b : Bool) =
+  ¦  ⟪? in⟫ ?   CHIPS[]
+let f(b : Bool) =
+   ¦ ⟪c in⟫ ?   CHIPS[]
+let f(b : Bool) =
+    ¦⟪case  in⟫ ?   CHIPS[]
+let f(b : Bool) =
+    c¦⟪ase  in⟫ ?   CHIPS[]
+let f(b : Bool) =
+    ca¦se ⟪? end in⟫ ?   CHIPS[]
+let f(b : Bool) =
+    cas¦e ⟪? end in⟫ ?   CHIPS[]
+let f(b : Bool) =
+    case¦ ⟪b end in⟫ ?   CHIPS[]
+let f(b : Bool) =
+    case ¦b⟪a end in⟫ ?   CHIPS[]
+let f(b : Bool) =
+    case b¦a⟪r end in⟫ ?   CHIPS[]
+let f(b : Bool) =
+    case bar
+  ¦⟪  end in⟫ ?   CHIPS[]|},
+          trajectory_in(~ctx="let f(b : Bool) =¦", "\ncase bar\n"),
         )
       ),
     ],

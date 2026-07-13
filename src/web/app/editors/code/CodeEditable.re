@@ -637,7 +637,7 @@ module View = {
     let obligations =
       CanonicalCompletion.chips_displayed(
         model.editor.state.zipper,
-        ~chip_ghost_active=model.editor.syntax.ghost_marks != [],
+        ~ghosted=model.editor.syntax.ghosted,
         model.editor.syntax.assist,
       );
     let edit_decos =
