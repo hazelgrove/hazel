@@ -65,6 +65,20 @@ let piece_has_label = (label: list(string), piece: Piece.t): bool =>
 let segment_has_label = (label: list(string), segment: Segment.t): bool =>
   segment |> List.exists(piece_has_label(label));
 
+let starts_with_label = (label: list(string), segment: Segment.t): bool =>
+  switch (
+    segment
+    |> List.find_opt((piece: Piece.t) =>
+         switch (piece) {
+         | Tile(_) => true
+         | _ => false
+         }
+       )
+  ) {
+  | Some(piece) => piece_has_label(label, piece)
+  | None => false
+  };
+
 let segment_label_ids =
     (label: list(string), segment: Segment.t): list(Id.t) =>
   segment |> List.filter(piece_has_label(label)) |> List.map(Piece.id);
@@ -107,6 +121,7 @@ let associative_segment =
   ignore(term_data);
   switch (z.selection.content) {
   | [] => []
+  | selection when starts_with_label(["-"], selection) => selection
   | selection =>
     let current_level = current_level_segment(z);
     let selected_ids =

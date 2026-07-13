@@ -329,6 +329,57 @@ let test_reparenthesize_result_replaces_selected_chunk = () => {
   };
 };
 
+let test_subtraction_suffix_replaces_only_selected_chunk = () => {
+  let exp = parse_exp("(x + 1) ** 2 - 1 - 4");
+  let selected_ids =
+    switch (exp.term) {
+    | BinOp(
+        Operators.Int(Operators.Minus),
+        {
+          term:
+            BinOp(
+              Operators.Int(Operators.Minus),
+              _,
+              {term: Atom(Int(_)), _} as one,
+            ),
+          _,
+        } as inner,
+        {term: Atom(Int(_)), _} as four,
+      ) => [
+        Exp.rep_id(inner),
+        Exp.rep_id(one),
+        Exp.rep_id(exp),
+        Exp.rep_id(four),
+      ]
+    | _ => Alcotest.fail("Unexpected subtraction suffix parse tree")
+    };
+  switch (Reparenthesize.reparenthesize_selection(~selected_ids, exp)) {
+  | Some(result) =>
+    switch (Reparenthesize.selected_exp(result)) {
+    | Some(selected_exp) =>
+      check(
+        bool,
+        "selected source is the signed subtraction suffix",
+        true,
+        Equality.ignoring_ascriptions.exp(selected_exp, parse_exp("-1 - 4")),
+      );
+      let replaced =
+        Reparenthesize.replace_selected(result, parse_exp("-5"));
+      check(
+        bool,
+        "replacement preserves the unselected prefix",
+        true,
+        Equality.ignoring_ascriptions.exp(
+          replaced,
+          parse_exp("(x + 1) ** 2 + (-5)"),
+        ),
+      );
+    | None => Alcotest.fail("Expected selected subtraction suffix")
+    }
+  | None => Alcotest.fail("Expected subtraction suffix to reparenthesize")
+  };
+};
+
 let test_unparenthesize_selected_parens = () => {
   let exp = parse_exp("1 + (2 + 3) + 4");
   let parens_id =
@@ -453,6 +504,11 @@ let tests = (
       "Reparenthesize result replaces selected chunk for rewrite steps",
       `Quick,
       test_reparenthesize_result_replaces_selected_chunk,
+    ),
+    test_case(
+      "Subtraction suffix replacement preserves its prefix",
+      `Quick,
+      test_subtraction_suffix_replaces_only_selected_chunk,
     ),
     test_case(
       "Unparenthesize removes selected parens",

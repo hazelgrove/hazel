@@ -217,37 +217,154 @@ let replace_selected_chain =
   };
 };
 
-let rec reparenthesize_selection =
-        (~selected_ids: list(Id.t), exp: Exp.t): option(result) => {
-  switch (replace_selected_chain(selected_ids, exp)) {
-  | Some(_) as result => result
-  | None =>
-    switch (exp.term) {
-    | BinOp(op, l, r) =>
-      switch (reparenthesize_selection(~selected_ids, l)) {
-      | Some({exp: l', _} as result) =>
-        Some({
-          ...result,
-          exp: Exp.fresh(BinOp(op, l', r)),
-        })
-      | None =>
-        switch (reparenthesize_selection(~selected_ids, r)) {
-        | Some({exp: r', _} as result) =>
+type subtraction_operand = {
+  operator_id: Id.t,
+  exp: Exp.t,
+};
+
+let rec split_subtraction_chain =
+        (op: Operators.op_bin, exp: Exp.t)
+        : (Exp.t, list(subtraction_operand)) =>
+  switch (exp.term) {
+  | BinOp(op', left, right) when op' == op =>
+    let (base, operands) = split_subtraction_chain(op, left);
+    (
+      base,
+      operands
+      @ [
+        {
+          operator_id: Exp.rep_id(exp),
+          exp: right,
+        },
+      ],
+    );
+  | _ => (exp, [])
+  };
+
+let plus_and_neg_for_minus:
+  Operators.op_bin => option((Operators.op_bin, Operators.op_un)) =
+  fun
+  | Operators.Int(Operators.Minus) =>
+    Some((Operators.Int(Operators.Plus), Operators.Int(Operators.Minus)))
+  | Operators.SInt(Operators.Minus) =>
+    Some((Operators.SInt(Operators.Plus), Operators.SInt(Operators.Minus)))
+  | Operators.Float(Operators.Minus) =>
+    Some((
+      Operators.Float(Operators.Plus),
+      Operators.Float(Operators.Minus),
+    ))
+  | _ => None;
+
+let operand_is_selected =
+    (selected_ids: list(Id.t), operand: subtraction_operand): bool =>
+  IdTagged.ids(operand.exp) |> List.exists(id => List.mem(id, selected_ids));
+
+let combine_subtraction_operands =
+    (op: Operators.op_bin, base: Exp.t, operands: list(subtraction_operand))
+    : Exp.t =>
+  operands
+  |> List.fold_left(
+       (acc, operand) => Exp.fresh(BinOp(op, acc, operand.exp)),
+       base,
+     );
+
+let replace_selected_subtraction_suffix =
+    (selected_ids: list(Id.t), exp: Exp.t): option(result) => {
+  switch (exp.term) {
+  | BinOp(op, _, _) =>
+    let* (plus_op, neg_op) = plus_and_neg_for_minus(op);
+    let (base, operands) = split_subtraction_chain(op, exp);
+    let selected_indices =
+      operands
+      |> List.mapi((index, operand) =>
+           List.mem(operand.operator_id, selected_ids)
+           && operand_is_selected(selected_ids, operand)
+             ? Some(index) : None
+         )
+      |> List.filter_map(Fun.id);
+    switch (selected_indices) {
+    | [first, ..._] =>
+      let prefix_operands = ListUtil.take(first, operands);
+      let selected_operands =
+        ListUtil.sublist((first, List.length(operands)), operands);
+      let suffix_is_fully_selected =
+        selected_operands
+        |> List.for_all(operand =>
+             List.mem(operand.operator_id, selected_ids)
+             && operand_is_selected(selected_ids, operand)
+           );
+      if (!suffix_is_fully_selected) {
+        None;
+      } else {
+        switch (selected_operands) {
+        | [] => None
+        | [first_operand, ...rest] =>
+          let selected_base = Exp.fresh(UnOp(neg_op, first_operand.exp));
+          let selected =
+            combine_subtraction_operands(op, selected_base, rest);
+          let prefix =
+            combine_subtraction_operands(op, base, prefix_operands);
+          let selected_parens = Exp.fresh(Parens(selected));
           Some({
-            ...result,
-            exp: Exp.fresh(BinOp(op, l, r')),
-          })
-        | None => None
-        }
-      }
-    | Parens(e) =>
-      let* {exp: e', _} as result =
-        reparenthesize_selection(~selected_ids, e);
-      Some({
-        ...result,
-        exp: Exp.fresh(Parens(e')),
-      });
-    | _ => None
-    }
+            exp: Exp.fresh(BinOp(plus_op, prefix, selected_parens)),
+            selected_id: Exp.rep_id(selected),
+            selected_is_single_binop: binop_count(selected) == 1,
+          });
+        };
+      };
+    | [] => None
+    };
+  | _ => None
   };
 };
+
+let rec reparenthesize_selection =
+        (
+          ~whole_selected_ids: list(Id.t)=[],
+          ~selected_ids: list(Id.t),
+          exp: Exp.t,
+        )
+        : option(result) =>
+  if (List.mem(Exp.rep_id(exp), whole_selected_ids)) {
+    None;
+  } else {
+    switch (replace_selected_subtraction_suffix(selected_ids, exp)) {
+    | Some(_) as result => result
+    | None =>
+      switch (replace_selected_chain(selected_ids, exp)) {
+      | Some(_) as result => result
+      | None =>
+        switch (exp.term) {
+        | BinOp(op, l, r) =>
+          switch (
+            reparenthesize_selection(~whole_selected_ids, ~selected_ids, l)
+          ) {
+          | Some({exp: l', _} as result) =>
+            Some({
+              ...result,
+              exp: Exp.fresh(BinOp(op, l', r)),
+            })
+          | None =>
+            switch (
+              reparenthesize_selection(~whole_selected_ids, ~selected_ids, r)
+            ) {
+            | Some({exp: r', _} as result) =>
+              Some({
+                ...result,
+                exp: Exp.fresh(BinOp(op, l, r')),
+              })
+            | None => None
+            }
+          }
+        | Parens(e) =>
+          let* {exp: e', _} as result =
+            reparenthesize_selection(~whole_selected_ids, ~selected_ids, e);
+          Some({
+            ...result,
+            exp: Exp.fresh(Parens(e')),
+          });
+        | _ => None
+        }
+      }
+    };
+  };

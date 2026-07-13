@@ -77,24 +77,51 @@ let effective_rewrite_source_string = (input: string): string => {
       ~term_data=syntax.term_data,
       z,
     );
-  switch (
-    Language.Reparenthesize.reparenthesize_selection(
-      ~selected_ids,
-      statics.term,
-    )
-  ) {
-  | Some(result) =>
-    switch (Language.Reparenthesize.selected_exp(result)) {
-    | Some(selected_exp) =>
-      selected_exp
-      |> ExpToSegment.exp_to_segment(
-           ~settings=ExpToSegment.Settings.editable(~inline=true),
-           _,
-         )
-      |> Printer.of_segment(~holes="?", ~concave_holes="~", ~indent=" ")
-    | None => "<missing selected expression>"
-    }
-  | None => "<no reparenthesized selection>"
+  let whole_selected_ids =
+    switch (
+      TermData.get_root_id_using_ranges(
+        z.selection.content,
+        syntax.term_data,
+        syntax.measured,
+      )
+    ) {
+    | Some(id) =>
+      switch (TermData.segment(id, syntax.term_data)) {
+      | Some(segment) when segment == z.selection.content => [id]
+      | _ => []
+      }
+    | None => []
+    };
+  let selected_exp =
+    switch (
+      Language.Reparenthesize.reparenthesize_selection(
+        ~whole_selected_ids,
+        ~selected_ids,
+        statics.term,
+      )
+    ) {
+    | Some(result) => Language.Reparenthesize.selected_exp(result)
+    | None =>
+      switch (
+        TermData.get_root_id_using_ranges(
+          z.selection.content,
+          syntax.term_data,
+          syntax.measured,
+        )
+      ) {
+      | Some(id) => Language.ProofHacks.find_exp_id(id, statics.term)
+      | None => None
+      }
+    };
+  switch (selected_exp) {
+  | Some(selected_exp) =>
+    selected_exp
+    |> ExpToSegment.exp_to_segment(
+         ~settings=ExpToSegment.Settings.editable(~inline=true),
+         _,
+       )
+    |> Printer.of_segment(~holes="?", ~concave_holes="~", ~indent=" ")
+  | None => "<missing selected expression>"
   };
 };
 
@@ -155,6 +182,21 @@ let tests = (
         {|1 + §2 * (1 / 2 * (1 / 2 - cos(2 * x)) + 1 / 2 * cos(2 * x) ** 2)¦|},
       ~expected=
         {|2 * (1 / 2 * (1 / 2 - cos(2 * x)) + 1 / 2 * cos(2 * x) ** 2)|},
+    ),
+    test_effective_rewrite_source(
+      ~name="selected subtraction keeps its trailing operand",
+      ~input={|§x ** 2 + 3 * x - 4¦|},
+      ~expected={|x ** 2 + 3 * x - 4|},
+    ),
+    test(
+      ~name="subtraction suffix selection stays on the suffix",
+      ~input={|(x + 1) ** 2 §- 1 - 4¦|},
+      ~expected={|- 1 - 4|},
+    ),
+    test_effective_rewrite_source(
+      ~name="selected subtraction suffix stays narrow",
+      ~input={|(x + 1) ** 2 §- 1 - 4¦|},
+      ~expected={|- 1 - 4|},
     ),
     test(
       ~name="tuple comma selection snaps over all expressions",
