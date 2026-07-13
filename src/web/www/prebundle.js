@@ -27,7 +27,23 @@ window.repo = repo
 // setup() which hangs because it doesn't pass {type: "module"} and the SW
 // uses ES module imports). service-worker-template.js handles its own request
 // lifecycle so we don't need bootloader's handler plumbing.
-await navigator.serviceWorker.register("/service-worker.js", {type: "module"})
+// Resolve relative to bundled.js so this works when the app is deployed
+// under a subpath (e.g. hazel.org/build/<branch>/), not just at the root.
+await navigator.serviceWorker.register(
+	new URL("service-worker.js", import.meta.url),
+	{type: "module"},
+)
+// Module loading below fetches /automerge:<doc>/... URLs that only resolve
+// once the service worker controls this page. On the very first load,
+// clients.claim() races those fetches — wait for control (bounded).
+if (!navigator.serviceWorker.controller) {
+	await new Promise(resolve => {
+		navigator.serviceWorker.addEventListener("controllerchange", resolve, {
+			once: true,
+		})
+		setTimeout(resolve, 10000)
+	})
+}
 await repo.networkSubsystem.whenReady()
 
 window.getRepoChannel = () => {

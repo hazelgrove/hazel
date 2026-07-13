@@ -15,7 +15,9 @@ import {IndexedDBStorageAdapter} from "@automerge/automerge-repo-storage-indexed
 import {WebSocketClientAdapter} from "@automerge/automerge-repo-network-websocket"
 import {MessageChannelNetworkAdapter} from "@automerge/automerge-repo-network-messagechannel"
 
-let cachename = "default"
+// Bumped from "default" so activate purges caches poisoned by the old
+// intercept-everything fetch handler (it cached 404 HTML pages).
+let cachename = "automerge-docs-v2"
 let debugging = false
 
 const cacheableStatuses = [
@@ -223,7 +225,7 @@ async function resolveAutomergeUrl(automergeURL) {
 self.addEventListener("fetch", fetchEvent => {
 	log("fetch event", fetchEvent.request.url)
 	const request = fetchEvent.request
-	if (request.method !== "GET") return fetchEvent.respondWith(fetch(request))
+	if (request.method !== "GET") return
 	const url = new URL(fetchEvent.request.url)
 
 	let specialURL
@@ -239,61 +241,48 @@ self.addEventListener("fetch", fetchEvent => {
 		} catch {}
 	}
 
+	// Only automerge-doc requests are handled here. Everything else (page
+	// navigations, scripts, assets) is left to the browser — intercepting
+	// them turned transient fetch failures into 500s and cached 404s,
+	// breaking reloads when deployed under a subpath (hazel.org/build/…).
+	if (!specialURL) return
+
 	fetchEvent.respondWith(
 		(async () => {
 			const cache = await caches.open(cachename)
 			const match = await cache.match(request)
 
 			try {
-				if (specialURL) {
-					if (match) {
-						log(`serving ${specialURL} from cache ${cachename}`)
-						const headers = new Headers(match.headers)
-						headers.set("cross-origin-embedder-policy", "credentialless")
-						headers.set("cross-origin-resource-policy", "cross-origin")
-						return new Response(match.body, {
-							status: match.status,
-							headers,
-						})
-					}
-
-					const response = await resolveAutomergeUrl(specialURL)
-
-					if (response.status === 307) {
-						return response
-					}
-
-					if (cacheableStatuses.includes(response.status)) {
-						log(`caching ${specialURL}`)
-						await cache.put(request, response.clone())
-					}
-
-					return response
-				} else {
-					const response = await fetch(request)
-					if (response) {
-						if (
-							cacheableStatuses.includes(response.status) &&
-							response.url.match(/^https?\:/)
-						) {
-							await cache.put(request, response.clone())
-						} else {
-							log(
-								`skipping uncacheable response code from cache: ${response.status} for ${response.url}`
-							)
-						}
-						return response
-					}
-					if (match) return match
-					return new Response("couldnt fetch and no stale", {status: 503})
+				if (match) {
+					log(`serving ${specialURL} from cache ${cachename}`)
+					const headers = new Headers(match.headers)
+					headers.set("cross-origin-embedder-policy", "credentialless")
+					headers.set("cross-origin-resource-policy", "cross-origin")
+					return new Response(match.body, {
+						status: match.status,
+						headers,
+					})
 				}
+
+				const response = await resolveAutomergeUrl(specialURL)
+
+				if (response.status === 307) {
+					return response
+				}
+
+				if (cacheableStatuses.includes(response.status)) {
+					log(`caching ${specialURL}`)
+					await cache.put(request, response.clone())
+				}
+
+				return response
 			} catch (error) {
 				const message =
 					error instanceof Error
 						? `${error.message}\n\n${error.stack}`
 						: String(error)
 				console.error(
-					`service worker error resolving ${request.url}${specialURL ? ` (for: ${specialURL})` : ""}.\n${message}`
+					`service worker error resolving ${request.url} (for: ${specialURL}).\n${message}`
 				)
 				if (match) return match
 

@@ -52,6 +52,23 @@
 			width: 100vw;
 		} */
 	</style>
+	<script>
+		// The patchwork/automerge packages loaded from the importmap fetch their
+		// wasm at an origin-absolute path ("/assets/automerge_wasm_bg-*.wasm"),
+		// which 404s when the app is deployed under a subpath (hazel.org/build/
+		// <branch>/). Rewrite those fetches to the app-relative copy in assets/.
+		(() => {
+			const origFetch = window.fetch;
+			window.fetch = function (input, init) {
+				const url = typeof input === "string" ? input : input?.url;
+				const m = url && url.match(/^(?:https?:\/\/[^/]+)?(\/assets\/automerge_wasm_bg-[^/?#]+\.wasm)$/);
+				if (m && (!url.startsWith("http") || url.startsWith(location.origin))) {
+					return origFetch.call(this, new URL("." + m[1], document.baseURI), init);
+				}
+				return origFetch.call(this, input, init);
+			};
+		})();
+	</script>
 	<script type="module" src="bundled.js"></script>
 </head>
 
