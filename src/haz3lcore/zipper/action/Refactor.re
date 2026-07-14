@@ -5611,6 +5611,319 @@ let space_commas = (e: Exp.t): Exp.t =>
     e,
   );
 
+/* === Remedied hoists (the "Remedied moves" tier) ===
+ * A blocked hoist names its blockers and applies the remedy:
+ *  - dependency lines above -> CARRY them (convoy): one press finds
+ *    the maximal CONTIGUOUS run of lines directly above that the
+ *    grabbed line transitively depends on, and the whole block
+ *    crosses the first non-dependency line together (andrew: "to
+ *    move this one line up, what do we need to do" — nothing is
+ *    pushed preemptively).
+ *  - the enclosing lambda's binder -> ABSTRACT over it (lift): the
+ *    definition leaves the function as a helper, gaining the crossed
+ *    params (prepended: helper = fun x -> OLD_DEF, so every use
+ *    rewrites uniformly u -> u(x), bare or applied).
+ * Keyboard reaches these by INSIST (press again on the shake);
+ * menu shows them as their own entries (P10). */
+
+let line_depends_on = (member: def_line, upper: def_line): bool =>
+  names_mentioned(line_exp_names(upper), line_material(member))
+  || mentions_typ_names(line_typ_names(upper), line_material(member));
+
+/* nodes top-to-bottom: [X, T1..Tm, C]; X = the line crossed, T's =
+   the carried dependencies, C = the grabbed line */
+let hoist_carry_site = (~target: Id.t, program: Exp.t): option(list(Exp.t)) =>
+  switch (find_path(~hit=hit_def_line(target), program)) {
+  | None => None
+  | Some(path) =>
+    let n = List.length(path);
+    let c = List.nth(path, n - 1);
+    switch (def_line_of(c)) {
+    | None => None
+    | Some((c_dl, _)) =>
+      let rec walk = (i, block: list(def_line), block_nodes: list(Exp.t)) =>
+        if (i < 0) {
+          None;
+        } else {
+          let anc = List.nth(path, i);
+          let child = List.nth(path, i + 1);
+          switch (def_line_of(anc)) {
+          | Some((dl, body)) when same_node(body, child) =>
+            if (block |> List.exists(m => line_depends_on(m, dl))) {
+              walk(i - 1, [dl, ...block], [anc, ...block_nodes]);
+            } else {
+              /* anc = X. Only offered when something is carried
+                 (plain hoist owns the no-dependency case), and every
+                 block member can legally cross X */
+              List.length(block_nodes) >= 2
+              && block
+              |> List.for_all(m => lines_swappable(dl, m))
+                ? Some([anc, ...block_nodes]) : None;
+            }
+          | _ => None /* ceiling: no line above in this chain */
+          };
+        };
+      walk(n - 2, [c_dl], [c]);
+    };
+  };
+
+let hoist_carry_impl: impl = {
+  label: "Hoist with dependencies",
+  tooltip: "Move this binding up, carrying the definitions it depends on",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (hoist_carry_site(~target, program)) {
+    | None => None
+    | Some(nodes) =>
+      let c = List.nth(nodes, List.length(nodes) - 1);
+      let cbody =
+        switch (def_line_of(c)) {
+        | Some((_, body)) => body
+        | None => c /* unreachable: site checked */
+        };
+      /* the lines rotate one slot: [X, T1..Tm, C] -> [T1..Tm, C, X];
+         each line takes the SECONDARY of the old occupant of its new
+         position (chain_swap generalized — every run used once, no
+         piece duplication) */
+      let secs = nodes |> List.map((nd: Exp.t) => nd.annotation.secondary);
+      let new_order = List.tl(nodes) @ [List.hd(nodes)];
+      let result =
+        List.fold_left(
+          (inner, (node, sec)) =>
+            with_secondary(sec, def_line_rebuild(node, inner)),
+          cbody,
+          List.rev(List.combine(new_order, secs)),
+        );
+      let carry = nodes |> List.map(Exp.rep_id);
+      rewrite_node(
+        ~hit=same_node(List.hd(nodes)),
+        ~rewrite=_ => Some((result, Exp.rep_id(c))),
+        program,
+      )
+      |> Option.map(((prog', f)) =>
+           (carry_attached_docs(~line_ids=carry, ~pre=program, prog'), f)
+         );
+    },
+};
+
+/* === Lift to helper (abstract over the lambda's binder) === */
+
+type lift_site_t = {
+  ls_outer: Exp.t, /* the let whose def is the lambda */
+  ls_parens: option(Exp.t), /* def-position packaging */
+  ls_fun: Exp.t,
+  ls_c: Exp.t, /* the grabbed let, first line of the fun body */
+  ls_crossed: list(string) /* fun params the def mentions, in order */
+};
+
+let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
+  switch (find_path(~hit=hit_def_line(target), program)) {
+  | None => None
+  | Some(path) =>
+    let n = List.length(path);
+    if (n < 3) {
+      None;
+    } else {
+      let c = List.nth(path, n - 1);
+      let f = List.nth(path, n - 2);
+      switch (IdTagged.term_of(c), IdTagged.term_of(f)) {
+      | (Let(cp, cdef, cbody), Fun(fp, fbody, _, _))
+          when same_node(fbody, c) =>
+        let (outer, parens) =
+          switch (IdTagged.term_of(List.nth(path, n - 3))) {
+          | Parens(_) when n >= 4 => (
+              List.nth(path, n - 4),
+              Some(List.nth(path, n - 3)),
+            )
+          | _ => (List.nth(path, n - 3), None)
+          };
+        switch (IdTagged.term_of(outer), let_head_name(cp)) {
+        | (Let(op, odef, _), Some(g))
+            when
+              same_node(
+                odef,
+                switch (parens) {
+                | Some(pn) => pn
+                | None => f
+                },
+              ) =>
+          /* pat_var_names accumulates in reverse traversal order —
+             restore source order so the helper's params read like
+             the lambda's */
+          let crossed =
+            pat_var_names(fp)
+            |> List.rev
+            |> List.filter(x => free_in(x, cdef));
+          let onames = pat_var_names(op);
+          let outer_minus =
+            replace_node(~at=Exp.rep_id(c), ~with_=fresh(EmptyHole), outer);
+          crossed != []
+          /* g's uses must all reach the helper unshadowed */
+          && !binds_somewhere(g, cbody)
+          /* the crossed vars we pass at each use must still mean the
+             lambda's params there */
+          && crossed
+          |> List.for_all(x => !binds_somewhere(x, cbody))
+          /* the def leaves outer's scope: it must not mention outer's
+             own binder (recursion would unbind) */
+          && !(onames |> List.exists(o => free_in(o, cdef)))
+          && !List.mem(g, onames)
+          /* the helper's name scopes over all of outer: any existing
+             free g there would be captured */
+          && !free_in(g, outer_minus)
+            ? Some({
+                ls_outer: outer,
+                ls_parens: parens,
+                ls_fun: f,
+                ls_c: c,
+                ls_crossed: crossed,
+              })
+            : None;
+        | _ => None
+        };
+      | _ => None
+      };
+    };
+  };
+
+let lift_function_impl: impl = {
+  label: "Lift to helper",
+  tooltip: "Move this definition out of the function, taking the parameters it uses as arguments",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (lift_site(~target, program)) {
+    | None => None
+    | Some(site) =>
+      switch (IdTagged.term_of(site.ls_c), IdTagged.term_of(site.ls_fun)) {
+      | (Let(cp, cdef, cbody), Fun(fp, _, ft, fname)) =>
+        let g =
+          switch (let_head_name(cp)) {
+          | Some(g) => g
+          | None => "" /* unreachable: site checked */
+          };
+        let sep_lead = i => i == 0 ? ([], []) : (space(), []);
+        /* helper = fun <crossed> -> DEF: prepend, so u -> u(<crossed>)
+           is uniformly sound (helper(<crossed>) == OLD_DEF even when
+           DEF is itself a function used bare) */
+        let var_pats =
+          site.ls_crossed
+          |> List.mapi((i, x) =>
+               {
+                 ...fresh_pat(Var(x)),
+                 annotation: {
+                   ...IdTagged.IdTag.mk_internal([Id.mk()]),
+                   secondary: sep_lead(i),
+                 },
+               }
+             );
+        let param: Pat.t =
+          switch (var_pats) {
+          | [v] => pad(v)
+          | vs => pad(fresh_pat(Parens(fresh_pat(Tuple(vs)))))
+          };
+        let hbody =
+          with_secondary(
+            (space(), []),
+            cdef |> strip_leading |> strip_trailing,
+          );
+        let helper = pad(fresh(Fun(param, hbody, None, None)));
+        /* every use of g in the lambda body becomes a call passing
+           the lambda's own params */
+        let mk_args = (): Exp.t =>
+          switch (site.ls_crossed) {
+          | [x] => fresh(Var(x))
+          | xs =>
+            fresh(
+              Tuple(
+                xs
+                |> List.mapi((i, x) =>
+                     {
+                       ...fresh(Var(x)),
+                       annotation: {
+                         ...IdTagged.IdTag.mk_internal([Id.mk()]),
+                         secondary: sep_lead(i),
+                       },
+                     }
+                   ),
+              ),
+            )
+          };
+        let cbody' =
+          Exp.map_term(
+            ~f_exp=
+              (cont, e: Exp.t) =>
+                switch (IdTagged.term_of(e)) {
+                | Var(x) when x == g =>
+                  let u = with_secondary(([], []), e);
+                  {
+                    ...fresh(Ap(Forward, u, mk_args())),
+                    annotation: {
+                      ...IdTagged.IdTag.mk_internal([Id.mk()]),
+                      secondary: e.annotation.secondary,
+                    },
+                  };
+                | _ => cont(e)
+                },
+            cbody,
+          );
+        /* the dissolved line's slot: its body takes the line's lead */
+        let cbody'' = {
+          let sl = Slot.lead_of(cbody');
+          let dropped = Slot.drop(sl, cbody');
+          let (b, a) = dropped.annotation.secondary;
+          let (c_lead, c_after) = site.ls_c.annotation.secondary;
+          with_secondary((c_lead @ b, a @ c_after), dropped);
+        };
+        let fun': Exp.t = {
+          ...site.ls_fun,
+          term: Fun(fp, cbody'', ft, fname),
+        };
+        let odef': Exp.t =
+          switch (site.ls_parens) {
+          | Some(pn) => {
+              ...pn,
+              term: Parens(fun'),
+            }
+          | None => fun'
+          };
+        switch (IdTagged.term_of(site.ls_outer)) {
+        | Let(op, _, obody) =>
+          let (o_lead, o_after) = site.ls_outer.annotation.secondary;
+          let sep =
+            switch (o_lead) {
+            | [_, ..._] => sep_like(o_lead)
+            | [] => newline()
+            };
+          let outer_rebuilt: Exp.t = {
+            ...site.ls_outer,
+            term: Let(op, odef', obody),
+          };
+          let outer' = with_secondary((sep, o_after), outer_rebuilt);
+          let new_let =
+            with_secondary((o_lead, []), fresh(Let(cp, helper, outer')));
+          rewrite_node(
+            ~hit=same_node(site.ls_outer),
+            ~rewrite=_ => Some((new_let, Pat.rep_id(cp))),
+            program,
+          )
+          |> Option.map(((prog', f)) =>
+               (
+                 carry_attached_docs(
+                   ~line_ids=[
+                     Exp.rep_id(site.ls_c),
+                     Exp.rep_id(site.ls_outer),
+                   ],
+                   ~pre=program,
+                   prog',
+                 ),
+                 f,
+               )
+             );
+        | _ => None
+        };
+      | _ => None
+      }
+    },
+};
+
 let evaluate_in_place_impl: impl = {
   label: "Evaluate closed",
   tooltip: "Replace this self-contained expression with its value",
@@ -7526,6 +7839,8 @@ let impl: Action.refactor => impl =
   | BindArgument => ap_to_let_impl
   | BetaReduce => beta_reduce_impl
   | UnfoldCall => unfold_call_impl
+  | HoistCarry => hoist_carry_impl
+  | LiftFunction => lift_function_impl
   | SplitLet => split_let_impl
   | ReduceCase => reduce_case_impl
   | BindArm => bind_arm_impl
@@ -7543,6 +7858,8 @@ let all: list(Action.refactor) = [
   BetaReduce,
   BindArgument,
   UnfoldCall,
+  HoistCarry,
+  LiftFunction,
   SplitLet,
   ReduceCase,
   BindArm,
@@ -7849,6 +8166,8 @@ let applies =
     }
   | BindArgument => Option.is_some(find_hit(~hit=hit_beta(target), program))
   | UnfoldCall => Option.is_some(unfold_site(~info_map, ~target, program))
+  | HoistCarry => Option.is_some(hoist_carry_site(~target, program))
+  | LiftFunction => Option.is_some(lift_site(~target, program))
   | BetaReduce =>
     switch (find_hit(~hit=hit_beta(target), program)) {
     | Some(e) =>
@@ -8336,6 +8655,27 @@ let gesture =
           }
         }
       }
+    };
+  };
+
+/* the INSIST tier: remedied moves a dead press escalates to on a
+   second press (web tracks the pending state; menu lists these as
+   their own entries per P10) */
+let gesture_insist =
+    (~info_map: Statics.Map.t, ~term: Exp.t, g: Action.Gesture.t, z: Zipper.t)
+    : option(Action.refactor) =>
+  switch (Indicated.index(z)) {
+  | None => None
+  | Some(target) =>
+    let app = (k: Action.refactor) =>
+      applies(k, ~info_map, ~target, term) ? Some(k) : None;
+    switch (g) {
+    | Up =>
+      switch (app(HoistCarry)) {
+      | Some(k) => Some(k)
+      | None => app(LiftFunction)
+      }
+    | _ => None
     };
   };
 

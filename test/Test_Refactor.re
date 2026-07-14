@@ -4679,6 +4679,120 @@ let intro_landing_tests = [
   ),
 ];
 
+let remedied_move_tests = [
+  test_case(
+    "carry: one dependency travels with the hoist",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=HoistCarry,
+          "let x = 9 in\nlet b = 1 in\n¦let c = b + 1 in\nc",
+        )
+        |> text_of;
+      check(
+        string,
+        "convoy",
+        "let b = 1 in\nlet c = b + 1 in\nlet x = 9 in\nc",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "carry: contiguous block crosses in one press",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=HoistCarry,
+          "let x = 9 in\nlet a = 1 in\nlet b = a + 1 in\n¦let c = b + a in\nc",
+        )
+        |> text_of;
+      check(
+        string,
+        "block",
+        "let a = 1 in\nlet b = a + 1 in\nlet c = b + a in\nlet x = 9 in\nc",
+        got,
+      );
+    },
+  ),
+  test_case("carry: not offered when plain hoist works", `Quick, () =>
+    check(
+      bool,
+      "plain territory",
+      false,
+      offers(HoistCarry, "let x = 9 in\n¦let c = 1 in\nc"),
+    )
+  ),
+  test_case("carry: shadowing line refuses the crossing", `Quick, () =>
+    check(
+      bool,
+      "shadow wall",
+      false,
+      offers(HoistCarry, "let c = 9 in\nlet b = 1 in\n¦let c = b + 1 in\nc"),
+    )
+  ),
+  test_case(
+    "lift: def leaves the lambda as a helper",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=LiftFunction,
+          "let outer =\n  fun x ->\n    ¦let scaled = x * 3 in\n    scaled + x\nin\nouter(5)",
+        )
+        |> text_of;
+      check(
+        string,
+        "lifted",
+        "let scaled = fun x -> x * 3 in\nlet outer =\n  fun x ->\n    scaled(x) + x\nin\nouter(5)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "lift: multiple crossed params in one press",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=LiftFunction,
+          "let f =\n  fun (a, b) ->\n    ¦let s = a + b in\n    s * 2\nin\nf((1, 2))",
+        )
+        |> text_of;
+      check(
+        string,
+        "tuple lift",
+        "let s = fun (a, b) -> a + b in\nlet f =\n  fun (a, b) ->\n    s(a, b) * 2\nin\nf((1, 2))",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "lift: refuses when a crossed name is rebound at a use", `Quick, () =>
+    check(
+      bool,
+      "capture wall",
+      false,
+      offers(
+        LiftFunction,
+        "let f =\n  fun x ->\n    ¦let g = x * 3 in\n    let x = 9 in\n    g + x\nin\nf(5)",
+      ),
+    )
+  ),
+  test_case("lift: refuses a def mentioning the outer binder", `Quick, () =>
+    check(
+      bool,
+      "recursion wall",
+      false,
+      offers(
+        LiftFunction,
+        "let f =\n  fun x ->\n    ¦let g = f(x - 1) in\n    g + x\nin\nf(5)",
+      ),
+    )
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -4806,6 +4920,7 @@ let tests = [
     @ binding_tests
     @ sink_layout_tests
     @ intro_landing_tests
+    @ remedied_move_tests
     @ landing_block_tests
     @ whitespace_probe
     @ whitespace_probe2

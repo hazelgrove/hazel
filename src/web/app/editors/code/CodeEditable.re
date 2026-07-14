@@ -1,6 +1,11 @@
 open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
+
+/* pending insist press: (indicated target, gesture) of the last dead
+   press that had a remedied move available */
+let insist_pending: ref(option((option(Haz3lcore.Id.t), Action.Gesture.t))) =
+  ref(None);
 type editor_id = string;
 open Util;
 
@@ -96,6 +101,40 @@ module Update = {
          );
     switch (action) {
     | Perform(action) =>
+      /* INSIST: a dead gesture press with a remedied move available
+         (convoy hoist / lift-to-helper) shakes; the SAME press again
+         fires the remedy. Transient interaction state, deliberately
+         imperative (not model): it never affects the document and
+         must not survive undo/replay. */
+      let action =
+        switch (action) {
+        | RefactorGesture(g) =>
+          let z = model.editor.state.zipper;
+          let info_map = model.statics.info_map;
+          let term = model.statics.term;
+          switch (Refactor.gesture(~info_map, ~term, g, z)) {
+          | Some(_) =>
+            insist_pending := None;
+            action;
+          | None =>
+            switch (Refactor.gesture_insist(~info_map, ~term, g, z)) {
+            | Some(kind) =>
+              let signature = (Haz3lcore.Indicated.index(z), g);
+              if (insist_pending^ == Some(signature)) {
+                insist_pending := None;
+                Action.Refactor(kind);
+              } else {
+                insist_pending := Some(signature);
+                CodeFlip.shake_insist();
+                action;
+              };
+            | None =>
+              insist_pending := None;
+              action;
+            }
+          };
+        | _ => action
+        };
       if (settings.core.flip_animations && Action.should_animate(action)) {
         /* the indication backing FLIPs by id like the caret; ids only
            survive the action when the same construct stays indicated

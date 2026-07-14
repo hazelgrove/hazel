@@ -204,6 +204,42 @@ let warn_invisible = (node: Js.t(Dom.node)): unit =>
     );
   };
 
+/* brief horizontal shake on the caret + indication backing: the
+   insist prompt (a remedied move is available; press again) */
+let shake_insist = (): unit => {
+  let ids = ["caret"] @ JsUtil.ids_with_prefix("indication-");
+  let keyframes =
+    Animation.Js.keyframes_unsafe([
+      ("transform", "translateX(0px)"),
+      ("transform", "translateX(-3px)"),
+      ("transform", "translateX(3px)"),
+      ("transform", "translateX(-2px)"),
+      ("transform", "translateX(0px)"),
+    ]);
+  let options =
+    Animation.Js.options_unsafe({
+      duration: 220,
+      easing: "ease-out",
+    });
+  ids
+  |> List.iter(id =>
+       switch (JsUtil.get_elem_by_id_opt(id)) {
+       | None => ()
+       | Some(el) =>
+         switch (
+           Js.Unsafe.meth_call(
+             el,
+             "animate",
+             [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+           )
+         ) {
+         | exception _ => ()
+         | _ => ()
+         }
+       }
+     );
+};
+
 let pending: ref(option(Measured.t)) = ref(None);
 
 /* Call during the MVU update, before the edit applies */
