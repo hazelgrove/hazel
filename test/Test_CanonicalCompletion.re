@@ -1426,8 +1426,10 @@ let probe_tydi = (acts: list(Action.t)): string => {
   let sug =
     switch (TyDi.suggestion(~ci, z)) {
     | None => "sug:NONE"
-    | Some((full, n)) =>
-      "sug:" ++ String.sub(full, n, String.length(full) - n)
+    | Some((head, n, tail)) =>
+      "sug:"
+      ++ String.sub(head, n, String.length(head) - n)
+      ++ TyDiSuggestion.flat_of_tail(tail)
     };
   String.concat(" | ", [tok, ci_s, sug]);
 };
