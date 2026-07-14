@@ -125,16 +125,21 @@ let profile_allows_affine_constant_reordering = profile =>
      );
 
 let goal_directed_finishers = (~domain, ~profile, request) =>
-  (
-    profile_allows_affine_constant_reordering(profile)
-      ? RewriteChecker.rational_affine_equivalent_with_constant_reordering(
-          request.source,
-          request.target,
-        )
-      : RewriteChecker.rational_affine_equivalent(
-          request.source,
-          request.target,
-        )
+  RewriteChecker.rational_affine_equivalent_with_capabilities(
+    ~allow_left_distribution=
+      Axioms.visible_rule_enabled(
+        profile.Axioms.step_policy,
+        "alg.distribute_mul_add",
+      ),
+    ~allow_right_distribution=
+      Axioms.visible_rule_enabled(
+        profile.Axioms.step_policy,
+        "alg.factor_common",
+      ),
+    ~allow_constant_reordering=
+      profile_allows_affine_constant_reordering(profile),
+    request.source,
+    request.target,
   )
     ? Axioms.guarded_normalization_backend_for_profile(
         profile,

@@ -933,7 +933,8 @@ let rational_affine_is_scalar_target = affine =>
   | [_, ..._] => false
   };
 
-let rec rational_affine_of_exp = (exp: Exp.t): rational_affine => {
+let rec rational_affine_of_exp_with_distribution =
+        (allow_distribution, exp: Exp.t): rational_affine => {
   let exp = strip_math_wrappers(exp);
   switch (exp.term) {
   | Atom(Int(value))
@@ -944,43 +945,58 @@ let rec rational_affine_of_exp = (exp: Exp.t): rational_affine => {
       rational_coeff(Bigint.of_int(value), Bigint.one),
     )
   | Parens(inner)
-  | Asc(inner, _) => rational_affine_of_exp(inner)
+  | Asc(inner, _) =>
+    rational_affine_of_exp_with_distribution(allow_distribution, inner)
   | UnOp(Int(Minus) | SInt(Minus) | Float(Minus), inner) =>
-    inner |> rational_affine_of_exp |> rational_affine_negate
+    rational_affine_of_exp_with_distribution(allow_distribution, inner)
+    |> rational_affine_negate
   | BinOp(op, left, right) when is_plus_op(op) =>
     rational_affine_add(
-      rational_affine_of_exp(left),
-      rational_affine_of_exp(right),
+      rational_affine_of_exp_with_distribution(allow_distribution, left),
+      rational_affine_of_exp_with_distribution(allow_distribution, right),
     )
   | BinOp(op, left, right) when is_minus_op(op) =>
     rational_affine_add(
-      rational_affine_of_exp(left),
-      right |> rational_affine_of_exp |> rational_affine_negate,
+      rational_affine_of_exp_with_distribution(allow_distribution, left),
+      rational_affine_of_exp_with_distribution(allow_distribution, right)
+      |> rational_affine_negate,
     )
   | BinOp(op, left, right) when is_times_op(op) =>
-    let left_affine = rational_affine_of_exp(left);
-    let right_affine = rational_affine_of_exp(right);
+    let left_affine =
+      rational_affine_of_exp_with_distribution(allow_distribution, left);
+    let right_affine =
+      rational_affine_of_exp_with_distribution(allow_distribution, right);
     switch (
       rational_affine_as_constant(left_affine),
       rational_affine_as_constant(right_affine),
     ) {
-    | (Some(scalar), _) when rational_affine_is_scalar_target(right_affine) =>
+    | (Some(scalar), _)
+        when
+          allow_distribution || rational_affine_is_scalar_target(right_affine) =>
       rational_affine_scale(scalar, right_affine)
-    | (_, Some(scalar)) when rational_affine_is_scalar_target(left_affine) =>
+    | (_, Some(scalar))
+        when
+          allow_distribution || rational_affine_is_scalar_target(left_affine) =>
       rational_affine_scale(scalar, left_affine)
     | (None, None) => rational_affine_atom(exp)
     | _ => rational_affine_atom(exp)
     };
   | BinOp(op, numerator, denominator) when is_divide_op(op) =>
-    let denominator_affine = rational_affine_of_exp(denominator);
+    let denominator_affine =
+      rational_affine_of_exp_with_distribution(
+        allow_distribution,
+        denominator,
+      );
+    let numerator_affine =
+      rational_affine_of_exp_with_distribution(allow_distribution, numerator);
     switch (rational_affine_as_constant(denominator_affine)) {
     | Some(denominator) =>
       switch (rational_inverse(denominator)) {
       | Some(scale)
           when
-            rational_affine_of_exp(numerator)
-            |> rational_affine_is_scalar_target =>
-        rational_affine_scale(scale, rational_affine_of_exp(numerator))
+            allow_distribution
+            || rational_affine_is_scalar_target(numerator_affine) =>
+        rational_affine_scale(scale, numerator_affine)
       | Some(_)
       | None => rational_affine_atom(exp)
       }
@@ -989,6 +1005,9 @@ let rec rational_affine_of_exp = (exp: Exp.t): rational_affine => {
   | _ => rational_affine_atom(exp)
   };
 };
+
+let rational_affine_of_exp = exp =>
+  rational_affine_of_exp_with_distribution(false, exp);
 
 let rec rational_affine_terms_equal = (left_terms, right_terms) =>
   switch (left_terms, right_terms) {
@@ -1054,7 +1073,8 @@ let rational_affine_scale_pieces = (scalar, pieces) =>
            });
      });
 
-let rec rational_affine_pieces_of_exp = (exp: Exp.t) => {
+let rec rational_affine_pieces_of_exp_with_distribution =
+        (allow_distribution, exp: Exp.t) => {
   let exp = strip_math_wrappers(exp);
   switch (exp.term) {
   | Atom(Int(value))
@@ -1071,41 +1091,69 @@ let rec rational_affine_pieces_of_exp = (exp: Exp.t) => {
       },
     ]
   | Parens(inner)
-  | Asc(inner, _) => rational_affine_pieces_of_exp(inner)
+  | Asc(inner, _) =>
+    rational_affine_pieces_of_exp_with_distribution(allow_distribution, inner)
   | UnOp(Int(Minus) | SInt(Minus) | Float(Minus), inner) =>
     rational_affine_scale_pieces(
       rational_coeff(Bigint.neg(Bigint.one), Bigint.one),
-      rational_affine_pieces_of_exp(inner),
+      rational_affine_pieces_of_exp_with_distribution(
+        allow_distribution,
+        inner,
+      ),
     )
   | BinOp(op, left, right) when is_plus_op(op) =>
     rational_affine_append_pieces(
-      rational_affine_pieces_of_exp(left),
-      rational_affine_pieces_of_exp(right),
+      rational_affine_pieces_of_exp_with_distribution(
+        allow_distribution,
+        left,
+      ),
+      rational_affine_pieces_of_exp_with_distribution(
+        allow_distribution,
+        right,
+      ),
     )
   | BinOp(op, left, right) when is_minus_op(op) =>
     rational_affine_append_pieces(
-      rational_affine_pieces_of_exp(left),
+      rational_affine_pieces_of_exp_with_distribution(
+        allow_distribution,
+        left,
+      ),
       rational_affine_scale_pieces(
         rational_coeff(Bigint.neg(Bigint.one), Bigint.one),
-        rational_affine_pieces_of_exp(right),
+        rational_affine_pieces_of_exp_with_distribution(
+          allow_distribution,
+          right,
+        ),
       ),
     )
   | BinOp(op, left, right) when is_times_op(op) =>
-    let left_affine = rational_affine_of_exp(left);
-    let right_affine = rational_affine_of_exp(right);
+    let left_affine =
+      rational_affine_of_exp_with_distribution(allow_distribution, left);
+    let right_affine =
+      rational_affine_of_exp_with_distribution(allow_distribution, right);
     switch (
       rational_affine_as_constant(left_affine),
       rational_affine_as_constant(right_affine),
     ) {
-    | (Some(scalar), _) when rational_affine_is_scalar_target(right_affine) =>
+    | (Some(scalar), _)
+        when
+          allow_distribution || rational_affine_is_scalar_target(right_affine) =>
       rational_affine_scale_pieces(
         scalar,
-        rational_affine_pieces_of_exp(right),
+        rational_affine_pieces_of_exp_with_distribution(
+          allow_distribution,
+          right,
+        ),
       )
-    | (_, Some(scalar)) when rational_affine_is_scalar_target(left_affine) =>
+    | (_, Some(scalar))
+        when
+          allow_distribution || rational_affine_is_scalar_target(left_affine) =>
       rational_affine_scale_pieces(
         scalar,
-        rational_affine_pieces_of_exp(left),
+        rational_affine_pieces_of_exp_with_distribution(
+          allow_distribution,
+          left,
+        ),
       )
     | _ => [
         {
@@ -1115,17 +1163,26 @@ let rec rational_affine_pieces_of_exp = (exp: Exp.t) => {
       ]
     };
   | BinOp(op, numerator, denominator) when is_divide_op(op) =>
-    let denominator_affine = rational_affine_of_exp(denominator);
+    let denominator_affine =
+      rational_affine_of_exp_with_distribution(
+        allow_distribution,
+        denominator,
+      );
+    let numerator_affine =
+      rational_affine_of_exp_with_distribution(allow_distribution, numerator);
     switch (rational_affine_as_constant(denominator_affine)) {
     | Some(denominator) =>
       switch (rational_inverse(denominator)) {
       | Some(scale)
           when
-            rational_affine_of_exp(numerator)
-            |> rational_affine_is_scalar_target =>
+            allow_distribution
+            || rational_affine_is_scalar_target(numerator_affine) =>
         rational_affine_scale_pieces(
           scale,
-          rational_affine_pieces_of_exp(numerator),
+          rational_affine_pieces_of_exp_with_distribution(
+            allow_distribution,
+            numerator,
+          ),
         )
       | Some(_)
       | None => [
@@ -1150,6 +1207,9 @@ let rec rational_affine_pieces_of_exp = (exp: Exp.t) => {
     ]
   };
 };
+
+let rational_affine_pieces_of_exp = exp =>
+  rational_affine_pieces_of_exp_with_distribution(false, exp);
 
 let rec rational_affine_pieces_equal = (left, right) =>
   switch (left, right) {
@@ -1186,14 +1246,25 @@ let rational_affine_pieces_equal_with_constant_reordering = (left, right) =>
        rational_affine_symbolic_pieces(right),
      );
 
-let rational_affine_normal_forms_equal = (left, right) => {
+let rational_affine_normal_forms_equal_with_distribution =
+    (allow_left_distribution, allow_right_distribution, left, right) => {
   let left_affine =
-    left |> rational_affine_of_exp |> rational_affine_canonicalize;
+    rational_affine_of_exp_with_distribution(allow_left_distribution, left)
+    |> rational_affine_canonicalize;
   let right_affine =
-    right |> rational_affine_of_exp |> rational_affine_canonicalize;
+    rational_affine_of_exp_with_distribution(allow_right_distribution, right)
+    |> rational_affine_canonicalize;
   rational_equal(left_affine.constant, right_affine.constant)
   && rational_affine_terms_equal(left_affine.terms, right_affine.terms);
 };
+
+let rational_affine_normal_forms_equal = (left, right) =>
+  rational_affine_normal_forms_equal_with_distribution(
+    false,
+    false,
+    left,
+    right,
+  );
 
 let rational_affine_equivalent = (left, right) => {
   rational_affine_normal_forms_equal(left, right)
@@ -1209,6 +1280,39 @@ let rational_affine_equivalent_with_constant_reordering = (left, right) =>
        rational_affine_pieces_of_exp(left),
        rational_affine_pieces_of_exp(right),
      );
+
+let rational_affine_equivalent_with_capabilities =
+    (
+      ~allow_left_distribution,
+      ~allow_right_distribution,
+      ~allow_constant_reordering,
+      left,
+      right,
+    ) =>
+  rational_affine_normal_forms_equal_with_distribution(
+    allow_left_distribution,
+    allow_right_distribution,
+    left,
+    right,
+  )
+  && {
+    let left_pieces =
+      rational_affine_pieces_of_exp_with_distribution(
+        allow_left_distribution,
+        left,
+      );
+    let right_pieces =
+      rational_affine_pieces_of_exp_with_distribution(
+        allow_right_distribution,
+        right,
+      );
+    allow_constant_reordering
+      ? rational_affine_pieces_equal_with_constant_reordering(
+          left_pieces,
+          right_pieces,
+        )
+      : rational_affine_pieces_equal(left_pieces, right_pieces);
+  };
 
 let rec contains_additive_shape = exp => {
   let exp = strip_math_wrappers(exp);

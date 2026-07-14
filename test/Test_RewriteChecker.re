@@ -4060,15 +4060,16 @@ let tests = (
       `Quick,
       () => {
         let x = Exp.var("x");
+        let y = Exp.var("y");
+        let z = Exp.var("z");
         let algebra_request =
           Web.ProofSearchBackend.{
             backend: Web.ProofSearchBackend.JSCoqTacticSearch,
             level: Algebra,
             max_depth: 4,
             max_states: 80,
-            source: times(Exp.int(2), plus(x, Exp.int(4))),
-            target:
-              plus(times(Exp.int(2), x), times(Exp.int(2), Exp.int(4))),
+            source: times(x, plus(y, z)),
+            target: plus(times(x, y), times(x, z)),
           };
         let check_result_coq =
           Web.ProofSearchBackend.rocq_search_program_for_purpose(
@@ -4534,6 +4535,95 @@ let tests = (
             constrained_coq,
           ),
         );
+        let factored_source =
+          plus(
+            divide(times(half, cos_4x), Exp.int(2)),
+            divide(half, Exp.int(2)),
+          );
+        let factored_target =
+          times(
+            divide(Exp.int(1), Exp.int(4)),
+            plus(Exp.int(1), cos_4x),
+          );
+        let factored_request = {
+          ...request,
+          source: factored_source,
+          target: factored_target,
+        };
+        let factored_coq =
+          Web.ProofSearchBackend.rocq_search_program(factored_request);
+        check(
+          bool,
+          "enabled distribution gives factored affine goals a compact certificate",
+          true,
+          String.length(factored_coq) < 1000
+          && string_contains("solve [\n    lra", factored_coq),
+        );
+        let opaque = Exp.var("u");
+        let opaque_factored_coq =
+          Web.ProofSearchBackend.rocq_search_program({
+            ...factored_request,
+            source:
+              plus(
+                divide(times(half, opaque), Exp.int(2)),
+                divide(half, Exp.int(2)),
+              ),
+            target:
+              times(
+                divide(Exp.int(1), Exp.int(4)),
+                plus(Exp.int(1), opaque),
+              ),
+          });
+        check(
+          bool,
+          "factored affine certificates are independent of trig syntax",
+          true,
+          String.length(opaque_factored_coq) < 1000
+          && (
+            string_contains("solve [\n    lia", opaque_factored_coq)
+            || string_contains("solve [\n    lra", opaque_factored_coq)
+          ),
+        );
+        let no_distribution_profile =
+          Axioms.math_profile(Trigonometry)
+          |> Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="alg.distribute_mul_add",
+             );
+        let no_distribution_factored_coq =
+          Web.ProofSearchBackend.rocq_search_program_for_profile_and_purpose(
+            ~profile=no_distribution_profile,
+            ~purpose=CheckResult,
+            factored_request,
+          );
+        check(
+          bool,
+          "factoring does not depend on the forward distribution rule",
+          true,
+          string_contains(
+            "Ltac hazel_profile_search :=\n  solve [\n    lra",
+            no_distribution_factored_coq,
+          ),
+        );
+        let no_factor_profile =
+          Axioms.math_profile(Trigonometry)
+          |> Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="alg.factor_common",
+             );
+        let no_factor_coq =
+          Web.ProofSearchBackend.rocq_search_program_for_profile_and_purpose(
+            ~profile=no_factor_profile,
+            ~purpose=CheckResult,
+            factored_request,
+          );
+        check(
+          bool,
+          "disabling factoring disables the factored affine certificate",
+          false,
+          string_contains(
+            "Ltac hazel_profile_search :=\n  solve [\n    lra",
+            no_factor_coq,
+          ),
+        );
         let distribution_coq =
           Web.ProofSearchBackend.rocq_search_program({
             ...request,
@@ -4543,11 +4633,31 @@ let tests = (
           });
         check(
           bool,
-          "distribution goal does not receive the affine certificate",
-          false,
+          "enabled numeric distribution receives the affine certificate",
+          true,
           string_contains(
             "Ltac hazel_profile_search :=\n  solve [",
             distribution_coq,
+          ),
+        );
+        let no_distribution_coq =
+          Web.ProofSearchBackend.rocq_search_program_for_profile_and_purpose(
+            ~profile=no_distribution_profile,
+            ~purpose=CheckResult,
+            {
+              ...request,
+              level: Algebra,
+              source: times(Exp.int(2), plus(x, Exp.int(1))),
+              target: plus(times(Exp.int(2), x), Exp.int(2)),
+            },
+          );
+        check(
+          bool,
+          "disabling distribution disables the expanded affine certificate",
+          false,
+          string_contains(
+            "Ltac hazel_profile_search :=\n  solve [",
+            no_distribution_coq,
           ),
         );
       },
