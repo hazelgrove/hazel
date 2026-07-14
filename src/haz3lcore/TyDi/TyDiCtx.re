@@ -14,7 +14,6 @@ let free_variables =
           Some({
             content: name,
             strategy: Pat(FromCoCtx(meet_use_typ)),
-            tail: [],
           });
         } else {
           None;
@@ -34,7 +33,6 @@ let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
       Some({
         content: name,
         strategy: Exp(Common(FromCtx(typ))),
-        tail: [],
       })
     | _ => None,
     ctx.entries,
@@ -48,7 +46,6 @@ let bound_livelits = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
       Some({
         content: "^" ++ name,
         strategy: Exp(Common(FromCtx(expansion_t))),
-        tail: [],
       })
     | _ => None,
     ctx.entries,
@@ -65,7 +62,6 @@ let bound_constructors =
       Some({
         content: name,
         strategy: wrap(FromCtx(typ)),
-        tail: [],
       })
     | _ => None,
     ctx.entries,
@@ -82,7 +78,6 @@ let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
         Some({
           content: name ++ "(",
           strategy: Exp(Common(FromCtxAp(ty_out))),
-          tail: [],
         });
       }
     | _ => None,
@@ -104,7 +99,6 @@ let bound_constructor_aps =
       Some({
         content: name ++ "(",
         strategy: wrap(FromCtxAp(ty_out)),
-        tail: [],
       })
     | _ => None,
     ctx.entries,
@@ -132,7 +126,6 @@ let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
               Some({
                 content: name ++ "." ++ label,
                 strategy: Exp(Common(FromCtx(field_ty))),
-                tail: [],
               })
             | _ => None
             },
@@ -165,7 +158,6 @@ let bound_qualified_aps =
               Some({
                 content: name ++ "." ++ label ++ "(",
                 strategy: Exp(Common(FromCtxAp(ty_out))),
-                tail: [],
               })
             | _ => None
             },
@@ -185,7 +177,6 @@ let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
       Some({
         content: name,
         strategy: Typ(FromCtx),
-        tail: [],
       })
     | _ => None,
     ctx.entries,
@@ -242,30 +233,9 @@ let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
  */
 
 let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
-  /* lookahead content is structured at the source: head token plus
-     tail delimiters; the flat content (for sorting/prefix-filtering)
-     is derived from the same structure so they cannot drift */
-  let restrategize = (tail, {content, strategy, _}: TyDiSuggestion.t) => {
-    content: content ++ TyDiSuggestion.flat_of_tail(tail),
+  let restrategize = (suffix, {content, strategy}) => {
+    content: content ++ suffix,
     strategy,
-    tail,
-  };
-  /* n separator commas, a hole between each pair */
-  let commas = (n: int): list(TyDiSuggestion.tail_delim) =>
-    List.init(n, i =>
-      TyDiSuggestion.{
-        text: ",",
-        hole_before: i > 0,
-      }
-    );
-  /* an ap lookahead closes over a hole argument: "( )..." */
-  let ap_close: TyDiSuggestion.tail_delim = {
-    text: ")",
-    hole_before: true,
-  };
-  let cons: TyDiSuggestion.tail_delim = {
-    text: "::",
-    hole_before: false,
   };
   let ctx = Info.ctx_of(ci);
   let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
@@ -281,12 +251,13 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
     switch (ana |> Typ.term_of) {
     | List(ty) =>
-      List.map(restrategize([ap_close, cons]), exp_aps(ty))
-      @ List.map(restrategize([cons]), exp_refs(ty))
+      List.map(restrategize(" )::"), exp_aps(ty))
+      @ List.map(restrategize("::"), exp_refs(ty))
     | Prod([ty, ...tys]) =>
-      let seps = commas(List.length(tys));
-      List.map(restrategize([ap_close, ...seps]), exp_aps(ty))
-      @ List.map(restrategize(seps), exp_refs(ty));
+      let commas =
+        List.init(List.length(tys), _ => ",") |> String.concat(" ");
+      List.map(restrategize(" )" ++ commas), exp_aps(ty))
+      @ List.map(restrategize(commas), exp_refs(ty));
     | Atom(Bool) =>
       /* TODO: Find a UI to make these less confusing */
       exp_refs(Atom(Int) |> Typ.fresh)
@@ -306,12 +277,13 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
     switch (ana |> Typ.term_of) {
     | List(ty) =>
-      List.map(restrategize([ap_close, cons]), pat_aps(ty))
-      @ List.map(restrategize([cons]), pat_refs(ty))
+      List.map(restrategize(" )::"), pat_aps(ty))
+      @ List.map(restrategize("::"), pat_refs(ty))
     | Prod([ty, ...tys]) =>
-      let seps = commas(List.length(tys));
-      List.map(restrategize([ap_close, ...seps]), pat_aps(ty))
-      @ List.map(restrategize(seps), pat_refs(ty));
+      let commas =
+        List.init(List.length(tys), _ => ",") |> String.concat(" ");
+      List.map(restrategize(" )" ++ commas), pat_aps(ty))
+      @ List.map(restrategize(commas), pat_refs(ty));
     | _ => []
     };
   | InfoTyp(_) => []

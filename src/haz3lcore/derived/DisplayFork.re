@@ -20,83 +20,6 @@ type t = {
   parsed: MakeTerm.t,
 };
 
-/* normalize_display's regrout DELETES a ghost hole the parser deems
-   unnecessary: display comments are invisible to nib logic, so the
-   promised hole in `st ⟨(⟩ ? ⟨)⟩, ?, ?)` sits between an operand and
-   a comma and gets dropped. The promise still owes it — restore any
-   ghost-marked grout that normalization removed, right after its
-   pre-normalization neighbor. */
-let restore_ghost_holes =
-    (~marks: list((Id.t, option(int))), ~pre: Segment.t, post: Segment.t)
-    : Segment.t => {
-  let marked = (id: Id.t) =>
-    List.exists(
-      ((mid, sh): (Id.t, option(int))) => sh == None && Id.equal(mid, id),
-      marks,
-    );
-  let rec ids = (acc, sg: Segment.t) =>
-    List.fold_left(
-      (acc, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) => List.fold_left(ids, [t.id, ...acc], t.children)
-        | p => [Piece.id(p), ...acc]
-        },
-      acc,
-      sg,
-    );
-  let post_ids = ids([], post);
-  let present = (id: Id.t) => List.exists(Id.equal(id), post_ids);
-  /* (preceding sibling id, grout) for each dropped marked hole whose
-     neighbor is a display comment — where a real delimiter precedes,
-     regrout's verdict is structural truth and stands */
-  let is_comment = (p: Piece.t) =>
-    switch (p) {
-    | Secondary({content: Comment(_), _}) => true
-    | _ => false
-    };
-  let rec dropped = (acc, prev: option(Piece.t), sg: Segment.t) =>
-    switch (sg) {
-    | [] => acc
-    | [p, ...tl] =>
-      let acc =
-        switch (p, prev) {
-        | (Piece.Grout(g), Some(prev))
-            when
-              marked(g.id)
-              && !present(g.id)
-              && is_comment(prev)
-              && present(Piece.id(prev)) => [
-            (Piece.id(prev), g),
-            ...acc,
-          ]
-        | (Piece.Tile(t), _) =>
-          List.fold_left((acc, c) => dropped(acc, None, c), acc, t.children)
-        | _ => acc
-        };
-      dropped(acc, Some(p), tl);
-    };
-  let rec insert_after = (sg: Segment.t, pid: Id.t, g: Grout.t): Segment.t =>
-    switch (sg) {
-    | [] => []
-    | [p, ...tl] =>
-      Id.equal(Piece.id(p), pid)
-        ? [p, Grout(g), ...tl]
-        : [
-          switch (p) {
-          | Tile(t) =>
-            Piece.Tile({
-              ...t,
-              children: List.map(c => insert_after(c, pid, g), t.children),
-            })
-          | p => p
-          },
-          ...insert_after(tl, pid, g),
-        ]
-    };
-  dropped([], None, pre)
-  |> List.fold_left((sg, (pid, g)) => insert_after(sg, pid, g), post);
-};
-
 /* degenerate fork: no assist machinery (settings off, init paths) */
 let plain = (z: Zipper.t): t => {
   let segment = Zipper.unselect_and_zip(z);
@@ -139,44 +62,7 @@ let mk_inner =
         switch (
           TyDi.suggestion(~ci=Indicated.ci_for_completion(z, info_map), z)
         ) {
-        | Some((head, typed_len, tail)) =>
-          /* T1 owns separator commas at a deficient site: when an
-             insertion at this anchor already promises them, the
-             lookahead's trailing commas would double-count — drop
-             them (the ap part of the tail stays) */
-          let t1_commas_here =
-            List.exists(
-              (ins: CanonicalCompletion.insertion) =>
-                Id.equal(ins.adjacent_id, anchor_id)
-                && ins.side == Util.Direction.Right
-                && List.exists(
-                     (d: CanonicalCompletion.delimiter_info) =>
-                       d.text == ","
-                       && d.of_shard == None
-                       && d.typed_len == None,
-                     ins.delimiters,
-                   ),
-              assist,
-            );
-          let rec drop_comma_suffix =
-                  (ds: list(TyDiSuggestion.tail_delim))
-                  : list(TyDiSuggestion.tail_delim) =>
-            switch (ds) {
-            | [] => []
-            | [d, ...rest] =>
-              switch (drop_comma_suffix(rest)) {
-              | [] when d.text == "," => []
-              | rest => [d, ...rest]
-              }
-            };
-          let tail = t1_commas_here ? drop_comma_suffix(tail) : tail;
-          /* tail hole-BEFORE flags become hole-AFTER (needs_hole) on
-             the preceding delimiter — ghost_pieces' convention */
-          let hole_after = (i: int) =>
-            switch (List.nth_opt(tail, i + 1)) {
-            | Some(d: TyDiSuggestion.tail_delim) => d.hole_before
-            | None => false
-            };
+        | Some((text, typed_len)) =>
           assist
           @ [
             CanonicalCompletion.{
@@ -185,24 +71,14 @@ let mk_inner =
               splice: Some((anchor_id, None, Util.Direction.Right)),
               delimiters: [
                 {
-                  text: head,
-                  needs_hole: hole_after(-1),
+                  text,
+                  needs_hole: false,
                   typed_len: Some(typed_len),
                   of_shard: None,
                 },
-                ...List.mapi(
-                     (i, d: TyDiSuggestion.tail_delim) =>
-                       CanonicalCompletion.{
-                         text: d.text,
-                         needs_hole: hole_after(i),
-                         typed_len: None,
-                         of_shard: None,
-                       },
-                     tail,
-                   ),
               ],
             },
-          ];
+          ]
         | None => assist
         }
       | _ => assist
@@ -309,7 +185,6 @@ let mk_inner =
         ? segment
         : segment
           |> CanonicalCompletion.normalize_display
-          |> restore_ghost_holes(~marks=ghost_marks, ~pre=segment)
           |> CanonicalCompletion.finish_display(
                ~marks=ghost_marks,
                ~raw,

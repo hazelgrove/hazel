@@ -3142,29 +3142,26 @@ let left_separated = (z: Zipper.t): bool =>
   };
 
 let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
-  let rec go = (ds: list(delimiter_info)) =>
-    switch (ds) {
-    | [] => None
-    | [d, ...rest] =>
-      switch (d.typed_len) {
-      | Some(n) when n < String.length(d.text) =>
-        Some(String.sub(d.text, n, String.length(d.text) - n))
-      | Some(_) => go(rest) /* fully-typed witness: next chunk */
-      | None =>
-        let lead = !f1_hugs_left(d.text) && !left_separated(z);
-        /* no trailing pad when the accepted delimiter ends its line —
-           the next material lives on a later line already */
-        let next_is_break =
-          switch (snd(z.relatives.siblings)) {
-          | [Secondary(w), ..._] => Secondary.is_linebreak(w)
-          | _ => false
-          };
-        let trail =
-          !f1_closes(d.text) && !f1_opens(d.text) && !next_is_break;
-        Some((lead ? " " : "") ++ d.text ++ (trail ? " " : ""));
-      }
-    };
-  go(ins.delimiters);
+  switch (ins.delimiters) {
+  | [] => None
+  | [d, ..._] =>
+    switch (d.typed_len) {
+    | Some(n) when n < String.length(d.text) =>
+      Some(String.sub(d.text, n, String.length(d.text) - n))
+    | Some(_) => None
+    | None =>
+      let lead = !f1_hugs_left(d.text) && !left_separated(z);
+      /* no trailing pad when the accepted delimiter ends its line —
+         the next material lives on a later line already */
+      let next_is_break =
+        switch (snd(z.relatives.siblings)) {
+        | [Secondary(w), ..._] => Secondary.is_linebreak(w)
+        | _ => false
+        };
+      let trail = !f1_closes(d.text) && !f1_opens(d.text) && !next_is_break;
+      Some((lead ? " " : "") ++ d.text ++ (trail ? " " : ""));
+    }
+  };
 };
 
 /* === Ghost splicing (display fork v2) ===

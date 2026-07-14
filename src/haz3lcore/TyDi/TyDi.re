@@ -24,7 +24,6 @@ let suggest_witnesses = (z: Zipper.t): list(t) =>
                Some({
                  content: text,
                  strategy: Any(FromMissingShards),
-                 tail: [],
                })
              | _ => None
              }
@@ -58,7 +57,6 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
         TyDiSuggestion.{
           content: label,
           strategy: Exp(Common(FromCtx(Label(label) |> Typ.fresh))),
-          tail: [],
         },
       dot_labels,
     )
@@ -72,7 +70,6 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
         TyDiSuggestion.{
           content: label,
           strategy: Typ(FromCtx),
-          tail: [],
         },
       labels,
     )
@@ -120,16 +117,13 @@ let anchor_to_left = (z: Zipper.t): option((Id.t, string)) =>
 let token_to_left = (z: Zipper.t): option(string) =>
   anchor_to_left(z) |> Option.map(snd);
 
-/* The top type-directed suggestion at the caret, STRUCTURED: the
- * completed head token, the typed-prefix length, and any lookahead
- * tail delimiters (")" / "::" / ","). Presentation and acceptance
+/* The top type-directed suggestion at the caret: the FULL completed
+ * token plus the typed-prefix length. Presentation and acceptance
  * both run through the unified assist/ghost channel: DisplayFork
  * appends this as a witness insertion (T2), so the inline ghost,
  * chips, and Tab all read one stream — the selection-buffer
  * mechanism this replaced is gone. */
-let suggestion =
-    (~ci: option(Info.t), z: Zipper.t)
-    : option((Token.t, int, list(TyDiSuggestion.tail_delim))) => {
+let suggestion = (~ci: option(Info.t), z: Zipper.t): option((Token.t, int)) => {
   let* _ =
     switch (z.selection.mode) {
     /* no suggestion over a selection or a pending (LLM) buffer */
@@ -171,13 +165,6 @@ let suggestion =
     );
   let* _ = has_exact_match ? None : Some();
   let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
-  /* prefix-filtered and not exact ⇒ strictly longer than the prefix.
-     A typed prefix reaching into the tail's flat text can't happen
-     for current tails (token breaks at "(" "," "::"), but fall back
-     to the flat form rather than promise a malformed head */
-  let head = TyDiSuggestion.head_of(top_suggestion);
-  let (head, tail) =
-    String.length(tok_to_left) <= String.length(head)
-      ? (head, top_suggestion.tail) : (top_suggestion.content, []);
-  Some((head, String.length(tok_to_left), tail));
+  /* prefix-filtered and not exact ⇒ strictly longer than the prefix */
+  Some((top_suggestion.content, String.length(tok_to_left)));
 };
