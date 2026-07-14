@@ -491,21 +491,24 @@ let is_plus_op =
   fun
   | Operators.Int(Operators.Plus)
   | Nat(Plus)
-  | SInt(Plus) => true
+  | SInt(Plus)
+  | Float(Plus) => true
   | _ => false;
 
 let is_times_op =
   fun
   | Operators.Int(Operators.Times)
   | Nat(Times)
-  | SInt(Times) => true
+  | SInt(Times)
+  | Float(Times) => true
   | _ => false;
 
 let is_divide_op =
   fun
   | Operators.Int(Operators.Divide)
   | Nat(Divide)
-  | SInt(Divide) => true
+  | SInt(Divide)
+  | Float(Divide) => true
   | _ => false;
 
 let is_power_op =
@@ -711,7 +714,8 @@ let distributed_additive_exp = (add_op, left, right) =>
 let is_minus_op =
   fun
   | Operators.Int(Operators.Minus)
-  | SInt(Minus) => true
+  | SInt(Minus)
+  | Float(Minus) => true
   | _ => false;
 
 let is_int_two = exp =>
@@ -728,8 +732,445 @@ let square_exp_with_op = (power_op, exp) =>
 let square_exp = exp =>
   square_exp_with_op(Operators.Int(Operators.Power), exp);
 
-let same_math_exp = (left, right) =>
-  Exp.fast_equal(strip_math_wrappers(left), strip_math_wrappers(right));
+let same_math_numeric_bin_op = (left, right) =>
+  is_plus_op(left)
+  && is_plus_op(right)
+  || is_minus_op(left)
+  && is_minus_op(right)
+  || is_times_op(left)
+  && is_times_op(right)
+  || is_divide_op(left)
+  && is_divide_op(right)
+  || is_power_op(left)
+  && is_power_op(right);
+
+let is_numeric_minus = (op: Operators.op_un) =>
+  switch (op) {
+  | Operators.Int(Operators.Minus)
+  | Nat(Minus)
+  | SInt(Minus)
+  | Float(Minus) => true
+  | _ => false
+  };
+
+let is_real_math_builtin =
+  fun
+  | "sin"
+  | "cos"
+  | "tan" => true
+  | _ => false;
+
+let rec same_math_exp = (left, right) => {
+  let left = strip_math_wrappers(left);
+  let right = strip_math_wrappers(right);
+  if (Exp.fast_equal(left, right)) {
+    true;
+  } else {
+    switch (left.term, right.term) {
+    | (BinOp(left_op, left_a, left_b), BinOp(right_op, right_a, right_b))
+        when same_math_numeric_bin_op(left_op, right_op) =>
+      same_math_exp(left_a, right_a) && same_math_exp(left_b, right_b)
+    | (UnOp(left_op, left_inner), UnOp(right_op, right_inner))
+        when is_numeric_minus(left_op) && is_numeric_minus(right_op) =>
+      same_math_exp(left_inner, right_inner)
+    | (
+        Ap(left_direction, left_fn, left_arg),
+        Ap(right_direction, right_fn, right_arg),
+      ) =>
+      left_direction == right_direction
+      && same_math_exp(left_fn, right_fn)
+      && same_math_exp(left_arg, right_arg)
+    | (Atom(Int(left)), Atom(Nat(right)))
+    | (Atom(Nat(left)), Atom(Int(right))) => Bigint.equal(left, right)
+    | (Atom(Int(left)), Atom(SInt(right)))
+    | (Atom(Nat(left)), Atom(SInt(right))) =>
+      Bigint.equal(left, Bigint.of_int(right))
+    | (Atom(SInt(left)), Atom(Int(right)))
+    | (Atom(SInt(left)), Atom(Nat(right))) =>
+      Bigint.equal(Bigint.of_int(left), right)
+    | (BuiltinFun(left), Var(right))
+    | (Var(left), BuiltinFun(right)) =>
+      left == right && is_real_math_builtin(left)
+    | _ => false
+    };
+  };
+};
+
+type rational_coeff = {
+  numerator: Bigint.t,
+  denominator: Bigint.t,
+};
+
+type rational_affine = {
+  constant: rational_coeff,
+  terms: list((Exp.t, rational_coeff)),
+};
+
+type rational_affine_piece = {
+  atom: option(Exp.t),
+  coeff: rational_coeff,
+};
+
+let rational_coeff = (numerator, denominator) =>
+  Bigint.(<)(denominator, Bigint.zero)
+    ? {
+      numerator: Bigint.neg(numerator),
+      denominator: Bigint.neg(denominator),
+    }
+    : {
+      numerator,
+      denominator,
+    };
+
+let rational_zero = rational_coeff(Bigint.zero, Bigint.one);
+let rational_one = rational_coeff(Bigint.one, Bigint.one);
+
+let rational_is_zero = value => Bigint.equal(value.numerator, Bigint.zero);
+
+let rational_equal = (left, right) =>
+  Bigint.equal(
+    Bigint.( * )(left.numerator, right.denominator),
+    Bigint.( * )(right.numerator, left.denominator),
+  );
+
+let rational_add = (left, right) =>
+  rational_coeff(
+    Bigint.(+)(
+      Bigint.( * )(left.numerator, right.denominator),
+      Bigint.( * )(right.numerator, left.denominator),
+    ),
+    Bigint.( * )(left.denominator, right.denominator),
+  );
+
+let rational_negate = value =>
+  rational_coeff(Bigint.neg(value.numerator), value.denominator);
+
+let rational_multiply = (left, right) =>
+  rational_coeff(
+    Bigint.( * )(left.numerator, right.numerator),
+    Bigint.( * )(left.denominator, right.denominator),
+  );
+
+let rational_inverse = value =>
+  rational_is_zero(value)
+    ? None : Some(rational_coeff(value.denominator, value.numerator));
+
+let rec rational_add_term = (term, coeff, terms) =>
+  if (rational_is_zero(coeff)) {
+    terms;
+  } else {
+    switch (terms) {
+    | [] => [(term, coeff)]
+    | [(candidate, candidate_coeff), ...rest]
+        when same_math_exp(term, candidate) =>
+      let combined = rational_add(coeff, candidate_coeff);
+      rational_is_zero(combined) ? rest : [(candidate, combined), ...rest];
+    | [candidate, ...rest] => [
+        candidate,
+        ...rational_add_term(term, coeff, rest),
+      ]
+    };
+  };
+
+let rational_affine_canonicalize = affine => {
+  ...affine,
+  terms:
+    affine.terms
+    |> List.fold_left(
+         (terms, (term, coeff)) => rational_add_term(term, coeff, terms),
+         [],
+       ),
+};
+
+let rational_affine_constant = constant => {
+  constant,
+  terms: [],
+};
+
+let rational_affine_atom = exp => {
+  constant: rational_zero,
+  terms: [(strip_math_wrappers(exp), rational_one)],
+};
+
+let rational_affine_add = (left, right) =>
+  rational_affine_canonicalize({
+    constant: rational_add(left.constant, right.constant),
+    terms: left.terms @ right.terms,
+  });
+
+let rational_affine_negate = affine =>
+  rational_affine_canonicalize({
+    constant: rational_negate(affine.constant),
+    terms:
+      affine.terms
+      |> List.map(((term, coeff)) => (term, rational_negate(coeff))),
+  });
+
+let rational_affine_scale = (scalar, affine) =>
+  rational_affine_canonicalize({
+    constant: rational_multiply(scalar, affine.constant),
+    terms:
+      affine.terms
+      |> List.map(((term, coeff)) =>
+           (term, rational_multiply(scalar, coeff))
+         ),
+  });
+
+let rational_affine_as_constant = affine =>
+  switch (affine.terms) {
+  | [] => Some(affine.constant)
+  | [_]
+  | [_, ..._] => None
+  };
+
+let rational_affine_is_scalar_target = affine =>
+  switch (affine.terms) {
+  | [] => true
+  | [_] => rational_is_zero(affine.constant)
+  | [_, ..._] => false
+  };
+
+let rec rational_affine_of_exp = (exp: Exp.t): rational_affine => {
+  let exp = strip_math_wrappers(exp);
+  switch (exp.term) {
+  | Atom(Int(value))
+  | Atom(Nat(value)) =>
+    rational_affine_constant(rational_coeff(value, Bigint.one))
+  | Atom(SInt(value)) =>
+    rational_affine_constant(
+      rational_coeff(Bigint.of_int(value), Bigint.one),
+    )
+  | Parens(inner)
+  | Asc(inner, _) => rational_affine_of_exp(inner)
+  | UnOp(Int(Minus) | SInt(Minus) | Float(Minus), inner) =>
+    inner |> rational_affine_of_exp |> rational_affine_negate
+  | BinOp(op, left, right) when is_plus_op(op) =>
+    rational_affine_add(
+      rational_affine_of_exp(left),
+      rational_affine_of_exp(right),
+    )
+  | BinOp(op, left, right) when is_minus_op(op) =>
+    rational_affine_add(
+      rational_affine_of_exp(left),
+      right |> rational_affine_of_exp |> rational_affine_negate,
+    )
+  | BinOp(op, left, right) when is_times_op(op) =>
+    let left_affine = rational_affine_of_exp(left);
+    let right_affine = rational_affine_of_exp(right);
+    switch (
+      rational_affine_as_constant(left_affine),
+      rational_affine_as_constant(right_affine),
+    ) {
+    | (Some(scalar), _) when rational_affine_is_scalar_target(right_affine) =>
+      rational_affine_scale(scalar, right_affine)
+    | (_, Some(scalar)) when rational_affine_is_scalar_target(left_affine) =>
+      rational_affine_scale(scalar, left_affine)
+    | (None, None) => rational_affine_atom(exp)
+    | _ => rational_affine_atom(exp)
+    };
+  | BinOp(op, numerator, denominator) when is_divide_op(op) =>
+    let denominator_affine = rational_affine_of_exp(denominator);
+    switch (rational_affine_as_constant(denominator_affine)) {
+    | Some(denominator) =>
+      switch (rational_inverse(denominator)) {
+      | Some(scale)
+          when
+            rational_affine_of_exp(numerator)
+            |> rational_affine_is_scalar_target =>
+        rational_affine_scale(scale, rational_affine_of_exp(numerator))
+      | Some(_)
+      | None => rational_affine_atom(exp)
+      }
+    | None => rational_affine_atom(exp)
+    };
+  | _ => rational_affine_atom(exp)
+  };
+};
+
+let rec rational_affine_terms_equal = (left_terms, right_terms) =>
+  switch (left_terms, right_terms) {
+  | ([], []) => true
+  | (
+      [(left_term, left_coeff), ...left_rest],
+      [(right_term, right_coeff), ...right_rest],
+    ) =>
+    same_math_exp(left_term, right_term)
+    && rational_equal(left_coeff, right_coeff)
+    && rational_affine_terms_equal(left_rest, right_rest)
+  | ([], [_, ..._])
+  | ([_, ..._], []) => false
+  };
+
+let rational_affine_piece_same_atom = (left, right) =>
+  switch (left.atom, right.atom) {
+  | (None, None) => true
+  | (Some(left), Some(right)) => same_math_exp(left, right)
+  | (None, Some(_))
+  | (Some(_), None) => false
+  };
+
+let rec rational_affine_append_piece = (pieces, piece) =>
+  rational_is_zero(piece.coeff)
+    ? pieces
+    : (
+      switch (pieces) {
+      | [] => [piece]
+      | [last] when rational_affine_piece_same_atom(last, piece) =>
+        let coeff = rational_add(last.coeff, piece.coeff);
+        rational_is_zero(coeff)
+          ? []
+          : [
+            {
+              ...last,
+              coeff,
+            },
+          ];
+      | [first, ...rest] => [
+          first,
+          ...rational_affine_append_piece(rest, piece),
+        ]
+      }
+    );
+
+let rational_affine_append_pieces = (left, right) =>
+  right
+  |> List.fold_left(
+       (pieces, piece) => rational_affine_append_piece(pieces, piece),
+       left,
+     );
+
+let rational_affine_scale_pieces = (scalar, pieces) =>
+  pieces
+  |> List.filter_map(piece => {
+       let coeff = rational_multiply(scalar, piece.coeff);
+       rational_is_zero(coeff)
+         ? None
+         : Some({
+             ...piece,
+             coeff,
+           });
+     });
+
+let rec rational_affine_pieces_of_exp = (exp: Exp.t) => {
+  let exp = strip_math_wrappers(exp);
+  switch (exp.term) {
+  | Atom(Int(value))
+  | Atom(Nat(value)) => [
+      {
+        atom: None,
+        coeff: rational_coeff(value, Bigint.one),
+      },
+    ]
+  | Atom(SInt(value)) => [
+      {
+        atom: None,
+        coeff: rational_coeff(Bigint.of_int(value), Bigint.one),
+      },
+    ]
+  | Parens(inner)
+  | Asc(inner, _) => rational_affine_pieces_of_exp(inner)
+  | UnOp(Int(Minus) | SInt(Minus) | Float(Minus), inner) =>
+    rational_affine_scale_pieces(
+      rational_coeff(Bigint.neg(Bigint.one), Bigint.one),
+      rational_affine_pieces_of_exp(inner),
+    )
+  | BinOp(op, left, right) when is_plus_op(op) =>
+    rational_affine_append_pieces(
+      rational_affine_pieces_of_exp(left),
+      rational_affine_pieces_of_exp(right),
+    )
+  | BinOp(op, left, right) when is_minus_op(op) =>
+    rational_affine_append_pieces(
+      rational_affine_pieces_of_exp(left),
+      rational_affine_scale_pieces(
+        rational_coeff(Bigint.neg(Bigint.one), Bigint.one),
+        rational_affine_pieces_of_exp(right),
+      ),
+    )
+  | BinOp(op, left, right) when is_times_op(op) =>
+    let left_affine = rational_affine_of_exp(left);
+    let right_affine = rational_affine_of_exp(right);
+    switch (
+      rational_affine_as_constant(left_affine),
+      rational_affine_as_constant(right_affine),
+    ) {
+    | (Some(scalar), _) when rational_affine_is_scalar_target(right_affine) =>
+      rational_affine_scale_pieces(
+        scalar,
+        rational_affine_pieces_of_exp(right),
+      )
+    | (_, Some(scalar)) when rational_affine_is_scalar_target(left_affine) =>
+      rational_affine_scale_pieces(
+        scalar,
+        rational_affine_pieces_of_exp(left),
+      )
+    | _ => [
+        {
+          atom: Some(exp),
+          coeff: rational_one,
+        },
+      ]
+    };
+  | BinOp(op, numerator, denominator) when is_divide_op(op) =>
+    let denominator_affine = rational_affine_of_exp(denominator);
+    switch (rational_affine_as_constant(denominator_affine)) {
+    | Some(denominator) =>
+      switch (rational_inverse(denominator)) {
+      | Some(scale)
+          when
+            rational_affine_of_exp(numerator)
+            |> rational_affine_is_scalar_target =>
+        rational_affine_scale_pieces(
+          scale,
+          rational_affine_pieces_of_exp(numerator),
+        )
+      | Some(_)
+      | None => [
+          {
+            atom: Some(exp),
+            coeff: rational_one,
+          },
+        ]
+      }
+    | None => [
+        {
+          atom: Some(exp),
+          coeff: rational_one,
+        },
+      ]
+    };
+  | _ => [
+      {
+        atom: Some(exp),
+        coeff: rational_one,
+      },
+    ]
+  };
+};
+
+let rec rational_affine_pieces_equal = (left, right) =>
+  switch (left, right) {
+  | ([], []) => true
+  | ([left, ...left_rest], [right, ...right_rest]) =>
+    rational_affine_piece_same_atom(left, right)
+    && rational_equal(left.coeff, right.coeff)
+    && rational_affine_pieces_equal(left_rest, right_rest)
+  | ([], [_, ..._])
+  | ([_, ..._], []) => false
+  };
+
+let rational_affine_equivalent = (left, right) => {
+  let left_affine =
+    left |> rational_affine_of_exp |> rational_affine_canonicalize;
+  let right_affine =
+    right |> rational_affine_of_exp |> rational_affine_canonicalize;
+  rational_equal(left_affine.constant, right_affine.constant)
+  && rational_affine_terms_equal(left_affine.terms, right_affine.terms)
+  && rational_affine_pieces_equal(
+       rational_affine_pieces_of_exp(left),
+       rational_affine_pieces_of_exp(right),
+     );
+};
 
 let rec contains_additive_shape = exp => {
   let exp = strip_math_wrappers(exp);

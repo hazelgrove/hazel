@@ -101,6 +101,7 @@ type math_rule_kind =
   | VisibleRule
   | CleanupRule
   | NormalizationRule
+  | GuardedNormalizationRule
   | TacticOnlyRule;
 
 type math_rule_direction =
@@ -1842,6 +1843,30 @@ let catalog_rule =
   );
 
 let math_rule_catalog = {
+  let affine_normalization_backend =
+    rocq_rule_backend(~tactic="lia", ~integers=["lia"], ~reals=["lra"]);
+  let affine_normalization_rule = {
+    id: "arith.affine_normalize",
+    metadata:
+      operation_metadata(
+        ~id="arith.affine_normalize",
+        ~name="Normalize affine arithmetic",
+        ~short_name="Affine",
+        ~example="1 + x / 2 + x / 2 = x + 1",
+      ),
+    level: Arithmetic,
+    kind: GuardedNormalizationRule,
+    direction: BothDirections,
+    hazel_backend: None,
+    rocq_backend:
+      Some({
+        ...affine_normalization_backend,
+        mode: FinishOnly,
+      }),
+    visible_levels: [],
+    visible_mode: VisibleOnce,
+    allowed_cleanup: [],
+  };
   let factor_polynomial_backend =
     rocq_rule_backend(
       ~tactic="hazel_factor_polynomial",
@@ -2012,7 +2037,11 @@ let math_rule_catalog = {
   @ algebra_rules
   @ replay_only_rules
   @ trig_rules
-  @ [Some(factor_polynomial_rule), Some(rational_square_rule)]
+  @ [
+    Some(affine_normalization_rule),
+    Some(factor_polynomial_rule),
+    Some(rational_square_rule),
+  ]
   |> List.filter_map(value => value);
 };
 
@@ -2500,6 +2529,18 @@ let normalization_backends_for_profile = (profile: math_profile) => {
   | _ => catalog_backends
   };
 };
+
+let guarded_normalization_backend_for_profile =
+    (profile: math_profile, rule_id) =>
+  switch (catalog_rule_by_id(rule_id)) {
+  | Some(rule)
+      when
+        rule.kind == GuardedNormalizationRule
+        && rewrite_level_rank(rule.level) <= profile.rank =>
+    rule.rocq_backend
+  | Some(_)
+  | None => None
+  };
 
 let stage_plan_for_profile = (profile: math_profile, stage) => {
   let unresolved = unresolved_visible_rule_ids(profile.step_policy);

@@ -1492,6 +1492,29 @@ let tests = (
           );
         | None => fail("missing power multiplication catalog rule")
         };
+        switch (Axioms.catalog_rule_by_id("arith.affine_normalize")) {
+        | Some(rule) =>
+          check(
+            bool,
+            "affine normalization is syntax guarded",
+            true,
+            rule.kind == Axioms.GuardedNormalizationRule,
+          );
+          check(
+            list(string),
+            "real affine certificate comes from the catalog",
+            ["lra"],
+            switch (rule.rocq_backend) {
+            | Some(backend) =>
+              Axioms.rocq_tactics_for_domain(
+                ~domain=Axioms.RocqReals,
+                backend.search_tactics,
+              )
+            | None => []
+            },
+          );
+        | None => fail("missing guarded affine normalization rule")
+        };
       },
     ),
     test_case(
@@ -3752,25 +3775,22 @@ let tests = (
       "Rocq tactic-search programs select purpose-specific plans",
       `Quick,
       () => {
+        let x = Exp.var("x");
         let algebra_request =
           Web.ProofSearchBackend.{
             backend: Web.ProofSearchBackend.JSCoqTacticSearch,
             level: Algebra,
             max_depth: 4,
             max_states: 80,
-            source: times(Exp.int(2), plus(Exp.int(3), Exp.int(4))),
+            source: times(Exp.int(2), plus(x, Exp.int(4))),
             target:
-              plus(
-                times(Exp.int(2), Exp.int(3)),
-                times(Exp.int(2), Exp.int(4)),
-              ),
+              plus(times(Exp.int(2), x), times(Exp.int(2), Exp.int(4))),
           };
         let check_result_coq =
           Web.ProofSearchBackend.rocq_search_program_for_purpose(
             ~purpose=CheckResult,
             algebra_request,
           );
-        let x = Exp.var("x");
         let cleanup_request =
           Web.ProofSearchBackend.{
             ...algebra_request,
@@ -3815,7 +3835,7 @@ let tests = (
         );
         check(
           bool,
-          "check-result search uses profile-constrained iterative search",
+          "check-result search uses profile-constrained bounded search",
           true,
           string_contains(
             "intros.\nhazel_profile_search.\nQed.",
@@ -3855,6 +3875,15 @@ let tests = (
           false,
           string_contains(
             "hazel_profile_search_exact 5%nat",
+            check_result_coq,
+          ),
+        );
+        check(
+          bool,
+          "check-result search does not repeat smaller exact-depth searches",
+          false,
+          string_contains(
+            "\n  | hazel_profile_search_exact 3%nat",
             check_result_coq,
           ),
         );
@@ -3983,6 +4012,189 @@ let tests = (
           string_contains(
             "try solve [hazel_trigonometry]",
             primitive_trig_coq,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "Rocq profile search uses guarded affine certificates",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let cos_2x = builtin_cos(times(Exp.int(2), x));
+        let half = divide(Exp.int(1), Exp.int(2));
+        let source = plus(Exp.int(1), minus(half, cos_2x));
+        let target = minus(divide(Exp.int(3), Exp.int(2)), cos_2x);
+        check(
+          bool,
+          "exact rational constants normalize around an opaque trig term",
+          true,
+          Web.RewriteChecker.rational_affine_equivalent(source, target),
+        );
+        let float_bin = (op, left, right) =>
+          Exp.bin_op(Operators.Float(op), left, right);
+        let float_source =
+          float_bin(
+            Operators.Plus,
+            Exp.int(1),
+            float_bin(
+              Operators.Minus,
+              float_bin(Operators.Divide, Exp.int(1), Exp.int(2)),
+              cos_2x,
+            ),
+          );
+        let float_target =
+          float_bin(
+            Operators.Minus,
+            float_bin(Operators.Divide, Exp.int(3), Exp.int(2)),
+            builtin_cos(float_bin(Operators.Times, Exp.int(2), x)),
+          );
+        check(
+          bool,
+          "UI-elaborated float operators use the same rational certificate",
+          true,
+          Web.RewriteChecker.rational_affine_equivalent(
+            float_source,
+            float_target,
+          ),
+        );
+        check(
+          bool,
+          "target-editor trig variables match selected builtin functions",
+          true,
+          Web.RewriteChecker.rational_affine_equivalent(
+            source,
+            minus(
+              divide(Exp.int(3), Exp.int(2)),
+              cos(times(Exp.int(2), x)),
+            ),
+          ),
+        );
+        check(
+          bool,
+          "arbitrary unresolved functions do not match builtins",
+          false,
+          Web.RewriteChecker.same_math_exp(
+            Language.Exp.fresh(BuiltinFun("map")),
+            Exp.var("map"),
+          ),
+        );
+        check(
+          bool,
+          "reordered symbolic terms are not hidden by affine normalization",
+          false,
+          Web.RewriteChecker.rational_affine_equivalent(
+            plus(x, y),
+            plus(y, x),
+          ),
+        );
+        check(
+          bool,
+          "moving a constant across a symbolic term is not hidden",
+          false,
+          Web.RewriteChecker.rational_affine_equivalent(
+            plus(plus(x, Exp.int(1)), y),
+            plus(plus(x, y), Exp.int(1)),
+          ),
+        );
+        check(
+          bool,
+          "separated like terms are not collected across a constant",
+          false,
+          Web.RewriteChecker.rational_affine_equivalent(
+            plus(plus(x, Exp.int(1)), x),
+            plus(times(Exp.int(2), x), Exp.int(1)),
+          ),
+        );
+        check(
+          bool,
+          "distribution remains a separate visible capability",
+          false,
+          Web.RewriteChecker.rational_affine_equivalent(
+            times(Exp.int(2), plus(x, Exp.int(1))),
+            plus(times(Exp.int(2), x), Exp.int(2)),
+          ),
+        );
+        check(
+          bool,
+          "nonlinear power conversion is not classified as affine",
+          false,
+          Web.RewriteChecker.rational_affine_equivalent(
+            times(x, x),
+            power(x, Exp.int(2)),
+          ),
+        );
+        check(
+          bool,
+          "inequivalent affine constants are rejected before Rocq",
+          false,
+          Web.RewriteChecker.rational_affine_equivalent(
+            plus(x, Exp.int(1)),
+            plus(x, Exp.int(2)),
+          ),
+        );
+        let request =
+          Web.ProofSearchBackend.{
+            backend: Web.ProofSearchBackend.JSCoqTacticSearch,
+            level: Trigonometry,
+            max_depth: 4,
+            max_states: 80,
+            source,
+            target,
+          };
+        let coq = Web.ProofSearchBackend.rocq_search_program(request);
+        write_text_file("/tmp/hazel_stepper_rocq_affine_opaque_trig.v", coq);
+        check(
+          bool,
+          "guarded affine certificate runs before branching search",
+          true,
+          string_contains(
+            "Ltac hazel_profile_search :=\n  solve [\n    lra",
+            coq,
+          ),
+        );
+        check(
+          bool,
+          "guarded affine certificate uses the catalog tactic",
+          true,
+          string_contains("solve [\n    lra", coq),
+        );
+        check(
+          bool,
+          "guarded affine certificate omits the branching trig prelude",
+          false,
+          string_contains("Ltac hazel_trig_identity_context", coq),
+        );
+        check(
+          bool,
+          "guarded affine certificate stays compact",
+          true,
+          String.length(coq) < 1000,
+        );
+        check(
+          bool,
+          "guarded affine certificate remains a profile search result",
+          true,
+          string_contains(
+            "Ltac hazel_profile_search :=\n  solve [\n    lra",
+            coq,
+          ),
+        );
+        let distribution_coq =
+          Web.ProofSearchBackend.rocq_search_program({
+            ...request,
+            level: Algebra,
+            source: times(Exp.int(2), plus(x, Exp.int(1))),
+            target: plus(times(Exp.int(2), x), Exp.int(2)),
+          });
+        check(
+          bool,
+          "distribution goal does not receive the affine certificate",
+          false,
+          string_contains(
+            "Ltac hazel_profile_search :=\n  solve [",
+            distribution_coq,
           ),
         );
       },

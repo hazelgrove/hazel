@@ -118,8 +118,37 @@ let tactic_alternatives = (~name, tactics) =>
     ++ "\n  ].\n"
   };
 
-let profile_search_definitions = (~domain, ~profile, ~max_depth) => {
+let goal_directed_finishers = (~domain, ~profile, request) =>
+  RewriteChecker.rational_affine_equivalent(request.source, request.target)
+    ? Axioms.guarded_normalization_backend_for_profile(
+        profile,
+        "arith.affine_normalize",
+      )
+      |> Option.map(rocq_backend_tactics(~domain))
+      |> Option.value(~default=[])
+    : [];
+
+let direct_certificate_prelude = domain =>
+  switch (domain) {
+  | CoqExport.Integers => "From Stdlib Require Import ZArith Lia.\nOpen Scope Z_scope.\n"
+  | Reals =>
+    "From Stdlib Require Import Rbase Rfunctions Rtrigo1 Lra.\n"
+    ++ "Open Scope R_scope.\n"
+  };
+
+let direct_certificate_definitions = directed_finishers =>
+  switch (directed_finishers |> RewriteChecker.dedup) {
+  | [] => "Ltac hazel_profile_search := fail 0 \"no enabled rules\".\n"
+  | tactics =>
+    "Ltac hazel_profile_search :=\n  solve [\n    "
+    ++ String.concat("\n  | ", tactics)
+    ++ "\n  ].\n"
+  };
+
+let profile_search_definitions = (~domain, ~profile, ~max_depth, request) => {
   let plan = Axioms.stage_plan_for_profile(profile, MultiStepCheck);
+  let directed_finishers =
+    goal_directed_finishers(~domain, ~profile, request);
   let visible_tactics =
     plan.visible_rules
     |> List.concat_map((planned: Axioms.planned_visible_rule) =>
@@ -153,16 +182,17 @@ let profile_search_definitions = (~domain, ~profile, ~max_depth) => {
        )
     |> List.concat_map(rocq_backend_tactics(~domain));
   let max_depth = max(0, min(12, max_depth));
-  let depths = List.init(max_depth + 1, depth => depth);
   let recursive_search_branches =
-    normalization_steps
+    visible_tactics
+    @ normalization_steps
     @ cleanup_tactics
-    @ visible_tactics
     |> RewriteChecker.dedup
     |> List.map(tactic =>
          "progress (" ++ tactic ++ "); hazel_profile_search_exact n'"
        );
-  tactic_alternatives(~name="hazel_profile_visible_step", visible_tactics)
+  tactic_alternatives(~name="hazel_profile_direct_finish", directed_finishers)
+  ++ "\n"
+  ++ tactic_alternatives(~name="hazel_profile_visible_step", visible_tactics)
   ++ "\n"
   ++ tactic_alternatives(
        ~name="hazel_profile_normalization_step",
@@ -174,7 +204,8 @@ let profile_search_definitions = (~domain, ~profile, ~max_depth) => {
   ++ "  lazymatch n with\n"
   ++ "  | O => reflexivity\n"
   ++ "  | S ?n' => first [\n"
-  ++ "      "
+  ++ "      reflexivity\n"
+  ++ "    | "
   ++ (
     switch (recursive_search_branches) {
     | [] => "fail 0 \"no enabled search branches\""
@@ -186,17 +217,13 @@ let profile_search_definitions = (~domain, ~profile, ~max_depth) => {
   ++ "  end.\n\n"
   ++ "Ltac hazel_profile_search :=\n  first [\n    "
   ++ (
-    (
+    (directed_finishers == [] ? [] : ["solve [hazel_profile_direct_finish]"])
+    @ (
       normalization_finishers
       |> RewriteChecker.dedup
       |> List.map(tactic => "solve [" ++ tactic ++ "]")
     )
-    @ (
-      depths
-      |> List.map(depth =>
-           "hazel_profile_search_exact " ++ string_of_int(depth) ++ "%nat"
-         )
-    )
+    @ ["hazel_profile_search_exact " ++ string_of_int(max_depth) ++ "%nat"]
     |> String.concat("\n  | ")
   )
   ++ "\n  ].\n";
@@ -225,21 +252,36 @@ let rocq_search_program_for_profile_and_purpose_internal =
     (~profile, ~purpose, ~equivalence_fallback, request) => {
   let domain = domain_for_request(request);
   let plan = rocq_plan_for_profile_and_purpose(profile, purpose);
-  let prelude =
-    switch (domain) {
-    | CoqExport.Reals => CoqProofExport.real_prelude
-    | Integers => CoqProofExport.prelude
+  let directed_finishers =
+    switch (purpose, equivalence_fallback) {
+    | (Axioms.CheckResult, false) =>
+      goal_directed_finishers(~domain, ~profile, request)
+    | _ => []
     };
+  let prelude =
+    directed_finishers != []
+      ? direct_certificate_prelude(domain)
+      : (
+        switch (domain) {
+        | CoqExport.Reals => CoqProofExport.real_prelude
+        | Integers => CoqProofExport.prelude
+        }
+      );
   let source = CoqExport.string_of_d_for_domain(~domain, request.source);
   let target = CoqExport.string_of_d_for_domain(~domain, request.target);
   let forall_str = forall_string(~domain, vars_for_request(request));
   let (search_definitions, tactic_script) =
     switch (purpose, equivalence_fallback) {
+    | (Axioms.CheckResult, false) when directed_finishers != [] => (
+        direct_certificate_definitions(directed_finishers),
+        profile_check_result_script,
+      )
     | (Axioms.CheckResult, false) => (
         profile_search_definitions(
           ~domain,
           ~profile,
           ~max_depth=request.max_depth,
+          request,
         ),
         profile_check_result_script,
       )
