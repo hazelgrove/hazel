@@ -907,8 +907,8 @@ let ghost_pieces =
       | Some(t) => Some(Piece.Tile(Tile.shard_of(t, i)))
       | None => None
       }
-    | None =>
-      /* T1 comma */
+    | None when d.text == "," =>
+      /* T1/T2 comma: a real separator tile */
       Some(
         Piece.Tile({
           id: Id.mk(),
@@ -918,35 +918,57 @@ let ghost_pieces =
           children: [],
         }),
       )
+    | None =>
+      /* plain text with no real tile (T2 lookahead tails like ")"
+         or "::"): ghost as a display comment, same rendering as
+         witness remainders — never mint arbitrary tiles */
+      Some(
+        Piece.Secondary({
+          id: Id.mk(),
+          content: Comment(d.text),
+        }),
+      )
     };
   let rec build = (ds: list(CanonicalCompletion.delimiter_info)) =>
     switch (ds) {
     | [] => Some([])
     | [d, ...rest] =>
-      switch (piece_of(d)) {
-      | None => None
-      | Some(p) =>
-        switch (build(rest)) {
-        | None => None
-        | Some(tail) => Some([p] @ (d.needs_hole ? [hole()] : []) @ tail)
-        }
-      }
+      let own =
+        switch (d.typed_len) {
+        | Some(n) =>
+          /* witness: the un-typed remainder ghosts inline as a
+             display comment continuing the typed token (the retired
+             TyDi buffer rendered the same text; marks now come from
+             the fork) */
+          let len = String.length(d.text);
+          Some(
+            n < len
+              ? [
+                Piece.Secondary({
+                  id: Id.mk(),
+                  content: Comment(String.sub(d.text, n, len - n)),
+                }),
+              ]
+              : [],
+          );
+        | None => piece_of(d) |> Option.map(p => [p])
+        };
+      /* engine witness shards keep their legacy no-hole render;
+         hole-less material stays hole-less */
+      let hole_after =
+        d.needs_hole && !(d.typed_len != None && d.of_shard != None);
+      switch (own, build(rest)) {
+      | (Some(own), Some(tail)) =>
+        Some(own @ (hole_after ? [hole()] : []) @ tail)
+      | _ => None
+      };
     };
   switch (ins.delimiters) {
   | [] => None
-  | [{typed_len: Some(n), text, _}, ..._] =>
-    /* witness: the un-typed remainder ghosts inline as a display
-       comment continuing the typed token (the retired TyDi buffer
-       rendered the same text; marks now come from the fork) */
-    let len = String.length(text);
-    n < len
-      ? Some([
-          Piece.Secondary({
-            id: Id.mk(),
-            content: Comment(String.sub(text, n, len - n)),
-          }),
-        ])
-      : None;
-  | ds => build(ds)
+  | ds =>
+    switch (build(ds)) {
+    | Some([]) => None /* fully-typed witness: nothing owed */
+    | r => r
+    }
   };
 };

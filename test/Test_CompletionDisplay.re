@@ -619,13 +619,12 @@ fun x -¦⟪>⟫ ?   CHIPS[]|},
           trajectory("[1, 2"),
         )
       ),
-      /* KNOWN JANK, mid-witness states: the merged
-         witness+opener+closer+comma insertion assembles garbled
-         ghost content — `( ), ,,` where the promise should read
-         `(?), ?, ?)` (empty padded parens, doubled commas).
-         Recovers fully once `(` is typed. Ghost-piece assembly for
-         multi-delimiter witness merges needs the same order/holes
-         treatment the diff gives plain runs. */
+      /* CLEAN (structured lookahead): the T2 payload is head+tail —
+         witness `string_capitalize(`, hole, `)` — so the ghost shows
+         a real hole in the promised parens. The lookahead's own
+         separator commas are dropped: the T1 deficit at the same
+         anchor already promises them (the flat string double-counted
+         as `,,`). Text constant through the whole witness. */
       test_case("nested call entry", `Quick, () =>
         check(
           string_testable,
@@ -646,28 +645,42 @@ let s = string_replac¦⟪e⟫ in s   CHIPS[]
 let s = string_replace¦ in s   CHIPS[]
 let s = string_replace(¦?⟪, ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(s¦⟪, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(st¦⟪ring_capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(str¦⟪ing_capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(stri¦⟪ng_capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(strin¦⟪g_capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string¦⟪_capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_¦⟪capitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_c¦⟪apitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_ca¦⟪pitalize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_cap¦⟪italize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_capi¦⟪talize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_capit¦⟪alize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_capita¦⟪lize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_capital¦⟪ize( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_capitali¦⟪ze( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_capitaliz¦⟪e( ), ,, ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_capitalize¦⟪( ), ,, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(st¦⟪ring_capitalize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(str¦⟪ing_capitalize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(stri¦⟪ng_capitalize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(strin¦⟪g_capitalize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string¦⟪_capitalize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_¦⟪capitalize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_c¦⟪apitalize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_ca¦⟪pitalize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_cap¦⟪italize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capi¦⟪talize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capit¦⟪alize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capita¦⟪lize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capital¦⟪ize(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capitali¦⟪ze(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capitaliz¦⟪e(?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capitalize¦⟪(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitalize(¦?⟪, ?, ?))⟫ in s   CHIPS[]
 let s = string_replace(string_capitalize(x¦⟪, ?, ?))⟫ in s   CHIPS[]|},
           trajectory_in(
             ~ctx="let s = ¦ in s",
             "string_replace(string_capitalize(x",
           ),
+        )
+      ),
+      /* lookahead with an operator tail: a List ctx suggests an ap
+         PLUS cons — head witness, hole, `)`, `::`. No T1 at the site,
+         so the tail keeps all its delimiters. The `::` hugs the `)`
+         (minted comments always hug left — the witness-remainder
+         rule); acceptable: the promise reads as one chunk. */
+      test_case("lookahead with operator tail (cons)", `Quick, () =>
+        check(
+          string_testable,
+          "lookahead-cons",
+          {|let l : [Int] = s¦ ⟪in ?⟫   CHIPS[]
+let l : [Int] = st¦⟪ring_length(?):: in ?⟫   CHIPS[]|},
+          trajectory_in(~ctx="let l : [Int] = ¦", "st"),
         )
       ),
       /* CLEAN: inner closer deletion recovers in place under the
@@ -975,6 +988,54 @@ string_replace(a, b, c)|},
                 payload("let x = 1 ¦"),
               ],
             ),
+          );
+        },
+      ),
+      /* T2 lookahead acceptance CHUNKS: the first Tab pastes the head
+         remainder only — caret lands inside the promised parens,
+         before the hole. Later Tabs dispatch what the recomputed
+         stream owes at that state; here the outer site's T1 commas
+         come first, matching the displayed ghost `(¦?⟪, ?, ?))⟫`
+         (Tab types what the ghost shows — the comma-before-inner-
+         closer ordering is that pin's pre-existing shape, not
+         Tab's). */
+      test_case(
+        "Tab chunks a lookahead completion",
+        `Quick,
+        () => {
+          let tab_once = (z: Zipper.t): option(Zipper.t) => {
+            let (_, zc, _, assist, _) = display_parts(z);
+            switch (CanonicalCompletion.tab_chip(zc, assist)) {
+            | None => None
+            | Some(ins) =>
+              switch (CanonicalCompletion.tab_text(zc, ins)) {
+              | None => None
+              | Some(t) => Some(Test_Editing.perform(z, [Paste(t)]))
+              }
+            };
+          };
+          let rec chunks = (z, n, acc) =>
+            n <= 0
+              ? List.rev(acc)
+              : (
+                switch (tab_once(z)) {
+                | None => List.rev(["NONE", ...acc])
+                | Some(z) =>
+                  chunks(z, n - 1, [Test_Editing.printer(z), ...acc])
+                }
+              );
+          let z =
+            Test_Editing.perform(
+              Zipper.init(),
+              Test_Editing.mk("let s = string_replace(st¦ in s"),
+            );
+          check(
+            string_testable,
+            "tab-chunks",
+            {|let s = string_replace(string_capitalize(¦? in s
+let s = string_replace(string_capitalize(?, ¦? in s
+let s = string_replace(string_capitalize(?, ?, ¦? in s|},
+            chunks(z, 3, []) |> String.concat("\n"),
           );
         },
       ),
