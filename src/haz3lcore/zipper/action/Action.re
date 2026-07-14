@@ -179,6 +179,8 @@ type refactor =
   | EtaReduce
   | BindArgument
   | UnfoldCall
+  | HoistCarry
+  | LiftFunction
   | BetaReduce
   | SplitLet
   | ReduceCase

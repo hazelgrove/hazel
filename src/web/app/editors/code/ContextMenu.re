@@ -179,6 +179,9 @@ let refactor_data =
     switch (kind) {
     | Explode => Some(shift_chord("↑"))
     | Implode => Some(shift_chord("↓"))
+    /* insist gestures: the same press twice */
+    | HoistCarry
+    | LiftFunction => Some(chord("↑↑"))
     | _ =>
       let glyphs =
         resolved |> List.filter(((k, _)) => k == kind) |> List.map(snd);
