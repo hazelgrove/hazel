@@ -114,6 +114,11 @@ window.HazelJSCoq = {
   retiredManagers: [],
   maxRetiredManagers: 2,
   managerRetirementDelayMs: 5000,
+  managerGenerationCounter: 0,
+  recycleCounter: 0,
+  recyclePromise: null,
+  maxPersistentStateId: 80,
+  maxPersistentUserChecks: 12,
   warmupLibraryCode:
     'From Coq Require Import ZArith Lia Ring Rbase Rfunctions Rtrigo1 Cos_plus Lra Reals.Ranalysis1 Reals.Ranalysis3 Reals.Rtrigo_reg.\n',
 
@@ -391,6 +396,73 @@ window.HazelJSCoq = {
     return cancelled;
   },
 
+  managerHealth(manager = this.manager) {
+    if (!manager) {
+      return {generation: 0, userChecks: 0, highestStateId: 0};
+    }
+    const stateIds = [];
+    if (manager.doc && manager.doc.sentences) {
+      for (const sentence of manager.doc.sentences) {
+        if (sentence && sentence.coq_sid) stateIds.push(+sentence.coq_sid);
+      }
+    }
+    if (manager.doc && manager.doc.stm_id) {
+      for (const sid of Object.keys(manager.doc.stm_id)) stateIds.push(+sid);
+    }
+    const lastAdded = typeof manager.lastAdded === 'function'
+      ? manager.lastAdded()
+      : null;
+    if (lastAdded && lastAdded.coq_sid) stateIds.push(+lastAdded.coq_sid);
+    return {
+      generation: manager.__hazelGeneration || 0,
+      userChecks: manager.__hazelUserChecks || 0,
+      highestStateId: Math.max(manager.__hazelHighestStateId || 0, ...stateIds, 0),
+    };
+  },
+
+  noteManagerCheck(manager, kind) {
+    if (!manager) return this.managerHealth(manager);
+    if (kind !== 'warmup') {
+      manager.__hazelUserChecks = (manager.__hazelUserChecks || 0) + 1;
+    }
+    const health = this.managerHealth(manager);
+    manager.__hazelHighestStateId = health.highestStateId;
+    return health;
+  },
+
+  managerNeedsRecycle(manager = this.manager) {
+    const health = this.managerHealth(manager);
+    return health.highestStateId >= this.maxPersistentStateId ||
+      health.userChecks >= this.maxPersistentUserChecks;
+  },
+
+  async recycleWarmManagerIfNeeded({request = null} = {}) {
+    if (request && request.cancelled) return false;
+    if (this.recyclePromise) return this.recyclePromise;
+    const manager = this.manager;
+    if (!manager || !this.managerNeedsRecycle(manager)) return false;
+    if (this.activeChecks.size > 0) return false;
+
+    const health = this.managerHealth(manager);
+    this.recyclePromise = (async () => {
+      if (this.manager !== manager || this.activeChecks.size > 0) return false;
+      console.warn('[Hazel JSCoq] recycling persistent Rocq worker', health);
+      this.manager = null;
+      this.managerPromise = null;
+      this.warmupPromise = null;
+      this.cleanupManager(manager, {force: true});
+      this.recycleCounter += 1;
+      const warmup = await this.warmupSearch();
+      if (!warmup || !warmup.ok) {
+        throw new Error('The replacement persistent Rocq worker failed to warm up.');
+      }
+      return true;
+    })().finally(() => {
+      this.recyclePromise = null;
+    });
+    return this.recyclePromise;
+  },
+
   waitForActiveChecks({request = null, timeoutMs = 5000} = {}) {
     return new Promise(resolve => {
       const startedAt = performance.now();
@@ -422,6 +494,7 @@ window.HazelJSCoq = {
     this.manager = null;
     this.managerPromise = null;
     this.warmupPromise = null;
+    this.recyclePromise = null;
     document
       .querySelectorAll('.hazel-jscoq-host[id^="hazel-jscoq-check-host-"]')
       .forEach(node => node.remove());
@@ -437,6 +510,9 @@ window.HazelJSCoq = {
       checkCounter: this.checkCounter,
       hasWarmManager: !!this.manager,
       hasWarmupPromise: !!this.warmupPromise,
+      managerHealth: this.managerHealth(),
+      recycleCounter: this.recycleCounter,
+      recycleInProgress: !!this.recyclePromise,
       retiredManagers: this.retiredManagers.length,
       memory: performance && performance.memory
         ? {
@@ -465,6 +541,9 @@ window.HazelJSCoq = {
     if (!this.managerPromise) {
       this.managerPromise = this.makeManager({code, show, fresh: false})
         .then(manager => {
+          manager.__hazelGeneration = ++this.managerGenerationCounter;
+          manager.__hazelUserChecks = 0;
+          manager.__hazelHighestStateId = 0;
           this.manager = manager;
           return manager;
         })
@@ -608,6 +687,7 @@ window.HazelJSCoq = {
       durationMs,
       codeBytes: jscoqCode.length,
     };
+    const managerHealth = this.noteManagerCheck(manager, kind);
     this.activeChecks.delete(checkId);
     this.recordCompletedCheck({
       checkId,
@@ -618,6 +698,7 @@ window.HazelJSCoq = {
       codeBytes: jscoqCode.length,
       errorCount: manager.error.length,
       cancelled: activeCheck.aborted,
+      managerHealth,
     });
     console.log('[Hazel JSCoq] finished check', this.completedChecks[this.completedChecks.length - 1]);
     return result;
@@ -854,10 +935,12 @@ window.HazelJSCoq = {
         return {ok: false, steps: 0, errors: [message]};
       }
       console.log('[Hazel JSCoq] running Rocq tactic search candidate');
-      return this.checkAndReport(
-        code,
-        callback,
-        {show: false, ...opts, request},
+      return this.recycleWarmManagerIfNeeded({request}).then(() =>
+        this.checkAndReport(
+          code,
+          callback,
+          {show: false, ...opts, request},
+        )
       );
     });
     return finishRequest(runWhenIdle);
