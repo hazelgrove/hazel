@@ -1162,18 +1162,53 @@ let rec rational_affine_pieces_equal = (left, right) =>
   | ([_, ..._], []) => false
   };
 
-let rational_affine_equivalent = (left, right) => {
+let rational_affine_piece_constants = pieces =>
+  pieces
+  |> List.fold_left(
+       (constant, piece) =>
+         switch (piece.atom) {
+         | None => rational_add(constant, piece.coeff)
+         | Some(_) => constant
+         },
+       rational_zero,
+     );
+
+let rational_affine_symbolic_pieces = pieces =>
+  pieces |> List.filter(piece => piece.atom |> Option.is_some);
+
+let rational_affine_pieces_equal_with_constant_reordering = (left, right) =>
+  rational_equal(
+    rational_affine_piece_constants(left),
+    rational_affine_piece_constants(right),
+  )
+  && rational_affine_pieces_equal(
+       rational_affine_symbolic_pieces(left),
+       rational_affine_symbolic_pieces(right),
+     );
+
+let rational_affine_normal_forms_equal = (left, right) => {
   let left_affine =
     left |> rational_affine_of_exp |> rational_affine_canonicalize;
   let right_affine =
     right |> rational_affine_of_exp |> rational_affine_canonicalize;
   rational_equal(left_affine.constant, right_affine.constant)
-  && rational_affine_terms_equal(left_affine.terms, right_affine.terms)
+  && rational_affine_terms_equal(left_affine.terms, right_affine.terms);
+};
+
+let rational_affine_equivalent = (left, right) => {
+  rational_affine_normal_forms_equal(left, right)
   && rational_affine_pieces_equal(
        rational_affine_pieces_of_exp(left),
        rational_affine_pieces_of_exp(right),
      );
 };
+
+let rational_affine_equivalent_with_constant_reordering = (left, right) =>
+  rational_affine_normal_forms_equal(left, right)
+  && rational_affine_pieces_equal_with_constant_reordering(
+       rational_affine_pieces_of_exp(left),
+       rational_affine_pieces_of_exp(right),
+     );
 
 let rec contains_additive_shape = exp => {
   let exp = strip_math_wrappers(exp);

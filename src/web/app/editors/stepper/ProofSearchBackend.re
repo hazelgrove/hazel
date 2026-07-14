@@ -118,8 +118,24 @@ let tactic_alternatives = (~name, tactics) =>
     ++ "\n  ].\n"
   };
 
+let profile_allows_affine_constant_reordering = profile =>
+  [Axioms.AddAssoc, AddComm, MulAssoc, MulComm]
+  |> List.for_all(capability =>
+       List.mem(capability, profile.Axioms.step_policy.default_cleanup)
+     );
+
 let goal_directed_finishers = (~domain, ~profile, request) =>
-  RewriteChecker.rational_affine_equivalent(request.source, request.target)
+  (
+    profile_allows_affine_constant_reordering(profile)
+      ? RewriteChecker.rational_affine_equivalent_with_constant_reordering(
+          request.source,
+          request.target,
+        )
+      : RewriteChecker.rational_affine_equivalent(
+          request.source,
+          request.target,
+        )
+  )
     ? Axioms.guarded_normalization_backend_for_profile(
         profile,
         "arith.affine_normalize",

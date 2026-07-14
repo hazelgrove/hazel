@@ -4384,9 +4384,27 @@ let tests = (
         );
         check(
           bool,
+          "profile-enabled AC cleanup can move constants across opaque terms",
+          true,
+          Web.RewriteChecker.rational_affine_equivalent_with_constant_reordering(
+            plus(plus(x, Exp.int(1)), y),
+            plus(plus(x, y), Exp.int(1)),
+          ),
+        );
+        check(
+          bool,
           "separated like terms are not collected across a constant",
           false,
           Web.RewriteChecker.rational_affine_equivalent(
+            plus(plus(x, Exp.int(1)), x),
+            plus(times(Exp.int(2), x), Exp.int(1)),
+          ),
+        );
+        check(
+          bool,
+          "constant reordering does not collect separated like terms",
+          false,
+          Web.RewriteChecker.rational_affine_equivalent_with_constant_reordering(
             plus(plus(x, Exp.int(1)), x),
             plus(times(Exp.int(2), x), Exp.int(1)),
           ),
@@ -4463,6 +4481,57 @@ let tests = (
           string_contains(
             "Ltac hazel_profile_search :=\n  solve [\n    lra",
             coq,
+          ),
+        );
+        let cos_4x = builtin_cos(times(Exp.int(4), x));
+        let long_source =
+          plus(
+            plus(
+              plus(Exp.int(1), minus(half, cos_2x)),
+              divide(times(half, cos_4x), Exp.int(2)),
+            ),
+            divide(half, Exp.int(2)),
+          );
+        let long_target =
+          plus(
+            minus(divide(Exp.int(7), Exp.int(4)), cos_2x),
+            times(divide(Exp.int(1), Exp.int(4)), cos_4x),
+          );
+        let long_request = {
+          ...request,
+          source: long_source,
+          target: long_target,
+        };
+        let long_coq =
+          Web.ProofSearchBackend.rocq_search_program(long_request);
+        check(
+          bool,
+          "AC-enabled trig profile emits a compact affine certificate",
+          true,
+          String.length(long_coq) < 1000
+          && string_contains("solve [\n    lra", long_coq),
+        );
+        let no_add_comm_profile =
+          Web.ProfileBoard.apply_model_to_profile(
+            Web.ProfileBoard.Model.init
+            |> Web.ProfileBoard.Update.update(
+                 Web.ProfileBoard.Update.SetCleanupEnabled("add.comm", false),
+               ),
+            Axioms.math_profile(Trigonometry),
+          );
+        let constrained_coq =
+          Web.ProofSearchBackend.rocq_search_program_for_profile_and_purpose(
+            ~profile=no_add_comm_profile,
+            ~purpose=CheckResult,
+            long_request,
+          );
+        check(
+          bool,
+          "disabling additive commutativity disables the compact certificate",
+          false,
+          string_contains(
+            "Ltac hazel_profile_search :=\n  solve [\n    lra",
+            constrained_coq,
           ),
         );
         let distribution_coq =
