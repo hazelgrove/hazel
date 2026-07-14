@@ -3,9 +3,19 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 
 /* pending insist press: (indicated target, gesture) of the last dead
-   press that had a remedied move available */
-let insist_pending: ref(option((option(Haz3lcore.Id.t), Action.Gesture.t))) =
+   press that had a remedied move available, with its arm time — the
+   confirmation window expires (a press minutes later must re-shake,
+   not fire a forgotten convoy; also keeps demo cadence legible) */
+let insist_pending:
+  ref(option(((option(Haz3lcore.Id.t), Action.Gesture.t), float))) =
   ref(None);
+let insist_window_ms = 2500.;
+let insist_now = (): float => Js.to_float(Js.Unsafe.js_expr("Date.now()"));
+let insist_armed = signature =>
+  switch (insist_pending^) {
+  | Some((s, t)) => s == signature && insist_now() -. t < insist_window_ms
+  | None => false
+  };
 type editor_id = string;
 open Util;
 
@@ -115,25 +125,39 @@ module Update = {
           let signature = (Haz3lcore.Indicated.index(z), g);
           switch (Refactor.gesture(~info_map, ~term, g, z)) {
           | Some(_) =>
-            /* a plain rung mid-journey keeps carrying mode armed:
-               one shake per (grab, direction) journey, not one per
-               convoy step (the caret follows the moved line, so the
-               signature stays stable while pulling) */
-            if (insist_pending^ != Some(signature)) {
+            /* a plain rung mid-journey keeps carrying mode armed
+               (and refreshes its window): one shake per (grab,
+               direction) journey, not one per convoy step */
+            if (insist_armed(signature)) {
+              insist_pending := Some((signature, insist_now()));
+            } else {
               insist_pending := None;
             };
             action;
           | None =>
             switch (Refactor.gesture_insist(~info_map, ~term, g, z)) {
             | Some(kind) =>
-              if (insist_pending^ == Some(signature)) {
+              if (insist_armed(signature)) {
+                insist_pending := Some((signature, insist_now()));
                 Action.Refactor(kind);
               } else {
-                insist_pending := Some(signature);
+                insist_pending := Some((signature, insist_now()));
                 CodeFlip.shake_insist();
                 action;
               }
             | None =>
+              /* no remedy — but if a lift refused because a carried
+                 dep is used below, shake THOSE uses (the reason is
+                 down there, not at the caret) */
+              switch (Haz3lcore.Indicated.index(z)) {
+              | Some(target) when g == Action.Gesture.Up =>
+                switch (Refactor.lift_blocked_uses(~target, term)) {
+                | [] => ()
+                | ids =>
+                  CodeFlip.shake_tokens(~syntax=model.editor.syntax, ids)
+                }
+              | _ => ()
+              };
               insist_pending := None;
               action;
             }

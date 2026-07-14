@@ -5734,6 +5734,11 @@ type lift_site_t = {
   ls_crossed: list(string),
 };
 
+/* out-channel for the one diagnosable refusal (uses of a carried
+   dep below the block): set by lift_site, read by lift_blocked_uses
+   right after — same-call-stack use only */
+let blocked_uses_out: ref(list(Id.t)) = ref([]);
+
 let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
   switch (find_path(~hit=hit_def_line(target), program)) {
   | None => None
@@ -5834,19 +5839,48 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
             ~with_=fresh(EmptyHole),
             outer,
           );
+        /* uses below the block of a carried dep's binding: absorption
+           would unbind them. Exposed for targeted shake feedback. */
+        let carried_names =
+          carried
+          |> List.concat_map(nd =>
+               switch (def_line_of(nd)) {
+               | Some((dl, _)) => line_exp_names(dl)
+               | None => []
+               }
+             );
+        let blocked_names =
+          carried_names |> List.filter(x => free_in(x, cbody));
+        let blocked_uses = {
+          let acc = ref([]);
+          let _ =
+            Exp.map_term(
+              ~f_exp=
+                (cont, e: Exp.t) => {
+                  switch (IdTagged.term_of(e)) {
+                  | Var(x) when List.mem(x, blocked_names) =>
+                    acc := [Exp.rep_id(e), ...acc^]
+                  | _ => ()
+                  };
+                  cont(e);
+                },
+              cbody,
+            );
+          acc^;
+        };
+        blocked_uses_out := blocked_uses;
         crossed != []
         && !binds_somewhere(g, cbody)
         && crossed
         |> List.for_all(x => !binds_somewhere(x, cbody))
         /* carried deps are absorbed into the helper: their bindings
            must not be needed below the block */
+        && blocked_uses == []
         && carried
         |> List.for_all(nd =>
              switch (def_line_of(nd)) {
              | Some((dl, _)) =>
-               line_exp_names(dl)
-               |> List.for_all(x => !free_in(x, cbody))
-               && !mentions_typ_names(line_typ_names(dl), cbody)
+               !mentions_typ_names(line_typ_names(dl), cbody)
              | None => false
              }
            )
@@ -5873,6 +5907,16 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
     };
   };
 
+/* the uses that would unbind if the lift fired: nonempty exactly
+   when lift refuses for the used-below reason (targeted shake) */
+let lift_blocked_uses = (~target: Id.t, program: Exp.t): list(Id.t) => {
+  blocked_uses_out := [];
+  switch (lift_site(~target, program)) {
+  | Some(_) => []
+  | None => blocked_uses_out^
+  };
+};
+
 let lift_function_impl: impl = {
   label: "Lift to helper",
   tooltip: "Move this definition (and the ones it depends on) out of the function, taking the parameters it uses as arguments",
@@ -5887,14 +5931,22 @@ let lift_function_impl: impl = {
         let carried = site.ls_block |> List.filter(nd => !same_node(nd, c));
         let sep_lead = i => i == 0 ? ([], []) : (space(), []);
         /* the helper INTERIOR: carried dep lines wrap C's def */
-        /* the block TOP's boundary pieces are donated to the vacated
-           slot (cbody''), so the interior's outermost line re-leads
-           fresh — sharing them would duplicate piece ids */
-        let carried' =
-          switch (carried) {
-          | [] => []
-          | [top, ...rest] => [with_secondary((space(), []), top), ...rest]
+        /* multiline helper (andrew): with carried lets inside, the
+           helper body breaks — each let line on its own line, the
+           result trailing, all indented one step past the helper's
+           line; the closing `in` returns to the helper's level.
+           Fresh seps per line (block-top's ORIGINAL pieces are
+           donated to the vacated slot — sharing would duplicate
+           ids). Singleton helpers stay one-liners. */
+        let (o_lead_for_sep, _) = site.ls_outer.annotation.secondary;
+        let base_sep = () =>
+          switch (o_lead_for_sep) {
+          | [_, ..._] => sep_like(o_lead_for_sep)
+          | [] => newline()
           };
+        let inner_sep = () => base_sep() @ space() @ space();
+        let carried' =
+          carried |> List.map(nd => with_secondary((inner_sep(), []), nd));
         let interior =
           List.fold_left(
             (inner, nd) => def_line_rebuild(nd, inner),
@@ -5903,11 +5955,20 @@ let lift_function_impl: impl = {
                   (space(), []),
                   cdef |> strip_leading |> strip_trailing,
                 )
-              /* the helper's own padding closes the def — the old
-                 trailing run would double it */
-              : cdef |> strip_trailing,
+              : with_secondary(
+                  (inner_sep(), []),
+                  cdef |> strip_leading |> strip_trailing,
+                ),
             List.rev(carried'),
           );
+        /* the closing `in` on its own line for multiline helpers */
+        let interior =
+          carried == []
+            ? interior
+            : with_secondary(
+                (fst(interior.annotation.secondary), base_sep()),
+                interior,
+              );
         let mk_arg_exps = () =>
           switch (site.ls_crossed) {
           | [x] => fresh(Var(x))
@@ -5974,7 +6035,13 @@ let lift_function_impl: impl = {
               | [v] => pad(v)
               | vs => pad(fresh_pat(Parens(fresh_pat(Tuple(vs)))))
               };
-            (cp, pad(fresh(Fun(param, interior, None, None))));
+            let fun_helper = fresh(Fun(param, interior, None, None));
+            (
+              cp,
+              carried == []
+                ? pad(fun_helper)
+                : with_secondary((space(), []), fun_helper),
+            );
           | LiftSugar =>
             /* the source used sugar; the helper does too:
                let g(args) = interior */
