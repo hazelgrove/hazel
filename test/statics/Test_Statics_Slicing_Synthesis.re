@@ -401,7 +401,7 @@ let typaps = [
     "param-option-annotation",
     "(Some(1) : Option(Int))",
     "Option(Int)",
-    "(Some(?) : Option(Int))",
+    "(? : Option(Int))",
   ),
   synthesis_case(
     ~ctx=
@@ -412,7 +412,7 @@ let typaps = [
     "param-either-annotation",
     "(Right(true) : Either(Int, Bool))",
     "Either(?, Bool)",
-    "(Right(?) : Either(?, Bool))",
+    "(? : Either(?, Bool))",
   ),
 ];
 
@@ -422,7 +422,7 @@ let control = [
     "if-then-only",
     "if c then 1 else 2",
     "Int",
-    "if c then 1 else ?",
+    "if ? then 1 else ?",
   ),
   synthesis_case("sequence-result", "1; true", "Bool", "?; true"),
   synthesis_case(

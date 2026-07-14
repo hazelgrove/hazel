@@ -103,7 +103,7 @@ let examples = [
     "regression-ana-fix-annotated-hole-query",
     "fix(Z:(? -> ?)) -> ?",
     "? -> ?",
-    "fix(Z:(? -> ?)) -> ?",
+    "fix(? : (? -> ?)) -> ?",
   ),
   analysis_case(
     ~ctx=ctx_var("c", "Bool"),
