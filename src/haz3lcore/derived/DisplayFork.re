@@ -170,6 +170,23 @@ let mk_inner =
               }
             };
           let tail = t1_commas_here ? drop_comma_suffix(tail) : tail;
+          /* an ap head (`f(`) always owes its argument hole and
+             closer — the promise is `f(?)` whichever statics cadence
+             produced the suggestion. With reification ON the settled
+             info_map anas the anchor at its ELEMENT type, so the
+             suggestion arrives via bound_aps with an empty tail (the
+             pre-reification Prod ana that carried the lookahead tail
+             no longer exists) — synthesize the closer the lookahead
+             would have carried. Lookahead tails already open with it. */
+          let tail =
+            CanonicalCompletion.f1_opens(head) && tail == []
+              ? [
+                TyDiSuggestion.{
+                  text: head.[String.length(head) - 1] == '[' ? "]" : ")",
+                  hole_before: true,
+                },
+              ]
+              : tail;
           /* tail hole-BEFORE flags become hole-AFTER (needs_hole) on
              the preceding delimiter — ghost_pieces' convention */
           let hole_after = (i: int) =>

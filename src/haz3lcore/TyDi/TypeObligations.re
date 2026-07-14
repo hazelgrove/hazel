@@ -572,13 +572,32 @@ let as_insertions =
         if (trailing <= 0) {
           (existing, fresh);
         } else if (List.exists(ins => holds_site(ins, ob.site), existing)) {
+          /* owed commas go immediately BEFORE the site's own closer:
+             a merged chip lists delimiters inner-first, and material
+             for the site's tuple belongs after any nested closer
+             (`f(g(` owes `)` then `, ?, ?)` — comma-first would put
+             the commas inside g's argument, which is also where Tab
+             would type them: the infinite-comma loop) */
+          let of_site = (d: CanonicalCompletion.delimiter_info): bool =>
+            switch (d.of_shard) {
+            | Some((tid, _)) => Id.equal(tid, ob.site)
+            | None => false
+            };
+          let rec weave = (ds: list(CanonicalCompletion.delimiter_info)) =>
+            switch (ds) {
+            | [] => comma_delims(trailing)
+            | [d, ...rest] =>
+              of_site(d)
+                ? comma_delims(trailing) @ [d, ...rest]
+                : [d, ...weave(rest)]
+            };
           (
             existing
             |> List.map((ins: CanonicalCompletion.insertion) =>
                  holds_site(ins, ob.site)
                    ? {
                      ...ins,
-                     delimiters: comma_delims(trailing) @ ins.delimiters,
+                     delimiters: weave(ins.delimiters),
                    }
                    : ins
                ),

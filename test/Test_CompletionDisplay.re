@@ -45,8 +45,35 @@ let display_parts =
   (fork.segment, z, fork.ghost_marks, fork.assist, fork.ghosted);
 };
 
-let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
-  let (seg, zc, marks, assist, ghosted) = display_parts(z);
+/* LIVE-CADENCE parts: statics exactly as the live editor feeds the
+   fork — CachedStatics.init (two-pass: obligations kept from pass 1,
+   info_map from the REIFIED pass 2 when a deficit is owed) computed
+   from `statics_z`, the zipper as the statics debounce last saw it.
+   statics_z == z is the SETTLED state (the deferred refresh landed):
+   statics fresh but reified — the frame a paused user stares at.
+   statics_z lagging by N keystrokes is the mid-burst frame. */
+let display_parts_live = (~statics_z: Zipper.t, z: Zipper.t) => {
+  let statics =
+    CachedStatics.init(
+      ~settings=CoreSettings.on,
+      ~is_dynamic_term=false,
+      ~stitch=x => x,
+      ~root=Sort.Exp,
+      statics_z,
+    );
+  let fork =
+    DisplayFork.mk(
+      ~info_map=statics.info_map,
+      ~obligations=statics.obligations,
+      ~armed=true,
+      z,
+    );
+  (fork.segment, z, fork.ghost_marks, fork.assist, fork.ghosted);
+};
+
+let display_state_of =
+    (~parts, ~chips as show_chips=true, z: Zipper.t): string => {
+  let (seg, zc, marks, assist, ghosted) = parts(z);
   let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
   let is_marked = (id: Id.t, sh: option(int)) =>
     List.exists(
@@ -138,6 +165,14 @@ let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
   show_chips ? disp ++ "   CHIPS[" ++ chips_str ++ "]" : disp;
 };
 
+let display_state = (~chips=true, z: Zipper.t): string =>
+  display_state_of(~parts=display_parts, ~chips, z);
+
+/* live-cadence render: statics from `lag` keystrokes back (0 =
+   settled/reified), display from the current zipper */
+let display_state_live = (~chips=true, ~statics_z, z: Zipper.t): string =>
+  display_state_of(~parts=display_parts_live(~statics_z), ~chips, z);
+
 /* Per-keystroke trajectory of typing `text` at the ¦ in `ctx` — the
    SCENARIO MATRIX axis: same form entered on a blank editor, above
    existing content, between content, or into a hole mid-program.
@@ -160,6 +195,42 @@ let trajectory_in = (~ctx="¦", text: string): string => {
 };
 
 let trajectory = (text: string): string => trajectory_in(~ctx="¦", text);
+
+/* live-cadence trajectory: each step renders the step-k zipper with
+   statics from the step-(k-lag) zipper through the LIVE statics
+   pipeline (reified). lag=0 pins the settled frame after every
+   keystroke; lag>0 pins the mid-burst debounce gap. */
+let trajectory_live_in = (~lag=0, ~ctx="¦", text: string): string => {
+  let base = Test_Editing.mk(ctx);
+  let ins = Token.to_list(text) |> List.map(c => Action.Insert(c));
+  /* ONE incremental run — ids must be shared between the rendered
+     zipper and the statics zipper, as they are live (a re-typed
+     program mints fresh ids and every id-keyed merge silently
+     misses) */
+  let z0 = Test_Editing.perform(Zipper.init(), base);
+  let states: array(Zipper.t) = {
+    let (states, _) =
+      List.fold_left(
+        ((acc, z), a) => {
+          let z = Test_Editing.perform(z, [a]);
+          ([z, ...acc], z);
+        },
+        ([], z0),
+        ins,
+      );
+    List.rev(states) |> Array.of_list;
+  };
+  let at = j => j <= 0 ? z0 : states[j - 1];
+  let rec steps = (k, acc) =>
+    if (k > Array.length(states)) {
+      List.rev(acc);
+    } else {
+      let z = at(k);
+      let statics_z = at(k - lag);
+      steps(k + 1, [display_state_live(~statics_z, z), ...acc]);
+    };
+  steps(1, []) |> String.concat("\n");
+};
 
 /* per-backspace trajectory from the ¦ in ctx — DELETION flows jank
    differently than entry (promises grow instead of shrinking) */
@@ -336,6 +407,10 @@ string_replace(a, b, c)¦   CHIPS[]|},
       /* caret INSIDE the auto-closed string literal: the promise is
          anchored on the host token, so Inner carets still ghost */
       display_case("string_replace(\"¦\"⟪, ?, ?)⟫"),
+      /* ap-head suggestion outside any tuple context: the synthesized
+         `f(?)` promise (JUDGED improvement with the ap-close rule —
+         the ghost used to end at the unbalanced `(`) */
+      display_case("let x : String = st¦⟪ring_capitalize(?) in ?⟫"),
     ],
   ),
   (
@@ -624,7 +699,12 @@ fun x -¦⟪>⟫ ?   CHIPS[]|},
          a real hole in the promised parens. The lookahead's own
          separator commas are dropped: the T1 deficit at the same
          anchor already promises them (the flat string double-counted
-         as `,,`). Text constant through the whole witness. */
+         as `,,`). Text constant through the whole witness — INCLUDING
+         the `(` keystroke: once inside the inner ap, the promise
+         reads inner-closer-first (`), ?, ?)`), the outer commas after
+         it (RE-JUDGED per andrew: the old `, ?, ?))` order put the
+         outer tuple's commas inside the inner ap — Tab typed them
+         there forever, the infinite-comma loop). */
       test_case("nested call entry", `Quick, () =>
         check(
           string_testable,
@@ -661,8 +741,8 @@ let s = string_replace(string_capital¦⟪ize(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitali¦⟪ze(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitaliz¦⟪e(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitalize¦⟪(?), ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_capitalize(¦?⟪, ?, ?))⟫ in s   CHIPS[]
-let s = string_replace(string_capitalize(x¦⟪, ?, ?))⟫ in s   CHIPS[]|},
+let s = string_replace(string_capitalize(¦?⟪), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capitalize(x¦⟪), ?, ?)⟫ in s   CHIPS[]|},
           trajectory_in(
             ~ctx="let s = ¦ in s",
             "string_replace(string_capitalize(x",
@@ -991,53 +1071,182 @@ string_replace(a, b, c)|},
           );
         },
       ),
-      /* T2 lookahead acceptance CHUNKS: the first Tab pastes the head
-         remainder only — caret lands inside the promised parens,
-         before the hole. Later Tabs dispatch what the recomputed
-         stream owes at that state; here the outer site's T1 commas
-         come first, matching the displayed ghost `(¦?⟪, ?, ?))⟫`
-         (Tab types what the ghost shows — the comma-before-inner-
-         closer ordering is that pin's pre-existing shape, not
-         Tab's). */
+      /* T2 lookahead acceptance CHUNKS, multi-Tab CONVERGENCE: the
+         first Tab pastes the head remainder only — caret lands inside
+         the promised parens. Later Tabs dispatch what the recomputed
+         stream owes at that state, INNER CLOSER FIRST, then the outer
+         site's commas, then the outer closer (RE-JUDGED per andrew:
+         the retired pin accepted commas before the inner closer — Tab
+         pasted every comma into the INNER ap, which never fed the
+         outer deficit: the live infinite-comma loop). Statics at LIVE
+         cadence (reified). Each Tab must strictly reduce the total
+         owed material (OWED = assist-stream delimiter count) and
+         never revisit a state; the trajectory ends at NONE. */
       test_case(
-        "Tab chunks a lookahead completion",
+        "Tab chunks a lookahead completion to convergence",
         `Quick,
         () => {
-          let tab_once = (z: Zipper.t): option(Zipper.t) => {
-            let (_, zc, _, assist, _) = display_parts(z);
+          let step = (z: Zipper.t): (string, option(Zipper.t)) => {
+            let (_, zc, _, assist, _) = display_parts_live(~statics_z=z, z);
+            let owed =
+              assist
+              |> List.map((i: CanonicalCompletion.insertion) =>
+                   List.length(i.delimiters)
+                 )
+              |> List.fold_left((+), 0);
+            let state =
+              Printf.sprintf("%s   OWED[%d]", Test_Editing.printer(z), owed);
             switch (CanonicalCompletion.tab_chip(zc, assist)) {
-            | None => None
+            | None => (state, None)
             | Some(ins) =>
               switch (CanonicalCompletion.tab_text(zc, ins)) {
-              | None => None
-              | Some(t) => Some(Test_Editing.perform(z, [Paste(t)]))
+              | None => (state, None)
+              | Some(t) => (
+                  state,
+                  Some(Test_Editing.perform(z, [Paste(t)])),
+                )
               }
             };
           };
-          let rec chunks = (z, n, acc) =>
-            n <= 0
-              ? List.rev(acc)
-              : (
-                switch (tab_once(z)) {
-                | None => List.rev(["NONE", ...acc])
-                | Some(z) =>
-                  chunks(z, n - 1, [Test_Editing.printer(z), ...acc])
+          let rec run = (z, n, acc) =>
+            if (n <= 0) {
+              List.rev(acc);
+            } else {
+              switch (step(z)) {
+              | (state, None) => List.rev(["NONE", state, ...acc])
+              | (state, Some(z)) => run(z, n - 1, [state, ...acc])
+              };
+            };
+          let states_of = (code: string): list(string) => {
+            let z =
+              Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
+            run(z, 12, []);
+          };
+          /* mechanical loop alarms: owed strictly decreases, no state
+             repeats (the pin already shows both; these fail loudly if
+             a regression reintroduces the loop past the pin's horizon) */
+          let audit = (states: list(string)) => {
+            let owed_of = (s: string): option(int) =>
+              switch (split_first("OWED[", s)) {
+              | Some((_, rest)) =>
+                switch (split_first("]", rest)) {
+                | Some((n, _)) => int_of_string_opt(n)
+                | None => None
                 }
+              | None => None
+              };
+            let owed_seq = states |> List.filter_map(owed_of);
+            let rec strictly_dec = l =>
+              switch (l) {
+              | [a, b, ...tl] => a > b && strictly_dec([b, ...tl])
+              | _ => true
+              };
+            if (!strictly_dec(owed_seq)) {
+              Alcotest.fail(
+                "owed material not strictly decreasing: "
+                ++ String.concat("\n", states),
               );
-          let z =
-            Test_Editing.perform(
-              Zipper.init(),
-              Test_Editing.mk("let s = string_replace(st¦ in s"),
-            );
+            };
+            if (List.length(List.sort_uniq(compare, states))
+                != List.length(states)) {
+              Alcotest.fail(
+                "state repeated: " ++ String.concat("\n", states),
+              );
+            };
+            states;
+          };
+          /* raw-zipper states (no fork): the `?,? )` spacing is the
+             pre-existing Paste/regrout reshuffle when a closer lands
+             left of a hole — same result as typing `)` there by
+             hand; flagged, not display truth (the fork pads
+             ghost-bearing frames only). The property pinned here is
+             CONVERGENCE and SITE-correctness: inner closer, then
+             each tuple's commas landing in THEIR OWN tuple, then the
+             outer closer, then nothing. */
           check(
             string_testable,
             "tab-chunks",
-            {|let s = string_replace(string_capitalize(¦? in s
-let s = string_replace(string_capitalize(?, ¦? in s
-let s = string_replace(string_capitalize(?, ?, ¦? in s|},
-            chunks(z, 3, []) |> String.concat("\n"),
+            {|let s = string_replace(st¦ in s   OWED[5]
+let s = string_replace(string_capitalize(¦? in s   OWED[4]
+let s = string_replace(string_capitalize()¦ in s   OWED[3]
+let s = string_replace(string_capitalize(), ¦? in s   OWED[2]
+let s = string_replace(string_capitalize(), ?, ¦? in s   OWED[1]
+let s = string_replace(string_capitalize(), ?,? )¦ in s   OWED[0]
+NONE|},
+            states_of("let s = string_replace(st¦ in s")
+            |> audit
+            |> String.concat("\n"),
+          );
+          /* doubly-deficient nesting: both sites' commas serviced at
+             their own depth, innermost first */
+          check(
+            string_testable,
+            "tab-chunks-nested2",
+            {|let s = string_replace(string_replace(st¦ in s   OWED[8]
+let s = string_replace(string_replace(string_capitalize(¦? in s   OWED[7]
+let s = string_replace(string_replace(string_capitalize()¦ in s   OWED[6]
+let s = string_replace(string_replace(string_capitalize(), ¦? in s   OWED[5]
+let s = string_replace(string_replace(string_capitalize(), ?, ¦? in s   OWED[4]
+let s = string_replace(string_replace(string_capitalize(), ?,? )¦ in s   OWED[3]
+let s = string_replace(string_replace(string_capitalize(), ?,? ), ¦? in s   OWED[2]
+let s = string_replace(string_replace(string_capitalize(), ?,? ), ?, ¦? in s   OWED[1]
+let s = string_replace(string_replace(string_capitalize(), ?,? ), ?,? )¦ in s   OWED[0]
+NONE|},
+            states_of("let s = string_replace(string_replace(st¦ in s")
+            |> audit
+            |> String.concat("\n"),
           );
         },
+      ),
+    ],
+  ),
+  (
+    "CompletionDisplay: live-cadence parity",
+    /* the harness's display_parts derives statics FRESH and
+       PRE-REIFICATION from the rendered zipper; the live editor feeds
+       the fork CachedStatics' output — debounce-stale during a burst
+       and REIFIED once owed commas exist (the settled info_map anas
+       the anchor at its ELEMENT type, not the raw Prod). That input
+       gap is exactly where the 2026-07 live regressions hid while the
+       fresh pins stayed green (ghost `ing_capitalize(, ?, ?)` —
+       ap-hole and inner closer missing). These pins render the SAME
+       trajectory through the live pipeline and assert it equals the
+       fresh rendering, line for line. */
+    [
+      test_case("nested call: settled statics (lag 0, reified)", `Quick, () =>
+        check(
+          string_testable,
+          "parity-lag0",
+          trajectory_in(
+            ~ctx="let s = ¦ in s",
+            "string_replace(string_capitalize(x",
+          ),
+          trajectory_live_in(
+            ~lag=0,
+            ~ctx="let s = ¦ in s",
+            "string_replace(string_capitalize(x",
+          ),
+        )
+      ),
+      /* mid-burst: statics one keystroke behind. Token-extending
+         keystrokes keep their tile id, so the id-keyed type facts
+         still land — the display equals the fresh rendering here
+         too (a burst that MINTS new sites is covered by the
+         synthesize_new_sites stale_tests in Test_TypeObligations). */
+      test_case("nested call: mid-burst statics (lag 1)", `Quick, () =>
+        check(
+          string_testable,
+          "parity-lag1",
+          trajectory_in(
+            ~ctx="let s = ¦ in s",
+            "string_replace(string_capitalize(x",
+          ),
+          trajectory_live_in(
+            ~lag=1,
+            ~ctx="let s = ¦ in s",
+            "string_replace(string_capitalize(x",
+          ),
+        )
       ),
     ],
   ),
