@@ -1011,65 +1011,90 @@ and Stepper: {
       }
     };
 
+  let calculus_export_for_steps = steps => {
+    let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
+    let last_step = List.nth(steps, List.length(steps) - 1);
+    switch (last_step.next_step) {
+    | Some(next)
+        when
+          DifferentiationRewrite.contains_diff(first_exp)
+          && !
+               DifferentiationRewrite.contains_diff(
+                 next.expr |> Calc.get_saved_exc,
+               ) =>
+      ProofSearchBackend.calculus_export_program(
+        first_exp,
+        next.expr |> Calc.get_saved_exc,
+      )
+    | Some(_)
+    | None => None
+    };
+  };
+
   let export_coq = (first_step: step_model): option(string) => {
     let steps = coq_export_steps(first_step);
     if (List.length(steps) == 0) {
       None;
     } else {
-      let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
-      let unique_vars = CoqExport.unique_vars_in_ast(first_exp);
-      let domain = coq_domain_for_steps(steps);
-      let forall_str =
-        switch (unique_vars) {
-        | [] => ""
-        | vars =>
-          switch (domain) {
-          | CoqExport.Reals =>
-            "forall " ++ String.concat(" ", vars) ++ " : R,"
-          | CoqExport.Integers => "forall " ++ String.concat(" ", vars) ++ ","
-          }
-        };
-      let lemmas_and_invocations =
-        List.mapi(
-          (ind, step) =>
-            (
-              single_step_export(
-                List.length(steps) - ind,
-                step,
-                forall_str,
-                domain,
-              ),
-              CoqProofExport.invocation(List.length(steps) - ind),
-            ),
-          steps,
-        );
-      let (lemmas, invocations) = List.split(lemmas_and_invocations);
-      let first_expr = CoqExport.string_of_d_for_domain(~domain, first_exp);
-      let last_step = List.nth(steps, List.length(steps) - 1);
-      switch (last_step.next_step) {
-      | Some(next) =>
-        let final_expr =
-          CoqExport.string_of_d_for_domain(
-            ~domain,
-            next.expr |> Calc.get_saved_exc,
-          );
-        let prelude =
-          switch (domain) {
-          | CoqExport.Reals => CoqProofExport.real_prelude
-          | CoqExport.Integers => CoqProofExport.prelude
+      switch (calculus_export_for_steps(steps)) {
+      | Some(export) => Some(export)
+      | None =>
+        let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
+        let unique_vars = CoqExport.unique_vars_in_ast(first_exp);
+        let domain = coq_domain_for_steps(steps);
+        let forall_str =
+          switch (unique_vars) {
+          | [] => ""
+          | vars =>
+            switch (domain) {
+            | CoqExport.Reals =>
+              "forall " ++ String.concat(" ", vars) ++ " : R,"
+            | CoqExport.Integers =>
+              "forall " ++ String.concat(" ", vars) ++ ","
+            }
           };
-        Some(
-          Printf.sprintf(
-            "%s%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity.\nQed.",
-            prelude,
-            String.concat("\n", lemmas),
-            forall_str,
-            final_expr,
-            first_expr,
-            String.concat("\n", invocations),
-          ),
-        );
-      | None => None
+        let lemmas_and_invocations =
+          List.mapi(
+            (ind, step) =>
+              (
+                single_step_export(
+                  List.length(steps) - ind,
+                  step,
+                  forall_str,
+                  domain,
+                ),
+                CoqProofExport.invocation(List.length(steps) - ind),
+              ),
+            steps,
+          );
+        let (lemmas, invocations) = List.split(lemmas_and_invocations);
+        let first_expr = CoqExport.string_of_d_for_domain(~domain, first_exp);
+        let last_step = List.nth(steps, List.length(steps) - 1);
+        switch (last_step.next_step) {
+        | Some(next) =>
+          let final_expr =
+            CoqExport.string_of_d_for_domain(
+              ~domain,
+              next.expr |> Calc.get_saved_exc,
+            );
+          let prelude =
+            switch (domain) {
+            | CoqExport.Reals => CoqProofExport.real_prelude
+            | CoqExport.Integers => CoqProofExport.prelude
+            };
+          Some(
+            Printf.sprintf(
+              "%s%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity.\nQed.",
+              prelude,
+              String.concat("\n", lemmas),
+              forall_str,
+              final_expr,
+              first_expr,
+              String.concat("\n", invocations),
+            ),
+          );
+        | None => None
+        };
       };
     };
   };

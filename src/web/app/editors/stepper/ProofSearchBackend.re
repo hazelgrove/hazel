@@ -607,7 +607,8 @@ let calculus_cleanup_script = (~use_affine_finisher) =>
   ++ "].\n"
   ++ (use_affine_finisher ? "lra." : "reflexivity.");
 
-let calculus_search_program = (~profile, request) =>
+let calculus_search_program =
+    (~profile, ~theorem_name="hazel_rocq_search", request) =>
   switch (calculus_source(request.source)) {
   | None => None
   | Some((expression, variable)) =>
@@ -689,7 +690,8 @@ let calculus_search_program = (~profile, request) =>
                ++ calculus_cleanup_script(~use_affine_finisher=affine_target);
              };
            Printf.sprintf(
-             "From Coq Require Import Reals.Ranalysis1 Reals.Ranalysis3 Reals.Rtrigo_reg Lra.\nOpen Scope R_scope.\n\n(* Hazel profile-directed derivative certificate. *)\nTheorem hazel_rocq_search : forall %s : R, %sderivable_pt_lim (fun %s : R => %s) %s (%s).\nProof.\nintros.\nassert (H_hazel_derivative : derivable_pt_lim %s %s (%s)).\n{ %s }\n%s\nQed.",
+             "From Stdlib Require Import Rbase Rfunctions Ranalysis1 Ranalysis3 Rtrigo_reg Lra.\nOpen Scope R_scope.\n\n(* Hazel profile-directed derivative certificate. *)\nTheorem %s : forall %s : R, %sderivable_pt_lim (fun %s : R => %s) %s (%s).\nProof.\nintros.\nassert (H_hazel_derivative : derivable_pt_lim %s %s (%s)).\n{ %s }\n%s\nQed.",
+             theorem_name,
              String.concat(" ", vars),
              hypotheses,
              variable,
@@ -705,6 +707,22 @@ let calculus_search_program = (~profile, request) =>
          });
     };
   };
+
+let calculus_export_program = (source, target) => {
+  let request = {
+    backend: JSCoqTacticSearch,
+    level: Axioms.Calculus,
+    max_depth: 4,
+    max_states: 80,
+    source,
+    target,
+  };
+  calculus_search_program(
+    ~profile=Axioms.math_profile(Calculus),
+    ~theorem_name="hazel_derivative",
+    request,
+  );
+};
 
 let profile_search_definitions = (~domain, ~profile, ~max_depth, request) => {
   let plan = Axioms.stage_plan_for_profile(profile, MultiStepCheck);

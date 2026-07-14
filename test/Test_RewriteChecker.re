@@ -454,6 +454,21 @@ let sample_rocq_algebra_with_var_trig_export_chain = () => {
   sample_written_step_export_chain(~source, ~target, ~trace);
 };
 
+let sample_calculus_export_chain = (~source, ~target) => {
+  let trace =
+    Web.ProofSearchBackend.collapsed_macro_summary(
+      Web.ProofSearchBackend.{
+        backend: JSCoqTacticSearch,
+        level: Calculus,
+        max_depth: 4,
+        max_states: 80,
+        source,
+        target,
+      },
+    );
+  sample_written_step_export_chain(~source, ~target, ~trace);
+};
+
 let sample_local_algebra_under_trig_export_chain = () => {
   let x = Exp.var("x");
   let local_source = times(Exp.int(2), times(Exp.int(2), x));
@@ -6915,6 +6930,79 @@ let tests = (
           "does not use integer prelude",
           false,
           string_contains("Open Scope Z_scope.", export),
+        );
+      },
+    ),
+    test_case(
+      "coq export emits semantic derivative certificates",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let body = plus(power(x, Exp.int(2)), times(Exp.int(2), x));
+        let source = diff(Exp.fn(Pat.var("x"), body, None, None), x);
+        let target = plus(times(Exp.int(2), x), Exp.int(2));
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_calculus_export_chain(~source, ~target),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected derivative export")
+          };
+        write_text_file(
+          "/tmp/hazel_stepper_rocq_derivative_export.v",
+          export,
+        );
+        check(
+          bool,
+          "exports a derivative proposition",
+          true,
+          string_contains("Theorem hazel_derivative", export)
+          && string_contains("derivable_pt_lim (fun x : R =>", export),
+        );
+        check(
+          bool,
+          "replays compositional derivative lemmas",
+          true,
+          string_contains("derivable_pt_lim_plus", export)
+          && string_contains("derivable_pt_lim_Rsqr", export)
+          && string_contains("derivable_pt_lim_mult", export),
+        );
+        check(
+          bool,
+          "does not print Hazel diff tuple syntax",
+          false,
+          string_contains("diff", export)
+          || string_contains("Tuple literal", export),
+        );
+
+        let denominator = plus(x, Exp.int(1));
+        let quotient_source = diff(divide(x, denominator), x);
+        let quotient_target =
+          divide(minus(denominator, x), power(denominator, Exp.int(2)));
+        let quotient_export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_calculus_export_chain(
+                ~source=quotient_source,
+                ~target=quotient_target,
+              ),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected quotient derivative export")
+          };
+        write_text_file(
+          "/tmp/hazel_stepper_rocq_derivative_quotient_export.v",
+          quotient_export,
+        );
+        check(
+          bool,
+          "quotient export preserves its domain hypothesis",
+          true,
+          string_contains("(x + 1) <> 0 ->", quotient_export)
+          && string_contains("derivable_pt_lim_div", quotient_export),
         );
       },
     ),
