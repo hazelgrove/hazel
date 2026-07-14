@@ -118,7 +118,8 @@ type hazel_rule_backend =
   | AlgebraDistributeMulAdd
   | AlgebraFactorCommon
   | AlgebraCancelCommonAdd
-  | TrigIdentity;
+  | TrigIdentity
+  | CalculusDerivative;
 
 type rocq_domain =
   | RocqIntegers
@@ -226,15 +227,15 @@ let rewrite_level_detail =
   | Algebra => "distribution, factoring, and cancellation"
   | Trigonometry => "identities and angle rewrites"
   | FunctionsAndLists => "future: unfold, beta, map, fold"
-  | Calculus => "future: derivative and limit rules";
+  | Calculus => "differentiation rules over real expressions";
 
 let rewrite_level_enabled =
   fun
   | Arithmetic
   | Algebra
-  | Trigonometry => true
-  | FunctionsAndLists
-  | Calculus => false;
+  | Trigonometry
+  | Calculus => true
+  | FunctionsAndLists => false;
 
 let automation_stage_label =
   fun
@@ -267,6 +268,8 @@ let is_trig_builtin = name =>
   | _ => false
   };
 
+let is_calculus_builtin = name => name == "diff";
+
 let require = (construct, required_level, exp) => {
   construct,
   required_level,
@@ -282,9 +285,15 @@ let rec construct_requirements = exp => {
   let exp = exp |> DHExp.strip_ascriptions;
   switch (exp.term) {
   | Var("pi") => [require("pi", Trigonometry, exp)]
+  | Var(name) when is_calculus_builtin(name) => [
+      require(name, Calculus, exp),
+    ]
   | Var(_) => [require("variables", Algebra, exp)]
   | BuiltinFun(name) when is_trig_builtin(name) => [
       require(name, Trigonometry, exp),
+    ]
+  | BuiltinFun(name) when is_calculus_builtin(name) => [
+      require(name, Calculus, exp),
     ]
   | BuiltinFun(name) => [require(name, FunctionsAndLists, exp)]
   | Atom(Float(value)) when is_float_pi(value) => [
@@ -302,6 +311,7 @@ let rec construct_requirements = exp => {
       requirements
       |> List.filter(requirement =>
            requirement.required_level == Trigonometry
+           || requirement.required_level == Calculus
            || requirement.required_level == FunctionsAndLists
          )
       |> List.map(requirement => requirement_at_exp(requirement, exp));
@@ -523,9 +533,9 @@ let unsupported_constructs_message_for_rewrite = (~level, ~source, ~target) =>
 
 let export_level_for_rewrite = (~requested_level, source, target) =>
   switch (requested_level) {
-  | Trigonometry
-  | Calculus =>
+  | Trigonometry =>
     trig_applications_preserved(source, target) ? Algebra : Trigonometry
+  | Calculus => Calculus
   | level => level
   };
 
@@ -821,10 +831,80 @@ let trigonometry_rewrite_group = {
   ],
 };
 
+let calculus_rewrite_group = {
+  name: "calculus",
+  label: "calculus",
+  level: Calculus,
+  rank: rewrite_level_rank(Calculus),
+  rules: [
+    {
+      id: "calc.diff_function",
+      label: "differentiate a named function body",
+      prover_hints: [lean("simp")],
+    },
+    {
+      id: "calc.diff_constant",
+      label: "derivative of a constant",
+      prover_hints: [lean("fun_prop")],
+    },
+    {
+      id: "calc.diff_variable",
+      label: "derivative of the variable",
+      prover_hints: [lean("fun_prop")],
+    },
+    {
+      id: "calc.diff_sum",
+      label: "linearity over addition",
+      prover_hints: [lean("fun_prop")],
+    },
+    {
+      id: "calc.diff_difference",
+      label: "linearity over subtraction",
+      prover_hints: [lean("fun_prop")],
+    },
+    {
+      id: "calc.diff_negation",
+      label: "linearity over negation",
+      prover_hints: [lean("fun_prop")],
+    },
+    {
+      id: "calc.diff_product",
+      label: "product rule",
+      prover_hints: [lean("fun_prop")],
+    },
+    {
+      id: "calc.diff_quotient",
+      label: "quotient rule (denominator nonzero)",
+      prover_hints: [lean("fun_prop")],
+    },
+    {
+      id: "calc.diff_power",
+      label: "power rule",
+      prover_hints: [lean("fun_prop")],
+    },
+    {
+      id: "calc.diff_chain",
+      label: "chain rule",
+      prover_hints: [lean("fun_prop")],
+    },
+    {
+      id: "calc.diff_chain_sin",
+      label: "sine chain rule",
+      prover_hints: [lean("fun_prop")],
+    },
+    {
+      id: "calc.diff_chain_cos",
+      label: "cosine chain rule",
+      prover_hints: [lean("fun_prop")],
+    },
+  ],
+};
+
 let rewrite_groups = [
   arithmetic_rewrite_group,
   algebra_rewrite_group,
   trigonometry_rewrite_group,
+  calculus_rewrite_group,
 ];
 
 let allowed_groups = level => {
@@ -1045,6 +1125,90 @@ let visible_rule_metadata = rule_id =>
       ~name="Expand or factor the cube of a difference",
       ~short_name="(a-b)^3",
       ~example="(a - b)**3 = a**3 - 3*a**2*b + 3*a*b**2 - b**3",
+    )
+  | "calc.diff_function" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Differentiate a named function body",
+      ~short_name="Function",
+      ~example="diff(fun f(x) -> x**2, x) = diff(x**2, x)",
+    )
+  | "calc.diff_constant" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Derivative of a constant",
+      ~short_name="Constant",
+      ~example="diff(7, x) = 0",
+    )
+  | "calc.diff_variable" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Derivative of the variable",
+      ~short_name="Variable",
+      ~example="diff(x, x) = 1",
+    )
+  | "calc.diff_sum" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Apply derivative linearity to a sum",
+      ~short_name="Sum",
+      ~example="diff(u + v, x) = diff(u, x) + diff(v, x)",
+    )
+  | "calc.diff_difference" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Apply derivative linearity to a difference",
+      ~short_name="Difference",
+      ~example="diff(u - v, x) = diff(u, x) - diff(v, x)",
+    )
+  | "calc.diff_negation" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Apply derivative linearity to negation",
+      ~short_name="Negation",
+      ~example="diff(-u, x) = -diff(u, x)",
+    )
+  | "calc.diff_product" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Apply the product rule",
+      ~short_name="Product",
+      ~example="diff(u*v, x) = diff(u, x)*v + u*diff(v, x)",
+    )
+  | "calc.diff_quotient" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Apply the quotient rule (denominator nonzero)",
+      ~short_name="Quotient",
+      ~example="v != 0: diff(u/v, x) = (diff(u,x)*v-u*diff(v,x))/v**2",
+    )
+  | "calc.diff_power" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Apply the power rule",
+      ~short_name="Power",
+      ~example="diff(u**n, x) = n*u**(n-1)*diff(u, x)",
+    )
+  | "calc.diff_chain" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Apply the chain rule",
+      ~short_name="Chain",
+      ~example="diff(f(g(x)), x) = diff(f, g(x))*diff(g(x), x)",
+    )
+  | "calc.diff_chain_sin" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Apply the sine chain rule",
+      ~short_name="Sin chain",
+      ~example="diff(sin(u), x) = cos(u)*diff(u, x)",
+    )
+  | "calc.diff_chain_cos" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Apply the cosine chain rule",
+      ~short_name="Cos chain",
+      ~example="diff(cos(u), x) = -sin(u)*diff(u, x)",
     )
   | "trig.pythagorean_sin_cos"
   | "trig.pythagorean_cos_sin" =>
@@ -1721,6 +1885,73 @@ let rocq_backend_for_rule_id =
         ~reals=["rewrite tan_neg"],
       ),
     )
+  | "calc.diff_constant" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_calculus",
+        ~integers=[],
+        ~reals=["apply derivable_pt_lim_const"],
+      ),
+    )
+  | "calc.diff_variable" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_calculus",
+        ~integers=[],
+        ~reals=["apply derivable_pt_lim_id"],
+      ),
+    )
+  | "calc.diff_sum" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_calculus",
+        ~integers=[],
+        ~reals=["apply derivable_pt_lim_plus"],
+      ),
+    )
+  | "calc.diff_difference" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_calculus",
+        ~integers=[],
+        ~reals=["apply derivable_pt_lim_minus"],
+      ),
+    )
+  | "calc.diff_negation" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_calculus",
+        ~integers=[],
+        ~reals=["apply derivable_pt_lim_opp"],
+      ),
+    )
+  | "calc.diff_product" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_calculus",
+        ~integers=[],
+        ~reals=["apply derivable_pt_lim_mult"],
+      ),
+    )
+  | "calc.diff_quotient" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_calculus",
+        ~integers=[],
+        ~reals=["apply derivable_pt_lim_div"],
+      ),
+    )
+  | "calc.diff_chain"
+  | "calc.diff_chain_sin"
+  | "calc.diff_chain_cos"
+  | "calc.diff_power" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_calculus",
+        ~integers=[],
+        ~reals=["apply derivable_pt_lim_comp"],
+      ),
+    )
   | _ => None;
 
 let rocq_tactics_for_domain = (~domain, tactics) =>
@@ -1928,28 +2159,28 @@ let math_rule_catalog = {
       ~id="arith.add_comm",
       ~direction=BothDirections,
       ~hazel_backend=Some(ArithmeticAddComm),
-      ~visible_levels=[Arithmetic],
+      ~visible_levels=[Arithmetic, Calculus],
       ~allowed_cleanup=[AddAssoc],
     ),
     catalog_rule(
       ~id="arith.const_fold",
       ~direction=Forward,
       ~hazel_backend=Some(ArithmeticConstFold),
-      ~visible_levels=[Arithmetic],
+      ~visible_levels=[Arithmetic, Calculus],
       ~allowed_cleanup=[AddAssoc],
     ),
     catalog_rule(
       ~id="arith.mul_const",
       ~direction=BothDirections,
       ~hazel_backend=Some(ArithmeticMulConst),
-      ~visible_levels=[Arithmetic],
+      ~visible_levels=[Arithmetic, Calculus],
       ~allowed_cleanup=[AddAssoc, MulAssoc],
     ),
     catalog_rule(
       ~id="arith.mul_identity",
       ~direction=Forward,
       ~hazel_backend=Some(ArithmeticMulIdentity),
-      ~visible_levels=[Arithmetic, Algebra, Trigonometry],
+      ~visible_levels=[Arithmetic, Algebra, Trigonometry, Calculus],
       ~allowed_cleanup=[],
     ),
   ];
@@ -1959,21 +2190,21 @@ let math_rule_catalog = {
         ~id="alg.distribute_mul_add",
         ~direction=BothDirections,
         ~hazel_backend=Some(AlgebraDistributeMulAdd),
-        ~visible_levels=[Algebra, Trigonometry],
+        ~visible_levels=[Algebra, Trigonometry, Calculus],
         ~allowed_cleanup=ac_cleanup @ [PowerNotation],
       ),
       catalog_rule(
         ~id="alg.factor_common",
         ~direction=BothDirections,
         ~hazel_backend=Some(AlgebraFactorCommon),
-        ~visible_levels=[Algebra, Trigonometry],
+        ~visible_levels=[Algebra, Trigonometry, Calculus],
         ~allowed_cleanup=ac_cleanup,
       ),
       catalog_rule(
         ~id="alg.cancel_common_add",
         ~direction=BothDirections,
         ~hazel_backend=Some(AlgebraCancelCommonAdd),
-        ~visible_levels=[Algebra, Trigonometry],
+        ~visible_levels=[Algebra, Trigonometry, Calculus],
         ~allowed_cleanup=[AddAssoc, AddComm],
       ),
       catalog_rule(
@@ -1991,7 +2222,7 @@ let math_rule_catalog = {
              ~id,
              ~direction=BothDirections,
              ~hazel_backend=Some(AlgebraIdentity),
-             ~visible_levels=[Algebra, Trigonometry],
+             ~visible_levels=[Algebra, Trigonometry, Calculus],
              ~allowed_cleanup=[],
            )
          )
@@ -2029,7 +2260,18 @@ let math_rule_catalog = {
            ~id=rule.id,
            ~direction=BothDirections,
            ~hazel_backend=Some(TrigIdentity),
-           ~visible_levels=[Trigonometry],
+           ~visible_levels=[Trigonometry, Calculus],
+           ~allowed_cleanup=[],
+         )
+       );
+  let calculus_rules =
+    calculus_rewrite_group.rules
+    |> List.map((rule: rewrite_rule) =>
+         catalog_rule(
+           ~id=rule.id,
+           ~direction=Forward,
+           ~hazel_backend=Some(CalculusDerivative),
+           ~visible_levels=[Calculus],
            ~allowed_cleanup=[],
          )
        );
@@ -2037,6 +2279,7 @@ let math_rule_catalog = {
   @ algebra_rules
   @ replay_only_rules
   @ trig_rules
+  @ calculus_rules
   @ [
     Some(affine_normalization_rule),
     Some(factor_polynomial_rule),
@@ -2050,7 +2293,12 @@ let profile_default_cleanup = [
   (Algebra, ac_cleanup @ structural_identity_cleanup),
   (Trigonometry, ac_cleanup @ structural_identity_cleanup),
   (FunctionsAndLists, []),
-  (Calculus, []),
+  (
+    Calculus,
+    ac_cleanup
+    @ structural_identity_cleanup
+    @ [ConstFold, PowerNotation, CollectLikeTerms],
+  ),
 ];
 
 let step_policy = level => {

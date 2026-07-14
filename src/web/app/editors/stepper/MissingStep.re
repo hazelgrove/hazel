@@ -136,6 +136,7 @@ module Update = {
       )
     | RocqProofSearchCancelled(int)
     | AlgebriteSuggestionFinished(option(string), string, string)
+    | ProfileSuggestionFinished(option(Exp.t), string, string)
     | RewriteEditorAction(CodeEditable.Update.t)
     | WriteStepEditorAction(CodeEditable.Update.t)
     | AxiomBoxAction(AxiomsBox.Update.t)
@@ -389,6 +390,53 @@ module Update = {
       }
     | (AlgebriteSuggestionFinished(_, _, _), _) =>
       model |> Updated.return_quiet
+    | (
+        ProfileSuggestionFinished(candidate, message, source),
+        WrittenStepOpen({check_mode: ProofSearch, _} as r),
+      ) =>
+      switch (candidate) {
+      | Some(candidate_exp) =>
+        let editor =
+          CodeWithStatics.Model.mk_from_exp(
+            ~settings=settings.core,
+            ~root=Exp,
+            ~parenthesization=Haz3lcore.ExpToSegment.Settings.Defensive,
+            candidate_exp,
+          );
+        Model.{
+          ...model,
+          open_box:
+            Model.WrittenStepOpen({
+              ...r,
+              editor,
+              proof_search_requested: false,
+              proof_search_verdict: Ready,
+              proof_search_check_id: None,
+              proof_search_message: Some(message),
+              proof_search_source: Some(source),
+              cached_exp: Calc.Pending,
+              cached_result: Calc.Pending,
+            }),
+        }
+        |> Updated.return_quiet(~recalculate=true, ~logged=true);
+      | None =>
+        Model.{
+          ...model,
+          open_box:
+            Model.WrittenStepOpen({
+              ...r,
+              proof_search_requested: false,
+              proof_search_verdict: Invalid,
+              proof_search_check_id: None,
+              proof_search_message: Some(message),
+              proof_search_source: None,
+              cached_result: Calc.Pending,
+            }),
+        }
+        |> Updated.return_quiet(~logged=true)
+      }
+    | (ProfileSuggestionFinished(_, _, _), _) =>
+      model |> Updated.return_quiet
     | (WriteStepEditorAction(action), WrittenStepOpen({editor, _} as r)) =>
       let* new_editor = CodeEditable.Update.update(~settings, action, editor);
       let target_changed =
@@ -474,6 +522,7 @@ module Update = {
     | RocqProofSearchFinished(_, _, _, _)
     | RocqProofSearchCancelled(_)
     | AlgebriteSuggestionFinished(_, _, _)
+    | ProfileSuggestionFinished(_, _, _)
     | RewriteEditorAction(_)
     | WriteStepEditorAction(_)
     | AxiomBoxAction(_) => false
@@ -1612,6 +1661,48 @@ module View = {
             ~method_name="simplifyToString",
             ~source="Algebrite simplify candidate",
           );
+        let simplify_with_profile_button =
+          Widgets.button(
+            ~clss=["proof-button"],
+            Node.text("Simplify"),
+            ~tooltip="Simplify using the active math profile",
+            _ => {
+              let env =
+                model.cached_env
+                |> Calc.get_saved_exc(~print="env not cached");
+              let profile =
+                ProfileBoard.apply_model_to_profile(
+                  model.profile_board,
+                  Axioms.math_profile(rewrite_level),
+                );
+              switch (
+                unboxed_selected_exp
+                |> Substitution.in_exp(env)
+                |> RewriteChecker.simplify_for_profile(
+                     ~profile,
+                     ~settings=globals.settings.core,
+                     ~env,
+                   )
+              ) {
+              | Some(candidate) =>
+                inject(
+                  ProfileSuggestionFinished(
+                    Some(candidate),
+                    "Active profile suggested a derivative result.",
+                    "profile-driven differentiation",
+                  ),
+                )
+              | None =>
+                inject(
+                  ProfileSuggestionFinished(
+                    None,
+                    "The active profile could not simplify this expression.",
+                    "profile-driven differentiation",
+                  ),
+                )
+              };
+            },
+          );
         let factor_with_algebrite_button =
           algebrite_suggestion_button(
             ~label="Factor",
@@ -1659,8 +1750,8 @@ module View = {
                   ? [factor_with_algebrite_button] : []
               )
             | Arithmetic
-            | FunctionsAndLists
-            | Calculus => [simplify_with_algebrite_button]
+            | FunctionsAndLists => [simplify_with_algebrite_button]
+            | Calculus => [simplify_with_profile_button]
             }
           | _ => []
           };
@@ -2009,8 +2100,12 @@ module View = {
         let* simplified_exp =
           selected_exp
           |> Substitution.in_exp(env)
-          |> RewriteChecker.simplify_at_level(
-               ~level=rewrite_level,
+          |> RewriteChecker.simplify_for_profile(
+               ~profile=
+                 ProfileBoard.apply_model_to_profile(
+                   model.profile_board,
+                   Axioms.math_profile(rewrite_level),
+                 ),
                ~settings=globals.settings.core,
                ~env,
              );

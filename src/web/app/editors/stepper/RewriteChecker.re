@@ -202,6 +202,9 @@ let algebra_group_at_level = level => group_named_at_level(level, "algebra");
 let trigonometry_group_at_level = level =>
   group_named_at_level(level, "trigonometry");
 
+let calculus_group_at_level = level =>
+  group_named_at_level(level, "calculus");
+
 let rec add_term = (name, coeff, terms) =>
   if (is_zero(coeff)) {
     terms;
@@ -2234,6 +2237,25 @@ let simplify_at_level = (~level, ~settings, ~env, exp) =>
     }
   };
 
+let simplify_for_profile =
+    (~profile: Axioms.math_profile, ~settings, ~env, exp) => {
+  switch (profile.level) {
+  | Axioms.Calculus =>
+    let rule_enabled = rule_id =>
+      Axioms.visible_rule_enabled(profile.step_policy, rule_id);
+    let normalized =
+      DifferentiationRewrite.normalize(~rule_enabled, ~fuel=128, exp);
+    switch (normalized.steps) {
+    | [] => simplify_at_level(~level=profile.level, ~settings, ~env, exp)
+    | [_, ..._] =>
+      let cleanup_enabled = capability =>
+        List.mem(capability, profile.step_policy.default_cleanup);
+      Some(DifferentiationRewrite.cleanup(~cleanup_enabled, normalized.exp));
+    };
+  | _ => simplify_at_level(~level=profile.level, ~settings, ~env, exp)
+  };
+};
+
 type local_rewrite = {
   before_exp: Exp.t,
   after_exp: Exp.t,
@@ -2970,6 +2992,63 @@ let check_single_trig_rule_result_at_level =
     to_,
   );
 
+let check_single_calculus_rule_result_for_profile =
+    (
+      ~profile: Axioms.math_profile,
+      ~settings as _: CoreSettings.t,
+      ~env as _,
+      from_,
+      to_,
+    ) => {
+  switch (calculus_group_at_level(profile.level)) {
+  | None => None
+  | Some(group) =>
+    let from_ = from_ |> DHExp.strip_ascriptions |> strip_math_wrappers;
+    let to_ = to_ |> DHExp.strip_ascriptions |> strip_math_wrappers;
+    let rule_enabled = rule_id =>
+      Axioms.visible_rule_enabled(profile.step_policy, rule_id);
+    DifferentiationRewrite.applicable_at_root(~rule_enabled, from_)
+    |> List.find_map((rewrite: TrigRewrite.rewrite) =>
+         if (TrigRewrite.exp_same(rewrite.after_exp, to_)) {
+           let trace = trace_rules(group, [rewrite.rule_id]);
+           Some({
+             justification: "calculus one step",
+             group: Some(group),
+             from_normal_exp: from_,
+             to_normal_exp: to_,
+             from_trace: trace,
+             to_trace: [],
+             trace,
+             prover_steps: [
+               prover_step(
+                 ~origin=ManualRewrite,
+                 ~rule_id=rewrite.rule_id,
+                 ~before_full_exp=from_,
+                 ~after_full_exp=to_,
+                 ~before_exp=rewrite.before_exp,
+                 ~after_exp=rewrite.after_exp,
+                 ~detail="single differentiation rule",
+               ),
+             ],
+             exportable: true,
+           });
+         } else {
+           None;
+         }
+       );
+  };
+};
+
+let check_single_calculus_rule_result_at_level =
+    (~level, ~settings, ~env, from_, to_) =>
+  check_single_calculus_rule_result_for_profile(
+    ~profile=Axioms.math_profile(level),
+    ~settings,
+    ~env,
+    from_,
+    to_,
+  );
+
 let check_result_uses_rule = (rule: Axioms.math_rule, result) =>
   result.trace
   |> List.exists((trace_rule: Axioms.rewrite_rule) =>
@@ -3032,6 +3111,14 @@ let check_single_catalog_rule =
       )
     | Some(TrigIdentity) =>
       check_single_trig_rule_result_for_profile(
+        ~profile=rule_profile,
+        ~settings,
+        ~env,
+        from_,
+        to_,
+      )
+    | Some(CalculusDerivative) =>
+      check_single_calculus_rule_result_for_profile(
         ~profile=rule_profile,
         ~settings,
         ~env,
@@ -3138,7 +3225,7 @@ let check_rewrite_result = (~settings, ~env, from_: Exp.t, to_: Exp.t) =>
 let check_written_step_result_at_level =
     (~level, ~settings, ~env, from_: Exp.t, to_: Exp.t): option(check_result) => {
   switch (
-    check_single_trig_rule_result_at_level(
+    check_single_calculus_rule_result_at_level(
       ~level,
       ~settings,
       ~env,
@@ -3148,10 +3235,22 @@ let check_written_step_result_at_level =
   ) {
   | Some(result) => Some(result)
   | None =>
-    written_step_checkers_at_level(level)
-    |> List.find_map(checker =>
-         check_with(~settings, ~env, from_, to_, checker)
-       )
+    switch (
+      check_single_trig_rule_result_at_level(
+        ~level,
+        ~settings,
+        ~env,
+        from_,
+        to_,
+      )
+    ) {
+    | Some(result) => Some(result)
+    | None =>
+      written_step_checkers_at_level(level)
+      |> List.find_map(checker =>
+           check_with(~settings, ~env, from_, to_, checker)
+         )
+    }
   };
 };
 

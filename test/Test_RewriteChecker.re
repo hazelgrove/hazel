@@ -32,6 +32,9 @@ let builtin_app = (name, arg) =>
     Ap(Operators.Forward, Language.Exp.fresh(BuiltinFun(name)), arg),
   );
 
+let diff = (expression, variable) =>
+  app("diff", Exp.tuple([expression, variable]));
+
 let sin = arg => app("sin", arg);
 let cos = arg => app("cos", arg);
 let tan = arg => app("tan", arg);
@@ -1019,7 +1022,7 @@ let tests = (
         check(
           list(string),
           "future levels include earlier groups",
-          ["arithmetic", "algebra", "trigonometry"],
+          ["arithmetic", "algebra", "trigonometry", "calculus"],
           Axioms.allowed_groups(Calculus) |> List.map(rewrite_group_name),
         );
         check(
@@ -1039,6 +1042,287 @@ let tests = (
           "trigonometry enabled",
           true,
           Axioms.rewrite_level_enabled(Trigonometry),
+        );
+        check(
+          bool,
+          "calculus enabled",
+          true,
+          Axioms.rewrite_level_enabled(Calculus),
+        );
+      },
+    ),
+    test_case(
+      "calculus one step applies the power rule",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source = diff(power(x, Exp.int(3)), x);
+        let target =
+          times(times(Exp.int(3), power(x, Exp.int(2))), diff(x, x));
+        check_written_at_level(
+          "power rule",
+          Calculus,
+          source,
+          target,
+          Some("calculus one step"),
+        );
+      },
+    ),
+    test_case(
+      "calculus profile can disable the power rule",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source = diff(power(x, Exp.int(3)), x);
+        let target =
+          times(times(Exp.int(3), power(x, Exp.int(2))), diff(x, x));
+        let profile = Axioms.math_profile(Calculus);
+        let profile = {
+          ...profile,
+          step_policy: {
+            ...profile.step_policy,
+            visible_rules:
+              profile.step_policy.visible_rules
+              |> List.filter((rule: Axioms.visible_rule_policy) =>
+                   rule.rule_id != "calc.diff_power"
+                 ),
+          },
+        };
+        check(
+          bool,
+          "disabled power rule is rejected",
+          true,
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          )
+          |> Option.is_none,
+        );
+        check(
+          bool,
+          "automatic differentiation preserves disabled power",
+          true,
+          switch (
+            Web.RewriteChecker.simplify_for_profile(
+              ~profile,
+              ~settings,
+              ~env,
+              source,
+            )
+          ) {
+          | None => true
+          | Some(result) => Web.DifferentiationRewrite.contains_diff(result)
+          },
+        );
+      },
+    ),
+    test_case(
+      "calculus normalization composes product power and sine chain rules",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source = diff(times(power(x, Exp.int(3)), builtin_sin(x)), x);
+        let normalized =
+          Web.DifferentiationRewrite.normalize(
+            ~rule_enabled=_ => true,
+            source,
+          );
+        let rule_ids =
+          normalized.steps
+          |> List.map((step: Web.TrigRewrite.rewrite) => step.rule_id);
+        check(bool, "normalization completes", true, normalized.complete);
+        check(
+          bool,
+          "normalization removes diff",
+          false,
+          Web.DifferentiationRewrite.contains_diff(normalized.exp),
+        );
+        [
+          "calc.diff_product",
+          "calc.diff_power",
+          "calc.diff_chain_sin",
+          "calc.diff_variable",
+        ]
+        |> List.iter(rule_id =>
+             check(
+               bool,
+               "normalization records " ++ rule_id,
+               true,
+               List.mem(rule_id, rule_ids),
+             )
+           );
+      },
+    ),
+    test_case(
+      "calculus accepts named function differentiation syntax",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let body = power(x, Exp.int(2));
+        let named_function = Exp.fn(Pat.var("x"), body, None, Some("f"));
+        check_written_at_level(
+          "named function body",
+          Calculus,
+          diff(named_function, x),
+          diff(body, x),
+          Some("calculus one step"),
+        );
+      },
+    ),
+    test_case(
+      "calculus accepts parsed named function differentiation syntax",
+      `Quick,
+      () => {
+        let source =
+          switch (
+            Haz3lcore.Parser.to_term("diff(fun f(x) -> x**2, x)", ~root=Exp)
+          ) {
+          | Some(source) => source
+          | None => fail("expected named derivative syntax to parse")
+          };
+        let normalized =
+          Web.DifferentiationRewrite.normalize(
+            ~rule_enabled=_ => true,
+            source,
+          );
+        check(bool, "normalization completes", true, normalized.complete);
+        check(
+          bool,
+          "normalization removes diff",
+          false,
+          Web.DifferentiationRewrite.contains_diff(normalized.exp),
+        );
+      },
+    ),
+    test_case(
+      "calculus auto simplify uses explicit profile cleanup",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source = diff(power(x, Exp.int(2)), x);
+        let target = times(Exp.int(2), x);
+        switch (
+          Web.RewriteChecker.simplify_for_profile(
+            ~profile=Axioms.math_profile(Calculus),
+            ~settings,
+            ~env,
+            source,
+          )
+        ) {
+        | Some(result) => check_exp_equal("clean derivative", target, result)
+        | None => fail("expected a derivative result")
+        };
+      },
+    ),
+    test_case(
+      "calculus check result emits a derivative proposition certificate",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Calculus,
+            max_depth: 4,
+            max_states: 80,
+            source: diff(power(x, Exp.int(2)), x),
+            target: times(Exp.int(2), x),
+          };
+        let coq = Web.ProofSearchBackend.rocq_search_program(request);
+        write_text_file("/tmp/hazel_stepper_rocq_derivative_power.v", coq);
+        check(
+          bool,
+          "certificate states differentiability",
+          true,
+          string_contains("derivable_pt_lim (fun x : R =>", coq),
+        );
+        check(
+          bool,
+          "certificate uses the standard square lemma",
+          true,
+          string_contains("apply derivable_pt_lim_Rsqr", coq),
+        );
+        check(
+          bool,
+          "certificate does not use broad ring automation",
+          false,
+          string_contains("ring", coq),
+        );
+      },
+    ),
+    test_case(
+      "calculus emits compositional certificate fixtures",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let emit = (name, source, target) => {
+          let coq =
+            Web.ProofSearchBackend.rocq_search_program({
+              backend: JSCoqTacticSearch,
+              level: Calculus,
+              max_depth: 4,
+              max_states: 80,
+              source,
+              target,
+            });
+          write_text_file(
+            "/tmp/hazel_stepper_rocq_derivative_" ++ name ++ ".v",
+            coq,
+          );
+          coq;
+        };
+        let product_coq =
+          emit(
+            "product",
+            diff(times(x, builtin_sin(x)), x),
+            plus(builtin_sin(x), times(x, builtin_cos(x))),
+          );
+        check(
+          bool,
+          "product certificate uses the product lemma",
+          true,
+          string_contains("derivable_pt_lim_mult", product_coq),
+        );
+        let chain_coq =
+          emit(
+            "sin_chain",
+            diff(builtin_sin(power(x, Exp.int(2))), x),
+            times(
+              builtin_cos(power(x, Exp.int(2))),
+              times(Exp.int(2), x),
+            ),
+          );
+        check(
+          bool,
+          "chain certificate uses sine and composition lemmas",
+          true,
+          string_contains("derivable_pt_lim_sin", chain_coq)
+          && string_contains("derivable_pt_lim_comp", chain_coq),
+        );
+        let denominator = plus(x, Exp.int(1));
+        let quotient_coq =
+          emit(
+            "quotient",
+            diff(divide(x, denominator), x),
+            divide(minus(denominator, x), power(denominator, Exp.int(2))),
+          );
+        check(
+          bool,
+          "quotient certificate exposes its nonzero hypothesis",
+          true,
+          string_contains("(x + 1) <> 0 ->", quotient_coq),
+        );
+        let named_function =
+          Exp.fn(Pat.var("x"), power(x, Exp.int(2)), None, Some("f"));
+        ignore(
+          emit(
+            "named_function",
+            diff(named_function, x),
+            times(Exp.int(2), x),
+          ),
         );
       },
     ),
@@ -1412,7 +1696,7 @@ let tests = (
           check(
             list(string),
             "distribution profile membership comes from catalog",
-            ["Algebra", "Trigonometry"],
+            ["Algebra", "Trigonometry", "Calculus"],
             rule.visible_levels |> List.map(Axioms.rewrite_level_label),
           );
           check(
@@ -6399,7 +6683,7 @@ let tests = (
             ~domain=Web.CoqExport.Reals,
             expr,
           );
-        check(string, "printed expression", "sin (PI - x)", printed);
+        check(string, "printed expression", "sin ((PI - x))", printed);
         check(
           bool,
           "does not emit ERROR",

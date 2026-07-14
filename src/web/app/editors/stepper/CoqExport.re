@@ -9,7 +9,8 @@ type domain =
 
 let is_float_pi = value => abs_float(value -. Float.pi) < 0.000001;
 
-let is_real_builtin = name => name == "sin" || name == "cos" || name == "tan";
+let is_real_builtin = name =>
+  name == "sin" || name == "cos" || name == "tan" || name == "diff";
 
 let rec requires_reals = (d: Language.DHExp.t) =>
   switch (Language.Exp.term_of(d |> Language.DHExp.strip_ascriptions)) {
@@ -211,7 +212,7 @@ let string_of_d_reals = (d: Language.DHExp.t) => {
     | Var(x) => x
     | BuiltinFun(name) => name
     | Ap(Language.Operators.Forward, fn, arg) =>
-      loop(fn) ++ " " ++ loop(arg)
+      loop(fn) ++ " (" ++ loop(arg) ++ ")"
     | _ =>
       failwith(
         "unsupported Coq real export term: "

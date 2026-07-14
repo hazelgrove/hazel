@@ -115,7 +115,7 @@ window.HazelJSCoq = {
   maxRetiredManagers: 2,
   managerRetirementDelayMs: 5000,
   warmupLibraryCode:
-    'From Coq Require Import ZArith Lia Ring Rbase Rfunctions Rtrigo1 Cos_plus Lra.\n',
+    'From Coq Require Import ZArith Lia Ring Rbase Rfunctions Rtrigo1 Cos_plus Lra Reals.Ranalysis1 Reals.Ranalysis3 Reals.Rtrigo_reg.\n',
 
   jscoqPaths() {
     return {

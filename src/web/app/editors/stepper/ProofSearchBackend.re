@@ -145,6 +145,546 @@ let direct_certificate_definitions = directed_finishers =>
     ++ "\n  ].\n"
   };
 
+type derivative_certificate = {
+  raw_derivative: Exp.t,
+  proof: string,
+  nonzero_denominators: list(Exp.t),
+};
+
+let proof_block = proof => "{\n" ++ proof ++ "\n}";
+
+let derivative_function = (~variable, expression) =>
+  "(fun "
+  ++ variable
+  ++ " : R => "
+  ++ CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, expression)
+  ++ ")";
+
+let rec derivative_certificate_for_expression = (~variable, expression) => {
+  let expression = DifferentiationRewrite.strip(expression);
+  let independent = !DifferentiationRewrite.depends_on(variable, expression);
+  if (independent) {
+    let constant =
+      CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, expression);
+    Some({
+      raw_derivative: DifferentiationRewrite.int_exp(0),
+      proof:
+        "change (derivable_pt_lim (fct_cte ("
+        ++ constant
+        ++ ")) "
+        ++ variable
+        ++ " 0).\napply derivable_pt_lim_const.",
+      nonzero_denominators: [],
+    });
+  } else {
+    let combine_binary = (left, right, raw, lemma, assumptions) =>
+      switch (
+        derivative_certificate_for_expression(~variable, left),
+        derivative_certificate_for_expression(~variable, right),
+      ) {
+      | (Some(left_proof), Some(right_proof)) =>
+        let left_derivative =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            left_proof.raw_derivative,
+          );
+        let right_derivative =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            right_proof.raw_derivative,
+          );
+        Some({
+          raw_derivative:
+            raw(left_proof.raw_derivative, right_proof.raw_derivative),
+          proof:
+            "eapply "
+            ++ "("
+            ++ lemma
+            ++ " "
+            ++ derivative_function(~variable, left)
+            ++ " "
+            ++ derivative_function(~variable, right)
+            ++ " "
+            ++ variable
+            ++ " ("
+            ++ left_derivative
+            ++ ") ("
+            ++ right_derivative
+            ++ ")).\n"
+            ++ proof_block(left_proof.proof)
+            ++ "\n"
+            ++ proof_block(right_proof.proof)
+            ++ assumptions,
+          nonzero_denominators:
+            left_proof.nonzero_denominators @ right_proof.nonzero_denominators,
+        });
+      | _ => None
+      };
+    switch (expression.term) {
+    | Var(name) when name == variable =>
+      Some({
+        raw_derivative: DifferentiationRewrite.int_exp(1),
+        proof:
+          "change (derivable_pt_lim id "
+          ++ variable
+          ++ " 1).\napply derivable_pt_lim_id.",
+        nonzero_denominators: [],
+      })
+    | BinOp(op, left, right)
+        when DifferentiationRewrite.is_operator(Operators.Plus, op) =>
+      combine_binary(
+        left,
+        right,
+        DifferentiationRewrite.plus_exp,
+        "derivable_pt_lim_plus",
+        "",
+      )
+    | BinOp(op, left, right)
+        when DifferentiationRewrite.is_operator(Operators.Minus, op) =>
+      combine_binary(
+        left,
+        right,
+        DifferentiationRewrite.minus_exp,
+        "derivable_pt_lim_minus",
+        "",
+      )
+    | BinOp(op, left, right)
+        when DifferentiationRewrite.is_operator(Operators.Times, op) =>
+      combine_binary(
+        left,
+        right,
+        (left_derivative, right_derivative) =>
+          DifferentiationRewrite.plus_exp(
+            DifferentiationRewrite.times_exp(left_derivative, right),
+            DifferentiationRewrite.times_exp(left, right_derivative),
+          ),
+        "derivable_pt_lim_mult",
+        "",
+      )
+    | BinOp(op, numerator, denominator)
+        when DifferentiationRewrite.is_operator(Operators.Divide, op) =>
+      switch (
+        derivative_certificate_for_expression(~variable, numerator),
+        derivative_certificate_for_expression(~variable, denominator),
+      ) {
+      | (Some(numerator_proof), Some(denominator_proof)) =>
+        let numerator_derivative =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            numerator_proof.raw_derivative,
+          );
+        let denominator_derivative =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            denominator_proof.raw_derivative,
+          );
+        let raw_derivative =
+          DifferentiationRewrite.divide_exp(
+            DifferentiationRewrite.minus_exp(
+              DifferentiationRewrite.times_exp(
+                numerator_proof.raw_derivative,
+                denominator,
+              ),
+              DifferentiationRewrite.times_exp(
+                numerator,
+                denominator_proof.raw_derivative,
+              ),
+            ),
+            DifferentiationRewrite.power_exp(
+              denominator,
+              DifferentiationRewrite.int_exp(2),
+            ),
+          );
+        let standard_derivative =
+          DifferentiationRewrite.divide_exp(
+            DifferentiationRewrite.minus_exp(
+              DifferentiationRewrite.times_exp(
+                numerator_proof.raw_derivative,
+                denominator,
+              ),
+              DifferentiationRewrite.times_exp(
+                denominator_proof.raw_derivative,
+                numerator,
+              ),
+            ),
+            DifferentiationRewrite.power_exp(
+              denominator,
+              DifferentiationRewrite.int_exp(2),
+            ),
+          );
+        let raw_derivative_string =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            raw_derivative,
+          );
+        let standard_derivative_string =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            standard_derivative,
+          );
+        let numerator_string =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            numerator,
+          );
+        Some({
+          raw_derivative,
+          proof:
+            "replace ("
+            ++ raw_derivative_string
+            ++ ") with ("
+            ++ standard_derivative_string
+            ++ ").\n{ eapply (derivable_pt_lim_div "
+            ++ derivative_function(~variable, numerator)
+            ++ " "
+            ++ derivative_function(~variable, denominator)
+            ++ " "
+            ++ variable
+            ++ " ("
+            ++ numerator_derivative
+            ++ ") ("
+            ++ denominator_derivative
+            ++ ")).\n"
+            ++ proof_block(numerator_proof.proof)
+            ++ "\n"
+            ++ proof_block(denominator_proof.proof)
+            ++ "\n{ assumption. } }\n"
+            ++ "{ rewrite (Rmult_comm ("
+            ++ numerator_string
+            ++ ") ("
+            ++ denominator_derivative
+            ++ ")); reflexivity. }",
+          nonzero_denominators:
+            numerator_proof.nonzero_denominators
+            @ denominator_proof.nonzero_denominators
+            @ [denominator],
+        });
+      | _ => None
+      }
+    | BinOp(op, base, exponent)
+        when DifferentiationRewrite.is_operator(Operators.Power, op) =>
+      switch (
+        DifferentiationRewrite.integer_constant(exponent),
+        derivative_certificate_for_expression(~variable, base),
+      ) {
+      | (Some(power), Some(base_proof)) when power > 0 =>
+        let base_at =
+          CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, base);
+        let base_derivative =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            base_proof.raw_derivative,
+          );
+        let outer_derivative =
+          power == 2
+            ? DifferentiationRewrite.times_exp(
+                DifferentiationRewrite.int_exp(2),
+                base,
+              )
+            : DifferentiationRewrite.times_exp(
+                DifferentiationRewrite.int_exp(power),
+                DifferentiationRewrite.power_exp(
+                  base,
+                  DifferentiationRewrite.int_exp(power - 1),
+                ),
+              );
+        let raw_derivative =
+          DifferentiationRewrite.times_exp(
+            outer_derivative,
+            base_proof.raw_derivative,
+          );
+        let raw_derivative_string =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            raw_derivative,
+          );
+        Some({
+          raw_derivative,
+          proof:
+            "change (derivable_pt_lim (comp "
+            ++ (
+              power == 2
+                ? "Rsqr" : "(fun y : R => y ^ " ++ string_of_int(power) ++ ")"
+            )
+            ++ " "
+            ++ derivative_function(~variable, base)
+            ++ ") "
+            ++ variable
+            ++ " ("
+            ++ raw_derivative_string
+            ++ ")).\n"
+            ++ "eapply (derivable_pt_lim_comp "
+            ++ derivative_function(~variable, base)
+            ++ " "
+            ++ (
+              power == 2
+                ? "Rsqr" : "(fun y : R => y ^ " ++ string_of_int(power) ++ ")"
+            )
+            ++ " "
+            ++ variable
+            ++ " ("
+            ++ base_derivative
+            ++ ") ("
+            ++ (
+              power == 2
+                ? "2 * " ++ base_at
+                : "INR "
+                  ++ string_of_int(power)
+                  ++ " * ("
+                  ++ base_at
+                  ++ ") ^ pred "
+                  ++ string_of_int(power)
+            )
+            ++ ")).\n"
+            ++ proof_block(base_proof.proof)
+            ++ "\n{ apply "
+            ++ (power == 2 ? "derivable_pt_lim_Rsqr" : "derivable_pt_lim_pow")
+            ++ ". }",
+          nonzero_denominators: base_proof.nonzero_denominators,
+        });
+      | _ => None
+      }
+    | UnOp(
+        Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus),
+        inner,
+      ) =>
+      derivative_certificate_for_expression(~variable, inner)
+      |> Option.map(inner_proof =>
+           {
+             raw_derivative:
+               DifferentiationRewrite.neg_exp(inner_proof.raw_derivative),
+             proof:
+               "eapply derivable_pt_lim_opp.\n"
+               ++ proof_block(inner_proof.proof),
+             nonzero_denominators: inner_proof.nonzero_denominators,
+           }
+         )
+    | Ap(Operators.Forward, fn, inner) =>
+      let name = DifferentiationRewrite.function_name(fn);
+      switch (name, derivative_certificate_for_expression(~variable, inner)) {
+      | (Some("sin"), Some(inner_proof)) =>
+        let inner_at =
+          CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, inner);
+        let inner_derivative =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            inner_proof.raw_derivative,
+          );
+        let raw_derivative =
+          DifferentiationRewrite.times_exp(
+            DifferentiationRewrite.app_exp("cos", inner),
+            inner_proof.raw_derivative,
+          );
+        let raw_derivative_string =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            raw_derivative,
+          );
+        Some({
+          raw_derivative,
+          proof:
+            "change (derivable_pt_lim (comp sin "
+            ++ derivative_function(~variable, inner)
+            ++ ") "
+            ++ variable
+            ++ " ("
+            ++ raw_derivative_string
+            ++ ")).\n"
+            ++ "eapply (derivable_pt_lim_comp "
+            ++ derivative_function(~variable, inner)
+            ++ " sin "
+            ++ variable
+            ++ " ("
+            ++ inner_derivative
+            ++ ") (cos ("
+            ++ inner_at
+            ++ "))).\n"
+            ++ proof_block(inner_proof.proof)
+            ++ "\n{ apply derivable_pt_lim_sin. }",
+          nonzero_denominators: inner_proof.nonzero_denominators,
+        });
+      | (Some("cos"), Some(inner_proof)) =>
+        let inner_at =
+          CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, inner);
+        let inner_derivative =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            inner_proof.raw_derivative,
+          );
+        let raw_derivative =
+          DifferentiationRewrite.times_exp(
+            DifferentiationRewrite.neg_exp(
+              DifferentiationRewrite.app_exp("sin", inner),
+            ),
+            inner_proof.raw_derivative,
+          );
+        let raw_derivative_string =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            raw_derivative,
+          );
+        Some({
+          raw_derivative,
+          proof:
+            "change (derivable_pt_lim (comp cos "
+            ++ derivative_function(~variable, inner)
+            ++ ") "
+            ++ variable
+            ++ " ("
+            ++ raw_derivative_string
+            ++ ")).\n"
+            ++ "eapply (derivable_pt_lim_comp "
+            ++ derivative_function(~variable, inner)
+            ++ " cos "
+            ++ variable
+            ++ " ("
+            ++ inner_derivative
+            ++ ") (- sin ("
+            ++ inner_at
+            ++ "))).\n"
+            ++ proof_block(inner_proof.proof)
+            ++ "\n{ apply derivable_pt_lim_cos. }",
+          nonzero_denominators: inner_proof.nonzero_denominators,
+        });
+      | _ => None
+      };
+    | _ => None
+    };
+  };
+};
+
+let calculus_source = source =>
+  switch (DifferentiationRewrite.diff_parts(source)) {
+  | Some((expression, variable)) =>
+    switch (DifferentiationRewrite.variable_name(variable)) {
+    | None => None
+    | Some(variable_name) =>
+      switch (DifferentiationRewrite.strip(expression).term) {
+      | Fun(pattern, body, _, _) =>
+        DifferentiationRewrite.function_parameter_name(pattern)
+        == Some(variable_name)
+          ? Some((DifferentiationRewrite.strip(body), variable_name)) : None
+      | _ => Some((DifferentiationRewrite.strip(expression), variable_name))
+      }
+    }
+  | None => None
+  };
+
+let calculus_cleanup_script = (~use_affine_finisher) =>
+  "cbn [pred INR];\n"
+  ++ "repeat first [\n"
+  ++ "  progress rewrite Rplus_0_l\n"
+  ++ "| progress rewrite Rplus_0_r\n"
+  ++ "| progress rewrite Rmult_0_l\n"
+  ++ "| progress rewrite Rmult_0_r\n"
+  ++ "| progress rewrite Rmult_1_l\n"
+  ++ "| progress rewrite Rmult_1_r\n"
+  ++ "| progress rewrite Rminus_0_r\n"
+  ++ "| progress rewrite Ropp_0\n"
+  ++ "| progress rewrite pow_1\n"
+  ++ "| progress rewrite pow_O\n"
+  ++ "].\n"
+  ++ (use_affine_finisher ? "lra." : "reflexivity.");
+
+let calculus_search_program = (~profile, request) =>
+  switch (calculus_source(request.source)) {
+  | None => None
+  | Some((expression, variable)) =>
+    let rule_enabled = rule_id =>
+      Axioms.visible_rule_enabled(profile.Axioms.step_policy, rule_id);
+    let cleanup_enabled = capability =>
+      List.mem(capability, profile.step_policy.default_cleanup);
+    let normalized =
+      DifferentiationRewrite.normalize(
+        ~rule_enabled,
+        ~fuel=128,
+        request.source,
+      );
+    let expected =
+      DifferentiationRewrite.cleanup(~cleanup_enabled, normalized.exp);
+    let exact_target = TrigRewrite.exp_same(expected, request.target);
+    let affine_target =
+      RewriteChecker.rational_affine_equivalent(expected, request.target)
+      && Axioms.guarded_normalization_backend_for_profile(
+           profile,
+           "arith.affine_normalize",
+         )
+      |> Option.is_some;
+    if (!normalized.complete
+        || DifferentiationRewrite.contains_diff(expected)
+        || !exact_target
+        && !affine_target) {
+      None;
+    } else {
+      derivative_certificate_for_expression(~variable, expression)
+      |> Option.map(certificate => {
+           let body =
+             CoqExport.string_of_d_for_domain(
+               ~domain=CoqExport.Reals,
+               expression,
+             );
+           let target =
+             CoqExport.string_of_d_for_domain(
+               ~domain=CoqExport.Reals,
+               request.target,
+             );
+           let raw =
+             CoqExport.string_of_d_for_domain(
+               ~domain=CoqExport.Reals,
+               certificate.raw_derivative,
+             );
+           let vars =
+             [variable]
+             @ CoqExport.unique_vars_in_ast(expression)
+             @ CoqExport.unique_vars_in_ast(request.target)
+             |> RewriteChecker.dedup;
+           let hypotheses =
+             certificate.nonzero_denominators
+             |> List.map(denominator =>
+                  CoqExport.string_of_d_for_domain(
+                    ~domain=CoqExport.Reals,
+                    denominator,
+                  )
+                  ++ " <> 0 -> "
+                )
+             |> RewriteChecker.dedup
+             |> String.concat("");
+           let function_expression =
+             derivative_function(~variable, expression);
+           let finish =
+             if (TrigRewrite.exp_same(
+                   certificate.raw_derivative,
+                   request.target,
+                 )) {
+               "exact H_hazel_derivative.";
+             } else {
+               "replace ("
+               ++ target
+               ++ ") with ("
+               ++ raw
+               ++ ").\n"
+               ++ "- exact H_hazel_derivative.\n"
+               ++ "- "
+               ++ calculus_cleanup_script(~use_affine_finisher=affine_target);
+             };
+           Printf.sprintf(
+             "From Coq Require Import Reals.Ranalysis1 Reals.Ranalysis3 Reals.Rtrigo_reg Lra.\nOpen Scope R_scope.\n\n(* Hazel profile-directed derivative certificate. *)\nTheorem hazel_rocq_search : forall %s : R, %sderivable_pt_lim (fun %s : R => %s) %s (%s).\nProof.\nintros.\nassert (H_hazel_derivative : derivable_pt_lim %s %s (%s)).\n{ %s }\n%s\nQed.",
+             String.concat(" ", vars),
+             hypotheses,
+             variable,
+             body,
+             variable,
+             target,
+             function_expression,
+             variable,
+             raw,
+             certificate.proof,
+             finish,
+           );
+         });
+    };
+  };
+
 let profile_search_definitions = (~domain, ~profile, ~max_depth, request) => {
   let plan = Axioms.stage_plan_for_profile(profile, MultiStepCheck);
   let directed_finishers =
@@ -250,56 +790,72 @@ let equivalence_check_result_script = (~domain, profile) =>
 
 let rocq_search_program_for_profile_and_purpose_internal =
     (~profile, ~purpose, ~equivalence_fallback, request) => {
-  let domain = domain_for_request(request);
-  let plan = rocq_plan_for_profile_and_purpose(profile, purpose);
-  let directed_finishers =
+  let calculus_program =
     switch (purpose, equivalence_fallback) {
     | (Axioms.CheckResult, false) =>
-      goal_directed_finishers(~domain, ~profile, request)
-    | _ => []
+      calculus_search_program(~profile, request)
+    | _ => None
     };
-  let prelude =
-    directed_finishers != []
-      ? direct_certificate_prelude(domain)
-      : (
-        switch (domain) {
-        | CoqExport.Reals => CoqProofExport.real_prelude
-        | Integers => CoqProofExport.prelude
-        }
+  switch (calculus_program) {
+  | Some(program) => program
+  | None =>
+    if (DifferentiationRewrite.contains_diff(request.source)
+        || DifferentiationRewrite.contains_diff(request.target)) {
+      failwith(
+        "the active calculus profile cannot certify this derivative candidate",
       );
-  let source = CoqExport.string_of_d_for_domain(~domain, request.source);
-  let target = CoqExport.string_of_d_for_domain(~domain, request.target);
-  let forall_str = forall_string(~domain, vars_for_request(request));
-  let (search_definitions, tactic_script) =
-    switch (purpose, equivalence_fallback) {
-    | (Axioms.CheckResult, false) when directed_finishers != [] => (
-        direct_certificate_definitions(directed_finishers),
-        profile_check_result_script,
-      )
-    | (Axioms.CheckResult, false) => (
-        profile_search_definitions(
-          ~domain,
-          ~profile,
-          ~max_depth=request.max_depth,
-          request,
-        ),
-        profile_check_result_script,
-      )
-    | (CheckResult, true) => (
-        "",
-        equivalence_check_result_script(~domain, profile),
-      )
-    | _ => ("", rocq_tactic_plan_script(plan))
     };
-  Printf.sprintf(
-    "%s\n%s\n(* Hazel Rocq tactic-search candidate. *)\nTheorem hazel_rocq_search:%s%s=%s.\nProof.\nintros.\n%s.\nQed.",
-    prelude,
-    search_definitions,
-    forall_str,
-    source,
-    target,
-    tactic_script,
-  );
+    let domain = domain_for_request(request);
+    let plan = rocq_plan_for_profile_and_purpose(profile, purpose);
+    let directed_finishers =
+      switch (purpose, equivalence_fallback) {
+      | (Axioms.CheckResult, false) =>
+        goal_directed_finishers(~domain, ~profile, request)
+      | _ => []
+      };
+    let prelude =
+      directed_finishers != []
+        ? direct_certificate_prelude(domain)
+        : (
+          switch (domain) {
+          | CoqExport.Reals => CoqProofExport.real_prelude
+          | Integers => CoqProofExport.prelude
+          }
+        );
+    let source = CoqExport.string_of_d_for_domain(~domain, request.source);
+    let target = CoqExport.string_of_d_for_domain(~domain, request.target);
+    let forall_str = forall_string(~domain, vars_for_request(request));
+    let (search_definitions, tactic_script) =
+      switch (purpose, equivalence_fallback) {
+      | (Axioms.CheckResult, false) when directed_finishers != [] => (
+          direct_certificate_definitions(directed_finishers),
+          profile_check_result_script,
+        )
+      | (Axioms.CheckResult, false) => (
+          profile_search_definitions(
+            ~domain,
+            ~profile,
+            ~max_depth=request.max_depth,
+            request,
+          ),
+          profile_check_result_script,
+        )
+      | (CheckResult, true) => (
+          "",
+          equivalence_check_result_script(~domain, profile),
+        )
+      | _ => ("", rocq_tactic_plan_script(plan))
+      };
+    Printf.sprintf(
+      "%s\n%s\n(* Hazel Rocq tactic-search candidate. *)\nTheorem hazel_rocq_search:%s%s=%s.\nProof.\nintros.\n%s.\nQed.",
+      prelude,
+      search_definitions,
+      forall_str,
+      source,
+      target,
+      tactic_script,
+    );
+  };
 };
 
 let rocq_search_program_for_profile_and_purpose =

@@ -164,6 +164,22 @@ module View = {
               || StringUtil.subseq_search(rewrite.rule_id, filter)
             )
       );
+    let calculus_actions =
+      DifferentiationRewrite.applicable_at_root(
+        ~rule_enabled=
+          rule_id =>
+            Axioms.visible_rule_enabled(profile.step_policy, rule_id),
+        selected_exp,
+      )
+      |> List.filter(rewrite_allowed)
+      |> (
+        filter == ""
+          ? x => x
+          : List.filter((rewrite: TrigRewrite.rewrite) =>
+              StringUtil.subseq_search(rewrite.label, filter)
+              || StringUtil.subseq_search(rewrite.rule_id, filter)
+            )
+      );
     let filter_rewrites = rewrites =>
       filter == ""
         ? rewrites
@@ -235,6 +251,7 @@ module View = {
       algebra_shape_actions != []
       || simplification_actions != []
       || trig_actions != []
+      || calculus_actions != []
         ? []
         : (
           switch (
@@ -279,6 +296,55 @@ module View = {
             Node.text("==>"),
             add_written_step(
               trace_summary_for_trig(rewrite),
+              selected_exp_idx,
+              selected_exp,
+              rewrite.after_exp,
+            ),
+            ~disabled=false,
+          ),
+          Node.text(" " ++ rewrite.label ++ ": "),
+          CodeViewable.view_any(
+            ~globals,
+            ~settings=
+              Haz3lcore.ExpToSegment.Settings.of_core(
+                ~inline=true,
+                ~fold_fn_bodies=`Text,
+                globals.settings.core,
+              ),
+            Exp(rewrite.after_exp),
+          ),
+        ],
+      );
+    let trace_summary_for_calculus = (rewrite: TrigRewrite.rewrite) =>
+      RewriteChecker.{
+        justification: "calculus one step",
+        group_name: Some("calculus"),
+        from_normal_exp: selected_exp,
+        to_normal_exp: rewrite.after_exp,
+        from_rule_ids: [rewrite.rule_id],
+        to_rule_ids: [],
+        rule_ids: [rewrite.rule_id],
+        prover_steps: [
+          prover_step(
+            ~origin=ManualRewrite,
+            ~rule_id=rewrite.rule_id,
+            ~before_full_exp=selected_exp,
+            ~after_full_exp=rewrite.after_exp,
+            ~before_exp=rewrite.before_exp,
+            ~after_exp=rewrite.after_exp,
+            ~detail="selected differentiation rule",
+          ),
+        ],
+        exportable: true,
+      };
+    let calculus_action_view = (rewrite: TrigRewrite.rewrite) =>
+      div_c(
+        "assumption-box",
+        [
+          Widgets.button_d(
+            Node.text("==>"),
+            add_written_step(
+              trace_summary_for_calculus(rewrite),
               selected_exp_idx,
               selected_exp,
               rewrite.after_exp,
@@ -430,6 +496,14 @@ module View = {
           ...List.map(trig_action_view, actions),
         ]
       };
+    let calculus_section =
+      switch (calculus_actions) {
+      | [] => []
+      | actions => [
+          div_c("assumption-box", [Node.text("Differentiation")]),
+          ...List.map(calculus_action_view, actions),
+        ]
+      };
     [
       Node.input(
         ~attrs=[
@@ -444,6 +518,7 @@ module View = {
     @ (show_mode_warning ? mode_warning : [])
     @ algebra_shape_section
     @ simplification_section
+    @ calculus_section
     @ trig_section
     @ List.map(
         (am: AssumptionBox.Model.t) =>

@@ -47,6 +47,13 @@ let numeric_constants =
 
 let misc_fns: list(BuiltinsUtil.fn) = [
   {
+    name: "diff",
+    arg: Prod([unknown(Internal), float()]),
+    ret: Atom(Float),
+    imp: _ => None,
+    custom_statics: None,
+  },
+  {
     /* Println for probes study */
 
     name: "print",
