@@ -5134,6 +5134,56 @@ let remedied_move_tests = [
   ),
 ];
 
+let lift_shape_tests = [
+  test_case(
+    "lift: two-line body, tail uses rewrite too",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=LiftFunction,
+          "let render =\n  fun w ->\n    ¦let pad = w / 4 in\n    let inner = w - pad * 2 in\n    inner + pad\nin\nrender(3)",
+        )
+        |> text_of;
+      check(
+        string,
+        "out",
+        "let pad = fun w -> w / 4 in\nlet render =\n  fun w ->\n    let inner = w - pad(w) * 2 in\n    inner + pad(w)\nin\nrender(3)",
+        got,
+      );
+    },
+  ),
+  test_case("lift: refuses when not at the fun-body top", `Quick, () => {
+    check(
+      bool,
+      "expected refuse (not body top)",
+      false,
+      offers(
+        LiftFunction,
+        "let render =\n  fun w ->\n    let margin = 4 in\n    ¦let pad = w / margin in\n    inner + pad\nin\nrender(3)",
+      ),
+    )
+  }),
+  test_case(
+    "lift: def mentioning an already-external binding",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=LiftFunction,
+          "let margin = 4 in\nlet render =\n  fun w ->\n    ¦let pad = w / margin in\n    let inner = w - pad * 2 in\n    inner + pad\nin\nrender(3)",
+        )
+        |> text_of;
+      check(
+        string,
+        "out",
+        "let margin = 4 in\nlet pad = fun w -> w / margin in\nlet render =\n  fun w ->\n    let inner = w - pad(w) * 2 in\n    inner + pad(w)\nin\nrender(3)",
+        got,
+      );
+    },
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -5263,6 +5313,7 @@ let tests = [
     @ identity_tests
     @ intro_landing_tests
     @ remedied_move_tests
+    @ lift_shape_tests
     @ landing_block_tests
     @ shard_anchor_tests
     @ regression_tests

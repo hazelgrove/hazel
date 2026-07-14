@@ -157,7 +157,15 @@ module Update = {
               action;
             }
           };
-        | _ => action
+        | _ =>
+          /* any actual edit invalidates an armed insist (the program
+             the shake described no longer exists); caret motion and
+             selection keep it (andrew: come-back-and-continue is fine,
+             edits should reset) */
+          if (Action.is_edit(action)) {
+            insist_pending := None;
+          };
+          action;
         };
       if (settings.core.flip_animations && Action.should_animate(action)) {
         /* the indication backing FLIPs by id like the caret; ids only
