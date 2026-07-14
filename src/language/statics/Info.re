@@ -35,12 +35,20 @@ type label_inference('a) =
 type slice_child_mode =
   | SliceKeep
   | SliceOmit
-  | SliceSource;
+  | SliceSource
+  | SliceTrack;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slice_lens = {
+  parent_path: option(list(int)),
+  child_path: option(list(int)),
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slice_child = {
   mode: slice_child_mode,
   child: Id.t,
+  lens: option(slice_lens),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

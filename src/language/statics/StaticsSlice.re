@@ -18,7 +18,8 @@ type direction = [
 type child_mode =
   | Keep
   | Omit
-  | Source;
+  | Source
+  | Track;
 
 type exp_result = (Info.exp, Exp.t, Id.Map.t(Info.t));
 
@@ -533,13 +534,51 @@ let of_info_mode =
   fun
   | Info.SliceKeep => Keep
   | Info.SliceOmit => Omit
-  | Info.SliceSource => Source;
+  | Info.SliceSource => Source
+  | Info.SliceTrack => Track;
 
-let take_children = (~parent: Exp.t, m: Id.Map.t(Info.t)) => {
+let lens = (parent_shape: Typ.t, child_shape: Typ.t): option(Info.slice_lens) =>
+  switch (find_path(child_shape, parent_shape)) {
+  | Some(parent_path) =>
+    Some({
+      parent_path: Some(parent_path),
+      child_path: Some([]),
+    })
+  | None =>
+    switch (find_path(parent_shape, child_shape)) {
+    | Some(child_path) =>
+      Some({
+        parent_path: Some([]),
+        child_path: Some(child_path),
+      })
+    | None => None
+    }
+  };
+
+let take_children =
+    (~parent: Exp.t, ~parent_shape: Typ.t, m: Id.Map.t(Info.t)) => {
   let id = Exp.rep_id(parent);
   switch (Id.Map.find_opt(id, m)) {
   | Some(Info.InfoSliceScratch(children)) => (
-      children,
+      List.map(
+        (edge: Info.slice_child) => {
+          let edge_lens =
+            switch (Id.Map.find_opt(edge.child, m)) {
+            | Some(Info.InfoExp(info)) =>
+              lens(parent_shape, info.elab_syn_ty)
+            | _ => None
+            };
+          {
+            ...edge,
+            mode:
+              edge.mode == Info.SliceTrack && edge_lens == None
+                ? Info.SliceOmit
+                : edge.mode == Info.SliceTrack ? Info.SliceKeep : edge.mode,
+            lens: edge_lens,
+          };
+        },
+        children,
+      ),
       Id.Map.remove(id, m),
     )
   | Some(Info.InfoExp({slice_children, _})) => (slice_children, m)
@@ -565,8 +604,10 @@ let record_child =
         | Keep => Info.SliceKeep
         | Omit => Info.SliceOmit
         | Source => Info.SliceSource
+        | Track => Info.SliceTrack
         },
       child: child_id,
+      lens: None,
     };
     let prior =
       List.filter(
@@ -585,6 +626,7 @@ let keep = (~parent, child, k) => k(record_child(Keep, ~parent, child));
 let omit = (~parent, child, k) => k(record_child(Omit, ~parent, child));
 let source_child = (~parent, child, k) =>
   k(record_child(Source, ~parent, child));
+let track = (~parent, child, k) => k(record_child(Track, ~parent, child));
 
 let rec matched_body =
         (bound: list(string), schema: Typ.t, query: Typ.t)
@@ -670,6 +712,7 @@ let slice_forward =
              omitted: Id.Set.singleton(child.node.id),
            }
          | Source => empty_result
+         | Track => empty_result
          | Keep =>
            child.node.dispatch(
              route_query(ctx, parent_shape, child.node.shape, query),

@@ -341,7 +341,11 @@ and uexp_to_info_map =
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
     let (slice_children, m) =
-      StaticsSlice.take_children(~parent=user_term, m);
+      StaticsSlice.take_children(
+        ~parent=user_term,
+        ~parent_shape=elab_syn_ty,
+        m,
+      );
     let info: Info.exp = {
       cls,
       elab_syn_ty,
@@ -381,15 +385,12 @@ and uexp_to_info_map =
   let (let&) = (child, k) => StaticsSlice.omit(~parent=uexp, child, k);
   let (let$) = (child, k) =>
     StaticsSlice.source_child(~parent=uexp, child, k);
-  let map_m_go = (~keep_if=_ => true, m, anas, es) => {
+  let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
         (ana, e, m) => {
           let child = go(~ana, e, m);
-          let (e, elab, m) =
-            keep_if(e)
-              ? StaticsSlice.keep(~parent=uexp, child, x => x)
-              : StaticsSlice.omit(~parent=uexp, child, x => x);
+          let (e, elab, m) = StaticsSlice.track(~parent=uexp, child, x => x);
           ((e, elab), m);
         },
         anas,
@@ -1909,8 +1910,7 @@ and uexp_to_info_map =
         let num_args = List.length(args);
         switch (MatchedTyp.args(ctx, ty_in, num_args)) {
         | L(ty_ins) =>
-          let ((args_infos, args_elabs), m) =
-            map_m_go(~keep_if=Exp.is_deferral, m, ty_ins, args);
+          let ((args_infos, args_elabs), m) = map_m_go(m, ty_ins, args);
           let arg_co_ctx =
             CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
           let ty_in' =
@@ -1932,8 +1932,7 @@ and uexp_to_info_map =
         | R(expected) =>
           let ty_ins =
             List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
-          let ((args, args_elabs), m) =
-            map_m_go(~keep_if=Exp.is_deferral, m, ty_ins, args);
+          let ((args, args_elabs), m) = map_m_go(m, ty_ins, args);
           let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
           add(
             ~elab_term=DeferredAp(fn_elab, args_elabs) |> rewrap,
