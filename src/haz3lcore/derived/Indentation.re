@@ -292,8 +292,12 @@ let rec go =
             /* Continuation lines in children: when in child context with
              * content before and after the linebreak, use child indentation.
              * Note: This only works after Format, not during auto-indent,
-             * because at typing time next is unknown. */
-            | (_, Some(_)) when not_top => base + 2
+             * because at typing time next is unknown. An incrementor
+             * earlier in the child (fun ->) may have RAISED the running
+             * level; sibling lines inherit it — base+2 alone flattened
+             * every let-chain line after the first back to the child's
+             * opening level (only the first body line sat indented). */
+            | (_, Some(_)) when not_top => max(level, base + 2)
             | (_, Some(_)) => level
             };
           switch (target_id) {
