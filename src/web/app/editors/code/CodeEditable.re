@@ -9,7 +9,7 @@ open Virtual_dom.Vdom;
 let insist_pending:
   ref(option(((option(Haz3lcore.Id.t), Action.Gesture.t), float))) =
   ref(None);
-let insist_window_ms = 2500.;
+let insist_window_ms = 1100.;
 let insist_now = (): float => Js.to_float(Js.Unsafe.js_expr("Date.now()"));
 let insist_armed = signature =>
   switch (insist_pending^) {
@@ -165,17 +165,11 @@ module Update = {
                 action;
               }
             | None =>
-              /* no remedy — but if a lift refused because a carried
-                 dep is used below, shake THOSE uses (the reason is
-                 down there, not at the caret) */
-              switch (Haz3lcore.Indicated.index(z)) {
-              | Some(target) when g == Action.Gesture.Up =>
-                switch (Refactor.lift_blocked_uses(~target, term)) {
-                | [] => ()
-                | ids =>
-                  CodeFlip.shake_tokens(~syntax=model.editor.syntax, ids)
-                }
-              | _ => ()
+              /* no remedy — point at the culprits instead: the
+                 tokens that make this press refuse shake red */
+              switch (Refactor.gesture_blockers(~term, g, z)) {
+              | [] => ()
+              | ids => CodeFlip.shake_tokens(~syntax=model.editor.syntax, ids)
               };
               insist_pending := None;
               action;

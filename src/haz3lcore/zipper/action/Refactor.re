@@ -5871,9 +5871,72 @@ type lift_site_t = {
   ls_crossed: list(string),
 };
 
-/* out-channel for the one diagnosable refusal (uses of a carried
-   dep below the block): set by lift_site, read by lift_blocked_uses
-   right after — same-call-stack use only */
+/* ids of free VAR USES of any of `names` in a region (the pointing
+   half of a refusal: these tokens are why) */
+let var_use_ids = (names: list(string), e: Exp.t): list(Id.t) => {
+  let acc = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e': Exp.t) => {
+          switch (IdTagged.term_of(e')) {
+          | Var(x) when List.mem(x, names) =>
+            acc := [Exp.rep_id(e'), ...acc^]
+          | _ => ()
+          };
+          cont(e');
+        },
+      e,
+    );
+  acc^;
+};
+
+/* ids of pattern BINDERS of any of `names` (a shadowing rebind is
+   the culprit token) */
+let pat_binder_ids = (names: list(string), p: Pat.t): list(Id.t) => {
+  let acc = ref([]);
+  let _ =
+    Pat.map_term(
+      ~f_pat=
+        (cont, p': Pat.t) => {
+          switch (IdTagged.term_of(p')) {
+          | Var(x) when List.mem(x, names) =>
+            acc := [Pat.rep_id(p'), ...acc^]
+          | _ => ()
+          };
+          cont(p');
+        },
+      p,
+    );
+  acc^;
+};
+
+let binder_ids_in = (names: list(string), e: Exp.t): list(Id.t) => {
+  let acc = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e': Exp.t) => {
+          switch (IdTagged.term_of(e')) {
+          | Let(p, _, _)
+          | Fun(p, _, _, _) => acc := pat_binder_ids(names, p) @ acc^
+          | Match(_, rules) =>
+            rules
+            |> List.iter(((rp, _)) =>
+                 acc := pat_binder_ids(names, rp) @ acc^
+               )
+          | _ => ()
+          };
+          cont(e');
+        },
+      e,
+    );
+  acc^;
+};
+
+/* out-channel for lift refusals: each failing wall reports its
+   culprit ids; set by lift_site, read by lift_wall_blockers on dead
+   presses — same-call-stack use only */
 let blocked_uses_out: ref(list(Id.t)) = ref([]);
 
 let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
@@ -5976,8 +6039,13 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
             ~with_=fresh(EmptyHole),
             outer,
           );
-        /* uses below the block of a carried dep's binding: absorption
-           would unbind them. Exposed for targeted shake feedback. */
+        /* each wall reports its culprit tokens (collectors run only
+           on the failing path; a passing site pays booleans only) */
+        blocked_uses_out := [];
+        let wall = (ids: list(Id.t)): bool => {
+          blocked_uses_out := blocked_uses_out^ @ ids;
+          ids == [];
+        };
         let carried_names =
           carried
           |> List.concat_map(nd =>
@@ -5986,52 +6054,56 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
                | None => []
                }
              );
-        let blocked_names =
-          carried_names |> List.filter(x => free_in(x, cbody));
-        let blocked_uses = {
-          let acc = ref([]);
-          let _ =
-            Exp.map_term(
-              ~f_exp=
-                (cont, e: Exp.t) => {
-                  switch (IdTagged.term_of(e)) {
-                  | Var(x) when List.mem(x, blocked_names) =>
-                    acc := [Exp.rep_id(e), ...acc^]
-                  | _ => ()
-                  };
-                  cont(e);
-                },
+        /* carried deps are absorbed into the helper: uses of their
+           bindings below the block would unbind */
+        let ok_dep_below =
+          wall(
+            var_use_ids(
+              carried_names |> List.filter(x => free_in(x, cbody)),
               cbody,
-            );
-          acc^;
-        };
-        blocked_uses_out := blocked_uses;
+            ),
+          );
+        /* the helper name / crossed params rebound below: the args
+           at those use sites would mean the wrong thing */
+        let ok_shadow =
+          wall(
+            [g, ...crossed]
+            |> List.filter(x => binds_somewhere(x, cbody))
+            |> (names => names == [] ? [] : binder_ids_in(names, cbody)),
+          );
+        /* the enclosure's own binder mentioned in the block:
+           recursion would unbind above it */
+        let ok_recursion =
+          wall(
+            defs
+            |> List.concat_map(((dl, _)) =>
+                 wall_names
+                 |> List.exists(o => free_in(o, line_material(dl)))
+                   ? var_use_ids(wall_names, line_material(dl)) : []
+               ),
+          );
+        /* an existing free g in outer would be captured by the new
+           helper */
+        let ok_capture =
+          wall(
+            free_in(g, outer_minus) ? var_use_ids([g], outer_minus) : [],
+          );
+        let ok_typ =
+          carried
+          |> List.for_all(nd =>
+               switch (def_line_of(nd)) {
+               | Some((dl, _)) =>
+                 !mentions_typ_names(line_typ_names(dl), cbody)
+               | None => false
+               }
+             );
         crossed != []
-        && !binds_somewhere(g, cbody)
-        && crossed
-        |> List.for_all(x => !binds_somewhere(x, cbody))
-        /* carried deps are absorbed into the helper: their bindings
-           must not be needed below the block */
-        && blocked_uses == []
-        && carried
-        |> List.for_all(nd =>
-             switch (def_line_of(nd)) {
-             | Some((dl, _)) =>
-               !mentions_typ_names(line_typ_names(dl), cbody)
-             | None => false
-             }
-           )
-        /* nothing in the block may mention the enclosure's own binder
-           (recursion would unbind above it) */
-        && !(
-             defs
-             |> List.exists(((dl, _)) =>
-                  wall_names
-                  |> List.exists(o => free_in(o, line_material(dl)))
-                )
-           )
+        && ok_dep_below
+        && ok_shadow
+        && ok_recursion
+        && ok_capture
+        && ok_typ
         && !List.mem(g, wall_names)
-        && !free_in(g, outer_minus)
           ? Some({
               ls_outer: outer,
               ls_enc: enc,
@@ -6044,15 +6116,148 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
     };
   };
 
-/* the uses that would unbind if the lift fired: nonempty exactly
-   when lift refuses for the used-below reason (targeted shake) */
-let lift_blocked_uses = (~target: Id.t, program: Exp.t): list(Id.t) => {
+/* the culprit tokens when a lift refuses (dead-press only) */
+let lift_wall_blockers = (~target: Id.t, program: Exp.t): list(Id.t) => {
   blocked_uses_out := [];
   switch (lift_site(~target, program)) {
   | Some(_) => []
   | None => blocked_uses_out^
   };
 };
+
+/* culprits for refused UPWARD movement: dispatched on the parent
+   form, mirroring hoist_step's arms (dead-press only) */
+let hoist_blockers = (~target: Id.t, program: Exp.t): list(Id.t) =>
+  switch (find_path(~hit=hit_def_line(target), program)) {
+  | None => []
+  | Some(path) =>
+    let n = List.length(path);
+    if (n < 2) {
+      [];
+    } else {
+      let l = List.nth(path, n - 1);
+      switch (def_line_of(l)) {
+      | None => []
+      | Some((l_dl, _)) =>
+        let l_names = line_exp_names(l_dl);
+        /* 1. the convoy walk's X refuses: a same-name line in the
+           way (the shadow wall) — shake ITS binder */
+        let shadow_x = {
+          let rec walk = (i, block_dls: list(def_line)) =>
+            if (i < 0) {
+              [];
+            } else {
+              let anc = List.nth(path, i);
+              let child = List.nth(path, i + 1);
+              switch (def_line_of(anc)) {
+              | Some((dl, body)) when same_node(body, child) =>
+                if (block_dls |> List.exists(m => line_depends_on(m, dl))) {
+                  walk(i - 1, [dl, ...block_dls]);
+                } else if (block_dls
+                           |> List.for_all(m => lines_swappable(dl, m))) {
+                  [];
+                } else {
+                  let block_names =
+                    block_dls |> List.concat_map(line_exp_names);
+                  let colliding =
+                    line_exp_names(dl)
+                    |> List.filter(x => List.mem(x, block_names));
+                  switch (dl) {
+                  | LetLine(xp, _) => pat_binder_ids(colliding, xp)
+                  | TypeLine(_) => []
+                  };
+                }
+              | _ => []
+              };
+            };
+          walk(n - 2, [l_dl]);
+        };
+        /* 2. parent-form walls */
+        let direct = List.nth(path, n - 2);
+        let (par, c) =
+          switch (IdTagged.term_of(direct)) {
+          | Parens(_) when n >= 3 => (List.nth(path, n - 3), direct)
+          | _ => (direct, l)
+          };
+        let parent_wall =
+          switch (IdTagged.term_of(par), IdTagged.term_of(l)) {
+          | (Let(mp, mdef, _), Let(_, ldef, _)) when same_node(mdef, c) =>
+            /* escaping a def region that scopes over the line: sugar
+               params / the recursive binder */
+            names_mentioned(pat_var_names(mp), ldef)
+              ? var_use_ids(pat_var_names(mp), ldef) : []
+          | (Seq(s1, tail), _) when same_node(tail, c) =>
+            /* crossing a statement that references the line's names */
+            names_mentioned(l_names, s1) ? var_use_ids(l_names, s1) : []
+          | (Match(_) | If(_), _) when same_node(c, l) =>
+            /* exiting an arm/branch: same-name uses elsewhere in the
+               parent would be captured by the widened scope */
+
+            let p_minus =
+              replace_node(~at=Exp.rep_id(l), ~with_=fresh(EmptyHole), par);
+            l_names |> List.exists(x => free_in(x, p_minus))
+              ? var_use_ids(l_names, p_minus) : [];
+          | (Fun(fp, fbody, _, _), _)
+              when same_node(fbody, c) && same_node(c, l) =>
+            /* the line's name collides with a lambda param */
+
+            let colliding =
+              l_names |> List.filter(x => List.mem(x, pat_var_names(fp)));
+            colliding == [] ? [] : pat_binder_ids(colliding, fp);
+          | _ => []
+          };
+        shadow_x @ parent_wall;
+      };
+    };
+  };
+
+/* culprits for refused DOWNWARD movement (dead-press only) */
+let sink_blockers = (~target: Id.t, program: Exp.t): list(Id.t) =>
+  switch (find_path(~hit=hit_def_line(target), program)) {
+  | None => []
+  | Some(path) =>
+    let l = List.nth(path, List.length(path) - 1);
+    switch (def_line_of(l)) {
+    | None => []
+    | Some((l_dl, lbody)) =>
+      let l_names = line_exp_names(l_dl);
+      switch (def_line_of(lbody), IdTagged.term_of(lbody)) {
+      | (Some((m_dl, _)), _) when !lines_swappable(l_dl, m_dl) =>
+        /* the line below depends on us (its uses pin us above it)
+           or shadows us (its binder) */
+        let dep_uses = var_use_ids(l_names, line_material(m_dl));
+        let colliding =
+          line_exp_names(m_dl) |> List.filter(x => List.mem(x, l_names));
+        let shadow =
+          switch (m_dl) {
+          | LetLine(xp, _) => pat_binder_ids(colliding, xp)
+          | TypeLine(_) => []
+          };
+        dep_uses @ shadow;
+      | (_, Seq(s1, _)) when names_mentioned(l_names, s1) =>
+        var_use_ids(l_names, s1)
+      | _ => []
+      };
+    };
+  };
+
+/* the pointing half of a dead gesture press: which tokens are why.
+   Consulted by the web layer only after gesture AND insist both
+   decline (zero hot-path cost). */
+let gesture_blockers =
+    (~term: Exp.t, g: Action.Gesture.t, z: Zipper.t): list(Id.t) =>
+  switch (Indicated.index(z)) {
+  | None => []
+  | Some(target) =>
+    switch (g) {
+    | Up =>
+      lift_wall_blockers(~target, term)
+      @ hoist_blockers(~target, term)
+      |> List.sort_uniq(compare)
+    | Down => sink_blockers(~target, term) |> List.sort_uniq(compare)
+    | _ => []
+    }
+  };
 
 let lift_function_impl: impl = {
   label: "Lift to helper",
