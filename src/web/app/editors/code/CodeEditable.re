@@ -131,22 +131,27 @@ module Update = {
           let z = model.editor.state.zipper;
           let info_map = model.statics.info_map;
           let term = model.statics.term;
+          let signature = (Haz3lcore.Indicated.index(z), g);
           switch (Refactor.gesture(~info_map, ~term, g, z)) {
           | Some(_) =>
-            insist_pending := None;
+            /* a plain rung mid-journey keeps carrying mode armed:
+               one shake per (grab, direction) journey, not one per
+               convoy step (the caret follows the moved line, so the
+               signature stays stable while pulling) */
+            if (insist_pending^ != Some(signature)) {
+              insist_pending := None;
+            };
             action;
           | None =>
             switch (Refactor.gesture_insist(~info_map, ~term, g, z)) {
             | Some(kind) =>
-              let signature = (Haz3lcore.Indicated.index(z), g);
               if (insist_pending^ == Some(signature)) {
-                insist_pending := None;
                 Action.Refactor(kind);
               } else {
                 insist_pending := Some(signature);
                 CodeFlip.shake_insist();
                 action;
-              };
+              }
             | None =>
               insist_pending := None;
               action;
