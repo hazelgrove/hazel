@@ -169,7 +169,7 @@ module Update = {
                  tokens that make this press refuse shake red */
               switch (Refactor.gesture_blockers(~term, g, z)) {
               | [] => ()
-              | ids => CodeFlip.shake_tokens(~syntax=model.editor.syntax, ids)
+              | ids => CodeFlip.request_shake(ids)
               };
               insist_pending := None;
               action;
