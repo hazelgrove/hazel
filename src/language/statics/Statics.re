@@ -2081,7 +2081,7 @@ and uexp_to_info_map =
           ~def,
           ~body,
         );
-      let (rewritten_info, rewritten_elab, m) = go(~ana, rewritten, m);
+      let* (rewritten_info, rewritten_elab, m) = go(~ana, rewritten, m);
       let m = FunctionSugar.add_binder_infos(m, ~user_pat=p, ~f_name);
       add(
         ~elab_term=rewritten_elab,
@@ -2329,7 +2329,7 @@ and uexp_to_info_map =
     | FixF(p, e, env) =>
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);
-      let (e', e_elab, m) = go(~ctx=p'.ctx, ~ana=p'.ty, e, m);
+      let$ (e', e_elab, m) = go(~ctx=p'.ctx, ~ana=p'.ty, e, m);
       let (p'', p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, p, m);
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
