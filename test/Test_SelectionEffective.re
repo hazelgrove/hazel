@@ -92,25 +92,33 @@ let effective_rewrite_source_string = (input: string): string => {
       }
     | None => []
     };
-  let selected_exp =
+  let model_selected_exp =
     switch (
-      Language.Reparenthesize.reparenthesize_selection(
-        ~whole_selected_ids,
-        ~selected_ids,
-        statics.term,
+      TermData.get_root_id_using_ranges(
+        z.selection.content,
+        syntax.term_data,
+        syntax.measured,
       )
     ) {
-    | Some(result) => Language.Reparenthesize.selected_exp(result)
-    | None =>
+    | Some(id) => Language.ProofHacks.find_exp_id(id, statics.term)
+    | None => None
+    };
+  let selected_exp =
+    switch (model_selected_exp) {
+    | Some(model_exp)
+        when
+          !Language.Equality.ignoring_ascriptions.exp(model_exp, statics.term) =>
+      Some(model_exp)
+    | _ =>
       switch (
-        TermData.get_root_id_using_ranges(
-          z.selection.content,
-          syntax.term_data,
-          syntax.measured,
+        Language.Reparenthesize.reparenthesize_selection(
+          ~whole_selected_ids,
+          ~selected_ids,
+          statics.term,
         )
       ) {
-      | Some(id) => Language.ProofHacks.find_exp_id(id, statics.term)
-      | None => None
+      | Some(result) => Language.Reparenthesize.selected_exp(result)
+      | None => model_selected_exp
       }
     };
   switch (selected_exp) {
@@ -182,6 +190,12 @@ let tests = (
         {|1 + §2 * (1 / 2 * (1 / 2 - cos(2 * x)) + 1 / 2 * cos(2 * x) ** 2)¦|},
       ~expected=
         {|2 * (1 / 2 * (1 / 2 - cos(2 * x)) + 1 / 2 * cos(2 * x) ** 2)|},
+    ),
+    test_effective_rewrite_source(
+      ~name=
+        "nested selected power stays authoritative over subtraction suffix",
+      ~input={|1 + 2 * §((1 - cos(2 * x)) / 2) ** 2¦|},
+      ~expected={|((1 - cos(2 * x)) / 2) ** 2|},
     ),
     test_effective_rewrite_source(
       ~name="selected subtraction keeps its trailing operand",

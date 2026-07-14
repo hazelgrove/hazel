@@ -2043,23 +2043,9 @@ module View = {
           rewrite_reparenthesize_result,
           reparenthesized_selected_exp,
         ) {
-        | (_, Some(result), Some(reparenthesized_exp))
-            when
-              !
-                Equality.ignoring_ascriptions.exp(
-                  reparenthesized_exp,
-                  editor.statics.term,
-                ) => (
-            Some(reparenthesized_exp),
-            Some(result),
-          )
-        | (Some(model_exp), Some(result), Some(reparenthesized_exp))
-            when
-              Language.Reparenthesize.binop_count(reparenthesized_exp)
-              < Language.Reparenthesize.binop_count(model_exp) => (
-            Some(reparenthesized_exp),
-            Some(result),
-          )
+        /* A structural subtree selected by the editor is authoritative. Only
+         * synthesize a reparenthesized source when the selection crosses
+         * expression boundaries and the model falls back to the whole term. */
         | (Some(model_exp), _, _)
             when
               !
