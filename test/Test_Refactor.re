@@ -5153,11 +5153,11 @@ let lift_shape_tests = [
       );
     },
   ),
-  test_case("lift: refuses when not at the fun-body top", `Quick, () => {
+  test_case("lift: mid-body def covered by the block walk", `Quick, () => {
     check(
       bool,
-      "expected refuse (not body top)",
-      false,
+      "block lift applies",
+      true,
       offers(
         LiftFunction,
         "let render =\n  fun w ->\n    let margin = 4 in\n    ¦let pad = w / margin in\n    inner + pad\nin\nrender(3)",
@@ -5181,6 +5181,79 @@ let lift_shape_tests = [
         got,
       );
     },
+  ),
+];
+
+let sugar_lift_tests = [
+  test_case(
+    "SOUND: hoist out of a sugar def refuses param mentions", `Quick, () =>
+    check(
+      bool,
+      "unsound hoist gated",
+      false,
+      offers(
+        HoistLet,
+        "let blend(lo, hi) =\n  ¦let span = hi - lo in\n  span * 2\nin\nblend(2, 8)",
+      ),
+    )
+  ),
+  test_case("SOUND: hoist out of a def refuses recursion mentions", `Quick, () =>
+    check(
+      bool,
+      "recursive def gated",
+      false,
+      offers(
+        HoistLet,
+        "let f =\n  ¦let g = f in\n  fun x -> g(x)\nin\nf(2)",
+      ),
+    )
+  ),
+  test_case(
+    "lift out of sugar: helper in sugar style",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=LiftFunction,
+          "let blend(lo, hi) =\n  ¦let span = hi - lo in\n  let mid = lo + span / 2 in\n  mid + span\nin\nblend(2, 8)",
+        )
+        |> text_of;
+      check(
+        string,
+        "sugar helper",
+        "let span(lo, hi) = hi - lo in\nlet blend(lo, hi) =\n  let mid = lo + span(lo, hi) / 2 in\n  mid + span(lo, hi)\nin\nblend(2, 8)",
+        got,
+      );
+    },
+  ),
+  test_case(
+    "block lift: stuck dep is absorbed into the helper",
+    `Quick,
+    () => {
+      let got =
+        inline(
+          ~kind=LiftFunction,
+          "let render =\n  fun w ->\n    let margin = 4 in\n    ¦let pad = w / margin in\n    let inner = w - pad * 2 in\n    inner + pad\nin\nrender(3)",
+        )
+        |> text_of;
+      check(
+        string,
+        "absorbed",
+        "let pad = fun w -> let margin = 4 in w / margin in\nlet render =\n  fun w ->\n    let inner = w - pad(w) * 2 in\n    inner + pad(w)\nin\nrender(3)",
+        got,
+      );
+    },
+  ),
+  test_case("block lift refuses when the dep is used below", `Quick, () =>
+    check(
+      bool,
+      "dep needed below",
+      false,
+      offers(
+        LiftFunction,
+        "let render =\n  fun w ->\n    let margin = 4 in\n    ¦let pad = w / margin in\n    let inner = w - margin in\n    inner + pad\nin\nrender(3)",
+      ),
+    )
   ),
 ];
 
@@ -5314,6 +5387,7 @@ let tests = [
     @ intro_landing_tests
     @ remedied_move_tests
     @ lift_shape_tests
+    @ sugar_lift_tests
     @ landing_block_tests
     @ shard_anchor_tests
     @ regression_tests
