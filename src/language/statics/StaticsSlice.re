@@ -1,7 +1,6 @@
 open Util;
 
 type gamma = VarMap.t_(Typ.t);
-
 type result = {
   omitted: Id.Set.t,
   gamma,
@@ -9,7 +8,6 @@ type result = {
   context: Ctx.t,
   ana: Typ.t,
 };
-
 type direction = [
   | `Syn
   | `Ana
@@ -29,12 +27,17 @@ type path = list(int);
 type node = {
   id: Id.t,
   shape: Typ.t,
+  ana: Typ.t,
   dispatch: Typ.t => result,
 };
 
 type child = {
   mode: child_mode,
   node,
+  lens: option(Info.slice_lens),
+  bindings: list(Info.slice_binding),
+  pattern: option(Id.t),
+  binding_shape: option(Typ.t),
 };
 
 exception Focus_not_found(Id.t);
@@ -265,37 +268,20 @@ let rec lift = (shape: Typ.t, path: path, value: Typ.t): Typ.t =>
     }
   };
 
-let compatible_paths =
-    (ctx: Ctx.t, needle: Typ.t, haystack: Typ.t): list(path) => {
-  let rec go = haystack => {
-    let haystack = expose(haystack);
-    switch (Typ.meet(ctx, expose(needle), haystack)) {
-    | Some(_) => [[]]
-    | None =>
-      typ_children(haystack)
-      |> List.mapi((i, child) =>
-           List.map(path => [i, ...path], go(child))
-         )
-      |> List.flatten
-    };
+let lens_down =
+    (lens: Info.slice_lens, child_shape: Typ.t, query: Typ.t): Typ.t =>
+  switch (lens.parent_path, lens.child_path) {
+  | (Some(parent_path), Some(child_path)) =>
+    lift(child_shape, child_path, project(query, parent_path))
+  | _ => gap
   };
-  go(haystack);
-};
 
-let rec erase_tpat = (pat: TPat.t): TPat.t =>
-  switch (pat.term) {
-  | Tuple(ps) => {
-      ...pat,
-      term: Tuple(List.map(erase_tpat, ps)),
-    }
-  | Parens(inner) => {
-      ...pat,
-      term: Parens(erase_tpat(inner)),
-    }
-  | _ => {
-      ...pat,
-      term: EmptyHole,
-    }
+let lens_up =
+    (lens: Info.slice_lens, parent_shape: Typ.t, supplied: Typ.t): Typ.t =>
+  switch (lens.parent_path, lens.child_path) {
+  | (Some(parent_path), Some(child_path)) =>
+    lift(parent_shape, parent_path, project(supplied, child_path))
+  | _ => gap
   };
 
 let rec empty_query = (query: Typ.t): bool =>
@@ -306,38 +292,27 @@ let rec empty_query = (query: Typ.t): bool =>
     children != [] && List.for_all(empty_query, children);
   };
 
-let rec route_query = (ctx, parent: Typ.t, child: Typ.t, query: Typ.t): Typ.t =>
+let rec route_query = (_ctx, parent: Typ.t, child: Typ.t, query: Typ.t): Typ.t =>
   switch (find_path(child, parent)) {
   | Some(path) => project(query, path)
   | None =>
-    switch (Typ.term_of(expose(child)), Typ.term_of(expose(parent))) {
-    | (Poly(binder, body), _) =>
-      Poly(erase_tpat(binder), route_query(ctx, parent, body, query))
-      |> Typ.temp
-    | (Arrow(_, _), parent_term)
-        when
-          switch (parent_term) {
-          | Arrow(_, _) => false
-          | _ => true
-          } =>
-      Arrow(gap, query) |> Typ.temp
-    | _ =>
-      switch (find_path(parent, child)) {
-      | Some(path) => lift(child, path, query)
-      | None =>
-        let children = typ_children(expose(child));
-        if (children != []) {
-          let routed =
-            List.map(route_query(ctx, parent, _, query), children);
-          List.for_all(empty_query, routed)
-            ? gap : typ_rebuild(child, routed);
-        } else {
-          switch (compatible_paths(ctx, child, parent)) {
-          | [path] => project(query, path)
-          | _ => gap
-          };
-        };
-      }
+    switch (find_path(parent, child)) {
+    | Some(path) => lift(child, path, query)
+    | None =>
+      let ps = typ_children(expose(parent));
+      let cs = typ_children(expose(child));
+      let qs = typ_children(expose(query));
+      let routed =
+        List.length(ps) == List.length(cs)
+        && List.length(ps) == List.length(qs)
+          ? List.map2(
+              (p, (c, q)) => route_query(_ctx, p, c, q),
+              ps,
+              List.combine(cs, qs),
+            )
+          : List.map(route_query(_ctx, parent, _, query), cs);
+      routed == [] || List.for_all(empty_query, routed)
+        ? gap : typ_rebuild(child, routed);
     }
   };
 
@@ -350,18 +325,20 @@ let rec subtract = (ctx: Ctx.t, query: Typ.t, supplied: Typ.t): Typ.t =>
     switch (Typ.term_of(query), Typ.term_of(supplied)) {
     | (Parens(q), _) => subtract(ctx, q, supplied)
     | (_, Parens(s)) => subtract(ctx, query, s)
-    | (Arrow(qa, qb), Arrow(sa, sb)) =>
-      Arrow(subtract(ctx, qa, sa), subtract(ctx, qb, sb)) |> Typ.temp
-    | (List(q), List(s)) => List(subtract(ctx, q, s)) |> Typ.temp
-    | (Prod(qs), Prod(ss)) when List.length(qs) == List.length(ss) =>
-      Prod(List.map2(subtract(ctx), qs, ss)) |> Typ.temp
-    | (TypTuple(qs), TypTuple(ss)) when List.length(qs) == List.length(ss) =>
-      TypTuple(List.map2(subtract(ctx), qs, ss)) |> Typ.temp
-    | (TupLabel(ql, q), TupLabel(_, s)) =>
-      TupLabel(ql, subtract(ctx, q, s)) |> Typ.temp
-    | (TypParamAp(qf, qa), TypParamAp(sf, sa)) =>
-      TypParamAp(subtract(ctx, qf, sf), subtract(ctx, qa, sa)) |> Typ.temp
-    | _ => Typ.meet(ctx, query, supplied) == None ? query : gap
+    | _ =>
+      let qs = typ_children(query);
+      let ss = typ_children(supplied);
+      if (qs != [] && List.length(qs) == List.length(ss)) {
+        typ_rebuild(query, List.map2(subtract(ctx), qs, ss));
+      } else {
+        let query' = Typ.weak_head_normalize(ctx, query);
+        let supplied' = Typ.weak_head_normalize(ctx, supplied);
+        if (!Typ.equal(query, query') || !Typ.equal(supplied, supplied')) {
+          subtract(ctx, query', supplied');
+        } else {
+          Typ.meet(ctx, query, supplied) == None ? query : gap;
+        };
+      };
     };
   };
 
@@ -385,133 +362,6 @@ let ids_of_typ = (actual: Typ.t, query: Typ.t): Id.Set.t => {
   go(actual, query);
 };
 
-let binding_pat = (term: Exp.term): option(Pat.t) =>
-  switch (term) {
-  | Let(p, _, _)
-  | Fun(p, _, _, _)
-  | Theorem(p, _, _)
-  | FixF(p, _, _)
-  | Forall(p, _) => Some(p)
-  | _ => None
-  };
-
-let binding_names = (term: Exp.term) =>
-  switch (term) {
-  | Match(_, rules) =>
-    List.concat_map(((pat, _)) => Pat.bound_vars(pat), rules)
-  | _ =>
-    binding_pat(term)
-    |> Option.map(Pat.bound_vars)
-    |> Option.value(~default=[])
-  };
-
-let rec pattern_demand = (ctx: Ctx.t, pat: Pat.t, gamma: gamma): Typ.t =>
-  switch (Pat.term_of(pat)) {
-  | Parens(inner)
-  | Projector(_, inner)
-  | Asc(inner, _) => pattern_demand(ctx, inner, gamma)
-  | Var(name) => VarMap.lookup(gamma, name) |> Option.value(~default=gap)
-  | Tuple(ps) =>
-    Prod(List.map(pattern_demand(ctx, _, gamma), ps)) |> Typ.temp
-  | TupLabel(label, value) =>
-    TupLabel(
-      pattern_demand(ctx, label, gamma),
-      pattern_demand(ctx, value, gamma),
-    )
-    |> Typ.temp
-  | Cons(head, _) => List(pattern_demand(ctx, head, gamma)) |> Typ.temp
-  | ListLit(ps) =>
-    List(
-      List.map(pattern_demand(ctx, _, gamma), ps)
-      |> List.fold_left(meet(ctx), gap),
-    )
-    |> Typ.temp
-  | Ap(_, payload) => pattern_demand(ctx, payload, gamma)
-  | _ => gap
-  };
-
-let rec pattern_omissions =
-        (pat: Pat.t, required: Typ.t, gamma: gamma): Id.Set.t =>
-  if (is_gap(required)) {
-    Id.Set.singleton(Pat.rep_id(pat));
-  } else {
-    switch (Pat.term_of(pat), Typ.term_of(expose(required))) {
-    | (Var(name), _) =>
-      VarMap.contains(gamma, name)
-        ? Id.Set.empty : Id.Set.singleton(Pat.rep_id(pat))
-    | (Parens(inner), _)
-    | (Projector(_, inner), _) => pattern_omissions(inner, required, gamma)
-    | (Asc(inner, annotation), _) =>
-      Id.Set.union(
-        pattern_omissions(inner, required, gamma),
-        ids_of_typ(annotation, required),
-      )
-    | (Tuple(ps), Prod(qs)) when List.length(ps) == List.length(qs) =>
-      List.map2((p, q) => pattern_omissions(p, q, gamma), ps, qs)
-      |> List.fold_left(Id.Set.union, Id.Set.empty)
-    | (TupLabel(_, value), TupLabel(_, query)) =>
-      pattern_omissions(value, query, gamma)
-    | (TupLabel(_, value), _) => pattern_omissions(value, required, gamma)
-    | (Cons(head, tail), List(query)) =>
-      Id.Set.union(
-        pattern_omissions(head, query, gamma),
-        pattern_omissions(tail, required, gamma),
-      )
-    | (ListLit(ps), List(query)) =>
-      List.map(p => pattern_omissions(p, query, gamma), ps)
-      |> List.fold_left(Id.Set.union, Id.Set.empty)
-    | (Ap(_, payload), _) => pattern_omissions(payload, required, gamma)
-    | (Constructor(_, _), Sum(_)) => Id.Set.empty
-    | _ => Id.Set.singleton(Pat.rep_id(pat))
-    };
-  };
-
-let context_for_constructor =
-    (ctx: Ctx.t, name: string, query: Typ.t, shape: Typ.t): Ctx.t => {
-  let target =
-    ctx.entries
-    |> List.find_map(
-         fun
-         | Ctx.TVarEntry({name: alias, kind: Ctx.Singleton(ty), _}) =>
-           Option.bind(Typ.get_sum_constructors(ctx, ty), ctrs =>
-             ConstructorMap.get_entry(name, ctrs) == None
-               ? None : Some(Var(alias) |> Typ.temp)
-           )
-         | _ => None,
-       )
-    |> Option.value(~default=query);
-  let entry =
-    switch (Ctx.lookup_ctr_for_ana(ctx, name, Some(target))) {
-    | Some(_) as entry => entry
-    | None =>
-      Option.map(
-        (entry: Ctx.var_entry) =>
-          {
-            ...entry,
-            typ: shape,
-          },
-        Ctx.lookup_var(ctx, name),
-      )
-    };
-  let entry =
-    Option.value(
-      entry,
-      ~default={
-        name,
-        id: Id.invalid,
-        typ: shape,
-        custom_statics: None,
-      },
-    );
-  let entry: Ctx.var_entry = {
-    ...entry,
-    typ:
-      ConstructorStaticsHelpers.ctr_ana_typ(ctx, target, name)
-      |> Option.value(~default=entry.typ),
-  };
-  Ctx.extend(Ctx.empty, Ctx.ConstructorEntry(entry));
-};
-
 let source_result = (info: Info.exp, query: Typ.t): result =>
   if (is_gap(query)) {
     {
@@ -519,20 +369,31 @@ let source_result = (info: Info.exp, query: Typ.t): result =>
       omitted: Id.Set.singleton(Exp.rep_id(info.user_term)),
     };
   } else {
-    switch (Exp.term_of(info.user_term)) {
-    | Var(name) => {
-        ...queried(query),
-        gamma: gamma_add(info.ctx, VarMap.empty, name, query),
-        context: context_for_name(info.ctx, name),
-      }
-    | Constructor(name, _) => {
-        ...queried(query),
-        context: context_for_constructor(info.ctx, name, query, info.ty),
-      }
-    | _ => {
+    let names =
+      switch (info.slice_assumption) {
+      | Some(name) => [name]
+      | None => List.map(fst, VarMap.to_list(info.co_ctx))
+      };
+    if (names == []) {
+      {
         ...queried(info.ty),
         ana: query,
-      }
+      };
+    } else {
+      {
+        ...queried(query),
+        gamma:
+          List.fold_left(
+            (gamma, name) =>
+              Ctx.lookup_ctr(info.ctx, name) == None
+                ? gamma_add(info.ctx, gamma, name, query) : gamma,
+            VarMap.empty,
+            names,
+          ),
+        context:
+          List.map(context_for_name(info.ctx), names)
+          |> List.fold_left(context_join, Ctx.empty),
+      };
     };
   };
 
@@ -572,8 +433,43 @@ let take_children =
           let edge_lens =
             switch (Id.Map.find_opt(edge.child, m)) {
             | Some(Info.InfoExp(info)) =>
-              lens(parent_shape, info.elab_syn_ty)
+              switch (lens(parent_shape, info.elab_syn_ty), edge.mode) {
+              | (None, Info.SliceTrack) =>
+                Option.map(
+                  (parent_path): Info.slice_lens =>
+                    {
+                      parent_path: Some(parent_path),
+                      child_path: Some([]),
+                    },
+                  find_path(info.ana, parent_shape),
+                )
+              | (found, _) => found
+              }
             | _ => None
+            };
+          let (bindings, binding_shape) =
+            switch (edge.pattern) {
+            | Some(pattern_id) =>
+              switch (Id.Map.find_opt(pattern_id, m)) {
+              | Some(Info.InfoPat(pattern)) => (
+                  List.map(
+                    (binding: Info.slice_binding) =>
+                      {
+                        ...binding,
+                        path:
+                          Option.bind(
+                            Ctx.lookup_var(pattern.ctx, binding.name), entry =>
+                            find_path(entry.typ, pattern.ty)
+                          ),
+                      },
+                    edge.bindings,
+                  ),
+                  edge.mode == Info.SliceSource
+                    ? edge.binding_shape : Some(pattern.ty),
+                )
+              | _ => (edge.bindings, edge.binding_shape)
+              }
+            | None => (edge.bindings, edge.binding_shape)
             };
           {
             ...edge,
@@ -582,6 +478,8 @@ let take_children =
                 ? Info.SliceOmit
                 : edge.mode == Info.SliceTrack ? Info.SliceKeep : edge.mode,
             lens: edge_lens,
+            bindings,
+            binding_shape,
           };
         },
         children,
@@ -594,7 +492,15 @@ let take_children =
 };
 
 let record_child =
-    (mode, ~parent: Exp.t, (info, elab, m): exp_result): exp_result => {
+    (
+      mode,
+      ~bindings=[],
+      ~pattern=None,
+      ~binding_shape=None,
+      ~parent: Exp.t,
+      (info, elab, m): exp_result,
+    )
+    : exp_result => {
   let parent_id = Exp.rep_id(parent);
   let child_id = Exp.rep_id(info.user_term);
   if (Id.equal(parent_id, child_id)) {
@@ -616,6 +522,9 @@ let record_child =
         },
       child: child_id,
       lens: None,
+      bindings,
+      pattern,
+      binding_shape,
     };
     let prior =
       List.filter(
@@ -637,6 +546,122 @@ let source_child = (~parent, child, k) =>
 let track = (~parent, child, k) => k(record_child(Track, ~parent, child));
 let alternative = (~parent, child, k) =>
   k(record_child(Alternative, ~parent, child));
+
+let bindings_of = (~ctx: Ctx.t, pattern: Info.pat) =>
+  Ctx.added_bindings(pattern.ctx, ctx).entries
+  |> List.filter_map(
+       fun
+       | Ctx.VarEntry({name, id, typ, _}) =>
+         Some(
+           {
+             name,
+             id,
+             path: find_path(typ, pattern.ty),
+           }: Info.slice_binding,
+         )
+       | _ => None,
+     );
+
+let record_binding = (mode, ~parent, ~ctx, ~pattern, child, k) => {
+  let (child_info: Info.exp, _, _) = child;
+  k(
+    record_child(
+      mode,
+      ~bindings=bindings_of(~ctx, pattern),
+      ~pattern=Some(Pat.rep_id(pattern.user_term)),
+      ~binding_shape=
+        Some(mode == Source ? child_info.elab_syn_ty : pattern.ty),
+      ~parent,
+      child,
+    ),
+  );
+};
+
+let source_binding = (~parent, ~ctx, ~pattern, child, k) =>
+  record_binding(Source, ~parent, ~ctx, ~pattern, child, k);
+let bound_child = (~parent, ~ctx, ~pattern, child, k) =>
+  record_binding(Keep, ~parent, ~ctx, ~pattern, child, k);
+let omitted_binding = (~parent, ~ctx, ~pattern, child, k) =>
+  record_binding(Omit, ~parent, ~ctx, ~pattern, child, k);
+let alternative_binding = (~parent, ~ctx, ~pattern, child, k) =>
+  record_binding(Alternative, ~parent, ~ctx, ~pattern, child, k);
+
+let assume = (name, (info: Info.exp, elab, m), k) => {
+  let info = {
+    ...info,
+    slice_assumption: Some(name),
+  };
+  let m =
+    List.fold_left(
+      (m, id) => Id.Map.add(id, Info.InfoExp(info), m),
+      m,
+      IdTagged.ids(info.user_term),
+    );
+  k((info, elab, m));
+};
+
+let binding_demand = (ctx, bindings, shape, gamma) =>
+  List.fold_left(
+    (demand, binding: Info.slice_binding) =>
+      switch (VarMap.lookup(gamma, binding.name), binding.path) {
+      | (Some(query), Some(path)) =>
+        meet(ctx, demand, lift(shape, path, query))
+      | (Some(query), None) when List.length(bindings) == 1 =>
+        meet(ctx, demand, query)
+      | _ => demand
+      },
+    gap,
+    bindings,
+  );
+
+let binding_omissions =
+    (children: list(child), gamma: gamma, demands): Id.Set.t =>
+  List.fold_left(
+    (omitted, child) => {
+      let demanded =
+        List.filter(
+          (binding: Info.slice_binding) =>
+            VarMap.contains(gamma, binding.name),
+          child.bindings,
+        );
+      let omitted =
+        List.fold_left(
+          (omitted, binding: Info.slice_binding) =>
+            VarMap.contains(gamma, binding.name)
+              ? omitted : Id.Set.add(binding.id, omitted),
+          omitted,
+          child.bindings,
+        );
+      let omitted =
+        switch (child.pattern, child.binding_shape) {
+        | (Some(id), Some(shape)) =>
+          let demand =
+            List.find_map(
+              ((pattern, demand)) =>
+                pattern == Some(id) ? Some(demand) : None,
+              demands,
+            )
+            |> Option.value(~default=gap);
+          Id.Set.union(omitted, ids_of_typ(shape, demand));
+        | _ => omitted
+        };
+      switch (child.pattern) {
+      | Some(id)
+          when
+            demanded == []
+            && !
+                 List.exists(
+                   ((pattern, demand)) =>
+                     pattern == Some(id) && !is_gap(demand),
+                   demands,
+                 ) =>
+        Id.Set.add(id, omitted)
+      | _ => omitted
+      };
+    },
+    Id.Set.empty,
+    children,
+  );
 
 let rec matched_body =
         (bound: list(string), schema: Typ.t, query: Typ.t)
@@ -704,34 +729,87 @@ let matched_type_application =
 
 let slice_forward =
     (
+      ~direction,
+      ~focus_query,
       ~path=Id.Set.empty,
       ctx: Ctx.t,
       parent_shape: Typ.t,
       children: list(child),
       query: Typ.t,
     )
-    : result =>
-  children
-  |> List.map(child =>
-       if (Id.Set.mem(child.node.id, path)) {
-         child.node.dispatch(gap);
-       } else {
-         switch (child.mode) {
-         | Omit => {
+    : result => {
+  let forward =
+    children
+    |> List.map(child =>
+         if (Id.Set.mem(child.node.id, path) && direction == `Ana) {
+           {
              ...empty_result,
              omitted: Id.Set.singleton(child.node.id),
-           }
-         | Source => empty_result
-         | Track => empty_result
-         | Alternative => empty_result
-         | Keep =>
-           child.node.dispatch(
-             route_query(ctx, parent_shape, child.node.shape, query),
+           };
+         } else if (Id.Set.mem(child.node.id, path)) {
+           child.node.dispatch(gap);
+         } else {
+           switch (child.mode) {
+           | Omit => {
+               ...empty_result,
+               omitted: Id.Set.singleton(child.node.id),
+             }
+           | Source => empty_result
+           | Track => empty_result
+           | Alternative => empty_result
+           | Keep =>
+             let slice =
+               child.node.dispatch(
+                 switch (child.lens) {
+                 | Some(lens) => lens_down(lens, child.node.shape, query)
+                 | None =>
+                   route_query(ctx, parent_shape, child.node.shape, query)
+                 },
+               );
+             {
+               ...slice,
+               psi:
+                 switch (child.lens) {
+                 | Some(lens) => lens_up(lens, parent_shape, slice.psi)
+                 | None =>
+                   empty_query(slice.psi)
+                     ? gap
+                     : route_query(
+                         ctx,
+                         child.node.shape,
+                         parent_shape,
+                         slice.psi,
+                       )
+                 },
+             };
+           };
+         }
+       );
+  let reverse =
+    direction == `Ana
+      ? children
+        |> List.filter(child =>
+             child.mode == Omit && Id.Set.mem(child.node.id, path)
            )
-         };
-       }
-     )
-  |> results_join(ctx);
+        |> List.concat_map(checked =>
+             children
+             |> List.filter_map(source =>
+                  if (source.mode != Keep) {
+                    None;
+                  } else {
+                    Option.map(
+                      path =>
+                        source.node.dispatch(
+                          lift(source.node.shape, path, focus_query),
+                        ),
+                      find_path(checked.node.ana, source.node.shape),
+                    );
+                  }
+                )
+           )
+      : [];
+  results_join(ctx, forward @ reverse);
+};
 
 let slice_branches =
     (~path=Id.Set.empty, ctx: Ctx.t, branches: list(node), query: Typ.t)
@@ -754,6 +832,7 @@ let slice_branches =
 
 let rec compile =
         (
+          ~direction=`Syn,
           ~seen=Id.Set.empty,
           ~focus=None,
           ~focus_query=gap,
@@ -767,6 +846,7 @@ let rec compile =
     {
       id,
       shape: info.elab_syn_ty,
+      ana: info.ana,
       dispatch: query => source_result(info, query),
     };
   } else {
@@ -778,14 +858,25 @@ let rec compile =
            | Some(Info.InfoExp(child_info)) =>
              Some({
                mode: of_info_mode(edge.mode),
+               bindings: edge.bindings,
+               pattern: edge.pattern,
+               binding_shape: edge.binding_shape,
+               lens: edge.lens,
                node:
-                 compile(~seen, ~focus, ~focus_query, ~path, m, child_info),
+                 compile(
+                   ~direction,
+                   ~seen,
+                   ~focus,
+                   ~focus_query,
+                   ~path,
+                   m,
+                   child_info,
+                 ),
              })
            | _ => None
            }
          );
-    let sources =
-      List.filter_map(c => c.mode == Source ? Some(c.node) : None, children);
+    let sources = List.filter(c => c.mode == Source, children);
     let kept =
       List.filter_map(c => c.mode == Keep ? Some(c.node) : None, children);
     let alternatives =
@@ -814,6 +905,8 @@ let rec compile =
               slice_branches(~path, info.ctx, alternatives, query),
               slice_forward(
                 ~path,
+                ~direction,
+                ~focus_query,
                 info.ctx,
                 info.elab_syn_ty,
                 List.filter(child => child.mode == Omit, children),
@@ -822,18 +915,6 @@ let rec compile =
             );
           } else {
             switch (term) {
-            | Fun(_, _, _, _) =>
-              switch (kept, Typ.term_of(expose(query))) {
-              | ([body], Arrow(_, codomain)) => body.dispatch(codomain)
-              | _ =>
-                slice_forward(
-                  ~path,
-                  info.ctx,
-                  info.elab_syn_ty,
-                  children,
-                  query,
-                )
-              }
             | TypAp(_, args) =>
               switch (kept) {
               | [fn, ..._] =>
@@ -845,6 +926,8 @@ let rec compile =
                 ? source_result(info, query)
                 : slice_forward(
                     ~path,
+                    ~direction,
+                    ~focus_query,
                     info.ctx,
                     info.elab_syn_ty,
                     children,
@@ -852,56 +935,79 @@ let rec compile =
                   )
             };
           };
-        let names = binding_names(term);
+        let binding_children = List.filter(c => c.pattern != None, children);
+        let demands =
+          binding_children
+          |> List.filter_map(child =>
+               Option.map(
+                 shape => {
+                   let body =
+                     binding_demand(
+                       info.ctx,
+                       child.bindings,
+                       shape,
+                       forward.gamma,
+                     );
+                   let body =
+                     direction == `Ana && child.pattern == focus
+                       ? meet(info.ctx, body, focus_query) : body;
+                   let parent =
+                     if (child.mode != Keep) {
+                       gap;
+                     } else {
+                       switch (find_path(shape, info.elab_syn_ty)) {
+                       | Some(path) => project(query, path)
+                       | None => gap
+                       };
+                     };
+                   (child.pattern, meet(info.ctx, body, parent));
+                 },
+                 child.binding_shape,
+               )
+             );
         let body_demand =
-          switch (term, binding_pat(term)) {
-          | (Match(_, rules), _) =>
-            List.map(
-              ((pat, _)) => pattern_demand(info.ctx, pat, forward.gamma),
-              rules,
-            )
-            |> List.fold_left(meet(info.ctx), gap)
-          | (_, Some(pat)) => pattern_demand(info.ctx, pat, forward.gamma)
-          | (_, None) => gap
-          };
-        let requested =
-          switch (term, Typ.term_of(expose(query))) {
-          | (Fun(_, _, _, _), Arrow(domain, _)) =>
-            meet(info.ctx, body_demand, domain)
-          | _ => empty_query(body_demand) ? gap : body_demand
-          };
+          List.map(snd, demands) |> List.fold_left(meet(info.ctx), gap);
         let source_query = empty_query(body_demand) ? gap : body_demand;
         let deps =
-          List.map(source => source.dispatch(source_query), sources);
+          List.map(
+            source =>
+              source.node.dispatch(
+                switch (source.binding_shape) {
+                | Some(shape) =>
+                  Typ.meet(info.ctx, shape, source.node.shape) != None
+                    ? source_query
+                    : route_query(
+                        info.ctx,
+                        shape,
+                        source.node.shape,
+                        source_query,
+                      )
+                | None => source_query
+                },
+              ),
+            sources,
+          );
         let combined =
           result_join(info.ctx, forward, results_join(info.ctx, deps));
         let omitted =
-          switch (term, binding_pat(term)) {
-          | (Match(_, rules), _) =>
-            rules
-            |> List.map(((pat, _)) =>
-                 pattern_omissions(
-                   pat,
-                   {
-                     let demand = pattern_demand(info.ctx, pat, forward.gamma);
-                     empty_query(demand) ? gap : demand;
-                   },
-                   forward.gamma,
-                 )
-               )
-            |> List.fold_left(Id.Set.union, combined.omitted)
-          | (_, Some(pat)) =>
-            Id.Set.union(
-              combined.omitted,
-              pattern_omissions(pat, requested, forward.gamma),
-            )
-          | (_, None) => combined.omitted
-          };
+          Id.Set.union(
+            combined.omitted,
+            binding_omissions(binding_children, forward.gamma, demands),
+          );
+        let names =
+          List.concat_map(
+            child =>
+              List.map(
+                (binding: Info.slice_binding) => binding.name,
+                child.bindings,
+              ),
+            binding_children,
+          );
         {
           ...combined,
           omitted,
           gamma: gamma_remove(combined.gamma, names),
-          psi: empty_query(forward.psi) ? gap : query,
+          psi: forward.psi,
           ana: query,
         };
       };
@@ -909,6 +1015,7 @@ let rec compile =
     {
       id,
       shape: info.elab_syn_ty,
+      ana: info.ana,
       dispatch,
     };
   };
@@ -931,186 +1038,25 @@ let exp_path = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t =>
   | _ => Id.Set.singleton(focus)
   };
 
-let analysis_slice = (m, root_info: Info.exp, focus, query): result => {
-  let path = exp_path(m, focus);
-  let base = compile(~focus=Some(focus), ~path, m, root_info).dispatch(gap);
-  let focus_info =
-    switch (Id.Map.find_opt(focus, m)) {
-    | Some(Info.InfoExp(info)) => Some(info)
-    | _ => None
-    };
-  let parent =
-    Id.Map.fold(
-      (_, info, found) =>
-        switch (found, info) {
-        | (Some(_), _) => found
-        | (None, Info.InfoExp(parent)) =>
-          parent.slice_children
-          |> List.find_opt((edge: Info.slice_child) =>
-               Id.equal(edge.child, focus)
-             )
-          |> Option.map(edge => (parent, edge))
-        | _ => None
-        },
-      m,
-      None,
-    );
-  let dependencies =
-    switch (focus_info, parent) {
-    | (Some(focused), Some((parent, edge))) =>
-      let source =
-        if (edge.mode == Info.SliceSource) {
-          [(focus, compile(m, focused).dispatch(query))];
-        } else {
-          switch (Exp.term_of(focused.user_term)) {
-          | Var(_)
-          | Constructor(_, _) =>
-            let query =
-              Typ.meet(focused.ctx, focused.elab_syn_ty, query) != None
-                ? query
-                : route_query(
-                    focused.ctx,
-                    parent.elab_syn_ty,
-                    focused.elab_syn_ty,
-                    query,
-                  );
-            [(focus, compile(m, focused).dispatch(query))];
-          | EmptyHole => [(focus, compile(m, focused).dispatch(query))]
-          | _ when Typ.meet(focused.ctx, focused.elab_syn_ty, query) == None => [
-              (focus, compile(m, focused).dispatch(focused.elab_syn_ty)),
-            ]
-          | _ => []
-          };
-        };
-      let checked =
-        edge.mode == Info.SliceOmit
-          ? parent.slice_children
-            |> List.filter_map((sibling: Info.slice_child) =>
-                 if (sibling.mode != Info.SliceKeep) {
-                   None;
-                 } else {
-                   switch (Id.Map.find_opt(sibling.child, m)) {
-                   | Some(Info.InfoExp(info)) =>
-                     switch (find_path(focused.ana, info.elab_syn_ty)) {
-                     | Some(path) =>
-                       Some((
-                         sibling.child,
-                         compile(m, info).dispatch(
-                           lift(info.elab_syn_ty, path, query),
-                         ),
-                       ))
-                     | None => None
-                     }
-                   | _ => None
-                   };
-                 }
-               )
-          : [];
-      source @ checked;
-    | _ => []
-    };
-  let result =
-    List.fold_left(
-      (result, (id, dependency)) =>
-        {
-          ...result_join(root_info.ctx, result, dependency),
-          omitted:
-            Id.Set.union(
-              Id.Set.remove(id, result.omitted),
-              dependency.omitted,
-            ),
-        },
-      base,
-      dependencies,
-    );
-  let annotation_omissions =
-    Id.Map.fold(
-      (_, info, omitted) =>
-        switch (info) {
-        | Info.InfoExp({user_term: {term: Asc(child, annotation), _}, _})
-            when Id.Set.mem(Exp.rep_id(child), path) =>
-          let annotation_query =
-            switch (focus_info) {
-            | Some(focused) =>
-              switch (find_path(focused.ana, annotation)) {
-              | Some(path) => lift(annotation, path, query)
-              | None =>
-                switch (
-                  compatible_paths(focused.ctx, focused.ana, annotation)
-                ) {
-                | [path] => lift(annotation, path, query)
-                | _ => query
-                }
-              }
-            | None => query
-            };
-          Id.Set.union(omitted, ids_of_typ(annotation, annotation_query));
-        | _ => omitted
-        },
-      m,
-      Id.Set.empty,
-    );
-  let (reopened, binder_omissions) =
-    Id.Map.fold(
-      (_, info, (reopened, omitted)) =>
-        switch (info) {
-        | Info.InfoExp(info)
-            when Id.Set.mem(Exp.rep_id(info.user_term), path) =>
-          switch (binding_pat(Exp.term_of(info.user_term))) {
-          | Some(pat) =>
-            let gamma =
-              info.slice_children
-              |> List.exists((edge: Info.slice_child) =>
-                   edge.mode == Info.SliceSource
-                   && Id.Set.mem(edge.child, path)
-                 )
-                ? List.fold_left(
-                    (gamma, name) => gamma_add(info.ctx, gamma, name, query),
-                    VarMap.empty,
-                    binding_names(Exp.term_of(info.user_term)),
-                  )
-                : VarMap.empty;
-            (
-              Id.Set.remove(Pat.rep_id(pat), reopened),
-              Id.Set.union(omitted, pattern_omissions(pat, query, gamma)),
-            );
-          | None => (reopened, omitted)
-          }
-        | _ => (reopened, omitted)
-        },
-      m,
-      (result.omitted, Id.Set.empty),
-    );
-  {
-    ...result,
-    omitted:
-      Id.Set.union(
-        Id.Set.union(reopened, annotation_omissions),
-        binder_omissions,
-      ),
-    ana: query,
-  };
-};
-
-let ids_set = ids =>
-  List.fold_left((set, id) => Id.Set.add(id, set), Id.Set.empty, ids);
-
 let focus_shell_ids = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t => {
-  let rec go = ancestors =>
-    switch (ancestors) {
+  let rec go =
+    fun
     | [id, ...rest] =>
       switch (Id.Map.find_opt(id, m)) {
-      | Some(Info.InfoExp({user_term, _})) =>
-        switch (Exp.term_of(user_term)) {
-        | Parens(_)
-        | Asc(_, _) =>
-          Id.Set.union(ids_set(IdTagged.ids(user_term)), go(rest))
-        | _ => Id.Set.empty
-        }
+      | Some(
+          Info.InfoExp({
+            user_term: {term: Parens(_) | Asc(_, _), _} as e,
+            _,
+          }),
+        ) =>
+        List.fold_left(
+          (ids, id) => Id.Set.add(id, ids),
+          go(rest),
+          IdTagged.ids(e),
+        )
       | _ => Id.Set.empty
       }
-    | [] => Id.Set.empty
-    };
+    | [] => Id.Set.empty;
   switch (Id.Map.find_opt(focus, m)) {
   | Some(Info.InfoExp({ancestors, _})) => go(ancestors)
   | _ => Id.Set.empty
@@ -1141,7 +1087,7 @@ let validate = (~focus, ~direction, m, query) =>
     | Some(Info.InfoExp(info)) =>
       if (direction == `Syn
           && !is_gap(query)
-          && !compatible_query(info.ctx, info.ty, query)) {
+          && !compatible_query(info.ctx, info.elab_syn_ty, query)) {
         raise(Incompatible_query(query));
       }
     | Some(_) => raise(Wrong_focus_sort)
@@ -1160,28 +1106,23 @@ let slice =
     : result => {
   let (root_info, _, m) = root;
   validate(~focus, ~direction, m, query);
-  let root_id = Exp.rep_id(root_info.user_term);
-  switch (focus, direction) {
-  | (Some(id), `Ana) when !Id.equal(id, root_id) =>
-    analysis_slice(m, root_info, id, query)
-  | _ =>
-    let focused = direction == `Syn && focus != None;
-    let node =
-      focused
-        ? compile(
-            ~focus,
-            ~focus_query=query,
-            ~path=exp_path(m, Option.get(focus)),
-            m,
-            root_info,
-          )
-        : compile(m, root_info);
-    let result = node.dispatch(focused ? gap : query);
-    direction == `Ana
-      ? {
-        ...result,
-        ana: query,
-      }
-      : result;
-  };
+  let focused = focus != None;
+  let node =
+    focused
+      ? compile(
+          ~direction,
+          ~focus,
+          ~focus_query=query,
+          ~path=exp_path(m, Option.get(focus)),
+          m,
+          root_info,
+        )
+      : compile(~direction, m, root_info);
+  let result = node.dispatch(focused ? gap : query);
+  direction == `Ana
+    ? {
+      ...result,
+      ana: query,
+    }
+    : result;
 };
