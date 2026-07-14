@@ -215,23 +215,33 @@ let shake_nodes = (nodes: list(Js.t(Dom.node))): unit => {
       ("transform", "translateX(-2px)"),
       ("transform", "translateX(0px)"),
     ]);
+  /* blockers read RED — a hard refusal must not look like the
+     insist prompt's press-again shake (one meaning per signal) */
+  let tint =
+    Animation.Js.keyframes_unsafe([
+      ("color", "#d43b3b"),
+      ("color", "#d43b3b"),
+    ]);
   let options =
     Animation.Js.options_unsafe({
-      duration: 220,
+      duration: 260,
       easing: "ease-out",
     });
   nodes
   |> List.iter(node =>
-       switch (
-         Js.Unsafe.meth_call(
-           node,
-           "animate",
-           [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
-         )
-       ) {
-       | exception _ => ()
-       | _ => ()
-       }
+       [keyframes, tint]
+       |> List.iter(kf =>
+            switch (
+              Js.Unsafe.meth_call(
+                node,
+                "animate",
+                [|Js.Unsafe.inject(kf), Js.Unsafe.inject(options)|],
+              )
+            ) {
+            | exception _ => ()
+            | _ => ()
+            }
+          )
      );
 };
 

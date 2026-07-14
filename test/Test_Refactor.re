@@ -4916,6 +4916,75 @@ let sugar_lift_tests = [
   ),
 ];
 
+let blocker_count = (g: Action.Gesture.t, marked: string): int => {
+  let z = Test_Editing.parse_zipper(marked);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  List.length(Refactor.gesture_blockers(~term, g, z));
+};
+
+let blocker_tests = [
+  test_case("blockers: dep used below the block", `Quick, () =>
+    check(
+      int,
+      "the span use",
+      1,
+      blocker_count(
+        Up,
+        "let blend(lo, hi) =\n  let span = hi - lo in\n  ¦let mid = lo + span / 2 in\n  mid + span\nin\nblend(2, 8)",
+      ),
+    )
+  ),
+  test_case("blockers: helper name rebound below", `Quick, () =>
+    check(
+      int,
+      "the shadowing binder",
+      1,
+      blocker_count(
+        Up,
+        "let outer =\n  fun x ->\n    ¦let q = x + 1 in\n    let q = 2 in\n    q\nin\nouter(1)",
+      ),
+    )
+  ),
+  test_case("blockers: recursion wall names the uses", `Quick, () =>
+    check(
+      int,
+      "the f use",
+      1,
+      blocker_count(
+        Up,
+        "let f =\n  fun x ->\n    ¦let g = f(x) in\n    g\nin\nf(1)",
+      ),
+    )
+  ),
+  test_case("blockers: shadow line in the convoy's way", `Quick, () =>
+    check(
+      int,
+      "the colliding binder",
+      1,
+      blocker_count(Up, "let c = 9 in\nlet b = 1 in\n¦let c = b + 1 in\nc"),
+    )
+  ),
+  test_case("blockers: statement crossing names its uses", `Quick, () =>
+    check(
+      int,
+      "the k in the statement",
+      1,
+      blocker_count(Up, "k * 2;\n¦let k = 1 in\nk"),
+    )
+  ),
+  test_case("blockers: exit-capture names the outside uses", `Quick, () =>
+    check(
+      int,
+      "the other-arm x",
+      1,
+      blocker_count(Up, "case m | 1 => ¦let x = 2 in x | _ => x end"),
+    )
+  ),
+  test_case("blockers: silent when nothing is in the way", `Quick, () =>
+    check(int, "no culprits", 0, blocker_count(Up, "¦let a = 1 in a + 1"))
+  ),
+];
+
 let landing_block_tests = [
   test_case(
     "feed-consume of an inline-headed let rejoins the host line",
@@ -5046,6 +5115,7 @@ let tests = [
     @ remedied_move_tests
     @ lift_shape_tests
     @ sugar_lift_tests
+    @ blocker_tests
     @ landing_block_tests
     @ whitespace_probe
     @ whitespace_probe2
