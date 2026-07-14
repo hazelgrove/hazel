@@ -5,9 +5,8 @@ open Language;
 /* Headless VISUAL-placement tests: the engine's anchors are covered
    elsewhere; this drives QuiverLayout.resolve_position with
    live-faithful inputs — the segment CachedSyntax actually uses
-   (unselect WITHOUT erasing the suggestion buffer, so TyDi ghosts
-   are part of the measured layout), real Measured, and the real
-   caret point. */
+   (the DisplayFork segment, so suggestion/chip ghosts are part of
+   the measured layout), real Measured, and the real caret point. */
 
 let string_testable = testable(Fmt.string, String.equal);
 
@@ -16,24 +15,20 @@ let statics_of = (z: Zipper.t) => {
   fst(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term));
 };
 
-/* the live per-edit-cycle buffer set (Editor.calculate path) */
-let with_tydi_buffer = (z: Zipper.t): Zipper.t => {
-  let info_map = statics_of(z);
-  let ci = Indicated.ci_of(z, info_map);
-  switch (TyDi.set_buffer(~ci, z)) {
-  | Some(z) => z
-  | None => z
-  };
-};
-
 let pins = (~tydi=true, code: string): string => {
   let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
-  let z = tydi ? with_tydi_buffer(z) : z;
-  /* live-faithful: DISPLAY segment keeps the suggestion ghost
-     (CachedSyntax does not erase); the ENGINE segment is the user's
-     real program (the QuiverDec fix) — resolving engine insertions
-     against the display measured is exactly what the view does */
-  let display_seg = Zipper.unselect_and_zip(z);
+  /* live-faithful: the DISPLAY segment is the fork's (ghosts spliced,
+     as CachedSyntax renders); the ENGINE segment is the user's real
+     program (the QuiverDec fix) — resolving engine insertions against
+     the display measured is exactly what the view does */
+  let display_seg =
+    if (tydi) {
+      let info_map = statics_of(z);
+      let obligations = TypeObligations.derive(info_map);
+      DisplayFork.mk(~info_map, ~obligations, ~armed=true, z).segment;
+    } else {
+      Zipper.unselect_and_zip(z);
+    };
   let engine_seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let measured = Measured.of_segment(display_seg, Id.Map.empty, Id.Map.empty);
   let caret = Zipper.Caret.point(measured, z);
@@ -81,7 +76,11 @@ let probe2 = [
       check(
         string_testable,
         "states",
-        "A: )+=+in@1:10  MAT<let a = 2 in\nlet _: (  ?)=?in?>\n"
+        /* JUDGED shift (single-channel port): A resolves one col
+           right — the armed fork splices the caret-zone ghost into
+           the display segment, so placement measures against it
+           (live armed-frame behavior); MAT unchanged */
+        "A: )+=+in@1:11  MAT<let a = 2 in\nlet _: (  ?)=?in?>\n"
         ++ "B: =+in@1:19  MAT<let a = 2 in\nlet _: (Int, Bool)=?in? >",
         "A: "
         ++ full("let a = 2 in\nlet _: (  ¦")

@@ -327,12 +327,10 @@ let rec go =
     let f = seg => seg |> SpaceNormalize.go |> PrettySegment.prettify;
     Some(CaretPreserving.transform(z, f)) |> return(CantReparse);
   | Buffer(a) =>
-    /* accepting a TyDi suggestion inserts delimiter text like typing
-       it, but via a separate path from the Insert arm */
+    /* accepting an LLM buffer inserts text like typing it, but via a
+       separate path from the Insert arm */
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    switch (
-      Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
-    ) {
+    switch (Buffer.go(a, z)) {
     | Ok(z) => Ok(LocalReformat.go(~before, z))
     | Error(_) as e => e
     };

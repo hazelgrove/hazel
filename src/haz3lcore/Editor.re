@@ -87,8 +87,8 @@ module Update = {
 
   let should_clear_buffer =
       (~settings: Language.CoreSettings.t, ~a: Action.t, state: Model.state) => {
-    /* We clear the TyDi (unparsed) buffer on every action except Accept.
-     * For the LLM (parsed) buffer, we accept resize actions to permit
+    /* Any action except Accept clears the LLM (parsed) buffer and
+     * disarms the ghost; resize actions are exempt to permit
      * incremental acceptance token-by-token or line-by-line. */
     let is_local_resize = (a: Action.t) =>
       switch (a) {
@@ -212,28 +212,16 @@ module Update = {
         {syntax, state, root}: Model.t,
       )
       : Model.t => {
-    /* 1. Recalculate the autocomplete buffer if necessary.
-     * Uses ci_for_completion (which prefers the left-neighbor tile,
-     * falling back to ci_of) so that the automatic post-edit buffer
-     * recompute is consistent with Perform.go's explicit
-     * Buffer(Set(TyDi)) path. */
-    let zipper =
-      if (settings.assist && settings.statics && is_edited) {
-        Buffer.set_tydi_buffer(
-          Indicated.ci_for_completion(state.zipper, statics.info_map),
-          state.zipper,
-        );
-      } else {
-        state.zipper;
-      };
-    /* The assist stream and the inline chip ghost (display fork) are
-       computed by DisplayFork.mk inside CachedSyntax — the single
-       zipper→displayed-segment pipeline shared with the test harness.
+    /* The assist stream — TyDi suggestions included (T2) — and the
+       inline ghost (display fork) are computed by DisplayFork.mk
+       inside CachedSyntax — the single zipper→displayed-segment
+       pipeline shared with the test harness.
        Editor only owns the ARMING state: an edit ARMS the ghost, any
        other action disarms (Update.clear_buffer); movement never
        arms. While armed, a statics refresh re-forks the display —
        statics are DEBOUNCED during typing, so the frame with fresh
        assist data is the deferred refresh, not the edit frame. */
+    let zipper = state.zipper;
     let statics_refreshed = statics.info_map !== syntax.shape_info_map;
     let armed = is_edited || syntax.ghost_armed;
     let obligations =

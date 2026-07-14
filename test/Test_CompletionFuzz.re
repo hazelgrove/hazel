@@ -619,15 +619,9 @@ let crash_stage_probe = {
           Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
         stage := "derive";
         let obs = TypeObligations.derive(info_map);
-        stage := "set_buffer";
-        let zb =
-          Buffer.set_tydi_buffer(
-            Indicated.ci_for_completion(z, info_map),
-            z,
-          );
         stage := "fork";
         let fork =
-          DisplayFork.mk(~info_map, ~obligations=obs, ~armed=true, zb);
+          DisplayFork.mk(~info_map, ~obligations=obs, ~armed=true, z);
         ignore(fork);
         stage := "display_parts";
         let (seg, zc, _marks, _assist, _ghosted) =

@@ -169,7 +169,12 @@ let view =
       Node.text(lb_icon ++ token);
     | Whitespace(str) when str == Token.space => Node.text(ws_icon)
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
-    | Comment(str) when List.mem(secondary.id, buffer_ids) =>
+    /* a ghost-marked comment is a witness-remainder ghost (spliced
+       by DisplayFork), styled like the retired suggestion buffer */
+    | Comment(str)
+        when
+          List.mem(secondary.id, buffer_ids)
+          || ghost_mark(secondary.id, Option.none) =>
       secondary_text("in-unparsed-buffer", str)
     | Comment(str) => secondary_text("comment", str)
     };

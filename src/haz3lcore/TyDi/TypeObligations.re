@@ -934,7 +934,19 @@ let ghost_pieces =
     };
   switch (ins.delimiters) {
   | [] => None
-  | [d0, ..._] when d0.typed_len != None => None /* witness: TyDi's */
+  | [{typed_len: Some(n), text, _}, ..._] =>
+    /* witness: the un-typed remainder ghosts inline as a display
+       comment continuing the typed token (the retired TyDi buffer
+       rendered the same text; marks now come from the fork) */
+    let len = String.length(text);
+    n < len
+      ? Some([
+          Piece.Secondary({
+            id: Id.mk(),
+            content: Comment(String.sub(text, n, len - n)),
+          }),
+        ])
+      : None;
   | ds => build(ds)
   };
 };

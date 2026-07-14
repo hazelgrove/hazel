@@ -3,7 +3,8 @@ open Haz3lcore;
 open Language;
 
 /* Build a zipper with caret at the indicated position (¦),
- * compute statics, and return TyDi's suggestion buffer. */
+ * compute statics, and return the remainder of TyDi's top
+ * suggestion (what the unified assist channel ghosts). */
 let tydi_suggest = (code: string): option(string) => {
   open Util.OptUtil.Syntax;
   let actions = Test_Editing.mk(code);
@@ -12,8 +13,8 @@ let tydi_suggest = (code: string): option(string) => {
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let ci = Indicated.ci_for_completion(z, info_map);
-  let* z = TyDi.set_buffer(~ci, z);
-  TyDi.get_unparsed_buffer(z);
+  let+ (full, n) = TyDi.suggestion(~ci, z);
+  String.sub(full, n, String.length(full) - n);
 };
 
 let tydi_test = (~name, ~code, ~expect) =>
@@ -76,7 +77,7 @@ let variable_tests = (
       ~expect=Some("c"),
     ),
     /* When the top alphabetical match is exact, no suffix is returned,
-     * even if longer matches exist. This is expected set_buffer behavior:
+     * even if longer matches exist. This is expected suggestion behavior:
      * it tries only the first match. */
     tydi_test(
       ~name="Exact match at top suppresses longer matches",

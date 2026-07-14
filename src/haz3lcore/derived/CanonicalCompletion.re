@@ -426,6 +426,10 @@ let rank_map = (seg: Segment.t): Hashtbl.t((Id.t, int), int) => {
           };
         };
       go(t.shards, t.children);
+      /* whole-piece key (a beside-splice ref): the tile's right edge
+         — same-position splices must rank equal, not fall to max_int
+         (misordering a witness remainder past its sibling ghosts) */
+      Hashtbl.replace(rank, (t.id, (-1)), ctr^);
     | p =>
       incr(ctr);
       Hashtbl.replace(rank, (Piece.id(p), (-1)), ctr^);
@@ -605,8 +609,22 @@ let finish_display =
       | Some(i) => Some((List.nth(t.label, i), mark_mem(t.id, Some(i))))
       };
     };
+  /* a left edge already ending in whitespace (a form-suggestion
+     remainder like `t ` — real tokens never do) is self-separated */
+  let ends_in_space = (t: string) =>
+    String.length(t) > 0 && t.[String.length(t) - 1] == ' ';
   let needs_pad = ((lt, lsys), (rt, rsys)) =>
-    (lsys || rsys) && !f1_opens(lt) && !f1_hugs_left(rt);
+    (lsys || rsys)
+    && !f1_opens(lt)
+    && !ends_in_space(lt)
+    && !f1_hugs_left(rt);
+  /* a MINTED comment is a witness-remainder ghost: it continues the
+     typed token, so its left edge always hugs */
+  let hugging_comment = (p: Piece.t): bool =>
+    switch (p) {
+    | Secondary(w) => Secondary.is_comment(w) && minted(w.id)
+    | _ => false
+    };
   let space = (): Piece.t =>
     Secondary({
       id: Id.mk(),
@@ -626,7 +644,10 @@ let finish_display =
           edge(~hot, b, ~side=Direction.Left),
         ) {
         | (Some(l), Some(r))
-            when needs_pad(l, r) && pad_allowed(right_edge_atom(a)) => [
+            when
+              needs_pad(l, r)
+              && !hugging_comment(b)
+              && pad_allowed(right_edge_atom(a)) => [
             a,
             space(),
             ...rest,
@@ -2957,7 +2978,8 @@ let derive_insertions =
            Some({
              adjacent_id: tok,
              side: Direction.Right,
-             splice: None /* witness: TyDi's, never spliced */,
+             /* witness remainder ghosts beside its absorbed token */
+             splice: Some((tok, None, Direction.Right)),
              delimiters: delims,
            })
          | (_, Some(id), _) =>
@@ -3077,8 +3099,7 @@ let chip_among =
   };
 
 /* The chip stream as DISPLAYED: a chip whose content is ghosted
-   inline — by the chip ghost (non-witness) or by a TyDi buffer
-   (witness) — never also shows as a chip. ONE home for this policy:
+   inline never also shows as a chip. ONE home for this policy:
    the live deco and the test harness both call it. */
 let is_pure_witness = (ins: insertion): bool =>
   switch (ins.delimiters) {
@@ -3087,23 +3108,8 @@ let is_pure_witness = (ins: insertion): bool =>
   };
 
 let chips_displayed =
-    (z: Zipper.t, ~ghosted: list(insertion), assist: list(insertion))
-    : list(insertion) => {
-  let tydi_active =
-    Selection.is_buffer(z.selection) && z.selection.content != [];
-  let suppress_w =
-    tydi_active ? chip_among(z, List.filter(is_pure_witness, assist)) : None;
-  assist
-  |> List.filter(ins =>
-       !List.memq(ins, ghosted)
-       && !(
-            switch (suppress_w) {
-            | Some(w) => ins === w
-            | None => false
-            }
-          )
-     );
-};
+    (~ghosted: list(insertion), assist: list(insertion)): list(insertion) =>
+  assist |> List.filter(ins => !List.memq(ins, ghosted));
 
 /* Tab = "type it for me": the paste text for the chip's next chunk.
    A witness chip pastes the token REMAINDER (no spaces — it merges
@@ -3222,35 +3228,12 @@ let splice_ghost =
           }
         };
       };
-    /* a side-Right beside-splice hoists immediately-following
-       COMMENT secondaries before the ghost: a TyDi witness ghost
-       (a display comment) completes the token FIRST — chip material
-       lands after it */
-    let hoist_comments = (anchor: Piece.t, rest: Segment.t) => {
-      let rec take = (acc, rest) =>
-        switch (rest) {
-        | [Piece.Secondary(w) as c, ...tl] when Secondary.is_comment(w) =>
-          take([c, ...acc], tl)
-        | _ => (List.rev(acc), rest)
-        };
-      let (cmts, rest) = take([], rest);
-      ([anchor] @ cmts @ pieces, rest);
-    };
     let rec go_seg = (ps: Segment.t): option(Segment.t) =>
       switch (ps) {
       | [] => None
       | [p, ...rest] =>
         switch (try_piece(p)) {
-        | Some(repl) =>
-          /* beside-Right shape [anchor, ...ghost]: hoist comments */
-          let (repl, rest) =
-            switch (side, repl) {
-            | (Direction.Right, [anchor, ...tl])
-                when anchor === p && tl != [] =>
-              hoist_comments(anchor, rest)
-            | _ => (repl, rest)
-            };
-          Some(repl @ rest);
+        | Some(repl) => Some(repl @ rest)
         | None =>
           switch (p) {
           | Tile(t) =>

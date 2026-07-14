@@ -284,13 +284,6 @@ module Selection = {
            ~action=action(Project(SetIndicated(ChooseLivelit))),
            "Livelit",
          ),
-         /* Editor tools */
-         mk(
-           ~hotkey=meta ++ "+/",
-           ~mdIcon="assistant",
-           ~action=action(Buffer(Set(TyDi))),
-           "TyDi Assistant",
-         ),
          mk(
            ~section="Diagnostics",
            ~mdIcon="refresh",
@@ -636,7 +629,6 @@ module View = {
        policy home, shared with the harness) */
     let obligations =
       CanonicalCompletion.chips_displayed(
-        model.editor.state.zipper,
         ~ghosted=model.editor.syntax.ghosted,
         model.editor.syntax.assist,
       );

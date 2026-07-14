@@ -81,7 +81,6 @@ type project =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type completion_source =
-  | TyDi
   | LLM(string);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

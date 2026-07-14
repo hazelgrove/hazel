@@ -23,11 +23,11 @@ open Language;
 
 let string_testable = testable(Fmt.string, String.equal);
 
-/* the LIVE pipeline, not a mirror of it: TyDi buffer set exactly as
-   Editor.calculate does, then DisplayFork.mk — the same single home
-   CachedSyntax renders from. Statics derive from the SAME zipper we
-   render — a re-typed program mints fresh ids and every id-keyed
-   merge silently misses. */
+/* the LIVE pipeline, not a mirror of it: DisplayFork.mk — the same
+   single home CachedSyntax renders from; TyDi suggestions ride the
+   fork's assist stream (T2), so ALL ghost marks come from the fork.
+   Statics derive from the SAME zipper we render — a re-typed program
+   mints fresh ids and every id-keyed merge silently misses. */
 let display_parts =
     (z: Zipper.t)
     : (
@@ -41,15 +41,8 @@ let display_parts =
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let obligations = TypeObligations.derive(info_map);
-  let z =
-    Buffer.set_tydi_buffer(Indicated.ci_for_completion(z, info_map), z);
-  /* COEXISTENCE: TyDi's witness ghost lives in the buffer (at the
-     caret); chip ghosts splice at their anchors — both render */
-  let tydi_marks =
-    Selection.is_buffer(z.selection) && z.selection.content != []
-      ? CanonicalCompletion.ghost_marks(z.selection.content) : [];
   let fork = DisplayFork.mk(~info_map, ~obligations, ~armed=true, z);
-  (fork.segment, z, tydi_marks @ fork.ghost_marks, fork.assist, fork.ghosted);
+  (fork.segment, z, fork.ghost_marks, fork.assist, fork.ghosted);
 };
 
 let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
@@ -133,7 +126,7 @@ let display_state = (~chips as show_chips=true, z: Zipper.t): string => {
        )
     |> String.concat("\n");
   /* suppression comes from THE one policy home */
-  let chips_shown = CanonicalCompletion.chips_displayed(zc, ~ghosted, assist);
+  let chips_shown = CanonicalCompletion.chips_displayed(~ghosted, assist);
   let chips_str =
     chips_shown
     |> List.map((i: CanonicalCompletion.insertion) =>
@@ -334,7 +327,7 @@ string_replace(a, b, c)¦   CHIPS[]|},
       display_case("string_replace(a,¦ ?⟪, ?)⟫"),
       display_case("string_replace(a, b,¦ ?⟪)⟫"),
       display_case("string_replace(a, b, c¦⟪)⟫"),
-      display_case("let x = 4 i¦⟪n⟫?"),
+      display_case("let x = 4 i¦⟪n⟫ ?"),
       /* trailing space: the ghost hugs the caret (slide_to_caret) —
          a closer drawn left of the caret would portray typing
          outside the completed call */
@@ -352,9 +345,10 @@ string_replace(a, b, c)¦   CHIPS[]|},
        PROBE first, felt-read, then pin. */
     [
       /* padding oracle: holes padded, typed spaces consume pads —
-         text constant through every promised keystroke. Residual:
-         the TyDi witness line's trailing `in?` (buffer path, no
-         marks — matches plain dev rendering). */
+         text constant through every promised keystroke. JUDGED
+         improvement (single-channel port): the witness remainder is
+         fork material with marks now, so `i¦⟪n⟫ ?` pads its hole —
+         the old buffer line rendered the unpadded `in?` residual. */
       test_case("let entry, blank editor", `Quick, () =>
         check(
           string_testable,
@@ -369,7 +363,7 @@ let x =¦ ? ⟪in ?⟫   CHIPS[]
 let x = ¦? ⟪in ?⟫   CHIPS[]
 let x = 1¦ ⟪in ?⟫   CHIPS[]
 let x = 1 ¦⟪in ?⟫   CHIPS[]
-let x = 1 i¦⟪n⟫?   CHIPS[]
+let x = 1 i¦⟪n⟫ ?   CHIPS[]
 let x = 1 in¦?   CHIPS[]|},
           trajectory("let x = 1 in"),
         )
@@ -468,10 +462,10 @@ let a = string_replace(x¦⟪, ?, ?)⟫ in a + 1   CHIPS[]|},
        incomplete, refactors that break existing form delimiters */
     [
       /* `=¦` line: the end-ghost survives mid-arrow typing (witness
-         boundaries); the `=>` witness itself still shows as a chip
-         because TyDi doesn't fire on the case arrow (the known
-         tydi-backpack-case-arrow issue) — would ghost once that's
-         fixed */
+         boundaries); JUDGED improvement (single-channel port): the
+         `=>` witness ghosts inline as `⟪>⟫` — the old buffer-only
+         path never fired on the case arrow (ex-known-jank), so it
+         fell back to a chip */
       test_case("case entry, blank editor", `Quick, () =>
         check(
           string_testable,
@@ -487,7 +481,7 @@ case 1 |¦ ? ⟪=> ? end⟫   CHIPS[]
 case 1 | ¦? ⟪=> ? end⟫   CHIPS[]
 case 1 | 2¦ ⟪=> ? end⟫   CHIPS[]
 case 1 | 2 ¦⟪=> ? end⟫   CHIPS[]
-case 1 | 2 =¦ ? ⟪end⟫   CHIPS[=>]
+case 1 | 2 =¦⟪>⟫ ? ⟪end⟫   CHIPS[]
 case 1 | 2 =>¦ ? ⟪end⟫   CHIPS[]
 case 1 | 2 => ¦? ⟪end⟫   CHIPS[]
 case 1 | 2 => 3¦ ⟪end⟫   CHIPS[]|},
@@ -595,9 +589,10 @@ string_replace(a~
     /* second sweep: fun, list literal, nested call, breaking an
        inner delimiter inside an outer complete form */
     [
-      /* last line: mid-arrow witness (`-` of `->`) — same class
-         as the case arrow: symbolic witness not TyDi-ghosted, chip
-         holds the promise */
+      /* last line, JUDGED improvement (single-channel port): the
+         mid-arrow witness (`-` of `->`) ghosts its remainder inline
+         — symbolic witnesses used to fall back to chips (same class
+         as the case arrow) */
       test_case("fun entry, blank editor", `Quick, () =>
         check(
           string_testable,
@@ -608,7 +603,7 @@ fun¦ ? ⟪-> ?⟫   CHIPS[]
 fun ¦? ⟪-> ?⟫   CHIPS[]
 fun x¦ ⟪-> ?⟫   CHIPS[]
 fun x ¦⟪-> ?⟫   CHIPS[]
-fun x -¦?   CHIPS[->]|},
+fun x -¦⟪>⟫ ?   CHIPS[]|},
           trajectory("fun x -"),
         )
       ),
@@ -702,15 +697,17 @@ let y = (1 + ¦?⟪)⟫ in y   CHIPS[]|},
           /* last line: end AND in both ghost at the caret, quiver
              empty (was CHIPS[end]). The `⟪  end` doubled space is
              the pre-existing indentation-seam pad jank, tracked in
-             the padding-oracle notes. */
+             the padding-oracle notes. JUDGED improvement, lines 3-4:
+             `case in` single-spaced — a trailing-space remainder is
+             self-separated, no extra pad. */
           {|let f(b : Bool) =
   ¦  ⟪? in⟫ ?   CHIPS[]
 let f(b : Bool) =
    ¦ ⟪c in⟫ ?   CHIPS[]
 let f(b : Bool) =
-    ¦⟪case  in⟫ ?   CHIPS[]
+    ¦⟪case in⟫ ?   CHIPS[]
 let f(b : Bool) =
-    c¦⟪ase  in⟫ ?   CHIPS[]
+    c¦⟪ase in⟫ ?   CHIPS[]
 let f(b : Bool) =
     ca¦se ⟪? end in⟫ ?   CHIPS[]
 let f(b : Bool) =
@@ -799,7 +796,7 @@ let new_fun(foo: Int, bar: Bool) =
         check(
           string_testable,
           "p1",
-          {|let a = 1 i¦⟪n⟫?   CHIPS[]|},
+          {|let a = 1 i¦⟪n⟫ ?   CHIPS[]|},
           trajectory_in(~ctx="let a = 1 ¦", "i"),
         )
       ),

@@ -41,11 +41,55 @@ let mk_inner =
     )
     : t => {
   let assist = TypeObligations.assist_stream(z, ~info_map, obligations);
+  /* T2: the top TyDi suggestion joins the SAME stream, shaped as a
+     witness insertion at the caret's left token — one display path
+     (ghost splice), one acceptance path (Tab via tab_text). At most
+     one witness per anchor: an engine witness (earlier in the
+     stream) IS the recognition of that token, so T2 defers to it.
+     Armed-only: unarmed frames carry no T2, so Tab falls through
+     exactly as it did when the retired buffer was cleared. */
+  let assist =
+    if (armed) {
+      let engine_witness_at = (id: Id.t) =>
+        List.exists(
+          (ins: CanonicalCompletion.insertion) =>
+            CanonicalCompletion.is_pure_witness(ins)
+            && Id.equal(ins.adjacent_id, id),
+          assist,
+        );
+      switch (TyDi.anchor_to_left(z)) {
+      | Some((anchor_id, _)) when !engine_witness_at(anchor_id) =>
+        switch (
+          TyDi.suggestion(~ci=Indicated.ci_for_completion(z, info_map), z)
+        ) {
+        | Some((text, typed_len)) =>
+          assist
+          @ [
+            CanonicalCompletion.{
+              adjacent_id: anchor_id,
+              side: Util.Direction.Right,
+              splice: Some((anchor_id, None, Util.Direction.Right)),
+              delimiters: [
+                {
+                  text,
+                  needs_hole: false,
+                  typed_len: Some(typed_len),
+                  of_shard: None,
+                },
+              ],
+            },
+          ]
+        | None => assist
+        }
+      | _ => assist
+      };
+    } else {
+      assist;
+    };
   /* inline chip ghost: when the caret sits in a chip's zone while
      ARMED (an edit arms, any other action disarms — movement never
      conjures), the chip's pending content splices into the display
-     at its anchor. Pure-witness insertions are TyDi's (they live in
-     the buffer); the splice_precedes_caret guard runs AFTER the
+     at its anchor. The splice_precedes_caret guard runs AFTER the
      slide — a ghost hugging the caret through whitespace is
      at-caret, not pre-caret. */
   /* MULTI-GHOST: every insertion whose zone holds the caret ghosts
@@ -56,12 +100,23 @@ let mk_inner =
      (unslid) insertions for suppression identity. */
   let ghosts =
     if (armed) {
-      let ghostable =
-        List.filter(
-          ins => !CanonicalCompletion.is_pure_witness(ins),
-          assist,
-        );
-      CanonicalCompletion.chip_zone_all(z, ghostable)
+      /* at most ONE witness ghost per anchor id (stream order wins:
+         engine witnesses precede T2) */
+      let zone =
+        CanonicalCompletion.chip_zone_all(z, assist)
+        |> List.fold_left(
+             (acc, ins: CanonicalCompletion.insertion) =>
+               CanonicalCompletion.is_pure_witness(ins)
+               && List.exists(
+                    (w: CanonicalCompletion.insertion) =>
+                      CanonicalCompletion.is_pure_witness(w)
+                      && Id.equal(w.adjacent_id, ins.adjacent_id),
+                    acc,
+                  )
+                 ? acc : acc @ [ins],
+             [],
+           );
+      zone
       |> List.filter_map(orig => {
            let ins = CanonicalCompletion.slide_to_caret(z, orig);
            CanonicalCompletion.splice_precedes_caret(z, ins)
