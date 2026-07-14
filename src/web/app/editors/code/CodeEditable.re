@@ -146,9 +146,19 @@ module Update = {
                 action;
               }
             | None =>
-              /* no remedy — point at the culprits instead: the
-                 tokens that make this press refuse shake red */
-              switch (Refactor.gesture_blockers(~term, g, z)) {
+              /* refused outright: the grabbed form's delimiters go
+                 red (press registered, no-go — distinguishes a wall
+                 from a mis-hit chord), plus the culprit tokens when
+                 the refusal has nameable ones (andrew). The insist
+                 prompt stays a PLAIN shake: red = refused, plain =
+                 press again, silence = only for non-gesture keys. */
+              let culprits = Refactor.gesture_blockers(~term, g, z);
+              let grab =
+                switch (Haz3lcore.Indicated.index(z)) {
+                | Some(t) => [t]
+                | None => []
+                };
+              switch (culprits @ grab) {
               | [] => ()
               | ids => CodeFlip.request_shake(ids)
               };
