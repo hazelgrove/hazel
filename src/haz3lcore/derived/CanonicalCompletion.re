@@ -3111,6 +3111,16 @@ let chips_displayed =
     (~ghosted: list(insertion), assist: list(insertion)): list(insertion) =>
   assist |> List.filter(ins => !List.memq(ins, ghosted));
 
+/* Tab's chip: a witness remainder is the NEAREST promise when
+   present (it anchors at the caret's own token; T2 sits last in the
+   stream but ghosts closest) — accept it before sibling chips, as
+   the retired buffer's Accept did. */
+let tab_chip = (z: Zipper.t, assist: list(insertion)): option(insertion) =>
+  switch (chip_among(z, List.filter(is_pure_witness, assist))) {
+  | Some(_) as w => w
+  | None => chip_among(z, assist)
+  };
+
 /* Tab = "type it for me": the paste text for the chip's next chunk.
    A witness chip pastes the token REMAINDER (no spaces — it merges
    into the typed prefix exactly as typing would); a plain delimiter

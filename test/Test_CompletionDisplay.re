@@ -936,6 +936,51 @@ string_replace(a, b, c)|},
     ],
   ),
   (
+    "CompletionDisplay: tab-dispatch",
+    /* Tab reads THE assist stream: tab_chip picks the zone chip
+       (witness remainder preferred — the nearest promise), tab_text
+       is the paste payload */
+    [
+      test_case(
+        "Tab payloads across suggestion states",
+        `Quick,
+        () => {
+          let payload = (code: string): string => {
+            let z =
+              Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
+            let (_, zc, _, assist, _) = display_parts(z);
+            switch (CanonicalCompletion.tab_chip(zc, assist)) {
+            | None => "NONE"
+            | Some(ins) =>
+              switch (CanonicalCompletion.tab_text(zc, ins)) {
+              | None => "NO-TEXT"
+              | Some(t) => "<" ++ t ++ ">"
+              }
+            };
+          };
+          check(
+            string_testable,
+            "tab",
+            "<ring_capitalize(> | <n> | <>> | <in >",
+            String.concat(
+              " | ",
+              [
+                /* T2 variable completion wins over the let's in-chip */
+                payload("let x : String = st¦"),
+                /* engine witness remainder */
+                payload("let x = 1 i¦"),
+                /* case arrow witness */
+                payload("case 1 | 2 =¦"),
+                /* no witness in zone: the closer chip */
+                payload("let x = 1 ¦"),
+              ],
+            ),
+          );
+        },
+      ),
+    ],
+  ),
+  (
     "CompletionDisplay: constancy",
     [
       test_case("string_replace entry types through its promise", `Quick, () =>

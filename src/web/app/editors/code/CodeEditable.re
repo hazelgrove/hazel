@@ -129,9 +129,11 @@ module Update = {
           : (
             /* caret pinned to a quiver chip: Tab dispatches one chunk of
                THE assist stream (A1) — type-it-for-me through the
-               normal pipeline; spacing and caret land as if typed */
+               normal pipeline; spacing and caret land as if typed.
+               tab_chip prefers a witness remainder (the nearest
+               promise) over sibling chips. */
             switch (
-              CanonicalCompletion.chip_among(z, model.editor.syntax.assist)
+              CanonicalCompletion.tab_chip(z, model.editor.syntax.assist)
             ) {
             /* Inner caret (e.g. inside a string literal): the zone
                matches for display, but Paste would land INSIDE the
