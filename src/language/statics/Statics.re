@@ -381,11 +381,15 @@ and uexp_to_info_map =
   let (let&) = (child, k) => StaticsSlice.omit(~parent=uexp, child, k);
   let (let$) = (child, k) =>
     StaticsSlice.source_child(~parent=uexp, child, k);
-  let map_m_go = (m, anas, es) => {
+  let map_m_go = (~keep_if=_ => true, m, anas, es) => {
     let (pairs, m) =
       map_m2(
         (ana, e, m) => {
-          let* (e, elab, m) = go(~ana, e, m);
+          let child = go(~ana, e, m);
+          let (e, elab, m) =
+            keep_if(e)
+              ? StaticsSlice.keep(~parent=uexp, child, x => x)
+              : StaticsSlice.omit(~parent=uexp, child, x => x);
           ((e, elab), m);
         },
         anas,
@@ -546,7 +550,7 @@ and uexp_to_info_map =
       let (t, m) = go_typ(t2, ~expects=TypExpectation.TypeExpected, m);
       /* Desugar any Sig types in the annotation without full normalization */
       let t_ty = Typ.desugar_sig(ctx, t.user_term);
-      let* (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
+      let& (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
@@ -1905,7 +1909,8 @@ and uexp_to_info_map =
         let num_args = List.length(args);
         switch (MatchedTyp.args(ctx, ty_in, num_args)) {
         | L(ty_ins) =>
-          let ((args_infos, args_elabs), m) = map_m_go(m, ty_ins, args);
+          let ((args_infos, args_elabs), m) =
+            map_m_go(~keep_if=Exp.is_deferral, m, ty_ins, args);
           let arg_co_ctx =
             CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
           let ty_in' =
@@ -1927,7 +1932,8 @@ and uexp_to_info_map =
         | R(expected) =>
           let ty_ins =
             List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
-          let ((args, args_elabs), m) = map_m_go(m, ty_ins, args);
+          let ((args, args_elabs), m) =
+            map_m_go(~keep_if=Exp.is_deferral, m, ty_ins, args);
           let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
           add(
             ~elab_term=DeferredAp(fn_elab, args_elabs) |> rewrap,
@@ -2264,7 +2270,7 @@ and uexp_to_info_map =
       );
     | Theorem({term: Var(_), _} as p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let& (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let$ (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(
           ~is_synswitch=false,
@@ -2292,7 +2298,7 @@ and uexp_to_info_map =
       );
     | Theorem(p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let& (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let$ (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let* (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
@@ -2339,7 +2345,7 @@ and uexp_to_info_map =
       );
     | If(e0, e1, e2) =>
       let branch_ids = List.map(Exp.rep_id, [e1, e2]);
-      let* (cond, cond_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
+      let& (cond, cond_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
       let* (cons, cons_elab, m) = go(~ana, e1, m);
       let* (alt, alt_elab, m) = go(~ana, e2, m);
       let (syn_if, cms_if) =
@@ -2391,7 +2397,7 @@ and uexp_to_info_map =
         m,
       );
     | Match(scrut, rules) =>
-      let* (scrut, scrut_elab, m) = go(~ana=syn, scrut, m);
+      let$ (scrut, scrut_elab, m) = go(~ana=syn, scrut, m);
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(Exp.rep_id, es);
       let (ps', _) =
