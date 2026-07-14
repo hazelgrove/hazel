@@ -528,6 +528,77 @@ let warn_invisible = (node: Js.t(Dom.node)): unit =>
    TyDi completion re-animating its entrance is nauseating (andrew).
    Movement FLIP stays for all edits. */
 let pending: ref(option((Measured.t, Segment.t, bool))) = ref(None);
+
+/* shake the tokens of specific pieces (targeted refusal feedback:
+   e.g. the uses that would unbind if a lift fired) */
+let shake_nodes = (nodes: list(Js.t(Dom.node))): unit => {
+  let keyframes =
+    Animation.Js.keyframes_unsafe([
+      ("transform", "translateX(0px)"),
+      ("transform", "translateX(-3px)"),
+      ("transform", "translateX(3px)"),
+      ("transform", "translateX(-2px)"),
+      ("transform", "translateX(0px)"),
+    ]);
+  let options =
+    Animation.Js.options_unsafe({
+      duration: 220,
+      easing: "ease-out",
+    });
+  nodes
+  |> List.iter(node =>
+       switch (
+         Js.Unsafe.meth_call(
+           node,
+           "animate",
+           [|Js.Unsafe.inject(keyframes), Js.Unsafe.inject(options)|],
+         )
+       ) {
+       | exception _ => ()
+       | _ => ()
+       }
+     );
+};
+
+let shake_tokens = (~syntax: CachedSyntax.t, ids: list(Id.t)): unit =>
+  switch (JsUtil.get_elem_by_id_opt("caret")) {
+  | None => ()
+  | Some(caret) =>
+    Js.Opt.iter(caret##.parentNode, deco =>
+      Js.Opt.iter(
+        deco##.parentNode,
+        container => {
+          let ct =
+            Js.Unsafe.meth_call(
+              container,
+              "querySelector",
+              [|
+                Js.Unsafe.inject(Js.string(":scope > .code > .code-text")),
+              |],
+            );
+          Js.Opt.iter(
+            ct,
+            ct => {
+              let nodes = Dom.list_of_nodeList(ct##.childNodes);
+              switch (pair(entries_of_segment(syntax.segment), nodes)) {
+              | None => ()
+              | Some(pairs) =>
+                pairs
+                |> List.filter_map(((k, node)) =>
+                     switch (k) {
+                     | Shard(id, _) when List.mem(id, ids) => Some(node)
+                     | _ => None
+                     }
+                   )
+                |> shake_nodes
+              };
+            },
+          );
+        },
+      )
+    )
+  };
+
 /* brief horizontal shake on the caret + indication backing: the
    insist prompt (a remedied move is available; press again) */
 let shake_insist = (): unit => {

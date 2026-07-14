@@ -5239,7 +5239,7 @@ let sugar_lift_tests = [
       check(
         string,
         "absorbed",
-        "let pad = fun w -> let margin = 4 in w / margin in\nlet render =\n  fun w ->\n    let inner = w - pad(w) * 2 in\n    inner + pad(w)\nin\nrender(3)",
+        "let pad = fun w ->\n  let margin = 4 in\n  w / margin\nin\nlet render =\n  fun w ->\n    let inner = w - pad(w) * 2 in\n    inner + pad(w)\nin\nrender(3)",
         got,
       );
     },
