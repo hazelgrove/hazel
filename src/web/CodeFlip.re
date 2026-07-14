@@ -284,6 +284,13 @@ let shake_tokens = (~syntax: CachedSyntax.t, ids: list(Id.t)): unit =>
     )
   };
 
+/* blocker shakes must fire AFTER the render: the press's render
+   replaces token nodes and a WAAPI animation dies with its element
+   (the flip silent-kill, measured) — so the update stages ids here
+   and go() consumes them post-display, exactly like flights */
+let shake_pending: ref(list(Id.t)) = ref([]);
+let request_shake = (ids: list(Id.t)): unit => shake_pending := ids;
+
 /* brief horizontal shake on the caret + indication backing: the
    insist prompt (a remedied move is available; press again) */
 let shake_insist = (): unit => {
@@ -330,7 +337,13 @@ let request = (syntax: CachedSyntax.t): unit =>
  * the caret: caret lives in .code-container > .code-deco, a sibling
  * of .code > .code-text (the scoped selector avoids matching code
  * rendered inside probe projections further down the container). */
-let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
+let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
+  switch (shake_pending^) {
+  | [] => ()
+  | ids =>
+    shake_pending := [];
+    shake_tokens(~syntax, ids);
+  };
   switch (pending^) {
   | None => ()
   | Some(old_m) =>
@@ -399,3 +412,4 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit =>
       )
     };
   };
+};
