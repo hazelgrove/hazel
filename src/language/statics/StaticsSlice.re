@@ -19,7 +19,8 @@ type child_mode =
   | Keep
   | Omit
   | Source
-  | Track;
+  | Track
+  | Alternative;
 
 type exp_result = (Info.exp, Exp.t, Id.Map.t(Info.t));
 
@@ -364,6 +365,11 @@ let rec subtract = (ctx: Ctx.t, query: Typ.t, supplied: Typ.t): Typ.t =>
     };
   };
 
+let query_residual = (ctx, query, supplied) => {
+  let query = subtract(ctx, query, supplied);
+  empty_query(query) ? gap : query;
+};
+
 let ids_of_typ = (actual: Typ.t, query: Typ.t): Id.Set.t => {
   let rec go = (actual, query) =>
     if (is_gap(query)) {
@@ -535,7 +541,8 @@ let of_info_mode =
   | Info.SliceKeep => Keep
   | Info.SliceOmit => Omit
   | Info.SliceSource => Source
-  | Info.SliceTrack => Track;
+  | Info.SliceTrack => Track
+  | Info.SliceAlternative => Alternative;
 
 let lens = (parent_shape: Typ.t, child_shape: Typ.t): option(Info.slice_lens) =>
   switch (find_path(child_shape, parent_shape)) {
@@ -605,6 +612,7 @@ let record_child =
         | Omit => Info.SliceOmit
         | Source => Info.SliceSource
         | Track => Info.SliceTrack
+        | Alternative => Info.SliceAlternative
         },
       child: child_id,
       lens: None,
@@ -627,6 +635,8 @@ let omit = (~parent, child, k) => k(record_child(Omit, ~parent, child));
 let source_child = (~parent, child, k) =>
   k(record_child(Source, ~parent, child));
 let track = (~parent, child, k) => k(record_child(Track, ~parent, child));
+let alternative = (~parent, child, k) =>
+  k(record_child(Alternative, ~parent, child));
 
 let rec matched_body =
         (bound: list(string), schema: Typ.t, query: Typ.t)
@@ -713,6 +723,7 @@ let slice_forward =
            }
          | Source => empty_result
          | Track => empty_result
+         | Alternative => empty_result
          | Keep =>
            child.node.dispatch(
              route_query(ctx, parent_shape, child.node.shape, query),
@@ -729,11 +740,11 @@ let slice_branches =
     List.fold_left(
       ((slices, residual), branch) => {
         let branch_query =
-          Id.Set.mem(branch.id, path)
+          Id.Set.mem(branch.id, path) || empty_query(residual)
             ? gap
             : Typ.meet(ctx, branch.shape, residual) == None ? gap : residual;
         let slice = branch.dispatch(branch_query);
-        (slices @ [slice], subtract(ctx, residual, slice.psi));
+        (slices @ [slice], query_residual(ctx, residual, slice.psi));
       },
       ([], query),
       branches,
@@ -777,6 +788,11 @@ let rec compile =
       List.filter_map(c => c.mode == Source ? Some(c.node) : None, children);
     let kept =
       List.filter_map(c => c.mode == Keep ? Some(c.node) : None, children);
+    let alternatives =
+      List.filter_map(
+        c => c.mode == Alternative ? Some(c.node) : None,
+        children,
+      );
     let dispatch = query => {
       let at_focus =
         switch (focus) {
@@ -792,30 +808,10 @@ let rec compile =
       } else {
         let term = Exp.term_of(info.user_term);
         let forward =
-          switch (term) {
-          | Fun(_, _, _, _) =>
-            switch (kept, Typ.term_of(expose(query))) {
-            | ([body], Arrow(_, codomain)) => body.dispatch(codomain)
-            | _ =>
-              slice_forward(
-                ~path,
-                info.ctx,
-                info.elab_syn_ty,
-                children,
-                query,
-              )
-            }
-          | TypAp(_, args) =>
-            switch (kept) {
-            | [fn, ..._] =>
-              matched_type_application(info.ctx, fn, args, query)
-            | [] => source_result(info, query)
-            }
-          | If(_, _, _)
-          | Match(_, _) =>
+          if (alternatives != []) {
             result_join(
               info.ctx,
-              slice_branches(~path, info.ctx, kept, query),
+              slice_branches(~path, info.ctx, alternatives, query),
               slice_forward(
                 ~path,
                 info.ctx,
@@ -823,17 +819,38 @@ let rec compile =
                 List.filter(child => child.mode == Omit, children),
                 gap,
               ),
-            )
-          | _ =>
-            children == []
-              ? source_result(info, query)
-              : slice_forward(
+            );
+          } else {
+            switch (term) {
+            | Fun(_, _, _, _) =>
+              switch (kept, Typ.term_of(expose(query))) {
+              | ([body], Arrow(_, codomain)) => body.dispatch(codomain)
+              | _ =>
+                slice_forward(
                   ~path,
                   info.ctx,
                   info.elab_syn_ty,
                   children,
                   query,
                 )
+              }
+            | TypAp(_, args) =>
+              switch (kept) {
+              | [fn, ..._] =>
+                matched_type_application(info.ctx, fn, args, query)
+              | [] => source_result(info, query)
+              }
+            | _ =>
+              children == []
+                ? source_result(info, query)
+                : slice_forward(
+                    ~path,
+                    info.ctx,
+                    info.elab_syn_ty,
+                    children,
+                    query,
+                  )
+            };
           };
         let names = binding_names(term);
         let body_demand =
@@ -884,7 +901,7 @@ let rec compile =
           ...combined,
           omitted,
           gamma: gamma_remove(combined.gamma, names),
-          psi: info.ty,
+          psi: empty_query(forward.psi) ? gap : query,
           ana: query,
         };
       };

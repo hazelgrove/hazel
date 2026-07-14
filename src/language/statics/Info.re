@@ -36,7 +36,8 @@ type slice_child_mode =
   | SliceKeep
   | SliceOmit
   | SliceSource
-  | SliceTrack;
+  | SliceTrack
+  | SliceAlternative;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slice_lens = {

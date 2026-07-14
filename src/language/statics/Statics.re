@@ -385,6 +385,8 @@ and uexp_to_info_map =
   let (let&) = (child, k) => StaticsSlice.omit(~parent=uexp, child, k);
   let (let$) = (child, k) =>
     StaticsSlice.source_child(~parent=uexp, child, k);
+  let (let+) = (child, k) =>
+    StaticsSlice.alternative(~parent=uexp, child, k);
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -2345,8 +2347,8 @@ and uexp_to_info_map =
     | If(e0, e1, e2) =>
       let branch_ids = List.map(Exp.rep_id, [e1, e2]);
       let& (cond, cond_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
-      let* (cons, cons_elab, m) = go(~ana, e1, m);
-      let* (alt, alt_elab, m) = go(~ana, e2, m);
+      let+ (cons, cons_elab, m) = go(~ana, e1, m);
+      let+ (alt, alt_elab, m) = go(~ana, e2, m);
       let (syn_if, cms_if) =
         ConstructorStaticsHelpers.syn_marks_match(
           ctx,
@@ -2421,7 +2423,8 @@ and uexp_to_info_map =
         List.fold_left2(
           ((es, elabs, m), e, ctx) => {
             let child = go(~ctx, ~ana, e, m);
-            let (e, elab, m) = StaticsSlice.keep(~parent=uexp, child, x => x);
+            let (e, elab, m) =
+              StaticsSlice.alternative(~parent=uexp, child, x => x);
             (es @ [e], elabs @ [elab], m);
           },
           ([], [], m),
