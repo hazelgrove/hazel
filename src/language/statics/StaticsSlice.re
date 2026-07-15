@@ -18,7 +18,8 @@ type child_mode =
   | Omit
   | Source
   | Track
-  | Alternative;
+  | Alternative
+  | Matched;
 
 type exp_result = (Info.exp, Exp.t, Id.Map.t(Info.t));
 
@@ -415,7 +416,8 @@ let of_info_mode =
   | Info.SliceOmit => Omit
   | Info.SliceSource => Source
   | Info.SliceTrack => Track
-  | Info.SliceAlternative => Alternative;
+  | Info.SliceAlternative => Alternative
+  | Info.SliceMatched => Matched;
 
 let lens = (parent_shape: Typ.t, child_shape: Typ.t): option(Info.slice_lens) =>
   switch (find_path(child_shape, parent_shape)) {
@@ -542,6 +544,7 @@ let record_child =
         | Source => Info.SliceSource
         | Track => Info.SliceTrack
         | Alternative => Info.SliceAlternative
+        | Matched => Info.SliceMatched
         },
       child: child_id,
       lens: None,
@@ -579,6 +582,7 @@ let omit = (~parent, child, k) => k(record_child(Omit, ~parent, child));
 let source_child = (~parent, child, k) =>
   k(record_child(Source, ~parent, child));
 let track = (~parent, child, k) => k(record_child(Track, ~parent, child));
+let matched = (~parent, child, k) => k(record_child(Matched, ~parent, child));
 let alternative = (~parent, child, k) =>
   k(record_child(Alternative, ~parent, child));
 
@@ -778,15 +782,18 @@ let binding_omissions =
   );
 
 let rec matched_body =
-        (bound: list(string), schema: Typ.t, query: Typ.t)
+        (~replace_bound=false, bound: list(string), schema: Typ.t, query: Typ.t)
         : (Typ.t, list((string, Typ.t))) =>
   switch (Typ.term_of(schema)) {
-  | Var(name) when List.mem(name, bound) => (schema, [(name, query)])
+  | Var(name) when List.mem(name, bound) => (
+      replace_bound ? query : schema,
+      [(name, query)],
+    )
   | _ =>
     let ss = typ_children(schema);
     let qs = typ_children(query);
     if (ss != [] && List.length(ss) == List.length(qs)) {
-      let pairs = List.map2(matched_body(bound), ss, qs);
+      let pairs = List.map2(matched_body(~replace_bound, bound), ss, qs);
       (
         typ_rebuild(schema, List.map(fst, pairs)),
         List.concat_map(snd, pairs),
@@ -797,7 +804,8 @@ let rec matched_body =
   };
 
 let matched_type_application =
-    (ctx: Ctx.t, fn: node, args: Typ.t, query: Typ.t): result => {
+    (~implicit=false, ctx: Ctx.t, fn: node, args: Typ.t, query: Typ.t)
+    : result => {
   let rec peel = (binders, schema) =>
     switch (Typ.term_of(schema)) {
     | Poly(binder, body) => peel(binders @ TPat.binders_of(binder), body)
@@ -806,14 +814,30 @@ let matched_type_application =
     };
   let (binders, schema) = peel([], fn.shape);
   let names = List.filter_map(TPat.tyvar_of_utpat, binders);
-  let (matched, constraints) = matched_body(names, schema, query);
+  let (matched, constraints) =
+    matched_body(~replace_bound=implicit, names, schema, query);
   let constraint_for = name =>
     constraints
     |> List.filter_map(((n, ty)) => n == name ? Some(ty) : None)
     |> List.fold_left(meet(ctx), gap);
   let fn_query =
     List.fold_right(
-      (binder, body) => Poly(binder, body) |> Typ.temp,
+      (binder, body) =>
+        Poly(
+          implicit
+            ? TPat.map_term(
+                ~f_tpat=
+                  (continue, binder) =>
+                    switch (binder.term) {
+                    | Var(_) => {...binder, term: EmptyHole}
+                    | _ => continue(binder)
+                    },
+                binder,
+              )
+            : binder,
+          body,
+        )
+        |> Typ.temp,
       binders,
       matched,
     );
@@ -871,6 +895,16 @@ let slice_forward =
            | Source => empty_result
            | Track => empty_result
            | Alternative => empty_result
+           | Matched => {
+               ...matched_type_application(
+                 ~implicit=true,
+                 ctx,
+                 child.node,
+                 TypTuple([]) |> Typ.temp,
+                 Arrow(gap, query) |> Typ.temp,
+               ),
+               psi: query,
+             }
            | Keep =>
              let slice =
                child.node.dispatch(
@@ -908,7 +942,7 @@ let slice_forward =
         |> List.concat_map(checked =>
              children
              |> List.filter_map(source =>
-                  if (source.mode != Keep) {
+                  if (source.mode != Keep && source.mode != Matched) {
                     None;
                   } else {
                     Option.map(

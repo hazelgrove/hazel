@@ -397,6 +397,7 @@ and uexp_to_info_map =
   let (let++) = (child, k) =>
     StaticsSlice.alternative_binding(~parent=uexp, ~ctx, child, k);
   let ( let** ) = (child, k) => StaticsSlice.track(~parent=uexp, child, k);
+  let ( let*** ) = (child, k) => StaticsSlice.matched(~parent=uexp, child, k);
   let (let!) = (pattern, k) =>
     k(StaticsSlice.pattern(~parent=uexp, pattern));
   let (let==) = (result, k) => StaticsSlice.assume(result, k);
@@ -1771,7 +1772,7 @@ and uexp_to_info_map =
               ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
               : Arrow(syn, syn) |> Typ.temp
           };
-        let* (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
+        let*** (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
         switch (custom_statics) {
         | Some(kind) =>
           CustomStatics.custom_statics_ap(
