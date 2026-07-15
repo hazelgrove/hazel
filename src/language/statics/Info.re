@@ -63,6 +63,12 @@ type slice_child = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type slice_scratch = {
+  children: list(slice_child),
+  patterns: list(Id.t),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
   user_term: Exp.t, /* The term under consideration */
   elab_term: Exp.t,
@@ -176,7 +182,7 @@ type t =
   | InfoMod(mod_)
   | InfoSig(sig_)
   | InfoMPat(mpat)
-  | InfoSliceScratch(list(slice_child))
+  | InfoSliceScratch(slice_scratch)
   | Secondary(secondary);
 
 /* ==================================== Getters ==================================== */

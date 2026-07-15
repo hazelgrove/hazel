@@ -427,7 +427,7 @@ let take_children =
     (~parent: Exp.t, ~parent_shape: Typ.t, m: Id.Map.t(Info.t)) => {
   let id = Exp.rep_id(parent);
   switch (Id.Map.find_opt(id, m)) {
-  | Some(Info.InfoSliceScratch(children)) => (
+  | Some(Info.InfoSliceScratch({children, _})) => (
       List.map(
         (edge: Info.slice_child) => {
           let edge_lens =
@@ -508,7 +508,7 @@ let record_child =
   } else {
     let prior =
       switch (Id.Map.find_opt(parent_id, m)) {
-      | Some(Info.InfoSliceScratch(children)) => children
+      | Some(Info.InfoSliceScratch({children, _})) => children
       | _ => []
       };
     let edge: Info.slice_child = {
@@ -531,10 +531,22 @@ let record_child =
         (e: Info.slice_child) => !Id.equal(e.child, child_id),
         prior,
       );
+    let patterns =
+      switch (Id.Map.find_opt(parent_id, m)) {
+      | Some(Info.InfoSliceScratch({patterns, _})) => patterns
+      | _ => []
+      };
     (
       info,
       elab,
-      Id.Map.add(parent_id, Info.InfoSliceScratch(prior @ [edge]), m),
+      Id.Map.add(
+        parent_id,
+        Info.InfoSliceScratch({
+          children: prior @ [edge],
+          patterns,
+        }),
+        m,
+      ),
     );
   };
 };
@@ -546,6 +558,34 @@ let source_child = (~parent, child, k) =>
 let track = (~parent, child, k) => k(record_child(Track, ~parent, child));
 let alternative = (~parent, child, k) =>
   k(record_child(Alternative, ~parent, child));
+
+let pattern = (~parent, (info: Info.pat, elab, m)) => {
+  let parent_id = Exp.rep_id(parent);
+  let pattern_id = Pat.rep_id(info.user_term);
+  let (children, patterns) =
+    switch (Id.Map.find_opt(parent_id, m)) {
+    | Some(Info.InfoSliceScratch({children, patterns})) => (
+        children,
+        patterns,
+      )
+    | _ => ([], [])
+    };
+  let patterns =
+    List.exists(Id.equal(pattern_id), patterns)
+      ? patterns : patterns @ [pattern_id];
+  (
+    info,
+    elab,
+    Id.Map.add(
+      parent_id,
+      Info.InfoSliceScratch({
+        children,
+        patterns,
+      }),
+      m,
+    ),
+  );
+};
 
 let bindings_of = (~ctx: Ctx.t, pattern: Info.pat) =>
   Ctx.added_bindings(pattern.ctx, ctx).entries
@@ -562,34 +602,73 @@ let bindings_of = (~ctx: Ctx.t, pattern: Info.pat) =>
        | _ => None,
      );
 
-let record_binding = (mode, ~parent, ~ctx, ~pattern, child, k) => {
+let record_binding = (mode, ~parent, ~ctx, child, k) => {
   let (child_info: Info.exp, _, _) = child;
+  let (_, _, m) = child;
+  let patterns =
+    switch (Id.Map.find_opt(Exp.rep_id(parent), m)) {
+    | Some(Info.InfoSliceScratch({patterns, _})) => patterns
+    | _ => []
+    };
+  let prior =
+    switch (Id.Map.find_opt(Exp.rep_id(parent), m)) {
+    | Some(Info.InfoSliceScratch({children, _})) => children
+    | _ => []
+    };
+  let index =
+    mode == Alternative
+      ? List.length(
+          List.filter(
+            (edge: Info.slice_child) => edge.mode == Info.SliceAlternative,
+            prior,
+          ),
+        )
+      : 0;
+  let pattern =
+    switch (List.nth_opt(patterns, index)) {
+    | Some(id) =>
+      switch (Id.Map.find_opt(id, m)) {
+      | Some(Info.InfoPat(pattern)) => Some(pattern)
+      | _ => None
+      }
+    | None => None
+    };
   k(
-    record_child(
-      mode,
-      ~bindings=bindings_of(~ctx, pattern),
-      ~pattern=Some(Pat.rep_id(pattern.user_term)),
-      ~binding_shape=
-        Some(mode == Source ? child_info.elab_syn_ty : pattern.ty),
-      ~parent,
-      child,
-    ),
+    switch (pattern) {
+    | Some(pattern) =>
+      record_child(
+        mode,
+        ~bindings=bindings_of(~ctx, pattern),
+        ~pattern=Some(Pat.rep_id(pattern.user_term)),
+        ~binding_shape=
+          Some(mode == Source ? child_info.elab_syn_ty : pattern.ty),
+        ~parent,
+        child,
+      )
+    | None => record_child(mode, ~parent, child)
+    },
   );
 };
 
-let source_binding = (~parent, ~ctx, ~pattern, child, k) =>
-  record_binding(Source, ~parent, ~ctx, ~pattern, child, k);
-let bound_child = (~parent, ~ctx, ~pattern, child, k) =>
-  record_binding(Keep, ~parent, ~ctx, ~pattern, child, k);
-let omitted_binding = (~parent, ~ctx, ~pattern, child, k) =>
-  record_binding(Omit, ~parent, ~ctx, ~pattern, child, k);
-let alternative_binding = (~parent, ~ctx, ~pattern, child, k) =>
-  record_binding(Alternative, ~parent, ~ctx, ~pattern, child, k);
+let source_binding = (~parent, ~ctx, child, k) =>
+  record_binding(Source, ~parent, ~ctx, child, k);
+let bound_child = (~parent, ~ctx, child, k) =>
+  record_binding(Keep, ~parent, ~ctx, child, k);
+let omitted_binding = (~parent, ~ctx, child, k) =>
+  record_binding(Omit, ~parent, ~ctx, child, k);
+let alternative_binding = (~parent, ~ctx, child, k) =>
+  record_binding(Alternative, ~parent, ~ctx, child, k);
 
-let assume = (name, (info: Info.exp, elab, m), k) => {
+let assume = ((info: Info.exp, elab, m), k) => {
+  let name =
+    switch (VarMap.to_list(info.co_ctx), Exp.term_of(info.user_term)) {
+    | ([(name, _)], _) => Some(name)
+    | (_, Constructor(name, _)) => Some(name)
+    | _ => None
+    };
   let info = {
     ...info,
-    slice_assumption: Some(name),
+    slice_assumption: name,
   };
   let m =
     List.fold_left(
