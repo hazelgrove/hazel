@@ -46,88 +46,84 @@ module Update = {
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action: Action.t, model: Model.t) =>
-      Editor.Update.update(
-        ~settings=settings.core,
-        action,
-        model.statics,
-        model.dynamics,
-        model.editor,
-      )
-      |> (
-        fun
-        | Ok(editor) =>
-          Model.{
-            editor,
-            statics: model.statics,
-            dynamics: model.dynamics,
-            context_menu: None,
-          }
-        | Error(Action.Failure.Cant_refactor) => {
-            /* dead press: gated-not-fall-through is the rule, but
-               silence read as breakage — make the refusal visible */
-            CodeFlip.shake_dead_press(
-              ~segment=model.editor.syntax.segment,
-              ~axis=
-                switch (action) {
-                | RefactorGesture(Up | Down) => `Y
-                | _ => `X
-                },
-              (),
-            );
-            Model.{
-              editor: model.editor,
-              statics: model.statics,
-              dynamics: model.dynamics,
-              context_menu: model.context_menu,
-            };
-          }
-        | Error(err) => raise(Action.Failure.Exception(err))
-      )
-      |> Updated.return(
-           ~is_edit=
-             Action.is_edit(action)
-             /* When probe_all is on, Refractor actions don't require
-              * re-evaluation since all probes are already computed */
-             && !(
-                  settings.core.probe_all
-                  && (
-                    switch (action) {
-                    | Probe(_) => true
-                    | _ => false
-                    }
-                  )
-                ),
-           ~recalculate=true,
-           ~scroll_active={
-             switch (action) {
-             | Move(Point(_)) => false
-             | Select(All) => false
-             | Select(Resize(Point(_))) => false
-             | Move(_)
-             | Select(_)
-             | Destruct(_)
-             | Insert(_)
-             | Put_down
-             | Buffer(Set(_) | Accept | Clear)
-             | Paste(_)
-             | Copy
-             | Cut
-             | Reparse
-             | Introduce
-             | Refactor(_)
-             | RefactorGesture(_)
-             | Probe(StepInto(_))
-             | Format(_)
-             | AdjustIndent(_, _)
-             | ApplyCompletion(_)
-             | ToggleLineComment => true
-             | Project(_)
-             | Unselect(_)
-             | Structural(_)
-             | Probe(_) => false
-             };
-           },
-         );
+      switch (
+        Editor.Update.update(
+          ~settings=settings.core,
+          action,
+          model.statics,
+          model.dynamics,
+          model.editor,
+        )
+      ) {
+      | Error(Action.Failure.Cant_refactor) =>
+        /* dead press: gated-not-fall-through is the rule, but
+           silence read as breakage — make the refusal visible.
+           The model is UNCHANGED: quiet return, or every dead press
+           eats an undo frame (andrew) */
+        CodeFlip.shake_dead_press(
+          ~segment=model.editor.syntax.segment,
+          ~axis=
+            switch (action) {
+            | RefactorGesture(Up | Down) => `Y
+            | _ => `X
+            },
+          (),
+        );
+        Updated.return_quiet(model);
+      | Error(err) => raise(Action.Failure.Exception(err))
+      | Ok(editor) =>
+        Model.{
+          editor,
+          statics: model.statics,
+          dynamics: model.dynamics,
+          context_menu: None,
+        }
+        |> Updated.return(
+             ~is_edit=
+               Action.is_edit(action)
+               /* When probe_all is on, Refractor actions don't require
+                * re-evaluation since all probes are already computed */
+               && !(
+                    settings.core.probe_all
+                    && (
+                      switch (action) {
+                      | Probe(_) => true
+                      | _ => false
+                      }
+                    )
+                  ),
+             ~recalculate=true,
+             ~scroll_active={
+               switch (action) {
+               | Move(Point(_)) => false
+               | Select(All) => false
+               | Select(Resize(Point(_))) => false
+               | Move(_)
+               | Select(_)
+               | Destruct(_)
+               | Insert(_)
+               | Put_down
+               | Buffer(Set(_) | Accept | Clear)
+               | Paste(_)
+               | Copy
+               | Cut
+               | Reparse
+               | Introduce
+               | Refactor(_)
+               | RefactorGesture(_)
+               | Probe(StepInto(_))
+               | Format(_)
+               | AdjustIndent(_, _)
+               | ApplyCompletion(_)
+               | ToggleLineComment => true
+               | Project(_)
+               | Unselect(_)
+               | Structural(_)
+               | Probe(_) => false
+               };
+             },
+           )
+      };
     switch (action) {
     | Perform(action) =>
       /* INSIST: a dead gesture press with a remedied move available
