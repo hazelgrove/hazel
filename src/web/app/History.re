@@ -94,7 +94,11 @@ module Update = {
           action,
           model.current,
         );
-      if (Page.Update.can_undo(action)) {
+      /* the action KIND must be historic AND the update must claim
+         historicity (Updated.historic) — a swallowed no-op (e.g. a
+         dead refactor press converted to shake feedback) returns its
+         model unchanged and must not eat an undo frame */
+      if (Page.Update.can_undo(action) && current.historic) {
         let new_stack = [
           {
             ...current,
