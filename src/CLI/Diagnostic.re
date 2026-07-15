@@ -84,6 +84,7 @@ let format_diagnostic_with_location =
 
 let format_error_with_location =
     (
+      ~severity: string="error",
       ~source: string,
       ~path: string,
       measured: Haz3lcore.Measured.t,
@@ -98,7 +99,7 @@ let format_error_with_location =
       let fallback = "in term: " ++ Haz3lcore.ErrorPrint.term_string_of(info);
       Some(
         format_diagnostic_with_location(
-          ~severity="error",
+          ~severity,
           ~message,
           ~fallback,
           ~source,

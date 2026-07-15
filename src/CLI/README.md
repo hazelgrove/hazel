@@ -80,6 +80,37 @@ $ echo "let x = 5 in x + 3" | ./hazel analyze -
 No static errors found.
 ```
 
+### Comprehensive check
+
+The `check` command runs every diagnostic in a single pass and prints one report covering **syntax errors**, **static errors**, **live-typing errors**, **warnings**, and **test results**. It is the one-shot command for validating a plaintext program (e.g. a decoded slide):
+
+```sh
+$ ./hazel check path/to/hazel_file.hz
+```
+
+The report is emitted to stdout, section by section, using the same Rust-style locations as `analyze` and the same per-test formatting as `test`. Live-typing errors are the ones surfaced only after a live run: the program is evaluated to gather probe samples and type instantiations (the expressions with unknown types are targeted automatically), then statics is re-run with those runtime observations. Any error that appears only in that second pass — not in the pure static analysis — is reported as a `live typing error`.
+
+The exit code is `0` only when there are no syntax errors, no static errors, no live-typing errors, and no failing tests. **Warnings do not fail the run** (matching `analyze -W` and `gcc -Wall`). This makes `check` suitable as a CI/pre-commit gate for `.hz` sources:
+
+```sh
+$ echo "1 : ? : String" | ./hazel check -
+No static errors found.
+
+Found 1 live typing error:
+
+live typing error: Expecting type String but got inconsistent type Int
+  --> -:1:3
+  |
+1 | 1 : ? : String
+  |   ^
+
+No warnings found.
+
+Test Results: No tests available.
+```
+
+As with `analyze`, bump the Node heap on large slides: `NODE_OPTIONS="--max-old-space-size=4096" ./hazel check path/to/program.hz`.
+
 ### Slides
 
 The CLI exposes the documentation slides that ship with Hazel (the `let out : ... PersistentSegment.t` modules under `src/web/init/docs` and `src/b2t2/slides`) by **name**. The slides are looked up out of the in-binary slide list, so you don't need to point the CLI at a particular `.ml` file to read one.

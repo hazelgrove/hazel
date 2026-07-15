@@ -58,6 +58,32 @@ let format_hazel = (implicit_hole: string, width, path) => {
 let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
   Haz3lcore.Parser.to_zipper(~root=Exp, s);
 
+/* Print a titled block of diagnostics (errors/warnings). `print` defaults to
+   stderr (matching `analyze`); `check` overrides it to stdout so its report
+   reads top-to-bottom in one stream. */
+let print_diagnostics = (~print=prerr_endline, label, items) =>
+  switch (items) {
+  | [] => ()
+  | _ =>
+    let count = List.length(items);
+    print(
+      "Found "
+      ++ string_of_int(count)
+      ++ " "
+      ++ label
+      ++ (count > 1 ? "s" : "")
+      ++ ":",
+    );
+    print("");
+    List.iter(
+      item => {
+        print(item);
+        print("");
+      },
+      items,
+    );
+  };
+
 let analyze_hazel =
     (show_warnings: bool, path: string)
     : [>
@@ -131,29 +157,6 @@ let analyze_hazel =
         |> List.sort_uniq(compare);
       } else {
         [];
-      };
-
-    let print_diagnostics = (label, items) =>
-      switch (items) {
-      | [] => ()
-      | _ =>
-        let count = List.length(items);
-        prerr_endline(
-          "Found "
-          ++ string_of_int(count)
-          ++ " "
-          ++ label
-          ++ (count > 1 ? "s" : "")
-          ++ ":",
-        );
-        prerr_endline("");
-        List.iter(
-          item => {
-            prerr_endline(item);
-            prerr_endline("");
-          },
-          items,
-        );
       };
 
     switch (formatted_errors, formatted_warnings) {
@@ -325,6 +328,174 @@ let test_hazel =
       `Error((false, "Tests failed"));
     } else {
       `Ok();
+    };
+  };
+};
+
+/* `check`: one combined report of everything a plaintext program (e.g. a
+ * slide) can surface — syntax errors, static errors, live-typing errors,
+ * warnings, and test results. The run exits non-zero iff there is something a
+ * user must fix: a syntax error, a static error, a live-typing error, or a
+ * failing test. Warnings are informational and never fail the run (matching
+ * `analyze` and `gcc -Wall`). */
+let check_hazel =
+    (path: string)
+    : [>
+        | `Error(bool, string)
+        | `Ok(unit)
+      ] => {
+  let program = read_input(path);
+  switch (parse_to_zipper(program)) {
+  | None =>
+    /* A structural parse failure is the one syntax error the editor cannot
+       recover from; malformed-but-parseable code surfaces as static errors. */
+    print_endline("Syntax error: failed to parse program.");
+    `Error((false, "check failed: syntax error"));
+  | Some(zipper) =>
+    open Language;
+    open Util;
+    let segment =
+      Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
+    let measured =
+      Haz3lcore.Measured.of_segment(
+        segment,
+        Haz3lcore.ProjectorCore.Shape.Map.empty,
+        Id.Map.empty,
+      );
+    let ctx_init = Builtins.ctx_init(Some(Int));
+
+    /* --- Static analysis (no runtime observations) --- */
+    let (static_map, _) = Statics.mk(CoreSettings.on, ctx_init, term);
+    let collect = fmt =>
+      Id.Map.fold(
+        (_id, info, acc) =>
+          switch (fmt(info)) {
+          | Some(s) => [s, ...acc]
+          | None => acc
+          },
+        static_map,
+        [],
+      )
+      |> List.sort_uniq(compare);
+    let static_errors =
+      collect(info =>
+        Diagnostic.format_error_with_location(
+          ~source=program,
+          ~path,
+          measured,
+          info,
+        )
+      );
+    let warnings =
+      collect(info =>
+        Diagnostic.format_warning_with_location(
+          ~source=program,
+          ~path,
+          measured,
+          info,
+        )
+      );
+
+    /* --- Evaluate once: tests plus the probe samples / type instantiations
+       that live typing refines against. `compute_targets` with
+       live_typing on (from CoreSettings.on) targets every expression
+       whose elaborated type still has unknowns. --- */
+    let sample_map =
+      Haz3lcore.CachedStatics.compute_targets(
+        ~settings=CoreSettings.on,
+        ~info_map=static_map,
+        ~probe_ids=Id.Map.empty,
+      );
+    let (test_results, probes, type_insts) =
+      Run.evaluate_full(~sample_map, term);
+
+    /* --- Live typing: re-run statics with the runtime observations, then
+       report only errors that were NOT already static errors. --- */
+    let dynamics: LiveTyping.Map.t = {
+      exp_probes:
+        Id.Map.map(
+          List.map((s: Sample.t): LiveTyping.sample => {exp: s.value}),
+          probes,
+        ),
+      type_inst_probes:
+        Id.Map.map(
+          List.map(
+            (i: Dynamics.TypeInstantiation.t): LiveTyping.type_instantiation =>
+            {
+              tpat_id: i.tpat_id,
+              type_var: i.type_var,
+              instantiated_type: i.instantiated_type,
+            }
+          ),
+          type_insts,
+        ),
+    };
+    let (live_map, _) =
+      Statics.mk(~dynamics, CoreSettings.on, ctx_init, term);
+    let static_error_ids = Statics.Map.error_ids(static_map);
+    let live_typing_error_ids =
+      Statics.Map.error_ids(live_map)
+      |> List.filter(id => !List.mem(id, static_error_ids));
+    let live_typing_errors =
+      List.filter_map(
+        id =>
+          Option.bind(Id.Map.find_opt(id, live_map), info =>
+            Diagnostic.format_error_with_location(
+              ~severity="live typing error",
+              ~source=program,
+              ~path,
+              measured,
+              info,
+            )
+          ),
+        live_typing_error_ids,
+      )
+      |> List.sort_uniq(compare);
+
+    /* --- Report (all to stdout so the sections read as one stream) --- */
+    let report = (label, empty_msg, items) =>
+      switch (items) {
+      | [] =>
+        print_endline(empty_msg);
+        print_endline("");
+      | _ => print_diagnostics(~print=print_endline, label, items)
+      };
+    report("static error", "No static errors found.", static_errors);
+    report(
+      "live typing error",
+      "No live typing errors found.",
+      live_typing_errors,
+    );
+    report("warning", "No warnings found.", warnings);
+
+    print_endline(
+      "Test Results: " ++ TestResults.test_summary_str(test_results),
+    );
+    print_endline("");
+    List.iter(
+      line => print_endline(line),
+      List.filter_map(
+        ((id, reports)) =>
+          format_test_result(
+            ~source=program,
+            ~measured,
+            ~verbose=true,
+            id,
+            reports,
+          ),
+        test_results.test_map,
+      ),
+    );
+
+    /* --- Exit code: warnings excluded by design. --- */
+    let problems =
+      (static_error_ids == [] ? [] : ["static errors"])
+      @ (live_typing_error_ids == [] ? [] : ["live typing errors"])
+      @ (test_results.failing > 0 ? ["test failures"] : []);
+    switch (problems) {
+    | [] => `Ok()
+    | _ => `Error((false, "check failed: " ++ String.concat(", ", problems)))
     };
   };
 };
@@ -623,6 +794,16 @@ let test_cmd = {
   Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
 };
 
+let check_cmd = {
+  let doc =
+    "Report every issue in a Hazel program in one pass: syntax errors, "
+    ++ "static errors, live-typing errors, warnings, and test results. "
+    ++ "Exits non-zero if there is a syntax error, static error, "
+    ++ "live-typing error, or failing test; warnings alone do not fail.";
+  let info = Cmd.info("check", ~doc);
+  Cmd.v(info, Term.ret(Term.(const(check_hazel) $ input_arg)));
+};
+
 let output_arg = {
   let doc = "Path to write output to. If omitted, output is written to stdout.";
   Arg.(value & opt(some(string), None) & info(["output", "o"], ~doc));
@@ -802,6 +983,7 @@ let default_cmd = {
       analyze_cmd,
       probe_cmd,
       test_cmd,
+      check_cmd,
       grade_json_cmd,
       grade_report_cmd,
       bench_parse_cmd,

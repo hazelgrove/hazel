@@ -57,3 +57,23 @@ let evaluate_with_tests = (exp: Exp.t): (Exp.t, TestResults.t) => {
   let test_results = TestResults.mk_results(EvaluatorState.get_tests(state));
   (result, test_results);
 };
+
+/* Evaluate with a target sample_map, returning everything the `check`
+ * command needs from a single run: test results, the probe samples, and the
+ * type instantiations. The latter two feed live-typing refinement (a second
+ * statics pass with these runtime observations as `~dynamics`). */
+let evaluate_full =
+    (~sample_map: Id.Map.t(Sample.capture_spec), exp: Exp.t)
+    : (TestResults.t, Sample.Map.t, Dynamics.TypeInstMap.t) => {
+  let (_, state) =
+    Evaluator.evaluate(
+      ~targets=sample_map,
+      ~env=Builtins.env_init,
+      elaborate(exp),
+    );
+  (
+    TestResults.mk_results(EvaluatorState.get_tests(state)),
+    EvaluatorState.get_probes(state),
+    EvaluatorState.get_type_insts(state),
+  );
+};
