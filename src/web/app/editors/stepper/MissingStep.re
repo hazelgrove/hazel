@@ -54,6 +54,14 @@ module Model = {
   let unpersist = (_: persistent): t => init;
 };
 
+let associative_override_for_editor = (editor: CodeSelectable.Model.t) =>
+  SelectionEffective.associative_override(
+    ~info_map=CodeEditable.Model.get_statics(editor).info_map,
+    ~measured=editor.editor.syntax.measured,
+    ~term_data=editor.editor.syntax.term_data,
+    editor.editor.state.zipper,
+  );
+
 module Update = {
   open Updated;
 
@@ -162,47 +170,36 @@ module Update = {
       )
       : Model.t => {
     let selected_id =
-      // hacky way to get a currently-selected id
       {
         let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
         try(
-          {
-            open OptUtil.Syntax;
-            let zipper = editor.editor.state.zipper;
-            let statics = CodeEditable.Model.get_statics(editor);
-            let* id =
-              SelectionEffective.root_id(
-                ~mode=Associative,
-                ~info_map=statics.info_map,
-                ~measured=editor.editor.syntax.measured,
-                ~term_data=editor.editor.syntax.term_data,
-                zipper,
-              );
-            Some(id);
-          }
+          TermData.get_root_id_using_ranges(
+            editor.editor.state.zipper.selection.content,
+            editor.editor.syntax.term_data,
+            editor.editor.syntax.measured,
+          )
         ) {
         | _ => None
         };
       }
       |> Calc.set(_, selected_id);
-    let selected_exp =
-      selected_exp
-      |> {
-        let.calc selected_id = selected_id
-        and.calc exp = exp
-        and.calc editor = editor;
+    let selected_exp_value =
+      switch (associative_override_for_editor(Calc.get_value(editor))) {
+      | Some(override) => Some(override.exp)
+      | None =>
         open OptUtil.Syntax;
-        let* id = selected_id;
-        switch (
-          CodeEditable.Model.get_statics(editor).elaborated
-          |> ProofHacks.find_exp_id(id)
-        ) {
-        | Some(_) as exp => exp
-        | None =>
-          let* exp' = ProofHacks.find_exp_id(id, exp);
-          Some(exp');
-        };
+        let* id = Calc.get_value(selected_id);
+        let* exp' = ProofHacks.find_exp_id(id, Calc.get_value(exp));
+        Some(exp');
       };
+    let selected_exp_equal = (a, b) =>
+      switch (a, b) {
+      | (Some(a), Some(b)) => Exp.fast_equal(a, b)
+      | (None, None) => true
+      | _ => false
+      };
+    let selected_exp =
+      Calc.set(~eq=selected_exp_equal, selected_exp_value, selected_exp);
     let assumptions =
       assumptions
       |> {
@@ -404,6 +401,8 @@ module View = {
           editor.editor.state.zipper.selection.content,
         );
 
+      let selection_override = associative_override_for_editor(editor);
+
       let proof_button = (~callback: Ui_effect.t(unit), label: string) => {
         Node.div(
           ~attrs=[
@@ -582,7 +581,11 @@ module View = {
                       ),
                     ),
                   ]
-                | RewritesOpen({editor, cached_exp, cached_result}) =>
+                | RewritesOpen({
+                    editor: rewrite_editor,
+                    cached_exp,
+                    cached_result,
+                  }) =>
                   let unboxed_cached_exp =
                     Calc.get_saved_exc(
                       ~print="cached exp not calculated",
@@ -638,7 +641,7 @@ module View = {
                                     },
                                 }),
                               ~dynamics=Dynamics.Map.empty,
-                              editor,
+                              rewrite_editor,
                             ),
                           ],
                         ),
@@ -651,24 +654,52 @@ module View = {
                               ~clss=["proof-button"],
                               Node.text("Replace"),
                               ~tooltip="replace",
-                              _ =>
-                              signal(
-                                AddAlgebriteStep(
-                                  ProofHacks.exp_idx(
-                                    unboxed_selected_exp,
-                                    model.full_exp
-                                    |> Calc.get_saved_exc(~print="full_exp"),
-                                  ),
-                                  unboxed_selected_exp,
+                              _ => {
+                                let full_exp =
+                                  model.full_exp
+                                  |> Calc.get_saved_exc(~print="full_exp");
+                                let replacement_exp =
                                   unboxed_cached_exp
                                   |> Substitution.in_exp(
                                        model.cached_env
                                        |> Calc.get_saved_exc(
                                             ~print="env not cached",
                                           ),
-                                     ),
-                                ),
-                              )
+                                     );
+                                switch (selection_override) {
+                                | Some(override) =>
+                                  switch (
+                                    SelectionEffective.replacement_for_override(
+                                      ~override,
+                                      ~with_exp=replacement_exp,
+                                      ~full_exp,
+                                      ~term_data=
+                                        editor.editor.syntax.term_data,
+                                    )
+                                  ) {
+                                  | Some({at_exp, with_exp}) =>
+                                    signal(
+                                      AddAlgebriteStep(
+                                        ProofHacks.exp_idx(at_exp, full_exp),
+                                        at_exp,
+                                        with_exp,
+                                      ),
+                                    )
+                                  | None => Ui_effect.Ignore
+                                  }
+                                | None =>
+                                  signal(
+                                    AddAlgebriteStep(
+                                      ProofHacks.exp_idx(
+                                        unboxed_selected_exp,
+                                        full_exp,
+                                      ),
+                                      unboxed_selected_exp,
+                                      replacement_exp,
+                                    ),
+                                  )
+                                };
+                              },
                             ),
                           ]
                         | Some(false) => [Node.text("Invalid")]

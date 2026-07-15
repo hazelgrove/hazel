@@ -514,58 +514,34 @@ let of_segment =
 
 let selection =
     (
-      ~associative=false,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
-      ~term_data: TermData.t,
-      ~statics: CachedStatics.t,
       z: Zipper.t,
     ) => {
-  let effective_segment =
-    associative
-      ? SelectionEffective.associative_segment(
-          ~info_map=statics.info_map,
-          ~measured,
-          ~term_data,
-          z,
-        )
-      : z.selection.content;
-  let selection_svg = (clss, rows) =>
-    rows
-    |> group_consecutive
-    |> List.filter_map(svg_of_group(~font_metrics, ~clss));
-  let rows_of = seg =>
+  let rows =
     rows_of_segment(
       ~measured,
       ~shape_map,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-      seg,
+      z.selection.content,
     )
     |> List.map(((m, tips)) => row_data_of(m, tips));
-  let raw_clss = ["selected", Selection.buffer_cls(z.selection)];
-  let expanded_clss = [
-    "selected-expanded",
-    Selection.buffer_cls(z.selection),
-  ];
+  /* Clip partial-token boundaries for char-level selections */
+  let rows = clip_char_selection(~measured, z, rows);
+  let clss = ["selected", Selection.buffer_cls(z.selection)];
+  let groups = group_consecutive(rows);
   div_c(
     "selects",
-    effective_segment == z.selection.content
-      ? selection_svg(
-          raw_clss,
-          rows_of(z.selection.content) |> clip_char_selection(~measured, z),
-        )
-      : selection_svg(expanded_clss, rows_of(effective_segment))
-        @ selection_svg(
-            raw_clss,
-            rows_of(z.selection.content) |> clip_char_selection(~measured, z),
-          ),
+    List.filter_map(svg_of_group(~font_metrics, ~clss), groups),
   );
 };
 
 // Expands selection to make it a subtree of the exp
 let selection_expanded =
     (
+      ~associative=false,
+      ~info_map: Language.Statics.Map.t,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
@@ -574,7 +550,16 @@ let selection_expanded =
     ) =>
   div_c(
     "selects",
-    switch (SelectionEffective.expanded_segment(~measured, ~term_data, z)) {
+    switch (
+      associative
+        ? SelectionEffective.expanded_segment_with_associativity(
+            ~info_map,
+            ~measured,
+            ~term_data,
+            z,
+          )
+        : SelectionEffective.expanded_segment(~measured, ~term_data, z)
+    ) {
     | [] => []
     | seg =>
       of_segment(

@@ -987,6 +987,12 @@ module Caret = {
   let inner_offset_for_token = (idx: int, token: Token.t): int =>
     Token.is_string(token) ? string_offset(token, idx) : idx + 1;
 
+  /* Like inner_offset_for_token but counts GRAPHEMES, not display columns: a
+     wide char (e.g. an emoji) in a string literal is one grapheme but two
+     columns. Used for clipboard text slicing, where the column count would
+     over-trim and leave a trailing quote. */
+  let inner_grapheme_offset = (idx: int): int => idx + 1;
+
   /* Grid position of the caret */
   /* Convert a caret to a concrete grid point for rendering and hit testing. */
   let point = (measured: Measured.t, z: t): Point.t =>
@@ -1036,7 +1042,7 @@ let selection_trim_offsets = (z: t): (int, int) => {
       };
     let shard = List.hd(Piece.disassemble(p));
     switch (Piece.token_of(shard)) {
-    | Some(tok) => Caret.inner_offset_for_token(inner_n, tok)
+    | Some(_) => Caret.inner_grapheme_offset(inner_n)
     | None => 0
     };
   };
@@ -1051,7 +1057,7 @@ let selection_trim_offsets = (z: t): (int, int) => {
     switch (Piece.token_of(last_shard)) {
     | Some(tok) =>
       let tok_len = Unicode.length(tok);
-      tok_len - Caret.inner_offset_for_token(inner_n, tok);
+      tok_len - Caret.inner_grapheme_offset(inner_n);
     | None => 0
     };
   };
@@ -1294,50 +1300,4 @@ let is_linebreak_to_right_of_caret =
   | [Secondary(s), ..._] when Secondary.is_linebreak(s) => true
   | _ => false
   };
-};
-let short_id = id => {
-  let str = Id.to_string(id);
-  let len = String.length(str);
-  String.sub(str, len - 6, 6);
-};
-
-let pp_piece = p =>
-  switch (p) {
-  | Piece.Tile(t) =>
-    "Tile(" ++ short_id(t.id) ++ ": " ++ String.concat("", t.label) ++ ")"
-  | Piece.Secondary(s) =>
-    switch (Secondary.get_string(s.content)) {
-    | "" => ""
-    | str => "Secondary(" ++ short_id(s.id) ++ ": " ++ str ++ ")"
-    }
-  | Grout(g) => "Grout(" ++ short_id(g.id) ++ ")"
-  | _ => "Unknown piece"
-  };
-
-let pp_relatives = ({siblings: (l, r), ancestors}: Relatives.t): string => {
-  let show_side = ps => ps |> List.map(pp_piece) |> String.concat(",\n\t\t");
-  "Left: \n\t\t["
-  ++ show_side(l)
-  ++ "]\n\tRight: \n\t\t["
-  ++ show_side(r)
-  ++ "]"
-  ++ "\n\tAncestors: "
-  ++ string_of_int(List.length(ancestors));
-};
-
-let pp_zipper = (z): string => {
-  // "Selection: \n\t"
-  // ++ "Content: ["
-  // ++ (z.selection.content |> List.map(pp_piece) |> String.concat(", "))
-  // ++ "]\n\t"
-  // ++ "Focus: "
-  // ++ (z.selection.focus == Left ? "Left" : "Right")
-  // ++ "\n\t"
-  // ++ "Caret: "
-  // ++ (z.caret |> Caret.show)
-  // ++ "\n\t"
-  // ++ "Relatives: \n\t"
-  // ++ pp_relatives(z.relatives);
-  let segment_str = zip(z) |> List.map(pp_piece) |> String.concat(",\n\t");
-  "Segment: \n\t[" ++ segment_str ++ "]";
 };
