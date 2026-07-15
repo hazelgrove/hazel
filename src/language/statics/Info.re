@@ -88,7 +88,6 @@ type exp = {
   label_sort: bool, /* When in the position of a label */
   dot_labels: list(string), /* Available labels when in dot-access position */
   slice_children: list(slice_child),
-  slice_assumption: option(string),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -364,7 +364,6 @@ and uexp_to_info_map =
       label_sort,
       dot_labels,
       slice_children,
-      slice_assumption: None,
     };
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoExp(info), m));
   };
@@ -400,7 +399,6 @@ and uexp_to_info_map =
   let ( let*** ) = (child, k) => StaticsSlice.matched(~parent=uexp, child, k);
   let (let!) = (pattern, k) =>
     k(StaticsSlice.pattern(~parent=uexp, pattern));
-  let (let==) = (result, k) => StaticsSlice.assume(result, k);
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -799,15 +797,13 @@ and uexp_to_info_map =
         | None => (SynTy.unknown_internal(), [Mark.Free(name)])
         | Some(var) => (var.typ, [])
         };
-      let== result =
-        add(
-          ~elab_term=Var(name) |> rewrap,
-          ~elab_syn_ty=syn_v,
-          ~marks=marks_v,
-          ~co_ctx,
-          m,
-        );
-      result;
+      add(
+        ~elab_term=Var(name) |> rewrap,
+        ~elab_syn_ty=syn_v,
+        ~marks=marks_v,
+        ~co_ctx,
+        m,
+      );
     | DynamicErrorHole(e, err) =>
       let* (e, e_elab, m) = go(~ana, e, m);
       add(
@@ -1574,7 +1570,7 @@ and uexp_to_info_map =
         | Some({typ, _}) =>
           let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
           let elab_term = Var(name) |> rewrap;
-          let== (info, _, m) =
+          let (info, _, m) =
             add(~elab_term, ~elab_syn_ty=typ, ~marks=[], ~co_ctx, m);
           let m =
             add_info(
@@ -1673,15 +1669,13 @@ and uexp_to_info_map =
           | Some(m) when marks_res == [] => [m]
           | Some(_) => marks_res
           };
-        let== result =
-          add(
-            ~elab_term,
-            ~elab_syn_ty,
-            ~marks=marks_res,
-            ~co_ctx=CoCtx.empty,
-            m,
-          );
-        result;
+        add(
+          ~elab_term,
+          ~elab_syn_ty,
+          ~marks=marks_res,
+          ~co_ctx=CoCtx.empty,
+          m,
+        );
       };
     | Ap(dir, fn, arg) =>
       switch (fn.term) {

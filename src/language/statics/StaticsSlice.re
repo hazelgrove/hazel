@@ -133,13 +133,115 @@ let queried = (ty: Typ.t): result => {
   ana: ty,
 };
 
-let context_for_name = (ctx: Ctx.t, name: string): Ctx.t =>
+let rec sum_definition = (params, ty) =>
+  switch (Typ.term_of(ty)) {
+  | TypFun(param, body) => sum_definition(params @ TPat.binders_of(param), body)
+  | Parens(body)
+  | Rec(_, body) => sum_definition(params, body)
+  | Sum(constructors) => Some((params, constructors))
+  | _ => None
+  };
+
+let rec constructor_payload = (query: Typ.t) =>
+  switch (Typ.term_of(query)) {
+  | Poly(_, body)
+  | Parens(body) => constructor_payload(body)
+  | Arrow(payload, _) => Some(payload)
+  | _ => None
+  };
+
+let rec minimal_alias = (name, payload, definition: Typ.t): Typ.t =>
+  switch (Typ.term_of(definition)) {
+  | TypFun(param, body) =>
+    {...definition, term: TypFun(param, minimal_alias(name, payload, body))}
+  | Rec(param, body) =>
+    {...definition, term: Rec(param, minimal_alias(name, payload, body))}
+  | Sum(constructors) =>
+    {
+      ...definition,
+      term:
+        Sum(
+          List.map(
+            fun
+            | ConstructorMap.Variant(constructor, ann, arg)
+                when constructor == name =>
+              ConstructorMap.Variant(
+                constructor,
+                ann,
+                Option.map(_ => Option.value(~default=gap, payload), arg),
+              )
+            | _ => ConstructorMap.BadEntry(gap),
+            constructors,
+          ),
+        ),
+    }
+  | _ => definition
+  };
+
+let constructor_from_alias = (ctx: Ctx.t, name: string, query) =>
+  List.find_map(
+    fun
+    | Ctx.TVarEntry({name: alias, kind: Singleton(definition), _} as entry) => {
+      let constructor =
+        switch (Typ.term_of(definition)) {
+      | Var(constructor)
+          when constructor == name && Ctx.lookup_alias(ctx, constructor) == None =>
+        Some(
+          {
+            name,
+            id: Typ.rep_id(definition),
+            typ: Var(alias) |> Typ.temp,
+            custom_statics: None,
+          }: Ctx.var_entry,
+        )
+      | TypParamAp({term: Var(constructor), _}, payload)
+          when constructor == name && Ctx.lookup_alias(ctx, constructor) == None =>
+        Some(
+          {
+            name,
+            id: Typ.rep_id(definition),
+            typ: Arrow(payload, Var(alias) |> Typ.temp) |> Typ.temp,
+            custom_statics: None,
+          }: Ctx.var_entry,
+        )
+      | _ =>
+        Option.bind(sum_definition([], definition), ((params, constructors)) =>
+          Ctx.add_ctrs_with_params(Ctx.empty, alias, params, constructors)
+          |> Ctx.lookup_ctr(_, name)
+        )
+        };
+      Option.map(
+        constructor => (
+          constructor,
+          {
+            ...entry,
+            kind:
+              Singleton(
+                minimal_alias(name, constructor_payload(query), definition),
+              ),
+          },
+        ),
+        constructor,
+      );
+    }
+    | _ => None,
+    ctx.entries,
+  );
+
+let context_for_name = (ctx: Ctx.t, name: string, query): Ctx.t =>
   switch (Ctx.lookup_var(ctx, name)) {
   | Some(entry) => Ctx.extend(Ctx.empty, Ctx.VarEntry(entry))
   | None =>
-    switch (Ctx.lookup_ctr(ctx, name)) {
-    | Some(entry) => Ctx.extend(Ctx.empty, Ctx.ConstructorEntry(entry))
-    | None => Ctx.empty
+    switch (constructor_from_alias(ctx, name, query)) {
+    | Some((constructor, alias)) =>
+      Ctx.empty
+      |> Ctx.extend(_, Ctx.TVarEntry(alias))
+      |> Ctx.extend(_, Ctx.ConstructorEntry(constructor))
+    | None =>
+      switch (Ctx.lookup_ctr(ctx, name)) {
+      | Some(entry) => Ctx.extend(Ctx.empty, Ctx.ConstructorEntry(entry))
+      | None => Ctx.empty
+      }
     }
   };
 
@@ -383,9 +485,9 @@ let source_result = (info: Info.exp, query: Typ.t): result =>
     };
   } else {
     let names =
-      switch (info.slice_assumption) {
-      | Some(name) => [name]
-      | None => List.map(fst, VarMap.to_list(info.co_ctx))
+      switch (VarMap.to_list(info.co_ctx), Exp.term_of(info.user_term)) {
+      | ([], Constructor(name, _)) => [name]
+      | (uses, _) => List.map(fst, uses)
       };
     if (names == []) {
       {
@@ -404,7 +506,7 @@ let source_result = (info: Info.exp, query: Typ.t): result =>
             names,
           ),
         context:
-          List.map(context_for_name(info.ctx), names)
+          List.map(context_for_name(info.ctx, _, query), names)
           |> List.fold_left(context_join, Ctx.empty),
       };
     };
@@ -685,26 +787,6 @@ let omitted_binding = (~parent, ~ctx, child, k) =>
   record_binding(Omit, ~parent, ~ctx, child, k);
 let alternative_binding = (~parent, ~ctx, child, k) =>
   record_binding(Alternative, ~parent, ~ctx, child, k);
-
-let assume = ((info: Info.exp, elab, m), k) => {
-  let name =
-    switch (Exp.term_of(info.user_term)) {
-    | Var(name)
-    | Constructor(name, _) => Some(name)
-    | _ => None
-    };
-  let info = {
-    ...info,
-    slice_assumption: name,
-  };
-  let m =
-    List.fold_left(
-      (m, id) => Id.Map.add(id, Info.InfoExp(info), m),
-      m,
-      IdTagged.ids(info.user_term),
-    );
-  k((info, elab, m));
-};
 
 let binding_demand = (ctx, bindings, shape, gamma) =>
   List.fold_left(
