@@ -396,6 +396,8 @@ and uexp_to_info_map =
   let (let++) = (child, k) =>
     StaticsSlice.alternative_binding(~parent=uexp, ~ctx, child, k);
   let ( let** ) = (child, k) => StaticsSlice.track(~parent=uexp, child, k);
+  let (let@@) = (child, k) => StaticsSlice.map(~parent=uexp, child, k);
+  let (let&&) = (child, k) => StaticsSlice.prune(~parent=uexp, child, k);
   let ( let*** ) = (child, k) => StaticsSlice.matched(~parent=uexp, child, k);
   let (let!) = (pattern, k) =>
     k(StaticsSlice.pattern(~parent=uexp, pattern));
@@ -738,7 +740,7 @@ and uexp_to_info_map =
       let inner_ana_ty =
         List(MatchedTyp.list_tolerant(ctx, ana)) |> Typ.temp;
       let ids = List.map(Exp.rep_id, [e1, e2]);
-      let* (e1, e1_elab, m) = go(~ana=inner_ana_ty, e1, m);
+      let&& (e1, e1_elab, m) = go(~ana=inner_ana_ty, e1, m);
       let& (e2, e2_elab, m) = go(~ana=inner_ana_ty, e2, m);
       /* Project each argument's synthesized type to its list element type.
          `list_tolerant` returns `?` when the arg's syn isn't a list, which
@@ -923,14 +925,14 @@ and uexp_to_info_map =
         );
       };
     | TupleExtension(e1, e2) =>
-      let* (t1, e1_elab, m) = go(e1, m);
+      let@@ (t1, e1_elab, m) = go(e1, m);
       let m =
         switch (Typ.normalize(ctx, t1.ty).term) {
         | Prod(_)
         | Unknown(_) => m
         | _ => append_mark_exp(m, e1, [TupleExtensionRequiresTuples])
         };
-      let* (t2, e2_elab, m) = go(e2, m);
+      let@@ (t2, e2_elab, m) = go(e2, m);
       let m =
         switch (Typ.normalize(ctx, t2.ty).term) {
         | Prod(_)

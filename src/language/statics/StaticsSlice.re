@@ -18,6 +18,8 @@ type child_mode =
   | Omit
   | Source
   | Track
+  | Map
+  | Prune
   | Alternative
   | Matched;
 
@@ -355,7 +357,25 @@ let rec expose = (ty: Typ.t): Typ.t =>
   switch (Typ.term_of(ty)) {
   | Parens(inner)
   | Projector(_, inner) => expose(inner)
+  | Unknown(Hole(MultiHole(items))) =>
+    switch (
+      List.filter_map(fun | Grammar.Typ(ty) => Some(ty) | _ => None, items)
+    ) {
+    | [inner] => expose(inner)
+    | _ => ty
+    }
   | _ => ty
+  };
+
+let rec find_shape_path = (needle: Typ.t, haystack: Typ.t): option(path) =>
+  if (Typ.equal(expose(needle), expose(haystack))) {
+    Some([]);
+  } else {
+    typ_children(expose(haystack))
+    |> List.mapi((i, child) => (i, child))
+    |> List.find_map(((i, child)) =>
+         Option.map(path => [i, ...path], find_shape_path(needle, child))
+       );
   };
 
 let rec project = (query: Typ.t, path: path): Typ.t =>
@@ -365,6 +385,16 @@ let rec project = (query: Typ.t, path: path): Typ.t =>
     switch (List.nth_opt(typ_children(expose(query)), i)) {
     | Some(child) => project(child, rest)
     | None => gap
+    }
+  };
+
+let rec has_path = (query: Typ.t, path: path): bool =>
+  switch (path) {
+  | [] => true
+  | [i, ...rest] =>
+    switch (List.nth_opt(typ_children(expose(query)), i)) {
+    | Some(child) => has_path(child, rest)
+    | None => false
     }
   };
 
@@ -407,11 +437,33 @@ let rec empty_query = (query: Typ.t): bool =>
     children != [] && List.for_all(empty_query, children);
   };
 
+let rec query_shell = (shape: Typ.t): Typ.t =>
+  switch (Typ.term_of(shape)) {
+  | Label(_)
+  | ExplicitNonlabel => shape
+  | _ =>
+    let children = typ_children(shape);
+    children == []
+      ? gap : typ_rebuild(shape, List.map(query_shell, children));
+  };
+
 let rec route_query = (_ctx, parent: Typ.t, child: Typ.t, query: Typ.t): Typ.t =>
   switch (find_path(child, parent)) {
-  | Some(path) => project(query, path)
+  | Some(path) =>
+    let routed = project(query, path);
+    if (!empty_query(routed)) {
+      routed;
+    } else {
+      switch (find_shape_path(child, query)) {
+      | Some(path) => project(query, path)
+      | None => routed
+      };
+    }
   | None =>
-    switch (find_path(parent, child)) {
+    switch (find_shape_path(child, query)) {
+    | Some(path) => project(query, path)
+    | None =>
+      switch (find_path(parent, child)) {
     | Some(path) => lift(child, path, query)
     | None =>
       let ps = typ_children(expose(parent));
@@ -428,6 +480,7 @@ let rec route_query = (_ctx, parent: Typ.t, child: Typ.t, query: Typ.t): Typ.t =
           : List.map(route_query(_ctx, parent, _, query), cs);
       routed == [] || List.for_all(empty_query, routed)
         ? gap : typ_rebuild(child, routed);
+      }
     }
   };
 
@@ -518,6 +571,8 @@ let of_info_mode =
   | Info.SliceOmit => Omit
   | Info.SliceSource => Source
   | Info.SliceTrack => Track
+  | Info.SliceMap => Map
+  | Info.SlicePrune => Prune
   | Info.SliceAlternative => Alternative
   | Info.SliceMatched => Matched;
 
@@ -645,6 +700,8 @@ let record_child =
         | Omit => Info.SliceOmit
         | Source => Info.SliceSource
         | Track => Info.SliceTrack
+        | Map => Info.SliceMap
+        | Prune => Info.SlicePrune
         | Alternative => Info.SliceAlternative
         | Matched => Info.SliceMatched
         },
@@ -684,6 +741,8 @@ let omit = (~parent, child, k) => k(record_child(Omit, ~parent, child));
 let source_child = (~parent, child, k) =>
   k(record_child(Source, ~parent, child));
 let track = (~parent, child, k) => k(record_child(Track, ~parent, child));
+let map = (~parent, child, k) => k(record_child(Map, ~parent, child));
+let prune = (~parent, child, k) => k(record_child(Prune, ~parent, child));
 let matched = (~parent, child, k) => k(record_child(Matched, ~parent, child));
 let alternative = (~parent, child, k) =>
   k(record_child(Alternative, ~parent, child));
@@ -969,32 +1028,24 @@ let slice_forward =
          } else if (Id.Set.mem(child.node.id, path)) {
            child.node.dispatch(gap);
          } else {
-           switch (child.mode) {
-           | Omit => {
-               ...empty_result,
-               omitted: Id.Set.singleton(child.node.id),
-             }
-           | Source => empty_result
-           | Track => empty_result
-           | Alternative => empty_result
-           | Matched => {
-               ...matched_type_application(
-                 ~implicit=true,
-                 ctx,
-                 child.node,
-                 TypTuple([]) |> Typ.temp,
-                 Arrow(gap, query) |> Typ.temp,
-               ),
-               psi: query,
-             }
-           | Keep =>
+           let follow = prune => {
+             let child_query =
+               switch (child.lens) {
+               | Some(lens) =>
+                 let routed = lens_down(lens, child.node.shape, query);
+                 empty_query(routed)
+                 &&
+                 switch (lens.parent_path) {
+                 | Some(path) => !has_path(query, path)
+                 | None => true
+                 }
+                   ? route_query(ctx, parent_shape, child.node.shape, query)
+                   : routed;
+               | None => route_query(ctx, parent_shape, child.node.shape, query)
+               };
              let slice =
                child.node.dispatch(
-                 switch (child.lens) {
-                 | Some(lens) => lens_down(lens, child.node.shape, query)
-                 | None =>
-                   route_query(ctx, parent_shape, child.node.shape, query)
-                 },
+                 prune && empty_query(child_query) ? gap : child_query,
                );
              {
                ...slice,
@@ -1012,6 +1063,35 @@ let slice_forward =
                        )
                  },
              };
+           };
+           switch (child.mode) {
+           | Omit => {
+               ...empty_result,
+               omitted: Id.Set.singleton(child.node.id),
+             }
+           | Source => empty_result
+           | Track => empty_result
+           | Map =>
+             let child_query =
+               route_query(ctx, parent_shape, child.node.shape, query);
+             let child_query =
+               empty_query(child_query) && typ_children(child.node.shape) != []
+                 ? query_shell(child.node.shape)
+                 : child_query;
+             child.node.dispatch(child_query)
+           | Alternative => empty_result
+           | Matched => {
+               ...matched_type_application(
+                 ~implicit=true,
+                 ctx,
+                 child.node,
+                 TypTuple([]) |> Typ.temp,
+                 Arrow(gap, query) |> Typ.temp,
+               ),
+               psi: query,
+             }
+           | Keep => follow(false)
+           | Prune => follow(true)
            };
          }
        );
