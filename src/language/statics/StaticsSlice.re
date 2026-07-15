@@ -859,12 +859,13 @@ let matched_type_application =
     : result => {
   let rec peel = (binders, schema) =>
     switch (Typ.term_of(schema)) {
-    | Poly(binder, body) => peel(binders @ TPat.binders_of(binder), body)
+    | Poly(binder, body) => peel(binders @ [binder], body)
     | Parens(inner) => peel(binders, inner)
     | _ => (binders, schema)
     };
   let (binders, schema) = peel([], fn.shape);
-  let names = List.filter_map(TPat.tyvar_of_utpat, binders);
+  let flat_binders = List.concat_map(TPat.binders_of, binders);
+  let names = List.filter_map(TPat.tyvar_of_utpat, flat_binders);
   let (matched, constraints) =
     matched_body(~replace_bound=implicit, names, schema, query);
   let constraint_for = name =>
@@ -905,8 +906,10 @@ let matched_type_application =
         | Some(name) => ids_of_typ(arg, constraint_for(name))
         | None => Id.Set.empty
         },
-      List.length(binders) == List.length(actual_args) ? binders : [],
-      List.length(binders) == List.length(actual_args) ? actual_args : [],
+      List.length(flat_binders) == List.length(actual_args)
+        ? flat_binders : [],
+      List.length(flat_binders) == List.length(actual_args)
+        ? actual_args : [],
     )
     |> List.fold_left(Id.Set.union, Id.Set.empty);
   {
