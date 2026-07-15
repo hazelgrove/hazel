@@ -435,8 +435,7 @@ let check_hazel =
       Statics.mk(~dynamics, CoreSettings.on, ctx_init, term);
     let static_error_ids = Statics.Map.error_ids(static_map);
     let live_typing_error_ids =
-      Statics.Map.error_ids(live_map)
-      |> List.filter(id => !List.mem(id, static_error_ids));
+      Statics.Map.live_typing_error_ids(~static_error_ids, live_map);
     let live_typing_errors =
       List.filter_map(
         id =>

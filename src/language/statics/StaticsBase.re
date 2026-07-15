@@ -31,6 +31,25 @@ module Map = {
       info_map,
       [],
     );
+
+  /* Live-typing errors: ids whose live-run info carries a live-reportable
+     mark (see Mark.is_live_reportable — witnessed misuses of observed
+     values' refined types) and which were not already static errors.
+     Deliberately excludes NoMeet join marks that arise when disjoint
+     runtime samples refine sibling branches to incompatible types
+     (heterogeneous data through case/if/list joins), and
+     exhaustiveness/redundancy marks recomputed from narrowed types. */
+  let live_typing_error_ids =
+      (~static_error_ids: list(Id.t), live_map: t): list(Id.t) =>
+    Id.Map.fold(
+      (id, info, acc) =>
+        Info.has_live_reportable_mark(info)
+        && id == Info.id_of(info)
+        && !List.mem(id, static_error_ids)
+          ? [id, ...acc] : acc,
+      live_map,
+      [],
+    );
   let warning_ids = (info_map: t): list(Id.t) =>
     Id.Map.fold(
       (id, info, acc) =>

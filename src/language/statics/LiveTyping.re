@@ -89,3 +89,46 @@ let extend_ctx_with_instantiations =
     },
   );
 };
+
+/* Re-generalize a live-refined typfun body type against the annotation's
+   body slice (`slice` = the typfun's mode_body, already binder-renamed).
+   Live refinement substitutes runtime instantiations (e.g. r := (m=Int))
+   into synthesized types; rewrapping such a type in Poly(r, ·) would yield
+   a scheme in which r is simultaneously quantified and concretized, which
+   spuriously fails Poly/Poly meets (the alpha-renamed binder is Abstract,
+   so `Var r` no longer resolves). Wherever the annotation prescribes a
+   type variable and the refined subtree is consistent with what that
+   variable denotes under `ctx` (the live Singleton for instantiated
+   binders), restore the variable; keep the refined type everywhere else.
+   Under that Singleton the replacement is a semantic no-op — it changes
+   only how the type is presented once the binder leaves scope.
+   Note: the slice must NOT be weak-head-normalized here — resolving
+   `Var r` through its Singleton would destroy the restoration point. */
+let rec reabstract = (ctx: Ctx.t, slice: Typ.t, syn: Typ.t): Typ.t => {
+  let (syn_term, rewrap) = Annotated.unwrap(syn);
+  switch (Typ.term_of(slice), syn_term) {
+  | (Parens(slice), _) => reabstract(ctx, slice, syn)
+  | (_, Parens(syn)) =>
+    Grammar.Parens(reabstract(ctx, slice, syn)) |> rewrap
+  | (Var(_), _) => Typ.is_consistent(ctx, slice, syn) ? slice : syn
+  | (Arrow(s1, s2), Arrow(t1, t2)) =>
+    Grammar.Arrow(reabstract(ctx, s1, t1), reabstract(ctx, s2, t2))
+    |> rewrap
+  | (List(s), List(t)) => Grammar.List(reabstract(ctx, s, t)) |> rewrap
+  | (TupLabel(sl, s), TupLabel(tl, t)) when Typ.is_consistent(ctx, sl, tl) =>
+    Grammar.TupLabel(tl, reabstract(ctx, s, t)) |> rewrap
+  | (Prod(ss), Prod(ts)) when List.length(ss) == List.length(ts) =>
+    Grammar.Prod(List.map2(reabstract(ctx), ss, ts)) |> rewrap
+  | (Poly(sx, s), Poly(tx, t)) =>
+    let s' =
+      switch (TPat.tyvar_of_utpat(tx)) {
+      | Some(x) => Typ.subst(Grammar.Var(x) |> Typ.temp, sx, s)
+      | None => s
+      };
+    Grammar.Poly(tx, reabstract(Ctx.extend_dummy_tvar(ctx, tx), s', t))
+    |> rewrap;
+  /* Structural mismatch, Unknown slice, Sum, Rec, aliases, …: keep the
+     refined type. Conservative — identical to today's behavior. */
+  | _ => syn
+  };
+};

@@ -270,8 +270,10 @@ module Update = {
               );
 
             let live_typing_error_ids =
-              StaticsBase.Map.error_ids(live_typing_info_map)
-              |> List.filter(id => !List.mem(id, statics.error_ids));
+              StaticsBase.Map.live_typing_error_ids(
+                ~static_error_ids=statics.error_ids,
+                live_typing_info_map,
+              );
 
             (live_typing_info_map, live_typing_error_ids);
           }

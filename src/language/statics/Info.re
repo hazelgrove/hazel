@@ -267,6 +267,15 @@ let is_error = (ci: t): bool =>
   | _ => marks_of(ci) != []
   };
 
+/* Whether this term carries a mark that live-typing reports as an error:
+   a witnessed misuse of an observed value's refined type (ana/syn
+   inconsistency, bad projection, function comparison, …). The kind
+   classification lives in Mark.is_live_reportable; see the rationale
+   there for what is deliberately excluded (sibling-join NoMeets,
+   exhaustiveness/redundancy extrapolations). */
+let has_live_reportable_mark = (ci: t): bool =>
+  List.exists(Mark.is_live_reportable, marks_of(ci));
+
 let warnings_of: t => list(Warning.list_item) =
   fun
   | InfoExp({warnings, _})

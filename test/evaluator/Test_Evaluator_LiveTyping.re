@@ -233,6 +233,38 @@ let inconsistent_exp = (kind: inconsistent_kind): list(Mark.t) =>
     ]
   };
 
+/* Pipeline mirroring `test_live_typing`, but returning the live-typing error
+   ids as computed by the shared reporting filter
+   (StaticsBase.Map.live_typing_error_ids) plus both info maps. For tests
+   that pin the *reporting policy* — which live-run marks are surfaced as
+   live typing errors — rather than per-node mark contents. */
+let live_error_ids_of =
+    (program: string): (list(Id.t), Statics.Map.t, Statics.Map.t) => {
+  let exp = parse_exp(program);
+  let ctx = Builtins.ctx_init(Some(Int));
+  let (static_map, elaborated) = Statics.mk(CoreSettings.on, ctx, exp);
+  let targets =
+    Haz3lcore.CachedStatics.compute_targets(
+      ~settings=CoreSettings.on,
+      ~info_map=static_map,
+      ~probe_ids=Id.Map.empty,
+    );
+  let (_, state) =
+    Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+  let dynamics =
+    mk_live_typing(
+      EvaluatorState.get_probes(state),
+      EvaluatorState.get_type_insts(state),
+    );
+  let (live_map, _) = Statics.mk(~dynamics, CoreSettings.on, ctx, exp);
+  let live_ids =
+    StaticsBase.Map.live_typing_error_ids(
+      ~static_error_ids=StaticsBase.Map.error_ids(static_map),
+      live_map,
+    );
+  (live_ids, static_map, live_map);
+};
+
 /* Property: for every expression-info id, the elab_syn_ty produced by static
    analysis run *with* live-typing dynamics is more precise than (or equal to)
    the elab_syn_ty produced by the static-only analysis. Refinement only ever
@@ -681,6 +713,240 @@ in
         let exp = parse_exp(program);
         let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
         test_live_typing(~test_name=program, no_errors);
+      },
+    ),
+    /* Annotated `poly` schemes whose type variable is instantiated at
+       runtime. The refined body type (e.g. map's `[?]` result concretized
+       from samples) must be re-generalized against the annotation before
+       being rewrapped in Poly, or the scheme spuriously fails the
+       expectation check at (and above) the typfun node. */
+    test_case(
+      "Annotated poly instantiated to a labeled tuple: no error",
+      `Quick,
+      () => {
+        let program = {|let f : poly r -> ([r], r -> r) -> [r] = typfun r -> fun (xs : [r], g : r -> r) -> map(xs, g) in f@<(m= Int)>([(m= 1)], fun x -> x)|};
+        let exp = parse_exp(program);
+        let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
+        test_live_typing(~test_name=program, no_errors);
+      },
+    ),
+    test_case(
+      "Annotated poly instantiated to a base type through map: no error",
+      `Quick,
+      () => {
+        let program = {|let f : poly r -> ([r], r -> r) -> [r] = typfun r -> fun (xs : [r], g : r -> r) -> map(xs, g) in f@<Int>([1], fun x -> x)|};
+        let exp = parse_exp(program);
+        let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
+        test_live_typing(~test_name=program, no_errors);
+      },
+    ),
+    test_case(
+      "Nested annotated polys, innermost instantiated to a labeled tuple: no error",
+      `Quick,
+      () => {
+        let program = {|let f : poly a -> poly b -> poly c -> ([a], a -> b, b -> c) -> [c] = typfun a -> typfun b -> typfun c -> fun (xs : [a], p : a -> b, q : b -> c) -> map(xs, fun x -> q(p(x))) in f@<Int>@<Int>@<(m= Int)>([1], fun x -> x, fun y -> (m= y))|};
+        let exp = parse_exp(program);
+        let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
+        test_live_typing(~test_name=program, no_errors);
+      },
+    ),
+    test_case(
+      "Poly annotation crossing an intermediate fun: no error",
+      `Quick,
+      () => {
+        let program = {|let f : poly a -> Int -> poly c -> ([c], c -> c) -> [c] = typfun a -> fun x -> typfun c -> fun (ys : [c], g : c -> c) -> map(ys, g) in f@<Int>(1)@<(m= Int)>([(m= 1)], fun y -> y)|};
+        let exp = parse_exp(program);
+        let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
+        test_live_typing(~test_name=program, no_errors);
+      },
+    ),
+    test_case(
+      "Conflicting instantiations of an annotated poly: no error",
+      `Quick,
+      () => {
+        let program = {|let f : poly r -> ([r], r -> r) -> [r] = typfun r -> fun (xs : [r], g : r -> r) -> map(xs, g) in (f@<Int>([1], fun x -> x), f@<(m= Int)>([(m= 1)], fun x -> x))|};
+        let exp = parse_exp(program);
+        let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
+        test_live_typing(~test_name=program, no_errors);
+      },
+    ),
+    test_case(
+      "Genuine mismatch under an annotated poly is still reported",
+      `Quick,
+      () => {
+        open FError;
+        open Exp;
+        /* Same shape as "typfun uses dynamic type env with incorrect type",
+           but with an explicit `poly` ascription on the typfun. The
+           re-generalization applied to annotated typfuns must not mask the
+           genuine error inside the body. */
+        let exp: FError.exp =
+          ap(
+            Forward,
+            typ_ap(
+              asc(
+                typ_fun(
+                  TPat.var("a"),
+                  fn(
+                    Pat.var("x"),
+                    asc(
+                      asc(
+                        ~ann=
+                          DynamicError(
+                            inconsistent_exp(
+                              Test_Statics_Prelude.FTemp.Typ.(
+                                Expectation({
+                                  ana: var("a"),
+                                  syn: string(),
+                                })
+                              ),
+                            ),
+                          ),
+                        var("x"),
+                        Typ.unknown(Hole(EmptyHole)),
+                      ),
+                      Typ.var("a"),
+                    ),
+                  ),
+                  None,
+                ),
+                Typ.poly(
+                  TPat.var("a"),
+                  Typ.arrow(Typ.unknown(Hole(EmptyHole)), Typ.var("a")),
+                ),
+              ),
+              Typ.int(),
+            ),
+            string(""),
+          );
+        test_live_typing(
+          ~test_name=
+            {|((typfun a -> fun x -> (x : ? : a)) : poly a -> ? -> a)@<Int>("")|},
+          exp,
+        );
+      },
+    ),
+    /* Reporting policy: only observed ana/syn conflicts (ExpectationMismatch)
+       are surfaced as live typing errors. Join-failure marks over sibling
+       branches that were refined from disjoint runtime samples stay out of
+       the report. */
+    test_case(
+      "Heterogeneous unknown field through a case join is not a live error",
+      `Quick,
+      () => {
+        let program = {|let f = fun (xs : [(k= String, v= ?)]) -> map(xs, fun (k= k, v= v) -> case k == "name" | true => v | false => v end) in f([(k= "name", v= "a"), (k= "age", v= 1)])|};
+        let (live_ids, static_map, live_map) = live_error_ids_of(program);
+        check(
+          Alcotest.int,
+          "no static errors",
+          0,
+          List.length(StaticsBase.Map.error_ids(static_map)),
+        );
+        check(
+          Alcotest.int,
+          "no live typing errors reported",
+          0,
+          List.length(live_ids),
+        );
+        /* Guard against a vacuous pass: the live run must still have hit
+           the branch-join conflict; only the reporting filter keeps it
+           out of the error list. */
+        let has_nomeet =
+          Id.Map.exists(
+            (_id, info) =>
+              List.exists(
+                fun
+                | Mark.NoMeet(_) => true
+                | _ => false,
+                Info.marks_of(info),
+              ),
+            live_map,
+          );
+        check(
+          Alcotest.bool,
+          "live map still carries the NoMeet join mark",
+          true,
+          has_nomeet,
+        );
+      },
+    ),
+    test_case(
+      "Observed ana/syn conflict survives the reporting filter",
+      `Quick,
+      () => {
+        let program = {|(fun y -> y + 1)("")|};
+        let (live_ids, _, live_map) = live_error_ids_of(program);
+        check(
+          Alcotest.int,
+          "one live typing error survives the filter",
+          1,
+          List.length(live_ids),
+        );
+        let all_em =
+          List.for_all(
+            id =>
+              switch (StaticsBase.Map.lookup(id, live_map)) {
+              | Some(info) =>
+                List.exists(
+                  fun
+                  | Mark.ExpectationMismatch(_) => true
+                  | _ => false,
+                  Info.marks_of(info),
+                )
+              | None => false
+              },
+            live_ids,
+          );
+        check(
+          Alcotest.bool,
+          "surviving id carries ExpectationMismatch",
+          true,
+          all_em,
+        );
+      },
+    ),
+    test_case(
+      "Bad projection on a refined element type is a live error",
+      `Quick,
+      () => {
+        /* `r : ?` refines from samples to (value= Bool, count= Int); the
+           projection `.get_acne` is then a witnessed misuse (LabelNotFound)
+           and must survive the live-error mark filter. */
+        let program = {|let xs : [(value= Bool, count= Int)] = [(value= true, count= 1)] in map(xs, fun r -> r.get_acne)|};
+        let (live_ids, static_map, live_map) = live_error_ids_of(program);
+        check(
+          Alcotest.int,
+          "no static errors",
+          0,
+          List.length(StaticsBase.Map.error_ids(static_map)),
+        );
+        check(
+          Alcotest.int,
+          "one live typing error reported",
+          1,
+          List.length(live_ids),
+        );
+        let has_label_not_found =
+          List.for_all(
+            id =>
+              switch (StaticsBase.Map.lookup(id, live_map)) {
+              | Some(info) =>
+                List.exists(
+                  fun
+                  | Mark.LabelNotFound(_) => true
+                  | _ => false,
+                  Info.marks_of(info),
+                )
+              | None => false
+              },
+            live_ids,
+          );
+        check(
+          Alcotest.bool,
+          "surviving id carries LabelNotFound",
+          true,
+          has_label_not_found,
+        );
       },
     ),
   ],

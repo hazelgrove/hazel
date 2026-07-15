@@ -107,6 +107,70 @@ type t =
 let compare = (a: t, b: t): int =>
   Int.compare(Variants.to_rank(a), Variants.to_rank(b));
 
+/* Whether a mark that appears only in the live-typing re-run (with runtime
+   observations) should be reported as a live typing error.
+
+   Reportable marks are single-node judgments against a node's refined type:
+   an observed runtime value's type contradicts how the program uses that
+   value (a witnessed misuse). Not reportable are:
+   - join failures over independently refined siblings (NoMeet): disjoint
+     samples on case/if branches or list elements legitimately disagree;
+   - universal claims recomputed from narrowed types (InexhaustiveMatch,
+     Redundant): samples witness what values occurred, not what values are
+     possible, so refinement cannot prove a match inexhaustive or an arm
+     redundant;
+   - syntax/name/structure marks: these do not depend on refined types, so
+     they appear identically in the static run and are excluded by the
+     live-vs-static diff regardless.
+   The match is deliberately exhaustive (no catch-all): a new Mark
+   constructor must be classified here. */
+let is_live_reportable: t => bool =
+  fun
+  /* Witnessed misuse of an observed value's refined type. */
+  | ExpectationMismatch(_)
+  | LabelNotFound(_)
+  | DotOperatorRequiresTuple
+  | TupleExtensionRequiresTuples
+  | CompareFun(_)
+  | BadTrivAp(_)
+  | IsBadPartialAp(_)
+  | BuiltinError(_)
+  | InvalidLabel(_)
+  | TupleLabelError(_) => true
+  /* Sibling-join failure over independently refined types. */
+  | NoMeet(_) => false
+  /* Universal claims extrapolated from narrowed types. */
+  | InexhaustiveMatch(_)
+  | Redundant => false
+  /* Syntax / name / structure: identical in static and live runs. */
+  | Free(_)
+  | InvalidUseMode(_)
+  | BadOperator(_)
+  | BadLivelitModel(_)
+  | BadTheorem(_)
+  | IsLivelitName(_)
+  | BadToken(_)
+  | BadLabel(_)
+  | UnexpectedLabelSort(_)
+  | ExplicitNonlabel
+  | TPatShadowsType(_)
+  | TPatNotAVar(_)
+  | TypFreeTypeVariable(_)
+  | TypDuplicateConstructor(_)
+  | TypDuplicateLabels(_)
+  | TypWantTypeFoundAp
+  | TypWantLabel
+  | TypWantProduct(_)
+  | TypWantConstructorFoundType(_)
+  | TypWantConstructorFoundAp
+  | TypParseFailure
+  | IsDeferral(_)
+  | FreeConstructor(_)
+  | ExpectedConstructor
+  | IsMulti
+  | DuplicateLabel(_)
+  | DuplicateVar(_) => false;
+
 /* Earliest-declared variant wins (highest priority). */
 let highest = (marks: list(t)): option(t) =>
   switch (marks) {
