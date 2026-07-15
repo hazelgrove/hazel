@@ -66,32 +66,27 @@ is the encoding?
 
 > Q. Are there consistent changes made to the way the operations are represented?
 The operations are mostly presented as depicted, but here are a few variations:
-- Some operations utilize explicity polymorphism in Hazel using the `typfun` keyword to require explicit type
+- Some operations utilize explicit polymorphism in Hazel using the `typfun` keyword to require explicit type
   application as implicit polymorphism has not been added to Hazel as of 2026-07-09
 - Hazel tables are represented using lists of labeled tuples so there is no runtime schema available for operations.
   For certain operations, such as `leftJoin`, this requires looking at the head element to determine the schema and
   give some behavior in the event no such element exists.
 - Certain operations have been made to return an optional value rather than an error
 - Hazel does not have first-class labels, and therefore uses strings for columns for some of the operations.
-  If the operation was done inline primitive operators could be used to recover typesafety.
+  If the operation was done inline primitive operators could be used to recover type safety.
 - Of the label operations this work adds, the benchmark-style implementations need only
   `to_lvs`/`from_lvs`. The other operations (`select_labels`, `omit_labels`, `project_labels`,
   `group_by_label`, `omit_all_labels`) are each expressible in terms of `to_lvs`/`from_lvs` — with fewer
   static guarantees — and appear only in supplementary idiomatic variants and example programs.
 - Each operation documents its B2T2 `requires`/`ensures` constraints in the source as
   `(enforced=(“static”|“live”|“no”), “...”)` entries recording per-constraint enforcement:
-  - `“static”` — enforced by Hazel's type system on the operation as written.
-  - `“live”` — enforced only under *live typing*: if the operation is applied to a table of one explicit,
-    concrete schema type, all within a single closure, and the program is run to completion, live typing
-    gives the finished result a concrete labeled-tuple type, so postconditions about the result's
-    schema/header/column sorts become checkable against the expected schema even where the dynamic
-    `to_lvs`/`from_lvs` implementation erased it to `?` statically. `“live”` is never used on a
-    `requires` constraint.
-  - `“no”` — not enforced either way. Cardinality constraints (row counts, lengths, ranges,
+  - `“static”` -- enforced by Hazel's type system on the operation as written.
+  - `“live”` -- enforced only under live typing: applying the operation to a table of one
+    concrete schema type within a single closure and running it to completion re-types the
+    finished result with a concrete type, so postconditions about the result's
+    schema become checkable. `“live”` is never used on a `requires` constraint.
+  - `“no”` -- not enforced either way. Cardinality constraints (row counts, lengths, ranges,
     no-duplicates) are always `“no”`, since the type system tracks no length information.
-
-  Across the benchmark-style implementations, 5/72 requires are enforced statically; 38/142 ensures are
-  enforced statically, rising to 96/142 under live typing (see `SUMMARY.md` for the per-operation tables).
 
 > Q. Which operations are entirely inexpressible? Why?
 All the operations are at least partially expressible.
@@ -107,9 +102,7 @@ All the operations are at least partially expressible.
 N/A
 
 > Q. Which operations can be expressed more precisely than in the benchmark? How?
-- Several operations could be expressed in a more typesafe manner if a projection function was passed instead of a
-  column name.
-  - e.g. `selectColumn(table, fun e -> e.name)` as opposed to `selectColumn(table, `name`)`
+None.
 
 ## Example Programs
 
@@ -149,7 +142,10 @@ The examples are expressed as precisely as the benchmark
 
 > Q. Which error situations are known to be inexpressible? Why?
 Many of the programs require explicit parametric polymorphism and the higher-order function versions of the TableAPI
-operations to get the best feedback.
+operations to get the best feedback. In this configuration the benchmark's string-based operations *are* expressible
+(via `to_lvs`/`from_lvs`), but the error programs deliberately use the higher-order / projection forms instead: the
+string-based versions type-check yet report no static error on a misspelled or wrong column, so they would not surface
+the bug.
 
 * `getOnlyRow` provides no feedback on the error as we do not currently track table size information statically
 
@@ -165,7 +161,7 @@ operations to get the best feedback.
 None
 
 > Q. Which error situations can be expressed more precisely than in the benchmark? How?
-None
+None.
 
 > Q. Which error situations are prevented from being constructed? How?
 None
@@ -198,9 +194,9 @@ surface against the expected result type even where no static error is reported 
   * Message:
 ```Label `black and white` not found in tuple's labels: get_acne red black white green yellow brown orange pink purple```
 * `pieCount`
-  * Localizes the error to the column selection `true` and `get_count` in the editor.`
+  * Localizes the error to the column selection `true` and `get_acne` in the editor.
   * The error messages are similar to above
-* `brownAndGetAcne`
+* `brownGetAcne`
   * Localizes the error to the column selection `brown and get acne` in the editor.
   * The error messages are similar to above
 * `favoriteColor`
