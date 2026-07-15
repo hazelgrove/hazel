@@ -384,17 +384,17 @@ and uexp_to_info_map =
   let ( let* ) = (child, k) => StaticsSlice.keep(~parent=uexp, child, k);
   let (let&) = (child, k) => StaticsSlice.omit(~parent=uexp, child, k);
   let (let$) = (child, k) =>
-    StaticsSlice.source_binding(~parent=uexp, ~ctx, child, k);
+    StaticsSlice.source_binding(~parent=uexp, child, k);
   let (let^) = (child, k) =>
-    StaticsSlice.bound_child(~parent=uexp, ~ctx, child, k);
+    StaticsSlice.bound_child(~parent=uexp, child, k);
   let (let^^) = (child, k) =>
-    StaticsSlice.omitted_binding(~parent=uexp, ~ctx, child, k);
+    StaticsSlice.omitted_binding(~parent=uexp, child, k);
   let (let@) = (child, k) =>
     StaticsSlice.source_child(~parent=uexp, child, k);
   let (let+) = (child, k) =>
     StaticsSlice.alternative(~parent=uexp, child, k);
   let (let++) = (child, k) =>
-    StaticsSlice.alternative_binding(~parent=uexp, ~ctx, child, k);
+    StaticsSlice.alternative_binding(~parent=uexp, child, k);
   let ( let** ) = (child, k) => StaticsSlice.track(~parent=uexp, child, k);
   let (let@@) = (child, k) => StaticsSlice.map(~parent=uexp, child, k);
   let (let&&) = (child, k) => StaticsSlice.prune(~parent=uexp, child, k);

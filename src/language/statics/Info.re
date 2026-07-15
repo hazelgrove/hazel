@@ -43,26 +43,10 @@ type slice_child_mode =
   | SliceMatched;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type slice_lens = {
-  parent_path: option(list(int)),
-  child_path: option(list(int)),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slice_binding = {
-  name: string,
-  id: Id.t,
-  path: option(list(int)),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type slice_child = {
   mode: slice_child_mode,
   child: Id.t,
-  lens: option(slice_lens),
-  bindings: list(slice_binding),
   pattern: option(Id.t),
-  binding_shape: option(TermBase.typ_t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
