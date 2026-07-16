@@ -436,11 +436,10 @@ let flat = (s: string): string =>
    outside these classes reds the suite */
 let known_classes: list((string, string)) = [
   /* PRE-CARET(inner) exclusion removed 2026-07-12 (Inner-caret
-     hosts prefer the token side). NO-CRASH narrowed to the ENGINE
-     bug (Failure nth in MakeTerm's completion, case/fun/in — see
-     crash_stage_probe); the display fork itself is now totally
-     fail-open. */
-  ("NO-CRASH", "Failure(\"nth\")"),
+     hosts prefer the token side). NO-CRASH exclusion (Failure nth,
+     case/fun/in) removed 2026-07-15: remold_tile now tolerates the
+     stale single-shard mold a reassembled orphan carries — see
+     crash_stage_probe. */
   /* finish_display is systemically non-idempotent: pass 2 re-pads
      gaps pass 1 already padded (minted whitespace isn't in raw_ids),
      latent live because live applies it once: pinned "l e t SP" */
@@ -599,13 +598,11 @@ let known_case = (name: string, script: string, expected: string) =>
     )
   );
 
-/* ENGINE CRASH (pre-existing, fuzzer-found, affects
-   completion-provenance too): canonical completion inside
-   MakeTerm.from_zip_for_sem raises Failure("nth") completing the
-   case/fun/in interleave — this is STATICS territory, not the
-   display fork (the fork's total fail-open can't help; live
-   CachedStatics.init calls from_zip_for_sem unguarded). Tracked
-   here as a stage-bisected repro until the engine fix. */
+/* Formerly an ENGINE CRASH (fuzzer-found): completing the
+   case/fun/in interleave merged shards onto the orphan `|`'s
+   fallback mold (in_=[]) and Segment.remold_tile's child-sort
+   check raised Failure("nth"). Fixed 2026-07-15 (missing old
+   inner sort now means "remold the child"); pinned healthy. */
 let crash_stage_probe = {
   let acts = Test_Editing.mk("case fun in ¦") @ [Action.Insert("|")];
   let z = Test_Editing.perform(Zipper.init(), acts);
@@ -656,7 +653,7 @@ let crash_stage_probe = {
     };
   [
     test_case("crash stage probe", `Quick, () =>
-      check(string_testable, "stage", "RAISED nth at maketerm", out)
+      check(string_testable, "stage", "case fun in ~||", out)
     ),
   ];
 };
@@ -683,12 +680,12 @@ let tests = [
     "CompletionFuzz: known-violations",
     [
       /* INV 1 NO-CRASH: after `case ? fun ?` the closing `|` insert
-         leaves a display splice MakeTerm/Measured can't take
-         (Failure("nth")); live fail-open doesn't cover this path */
+         merged shards onto the orphan `|`'s fallback mold and
+         remold_tile's child-sort check raised Failure("nth") */
       known_case(
         "keyword display crash",
         "c a s e SP f u n SP |",
-        "NO-CRASH display raised: Failure(\"nth\")",
+        "" /* FIXED: remold_tile tolerates stale single-shard molds */,
       ),
       /* INV 2 PRE-CARET(inner): typed `=` gloms into `=>` (caret goes
          Inner); the display mints a pad left of the glommed token, so

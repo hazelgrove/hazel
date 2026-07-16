@@ -347,6 +347,41 @@ let rec deep_reassemble = (seg: Segment.t): Segment.t =>
        }
      );
 
+/* Reassembly keeps the head shard's mold (Tile.reassemble); merging
+   shards onto a fallback-molded orphan (e.g. `|` typed at Exp gets
+   mk_op(Any, [])) yields a multi-shard tile whose mold.in_ can't
+   cover its children, and downstream child indexing (remold's
+   inner-sort check, MakeTerm's kid sorts) escapes label bounds.
+   Rebase such molds on a base form mold; the sort-filtered remold
+   still picks the final mold where one exists. Semantic-path only:
+   the display fork keeps raw molds for pre-caret raw parity. */
+let heal_mold = (t: Tile.t): Tile.t =>
+  List.length(t.shards) > 1
+  && List.length(t.mold.in_) != List.length(t.label)
+  - 1
+    ? switch (Form.Molds.get_base(t.label)) {
+      | [m, ..._] => {
+          ...t,
+          mold: m,
+        }
+      | [] => t
+      }
+    : t;
+
+let rec heal_molds_deep = (seg: Segment.t): Segment.t =>
+  seg
+  |> List.map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         let t = heal_mold(t);
+         Piece.Tile({
+           ...t,
+           children: List.map(heal_molds_deep, t.children),
+         });
+       | p => p
+       }
+     );
+
 /* Full shape normalization for a spliced DISPLAY segment — the same
    phases completion runs (regrout, reassemble, remold, regrout).
    Reassembly alone is not enough: ghost shards change the shape
@@ -2498,7 +2533,10 @@ let rec complete_segment =
        correct molds. Must recurse: an opener splice can capture
        still-unmerged shard pairs inside a fresh tile's child, which a
        top-level pass never revisits. */
-    let reassembled = deep_reassemble(regrouted) |> Segment.remold(_, sort);
+    let reassembled =
+      deep_reassemble(regrouted)
+      |> heal_molds_deep
+      |> Segment.remold(_, sort);
 
     /* Phase 4: Regrout again based on NEW molds (remold may have changed shapes) */
     let completed_seg =

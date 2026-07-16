@@ -1029,6 +1029,105 @@ string_replace(a, b, c)|},
     ],
   ),
   (
+    "CompletionDisplay: keyword-interleave",
+    /* siblings of the case/fun/in Failure("nth") crash: keyword
+       forms interleaved so orphan shards reassemble onto fallback
+       molds. Judged: a keyword materializing inside another form's
+       slot demotes the host's pending delimiters to chips; absorbed
+       closers (in/then/end) land as the host's real shards. */
+    [
+      test_case("fun case", `Quick, () =>
+        check(
+          string_testable,
+          "fun-case",
+          {|f¦   CHIPS[]
+fu¦⟪n ⟫   CHIPS[]
+fun¦ ? ⟪-> ?⟫   CHIPS[]
+fun ¦? ⟪-> ?⟫   CHIPS[]
+fun c¦ ⟪-> ?⟫   CHIPS[]
+fun ca¦ ⟪-> ?⟫   CHIPS[]
+fun cas¦ ⟪-> ?⟫   CHIPS[]
+fun case¦ ? ⟪end⟫   CHIPS[->]
+fun case ¦? ⟪end⟫   CHIPS[->]|},
+          trajectory("fun case "),
+        )
+      ),
+      test_case("let fun in", `Quick, () =>
+        check(
+          string_testable,
+          "let-fun-in",
+          {|l¦   CHIPS[]
+le¦⟪t ⟫   CHIPS[]
+let¦ ? ⟪= ? in ?⟫   CHIPS[]
+let ¦? ⟪= ? in ?⟫   CHIPS[]
+let f¦ ⟪= ? in ?⟫   CHIPS[]
+let fu¦ ⟪= ? in ?⟫   CHIPS[]
+let fun¦ ? ⟪-> ? in ?⟫   CHIPS[=]
+let fun ¦? ⟪-> ? in ?⟫   CHIPS[=]
+let fun i¦ ⟪-> ? in ?⟫   CHIPS[=]
+let fun? in¦?   CHIPS[-> | =]
+let fun? in ¦?   CHIPS[-> | =]|},
+          trajectory("let fun in "),
+        )
+      ),
+      test_case("if fun then", `Quick, () =>
+        check(
+          string_testable,
+          "if-fun-then",
+          {|i¦   CHIPS[]
+if¦ ? ⟪then ? else ?⟫   CHIPS[]
+if ¦? ⟪then ? else ?⟫   CHIPS[]
+if f¦ ⟪then ? else ?⟫   CHIPS[]
+if fu¦ ⟪then ? else ?⟫   CHIPS[]
+if fun¦ ? ⟪-> ? then ? else ?⟫   CHIPS[]
+if fun ¦? ⟪-> ? then ? else ?⟫   CHIPS[]
+if fun t¦ ⟪-> ? then ? else ?⟫   CHIPS[]
+if fun th¦ ⟪-> ? then ? else ?⟫   CHIPS[]
+if fun the¦ ⟪-> ? then ? else ?⟫   CHIPS[]
+if fun? then¦ ? ⟪else ?⟫   CHIPS[->]
+if fun? then ¦? ⟪else ?⟫   CHIPS[->]|},
+          trajectory("if fun then "),
+        )
+      ),
+      test_case("case fun end", `Quick, () =>
+        check(
+          string_testable,
+          "case-fun-end",
+          {|c¦   CHIPS[]
+ca¦⟪se ⟫   CHIPS[]
+cas¦⟪e ⟫   CHIPS[]
+case¦ ? ⟪end⟫   CHIPS[]
+case ¦? ⟪end⟫   CHIPS[]
+case f¦ ⟪end⟫   CHIPS[]
+case fu¦⟪n end⟫   CHIPS[]
+case fun¦ ? ⟪-> ? end⟫   CHIPS[]
+case fun ¦? ⟪-> ? end⟫   CHIPS[]
+case fun e¦ ⟪-> ? end⟫   CHIPS[]
+case fun en¦ ⟪-> ? end⟫   CHIPS[]
+case fun? end¦   CHIPS[->]|},
+          trajectory("case fun end"),
+        )
+      ),
+      test_case("case if |", `Quick, () =>
+        check(
+          string_testable,
+          "case-if-bar",
+          {|c¦   CHIPS[]
+ca¦⟪se ⟫   CHIPS[]
+cas¦⟪e ⟫   CHIPS[]
+case¦ ? ⟪end⟫   CHIPS[]
+case ¦? ⟪end⟫   CHIPS[]
+case i¦ ⟪end⟫   CHIPS[]
+case if¦ ? ⟪then ? else ? end⟫   CHIPS[]
+case if ¦? ⟪then ? else ? end⟫   CHIPS[]
+case if |¦   CHIPS[then+else | =>+end]
+case if | ¦   CHIPS[then+else | =>+end]|},
+          trajectory("case if | "),
+        )
+      ),
+    ],
+  ),
+  (
     "CompletionDisplay: tab-dispatch",
     /* Tab reads THE assist stream: tab_chip picks the zone chip
        (witness remainder preferred — the nearest promise), tab_text
