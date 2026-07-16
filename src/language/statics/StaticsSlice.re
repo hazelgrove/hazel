@@ -13,6 +13,11 @@ type direction = [
   | `Ana
 ];
 
+type analysis_support =
+  | Unsupported
+  | ExpressionAscription
+  | BindingAscription;
+
 type child_mode =
   | Keep
   | Omit
@@ -60,6 +65,7 @@ type child = {
 exception Focus_not_found(Id.t);
 exception Wrong_focus_sort;
 exception Incompatible_query(Typ.t);
+exception Pattern_ascription;
 
 let gap: Typ.t = Typ.temp(Unknown(Hole(EmptyHole)));
 
@@ -790,6 +796,21 @@ let bindings_of = (~ctx: Ctx.t, pattern: Info.pat) =>
        | _ => None,
      );
 
+let local_binding = (m, path, name) =>
+  Id.Map.fold(
+    (_, info, found) =>
+      found
+      || switch (info) {
+         | Info.InfoPat(pattern) =>
+           List.exists(Id.Set.mem(_, path), pattern.ancestors)
+           && Pat.bindings(pattern.user_term)
+              |> List.exists((binding: Binding.t) => binding.name == name)
+         | _ => false
+         },
+    m,
+    false,
+  );
+
 let record_binding = (mode, ~parent, child, k) => {
   let (_, _, m) = child;
   let patterns =
@@ -882,6 +903,22 @@ let rec pattern_omissions =
     };
   };
 
+let pattern_has_ascription = pattern =>
+  switch (
+    Pat.map_term(
+      ~f_pat=
+        (continue, pattern) =>
+          switch (Pat.term_of(pattern)) {
+          | Asc(_, _) => raise(Pattern_ascription)
+          | _ => continue(pattern)
+          },
+      pattern,
+    )
+  ) {
+  | exception Pattern_ascription => true
+  | _ => false
+  };
+
 let binding_omissions =
     (children: list(child), gamma: gamma, demands): Id.Set.t =>
   List.fold_left(
@@ -907,7 +944,7 @@ let binding_omissions =
           let shape = child.mode == Source ? child.node.shape : pattern.ty;
           let demand =
             List.find_map(
-              ((pattern, demand)) =>
+              ((pattern, demand, _)) =>
                 pattern == Some(id) ? Some(demand) : None,
               demands,
             )
@@ -927,7 +964,7 @@ let binding_omissions =
             demanded == []
             && !
                  List.exists(
-                   ((pattern_id, demand)) =>
+                   ((pattern_id, demand, _)) =>
                      pattern_id == Some(Pat.rep_id(pattern.user_term))
                      && !is_gap(demand),
                    demands,
@@ -1099,6 +1136,7 @@ let matched_type_application =
 let slice_forward =
     (
       ~direction,
+      ~pattern_focus=false,
       ~focus_query,
       ~path=Id.Set.empty,
       ctx: Ctx.t,
@@ -1138,6 +1176,8 @@ let slice_forward =
            upwards(
              child.node.dispatch(
                direction == `Ana
+               && !pattern_focus
+               && child.mode != Ascribe
                  ? route_query(
                      ctx,
                      parent_shape,
@@ -1279,7 +1319,7 @@ let slice_branches =
 let rec compile =
         (
           ~direction=`Syn,
-          ~analysed=false,
+          ~support=Unsupported,
           ~seen=Id.Set.empty,
           ~focus=None,
           ~focus_query=gap,
@@ -1299,6 +1339,15 @@ let rec compile =
     };
   } else {
     let seen = Id.Set.add(id, seen);
+    let pattern_focus =
+      switch (focus) {
+      | Some(id) =>
+        switch (Id.Map.find_opt(id, m)) {
+        | Some(Info.InfoPat(_)) => true
+        | _ => false
+        }
+      | None => false
+      };
     let children =
       info.slice_children
       |> List.filter_map((edge: Info.slice_child) =>
@@ -1349,7 +1398,15 @@ let rec compile =
                node:
                  compile(
                      ~direction,
-                     ~analysed=analysed || mode == Ascribe,
+                     ~support=
+                       mode == Source
+                       && switch (pattern) {
+                          | Some(pattern) =>
+                            pattern_has_ascription(pattern.user_term)
+                          | None => false
+                          }
+                         ? BindingAscription
+                         : mode == Ascribe ? ExpressionAscription : support,
                      ~seen,
                    ~focus,
                    ~focus_query,
@@ -1398,6 +1455,7 @@ let rec compile =
               slice_forward(
                 ~path,
                 ~direction,
+                ~pattern_focus,
                 ~focus_query,
                 info.ctx,
                 info.elab_syn_ty,
@@ -1419,6 +1477,7 @@ let rec compile =
                 : slice_forward(
                     ~path,
                     ~direction,
+                    ~pattern_focus,
                     ~focus_query,
                     info.ctx,
                     info.elab_syn_ty,
@@ -1430,13 +1489,31 @@ let rec compile =
         let forward =
           at_focus
           && direction == `Ana
-          && analysed
-          && children == []
-          && VarMap.to_list(forward.gamma) == []
-          && forward.context.entries == []
+          && (
+            support == BindingAscription
+            || (
+              support == ExpressionAscription
+              && List.for_all(
+                   ((name, _)) =>
+                     switch (Ctx.lookup_var(info.ctx, name)) {
+                     | Some(_) => local_binding(m, path, name)
+                     | None => false
+                     },
+                   VarMap.to_list(forward.gamma),
+                 )
+              && List.for_all(
+                   fun
+                   | Ctx.VarEntry({name, _}) => local_binding(m, path, name)
+                   | _ => false,
+                   forward.context.entries,
+                 )
+            )
+          )
             ? {
-              ...forward,
+              ...empty_result,
               omitted: Id.Set.add(id, forward.omitted),
+              psi: query,
+              ana: query,
             }
             : forward;
         let binding_children = List.filter(c => c.pattern != None, children);
@@ -1455,13 +1532,37 @@ let rec compile =
                        shape,
                        forward.gamma,
                      );
-                   let body =
+                   let parent =
+                     if (
+                       child.mode != Keep
+                       || (direction == `Ana && support == ExpressionAscription)
+                     ) {
+                       gap;
+                     } else {
+                       switch (find_path(shape, info.elab_syn_ty)) {
+                       | Some(path) => project(query, path)
+                       | None => gap
+                       };
+                     };
+                   let source = meet(info.ctx, body, parent);
+                   let focus_demand =
+                     direction == `Ana
+                     && Id.Set.mem(child.node.id, path)
+                     && (
+                       typ_children(focus_query) != []
+                       || pattern_has_ascription(pattern.user_term)
+                     )
+                       ? child.node.dispatch(gap).psi
+                       : gap;
+                   (
+                     Some(pattern_id),
                      direction == `Ana
                        ? meet(
                            info.ctx,
+                           source,
                            meet(
                              info.ctx,
-                             body,
+                             focus_demand,
                              pattern_focus_demand(
                                m,
                                pattern_id,
@@ -1470,33 +1571,17 @@ let rec compile =
                                focus_query,
                              ),
                            ),
-                           Id.Set.mem(child.node.id, path)
-                           && typ_children(focus_query) != []
-                             ? route_query(
-                                 info.ctx,
-                                 child.node.shape,
-                                 shape,
-                                 focus_query,
-                               )
-                             : gap,
                          )
-                       : body;
-                   let parent =
-                     if (child.mode != Keep) {
-                       gap;
-                     } else {
-                       switch (find_path(shape, info.elab_syn_ty)) {
-                       | Some(path) => project(query, path)
-                       | None => gap
-                       };
-                     };
-                   (Some(pattern_id), meet(info.ctx, body, parent));
+                       : source,
+                     source,
+                   );
                  },
                  child.pattern,
                )
              );
         let body_demand =
-          List.map(snd, demands) |> List.fold_left(meet(info.ctx), gap);
+          List.map(((_, _, demand)) => demand, demands)
+          |> List.fold_left(meet(info.ctx), gap);
         let source_query = empty_query(body_demand) ? gap : body_demand;
         let deps =
           List.map(
@@ -1637,10 +1722,22 @@ let slice =
         )
       : compile(~direction, m, root_info);
   let result = node.dispatch(focused ? gap : query);
-  direction == `Ana
-    ? {
+  let result =
+    direction == `Ana
+      ? {
       ...result,
       ana: query,
     }
-    : result;
+      : result;
+  switch (direction, focus) {
+  | (`Ana, Some(id)) =>
+    switch (Id.Map.find_opt(id, m)) {
+    | Some(Info.InfoPat(_)) => {
+        ...result,
+        omitted: Id.Set.add(id, result.omitted),
+      }
+    | _ => result
+    }
+  | _ => result
+  };
 };
