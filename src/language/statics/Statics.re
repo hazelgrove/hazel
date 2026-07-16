@@ -398,6 +398,7 @@ and uexp_to_info_map =
   let ( let** ) = (child, k) => StaticsSlice.track(~parent=uexp, child, k);
   let (let@@) = (child, k) => StaticsSlice.map(~parent=uexp, child, k);
   let (let&&) = (child, k) => StaticsSlice.prune(~parent=uexp, child, k);
+  let (let&&&) = (child, k) => StaticsSlice.ascribe(~parent=uexp, child, k);
   let ( let*** ) = (child, k) => StaticsSlice.matched(~parent=uexp, child, k);
   let (let!) = (pattern, k) =>
     k(StaticsSlice.pattern(~parent=uexp, pattern));
@@ -566,7 +567,7 @@ and uexp_to_info_map =
       let (t, m) = go_typ(t2, ~expects=TypExpectation.TypeExpected, m);
       /* Desugar any Sig types in the annotation without full normalization */
       let t_ty = Typ.desugar_sig(ctx, t.user_term);
-      let& (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
+      let&&& (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(

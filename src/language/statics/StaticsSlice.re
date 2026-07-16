@@ -20,6 +20,7 @@ type child_mode =
   | Track
   | Map
   | Prune
+  | Ascribe
   | Alternative
   | Matched;
 
@@ -624,6 +625,7 @@ let of_info_mode =
   | Info.SliceTrack => Track
   | Info.SliceMap => Map
   | Info.SlicePrune => Prune
+  | Info.SliceAscribe => Ascribe
   | Info.SliceAlternative => Alternative
   | Info.SliceMatched => Matched;
 
@@ -679,6 +681,7 @@ let record_child =
         | Track => Info.SliceTrack
         | Map => Info.SliceMap
         | Prune => Info.SlicePrune
+        | Ascribe => Info.SliceAscribe
         | Alternative => Info.SliceAlternative
         | Matched => Info.SliceMatched
         },
@@ -717,6 +720,7 @@ let source_child = (~parent, child, k) =>
 let track = (~parent, child, k) => k(record_child(Track, ~parent, child));
 let map = (~parent, child, k) => k(record_child(Map, ~parent, child));
 let prune = (~parent, child, k) => k(record_child(Prune, ~parent, child));
+let ascribe = (~parent, child, k) => k(record_child(Ascribe, ~parent, child));
 let matched = (~parent, child, k) => k(record_child(Matched, ~parent, child));
 let alternative = (~parent, child, k) =>
   k(record_child(Alternative, ~parent, child));
@@ -1052,6 +1056,15 @@ let slice_forward =
                  : child_query;
              child.node.dispatch(child_query)
            | Alternative => empty_result
+           | Ascribe => {
+               ...child.node.dispatch(query),
+               omitted:
+                 Id.Set.add(
+                   child.node.id,
+                   ids_of_typ(parent_shape, query),
+                 ),
+               psi: query,
+             }
            | Matched => {
                ...matched_type_application(
                  ~implicit=true,
