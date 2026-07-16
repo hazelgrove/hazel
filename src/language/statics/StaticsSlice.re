@@ -1003,15 +1003,55 @@ let pattern_focus_demand = (m, root, focus, shape, query) =>
   | None => gap
   };
 
+let pattern_has_ascription = pattern =>
+  switch (
+    Pat.map_term(
+      ~f_pat=
+        (continue, pattern) =>
+          switch (Pat.term_of(pattern)) {
+          | Asc(_, _) => raise(Pattern_ascription)
+          | _ => continue(pattern)
+          },
+      pattern,
+    )
+  ) {
+  | exception Pattern_ascription => true
+  | _ => false
+  };
+
 let pattern_result = (m, root, demand, dependencies) =>
-  if (empty_query(demand)) {
+  if (is_gap(demand)) {
     empty_result;
   } else {
-    let shape =
+    let (shape, ascribed) =
       switch (Id.Map.find_opt(root, m)) {
-      | Some(Info.InfoPat(pattern)) => pattern.ty
-      | _ => demand
+      | Some(Info.InfoPat(pattern)) =>
+        (pattern.ty, pattern_has_ascription(pattern.user_term))
+      | _ => (demand, false)
       };
+    let pattern_omitted =
+      Id.Map.fold(
+        (id, info, omitted) =>
+          switch (info) {
+          | Info.InfoPat(pattern)
+              when ascribed
+                   && List.exists(Id.equal(root), pattern.ancestors)
+                   && Pat.bindings(pattern.user_term) == []
+                   && !pattern_has_ascription(pattern.user_term)
+                   && empty_query(
+                        route_query(
+                          pattern.ctx,
+                          shape,
+                          pattern.elab_syn_ty,
+                          demand,
+                        ),
+                      ) =>
+            Id.Set.add(id, omitted)
+          | _ => omitted
+          },
+        m,
+        Id.Set.empty,
+      );
     let constructors =
       Id.Map.fold(
         (id, info, context) =>
@@ -1032,6 +1072,8 @@ let pattern_result = (m, root, demand, dependencies) =>
         m,
         Ctx.empty,
       );
+    let pattern_omitted =
+      constructors.entries == [] ? pattern_omitted : Id.Set.empty;
     let required = context_join(constructors, dependencies);
     let (context, omitted) = Id.Map.fold(
       (id, info, (context, omitted)) =>
@@ -1073,7 +1115,7 @@ let pattern_result = (m, root, demand, dependencies) =>
         | _ => (context, omitted)
         },
       m,
-      (constructors, Id.Set.empty),
+      (constructors, pattern_omitted),
     );
     {...empty_result, context, omitted};
   };
@@ -1119,22 +1161,6 @@ let rec signature_omissions = (m, ctx, actual, query) => {
       |> List.fold_left(Id.Set.union, omitted)
     : omitted;
 };
-
-let pattern_has_ascription = pattern =>
-  switch (
-    Pat.map_term(
-      ~f_pat=
-        (continue, pattern) =>
-          switch (Pat.term_of(pattern)) {
-          | Asc(_, _) => raise(Pattern_ascription)
-          | _ => continue(pattern)
-          },
-      pattern,
-    )
-  ) {
-  | exception Pattern_ascription => true
-  | _ => false
-  };
 
 let binding_omissions =
     (children: list(child), gamma: gamma, demands): Id.Set.t =>
