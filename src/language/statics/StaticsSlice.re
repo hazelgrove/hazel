@@ -30,6 +30,7 @@ type path = list(int);
 type node = {
   id: Id.t,
   shape: Typ.t,
+  typ: Typ.t,
   ana: Typ.t,
   dispatch: Typ.t => result,
 };
@@ -166,8 +167,7 @@ let rec minimal_alias = (name, payload, definition: Typ.t): Typ.t =>
   switch (Typ.term_of(definition)) {
   | TypFun(param, body) =>
     {...definition, term: TypFun(param, minimal_alias(name, payload, body))}
-  | Rec(param, body) =>
-    {...definition, term: Rec(param, minimal_alias(name, payload, body))}
+  | Rec(_, body) => minimal_alias(name, payload, body)
   | Sum(constructors) =>
     {
       ...definition,
@@ -239,6 +239,19 @@ let constructor_from_alias = (ctx: Ctx.t, name: string, query) =>
     | _ => None,
     ctx.entries,
   );
+
+let schema = (info: Info.exp): Typ.t =>
+  switch (Exp.term_of(info.user_term)) {
+  | Constructor(name, _) =>
+    constructor_from_alias(info.ctx, name, gap)
+    |> Option.map(((constructor, _)) => (constructor: Ctx.var_entry).typ)
+    |> Option.value(~default=info.ty)
+  | Var(name) =>
+    Ctx.lookup_var(info.ctx, name)
+    |> Option.map((entry: Ctx.var_entry) => entry.typ)
+    |> Option.value(~default=info.ty)
+  | _ => info.ty
+  };
 
 let context_for_name = (ctx: Ctx.t, name: string, query): Ctx.t =>
   switch (Ctx.lookup_var(ctx, name)) {
@@ -852,7 +865,7 @@ let rec matched_body =
         List.concat_map(snd, pairs),
       );
     } else {
-      (replace_bound ? query : schema, []);
+      (query, []);
     };
   };
 };
@@ -866,7 +879,7 @@ let matched_type_application =
     | Parens(inner) => peel(binders, inner)
     | _ => (binders, schema)
     };
-  let (binders, schema) = peel([], fn.shape);
+  let (binders, schema) = peel([], fn.typ);
   let flat_binders = List.concat_map(TPat.binders_of, binders);
   let names = List.filter_map(TPat.tyvar_of_utpat, flat_binders);
   let (matched, constraints) =
@@ -1085,6 +1098,7 @@ let rec compile =
     {
       id,
       shape: info.elab_syn_ty,
+      typ: schema(info),
       ana: info.ana,
       dispatch: query => source_result(info, query),
     };
@@ -1283,6 +1297,7 @@ let rec compile =
     {
       id,
       shape: info.elab_syn_ty,
+      typ: schema(info),
       ana: info.ana,
       dispatch,
     };
