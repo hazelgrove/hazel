@@ -979,39 +979,6 @@ let pattern_focus_demand = (m, root, focus, shape, query) =>
   | None => gap
   };
 
-let rec pattern_omissions =
-        (~covered=false, gamma: gamma, pattern: Pat.t): Id.Set.t =>
-  switch (Pat.term_of(pattern)) {
-  | Parens(inner)
-  | Projector(_, inner)
-  | TupLabel(_, inner) => pattern_omissions(~covered, gamma, inner)
-  | Asc(inner, _) => pattern_omissions(~covered=true, gamma, inner)
-  | _ =>
-    let bindings = Pat.bindings(pattern);
-    let used =
-      List.exists(
-        (binding: Binding.t) => VarMap.contains(gamma, binding.name),
-        bindings,
-      );
-    if (!used) {
-      covered ? Id.Set.singleton(Pat.rep_id(pattern)) : Id.Set.empty;
-    } else {
-      switch (Pat.term_of(pattern)) {
-      | Ap(_, inner) => pattern_omissions(~covered, gamma, inner)
-    | Tuple(items)
-    | ListLit(items) =>
-      List.map(pattern_omissions(~covered, gamma), items)
-      |> List.fold_left(Id.Set.union, Id.Set.empty)
-    | Cons(head, tail) =>
-      Id.Set.union(
-        pattern_omissions(~covered, gamma, head),
-        pattern_omissions(~covered, gamma, tail),
-      )
-    | _ => Id.Set.empty
-    };
-    };
-  };
-
 let pattern_has_ascription = pattern =>
   switch (
     Pat.map_term(
@@ -1058,13 +1025,7 @@ let binding_omissions =
               demands,
             )
             |> Option.value(~default=gap);
-          Id.Set.union(
-            omitted,
-            Id.Set.union(
-              pattern_omissions(gamma, pattern.user_term),
-              ids_of_typ(shape, demand),
-            ),
-          );
+          Id.Set.union(omitted, ids_of_typ(shape, demand));
         | None => omitted
         };
       switch (child.pattern) {
