@@ -987,7 +987,7 @@ let pattern_focus_demand = (m, root, focus, shape, query) =>
   | None => gap
   };
 
-let pattern_result = (m, root, demand) =>
+let pattern_result = (m, root, demand, dependencies) =>
   if (empty_query(demand)) {
     empty_result;
   } else {
@@ -1011,6 +1011,7 @@ let pattern_result = (m, root, demand) =>
         m,
         Ctx.empty,
       );
+    let required = context_join(constructors, dependencies);
     let (context, omitted) = Id.Map.fold(
       (id, info, (context, omitted)) =>
         switch (info) {
@@ -1031,7 +1032,7 @@ let pattern_result = (m, root, demand) =>
               let redundant =
                 List.exists(
                   item => context_key(item) == key,
-                  constructors.entries,
+                  required.entries,
                 );
               (
                 redundant ? context : Ctx.extend(context, entry),
@@ -1783,12 +1784,6 @@ let rec compile =
         let body_demand =
           List.map(((_, _, demand)) => demand, demands)
           |> List.fold_left(meet(info.ctx), gap);
-        let pattern_result =
-          demands
-          |> List.filter_map(((pattern, demand, _)) =>
-               Option.map(pattern_result(m, _, demand), pattern)
-             )
-          |> results_join(info.ctx);
         let source_query = empty_query(body_demand) ? gap : body_demand;
         let deps =
           List.map(
@@ -1811,6 +1806,15 @@ let rec compile =
           );
         let combined =
           result_join(info.ctx, forward, results_join(info.ctx, deps));
+        let pattern_result =
+          demands
+          |> List.filter_map(((pattern, demand, _)) =>
+               Option.map(
+                 pattern_result(m, _, demand, combined.context),
+                 pattern,
+               )
+             )
+          |> results_join(info.ctx);
         let combined = result_join(info.ctx, pattern_result, combined);
         let omitted =
           Id.Set.union(
