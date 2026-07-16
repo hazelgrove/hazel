@@ -180,7 +180,15 @@ let rec minimal_alias = (name, payload, definition: Typ.t): Typ.t =>
               ConstructorMap.Variant(
                 constructor,
                 ann,
-                Option.map(_ => Option.value(~default=gap, payload), arg),
+                Option.map(
+                  arg =>
+                    switch (payload, Typ.term_of(arg)) {
+                    | (Some(payload), _) when !is_gap(payload) => payload
+                    | (_, Var(_)) => arg
+                    | _ => gap
+                    },
+                  arg,
+                ),
               )
             | _ => ConstructorMap.BadEntry(gap),
             constructors,
