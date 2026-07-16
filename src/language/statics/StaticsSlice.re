@@ -116,6 +116,31 @@ let gamma_join = (ctx: Ctx.t, left: gamma, right: gamma): gamma =>
 let gamma_remove = (gamma: gamma, names: list(string)): gamma =>
   VarMap.filter(((name, _)) => !List.mem(name, names), gamma);
 
+let close_sum_gaps = ty =>
+  Typ.map_term(
+    ~f_typ=
+      (continue, ty) =>
+        switch (Typ.term_of(ty)) {
+        | Sum(items)
+            when List.exists(
+                   fun | ConstructorMap.Variant(_, _, _) => true | _ => false,
+                   items,
+                 ) =>
+          {
+            ...ty,
+            term:
+              Sum(
+                List.filter(
+                  fun | ConstructorMap.BadEntry(_) => false | _ => true,
+                  items,
+                ),
+              ),
+          }
+        | _ => continue(ty)
+        },
+    ty,
+  );
+
 let context_key =
   fun
   | Ctx.VarEntry({name, _}) => Some((0, name))
@@ -136,6 +161,39 @@ let context_join = (left: Ctx.t, right: Ctx.t): Ctx.t => {
       left.entries,
       right.entries,
     ),
+};
+
+let context_join_branches = (ctx, left: Ctx.t, right: Ctx.t): Ctx.t => {
+  let merge = (old, entry) =>
+    switch (old, entry) {
+    | (
+        Ctx.TVarEntry({name, kind: Singleton(a), _} as old),
+        Ctx.TVarEntry({name: other, kind: Singleton(b), _}),
+      ) when name == other =>
+      Ctx.TVarEntry({
+        ...old,
+        kind: Singleton(close_sum_gaps(meet(ctx, a, b))),
+      })
+    | _ => old
+    };
+  {
+    ...left,
+    entries:
+      List.fold_left(
+        (entries, entry) =>
+          switch (context_key(entry)) {
+          | Some(key)
+              when List.exists(e => context_key(e) == Some(key), entries) =>
+            List.map(
+              old => context_key(old) == Some(key) ? merge(old, entry) : old,
+              entries,
+            )
+          | _ => entries @ [entry]
+          },
+        left.entries,
+        right.entries,
+      ),
+  };
 };
 
 let result_join = (ctx: Ctx.t, left: result, right: result): result => {
@@ -573,6 +631,19 @@ let rec subtract = (ctx: Ctx.t, query: Typ.t, supplied: Typ.t): Typ.t =>
 let query_residual = (ctx, query, supplied) => {
   let query = subtract(ctx, query, supplied);
   empty_query(query) ? gap : query;
+};
+
+let query_overlap = (ctx, query, supplied) => {
+  let supplied =
+    switch (Typ.term_of(query)) {
+    | Sum(_) => Typ.weak_head_normalize(ctx, supplied)
+    | _ => supplied
+    };
+  let overlap =
+    query_residual(ctx, query, query_residual(ctx, query, supplied));
+  !unconstrained_result(Arrow(gap, query) |> Typ.temp)
+  && unconstrained_result(Arrow(gap, overlap) |> Typ.temp)
+    ? gap : overlap;
 };
 
 let ids_of_typ = (actual: Typ.t, query: Typ.t): Id.Set.t => {
@@ -1031,7 +1102,13 @@ let alias_omissions = (children: list(child), context: Ctx.t): Id.Set.t =>
   |> List.fold_left(Id.Set.union, Id.Set.empty);
 
 let rec matched_body =
-        (~replace_bound=false, bound: list(string), schema: Typ.t, query: Typ.t)
+        (
+          ~replace_bound=false,
+          ctx,
+          bound: list(string),
+          schema: Typ.t,
+          query: Typ.t,
+        )
         : (Typ.t, list((string, Typ.t))) => {
   let schema = expose(schema);
   let query = expose(query);
@@ -1043,14 +1120,28 @@ let rec matched_body =
   | _ =>
     let ss = typ_children(schema);
     let qs = typ_children(query);
-    if (ss != [] && List.length(ss) == List.length(qs)) {
-      let pairs = List.map2(matched_body(~replace_bound, bound), ss, qs);
+    if (
+      ss != []
+      && Typ.cls_of_term(Typ.term_of(schema))
+         == Typ.cls_of_term(Typ.term_of(query))
+      && List.length(ss) == List.length(qs)
+    ) {
+      let pairs =
+        List.map2(matched_body(~replace_bound, ctx, bound), ss, qs);
       (
         typ_rebuild(schema, List.map(fst, pairs)),
         List.concat_map(snd, pairs),
       );
     } else {
-      (query, []);
+      switch (Typ.term_of(query)) {
+      | Sum(_) =>
+        let schema = Typ.weak_head_normalize(ctx, schema);
+        switch (Typ.term_of(schema)) {
+        | Sum(_) => matched_body(~replace_bound, ctx, bound, schema, query)
+        | _ => (query, [])
+        }
+      | _ => (query, [])
+      };
     };
   };
 };
@@ -1068,7 +1159,9 @@ let matched_type_application =
   let flat_binders = List.concat_map(TPat.binders_of, binders);
   let names = List.filter_map(TPat.tyvar_of_utpat, flat_binders);
   let (matched, constraints) =
-    matched_body(~replace_bound=implicit, names, schema, query);
+    implicit && names == []
+      ? (query, [])
+      : matched_body(~replace_bound=implicit, ctx, names, schema, query);
   let constraint_for = name =>
     constraints
     |> List.filter_map(((n, ty)) => n == name ? Some(ty) : None)
@@ -1130,6 +1223,22 @@ let matched_type_application =
     ...slice,
     omitted: Id.Set.union(slice.omitted, omitted),
     psi: query,
+  };
+};
+
+let applied_type = (ctx, fn, args) => {
+  let (binder, body) = MatchedTyp.poly_pair_tolerant(ctx, fn);
+  switch (binder) {
+  | None => body
+  | Some(binder) =>
+    let binders = TPat.binders_of(binder);
+    let args =
+      switch (Typ.term_of(args)) {
+      | TypTuple(args) when List.length(binders) > 1 => args
+      | _ => [args]
+      };
+    List.length(args) == List.length(binders)
+      ? Typ.subst_many(args, binders, body) : gap;
   };
 };
 
@@ -1306,14 +1415,21 @@ let slice_branches =
              ? !Id.Set.is_empty(path) : Id.Set.mem(branch.id, path))
           || empty_query(residual)
             ? gap
-            : Typ.meet(ctx, branch.shape, residual) == None ? gap : residual;
+            : query_overlap(ctx, residual, branch.typ);
         let slice = branch.dispatch(branch_query);
         (slices @ [slice], query_residual(ctx, residual, slice.psi));
       },
       ([], query),
       branches,
     );
-  results_join(ctx, slices);
+  let result = results_join(ctx, slices);
+  {
+    ...result,
+    context:
+      slices
+      |> List.map(slice => slice.context)
+      |> List.fold_left(context_join_branches(ctx), Ctx.empty),
+  };
 };
 
 let rec compile =
@@ -1426,6 +1542,18 @@ let rec compile =
         c => c.mode == Alternative ? Some(c.node) : None,
         children,
       );
+    let typ =
+      switch (Exp.term_of(info.user_term), kept) {
+      | (TypAp(_, args), [fn, ..._]) => applied_type(info.ctx, fn.typ, args)
+      | _ =>
+        children
+        |> List.find_map(child =>
+             child.mode == Matched
+               ? Some(MatchedTyp.arrow_tolerant(info.ctx, child.node.typ) |> snd)
+               : None
+           )
+        |> Option.value(~default=schema(info))
+      };
     let dispatch = query => {
       let at_focus =
         switch (focus) {
@@ -1617,7 +1745,7 @@ let rec compile =
     {
       id,
       shape: info.elab_syn_ty,
-      typ: schema(info),
+      typ,
       ana: info.ana,
       dispatch,
     };
