@@ -1298,7 +1298,8 @@ let binding_omissions =
 
 let rec alias_source = (definition: Typ.t): Typ.t =>
   switch (Typ.term_of(definition)) {
-  | Rec(_, body) => alias_source(body)
+  | Rec(_, body)
+  | TypFun(_, body) => alias_source(body)
   | _ => definition
   };
 
@@ -1319,7 +1320,8 @@ let rec unused_type_parameters = (definition: Typ.t, minimal: Typ.t) =>
   | _ => Id.Set.empty
   };
 
-let alias_omissions = (children: list(child), context: Ctx.t): Id.Set.t =>
+let alias_omissions =
+    (~source=None, children: list(child), context: Ctx.t): Id.Set.t =>
   children
   |> List.concat_map(child => child.aliases)
   |> List.map((alias: Ctx.tvar_entry) =>
@@ -1335,6 +1337,13 @@ let alias_omissions = (children: list(child), context: Ctx.t): Id.Set.t =>
              context.entries,
            )
          ) {
+         | Some(minimal) when is_gap(minimal) =>
+           Id.Set.union(
+             Option.map(Typ.rep_id, source)
+             |> Option.map(Id.Set.singleton)
+             |> Option.value(~default=Id.Set.empty),
+             unused_type_parameters(definition, minimal),
+           )
          | Some(minimal) =>
            Id.Set.union(
              ids_of_typ(alias_source(definition), alias_source(minimal)),
@@ -1343,7 +1352,12 @@ let alias_omissions = (children: list(child), context: Ctx.t): Id.Set.t =>
          | None =>
            Id.Set.empty
            |> Id.Set.add(alias.id)
-           |> Id.Set.add(Typ.rep_id(alias_source(definition)))
+           |> Id.Set.add(
+                Option.map(Typ.rep_id, source)
+                |> Option.value(
+                     ~default=Typ.rep_id(alias_source(definition)),
+                   ),
+              )
          }
        }
      )
@@ -2109,12 +2123,19 @@ let rec compile =
              )
           |> results_join(info.ctx);
         let combined = result_join(info.ctx, pattern_result, combined);
+        let alias_source =
+          switch (term) {
+          | TyAlias(_, definition, _) => Some(definition)
+          | _ => None
+          };
         let omitted =
           Id.Set.union(
             combined.omitted,
             binding_omissions(binding_children, forward.gamma, demands),
           )
-          |> Id.Set.union(alias_omissions(children, combined.context));
+          |> Id.Set.union(
+               alias_omissions(~source=alias_source, children, combined.context),
+             );
         let names =
           List.concat_map(
             child =>
