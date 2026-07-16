@@ -40,6 +40,7 @@ type slice_child_mode =
   | SliceMap
   | SlicePrune
   | SliceAscribe
+  | SliceAlias
   | SliceAlternative
   | SliceMatched;
 

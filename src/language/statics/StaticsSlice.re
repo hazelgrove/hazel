@@ -21,6 +21,7 @@ type child_mode =
   | Map
   | Prune
   | Ascribe
+  | Alias
   | Alternative
   | Matched;
 
@@ -52,6 +53,7 @@ type child = {
   node,
   lens: option(lens),
   bindings: list(binding),
+  aliases: list(Ctx.tvar_entry),
   pattern: option(Info.pat),
 };
 
@@ -572,12 +574,35 @@ let ids_of_typ = (actual: Typ.t, query: Typ.t): Id.Set.t => {
     if (is_gap(query)) {
       Id.Set.singleton(Typ.rep_id(actual));
     } else {
+      let omitted_entries =
+        switch (Typ.term_of(actual), Typ.term_of(query)) {
+        | (Sum(actual), Sum(query)) when List.length(actual) == List.length(query) =>
+          List.map2(
+            (actual, query) =>
+              switch (actual, query) {
+              | (ConstructorMap.Variant(_, ann, _), ConstructorMap.BadEntry(q))
+                  when is_gap(q) =>
+                List.fold_left(
+                  (ids, id) => Id.Set.add(id, ids),
+                  Id.Set.empty,
+                  ann.ids,
+                )
+              | _ => Id.Set.empty
+              },
+            actual,
+            query,
+          )
+          |> List.fold_left(Id.Set.union, Id.Set.empty)
+        | _ => Id.Set.empty
+        };
       let actual_children = typ_children(actual);
       let query_children = typ_children(query);
-      List.length(actual_children) == List.length(query_children)
-        ? List.map2(go, actual_children, query_children)
-          |> List.fold_left(Id.Set.union, Id.Set.empty)
-        : Id.Set.empty;
+      let omitted_children =
+        List.length(actual_children) == List.length(query_children)
+          ? List.map2(go, actual_children, query_children)
+            |> List.fold_left(Id.Set.union, Id.Set.empty)
+          : Id.Set.empty;
+      Id.Set.union(omitted_entries, omitted_children);
     };
   go(actual, query);
 };
@@ -626,6 +651,7 @@ let of_info_mode =
   | Info.SliceMap => Map
   | Info.SlicePrune => Prune
   | Info.SliceAscribe => Ascribe
+  | Info.SliceAlias => Alias
   | Info.SliceAlternative => Alternative
   | Info.SliceMatched => Matched;
 
@@ -682,6 +708,7 @@ let record_child =
         | Map => Info.SliceMap
         | Prune => Info.SlicePrune
         | Ascribe => Info.SliceAscribe
+        | Alias => Info.SliceAlias
         | Alternative => Info.SliceAlternative
         | Matched => Info.SliceMatched
         },
@@ -721,6 +748,7 @@ let track = (~parent, child, k) => k(record_child(Track, ~parent, child));
 let map = (~parent, child, k) => k(record_child(Map, ~parent, child));
 let prune = (~parent, child, k) => k(record_child(Prune, ~parent, child));
 let ascribe = (~parent, child, k) => k(record_child(Ascribe, ~parent, child));
+let alias = (~parent, child, k) => k(record_child(Alias, ~parent, child));
 let matched = (~parent, child, k) => k(record_child(Matched, ~parent, child));
 let alternative = (~parent, child, k) =>
   k(record_child(Alternative, ~parent, child));
@@ -878,6 +906,59 @@ let binding_omissions =
     Id.Set.empty,
     children,
   );
+
+let rec alias_source = (definition: Typ.t): Typ.t =>
+  switch (Typ.term_of(definition)) {
+  | Rec(_, body) => alias_source(body)
+  | _ => definition
+  };
+
+let rec unused_type_parameters = (definition: Typ.t, minimal: Typ.t) =>
+  switch (Typ.term_of(definition), Typ.term_of(minimal)) {
+  | (Rec(_, body), _) => unused_type_parameters(body, minimal)
+  | (TypFun(pattern, body), TypFun(_, minimal_body)) =>
+    let free = Typ.free_vars(minimal_body);
+    TPat.binders_of(pattern)
+    |> List.filter_map(binder =>
+         switch (TPat.tyvar_of_utpat(binder)) {
+         | Some(name) when !List.mem(name, free) => Some(TPat.rep_id(binder))
+         | _ => None
+         }
+       )
+    |> List.fold_left((ids, id) => Id.Set.add(id, ids), Id.Set.empty)
+    |> Id.Set.union(unused_type_parameters(body, minimal_body))
+  | _ => Id.Set.empty
+  };
+
+let alias_omissions = (children: list(child), context: Ctx.t): Id.Set.t =>
+  children
+  |> List.concat_map(child => child.aliases)
+  |> List.map((alias: Ctx.tvar_entry) =>
+       switch (alias.kind) {
+       | Abstract => Id.Set.empty
+       | Singleton(definition) =>
+         switch (
+           List.find_map(
+             fun
+             | Ctx.TVarEntry({name, kind: Singleton(minimal), _})
+                 when name == alias.name => Some(minimal)
+             | _ => None,
+             context.entries,
+           )
+         ) {
+         | Some(minimal) =>
+           Id.Set.union(
+             ids_of_typ(alias_source(definition), alias_source(minimal)),
+             unused_type_parameters(definition, minimal),
+           )
+         | None =>
+           Id.Set.empty
+           |> Id.Set.add(alias.id)
+           |> Id.Set.add(Typ.rep_id(alias_source(definition)))
+         }
+       }
+     )
+  |> List.fold_left(Id.Set.union, Id.Set.empty);
 
 let rec matched_body =
         (~replace_bound=false, bound: list(string), schema: Typ.t, query: Typ.t)
@@ -1065,6 +1146,7 @@ let slice_forward =
                  ),
                psi: query,
              }
+           | Alias => follow(false)
            | Matched => {
                ...matched_type_application(
                  ~implicit=true,
@@ -1185,6 +1267,13 @@ let rec compile =
                bindings:
                  Option.map(bindings_of(~ctx=info.ctx), pattern)
                  |> Option.value(~default=[]),
+               aliases:
+                 mode == Alias
+                   ? Ctx.added_bindings(child_info.ctx, info.ctx).entries
+                     |> List.filter_map(
+                          fun | Ctx.TVarEntry(entry) => Some(entry) | _ => None
+                        )
+                   : [],
                pattern,
                lens: edge_lens,
                node:
@@ -1318,7 +1407,8 @@ let rec compile =
           Id.Set.union(
             combined.omitted,
             binding_omissions(binding_children, forward.gamma, demands),
-          );
+          )
+          |> Id.Set.union(alias_omissions(children, forward.context));
         let names =
           List.concat_map(
             child =>
