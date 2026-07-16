@@ -996,6 +996,11 @@ let pattern_result = (m, root, demand, dependencies) =>
   if (empty_query(demand)) {
     empty_result;
   } else {
+    let shape =
+      switch (Id.Map.find_opt(root, m)) {
+      | Some(Info.InfoPat(pattern)) => pattern.ty
+      | _ => demand
+      };
     let constructors =
       Id.Map.fold(
         (id, info, context) =>
@@ -1032,17 +1037,24 @@ let pattern_result = (m, root, demand, dependencies) =>
                 ctx.entries,
               )
             ) {
-            | Some(entry) =>
-              let key = context_key(entry);
+            | Some(Ctx.TVarEntry(entry)) =>
+              let key = context_key(Ctx.TVarEntry(entry));
               let redundant =
                 List.exists(
                   item => context_key(item) == key,
                   required.entries,
                 );
+              let entry =
+                switch (find_path(user_term, shape)) {
+                | Some(path) when Typ.equal(project(demand, path), user_term) =>
+                  Ctx.TVarEntry({...entry, kind: Singleton(gap)})
+                | _ => Ctx.TVarEntry(entry)
+                };
               (
                 redundant ? context : Ctx.extend(context, entry),
                 redundant ? Id.Set.add(id, omitted) : omitted,
               )
+            | Some(entry) => (Ctx.extend(context, entry), omitted)
             | None => (context, omitted)
             }
           | _ => (context, omitted)
@@ -1072,8 +1084,8 @@ let type_context = (m, root, omitted) =>
               ctx.entries,
             )
           ) {
-          | Some(entry) => Ctx.extend(context, entry)
           | None => context
+          | Some(entry) => Ctx.extend(context, entry)
           }
         | _ => context
         }
