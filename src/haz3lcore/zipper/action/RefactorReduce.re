@@ -310,26 +310,7 @@ let ap_to_let_prepare = (~landing=true, ~info_map as _, ~target, program) => {
   /* parens per the feed policy: region-scoped reparse oracle;
      conservative parens when no bounded region (a root-level ap
      can have right siblings the bare let would absorb) */
-  switch (find_hit(~hit=hit_beta(target), program)) {
-  | None => None
-  | Some(e) =>
-    let parens =
-      switch (build(e)) {
-      | Some((bare, _)) =>
-        splice_parens_needed(~program, ~at=Exp.rep_id(e), bare)
-      | None => true
-      };
-    rewrite_node(
-      ~hit=hit_beta(target),
-      ~rewrite=
-        e =>
-          build(e)
-          |> Option.map(((let_node, focus)) =>
-               (parens ? fresh(Parens(let_node)) : let_node, focus)
-             ),
-      program,
-    );
-  };
+  reduce_prepare(~hit=hit_beta(target), ~build, program);
 };
 
 let ap_to_let_impl: impl = {
