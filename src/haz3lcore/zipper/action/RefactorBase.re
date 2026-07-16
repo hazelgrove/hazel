@@ -138,6 +138,20 @@ module Slot = {
     let s = of_exp(of_);
     give(s, drop(s, result));
   };
+  /* region moves into a vacated position: shed its own lead, then
+   * take over that position's boundary secondary (lead before, trail
+   * after) */
+  let occupy =
+      (slot: (list(Secondary.t), list(Secondary.t)), region: Exp.t): Exp.t => {
+    let region = drop(lead_of(region), region);
+    give(
+      {
+        lead: fst(slot),
+        trail: snd(slot),
+      },
+      region,
+    );
+  };
 };
 
 let strip_boundaries = (e: Exp.t): Exp.t => Slot.(drop(of_exp(e), e));
@@ -628,22 +642,43 @@ let rec head_var_pat = (p: Pat.t): option(Pat.t) =>
   | _ => None
   };
 
-let pat_var_names = (p: Pat.t): list(string) => {
+/* collect over every subnode: gather what `f` yields at each, in
+   pre-order. The building block under the family of id/name walks. */
+let collect_exp = (f: Exp.t => list('a), e: Exp.t): list('a) => {
+  let acc = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e': Exp.t) => {
+          acc := f(e') @ acc^;
+          cont(e');
+        },
+      e,
+    );
+  acc^;
+};
+let collect_pat = (f: Pat.t => list('a), p: Pat.t): list('a) => {
   let acc = ref([]);
   let _ =
     Pat.map_term(
       ~f_pat=
         (cont, p': Pat.t) => {
-          switch (IdTagged.term_of(p')) {
-          | Var(x) => acc := [x, ...acc^]
-          | _ => ()
-          };
+          acc := f(p') @ acc^;
           cont(p');
         },
       p,
     );
   acc^;
 };
+
+let pat_var_names = (p: Pat.t): list(string) =>
+  p
+  |> collect_pat(p' =>
+       switch (IdTagged.term_of(p')) {
+       | Var(x) => [x]
+       | _ => []
+       }
+     );
 
 let tpat_names = (tp: TPat.t): list(string) =>
   switch (IdTagged.term_of(tp)) {
@@ -1017,22 +1052,15 @@ let rec subst =
   };
 };
 
-let vars_of = (e: Exp.t): list(string) => {
-  let acc = ref([]);
-  let _ =
-    Exp.map_term(
-      ~f_exp=
-        (cont, e': Exp.t) => {
-          switch (IdTagged.term_of(e')) {
-          | Var(z) => acc := [z, ...acc^]
-          | _ => ()
-          };
-          cont(e');
-        },
-      e,
-    );
-  acc^ |> List.sort_uniq(compare);
-};
+let vars_of = (e: Exp.t): list(string) =>
+  e
+  |> collect_exp(e' =>
+       switch (IdTagged.term_of(e')) {
+       | Var(z) => [z]
+       | _ => []
+       }
+     )
+  |> List.sort_uniq(compare);
 
 /* Every substituted occurrence carries the def's ids; re-id all but
  * one so the buffer never contains duplicates (one copy keeps the
@@ -1083,19 +1111,8 @@ let dedupe_ids = (e: Exp.t): Exp.t => {
 };
 
 /* all node ids within an expression subtree */
-let exp_subtree_ids = (e: Exp.t): list(Id.t) => {
-  let acc = ref([]);
-  let _ =
-    Exp.map_term(
-      ~f_exp=
-        (cont, e: Exp.t) => {
-          acc := IdTagged.ids(e) @ acc^;
-          cont(e);
-        },
-      e,
-    );
-  acc^;
-};
+let exp_subtree_ids = (e: Exp.t): list(Id.t) =>
+  collect_exp(IdTagged.ids, e);
 
 /* A let's target zone is its delimiters plus its pattern (not def or
  * body: those are their own expressions with their own menus) */
@@ -2399,66 +2416,37 @@ let dep_run_walk = (path: list(Exp.t)): option(dep_run) => {
 
 /* nodes top-to-bottom: [X, T1..Tm, C]; X = the line crossed, T's =
    the carried dependencies, C = the grabbed line */
-let var_use_ids = (names: list(string), e: Exp.t): list(Id.t) => {
-  let acc = ref([]);
-  let _ =
-    Exp.map_term(
-      ~f_exp=
-        (cont, e': Exp.t) => {
-          switch (IdTagged.term_of(e')) {
-          | Var(x) when List.mem(x, names) =>
-            acc := [Exp.rep_id(e'), ...acc^]
-          | _ => ()
-          };
-          cont(e');
-        },
-      e,
-    );
-  acc^;
-};
+let var_use_ids = (names: list(string), e: Exp.t): list(Id.t) =>
+  e
+  |> collect_exp(e' =>
+       switch (IdTagged.term_of(e')) {
+       | Var(x) when List.mem(x, names) => [Exp.rep_id(e')]
+       | _ => []
+       }
+     );
 
 /* ids of pattern BINDERS of any of `names` (a shadowing rebind is
    the culprit token) */
-let pat_binder_ids = (names: list(string), p: Pat.t): list(Id.t) => {
-  let acc = ref([]);
-  let _ =
-    Pat.map_term(
-      ~f_pat=
-        (cont, p': Pat.t) => {
-          switch (IdTagged.term_of(p')) {
-          | Var(x) when List.mem(x, names) =>
-            acc := [Pat.rep_id(p'), ...acc^]
-          | _ => ()
-          };
-          cont(p');
-        },
-      p,
-    );
-  acc^;
-};
+let pat_binder_ids = (names: list(string), p: Pat.t): list(Id.t) =>
+  p
+  |> collect_pat(p' =>
+       switch (IdTagged.term_of(p')) {
+       | Var(x) when List.mem(x, names) => [Pat.rep_id(p')]
+       | _ => []
+       }
+     );
 
-let binder_ids_in = (names: list(string), e: Exp.t): list(Id.t) => {
-  let acc = ref([]);
-  let _ =
-    Exp.map_term(
-      ~f_exp=
-        (cont, e': Exp.t) => {
-          switch (IdTagged.term_of(e')) {
-          | Let(p, _, _)
-          | Fun(p, _, _, _) => acc := pat_binder_ids(names, p) @ acc^
-          | Match(_, rules) =>
-            rules
-            |> List.iter(((rp, _)) =>
-                 acc := pat_binder_ids(names, rp) @ acc^
-               )
-          | _ => ()
-          };
-          cont(e');
-        },
-      e,
-    );
-  acc^;
-};
+let binder_ids_in = (names: list(string), e: Exp.t): list(Id.t) =>
+  e
+  |> collect_exp(e' =>
+       switch (IdTagged.term_of(e')) {
+       | Let(p, _, _)
+       | Fun(p, _, _, _) => pat_binder_ids(names, p)
+       | Match(_, rules) =>
+         rules |> List.concat_map(((rp, _)) => pat_binder_ids(names, rp))
+       | _ => []
+       }
+     );
 
 /* out-channel for lift refusals: each failing wall reports its
    culprit ids; set by lift_site, read by lift_wall_blockers on dead

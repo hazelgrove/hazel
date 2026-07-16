@@ -588,14 +588,7 @@ let hoist_step =
     : option((Exp.t, Exp.t, Id.t, list(Id.t))) => {
   let occupy =
       (slot: (list(Secondary.t), list(Secondary.t)), region: Exp.t) =>
-    if (fixup) {
-      let s = Slot.lead_of(region);
-      let region = Slot.drop(s, region);
-      let (b, a) = region.annotation.secondary;
-      with_secondary((fst(slot) @ b, a @ snd(slot)), region);
-    } else {
-      region;
-    };
+    fixup ? Slot.occupy(slot, region) : region;
   let n = List.length(path);
   if (n < 2) {
     None;

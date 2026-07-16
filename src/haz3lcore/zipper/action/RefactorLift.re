@@ -416,13 +416,7 @@ let lift_function_impl: impl = {
           );
         /* the vacated region: C's body takes the BLOCK TOP's slot */
         let top = List.hd(site.ls_block);
-        let cbody'' = {
-          let sl = Slot.lead_of(cbody');
-          let dropped = Slot.drop(sl, cbody');
-          let (b, a) = dropped.annotation.secondary;
-          let (t_lead, t_after) = top.annotation.secondary;
-          with_secondary((t_lead @ b, a @ t_after), dropped);
-        };
+        let cbody'' = Slot.occupy(top.annotation.secondary, cbody');
         let (helper_pat, helper_def) =
           switch (site.ls_enc) {
           | LiftFun(_) =>
