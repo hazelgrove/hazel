@@ -786,13 +786,7 @@ let bindings_of = (~ctx: Ctx.t, pattern: Info.pat) =>
   |> List.filter_map(
        fun
        | Ctx.VarEntry({name, id, typ, _}) =>
-         Some(
-           {
-             name,
-             id,
-             path: find_path(typ, pattern.ty),
-           }: binding,
-         )
+         Some({name, id, path: find_path(typ, pattern.ty)}: binding)
        | _ => None,
      );
 
@@ -855,6 +849,39 @@ let pattern_focus_demand = (m, root, focus, shape, query) =>
   | None => gap
   };
 
+let rec pattern_omissions =
+        (~covered=false, gamma: gamma, pattern: Pat.t): Id.Set.t =>
+  switch (Pat.term_of(pattern)) {
+  | Parens(inner)
+  | Projector(_, inner)
+  | TupLabel(_, inner) => pattern_omissions(~covered, gamma, inner)
+  | Asc(inner, _) => pattern_omissions(~covered=true, gamma, inner)
+  | _ =>
+    let bindings = Pat.bindings(pattern);
+    let used =
+      List.exists(
+        (binding: Binding.t) => VarMap.contains(gamma, binding.name),
+        bindings,
+      );
+    if (!used) {
+      covered ? Id.Set.singleton(Pat.rep_id(pattern)) : Id.Set.empty;
+    } else {
+      switch (Pat.term_of(pattern)) {
+      | Ap(_, inner) => pattern_omissions(~covered, gamma, inner)
+    | Tuple(items)
+    | ListLit(items) =>
+      List.map(pattern_omissions(~covered, gamma), items)
+      |> List.fold_left(Id.Set.union, Id.Set.empty)
+    | Cons(head, tail) =>
+      Id.Set.union(
+        pattern_omissions(~covered, gamma, head),
+        pattern_omissions(~covered, gamma, tail),
+      )
+    | _ => Id.Set.empty
+    };
+    };
+  };
+
 let binding_omissions =
     (children: list(child), gamma: gamma, demands): Id.Set.t =>
   List.fold_left(
@@ -885,7 +912,13 @@ let binding_omissions =
               demands,
             )
             |> Option.value(~default=gap);
-          Id.Set.union(omitted, ids_of_typ(shape, demand));
+          Id.Set.union(
+            omitted,
+            Id.Set.union(
+              pattern_omissions(gamma, pattern.user_term),
+              ids_of_typ(shape, demand),
+            ),
+          );
         | None => omitted
         };
       switch (child.pattern) {
@@ -1076,14 +1109,44 @@ let slice_forward =
     : result => {
   let forward =
     children
-    |> List.map(child =>
-         if (Id.Set.mem(child.node.id, path) && direction == `Ana) {
+    |> List.map(child => {
+         let upwards = slice => {
+           ...slice,
+           psi:
+             switch (child.lens) {
+             | Some(lens) => lens_up(lens, parent_shape, slice.psi)
+             | None =>
+               empty_query(slice.psi)
+                 ? gap
+                 : route_query(
+                     ctx,
+                     child.node.shape,
+                     parent_shape,
+                     slice.psi,
+                   )
+             },
+         };
+         if (Id.Set.mem(child.node.id, path)
+             && direction == `Ana
+             && child.mode == Omit
+             && Typ.meet(ctx, child.node.ana, focus_query) != None) {
            {
              ...empty_result,
              omitted: Id.Set.singleton(child.node.id),
            };
          } else if (Id.Set.mem(child.node.id, path)) {
-           child.node.dispatch(gap);
+           upwards(
+             child.node.dispatch(
+               direction == `Ana
+                 ? route_query(
+                     ctx,
+                     parent_shape,
+                     child.node.shape,
+                     focus_query,
+                   )
+                 : gap,
+             ),
+           );
          } else {
            let follow = prune => {
              let child_query =
@@ -1104,22 +1167,7 @@ let slice_forward =
                child.node.dispatch(
                  prune && empty_query(child_query) ? gap : child_query,
                );
-             {
-               ...slice,
-               psi:
-                 switch (child.lens) {
-                 | Some(lens) => lens_up(lens, parent_shape, slice.psi)
-                 | None =>
-                   empty_query(slice.psi)
-                     ? gap
-                     : route_query(
-                         ctx,
-                         child.node.shape,
-                         parent_shape,
-                         slice.psi,
-                       )
-                 },
-             };
+             upwards(slice);
            };
            switch (child.mode) {
            | Omit => {
@@ -1139,11 +1187,7 @@ let slice_forward =
            | Alternative => empty_result
            | Ascribe => {
                ...child.node.dispatch(query),
-               omitted:
-                 Id.Set.add(
-                   child.node.id,
-                   ids_of_typ(parent_shape, query),
-                 ),
+               omitted: Id.Set.singleton(child.node.id),
                psi: query,
              }
            | Alias => follow(false)
@@ -1161,12 +1205,13 @@ let slice_forward =
            | Prune => follow(true)
            };
          }
-       );
+       });
   let reverse =
     direction == `Ana
       ? children
         |> List.filter(child =>
              child.mode == Omit && Id.Set.mem(child.node.id, path)
+             && Typ.meet(ctx, child.node.ana, focus_query) != None
            )
         |> List.concat_map(checked =>
              children
@@ -1185,17 +1230,41 @@ let slice_forward =
                 )
            )
       : [];
-  results_join(ctx, forward @ reverse);
+  let result = results_join(ctx, forward @ reverse);
+  let has_ascription = List.exists(child => child.mode == Ascribe, children);
+  let annotation_query =
+    direction == `Ana && !Id.Set.is_empty(path)
+      ? Option.map(
+          path => lift(parent_shape, path, focus_query),
+          find_shape_path(focus_query, parent_shape),
+        )
+        |> Option.value(~default=result.psi)
+      : result.psi;
+  has_ascription
+    ? {
+      ...result,
+      omitted:
+        Id.Set.union(result.omitted, ids_of_typ(parent_shape, annotation_query)),
+    }
+    : result;
 };
 
 let slice_branches =
-    (~path=Id.Set.empty, ctx: Ctx.t, branches: list(node), query: Typ.t)
+    (
+      ~direction,
+      ~path=Id.Set.empty,
+      ctx: Ctx.t,
+      branches: list(node),
+      query: Typ.t,
+    )
     : result => {
   let (slices, _) =
     List.fold_left(
       ((slices, residual), (branch: node)) => {
         let branch_query =
-          Id.Set.mem(branch.id, path) || empty_query(residual)
+          (direction == `Ana
+             ? !Id.Set.is_empty(path) : Id.Set.mem(branch.id, path))
+          || empty_query(residual)
             ? gap
             : Typ.meet(ctx, branch.shape, residual) == None ? gap : residual;
         let slice = branch.dispatch(branch_query);
@@ -1210,6 +1279,7 @@ let slice_branches =
 let rec compile =
         (
           ~direction=`Syn,
+          ~analysed=false,
           ~seen=Id.Set.empty,
           ~focus=None,
           ~focus_query=gap,
@@ -1278,8 +1348,9 @@ let rec compile =
                lens: edge_lens,
                node:
                  compile(
-                   ~direction,
-                   ~seen,
+                     ~direction,
+                     ~analysed=analysed || mode == Ascribe,
+                     ~seen,
                    ~focus,
                    ~focus_query,
                    ~path,
@@ -1304,7 +1375,14 @@ let rec compile =
         | Some(focus) => Id.equal(focus, id)
         | None => false
         };
-      let query = at_focus ? focus_query : query;
+      let query =
+        at_focus
+        && (
+          direction == `Syn
+          || empty_query(query)
+          || Typ.meet(info.ctx, info.elab_syn_ty, focus_query) != None
+        )
+          ? focus_query : query;
       if (is_gap(query) && (at_focus || !Id.Set.mem(id, path))) {
         {
           ...empty_result,
@@ -1316,7 +1394,7 @@ let rec compile =
           if (alternatives != []) {
             result_join(
               info.ctx,
-              slice_branches(~path, info.ctx, alternatives, query),
+              slice_branches(~direction, ~path, info.ctx, alternatives, query),
               slice_forward(
                 ~path,
                 ~direction,
@@ -1349,6 +1427,18 @@ let rec compile =
                   )
             };
           };
+        let forward =
+          at_focus
+          && direction == `Ana
+          && analysed
+          && children == []
+          && VarMap.to_list(forward.gamma) == []
+          && forward.context.entries == []
+            ? {
+              ...forward,
+              omitted: Id.Set.add(id, forward.omitted),
+            }
+            : forward;
         let binding_children = List.filter(c => c.pattern != None, children);
         let demands =
           binding_children
@@ -1369,14 +1459,26 @@ let rec compile =
                      direction == `Ana
                        ? meet(
                            info.ctx,
-                           body,
-                           pattern_focus_demand(
-                             m,
-                             pattern_id,
-                             focus,
-                             shape,
-                             focus_query,
+                           meet(
+                             info.ctx,
+                             body,
+                             pattern_focus_demand(
+                               m,
+                               pattern_id,
+                               focus,
+                               shape,
+                               focus_query,
+                             ),
                            ),
+                           Id.Set.mem(child.node.id, path)
+                           && typ_children(focus_query) != []
+                             ? route_query(
+                                 info.ctx,
+                                 child.node.shape,
+                                 shape,
+                                 focus_query,
+                               )
+                             : gap,
                          )
                        : body;
                    let parent =
