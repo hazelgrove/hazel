@@ -1431,7 +1431,8 @@ let matched_type_application =
     : result => {
   let rec peel = (binders, schema) =>
     switch (Typ.term_of(schema)) {
-    | Poly(binder, body) => peel(binders @ [binder], body)
+    | Poly(binder, body) =>
+      implicit ? peel(binders @ [binder], body) : ([binder], body)
     | Parens(inner) => peel(binders, inner)
     | _ => (binders, schema)
     };
