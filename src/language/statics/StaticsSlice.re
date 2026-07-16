@@ -566,6 +566,17 @@ let rec query_shell = (shape: Typ.t): Typ.t =>
       ? gap : typ_rebuild(shape, List.map(query_shell, children));
   };
 
+let rec fill_shell = (shape, query) =>
+  if (is_gap(query)) {
+    query_shell(shape);
+  } else {
+    let shape_children = typ_children(shape);
+    let query_children = typ_children(query);
+    shape_children != [] && List.length(shape_children) == List.length(query_children)
+      ? typ_rebuild(shape, List.map2(fill_shell, shape_children, query_children))
+      : query;
+  };
+
 let rec route_query = (_ctx, parent: Typ.t, child: Typ.t, query: Typ.t): Typ.t =>
   switch (find_path(child, parent)) {
   | Some(path) =>
@@ -1570,8 +1581,7 @@ let slice_forward =
       : result.psi;
   has_ascription
     ? {
-      let annotation_query =
-        meet(ctx, annotation_query, query_shell(parent_shape));
+      let annotation_query = fill_shell(parent_shape, annotation_query);
       let omitted =
         Id.Set.union(
           ids_of_typ(parent_shape, annotation_query),
