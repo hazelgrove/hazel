@@ -709,16 +709,36 @@ let synthesize_new_sites =
    contains it) — and stale at most one debounce when the TYPES
    changed, the same lag as any type feedback. Chips, the inline
    ghost, and Tab all consume this one list. */
+/* variant taking a precomputed engine result: the promise render
+   (PromiseRender) runs for_editor ONCE and keeps completed_seg as
+   the display artifact — the same result feeds the assist stream
+   here instead of being recomputed and discarded */
+let assist_stream_with =
+    (
+      ~result: CanonicalCompletion.completion_result,
+      z: Zipper.t,
+      ~info_map: Statics.Map.t,
+      obs: list(t),
+    )
+    : list(CanonicalCompletion.insertion) => {
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let obs = obs @ synthesize_new_sites(~info_map, ~seg, obs);
+  as_insertions(
+    ~seg,
+    ~completed=result.completed_seg,
+    ~existing=result.insertions,
+    obs,
+  );
+};
+
 let assist_stream =
     (z: Zipper.t, ~info_map: Statics.Map.t, obs: list(t))
     : list(CanonicalCompletion.insertion) => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-  let r = CanonicalCompletion.for_editor(seg);
-  let obs = obs @ synthesize_new_sites(~info_map, ~seg, obs);
-  as_insertions(
-    ~seg,
-    ~completed=r.completed_seg,
-    ~existing=r.insertions,
+  assist_stream_with(
+    ~result=CanonicalCompletion.for_editor(seg),
+    z,
+    ~info_map,
     obs,
   );
 };

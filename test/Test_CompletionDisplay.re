@@ -71,6 +71,27 @@ let display_parts_live = (~statics_z: Zipper.t, z: Zipper.t) => {
   (fork.segment, z, fork.ghost_marks, fork.assist, fork.ghosted);
 };
 
+/* PROMISE-BACKED parts: identical to display_parts but the display
+   segment comes from PromiseRender.mk (projection) rather than
+   DisplayFork.mk (reconstruction). The parity suite renders both
+   through display_state_of and asserts equality. */
+let display_parts_promise =
+    (z: Zipper.t)
+    : (
+        Segment.t,
+        Zipper.t,
+        list((Id.t, option(int))),
+        list(CanonicalCompletion.insertion),
+        list(CanonicalCompletion.insertion),
+      ) => {
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  let obligations = TypeObligations.derive(info_map);
+  let fork = PromiseRender.mk(~info_map, ~obligations, ~armed=true, z);
+  (fork.segment, z, fork.ghost_marks, fork.assist, fork.ghosted);
+};
+
 let display_state_of =
     (~parts, ~chips as show_chips=true, z: Zipper.t): string => {
   let (seg, zc, marks, assist, ghosted) = parts(z);
@@ -343,6 +364,88 @@ let display_case = (spec: string) =>
       let z =
         Test_Editing.perform(Zipper.init(), Test_Editing.mk(typed ++ "¦"));
       check(string_testable, spec, spec, display_state(~chips=false, z));
+    },
+  );
+
+/* === PROMISE-RENDER PARITY (stage 1) ===
+   Render the SAME zipper through the current reconstruction fork and
+   the new projection fork, both via display_state_of, and assert
+   equality. WAIVER classes (differences that are acceptable because
+   the current rendering is annotated jank or because stage 1 defers
+   sub-token styling) are enumerated per test with a comment. The
+   text harness sees neither styling (unbolded parens) nor the
+   ghost/real distinction inside a token, so those waivers are
+   invisible here; the ones that DO surface are witness remainders
+   (current = comment text `ing_capitalize(`; promise = full real
+   token `string_capitalize(`) and the indentation-seam doubled
+   space — both flagged and pinned separately as "promise-witness"
+   trajectories with judged expected values below. */
+
+/* the two renders of a zipper (chips shown), reconstruction vs
+   projection */
+let parity_pair = (z: Zipper.t): (string, string) => (
+  display_state_of(~parts=display_parts, z),
+  display_state_of(~parts=display_parts_promise, z),
+);
+
+/* per-keystroke parity over typing `text` at ¦ in `ctx`: returns the
+   list of (step, current, promise) where the two differ */
+let parity_diffs_in =
+    (~ctx="¦", text: string): list((string, string, string)) => {
+  let base = Test_Editing.mk(ctx);
+  let ins = Token.to_list(text) |> List.map(c => Action.Insert(c));
+  let rec steps = (k, acc) =>
+    if (k > List.length(ins)) {
+      List.rev(acc);
+    } else {
+      let z =
+        Test_Editing.perform(
+          Zipper.init(),
+          base @ List.filteri((i, _) => i < k, ins),
+        );
+      let (cur, prom) = parity_pair(z);
+      steps(
+        k + 1,
+        cur == prom ? acc : [(string_of_int(k), cur, prom), ...acc],
+      );
+    };
+  steps(1, []);
+};
+
+/* a parity test asserting the current==promise render for the whole
+   trajectory (empty diff = full parity); when `waiver` is nonempty it
+   is the expected residual diff (the enumerated jank), pinned so a
+   regression that WIDENS the gap reds the suite */
+let parity_case = (name: string, ~ctx="¦", ~waiver="", text: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let diffs = parity_diffs_in(~ctx, text);
+      let rendered =
+        diffs
+        |> List.map(((k, c, p)) =>
+             "step " ++ k ++ ":\n  cur=" ++ c ++ "\n  prom=" ++ p
+           )
+        |> String.concat("\n");
+      check(string_testable, name, waiver, rendered);
+    },
+  );
+
+/* parity over an explicitly-built zipper (for scenarios display_case
+   / trajectory can't express) */
+let parity_case_z = (name: string, ~waiver="", mk_z: unit => Zipper.t) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let (cur, prom) = parity_pair(mk_z());
+      check(
+        string_testable,
+        name,
+        waiver == "" ? cur : waiver,
+        waiver == "" ? prom : prom,
+      );
     },
   );
 
@@ -1360,6 +1463,100 @@ NONE|},
           constancy_audit("string_replace(a, b, c)"),
         )
       ),
+    ],
+  ),
+  (
+    "CompletionDisplay: promise-render parity",
+    /* STAGE 1: PromiseRender.mk (projection of the E-side artifact)
+       renders IDENTICALLY to DisplayFork.mk (reconstruction) on every
+       pinned trajectory input. Each case asserts the empty diff (full
+       parity) over its whole keystroke trajectory. Pure-engine runs
+       (closers, keywords) project from the KEPT completed_seg; T1
+       commas, T2 lookahead tails and witnesses fall back to the
+       reconstruction path (documented stage-1 boundaries — see
+       PromiseRender.re) and so trivially agree.
+
+       WAIVER CLASSES (spec MIGRATION step 1). None SURFACE in this
+       text harness on the pinned corpus, hence every waiver below is
+       "" — but they are the classes that WOULD be acceptable and are
+       enumerated for the stage-2 reviewer:
+       (a) WITNESS REMAINDERS — when a witness's material is projected
+           from completed_seg it is the FULL real token, not the
+           comment remainder the reconstruction shows (sub-token
+           styling is stage 2/3). Kept invisible here by routing
+           witnesses through the reconstruction path in stage 1.
+       (b) INDENTATION-SEAM DOUBLED SPACE — the padding oracle's known
+           pre-caret pad jank (mg1 `⟪  end`); identical in both
+           renders because the oracle runs once on both.
+       (c) UNBOLDED-PARENS styling — invisible to a text harness.
+       (d) LEADING SYNTHESIZED HOLE — a `let` empty-pattern completion
+           adds a grout before `=`; the projected run drops it
+           (trim_leading_grout) to match the reconstruction's
+           user-side pattern hole. */
+    [
+      parity_case("target-0", "string_replace(a, b, c)"),
+      parity_case("matrix-let-blank", "let x = 1 in"),
+      parity_case(
+        "matrix-let-above",
+        ~ctx="¦\nstring_replace(a, b, c)",
+        "let x = 1 in",
+      ),
+      parity_case(
+        "matrix-ap-in-hole",
+        ~ctx="let a = ¦ in a + 1",
+        "string_replace(x",
+      ),
+      parity_case("inventory-case", "case 1 | 2 => 3"),
+      parity_case("inventory-if", "if 1 <"),
+      parity_case("inventory-annot", ~ctx="let a : ¦", "(St"),
+      parity_case("matrix2-fun", "fun x -"),
+      parity_case("matrix2-list", "[1, 2"),
+      parity_case(
+        "matrix2-nested",
+        ~ctx="let s = ¦ in s",
+        "string_replace(string_capitalize(x",
+      ),
+      parity_case("matrix2-cons", ~ctx="let l : [Int] = ¦", "st"),
+      parity_case("multi-ghost", ~ctx="let f(b : Bool) =¦", "\ncase bar\n"),
+      parity_case(
+        "fn-authoring",
+        ~ctx=
+          "let new_fun(foo: Int, bar: Bool) =\n    case foo\n    | 1 => bar\n¦",
+        "    | _ ",
+      ),
+      parity_case("probes-andrew-3-p2", ~ctx="if ¦", "tr"),
+      parity_case("probes-andrew-3-p3", ~ctx="if true ¦", "t"),
+      parity_case("keyword-interleave-fun-case", "fun case "),
+      parity_case("keyword-interleave-let-fun-in", "let fun in "),
+      parity_case("keyword-interleave-if-fun-then", "if fun then "),
+      parity_case("keyword-interleave-case-fun-end", "case fun end"),
+      parity_case("keyword-interleave-case-if-bar", "case if | "),
+      /* explicitly-built scenarios the trajectory form can't express */
+      parity_case_z("break-opener", () => {
+        let z =
+          Test_Editing.perform(
+            Zipper.init(),
+            Test_Editing.mk("string_replace(\xc2\xa6a, b, c)")
+            @ [Action.Destruct(Local(Left, ByChar))],
+          );
+        z;
+      }),
+      parity_case_z("abandon-move-below", () => {
+        let z =
+          Test_Editing.perform(
+            Zipper.init(),
+            Test_Editing.mk("¦\n1 + 1")
+            @ (
+              Token.to_list("string_replace(a")
+              |> List.map(c => Action.Insert(c))
+            ),
+          );
+        Test_Editing.perform(
+          z,
+          [Test_Editing.move_point(~row=1, ~col=5, ())]
+          @ (Token.to_list(" + 2") |> List.map(c => Action.Insert(c))),
+        );
+      }),
     ],
   ),
 ];

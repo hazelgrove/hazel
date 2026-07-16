@@ -567,6 +567,78 @@ let run_fuzz = (~seeds: int, ~steps: int): string => {
 let n_seeds = 150;
 let n_steps = 20;
 
+/* PROMISE-RENDER PARITY (stage 1): after every applied fuzz step,
+   PromiseRender.mk must render identically to DisplayFork.mk. Runs
+   the same corpus as the invariant fuzzer; any per-step disagreement
+   (outside the enumerated waivers, of which none surface on this
+   corpus) reds the suite. Reported as seed/step/renders. */
+let run_parity_fuzz = (~seeds: int, ~steps: int): string => {
+  let buf = Stdlib.Buffer.create(256);
+  for (seed in 1 to seeds) {
+    let script = script_of_seed(seed, steps);
+    let z = ref(Zipper.init());
+    let aborted = ref(false);
+    List.iteri(
+      (k0, a) =>
+        if (! aborted^) {
+          switch (apply(z^, a)) {
+          | Rejected => ()
+          | Raised(_) => aborted := true
+          | Applied(z') =>
+            z := z';
+            let cur =
+              switch (
+                Test_CompletionDisplay.display_state_of(
+                  ~parts=Test_CompletionDisplay.display_parts,
+                  ~chips=false,
+                  z',
+                )
+              ) {
+              | s => Some(s)
+              | exception _ => None
+              };
+            let prom =
+              switch (
+                Test_CompletionDisplay.display_state_of(
+                  ~parts=Test_CompletionDisplay.display_parts_promise,
+                  ~chips=false,
+                  z',
+                )
+              ) {
+              | s => Some(s)
+              | exception _ => None
+              };
+            switch (cur, prom) {
+            | (Some(c), Some(p)) when c != p =>
+              Stdlib.Buffer.add_string(
+                buf,
+                Printf.sprintf(
+                  "seed=%d step=%d\n  cur=%s\n  prom=%s\n",
+                  seed,
+                  k0 + 1,
+                  flat(c),
+                  flat(p),
+                ),
+              )
+            | (Some(_), None) =>
+              Stdlib.Buffer.add_string(
+                buf,
+                Printf.sprintf(
+                  "seed=%d step=%d PROMISE-RAISED\n",
+                  seed,
+                  k0 + 1,
+                ),
+              )
+            | _ => ()
+            };
+          };
+        },
+      script,
+    );
+  };
+  Stdlib.Buffer.contents(buf);
+};
+
 /* space-separated action DSL matching `label` output, for pinned
    minimized repros: single chars insert; SP space; NL linebreak;
    BK backspace; L/R char moves */
@@ -672,6 +744,22 @@ let tests = [
           "no unknown invariant violations",
           "",
           run_fuzz(~seeds=n_seeds, ~steps=n_steps),
+        )
+      ),
+    ],
+  ),
+  (
+    "CompletionFuzz: promise-render parity",
+    [
+      test_case(
+        Printf.sprintf("parity fuzz %d seeds x %d steps", n_seeds, n_steps),
+        `Quick,
+        () =>
+        check(
+          string_testable,
+          "no promise-render parity diffs",
+          "",
+          run_parity_fuzz(~seeds=n_seeds, ~steps=n_steps),
         )
       ),
     ],

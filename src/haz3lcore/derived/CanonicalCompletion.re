@@ -2792,13 +2792,18 @@ type leaf =
   | LShard(Tile.t, int)
   | LPiece(Piece.t);
 
-let derive_insertions =
+/* core diff: each maximal synthesized run yields its insertion AND
+   the run's REAL leaf pieces from the completed segment (the
+   projection material — shards materialized via Tile.shard_of,
+   grout/comments verbatim). derive_insertions projects to the
+   insertion list; the promise render keeps the pieces. */
+let derive_insertions' =
     (
       ~original: Segment.t,
       ~records: list(shard_record),
       completed: Segment.t,
     )
-    : list(insertion) => {
+    : list((insertion, Segment.t)) => {
   let orig_ids = Hashtbl.create(64);
   let rec collect = (sg: Segment.t) =>
     List.iter(
@@ -2945,6 +2950,16 @@ let derive_insertions =
       let k = stop(j);
       runs(k, [(j, k), ...acc]);
     };
+  /* the run's real pieces from the completed segment (projection
+     material): shards materialized in place, grout/comments verbatim */
+  let run_pieces = (a: int, b: int): Segment.t =>
+    List.init(b - a, k => a + k)
+    |> List.map(j =>
+         switch (fst(arr[j])) {
+         | LShard(t, i) => Piece.Tile(Tile.shard_of(t, i))
+         | LPiece(p) => p
+         }
+       );
   runs(0, [])
   |> List.filter_map(((a, b)) => {
        let delims =
@@ -3011,34 +3026,53 @@ let derive_insertions =
            } else {
              None;
            };
+         let pieces = run_pieces(a, b);
          switch (witness_anchor, anchor_left(a), anchor_right(b)) {
          | (Some(tok), _, _) =>
-           Some({
-             adjacent_id: tok,
-             side: Direction.Right,
-             /* witness remainder ghosts beside its absorbed token */
-             splice: Some((tok, None, Direction.Right)),
-             delimiters: delims,
-           })
+           Some((
+             {
+               adjacent_id: tok,
+               side: Direction.Right,
+               /* witness remainder ghosts beside its absorbed token */
+               splice: Some((tok, None, Direction.Right)),
+               delimiters: delims,
+             },
+             pieces,
+           ))
          | (_, Some(id), _) =>
-           Some({
-             adjacent_id: id,
-             side: Direction.Right,
-             splice,
-             delimiters: delims,
-           })
+           Some((
+             {
+               adjacent_id: id,
+               side: Direction.Right,
+               splice,
+               delimiters: delims,
+             },
+             pieces,
+           ))
          | (_, None, Some(id)) =>
-           Some({
-             adjacent_id: id,
-             side: Direction.Left,
-             splice,
-             delimiters: delims,
-           })
+           Some((
+             {
+               adjacent_id: id,
+               side: Direction.Left,
+               splice,
+               delimiters: delims,
+             },
+             pieces,
+           ))
          | (_, None, None) => None /* never lie about placement */
          };
        };
      });
 };
+
+let derive_insertions =
+    (
+      ~original: Segment.t,
+      ~records: list(shard_record),
+      completed: Segment.t,
+    )
+    : list(insertion) =>
+  derive_insertions'(~original, ~records, completed) |> List.map(fst);
 
 /* === Integration Points === */
 
@@ -3047,18 +3081,51 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
   (result.completed_seg, result.shard_records);
 };
 
-let for_editor = (seg: Segment.t): completion_result => {
+/* the E-side promise artifact: for_editor's result PLUS the kept
+   completed_seg and, per engine insertion, the run's REAL pieces
+   from completed_seg (the promise render's projection material —
+   completed_seg is KEPT, not diffed away). T1/T2 insertions (minted
+   later by TypeObligations) have no pairing here; their material
+   comes from ghost_pieces (stage 1). Pairing is by physical
+   insertion identity (memq). */
+type projection = {
+  result: completion_result,
+  completed: Segment.t,
+  run_pieces: list((insertion, Segment.t)),
+};
+
+let for_editor' = (seg: Segment.t): projection => {
   let result = complete_segment_deep(~sort=Sort.Exp, seg);
+  let pairs =
+    derive_insertions'(
+      ~original=seg,
+      ~records=result.shard_records,
+      result.completed_seg,
+    );
   {
-    ...result,
-    insertions:
-      derive_insertions(
-        ~original=seg,
-        ~records=result.shard_records,
-        result.completed_seg,
-      ),
+    result: {
+      ...result,
+      insertions: List.map(fst, pairs),
+    },
+    completed: result.completed_seg,
+    run_pieces: pairs,
   };
 };
+
+let for_editor = (seg: Segment.t): completion_result =>
+  for_editor'(seg).result;
+
+/* the projection material for an ENGINE insertion — keyed by
+   PHYSICAL identity (memq). A pure-engine insertion not at a T1 site
+   passes through as_insertions/chip_zone_all unwrapped, so it is the
+   very object derive_insertions' paired with its completed-seg run
+   pieces. Merged/slid/witness insertions are rewrapped (identity
+   breaks) and correctly miss — they fall back to reconstruction.
+   Splice ref is NOT unique across insertions, so it cannot key. */
+let projection_for =
+    (pairs: list((insertion, Segment.t)), ins: insertion)
+    : option(Segment.t) =>
+  pairs |> List.find_opt(((eng, _)) => eng === ins) |> Option.map(snd);
 
 /* The obligation whose insertion zone contains the caret — the chip
    the caret is visually pinned to (chips pin coincidence-first, so a

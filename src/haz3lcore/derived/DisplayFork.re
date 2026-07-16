@@ -109,177 +109,179 @@ let plain = (z: Zipper.t): t => {
   };
 };
 
-let mk_inner =
+/* T2: the top TyDi suggestion joins the SAME stream, shaped as a
+   witness insertion at the caret's left token — one display path
+   (ghost splice), one acceptance path (Tab via tab_text). At most
+   one witness per anchor: an engine witness (earlier in the
+   stream) IS the recognition of that token, so T2 defers to it.
+   Armed-only: unarmed frames carry no T2, so Tab falls through
+   exactly as it did when the retired buffer was cleared.
+   Shared by this fork and PromiseRender (one home). */
+let extend_t2 =
     (
       ~info_map: Statics.Map.t,
-      ~obligations: list(TypeObligations.t),
       ~armed: bool,
       z: Zipper.t,
+      assist: list(CanonicalCompletion.insertion),
     )
-    : t => {
-  let assist = TypeObligations.assist_stream(z, ~info_map, obligations);
-  /* T2: the top TyDi suggestion joins the SAME stream, shaped as a
-     witness insertion at the caret's left token — one display path
-     (ghost splice), one acceptance path (Tab via tab_text). At most
-     one witness per anchor: an engine witness (earlier in the
-     stream) IS the recognition of that token, so T2 defers to it.
-     Armed-only: unarmed frames carry no T2, so Tab falls through
-     exactly as it did when the retired buffer was cleared. */
-  let assist =
-    if (armed) {
-      let engine_witness_at = (id: Id.t) =>
-        List.exists(
-          (ins: CanonicalCompletion.insertion) =>
-            CanonicalCompletion.is_pure_witness(ins)
-            && Id.equal(ins.adjacent_id, id),
-          assist,
-        );
-      switch (TyDi.anchor_to_left(z)) {
-      | Some((anchor_id, _)) when !engine_witness_at(anchor_id) =>
-        switch (
-          TyDi.suggestion(~ci=Indicated.ci_for_completion(z, info_map), z)
-        ) {
-        | Some((head, typed_len, tail)) =>
-          /* T1 owns separator commas at a deficient site: when an
-             insertion at this anchor already promises them, the
-             lookahead's trailing commas would double-count — drop
-             them (the ap part of the tail stays) */
-          let t1_commas_here =
-            List.exists(
-              (ins: CanonicalCompletion.insertion) =>
-                Id.equal(ins.adjacent_id, anchor_id)
-                && ins.side == Util.Direction.Right
-                && List.exists(
-                     (d: CanonicalCompletion.delimiter_info) =>
-                       d.text == ","
-                       && d.of_shard == None
-                       && d.typed_len == None,
-                     ins.delimiters,
-                   ),
-              assist,
-            );
-          let rec drop_comma_suffix =
-                  (ds: list(TyDiSuggestion.tail_delim))
-                  : list(TyDiSuggestion.tail_delim) =>
-            switch (ds) {
-            | [] => []
-            | [d, ...rest] =>
-              switch (drop_comma_suffix(rest)) {
-              | [] when d.text == "," => []
-              | rest => [d, ...rest]
-              }
-            };
-          let tail = t1_commas_here ? drop_comma_suffix(tail) : tail;
-          /* an ap head (`f(`) always owes its argument hole and
-             closer — the promise is `f(?)` whichever statics cadence
-             produced the suggestion. With reification ON the settled
-             info_map anas the anchor at its ELEMENT type, so the
-             suggestion arrives via bound_aps with an empty tail (the
-             pre-reification Prod ana that carried the lookahead tail
-             no longer exists) — synthesize the closer the lookahead
-             would have carried. Lookahead tails already open with it. */
-          let tail =
-            CanonicalCompletion.f1_opens(head) && tail == []
-              ? [
-                TyDiSuggestion.{
-                  text: head.[String.length(head) - 1] == '[' ? "]" : ")",
-                  hole_before: true,
-                },
-              ]
-              : tail;
-          /* tail hole-BEFORE flags become hole-AFTER (needs_hole) on
-             the preceding delimiter — ghost_pieces' convention */
-          let hole_after = (i: int) =>
-            switch (List.nth_opt(tail, i + 1)) {
-            | Some(d: TyDiSuggestion.tail_delim) => d.hole_before
-            | None => false
-            };
-          assist
-          @ [
-            CanonicalCompletion.{
-              adjacent_id: anchor_id,
-              side: Util.Direction.Right,
-              splice: Some((anchor_id, None, Util.Direction.Right)),
-              delimiters: [
-                {
-                  text: head,
-                  needs_hole: hole_after(-1),
-                  typed_len: Some(typed_len),
-                  of_shard: None,
-                },
-                ...List.mapi(
-                     (i, d: TyDiSuggestion.tail_delim) =>
-                       CanonicalCompletion.{
-                         text: d.text,
-                         needs_hole: hole_after(i),
-                         typed_len: None,
-                         of_shard: None,
-                       },
-                     tail,
-                   ),
-              ],
-            },
-          ];
-        | None => assist
-        }
-      | _ => assist
-      };
-    } else {
-      assist;
+    : list(CanonicalCompletion.insertion) =>
+  if (armed) {
+    let engine_witness_at = (id: Id.t) =>
+      List.exists(
+        (ins: CanonicalCompletion.insertion) =>
+          CanonicalCompletion.is_pure_witness(ins)
+          && Id.equal(ins.adjacent_id, id),
+        assist,
+      );
+    switch (TyDi.anchor_to_left(z)) {
+    | Some((anchor_id, _)) when !engine_witness_at(anchor_id) =>
+      switch (
+        TyDi.suggestion(~ci=Indicated.ci_for_completion(z, info_map), z)
+      ) {
+      | Some((head, typed_len, tail)) =>
+        /* T1 owns separator commas at a deficient site: when an
+           insertion at this anchor already promises them, the
+           lookahead's trailing commas would double-count — drop
+           them (the ap part of the tail stays) */
+        let t1_commas_here =
+          List.exists(
+            (ins: CanonicalCompletion.insertion) =>
+              Id.equal(ins.adjacent_id, anchor_id)
+              && ins.side == Util.Direction.Right
+              && List.exists(
+                   (d: CanonicalCompletion.delimiter_info) =>
+                     d.text == "," && d.of_shard == None && d.typed_len == None,
+                   ins.delimiters,
+                 ),
+            assist,
+          );
+        let rec drop_comma_suffix =
+                (ds: list(TyDiSuggestion.tail_delim))
+                : list(TyDiSuggestion.tail_delim) =>
+          switch (ds) {
+          | [] => []
+          | [d, ...rest] =>
+            switch (drop_comma_suffix(rest)) {
+            | [] when d.text == "," => []
+            | rest => [d, ...rest]
+            }
+          };
+        let tail = t1_commas_here ? drop_comma_suffix(tail) : tail;
+        /* an ap head (`f(`) always owes its argument hole and
+           closer — the promise is `f(?)` whichever statics cadence
+           produced the suggestion. With reification ON the settled
+           info_map anas the anchor at its ELEMENT type, so the
+           suggestion arrives via bound_aps with an empty tail (the
+           pre-reification Prod ana that carried the lookahead tail
+           no longer exists) — synthesize the closer the lookahead
+           would have carried. Lookahead tails already open with it. */
+        let tail =
+          CanonicalCompletion.f1_opens(head) && tail == []
+            ? [
+              TyDiSuggestion.{
+                text: head.[String.length(head) - 1] == '[' ? "]" : ")",
+                hole_before: true,
+              },
+            ]
+            : tail;
+        /* tail hole-BEFORE flags become hole-AFTER (needs_hole) on
+           the preceding delimiter — ghost_pieces' convention */
+        let hole_after = (i: int) =>
+          switch (List.nth_opt(tail, i + 1)) {
+          | Some(d: TyDiSuggestion.tail_delim) => d.hole_before
+          | None => false
+          };
+        assist
+        @ [
+          CanonicalCompletion.{
+            adjacent_id: anchor_id,
+            side: Util.Direction.Right,
+            splice: Some((anchor_id, None, Util.Direction.Right)),
+            delimiters: [
+              {
+                text: head,
+                needs_hole: hole_after(-1),
+                typed_len: Some(typed_len),
+                of_shard: None,
+              },
+              ...List.mapi(
+                   (i, d: TyDiSuggestion.tail_delim) =>
+                     CanonicalCompletion.{
+                       text: d.text,
+                       needs_hole: hole_after(i),
+                       typed_len: None,
+                       of_shard: None,
+                     },
+                   tail,
+                 ),
+            ],
+          },
+        ];
+      | None => assist
+      }
+    | _ => assist
     };
-  /* inline chip ghost: when the caret sits in a chip's zone while
-     ARMED (an edit arms, any other action disarms — movement never
-     conjures), the chip's pending content splices into the display
-     at its anchor. The splice_precedes_caret guard runs AFTER the
-     slide — a ghost hugging the caret through whitespace is
-     at-caret, not pre-caret. */
-  /* MULTI-GHOST: every insertion whose zone holds the caret ghosts
-     (a linebreak can split one merged promise into several
-     insertions all valid at the caret — one used to ghost and the
-     rest fell back to chips). Each is slid/guarded independently;
-     each splices at its own ref. `ghosted` keeps the ORIGINAL
-     (unslid) insertions for suppression identity. */
-  let ghosts =
-    if (armed) {
-      /* at most ONE witness ghost per anchor id (stream order wins:
-         engine witnesses precede T2) */
-      let zone =
-        CanonicalCompletion.chip_zone_all(z, assist)
-        |> List.fold_left(
-             (acc, ins: CanonicalCompletion.insertion) =>
-               CanonicalCompletion.is_pure_witness(ins)
-               && List.exists(
-                    (w: CanonicalCompletion.insertion) =>
-                      CanonicalCompletion.is_pure_witness(w)
-                      && Id.equal(w.adjacent_id, ins.adjacent_id),
-                    acc,
-                  )
-                 ? acc : acc @ [ins],
-             [],
-           );
-      zone
-      |> List.filter_map(orig => {
-           let ins = CanonicalCompletion.slide_to_caret(z, orig);
-           CanonicalCompletion.splice_precedes_caret(z, ins)
-             ? None
-             : TypeObligations.ghost_pieces(z, ins)
-               |> Option.map(pieces => (orig, ins, pieces));
-         });
-    } else {
-      [];
-    };
-  let raw = Zipper.unselect_and_zip(z);
-  /* FAIL OPEN around the WHOLE fork, not just the parse: the fork is
-     display-only, so ANY exception in splice/normalize/pads (e.g. a
-     shards/children mismatch the fuzzer found via `case fun |`)
-     means no ghost this frame — never a crash */
-  let forked = () => {
-    /* splice in DESCENDING (slid ref, original ref) order: each
-       splice inserts directly after its ref, so the LAST-spliced
-       lands closest — later refs must go first, and same-slid-ref
-       ties (several insertions slid to the caret) resolve by
-       ORIGINAL material order (the `_ ¦` arm case: `=>` slid across
-       the typed space must land before `end in`) */
+  } else {
+    assist;
+  };
+
+/* inline chip ghost SELECTION (view policy, caret-relative): when
+   the caret sits in a chip's zone while ARMED (an edit arms, any
+   other action disarms — movement never conjures), the chip's
+   pending content splices into the display at its anchor. The
+   splice_precedes_caret guard runs AFTER the slide — a ghost
+   hugging the caret through whitespace is at-caret, not pre-caret. */
+/* MULTI-GHOST: every insertion whose zone holds the caret ghosts
+   (a linebreak can split one merged promise into several
+   insertions all valid at the caret — one used to ghost and the
+   rest fell back to chips). Each is slid/guarded independently;
+   each splices at its own ref. Returns (original, slid) pairs —
+   originals keep suppression identity, the slid insertion is the
+   splice truth. Material is the caller's: this fork reconstructs
+   via ghost_pieces, PromiseRender projects from the artifact. */
+let ghost_selection =
+    (~armed: bool, z: Zipper.t, assist: list(CanonicalCompletion.insertion))
+    : list((CanonicalCompletion.insertion, CanonicalCompletion.insertion)) =>
+  if (armed) {
+    /* at most ONE witness ghost per anchor id (stream order wins:
+       engine witnesses precede T2) */
+    let zone =
+      CanonicalCompletion.chip_zone_all(z, assist)
+      |> List.fold_left(
+           (acc, ins: CanonicalCompletion.insertion) =>
+             CanonicalCompletion.is_pure_witness(ins)
+             && List.exists(
+                  (w: CanonicalCompletion.insertion) =>
+                    CanonicalCompletion.is_pure_witness(w)
+                    && Id.equal(w.adjacent_id, ins.adjacent_id),
+                  acc,
+                )
+               ? acc : acc @ [ins],
+           [],
+         );
+    zone
+    |> List.filter_map(orig => {
+         let ins = CanonicalCompletion.slide_to_caret(z, orig);
+         CanonicalCompletion.splice_precedes_caret(z, ins)
+           ? None : Some((orig, ins));
+       });
+  } else {
+    [];
+  };
+
+/* splice in DESCENDING (slid ref, original ref) order: each splice
+   inserts directly after its ref, so the LAST-spliced lands closest
+   — later refs must go first, and same-slid-ref ties (several
+   insertions slid to the caret) resolve by ORIGINAL material order
+   (the `_ ¦` arm case: `=>` slid across the typed space must land
+   before `end in`) */
+let splice_sort:
+  (
+    Segment.t,
+    list((CanonicalCompletion.insertion, CanonicalCompletion.insertion, 'a))
+  ) =>
+  list((CanonicalCompletion.insertion, CanonicalCompletion.insertion, 'a)) =
+  (raw, ghosts) => {
     let rank = CanonicalCompletion.rank_map(raw);
     let rank_of = (ins: CanonicalCompletion.insertion) =>
       switch (ins.splice) {
@@ -301,13 +303,53 @@ let mk_inner =
         }
       | None => max_int
       };
-    let key = ((orig, ins, _): (CanonicalCompletion.insertion, _, _)) => (
-      rank_of(ins),
-      rank_of(orig),
-    );
+    let key = ((orig, ins, _)) => (rank_of(ins), rank_of(orig));
+    List.sort((a, b) => compare(key(b), key(a)), ghosts);
+  };
+
+/* a splice can produce a tile violating the shards/children arity
+   invariant (Base.re) yet still PARSE — the renderer's Aba walk
+   crashes on it (fuzzer: `case fun in |`). Validate before
+   accepting a forked display. */
+let rec tiles_well_formed = (sg: Segment.t): bool =>
+  List.for_all(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        List.length(t.children) == List.length(t.shards)
+        - 1
+        && List.for_all(i => i >= 0 && i < List.length(t.label), t.shards)
+        && List.for_all(tiles_well_formed, t.children)
+      | _ => true
+      },
+    sg,
+  );
+
+let mk_inner =
+    (
+      ~info_map: Statics.Map.t,
+      ~obligations: list(TypeObligations.t),
+      ~armed: bool,
+      z: Zipper.t,
+    )
+    : t => {
+  let assist =
+    TypeObligations.assist_stream(z, ~info_map, obligations)
+    |> extend_t2(~info_map, ~armed, z);
+  let ghosts =
+    ghost_selection(~armed, z, assist)
+    |> List.filter_map(((orig, ins)) =>
+         TypeObligations.ghost_pieces(z, ins)
+         |> Option.map(pieces => (orig, ins, pieces))
+       );
+  let raw = Zipper.unselect_and_zip(z);
+  /* FAIL OPEN around the WHOLE fork, not just the parse: the fork is
+     display-only, so ANY exception in splice/normalize/pads (e.g. a
+     shards/children mismatch the fuzzer found via `case fun |`)
+     means no ghost this frame — never a crash */
+  let forked = () => {
     let (segment, ghost_marks) =
-      ghosts
-      |> List.sort((a, b) => compare(key(b), key(a)))
+      splice_sort(raw, ghosts)
       |> List.fold_left(
            ((seg, marks), (_, ins, pieces)) =>
              switch (CanonicalCompletion.splice_ghost(seg, ~ins, ~pieces)) {
@@ -332,26 +374,6 @@ let mk_inner =
                ~raw,
                ~caret_after=CanonicalCompletion.caret_left_atom(z),
              );
-    /* a splice can produce a tile violating the shards/children
-       arity invariant (Base.re) yet still PARSE — the renderer's
-       Aba walk crashes on it (fuzzer: `case fun in |`). Validate
-       before accepting the fork. */
-    let rec tiles_well_formed = (sg: Segment.t): bool =>
-      List.for_all(
-        (p: Piece.t) =>
-          switch (p) {
-          | Tile(t) =>
-            List.length(t.children) == List.length(t.shards)
-            - 1
-            && List.for_all(
-                 i => i >= 0 && i < List.length(t.label),
-                 t.shards,
-               )
-            && List.for_all(tiles_well_formed, t.children)
-          | _ => true
-          },
-        sg,
-      );
     if (ghost_marks != [] && !tiles_well_formed(segment)) {
       failwith("DisplayFork: malformed splice");
     };
