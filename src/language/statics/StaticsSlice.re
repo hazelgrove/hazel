@@ -973,10 +973,80 @@ let pattern_focus_demand = (m, root, focus, shape, query) =>
     switch (Id.Map.find_opt(id, m)) {
     | Some(Info.InfoPat(info))
         when Id.equal(id, root) || List.exists(Id.equal(root), info.ancestors) =>
-      route_query(info.ctx, info.ty, shape, query)
+      let demand = route_query(info.ctx, info.ana, shape, query);
+      let demand =
+        empty_query(demand)
+          ? route_query(info.ctx, query, shape, query) : demand;
+      meet(
+        info.ctx,
+        demand,
+        query_shell(shape),
+      )
     | _ => gap
     }
   | None => gap
+  };
+
+let pattern_result = (m, root, demand) =>
+  if (empty_query(demand)) {
+    empty_result;
+  } else {
+    let constructors =
+      Id.Map.fold(
+        (id, info, context) =>
+          switch (info) {
+          | Info.InfoPat(pattern)
+              when Id.equal(id, root)
+                   || List.exists(Id.equal(root), pattern.ancestors) =>
+            switch (Pat.term_of(pattern.user_term)) {
+            | Constructor(name, _) =>
+              context_join(
+                context,
+                context_for_name(pattern.ctx, name, pattern.elab_syn_ty),
+              )
+            | _ => context
+            }
+          | _ => context
+          },
+        m,
+        Ctx.empty,
+      );
+    let (context, omitted) = Id.Map.fold(
+      (id, info, (context, omitted)) =>
+        switch (info) {
+        | Info.InfoTyp({user_term, ctx, ancestors, _})
+            when List.exists(Id.equal(root), ancestors) =>
+          switch (Typ.term_of(user_term)) {
+          | Var(name) =>
+            switch (
+              List.find_opt(
+                fun
+                | Ctx.TVarEntry({name: entry, _}) => entry == name
+                | _ => false,
+                ctx.entries,
+              )
+            ) {
+            | Some(entry) =>
+              let key = context_key(entry);
+              let redundant =
+                List.exists(
+                  item => context_key(item) == key,
+                  constructors.entries,
+                );
+              (
+                redundant ? context : Ctx.extend(context, entry),
+                redundant ? Id.Set.add(id, omitted) : omitted,
+              )
+            | None => (context, omitted)
+            }
+          | _ => (context, omitted)
+          }
+        | _ => (context, omitted)
+        },
+      m,
+      (constructors, Id.Set.empty),
+    );
+    {...empty_result, context, omitted};
   };
 
 let pattern_has_ascription = pattern =>
@@ -1651,6 +1721,10 @@ let rec compile =
                Option.map(
                  (pattern: Info.pat) => {
                    let shape = Typ.weak_head_normalize(info.ctx, pattern.ty);
+                   let shape =
+                     empty_query(shape) && child.mode == Source
+                       ? Typ.weak_head_normalize(info.ctx, child.node.shape)
+                       : shape;
                    let pattern_id = Pat.rep_id(pattern.user_term);
                    let body =
                      binding_demand(
@@ -1709,6 +1783,12 @@ let rec compile =
         let body_demand =
           List.map(((_, _, demand)) => demand, demands)
           |> List.fold_left(meet(info.ctx), gap);
+        let pattern_result =
+          demands
+          |> List.filter_map(((pattern, demand, _)) =>
+               Option.map(pattern_result(m, _, demand), pattern)
+             )
+          |> results_join(info.ctx);
         let source_query = empty_query(body_demand) ? gap : body_demand;
         let deps =
           List.map(
@@ -1731,12 +1811,13 @@ let rec compile =
           );
         let combined =
           result_join(info.ctx, forward, results_join(info.ctx, deps));
+        let combined = result_join(info.ctx, pattern_result, combined);
         let omitted =
           Id.Set.union(
             combined.omitted,
             binding_omissions(binding_children, forward.gamma, demands),
           )
-          |> Id.Set.union(alias_omissions(children, forward.context));
+          |> Id.Set.union(alias_omissions(children, combined.context));
         let names =
           List.concat_map(
             child =>
