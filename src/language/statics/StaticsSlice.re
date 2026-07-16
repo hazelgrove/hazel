@@ -645,6 +645,63 @@ let query_residual = (ctx, query, supplied) => {
   empty_query(query) ? gap : query;
 };
 
+let matched_query = (ctx, query) => {
+  let rec peel = (binders, definition) =>
+    switch (Typ.term_of(definition)) {
+    | TypFun(pattern, body) =>
+      peel(binders @ TPat.binders_of(pattern), body)
+    | _ => (binders, definition)
+    };
+  switch (Typ.term_of(query)) {
+  | TypParamAp({term: Var(name), _}, arguments) =>
+    switch (Ctx.lookup_tvar(ctx, name)) {
+    | Some(Singleton(definition)) =>
+      let (binders, body) = peel([], definition);
+      let arguments =
+        switch (Typ.term_of(arguments)) {
+        | TypTuple(arguments) => arguments
+        | _ => [arguments]
+        };
+      let binders = List.filter_map(TPat.tyvar_of_utpat, binders);
+      let bindings =
+        List.length(binders) == List.length(arguments)
+          ? List.combine(binders, arguments) : [];
+      let rec go = ty =>
+        switch (Typ.term_of(ty)) {
+        | Var(name) =>
+          List.find_map(((bound, query)) => bound == name ? Some(query) : None, bindings)
+          |> Option.value(~default=gap)
+        | TypParamAp(fn, arg) => {
+          let arg = go(arg);
+          empty_query(arg) ? gap : TypParamAp(fn, arg) |> Typ.temp;
+        }
+        | Sum(variants) =>
+          Sum(
+            List.map(
+              fun
+              | ConstructorMap.Variant(name, ids, Some(payload)) => {
+                let payload = go(payload);
+                empty_query(payload)
+                  ? ConstructorMap.BadEntry(gap)
+                  : ConstructorMap.Variant(name, ids, Some(payload));
+              }
+              | ConstructorMap.Variant(_, _, None)
+              | ConstructorMap.BadEntry(_) => ConstructorMap.BadEntry(gap),
+              variants,
+            ),
+          )
+          |> Typ.temp
+        | _ =>
+          let children = typ_children(ty);
+          children == [] ? gap : typ_rebuild(ty, List.map(go, children))
+        };
+      bindings == [] ? query : go(body)
+    | _ => query
+    }
+  | _ => query
+  };
+};
+
 let query_overlap = (ctx, query, supplied) => {
   let supplied =
     switch (Typ.term_of(query)) {
@@ -656,6 +713,31 @@ let query_overlap = (ctx, query, supplied) => {
   !unconstrained_result(Arrow(gap, query) |> Typ.temp)
   && unconstrained_result(Arrow(gap, overlap) |> Typ.temp)
     ? gap : overlap;
+};
+
+let matched_overlap = (ctx, query, supplied) => {
+  let supplied = Typ.weak_head_normalize(ctx, supplied);
+  switch (Typ.term_of(query), Typ.term_of(supplied)) {
+  | (Sum(queries), Sum(supplied))
+      when List.length(queries) == List.length(supplied) =>
+    let children = typ_children(query);
+    typ_rebuild(
+      query,
+      List.map2(
+        ((query, supplied), child) =>
+          switch (query, supplied) {
+          | (
+              ConstructorMap.Variant(name, _, _),
+              ConstructorMap.Variant(other, _, _),
+            ) when name == other => child
+          | _ => gap
+          },
+        List.combine(queries, supplied),
+        children,
+      ),
+    )
+  | _ => query_residual(ctx, query, query_residual(ctx, query, supplied))
+  };
 };
 
 let ids_of_typ = (actual: Typ.t, query: Typ.t): Id.Set.t => {
@@ -1031,7 +1113,7 @@ let pattern_result = (m, root, demand, dependencies) =>
       };
     let pattern_omitted =
       Id.Map.fold(
-        (id, info, omitted) =>
+        (_id, info, omitted) =>
           switch (info) {
           | Info.InfoPat(pattern)
               when ascribed
@@ -1046,7 +1128,7 @@ let pattern_result = (m, root, demand, dependencies) =>
                           demand,
                         ),
                       ) =>
-            Id.Set.add(id, omitted)
+            Id.Set.add(Pat.rep_id(pattern.user_term), omitted)
           | _ => omitted
           },
         m,
@@ -1182,7 +1264,7 @@ let binding_omissions =
         );
       let omitted =
         switch (child.pattern) {
-        | Some(pattern) =>
+        | Some(pattern) when pattern_has_ascription(pattern.user_term) =>
           let id = Pat.rep_id(pattern.user_term);
           let shape = child.mode == Source ? child.node.shape : pattern.ty;
           let demand =
@@ -1193,7 +1275,7 @@ let binding_omissions =
             )
             |> Option.value(~default=gap);
           Id.Set.union(omitted, ids_of_typ(shape, demand));
-        | None => omitted
+        | _ => omitted
         };
       switch (child.pattern) {
       | Some(pattern)
@@ -1635,24 +1717,52 @@ let slice_branches =
       query: Typ.t,
     )
     : result => {
+  let matched = matched_query(ctx, query);
+  let parametric = !empty_query(matched) && !Typ.equal(matched, query);
   let (slices, _) =
     List.fold_left(
       ((slices, residual), (branch: node)) => {
-        let branch_query =
-          (direction == `Ana
-             ? !Id.Set.is_empty(path) : Id.Set.mem(branch.id, path))
-          || empty_query(residual)
-            ? gap
-            : query_overlap(ctx, residual, branch.typ);
-        let slice = branch.dispatch(branch_query);
+        let blocked =
+          direction == `Ana
+            ? !Id.Set.is_empty(path) : Id.Set.mem(branch.id, path);
+        let slice =
+          if (blocked || empty_query(residual)) {
+            branch.dispatch(gap);
+          } else if (parametric) {
+            let candidate = branch.dispatch(query);
+            let supplied =
+              switch (Typ.term_of(query)) {
+              | TypParamAp({term: Var(name), _}, _) =>
+                switch (
+                  List.find_opt(
+                    fun
+                    | Ctx.TVarEntry({name: entry, _}) => entry == name
+                    | _ => false,
+                    candidate.context.entries,
+                  )
+                ) {
+                | Some(entry) =>
+                  Typ.weak_head_normalize(Ctx.extend(ctx, entry), query)
+                | None => candidate.psi
+                }
+              | _ => candidate.psi
+              };
+            let branch_query = matched_overlap(ctx, residual, supplied);
+            let slice =
+              empty_query(branch_query) ? branch.dispatch(gap) : candidate;
+            {...slice, psi: branch_query};
+          } else {
+            branch.dispatch(query_overlap(ctx, residual, branch.typ));
+          };
         (slices @ [slice], query_residual(ctx, residual, slice.psi));
       },
-      ([], query),
+      ([], parametric ? matched : query),
       branches,
     );
   let result = results_join(ctx, slices);
   {
     ...result,
+    psi: parametric ? query : result.psi,
     context:
       slices
       |> List.map(slice => slice.context)
@@ -1921,7 +2031,11 @@ let rec compile =
                      } else {
                        switch (find_path(shape, info.elab_syn_ty)) {
                        | Some(path) => project(query, path)
-                       | None => gap
+                       | None =>
+                         switch (find_shape_path(shape, info.elab_syn_ty)) {
+                         | Some(path) => project(query, path)
+                         | None => gap
+                         }
                        };
                      };
                    let source = meet(info.ctx, body, parent);
