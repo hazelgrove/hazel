@@ -834,7 +834,9 @@ let binding_omissions =
 
 let rec matched_body =
         (~replace_bound=false, bound: list(string), schema: Typ.t, query: Typ.t)
-        : (Typ.t, list((string, Typ.t))) =>
+        : (Typ.t, list((string, Typ.t))) => {
+  let schema = expose(schema);
+  let query = expose(query);
   switch (Typ.term_of(schema)) {
   | Var(name) when List.mem(name, bound) => (
       replace_bound ? query : schema,
@@ -850,9 +852,10 @@ let rec matched_body =
         List.concat_map(snd, pairs),
       );
     } else {
-      (query, []);
+      (replace_bound ? query : schema, []);
     };
   };
+};
 
 let matched_type_application =
     (~implicit=false, ctx: Ctx.t, fn: node, args: Typ.t, query: Typ.t)
@@ -872,21 +875,34 @@ let matched_type_application =
     constraints
     |> List.filter_map(((n, ty)) => n == name ? Some(ty) : None)
     |> List.fold_left(meet(ctx), gap);
+  let matched =
+    implicit
+      ? matched
+      : Typ.map_term(
+          ~f_typ=
+            (continue, ty) =>
+              switch (Typ.term_of(ty)) {
+              | Var(name)
+                  when List.mem(name, names) && is_gap(constraint_for(name)) =>
+                gap
+              | _ => continue(ty)
+              },
+          matched,
+        );
   let fn_query =
     List.fold_right(
       (binder, body) =>
         Poly(
-          implicit
-            ? TPat.map_term(
-                ~f_tpat=
-                  (continue, binder) =>
-                    switch (binder.term) {
-                    | Var(_) => {...binder, term: EmptyHole}
-                    | _ => continue(binder)
-                    },
-                binder,
-              )
-            : binder,
+          TPat.map_term(
+            ~f_tpat=
+              (continue, binder) =>
+                switch (binder.term) {
+                | Var(name) when implicit || is_gap(constraint_for(name)) =>
+                  {...binder, term: EmptyHole}
+                | _ => continue(binder)
+                },
+            binder,
+          ),
           body,
         )
         |> Typ.temp,
