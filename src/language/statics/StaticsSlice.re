@@ -750,6 +750,32 @@ let lens = (parent_shape: Typ.t, child_shape: Typ.t): option(lens) =>
     }
   };
 
+let align_kept_children = (parent_shape, children: list(child)) => {
+  let shapes = typ_children(parent_shape);
+  let kept = List.filter(child => child.mode == Keep, children);
+  if (List.length(shapes) == List.length(kept)
+      && List.for_all2(
+           (shape, child) => Typ.equal(shape, child.node.shape),
+           shapes,
+           kept,
+         )) {
+    let index = ref(0);
+    List.map(
+      child =>
+        if (child.mode == Keep) {
+          let i = index^;
+          incr(index);
+          {...child, lens: Some({parent_path: Some([i]), child_path: Some([])})};
+        } else {
+          child;
+        },
+      children,
+    );
+  } else {
+    children;
+  };
+};
+
 let take_children =
     (~parent: Exp.t, ~parent_shape: Typ.t, m: Id.Map.t(Info.t)) => {
   ignore(parent_shape);
@@ -858,14 +884,24 @@ let pattern = (~parent, (info: Info.pat, elab, m)) => {
   );
 };
 
-let bindings_of = (~ctx: Ctx.t, pattern: Info.pat) =>
+let bindings_of = (~ctx: Ctx.t, pattern: Info.pat) => {
+  let shape = Typ.weak_head_normalize(ctx, pattern.ty);
   Ctx.added_bindings(pattern.ctx, ctx).entries
   |> List.filter_map(
        fun
        | Ctx.VarEntry({name, id, typ, _}) =>
-         Some({name, id, path: find_path(typ, pattern.ty)}: binding)
+         Some({
+           name,
+           id,
+           path:
+             switch (find_path(typ, shape)) {
+             | Some(path) => Some(path)
+             | None => find_shape_path(typ, shape)
+             },
+         }: binding)
        | _ => None,
      );
+};
 
 let local_binding = (m, path, name) =>
   Id.Map.fold(
@@ -920,8 +956,10 @@ let binding_demand = (ctx, bindings, shape, gamma) =>
     (demand, binding: binding) =>
       switch (VarMap.lookup(gamma, binding.name), binding.path) {
       | (Some(query), Some(path)) =>
+        let query = query_residual(ctx, query, query_shell(query));
         meet(ctx, demand, lift(shape, path, query))
       | (Some(query), None) when List.length(bindings) == 1 =>
+        let query = query_residual(ctx, query, query_shell(query));
         meet(ctx, demand, query)
       | _ => demand
       },
@@ -1534,6 +1572,7 @@ let rec compile =
            | _ => None
            }
          );
+    let children = align_kept_children(info.elab_syn_ty, children);
     let sources = List.filter(c => c.mode == Source, children);
     let kept =
       List.filter_map(c => c.mode == Keep ? Some(c.node) : None, children);
@@ -1650,8 +1689,7 @@ let rec compile =
           |> List.filter_map(child =>
                Option.map(
                  (pattern: Info.pat) => {
-                   let shape =
-                     child.mode == Source ? child.node.shape : pattern.ty;
+                   let shape = Typ.weak_head_normalize(info.ctx, pattern.ty);
                    let pattern_id = Pat.rep_id(pattern.user_term);
                    let body =
                      binding_demand(
@@ -1713,7 +1751,21 @@ let rec compile =
         let source_query = empty_query(body_demand) ? gap : body_demand;
         let deps =
           List.map(
-            source => source.node.dispatch(source_query),
+            source => {
+              let query =
+                switch (source.pattern) {
+                | Some(pattern) =>
+                  demands
+                  |> List.find_map(((pattern_id, _, demand)) =>
+                       pattern_id == Some(Pat.rep_id(pattern.user_term))
+                         ? Some(demand)
+                         : None
+                     )
+                  |> Option.value(~default=gap)
+                | None => source_query
+                };
+              source.node.dispatch(empty_query(query) ? gap : query);
+            },
             sources,
           );
         let combined =
