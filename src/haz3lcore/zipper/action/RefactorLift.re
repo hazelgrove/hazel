@@ -38,71 +38,50 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
     switch (IdTagged.term_of(c)) {
     | Let(cp, _, cbody) when let_head_name(cp) != None =>
       let g = Option.get(let_head_name(cp));
-      /* the convoy walk: contiguous dependency run above C */
-      let rec walk = (i, block_dls: list(def_line), block: list(Exp.t)) =>
-        if (i < 0) {
-          None;
-        } else {
-          let anc = List.nth(path, i);
-          let child = List.nth(path, i + 1);
-          switch (def_line_of(anc)) {
-          | Some((dl, body)) when same_node(body, child) =>
-            block_dls |> List.exists(m => line_depends_on(m, dl))
-              ? walk(i - 1, [dl, ...block_dls], [anc, ...block])
-              /* a non-dependency line above: convoy territory */
-              : None
-          | _ =>
-            /* ceiling: the enclosure decides */
-            let top = List.hd(block);
-            switch (IdTagged.term_of(anc)) {
-            | Fun(fp, fbody, _, _) when same_node(fbody, top) && i >= 1 =>
-              let (outer, parens) =
-                switch (IdTagged.term_of(List.nth(path, i - 1))) {
-                | Parens(_) when i >= 2 => (
-                    List.nth(path, i - 2),
-                    Some(List.nth(path, i - 1)),
-                  )
-                | _ => (List.nth(path, i - 1), None)
-                };
-              switch (IdTagged.term_of(outer)) {
-              | Let(_, odef, _)
-                  when
-                    same_node(
-                      odef,
-                      switch (parens) {
-                      | Some(pn) => pn
-                      | None => anc
-                      },
-                    ) =>
-                Some((
-                  outer,
-                  LiftFun(anc, parens),
-                  block,
-                  pat_var_names(fp) |> List.rev,
-                ))
-              | _ => None
+      /* the convoy walk; at the ceiling the enclosure decides */
+      let site =
+        switch (dep_run_walk(path)) {
+        | Some({block, stop: StopCeiling(i, anc), _}) =>
+          let top = List.hd(block);
+          switch (IdTagged.term_of(anc)) {
+          | Fun(fp, fbody, _, _) when same_node(fbody, top) && i >= 1 =>
+            let (outer, parens) =
+              switch (IdTagged.term_of(List.nth(path, i - 1))) {
+              | Parens(_) when i >= 2 => (
+                  List.nth(path, i - 2),
+                  Some(List.nth(path, i - 1)),
+                )
+              | _ => (List.nth(path, i - 1), None)
               };
-            | Let(op, odef, _) when same_node(odef, top) =>
-              switch (FunctionSugar.detect(op)) {
-              | Some((_, args, _)) =>
-                Some((
-                  anc,
-                  LiftSugar,
-                  block,
-                  pat_var_names(args) |> List.rev,
-                ))
-              | None => None
-              }
+            switch (IdTagged.term_of(outer)) {
+            | Let(_, odef, _)
+                when
+                  same_node(
+                    odef,
+                    switch (parens) {
+                    | Some(pn) => pn
+                    | None => anc
+                    },
+                  ) =>
+              Some((
+                outer,
+                LiftFun(anc, parens),
+                block,
+                pat_var_names(fp) |> List.rev,
+              ))
             | _ => None
             };
+          | Let(op, odef, _) when same_node(odef, top) =>
+            switch (FunctionSugar.detect(op)) {
+            | Some((_, args, _)) =>
+              Some((anc, LiftSugar, block, pat_var_names(args) |> List.rev))
+            | None => None
+            }
+          | _ => None
           };
+        | _ => None
         };
-      let c_dl =
-        switch (def_line_of(c)) {
-        | Some((dl, _)) => dl
-        | None => LetLine(cp, fresh(EmptyHole)) /* unreachable */
-        };
-      switch (walk(n - 2, [c_dl], [c])) {
+      switch (site) {
       | None => None
       | Some((outer, enc, block, params)) =>
         let defs = block |> List.filter_map(nd => def_line_of(nd));
@@ -231,37 +210,22 @@ let hoist_blockers = (~target: Id.t, program: Exp.t): list(Id.t) =>
       | Some((l_dl, _)) =>
         let l_names = line_exp_names(l_dl);
         /* 1. the convoy walk's X refuses: a same-name line in the
-           way (the shadow wall) — shake ITS binder */
-        let shadow_x = {
-          let rec walk = (i, block_dls: list(def_line)) =>
-            if (i < 0) {
-              [];
-            } else {
-              let anc = List.nth(path, i);
-              let child = List.nth(path, i + 1);
-              switch (def_line_of(anc)) {
-              | Some((dl, body)) when same_node(body, child) =>
-                if (block_dls |> List.exists(m => line_depends_on(m, dl))) {
-                  walk(i - 1, [dl, ...block_dls]);
-                } else if (block_dls
-                           |> List.for_all(m => lines_swappable(dl, m))) {
-                  [];
-                } else {
-                  let block_names =
-                    block_dls |> List.concat_map(line_exp_names);
-                  let colliding =
-                    line_exp_names(dl)
-                    |> List.filter(x => List.mem(x, block_names));
-                  switch (dl) {
-                  | LetLine(xp, _) => pat_binder_ids(colliding, xp)
-                  | TypeLine(_) => []
-                  };
-                }
-              | _ => []
-              };
+           way (the shadow wall) — shake ITS binder. Carry owns the
+           all-swappable case, so only a genuine collision blocks. */
+        let shadow_x =
+          switch (dep_run_walk(path)) {
+          | Some({block_dls, stop: StopLine(_, dl), _})
+              when !(block_dls |> List.for_all(m => lines_swappable(dl, m))) =>
+            let block_names = block_dls |> List.concat_map(line_exp_names);
+            let colliding =
+              line_exp_names(dl)
+              |> List.filter(x => List.mem(x, block_names));
+            switch (dl) {
+            | LetLine(xp, _) => pat_binder_ids(colliding, xp)
+            | TypeLine(_) => []
             };
-          walk(n - 2, [l_dl]);
-        };
+          | _ => []
+          };
         /* 2. parent-form walls */
         let direct = List.nth(path, n - 2);
         let (par, c) =

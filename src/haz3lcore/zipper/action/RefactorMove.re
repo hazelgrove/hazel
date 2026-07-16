@@ -1413,35 +1413,17 @@ let hoist_carry_site = (~target: Id.t, program: Exp.t): option(list(Exp.t)) =>
   switch (find_path(~hit=hit_def_line(target), program)) {
   | None => None
   | Some(path) =>
-    let n = List.length(path);
-    let c = List.nth(path, n - 1);
-    switch (def_line_of(c)) {
-    | None => None
-    | Some((c_dl, _)) =>
-      let rec walk = (i, block: list(def_line), block_nodes: list(Exp.t)) =>
-        if (i < 0) {
-          None;
-        } else {
-          let anc = List.nth(path, i);
-          let child = List.nth(path, i + 1);
-          switch (def_line_of(anc)) {
-          | Some((dl, body)) when same_node(body, child) =>
-            if (block |> List.exists(m => line_depends_on(m, dl))) {
-              walk(i - 1, [dl, ...block], [anc, ...block_nodes]);
-            } else {
-              /* anc = X. Only offered when something is carried
-                 (plain hoist owns the no-dependency case), and every
-                 block member can legally cross X */
-              List.length(block_nodes) >= 2
-              && block
-              |> List.for_all(m => lines_swappable(dl, m))
-                ? Some([anc, ...block_nodes]) : None;
-            }
-          | _ => None /* ceiling: no line above in this chain */
-          };
-        };
-      walk(n - 2, [c_dl], [c]);
-    };
+    switch (dep_run_walk(path)) {
+    | Some({block, block_dls, stop: StopLine(x, dl)}) =>
+      /* X = the line above the run. Only offered when something is
+         carried (plain hoist owns the no-dependency case), and every
+         block member can legally cross X */
+      List.length(block) >= 2
+      && block_dls
+      |> List.for_all(m => lines_swappable(dl, m))
+        ? Some([x, ...block]) : None
+    | _ => None /* ceiling or root: no line above in this chain */
+    }
   };
 
 let hoist_carry_impl: impl = {

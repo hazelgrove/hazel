@@ -2343,6 +2343,60 @@ let line_depends_on = (member: def_line, upper: def_line): bool =>
   names_mentioned(line_exp_names(upper), line_material(member))
   || mentions_typ_names(line_typ_names(upper), line_material(member));
 
+/* === The convoy walk ===
+ * From the grabbed def line C, walk up the path accumulating the
+ * contiguous run of def lines above it that C (transitively) depends
+ * on. Three refactorings share this walk and differ only in what they
+ * make of where it stopped: hoist-with-deps needs the line X above the
+ * run, lift needs the enclosure at the ceiling, hoist-blockers reports
+ * the collision at X. */
+type dep_stop =
+  | StopLine(Exp.t, def_line) /* a non-dependency def line X above the run */
+  | StopCeiling(int, Exp.t) /* path index + the non-def-line ancestor */
+  | StopTop; /* walked past the root */
+
+type dep_run = {
+  block: list(Exp.t), /* T1..C, top-to-bottom, C last */
+  block_dls: list(def_line),
+  stop: dep_stop,
+};
+
+let dep_run_walk = (path: list(Exp.t)): option(dep_run) => {
+  let n = List.length(path);
+  let c = List.nth(path, n - 1);
+  switch (def_line_of(c)) {
+  | None => None
+  | Some((c_dl, _)) =>
+    let rec walk = (i, block_dls: list(def_line), block: list(Exp.t)) =>
+      if (i < 0) {
+        {
+          block,
+          block_dls,
+          stop: StopTop,
+        };
+      } else {
+        let anc = List.nth(path, i);
+        let child = List.nth(path, i + 1);
+        switch (def_line_of(anc)) {
+        | Some((dl, body)) when same_node(body, child) =>
+          block_dls |> List.exists(m => line_depends_on(m, dl))
+            ? walk(i - 1, [dl, ...block_dls], [anc, ...block])
+            : {
+              block,
+              block_dls,
+              stop: StopLine(anc, dl),
+            }
+        | _ => {
+            block,
+            block_dls,
+            stop: StopCeiling(i, anc),
+          }
+        };
+      };
+    Some(walk(n - 2, [c_dl], [c]));
+  };
+};
+
 /* nodes top-to-bottom: [X, T1..Tm, C]; X = the line crossed, T's =
    the carried dependencies, C = the grabbed line */
 let var_use_ids = (names: list(string), e: Exp.t): list(Id.t) => {
