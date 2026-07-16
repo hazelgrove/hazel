@@ -60,7 +60,7 @@ let parse_digit_examples = [
   ),
 ];
 
-let ex2_src = "type Option = typfun A -> None + Some(A) in type Digit = Zero + One in type Pin = (Digit, Digit) in let seq = abs A -> abs B -> fun (p : String -> Option((String, A))) -> fun (f : A -> Option((String, B))) -> fun (s : String) -> case p(s) | None => None | Some((s2, a)) => f(a) end in let digit_parser = fun (s : String) -> Some((s, Zero)) in let parse_pin = fun (s : String) -> seq@<Digit, Pin>(digit_parser)(fun (d1 : Digit) -> seq@<Digit, Pin>(digit_parser)(fun (d2 : Digit) -> fun (s2 : String) -> Some((s2, (d1, d2))))(s))(s) in parse_pin(\"12\")";
+let ex2_src = "type Option = typfun A -> None + Some(A) in type Digit = Zero + One in type Pin = (Digit, Digit) in let seq = abs A -> abs B -> fun (p : String -> Option((String, A))) -> fun (f : A -> Option((String, B))) -> fun (s : String) -> case p(s) | None => None | Some((s2, a)) => f(a) end in let digit_parser = fun (s : String) -> Some((s, Zero)) in let parse_pin = fun (s : String) -> seq@<Digit>@<Pin>(digit_parser)(fun (d1 : Digit) -> seq@<Digit>@<Pin>(digit_parser)(fun (d2 : Digit) -> fun (s2 : String) -> Some((s2, (d1, d2))))(s))(s) in parse_pin(\"12\")";
 
 let seq_pin_examples = [
   synthesis_case(
