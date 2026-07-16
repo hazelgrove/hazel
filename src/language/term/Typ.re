@@ -971,12 +971,14 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
              | Asc({term: Var(name), _}, typ) =>
                Some(
                  TupLabel(Label(name) |> temp, desugar_sig(ctx, typ))
-                 |> temp,
+                 |> temp
+                 |> IdTagged.fast_copy(IdTagged.rep_id(item)),
                )
              | Var(name) =>
                Some(
                  TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
-                 |> temp,
+                 |> temp
+                 |> IdTagged.fast_copy(IdTagged.rep_id(item)),
                )
              | _ => None
              }

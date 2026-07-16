@@ -27,6 +27,7 @@ type child_mode =
   | Prune
   | Ascribe
   | Alias
+  | Items
   | Alternative
   | Matched;
 
@@ -729,6 +730,7 @@ let of_info_mode =
   | Info.SlicePrune => Prune
   | Info.SliceAscribe => Ascribe
   | Info.SliceAlias => Alias
+  | Info.SliceModule => Keep
   | Info.SliceAlternative => Alternative
   | Info.SliceMatched => Matched;
 
@@ -812,6 +814,7 @@ let record_child =
         | Prune => Info.SlicePrune
         | Ascribe => Info.SliceAscribe
         | Alias => Info.SliceAlias
+        | Items => Info.SliceModule
         | Alternative => Info.SliceAlternative
         | Matched => Info.SliceMatched
         },
@@ -852,6 +855,8 @@ let map = (~parent, child, k) => k(record_child(Map, ~parent, child));
 let prune = (~parent, child, k) => k(record_child(Prune, ~parent, child));
 let ascribe = (~parent, child, k) => k(record_child(Ascribe, ~parent, child));
 let alias = (~parent, child, k) => k(record_child(Alias, ~parent, child));
+let module_items = (~parent, child, k) =>
+  k(record_child(Items, ~parent, child));
 let matched = (~parent, child, k) => k(record_child(Matched, ~parent, child));
 let alternative = (~parent, child, k) =>
   k(record_child(Alternative, ~parent, child));
@@ -1050,6 +1055,48 @@ let pattern_result = (m, root, demand, dependencies) =>
     {...empty_result, context, omitted};
   };
 
+let type_context = (m, root, omitted) =>
+  Id.Map.fold(
+    (id, info, context) =>
+      switch (info) {
+      | Info.InfoTyp({user_term, ctx, ancestors, _})
+          when !Id.Set.mem(id, omitted)
+               && List.exists(Id.equal(root), ancestors) =>
+        switch (Typ.term_of(user_term)) {
+        | Var(name) =>
+          switch (
+            List.find_opt(
+              fun
+              | Ctx.TVarEntry({name: entry, _}) => entry == name
+              | _ => false,
+              ctx.entries,
+            )
+          ) {
+          | Some(entry) => Ctx.extend(context, entry)
+          | None => context
+          }
+        | _ => context
+        }
+      | _ => context
+      },
+    m,
+    Ctx.empty,
+  );
+
+let rec signature_omissions = (m, ctx, actual, query) => {
+  let omitted =
+    switch (Id.Map.find_opt(Typ.rep_id(actual), m)) {
+    | Some(Info.InfoSig(_))
+        when empty_query(query_residual(ctx, query, query_shell(actual))) =>
+      Id.Set.singleton(Typ.rep_id(actual))
+    | _ => Id.Set.empty
+    };
+  List.length(typ_children(actual)) == List.length(typ_children(query))
+    ? List.map2(signature_omissions(m, ctx), typ_children(actual), typ_children(query))
+      |> List.fold_left(Id.Set.union, omitted)
+    : omitted;
+};
+
 let pattern_has_ascription = pattern =>
   switch (
     Pat.map_term(
@@ -1170,6 +1217,38 @@ let alias_omissions = (children: list(child), context: Ctx.t): Id.Set.t =>
        }
      )
   |> List.fold_left(Id.Set.union, Id.Set.empty);
+
+let module_omissions = (m, omitted) =>
+  Id.Map.fold(
+    (id, entry, omitted) =>
+      switch (entry) {
+      | Info.InfoExp({cls: Cls.Mod(_), ctx, slice_children, _}) =>
+        let binders =
+          slice_children
+          |> List.concat_map((edge: Info.slice_child) =>
+               switch (edge.pattern, edge.mode) {
+               | (Some(id), _) => [id]
+               | (None, Info.SliceAlias) =>
+                 switch (Id.Map.find_opt(edge.child, m)) {
+                 | Some(Info.InfoExp(child)) =>
+                   Ctx.added_bindings(child.ctx, ctx).entries
+                   |> List.filter_map(
+                        fun
+                        | Ctx.TVarEntry({id, _}) => Some(id)
+                        | _ => None,
+                      )
+                 | _ => []
+                 }
+               | _ => []
+               }
+             );
+        binders != [] && List.for_all(Id.Set.mem(_, omitted), binders)
+          ? Id.Set.add(id, omitted) : omitted
+      | _ => omitted
+      },
+    m,
+    omitted,
+  );
 
 let rec matched_body =
         (
@@ -1318,6 +1397,8 @@ let slice_forward =
       ~pattern_focus=false,
       ~focus_query,
       ~path=Id.Set.empty,
+      ~m,
+      ~root,
       ctx: Ctx.t,
       parent_shape: Typ.t,
       children: list(child),
@@ -1380,8 +1461,23 @@ let slice_forward =
                  }
                    ? route_query(ctx, parent_shape, child.node.shape, query)
                    : routed;
-               | None => route_query(ctx, parent_shape, child.node.shape, query)
+               | None =>
+                 route_query(ctx, parent_shape, child.node.shape, query)
                };
+             let child_query =
+               child.mode == Alias
+               && empty_query(
+                    query_residual(
+                      ctx,
+                      child_query,
+                      query_shell(child.node.shape),
+                    ),
+                  )
+               && !
+                    empty_query(
+                      query_residual(ctx, query, query_shell(parent_shape)),
+                    )
+                 ? query : child_query;
              let slice =
                child.node.dispatch(
                  prune && empty_query(child_query) ? gap : child_query,
@@ -1421,6 +1517,7 @@ let slice_forward =
                psi: query,
              }
            | Keep => follow(false)
+           | Items => follow(false)
            | Prune => follow(true)
            };
          }
@@ -1461,9 +1558,22 @@ let slice_forward =
       : result.psi;
   has_ascription
     ? {
-      ...result,
-      omitted:
-        Id.Set.union(result.omitted, ids_of_typ(parent_shape, annotation_query)),
+      let annotation_query =
+        meet(ctx, annotation_query, query_shell(parent_shape));
+      let omitted =
+        Id.Set.union(
+          ids_of_typ(parent_shape, annotation_query),
+          signature_omissions(m, ctx, parent_shape, annotation_query),
+        );
+      {
+        ...result,
+        omitted: Id.Set.union(result.omitted, omitted),
+        context:
+          context_join(
+            result.context,
+            type_context(m, root, omitted),
+          ),
+      };
     }
     : result;
 };
@@ -1581,8 +1691,8 @@ let rec compile =
                    : [],
                pattern,
                lens: edge_lens,
-               node:
-                 compile(
+               node: {
+                 let node = compile(
                      ~direction,
                      ~support=
                        mode == Source
@@ -1599,7 +1709,23 @@ let rec compile =
                    ~path,
                    m,
                    child_info,
-                 ),
+                 );
+                 if (edge.mode == Info.SliceModule) {
+                   let dispatch = node.dispatch;
+                   {
+                     ...node,
+                     dispatch: query => {
+                       let result = dispatch(query);
+                       {
+                         ...result,
+                         omitted: module_omissions(m, result.omitted),
+                       };
+                     },
+                   };
+                 } else {
+                   node;
+                 };
+               },
              })
            | _ => None
            }
@@ -1656,6 +1782,8 @@ let rec compile =
                 ~direction,
                 ~pattern_focus,
                 ~focus_query,
+                ~m,
+                ~root=id,
                 info.ctx,
                 info.elab_syn_ty,
                 List.filter(child => child.mode == Omit, children),
@@ -1678,6 +1806,8 @@ let rec compile =
                     ~direction,
                     ~pattern_focus,
                     ~focus_query,
+                    ~m,
+                    ~root=id,
                     info.ctx,
                     info.elab_syn_ty,
                     children,

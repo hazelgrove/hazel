@@ -400,6 +400,8 @@ and uexp_to_info_map =
   let (let&&) = (child, k) => StaticsSlice.prune(~parent=uexp, child, k);
   let (let&&&) = (child, k) => StaticsSlice.ascribe(~parent=uexp, child, k);
   let (let@@@) = (child, k) => StaticsSlice.alias(~parent=uexp, child, k);
+  let (let|||) = (child, k) =>
+    StaticsSlice.module_items(~parent=uexp, child, k);
   let ( let*** ) = (child, k) => StaticsSlice.matched(~parent=uexp, child, k);
   let (let!) = (pattern, k) =>
     k(StaticsSlice.pattern(~parent=uexp, pattern));
@@ -2983,7 +2985,7 @@ and uexp_to_info_map =
          ana. Using ~ana here would double-count type inconsistencies (once on
          the expansion's inner tuple, once on the Module expression). */
       let expanded = ExpandModule.expand(~ana, items);
-      let* (expanded_info, expanded_elab, m) = go(expanded, m);
+      let||| (expanded_info, expanded_elab, m) = go(expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
       /* Build actual Prod type from module's exported bindings, rather than
          using expanded_info.ty which masks width errors via fixed_typ. */
