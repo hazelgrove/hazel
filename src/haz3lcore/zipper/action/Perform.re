@@ -534,6 +534,9 @@ let rec go =
     |> return(Cant_insert);
   | Refactor(k) =>
     Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
+    |> Option.map(
+         LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+       )
     |> return(Cant_refactor)
   | RefactorGesture(g) =>
     switch (
@@ -556,6 +559,9 @@ let rec go =
              Move.jump_to_shard(z', tile, shard) |> Option.value(~default=z')
            | None => z'
            }
+         )
+      |> Option.map(
+           LocalReformat.go_refactor(~enabled=settings.auto_reindent),
          )
       |> return(Cant_refactor);
     | None => Error(Cant_refactor)

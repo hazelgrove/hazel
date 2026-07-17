@@ -1796,6 +1796,41 @@ let feed_tests = [
   test_case("feed not offered without uses", `Quick, () =>
     check(bool, "no uses", false, offers(FeedLet, "¦let k = 3 in 1"))
   ),
+  test_case(
+    "auto_reindent: sink into fun re-indents the moved body",
+    `Quick,
+    () => {
+      /* the displaced let lands in the fun body a level deeper; with
+         auto_reindent its stored (flush) indent is corrected to canonical */
+      let prog = "¦let x = 2 in\nfun y ->\nx + y";
+      let z0 = Test_Editing.parse_zipper(prog);
+      let on_settings = {
+        ...Test_Editing.default_settings,
+        auto_reindent: true,
+      };
+      let on =
+        Test_Editing.perform(
+          ~settings=on_settings,
+          z0,
+          [Action.RefactorGesture(Down)],
+        )
+        |> text_of;
+      check(
+        string,
+        "on: body indented",
+        "fun y ->\n  let x = 2 in\n  x + y",
+        on,
+      );
+      let off =
+        Test_Editing.perform(z0, [Action.RefactorGesture(Down)]) |> text_of;
+      check(
+        string,
+        "off: verbatim move",
+        "fun y ->\nlet x = 2 in\nx + y",
+        off,
+      );
+    },
+  ),
 ];
 
 let sink_layout_tests = [
