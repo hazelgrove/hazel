@@ -464,6 +464,25 @@ Board tests:
 
 ## Open Decisions
 
+## Current Action Items
+
+### Make Search and One Step obey the same profile boundary
+
+The profile board currently exposes a mismatch: with `AddComm` disabled, One
+Step rejects `x + y -> y + x`, while Search can accept it through a broad
+normalization backend. Search, Auto Simplify, validation, and export must all
+derive their available transitions and finishers from the same active profile
+used by One Step. Broad tactics such as `ring`, `lia`, and `lra` must not act as
+implicit capabilities.
+
+### Replace the full toggle list with cumulative presets
+
+The number of visible rule and cleanup toggles is becoming difficult to use.
+Add three or four cumulative presets that include the capabilities of the
+previous preset. The presets can be described either by verbosity or by course
+level. Keep the complete rule board as an advanced custom mode, and show which
+rules each preset adds so the boundary remains understandable.
+
 - Whether `AddComm` should imply `AddAssoc` for flattened UI expressions, or
   whether the profile must enable both explicitly.
 - Whether constant folding in one-step contexts means adjacent constants only

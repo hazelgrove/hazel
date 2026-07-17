@@ -423,6 +423,28 @@ Verified custom lemmas can then become normal rewrite rules.
 
 ## Implementation Plan
 
+## Current Blocking Action Item: Enforce the Active Profile Boundary
+
+The current Search path is not yet fully profile-bounded. One Step correctly
+rejects `x + y -> y + x` when `AddComm` is disabled, but Search can still
+accept it. `normalization_backends_for_profile` currently selects some
+finishers by math-level rank rather than by the active profile's enabled rule
+and cleanup capabilities. For example, `hazel_factor_polynomial` expands terms
+and finishes with `lia`, which can prove commutativity even when `AddComm` is
+disabled.
+
+Before claiming that Rocq search is restricted to the active profile:
+
+- Gate every normalization and finish-only tactic by explicit capability IDs.
+- Remove raw `ring`, `lia`, `lra`, `nia`, and similar fallbacks unless the
+  active profile explicitly enables the capability they certify.
+- Run the same enabled/disabled rule pairs through One Step, Search,
+  Auto Simplify, and exported Rocq proofs.
+- Require successful searches to report rule/capability provenance that is a
+  subset of the active profile.
+- Add negative tests where a broad solver could prove the goal but the
+  corresponding profile capability is disabled.
+
 Phase 1: Internal tactic-plan types
 
 - Add `tactic_mode`, `rocq_tactic_step`, and `rocq_tactic_plan`.
