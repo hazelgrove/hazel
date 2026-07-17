@@ -358,25 +358,6 @@ svg.shard.selected-expanded > path {
   fill: var(--warning-hole-fill);
 }
 
-/* Code completion decoration */
-
-svg.shard.selected.buffer-unparsed {
-  filter: none;
-}
-svg.shard.selected.buffer-unparsed > path {
-  fill: #0000;
-  stroke-width: 0;
-}
-svg.shard.selected.buffer-parsed {
-  filter: drop-shadow(
-    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-exp)
-  );
-}
-svg.shard.selected.buffer-parsed > path {
-  fill: var(--T1);
-  stroke: var(--T1);
-}
-
 /* VAR HIGHLIGHT DECO */
 
 .var-highlights {

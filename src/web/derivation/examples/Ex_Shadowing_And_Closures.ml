@@ -12,7 +12,6 @@ let exercise : DerivationExercise.spec =
           {
             focus = Left;
             content = [];
-            mode = Normal;
             anchor_caret = Outer;
             smart_rounded = false;
           };
@@ -63,7 +62,6 @@ let exercise : DerivationExercise.spec =
           {
             focus = Left;
             content = [];
-            mode = Normal;
             anchor_caret = Outer;
             smart_rounded = false;
           };
@@ -1232,7 +1230,6 @@ let exercise : DerivationExercise.spec =
                                 children = [];
                               };
                           ];
-                        mode = Normal;
                         anchor_caret = Outer;
                         smart_rounded = false;
                       };
@@ -1339,7 +1336,6 @@ let exercise : DerivationExercise.spec =
                                         ];
                                     };
                                 ];
-                              mode = Normal;
                               anchor_caret = Outer;
                               smart_rounded = false;
                             };
@@ -1382,7 +1378,6 @@ let exercise : DerivationExercise.spec =
                       {
                         focus = Left;
                         content = [];
-                        mode = Normal;
                         anchor_caret = Outer;
                         smart_rounded = false;
                       };
@@ -1502,7 +1497,6 @@ let exercise : DerivationExercise.spec =
                             {
                               focus = Left;
                               content = [];
-                              mode = Normal;
                               anchor_caret = Outer;
                               smart_rounded = false;
                             };
@@ -1620,7 +1614,6 @@ let exercise : DerivationExercise.spec =
                       {
                         focus = Left;
                         content = [];
-                        mode = Normal;
                         anchor_caret = Outer;
                         smart_rounded = false;
                       };
@@ -1989,7 +1982,6 @@ let exercise : DerivationExercise.spec =
                             {
                               focus = Left;
                               content = [];
-                              mode = Normal;
                               anchor_caret = Outer;
                               smart_rounded = false;
                             };
@@ -2241,7 +2233,6 @@ let exercise : DerivationExercise.spec =
                       {
                         focus = Left;
                         content = [];
-                        mode = Normal;
                         anchor_caret = Outer;
                         smart_rounded = false;
                       };
@@ -2756,7 +2747,6 @@ let exercise : DerivationExercise.spec =
                             {
                               focus = Left;
                               content = [];
-                              mode = Normal;
                               anchor_caret = Outer;
                               smart_rounded = false;
                             };
@@ -2958,7 +2948,6 @@ let exercise : DerivationExercise.spec =
                                   {
                                     focus = Left;
                                     content = [];
-                                    mode = Normal;
                                     anchor_caret = Outer;
                                     smart_rounded = false;
                                   };
@@ -3095,7 +3084,6 @@ let exercise : DerivationExercise.spec =
                                         {
                                           focus = Left;
                                           content = [];
-                                          mode = Normal;
                                           anchor_caret = Outer;
                                           smart_rounded = false;
                                         };
@@ -3227,7 +3215,6 @@ let exercise : DerivationExercise.spec =
                             {
                               focus = Left;
                               content = [];
-                              mode = Normal;
                               anchor_caret = Outer;
                               smart_rounded = false;
                             };
@@ -3583,7 +3570,6 @@ let exercise : DerivationExercise.spec =
                                   {
                                     focus = Left;
                                     content = [];
-                                    mode = Normal;
                                     anchor_caret = Outer;
                                     smart_rounded = false;
                                   };
@@ -3787,7 +3773,6 @@ let exercise : DerivationExercise.spec =
                       {
                         focus = Left;
                         content = [];
-                        mode = Normal;
                         anchor_caret = Outer;
                         smart_rounded = false;
                       };
@@ -4378,7 +4363,6 @@ let exercise : DerivationExercise.spec =
                       {
                         focus = Left;
                         content = [];
-                        mode = Normal;
                         anchor_caret = Outer;
                         smart_rounded = false;
                       };

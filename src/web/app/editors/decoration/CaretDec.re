@@ -40,11 +40,7 @@ let main =
 let side_of = (z: Haz3lcore.Zipper.t): Direction.t => {
   Haz3lcore.(
     switch (Indicated.for_decoration(z)) {
-    | _
-        when
-          !Selection.is_empty(z.selection)
-          && !Selection.is_buffer(z.selection) =>
-      z.selection.focus
+    | _ when !Selection.is_empty(z.selection) => z.selection.focus
     | Some({side, _}) => Direction.toggle(side)
     | _ => Right
     }

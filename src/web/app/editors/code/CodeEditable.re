@@ -74,7 +74,6 @@ module Update = {
              | Destruct(_)
              | Insert(_)
              | Put_down
-             | Buffer(Set(_) | Accept | Clear)
              | Paste(_)
              | Copy
              | Cut
@@ -123,34 +122,28 @@ module Update = {
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
       let z = model.editor.state.zipper;
+      /* caret pinned to a quiver chip: Tab dispatches one chunk of
+         THE assist stream (A1) — type-it-for-me through the normal
+         pipeline; spacing and caret land as if typed. tab_chip
+         prefers a witness remainder (the nearest promise) over
+         sibling chips. */
       let action: Action.t =
-        Selection.is_buffer(z.selection)
-          ? Buffer(Accept)
-          : (
-            /* caret pinned to a quiver chip: Tab dispatches one chunk of
-               THE assist stream (A1) — type-it-for-me through the
-               normal pipeline; spacing and caret land as if typed.
-               tab_chip prefers a witness remainder (the nearest
-               promise) over sibling chips. */
-            switch (
-              CanonicalCompletion.tab_chip(z, model.editor.syntax.assist)
-            ) {
-            /* Inner caret (e.g. inside a string literal): the zone
-               matches for display, but Paste would land INSIDE the
-               token — fall through to hole navigation */
-            | Some(ins) when z.caret == Outer =>
-              switch (CanonicalCompletion.tab_text(z, ins)) {
-              | Some(text) => Paste(text)
-              | None =>
-                Zipper.can_put_down(z)
-                  ? Put_down : Move(Goal(NextProblem(Right)))
-              }
-            | Some(_)
-            | None =>
-              Zipper.can_put_down(z)
-                ? Put_down : Move(Goal(NextProblem(Right)))
-            }
-          );
+        switch (CanonicalCompletion.tab_chip(z, model.editor.syntax.assist)) {
+        /* Inner caret (e.g. inside a string literal): the zone
+           matches for display, but Paste would land INSIDE the
+           token — fall through to hole navigation */
+        | Some(ins) when z.caret == Outer =>
+          switch (CanonicalCompletion.tab_text(z, ins)) {
+          | Some(text) => Paste(text)
+          | None =>
+            Zipper.can_put_down(z)
+              ? Put_down : Move(Goal(NextProblem(Right)))
+          }
+        | Some(_)
+        | None =>
+          Zipper.can_put_down(z)
+            ? Put_down : Move(Goal(NextProblem(Right)))
+        };
       perform(action, model);
     };
   };

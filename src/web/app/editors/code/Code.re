@@ -21,6 +21,8 @@ let of_delim' =
       plurality: int,
       sort: Sort.t,
       is_consistent: bool,
+      /* ghost witness shard: render the completed-remainder styling the
+         retired suggestion buffer used (fed only by ghost marks now) */
       is_in_buffer: bool,
       is_complete: bool,
       is_infix_var: bool,
@@ -101,7 +103,6 @@ let view =
          statics refining `Drv(Exp)` to `Drv(Jdmt)`/`Drv(Ctx)`/`Drv(Prop)`).
          The default leaves the mold sort unchanged. */
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
-      ~buffer_ids: list(Id.t),
       /* (id, shard) marks of display-only ghost pieces spliced into the
          segment (CachedSyntax.ghost_marks); shard-precise so a ghost
          closer doesn't gray its tile's real opener */
@@ -180,7 +181,7 @@ let view =
       List.length(t.label),
       sort,
       is_consistent(sort, t),
-      List.mem(t.id, buffer_ids) || ghost_mark(t.id, Option.some(i)),
+      ghost_mark(t.id, Option.some(i)),
       Tile.is_complete(t) && !tile_ghosted(t),
       Mold.is_infix_op(t.mold)
       && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
@@ -201,10 +202,7 @@ let view =
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
     /* a ghost-marked comment is a witness-remainder ghost (spliced
        by DisplayFork), styled like the retired suggestion buffer */
-    | Comment(str)
-        when
-          List.mem(secondary.id, buffer_ids)
-          || ghost_mark(secondary.id, Option.none) =>
+    | Comment(str) when ghost_mark(secondary.id, Option.none) =>
       secondary_text("in-unparsed-buffer", str)
     | Comment(str) => secondary_text("comment", str)
     };
