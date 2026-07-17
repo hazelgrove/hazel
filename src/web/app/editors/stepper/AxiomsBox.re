@@ -171,6 +171,17 @@ module View = {
             Axioms.visible_rule_enabled(profile.step_policy, rule_id),
         selected_exp,
       )
+      |> List.map((rewrite: TrigRewrite.rewrite) =>
+           {
+             ...rewrite,
+             after_exp:
+               DifferentiationRewrite.cleanup_for_visible_rule(
+                 ~policy=profile.step_policy,
+                 ~rule_id=rewrite.rule_id,
+                 rewrite.after_exp,
+               ),
+           }
+         )
       |> List.filter(rewrite_allowed)
       |> (
         filter == ""

@@ -16,14 +16,22 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type section_override = {
+    level_id: string,
+    expanded: bool,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     rule_overrides: list(rule_override),
     cleanup_overrides: list(cleanup_override),
+    section_overrides: list(section_override),
   };
 
   let init = {
     rule_overrides: [],
     cleanup_overrides: [],
+    section_overrides: [],
   };
 };
 
@@ -31,7 +39,8 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | SetRuleEnabled(string, bool)
-    | SetCleanupEnabled(string, bool);
+    | SetCleanupEnabled(string, bool)
+    | SetSectionExpanded(string, bool);
 
   let default_rule_override = rule_id =>
     Model.{
@@ -105,6 +114,22 @@ module Update = {
       )
     | SetCleanupEnabled(capability_id, enabled) =>
       upsert_cleanup_override(~capability_id, ~enabled, model)
+    | SetSectionExpanded(level_id, expanded) =>
+      let section_overrides =
+        model.section_overrides
+        |> List.filter((override: Model.section_override) =>
+             override.level_id != level_id
+           );
+      Model.{
+        ...model,
+        section_overrides: [
+          Model.{
+            level_id,
+            expanded,
+          },
+          ...section_overrides,
+        ],
+      };
     };
 };
 
@@ -211,6 +236,19 @@ let cleanup_capability_enabled = (model: Model.t, capability) => {
   ) {
   | Some({enabled, _}) => enabled
   | None => true
+  };
+};
+
+let section_expanded = (~active_level, model: Model.t, level) => {
+  let level_id = Axioms.rewrite_level_label(level);
+  switch (
+    model.section_overrides
+    |> List.find_opt((override: Model.section_override) =>
+         override.level_id == level_id
+       )
+  ) {
+  | Some({expanded, _}) => expanded
+  | None => level == active_level
   };
 };
 
@@ -475,7 +513,7 @@ module View = {
       ],
     );
 
-  let cleanup_catalog = rules =>
+  let cleanup_catalog = (~default_cleanup, rules) =>
     rules
     |> List.fold_left(
          (seen, rule: Axioms.visible_rule_policy) =>
@@ -489,9 +527,13 @@ module View = {
                     ? seen : [capability, ...seen],
                 seen,
               ),
-         [],
+         default_cleanup,
        )
-    |> List.rev;
+    |> List.fold_left(
+         (ordered, capability) =>
+           List.mem(capability, ordered) ? ordered : ordered @ [capability],
+         [],
+       );
 
   let example_result = (result: example_result) =>
     div_c(
@@ -616,6 +658,54 @@ module View = {
     );
   };
 
+  let level_section =
+      (~model, ~inject, ~active_level, group: Axioms.rewrite_group, rules) => {
+    let expanded = section_expanded(~active_level, model, group.level);
+    let level_id = Axioms.rewrite_level_label(group.level);
+    div_c(
+      "profile-board-level",
+      [
+        Node.button(
+          ~attrs=[
+            Attr.class_("profile-board-level-toggle"),
+            Attr.create("type", "button"),
+            Attr.create("aria-expanded", expanded ? "true" : "false"),
+            Attr.on_click(_ =>
+              inject(Update.SetSectionExpanded(level_id, !expanded))
+            ),
+          ],
+          [
+            span_c(
+              "profile-board-level-chevron",
+              [Node.text(expanded ? "▼" : "▶")],
+            ),
+            span_c(
+              "profile-board-level-name",
+              [Node.text(Axioms.rewrite_level_label(group.level))],
+            ),
+            span_c(
+              "profile-board-level-count",
+              [
+                Node.text(
+                  string_of_int(List.length(rules))
+                  ++ (List.length(rules) == 1 ? " operation" : " operations"),
+                ),
+              ],
+            ),
+          ],
+        ),
+        ...expanded
+             ? [
+               div_c(
+                 "profile-board-level-rules",
+                 rules |> List.map(rule_controls(~model, ~inject)),
+               ),
+             ]
+             : [],
+      ],
+    );
+  };
+
   let view = (~summary, ~results) => {
     ignore(results);
     div_c(
@@ -696,8 +786,31 @@ module View = {
                       "profile-board-section-title",
                       [Node.text("Visible operations")],
                     ),
-                    ...base_profile.Axioms.step_policy.visible_rules
-                       |> List.map(rule_controls(~model, ~inject)),
+                    ...base_profile.groups
+                       |> List.filter_map((group: Axioms.rewrite_group) => {
+                            let group_rule_ids =
+                              group.rules
+                              |> List.map((rule: Axioms.rewrite_rule) =>
+                                   rule.id
+                                 );
+                            let rules =
+                              base_profile.Axioms.step_policy.visible_rules
+                              |> List.filter(
+                                   (rule: Axioms.visible_rule_policy) =>
+                                   List.mem(rule.rule_id, group_rule_ids)
+                                 );
+                            rules == []
+                              ? None
+                              : Some(
+                                  level_section(
+                                    ~model,
+                                    ~inject,
+                                    ~active_level=base_profile.level,
+                                    group,
+                                    rules,
+                                  ),
+                                );
+                          }),
                   ],
                 ),
                 div_c(
@@ -707,8 +820,11 @@ module View = {
                       "profile-board-section-title",
                       [Node.text("Cleanup policies")],
                     ),
-                    ...base_profile.Axioms.step_policy.visible_rules
-                       |> cleanup_catalog
+                    ...cleanup_catalog(
+                         ~default_cleanup=
+                           base_profile.Axioms.step_policy.default_cleanup,
+                         base_profile.Axioms.step_policy.visible_rules,
+                       )
                        |> List.map(cleanup_policy_controls(~model, ~inject)),
                   ],
                 ),

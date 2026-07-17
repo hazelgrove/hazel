@@ -1084,6 +1084,71 @@ let tests = (
       },
     ),
     test_case(
+      "calculus one step applies enabled cleanup immediately",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source = diff(plus(power(x, Exp.int(2)), Exp.int(2)), x);
+        let target = diff(power(x, Exp.int(2)), x);
+        check_written_at_level(
+          "sum rule drops constant derivative and additive zero",
+          Calculus,
+          source,
+          target,
+          Some("calculus one step"),
+        );
+        check_written_at_level(
+          "power rule drops exponent one and variable derivative",
+          Calculus,
+          diff(power(x, Exp.int(2)), x),
+          times(Exp.int(2), x),
+          Some("calculus one step"),
+        );
+      },
+    ),
+    test_case(
+      "calculus one-step cleanup follows profile toggles",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source = diff(plus(power(x, Exp.int(2)), Exp.int(2)), x);
+        let raw_target =
+          plus(diff(power(x, Exp.int(2)), x), diff(Exp.int(2), x));
+        let cleaned_target = diff(power(x, Exp.int(2)), x);
+        let profile =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=[Axioms.AddIdentity, Axioms.MulIdentity],
+            Axioms.math_profile(Calculus),
+          );
+        check(
+          bool,
+          "raw calculus step remains available",
+          true,
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            raw_target,
+          )
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "disabled derivative cleanup does not disappear",
+          true,
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            cleaned_target,
+          )
+          |> Option.is_none,
+        );
+      },
+    ),
+    test_case(
       "calculus profile can disable the power rule",
       `Quick,
       () => {
@@ -1230,6 +1295,107 @@ let tests = (
         | Some(result) => check_exp_equal("clean derivative", target, result)
         | None => fail("expected a derivative result")
         };
+      },
+    ),
+    test_case(
+      "calculus cleanup simplifies basic derivatives and identity powers",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let profile = Axioms.math_profile(Calculus);
+        let simplify = source =>
+          Web.RewriteChecker.simplify_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+          );
+        [
+          ("same variable derivative", diff(x, x), Exp.int(1)),
+          ("numeric constant derivative", diff(Exp.int(7), x), Exp.int(0)),
+          ("independent variable derivative", diff(y, x), Exp.int(0)),
+          ("power one", power(x, Exp.int(1)), x),
+          (
+            "power zero",
+            power(plus(x, Exp.int(2)), Exp.int(0)),
+            Exp.int(1),
+          ),
+        ]
+        |> List.iter(((label, source, expected)) =>
+             switch (simplify(source)) {
+             | Some(result) => check_exp_equal(label, expected, result)
+             | None => fail("expected cleanup for " ++ label)
+             }
+           );
+      },
+    ),
+    test_case(
+      "calculus cleanup leaves non-basic forms alone",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let cleanup_enabled = capability =>
+          capability == Axioms.DerivativeBasics
+          || capability == Axioms.PowerIdentity;
+        let dependent_derivative = diff(plus(x, Exp.int(1)), x);
+        let nonidentity_power = power(x, Exp.int(2));
+        check_exp_equal(
+          "dependent derivative",
+          dependent_derivative,
+          Web.DifferentiationRewrite.cleanup(
+            ~cleanup_enabled,
+            dependent_derivative,
+          ),
+        );
+        check_exp_equal(
+          "nonidentity power",
+          nonidentity_power,
+          Web.DifferentiationRewrite.cleanup(
+            ~cleanup_enabled,
+            nonidentity_power,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "calculus profile can disable basic cleanup capabilities",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let profile = {
+          ...profile,
+          step_policy: {
+            ...profile.step_policy,
+            default_cleanup:
+              profile.step_policy.default_cleanup
+              |> List.filter(capability =>
+                   capability != Axioms.DerivativeBasics
+                   && capability != Axioms.PowerIdentity
+                 ),
+          },
+        };
+        let cleanup_enabled = capability =>
+          List.mem(capability, profile.step_policy.default_cleanup);
+        let variable_derivative = diff(x, x);
+        let identity_power = power(x, Exp.int(1));
+        check_exp_equal(
+          "disabled derivative cleanup",
+          variable_derivative,
+          Web.DifferentiationRewrite.cleanup(
+            ~cleanup_enabled,
+            variable_derivative,
+          ),
+        );
+        check_exp_equal(
+          "disabled power cleanup",
+          identity_power,
+          Web.DifferentiationRewrite.cleanup(
+            ~cleanup_enabled,
+            identity_power,
+          ),
+        );
       },
     ),
     test_case(
@@ -2197,6 +2363,48 @@ let tests = (
           Web.ProfileBoard.rule_enabled(
             disabled_model,
             "alg.distribute_mul_add",
+          ),
+        );
+      },
+    ),
+    test_case(
+      "profile board math-level sections are independently collapsible",
+      `Quick,
+      () => {
+        let model = Web.ProfileBoard.Model.init;
+        check(
+          bool,
+          "active calculus section starts expanded",
+          true,
+          Web.ProfileBoard.section_expanded(
+            ~active_level=Calculus,
+            model,
+            Calculus,
+          ),
+        );
+        check(
+          bool,
+          "inherited trig section starts collapsed",
+          false,
+          Web.ProfileBoard.section_expanded(
+            ~active_level=Calculus,
+            model,
+            Trigonometry,
+          ),
+        );
+        let model =
+          Web.ProfileBoard.Update.update(
+            SetSectionExpanded("Trigonometry", true),
+            model,
+          );
+        check(
+          bool,
+          "trig section expands independently",
+          true,
+          Web.ProfileBoard.section_expanded(
+            ~active_level=Calculus,
+            model,
+            Trigonometry,
           ),
         );
       },

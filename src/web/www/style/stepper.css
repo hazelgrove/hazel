@@ -415,6 +415,59 @@
   gap: 0.5rem;
 }
 
+.profile-board-level {
+  overflow: hidden;
+  border: 1px solid var(--menu-outline);
+  border-radius: 0.35em;
+  background-color: var(--menu-bkg);
+}
+
+.profile-board-level-toggle {
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  background-color: var(--T3);
+  color: var(--BR4);
+  font: inherit;
+  text-align: left;
+}
+
+.profile-board-level-toggle:hover {
+  filter: brightness(0.97);
+}
+
+.profile-board-level-chevron,
+.profile-board-level-name,
+.profile-board-level-count {
+  color: var(--BR4);
+}
+
+.profile-board-level-chevron {
+  font-size: 0.72rem;
+}
+
+.profile-board-level-name {
+  font-weight: 700;
+}
+
+.profile-board-level-count {
+  font-size: 0.76rem;
+  opacity: 0.75;
+}
+
+.profile-board-level-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.45rem;
+}
+
 .profile-board-control-rule {
   display: flex;
   flex-direction: column;

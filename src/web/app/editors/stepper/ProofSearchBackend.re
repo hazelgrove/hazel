@@ -613,7 +613,8 @@ let calculus_search_program =
   | None => None
   | Some((expression, variable)) =>
     let rule_enabled = rule_id =>
-      Axioms.visible_rule_enabled(profile.Axioms.step_policy, rule_id);
+      !DifferentiationRewrite.is_basic_cleanup_rule_id(rule_id)
+      && Axioms.visible_rule_enabled(profile.Axioms.step_policy, rule_id);
     let cleanup_enabled = capability =>
       List.mem(capability, profile.step_policy.default_cleanup);
     let normalized =

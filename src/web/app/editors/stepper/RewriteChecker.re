@@ -2381,15 +2381,19 @@ let simplify_for_profile =
   switch (profile.level) {
   | Axioms.Calculus =>
     let rule_enabled = rule_id =>
-      Axioms.visible_rule_enabled(profile.step_policy, rule_id);
+      !DifferentiationRewrite.is_basic_cleanup_rule_id(rule_id)
+      && Axioms.visible_rule_enabled(profile.step_policy, rule_id);
     let normalized =
       DifferentiationRewrite.normalize(~rule_enabled, ~fuel=128, exp);
+    let cleanup_enabled = capability =>
+      List.mem(capability, profile.step_policy.default_cleanup);
+    let cleaned =
+      DifferentiationRewrite.cleanup(~cleanup_enabled, normalized.exp);
     switch (normalized.steps) {
-    | [] => simplify_at_level(~level=profile.level, ~settings, ~env, exp)
-    | [_, ..._] =>
-      let cleanup_enabled = capability =>
-        List.mem(capability, profile.step_policy.default_cleanup);
-      Some(DifferentiationRewrite.cleanup(~cleanup_enabled, normalized.exp));
+    | [] when TrigRewrite.exp_same(cleaned, exp) =>
+      simplify_at_level(~level=profile.level, ~settings, ~env, exp)
+    | []
+    | [_, ..._] => Some(cleaned)
     };
   | _ => simplify_at_level(~level=profile.level, ~settings, ~env, exp)
   };
@@ -3147,8 +3151,15 @@ let check_single_calculus_rule_result_for_profile =
     let rule_enabled = rule_id =>
       Axioms.visible_rule_enabled(profile.step_policy, rule_id);
     DifferentiationRewrite.applicable_at_root(~rule_enabled, from_)
-    |> List.find_map((rewrite: TrigRewrite.rewrite) =>
-         if (TrigRewrite.exp_same(rewrite.after_exp, to_)) {
+    |> List.find_map((rewrite: TrigRewrite.rewrite) => {
+         let cleaned_after =
+           DifferentiationRewrite.cleanup_for_visible_rule(
+             ~policy=profile.step_policy,
+             ~rule_id=rewrite.rule_id,
+             rewrite.after_exp,
+           );
+         if (TrigRewrite.exp_same(rewrite.after_exp, to_)
+             || TrigRewrite.exp_same(cleaned_after, to_)) {
            let trace = trace_rules(group, [rewrite.rule_id]);
            Some({
              justification: "calculus one step",
@@ -3173,8 +3184,8 @@ let check_single_calculus_rule_result_for_profile =
            });
          } else {
            None;
-         }
-       );
+         };
+       });
   };
 };
 

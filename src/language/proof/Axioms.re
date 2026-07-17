@@ -70,6 +70,8 @@ type cleanup_capability =
   | AddIdentity
   | MulIdentity
   | ConstFold
+  | DerivativeBasics
+  | PowerIdentity
   | PowerNotation
   | CollectLikeTerms;
 
@@ -950,6 +952,8 @@ let cleanup_capability_label =
   | AddIdentity => "add.identity"
   | MulIdentity => "mul.identity"
   | ConstFold => "const.fold"
+  | DerivativeBasics => "derivative.basics"
+  | PowerIdentity => "power.identity"
   | PowerNotation => "power.notation"
   | CollectLikeTerms => "collect.like_terms";
 
@@ -1010,6 +1014,20 @@ let cleanup_capability_metadata =
       ~name="Fold constants",
       ~short_name="Fold",
       ~example="3 + 4 = 7",
+    )
+  | DerivativeBasics =>
+    operation_metadata(
+      ~id=cleanup_capability_label(DerivativeBasics),
+      ~name="Simplify basic derivatives",
+      ~short_name="Basic diff",
+      ~example="diff(x, x) = 1",
+    )
+  | PowerIdentity =>
+    operation_metadata(
+      ~id=cleanup_capability_label(PowerIdentity),
+      ~name="Simplify identity powers",
+      ~short_name="Power id",
+      ~example="x**1 = x",
     )
   | PowerNotation =>
     operation_metadata(
@@ -1404,6 +1422,9 @@ let visible_once_rule = (~rule_id, ~allowed_cleanup) => {
 let ac_cleanup = [AddAssoc, AddComm, MulAssoc, MulComm];
 
 let structural_identity_cleanup = [AddIdentity, MulIdentity];
+
+let calculus_step_cleanup =
+  structural_identity_cleanup @ [DerivativeBasics, PowerIdentity];
 
 let assoc_cleanup = [AddAssoc, MulAssoc];
 
@@ -2001,6 +2022,12 @@ let rocq_cleanup_catalog = [
     ~integers=["cbn"],
     ~reals=["cbn"],
   ),
+  rocq_cleanup_backend(~capability=DerivativeBasics, ~integers=[], ~reals=[]),
+  rocq_cleanup_backend(
+    ~capability=PowerIdentity,
+    ~integers=[],
+    ~reals=["rewrite pow_1", "rewrite pow_O"],
+  ),
   rocq_cleanup_backend(
     ~capability=PowerNotation,
     ~integers=["rewrite Z.pow_2_r"],
@@ -2272,7 +2299,7 @@ let math_rule_catalog = {
            ~direction=Forward,
            ~hazel_backend=Some(CalculusDerivative),
            ~visible_levels=[Calculus],
-           ~allowed_cleanup=[],
+           ~allowed_cleanup=calculus_step_cleanup,
          )
        );
   arithmetic_rules
@@ -2297,7 +2324,13 @@ let profile_default_cleanup = [
     Calculus,
     ac_cleanup
     @ structural_identity_cleanup
-    @ [ConstFold, PowerNotation, CollectLikeTerms],
+    @ [
+      ConstFold,
+      DerivativeBasics,
+      PowerIdentity,
+      PowerNotation,
+      CollectLikeTerms,
+    ],
   ),
 ];
 

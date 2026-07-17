@@ -355,65 +355,91 @@ let rec contains_diff = exp =>
 let is_zero = exp => integer_constant(exp) == Some(0);
 let is_one = exp => integer_constant(exp) == Some(1);
 
+let is_basic_cleanup_rule_id = rule_id =>
+  rule_id == "calc.diff_constant" || rule_id == "calc.diff_variable";
+
 let rec cleanup = (~cleanup_enabled, exp) => {
   let exp = strip(exp);
   let recurse = cleanup(~cleanup_enabled);
-  switch (exp.term) {
-  | BinOp(op, left, right) =>
-    let left = recurse(left);
-    let right = recurse(right);
-    if (is_operator(Operators.Plus, op)) {
-      if (cleanup_enabled(Axioms.AddIdentity) && is_zero(left)) {
-        right;
-      } else if (cleanup_enabled(Axioms.AddIdentity) && is_zero(right)) {
-        left;
-      } else if (cleanup_enabled(Axioms.CollectLikeTerms)
-                 && exp_same(left, right)) {
-        times_exp(int_exp(2), left);
-      } else {
-        rebuild_binary(op, left, right);
-      };
-    } else if (is_operator(Operators.Minus, op)) {
-      if (cleanup_enabled(Axioms.AddIdentity) && is_zero(right)) {
-        left;
-      } else if (cleanup_enabled(Axioms.AddIdentity) && is_zero(left)) {
-        neg_exp(right);
-      } else {
-        rebuild_binary(op, left, right);
-      };
-    } else if (is_operator(Operators.Times, op)) {
-      if (cleanup_enabled(Axioms.MulIdentity)
-          && (is_zero(left) || is_zero(right))) {
-        int_exp(0);
-      } else if (cleanup_enabled(Axioms.MulIdentity) && is_one(left)) {
-        right;
-      } else if (cleanup_enabled(Axioms.MulIdentity) && is_one(right)) {
-        left;
-      } else {
-        rebuild_binary(op, left, right);
-      };
-    } else if (is_operator(Operators.Power, op)) {
-      if (cleanup_enabled(Axioms.PowerNotation) && is_zero(right)) {
-        int_exp(1);
-      } else if (cleanup_enabled(Axioms.PowerNotation) && is_one(right)) {
-        left;
-      } else {
-        rebuild_binary(op, left, right);
-      };
-    } else {
-      rebuild_binary(op, left, right);
+  switch (diff_parts(exp)) {
+  | Some((expression, variable))
+      when cleanup_enabled(Axioms.DerivativeBasics) =>
+    let expression = recurse(expression);
+    let variable = recurse(variable);
+    switch (variable_name(variable)) {
+    | Some(variable_name) =>
+      switch (strip(expression).term) {
+      | Var(name) when name == variable_name => int_exp(1)
+      | Fun(_, _, _, _) => diff_exp(expression, variable)
+      | _ when !depends_on(variable_name, expression) => int_exp(0)
+      | _ => diff_exp(expression, variable)
+      }
+    | None => diff_exp(expression, variable)
     };
-  | UnOp(op, inner) =>
-    let inner = recurse(inner);
-    cleanup_enabled(Axioms.AddIdentity) && is_zero(inner)
-      ? int_exp(0) : rebuild_unary(op, inner);
-  | Ap(direction, fn, arg) =>
-    Exp.fresh(Ap(direction, recurse(fn), recurse(arg)))
-  | Tuple(entries) => tuple_exp(List.map(recurse, entries))
-  | Parens(inner) => recurse(inner)
-  | Asc(inner, _) => recurse(inner)
-  | _ => exp
+  | _ =>
+    switch (exp.term) {
+    | BinOp(op, left, right) =>
+      let left = recurse(left);
+      let right = recurse(right);
+      if (is_operator(Operators.Plus, op)) {
+        if (cleanup_enabled(Axioms.AddIdentity) && is_zero(left)) {
+          right;
+        } else if (cleanup_enabled(Axioms.AddIdentity) && is_zero(right)) {
+          left;
+        } else if (cleanup_enabled(Axioms.CollectLikeTerms)
+                   && exp_same(left, right)) {
+          times_exp(int_exp(2), left);
+        } else {
+          rebuild_binary(op, left, right);
+        };
+      } else if (is_operator(Operators.Minus, op)) {
+        if (cleanup_enabled(Axioms.AddIdentity) && is_zero(right)) {
+          left;
+        } else if (cleanup_enabled(Axioms.AddIdentity) && is_zero(left)) {
+          neg_exp(right);
+        } else {
+          rebuild_binary(op, left, right);
+        };
+      } else if (is_operator(Operators.Times, op)) {
+        if (cleanup_enabled(Axioms.MulIdentity)
+            && (is_zero(left) || is_zero(right))) {
+          int_exp(0);
+        } else if (cleanup_enabled(Axioms.MulIdentity) && is_one(left)) {
+          right;
+        } else if (cleanup_enabled(Axioms.MulIdentity) && is_one(right)) {
+          left;
+        } else {
+          rebuild_binary(op, left, right);
+        };
+      } else if (is_operator(Operators.Power, op)) {
+        if (cleanup_enabled(Axioms.PowerIdentity) && is_zero(right)) {
+          int_exp(1);
+        } else if (cleanup_enabled(Axioms.PowerIdentity) && is_one(right)) {
+          left;
+        } else {
+          rebuild_binary(op, left, right);
+        };
+      } else {
+        rebuild_binary(op, left, right);
+      };
+    | UnOp(op, inner) =>
+      let inner = recurse(inner);
+      cleanup_enabled(Axioms.AddIdentity) && is_zero(inner)
+        ? int_exp(0) : rebuild_unary(op, inner);
+    | Ap(direction, fn, arg) =>
+      Exp.fresh(Ap(direction, recurse(fn), recurse(arg)))
+    | Tuple(entries) => tuple_exp(List.map(recurse, entries))
+    | Parens(inner) => recurse(inner)
+    | Asc(inner, _) => recurse(inner)
+    | _ => exp
+    }
   };
+};
+
+let cleanup_for_visible_rule = (~policy, ~rule_id, exp) => {
+  let allowed_cleanup = Axioms.cleanup_for_visible_rule(policy, rule_id);
+  let cleanup_enabled = capability => List.mem(capability, allowed_cleanup);
+  cleanup(~cleanup_enabled, exp);
 };
 
 let is_calculus_rule_id = rule_id =>
