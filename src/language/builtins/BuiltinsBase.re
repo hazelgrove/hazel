@@ -51,7 +51,7 @@ let misc_fns: list(BuiltinsUtil.fn) = [
     arg: Prod([unknown(Internal), float()]),
     ret: Atom(Float),
     imp: _ => None,
-    custom_statics: None,
+    custom_statics: Some(Ctx.DiffVariable),
   },
   {
     /* Println for probes study */

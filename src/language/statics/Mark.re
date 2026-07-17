@@ -26,7 +26,8 @@ type error_builtin =
   | ArgumentMustBeTuple
   | ArgumentMustBeListOfTuples
   | AtLeast2Arguments
-  | Exactly2Arguments;
+  | Exactly2Arguments
+  | DiffVariableRequired;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type tpat_shadow_src =

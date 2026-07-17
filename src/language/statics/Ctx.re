@@ -7,7 +7,8 @@ type custom_statics =
   | OmitLabels
   | OmitAllLabels
   | GroupByLabel
-  | SelectLabels;
+  | SelectLabels
+  | DiffVariable;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =

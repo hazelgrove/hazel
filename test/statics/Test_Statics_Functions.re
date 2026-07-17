@@ -39,6 +39,67 @@ let tests = (
       Some(float()),
     ),
     fully_consistent_typecheck(
+      "diff accepts a variable as its second argument",
+      "let x = 1.0 in diff(x, x)",
+      Some(float()),
+    ),
+    fully_consistent_typecheck(
+      "diff accepts a parenthesized variable as its second argument",
+      "let x = 1.0 in diff(x, (x))",
+      Some(float()),
+    ),
+    test_case("diff rejects a non-variable second argument", `Quick, () =>
+      annotated_tree_test(
+        "diff(1.0, 2.0)",
+        float(),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("diff"),
+            tuple([
+              float(1.0),
+              float(
+                ~ann=Some(Marks([BuiltinError(DiffVariableRequired)])),
+                2.0,
+              ),
+            ]),
+          )
+        ),
+      )
+    ),
+    test_case(
+      "diff rejects an expression as its second argument",
+      `Quick,
+      () => {
+        let exp = parse_exp("diff(1.0, float_of_int(2))");
+        let static_map = statics(exp);
+        let actual =
+          errors(static_map) |> List.map(((_, marks)) => Marks(marks));
+        Alcotest.check(
+          Alcotest.list(testable_issue),
+          "Static Errors",
+          [Marks([BuiltinError(DiffVariableRequired)])],
+          actual,
+        );
+      },
+    ),
+    test_case(
+      "deferred diff rejects a non-variable second argument",
+      `Quick,
+      () => {
+        let exp = parse_exp("diff(_, 2.0)");
+        let static_map = statics(exp);
+        let actual =
+          errors(static_map) |> List.map(((_, marks)) => Marks(marks));
+        Alcotest.check(
+          Alcotest.list(testable_issue),
+          "Static Errors",
+          [Marks([BuiltinError(DiffVariableRequired)])],
+          actual,
+        );
+      },
+    ),
+    fully_consistent_typecheck(
       "function deferral",
       "string_sub(\"hello\", 1, _)",
       Some(arrow(int(), string())),

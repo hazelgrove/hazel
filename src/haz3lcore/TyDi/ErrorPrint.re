@@ -133,6 +133,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     )
   | BuiltinError(AtLeast2Arguments) => "Must have 2 or more direct arguments"
   | BuiltinError(Exactly2Arguments) => "Must have exactly 2 direct arguments"
+  | BuiltinError(DiffVariableRequired) => "The second argument to diff must be a variable"
   | BuiltinError(ArgumentMustBeListOfTuples) => "Argument must be a list of labeled tuples"
   | BuiltinError(PivotLabelIsNotString(ty)) =>
     prn("Pivot column must be a string, but got: %s", Print.typ(ty))

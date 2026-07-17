@@ -684,6 +684,8 @@ let exp_mark_err_view =
       div_err([text("Must have 2 or more direct arguments")])
     | Exactly2Arguments =>
       div_err([text("Must have exactly 2 direct arguments")])
+    | DiffVariableRequired =>
+      div_err([text("The second argument to diff must be a variable")])
     | ArgumentMustBeListOfTuples =>
       div_err([text("First argument must be a list of labeled tuples")])
     | PivotLabelIsNotString(ty) =>

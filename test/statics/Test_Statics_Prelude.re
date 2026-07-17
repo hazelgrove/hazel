@@ -34,6 +34,7 @@ let equal_builtin = (a: Mark.error_builtin, b: Mark.error_builtin) =>
   | (ArgumentMustBeListOfTuples, ArgumentMustBeListOfTuples) => true
   | (AtLeast2Arguments, AtLeast2Arguments) => true
   | (Exactly2Arguments, Exactly2Arguments) => true
+  | (DiffVariableRequired, DiffVariableRequired) => true
   | _ => false
   };
 

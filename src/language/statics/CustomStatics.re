@@ -648,6 +648,44 @@ let omit_all_labels_statics =
   );
 };
 
+let rec is_variable_argument = (arg: Exp.t): bool =>
+  switch (arg.term) {
+  | Var(_) => true
+  | Parens(inner)
+  | Asc(inner, _) => is_variable_argument(inner)
+  | _ => false
+  };
+
+let diff_variable_statics =
+    (
+      module S: ExpressionStatics,
+      ~annotation: IdTagged.IdTag.t,
+      ~fn_info: Info.exp,
+      ~ancestors as _: list(Id.t),
+      ~ctx: Ctx.t,
+      m: Map.t,
+      arg: Exp.t,
+    ) => {
+  S.(
+    let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+    let (arg_info, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
+    let m =
+      switch (arg.term) {
+      | Tuple([_, variable]) when !is_variable_argument(variable) =>
+        append_mark_exp(m, variable, [BuiltinError(DiffVariableRequired)])
+      | _ => m
+      };
+
+    add(
+      ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg_elab),
+      ~elab_syn_ty=ty_out,
+      ~marks=[],
+      ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
+      m,
+    );
+  );
+};
+
 let validate_label_arguments =
     (
       module S: ExpressionStatics,
@@ -682,6 +720,32 @@ let custom_statics_deferred_ap =
     ) => {
   S.(
     switch (kind, args) {
+    | (DiffVariable, args) =>
+      let (args_info, m) = analyze_args_syn((module S), ~ctx, args, m);
+      let m =
+        switch (args) {
+        | [_, variable] when !is_variable_argument(variable) =>
+          append_mark_exp(m, variable, [BuiltinError(DiffVariableRequired)])
+        | _ => m
+        };
+      let combined_co_ctx =
+        List.fold_left(
+          (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
+          fn_info.co_ctx,
+          args_info,
+        );
+      let ty_in' =
+        List.filter(e => Exp.is_deferral(e), args)
+        |> List.map(_ => unknown)
+        |> Typ.to_product;
+
+      add(
+        ~elab_syn_ty=Arrow(ty_in', unknown) |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=combined_co_ctx,
+        m,
+      );
+
     | (ProjectLabels | SelectLabels | OmitLabels, [tup, ...labels])
         when List.length(labels) > 0 =>
       let (tup_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, tup, m);
@@ -785,5 +849,6 @@ let custom_statics_ap = (kind: Ctx.custom_statics) => {
   | SelectLabels => select_labels_statics
   | OmitLabels => omit_labels_statics
   | OmitAllLabels => omit_all_labels_statics
+  | DiffVariable => diff_variable_statics
   };
 };
