@@ -2,6 +2,7 @@
  * eta, unfold, evaluate-in-place. */
 open Language;
 open RefactorBase;
+open RefactorParens;
 open RefactorInline;
 
 let eta_reduce_impl: impl = {

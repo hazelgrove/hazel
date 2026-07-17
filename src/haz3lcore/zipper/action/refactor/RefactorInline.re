@@ -2,6 +2,7 @@
  * rename machinery, explode/implode. */
 open Language;
 open RefactorBase;
+open RefactorParens;
 
 let inline_matches = (p: Pat.t, def: Exp.t, body: Exp.t): bool => {
   let moved: Exp.t = fresh(Let(p, def, fresh(EmptyHole)));
