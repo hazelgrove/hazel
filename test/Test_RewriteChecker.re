@@ -2620,6 +2620,69 @@ let tests = (
       },
     ),
     test_case(
+      "calculus Search suggestions show linearity before cleanup",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let polynomial =
+          diff(
+            plus(
+              plus(power(x, Exp.int(2)), times(Exp.int(3), x)),
+              Exp.int(2),
+            ),
+            x,
+          );
+        let expected_polynomial_step =
+          plus(
+            diff(plus(power(x, Exp.int(2)), times(Exp.int(3), x)), x),
+            diff(Exp.int(2), x),
+          );
+        let different_shape = diff(plus(sin(x), power(x, Exp.int(3))), x);
+        let expected_different_shape_step =
+          plus(diff(sin(x), x), diff(power(x, Exp.int(3)), x));
+        let expect_linearity = (label, source, expected) =>
+          switch (
+            Web.AxiomsBox.calculus_actions_for_profile(~profile, source)
+          ) {
+          | [suggestion] =>
+            check(
+              string,
+              label ++ " label",
+              "linearity (sum rule)",
+              suggestion.label,
+            );
+            check_exp_equal(label, expected, suggestion.after_exp);
+          | _ => fail(label ++ " should have one linearity suggestion")
+          };
+        expect_linearity(
+          "left-associated polynomial",
+          polynomial,
+          expected_polynomial_step,
+        );
+        expect_linearity(
+          "function plus power",
+          different_shape,
+          expected_different_shape_step,
+        );
+        let disabled_profile =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_sum",
+            profile,
+          );
+        check(
+          int,
+          "disabled linearity is not suggested",
+          0,
+          Web.AxiomsBox.calculus_actions_for_profile(
+            ~profile=disabled_profile,
+            polynomial,
+          )
+          |> List.length,
+        );
+      },
+    ),
+    test_case(
       "typed proof-search verdicts control labels and replacement",
       `Quick,
       () => {

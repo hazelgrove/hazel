@@ -115,6 +115,14 @@ let rewrite_enabled_for_profile =
     (profile: Axioms.math_profile, rewrite: TrigRewrite.rewrite) =>
   Axioms.visible_rule_enabled(profile.step_policy, rewrite.rule_id);
 
+let calculus_actions_for_profile =
+    (~profile: Axioms.math_profile, selected_exp) =>
+  DifferentiationRewrite.applicable_at_root(
+    ~rule_enabled=
+      rule_id => Axioms.visible_rule_enabled(profile.step_policy, rule_id),
+    selected_exp,
+  );
+
 module View = {
   let view =
       (
@@ -165,23 +173,7 @@ module View = {
             )
       );
     let calculus_actions =
-      DifferentiationRewrite.applicable_at_root(
-        ~rule_enabled=
-          rule_id =>
-            Axioms.visible_rule_enabled(profile.step_policy, rule_id),
-        selected_exp,
-      )
-      |> List.map((rewrite: TrigRewrite.rewrite) =>
-           {
-             ...rewrite,
-             after_exp:
-               DifferentiationRewrite.cleanup_for_visible_rule(
-                 ~policy=profile.step_policy,
-                 ~rule_id=rewrite.rule_id,
-                 rewrite.after_exp,
-               ),
-           }
-         )
+      calculus_actions_for_profile(~profile, selected_exp)
       |> List.filter(rewrite_allowed)
       |> (
         filter == ""

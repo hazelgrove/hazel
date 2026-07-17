@@ -181,13 +181,13 @@ let applicable_at_root = (~rule_enabled, exp) => {
       | BinOp(op, left, right) when is_operator(Operators.Plus, op) =>
         make(
           "calc.diff_sum",
-          "derivative sum rule",
+          "linearity (sum rule)",
           plus_exp(diff_exp(left, variable), diff_exp(right, variable)),
         )
       | BinOp(op, left, right) when is_operator(Operators.Minus, op) =>
         make(
           "calc.diff_difference",
-          "derivative difference rule",
+          "linearity (difference rule)",
           minus_exp(diff_exp(left, variable), diff_exp(right, variable)),
         )
       | BinOp(op, left, right) when is_operator(Operators.Times, op) =>
@@ -548,12 +548,6 @@ let rec cleanup_once = (~cleanup_enabled, exp) => {
     | _ => None
     }
   };
-};
-
-let cleanup_for_visible_rule = (~policy, ~rule_id, exp) => {
-  let allowed_cleanup = Axioms.cleanup_for_visible_rule(policy, rule_id);
-  let cleanup_enabled = capability => List.mem(capability, allowed_cleanup);
-  cleanup(~cleanup_enabled, exp);
 };
 
 let is_calculus_rule_id = rule_id =>
