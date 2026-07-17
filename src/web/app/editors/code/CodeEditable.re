@@ -518,6 +518,7 @@ module View = {
     [
       CaretDec.view(
         ~measured=syntax.measured,
+        ~caret_witnesses=syntax.caret_witnesses,
         ~font_metrics=globals.font_metrics,
         z,
       ),

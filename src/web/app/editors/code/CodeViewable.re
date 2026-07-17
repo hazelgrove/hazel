@@ -11,6 +11,7 @@ let view =
       ~term_data,
       ~buffer_ids,
       ~ghost_marks=[],
+      ~typed_lens=[],
       ~shape_map,
       ~refractor_shape_map,
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
@@ -28,6 +29,7 @@ let view =
       ~refine_sort,
       ~buffer_ids,
       ~ghost_marks,
+      ~typed_lens,
       segment,
     );
   div_c("code", [span_c("code-text", code)]);

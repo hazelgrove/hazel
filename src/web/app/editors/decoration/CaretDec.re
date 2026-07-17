@@ -54,6 +54,10 @@ let side_of = (z: Haz3lcore.Zipper.t): Direction.t => {
 let view =
     (
       ~measured: Haz3lcore.Measured.t,
+      /* promise-render witness carets: a replaced witness token's
+         caret maps to the reified shard origin + typed_len (see
+         DisplayCaret.point) */
+      ~caret_witnesses: list((Haz3lcore.Id.t, (Haz3lcore.Id.t, int, int)))=[],
       ~font_metrics: FontMetrics.t,
       z: Haz3lcore.Zipper.t,
     )
@@ -64,7 +68,7 @@ let view =
     ~font_metrics,
     ~profile={
       side,
-      origin: Zipper.Caret.point(measured, z),
+      origin: DisplayCaret.point(~caret_witnesses, measured, z),
       shape: Zipper.Caret.direction(z),
     },
   );
