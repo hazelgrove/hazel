@@ -11,6 +11,18 @@ type t = {
   /* (id, shard) marks of display-only ghost pieces spliced into
      `segment` — the zipper never contains them */
   ghost_marks: list((Id.t, option(int))),
+  /* WITNESS sub-token styling: (tile id, shard idx) -> typed_len.
+     A witness shard is a REAL completed delimiter whose first
+     typed_len chars the user typed; the view renders that prefix
+     normal and the remainder ghost. Empty on the reconstruction
+     fork (witnesses there are comment remainders). */
+  typed_lens: list(((Id.t, int), int)),
+  /* WITNESS caret anchors: the user's partial token id -> (reified
+     tile id, shard idx, typed_len). When a witness replaces the
+     partial token in the display, the caret (still anchored on the
+     partial id in the zipper) maps to the reified shard's origin +
+     typed_len. DisplayCaret.point reads this. */
+  caret_witnesses: list((Id.t, (Id.t, int, int))),
   /* THE assist stream (A1 single source): chips, the inline ghost,
      and Tab all read this one list */
   assist: list(CanonicalCompletion.insertion),
@@ -103,6 +115,8 @@ let plain = (z: Zipper.t): t => {
   {
     segment,
     ghost_marks: [],
+    typed_lens: [],
+    caret_witnesses: [],
     assist: [],
     ghosted: [],
     parsed: MakeTerm.go(segment),
@@ -387,6 +401,8 @@ let mk_inner =
   {
     segment,
     ghost_marks,
+    typed_lens: [],
+    caret_witnesses: [],
     assist,
     ghosted: ghost_marks == [] ? [] : List.map(((o, _, _)) => o, ghosts),
     parsed,

@@ -33,6 +33,15 @@ type t = {
    * zipper never contains them. Shard-precise so a ghost closer
    * doesn't gray its tile's real opener. Empty = no ghost. */
   ghost_marks: list((Id.t, option(int))),
+  /* Witness sub-token styling: (tile id, shard idx) -> typed_len. A
+   * witness delimiter (in / => / -> / then) is a REAL completed shard
+   * whose first typed_len chars the user typed; the view renders that
+   * prefix normal and the remainder ghost. */
+  typed_lens: list(((Id.t, int), int)),
+  /* Witness caret anchors (partial token id -> reified tile/shard +
+   * typed_len): a replaced-witness caret maps to the reified shard.
+   * DisplayCaret.point reads this. */
+  caret_witnesses: list((Id.t, (Id.t, int, int))),
   /* Edit-armed ghost state: set by an edit, cleared by any other
    * action (Editor.Update). While armed, a statics refresh re-forks
    * the display — statics are DEBOUNCED during typing, so the frame
@@ -71,12 +80,25 @@ let mk =
       z,
     )
     : t => {
+  /* THE live display path is the PROMISE RENDER: the display projected
+   * from the single reified artifact (PromiseRender.mk), replacing the
+   * reconstruction fork. DisplayFork remains the shared home for the
+   * assist stream / view-policy layer both call. */
   let fork =
     switch (obligations) {
-    | Some(obligations) => DisplayFork.mk(~info_map, ~obligations, ~armed, z)
+    | Some(obligations) =>
+      PromiseRender.mk(~info_map, ~obligations, ~armed, z)
     | None => DisplayFork.plain(z)
     };
-  let DisplayFork.{segment, ghost_marks, assist, ghosted, parsed} = fork;
+  let DisplayFork.{
+    segment,
+    ghost_marks,
+    typed_lens,
+    caret_witnesses,
+    assist,
+    ghosted,
+    parsed,
+  } = fork;
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} = parsed;
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
@@ -105,6 +127,8 @@ let mk =
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
     ghost_marks,
+    typed_lens,
+    caret_witnesses,
     ghost_armed: false,
     assist,
     ghosted,

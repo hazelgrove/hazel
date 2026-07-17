@@ -898,15 +898,28 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
     let seg = Piece.disassemble(p);
+    /* the representative piece is normally present in `measured`. On
+       the DISPLAY segment, though, a promise-render witness replaces
+       the user's partial token with a full completed shard, so the
+       zipper's representative id may be absent — fall back to its
+       measurement by id, then to (0,0), rather than crash.
+       DisplayCaret.point supplies the exact witness caret column where
+       it is wired; this keeps every other caret consumer safe. */
+    let safe = (p: Piece.t, pick): Point.t =>
+      switch (Measured.find_p(~msg="base_point", p, measured)) {
+      | m => pick(m)
+      | exception _ =>
+        switch (Measured.find_by_id(Piece.id(p), measured)) {
+        | Some(m) => pick(m)
+        | None => {
+            row: 0,
+            col: 0,
+          }
+        }
+      };
     switch (d) {
-    | Left =>
-      let p = ListUtil.last(seg);
-      let m = Measured.find_p(~msg="base_point", p, measured);
-      m.last;
-    | Right =>
-      let p = List.hd(seg);
-      let m = Measured.find_p(~msg="base_point", p, measured);
-      m.origin;
+    | Left => safe(ListUtil.last(seg), (m: Measured.measurement) => m.last)
+    | Right => safe(List.hd(seg), (m: Measured.measurement) => m.origin)
     };
   | None => {
       row: 0,
