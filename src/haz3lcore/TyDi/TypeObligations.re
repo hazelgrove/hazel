@@ -713,6 +713,20 @@ let synthesize_new_sites =
    (PromiseRender) runs for_editor ONCE and keeps completed_seg as
    the display artifact — the same result feeds the assist stream
    here instead of being recomputed and discarded */
+/* the FRAME-FRESH obligation set: the statics-derived records PLUS
+   sites synthesized this frame from the stale ctx (brand-new aps
+   whose fn type the last pass knows). The display projects the
+   reified artifact from THIS set, so a just-typed `f(` shows its
+   promised commas one debounce before statics catches up — the
+   promise model's whole point. At the settled frame this equals the
+   statics obligations (reify ran on the same set), so the analyzed
+   info_map's ids coincide with the display's. */
+let frame_obligations =
+    (z: Zipper.t, ~info_map: Statics.Map.t, obs: list(t)): list(t) => {
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  obs @ synthesize_new_sites(~info_map, ~seg, obs);
+};
+
 let assist_stream_with =
     (
       ~result: CanonicalCompletion.completion_result,
@@ -722,7 +736,7 @@ let assist_stream_with =
     )
     : list(CanonicalCompletion.insertion) => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-  let obs = obs @ synthesize_new_sites(~info_map, ~seg, obs);
+  let obs = frame_obligations(z, ~info_map, obs);
   as_insertions(
     ~seg,
     ~completed=result.completed_seg,
