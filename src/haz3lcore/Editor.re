@@ -213,9 +213,9 @@ module Update = {
       )
       : Model.t => {
     /* The assist stream — TyDi suggestions included (T2) — and the
-       inline ghost (display fork) are computed by DisplayFork.mk
-       inside CachedSyntax — the single zipper→displayed-segment
-       pipeline shared with the test harness.
+       inline ghost (display projection) are computed by
+       PromiseRender.mk inside CachedSyntax — the single
+       zipper→displayed-segment pipeline shared with the test harness.
        Editor only owns the ARMING state: an edit ARMS the ghost, any
        other action disarms (Update.clear_buffer); movement never
        arms. While armed, a statics refresh re-forks the display —

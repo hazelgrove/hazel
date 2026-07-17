@@ -49,7 +49,7 @@ type t = {
    * frame itself. Movement never arms: activation stays edit-only. */
   ghost_armed: bool,
   /* THE assist stream (A1 single source), assembled frame-fresh by
-   * DisplayFork.mk from this frame's syntax + statics' type facts.
+   * PromiseRender.mk from this frame's syntax + statics' type facts.
    * Cached here because it depends only on (erased segment,
    * obligations) — caret-free — so movement frames reuse it.
    * Chips, the inline ghost, and Tab all read this one list. */
@@ -67,9 +67,9 @@ let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
 /* `obligations = None` means the assist machinery is off (settings
  * gate, init paths): no assist stream, no ghost. Some(obs) threads
- * the frame's type obligations to THE display fork (DisplayFork.mk),
- * the single zipper→displayed-segment pipeline shared with the test
- * harness. */
+ * the frame's type obligations to THE display projection
+ * (PromiseRender.mk), the single zipper→displayed-segment pipeline
+ * shared with the test harness. */
 let mk =
     (
       ~info_map,
