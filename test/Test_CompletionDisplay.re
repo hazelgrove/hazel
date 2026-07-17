@@ -23,17 +23,20 @@ open Language;
 
 let string_testable = testable(Fmt.string, String.equal);
 
-/* the LIVE pipeline, not a mirror of it: DisplayFork.mk — the same
-   single home CachedSyntax renders from; TyDi suggestions ride the
-   fork's assist stream (T2), so ALL ghost marks come from the fork.
-   Statics derive from the SAME zipper we render — a re-typed program
-   mints fresh ids and every id-keyed merge silently misses. */
+/* the LIVE pipeline, not a mirror of it: PromiseRender.mk — the same
+   single home CachedSyntax renders from (the display projected from
+   the reified artifact). TyDi suggestions ride the shared assist
+   stream (T2). Statics derive from the SAME zipper we render — a
+   re-typed program mints fresh ids and every id-keyed merge silently
+   misses. */
 let display_parts =
     (z: Zipper.t)
     : (
         Segment.t,
         Zipper.t,
         list((Id.t, option(int))),
+        list(((Id.t, int), int)),
+        list((Id.t, (Id.t, int, int))),
         list(CanonicalCompletion.insertion),
         list(CanonicalCompletion.insertion),
       ) => {
@@ -41,8 +44,16 @@ let display_parts =
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let obligations = TypeObligations.derive(info_map);
-  let fork = DisplayFork.mk(~info_map, ~obligations, ~armed=true, z);
-  (fork.segment, z, fork.ghost_marks, fork.assist, fork.ghosted);
+  let fork = PromiseRender.mk(~info_map, ~obligations, ~armed=true, z);
+  (
+    fork.segment,
+    z,
+    fork.ghost_marks,
+    fork.typed_lens,
+    fork.caret_witnesses,
+    fork.assist,
+    fork.ghosted,
+  );
 };
 
 /* LIVE-CADENCE parts: statics exactly as the live editor feeds the
@@ -62,45 +73,78 @@ let display_parts_live = (~statics_z: Zipper.t, z: Zipper.t) => {
       statics_z,
     );
   let fork =
-    DisplayFork.mk(
+    PromiseRender.mk(
       ~info_map=statics.info_map,
       ~obligations=statics.obligations,
       ~armed=true,
       z,
     );
-  (fork.segment, z, fork.ghost_marks, fork.assist, fork.ghosted);
+  (
+    fork.segment,
+    z,
+    fork.ghost_marks,
+    fork.typed_lens,
+    fork.caret_witnesses,
+    fork.assist,
+    fork.ghosted,
+  );
 };
 
 /* PROMISE-BACKED parts: identical to display_parts but the display
    segment comes from PromiseRender.mk (projection) rather than
    DisplayFork.mk (reconstruction). The parity suite renders both
    through display_state_of and asserts equality. */
-let display_parts_promise =
-    (z: Zipper.t)
-    : (
-        Segment.t,
-        Zipper.t,
-        list((Id.t, option(int))),
-        list(CanonicalCompletion.insertion),
-        list(CanonicalCompletion.insertion),
-      ) => {
-  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
-  let (info_map, _) =
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let obligations = TypeObligations.derive(info_map);
-  let fork = PromiseRender.mk(~info_map, ~obligations, ~armed=true, z);
-  (fork.segment, z, fork.ghost_marks, fork.assist, fork.ghosted);
-};
+let display_parts_promise = display_parts;
 
 let display_state_of =
     (~parts, ~chips as show_chips=true, z: Zipper.t): string => {
-  let (seg, zc, marks, assist, ghosted) = parts(z);
+  let (seg, zc, marks, typed_lens, caret_witnesses, assist, ghosted) =
+    parts(z);
   let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
   let is_marked = (id: Id.t, sh: option(int)) =>
     List.exists(
       ((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh,
       marks,
     );
+  /* WITNESS sub-token: a ghost-marked shard (tile, i) carrying a
+     typed_len splits into an UNMARKED typed prefix and a MARKED ghost
+     remainder — the display shows `i⟪n⟫`, not `⟪in⟫` (the first char
+     is the user's). */
+  let typed_len_of = (id: Id.t, i: int): option(int) =>
+    List.find_map(
+      (((tid, sh), n): ((Id.t, int), int)) =>
+        Id.equal(tid, id) && sh == i ? Some(n) : None,
+      typed_lens,
+    );
+  let split_witness =
+      (id: Id.t, i: int, meas: Measured.measurement)
+      : list((bool, bool, Measured.measurement)) =>
+    switch (typed_len_of(id, i)) {
+    | Some(n) when is_marked(id, Some(i)) =>
+      let mid: Util.Point.t = {
+        row: meas.origin.row,
+        col: meas.origin.col + n,
+      };
+      [
+        (
+          false,
+          false,
+          {
+            origin: meas.origin,
+            last: mid,
+          }: Measured.measurement,
+        ),
+        (
+          true,
+          false,
+          {
+            origin: mid,
+            last: meas.last,
+          }: Measured.measurement,
+        ),
+      ];
+    | _ => [(is_marked(id, Some(i)), false, meas)]
+    };
   /* reading-order (marked, is_ws, measurement) atoms */
   let rec atoms = (sg: Segment.t): list((bool, bool, Measured.measurement)) =>
     List.concat_map(
@@ -110,8 +154,7 @@ let display_state_of =
           let ms = Measured.find_shards(~msg="DisplayState", t, measured);
           Util.Aba.mk(t.shards, t.children)
           |> Util.Aba.join(
-               i =>
-                 [(is_marked(t.id, Some(i)), false, List.assoc(i, ms))],
+               i => split_witness(t.id, i, List.assoc(i, ms)),
                atoms,
              )
           |> List.concat;
@@ -143,7 +186,7 @@ let display_state_of =
       );
     List.rev(Option.to_list(open_) @ closed);
   };
-  let caret = Zipper.Caret.point(measured, zc);
+  let caret = DisplayCaret.point(~caret_witnesses, measured, zc);
   let text =
     Printer.of_segment(
       ~holes="?",
@@ -1243,7 +1286,7 @@ case if | ¦   CHIPS[then+else | =>+end]|},
           let payload = (code: string): string => {
             let z =
               Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
-            let (_, zc, _, assist, _) = display_parts(z);
+            let (_, zc, _, _, _, assist, _) = display_parts(z);
             switch (CanonicalCompletion.tab_chip(zc, assist)) {
             | None => "NONE"
             | Some(ins) =>
@@ -1289,7 +1332,8 @@ case if | ¦   CHIPS[then+else | =>+end]|},
         `Quick,
         () => {
           let step = (z: Zipper.t): (string, option(Zipper.t)) => {
-            let (_, zc, _, assist, _) = display_parts_live(~statics_z=z, z);
+            let (_, zc, _, _, _, assist, _) =
+              display_parts_live(~statics_z=z, z);
             let owed =
               assist
               |> List.map((i: CanonicalCompletion.insertion) =>
@@ -1466,33 +1510,18 @@ NONE|},
     ],
   ),
   (
-    "CompletionDisplay: promise-render parity",
-    /* STAGE 1: PromiseRender.mk (projection of the E-side artifact)
-       renders IDENTICALLY to DisplayFork.mk (reconstruction) on every
-       pinned trajectory input. Each case asserts the empty diff (full
-       parity) over its whole keystroke trajectory. Pure-engine runs
-       (closers, keywords) project from the KEPT completed_seg; T1
-       commas, T2 lookahead tails and witnesses fall back to the
-       reconstruction path (documented stage-1 boundaries — see
-       PromiseRender.re) and so trivially agree.
-
-       WAIVER CLASSES (spec MIGRATION step 1). None SURFACE in this
-       text harness on the pinned corpus, hence every waiver below is
-       "" — but they are the classes that WOULD be acceptable and are
-       enumerated for the stage-2 reviewer:
-       (a) WITNESS REMAINDERS — when a witness's material is projected
-           from completed_seg it is the FULL real token, not the
-           comment remainder the reconstruction shows (sub-token
-           styling is stage 2/3). Kept invisible here by routing
-           witnesses through the reconstruction path in stage 1.
-       (b) INDENTATION-SEAM DOUBLED SPACE — the padding oracle's known
-           pre-caret pad jank (mg1 `⟪  end`); identical in both
-           renders because the oracle runs once on both.
-       (c) UNBOLDED-PARENS styling — invisible to a text harness.
-       (d) LEADING SYNTHESIZED HOLE — a `let` empty-pattern completion
-           adds a grout before `=`; the projected run drops it
-           (trim_leading_grout) to match the reconstruction's
-           user-side pattern hole. */
+    "CompletionDisplay: promise-render stability",
+    /* STAGE 2: PromiseRender.mk IS the live path (display_state renders
+       through it), so the pinned trajectories above already pin what
+       the user sees. The old stage-1 parity harness (current-vs-promise
+       byte equality) is MOOT now that promise IS current — display_parts
+       and display_parts_promise are the same function, so every case
+       here is a tautology (empty diff) that serves as a determinism +
+       crash-free STABILITY smoke over the corpus: the projection runs
+       twice and agrees, and never raises across these trajectories.
+       The judged pin SHIFTS from swapping in the projection (real T1
+       commas, sub-token witnesses, real ap-close parens) are recorded
+       in the trajectory pins above, not here. */
     [
       parity_case("target-0", "string_replace(a, b, c)"),
       parity_case("matrix-let-blank", "let x = 1 in"),
@@ -1557,6 +1586,82 @@ NONE|},
           @ (Token.to_list(" + 2") |> List.map(c => Action.Insert(c))),
         );
       }),
+      /* INSPECTOR-ON-GHOST-HOLE (spec step 6): a presumed hole in the
+         display carries the SAME id statics analyzed, by construction —
+         the display's artifact = reify(obs, completed) is the very
+         segment CachedStatics reifies before its second pass, and reify
+         mints ids by deterministic Id.next chains. So an inspector or
+         error landing on a ghost hole finds it in the info_map. This
+         test asserts the coincidence directly: build the artifact for a
+         deficient ap, take a reified (presumed) hole's id, run statics
+         on that reified term, and assert the id is present. */
+      test_case(
+        "presumed hole id is in the reified info_map",
+        `Quick,
+        () => {
+          let z =
+            Test_Editing.perform(
+              Zipper.init(),
+              Test_Editing.mk("string_replace(a¦"),
+            );
+          let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+          let MakeTerm.{term, _} =
+            MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
+          let (info_map0, _) =
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+          /* frame-fresh obligations: `f` is a fn of a tuple, so `f(1`
+             owes commas + holes; synthesize_new_sites finds the ap */
+          let obs = TypeObligations.derive(info_map0);
+          let frame_obs =
+            TypeObligations.frame_obligations(z, ~info_map=info_map0, obs);
+          let art = PromiseArtifact.mk(~obligations=frame_obs, seg);
+          /* a presumed (synthesized) convex hole in the reified artifact */
+          let orig = PromiseArtifact.collect_ids(seg);
+          let rec first_ghost_hole = (sg: Segment.t): option(Id.t) =>
+            List.fold_left(
+              (acc, p: Piece.t) =>
+                switch (acc, p) {
+                | (Some(_), _) => acc
+                | (None, Grout({id, shape: Convex}))
+                    when !Hashtbl.mem(orig, id) =>
+                  Some(id)
+                | (None, Tile(t)) =>
+                  List.fold_left(
+                    (a, c) => a == None ? first_ghost_hole(c) : a,
+                    None,
+                    t.children,
+                  )
+                | (None, _) => None
+                },
+              None,
+              sg,
+            );
+          switch (first_ghost_hole(art.reified)) {
+          | None => Alcotest.fail("no presumed hole in the reified artifact")
+          | Some(hole_id) =>
+            /* run statics on the reified term exactly as CachedStatics'
+               second pass does */
+            let MakeTerm.{term: rterm, _} =
+              MakeTerm.from_zip_for_sem_spliced(
+                z,
+                ~root=Sort.Exp,
+                ~splice=TypeObligations.reify(frame_obs),
+              );
+            let (info_map, _) =
+              Statics.mk(
+                CoreSettings.on,
+                Builtins.ctx_init(Some(Int)),
+                rterm,
+              );
+            check(
+              Alcotest.bool,
+              "presumed hole id in reified info_map",
+              true,
+              Id.Map.mem(hole_id, info_map),
+            );
+          };
+        },
+      ),
     ],
   ),
 ];

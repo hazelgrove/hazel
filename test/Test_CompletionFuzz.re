@@ -296,7 +296,10 @@ let check_invariants =
     | _ => ()
     };
     /* 3: NO-PRE-CARET-GHOST — byte order in the render is reading
-       order, so every ⟪ index must be >= the ¦ index */
+       order, so every ⟪ index must be >= the ¦ index. Also checked
+       STRUCTURALLY (not just via markers) by DisplayCaret's own
+       invariant — the no-pre-caret contract the display caret home
+       asserts, over real measurements. */
     switch (find_all("¦", cur)) {
     | [ci, ..._] =>
       if (List.exists(gi => gi < ci, find_all("⟪", cur))) {
@@ -304,13 +307,28 @@ let check_invariants =
       }
     | [] => ()
     };
+    switch (Test_CompletionDisplay.display_parts(z)) {
+    | (seg, zc, marks, _typed_lens, caret_witnesses, _, _) =>
+      let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
+      if (!
+            DisplayCaret.no_ghost_before_caret(
+              ~caret_witnesses,
+              ~ghost_marks=marks,
+              measured,
+              seg,
+              zc,
+            )) {
+        add("NO-PRE-CARET-GHOST(structural)");
+      };
+    | exception _ => ()
+    };
     /* 4: PAD-IDEMPOTENCE — strong form: re-run finish_display with the
        exact args display_parts used (chip marks = marks outside the
        TyDi buffer; raw/caret_after re-derived from the same zc) */
     switch (Test_CompletionDisplay.display_parts(z)) {
     | exception e =>
       add("PAD-IDEMPOTENCE (parts raised: " ++ Printexc.to_string(e) ++ ")")
-    | (seg, zc, marks, _, _) =>
+    | (seg, zc, marks, _, _, _, _) =>
       let sel_ids = Selection.selection_ids(zc.selection);
       let chip_marks =
         List.filter(
@@ -693,12 +711,12 @@ let crash_stage_probe = {
           DisplayFork.mk(~info_map, ~obligations=obs, ~armed=true, z);
         ignore(fork);
         stage := "display_parts";
-        let (seg, zc, _marks, _assist, _ghosted) =
+        let (seg, zc, _marks, _typed_lens, caret_witnesses, _assist, _ghosted) =
           Test_CompletionDisplay.display_parts(z);
         stage := "measured";
         let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
         stage := "caret";
-        let caret = Zipper.Caret.point(measured, zc);
+        let caret = DisplayCaret.point(~caret_witnesses, measured, zc);
         stage := "printer";
         let text =
           Printer.of_segment(
