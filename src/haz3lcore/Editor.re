@@ -85,29 +85,17 @@ module Update = {
     };
   };
 
+  /* The chip ghost disarms on any action: only an edit (in calculate)
+   * re-arms, so movement can't conjure a ghost. (This used to also
+   * clear the LLM parsed selection buffer, since retired.) */
   let should_clear_buffer =
-      (~settings: Language.CoreSettings.t, ~a: Action.t, state: Model.state) => {
-    /* Any action except Accept clears the LLM (parsed) buffer and
-     * disarms the ghost; resize actions are exempt to permit
-     * incremental acceptance token-by-token or line-by-line. */
-    let is_local_resize = (a: Action.t) =>
-      switch (a) {
-      | Select(Resize(Local(_))) => true
-      | _ => false
-      };
-    settings.assist
-    && settings.statics
-    && a != Buffer(Accept)
-    && !(
-         Selection.non_empty_parsed_buffer(state.zipper.selection)
-         && is_local_resize(a)
-       );
-  };
+      (~settings: Language.CoreSettings.t, ~a as _: Action.t, _: Model.state) =>
+    settings.assist && settings.statics;
 
   let clear_buffer =
       (
         ~settings: Language.CoreSettings.t,
-        ~old_zipper: Zipper.t,
+        ~old_zipper as _: Zipper.t,
         ~old_statics: CachedStatics.t,
         ~old_dynamics: Dynamics.Map.t,
         ~a: Action.t,
@@ -117,24 +105,11 @@ module Update = {
       : (Model.state, CachedSyntax.t) =>
     if (should_clear_buffer(~settings, ~a, state)) {
       let syntax =
-        if (Selection.non_empty_parsed_buffer(old_zipper.selection)) {
-          /* If a buffer clear happens above then we must recalculate the
-             syntax cache as otherwise the measured, in particular caret_point,
-             will be looking for tiles inside the buffer, for example if we try
-             to click or move down to dismiss a completion.*/
-          CachedSyntax.calculate(
-            state.zipper,
-            old_statics.info_map,
-            old_dynamics,
-            ~elaborated=Some(old_statics.elaborated),
-            ~obligations=Some(old_statics.obligations),
-            syntax,
-          );
-        } else if (syntax.ghost_marks != []) {
-          /* same hazard for a spliced chip ghost: this action must
-             resolve against ghost-free measured (~armed=false, the
-             disarm). mk recomputes assist from the unchanged
-             segment + obligations, so chips persist on movement. */
+        if (syntax.ghost_marks != []) {
+          /* a spliced chip ghost: this action must resolve against
+             ghost-free measured (~armed=false, the disarm). mk
+             recomputes assist from the unchanged segment +
+             obligations, so chips persist on movement. */
           CachedSyntax.calculate(
             state.zipper,
             old_statics.info_map,
@@ -147,10 +122,7 @@ module Update = {
           syntax;
         };
       (
-        {
-          ...state,
-          zipper: Buffer.buffer_clear(state.zipper),
-        },
+        state,
         /* any dismissing action also DISARMS the chip ghost — only
            the edit in calculate re-arms, so movement can't conjure */
         CachedSyntax.mark_old({

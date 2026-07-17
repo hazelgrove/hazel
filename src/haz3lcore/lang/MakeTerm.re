@@ -2054,10 +2054,7 @@ let from_zip_for_sem = (z: Zipper.t, ~root: Sort.t) => {
    * old caret-sensitive missing-shard dump. The ~root parameter matches the
    * dev signature; completion is invoked at Exp. */
   let _ = root;
-  let seg =
-    z
-    |> Zipper.clear_unparsed_buffer
-    |> Zipper.unselect_and_zip(~erase_buffer=true);
+  let seg = z |> Zipper.unselect_and_zip(~erase_buffer=true);
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
   let masks = CanonicalCompletion.masks_of_records(result.shard_records);
   go_impl(~masks, result.completed_seg);
@@ -2073,10 +2070,7 @@ let from_zip_for_sem =
 let from_zip_for_sem_spliced =
     (z: Zipper.t, ~root: Sort.t, ~splice: Segment.t => Segment.t) => {
   let _ = root;
-  let seg =
-    z
-    |> Zipper.clear_unparsed_buffer
-    |> Zipper.unselect_and_zip(~erase_buffer=true);
+  let seg = z |> Zipper.unselect_and_zip(~erase_buffer=true);
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
   let masks = CanonicalCompletion.masks_of_records(result.shard_records);
   go_impl(~masks, splice(result.completed_seg));

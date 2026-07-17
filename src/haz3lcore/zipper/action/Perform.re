@@ -326,14 +326,6 @@ let rec go =
        segments (agent/structural edits). */
     let f = seg => seg |> SpaceNormalize.go |> PrettySegment.prettify;
     Some(CaretPreserving.transform(z, f)) |> return(CantReparse);
-  | Buffer(a) =>
-    /* accepting an LLM buffer inserts text like typing it, but via a
-       separate path from the Insert arm */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    switch (Buffer.go(a, z)) {
-    | Ok(z) => Ok(LocalReformat.go(~before, z))
-    | Error(_) as e => e
-    };
   | Project(a) =>
     let refractor_list =
       List.map(fst, z.refractors.manuals)

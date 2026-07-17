@@ -261,21 +261,10 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
   };
 };
 
-let clear_unparsed_buffer = (z: t) =>
-  switch (z.selection.mode) {
-  | Buffer(Unparsed) => {
-      ...z,
-      selection: Selection.empty,
-    }
-  | _ => z
-  };
-
-let unselect = (~erase_buffer=false, z: t): t => {
-  /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer,
-   * that is, the buffer style that just contains a single flat token.
-   * Erasing a buffer that contains arbitrary tiles would be more complex
-   * as we can't just empty the selection without regrouting */
-  let z = erase_buffer ? clear_unparsed_buffer(z) : z;
+let unselect = (~erase_buffer as _=false, z: t): t => {
+  /* The selection-buffer mechanism was retired (its last holdout, the
+   * orphaned LLM parsed buffer, is gone); ~erase_buffer is now a no-op
+   * kept only so the display-fork call sites read unchanged. */
   let relatives =
     z.relatives
     |> Relatives.prepend(z.selection.focus, z.selection.content)
@@ -1300,11 +1289,6 @@ let to_sexp = (z: t): Sexplib.Sexp.t => sexp_of_t(z);
 
 let deserialize = (data: string): t => {
   Sexplib.Sexp.of_string(data) |> t_of_sexp;
-};
-
-let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
-  ...z,
-  selection: Selection.mk_buffer(mode, content),
 };
 
 let is_linebreak_to_right_of_caret =

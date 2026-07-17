@@ -25,9 +25,7 @@ let rezip = (z: Zipper.t, seg: Segment.t): Zipper.t => {
 };
 
 let prepared = (z: Zipper.t): Segment.t =>
-  z
-  |> Zipper.clear_unparsed_buffer
-  |> Zipper.unselect_and_zip(~erase_buffer=true);
+  z |> Zipper.unselect_and_zip(~erase_buffer=true);
 
 let all = (z: Zipper.t, ~root: Sort.t): Zipper.t =>
   rezip(z, CanonicalCompletion.materialize_all(~sort=root, prepared(z)));

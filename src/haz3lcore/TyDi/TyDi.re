@@ -130,12 +130,8 @@ let token_to_left = (z: Zipper.t): option(string) =>
 let suggestion =
     (~ci: option(Info.t), z: Zipper.t)
     : option((Token.t, int, list(TyDiSuggestion.tail_delim))) => {
-  let* _ =
-    switch (z.selection.mode) {
-    /* no suggestion over a selection or a pending (LLM) buffer */
-    | Normal when Selection.is_empty(z.selection) => Some()
-    | _ => None
-    };
+  /* no suggestion over a non-empty selection */
+  let* _ = Selection.is_empty(z.selection) ? Some() : None;
   let* tok_to_left = token_to_left(z);
   /* witness suggestions need no statics — ci is None on exactly the
      states they serve (completion consumed the prefix token) */
