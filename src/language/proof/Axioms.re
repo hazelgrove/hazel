@@ -155,6 +155,21 @@ type math_rule = {
   visible_levels: list(rewrite_level),
   visible_mode: visible_step_mode,
   allowed_cleanup: list(cleanup_capability),
+  required_cleanup: list(cleanup_capability),
+  required_rule_ids: list(string),
+};
+
+type semantic_proof_atom_kind =
+  | VisibleAtom
+  | CleanupAtom
+  | CheckNormalizerAtom;
+
+type semantic_proof_atom = {
+  id: string,
+  kind: semantic_proof_atom_kind,
+  mode: rocq_tactic_mode,
+  required_cleanup: list(cleanup_capability),
+  required_rule_ids: list(string),
 };
 
 type planned_visible_rule = {
@@ -165,6 +180,7 @@ type planned_visible_rule = {
 
 type stage_plan = {
   stage: automation_stage,
+  atoms: list(semantic_proof_atom),
   pre_cleanup: list(cleanup_capability),
   visible_rules: list(planned_visible_rule),
   post_cleanup: list(cleanup_capability),
@@ -190,6 +206,7 @@ type math_profile = {
   groups: list(rewrite_group),
   one_step_policy,
   step_policy,
+  check_result_rule_ids: list(string),
   rocq_macro_rule_id: string,
   rocq_tactic_group: string,
   rocq_tactic_plan,
@@ -956,6 +973,29 @@ let cleanup_capability_label =
   | PowerIdentity => "power.identity"
   | PowerNotation => "power.notation"
   | CollectLikeTerms => "collect.like_terms";
+
+let cleanup_capability_for_id =
+  fun
+  | "add.assoc"
+  | "arith.add_assoc" => Some(AddAssoc)
+  | "add.comm"
+  | "arith.add_comm" => Some(AddComm)
+  | "mul.assoc"
+  | "arith.mul_assoc" => Some(MulAssoc)
+  | "mul.comm"
+  | "arith.mul_comm" => Some(MulComm)
+  | "add.identity"
+  | "arith.add_zero" => Some(AddIdentity)
+  | "mul.identity" => Some(MulIdentity)
+  | "const.fold"
+  | "arith.const_fold" => Some(ConstFold)
+  | "derivative.basics" => Some(DerivativeBasics)
+  | "power.identity" => Some(PowerIdentity)
+  | "power.notation" => Some(PowerNotation)
+  | "collect.like_terms"
+  | "arith.collect_like_terms"
+  | "alg.collect_like_terms" => Some(CollectLikeTerms)
+  | _ => None;
 
 let operation_metadata = (~id, ~name, ~short_name, ~example) => {
   id,
@@ -2009,13 +2049,28 @@ let rocq_cleanup_catalog = [
   ),
   rocq_cleanup_backend(
     ~capability=AddIdentity,
-    ~integers=["rewrite Z.add_0_l", "rewrite Z.add_0_r"],
-    ~reals=["rewrite Rplus_0_l", "rewrite Rplus_0_r"],
+    ~integers=["rewrite Z.add_0_l", "rewrite Z.add_0_r", "rewrite Z.sub_0_r"],
+    ~reals=[
+      "rewrite Rplus_0_l",
+      "rewrite Rplus_0_r",
+      "rewrite Rminus_0_r",
+      "rewrite Ropp_0",
+    ],
   ),
   rocq_cleanup_backend(
     ~capability=MulIdentity,
-    ~integers=["rewrite Z.mul_1_l", "rewrite Z.mul_1_r"],
-    ~reals=["rewrite Rmult_1_l", "rewrite Rmult_1_r"],
+    ~integers=[
+      "rewrite Z.mul_0_l",
+      "rewrite Z.mul_0_r",
+      "rewrite Z.mul_1_l",
+      "rewrite Z.mul_1_r",
+    ],
+    ~reals=[
+      "rewrite Rmult_0_l",
+      "rewrite Rmult_0_r",
+      "rewrite Rmult_1_l",
+      "rewrite Rmult_1_r",
+    ],
   ),
   rocq_cleanup_backend(
     ~capability=ConstFold,
@@ -2086,6 +2141,8 @@ let catalog_rule_with_kind =
          visible_levels,
          visible_mode: VisibleOnce,
          allowed_cleanup,
+         required_cleanup: [],
+         required_rule_ids: [],
        }
      );
 
@@ -2124,6 +2181,22 @@ let math_rule_catalog = {
     visible_levels: [],
     visible_mode: VisibleOnce,
     allowed_cleanup: [],
+    required_cleanup: [
+      AddAssoc,
+      AddComm,
+      MulAssoc,
+      MulComm,
+      AddIdentity,
+      MulIdentity,
+      ConstFold,
+      CollectLikeTerms,
+    ],
+    required_rule_ids: [
+      "arith.add_comm",
+      "arith.const_fold",
+      "arith.mul_const",
+      "arith.mul_identity",
+    ],
   };
   let factor_polynomial_backend =
     rocq_rule_backend(
@@ -2152,6 +2225,12 @@ let math_rule_catalog = {
     visible_levels: [],
     visible_mode: VisibleOnce,
     allowed_cleanup: [],
+    required_cleanup: ac_cleanup @ structural_identity_cleanup,
+    required_rule_ids: [
+      "alg.distribute_mul_add",
+      "alg.factor_common",
+      "alg.cancel_common_add",
+    ],
   };
   let rational_square_backend =
     rocq_rule_backend(
@@ -2180,27 +2259,29 @@ let math_rule_catalog = {
     visible_levels: [],
     visible_mode: VisibleOnce,
     allowed_cleanup: [],
+    required_cleanup: ac_cleanup @ structural_identity_cleanup,
+    required_rule_ids: ["alg.distribute_mul_add"],
   };
   let arithmetic_rules = [
     catalog_rule(
       ~id="arith.add_comm",
       ~direction=BothDirections,
       ~hazel_backend=Some(ArithmeticAddComm),
-      ~visible_levels=[Arithmetic, Calculus],
+      ~visible_levels=[Arithmetic, Algebra, Trigonometry, Calculus],
       ~allowed_cleanup=[AddAssoc],
     ),
     catalog_rule(
       ~id="arith.const_fold",
       ~direction=Forward,
       ~hazel_backend=Some(ArithmeticConstFold),
-      ~visible_levels=[Arithmetic, Calculus],
+      ~visible_levels=[Arithmetic, Algebra, Trigonometry, Calculus],
       ~allowed_cleanup=[AddAssoc],
     ),
     catalog_rule(
       ~id="arith.mul_const",
       ~direction=BothDirections,
       ~hazel_backend=Some(ArithmeticMulConst),
-      ~visible_levels=[Arithmetic, Calculus],
+      ~visible_levels=[Arithmetic, Algebra, Trigonometry, Calculus],
       ~allowed_cleanup=[AddAssoc, MulAssoc],
     ),
     catalog_rule(
@@ -2268,18 +2349,31 @@ let math_rule_catalog = {
       "alg.power_mul",
       "alg.collect_like_terms",
     ]
-    |> List.map(id =>
+    |> List.map(id => {
+         let is_power_normalizer =
+           List.mem(id, ["alg.power_add", "alg.power_mul"]);
          catalog_rule_with_kind(
            ~id,
-           ~kind=
-             List.mem(id, ["alg.power_add", "alg.power_mul"])
-               ? NormalizationRule : CleanupRule,
+           ~kind=is_power_normalizer ? NormalizationRule : CleanupRule,
            ~direction=BothDirections,
            ~hazel_backend=None,
            ~visible_levels=[],
            ~allowed_cleanup=[],
          )
-       );
+         |> Option.map((rule: math_rule) =>
+              is_power_normalizer
+                ? {
+                  ...rule,
+                  required_cleanup: [
+                    PowerIdentity,
+                    PowerNotation,
+                    MulIdentity,
+                  ],
+                  required_rule_ids: ["alg.distribute_mul_add"],
+                }
+                : rule
+            );
+       });
   let trig_rules =
     trigonometry_rewrite_group.rules
     |> List.map((rule: rewrite_rule) =>
@@ -2302,6 +2396,26 @@ let math_rule_catalog = {
            ~allowed_cleanup=calculus_step_cleanup,
          )
        );
+  let algebra_rules =
+    algebra_rules
+    |> List.map((entry: option(math_rule)) =>
+         switch (entry) {
+         | Some(rule: math_rule) when rule.id == "alg.expand_polynomial" =>
+           Some(
+             {
+               ...rule,
+               kind: NormalizationRule,
+               required_cleanup:
+                 ac_cleanup
+                 @ structural_identity_cleanup
+                 @ [ConstFold, CollectLikeTerms],
+               required_rule_ids: ["alg.distribute_mul_add"],
+             }: math_rule,
+           )
+         | Some(_)
+         | None => entry
+         }
+       );
   arithmetic_rules
   @ algebra_rules
   @ replay_only_rules
@@ -2315,10 +2429,24 @@ let math_rule_catalog = {
   |> List.filter_map(value => value);
 };
 
+let affine_normalization_cleanup = [
+  AddAssoc,
+  AddComm,
+  MulAssoc,
+  MulComm,
+  AddIdentity,
+  MulIdentity,
+  ConstFold,
+  CollectLikeTerms,
+];
+
 let profile_default_cleanup = [
-  (Arithmetic, [AddAssoc]),
-  (Algebra, ac_cleanup @ structural_identity_cleanup),
-  (Trigonometry, ac_cleanup @ structural_identity_cleanup),
+  (Arithmetic, affine_normalization_cleanup),
+  (Algebra, affine_normalization_cleanup @ [PowerIdentity, PowerNotation]),
+  (
+    Trigonometry,
+    affine_normalization_cleanup @ [PowerIdentity, PowerNotation],
+  ),
   (FunctionsAndLists, []),
   (
     Calculus,
@@ -2775,6 +2903,16 @@ let math_profile = level => {
     groups: allowed_groups(level),
     one_step_policy: one_step_policy(level),
     step_policy: step_policy(level),
+    check_result_rule_ids:
+      math_rule_catalog
+      |> List.filter((rule: math_rule) =>
+           (
+             rule.kind == NormalizationRule
+             || rule.kind == GuardedNormalizationRule
+           )
+           && rewrite_level_rank(rule.level) <= rewrite_level_rank(level)
+         )
+      |> List.map((rule: math_rule) => rule.id),
     rocq_macro_rule_id,
     rocq_tactic_group,
     rocq_tactic_plan: rocq_tactic_plan(level),
@@ -2797,18 +2935,42 @@ let tactic_plan_purpose_for_stage =
   | MultiStepCheck => CheckResult
   | AutoEval => AutoSimplify;
 
+let cleanup_enabled_for_profile = (profile: math_profile, capability) =>
+  List.mem(capability, profile.step_policy.default_cleanup);
+
+let rule_prerequisites_satisfied = (profile: math_profile, rule: math_rule) =>
+  rule.required_cleanup
+  |> List.for_all(cleanup_enabled_for_profile(profile))
+  && rule.required_rule_ids
+  |> List.for_all(rule_id =>
+       visible_rule_enabled(profile.step_policy, rule_id)
+     );
+
+let check_result_rule_enabled = (profile: math_profile, rule_id) =>
+  List.mem(rule_id, profile.check_result_rule_ids)
+  && (
+    switch (catalog_rule_by_id(rule_id)) {
+    | Some(rule) => rule_prerequisites_satisfied(profile, rule)
+    | None => false
+    }
+  );
+
+let normalization_rules_for_profile = (profile: math_profile) =>
+  math_rule_catalog
+  |> List.filter((rule: math_rule) =>
+       (
+         rule.kind == NormalizationRule || rule.kind == GuardedNormalizationRule
+       )
+       && rewrite_level_rank(rule.level) <= profile.rank
+       && check_result_rule_enabled(profile, rule.id)
+     );
+
 let normalization_backends_for_profile = (profile: math_profile) => {
   let catalog_backends =
-    math_rule_catalog
-    |> List.filter((rule: math_rule) =>
-         rule.kind == NormalizationRule
-         && rewrite_level_rank(rule.level) <= profile.rank
-       )
+    normalization_rules_for_profile(profile)
+    |> List.filter((rule: math_rule) => rule.kind == NormalizationRule)
     |> List.filter_map((rule: math_rule) => rule.rocq_backend);
-  switch (profile.level) {
-  | Trigonometry => catalog_backends @ [trig_argument_normalization_backend]
-  | _ => catalog_backends
-  };
+  catalog_backends;
 };
 
 let guarded_normalization_backend_for_profile =
@@ -2817,7 +2979,8 @@ let guarded_normalization_backend_for_profile =
   | Some(rule)
       when
         rule.kind == GuardedNormalizationRule
-        && rewrite_level_rank(rule.level) <= profile.rank =>
+        && rewrite_level_rank(rule.level) <= profile.rank
+        && check_result_rule_enabled(profile, rule.id) =>
     rule.rocq_backend
   | Some(_)
   | None => None
@@ -2830,8 +2993,54 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
     invalid_arg("Unknown math rule in profile stage plan: " ++ rule_id)
   | [] =>
     let cleanup = profile.step_policy.default_cleanup;
+    let cleanup_atoms =
+      cleanup
+      |> List.map(capability =>
+           {
+             id: cleanup_capability_label(capability),
+             kind: CleanupAtom,
+             mode: RepeatUntilStuck,
+             required_cleanup: [capability],
+             required_rule_ids: [],
+           }
+         );
+    let visible_atoms =
+      planned_visible_rules(profile.step_policy)
+      |> List.map((planned: planned_visible_rule) =>
+           {
+             id: planned.rule.id,
+             kind: VisibleAtom,
+             mode:
+               switch (planned.mode) {
+               | VisibleOnce => Once
+               | VisibleRepeatFuel(fuel) => RepeatFuel(fuel)
+               | VisibleRepeatUntilStuck => RepeatUntilStuck
+               },
+             required_cleanup: planned.allowed_cleanup,
+             required_rule_ids: [],
+           }
+         );
+    let normalizer_atoms =
+      stage == MultiStepCheck
+        ? normalization_rules_for_profile(profile)
+          |> List.map((rule: math_rule) =>
+               {
+                 id: rule.id,
+                 kind: CheckNormalizerAtom,
+                 mode:
+                   rule.rocq_backend
+                   |> Option.map((backend: rocq_rule_backend) =>
+                        backend.mode
+                      )
+                   |> Option.value(~default=FinishOnly),
+                 required_cleanup: rule.required_cleanup,
+                 required_rule_ids: rule.required_rule_ids,
+               }
+             )
+        : [];
     {
       stage,
+      atoms: cleanup_atoms @ visible_atoms @ normalizer_atoms,
       pre_cleanup: cleanup,
       visible_rules: planned_visible_rules(profile.step_policy),
       post_cleanup: cleanup,

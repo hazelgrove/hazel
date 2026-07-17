@@ -252,6 +252,17 @@ let section_expanded = (~active_level, model: Model.t, level) => {
   };
 };
 
+let named_section_expanded = (~default, model: Model.t, level_id) =>
+  switch (
+    model.section_overrides
+    |> List.find_opt((override: Model.section_override) =>
+         override.level_id == level_id
+       )
+  ) {
+  | Some({expanded, _}) => expanded
+  | None => default
+  };
+
 let rule_policy_with_cleanup = (cleanup, rule: Axioms.visible_rule_policy) =>
   Axioms.{
     ...rule,
@@ -302,6 +313,8 @@ let apply_model_to_profile = (model: Model.t, profile) => {
   let cleanup_enabled = cleanup_capability_enabled(model);
   Axioms.{
     ...profile,
+    check_result_rule_ids:
+      profile.check_result_rule_ids |> List.filter(rule_enabled(model)),
     step_policy: {
       default_cleanup:
         current_policy.default_cleanup |> List.filter(cleanup_enabled),
@@ -658,6 +671,85 @@ module View = {
     );
   };
 
+  let check_result_rule_controls = (~model, ~inject, rule: Axioms.math_rule) => {
+    let cleanup =
+      rule.required_cleanup
+      |> List.map(Axioms.cleanup_capability_metadata)
+      |> List.map((metadata: Axioms.operation_metadata) =>
+           metadata.short_name
+         )
+      |> String.concat(", ");
+    let prerequisite_detail =
+      cleanup == ""
+        ? rule.metadata.example
+        : rule.metadata.example ++ " · requires " ++ cleanup;
+    div_c(
+      "profile-board-control-rule",
+      [
+        checkbox(
+          ~checked=rule_enabled(model, rule.id),
+          ~disabled=false,
+          ~label=rule.metadata.name,
+          ~detail=prerequisite_detail,
+          ~on_change=value =>
+          inject(Update.SetRuleEnabled(rule.id, value))
+        ),
+        span_c(
+          "profile-board-control-mode",
+          [Node.text("Check Result only")],
+        ),
+      ],
+    );
+  };
+
+  let check_result_level_section =
+      (~model, ~inject, ~active_level, level, rules) => {
+    let level_label = Axioms.rewrite_level_label(level);
+    let level_id = "check-result:" ++ level_label;
+    let expanded =
+      named_section_expanded(~default=level == active_level, model, level_id);
+    div_c(
+      "profile-board-level",
+      [
+        Node.button(
+          ~attrs=[
+            Attr.class_("profile-board-level-toggle"),
+            Attr.create("type", "button"),
+            Attr.create("aria-expanded", expanded ? "true" : "false"),
+            Attr.on_click(_ =>
+              inject(Update.SetSectionExpanded(level_id, !expanded))
+            ),
+          ],
+          [
+            span_c(
+              "profile-board-level-chevron",
+              [Node.text(expanded ? "▼" : "▶")],
+            ),
+            span_c("profile-board-level-name", [Node.text(level_label)]),
+            span_c(
+              "profile-board-level-count",
+              [
+                Node.text(
+                  string_of_int(List.length(rules))
+                  ++ (List.length(rules) == 1 ? " operation" : " operations"),
+                ),
+              ],
+            ),
+          ],
+        ),
+        ...expanded
+             ? [
+               div_c(
+                 "profile-board-level-rules",
+                 rules
+                 |> List.map(check_result_rule_controls(~model, ~inject)),
+               ),
+             ]
+             : [],
+      ],
+    );
+  };
+
   let level_section =
       (~model, ~inject, ~active_level, group: Axioms.rewrite_group, rules) => {
     let expanded = section_expanded(~active_level, model, group.level);
@@ -826,6 +918,35 @@ module View = {
                          base_profile.Axioms.step_policy.visible_rules,
                        )
                        |> List.map(cleanup_policy_controls(~model, ~inject)),
+                  ],
+                ),
+                div_c(
+                  "profile-board-controls",
+                  [
+                    div_c(
+                      "profile-board-section-title",
+                      [Node.text("Check Result operations")],
+                    ),
+                    ...Axioms.rewrite_levels
+                       |> List.filter_map(level => {
+                            let rules =
+                              base_profile.check_result_rule_ids
+                              |> List.filter_map(Axioms.catalog_rule_by_id)
+                              |> List.filter((rule: Axioms.math_rule) =>
+                                   rule.level == level
+                                 );
+                            rules == []
+                              ? None
+                              : Some(
+                                  check_result_level_section(
+                                    ~model,
+                                    ~inject,
+                                    ~active_level=base_profile.level,
+                                    level,
+                                    rules,
+                                  ),
+                                );
+                          }),
                   ],
                 ),
               ],

@@ -1014,6 +1014,41 @@ and Stepper: {
   let calculus_export_for_steps = steps => {
     let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
     let last_step = List.nth(steps, List.length(steps) - 1);
+    let trace_rule_ids =
+      steps
+      |> List.concat_map((step: step_model) =>
+           switch (step.step_kind) {
+           | WrittenStep({trace_summary: Some(summary), _}) =>
+             summary.RewriteChecker.prover_steps
+             |> List.map((proof_step: RewriteChecker.prover_step) =>
+                  proof_step.rule_id
+                )
+           | _ => []
+           }
+         )
+      |> RewriteChecker.dedup;
+    let base_profile = Axioms.math_profile(Calculus);
+    let cleanup_enabled = capability =>
+      trace_rule_ids
+      |> List.exists(rule_id =>
+           Axioms.cleanup_capability_for_id(rule_id) == Some(capability)
+         );
+    let calculus_profile: Axioms.math_profile = {
+      ...base_profile,
+      step_policy: {
+        default_cleanup:
+          base_profile.step_policy.default_cleanup
+          |> List.filter(cleanup_enabled),
+        visible_rules:
+          base_profile.step_policy.visible_rules
+          |> List.filter((rule: Axioms.visible_rule_policy) =>
+               List.mem(rule.rule_id, trace_rule_ids)
+             ),
+      },
+    };
+    let calculus_profile =
+      List.mem(base_profile.rocq_macro_rule_id, trace_rule_ids)
+        ? base_profile : calculus_profile;
     switch (last_step.next_step) {
     | Some(next)
         when
@@ -1022,7 +1057,8 @@ and Stepper: {
                DifferentiationRewrite.contains_diff(
                  next.expr |> Calc.get_saved_exc,
                ) =>
-      ProofSearchBackend.calculus_export_program(
+      ProofSearchBackend.calculus_export_program_for_profile(
+        ~profile=calculus_profile,
         first_exp,
         next.expr |> Calc.get_saved_exc,
       )

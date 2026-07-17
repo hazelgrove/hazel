@@ -436,6 +436,120 @@ let rec cleanup = (~cleanup_enabled, exp) => {
   };
 };
 
+let rec cleanup_once = (~cleanup_enabled, exp) => {
+  let exp = strip(exp);
+  let recurse = cleanup_once(~cleanup_enabled);
+  let changed = (capability, next) => Some((next, capability));
+  switch (diff_parts(exp)) {
+  | Some((expression, variable))
+      when cleanup_enabled(Axioms.DerivativeBasics) =>
+    switch (variable_name(variable)) {
+    | Some(variable_name) =>
+      switch (strip(expression).term) {
+      | Var(name) when name == variable_name =>
+        changed(Axioms.DerivativeBasics, int_exp(1))
+      | Fun(_, _, _, _) => None
+      | _ when !depends_on(variable_name, expression) =>
+        changed(Axioms.DerivativeBasics, int_exp(0))
+      | _ => None
+      }
+    | None => None
+    }
+  | _ =>
+    switch (exp.term) {
+    | BinOp(op, left, right) =>
+      switch (recurse(left)) {
+      | Some((left, capability)) =>
+        changed(capability, rebuild_binary(op, left, right))
+      | None =>
+        switch (recurse(right)) {
+        | Some((right, capability)) =>
+          changed(capability, rebuild_binary(op, left, right))
+        | None =>
+          if (is_operator(Operators.Plus, op)) {
+            if (cleanup_enabled(Axioms.AddIdentity) && is_zero(left)) {
+              changed(Axioms.AddIdentity, right);
+            } else if (cleanup_enabled(Axioms.AddIdentity) && is_zero(right)) {
+              changed(Axioms.AddIdentity, left);
+            } else if (cleanup_enabled(Axioms.CollectLikeTerms)
+                       && exp_same(left, right)) {
+              changed(Axioms.CollectLikeTerms, times_exp(int_exp(2), left));
+            } else {
+              None;
+            };
+          } else if (is_operator(Operators.Minus, op)) {
+            if (cleanup_enabled(Axioms.AddIdentity) && is_zero(right)) {
+              changed(Axioms.AddIdentity, left);
+            } else if (cleanup_enabled(Axioms.AddIdentity) && is_zero(left)) {
+              changed(Axioms.AddIdentity, neg_exp(right));
+            } else {
+              None;
+            };
+          } else if (is_operator(Operators.Times, op)) {
+            if (cleanup_enabled(Axioms.MulIdentity)
+                && (is_zero(left) || is_zero(right))) {
+              changed(Axioms.MulIdentity, int_exp(0));
+            } else if (cleanup_enabled(Axioms.MulIdentity) && is_one(left)) {
+              changed(Axioms.MulIdentity, right);
+            } else if (cleanup_enabled(Axioms.MulIdentity) && is_one(right)) {
+              changed(Axioms.MulIdentity, left);
+            } else {
+              None;
+            };
+          } else if (is_operator(Operators.Power, op)
+                     && cleanup_enabled(Axioms.PowerIdentity)) {
+            if (is_zero(right)) {
+              changed(Axioms.PowerIdentity, int_exp(1));
+            } else if (is_one(right)) {
+              changed(Axioms.PowerIdentity, left);
+            } else {
+              None;
+            };
+          } else {
+            None;
+          }
+        }
+      }
+    | UnOp(op, inner) =>
+      switch (recurse(inner)) {
+      | Some((inner, capability)) =>
+        changed(capability, rebuild_unary(op, inner))
+      | None when cleanup_enabled(Axioms.AddIdentity) && is_zero(inner) =>
+        changed(Axioms.AddIdentity, int_exp(0))
+      | None => None
+      }
+    | Ap(direction, fn, arg) =>
+      switch (recurse(fn)) {
+      | Some((fn, capability)) =>
+        changed(capability, Exp.fresh(Ap(direction, fn, arg)))
+      | None =>
+        recurse(arg)
+        |> Option.map(((arg, capability)) =>
+             (Exp.fresh(Ap(direction, fn, arg)), capability)
+           )
+      }
+    | Tuple(entries) =>
+      let rec loop = (before, remaining) =>
+        switch (remaining) {
+        | [] => None
+        | [entry, ...rest] =>
+          switch (recurse(entry)) {
+          | Some((entry, capability)) =>
+            changed(
+              capability,
+              tuple_exp(List.rev(before) @ [entry, ...rest]),
+            )
+          | None => loop([entry, ...before], rest)
+          }
+        };
+      loop([], entries);
+    | Parens(inner)
+    | Asc(inner, _) => recurse(inner)
+    | _ => None
+    }
+  };
+};
+
 let cleanup_for_visible_rule = (~policy, ~rule_id, exp) => {
   let allowed_cleanup = Axioms.cleanup_for_visible_rule(policy, rule_id);
   let cleanup_enabled = capability => List.mem(capability, allowed_cleanup);

@@ -3150,17 +3150,98 @@ let check_single_calculus_rule_result_for_profile =
     let to_ = to_ |> DHExp.strip_ascriptions |> strip_math_wrappers;
     let rule_enabled = rule_id =>
       Axioms.visible_rule_enabled(profile.step_policy, rule_id);
+    let cleanup_trace = (rule_id, start) => {
+      let capabilities =
+        Axioms.cleanup_for_visible_rule(profile.step_policy, rule_id);
+      let rec rounds = (fuel, current, rules, steps) =>
+        if (fuel <= 0) {
+          (current, rules, steps);
+        } else {
+          let (next, next_rules, next_steps) =
+            capabilities
+            |> List.fold_left(
+                 ((current, rules, steps), capability) => {
+                   let cleaned =
+                     DifferentiationRewrite.cleanup(
+                       ~cleanup_enabled=candidate => candidate == capability,
+                       current,
+                     );
+                   if (TrigRewrite.exp_same(current, cleaned)) {
+                     (current, rules, steps);
+                   } else {
+                     let metadata =
+                       Axioms.cleanup_capability_metadata(capability);
+                     let cleanup_rule: Axioms.rewrite_rule = {
+                       id: metadata.id,
+                       label: metadata.name,
+                       prover_hints: [],
+                     };
+                     (
+                       cleaned,
+                       rules @ [cleanup_rule],
+                       steps
+                       @ [
+                         prover_step(
+                           ~origin=Normalization,
+                           ~rule_id=metadata.id,
+                           ~before_full_exp=current,
+                           ~after_full_exp=cleaned,
+                           ~before_exp=current,
+                           ~after_exp=cleaned,
+                           ~detail="profile cleanup after differentiation",
+                         ),
+                       ],
+                     );
+                   };
+                 },
+                 (current, rules, steps),
+               );
+          TrigRewrite.exp_same(current, next)
+            ? (next, next_rules, next_steps)
+            : rounds(fuel - 1, next, next_rules, next_steps);
+        };
+      rounds(8, start, [], []);
+    };
     DifferentiationRewrite.applicable_at_root(~rule_enabled, from_)
     |> List.find_map((rewrite: TrigRewrite.rewrite) => {
-         let cleaned_after =
-           DifferentiationRewrite.cleanup_for_visible_rule(
-             ~policy=profile.step_policy,
-             ~rule_id=rewrite.rule_id,
-             rewrite.after_exp,
-           );
+         let (cleaned_after, cleanup_rules, cleanup_steps) =
+           cleanup_trace(rewrite.rule_id, rewrite.after_exp);
          if (TrigRewrite.exp_same(rewrite.after_exp, to_)
              || TrigRewrite.exp_same(cleaned_after, to_)) {
-           let trace = trace_rules(group, [rewrite.rule_id]);
+           let visible_trace = trace_rules(group, [rewrite.rule_id]);
+           let (trace, prover_steps) =
+             if (TrigRewrite.exp_same(rewrite.after_exp, to_)) {
+               (
+                 visible_trace,
+                 [
+                   prover_step(
+                     ~origin=ManualRewrite,
+                     ~rule_id=rewrite.rule_id,
+                     ~before_full_exp=from_,
+                     ~after_full_exp=to_,
+                     ~before_exp=rewrite.before_exp,
+                     ~after_exp=rewrite.after_exp,
+                     ~detail="single differentiation rule",
+                   ),
+                 ],
+               );
+             } else {
+               (
+                 visible_trace @ cleanup_rules,
+                 [
+                   prover_step(
+                     ~origin=ManualRewrite,
+                     ~rule_id=rewrite.rule_id,
+                     ~before_full_exp=from_,
+                     ~after_full_exp=rewrite.after_exp,
+                     ~before_exp=rewrite.before_exp,
+                     ~after_exp=rewrite.after_exp,
+                     ~detail="single differentiation rule",
+                   ),
+                   ...cleanup_steps,
+                 ],
+               );
+             };
            Some({
              justification: "calculus one step",
              group: Some(group),
@@ -3169,17 +3250,7 @@ let check_single_calculus_rule_result_for_profile =
              from_trace: trace,
              to_trace: [],
              trace,
-             prover_steps: [
-               prover_step(
-                 ~origin=ManualRewrite,
-                 ~rule_id=rewrite.rule_id,
-                 ~before_full_exp=from_,
-                 ~after_full_exp=to_,
-                 ~before_exp=rewrite.before_exp,
-                 ~after_exp=rewrite.after_exp,
-                 ~detail="single differentiation rule",
-               ),
-             ],
+             prover_steps,
              exportable: true,
            });
          } else {
@@ -3198,6 +3269,180 @@ let check_single_calculus_rule_result_at_level =
     from_,
     to_,
   );
+
+let calculus_check_result_trace_for_profile =
+    (~profile: Axioms.math_profile, from_, to_): option(trace_summary) => {
+  switch (calculus_group_at_level(profile.level)) {
+  | None => None
+  | Some(group) =>
+    let rule_enabled = rule_id =>
+      !DifferentiationRewrite.is_basic_cleanup_rule_id(rule_id)
+      && Axioms.visible_rule_enabled(profile.step_policy, rule_id);
+    let rec differentiate = (fuel, current, rules, steps) =>
+      if (fuel <= 0) {
+        None;
+      } else {
+        switch (DifferentiationRewrite.rewrite_first(~rule_enabled, current)) {
+        | Some((next, rewrite)) =>
+          let rule =
+            Axioms.rewrite_rule_by_id(group, rewrite.rule_id)
+            |> Option.value(
+                 ~default={
+                            id: rewrite.rule_id,
+                            label: rewrite.label,
+                            prover_hints: [],
+                          }: Axioms.rewrite_rule,
+               );
+          differentiate(
+            fuel - 1,
+            next,
+            rules @ [rule],
+            steps
+            @ [
+              prover_step(
+                ~origin=ManualRewrite,
+                ~rule_id=rewrite.rule_id,
+                ~before_full_exp=current,
+                ~after_full_exp=next,
+                ~before_exp=rewrite.before_exp,
+                ~after_exp=rewrite.after_exp,
+                ~detail="profile-directed differentiation",
+              ),
+            ],
+          );
+        | None => Some((current, rules, steps))
+        };
+      };
+    let cleanup_enabled = capability =>
+      List.mem(capability, profile.step_policy.default_cleanup);
+    let rec cleanup_exact = (fuel, current, rules, steps) =>
+      if (fuel <= 0) {
+        None;
+      } else {
+        switch (
+          DifferentiationRewrite.cleanup_once(~cleanup_enabled, current)
+        ) {
+        | None => Some((current, rules, steps))
+        | Some((next, capability)) =>
+          let metadata = Axioms.cleanup_capability_metadata(capability);
+          let rule: Axioms.rewrite_rule = {
+            id: metadata.id,
+            label: metadata.name,
+            prover_hints: [],
+          };
+          cleanup_exact(
+            fuel - 1,
+            next,
+            rules @ [rule],
+            steps
+            @ [
+              prover_step(
+                ~origin=Normalization,
+                ~rule_id=metadata.id,
+                ~before_full_exp=current,
+                ~after_full_exp=next,
+                ~before_exp=current,
+                ~after_exp=next,
+                ~detail="one profile cleanup rewrite",
+              ),
+            ],
+          );
+        };
+      };
+    let (initial, initial_rules, initial_steps) =
+      switch (DifferentiationRewrite.diff_parts(from_)) {
+      | Some((expression, variable)) =>
+        switch (
+          DifferentiationRewrite.strip(expression).term,
+          DifferentiationRewrite.variable_name(variable),
+        ) {
+        | (Fun(pattern, body, _, _), Some(variable_name))
+            when
+              DifferentiationRewrite.function_parameter_name(pattern)
+              == Some(variable_name)
+              && List.mem(
+                   Axioms.DerivativeBasics,
+                   profile.step_policy.default_cleanup,
+                 ) =>
+          let initial = DifferentiationRewrite.diff_exp(body, variable);
+          let metadata =
+            Axioms.cleanup_capability_metadata(Axioms.DerivativeBasics);
+          let rule: Axioms.rewrite_rule = {
+            id: metadata.id,
+            label: metadata.name,
+            prover_hints: [],
+          };
+          (
+            initial,
+            [rule],
+            [
+              prover_step(
+                ~origin=Normalization,
+                ~rule_id=metadata.id,
+                ~before_full_exp=from_,
+                ~after_full_exp=initial,
+                ~before_exp=expression,
+                ~after_exp=body,
+                ~detail="differentiate the body of a matching function",
+              ),
+            ],
+          );
+        | _ => (from_, [], [])
+        }
+      | None => (from_, [], [])
+      };
+    switch (differentiate(128, initial, initial_rules, initial_steps)) {
+    | None => None
+    | Some((differentiated, rules, steps)) =>
+      let cleaned = cleanup_exact(256, differentiated, rules, steps);
+      switch (cleaned) {
+      | None => None
+      | Some((result, rules, steps)) =>
+        let finished =
+          if (TrigRewrite.exp_same(result, to_)
+              || Equality.ignoring_ascriptions.exp(result, to_)) {
+            Some((result, rules, steps));
+          } else if (Axioms.check_result_rule_enabled(
+                       profile,
+                       "arith.affine_normalize",
+                     )) {
+            check_with(
+              ~settings=CoreSettings.on,
+              ~env=Environment.empty,
+              result,
+              to_,
+              affine_checker_at_level(profile.level),
+            )
+            |> Option.map((affine: check_result) =>
+                 (to_, rules @ affine.trace, steps @ affine.prover_steps)
+               );
+          } else {
+            None;
+          };
+        switch (finished) {
+        | None => None
+        | Some((result, _rules, steps))
+            when steps == [] || DifferentiationRewrite.contains_diff(result) =>
+          None
+        | Some((result, rules, steps)) =>
+          let rule_ids =
+            rules |> List.map((rule: Axioms.rewrite_rule) => rule.id) |> dedup;
+          Some({
+            justification: "profile-directed calculus",
+            group_name: Some(group.name),
+            from_normal_exp: result,
+            to_normal_exp: result,
+            from_rule_ids: rule_ids,
+            to_rule_ids: [],
+            rule_ids,
+            prover_steps: steps,
+            exportable: true,
+          });
+        };
+      };
+    };
+  };
+};
 
 let check_result_uses_rule = (rule: Axioms.math_rule, result) =>
   result.trace
@@ -3431,35 +3676,108 @@ let trace_rule_allowed_by_profile = (profile: Axioms.math_profile, rule_id) =>
   switch (Axioms.catalog_rule_by_id(rule_id)) {
   | Some(rule) when List.mem(profile.level, rule.visible_levels) =>
     Axioms.visible_rule_enabled(profile.step_policy, rule_id)
-  | Some(_) => true
-  | None => false
+  | Some(rule)
+      when
+        rule.kind == Axioms.NormalizationRule
+        || rule.kind == Axioms.GuardedNormalizationRule =>
+    Axioms.check_result_rule_enabled(profile, rule_id)
+  | Some(_) =>
+    switch (Axioms.cleanup_capability_for_id(rule_id)) {
+    | Some(capability) =>
+      List.mem(capability, profile.step_policy.default_cleanup)
+    | None => false
+    }
+  | None =>
+    switch (Axioms.cleanup_capability_for_id(rule_id)) {
+    | Some(capability) =>
+      List.mem(capability, profile.step_policy.default_cleanup)
+    | None => false
+    }
+  };
+
+let check_result_backend_allowed =
+    (profile: Axioms.math_profile, summary: trace_summary) =>
+  switch (summary.justification) {
+  | "arithmetic" =>
+    Axioms.check_result_rule_enabled(profile, "arith.affine_normalize")
+  | "algebra" =>
+    profile.check_result_rule_ids
+    |> List.exists(rule_id =>
+         switch (Axioms.catalog_rule_by_id(rule_id)) {
+         | Some(rule) when rule.level == Axioms.Algebra =>
+           Axioms.check_result_rule_enabled(profile, rule_id)
+         | Some(_)
+         | None => false
+         }
+       )
+  | _ => true
   };
 
 let check_written_step_trace_for_profile =
     (~profile: Axioms.math_profile, ~settings, ~env, from_: Exp.t, to_: Exp.t)
-    : option(trace_summary) =>
-  switch (
-    check_written_step_trace_at_level(
-      ~level=profile.level,
-      ~settings,
-      ~env,
-      from_,
-      to_,
-    )
-  ) {
+    : option(trace_summary) => {
+  let candidate =
+    switch (calculus_check_result_trace_for_profile(~profile, from_, to_)) {
+    | Some(summary) => Some(summary)
+    | None =>
+      check_written_step_trace_at_level(
+        ~level=profile.level,
+        ~settings,
+        ~env,
+        from_,
+        to_,
+      )
+    };
+  let candidate =
+    switch (candidate) {
+    | Some(summary)
+        when
+          summary.justification == "arithmetic"
+          && Axioms.check_result_rule_enabled(
+               profile,
+               "arith.affine_normalize",
+             ) =>
+      let rule_id = "arith.affine_normalize";
+      Some({
+        ...summary,
+        justification: "affine normalization",
+        from_normal_exp: to_,
+        to_normal_exp: to_,
+        from_rule_ids: [rule_id],
+        to_rule_ids: [],
+        rule_ids: [rule_id],
+        prover_steps: [
+          prover_step(
+            ~origin=Normalization,
+            ~rule_id,
+            ~before_full_exp=from_,
+            ~after_full_exp=to_,
+            ~before_exp=from_,
+            ~after_exp=to_,
+            ~detail="profile-enabled affine normalization",
+          ),
+        ],
+        exportable: true,
+      });
+    | Some(_)
+    | None => candidate
+    };
+  switch (candidate) {
   | Some(summary)
       when
-        summary.rule_ids
+        check_result_backend_allowed(profile, summary)
+        && summary.rule_ids
         |> List.for_all(trace_rule_allowed_by_profile(profile)) =>
     Some(summary)
   | Some(_)
   | None => None
   };
+};
 
 let check_written_step_trace =
     (~settings, ~env, from_: Exp.t, to_: Exp.t): option(trace_summary) => {
-  check_written_step_trace_at_level(
-    ~level=Axioms.Arithmetic,
+  check_written_step_trace_for_profile(
+    ~profile=Axioms.math_profile(Axioms.Arithmetic),
     ~settings,
     ~env,
     from_,

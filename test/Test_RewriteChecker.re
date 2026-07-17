@@ -313,8 +313,8 @@ let sample_export_chain = () => {
   let target = plus(times(Exp.int(3), Exp.var("x")), Exp.int(51));
   let trace =
     switch (
-      Web.RewriteChecker.check_written_step_trace_at_level(
-        ~level=Axioms.Arithmetic,
+      Web.RewriteChecker.check_written_step_trace_for_profile(
+        ~profile=Axioms.math_profile(Arithmetic),
         ~settings,
         ~env,
         reparenthesized,
@@ -578,8 +578,8 @@ let sample_check_result_constant_export_chain = () => {
   let target = Exp.int(10);
   let trace =
     switch (
-      Web.RewriteChecker.check_written_step_trace_at_level(
-        ~level=Axioms.Arithmetic,
+      Web.RewriteChecker.check_written_step_trace_for_profile(
+        ~profile=Axioms.math_profile(Arithmetic),
         ~settings,
         ~env,
         source,
@@ -599,8 +599,8 @@ let sample_reverse_constant_export_chain = () => {
     plus(plus(plus(Exp.int(4), Exp.int(3)), Exp.int(2)), Exp.int(1));
   let trace =
     switch (
-      Web.RewriteChecker.check_written_step_trace_at_level(
-        ~level=Axioms.Arithmetic,
+      Web.RewriteChecker.check_written_step_trace_for_profile(
+        ~profile=Axioms.math_profile(Arithmetic),
         ~settings,
         ~env,
         source,
@@ -621,8 +621,8 @@ let sample_reparenthesized_reverse_constant_export_chain = () => {
     plus(plus(plus(Exp.int(4), Exp.int(3)), Exp.int(2)), Exp.int(1));
   let trace =
     switch (
-      Web.RewriteChecker.check_written_step_trace_at_level(
-        ~level=Axioms.Arithmetic,
+      Web.RewriteChecker.check_written_step_trace_for_profile(
+        ~profile=Axioms.math_profile(Arithmetic),
         ~settings,
         ~env,
         reparenthesized,
@@ -656,8 +656,8 @@ let sample_reparenthesized_affine_variable_export_chain = () => {
   let target = plus(times(Exp.int(2), Exp.var("x")), Exp.int(10));
   let trace =
     switch (
-      Web.RewriteChecker.check_written_step_trace_at_level(
-        ~level=Axioms.Arithmetic,
+      Web.RewriteChecker.check_written_step_trace_for_profile(
+        ~profile=Axioms.math_profile(Arithmetic),
         ~settings,
         ~env,
         reparenthesized,
@@ -1857,7 +1857,12 @@ let tests = (
         check(
           list(string),
           "multiplicative identity cleanup comes from cleanup catalog",
-          ["rewrite Z.mul_1_l", "rewrite Z.mul_1_r"],
+          [
+            "rewrite Z.mul_0_l",
+            "rewrite Z.mul_0_r",
+            "rewrite Z.mul_1_l",
+            "rewrite Z.mul_1_r",
+          ],
           Axioms.rocq_cleanup_tactics(
             ~domain=Axioms.RocqIntegers,
             MulIdentity,
@@ -1992,6 +1997,9 @@ let tests = (
           list(string),
           "manual visible rules",
           [
+            "arith.add_comm",
+            "arith.const_fold",
+            "arith.mul_const",
             "arith.mul_identity",
             "alg.distribute_mul_add",
             "alg.factor_common",
@@ -2010,7 +2018,14 @@ let tests = (
              ),
         );
         switch (manual.visible_rules) {
-        | [_mul_identity, distribution, ..._] =>
+        | [
+            _add_comm,
+            _const_fold,
+            _mul_const,
+            _mul_identity,
+            distribution,
+            ..._,
+          ] =>
           check(
             list(string),
             "distribution-specific cleanup",
@@ -2035,6 +2050,10 @@ let tests = (
             "mul.comm",
             "add.identity",
             "mul.identity",
+            "const.fold",
+            "collect.like_terms",
+            "power.identity",
+            "power.notation",
           ],
           manual.pre_cleanup |> List.map(cleanup_capability_label),
         );
@@ -2048,6 +2067,10 @@ let tests = (
             "mul.comm",
             "add.identity",
             "mul.identity",
+            "const.fold",
+            "collect.like_terms",
+            "power.identity",
+            "power.notation",
           ],
           manual.post_cleanup |> List.map(cleanup_capability_label),
         );
@@ -2216,6 +2239,9 @@ let tests = (
           list(string),
           "visible rule ids",
           [
+            "arith.add_comm",
+            "arith.const_fold",
+            "arith.mul_const",
             "arith.mul_identity",
             "alg.distribute_mul_add",
             "alg.factor_common",
@@ -2231,7 +2257,16 @@ let tests = (
           summary.visible_rules |> List.map(visible_rule_summary_id),
         );
         switch (summary.visible_rules) {
-        | [_mul_identity, distribution, _factor, _cancel, ..._] =>
+        | [
+            _add_comm,
+            _const_fold,
+            _mul_const,
+            _mul_identity,
+            distribution,
+            _factor,
+            _cancel,
+            ..._,
+          ] =>
           check(
             string,
             "distribution display name",
@@ -2274,6 +2309,10 @@ let tests = (
             "mul.comm",
             "add.identity",
             "mul.identity",
+            "const.fold",
+            "collect.like_terms",
+            "power.identity",
+            "power.notation",
           ],
           summary.default_cleanup_labels,
         );
@@ -4216,7 +4255,7 @@ let tests = (
           bool,
           "arithmetic candidate uses arithmetic tactic",
           true,
-          string_contains("hazel_arithmetic", arithmetic_coq),
+          string_contains("solve [\n    lia", arithmetic_coq),
         );
         check(
           bool,
@@ -4405,6 +4444,15 @@ let tests = (
              )
           |> Web.ProfileBoard.profile_without_visible_rule(
                ~rule_id="arith.mul_identity",
+             )
+          |> Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="arith.add_comm",
+             )
+          |> Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="arith.const_fold",
+             )
+          |> Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="arith.mul_const",
              );
         let disabled_distribution_request =
           Web.ProofSearchBackend.{
@@ -6857,7 +6905,7 @@ let tests = (
         check(
           string,
           "label",
-          "arithmetic",
+          "affine normalization",
           Web.RewriteChecker.trace_summary_label(summary),
         );
         check(
@@ -6869,27 +6917,27 @@ let tests = (
         check(bool, "exportable", true, summary.exportable);
         check(
           bool,
-          "trace has commutativity",
+          "trace has semantic affine operation",
           true,
-          has_rule_id("arith.add_comm", summary.rule_ids),
+          summary.rule_ids == ["arith.affine_normalize"],
         );
         check(
           bool,
-          "trace has collection",
-          true,
+          "trace hides prerequisite implementation rules",
+          false,
           has_rule_id("arith.collect_like_terms", summary.rule_ids),
         );
         check(
           bool,
-          "from trace keeps side rules",
+          "from trace records semantic operation",
           true,
-          has_rule_id("arith.add_comm", summary.from_rule_ids),
+          summary.from_rule_ids == ["arith.affine_normalize"],
         );
         check(
           bool,
-          "to trace keeps side rules",
-          true,
-          has_rule_id("arith.add_comm", summary.to_rule_ids),
+          "to trace needs no reverse operation",
+          false,
+          has_rule_id("arith.affine_normalize", summary.to_rule_ids),
         );
         check_exp_equal(
           "from normal expression",
@@ -6908,17 +6956,15 @@ let tests = (
           );
         check(
           bool,
-          "from trace has lean hint",
-          true,
-          from_hints
-          |> List.exists(hint => prover_hint_tactic(hint) == "rw [add_comm]"),
+          "semantic normalizer has no legacy Lean rewrite hint",
+          false,
+          from_hints != [],
         );
         check(
           bool,
-          "to trace has lean hint",
-          true,
-          to_hints
-          |> List.exists(hint => prover_hint_tactic(hint) == "rw [add_comm]"),
+          "reverse side has no legacy Lean rewrite hint",
+          false,
+          to_hints != [],
         );
       },
     ),
@@ -6937,25 +6983,13 @@ let tests = (
         check(
           list(string),
           "normalizer prover rule order",
-          [
-            "arith.add_assoc",
-            "arith.add_comm",
-            "arith.const_fold",
-            "arith.collect_like_terms",
-            "arith.mul_const",
-          ],
+          ["arith.affine_normalize"],
           summary.prover_steps |> List.map(prover_step_rule_id),
         );
         check(
           list(string),
           "all normalizer steps",
-          [
-            "normalization",
-            "normalization",
-            "normalization",
-            "normalization",
-            "normalization",
-          ],
+          ["normalization"],
           summary.prover_steps |> List.map(prover_step_origin),
         );
       },
@@ -6969,52 +7003,18 @@ let tests = (
             plus(plus(Exp.var("x"), Exp.int(1)), Exp.var("x")),
             Exp.int(2),
           );
-        let reordered =
-          plus(
-            plus(plus(Exp.var("x"), Exp.var("x")), Exp.int(1)),
-            Exp.int(2),
-          );
-        let folded = plus(plus(Exp.var("x"), Exp.var("x")), Exp.int(3));
         let collected = plus(times(Exp.int(2), Exp.var("x")), Exp.int(3));
         let summary = require_written_trace(source, collected);
         switch (summary.prover_steps) {
-        | [assoc, comm, fold, collect, mul_const] =>
+        | [affine] =>
           check_prover_step(
-            "assoc",
-            "arith.add_assoc",
+            "affine semantic operation",
+            "arith.affine_normalize",
             source,
-            source,
-            assoc,
-          );
-          check_prover_step(
-            "commute",
-            "arith.add_comm",
-            source,
-            reordered,
-            comm,
-          );
-          check_prover_step(
-            "constant fold",
-            "arith.const_fold",
-            reordered,
-            folded,
-            fold,
-          );
-          check_prover_step(
-            "collect",
-            "arith.collect_like_terms",
-            folded,
             collected,
-            collect,
-          );
-          check_prover_step(
-            "constant multiple",
-            "arith.mul_const",
-            collected,
-            collected,
-            mul_const,
-          );
-        | _ => fail("expected five arithmetic normalization prover steps")
+            affine,
+          )
+        | _ => fail("expected one affine semantic prover step")
         };
       },
     ),
@@ -7320,13 +7320,19 @@ let tests = (
           bool,
           "exports prover replay steps",
           true,
-          string_contains("Hazel prover step 1: arith.add_assoc", export),
+          string_contains(
+            "Hazel prover step 1: arith.affine_normalize",
+            export,
+          ),
         );
         check(
           bool,
-          "exports folded constant detail",
+          "exports semantic normalizer detail",
           true,
-          string_contains("detail: fold integer constants", export),
+          string_contains(
+            "detail: profile-enabled affine normalization",
+            export,
+          ),
         );
       },
     ),
@@ -7451,19 +7457,19 @@ let tests = (
           bool,
           "exports arithmetic check label",
           true,
-          string_contains("Hazel written step: arithmetic", export),
+          string_contains("Hazel written step: affine normalization", export),
         );
         check(
           bool,
           "exports named prover assertion",
           true,
-          string_contains("assert (H_hazel_step_3", export),
+          string_contains("assert (H_hazel_step_1", export),
         );
         check(
           bool,
-          "exports const fold breadcrumb",
+          "exports affine semantic operation",
           true,
-          string_contains("arith.const_fold", export),
+          string_contains("arith.affine_normalize", export),
         );
         check(
           bool,
@@ -7491,19 +7497,19 @@ let tests = (
           bool,
           "exports arithmetic check label",
           true,
-          string_contains("Hazel written step: arithmetic", export),
+          string_contains("Hazel written step: affine normalization", export),
         );
         check(
           bool,
           "exports named prover assertion",
           true,
-          string_contains("assert (H_hazel_step_4", export),
+          string_contains("assert (H_hazel_step_1", export),
         );
         check(
           bool,
-          "exports const fold breadcrumb",
+          "exports affine semantic operation",
           true,
-          string_contains("arith.const_fold", export),
+          string_contains("arith.affine_normalize", export),
         );
         check(
           bool,
@@ -7540,7 +7546,7 @@ let tests = (
           bool,
           "exports named prover assertion",
           true,
-          string_contains("assert (H_hazel_step_4", export),
+          string_contains("assert (H_hazel_step_1", export),
         );
       },
     ),
@@ -7640,9 +7646,10 @@ let tests = (
         write_text_file("/tmp/hazel_stepper_affine_variables.v", export);
         check(
           bool,
-          "exports temporary affine fallback",
+          "exports exact affine replay",
           true,
-          string_contains("Temporary affine fallback", export),
+          string_contains("assert (H_hazel_step_", export)
+          && !string_contains("Temporary affine fallback", export),
         );
         check(
           bool,
@@ -8444,6 +8451,205 @@ let tests = (
                string_contains("ERROR", export),
              );
            });
+      },
+    ),
+    test_case(
+      "semantic stage plans gate Check Result normalizers by prerequisites",
+      `Quick,
+      () => {
+        let profile = Axioms.math_profile(Arithmetic);
+        let manual = Axioms.stage_plan_for_profile(profile, Manual);
+        let check_result =
+          Axioms.stage_plan_for_profile(profile, MultiStepCheck);
+        check(
+          bool,
+          "manual stage has no Check Result normalizer",
+          false,
+          manual.atoms
+          |> List.exists((atom: Axioms.semantic_proof_atom) =>
+               atom.kind == Axioms.CheckNormalizerAtom
+             ),
+        );
+        check(
+          bool,
+          "Check Result stage contains affine semantic operation",
+          true,
+          check_result.atoms
+          |> List.exists((atom: Axioms.semantic_proof_atom) =>
+               atom.id == "arith.affine_normalize"
+               && atom.kind == Axioms.CheckNormalizerAtom
+             ),
+        );
+        let without_comm =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability => capability != Axioms.AddComm),
+            profile,
+          );
+        check(
+          bool,
+          "missing cleanup prerequisite disables affine operation",
+          false,
+          Axioms.check_result_rule_enabled(
+            without_comm,
+            "arith.affine_normalize",
+          ),
+        );
+        let without_operation = {
+          ...profile,
+          check_result_rule_ids:
+            profile.check_result_rule_ids
+            |> List.filter(rule_id => rule_id != "arith.affine_normalize"),
+        };
+        check(
+          bool,
+          "explicit operation toggle disables affine operation",
+          false,
+          Axioms.check_result_rule_enabled(
+            without_operation,
+            "arith.affine_normalize",
+          ),
+        );
+      },
+    ),
+    test_case(
+      "profile-bound affine Check Result has positive negative and disabled cases",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Arithmetic);
+        let accepts = (profile, source, target) =>
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          )
+          |> Option.is_some;
+        check(
+          bool,
+          "collects adjacent variable terms",
+          true,
+          accepts(profile, plus(x, x), times(Exp.int(2), x)),
+        );
+        check(
+          bool,
+          "folds a structurally different affine constant sum",
+          true,
+          accepts(
+            profile,
+            plus(plus(x, Exp.int(1)), Exp.int(2)),
+            plus(x, Exp.int(3)),
+          ),
+        );
+        check(
+          bool,
+          "rejects inequivalent affine expressions",
+          false,
+          accepts(profile, plus(x, Exp.int(1)), plus(x, Exp.int(2))),
+        );
+        let without_collect =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability =>
+                   capability != Axioms.CollectLikeTerms
+                 ),
+            profile,
+          );
+        check(
+          bool,
+          "disabled prerequisite rejects formerly valid result",
+          false,
+          accepts(without_collect, plus(x, x), times(Exp.int(2), x)),
+        );
+      },
+    ),
+    test_case(
+      "profile-bound calculus Check Result records cleanup steps",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let trace = (profile, source, target) =>
+          Web.RewriteChecker.calculus_check_result_trace_for_profile(
+            ~profile,
+            source,
+            target,
+          );
+        let variable = trace(profile, diff(x, x), Exp.int(1));
+        let constant = trace(profile, diff(Exp.int(7), x), Exp.int(0));
+        check(bool, "variable derivative", true, Option.is_some(variable));
+        check(bool, "constant derivative", true, Option.is_some(constant));
+        check(
+          bool,
+          "cleanup is an explicit derivative semantic step",
+          true,
+          switch (variable) {
+          | Some(summary) =>
+            List.mem("derivative.basics", summary.rule_ids)
+            && summary.prover_steps
+            |> List.exists((step: Web.RewriteChecker.prover_step) =>
+                 step.rule_id == "derivative.basics"
+               )
+          | None => false
+          },
+        );
+        check(
+          bool,
+          "rejects incorrect derivative",
+          false,
+          trace(profile, diff(x, x), Exp.int(2)) |> Option.is_some,
+        );
+        let without_basics =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability =>
+                   capability != Axioms.DerivativeBasics
+                 ),
+            profile,
+          );
+        check(
+          bool,
+          "disabled derivative cleanup blocks basic derivative",
+          false,
+          trace(without_basics, diff(x, x), Exp.int(1)) |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "Rocq replay program certifies the stored Hazel trace",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Arithmetic,
+            max_depth: 4,
+            max_states: 80,
+            source: plus(x, x),
+            target: times(Exp.int(2), x),
+          };
+        let summary = require_written_trace(request.source, request.target);
+        let coq =
+          Web.ProofSearchBackend.rocq_replay_program(request, summary);
+        write_text_file("/tmp/hazel_stepper_exact_profile_replay.v", coq);
+        check(
+          bool,
+          "replay names the exact-trace contract",
+          true,
+          string_contains("Exact replay of the Hazel profile trace", coq),
+        );
+        check(
+          bool,
+          "replay contains stored assertion breadcrumbs",
+          true,
+          string_contains("assert (H_hazel_step_", coq),
+        );
       },
     ),
   ],

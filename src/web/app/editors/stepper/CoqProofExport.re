@@ -40,7 +40,12 @@ let rewrite_tactics_for_rule_id = (~domain=CoqExport.Integers, rule_id) =>
       ~domain=catalog_domain(domain),
       backend.replay_tactics,
     )
-  | _ => legacy_rewrite_tactics_for_rule_id(rule_id)
+  | _ =>
+    switch (Axioms.cleanup_capability_for_id(rule_id)) {
+    | Some(capability) =>
+      Axioms.rocq_cleanup_tactics(~domain=catalog_domain(domain), capability)
+    | None => legacy_rewrite_tactics_for_rule_id(rule_id)
+    }
   };
 
 let tactic_script = tactics =>
@@ -164,13 +169,13 @@ let tactic_for_symbolic_arithmetic_summary =
     tactics_for_summary(~domain, summary) |> tactic_sequence_script;
   };
 
-let tactic_for_written_summary = (~forall_str, ~domain, summary) => {
+let tactic_for_written_summary = (~forall_str as _, ~domain, summary) => {
   switch (summary.RewriteChecker.prover_steps) {
   | [] => tactics_for_summary(~domain, summary) |> tactic_script
   | _ =>
     summary_uses_rocq_tactic_search(summary)
       ? tactics_for_summary(~domain, summary) |> tactic_script
-      : (domain == CoqExport.Reals || forall_str == "") && summary.exportable
+      : summary.exportable
           ? assertion_replay_script(~domain, summary.prover_steps)
           : tactic_for_symbolic_arithmetic_summary(summary)
   };

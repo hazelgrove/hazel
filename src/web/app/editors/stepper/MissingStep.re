@@ -869,13 +869,18 @@ module Update = {
                 )
                 |> Option.map(RewriteChecker.trace_summary_of_result);
               | CheckResult =>
-                RewriteChecker.check_written_step_trace_at_level(
-                  ~level=rewrite_level,
+                let profile =
+                  ProfileBoard.apply_model_to_profile(
+                    profile_board,
+                    Axioms.math_profile(rewrite_level),
+                  );
+                RewriteChecker.check_written_step_trace_for_profile(
+                  ~profile,
                   ~settings,
                   ~env,
                   from_exp,
                   to_exp,
-                )
+                );
               | ProofSearch => None
               };
             }
@@ -1491,38 +1496,30 @@ module View = {
                 ProofSearchBackend.tactic_plan_purpose_for_automation_stage(
                   automation_stage,
                 );
-              let trace_summary =
-                ProofSearchBackend.collapsed_macro_summary_for_purpose(
-                  ~purpose=tactic_plan_purpose,
+              let active_profile =
+                ProfileBoard.apply_model_to_profile(
+                  model.profile_board,
+                  Axioms.math_profile(rewrite_level),
+                );
+              let env =
+                model.cached_env
+                |> Calc.get_saved_exc(~print="env not cached");
+              let local_trace =
+                ProofSearchBackend.local_profile_trace(
+                  ~profile=active_profile,
+                  ~settings=globals.settings.core,
+                  ~env,
                   request,
                 );
               let trace_summary =
-                switch (proof_search_source) {
-                | None => trace_summary
-                | Some(source) =>
-                  RewriteChecker.{
-                    ...trace_summary,
-                    justification: "Rocq tactic search: " ++ source,
-                    prover_steps:
-                      trace_summary.prover_steps
-                      |> List.map((step: RewriteChecker.prover_step) =>
-                           {
-                             ...step,
-                             detail:
-                               Some(
-                                 source
-                                 ++ ": "
-                                 ++ (
-                                   step.detail
-                                   |> Option.value(
-                                        ~default="verified candidate",
-                                      )
-                                 ),
-                               ),
-                           }
-                         ),
-                  }
-                };
+                local_trace
+                |> Option.value(
+                     ~default=
+                       ProofSearchBackend.collapsed_macro_summary_for_purpose(
+                         ~purpose=tactic_plan_purpose,
+                         request,
+                       ),
+                   );
               let start_search =
                 inject(
                   RunProofSearch(
@@ -1543,17 +1540,27 @@ module View = {
                   ),
                 );
               try({
-                let active_profile =
-                  ProfileBoard.apply_model_to_profile(
-                    model.profile_board,
-                    Axioms.math_profile(rewrite_level),
-                  );
                 let coq_data =
-                  ProofSearchBackend.rocq_search_program_for_profile_and_purpose(
-                    ~profile=active_profile,
-                    ~purpose=tactic_plan_purpose,
-                    request,
-                  );
+                  switch (local_trace) {
+                  | Some(_)
+                      when
+                        DifferentiationRewrite.contains_diff(request.source)
+                        || DifferentiationRewrite.contains_diff(
+                             request.target,
+                           ) =>
+                    ProofSearchBackend.rocq_search_program_for_profile_and_purpose(
+                      ~profile=active_profile,
+                      ~purpose=tactic_plan_purpose,
+                      request,
+                    )
+                  | Some(summary) =>
+                    ProofSearchBackend.rocq_replay_program(request, summary)
+                  | None =>
+                    ProofSearchBackend.rocq_equivalence_program_for_profile(
+                      ~profile=active_profile,
+                      request,
+                    )
+                  };
                 let finish = (verdict, message) =>
                   Ui_effect.Expert.handle(
                     inject(
@@ -1571,7 +1578,14 @@ module View = {
                   ~on_result=
                     (ok, message) =>
                       if (ok) {
-                        finish(ProfileValid, message);
+                        switch (local_trace) {
+                        | Some(_) => finish(ProfileValid, message)
+                        | None =>
+                          finish(
+                            EquivalentOutsideProfile,
+                            "Equivalent, but the active profile has no enabled trace for this result. Enable the required operation or cleanup capability.",
+                          )
+                        };
                       } else {
                         finish(Invalid, message);
                       },
