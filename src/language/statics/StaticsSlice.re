@@ -1396,14 +1396,17 @@ let binding_omissions =
         switch (child.pattern) {
         | Some(pattern) when pattern_has_ascription(pattern.user_term) =>
           let id = Pat.rep_id(pattern.user_term);
-          let shape = child.mode == Source ? child.node.shape : pattern.ty;
           let demand =
             List.find_map(
-              ((pattern, demand, _, _)) =>
-                pattern == Some(id) ? Some(demand) : None,
+              ((pattern, demand, _, trace)) =>
+                pattern == Some(id)
+                  ? Some(is_gap(demand) ? trace : demand) : None,
               demands,
             )
             |> Option.value(~default=gap);
+          let shape =
+            child.mode == Source && is_gap(demand)
+              ? child.node.shape : pattern.ty;
           Id.Set.union(omitted, ids_of_typ(shape, demand));
         | _ => omitted
         };
