@@ -1551,6 +1551,15 @@ let slice_forward =
       query: Typ.t,
     )
     : result => {
+  let checked =
+    direction == `Ana
+      ? List.filter(
+          child =>
+            child.mode == Omit && Id.Set.mem(child.node.id, path)
+            && Typ.meet(ctx, child.node.ana, focus_query) != None,
+          children,
+        )
+      : [];
   let forward =
     children
     |> List.map(child => {
@@ -1593,6 +1602,10 @@ let slice_forward =
                  : gap,
              ),
            );
+         } else if (
+           checked != [] && (child.mode == Keep || child.mode == Matched)
+         ) {
+           empty_result;
          } else {
            let follow = prune => {
              let child_query =
@@ -1669,13 +1682,8 @@ let slice_forward =
          }
        });
   let reverse =
-    direction == `Ana
-      ? children
-        |> List.filter(child =>
-             child.mode == Omit && Id.Set.mem(child.node.id, path)
-             && Typ.meet(ctx, child.node.ana, focus_query) != None
-           )
-        |> List.concat_map(checked =>
+    checked
+    |> List.concat_map(checked =>
              children
              |> List.filter_map(source =>
                   if (source.mode != Keep && source.mode != Matched) {
@@ -1690,8 +1698,7 @@ let slice_forward =
                     );
                   }
                 )
-           )
-      : [];
+           );
   let result = results_join(ctx, forward @ reverse);
   let has_ascription = List.exists(child => child.mode == Ascribe, children);
   let annotation_query =
