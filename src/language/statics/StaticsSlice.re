@@ -51,10 +51,7 @@ type binding = {
   path: option(path),
 };
 
-type lens = {
-  parent_path: option(path),
-  child_path: option(path),
-};
+type lens = (path, path);
 
 type child = {
   mode: child_mode,
@@ -150,6 +147,14 @@ let context_key =
   | Ctx.ConstructorEntry({name, _}) => Some((1, name))
   | Ctx.TVarEntry({name, _}) => Some((2, name))
   | Ctx.LivelitEntry(_) => None;
+
+let tvar_entry = (ctx: Ctx.t, name) =>
+  List.find_map(
+    fun
+    | Ctx.TVarEntry(entry) when entry.name == name => Some(entry)
+    | _ => None,
+    ctx.entries,
+  );
 
 let context_join = (left: Ctx.t, right: Ctx.t): Ctx.t => {
   ...left,
@@ -536,18 +541,10 @@ let rec lift = (shape: Typ.t, path: path, value: Typ.t): Typ.t =>
   };
 
 let lens_down = (lens: lens, child_shape: Typ.t, query: Typ.t): Typ.t =>
-  switch (lens.parent_path, lens.child_path) {
-  | (Some(parent_path), Some(child_path)) =>
-    lift(child_shape, child_path, project(query, parent_path))
-  | _ => gap
-  };
+  lift(child_shape, snd(lens), project(query, fst(lens)));
 
 let lens_up = (lens: lens, parent_shape: Typ.t, supplied: Typ.t): Typ.t =>
-  switch (lens.parent_path, lens.child_path) {
-  | (Some(parent_path), Some(child_path)) =>
-    lift(parent_shape, parent_path, project(supplied, child_path))
-  | _ => gap
-  };
+  lift(parent_shape, fst(lens), project(supplied, snd(lens)));
 
 let rec empty_query = (query: Typ.t): bool =>
   if (is_gap(query)) {
@@ -830,18 +827,10 @@ let of_info_mode =
 
 let lens = (parent_shape: Typ.t, child_shape: Typ.t): option(lens) =>
   switch (find_path(child_shape, parent_shape)) {
-  | Some(parent_path) =>
-    Some({
-      parent_path: Some(parent_path),
-      child_path: Some([]),
-    })
+  | Some(parent_path) => Some((parent_path, []))
   | None =>
     switch (find_path(parent_shape, child_shape)) {
-    | Some(child_path) =>
-      Some({
-        parent_path: Some([]),
-        child_path: Some(child_path),
-      })
+    | Some(child_path) => Some(([], child_path))
     | None => None
     }
   };
@@ -861,7 +850,7 @@ let align_kept_children = (parent_shape, children: list(child)) => {
         if (child.mode == Keep) {
           let i = index^;
           incr(index);
-          {...child, lens: Some({parent_path: Some([i]), child_path: Some([])})};
+          {...child, lens: Some(([i], []))};
         } else {
           child;
         },
@@ -872,9 +861,7 @@ let align_kept_children = (parent_shape, children: list(child)) => {
   };
 };
 
-let take_children =
-    (~parent: Exp.t, ~parent_shape: Typ.t, m: Id.Map.t(Info.t)) => {
-  ignore(parent_shape);
+let take_children = (~parent: Exp.t, m: Id.Map.t(Info.t)) => {
   let id = Exp.rep_id(parent);
   switch (Id.Map.find_opt(id, m)) {
   | Some(Info.InfoSliceScratch({children, _})) =>
@@ -1190,15 +1177,8 @@ let pattern_result =
             ? Id.Set.union(omitted, ids_of_typ(user_term, routed)) : omitted;
         switch (Typ.term_of(user_term)) {
           | Var(name) =>
-            switch (
-              List.find_opt(
-                fun
-                | Ctx.TVarEntry({name: entry, _}) => entry == name
-                | _ => false,
-                ctx.entries,
-              )
-            ) {
-            | Some(Ctx.TVarEntry(entry)) =>
+            switch (tvar_entry(ctx, name)) {
+            | Some(entry) =>
               let key = context_key(Ctx.TVarEntry(entry));
               let declared =
                 List.exists(
@@ -1234,7 +1214,6 @@ let pattern_result =
                   ? Ctx.extend(context, entry) : context,
                 supplied ? Id.Set.add(id, omitted) : omitted,
               )
-            | Some(entry) => (Ctx.extend(context, entry), omitted)
             | None => (context, omitted)
             }
           | _ => (context, omitted)
@@ -1264,22 +1243,14 @@ let type_context = (~minimal, m, root, omitted) => {
                && owned(ancestors) =>
         switch (Typ.term_of(user_term)) {
         | Var(name) =>
-          switch (
-            List.find_opt(
-              fun
-              | Ctx.TVarEntry({name: entry, _}) => entry == name
-              | _ => false,
-              ctx.entries,
-            )
-          ) {
+          switch (tvar_entry(ctx, name)) {
           | None => context
-          | Some(Ctx.TVarEntry({kind: Singleton(_), _} as entry))
-              when minimal =>
+          | Some({kind: Singleton(_), _} as entry) when minimal =>
             Ctx.extend(
               context,
               Ctx.TVarEntry({...entry, kind: Singleton(gap)}),
             )
-          | Some(entry) => Ctx.extend(context, entry)
+          | Some(entry) => Ctx.extend(context, Ctx.TVarEntry(entry))
           }
         | _ => context
         }
@@ -1424,27 +1395,23 @@ let alias_omissions =
        switch (alias.kind) {
        | Abstract => Id.Set.empty
        | Singleton(definition) =>
-         switch (
-           List.find_map(
-             fun
-             | Ctx.TVarEntry({name, kind: Singleton(minimal), _})
-                 when name == alias.name => Some(minimal)
-             | _ => None,
-             context.entries,
-           )
-         ) {
-         | Some(minimal) when is_gap(minimal) =>
-           Id.Set.union(
-             Option.map(Typ.rep_id, source)
-             |> Option.map(Id.Set.singleton)
-             |> Option.value(~default=Id.Set.empty),
-             unused_type_parameters(definition, minimal),
-           )
-         | Some(minimal) =>
-           Id.Set.union(
-             ids_of_typ(alias_source(definition), alias_source(minimal)),
-             unused_type_parameters(definition, minimal),
-           )
+         switch (tvar_entry(context, alias.name)) {
+         | Some({kind: Singleton(minimal), _}) =>
+           switch (minimal) {
+           | minimal when is_gap(minimal) =>
+             Id.Set.union(
+               Option.map(Typ.rep_id, source)
+               |> Option.map(Id.Set.singleton)
+               |> Option.value(~default=Id.Set.empty),
+               unused_type_parameters(definition, minimal),
+             )
+           | minimal =>
+             Id.Set.union(
+               ids_of_typ(alias_source(definition), alias_source(minimal)),
+               unused_type_parameters(definition, minimal),
+             )
+           }
+         | Some({kind: Abstract, _})
          | None =>
            Id.Set.empty
            |> Id.Set.add(alias.id)
@@ -1746,10 +1713,7 @@ let slice_forward =
                  let routed = lens_down(lens, child.node.shape, query);
                  empty_query(routed)
                  &&
-                 switch (lens.parent_path) {
-                 | Some(path) => !has_path(query, path)
-                 | None => true
-                 }
+                 !has_path(query, fst(lens))
                    ? route_query(ctx, parent_shape, child.node.shape, query)
                    : routed;
                | None =>
@@ -1911,16 +1875,12 @@ let slice_branches =
               } else {
                 switch (Typ.term_of(query)) {
                 | TypParamAp({term: Var(name), _}, _) =>
-                  switch (
-                    List.find_opt(
-                      fun
-                      | Ctx.TVarEntry({name: entry, _}) => entry == name
-                      | _ => false,
-                      candidate.context.entries,
-                    )
-                  ) {
+                  switch (tvar_entry(candidate.context, name)) {
                   | Some(entry) =>
-                    Typ.weak_head_normalize(Ctx.extend(ctx, entry), query)
+                    Typ.weak_head_normalize(
+                      Ctx.extend(ctx, Ctx.TVarEntry(entry)),
+                      query,
+                    )
                   | None => candidate.psi
                   }
                 | _ => candidate.psi
@@ -2005,20 +1965,14 @@ let rec compile =
              let edge_lens =
                pattern != None && mode == Keep
                  ? Option.map(
-                     parent_path => {
-                       parent_path: Some(parent_path),
-                       child_path: Some([]),
-                     },
+                     parent_path => (parent_path, []),
                      find_path_right(child_info.elab_syn_ty, info.elab_syn_ty),
                    )
                  : lens(info.elab_syn_ty, child_info.elab_syn_ty);
              let edge_lens =
                mode == Track && edge_lens == None
                  ? Option.map(
-                     parent_path => {
-                       parent_path: Some(parent_path),
-                       child_path: Some([]),
-                     },
+                     parent_path => (parent_path, []),
                      find_path(child_info.ana, info.elab_syn_ty),
                    )
                  : edge_lens;

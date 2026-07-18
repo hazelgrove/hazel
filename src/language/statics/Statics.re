@@ -341,11 +341,7 @@ and uexp_to_info_map =
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
     let (slice_children, m) =
-      StaticsSlice.take_children(
-        ~parent=user_term,
-        ~parent_shape=elab_syn_ty,
-        m,
-      );
+      StaticsSlice.take_children(~parent=user_term, m);
     let info: Info.exp = {
       cls,
       elab_syn_ty,
