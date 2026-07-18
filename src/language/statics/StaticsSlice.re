@@ -1252,6 +1252,9 @@ let rec signature_omissions = (m, ctx, actual, query) => {
   };
 };
 
+let demand_for = (pattern, demands) =>
+  List.find_opt(((id, _, _, _)) => Id.equal(id, pattern), demands);
+
 let binding_omissions =
     (~module_item, children: list(child), gamma: gamma, demands): Id.Set.t =>
   List.fold_left(
@@ -1264,12 +1267,8 @@ let binding_omissions =
         |> Option.value(~default=false);
       let pattern_demand =
         Option.bind(child.pattern, (pattern: Info.pat) =>
-          List.find_map(
-            ((pattern_id, demand, _, _)) =>
-              pattern_id == Pat.rep_id(pattern.user_term)
-                ? Some(demand) : None,
-            demands,
-          )
+          demand_for(Pat.rep_id(pattern.user_term), demands)
+          |> Option.map(((_, demand, _, _)) => demand)
         );
       let used = (binding: binding) => {
         let demanded =
@@ -1294,7 +1293,7 @@ let binding_omissions =
           };
         };
       };
-      let demanded = List.filter(used, child.bindings);
+      let demanded = List.exists(used, child.bindings);
       let omitted =
         List.fold_left(
           (omitted, binding: binding) =>
@@ -1307,11 +1306,10 @@ let binding_omissions =
         | Some(pattern) when pattern_has_ascription(pattern.user_term) =>
           let id = Pat.rep_id(pattern.user_term);
           let demand =
-            List.find_map(
-              ((pattern, demand, _, trace)) =>
-                pattern == id ? Some(is_gap(demand) ? trace : demand) : None,
-              demands,
-            )
+            demand_for(id, demands)
+            |> Option.map(((_, demand, _, trace)) =>
+                 is_gap(demand) ? trace : demand
+               )
             |> Option.value(~default=gap);
           let shape =
             child.mode == SliceSource && is_gap(demand)
@@ -1322,14 +1320,12 @@ let binding_omissions =
       switch (child.pattern) {
       | Some(pattern)
           when
-            demanded == []
-            && !
-                 List.exists(
-                   ((pattern_id, demand, _, trace)) =>
-                     pattern_id == Pat.rep_id(pattern.user_term)
-                     && (!is_gap(demand) || !is_gap(trace)),
-                   demands,
-                 ) =>
+            !demanded
+            && demand_for(Pat.rep_id(pattern.user_term), demands)
+            |> Option.map(((_, demand, _, trace)) =>
+                 is_gap(demand) && is_gap(trace)
+               )
+            |> Option.value(~default=true) =>
         Id.Set.add(Pat.rep_id(pattern.user_term), omitted)
       | _ => omitted
       };
@@ -2237,11 +2233,8 @@ let rec compile =
               let query =
                 switch (source.pattern) {
                 | Some(pattern) =>
-                  demands
-                  |> List.find_map(((pattern_id, _, demand, _)) =>
-                       pattern_id == Pat.rep_id(pattern.user_term)
-                         ? Some(demand) : None
-                     )
+                  demand_for(Pat.rep_id(pattern.user_term), demands)
+                  |> Option.map(((_, _, demand, _)) => demand)
                   |> Option.value(~default=gap)
                 | None => source_query
                 };
