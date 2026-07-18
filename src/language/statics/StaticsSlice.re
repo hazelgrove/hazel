@@ -1284,7 +1284,7 @@ let binding_omissions =
         Option.bind(child.pattern, (pattern: Info.pat) =>
           List.find_map(
             ((pattern_id, demand, _, _)) =>
-              pattern_id == Some(Pat.rep_id(pattern.user_term))
+              pattern_id == Pat.rep_id(pattern.user_term)
                 ? Some(demand) : None,
             demands,
           )
@@ -1327,8 +1327,7 @@ let binding_omissions =
           let demand =
             List.find_map(
               ((pattern, demand, _, trace)) =>
-                pattern == Some(id)
-                  ? Some(is_gap(demand) ? trace : demand) : None,
+                pattern == id ? Some(is_gap(demand) ? trace : demand) : None,
               demands,
             )
             |> Option.value(~default=gap);
@@ -1345,7 +1344,7 @@ let binding_omissions =
             && !
                  List.exists(
                    ((pattern_id, demand, _, trace)) =>
-                     pattern_id == Some(Pat.rep_id(pattern.user_term))
+                     pattern_id == Pat.rep_id(pattern.user_term)
                      && (!is_gap(demand) || !is_gap(trace)),
                    demands,
                  ) =>
@@ -2242,7 +2241,7 @@ let rec compile =
                          )
                        : source;
                    (
-                     Some(pattern_id),
+                     pattern_id,
                      empty_query(demand) && !is_gap(demand) ? gap : demand,
                      source,
                      demand,
@@ -2263,7 +2262,7 @@ let rec compile =
                 | Some(pattern) =>
                   demands
                   |> List.find_map(((pattern_id, _, demand, _)) =>
-                       pattern_id == Some(Pat.rep_id(pattern.user_term))
+                       pattern_id == Pat.rep_id(pattern.user_term)
                          ? Some(demand) : None
                      )
                   |> Option.value(~default=gap)
@@ -2277,32 +2276,27 @@ let rec compile =
           result_join(info.ctx, forward, results_join(info.ctx, deps));
         let pattern_result =
           demands
-          |> List.filter_map(((pattern, demand, _, trace)) =>
-               Option.map(
-                 pattern_id =>
-                   pattern_result(
-                     ~direction,
-                     ~erase_types=
-                       direction == `Ana
-                       && !pattern_focus
-                       && !
-                            List.exists(
-                              child =>
-                                child.pattern
-                                |> Option.map((pattern: Info.pat) =>
-                                     Pat.rep_id(pattern.user_term)
-                                     == pattern_id
-                                     && Id.Set.mem(child.node.id, path)
-                                   )
-                                |> Option.value(~default=false),
-                              binding_children,
-                            ),
-                     m,
-                     pattern_id,
-                     is_gap(demand) && !is_gap(focus_query) ? trace : demand,
-                     combined.context,
-                   ),
-                 pattern,
+          |> List.map(((pattern_id, demand, _, trace)) =>
+               pattern_result(
+                 ~direction,
+                 ~erase_types=
+                   direction == `Ana
+                   && !pattern_focus
+                   && !
+                        List.exists(
+                          child =>
+                            child.pattern
+                            |> Option.map((pattern: Info.pat) =>
+                                 Pat.rep_id(pattern.user_term) == pattern_id
+                                 && Id.Set.mem(child.node.id, path)
+                               )
+                            |> Option.value(~default=false),
+                          binding_children,
+                        ),
+                 m,
+                 pattern_id,
+                 is_gap(demand) && !is_gap(focus_query) ? trace : demand,
+                 combined.context,
                )
              )
           |> results_join(info.ctx);
