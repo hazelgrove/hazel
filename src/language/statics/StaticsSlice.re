@@ -883,6 +883,15 @@ let take_children = (~parent: Exp.t, m: Id.Map.t(Info.t)) => {
   };
 };
 
+let scratch = (id, m) =>
+  switch (Id.Map.find_opt(id, m)) {
+  | Some(Info.InfoSliceScratch(trace)) => trace
+  | _ => {
+      children: [],
+      patterns: [],
+    }
+  };
+
 let record_child =
     (mode, ~pattern=None, ~parent: Exp.t, (info, elab, m): exp_result)
     : exp_result => {
@@ -891,34 +900,25 @@ let record_child =
   if (Id.equal(parent_id, child_id)) {
     (info, elab, m);
   } else {
-    let prior =
-      switch (Id.Map.find_opt(parent_id, m)) {
-      | Some(Info.InfoSliceScratch({children, _})) => children
-      | _ => []
-      };
+    let trace = scratch(parent_id, m);
     let edge: Info.slice_child = {
       mode,
       child: child_id,
       pattern,
     };
-    let prior =
+    let children =
       List.filter(
         (e: Info.slice_child) => !Id.equal(e.child, child_id),
-        prior,
+        trace.children,
       );
-    let patterns =
-      switch (Id.Map.find_opt(parent_id, m)) {
-      | Some(Info.InfoSliceScratch({patterns, _})) => patterns
-      | _ => []
-      };
     (
       info,
       elab,
       Id.Map.add(
         parent_id,
         Info.InfoSliceScratch({
-          children: prior @ [edge],
-          patterns,
+          ...trace,
+          children: children @ [edge],
         }),
         m,
       ),
@@ -926,49 +926,37 @@ let record_child =
   };
 };
 
-let keep = (~parent, child, k) =>
-  k(record_child(SliceKeep, ~parent, child));
-let omit = (~parent, child, k) =>
-  k(record_child(SliceOmit, ~parent, child));
+let edge = (mode, ~parent, child, k) =>
+  k(record_child(mode, ~parent, child));
+let keep = (~parent, child, k) => edge(SliceKeep, ~parent, child, k);
+let omit = (~parent, child, k) => edge(SliceOmit, ~parent, child, k);
 let source_child = (~parent, child, k) =>
-  k(record_child(SliceSource, ~parent, child));
-let track = (~parent, child, k) =>
-  k(record_child(SliceTrack, ~parent, child));
-let map = (~parent, child, k) => k(record_child(SliceMap, ~parent, child));
-let prune = (~parent, child, k) =>
-  k(record_child(SlicePrune, ~parent, child));
-let ascribe = (~parent, child, k) =>
-  k(record_child(SliceAscribe, ~parent, child));
-let alias = (~parent, child, k) =>
-  k(record_child(SliceAlias, ~parent, child));
+  edge(SliceSource, ~parent, child, k);
+let track = (~parent, child, k) => edge(SliceTrack, ~parent, child, k);
+let map = (~parent, child, k) => edge(SliceMap, ~parent, child, k);
+let prune = (~parent, child, k) => edge(SlicePrune, ~parent, child, k);
+let ascribe = (~parent, child, k) => edge(SliceAscribe, ~parent, child, k);
+let alias = (~parent, child, k) => edge(SliceAlias, ~parent, child, k);
 let module_items = (~parent, child, k) =>
-  k(record_child(SliceModule, ~parent, child));
-let matched = (~parent, child, k) =>
-  k(record_child(SliceMatched, ~parent, child));
+  edge(SliceModule, ~parent, child, k);
+let matched = (~parent, child, k) => edge(SliceMatched, ~parent, child, k);
 let alternative = (~parent, child, k) =>
-  k(record_child(SliceAlternative, ~parent, child));
+  edge(SliceAlternative, ~parent, child, k);
 
 let pattern = (~parent, (info: Info.pat, elab, m)) => {
   let parent_id = Exp.rep_id(parent);
   let pattern_id = Pat.rep_id(info.user_term);
-  let (children, patterns) =
-    switch (Id.Map.find_opt(parent_id, m)) {
-    | Some(Info.InfoSliceScratch({children, patterns})) => (
-        children,
-        patterns,
-      )
-    | _ => ([], [])
-    };
+  let trace = scratch(parent_id, m);
   let patterns =
-    List.exists(Id.equal(pattern_id), patterns)
-      ? patterns : patterns @ [pattern_id];
+    List.exists(Id.equal(pattern_id), trace.patterns)
+      ? trace.patterns : trace.patterns @ [pattern_id];
   (
     info,
     elab,
     Id.Map.add(
       parent_id,
       Info.InfoSliceScratch({
-        children,
+        ...trace,
         patterns,
       }),
       m,
@@ -1016,43 +1004,36 @@ let local_binding = (m, path, name) =>
 
 let record_binding = (mode, ~parent, child, k) => {
   let (_, _, m) = child;
-  let patterns =
-    switch (Id.Map.find_opt(Exp.rep_id(parent), m)) {
-    | Some(Info.InfoSliceScratch({patterns, _})) => patterns
-    | _ => []
-    };
-  let prior =
-    switch (Id.Map.find_opt(Exp.rep_id(parent), m)) {
-    | Some(Info.InfoSliceScratch({children, _})) => children
-    | _ => []
-    };
+  let trace = scratch(Exp.rep_id(parent), m);
   let index =
     mode == SliceAlternative
       ? List.length(
           List.filter(
             (edge: Info.slice_child) => edge.mode == Info.SliceAlternative,
-            prior,
+            trace.children,
           ),
         )
       : 0;
   k(
     record_child(
       mode,
-      ~pattern=List.nth_opt(patterns, index),
+      ~pattern=List.nth_opt(trace.patterns, index),
       ~parent,
       child,
     ),
   );
 };
 
+let binding_edge = (mode, ~parent, child, k) =>
+  record_binding(mode, ~parent, child, k);
 let source_binding = (~parent, child, k) =>
-  record_binding(SliceSource, ~parent, child, k);
+  binding_edge(SliceSource, ~parent, child, k);
 let bound_child = (~parent, child, k) =>
-  record_binding(SliceKeep, ~parent, child, k);
+  binding_edge(SliceKeep, ~parent, child, k);
 let omitted_binding = (~parent, child, k) =>
-  record_binding(SliceOmit, ~parent, child, k);
+  binding_edge(SliceOmit, ~parent, child, k);
 let alternative_binding = (~parent, child, k) =>
-  record_binding(SliceAlternative, ~parent, child, k);
+  binding_edge(SliceAlternative, ~parent, child, k);
 
 let binding_demand = (ctx, bindings, shape, gamma) =>
   List.fold_left(
