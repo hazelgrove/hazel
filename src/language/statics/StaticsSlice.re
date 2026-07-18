@@ -844,18 +844,16 @@ let align_kept_children = (parent_shape, children: list(child)) => {
            shapes,
            kept,
          )) {
-    let index = ref(0);
-    List.map(
-      child =>
-        if (child.mode == Keep) {
-          let i = index^;
-          incr(index);
-          {...child, lens: Some(([i], []))};
-        } else {
-          child;
-        },
-      children,
-    );
+    let (_, aligned) =
+      List.fold_left(
+        ((index, aligned), child) =>
+          child.mode == Keep
+            ? (index + 1, [{...child, lens: Some(([index], []))}, ...aligned])
+            : (index, [child, ...aligned]),
+        (0, []),
+        children,
+      );
+    List.rev(aligned);
   } else {
     children;
   };
