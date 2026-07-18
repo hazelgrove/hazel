@@ -1452,7 +1452,13 @@ let rec unused_type_parameters = (definition: Typ.t, minimal: Typ.t) =>
   };
 
 let alias_omissions =
-    (~source=None, children: list(child), context: Ctx.t): Id.Set.t =>
+    (
+      ~source=None,
+      ~preserve_parameters=false,
+      children: list(child),
+      context: Ctx.t,
+    )
+    : Id.Set.t =>
   children
   |> List.concat_map(child => child.aliases)
   |> List.map((alias: Ctx.tvar_entry) =>
@@ -1461,20 +1467,23 @@ let alias_omissions =
        | Singleton(definition) =>
          switch (tvar_entry(context, alias.name)) {
          | Some({kind: Singleton(minimal), _}) =>
+           let unused =
+             preserve_parameters
+               ? Id.Set.empty : unused_type_parameters(definition, minimal);
            switch (minimal) {
            | minimal when is_gap(minimal) =>
              Id.Set.union(
                Option.map(Typ.rep_id, source)
                |> Option.map(Id.Set.singleton)
                |> Option.value(~default=Id.Set.empty),
-               unused_type_parameters(definition, minimal),
+               unused,
              )
            | minimal =>
              Id.Set.union(
                ids_of_typ(alias_source(definition), alias_source(minimal)),
-               unused_type_parameters(definition, minimal),
+               unused,
              )
-           }
+           };
          | Some({kind: Abstract, _})
          | None =>
            Id.Set.empty
@@ -2376,6 +2385,8 @@ let rec compile =
           |> Id.Set.union(
                alias_omissions(
                  ~source=alias_source,
+                 ~preserve_parameters=
+                   sum_definition([], expose(focus_query)) != None,
                  children,
                  combined.context,
                ),
