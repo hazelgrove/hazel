@@ -24,12 +24,9 @@ module Local = {
     EditTools.delete_binding_clause,
     EditTools.delete_body,
     EditTools.update_type_annotation,
-    EditTools.insert_after,
-    EditTools.insert_before,
     EditTools.selector_update,
     EditTools.selector_delete,
-    EditTools.selector_insert_after,
-    EditTools.selector_insert_before,
+    EditTools.overwrite,
     ReadTools.get_syntax,
     ReadTools.get_statics,
     ReadTools.get_context,
@@ -125,22 +122,6 @@ module Local = {
                   get_string(args, "code"),
                 ),
               )
-            | "insert_after" =>
-              EditorAction(
-                Insert(
-                  After,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
-            | "insert_before" =>
-              EditorAction(
-                Insert(
-                  Before,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
             | "delete_binding_clause" =>
               EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>
@@ -171,16 +152,9 @@ module Local = {
               )
             | "selector_delete" =>
               EditorAction(SelectorDelete(get_string(args, "selector")))
-            | "selector_insert_after" =>
+            | "overwrite" =>
               EditorAction(
-                SelectorInsertAfter(
-                  get_string(args, "selector"),
-                  get_string(args, "code"),
-                ),
-              )
-            | "selector_insert_before" =>
-              EditorAction(
-                SelectorInsertBefore(
+                Overwrite(
                   get_string(args, "selector"),
                   get_string(args, "code"),
                 ),
@@ -304,18 +278,12 @@ module Local = {
       "selector_get_statics(\"" ++ sel ++ "\")"
     | ReadAction(SelectorGetContext(sel)) =>
       "selector_get_context(\"" ++ sel ++ "\")"
-    | EditorAction(Insert(After, path, code)) =>
-      "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Insert(Before, path, code)) =>
-      "insert_before(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(SelectorUpdate(selector, code)) =>
       "selector_update(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
     | EditorAction(SelectorDelete(selector)) =>
       "selector_delete(\"" ++ selector ++ "\")"
-    | EditorAction(SelectorInsertBefore(selector, code)) =>
-      "selector_insert_before(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(SelectorInsertAfter(selector, code)) =>
-      "selector_insert_after(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
+    | EditorAction(Overwrite(selector, code)) =>
+      "overwrite(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
     | WorkbenchAction(CreateNewTask(task)) =>
       "create_new_task( "
       ++ AgentWorkbench.Utils.TaskUtils.task_to_json_string(task)

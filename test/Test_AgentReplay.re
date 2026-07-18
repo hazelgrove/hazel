@@ -82,8 +82,7 @@ let is_edit_tool_tests = [
       [
         "selector_update",
         "selector_delete",
-        "selector_insert_before",
-        "selector_insert_after",
+        "overwrite",
         "initialize",
         "update_definition",
         "update_type_annotation",
@@ -114,7 +113,7 @@ let is_edit_tool_tests = [
    1. successful selector_update (edit -> replay step)
    2. successful get_syntax (read -> skipped)
    3. failed selector_delete (skipped)
-   4. successful selector_insert_after (edit -> replay step) */
+   4. successful overwrite (edit -> replay step) */
 let mk_replay_chat = (): Agent.Chat.Model.t => {
   let chat = Agent.Chat.Utils.init(~system_prompt="sp", ~dev_notes="dn");
   let chat =
@@ -152,7 +151,7 @@ let mk_replay_chat = (): Agent.Chat.Model.t => {
      )
   |> append_tool_result(
        mk_tool_result(
-         ~name="selector_insert_after",
+         ~name="overwrite",
          ~before=Some("let x = 2 in x"),
          ~after=Some("let x = 2 in let y = 3 in x"),
          (),
@@ -181,7 +180,7 @@ let steps_of_chat_tests = [
         check(string, "step 0 label", "Initial", s0.label);
         check(int, "step 0 index", 0, s0.index);
         check(string, "step 1 label", "selector_update", s1.label);
-        check(string, "step 2 label", "selector_insert_after", s2.label);
+        check(string, "step 2 label", "overwrite", s2.label);
         check(
           bool,
           "all steps have segments",

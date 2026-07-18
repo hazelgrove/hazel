@@ -41,8 +41,8 @@ let selector_step =
   };
 };
 
-/* Benchmark exercising the selector-based edit tools:
-   selector_update, selector_insert_before/after, and selector_delete.
+/* Benchmark exercising selector-based edits:
+   selector_update, overwrite (for insert-before/after), and selector_delete.
    Every selector below has a unique match, so cursor-relative match
    resolution is deterministic regardless of caret position. */
 let selector_demo: t = {
@@ -56,10 +56,10 @@ let selector_demo: t = {
     },
     selector_step(
       ~narration=
-        "Step 2/7: Insert a helper binding `double` before `x` (selector_insert_before).",
-      ~tool_name="selector_insert_before",
+        "Step 2/7: Insert a helper binding `double` before `x` (overwrite).",
+      ~tool_name="overwrite",
       ~selector="% let x",
-      ~code="let double = fun n -> n * 2",
+      ~code="let double = fun n -> n * 2 in $",
       (),
     ),
     selector_step(
@@ -71,11 +71,10 @@ let selector_demo: t = {
       (),
     ),
     selector_step(
-      ~narration=
-        "Step 4/7: Insert a binding `y` after `x` (selector_insert_after).",
-      ~tool_name="selector_insert_after",
-      ~selector="% let x",
-      ~code="let y = double(x)",
+      ~narration="Step 4/7: Insert a binding `y` after `x` (overwrite).",
+      ~tool_name="overwrite",
+      ~selector="let x = _ in %",
+      ~code="let y = double(x) in $",
       (),
     ),
     selector_step(

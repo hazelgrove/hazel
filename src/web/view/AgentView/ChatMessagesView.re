@@ -902,7 +902,7 @@ let view =
       let linear_display = linear_messages_display;
 
       /* Shared with the chat-wide replay feature; includes selector-based
-         edit tools (selector_update, selector_delete, selector_insert_*). */
+         edit tools, including semantic overwrite. */
       let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool =>
         Agent.Replay.Utils.is_edit_tool(tool_result.tool_call.name);
 

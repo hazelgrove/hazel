@@ -481,8 +481,7 @@ module Update = {
     switch (action) {
     | SelectorUpdate(_, code) => SelectorUpdate(selector, code)
     | SelectorDelete(_) => SelectorDelete(selector)
-    | SelectorInsertBefore(_, code) => SelectorInsertBefore(selector, code)
-    | SelectorInsertAfter(_, code) => SelectorInsertAfter(selector, code)
+    | Overwrite(_, code) => Overwrite(selector, code)
     | other => other
     };
 
@@ -506,8 +505,7 @@ module Update = {
         switch (a) {
         | SelectorUpdate(_)
         | SelectorDelete(_)
-        | SelectorInsertBefore(_)
-        | SelectorInsertAfter(_) =>
+        | Overwrite(_) =>
           switch (active_session_for_action_explorer(model)) {
           | Error(msg) => Error(msg)
           | Ok(session) =>

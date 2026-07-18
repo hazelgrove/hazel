@@ -1122,8 +1122,7 @@ module Replay = {
       | "insert_after"
       | "selector_update"
       | "selector_delete"
-      | "selector_insert_before"
-      | "selector_insert_after" => true
+      | "overwrite" => true
       | _ => false
       };
     };
@@ -1530,8 +1529,7 @@ module Agent = {
                 "update_binding_clause",
                 "delete_binding_clause",
                 "delete_body",
-                "insert_after",
-                "insert_before",
+                "overwrite",
               ],
             ) => "Edit"
       | n
