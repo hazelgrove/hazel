@@ -1180,11 +1180,12 @@ let pattern_result = (m, root, demand, dependencies) =>
                   required.entries,
                 );
               let entry =
-                switch (find_path(user_term, shape)) {
-                | Some(path) when Typ.equal(project(demand, path), user_term) =>
-                  Ctx.TVarEntry({...entry, kind: Singleton(gap)})
-                | _ => Ctx.TVarEntry(entry)
-                };
+                Typ.equal(
+                  route_query(ctx, shape, user_term, demand),
+                  user_term,
+                )
+                  ? Ctx.TVarEntry({...entry, kind: Singleton(gap)})
+                  : Ctx.TVarEntry(entry);
               (
                 redundant ? context : Ctx.extend(context, entry),
                 redundant ? Id.Set.add(id, omitted) : omitted,
@@ -2054,10 +2055,10 @@ let rec compile =
                      ) {
                        gap;
                      } else {
-                       switch (find_path(shape, info.elab_syn_ty)) {
+                       switch (find_path(pattern.ty, info.elab_syn_ty)) {
                        | Some(path) => project(query, path)
                        | None =>
-                         switch (find_shape_path(shape, info.elab_syn_ty)) {
+                         switch (find_shape_path(pattern.ty, info.elab_syn_ty)) {
                          | Some(path) => project(query, path)
                          | None => gap
                          }
