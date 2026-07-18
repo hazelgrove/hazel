@@ -56,6 +56,9 @@ exception Pattern_ascription;
 
 let gap: Typ.t = Typ.temp(Unknown(Hole(EmptyHole)));
 
+let add_ids = (ids, values) =>
+  List.fold_left((ids, id) => Id.Set.add(id, ids), ids, values);
+
 let rec is_gap = (ty: Typ.t): bool =>
   switch (Typ.term_of(ty)) {
   | Parens(inner)
@@ -754,11 +757,7 @@ let ids_of_typ = (actual: Typ.t, query: Typ.t): Id.Set.t => {
                   ConstructorMap.BadEntry(q),
                 )
                   when is_gap(q) =>
-                List.fold_left(
-                  (ids, id) => Id.Set.add(id, ids),
-                  Id.Set.empty,
-                  ann.ids,
-                )
+                add_ids(Id.Set.empty, ann.ids)
               | _ => Id.Set.empty
               },
             actual,
@@ -1359,7 +1358,7 @@ let rec unused_type_parameters = (definition: Typ.t, minimal: Typ.t) =>
          | _ => None
          }
        )
-    |> List.fold_left((ids, id) => Id.Set.add(id, ids), Id.Set.empty)
+    |> add_ids(Id.Set.empty)
     |> Id.Set.union(unused_type_parameters(body, minimal_body));
   | _ => Id.Set.empty
   };
@@ -2341,18 +2340,9 @@ let rec compile =
 
 let exp_path = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t =>
   switch (Id.Map.find_opt(focus, m)) {
-  | Some(Info.InfoExp({ancestors, _})) =>
-    List.fold_left(
-      (ids, id) => Id.Set.add(id, ids),
-      Id.Set.singleton(focus),
-      ancestors,
-    )
+  | Some(Info.InfoExp({ancestors, _}))
   | Some(Info.InfoPat({ancestors, _})) =>
-    List.fold_left(
-      (ids, id) => Id.Set.add(id, ids),
-      Id.Set.singleton(focus),
-      ancestors,
-    )
+    add_ids(Id.Set.singleton(focus), ancestors)
   | _ => Id.Set.singleton(focus)
   };
 
@@ -2367,11 +2357,7 @@ let focus_shell_ids = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t => {
             _,
           }),
         ) =>
-        List.fold_left(
-          (ids, id) => Id.Set.add(id, ids),
-          go(rest),
-          IdTagged.ids(e),
-        )
+        add_ids(go(rest), IdTagged.ids(e))
       | _ => Id.Set.empty
       }
     | [] => Id.Set.empty;
