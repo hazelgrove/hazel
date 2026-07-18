@@ -398,7 +398,8 @@ and uexp_to_info_map =
   let (let@@@) = (child, k) => StaticsSlice.alias(~parent=uexp, child, k);
   let (let|||) = (child, k) =>
     StaticsSlice.module_items(~parent=uexp, child, k);
-  let ( let*** ) = (child, k) => StaticsSlice.matched(~parent=uexp, child, k);
+  let ( let*** ) = (child, k) =>
+    StaticsSlice.matched(~parent=uexp, child, k);
   let (let!) = (pattern, k) =>
     k(StaticsSlice.pattern(~parent=uexp, pattern));
   let map_m_go = (m, anas, es) => {

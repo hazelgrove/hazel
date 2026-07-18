@@ -122,16 +122,20 @@ let close_sum_gaps = ty =>
       (continue, ty) =>
         switch (Typ.term_of(ty)) {
         | Sum(items)
-            when List.exists(
-                   fun | ConstructorMap.Variant(_, _, _) => true | _ => false,
-                   items,
-                 ) =>
-          {
+            when
+              List.exists(
+                fun
+                | ConstructorMap.Variant(_, _, _) => true
+                | _ => false,
+                items,
+              ) => {
             ...ty,
             term:
               Sum(
                 List.filter(
-                  fun | ConstructorMap.BadEntry(_) => false | _ => true,
+                  fun
+                  | ConstructorMap.BadEntry(_) => false
+                  | _ => true,
                   items,
                 ),
               ),
@@ -177,7 +181,8 @@ let context_join_branches = (ctx, left: Ctx.t, right: Ctx.t): Ctx.t => {
     | (
         Ctx.TVarEntry({name, kind: Singleton(a), _} as old),
         Ctx.TVarEntry({name: other, kind: Singleton(b), _}),
-      ) when name == other =>
+      )
+        when name == other =>
       Ctx.TVarEntry({
         ...old,
         kind: Singleton(close_sum_gaps(meet(ctx, a, b))),
@@ -193,7 +198,8 @@ let context_join_branches = (ctx, left: Ctx.t, right: Ctx.t): Ctx.t => {
           | Some(key)
               when List.exists(e => context_key(e) == Some(key), entries) =>
             List.map(
-              old => context_key(old) == Some(key) ? merge(old, entry) : old,
+              old =>
+                context_key(old) == Some(key) ? merge(old, entry) : old,
               entries,
             )
           | _ => entries @ [entry]
@@ -206,7 +212,9 @@ let context_join_branches = (ctx, left: Ctx.t, right: Ctx.t): Ctx.t => {
 
 let context_has_constructor = (context: Ctx.t) =>
   List.exists(
-    fun | Ctx.ConstructorEntry(_) => true | _ => false,
+    fun
+    | Ctx.ConstructorEntry(_) => true
+    | _ => false,
     context.entries,
   );
 
@@ -229,7 +237,8 @@ let queried = (ty: Typ.t): result => {
 
 let rec sum_definition = (params, ty) =>
   switch (Typ.term_of(ty)) {
-  | TypFun(param, body) => sum_definition(params @ TPat.binders_of(param), body)
+  | TypFun(param, body) =>
+    sum_definition(params @ TPat.binders_of(param), body)
   | Parens(body)
   | Rec(_, body) => sum_definition(params, body)
   | Sum(constructors) => Some((params, constructors))
@@ -250,7 +259,8 @@ let rec unconstrained_result = (query: Typ.t): bool =>
   | Parens(body) => unconstrained_result(body)
   | Arrow(_, result) =>
     switch (Typ.term_of(result)) {
-    | TypParamAp(_, {term: TypTuple(args), _}) => List.for_all(is_gap, args)
+    | TypParamAp(_, {term: TypTuple(args), _}) =>
+      List.for_all(is_gap, args)
     | TypParamAp(_, arg) => is_gap(arg)
     | _ => is_gap(result)
     }
@@ -259,14 +269,12 @@ let rec unconstrained_result = (query: Typ.t): bool =>
 
 let rec minimal_alias = (name, payload, definition: Typ.t): Typ.t =>
   switch (Typ.term_of(definition)) {
-  | TypFun(param, body) =>
-    {
+  | TypFun(param, body) => {
       ...definition,
       term: TypFun(param, minimal_alias(name, payload, body)),
     }
   | Rec(_, body) => minimal_alias(name, payload, body)
-  | Sum(constructors) =>
-    {
+  | Sum(constructors) => {
       ...definition,
       term:
         Sum(
@@ -298,48 +306,58 @@ let constructor_from_alias = (ctx: Ctx.t, name: string, query) =>
   List.find_map(
     fun
     | Ctx.TVarEntry({name: alias, kind: Singleton(definition), _} as entry) => {
-      let constructor =
-        switch (Typ.term_of(definition)) {
-      | Var(constructor)
-          when constructor == name && Ctx.lookup_alias(ctx, constructor) == None =>
-        Some(
-          {
-            name,
-            id: Typ.rep_id(definition),
-            typ: Var(alias) |> Typ.temp,
-            custom_statics: None,
-          }: Ctx.var_entry,
-        )
-      | TypParamAp({term: Var(constructor), _}, payload)
-          when constructor == name && Ctx.lookup_alias(ctx, constructor) == None =>
-        Some(
-          {
-            name,
-            id: Typ.rep_id(definition),
-            typ: Arrow(payload, Var(alias) |> Typ.temp) |> Typ.temp,
-            custom_statics: None,
-          }: Ctx.var_entry,
-        )
-      | _ =>
-        Option.bind(sum_definition([], definition), ((params, constructors)) =>
-          Ctx.add_ctrs_with_params(Ctx.empty, alias, params, constructors)
-          |> Ctx.lookup_ctr(_, name)
-        )
-        };
-      Option.map(
-        constructor => (
+        let constructor =
+          switch (Typ.term_of(definition)) {
+          | Var(constructor)
+              when
+                constructor == name
+                && Ctx.lookup_alias(ctx, constructor) == None =>
+            Some(
+              {
+                name,
+                id: Typ.rep_id(definition),
+                typ: Var(alias) |> Typ.temp,
+                custom_statics: None,
+              }: Ctx.var_entry,
+            )
+          | TypParamAp({term: Var(constructor), _}, payload)
+              when
+                constructor == name
+                && Ctx.lookup_alias(ctx, constructor) == None =>
+            Some(
+              {
+                name,
+                id: Typ.rep_id(definition),
+                typ: Arrow(payload, Var(alias) |> Typ.temp) |> Typ.temp,
+                custom_statics: None,
+              }: Ctx.var_entry,
+            )
+          | _ =>
+            Option.bind(
+              sum_definition([], definition), ((params, constructors)) =>
+              Ctx.add_ctrs_with_params(Ctx.empty, alias, params, constructors)
+              |> Ctx.lookup_ctr(_, name)
+            )
+          };
+        Option.map(
+          constructor =>
+            (
+              constructor,
+              {
+                ...entry,
+                kind:
+                  Singleton(
+                    minimal_alias(
+                      name,
+                      constructor_payload(query),
+                      definition,
+                    ),
+                  ),
+              },
+            ),
           constructor,
-          {
-            ...entry,
-            kind:
-              Singleton(
-                minimal_alias(name, constructor_payload(query), definition),
-              ),
-          },
-        ),
-        constructor,
-      );
-    }
+        );
+      }
     | _ => None,
     ctx.entries,
   );
@@ -486,7 +504,12 @@ let rec expose = (ty: Typ.t): Typ.t =>
   | Projector(_, inner) => expose(inner)
   | Unknown(Hole(MultiHole(items))) =>
     switch (
-      List.filter_map(fun | Grammar.Typ(ty) => Some(ty) | _ => None, items)
+      List.filter_map(
+        fun
+        | Grammar.Typ(ty) => Some(ty)
+        | _ => None,
+        items,
+      )
     ) {
     | [inner] => expose(inner)
     | _ => ty
@@ -570,8 +593,12 @@ let rec fill_shell = (shape, query) =>
   } else {
     let shape_children = typ_children(shape);
     let query_children = typ_children(query);
-    shape_children != [] && List.length(shape_children) == List.length(query_children)
-      ? typ_rebuild(shape, List.map2(fill_shell, shape_children, query_children))
+    shape_children != []
+    && List.length(shape_children) == List.length(query_children)
+      ? typ_rebuild(
+          shape,
+          List.map2(fill_shell, shape_children, query_children),
+        )
       : query;
   };
 
@@ -586,28 +613,28 @@ let rec route_query = (_ctx, parent: Typ.t, child: Typ.t, query: Typ.t): Typ.t =
       | Some(path) => project(query, path)
       | None => routed
       };
-    }
+    };
   | None =>
     switch (find_shape_path(child, query)) {
     | Some(path) => project(query, path)
     | None =>
       switch (find_path(parent, child)) {
-    | Some(path) => lift(child, path, query)
-    | None =>
-      let ps = typ_children(expose(parent));
-      let cs = typ_children(expose(child));
-      let qs = typ_children(expose(query));
-      let routed =
-        List.length(ps) == List.length(cs)
-        && List.length(ps) == List.length(qs)
-          ? List.map2(
-              (p, (c, q)) => route_query(_ctx, p, c, q),
-              ps,
-              List.combine(cs, qs),
-            )
-          : List.map(route_query(_ctx, parent, _, query), cs);
-      routed == [] || List.for_all(empty_query, routed)
-        ? gap : typ_rebuild(child, routed);
+      | Some(path) => lift(child, path, query)
+      | None =>
+        let ps = typ_children(expose(parent));
+        let cs = typ_children(expose(child));
+        let qs = typ_children(expose(query));
+        let routed =
+          List.length(ps) == List.length(cs)
+          && List.length(ps) == List.length(qs)
+            ? List.map2(
+                (p, (c, q)) => route_query(_ctx, p, c, q),
+                ps,
+                List.combine(cs, qs),
+              )
+            : List.map(route_query(_ctx, parent, _, query), cs);
+        routed == [] || List.for_all(empty_query, routed)
+          ? gap : typ_rebuild(child, routed);
       }
     }
   };
@@ -667,22 +694,24 @@ let matched_query = (ctx, query) => {
       let rec go = ty =>
         switch (Typ.term_of(ty)) {
         | Var(name) =>
-          List.find_map(((bound, query)) => bound == name ? Some(query) : None, bindings)
+          List.find_map(
+            ((bound, query)) => bound == name ? Some(query) : None,
+            bindings,
+          )
           |> Option.value(~default=gap)
-        | TypParamAp(fn, arg) => {
+        | TypParamAp(fn, arg) =>
           let arg = go(arg);
           empty_query(arg) ? gap : TypParamAp(fn, arg) |> Typ.temp;
-        }
         | Sum(variants) =>
           Sum(
             List.map(
               fun
               | ConstructorMap.Variant(name, ids, Some(payload)) => {
-                let payload = go(payload);
-                empty_query(payload)
-                  ? ConstructorMap.BadEntry(gap)
-                  : ConstructorMap.Variant(name, ids, Some(payload));
-              }
+                  let payload = go(payload);
+                  empty_query(payload)
+                    ? ConstructorMap.BadEntry(gap)
+                    : ConstructorMap.Variant(name, ids, Some(payload));
+                }
               | ConstructorMap.Variant(_, _, None)
               | ConstructorMap.BadEntry(_) => ConstructorMap.BadEntry(gap),
               variants,
@@ -691,9 +720,9 @@ let matched_query = (ctx, query) => {
           |> Typ.temp
         | _ =>
           let children = typ_children(ty);
-          children == [] ? gap : typ_rebuild(ty, List.map(go, children))
+          children == [] ? gap : typ_rebuild(ty, List.map(go, children));
         };
-      bindings == [] ? query : go(body)
+      bindings == [] ? query : go(body);
     | _ => query
     }
   | _ => query
@@ -727,13 +756,14 @@ let matched_overlap = (ctx, query, supplied) => {
           | (
               ConstructorMap.Variant(name, _, _),
               ConstructorMap.Variant(other, _, _),
-            ) when name == other => child
+            )
+              when name == other => child
           | _ => gap
           },
         List.combine(queries, supplied),
         children,
       ),
-    )
+    );
   | _ => query_residual(ctx, query, query_residual(ctx, query, supplied))
   };
 };
@@ -745,11 +775,15 @@ let ids_of_typ = (actual: Typ.t, query: Typ.t): Id.Set.t => {
     } else {
       let omitted_entries =
         switch (Typ.term_of(actual), Typ.term_of(query)) {
-        | (Sum(actual), Sum(query)) when List.length(actual) == List.length(query) =>
+        | (Sum(actual), Sum(query))
+            when List.length(actual) == List.length(query) =>
           List.map2(
             (actual, query) =>
               switch (actual, query) {
-              | (ConstructorMap.Variant(_, ann, _), ConstructorMap.BadEntry(q))
+              | (
+                  ConstructorMap.Variant(_, ann, _),
+                  ConstructorMap.BadEntry(q),
+                )
                   when is_gap(q) =>
                 List.fold_left(
                   (ids, id) => Id.Set.add(id, ids),
@@ -848,7 +882,16 @@ let align_kept_children = (parent_shape, children: list(child)) => {
       List.fold_left(
         ((index, aligned), child) =>
           child.mode == Keep
-            ? (index + 1, [{...child, lens: Some(([index], []))}, ...aligned])
+            ? (
+              index + 1,
+              [
+                {
+                  ...child,
+                  lens: Some(([index], [])),
+                },
+                ...aligned,
+              ],
+            )
             : (index, [child, ...aligned]),
         (0, []),
         children,
@@ -862,8 +905,10 @@ let align_kept_children = (parent_shape, children: list(child)) => {
 let take_children = (~parent: Exp.t, m: Id.Map.t(Info.t)) => {
   let id = Exp.rep_id(parent);
   switch (Id.Map.find_opt(id, m)) {
-  | Some(Info.InfoSliceScratch({children, _})) =>
-    (children, Id.Map.remove(id, m))
+  | Some(Info.InfoSliceScratch({children, _})) => (
+      children,
+      Id.Map.remove(id, m),
+    )
   | Some(Info.InfoExp({slice_children, _})) => (slice_children, m)
   | _ => ([], m)
   };
@@ -932,11 +977,13 @@ let source_child = (~parent, child, k) =>
 let track = (~parent, child, k) => k(record_child(Track, ~parent, child));
 let map = (~parent, child, k) => k(record_child(Map, ~parent, child));
 let prune = (~parent, child, k) => k(record_child(Prune, ~parent, child));
-let ascribe = (~parent, child, k) => k(record_child(Ascribe, ~parent, child));
+let ascribe = (~parent, child, k) =>
+  k(record_child(Ascribe, ~parent, child));
 let alias = (~parent, child, k) => k(record_child(Alias, ~parent, child));
 let module_items = (~parent, child, k) =>
   k(record_child(Items, ~parent, child));
-let matched = (~parent, child, k) => k(record_child(Matched, ~parent, child));
+let matched = (~parent, child, k) =>
+  k(record_child(Matched, ~parent, child));
 let alternative = (~parent, child, k) =>
   k(record_child(Alternative, ~parent, child));
 
@@ -974,15 +1021,17 @@ let bindings_of = (~ctx: Ctx.t, pattern: Info.pat) => {
   |> List.filter_map(
        fun
        | Ctx.VarEntry({name, id, typ, _}) =>
-         Some({
-           name,
-           id,
-           path:
-             switch (find_path(typ, shape)) {
-             | Some(path) => Some(path)
-             | None => find_shape_path(typ, shape)
-             },
-         }: binding)
+         Some(
+           {
+             name,
+             id,
+             path:
+               switch (find_path(typ, shape)) {
+               | Some(path) => Some(path)
+               | None => find_shape_path(typ, shape)
+               },
+           }: binding,
+         )
        | _ => None,
      );
 };
@@ -991,13 +1040,15 @@ let local_binding = (m, path, name) =>
   Id.Map.fold(
     (_, info, found) =>
       found
-      || switch (info) {
-         | Info.InfoPat(pattern) =>
-           List.exists(Id.Set.mem(_, path), pattern.ancestors)
-           && Pat.bindings(pattern.user_term)
-              |> List.exists((binding: Binding.t) => binding.name == name)
-         | _ => false
-         },
+      || (
+        switch (info) {
+        | Info.InfoPat(pattern) =>
+          List.exists(Id.Set.mem(_, path), pattern.ancestors)
+          && Pat.bindings(pattern.user_term)
+          |> List.exists((binding: Binding.t) => binding.name == name)
+        | _ => false
+        }
+      ),
     m,
     false,
   );
@@ -1023,7 +1074,14 @@ let record_binding = (mode, ~parent, child, k) => {
           ),
         )
       : 0;
-  k(record_child(mode, ~pattern=List.nth_opt(patterns, index), ~parent, child));
+  k(
+    record_child(
+      mode,
+      ~pattern=List.nth_opt(patterns, index),
+      ~parent,
+      child,
+    ),
+  );
 };
 
 let source_binding = (~parent, child, k) =>
@@ -1043,12 +1101,12 @@ let binding_demand = (ctx, bindings, shape, gamma) =>
         let query =
           empty_query(query) && !is_gap(query)
             ? query : query_residual(ctx, query, query_shell(query));
-        meet(ctx, demand, lift(shape, path, query))
+        meet(ctx, demand, lift(shape, path, query));
       | (Some(query), None) when List.length(bindings) == 1 =>
         let query =
           empty_query(query) && !is_gap(query)
             ? query : query_residual(ctx, query, query_shell(query));
-        meet(ctx, demand, query)
+        meet(ctx, demand, query);
       | _ => demand
       },
     gap,
@@ -1060,16 +1118,13 @@ let pattern_focus_demand = (m, root, focus, shape, query) =>
   | Some(id) =>
     switch (Id.Map.find_opt(id, m)) {
     | Some(Info.InfoPat(info))
-        when Id.equal(id, root) || List.exists(Id.equal(root), info.ancestors) =>
+        when
+          Id.equal(id, root) || List.exists(Id.equal(root), info.ancestors) =>
       let demand = route_query(info.ctx, info.ana, shape, query);
       let demand =
         empty_query(demand)
           ? route_query(info.ctx, query, shape, query) : demand;
-      meet(
-        info.ctx,
-        demand,
-        query_shell(shape),
-      )
+      meet(info.ctx, demand, query_shell(shape));
     | _ => gap
     }
   | None => gap
@@ -1091,8 +1146,7 @@ let pattern_has_ascription = pattern =>
   | _ => false
   };
 
-let pattern_result =
-    (~direction, ~erase_types, m, root, demand, dependencies) =>
+let pattern_result = (~direction, ~erase_types, m, root, demand, dependencies) =>
   if (is_gap(demand)) {
     erase_types
       ? {
@@ -1114,8 +1168,10 @@ let pattern_result =
   } else {
     let (shape, ascribed) =
       switch (Id.Map.find_opt(root, m)) {
-      | Some(Info.InfoPat(pattern)) =>
-        (pattern.ty, pattern_has_ascription(pattern.user_term))
+      | Some(Info.InfoPat(pattern)) => (
+          pattern.ty,
+          pattern_has_ascription(pattern.user_term),
+        )
       | _ => (demand, false)
       };
     let pattern_omitted =
@@ -1123,18 +1179,19 @@ let pattern_result =
         (_id, info, omitted) =>
           switch (info) {
           | Info.InfoPat(pattern)
-              when ascribed
-                   && List.exists(Id.equal(root), pattern.ancestors)
-                   && Pat.bindings(pattern.user_term) == []
-                   && !pattern_has_ascription(pattern.user_term)
-                   && empty_query(
-                        route_query(
-                          pattern.ctx,
-                          shape,
-                          pattern.elab_syn_ty,
-                          demand,
-                        ),
-                      ) =>
+              when
+                ascribed
+                && List.exists(Id.equal(root), pattern.ancestors)
+                && Pat.bindings(pattern.user_term) == []
+                && !pattern_has_ascription(pattern.user_term)
+                && empty_query(
+                     route_query(
+                       pattern.ctx,
+                       shape,
+                       pattern.elab_syn_ty,
+                       demand,
+                     ),
+                   ) =>
             Id.Set.add(Pat.rep_id(pattern.user_term), omitted)
           | _ => omitted
           },
@@ -1146,8 +1203,9 @@ let pattern_result =
         (id, info, context) =>
           switch (info) {
           | Info.InfoPat(pattern)
-              when Id.equal(id, root)
-                   || List.exists(Id.equal(root), pattern.ancestors) =>
+              when
+                Id.equal(id, root)
+                || List.exists(Id.equal(root), pattern.ancestors) =>
             switch (Pat.term_of(pattern.user_term)) {
             | Constructor(name, _) =>
               context_join(
@@ -1164,64 +1222,69 @@ let pattern_result =
     let pattern_omitted =
       constructors.entries == [] ? pattern_omitted : Id.Set.empty;
     let required = context_join(constructors, dependencies);
-    let (context, omitted) = Id.Map.fold(
-      (id, info, (context, omitted)) =>
-        switch (info) {
-      | Info.InfoTyp({user_term, ctx, ancestors, _})
-          when List.exists(Id.equal(root), ancestors) =>
-        let routed = route_query(ctx, shape, user_term, demand);
-        let omitted =
-          erase_types
-            ? Id.Set.union(omitted, ids_of_typ(user_term, routed)) : omitted;
-        switch (Typ.term_of(user_term)) {
-          | Var(name) =>
-            switch (tvar_entry(ctx, name)) {
-            | Some(entry) =>
-              let key = context_key(Ctx.TVarEntry(entry));
-              let declared =
-                List.exists(
-                  item => context_key(item) == key,
-                  required.entries,
-                );
-              let supplied =
-                switch (entry.kind) {
-                | Singleton(definition) =>
+    let (context, omitted) =
+      Id.Map.fold(
+        (id, info, (context, omitted)) =>
+          switch (info) {
+          | Info.InfoTyp({user_term, ctx, ancestors, _})
+              when List.exists(Id.equal(root), ancestors) =>
+            let routed = route_query(ctx, shape, user_term, demand);
+            let omitted =
+              erase_types
+                ? Id.Set.union(omitted, ids_of_typ(user_term, routed))
+                : omitted;
+            switch (Typ.term_of(user_term)) {
+            | Var(name) =>
+              switch (tvar_entry(ctx, name)) {
+              | Some(entry) =>
+                let key = context_key(Ctx.TVarEntry(entry));
+                let declared =
                   List.exists(
-                    fun
-                    | Ctx.TVarEntry({
-                        name,
-                        kind: Singleton(required),
-                        _,
-                      }) =>
-                      name == entry.name && Typ.equal(definition, required)
-                    | _ => false,
+                    item => context_key(item) == key,
                     required.entries,
-                  )
-                | Abstract => false
-                };
-              let minimal = Typ.equal(routed, user_term);
-              let entry =
-                minimal
-                  ? Ctx.TVarEntry({...entry, kind: Singleton(gap)})
-                  : Ctx.TVarEntry(entry);
-              (
-                direction == `Ana
-                && minimal
-                && constructors.entries == []
-                || !declared
-                  ? Ctx.extend(context, entry) : context,
-                supplied ? Id.Set.add(id, omitted) : omitted,
-              )
-            | None => (context, omitted)
-            }
+                  );
+                let supplied =
+                  switch (entry.kind) {
+                  | Singleton(definition) =>
+                    List.exists(
+                      fun
+                      | Ctx.TVarEntry({name, kind: Singleton(required), _}) =>
+                        name == entry.name && Typ.equal(definition, required)
+                      | _ => false,
+                      required.entries,
+                    )
+                  | Abstract => false
+                  };
+                let minimal = Typ.equal(routed, user_term);
+                let entry =
+                  minimal
+                    ? Ctx.TVarEntry({
+                        ...entry,
+                        kind: Singleton(gap),
+                      })
+                    : Ctx.TVarEntry(entry);
+                (
+                  direction == `Ana
+                  && minimal
+                  && constructors.entries == []
+                  || !declared
+                    ? Ctx.extend(context, entry) : context,
+                  supplied ? Id.Set.add(id, omitted) : omitted,
+                );
+              | None => (context, omitted)
+              }
+            | _ => (context, omitted)
+            };
           | _ => (context, omitted)
-          }
-        | _ => (context, omitted)
-        },
-      m,
-      (constructors, pattern_omitted),
-    );
-    {...empty_result, context, omitted};
+          },
+        m,
+        (constructors, pattern_omitted),
+      );
+    {
+      ...empty_result,
+      context,
+      omitted,
+    };
   };
 
 let type_context = (~minimal, m, root, omitted) => {
@@ -1237,8 +1300,7 @@ let type_context = (~minimal, m, root, omitted) => {
     (id, info, context) =>
       switch (info) {
       | Info.InfoTyp({user_term, ctx, ancestors, _})
-          when !Id.Set.mem(id, omitted)
-               && owned(ancestors) =>
+          when !Id.Set.mem(id, omitted) && owned(ancestors) =>
         switch (Typ.term_of(user_term)) {
         | Var(name) =>
           switch (tvar_entry(ctx, name)) {
@@ -1246,7 +1308,10 @@ let type_context = (~minimal, m, root, omitted) => {
           | Some({kind: Singleton(_), _} as entry) when minimal =>
             Ctx.extend(
               context,
-              Ctx.TVarEntry({...entry, kind: Singleton(gap)}),
+              Ctx.TVarEntry({
+                ...entry,
+                kind: Singleton(gap),
+              }),
             )
           | Some(entry) => Ctx.extend(context, Ctx.TVarEntry(entry))
           }
@@ -1268,7 +1333,11 @@ let rec signature_omissions = (m, ctx, actual, query) => {
     | _ => Id.Set.empty
     };
   List.length(typ_children(actual)) == List.length(typ_children(query))
-    ? List.map2(signature_omissions(m, ctx), typ_children(actual), typ_children(query))
+    ? List.map2(
+        signature_omissions(m, ctx),
+        typ_children(actual),
+        typ_children(query),
+      )
       |> List.fold_left(Id.Set.union, omitted)
     : omitted;
 };
@@ -1284,15 +1353,13 @@ let binding_omissions =
            )
         |> Option.value(~default=false);
       let pattern_demand =
-        Option.bind(
-          child.pattern,
-          (pattern: Info.pat) =>
-             List.find_map(
-               ((pattern_id, demand, _, _)) =>
-                 pattern_id == Some(Pat.rep_id(pattern.user_term))
-                   ? Some(demand) : None,
-               demands,
-             ),
+        Option.bind(child.pattern, (pattern: Info.pat) =>
+          List.find_map(
+            ((pattern_id, demand, _, _)) =>
+              pattern_id == Some(Pat.rep_id(pattern.user_term))
+                ? Some(demand) : None,
+            demands,
+          )
         );
       let used = (binding: binding) => {
         let demanded =
@@ -1310,16 +1377,14 @@ let binding_omissions =
             : false;
         if (demanded) {
           true;
-        } else switch (VarMap.lookup(gamma, binding.name)) {
-        | Some(query) => !is_gap(query)
-        | None => false
+        } else {
+          switch (VarMap.lookup(gamma, binding.name)) {
+          | Some(query) => !is_gap(query)
+          | None => false
+          };
         };
       };
-      let demanded =
-        List.filter(
-          used,
-          child.bindings,
-        );
+      let demanded = List.filter(used, child.bindings);
       let omitted =
         List.fold_left(
           (omitted, binding: binding) =>
@@ -1376,12 +1441,13 @@ let rec unused_type_parameters = (definition: Typ.t, minimal: Typ.t) =>
     TPat.binders_of(pattern)
     |> List.filter_map(binder =>
          switch (TPat.tyvar_of_utpat(binder)) {
-         | Some(name) when !List.mem(name, free) => Some(TPat.rep_id(binder))
+         | Some(name) when !List.mem(name, free) =>
+           Some(TPat.rep_id(binder))
          | _ => None
          }
        )
     |> List.fold_left((ids, id) => Id.Set.add(id, ids), Id.Set.empty)
-    |> Id.Set.union(unused_type_parameters(body, minimal_body))
+    |> Id.Set.union(unused_type_parameters(body, minimal_body));
   | _ => Id.Set.empty
   };
 
@@ -1449,7 +1515,7 @@ let module_omissions = (m, omitted) =>
                }
              );
         binders != [] && List.for_all(Id.Set.mem(_, omitted), binders)
-          ? Id.Set.add(id, omitted) : omitted
+          ? Id.Set.add(id, omitted) : omitted;
       | _ => omitted
       },
     m,
@@ -1475,12 +1541,10 @@ let rec matched_body =
   | _ =>
     let ss = typ_children(schema);
     let qs = typ_children(query);
-    if (
-      ss != []
-      && Typ.cls_of_term(Typ.term_of(schema))
-         == Typ.cls_of_term(Typ.term_of(query))
-      && List.length(ss) == List.length(qs)
-    ) {
+    if (ss != []
+        && Typ.cls_of_term(Typ.term_of(schema))
+        == Typ.cls_of_term(Typ.term_of(query))
+        && List.length(ss) == List.length(qs)) {
       let pairs =
         List.map2(matched_body(~replace_bound, ctx, bound), ss, qs);
       (
@@ -1494,7 +1558,7 @@ let rec matched_body =
         switch (Typ.term_of(schema)) {
         | Sum(_) => matched_body(~replace_bound, ctx, bound, schema, query)
         | _ => (query, [])
-        }
+        };
       | _ => (query, [])
       };
     };
@@ -1537,8 +1601,7 @@ let matched_type_application =
             (continue, ty) =>
               switch (Typ.term_of(ty)) {
               | Var(name)
-                  when List.mem(name, names) && is_gap(constraint_for(name)) =>
-                gap
+                  when List.mem(name, names) && is_gap(constraint_for(name)) => gap
               | _ => continue(ty)
               },
           matched,
@@ -1551,8 +1614,10 @@ let matched_type_application =
             ~f_tpat=
               (continue, binder) =>
                 switch (binder.term) {
-                | Var(name) when implicit || is_gap(constraint_for(name)) =>
-                  {...binder, term: EmptyHole}
+                | Var(name) when implicit || is_gap(constraint_for(name)) => {
+                    ...binder,
+                    term: EmptyHole,
+                  }
                 | _ => continue(binder)
                 },
             binder,
@@ -1657,12 +1722,7 @@ let slice_forward =
              | None =>
                empty_query(slice.psi)
                  ? gap
-                 : route_query(
-                     ctx,
-                     child.node.shape,
-                     parent_shape,
-                     slice.psi,
-                   )
+                 : route_query(ctx, child.node.shape, parent_shape, slice.psi)
              },
          };
          if (Id.Set.mem(child.node.id, path)
@@ -1681,9 +1741,7 @@ let slice_forward =
          } else if (Id.Set.mem(child.node.id, path)) {
            upwards(
              child.node.dispatch(
-               direction == `Ana
-               && !pattern_focus
-               && child.mode != Ascribe
+               direction == `Ana && !pattern_focus && child.mode != Ascribe
                  ? route_query(
                      ctx,
                      parent_shape,
@@ -1693,9 +1751,8 @@ let slice_forward =
                  : gap,
              ),
            );
-         } else if (
-           checked != [] && (child.mode == Keep || child.mode == Matched)
-         ) {
+         } else if (checked != []
+                    && (child.mode == Keep || child.mode == Matched)) {
            empty_result;
          } else {
            let query =
@@ -1709,9 +1766,7 @@ let slice_forward =
                switch (child.lens) {
                | Some(lens) =>
                  let routed = lens_down(lens, child.node.shape, query);
-                 empty_query(routed)
-                 &&
-                 !has_path(query, fst(lens))
+                 empty_query(routed) && !has_path(query, fst(lens))
                    ? route_query(ctx, parent_shape, child.node.shape, query)
                    : routed;
                | None =>
@@ -1748,10 +1803,10 @@ let slice_forward =
              let child_query =
                route_query(ctx, parent_shape, child.node.shape, query);
              let child_query =
-               empty_query(child_query) && typ_children(child.node.shape) != []
-                 ? query_shell(child.node.shape)
-                 : child_query;
-             child.node.dispatch(child_query)
+               empty_query(child_query)
+               && typ_children(child.node.shape) != []
+                 ? query_shell(child.node.shape) : child_query;
+             child.node.dispatch(child_query);
            | Alternative => empty_result
            | Ascribe => {
                ...child.node.dispatch(query),
@@ -1763,46 +1818,46 @@ let slice_forward =
              is_gap(query)
                ? child.node.dispatch(gap)
                : {
-                 ...matched_type_application(
-                   ~direction,
-                   ~implicit=true,
-                   ctx,
-                   child.node,
-                   TypTuple([]) |> Typ.temp,
-                   Arrow(gap, query) |> Typ.temp,
-                 ),
+                 ...
+                   matched_type_application(
+                     ~direction,
+                     ~implicit=true,
+                     ctx,
+                     child.node,
+                     TypTuple([]) |> Typ.temp,
+                     Arrow(gap, query) |> Typ.temp,
+                   ),
                  psi: query,
                }
            | Keep => follow(false)
            | Items => follow(false)
            | Prune => follow(true)
            };
-         }
+         };
        });
   let reverse =
     checked
     |> List.concat_map(checked =>
-             children
-             |> List.filter_map(source =>
-                  if (source.mode != Keep && source.mode != Matched) {
-                    None;
-                  } else {
-                    Option.map(
-                      path =>
-                        source.node.dispatch(
-                          lift(
-                            source.node.shape,
-                            path,
-                            is_gap(focus_query)
-                              ? query_shell(checked.node.ana)
-                              : focus_query,
-                          ),
-                        ),
-                      find_path(checked.node.ana, source.node.shape),
-                    );
-                  }
-                )
-           );
+         children
+         |> List.filter_map(source =>
+              if (source.mode != Keep && source.mode != Matched) {
+                None;
+              } else {
+                Option.map(
+                  path =>
+                    source.node.dispatch(
+                      lift(
+                        source.node.shape,
+                        path,
+                        is_gap(focus_query)
+                          ? query_shell(checked.node.ana) : focus_query,
+                      ),
+                    ),
+                  find_path(checked.node.ana, source.node.shape),
+                );
+              }
+            )
+       );
   let result = results_join(ctx, forward @ reverse);
   let has_ascription = List.exists(child => child.mode == Ascribe, children);
   let annotation_query =
@@ -1827,14 +1882,14 @@ let slice_forward =
         context:
           direction == `Ana
             ? context_has_constructor(result.context)
-              ? context_join(
-                  result.context,
-                  type_context(~minimal=true, m, root, omitted),
-                )
-              : context_join(
-                  type_context(~minimal=true, m, root, omitted),
-                  result.context,
-                )
+                ? context_join(
+                    result.context,
+                    type_context(~minimal=true, m, root, omitted),
+                  )
+                : context_join(
+                    type_context(~minimal=true, m, root, omitted),
+                    result.context,
+                  )
             : context_join(
                 result.context,
                 type_context(~minimal=false, m, root, omitted),
@@ -1857,7 +1912,7 @@ let slice_branches =
   let parametric = !empty_query(matched) && !Typ.equal(matched, query);
   let (slices, _) =
     List.fold_left(
-      ((slices, residual), (branch: node)) => {
+      ((slices, residual), branch: node) => {
         let blocked =
           direction == `Ana
             ? !Id.Set.is_empty(path) : Id.Set.mem(branch.id, path);
@@ -1887,16 +1942,21 @@ let slice_branches =
             let branch_query = matched_overlap(ctx, residual, supplied);
             let slice =
               empty_query(branch_query) ? branch.dispatch(gap) : candidate;
-            {...slice, psi: branch_query};
-          } else {
-            if (instantiated) {
-              let candidate = branch.dispatch(residual);
-              let branch_query = query_overlap(ctx, residual, candidate.psi);
-              empty_query(branch_query)
-                ? branch.dispatch(gap) : {...candidate, psi: branch_query};
-            } else {
-              branch.dispatch(query_overlap(ctx, residual, branch.typ));
+            {
+              ...slice,
+              psi: branch_query,
             };
+          } else if (instantiated) {
+            let candidate = branch.dispatch(residual);
+            let branch_query = query_overlap(ctx, residual, candidate.psi);
+            empty_query(branch_query)
+              ? branch.dispatch(gap)
+              : {
+                ...candidate,
+                psi: branch_query,
+              };
+          } else {
+            branch.dispatch(query_overlap(ctx, residual, branch.typ));
           };
         (slices @ [slice], query_residual(ctx, residual, slice.psi));
       },
@@ -1930,7 +1990,11 @@ let rec compile =
   if (Id.Set.mem(id, seen)) {
     {
       id,
-      focus: switch (focus) { | Some(focus) => Id.equal(id, focus) | None => false },
+      focus:
+        switch (focus) {
+        | Some(focus) => Id.equal(id, focus)
+        | None => false
+        },
       shape: info.elab_syn_ty,
       typ: schema(info),
       ana: info.ana,
@@ -1964,7 +2028,10 @@ let rec compile =
                pattern != None && mode == Keep
                  ? Option.map(
                      parent_path => (parent_path, []),
-                     find_path_right(child_info.elab_syn_ty, info.elab_syn_ty),
+                     find_path_right(
+                       child_info.elab_syn_ty,
+                       info.elab_syn_ty,
+                     ),
                    )
                  : lens(info.elab_syn_ty, child_info.elab_syn_ty);
              let edge_lens =
@@ -1983,32 +2050,37 @@ let rec compile =
                  mode == Alias
                    ? Ctx.added_bindings(child_info.ctx, info.ctx).entries
                      |> List.filter_map(
-                          fun | Ctx.TVarEntry(entry) => Some(entry) | _ => None
+                          fun
+                          | Ctx.TVarEntry(entry) => Some(entry)
+                          | _ => None,
                         )
                    : [],
                pattern,
                lens: edge_lens,
                node: {
-                 let node = compile(
+                 let node =
+                   compile(
                      ~direction,
                      ~support=
                        mode == Items
                          ? ModuleItem
                          : mode == Source
-                       && switch (pattern) {
-                          | Some(pattern) =>
-                            pattern_has_ascription(pattern.user_term)
-                          | None => false
-                          }
-                         ? BindingAscription
-                         : mode == Ascribe ? ExpressionAscription : support,
+                           && (
+                             switch (pattern) {
+                             | Some(pattern) =>
+                               pattern_has_ascription(pattern.user_term)
+                             | None => false
+                             }
+                           )
+                             ? BindingAscription
+                             : mode == Ascribe ? ExpressionAscription : support,
                      ~seen,
-                   ~focus,
-                   ~focus_query,
-                   ~path,
-                   m,
-                   child_info,
-                 );
+                     ~focus,
+                     ~focus_query,
+                     ~path,
+                     m,
+                     child_info,
+                   );
                  if (edge.mode == Info.SliceModule) {
                    let dispatch = node.dispatch;
                    {
@@ -2025,7 +2097,7 @@ let rec compile =
                    node;
                  };
                },
-             })
+             });
            | _ => None
            }
          );
@@ -2040,12 +2112,15 @@ let rec compile =
       );
     let typ =
       switch (Exp.term_of(info.user_term), kept) {
-      | (TypAp(_, args), [fn, ..._]) => applied_type(info.ctx, fn.typ, args)
+      | (TypAp(_, args), [fn, ..._]) =>
+        applied_type(info.ctx, fn.typ, args)
       | _ =>
         children
         |> List.find_map(child =>
              child.mode == Matched
-               ? Some(MatchedTyp.arrow_tolerant(info.ctx, child.node.typ) |> snd)
+               ? Some(
+                   MatchedTyp.arrow_tolerant(info.ctx, child.node.typ) |> snd,
+                 )
                : None
            )
         |> Option.value(~default=schema(info))
@@ -2075,7 +2150,13 @@ let rec compile =
           if (alternatives != []) {
             result_join(
               info.ctx,
-              slice_branches(~direction, ~path, info.ctx, alternatives, query),
+              slice_branches(
+                ~direction,
+                ~path,
+                info.ctx,
+                alternatives,
+                query,
+              ),
               slice_forward(
                 ~path,
                 ~direction,
@@ -2094,7 +2175,13 @@ let rec compile =
             | TypAp(_, args) =>
               switch (kept) {
               | [fn, ..._] =>
-                matched_type_application(~direction, info.ctx, fn, args, query)
+                matched_type_application(
+                  ~direction,
+                  info.ctx,
+                  fn,
+                  args,
+                  query,
+                )
               | [] => source_result(info, query)
               }
             | _ =>
@@ -2119,23 +2206,21 @@ let rec compile =
           && direction == `Ana
           && (
             support == BindingAscription
-            || (
-              support == ExpressionAscription
-              && List.for_all(
-                   ((name, _)) =>
-                     switch (Ctx.lookup_var(info.ctx, name)) {
-                     | Some(_) => local_binding(m, path, name)
-                     | None => false
-                     },
-                   VarMap.to_list(forward.gamma),
-                 )
-              && List.for_all(
-                   fun
-                   | Ctx.VarEntry({name, _}) => local_binding(m, path, name)
-                   | _ => false,
-                   forward.context.entries,
-                 )
-            )
+            || support == ExpressionAscription
+            && List.for_all(
+                 ((name, _)) =>
+                   switch (Ctx.lookup_var(info.ctx, name)) {
+                   | Some(_) => local_binding(m, path, name)
+                   | None => false
+                   },
+                 VarMap.to_list(forward.gamma),
+               )
+            && List.for_all(
+                 fun
+                 | Ctx.VarEntry({name, _}) => local_binding(m, path, name)
+                 | _ => false,
+                 forward.context.entries,
+               )
           )
             ? {
               ...empty_result,
@@ -2164,21 +2249,22 @@ let rec compile =
                        forward.gamma,
                      );
                    let parent =
-                     if (
-                       child.mode != Keep
-                       || (direction == `Ana && support == ExpressionAscription)
-                     ) {
+                     if (child.mode != Keep
+                         || direction == `Ana
+                         && support == ExpressionAscription) {
                        gap;
                      } else {
                        switch (find_path(pattern.ty, info.elab_syn_ty)) {
                        | Some(path) => project(query, path)
                        | None =>
-                         switch (find_shape_path(pattern.ty, info.elab_syn_ty)) {
+                         switch (
+                           find_shape_path(pattern.ty, info.elab_syn_ty)
+                         ) {
                          | Some(path) => project(query, path)
                          | None => gap
                          }
                        };
-                   };
+                     };
                    let source = meet(info.ctx, body, parent);
                    let focus_demand =
                      direction == `Ana
@@ -2187,8 +2273,7 @@ let rec compile =
                        typ_children(focus_query) != []
                        || pattern_has_ascription(pattern.user_term)
                      )
-                       ? child.node.dispatch(gap).psi
-                       : gap;
+                       ? child.node.dispatch(gap).psi : gap;
                    let demand =
                      direction == `Ana
                        ? meet(
@@ -2205,7 +2290,8 @@ let rec compile =
                                focus_query,
                              ),
                            ),
-                         ) : source;
+                         )
+                       : source;
                    (
                      Some(pattern_id),
                      empty_query(demand) && !is_gap(demand) ? gap : demand,
@@ -2229,8 +2315,7 @@ let rec compile =
                   demands
                   |> List.find_map(((pattern_id, _, demand, _)) =>
                        pattern_id == Some(Pat.rep_id(pattern.user_term))
-                         ? Some(demand)
-                         : None
+                         ? Some(demand) : None
                      )
                   |> Option.value(~default=gap)
                 | None => source_query
@@ -2289,15 +2374,16 @@ let rec compile =
             ),
           )
           |> Id.Set.union(
-               alias_omissions(~source=alias_source, children, combined.context),
+               alias_omissions(
+                 ~source=alias_source,
+                 children,
+                 combined.context,
+               ),
              );
         let names =
           List.concat_map(
             child =>
-              List.map(
-                (binding: binding) => binding.name,
-                child.bindings,
-              ),
+              List.map((binding: binding) => binding.name, child.bindings),
             binding_children,
           );
         {
@@ -2306,14 +2392,14 @@ let rec compile =
           context:
             direction == `Ana
               ? context_has_constructor(combined.context)
-                ? context_join(
-                    combined.context,
-                    type_context(~minimal=true, m, id, omitted),
-                  )
-                : context_join(
-                    type_context(~minimal=true, m, id, omitted),
-                    combined.context,
-                  )
+                  ? context_join(
+                      combined.context,
+                      type_context(~minimal=true, m, id, omitted),
+                    )
+                  : context_join(
+                      type_context(~minimal=true, m, id, omitted),
+                      combined.context,
+                    )
               : combined.context,
           psi: forward.psi,
           ana: query,
@@ -2322,7 +2408,11 @@ let rec compile =
     };
     {
       id,
-      focus: switch (focus) { | Some(focus) => Id.equal(id, focus) | None => false },
+      focus:
+        switch (focus) {
+        | Some(focus) => Id.equal(id, focus)
+        | None => false
+        },
       shape: info.elab_syn_ty,
       typ,
       ana: info.ana,
@@ -2432,9 +2522,9 @@ let slice =
   let result =
     direction == `Ana
       ? {
-      ...result,
-      ana: query,
-    }
+        ...result,
+        ana: query,
+      }
       : result;
   switch (direction, focus) {
   | (`Ana, Some(id)) =>
