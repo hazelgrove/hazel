@@ -2527,6 +2527,10 @@ let slice =
       }
       : result;
   switch (direction, focus) {
+  | (`Syn, Some(id)) when is_gap(query) => {
+      ...result,
+      omitted: Id.Set.union(result.omitted, focus_shell_ids(m, id)),
+    }
   | (`Ana, Some(id)) =>
     switch (Id.Map.find_opt(id, m)) {
     | Some(Info.InfoPat(_)) => {
