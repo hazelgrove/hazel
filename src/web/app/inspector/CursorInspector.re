@@ -605,14 +605,18 @@ module TypeSlicing = {
           | Analyzing => `Ana
           };
         let omitted =
-          Statics.slice(
-            ~ctx=Info.ctx_of(ci),
-            ~focus=Some(Info.id_of(ci)),
-            ~direction,
-            root_exp,
-            query,
-          ).
-            omitted;
+          switch (
+            Statics.slice(
+              ~ctx=Info.ctx_of(ci),
+              ~focus=Some(Info.id_of(ci)),
+              ~direction,
+              root_exp,
+              query,
+            )
+          ) {
+          | exception (Statics.Slice.Incompatible_query(_)) => Id.Set.empty
+          | {omitted, _} => omitted
+          };
         if (DebugConsole.slice_reconstruction_logging^) {
           let reconstruction =
             Language.SliceReconstruct.reconstruct(omitted, root_exp)
