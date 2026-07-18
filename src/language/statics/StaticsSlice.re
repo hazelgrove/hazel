@@ -244,15 +244,14 @@ let rec unconstrained_result = (query: Typ.t): bool =>
   | _ => is_gap(query)
   };
 
-let rec minimal_alias =
-        (name, payload, ~keep_link, definition: Typ.t): Typ.t =>
+let rec minimal_alias = (name, payload, definition: Typ.t): Typ.t =>
   switch (Typ.term_of(definition)) {
   | TypFun(param, body) =>
     {
       ...definition,
-      term: TypFun(param, minimal_alias(name, payload, ~keep_link, body)),
+      term: TypFun(param, minimal_alias(name, payload, body)),
     }
-  | Rec(_, body) => minimal_alias(name, payload, ~keep_link, body)
+  | Rec(_, body) => minimal_alias(name, payload, body)
   | Sum(constructors) =>
     {
       ...definition,
@@ -269,7 +268,6 @@ let rec minimal_alias =
                   arg =>
                     switch (payload, Typ.term_of(arg)) {
                     | (Some(payload), _) when !is_gap(payload) => payload
-                    | (_, Var(_)) when keep_link => arg
                     | _ => gap
                     },
                   arg,
@@ -322,12 +320,7 @@ let constructor_from_alias = (ctx: Ctx.t, name: string, query) =>
             ...entry,
             kind:
               Singleton(
-                minimal_alias(
-                  name,
-                  constructor_payload(query),
-                  ~keep_link=unconstrained_result(query),
-                  definition,
-                ),
+                minimal_alias(name, constructor_payload(query), definition),
               ),
           },
         ),
