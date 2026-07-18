@@ -338,7 +338,7 @@ let typaps = [
   ),
   synthesis_case(
     ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
-    ~aliases=[("Option", "typfun A -> ? + Some(A)")],
+    ~aliases=[("Option", "typfun A -> ? + Some(?)")],
     "if-explicit-param-option-gap",
     "if ? then Some@<Int>(1) else Some(0)",
     "Option(?)",
