@@ -448,48 +448,28 @@ let typ_rebuild = (shape: Typ.t, children: list(Typ.t)): Typ.t =>
   | _ => shape
   };
 
+let aligned_children = (left, right) => {
+  let left = typ_children(left);
+  let right = typ_children(right);
+  left != [] && List.length(left) == List.length(right)
+    ? Some((left, right)) : None;
+};
+
 let same_node = (left: Typ.t, right: Typ.t): bool => {
   let l = Typ.rep_id(left);
   let r = Typ.rep_id(right);
   !Id.equal(l, Id.invalid) && Id.equal(l, r) || left == right;
 };
 
-let rec find_path = (needle: Typ.t, haystack: Typ.t): option(path) =>
-  switch (Typ.term_of(needle), Typ.term_of(haystack)) {
-  | (Parens(inner), _)
-  | (Projector(_, inner), _) => find_path(inner, haystack)
-  | (_, Parens(inner))
-  | (_, Projector(_, inner)) => find_path(needle, inner)
-  | _ when same_node(needle, haystack) => Some([])
-  | _ =>
-    let rec scan = (i, children) =>
-      switch (children) {
-      | [] => None
-      | [child, ...rest] =>
-        switch (find_path(needle, child)) {
-        | Some(path) => Some([i, ...path])
-        | None => scan(i + 1, rest)
-        }
-      };
-    scan(0, typ_children(haystack));
-  };
-
-let rec find_path_right = (needle: Typ.t, haystack: Typ.t): option(path) =>
-  if (same_node(needle, haystack)) {
-    Some([]);
-  } else {
-    typ_children(haystack)
-    |> List.mapi((i, child) => (i, child))
-    |> List.rev
-    |> List.find_map(((i, child)) =>
-         Option.map(path => [i, ...path], find_path_right(needle, child))
-       );
+let rec transparent = (ty: Typ.t): Typ.t =>
+  switch (Typ.term_of(ty)) {
+  | Parens(inner)
+  | Projector(_, inner) => transparent(inner)
+  | _ => ty
   };
 
 let rec expose = (ty: Typ.t): Typ.t =>
-  switch (Typ.term_of(ty)) {
-  | Parens(inner)
-  | Projector(_, inner) => expose(inner)
+  switch (Typ.term_of(transparent(ty))) {
   | Unknown(Hole(MultiHole(items))) =>
     switch (
       List.filter_map(
@@ -500,21 +480,38 @@ let rec expose = (ty: Typ.t): Typ.t =>
       )
     ) {
     | [inner] => expose(inner)
-    | _ => ty
+    | _ => transparent(ty)
     }
-  | _ => ty
+  | _ => transparent(ty)
   };
 
-let rec find_shape_path = (needle: Typ.t, haystack: Typ.t): option(path) =>
-  if (Typ.equal(expose(needle), expose(haystack))) {
+let rec find_path_by =
+        (~normalize, ~equal, ~right, needle, haystack): option(path) => {
+  let needle = normalize(needle);
+  let haystack = normalize(haystack);
+  if (equal(needle, haystack)) {
     Some([]);
   } else {
-    typ_children(expose(haystack))
-    |> List.mapi((i, child) => (i, child))
+    let children =
+      typ_children(haystack)
+      |> List.mapi((i, child) => (i, child))
+      |> (right ? List.rev : (x => x));
+    children
     |> List.find_map(((i, child)) =>
-         Option.map(path => [i, ...path], find_shape_path(needle, child))
+         Option.map(
+           path => [i, ...path],
+           find_path_by(~normalize, ~equal, ~right, needle, child),
+         )
        );
   };
+};
+
+let find_path =
+  find_path_by(~normalize=transparent, ~equal=same_node, ~right=false);
+let find_path_right =
+  find_path_by(~normalize=x => x, ~equal=same_node, ~right=true);
+let find_shape_path =
+  find_path_by(~normalize=expose, ~equal=Typ.equal, ~right=false);
 
 let rec at_path = (query: Typ.t, path: path): option(Typ.t) =>
   switch (path) {
@@ -574,15 +571,14 @@ let rec fill_shell = (shape, query) =>
   if (is_gap(query)) {
     query_shell(shape);
   } else {
-    let shape_children = typ_children(shape);
-    let query_children = typ_children(query);
-    shape_children != []
-    && List.length(shape_children) == List.length(query_children)
-      ? typ_rebuild(
-          shape,
-          List.map2(fill_shell, shape_children, query_children),
-        )
-      : query;
+    switch (aligned_children(shape, query)) {
+    | Some((shape_children, query_children)) =>
+      typ_rebuild(
+        shape,
+        List.map2(fill_shell, shape_children, query_children),
+      )
+    | None => query
+    };
   };
 
 let rec route_query = (_ctx, parent: Typ.t, child: Typ.t, query: Typ.t): Typ.t =>
@@ -632,11 +628,10 @@ let rec subtract = (ctx: Ctx.t, query: Typ.t, supplied: Typ.t): Typ.t =>
     | (Parens(q), _) => subtract(ctx, q, supplied)
     | (_, Parens(s)) => subtract(ctx, query, s)
     | _ =>
-      let qs = typ_children(query);
-      let ss = typ_children(supplied);
-      if (qs != [] && List.length(qs) == List.length(ss)) {
-        typ_rebuild(query, List.map2(subtract(ctx), qs, ss));
-      } else {
+      switch (aligned_children(query, supplied)) {
+      | Some((queries, supplied)) =>
+        typ_rebuild(query, List.map2(subtract(ctx), queries, supplied))
+      | None =>
         let query' = Typ.weak_head_normalize(ctx, query);
         let supplied' = Typ.weak_head_normalize(ctx, supplied);
         if (!Typ.equal(query, query') || !Typ.equal(supplied, supplied')) {
@@ -644,7 +639,7 @@ let rec subtract = (ctx: Ctx.t, query: Typ.t, supplied: Typ.t): Typ.t =>
         } else {
           Typ.meet(ctx, query, supplied) == None ? query : gap;
         };
-      };
+      }
     };
   };
 
@@ -781,13 +776,13 @@ let ids_of_typ = (actual: Typ.t, query: Typ.t): Id.Set.t => {
           |> List.fold_left(Id.Set.union, Id.Set.empty)
         | _ => Id.Set.empty
         };
-      let actual_children = typ_children(actual);
-      let query_children = typ_children(query);
       let omitted_children =
-        List.length(actual_children) == List.length(query_children)
-          ? List.map2(go, actual_children, query_children)
-            |> List.fold_left(Id.Set.union, Id.Set.empty)
-          : Id.Set.empty;
+        switch (aligned_children(actual, query)) {
+        | Some((actual, query)) =>
+          List.map2(go, actual, query)
+          |> List.fold_left(Id.Set.union, Id.Set.empty)
+        | None => Id.Set.empty
+        };
       Id.Set.union(omitted_entries, omitted_children);
     };
   go(actual, query);
@@ -1116,50 +1111,43 @@ let pattern_result = (~direction, ~erase_types, m, root, demand, dependencies) =
         )
       | _ => (demand, false)
       };
-    let pattern_omitted =
+    let (pattern_omitted, constructors) =
       Id.Map.fold(
-        (_id, info, omitted) =>
-          switch (info) {
-          | Info.InfoPat(pattern)
-              when
-                ascribed
-                && List.exists(Id.equal(root), pattern.ancestors)
-                && Pat.bindings(pattern.user_term) == []
-                && !pattern_has_ascription(pattern.user_term)
-                && empty_query(
-                     route_query(
-                       pattern.ctx,
-                       shape,
-                       pattern.elab_syn_ty,
-                       demand,
-                     ),
-                   ) =>
-            Id.Set.add(Pat.rep_id(pattern.user_term), omitted)
-          | _ => omitted
-          },
-        m,
-        Id.Set.empty,
-      );
-    let constructors =
-      Id.Map.fold(
-        (id, info, context) =>
+        (id, info, (omitted, context)) =>
           switch (info) {
           | Info.InfoPat(pattern)
               when
                 Id.equal(id, root)
                 || List.exists(Id.equal(root), pattern.ancestors) =>
-            switch (Pat.term_of(pattern.user_term)) {
-            | Constructor(name, _) =>
-              context_join(
-                context,
-                context_for_name(pattern.ctx, name, pattern.elab_syn_ty),
-              )
-            | _ => context
-            }
-          | _ => context
+            let omitted =
+              ascribed
+              && List.exists(Id.equal(root), pattern.ancestors)
+              && Pat.bindings(pattern.user_term) == []
+              && !pattern_has_ascription(pattern.user_term)
+              && empty_query(
+                   route_query(
+                     pattern.ctx,
+                     shape,
+                     pattern.elab_syn_ty,
+                     demand,
+                   ),
+                 )
+                ? Id.Set.add(Pat.rep_id(pattern.user_term), omitted)
+                : omitted;
+            let context =
+              switch (Pat.term_of(pattern.user_term)) {
+              | Constructor(name, _) =>
+                context_join(
+                  context,
+                  context_for_name(pattern.ctx, name, pattern.elab_syn_ty),
+                )
+              | _ => context
+              };
+            (omitted, context);
+          | _ => (omitted, context)
           },
         m,
-        Ctx.empty,
+        (Id.Set.empty, Ctx.empty),
       );
     let pattern_omitted =
       constructors.entries == [] ? pattern_omitted : Id.Set.empty;
@@ -1274,14 +1262,12 @@ let rec signature_omissions = (m, ctx, actual, query) => {
       Id.Set.singleton(Typ.rep_id(actual))
     | _ => Id.Set.empty
     };
-  List.length(typ_children(actual)) == List.length(typ_children(query))
-    ? List.map2(
-        signature_omissions(m, ctx),
-        typ_children(actual),
-        typ_children(query),
-      )
-      |> List.fold_left(Id.Set.union, omitted)
-    : omitted;
+  switch (aligned_children(actual, query)) {
+  | Some((actual, query)) =>
+    List.map2(signature_omissions(m, ctx), actual, query)
+    |> List.fold_left(Id.Set.union, omitted)
+  | None => omitted
+  };
 };
 
 let binding_omissions =
