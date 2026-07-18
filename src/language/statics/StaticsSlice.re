@@ -1665,16 +1665,19 @@ let slice_forward =
                psi: query,
              }
            | Alias => follow(false)
-           | Matched => {
-               ...matched_type_application(
-                 ~implicit=true,
-                 ctx,
-                 child.node,
-                 TypTuple([]) |> Typ.temp,
-                 Arrow(gap, query) |> Typ.temp,
-               ),
-               psi: query,
-             }
+           | Matched =>
+             empty_query(query)
+               ? child.node.dispatch(gap)
+               : {
+                 ...matched_type_application(
+                   ~implicit=true,
+                   ctx,
+                   child.node,
+                   TypTuple([]) |> Typ.temp,
+                   Arrow(gap, query) |> Typ.temp,
+                 ),
+                 psi: query,
+               }
            | Keep => follow(false)
            | Items => follow(false)
            | Prune => follow(true)
