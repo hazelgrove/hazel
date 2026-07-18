@@ -82,14 +82,14 @@ let seq_pin_examples = [
     "ex2-seq-error-ana",
     ex2_src,
     "Digit -> Option((String, Pin))",
-    "type Option = ? in type Digit = ? in type Pin = ? in let seq = abs A -> abs B -> fun ? -> fun (? : A -> Option((String, B))) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<Digit, Pin>(?)(?)(?))(?) in ?",
+    "type Option = ? in type Digit = ? in type Pin = ? in let seq = abs A -> abs B -> fun ? -> fun (? : A -> Option((String, B))) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<Digit>@<Pin>(?)(?)(?))(?) in ?",
   ),
   analysis_case(
     ~focus=fun_binding("d2"),
     "ex2-seq-error-ana-refined",
     ex2_src,
     "? -> Option(?)",
-    "type Option = ? in type ? = ? in type ? = ? in let seq = abs ? -> abs ? -> fun ? -> fun (? : ? -> Option(?)) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<?, ?>(?)(?)(?))(?) in ?",
+    "type Option = ? in type ? = ? in type ? = ? in let seq = abs ? -> abs ? -> fun ? -> fun (? : ? -> Option(?)) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<?>@<?>(?)(?)(?))(?) in ?",
   ),
 ];
 
