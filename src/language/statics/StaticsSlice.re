@@ -573,7 +573,7 @@ let rec fill_shell = (shape, query) =>
     };
   };
 
-let rec route_query = (_ctx, parent: Typ.t, child: Typ.t, query: Typ.t): Typ.t =>
+let rec route_query = (parent: Typ.t, child: Typ.t, query: Typ.t): Typ.t =>
   switch (find_path(child, parent)) {
   | Some(path) =>
     let routed = project(query, path);
@@ -599,11 +599,11 @@ let rec route_query = (_ctx, parent: Typ.t, child: Typ.t, query: Typ.t): Typ.t =
           List.length(ps) == List.length(cs)
           && List.length(ps) == List.length(qs)
             ? List.map2(
-                (p, (c, q)) => route_query(_ctx, p, c, q),
+                (p, (c, q)) => route_query(p, c, q),
                 ps,
                 List.combine(cs, qs),
               )
-            : List.map(route_query(_ctx, parent, _, query), cs);
+            : List.map(route_query(parent, _, query), cs);
         routed == [] || List.for_all(empty_query, routed)
           ? gap : typ_rebuild(child, routed);
       }
@@ -1049,10 +1049,9 @@ let pattern_focus_demand = (m, root, focus, shape, query) =>
     | Some(Info.InfoPat(info))
         when
           Id.equal(id, root) || List.exists(Id.equal(root), info.ancestors) =>
-      let demand = route_query(info.ctx, info.ana, shape, query);
+      let demand = route_query(info.ana, shape, query);
       let demand =
-        empty_query(demand)
-          ? route_query(info.ctx, query, shape, query) : demand;
+        empty_query(demand) ? route_query(query, shape, query) : demand;
       meet(info.ctx, demand, query_shell(shape));
     | _ => gap
     }
@@ -1116,14 +1115,7 @@ let pattern_result = (~direction, ~erase_types, m, root, demand, dependencies) =
               && List.exists(Id.equal(root), pattern.ancestors)
               && Pat.bindings(pattern.user_term) == []
               && !pattern_has_ascription(pattern.user_term)
-              && empty_query(
-                   route_query(
-                     pattern.ctx,
-                     shape,
-                     pattern.elab_syn_ty,
-                     demand,
-                   ),
-                 )
+              && empty_query(route_query(shape, pattern.elab_syn_ty, demand))
                 ? Id.Set.add(Pat.rep_id(pattern.user_term), omitted)
                 : omitted;
             let context =
@@ -1150,7 +1142,7 @@ let pattern_result = (~direction, ~erase_types, m, root, demand, dependencies) =
           switch (info) {
           | Info.InfoTyp({user_term, ctx, ancestors, _})
               when List.exists(Id.equal(root), ancestors) =>
-            let routed = route_query(ctx, shape, user_term, demand);
+            let routed = route_query(shape, user_term, demand);
             let omitted =
               erase_types
                 ? Id.Set.union(omitted, ids_of_typ(user_term, routed))
@@ -1653,7 +1645,7 @@ let slice_forward =
              | None =>
                empty_query(slice.psi)
                  ? gap
-                 : route_query(ctx, child.node.shape, parent_shape, slice.psi)
+                 : route_query(child.node.shape, parent_shape, slice.psi)
              },
          };
          if (Id.Set.mem(child.node.id, path)
@@ -1675,12 +1667,7 @@ let slice_forward =
                direction == `Ana
                && !pattern_focus
                && child.mode != SliceAscribe
-                 ? route_query(
-                     ctx,
-                     parent_shape,
-                     child.node.shape,
-                     focus_query,
-                   )
+                 ? route_query(parent_shape, child.node.shape, focus_query)
                  : gap,
              ),
            );
@@ -1700,10 +1687,9 @@ let slice_forward =
                | Some(lens) =>
                  let routed = lens_down(lens, child.node.shape, query);
                  empty_query(routed) && !has_path(query, fst(lens))
-                   ? route_query(ctx, parent_shape, child.node.shape, query)
+                   ? route_query(parent_shape, child.node.shape, query)
                    : routed;
-               | None =>
-                 route_query(ctx, parent_shape, child.node.shape, query)
+               | None => route_query(parent_shape, child.node.shape, query)
                };
              let child_query =
                child.mode == SliceAlias
@@ -1734,7 +1720,7 @@ let slice_forward =
            | SliceTrack => empty_result
            | SliceMap =>
              let child_query =
-               route_query(ctx, parent_shape, child.node.shape, query);
+               route_query(parent_shape, child.node.shape, query);
              let child_query =
                empty_query(child_query)
                && typ_children(child.node.shape) != []
