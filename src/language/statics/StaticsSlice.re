@@ -148,14 +148,18 @@ let tvar_entry = (ctx: Ctx.t, name) =>
     ctx.entries,
   );
 
-let context_join = (left: Ctx.t, right: Ctx.t): Ctx.t => {
+let merge_context = (~merge, left: Ctx.t, right: Ctx.t): Ctx.t => {
   ...left,
   entries:
     List.fold_left(
       (entries, entry) =>
         switch (context_key(entry)) {
         | Some(key)
-            when List.exists(e => context_key(e) == Some(key), entries) => entries
+            when List.exists(e => context_key(e) == Some(key), entries) =>
+          List.map(
+            old => context_key(old) == Some(key) ? merge(old, entry) : old,
+            entries,
+          )
         | _ => entries @ [entry]
         },
       left.entries,
@@ -163,40 +167,28 @@ let context_join = (left: Ctx.t, right: Ctx.t): Ctx.t => {
     ),
 };
 
-let context_join_branches = (ctx, left: Ctx.t, right: Ctx.t): Ctx.t => {
-  let merge = (old, entry) =>
-    switch (old, entry) {
-    | (
-        Ctx.TVarEntry({name, kind: Singleton(a), _} as old),
-        Ctx.TVarEntry({name: other, kind: Singleton(b), _}),
-      )
-        when name == other =>
-      Ctx.TVarEntry({
-        ...old,
-        kind: Singleton(close_sum_gaps(meet(ctx, a, b))),
-      })
-    | _ => old
-    };
-  {
-    ...left,
-    entries:
-      List.fold_left(
-        (entries, entry) =>
-          switch (context_key(entry)) {
-          | Some(key)
-              when List.exists(e => context_key(e) == Some(key), entries) =>
-            List.map(
-              old =>
-                context_key(old) == Some(key) ? merge(old, entry) : old,
-              entries,
-            )
-          | _ => entries @ [entry]
-          },
-        left.entries,
-        right.entries,
-      ),
-  };
-};
+let context_join = (left, right) =>
+  merge_context(~merge=(old, _) => old, left, right);
+
+let context_join_branches = (ctx, left, right) =>
+  merge_context(
+    ~merge=
+      (old, entry) =>
+        switch (old, entry) {
+        | (
+            Ctx.TVarEntry({name, kind: Singleton(a), _} as old),
+            Ctx.TVarEntry({name: other, kind: Singleton(b), _}),
+          )
+            when name == other =>
+          Ctx.TVarEntry({
+            ...old,
+            kind: Singleton(close_sum_gaps(meet(ctx, a, b))),
+          })
+        | _ => old
+        },
+    left,
+    right,
+  );
 
 let context_has_constructor = (context: Ctx.t) =>
   List.exists(
