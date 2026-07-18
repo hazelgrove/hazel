@@ -16,7 +16,8 @@ type direction = [
 type analysis_support =
   | Unsupported
   | ExpressionAscription
-  | BindingAscription;
+  | BindingAscription
+  | ModuleItem;
 
 type child_mode =
   | Keep
@@ -37,6 +38,7 @@ type path = list(int);
 
 type node = {
   id: Id.t,
+  focus: bool,
   shape: Typ.t,
   typ: Typ.t,
   ana: Typ.t,
@@ -196,6 +198,12 @@ let context_join_branches = (ctx, left: Ctx.t, right: Ctx.t): Ctx.t => {
       ),
   };
 };
+
+let context_has_constructor = (context: Ctx.t) =>
+  List.exists(
+    fun | Ctx.ConstructorEntry(_) => true | _ => false,
+    context.entries,
+  );
 
 let result_join = (ctx: Ctx.t, left: result, right: result): result => {
   omitted: Id.Set.union(left.omitted, right.omitted),
@@ -816,7 +824,7 @@ let of_info_mode =
   | Info.SlicePrune => Prune
   | Info.SliceAscribe => Ascribe
   | Info.SliceAlias => Alias
-  | Info.SliceModule => Keep
+  | Info.SliceModule => Items
   | Info.SliceAlternative => Alternative
   | Info.SliceMatched => Matched;
 
@@ -1047,10 +1055,14 @@ let binding_demand = (ctx, bindings, shape, gamma) =>
     (demand, binding: binding) =>
       switch (VarMap.lookup(gamma, binding.name), binding.path) {
       | (Some(query), Some(path)) =>
-        let query = query_residual(ctx, query, query_shell(query));
+        let query =
+          empty_query(query) && !is_gap(query)
+            ? query : query_residual(ctx, query, query_shell(query));
         meet(ctx, demand, lift(shape, path, query))
       | (Some(query), None) when List.length(bindings) == 1 =>
-        let query = query_residual(ctx, query, query_shell(query));
+        let query =
+          empty_query(query) && !is_gap(query)
+            ? query : query_residual(ctx, query, query_shell(query));
         meet(ctx, demand, query)
       | _ => demand
       },
@@ -1094,9 +1106,26 @@ let pattern_has_ascription = pattern =>
   | _ => false
   };
 
-let pattern_result = (m, root, demand, dependencies) =>
+let pattern_result =
+    (~direction, ~erase_types, m, root, demand, dependencies) =>
   if (is_gap(demand)) {
-    empty_result;
+    erase_types
+      ? {
+        ...empty_result,
+        omitted:
+          Id.Map.fold(
+            (_, info, omitted) =>
+              switch (info) {
+              | Info.InfoTyp({user_term, ancestors, _})
+                  when List.exists(Id.equal(root), ancestors) =>
+                Id.Set.union(omitted, ids_of_typ(user_term, gap))
+              | _ => omitted
+              },
+            m,
+            Id.Set.empty,
+          ),
+      }
+      : empty_result;
   } else {
     let (shape, ascribed) =
       switch (Id.Map.find_opt(root, m)) {
@@ -1153,9 +1182,13 @@ let pattern_result = (m, root, demand, dependencies) =>
     let (context, omitted) = Id.Map.fold(
       (id, info, (context, omitted)) =>
         switch (info) {
-        | Info.InfoTyp({user_term, ctx, ancestors, _})
-            when List.exists(Id.equal(root), ancestors) =>
-          switch (Typ.term_of(user_term)) {
+      | Info.InfoTyp({user_term, ctx, ancestors, _})
+          when List.exists(Id.equal(root), ancestors) =>
+        let routed = route_query(ctx, shape, user_term, demand);
+        let omitted =
+          erase_types
+            ? Id.Set.union(omitted, ids_of_typ(user_term, routed)) : omitted;
+        switch (Typ.term_of(user_term)) {
           | Var(name) =>
             switch (
               List.find_opt(
@@ -1188,13 +1221,17 @@ let pattern_result = (m, root, demand, dependencies) =>
                   )
                 | Abstract => false
                 };
-              let routed = route_query(ctx, shape, user_term, demand);
+              let minimal = Typ.equal(routed, user_term);
               let entry =
-                Typ.equal(routed, user_term)
+                minimal
                   ? Ctx.TVarEntry({...entry, kind: Singleton(gap)})
                   : Ctx.TVarEntry(entry);
               (
-                declared ? context : Ctx.extend(context, entry),
+                direction == `Ana
+                && minimal
+                && constructors.entries == []
+                || !declared
+                  ? Ctx.extend(context, entry) : context,
                 supplied ? Id.Set.add(id, omitted) : omitted,
               )
             | Some(entry) => (Ctx.extend(context, entry), omitted)
@@ -1210,13 +1247,21 @@ let pattern_result = (m, root, demand, dependencies) =>
     {...empty_result, context, omitted};
   };
 
-let type_context = (m, root, omitted) =>
+let type_context = (~minimal, m, root, omitted) => {
+  let rec owned =
+    fun
+    | [ancestor, ...ancestors] =>
+      switch (Id.Map.find_opt(ancestor, m)) {
+      | Some(Info.InfoExp(_)) => Id.equal(ancestor, root)
+      | _ => !Id.Set.mem(ancestor, omitted) && owned(ancestors)
+      }
+    | [] => false;
   Id.Map.fold(
     (id, info, context) =>
       switch (info) {
       | Info.InfoTyp({user_term, ctx, ancestors, _})
           when !Id.Set.mem(id, omitted)
-               && List.exists(Id.equal(root), ancestors) =>
+               && owned(ancestors) =>
         switch (Typ.term_of(user_term)) {
         | Var(name) =>
           switch (
@@ -1228,6 +1273,12 @@ let type_context = (m, root, omitted) =>
             )
           ) {
           | None => context
+          | Some(Ctx.TVarEntry({kind: Singleton(_), _} as entry))
+              when minimal =>
+            Ctx.extend(
+              context,
+              Ctx.TVarEntry({...entry, kind: Singleton(gap)}),
+            )
           | Some(entry) => Ctx.extend(context, entry)
           }
         | _ => context
@@ -1237,6 +1288,7 @@ let type_context = (m, root, omitted) =>
     m,
     Ctx.empty,
   );
+};
 
 let rec signature_omissions = (m, ctx, actual, query) => {
   let omitted =
@@ -1253,20 +1305,56 @@ let rec signature_omissions = (m, ctx, actual, query) => {
 };
 
 let binding_omissions =
-    (children: list(child), gamma: gamma, demands): Id.Set.t =>
+    (~module_item, children: list(child), gamma: gamma, demands): Id.Set.t =>
   List.fold_left(
     (omitted, child) => {
+      let keeps_empty =
+        child.pattern
+        |> Option.map((pattern: Info.pat) =>
+             !pattern_has_ascription(pattern.user_term)
+           )
+        |> Option.value(~default=false);
+      let pattern_demand =
+        Option.bind(
+          child.pattern,
+          (pattern: Info.pat) =>
+             List.find_map(
+               ((pattern_id, demand, _, _)) =>
+                 pattern_id == Some(Pat.rep_id(pattern.user_term))
+                   ? Some(demand) : None,
+               demands,
+             ),
+        );
+      let used = (binding: binding) => {
+        let demanded =
+          (keeps_empty || module_item) && List.length(child.bindings) == 1
+            ? pattern_demand
+              |> Option.map(demand =>
+                   switch (binding.path) {
+                   | Some(path) when has_path(demand, path) =>
+                     !is_gap(project(demand, path))
+                   | None => !is_gap(demand)
+                   | Some(_) => !is_gap(demand)
+                   }
+                 )
+              |> Option.value(~default=false)
+            : false;
+        if (demanded) {
+          true;
+        } else switch (VarMap.lookup(gamma, binding.name)) {
+        | Some(query) => !is_gap(query)
+        | None => false
+        };
+      };
       let demanded =
         List.filter(
-          (binding: binding) =>
-            VarMap.contains(gamma, binding.name),
+          used,
           child.bindings,
         );
       let omitted =
         List.fold_left(
           (omitted, binding: binding) =>
-            VarMap.contains(gamma, binding.name)
-              ? omitted : Id.Set.add(binding.id, omitted),
+            used(binding) ? omitted : Id.Set.add(binding.id, omitted),
           omitted,
           child.bindings,
         );
@@ -1277,7 +1365,7 @@ let binding_omissions =
           let shape = child.mode == Source ? child.node.shape : pattern.ty;
           let demand =
             List.find_map(
-              ((pattern, demand, _)) =>
+              ((pattern, demand, _, _)) =>
                 pattern == Some(id) ? Some(demand) : None,
               demands,
             )
@@ -1291,9 +1379,9 @@ let binding_omissions =
             demanded == []
             && !
                  List.exists(
-                   ((pattern_id, demand, _)) =>
+                   ((pattern_id, demand, _, trace)) =>
                      pattern_id == Some(Pat.rep_id(pattern.user_term))
-                     && !is_gap(demand),
+                     && (!is_gap(demand) || !is_gap(trace)),
                    demands,
                  ) =>
         Id.Set.add(Pat.rep_id(pattern.user_term), omitted)
@@ -1449,7 +1537,14 @@ let rec matched_body =
 };
 
 let matched_type_application =
-    (~implicit=false, ctx: Ctx.t, fn: node, args: Typ.t, query: Typ.t)
+    (
+      ~direction,
+      ~implicit=false,
+      ctx: Ctx.t,
+      fn: node,
+      args: Typ.t,
+      query: Typ.t,
+    )
     : result => {
   let rec peel = (binders, schema) =>
     switch (Typ.term_of(schema)) {
@@ -1522,6 +1617,19 @@ let matched_type_application =
         ? actual_args : [],
     )
     |> List.fold_left(Id.Set.union, Id.Set.empty);
+  let omitted =
+    direction == `Ana
+      ? List.fold_left(
+          (omitted, binder) =>
+            switch (TPat.tyvar_of_utpat(binder)) {
+            | Some(name) when is_gap(constraint_for(name)) =>
+              Id.Set.add(TPat.rep_id(binder), omitted)
+            | _ => omitted
+            },
+          omitted,
+          flat_binders,
+        )
+      : omitted;
   {
     ...slice,
     omitted: Id.Set.union(slice.omitted, omitted),
@@ -1563,8 +1671,13 @@ let slice_forward =
     direction == `Ana
       ? List.filter(
           child =>
-            child.mode == Omit && Id.Set.mem(child.node.id, path)
-            && Typ.meet(ctx, child.node.ana, focus_query) != None,
+            child.node.focus
+            && child.mode == Omit
+            && Id.Set.mem(child.node.id, path)
+            && (
+              is_gap(focus_query)
+              || Typ.meet(ctx, child.node.ana, focus_query) != None
+            ),
           children,
         )
       : [];
@@ -1590,11 +1703,16 @@ let slice_forward =
          if (Id.Set.mem(child.node.id, path)
              && direction == `Ana
              && child.mode == Omit
-             && Typ.meet(ctx, child.node.ana, focus_query) != None) {
-           {
-             ...empty_result,
-             omitted: Id.Set.singleton(child.node.id),
-           };
+             && (
+               is_gap(focus_query)
+               || Typ.meet(ctx, child.node.ana, focus_query) != None
+             )) {
+           child.node.focus
+             ? {
+               ...empty_result,
+               omitted: Id.Set.singleton(child.node.id),
+             }
+             : upwards(child.node.dispatch(gap));
          } else if (Id.Set.mem(child.node.id, path)) {
            upwards(
              child.node.dispatch(
@@ -1615,6 +1733,12 @@ let slice_forward =
          ) {
            empty_result;
          } else {
+           let query =
+             List.exists(
+               sibling => Id.Set.mem(sibling.node.id, path),
+               children,
+             )
+               ? gap : query;
            let follow = prune => {
              let child_query =
                switch (child.lens) {
@@ -1674,10 +1798,11 @@ let slice_forward =
              }
            | Alias => follow(false)
            | Matched =>
-             empty_query(query)
+             is_gap(query)
                ? child.node.dispatch(gap)
                : {
                  ...matched_type_application(
+                   ~direction,
                    ~implicit=true,
                    ctx,
                    child.node,
@@ -1703,7 +1828,13 @@ let slice_forward =
                     Option.map(
                       path =>
                         source.node.dispatch(
-                          lift(source.node.shape, path, focus_query),
+                          lift(
+                            source.node.shape,
+                            path,
+                            is_gap(focus_query)
+                              ? query_shell(checked.node.ana)
+                              : focus_query,
+                          ),
                         ),
                       find_path(checked.node.ana, source.node.shape),
                     );
@@ -1732,10 +1863,20 @@ let slice_forward =
         ...result,
         omitted: Id.Set.union(result.omitted, omitted),
         context:
-          context_join(
-            result.context,
-            type_context(m, root, omitted),
-          ),
+          direction == `Ana
+            ? context_has_constructor(result.context)
+              ? context_join(
+                  result.context,
+                  type_context(~minimal=true, m, root, omitted),
+                )
+              : context_join(
+                  type_context(~minimal=true, m, root, omitted),
+                  result.context,
+                )
+            : context_join(
+                result.context,
+                type_context(~minimal=false, m, root, omitted),
+              ),
       };
     }
     : result;
@@ -1831,6 +1972,7 @@ let rec compile =
   if (Id.Set.mem(id, seen)) {
     {
       id,
+      focus: switch (focus) { | Some(focus) => Id.equal(id, focus) | None => false },
       shape: info.elab_syn_ty,
       typ: schema(info),
       ana: info.ana,
@@ -1898,7 +2040,9 @@ let rec compile =
                  let node = compile(
                      ~direction,
                      ~support=
-                       mode == Source
+                       mode == Items
+                         ? ModuleItem
+                         : mode == Source
                        && switch (pattern) {
                           | Some(pattern) =>
                             pattern_has_ascription(pattern.user_term)
@@ -1998,7 +2142,7 @@ let rec compile =
             | TypAp(_, args) =>
               switch (kept) {
               | [fn, ..._] =>
-                matched_type_application(info.ctx, fn, args, query)
+                matched_type_application(~direction, info.ctx, fn, args, query)
               | [] => source_result(info, query)
               }
             | _ =>
@@ -2082,7 +2226,7 @@ let rec compile =
                          | None => gap
                          }
                        };
-                     };
+                   };
                    let source = meet(info.ctx, body, parent);
                    let focus_demand =
                      direction == `Ana
@@ -2093,8 +2237,7 @@ let rec compile =
                      )
                        ? child.node.dispatch(gap).psi
                        : gap;
-                   (
-                     Some(pattern_id),
+                   let demand =
                      direction == `Ana
                        ? meet(
                            info.ctx,
@@ -2110,18 +2253,21 @@ let rec compile =
                                focus_query,
                              ),
                            ),
-                         )
-                       : source,
+                         ) : source;
+                   (
+                     Some(pattern_id),
+                     empty_query(demand) && !is_gap(demand) ? gap : demand,
                      source,
+                     demand,
                    );
                  },
                  child.pattern,
                )
              );
         let body_demand =
-          List.map(((_, _, demand)) => demand, demands)
+          List.map(((_, _, demand, _)) => demand, demands)
           |> List.fold_left(meet(info.ctx), gap);
-        let source_query = empty_query(body_demand) ? gap : body_demand;
+        let source_query = is_gap(body_demand) ? gap : body_demand;
         let deps =
           List.map(
             source => {
@@ -2129,7 +2275,7 @@ let rec compile =
                 switch (source.pattern) {
                 | Some(pattern) =>
                   demands
-                  |> List.find_map(((pattern_id, _, demand)) =>
+                  |> List.find_map(((pattern_id, _, demand, _)) =>
                        pattern_id == Some(Pat.rep_id(pattern.user_term))
                          ? Some(demand)
                          : None
@@ -2137,7 +2283,7 @@ let rec compile =
                   |> Option.value(~default=gap)
                 | None => source_query
                 };
-              source.node.dispatch(empty_query(query) ? gap : query);
+              source.node.dispatch(is_gap(query) ? gap : query);
             },
             sources,
           );
@@ -2145,9 +2291,31 @@ let rec compile =
           result_join(info.ctx, forward, results_join(info.ctx, deps));
         let pattern_result =
           demands
-          |> List.filter_map(((pattern, demand, _)) =>
+          |> List.filter_map(((pattern, demand, _, trace)) =>
                Option.map(
-                 pattern_result(m, _, demand, combined.context),
+                 pattern_id =>
+                   pattern_result(
+                     ~direction,
+                     ~erase_types=
+                       direction == `Ana
+                       && !pattern_focus
+                       && !
+                            List.exists(
+                              child =>
+                                child.pattern
+                                |> Option.map((pattern: Info.pat) =>
+                                     Pat.rep_id(pattern.user_term)
+                                     == pattern_id
+                                     && Id.Set.mem(child.node.id, path)
+                                   )
+                                |> Option.value(~default=false),
+                              binding_children,
+                            ),
+                     m,
+                     pattern_id,
+                     is_gap(demand) && !is_gap(focus_query) ? trace : demand,
+                     combined.context,
+                   ),
                  pattern,
                )
              )
@@ -2161,7 +2329,12 @@ let rec compile =
         let omitted =
           Id.Set.union(
             combined.omitted,
-            binding_omissions(binding_children, forward.gamma, demands),
+            binding_omissions(
+              ~module_item=support == ModuleItem,
+              binding_children,
+              forward.gamma,
+              demands,
+            ),
           )
           |> Id.Set.union(
                alias_omissions(~source=alias_source, children, combined.context),
@@ -2176,9 +2349,20 @@ let rec compile =
             binding_children,
           );
         {
-          ...combined,
           omitted,
           gamma: gamma_remove(combined.gamma, names),
+          context:
+            direction == `Ana
+              ? context_has_constructor(combined.context)
+                ? context_join(
+                    combined.context,
+                    type_context(~minimal=true, m, id, omitted),
+                  )
+                : context_join(
+                    type_context(~minimal=true, m, id, omitted),
+                    combined.context,
+                  )
+              : combined.context,
           psi: forward.psi,
           ana: query,
         };
@@ -2186,6 +2370,7 @@ let rec compile =
     };
     {
       id,
+      focus: switch (focus) { | Some(focus) => Id.equal(id, focus) | None => false },
       shape: info.elab_syn_ty,
       typ,
       ana: info.ana,
