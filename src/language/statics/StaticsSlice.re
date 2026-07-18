@@ -26,7 +26,6 @@ type path = list(int);
 
 type node = {
   id: Id.t,
-  focus: bool,
   shape: Typ.t,
   typ: Typ.t,
   ana: Typ.t,
@@ -1606,10 +1605,14 @@ let applied_type = (ctx, fn, args) => {
   };
 };
 
+let is_focus = (focus, id) =>
+  Option.map(Id.equal(id), focus) |> Option.value(~default=false);
+
 let slice_forward =
     (
       ~direction,
       ~pattern_focus=false,
+      ~focus,
       ~focus_query,
       ~path=Id.Set.empty,
       ~m,
@@ -1624,7 +1627,7 @@ let slice_forward =
     direction == `Ana
       ? List.filter(
           child =>
-            child.node.focus
+            is_focus(focus, child.node.id)
             && child.mode == SliceOmit
             && Id.Set.mem(child.node.id, path)
             && (
@@ -1655,7 +1658,7 @@ let slice_forward =
                is_gap(focus_query)
                || Typ.meet(ctx, child.node.ana, focus_query) != None
              )) {
-           child.node.focus
+           is_focus(focus, child.node.id)
              ? {
                ...empty_result,
                omitted: Id.Set.singleton(child.node.id),
@@ -1910,11 +1913,6 @@ let rec compile =
   if (Id.Set.mem(id, seen)) {
     {
       id,
-      focus:
-        switch (focus) {
-        | Some(focus) => Id.equal(id, focus)
-        | None => false
-        },
       shape: info.elab_syn_ty,
       typ: schema(info),
       ana: info.ana,
@@ -2087,6 +2085,7 @@ let rec compile =
                 ~path,
                 ~direction,
                 ~pattern_focus,
+                ~focus,
                 ~focus_query,
                 ~m,
                 ~root=id,
@@ -2117,6 +2116,7 @@ let rec compile =
                     ~path,
                     ~direction,
                     ~pattern_focus,
+                    ~focus,
                     ~focus_query,
                     ~m,
                     ~root=id,
@@ -2331,11 +2331,6 @@ let rec compile =
     };
     {
       id,
-      focus:
-        switch (focus) {
-        | Some(focus) => Id.equal(id, focus)
-        | None => false
-        },
       shape: info.elab_syn_ty,
       typ,
       ana: info.ana,
