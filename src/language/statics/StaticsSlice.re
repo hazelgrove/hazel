@@ -1,4 +1,5 @@
 open Util;
+open Info;
 
 type gamma = VarMap.t_(Typ.t);
 type result = {
@@ -18,19 +19,6 @@ type analysis_support =
   | ExpressionAscription
   | BindingAscription
   | ModuleItem;
-
-type child_mode =
-  | Keep
-  | Omit
-  | Source
-  | Track
-  | Map
-  | Prune
-  | Ascribe
-  | Alias
-  | Items
-  | Alternative
-  | Matched;
 
 type exp_result = (Info.exp, Exp.t, Id.Map.t(Info.t));
 
@@ -54,7 +42,7 @@ type binding = {
 type lens = (path, path);
 
 type child = {
-  mode: child_mode,
+  mode: Info.slice_child_mode,
   node,
   lens: option(lens),
   bindings: list(binding),
@@ -528,25 +516,20 @@ let rec find_shape_path = (needle: Typ.t, haystack: Typ.t): option(path) =>
        );
   };
 
-let rec project = (query: Typ.t, path: path): Typ.t =>
+let rec at_path = (query: Typ.t, path: path): option(Typ.t) =>
   switch (path) {
-  | [] => expose(query)
+  | [] => Some(expose(query))
   | [i, ...rest] =>
-    switch (List.nth_opt(typ_children(expose(query)), i)) {
-    | Some(child) => project(child, rest)
-    | None => gap
-    }
+    Option.bind(
+      List.nth_opt(typ_children(expose(query)), i),
+      at_path(_, rest),
+    )
   };
 
-let rec has_path = (query: Typ.t, path: path): bool =>
-  switch (path) {
-  | [] => true
-  | [i, ...rest] =>
-    switch (List.nth_opt(typ_children(expose(query)), i)) {
-    | Some(child) => has_path(child, rest)
-    | None => false
-    }
-  };
+let project = (query, path) =>
+  Option.value(at_path(query, path), ~default=gap);
+
+let has_path = (query, path) => at_path(query, path) != None;
 
 let rec lift = (shape: Typ.t, path: path, value: Typ.t): Typ.t =>
   switch (Typ.term_of(shape)) {
@@ -845,20 +828,6 @@ let source_result = (info: Info.exp, query: Typ.t): result =>
     };
   };
 
-let of_info_mode =
-  fun
-  | Info.SliceKeep => Keep
-  | Info.SliceOmit => Omit
-  | Info.SliceSource => Source
-  | Info.SliceTrack => Track
-  | Info.SliceMap => Map
-  | Info.SlicePrune => Prune
-  | Info.SliceAscribe => Ascribe
-  | Info.SliceAlias => Alias
-  | Info.SliceModule => Items
-  | Info.SliceAlternative => Alternative
-  | Info.SliceMatched => Matched;
-
 let lens = (parent_shape: Typ.t, child_shape: Typ.t): option(lens) =>
   switch (find_path(child_shape, parent_shape)) {
   | Some(parent_path) => Some((parent_path, []))
@@ -871,7 +840,7 @@ let lens = (parent_shape: Typ.t, child_shape: Typ.t): option(lens) =>
 
 let align_kept_children = (parent_shape, children: list(child)) => {
   let shapes = typ_children(parent_shape);
-  let kept = List.filter(child => child.mode == Keep, children);
+  let kept = List.filter(child => child.mode == SliceKeep, children);
   if (List.length(shapes) == List.length(kept)
       && List.for_all2(
            (shape, child) => Typ.equal(shape, child.node.shape),
@@ -881,7 +850,7 @@ let align_kept_children = (parent_shape, children: list(child)) => {
     let (_, aligned) =
       List.fold_left(
         ((index, aligned), child) =>
-          child.mode == Keep
+          child.mode == SliceKeep
             ? (
               index + 1,
               [
@@ -928,20 +897,7 @@ let record_child =
       | _ => []
       };
     let edge: Info.slice_child = {
-      mode:
-        switch (mode) {
-        | Keep => Info.SliceKeep
-        | Omit => Info.SliceOmit
-        | Source => Info.SliceSource
-        | Track => Info.SliceTrack
-        | Map => Info.SliceMap
-        | Prune => Info.SlicePrune
-        | Ascribe => Info.SliceAscribe
-        | Alias => Info.SliceAlias
-        | Items => Info.SliceModule
-        | Alternative => Info.SliceAlternative
-        | Matched => Info.SliceMatched
-        },
+      mode,
       child: child_id,
       pattern,
     };
@@ -970,22 +926,27 @@ let record_child =
   };
 };
 
-let keep = (~parent, child, k) => k(record_child(Keep, ~parent, child));
-let omit = (~parent, child, k) => k(record_child(Omit, ~parent, child));
+let keep = (~parent, child, k) =>
+  k(record_child(SliceKeep, ~parent, child));
+let omit = (~parent, child, k) =>
+  k(record_child(SliceOmit, ~parent, child));
 let source_child = (~parent, child, k) =>
-  k(record_child(Source, ~parent, child));
-let track = (~parent, child, k) => k(record_child(Track, ~parent, child));
-let map = (~parent, child, k) => k(record_child(Map, ~parent, child));
-let prune = (~parent, child, k) => k(record_child(Prune, ~parent, child));
+  k(record_child(SliceSource, ~parent, child));
+let track = (~parent, child, k) =>
+  k(record_child(SliceTrack, ~parent, child));
+let map = (~parent, child, k) => k(record_child(SliceMap, ~parent, child));
+let prune = (~parent, child, k) =>
+  k(record_child(SlicePrune, ~parent, child));
 let ascribe = (~parent, child, k) =>
-  k(record_child(Ascribe, ~parent, child));
-let alias = (~parent, child, k) => k(record_child(Alias, ~parent, child));
+  k(record_child(SliceAscribe, ~parent, child));
+let alias = (~parent, child, k) =>
+  k(record_child(SliceAlias, ~parent, child));
 let module_items = (~parent, child, k) =>
-  k(record_child(Items, ~parent, child));
+  k(record_child(SliceModule, ~parent, child));
 let matched = (~parent, child, k) =>
-  k(record_child(Matched, ~parent, child));
+  k(record_child(SliceMatched, ~parent, child));
 let alternative = (~parent, child, k) =>
-  k(record_child(Alternative, ~parent, child));
+  k(record_child(SliceAlternative, ~parent, child));
 
 let pattern = (~parent, (info: Info.pat, elab, m)) => {
   let parent_id = Exp.rep_id(parent);
@@ -1066,7 +1027,7 @@ let record_binding = (mode, ~parent, child, k) => {
     | _ => []
     };
   let index =
-    mode == Alternative
+    mode == SliceAlternative
       ? List.length(
           List.filter(
             (edge: Info.slice_child) => edge.mode == Info.SliceAlternative,
@@ -1085,13 +1046,13 @@ let record_binding = (mode, ~parent, child, k) => {
 };
 
 let source_binding = (~parent, child, k) =>
-  record_binding(Source, ~parent, child, k);
+  record_binding(SliceSource, ~parent, child, k);
 let bound_child = (~parent, child, k) =>
-  record_binding(Keep, ~parent, child, k);
+  record_binding(SliceKeep, ~parent, child, k);
 let omitted_binding = (~parent, child, k) =>
-  record_binding(Omit, ~parent, child, k);
+  record_binding(SliceOmit, ~parent, child, k);
 let alternative_binding = (~parent, child, k) =>
-  record_binding(Alternative, ~parent, child, k);
+  record_binding(SliceAlternative, ~parent, child, k);
 
 let binding_demand = (ctx, bindings, shape, gamma) =>
   List.fold_left(
@@ -1405,7 +1366,7 @@ let binding_omissions =
             )
             |> Option.value(~default=gap);
           let shape =
-            child.mode == Source && is_gap(demand)
+            child.mode == SliceSource && is_gap(demand)
               ? child.node.shape : pattern.ty;
           Id.Set.union(omitted, ids_of_typ(shape, demand));
         | _ => omitted
@@ -1714,7 +1675,7 @@ let slice_forward =
       ? List.filter(
           child =>
             child.node.focus
-            && child.mode == Omit
+            && child.mode == SliceOmit
             && Id.Set.mem(child.node.id, path)
             && (
               is_gap(focus_query)
@@ -1739,7 +1700,7 @@ let slice_forward =
          };
          if (Id.Set.mem(child.node.id, path)
              && direction == `Ana
-             && child.mode == Omit
+             && child.mode == SliceOmit
              && (
                is_gap(focus_query)
                || Typ.meet(ctx, child.node.ana, focus_query) != None
@@ -1753,7 +1714,9 @@ let slice_forward =
          } else if (Id.Set.mem(child.node.id, path)) {
            upwards(
              child.node.dispatch(
-               direction == `Ana && !pattern_focus && child.mode != Ascribe
+               direction == `Ana
+               && !pattern_focus
+               && child.mode != SliceAscribe
                  ? route_query(
                      ctx,
                      parent_shape,
@@ -1764,7 +1727,7 @@ let slice_forward =
              ),
            );
          } else if (checked != []
-                    && (child.mode == Keep || child.mode == Matched)) {
+                    && (child.mode == SliceKeep || child.mode == SliceMatched)) {
            empty_result;
          } else {
            let query =
@@ -1785,7 +1748,7 @@ let slice_forward =
                  route_query(ctx, parent_shape, child.node.shape, query)
                };
              let child_query =
-               child.mode == Alias
+               child.mode == SliceAlias
                && empty_query(
                     query_residual(
                       ctx,
@@ -1805,13 +1768,13 @@ let slice_forward =
              upwards(slice);
            };
            switch (child.mode) {
-           | Omit => {
+           | SliceOmit => {
                ...empty_result,
                omitted: Id.Set.singleton(child.node.id),
              }
-           | Source => empty_result
-           | Track => empty_result
-           | Map =>
+           | SliceSource => empty_result
+           | SliceTrack => empty_result
+           | SliceMap =>
              let child_query =
                route_query(ctx, parent_shape, child.node.shape, query);
              let child_query =
@@ -1819,14 +1782,14 @@ let slice_forward =
                && typ_children(child.node.shape) != []
                  ? query_shell(child.node.shape) : child_query;
              child.node.dispatch(child_query);
-           | Alternative => empty_result
-           | Ascribe => {
+           | SliceAlternative => empty_result
+           | SliceAscribe => {
                ...child.node.dispatch(query),
                omitted: Id.Set.singleton(child.node.id),
                psi: query,
              }
-           | Alias => follow(false)
-           | Matched =>
+           | SliceAlias => follow(false)
+           | SliceMatched =>
              is_gap(query)
                ? child.node.dispatch(gap)
                : {
@@ -1841,9 +1804,9 @@ let slice_forward =
                    ),
                  psi: query,
                }
-           | Keep => follow(false)
-           | Items => follow(false)
-           | Prune => follow(true)
+           | SliceKeep => follow(false)
+           | SliceModule => follow(false)
+           | SlicePrune => follow(true)
            };
          };
        });
@@ -1852,7 +1815,7 @@ let slice_forward =
     |> List.concat_map(checked =>
          children
          |> List.filter_map(source =>
-              if (source.mode != Keep && source.mode != Matched) {
+              if (source.mode != SliceKeep && source.mode != SliceMatched) {
                 None;
               } else {
                 Option.map(
@@ -1871,7 +1834,8 @@ let slice_forward =
             )
        );
   let result = results_join(ctx, forward @ reverse);
-  let has_ascription = List.exists(child => child.mode == Ascribe, children);
+  let has_ascription =
+    List.exists(child => child.mode == SliceAscribe, children);
   let annotation_query =
     direction == `Ana && !Id.Set.is_empty(path)
       ? Option.map(
@@ -2035,9 +1999,9 @@ let rec compile =
                  | _ => None
                  }
                );
-             let mode = of_info_mode(edge.mode);
+             let mode = edge.mode;
              let edge_lens =
-               pattern != None && mode == Keep
+               pattern != None && mode == SliceKeep
                  ? Option.map(
                      parent_path => (parent_path, []),
                      find_path_right(
@@ -2047,19 +2011,21 @@ let rec compile =
                    )
                  : lens(info.elab_syn_ty, child_info.elab_syn_ty);
              let edge_lens =
-               mode == Track && edge_lens == None
+               mode == SliceTrack && edge_lens == None
                  ? Option.map(
                      parent_path => (parent_path, []),
                      find_path(child_info.ana, info.elab_syn_ty),
                    )
                  : edge_lens;
              Some({
-               mode: mode == Track ? edge_lens == None ? Omit : Keep : mode,
+               mode:
+                 mode == SliceTrack
+                   ? edge_lens == None ? SliceOmit : SliceKeep : mode,
                bindings:
                  Option.map(bindings_of(~ctx=info.ctx), pattern)
                  |> Option.value(~default=[]),
                aliases:
-                 mode == Alias
+                 mode == SliceAlias
                    ? Ctx.added_bindings(child_info.ctx, info.ctx).entries
                      |> List.filter_map(
                           fun
@@ -2074,9 +2040,9 @@ let rec compile =
                    compile(
                      ~direction,
                      ~support=
-                       mode == Items
+                       mode == SliceModule
                          ? ModuleItem
-                         : mode == Source
+                         : mode == SliceSource
                            && (
                              switch (pattern) {
                              | Some(pattern) =>
@@ -2085,7 +2051,8 @@ let rec compile =
                              }
                            )
                              ? BindingAscription
-                             : mode == Ascribe ? ExpressionAscription : support,
+                             : mode == SliceAscribe
+                                 ? ExpressionAscription : support,
                      ~seen,
                      ~focus,
                      ~focus_query,
@@ -2114,12 +2081,15 @@ let rec compile =
            }
          );
     let children = align_kept_children(info.elab_syn_ty, children);
-    let sources = List.filter(c => c.mode == Source, children);
+    let sources = List.filter(c => c.mode == SliceSource, children);
     let kept =
-      List.filter_map(c => c.mode == Keep ? Some(c.node) : None, children);
+      List.filter_map(
+        c => c.mode == SliceKeep ? Some(c.node) : None,
+        children,
+      );
     let alternatives =
       List.filter_map(
-        c => c.mode == Alternative ? Some(c.node) : None,
+        c => c.mode == SliceAlternative ? Some(c.node) : None,
         children,
       );
     let typ =
@@ -2129,7 +2099,7 @@ let rec compile =
       | _ =>
         children
         |> List.find_map(child =>
-             child.mode == Matched
+             child.mode == SliceMatched
                ? Some(
                    MatchedTyp.arrow_tolerant(info.ctx, child.node.typ) |> snd,
                  )
@@ -2178,7 +2148,7 @@ let rec compile =
                 ~root=id,
                 info.ctx,
                 info.elab_syn_ty,
-                List.filter(child => child.mode == Omit, children),
+                List.filter(child => child.mode == SliceOmit, children),
                 gap,
               ),
             );
@@ -2249,7 +2219,7 @@ let rec compile =
                  (pattern: Info.pat) => {
                    let shape = Typ.weak_head_normalize(info.ctx, pattern.ty);
                    let shape =
-                     empty_query(shape) && child.mode == Source
+                     empty_query(shape) && child.mode == SliceSource
                        ? Typ.weak_head_normalize(info.ctx, child.node.shape)
                        : shape;
                    let pattern_id = Pat.rep_id(pattern.user_term);
@@ -2261,7 +2231,7 @@ let rec compile =
                        forward.gamma,
                      );
                    let parent =
-                     if (child.mode != Keep
+                     if (child.mode != SliceKeep
                          || direction == `Ana
                          && support == ExpressionAscription) {
                        gap;
