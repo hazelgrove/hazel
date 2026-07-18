@@ -47,6 +47,9 @@ let exp_show =
       statics,
       dynamics: Dynamics.Map.empty,
       context_menu: None,
+      selector_find: None,
+      agent_cursor_lock: false,
+      agent_highlight: None,
     },
   );
 };
@@ -81,6 +84,9 @@ let test_show =
         statics: CachedStatics.empty,
         dynamics: Dynamics.Map.empty,
         context_menu: None,
+        selector_find: None,
+        agent_cursor_lock: false,
+        agent_highlight: None,
       },
     );
   };

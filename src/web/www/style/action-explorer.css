@@ -83,6 +83,40 @@
   opacity: 0.7;
 }
 
+.ae-cycle-buttons {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+}
+
+.ae-cycle-button {
+  padding: 3px 7px;
+  border: 1px solid var(--BR2, #ccc);
+  background: var(--T1, white);
+  color: var(--STONE, #333);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  user-select: none;
+}
+
+.ae-cycle-button:first-child {
+  border-radius: 3px 0 0 3px;
+}
+
+.ae-cycle-button:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+.ae-cycle-button:hover {
+  background: var(--T2, #eee);
+}
+
+.ae-cycle-button.disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .ae-match-count {
   font-size: 11px;
   color: var(--BR3, #888);
@@ -108,5 +142,17 @@ svg.shard.action-explorer-match > path {
   fill: rgba(100, 160, 220, 0.18);
   stroke: rgba(80, 140, 200, 0.6);
   stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+svg.shard.action-explorer-match-active {
+  z-index: var(--err-hole-z, 1);
+  pointer-events: none;
+}
+
+svg.shard.action-explorer-match-active > path {
+  fill: rgba(100, 160, 220, 0.34);
+  stroke: rgba(40, 110, 190, 0.95);
+  stroke-width: 1.6px;
   vector-effect: non-scaling-stroke;
 }

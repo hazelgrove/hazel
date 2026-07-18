@@ -48,6 +48,18 @@ module Model = {
     | Tutorial(_) => None
     };
   };
+
+  /* Clear transient agent state from a model restored via undo/redo
+     (see ScratchMode.Model.sanitize_restored). */
+  let sanitize_restored = (model: t): t => {
+    switch (model) {
+    | Scratch(m) => Scratch(ScratchMode.Model.sanitize_restored(m))
+    | Documentation(m) =>
+      Documentation(ScratchMode.Model.sanitize_restored(m))
+    | Tutorial(_)
+    | Exercises(_) => model
+    };
+  };
 };
 
 /* Legacy-friendly wrapper for the Store.Mode key. Old persisted values
@@ -193,7 +205,8 @@ module Update = {
 
   let can_undo = (action: t) => {
     switch (action) {
-    | SwitchMode(_) => true
+    /* Navigating between editor tabs/modes is UI state, not a code change. */
+    | SwitchMode(_) => false
     | Scratch(action) => ScratchMode.Update.can_undo(action)
     | Tutorial(action) => TutorialsMode.Update.can_undo(action)
     | Exercises(action) => ExercisesMode.Update.can_undo(action)

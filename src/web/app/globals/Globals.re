@@ -85,6 +85,11 @@ module Model = {
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     action_highlights: list(Haz3lcore.Id.t),
+    action_active_highlight: option(Haz3lcore.Id.t),
+    /* Depths of the app-wide undo/redo stacks (set by History.calculate),
+       so views (e.g. the agent replay bar) can drive and reflect undo/redo. */
+    undo_depth: int,
+    redo_depth: int,
     // Other:
     inject_global: Action.t => Ui_effect.t(unit),
     /* inject_global is not really part of the model, but added here for
@@ -110,6 +115,9 @@ module Model = {
     visible_rows: None,
     color_highlights: None,
     action_highlights: [],
+    action_active_highlight: None,
+    undo_depth: 0,
+    redo_depth: 0,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),
     get_log_and: _ =>
@@ -153,8 +161,11 @@ module Update = {
   let can_undo = (action: t) => {
     switch (action) {
     | SetFontMetrics(_) => false
-    | Set(action) => Settings.Update.can_undo(action)
-    | SetAgentGlobals(_) => true
+    /* Display/preferences state (whitespace, warnings, line numbers, agent
+       settings, etc.) is not code history. Replay/undo must not step through
+       UI toggles. */
+    | Set(_)
+    | SetAgentGlobals(_) => false
     | JumpToTile(_) => false
     | InitImportAll(_) => true
     | FinishImportAll(_) => true

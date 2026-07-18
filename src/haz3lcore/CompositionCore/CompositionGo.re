@@ -399,6 +399,42 @@ module Local = {
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
       )
       : result((Zipper.t, option(string)), Action.Failure.t) => {
+    let selector_active_match = (selector: string, term: Exp.t) => {
+      let caret_point = Zipper.Caret.point(_syntax.measured, initial_z);
+      switch (
+        SelectorFind.start(
+          ~selector,
+          ~root=term,
+          ~caret_point,
+          ~syntax=_syntax,
+        )
+      ) {
+      | Error(msg) => Error(msg)
+      | Ok(session) =>
+        switch (SelectorFind.active_match(session)) {
+        | Some(m) => Ok(m)
+        | None => Error("No active match for selector: " ++ selector)
+        }
+      };
+    };
+    let jump_to_match_if_possible =
+        (match_result: Selector.match_result, z: Zipper.t): Zipper.t =>
+      SelectorFind.jump_to_match(z, match_result);
+
+    /* Re-resolve against the rebuilt zipper so the match carries its new
+       surface IDs. Semantic replacement IDs can be preserved, but the
+       segment printer generates fresh visible shard IDs; using the old
+       match is therefore insufficient for positioning the caret. */
+    let jump_to_selector_if_possible =
+        (selector: string, fallback: Selector.match_result, z: Zipper.t)
+        : Zipper.t => {
+      let rebuilt_term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (selector_active_match(selector, rebuilt_term)) {
+      | Ok(current_match) => jump_to_match_if_possible(current_match, z)
+      | Error(_) => jump_to_match_if_possible(fallback, z)
+      };
+    };
+
     switch (e) {
     | Update(Definition, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
@@ -856,9 +892,9 @@ module Local = {
 
     | SelectorUpdate(selector, code) =>
       let term = MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term;
-      switch (Selector.query_unique(selector, term)) {
+      switch (selector_active_match(selector, term)) {
       | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
-      | Ok({focused, focused_id, _}) =>
+      | Ok({focused, focused_id, _} as match_result) =>
         let parse_err = msg =>
           Error(
             Action.Failure.Composition_action_failure(
@@ -866,34 +902,46 @@ module Local = {
             ),
           );
         switch (focused) {
-        | FocusExp(_) =>
+        | FocusExp(old_exp) =>
           switch (TermEdit.parse_exp(code)) {
           | None => parse_err(code)
           | Some(new_exp) =>
             let new_term =
-              TermEdit.replace_exp_by_id(focused_id, _ => new_exp, term);
-            let new_z = TermEdit.term_to_zipper(new_term);
+              TermEdit.replace_exp_by_id(
+                focused_id,
+                _ => TermEdit.preserve_exp_identity(old_exp, new_exp),
+                term,
+              );
+            let new_z =
+              TermEdit.term_to_zipper(new_term)
+              |> jump_to_selector_if_possible(selector, match_result);
             Ok((new_z, None));
           }
-        | FocusPat(_) =>
+        | FocusPat(old_pat) =>
           switch (TermEdit.parse_pat(code)) {
           | None => parse_err(code ++ " (as pattern)")
           | Some(new_pat) =>
+            let new_pat = TermEdit.preserve_pat_identity(old_pat, new_pat);
             let new_term =
               TermEdit.replace_pat_by_id(focused_id, new_pat, term);
-            let new_z = TermEdit.term_to_zipper(new_term);
+            let new_z =
+              TermEdit.term_to_zipper(new_term)
+              |> jump_to_selector_if_possible(selector, match_result);
             Ok((new_z, None));
           }
-        | FocusTyp(_) =>
+        | FocusTyp(old_typ) =>
           switch (TermEdit.parse_typ(code)) {
           | None => parse_err(code ++ " (as type)")
           | Some(new_typ) =>
+            let new_typ = TermEdit.preserve_typ_identity(old_typ, new_typ);
             let new_term =
               TermEdit.replace_typ_by_id(focused_id, new_typ, term);
-            let new_z = TermEdit.term_to_zipper(new_term);
+            let new_z =
+              TermEdit.term_to_zipper(new_term)
+              |> jump_to_selector_if_possible(selector, match_result);
             Ok((new_z, None));
           }
-        | FocusMod(_) =>
+        | FocusMod(old_mod) =>
           switch (TermEdit.find_module_containing_item(focused_id, term)) {
           | None =>
             Error(
@@ -905,10 +953,14 @@ module Local = {
             switch (TermEdit.exp_to_mod_item(code)) {
             | None => parse_err(code ++ " (as module item)")
             | Some(new_item) =>
+              let new_item =
+                TermEdit.preserve_mod_identity(old_mod, new_item);
               let new_items = TermEdit.replace_item(items, idx, new_item);
               let new_term =
                 TermEdit.replace_module_items(module_id, new_items, term);
-              let new_z = TermEdit.term_to_zipper(new_term);
+              let new_z =
+                TermEdit.term_to_zipper(new_term)
+                |> jump_to_selector_if_possible(selector, match_result);
               Ok((new_z, None));
             }
           }
@@ -917,14 +969,18 @@ module Local = {
 
     | SelectorDelete(selector) =>
       let term = MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term;
-      switch (Selector.query_unique(selector, term)) {
+      switch (selector_active_match(selector, term)) {
       | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
-      | Ok({focused, focused_id, _}) =>
+      | Ok({focused, focused_id, _} as match_result) =>
         let new_term =
           switch (focused) {
-          | FocusExp(_) =>
+          | FocusExp(old_exp) =>
             let hole = Exp.fresh(EmptyHole);
-            TermEdit.replace_exp_by_id(focused_id, _ => hole, term);
+            TermEdit.replace_exp_by_id(
+              focused_id,
+              _ => TermEdit.preserve_exp_identity(old_exp, hole),
+              term,
+            );
           | FocusMod(_) =>
             switch (TermEdit.find_module_containing_item(focused_id, term)) {
             | None => term
@@ -932,14 +988,18 @@ module Local = {
               let new_items = TermEdit.delete_item(items, idx);
               TermEdit.replace_module_items(module_id, new_items, term);
             }
-          | FocusPat(_) =>
+          | FocusPat(old_pat) =>
             let hole = Pat.fresh(EmptyHole);
+            let hole = TermEdit.preserve_pat_identity(old_pat, hole);
             TermEdit.replace_pat_by_id(focused_id, hole, term);
-          | FocusTyp(_) =>
+          | FocusTyp(old_typ) =>
             let hole = Typ.fresh(Unknown(Hole(EmptyHole)));
+            let hole = TermEdit.preserve_typ_identity(old_typ, hole);
             TermEdit.replace_typ_by_id(focused_id, hole, term);
           };
-        let new_z = TermEdit.term_to_zipper(new_term);
+        let new_z =
+          TermEdit.term_to_zipper(new_term)
+          |> jump_to_selector_if_possible(selector, match_result);
         Ok((new_z, None));
       };
 
@@ -951,9 +1011,9 @@ module Local = {
         | _ => Direction.Right
         };
       let term = MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term;
-      switch (Selector.query_unique(selector, term)) {
+      switch (selector_active_match(selector, term)) {
       | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
-      | Ok({focused_id, _}) =>
+      | Ok({focused_id, _} as match_result) =>
         let (term_edit_result, kind) =
           if (TermEdit.is_case_arm(initial_z, focused_id)) {
             (
@@ -987,11 +1047,13 @@ module Local = {
           };
         switch (term_edit_result) {
         | Some(new_z) =>
+          let new_z =
+            jump_to_selector_if_possible(selector, match_result, new_z);
           switch (PerformUtils.parse_error_check(new_z)) {
           | Some(parse_err) =>
             Error(Action.Failure.Composition_action_failure(parse_err))
           | None => Ok((new_z, None))
-          }
+          };
         | None =>
           Error(
             Action.Failure.Composition_action_failure(
@@ -1040,28 +1102,53 @@ module Local = {
         ~syntax: CachedSyntax.t,
       )
       : result(string, Action.Failure.t) => {
+    let selector_active_match = (selector_str: string, term: Exp.t) => {
+      let caret_point = Zipper.Caret.point(syntax.measured, z);
+      switch (
+        SelectorFind.start(
+          ~selector=selector_str,
+          ~root=term,
+          ~caret_point,
+          ~syntax,
+        )
+      ) {
+      | Error(msg) =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Selector error: " ++ msg,
+          ),
+        )
+      | Ok(session) =>
+        switch (SelectorFind.active_match(session)) {
+        | Some(m) => Ok((session, m))
+        | None =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "No active match for selector: " ++ selector_str,
+            ),
+          )
+        }
+      };
+    };
     /* Select uses the selector language directly on the term tree,
        bypassing the HighLevelNodeMap path system */
     switch (action) {
     | Select(selector_str) =>
       let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-      switch (Selector.query(selector_str, term)) {
-      | [] =>
-        Error(
-          Composition_action_failure(
-            "No match for selector: " ++ selector_str,
-          ),
+      switch (selector_active_match(selector_str, term)) {
+      | Error(e) => Error(e)
+      | Ok((session, m)) =>
+        Ok(
+          Selector.print_match(m)
+          ++ "\nMatch: "
+          ++ SelectorFind.summary(session),
         )
-      | matches =>
-        let results = matches |> List.map(Selector.print_match);
-        Ok(String.concat("\n", results));
       };
     | GetCanonical(selector_str) =>
       let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-      switch (Selector.query_unique(selector_str, term)) {
-      | Error(e) =>
-        Error(Composition_action_failure("Selector error: " ++ e))
-      | Ok(m) =>
+      switch (selector_active_match(selector_str, term)) {
+      | Error(e) => Error(e)
+      | Ok((_session, m)) =>
         let id = m.focused_id;
         let num =
           switch (Selector.canonical_numeric(id, term)) {
@@ -1101,10 +1188,9 @@ module Local = {
       };
     | SelectorGetStatics(selector_str) =>
       let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-      switch (Selector.query_unique(selector_str, term)) {
-      | Error(e) =>
-        Error(Composition_action_failure("Selector error: " ++ e))
-      | Ok(m) =>
+      switch (selector_active_match(selector_str, term)) {
+      | Error(e) => Error(e)
+      | Ok((_session, m)) =>
         let id = m.focused_id;
         switch (Id.Map.find_opt(id, info_map)) {
         | None =>
@@ -1175,10 +1261,9 @@ module Local = {
       };
     | SelectorGetContext(selector_str) =>
       let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-      switch (Selector.query_unique(selector_str, term)) {
-      | Error(e) =>
-        Error(Composition_action_failure("Selector error: " ++ e))
-      | Ok(m) =>
+      switch (selector_active_match(selector_str, term)) {
+      | Error(e) => Error(e)
+      | Ok((_session, m)) =>
         let id = m.focused_id;
         switch (Id.Map.find_opt(id, info_map)) {
         | None =>
@@ -1462,7 +1547,26 @@ module Local = {
       try(
         switch (composition_dispatch(a, syntax, z, mk_statics, return)) {
         | Ok((new_z, warning)) =>
-          Ok((Dump.to_zipper(new_z, ~root=Exp), warning))
+          let dumped = Dump.to_zipper(new_z, ~root=Exp);
+          /* Dump normalization rebuilds the zipper at EOF. Selector edits
+             must re-resolve their target against the normalized tree and
+             restore the caret there; otherwise every successful selector
+             edit visually appears to select the end of the program. */
+          let dumped =
+            switch (a) {
+            | SelectorUpdate(selector, _)
+            | SelectorDelete(selector)
+            | SelectorInsertBefore(selector, _)
+            | SelectorInsertAfter(selector, _) =>
+              let term = MakeTerm.from_zip_for_sem(dumped, ~root=Exp).term;
+              switch (Selector.query(selector, term)) {
+              | [match_result, ..._] =>
+                SelectorFind.jump_to_match(dumped, match_result)
+              | [] => dumped
+              };
+            | _ => dumped
+            };
+          Ok((dumped, warning));
         | Error(e) => Error(e)
         }
       ) {

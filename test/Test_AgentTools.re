@@ -2314,19 +2314,19 @@ let selector_tests = (
       "Select def",
       "let x = 42 in x + 1",
       Select("let x = %"),
-      "42",
+      "42\nMatch: 1 of 1",
     ),
     read_test(
       "Select descend",
       let_fun_if,
       Select("let f = \\... if _... else %"),
-      "0",
+      "0\nMatch: 1 of 1",
     ),
     read_test(
       "Select chain",
       "let m = { let x = 42 } in m.x",
       Select("m/x = %"),
-      "42",
+      "42\nMatch: 1 of 1",
     ),
     test_case(
       "Select multiple matches",
@@ -5107,6 +5107,39 @@ let gap_tests = (
 let selector_edit_tests = (
   "AgentTools.SelectorEdits",
   [
+    test_case(
+      "SelectorUpdate preserves target cursor identity",
+      `Quick,
+      () => {
+        let code = "let a = 1 in\nlet x = 42 in\nx + a";
+        let selector = "let x = %";
+        switch (run_agent_action(code, SelectorUpdate(selector, "99"))) {
+        | Error(err) =>
+          Alcotest.fail(
+            "Selector update failed: " ++ Action.Failure.show(err),
+          )
+        | Ok(updated) =>
+          let syntax = CachedSyntax.init(updated);
+          let updated_term =
+            MakeTerm.from_zip_for_sem(updated, ~root=Exp).term;
+          let target_match =
+            switch (Selector.query(selector, updated_term)) {
+            | [match_result, ..._] => match_result
+            | [] => Alcotest.fail("Expected updated selector match")
+            };
+          let target_start =
+            SelectorFind.measure_match_start(target_match, syntax)
+            |> Option.get;
+          let actual = Zipper.Caret.point(syntax.measured, updated);
+          check(
+            int,
+            "cursor remains on replaced selector target row (not EOF)",
+            target_start.row,
+            actual.row,
+          );
+        };
+      },
+    ),
     /* SelectorUpdate: replace the focused subtree with new code */
     edit_test(
       "SelectorUpdate: let x = % -> 99",
@@ -5208,25 +5241,12 @@ let selector_edit_tests = (
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
       }
     }),
-    test_case("SelectorUpdate: ambiguous match", `Quick, () => {
-      switch (
-        run_agent_action(
-          "let a = 1 in let b = 2 in a + b",
-          SelectorUpdate("let _ = %", "0"),
-        )
-      ) {
-      | Ok(_) => Alcotest.fail("Expected failure: ambiguous")
-      | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(
-          bool,
-          "error mentions ambiguous",
-          true,
-          String.length(msg) >= 9 && String.sub(msg, 0, 9) == "Ambiguous",
-        )
-      | Error(err) =>
-        Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
-      }
-    }),
+    edit_test(
+      "SelectorUpdate: let _ = % targets active match",
+      "let a = 1 in let b = 2 in a + b",
+      SelectorUpdate("let _ = %", "0"),
+      "let a = 0 in let b = 2 in a + b",
+    ),
     /* === SelectorInsert tests === */
     /* InsertAfter: insert let binding after anchor */
     edit_test(

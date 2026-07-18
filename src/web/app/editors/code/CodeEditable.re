@@ -46,6 +46,12 @@ module Update = {
             statics: model.statics,
             dynamics: model.dynamics,
             context_menu: None,
+            selector_find: model.selector_find,
+            agent_cursor_lock: model.agent_cursor_lock,
+            /* The user taking over with their own program edit dismisses
+               the agent's edit highlight; cursor moves keep it. */
+            agent_highlight:
+              Action.is_historic(action) ? None : model.agent_highlight,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )
@@ -92,6 +98,8 @@ module Update = {
            },
          );
     switch (action) {
+    | Perform(_)
+    | TAB when model.agent_cursor_lock => model |> Updated.return_quiet
     | Perform(action) =>
       settings.core.flip_animations && Action.should_animate(action)
         ? Animation.request([Animation.Actions.move("caret")]) : ();
@@ -514,6 +522,19 @@ module View = {
         globals.action_highlights,
       ),
     ),
+    Node.div(
+      ~attrs=[Attr.class_("action-active-highlight")],
+      switch (globals.action_active_highlight) {
+      | Some(id) =>
+        Highlight.color(
+          ~syntax,
+          ~font_metrics=globals.font_metrics,
+          ["action-explorer-match-active"],
+          id,
+        )
+      | None => []
+      },
+    ),
     VarHighlight.view(
       ~measured=syntax.measured,
       ~font_metrics=globals.font_metrics,
@@ -532,6 +553,9 @@ module View = {
         ~dynamics: Language.Dynamics.Map.t,
         ~incr_eval: Language.IncrEval.t=Language.IncrEval.empty,
         ~expand_selection=?,
+        /* Whether to keep showing a dimmed caret while unselected (true for
+           real editors; selection-only views like results opt out). */
+        ~ghost_caret: bool=true,
         model: Model.t,
       ) => {
     let selected = EditMode.is_active(edit_mode);
@@ -564,6 +588,24 @@ module View = {
           ),
       (),
     );
+    /* Highlight of the node last edited/selected by the assistant agent.
+       Rendered in both focused and unfocused states so the user can follow
+       the agent's work (and the replay steps) from outside the editor. */
+    let agent_highlight_deco =
+      switch (model.agent_highlight) {
+      | Some(id) => [
+          Node.div(
+            ~attrs=[Attr.class_("agent-edit-highlight")],
+            Highlight.color(
+              ~syntax=model.editor.syntax,
+              ~font_metrics=globals.font_metrics,
+              ["agent-edit-mark"],
+              id,
+            ),
+          ),
+        ]
+      | None => []
+      };
     let edit_decos =
       selected
         ? deco(
@@ -573,6 +615,7 @@ module View = {
             ~globals,
             model.editor.state.zipper,
           )
+          @ agent_highlight_deco
           @ [
             Arms.Refractors.all(
               ~font_metrics=globals.font_metrics,
@@ -608,8 +651,25 @@ module View = {
               ]
             | None => []
             }
+          )  /* Unselected: keep rendering the caret (plus the agent edit
+             highlight) so the user can still see where the cursor is —
+             especially while the agent manages the cursor. CSS dims any
+             caret whose editor lacks DOM focus into a "ghost" caret.
+             Read-only viewers have no cursor, so they get no ghost. */
+        : (
+            switch (edit_mode) {
+            | Editable(_) when ghost_caret => [
+                CaretDec.view(
+                  ~measured=model.editor.syntax.measured,
+                  ~font_metrics=globals.font_metrics,
+                  model.editor.state.zipper,
+                ),
+              ]
+            | Editable(_)
+            | ReadOnly => []
+            }
           )
-        : [];
+          @ agent_highlight_deco;
     // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
     let refractor_data =

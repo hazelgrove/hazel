@@ -16,5 +16,11 @@ type tool_result = {
   diff: option(diff),
   before_segment: option(Segment.t),
   after_segment: option(Segment.t),
+  /* Indicated (cursor) node ids at snapshot time, so replay/timeline can
+     restore the caret position along with the program state. */
+  [@yojson.default None]
+  before_cursor_id: option(Id.t),
+  [@yojson.default None]
+  after_cursor_id: option(Id.t),
   content: string,
 };

@@ -108,5 +108,11 @@ module View = {
     };
 
   let view = (~edit_mode) =>
-    CodeEditable.View.view(~edit_mode=wrap_edit_mode(edit_mode));
+    /* Selection-only viewers (eval results, stepper) skip the unfocused
+       ghost caret: an untouched result would otherwise show a stray dim
+       caret at its origin. */
+    CodeEditable.View.view(
+      ~edit_mode=wrap_edit_mode(edit_mode),
+      ~ghost_caret=false,
+    );
 };

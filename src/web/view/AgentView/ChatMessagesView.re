@@ -520,6 +520,7 @@ module ViewComponents = {
 
 type timeline_node = {
   segment: option(Segment.t),
+  cursor_id: option(Id.t),
   label: string,
   index: int,
 };
@@ -900,20 +901,10 @@ let view =
 
       let linear_display = linear_messages_display;
 
-      let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool => {
-        switch (tool_result.tool_call.name) {
-        | "initialize"
-        | "update_definition"
-        | "update_body"
-        | "update_pattern"
-        | "update_binding_clause"
-        | "delete_binding_clause"
-        | "delete_body"
-        | "insert_before"
-        | "insert_after" => true
-        | _ => false
-        };
-      };
+      /* Shared with the chat-wide replay feature; includes selector-based
+         edit tools (selector_update, selector_delete, selector_insert_*). */
+      let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool =>
+        Agent.Replay.Utils.is_edit_tool(tool_result.tool_call.name);
 
       let edit_tool_results =
         agent_chunk.tool_results |> List.filter(is_edit_tool_call);
@@ -1026,6 +1017,7 @@ let view =
                   agent_inject(
                     Agent.Agent.Update.Action.LoadTimelineSegment(
                       segment,
+                      node.cursor_id,
                       node.index,
                     ),
                   ),
@@ -1098,6 +1090,7 @@ let view =
 
           let initial_node: timeline_node = {
             segment: first.before_segment,
+            cursor_id: first.before_cursor_id,
             label: "Initial",
             index: 0,
           };
@@ -1111,6 +1104,7 @@ let view =
                   if (tool_result.success) {
                     let next_node: timeline_node = {
                       segment: tool_result.after_segment,
+                      cursor_id: tool_result.after_cursor_id,
                       label: "After Edit " ++ string_of_int(node_idx),
                       index: node_idx,
                     };
@@ -1234,6 +1228,8 @@ let view =
           ~attrs=[clss(["copy-toast"]), Attr.id("copy-toast")],
           [text("Copied!")],
         ),
+        // Replay controls: step through agent edits via undo/redo
+        ReplayView.view(~globals, ~agent_model, ~agent_inject, ~current_chat),
         // Chunks display area
         div(
           ~attrs=[clss(["chat-messages-container"])],

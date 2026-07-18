@@ -1078,6 +1078,122 @@ module ChatSlashCommands = {
   };
 };
 
+/** Edit-step derivation: an ordered list of editor-state snapshots from the
+    successful edit tool calls on the current chat branch. Step 0 is the
+    program before the first edit; step k is the program after the k-th
+    successful edit. Used by the per-response timeline and the replay bar
+    (which navigates via the app-wide undo/redo stack, where each agent edit
+    tool call is recorded as its own undo entry — see History.re). */
+module Replay = {
+  module Model = {
+    /* A restorable editor state: full program content plus the id of the
+       node the caret indicated when the snapshot was taken. */
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type editor_snapshot = {
+      segment: Segment.t,
+      cursor_id: option(Id.t),
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type step = {
+      index: int, // 0 = initial state, k = state after edit k
+      label: string,
+      call_string: option(string),
+      segment: option(Segment.t),
+      cursor_id: option(Id.t),
+    };
+  };
+
+  module Utils = {
+    /* Tools whose successful application changes the program and records
+       before/after segments: initialize, path-based edits, and
+       selector-based edits. */
+    let is_edit_tool = (name: string): bool => {
+      switch (name) {
+      | "initialize"
+      | "update_definition"
+      | "update_body"
+      | "update_pattern"
+      | "update_binding_clause"
+      | "update_type_annotation"
+      | "delete_binding_clause"
+      | "delete_body"
+      | "insert_before"
+      | "insert_after"
+      | "selector_update"
+      | "selector_delete"
+      | "selector_insert_before"
+      | "selector_insert_after" => true
+      | _ => false
+      };
+    };
+
+    /* Successful edit tool results on the current branch, in order. */
+    let edit_tool_results =
+        (chat: Chat.Model.t): list(AgentToolResult.tool_result) => {
+      Chat.Utils.linearize(chat)
+      |> List.filter_map((msg: Message.Model.t) =>
+           switch (msg.role) {
+           | ToolResult(tool_result)
+               when
+                 tool_result.success
+                 && is_edit_tool(tool_result.tool_call.name) =>
+             Some(tool_result)
+           | _ => None
+           }
+         );
+    };
+
+    let call_string_of = (tool_call: OpenRouter.Reply.Model.tool_call): string => {
+      let args = Yojson.Safe.to_string(tool_call.args);
+      let max_len = 80;
+      let args =
+        String.length(args) > max_len
+          ? String.sub(args, 0, max_len) ++ {|…|} : args;
+      tool_call.name ++ "(" ++ args ++ ")";
+    };
+
+    /* Id of the node the caret currently indicates, for cursor snapshots. */
+    let cursor_id_of_zipper = (z: Zipper.t): option(Id.t) =>
+      Indicated.index(z);
+
+    let snapshot_of_zipper = (z: Zipper.t): Model.editor_snapshot => {
+      segment: Select.all(z).selection.content,
+      cursor_id: cursor_id_of_zipper(z),
+    };
+
+    let steps_of_chat = (chat: Chat.Model.t): list(Model.step) => {
+      switch (edit_tool_results(chat)) {
+      | [] => []
+      | [first, ..._] as tool_results =>
+        let initial: Model.step = {
+          index: 0,
+          label: "Initial",
+          call_string: None,
+          segment: first.before_segment,
+          cursor_id: first.before_cursor_id,
+        };
+        let after_steps =
+          List.mapi(
+            (i, tool_result: AgentToolResult.tool_result): Model.step =>
+              {
+                index: i + 1,
+                label: tool_result.tool_call.name,
+                call_string: Some(call_string_of(tool_result.tool_call)),
+                segment: tool_result.after_segment,
+                cursor_id: tool_result.after_cursor_id,
+              },
+            tool_results,
+          );
+        [initial, ...after_steps];
+      };
+    };
+
+    let num_steps = (chat: Chat.Model.t): int =>
+      List.length(steps_of_chat(chat));
+  };
+};
+
 module ChatSystem = {
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -1324,7 +1440,7 @@ module Agent = {
       prompting,
       active_timeline_node: option(int),
       awaiting_response: option(Id.t),
-      restore_editor_state: option(Segment.t),
+      restore_editor_state: option(Replay.Model.editor_snapshot),
       last_empty_retry_attempt: option(int),
       last_active_task_nudge_attempt: option(int),
       tools_view_expanded: list(string),
@@ -1464,6 +1580,19 @@ module Agent = {
         compaction_method_override: None,
       };
     };
+
+    /* Clear transient in-flight state from an agent model restored via the
+       app-wide undo/redo stack. History snapshots are taken mid-agent-turn
+       (while a request is outstanding), so restoring one verbatim would
+       leave the UI stuck on "Agent is responding…" with replay controls
+       disabled, even though no request is actually in flight. */
+    let sanitize_restored = (model: Model.t): Model.t => {
+      ...model,
+      awaiting_response: None,
+      compaction_in_progress: None,
+      last_empty_retry_attempt: None,
+      last_active_task_nudge_attempt: None,
+    };
   };
 
   module ToolCallHandler = {
@@ -1504,6 +1633,9 @@ module Agent = {
               statics: editor.statics,
               dynamics: editor.dynamics,
               context_menu: editor.context_menu,
+              selector_find: editor.selector_find,
+              agent_cursor_lock: true,
+              agent_highlight: editor.agent_highlight,
             },
           ))
         | Error(err) =>
@@ -1531,9 +1663,53 @@ module Agent = {
           )
         ) {
         | Ok(_content) =>
+          let editor =
+            switch (read_action) {
+            | Select(selector)
+            | GetCanonical(selector)
+            | SelectorGetStatics(selector)
+            | SelectorGetContext(selector) =>
+              let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+              switch (
+                SelectorFind.start(
+                  ~selector,
+                  ~root=term,
+                  ~caret_point=Zipper.Caret.point(syntax.measured, z),
+                  ~syntax,
+                )
+              ) {
+              | Ok(session) =>
+                let z =
+                  switch (SelectorFind.active_match(session)) {
+                  | Some(match_result) =>
+                    SelectorFind.jump_to_match(z, match_result)
+                  | None => z
+                  };
+                {
+                  ...editor,
+                  editor: {
+                    ...editor.editor,
+                    state: {
+                      ...editor.editor.state,
+                      zipper: z,
+                    },
+                  },
+                  selector_find: Some(session),
+                  agent_cursor_lock: true,
+                };
+              | Error(_) => {
+                  ...editor,
+                  agent_cursor_lock: true,
+                }
+              };
+            | _ => {
+                ...editor,
+                agent_cursor_lock: true,
+              }
+            };
           /* Read actions don't modify the editor. The content is
              returned as the tool_result content in handle_tool_call. */
-          Ok((agent, editor))
+          Ok((agent, editor));
         | Error(err) =>
           switch (err) {
           | Action.Failure.Composition_action_failure(msg) =>
@@ -1688,6 +1864,11 @@ module Agent = {
               ~dynamics=editor.dynamics,
               new_editor_model,
             );
+          let new_cws = {
+            ...new_cws,
+            selector_find: editor.selector_find,
+            agent_cursor_lock: true,
+          };
 
           /* Auto-expand probed definitions so results are visible */
           if (List.length(paths_to_expand) > 0) {
@@ -1732,13 +1913,18 @@ module Agent = {
         | RetryApiError(Id.t, int)
         | DoRetryApiSend(Id.t, int)
         | RetryEmptyResponse(Id.t, int)
-        | LoadTimelineSegment(Segment.t, int)
+        | LoadTimelineSegment(Segment.t, option(Id.t), int)
         | RestoreOriginal
         | LoadSegmentIntoEditor(Segment.t)
         | SetActiveTimelineNode(option(int))
         | SetToolEnabled(string, bool)
         | ToggleToolsViewExpanded(string)
-        | RequestForcedCompaction(Id.t);
+        | RequestForcedCompaction(Id.t)
+        /* Run the scripted selector-tool benchmark task in a new chat.
+           Each step is dispatched as a separate RunBenchmarkStep action so
+           it becomes its own undo entry; replay = undo/redo. */
+        | RunBenchmark
+        | RunBenchmarkStep(int);
     };
 
     let max_api_retries = 3;
@@ -2236,6 +2422,20 @@ module Agent = {
       let test_results_info_string = test_results_string(test_results);
       let cursor_context_string =
         format_cursor_context(editor.editor.state.zipper, info_map);
+      let cursor_context_string =
+        switch (editor.selector_find) {
+        | None => cursor_context_string
+        | Some(session) =>
+          "Active selector find: "
+          ++ session.selector
+          ++ " ("
+          ++ SelectorFind.summary(session)
+          ++ ")"
+          ++ (
+            String.length(String.trim(cursor_context_string)) == 0
+              ? "" : "\n" ++ cursor_context_string
+          )
+        };
       let chat_system =
         ChatSystem.Update.update(
           ChatSystem.Update.Action.ChatAction(
@@ -2327,13 +2527,20 @@ module Agent = {
       );
     };
 
+    /* Program content + cursor (indicated node id) snapshots around an edit:
+       (before_segment, after_segment, before_cursor_id, after_cursor_id). */
     let mk_segment_snapshots =
         (
           ~old_editor: Editor.t,
           ~new_editor: Editor.t,
           action: CompositionActions.action,
         )
-        : (option(Segment.t), option(Segment.t)) => {
+        : (
+            option(Segment.t),
+            option(Segment.t),
+            option(Id.t),
+            option(Id.t),
+          ) => {
       switch (action) {
       | EditorAction(_)
       | Initialize(_)
@@ -2342,10 +2549,80 @@ module Agent = {
           Select.all(old_editor.state.zipper).selection.content;
         let new_segment =
           Select.all(new_editor.state.zipper).selection.content;
-        (Some(old_segment), Some(new_segment));
-      | _ => (None, None)
+        (
+          Some(old_segment),
+          Some(new_segment),
+          Replay.Utils.cursor_id_of_zipper(old_editor.state.zipper),
+          Replay.Utils.cursor_id_of_zipper(new_editor.state.zipper),
+        );
+      | _ => (None, None, None, None)
       };
     };
+
+    /* Whether a tool call should create an app-wide undo history entry.
+       Only program-changing actions do: agent edits then interleave with
+       the user's own edits on the same undo stack, and replay is simply
+       undo/redo. Chat bookkeeping, read-only tools, and workbench state
+       changes are not undoable. */
+    let is_historic_tool_action = (action: CompositionActions.action): bool =>
+      switch (action) {
+      | EditorAction(_)
+      | Initialize(_)
+      | ProbeAction(_) => true
+      | ReadAction(_)
+      | LanguageServerAction(_)
+      | WorkbenchAction(_)
+      | AgentContextAction(_) => false
+      };
+
+    /* Whether a successful tool call actually changed the program, judged
+       by comparing the recorded before/after whole-program segments. A
+       call that "succeeds" but leaves the program identical (and any call
+       without snapshots) should not become an undo/replay step. Probe
+       placement lives outside the zipped segment, so successful probe
+       actions always count as a change. */
+    let tool_call_changed_program =
+        (
+          ~before_segment: option(Segment.t),
+          ~after_segment: option(Segment.t),
+          action: CompositionActions.action,
+        )
+        : bool =>
+      is_historic_tool_action(action)
+      && (
+        switch (action) {
+        | ProbeAction(_) => true
+        | _ =>
+          switch (before_segment, after_segment) {
+          | (Some(before), Some(after)) => before != after
+          | _ => false
+          }
+        }
+      );
+
+    /* The node an agent action landed on, shown as a highlight in the
+       editor (visible even while the editor is unfocused, and restored by
+       undo/redo replay since it lives in the editor model). Edits highlight
+       the edited node; selector-based reads highlight the selected node;
+       other actions leave the previous highlight in place. */
+    let agent_highlight_of_action =
+        (
+          ~after_cursor_id: option(Id.t),
+          ~editor: CodeWithStatics.Model.t,
+          action: CompositionActions.action,
+        )
+        : option(Id.t) =>
+      switch (action) {
+      | EditorAction(_)
+      | Initialize(_)
+      | ProbeAction(_) => after_cursor_id
+      | ReadAction(
+          Select(_) | GetCanonical(_) | SelectorGetStatics(_) |
+          SelectorGetContext(_),
+        ) =>
+        Replay.Utils.cursor_id_of_zipper(editor.editor.state.zipper)
+      | _ => editor.agent_highlight
+      };
 
     let handle_tool_call =
         (
@@ -2385,7 +2662,7 @@ module Agent = {
             switch (action) {
             | ReadAction(read_action) =>
               /* For read actions, compute the result content */
-              let z = cell_editor.editor.editor.state.zipper;
+              let z = editor.editor.state.zipper;
               switch (
                 CompositionGo.Public.read_dispatch(~action=read_action, ~z)
               ) {
@@ -2405,7 +2682,12 @@ module Agent = {
               | None => base_msg
               };
             };
-          let (before_segment, after_segment) =
+          let (
+            before_segment,
+            after_segment,
+            before_cursor_id,
+            after_cursor_id,
+          ) =
             mk_segment_snapshots(
               ~old_editor=cell_editor.editor.editor,
               ~new_editor=editor.editor,
@@ -2438,6 +2720,11 @@ module Agent = {
                     content,
                 ),
               after_segment: None,
+              before_cursor_id:
+                Replay.Utils.cursor_id_of_zipper(
+                  cell_editor.editor.editor.state.zipper,
+                ),
+              after_cursor_id: None,
               content: msg,
             };
             let model =
@@ -2462,6 +2749,8 @@ module Agent = {
               diff,
               before_segment,
               after_segment,
+              before_cursor_id,
+              after_cursor_id,
               content: success_message,
             };
             let model =
@@ -2477,13 +2766,27 @@ module Agent = {
                 chat_id,
               ),
             );
+            let editor = {
+              ...editor,
+              agent_highlight:
+                agent_highlight_of_action(~after_cursor_id, ~editor, action),
+            };
             (
               model,
               {
                 ...cell_editor,
                 editor,
               }
-              |> Updated.return,
+              /* Only calls that actually changed the program become undo
+                 (replay) steps; no-op "successes" are chat-only. */
+              |> Updated.return(
+                   ~historic=
+                     tool_call_changed_program(
+                       ~before_segment,
+                       ~after_segment,
+                       action,
+                     ),
+                 ),
             );
           };
         | Error(error) =>
@@ -2505,6 +2808,15 @@ module Agent = {
               diff: None,
               before_segment,
               after_segment: None,
+              before_cursor_id:
+                switch (action) {
+                | EditorAction(_) =>
+                  Replay.Utils.cursor_id_of_zipper(
+                    cell_editor.editor.editor.state.zipper,
+                  )
+                | _ => None
+                },
+              after_cursor_id: None,
               content: msg,
             };
             let model =
@@ -2531,6 +2843,8 @@ module Agent = {
           diff: None,
           before_segment: None,
           after_segment: None,
+          before_cursor_id: None,
+          after_cursor_id: None,
           content: msg,
         };
         // Do not add unparseable tool calls to subtask tool results for now
@@ -2541,6 +2855,315 @@ module Agent = {
           ),
         );
         (model, cell_editor |> Updated.return_quiet);
+      };
+    };
+
+    let unlock_cell_editor = (cell_editor: CellEditor.Model.t) => {
+      ...cell_editor,
+      editor: {
+        ...cell_editor.editor,
+        agent_cursor_lock: false,
+      },
+    };
+
+    /* === Timeline segment loading === */
+
+    /* Reset the editor to a recorded program state; if a cursor id was
+       recorded, place the caret back on that node and (unless
+       [~highlight_cursor=false]) highlight it so the user can see what the
+       agent edited at that timeline step. */
+    let load_segment_into_cell_editor =
+        (
+          ~cursor_id: option(Id.t)=None,
+          ~highlight_cursor: bool=true,
+          segment: Segment.t,
+          editor: CellEditor.Model.t,
+        )
+        : CellEditor.Model.t => {
+      let new_zipper = Zipper.unzip(~direction=Right, segment);
+      let new_zipper =
+        switch (cursor_id) {
+        | Some(id) =>
+          Move.jump_to_id_indicated(new_zipper, id)
+          |> Option.value(~default=new_zipper)
+        | None => new_zipper
+        };
+      let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
+      {
+        ...editor,
+        editor: {
+          ...CodeWithStatics.Model.mk(new_editor_model),
+          agent_highlight: highlight_cursor ? cursor_id : None,
+        },
+      };
+    };
+
+    /* === Scripted benchmark execution (no LLM) === */
+
+    /* Append a message directly to a chat (history + display only; unlike
+       [send_message], this never triggers an API request). */
+    let append_message_to_chat =
+        (message: Message.Model.t, chat_id: Id.t, model: Model.t): Model.t => {
+      let chat_system =
+        ChatSystem.Update.update(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.AppendMessage(message),
+            chat_id,
+          ),
+          model.chat_system,
+        )
+        |> ChatSystem.Update.get;
+      {
+        ...model,
+        chat_system,
+      };
+    };
+
+    /* Execute one scripted tool call synchronously through the same
+       tool-handling pipeline as real agent tool calls, appending the tool
+       result message directly instead of scheduling an LLM round trip.
+       The returned bool reports whether the call actually changed the
+       program (failed or no-op calls should not become undo steps). */
+    let run_scripted_tool_call =
+        (
+          ~settings: Settings.t,
+          ~chat_id: Id.t,
+          ~tool_call: OpenRouter.Reply.Model.tool_call,
+          model: Model.t,
+          cell_editor: CellEditor.Model.t,
+        )
+        : (Model.t, CellEditor.Model.t, bool) => {
+      let append_result =
+          (tool_result: AgentToolResult.tool_result, model: Model.t) =>
+        append_message_to_chat(
+          Message.Utils.mk_tool_result_message(tool_result),
+          chat_id,
+          model,
+        );
+      let fail =
+          (
+            ~before_segment=None,
+            ~before_cursor_id=None,
+            msg: string,
+            model: Model.t,
+          )
+          : (Model.t, CellEditor.Model.t, bool) => {
+        let tool_result: AgentToolResult.tool_result = {
+          tool_call,
+          success: false,
+          expanded: false,
+          diff: None,
+          before_segment,
+          after_segment: None,
+          before_cursor_id,
+          after_cursor_id: None,
+          content: msg,
+        };
+        (append_result(tool_result, model), cell_editor, false);
+      };
+      switch (
+        CompositionUtils.Public.action_of(
+          ~tool_name=tool_call.name,
+          ~args=tool_call.args,
+        )
+      ) {
+      | Failure(msg) => fail(msg, model)
+      | Action(action) =>
+        switch (
+          try(
+            ToolCallHandler.update(
+              ~settings,
+              action,
+              model,
+              cell_editor.editor,
+              chat_id,
+            )
+          ) {
+          | Failure(msg) => Error(Failure.Info(msg))
+          | exn => Error(Failure.Info(Printexc.to_string(exn)))
+          }
+        ) {
+        | Error(Failure.Info(msg)) =>
+          let before_segment =
+            Some(
+              Select.all(cell_editor.editor.editor.state.zipper).selection.
+                content,
+            );
+          let before_cursor_id =
+            Replay.Utils.cursor_id_of_zipper(
+              cell_editor.editor.editor.state.zipper,
+            );
+          fail(~before_segment, ~before_cursor_id, msg, model);
+        | Ok((model, editor)) =>
+          /* Refresh the syntax cache: consecutive structural edits within a
+             single update cycle would otherwise resolve selectors against
+             stale measured positions. */
+          let editor = {
+            ...editor,
+            editor:
+              Editor.Model.mk(
+                editor.editor.state.zipper,
+                ~root=editor.editor.root,
+              ),
+          };
+          let model = update_context(model, editor, chat_id);
+          let success_message = {
+            let base =
+              "The "
+              ++ tool_call.name
+              ++ " tool call was successful and has been applied to the model.";
+            switch (CompositionGo.Public.last_warning^) {
+            | Some(warning) =>
+              CompositionGo.Public.last_warning := None;
+              base ++ "\n" ++ warning;
+            | None => base
+            };
+          };
+          let (
+            before_segment,
+            after_segment,
+            before_cursor_id,
+            after_cursor_id,
+          ) =
+            mk_segment_snapshots(
+              ~old_editor=cell_editor.editor.editor,
+              ~new_editor=editor.editor,
+              action,
+            );
+          let diff =
+            try(
+              mk_diff(
+                ~old_editor=cell_editor.editor.editor,
+                ~new_editor=editor.editor,
+                action,
+              )
+            ) {
+            | _ => None
+            };
+          let tool_result: AgentToolResult.tool_result = {
+            tool_call,
+            success: true,
+            expanded: false,
+            diff,
+            before_segment,
+            after_segment,
+            before_cursor_id,
+            after_cursor_id,
+            content: success_message,
+          };
+          let model = append_result(tool_result, model);
+          let editor = {
+            ...editor,
+            agent_highlight:
+              agent_highlight_of_action(~after_cursor_id, ~editor, action),
+          };
+          (
+            model,
+            {
+              ...cell_editor,
+              editor,
+            },
+            tool_call_changed_program(
+              ~before_segment,
+              ~after_segment,
+              action,
+            ),
+          );
+        }
+      };
+    };
+
+    /* Start a scripted benchmark task in a fresh chat and reset the editor
+       to an empty program. The steps themselves run as separately scheduled
+       [RunBenchmarkStep] actions so that each scripted edit lands as its own
+       entry on the app-wide undo stack — replaying the benchmark is then
+       just undo/redo. */
+    let start_benchmark =
+        (benchmark: AgentBenchmark.t, model: Model.t)
+        : (Model.t, CellEditor.Model.t) => {
+      let chat_system =
+        ChatSystem.Utils.new_chat(
+          ~system_prompt=model.prompting.system_prompt,
+          ~dev_notes=model.prompting.dev_notes,
+          model.chat_system,
+        );
+      let chat_id = chat_system.current;
+      let chat_system =
+        ChatSystem.Update.update(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.SetTitle(benchmark.title),
+            chat_id,
+          ),
+          chat_system,
+        )
+        |> ChatSystem.Update.get;
+      let model = {
+        ...model,
+        chat_system,
+        restore_editor_state: None,
+        active_timeline_node: None,
+      };
+      let model =
+        append_message_to_chat(
+          Message.Utils.mk_user_message(benchmark.description),
+          chat_id,
+          model,
+        );
+      /* Benchmarks start from an empty program */
+      let cell_editor =
+        CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
+      (model, cell_editor);
+    };
+
+    /* Execute scripted benchmark step [i] on the current chat: append the
+       narration message and run the tool call through the normal pipeline.
+       Returns the updated model/editor, whether more steps remain, and
+       whether this step changed the program (i.e. should be undoable). */
+    let run_benchmark_step =
+        (
+          ~settings: Settings.t,
+          benchmark: AgentBenchmark.t,
+          i: int,
+          model: Model.t,
+          cell_editor: CellEditor.Model.t,
+        )
+        : option((Model.t, CellEditor.Model.t, bool, bool)) => {
+      let steps = AgentBenchmark.tool_calls_of(benchmark);
+      switch (List.nth_opt(steps, i)) {
+      | None => None
+      | Some((step, tool_call)) =>
+        let chat_id = model.chat_system.current;
+        let model =
+          append_message_to_chat(
+            Message.Utils.mk_agent_message(
+              ~tool_calls=[tool_call],
+              step.narration,
+              None,
+            ),
+            chat_id,
+            model,
+          );
+        let (model, cell_editor, changed_program) =
+          run_scripted_tool_call(
+            ~settings,
+            ~chat_id,
+            ~tool_call,
+            model,
+            cell_editor,
+          );
+        let has_more = i + 1 < List.length(steps);
+        let model =
+          has_more
+            ? model
+            : append_message_to_chat(
+                Message.Utils.mk_agent_message(
+                  "Benchmark complete. Each step is an entry on the undo stack: use undo/redo (or the replay bar) to step backward and forward through the edit history.",
+                  None,
+                ),
+                chat_id,
+                model,
+              );
+        Some((model, cell_editor, has_more, changed_program));
       };
     };
 
@@ -2570,7 +3193,7 @@ module Agent = {
               ...model,
               last_empty_retry_attempt: Some(next_retry),
             },
-            cell_editor |> Updated.return_quiet,
+            unlock_cell_editor(cell_editor) |> Updated.return_quiet,
           );
         } else {
           // Exhausted retries: show fallback message
@@ -2596,7 +3219,7 @@ module Agent = {
               awaiting_response: None,
               last_empty_retry_attempt: None,
             },
-            cell_editor |> Updated.return_quiet,
+            unlock_cell_editor(cell_editor) |> Updated.return_quiet,
           );
         };
       } else {
@@ -2701,9 +3324,15 @@ module Agent = {
                   ~schedule_action,
                   ~cell_editor,
                 );
-              (model', cell_editor |> Updated.return_quiet);
+              (
+                model',
+                unlock_cell_editor(cell_editor) |> Updated.return_quiet,
+              );
             } else {
-              (model_idle, cell_editor |> Updated.return_quiet);
+              (
+                model_idle,
+                unlock_cell_editor(cell_editor) |> Updated.return_quiet,
+              );
             };
           };
         };
@@ -2729,7 +3358,7 @@ module Agent = {
               ...model,
               chat_system,
             },
-            editor |> Updated.return,
+            editor |> Updated.return(~historic=false),
           )
         | Error(error) =>
           failwith(
@@ -2756,7 +3385,7 @@ module Agent = {
             schedule_action,
           )
         ) {
-        | Ok(model) => (model, editor |> Updated.return)
+        | Ok(model) => (model, editor |> Updated.return(~historic=false))
         | Error(error) =>
           failwith(
             switch (error) {
@@ -2804,7 +3433,7 @@ module Agent = {
               ...model_cleared,
               chat_system,
             },
-            editor |> Updated.return,
+            editor |> Updated.return(~historic=false),
           );
         } else if (content == "") {
           let err =
@@ -2825,7 +3454,7 @@ module Agent = {
               ...model_cleared,
               chat_system,
             },
-            editor |> Updated.return,
+            editor |> Updated.return(~historic=false),
           );
         } else {
           let summary =
@@ -2847,7 +3476,7 @@ module Agent = {
               ...model_cleared,
               chat_system,
             },
-            editor |> Updated.return,
+            editor |> Updated.return(~historic=false),
           );
         };
       | RequestForcedCompaction(chat_id) =>
@@ -2860,7 +3489,7 @@ module Agent = {
             ~schedule_action,
             ~cell_editor=editor,
           );
-        (model', editor |> Updated.return);
+        (model', editor |> Updated.return(~historic=false));
       | HandleChatNamingResponse(title, chat_id) =>
         let chat_system =
           ChatSystem.Update.update(
@@ -2876,7 +3505,7 @@ module Agent = {
             ...model,
             chat_system,
           },
-          editor |> Updated.return,
+          editor |> Updated.return(~historic=false),
         );
       | ApiErrorResponse(chat_id, api_error_message) =>
         let chat_system =
@@ -2904,7 +3533,7 @@ module Agent = {
               | _ => model.compaction_method_override
               },
           },
-          editor |> Updated.return,
+          editor |> Updated.return(~historic=false),
         );
       | RetryApiError(chat_id, attempt) =>
         let delay_s = int_of_float(backoff_ms(attempt) /. 1000.0);
@@ -2938,7 +3567,7 @@ module Agent = {
             ...model,
             chat_system,
           },
-          editor |> Updated.return,
+          editor |> Updated.return(~historic=false),
         );
       | DoRetryApiSend(chat_id, attempt) =>
         let model =
@@ -2971,7 +3600,7 @@ module Agent = {
             ~chat_id,
             ~retry_attempt=attempt + 1,
           );
-          (model, editor |> Updated.return);
+          (model, editor |> Updated.return(~historic=false));
         | _ =>
           let api_failure_message =
             Message.Utils.mk_api_failure_message(
@@ -2992,7 +3621,7 @@ module Agent = {
               chat_system,
               awaiting_response: None,
             },
-            editor |> Updated.return,
+            editor |> Updated.return(~historic=false),
           );
         };
       | RetryEmptyResponse(chat_id, attempt) =>
@@ -3042,7 +3671,7 @@ module Agent = {
             ~chat_id,
             ~retry_attempt=0,
           );
-          (model, editor |> Updated.return);
+          (model, editor |> Updated.return(~historic=false));
         | _ =>
           let api_failure_message =
             Message.Utils.mk_api_failure_message(
@@ -3064,55 +3693,50 @@ module Agent = {
               awaiting_response: None,
               last_empty_retry_attempt: None,
             },
-            editor |> Updated.return,
+            editor |> Updated.return(~historic=false),
           );
         };
-      | LoadTimelineSegment(segment, node_index) =>
+      | LoadTimelineSegment(segment, cursor_id, node_index) =>
         // On first click into history: save current editor state for Restore Original
         let restore_editor_state =
           switch (model.restore_editor_state) {
           | None =>
             Some(
-              Select.all(editor.editor.editor.state.zipper).selection.content,
+              Replay.Utils.snapshot_of_zipper(
+                editor.editor.editor.state.zipper,
+              ),
             )
           | Some(_) => model.restore_editor_state
           };
-        let new_zipper = Zipper.unzip(~direction=Right, segment);
-        let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
-        let new_code_with_statics =
-          CodeWithStatics.Model.mk(new_editor_model);
         (
           {
             ...model,
             restore_editor_state,
             active_timeline_node: Some(node_index),
           },
-          {
-            ...editor,
-            editor: new_code_with_statics,
-          }
-          |> Updated.return,
+          /* View navigation, not an edit: does not create undo entries */
+          load_segment_into_cell_editor(~cursor_id, segment, editor)
+          |> Updated.return(~historic=false),
         );
       | RestoreOriginal =>
         switch (model.restore_editor_state) {
-        | Some(saved_segment) =>
-          let new_zipper = Zipper.unzip(~direction=Right, saved_segment);
-          let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
-          let new_code_with_statics =
-            CodeWithStatics.Model.mk(new_editor_model);
-          (
+        | Some({segment, cursor_id}: Replay.Model.editor_snapshot) => (
             {
               ...model,
               restore_editor_state: None,
               active_timeline_node: None,
             },
-            {
-              ...editor,
-              editor: new_code_with_statics,
-            }
-            |> Updated.return,
-          );
-        | None => (model, editor |> Updated.return)
+            /* Restoring the user's own pre-timeline state: the recorded
+               cursor is the user's, so no agent highlight. */
+            load_segment_into_cell_editor(
+              ~cursor_id,
+              ~highlight_cursor=false,
+              segment,
+              editor,
+            )
+            |> Updated.return(~historic=false),
+          )
+        | None => (model, editor |> Updated.return(~historic=false))
         }
       | LoadSegmentIntoEditor(segment) =>
         // Replace editor with segment by converting to zipper
@@ -3126,14 +3750,14 @@ module Agent = {
             ...editor,
             editor: new_code_with_statics,
           }
-          |> Updated.return,
+          |> Updated.return(~historic=false),
         );
       | SetActiveTimelineNode(node_index) => (
           {
             ...model,
             active_timeline_node: node_index,
           },
-          editor |> Updated.return,
+          editor |> Updated.return(~historic=false),
         )
       | SetToolEnabled(name, enabled) =>
         let disabled_tool_names =
@@ -3155,7 +3779,7 @@ module Agent = {
               disabled_tool_names,
             },
           },
-          editor |> Updated.return,
+          editor |> Updated.return(~historic=false),
         );
       | ToggleToolsViewExpanded(name) =>
         let tools_view_expanded =
@@ -3170,8 +3794,34 @@ module Agent = {
             ...model,
             tools_view_expanded,
           },
-          editor |> Updated.return,
+          editor |> Updated.return(~historic=false),
         );
+      | RunBenchmark =>
+        let (model, cell_editor) =
+          start_benchmark(AgentBenchmark.selector_demo, model);
+        schedule_action(Action.RunBenchmarkStep(0));
+        /* Historic: resetting the editor for the benchmark is itself an
+           undoable step, so undo can recover the pre-benchmark program. */
+        (model, cell_editor |> Updated.return);
+      | RunBenchmarkStep(i) =>
+        switch (
+          run_benchmark_step(
+            ~settings,
+            AgentBenchmark.selector_demo,
+            i,
+            model,
+            editor,
+          )
+        ) {
+        | None => (model, editor |> Updated.return_quiet)
+        | Some((model, cell_editor, has_more, changed_program)) =>
+          if (has_more) {
+            schedule_action(Action.RunBenchmarkStep(i + 1));
+          };
+          /* Each scripted edit that actually changed the program is one
+             undo entry; failed/no-op steps are chat-only. */
+          (model, cell_editor |> Updated.return(~historic=changed_program));
+        }
       };
     };
   };

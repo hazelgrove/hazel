@@ -36,6 +36,14 @@ module Model = {
       action_explorer: ActionExplorer.Model.init,
     };
   };
+
+  /* Clear transient agent state (in-flight request flags, agent cursor
+     lock) from a snapshot restored via undo/redo, so restoring a model
+     captured mid-agent-turn can't soft-lock the UI. */
+  let sanitize_restored = (model: t): t => {
+    ...model,
+    editors: Editors.Model.sanitize_restored(model.editors),
+  };
 };
 
 module Store = {
@@ -86,6 +94,67 @@ module Update = {
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
     };
+  };
+
+  let set_editor = (model: Model.t, code_ed: CodeEditable.Model.t): Model.t => {
+    let update_pad = (s: ScratchMode.Scratchpad.t): ScratchMode.Scratchpad.t =>
+      switch (s.kind) {
+      | Code(code) => {
+          ...s,
+          kind:
+            Code({
+              ...code,
+              editor: {
+                ...code.editor,
+                editor: code_ed,
+              },
+            }),
+        }
+      | Drv(_) => s
+      };
+    let editors =
+      switch (model.editors) {
+      | Scratch(m) =>
+        let scratchpads =
+          List.mapi(
+            (i, s: ScratchMode.Scratchpad.t) =>
+              i == m.current ? update_pad(s) : s,
+            m.scratchpads,
+          );
+        Editors.Model.Scratch({
+          ...m,
+          scratchpads,
+        });
+      | Documentation(m) =>
+        let scratchpads =
+          List.mapi(
+            (i, s: ScratchMode.Scratchpad.t) =>
+              i == m.current ? update_pad(s) : s,
+            m.scratchpads,
+          );
+        Documentation({
+          ...m,
+          scratchpads,
+        });
+      | _ => model.editors
+      };
+    {
+      ...model,
+      editors,
+    };
+  };
+
+  let with_selector_session =
+      (model: Model.t, selector_find: option(Haz3lcore.SelectorFind.session))
+      : Model.t => {
+    let code_ed = get_editor(model);
+    set_editor(
+      model,
+      {
+        ...code_ed,
+        selector_find,
+      },
+    );
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -317,86 +386,219 @@ module Update = {
       };
     };
 
+  let action_explorer_model_for_session =
+      (ae: ActionExplorer.Model.t, session: Haz3lcore.SelectorFind.session)
+      : ActionExplorer.Model.t => {
+    let ids =
+      List.map(
+        (m: Haz3lcore.Selector.match_result) => m.focused_id,
+        session.matches,
+      );
+    {
+      ...ae,
+      highlight_ids: ids,
+      active_match_index:
+        Haz3lcore.SelectorFind.active_display_index(session),
+      active_match_count: Haz3lcore.SelectorFind.length(session),
+      active_match_id: Haz3lcore.SelectorFind.active_id(session),
+      result_msg: Haz3lcore.SelectorFind.print_active(session),
+    };
+  };
+
+  let action_explorer_model_clear_matches =
+      (ae: ActionExplorer.Model.t, result_msg: option(string))
+      : ActionExplorer.Model.t => {
+    ...ae,
+    highlight_ids: [],
+    active_match_index: 0,
+    active_match_count: 0,
+    active_match_id: None,
+    result_msg,
+  };
+
+  let globals_for_action_explorer =
+      (globals: Globals.Model.t, ae: ActionExplorer.Model.t): Globals.Model.t => {
+    ...globals,
+    action_highlights: ae.highlight_ids,
+    action_active_highlight: ae.active_match_id,
+  };
+
+  let start_selector_find_at =
+      (~caret_point: Point.t, selector: string, model: Model.t)
+      : result(Haz3lcore.SelectorFind.session, string) => {
+    let editor = get_editor(model);
+    let z = editor.editor.state.zipper;
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+    Haz3lcore.SelectorFind.start(
+      ~selector,
+      ~root=term,
+      ~caret_point,
+      ~syntax=editor.editor.syntax,
+    );
+  };
+
+  let start_selector_find =
+      (selector: string, model: Model.t)
+      : result(Haz3lcore.SelectorFind.session, string) => {
+    let editor = get_editor(model);
+    let z = editor.editor.state.zipper;
+    start_selector_find_at(
+      ~caret_point=
+        Haz3lcore.Zipper.Caret.point(editor.editor.syntax.measured, z),
+      selector,
+      model,
+    );
+  };
+
+  let canonical_selector_for_session =
+      (session: Haz3lcore.SelectorFind.session, model: Model.t)
+      : option(string) => {
+    let editor = get_editor(model);
+    let z = editor.editor.state.zipper;
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+    Haz3lcore.SelectorFind.canonical_selector_for_active(session, term);
+  };
+
+  let schedule_jump_to_session =
+      (~schedule_action: t => unit, session: Haz3lcore.SelectorFind.session) =>
+    switch (Haz3lcore.SelectorFind.active_id(session)) {
+    | Some(id) => schedule_action(Globals(JumpToTile(id)))
+    | None => ()
+    };
+
+  let active_session_for_action_explorer =
+      (model: Model.t): result(Haz3lcore.SelectorFind.session, string) => {
+    let selector = String.trim(model.action_explorer.selector);
+    switch (get_editor(model).selector_find) {
+    | Some(session) when session.selector == selector => Ok(session)
+    | _ => start_selector_find(selector, model)
+    };
+  };
+
+  let selector_action_with_selector =
+      (selector: string, action: Haz3lcore.Action.Structural.t)
+      : Haz3lcore.Action.Structural.t =>
+    switch (action) {
+    | SelectorUpdate(_, code) => SelectorUpdate(selector, code)
+    | SelectorDelete(_) => SelectorDelete(selector)
+    | SelectorInsertBefore(_, code) => SelectorInsertBefore(selector, code)
+    | SelectorInsertAfter(_, code) => SelectorInsertAfter(selector, code)
+    | other => other
+    };
+
+  let read_action_with_selector =
+      (selector: string, action: Haz3lcore.CompositionActions.read_action)
+      : Haz3lcore.CompositionActions.read_action =>
+    switch (action) {
+    | Select(_) => Select(selector)
+    | GetCanonical(_) => GetCanonical(selector)
+    | SelectorGetStatics(_) => SelectorGetStatics(selector)
+    | SelectorGetContext(_) => SelectorGetContext(selector)
+    | other => other
+    };
+
   let execute_action_explorer =
       (model: Model.t): result(Editors.Model.t, string) =>
     switch (ActionExplorer.Model.to_structural_action(model.action_explorer)) {
     | None => Error("No action configured.")
     | Some(a) =>
-      let code_ed: CodeEditable.Model.t = get_editor(model);
-      let z = code_ed.editor.state.zipper;
-      let syntax = Haz3lcore.CachedSyntax.init(z);
-      let return = (err, opt_z) =>
-        switch (opt_z) {
-        | Some(z) => Ok(z)
-        | None => Error(err)
-        };
-      switch (Haz3lcore.CompositionGo.Public.go(~syntax, ~z, ~a, ~return)) {
-      | Ok((new_zipper, _warning)) =>
-        /* Rebuild CodeEditable.Model.t with new zipper */
-        let new_code_ed: CodeEditable.Model.t = {
-          ...code_ed,
-          editor: {
-            ...code_ed.editor,
-            state: {
-              ...code_ed.editor.state,
-              zipper: new_zipper,
-            },
-          },
-        };
-        /* TODO: stubbed — see merge brief.
-           The dev branch reshaped Scratchpad.t: `{ name; kind = Code({editor; agent}) | Drv(_) }`.
-           Updating the inner CodeEditable.Model.t requires unwrapping
-           through `kind = Code(code)` and `code.editor: CellEditor.Model.t`.
-           Drv scratchpads are not handled here. */
-        let update_pad =
-            (s: ScratchMode.Scratchpad.t): ScratchMode.Scratchpad.t =>
-          switch (s.kind) {
-          | Code(code) => {
-              ...s,
-              kind:
-                Code({
-                  ...code,
-                  editor: {
-                    ...code.editor,
-                    editor: new_code_ed,
-                  },
-                }),
+      let a_result =
+        switch (a) {
+        | SelectorUpdate(_)
+        | SelectorDelete(_)
+        | SelectorInsertBefore(_)
+        | SelectorInsertAfter(_) =>
+          switch (active_session_for_action_explorer(model)) {
+          | Error(msg) => Error(msg)
+          | Ok(session) =>
+            switch (canonical_selector_for_session(session, model)) {
+            | Some(selector) =>
+              Ok(selector_action_with_selector(selector, a))
+            | None => Ok(a)
             }
-          | Drv(_) => s
-          };
-        switch (model.editors) {
-        | Scratch(m) =>
-          let scratchpads =
-            List.mapi(
-              (i, s: ScratchMode.Scratchpad.t) =>
-                i == m.current ? update_pad(s) : s,
-              m.scratchpads,
-            );
-          Ok(
-            Editors.Model.Scratch({
-              ...m,
-              scratchpads,
-            }),
-          );
-        | Documentation(m) =>
-          let scratchpads =
-            List.mapi(
-              (i, s: ScratchMode.Scratchpad.t) =>
-                i == m.current ? update_pad(s) : s,
-              m.scratchpads,
-            );
-          Ok(
-            Documentation({
-              ...m,
-              scratchpads,
-            }),
-          );
-        | _ =>
-          Error(
-            "Action Explorer only supported in Scratch/Documentation modes.",
-          )
+          }
+        | _ => Ok(a)
         };
-      | Error(failure) => Error(Haz3lcore.Action.Failure.show(failure))
+      switch (a_result) {
+      | Error(msg) => Error(msg)
+      | Ok(a) =>
+        let code_ed: CodeEditable.Model.t = get_editor(model);
+        let z = code_ed.editor.state.zipper;
+        let syntax = Haz3lcore.CachedSyntax.init(z);
+        let return = (err, opt_z) =>
+          switch (opt_z) {
+          | Some(z) => Ok(z)
+          | None => Error(err)
+          };
+        switch (Haz3lcore.CompositionGo.Public.go(~syntax, ~z, ~a, ~return)) {
+        | Ok((new_zipper, _warning)) =>
+          /* Rebuild CodeEditable.Model.t with new zipper */
+          let new_code_ed: CodeEditable.Model.t = {
+            ...code_ed,
+            selector_find: None,
+            editor: {
+              ...code_ed.editor,
+              state: {
+                ...code_ed.editor.state,
+                zipper: new_zipper,
+              },
+            },
+          };
+          /* TODO: stubbed — see merge brief.
+             The dev branch reshaped Scratchpad.t: `{ name; kind = Code({editor; agent}) | Drv(_) }`.
+             Updating the inner CodeEditable.Model.t requires unwrapping
+             through `kind = Code(code)` and `code.editor: CellEditor.Model.t`.
+             Drv scratchpads are not handled here. */
+          let update_pad =
+              (s: ScratchMode.Scratchpad.t): ScratchMode.Scratchpad.t =>
+            switch (s.kind) {
+            | Code(code) => {
+                ...s,
+                kind:
+                  Code({
+                    ...code,
+                    editor: {
+                      ...code.editor,
+                      editor: new_code_ed,
+                    },
+                  }),
+              }
+            | Drv(_) => s
+            };
+          switch (model.editors) {
+          | Scratch(m) =>
+            let scratchpads =
+              List.mapi(
+                (i, s: ScratchMode.Scratchpad.t) =>
+                  i == m.current ? update_pad(s) : s,
+                m.scratchpads,
+              );
+            Ok(
+              Editors.Model.Scratch({
+                ...m,
+                scratchpads,
+              }),
+            );
+          | Documentation(m) =>
+            let scratchpads =
+              List.mapi(
+                (i, s: ScratchMode.Scratchpad.t) =>
+                  i == m.current ? update_pad(s) : s,
+                m.scratchpads,
+              );
+            Ok(
+              Documentation({
+                ...m,
+                scratchpads,
+              }),
+            );
+          | _ =>
+            Error(
+              "Action Explorer only supported in Scratch/Documentation modes.",
+            )
+          };
+        | Error(failure) => Error(Haz3lcore.Action.Failure.show(failure))
+        };
       };
     };
 
@@ -408,44 +610,47 @@ module Update = {
       let code_ed: CodeEditable.Model.t = get_editor(model);
       let z = code_ed.editor.state.zipper;
       switch (read_action) {
-      | Select(selector_str) =>
-        /* Run selector query directly to get both text and IDs */
-        let term = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-        switch (Haz3lcore.Selector.query(selector_str, term)) {
-        | [] => Error("No match for selector: " ++ selector_str)
-        | matches =>
+      | Select(_)
+      | GetCanonical(_)
+      | SelectorGetStatics(_)
+      | SelectorGetContext(_) =>
+        switch (active_session_for_action_explorer(model)) {
+        | Error(msg) => Error(msg)
+        | Ok(session) =>
           let ids =
             List.map(
               (m: Haz3lcore.Selector.match_result) => m.focused_id,
-              matches,
+              session.matches,
             );
-          let results = List.map(Haz3lcore.Selector.print_match, matches);
-          Ok((String.concat("\n", results), ids));
-        };
-      | GetCanonical(selector_str)
-      | SelectorGetStatics(selector_str)
-      | SelectorGetContext(selector_str) =>
-        /* Run via read_dispatch, then resolve selector for highlighting */
-        let term = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-        switch (
-          Haz3lcore.CompositionGo.Public.read_dispatch(
-            ~action=read_action,
-            ~z,
-          )
-        ) {
-        | Ok(result_text) =>
-          let ids =
-            try(
-              Haz3lcore.Selector.query(selector_str, term)
-              |> List.map((m: Haz3lcore.Selector.match_result) =>
-                   m.focused_id
-                 )
+          switch (read_action) {
+          | Select(_) =>
+            switch (Haz3lcore.SelectorFind.print_active(session)) {
+            | Some(text) =>
+              Ok((
+                text ++ "\nMatch: " ++ Haz3lcore.SelectorFind.summary(session),
+                ids,
+              ))
+            | None => Error("No active selector match.")
+            }
+          | _ =>
+            let active_read_action =
+              switch (canonical_selector_for_session(session, model)) {
+              | Some(selector) =>
+                read_action_with_selector(selector, read_action)
+              | None => read_action
+              };
+            switch (
+              Haz3lcore.CompositionGo.Public.read_dispatch(
+                ~action=active_read_action,
+                ~z,
+              )
             ) {
-            | _ => []
+            | Ok(result_text) => Ok((result_text, ids))
+            | Error(failure) =>
+              Error(Haz3lcore.Action.Failure.show(failure))
             };
-          Ok((result_text, ids));
-        | Error(failure) => Error(Haz3lcore.Action.Failure.show(failure))
-        };
+          };
+        }
       | _ =>
         switch (
           Haz3lcore.CompositionGo.Public.read_dispatch(
@@ -525,6 +730,7 @@ module Update = {
             globals: {
               ...model.globals,
               action_highlights: ids,
+              action_active_highlight: model.action_explorer.active_match_id,
             },
           }
           |> Updated.return(~is_edit=false, ~scroll_active=false)
@@ -553,6 +759,7 @@ module Update = {
             globals: {
               ...model.globals,
               action_highlights: [],
+              action_active_highlight: None,
             },
           }
           |> Updated.return(~is_edit=true);
@@ -580,39 +787,91 @@ module Update = {
         globals: {
           ...model.globals,
           action_highlights: ids,
+          action_active_highlight: None,
         },
       }
       |> Updated.return(~is_edit=false, ~scroll_active=false);
     | ActionExplorer(SetSelector(selector) as action) =>
       let ae =
         ActionExplorer.Update.update(~action, ~model=model.action_explorer);
-      /* Live-resolve selector for highlighting */
-      let ids =
-        if (String.length(String.trim(selector)) > 0) {
-          let editor = get_editor(model);
-          let z = editor.editor.state.zipper;
-          let term = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-          try(
-            Haz3lcore.Selector.query(selector, term)
-            |> List.map((m: Haz3lcore.Selector.match_result) => m.focused_id)
-          ) {
-          | _ => []
+      if (String.length(String.trim(selector)) == 0) {
+        let ae = action_explorer_model_clear_matches(ae, None);
+        {
+          ...with_selector_session(model, None),
+          action_explorer: ae,
+          globals: globals_for_action_explorer(model.globals, ae),
+        }
+        |> Updated.return(~is_edit=false, ~scroll_active=false);
+      } else {
+        let anchor_point =
+          switch (get_editor(model).selector_find) {
+          | Some(session) => session.anchor_point
+          | None =>
+            let editor = get_editor(model);
+            Haz3lcore.Zipper.Caret.point(
+              editor.editor.syntax.measured,
+              editor.editor.state.zipper,
+            );
           };
-        } else {
-          [];
+        switch (
+          start_selector_find_at(~caret_point=anchor_point, selector, model)
+        ) {
+        | Ok(session) =>
+          let ae = action_explorer_model_for_session(ae, session);
+          {
+            ...with_selector_session(model, Some(session)),
+            action_explorer: ae,
+            globals: globals_for_action_explorer(model.globals, ae),
+          }
+          |> Updated.return(~is_edit=false, ~scroll_active=false);
+        | Error(msg) =>
+          let ae = action_explorer_model_clear_matches(ae, Some(msg));
+          {
+            ...model,
+            action_explorer: ae,
+            globals: globals_for_action_explorer(model.globals, ae),
+          }
+          |> Updated.return(~is_edit=false, ~scroll_active=false);
         };
-      {
-        ...model,
-        action_explorer: {
-          ...ae,
-          highlight_ids: ids,
-        },
-        globals: {
-          ...model.globals,
-          action_highlights: ids,
-        },
-      }
-      |> Updated.return(~is_edit=false, ~scroll_active=false);
+      };
+    | ActionExplorer((PrevMatch | NextMatch) as action) =>
+      let current = get_editor(model).selector_find;
+      let session_result =
+        switch (current) {
+        | Some(session)
+            when
+              session.selector == String.trim(model.action_explorer.selector) =>
+          Ok(
+            action == PrevMatch
+              ? Haz3lcore.SelectorFind.prev(session)
+              : Haz3lcore.SelectorFind.next(session),
+          )
+        | _ => start_selector_find(model.action_explorer.selector, model)
+        };
+      switch (session_result) {
+      | Ok(session) =>
+        schedule_jump_to_session(~schedule_action, session);
+        let ae =
+          action_explorer_model_for_session(model.action_explorer, session);
+        {
+          ...with_selector_session(model, Some(session)),
+          action_explorer: ae,
+          globals: globals_for_action_explorer(model.globals, ae),
+        }
+        |> Updated.return(~is_edit=false, ~scroll_active=false);
+      | Error(msg) =>
+        let ae =
+          action_explorer_model_clear_matches(
+            model.action_explorer,
+            Some(msg),
+          );
+        {
+          ...with_selector_session(model, None),
+          action_explorer: ae,
+          globals: globals_for_action_explorer(model.globals, ae),
+        }
+        |> Updated.return(~is_edit=false, ~scroll_active=false);
+      };
     | ActionExplorer(action) =>
       let ae =
         ActionExplorer.Update.update(~action, ~model=model.action_explorer);

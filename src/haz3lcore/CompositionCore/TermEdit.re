@@ -437,6 +437,43 @@ let copy_tpat_secondary = (from: TPat.t, to_: TPat.t): TPat.t => {
   },
 };
 
+/* A selector replacement occupies the same source position as the node it
+   replaces. Preserve that node's representative ID as well as its spacing,
+   so callers can still jump to/highlight the selected location after the
+   term is rebuilt into a zipper. Without this, replacement nodes have fresh
+   IDs and post-edit cursor restoration falls back to the zipper's end. */
+let preserve_exp_identity = (from: Exp.t, to_: Exp.t): Exp.t => {
+  let copied = copy_exp_secondary(from, to_);
+  {
+    ...copied,
+    annotation: {
+      ...copied.annotation,
+      ids: from.annotation.ids,
+    },
+  };
+};
+
+let preserve_pat_identity = (from: Pat.t, to_: Pat.t): Pat.t => {
+  ...copy_pat_secondary(from, to_),
+  annotation: {
+    ids: from.annotation.ids,
+    secondary: from.annotation.secondary,
+  },
+};
+
+let preserve_typ_identity = (from: Typ.t, to_: Typ.t): Typ.t => {
+  ...copy_typ_secondary(from, to_),
+  annotation: {
+    ids: from.annotation.ids,
+    secondary: from.annotation.secondary,
+  },
+};
+
+let preserve_mod_identity = (from: Mod.t, to_: Mod.t): Mod.t => {
+  ...to_,
+  annotation: from.annotation,
+};
+
 /* Replace a sub-expression by ID anywhere in the term tree.
    The replacement function receives the matched expression and returns
    the new expression to substitute. Automatically copies positional

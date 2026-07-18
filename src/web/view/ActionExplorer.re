@@ -77,6 +77,9 @@ module Model = {
     selector: string,
     code: string,
     highlight_ids: list(Id.t),
+    active_match_index: int,
+    active_match_count: int,
+    active_match_id: option(Id.t),
     result_msg: option(string),
   };
 
@@ -91,6 +94,9 @@ module Model = {
     selector: "",
     code: "",
     highlight_ids: [],
+    active_match_index: 0,
+    active_match_count: 0,
+    active_match_id: None,
     result_msg: None,
   };
 
@@ -175,6 +181,8 @@ module Update = {
     | SetCode(string)
     | SetHighlightIds(list(Id.t))
     | SetResult(option(string))
+    | PrevMatch
+    | NextMatch
     | Execute;
 
   let update = (~action: t, ~model: Model.t): Model.t =>
@@ -231,6 +239,8 @@ module Update = {
         ...model,
         result_msg,
       }
+    | PrevMatch
+    | NextMatch => model /* Handled at Page level */
     | Execute => model /* Handled at Page level */
     };
 };
@@ -268,6 +278,7 @@ module View = {
         ~placeholder: string,
         ~value: string,
         ~on_input: string => Ui_effect.t(unit),
+        ~on_keydown,
       ) =>
     input(
       ~attrs=[
@@ -279,7 +290,7 @@ module View = {
         /* Stop propagation so typing doesn't trigger editor keybindings */
         Attr.on_keydown(evt => {
           Js_of_ocaml.Dom_html.stopPropagation(evt);
-          Effect.Ignore;
+          on_keydown(evt);
         }),
         Attr.on_keypress(evt => {
           Js_of_ocaml.Dom_html.stopPropagation(evt);
@@ -500,8 +511,8 @@ module View = {
         ~clss="ae-path",
         ~placeholder="path (e.g. x, x/y, #0, |A, [0])",
         ~value=model.path,
-        ~on_input=v =>
-        inject(SetPath(v))
+        ~on_input=v => inject(SetPath(v)),
+        ~on_keydown=_ => Effect.Ignore,
       );
 
     let selector_input =
@@ -509,14 +520,32 @@ module View = {
         ~clss="ae-selector",
         ~placeholder="selector (e.g. let _ = * in _, _ \\... *)",
         ~value=model.selector,
-        ~on_input=v =>
-        inject(SetSelector(v))
+        ~on_input=v => inject(SetSelector(v)),
+        ~on_keydown=
+          evt => {
+            let key = Key.get_key(evt);
+            switch (key) {
+            | "ArrowUp" =>
+              Js_of_ocaml.Dom.preventDefault(evt);
+              inject(PrevMatch);
+            | "ArrowDown" =>
+              Js_of_ocaml.Dom.preventDefault(evt);
+              inject(NextMatch);
+            | "Enter" =>
+              Js_of_ocaml.Dom.preventDefault(evt);
+              inject(Execute);
+            | _ => Effect.Ignore
+            };
+          },
       );
 
     let code_input =
       text_field(
-        ~clss="ae-code", ~placeholder="code", ~value=model.code, ~on_input=v =>
-        inject(SetCode(v))
+        ~clss="ae-code",
+        ~placeholder="code",
+        ~value=model.code,
+        ~on_input=v => inject(SetCode(v)),
+        ~on_keydown=_ => Effect.Ignore,
       );
 
     let execute_button =
@@ -529,6 +558,25 @@ module View = {
         [text("Run")],
       );
 
+    let cycle_disabled = model.active_match_count == 0;
+    let cycle_button = (label, title, action) =>
+      div(
+        ~attrs=[
+          clss(["ae-cycle-button"] @ (cycle_disabled ? ["disabled"] : [])),
+          Attr.on_click(_ => cycle_disabled ? Effect.Ignore : inject(action)),
+          Attr.title(title),
+        ],
+        [text(label)],
+      );
+    let cycle_buttons =
+      div(
+        ~attrs=[clss(["ae-cycle-buttons"])],
+        [
+          cycle_button("▲", "Previous selector match", PrevMatch),
+          cycle_button("▼", "Next selector match", NextMatch),
+        ],
+      );
+
     let result_display =
       switch (model.result_msg) {
       | None => none
@@ -536,14 +584,27 @@ module View = {
       };
 
     let highlight_count =
-      switch (model.highlight_ids) {
-      | [] => none
-      | ids =>
-        let n = List.length(ids);
+      if (model.tier == Selector && model.active_match_count > 0) {
         div(
           ~attrs=[clss(["ae-match-count"])],
-          [text(string_of_int(n) ++ (n == 1 ? " match" : " matches"))],
+          [
+            text(
+              string_of_int(model.active_match_index)
+              ++ " of "
+              ++ string_of_int(model.active_match_count),
+            ),
+          ],
         );
+      } else {
+        switch (model.highlight_ids) {
+        | [] => none
+        | ids =>
+          let n = List.length(ids);
+          div(
+            ~attrs=[clss(["ae-match-count"])],
+            [text(string_of_int(n) ++ (n == 1 ? " match" : " matches"))],
+          );
+        };
       };
 
     /* Build the controls row based on tier and action kind */
@@ -555,6 +616,7 @@ module View = {
           action_select,
           selector_read_kind_select,
           selector_input,
+          cycle_buttons,
           execute_button,
           highlight_count,
         ]
@@ -562,6 +624,7 @@ module View = {
           tier_select,
           action_select,
           selector_input,
+          cycle_buttons,
           code_input,
           execute_button,
           highlight_count,
@@ -570,6 +633,7 @@ module View = {
           tier_select,
           action_select,
           selector_input,
+          cycle_buttons,
           execute_button,
           highlight_count,
         ]
@@ -578,6 +642,7 @@ module View = {
           tier_select,
           action_select,
           selector_input,
+          cycle_buttons,
           code_input,
           execute_button,
           highlight_count,

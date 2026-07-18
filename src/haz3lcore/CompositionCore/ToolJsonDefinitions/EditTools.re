@@ -688,6 +688,10 @@ Replaces the focused subtree matched by a selector expression with new code.
 Selectors are pattern-based expressions that address any part of the AST.
 The selector must contain exactly one `%` (focus marker) indicating which subtree to replace.
 The replacement code is parsed according to the sort of the focused node (expression, pattern, or type).
+When multiple locations match, selector edits are cursor-relative: matches are
+ordered by source position, the edit targets the first match after the shared
+editor cursor, and matching wraps to the top when the cursor is after all
+matches. The shared cursor moves to the selected match before/after the edit.
 
 Parameters:
 selector: string — selector expression with exactly one `%` focus
@@ -772,6 +776,8 @@ let selector_delete_description = {|
 Description:
 Replaces the focused subtree matched by a selector expression with a hole.
 The hole type matches the sort of the focused node: expression hole (?), pattern hole, or type hole.
+If multiple locations match, deletes the active cursor-relative match: the first
+match after the shared editor cursor, wrapping to the top when needed.
 
 Parameters:
 selector: string — selector expression with exactly one `%` focus
@@ -829,6 +835,8 @@ Inserts code after the anchor matched by a selector expression.
 The `%` in the selector marks the anchor point (the existing binding/item), and
 new code is inserted immediately after it.
 Works with let-bindings, module items, list elements, tuple elements, and case arms.
+If multiple anchors match, inserts after the active cursor-relative match: the
+first match after the shared editor cursor, wrapping to the top when needed.
 
 Parameters:
 selector: string — selector expression with `%` marking the anchor
@@ -897,6 +905,8 @@ Inserts code before the anchor matched by a selector expression.
 The `%` in the selector marks the anchor point (the existing binding/item), and
 new code is inserted immediately before it.
 Works with let-bindings, module items, list elements, tuple elements, and case arms.
+If multiple anchors match, inserts before the active cursor-relative match: the
+first match after the shared editor cursor, wrapping to the top when needed.
 
 Parameters:
 selector: string — selector expression with `%` marking the anchor

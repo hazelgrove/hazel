@@ -393,6 +393,9 @@ module Update = {
                   statics: cell.editor.statics,
                   dynamics: cell.editor.dynamics,
                   context_menu: cell.editor.context_menu,
+                  selector_find: cell.editor.selector_find,
+                  agent_cursor_lock: cell.editor.agent_cursor_lock,
+                  agent_highlight: cell.editor.agent_highlight,
                 },
                 result: cell.result,
               };

@@ -239,6 +239,36 @@ module Model = {
   let scratchpad_names = (model: t): list(string) =>
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
 
+  /* Clear transient agent state (in-flight request flags, agent cursor
+     lock) from a model restored via app-wide undo/redo. Snapshots on the
+     history stacks can be taken mid-agent-turn; restoring one verbatim
+     would soft-lock the UI ("Agent is responding…", locked editor). */
+  let sanitize_restored = (model: t): t => {
+    ...model,
+    scratchpads:
+      List.map(
+        (sp: Scratchpad.t) =>
+          switch (sp.kind) {
+          | Code({editor, agent}) => {
+              ...sp,
+              kind:
+                Scratchpad.Code({
+                  editor: {
+                    ...editor,
+                    editor: {
+                      ...editor.editor,
+                      agent_cursor_lock: false,
+                    },
+                  },
+                  agent: Agent.Agent.Utils.sanitize_restored(agent),
+                }),
+            }
+          | Drv(_) => sp
+          },
+        model.scratchpads,
+      ),
+  };
+
   let get_derivation_info = (model: t) => {
     let current = List.nth(model.scratchpads, model.current);
     switch (current.kind) {

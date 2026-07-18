@@ -31,7 +31,9 @@ let (suite, _) =
       Test_Substitution.tests,
     ]
     @ Test_AgentTools.tests
+    @ [Test_SelectorFind.tests]
     @ [Test_AgentUX.tests]
+    @ [Test_AgentReplay.tests]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
     @ Test_Statics.tests

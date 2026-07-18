@@ -419,20 +419,46 @@ svg.shard.selected.buffer-parsed > path {
 #caret {
   z-index: var(--caret-z);
   pointer-events: none;
-  visibility: hidden;
+  /* "Ghost" caret: when the editor doesn't have keyboard focus the caret
+     stays visible at reduced opacity instead of disappearing, so the user
+     can still see where the cursor is — e.g. while the assistant agent
+     manages the cursor and the user is interacting with the chat pane,
+     or while stepping back/forward through the agent replay timeline. */
+  opacity: 0.4;
 }
 
 .code-editor:focus > * > * > #caret {
-  visibility: visible;
+  opacity: 1;
 }
 
 #caret.blink {
   animation: 1s blink step-end infinite;
 }
 
+/* The ghost caret doesn't blink */
+.code-editor:not(:focus) > * > * > #caret.blink {
+  animation: none;
+}
+
 .caret-path {
   fill: var(--caret-color);
   stroke: none;
+}
+
+/* AGENT EDIT HIGHLIGHT
+   Marks the node last edited/selected by the assistant agent. Rendered in
+   both focused and unfocused editors, and restored by undo/redo when
+   stepping back/forward through the agent replay timeline. */
+svg.shard.agent-edit-mark {
+  z-index: var(--err-hole-z, 1);
+  pointer-events: none;
+}
+
+svg.shard.agent-edit-mark > path {
+  fill: rgba(255, 184, 77, 0.22);
+  stroke: rgba(230, 140, 20, 0.7);
+  stroke-width: 1.2px;
+  vector-effect: non-scaling-stroke;
 }
 
 /* TERM INDICATION DECO */

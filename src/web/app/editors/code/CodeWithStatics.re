@@ -1,3 +1,5 @@
+open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv;
 open Util.WebUtil;
 open Haz3lcore;
 
@@ -21,6 +23,15 @@ module Model = {
     context_menu: context_menu_state,
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
+    [@opaque]
+    selector_find: option(SelectorFind.session),
+    agent_cursor_lock: bool,
+    /* Node last edited/selected by the assistant agent, highlighted in the
+       editor view even when the editor is unfocused. Lives in the editor
+       model so app-wide undo/redo (the agent replay mechanism) restores the
+       highlight along with the program and cursor at each step. Cleared
+       when the user makes their own program edit. */
+    agent_highlight: option(Id.t),
   };
 
   let context_menu_is_open = (model: t): bool =>
@@ -36,6 +47,9 @@ module Model = {
     statics,
     dynamics,
     context_menu: None,
+    selector_find: None,
+    agent_cursor_lock: false,
+    agent_highlight: None,
   };
 
   let mk_from_exp =
@@ -147,7 +161,15 @@ module Update = {
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
         ~ana=?,
-        {editor, statics, context_menu, _}: Model.t,
+        {
+          editor,
+          statics,
+          context_menu,
+          selector_find,
+          agent_cursor_lock,
+          agent_highlight,
+          _,
+        }: Model.t,
       )
       : Model.t => {
     /* Throttle gate: decide whether to do a full statics recompute this
@@ -186,6 +208,9 @@ module Update = {
       statics,
       dynamics,
       context_menu,
+      selector_find,
+      agent_cursor_lock,
+      agent_highlight,
     };
   };
 };

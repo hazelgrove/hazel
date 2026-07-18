@@ -194,8 +194,12 @@ let get_context: API.Json.t =
 
 let select_description = {|
 Description:
-Uses a selector expression to find and return matching subtrees of the program.
+Uses a selector expression to find and return the active matching subtree.
 Selectors are concise, surface-oriented patterns that address Hazel syntax.
+Matching is cursor-relative: matches are ordered by source position, the active
+match is the first one after the shared editor cursor, and matching wraps to the
+top when the cursor is after all matches. The tool moves the shared cursor to
+that active match and reports its "N of M" position.
 
 Core operators:
 - `_` matches one syntactic slot
@@ -222,9 +226,9 @@ Given:
 ```
 let f = fun x -> if x > 0 then x else 0 in f 5
 ```
-- select(selector="let f = \... if %") returns: "x > 0"
-- select(selector="let f = \... if _ then %") returns: "x"
-- select(selector="let f = \... if _... else %") returns: "0"
+- select(selector="let f = \... if %") returns the next matching condition after the cursor, plus its match count.
+- select(selector="let f = \... if _ then %") returns the next matching then branch after the cursor.
+- select(selector="let f = \... if _... else %") returns the next matching else branch after the cursor.
 |};
 
 let select: API.Json.t =

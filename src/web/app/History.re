@@ -53,7 +53,10 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: x.model,
+            /* Sanitize on restore: snapshots can be taken mid-agent-turn
+               (awaiting_response set, editor cursor-locked); restoring
+               them verbatim would soft-lock the UI. */
+            current: Page.Model.sanitize_restored(x.model),
             undo_stack: rest,
             redo_stack: [
               {
@@ -73,7 +76,7 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: x.model,
+            current: Page.Model.sanitize_restored(x.model),
             undo_stack: [
               {
                 ...x,
@@ -94,7 +97,13 @@ module Update = {
           action,
           model.current,
         );
-      if (Page.Update.can_undo(action)) {
+      /* An action creates an undo entry only if its action type is undoable
+         (static [can_undo]) AND the update itself reported [historic] (the
+         dynamic flag in Updated.t). The dynamic flag lets a single action
+         type decide per-invocation: e.g. agent tool calls are historic only
+         when they actually change the program (edits), not for chat
+         bookkeeping or read-only tools. */
+      if (Page.Update.can_undo(action) && current.historic) {
         let new_stack = [
           {
             ...current,
@@ -136,11 +145,21 @@ module Update = {
         model: Model.t,
       )
       : Model.t => {
-    current:
+    let current =
       model.current
-      |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
-    undo_stack: model.undo_stack,
-    redo_stack: model.redo_stack,
+      |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics);
+    {
+      current: {
+        ...current,
+        globals: {
+          ...current.globals,
+          undo_depth: List.length(model.undo_stack),
+          redo_depth: List.length(model.redo_stack),
+        },
+      },
+      undo_stack: model.undo_stack,
+      redo_stack: model.redo_stack,
+    };
   };
 };
 

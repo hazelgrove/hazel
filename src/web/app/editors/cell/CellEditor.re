@@ -18,6 +18,9 @@ module Model = {
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
       context_menu: None,
+      selector_find: None,
+      agent_cursor_lock: false,
+      agent_highlight: None,
     },
     result: EvalResult.Model.init,
   };

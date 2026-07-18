@@ -422,6 +422,9 @@ module Update = {
               statics: cell.editor.statics,
               dynamics: EvalResult.Model.dynamics(cell.result),
               context_menu: cell.editor.context_menu,
+              selector_find: cell.editor.selector_find,
+              agent_cursor_lock: cell.editor.agent_cursor_lock,
+              agent_highlight: cell.editor.agent_highlight,
             },
             result: cell.result,
           }
@@ -809,6 +812,9 @@ module View = {
         statics: editor.editor.statics,
         dynamics: Language.Dynamics.Map.empty,
         context_menu: editor.editor.context_menu,
+        selector_find: editor.editor.selector_find,
+        agent_cursor_lock: editor.editor.agent_cursor_lock,
+        agent_highlight: editor.editor.agent_highlight,
       },
       result: editor.result,
     };
