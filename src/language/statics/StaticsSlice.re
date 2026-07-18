@@ -1167,21 +1167,35 @@ let pattern_result = (m, root, demand, dependencies) =>
             ) {
             | Some(Ctx.TVarEntry(entry)) =>
               let key = context_key(Ctx.TVarEntry(entry));
-              let redundant =
+              let declared =
                 List.exists(
                   item => context_key(item) == key,
                   required.entries,
                 );
+              let supplied =
+                switch (entry.kind) {
+                | Singleton(definition) =>
+                  List.exists(
+                    fun
+                    | Ctx.TVarEntry({
+                        name,
+                        kind: Singleton(required),
+                        _,
+                      }) =>
+                      name == entry.name && Typ.equal(definition, required)
+                    | _ => false,
+                    required.entries,
+                  )
+                | Abstract => false
+                };
+              let routed = route_query(ctx, shape, user_term, demand);
               let entry =
-                Typ.equal(
-                  route_query(ctx, shape, user_term, demand),
-                  user_term,
-                )
+                Typ.equal(routed, user_term)
                   ? Ctx.TVarEntry({...entry, kind: Singleton(gap)})
                   : Ctx.TVarEntry(entry);
               (
-                redundant ? context : Ctx.extend(context, entry),
-                redundant ? Id.Set.add(id, omitted) : omitted,
+                declared ? context : Ctx.extend(context, entry),
+                supplied ? Id.Set.add(id, omitted) : omitted,
               )
             | Some(entry) => (Ctx.extend(context, entry), omitted)
             | None => (context, omitted)
@@ -1744,34 +1758,46 @@ let slice_branches =
         let blocked =
           direction == `Ana
             ? !Id.Set.is_empty(path) : Id.Set.mem(branch.id, path);
+        let instantiated = MatchedTyp.poly_pair(ctx, branch.typ) != None;
         let slice =
           if (blocked || empty_query(residual)) {
             branch.dispatch(gap);
           } else if (parametric) {
             let candidate = branch.dispatch(query);
             let supplied =
-              switch (Typ.term_of(query)) {
-              | TypParamAp({term: Var(name), _}, _) =>
-                switch (
-                  List.find_opt(
-                    fun
-                    | Ctx.TVarEntry({name: entry, _}) => entry == name
-                    | _ => false,
-                    candidate.context.entries,
-                  )
-                ) {
-                | Some(entry) =>
-                  Typ.weak_head_normalize(Ctx.extend(ctx, entry), query)
-                | None => candidate.psi
-                }
-              | _ => candidate.psi
+              if (instantiated) {
+                branch.shape;
+              } else {
+                switch (Typ.term_of(query)) {
+                | TypParamAp({term: Var(name), _}, _) =>
+                  switch (
+                    List.find_opt(
+                      fun
+                      | Ctx.TVarEntry({name: entry, _}) => entry == name
+                      | _ => false,
+                      candidate.context.entries,
+                    )
+                  ) {
+                  | Some(entry) =>
+                    Typ.weak_head_normalize(Ctx.extend(ctx, entry), query)
+                  | None => candidate.psi
+                  }
+                | _ => candidate.psi
+                };
               };
             let branch_query = matched_overlap(ctx, residual, supplied);
             let slice =
               empty_query(branch_query) ? branch.dispatch(gap) : candidate;
             {...slice, psi: branch_query};
           } else {
-            branch.dispatch(query_overlap(ctx, residual, branch.typ));
+            if (instantiated) {
+              let candidate = branch.dispatch(residual);
+              let branch_query = query_overlap(ctx, residual, candidate.psi);
+              empty_query(branch_query)
+                ? branch.dispatch(gap) : {...candidate, psi: branch_query};
+            } else {
+              branch.dispatch(query_overlap(ctx, residual, branch.typ));
+            };
           };
         (slices @ [slice], query_residual(ctx, residual, slice.psi));
       },
