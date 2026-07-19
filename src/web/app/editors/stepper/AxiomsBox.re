@@ -123,6 +123,36 @@ let calculus_actions_for_profile =
     selected_exp,
   );
 
+let calculus_cleanup_actions_for_profile =
+    (~profile: Axioms.math_profile, selected_exp) => {
+  let cleanup_enabled = capability =>
+    List.mem(capability, profile.step_policy.default_cleanup);
+  switch (DifferentiationRewrite.cleanup_once(~cleanup_enabled, selected_exp)) {
+  | None => []
+  | Some((after_exp, capability)) =>
+    let metadata = Axioms.cleanup_capability_metadata(capability);
+    [
+      TrigRewrite.{
+        rule_id: metadata.id,
+        label: metadata.name,
+        before_exp: selected_exp,
+        after_exp,
+      },
+    ];
+  };
+};
+
+let algebra_shape_label = rule_ids =>
+  if (List.mem("alg.expand_polynomial", rule_ids)) {
+    "expand polynomial";
+  } else if (List.mem("alg.factor_common", rule_ids)) {
+    "factor expression";
+  } else if (List.mem("alg.distribute_mul_add", rule_ids)) {
+    "distribute multiplication";
+  } else {
+    "algebra rewrite";
+  };
+
 module View = {
   let view =
       (
@@ -183,6 +213,23 @@ module View = {
               || StringUtil.subseq_search(rewrite.rule_id, filter)
             )
       );
+    let calculus_cleanup_actions =
+      calculus_cleanup_actions_for_profile(~profile, selected_exp)
+      |> List.filter((cleanup: TrigRewrite.rewrite) =>
+           calculus_actions
+           |> List.for_all((visible: TrigRewrite.rewrite) =>
+                !TrigRewrite.exp_same(visible.after_exp, cleanup.after_exp)
+              )
+         )
+      |> List.filter(rewrite_allowed)
+      |> (
+        filter == ""
+          ? x => x
+          : List.filter((rewrite: TrigRewrite.rewrite) =>
+              StringUtil.subseq_search(rewrite.label, filter)
+              || StringUtil.subseq_search(rewrite.rule_id, filter)
+            )
+      );
     let filter_rewrites = rewrites =>
       filter == ""
         ? rewrites
@@ -212,16 +259,6 @@ module View = {
       )
       |> List.filter(rewrite_allowed)
       |> filter_rewrites;
-    let algebra_shape_label = rule_ids =>
-      if (List.mem("alg.distribute_mul_add", rule_ids)) {
-        "distribute multiplication";
-      } else if (List.mem("alg.expand_polynomial", rule_ids)) {
-        "expand polynomial";
-      } else if (List.mem("alg.factor_common", rule_ids)) {
-        "factor expression";
-      } else {
-        "algebra rewrite";
-      };
     let algebra_shape_actions =
       (
         algebra_enabled
@@ -255,6 +292,7 @@ module View = {
       || simplification_actions != []
       || trig_actions != []
       || calculus_actions != []
+      || calculus_cleanup_actions != []
         ? []
         : (
           switch (
@@ -367,12 +405,61 @@ module View = {
           ),
         ],
       );
+    let trace_summary_for_calculus_cleanup = (rewrite: TrigRewrite.rewrite) =>
+      RewriteChecker.{
+        justification: "calculus cleanup",
+        group_name: Some("calculus"),
+        from_normal_exp: selected_exp,
+        to_normal_exp: rewrite.after_exp,
+        from_rule_ids: [rewrite.rule_id],
+        to_rule_ids: [],
+        rule_ids: [rewrite.rule_id],
+        prover_steps: [
+          prover_step(
+            ~origin=Normalization,
+            ~rule_id=rewrite.rule_id,
+            ~before_full_exp=selected_exp,
+            ~after_full_exp=rewrite.after_exp,
+            ~before_exp=rewrite.before_exp,
+            ~after_exp=rewrite.after_exp,
+            ~detail="selected one profile cleanup rewrite",
+          ),
+        ],
+        exportable: true,
+      };
+    let calculus_cleanup_action_view = (rewrite: TrigRewrite.rewrite) =>
+      div_c(
+        "assumption-box",
+        [
+          Widgets.button_d(
+            Node.text("==>"),
+            add_written_step(
+              trace_summary_for_calculus_cleanup(rewrite),
+              selected_exp_idx,
+              selected_exp,
+              rewrite.after_exp,
+            ),
+            ~disabled=false,
+          ),
+          Node.text(" " ++ rewrite.label ++ ": "),
+          CodeViewable.view_any(
+            ~globals,
+            ~settings=
+              Haz3lcore.ExpToSegment.Settings.of_core(
+                ~inline=true,
+                ~fold_fn_bodies=`Text,
+                globals.settings.core,
+              ),
+            Exp(rewrite.after_exp),
+          ),
+        ],
+      );
     let trace_summary_for_simplification = (rewrite: TrigRewrite.rewrite) => {
       let normalization_summary = () =>
         RewriteChecker.{
           justification: "trigonometry argument normalization",
           group_name: Some("trigonometry"),
-          from_normal_exp: rewrite.after_exp,
+          from_normal_exp: selected_exp,
           to_normal_exp: rewrite.after_exp,
           from_rule_ids: [rewrite.rule_id],
           to_rule_ids: [],
@@ -507,6 +594,14 @@ module View = {
           ...List.map(calculus_action_view, actions),
         ]
       };
+    let calculus_cleanup_section =
+      switch (calculus_cleanup_actions) {
+      | [] => []
+      | actions => [
+          div_c("assumption-box", [Node.text("Calculus cleanup")]),
+          ...List.map(calculus_cleanup_action_view, actions),
+        ]
+      };
     [
       Node.input(
         ~attrs=[
@@ -522,6 +617,7 @@ module View = {
     @ algebra_shape_section
     @ simplification_section
     @ calculus_section
+    @ calculus_cleanup_section
     @ trig_section
     @ List.map(
         (am: AssumptionBox.Model.t) =>

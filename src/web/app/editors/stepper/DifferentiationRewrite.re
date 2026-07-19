@@ -161,6 +161,8 @@ let applicable_at_root = (~rule_enabled, exp) => {
         }
       | Var(name) when name == variable_name =>
         make("calc.diff_variable", "derivative of a variable", int_exp(1))
+      | _ when !depends_on(variable_name, expression) =>
+        make("calc.diff_constant", "derivative of a constant", int_exp(0))
       | Ap(Operators.Forward, fn, inner)
           when function_name(fn) == Some("sin") =>
         make(
@@ -237,18 +239,6 @@ let applicable_at_root = (~rule_enabled, exp) => {
           "derivative negation rule",
           neg_exp(diff_exp(inner, variable)),
         )
-      | Ap(Operators.Forward, fn, inner)
-          when
-            depends_on(variable_name, inner)
-            && !exp_same(inner, variable)
-            && function_name(fn) != Some("diff") =>
-        make(
-          "calc.diff_chain",
-          "chain rule",
-          times_exp(diff_exp(fn, inner), diff_exp(inner, variable)),
-        )
-      | _ when !depends_on(variable_name, expression) =>
-        make("calc.diff_constant", "derivative of a constant", int_exp(0))
       | _ => []
       };
     }
@@ -443,18 +433,23 @@ let rec cleanup_once = (~cleanup_enabled, exp) => {
   switch (diff_parts(exp)) {
   | Some((expression, variable))
       when cleanup_enabled(Axioms.DerivativeBasics) =>
+    let cleanup_expression = () =>
+      recurse(expression)
+      |> Option.map(((expression, capability)) =>
+           (diff_exp(expression, variable), capability)
+         );
     switch (variable_name(variable)) {
     | Some(variable_name) =>
       switch (strip(expression).term) {
       | Var(name) when name == variable_name =>
         changed(Axioms.DerivativeBasics, int_exp(1))
-      | Fun(_, _, _, _) => None
+      | Fun(_, _, _, _) => cleanup_expression()
       | _ when !depends_on(variable_name, expression) =>
         changed(Axioms.DerivativeBasics, int_exp(0))
-      | _ => None
+      | _ => cleanup_expression()
       }
-    | None => None
-    }
+    | None => cleanup_expression()
+    };
   | _ =>
     switch (exp.term) {
     | BinOp(op, left, right) =>

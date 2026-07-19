@@ -2392,7 +2392,7 @@ let math_rule_catalog = {
            ~id=rule.id,
            ~direction=Forward,
            ~hazel_backend=Some(CalculusDerivative),
-           ~visible_levels=[Calculus],
+           ~visible_levels=rule.id == "calc.diff_chain" ? [] : [Calculus],
            ~allowed_cleanup=calculus_step_cleanup,
          )
        );

@@ -2683,6 +2683,222 @@ let tests = (
       },
     ),
     test_case(
+      "calculus Search suggestions preserve visible-rule boundaries",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let check_action = (name, source, rule_id, expected) =>
+          switch (
+            Web.AxiomsBox.calculus_actions_for_profile(~profile, source)
+          ) {
+          | [action] =>
+            check(string, name ++ " rule", rule_id, action.rule_id);
+            check_exp_equal(name ++ " target", expected, action.after_exp);
+          | _ => fail(name ++ " should have exactly one visible action")
+          };
+        check_action(
+          "product",
+          diff(times(x, Exp.int(3)), x),
+          "calc.diff_product",
+          plus(
+            times(diff(x, x), Exp.int(3)),
+            times(x, diff(Exp.int(3), x)),
+          ),
+        );
+        check_action(
+          "power",
+          diff(power(x, Exp.int(3)), x),
+          "calc.diff_power",
+          times(times(Exp.int(3), power(x, Exp.int(2))), diff(x, x)),
+        );
+        check_action(
+          "sine chain",
+          diff(sin(power(x, Exp.int(2))), x),
+          "calc.diff_chain_sin",
+          times(
+            Web.DifferentiationRewrite.app_exp("cos", power(x, Exp.int(2))),
+            diff(power(x, Exp.int(2)), x),
+          ),
+        );
+        check_action(
+          "quotient",
+          diff(divide(x, plus(x, Exp.int(1))), x),
+          "calc.diff_quotient",
+          divide(
+            minus(
+              times(diff(x, x), plus(x, Exp.int(1))),
+              times(x, diff(plus(x, Exp.int(1)), x)),
+            ),
+            power(plus(x, Exp.int(1)), Exp.int(2)),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "calculus Search prioritizes structured constants and rejects invalid generic chain output",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let profile = Axioms.math_profile(Calculus);
+        [
+          ("constant sum", diff(plus(y, Exp.int(2)), x)),
+          ("constant trig expression", diff(sin(Exp.int(2)), x)),
+        ]
+        |> List.iter(((name, source)) =>
+             switch (
+               Web.AxiomsBox.calculus_actions_for_profile(~profile, source)
+             ) {
+             | [action] =>
+               check(
+                 string,
+                 name ++ " rule",
+                 "calc.diff_constant",
+                 action.rule_id,
+               );
+               check_exp_equal(
+                 name ++ " target",
+                 Exp.int(0),
+                 action.after_exp,
+               );
+             | _ => fail(name ++ " should differentiate directly to zero")
+             }
+           );
+        let unknown_function_chain =
+          diff(
+            Exp.ap(Operators.Forward, Exp.var("f"), power(x, Exp.int(2))),
+            x,
+          );
+        check(
+          int,
+          "unknown-function chain is not emitted with an invalid diff argument",
+          0,
+          Web.AxiomsBox.calculus_actions_for_profile(
+            ~profile,
+            unknown_function_chain,
+          )
+          |> List.length,
+        );
+      },
+    ),
+    test_case(
+      "calculus cleanup suggestions are exact sequential profile steps",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let derivative = diff(power(x, Exp.int(2)), x);
+        let after_linearity = plus(derivative, diff(Exp.int(2), x));
+        let after_constant = plus(derivative, Exp.int(0));
+        let first =
+          Web.AxiomsBox.calculus_cleanup_actions_for_profile(
+            ~profile,
+            after_linearity,
+          );
+        let second =
+          Web.AxiomsBox.calculus_cleanup_actions_for_profile(
+            ~profile,
+            after_constant,
+          );
+        switch (first) {
+        | [action] =>
+          check(
+            string,
+            "first cleanup capability",
+            "derivative.basics",
+            action.rule_id,
+          );
+          check_exp_equal(
+            "first cleanup preserves additive zero",
+            after_constant,
+            action.after_exp,
+          );
+        | _ => fail("expected one derivative cleanup suggestion")
+        };
+        switch (second) {
+        | [action] =>
+          check(
+            string,
+            "second cleanup capability",
+            "add.identity",
+            action.rule_id,
+          );
+          check_exp_equal(
+            "second cleanup removes only additive zero",
+            derivative,
+            action.after_exp,
+          );
+        | _ => fail("expected one additive cleanup suggestion")
+        };
+        let power_zero_derivative = diff(power(x, Exp.int(0)), x);
+        switch (
+          Web.AxiomsBox.calculus_cleanup_actions_for_profile(
+            ~profile,
+            power_zero_derivative,
+          )
+        ) {
+        | [action] =>
+          check(
+            string,
+            "power-zero cleanup capability",
+            "power.identity",
+            action.rule_id,
+          );
+          check_exp_equal(
+            "power-zero cleanup stays explicit inside diff",
+            diff(Exp.int(1), x),
+            action.after_exp,
+          );
+        | _ => fail("expected one power-zero cleanup suggestion")
+        };
+        switch (
+          Web.AxiomsBox.calculus_cleanup_actions_for_profile(
+            ~profile,
+            power(x, Exp.int(1)),
+          )
+        ) {
+        | [action] =>
+          check_exp_equal("power-one cleanup target", x, action.after_exp)
+        | _ => fail("expected one power-one cleanup suggestion")
+        };
+        let disabled =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability =>
+                   capability != Axioms.DerivativeBasics
+                 ),
+            profile,
+          );
+        check(
+          int,
+          "disabled derivative cleanup is not suggested",
+          0,
+          Web.AxiomsBox.calculus_cleanup_actions_for_profile(
+            ~profile=disabled,
+            after_linearity,
+          )
+          |> List.length,
+        );
+      },
+    ),
+    test_case(
+      "algebra Search labels named polynomial expansion before prerequisites",
+      `Quick,
+      () => {
+      check(
+        string,
+        "named expansion wins over distribution prerequisite",
+        "expand polynomial",
+        Web.AxiomsBox.algebra_shape_label([
+          "alg.expand_polynomial",
+          "alg.distribute_mul_add",
+          "alg.collect_like_terms",
+        ]),
+      )
+    }),
+    test_case(
       "typed proof-search verdicts control labels and replacement",
       `Quick,
       () => {
