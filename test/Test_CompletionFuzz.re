@@ -585,6 +585,178 @@ let run_fuzz = (~seeds: int, ~steps: int): string => {
 let n_seeds = 150;
 let n_steps = 20;
 
+/* GROUT-PLACEMENT invariants (artifact-side grout, pre-wiring): on
+   every applied fuzz state, GroutPlace over the completed segment must
+   be deterministic (ids included), idempotent, and blind to any grout
+   present in its input; and at each seed's final state, serializing
+   holes as nothing, reparsing, and re-placing must reproduce the same
+   placement (the round-trip bug class as a property). Any violation
+   reds the suite. */
+let run_grout_fuzz = (~seeds: int, ~steps: int): string => {
+  let buf = Stdlib.Buffer.create(256);
+  let sx = seg => Base.show_segment(seg);
+  let bad = (~seed, ~step, ~inv, detail) =>
+    Stdlib.Buffer.add_string(
+      buf,
+      Printf.sprintf("seed=%d step=%d INV=%s %s\n", seed, step, inv, detail),
+    );
+  let render = (~holes, ~concave_holes, seg) => {
+    let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
+    Printer.of_segment(~holes, ~concave_holes, ~indent="", ~measured, seg);
+  };
+  let marked = render(~holes="?", ~concave_holes="~");
+  let plain = render(~holes="", ~concave_holes="");
+  /* a round-trip check that never passes its gate is no check at all */
+  let gate_hits = ref(0);
+  let completed_of = (z: Zipper.t) =>
+    CanonicalCompletion.complete_segment_deep(
+      ~sort=Sort.Exp,
+      Zipper.unselect_and_zip(z),
+    ).
+      completed_seg;
+  /* id-blind structural fingerprint: labels, molds, shard indices,
+     secondary content, grout shapes — everything placement can see
+     except ids */
+  let rec skeleton = (seg: Segment.t): string =>
+    seg
+    |> List.map((p: Piece.t) =>
+         switch (p) {
+         | Grout(g) => "G:" ++ Grout.show_shape(g.shape)
+         | Secondary(w) =>
+           "S:" ++ Language.Secondary.show_secondary_content(w.content)
+         | Tile(t) =>
+           "T:"
+           ++ String.concat("`", t.label)
+           ++ Mold.show(t.mold)
+           ++ String.concat(",", List.map(string_of_int, t.shards))
+           ++ "["
+           ++ String.concat(";", List.map(skeleton, t.children))
+           ++ "]"
+         | Projector(_) => "P"
+         }
+       )
+    |> String.concat(" ");
+  for (seed in 1 to seeds) {
+    let script = script_of_seed(seed, steps);
+    let z = ref(Zipper.init());
+    let aborted = ref(false);
+    List.iteri(
+      (k0, a) =>
+        if (! aborted^) {
+          switch (apply(z^, a)) {
+          | Rejected => ()
+          | Raised(_) => aborted := true
+          | Applied(z') =>
+            z := z';
+            let k = k0 + 1;
+            switch (completed_of(z')) {
+            | exception e =>
+              bad(
+                ~seed,
+                ~step=k,
+                ~inv="G-COMPLETE-RAISED",
+                Printexc.to_string(e),
+              )
+            | completed =>
+              switch (GroutPlace.place(completed)) {
+              | exception e =>
+                bad(
+                  ~seed,
+                  ~step=k,
+                  ~inv="G-PLACE-RAISED",
+                  Printexc.to_string(e),
+                )
+              | p1 =>
+                if (sx(GroutPlace.place(completed)) != sx(p1)) {
+                  bad(
+                    ~seed,
+                    ~step=k,
+                    ~inv="G-DETERMINISM",
+                    flat(marked(p1)),
+                  );
+                };
+                if (sx(GroutPlace.place(p1)) != sx(p1)) {
+                  bad(
+                    ~seed,
+                    ~step=k,
+                    ~inv="G-IDEMPOTENCE",
+                    "once="
+                    ++ flat(marked(p1))
+                    ++ " twice="
+                    ++ flat(marked(GroutPlace.place(p1))),
+                  );
+                };
+                if (sx(GroutPlace.place(GroutPlace.strip(completed)))
+                    != sx(p1)) {
+                  bad(
+                    ~seed,
+                    ~step=k,
+                    ~inv="G-STRIP-BLIND",
+                    flat(marked(p1)),
+                  );
+                };
+              }
+            };
+          };
+        },
+      script,
+    );
+    /* round-trip at the seed's final state, GATED on the parser
+       reproducing the grout-free segment's STRUCTURE: holes serialize
+       as nothing, so a hole pinched between two synthesized shards
+       (then?else) glues them on reparse, and text-identical forms can
+       remold (pattern () reparses as unit, no child slot) — the
+       parser-faithfulness family the roundtrip audit tracks, not
+       placement's. Above the gate the property is STRONGER than
+       G-STRIP-BLIND: the reparsed segment carries entirely fresh ids,
+       so agreement means placement positions are a function of the
+       id-blind structure alone. Two channels: the raw edit segment
+       (parser-built, so it round-trips and keeps the gate honest) and
+       the completed segment (synthesized shard runs rarely survive
+       reparse, so this channel mostly gates off on this corpus). */
+    let roundtrip = (~which: string, seg: Segment.t) =>
+      switch (GroutPlace.place(seg)) {
+      | exception _ => () /* reported at the step that reached it */
+      | a =>
+        switch (Parser.to_zipper(~root=Sort.Exp, plain(a))) {
+        | None => ()
+        | Some(zz) =>
+          let reparsed = Zipper.unselect_and_zip(zz);
+          if (skeleton(GroutPlace.strip(reparsed))
+              == skeleton(GroutPlace.strip(a))) {
+            incr(gate_hits);
+            let b = GroutPlace.place(reparsed);
+            if (marked(a) != marked(b)) {
+              bad(
+                ~seed,
+                ~step=steps,
+                ~inv="G-ROUNDTRIP(" ++ which ++ ")",
+                "placed="
+                ++ flat(marked(a))
+                ++ " reparsed="
+                ++ flat(marked(b)),
+              );
+            };
+          };
+        }
+      };
+    roundtrip(~which="raw", Zipper.unselect_and_zip(z^));
+    switch (completed_of(z^)) {
+    | exception _ => ()
+    | completed => roundtrip(~which="completed", completed)
+    };
+  };
+  if (gate_hits^ == 0) {
+    bad(
+      ~seed=0,
+      ~step=0,
+      ~inv="G-ROUNDTRIP-VACUOUS",
+      "no fuzz state passed the reparse gate",
+    );
+  };
+  Stdlib.Buffer.contents(buf);
+};
+
 /* PROMISE-RENDER PARITY (stage 1): after every applied fuzz step,
    PromiseRender.mk must render identically to DisplayFork.mk. Runs
    the same corpus as the invariant fuzzer; any per-step disagreement
@@ -778,6 +950,22 @@ let tests = [
           "no promise-render parity diffs",
           "",
           run_parity_fuzz(~seeds=n_seeds, ~steps=n_steps),
+        )
+      ),
+    ],
+  ),
+  (
+    "CompletionFuzz: grout placement",
+    [
+      test_case(
+        Printf.sprintf("grout fuzz %d seeds x %d steps", n_seeds, n_steps),
+        `Quick,
+        () =>
+        check(
+          string_testable,
+          "no grout-placement invariant violations",
+          "",
+          run_grout_fuzz(~seeds=n_seeds, ~steps=n_steps),
         )
       ),
     ],
