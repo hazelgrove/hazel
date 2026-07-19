@@ -1018,8 +1018,6 @@ let applied_type = (ctx, fn, args) => {
 let slice_forward =
     (
       ~overlay,
-      ~m,
-      ~root,
       ctx: Ctx.t,
       parent_shape: Typ.t,
       children: list(child),
@@ -1174,26 +1172,7 @@ let slice_forward =
               }
             )
        );
-  let result = results_join(ctx, forward @ reverse);
-  List.exists(child => child.mode == SliceAscribe, children)
-    ? {
-      let (omitted, gamma) =
-        ascription_result(
-          ~overlay,
-          m,
-          ctx,
-          ~root,
-          parent_shape,
-          ~psi=result.psi,
-          ~gamma=result.gamma,
-        );
-      {
-        ...result,
-        omitted: Id.Set.union(result.omitted, omitted),
-        gamma,
-      };
-    }
-    : result;
+  results_join(ctx, forward @ reverse);
 };
 
 let slice_branches =
@@ -1391,15 +1370,7 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
           |> Option.value(~default=schema(info))
         };
       let slice_children = (children, query) =>
-        slice_forward(
-          ~overlay,
-          ~m,
-          ~root=id,
-          info.ctx,
-          info.elab_syn_ty,
-          children,
-          query,
-        );
+        slice_forward(~overlay, info.ctx, info.elab_syn_ty, children, query);
       let dispatch = query => {
         let at_focus = is_focus(focus, id);
         let query =
@@ -1446,6 +1417,26 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
                   ? source_result(info, query)
                   : slice_children(children, query)
               };
+            };
+          let forward =
+            if (List.exists(child => child.mode == SliceAscribe, children)) {
+              let (omitted, gamma) =
+                ascription_result(
+                  ~overlay,
+                  m,
+                  info.ctx,
+                  ~root=id,
+                  info.elab_syn_ty,
+                  ~psi=forward.psi,
+                  ~gamma=forward.gamma,
+                );
+              {
+                ...forward,
+                omitted: Id.Set.union(forward.omitted, omitted),
+                gamma,
+              };
+            } else {
+              forward;
             };
           let forward =
             at_focus
