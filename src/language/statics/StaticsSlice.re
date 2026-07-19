@@ -935,82 +935,58 @@ let rec signature_omissions = (m, ctx, actual, query) => {
   };
 };
 
-let demand_for = (pattern, demands) =>
-  List.find_opt(((id, _, _, _)) => Id.equal(id, pattern), demands);
+type binding_slice = {
+  child,
+  bound: Info.pat,
+  collapsed: Typ.t,
+  source: Typ.t,
+  raw: Typ.t,
+};
 
-let binding_omissions =
-    (~module_item, children: list(child), gamma: Ctx.t, demands): Id.Set.t =>
-  List.fold_left(
-    (omitted, child) => {
-      let ascribed = child.ascribed;
-      let keeps_empty = !ascribed;
-      let trace =
-        Option.bind(child.pattern, (pattern: Info.pat) =>
-          demand_for(Pat.rep_id(pattern.user_term), demands)
-        );
-      let pattern_demand = Option.map(((_, demand, _, _)) => demand, trace);
-      let used = (binding: binding) => {
-        let demanded =
-          (keeps_empty || module_item) && List.length(child.bindings) == 1
-            ? pattern_demand
-              |> Option.map(demand =>
-                   switch (binding.path) {
-                   | Some(path) when has_path(demand, path) =>
-                     !is_gap(project(demand, path))
-                   | None => !is_gap(demand)
-                   | Some(_) => !is_gap(demand)
-                   }
-                 )
-              |> Option.value(~default=false)
-            : false;
-        if (demanded) {
-          true;
-        } else {
-          switch (lookup_demand(gamma, binding.name)) {
-          | Some(query) => !is_gap(query)
-          | None => false
-          };
-        };
+let binder_omissions =
+    (~module_item, gamma: Ctx.t, slice: binding_slice): Id.Set.t => {
+  let child = slice.child;
+  let ascribed = child.ascribed;
+  let keeps_empty = !ascribed;
+  let used = (binding: binding) => {
+    let demanded =
+      (keeps_empty || module_item) && List.length(child.bindings) == 1
+        ? switch (binding.path) {
+          | Some(path) when has_path(slice.collapsed, path) =>
+            !is_gap(project(slice.collapsed, path))
+          | None
+          | Some(_) => !is_gap(slice.collapsed)
+          }
+        : false;
+    if (demanded) {
+      true;
+    } else {
+      switch (lookup_demand(gamma, binding.name)) {
+      | Some(query) => !is_gap(query)
+      | None => false
       };
-      let (used, unused) = List.partition(used, child.bindings);
-      let demanded = used != [];
-      let omitted =
-        List.fold_left(
-          (omitted, binding: binding) => Id.Set.add(binding.id, omitted),
-          omitted,
-          unused,
-        );
-      let omitted =
-        switch (child.pattern) {
-        | Some(pattern) when ascribed =>
-          let demand =
-            trace
-            |> Option.map(((_, demand, _, trace)) =>
-                 is_gap(demand) ? trace : demand
-               )
-            |> Option.value(~default=gap);
-          let shape =
-            child.mode == SliceSource && is_gap(demand)
-              ? child.node.shape : pattern.ty;
-          Id.Set.union(omitted, ids_of_typ(shape, demand));
-        | _ => omitted
-        };
-      switch (child.pattern) {
-      | Some(pattern)
-          when
-            !demanded
-            && trace
-            |> Option.map(((_, demand, _, trace)) =>
-                 is_gap(demand) && is_gap(trace)
-               )
-            |> Option.value(~default=true) =>
-        Id.Set.add(Pat.rep_id(pattern.user_term), omitted)
-      | _ => omitted
-      };
-    },
-    Id.Set.empty,
-    children,
-  );
+    };
+  };
+  let (used, unused) = List.partition(used, child.bindings);
+  let omitted =
+    List.fold_left(
+      (omitted, binding: binding) => Id.Set.add(binding.id, omitted),
+      Id.Set.empty,
+      unused,
+    );
+  let omitted =
+    if (ascribed) {
+      let demand = is_gap(slice.collapsed) ? slice.raw : slice.collapsed;
+      let shape =
+        child.mode == SliceSource && is_gap(demand)
+          ? child.node.shape : slice.bound.ty;
+      Id.Set.union(omitted, ids_of_typ(shape, demand));
+    } else {
+      omitted;
+    };
+  used == [] && is_gap(slice.collapsed) && is_gap(slice.raw)
+    ? Id.Set.add(Pat.rep_id(slice.bound.user_term), omitted) : omitted;
+};
 
 let rec alias_source = (definition: Typ.t): Typ.t =>
   switch (Typ.term_of(definition)) {
@@ -1781,10 +1757,8 @@ let compile =
                 ana: query,
               }
               : forward;
-          let binding_children =
-            List.filter(c => c.pattern != None, children);
-          let demands =
-            binding_children
+          let bindings =
+            children
             |> List.filter_map(child =>
                  Option.map(
                    (pattern: Info.pat) => {
@@ -1797,7 +1771,6 @@ let compile =
                              child.node.shape,
                            )
                          : shape;
-                     let pattern_id = Pat.rep_id(pattern.user_term);
                      let body =
                        binding_demand(
                          info.ctx,
@@ -1821,7 +1794,7 @@ let compile =
                        && Id.Set.mem(child.node.id, path)
                        && (typ_children(focus_query) != [] || child.ascribed)
                          ? child.node.dispatch(gap).psi : gap;
-                     let demand =
+                     let raw =
                        direction == `Ana
                          ? meet(
                              info.ctx,
@@ -1831,7 +1804,7 @@ let compile =
                                focus_demand,
                                pattern_focus_demand(
                                  m,
-                                 pattern_id,
+                                 Pat.rep_id(pattern.user_term),
                                  focus,
                                  shape,
                                  focus_query,
@@ -1839,29 +1812,33 @@ let compile =
                              ),
                            )
                          : source;
-                     (
-                       pattern_id,
-                       empty_query(demand) && !is_gap(demand) ? gap : demand,
+                     {
+                       child,
+                       bound: pattern,
+                       collapsed:
+                         empty_query(raw) && !is_gap(raw) ? gap : raw,
                        source,
-                       demand,
-                     );
+                       raw,
+                     };
                    },
                    child.pattern,
                  )
                );
           let body_demand =
-            List.map(((_, _, demand, _)) => demand, demands)
+            List.map(slice => slice.source, bindings)
             |> List.fold_left(meet(info.ctx), gap);
           let source_query = is_gap(body_demand) ? gap : body_demand;
           let deps =
             List.map(
               source => {
                 let query =
-                  switch (source.pattern) {
-                  | Some(pattern) =>
-                    demand_for(Pat.rep_id(pattern.user_term), demands)
-                    |> Option.map(((_, _, demand, _)) => demand)
-                    |> Option.value(~default=gap)
+                  switch (
+                    List.find_opt(
+                      slice => Id.equal(slice.child.node.id, source.node.id),
+                      bindings,
+                    )
+                  ) {
+                  | Some(slice) => slice.source
                   | None => source_query
                   };
                 source.node.dispatch(is_gap(query) ? gap : query);
@@ -1871,31 +1848,57 @@ let compile =
           let combined =
             result_join(info.ctx, forward, results_join(info.ctx, deps));
           let path_patterns =
-            binding_children
-            |> List.filter_map(child =>
-                 Id.Set.mem(child.node.id, path)
-                   ? Option.map(
-                       (pattern: Info.pat) => Pat.rep_id(pattern.user_term),
-                       child.pattern,
-                     )
-                   : None
+            bindings
+            |> List.filter_map(slice =>
+                 Id.Set.mem(slice.child.node.id, path)
+                   ? Some(Pat.rep_id(slice.bound.user_term)) : None
                )
             |> Id.Set.of_list;
+          let canonical = (slice: binding_slice) =>
+            List.find_opt(
+              other =>
+                Id.equal(
+                  Pat.rep_id(other.bound.user_term),
+                  Pat.rep_id(slice.bound.user_term),
+                ),
+              bindings,
+            )
+            |> Option.value(~default=slice);
           let pattern_result =
-            demands
-            |> List.map(((pattern_id, demand, _, trace)) =>
-                 pattern_result(
-                   ~direction,
-                   ~erase_types=
-                     direction == `Ana
-                     && !pattern_focus
-                     && !Id.Set.mem(pattern_id, path_patterns),
-                   m,
-                   pattern_id,
-                   is_gap(demand) && !is_gap(focus_query) ? trace : demand,
-                   combined.gamma,
-                 )
-               )
+            bindings
+            |> List.map(slice => {
+                 let pattern_id = Pat.rep_id(slice.bound.user_term);
+                 let result =
+                   pattern_result(
+                     ~direction,
+                     ~erase_types=
+                       direction == `Ana
+                       && !pattern_focus
+                       && !Id.Set.mem(pattern_id, path_patterns),
+                     m,
+                     pattern_id,
+                     is_gap(slice.collapsed) && !is_gap(focus_query)
+                       ? slice.raw : slice.collapsed,
+                     combined.gamma,
+                   );
+                 let demand = canonical(slice);
+                 {
+                   ...result,
+                   omitted:
+                     Id.Set.union(
+                       result.omitted,
+                       binder_omissions(
+                         ~module_item=support == ModuleItem,
+                         forward.gamma,
+                         {
+                           ...slice,
+                           collapsed: demand.collapsed,
+                           raw: demand.raw,
+                         },
+                       ),
+                     ),
+                 };
+               })
             |> results_join(info.ctx);
           let combined = result_join(info.ctx, pattern_result, combined);
           let alias_source =
@@ -1906,27 +1909,22 @@ let compile =
           let omitted =
             Id.Set.union(
               combined.omitted,
-              binding_omissions(
-                ~module_item=support == ModuleItem,
-                binding_children,
-                forward.gamma,
-                demands,
+              alias_omissions(
+                ~source=alias_source,
+                ~preserve_parameters=
+                  sum_definition([], expose(focus_query)) != None,
+                children,
+                combined.gamma,
               ),
-            )
-            |> Id.Set.union(
-                 alias_omissions(
-                   ~source=alias_source,
-                   ~preserve_parameters=
-                     sum_definition([], expose(focus_query)) != None,
-                   children,
-                   combined.gamma,
-                 ),
-               );
+            );
           let names =
             List.concat_map(
-              child =>
-                List.map((binding: binding) => binding.name, child.bindings),
-              binding_children,
+              slice =>
+                List.map(
+                  (binding: binding) => binding.name,
+                  slice.child.bindings,
+                ),
+              bindings,
             );
           let gamma = gamma_remove(combined.gamma, names);
           {
