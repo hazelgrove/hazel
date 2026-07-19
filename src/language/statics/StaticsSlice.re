@@ -2,12 +2,10 @@ open Util;
 open Info;
 include TypQuery;
 
-type gamma = VarMap.t_(Typ.t);
 type result = {
   omitted: Id.Set.t,
-  gamma,
+  gamma: Ctx.t,
   psi: Typ.t,
-  context: Ctx.t,
   ana: Typ.t,
 };
 type direction = [
@@ -54,31 +52,10 @@ exception Pattern_ascription;
 
 let empty_result = {
   omitted: Id.Set.empty,
-  gamma: VarMap.empty,
+  gamma: Ctx.empty,
   psi: gap,
-  context: Ctx.empty,
   ana: gap,
 };
-
-let gamma_add = (ctx: Ctx.t, gamma: gamma, name: string, ty: Typ.t): gamma =>
-  if (is_gap(ty)) {
-    gamma;
-  } else {
-    switch (VarMap.lookup(gamma, name)) {
-    | None => VarMap.extend(gamma, (name, ty))
-    | Some(old) => VarMap.update(gamma, name, _ => meet(ctx, old, ty))
-    };
-  };
-
-let gamma_join = (ctx: Ctx.t, left: gamma, right: gamma): gamma =>
-  List.fold_left(
-    (acc, (name, ty)) => gamma_add(ctx, acc, name, ty),
-    left,
-    VarMap.to_list(right),
-  );
-
-let gamma_remove = (gamma: gamma, names: list(string)): gamma =>
-  VarMap.filter(((name, _)) => !List.mem(name, names), gamma);
 
 let close_sum_gaps = ty =>
   Typ.map_term(
@@ -165,11 +142,75 @@ let context_join_branches = (ctx, left, right) =>
             ...old,
             kind: Singleton(close_sum_gaps(meet(ctx, a, b))),
           })
+        | (Ctx.VarEntry(old), Ctx.VarEntry(entry)) =>
+          Ctx.VarEntry({
+            ...old,
+            typ: meet(ctx, old.typ, entry.typ),
+          })
         | _ => old
         },
     left,
     right,
   );
+
+let gamma_join = (ctx: Ctx.t, left: Ctx.t, right: Ctx.t): Ctx.t =>
+  merge_context(
+    ~merge=
+      (old, entry) =>
+        switch (old, entry) {
+        | (Ctx.VarEntry(old), Ctx.VarEntry(entry)) =>
+          Ctx.VarEntry({
+            ...old,
+            typ: meet(ctx, old.typ, entry.typ),
+          })
+        | _ => old
+        },
+    left,
+    right,
+  );
+
+let gamma_remove = (gamma: Ctx.t, names: list(string)): Ctx.t => {
+  ...gamma,
+  entries:
+    List.filter(
+      fun
+      | Ctx.VarEntry({name, _}) => !List.mem(name, names)
+      | _ => true,
+      gamma.entries,
+    ),
+};
+
+let lookup_demand = (gamma: Ctx.t, name: string): option(Typ.t) =>
+  Option.map(
+    (entry: Ctx.var_entry) => entry.typ,
+    Ctx.lookup_var(gamma, name),
+  );
+
+let demand_entry = (gamma: Ctx.t, ~use: Id.t, name: string, ty: Typ.t): Ctx.t =>
+  is_gap(ty)
+    ? gamma
+    : merge_context(
+        ~merge=
+          (old, entry) =>
+            switch (old, entry) {
+            | (Ctx.VarEntry(old), Ctx.VarEntry(entry)) =>
+              Ctx.VarEntry({
+                ...old,
+                typ: entry.typ,
+              })
+            | _ => old
+            },
+        gamma,
+        Ctx.extend(
+          Ctx.empty,
+          Ctx.VarEntry({
+            name,
+            id: use,
+            typ: ty,
+            custom_statics: None,
+          }),
+        ),
+      );
 
 let context_has_constructor = (context: Ctx.t) =>
   List.exists(
@@ -183,7 +224,6 @@ let result_join = (ctx: Ctx.t, left: result, right: result): result => {
   omitted: Id.Set.union(left.omitted, right.omitted),
   gamma: gamma_join(ctx, left.gamma, right.gamma),
   psi: meet(ctx, left.psi, right.psi),
-  context: context_join(left.context, right.context),
   ana: meet(ctx, left.ana, right.ana),
 };
 
@@ -351,6 +391,9 @@ let source_result = (info: Info.exp, query: Typ.t): result =>
       | ([], Constructor(name, _)) => [name]
       | (uses, _) => List.map(fst, uses)
       };
+    let declared =
+      List.map(context_for_name(info.ctx, _, query), names)
+      |> List.fold_left(context_join, Ctx.empty);
     {
       ...queried(names == [] ? info.ty : query),
       ana: query,
@@ -358,13 +401,16 @@ let source_result = (info: Info.exp, query: Typ.t): result =>
         List.fold_left(
           (gamma, name) =>
             Ctx.lookup_ctr(info.ctx, name) == None
-              ? gamma_add(info.ctx, gamma, name, query) : gamma,
-          VarMap.empty,
+              ? demand_entry(
+                  gamma,
+                  ~use=Exp.rep_id(info.user_term),
+                  name,
+                  query,
+                )
+              : gamma,
+          declared,
           names,
         ),
-      context:
-        List.map(context_for_name(info.ctx, _, query), names)
-        |> List.fold_left(context_join, Ctx.empty),
     };
   };
 
@@ -554,7 +600,7 @@ let alternative_binding = (~parent, child, k) =>
 let binding_demand = (ctx, bindings, shape, gamma) =>
   List.fold_left(
     (demand, binding: binding) =>
-      switch (VarMap.lookup(gamma, binding.name)) {
+      switch (lookup_demand(gamma, binding.name)) {
       | Some(query) =>
         let query =
           empty_query(query) && !is_gap(query)
@@ -721,7 +767,7 @@ let pattern_result = (~direction, ~erase_types, m, root, demand, dependencies) =
       );
     {
       ...empty_result,
-      context,
+      gamma: context,
       omitted,
     };
   };
@@ -783,7 +829,7 @@ let demand_for = (pattern, demands) =>
   List.find_opt(((id, _, _, _)) => Id.equal(id, pattern), demands);
 
 let binding_omissions =
-    (~module_item, children: list(child), gamma: gamma, demands): Id.Set.t =>
+    (~module_item, children: list(child), gamma: Ctx.t, demands): Id.Set.t =>
   List.fold_left(
     (omitted, child) => {
       let ascribed = child.ascribed;
@@ -810,7 +856,7 @@ let binding_omissions =
         if (demanded) {
           true;
         } else {
-          switch (VarMap.lookup(gamma, binding.name)) {
+          switch (lookup_demand(gamma, binding.name)) {
           | Some(query) => !is_gap(query)
           | None => false
           };
@@ -1308,13 +1354,13 @@ let slice_forward =
       {
         ...result,
         omitted: Id.Set.union(result.omitted, omitted),
-        context:
+        gamma:
           context_with_types(
             ~minimal=direction == `Ana,
             m,
             root,
             omitted,
-            result.context,
+            result.gamma,
           ),
       };
     }
@@ -1350,7 +1396,7 @@ let slice_branches =
               } else {
                 switch (Typ.term_of(query)) {
                 | TypParamAp({term: Var(name), _}, _) =>
-                  switch (tvar_entry(candidate.context, name)) {
+                  switch (tvar_entry(candidate.gamma, name)) {
                   | Some(entry) =>
                     Typ.weak_head_normalize(
                       Ctx.extend(ctx, Ctx.TVarEntry(entry)),
@@ -1389,9 +1435,9 @@ let slice_branches =
   {
     ...result,
     psi: parametric ? query : result.psi,
-    context:
+    gamma:
       slices
-      |> List.map(slice => slice.context)
+      |> List.map(slice => slice.gamma)
       |> List.fold_left(context_join_branches(ctx), Ctx.empty),
   };
 };
@@ -1612,18 +1658,10 @@ let compile =
               support == BindingAscription
               || support == ExpressionAscription
               && List.for_all(
-                   ((name, _)) =>
-                     switch (Ctx.lookup_var(info.ctx, name)) {
-                     | Some(binding) => local_binding(m, path, binding)
-                     | None => false
-                     },
-                   VarMap.to_list(forward.gamma),
-                 )
-              && List.for_all(
                    fun
                    | Ctx.VarEntry(binding) => local_binding(m, path, binding)
                    | _ => false,
-                   forward.context.entries,
+                   forward.gamma.entries,
                  )
             )
               ? {
@@ -1745,7 +1783,7 @@ let compile =
                    m,
                    pattern_id,
                    is_gap(demand) && !is_gap(focus_query) ? trace : demand,
-                   combined.context,
+                   combined.gamma,
                  )
                )
             |> results_join(info.ctx);
@@ -1771,7 +1809,7 @@ let compile =
                    ~preserve_parameters=
                      sum_definition([], expose(focus_query)) != None,
                    children,
-                   combined.context,
+                   combined.gamma,
                  ),
                );
           let names =
@@ -1780,19 +1818,13 @@ let compile =
                 List.map((binding: binding) => binding.name, child.bindings),
               binding_children,
             );
+          let gamma = gamma_remove(combined.gamma, names);
           {
             omitted,
-            gamma: gamma_remove(combined.gamma, names),
-            context:
+            gamma:
               direction == `Ana
-                ? context_with_types(
-                    ~minimal=true,
-                    m,
-                    id,
-                    omitted,
-                    combined.context,
-                  )
-                : combined.context,
+                ? context_with_types(~minimal=true, m, id, omitted, gamma)
+                : gamma,
             psi: forward.psi,
             ana: query,
           };

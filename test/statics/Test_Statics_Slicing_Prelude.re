@@ -532,7 +532,10 @@ let check_assumptions =
         option(testable_typ),
         lab("minimal assumption " ++ name),
         Some(parse_typ(ty_src)),
-        VarMap.lookup(result.gamma, name),
+        Option.map(
+          (entry: Ctx.var_entry) => entry.typ,
+          Ctx.lookup_var(result.gamma, name),
+        ),
       ),
     expected,
   );
@@ -551,7 +554,7 @@ let check_context =
         option(testable_typ),
         lab("minimal alias " ++ name),
         Some(parse_typ(ty_src)),
-        Ctx.lookup_alias(result.context, name),
+        Ctx.lookup_alias(result.gamma, name),
       ),
     aliases,
   );
@@ -563,7 +566,7 @@ let check_context =
         Some(parse_typ(ty_src)),
         Option.map(
           (v: Ctx.var_entry) => v.typ,
-          Ctx.lookup_ctr(result.context, name),
+          Ctx.lookup_ctr(result.gamma, name),
         ),
       ),
     constructors,
