@@ -524,25 +524,20 @@ let local_binding = (m, path, binding: Ctx.var_entry) =>
   };
 
 let record_binding = (mode, ~parent, child, k) => {
-  let (_, _, m) = child;
-  let trace = scratch(Exp.rep_id(parent), m);
-  let index =
-    mode == SliceAlternative
-      ? List.length(
-          List.filter(
-            (edge: Info.slice_child) => edge.mode == Info.SliceAlternative,
-            trace.children,
-          ),
+  let (info, elab, m) = child;
+  let parent_id = Exp.rep_id(parent);
+  let trace = scratch(parent_id, m);
+  let paired = List.nth_opt(trace.patterns, 0);
+  let m =
+    mode == SliceAlternative && trace.patterns != []
+      ? update_scratch(parent_id, m, trace =>
+          {
+            ...trace,
+            patterns: List.tl(trace.patterns),
+          }
         )
-      : 0;
-  k(
-    record_child(
-      mode,
-      ~pattern=List.nth_opt(trace.patterns, index),
-      ~parent,
-      child,
-    ),
-  );
+      : m;
+  k(record_child(mode, ~pattern=paired, ~parent, (info, elab, m)));
 };
 
 let binding_edge = (mode, ~parent, child, k) =>
@@ -1874,8 +1869,6 @@ let validate = (~focus, ~direction, m, query) =>
     | Some(_) => raise(Wrong_focus_sort)
     }
   };
-
-let with_run = (f: unit => 'a): 'a => f();
 
 let slice =
     (

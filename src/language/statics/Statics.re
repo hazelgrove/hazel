@@ -5045,8 +5045,7 @@ let slice =
       ~direction=`Syn,
       exp,
       query,
-    ) =>
-  StaticsSlice.with_run(() => {
-    let root = uexp_to_info_map(~ana, ~ctx, ~ancestors=[], exp, Id.Map.empty);
-    StaticsSlice.slice(~focus, ~direction, root, query);
-  });
+    ) => {
+  let root = uexp_to_info_map(~ana, ~ctx, ~ancestors=[], exp, Id.Map.empty);
+  StaticsSlice.slice(~focus, ~direction, root, query);
+};
