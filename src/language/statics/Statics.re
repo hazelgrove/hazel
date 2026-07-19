@@ -394,10 +394,6 @@ and uexp_to_info_map =
   let ( let** ) = (child, k) => StaticsSlice.track(~parent=uexp, child, k);
   let (let@@) = (child, k) => StaticsSlice.map(~parent=uexp, child, k);
   let (let&&) = (child, k) => StaticsSlice.prune(~parent=uexp, child, k);
-  let (let&&&) = (child, k) => StaticsSlice.ascribe(~parent=uexp, child, k);
-  let (let@@@) = (child, k) => StaticsSlice.alias(~parent=uexp, child, k);
-  let (let|||) = (child, k) =>
-    StaticsSlice.module_items(~parent=uexp, child, k);
   let ( let*** ) = (child, k) =>
     StaticsSlice.matched(~parent=uexp, child, k);
   let (let!) = (pattern, k) =>
@@ -567,7 +563,7 @@ and uexp_to_info_map =
       let (t, m) = go_typ(t2, ~expects=TypExpectation.TypeExpected, m);
       /* Desugar any Sig types in the annotation without full normalization */
       let t_ty = Typ.desugar_sig(ctx, t.user_term);
-      let&&& (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
+      let* (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
@@ -2794,7 +2790,7 @@ and uexp_to_info_map =
           | Some(sm) => Ctx.add_ctrs_with_params(ctx_body, name, params, sm)
           | None => ctx_body
           };
-        let@@@ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx=ctx_body, ~ana, body, m);
         let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
         let m =
@@ -2867,7 +2863,7 @@ and uexp_to_info_map =
             }
           | _ => ctx_body
           };
-        let@@@ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx=ctx_body, ~ana, body, m);
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
         let m =
@@ -2899,7 +2895,7 @@ and uexp_to_info_map =
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) =>
-        let@@@ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx, ~ana, body, m);
         let m =
           utyp_to_info_map(
@@ -2982,7 +2978,7 @@ and uexp_to_info_map =
          ana. Using ~ana here would double-count type inconsistencies (once on
          the expansion's inner tuple, once on the Module expression). */
       let expanded = ExpandModule.expand(~ana, items);
-      let||| (expanded_info, expanded_elab, m) = go(expanded, m);
+      let* (expanded_info, expanded_elab, m) = go(expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
       /* Build actual Prod type from module's exported bindings, rather than
          using expanded_info.ty which masks width errors via fixed_typ. */

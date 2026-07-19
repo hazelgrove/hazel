@@ -511,17 +511,24 @@ let record_child =
 
 let edge = (mode, ~parent, child, k) =>
   k(record_child(mode, ~parent, child));
-let keep = (~parent, child, k) => edge(SliceKeep, ~parent, child, k);
+let keep = (~parent, child, k) =>
+  edge(
+    switch (Exp.term_of(parent)) {
+    | Asc(_, _) => SliceAscribe
+    | TyAlias(_, _, _) => SliceAlias
+    | Module(_) => SliceModule
+    | _ => SliceKeep
+    },
+    ~parent,
+    child,
+    k,
+  );
 let omit = (~parent, child, k) => edge(SliceOmit, ~parent, child, k);
 let source_child = (~parent, child, k) =>
   edge(SliceSource, ~parent, child, k);
 let track = (~parent, child, k) => edge(SliceTrack, ~parent, child, k);
 let map = (~parent, child, k) => edge(SliceMap, ~parent, child, k);
 let prune = (~parent, child, k) => edge(SlicePrune, ~parent, child, k);
-let ascribe = (~parent, child, k) => edge(SliceAscribe, ~parent, child, k);
-let alias = (~parent, child, k) => edge(SliceAlias, ~parent, child, k);
-let module_items = (~parent, child, k) =>
-  edge(SliceModule, ~parent, child, k);
 let matched = (~parent, child, k) => edge(SliceMatched, ~parent, child, k);
 let alternative = (~parent, child, k) =>
   edge(SliceAlternative, ~parent, child, k);
