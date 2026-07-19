@@ -1,5 +1,6 @@
 open Info;
 open TypQuery;
+open DemandCtx;
 
 exception Focus_not_found(Id.t);
 exception Wrong_focus_sort;
@@ -91,6 +92,86 @@ let focus_shell_ids = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t => {
   | Some(Info.InfoExp({ancestors, _})) => go(ancestors)
   | _ => Id.Set.empty
   };
+};
+
+let type_context = (~minimal, m, root, omitted) => {
+  let rec owned =
+    fun
+    | [ancestor, ...ancestors] =>
+      switch (Id.Map.find_opt(ancestor, m)) {
+      | Some(Info.InfoExp(_)) => Id.equal(ancestor, root)
+      | _ => !Id.Set.mem(ancestor, omitted) && owned(ancestors)
+      }
+    | [] => false;
+  Id.Map.fold(
+    (id, info, context) =>
+      switch (info) {
+      | Info.InfoTyp({user_term, ctx, ancestors, _})
+          when !Id.Set.mem(id, omitted) && owned(ancestors) =>
+        switch (Typ.term_of(user_term)) {
+        | Var(name) =>
+          switch (tvar_entry(ctx, name)) {
+          | None => context
+          | Some({kind: Singleton(_), _} as entry) when minimal =>
+            Ctx.extend(context, Ctx.TVarEntry(minimal_tvar(entry)))
+          | Some(entry) => Ctx.extend(context, Ctx.TVarEntry(entry))
+          }
+        | _ => context
+        }
+      | _ => context
+      },
+    m,
+    Ctx.empty,
+  );
+};
+
+let context_with_types = (~minimal, m, root, omitted, context) => {
+  let types = type_context(~minimal, m, root, omitted);
+  minimal && !context_has_constructor(context)
+    ? context_join(types, context) : context_join(context, types);
+};
+
+let minimal_context = (~overlay, m, root, omitted, gamma) =>
+  overlay.direction == `Ana
+    ? context_with_types(~minimal=true, m, root, omitted, gamma) : gamma;
+
+let rec signature_omissions = (m, ctx, actual, query) => {
+  let omitted =
+    switch (Id.Map.find_opt(Typ.rep_id(actual), m)) {
+    | Some(Info.InfoSig(_))
+        when empty_query(query_residual(ctx, query, query_shell(actual))) =>
+      Id.Set.singleton(Typ.rep_id(actual))
+    | _ => Id.Set.empty
+    };
+  switch (aligned_children(actual, query)) {
+  | Some((actual, query)) =>
+    List.map2(signature_omissions(m, ctx), actual, query)
+    |> List.fold_left(Id.Set.union, omitted)
+  | None => omitted
+  };
+};
+
+let ascription_result =
+    (~overlay, m, ctx, ~root, parent_shape, ~psi, ~gamma): (Id.Set.t, Ctx.t) => {
+  let {direction, path, focus_query, _} = overlay;
+  let annotation_query =
+    direction == `Ana && !Id.Set.is_empty(path)
+      ? Option.map(
+          path => lift(parent_shape, path, focus_query),
+          find_shape_path(focus_query, parent_shape),
+        )
+        |> Option.value(~default=psi)
+      : psi;
+  let annotation_query = fill_shell(parent_shape, annotation_query);
+  let omitted =
+    Id.Set.union(
+      ids_of_typ(parent_shape, annotation_query),
+      signature_omissions(m, ctx, parent_shape, annotation_query),
+    );
+  (
+    omitted,
+    context_with_types(~minimal=direction == `Ana, m, root, omitted, gamma),
+  );
 };
 
 let compatible_query = (ctx: Ctx.t, actual: Typ.t, query: Typ.t): bool =>

@@ -1,6 +1,7 @@
 open Util;
 open Info;
 include TypQuery;
+include DemandCtx;
 include SliceFocus;
 
 type result = {
@@ -49,169 +50,6 @@ let empty_result = {
   psi: gap,
   ana: gap,
 };
-
-let close_sum_gaps = ty =>
-  Typ.map_term(
-    ~f_typ=
-      (continue, ty) =>
-        switch (Typ.term_of(ty)) {
-        | Sum(items)
-            when
-              List.exists(
-                fun
-                | ConstructorMap.Variant(_, _, _) => true
-                | _ => false,
-                items,
-              ) => {
-            ...ty,
-            term:
-              Sum(
-                List.filter(
-                  fun
-                  | ConstructorMap.BadEntry(_) => false
-                  | _ => true,
-                  items,
-                ),
-              ),
-          }
-        | _ => continue(ty)
-        },
-    ty,
-  );
-
-let context_key =
-  fun
-  | Ctx.VarEntry({name, _}) => Some((0, name))
-  | Ctx.ConstructorEntry({name, _}) => Some((1, name))
-  | Ctx.TVarEntry({name, _}) => Some((2, name))
-  | Ctx.LivelitEntry(_) => None;
-
-let tvar_entry = (ctx: Ctx.t, name) =>
-  List.find_map(
-    fun
-    | Ctx.TVarEntry(entry) when entry.name == name => Some(entry)
-    | _ => None,
-    ctx.entries,
-  );
-
-let minimal_tvar = (entry: Ctx.tvar_entry) => {
-  ...entry,
-  kind: Singleton(gap),
-};
-
-let merge_context = (~merge, left: Ctx.t, right: Ctx.t): Ctx.t => {
-  ...left,
-  entries:
-    List.fold_left(
-      (entries, entry) =>
-        switch (context_key(entry)) {
-        | Some(key)
-            when List.exists(e => context_key(e) == Some(key), entries) =>
-          List.map(
-            old => context_key(old) == Some(key) ? merge(old, entry) : old,
-            entries,
-          )
-        | _ => entries @ [entry]
-        },
-      left.entries,
-      right.entries,
-    ),
-};
-
-let context_join = (left, right) =>
-  merge_context(~merge=(old, _) => old, left, right);
-
-let context_join_branches = (ctx, left, right) =>
-  merge_context(
-    ~merge=
-      (old, entry) =>
-        switch (old, entry) {
-        | (
-            Ctx.TVarEntry({name, kind: Singleton(a), _} as old),
-            Ctx.TVarEntry({name: other, kind: Singleton(b), _}),
-          )
-            when name == other =>
-          Ctx.TVarEntry({
-            ...old,
-            kind: Singleton(close_sum_gaps(meet(ctx, a, b))),
-          })
-        | (Ctx.VarEntry(old), Ctx.VarEntry(entry)) =>
-          Ctx.VarEntry({
-            ...old,
-            typ: meet(ctx, old.typ, entry.typ),
-          })
-        | _ => old
-        },
-    left,
-    right,
-  );
-
-let gamma_join = (ctx: Ctx.t, left: Ctx.t, right: Ctx.t): Ctx.t =>
-  merge_context(
-    ~merge=
-      (old, entry) =>
-        switch (old, entry) {
-        | (Ctx.VarEntry(old), Ctx.VarEntry(entry)) =>
-          Ctx.VarEntry({
-            ...old,
-            typ: meet(ctx, old.typ, entry.typ),
-          })
-        | _ => old
-        },
-    left,
-    right,
-  );
-
-let gamma_remove = (gamma: Ctx.t, names: list(string)): Ctx.t => {
-  ...gamma,
-  entries:
-    List.filter(
-      fun
-      | Ctx.VarEntry({name, _}) => !List.mem(name, names)
-      | _ => true,
-      gamma.entries,
-    ),
-};
-
-let lookup_demand = (gamma: Ctx.t, name: string): option(Typ.t) =>
-  Option.map(
-    (entry: Ctx.var_entry) => entry.typ,
-    Ctx.lookup_var(gamma, name),
-  );
-
-let demand_entry = (gamma: Ctx.t, ~use: Id.t, name: string, ty: Typ.t): Ctx.t =>
-  is_gap(ty)
-    ? gamma
-    : merge_context(
-        ~merge=
-          (old, entry) =>
-            switch (old, entry) {
-            | (Ctx.VarEntry(old), Ctx.VarEntry(entry)) =>
-              Ctx.VarEntry({
-                ...old,
-                typ: entry.typ,
-              })
-            | _ => old
-            },
-        gamma,
-        Ctx.extend(
-          Ctx.empty,
-          Ctx.VarEntry({
-            name,
-            id: use,
-            typ: ty,
-            custom_statics: None,
-          }),
-        ),
-      );
-
-let context_has_constructor = (context: Ctx.t) =>
-  List.exists(
-    fun
-    | Ctx.ConstructorEntry(_) => true
-    | _ => false,
-    context.entries,
-  );
 
 let result_join = (ctx: Ctx.t, left: result, right: result): result => {
   omitted: Id.Set.union(left.omitted, right.omitted),
@@ -859,59 +697,6 @@ let pattern_result = (~direction, ~erase_types, m, root, demand, dependencies) =
   };
 };
 
-let type_context = (~minimal, m, root, omitted) => {
-  let rec owned =
-    fun
-    | [ancestor, ...ancestors] =>
-      switch (Id.Map.find_opt(ancestor, m)) {
-      | Some(Info.InfoExp(_)) => Id.equal(ancestor, root)
-      | _ => !Id.Set.mem(ancestor, omitted) && owned(ancestors)
-      }
-    | [] => false;
-  Id.Map.fold(
-    (id, info, context) =>
-      switch (info) {
-      | Info.InfoTyp({user_term, ctx, ancestors, _})
-          when !Id.Set.mem(id, omitted) && owned(ancestors) =>
-        switch (Typ.term_of(user_term)) {
-        | Var(name) =>
-          switch (tvar_entry(ctx, name)) {
-          | None => context
-          | Some({kind: Singleton(_), _} as entry) when minimal =>
-            Ctx.extend(context, Ctx.TVarEntry(minimal_tvar(entry)))
-          | Some(entry) => Ctx.extend(context, Ctx.TVarEntry(entry))
-          }
-        | _ => context
-        }
-      | _ => context
-      },
-    m,
-    Ctx.empty,
-  );
-};
-
-let context_with_types = (~minimal, m, root, omitted, context) => {
-  let types = type_context(~minimal, m, root, omitted);
-  minimal && !context_has_constructor(context)
-    ? context_join(types, context) : context_join(context, types);
-};
-
-let rec signature_omissions = (m, ctx, actual, query) => {
-  let omitted =
-    switch (Id.Map.find_opt(Typ.rep_id(actual), m)) {
-    | Some(Info.InfoSig(_))
-        when empty_query(query_residual(ctx, query, query_shell(actual))) =>
-      Id.Set.singleton(Typ.rep_id(actual))
-    | _ => Id.Set.empty
-    };
-  switch (aligned_children(actual, query)) {
-  | Some((actual, query)) =>
-    List.map2(signature_omissions(m, ctx), actual, query)
-    |> List.fold_left(Id.Set.union, omitted)
-  | None => omitted
-  };
-};
-
 type binding_slice = {
   child,
   bound: Info.pat,
@@ -1390,35 +1175,22 @@ let slice_forward =
             )
        );
   let result = results_join(ctx, forward @ reverse);
-  let has_ascription =
-    List.exists(child => child.mode == SliceAscribe, children);
-  let annotation_query =
-    direction == `Ana && !Id.Set.is_empty(path)
-      ? Option.map(
-          path => lift(parent_shape, path, focus_query),
-          find_shape_path(focus_query, parent_shape),
-        )
-        |> Option.value(~default=result.psi)
-      : result.psi;
-  has_ascription
+  List.exists(child => child.mode == SliceAscribe, children)
     ? {
-      let annotation_query = fill_shell(parent_shape, annotation_query);
-      let omitted =
-        Id.Set.union(
-          ids_of_typ(parent_shape, annotation_query),
-          signature_omissions(m, ctx, parent_shape, annotation_query),
+      let (omitted, gamma) =
+        ascription_result(
+          ~overlay,
+          m,
+          ctx,
+          ~root,
+          parent_shape,
+          ~psi=result.psi,
+          ~gamma=result.gamma,
         );
       {
         ...result,
         omitted: Id.Set.union(result.omitted, omitted),
-        gamma:
-          context_with_types(
-            ~minimal=direction == `Ana,
-            m,
-            root,
-            omitted,
-            result.gamma,
-          ),
+        gamma,
       };
     }
     : result;
@@ -1867,10 +1639,7 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
           let gamma = gamma_remove(combined.gamma, names);
           {
             omitted,
-            gamma:
-              direction == `Ana
-                ? context_with_types(~minimal=true, m, id, omitted, gamma)
-                : gamma,
+            gamma: minimal_context(~overlay, m, id, omitted, gamma),
             psi: forward.psi,
             ana: query,
           };
