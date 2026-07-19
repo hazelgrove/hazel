@@ -365,6 +365,23 @@ module Update = {
 
   let equal = (===);
 
+  let cursor_inspector_reslices = (action: CursorInspector.Update.t): bool =>
+    switch (action) {
+    | Toggle(_)
+    | ExplainError => true
+    | TypeEditor(_, editor_action) =>
+      switch (editor_action) {
+      | CodeEditable.Update.Perform(action) =>
+        Haz3lcore.Action.is_edit(action)
+      | TAB => true
+      | ContextMenu(_)
+      | DebugConsole(_) => false
+      }
+    | OpenMenu(_, _, _)
+    | Focus(_)
+    | CloseMenu => false
+    };
+
   let update_global =
       (
         ~import_log,
@@ -678,7 +695,7 @@ module Update = {
       let (model, _folds_changed) =
         sync_explain_folds(
           ~refresh_cursor_inspector=false,
-          ~reslice=true,
+          ~reslice=cursor_inspector_reslices(action),
           ~cursor_info=toggle_info,
           ~previous_cursor_inspector,
           model,
