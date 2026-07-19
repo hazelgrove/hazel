@@ -330,13 +330,17 @@ let rec grout_ids = (seg: Segment.t): list(string) =>
   )
   |> List.sort(String.compare);
 
-/* Two independent completions of the same segment: TODAY the grout
-   completion mints carries fresh random ids, so the statics artifact
-   and the display artifact disagree on hole ids (the coincidence gap
-   the promise render's determinism argument silently skips for this
-   grout class). place() closes it: after strip+re-place both
-   derivations agree on positions AND ids. This pin flips to
-   "coincide" when the artifact path adopts GroutPlace. */
+/* Two independent completions of the same segment: the grout
+   completion mints carries fresh random ids, so RAW completion
+   outputs disagree on hole ids — the mechanism behind the
+   coincidence gap the promise render's determinism argument
+   silently skipped. The "minted-differ" pin documents that raw
+   divergence, which REMAINS by design (regrout is untouched); the
+   wired artifact path closes it by composing place() after reify —
+   the strong form lives in Test_CompletionDisplay ("every artifact
+   grout id in reified info_map"). The place() probes below show the
+   closure at the pure layer: strip+re-place makes both derivations
+   agree on positions AND ids. */
 let coincidence = {
   let seg = parse("let x = 1");
   let complete = () =>
