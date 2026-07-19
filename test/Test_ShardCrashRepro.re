@@ -567,6 +567,219 @@ let action_fidelity_case = (msg: string, edit_actions: list(Action.t)) => {
   ();
 };
 
+/* ── Drawer-path variants (EXACT app display pipeline) ──────────────────
+ * DrawerHeight.sample_rows (ProbeProj.re) is the code that actually runs
+ * during Calculate: term_to_seg(~inline=false) on strip_ascriptions'd
+ * sample values, PrettySegment.prettify at the drawer width, then
+ * Measured.of_segment. The cases above only exercised the INLINE form.
+ * New ingredient: RECURSION. A recursive call stuck on a free variable
+ * (the mid-fix `col` state) embeds the recursive closure (fixpoint) in
+ * the stuck sample value; with fold_fn_bodies=`NoFold the printer walks
+ * the closure body — any un-freshened self-reference or repeated
+ * unrolling duplicates source ids inside ONE printed segment. */
+
+let drawer_settings = {
+  ...
+    ExpToSegment.Settings.of_core(
+      ~inline=false,
+      Language.CoreSettings.off,
+    ),
+  show_unknown_as_hole: false,
+  fold_fn_bodies: `NoFold,
+  project_tables: false,
+};
+
+let drawer_seg_of_value = (v: Language.Exp.t): Segment.t =>
+  ExpToSegment.any_to_segment(
+    ~settings=drawer_settings,
+    Exp(v |> Language.DHExp.strip_ascriptions),
+  );
+
+let check_sample_values_drawer =
+    (msg: string, probes: Language.Sample.Map.t) => {
+  let all: list(Language.Sample.t) =
+    Id.Map.fold((_, ss, acc) => acc @ ss, probes, []);
+  List.iteri(
+    (n, sample: Language.Sample.t) => {
+      let seg = drawer_seg_of_value(sample.value);
+      let dups = duplicate_pairs(seg);
+      if (dups != []) {
+        fail(
+          msg
+          ++ ": sample #"
+          ++ string_of_int(n)
+          ++ " (syntax_id "
+          ++ Id.to_string(sample.syntax_id)
+          ++ ") drawer segment has duplicated (id, shard) pairs: "
+          ++ String.concat(
+               ", ",
+               List.map(
+                 ((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
+                 dups,
+               ),
+             )
+          ++ "\nvalue seg: "
+          ++ print_seg(seg),
+        );
+      };
+      /* Full DrawerHeight.sample_rows equivalent: prettify at the
+       * default drawer width, then the Measured row-count walk. */
+      switch (PrettySegment.prettify(~width=30, seg)) {
+      | pretty =>
+        switch (
+          Measured.of_segment(
+            pretty,
+            ProjectorCore.Shape.Map.empty,
+            Id.Map.empty,
+          )
+        ) {
+        | _ => ()
+        | exception (Failure(f)) =>
+          fail(
+            msg
+            ++ ": sample #"
+            ++ string_of_int(n)
+            ++ " Measured raised: "
+            ++ f,
+          )
+        | exception (Assert_failure(_)) =>
+          fail(
+            msg
+            ++ ": sample #"
+            ++ string_of_int(n)
+            ++ " Measured raised Assert_failure",
+          )
+        }
+      | exception (Failure(f)) =>
+        fail(
+          msg
+          ++ ": sample #"
+          ++ string_of_int(n)
+          ++ " drawer prettify raised: "
+          ++ f,
+        )
+      | exception (Assert_failure(_)) =>
+        fail(
+          msg
+          ++ ": sample #"
+          ++ string_of_int(n)
+          ++ " drawer prettify raised Assert_failure (Tile.re invariant)",
+        )
+      };
+    },
+    all,
+  );
+};
+
+/* Recursive helper (annotated-let recursion, as the study tasks use)
+ * mapped over a list, with the comparison variable UNBOUND — the exact
+ * transient the witnesses were in after deleting `row` / typing `col`. */
+let rec_stuck_prog = "let walk(l: [Int]): [Int] =
+  case l
+  | [] => []
+  | x :: xs => (if x == col then 9 else x) :: walk(xs)
+  end
+in walk([1, 2, 3])";
+
+/* Same but probing a FUNCTION value so a sample.value IS a recursive
+ * closure (fixpoint + env), the drawer state mei had (<function> in env). */
+let rec_closure_prog = "let walk(l: [Int]): [Int] =
+  case l
+  | [] => []
+  | x :: xs => x :: walk(xs)
+  end
+in (walk, walk([1, 2, col]))";
+
+let drawer_case = (~passes: int, ~prog: string, msg: string) => {
+  let settings = {...Language.CoreSettings.on, probe_all: true};
+  let exp = parse_exp(prog);
+  let (result1, samples1, incr1) = eval_incr_probes(~settings, exp);
+  check_result_seg(msg ++ " (pass 1 result)", result1);
+  check_sample_values_drawer(msg ++ " (pass 1 samples)", samples1);
+  if (passes >= 2) {
+    /* Incremental re-eval with adoption from the broken pass — the
+     * live editor always threads ~prev. */
+    let (result2, samples2, _) =
+      eval_incr_probes(~settings, ~prev=incr1, exp);
+    check_result_seg(msg ++ " (pass 2 result)", result2);
+    check_sample_values_drawer(msg ++ " (pass 2 samples)", samples2);
+  };
+};
+
+/* ── THE RED TEST: duplicate-id value through the display path ──────────
+ * All synchronous producers tested above freshen correctly, but the field
+ * crash proves SOME producer delivers values with repeated ids (stale
+ * worker results / adoption / any future producer). The display layer
+ * must not die on them: it is a pretty-printer, not an invariant checker.
+ * This grafts the same subterm twice into one value (ids shared — exactly
+ * what the crash dumps show: out-of-order shards [0,1,2,0,1,2,...]) and
+ * requires the display path to survive. RED until ExpToSegment de-dupes
+ * repeated tile ids at its public exits. */
+
+let grafted_dup_value = (): Language.Exp.t => {
+  /* An if/then/else = a 3-shard tile, matching the field dump's
+   * [0,1,2,0,1,2,...] signature. The SAME term object twice = shared ids. */
+  let t = parse_exp("if 1 == 2 then 3 else 4");
+  Language.Exp.fresh(Tuple([t, t]));
+};
+
+let dup_display_case = (msg: string) => {
+  let v = grafted_dup_value();
+  /* Result-view path */
+  let seg = exp_to_segment(v);
+  let dups = duplicate_pairs(seg);
+  if (dups != []) {
+    fail(
+      msg
+      ++ ": result segment still contains duplicated (id, shard) pairs after "
+      ++ "printing: "
+      ++ String.concat(
+           ", ",
+           List.map(
+             ((id, i)) => Id.to_string(id) ++ "#" ++ string_of_int(i),
+             dups,
+           ),
+         ),
+    );
+  };
+  switch (Segment.reassemble(seg)) {
+  | _ => ()
+  | exception (Failure(f)) => fail(msg ++ ": reassemble raised: " ++ f)
+  | exception (Assert_failure(_)) =>
+    fail(msg ++ ": reassemble raised Assert_failure (Tile.re invariant)")
+  };
+  /* Drawer path (the "Exception during Calculate" stack) */
+  let dseg = drawer_seg_of_value(v);
+  let ddups = duplicate_pairs(dseg);
+  if (ddups != []) {
+    fail(msg ++ ": drawer segment contains duplicated (id, shard) pairs");
+  };
+  switch (PrettySegment.prettify(~width=30, dseg)) {
+  | _ => ()
+  | exception (Failure(f)) => fail(msg ++ ": drawer prettify raised: " ++ f)
+  | exception (Assert_failure(_)) =>
+    fail(msg ++ ": drawer prettify raised Assert_failure")
+  };
+};
+
+let drawer_tests = [
+  test_case("drawer: recursive walk stuck on free col", `Quick, () =>
+    drawer_case(~passes=2, ~prog=rec_stuck_prog, "drawer rec-stuck")
+  ),
+  test_case("drawer: recursive closure as sample value", `Quick, () =>
+    drawer_case(~passes=2, ~prog=rec_closure_prog, "drawer rec-closure")
+  ),
+  test_case(
+    "REGRESSION: grafted duplicate-id value survives display", `Quick, () =>
+    dup_display_case("grafted dup ids")
+  ),
+];
+
+let tests = {
+  let (name, cases) = tests;
+  (name, cases @ drawer_tests);
+};
+
 let fidelity_tests = [
   test_case("task30: select row, type col (mei/P3)", `Quick, () =>
     action_fidelity_case(
