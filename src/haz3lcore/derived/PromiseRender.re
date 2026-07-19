@@ -86,16 +86,21 @@ let art_hole_after =
   switch (interior) {
   | Some(_) as g => g
   | None =>
-    /* last-shard / prefix body: the grout right after the tile */
+    /* last-shard / prefix body: the grout following the tile at its
+       level, before the next non-secondary piece (placement may put
+       it past a typed space) */
+    let rec grout_before_content = (sg: Segment.t): option(Piece.t) =>
+      switch (sg) {
+      | [Piece.Secondary(_), ...tl] => grout_before_content(tl)
+      | [g, ..._] when is_grout(g) => Some(g)
+      | _ => None
+      };
     let rec after = (sg: Segment.t): option(Piece.t) =>
       switch (sg) {
       | [] => None
       | [Tile(t), ...tl] =>
         Id.equal(t.id, tid)
-          ? switch (tl) {
-            | [g, ..._] when is_grout(g) => Some(g)
-            | _ => None
-            }
+          ? grout_before_content(tl)
           : (
             switch (after(List.concat(t.children))) {
             | Some(_) as r => r

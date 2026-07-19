@@ -1588,13 +1588,14 @@ NONE|},
       }),
       /* INSPECTOR-ON-GHOST-HOLE (spec step 6): a presumed hole in the
          display carries the SAME id statics analyzed, by construction —
-         the display's artifact = reify(obs, completed) is the very
-         segment CachedStatics reifies before its second pass, and reify
-         mints ids by deterministic Id.next chains. So an inspector or
-         error landing on a ghost hole finds it in the info_map. This
-         test asserts the coincidence directly: build the artifact for a
-         deficient ap, take a reified (presumed) hole's id, run statics
-         on that reified term, and assert the id is present. */
+         the display's artifact = place(reify(obs, completed)) is the
+         very segment CachedStatics splices before its second pass;
+         reify mints commas by deterministic Id.next chains and
+         GroutPlace re-derives every hole with segment-determined ids.
+         So an inspector or error landing on a ghost hole finds it in
+         the info_map. This test asserts the coincidence directly, and
+         in the strong form the wiring makes true: EVERY grout id in
+         the artifact is present in the spliced info_map. */
       test_case(
         "presumed hole id is in the reified info_map",
         `Quick,
@@ -1642,10 +1643,8 @@ NONE|},
             /* run statics on the reified term exactly as CachedStatics'
                second pass does */
             let MakeTerm.{term: rterm, _} =
-              MakeTerm.from_zip_for_sem_spliced(
-                z,
-                ~root=Sort.Exp,
-                ~splice=TypeObligations.reify(frame_obs),
+              MakeTerm.from_zip_for_sem_spliced(z, ~root=Sort.Exp, ~splice=sg =>
+                GroutPlace.place(TypeObligations.reify(frame_obs, sg))
               );
             let (info_map, _) =
               Statics.mk(
@@ -1658,6 +1657,26 @@ NONE|},
               "presumed hole id in reified info_map",
               true,
               Id.Map.mem(hole_id, info_map),
+            );
+            /* the strong form: no artifact hole can miss the map */
+            let rec grout_ids = (sg: Segment.t): list(Id.t) =>
+              List.concat_map(
+                (p: Piece.t) =>
+                  switch (p) {
+                  | Grout(g) => [g.id]
+                  | Tile(t) => List.concat_map(grout_ids, t.children)
+                  | _ => []
+                  },
+                sg,
+              );
+            let missing =
+              grout_ids(art.reified)
+              |> List.filter(id => !Id.Map.mem(id, info_map));
+            check(
+              Alcotest.int,
+              "every artifact grout id in reified info_map",
+              0,
+              List.length(missing),
             );
           };
         },
