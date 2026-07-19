@@ -36,6 +36,14 @@ let pattern_focus_demand = (m, root, focus, shape, query) =>
 let is_focus = (focus, id) =>
   Option.map(Id.equal(id), focus) |> Option.value(~default=false);
 
+type overlay = {
+  direction,
+  focus: option(Id.t),
+  focus_query: Typ.t,
+  path: Id.Set.t,
+  pattern_focus: bool,
+};
+
 let exp_path = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t =>
   switch (Id.Map.find_opt(focus, m)) {
   | Some(Info.InfoExp({ancestors, _}))
@@ -43,6 +51,26 @@ let exp_path = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t =>
     Id.Set.add(focus, Id.Set.of_list(ancestors))
   | _ => Id.Set.singleton(focus)
   };
+
+let overlay_for = (~direction, ~focus, ~query, m: Id.Map.t(Info.t)): overlay => {
+  direction,
+  focus,
+  focus_query: focus == None ? gap : query,
+  path:
+    switch (focus) {
+    | Some(id) => exp_path(m, id)
+    | None => Id.Set.empty
+    },
+  pattern_focus:
+    switch (focus) {
+    | Some(id) =>
+      switch (Id.Map.find_opt(id, m)) {
+      | Some(Info.InfoPat(_)) => true
+      | _ => false
+      }
+    | None => false
+    },
+};
 
 let focus_shell_ids = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t => {
   let rec go =

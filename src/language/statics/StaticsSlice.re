@@ -1232,11 +1232,7 @@ let applied_type = (ctx, fn, args) => {
 
 let slice_forward =
     (
-      ~direction,
-      ~pattern_focus=false,
-      ~focus,
-      ~focus_query,
-      ~path=Id.Set.empty,
+      ~overlay,
       ~m,
       ~root,
       ctx: Ctx.t,
@@ -1245,6 +1241,7 @@ let slice_forward =
       query: Typ.t,
     )
     : result => {
+  let {direction, focus, focus_query, path, pattern_focus} = overlay;
   let checked_path = child =>
     direction == `Ana
     && child.mode == SliceOmit
@@ -1428,14 +1425,8 @@ let slice_forward =
 };
 
 let slice_branches =
-    (
-      ~direction,
-      ~path=Id.Set.empty,
-      ctx: Ctx.t,
-      branches: list(node),
-      query: Typ.t,
-    )
-    : result => {
+    (~overlay, ctx: Ctx.t, branches: list(node), query: Typ.t): result => {
+  let {direction, path, _} = overlay;
   let matched = matched_query(ctx, query);
   let parametric = !empty_query(matched) && !Typ.equal(matched, query);
   let (slices, _) =
@@ -1502,25 +1493,8 @@ let slice_branches =
   };
 };
 
-let compile =
-    (
-      ~direction=`Syn,
-      ~focus=None,
-      ~focus_query=gap,
-      ~path=Id.Set.empty,
-      m: Id.Map.t(Info.t),
-      root: Info.exp,
-    )
-    : node => {
-  let pattern_focus =
-    switch (focus) {
-    | Some(id) =>
-      switch (Id.Map.find_opt(id, m)) {
-      | Some(Info.InfoPat(_)) => true
-      | _ => false
-      }
-    | None => false
-    };
+let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
+  let {direction, focus, focus_query, path, pattern_focus} = overlay;
   let rec go = (~support=Unsupported, ~seen=Id.Set.empty, info: Info.exp) => {
     let id = Exp.rep_id(info.user_term);
     if (Id.Set.mem(id, seen)) {
@@ -1646,11 +1620,7 @@ let compile =
         };
       let slice_children = (children, query) =>
         slice_forward(
-          ~path,
-          ~direction,
-          ~pattern_focus,
-          ~focus,
-          ~focus_query,
+          ~overlay,
           ~m,
           ~root=id,
           info.ctx,
@@ -1679,13 +1649,7 @@ let compile =
             if (alternatives != []) {
               result_join(
                 info.ctx,
-                slice_branches(
-                  ~direction,
-                  ~path,
-                  info.ctx,
-                  alternatives,
-                  query,
-                ),
+                slice_branches(~overlay, info.ctx, alternatives, query),
                 slice_children(
                   List.filter(child => child.mode == SliceOmit, children),
                   gap,
@@ -1936,16 +1900,11 @@ let slice =
   validate(~focus, ~direction, m, query);
   let focused = focus != None;
   let node =
-    focused
-      ? compile(
-          ~direction,
-          ~focus,
-          ~focus_query=query,
-          ~path=exp_path(m, Option.get(focus)),
-          m,
-          root_info,
-        )
-      : compile(~direction, m, root_info);
+    compile(
+      ~overlay=overlay_for(~direction, ~focus, ~query, m),
+      m,
+      root_info,
+    );
   let result = node.dispatch(focused ? gap : query);
   let result =
     direction == `Ana
