@@ -1026,22 +1026,22 @@ let slice_forward =
       query: Typ.t,
     )
     : result => {
-  let {direction, focus, focus_query, path, pattern_focus} = overlay;
-  let checked_path = child =>
-    direction == `Ana
-    && child.mode == SliceOmit
-    && Id.Set.mem(child.node.id, path)
-    && (
-      is_gap(focus_query)
-      || Typ.meet(ctx, child.node.ana, focus_query) != None
+  let directives =
+    node_directives(
+      ~overlay,
+      ctx,
+      parent_shape,
+      List.map(
+        child =>
+          {
+            view_id: child.node.id,
+            view_mode: child.mode,
+            view_shape: child.node.shape,
+            view_ana: child.node.ana,
+          },
+        children,
+      ),
     );
-  let checked =
-    List.filter(
-      child => is_focus(focus, child.node.id) && checked_path(child),
-      children,
-    );
-  let follows_path =
-    List.exists(child => Id.Set.mem(child.node.id, path), children);
   let forward =
     children
     |> List.map(child => {
@@ -1056,28 +1056,20 @@ let slice_forward =
                  : route_query(child.node.shape, parent_shape, slice.psi)
              },
          };
-         if (checked_path(child)) {
-           is_focus(focus, child.node.id)
-             ? {
-               ...empty_result,
-               omitted: Id.Set.singleton(child.node.id),
-             }
-             : upwards(child.node.dispatch(gap));
-         } else if (Id.Set.mem(child.node.id, path)) {
-           upwards(
-             child.node.dispatch(
-               direction == `Ana
-               && !pattern_focus
-               && child.mode != SliceAscribe
-                 ? route_query(parent_shape, child.node.shape, focus_query)
-                 : gap,
-             ),
-           );
-         } else if (checked != []
-                    && (child.mode == SliceKeep || child.mode == SliceMatched)) {
-           empty_result;
-         } else {
-           let query = follows_path ? gap : query;
+         let directive =
+           Id.Map.find_opt(child.node.id, directives)
+           |> Option.value(~default=Forward);
+         switch (directive) {
+         | ForceOmit => {
+             ...empty_result,
+             omitted: Id.Set.singleton(child.node.id),
+           }
+         | RouteUp(routed) => upwards(child.node.dispatch(routed))
+         | Reverse(routed) => child.node.dispatch(routed)
+         | Drop => empty_result
+         | Forward
+         | Suppressed =>
+           let query = directive == Suppressed ? gap : query;
            let follow = prune => {
              let child_query =
                switch (child.lens) {
@@ -1138,7 +1130,7 @@ let slice_forward =
                : {
                  ...
                    matched_type_application(
-                     ~direction,
+                     ~direction=overlay.direction,
                      ~implicit=true,
                      ctx,
                      child.node,
@@ -1151,43 +1143,17 @@ let slice_forward =
            };
          };
        });
-  let reverse =
-    checked
-    |> List.concat_map(checked =>
-         children
-         |> List.filter_map(source =>
-              if (source.mode != SliceKeep && source.mode != SliceMatched) {
-                None;
-              } else {
-                Option.map(
-                  path =>
-                    source.node.dispatch(
-                      lift(
-                        source.node.shape,
-                        path,
-                        is_gap(focus_query)
-                          ? query_shell(checked.node.ana) : focus_query,
-                      ),
-                    ),
-                  find_path(checked.node.ana, source.node.shape),
-                );
-              }
-            )
-       );
-  results_join(ctx, forward @ reverse);
+  results_join(ctx, forward);
 };
 
 let slice_branches =
     (~overlay, ctx: Ctx.t, branches: list(node), query: Typ.t): result => {
-  let {direction, path, _} = overlay;
   let matched = matched_query(ctx, query);
   let parametric = !empty_query(matched) && !Typ.equal(matched, query);
   let (slices, _) =
     List.fold_left(
       ((slices, residual), branch: node) => {
-        let blocked =
-          direction == `Ana
-            ? !Id.Set.is_empty(path) : Id.Set.mem(branch.id, path);
+        let blocked = branch_blocked(~overlay, branch.id);
         let instantiated = MatchedTyp.poly_pair(ctx, branch.typ) != None;
         let slice =
           if (blocked || empty_query(residual)) {
@@ -1376,14 +1342,14 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
       let dispatch = query => {
         let at_focus = is_focus(focus, id);
         let query =
-          at_focus
-          && (
-            direction == `Syn
-            || empty_query(query)
-            || Typ.meet(info.ctx, info.elab_syn_ty, focus_query) != None
-          )
-            ? focus_query : query;
-        if (is_gap(query) && (at_focus || !Id.Set.mem(id, path))) {
+          focus_override(
+            ~overlay,
+            info.ctx,
+            ~shape=info.elab_syn_ty,
+            ~at_focus,
+            query,
+          );
+        if (is_gap(query) && gap_omits_node(~overlay, ~at_focus, id)) {
           {
             ...empty_result,
             omitted: Id.Set.singleton(id),

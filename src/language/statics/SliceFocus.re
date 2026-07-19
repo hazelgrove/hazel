@@ -203,6 +203,98 @@ let erase_pattern_types = (~overlay, ~path_patterns, pattern_id) =>
   && !overlay.pattern_focus
   && !Id.Set.mem(pattern_id, path_patterns);
 
+type edge_view = {
+  view_id: Id.t,
+  view_mode: Info.slice_child_mode,
+  view_shape: Typ.t,
+  view_ana: Typ.t,
+};
+
+type directive =
+  | Forward
+  | Suppressed
+  | RouteUp(Typ.t)
+  | Reverse(Typ.t)
+  | Drop
+  | ForceOmit;
+
+let node_directives =
+    (~overlay, ctx: Ctx.t, parent_shape: Typ.t, views: list(edge_view))
+    : Id.Map.t(directive) => {
+  let {direction, focus, focus_query, path, pattern_focus} = overlay;
+  let checked_path = view =>
+    direction == `Ana
+    && view.view_mode == SliceOmit
+    && Id.Set.mem(view.view_id, path)
+    && (
+      is_gap(focus_query)
+      || Typ.meet(ctx, view.view_ana, focus_query) != None
+    );
+  let checked =
+    List.find_opt(
+      view => is_focus(focus, view.view_id) && checked_path(view),
+      views,
+    );
+  let follows_path =
+    List.exists(view => Id.Set.mem(view.view_id, path), views);
+  List.fold_left(
+    (directives, view) => {
+      let directive =
+        if (checked_path(view)) {
+          is_focus(focus, view.view_id) ? ForceOmit : RouteUp(gap);
+        } else if (Id.Set.mem(view.view_id, path)) {
+          RouteUp(
+            direction == `Ana
+            && !pattern_focus
+            && view.view_mode != SliceAscribe
+              ? route_query(parent_shape, view.view_shape, focus_query) : gap,
+          );
+        } else if (checked != None
+                   && (
+                     view.view_mode == SliceKeep
+                     || view.view_mode == SliceMatched
+                   )) {
+          let checked = Option.get(checked);
+          switch (find_path(checked.view_ana, view.view_shape)) {
+          | Some(ana_path) =>
+            Reverse(
+              lift(
+                view.view_shape,
+                ana_path,
+                is_gap(focus_query)
+                  ? query_shell(checked.view_ana) : focus_query,
+              ),
+            )
+          | None => Drop
+          };
+        } else if (follows_path) {
+          Suppressed;
+        } else {
+          Forward;
+        };
+      Id.Map.add(view.view_id, directive, directives);
+    },
+    Id.Map.empty,
+    views,
+  );
+};
+
+let branch_blocked = (~overlay, branch_id) =>
+  overlay.direction == `Ana
+    ? !Id.Set.is_empty(overlay.path) : Id.Set.mem(branch_id, overlay.path);
+
+let focus_override = (~overlay, ctx, ~shape, ~at_focus, query) =>
+  at_focus
+  && (
+    overlay.direction == `Syn
+    || empty_query(query)
+    || Typ.meet(ctx, shape, overlay.focus_query) != None
+  )
+    ? overlay.focus_query : query;
+
+let gap_omits_node = (~overlay, ~at_focus, id) =>
+  at_focus || !Id.Set.mem(id, overlay.path);
+
 let focused_demand = (~overlay, ~collapsed, ~raw) =>
   is_gap(collapsed) && !is_gap(overlay.focus_query) ? raw : collapsed;
 
