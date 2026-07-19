@@ -648,122 +648,231 @@ let pattern_has_ascription = pattern =>
   | _ => false
   };
 
-let pattern_result = (~direction, ~erase_types, m, root, demand, dependencies) =>
+let pat_info = (m, pat: Pat.t): option(Info.pat) =>
+  switch (Id.Map.find_opt(Pat.rep_id(pat), m)) {
+  | Some(Info.InfoPat(info)) => Some(info)
+  | _ => None
+  };
+
+let typ_ctx_at = (m, ty: Typ.t): option(Ctx.t) =>
+  switch (Id.Map.find_opt(Typ.rep_id(ty), m)) {
+  | Some(Info.InfoTyp({ctx, _})) => Some(ctx)
+  | _ => None
+  };
+
+let pat_children = (pat: Pat.t): (list(Pat.t), list(Typ.t)) =>
+  switch (Pat.term_of(pat)) {
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | Var(_)
+  | Label(_) => ([], [])
+  | ListLit(ps)
+  | Tuple(ps) => (ps, [])
+  | Constructor(_, Some(Some(ann))) => ([], [ann])
+  | Constructor(_, _) => ([], [])
+  | Cons(a, b)
+  | TupLabel(a, b)
+  | Ap(a, b) => ([a, b], [])
+  | Parens(p)
+  | Projector(_, p) => ([p], [])
+  | Asc(p, ann) => ([p], [ann])
+  };
+
+let rec typ_ids = (ty: Typ.t): Id.Set.t =>
+  List.fold_left(
+    (ids, child) => Id.Set.union(ids, typ_ids(child)),
+    Id.Set.of_list(IdTagged.ids(ty)),
+    typ_children(ty),
+  );
+
+let rec pattern_annotations = (pat: Pat.t): list(Typ.t) => {
+  let (pats, anns) = pat_children(pat);
+  anns @ List.concat_map(pattern_annotations, pats);
+};
+
+let rec pattern_constructors = (m, pat: Pat.t): Ctx.t => {
+  let own =
+    switch (Pat.term_of(pat), pat_info(m, pat)) {
+    | (Constructor(name, _), Some(info)) =>
+      context_for_name(info.ctx, name, info.elab_syn_ty)
+    | _ => Ctx.empty
+    };
+  let (pats, _) = pat_children(pat);
+  List.fold_left(
+    (context, child) =>
+      context_join(context, pattern_constructors(m, child)),
+    own,
+    pats,
+  );
+};
+
+let pattern_omissions = (m, shape, demand, root_pat: Pat.t): Id.Set.t => {
+  let rec go = (~is_root, pat) => {
+    let own =
+      !is_root
+      && Pat.bindings(pat) == []
+      && !pattern_has_ascription(pat)
+      && (
+        switch (pat_info(m, pat)) {
+        | Some(info) =>
+          empty_query(route_query(shape, info.elab_syn_ty, demand))
+        | None => false
+        }
+      )
+        ? Id.Set.singleton(Pat.rep_id(pat)) : Id.Set.empty;
+    let (pats, _) = pat_children(pat);
+    List.fold_left(
+      (omitted, child) => Id.Set.union(omitted, go(~is_root=false, child)),
+      own,
+      pats,
+    );
+  };
+  go(~is_root=true, root_pat);
+};
+
+let rec annotation_result =
+        (
+          ~direction,
+          ~erase_types,
+          m,
+          ~required: Ctx.t,
+          ~has_ctors,
+          shape,
+          demand,
+          ty,
+        )
+        : (Ctx.t, Id.Set.t) => {
+  let routed = route_query(shape, ty, demand);
+  let omitted = erase_types ? ids_of_typ(ty, routed) : Id.Set.empty;
+  let (context, omitted) =
+    switch (Typ.term_of(ty)) {
+    | Var(name) =>
+      switch (Option.bind(typ_ctx_at(m, ty), tvar_entry(_, name))) {
+      | Some(entry) =>
+        let key = context_key(Ctx.TVarEntry(entry));
+        let declared =
+          List.exists(item => context_key(item) == key, required.entries);
+        let supplied =
+          switch (entry.kind) {
+          | Singleton(definition) =>
+            List.exists(
+              fun
+              | Ctx.TVarEntry({name, kind: Singleton(required), _}) =>
+                name == entry.name && Typ.equal(definition, required)
+              | _ => false,
+              required.entries,
+            )
+          | Abstract => false
+          };
+        let minimal = Typ.equal(routed, ty);
+        let entry =
+          minimal
+            ? Ctx.TVarEntry(minimal_tvar(entry)) : Ctx.TVarEntry(entry);
+        (
+          direction == `Ana && minimal && !has_ctors || !declared
+            ? Ctx.extend(Ctx.empty, entry) : Ctx.empty,
+          supplied
+            ? Id.Set.union(Id.Set.of_list(IdTagged.ids(ty)), omitted)
+            : omitted,
+        );
+      | None => (Ctx.empty, omitted)
+      }
+    | _ => (Ctx.empty, omitted)
+    };
+  List.fold_left(
+    ((context, omitted), child) => {
+      let (child_context, child_omitted) =
+        annotation_result(
+          ~direction,
+          ~erase_types,
+          m,
+          ~required,
+          ~has_ctors,
+          shape,
+          demand,
+          child,
+        );
+      (
+        context_join(context, child_context),
+        Id.Set.union(omitted, child_omitted),
+      );
+    },
+    (context, omitted),
+    typ_children(ty),
+  );
+};
+
+let pattern_result = (~direction, ~erase_types, m, root, demand, dependencies) => {
+  let root_pat =
+    switch (Id.Map.find_opt(root, m)) {
+    | Some(Info.InfoPat(pattern)) => Some(pattern)
+    | _ => None
+    };
+  let annotations =
+    Option.map(
+      (pattern: Info.pat) => pattern_annotations(pattern.user_term),
+      root_pat,
+    )
+    |> Option.value(~default=[]);
   if (is_gap(demand)) {
     erase_types
       ? {
         ...empty_result,
         omitted:
-          Id.Map.fold(
-            (_, info, omitted) =>
-              switch (info) {
-              | Info.InfoTyp({user_term, ancestors, _})
-                  when List.exists(Id.equal(root), ancestors) =>
-                Id.Set.union(omitted, ids_of_typ(user_term, gap))
-              | _ => omitted
-              },
-            m,
+          List.fold_left(
+            (omitted, ann) => Id.Set.union(omitted, typ_ids(ann)),
             Id.Set.empty,
+            annotations,
           ),
       }
       : empty_result;
   } else {
     let (shape, ascribed) =
-      switch (Id.Map.find_opt(root, m)) {
-      | Some(Info.InfoPat(pattern)) => (
+      switch (root_pat) {
+      | Some(pattern) => (
           pattern.ty,
           pattern_has_ascription(pattern.user_term),
         )
-      | _ => (demand, false)
+      | None => (demand, false)
       };
-    let (pattern_omitted, constructors) =
-      Id.Map.fold(
-        (id, info, (omitted, context)) =>
-          switch (info) {
-          | Info.InfoPat(pattern)
-              when
-                Id.equal(id, root)
-                || List.exists(Id.equal(root), pattern.ancestors) =>
-            let omitted =
-              ascribed
-              && List.exists(Id.equal(root), pattern.ancestors)
-              && Pat.bindings(pattern.user_term) == []
-              && !pattern_has_ascription(pattern.user_term)
-              && empty_query(route_query(shape, pattern.elab_syn_ty, demand))
-                ? Id.Set.add(Pat.rep_id(pattern.user_term), omitted)
-                : omitted;
-            let context =
-              switch (Pat.term_of(pattern.user_term)) {
-              | Constructor(name, _) =>
-                context_join(
-                  context,
-                  context_for_name(pattern.ctx, name, pattern.elab_syn_ty),
-                )
-              | _ => context
-              };
-            (omitted, context);
-          | _ => (omitted, context)
-          },
-        m,
-        (Id.Set.empty, Ctx.empty),
-      );
+    let constructors =
+      Option.map(
+        (pattern: Info.pat) => pattern_constructors(m, pattern.user_term),
+        root_pat,
+      )
+      |> Option.value(~default=Ctx.empty);
     let pattern_omitted =
-      constructors.entries == [] ? pattern_omitted : Id.Set.empty;
+      switch (root_pat) {
+      | Some(pattern) when ascribed && constructors.entries == [] =>
+        pattern_omissions(m, shape, demand, pattern.user_term)
+      | _ => Id.Set.empty
+      };
     let required = context_join(constructors, dependencies);
     let (context, omitted) =
-      Id.Map.fold(
-        (id, info, (context, omitted)) =>
-          switch (info) {
-          | Info.InfoTyp({user_term, ctx, ancestors, _})
-              when List.exists(Id.equal(root), ancestors) =>
-            let routed = route_query(shape, user_term, demand);
-            let omitted =
-              erase_types
-                ? Id.Set.union(omitted, ids_of_typ(user_term, routed))
-                : omitted;
-            switch (Typ.term_of(user_term)) {
-            | Var(name) =>
-              switch (tvar_entry(ctx, name)) {
-              | Some(entry) =>
-                let key = context_key(Ctx.TVarEntry(entry));
-                let declared =
-                  List.exists(
-                    item => context_key(item) == key,
-                    required.entries,
-                  );
-                let supplied =
-                  switch (entry.kind) {
-                  | Singleton(definition) =>
-                    List.exists(
-                      fun
-                      | Ctx.TVarEntry({name, kind: Singleton(required), _}) =>
-                        name == entry.name && Typ.equal(definition, required)
-                      | _ => false,
-                      required.entries,
-                    )
-                  | Abstract => false
-                  };
-                let minimal = Typ.equal(routed, user_term);
-                let entry =
-                  minimal
-                    ? Ctx.TVarEntry(minimal_tvar(entry))
-                    : Ctx.TVarEntry(entry);
-                (
-                  direction == `Ana
-                  && minimal
-                  && constructors.entries == []
-                  || !declared
-                    ? Ctx.extend(context, entry) : context,
-                  supplied ? Id.Set.add(id, omitted) : omitted,
-                );
-              | None => (context, omitted)
-              }
-            | _ => (context, omitted)
-            };
-          | _ => (context, omitted)
-          },
-        m,
+      List.fold_left(
+        ((context, omitted), ann) => {
+          let (ann_context, ann_omitted) =
+            annotation_result(
+              ~direction,
+              ~erase_types,
+              m,
+              ~required,
+              ~has_ctors=constructors.entries != [],
+              shape,
+              demand,
+              ann,
+            );
+          (
+            context_join(context, ann_context),
+            Id.Set.union(omitted, ann_omitted),
+          );
+        },
         (constructors, pattern_omitted),
+        annotations,
       );
     {
       ...empty_result,
@@ -771,6 +880,7 @@ let pattern_result = (~direction, ~erase_types, m, root, demand, dependencies) =
       omitted,
     };
   };
+};
 
 let type_context = (~minimal, m, root, omitted) => {
   let rec owned =
