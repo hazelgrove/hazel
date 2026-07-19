@@ -166,6 +166,46 @@ let minimal_join = (~overlay, types: Ctx.t, gamma: Ctx.t) =>
   overlay.direction == `Ana && !context_has_constructor(gamma)
     ? context_join(types, gamma) : context_join(gamma, types);
 
+let binding_focus_demand =
+    (
+      ~overlay,
+      m,
+      ctx,
+      ~on_path,
+      ~ascribed,
+      ~probe: unit => Typ.t,
+      pattern_id,
+      shape,
+      source,
+    )
+    : Typ.t => {
+  let {direction, focus, focus_query, _} = overlay;
+  if (direction == `Ana) {
+    let focus_demand =
+      on_path && (typ_children(focus_query) != [] || ascribed)
+        ? probe() : gap;
+    meet(
+      ctx,
+      source,
+      meet(
+        ctx,
+        focus_demand,
+        pattern_focus_demand(m, pattern_id, focus, shape, focus_query),
+      ),
+    );
+  } else {
+    source;
+  };
+};
+
+let erase_pattern_types = (~overlay, ~path_patterns, pattern_id) =>
+  overlay.direction == `Ana
+  && !overlay.pattern_focus
+  && !Id.Set.mem(pattern_id, path_patterns);
+
+let focused_demand = (~overlay, ~collapsed, ~raw) =>
+  is_gap(collapsed) && !is_gap(overlay.focus_query) ? raw : collapsed;
+
 let compatible_query = (ctx: Ctx.t, actual: Typ.t, query: Typ.t): bool =>
   Typ.meet(ctx, actual, query) != None
   || (

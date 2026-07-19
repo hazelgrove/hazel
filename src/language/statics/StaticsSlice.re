@@ -1247,7 +1247,7 @@ let slice_branches =
 };
 
 let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
-  let {direction, focus, focus_query, path, pattern_focus} = overlay;
+  let {direction, focus, focus_query, path, _} = overlay;
   let rec go = (~support=Unsupported, ~seen=Id.Set.empty, info: Info.exp) => {
     let id = Exp.rep_id(info.user_term);
     if (Id.Set.mem(id, seen)) {
@@ -1511,29 +1511,18 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
                          |> Option.value(~default=gap);
                        };
                      let source = meet(info.ctx, body, parent);
-                     let focus_demand =
-                       direction == `Ana
-                       && Id.Set.mem(child.node.id, path)
-                       && (typ_children(focus_query) != [] || child.ascribed)
-                         ? child.node.dispatch(gap).psi : gap;
                      let raw =
-                       direction == `Ana
-                         ? meet(
-                             info.ctx,
-                             source,
-                             meet(
-                               info.ctx,
-                               focus_demand,
-                               pattern_focus_demand(
-                                 m,
-                                 Pat.rep_id(pattern.user_term),
-                                 focus,
-                                 shape,
-                                 focus_query,
-                               ),
-                             ),
-                           )
-                         : source;
+                       binding_focus_demand(
+                         ~overlay,
+                         m,
+                         info.ctx,
+                         ~on_path=Id.Set.mem(child.node.id, path),
+                         ~ascribed=child.ascribed,
+                         ~probe=() => child.node.dispatch(gap).psi,
+                         Pat.rep_id(pattern.user_term),
+                         shape,
+                         source,
+                       );
                      {
                        child,
                        bound: pattern,
@@ -1594,13 +1583,18 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
                    pattern_result(
                      ~direction,
                      ~erase_types=
-                       direction == `Ana
-                       && !pattern_focus
-                       && !Id.Set.mem(pattern_id, path_patterns),
+                       erase_pattern_types(
+                         ~overlay,
+                         ~path_patterns,
+                         pattern_id,
+                       ),
                      m,
                      pattern_id,
-                     is_gap(slice.collapsed) && !is_gap(focus_query)
-                       ? slice.raw : slice.collapsed,
+                     focused_demand(
+                       ~overlay,
+                       ~collapsed=slice.collapsed,
+                       ~raw=slice.raw,
+                     ),
                      combined.gamma,
                    );
                  let demand = canonical(slice);
