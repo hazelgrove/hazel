@@ -11,6 +11,12 @@ type direction = [
   | `Ana
 ];
 
+type analysis_support =
+  | Unsupported
+  | ExpressionAscription
+  | BindingAscription
+  | ModuleItem;
+
 let local_binding = (m, path, binding: Ctx.var_entry) =>
   switch (Id.Map.find_opt(binding.id, m)) {
   | Some(Info.InfoPat(pattern)) =>
@@ -294,6 +300,21 @@ let focus_override = (~overlay, ctx, ~shape, ~at_focus, query) =>
 
 let gap_omits_node = (~overlay, ~at_focus, id) =>
   at_focus || !Id.Set.mem(id, overlay.path);
+
+let ascribed_focus_omits =
+    (~overlay, m, ~at_focus, ~support, gamma: Ctx.t): bool =>
+  at_focus
+  && overlay.direction == `Ana
+  && (
+    support == BindingAscription
+    || support == ExpressionAscription
+    && List.for_all(
+         fun
+         | Ctx.VarEntry(binding) => local_binding(m, overlay.path, binding)
+         | _ => false,
+         gamma.entries,
+       )
+  );
 
 let focused_demand = (~overlay, ~collapsed, ~raw) =>
   is_gap(collapsed) && !is_gap(overlay.focus_query) ? raw : collapsed;

@@ -10,12 +10,6 @@ type result = {
   psi: Typ.t,
   ana: Typ.t,
 };
-type analysis_support =
-  | Unsupported
-  | ExpressionAscription
-  | BindingAscription
-  | ModuleItem;
-
 type exp_result = (Info.exp, Exp.t, Id.Map.t(Info.t));
 
 type node = {
@@ -1426,17 +1420,12 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
             | _ => forward
             };
           let forward =
-            at_focus
-            && direction == `Ana
-            && (
-              support == BindingAscription
-              || support == ExpressionAscription
-              && List.for_all(
-                   fun
-                   | Ctx.VarEntry(binding) => local_binding(m, path, binding)
-                   | _ => false,
-                   forward.gamma.entries,
-                 )
+            ascribed_focus_omits(
+              ~overlay,
+              m,
+              ~at_focus,
+              ~support,
+              forward.gamma,
             )
               ? {
                 ...empty_result,
