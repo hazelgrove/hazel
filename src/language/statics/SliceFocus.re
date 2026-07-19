@@ -151,28 +151,20 @@ let rec signature_omissions = (m, ctx, actual, query) => {
   };
 };
 
-let ascription_result =
-    (~overlay, m, ctx, ~root, parent_shape, ~psi, ~gamma): (Id.Set.t, Ctx.t) => {
+let ascription_query = (~overlay, parent_shape, psi) => {
   let {direction, path, focus_query, _} = overlay;
-  let annotation_query =
-    direction == `Ana && !Id.Set.is_empty(path)
-      ? Option.map(
-          path => lift(parent_shape, path, focus_query),
-          find_shape_path(focus_query, parent_shape),
-        )
-        |> Option.value(~default=psi)
-      : psi;
-  let annotation_query = fill_shell(parent_shape, annotation_query);
-  let omitted =
-    Id.Set.union(
-      ids_of_typ(parent_shape, annotation_query),
-      signature_omissions(m, ctx, parent_shape, annotation_query),
-    );
-  (
-    omitted,
-    context_with_types(~minimal=direction == `Ana, m, root, omitted, gamma),
-  );
+  direction == `Ana && !Id.Set.is_empty(path)
+    ? Option.map(
+        path => lift(parent_shape, path, focus_query),
+        find_shape_path(focus_query, parent_shape),
+      )
+      |> Option.value(~default=psi)
+    : psi;
 };
+
+let minimal_join = (~overlay, types: Ctx.t, gamma: Ctx.t) =>
+  overlay.direction == `Ana && !context_has_constructor(gamma)
+    ? context_join(types, gamma) : context_join(gamma, types);
 
 let compatible_query = (ctx: Ctx.t, actual: Typ.t, query: Typ.t): bool =>
   Typ.meet(ctx, actual, query) != None

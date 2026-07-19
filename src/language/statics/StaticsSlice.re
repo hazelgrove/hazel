@@ -553,6 +553,7 @@ let rec annotation_result =
         (
           ~direction,
           ~erase_types,
+          ~minimal_aliases=true,
           m,
           ~required: Ctx.t,
           ~has_ctors,
@@ -583,7 +584,7 @@ let rec annotation_result =
             )
           | Abstract => false
           };
-        let minimal = Typ.equal(routed, ty);
+        let minimal = minimal_aliases && Typ.equal(routed, ty);
         let entry =
           minimal
             ? Ctx.TVarEntry(minimal_tvar(entry)) : Ctx.TVarEntry(entry);
@@ -604,6 +605,7 @@ let rec annotation_result =
         annotation_result(
           ~direction,
           ~erase_types,
+          ~minimal_aliases,
           m,
           ~required,
           ~has_ctors,
@@ -1419,24 +1421,43 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
               };
             };
           let forward =
-            if (List.exists(child => child.mode == SliceAscribe, children)) {
-              let (omitted, gamma) =
-                ascription_result(
-                  ~overlay,
-                  m,
-                  info.ctx,
-                  ~root=id,
+            switch (term) {
+            | Asc(_, annotation)
+                when
+                  List.exists(child => child.mode == SliceAscribe, children) =>
+              let annotation_query =
+                fill_shell(
                   info.elab_syn_ty,
-                  ~psi=forward.psi,
-                  ~gamma=forward.gamma,
+                  ascription_query(~overlay, info.elab_syn_ty, forward.psi),
+                );
+              let (context, omitted) =
+                annotation_result(
+                  ~direction,
+                  ~erase_types=true,
+                  ~minimal_aliases=direction == `Ana,
+                  m,
+                  ~required=forward.gamma,
+                  ~has_ctors=context_has_constructor(forward.gamma),
+                  info.elab_syn_ty,
+                  annotation_query,
+                  annotation,
+                );
+              let omitted =
+                Id.Set.union(
+                  omitted,
+                  signature_omissions(
+                    m,
+                    info.ctx,
+                    info.elab_syn_ty,
+                    annotation_query,
+                  ),
                 );
               {
                 ...forward,
                 omitted: Id.Set.union(forward.omitted, omitted),
-                gamma,
+                gamma: minimal_join(~overlay, context, forward.gamma),
               };
-            } else {
-              forward;
+            | _ => forward
             };
           let forward =
             at_focus
