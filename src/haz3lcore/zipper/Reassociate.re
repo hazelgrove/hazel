@@ -445,11 +445,21 @@ let accept_candidate =
   let candidate_stats = stats_of(~anchors, Relatives.zip(local_relatives));
   if (should_accept_repair(base_stats, candidate_stats)) {
     {
+      /* Reassembly only regrouts tile children (Segment.inner_regrout); the
+         sibling level must be regrouted here. Otherwise, when reassociation
+         absorbs a sibling that was serving as an operand (e.g. an `in`
+         monotile that was the outer let's body) into a form as a shard, the
+         siblings are left nonconvex and Segment.skel crashes downstream. */
+
       ...z,
-      relatives: {
-        siblings: local_relatives.siblings,
-        ancestors: local_relatives.ancestors @ outer_ancestors,
-      },
+      relatives:
+        Relatives.regrout(
+          Left,
+          {
+            siblings: local_relatives.siblings,
+            ancestors: local_relatives.ancestors @ outer_ancestors,
+          },
+        ),
     };
   } else {
     z;
