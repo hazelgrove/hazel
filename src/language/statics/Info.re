@@ -59,6 +59,19 @@ let query_route_of_sexp = (_: Sexplib.Sexp.t): query_route => identity_route;
 let yojson_of_query_route = (_: query_route): Yojson.Safe.t => `Null;
 let query_route_of_yojson = (_: Yojson.Safe.t): query_route => identity_route;
 
+type routed('a) = {
+  value: 'a,
+  route: query_route,
+};
+let pure = (value: 'a): routed('a) => {
+  value,
+  route: identity_route,
+};
+let map = (f: 'a => 'b, {value, route}: routed('a)): routed('b) => {
+  value: f(value),
+  route,
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slice_child = {
   mode: slice_child_mode,

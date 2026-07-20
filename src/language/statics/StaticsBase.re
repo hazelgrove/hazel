@@ -532,7 +532,7 @@ module type ExpressionStatics = {
   let uexp_to_info_map:
     (
       ~ctx: Ctx.t,
-      ~ana: Typ.t=?,
+      ~ana: Info.routed(Typ.t)=?,
       ~is_in_filter: bool=?,
       ~ancestors: Info.ancestors=?,
       Exp.t,

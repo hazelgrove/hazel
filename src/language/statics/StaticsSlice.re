@@ -21,26 +21,26 @@ let route_none: query_route = {
   up: (_, _) => gap,
 };
 
-let label_slot = (ctx: Ctx.t, tuple_ty: Typ.t, label: string): option(path) => {
-  let children = typ_children(Typ.weak_head_normalize(ctx, tuple_ty));
-  let matches = child =>
-    switch (Typ.term_of(child)) {
-    | TupLabel({term: Label(l), _}, _) => l == label
-    | _ => false
-    };
-  List.mapi((i, child) => (i, child), children)
-  |> List.find_opt(((_, child)) => matches(child))
-  |> Option.map(((i, _)) => [i, 1]);
+let at = (ty: Typ.t, route: query_route): routed(Typ.t) => {
+  value: ty,
+  route,
 };
 
-let route_field = (ctx: Ctx.t, tuple_ty: Typ.t, label: string): query_route =>
-  switch (label_slot(ctx, tuple_ty, label)) {
-  | Some(path) => {
-      down: q => lift(Typ.weak_head_normalize(ctx, tuple_ty), path, q),
-      up: (_, psi) => project(psi, path),
-    }
-  | None => identity_route
+module Matched = {
+  let slot = (ctx, i, ty): routed(Typ.t) =>
+    at(ty, route_component(ctx, i));
+  let arrow = (ctx, ty): (routed(Typ.t), routed(Typ.t)) => {
+    let (i, o) = MatchedTyp.arrow_tolerant(ctx, ty);
+    (slot(ctx, 0, i), slot(ctx, 1, o));
   };
+  let list = (ctx, ty): routed(Typ.t) =>
+    slot(ctx, 0, MatchedTyp.list_tolerant(ctx, ty));
+  let poly_body = (ctx, ty): (option(TPat.t), routed(Typ.t)) => {
+    let (binder, body) = MatchedTyp.poly_pair_tolerant(ctx, ty);
+    (binder, slot(ctx, 0, body));
+  };
+  let elem = slot;
+};
 
 type result = {
   omitted: Id.Set.t,
