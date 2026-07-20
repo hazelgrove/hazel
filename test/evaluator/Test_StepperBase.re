@@ -269,6 +269,19 @@ in
 debug stop(fac($v)) in
 fac(3)|};
 
+let map_stop_program = {|
+debug eval($e) in
+let map : ([Int], Int -> Int) -> [Int] =
+  fun (xs, f) ->
+    case xs
+    | [] => []
+    | hd :: tl => f(hd) :: map((tl, f))
+    end
+in
+let square : Int -> Int = fun x -> x * x in
+debug stop(square($v)) in
+map(([1, 2], square))|};
+
 let stepper_ctx =
   SemanticCtx.of_ctx_and_env(Builtins.ctx_init(None), Builtins.closure_env);
 
@@ -467,6 +480,45 @@ let tests = (
         check(
           bool,
           "no visible step remains after the three stops",
+          true,
+          action_at_deepest_available(model.root) == None,
+        );
+      },
+    ),
+    test_case(
+      "recursive stop step under type ascription does not crash",
+      `Quick,
+      () => {
+        /* Regression test for the Asc variant of hazelgrove/hazel#2331:
+           the `let map : ... =` annotation makes evaluation distribute an
+           ascription over the recursive application, producing
+           Asc(Ap(...), _) nodes that are structurally equal (under
+           ignore_ascriptions) to the Ap redex they enclose.
+           ProofHacks.exp_idx used to anchor the occurrence at the Asc
+           wrapper and never reach the redex underneath, raising Failure
+           while the stepper view persisted its hidden steps. */
+        let elab = map_stop_program |> parse_exp |> elaborate;
+        let pure_count =
+          count_available_steps_with_env(
+            ~limit=2000,
+            ~exp=stepper_pure_exp(elab),
+            ~count=0,
+          );
+        check(int, "pure evaluator visible stops", 2, pure_count);
+        let model =
+          Web.StepperView.Model.init
+          |> calculate_stepper_view(~fresh=true, elab);
+        let model =
+          model
+          |> apply_deepest_available_action
+          |> calculate_stepper_view(~fresh=false, elab);
+        let model =
+          model
+          |> apply_deepest_available_action
+          |> calculate_stepper_view(~fresh=false, elab);
+        check(
+          bool,
+          "no visible step remains after the two stops",
           true,
           action_at_deepest_available(model.root) == None,
         );
