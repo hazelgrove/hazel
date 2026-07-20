@@ -432,6 +432,12 @@ let tests = (
       "taking recursive stop step does not overflow",
       `Quick,
       () => {
+        /* Regression test for hazelgrove/hazel#2331: driving the stepper
+           view through the recursive stop steps used to crash inside
+           ProofHacks.exp_idx (the step target could not be located in the
+           Residue-wrapped expression). The three rounds below must
+           complete without raising; apply_deepest_available_action also
+           fails the test if an expected step is missing. */
         let elab = fac_stop_program |> parse_exp |> elaborate;
         let pure_count =
           count_available_steps_with_env(
@@ -451,11 +457,19 @@ let tests = (
           model
           |> apply_deepest_available_action
           |> calculate_stepper_view(~fresh=false, elab);
-        let _model =
+        let model =
           model
           |> apply_deepest_available_action
           |> calculate_stepper_view(~fresh=false, elab);
-        check(bool, "step calculate completed", true, true);
+        /* After the three visible stops everything left is hidden by
+           `debug eval($e) in`, so the stepper must agree with the pure
+           evaluator that no further step is available. */
+        check(
+          bool,
+          "no visible step remains after the three stops",
+          true,
+          action_at_deepest_available(model.root) == None,
+        );
       },
     ),
     // ============================================================
