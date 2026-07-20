@@ -1,37 +1,6 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
-type filter_action =
-  | Pause
-  | Debug
-  | Hide
-  | Eval;
-
-let string_of_filter_action = action => {
-  switch (action) {
-  | Pause => "stop"
-  | Debug => "step"
-  | Hide => "hide"
-  | Eval => "eval"
-  };
-};
-
-let filter_action_of_string = string => {
-  switch (string) {
-  | "stop" => Some(Pause)
-  | "step" => Some(Debug)
-  | "hide" => Some(Hide)
-  | "eval" => Some(Eval)
-  | _ => None
-  };
-};
-
-[@deriving (show({with_path: false}), sexp, qcheck, eq)]
-type filter_selector =
-  | Exp
-  | Val;
-
-[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_float =
   | Plus
   | Minus
