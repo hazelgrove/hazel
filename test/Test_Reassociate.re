@@ -1053,13 +1053,14 @@ in
   ),
   /* Same shape but the outer let already has a body (`c`), so the second
    * `in` is typed just before existing content instead of at the document
-   * end. Exercises the accept-path regrout where no new grout is needed. */
+   * end (space-separated so the keyword doesn't merge with it). Exercises
+   * the accept-path regrout where no new grout is needed. */
   test_case(
     "Second in before outer body reassociates without crash",
     `Quick,
     () => {
       let z0 =
-        Test_Editing.mk("let a = \n¦\nin \nc")
+        Test_Editing.mk("let a = \n¦\nin \n c")
         |> Test_Editing.perform(
              ~settings=deep_reassociate_settings,
              Zipper.init(),
@@ -1069,7 +1070,7 @@ in
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z0);
       let z2 =
         [Action.Move(End)]
-        @ Test_Editing.mv_l(1)
+        @ Test_Editing.mv_l(2)
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z1);
       let z3 =
         Test_Editing.string_to_ltr_actions("in ")
