@@ -115,6 +115,40 @@ let tests = (
       },
     ),
     test_case(
+      "Unresolved filter wrapper does not corrupt inner filter matching",
+      `Quick,
+      () => {
+        /* An unresolved filter (condition is not a recognized action
+           application) is a no-op for stepping. Inserting one between a
+           stop filter and its target must not change which steps are
+           visible: matching below the Unresolved frame has to keep
+           matching against the actual redex, not against the unresolved
+           condition expression. */
+        let base = "debug eval($e) in debug stop(1 + 2) in (1 + 2) + (3 + 4)";
+        let wrapped = "debug eval($e) in debug stop(1 + 2) in debug 42 in (1 + 2) + (3 + 4)";
+        let base_steps =
+          count_available_steps(~limit=500, parse_exp(base) |> elaborate, 0);
+        let wrapped_steps =
+          count_available_steps(
+            ~limit=500,
+            parse_exp(wrapped) |> elaborate,
+            0,
+          );
+        check(
+          bool,
+          "control program has visible steps",
+          true,
+          base_steps > 0,
+        );
+        check(
+          int,
+          "no-op unresolved filter must not change visible step count",
+          base_steps,
+          wrapped_steps,
+        );
+      },
+    ),
+    test_case(
       "Stop filter on map hits square application",
       `Quick,
       () => {
