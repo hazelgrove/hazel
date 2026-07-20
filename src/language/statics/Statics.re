@@ -341,7 +341,7 @@ and uexp_to_info_map =
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
     let (slice_children, m) =
-      StaticsSlice.take_children(~parent=user_term, m);
+      StaticsSlice.take_children(~id=Exp.rep_id(user_term), m);
     let info: Info.exp = {
       cls,
       elab_syn_ty,
@@ -380,17 +380,9 @@ and uexp_to_info_map =
   let ( let* ) = (child, k) => StaticsSlice.keep(~parent=uexp, child, k);
   let (let&) = (child, k) => StaticsSlice.omit(~parent=uexp, child, k);
   let (let$) = (child, k) =>
-    StaticsSlice.source_binding(~parent=uexp, child, k);
-  let (let^) = (child, k) =>
-    StaticsSlice.bound_child(~parent=uexp, child, k);
-  let (let^^) = (child, k) =>
-    StaticsSlice.omitted_binding(~parent=uexp, child, k);
-  let (let@) = (child, k) =>
     StaticsSlice.source_child(~parent=uexp, child, k);
   let (let+) = (child, k) =>
     StaticsSlice.alternative(~parent=uexp, child, k);
-  let (let++) = (child, k) =>
-    StaticsSlice.alternative_binding(~parent=uexp, child, k);
   let ( let** ) = (child, k) => StaticsSlice.track(~parent=uexp, child, k);
   let (let@@) = (child, k) => StaticsSlice.map(~parent=uexp, child, k);
   let (let&&) = (child, k) => StaticsSlice.prune(~parent=uexp, child, k);
@@ -1962,7 +1954,7 @@ and uexp_to_info_map =
       let mode_pat = Option.value(~default=mode_pat, typ);
       let! (p', _, m) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
-      let^ (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
+      let* (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
       /* Second pass: re-analyze the pattern to attach the body's co_ctx.
          Use `p'.ty` (the ana-meet'd type) rather than `p'.elab_syn_ty`.
          For bare `Var`/`EmptyHole` patterns `elab_syn_ty` is `?`, which
@@ -1992,7 +1984,7 @@ and uexp_to_info_map =
     | Forall(p, e) =>
       let! (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
-      let^^ (e, e_elab, m) =
+      let& (e, e_elab, m) =
         go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
@@ -2218,7 +2210,7 @@ and uexp_to_info_map =
           | _ => p_ana_ctx
           }
         };
-      let^ (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
+      let* (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
@@ -2275,7 +2267,7 @@ and uexp_to_info_map =
       );
     | Theorem({term: Var(_), _} as p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let@ (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let$ (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let! (p', _, m) =
         go_pat(
           ~is_synswitch=false,
@@ -2284,7 +2276,7 @@ and uexp_to_info_map =
           p,
           m,
         );
-      let^ (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
+      let* (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
@@ -2303,10 +2295,10 @@ and uexp_to_info_map =
       );
     | Theorem(p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let@ (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let$ (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let! (p', _, m) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let^ (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
+      let* (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
@@ -2402,7 +2394,7 @@ and uexp_to_info_map =
         m,
       );
     | Match(scrut, rules) =>
-      let@ (scrut, scrut_elab, m) = go(~ana=syn, scrut, m);
+      let$ (scrut, scrut_elab, m) = go(~ana=syn, scrut, m);
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(Exp.rep_id, es);
       let (ps', m) =
@@ -2426,7 +2418,7 @@ and uexp_to_info_map =
       let (es, es_elabs, m) =
         List.fold_left2(
           ((es, elabs, m), e, pattern) => {
-            let++ (e, elab, m) = go(~ctx=Info.pat_ctx(pattern), ~ana, e, m);
+            let+ (e, elab, m) = go(~ctx=Info.pat_ctx(pattern), ~ana, e, m);
             (es @ [e], elabs @ [elab], m);
           },
           ([], [], m),
@@ -3125,6 +3117,8 @@ and upat_to_info_map =
       | (_, true) => Hole(Some(constraint_))
       | (_, false) => constraint_
       };
+    let (slice_children, m) =
+      StaticsSlice.take_children(~id=Pat.rep_id(user_term), m);
     let info: Info.pat = {
       cls,
       elab_syn_ty,
@@ -3142,11 +3136,14 @@ and upat_to_info_map =
       label_inference,
       inferred_label,
       label_sort,
+      slice_children,
     };
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoPat(info), m));
   };
   let ancestors = (); // Deliberately shadowed so there's no risk of using it by mistake
   let _ = ancestors;
+  let ( let* ) = (child, k) =>
+    StaticsSlice.pat_edge(SliceKeep, ~parent=upat, child, k);
   let go =
       (
         ~is_synswitch=is_synswitch,
@@ -3341,8 +3338,11 @@ and upat_to_info_map =
       let (ctx, tys, cons, m, infos, ps_elabs) =
         fold_patterns_with_modes(
           ~analyze=
-            (~ctx, ~ana, ~duplicate_bindings, p, m) =>
-              go(~ctx, ~ana, ~duplicate_bindings, p, m),
+            (~ctx, ~ana, ~duplicate_bindings, p, m) => {
+              let* (info, elab, m) =
+                go(~ctx, ~ana, ~duplicate_bindings, p, m);
+              (info, elab, m);
+            },
           ~ctx,
           ps,
           refined_modes,
@@ -3386,8 +3386,8 @@ and upat_to_info_map =
          pattern-variable bindings (e.g. `x` in `0 :: x` giving `x : [Int]`)
          pick up the refined type in their context. Mirrors the re-analysis
          performed for `Let` patterns once the def's type is known. */
-      let (hd, hd_elab, m) = go(~ctx, ~ana=refined_inner, hd, m);
-      let (tl, tl_elab, m) =
+      let* (hd, hd_elab, m) = go(~ctx, ~ana=refined_inner, hd, m);
+      let* (tl, tl_elab, m) =
         go(~ctx=hd.ctx, ~ana=List(refined_inner) |> Typ.fresh, tl, m);
       add(
         ~elab_term=Cons(hd_elab, tl_elab) |> rewrap,
@@ -3746,7 +3746,7 @@ and upat_to_info_map =
                 elabs @ [elab_tl],
               );
             | _ =>
-              let (info, elab, m) =
+              let* (info, elab, m) =
                 go(
                   ~ctx,
                   ~ana,
@@ -3818,7 +3818,7 @@ and upat_to_info_map =
         m,
       )
     | Parens(p) =>
-      let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
+      let* (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add(
         ~elab_term=Parens(p_elab) |> rewrap,
         ~elab_syn_ty=p.elab_syn_ty,
@@ -3828,7 +3828,7 @@ and upat_to_info_map =
         m,
       );
     | Projector(data, p) =>
-      let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
+      let* (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add(
         ~elab_term=Projector(data, p_elab) |> rewrap,
         ~elab_syn_ty=p.elab_syn_ty,
@@ -3861,7 +3861,7 @@ and upat_to_info_map =
     | Ap(fn, arg) =>
       let ctr = Pat.ctr_name(fn);
       let fn_ana = Arrow(syn, ana) |> Typ.temp;
-      let (fn', fn_elab, m) = go(~ctx, ~ana=fn_ana, fn, m);
+      let* (fn', fn_elab, m) = go(~ctx, ~ana=fn_ana, fn, m);
       let m = {
         switch (ctr) {
         | Some(_) => m
@@ -3871,7 +3871,7 @@ and upat_to_info_map =
         };
       };
       let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn'.elab_syn_ty);
-      let (arg, arg_elab, m) = go(~ctx, ~ana=ty_in, arg, m);
+      let* (arg, arg_elab, m) = go(~ctx, ~ana=ty_in, arg, m);
       let constraint_ =
         switch (ctr) {
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
@@ -3890,7 +3890,7 @@ and upat_to_info_map =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ann, m);
       /* Desugar any Sig types in the annotation without full normalization */
       let ann_ty = Typ.desugar_sig(ctx, ann.user_term);
-      let (p, p_elab, m) =
+      let* (p, p_elab, m) =
         go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
       add(
         ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,

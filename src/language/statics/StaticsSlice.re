@@ -278,17 +278,16 @@ let align_kept_children = (parent_shape, children: list(child)) => {
   };
 };
 
-let take_children = (~parent: Exp.t, m: Id.Map.t(Info.t)) => {
-  let id = Exp.rep_id(parent);
+let take_children = (~id: Id.t, m: Id.Map.t(Info.t)) =>
   switch (Id.Map.find_opt(id, m)) {
   | Some(Info.InfoSliceScratch({children, _})) => (
       children,
       Id.Map.remove(id, m),
     )
-  | Some(Info.InfoExp({slice_children, _})) => (slice_children, m)
+  | Some(Info.InfoExp({slice_children, _}))
+  | Some(Info.InfoPat({slice_children, _})) => (slice_children, m)
   | _ => ([], m)
   };
-};
 
 let scratch = (id, m) =>
   switch (Id.Map.find_opt(id, m)) {
@@ -302,37 +301,61 @@ let scratch = (id, m) =>
 let update_scratch = (id, m, f) =>
   Id.Map.add(id, Info.InfoSliceScratch(f(scratch(id, m))), m);
 
-let record_child =
-    (mode, ~pattern=None, ~parent: Exp.t, (info, elab, m): exp_result)
-    : exp_result => {
-  let parent_id = Exp.rep_id(parent);
-  let child_id = Exp.rep_id(info.user_term);
-  if (Id.equal(parent_id, child_id)) {
-    (info, elab, m);
+let record = (mode, ~pattern=None, ~parent: Id.t, ~child: Id.t, m) =>
+  if (Id.equal(parent, child)) {
+    m;
   } else {
-    let trace = scratch(parent_id, m);
+    let trace = scratch(parent, m);
     let edge: Info.slice_child = {
       mode,
-      child: child_id,
+      child,
       pattern,
     };
     let children =
       List.filter(
-        (e: Info.slice_child) => !Id.equal(e.child, child_id),
+        (e: Info.slice_child) => !Id.equal(e.child, child),
         trace.children,
       );
-    (
-      info,
-      elab,
-      update_scratch(parent_id, m, trace =>
-        {
-          ...trace,
-          children: children @ [edge],
-        }
-      ),
+    update_scratch(parent, m, trace =>
+      {
+        ...trace,
+        children: children @ [edge],
+      }
     );
   };
+
+let record_child =
+    (mode, ~parent: Exp.t, (info, elab, m): exp_result): exp_result => {
+  let parent = Exp.rep_id(parent);
+  let trace = scratch(parent, m);
+  let pattern = List.nth_opt(trace.patterns, 0);
+  let m =
+    mode == Info.SliceAlternative && trace.patterns != []
+      ? update_scratch(parent, m, trace =>
+          {
+            ...trace,
+            patterns: List.tl(trace.patterns),
+          }
+        )
+      : m;
+  (
+    info,
+    elab,
+    record(mode, ~pattern, ~parent, ~child=Exp.rep_id(info.user_term), m),
+  );
 };
+
+let pat_edge = (mode, ~parent: Pat.t, (info: Info.pat, elab, m), k) =>
+  k((
+    info,
+    elab,
+    record(
+      mode,
+      ~parent=Pat.rep_id(parent),
+      ~child=Pat.rep_id(info.user_term),
+      m,
+    ),
+  ));
 
 let edge = (mode, ~parent, child, k) =>
   k(record_child(mode, ~parent, child));
@@ -394,34 +417,6 @@ let bindings_of = (~ctx: Ctx.t, pattern: Info.pat) => {
      );
 };
 
-let record_binding = (mode, ~parent, child, k) => {
-  let (info, elab, m) = child;
-  let parent_id = Exp.rep_id(parent);
-  let trace = scratch(parent_id, m);
-  let paired = List.nth_opt(trace.patterns, 0);
-  let m =
-    mode == SliceAlternative && trace.patterns != []
-      ? update_scratch(parent_id, m, trace =>
-          {
-            ...trace,
-            patterns: List.tl(trace.patterns),
-          }
-        )
-      : m;
-  k(record_child(mode, ~pattern=paired, ~parent, (info, elab, m)));
-};
-
-let binding_edge = (mode, ~parent, child, k) =>
-  record_binding(mode, ~parent, child, k);
-let source_binding = (~parent, child, k) =>
-  binding_edge(SliceSource, ~parent, child, k);
-let bound_child = (~parent, child, k) =>
-  binding_edge(SliceKeep, ~parent, child, k);
-let omitted_binding = (~parent, child, k) =>
-  binding_edge(SliceOmit, ~parent, child, k);
-let alternative_binding = (~parent, child, k) =>
-  binding_edge(SliceAlternative, ~parent, child, k);
-
 let binding_demand = (ctx, bindings, shape, gamma) =>
   List.fold_left(
     (demand, binding: binding) =>
@@ -457,38 +452,10 @@ let pattern_has_ascription = pattern =>
   | _ => false
   };
 
-let pat_info = (m, pat: Pat.t): option(Info.pat) =>
-  switch (Id.Map.find_opt(Pat.rep_id(pat), m)) {
-  | Some(Info.InfoPat(info)) => Some(info)
-  | _ => None
-  };
-
 let typ_ctx_at = (m, ty: Typ.t): option(Ctx.t) =>
   switch (Id.Map.find_opt(Typ.rep_id(ty), m)) {
   | Some(Info.InfoTyp({ctx, _})) => Some(ctx)
   | _ => None
-  };
-
-let pat_children = (pat: Pat.t): (list(Pat.t), list(Typ.t)) =>
-  switch (Pat.term_of(pat)) {
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Wild
-  | ExplicitNonlabel
-  | Atom(_)
-  | Var(_)
-  | Label(_) => ([], [])
-  | ListLit(ps)
-  | Tuple(ps) => (ps, [])
-  | Constructor(_, Some(Some(ann))) => ([], [ann])
-  | Constructor(_, _) => ([], [])
-  | Cons(a, b)
-  | TupLabel(a, b)
-  | Ap(a, b) => ([a, b], [])
-  | Parens(p)
-  | Projector(_, p) => ([p], [])
-  | Asc(p, ann) => ([p], [ann])
   };
 
 let rec typ_ids = (ty: Typ.t): Id.Set.t =>
@@ -498,49 +465,42 @@ let rec typ_ids = (ty: Typ.t): Id.Set.t =>
     typ_children(ty),
   );
 
-let rec pattern_annotations = (pat: Pat.t): list(Typ.t) => {
-  let (pats, anns) = pat_children(pat);
-  anns @ List.concat_map(pattern_annotations, pats);
-};
+let own_annotations = (pat: Pat.t): list(Typ.t) =>
+  switch (Pat.term_of(pat)) {
+  | Constructor(_, Some(Some(ann)))
+  | Asc(_, ann) => [ann]
+  | _ => []
+  };
 
-let rec pattern_constructors = (m, pat: Pat.t): Ctx.t => {
+let rec pattern_annotations = (m, info: Info.pat): list(Typ.t) =>
+  own_annotations(info.user_term)
+  @ (
+    info.slice_children
+    |> List.concat_map((edge: Info.slice_child) =>
+         switch (Id.Map.find_opt(edge.child, m)) {
+         | Some(Info.InfoPat(child)) => pattern_annotations(m, child)
+         | _ => []
+         }
+       )
+  );
+
+let rec pattern_constructors = (m, info: Info.pat): Ctx.t => {
   let own =
-    switch (Pat.term_of(pat), pat_info(m, pat)) {
-    | (Constructor(name, _), Some(info)) =>
+    switch (Pat.term_of(info.user_term)) {
+    | Constructor(name, _) =>
       context_for_name(info.ctx, name, info.elab_syn_ty)
     | _ => Ctx.empty
     };
-  let (pats, _) = pat_children(pat);
-  List.fold_left(
-    (context, child) =>
-      context_join(context, pattern_constructors(m, child)),
-    own,
-    pats,
-  );
-};
-
-let pattern_omissions = (m, shape, demand, root_pat: Pat.t): Id.Set.t => {
-  let rec go = (~is_root, pat) => {
-    let own =
-      !is_root
-      && Pat.bindings(pat) == []
-      && !pattern_has_ascription(pat)
-      && (
-        switch (pat_info(m, pat)) {
-        | Some(info) =>
-          empty_query(route_query(shape, info.elab_syn_ty, demand))
-        | None => false
-        }
-      )
-        ? Id.Set.singleton(Pat.rep_id(pat)) : Id.Set.empty;
-    let (pats, _) = pat_children(pat);
-    List.fold_left(
-      (omitted, child) => Id.Set.union(omitted, go(~is_root=false, child)),
-      own,
-      pats,
-    );
-  };
-  go(~is_root=true, root_pat);
+  info.slice_children
+  |> List.fold_left(
+       (context, edge: Info.slice_child) =>
+         switch (Id.Map.find_opt(edge.child, m)) {
+         | Some(Info.InfoPat(child)) =>
+           context_join(context, pattern_constructors(m, child))
+         | _ => context
+         },
+       own,
+     );
 };
 
 let rec annotation_result =
@@ -617,81 +577,131 @@ let rec annotation_result =
   );
 };
 
-let pattern_result = (~direction, ~erase_types, m, root, demand, dependencies) => {
-  let root_pat =
-    switch (Id.Map.find_opt(root, m)) {
-    | Some(Info.InfoPat(pattern)) => Some(pattern)
-    | _ => None
-    };
-  let annotations =
-    Option.map(
-      (pattern: Info.pat) => pattern_annotations(pattern.user_term),
-      root_pat,
-    )
-    |> Option.value(~default=[]);
-  if (is_gap(demand)) {
-    erase_types
-      ? {
+let rec pat_node =
+        (
+          ~direction,
+          ~erase_types,
+          ~required,
+          ~is_root=false,
+          m,
+          info: Info.pat,
+        )
+        : node => {
+  let id = Pat.rep_id(info.user_term);
+  let shape = info.ty;
+  let annotations = own_annotations(info.user_term);
+  let constructors = pattern_constructors(m, info);
+  let children =
+    info.slice_children
+    |> List.filter_map((edge: Info.slice_child) =>
+         switch (Id.Map.find_opt(edge.child, m)) {
+         | Some(Info.InfoPat(child_info)) =>
+           let node =
+             pat_node(~direction, ~erase_types, ~required, m, child_info);
+           Some({
+             mode: edge.mode,
+             node,
+             lens: lens(info.elab_syn_ty, node.shape),
+             bindings: [],
+             aliases: [],
+             pattern: None,
+             ascribed: false,
+           });
+         | _ => None
+         }
+       )
+    |> align_kept_children(info.elab_syn_ty);
+  let annotation_ids =
+    List.fold_left(
+      (ids, ann) => Id.Set.union(ids, typ_ids(ann)),
+      Id.Set.empty,
+      pattern_annotations(m, info),
+    );
+  let dispatch = (query: Typ.t): result =>
+    if (is_gap(query)) {
+      {
         ...empty_result,
         omitted:
-          List.fold_left(
-            (omitted, ann) => Id.Set.union(omitted, typ_ids(ann)),
-            Id.Set.empty,
-            annotations,
+          Id.Set.union(
+            erase_types ? annotation_ids : Id.Set.empty,
+            is_root || Pat.bindings(info.user_term) != []
+              ? Id.Set.empty : Id.Set.singleton(id),
           ),
-      }
-      : empty_result;
-  } else {
-    let (shape, ascribed) =
-      switch (root_pat) {
-      | Some(pattern) => (
-          pattern.ty,
-          pattern_has_ascription(pattern.user_term),
-        )
-      | None => (demand, false)
       };
-    let constructors =
-      Option.map(
-        (pattern: Info.pat) => pattern_constructors(m, pattern.user_term),
-        root_pat,
-      )
-      |> Option.value(~default=Ctx.empty);
-    let pattern_omitted =
-      switch (root_pat) {
-      | Some(pattern) when ascribed && constructors.entries == [] =>
-        pattern_omissions(m, shape, demand, pattern.user_term)
-      | _ => Id.Set.empty
-      };
-    let required = context_join(constructors, dependencies);
-    let (context, omitted) =
-      List.fold_left(
-        ((context, omitted), ann) => {
-          let (ann_context, ann_omitted) =
-            annotation_result(
-              ~direction,
-              ~erase_types,
-              m,
-              ~required,
-              ~has_ctors=constructors.entries != [],
-              shape,
-              demand,
-              ann,
+    } else {
+      let annotated =
+        List.fold_left(
+          ((context, omitted), ann) => {
+            let (ann_context, ann_omitted) =
+              annotation_result(
+                ~direction,
+                ~erase_types,
+                m,
+                ~required=context_join(constructors, required),
+                ~has_ctors=constructors.entries != [],
+                shape,
+                query,
+                ann,
+              );
+            (
+              context_join(context, ann_context),
+              Id.Set.union(omitted, ann_omitted),
             );
-          (
-            context_join(context, ann_context),
-            Id.Set.union(omitted, ann_omitted),
-          );
-        },
-        (constructors, pattern_omitted),
-        annotations,
+          },
+          (constructors, Id.Set.empty),
+          annotations,
+        );
+      let (context, omitted) = annotated;
+      let descended =
+        children
+        |> List.map(child =>
+             child.node.dispatch(
+               switch (child.lens) {
+               | Some(lens) => lens_down(lens, child.node.shape, query)
+               | None =>
+                 route_query(info.elab_syn_ty, child.node.shape, query)
+               },
+             )
+           )
+        |> results_join(info.ctx);
+      {
+        omitted: Id.Set.union(descended.omitted, omitted),
+        gamma: context_join(context, descended.gamma),
+        psi: query,
+        ana: query,
+      };
+    };
+  {
+    id,
+    shape: info.elab_syn_ty,
+    typ: info.ty,
+    ana: info.ana,
+    dispatch,
+  };
+};
+
+let pattern_result = (~direction, ~erase_types, m, root, demand, dependencies) =>
+  switch (Id.Map.find_opt(root, m)) {
+  | Some(Info.InfoPat(info)) =>
+    let result =
+      pat_node(
+        ~direction,
+        ~erase_types,
+        ~required=dependencies,
+        ~is_root=true,
+        m,
+        info,
+      ).
+        dispatch(
+        demand,
       );
     {
       ...empty_result,
-      gamma: context,
-      omitted,
+      gamma: result.gamma,
+      omitted: result.omitted,
     };
+  | _ => empty_result
   };
-};
 
 type binding_slice = {
   child,
@@ -1088,11 +1098,11 @@ let slice_forward =
                       query_residual(ctx, query, query_shell(parent_shape)),
                     )
                  ? query : child_query;
-             let slice =
+             upwards(
                child.node.dispatch(
                  prune && empty_query(child_query) ? gap : child_query,
-               );
-             upwards(slice);
+               ),
+             );
            };
            switch (child.mode) {
            | SliceOmit => {

@@ -96,7 +96,8 @@ type pat = {
   constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
-  label_sort: bool /* When in the position of a label */
+  label_sort: bool, /* When in the position of a label */
+  slice_children: list(slice_child),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
