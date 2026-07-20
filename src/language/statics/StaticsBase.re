@@ -325,6 +325,20 @@ let set_dot_labels_exp =
   | _ => m
   };
 
+let set_route_exp = (m: Map.t, e: Exp.t, route: Info.query_route): Map.t =>
+  switch (Map.lookup(Exp.rep_id(e), m)) {
+  | Some(Info.InfoExp(info)) =>
+    Map.add_info(
+      IdTagged.ids(info.user_term),
+      InfoExp({
+        ...info,
+        route,
+      }),
+      m,
+    )
+  | _ => m
+  };
+
 let map_m = (f, xs, m: Map.t) =>
   List.fold_left(
     ((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
@@ -535,6 +549,7 @@ module type ExpressionStatics = {
       ~ctx: Ctx.t=?,
       ~ana: Typ.t=?,
       ~ancestors: Info.ancestors=?,
+      ~route: Info.query_route=?,
       ~co_ctx: CoCtx.t,
       ~message: Message.t=?,
       ~label_inference: option(Info.label_inference(Info.exp))=?, // TODO[Matt]: combine with message

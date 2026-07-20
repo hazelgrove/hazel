@@ -43,15 +43,21 @@ type slice_child_mode =
   | SliceAlternative
   | SliceMatched;
 
-type query_route = Typ.t => Typ.t;
+type query_route = {
+  down: Typ.t => Typ.t,
+  up: (Typ.t, Typ.t) => Typ.t,
+};
+let identity_route: query_route = {
+  down: x => x,
+  up: (_, psi) => psi,
+};
 let pp_query_route = (fmt: Format.formatter, _: query_route) =>
   Format.pp_print_string(fmt, "<route>");
 let sexp_of_query_route = (_: query_route): Sexplib.Sexp.t =>
   Sexplib.Sexp.List([]);
-let query_route_of_sexp = (_: Sexplib.Sexp.t): query_route => (x => x);
+let query_route_of_sexp = (_: Sexplib.Sexp.t): query_route => identity_route;
 let yojson_of_query_route = (_: query_route): Yojson.Safe.t => `Null;
-let query_route_of_yojson = (_: Yojson.Safe.t): query_route => (x => x);
-let identity_route: query_route = x => x;
+let query_route_of_yojson = (_: Yojson.Safe.t): query_route => identity_route;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slice_child = {

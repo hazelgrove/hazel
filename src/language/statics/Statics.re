@@ -314,6 +314,7 @@ and uexp_to_info_map =
         ~ctx=ctx,
         ~ana=ana,
         ~ancestors=ancestors,
+        ~route=route,
         ~co_ctx: CoCtx.t,
         ~message: option(Message.t)=?,
         ~label_inference: option(Info.label_inference(Info.exp))=None, // TODO[Matt]: combine with message
@@ -391,11 +392,11 @@ and uexp_to_info_map =
     StaticsSlice.matched(~parent=uexp, child, k);
   let (let!) = (pattern, k) =>
     k(StaticsSlice.pattern(~parent=uexp, pattern));
-  let map_m_go = (m, anas, es) => {
+  let map_m_go = (~route=Info.identity_route, m, anas, es) => {
     let (pairs, m) =
       map_m2(
         (ana, e, m) => {
-          let* (e, elab, m) = go(~ana, e, m);
+          let* (e, elab, m) = go(~route, ~ana, e, m);
           ((e, elab), m);
         },
         anas,
@@ -672,7 +673,8 @@ and uexp_to_info_map =
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
       let anas = List.init(List.length(es), _ => inner_ana_ty);
-      let ((es, es_elabs), m) = map_m_go(m, anas, es);
+      let ((es, es_elabs), m) =
+        map_m_go(~route=StaticsSlice.route_component(ctx, 0), m, anas, es);
       /* Use elements' synthesized types consistently for both the meet and
          the per-element ascription decision. Using `e.ty` (ana-coerced)
          would disagree with the syn-based meet and cause spurious Asc
@@ -709,7 +711,13 @@ and uexp_to_info_map =
       };
     | Cons(hd, tl) =>
       let head_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
-      let* (hd, hd_elab, m) = go(~ana=head_ana_ty, hd, m);
+      let* (hd, hd_elab, m) =
+        go(
+          ~route=StaticsSlice.route_component(ctx, 0),
+          ~ana=head_ana_ty,
+          hd,
+          m,
+        );
       let tail_ana_ty = Typ.match_synswitch(ana, List(hd.ty) |> Typ.temp);
       let& (tl, tl_elab, m) = go(~ana=tail_ana_ty, tl, m);
       /* `hd` was analyzed against `head_ana_ty` (the element-level ana),
@@ -883,6 +891,7 @@ and uexp_to_info_map =
         let ids = List.map(Exp.rep_id, [e1, e2]);
         let ((es, es_elabs), m) =
           map_m_go(
+            ~route=StaticsSlice.route_none,
             m,
             [Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp],
             [e1, e2],
@@ -1037,10 +1046,11 @@ and uexp_to_info_map =
 
       let (es', es_elab, m) =
         List.fold_left2(
-          ((es, es_elab, m), ana, (inferred_label, e: Exp.t)) =>
+          ((es, es_elab, m), ana, (inferred_label, e: Exp.t)) => {
+            let slot = StaticsSlice.route_component(ctx, List.length(es));
             switch (e.term) {
             | TupLabel({term: ExplicitNonlabel, _}, _) =>
-              let* (e_info, elab, m) = go(~ana, e, m);
+              let* (e_info, elab, m) = go(~route=slot, ~ana, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
                   ~inferred_label,
@@ -1051,7 +1061,17 @@ and uexp_to_info_map =
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
                 LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-              let* (value_info, value_elab, m) = go(~ana=val_mode, value, m);
+              let* (value_info, value_elab, m) =
+                go(
+                  ~route=
+                    StaticsSlice.compose_route(
+                      slot,
+                      StaticsSlice.route_component(ctx, 1),
+                    ),
+                  ~ana=val_mode,
+                  value,
+                  m,
+                );
               let (lab_name, label_invalid, m) =
                 switch (label.term) {
                 | Label(name) =>
@@ -1124,6 +1144,7 @@ and uexp_to_info_map =
                   ~ctx,
                   ~ana,
                   ~ancestors=ancestors_inclusive,
+                  ~route=slot,
                   ~elab_syn_ty=syn_tl,
                   ~marks=cms_tl,
                   ~co_ctx=value_info.co_ctx,
@@ -1136,7 +1157,7 @@ and uexp_to_info_map =
                 );
               (es @ [e_info], es_elab @ [elab], m);
             | _ =>
-              let* (e_info, elab, m) = go(~ana, e, m);
+              let* (e_info, elab, m) = go(~route=slot, ~ana, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
                   ~inferred_label,
@@ -1144,7 +1165,8 @@ and uexp_to_info_map =
                   m,
                 );
               (es @ [e_info], es_elab @ [elab], m);
-            },
+            };
+          },
           ([], [], m),
           ana_tys,
           List.combine(inferred, es),
@@ -1327,6 +1349,16 @@ and uexp_to_info_map =
 
     | Dot(e1, e2) =>
       let* (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
+      let m =
+        switch (e2.term) {
+        | Label(name) =>
+          set_route_exp(
+            m,
+            e1,
+            StaticsSlice.route_field(ctx, info_e1.ty, name),
+          )
+        | _ => m
+        };
       let available_labels = {
         let ty = Typ.normalize(ctx, info_e1.ty);
         switch (ty.term) {
@@ -1973,7 +2005,14 @@ and uexp_to_info_map =
       let mode_pat = Option.value(~default=mode_pat, typ);
       let! (p', _, m) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
-      let* (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
+      let* (e, e_elab, m) =
+        go(
+          ~route=StaticsSlice.route_component(ctx, 1),
+          ~ctx=p'.ctx,
+          ~ana=mode_body,
+          e,
+          m,
+        );
       /* Second pass: re-analyze the pattern to attach the body's co_ctx.
          Use `p'.ty` (the ana-meet'd type) rather than `p'.elab_syn_ty`.
          For bare `Var`/`EmptyHole` patterns `elab_syn_ty` is `?`, which
@@ -2072,7 +2111,14 @@ and uexp_to_info_map =
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
         |> snd;
-      let* (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
+      let* (body, body_elab, m) =
+        go(
+          ~route=StaticsSlice.route_component(ctx, 0),
+          ~ctx=ctx_body,
+          ~ana=mode_body,
+          body,
+          m,
+        );
       add(
         ~elab_term=TypAbs(utpat, body_elab, tfname) |> rewrap,
         ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
