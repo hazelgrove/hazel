@@ -122,9 +122,7 @@ let tests = (
      * source-body ids; printing the pair duplicates the `if/then/else`
      * tile (3 shards -> [0,1,2,0,1,2]). */
     test_case(
-      "free-var lambda applied twice: printed result reassembles",
-      `Quick,
-      () =>
+      "free-var lambda applied twice: printed result reassembles", `Quick, () =>
       eval_print_reassemble(
         "two applications",
         "let f = fun x -> if x == col then 1 else 2 in (f(1), f(2))",
@@ -143,10 +141,7 @@ let tests = (
     ),
     /* Control: no free variable — evaluation completes, nothing indet,
      * no duplication possible. Should pass before and after the fix. */
-    test_case(
-      "control: closed lambda applied twice reassembles",
-      `Quick,
-      () =>
+    test_case("control: closed lambda applied twice reassembles", `Quick, () =>
       eval_print_reassemble(
         "closed control",
         "let f = fun x -> if x == 2 then 1 else 2 in (f(1), f(2))",
@@ -197,7 +192,10 @@ let replace_var =
     (~from: string, ~to_: string, exp: Language.Exp.t): Language.Exp.t => {
   let f_exp = (continue, e: Language.Exp.t): Language.Exp.t =>
     switch (e.term) {
-    | Var(x) when x == from => {...e, term: Var(to_)}
+    | Var(x) when x == from => {
+        ...e,
+        term: Var(to_),
+      }
     | _ => continue(e)
     };
   Language.TermBase.Exp.map_term(~f_exp, exp);
@@ -228,7 +226,10 @@ let check_result_seg = (msg: string, result: Language.Exp.t) => {
 };
 
 let incr_rename_case = (~probe_all: bool, ~passes: int, msg: string) => {
-  let settings = {...Language.CoreSettings.on, probe_all};
+  let settings = {
+    ...Language.CoreSettings.on,
+    probe_all,
+  };
   let prog = "let row = 1 in let f = fun x -> if x == row then 1 else 2 in [f(1), f(2), f(3)]";
   let exp = parse_exp(prog);
   /* pass 1: pristine */
@@ -274,11 +275,7 @@ let tests = {
  * adopted fragments can carry the same ids. */
 
 let projector_display_settings = {
-  ...
-    ExpToSegment.Settings.of_core(
-      ~inline=true,
-      Language.CoreSettings.off,
-    ),
+  ...ExpToSegment.Settings.of_core(~inline=true, Language.CoreSettings.off),
   show_unknown_as_hole: false,
   fold_fn_bodies: `NoFold,
   project_tables: false,
@@ -359,14 +356,18 @@ let eval_incr_probes =
 };
 
 let incr_samples_case = (~passes: int, msg: string) => {
-  let settings = {...Language.CoreSettings.on, probe_all: true};
+  let settings = {
+    ...Language.CoreSettings.on,
+    probe_all: true,
+  };
   /* Mirrors setCell: nested per-row/per-cell lambdas comparing indices. */
   let prog = "let row = 1 in let f = fun x -> if x == row then 1 else 2 in [f(1), f(2), f(3)]";
   let exp = parse_exp(prog);
   let (_, samples1, incr1) = eval_incr_probes(~settings, exp);
   check_sample_values(msg ++ " (pass 1 pristine)", samples1);
   let broken = replace_var(~from="row", ~to_="col", exp);
-  let (_, samples2, incr2) = eval_incr_probes(~settings, ~prev=incr1, broken);
+  let (_, samples2, incr2) =
+    eval_incr_probes(~settings, ~prev=incr1, broken);
   check_sample_values(msg ++ " (pass 2 broken)", samples2);
   if (passes >= 3) {
     let (_, samples3, _) = eval_incr_probes(~settings, ~prev=incr2, exp);
@@ -402,8 +403,7 @@ let pairs_of_siblings = ((l, r): Siblings.t) =>
   id_shard_pairs(l) @ id_shard_pairs(r);
 
 let pairs_of_ancestor = (a: Ancestor.t) => {
-  let own =
-    List.map(i => (a.id, i), fst(a.shards) @ snd(a.shards));
+  let own = List.map(i => (a.id, i), fst(a.shards) @ snd(a.shards));
   let kids =
     List.concat_map(id_shard_pairs, fst(a.children) @ snd(a.children));
   own @ kids;
@@ -529,7 +529,10 @@ let check_zipper = (msg: string, z: Zipper.t) => {
 };
 
 let action_fidelity_case = (msg: string, edit_actions: list(Action.t)) => {
-  let settings = {...Language.CoreSettings.on, probe_all: true};
+  let settings = {
+    ...Language.CoreSettings.on,
+    probe_all: true,
+  };
   let z0 =
     switch (Haz3lcore.Parser.to_zipper(~root=Exp, task30)) {
     | Some(z) => z
@@ -579,11 +582,7 @@ let action_fidelity_case = (msg: string, edit_actions: list(Action.t)) => {
  * unrolling duplicates source ids inside ONE printed segment. */
 
 let drawer_settings = {
-  ...
-    ExpToSegment.Settings.of_core(
-      ~inline=false,
-      Language.CoreSettings.off,
-    ),
+  ...ExpToSegment.Settings.of_core(~inline=false, Language.CoreSettings.off),
   show_unknown_as_hole: false,
   fold_fn_bodies: `NoFold,
   project_tables: false,
@@ -595,8 +594,7 @@ let drawer_seg_of_value = (v: Language.Exp.t): Segment.t =>
     Exp(v |> Language.DHExp.strip_ascriptions),
   );
 
-let check_sample_values_drawer =
-    (msg: string, probes: Language.Sample.Map.t) => {
+let check_sample_values_drawer = (msg: string, probes: Language.Sample.Map.t) => {
   let all: list(Language.Sample.t) =
     Id.Map.fold((_, ss, acc) => acc @ ss, probes, []);
   List.iteri(
@@ -691,7 +689,10 @@ let rec_closure_prog = "let walk(l: [Int]): [Int] =
 in (walk, walk([1, 2, col]))";
 
 let drawer_case = (~passes: int, ~prog: string, msg: string) => {
-  let settings = {...Language.CoreSettings.on, probe_all: true};
+  let settings = {
+    ...Language.CoreSettings.on,
+    probe_all: true,
+  };
   let exp = parse_exp(prog);
   let (result1, samples1, incr1) = eval_incr_probes(~settings, exp);
   check_result_seg(msg ++ " (pass 1 result)", result1);
@@ -784,11 +785,7 @@ let fidelity_tests = [
   test_case("task30: select row, type col (mei/P3)", `Quick, () =>
     action_fidelity_case(
       "select+type",
-      [
-        Action.Insert("c"),
-        Action.Insert("o"),
-        Action.Insert("l"),
-      ],
+      [Action.Insert("c"), Action.Insert("o"), Action.Insert("l")],
     )
   ),
   test_case("task30: select row, arrow right (William)", `Quick, () =>
