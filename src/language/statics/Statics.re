@@ -383,7 +383,6 @@ and uexp_to_info_map =
     StaticsSlice.source_child(~parent=uexp, child, k);
   let (let+) = (child, k) =>
     StaticsSlice.alternative(~parent=uexp, child, k);
-  let ( let** ) = (child, k) => StaticsSlice.track(~parent=uexp, child, k);
   let (let@@) = (child, k) => StaticsSlice.map(~parent=uexp, child, k);
   let (let&&) = (child, k) => StaticsSlice.prune(~parent=uexp, child, k);
   let ( let*** ) = (child, k) =>
@@ -394,9 +393,26 @@ and uexp_to_info_map =
     let (pairs, m) =
       map_m2(
         (ana, e, m) => {
-          let** (e, elab, m) = go(~ana, e, m);
+          let* (e, elab, m) = go(~ana, e, m);
           ((e, elab), m);
         },
+        anas,
+        es,
+        m,
+      );
+    (List.split(pairs), m);
+  };
+  let map_m_go_deferred = (m, anas, es) => {
+    let (pairs, m) =
+      map_m2(
+        (ana, e, m) =>
+          if (Exp.is_deferral(e)) {
+            let* (e, elab, m) = go(~ana, e, m);
+            ((e, elab), m);
+          } else {
+            let& (e, elab, m) = go(~ana, e, m);
+            ((e, elab), m);
+          },
         anas,
         es,
         m,
@@ -1908,7 +1924,8 @@ and uexp_to_info_map =
         let num_args = List.length(args);
         switch (MatchedTyp.args(ctx, ty_in, num_args)) {
         | L(ty_ins) =>
-          let ((args_infos, args_elabs), m) = map_m_go(m, ty_ins, args);
+          let ((args_infos, args_elabs), m) =
+            map_m_go_deferred(m, ty_ins, args);
           let arg_co_ctx =
             CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
           let ty_in' =

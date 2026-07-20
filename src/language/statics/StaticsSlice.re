@@ -374,7 +374,6 @@ let keep = (~parent, child, k) =>
 let omit = (~parent, child, k) => edge(SliceOmit, ~parent, child, k);
 let source_child = (~parent, child, k) =>
   edge(SliceSource, ~parent, child, k);
-let track = (~parent, child, k) => edge(SliceTrack, ~parent, child, k);
 let map = (~parent, child, k) => edge(SliceMap, ~parent, child, k);
 let prune = (~parent, child, k) => edge(SlicePrune, ~parent, child, k);
 let matched = (~parent, child, k) => edge(SliceMatched, ~parent, child, k);
@@ -1110,7 +1109,6 @@ let slice_forward =
                omitted: Id.Set.singleton(child.node.id),
              }
            | SliceSource
-           | SliceTrack
            | SliceAlternative => empty_result
            | SliceMap =>
              let child_query =
@@ -1261,16 +1259,14 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
                      )
                    : lens(info.elab_syn_ty, child_info.elab_syn_ty);
                let edge_lens =
-                 mode == SliceTrack && edge_lens == None
+                 mode == SliceKeep && edge_lens == None
                    ? Option.map(
                        parent_path => (parent_path, []),
                        find_path(child_info.ana, info.elab_syn_ty),
                      )
                    : edge_lens;
                Some({
-                 mode:
-                   mode == SliceTrack
-                     ? edge_lens == None ? SliceOmit : SliceKeep : mode,
+                 mode,
                  bindings:
                    Option.map(bindings_of(~ctx=info.ctx), pattern)
                    |> Option.value(~default=[]),
