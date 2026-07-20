@@ -26,7 +26,14 @@ let exercise : Tutorial.spec =
         [ TaskRefDocs.integer_arithmetic; TaskRefDocs.float_arithmetic ];
     your_impl =
       {
-        selection = { focus = Left; content = []; mode = Normal; anchor_caret = Outer; smart_rounded = false };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings =
@@ -113,7 +120,14 @@ let exercise : Tutorial.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = []; mode = Normal; anchor_caret = Outer; smart_rounded = false };
+            selection =
+              {
+                focus = Left;
+                content = [];
+                mode = Normal;
+                anchor_caret = Outer;
+                smart_rounded = false;
+              };
             relatives =
               {
                 siblings =
