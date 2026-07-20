@@ -4,6 +4,14 @@ include TypQuery;
 include DemandCtx;
 include SliceFocus;
 
+let compose_route = (outer: query_route, inner: query_route): query_route =>
+  q => outer(inner(q));
+
+let route_component = (ctx: Ctx.t, i: int): query_route =>
+  q =>
+    List.nth_opt(typ_children(Typ.weak_head_normalize(ctx, q)), i)
+    |> Option.value(~default=gap);
+
 type result = {
   omitted: Id.Set.t,
   gamma: Ctx.t,
@@ -30,6 +38,7 @@ type child = {
   mode: Info.slice_child_mode,
   node,
   lens: option(lens),
+  route: query_route,
   bindings: list(binding),
   aliases: list(Ctx.tvar_entry),
   pattern: option(Info.pat),
@@ -600,6 +609,7 @@ let rec pat_node =
              mode: edge.mode,
              node,
              lens: lens(info.elab_syn_ty, node.shape),
+             route: child_info.route,
              bindings: [],
              aliases: [],
              pattern: None,
@@ -1279,6 +1289,7 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
                  pattern,
                  ascribed,
                  lens: edge_lens,
+                 route: child_info.route,
                  node: {
                    let node =
                      go(

@@ -253,6 +253,7 @@ let handle_tuple_operation =
             label_sort: false,
             dot_labels: [],
             slice_children: [],
+            route: Info.identity_route,
           }),
           m,
         );
@@ -447,6 +448,7 @@ let group_by_label_statics =
             label_sort: false,
             dot_labels: [],
             slice_children: [],
+            route: Info.identity_route,
           }),
           m,
         );

@@ -297,6 +297,7 @@ and uexp_to_info_map =
       ~ana=syn,
       ~is_in_filter=false,
       ~ancestors,
+      ~route=Info.identity_route,
       uexp: Exp.t,
       m: Map.t,
     )
@@ -360,6 +361,7 @@ and uexp_to_info_map =
       label_sort,
       dot_labels,
       slice_children,
+      route,
     };
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoExp(info), m));
   };
@@ -371,11 +373,12 @@ and uexp_to_info_map =
         ~ana=syn,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors_inclusive,
+        ~route=Info.identity_route,
         uexp: Exp.t,
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
-    uexp_to_info_map(~ctx, ~ana, ~is_in_filter, ~ancestors, uexp, m);
+    uexp_to_info_map(~ctx, ~ana, ~is_in_filter, ~ancestors, ~route, uexp, m);
   };
   let ( let* ) = (child, k) => StaticsSlice.keep(~parent=uexp, child, k);
   let (let&) = (child, k) => StaticsSlice.omit(~parent=uexp, child, k);
@@ -3074,6 +3077,7 @@ and upat_to_info_map =
       ~duplicate_bindings: list(string)=[],
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
+      ~route=Info.identity_route,
       upat: Pat.t,
       m: Map.t,
     )
@@ -3153,6 +3157,7 @@ and upat_to_info_map =
       inferred_label,
       label_sort,
       slice_children,
+      route,
     };
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoPat(info), m));
   };
@@ -3168,6 +3173,7 @@ and upat_to_info_map =
         ~duplicate_bindings=[],
         ~ana=ana,
         ~under_ascription=false,
+        ~route=Info.identity_route,
         upat: Pat.t,
         m: Map.t,
       ) => {
@@ -3179,6 +3185,7 @@ and upat_to_info_map =
       ~duplicate_bindings,
       ~ana,
       ~under_ascription,
+      ~route,
       upat,
       m: Map.t,
     );

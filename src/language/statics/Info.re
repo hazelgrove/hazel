@@ -43,6 +43,16 @@ type slice_child_mode =
   | SliceAlternative
   | SliceMatched;
 
+type query_route = Typ.t => Typ.t;
+let pp_query_route = (fmt: Format.formatter, _: query_route) =>
+  Format.pp_print_string(fmt, "<route>");
+let sexp_of_query_route = (_: query_route): Sexplib.Sexp.t =>
+  Sexplib.Sexp.List([]);
+let query_route_of_sexp = (_: Sexplib.Sexp.t): query_route => (x => x);
+let yojson_of_query_route = (_: query_route): Yojson.Safe.t => `Null;
+let query_route_of_yojson = (_: Yojson.Safe.t): query_route => (x => x);
+let identity_route: query_route = x => x;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slice_child = {
   mode: slice_child_mode,
@@ -75,6 +85,7 @@ type exp = {
   label_sort: bool, /* When in the position of a label */
   dot_labels: list(string), /* Available labels when in dot-access position */
   slice_children: list(slice_child),
+  route: query_route,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -96,6 +107,7 @@ type pat = {
   inferred_label: option(LabeledTuple.label),
   label_sort: bool, /* When in the position of a label */
   slice_children: list(slice_child),
+  route: query_route,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
