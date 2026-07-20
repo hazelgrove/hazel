@@ -165,7 +165,7 @@ let tests = (
         let seg = ExpToSegment.exp_to_segment(~settings, exp);
         switch (seg) {
         | [Projector({kind: Fold, model, _})] =>
-          check(string, "fold label", expected_model, model);
+          check(string, "fold label", expected_model, model)
         | _ => Alcotest.fail("expected folded FixF projector")
         };
         let seg = ExpToSegment.exp_to_segment(~settings, Exp.parens(exp));
