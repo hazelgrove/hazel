@@ -5,27 +5,6 @@ module IndicatedG =
     type t = bool;
     let default_value = () => false;
   });
-module FilterAction = {
-  open Language.FilterAction;
-  let of_menhir_ast = (a: AST.filter_action): t => {
-    switch (a) {
-    | Eval => (Eval, All)
-    | Pause => (Step, One)
-    | Debug => (Step, All)
-    | Hide => (Eval, One)
-    };
-  };
-
-  let of_core = (a: t): AST.filter_action => {
-    switch (a) {
-    | (Eval, All) => Eval
-    | (Step, One) => Pause
-    | (Step, All) => Debug
-    | (Eval, One) => Hide
-    };
-  };
-};
-
 module Operators = {
   open Language.Operators;
 
