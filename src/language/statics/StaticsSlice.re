@@ -16,11 +16,6 @@ let route_component = (ctx: Ctx.t, i: int): query_route => {
   up: (shape, psi) => lift(Typ.weak_head_normalize(ctx, shape), [i], psi),
 };
 
-let route_none: query_route = {
-  down: _ => gap,
-  up: (_, _) => gap,
-};
-
 let at = (ty: Typ.t, route: query_route): routed(Typ.t) => {
   value: ty,
   route,
@@ -39,7 +34,10 @@ module Matched = {
     let (binder, body) = MatchedTyp.poly_pair_tolerant(ctx, ty);
     (binder, slot(ctx, 0, body));
   };
-  let elem = slot;
+  let elems = (ctx, tys: list(Typ.t)): list(routed(Typ.t)) =>
+    List.mapi((i, ty) => slot(ctx, i, ty), tys);
+  let nested = (outer: routed(Typ.t), ctx, i, ty): routed(Typ.t) =>
+    at(ty, compose_route(outer.route, route_component(ctx, i)));
 };
 
 type result = {

@@ -882,12 +882,12 @@ and uexp_to_info_map =
         );
       | DefinedPoly(_) =>
         let ids = List.map(Exp.rep_id, [e1, e2]);
-        let none =
-          StaticsSlice.at(
-            Unknown(Internal) |> Typ.temp,
-            StaticsSlice.route_none,
-          );
-        let ((es, es_elabs), m) = map_m_go(m, [none, none], [e1, e2]);
+        let& (e1_info, e1_elab, m) =
+          go(~ana=Info.pure(Unknown(Internal) |> Typ.temp), e1, m);
+        let& (e2_info, e2_elab, m) =
+          go(~ana=Info.pure(Unknown(Internal) |> Typ.temp), e2, m);
+        let es = [e1_info, e2_info];
+        let es_elabs = [e1_elab, e2_elab];
         let tys = List.map(Info.exp_ty, es);
         let elab_poly =
           BinOp(op, List.nth(es_elabs, 0), List.nth(es_elabs, 1)) |> rewrap;
@@ -1039,11 +1039,9 @@ and uexp_to_info_map =
       let (es', es_elab, m) =
         List.fold_left2(
           ((es, es_elab, m), ana, (inferred_label, e: Exp.t)) => {
-            let slot = StaticsSlice.route_component(ctx, List.length(es));
             switch (e.term) {
             | TupLabel({term: ExplicitNonlabel, _}, _) =>
-              let* (e_info, elab, m) =
-                go(~ana=StaticsSlice.at(ana, slot), e, m);
+              let* (e_info, elab, m) = go(~ana, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
                   ~inferred_label,
@@ -1053,17 +1051,13 @@ and uexp_to_info_map =
               (es @ [e_info], es_elab @ [elab], m);
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
-                LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
+                LabeledTupleStaticsHelpers.decompose_label_mode(
+                  ctx,
+                  ana.value,
+                );
               let* (value_info, value_elab, m) =
                 go(
-                  ~ana=
-                    StaticsSlice.at(
-                      val_mode,
-                      StaticsSlice.compose_route(
-                        slot,
-                        StaticsSlice.route_component(ctx, 1),
-                      ),
-                    ),
+                  ~ana=StaticsSlice.Matched.nested(ana, ctx, 1, val_mode),
                   value,
                   m,
                 );
@@ -1137,9 +1131,9 @@ and uexp_to_info_map =
                   ~user_term=e,
                   ~elab_term=TupLabel(label, value_elab) |> rewrap,
                   ~ctx,
-                  ~ana,
+                  ~ana=ana.value,
                   ~ancestors=ancestors_inclusive,
-                  ~route=slot,
+                  ~route=ana.route,
                   ~elab_syn_ty=syn_tl,
                   ~marks=cms_tl,
                   ~co_ctx=value_info.co_ctx,
@@ -1152,8 +1146,7 @@ and uexp_to_info_map =
                 );
               (es @ [e_info], es_elab @ [elab], m);
             | _ =>
-              let* (e_info, elab, m) =
-                go(~ana=StaticsSlice.at(ana, slot), e, m);
+              let* (e_info, elab, m) = go(~ana, e, m);
               let (e_info, m) =
                 LabeledTupleStaticsHelpers.apply_inferred_label_exp(
                   ~inferred_label,
@@ -1161,10 +1154,10 @@ and uexp_to_info_map =
                   m,
                 );
               (es @ [e_info], es_elab @ [elab], m);
-            };
+            }
           },
           ([], [], m),
-          ana_tys,
+          StaticsSlice.Matched.elems(ctx, ana_tys),
           List.combine(inferred, es),
         );
 
@@ -2051,7 +2044,7 @@ and uexp_to_info_map =
          binder list element-wise so the body's expected type uses the
          user-written names. */
       let (name_expected_opt, item) =
-        MatchedTyp.poly_pair_tolerant(ctx, ana);
+        StaticsSlice.Matched.poly_body(ctx, ana);
       let user_binders = TPat.binders_of(utpat);
       let user_names_safe =
         user_binders
@@ -2062,26 +2055,30 @@ and uexp_to_info_map =
              }
            );
       let mode_body =
-        switch (name_expected_opt) {
-        | Some(expected_tpat) =>
-          let expected_binders = TPat.binders_of(expected_tpat);
-          if (List.length(expected_binders) != List.length(user_binders)) {
-            item;
-          } else {
-            List.fold_left2(
-              (body, exp_b, user_b) =>
-                switch (TPat.tyvar_of_utpat(user_b)) {
-                | Some(name) when !Ctx.is_base_typ(name) =>
-                  Typ.subst(Var(name) |> Typ.temp, exp_b, body)
-                | _ => body
-                },
-              item,
-              expected_binders,
-              user_binders,
-            );
-          };
-        | None => item
-        };
+        Info.map(
+          item =>
+            switch (name_expected_opt) {
+            | Some(expected_tpat) =>
+              let expected_binders = TPat.binders_of(expected_tpat);
+              if (List.length(expected_binders) != List.length(user_binders)) {
+                item;
+              } else {
+                List.fold_left2(
+                  (body, exp_b, user_b) =>
+                    switch (TPat.tyvar_of_utpat(user_b)) {
+                    | Some(name) when !Ctx.is_base_typ(name) =>
+                      Typ.subst(Var(name) |> Typ.temp, exp_b, body)
+                    | _ => body
+                    },
+                  item,
+                  expected_binders,
+                  user_binders,
+                );
+              };
+            | None => item
+            },
+          item,
+        );
       let ctx_body =
         List.fold_left(
           (ctx, b: TPat.t) =>
@@ -2104,14 +2101,7 @@ and uexp_to_info_map =
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
         |> snd;
-      let* (body, body_elab, m) =
-        go(
-          ~ctx=ctx_body,
-          ~ana=
-            StaticsSlice.at(mode_body, StaticsSlice.route_component(ctx, 0)),
-          body,
-          m,
-        );
+      let* (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
         ~elab_term=TypAbs(utpat, body_elab, tfname) |> rewrap,
         ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
