@@ -383,7 +383,6 @@ and uexp_to_info_map =
     StaticsSlice.source_child(~parent=uexp, child, k);
   let (let+) = (child, k) =>
     StaticsSlice.alternative(~parent=uexp, child, k);
-  let (let@@) = (child, k) => StaticsSlice.map(~parent=uexp, child, k);
   let (let&&) = (child, k) => StaticsSlice.prune(~parent=uexp, child, k);
   let ( let*** ) = (child, k) =>
     StaticsSlice.matched(~parent=uexp, child, k);
@@ -930,14 +929,14 @@ and uexp_to_info_map =
         );
       };
     | TupleExtension(e1, e2) =>
-      let@@ (t1, e1_elab, m) = go(e1, m);
+      let* (t1, e1_elab, m) = go(e1, m);
       let m =
         switch (Typ.normalize(ctx, t1.ty).term) {
         | Prod(_)
         | Unknown(_) => m
         | _ => append_mark_exp(m, e1, [TupleExtensionRequiresTuples])
         };
-      let@@ (t2, e2_elab, m) = go(e2, m);
+      let* (t2, e2_elab, m) = go(e2, m);
       let m =
         switch (Typ.normalize(ctx, t2.ty).term) {
         | Prod(_)

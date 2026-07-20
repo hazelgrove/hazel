@@ -36,7 +36,6 @@ type slice_child_mode =
   | SliceKeep
   | SliceOmit
   | SliceSource
-  | SliceMap
   | SlicePrune
   | SliceAscribe
   | SliceAlias

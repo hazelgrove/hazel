@@ -374,7 +374,6 @@ let keep = (~parent, child, k) =>
 let omit = (~parent, child, k) => edge(SliceOmit, ~parent, child, k);
 let source_child = (~parent, child, k) =>
   edge(SliceSource, ~parent, child, k);
-let map = (~parent, child, k) => edge(SliceMap, ~parent, child, k);
 let prune = (~parent, child, k) => edge(SlicePrune, ~parent, child, k);
 let matched = (~parent, child, k) => edge(SliceMatched, ~parent, child, k);
 let alternative = (~parent, child, k) =>
@@ -1097,6 +1096,12 @@ let slice_forward =
                       query_residual(ctx, query, query_shell(parent_shape)),
                     )
                  ? query : child_query;
+             let child_query =
+               !prune
+               && empty_query(child_query)
+               && child.lens == None
+               && typ_children(child.node.shape) != []
+                 ? query_shell(child.node.shape) : child_query;
              upwards(
                child.node.dispatch(
                  prune && empty_query(child_query) ? gap : child_query,
@@ -1110,14 +1115,6 @@ let slice_forward =
              }
            | SliceSource
            | SliceAlternative => empty_result
-           | SliceMap =>
-             let child_query =
-               route_query(parent_shape, child.node.shape, query);
-             let child_query =
-               empty_query(child_query)
-               && typ_children(child.node.shape) != []
-                 ? query_shell(child.node.shape) : child_query;
-             child.node.dispatch(child_query);
            | SliceAscribe => {
                ...child.node.dispatch(query),
                omitted: Id.Set.singleton(child.node.id),
