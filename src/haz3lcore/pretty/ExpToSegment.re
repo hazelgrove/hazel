@@ -3075,8 +3075,7 @@ and label_to_pretty =
    touched; only true duplicates are freshened. */
 let uniquify_repeated_tiles = (seg: Segment.t): Segment.t => {
   let seen: Hashtbl.t((Id.t, int), unit) = Hashtbl.create(64);
-  let rec go_seg = (seg: Segment.t): Segment.t =>
-    List.map(go_piece, seg)
+  let rec go_seg = (seg: Segment.t): Segment.t => List.map(go_piece, seg)
   and go_piece = (p: Piece.t): Piece.t =>
     switch (p) {
     | Tile(t) =>
@@ -3088,7 +3087,11 @@ let uniquify_repeated_tiles = (seg: Segment.t): Segment.t => {
         id,
         children: List.map(go_seg, t.children),
       });
-    | Projector(pr) => Projector({...pr, syntax: go_piece(pr.syntax)})
+    | Projector(pr) =>
+      Projector({
+        ...pr,
+        syntax: go_piece(pr.syntax),
+      })
     | Grout(_)
     | Secondary(_) => p
     };
