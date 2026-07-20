@@ -72,9 +72,9 @@ let rec matches =
       | Closure(env, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Closure(env, ctx) |> rewrap;
-      | Filter(Unresolved(exp), ctx) =>
+      | Filter(Unresolved(fexp), ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Filter(Unresolved(exp), ctx) |> rewrap;
+        Filter(Unresolved(fexp), ctx) |> rewrap;
       | Filter(Filter(flt'), ctx) =>
         let flt = flt |> FilterEnvironment.extends(flt');
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
