@@ -845,10 +845,16 @@ let equality =
     switch (f1, f2) {
     | (Unresolved(e1), Unresolved(e2)) => exp'(e1, e2)
     | (Unresolved(_), _) => false
-    | (Filter({pat: pat1, act: act1, _}), Filter({pat: pat2, act: act2, _})) =>
-      exp'(pat1, pat2) && act1 == act2
+    /* `ids` is the annotation slot of the filter record; annotations are
+       excluded from equality throughout this module. */
+    | (
+        Filter({pat: pat1, act: act1, ids: _}),
+        Filter({pat: pat2, act: act2, ids: _}),
+      ) =>
+      exp'(pat1, pat2) && FilterAction.equal(act1, act2)
     | (Filter(_), _) => false
-    | (Residue(_), Residue(_)) => f1 == f2
+    | (Residue(idx1, act1), Residue(idx2, act2)) =>
+      idx1 == idx2 && FilterAction.equal(act1, act2)
     | (Residue(_), _) => false
     };
   }
