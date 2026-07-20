@@ -23,6 +23,43 @@ let structurally_equal: (Exp.t, Exp.t) => bool =
   }).
     exp;
 
+/* `exp_idx` and `nth_exp` must enumerate the occurrences of `e1` in `e2` in
+   the same order: the index computed by one is later used by the other on a
+   differently-id'd copy of the expression (see `EvaluatorStep.persist` /
+   `refresh_step`).
+
+   The equality above treats some wrapper forms (parens, projectors,
+   ascriptions, explicit unlabelling) as transparent: such a wrapper compares
+   equal to `e1` exactly when the expression underneath it does. If an
+   occurrence were anchored at the wrapper, the walk would count the wrapper
+   and skip its subtree, never reaching a target that sits underneath it —
+   the same disease as hazelgrove/hazel#2331, with `Asc` in place of
+   `Residue`. So both walks step through transparent wrappers without
+   counting them and anchor each occurrence at the innermost non-wrapper
+   node — unless `e1` is itself such a wrapper (`RemoveParens` and
+   `Ascription` steps), in which case wrappers with the same head
+   constructor stay matchable so the anchor keeps `e1`'s shape. */
+let is_transparent_wrapper = (exp: Exp.t): bool =>
+  switch (exp |> Exp.term_of) {
+  | Parens(_)
+  | Projector(_)
+  | Asc(_)
+  | TupLabel({term: ExplicitNonlabel, _}, _) => true
+  | _ => false
+  };
+
+let same_head = (e1: Exp.t, e2: Exp.t): bool =>
+  switch (e1 |> Exp.term_of, e2 |> Exp.term_of) {
+  | (Parens(_), Parens(_))
+  | (Projector(_), Projector(_))
+  | (Asc(_), Asc(_))
+  | (TupLabel(_), TupLabel(_)) => true
+  | _ => false
+  };
+
+let skip_transparent = (target: Exp.t, exp: Exp.t): bool =>
+  is_transparent_wrapper(exp) && !same_head(exp, target);
+
 // Given an expression e1 that appears in e2, count how many
 // times e1 appears with a different id before e1 in e2.
 let exp_idx = (e1: Exp.t, e2: Exp.t) => {
@@ -33,6 +70,8 @@ let exp_idx = (e1: Exp.t, e2: Exp.t) => {
         (cont, exp) =>
           if (Exp.rep_id(exp) == Exp.rep_id(e1)) {
             raise(Found(exp));
+          } else if (skip_transparent(e1, exp)) {
+            cont(exp);
           } else if (structurally_equal(exp, e1)) {
             n := n^ + 1;
             exp;
@@ -59,7 +98,9 @@ let nth_exp = (e1: Exp.t, n: int, e2: Exp.t) => {
     Exp.map_term(
       ~f_exp=
         (cont, exp) =>
-          if (structurally_equal(exp, e1)) {
+          if (skip_transparent(e1, exp)) {
+            cont(exp);
+          } else if (structurally_equal(exp, e1)) {
             if (count^ == n) {
               raise(Found(exp));
             } else {
