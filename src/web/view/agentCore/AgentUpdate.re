@@ -311,62 +311,19 @@ let fetch_key_for_slash =
 /** Max retries when the assistant returns an empty reply with no tool calls. */
 let max_empty_retries = 2;
 
-/** Names of tools that mutate the program (EditTools.*). Blocked in Plan mode. */
-let edit_tool_names = [
-  "update_definition",
-  "update_body",
-  "update_pattern",
-  "update_binding_clause",
-  "delete_binding_clause",
-  "delete_body",
-  "insert_after",
-  "insert_before",
-];
-
-/** Names of tools that mutate the workbench task board (WorkbenchTools.*).
-    Blocked in Converse mode (along with edit + overlay tools). */
-let workbench_tool_names = [
-  "create_new_task",
-  "set_active_task",
-  "unset_active_task",
-  "set_active_subtask",
-  "unset_active_subtask",
-  "mark_active_task_complete",
-  "mark_active_task_incomplete",
-  "mark_active_subtask_complete",
-  "mark_active_subtask_incomplete",
-  "mark_active_subtask_failed",
-  "mark_active_task_failed",
-  "add_new_subtask_to_active_task",
-  "reorder_subtasks_in_active_task",
-];
-
-/** Names of overlay-placement tools (probes / statics / syntax projectors).
-    Blocked in Converse mode; allowed in Plan and Edit. */
-let overlay_tool_names = [
-  "place_probe",
-  "remove_probe",
-  "toggle_probe",
-  "place_statics",
-  "remove_statics",
-  "toggle_statics",
-  "place_syntax_projector",
-  "remove_syntax_projector",
-  "toggle_syntax_projector",
-];
-
 /** True iff [name] is allowed in [mode]. Edit allows everything; Plan
     blocks edit tools; Converse blocks edit + workbench + overlay tools
-    (only ViewTools like expand/collapse remain). */
+    (only ViewTools like expand/collapse remain). The name lists derive
+    from [[AgentToolUtils.registry]]. */
 let tool_allowed_in_mode =
     (mode: AgentGlobals.Model.session_mode, name: string): bool =>
   switch (mode) {
   | Edit => true
-  | Plan => !List.mem(name, edit_tool_names)
+  | Plan => !List.mem(name, ToolUtils.edit_tool_names)
   | Converse =>
-    !List.mem(name, edit_tool_names)
-    && !List.mem(name, workbench_tool_names)
-    && !List.mem(name, overlay_tool_names)
+    !List.mem(name, ToolUtils.edit_tool_names)
+    && !List.mem(name, ToolUtils.workbench_tool_names)
+    && !List.mem(name, ToolUtils.overlay_tool_names)
   };
 
 let enabled_tools =

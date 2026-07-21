@@ -3151,6 +3151,111 @@ let tool_json_tests = (
         );
       },
     ),
+    test_case(
+      "tool registry covers exactly the declared tools",
+      `Quick,
+      () => {
+        let declared =
+          List.filter_map(get_tool_name, CompositionUtils.Public.tools);
+        let registered = List.map(fst, Web.Agent.ToolUtils.registry);
+        List.iter(
+          name =>
+            check(
+              bool,
+              "registry entry for " ++ name,
+              true,
+              List.mem(name, registered),
+            ),
+          declared,
+        );
+        List.iter(
+          name =>
+            check(
+              bool,
+              "declared tool for registry entry " ++ name,
+              true,
+              List.mem(name, declared),
+            ),
+          registered,
+        );
+      },
+    ),
+    test_case(
+      "tool registry golden: categories and derived mode lists",
+      `Quick,
+      () => {
+        module ToolUtils = Web.Agent.ToolUtils;
+        let cat = ToolUtils.category_of_tool;
+        check(string, "expand", "View", cat("expand"));
+        check(string, "place_probe", "View", cat("place_probe"));
+        check(string, "update_definition", "Edit", cat("update_definition"));
+        check(
+          string,
+          "create_new_task",
+          "Workbench",
+          cat("create_new_task"),
+        );
+        check(
+          string,
+          "update_active_task",
+          "Other",
+          cat("update_active_task"),
+        );
+        check(string, "delete_task", "Other", cat("delete_task"));
+        check(string, "unknown name", "Other", cat("no_such_tool"));
+        check(
+          list(string),
+          "edit tool names",
+          [
+            "update_definition",
+            "update_body",
+            "update_pattern",
+            "update_binding_clause",
+            "delete_binding_clause",
+            "delete_body",
+            "insert_after",
+            "insert_before",
+          ],
+          ToolUtils.edit_tool_names,
+        );
+        check(
+          list(string),
+          "workbench tool names",
+          [
+            "create_new_task",
+            "set_active_task",
+            "unset_active_task",
+            "set_active_subtask",
+            "unset_active_subtask",
+            "mark_active_task_complete",
+            "mark_active_task_incomplete",
+            "mark_active_subtask_complete",
+            "mark_active_subtask_incomplete",
+            "mark_active_subtask_failed",
+            "mark_active_task_failed",
+            "add_new_subtask_to_active_task",
+            "reorder_subtasks_in_active_task",
+          ],
+          ToolUtils.workbench_tool_names,
+        );
+        check(
+          list(string),
+          "overlay tool names",
+          [
+            "place_probe",
+            "remove_probe",
+            "toggle_probe",
+            "place_statics",
+            "remove_statics",
+            "toggle_statics",
+            "place_syntax_projector",
+            "remove_syntax_projector",
+            "toggle_syntax_projector",
+          ],
+          ToolUtils.overlay_tool_names,
+        );
+      },
+    ),
   ],
 );
 
