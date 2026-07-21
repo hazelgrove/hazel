@@ -84,8 +84,12 @@ let expand_projector = (z: t): option(t) => {
 
 let refractor_to_invoke =
     (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t => [
-  Piece.mk_tile(Form.mk_atom_op(Exp, Token.mk_projector_invoke(kind)), []),
-  Piece.mk_tile(Form.get(ApExp), [seg]),
+  // classifies to Atom(ProjectorInvoke, Exp, _): same op(Exp) mold
+  Piece.mk_tile(
+    Form.classify_label(Exp, [Token.mk_projector_invoke(kind)]),
+    [],
+  ),
+  Piece.mk_tile(FormId.Form(ApExp), [seg]),
 ];
 
 /* Text-only version using Unicode brackets for CLI output.
@@ -94,8 +98,10 @@ let refractor_to_invoke_text =
     (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t =>
   switch (kind) {
   | Probe =>
-    [Piece.mk_tile(Form.mk_atom_op(Exp, Token.probe_start), []), ...seg]
-    @ [Piece.mk_tile(Form.mk_atom_op(Exp, Token.probe_end), [])]
+    /* the brackets classify as Unmolded (display-only path: these
+     * segments feed to_string, which reads only labels) */
+    [Piece.mk_tile(FormId.Unmolded(Token.probe_start), []), ...seg]
+    @ [Piece.mk_tile(FormId.Unmolded(Token.probe_end), [])]
   | _ => refractor_to_invoke(kind, seg)
   };
 
@@ -122,7 +128,7 @@ let expand_livelit = (~ctx, z: t): option(t) =>
       };
     let (l, _space) = ListUtil.split_last(fst(z.relatives.siblings));
     let (l, name) = ListUtil.split_last(l);
-    let seg = [name, Piece.mk_tile(Form.get(ApExp), [seg])];
+    let seg = [name, Piece.mk_tile(FormId.Form(ApExp), [seg])];
     /* No statics available at trigger time; empty elaborated is fine
      * since Livelit has elaborate_syntax=false. */
     let+ pr =

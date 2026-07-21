@@ -111,14 +111,14 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
   let+ remolded =
-    switch (Form.Molds.try_get(s, Tile.label(t))) {
-    | None => None
-    | Some(molds) =>
-      molds
-      |> List.map(mold =>
+    switch (Form.remold_candidates(Tile.label(t), s)) {
+    | [] => None
+    | forms =>
+      forms
+      |> List.map(form =>
            {
              ...t,
-             mold,
+             form,
            }
          )
       |> (
@@ -1235,7 +1235,7 @@ let rec deep_tile_complete = (seg: t): bool =>
   );
 
 let mk_duo = (sort: Sort.t, seg: t): Piece.t =>
-  Piece.mk_tile(Form.mk_parens(sort), [seg]);
+  Piece.mk_tile(Form.mk_parens_id(sort), [seg]);
 
 let parenthesize = (~sort: option(Sort.t)=?, seg: t): Piece.t => {
   /* If piece is anything other than a Tile, and override sort is not

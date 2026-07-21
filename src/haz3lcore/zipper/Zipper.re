@@ -89,8 +89,7 @@ let rescan_parent_shards = (z: t): t => {
         Tile({
           ...t,
           id: a.Ancestor.id,
-          label: Ancestor.label(a),
-          mold: Ancestor.mold(a),
+          form: a.Ancestor.form,
           shards: [idx],
         })
       | None => p
@@ -298,8 +297,11 @@ let mk_remainder_piece = (tok: Token.t): Piece.t =>
   } else {
     Tile({
       id: Id.mk(),
-      label: [tok],
-      mold: Mold.mk_op(Sort.Any, []),
+      /* Placeholder form pending callers' remold_regrout. Nuance vs
+       * the old code (unconditional op(Any) mold): Unmolded's derived
+       * mold is shape-aware, i.e. bin(Any) for operator-shaped
+       * tokens — unobservable since callers remold immediately. */
+      form: FormId.Unmolded(tok),
       shards: [0],
       children: [],
     });

@@ -9,14 +9,13 @@ type step = int;
 type t = {
   [@equal (_, _) => true]
   id: Id.t,
-  label: Label.t,
-  mold: Mold.t,
+  form: FormId.t,
   shards: (list(int), list(int)),
   children: (list(Segment.t), list(Segment.t)),
 };
 
-let label = (a: t): Label.t => a.label;
-let mold = (a: t): Mold.t => a.mold;
+let label = (a: t): Label.t => Form.label_of(a.form);
+let mold = (a: t): Mold.t => Form.mold_of(a.form);
 
 // TODO(d) revisit naming w.r.t. outer vs inner shards
 let l_shard = a =>
@@ -26,15 +25,14 @@ let r_shard = a =>
   |> OptUtil.get_or_raise(Empty_shard_affix);
 
 let nibs = (a: t) => {
-  let (l, _) = Mold.nibs(~index=l_shard(a), a.mold);
-  let (_, r) = Mold.nibs(~index=r_shard(a), a.mold);
+  let (l, _) = Mold.nibs(~index=l_shard(a), mold(a));
+  let (_, r) = Mold.nibs(~index=r_shard(a), mold(a));
   (l, r);
 };
 
-let zip = (child: Segment.t, {id, label, mold, shards, children}: t): Tile.t => {
+let zip = (child: Segment.t, {id, form, shards, children}: t): Tile.t => {
   id,
-  label,
-  mold,
+  form,
   shards: fst(shards) @ snd(shards),
   children: fst(children) @ [child, ...snd(children)],
 };
@@ -43,7 +41,7 @@ let sort = (a: t): Sort.t => {
   let (pre, _suf) = a.shards;
   switch (ListUtil.split_last_opt(pre)) {
   | Some((_, i)) =>
-    let (_, l) = Mold.nibs(~index=i, a.mold);
+    let (_, l) = Mold.nibs(~index=i, mold(a));
     /* Use the right nib of the last left shard: this is the
      * sort of the child immediately after the caret's left
      * boundary. Correct even when shards are missing between
@@ -56,10 +54,10 @@ let sort = (a: t): Sort.t => {
 };
 
 let disassemble =
-    ({id, label, mold, shards, children: (kids_l, kids_r)}: t): Siblings.t => {
+    ({id, form, shards, children: (kids_l, kids_r)}: t): Siblings.t => {
   let (shards_l, shards_r) =
     shards
-    |> TupleUtil.map2(Tile.split_shards(id, label, mold))
+    |> TupleUtil.map2(Tile.split_shards(id, form))
     |> TupleUtil.map2(List.map(Tile.to_piece));
   let flatten = (shards, kids) =>
     Aba.mk(shards, kids) |> Aba.join(p => [p], Fun.id) |> List.flatten;
@@ -73,7 +71,7 @@ let missing_middle_shards = (a: t): list(Tile.t) => {
   let first_r =
     ListUtil.hd_opt(shards_r) |> OptUtil.get_or_raise(Empty_shard_affix);
   let ls = List.init(first_r - last_l - 1, i => last_l + i + 1);
-  Tile.split_shards(a.id, a.label, a.mold, ls);
+  Tile.split_shards(a.id, a.form, ls);
 };
 
 let reassemble = (match_l: Aba.t(Tile.t, Segment.t) as 'm, match_r: 'm): t => {
@@ -83,8 +81,7 @@ let reassemble = (match_l: Aba.t(Tile.t, Segment.t) as 'm, match_r: 'm): t => {
   assert(t_l.id == t_r.id);
   {
     id: t_l.id,
-    label: t_l.label,
-    mold: t_l.mold,
+    form: t_l.form,
     shards: (t_l.shards, t_r.shards),
     children: (t_l.children, t_r.children),
   };

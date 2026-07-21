@@ -1029,8 +1029,10 @@ let text_to_pretty = (id, sort, str): pretty => {
   p_just([
     Tile({
       id,
-      label: [str],
-      mold: Mold.mk_op(sort, []),
+      /* classify_label reproduces the old op(sort) mold for
+       * recognized atomic tokens; unrecognized tokens fall back to
+       * Unmolded (op(Any): sort-only delta vs the old op(sort)) */
+      form: Form.classify_label(sort, [str]),
       shards: [0],
       children: [],
     }),
@@ -1070,8 +1072,7 @@ let mk_form =
     };
   Tile({
     id,
-    label: form.label,
-    mold: form.mold,
+    form: FormId.Form(form_name),
     shards: List.init(List.length(children) + 1, n => n),
     children,
   });
@@ -1582,21 +1583,14 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
       @ [
         Tile({
           id,
-          label: [op],
-          mold: {
-            out: Drv(Jdmt),
-            in_: [],
-            nibs: (
-              Nib.{
-                shape: Concave(Precedence.min),
-                sort: Drv(sort_l),
-              },
-              Nib.{
-                shape: Concave(Precedence.min),
-                sort: Drv(sort_r),
-              },
-            ),
-          },
+          /* The old hand-built mold here (out=Drv(Jdmt), Concave(min)
+           * nibs at Drv(sort_l)/Drv(sort_r)) matches no registered
+           * form. This path is display-only (feeds to_string, which
+           * reads only labels), so classify at Drv(Exp): ">"/"<" land
+           * on Form(Drv(Gt))/Form(Drv(Lt)); "=" on
+           * Unsorted(TupleLabeledExp); "≯"/"≮"/"≠"/"∈"/"⊆" on
+           * Unmolded. */
+          form: Form.classify_label(Sort.Drv(Exp), [op]),
           shards: [0],
           children: [],
         }),
@@ -1817,8 +1811,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       @ [
         Tile({
           id,
-          label: [Operators.bin_op_to_string(op)],
-          mold: Mold.mk_bin(Precedence.of_bin_op(op), Sort.Exp, []),
+          /* classifies to the registered Exp binop form for every
+           * Operators.op_bin; each form's precedence equals
+           * Precedence.of_bin_op(op) (verified against Form.re) */
+          form:
+            Form.classify_label(Sort.Exp, [Operators.bin_op_to_string(op)]),
           shards: [0],
           children: [],
         }),
@@ -1836,8 +1833,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       @ [
         Tile({
           id,
-          label: ["..."],
-          mold: Mold.mk_bin(Precedence.plus, Sort.Exp, []),
+          form: FormId.Form(TupleExtension), // mk_infix("...", Exp, P.plus)
           shards: [0],
           children: [],
         }),
@@ -2006,8 +2002,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         [
           Tile({
             id: exp |> Exp.rep_id,
-            label: ["="],
-            mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
+            form: FormId.Form(TupleLabeledExp), // mk_infix("=", Exp, P.lab)
             shards: [0],
             children: [],
           }),
@@ -2109,8 +2104,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       @ [
         Tile({
           id,
-          label: ["|>"],
-          mold: Mold.mk_bin(Precedence.eqs, Sort.Exp, []),
+          form: FormId.Form(Pipeline), // mk_infix("|>", Exp, P.eqs)
           shards: [0],
           children: [],
         }),
@@ -2374,15 +2368,8 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
       @ [
         Tile({
           id: Id.mk(),
-          label: [":"],
-          mold:
-            Mold.mk_bin(
-              ~l=Sort.MPat,
-              ~r=Sort.Typ,
-              Precedence.asc,
-              Sort.MPat,
-              [],
-            ),
+          // mk_infix(":", MPat, ~l=MPat, ~r=Typ, P.asc)
+          form: FormId.Form(MPatTypeann),
           shards: [0],
           children: [],
         }),
@@ -2494,8 +2481,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         [
           Tile({
             id: pat |> Pat.rep_id,
-            label: ["="],
-            mold: Mold.mk_bin(Precedence.lab, Sort.Pat, []),
+            form: FormId.Form(TupleLabeledPat), // mk_infix("=", Pat, P.lab)
             shards: [0],
             children: [],
           }),
@@ -2729,8 +2715,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         [
           Tile({
             id: typ |> Typ.rep_id,
-            label: ["="],
-            mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
+            form: FormId.Form(TupleLabeledTyp), // mk_infix("=", Typ, P.lab)
             shards: [0],
             children: [],
           }),

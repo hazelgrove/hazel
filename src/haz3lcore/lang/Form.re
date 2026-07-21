@@ -717,6 +717,28 @@ let classify_label = (sort: Sort.t, label: Label.t): FormId.t => {
   };
 };
 
+/* FormId for wrapping a segment in parens at a given sort.
+ * Replaces mk_parens on the Segment.mk_duo/parenthesize path:
+ * always selects the registered Paren form for the sort (like
+ * mk_parens, which built the op-shaped paren mold directly and
+ * never the Ap form that classify_label would find first at
+ * Drv(Exp)/Drv(Pat)). For sorts with no registered paren form
+ * (Rul, Mod, Sig, MPat, Any, remaining Drv sorts) falls back to
+ * classify_label, i.e. Unsorted(ParensExp) with the op(Any)
+ * fallback mold, where mk_parens built op(sort, [sort]). */
+let mk_parens_id = (sort: Sort.t): FormId.t =>
+  switch (sort) {
+  | Exp => Form(ParensExp)
+  | Pat => Form(ParensPat)
+  | Typ => Form(ParensTyp)
+  | TPat => Form(ParensTPat)
+  | Drv(Prop) => Form(Drv(ParenProp))
+  | Drv(Exp) => Form(Drv(ParenExp))
+  | Drv(Pat) => Form(Drv(ParenPat))
+  | Drv(Typ) => Form(Drv(ParenTyp))
+  | _ => classify_label(sort, Token.tuple_lbl)
+  };
+
 /* Mirrors Molds.try_get: same molds (via mold_of), same order,
  * as FormIds; None => [] */
 let remold_candidates = (label: Label.t, sort: Sort.t): list(FormId.t) =>

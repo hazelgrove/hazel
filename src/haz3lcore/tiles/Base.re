@@ -8,15 +8,13 @@ and piece =
   | Secondary(Secondary.t)
   | Projector(projector)
 and tile = {
-  // invariants:
-  // - length(mold.in_) + 1 == length(label)
-  // - length(shards) <= length(label)
+  // invariants (arity = length(Form.label_of(form))):
+  // - length(shards) <= arity
   // - length(shards) == length(children) + 1
   // - sort(shards) == shards
   [@equal (_, _) => true]
   id: Id.t,
-  label: Label.t,
-  mold: Mold.t,
+  form: FormId.t,
   shards: list(int),
   children: list(segment),
 }
@@ -41,12 +39,11 @@ let rec map_piece = (~f_piece, x: piece) => {
  * return a singleton segment consisting of the piece */
 let unparenthesize = (piece: piece): segment =>
   switch (piece) {
-  | Tile({
-      label: ["(", ")"],
-      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-      children: [seg],
-      _,
-    }) => seg
+  | Tile({form, children: [seg], _}) =>
+    switch (Form.label_of(form), Form.mold_of(form).nibs) {
+    | (["(", ")"], ({shape: Convex, _}, {shape: Convex, _})) => seg
+    | _ => [piece]
+    }
   | _ => [piece]
   };
 
@@ -119,7 +116,7 @@ and tile_to_string =
     : string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(
-       List.nth(t.label),
+       List.nth(Form.label_of(t.form)),
        segment_to_string(
          ~holes,
          ~concave_holes,

@@ -563,15 +563,19 @@ let get_doc_deduction =
                          } =>
                      let label = Tile.label(t) |> List.hd;
                      let (_, syntax) = RuleVerify.Map.find(label, map);
+                     /* markdown-link label swap for display: Unmolded
+                      * keeps the monotile arity-1; only to_string
+                      * (label-only) reads this tile downstream */
                      Tile({
                        ...t,
-                       label: [
-                         Printf.sprintf(
-                           "[*%s*](%s)",
-                           label,
-                           syntax |> Drv.Any.rep_id |> Id.to_string,
+                       form:
+                         FormId.Unmolded(
+                           Printf.sprintf(
+                             "[*%s*](%s)",
+                             label,
+                             syntax |> Drv.Any.rep_id |> Id.to_string,
+                           ),
                          ),
-                       ],
                      });
                    | _ => cont(piece)
                    }
