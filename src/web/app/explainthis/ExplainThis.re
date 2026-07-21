@@ -569,7 +569,7 @@ let get_doc_deduction =
                      Tile({
                        ...t,
                        form:
-                         FormId.Unmolded(
+                         Form.Unmolded(
                            Printf.sprintf(
                              "[*%s*](%s)",
                              label,

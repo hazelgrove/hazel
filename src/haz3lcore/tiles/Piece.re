@@ -174,7 +174,7 @@ let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
     shape,
   });
 
-let mk_tile: (FormId.t, list(list(t))) => t =
+let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>
     Tile({
       id: Id.mk(),

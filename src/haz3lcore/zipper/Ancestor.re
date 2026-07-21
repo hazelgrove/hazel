@@ -9,7 +9,7 @@ type step = int;
 type t = {
   [@equal (_, _) => true]
   id: Id.t,
-  form: FormId.t,
+  form: Form.t,
   shards: (list(int), list(int)),
   children: (list(Segment.t), list(Segment.t)),
 };

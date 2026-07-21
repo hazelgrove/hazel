@@ -5,8 +5,9 @@ module P = Precedence;
 /* The form identity types (atomic_form, drv_compound_form,
  * compound_form, FormId.t) live in FormId.re; included here so
  * existing references (Form.compound_form, bare constructors,
- * all_of_compound_form, ...) keep resolving. Note FormId's `t`
- * is shadowed below by this module's form record `t`. */
+ * all_of_compound_form, ...) keep resolving. In particular
+ * Form.t = FormId.t: a form is its identity; the definition
+ * record (label/mold/expansion) is Form.def below. */
 include FormId;
 
 /* This module determines the syntactic extent of the language; the
@@ -44,7 +45,7 @@ type sorted_expansions = list((Token.t, Sort.t, Label.t, Direction.t));
 
 /* A label, a mold, and expansion behavior together determine a form. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
+type def = {
   label: Label.t,
   mold: Mold.t,
   expansion,
@@ -99,7 +100,7 @@ let mk_parens = (sort: Sort.t) =>
 /* C. Compound Forms: see FormId.drv_compound_form and
    FormId.compound_form (moved) */
 
-let drv_get: drv_compound_form => t =
+let drv_get: drv_compound_form => def =
   fun
   | OfJdmt => mk_op_c(L, ["of_jdmt", "end"], Exp, [Drv(Exp)])
   | OfCtx => mk_op_c(L, ["of_ctx", "end"], Exp, [Drv(Exp)])
@@ -218,7 +219,7 @@ let drv_get: drv_compound_form => t =
   | ParenPat => mk_parens(Drv(Pat))
   | ParenTyp => mk_parens(Drv(Typ));
 
-let get: compound_form => t =
+let get: compound_form => def =
   fun
   // INFIX OPERATORS
   | TypeArrow => mk_infix("->", Typ, P.type_arrow)
@@ -330,7 +331,7 @@ let get: compound_form => t =
   | SigLet => mk_pre_c'(L, ["let"], P.let_, Sig, [], Pat)
   | SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ);
 
-let forms: list((compound_form, t)) =
+let forms: list((compound_form, def)) =
   List.map(f => (f, get(f)), all_of_compound_form);
 
 let delims: list(Token.t) =
@@ -455,7 +456,7 @@ module Molds = {
   let compounds: list((Label.t, list(Mold.t))) =
     forms
     |> List.fold_left(
-         (acc, (_, {label, mold, _}: t)) => {
+         (acc, (_, {label, mold, _}: def)) => {
            let molds =
              switch (List.assoc_opt(label, acc)) {
              | Some(old_molds) => old_molds @ [mold]
@@ -512,7 +513,7 @@ module Molds = {
 
 module Expansion = {
   /* Sort-agnostic expansion info (for backward compatibility) */
-  let expanding_of = ({expansion, label, _}: t): option(expansions) =>
+  let expanding_of = ({expansion, label, _}: def): option(expansions) =>
     switch (expansion, label) {
     | (L, [hd, ..._]) => Some([(hd, (label, Direction.Left))])
     | (LT, [hd, ..._]) =>
@@ -533,7 +534,7 @@ module Expansion = {
      they produce Exp. This causes issues for forms like | that can follow
      ascribed expressions. See Insert.re for the special case handling. */
   let sorted_expanding_of =
-      ({expansion, label, mold}: t): option(sorted_expansions) => {
+      ({expansion, label, mold}: def): option(sorted_expansions) => {
     let (l_nib, r_nib) = mold.nibs;
     switch (expansion, label) {
     | (L, [hd, ..._]) => Some([(hd, l_nib.sort, label, Direction.Left)])
@@ -548,13 +549,13 @@ module Expansion = {
 
   /* Sort-agnostic expansions (kept for is_leading) */
   let expansions: expansions =
-    List.filter_map(((_, form: t)) => expanding_of(form), forms)
+    List.filter_map(((_, form: def)) => expanding_of(form), forms)
     |> List.flatten
     |> List.sort_uniq(compare);
 
   /* Sort-aware expansions */
   let sorted_expansions: sorted_expansions =
-    List.filter_map(((_, form: t)) => sorted_expanding_of(form), forms)
+    List.filter_map(((_, form: def)) => sorted_expanding_of(form), forms)
     |> List.flatten;
 
   /* Try to get expansion for a token in a specific sort context.
@@ -614,8 +615,8 @@ module Expansion = {
  * the source of truth for consumers until the Phase 1 flip. */
 
 /* Memoized compound_form => form definition */
-let form_of: compound_form => t = {
-  let tbl: Hashtbl.t(compound_form, t) = Hashtbl.create(256);
+let form_of: compound_form => def = {
+  let tbl: Hashtbl.t(compound_form, def) = Hashtbl.create(256);
   List.iter(((cf, form)) => Hashtbl.replace(tbl, cf, form), forms);
   cf =>
     switch (Hashtbl.find_opt(tbl, cf)) {
@@ -632,8 +633,7 @@ let atomic_candidates = (t: Token.t): list((FormId.t, Mold.t)) =>
   List.concat_map(
     ((a, (pred, molds))) =>
       pred(t)
-        ? List.map((m: Mold.t) => (FormId.Atom(a, m.out, t), m), molds)
-        : [],
+        ? List.map((m: Mold.t) => (Atom(a, m.out, t), m), molds) : [],
     atomic_defs,
   );
 
@@ -646,7 +646,7 @@ let compound_defs: Label.t => list((compound_form, Mold.t)) = {
   let tbl: Hashtbl.t(Label.t, list((compound_form, Mold.t))) =
     Hashtbl.create(256);
   List.iter(
-    ((cf, {label, mold, _}: t)) => {
+    ((cf, {label, mold, _}: def)) => {
       let prev = Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
       Hashtbl.replace(tbl, label, prev @ [(cf, mold)]);
     },
@@ -659,7 +659,7 @@ let compound_defs: Label.t => list((compound_form, Mold.t)) = {
  * single-token labels, then compound molds in declaration order */
 let base_candidates = (label: Label.t): list((FormId.t, Mold.t)) => {
   let compounds =
-    compound_defs(label) |> List.map(((cf, m)) => (FormId.Form(cf), m));
+    compound_defs(label) |> List.map(((cf, m)) => (Compound(cf), m));
   switch (label) {
   | [t] => atomic_candidates(t) @ compounds
   | _ => compounds
@@ -677,14 +677,14 @@ let unmolded_mold = (label: Label.t): Mold.t =>
 
 let label_of: FormId.t => Label.t =
   fun
-  | Form(cf)
+  | Compound(cf)
   | Unsorted(cf) => form_of(cf).label
   | Atom(_, _, t)
   | Unmolded(t) => [t];
 
 let mold_of: FormId.t => Mold.t =
   fun
-  | Form(cf) => form_of(cf).mold
+  | Compound(cf) => form_of(cf).mold
   | Unsorted(cf) => unmolded_mold(form_of(cf).label)
   | Atom(a, sort, _) => {
       let (_, molds) = List.assoc(a, atomic_defs);
@@ -728,14 +728,14 @@ let classify_label = (sort: Sort.t, label: Label.t): FormId.t => {
  * fallback mold, where mk_parens built op(sort, [sort]). */
 let mk_parens_id = (sort: Sort.t): FormId.t =>
   switch (sort) {
-  | Exp => Form(ParensExp)
-  | Pat => Form(ParensPat)
-  | Typ => Form(ParensTyp)
-  | TPat => Form(ParensTPat)
-  | Drv(Prop) => Form(Drv(ParenProp))
-  | Drv(Exp) => Form(Drv(ParenExp))
-  | Drv(Pat) => Form(Drv(ParenPat))
-  | Drv(Typ) => Form(Drv(ParenTyp))
+  | Exp => Compound(ParensExp)
+  | Pat => Compound(ParensPat)
+  | Typ => Compound(ParensTyp)
+  | TPat => Compound(ParensTPat)
+  | Drv(Prop) => Compound(Drv(ParenProp))
+  | Drv(Exp) => Compound(Drv(ParenExp))
+  | Drv(Pat) => Compound(Drv(ParenPat))
+  | Drv(Typ) => Compound(Drv(ParenTyp))
   | _ => classify_label(sort, Token.tuple_lbl)
   };
 

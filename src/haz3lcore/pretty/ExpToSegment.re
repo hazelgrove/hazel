@@ -1050,7 +1050,7 @@ let mk_form =
       children,
     )
     : Piece.t => {
-  let form: Form.t = Form.get(form_name);
+  let form: Form.def = Form.get(form_name);
   assert(List.length(children) == List.length(form.mold.in_));
   // Add whitespaces only in AutoFormat mode
   let children =
@@ -1072,7 +1072,7 @@ let mk_form =
     };
   Tile({
     id,
-    form: FormId.Form(form_name),
+    form: Form.Compound(form_name),
     shards: List.init(List.length(children) + 1, n => n),
     children,
   });
@@ -1833,7 +1833,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       @ [
         Tile({
           id,
-          form: FormId.Form(TupleExtension), // mk_infix("...", Exp, P.plus)
+          form: Form.Compound(TupleExtension), // mk_infix("...", Exp, P.plus)
           shards: [0],
           children: [],
         }),
@@ -2002,7 +2002,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         [
           Tile({
             id: exp |> Exp.rep_id,
-            form: FormId.Form(TupleLabeledExp), // mk_infix("=", Exp, P.lab)
+            form: Form.Compound(TupleLabeledExp), // mk_infix("=", Exp, P.lab)
             shards: [0],
             children: [],
           }),
@@ -2104,7 +2104,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       @ [
         Tile({
           id,
-          form: FormId.Form(Pipeline), // mk_infix("|>", Exp, P.eqs)
+          form: Form.Compound(Pipeline), // mk_infix("|>", Exp, P.eqs)
           shards: [0],
           children: [],
         }),
@@ -2369,7 +2369,7 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
         Tile({
           id: Id.mk(),
           // mk_infix(":", MPat, ~l=MPat, ~r=Typ, P.asc)
-          form: FormId.Form(MPatTypeann),
+          form: Form.Compound(MPatTypeann),
           shards: [0],
           children: [],
         }),
@@ -2481,7 +2481,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         [
           Tile({
             id: pat |> Pat.rep_id,
-            form: FormId.Form(TupleLabeledPat), // mk_infix("=", Pat, P.lab)
+            form: Form.Compound(TupleLabeledPat), // mk_infix("=", Pat, P.lab)
             shards: [0],
             children: [],
           }),
@@ -2715,7 +2715,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         [
           Tile({
             id: typ |> Typ.rep_id,
-            form: FormId.Form(TupleLabeledTyp), // mk_infix("=", Typ, P.lab)
+            form: Form.Compound(TupleLabeledTyp), // mk_infix("=", Typ, P.lab)
             shards: [0],
             children: [],
           }),

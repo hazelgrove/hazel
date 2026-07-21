@@ -17,7 +17,7 @@ let all_sorts: list(Sort.t) =
   @ List.map(s => Sort.Drv(s), Language.DrvSort.all);
 
 let all_labels: list(Label.t) =
-  Form.forms |> List.map(snd) |> List.map((f: Form.t) => f.label);
+  Form.forms |> List.map(snd) |> List.map((f: Form.def) => f.label);
 
 let token_corpus: list(Token.t) = [
   "x",
@@ -88,7 +88,7 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
 let tests = (
   "FormId",
   [
-    test_case("Form(cf) label/mold agree with Form.get", `Quick, () =>
+    test_case("Compound(cf) label/mold agree with Form.get", `Quick, () =>
       List.iter(
         cf => {
           let form = Form.get(cf);
@@ -97,13 +97,13 @@ let tests = (
             label_testable,
             name ++ " label",
             form.label,
-            Form.label_of(FormId.Form(cf)),
+            Form.label_of(Form.Compound(cf)),
           );
           check(
             mold_testable,
             name ++ " mold",
             form.mold,
-            Form.mold_of(FormId.Form(cf)),
+            Form.mold_of(Form.Compound(cf)),
           );
         },
         Form.all_of_compound_form,

@@ -301,7 +301,7 @@ let mk_remainder_piece = (tok: Token.t): Piece.t =>
        * the old code (unconditional op(Any) mold): Unmolded's derived
        * mold is shape-aware, i.e. bin(Any) for operator-shaped
        * tokens — unobservable since callers remold immediately. */
-      form: FormId.Unmolded(tok),
+      form: Form.Unmolded(tok),
       shards: [0],
       children: [],
     });

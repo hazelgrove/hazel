@@ -59,9 +59,9 @@ let show_mold = (mold: Mold.t): string =>
  * priority order of Form's classification tables. `exact` paths must
  * reproduce both label and mold; the Any-fallback paths reproduce the
  * label and the (derived) fallback mold shape. */
-let upgrade_form = (label: Label.t, mold: Mold.t): FormId.t => {
+let upgrade_form = (label: Label.t, mold: Mold.t): Form.t => {
   let compounds = Form.compound_defs(label);
-  let classify = (): FormId.t => {
+  let classify = (): Form.t => {
     incr(count_classified);
     let id = Form.classify_label(mold.out, label);
     classified_log :=
@@ -70,7 +70,7 @@ let upgrade_form = (label: Label.t, mold: Mold.t): FormId.t => {
           "stale-mold tile: label [%s] mold %s => %s",
           show_label(label),
           show_mold(mold),
-          FormId.show(id),
+          Form.show(id),
         ),
         ...classified_log^,
       ];
@@ -85,13 +85,13 @@ let upgrade_form = (label: Label.t, mold: Mold.t): FormId.t => {
     ) {
     | Some((cf, _)) =>
       incr(count_compound);
-      (FormId.Form(cf), true);
+      (Form.Compound(cf), true);
     | None =>
       let atomic =
         switch (label) {
         | [t] =>
           Form.atomic_candidates(t)
-          |> List.find_opt(((_, m): (FormId.t, Mold.t)) => m == mold)
+          |> List.find_opt(((_, m): (Form.t, Mold.t)) => m == mold)
         | _ => None
         };
       switch (atomic) {
@@ -102,10 +102,10 @@ let upgrade_form = (label: Label.t, mold: Mold.t): FormId.t => {
         switch (compounds, label) {
         | ([(cf, _), ..._], _) =>
           incr(count_any_fallback);
-          (FormId.Unsorted(cf), false);
+          (Form.Unsorted(cf), false);
         | ([], [t]) =>
           incr(count_any_fallback);
-          (FormId.Unmolded(t), false);
+          (Form.Unmolded(t), false);
         | ([], _) => (classify(), false)
         }
       | None => (classify(), false)
@@ -117,7 +117,7 @@ let upgrade_form = (label: Label.t, mold: Mold.t): FormId.t => {
         "LegacyBase.upgrade_form: label not preserved: [%s] %s => %s",
         show_label(label),
         show_mold(mold),
-        FormId.show(id),
+        Form.show(id),
       ),
     );
   };
@@ -127,7 +127,7 @@ let upgrade_form = (label: Label.t, mold: Mold.t): FormId.t => {
         "LegacyBase.upgrade_form: mold not preserved: [%s] %s => %s (mold %s)",
         show_label(label),
         show_mold(mold),
-        FormId.show(id),
+        Form.show(id),
         show_mold(Form.mold_of(id)),
       ),
     );

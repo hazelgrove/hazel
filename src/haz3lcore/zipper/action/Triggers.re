@@ -89,7 +89,7 @@ let refractor_to_invoke =
     Form.classify_label(Exp, [Token.mk_projector_invoke(kind)]),
     [],
   ),
-  Piece.mk_tile(FormId.Form(ApExp), [seg]),
+  Piece.mk_tile(Form.Compound(ApExp), [seg]),
 ];
 
 /* Text-only version using Unicode brackets for CLI output.
@@ -100,8 +100,8 @@ let refractor_to_invoke_text =
   | Probe =>
     /* the brackets classify as Unmolded (display-only path: these
      * segments feed to_string, which reads only labels) */
-    [Piece.mk_tile(FormId.Unmolded(Token.probe_start), []), ...seg]
-    @ [Piece.mk_tile(FormId.Unmolded(Token.probe_end), [])]
+    [Piece.mk_tile(Form.Unmolded(Token.probe_start), []), ...seg]
+    @ [Piece.mk_tile(Form.Unmolded(Token.probe_end), [])]
   | _ => refractor_to_invoke(kind, seg)
   };
 
@@ -128,7 +128,7 @@ let expand_livelit = (~ctx, z: t): option(t) =>
       };
     let (l, _space) = ListUtil.split_last(fst(z.relatives.siblings));
     let (l, name) = ListUtil.split_last(l);
-    let seg = [name, Piece.mk_tile(FormId.Form(ApExp), [seg])];
+    let seg = [name, Piece.mk_tile(Form.Compound(ApExp), [seg])];
     /* No statics available at trigger time; empty elaborated is fine
      * since Livelit has elaborate_syntax=false. */
     let+ pr =

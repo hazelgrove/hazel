@@ -230,7 +230,17 @@ type compound_form =
  * - Unmolded(t): the token matches no registered form at all. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
-  | Form(compound_form)
+  | Compound(compound_form)
   | Unsorted(compound_form)
   | Atom(atomic_form, Sort.t, Token.t)
   | Unmolded(Token.t);
+
+/* Sexps serialized before Compound was named Compound (stored slide
+ * modules, user-saved zippers) spell it `Form`; accept both. */
+let t_of_sexp = {
+  let derived = t_of_sexp;
+  fun
+  | Sexplib.Sexp.List([Sexplib.Sexp.Atom("Form" | "form"), ...args]) =>
+    derived(Sexplib.Sexp.List([Sexplib.Sexp.Atom("Compound"), ...args]))
+  | s => derived(s);
+};

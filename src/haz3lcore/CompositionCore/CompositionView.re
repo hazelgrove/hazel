@@ -240,7 +240,7 @@ module Local = {
     switch (pr.kind) {
     /* Unmolded placeholder: display-only (feeds Printer.of_segment,
      * which reads only labels) */
-    | Fold => [Piece.mk_tile(FormId.Unmolded({|⋱|}), [])]
+    | Fold => [Piece.mk_tile(Form.Unmolded({|⋱|}), [])]
     | _ => Triggers.projector_to_invoke(pr)
     };
 
