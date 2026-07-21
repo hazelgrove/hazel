@@ -13,7 +13,17 @@ module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | ChatSystemAction(ChatSystem.Update.Action.t)
-    | SendMessage(Message.Model.t, Id.t)
+    | /** Phase 1 of a send: append the message so it paints immediately;
+          the expensive context/payload work is deferred to DispatchSend. */
+      SendMessage(
+        Message.Model.t,
+        Id.t,
+      )
+    | /** Phase 2 of a send, scheduled from SendMessage via a 0ms timeout so
+          the browser paints between the phases. */
+      DispatchSend(
+        Id.t,
+      )
     | /** Last [int] is elapsed wall-time (ms) from send to reply,
           used to render "Thought for Ns" on reasoning-bearing turns. */
       HandleLLMResponse(
@@ -89,6 +99,13 @@ let pending_main_stream_handle: ref(option(API.streaming_handle)) =
   ref(None);
 let pending_compaction_stream_handle: ref(option(API.streaming_handle)) =
   ref(None);
+
+/* Deferral for phase 2 of a send: a 0ms timeout is a macrotask, so the
+   browser paints the just-appended user message before the expensive
+   context/payload work runs (a bare schedule_action could batch into the
+   same frame). Tests override this to run the thunk synchronously. */
+let defer_dispatch_send: ref((unit => unit) => unit) =
+  ref(thunk => JsUtil.delay(0.0, thunk));
 
 let clear_pending_assistant_stream = (model: Model.t): Model.t => {
   ...model,
@@ -516,7 +533,8 @@ let maybe_start_compaction =
       "Compaction is already in progress.",
       model,
     );
-  } else if (Option.is_some(model.awaiting_response)) {
+  } else if (Option.is_some(model.awaiting_response)
+             || Option.is_some(model.pending_dispatch_send)) {
     compaction_unavailable(
       ~manual,
       ~chat_id,
@@ -672,111 +690,104 @@ let send_llm_request =
   pending_main_stream_handle := Some(handle);
 };
 
-let send_message =
+/** True while a send/response cycle or compaction is active, including the
+    phase-1 → phase-2 dispatch gap. New user sends queue instead of firing. */
+let busy_for_send = (model: Model.t): bool =>
+  Option.is_some(model.compaction_in_progress)
+  || Option.is_some(model.awaiting_response)
+  || Option.is_some(model.pending_dispatch_send);
+
+let enqueue_while_busy =
+    (model: Model.t, chat_id: Id.t, text: string): Model.t => {
+  let trimmed = String.trim(text);
+  if (trimmed == "") {
+    model;
+  } else {
+    let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
+    let chat' = {
+      ...chat,
+      pending_send_queue: chat.pending_send_queue @ [trimmed],
+    };
+    {
+      ...model,
+      chat_system: ChatSystem.Utils.update_chat(chat', model.chat_system),
+    };
+  };
+};
+
+/** Phase 2 of a send: the message is already on the chat (appended by
+    SendMessage), so this only builds the payload from the chat history and
+    fires the request — no append here. */
+let dispatch_send =
     (
       ~api_key: option(string),
       ~llm_id: option(string),
       ~reasoning_effort: option(OpenRouter.Payload.Model.effort_level),
       ~session_mode: AgentGlobals.Model.session_mode,
-      new_message: Message.Model.t,
       chat_id: Id.t,
       model: Model.t,
       schedule_action: Action.t => unit,
     )
-    : Result.t(Model.t) => {
-  let user_trying_new_round =
-    switch (new_message.role) {
-    | User => true
-    | _ => false
-    };
-  let enqueue_while_busy = (m: Model.t, text: string): Model.t => {
-    let trimmed = String.trim(text);
-    if (trimmed == "") {
-      m;
-    } else {
-      let chat = ChatSystem.Utils.find_chat(chat_id, m.chat_system);
-      let chat' = {
-        ...chat,
-        pending_send_queue: chat.pending_send_queue @ [trimmed],
-      };
-      {
-        ...m,
-        chat_system: ChatSystem.Utils.update_chat(chat', m.chat_system),
-      };
-    };
-  };
-  if (user_trying_new_round
-      && (
-        Option.is_some(model.compaction_in_progress)
-        || Option.is_some(model.awaiting_response)
-      )) {
-    Ok(enqueue_while_busy(model, new_message.content));
-  } else {
-    let model = append_message(~chat_id, new_message, model);
-    switch (api_key, llm_id) {
-    | (None, _) =>
-      Ok(
-        append_message(
-          ~chat_id,
-          Message.Utils.mk_api_failure_message(
-            "An API key is required. Please set an API key in the settings.",
-          ),
-          model,
+    : Model.t => {
+  switch (api_key, llm_id) {
+  | (None, _) =>
+    append_message(
+      ~chat_id,
+      Message.Utils.mk_api_failure_message(
+        "An API key is required. Please set an API key in the settings.",
+      ),
+      model,
+    )
+  | (_, None) =>
+    append_message(
+      ~chat_id,
+      Message.Utils.mk_api_failure_message(
+        "LLM ID is required. Please select an LLM in the settings.",
+      ),
+      model,
+    )
+  | (Some(api_key), Some(llm_id)) =>
+    let main_flight_seq = model.main_llm_seq + 1;
+    send_llm_request(
+      ~api_key,
+      ~payload=
+        OpenRouter.Payload.Utils.mk_default(
+          ~model_id=llm_id,
+          ~messages=
+            Chat.Utils.api_messages_for_openrouter(
+              ChatSystem.Utils.find_chat(chat_id, model.chat_system),
+            ),
+          ~session_id=Some(Id.to_string(chat_id)),
+          ~tools=enabled_tools(~mode=session_mode, model.prompting),
+          ~reasoning=?
+            Option.map(
+              e => OpenRouter.Payload.Model.Effort(e),
+              reasoning_effort,
+            ),
+          (),
         ),
-      )
-    | (_, None) =>
-      Ok(
-        append_message(
+      ~schedule_action,
+      ~chat_id,
+      ~retry_attempt=0,
+      ~main_flight_seq,
+    );
+    let current_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
+    let tail = Chat.Utils.current_tail(current_chat);
+    if (current_chat.title == "New Chat" && tail.role == User) {
+      if (Option.is_none(model.awaiting_response)
+          && Option.is_none(model.compaction_in_progress)) {
+        request_chat_name(
+          ~api_key,
+          ~user_message=tail.content,
+          ~schedule_action,
           ~chat_id,
-          Message.Utils.mk_api_failure_message(
-            "LLM ID is required. Please select an LLM in the settings.",
-          ),
-          model,
-        ),
-      )
-    | (Some(api_key), Some(llm_id)) =>
-      let main_flight_seq = model.main_llm_seq + 1;
-      send_llm_request(
-        ~api_key,
-        ~payload=
-          OpenRouter.Payload.Utils.mk_default(
-            ~model_id=llm_id,
-            ~messages=
-              Chat.Utils.api_messages_for_openrouter(
-                ChatSystem.Utils.find_chat(chat_id, model.chat_system),
-              ),
-            ~session_id=Some(Id.to_string(chat_id)),
-            ~tools=enabled_tools(~mode=session_mode, model.prompting),
-            ~reasoning=?
-              Option.map(
-                e => OpenRouter.Payload.Model.Effort(e),
-                reasoning_effort,
-              ),
-            (),
-          ),
-        ~schedule_action,
-        ~chat_id,
-        ~retry_attempt=0,
-        ~main_flight_seq,
-      );
-      let current_chat =
-        ChatSystem.Utils.find_chat(chat_id, model.chat_system);
-      if (current_chat.title == "New Chat" && new_message.role == User) {
-        if (Option.is_none(model.awaiting_response)
-            && Option.is_none(model.compaction_in_progress)) {
-          request_chat_name(
-            ~api_key,
-            ~user_message=new_message.content,
-            ~schedule_action,
-            ~chat_id,
-          );
-        };
+        );
       };
-      Ok({
-        ...model,
-        awaiting_response: Some(chat_id),
-        main_llm_seq: main_flight_seq,
-      });
+    };
+    {
+      ...model,
+      awaiting_response: Some(chat_id),
+      main_llm_seq: main_flight_seq,
     };
   };
 };
@@ -1373,8 +1384,7 @@ let handle_llm_response =
 let schedule_flush_pending_if_idle_for_chat =
     (model_after: Model.t, chat_id: Id.t, schedule_action: Action.t => unit)
     : unit =>
-  if (Option.is_some(model_after.awaiting_response)
-      || Option.is_some(model_after.compaction_in_progress)) {
+  if (busy_for_send(model_after)) {
     ();
   } else {
     let chat = ChatSystem.Utils.find_chat(chat_id, model_after.chat_system);
@@ -1412,34 +1422,59 @@ let update =
       )
     };
   | SendMessage(message, chat_id) =>
-    let model =
-      update_context(
-        ~session_mode=settings.agent_globals.session_mode,
-        ~test_results=?EvalResult.Model.test_results(editor.result),
-        model,
-        editor.editor,
-        chat_id,
+    let user_trying_new_round =
+      switch (message.role) {
+      | User => true
+      | _ => false
+      };
+    if (user_trying_new_round && busy_for_send(model)) {
+      (
+        enqueue_while_busy(model, chat_id, message.content),
+        editor |> Updated.return,
       );
-    switch (
-      send_message(
-        ~api_key=settings.agent_globals.api_key,
-        ~llm_id=AgentGlobals.get_active_llm_id(settings.agent_globals),
-        ~reasoning_effort=settings.agent_globals.reasoning_effort,
-        ~session_mode=settings.agent_globals.session_mode,
-        message,
-        chat_id,
-        model,
-        schedule_action,
-      )
-    ) {
-    | Ok(model) => (model, editor |> Updated.return)
-    | Error(error) =>
-      failwith(
-        switch (error) {
-        | Failure.Info(msg) => msg
-        },
-      )
+    } else {
+      /* Phase 1: append only, so the message paints this frame; DispatchSend
+         picks up the context refresh and payload work a macrotask later. */
+      let model = {
+        ...append_message(~chat_id, message, model),
+        pending_dispatch_send: Some(chat_id),
+      };
+      defer_dispatch_send^(() =>
+        schedule_action(Action.DispatchSend(chat_id))
+      );
+      (model, editor |> Updated.return);
     };
+  | DispatchSend(chat_id) =>
+    switch (model.pending_dispatch_send) {
+    | Some(pending_chat_id) when pending_chat_id == chat_id =>
+      let model = {
+        ...model,
+        pending_dispatch_send: None,
+      };
+      let model =
+        update_context(
+          ~session_mode=settings.agent_globals.session_mode,
+          ~test_results=?EvalResult.Model.test_results(editor.result),
+          model,
+          editor.editor,
+          chat_id,
+        );
+      (
+        dispatch_send(
+          ~api_key=settings.agent_globals.api_key,
+          ~llm_id=AgentGlobals.get_active_llm_id(settings.agent_globals),
+          ~reasoning_effort=settings.agent_globals.reasoning_effort,
+          ~session_mode=settings.agent_globals.session_mode,
+          chat_id,
+          model,
+          schedule_action,
+        ),
+        editor |> Updated.return,
+      );
+    | _ =>
+      /* Stale: Stop (or a competing dispatch) already consumed the flag. */
+      (model, editor |> Updated.return_quiet)
+    }
   | StopAgenticLoop =>
     let (m, e) =
       switch (model.awaiting_response, model.compaction_in_progress) {
@@ -1480,7 +1515,24 @@ let update =
           },
           editor |> Updated.return,
         );
-      | (None, None) => (model, editor |> Updated.return)
+      | (None, None) =>
+        switch (model.pending_dispatch_send) {
+        | Some(pending_chat_id) =>
+          /* Stop landed in the phase-1 → phase-2 gap: drop the pending
+             dispatch so DispatchSend no-ops. */
+          let cancelled =
+            Message.Utils.mk_response_cancelled_message(
+              ~content="Agent response cancelled.",
+            );
+          (
+            {
+              ...append_message(~chat_id=pending_chat_id, cancelled, model),
+              pending_dispatch_send: None,
+            },
+            editor |> Updated.return,
+          );
+        | None => (model, editor |> Updated.return)
+        }
       };
     schedule_flush_pending_if_idle_for_chat(
       m,
@@ -1489,8 +1541,7 @@ let update =
     );
     (m, e);
   | FlushPendingSend(chat_id) =>
-    if (Option.is_some(model.awaiting_response)
-        || Option.is_some(model.compaction_in_progress)) {
+    if (busy_for_send(model)) {
       (model, editor |> Updated.return);
     } else {
       let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);

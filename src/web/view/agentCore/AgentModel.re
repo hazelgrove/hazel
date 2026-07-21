@@ -39,6 +39,11 @@ module Model = {
     pending_ignore_main_reply_seq: option(int),
     [@yojson.default None]
     pending_ignore_compaction_reply_seq: option(int),
+    /* Chat whose just-appended user send (SendMessage, phase 1) still awaits
+       its deferred context/payload dispatch (DispatchSend, phase 2). Treated
+       as busy; cleared by DispatchSend and StopAgenticLoop. */
+    [@yojson.default None]
+    pending_dispatch_send: option(Id.t),
     /* Accumulated SSE deltas for the in-flight main reply. Cleared on
        HandleLLMResponse, ApiErrorResponse, and StopAgenticLoop. The XHR
        handle itself is not serializable and lives in a module-level ref
@@ -63,6 +68,7 @@ module Model = {
     compaction_llm_seq: 0,
     pending_ignore_main_reply_seq: None,
     pending_ignore_compaction_reply_seq: None,
+    pending_dispatch_send: None,
     pending_assistant_content: "",
     pending_assistant_reasoning: "",
   };

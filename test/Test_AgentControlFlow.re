@@ -16,6 +16,10 @@ let mk_reply =
 
 let cell_editor = () => CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
 
+/* Run the phase-2 send deferral synchronously so [drain_scheduled] sees
+   DispatchSend; in the browser it is a 0ms timeout (paint gap). */
+let () = Agent.Update.defer_dispatch_send := (thunk => thunk());
+
 let with_busy_main = (~seq: int, agent: Agent.Model.t): Agent.Model.t => {
   let chat_id = agent.chat_system.current;
   {
@@ -94,6 +98,11 @@ let linear_contents = (agent: Agent.Model.t, chat_id: Id.t): list(string) => {
   let chat = ChatSystem.Utils.find_chat(chat_id, agent.chat_system);
   Chat.Utils.linearize(chat) |> List.map((m: Message.Model.t) => m.content);
 };
+
+let count_substring = (needle: string, haystack: list(string)): int =>
+  List.length(
+    List.filter(c => StringUtil.plain_search(needle, c, 0) >= 0, haystack),
+  );
 
 let index_of_substring =
     (needle: string, haystack: list(string)): option(int) => {
@@ -282,7 +291,7 @@ let test_send_while_busy_enqueues = () => {
   let after_send =
     run_update(
       Agent.Update.Action.SendMessage(
-        Message.Utils.mk_user_message("hold"),
+        Message.Utils.mk_user_message("queued_while_busy_token"),
         chat_id,
       ),
       agent,
@@ -293,7 +302,148 @@ let test_send_while_busy_enqueues = () => {
     bool,
     "message queued not inline-appended as sole path",
     true,
-    chat.pending_send_queue == ["hold"],
+    chat.pending_send_queue == ["queued_while_busy_token"],
+  );
+  check(bool, "no dispatch deferred while busy", true, scheduled^ == []);
+  check(
+    int,
+    "queued message not appended to transcript",
+    0,
+    count_substring(
+      "queued_while_busy_token",
+      linear_contents(after_send, chat_id),
+    ),
+  );
+};
+
+/* Phase 1 of SendMessage appends the user message immediately (optimistic
+   feedback); all dispatch work is deferred to DispatchSend. */
+let test_send_appends_user_message_before_dispatch = () => {
+  let agent = Agent.Utils.init();
+  let chat_id = agent.chat_system.current;
+  let scheduled = ref([]);
+  let after_phase1 =
+    run_update(
+      Agent.Update.Action.SendMessage(
+        Message.Utils.mk_user_message("optimistic_hello"),
+        chat_id,
+      ),
+      agent,
+      scheduled,
+    );
+  let cs = linear_contents(after_phase1, chat_id);
+  check(
+    int,
+    "user message visible before deferred dispatch",
+    1,
+    count_substring("optimistic_hello", cs),
+  );
+  check(
+    int,
+    "dispatch has not run yet (no api-key failure)",
+    0,
+    count_substring("API key is required", cs),
+  );
+  check(
+    bool,
+    "dispatch pending for this chat",
+    true,
+    after_phase1.pending_dispatch_send == Some(chat_id),
+  );
+  check(
+    bool,
+    "DispatchSend deferred",
+    true,
+    List.mem(Agent.Update.Action.DispatchSend(chat_id), scheduled^),
+  );
+  check(
+    bool,
+    "not yet awaiting a response",
+    true,
+    Option.is_none(after_phase1.awaiting_response),
+  );
+};
+
+let test_send_dispatches_exactly_once_after_drain = () => {
+  let agent = Agent.Utils.init();
+  let chat_id = agent.chat_system.current;
+  let scheduled = ref([]);
+  let after_phase1 =
+    run_update(
+      Agent.Update.Action.SendMessage(
+        Message.Utils.mk_user_message("dispatch_once"),
+        chat_id,
+      ),
+      agent,
+      scheduled,
+    );
+  let after = drain_scheduled(after_phase1, scheduled, ~max_rounds=8);
+  let cs = linear_contents(after, chat_id);
+  /* Settings.Model.init has no API key, so each dispatch appends exactly
+     one api-key failure: a single occurrence pins a single dispatch. */
+  check(
+    int,
+    "dispatched exactly once",
+    1,
+    count_substring("API key is required", cs),
+  );
+  check(
+    int,
+    "user message appended once",
+    1,
+    count_substring("dispatch_once", cs),
+  );
+  check(
+    bool,
+    "dispatch flag cleared",
+    true,
+    Option.is_none(after.pending_dispatch_send),
+  );
+};
+
+let test_stop_during_dispatch_gap_cancels_send = () => {
+  let agent = Agent.Utils.init();
+  let chat_id = agent.chat_system.current;
+  let scheduled = ref([]);
+  let after_phase1 =
+    run_update(
+      Agent.Update.Action.SendMessage(
+        Message.Utils.mk_user_message("gap_message"),
+        chat_id,
+      ),
+      agent,
+      scheduled,
+    );
+  let after_stop =
+    run_update(Agent.Update.Action.StopAgenticLoop, after_phase1, scheduled);
+  check(
+    bool,
+    "pending dispatch cleared by Stop",
+    true,
+    Option.is_none(after_stop.pending_dispatch_send),
+  );
+  let after = drain_scheduled(after_stop, scheduled, ~max_rounds=8);
+  let cs = linear_contents(after, chat_id);
+  check(
+    int,
+    "stale DispatchSend did not fire",
+    0,
+    count_substring("API key is required", cs),
+  );
+  check(
+    bool,
+    "cancel line present",
+    true,
+    List.exists(
+      c => StringUtil.plain_search("Agent response cancelled", c, 0) >= 0,
+      cs,
+    ),
+  );
+  check(
+    bool,
+    "not awaiting after stopped gap",
+    true,
+    Option.is_none(after.awaiting_response),
   );
 };
 
@@ -588,6 +738,21 @@ let tests = [
         "Send while busy enqueues into pending_send_queue",
         `Quick,
         test_send_while_busy_enqueues,
+      ),
+      test_case(
+        "SendMessage phase 1: user message appended before deferred dispatch",
+        `Quick,
+        test_send_appends_user_message_before_dispatch,
+      ),
+      test_case(
+        "SendMessage: draining deferred DispatchSend dispatches exactly once",
+        `Quick,
+        test_send_dispatches_exactly_once_after_drain,
+      ),
+      test_case(
+        "Stop in phase-1/phase-2 gap cancels the pending dispatch",
+        `Quick,
+        test_stop_during_dispatch_gap_cancels_send,
       ),
       test_case(
         "Stop then flush: cancel line before queued user send",

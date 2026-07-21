@@ -26,6 +26,7 @@ let init = (): Model.t => {
     compaction_llm_seq: 0,
     pending_ignore_main_reply_seq: None,
     pending_ignore_compaction_reply_seq: None,
+    pending_dispatch_send: None,
     pending_assistant_content: "",
     pending_assistant_reasoning: "",
   });
