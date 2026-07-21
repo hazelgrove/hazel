@@ -369,7 +369,7 @@ module Local = {
                   let seg = z_sel.selection.content;
                   let focus = z_sel.selection.focus;
                   let (z_sel', new_seg, did_change) =
-                    ProjectorPerform.sanitize_projectors_in_segment(
+                    ProjectorPerform.revalidate_projectors_in_segment(
                       z_sel,
                       seg,
                     );

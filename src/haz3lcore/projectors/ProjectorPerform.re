@@ -284,7 +284,10 @@ let go =
   };
 };
 
-/* --- Agent tools: path-resolved syntax projectors (after Select.term) --- */
+/* --- Agent tools: path-resolved syntax projectors (after Select.term) ---
+   Placement/removal calls migrate_refractor: wrapping or stripping a projector
+   changes the id at that location, and probe/statics overlays are keyed by id,
+   so they must be re-keyed to survive. */
 
 let with_selection_after_term =
     (
@@ -398,11 +401,11 @@ let try_remove_syntax_projector =
   );
 };
 
-/** Re-validate projectors under a segment after the underlying syntax may have
-    changed. Strips a projector (exposing underlying syntax) when
-    [[MakeTerm.for_projection]] or [[ProjectorInit.init]] fails, migrating
-    refractors to the underlying term id when possible. */
-let sanitize_projectors_in_segment =
+/** Re-validate projectors after an edit: strip any whose underlying syntax no
+    longer parses ([MakeTerm.for_projection]) or whose kind no longer
+    initializes ([ProjectorInit.init]), migrating probe/statics overlays to the
+    exposed term id. */
+let revalidate_projectors_in_segment =
     (z: Zipper.t, seg: Base.segment): (Zipper.t, Base.segment, bool) => {
   let rec go_seg =
           (z: Zipper.t, seg: Base.segment): (Zipper.t, Base.segment, bool) => {
