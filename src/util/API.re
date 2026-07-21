@@ -136,7 +136,7 @@ module Json = {
   };
 };
 
-let receive = (~debug=true, request: request): option(Json.t) =>
+let receive = (~debug=false, request: request): option(Json.t) =>
   switch (request##.readyState) {
   | XmlHttpRequest.DONE =>
     debug ? Firebug.console##log(request##.responseText) : ();

@@ -439,7 +439,6 @@ module Model = {
 module Utils = {
   let chat =
       (~key: string, ~body: Json.t, ~handler: option(Json.t) => unit): unit => {
-    print_endline("API: POSTing OpenRouter request");
     request(
       ~debug=false,
       ~with_credentials=false,
@@ -991,7 +990,6 @@ module Utils = {
         ~on_done: unit => unit,
       )
       : API.streaming_handle => {
-    print_endline("API: POSTing OpenRouter streaming request");
     let streaming_payload = {
       ...payload,
       stream: true,
@@ -1066,7 +1064,6 @@ module AvailableLLMs = {
 
   module Utils = {
     let get_models = (~key: string, ~handler: option(Json.t) => unit): unit => {
-      print_endline("API: GETting OpenRouter models");
       request(
         ~method=GET,
         ~url="https://openrouter.ai/api/v1/models",
@@ -1208,7 +1205,6 @@ module Credits = {
 
   module Utils = {
     let get_credits = (~key: string, ~handler: option(Json.t) => unit): unit => {
-      print_endline("API: GETting OpenRouter credits");
       request(
         ~method=GET,
         ~url="https://openrouter.ai/api/v1/credits",
@@ -1262,7 +1258,6 @@ module KeyInfo = {
 
   module Utils = {
     let get_key = (~key: string, ~handler: option(Json.t) => unit): unit => {
-      print_endline("API: GETting OpenRouter key info");
       request(
         ~method=GET,
         ~url="https://openrouter.ai/api/v1/key",
