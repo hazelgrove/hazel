@@ -273,6 +273,9 @@ let type_string = (s: string): list(Action.t) =>
 let backspaces = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Destruct(Local(Left, ByChar)));
 
+let lefts = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Move(Local(Left, ByChar)));
+
 /* FELT ASSESSMENT (2026-07-20): both entry trajectories hold the
    invisibility promise end to end — typed text never moves a column,
    holes only ever materialize in the line-end free cell AFTER the
@@ -282,6 +285,48 @@ let backspaces = (n: int): list(Action.t) =>
    `1 i¦?` not `1~i¦`. Deletion mirror-images entry exactly. These
    single-line runs exercise only free-cell holes; interior
    (cell-consuming) and multi-line trajectories are the next tier. */
+let entry_let =
+  "  l¦\n"
+  ++ "  le¦\n"
+  ++ "  let¦?\n"
+  ++ "  let ¦?\n"
+  ++ "  let x¦\n"
+  ++ "  let x ¦\n"
+  ++ "  let x =¦?\n"
+  ++ "  let x = ¦?\n"
+  ++ "  let x = 1¦\n"
+  ++ "  let x = 1 ¦\n"
+  ++ "  let x = 1 i¦?\n"
+  ++ "  let x = 1 in¦?\n"
+  ++ "  let x = 1 in ¦?\n"
+  ++ "  let x = 1 in x¦";
+
+let idel =
+  entry_let
+  ++ "\n"
+  ++ "  let x = 1 in ¦x\n"
+  ++ "  let x = 1 in¦ x\n"
+  ++ "  let x = 1 i¦n x\n"
+  ++ "  let x = 1 ¦in x\n"
+  ++ "  let x = 1¦ in x\n"
+  ++ "  let x = ¦?in x";
+
+let mline =
+  "  l¦\n"
+  ++ "  le¦\n"
+  ++ "  let¦?\n"
+  ++ "  let ¦?\n"
+  ++ "  let x¦\n"
+  ++ "  let x ¦\n"
+  ++ "  let x =¦?\n"
+  ++ "  let x =\n  ¦?\n"
+  ++ "  let x =\n  1¦\n"
+  ++ "  let x =\n  1 ¦\n"
+  ++ "  let x =\n  1 i¦?\n"
+  ++ "  let x =\n  1 in¦?\n"
+  ++ "  let x =\n  1 in ¦?\n"
+  ++ "  let x =\n  1 in x¦";
+
 let scenarios = [
   scenario(
     "left-to-right entry: let x = 1 in x",
@@ -305,6 +350,44 @@ let scenarios = [
     "left-to-right entry: 1 + 2",
     type_string("1 + 2"),
     "  1¦\n" ++ "  1 ¦\n" ++ "  1 +¦?\n" ++ "  1 + ¦?\n" ++ "  1 + 2¦",
+  ),
+  /* FELT ASSESSMENT: pure caret movement produces zero hole churn;
+     deleting `1` materializes the hole IN the vacated cell with the
+     caret at its left and `in x` never moving a column; retyping is
+     the exact inverse. Killing an operator gives the concave hole the
+     same way (`1 ¦~2`). Enter carries the trailing obligation onto
+     the caret's fresh line (top-level blank-line slot), landing
+     after the stored auto-indent spaces — obligation follows the
+     caret to where typing will continue. */
+  scenario(
+    "interior deletion: kill the 1 of let x = 1 in x",
+    type_string("let x = 1 in x") @ lefts(5) @ backspaces(1),
+    idel,
+  ),
+  scenario(
+    "interior repair: retype into the gap",
+    type_string("let x = 1 in x")
+    @ lefts(5)
+    @ backspaces(1)
+    @ type_string("2"),
+    idel ++ "\n  let x = 2¦ in x",
+  ),
+  scenario(
+    "multiline entry: let x = then Enter",
+    type_string("let x =") @ [Action.Insert("\n")] @ type_string("1 in x"),
+    mline,
+  ),
+  scenario(
+    "kill an operator mid-program: 1 + 2 minus the +",
+    type_string("1 + 2") @ lefts(2) @ backspaces(1),
+    "  1¦\n"
+    ++ "  1 ¦\n"
+    ++ "  1 +¦?\n"
+    ++ "  1 + ¦?\n"
+    ++ "  1 + 2¦\n"
+    ++ "  1 + ¦2\n"
+    ++ "  1 +¦ 2\n"
+    ++ "  1 ¦~2",
   ),
   scenario(
     "delete back through: 1 + 2",

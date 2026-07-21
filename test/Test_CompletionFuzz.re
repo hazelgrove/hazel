@@ -695,6 +695,19 @@ let run_grout_fuzz = (~seeds: int, ~steps: int): string => {
                     flat(marked(p1)),
                   );
                 };
+                /* layout invisibility: grout contributes nothing */
+                if (FeltPrint.render_ghostless(p1)
+                    != FeltPrint.render(GroutPlace.strip(completed))) {
+                  bad(
+                    ~seed,
+                    ~step=k,
+                    ~inv="G-INVISIBILITY",
+                    "ghostless="
+                    ++ flat(FeltPrint.render_ghostless(p1))
+                    ++ " stripped="
+                    ++ flat(FeltPrint.render(GroutPlace.strip(completed))),
+                  );
+                };
               }
             };
           };
