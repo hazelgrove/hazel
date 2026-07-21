@@ -5,7 +5,7 @@ open Language;
 /* Completion-display harness: render what the user actually sees —
    the DISPLAY segment with ghosts spliced at their anchors, caret
    as ¦, ghost runs in ⟪⟫ — plus the chip stream. The string IS the
-   test: display_case("string_replace(a,¦ ?⟪, ?)⟫") types the text
+   test: display_case("string_replace(a,¦ ⟪?, ?)⟫") types the text
    before ¦ and asserts the whole rendering.
 
    REVIEW STANDARD (not just pass/fail): a pinned trajectory is a
@@ -529,6 +529,18 @@ let parity_case_z = (name: string, ~waiver="", mk_z: unit => Zipper.t) =>
     },
   );
 
+/* JOINED-STEP RE-PIN RECORD (2026-07-21): the grout-free edit state
+   moved three judged classes through this corpus, tokens and caret
+   byte-identical in every pin (auto-verified at re-pin time):
+   1. derived holes are SYSTEM material — they render inside ghost
+      zones (`(¦⟪?, ...` not `(¦?⟪, ...`);
+   2. junction holes sit at the owner's line end / policy positions
+      (raw-vs-display's caret-jump probe HEALED: raw and display
+      pre-caret now agree);
+   3. within-run hole positions follow the placement policy.
+   One real bug fixed en route: multi-delimiter insertions with an
+   embedded witness projected the full shard beside the typed prefix
+   (`= ? =>`); they now degrade to the remainder-ghost channel. */
 let tests = [
   (
     "CompletionDisplay: target-0",
@@ -555,13 +567,13 @@ string_repl¦⟪ace⟫   CHIPS[]
 string_repla¦⟪ce⟫   CHIPS[]
 string_replac¦⟪e⟫   CHIPS[]
 string_replace¦   CHIPS[]
-string_replace(¦?⟪, ?, ?)⟫   CHIPS[]
+string_replace(¦⟪?, ?, ?)⟫   CHIPS[]
 string_replace(a¦⟪, ?, ?)⟫   CHIPS[]
-string_replace(a,¦ ?⟪, ?)⟫   CHIPS[]
-string_replace(a, ¦?⟪, ?)⟫   CHIPS[]
+string_replace(a,¦ ⟪?, ?)⟫   CHIPS[]
+string_replace(a, ¦⟪?, ?)⟫   CHIPS[]
 string_replace(a, b¦⟪, ?)⟫   CHIPS[]
-string_replace(a, b,¦ ?⟪)⟫   CHIPS[]
-string_replace(a, b, ¦?⟪)⟫   CHIPS[]
+string_replace(a, b,¦ ⟪?)⟫   CHIPS[]
+string_replace(a, b, ¦⟪?)⟫   CHIPS[]
 string_replace(a, b, c¦⟪)⟫   CHIPS[]
 string_replace(a, b, c)¦   CHIPS[]|},
           trajectory("string_replace(a, b, c)"),
@@ -576,12 +588,12 @@ string_replace(a, b, c)¦   CHIPS[]|},
        order — the two middle cases were v1's buffer-jank states) */
     [
       /* empty parens presume: the full promise from `(` on */
-      display_case("string_replace(¦?⟪, ?, ?)⟫"),
+      display_case("string_replace(¦⟪?, ?, ?)⟫"),
       display_case("string_replace(a¦⟪, ?, ?)⟫"),
-      display_case("string_replace(a,¦ ?⟪, ?)⟫"),
-      display_case("string_replace(a, b,¦ ?⟪)⟫"),
+      display_case("string_replace(a,¦ ⟪?, ?)⟫"),
+      display_case("string_replace(a, b,¦ ⟪?)⟫"),
       display_case("string_replace(a, b, c¦⟪)⟫"),
-      display_case("let x = 4 i¦⟪n⟫ ?"),
+      display_case("let x = 4 i¦⟪n ?⟫"),
       /* trailing space: the ghost hugs the caret (slide_to_caret) —
          a closer drawn left of the caret would portray typing
          outside the completed call */
@@ -621,7 +633,7 @@ let x =¦ ? ⟪in ?⟫   CHIPS[]
 let x = ¦? ⟪in ?⟫   CHIPS[]
 let x = 1¦ ⟪in ?⟫   CHIPS[]
 let x = 1 ¦⟪in ?⟫   CHIPS[]
-let x = 1 i¦⟪n⟫ ?   CHIPS[]
+let x = 1 i¦⟪n ?⟫   CHIPS[]
 let x = 1 in¦?   CHIPS[]|},
           trajectory("let x = 1 in"),
         )
@@ -638,7 +650,7 @@ let x = 1 in¦?   CHIPS[]|},
           "let-above",
           {|l¦~
 string_replace(a, b, c)   CHIPS[]
-le¦⟪t ⟫~
+le¦⟪t ~⟫
 string_replace(a, b, c)   CHIPS[]
 let¦ ? ⟪= ? in⟫
 string_replace(a, b, c)   CHIPS[]
@@ -678,10 +690,10 @@ string_replace(a, b, c)   CHIPS[]|},
         check(
           string_testable,
           "let-bk",
-          {|let?  =  i¦ ⟪in ?⟫   CHIPS[]
-let?  =  ¦? ⟪in ?⟫   CHIPS[]
-let?  = ¦? ⟪in ?⟫   CHIPS[]
-let?  =¦ ? ⟪in ?⟫   CHIPS[]
+          {|let  ?=  i¦ ⟪in ?⟫   CHIPS[]
+let  ?=  ¦? ⟪in ?⟫   CHIPS[]
+let  ?= ¦? ⟪in ?⟫   CHIPS[]
+let  ?=¦ ? ⟪in ?⟫   CHIPS[]
 let  ¦? ⟪= ? in ?⟫   CHIPS[]
 let ¦? ⟪= ? in ?⟫   CHIPS[]|},
           trajectory_bk(~ctx="let  =  in¦", 6),
@@ -707,7 +719,7 @@ let a = string_repl¦⟪ace⟫ in a + 1   CHIPS[]
 let a = string_repla¦⟪ce⟫ in a + 1   CHIPS[]
 let a = string_replac¦⟪e⟫ in a + 1   CHIPS[]
 let a = string_replace¦ in a + 1   CHIPS[]
-let a = string_replace(¦?⟪, ?, ?)⟫ in a + 1   CHIPS[]
+let a = string_replace(¦⟪?, ?, ?)⟫ in a + 1   CHIPS[]
 let a = string_replace(x¦⟪, ?, ?)⟫ in a + 1   CHIPS[]|},
           trajectory_in(~ctx="let a = ¦ in a + 1", "string_replace(x"),
         )
@@ -766,7 +778,7 @@ if 1 <¦ ? ⟪then ? else ?⟫   CHIPS[]|},
         check(
           string_testable,
           "annot-tydi",
-          {|let a : (¦?⟪) = ? in ?⟫   CHIPS[]
+          {|let a : (¦⟪?) = ? in ?⟫   CHIPS[]
 let a : (S¦⟪) = ? in ?⟫   CHIPS[]
 let a : (St¦⟪ring) = ? in ?⟫   CHIPS[]|},
           trajectory_in(~ctx="let a : ¦", "(St"),
@@ -779,8 +791,8 @@ let a : (St¦⟪ring) = ? in ?⟫   CHIPS[]|},
           string_testable,
           "break-closer",
           {|let y = string_replace(a, b, c¦⟪)⟫ in y   CHIPS[]
-let y = string_replace(a, b, ¦?⟪)⟫ in y   CHIPS[]
-let y = string_replace(a, b,¦ ?⟪)⟫ in y   CHIPS[]|},
+let y = string_replace(a, b, ¦⟪?)⟫ in y   CHIPS[]
+let y = string_replace(a, b,¦ ⟪?)⟫ in y   CHIPS[]|},
           trajectory_bk(~ctx="let y = string_replace(a, b, c)¦ in y", 3),
         )
       ),
@@ -861,7 +873,7 @@ fun¦ ? ⟪-> ?⟫   CHIPS[]
 fun ¦? ⟪-> ?⟫   CHIPS[]
 fun x¦ ⟪-> ?⟫   CHIPS[]
 fun x ¦⟪-> ?⟫   CHIPS[]
-fun x -¦⟪>⟫ ?   CHIPS[]|},
+fun x -¦⟪> ?⟫   CHIPS[]|},
           trajectory("fun x -"),
         )
       ),
@@ -869,10 +881,10 @@ fun x -¦⟪>⟫ ?   CHIPS[]|},
         check(
           string_testable,
           "list-entry",
-          {|[¦?⟪]⟫   CHIPS[]
+          {|[¦⟪?]⟫   CHIPS[]
 [1¦⟪]⟫   CHIPS[]
-[1,¦ ?⟪]⟫   CHIPS[]
-[1, ¦?⟪]⟫   CHIPS[]
+[1,¦ ⟪?]⟫   CHIPS[]
+[1, ¦⟪?]⟫   CHIPS[]
 [1, 2¦⟪]⟫   CHIPS[]|},
           trajectory("[1, 2"),
         )
@@ -906,7 +918,7 @@ let s = string_repl¦⟪ace⟫ in s   CHIPS[]
 let s = string_repla¦⟪ce⟫ in s   CHIPS[]
 let s = string_replac¦⟪e⟫ in s   CHIPS[]
 let s = string_replace¦ in s   CHIPS[]
-let s = string_replace(¦?⟪, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(¦⟪?, ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(s¦⟪, ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(st¦⟪ring_capitalize(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(str¦⟪ing_capitalize(?), ?, ?)⟫ in s   CHIPS[]
@@ -924,7 +936,7 @@ let s = string_replace(string_capital¦⟪ize(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitali¦⟪ze(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitaliz¦⟪e(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitalize¦⟪(?), ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_capitalize(¦?⟪), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capitalize(¦⟪?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitalize(x¦⟪), ?, ?)⟫ in s   CHIPS[]|},
           trajectory_in(
             ~ctx="let s = ¦ in s",
@@ -953,7 +965,7 @@ let l : [Int] = st¦⟪ring_length(?):: in ?⟫   CHIPS[]|},
           string_testable,
           "break-inner",
           {|let y = (1 + 2¦⟪)⟫ in y   CHIPS[]
-let y = (1 + ¦?⟪)⟫ in y   CHIPS[]|},
+let y = (1 + ¦⟪?)⟫ in y   CHIPS[]|},
           trajectory_bk(~ctx="let y = (1 + 2)¦ in y", 2),
         )
       ),
@@ -976,8 +988,8 @@ let y = (1 + ¦?⟪)⟫ in y   CHIPS[]|},
              the padding-oracle notes. JUDGED improvement, lines 3-4:
              `case in` single-spaced — a trailing-space remainder is
              self-separated, no extra pad. */
-          {|let f(b : Bool) =
-  ¦  ⟪? in⟫ ?   CHIPS[]
+          {|let f(b : Bool) =?
+  ¦⟪  in⟫ ?   CHIPS[]
 let f(b : Bool) =
    ¦ ⟪c in⟫ ?   CHIPS[]
 let f(b : Bool) =
@@ -1072,7 +1084,7 @@ let new_fun(foo: Int, bar: Bool) =
         check(
           string_testable,
           "p1",
-          {|let a = 1 i¦⟪n⟫ ?   CHIPS[]|},
+          {|let a = 1 i¦⟪n ?⟫   CHIPS[]|},
           trajectory_in(~ctx="let a = 1 ¦", "i"),
         )
       ),
@@ -1134,7 +1146,7 @@ if tr¦⟪ue then ? else ?⟫   CHIPS[]|},
             /* FIXED: minted display grout hops after typed spaces
                (finish_display reorder) — the rendered caret matches
                the zipper; the display only ADDS material right of it */
-            {|raw[let ]: let ¦?
+            {|raw[let ]: let ¦
 disp[let ]: let ¦? ⟪= ? in ?⟫
 raw[let x ]: let x ¦
 disp[let x ]: let x ¦⟪= ? in ?⟫
@@ -1248,8 +1260,8 @@ let fu¦ ⟪= ? in ?⟫   CHIPS[]
 let fun¦ ? ⟪-> ? in ?⟫   CHIPS[=]
 let fun ¦? ⟪-> ? in ?⟫   CHIPS[=]
 let fun i¦ ⟪-> ? in ?⟫   CHIPS[=]
-let fun? in¦?   CHIPS[-> | =]
-let fun? in ¦?   CHIPS[-> | =]|},
+let fun ?in¦?   CHIPS[-> | =]
+let fun ?in ¦?   CHIPS[-> | =]|},
           trajectory("let fun in "),
         )
       ),
@@ -1267,8 +1279,8 @@ if fun ¦? ⟪-> ? then ? else ?⟫   CHIPS[]
 if fun t¦ ⟪-> ? then ? else ?⟫   CHIPS[]
 if fun th¦ ⟪-> ? then ? else ?⟫   CHIPS[]
 if fun the¦ ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun? then¦ ? ⟪else ?⟫   CHIPS[->]
-if fun? then ¦? ⟪else ?⟫   CHIPS[->]|},
+if fun ?then¦ ? ⟪else ?⟫   CHIPS[->]
+if fun ?then ¦? ⟪else ?⟫   CHIPS[->]|},
           trajectory("if fun then "),
         )
       ),
@@ -1287,7 +1299,7 @@ case fun¦ ? ⟪-> ? end⟫   CHIPS[]
 case fun ¦? ⟪-> ? end⟫   CHIPS[]
 case fun e¦ ⟪-> ? end⟫   CHIPS[]
 case fun en¦ ⟪-> ? end⟫   CHIPS[]
-case fun? end¦   CHIPS[->]|},
+case fun ?end¦   CHIPS[->]|},
           trajectory("case fun end"),
         )
       ),
@@ -1466,14 +1478,14 @@ NONE|},
             string_testable,
             "tab-chunks-nested2",
             {|let s = string_replace(string_replace(st¦ in s   OWED[8]
-let s = string_replace(string_replace(string_capitalize(¦? in s   OWED[7]
+let s = string_replace(string_replace(string_capitalize(¦ in s   OWED[7]
 let s = string_replace(string_replace(string_capitalize()¦ in s   OWED[6]
-let s = string_replace(string_replace(string_capitalize(), ¦? in s   OWED[5]
-let s = string_replace(string_replace(string_capitalize(), ?, ¦? in s   OWED[4]
-let s = string_replace(string_replace(string_capitalize(), ?,? )¦ in s   OWED[3]
-let s = string_replace(string_replace(string_capitalize(), ?,? ), ¦? in s   OWED[2]
-let s = string_replace(string_replace(string_capitalize(), ?,? ), ?, ¦? in s   OWED[1]
-let s = string_replace(string_replace(string_capitalize(), ?,? ), ?,? )¦ in s   OWED[0]
+let s = string_replace(string_replace(string_capitalize(), ¦ in s   OWED[5]
+let s = string_replace(string_replace(string_capitalize(), , ¦ in s   OWED[4]
+let s = string_replace(string_replace(string_capitalize(), , )¦ in s   OWED[3]
+let s = string_replace(string_replace(string_capitalize(), , ), ¦ in s   OWED[2]
+let s = string_replace(string_replace(string_capitalize(), , ), , ¦ in s   OWED[1]
+let s = string_replace(string_replace(string_capitalize(), , ), , )¦ in s   OWED[0]
 NONE|},
             states_of("let s = string_replace(string_replace(st¦ in s")
             |> audit
