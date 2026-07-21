@@ -686,6 +686,38 @@ let unresolved_filter_ids_test =
     }
   });
 
+/* Property version of the test above: whatever the filter condition is —
+   canonical `act(pat)` applications, filter selectors, or arbitrary
+   unresolved expressions — pretty-printing must give the debug tile the
+   outer filter's id and never reuse an id between tiles. */
+let qcheck_filter_tile_ids_test =
+  QCheck_alcotest.to_alcotest(
+    QCheck.Test.make(
+      ~name="Filter: tile ids are unique and debug tile uses outer id",
+      ~count=500,
+      MenhirParser.AST.arb_exp(5),
+      cond_ast => {
+        let ast =
+          MenhirParser.AST.Filter(cond_ast, Atom(Int(Bigint.of_int(1))));
+        let term =
+          Grammar.map_exp_annotation(
+            _ => IdTagged.IdTag.fresh(),
+            MenhirParser.Conversion.Exp.of_menhir_ast(ast),
+          );
+        let seg = exp_to_segment_roundtrip(term);
+        let ids = tile_ids(seg);
+        let unique_ids = List.sort_uniq(Id.compare, ids);
+        let ids_unique = List.length(ids) == List.length(unique_ids);
+        let debug_id_ok =
+          switch (find_tile_id(~label=["debug", "in"], seg)) {
+          | Some(debug_id) => Id.equal(debug_id, Exp.rep_id(term))
+          | None => false
+          };
+        ids_unique && debug_id_ok;
+      },
+    ),
+  );
+
 /* Text-only roundtrip: for forms with known segment-level infidelities
    (drv printers hardcode child sorts, e.g. Truth printed at Drv Prop where
    the parser molded it Drv Exp) where secondary preservation is still
@@ -997,6 +1029,7 @@ in f(42)|},
       {|of_alfa_exp 1  +  2 end|},
     ),
     unresolved_filter_ids_test,
+    qcheck_filter_tile_ids_test,
     roundtrip_test(
       {|QuotedLabel: label needing quotes (has dash)|},
       {|(`the-answer`=42)|},
