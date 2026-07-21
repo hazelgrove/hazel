@@ -435,7 +435,34 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             FixF(p, e);
           },
           {
-            let* e1 = self((n - 1) / 2);
+            /* Real programs write `debug act(pat) in body`: the condition is
+               a filter action applied to a pattern, which is what the parser
+               produces and statics resolves. Generate that canonical form
+               most of the time — with filter selectors ($e / $v) showing up
+               in pattern position — and keep a small share of arbitrary
+               conditions to cover the Unresolved fallback. */
+            let* e1 =
+              frequency([
+                (
+                  4,
+                  {
+                    let* act = oneofl(Language.FilterAction.all);
+                    let+ pat =
+                      frequency([
+                        (
+                          1,
+                          oneofl([
+                            FilterSelector(Language.FilterSelector.Exp),
+                            FilterSelector(Language.FilterSelector.Val),
+                          ]),
+                        ),
+                        (2, self((n - 1) / 2)),
+                      ]);
+                    ApExp(FilterAction(act), pat);
+                  },
+                ),
+                (1, self((n - 1) / 2)),
+              ]);
             let+ e2 = self((n - 1) / 2);
             Filter(e1, e2);
           },
