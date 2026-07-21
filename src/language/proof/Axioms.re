@@ -1466,6 +1466,10 @@ let structural_identity_cleanup = [AddIdentity, MulIdentity];
 let calculus_step_cleanup =
   structural_identity_cleanup @ [DerivativeBasics, PowerIdentity];
 
+let calculus_step_cleanup_for_rule = rule_id =>
+  List.mem(rule_id, ["calc.diff_power", "calc.diff_product"])
+    ? calculus_step_cleanup : [];
+
 let assoc_cleanup = [AddAssoc, MulAssoc];
 
 let rocq_domain_tactics = (~integers, ~reals) => {
@@ -2393,7 +2397,7 @@ let math_rule_catalog = {
            ~direction=Forward,
            ~hazel_backend=Some(CalculusDerivative),
            ~visible_levels=rule.id == "calc.diff_chain" ? [] : [Calculus],
-           ~allowed_cleanup=calculus_step_cleanup,
+           ~allowed_cleanup=calculus_step_cleanup_for_rule(rule.id),
          )
        );
   let algebra_rules =

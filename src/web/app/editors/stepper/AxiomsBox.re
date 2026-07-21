@@ -115,13 +115,131 @@ let rewrite_enabled_for_profile =
     (profile: Axioms.math_profile, rewrite: TrigRewrite.rewrite) =>
   Axioms.visible_rule_enabled(profile.step_policy, rewrite.rule_id);
 
-let calculus_actions_for_profile =
+type calculus_cleanup_step = {
+  before_exp: Exp.t,
+  after_exp: Exp.t,
+  capability: Axioms.cleanup_capability,
+};
+
+type calculus_action_details = {
+  rewrite: TrigRewrite.rewrite,
+  rule_after_exp: Exp.t,
+  cleanup_steps: list(calculus_cleanup_step),
+};
+
+let calculus_cleanup_steps = (~cleanup_enabled, exp) => {
+  let rec loop = (steps, before_exp) =>
+    switch (DifferentiationRewrite.cleanup_once(~cleanup_enabled, before_exp)) {
+    | Some((after_exp, capability))
+        when !Exp.fast_equal(before_exp, after_exp) =>
+      loop(
+        [
+          {
+            before_exp,
+            after_exp,
+            capability,
+          },
+          ...steps,
+        ],
+        after_exp,
+      )
+    | Some(_)
+    | None => List.rev(steps)
+    };
+  loop([], exp);
+};
+
+let calculus_action_details_for_profile =
     (~profile: Axioms.math_profile, selected_exp) =>
   DifferentiationRewrite.applicable_at_root(
     ~rule_enabled=
       rule_id => Axioms.visible_rule_enabled(profile.step_policy, rule_id),
     selected_exp,
-  );
+  )
+  |> List.map((rewrite: TrigRewrite.rewrite) => {
+       let cleanup =
+         Axioms.cleanup_for_visible_rule(
+           profile.step_policy,
+           rewrite.rule_id,
+         );
+       let cleanup_enabled = capability => List.mem(capability, cleanup);
+       let cleanup_steps =
+         calculus_cleanup_steps(~cleanup_enabled, rewrite.after_exp);
+       let after_exp =
+         cleanup_steps
+         |> ListUtil.last_opt
+         |> Option.map((step: calculus_cleanup_step) => step.after_exp)
+         |> Option.value(~default=rewrite.after_exp);
+       {
+         rewrite: {
+           ...rewrite,
+           after_exp,
+         },
+         rule_after_exp: rewrite.after_exp,
+         cleanup_steps,
+       };
+     });
+
+let calculus_actions_for_profile =
+    (~profile: Axioms.math_profile, selected_exp) =>
+  calculus_action_details_for_profile(~profile, selected_exp)
+  |> List.map((details: calculus_action_details) => details.rewrite);
+
+let calculus_trace_summary_for_profile =
+    (~profile: Axioms.math_profile, ~selected_exp, rewrite) => {
+  let details =
+    calculus_action_details_for_profile(~profile, selected_exp)
+    |> List.find_opt((details: calculus_action_details) =>
+         details.rewrite.rule_id == rewrite.TrigRewrite.rule_id
+       )
+    |> Option.value(
+         ~default={
+           rewrite,
+           rule_after_exp: rewrite.after_exp,
+           cleanup_steps: [],
+         },
+       );
+  let cleanup_rule_ids =
+    details.cleanup_steps
+    |> List.map((step: calculus_cleanup_step) =>
+         Axioms.cleanup_capability_label(step.capability)
+       );
+  let rule_ids = [rewrite.rule_id, ...cleanup_rule_ids] |> ListUtil.dedup;
+  RewriteChecker.{
+    justification: "calculus one step",
+    group_name: Some("calculus"),
+    from_normal_exp: selected_exp,
+    to_normal_exp: rewrite.after_exp,
+    from_rule_ids: rule_ids,
+    to_rule_ids: [],
+    rule_ids,
+    prover_steps: [
+      prover_step(
+        ~origin=ManualRewrite,
+        ~rule_id=rewrite.rule_id,
+        ~before_full_exp=selected_exp,
+        ~after_full_exp=details.rule_after_exp,
+        ~before_exp=rewrite.before_exp,
+        ~after_exp=details.rule_after_exp,
+        ~detail="selected differentiation rule",
+      ),
+      ...List.map(
+           (step: calculus_cleanup_step) =>
+             prover_step(
+               ~origin=Normalization,
+               ~rule_id=Axioms.cleanup_capability_label(step.capability),
+               ~before_full_exp=step.before_exp,
+               ~after_full_exp=step.after_exp,
+               ~before_exp=step.before_exp,
+               ~after_exp=step.after_exp,
+               ~detail="apply enabled calculus cleanup policy",
+             ),
+           details.cleanup_steps,
+         ),
+    ],
+    exportable: true,
+  };
+};
 
 let calculus_cleanup_actions_for_profile =
     (~profile: Axioms.math_profile, selected_exp) => {
@@ -357,27 +475,7 @@ module View = {
         ],
       );
     let trace_summary_for_calculus = (rewrite: TrigRewrite.rewrite) =>
-      RewriteChecker.{
-        justification: "calculus one step",
-        group_name: Some("calculus"),
-        from_normal_exp: selected_exp,
-        to_normal_exp: rewrite.after_exp,
-        from_rule_ids: [rewrite.rule_id],
-        to_rule_ids: [],
-        rule_ids: [rewrite.rule_id],
-        prover_steps: [
-          prover_step(
-            ~origin=ManualRewrite,
-            ~rule_id=rewrite.rule_id,
-            ~before_full_exp=selected_exp,
-            ~after_full_exp=rewrite.after_exp,
-            ~before_exp=rewrite.before_exp,
-            ~after_exp=rewrite.after_exp,
-            ~detail="selected differentiation rule",
-          ),
-        ],
-        exportable: true,
-      };
+      calculus_trace_summary_for_profile(~profile, ~selected_exp, rewrite);
     let calculus_action_view = (rewrite: TrigRewrite.rewrite) =>
       div_c(
         "assumption-box",

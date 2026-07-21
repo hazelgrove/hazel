@@ -1084,14 +1084,15 @@ let tests = (
       },
     ),
     test_case(
-      "calculus one step applies enabled cleanup immediately",
+      "calculus one step keeps linearity visible and cleans power output",
       `Quick,
       () => {
         let x = Exp.var("x");
         let source = diff(plus(power(x, Exp.int(2)), Exp.int(2)), x);
-        let target = diff(power(x, Exp.int(2)), x);
+        let target =
+          plus(diff(power(x, Exp.int(2)), x), diff(Exp.int(2), x));
         check_written_at_level(
-          "sum rule drops constant derivative and additive zero",
+          "sum rule preserves both derivative branches",
           Calculus,
           source,
           target,
@@ -2701,16 +2702,13 @@ let tests = (
           "product",
           diff(times(x, Exp.int(3)), x),
           "calc.diff_product",
-          plus(
-            times(diff(x, x), Exp.int(3)),
-            times(x, diff(Exp.int(3), x)),
-          ),
+          Exp.int(3),
         );
         check_action(
           "power",
           diff(power(x, Exp.int(3)), x),
           "calc.diff_power",
-          times(times(Exp.int(3), power(x, Exp.int(2))), diff(x, x)),
+          times(Exp.int(3), power(x, Exp.int(2))),
         );
         check_action(
           "sine chain",
@@ -2732,6 +2730,161 @@ let tests = (
             ),
             power(plus(x, Exp.int(1)), Exp.int(2)),
           ),
+        );
+      },
+    ),
+    test_case(
+      "calculus power and product cleanup follows the active profile",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let action = (~profile, source) =>
+          switch (
+            Web.AxiomsBox.calculus_actions_for_profile(~profile, source)
+          ) {
+          | [action] => action
+          | _ => fail("expected one calculus action")
+          };
+        let power_source = diff(power(x, Exp.int(2)), x);
+        let product_source = diff(times(x, Exp.int(3)), x);
+        check_exp_equal(
+          "power cleans to 2 * x",
+          times(Exp.int(2), x),
+          action(~profile, power_source).after_exp,
+        );
+        check_exp_equal(
+          "product cleans to 3",
+          Exp.int(3),
+          action(~profile, product_source).after_exp,
+        );
+        let without = capability =>
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(candidate => candidate != capability),
+            profile,
+          );
+        check_exp_equal(
+          "disabled power identity stays visible",
+          times(Exp.int(2), power(x, Exp.int(1))),
+          action(~profile=without(Axioms.PowerIdentity), power_source).
+            after_exp,
+        );
+        check_exp_equal(
+          "disabled derivative basics stays visible",
+          times(times(Exp.int(2), x), diff(x, x)),
+          action(~profile=without(Axioms.DerivativeBasics), power_source).
+            after_exp,
+        );
+        check_exp_equal(
+          "disabled multiplicative identity stays visible",
+          times(times(Exp.int(2), x), Exp.int(1)),
+          action(~profile=without(Axioms.MulIdentity), power_source).
+            after_exp,
+        );
+      },
+    ),
+    test_case(
+      "automatic calculus cleanup is explicit in the export trace",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let source = diff(times(x, Exp.int(3)), x);
+        let action =
+          switch (
+            Web.AxiomsBox.calculus_actions_for_profile(~profile, source)
+          ) {
+          | [action] => action
+          | _ => fail("expected one product action")
+          };
+        let summary =
+          Web.AxiomsBox.calculus_trace_summary_for_profile(
+            ~profile,
+            ~selected_exp=source,
+            action,
+          );
+        check(bool, "trace remains exportable", true, summary.exportable);
+        check(
+          bool,
+          "trace includes product rule",
+          true,
+          List.mem("calc.diff_product", summary.rule_ids),
+        );
+        check(
+          bool,
+          "trace includes derivative cleanup",
+          true,
+          List.mem("derivative.basics", summary.rule_ids),
+        );
+        check(
+          bool,
+          "trace includes multiplicative cleanup",
+          true,
+          List.mem("mul.identity", summary.rule_ids),
+        );
+        check(
+          bool,
+          "trace includes additive cleanup",
+          true,
+          List.mem("add.identity", summary.rule_ids),
+        );
+        check_exp_equal(
+          "trace ends at displayed result",
+          action.after_exp,
+          summary.prover_steps
+          |> List.rev
+          |> ListUtil.hd_opt
+          |> Option.map((step: Web.RewriteChecker.prover_step) =>
+               step.after_exp
+             )
+          |> Option.value(~default=source),
+        );
+        let replay =
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile,
+            source,
+            action.after_exp,
+          );
+        check(
+          bool,
+          "Rocq export certifies the compact product result",
+          true,
+          switch (replay) {
+          | Some(program) =>
+            string_contains(
+              "Hazel profile-directed derivative certificate",
+              program,
+            )
+            && string_contains("H_hazel_derivative", program)
+          | None => false
+          },
+        );
+        let sum_source = diff(plus(x, Exp.int(2)), x);
+        let sum_action =
+          switch (
+            Web.AxiomsBox.calculus_actions_for_profile(~profile, sum_source)
+          ) {
+          | [action] => action
+          | _ => fail("expected one sum action")
+          };
+        let sum_summary =
+          Web.AxiomsBox.calculus_trace_summary_for_profile(
+            ~profile,
+            ~selected_exp=sum_source,
+            sum_action,
+          );
+        check(
+          int,
+          "linearity remains one visible step",
+          1,
+          List.length(sum_summary.prover_steps),
+        );
+        check_exp_equal(
+          "linearity result remains explicit",
+          plus(diff(x, x), diff(Exp.int(2), x)),
+          sum_action.after_exp,
         );
       },
     ),
