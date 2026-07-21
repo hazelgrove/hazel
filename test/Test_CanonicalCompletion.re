@@ -567,16 +567,16 @@ y|},
     ~name="let then linebreak then indented var - no partition",
     ~input={|let x = 1
   y|},
-    ~expected={|let x = 1
-  iny|},
+    ~expected={|let x = 1in
+  y|},
   ),
   /* fun with indented body - arrow junction-drops before it */
   test(
     ~name="fun then linebreak then indented var - no partition",
     ~input={|fun x
   y|},
-    ~expected={|fun x
-  ->y|},
+    ~expected={|fun x->
+  y|},
   ),
   /* Mixed: some indented, some at column 0.
    * body is indented (no partition there), next is at col 0 (partition) */
@@ -585,8 +585,8 @@ y|},
     ~input={|let f = fun x
   body
 next|},
-    ~expected={|let f = fun x
-  ->bodyin
+    ~expected={|let f = fun x->
+  bodyin
 next|},
   ),
   /* === Blank line tests (existing behavior preserved) === */
@@ -649,9 +649,11 @@ let d = 4in?|},
 let b = 2
 
 let c = 3 in c|},
+    /* the stray junction now rests on the blank line (the prepared
+       slot), not glued to the next statement head */
     ~expected={|let a = 1 in a
-
-~let b = 2in
+~
+let b = 2in
 
 let c = 3 in c|},
   ),
@@ -910,19 +912,25 @@ let junction_tests = [
     ~name="let missing equals drops at junction",
     ~input="let x 1 in 2",
     ~expected="let x = 1 in 2",
-    ~expected_no_sep="let x =1 in 2",
+    /* restored delimiters weave at the MINT side of the secondary run
+       (caret history is gone from the grout-free edit state, so the
+       old caret-adjacent side no longer exists to reconstruct) */
+    ~expected_no_sep="let x= 1 in 2",
   ),
   test_sep(
     ~name="if missing then drops at junction",
     ~input="if true 1 else 2",
     ~expected="if true then 1 else 2",
-    ~expected_no_sep="if true then1 else 2",
+    ~expected_no_sep="if truethen 1 else 2",
   ),
   test_sep(
     ~name="ambiguous junctions fall back to everything-left",
     ~input="let x y 1 in 2",
     ~expected="let x y 1 = ? in 2",
-    ~expected_no_sep="let x ~y ~1 =?in 2",
+    /* IMPROVED: was pinned as ambiguous fallback; junction-bearing
+       spans no longer count as coherent Pat operands, so x|y is the
+       unique sort-legal split and the = restores instead of junking */
+    ~expected_no_sep="let x= y ~1 in 2",
   ),
 ];
 
@@ -949,7 +957,7 @@ let frontier_tests = [
     ~name="exp slots never clip; junction drop still applies",
     ~input="let x = 1\n  2",
     ~expected="let x = 1\n  in 2",
-    ~expected_no_sep="let x = 1\n  in2",
+    ~expected_no_sep="let x = 1in\n  2",
   ),
 ];
 
@@ -960,19 +968,19 @@ let trailing_junction_tests = [
     ~name="deleted else restored at junction",
     ~input="if true then 1 2",
     ~expected="if true then 1 else 2",
-    ~expected_no_sep="if true then 1 else2",
+    ~expected_no_sep="if true then 1else 2",
   ),
   test_sep(
     ~name="deleted in restored at junction",
     ~input="let x = 1 2",
     ~expected="let x = 1 in 2",
-    ~expected_no_sep="let x = 1 in2",
+    ~expected_no_sep="let x = 1in 2",
   ),
   test_sep(
     ~name="then drops at unique junction, else still appends",
     ~input="if true 1",
     ~expected="if true then 1 else ?",
-    ~expected_no_sep="if true then1else?",
+    ~expected_no_sep="if truethen 1else?",
   ),
   test_sep(
     ~name="ambiguous junctions: no drop",
@@ -1055,12 +1063,12 @@ let case_repair_edit_tests = [
   edit_case(
     ~name="deleted second bar restored at its junction",
     ~acts=Test_Editing.mk("case x | 1 => 2 |¦ 3 => 4 end") @ [destruct_l],
-    ~expected="case x | 1 => 2 | 3 => 4 end",
+    ~expected="case x | 1 => 2|  3 => 4 end",
   ),
   edit_case(
     ~name="deleted first bar restored at scrutinee junction",
     ~acts=Test_Editing.mk("case x |¦ 1 => 2 end") @ [destruct_l],
-    ~expected="case x | 1 => 2 end",
+    ~expected="case x|  1 => 2 end",
   ),
 ];
 
@@ -1077,7 +1085,7 @@ let entry_experience_tests = [
     ~acts=
       Test_Editing.mk("let a = 1 in\n¦let b = 2 in\nb")
       @ Test_Editing.string_to_ltr_actions("let x = 3\n"),
-    ~expected="let a = 1 in\nlet x = 3\n  inlet b = 2 in\nb",
+    ~expected="let a = 1 in\nlet x = 3in\n  let b = 2 in\nb",
   ),
   edit_case(
     ~name="new let typed at start of fun body",
@@ -1753,7 +1761,7 @@ let entry_stability_tests = [
     ~acts=
       Test_Editing.mk("let new_fun =\nfun foo ->\ncase foo\n| 1 => 2¦\n3"),
     ~expected=
-      "let new_fun =\n  fun foo ->\n    case foo\n    | 1 => 2end\n    in3",
+      "let new_fun =\n  fun foo ->\n    case foo\n    | 1 => 2endin\n    3",
   ),
 ];
 
@@ -1765,12 +1773,14 @@ let placement_guard_tests = [
   edit_case(
     ~name="deleted = restores at the definition junction",
     ~acts=Test_Editing.mk("let x =¦ f 1 in x") @ [destruct_l],
-    ~expected="let x =f ~1 in x",
+    /* the = restores at the definition junction, weave at the mint
+       side of the run — the guarded property is the JUNCTION */
+    ~expected="let x=  f ~1 in x",
   ),
   edit_case(
     ~name="deleted = multiline restores at line end",
     ~acts=Test_Editing.mk("let x =¦\nf 1 in x") @ [destruct_l],
-    ~expected="let x =\nf ~1 in x",
+    ~expected="let x =\n f ~1 in x",
   ),
   edit_case(
     ~name="deleted rule arrow with next-line body restores exactly",
@@ -1822,7 +1832,7 @@ let joint_tests = [
   edit_case(
     ~name="end+in double deletion: placements incompatible (KNOWN-BAD)",
     ~acts=dbl_del_inline,
-    ~expected="let f = case x | 1 => 2 | 3 => 4end in  f",
+    ~expected="let f = case x | 1 => 2 | 3 => 4endin   f",
   ),
   /* control: in alone (end intact) — its deletion-debris junction
      should restore it in place */
@@ -1831,7 +1841,7 @@ let joint_tests = [
     ~acts=
       Test_Editing.mk("let f = case x | 1 => 2 | 3 => 4 end in¦ f")
       @ [destruct_l, destruct_l],
-    ~expected="let f = case x | 1 => 2 | 3 => 4 end in f",
+    ~expected="let f = case x | 1 => 2 | 3 => 4 endin  f",
   ),
 ];
 

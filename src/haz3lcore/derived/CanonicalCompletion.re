@@ -294,10 +294,28 @@ let middle_split_plan =
       let legal = (j: int): option((Segment.t, Segment.t)) => {
         let (left, rest) = ListUtil.split_n(j, child);
         let right = List.tl(rest);
+        /* a clippable-sort span (Pat/TPat/Typ) with a top-level
+           juxtaposition junction in it is not a coherent operand —
+           scan_frontier skips grout, so without this the deleted-=
+           child `x ~ f ~ 1` reads BOTH junctions as legal Pat splits
+           and the restore falls back as ambiguous */
+        let coherent = (ps: Segment.t, sort: Sort.t) =>
+          !clippable_sort(sort)
+          || !
+               List.exists(
+                 (p: Piece.t) =>
+                   switch (p) {
+                   | Grout({shape: Concave, _}) => true
+                   | _ => false
+                   },
+                 ps,
+               );
         has_content(left)
         && has_content(right)
         && span_fits_sort(left, l_nib.sort)
+        && coherent(left, l_nib.sort)
         && span_fits_sort(right, r_nib.sort)
+        && coherent(right, r_nib.sort)
           ? Some((left, right)) : None;
       };
       let indexed = child |> List.mapi((j, pc) => (j, pc));
@@ -2756,13 +2774,14 @@ and complete_segment_deep =
   };
 };
 
-/* External face of completion: PLACED input, PLACED output. The edit
-   state is grout-free, but completion's junction/anchoring logic
-   grew up reading holes — placing the input hands it the derived
-   holes as anchors (the same information regrout used to encode),
-   and placing the output makes completion's internal grout
-   scaffolding invisible to every consumer. Idempotent by the
-   GroutPlace invariants, so double-placing at any layer is sound. */
+/* External face of completion: REGROUTED input, PLACED output. The
+   edit state is grout-free, but completion's junction/anchoring
+   logic was built against regrout's hole positions (the placement
+   guards pin those junction choices), so the anchors are restored
+   here as a derivation-side preprocessing step — regrout survives
+   ONLY inside this boundary. Its random-id, regrout-positioned grout
+   never escapes: the OUTPUT is placed, so every consumer sees
+   deterministic ids at policy positions. */
 let complete_segment_deep =
     (~use_indent_heuristic=true, ~fuel=24, ~only_tile=None, ~sort, seg) => {
   let result =
@@ -2771,7 +2790,7 @@ let complete_segment_deep =
       ~fuel,
       ~only_tile,
       ~sort,
-      GroutPlace.place(seg),
+      Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), seg),
     );
   {
     ...result,
