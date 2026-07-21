@@ -13,6 +13,9 @@ module Model = {
     | Edit
     | Plan;
 
+  /* Persisted via yojson/sexp (see Settings). Later-added fields carry
+     [@default] so older persisted blobs still deserialize; the four
+     undefaulted fields are original. */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     active_screen: screen,
