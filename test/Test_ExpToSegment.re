@@ -620,6 +620,38 @@ let unresolved_filter_ids_test =
     }
   });
 
+/* Property version of the test above: whatever the filter condition is —
+   canonical `act(pat)` applications, filter selectors, or arbitrary
+   unresolved expressions — pretty-printing must give the debug tile the
+   outer filter's id and never reuse an id between tiles. */
+let qcheck_filter_tile_ids_test =
+  QCheck_alcotest.to_alcotest(
+    QCheck.Test.make(
+      ~name="Filter: tile ids are unique and debug tile uses outer id",
+      ~count=500,
+      MenhirParser.AST.arb_exp(5),
+      cond_ast => {
+        let ast =
+          MenhirParser.AST.Filter(cond_ast, Atom(Int(Bigint.of_int(1))));
+        let term =
+          Grammar.map_exp_annotation(
+            _ => IdTagged.IdTag.fresh(),
+            MenhirParser.Conversion.Exp.of_menhir_ast(ast),
+          );
+        let seg = exp_to_segment_roundtrip(term);
+        let ids = tile_ids(seg);
+        let unique_ids = List.sort_uniq(Id.compare, ids);
+        let ids_unique = List.length(ids) == List.length(unique_ids);
+        let debug_id_ok =
+          switch (find_tile_id(~label=["debug", "in"], seg)) {
+          | Some(debug_id) => Id.equal(debug_id, Exp.rep_id(term))
+          | None => false
+          };
+        ids_unique && debug_id_ok;
+      },
+    ),
+  );
+
 /* Test that a string round-trips through segment → term → segment */
 let roundtrip_test = (name: string, input: string) =>
   test_case(name, `Quick, () => {
@@ -844,6 +876,7 @@ in f(42)|},
     roundtrip_test({|FilterSelector: $v in hide|}, {|debug hide($v) in 2|}),
     roundtrip_test({|FilterSelector: in step|}, {|debug step($v) in 2|}),
     unresolved_filter_ids_test,
+    qcheck_filter_tile_ids_test,
     roundtrip_test(
       {|QuotedLabel: label needing quotes (has dash)|},
       {|(`the-answer`=42)|},
