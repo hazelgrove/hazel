@@ -151,7 +151,7 @@ let program_model = [
   "A binding **nested inside another binding's definition** (to the right of `=` before that outer `in`) gets a longer path: `\"outer/inner\"`.",
   "Bindings that appear one after another in the main `let ... in let ... in` chain are **siblings**; each is named by its pattern only at that level (e.g. `\"b\"`), not prefixed by the previous sibling's name.",
   "",
-  "**Duplicate path string:** if several bindings share the same path text (e.g. two `let n` in one chain), tools resolve to the **earliest** binding in source order. To hit a later one, **rename** the earlier (`update_pattern` / `delete_binding_clause`) or use a **nested** path when the inner binding lives inside another's **definition** (`\"outer/inner\"`).",
+  "**Duplicate path string:** if several bindings share the same path text (e.g. two `let n` in one chain), the bare path is **ambiguous** and tools return an error listing the disambiguated forms. Retry with `\"name#k\"` (k-th occurrence in program order, 1-based, e.g. `\"n#2\"`), or use a **nested** path when the inner binding lives inside another's **definition** (`\"outer/inner\"`).",
   "Prefer **unique binding names** so intent stays obvious.",
   "",
   "Example program and its paths:",

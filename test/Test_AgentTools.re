@@ -1331,18 +1331,24 @@ let high_level_node_map_tests = (
       },
     ),
     test_case(
-      "duplicate sibling path picks earliest let in chain",
+      "duplicate sibling path is ambiguous; #k disambiguates",
       `Quick,
       () => {
         let node_map = build_node_map("let n = 1 in let n = 2 in n");
-        let id_n = HighLevelNodeMap.path_to_id(node_map, "n");
-        let node = HighLevelNodeMap.find(node_map, id_n);
-        check(int, "first n is sibling_idx 0", 0, node.sibling_idx);
         check(
           bool,
-          "path_to_id_opt matches path_to_id",
+          "bare duplicate path is ambiguous",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "n") == Some(id_n),
+          HighLevelNodeMap.path_to_id_opt(node_map, "n") == None,
+        );
+        let id_n1 = HighLevelNodeMap.path_to_id(node_map, "n#1");
+        let node = HighLevelNodeMap.find(node_map, id_n1);
+        check(int, "n#1 is sibling_idx 0", 0, node.sibling_idx);
+        check(
+          bool,
+          "path_to_id_opt matches path_to_id on #1",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "n#1") == Some(id_n1),
         );
       },
     ),
@@ -3832,6 +3838,227 @@ fib(10)|};
 );
 
 /* ============================================================
+   RENAME VALIDATION + AMBIGUOUS PATH DISAMBIGUATION
+   ============================================================ */
+
+let contains_str = (~needle: string, haystack: string): bool => {
+  let nl = String.length(needle)
+  and hl = String.length(haystack);
+  let rec go = i =>
+    i + nl <= hl && (String.sub(haystack, i, nl) == needle || go(i + 1));
+  nl == 0 || go(0);
+};
+
+/** Expect a Composition_action_failure whose message mentions every needle. */
+let expect_failure_mentioning =
+    (
+      code: string,
+      a: Action.Structural.t,
+      needles: list(string),
+      name: string,
+    ) => {
+  switch (run_agent_action(code, a)) {
+  | Ok(_) => Alcotest.fail("Expected failure: " ++ name)
+  | Error(Action.Failure.Composition_action_failure(msg)) =>
+    List.iter(
+      needle =>
+        check(
+          bool,
+          name ++ " mentions \"" ++ needle ++ "\" in: " ++ msg,
+          true,
+          contains_str(~needle, msg),
+        ),
+      needles,
+    )
+  | Error(err) =>
+    Alcotest.fail(
+      "Unexpected failure kind for "
+      ++ name
+      ++ ": "
+      ++ Action.Failure.show(err),
+    )
+  };
+};
+
+let rename_and_path_safety_tests = (
+  "AgentTools.RenameAndPathSafety",
+  [
+    test_case(
+      "sanity: normal rename still works",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let a = 1 in let b = a + 1 in b + a",
+            Update(Pattern, "a", "q"),
+          );
+        check_rendered(
+          "rename_sanity",
+          "let q = 1 in let b = q + 1 in b + q",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "rename to a name shadowed later in scope is rejected", `Quick, ()
+      /* Renaming x -> y would make the rewritten use of x in [x + y] be
+         captured by the inner [let y = 2]; statics would not flag this. */
+      =>
+        expect_failure_mentioning(
+          "let x = 1 in let y = 2 in x + y",
+          Update(Pattern, "x", "y"),
+          ["already occurs", "\"y\""],
+          "rename_to_shadowing_name",
+        )
+      ),
+    test_case(
+      "rename to an outer name referenced in scope is rejected", `Quick, ()
+      /* Renaming b -> a would make the existing reference to outer [a] in
+         [a + b] resolve to the renamed binding instead (capture). */
+      =>
+        expect_failure_mentioning(
+          "let a = 1 in let b = 2 in a + b",
+          Update(Pattern, "b", "a"),
+          ["already occurs", "\"a\""],
+          "rename_captures_outer_reference",
+        )
+      ),
+    test_case("tuple-pattern arity change is rejected", `Quick, ()
+      /* Old binds 2 names, new binds 3: old->new use-site mapping is
+         ambiguous, so this must hard-error instead of silently leaving
+         stale references. Definition is a hole so the pattern itself
+         stays statically OK and the arity check is what fires. */
+      =>
+        expect_failure_mentioning(
+          "let (x, y) = ? in x + y",
+          Update(Pattern, "(x, y)", "(a, b, c)"),
+          ["Cannot rewrite use sites", "binds 2 name(s)", "binds 3"],
+          "rename_tuple_arity_mismatch",
+        )
+      ),
+    test_case(
+      "naming a hole pattern is allowed (binds 0 names before)",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let ? = 5 in 3",
+            Update(Pattern, "{empty pattern hole}", "x"),
+          );
+        check_rendered("rename_hole_pattern", "let x = 5 in 3", result);
+      },
+    ),
+    test_case(
+      "ambiguous path to edit tool yields disambiguation error", `Quick, () =>
+      expect_failure_mentioning(
+        "let x = 1 in let x = 2 in x",
+        Update(Definition, "x", "9"),
+        ["ambiguous", "\"x#1\"", "\"x#2\""],
+        "ambiguous_path_edit",
+      )
+    ),
+    test_case(
+      "#k-disambiguated path targets the later binding",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let x = 1 in let x = 2 in x",
+            Update(Definition, "x#2", "9"),
+          );
+        check_rendered(
+          "disambiguated_edit",
+          "let x = 1 in let x = 9 in x",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "node map: bare duplicate is None; #k resolves in program order",
+      `Quick,
+      () => {
+        let node_map = build_node_map("let x = 1 in let x = 2 in x");
+        check(
+          bool,
+          "bare shadowed path is None",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "x") == None,
+        );
+        let id1 = HighLevelNodeMap.path_to_id_opt(node_map, "x#1");
+        let id2 = HighLevelNodeMap.path_to_id_opt(node_map, "x#2");
+        check(bool, "x#1 resolves", true, id1 != None);
+        check(bool, "x#2 resolves", true, id2 != None);
+        check(bool, "x#1 and x#2 differ", true, id1 != id2);
+        switch (id1, id2) {
+        | (Some(id1), Some(id2)) =>
+          check(
+            int,
+            "x#1 is earliest (sibling_idx 0)",
+            0,
+            HighLevelNodeMap.find(node_map, id1).sibling_idx,
+          );
+          check(
+            int,
+            "x#2 is second (sibling_idx 1)",
+            1,
+            HighLevelNodeMap.find(node_map, id2).sibling_idx,
+          );
+        | _ => ()
+        };
+        check(
+          bool,
+          "out-of-range occurrence is None",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "x#3") == None,
+        );
+      },
+    ),
+    test_case(
+      "node map: path_to_id raises listing disambiguated paths",
+      `Quick,
+      () => {
+        let node_map = build_node_map("let x = 1 in let x = 2 in x");
+        switch (HighLevelNodeMap.path_to_id(node_map, "x")) {
+        | _ => Alcotest.fail("expected ambiguity failure for bare \"x\"")
+        | exception (Failure(msg)) =>
+          check(
+            bool,
+            "message flags ambiguity: " ++ msg,
+            true,
+            contains_str(~needle="ambiguous", msg),
+          );
+          check(
+            bool,
+            "message lists x#1: " ++ msg,
+            true,
+            contains_str(~needle="\"x#1\"", msg),
+          );
+          check(
+            bool,
+            "message lists x#2: " ++ msg,
+            true,
+            contains_str(~needle="\"x#2\"", msg),
+          );
+        };
+      },
+    ),
+    test_case(
+      "unique path still resolves without #k",
+      `Quick,
+      () => {
+        let node_map = build_node_map("let a = 1 in let b = 2 in a + b");
+        check(
+          bool,
+          "unique path resolves",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "b") != None,
+        );
+      },
+    ),
+  ],
+);
+
+/* ============================================================
    AGGREGATE ALL TESTS
    ============================================================ */
 
@@ -3860,4 +4087,5 @@ let tests = [
   error_print_tests,
   tool_json_tests,
   ascribed_binding_tests,
+  rename_and_path_safety_tests,
 ];

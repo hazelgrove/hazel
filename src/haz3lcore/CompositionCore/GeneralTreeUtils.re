@@ -294,6 +294,34 @@ let get_var_names_from_pat = (curr: Info.t): list(string) => {
   go(pat, []);
 };
 
+/** True iff [name] occurs as an expression variable or a pattern binder
+    within the subtree rooted at the term with [root_id] (per statics ancestor
+    lists). Conservative capture check for renames: any occurrence in scope —
+    even one already shadowed locally — counts. */
+let name_occurs_within =
+    (~root_id: Id.t, ~info_map: Id.Map.t(Info.t), name: string): bool => {
+  Id.Map.exists(
+    (_id, info: Info.t) =>
+      List.mem(root_id, Info.ancestors_of(info))
+      && (
+        switch (info) {
+        | InfoExp({user_term, _}) =>
+          switch (Exp.term_of(user_term)) {
+          | Var(n) => String.equal(n, name)
+          | _ => false
+          }
+        | InfoPat({user_term, _}) =>
+          switch (Pat.term_of(user_term)) {
+          | Var(n) => String.equal(n, name)
+          | _ => false
+          }
+        | _ => false
+        }
+      ),
+    info_map,
+  );
+};
+
 let update_use_sites_of_var =
     (z: Zipper.t, co_ctx: CoCtx.t, old_name: string, new_name: string)
     : Zipper.t => {
@@ -340,13 +368,22 @@ let update_use_sites_of_pat =
   /*
    Updates the use sites of the given variables in the co-context.
 
-   Should be noted that there are special cases:
-   - Consider updating the pattern (x, y, z) to (a, b)
-     we are unable to determine which new var maps to which old var.
-     For now, we will only consider the case where the number of old and new vars are the same.
+   When old/new bind different numbers of names (e.g. (x, y, z) -> (a, b)) we
+   cannot determine which new var maps to which old var; callers must reject
+   that case up front (see the Update(Pattern) arm in [[CompositionGo]]), so
+   hitting it here is a hard error rather than a silent no-op.
    */
   switch (ListUtil.opt_zip(old_names, new_names)) {
-  | None => z
+  | None =>
+    raise(
+      Failure(
+        "Cannot rewrite use sites: the old pattern binds "
+        ++ string_of_int(List.length(old_names))
+        ++ " name(s), the new pattern binds "
+        ++ string_of_int(List.length(new_names))
+        ++ ".",
+      ),
+    )
   | Some(pairs) =>
     List.fold_left(
       (acc_z, (old_name, new_name)) =>
