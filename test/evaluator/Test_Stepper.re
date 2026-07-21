@@ -149,7 +149,7 @@ let tests = (
       },
     ),
     test_case(
-      "Stop filter on map hits square application",
+      "later stop(..) overrides earlier hide(..)",
       `Quick,
       () => {
         let program = {|
