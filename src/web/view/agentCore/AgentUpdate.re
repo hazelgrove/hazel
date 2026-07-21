@@ -1,13 +1,10 @@
 open Util;
-open Util.API;
 open Haz3lcore;
-open Ppx_yojson_conv_lib.Yojson_conv;
 open AgentResult;
 open AgentModel;
 
 module ToolUtils = AgentToolUtils;
 module Utils = AgentUtils;
-module ToolCallHandler = AgentToolCallHandler;
 
 module Action = AgentAction;
 
