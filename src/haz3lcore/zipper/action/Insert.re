@@ -81,7 +81,17 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
 let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
   /* Get the full segment to calculate indentation */
   let seg = Zipper.unselect_and_zip(z);
-  let indent_level = Indentation.level_of(~target_id=linebreak_id, seg);
+  /* The level is what CONTENT TYPED HERE would get: anchor the derived
+     hole at this linebreak (where the caret is) rather than at the
+     blank run's first line, so Indentation.go sees the same structure
+     the user is about to create. Placement's own first-blank-line rule
+     is display policy and unaffected. */
+  let indent_level =
+    Indentation.level_of(
+      ~anchor_lb=linebreak_id,
+      ~target_id=linebreak_id,
+      seg,
+    );
   let spaces = Indentation.make_indent_spaces(indent_level);
   if (spaces == []) {
     z;

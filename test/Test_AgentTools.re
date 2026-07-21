@@ -839,7 +839,13 @@ let delete_tests = (
             "let a = 1 in let b = 2 in a + b",
             Delete(Body, "a"),
           );
-        check_rendered("delete_body_first", "let a = 1 in ", result);
+        check_rendered(
+          /* the agent's render now shows the DERIVED hole where the
+             deleted body was — same material the display projects */
+          "delete_body_first",
+          "let a = 1 in ?",
+          result,
+        );
       },
     ),
     test_case(

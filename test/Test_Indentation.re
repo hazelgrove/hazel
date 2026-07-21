@@ -989,12 +989,13 @@ let indent_ux_tests = [
   ux_case(
     ~name="backspace at line start inverts enter (indent + linebreak)",
     ~acts=string_to_ltr_actions("fun q ->\n") @ [bsp],
-    ~expected="fun q ->?",
+    /* raw edit state is grout-free; holes are derived downstream */
+    ~expected="fun q ->",
   ),
   ux_case(
     ~name="backspace deletes a blank line in one keystroke",
     ~acts=string_to_ltr_actions("fun q ->\n\n") @ [bsp],
-    ~expected="fun q ->\n  ?",
+    ~expected="fun q ->\n  ",
   ),
   ux_case(
     ~name="shift+backspace dedents at first-content",
@@ -1009,7 +1010,7 @@ let indent_ux_tests = [
     ~acts=
       string_to_ltr_actions("fun q ->\nx")
       @ [Action.AdjustIndent(Left, AtBoundary)],
-    ~expected="fun q ->\n  ?",
+    ~expected="fun q ->\n  ",
   ),
   ux_case(
     ~name="indent line from any caret position",
@@ -1028,7 +1029,9 @@ let indent_ux_tests = [
     ~name="left from first-content lands at previous line end",
     ~acts=
       string_to_ltr_actions("fun q ->\nx") @ mv_l(2) @ [Action.Insert("2")],
-    ~expected="fun q ->2 \n  x",
+    /* the phantom trailing space was system material; typed content
+       lands flush at the line end now */
+    ~expected="fun q ->2\n  x",
   ),
   ux_case(
     ~name="right from line end skips indentation to first content",
@@ -1037,7 +1040,7 @@ let indent_ux_tests = [
       @ mv_l(2)
       @ mv_r(1)
       @ [Action.Insert("+")],
-    ~expected="fun q ->\n  ?+x",
+    ~expected="fun q ->\n  +x",
   ),
   ux_case(
     ~name="blank lines keep one reachable position (their end)",
@@ -1045,14 +1048,16 @@ let indent_ux_tests = [
       string_to_ltr_actions("fun q ->\n\nx")
       @ mv_l(2)
       @ [Action.Insert("1")],
-    ~expected="fun q ->\n  1 \n  x",
+    /* trailing space after 1 was system material (same class as the
+       case above) */
+    ~expected="fun q ->\n  1\n  x",
   ),
   ux_case(
     ~name="home is smart: lands at first content",
     ~acts=
       string_to_ltr_actions("fun q ->\nx")
       @ [Action.Move(Line(Left)), Action.Insert("+")],
-    ~expected="fun q ->\n  ?+x",
+    ~expected="fun q ->\n  +x",
   ),
 ];
 
@@ -1064,8 +1069,10 @@ let grout_indent_tests = [
   test_indent_after_format(
     ~name="hole branches indent like literal branches",
     ~init="let f =\nfun x ->\nlet x =\nif x < 0 then\nelse\nin\nf(3)",
+    /* raw print is grout-free; the guarded property (hole branches
+       indent like literal ones, no else/in drift) is the indentation */
     ~goal=
-      "let f =\n  fun x ->\n    let x =\n      if x < 0 then?\n      else?\n    in\n  f(3)",
+      "let f =\n  fun x ->\n    let x =\n      if x < 0 then\n      else\n    in\n  f(3)",
   ),
   test_indent_after_format(
     ~name="literal branches (mirror of the hole case)",

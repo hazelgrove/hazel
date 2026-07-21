@@ -342,15 +342,69 @@ let level_map = (seg: Segment.t): Id.Map.t(int) =>
      content for indentation exactly as it is for statics */
   go(~not_top=false, 0, GroutPlace.place(seg));
 
+/* Move the derived hole of the blank run containing `lb` to sit
+   right after `lb`: for indent queries the obligation anchors where
+   typing continues (the caret's line), while display placement keeps
+   it on the run's first blank line. Top-level and child runs alike. */
+let rec anchor_hole_after = (~lb: Id.t, seg: Segment.t): Segment.t => {
+  let rec reorder = (run_grout, acc, rest: Segment.t) =>
+    switch (rest) {
+    | [Piece.Secondary(w) as p, ...tl] when Secondary.is_linebreak(w) =>
+      Id.equal(w.id, lb)
+        ? List.rev_append(acc, [p] @ run_grout @ tl)
+        : reorder(run_grout, [p, ...acc], tl)
+    | [Piece.Secondary(_) as p, ...tl] =>
+      reorder(run_grout, [p, ...acc], tl)
+    | [Piece.Grout(_) as g, ...tl] => reorder(run_grout @ [g], acc, tl)
+    | _ => List.rev_append(acc, run_grout @ rest)
+    };
+  let rec go_seg = (acc, rest: Segment.t) =>
+    switch (rest) {
+    | [] => List.rev(acc)
+    | [Piece.Secondary(w), ..._] as run
+        when Secondary.is_linebreak(w) || Secondary.is_space(w) =>
+      /* run start: reorder handles the whole secondary/grout run */
+      let rec split_run = (run_acc, tl: Segment.t) =>
+        switch (tl) {
+        | [(Piece.Secondary(_) | Piece.Grout(_)) as p, ...tl] =>
+          split_run([p, ...run_acc], tl)
+        | _ => (List.rev(run_acc), tl)
+        };
+      let (run, tl) = split_run([], run);
+      let run' = reorder([], [], run);
+      go_seg(List.rev_append(run', acc), tl);
+    | [Piece.Grout(_) as g, ...tl] => go_seg([g, ...acc], tl)
+    | [Piece.Tile(t), ...tl] =>
+      go_seg(
+        [
+          Piece.Tile({
+            ...t,
+            children: List.map(anchor_hole_after(~lb), t.children),
+          }),
+          ...acc,
+        ],
+        tl,
+      )
+    | [p, ...tl] => go_seg([p, ...acc], tl)
+    };
+  go_seg([], seg);
+};
+
 /* Look up indentation for a single linebreak by ID.
- * Uses exception-based short-circuit for efficiency. */
-let level_of = (~target_id: Id.t, seg: Segment.t): int =>
-  try(
-    {
-      ignore(go(~not_top=false, ~target_id, 0, GroutPlace.place(seg)));
-      0;
-    }
-  ) {
+ * Uses exception-based short-circuit for efficiency.
+ * ~anchor_lb: relocate the derived hole of that linebreak's blank run
+ * to just after it before computing (the Enter/auto-indent query). */
+let level_of = (~anchor_lb=?, ~target_id: Id.t, seg: Segment.t): int =>
+  try({
+    let placed = GroutPlace.place(seg);
+    let placed =
+      switch (anchor_lb) {
+      | Some(lb) => anchor_hole_after(~lb, placed)
+      | None => placed
+      };
+    ignore(go(~not_top=false, ~target_id, 0, placed));
+    0;
+  }) {
   /* Not found, default to 0 */
 
   | Found_indent(level) => level
