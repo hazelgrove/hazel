@@ -395,6 +395,7 @@ let node_request =
       Js.wrap_callback(error => {
         Firebug.console##log("Error occurred:");
         Firebug.console##log(error);
+        handler(None);
       }),
     ),
   );
