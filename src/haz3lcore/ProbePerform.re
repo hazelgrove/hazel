@@ -854,9 +854,6 @@ let toggle_statics =
     };
   };
 
-/** Like [[toggle_statics]], but for path-resolved ids (agent tools). */
-let toggle_statics_at = toggle_statics;
-
 /** Ensure statics overlays are on for this binding; idempotent if already statics. */
 let place_statics_at =
     (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
