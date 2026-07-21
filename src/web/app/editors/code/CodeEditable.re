@@ -481,7 +481,6 @@ module View = {
         ~expand_selection=false,
         ~associative_selection=false,
         ~syntax: CachedSyntax.t,
-        ~statics: CachedStatics.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
         z: Zipper.t,
@@ -501,6 +500,8 @@ module View = {
     ),
     expand_selection
       ? Highlight.selection_expanded(
+          ~associative=associative_selection,
+          ~info_map,
           ~term_data=syntax.term_data,
           ~measured=syntax.measured,
           ~shape_map=syntax.shape_map,
@@ -508,12 +509,9 @@ module View = {
           z,
         )
       : Highlight.selection(
-          ~associative=associative_selection,
           ~measured=syntax.measured,
           ~shape_map=syntax.shape_map,
           ~font_metrics=globals.font_metrics,
-          ~term_data=syntax.term_data,
-          ~statics,
           z,
         ),
     Backpack.view(
@@ -587,7 +585,6 @@ module View = {
             ~expand_selection,
             ~associative_selection,
             ~syntax=model.editor.syntax,
-            ~statics=model.statics,
             ~info_map=model.statics.info_map,
             ~globals,
             model.editor.state.zipper,
@@ -631,19 +628,24 @@ module View = {
         : [];
     // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
-    let effective_selection_mode =
-      expand_selection
-        ? SelectionEffective.Expanded
-        : associative_selection
-            ? SelectionEffective.Associative : SelectionEffective.Raw;
-    let effective_selection_ids =
-      SelectionEffective.ids(
-        ~mode=effective_selection_mode,
-        ~info_map=model.statics.info_map,
-        ~measured=model.editor.syntax.measured,
-        ~term_data=model.editor.syntax.term_data,
-        zipper,
-      );
+    let effective_selection_segment =
+      if (expand_selection) {
+        associative_selection
+          ? SelectionEffective.expanded_segment_with_associativity(
+              ~info_map=model.statics.info_map,
+              ~measured=model.editor.syntax.measured,
+              ~term_data=model.editor.syntax.term_data,
+              zipper,
+            )
+          : SelectionEffective.expanded_segment(
+              ~measured=model.editor.syntax.measured,
+              ~term_data=model.editor.syntax.term_data,
+              zipper,
+            );
+      } else {
+        zipper.selection.content;
+      };
+    let effective_selection_ids = Segment.ids(effective_selection_segment);
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=

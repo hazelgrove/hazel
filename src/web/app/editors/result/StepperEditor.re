@@ -208,6 +208,7 @@ module View = {
         model: Model.t,
       ) => {
     CodeSelectable.View.view(
+      ~expand_selection=true,
       ~dynamics=Language.Dynamics.Map.empty,
       ~associative_selection=true,
       ~signal=

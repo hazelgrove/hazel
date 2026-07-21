@@ -1,9 +1,10 @@
 open Util;
 
-type mode =
-  | Raw
-  | Associative
-  | Expanded;
+type associative_override = {
+  segment: Segment.t,
+  exp: Language.Exp.t,
+  container_id: Id.t,
+};
 
 let current_level_segment = (z: Zipper.t): Segment.t => {
   let (left_sibs, right_sibs) = z.relatives.siblings;
@@ -34,118 +35,123 @@ let contiguous_range = (~ids: list(Id.t), segment: Segment.t): Segment.t => {
   };
 };
 
-let ids_spanned_at_current_level =
-    (~selected_ids: list(Id.t), ~current_level: Segment.t): list(Id.t) => {
-  let indices =
-    current_level
-    |> List.mapi((i, piece) =>
-         piece_contains_any_id(~ids=selected_ids, piece) ? Some(i) : None
-       )
-    |> List.filter_map(Fun.id);
-  switch (indices) {
-  | [] => []
-  | [first, ...rest] =>
-    let (min_i, max_i) =
-      List.fold_left(
-        ((lo, hi), i) => (min(lo, i), max(hi, i)),
-        (first, first),
-        rest,
-      );
-    ListUtil.sublist((min_i, max_i + 1), current_level) |> Segment.ids;
-  };
+let segment_contains_all_ids = (~ids: list(Id.t), segment: Segment.t): bool => {
+  let segment_ids = Segment.ids(segment);
+  ids |> List.for_all(id => List.mem(id, segment_ids));
 };
 
-let piece_has_label = (label: list(string), piece: Piece.t): bool =>
-  switch (piece) {
-  | Tile(t) => t.label == label
-  | Grout(_)
-  | Secondary(_)
-  | Projector(_) => false
-  };
-let segment_has_label = (label: list(string), segment: Segment.t): bool =>
-  segment |> List.exists(piece_has_label(label));
-
-let starts_with_label = (label: list(string), segment: Segment.t): bool =>
-  switch (
-    segment
-    |> List.find_opt((piece: Piece.t) =>
-         switch (piece) {
-         | Tile(_) => true
-         | _ => false
-         }
-       )
-  ) {
-  | Some(piece) => piece_has_label(label, piece)
+let exact_segment_root_id =
+    (~segment: Segment.t, ~term_data: TermData.t, id: Id.t): bool =>
+  switch (TermData.segment(id, term_data)) {
+  | Some(root_segment) => root_segment == segment
   | None => false
   };
 
-let segment_label_ids =
-    (label: list(string), segment: Segment.t): list(Id.t) =>
-  segment |> List.filter(piece_has_label(label)) |> List.map(Piece.id);
-
-let intersects = (left: list(Id.t), right: list(Id.t)): bool =>
-  left |> List.exists(id => List.mem(id, right));
-
-let display_comma_separated_segment =
-    (~selection: Segment.t, ~current_level: Segment.t): option(Segment.t) => {
-  let selected_comma_ids = segment_label_ids([","], selection);
-  selected_comma_ids != []
-  && intersects(selected_comma_ids, segment_label_ids([","], current_level))
-    ? Some(current_level) : None;
-};
-
-let binop_id = (~info_map: Language.Statics.Map.t, ids: list(Id.t)) =>
-  ids
-  |> List.filter(id =>
-       switch (Language.Statics.Map.lookup(id, info_map)) {
-       | Some(InfoExp({user_term: {term: BinOp(_, _, _), _}, _})) => true
-       | _ => false
-       }
-     )
-  |> List.find_opt(id =>
-       switch (Language.Statics.Map.lookup(id, info_map)) {
-       | Some(info) =>
-         let ancestors = Language.Info.ancestors_of(info);
-         !
-           List.exists(
-             other_id => other_id != id && List.mem(other_id, ancestors),
-             ids,
-           );
+let assoc_root_containing_segment =
+    (
+      ~selected_ids: list(Id.t),
+      ~segment: Segment.t,
+      ~info_map: Language.Statics.Map.t,
+      ~term_data: TermData.t,
+    )
+    : option(Id.t) => {
+  let segment_ids = Segment.ids(segment);
+  Language.AssocSelection.find_assoc_roots_for_ids(selected_ids, info_map)
+  |> List.find_opt(root_id =>
+       switch (TermData.segment(root_id, term_data)) {
+       | Some(root_segment) =>
+         segment_contains_all_ids(~ids=segment_ids, root_segment)
        | None => false
        }
      );
+};
 
-let associative_segment =
-    (~info_map: Language.Statics.Map.t, ~term_data: TermData.t, z: Zipper.t)
-    : Segment.t => {
-  ignore(term_data);
-  switch (z.selection.content) {
-  | [] => []
-  | selection when starts_with_label(["-"], selection) => selection
-  | selection =>
-    let current_level = current_level_segment(z);
-    let selected_ids =
-      Segment.ids(selection)
-      @ ids_spanned_at_current_level(
-          ~selected_ids=Segment.ids(selection),
-          ~current_level,
+let has_exact_root =
+    (
+      ~segment: Segment.t,
+      ~info_map: Language.Statics.Map.t,
+      ~measured: Measured.t,
+      ~term_data: TermData.t,
+    )
+    : bool => {
+  let ids = Segment.ids(segment) |> ListUtil.dedup;
+  let assoc_root =
+    Language.AssocSelection.find_assoc_roots_for_ids(ids, info_map)
+    |> List.exists(exact_segment_root_id(~segment, ~term_data));
+  assoc_root
+  || (
+    switch (TermData.get_root_id_using_ranges(segment, term_data, measured)) {
+    | Some(id) => exact_segment_root_id(~segment, ~term_data, id)
+    | None => false
+    }
+  );
+};
+
+let exp_of_segment = (segment: Segment.t): option(Language.Exp.t) =>
+  switch (MakeTerm.for_projection(segment)) {
+  | Some(Language.Grammar.Exp(exp)) => Some(exp)
+  | Some(_)
+  | None => None
+  };
+
+/* Dev's range-based selection remains authoritative unless an associative
+ * operator identifies a contiguous expression slice that has no AST node of
+ * its own (for example [3 + 4] in [1 + 2 + 3 + 4]). */
+let associative_override =
+    (
+      ~info_map: Language.Statics.Map.t,
+      ~measured: Measured.t,
+      ~term_data: TermData.t,
+      z: Zipper.t,
+    )
+    : option(associative_override) => {
+  open OptUtil.Syntax;
+  let selection = z.selection.content;
+  let selected_ids = Segment.ids(selection) |> ListUtil.dedup;
+  let snapped_ids =
+    Language.AssocSelection.find_assoc_for_ids(selected_ids, info_map);
+  let current_level = current_level_segment(z);
+  let segment = contiguous_range(~ids=snapped_ids, current_level);
+  let segment =
+    if (segment != []
+        && segment_contains_all_ids(~ids=snapped_ids, segment)
+        && segment_contains_all_ids(~ids=selected_ids, segment)) {
+      segment;
+    } else {
+      switch (
+        Language.AssocSelection.find_assoc_root_for_ids(
+          selected_ids,
+          info_map,
         )
-      |> ListUtil.dedup;
-    let snapped_ids =
-      Language.AssocSelection.find_assoc_for_ids(selected_ids, info_map);
-    switch (snapped_ids) {
-    | [] =>
-      display_comma_separated_segment(~selection, ~current_level)
-      |> Option.value(~default=selection)
-    | ids =>
-      switch (contiguous_range(~ids, current_level)) {
-      | [] =>
-        display_comma_separated_segment(~selection, ~current_level)
-        |> Option.value(~default=selection)
-      | segment =>
-        display_comma_separated_segment(~selection, ~current_level)
-        |> Option.value(~default=segment)
-      }
+      ) {
+      | Some(root_id) =>
+        switch (TermData.segment(root_id, term_data)) {
+        | Some(root_segment) =>
+          let root_range = contiguous_range(~ids=snapped_ids, root_segment);
+          segment_contains_all_ids(~ids=snapped_ids, root_range)
+          && segment_contains_all_ids(~ids=selected_ids, root_range)
+            ? root_range : [];
+        | None => []
+        }
+      | None => []
+      };
+    };
+  if (segment == []
+      || has_exact_root(~segment, ~info_map, ~measured, ~term_data)) {
+    None;
+  } else {
+    let* exp = exp_of_segment(segment);
+    let+ container_id =
+      assoc_root_containing_segment(
+        ~selected_ids,
+        ~segment,
+        ~info_map,
+        ~term_data,
+      );
+    {
+      segment,
+      exp,
+      container_id,
     };
   };
 };
@@ -161,34 +167,81 @@ let expanded_segment =
   ) {
   | None => z.selection.content
   | Some(id) =>
-    switch (TermData.segment(id, term_data)) {
-    | None => z.selection.content
-    | Some(segment) => segment
-    }
+    TermData.segment(id, term_data)
+    |> Option.value(~default=z.selection.content)
   };
 
-let segment =
+let expanded_segment_with_associativity =
     (
-      ~mode: mode,
       ~info_map: Language.Statics.Map.t,
       ~measured: Measured.t,
       ~term_data: TermData.t,
       z: Zipper.t,
     )
     : Segment.t =>
-  switch (mode) {
-  | Raw => z.selection.content
-  | Associative => associative_segment(~info_map, ~term_data, z)
-  | Expanded => expanded_segment(~measured, ~term_data, z)
+  switch (associative_override(~info_map, ~measured, ~term_data, z)) {
+  | Some(override) => override.segment
+  | None => expanded_segment(~measured, ~term_data, z)
   };
 
-let ids =
+type replacement_result = {
+  at_exp: Language.Exp.t,
+  with_exp: Language.Exp.t,
+};
+
+let replace_range =
+    (~selected: Segment.t, ~replacement: Segment.t, container: Segment.t)
+    : option(Segment.t) => {
+  let selected_ids = Segment.ids(selected);
+  let indices =
+    container
+    |> List.mapi((i, piece) =>
+         piece_contains_any_id(~ids=selected_ids, piece) ? Some(i) : None
+       )
+    |> List.filter_map(Fun.id);
+  switch (indices) {
+  | [] => None
+  | [first, ...rest] =>
+    let (min_i, max_i) =
+      List.fold_left(
+        ((lo, hi), i) => (min(lo, i), max(hi, i)),
+        (first, first),
+        rest,
+      );
+    Some(
+      ListUtil.sublist((0, min_i), container)
+      @ replacement
+      @ ListUtil.sublist((max_i + 1, List.length(container)), container),
+    );
+  };
+};
+
+let replacement_for_override =
     (
-      ~mode: mode,
-      ~info_map: Language.Statics.Map.t,
-      ~measured: Measured.t,
+      ~override: associative_override,
+      ~with_exp: Language.Exp.t,
+      ~full_exp: Language.Exp.t,
       ~term_data: TermData.t,
-      z: Zipper.t,
     )
-    : list(Id.t) =>
-  segment(~mode, ~info_map, ~measured, ~term_data, z) |> Segment.ids;
+    : option(replacement_result) => {
+  open OptUtil.Syntax;
+  let* at_exp =
+    Language.ProofHacks.find_exp_id(override.container_id, full_exp);
+  let* container_segment = TermData.segment(override.container_id, term_data);
+  let with_segment =
+    ExpToSegment.exp_to_segment(
+      ~settings=ExpToSegment.Settings.editable(~inline=true),
+      with_exp,
+    );
+  let* replaced_segment =
+    replace_range(
+      ~selected=override.segment,
+      ~replacement=[Segment.parenthesize(with_segment)],
+      container_segment,
+    );
+  let+ with_exp = exp_of_segment(replaced_segment);
+  {
+    at_exp,
+    with_exp,
+  };
+};

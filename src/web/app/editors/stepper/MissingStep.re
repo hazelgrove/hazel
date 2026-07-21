@@ -107,6 +107,14 @@ let proof_search_verdict_label = (~has_candidate, verdict) =>
   | Invalid => "Invalid"
   };
 
+let associative_override_for_editor = (editor: CodeSelectable.Model.t) =>
+  SelectionEffective.associative_override(
+    ~info_map=CodeEditable.Model.get_statics(editor).info_map,
+    ~measured=editor.editor.syntax.measured,
+    ~term_data=editor.editor.syntax.term_data,
+    editor.editor.state.zipper,
+  );
+
 let proof_search_can_replace =
   fun
   | Model.ProfileValid => true
@@ -557,6 +565,7 @@ module Update = {
     let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
     let full_visible_exp = Calc.NewValue(editor.statics.term);
     let visible_terms = Calc.NewValue(editor.editor.syntax.terms);
+    let selection_override = associative_override_for_editor(editor);
     let selected_id =
       // hacky way to get a currently-selected id
       (
@@ -585,31 +594,36 @@ module Update = {
         and.calc full_visible_exp = full_visible_exp
         and.calc visible_terms = visible_terms
         and.calc info_map = info_map;
-        open OptUtil.Syntax;
-        let* id = selected_id;
-        switch (ProofHacks.find_exp_id(id, full_visible_exp)) {
-        | Some(exp') => Some(exp')
-        | None =>
-          switch (Id.Map.find_opt(id, visible_terms)) {
-          | Some(Exp(exp')) => Some(exp')
-          | _ =>
-            switch (ProofHacks.find_exp_id(id, exp)) {
+        OptUtil.Syntax.(
+          switch (selection_override) {
+          | Some(override) => Some(override.exp)
+          | None =>
+            let* id = selected_id;
+            switch (ProofHacks.find_exp_id(id, full_visible_exp)) {
             | Some(exp') => Some(exp')
             | None =>
-              switch (Statics.Map.lookup(id, info_map)) {
-              | Some(Info.InfoExp({user_term, _})) => Some(user_term)
+              switch (Id.Map.find_opt(id, visible_terms)) {
+              | Some(Exp(exp')) => Some(exp')
               | _ =>
-                print_endline(
-                  "[selected-exp-debug] missing id="
-                  ++ Id.str8(id)
-                  ++ " info_map_empty="
-                  ++ (Id.Map.is_empty(info_map) ? "true" : "false"),
-                );
-                None;
+                switch (ProofHacks.find_exp_id(id, exp)) {
+                | Some(exp') => Some(exp')
+                | None =>
+                  switch (Statics.Map.lookup(id, info_map)) {
+                  | Some(Info.InfoExp({user_term, _})) => Some(user_term)
+                  | _ =>
+                    print_endline(
+                      "[selected-exp-debug] missing id="
+                      ++ Id.str8(id)
+                      ++ " info_map_empty="
+                      ++ (Id.Map.is_empty(info_map) ? "true" : "false"),
+                    );
+                    None;
+                  }
+                }
               }
-            }
+            };
           }
-        };
+        );
       };
     let assumptions =
       assumptions
@@ -1194,6 +1208,7 @@ module View = {
         };
       cancel_rocq_searches_except_in_browser(active_search_id);
       let+ (left, right, top, bottom) = segment_bounds;
+      let selection_override = associative_override_for_editor(editor);
 
       let proof_button = (~callback: Ui_effect.t(unit), label: string) => {
         Node.div(
@@ -1344,23 +1359,47 @@ module View = {
                           ),
                         )
                       | None =>
-                        let at_idx =
-                          try(
-                            ProofHacks.exp_idx(
-                              unboxed_selected_exp,
-                              model.full_visible_exp
-                              |> Calc.get_saved_exc(~print="full_visible_exp"),
+                        let full_visible_exp =
+                          model.full_visible_exp
+                          |> Calc.get_saved_exc(~print="full_visible_exp");
+                        switch (selection_override) {
+                        | Some(override) =>
+                          switch (
+                            SelectionEffective.replacement_for_override(
+                              ~override,
+                              ~with_exp=substituted_cached_exp,
+                              ~full_exp=full_visible_exp,
+                              ~term_data=editor.editor.syntax.term_data,
                             )
                           ) {
-                          | _ => 0
-                          };
-                        signal(
-                          AddAlgebriteStep(
-                            at_idx,
-                            unboxed_selected_exp,
-                            substituted_cached_exp,
-                          ),
-                        );
+                          | Some({at_exp, with_exp}) =>
+                            signal(
+                              AddAlgebriteStep(
+                                ProofHacks.exp_idx(at_exp, full_visible_exp),
+                                at_exp,
+                                with_exp,
+                              ),
+                            )
+                          | None => Ui_effect.Ignore
+                          }
+                        | None =>
+                          let at_idx =
+                            try(
+                              ProofHacks.exp_idx(
+                                unboxed_selected_exp,
+                                full_visible_exp,
+                              )
+                            ) {
+                            | _ => 0
+                            };
+                          signal(
+                            AddAlgebriteStep(
+                              at_idx,
+                              unboxed_selected_exp,
+                              substituted_cached_exp,
+                            ),
+                          );
+                        };
                       };
                     },
                   ),
@@ -1918,43 +1957,6 @@ module View = {
         ];
       };
 
-      let selected_segment = editor.editor.state.zipper.selection.content;
-      let whole_selected_ids =
-        switch (
-          TermData.get_root_id_using_ranges(
-            selected_segment,
-            editor.editor.syntax.term_data,
-            editor.editor.syntax.measured,
-          )
-        ) {
-        | Some(id) =>
-          switch (TermData.segment(id, editor.editor.syntax.term_data)) {
-          | Some(segment) when segment == selected_segment => [id]
-          | _ => []
-          }
-        | None => []
-        };
-      let selected_tile_ids = {
-        let raw_ids =
-          selected_segment
-          |> List.filter_map(
-               fun
-               | Haz3lcore.Piece.Tile(t) => Some(Haz3lcore.Tile.id(t))
-               | _ => None,
-             );
-        let effective_ids =
-          SelectionEffective.ids(
-            ~mode=SelectionEffective.Associative,
-            ~info_map=editor.statics.info_map,
-            ~measured=editor.editor.syntax.measured,
-            ~term_data=editor.editor.syntax.term_data,
-            editor.editor.state.zipper,
-          );
-        switch (effective_ids) {
-        | [] => raw_ids
-        | ids => ids
-        };
-      };
       let unparenthesize_exp =
         switch (
           selected_id,
@@ -1967,116 +1969,18 @@ module View = {
           )
         | _ => None
         };
-      let selected_assoc_ids =
-        selected_tile_ids
-        |> List.concat_map(id =>
-             Language.AssocSelection.find_reparenthesize_for_id(
-               id,
-               editor.statics.info_map,
-             )
-           );
-      let step_here_ids =
-        switch (selected_assoc_ids) {
-        | [] => selected_tile_ids
-        | ids => ids
-        };
-      let show_step_here =
-        List.exists(
-          id =>
-            Language.AssocSelection.needs_reparenthesization(
-              id,
-              editor.statics.info_map,
-            ),
-          selected_tile_ids,
+      let step_here_ids = [];
+      let reparenthesize_result: option(Language.Reparenthesize.result) =
+        None;
+      let step_here_button: option((string, bool)) = None;
+      let selected_exp_for_rewrite =
+        Calc.get_saved_exc(
+          ~print="selected exp not calculated",
+          model.selected_exp,
         );
-      let reparenthesize_result =
-        if (show_step_here) {
-          Language.Reparenthesize.reparenthesize_selection(
-            ~whole_selected_ids,
-            ~selected_ids=step_here_ids,
-            editor.statics.term,
-          );
-        } else {
-          None;
-        };
-      let rewrite_reparenthesize_result =
-        switch (
-          Language.Reparenthesize.reparenthesize_selection(
-            ~whole_selected_ids,
-            ~selected_ids=selected_tile_ids,
-            editor.statics.term,
-          )
-        ) {
-        | Some(_) as result => result
-        | None => reparenthesize_result
-        };
-      let step_here_button = {
-        let can_take_selected_step = (result: Language.Reparenthesize.result) => {
-          let env =
-            model.cached_env |> Calc.get_saved_exc(~print="cached env");
-          let steps =
-            switch (
-              EvaluatorStep.get_status(
-                ~settings=globals.settings.core,
-                result.exp,
-                env,
-              )
-            ) {
-            | AutoStep(step) => [step]
-            | AvailableSteps(steps) => steps
-            };
-          steps
-          |> List.exists(step =>
-               switch (EvaluatorStep.get_step_id_in(step, result.exp)) {
-               | Some(id) => id == result.selected_id
-               | None => EvaluatorStep.get_step_id(step) == result.selected_id
-               }
-             );
-        };
-        switch (reparenthesize_result) {
-        | Some({selected_is_single_binop: true, _} as result)
-            when can_take_selected_step(result) =>
-          Some(("Step here", true))
-        | Some(_) => Some(("Parenthesize", false))
-        | None => None
-        };
-      };
-      let (selected_exp_for_rewrite, reparenthesize_result_for_rewrite) = {
-        let model_selected_exp =
-          Calc.get_saved_exc(
-            ~print="selected exp not calculated",
-            model.selected_exp,
-          );
-        let reparenthesized_selected_exp =
-          switch (rewrite_reparenthesize_result) {
-          | Some(result) => Language.Reparenthesize.selected_exp(result)
-          | None => None
-          };
-        switch (
-          model_selected_exp,
-          rewrite_reparenthesize_result,
-          reparenthesized_selected_exp,
-        ) {
-        /* A structural subtree selected by the editor is authoritative. Only
-         * synthesize a reparenthesized source when the selection crosses
-         * expression boundaries and the model falls back to the whole term. */
-        | (Some(model_exp), _, _)
-            when
-              !
-                Equality.ignoring_ascriptions.exp(
-                  model_exp,
-                  editor.statics.term,
-                ) => (
-            model_selected_exp,
-            None,
-          )
-        | (_, Some(result), Some(reparenthesized_exp)) => (
-            Some(reparenthesized_exp),
-            Some(result),
-          )
-        | _ => (model_selected_exp, None)
-        };
-      };
+      let reparenthesize_result_for_rewrite:
+        option(Language.Reparenthesize.result) =
+        None;
       let auto_simplify = {
         open OptUtil.Syntax;
         let full_exp =
