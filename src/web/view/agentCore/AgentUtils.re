@@ -4,7 +4,8 @@ open AgentModel;
 let init = (): Model.t => {
   let system_prompt = CompositionPrompt.self |> String.concat("\n");
   let dev_notes = {|Development mode active. Follow developer instructions precisely. Be concise. No first-person pronouns.|};
-  {
+  /* reset_transients is the source of truth for the transient fields below. */
+  Model.reset_transients({
     chat_system: ChatSystem.Utils.init(~system_prompt, ~dev_notes),
     // Todo: Will want to move prompting and api params to a global agent state
     prompting: {
@@ -27,7 +28,7 @@ let init = (): Model.t => {
     pending_ignore_compaction_reply_seq: None,
     pending_assistant_content: "",
     pending_assistant_reasoning: "",
-  };
+  });
 };
 
 let test_results_for_context =

@@ -48,6 +48,24 @@ module Model = {
     [@yojson.default ""] [@sexp.default ""]
     pending_assistant_reasoning: string,
   };
+
+  /* Single source of truth for transient (per-session) field defaults; used
+     by [Persistent.persist]/[unpersist] and [Utils.init]. */
+  let reset_transients = (m: t): t => {
+    ...m,
+    restore_editor_state: None,
+    last_empty_retry_attempt: None,
+    last_active_task_nudge_attempt: None,
+    tools_view_expanded: [],
+    compaction_in_progress: None,
+    compaction_method_override: None,
+    main_llm_seq: 0,
+    compaction_llm_seq: 0,
+    pending_ignore_main_reply_seq: None,
+    pending_ignore_compaction_reply_seq: None,
+    pending_assistant_content: "",
+    pending_assistant_reasoning: "",
+  };
 };
 
 module Persistent = {
@@ -56,29 +74,17 @@ module Persistent = {
 
   let persist = (model: Model.t): t => {
     {
-      ...model,
+      ...Model.reset_transients(model),
       prompting: {
         ...model.prompting,
         tools: CompositionUtils.Public.tools,
       },
-      restore_editor_state: None,
-      last_empty_retry_attempt: None,
-      last_active_task_nudge_attempt: None,
-      tools_view_expanded: [],
-      compaction_in_progress: None,
-      compaction_method_override: None,
-      main_llm_seq: 0,
-      compaction_llm_seq: 0,
-      pending_ignore_main_reply_seq: None,
-      pending_ignore_compaction_reply_seq: None,
-      pending_assistant_content: "",
-      pending_assistant_reasoning: "",
     };
   };
 
   let unpersist = (p: t): Model.t => {
     {
-      ...p,
+      ...Model.reset_transients(p),
       prompting: {
         ...p.prompting,
         /* Always use the in-code tool registry so new tools (probes, statics, …)
@@ -86,18 +92,6 @@ module Persistent = {
         tools: CompositionUtils.Public.tools,
       },
       awaiting_response: None,
-      restore_editor_state: None,
-      last_empty_retry_attempt: None,
-      last_active_task_nudge_attempt: None,
-      tools_view_expanded: [],
-      compaction_in_progress: None,
-      compaction_method_override: None,
-      main_llm_seq: 0,
-      compaction_llm_seq: 0,
-      pending_ignore_main_reply_seq: None,
-      pending_ignore_compaction_reply_seq: None,
-      pending_assistant_content: "",
-      pending_assistant_reasoning: "",
     };
   };
 };
