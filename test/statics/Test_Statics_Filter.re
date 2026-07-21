@@ -11,34 +11,33 @@ open Alcotest;
 open Test_Statics_Prelude;
 open Language;
 
-let collect_ids = (exp: Exp.t): list(Id.t) => {
-  let acc = ref([]);
-  let collect = (a: IdTagged.IdTag.t) => {
-    acc := a.ids @ acc^;
-    a;
-  };
-  let _ = Grammar.map_exp_annotation(collect, exp);
-  acc^;
-};
-
-let info_map_preserves_ids = (name, src) =>
+/* A filter is transparent to typing: `debug act(pat) in body` must have
+   exactly the type of `body`. */
+let filter_preserves_type = (name, src) =>
   test_case(
     name,
     `Quick,
     () => {
       let exp = parse_exp(src);
       let m = statics(exp);
-      let missing =
-        collect_ids(exp)
-        |> List.filter(id =>
-             !Id.equal(id, Id.invalid)
-             && Option.is_none(Statics.Map.lookup(id, m))
-           );
-      Alcotest.(check(list(string)))(
-        src ++ " — every surface id appears in the info map",
-        [],
-        List.map(Id.show, missing),
-      );
+      let body =
+        switch (Exp.term_of(exp)) {
+        | Filter(_, body) => body
+        | _ => Alcotest.fail("expected a filter expression")
+        };
+      switch (
+        Statics.Map.ty_of(Exp.rep_id(exp), m),
+        Statics.Map.ty_of(Exp.rep_id(body), m),
+      ) {
+      | (Some(filter_ty), Some(body_ty)) =>
+        check(
+          testable_typ,
+          src ++ " — filter type equals body type",
+          body_ty,
+          filter_ty,
+        )
+      | _ => Alcotest.fail("missing type info for filter or body")
+      };
     },
   );
 
@@ -52,6 +51,15 @@ let tests = (
     info_map_preserves_ids(
       "hide with filter-selector pattern",
       "debug hide($e) in 1 + 2",
+    ),
+    filter_preserves_type("filter preserves Int", "debug hide(1) in 1 + 1"),
+    filter_preserves_type(
+      "filter preserves Bool",
+      "debug eval($e) in true && false",
+    ),
+    filter_preserves_type(
+      "nested filters preserve the body type",
+      "debug hide(1) in debug stop(2) in 3",
     ),
   ],
 );

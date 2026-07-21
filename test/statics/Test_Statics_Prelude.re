@@ -288,3 +288,38 @@ module FTemp =
     type t = IdTagged.IdTag.t;
     let default_value = (): IdTagged.IdTag.t => IdTagged.IdTag.temp();
   });
+
+/* Collect every id present in the surface expression by walking all
+   sub-term annotations (exp / pat / typ / tpat / ...). */
+let collect_ids = (exp: Exp.t): list(Id.t) => {
+  let acc = ref([]);
+  let collect = (a: IdTagged.IdTag.t) => {
+    acc := a.ids @ acc^;
+    a;
+  };
+  let _ = Grammar.map_exp_annotation(collect, exp);
+  acc^;
+};
+
+/* Every id that appears in the surface term must resolve to some Info.t
+   in the map produced by statics. */
+let info_map_preserves_ids = (name, src) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let exp = parse_exp(src);
+      let m = statics(exp);
+      let missing =
+        collect_ids(exp)
+        |> List.filter(id =>
+             !Id.equal(id, Id.invalid)
+             && Option.is_none(Statics.Map.lookup(id, m))
+           );
+      Alcotest.(check(list(string)))(
+        src ++ " — every surface id appears in the info map",
+        [],
+        List.map(Id.show, missing),
+      );
+    },
+  );
