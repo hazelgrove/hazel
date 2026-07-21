@@ -339,7 +339,10 @@ let of_segment_inner =
   };
 
   let add_grout = (acc: measure_acc, g: Grout.t): measure_acc => {
-    let size = Point.mk(~row=0, ~col=1);
+    /* zero-width: grout contributes nothing to layout (the sigil is
+       drawn over an adjacent cell by the view) — the invisibility
+       property that keeps caret geometry a function of user material */
+    let size = Point.mk(~row=0, ~col=0);
     let (measure, map) = calc_inline(acc.pos, acc.map, size);
     {
       seg: [Piece.Grout(g), ...acc.seg],

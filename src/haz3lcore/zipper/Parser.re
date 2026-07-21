@@ -144,7 +144,7 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
   let final_seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let all_segments = List.rev([final_seg, ...segments^]);
   let combined = List.concat(all_segments);
-  Segment.regrout(Nib.Shape.(concave(), concave()), combined);
+  GroutPlace.strip(combined);
 };
 
 /* Quick O(n) check that clipboard has balanced parens/brackets/braces.

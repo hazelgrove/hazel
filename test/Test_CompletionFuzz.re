@@ -279,8 +279,15 @@ let check_invariants =
        Tagged (inner) when the caret is inside a token: the observed
        family is pads minted left of the Inner-caret token shifting
        the rendered caret against the raw one */
+    /* holes are ZERO-WIDTH live: the display prefix may carry derived
+       hole sigils the raw (grout-free) zipper text cannot — strip
+       them before the byte comparison (the invisibility property is
+       what makes this sound) */
+    let strip_holes = s => s |> remove_all("?") |> remove_all("~");
     switch (Test_CompletionDisplay.split_first("¦", cur)) {
-    | Some((pre, _)) when strip_markers(pre) != raw_pre_caret(z) =>
+    | Some((pre, _))
+        when
+          strip_holes(strip_markers(pre)) != strip_holes(raw_pre_caret(z)) =>
       let tag =
         switch (z.caret) {
         | Outer => "PRE-CARET"
@@ -649,6 +656,29 @@ let run_grout_fuzz = (~seeds: int, ~steps: int): string => {
           | Applied(z') =>
             z := z';
             let k = k0 + 1;
+            {
+              /* THE joined-step headline: grout never lives in the
+                 edit state — holes are derived, not stored */
+
+              let sibs = z'.relatives.siblings;
+              let seg_ok = (sg: Segment.t) => GroutPlace.grout_free(sg);
+              let anc_ok =
+                z'.relatives.ancestors
+                |> List.for_all(((a, (l, r)): Ancestors.generation) =>
+                     List.for_all(seg_ok, fst(Ancestor.(a.children)))
+                     && List.for_all(seg_ok, snd(Ancestor.(a.children)))
+                     && seg_ok(l)
+                     && seg_ok(r)
+                   );
+              if (!seg_ok(fst(sibs)) || !seg_ok(snd(sibs)) || !anc_ok) {
+                bad(
+                  ~seed,
+                  ~step=k,
+                  ~inv="G-EDIT-GROUT",
+                  flat(marked(Zipper.unselect_and_zip(z'))),
+                );
+              };
+            };
             switch (completed_of(z')) {
             | exception e =>
               bad(
@@ -928,7 +958,7 @@ let crash_stage_probe = {
     };
   [
     test_case("crash stage probe", `Quick, () =>
-      check(string_testable, "stage", "case fun in ~||", out)
+      check(string_testable, "stage", "case fun in ||", out)
     ),
   ];
 };

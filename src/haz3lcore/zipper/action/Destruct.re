@@ -24,7 +24,7 @@ let capture = (z): t => {
     | [Grout(g)] => Some(g.id)
     | _ => None
     };
-  Grout.cache_id(junk_id);
+  let _ = junk_id;
   z;
 };
 
@@ -238,7 +238,6 @@ let delete_to_line_start = (z: t, ~root): option(t) => {
 
 let go_local =
     (d: Direction.t, chunk: Action.chunkiness, z: t, ~root): option(t) => {
-  Grout.suppressed_space := None;
   switch (Triggers.destruct(z)) {
   | Some(z) => Some(z)
   | None =>

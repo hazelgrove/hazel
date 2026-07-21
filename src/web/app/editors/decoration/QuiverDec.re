@@ -102,13 +102,14 @@ let delimiter_nodes =
          d.needs_hole
            ? [
              Node.text(" "),
-             EmptyHoleDec.view(
+             EmptyHoleDec.view((
                FontMetrics.{
                  col_width: font_metrics.col_width *. chip_font_scale,
                  row_height: font_metrics.row_height *. chip_font_scale,
                },
                Grout.Convex,
-             ),
+               EmptyHoleDec.Boxed,
+             )),
            ]
            : [];
        sep

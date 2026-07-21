@@ -113,8 +113,8 @@ let view =
     ) => {
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
 
-  let g_convex = EmptyHoleDec.view(font_metrics, Convex);
-  let g_concave = EmptyHoleDec.view(font_metrics, Concave);
+  let g_hole = (shape: Grout.shape, cell: EmptyHoleDec.cell) =>
+    EmptyHoleDec.view((font_metrics, shape, cell));
 
   /* Node.t's None/Some shadow option's, so match structurally */
   let ghost_mark = (id: Id.t, shard: option(int)): bool =>
@@ -124,12 +124,8 @@ let view =
       ghost_marks,
     );
 
-  let of_grout = (g: Grout.t): t => {
-    let hole =
-      switch (g.shape) {
-      | Convex => g_convex
-      | Concave => g_concave
-      };
+  let of_grout = (~cell: EmptyHoleDec.cell, g: Grout.t): t => {
+    let hole = g_hole(g.shape, cell);
     ghost_mark(g.id, Option.none)
       ? span_c("in-parsed-buffer", [hole]) : hole;
   };
@@ -225,26 +221,55 @@ let view =
     };
   };
 
-  let rec of_segment = (seg: Segment.t): list(Node.t) =>
-    List.concat_map(
-      fun
-      | Piece.Tile(t) => {
-          let _ =
-            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-            | Some(_) =>
-              DeferredLinebreaks.update(2) |> ignore;
-              ();
-            | None => ()
-            };
-          Aba.mk(t.shards, t.children)
-          |> Aba.join(i => [of_delim(t, i)], of_segment)
-          |> List.concat;
-        }
-      | Grout(g) => [of_grout(g)]
-      | Secondary(s) => [of_secondary(s)]
-      | Projector(pr) => [of_projector(pr)],
-      seg,
-    );
+  let rec of_segment = (seg: Segment.t): list(Node.t) => {
+    /* the cell a zero-width hole paints into, from its neighbors —
+       the FeltPrint weave rules: following space wins, else preceding
+       space, else line end is a free cell, else a thin pinch */
+    let cell_of = (i: int, arr: array(Piece.t)): EmptyHoleDec.cell => {
+      let n = Array.length(arr);
+      let is_space = (p: Piece.t) =>
+        switch (p) {
+        | Secondary(w) => Secondary.is_space(w)
+        | _ => false
+        };
+      let is_lb = (p: Piece.t) =>
+        switch (p) {
+        | Secondary(w) => Secondary.is_linebreak(w)
+        | _ => false
+        };
+      if (i + 1 < n && is_space(arr[i + 1])) {
+        NextCell;
+      } else if (i + 1 >= n || is_lb(arr[i + 1])) {
+        NextCell; /* line-end free cell */
+      } else if (i - 1 >= 0 && is_space(arr[i - 1])) {
+        PrevCell;
+      } else {
+        Thin;
+      };
+    };
+    let arr = Array.of_list(seg);
+    arr
+    |> Array.to_list
+    |> List.mapi((i, p) => (i, p))
+    |> List.concat_map(((i, p)) =>
+         switch ((p: Piece.t)) {
+         | Piece.Tile(t) =>
+           let _ =
+             switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+             | Some(_) =>
+               DeferredLinebreaks.update(2) |> ignore;
+               ();
+             | None => ()
+             };
+           Aba.mk(t.shards, t.children)
+           |> Aba.join(i => [of_delim(t, i)], of_segment)
+           |> List.concat;
+         | Grout(g) => [of_grout(~cell=cell_of(i, arr), g)]
+         | Secondary(s) => [of_secondary(s)]
+         | Projector(pr) => [of_projector(pr)]
+         }
+       );
+  };
 
   /* Trailing filler: a text layer ending in a linebreak gets no
      final line box from HTML, so an empty last line left the editor

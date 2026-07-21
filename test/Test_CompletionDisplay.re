@@ -195,14 +195,51 @@ let display_state_of =
       ~measured,
       seg,
     );
+  /* grout is ZERO-WIDTH in measured but prints as one ?/~ char here,
+     so every marker right of a hole must shift by the holes printed
+     before it on its row (strictly-before for caret/run-opens, which
+     land LEFT of a hole at their own point; inclusive for run-ends,
+     which land after the hole char) */
+  let grout_cols: list((int, int)) = {
+    let rec go = (sg: Segment.t): list((int, int)) =>
+      List.concat_map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Grout(g) =>
+            switch (Measured.find_g(g, measured)) {
+            | m => [(m.origin.row, m.origin.col)]
+            | exception _ => []
+            }
+          | Tile(t) => List.concat_map(go, t.children)
+          | _ => []
+          },
+        sg,
+      );
+    go(seg);
+  };
+  let hole_shift = (~incl: bool, p: Util.Point.t): Util.Point.t => {
+    let n =
+      grout_cols
+      |> List.filter(((r, c)) =>
+           r == p.row && (incl ? c <= p.col : c < p.col)
+         )
+      |> List.length;
+    {
+      ...p,
+      col: p.col + n,
+    };
+  };
   /* insert markers back-to-front so points stay valid; at a shared
      point later inserts land left, so descending priority yields
      ⟫¦ at a run end and ¦⟪ at a run start */
   let mark_list =
-    [(caret, 1, "¦")]
+    [(hole_shift(~incl=false, caret), 1, "¦")]
     @ List.concat_map(
         ((o, l): (Util.Point.t, Util.Point.t)) =>
-          [(o, 2, "⟪"), (l, 0, "⟫")],
+          [
+            (hole_shift(~incl=false, o), 2, "⟪"),
+            (hole_shift(~incl=true, l), 0, "⟫"),
+          ],
         runs,
       );
   let disp =
@@ -1413,11 +1450,11 @@ case if | ¦   CHIPS[then+else | =>+end]|},
             string_testable,
             "tab-chunks",
             {|let s = string_replace(st¦ in s   OWED[5]
-let s = string_replace(string_capitalize(¦? in s   OWED[4]
+let s = string_replace(string_capitalize(¦ in s   OWED[4]
 let s = string_replace(string_capitalize()¦ in s   OWED[3]
-let s = string_replace(string_capitalize(), ¦? in s   OWED[2]
-let s = string_replace(string_capitalize(), ?, ¦? in s   OWED[1]
-let s = string_replace(string_capitalize(), ?,? )¦ in s   OWED[0]
+let s = string_replace(string_capitalize(), ¦ in s   OWED[2]
+let s = string_replace(string_capitalize(), , ¦ in s   OWED[1]
+let s = string_replace(string_capitalize(), , )¦ in s   OWED[0]
 NONE|},
             states_of("let s = string_replace(st¦ in s")
             |> audit

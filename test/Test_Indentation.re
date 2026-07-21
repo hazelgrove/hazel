@@ -381,7 +381,7 @@ fun x ->
 |},
     ~goal={|let a =
   fun x ->
-    ?|},
+    |},
   ),
   test_indent(
     ~name="Indentation Incomplete Flow 3",
@@ -392,7 +392,7 @@ case x
     ~goal={|let a =
   fun x ->
     case x
-    |?|},
+    ||},
   ),
   test_indent(
     ~name="Indentation Incomplete Flow 4",
@@ -405,7 +405,7 @@ case x
   fun x ->
     case x
     | _ =>
-      ?|},
+      |},
   ),
   test_indent(
     ~name="Indentation - Wrapping immediate next lines",
@@ -447,7 +447,7 @@ fun x ->
     ~goal={|let a = (
   fun x ->
     1,
-  ?|},
+  |},
   ),
   /* ================================================================
      CONTINUATION LINE INDENTATION
@@ -602,7 +602,7 @@ end|},
     ~init={|case 1
 ||},
     ~goal={|case 1
-|?|},
+||},
   ),
   /* Pattern position after incomplete bar: no indent. Patterns are typically
    * on the same line as `|`, and if multiline, staying at bar level is fine. */
@@ -613,7 +613,7 @@ end|},
 |},
     ~goal={|case 1
 |
-?|},
+|},
   ),
   test_indent(
     ~name="Case: after arrow, expecting rule body",
@@ -622,7 +622,7 @@ end|},
 |},
     ~goal={|case 1
 | A =>
-  ?|},
+  |},
   ),
   test_indent(
     ~name="Case: rule body on separate line",
@@ -640,7 +640,7 @@ end|},
 ||},
     ~goal={|case 1
 | A => 1
-|?|},
+||},
   ),
   /* Same as above - pattern position stays at bar level */
   test_indent(
@@ -652,7 +652,7 @@ end|},
     ~goal={|case 1
 | A => 1
 |
-?|},
+|},
   ),
   /* COMPLETE CASE (with `end`) */
   test_indent(
@@ -670,7 +670,7 @@ end|},
 |
 end|},
     ~goal={|case 1
-|?
+|
 end|},
   ),
   test_indent(

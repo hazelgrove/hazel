@@ -38,6 +38,9 @@ let restore = (persisted: t): Zipper.t =>
   persisted.segment
   |> Sexplib.Sexp.of_string
   |> Segment.t_of_sexp
+  /* serialized states predating grout-free editing carry stored
+     grout; the edit state never does — holes are derived */
+  |> GroutPlace.strip
   |> Zipper.unzip(~direction=Left)
   |> Zipper.update_refractors(_, restore_refractors(persisted.refractors));
 

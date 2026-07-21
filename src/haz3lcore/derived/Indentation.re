@@ -337,14 +337,17 @@ let rec go =
 };
 
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
-  go(~not_top=false, 0, seg);
+  /* indentation rules read content anchors after linebreaks; the
+     edit state is grout-free, so derive the holes first — a hole is
+     content for indentation exactly as it is for statics */
+  go(~not_top=false, 0, GroutPlace.place(seg));
 
 /* Look up indentation for a single linebreak by ID.
  * Uses exception-based short-circuit for efficiency. */
 let level_of = (~target_id: Id.t, seg: Segment.t): int =>
   try(
     {
-      ignore(go(~not_top=false, ~target_id, 0, seg));
+      ignore(go(~not_top=false, ~target_id, 0, GroutPlace.place(seg)));
       0;
     }
   ) {

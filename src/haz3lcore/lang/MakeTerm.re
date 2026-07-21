@@ -2057,7 +2057,9 @@ let from_zip_for_sem = (z: Zipper.t, ~root: Sort.t) => {
   let seg = z |> Zipper.unselect_and_zip(~erase_buffer=true);
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
   let masks = CanonicalCompletion.masks_of_records(result.shard_records);
-  go_impl(~masks, result.completed_seg);
+  /* holes reach statics placed-fresh with deterministic ids on every
+     path (display shares this derivation, so the id join holds) */
+  go_impl(~masks, GroutPlace.place(result.completed_seg));
 };
 
 let from_zip_for_sem =

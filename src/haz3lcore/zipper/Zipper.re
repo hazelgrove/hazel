@@ -3,18 +3,12 @@ open OptUtil.Syntax;
 include ZipperBase;
 
 let init: unit => t =
+  /* the empty program is EMPTY: its hole is derived at display and
+     statics time like every other hole, never stored */
   () => {
     selection: Selection.mk([]),
     relatives: {
-      siblings: (
-        [],
-        [
-          Grout({
-            id: Id.mk(),
-            shape: Convex,
-          }),
-        ],
-      ),
+      siblings: ([], []),
       ancestors: [],
     },
     caret: Outer,
@@ -137,7 +131,7 @@ let rescan_parent_shards = (z: t): t => {
               children:
                 target.children
                 |> PairUtil.map_fst(kids =>
-                     Segment.inner_regrout(kids @ [outer_l, ...kids_l])
+                     List.map(GroutPlace.strip, kids @ [outer_l, ...kids_l])
                    ),
             };
             (target, inner_l);
@@ -153,7 +147,7 @@ let rescan_parent_shards = (z: t): t => {
               children:
                 target.children
                 |> PairUtil.map_snd(kids =>
-                     Segment.inner_regrout([outer_r, ...kids_r] @ kids)
+                     List.map(GroutPlace.strip, [outer_r, ...kids_r] @ kids)
                    ),
             };
             (target, inner_r);

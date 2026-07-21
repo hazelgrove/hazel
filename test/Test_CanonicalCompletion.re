@@ -1246,7 +1246,7 @@ let leading_witness_roundtrip_tests = [
       let masks = CanonicalCompletion.masks_of_records(result.shard_records);
       let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
       let seg2 = Test_ExpToSegment.exp_to_segment_roundtrip(term);
-      check(string_testable, "buffer", "typ~ T = Int in 2", print_seg(seg));
+      check(string_testable, "buffer", "typ T = Int in 2", print_seg(seg));
       check(
         string_testable,
         "reprint (one extra space: OPEN)",
@@ -1558,13 +1558,13 @@ let tab_dispatch_tests = [
   tab_case(
     ~name="tab after 4: space, in, caret past",
     ~acts=Test_Editing.mk("let a = 4¦"),
-    ~expected="let a = 4 in ¦?",
+    ~expected="let a = 4 in ¦",
     (),
   ),
   tab_case(
     ~name="tab after 4 and a space: no double space, caret past",
     ~acts=Test_Editing.mk("let a = 4 ¦"),
-    ~expected="let a = 4 in ¦?",
+    ~expected="let a = 4 in ¦",
     (),
   ),
   /* F1 acceptance spacing: `=` carries its trailing space, `in`
@@ -1572,7 +1572,7 @@ let tab_dispatch_tests = [
   tab_case(
     ~name="multi-delimiter chip: one delimiter per tab",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
-    ~expected="let _: (Int, Bool) = ¦?",
+    ~expected="let _: (Int, Bool) = ¦",
     (),
   ),
   /* the `=?` jam (tab 1 left `= ?`) is molding-on-`in` reflow —
@@ -1581,14 +1581,14 @@ let tab_dispatch_tests = [
     ~name="multi-delimiter chip: second tab takes the next",
     ~acts=Test_Editing.mk("let _: (Int, Bool) ¦"),
     ~tabs=2,
-    ~expected="let _: (Int, Bool) =? in ¦?",
+    ~expected="let _: (Int, Bool) = in ¦",
     (),
   ),
   tab_case(
     ~name="witness: tab completes the arrow like typing",
     ~acts=
       Test_Editing.mk("case x | 1 =¦") @ [move_l, move_l, move_r, move_r],
-    ~expected="case x | 1 =>¦?",
+    ~expected="case x | 1 =>¦",
     (),
   ),
   tab_case(
@@ -1609,8 +1609,13 @@ let tab_dispatch_tests = [
    fixpoint and materializing it wholesale converge to the same
    program modulo whitespace. Guards the type-it-for-me / make-it-so
    split from semantic drift. */
+/* modulo whitespace AND holes: holes are DERIVED material (the edit
+   state never stores them), so the accept-gesture equivalence is
+   over the user-material program both gestures commit */
 let strip_ws = (s: string): string =>
-  String.to_seq(s) |> Seq.filter(c => c != ' ' && c != '\n') |> String.of_seq;
+  String.to_seq(s)
+  |> Seq.filter(c => c != ' ' && c != '\n' && c != '?' && c != '~')
+  |> String.of_seq;
 
 let tabs_vs_materialize = (~name, ~acts, ()) =>
   test_case(

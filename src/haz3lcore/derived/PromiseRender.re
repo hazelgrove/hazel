@@ -374,11 +374,23 @@ let mk_inner =
                },
              (raw, replace_marks),
            );
+      let transparent = (w: Secondary.t) =>
+        (
+          switch (w.content) {
+          | Comment(_) => true
+          | Whitespace(_) => false
+          }
+        )
+        && List.exists(
+             ((mid, msh): (Id.t, option(int))) =>
+               msh == None && Id.equal(mid, w.id),
+             ghost_marks,
+           );
       let segment =
         ghost_marks == []
-          ? segment
+          ? GroutPlace.place(segment)
           : segment
-            |> CanonicalCompletion.normalize_display
+            |> CanonicalCompletion.normalize_display(~transparent)
             |> DisplayFork.restore_ghost_holes(
                  ~marks=ghost_marks,
                  ~pre=segment,
@@ -388,6 +400,9 @@ let mk_inner =
                  ~raw,
                  ~caret_after,
                );
+      let ghost_marks =
+        ghost_marks
+        @ DisplayFork.inherit_ghost_marks(~marks=ghost_marks, segment);
       if (ghost_marks != [] && !DisplayFork.tiles_well_formed(segment)) {
         failwith("PromiseRender: malformed splice");
       };

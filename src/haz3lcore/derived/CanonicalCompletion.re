@@ -387,12 +387,13 @@ let rec heal_molds_deep = (seg: Segment.t): Segment.t =>
    Reassembly alone is not enough: ghost shards change the shape
    context, and un-regrouted/un-remolded arrangements can violate
    the tile shards/children invariant downstream (Skel). */
-let normalize_display = (seg: Segment.t): Segment.t =>
+let normalize_display =
+    (~transparent: Secondary.t => bool=_ => false, seg: Segment.t): Segment.t =>
   seg
-  |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _)
+  |> GroutPlace.place(~transparent)
   |> deep_reassemble
   |> Segment.remold(_, Sort.Exp)
-  |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _);
+  |> GroutPlace.place(~transparent);
 
 /* F1 predicates shared by ghost display and Tab acceptance — the
    ghost's spacing IS the promise of what Tab types */
@@ -2752,6 +2753,29 @@ and complete_segment_deep =
     ...top_result,
     insertions: child_insertions @ top_result.insertions,
     shard_records: child_records @ top_result.shard_records,
+  };
+};
+
+/* External face of completion: PLACED input, PLACED output. The edit
+   state is grout-free, but completion's junction/anchoring logic
+   grew up reading holes — placing the input hands it the derived
+   holes as anchors (the same information regrout used to encode),
+   and placing the output makes completion's internal grout
+   scaffolding invisible to every consumer. Idempotent by the
+   GroutPlace invariants, so double-placing at any layer is sound. */
+let complete_segment_deep =
+    (~use_indent_heuristic=true, ~fuel=24, ~only_tile=None, ~sort, seg) => {
+  let result =
+    complete_segment_deep(
+      ~use_indent_heuristic,
+      ~fuel,
+      ~only_tile,
+      ~sort,
+      GroutPlace.place(seg),
+    );
+  {
+    ...result,
+    completed_seg: GroutPlace.place(result.completed_seg),
   };
 };
 

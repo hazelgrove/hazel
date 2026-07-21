@@ -110,8 +110,78 @@ let restore_ghost_holes =
 };
 
 /* degenerate fork: no assist machinery (settings off, init paths) */
+
+/* Place-minted grout that lives among ghost material inherits ghost
+   marks, else a zone splits visually around a derived hole. A hole
+   is ghost iff it has NO real (unmarked) non-secondary neighbor: at
+   its own level the nearest non-secondary pieces decide (an absent
+   side is permissive); a hole alone in a tile child defers to the
+   flanking shards' marks. */
+let inherit_ghost_marks =
+    (~marks: list((Id.t, option(int))), seg: Segment.t)
+    : list((Id.t, option(int))) => {
+  let marked = (id: Id.t, sh: option(int)): bool =>
+    List.exists(
+      ((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh,
+      marks,
+    );
+  let piece_ghostish = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile(t) =>
+      marked(t.id, None)
+      || List.exists(i => marked(t.id, Some(i)), t.shards)
+    | Grout(g) => marked(g.id, None)
+    | Secondary(w) => marked(w.id, None)
+    | Projector(_) => false
+    };
+  let shard_ghost = (t: Tile.t, k: int): bool =>
+    switch (List.nth_opt(t.shards, k)) {
+    | Some(i) => marked(t.id, Some(i)) || marked(t.id, None)
+    | None => false
+    };
+  let acc = ref([]);
+  let rec go = (~flank_l: bool, ~flank_r: bool, seg: Segment.t): unit => {
+    let arr = Array.of_list(seg);
+    let n = Array.length(arr);
+    let rec side = (i, step, fallback) =>
+      i < 0 || i >= n
+        ? fallback
+        : (
+          switch (arr[i]) {
+          | Piece.Secondary(_) => side(i + step, step, fallback)
+          | p => piece_ghostish(p)
+          }
+        );
+    Array.iteri(
+      (i, p: Piece.t) =>
+        switch (p) {
+        | Grout(g) when !marked(g.id, None) =>
+          if (side(i - 1, -1, flank_l) && side(i + 1, 1, flank_r)) {
+            acc := [(g.id, None), ...acc^];
+          }
+        | Tile(t) =>
+          List.iteri(
+            (k, kid) =>
+              go(
+                ~flank_l=shard_ghost(t, k),
+                ~flank_r=shard_ghost(t, k + 1),
+                kid,
+              ),
+            t.children,
+          )
+        | _ => ()
+        },
+      arr,
+    );
+  };
+  go(~flank_l=true, ~flank_r=true, seg);
+  acc^;
+};
+
 let plain = (z: Zipper.t): t => {
-  let segment = Zipper.unselect_and_zip(z);
+  /* the document display IS the placed projection: the edit state is
+     grout-free; every hole shown is derived, zero-width in layout */
+  let segment = GroutPlace.place(Zipper.unselect_and_zip(z));
   {
     segment,
     ghost_marks: [],
@@ -377,17 +447,31 @@ let mk_inner =
        impossible all-present-unassembled run. Then the padding
        oracle: F1 spacing around system material, applied LAST so
        nothing can reorder it. */
+    let transparent = (w: Secondary.t) =>
+      (
+        switch (w.content) {
+        | Comment(_) => true
+        | Whitespace(_) => false
+        }
+      )
+      && List.exists(
+           ((mid, msh): (Id.t, option(int))) =>
+             msh == None && Id.equal(mid, w.id),
+           ghost_marks,
+         );
     let segment =
       ghost_marks == []
-        ? segment
+        ? GroutPlace.place(segment)
         : segment
-          |> CanonicalCompletion.normalize_display
+          |> CanonicalCompletion.normalize_display(~transparent)
           |> restore_ghost_holes(~marks=ghost_marks, ~pre=segment)
           |> CanonicalCompletion.finish_display(
                ~marks=ghost_marks,
                ~raw,
                ~caret_after=CanonicalCompletion.caret_left_atom(z),
              );
+    let ghost_marks =
+      ghost_marks @ inherit_ghost_marks(~marks=ghost_marks, segment);
     if (ghost_marks != [] && !tiles_well_formed(segment)) {
       failwith("DisplayFork: malformed splice");
     };

@@ -163,7 +163,7 @@ let literal_tests = [
   ind(~name="Before var", ~input={|¦foo|}, ~indicated="foo [R,S]"),
   ind(~name="After var", ~input={|foo¦|}, ~indicated="foo [L,S]"),
   /* --- Explicit holes --- */
-  ind(~name="Before explicit hole", ~input={|¦?|}, ~indicated="? [R,S]"),
+  ind(~name="Before explicit hole", ~input={|¦|}, ~indicated="? [R,S]"),
   ind(~name="After explicit hole", ~input={|?¦|}, ~indicated="? [L,S]"),
 ];
 

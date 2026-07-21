@@ -352,14 +352,20 @@ let coincidence = {
     test_case("completion output carries grout", `Quick, () =>
       check(bool, "has grout", true, grout_ids(c1) != [])
     ),
-    test_case("completion-minted grout ids diverge (the gap)", `Quick, () =>
-      check(
-        string_testable,
-        "gap",
-        "minted-differ",
-        grout_ids(c1) == grout_ids(c2) ? "coincide" : "minted-differ",
-      )
-    ),
+    test_case("completion output is placed: ids coincide", `Quick, ()
+      /* the joined step sealed the historical gap at the completion
+         boundary itself — complete_segment_deep returns PLACED
+         output, so independent derivations agree by construction
+         (this pin read "minted-differ" while raw completion leaked
+         its internal random-id grout) */
+      =>
+        check(
+          string_testable,
+          "gap",
+          "coincide",
+          grout_ids(c1) == grout_ids(c2) ? "coincide" : "minted-differ",
+        )
+      ),
     test_case("place makes independent derivations coincide", `Quick, () =>
       check(
         string_testable,

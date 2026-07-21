@@ -90,7 +90,14 @@ let weave = (run: list(Secondary.t), g: piece, index: int): list(piece) => {
   secs(before) @ [g, ...secs(rest)];
 };
 
-let rec place' = (~ctx: string, ~top_level: bool, seg: segment): segment => {
+let rec place' =
+        (
+          ~transparent: Secondary.t => bool,
+          ~ctx: string,
+          ~top_level: bool,
+          seg: segment,
+        )
+        : segment => {
   /* emit the pending secondary run between two non-secondary pieces
    * (or a segment edge), minting a hole iff the flanking nib shapes
    * conflict */
@@ -113,11 +120,17 @@ let rec place' = (~ctx: string, ~top_level: bool, seg: segment): segment => {
     } else {
       let shape = shape_of_nib(Nib.Shape.flip(prev_r));
       let id = hole_id(~ctx, ~l=l_id, ~r=r_id, ~shape);
+      /* a transparent secondary (a ghost comment standing in for
+         future real material) is classified as a space for the
+         placement decision: not a wall, not content — same length
+         list, so the index maps back onto the real run */
+      let decide_run =
+        List.map(w => transparent(w) ? Secondary.mk_space(w.id) : w, run);
       let placed: HolePlacement.t =
         HolePlacement.decide(
           ~at_boundary=next == None && top_level,
           ~leading=at_leading && top_level,
-          run,
+          decide_run,
         );
       weave(
         run,
@@ -155,6 +168,7 @@ let rec place' = (~ctx: string, ~top_level: bool, seg: segment): segment => {
               List.mapi(
                 (i, kid) =>
                   place'(
+                    ~transparent,
                     ~ctx=child_ctx(~tile=t.id, ~child=i),
                     ~top_level=false,
                     kid,
@@ -191,5 +205,6 @@ let rec place' = (~ctx: string, ~top_level: bool, seg: segment): segment => {
   );
 };
 
-let place = (seg: segment): segment =>
-  place'(~ctx=root_ctx, ~top_level=true, seg);
+let place =
+    (~transparent: Secondary.t => bool=_ => false, seg: segment): segment =>
+  place'(~transparent, ~ctx=root_ctx, ~top_level=true, seg);

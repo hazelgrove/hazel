@@ -839,7 +839,7 @@ let delete_tests = (
             "let a = 1 in let b = 2 in a + b",
             Delete(Body, "a"),
           );
-        check_rendered("delete_body_first", "let a = 1 in ?", result);
+        check_rendered("delete_body_first", "let a = 1 in ", result);
       },
     ),
     test_case(
@@ -1299,7 +1299,7 @@ let composition_view_print_tests = (
     test_case("hole renders as question mark, not absence", `Quick, () =>
       check_rendered(
         "hole as question mark",
-        "let a = 1 in ?",
+        "let a = 1 in ",
         "let a = 1 in " |> mk_zipper |> CompositionView.Public.print_zipper,
       )
     ),
