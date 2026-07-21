@@ -41,8 +41,13 @@ let decompose = (f: MatchedTyp.matcher, ctx, ana): list(routed(Typ.t)) =>
      );
 
 let assembler_route =
-    (asm: Info.assembler, shapes: list(Typ.t), i: int): query_route => {
-  down: q => route_query(asm(shapes), List.nth(shapes, i), q),
+    (asm: Info.assembler, shapes: list(Typ.t), anas: list(Typ.t), i: int)
+    : query_route => {
+  down: q => {
+    let parent = asm(shapes);
+    let routed = route_query(parent, List.nth(shapes, i), q);
+    empty_query(routed) ? route_query(parent, List.nth(anas, i), q) : routed;
+  },
   up: (_, psi) =>
     asm(
       List.mapi((j, shape) => j == i ? psi : query_shell(shape), shapes),
@@ -1277,10 +1282,9 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
         switch (info.assemble) {
         | None => children
         | Some(asm) =>
-          let keep_shapes =
-            children
-            |> List.filter(c => c.mode == SliceKeep)
-            |> List.map(c => c.node.shape);
+          let kept = children |> List.filter(c => c.mode == SliceKeep);
+          let keep_shapes = List.map(c => c.node.shape, kept);
+          let keep_anas = List.map(c => c.node.ana, kept);
           List.fold_left(
             ((rerouted, i), c) =>
               c.mode == SliceKeep
@@ -1289,7 +1293,7 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
                   @ [
                     {
                       ...c,
-                      route: assembler_route(asm, keep_shapes, i),
+                      route: assembler_route(asm, keep_shapes, keep_anas, i),
                     },
                   ],
                   i + 1,
