@@ -21,6 +21,7 @@ let (suite, _) =
       Test_BuiltinsADT.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
+      Test_FormId.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
