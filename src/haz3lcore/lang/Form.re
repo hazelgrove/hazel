@@ -444,68 +444,6 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
       [op(Drv(Exp)), op(Drv(Pat)), op(Drv(Typ)), op(Drv(TPat))],
     );
 
-module Molds = {
-  let atomics: list((Token.t => bool, list(Mold.t))) =
-    List.map(get_atomic_form, all_of_atomic_form);
-
-  let compounds: list((Label.t, list(Mold.t))) =
-    forms
-    |> List.fold_left(
-         (acc, (_, {label, mold, _}: def)) => {
-           let molds =
-             switch (List.assoc_opt(label, acc)) {
-             | Some(old_molds) => old_molds @ [mold]
-             | None => [mold]
-             };
-           List.cons((label, molds), List.remove_assoc(label, acc));
-         },
-         [],
-       );
-
-  let atomic: Token.t => list(Mold.t) =
-    (t: Token.t) =>
-      List.concat_map(((p, molds)) => p(t) ? molds : [], atomics);
-
-  let compound = (label: Label.t): option(list(Mold.t)) =>
-    List.assoc_opt(label, compounds);
-
-  /* Base: get molds from form definitions without sort filtering */
-  let get_base = (label: Label.t): list(Mold.t) =>
-    switch (label, compound(label)) {
-    | ([t], Some(molds)) when atomic(t) != [] => atomic(t) @ molds
-    | ([t], None) when atomic(t) != [] => atomic(t)
-    | (_, Some(molds)) => molds
-    | _ => []
-    };
-
-  /* Strict: filter by sort, returns None if no match.
-     Used by remolding where we need accurate sort filtering. */
-  let try_get = (sort: Sort.t, label: Label.t): option(list(Mold.t)) => {
-    let molds = get_base(label);
-    let filtered = molds |> List.filter((m: Mold.t) => m.out == sort);
-    filtered == [] ? None : Some(filtered);
-  };
-
-  /* Get mold for insertion: permissive sort filtering with fallback
-     to Any-sorted default molds for undefined tokens. */
-  let get = (sort: Sort.t, label: Label.t): Mold.t =>
-    switch (try_get(sort, label)) {
-    | Some(molds) =>
-      assert(molds != []);
-      List.hd(molds);
-    | None =>
-      /* Fallback: create Any-sorted default mold. This handles tokens
-         not assigned molds by the language definition. */
-      switch (label) {
-      | [t]
-          when
-            Token.is_potential_operator(t) && !Token.is_potential_operand(t) =>
-        Mold.mk_bin(Precedence.max, Any, [])
-      | _ => Mold.mk_op(Any, [])
-      }
-    };
-};
-
 module Expansion = {
   /* Sort-agnostic expansion info (for backward compatibility) */
   let expanding_of = ({expansion, label, _}: def): option(expansions) =>
@@ -604,8 +542,7 @@ module Expansion = {
     };
 };
 
-/* FormId lookup/classification layer. Byte-equivalent to the legacy
- * Molds oracle above (enforced by property tests in
+/* FormId lookup/classification layer (property-tested in
  * test/Test_FormId.re). */
 
 let form_of: compound_form => def = {
@@ -688,8 +625,6 @@ let mold_of: FormId.t => Mold.t =
     }
   | Unmolded(t) => unmolded_mold([t]);
 
-/* Replicates Molds.get(sort, label) exactly:
- * mold_of(classify_label(sort, label)) == Molds.get(sort, label) */
 let classify_label = (sort: Sort.t, label: Label.t): FormId.t => {
   let fits = ((_, m): (FormId.t, Mold.t)): bool => m.out == sort;
   switch (List.find_opt(fits, base_candidates(label))) {
@@ -730,8 +665,6 @@ let mk_parens_id = (sort: Sort.t): FormId.t =>
   | _ => classify_label(sort, Token.tuple_lbl)
   };
 
-/* Mirrors Molds.try_get: same molds (via mold_of), same order,
- * as FormIds; None => [] */
 let remold_candidates = (label: Label.t, sort: Sort.t): list(FormId.t) =>
   base_candidates(label)
   |> List.filter(((_, m): (FormId.t, Mold.t)) => m.out == sort)

@@ -105,19 +105,13 @@ module Typ = {
 module Delims = {
   let leading = (sort: Sort.t): list(Token.t) =>
     Form.delims
-    |> List.map(token => {
+    |> List.filter_map(token => {
          let (lbl, _) = Form.Expansion.get(sort, token);
-         switch (Form.Molds.try_get(sort, lbl)) {
-         | None => []
-         | Some(molds) =>
-           molds
-           |> List.filter_map((_: Mold.t) =>
-                List.length(lbl) > 1 && token == List.hd(lbl)
-                  ? Some(token ++ leading_expander) : None
-              )
-         };
+         Form.remold_candidates(lbl, sort) != []
+         && List.length(lbl) > 1
+         && token == List.hd(lbl)
+           ? Some(token ++ leading_expander) : None;
        })
-    |> List.flatten
     |> List.sort_uniq(compare);
 
   let leading_exp = leading(Exp);
@@ -143,19 +137,16 @@ module Delims = {
     | _ => []
     };
 
+  /* compound forms only: single tokens registered merely as atoms
+   * (e.g. infix-delimiter prefixes) are not infix suggestions */
   let infix = (sort: Sort.t): list(Token.t) =>
     Form.delims
-    |> List.map(token => {
-         List.filter_map(
-           (m: Mold.t) =>
-             m.out == sort && Mold.is_infix_op(m) ? Some(token) : None,
-           switch (Form.Molds.compound([token])) {
-           | Some(molds) => molds
-           | None => []
-           },
-         )
-       })
-    |> List.flatten
+    |> List.filter(token =>
+         Form.compound_defs([token])
+         |> List.exists(((_, m): (Form.compound_form, Mold.t)) =>
+              m.out == sort && Mold.is_infix_op(m)
+            )
+       )
     |> List.sort_uniq(compare);
   let infix_exp = infix(Exp);
   let infix_pat = infix(Pat);
@@ -178,17 +169,7 @@ module Delims = {
 
   let const_mono = (sort: Sort.t): list(Token.t) =>
     Token.const_mono_delims
-    |> List.map(token => {
-         switch (Form.Molds.try_get(sort, [token])) {
-         | None => []
-         | Some(molds) =>
-           molds
-           |> List.filter_map((_: Mold.t) =>
-                List.mem(token, Token.const_mono_delims) ? Some(token) : None
-              )
-         }
-       })
-    |> List.flatten
+    |> List.filter(token => Form.remold_candidates([token], sort) != [])
     |> List.sort_uniq(compare);
 
   /* base_typs (String, Int, Float, Bool, Nat, SInt) have Exp/Pat-sort

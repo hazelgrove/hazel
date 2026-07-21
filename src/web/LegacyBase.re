@@ -53,8 +53,8 @@ let reset_counts = () => {
   classified_log := [];
 };
 
-/* The two mold shapes Form.Molds.get falls back to for labels that
- * fail to mold (see Form.unmolded_mold) */
+/* The two mold shapes the legacy Molds.get fell back to for labels
+ * that fail to mold (see Form.unmolded_mold) */
 let any_fallback_molds: list(Mold.t) = [
   Mold.mk_op(Sort.Any, []),
   Mold.mk_bin(Precedence.max, Sort.Any, []),

@@ -1,8 +1,7 @@
-/* Property tests proving the FormId classification layer
- * (Form.classify_label / label_of / mold_of / remold_candidates)
- * byte-equivalent to the existing label=>mold oracles
- * (Form.Molds.get / Form.Molds.try_get). See plans/tile-datatype.md
- * Phase 0c. */
+/* Property tests for the FormId classification layer
+ * (Form.classify_label / label_of / mold_of / remold_candidates),
+ * stated oracle-free against the form registry (Form.forms /
+ * Form.get / Form.compound_defs). */
 open Alcotest;
 open Haz3lcore;
 
@@ -10,6 +9,15 @@ let mold_testable: testable(Mold.t) =
   testable(Fmt.using(Mold.show, Fmt.string), Mold.equal);
 let label_testable: testable(Label.t) =
   testable(Fmt.using(Label.show, Fmt.string), Label.equal);
+let form_id_testable: testable(Form.t) =
+  testable(Fmt.using(Form.show, Fmt.string), Form.equal);
+let sort_testable: testable(Sort.t) =
+  testable(Fmt.using(Sort.show, Fmt.string), Sort.equal);
+let compound_form_testable: testable(Form.compound_form) =
+  testable(
+    Fmt.using(Form.show_compound_form, Fmt.string),
+    Form.equal_compound_form,
+  );
 
 /* All sorts, including Drv sorts. (Sort.all omits Mod/Sig/MPat.) */
 let all_sorts: list(Sort.t) =
@@ -50,38 +58,104 @@ let corpus_labels: list(Label.t) = List.map(t => [t], token_corpus);
 let case_name = (sort: Sort.t, label: Label.t): string =>
   Sort.to_string(sort) ++ " / " ++ Label.show(label);
 
-/* mold_of(classify_label(sort, label)) == Molds.get(sort, label)
-   and label_of(classify_label(sort, label)) == label */
+let is_compound_label = (label: Label.t): bool =>
+  Form.compound_defs(label) != [];
+
+/* classify_label is total and label-preserving; it picks the first
+   remold candidate when one fits the sort, and otherwise falls back
+   to Unsorted (registered labels) / Unmolded (unregistered tokens)
+   with the Any-sorted fallback mold (bin for operator-shaped tokens,
+   op otherwise). */
 let check_classify = (sort: Sort.t, label: Label.t): unit => {
+  let name = case_name(sort, label);
   let id = Form.classify_label(sort, label);
-  check(
-    mold_testable,
-    "mold: " ++ case_name(sort, label),
-    Form.Molds.get(sort, label),
-    Form.mold_of(id),
-  );
-  check(
-    label_testable,
-    "label: " ++ case_name(sort, label),
-    label,
-    Form.label_of(id),
-  );
+  check(label_testable, "label: " ++ name, label, Form.label_of(id));
+  switch (Form.remold_candidates(label, sort)) {
+  | [first, ..._] =>
+    check(form_id_testable, "first candidate: " ++ name, first, id);
+    check(sort_testable, "mold sort: " ++ name, sort, Form.mold_of(id).out);
+  | [] =>
+    let fallback_ok =
+      switch (id) {
+      | Compound(_)
+      | Atom(_) => false
+      | Unsorted(_) => is_compound_label(label)
+      | Unmolded(_) => !is_compound_label(label)
+      };
+    check(bool, "fallback class: " ++ name, true, fallback_ok);
+    let fallback_mold =
+      switch (label) {
+      | [t]
+          when
+            Token.is_potential_operator(t) && !Token.is_potential_operand(t) =>
+        Mold.mk_bin(Precedence.max, Sort.Any, [])
+      | _ => Mold.mk_op(Sort.Any, [])
+      };
+    check(
+      mold_testable,
+      "fallback mold: " ++ name,
+      fallback_mold,
+      Form.mold_of(id),
+    );
+  };
 };
 
-/* remold_candidates(label, sort) mirrors Molds.try_get(sort, label):
-   same molds (via mold_of), same order; None <-> [] */
+/* remold_candidates: every candidate fits the sort and spells the
+   label; candidates are Compound/Atom only, atoms (single tokens)
+   before compounds; the compound candidates appear in
+   forms-declaration order. */
 let check_remold = (sort: Sort.t, label: Label.t): unit => {
-  let expected =
-    switch (Form.Molds.try_get(sort, label)) {
-    | None => []
-    | Some(molds) => molds
-    };
-  let actual = Form.remold_candidates(label, sort) |> List.map(Form.mold_of);
+  let name = case_name(sort, label);
+  let cands = Form.remold_candidates(label, sort);
+  List.iter(
+    c => {
+      check(
+        sort_testable,
+        "candidate sort: " ++ name,
+        sort,
+        Form.mold_of(c).out,
+      );
+      check(
+        label_testable,
+        "candidate label: " ++ name,
+        label,
+        Form.label_of(c),
+      );
+    },
+    cands,
+  );
+  let expected_compounds =
+    Form.forms
+    |> List.filter(((_, def): (Form.compound_form, Form.def)) =>
+         def.label == label && def.mold.out == sort
+       )
+    |> List.map(fst);
+  let actual_compounds =
+    cands
+    |> List.filter_map(
+         fun
+         | Form.Compound(cf) => Some(cf)
+         | _ => None,
+       );
   check(
-    list(mold_testable),
-    "candidates: " ++ case_name(sort, label),
-    expected,
-    actual,
+    list(compound_form_testable),
+    "compounds in declaration order: " ++ name,
+    expected_compounds,
+    actual_compounds,
+  );
+  let rec atoms_then_compounds = (cands, seen_compound) =>
+    switch (cands) {
+    | [] => true
+    | [Form.Compound(_), ...tl] => atoms_then_compounds(tl, true)
+    | [Form.Atom(_), ...tl] =>
+      !seen_compound && atoms_then_compounds(tl, seen_compound)
+    | [Form.Unsorted(_) | Form.Unmolded(_), ..._] => false
+    };
+  check(
+    bool,
+    "atoms precede compounds: " ++ name,
+    true,
+    atoms_then_compounds(cands, false),
   );
 };
 
@@ -110,23 +184,73 @@ let tests = (
       )
     ),
     test_case(
-      "classify_label equals Molds.get on all form labels x all sorts",
+      "classify_label on all form labels x all sorts: label-preserving, "
+      ++ "first-candidate, never Unmolded",
       `Quick,
       () =>
       List.iter(
-        label => List.iter(sort => check_classify(sort, label), all_sorts),
+        label =>
+          List.iter(
+            sort => {
+              check_classify(sort, label);
+              let id = Form.classify_label(sort, label);
+              check(
+                bool,
+                "registered label never Unmolded: " ++ case_name(sort, label),
+                true,
+                switch (id) {
+                | Form.Unmolded(_) => false
+                | _ => true
+                },
+              );
+            },
+            all_sorts,
+          ),
         all_labels,
       )
     ),
     test_case(
-      "classify_label equals Molds.get on token corpus x all sorts", `Quick, () =>
+      "classify_label on token corpus x all sorts: total, label-preserving, "
+      ++ "sort-correct",
+      `Quick,
+      () =>
       List.iter(
-        label => List.iter(sort => check_classify(sort, label), all_sorts),
-        corpus_labels,
+        t =>
+          List.iter(
+            sort => {
+              check_classify(sort, [t]);
+              let id = Form.classify_label(sort, [t]);
+              check(
+                bool,
+                "mold sort in {sort, Any}: " ++ case_name(sort, [t]),
+                true,
+                List.mem(Form.mold_of(id).out, [sort, Sort.Any]),
+              );
+              if (!is_compound_label([t])) {
+                check(
+                  bool,
+                  "unregistered token never Compound/Unsorted: "
+                  ++ case_name(sort, [t]),
+                  true,
+                  switch (id) {
+                  | Form.Compound(_)
+                  | Form.Unsorted(_) => false
+                  | Form.Atom(_)
+                  | Form.Unmolded(_) => true
+                  },
+                );
+              };
+            },
+            all_sorts,
+          ),
+        token_corpus,
       )
     ),
     test_case(
-      "remold_candidates equals Molds.try_get on labels x sorts", `Quick, () =>
+      "remold_candidates on labels x sorts: sort-fit, label-preserving, "
+      ++ "declaration order",
+      `Quick,
+      () =>
       List.iter(
         label => List.iter(sort => check_remold(sort, label), all_sorts),
         all_labels @ corpus_labels,

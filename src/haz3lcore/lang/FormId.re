@@ -223,8 +223,8 @@ type compound_form =
   | SigType;
 
 /* A form identity: a specific registered form (compound or classified
- * atomic), or one of the two Any-fallback classes replicating
- * Form.Molds.get's behavior for labels that fail to mold:
+ * atomic), or one of the two Any-fallback classes for labels that
+ * fail to mold at the requested sort:
  * - Unsorted(cf): the label IS registered (cf = first form with that
  *   label) but no registered mold matches the requested sort;
  * - Unmolded(t): the token matches no registered form at all. */
