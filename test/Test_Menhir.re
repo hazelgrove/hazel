@@ -297,7 +297,7 @@ let tests =
           ap(Forward, filter_action((Eval, All)), int(3)),
           int(3),
         ),
-        "debug eval(3) in 3" // TODO Use other filter commands
+        "debug eval(3) in 3",
       ),
       full_parser_test(
         "Filter (hide)",
@@ -305,7 +305,7 @@ let tests =
           ap(Forward, filter_action((Eval, One)), int(3)),
           int(3),
         ),
-        "debug hide(3) in 3" // TODO Use other filter commands
+        "debug hide(3) in 3",
       ),
       full_parser_test(
         "Filter (step)",
@@ -313,7 +313,7 @@ let tests =
           ap(Forward, filter_action((Step, All)), int(3)),
           int(3),
         ),
-        "debug step(3) in 3" // TODO Use other filter commands
+        "debug step(3) in 3",
       ),
       full_parser_test(
         "Filter (stop)",
@@ -321,7 +321,7 @@ let tests =
           ap(Forward, filter_action((Step, One)), int(3)),
           int(3),
         ),
-        "debug stop(3) in 3" // TODO Use other filter commands
+        "debug stop(3) in 3",
       ),
       full_parser_test(
         "Filter selector exp in pattern",

@@ -750,9 +750,8 @@ let x = 1 in
 x|},
     (),
   ),
-  /* debug/in: chains with let (filter syntax). */
   test_format_seg(
-    ~name="Hide/in chains with let",
+    ~name="debug/in chains with let",
     ~width=40,
     ~input="debug hide(1 + 2) in let x = 1 in x",
     ~expected={|debug hide(1 + 2) in
