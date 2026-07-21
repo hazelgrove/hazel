@@ -520,24 +520,11 @@ let rec build_children =
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
       let es_mapped = List.map(exp_to_info, es);
+      /* [build_children] threads the accumulated map, so each result already
+         contains everything in the accumulator; no per-child merge needed. */
       List.fold_left(
-        (acc_map: t, e: Info.t) => {
-          let new_node_map = build_children(e, path, acc_map, info_map);
-          Id.Map.merge(
-            (_: Id.t, n1: option(node), n2: option(node)) =>
-              switch (n1, n2) {
-              | (Some(_v1), Some(v2)) =>
-                // If both maps have the same key, prefer the one with more complete data
-                // (e.g., the one that was built later with more context)
-                Some(v2)
-              | (Some(v), None) => Some(v)
-              | (None, Some(v)) => Some(v)
-              | (None, None) => None
-              },
-            acc_map,
-            new_node_map,
-          );
-        },
+        (acc_map: t, e: Info.t) =>
+          build_children(e, path, acc_map, info_map),
         node_map,
         es_mapped,
       );
