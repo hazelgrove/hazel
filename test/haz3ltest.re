@@ -49,6 +49,7 @@ let (suite, _) =
     @ Test_CompletionDisplay.tests
     @ Test_CompletionFuzz.tests
     @ Test_GroutPlace.tests
+    @ Test_FeltPrint.tests
     @ Test_CompletionScoreboard.tests
     @ Test_CompletionVisualization.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]

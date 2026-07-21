@@ -132,7 +132,10 @@ let decide = (~at_boundary: bool, ~leading=false, run: list(Secondary.t)): t => 
         style: Thin,
       }
     | n => {
-        index: leading ? n - 1 : 1,
+        /* the felt render draws the hole in the cell of the space
+         * FOLLOWING the piece, so a leading hole inserts two cells
+         * before its right anchor to keep one space between them */
+        index: leading ? max(n - 2, 0) : 1,
         style: Thick,
       }
     };

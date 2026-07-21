@@ -82,8 +82,8 @@ let empty_runs = [
   t("no whitespace, child trailing", "(1 +)", "(1 +?)"),
   t("no whitespace, child leading", "(* 2)", "(?* 2)"),
   t("leading at top level, no whitespace", "* 2", "?* 2"),
-  t("leading anchors right: one space before token", "  * 2", " ? * 2"),
-  t("leading long run anchors right", "    * 2", "   ? * 2"),
+  t("leading anchors right: one space before token", "  * 2", "?  * 2"),
+  t("leading long run anchors right", "    * 2", "  ?  * 2"),
 ];
 
 let trailing_edge = [
