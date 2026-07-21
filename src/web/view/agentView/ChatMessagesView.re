@@ -7,8 +7,6 @@ open Js_of_ocaml;
 
 open JsUtil;
 
-let _ = confirm; // Temporary. Silencing warnings from unused Icon open.
-
 // View components for different views
 module ViewComponents = {
   let prompt_view =

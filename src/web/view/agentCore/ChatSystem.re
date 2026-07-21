@@ -129,11 +129,6 @@ module Update = {
       | SaveTextBoxContent(string)
       | SlashMenuAdjustSelection(int)
       | ChatAction(Chat.Update.Action.t, Id.t);
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type result =
-      | Success(Model.t)
-      | Failure(string);
   };
 
   let get = (result: Result.t(Model.t)): Model.t => {
