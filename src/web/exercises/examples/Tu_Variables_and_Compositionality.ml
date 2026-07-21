@@ -1,9 +1,7 @@
 let exercise : Tutorial.spec =
   Tutorial.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "b4c5d6e7-8901-2345-6abc-def789012345");
+      id = Haz3lcore.Id.v "b4c5d6e7-8901-2345-6abc-def789012345";
       title = "Variables";
       version = 4;
       module_name = "Tu_Variables";
@@ -34,9 +32,7 @@ let exercise : Tutorial.spec =
 let comp_exercise : Tutorial.spec =
   Tutorial.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "c5d6e7f8-9012-3456-7abc-def890123456");
+      id = Haz3lcore.Id.v "c5d6e7f8-9012-3456-7abc-def890123456";
       title = "Compositionality";
       version = 5;
       module_name = "Tu_Compositionality";

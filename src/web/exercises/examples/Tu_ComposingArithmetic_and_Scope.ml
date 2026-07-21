@@ -1,9 +1,7 @@
 let exercise : Tutorial.spec =
   Tutorial.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "f6a7b8c9-d012-3456-789a-bcdef0123456");
+      id = Haz3lcore.Id.v "f6a7b8c9-d012-3456-789a-bcdef0123456";
       title = "Composing Arithmetic Expressions";
       version = 2;
       module_name = "Tu_ComposingArithmetic";
@@ -32,9 +30,7 @@ let exercise : Tutorial.spec =
 let scope_exercise : Tutorial.spec =
   Tutorial.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "a7b8c9d0-1234-5678-9abc-def012345678");
+      id = Haz3lcore.Id.v "a7b8c9d0-1234-5678-9abc-def012345678";
       title = "Scope";
       version = 6;
       module_name = "Tu_Scope";

@@ -1,9 +1,7 @@
 let exercise : Tutorial.spec =
   Tutorial.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "d0e1f2a3-4567-8901-2abc-def345678901");
+      id = Haz3lcore.Id.v "d0e1f2a3-4567-8901-2abc-def345678901";
       title = "Expressive Programming";
       version = 1;
       module_name = "Tu_ExpressiveProgramming";

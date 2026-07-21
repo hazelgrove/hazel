@@ -68,18 +68,16 @@ let mk_str: string => t = s => Uuidm.v5(namespace_uuid, s);
 let compare: (t, t) => int = Uuidm.compare;
 let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;
 let of_string: (~pos: int=?, string) => option(t) = Uuidm.of_string;
+/* OCaml-literal id constructor: pp/show render ids as
+ * Haz3lcore.Id.v("<uuid>"), consumed as compilable OCaml in generated
+ * exercise/derivation files (and as debug display). */
+let v: string => t =
+  s =>
+    Uuidm.of_string(s)
+    |> OptUtil.get(_ => failwith("Id.v: not a valid UUID: " ++ s));
 let pp: (Format.formatter, t) => unit =
-  (f, id) =>
-    Format.fprintf(
-      f,
-      "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
-      to_string(id),
-    );
-let show = id =>
-  Format.sprintf(
-    "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
-    to_string(id),
-  );
+  (f, id) => Format.fprintf(f, "Haz3lcore.Id.v(\"%s\")", to_string(id));
+let show = id => Format.sprintf("Haz3lcore.Id.v(\"%s\")", to_string(id));
 
 let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
 let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);

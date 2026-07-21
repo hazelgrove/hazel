@@ -1,9 +1,7 @@
 let exercise : DerivationExercise.spec =
   DerivationExercise.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "1040866d-20f7-42e3-96c4-a9d9a4b239d3");
+      id = Haz3lcore.Id.v "1040866d-20f7-42e3-96c4-a9d9a4b239d3";
       title = "conjunction commutativity";
       module_name = "conjunction commutativity";
       prompt = "TODO: prompt";

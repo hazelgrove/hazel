@@ -2,9 +2,7 @@ let exercise : Exercise.t =
   Code
     (CodeExercise.transition
        {
-         id =
-           Option.get
-             (Haz3lcore.Id.of_string "3335e34d-d211-4332-91e2-815e9e183885");
+         id = Haz3lcore.Id.v "3335e34d-d211-4332-91e2-815e9e183885";
          title = "Oddly Recursive";
          module_name = "Ex_OddlyRecursive";
          prompt =

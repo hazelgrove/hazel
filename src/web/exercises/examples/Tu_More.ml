@@ -1,9 +1,7 @@
 let bools_ex : Tutorial.spec =
   Tutorial.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "e1f2a3b4-5678-9012-3abc-def456789012");
+      id = Haz3lcore.Id.v "e1f2a3b4-5678-9012-3abc-def456789012";
       title = "Booleans and Types";
       version = 8;
       module_name = "Tu_Booleans_and_Types";
@@ -53,9 +51,7 @@ let bools_ex : Tutorial.spec =
 let cond_ex : Tutorial.spec =
   Tutorial.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "f2a3b4c5-6789-0123-4abc-def567890123");
+      id = Haz3lcore.Id.v "f2a3b4c5-6789-0123-4abc-def567890123";
       title = "Conditional Expressions";
       version = 9;
       module_name = "Tu_Conditional_Expressions";
@@ -83,9 +79,7 @@ let cond_ex : Tutorial.spec =
 let func_ex : Tutorial.spec =
   Tutorial.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "a3b4c5d6-7890-1234-5abc-def678901234");
+      id = Haz3lcore.Id.v "a3b4c5d6-7890-1234-5abc-def678901234";
       title = "Functions";
       version = 10;
       module_name = "Tu_Functions";

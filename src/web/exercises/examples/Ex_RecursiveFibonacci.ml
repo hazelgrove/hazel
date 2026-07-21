@@ -2,9 +2,7 @@ let exercise : Exercise.t =
   Code
     (CodeExercise.transition
        {
-         id =
-           Option.get
-             (Haz3lcore.Id.of_string "12f5e34d-d211-4332-91e2-815e9e183885");
+         id = Haz3lcore.Id.v "12f5e34d-d211-4332-91e2-815e9e183885";
          title = "Recursive Fibonacci";
          module_name = "Ex_RecursiveFibonacci";
          prompt =

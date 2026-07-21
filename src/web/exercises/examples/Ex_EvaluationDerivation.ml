@@ -2,9 +2,7 @@ let exercise : Exercise.t =
   Derivation
     (DerivationExercise.transition
        {
-         id =
-           Option.get
-             (Haz3lcore.Id.of_string "2f0137e3-672e-47f8-8493-5a593e1959c3");
+         id = Haz3lcore.Id.v "2f0137e3-672e-47f8-8493-5a593e1959c3";
          title = "Evaluation Derivation";
          module_name = "Ex_EvaluationDerivation";
          prompt =

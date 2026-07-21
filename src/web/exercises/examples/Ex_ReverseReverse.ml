@@ -2,9 +2,7 @@ let exercise : Exercise.t =
   Theorem
     (TheoremExercise.transition
        {
-         id =
-           Option.get
-             (Haz3lcore.Id.of_string "f2132f9f-a452-481b-ba9a-c40e7d2346aa");
+         id = Haz3lcore.Id.v "f2132f9f-a452-481b-ba9a-c40e7d2346aa";
          title = "Reverse! Reverse!";
          module_name = "Ex_ReverseReverse";
          prompt =

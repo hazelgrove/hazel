@@ -1,9 +1,7 @@
 let exercise : Tutorial.spec =
   Tutorial.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "b8c9d0e1-2345-6789-0abc-def123456789");
+      id = Haz3lcore.Id.v "b8c9d0e1-2345-6789-0abc-def123456789";
       title = "Computing Equationally";
       version = 3;
       module_name = "Tu_ComputingEquationally";
@@ -32,9 +30,7 @@ let exercise : Tutorial.spec =
 let shadow_exercise : Tutorial.spec =
   Tutorial.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "c9d0e1f2-3456-7890-1abc-def234567890");
+      id = Haz3lcore.Id.v "c9d0e1f2-3456-7890-1abc-def234567890";
       title = "Shadowing";
       version = 7;
       module_name = "Tu_Shadowing";

@@ -1,9 +1,7 @@
 let exercise : DerivationExercise.spec =
   DerivationExercise.transition
     {
-      id =
-        Option.get
-          (Haz3lcore.Id.of_string "6877c1e5-4421-40c8-9da3-9b41f3e48a3d");
+      id = Haz3lcore.Id.v "6877c1e5-4421-40c8-9da3-9b41f3e48a3d";
       title = "Curried Function Derivation";
       module_name = "Ex_Curried_Function_Derivation";
       prompt =
