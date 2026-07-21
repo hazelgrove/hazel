@@ -301,8 +301,7 @@ let update =
                 };
               (z, expand);
             | RemoveStatics(_) =>
-              let z =
-                ProbePerform.remove_statics_at(~syntax, id, info_map, z);
+              let z = ProbePerform.remove_statics_at(id, info_map, z);
               (z, false);
             | ToggleStatics(_) =>
               let z =

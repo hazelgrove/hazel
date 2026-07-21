@@ -3175,8 +3175,7 @@ let statics_refractor_tests = (
             | _ =>
               Alcotest.fail("expected Statics status after place_statics_at")
             };
-            let z3 =
-              ProbePerform.remove_statics_at(~syntax, id, info_map, z2);
+            let z3 = ProbePerform.remove_statics_at(id, info_map, z2);
             switch (ProbePerform.probe_status(id, info_map, z3.refractors)) {
             | Non => ()
             | _ =>
@@ -3207,8 +3206,7 @@ let statics_refractor_tests = (
             | Manual(_) => ()
             | _ => Alcotest.fail("expected Manual probe after add_manual")
             };
-            let z3 =
-              ProbePerform.remove_statics_at(~syntax, id, info_map, z2);
+            let z3 = ProbePerform.remove_statics_at(id, info_map, z2);
             switch (ProbePerform.probe_status(id, info_map, z3.refractors)) {
             | Manual(_) => ()
             | _ =>

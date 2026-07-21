@@ -880,7 +880,7 @@ let place_statics_at =
 
 /** Remove only statics manual entries for targets of this path; leaves probes intact. */
 let remove_statics_at =
-    (~syntax as _, id: Id.t, info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
+    (id: Id.t, info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let target_ids = target_subterm_ids(id, info_map);
   Zipper.update_manuals(
     manuals =>
