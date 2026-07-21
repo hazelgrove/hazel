@@ -114,9 +114,9 @@ let poly_slots = (ctx, ty): list(Typ.t) => [
   snd(poly_pair_tolerant(ctx, ty)),
 ];
 let label_slots = (ctx, ty): list(Typ.t) =>
-  switch (label(ctx, ty)) {
-  | Some((l, v)) => [l, v]
-  | None => [Unknown(Internal) |> temp, Unknown(Internal) |> temp]
+  switch (term_of(weak_head_normalize(ctx, ty))) {
+  | TupLabel(l, v) => [l, v]
+  | _ => [Unknown(Internal) |> temp, Unknown(Internal) |> temp]
   };
 let prod_slots = (arity, ctx, ty): list(Typ.t) =>
   switch (args(ctx, ty, arity)) {

@@ -33,6 +33,26 @@ let decompose =
        }
      );
 
+let label_path = (ctx: Ctx.t, tuple_ty: Typ.t, label: string): option(path) =>
+  typ_children(Typ.weak_head_normalize(ctx, tuple_ty))
+  |> List.mapi((i, c) => (i, c))
+  |> List.find_opt(((_, c)) =>
+       switch (Typ.term_of(c)) {
+       | TupLabel({term: Label(l), _}, _) => l == label
+       | _ => false
+       }
+     )
+  |> Option.map(((i, _)) => [i, 1]);
+
+let field_route = (ctx: Ctx.t, tuple_ty: Typ.t, label: string): query_route =>
+  switch (label_path(ctx, tuple_ty, label)) {
+  | Some(path) => {
+      down: q => lift(Typ.weak_head_normalize(ctx, tuple_ty), path, q),
+      up: (_, psi) => project(psi, path),
+    }
+  | None => identity_route
+  };
+
 type result = {
   omitted: Id.Set.t,
   gamma: Ctx.t,
@@ -1223,7 +1243,12 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
                      : [],
                  pattern,
                  ascribed,
-                 route: child_info.route,
+                 route:
+                   switch (Exp.term_of(info.user_term)) {
+                   | Dot(_, {term: Label(label), _}) when mode == SliceKeep =>
+                     field_route(info.ctx, child_info.elab_syn_ty, label)
+                   | _ => child_info.route
+                   },
                  node: {
                    let node =
                      go(
