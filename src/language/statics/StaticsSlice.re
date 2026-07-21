@@ -40,25 +40,14 @@ let decompose = (f: MatchedTyp.matcher, ctx, ana): list(routed(Typ.t)) =>
        }
      );
 
-let label_path = (ctx: Ctx.t, tuple_ty: Typ.t, label: string): option(path) =>
-  typ_children(Typ.weak_head_normalize(ctx, tuple_ty))
-  |> List.mapi((i, c) => (i, c))
-  |> List.find_opt(((_, c)) =>
-       switch (Typ.term_of(c)) {
-       | TupLabel({term: Label(l), _}, _) => l == label
-       | _ => false
-       }
-     )
-  |> Option.map(((i, _)) => [i, 1]);
-
-let field_route = (ctx: Ctx.t, tuple_ty: Typ.t, label: string): query_route =>
-  switch (label_path(ctx, tuple_ty, label)) {
-  | Some(path) => {
-      down: q => lift(Typ.weak_head_normalize(ctx, tuple_ty), path, q),
-      up: (_, psi) => project(psi, path),
-    }
-  | None => identity_route
-  };
+let assembler_route =
+    (asm: Info.assembler, shapes: list(Typ.t), i: int): query_route => {
+  down: q => route_query(asm(shapes), List.nth(shapes, i), q),
+  up: (_, psi) =>
+    asm(
+      List.mapi((j, shape) => j == i ? psi : query_shell(shape), shapes),
+    ),
+};
 
 type result = {
   omitted: Id.Set.t,
@@ -1250,12 +1239,7 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
                      : [],
                  pattern,
                  ascribed,
-                 route:
-                   switch (Exp.term_of(info.user_term)) {
-                   | Dot(_, {term: Label(label), _}) when mode == SliceKeep =>
-                     field_route(info.ctx, child_info.elab_syn_ty, label)
-                   | _ => child_info.route
-                   },
+                 route: child_info.route,
                  node: {
                    let node =
                      go(
@@ -1289,6 +1273,33 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
              | _ => None
              }
            );
+      let children =
+        switch (info.assemble) {
+        | None => children
+        | Some(asm) =>
+          let keep_shapes =
+            children
+            |> List.filter(c => c.mode == SliceKeep)
+            |> List.map(c => c.node.shape);
+          List.fold_left(
+            ((rerouted, i), c) =>
+              c.mode == SliceKeep
+                ? (
+                  rerouted
+                  @ [
+                    {
+                      ...c,
+                      route: assembler_route(asm, keep_shapes, i),
+                    },
+                  ],
+                  i + 1,
+                )
+                : (rerouted @ [c], i),
+            ([], 0),
+            children,
+          )
+          |> fst;
+        };
       let sources = List.filter(c => c.mode == SliceSource, children);
       let nodes = mode =>
         List.filter_map(c => c.mode == mode ? Some(c.node) : None, children);

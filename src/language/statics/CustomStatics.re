@@ -258,6 +258,7 @@ let handle_tuple_operation =
             dot_labels: [],
             slice_children: [],
             route: Info.identity_route,
+            assemble: None,
           }),
           m,
         );
@@ -454,6 +455,7 @@ let group_by_label_statics =
             dot_labels: [],
             slice_children: [],
             route: Info.identity_route,
+            assemble: None,
           }),
           m,
         );

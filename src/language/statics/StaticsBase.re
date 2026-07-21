@@ -550,6 +550,7 @@ module type ExpressionStatics = {
       ~ana: Typ.t=?,
       ~ancestors: Info.ancestors=?,
       ~route: Info.query_route=?,
+      ~assemble: option(Info.assembler)=?,
       ~co_ctx: CoCtx.t,
       ~message: Message.t=?,
       ~label_inference: option(Info.label_inference(Info.exp))=?, // TODO[Matt]: combine with message

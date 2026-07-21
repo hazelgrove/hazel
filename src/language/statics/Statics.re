@@ -316,6 +316,7 @@ and uexp_to_info_map =
         ~ana=ana,
         ~ancestors=ancestors,
         ~route=route,
+        ~assemble: option(Info.assembler)=None,
         ~co_ctx: CoCtx.t,
         ~message: option(Message.t)=?,
         ~label_inference: option(Info.label_inference(Info.exp))=None, // TODO[Matt]: combine with message
@@ -364,6 +365,7 @@ and uexp_to_info_map =
       dot_labels,
       slice_children,
       route,
+      assemble,
     };
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoExp(info), m));
   };
@@ -959,36 +961,48 @@ and uexp_to_info_map =
       let co_ctx = CoCtx.union([t1.co_ctx, t2.co_ctx]);
       let elab_term = TupleExtension(e1_elab, e2_elab) |> rewrap;
 
+      let extract_entry: Typ.t => (option(string), Typ.t) = (
+        t =>
+          switch (Typ.match_tup_label(t)) {
+          | Some((name, t)) => (Some(name), t)
+          | None => (None, t)
+          }
+      );
+      let entries_of = t =>
+        switch (Typ.term_of(Typ.normalize(ctx, t))) {
+        | Prod(ts) => List.map(extract_entry, ts)
+        | _ => []
+        };
+      let assemble: Info.assembler = (
+        fun
+        | [a, b] =>
+          Prod(
+            List.map(
+              ((lab, d)) =>
+                switch (lab) {
+                | Some(l) => TupLabel(Label(l) |> Typ.temp, d) |> Typ.temp
+                | None => d
+                },
+              LabeledTuple.extension(entries_of(a), entries_of(b)),
+            ),
+          )
+          |> Typ.temp
+        | _ => Unknown(Internal) |> Typ.temp
+      );
+
       switch (
         Typ.normalize(ctx, t1.ty).term,
         Typ.normalize(ctx, t2.ty).term,
       ) {
-      | (Prod(ts1), Prod(ts2)) =>
-        let extract_entry: Typ.t => (option(string), Typ.t) = (
-          t =>
-            switch (Typ.match_tup_label(t)) {
-            | Some((name, t)) => (Some(name), t)
-            | None => (None, t)
-            }
-        );
-        let e1_entries = List.map(extract_entry, ts1);
-        let e2_entries = List.map(extract_entry, ts2);
-
-        let ty: Grammar.typ_t(IdTagged.IdTag.t) =
-          IdTagged.FreshGrammar.Typ.(
-            prod(
-              List.map(
-                ((lab, d)) =>
-                  switch (lab) {
-                  | Some(l) => tup_label(label(l), d)
-                  | None => d
-                  },
-                LabeledTuple.extension(e1_entries, e2_entries),
-              ),
-            )
-          );
-
-        add(~elab_term, ~elab_syn_ty=ty, ~marks=[], ~co_ctx, m);
+      | (Prod(_), Prod(_)) =>
+        add(
+          ~elab_term,
+          ~elab_syn_ty=assemble([t1.ty, t2.ty]),
+          ~assemble=Some(assemble),
+          ~marks=[],
+          ~co_ctx,
+          m,
+        )
       | _ =>
         add(
           ~elab_term,
@@ -1181,7 +1195,9 @@ and uexp_to_info_map =
               StaticsSlice.at(
                 ty,
                 StaticsSlice.component_route(
-                  MatchedTyp.prod(List.length(es)),
+                  LabeledTupleStaticsHelpers.prod_entry_matcher(
+                    ~entry_labels=new_labels,
+                  ),
                   ctx,
                   i,
                 ),
@@ -1378,6 +1394,23 @@ and uexp_to_info_map =
         | _ => []
         };
       };
+      let dot_assemble = (name): Info.assembler => (
+        fun
+        | [record] => {
+            let field = ts =>
+              switch (LabeledTuple.find_label(Typ.match_tup_label, ts, name)) {
+              | Some({term: TupLabel(_, typ), _})
+              | Some(typ) => typ
+              | None => Unknown(Internal) |> Typ.temp
+              };
+            switch (Typ.term_of(Typ.normalize(ctx, record))) {
+            | Prod(ts) => field(ts)
+            | List({term: Prod(ts), _}) => List(field(ts)) |> Typ.temp
+            | _ => Unknown(Internal) |> Typ.temp
+            };
+          }
+        | _ => Unknown(Internal) |> Typ.temp
+      );
 
       /* Analyze label child, then patch with label_sort, dot_labels,
          and correct self (Label produces UnexpectedLabelSort by default,
@@ -1450,6 +1483,7 @@ and uexp_to_info_map =
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=typ,
+              ~assemble=Some(dot_assemble(name)),
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1498,6 +1532,7 @@ and uexp_to_info_map =
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=List(typ) |> Typ.fresh,
+              ~assemble=Some(dot_assemble(name)),
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1967,8 +2002,7 @@ and uexp_to_info_map =
       | None =>
         let (fn_ty, fn_elab) =
           implicit_poly_instantiate(fn.elab_syn_ty, fn_elab);
-        let (ty_in, ty_out) =
-          MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_ty);
+        let (ty_in, _) = MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_ty);
         let num_args = List.length(args);
         switch (MatchedTyp.args(ctx, ty_in, num_args)) {
         | L(ty_ins) =>
@@ -1976,18 +2010,35 @@ and uexp_to_info_map =
             map_m_go_deferred(m, List.map(Info.pure, ty_ins), args);
           let arg_co_ctx =
             CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
-          let ty_in' =
-            List.combine(ty_ins, args)
-            |> List.filter(((_, e)) => Exp.is_deferral(e))
-            |> List.map(fst)
-            |> (
-              fun
-              | [x] => x
-              | xs => Prod(xs) |> Typ.temp
-            );
+          let deferred_mask = List.map(Exp.is_deferral, args);
+          let assemble: Info.assembler = (
+            fun
+            | [fn_ty, ..._] => {
+                let (ty_in, ty_out) =
+                  MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_ty);
+                let ty_ins =
+                  switch (MatchedTyp.args(ctx, ty_in, num_args)) {
+                  | L(ts) => ts
+                  | R(_) =>
+                    List.init(num_args, _ => Unknown(Internal) |> Typ.temp)
+                  };
+                let ty_in' =
+                  List.combine(ty_ins, deferred_mask)
+                  |> List.filter(((_, d)) => d)
+                  |> List.map(fst)
+                  |> (
+                    fun
+                    | [x] => x
+                    | xs => Prod(xs) |> Typ.temp
+                  );
+                Arrow(ty_in', ty_out) |> Typ.temp;
+              }
+            | [] => Unknown(Internal) |> Typ.temp
+          );
           add(
             ~elab_term=DeferredAp(fn_elab, args_elabs) |> rewrap,
-            ~elab_syn_ty=Arrow(ty_in', ty_out) |> Typ.temp,
+            ~elab_syn_ty=assemble([fn_ty]),
+            ~assemble=Some(assemble),
             ~marks=[],
             ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
             m,
@@ -3216,6 +3267,7 @@ and upat_to_info_map =
         ~co_ctx=co_ctx,
         ~ana=ana,
         ~ancestors=ancestors_inclusive,
+        ~route=route,
         ~elab_syn_ty: Typ.t,
         ~marks: list(Mark.t)=[],
         ~warnings: list(Warning.list_item)=[],
@@ -3752,7 +3804,7 @@ and upat_to_info_map =
               let (info, elab, m) =
                 go(
                   ~ctx,
-                  ~ana=Info.pure(ana),
+                  ~ana,
                   ~duplicate_bindings=
                     duplicate_bindings @ new_duplicate_bindings,
                   e,
@@ -3774,11 +3826,25 @@ and upat_to_info_map =
               );
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
-                LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
+                LabeledTupleStaticsHelpers.decompose_label_mode(
+                  ctx,
+                  ana.value,
+                );
               let (value_info, value_elab, m) =
                 go(
                   ~ctx,
-                  ~ana=Info.pure(val_mode),
+                  ~ana=
+                    StaticsSlice.at(
+                      val_mode,
+                      StaticsSlice.compose_route(
+                        ana.route,
+                        StaticsSlice.component_route(
+                          MatchedTyp.label,
+                          ctx,
+                          1,
+                        ),
+                      ),
+                    ),
                   ~duplicate_bindings=
                     duplicate_bindings @ new_duplicate_bindings,
                   value,
@@ -3879,8 +3945,9 @@ and upat_to_info_map =
                   ~elab_term=elab_tl,
                   ~ctx=value_info.ctx,
                   ~co_ctx,
-                  ~ana,
+                  ~ana=ana.value,
                   ~ancestors=ancestors_inclusive,
+                  ~route=ana.route,
                   ~elab_syn_ty=syn_tl,
                   ~marks=cms_tl,
                   ~constraint_,
@@ -3902,7 +3969,7 @@ and upat_to_info_map =
               let* (info, elab, m) =
                 go(
                   ~ctx,
-                  ~ana=Info.pure(ana),
+                  ~ana,
                   ~duplicate_bindings=
                     duplicate_bindings @ new_duplicate_bindings,
                   e,
@@ -3925,7 +3992,20 @@ and upat_to_info_map =
             },
           (ctx, [], [], m, [], []),
           List.combine(inferred, ps),
-          modes,
+          List.mapi(
+            (i, ty) =>
+              StaticsSlice.at(
+                ty,
+                StaticsSlice.component_route(
+                  LabeledTupleStaticsHelpers.prod_entry_matcher(
+                    ~entry_labels=new_labels,
+                  ),
+                  ctx,
+                  i,
+                ),
+              ),
+            modes,
+          ),
         );
       let constraint_ = Coverage.Constraint.Tuple(cons);
 

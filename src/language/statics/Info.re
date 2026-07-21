@@ -59,6 +59,15 @@ let query_route_of_sexp = (_: Sexplib.Sexp.t): query_route => identity_route;
 let yojson_of_query_route = (_: query_route): Yojson.Safe.t => `Null;
 let query_route_of_yojson = (_: Yojson.Safe.t): query_route => identity_route;
 
+type assembler = list(Typ.t) => Typ.t;
+let pp_assembler = (fmt: Format.formatter, _: assembler) =>
+  Format.pp_print_string(fmt, "<assembler>");
+let sexp_of_assembler = (_: assembler): Sexplib.Sexp.t =>
+  Sexplib.Sexp.List([]);
+let assembler_of_sexp = (_: Sexplib.Sexp.t): assembler => List.hd;
+let yojson_of_assembler = (_: assembler): Yojson.Safe.t => `Null;
+let assembler_of_yojson = (_: Yojson.Safe.t): assembler => List.hd;
+
 type routed('a) = {
   value: 'a,
   route: query_route,
@@ -105,6 +114,7 @@ type exp = {
   dot_labels: list(string), /* Available labels when in dot-access position */
   slice_children: list(slice_child),
   route: query_route,
+  assemble: option(assembler),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

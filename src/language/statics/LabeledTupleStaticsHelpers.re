@@ -10,6 +10,79 @@ let decompose_label_mode = (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
   | _ => (Unknown(SynSwitch) |> Typ.temp, Unknown(Internal) |> Typ.temp)
   };
 
+let prod_entry_matcher =
+    (~entry_labels: list(option(string))): MatchedTyp.matcher => {
+  let arity = List.length(entry_labels);
+  let value_of = q =>
+    switch (Typ.term_of(TypQuery.transparent(q))) {
+    | TupLabel(_, v) => v
+    | _ => q
+    };
+  let label_part_of = q =>
+    switch (Typ.term_of(TypQuery.transparent(q))) {
+    | TupLabel({term: Label(_), _}, _) => TypQuery.gap
+    | TupLabel(lp, _) => lp
+    | _ => TypQuery.gap
+    };
+  let entry_label = q =>
+    switch (Typ.term_of(TypQuery.transparent(q))) {
+    | TupLabel({term: Label(l), _}, _) => Some(l)
+    | _ => None
+    };
+  let align = (qs: list(Typ.t)): list(Typ.t) => {
+    let by_label = l => List.find_opt(q => entry_label(q) == Some(l), qs);
+    let claimed = l =>
+      List.exists(lab => lab == Some(l), entry_labels)
+      && by_label(l) != None;
+    let pool =
+      List.filter(
+        q =>
+          switch (entry_label(q)) {
+          | Some(l) => !claimed(l)
+          | None => true
+          },
+        qs,
+      );
+    let (aligned, _) =
+      List.fold_left(
+        ((aligned, pool), slot) =>
+          switch (slot, pool) {
+          | (Some(l), _) when by_label(l) != None => (
+              aligned @ [Option.get(by_label(l))],
+              pool,
+            )
+          | (Some(_), [q, ...pool]) => (
+              aligned
+              @ [
+                TypQuery.is_gap(q)
+                  ? TypQuery.gap
+                  : TupLabel(label_part_of(q), value_of(q)) |> Typ.temp,
+              ],
+              pool,
+            )
+          | (None, [q, ...pool]) => (aligned @ [value_of(q)], pool)
+          | (_, []) => (aligned @ [TypQuery.gap], [])
+          },
+        ([], pool),
+        entry_labels,
+      );
+    aligned;
+  };
+  let rec matcher: MatchedTyp.matcher =
+    (ctx, ty) =>
+      switch (Typ.term_of(Typ.weak_head_normalize(ctx, ty))) {
+      | Parens(ty) => matcher(ctx, ty)
+      | Prod(qs) => Some(align(qs))
+      | Unknown(SynSwitch) =>
+        Some(List.init(arity, _ => Unknown(SynSwitch) |> Typ.temp))
+      | Unknown(_) =>
+        Some(List.init(arity, _ => Unknown(Internal) |> Typ.temp))
+      | _ when arity == 1 => Some([ty])
+      | _ => None
+      };
+  matcher;
+};
+
 type label_child_result = {
   lab_name: option(string),
   label_invalid: bool,
