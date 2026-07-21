@@ -6,7 +6,7 @@ let filter_hide_example = {
   sub_id: Filter(Hide),
   term:
     mk_example(
-      {|# skip-over eval of all expressions #
+      {|# evaluate everything silently: no visible steps #
 debug eval($e) in
 let fib : Int -> Int = fun n ->
   case n
@@ -17,24 +17,24 @@ let fib : Int -> Int = fun n ->
 in
 # stop at application of fib function to a value #
 debug stop(fib($v)) in
- # skip-over the evaluation of fib(2) #
+ # but do not show the evaluation of fib(2) #
 debug hide(fib(2)) in
 fib(3)|},
     ),
-  message: "Here `hide` means we want to hide the evaluation of such expression, but not skip them entirely. This action is especially useful if you want to un-stop certain expressions.",
+  message: "Here `hide` makes the next evaluation step of any expression matching the pattern invisible: the step still happens, it is just not shown. This is especially useful to un-stop expressions matched by an earlier `stop` or `step` filter, as with `fib(2)` above.",
 };
 
 let filter_eval_example = {
   sub_id: Filter(Eval),
-  term: mk_example("debug eval($e) in\n1 + 2 + 3 + 4"),
-  message: "Here `eval` means we want to skip the evaluation of all expression.",
+  term: mk_example("debug eval(1 + 2) in\n(1 + 2) + (3 + 4)"),
+  message: "Here `eval` means any expression matching the pattern `1 + 2` is evaluated to completion silently, while the rest of the program (like `3 + 4`) still steps normally. Using the pattern `$e` would instead evaluate the whole program silently.",
 };
 
 let filter_stop_example = {
   sub_id: Filter(Stop),
   term:
     mk_example(
-      {|# skip-over eval of all expressions #
+      {|# evaluate everything silently: no visible steps #
 debug eval($e) in
 let fib : Int -> Int = fun n ->
   case n
@@ -54,7 +54,7 @@ let filter_step_example = {
   sub_id: Filter(Step),
   term:
     mk_example(
-      {|# skip-over eval of all expressions #
+      {|# evaluate everything silently: no visible steps #
 debug eval($e) in
 let fib : Int -> Int = fun n ->
   case n
@@ -70,12 +70,12 @@ fib(3)|},
   message: "Here `step` means we want to step through the evaluation of such expression. Once such expression finish evaluating, the stepper will resume to the stepping behavior it used to have.",
 };
 
-let _pat = exp("pat");
+let pat = exp("pat");
 
-let _body = exp("e_body");
+let body = exp("e_body");
 
 let filter_hide_exp = (~act_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
-  let _hide = exp("hide");
+  let hide = exp("hide");
   let explanation =
     Printf.sprintf(
       "The stepper will [*skip-over/hide*](%s) the first step of evaluation of any expression that matches the [*pattern*](%s) inside [*body*](%s).",
@@ -84,19 +84,19 @@ let filter_hide_exp = (~act_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
       Id.to_string(body_id),
     );
   let form = [
-    mk_filter([[space(), _hide, mk_ap_exp([[_pat]]), space()]]),
+    mk_filter([[space(), hide, mk_ap_exp([[pat]]), space()]]),
     linebreak(),
-    _body,
+    body,
   ];
   {
     id: FilterExp((Eval, One)),
     syntactic_form: form,
     colorings: [
-      (Piece.id(_hide), act_id),
-      (Piece.id(_pat), pat_id),
-      (Piece.id(_body), body_id),
+      (Piece.id(hide), act_id),
+      (Piece.id(pat), pat_id),
+      (Piece.id(body), body_id),
     ],
-    expandable_id: Some((Piece.id(_hide), [_hide])),
+    expandable_id: Some((Piece.id(hide), [hide])),
     explanation,
     examples: [filter_hide_example],
   };
@@ -119,7 +119,7 @@ let filter_action_exps = (act: Language.FilterAction.t): group => {
 };
 
 let filter_eval_exp = (~act_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
-  let _eval = exp("eval");
+  let eval = exp("eval");
   let explanation =
     Printf.sprintf(
       "The stepper will [*skip-over/eval*](%s) the evaluation of any expression that matches the [*pattern*](%s) inside [*body*](%s).",
@@ -128,26 +128,26 @@ let filter_eval_exp = (~act_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
       Id.to_string(body_id),
     );
   let form = [
-    mk_filter([[space(), _eval, mk_ap_exp([[_pat]]), space()]]),
+    mk_filter([[space(), eval, mk_ap_exp([[pat]]), space()]]),
     linebreak(),
-    _body,
+    body,
   ];
   {
     id: FilterExp((Eval, All)),
     syntactic_form: form,
     colorings: [
-      (Piece.id(_eval), act_id),
-      (Piece.id(_pat), pat_id),
-      (Piece.id(_body), body_id),
+      (Piece.id(eval), act_id),
+      (Piece.id(pat), pat_id),
+      (Piece.id(body), body_id),
     ],
-    expandable_id: Some((Piece.id(_eval), [_eval])),
+    expandable_id: Some((Piece.id(eval), [eval])),
     explanation,
     examples: [filter_eval_example],
   };
 };
 
 let filter_stop_exp = (~act_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
-  let _stop = exp("stop");
+  let stop = exp("stop");
   let explanation =
     Printf.sprintf(
       "The stepper will [*stop*](%s) at any expression that matches the [*pattern*](%s) inside [*body*](%s), and will resume immediately.",
@@ -156,26 +156,26 @@ let filter_stop_exp = (~act_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
       Id.to_string(body_id),
     );
   let form = [
-    mk_filter([[space(), _stop, mk_ap_exp([[_pat]]), space()]]),
+    mk_filter([[space(), stop, mk_ap_exp([[pat]]), space()]]),
     linebreak(),
-    _body,
+    body,
   ];
   {
     id: FilterExp((Step, One)),
     syntactic_form: form,
     colorings: [
-      (Piece.id(_stop), act_id),
-      (Piece.id(_pat), pat_id),
-      (Piece.id(_body), body_id),
+      (Piece.id(stop), act_id),
+      (Piece.id(pat), pat_id),
+      (Piece.id(body), body_id),
     ],
-    expandable_id: Some((Piece.id(_stop), [_stop])),
+    expandable_id: Some((Piece.id(stop), [stop])),
     explanation,
     examples: [filter_stop_example],
   };
 };
 
 let filter_step_exp = (~act_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
-  let _step = exp("step");
+  let step = exp("step");
   let explanation =
     Printf.sprintf(
       "The stepper will [*step-through*](%s) at any expression that matches the [*pattern*](%s) inside [*body*](%s), and will resume stepping after evaluating that expression.",
@@ -184,19 +184,19 @@ let filter_step_exp = (~act_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
       Id.to_string(body_id),
     );
   let form = [
-    mk_filter([[space(), _step, mk_ap_exp([[_pat]]), space()]]),
+    mk_filter([[space(), step, mk_ap_exp([[pat]]), space()]]),
     linebreak(),
-    _body,
+    body,
   ];
   {
     id: FilterExp((Step, All)),
     syntactic_form: form,
     colorings: [
-      (Piece.id(_step), act_id),
-      (Piece.id(_pat), pat_id),
-      (Piece.id(_body), body_id),
+      (Piece.id(step), act_id),
+      (Piece.id(pat), pat_id),
+      (Piece.id(body), body_id),
     ],
-    expandable_id: Some((Piece.id(_step), [_step])),
+    expandable_id: Some((Piece.id(step), [step])),
     explanation,
     examples: [filter_step_example],
   };
@@ -219,7 +219,7 @@ let filter_selector_exp_example = {
 };
 
 let filter_selector_exp_exp: form = {
-  let _e = exp("$e");
+  let e = exp("$e");
   {
     id: FilterSelector(Exp),
     syntactic_form: [_e],
@@ -246,7 +246,7 @@ In this case, the two `$v`s match the two values which are `3` (first `$v`) and 
 };
 
 let filter_selector_val_exp: form = {
-  let _v = exp("$v");
+  let v = exp("$v");
   {
     id: FilterSelector(Val),
     syntactic_form: [_v],
