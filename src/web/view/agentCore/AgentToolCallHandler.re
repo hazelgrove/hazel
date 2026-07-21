@@ -304,8 +304,7 @@ let update =
               let z = ProbePerform.remove_statics_at(id, info_map, z);
               (z, false);
             | ToggleStatics(_) =>
-              let z =
-                ProbePerform.toggle_statics(~syntax, id, info_map, z);
+              let z = ProbePerform.toggle_statics(~syntax, id, info_map, z);
               let expand =
                 switch (ProbePerform.probe_status(id, info_map, z.refractors)) {
                 | Statics(_) => true
