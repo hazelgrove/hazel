@@ -42,7 +42,7 @@ let expand_projector = (z: t): option(t) => {
   switch (z.relatives.siblings |> fst |> List.rev) {
   | [Tile({children: [syntax], _} as parens), Tile(nt), ...rest]
       when
-        Tile.has_label(parens, ["(", ")"])
+        Tile.is_paren_shaped(parens)
         && Tile.arity(nt) == 1
         && is_refractor_trigger(Tile.token(nt, 0)) =>
     /* Left siblings are stored as [oldest, ..., newest]. After List.rev we have
@@ -58,7 +58,7 @@ let expand_projector = (z: t): option(t) => {
 
   | [Tile({children: [syntax], _} as parens), Tile(nt), ...rest]
       when
-        Tile.has_label(parens, ["(", ")"])
+        Tile.is_paren_shaped(parens)
         && Tile.arity(nt) == 1
         && Token.is_projector_invoke(Tile.token(nt, 0)) =>
     let+ piece = invoked_projector(Tile.token(nt, 0), syntax);
@@ -69,7 +69,7 @@ let expand_projector = (z: t): option(t) => {
   /* Special case for reparsing of projectors placed on holes */
   | [Tile(ht), Tile(nt), ...rest]
       when
-        Tile.has_label(ht, ["()"])
+        Tile.is_empty_tuple_shaped(ht)
         && Tile.arity(nt) == 1
         && Token.is_projector_invoke(Tile.token(nt, 0)) =>
     let+ piece =

@@ -12,16 +12,14 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
     List.exists(
       (p: Piece.t) =>
         switch (p) {
-        | Tile({shards: [0], _} as t)
-            when Tile.has_label(t, ["case", "end"]) =>
-          true
+        | Tile({shards: [0], _} as t) when Tile.is_case(t) => true
         | _ => false
         },
       z.relatives.siblings |> fst,
     );
   let inside_case = (z: t): bool =>
     switch (Ancestors.parent(z.relatives.ancestors)) {
-    | Some(a) when Ancestor.label(a) == ["case", "end"] => true
+    | Some(a) when Form.has_label_of(a.form, Case) => true
     | _ => false
     };
   switch (t) {
@@ -38,9 +36,9 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
        an expression. Sort-specific expansion would fail to find | for Typ.
 
        This bypasses Form.Expansion.get entirely for | inside case expressions,
-       hardcoding the Rule form label. A more principled fix might register |
+       forcing the Rule form label. A more principled fix might register |
        for multiple sorts (Exp, Typ, etc.) in Form.Expansion. */
-    (["|", "=>"], Left)
+    (Form.label_of(Compound(Rule)), Left)
   | "|" =>
     /* Outside case: | has no meaning, don't expand */
     ([t], Left)
@@ -412,9 +410,9 @@ let is_opening_delimiter = (char: string): bool =>
 
 let delimiter_label = (char: string): Label.t =>
   switch (char) {
-  | "(" => ["(", ")"]
-  | "[" => ["[", "]"]
-  | "{" => ["{", "}"]
+  | "(" => Token.tuple_lbl
+  | "[" => Token.listlit_lbl
+  | "{" => Token.mod_lbl
   | _ => failwith("not a delimiter: " ++ char)
   };
 

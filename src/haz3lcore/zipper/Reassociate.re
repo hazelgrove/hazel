@@ -28,9 +28,6 @@ type repair_stats = {
   preserved_anchors: int,
 };
 
-let is_multidelimiter_label = (label: Label.t): bool =>
-  List.length(label) > 1;
-
 /* Requests */
 
 let token_of_shard = (shard: Tile.t): option(Token.t) =>
@@ -54,8 +51,7 @@ let rec local_missing_tokens_segment =
        fun
        | Piece.Tile(tile) => {
            let self =
-             if (!Tile.is_complete(tile)
-                 && is_multidelimiter_label(Tile.label(tile))) {
+             if (!Tile.is_complete(tile) && Tile.is_multidelimiter(tile)) {
                (
                  switch (side) {
                  | Left => Tile.right_missing_shards(tile)
@@ -179,7 +175,7 @@ let rec has_incomplete_multi_deep = (seg: Segment.t): bool =>
     fun
     | Piece.Tile(tile) =>
       !Tile.is_complete(tile)
-      && is_multidelimiter_label(Tile.label(tile))
+      && Tile.is_multidelimiter(tile)
       || List.exists(has_incomplete_multi_deep, tile.children)
     | _ => false,
     seg,
@@ -191,7 +187,7 @@ let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
     | Piece.Tile(tile)
         when
           Tile.is_complete(tile)
-          && is_multidelimiter_label(Tile.label(tile))
+          && Tile.is_multidelimiter(tile)
           && List.exists(has_incomplete_multi_deep, tile.children) =>
       Aba.mk(
         shard_pieces(tile),
@@ -362,7 +358,7 @@ let rec collect_multitiles = (seg: Segment.t): (list(Id.t), int) =>
             (complete_ids, incomplete),
             tile.children,
           );
-        if (!is_multidelimiter_label(Tile.label(tile))) {
+        if (!Tile.is_multidelimiter(tile)) {
           (complete_ids, incomplete);
         } else if (Tile.is_complete(tile)) {
           ([tile.id, ...complete_ids], incomplete);
@@ -455,7 +451,7 @@ let rec has_orphaned_trailing_shard = (seg: Segment.t): bool =>
     fun
     | Piece.Tile(tile) =>
       !Tile.is_complete(tile)
-      && is_multidelimiter_label(Tile.label(tile))
+      && Tile.is_multidelimiter(tile)
       && Tile.left_missing_shards(tile) != []
       || List.exists(has_orphaned_trailing_shard, tile.children)
     | _ => false,

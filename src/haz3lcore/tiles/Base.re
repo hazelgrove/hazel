@@ -39,9 +39,11 @@ let rec map_piece = (~f_piece, x: piece) => {
  * return a singleton segment consisting of the piece */
 let unparenthesize = (piece: piece): segment =>
   switch (piece) {
-  | Tile({form, children: [seg], _}) =>
-    switch (Form.label_of(form), Form.mold_of(form).nibs) {
-    | (["(", ")"], ({shape: Convex, _}, {shape: Convex, _})) => seg
+  | Tile({form, children: [seg], _}) when Form.has_label_of(form, ParensExp) =>
+    /* op-shaped only: the ["(",")"] label family also covers the
+     * concave-left Ap forms, which are not parentheses */
+    switch (Form.mold_of(form).nibs) {
+    | ({shape: Convex, _}, {shape: Convex, _}) => seg
     | _ => [piece]
     }
   | _ => [piece]

@@ -108,20 +108,13 @@ let complete_segment = (seg: Segment.t): Segment.t => {
 
 let is_comma = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) => Tile.has_label(t, [","])
+  | Tile(t) => Tile.is_comma(t)
   | _ => false
   };
 
 let is_case_rule = (p: Piece.t): bool =>
   switch (p) {
-  //| Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
-  | Tile(t) when Tile.has_label(t, ["|", "=>"]) => true
-  | _ => false
-  };
-
-let ends_with_in = (t: Tile.t): bool =>
-  switch (Tile.label(t) |> List.rev) {
-  | ["in", ..._] => true
+  | Tile(t) => Tile.is_case_rule(t)
   | _ => false
   };
 
@@ -132,8 +125,8 @@ let is_incrementor = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
     switch (Tile.shapes(t)) {
-    | _ when ends_with_in(t) => false
-    | (_, Concave(_)) when Tile.arity(t) >= 2 => true
+    | _ when Tile.ends_with_in(t) => false
+    | (_, Concave(_)) when Tile.is_multidelimiter(t) => true
     | _ => false
     }
   | _ => false

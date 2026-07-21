@@ -309,10 +309,10 @@ let term =
     | Typ({term: Sig(_), _}) => true
     | _ => false
     };
-  let is_semi = Tile.has_label(tile, [";"]);
+  let is_semi = Tile.is_semi(tile);
   let is_not_semi_tile = ((tid, _, _)) =>
     switch (TermData.root_tile(tid, term_data)) {
-    | Some(t) => !Tile.has_label(t, [";"])
+    | Some(t) => !Tile.is_semi(t)
     | None => true
     };
 

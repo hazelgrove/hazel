@@ -251,13 +251,13 @@ let rec absorb_comments =
 
 let is_semi = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) when Tile.has_label(t, [";"]) => true
+  | Tile(t) => Tile.is_semi(t)
   | _ => false
   };
 
 let is_comma = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) when Tile.has_label(t, [","]) => true
+  | Tile(t) => Tile.is_comma(t)
   | _ => false
   };
 
@@ -270,14 +270,14 @@ let is_infix = (p: Piece.t): bool =>
 
 let is_dot = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) when Tile.has_label(t, ["."]) => true
+  | Tile(t) => Tile.is_dot(t)
   | _ => false
   };
 
 /* Label binding = in records/labeled tuples (not ==) */
 let is_label_eq = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) when Tile.has_label(t, ["="]) => true
+  | Tile(t) => Tile.is_tuple_label_eq(t)
   | _ => false
   };
 
@@ -358,7 +358,7 @@ let is_compound_prefix = (p: Piece.t): bool =>
 
 let is_case_rule_tile = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) when Tile.has_label(t, ["|", "=>"]) => true
+  | Tile(t) => Tile.is_case_rule(t)
   | _ => false
   };
 
@@ -369,7 +369,7 @@ let is_case_rule_tile = (p: Piece.t): bool =>
 let is_trailing_hole = (p: Piece.t): bool =>
   switch (p) {
   | Grout({shape: Convex, _}) => true
-  | Tile(t) when Tile.has_label(t, ["?"]) => true
+  | Tile(t) when Tile.is_explicit_hole(t) => true
   | _ => false
   };
 
@@ -409,9 +409,9 @@ let is_paren_or_bracket = (p: Piece.t): bool =>
   switch (p) {
   | Tile({shards, children, _} as t)
       when
-        Tile.has_label(t, ["(", ")"])
-        || Tile.has_label(t, ["[", "]"])
-        || Tile.has_label(t, ["@<", ">"]) =>
+        Tile.is_paren_shaped(t)
+        || Tile.is_bracket_shaped(t)
+        || Tile.has_label_of(t, ApExpTyp) =>
     /* Complete tile (has children) or opening shard (index 0) */
     List.length(children) > 0 || shards == [0]
   | _ => false
@@ -532,10 +532,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | [Tile(dt)]
         when
           s.hanging_delimiters
-          && (
-            Tile.has_label(dt, ["(", ")"])
-            || Tile.has_label(dt, ["[", "]"])
-          )
+          && (Tile.is_paren_shaped(dt) || Tile.is_bracket_shaped(dt))
           && List.length(dt.children) > 0 =>
       let open_s = Tile.to_piece(Tile.shard_of(dt, 0));
       let close_s = Tile.to_piece(Tile.shard_of(dt, Tile.arity(dt) - 1));

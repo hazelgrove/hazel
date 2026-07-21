@@ -264,7 +264,7 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       switch (remold_tile(Typ, shape, t)) {
       | None
           when
-            Tile.has_label(t, [";"])
+            Tile.is_semi(t)
             && List.exists(
                  fun
                  | Sort.Mod
@@ -284,8 +284,8 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         ([Tile(t), ...remolded], shape, []);
       | Some(t)
           when
-            Tile.has_label(t, Form.get(CommaTyp).label)
-            || Tile.has_label(t, Form.get(TypPlus).label)
+            Tile.has_label_of(t, CommaTyp)
+            || Tile.has_label_of(t, TypPlus)
             && List.exists((==)(Sort.Exp), parent_sorts) => (
           [],
           shape,
@@ -448,9 +448,7 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
          expression-level sequence inside a module. Future consideration: may want to remove
          Exp-level semicolon entirely or find a more principled disambiguation approach. */
       | Some(t)
-          when
-            Tile.has_label(t, Form.get(CellJoin).label)
-            && List.exists((==)(Sort.Mod), parent_sorts) => (
+          when Tile.is_semi(t) && List.exists((==)(Sort.Mod), parent_sorts) => (
           [],
           shape,
           seg,

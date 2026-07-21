@@ -682,6 +682,13 @@ let label_of: FormId.t => Label.t =
   | Atom(_, _, t)
   | Unmolded(t) => [t];
 
+/* Does this form spell the same label as registered form cf?
+ * Label-family check: labels are shared between forms (e.g.
+ * ["(",")"] is both Parens* and Ap*), and Unsorted/Unmolded/Atom
+ * ids can spell the same tokens as a registered form. */
+let has_label_of = (f: FormId.t, cf: compound_form): bool =>
+  label_of(f) == form_of(cf).label;
+
 let mold_of: FormId.t => Mold.t =
   fun
   | Compound(cf) => form_of(cf).mold

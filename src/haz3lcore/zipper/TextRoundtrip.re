@@ -43,7 +43,10 @@ let to_text =
 
 /* A marker piece is whatever the parser produced from inserting
  * `implicit_hole`. In practice that is a Tile with label `[implicit_hole]`
- * (the token round-trips through `Insert.go` unchanged). */
+ * (the token round-trips through `Insert.go` unchanged). Deliberately a
+ * label check, not an Atom(ImplicitHoleMarker) match: the marker is
+ * caller-configurable (CLI --implicit-hole), and a non-default marker
+ * classifies as whatever form its token spells. */
 let is_marker = (~implicit_hole: string, p: piece): bool =>
   switch (p) {
   | Tile(t) => Tile.has_label(t, [implicit_hole])

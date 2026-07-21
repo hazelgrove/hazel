@@ -21,45 +21,36 @@ exception Nonconvex_segment;
 [@deriving show({with_path: false})]
 type ip = (int, Piece.t);
 
-// Chainable label constants (TODO: unhardcode)
-let comma_label = [","];
-let case_label = ["case", "end"];
-let rule_label = ["|", "=>"];
-let plus_label = ["+"];
-let semi_label = [";"];
-
 // Determines if two pieces can be chained together in the skeleton.
 // Only returns true for operators that should form a single chain node.
 let is_chainable = (p1: Piece.t, p2: Piece.t): bool =>
   switch (p1, p2) {
   | (Grout({shape: Concave, _}), Grout({shape: Concave, _})) => true
   | (Tile(t1), Tile(t2)) =>
-    let lbl1 = Tile.has_label(t1);
-    let lbl2 = Tile.has_label(t2);
-    lbl1(case_label)
-    && lbl2(rule_label)
-    || lbl1(rule_label)
-    && lbl2(rule_label)
-    || lbl1(comma_label)
-    && lbl2(comma_label)
+    Tile.is_case(t1)
+    && Tile.is_case_rule(t2)
+    || Tile.is_case_rule(t1)
+    && Tile.is_case_rule(t2)
+    || Tile.is_comma(t1)
+    && Tile.is_comma(t2)
     && Mold.is_infix_op(Tile.mold(t1))
     && Mold.is_infix_op(Tile.mold(t2))
-    || lbl1(plus_label)
-    && lbl2(plus_label)
+    || Tile.has_label_of(t1, TypPlus)
+    && Tile.has_label_of(t2, TypPlus)
     && Mold.is_infix_op(Tile.mold(t1))
     && Mold.is_infix_op(Tile.mold(t2))
-    || lbl1(semi_label)
-    && lbl2(semi_label)
+    || Tile.is_semi(t1)
+    && Tile.is_semi(t2)
     && Mold.is_infix_op(Tile.mold(t1))
     && Mold.is_infix_op(Tile.mold(t2))
     && Tile.mold(t1).out == Sort.Mod
     && Tile.mold(t2).out == Sort.Mod
-    || lbl1(semi_label)
-    && lbl2(semi_label)
+    || Tile.is_semi(t1)
+    && Tile.is_semi(t2)
     && Mold.is_infix_op(Tile.mold(t1))
     && Mold.is_infix_op(Tile.mold(t2))
     && Tile.mold(t1).out == Sort.Sig
-    && Tile.mold(t2).out == Sort.Sig;
+    && Tile.mold(t2).out == Sort.Sig
   | _ => false
   };
 

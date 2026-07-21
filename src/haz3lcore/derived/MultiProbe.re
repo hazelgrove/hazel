@@ -372,7 +372,7 @@ let is_incomplete_tile = (candidate_id: Id.t, data: TermData.t): bool =>
  * so the term-level candidate_allowed_by_rule won't catch them. */
 let is_rule_tile = (candidate_id: Id.t, data: TermData.t): bool =>
   switch (TermData.root_tile(candidate_id, data)) {
-  | Some(t) when Tile.has_label(t, ["|", "=>"]) => true
+  | Some(t) => Tile.is_case_rule(t)
   | _ => false
   };
 
