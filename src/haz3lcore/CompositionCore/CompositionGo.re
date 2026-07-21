@@ -205,6 +205,62 @@ module Local = {
       );
     };
 
+    /* [[Zipper.insert_segment]] replaces the selection with the segment,
+       so a token bordering the selection can end up flush against the
+       segment's edge token. If the two would lex as one token the result
+       renders (and reparses) fused, e.g. overwriting the bare hole body of
+       `let x = 1 in` — a grout directly abutting `in`, carrying no
+       whitespace — with `let e = ...` yields `inlet e = ...`. Pad the
+       segment with a space on any side where its edge token would fuse
+       with the piece outside the selection. */
+    let pad_fusing_edges = (z: Zipper.t, seg: Segment.t): Segment.t => {
+      let edge_token = (d: Direction.t, p: Piece.t): option(Token.t) =>
+        switch (p) {
+        | Secondary({content: Whitespace(s) | Comment(s), _}) => Some(s)
+        | Grout(_)
+        | Projector(_) => None
+        | Tile(t) =>
+          let* shard =
+            d == Left
+              ? ListUtil.hd_opt(t.shards) : ListUtil.last_opt(t.shards);
+          List.nth_opt(t.label, shard);
+        };
+      let outer_token = (d: Direction.t): option(Token.t) => {
+        let (l_sibs, r_sibs) = z.relatives.siblings;
+        switch (
+          d == Left ? ListUtil.last_opt(l_sibs) : ListUtil.hd_opt(r_sibs)
+        ) {
+        | Some(p) => edge_token(Direction.toggle(d), p)
+        | None =>
+          let* a = Ancestors.parent(z.relatives.ancestors);
+          let* shard =
+            d == Left
+              ? ListUtil.last_opt(fst(a.shards))
+              : ListUtil.hd_opt(snd(a.shards));
+          List.nth_opt(a.label, shard);
+        };
+      };
+      let fuses = (l: option(Token.t), r: option(Token.t)): bool =>
+        switch (l, r) {
+        | (Some(l), Some(r)) => Token.is_potential_token(Token.append(l, r))
+        | _ => false
+        };
+      let space = () =>
+        Piece.Secondary({
+          id: Id.mk(),
+          content: Secondary.Whitespace(Token.space),
+        });
+      let seg_edge = (d: Direction.t, seg: Segment.t) => {
+        let* p = d == Left ? ListUtil.hd_opt(seg) : ListUtil.last_opt(seg);
+        edge_token(d, p);
+      };
+      let seg =
+        fuses(outer_token(Left), seg_edge(Left, seg))
+          ? [space(), ...seg] : seg;
+      fuses(seg_edge(Right, seg), outer_token(Right))
+        ? seg @ [space()] : seg;
+    };
+
     let introduce =
         (
           z: Zipper.t,
@@ -219,7 +275,7 @@ module Local = {
       // avoid potential current buggy parsing issues.
       Parser.to_segment(code)
       |> OptUtil.and_then((segment: Segment.t) =>
-           Some(Zipper.insert_segment(z, segment))
+           Some(Zipper.insert_segment(z, pad_fusing_edges(z, segment)))
          )
       |> return(CantPaste);
     };

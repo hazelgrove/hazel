@@ -109,6 +109,19 @@ let check_rendered = (name: string, expected: string, actual: string) => {
   );
 };
 
+/** Raw compare: trims only the outer edges, so interior spacing and
+    linebreaks (separators, indentation) are actually checked. */
+let check_rendered_exact = (name: string, expected: string, actual: string) => {
+  check(
+    testable(Fmt.string, (a, b) =>
+      String.equal(String.trim(a), String.trim(b))
+    ),
+    name,
+    expected,
+    actual,
+  );
+};
+
 let apply_and_render = (code: string, a: Action.Structural.t): string => {
   switch (run_agent_action(code, a)) {
   | Ok(z) => render_zipper(z)
@@ -910,6 +923,92 @@ let insert_tests = (
         );
       },
     ),
+    test_case(
+      "insert_after tool call strips leading indentation",
+      `Quick,
+      () => {
+        let args: API.Json.t =
+          `Assoc([
+            ("path", `String("b")),
+            ("code", `String("  let c = 3 in")),
+          ]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="insert_after", ~args)
+        ) {
+        | Action(EditorAction(a)) =>
+          check_rendered_exact(
+            "insert_indented_code",
+            "let a = 1 in let b = 2 in\nlet c = 3 in\n a + b",
+            apply_and_render("let a = 1 in let b = 2 in a + b", a),
+          )
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case(
+      "insert_after tool call normalizes CRLF linebreaks",
+      `Quick,
+      () => {
+        let args: API.Json.t =
+          `Assoc([
+            ("path", `String("b")),
+            ("code", `String("let c = 3 in\r\nlet d = 4 in")),
+          ]);
+        switch (
+          CompositionUtils.Public.action_of(~tool_name="insert_after", ~args)
+        ) {
+        | Action(EditorAction(a)) =>
+          check_rendered_exact(
+            "insert_crlf_code",
+            "let a = 1 in let b = 2 in\nlet c = 3 in\nlet d = 4 in\n a + b",
+            apply_and_render("let a = 1 in let b = 2 in a + b", a),
+          )
+        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
+        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        };
+      },
+    ),
+    test_case("insert_after last binding keeps line separator", `Quick, () => {
+      check_rendered_exact(
+        "insert_after_last_separator",
+        "let a = 1 in let b = 2 in\nlet c = 3 in\n a + b",
+        apply_and_render(
+          "let a = 1 in let b = 2 in a + b",
+          Insert(After, "b", "let c = 3 in"),
+        ),
+      )
+    }),
+    test_case("insert_after (no path) appends on its own line", `Quick, () => {
+      switch (
+        run_insert_at_program_boundary(
+          "let a = 1 in let b = 2 in",
+          After,
+          "let c = 3 in",
+        )
+      ) {
+      | Ok(z) =>
+        check_rendered_exact(
+          "boundary_append_separator",
+          "let a = 1 in let b = 2 in\nlet c = 3 in\n?",
+          render_zipper(z),
+        )
+      | Error(err) =>
+        Alcotest.fail("boundary append failed: " ++ Action.Failure.show(err))
+      }
+    }),
+    test_case("update_body over bare hole keeps `in` separated", `Quick, () => {
+      /* The hole grout sits flush against `in`; the replacement code
+         must not fuse into `inlet e = ...` */
+      check_rendered_exact(
+        "update_body_hole_separator",
+        "let x = 1 in let e = 2 in x",
+        apply_and_render(
+          "let x = 1 in",
+          Update(Body, "x", "let e = 2 in x"),
+        ),
+      )
+    }),
   ],
 );
 
