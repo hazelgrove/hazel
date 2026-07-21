@@ -159,6 +159,11 @@ let zipper_of_code = code => {
   };
 };
 
+/* Counterpart to [export_transitionary_module] below: rebuild a spec from
+ * a transitionary (string-based) module at load time. */
+let transition: transitionary_spec => spec =
+  p => map(p, zipper_of_code, zipper_of_code);
+
 let eds_of_spec =
     (
       {

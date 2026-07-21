@@ -12,6 +12,38 @@ type spec = {
   theorem: Haz3lcore.Zipper.t,
 };
 
+/* String-based counterpart of [spec], for "transitionary" exercise modules
+ * that survive Zipper.t datatype changes (each editor is program text,
+ * re-parsed at load time). Mirrors CodeExercise.transitionary_spec. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type transitionary_spec = {
+  id: Haz3lcore.Id.t,
+  title: string,
+  module_name: string,
+  prompt: string,
+  max_points: int,
+  prelude: string,
+  lemmas: string,
+  theorem: string,
+};
+
+let zipper_of_code = code =>
+  switch (Haz3lcore.Parser.to_zipper(code, ~root=Haz3lcore.Sort.Exp)) {
+  | None => failwith("Transition failed.")
+  | Some(zipper) => zipper
+  };
+
+let transition = (t: transitionary_spec): spec => {
+  id: t.id,
+  title: t.title,
+  module_name: t.module_name,
+  prompt: t.prompt,
+  max_points: t.max_points,
+  prelude: zipper_of_code(t.prelude),
+  lemmas: zipper_of_code(t.lemmas),
+  theorem: zipper_of_code(t.theorem),
+};
+
 let blank_spec = (~title, ~module_name): spec => {
   id: Haz3lcore.Id.mk(),
   title,
