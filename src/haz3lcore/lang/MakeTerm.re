@@ -18,7 +18,7 @@ let tokens =
   Piece.get(
     _ => [],
     _ => [" "],
-    (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
+    (t: Tile.t) => t.shards |> List.map(Tile.token(t)),
     _ =>
       /* Hack: These act as temporary wrappers for projectors,
        * given that they in-effect act as a convex wrapping form */
@@ -1451,10 +1451,10 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
         | _ => inner
         };
       [wrapped];
-    | Tile({mold, shards, children, _}) =>
+    | Tile({shards, children, _} as t) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
-           let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
+           let s = l + 1 == r ? List.nth(Tile.mold(t).in_, l) : Sort.Any;
            go_s(s, Segment.skel(~sort=s, kid), kid);
          })
     };

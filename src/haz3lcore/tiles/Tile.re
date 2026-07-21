@@ -10,6 +10,12 @@ type t = tile;
 
 let id = (t: t) => t.id;
 
+let label = (t: t): Label.t => t.label;
+let mold = (t: t): Mold.t => t.mold;
+let has_label = (t: t, lbl: Label.t): bool => t.label == lbl;
+let arity = (t: t): int => List.length(t.label);
+let token = (t: t, i: int): Token.t => List.nth(t.label, i);
+
 let is_complete = (t: t) => List.length(t.label) == List.length(t.shards);
 
 let l_shard = t =>

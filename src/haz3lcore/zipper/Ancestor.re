@@ -15,6 +15,9 @@ type t = {
   children: (list(Segment.t), list(Segment.t)),
 };
 
+let label = (a: t): Label.t => a.label;
+let mold = (a: t): Mold.t => a.mold;
+
 // TODO(d) revisit naming w.r.t. outer vs inner shards
 let l_shard = a =>
   ListUtil.hd_opt(fst(a.shards)) |> OptUtil.get_or_raise(Empty_shard_affix);

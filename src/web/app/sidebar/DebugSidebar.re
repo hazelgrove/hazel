@@ -587,11 +587,16 @@ let indicated_piece_fields = (p: Haz3lcore.Piece.t): list(Node.t) =>
         let (l, r) = Haz3lcore.Tile.shapes(t);
         [
           field_str("kind", "Tile"),
-          field_str("label", String.concat(" ", t.label)),
-          field_str("mold.out", sort_str(t.mold.out)),
+          field_str("label", String.concat(" ", Haz3lcore.Tile.label(t))),
+          field_str("mold.out", sort_str(Haz3lcore.Tile.mold(t).out)),
           field_str(
             "mold.in_",
-            "[" ++ String.concat(", ", List.map(sort_str, t.mold.in_)) ++ "]",
+            "["
+            ++ String.concat(
+                 ", ",
+                 List.map(sort_str, Haz3lcore.Tile.mold(t).in_),
+               )
+            ++ "]",
           ),
           field_str("nibs", shape_str(l) ++ " … " ++ shape_str(r)),
           field_str(

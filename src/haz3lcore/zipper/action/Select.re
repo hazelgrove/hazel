@@ -417,14 +417,17 @@ let current_term_id = (z: t): option(Id.t) => {
   | Grout(_)
   | Projector(_) => Some(Piece.id(p))
   | Tile(t) =>
-    switch (t.label, Zipper.parent(z)) {
-    | ([","], Some(Tile({label: ["[", "]"] | ["(", ")"], id, _}))) =>
+    switch (Tile.label(t), Zipper.parent(z)) {
+    | ([","], Some(Tile({id, _} as par)))
+        when
+          Tile.has_label(par, ["[", "]"])
+          || Tile.has_label(par, ["(", ")"]) =>
       Some(id)
-    | (["|", "=>"], Some(Tile({label: ["case", "end"], id, _})))
-        when rel == Sibling =>
+    | (["|", "=>"], Some(Tile({id, _} as par)))
+        when rel == Sibling && Tile.has_label(par, ["case", "end"]) =>
       Some(id)
-    | (["|", "=>"], Some(Tile({label: ["|", "=>"], _})))
-        when rel == Parent =>
+    | (["|", "=>"], Some(Tile(par)))
+        when rel == Parent && Tile.has_label(par, ["|", "=>"]) =>
       switch (z.relatives.ancestors) {
       | [_, (gp, _), ..._] => Some(gp.id)
       | _ => None
@@ -482,7 +485,8 @@ let containing_rule = (z: t): option(t) => {
   };
   let rule_or_end_of_seg_to_right =
     fun
-    | (_, None | Some(Piece.Tile({label: ["|", "=>"], _}))) => true
+    | (_, None) => true
+    | (_, Some(Piece.Tile(t))) when Tile.has_label(t, ["|", "=>"]) => true
     | _ => false;
   let grow_right_until_case_or_rule = z =>
     Zipper.do_until_piece(grow_left_by_piece, rule_or_end_of_seg_to_right, z);
@@ -548,10 +552,17 @@ let current_term =
     ) => {
   let* {piece: p, _} = Indicated.for_decoration(z);
   switch (p) {
-  | Tile({label: ["let" | "type" | "module", "=", "in"], _})
-      when defs_exclude_bodies =>
+  | Tile(t)
+      when
+        defs_exclude_bodies
+        && (
+          Tile.has_label(t, ["let", "=", "in"])
+          || Tile.has_label(t, ["type", "=", "in"])
+          || Tile.has_label(t, ["module", "=", "in"])
+        ) =>
     current_tile(z)
-  | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
+  | Tile(t) when case_rules && Tile.has_label(t, ["|", "=>"]) =>
+    containing_rule(z)
   | _ =>
     let* id = current_term_id(z);
     switch (TermData.extreme_ids(id, term_data)) {
@@ -666,8 +677,11 @@ let def_body_indicated =
 let parent_is_rule = (z: t, info_map): option(Id.t) => {
   let is_case_or_rule = (p: Piece.t) =>
     switch (p) {
-    | Tile({label: ["case", "end"], _}) => true
-    | Tile({label: ["|", "=>"], _}) => true
+    | Tile(t)
+        when
+          Tile.has_label(t, ["case", "end"])
+          || Tile.has_label(t, ["|", "=>"]) =>
+      true
     | _ => false
     };
   let move_left_until_case_or_rule =
@@ -681,7 +695,7 @@ let parent_is_rule = (z: t, info_map): option(Id.t) => {
     let* z = move_left_until_case_or_rule(z);
     let* {piece: p, _} = Indicated.for_decoration(z);
     switch (p) {
-    | Tile({label: ["|", "=>"], id, _}) => Some(id)
+    | Tile({id, _} as t) when Tile.has_label(t, ["|", "=>"]) => Some(id)
     | _ => None
     };
   };
@@ -709,7 +723,7 @@ let parent_term_id = (z: t, info_map) => {
 
 let is_rule_tile =
   fun
-  | Piece.Tile({label: ["|", "=>"], _}) => true
+  | Piece.Tile(t) when Tile.has_label(t, ["|", "=>"]) => true
   | _ => false;
 
 /* Check if id has a module item cls (ModLet, ModType, etc.).

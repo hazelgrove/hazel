@@ -22,7 +22,7 @@ let sort =
   get(
     _ => (Sort.Any, []),
     _ => (Sort.Any, []),
-    t => (t.mold.out, t.mold.in_),
+    t => (Tile.mold(t).out, Tile.mold(t).in_),
     _ => (Sort.Any, []),
   );
 
@@ -134,7 +134,7 @@ let is_projector: t => option(projector) =
 
 let label: t => option(Label.t) =
   fun
-  | Tile({label, _}) => Some(label)
+  | Tile(t) => Some(Tile.label(t))
   | _ => None;
 
 let is_complete: t => bool =
@@ -187,12 +187,16 @@ let mk_tile: (Form.t, list(list(t))) => t =
 let is_term = (p: t) =>
   switch (p) {
   | Grout(_)
-  | Projector(_)
-  | Tile({
-      label: [_],
-      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-      _,
-    }) =>
+  | Projector(_) => true
+  | Tile(t)
+      when
+        Tile.arity(t) == 1
+        && (
+          switch (Tile.mold(t).nibs) {
+          | ({shape: Convex, _}, {shape: Convex, _}) => true
+          | _ => false
+          }
+        ) =>
     true
   | Secondary(_) => false // debatable
   | _ => false
@@ -200,8 +204,9 @@ let is_term = (p: t) =>
 
 let is_infix_delimiter_op_prefix = (p: t) =>
   switch (p) {
-  | Tile({label: [t], mold, _}) =>
-    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
+  | Tile(t) when Tile.arity(t) == 1 =>
+    Mold.is_infix_op(Tile.mold(t))
+    && Form.is_infix_delimiter_op_prefix(Tile.token(t, 0))
   | _ => false
   };
 

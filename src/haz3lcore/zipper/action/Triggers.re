@@ -40,16 +40,15 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
 
 let expand_projector = (z: t): option(t) => {
   switch (z.relatives.siblings |> fst |> List.rev) {
-  | [
-      Tile({label: ["(", ")"], children: [syntax], _}),
-      Tile({label: [name], _}),
-      ...rest,
-    ]
-      when is_refractor_trigger(name) =>
+  | [Tile({children: [syntax], _} as parens), Tile(nt), ...rest]
+      when
+        Tile.has_label(parens, ["(", ")"])
+        && Tile.arity(nt) == 1
+        && is_refractor_trigger(Tile.token(nt, 0)) =>
     /* Left siblings are stored as [oldest, ..., newest]. After List.rev we have
      * [newest(parens), ^^refractor, ...rest] where rest is [third_newest, ..., oldest].
      * We want syntax in the newest position: [oldest, ..., third_newest, syntax...] */
-    let kind = of_refractor_trigger(name);
+    let kind = of_refractor_trigger(Tile.token(nt, 0));
     Zipper.update_siblings(((_, r)) => (List.rev(rest) @ syntax, r), z)
     |> Zipper.add_manual(
          Segment.root_id(Segment.skel(syntax), syntax),
@@ -57,21 +56,24 @@ let expand_projector = (z: t): option(t) => {
        )
     |> Option.some;
 
-  | [
-      Tile({label: ["(", ")"], children: [syntax], _}),
-      Tile({label: [name], _}),
-      ...rest,
-    ]
-      when Token.is_projector_invoke(name) =>
-    let+ piece = invoked_projector(name, syntax);
+  | [Tile({children: [syntax], _} as parens), Tile(nt), ...rest]
+      when
+        Tile.has_label(parens, ["(", ")"])
+        && Tile.arity(nt) == 1
+        && Token.is_projector_invoke(Tile.token(nt, 0)) =>
+    let+ piece = invoked_projector(Tile.token(nt, 0), syntax);
     Zipper.update_siblings(
       ((_, r)) => ([piece, ...rest] |> List.rev, r),
       z,
     );
   /* Special case for reparsing of projectors placed on holes */
-  | [Tile({label: ["()"], _}), Tile({label: [name], _}), ...rest]
-      when Token.is_projector_invoke(name) =>
-    let+ piece = invoked_projector(name, [Piece.mk_grout(Convex)]);
+  | [Tile(ht), Tile(nt), ...rest]
+      when
+        Tile.has_label(ht, ["()"])
+        && Tile.arity(nt) == 1
+        && Token.is_projector_invoke(Tile.token(nt, 0)) =>
+    let+ piece =
+      invoked_projector(Tile.token(nt, 0), [Piece.mk_grout(Convex)]);
     Zipper.update_siblings(
       ((_, r)) => ([piece, ...rest] |> List.rev, r),
       z,
@@ -105,8 +107,12 @@ let projector_to_invoke_text = (pr: Base.projector): Segment.t =>
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
-  | [Secondary({content: Whitespace(w), _}), Tile({label: [t], _}), ..._]
-      when Token.is_livelit(t) && w == Token.space =>
+  | [Secondary({content: Whitespace(w), _}), Tile(lt), ..._]
+      when
+        Tile.arity(lt) == 1
+        && Token.is_livelit(Tile.token(lt, 0))
+        && w == Token.space =>
+    let t = Tile.token(lt, 0);
     let* ll = Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t));
     let seg = exp_to_seg(ll.model_default);
     let seg =

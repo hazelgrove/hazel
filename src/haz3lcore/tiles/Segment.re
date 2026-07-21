@@ -111,7 +111,7 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
   let+ remolded =
-    switch (Form.Molds.try_get(s, t.label)) {
+    switch (Form.Molds.try_get(s, Tile.label(t))) {
     | None => None
     | Some(molds) =>
       molds
@@ -135,8 +135,9 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
         let child =
           if (l
               + 1 == r
-              && List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l)) {
-            remold(child, List.nth(remolded.mold.in_, l));
+              && List.nth(Tile.mold(remolded).in_, l)
+              != List.nth(Tile.mold(t).in_, l)) {
+            remold(child, List.nth(Tile.mold(remolded).in_, l));
           } else {
             child;
           };
@@ -263,7 +264,7 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       switch (remold_tile(Typ, shape, t)) {
       | None
           when
-            t.label == [";"]
+            Tile.has_label(t, [";"])
             && List.exists(
                  fun
                  | Sort.Mod
@@ -283,8 +284,8 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         ([Tile(t), ...remolded], shape, []);
       | Some(t)
           when
-            t.label == Form.get(CommaTyp).label
-            || t.label == Form.get(TypPlus).label
+            Tile.has_label(t, Form.get(CommaTyp).label)
+            || Tile.has_label(t, Form.get(TypPlus).label)
             && List.exists((==)(Sort.Exp), parent_sorts) => (
           [],
           shape,
@@ -448,7 +449,7 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
          Exp-level semicolon entirely or find a more principled disambiguation approach. */
       | Some(t)
           when
-            t.label == Form.get(CellJoin).label
+            Tile.has_label(t, Form.get(CellJoin).label)
             && List.exists((==)(Sort.Mod), parent_sorts) => (
           [],
           shape,
@@ -1208,7 +1209,7 @@ let first_string =
   | [Piece.Secondary(w), ..._] => Secondary.get_string(w.content)
   | [Piece.Projector(_), ..._] => "PROJECTOR"
   | [Piece.Grout(_), ..._] => "?"
-  | [Piece.Tile(t), ..._] => t.label |> List.hd;
+  | [Piece.Tile(t), ..._] => Tile.token(t, 0);
 
 let last_string =
   fun
@@ -1218,7 +1219,7 @@ let last_string =
     | Piece.Secondary(w) => Secondary.get_string(w.content)
     | Piece.Grout(_) => "?"
     | Piece.Projector(_) => "PROJECTOR"
-    | Piece.Tile(t) => t.label |> ListUtil.last
+    | Piece.Tile(t) => Tile.label(t) |> ListUtil.last
     };
 
 let sort_of = (skel: Skel.t, seg: t): Sort.t =>

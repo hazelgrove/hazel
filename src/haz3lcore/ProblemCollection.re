@@ -184,10 +184,10 @@ let collect_category =
       Segment.incomplete_tiles_deep(ctx.segment)
       |> List.to_seq
       |> Seq.map((t: Tile.t) => {
-           let all_indices = List.init(List.length(t.label), Fun.id);
+           let all_indices = List.init(Tile.arity(t), Fun.id);
            let missing_labels =
              List.filter(i => !List.mem(i, t.shards), all_indices)
-             |> List.map(i => List.nth(t.label, i));
+             |> List.map(i => Tile.token(t, i));
            let description =
              "Incomplete: missing " ++ String.concat(", ", missing_labels);
            {

@@ -272,8 +272,8 @@ let expander_deco =
 
     let get_clss = segment =>
       switch (List.nth(segment, 0)) {
-      | Base.Tile({mold, _}) => [
-          "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
+      | Base.Tile(t) => [
+          "ci-header-" ++ Sort.to_string(Tile.mold(t).out) // TODO the brown on brown isn't the greatest... but okay
         ]
       | _ => []
       };
@@ -555,18 +555,13 @@ let get_doc_deduction =
             |> List.map(
                  Base.map_piece(~f_piece=(cont, piece) => {
                    switch (piece) {
-                   | Tile(
-                       {
-                         children: [],
-                         mold:
-                           {
-                             nibs: ({shape: Convex, _}, {shape: Convex, _}),
-                             _,
-                           },
-                         _,
-                       } as t,
-                     ) =>
-                     let label = t.label |> List.hd;
+                   | Tile({children: [], _} as t)
+                       when
+                         switch (Tile.mold(t).nibs) {
+                         | ({shape: Convex, _}, {shape: Convex, _}) => true
+                         | _ => false
+                         } =>
+                     let label = Tile.label(t) |> List.hd;
                      let (_, syntax) = RuleVerify.Map.find(label, map);
                      Tile({
                        ...t,

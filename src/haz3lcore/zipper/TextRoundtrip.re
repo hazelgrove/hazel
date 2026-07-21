@@ -46,7 +46,7 @@ let to_text =
  * (the token round-trips through `Insert.go` unchanged). */
 let is_marker = (~implicit_hole: string, p: piece): bool =>
   switch (p) {
-  | Tile(t) => t.label == [implicit_hole]
+  | Tile(t) => Tile.has_label(t, [implicit_hole])
   | _ => false
   };
 

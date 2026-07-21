@@ -251,33 +251,33 @@ let rec absorb_comments =
 
 let is_semi = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: [";"], _}) => true
+  | Tile(t) when Tile.has_label(t, [";"]) => true
   | _ => false
   };
 
 let is_comma = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: [","], _}) => true
+  | Tile(t) when Tile.has_label(t, [","]) => true
   | _ => false
   };
 
 let is_infix = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({mold, label: [_], _}) =>
-    Mold.is_infix_op(mold) && !is_comma(p) && !is_semi(p)
+  | Tile(t) when Tile.arity(t) == 1 =>
+    Mold.is_infix_op(Tile.mold(t)) && !is_comma(p) && !is_semi(p)
   | _ => false
   };
 
 let is_dot = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["."], _}) => true
+  | Tile(t) when Tile.has_label(t, ["."]) => true
   | _ => false
   };
 
 /* Label binding = in records/labeled tuples (not ==) */
 let is_label_eq = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["="], _}) => true
+  | Tile(t) when Tile.has_label(t, ["="]) => true
   | _ => false
   };
 
@@ -338,14 +338,14 @@ let split_infix_chain =
 /* Single-token prefix operator (e.g., leading + in sum types) */
 let is_single_prefix = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) => List.length(t.label) == 1 && Mold.is_prefix_op(t.mold)
+  | Tile(t) => Tile.arity(t) == 1 && Mold.is_prefix_op(Tile.mold(t))
   | _ => false
   };
 
 let is_compound_prefix = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
-    List.length(t.label) >= 2
+    Tile.arity(t) >= 2
     && Tile.is_complete(t)
     && (
       switch (Tile.shapes(t)) {
@@ -358,7 +358,7 @@ let is_compound_prefix = (p: Piece.t): bool =>
 
 let is_case_rule_tile = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["|", "=>"], _}) => true
+  | Tile(t) when Tile.has_label(t, ["|", "=>"]) => true
   | _ => false
   };
 
@@ -369,7 +369,7 @@ let is_case_rule_tile = (p: Piece.t): bool =>
 let is_trailing_hole = (p: Piece.t): bool =>
   switch (p) {
   | Grout({shape: Convex, _}) => true
-  | Tile({label: ["?"], _}) => true
+  | Tile(t) when Tile.has_label(t, ["?"]) => true
   | _ => false
   };
 
@@ -383,7 +383,7 @@ let is_block_form = (p: Piece.t): bool =>
   || (
     switch (p) {
     | Tile(t) when Tile.is_complete(t) =>
-      switch (t.label) {
+      switch (Tile.label(t)) {
       | ["case", "end"]
       | ["test", "end"]
       | ["hint", "test", "end"] => true
@@ -407,9 +407,11 @@ let segment_starts_with_block = (seg: Segment.t): bool =>
    we only want to tighten f (x) → f(x), not remove breaks before ")". */
 let is_paren_or_bracket = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["(", ")"], shards, children, _})
-  | Tile({label: ["[", "]"], shards, children, _})
-  | Tile({label: ["@<", ">"], shards, children, _}) =>
+  | Tile({shards, children, _} as t)
+      when
+        Tile.has_label(t, ["(", ")"])
+        || Tile.has_label(t, ["[", "]"])
+        || Tile.has_label(t, ["@<", ">"]) =>
     /* Complete tile (has children) or opening shard (index 0) */
     List.length(children) > 0 || shards == [0]
   | _ => false
@@ -485,7 +487,7 @@ let rec child_doc = (s: settings, child: Segment.t): doc => {
    the single-shard pieces in the output segment. */
 and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   let triples = Tile.contained_children(t);
-  let last_shard_idx = List.length(t.label) - 1;
+  let last_shard_idx = Tile.arity(t) - 1;
   /* Shard doc: extract a single shard from this tile as a doc node */
   let shard = i => piece_doc(Tile.to_piece(Tile.shard_of(t, i)));
   /* Fallback for unexpected tile structure: emit whole tile + rest.
@@ -530,11 +532,13 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | [Tile(dt)]
         when
           s.hanging_delimiters
-          && (dt.label == ["(", ")"] || dt.label == ["[", "]"])
+          && (
+            Tile.has_label(dt, ["(", ")"])
+            || Tile.has_label(dt, ["[", "]"])
+          )
           && List.length(dt.children) > 0 =>
       let open_s = Tile.to_piece(Tile.shard_of(dt, 0));
-      let close_s =
-        Tile.to_piece(Tile.shard_of(dt, List.length(dt.label) - 1));
+      let close_s = Tile.to_piece(Tile.shard_of(dt, Tile.arity(dt) - 1));
       switch (Tile.contained_children(dt)) {
       | [(_, inner_child, _)] =>
         let inner = child_doc(s, inner_child);
@@ -570,7 +574,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => cats([tile_doc, Break, Group(segment_to_doc(s, rest))])
     };
 
-  switch (t.label) {
+  switch (Tile.label(t)) {
   /* Binding forms: let/=/in, type/=/in, theorem/=/in */
   | [_, "=", "in"] =>
     switch (triples) {

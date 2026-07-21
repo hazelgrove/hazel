@@ -282,7 +282,7 @@ let tiles_data =
   let of_tile = (id: Id.t) => {
     open OptUtil.Syntax;
     let+ tile = TermData.root_tile(id, term_data);
-    (id, tile.mold, Measured.find_shards(~msg, tile, measured));
+    (id, Tile.mold(tile), Measured.find_shards(~msg, tile, measured));
   };
   Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
 };
@@ -309,10 +309,10 @@ let term =
     | Typ({term: Sig(_), _}) => true
     | _ => false
     };
-  let is_semi = tile.label == [";"];
+  let is_semi = Tile.has_label(tile, [";"]);
   let is_not_semi_tile = ((tid, _, _)) =>
     switch (TermData.root_tile(tid, term_data)) {
-    | Some(t) => t.label != [";"]
+    | Some(t) => !Tile.has_label(t, [";"])
     | None => true
     };
 
@@ -325,7 +325,7 @@ let term =
         ~attr?,
         ~font_metrics,
         ~base_clss=None,
-        [(tile.id, t.mold, Measured.find_shards(~msg, t, measured))],
+        [(tile.id, Tile.mold(t), Measured.find_shards(~msg, t, measured))],
       )
     | None => []
     };

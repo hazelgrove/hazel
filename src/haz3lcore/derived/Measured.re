@@ -284,7 +284,7 @@ let of_segment_inner =
   };
 
   let add_shard = ((seg, indent, origin, map): acc, t: Tile.t, idx: int) => {
-    let size = Token.bounding_box(List.nth(t.label, idx));
+    let size = Token.bounding_box(Tile.token(t, idx));
     let (measure, map) = calc(indent, origin, map, size);
     (
       [Piece.Tile(shardify(t, idx)), ...seg],

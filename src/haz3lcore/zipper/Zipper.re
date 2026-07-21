@@ -74,9 +74,9 @@ let rescan_parent_shards = (z: t): t => {
   /* For each ancestor, compute its missing shards as (token, index) pairs */
   let ancestor_missing = (a: Ancestor.t): list((string, int)) => {
     let all_shards = fst(a.shards) @ snd(a.shards);
-    List.init(List.length(a.label), Fun.id)
+    List.init(List.length(Ancestor.label(a)), Fun.id)
     |> List.filter(i => !List.mem(i, all_shards))
-    |> List.map(i => (List.nth(a.label, i), i));
+    |> List.map(i => (List.nth(Ancestor.label(a), i), i));
   };
 
   let convert_piece =
@@ -89,8 +89,8 @@ let rescan_parent_shards = (z: t): t => {
         Tile({
           ...t,
           id: a.Ancestor.id,
-          label: a.Ancestor.label,
-          mold: a.Ancestor.mold,
+          label: Ancestor.label(a),
+          mold: Ancestor.mold(a),
           shards: [idx],
         })
       | None => p
@@ -874,8 +874,10 @@ let delete = (d: Direction.t, z: t): option(t) =>
 
 let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   switch (Siblings.neighbors(z.relatives.siblings)) {
-  | (Some(Tile({id, label: [_], _})), _) when d == Left => Some(id)
-  | (_, Some(Tile({id, label: [_], _}))) when d == Right => Some(id)
+  | (Some(Tile({id, _} as t)), _) when d == Left && Tile.arity(t) == 1 =>
+    Some(id)
+  | (_, Some(Tile({id, _} as t))) when d == Right && Tile.arity(t) == 1 =>
+    Some(id)
   | _ => None
   };
 

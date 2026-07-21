@@ -2447,18 +2447,18 @@ let shard_theft_tests = [
             let bp = Zipper.local_backpack(z');
             let bp_labels =
               bp
-              |> List.map((t: Tile.t) => String.concat(",", t.label))
+              |> List.map((t: Tile.t) => String.concat(",", Tile.label(t)))
               |> String.concat("; ");
             let global_seg = Relatives.zip(z'.relatives);
             let global_bp =
               Segment.global_missing_shards(global_seg)
-              |> List.map((t: Tile.t) => String.concat(",", t.label))
+              |> List.map((t: Tile.t) => String.concat(",", Tile.label(t)))
               |> String.concat("; ");
             let anc_info =
               switch (z'.relatives.ancestors) {
               | [] => "no ancestor"
               | [(a, _), ..._] =>
-                let label = String.concat(",", a.label);
+                let label = String.concat(",", Ancestor.label(a));
                 let (sl, sr) = a.shards;
                 let shards =
                   sl @ sr |> List.map(string_of_int) |> String.concat(",");
@@ -2653,7 +2653,7 @@ let rec find_tiles_by_label =
   List.concat_map(
     fun
     | Piece.Tile(t) => {
-        let matches = t.label == label ? [t] : [];
+        let matches = Tile.has_label(t, label) ? [t] : [];
         let child_matches =
           List.concat_map(find_tiles_by_label(label), t.children);
         matches @ child_matches;
@@ -2679,11 +2679,11 @@ let remold_sort_tests = [
       | _ =>
         List.iter(
           (t: Tile.t) =>
-            if (t.mold.out != Sort.Typ) {
+            if (Tile.mold(t).out != Sort.Typ) {
               Alcotest.fail(
                 Printf.sprintf(
                   "Paren tile has mold.out=%s, expected Typ",
-                  Sort.show(t.mold.out),
+                  Sort.show(Tile.mold(t).out),
                 ),
               );
             },
@@ -2705,11 +2705,11 @@ let remold_sort_tests = [
       | _ =>
         List.iter(
           (t: Tile.t) =>
-            if (t.mold.out != Sort.Typ) {
+            if (Tile.mold(t).out != Sort.Typ) {
               Alcotest.fail(
                 Printf.sprintf(
                   "Paren tile has mold.out=%s, expected Typ",
-                  Sort.show(t.mold.out),
+                  Sort.show(Tile.mold(t).out),
                 ),
               );
             },
@@ -3110,7 +3110,8 @@ let rec tile_sorts_of_seg = (seg: Segment.t): list((string, Sort.t)) =>
 and tile_sorts_of_piece = (p: Piece.t): list((string, Sort.t)) =>
   switch (p) {
   | Tile(t) =>
-    let label_sorts = List.map(tok => (tok, t.mold.out), t.label);
+    let label_sorts =
+      List.map(tok => (tok, Tile.mold(t).out), Tile.label(t));
     let child_sorts = List.concat_map(tile_sorts_of_seg, t.children);
     label_sorts @ child_sorts;
   | Projector({syntax, _}) => tile_sorts_of_piece(syntax)
@@ -3877,7 +3878,7 @@ let test_caret_and_backpack = (~name, ~acts, ~goal): test_case(_) =>
         "backpack empty (labels: "
         ++ String.concat(
              ",",
-             List.map(t => String.concat("", t.Tile.label), bp),
+             List.map(t => String.concat("", Tile.label(t)), bp),
            )
         ++ ")",
         0,
@@ -4029,7 +4030,10 @@ let test_cut_paste =
         "backpack empty (labels: "
         ++ String.concat(
              "; ",
-             List.map((t: Tile.t) => String.concat(",", t.label), bp),
+             List.map(
+               (t: Tile.t) => String.concat(",", Tile.label(t)),
+               bp,
+             ),
            )
         ++ ")",
         0,
@@ -4040,7 +4044,10 @@ let test_cut_paste =
         "no incomplete tiles (labels: "
         ++ String.concat(
              "; ",
-             List.map((t: Tile.t) => String.concat(",", t.label), inc),
+             List.map(
+               (t: Tile.t) => String.concat(",", Tile.label(t)),
+               inc,
+             ),
            )
         ++ ")",
         0,
@@ -4164,7 +4171,10 @@ let cross_boundary_tests = [
         "no incomplete tiles in full segment (labels: "
         ++ String.concat(
              "; ",
-             List.map((t: Tile.t) => String.concat(",", t.label), inc),
+             List.map(
+               (t: Tile.t) => String.concat(",", Tile.label(t)),
+               inc,
+             ),
            )
         ++ ")",
         0,

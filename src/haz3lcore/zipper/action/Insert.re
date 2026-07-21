@@ -12,14 +12,16 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
     List.exists(
       (p: Piece.t) =>
         switch (p) {
-        | Tile({label: ["case", "end"], shards: [0], _}) => true
+        | Tile({shards: [0], _} as t)
+            when Tile.has_label(t, ["case", "end"]) =>
+          true
         | _ => false
         },
       z.relatives.siblings |> fst,
     );
   let inside_case = (z: t): bool =>
     switch (Ancestors.parent(z.relatives.ancestors)) {
-    | Some({label: ["case", "end"], _}) => true
+    | Some(a) when Ancestor.label(a) == ["case", "end"] => true
     | _ => false
     };
   switch (t) {
@@ -209,7 +211,7 @@ let parens_edge_case = (char: string, z: t): bool =>
  * make `inner`). */
 let has_complete_multishard_right_sibling = (z: t): bool =>
   switch (Siblings.neighbor(Right, z.relatives.siblings)) {
-  | Some(Tile(t)) => Tile.is_complete(t) && List.length(t.label) > 1
+  | Some(Tile(t)) => Tile.is_complete(t) && Tile.arity(t) > 1
   | _ => false
   };
 

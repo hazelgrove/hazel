@@ -42,7 +42,7 @@ let rec shallow_complete_segment = (seg: Segment.t): Segment.t =>
   | [Tile(t), ...rest] when !Tile.is_complete(t) => [
       Tile({
         ...t,
-        shards: List.init(List.length(t.label), i => i),
+        shards: List.init(Tile.arity(t), i => i),
         children: t.children @ [shallow_complete_segment(rest)],
         /* Note: Potentially wrong number of children */
       }),
@@ -108,19 +108,19 @@ let complete_segment = (seg: Segment.t): Segment.t => {
 
 let is_comma = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) => t.label == [","]
+  | Tile(t) => Tile.has_label(t, [","])
   | _ => false
   };
 
 let is_case_rule = (p: Piece.t): bool =>
   switch (p) {
   //| Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
-  | Tile({label: ["|", "=>"], _}) => true
+  | Tile(t) when Tile.has_label(t, ["|", "=>"]) => true
   | _ => false
   };
 
 let ends_with_in = (t: Tile.t): bool =>
-  switch (t.label |> List.rev) {
+  switch (Tile.label(t) |> List.rev) {
   | ["in", ..._] => true
   | _ => false
   };
@@ -133,7 +133,7 @@ let is_incrementor = (p: Piece.t): bool =>
   | Tile(t) =>
     switch (Tile.shapes(t)) {
     | _ when ends_with_in(t) => false
-    | (_, Concave(_)) when List.length(t.label) >= 2 => true
+    | (_, Concave(_)) when Tile.arity(t) >= 2 => true
     | _ => false
     }
   | _ => false

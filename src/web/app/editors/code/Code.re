@@ -99,7 +99,7 @@ let view =
   let lb_icon = settings.secondary_icons ? "⏎" : "";
   let ws_icon = settings.secondary_icons ? "·" : " ";
 
-  let sort = (t: Tile.t): Sort.t => refine_sort(t.id, t.mold.out);
+  let sort = (t: Tile.t): Sort.t => refine_sort(t.id, Tile.mold(t).out);
 
   let is_consistent = (sort: Sort.t, t: Tile.t) =>
     switch (Id.Map.find_opt(t.id, term_data)) {
@@ -123,14 +123,14 @@ let view =
   let of_delim = (t: Piece.tile, i: int): t => {
     let sort = sort(t);
     of_delim'(
-      List.nth(t.label, i),
-      List.length(t.label),
+      Tile.token(t, i),
+      Tile.arity(t),
       sort,
       is_consistent(sort, t),
       List.mem(t.id, buffer_ids),
       Tile.is_complete(t),
-      Mold.is_infix_op(t.mold)
-      && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
+      Mold.is_infix_op(Tile.mold(t))
+      && Form.is_infix_delimiter_op_prefix(Tile.token(t, i)),
       font_metrics,
     );
   };

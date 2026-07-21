@@ -132,7 +132,7 @@ let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
         r.sort;
       };
     };
-    switch (Form.Molds.try_get(sort, a.label)) {
+    switch (Form.Molds.try_get(sort, Ancestor.label(a))) {
     | None
     | Some([_]) => [(a, sibs), ...rest]
     | Some(molds) =>
