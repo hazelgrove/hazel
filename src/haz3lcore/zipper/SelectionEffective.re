@@ -55,18 +55,6 @@ let ids_spanned_at_current_level =
   };
 };
 
-let segment_contains_all_ids = (~ids: list(Id.t), segment: Segment.t): bool => {
-  let segment_ids = Segment.ids(segment);
-  ids |> List.for_all(id => List.mem(id, segment_ids));
-};
-
-let exact_segment_root_id =
-    (~segment: Segment.t, ~term_data: TermData.t, id: Id.t): bool =>
-  switch (TermData.segment(id, term_data)) {
-  | Some(root_segment) => root_segment == segment
-  | None => false
-  };
-
 let piece_has_label = (label: list(string), piece: Piece.t): bool =>
   switch (piece) {
   | Tile(t) => t.label == label
@@ -98,7 +86,7 @@ let segment_label_ids =
 let intersects = (left: list(Id.t), right: list(Id.t)): bool =>
   left |> List.exists(id => List.mem(id, right));
 
-let current_level_for_selected_comma =
+let display_comma_separated_segment =
     (~selection: Segment.t, ~current_level: Segment.t): option(Segment.t) => {
   let selected_comma_ids = segment_label_ids([","], selection);
   selected_comma_ids != []
@@ -106,220 +94,61 @@ let current_level_for_selected_comma =
     ? Some(current_level) : None;
 };
 
-let is_multi_shard_tile = (piece: Piece.t): bool =>
-  switch (piece) {
-  | Tile({label, _}) => List.length(label) > 1
-  | _ => false
-  };
-
-let is_partial_multi_shard_tile = (piece: Piece.t): bool =>
-  switch (piece) {
-  | Tile({label, shards, children, _}) =>
-    is_multi_shard_tile(piece)
-    && (List.length(shards) < List.length(label) || children == [])
-  | _ => false
-  };
-
-let is_case_rule_tile = (piece: Piece.t): bool =>
-  switch (piece) {
-  | Tile({label: ["|", "=>"], _}) => true
-  | _ => false
-  };
-
-let rec find_piece_by_id = (id: Id.t, segment: Segment.t): option(Piece.t) =>
-  segment
-  |> List.find_map(piece =>
-       if (Id.equal(Piece.id(piece), id)) {
-         Some(piece);
-       } else {
-         switch (piece) {
-         | Tile({children, _}) =>
-           children |> List.find_map(find_piece_by_id(id))
-         | _ => None
-         };
+let binop_id = (~info_map: Language.Statics.Map.t, ids: list(Id.t)) =>
+  ids
+  |> List.filter(id =>
+       switch (Language.Statics.Map.lookup(id, info_map)) {
+       | Some(InfoExp({user_term: {term: BinOp(_, _, _), _}, _})) => true
+       | _ => false
+       }
+     )
+  |> List.find_opt(id =>
+       switch (Language.Statics.Map.lookup(id, info_map)) {
+       | Some(info) =>
+         let ancestors = Language.Info.ancestors_of(info);
+         !
+           List.exists(
+             other_id => other_id != id && List.mem(other_id, ancestors),
+             ids,
+           );
+       | None => false
        }
      );
 
-let reassembled_tile_segment_for_id =
-    (~id: Id.t, z: Zipper.t): option(Segment.t) => {
-  switch (Zipper.unselect_and_zip(z) |> find_piece_by_id(id)) {
-  | Some(piece) => Some([piece])
-  | None => None
-  };
-};
-
-let reassembled_larger_multi_shard_segment =
-    (~piece: Piece.t, z: Zipper.t): option(Segment.t) =>
-  switch (reassembled_tile_segment_for_id(~id=Piece.id(piece), z)) {
-  | Some([reassembled_piece])
-      when
-        is_multi_shard_tile(reassembled_piece) && reassembled_piece != piece =>
-    Some([reassembled_piece])
-  | _ => None
-  };
-
-let term_segment_for_selection =
-    (
-      ~selection: Segment.t,
-      ~info_map: Language.Statics.Map.t,
-      ~measured: Measured.t,
-      ~term_data: TermData.t,
-      z: Zipper.t,
-    )
-    : option(Segment.t) => {
-  let standard_selection = z =>
-    Select.select_enclosing_term(term_data, measured, info_map, z);
-  let standard_segment = z =>
-    standard_selection(z)
-    |> Option.map((z': Zipper.t) => z'.selection.content);
-  let case_rule_standard_segment = z =>
-    switch (standard_selection(z)) {
-    | Some(z')
-        when
-          List.exists(is_case_rule_tile, z'.selection.content)
-          && !segment_has_label(["case", "end"], z'.selection.content) =>
-      switch (standard_segment(z')) {
-      | Some(_) as segment => segment
-      | None => Some(z'.selection.content)
-      }
-    | Some(z') => Some(z'.selection.content)
-    | None => None
-    };
-  let term_data_segment = selection => {
-    let selected_ids = Segment.ids(selection);
-    selected_ids
-    |> List.find_map(id =>
-         switch (TermData.segment(id, term_data)) {
-         | Some(segment)
-             when segment_contains_all_ids(~ids=selected_ids, segment) =>
-           Some(segment)
-         | _ => None
-         }
-       );
-  };
-  switch (selection) {
-  | [piece] =>
-    let normalized_segment =
-      reassembled_larger_multi_shard_segment(~piece, z)
-      |> Option.value(~default=selection);
-    let normalized_z = Zipper.replace_selection(Right, normalized_segment, z);
-    switch (normalized_segment) {
-    | [piece] when is_case_rule_tile(piece) => case_rule_standard_segment(z)
-    | _ =>
-      switch (term_data_segment(normalized_segment)) {
-      | Some(_) as segment => segment
-      | None => standard_segment(normalized_z)
-      }
-    };
-  | _ => None
-  };
-};
-
-type associative_result = {
-  segment: Segment.t,
-  root_id: option(Id.t),
-};
-
-let associative_result =
-    (
-      ~info_map: Language.Statics.Map.t,
-      ~measured: Measured.t,
-      ~term_data: TermData.t,
-      z: Zipper.t,
-    )
-    : associative_result => {
+let associative_segment =
+    (~info_map: Language.Statics.Map.t, ~term_data: TermData.t, z: Zipper.t)
+    : Segment.t => {
+  ignore(term_data);
   switch (z.selection.content) {
-  | [] => {
-      segment: [],
-      root_id: None,
-    }
+  | [] => []
+  | selection when starts_with_label(["-"], selection) => selection
   | selection =>
     let current_level = current_level_segment(z);
-    switch (current_level_for_selected_comma(~selection, ~current_level)) {
-    | Some(segment) => {
-        segment,
-        root_id: None,
+    let selected_ids =
+      Segment.ids(selection)
+      @ ids_spanned_at_current_level(
+          ~selected_ids=Segment.ids(selection),
+          ~current_level,
+        )
+      |> ListUtil.dedup;
+    let snapped_ids =
+      Language.AssocSelection.find_assoc_for_ids(selected_ids, info_map);
+    switch (snapped_ids) {
+    | [] =>
+      display_comma_separated_segment(~selection, ~current_level)
+      |> Option.value(~default=selection)
+    | ids =>
+      switch (contiguous_range(~ids, current_level)) {
+      | [] =>
+        display_comma_separated_segment(~selection, ~current_level)
+        |> Option.value(~default=selection)
+      | segment =>
+        display_comma_separated_segment(~selection, ~current_level)
+        |> Option.value(~default=segment)
       }
-    | None =>
-      let selected_ids = Segment.ids(selection) |> ListUtil.dedup;
-      let snapped_ids =
-        Language.AssocSelection.find_assoc_for_ids(selected_ids, info_map);
-      switch (snapped_ids) {
-      | [] => {
-          segment:
-            term_segment_for_selection(
-              ~selection,
-              ~info_map,
-              ~measured,
-              ~term_data,
-              z,
-            )
-            |> Option.value(~default=selection),
-          root_id: None,
-        }
-      | ids =>
-        switch (contiguous_range(~ids, current_level)) {
-        | [] => {
-            segment: selection,
-            root_id: None,
-          }
-        | segment =>
-          if (segment_contains_all_ids(~ids, segment)) {
-            {
-              segment,
-              root_id:
-                Language.AssocSelection.find_assoc_root_for_ids(
-                  selected_ids,
-                  info_map,
-                ),
-            };
-          } else if (segment_contains_all_ids(
-                       ~ids=Segment.ids(selection),
-                       segment,
-                     )) {
-            switch (
-              Language.AssocSelection.find_assoc_root_for_ids(
-                selected_ids,
-                info_map,
-              )
-            ) {
-            | Some(root_id) =>
-              let root_segment =
-                TermData.segment(root_id, term_data)
-                |> Option.value(~default=[]);
-              let root_range = contiguous_range(~ids, root_segment);
-              {
-                segment:
-                  segment_contains_all_ids(~ids, root_range)
-                    ? root_range : selection,
-                root_id: Some(root_id),
-              };
-            | None => {
-                segment: selection,
-                root_id: None,
-              }
-            };
-          } else {
-            {
-              segment: selection,
-              root_id: None,
-            };
-          }
-        }
-      };
     };
   };
 };
-
-let associative_segment =
-    (
-      ~info_map: Language.Statics.Map.t,
-      ~measured: Measured.t,
-      ~term_data: TermData.t,
-      z: Zipper.t,
-    )
-    : Segment.t =>
-  associative_result(~info_map, ~measured, ~term_data, z).segment;
 
 let expanded_segment =
     (~measured: Measured.t, ~term_data: TermData.t, z: Zipper.t): Segment.t =>
@@ -349,48 +178,8 @@ let segment =
     : Segment.t =>
   switch (mode) {
   | Raw => z.selection.content
-  | Associative => associative_segment(~info_map, ~measured, ~term_data, z)
+  | Associative => associative_segment(~info_map, ~term_data, z)
   | Expanded => expanded_segment(~measured, ~term_data, z)
-  };
-
-let root_id =
-    (
-      ~mode: mode,
-      ~info_map: Language.Statics.Map.t,
-      ~measured: Measured.t,
-      ~term_data: TermData.t,
-      z: Zipper.t,
-    )
-    : option(Id.t) =>
-  switch (mode) {
-  | Associative =>
-    let result = associative_result(~info_map, ~measured, ~term_data, z);
-    switch (result.root_id) {
-    | Some(_) as root_id => root_id
-    | None =>
-      let segment_ids = result.segment |> Segment.ids |> ListUtil.dedup;
-      switch (
-        Language.AssocSelection.find_assoc_root_for_ids(segment_ids, info_map)
-      ) {
-      | Some(id) =>
-        exact_segment_root_id(~segment=result.segment, ~term_data, id)
-          ? Some(id) : None
-      | None =>
-        switch (
-          result.segment
-          |> TermData.get_root_id_using_ranges(_, term_data, measured)
-        ) {
-        | Some(id) =>
-          exact_segment_root_id(~segment=result.segment, ~term_data, id)
-            ? Some(id) : None
-        | None => None
-        }
-      };
-    };
-  | Raw
-  | Expanded =>
-    segment(~mode, ~info_map, ~measured, ~term_data, z)
-    |> TermData.get_root_id_using_ranges(_, term_data, measured)
   };
 
 let ids =

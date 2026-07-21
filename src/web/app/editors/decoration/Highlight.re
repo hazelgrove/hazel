@@ -528,7 +528,6 @@ let selection =
     associative
       ? SelectionEffective.associative_segment(
           ~info_map=statics.info_map,
-          ~measured,
           ~term_data,
           z,
         )
