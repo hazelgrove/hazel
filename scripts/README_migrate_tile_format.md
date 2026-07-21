@@ -29,14 +29,18 @@ The 49 slide modules under `src/web/init/docs/` and `src/b2t2/slides/`
 embed segment sexps as strings inside `PersistentSegment.t` records. Old
 (label+mold) sexps still compile but fail decode at runtime and fall back
 to `backup_text`, which orphans the slide's refractor id references.
-`src/web/Migrate_slides.re` decodes each embedded segment with
-`LegacyBase.segment_of_sexp` (the pre-FormId types, kept verbatim in
-`src/web/LegacyBase.re`), upgrades it id-preservingly via
-`LegacyBase.upgrade_segment` (exact reverse lookup (label, mold) ->
-FormId), and re-emits the full .ml files (`backup_text`/`refractors`
-untouched). Note: the FormId constructor is now named `Compound`; old
-sexps with `Form` heads are read via the alias in `FormId.t_of_sexp`. Do NOT use `hazel slide-encode` for this: it re-parses text
-and re-mints ids, orphaning refractors.
+`src/web/Migrate_slides.re` is a RENORMALIZER: it decodes each embedded
+segment trying the CURRENT format first (`Segment.t_of_sexp`, which also
+reads legacy `(Form ...)` constructor heads via the alias in
+`FormId.t_of_sexp`), falling back to `LegacyBase.segment_of_sexp` (the
+pre-FormId types, kept verbatim in `src/web/LegacyBase.re`) upgraded
+id-preservingly via `LegacyBase.upgrade_segment` (exact reverse lookup
+(label, mold) -> FormId). It then re-emits the full .ml files
+(`backup_text`/`refractors` untouched). Re-encoding normalizes
+`(Form ...)` heads to `(Compound ...)` and drops default-valued
+`shards`/`children` fields, so the tool is idempotent and usable by
+branches in either state. Do NOT use `hazel slide-encode` for this: it
+re-parses text and re-mints ids, orphaning refractors.
 
 If your branch has its own slide files, at the migration commit:
 
@@ -46,10 +50,12 @@ If your branch has its own slide files, at the migration commit:
    `B2t2.Datasheet`) need no entry.
 3. `dune build src/web/migrate_slides.bc.js --profile dev`
 4. `node --stack-size=8192 --require ./test/idb_stub.js _build/default/src/web/migrate_slides.bc.js > /tmp/migrate_slides_out.txt`
-5. Check the `===SUMMARY===`: every file PASS; the upgrade-path histogram
-   should show `c(any-fallback)=0 d(classified/stale-mold)=0` (non-zero d
-   means stale-mold tiles — inspect the logged tiles before proceeding).
-   A legacy decode failure aborts the run before emitting anything;
+5. Check the `===SUMMARY===`: every file PASS (each line notes which
+   decode path was taken, `current` or `legacy`); the upgrade-path
+   histogram should show `c(any-fallback)=0 d(classified/stale-mold)=0`
+   (non-zero d means stale-mold tiles — inspect the logged tiles before
+   proceeding; slides decoded as `current` don't touch the histogram).
+   A decode failure (both paths) aborts the run before emitting anything;
    investigate that slide rather than regenerating it from backup_text.
 6. `python3 scripts/split_migrate_output.py /tmp/migrate_slides_out.txt`
 7. `dune build @fmt --auto-promote`, then verify: run the Slow reparse

@@ -60,24 +60,24 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Model: Int                                                       \
          #\"))))(Secondary((id \
          67cad6f3-3182-4c51-936a-5713290b6715)(content(Whitespace\"\\n\"))))(Tile((id \
-         bced7663-c364-461f-92be-556807c30e67)(form(Form Let))(shards(0 1 \
+         bced7663-c364-461f-92be-556807c30e67)(form(Compound Let))(shards(0 1 \
          2))(children(((Secondary((id \
          e356c518-34ab-417c-a3d0-e0d9029c0c9f)(content(Whitespace\" \
          \"))))(Tile((id 790b89d0-8245-4c1a-8bc0-33af849b5e52)(form(Atom Var \
-         Pat slider_val))(shards(0))(children())))(Secondary((id \
+         Pat slider_val))))(Secondary((id \
          1a5f3b6e-5830-4978-835d-278dd3a986ed)(content(Whitespace\" \
          \")))))((Secondary((id \
          590149d2-0ae2-433b-b659-7d73a79e4fb7)(content(Whitespace\" \
          \"))))(Projector((id f655fccf-8ab3-49bb-a073-c6637696129f)(kind \
          Livelit)(syntax(Tile((id \
-         91ad023b-df20-4a59-8a6d-4b63826c6e44)(form(Form ParensExp))(shards(0 \
-         1))(children(((Tile((id \
+         91ad023b-df20-4a59-8a6d-4b63826c6e44)(form(Compound \
+         ParensExp))(shards(0 1))(children(((Tile((id \
          2f301349-f2c1-4eb9-bd82-3c5d7b025962)(form(Atom LivelitName Exp \
-         ^slider))(shards(0))(children())))(Tile((id \
-         b9416645-a97a-4f76-a174-5163e3b73cb4)(form(Form ApExp))(shards(0 \
+         ^slider))))(Tile((id \
+         b9416645-a97a-4f76-a174-5163e3b73cb4)(form(Compound ApExp))(shards(0 \
          1))(children(((Tile((id \
          33b8cb2c-ac91-486f-83aa-b0651f004bd8)(form(Atom IntLit Exp \
-         85))(shards(0))(children()))))))))))))))(model\"()\")))(Secondary((id \
+         85)))))))))))))))(model\"()\")))(Secondary((id \
          2ba5684e-fcb5-4c5e-b949-a15324e0e541)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          7df76a49-c053-48ef-ae8a-a5b176b17913)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -113,24 +113,24 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Model: Int                                           \
          #\"))))(Secondary((id \
          527857a1-0e1f-43ea-98bb-f3029a418350)(content(Whitespace\"\\n\"))))(Tile((id \
-         80ef36f0-8ee8-4731-ba68-6c908f95f274)(form(Form Let))(shards(0 1 \
+         80ef36f0-8ee8-4731-ba68-6c908f95f274)(form(Compound Let))(shards(0 1 \
          2))(children(((Secondary((id \
          a6b2ff5f-61a5-4bf4-a521-33daae25f285)(content(Whitespace\" \
          \"))))(Tile((id 6910ee05-ecc5-4dfb-9b1f-b3a11b75e515)(form(Atom Var \
-         Pat current_mood))(shards(0))(children())))(Secondary((id \
+         Pat current_mood))))(Secondary((id \
          df7f8e3b-6297-4cbf-92c8-cfe33ada4290)(content(Whitespace\" \
          \")))))((Secondary((id \
          62ece9e0-5091-4f6e-a745-dc375df3b5b2)(content(Whitespace\" \
          \"))))(Projector((id caf8fa3b-bda6-404c-a447-e8e05746b5ed)(kind \
          Livelit)(syntax(Tile((id \
-         186b81bc-b170-4c3f-89e3-e1f782cedae3)(form(Form ParensExp))(shards(0 \
-         1))(children(((Tile((id \
+         186b81bc-b170-4c3f-89e3-e1f782cedae3)(form(Compound \
+         ParensExp))(shards(0 1))(children(((Tile((id \
          379a5546-5bc4-4d32-a39b-1eb62dda9a5b)(form(Atom LivelitName Exp \
-         ^emotion))(shards(0))(children())))(Tile((id \
-         aaff3195-c5e2-49ae-bb52-32ffa9c46dfc)(form(Form ApExp))(shards(0 \
+         ^emotion))))(Tile((id \
+         aaff3195-c5e2-49ae-bb52-32ffa9c46dfc)(form(Compound ApExp))(shards(0 \
          1))(children(((Tile((id \
          e4c64ce7-5885-43f0-8a4c-2c8bc4003982)(form(Atom IntLit Exp \
-         0))(shards(0))(children()))))))))))))))(model\"()\")))(Secondary((id \
+         0)))))))))))))))(model\"()\")))(Secondary((id \
          38361cff-c89f-4d36-a143-d4c9d88d4ae4)(content(Whitespace\" \
          \")))))))))(Grout((id 6ffd5f7f-c1bc-4636-b92f-1527d7ff5e24)(shape \
          Convex))))";

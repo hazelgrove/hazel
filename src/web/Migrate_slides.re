@@ -6,16 +6,21 @@
  * scripts/README_migrate_tile_format.md. Nothing at runtime depends on
  * it. */
 
-/* Serialized-slide migrator for the tile-datatype flip (Phase 1m).
+/* Serialized-slide renormalizer for the tile-datatype flip.
  *
  * The 49 slide files under src/web/init/docs and src/b2t2/slides embed
- * OLD-format segment sexps (label+mold tiles) as strings inside
- * PersistentSegment.t records. They compile fine but fail sexp-decode at
- * runtime, falling back to backup_text — which orphans the refractor id
- * references. This tool decodes each embedded segment with
- * LegacyBase.segment_of_sexp, upgrades it id-preservingly to the FormId
- * representation, re-encodes it, and emits full replacement .ml files.
- * backup_text and refractors are passed through byte-for-byte.
+ * segment sexps as strings inside PersistentSegment.t records. This tool
+ * decodes each embedded segment and re-encodes it in the current format,
+ * emitting full replacement .ml files. backup_text and refractors are
+ * passed through byte-for-byte.
+ *
+ * Decode tries the CURRENT format first (Segment.t_of_sexp, which also
+ * reads legacy `(Form ...)` constructor heads via the alias in
+ * FormId.t_of_sexp) and falls back to the pre-FormId LegacyBase decode
+ * (label+mold tiles), upgraded id-preservingly. So the tool is
+ * IDEMPOTENT and usable by branches in either state; re-encoding
+ * normalizes `(Form ...)` heads to `(Compound ...)` and drops
+ * default-valued shards/children fields.
  *
  * Output format (stdout), consumed by scripts/split_migrate_output.py:
  *   ===FILE: <path relative to repo root>===
@@ -23,10 +28,11 @@
  *   ===END===
  *   ...
  *   ===SUMMARY===
- *   <per-file lines, upgrade-path histogram, registry warnings>
+ *   <per-file lines w/ decode path, upgrade-path histogram, registry
+ *   warnings>
  *   ===END===
  *
- * If any slide's segment fails legacy decode, the tool fails before
+ * If any slide's segment fails BOTH decodes, the tool fails before
  * emitting ANY file blocks (all slides are migrated up front).
  *
  * Build & run (see scripts/README_migrate_tile_format.md):
@@ -239,26 +245,44 @@ let entries: list((string, (string, PersistentSegment.t))) = [
   ),
 ];
 
-/* Decode-old => upgrade => re-encode. backup_text and refractors pass
- * through untouched. Raises (before anything is emitted) if the legacy
- * decode fails: such a slide must be investigated, not silently
- * regenerated from backup_text. */
-let migrate = (title: string, p: PersistentSegment.t): PersistentSegment.t => {
-  let legacy =
-    try(p.segment |> Sexplib.Sexp.of_string |> LegacyBase.segment_of_sexp) {
+/* Decode (current format first, legacy fallback) => re-encode.
+ * backup_text and refractors pass through untouched. Raises (before
+ * anything is emitted) if both decodes fail: such a slide must be
+ * investigated, not silently regenerated from backup_text. */
+let migrate =
+    (title: string, p: PersistentSegment.t): (PersistentSegment.t, string) => {
+  let sexp =
+    try(p.segment |> Sexplib.Sexp.of_string) {
     | exn =>
       failwith(
-        "legacy segment decode FAILED for slide \""
+        "segment sexp UNPARSEABLE for slide \""
         ++ title
         ++ "\": "
         ++ Printexc.to_string(exn),
       )
     };
-  let upgraded = LegacyBase.upgrade_segment(legacy);
-  {
-    ...p,
-    segment: upgraded |> Segment.sexp_of_t |> Sexplib.Sexp.to_string,
-  };
+  let (upgraded, path) =
+    switch (Segment.t_of_sexp(sexp)) {
+    | seg => (seg, "current")
+    | exception _ =>
+      switch (LegacyBase.segment_of_sexp(sexp)) {
+      | legacy => (LegacyBase.upgrade_segment(legacy), "legacy")
+      | exception exn =>
+        failwith(
+          "segment decode FAILED (current AND legacy) for slide \""
+          ++ title
+          ++ "\": "
+          ++ Printexc.to_string(exn),
+        )
+      }
+    };
+  (
+    {
+      ...p,
+      segment: upgraded |> Segment.sexp_of_t |> Sexplib.Sexp.to_string,
+    },
+    path,
+  );
 };
 
 /* Cross-check: every slide registered at startup is either in the table
@@ -285,7 +309,7 @@ let () = {
     entries
     |> List.map(((path, (title, p))) => (path, title, migrate(title, p)));
   migrated
-  |> List.iter(((path, title, p)) => {
+  |> List.iter(((path, title, (p, _))) => {
        print_string("===FILE: " ++ path ++ "===\n");
        print_string(render_slide_file(title, p));
        print_string("===END===\n");
@@ -293,10 +317,12 @@ let () = {
   let warnings = registry_warnings();
   print_string("===SUMMARY===\n");
   migrated
-  |> List.iter(((path, _, p: PersistentSegment.t)) =>
+  |> List.iter(((path, _, (p: PersistentSegment.t, decode_path))) =>
        print_endline(
          path
-         ++ ": PASS"
+         ++ ": PASS ("
+         ++ decode_path
+         ++ ")"
          ++ (p.refractors == "()" ? "" : " (non-trivial refractors)"),
        )
      );

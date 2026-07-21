@@ -15,7 +15,12 @@ and tile = {
   [@equal (_, _) => true]
   id: Id.t,
   form: Form.t,
+  // sexp only: shards/children default to the complete-arity-1 tile
+  // shape ([0], []) and are omitted when equal to it (most tiles).
+  // yojson/show/eq are unchanged.
+  [@sexp.default [0]] [@sexp_drop_default.sexp]
   shards: list(int),
+  [@sexp.default []] [@sexp_drop_default.sexp]
   children: list(segment),
 }
 and projector = ProjectorCore.t(piece);
