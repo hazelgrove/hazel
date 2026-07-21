@@ -263,28 +263,11 @@ module Utils = {
     };
   };
 
-  /** OpenRouter messages for the main agent with the advancing prompt-cache
-      breakpoint applied: [cache_anchor] is set on the last history message —
-      the one immediately before the volatile context snapshot (or the final
-      message when no snapshot is appended). Combined with the static dev-notes
-      floor in [[Message.Utils.mk_developer_notes_message]], this is the canonical
-      spec design for caching the growing history prefix.
-
-      KNOWN LIMITATION (OpenRouter): this advancing breakpoint is currently a
-      **no-op on OpenRouter+Anthropic**. We empirically confirmed via
-      [[OpenRouter.CacheDiag]] that OpenRouter's OpenAI-compat translation honors
-      `cache_control` *only on `system` messages*; markers on `tool` (the usual
-      last-history role in an agentic loop) AND on `user` messages are silently
-      dropped — verified with `breakpoints=[1,N]` on the wire, an append-only
-      growing common prefix, yet `cache_read` pinned at the system floor and
-      `cache_creation` null on every request. The floor (a system/dev-notes
-      message) is the only honored breakpoint, and it already caches ~93% of the
-      payload. This code is kept correct-and-ready: under native-Anthropic routing
-      (which honors per-block `cache_control` on all roles) it would immediately
-      cache the full history. See `agent-docs/prompt-caching-findings.md`.
-
-      Rendered by [[OpenRouter.Message.Utils.json_of_message]] (stripped for
-      non-allowlisted models in [[OpenRouter.Payload.Utils.json_of_payload]]). */
+  /** OpenRouter messages with the advancing prompt-cache breakpoint:
+      [cache_anchor] on the last history message (before the context snapshot,
+      if any). Currently a no-op on OpenRouter+Anthropic, which honors
+      cache_control only on system messages; kept correct-and-ready for
+      native-Anthropic routing. See agent-docs/prompt-caching-findings.md. */
   let api_messages_for_openrouter =
       (chat: Model.t): list(OpenRouter.Message.Model.t) => {
     let msgs = api_messages_of_messages(messages_for_openrouter(chat));
