@@ -1,3 +1,11 @@
+/* DISPOSAL: disposable migration tooling for the tile FormId change.
+ * Delete this file (together with LegacyBase.re,
+ * Migrate_exercises.re, scripts/split_migrate_output.py, and
+ * scripts/README_migrate_tile_format.md) once tile-datatype has merged to dev and active
+ * feature branches have run the recipe in
+ * scripts/README_migrate_tile_format.md. Nothing at runtime depends on
+ * it. */
+
 /* Serialized-slide migrator for the tile-datatype flip (Phase 1m).
  *
  * The 49 slide files under src/web/init/docs and src/b2t2/slides embed

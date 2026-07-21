@@ -1,3 +1,11 @@
+/* DISPOSAL: disposable migration tooling for the tile FormId change.
+ * Delete this file (together with LegacyBase.re,
+ * Migrate_slides.re, scripts/split_migrate_output.py, and
+ * scripts/README_migrate_tile_format.md) once tile-datatype has merged to dev and active
+ * feature branches have run the recipe in
+ * scripts/README_migrate_tile_format.md. Nothing at runtime depends on
+ * it. */
+
 /* Exporter for the tile-datatype migration (and any future Zipper.t change).
  *
  * Prints "transitionary" versions of every example module that embeds

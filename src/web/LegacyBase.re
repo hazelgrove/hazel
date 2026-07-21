@@ -1,3 +1,11 @@
+/* DISPOSAL: disposable migration tooling for the tile FormId change.
+ * Delete this file (together with Migrate_slides.re,
+ * Migrate_exercises.re, scripts/split_migrate_output.py, and
+ * scripts/README_migrate_tile_format.md) once tile-datatype has merged to dev and active
+ * feature branches have run the recipe in
+ * scripts/README_migrate_tile_format.md. Nothing at runtime depends on
+ * it. */
+
 /* LegacyBase: the pre-FormId Base syntax types (tiles stored label+mold
  * side by side), kept verbatim from the old Base.re so that old serialized
  * segments still sexp-decode, plus the id-preserving `upgrade` to the
@@ -8,6 +16,7 @@
  * (src/web/Migrate_slides.re); see scripts/README_migrate_tile_format.md. */
 
 open Util;
+open Haz3lcore;
 
 [@deriving sexp]
 type segment = list(piece)

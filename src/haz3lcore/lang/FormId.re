@@ -236,7 +236,10 @@ type t =
   | Unmolded(Token.t);
 
 /* Sexps serialized before Compound was named Compound (stored slide
- * modules, user-saved zippers) spell it `Form`; accept both. */
+ * modules, user-saved zippers) spell it `Form`; accept both. This shim
+ * can be deleted along with the migration tooling (src/web/LegacyBase.re
+ * etc.) if the slide files are regenerated first: they still contain
+ * `(Form ...)` heads, which this reads. */
 let t_of_sexp = {
   let derived = t_of_sexp;
   fun

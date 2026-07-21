@@ -1,5 +1,11 @@
 # Migrating zipper-embedding exercise modules (tile-datatype flip)
 
+DISPOSAL: disposable migration tooling for the tile FormId change. Delete
+this file (together with `src/web/LegacyBase.re`, `src/web/Migrate_slides.re`,
+`src/web/Migrate_exercises.re`, and `scripts/split_migrate_output.py`) once
+tile-datatype has merged to dev and active feature branches have run the
+recipe below. Nothing at runtime depends on it.
+
 Example modules that embed `Zipper.t` literals break when the tile datatype
 changes. At this commit they are all converted to "transitionary" form (code
 as strings, re-parsed via `*.transition` at load time), which compiles before
@@ -25,10 +31,11 @@ embed segment sexps as strings inside `PersistentSegment.t` records. Old
 to `backup_text`, which orphans the slide's refractor id references.
 `src/web/Migrate_slides.re` decodes each embedded segment with
 `LegacyBase.segment_of_sexp` (the pre-FormId types, kept verbatim in
-`src/haz3lcore/tiles/LegacyBase.re`), upgrades it id-preservingly via
+`src/web/LegacyBase.re`), upgrades it id-preservingly via
 `LegacyBase.upgrade_segment` (exact reverse lookup (label, mold) ->
 FormId), and re-emits the full .ml files (`backup_text`/`refractors`
-untouched). Do NOT use `hazel slide-encode` for this: it re-parses text
+untouched). Note: the FormId constructor is now named `Compound`; old
+sexps with `Form` heads are read via the alias in `FormId.t_of_sexp`. Do NOT use `hazel slide-encode` for this: it re-parses text
 and re-mints ids, orphaning refractors.
 
 If your branch has its own slide files, at the migration commit:
