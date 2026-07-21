@@ -600,9 +600,26 @@ let id_path_to_name_path = (id_path: list(Id.t), node_map: t): list(string) => {
   List.map((id: Id.t) => id_to_name(node_map, id), id_path);
 };
 
-/** When several bindings share the same path string (e.g. two `let n` in one chain), pick the
-    **earliest** in program order: lowest [[sibling_idx]] among matches, then [[Id.compare]]. */
-let pick_id_for_ambiguous_path = (node_map: t, ids: list(Id.t)): Id.t => {
+/** Paths may carry a trailing `#k` (1-based) selecting the k-th binding, in
+    program order, among several that share the same name path (shadowing).
+    A `#` not followed by a positive integer is treated as part of the name. */
+let split_disambiguator = (path: string): (string, option(int)) => {
+  switch (String.rindex_opt(path, '#')) {
+  | None => (path, None)
+  | Some(i) =>
+    let base = String.sub(path, 0, i);
+    let suffix = String.sub(path, i + 1, String.length(path) - i - 1);
+    switch (int_of_string_opt(suffix)) {
+    | Some(k) when k >= 1 => (base, Some(k))
+    | _ => (path, None)
+    };
+  };
+};
+
+/** Deterministic order for bindings sharing a name path: lowest
+    [[sibling_idx]] first (program order within a chain), [[Id.compare]] as
+    tiebreak. Defines the numbering used by the `#k` disambiguator. */
+let sort_ids_in_program_order = (node_map: t, ids: list(Id.t)): list(Id.t) => {
   let cmp = (id1: Id.t, id2: Id.t): int => {
     let n1 = find(node_map, id1);
     let n2 = find(node_map, id2);
@@ -611,25 +628,43 @@ let pick_id_for_ambiguous_path = (node_map: t, ids: list(Id.t)): Id.t => {
     | c => c
     };
   };
-  let sorted = List.sort(cmp, ids);
-  List.hd(sorted);
+  List.sort(cmp, ids);
+};
+
+let matches_for_path = (node_map: t, path_names: list(string)): list(Id.t) => {
+  // Convert each node's path (list of Ids) to a list of names and compare
+  // XXX: O(n) in bindings (not program size); fine until node maps get large.
+  Id.Map.bindings(node_map)
+  |> List.filter_map(((id: Id.t, node: node)) =>
+       id_path_to_name_path(node.path, node_map) == path_names
+         ? Some(id) : None
+     )
+  |> sort_ids_in_program_order(node_map);
+};
+
+let ambiguous_path_message = (base: string, ids: list(Id.t)): string => {
+  let n = List.length(ids);
+  let options =
+    List.init(n, i => "\"" ++ base ++ "#" ++ string_of_int(i + 1) ++ "\"")
+    |> String.concat(", ");
+  "Path \""
+  ++ base
+  ++ "\" is ambiguous: "
+  ++ string_of_int(n)
+  ++ " bindings share this path (same name, e.g. shadowing)."
+  ++ "\nRetry with one of the disambiguated paths: "
+  ++ options
+  ++ " (\"#1\" is the earliest binding in program order).";
 };
 
 let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
-  let path_names = split_path(path);
-  // Convert each node's path (list of Ids) to a list of names and compare
-  // XXX: Very hacky and ineffecient (O(n) in size of node_map)
-  // TODO: Implement a method which improves the efficiency of this operation
-  let matches =
-    Id.Map.bindings(node_map)
-    |> List.filter_map(((id: Id.t, node: node)) =>
-         id_path_to_name_path(node.path, node_map) == path_names
-           ? Some(id) : None
-       );
-  switch (matches) {
-  | [] => None
-  | [id] => Some(id)
-  | [_, _, ..._] as ids => Some(pick_id_for_ambiguous_path(node_map, ids))
+  let (base, occurrence) = split_disambiguator(path);
+  let matches = matches_for_path(node_map, split_path(base));
+  switch (matches, occurrence) {
+  | ([], _) => None
+  | (ids, Some(k)) => List.nth_opt(ids, k - 1)
+  | ([id], None) => Some(id)
+  | ([_, _, ..._], None) => None // ambiguous: refuse to guess (see path_to_id)
   };
 };
 
@@ -776,21 +811,13 @@ let unique_suffix_match = (node_map: t, path: string): option(string) =>
   };
 
 let path_to_id = (node_map: t, path: string): Id.t => {
-  let path_names = split_path(path);
-  // Convert each node's path (list of Ids) to a list of names and compare
-  // XXX: Very hacky and ineffecient (O(n) in size of node_map)
-  // TODO: Implement a method which improves the efficiency of this operation
-  let matches =
-    Id.Map.bindings(node_map)
-    |> List.filter_map(((id: Id.t, node: node)) =>
-         id_path_to_name_path(node.path, node_map) == path_names
-           ? Some(id) : None
-       );
-  switch (matches) {
-  | [] =>
-    let closest = closest_valid_path_to_ill_path(node_map, path);
+  let (base, occurrence) = split_disambiguator(path);
+  let matches = matches_for_path(node_map, split_path(base));
+  switch (matches, occurrence) {
+  | ([], _) =>
+    let closest = closest_valid_path_to_ill_path(node_map, base);
     let suffix_hint =
-      switch (unique_suffix_match(node_map, path)) {
+      switch (unique_suffix_match(node_map, base)) {
       | Some(qualified) when !String.equal(qualified, closest) =>
         "\nOr the fully qualified nested path \"" ++ qualified ++ "\"."
       | _ => ""
@@ -814,8 +841,27 @@ let path_to_id = (node_map: t, path: string): Id.t => {
         ++ available_str,
       ),
     );
-  | [id] => id
-  | [_, _, ..._] as ids => pick_id_for_ambiguous_path(node_map, ids)
+  | (ids, Some(k)) =>
+    switch (List.nth_opt(ids, k - 1)) {
+    | Some(id) => id
+    | None =>
+      raise(
+        Failure(
+          "Path \""
+          ++ path
+          ++ "\": occurrence #"
+          ++ string_of_int(k)
+          ++ " is out of range; only "
+          ++ string_of_int(List.length(ids))
+          ++ " binding(s) match \""
+          ++ base
+          ++ "\".",
+        ),
+      )
+    }
+  | ([id], None) => id
+  | ([_, _, ..._] as ids, None) =>
+    raise(Failure(ambiguous_path_message(base, ids)))
   };
 };
 

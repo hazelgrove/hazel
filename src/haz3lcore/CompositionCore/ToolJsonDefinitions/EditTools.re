@@ -6,7 +6,7 @@ This overwrites the ENTIRE definition — including any nested let bindings with
 Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
-path: string — slash-delimited path to the binding (e.g. "b", "M", or "outer/inner"). Inner defs use "outer/inner". If the same name appears twice in the sibling chain, the tool targets the **earliest** `let`; rename or delete that one to reach the next, or disambiguate with a nested path when one binding sits inside another's definition.
+path: string — slash-delimited path to the binding (e.g. "b", "M", or "outer/inner"). Inner defs use "outer/inner". If the same name appears more than once in the sibling chain (shadowing), the bare path is ambiguous and the tool errors, listing disambiguated forms; retry with "name#k" (k-th occurrence in program order, 1-based, e.g. "b#2"), or use a nested path when one binding sits inside another's definition.
 code: string — the new definition code
 
 Example:
@@ -51,7 +51,7 @@ let update_definition: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path (e.g. \"b\", \"utils/helper\"). Duplicate names in the chain → earliest binding wins; nested defs use outer/inner.",
+                        "Slash-delimited path (e.g. \"b\", \"utils/helper\"). Duplicate names are ambiguous — disambiguate with name#k (1-based, program order); nested defs use outer/inner.",
                       ),
                     ),
                   ]),
@@ -81,7 +81,7 @@ The body is the rest of the program that follows this binding.
 Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
-path: string — slash-delimited path to the binding whose body to replace. Nested defs need ancestors (e.g. "wrap/is_odd"). Duplicate sibling names → earliest `let` is targeted until the earlier binding is renamed or removed.
+path: string — slash-delimited path to the binding whose body to replace. Nested defs need ancestors (e.g. "wrap/is_odd"). Duplicate sibling names are ambiguous — disambiguate with "name#k" (k-th occurrence in program order, 1-based).
 code: string — the new body code
 
 Example:
@@ -123,7 +123,7 @@ let update_body: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path; outer/inner for nested defs. Duplicate chain names → earliest binding.",
+                        "Slash-delimited path; outer/inner for nested defs. Duplicate chain names are ambiguous — use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -152,8 +152,13 @@ Renames or changes the pattern (left-hand side of `=`) of the binding at the giv
 Automatically updates all use sites of the variable throughout the program.
 
 Parameters:
-path: string — slash-delimited path to the binding to rename. Nested defs: use outer/inner. Duplicate sibling names: targets the earliest `let` with that name.
+path: string — slash-delimited path to the binding to rename. Nested defs: use outer/inner. Duplicate sibling names are ambiguous — disambiguate with "name#k" (k-th occurrence in program order, 1-based).
 code: string — the new pattern (may include type annotation)
+
+The rename is rejected (with an explanatory error) if:
+- the new name already occurs as a binder or variable reference within this binding's scope (it could capture existing references), or
+- the number of bound names changes (e.g. tuple pattern (x, y) → (a, b, c)), since old→new use-site mapping would be ambiguous, or
+- rewriting the use sites would introduce new static errors.
 
 Example:
 Given the program:
