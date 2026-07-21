@@ -136,7 +136,7 @@ module Json = {
   };
 };
 
-let receive = (~debug=true, request: request): option(Json.t) =>
+let receive = (~debug=false, request: request): option(Json.t) =>
   switch (request##.readyState) {
   | XmlHttpRequest.DONE =>
     debug ? Firebug.console##log(request##.responseText) : ();
@@ -224,8 +224,10 @@ let split_sse_lines = (buf: string): (list(string), string) => {
 
 /** Streaming counterpart to [request]. Fires [on_chunk] for every parsed SSE
     data line, and [on_done] exactly once when the response finishes (either
-    naturally or via abort). Returns a [streaming_handle] whose [abort] cancels
-    the XHR. */
+    naturally or via abort). A network failure or non-2xx HTTP status instead
+    fires [on_error] — with the status (0 when no response arrived) and the raw
+    response body — followed by [on_done]. Returns a [streaming_handle] whose
+    [abort] cancels the XHR. */
 let request_streaming =
     (
       ~with_credentials=false,
@@ -234,6 +236,7 @@ let request_streaming =
       ~headers: list((string, string))=[],
       ~body: Json.t=`Null,
       ~on_chunk: Json.t => unit,
+      ~on_error: (~status: int, ~body: string) => unit,
       ~on_done: unit => unit,
       (),
     )
@@ -242,6 +245,7 @@ let request_streaming =
   let last_offset = ref(0);
   let leftover = ref("");
   let done_called = ref(false);
+  let aborted = ref(false);
   let feed_lines = lines =>
     List.iter(
       line =>
@@ -271,12 +275,30 @@ let request_streaming =
       };
       on_done();
     };
+  /* Meaningful only once headers have arrived; before that status is 0. On a
+     network error the browser also resets status to 0 even if headers had
+     arrived, so a mid-stream connection loss lands on the error path too. */
+  let status_ok = () => {
+    let status = req##.status;
+    status >= 200 && status < 300;
+  };
+  let fail = () =>
+    if (! done_called^ && ! aborted^) {
+      done_called := true;
+      let body = Js.Opt.case(req##.responseText, () => "", Js.to_string);
+      on_error(~status=req##.status, ~body);
+      on_done();
+    };
+  /* Gate on status so a JSON error body is never fed through the SSE parser;
+     on failure the whole body goes to [on_error] at DONE instead. */
   let read_and_drain = () =>
-    Js.Opt.case(
-      req##.responseText,
-      () => (),
-      text => drain(Js.to_string(text)),
-    );
+    if (status_ok()) {
+      Js.Opt.case(
+        req##.responseText,
+        () => (),
+        text => drain(Js.to_string(text)),
+      );
+    };
   /* [readystatechange] fires only when [readyState] transitions — it won't
      re-fire for each chunk received while state stays at LOADING. [progress]
      fires per chunk and is the reliable hook for incremental delivery. */
@@ -285,11 +307,16 @@ let request_streaming =
     Js.string("onprogress"),
     Js.wrap_callback(_ => read_and_drain()),
   );
+  Js.Unsafe.set(req, Js.string("onerror"), Js.wrap_callback(_ => fail()));
   req##.onreadystatechange :=
     Js.wrap_callback(_ =>
       if (req##.readyState == XmlHttpRequest.DONE) {
-        read_and_drain();
-        finish();
+        if (aborted^ || status_ok()) {
+          read_and_drain();
+          finish();
+        } else {
+          fail();
+        };
       }
     );
   req##.withCredentials := with_credentials |> Js.bool;
@@ -306,6 +333,7 @@ let request_streaming =
   req##send(body |> Json.to_string |> Js.string |> Js.Opt.return);
   {
     abort: () => {
+      aborted := true;
       req##abort;
       finish();
     },
@@ -367,6 +395,7 @@ let node_request =
       Js.wrap_callback(error => {
         Firebug.console##log("Error occurred:");
         Firebug.console##log(error);
+        handler(None);
       }),
     ),
   );

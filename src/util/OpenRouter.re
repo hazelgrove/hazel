@@ -439,7 +439,6 @@ module Model = {
 module Utils = {
   let chat =
       (~key: string, ~body: Json.t, ~handler: option(Json.t) => unit): unit => {
-    print_endline("API: POSTing OpenRouter request");
     request(
       ~debug=false,
       ~with_credentials=false,
@@ -657,6 +656,60 @@ module Utils = {
         code,
       }: Model.error
     );
+  };
+
+  /** Convert a failed HTTP exchange (non-2xx status, or a network error where
+      [status] is 0) into a [Model.error]. OpenRouter sends JSON error bodies
+      even on streaming endpoints; the provider's message/code are preferred
+      when the body parses, with the HTTP status as fallback code. */
+  let error_of_http_failure = (~status: int, ~body: string): Model.error => {
+    let body_error = {
+      let* json =
+        try(Some(Json.from_string(body))) {
+        | _ => None
+        };
+      Json.dot("error", json);
+    };
+    let message =
+      switch (
+        {
+          let* e = body_error;
+          let* m = Json.dot("message", e);
+          Json.str(m);
+        }
+      ) {
+      | Some(m) => m
+      | None when status == 0 => "Network error: no response received"
+      | None => Printf.sprintf("HTTP error %d", status)
+      };
+    let code =
+      switch (
+        {
+          let* e = body_error;
+          let* c = Json.dot("code", e);
+          Json.int(c);
+        }
+      ) {
+      | Some(c) => c
+      | None => status
+      };
+    {
+      message,
+      code,
+    };
+  };
+
+  /** [error_of_http_failure] in the error-chunk shape the SSE stream itself
+      would carry, so it can be fed to [StreamAccumulator] and [finalize] will
+      surface it as [Model.Error]. */
+  let error_chunk_of_http_failure = (~status: int, ~body: string): Json.t => {
+    let e = error_of_http_failure(~status, ~body);
+    `Assoc([
+      (
+        "error",
+        `Assoc([("message", `String(e.message)), ("code", `Int(e.code))]),
+      ),
+    ]);
   };
 
   let handle_chat =
@@ -937,7 +990,6 @@ module Utils = {
         ~on_done: unit => unit,
       )
       : API.streaming_handle => {
-    print_endline("API: POSTing OpenRouter streaming request");
     let streaming_payload = {
       ...payload,
       stream: true,
@@ -954,6 +1006,12 @@ module Utils = {
       ],
       ~body,
       ~on_chunk,
+      /* Route HTTP/network failures through [on_chunk] as a synthetic error
+         chunk: the caller's [StreamAccumulator] records it and [finalize]
+         (run from [on_done], which fires right after) returns [Model.Error]. */
+      ~on_error=
+        (~status, ~body as error_body) =>
+          on_chunk(error_chunk_of_http_failure(~status, ~body=error_body)),
       ~on_done,
       (),
     );
@@ -1006,7 +1064,6 @@ module AvailableLLMs = {
 
   module Utils = {
     let get_models = (~key: string, ~handler: option(Json.t) => unit): unit => {
-      print_endline("API: GETting OpenRouter models");
       request(
         ~method=GET,
         ~url="https://openrouter.ai/api/v1/models",
@@ -1148,7 +1205,6 @@ module Credits = {
 
   module Utils = {
     let get_credits = (~key: string, ~handler: option(Json.t) => unit): unit => {
-      print_endline("API: GETting OpenRouter credits");
       request(
         ~method=GET,
         ~url="https://openrouter.ai/api/v1/credits",
@@ -1202,7 +1258,6 @@ module KeyInfo = {
 
   module Utils = {
     let get_key = (~key: string, ~handler: option(Json.t) => unit): unit => {
-      print_endline("API: GETting OpenRouter key info");
       request(
         ~method=GET,
         ~url="https://openrouter.ai/api/v1/key",

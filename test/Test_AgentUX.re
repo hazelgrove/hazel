@@ -1577,6 +1577,87 @@ let stream_accumulator_tests = [
   ),
 ];
 
+/* -------------------------------------------------------------------------- */
+/* OpenRouter.Utils.error_of_http_failure — HTTP/network failure conversion */
+
+let http_failure_tests = [
+  test_case(
+    "error_of_http_failure: provider JSON error body wins",
+    `Quick,
+    () => {
+      let e =
+        OpenRouter.Utils.error_of_http_failure(
+          ~status=401,
+          ~body={|{"error":{"message":"Invalid API key","code":401}}|},
+        );
+      check_string("provider message", "Invalid API key", e.message);
+      check_int("provider code", 401, e.code);
+    },
+  ),
+  test_case(
+    "error_of_http_failure: non-JSON body falls back to HTTP status",
+    `Quick,
+    () => {
+      let e =
+        OpenRouter.Utils.error_of_http_failure(
+          ~status=502,
+          ~body="<html>Bad Gateway</html>",
+        );
+      check_string("fallback message", "HTTP error 502", e.message);
+      check_int("status as code", 502, e.code);
+    },
+  ),
+  test_case(
+    "error_of_http_failure: status 0 reports network error",
+    `Quick,
+    () => {
+      let e = OpenRouter.Utils.error_of_http_failure(~status=0, ~body="");
+      check_string(
+        "network message",
+        "Network error: no response received",
+        e.message,
+      );
+      check_int("code 0", 0, e.code);
+    },
+  ),
+  test_case(
+    "error_of_http_failure: non-int provider code falls back to status",
+    `Quick,
+    () => {
+      let e =
+        OpenRouter.Utils.error_of_http_failure(
+          ~status=401,
+          ~body={|{"error":{"message":"bad key","code":"invalid_api_key"}}|},
+        );
+      check_string("provider message kept", "bad key", e.message);
+      check_int("status as code", 401, e.code);
+    },
+  ),
+  test_case(
+    "error_chunk_of_http_failure: chunk finalizes as Model.Error",
+    `Quick,
+    () => {
+      /* End-to-end shape check: the synthetic chunk emitted on a streaming
+         HTTP failure must round-trip through the accumulator's error path. */
+      let acc = OpenRouter.Utils.StreamAccumulator.create();
+      let _ =
+        OpenRouter.Utils.StreamAccumulator.feed(
+          acc,
+          OpenRouter.Utils.error_chunk_of_http_failure(
+            ~status=401,
+            ~body={|{"error":{"message":"Invalid API key","code":401}}|},
+          ),
+        );
+      switch (OpenRouter.Utils.StreamAccumulator.finalize(acc)) {
+      | OpenRouter.Model.Error(e) =>
+        check_string("message", "Invalid API key", e.message);
+        check_int("code", 401, e.code);
+      | OpenRouter.Model.Reply(_) => fail("expected error finalize")
+      };
+    },
+  ),
+];
+
 let tests = (
   "Agent UX",
   slash_command_tests
@@ -1593,5 +1674,6 @@ let tests = (
   @ context_llm_snapshot_tests
   @ tool_call_summary_tests
   @ api_error_format_tests
-  @ stream_accumulator_tests,
+  @ stream_accumulator_tests
+  @ http_failure_tests,
 );
