@@ -647,16 +647,6 @@ and uexp_to_info_map =
           m,
         )
       };
-    | Var(("$e" | "$v") as name) when is_in_filter =>
-      /* Inside a filter, the meta-variables `$e` and `$v` stand for any
-         expression/value, so we synthesize to `?` without consulting the ctx. */
-      add(
-        ~elab_term=Var(name) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-        ~marks=[],
-        ~co_ctx=CoCtx.empty,
-        m,
-      )
     | Var(name) =>
       let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
 
