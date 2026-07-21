@@ -304,22 +304,7 @@ let matched_query = (ctx, query) => {
         | TypParamAp(fn, arg) =>
           let arg = go(arg);
           empty_query(arg) ? gap : TypParamAp(fn, arg) |> Typ.temp;
-        | Sum(variants) =>
-          Sum(
-            List.map(
-              fun
-              | ConstructorMap.Variant(name, ids, Some(payload)) => {
-                  let payload = go(payload);
-                  empty_query(payload)
-                    ? ConstructorMap.BadEntry(gap)
-                    : ConstructorMap.Variant(name, ids, Some(payload));
-                }
-              | ConstructorMap.Variant(_, _, None)
-              | ConstructorMap.BadEntry(_) => ConstructorMap.BadEntry(gap),
-              variants,
-            ),
-          )
-          |> Typ.temp
+        | Sum(_) => gap
         | _ =>
           let children = typ_children(ty);
           children == []

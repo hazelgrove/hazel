@@ -1122,7 +1122,7 @@ let matched_branch_decomposition = (ctx, demand, supplied) => {
 let slice_branches =
     (~overlay, ctx: Ctx.t, branches: list(node), query: Typ.t): result => {
   let matched = matched_query(ctx, query);
-  let parametric = !empty_query(matched) && !Typ.equal(matched, query);
+  let parametric = !Typ.equal(matched, query);
   let (slices, _) =
     List.fold_left(
       ((slices, residual), branch: node) => {

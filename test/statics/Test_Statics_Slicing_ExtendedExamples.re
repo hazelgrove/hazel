@@ -162,7 +162,7 @@ let demo_examples = [
   demo_syn_case(
     ~focus=e => exp_var(e, "seq"),
     "demo-focus-seq-use",
-    "type Option = typfun ? -> None + ? in type ? = ? in type ? = ? in let ? = ? in let seq = abs A -> abs B -> fun (? : String -> Option((String, A))) -> fun (? : A -> Option((String, B))) -> fun (? : String) -> case ? | ? => None | ? => ? end in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<?>@<?>(?)(?)(?))(?))(?))(?) in ?",
+    "type Option = typfun ? -> ? in type ? = ? in type ? = ? in let ? = ? in let seq = abs A -> abs B -> fun (? : String -> Option((String, A))) -> fun (? : A -> Option((String, B))) -> fun (? : String) -> case ? | ? => ? | ? => ? end in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<?>@<?>(?)(?)(?))(?))(?))(?) in ?",
   ),
   demo_syn_case(
     ~focus=e => exp_var(e, "d1"),
