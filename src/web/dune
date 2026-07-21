@@ -25,7 +25,8 @@
   \
   Worker
   WorkerServer
-  Migrate_exercises)
+  Migrate_exercises
+  Migrate_slides)
  (libraries
   ezjs_min
   ezjs_idb
@@ -81,6 +82,25 @@
  (name migrate_exercises)
  (modules Migrate_exercises)
  (libraries ppx_yojson_conv.expander web)
+ (modes js)
+ (preprocess
+  (pps
+   ppx_yojson_conv
+   js_of_ocaml-ppx
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show
+   bonsai.ppx_bonsai)))
+
+; Slide migrator (tile-datatype Phase 1m): decodes the OLD-format segment
+; sexps embedded in the slide .ml files via LegacyBase, upgrades them
+; id-preservingly to the FormId representation, and re-emits the files.
+; Run under node; see scripts/README_migrate_tile_format.md.
+
+(executable
+ (name migrate_slides)
+ (modules Migrate_slides)
+ (libraries ppx_yojson_conv.expander haz3lcore b2t2 web)
  (modes js)
  (preprocess
   (pps
