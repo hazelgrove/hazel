@@ -677,7 +677,7 @@ and uexp_to_info_map =
       );
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
-      let<| inner_ana = MatchedTyp.list_slots;
+      let<| inner_ana = MatchedTyp.list;
       let anas = List.init(List.length(es), _ => inner_ana);
       let ((es, es_elabs), m) = map_m_go(m, anas, es);
       /* Use elements' synthesized types consistently for both the meet and
@@ -715,7 +715,7 @@ and uexp_to_info_map =
         )
       };
     | Cons(hd, tl) =>
-      let<| head_ana = MatchedTyp.list_slots;
+      let<| head_ana = MatchedTyp.list;
       let* (hd, hd_elab, m) = go(~ana=head_ana, hd, m);
       let tail_ana_ty = Typ.match_synswitch(ana, List(hd.ty) |> Typ.temp);
       let& (tl, tl_elab, m) = go(~ana=Info.pure(tail_ana_ty), tl, m);
@@ -752,7 +752,7 @@ and uexp_to_info_map =
       );
     | ListConcat(e1, e2) =>
       let inner_ana_ty =
-        List(MatchedTyp.list_tolerant(ctx, ana)) |> Typ.temp;
+        List(MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana)) |> Typ.temp;
       let ids = List.map(Exp.rep_id, [e1, e2]);
       let&& (e1, e1_elab, m) = go(~ana=Info.pure(inner_ana_ty), e1, m);
       let& (e2, e2_elab, m) = go(~ana=Info.pure(inner_ana_ty), e2, m);
@@ -760,8 +760,10 @@ and uexp_to_info_map =
          `list_tolerant` returns `?` when the arg's syn isn't a list, which
          is the correct behaviour for e.g. `A @ A` (where each `A` syns to
          a non-list constructor type but the result should still be `[?]`). */
-      let elem_ty1 = MatchedTyp.list_tolerant(ctx, e1.elab_syn_ty);
-      let elem_ty2 = MatchedTyp.list_tolerant(ctx, e2.elab_syn_ty);
+      let elem_ty1 =
+        MatchedTyp.tolerant1(MatchedTyp.list, ctx, e1.elab_syn_ty);
+      let elem_ty2 =
+        MatchedTyp.tolerant1(MatchedTyp.list, ctx, e2.elab_syn_ty);
       switch (
         Typ.meet_all(
           ~empty=Unknown(Internal) |> Typ.temp,
@@ -1005,7 +1007,7 @@ and uexp_to_info_map =
         List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
 
       let (inferred_es, ana_tys) =
-        MatchedTyp.prod(
+        MatchedTyp.prod_rearrange(
           ctx,
           List.map(e => (None: option(string), e), es),
           ((inferred, e)) => {
@@ -1069,7 +1071,7 @@ and uexp_to_info_map =
                       StaticsSlice.compose_route(
                         ana.route,
                         StaticsSlice.component_route(
-                          MatchedTyp.label_slots,
+                          MatchedTyp.label,
                           ctx,
                           1,
                         ),
@@ -1179,7 +1181,7 @@ and uexp_to_info_map =
               StaticsSlice.at(
                 ty,
                 StaticsSlice.component_route(
-                  MatchedTyp.prod_slots(List.length(es)),
+                  MatchedTyp.prod(List.length(es)),
                   ctx,
                   i,
                 ),
@@ -1799,7 +1801,7 @@ and uexp_to_info_map =
             | _ =>
               switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
               | Some(ty_ana) =>
-                switch (MatchedTyp.arrow(ctx, ty_ana)) {
+                switch (MatchedTyp.strict2(MatchedTyp.arrow, ctx, ty_ana)) {
                 | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
                 | None =>
                   MatchedTyp.poly_pair(ctx, ty_ana) != None
@@ -1838,7 +1840,8 @@ and uexp_to_info_map =
         | None =>
           let (fn_ty, fn_elab) =
             implicit_poly_instantiate(fn.elab_syn_ty, fn_elab);
-          let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_ty);
+          let (ty_in, ty_out) =
+            MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_ty);
           let& (arg, arg_elab, m) = go(~ana=Info.pure(ty_in), arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
@@ -1923,7 +1926,7 @@ and uexp_to_info_map =
           | _ =>
             switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
             | Some(ty_ana) =>
-              switch (MatchedTyp.arrow(ctx, ty_ana)) {
+              switch (MatchedTyp.strict2(MatchedTyp.arrow, ctx, ty_ana)) {
               | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
               | None =>
                 MatchedTyp.poly_pair(ctx, ty_ana) != None
@@ -1964,7 +1967,8 @@ and uexp_to_info_map =
       | None =>
         let (fn_ty, fn_elab) =
           implicit_poly_instantiate(fn.elab_syn_ty, fn_elab);
-        let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_ty);
+        let (ty_in, ty_out) =
+          MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_ty);
         let num_args = List.length(args);
         switch (MatchedTyp.args(ctx, ty_in, num_args)) {
         | L(ty_ins) =>
@@ -2012,7 +2016,7 @@ and uexp_to_info_map =
       };
     | Fun(p, e, typ, n) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let<> (mode_pat, mode_body) = MatchedTyp.arrow_slots;
+      let<> (mode_pat, mode_body) = MatchedTyp.arrow;
       let mode_pat =
         switch (typ) {
         | Some(t) => StaticsSlice.at(t, mode_pat.route)
@@ -2072,7 +2076,7 @@ and uexp_to_info_map =
          binder list element-wise so the body's expected type uses the
          user-written names. */
       let (name_expected_opt, _) = MatchedTyp.poly_pair_tolerant(ctx, ana);
-      let<| item = MatchedTyp.poly_slots;
+      let<| item = MatchedTyp.poly;
       let user_binders = TPat.binders_of(utpat);
       let user_names_safe =
         user_binders
@@ -3448,7 +3452,7 @@ and upat_to_info_map =
           Coverage.Constraint.nil,
         );
       let ids = List.map(Pat.rep_id, ps);
-      let mode = MatchedTyp.list_tolerant(ctx, ana);
+      let mode = MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana);
       let modes = List.init(List.length(ps), _ => mode);
       /* First pass: analyze each element with the initial mode, so sibling
          elements can contribute to the refined element type via meet. We
@@ -3513,7 +3517,7 @@ and upat_to_info_map =
         )
       };
     | Cons(hd, tl) =>
-      let inner_ty = MatchedTyp.list_tolerant(ctx, ana);
+      let inner_ty = MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana);
       /* First pass: determine the head's synthesized type so we can refine
          the element type used to analyze both the head and tail in pass two. */
       let (hd_first, _, _) = go(~ctx, ~ana=Info.pure(inner_ty), hd, m);
@@ -3700,7 +3704,7 @@ and upat_to_info_map =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
 
       let (inferred_ps, modes) =
-        MatchedTyp.prod(
+        MatchedTyp.prod_rearrange(
           ctx,
           List.map(p => (None: option(string), p), ps),
           ((inferred, p)) => {
@@ -4021,7 +4025,8 @@ and upat_to_info_map =
           add_info(IdTagged.ids(fn), InfoPat(info), m);
         };
       };
-      let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn'.elab_syn_ty);
+      let (ty_in, ty_out) =
+        MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn'.elab_syn_ty);
       let* (arg, arg_elab, m) = go(~ctx, ~ana=Info.pure(ty_in), arg, m);
       let constraint_ =
         switch (ctr) {

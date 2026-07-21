@@ -514,7 +514,8 @@ let to_lvs_statics =
       arg: Exp.t,
     ) => {
   open S;
-  let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+  let (ty_in, ty_out) =
+    MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_info.ty);
   let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=Info.pure(ty_in), arg, m);
 
   switch (Typ.normalize(ctx, arg.ty).term) {
@@ -585,7 +586,8 @@ let omit_all_labels_statics =
       arg: Exp.t,
     ) => {
   S.(
-    let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+    let (ty_in, ty_out) =
+      MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_info.ty);
     let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=Info.pure(ty_in), arg, m);
 
     switch (Typ.normalize(ctx, arg.ty).term) {

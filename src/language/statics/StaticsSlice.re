@@ -14,18 +14,25 @@ let at = (ty: Typ.t, route: query_route): routed(Typ.t) => {
   route,
 };
 
-let component_route = (f: (Ctx.t, Typ.t) => list(Typ.t), ctx, i): query_route => {
-  down: q => List.nth_opt(f(ctx, q), i) |> Option.value(~default=gap),
+let component_route = (f: MatchedTyp.matcher, ctx, i): query_route => {
+  down: q =>
+    f(ctx, q)
+    |> Option.map(List.nth_opt(_, i))
+    |> Option.join
+    |> Option.value(~default=gap),
   up: (shape, psi) =>
-    typ_rebuild(
-      shape,
-      f(ctx, shape) |> List.mapi((j, _) => i == j ? psi : gap),
-    ),
+    switch (f(ctx, shape)) {
+    | Some(components) =>
+      typ_rebuild(
+        shape,
+        components |> List.mapi((j, _) => i == j ? psi : gap),
+      )
+    | None => gap
+    },
 };
 
-let decompose =
-    (f: (Ctx.t, Typ.t) => list(Typ.t), ctx, ana): list(routed(Typ.t)) =>
-  f(ctx, ana)
+let decompose = (f: MatchedTyp.matcher, ctx, ana): list(routed(Typ.t)) =>
+  MatchedTyp.tolerant(f, ctx, ana)
   |> List.mapi((i, c) =>
        {
          value: c,
@@ -1296,7 +1303,11 @@ let compile = (~overlay, m: Id.Map.t(Info.t), root: Info.exp): node => {
           |> List.find_map(child =>
                child.mode == SliceMatched
                  ? Some(
-                     MatchedTyp.arrow_tolerant(info.ctx, child.node.typ)
+                     MatchedTyp.tolerant2(
+                       MatchedTyp.arrow,
+                       info.ctx,
+                       child.node.typ,
+                     )
                      |> snd,
                    )
                  : None

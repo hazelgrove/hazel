@@ -7,40 +7,117 @@ open Util;
 open Either;
 open Typ;
 
-let rec arrow = (ctx, ty) =>
+type matcher = (Ctx.t, Typ.t) => option(list(Typ.t));
+
+let synswitch = () => Unknown(SynSwitch) |> temp;
+let internal = () => Unknown(Internal) |> temp;
+
+let rec arrow: matcher =
+  (ctx, ty) =>
+    switch (term_of(weak_head_normalize(ctx, ty))) {
+    | Parens(ty) => arrow(ctx, ty)
+    | Arrow(ty_in, ty_out) => Some([ty_in, ty_out])
+    | Unknown(SynSwitch) => Some([synswitch(), synswitch()])
+    | _ => None
+    };
+
+let rec list: matcher =
+  (ctx, ty) =>
+    switch (term_of(weak_head_normalize(ctx, ty))) {
+    | Parens(ty) => list(ctx, ty)
+    | List(ty) => Some([ty])
+    | Unknown(SynSwitch) => Some([synswitch()])
+    | _ => None
+    };
+
+let rec poly: matcher =
+  (ctx, ty) =>
+    switch (term_of(weak_head_normalize(ctx, ty))) {
+    | Parens(ty) => poly(ctx, ty)
+    | Poly(_, body) => Some([body])
+    | Unknown(SynSwitch) => Some([synswitch()])
+    | _ => None
+    };
+
+let rec label: matcher =
+  (ctx, ty) =>
+    switch (term_of(weak_head_normalize(ctx, ty))) {
+    | Parens(ty) => label(ctx, ty)
+    | TupLabel(l, v) => Some([l, v])
+    | Unknown(SynSwitch) => Some([synswitch(), synswitch()])
+    | _ => None
+    };
+
+let rec args = (ctx, ty, arity): Either.t('a, int) => {
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => arrow(ctx, ty)
-  | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+  | Parens(ty) => args(ctx, ty, arity)
+  | Prod(tys) when List.length(tys) == arity => L(tys)
+  | Prod(tys) => R(List.length(tys))
+  | _ when arity == 1 => L([ty])
+  | Unknown(_) => L(List.init(arity, _ => internal()))
+  | _ => R(1)
+  };
+};
+
+let prod = (arity): matcher =>
+  (ctx, ty) =>
+    switch (args(ctx, ty, arity)) {
+    | L(tys) => Some(tys)
+    | R(_) => None
+    };
+
+let tolerant = (f: matcher, ctx, ty): list(Typ.t) =>
+  switch (f(ctx, ty)) {
+  | Some(components) => components
+  | None =>
+    f(ctx, synswitch())
+    |> Option.value(~default=[])
+    |> List.map(_ => internal())
+  };
+
+let tolerant1 = (f: matcher, ctx, ty): Typ.t =>
+  switch (tolerant(f, ctx, ty)) {
+  | [t] => t
+  | _ => internal()
+  };
+
+let tolerant2 = (f: matcher, ctx, ty): (Typ.t, Typ.t) =>
+  switch (tolerant(f, ctx, ty)) {
+  | [a, b] => (a, b)
+  | _ => (internal(), internal())
+  };
+
+let strict1 = (f: matcher, ctx, ty): option(Typ.t) =>
+  switch (f(ctx, ty)) {
+  | Some([t]) => Some(t)
   | _ => None
   };
 
-let arrow_tolerant = (ctx, ty) =>
-  arrow(ctx, ty)
-  |> Option.value(
-       ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
-     );
+let strict2 = (f: matcher, ctx, ty): option((Typ.t, Typ.t)) =>
+  switch (f(ctx, ty)) {
+  | Some([a, b]) => Some((a, b))
+  | _ => None
+  };
 
 let rec poly_pair = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => poly_pair(ctx, ty)
   | Poly(t, ty) => Some((Some(t), ty))
-  | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
+  | Unknown(SynSwitch) => Some((None, synswitch()))
   | _ => None
   };
 
 let poly_pair_tolerant = (ctx, ty) =>
-  poly_pair(ctx, ty)
-  |> Option.value(~default=(None, Unknown(Internal) |> temp));
+  poly_pair(ctx, ty) |> Option.value(~default=(None, internal()));
 
-let rec prod_strict:
+let rec prod_rearrange_strict:
   type a.
     (Ctx.t, list(a), a => option((string, a)), Typ.t, (string, a) => a) =>
     (list(a), option(list(Typ.t))) =
   (ctx: Ctx.t, es, get_label_es, ty: Typ.t, constructor) => {
     switch (term_of(weak_head_normalize(ctx, ty))) {
-    | Parens(ty) => prod_strict(ctx, es, get_label_es, ty, constructor)
+    | Parens(ty) =>
+      prod_rearrange_strict(ctx, es, get_label_es, ty, constructor)
     | Prod(tys: list(Typ.t)) =>
       if (List.length(es) != List.length(tys)) {
         (es, None);
@@ -58,68 +135,18 @@ let rec prod_strict:
       }
     | Unknown(SynSwitch) => (
         es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
+        Some(List.init(List.length(es), _ => synswitch())),
       )
     | _ => (es, None)
     };
   };
 
-let prod = (ctx, es, get_label_es, ty, constructor) => {
-  let (es, tys_opt) = prod_strict(ctx, es, get_label_es, ty, constructor);
+let prod_rearrange = (ctx, es, get_label_es, ty, constructor) => {
+  let (es, tys_opt) =
+    prod_rearrange_strict(ctx, es, get_label_es, ty, constructor);
   (
     es,
     tys_opt
-    |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
-       ),
+    |> Option.value(~default=List.init(List.length(es), _ => internal())),
   );
 };
-
-let rec list_strict = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => list_strict(ctx, ty)
-  | List(ty) => Some(ty)
-  | Unknown(SynSwitch) => Some(Unknown(SynSwitch) |> temp)
-  | _ => None
-  };
-
-let list_tolerant = (ctx, ty) =>
-  list_strict(ctx, ty) |> Option.value(~default=Unknown(Internal) |> temp);
-
-let rec args = (ctx, ty, arity): Either.t('a, int) => {
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => args(ctx, ty, arity)
-  | Prod(tys) when List.length(tys) == arity => L(tys)
-  | Prod(tys) => R(List.length(tys))
-  | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
-  | _ => R(1)
-  };
-};
-
-let label = (ctx, ty): option((Typ.t, Typ.t)) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ => None
-  };
-
-let arrow_slots = (ctx, ty): list(Typ.t) => {
-  let (i, o) = arrow_tolerant(ctx, ty);
-  [i, o];
-};
-let list_slots = (ctx, ty): list(Typ.t) => [list_tolerant(ctx, ty)];
-let poly_slots = (ctx, ty): list(Typ.t) => [
-  snd(poly_pair_tolerant(ctx, ty)),
-];
-let label_slots = (ctx, ty): list(Typ.t) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | TupLabel(l, v) => [l, v]
-  | _ => [Unknown(Internal) |> temp, Unknown(Internal) |> temp]
-  };
-let prod_slots = (arity, ctx, ty): list(Typ.t) =>
-  switch (args(ctx, ty, arity)) {
-  | L(tys) => tys
-  | R(_) => List.init(arity, _ => Unknown(Internal) |> temp)
-  };
