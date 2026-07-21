@@ -18,25 +18,6 @@ let is_retryable_api_error = (code: int): bool =>
 let format_api_error_content = (~code: int, ~message: string): string =>
   "Code: " ++ string_of_int(code) ++ "\nError: " ++ message;
 
-let append_to_chat_system =
-    (~chat_id: Id.t, msg: Message.Model.t, chat_system: ChatSystem.Model.t)
-    : ChatSystem.Model.t =>
-  ChatSystem.Update.update(
-    ChatSystem.Update.Action.ChatAction(
-      Chat.Update.Action.AppendMessage(msg),
-      chat_id,
-    ),
-    chat_system,
-  )
-  |> ChatSystem.Update.get;
-
-/** Append [msg] to [chat_id]'s transcript. */
-let append_message =
-    (~chat_id: Id.t, msg: Message.Model.t, model: Model.t): Model.t => {
-  ...model,
-  chat_system: append_to_chat_system(~chat_id, msg, model.chat_system),
-};
-
 /* In-flight streaming request handles. Not part of Model.t because
    [API.streaming_handle] holds a closure and is not serializable; these
    are strictly transient and meaningless across reloads. Cleared in the
@@ -52,12 +33,6 @@ let pending_compaction_stream_handle: ref(option(API.streaming_handle)) =
    same frame). Tests override this to run the thunk synchronously. */
 let defer_dispatch_send: ref((unit => unit) => unit) =
   ref(thunk => JsUtil.delay(0.0, thunk));
-
-let clear_pending_assistant_stream = (model: Model.t): Model.t => {
-  ...model,
-  pending_assistant_content: "",
-  pending_assistant_reasoning: "",
-};
 
 let abort_main_stream_handle = (): unit =>
   switch (pending_main_stream_handle^) {
@@ -232,7 +207,7 @@ let send_compaction_request =
 let compaction_unavailable =
     (~manual: bool, ~chat_id: Id.t, content: string, model: Model.t): Model.t =>
   manual
-    ? append_message(
+    ? Utils.append_message(
         ~chat_id,
         Message.Utils.mk_api_failure_message(content),
         model,
@@ -455,7 +430,7 @@ let dispatch_send =
     : Model.t => {
   switch (api_key, llm_id) {
   | (None, _) =>
-    append_message(
+    Utils.append_message(
       ~chat_id,
       Message.Utils.mk_api_failure_message(
         "An API key is required. Please set an API key in the settings.",
@@ -463,7 +438,7 @@ let dispatch_send =
       model,
     )
   | (_, None) =>
-    append_message(
+    Utils.append_message(
       ~chat_id,
       Message.Utils.mk_api_failure_message(
         "LLM ID is required. Please select an LLM in the settings.",
@@ -534,7 +509,7 @@ let dispatch_follow_up_llm =
     ) {
     | (None, _) => {
         ...
-          append_message(
+          Utils.append_message(
             ~chat_id,
             Message.Utils.mk_api_failure_message(
               "An API key is required. Please set an API key in the settings.",
@@ -545,7 +520,7 @@ let dispatch_follow_up_llm =
       }
     | (_, None) => {
         ...
-          append_message(
+          Utils.append_message(
             ~chat_id,
             Message.Utils.mk_api_failure_message(
               "LLM ID is required. Please select an LLM in the settings.",
@@ -589,55 +564,6 @@ let dispatch_follow_up_llm =
         main_llm_seq: main_flight_seq,
       };
     }
-  };
-};
-
-let update_context =
-    (
-      ~session_mode: AgentGlobals.Model.session_mode,
-      ~test_results: option(Language.TestResults.t)=?,
-      model: Model.t,
-      editor: CodeWithStatics.Model.t,
-      chat_id: Id.t,
-    )
-    : Model.t => {
-  let curr_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
-  let agent_editor_view_string =
-    CompositionView.Public.print(
-      ~probe_map=editor.dynamics,
-      editor.editor,
-      curr_chat.agent_view,
-    );
-  let static_errors_info_string =
-    ErrorPrint.all(
-      CompositionGo.Public.mk_statics(editor.editor.state.zipper),
-    )
-    |> String.concat("\n");
-  let test_results_info_string = Utils.test_results_for_context(test_results);
-  let chat_system =
-    ChatSystem.Update.update(
-      ChatSystem.Update.Action.ChatAction(
-        Chat.Update.Action.UpdateContext(
-          session_mode,
-          agent_editor_view_string,
-          static_errors_info_string,
-          test_results_info_string,
-        ),
-        chat_id,
-      ),
-      model.chat_system,
-    );
-  switch (chat_system) {
-  | Ok(chat_system) => {
-      ...model,
-      chat_system,
-    }
-  | Error(error) =>
-    failwith(
-      switch (error) {
-      | Failure.Info(msg) => msg
-      },
-    )
   };
 };
 
@@ -780,7 +706,7 @@ let execute_one_tool_call =
     ) {
     | Ok((model, editor)) =>
       let model =
-        update_context(
+        Utils.update_context(
           ~session_mode=settings.agent_globals.session_mode,
           model,
           editor,
@@ -936,7 +862,7 @@ let handle_llm_response =
     : (Model.t, Updated.t(CellEditor.Model.t)) => {
   /* The streamed pending text has been superseded by [reply.content]; the
      complete assistant message is about to be appended via AppendMessage. */
-  let model = clear_pending_assistant_stream(model);
+  let model = Utils.clear_pending_assistant_stream(model);
   switch (model.pending_ignore_main_reply_seq) {
   | Some(ignore_seq) when ignore_seq == flight_seq =>
     /* Cancel line was already appended in StopAgenticLoop. */
@@ -977,7 +903,7 @@ let handle_llm_response =
           Message.Utils.mk_agent_message(fallback_content, reply.usage);
         (
           {
-            ...append_message(~chat_id, new_message, model),
+            ...Utils.append_message(~chat_id, new_message, model),
             awaiting_response: None,
             last_empty_retry_attempt: None,
           },
@@ -996,7 +922,7 @@ let handle_llm_response =
           reply.usage,
         );
       let model = {
-        ...append_message(~chat_id, new_message, model),
+        ...Utils.append_message(~chat_id, new_message, model),
         last_empty_retry_attempt: None,
         last_active_task_nudge_attempt: None,
       };
@@ -1087,7 +1013,7 @@ let handle_llm_response =
         let tool_msgs = List.rev(tool_msgs_rev);
         let model_with_tool_msgs =
           List.fold_left(
-            (m, msg) => append_message(~chat_id, msg, m),
+            (m, msg) => Utils.append_message(~chat_id, msg, m),
             model_after_tools,
             tool_msgs,
           );
@@ -1160,7 +1086,7 @@ let update =
       /* Phase 1: append only, so the message paints this frame; DispatchSend
          picks up the context refresh and payload work a macrotask later. */
       let model = {
-        ...append_message(~chat_id, message, model),
+        ...Utils.append_message(~chat_id, message, model),
         pending_dispatch_send: Some(chat_id),
       };
       defer_dispatch_send^(() =>
@@ -1176,7 +1102,7 @@ let update =
         pending_dispatch_send: None,
       };
       let model =
-        update_context(
+        Utils.update_context(
           ~session_mode=settings.agent_globals.session_mode,
           ~test_results=?EvalResult.Model.test_results(editor.result),
           model,
@@ -1214,8 +1140,13 @@ let update =
             ~content="Agent response cancelled.",
           );
         (
-          clear_pending_assistant_stream({
-            ...append_message(~chat_id=awaiting_chat_id, cancelled, model),
+          Utils.clear_pending_assistant_stream({
+            ...
+              Utils.append_message(
+                ~chat_id=awaiting_chat_id,
+                cancelled,
+                model,
+              ),
             awaiting_response: None,
             last_empty_retry_attempt: None,
             last_active_task_nudge_attempt: None,
@@ -1231,7 +1162,12 @@ let update =
           );
         (
           {
-            ...append_message(~chat_id=compaction_chat_id, cancelled, model),
+            ...
+              Utils.append_message(
+                ~chat_id=compaction_chat_id,
+                cancelled,
+                model,
+              ),
             compaction_in_progress: None,
             compaction_method_override: None,
             pending_ignore_compaction_reply_seq:
@@ -1250,7 +1186,12 @@ let update =
             );
           (
             {
-              ...append_message(~chat_id=pending_chat_id, cancelled, model),
+              ...
+                Utils.append_message(
+                  ~chat_id=pending_chat_id,
+                  cancelled,
+                  model,
+                ),
               pending_dispatch_send: None,
             },
             editor |> Updated.return,
@@ -1330,7 +1271,7 @@ let update =
               "Compaction returned tool calls instead of a text summary. Try another model, or one that does not emit tools on compaction.",
             );
           (
-            append_message(~chat_id, err, model_cleared),
+            Utils.append_message(~chat_id, err, model_cleared),
             editor |> Updated.return,
           );
         } else if (content == "") {
@@ -1339,7 +1280,7 @@ let update =
               "Compaction returned an empty summary.",
             );
           (
-            append_message(~chat_id, err, model_cleared),
+            Utils.append_message(~chat_id, err, model_cleared),
             editor |> Updated.return,
           );
         } else {
@@ -1349,7 +1290,7 @@ let update =
               content,
             );
           (
-            append_message(~chat_id, summary, model_cleared),
+            Utils.append_message(~chat_id, summary, model_cleared),
             editor |> Updated.return,
           );
         };
@@ -1380,7 +1321,7 @@ let update =
       };
     let msg =
       Message.Utils.mk_slash_command_output_message(~payload, ~content);
-    (append_message(~chat_id, msg, model), editor |> Updated.return);
+    (Utils.append_message(~chat_id, msg, model), editor |> Updated.return);
   | RunSlashCommandHelp(chat_id) =>
     schedule_action(
       Action.AppendSlashCommandOutput(
@@ -1468,7 +1409,7 @@ let update =
        return path below is safe. */
     let model =
       switch (origin) {
-      | MainRequest(_) => clear_pending_assistant_stream(model)
+      | MainRequest(_) => Utils.clear_pending_assistant_stream(model)
       | CompactionRequest(_) => model
       };
     let (m, e) =
@@ -1486,7 +1427,7 @@ let update =
           )
         | _ => (
             {
-              ...append_message(~chat_id, api_error_message, model),
+              ...Utils.append_message(~chat_id, api_error_message, model),
               awaiting_response: None,
             },
             editor |> Updated.return,
@@ -1509,7 +1450,7 @@ let update =
           )
         | _ => (
             {
-              ...append_message(~chat_id, api_error_message, model),
+              ...Utils.append_message(~chat_id, api_error_message, model),
               awaiting_response: None,
               compaction_in_progress:
                 switch (model.compaction_in_progress) {
@@ -1547,10 +1488,13 @@ let update =
     JsUtil.delay(delay_ms, () =>
       schedule_action(Action.DoRetryApiSend(chat_id, attempt))
     );
-    (append_message(~chat_id, retry_note, model), editor |> Updated.return);
+    (
+      Utils.append_message(~chat_id, retry_note, model),
+      editor |> Updated.return,
+    );
   | DoRetryApiSend(chat_id, attempt) =>
     let model =
-      update_context(
+      Utils.update_context(
         ~session_mode=settings.agent_globals.session_mode,
         ~test_results=?EvalResult.Model.test_results(editor.result),
         model,
@@ -1615,7 +1559,7 @@ let update =
           );
         (
           {
-            ...append_message(~chat_id, api_failure_message, model),
+            ...Utils.append_message(~chat_id, api_failure_message, model),
             awaiting_response: None,
           },
           editor |> Updated.return,
@@ -1649,7 +1593,7 @@ let update =
           ~sent_to_api=true,
           ~deliver_as_user_on_api=true,
         );
-      let model = append_message(~chat_id, retry_message, model);
+      let model = Utils.append_message(~chat_id, retry_message, model);
       switch (
         settings.agent_globals.api_key,
         AgentGlobals.get_active_llm_id(settings.agent_globals),
@@ -1697,7 +1641,7 @@ let update =
           );
         (
           {
-            ...append_message(~chat_id, api_failure_message, model),
+            ...Utils.append_message(~chat_id, api_failure_message, model),
             awaiting_response: None,
             last_empty_retry_attempt: None,
           },

@@ -1,4 +1,5 @@
 open Haz3lcore;
+open AgentResult;
 open AgentModel;
 
 let init = (): Model.t => {
@@ -30,6 +31,31 @@ let init = (): Model.t => {
     pending_assistant_content: "",
     pending_assistant_reasoning: "",
   });
+};
+
+let append_to_chat_system =
+    (~chat_id: Id.t, msg: Message.Model.t, chat_system: ChatSystem.Model.t)
+    : ChatSystem.Model.t =>
+  ChatSystem.Update.update(
+    ChatSystem.Update.Action.ChatAction(
+      Chat.Update.Action.AppendMessage(msg),
+      chat_id,
+    ),
+    chat_system,
+  )
+  |> ChatSystem.Update.get;
+
+/** Append [msg] to [chat_id]'s transcript. */
+let append_message =
+    (~chat_id: Id.t, msg: Message.Model.t, model: Model.t): Model.t => {
+  ...model,
+  chat_system: append_to_chat_system(~chat_id, msg, model.chat_system),
+};
+
+let clear_pending_assistant_stream = (model: Model.t): Model.t => {
+  ...model,
+  pending_assistant_content: "",
+  pending_assistant_reasoning: "",
 };
 
 let test_results_for_context =
@@ -82,4 +108,53 @@ let llm_context_snapshot_text =
       chat.agent_workbench,
     ),
   );
+};
+
+let update_context =
+    (
+      ~session_mode: AgentGlobals.Model.session_mode,
+      ~test_results: option(Language.TestResults.t)=?,
+      model: Model.t,
+      editor: CodeWithStatics.Model.t,
+      chat_id: Id.t,
+    )
+    : Model.t => {
+  let curr_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
+  let agent_editor_view_string =
+    CompositionView.Public.print(
+      ~probe_map=editor.dynamics,
+      editor.editor,
+      curr_chat.agent_view,
+    );
+  let static_errors_info_string =
+    ErrorPrint.all(
+      CompositionGo.Public.mk_statics(editor.editor.state.zipper),
+    )
+    |> String.concat("\n");
+  let test_results_info_string = test_results_for_context(test_results);
+  let chat_system =
+    ChatSystem.Update.update(
+      ChatSystem.Update.Action.ChatAction(
+        Chat.Update.Action.UpdateContext(
+          session_mode,
+          agent_editor_view_string,
+          static_errors_info_string,
+          test_results_info_string,
+        ),
+        chat_id,
+      ),
+      model.chat_system,
+    );
+  switch (chat_system) {
+  | Ok(chat_system) => {
+      ...model,
+      chat_system,
+    }
+  | Error(error) =>
+    failwith(
+      switch (error) {
+      | Failure.Info(msg) => msg
+      },
+    )
+  };
 };
