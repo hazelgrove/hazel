@@ -396,6 +396,103 @@ let svg_of_group =
     );
   };
 
+/* Clip partial-token boundaries for char-level selections.
+ * Adjusts the first/last row's left/right columns when the
+ * selection boundary falls mid-token (Inner caret). */
+let clip_char_selection =
+    (~measured: Measured.t, z: Zipper.t, rows: list(row_data))
+    : list(row_data) => {
+  let content = z.selection.content;
+  switch (content, rows) {
+  | ([], _)
+  | (_, []) => rows
+  | _ =>
+    /* Determine left/right inner offsets based on focus direction.
+     * Content is always left-to-right spatially.
+     * focus=Right: anchor at left, focus at right.
+     * focus=Left: focus at left, anchor at right.
+     *
+     * When smart_rounded is set, the anchor end displays at the outer
+     * boundary of its piece (even if anchor_caret is Inner) — the
+     * selection has been rounded up beyond the starting token. */
+    let anchor_inner: option(int) =
+      z.selection.smart_rounded
+        ? None
+        : (
+          switch (z.selection.anchor_caret) {
+          | CaretBase.Inner(n) => Some(n)
+          | CaretBase.Outer => None
+          }
+        );
+    let focus_inner: option(int) =
+      switch (z.caret) {
+      | Inner(n) => Some(n)
+      | Outer => None
+      };
+    let (left_inner, right_inner) =
+      switch (z.selection.focus) {
+      | Right => (anchor_inner, focus_inner)
+      | Left => (focus_inner, anchor_inner)
+      };
+
+    /* Clip left boundary of first row */
+    let rows =
+      switch (left_inner) {
+      | None => rows
+      | Some(n) =>
+        let left_piece = List.hd(content);
+        let shard = List.hd(Piece.disassemble(left_piece));
+        switch (Piece.token_of(shard)) {
+        | Some(tok) =>
+          let offset = Zipper.Caret.inner_offset_for_token(n, tok);
+          switch (rows) {
+          | [] => []
+          | [first, ...rest] => [
+              {
+                ...first,
+                left_col: first.left_col + offset,
+                left_tip: None,
+              },
+              ...rest,
+            ]
+          };
+        | None => rows
+        };
+      };
+
+    /* Clip right boundary of last row */
+    let rows =
+      switch (right_inner) {
+      | None => rows
+      | Some(n) =>
+        let right_piece = ListUtil.last(content);
+        let last_shard = ListUtil.last(Piece.disassemble(right_piece));
+        switch (Piece.token_of(last_shard)) {
+        | Some(tok) =>
+          let offset = Zipper.Caret.inner_offset_for_token(n, tok);
+          let m =
+            Measured.find_p(~msg="clip_char_sel_right", last_shard, measured);
+          let new_right_col = m.origin.col + offset;
+          switch (ListUtil.split_last_opt(rows)) {
+          | None => []
+          | Some((init, last_row)) =>
+            init
+            @ [
+              {
+                ...last_row,
+                right_col: new_right_col,
+                right_tip: None,
+              },
+            ]
+          };
+        | None => rows
+        };
+      };
+
+    rows;
+  };
+};
+
 /* --- Public API --- */
 
 let of_segment =
@@ -421,18 +518,24 @@ let selection =
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
       z: Zipper.t,
-    ) =>
-  div_c(
-    "selects",
-    of_segment(
+    ) => {
+  let rows =
+    rows_of_segment(
       ~measured,
       ~shape_map,
-      ~font_metrics,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-      ~clss=["selected", Selection.buffer_cls(z.selection)],
       z.selection.content,
-    ),
+    )
+    |> List.map(((m, tips)) => row_data_of(m, tips));
+  /* Clip partial-token boundaries for char-level selections */
+  let rows = clip_char_selection(~measured, z, rows);
+  let clss = ["selected", Selection.buffer_cls(z.selection)];
+  let groups = group_consecutive(rows);
+  div_c(
+    "selects",
+    List.filter_map(svg_of_group(~font_metrics, ~clss), groups),
   );
+};
 
 // Expands selection to make it a subtree of the exp
 let selection_expanded =
@@ -537,3 +640,57 @@ let colors =
       },
     ),
   );
+
+let incr_eval =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~syntax: CachedSyntax.t,
+      incr: Language.IncrEval.t,
+    ) => {
+  /* `frozen_ids` walks each reused subtree's prev_elab and emits every
+   * rep_id encountered. Many of those ids have nested or duplicate
+   * source ranges; painting them each as its own SVG stacks the 0.55
+   * alpha and makes inner regions look darker than the surrounding
+   * tint. Keep one id per maximal (outermost) range so each visible
+   * region gets exactly one decoration. Ids without a measurable range
+   * (elab-internal, no segment) are dropped here — the surviving ids in
+   * the same subtree cover the visible portion. */
+  let ranged_ids =
+    Language.IncrEval.frozen_ids(incr)
+    |> List.sort_uniq(Id.compare)
+    |> List.filter_map(id =>
+         switch (
+           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+         ) {
+         | Some(range) => Some((id, range))
+         | None => None
+         }
+       );
+  let range_eq = ((o1, l1), (o2, l2)) =>
+    Point.equals(o1, o2) && Point.equals(l1, l2);
+  let range_contains = ((o1, l1), (o2, l2)) =>
+    Point.compare(o1, o2) <= 0 && Point.compare(l2, l1) <= 0;
+  let outermost =
+    List.fold_left(
+      (acc, (id, r)) =>
+        if (List.exists(
+              ((_, r2)) => range_contains(r2, r) && !range_eq(r2, r),
+              ranged_ids,
+            )
+            || List.exists(((_, r2)) => range_eq(r2, r), acc)) {
+          acc;
+        } else {
+          [(id, r), ...acc];
+        },
+      [],
+      ranged_ids,
+    );
+  div_c(
+    "incremental-highlights",
+    List.concat_map(
+      ((id, _)) =>
+        color(~syntax, ~font_metrics, ["incremental-frozen"], id),
+      outermost,
+    ),
+  );
+};

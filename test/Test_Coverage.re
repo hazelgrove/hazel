@@ -60,10 +60,13 @@ let has_errors =
     name,
     `Quick,
     () => {
+      print_endline("yet to parse indicated exp");
       let indicated_exp: Grammar.exp_t(bool) = parse_menhir(exp);
+      print_endline("parsed indicated exp");
       let (e, ids) =
         MenhirParser.Conversion.Exp.get_indicated_ids(indicated_exp);
 
+      print_endline("Parsed expression: " ++ Exp.show(e));
       let s = statics(e);
       let errors_map = collect_errors(s) |> issue_map_of_marks_map;
       let actual_errors =
@@ -71,7 +74,18 @@ let has_errors =
         | Some(f) => f(errors_map)
         | None => errors_map
         };
+
+      let show_error_map = (m: Id.Map.t(Test_Statics_Prelude.issue)): string =>
+        Id.Map.bindings(m)
+        |> List.sort((a, b) => Id.compare(fst(a), fst(b)))
+        |> List.map(((id, iss)) =>
+             Id.show(id) ++ " => " ++ show_issue(iss)
+           )
+        |> String.concat("\n");
+      print_endline("Actual errors: " ++ show_error_map(actual_errors));
       let expected_errors = Id.Map.of_list(List.combine(ids, errors));
+
+      print_endline("Expected errors: " ++ show_error_map(expected_errors));
 
       Alcotest.check(
         testable_error_map,
@@ -1265,6 +1279,18 @@ let exhaustive_bools_with_wilds =
     |},
   );
 
+// Regression for #2074.
+let regression_2074_tuplabel_emptyhole_label =
+  test_case(
+    "TupLabel with EmptyHole label in let-binding doesn't crash", `Quick, () =>
+    switch (Haz3lcore.Parser.to_term("let (?=?) = 1 in 1", ~root=Exp)) {
+    | None => Alcotest.fail("parse failed")
+    | Some(term) =>
+      let _ = statics(term);
+      ();
+    }
+  );
+
 let tests = (
   "Pattern Coverage Checker",
   [
@@ -1329,5 +1355,6 @@ let tests = (
     exhaustive_ints_with_wilds,
     exhaustive_strings_with_wilds,
     exhaustive_bools_with_wilds,
+    regression_2074_tuplabel_emptyhole_label,
   ],
 );

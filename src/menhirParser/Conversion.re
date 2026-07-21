@@ -29,12 +29,6 @@ module FilterAction = {
 module Operators = {
   open Language.Operators;
 
-  let op_un_meta_of_menhir_ast = (op: AST.op_un_meta) => {
-    switch (op) {
-    | Unquote => Unquote
-    };
-  };
-
   let op_un_int_of_menhir_ast = (op: AST.op_un_int): op_un_num => {
     switch (op) {
     | Minus => Minus
@@ -49,7 +43,6 @@ module Operators = {
 
   let op_un_of_menhir_ast = (op: AST.op_un): op_un => {
     switch (op) {
-    | Meta(meta) => Meta(op_un_meta_of_menhir_ast(meta))
     | Int(i) => Int(op_un_int_of_menhir_ast(i))
     | Bool(b) => Bool(op_un_bool_of_menhir_ast(b))
     };
@@ -100,7 +93,6 @@ module Operators = {
       StringOp(
         switch (op_string) {
         | Concat => Concat
-        | Equals => Equals
         },
       )
     | Poly(op_poly) =>
@@ -115,12 +107,6 @@ module Operators = {
 
   let of_core_op_un = (op: op_un): AST.op_un => {
     switch (op) {
-    | Meta(meta) =>
-      Meta(
-        switch (meta) {
-        | Unquote => Unquote
-        },
-      )
     | Nat(i)
     | Float(i)
     | SInt(i)
@@ -160,7 +146,6 @@ module Operators = {
   let string_op_of_menhir_ast = (op: AST.op_bin_string): op_bin_string => {
     switch (op) {
     | Concat => Concat
-    | Equals => Equals
     };
   };
 
@@ -422,6 +407,10 @@ module rec Exp: {
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
+    /* The menhir parser grammar has no syntax for derivation terms, so
+       converting core DrvQuote values back to the menhir AST is not
+       meaningful. */
+    | DrvQuote(_) => raise(Failure("DrvQuote not supported"))
     | Projector(_, e) => of_core(e)
     | Module(items) => Module(List.map(ModItem.of_core, items))
     | ModuleExp(mp, def, body) =>
@@ -466,6 +455,7 @@ and Typ: {
     | BoolType => bool()
     | StringType => string()
     | NatType => nat()
+    | VoidType => parens(sum([]))
     | UnknownType(p) =>
       switch (p) {
       | Internal => unknown(Internal)
@@ -547,6 +537,7 @@ and Typ: {
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
     | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
     | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))
+    | Sum([]) => VoidType
     | Sum(constructors) =>
       let sumterms =
         List.map(
@@ -560,6 +551,8 @@ and Typ: {
           constructors,
         );
       SumTyp(sumterms);
+    /* Same as DrvQuote in the Exp case: no menhir syntax for Drv types. */
+    | DrvQuoteTy(_) => raise(Failure("DrvQuoteTy not supported"))
     | Projector(_, t) => of_core(t)
     | Sig(items) => Sig(List.map(SigItem.of_core, items))
     };

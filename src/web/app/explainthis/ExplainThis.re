@@ -180,7 +180,13 @@ let mk_translation =
     List.fold_left(
       ((msg, mapping), elem) => {
         switch (elem) {
-        | Omd.Paragraph(_, d) => translate_inline(d, msg, mapping, ~inject)
+        | Omd.Paragraph(_, d) =>
+          /* Each markdown paragraph renders as its own <p> so that blank
+             lines in the source produce visible paragraph breaks.
+             (Soft line breaks inside a paragraph are already handled by
+             [translate_inline] as <br>.) */
+          let (p_nodes, mapping) = translate_inline(d, [], mapping, ~inject);
+          (List.append(msg, [Node.p(p_nodes)]), mapping);
         | Omd.List(_, _, _, items) =>
           let (bullets, mapping) =
             List.fold_left(
@@ -372,7 +378,7 @@ let example_view =
                   {
                     term
                     |> Zipper.unzip
-                    |> Editor.Model.mk
+                    |> Editor.Model.mk(~root=Exp)
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
                          ~settings=globals.settings.core,
@@ -431,6 +437,191 @@ type message_mode =
     )
   | Colorings;
 
+type info_deduction = option(DrvGrading.VerifiedTree.info);
+
+let get_doc_deduction =
+    (
+      ~globals: Globals.t,
+      ~docs: ExplainThisModel.t,
+      info_deduction: info_deduction,
+      mode: message_mode,
+    )
+    : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
+  let get_message =
+      (
+        ~format: option(string => string)=None,
+        ~explanation: option(string)=?,
+        group: ExplainThisForm.group,
+      )
+      // Examples can be leaved blank.
+      : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
+    let (doc, _) = ExplainThisModel.get_form_and_options(group, docs);
+
+    // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
+    let explanation_msg =
+      switch (explanation, format) {
+      | (Some(msg), _) => msg
+      | (_, Some(f)) => f(doc.explanation)
+      | (_, None) => doc.explanation
+      };
+    switch (mode) {
+    | MessageContent(inject, globals) =>
+      let (explanation_title, (explanation, color_map)) =
+        if (globals.settings.core.dynamics) {
+          (
+            DrvExplainThis.mk_explanation_title(),
+            mk_explanation(
+              ~globals,
+              ~inject,
+              group.id,
+              doc.id,
+              explanation_msg,
+              docs,
+            ),
+          );
+        } else {
+          (none, (none, ColorSteps.empty));
+        };
+      let rule_example_view =
+        DrvExplainThis.rule_example_view(
+          ~info=info_deduction,
+          ~color_map,
+          ~globals,
+        );
+      (
+        [rule_example_view],
+        ([explanation_title, explanation], color_map),
+        [],
+      );
+    | Colorings =>
+      let (_, color_map) =
+        mk_translation(~globals, ~inject=_ => (), explanation_msg);
+      ([], ([], color_map), []);
+    };
+  };
+
+  let fake_get_message = msg =>
+    get_message(~format=Some(_ => msg), DrvExplainThis.premise_mismatch);
+
+  switch (info_deduction) {
+  | None => fake_get_message("Deduction Not Available")
+  | Some({res: Correct, _}) => fake_get_message("✅ Correct")
+  | Some({res: Pending(p), _}) =>
+    fake_get_message(DrvGrading.ExternalError.show(p))
+  | Some({res: PartialCorrect(specced), _}) =>
+    fake_get_message(
+      if (globals.settings.explainThis.highlight == All) {
+        Printf.sprintf(
+          "❓ Correct until stop at a hole %s)",
+          RuleVerify.show_linked(specced),
+        );
+      } else {
+        "❓ Correct until stop at a hole";
+      },
+    )
+  | Some({res: Incorrect(failure), _}) =>
+    fake_get_message(
+      (
+        switch (failure) {
+        | Mismatch(expected, actual) =>
+          Printf.sprintf(
+            "Expected %d premises, but found %d",
+            expected,
+            actual,
+          )
+        | FailMatch((spec, _) as specced) =>
+          Printf.sprintf(
+            "Could not match %s against expected form %s",
+            RuleVerify.show_linked(specced),
+            spec |> Drv.Any.cls_of |> Drv.Any.show_cls,
+          )
+        | NotEqual(specced1, specced2) =>
+          Printf.sprintf(
+            "Matched terms %s and %s that should be equal were different",
+            RuleVerify.show_linked(specced1),
+            RuleVerify.show_linked(specced2),
+          )
+        | FailUnbox(specced, cls) =>
+          Printf.sprintf(
+            "Could not extract a %s from %s",
+            cls |> Drv.Any.show_cls,
+            RuleVerify.show_linked(specced),
+          )
+        | FailTest(map, test) =>
+          Printf.sprintf(
+            "Matched terms failed the test (hidden premise): %s",
+            test
+            |> ExpToSegment.drv_formula_to_pretty(_, DrvSort.Jdmt)
+            |> List.map(
+                 Base.map_piece(~f_piece=(cont, piece) => {
+                   switch (piece) {
+                   | Tile(
+                       {
+                         children: [],
+                         mold:
+                           {
+                             nibs: ({shape: Convex, _}, {shape: Convex, _}),
+                             _,
+                           },
+                         _,
+                       } as t,
+                     ) =>
+                     let label = t.label |> List.hd;
+                     let (_, syntax) = RuleVerify.Map.find(label, map);
+                     Tile({
+                       ...t,
+                       label: [
+                         Printf.sprintf(
+                           "[*%s*](%s)",
+                           label,
+                           syntax |> Drv.Any.rep_id |> Id.to_string,
+                         ),
+                       ],
+                     });
+                   | _ => cont(piece)
+                   }
+                 }),
+               )
+            |> Segment.to_string(
+                 ~projector_to_segment=Triggers.projector_to_invoke,
+                 ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
+               ),
+          )
+        }
+      )
+      |> Printf.sprintf("❌ %s"),
+    )
+  };
+};
+
+let get_color_map_deduction =
+    (
+      ~globals: Globals.t,
+      ~explainThisModel: ExplainThisModel.t,
+      info_deduction: info_deduction,
+    ) =>
+  switch (globals.settings.explainThis.highlight) {
+  | All when globals.settings.explainThis.show =>
+    let (_, (_, (color_map, _)), _) =
+      get_doc_deduction(
+        ~globals,
+        ~docs=explainThisModel,
+        info_deduction,
+        Colorings,
+      );
+    Some(color_map);
+  | One(id) when globals.settings.explainThis.show =>
+    let (_, (_, (color_map, _)), _) =
+      get_doc_deduction(
+        ~globals,
+        ~docs=explainThisModel,
+        info_deduction,
+        Colorings,
+      );
+    Some(Id.Map.filter((id', _) => id == id', color_map));
+  | _ => None
+  };
+
 let get_doc =
     (
       ~globals: Globals.t,
@@ -471,6 +662,11 @@ let get_doc =
           explanation_msg,
           docs,
         );
+      let root =
+        switch (info) {
+        | None => Sort.Any
+        | Some(ci) => Info.sort_of(ci)
+        };
       let highlights =
         colorings
         |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
@@ -480,7 +676,7 @@ let get_doc =
         |> List.to_seq
         |> Id.Map.of_seq
         |> Option.some;
-      let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip);
+      let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip, ~root);
       let expander_deco =
         expander_deco(
           ~globals,
@@ -559,6 +755,15 @@ let get_doc =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch ((term: Exp.term)) {
+      | DrvQuote(_) => (
+          [],
+          mk_translation(
+            ~globals,
+            ~inject=_ => (),
+            "A derivation-mode quotation embeds a derivation-mode term into a regular expression. There are 5 forms of quotation:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
+          ),
+          [],
+        )
       | Invalid(_) => simple("Not a valid expression")
       | DynamicErrorHole(_)
       | Closure(_) => simple("Internal expression")
@@ -1700,28 +1905,40 @@ let get_doc =
               basic(LetExp.lets_tuple);
             }
           };
-        | Ap(con, arg) =>
-          if (LetExp.let_ap_exp.id == get_specificity_level(LetExp.lets_ap)) {
-            let con_id = List.nth(IdTagged.ids(con), 0);
+        | Ap(x, arg) =>
+          let (lets_ap, let_ap_exp_coloring_ids, let_ap_exp_id) =
+            switch (x.term) {
+            | Constructor(_, _) => (
+                LetExp.lets_conap,
+                LetExp.let_conap_exp_coloring_ids,
+                LetExp.let_conap_exp.id,
+              )
+            | _ => (
+                LetExp.lets_funap,
+                LetExp.let_funap_exp_coloring_ids,
+                LetExp.let_funap_exp.id,
+              )
+            };
+          if (let_ap_exp_id == get_specificity_level(lets_ap)) {
+            let x_id = List.nth(IdTagged.ids(x), 0);
             let arg_id = List.nth(IdTagged.ids(arg), 0);
             get_message(
-              ~colorings=
-                LetExp.let_ap_exp_coloring_ids(~con_id, ~arg_id, ~def_id),
+              ~colorings=let_ap_exp_coloring_ids(~x_id, ~arg_id, ~def_id),
               ~format=
                 Some(
                   msg =>
                     Printf.sprintf(
                       Scanf.format_from_string(msg, "%s%s%s"),
                       Id.to_string(def_id),
-                      Id.to_string(con_id),
+                      Id.to_string(x_id),
                       Id.to_string(arg_id),
                     ),
                 ),
-              LetExp.lets_ap,
+              lets_ap,
             );
           } else {
-            basic(LetExp.lets_ap);
-          }
+            basic(lets_ap);
+          };
         | Constructor(v, _) =>
           if (LetExp.let_ctr_exp.id == get_specificity_level(LetExp.lets_ctr)) {
             get_message(
@@ -2098,8 +2315,6 @@ let get_doc =
               ),
             OpExp.int_un_minus,
           );
-        | Meta(Unquote) =>
-          message_single(FilterExp.unquote(~sel_id=Exp.rep_id(exp)))
         }
       | BinOp(op, left, right) =>
         open OpExp;
@@ -2160,7 +2375,6 @@ let get_doc =
           | Float(NotEquals) => (float_not_equal, float_neq_exp_coloring_ids)
           | Bool(And) => (bool_and, bool_and_exp_coloring_ids)
           | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
-          | String(Equals) => (string_equal, str_eq_exp_coloring_ids)
           | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
           | Poly(Equals) => (poly_equal, poly_eq_exp_coloring_ids)
           | Poly(NotEquals) => (poly_not_equal, poly_neq_exp_coloring_ids)
@@ -2425,22 +2639,41 @@ let get_doc =
         }
       | _ => basic(TuplePat.tuple)
       };
-    | Ap(con, arg) =>
-      let con_id = List.nth(IdTagged.ids(con), 0);
+    | Ap(x, arg) =>
+      let x_id = List.nth(IdTagged.ids(x), 0);
       let arg_id = List.nth(IdTagged.ids(arg), 0);
-      get_message(
-        ~colorings=AppPat.ap_pat_coloring_ids(~con_id, ~arg_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(con_id),
-                Id.to_string(arg_id),
-              ),
-          ),
-        AppPat.ap,
-      );
+      let basic = (group, format, coloring_ids) => {
+        get_message(
+          ~colorings=coloring_ids(~x_id, ~arg_id),
+          ~format=Some(format),
+          group,
+        );
+      };
+
+      switch (x.term) {
+      | Constructor(_, _) =>
+        basic(
+          AppPat.conaps,
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(x_id),
+              Id.to_string(arg_id),
+            ),
+          AppPat.conapp_pat_coloring_ids,
+        )
+      | _ =>
+        basic(
+          AppPat.funaps,
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(x_id),
+              Id.to_string(arg_id),
+            ),
+          AppPat.funapp_pat_coloring_ids,
+        )
+      };
     | Constructor(con, _) =>
       get_message(
         ~format=
@@ -2472,7 +2705,9 @@ let get_doc =
       default
     }
   | Some(InfoTyp({user_term: term, _} as typ_info)) =>
-    switch (bypass_parens_typ(term).term) {
+    let typ = bypass_parens_typ(term);
+    switch (typ.term) {
+    | _ when Typ.is_void(typ) => get_message(TerminalTyp.void)
     | Unknown(SynSwitch)
     | Unknown(Internal)
     | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
@@ -2706,7 +2941,35 @@ let get_doc =
     | Parens(_)
     | Sig(_) => message_single(SigTyp.single)
     | Projector(_) => default
-    }
+    | DrvQuoteTy(Jdmt) =>
+      simple(
+        "`DrvJdmt` is the type of derivation-mode judgements. Quote a judgement with `of_jdmt` to embed it as an expression.",
+      )
+    | DrvQuoteTy(Ctx) =>
+      simple(
+        "`DrvCtx` is the type of derivation-mode typing contexts, mapping ALFA variables to ALFA types. Quote a context with `of_ctx`.",
+      )
+    | DrvQuoteTy(Prop) =>
+      simple(
+        "`DrvProp` is the type of derivation-mode propositions (e.g., equalities between ALFA terms or types). Quote a proposition with `of_prop`.",
+      )
+    | DrvQuoteTy(Exp) =>
+      simple(
+        "`ALFAExp` is the type of ALFA expressions: terms in the object language of the derivation. Quote an ALFA expression with `of_alfa_exp`.",
+      )
+    | DrvQuoteTy(Pat) =>
+      simple(
+        "`DrvPat` is the type of ALFA patterns, used in binding positions within ALFA expressions.",
+      )
+    | DrvQuoteTy(Typ) =>
+      simple(
+        "`ALFATyp` is the type of ALFA types: the types of the object language of the derivation. Quote an ALFA type with `of_alfa_typ`.",
+      )
+    | DrvQuoteTy(TPat) =>
+      simple(
+        "`DrvTPat` is the type of ALFA type patterns, used in binding positions within ALFA type abstractions.",
+      )
+    };
   | Some(InfoTPat(info)) =>
     switch (info.user_term.term) {
     | Invalid(_) => simple("Type names must begin with a capital letter")
@@ -2721,6 +2984,27 @@ let get_doc =
         VarTPat.var_typ_pats(v),
       )
     }
+  | Some(InfoDrv({term, _})) =>
+    let (syntax, msg) =
+      switch (term) {
+      | Exp(exp) => DrvDoc.exp_form(exp)
+      | Typ(typ) => DrvDoc.typ_form(typ)
+      | Pat(pat) => DrvDoc.pat_form(pat)
+      | TPat(tpat) => DrvDoc.tpat_form(tpat)
+      };
+    (
+      [syntax |> CodeViewable.view_segment(~globals)],
+      (
+        [
+          div(
+            ~attrs=[clss(["explanation-contents"])],
+            msg |> mk_translation(~globals, ~inject=_ => ()) |> fst,
+          ),
+        ],
+        (Id.Map.empty, 0),
+      ),
+      [],
+    );
   | Some(Secondary(s)) =>
     switch (s.cls) {
     | Secondary(Whitespace) => simple("A semantic void, pervading but inert")
@@ -2752,20 +3036,32 @@ let get_color_map =
   | _ => None
   };
 
+type info = {
+  cursor: option(Statics.Info.t),
+  deduction: info_deduction,
+};
+
 let view =
     (
       ~globals: Globals.t,
       ~inject,
       ~explainThisModel: ExplainThisModel.t,
-      info: option(Info.t),
+      info: info,
     ) => {
   // This gets the info from the infomap before singleton autolabelling
-  let info = Option.map(Info.pre_labeled_info, info);
+  let info_cursor = Option.map(Info.pre_labeled_info, info.cursor);
   let (syn_form, (explanation, _), example) =
     get_doc(
       ~globals,
       ~docs=explainThisModel,
-      info,
+      info_cursor,
+      MessageContent(inject, globals),
+    );
+  let (syn_form_Drv, (explanation_Drv, _), _) =
+    get_doc_deduction(
+      ~globals,
+      ~docs=explainThisModel,
+      info.deduction,
       MessageContent(inject, globals),
     );
   div(
@@ -2784,11 +3080,28 @@ let view =
         ],
       ),
     ]
+    @ (
+      switch (info.deduction) {
+      | Some({rule, _}) => [
+          section(
+            ~section_clss="syntactic-form",
+            ~title=
+              switch (rule) {
+              | Some({rule, _}) => Rule.show(rule)
+              | None => "Unknown Rule"
+              },
+            syn_form_Drv @ explanation_Drv,
+          ),
+          div(~attrs=[clss(["hline"])], []),
+        ]
+      | None => []
+      }
+    )
     @ [
       section(
         ~section_clss="syntactic-form",
         ~title=
-          switch (info) {
+          switch (info_cursor) {
           | None => "Whitespace or Comment"
           | Some(info) => Info.cls_of(info) |> Cls.show
           },

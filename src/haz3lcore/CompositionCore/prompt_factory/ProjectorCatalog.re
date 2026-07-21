@@ -32,6 +32,10 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
     Some(
       "- **livelit** — Custom livelit projector for structured literal editing.",
     )
+  | Table =>
+    Some(
+      "- **table** — Spreadsheet-style editor for a **list of labeled tuples** sharing the same labels; the labels become column headers. Attaches off the **elaborated** form, so it can apply where the surface syntax alone is not yet a table.",
+    )
   | Fold
   | Probe
   | Statics => None

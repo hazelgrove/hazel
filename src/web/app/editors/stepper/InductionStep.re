@@ -53,9 +53,11 @@ let init = (~exp: option(Exp.t)=?, ()) => {
               e,
             ),
           ),
+          ~root=Exp,
         ),
       )
-    | None => CodeEditable.Model.mk(Editor.Model.mk(Zipper.init()))
+    | None =>
+      CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp))
     };
   {
     scrut,

@@ -1,4 +1,3 @@
-open Util;
 open Util.WebUtil;
 open Haz3lcore;
 
@@ -9,9 +8,11 @@ open Haz3lcore;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
-  /* Context menu state: None = closed, Some(n) = open with item n selected */
+  /* Context menu state lives in Util.Menu — None = closed, Some({…})
+   * holds the selected item index and (unused for the editor menu) the
+   * submenu path. */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type context_menu_state = option(int);
+  type context_menu_state = Util.Menu.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -22,7 +23,8 @@ module Model = {
     dynamics: Language.Dynamics.Map.t,
   };
 
-  let context_menu_is_open = (model: t): bool => model.context_menu != None;
+  let context_menu_is_open = (model: t): bool =>
+    Util.Menu.is_open(model.context_menu);
 
   let mk =
       (
@@ -40,15 +42,16 @@ module Model = {
       (
         ~settings: Language.CoreSettings.t,
         ~inline=false,
+        ~root: Sort.t,
         term: Language.Exp.t,
       ) => {
-    ExpToSegment.exp_to_segment(
-      term,
-      ~settings=ExpToSegment.Settings.of_core(~inline, settings),
-    )
-    |> Zipper.unzip
-    |> Editor.Model.mk
-    |> mk;
+    let seg =
+      ExpToSegment.exp_to_segment(
+        term,
+        ~settings=ExpToSegment.Settings.of_core(~inline, settings),
+      );
+    let seg = inline ? seg : PrettySegment.prettify(seg);
+    seg |> Zipper.unzip |> Editor.Model.mk(~root) |> mk;
   };
 
   let get_statics = (model: t) => model.statics;
@@ -62,12 +65,14 @@ module Model = {
       |> Option.map(({piece, _}: Indicated.piece) => piece),
     selected_text:
       Some(
-        () =>
-          Printer.of_segment(
+        () => {
+          let z = model.editor.state.zipper;
+          Printer.selected_text(
             ~indent=" ",
-            ~refractors=model.editor.state.zipper.refractors.manuals,
-            model.editor.state.zipper.selection.content,
-          ),
+            ~refractors=z.refractors.manuals,
+            z,
+          );
+        },
       ),
     selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),
@@ -80,13 +85,11 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = PersistentZipper.t;
-  let persist = (model: t) =>
-    model.editor.state.zipper |> PersistentZipper.persist;
-  let to_string = (model: t) =>
-    model.editor.state.zipper |> PersistentZipper.to_string;
-  let unpersist = p =>
-    p |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
+  type persistent = Editor.Model.persistent;
+  let persist = (model: t) => model.editor |> Editor.Model.persist;
+  let to_string = (model: t) => model.editor |> Editor.Model.to_string;
+  let unpersist = p => p |> Editor.Model.unpersist |> mk;
+  let sort = (model: t): Sort.t => model.editor.root;
 };
 
 type statics_mode =
@@ -149,8 +152,21 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
-    /* Capture ephemerals before editor calculation to detect auto probe changes */
-    let old_ephemerals = editor.state.zipper.refractors.multis.ephemerals;
+    /* Throttle gate: decide whether to do a full statics recompute this
+     * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
+     * then skips the shape pass via phys-eq on info_map/elaborated. */
+    let statics =
+      statics_mode == StaticsForce || is_edited && statics_mode != StaticsDefer
+        ? CachedStatics.init(
+            ~settings,
+            ~stitch,
+            ~ctx?,
+            ~ana?,
+            ~is_dynamic_term,
+            ~root=editor.root,
+            editor.state.zipper,
+          )
+        : statics;
 
     let editor =
       Editor.Update.calculate(
@@ -162,34 +178,11 @@ module Update = {
         editor,
       );
 
-    /* Ephemerals can change without an explicit edit in several cases:
-     * (1) cursor movement in autoprobe mode (cursor crosses into a new
-     *     top-level definition), and
-     * (2) on reload, when add_ids_from_multi_term rebuilds ephemerals
-     *     from persisted multis.ids once the info_map becomes available.
-     * In both cases we must recalculate statics so probe targets match
-     * the new ephemerals and the evaluator collects samples for them. */
-    let probes_changed =
-      !
-        Id.Map.equal(
-          Refractors.equal_entry,
-          old_ephemerals,
-          editor.state.zipper.refractors.multis.ephemerals,
-        );
-
+    /* Refresh `statics.targets` against the post-probe-effects refractors.
+     * Cheap O(|probe_ids|) fold; only this field depends on refractors, so
+     * the rest of statics stays valid. */
     let statics =
-      statics_mode == StaticsForce
-      || (is_edited || probes_changed)
-      && statics_mode != StaticsDefer
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            editor.state.zipper,
-          )
-        : statics;
+      CachedStatics.with_targets(~settings, editor.state.zipper, statics);
     {
       editor,
       statics,
@@ -213,18 +206,23 @@ module View = {
         },
       _,
     }: Model.t = model;
+    let info_map = model.statics.info_map;
+    let refine_sort = (id, mold_out) =>
+      Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
     let code_text_view =
       CodeViewable.view(
         ~globals,
         ~measured,
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
-        ~segment,
         ~shape_map,
-        ~refractor_shape_map=Id.Map.empty //Id.Map.map(_ => 2, z.refractors.map),
+        ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
+        ~refine_sort,
+        segment,
       );
     let error_decos =
       Arms.Errors.of_ids(
+        ~refine_sort,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
@@ -233,6 +231,7 @@ module View = {
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
     let warning_decos =
       Arms.Errors.of_ids(
+        ~refine_sort,
         ~is_warning=true,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,

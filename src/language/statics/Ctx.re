@@ -289,7 +289,15 @@ let is_base_typ = (name: string): bool =>
   || name == "Int"
   || name == "Nat"
   || name == "SInt"
-  || name == "String";
+  || name == "String"
+  || name == "Void"
+  || name == "DrvJdmt"
+  || name == "DrvCtx"
+  || name == "DrvProp"
+  || name == "ALFAExp"
+  || name == "DrvPat"
+  || name == "ALFATyp"
+  || name == "DrvTPat";
 
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),

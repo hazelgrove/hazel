@@ -17,7 +17,12 @@ module Model = {
     cells: Tutorial.stitched(CellEditor.Model.t),
   };
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
-    let editors = Tutorial.map(spec, Editor.Model.mk, Editor.Model.mk);
+    let editors =
+      Tutorial.map(
+        spec,
+        Editor.Model.mk(~root=Exp),
+        Editor.Model.mk(~root=Exp),
+      );
     let term_item_to_cell = (item: Tutorial.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
@@ -36,7 +41,7 @@ module Model = {
   let persist = (exercise: t, ~instructor_mode: bool) => {
     Tutorial.positioned_editors(exercise.editors)
     |> List.filter(((pos, _)) =>
-         Tutorial.visible_in(pos, ~instructor_mode)
+         Tutorial.is_editable(pos, ~instructor_mode)
        )
     |> List.map(((pos, editor: Editor.t)) =>
          (pos, editor.state.zipper |> PersistentZipper.persist)
@@ -120,7 +125,7 @@ module Update = {
         },
       })
     | Editor(pos, MainEditor(action))
-        when Tutorial.visible_in(pos, ~instructor_mode) =>
+        when Tutorial.is_editable(pos, ~instructor_mode) =>
       // Redirect to editors
       let editor =
         Tutorial.main_editor_of_state(~selection=pos, model.editors);
@@ -177,7 +182,7 @@ module Update = {
       }
     | Editor(pos, ResultAction(_) as action)
         when
-          Tutorial.visible_in(pos, ~instructor_mode)
+          Tutorial.is_editable(pos, ~instructor_mode)
           || action
           |> (
             fun
@@ -196,7 +201,7 @@ module Update = {
       model |> Updated.return_quiet(~recalculate=true);
     | ResetEditor(pos) =>
       let spec = Tutorial.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.Model.mk(spec);
+      let new_editor = Editor.Model.mk(spec, ~root=Exp);
       {
         ...model,
         editors:
@@ -205,7 +210,11 @@ module Update = {
       |> Updated.return;
     | ResetTutorial =>
       let new_editors =
-        Tutorial.map(model.spec, Editor.Model.mk, Editor.Model.mk);
+        Tutorial.map(
+          model.spec,
+          Editor.Model.mk(~root=Exp),
+          Editor.Model.mk(~root=Exp),
+        );
       {
         ...model,
         editors: new_editors,
@@ -375,8 +384,8 @@ module Selection = {
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Tutorial.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TermData.root_tile(tile, e.syntax.term_data) != None
-         && Tutorial.visible_in(p, ~instructor_mode=settings.instructor_mode)
+         TermData.root_piece(tile, e.syntax.term_data) != None
+         && Tutorial.is_editable(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
          (

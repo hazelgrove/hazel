@@ -31,7 +31,7 @@ in
 
 # Strings #
 let string_lits = "Hello, world!" in
-let string_equality = string_lits $== "Hello, world!" in
+let string_concat = string_lits ++ "!" in
 
 # Non-empty holes are the red dotted boxes around errors #
 # (you can still run programs with non-empty holes) #

@@ -9,7 +9,7 @@
  * for the put_down logic not working right with string lits. To test,
  * try to look at live evaluation while typing inside a string lit with
  * stuff left to drop in backpack with below set: Outer disabled. */
-let to_zipper = (z: Zipper.t) =>
+let to_zipper = (z: Zipper.t, ~root) =>
   if (!Selection.is_empty(z.selection)) {
     z;
   } else {
@@ -23,7 +23,8 @@ let to_zipper = (z: Zipper.t) =>
         | None => z
         | Some(z_new) => move_until_cant_put_down(z, z_new)
         };
-      } else if (Zipper.is_linebreak_to_right_of_caret(z)) {
+      } else if (Zipper.can_put_down(z)
+                 && Zipper.is_linebreak_to_right_of_caret(z)) {
         switch (Zipper.move(Right, z)) {
         | None => z
         | Some(z_new) => z_new
@@ -41,7 +42,7 @@ let to_zipper = (z: Zipper.t) =>
         z;
       };
     let rec put_down_as_much_as_possible = (z: Zipper.t): Zipper.t => {
-      switch (Zipper.put_down(z)) {
+      switch (Zipper.put_down(z, ~root)) {
       | None => z
       | Some(z) => put_down_as_much_as_possible(z)
       };
@@ -59,8 +60,8 @@ let to_zipper = (z: Zipper.t) =>
     go(z);
   };
 
-let to_segment = (z: Zipper.t): Segment.t =>
+let to_segment = (z: Zipper.t, ~root): Segment.t =>
   z
   |> Zipper.clear_unparsed_buffer
-  |> to_zipper
+  |> to_zipper(~root)
   |> Zipper.unselect_and_zip(~erase_buffer=true);

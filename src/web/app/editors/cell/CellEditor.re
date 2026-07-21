@@ -32,17 +32,16 @@ module Model = {
     result: model.result |> EvalResult.Model.persist,
   };
 
-  let unpersist = (~settings as _, {editor, result}: persistent): t => {
-    editor: {
-      editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
-      statics: CachedStatics.empty,
-      dynamics: Language.Dynamics.Map.empty,
-      context_menu: None,
-    },
+  let unpersist = (~settings as _=?, {editor, result}: persistent): t => {
+    editor: CodeEditable.Model.unpersist(editor),
     result: EvalResult.Model.unpersist(result),
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
+
+  let zipper = (model: t) => model.editor.editor.state.zipper;
+
+  let sort = (model: t): Sort.t => CodeEditable.Model.sort(model.editor);
 };
 
 module Update = {
@@ -280,6 +279,7 @@ module View = {
           ~overlays=overlays(model.editor.editor),
           ~lines,
           ~dynamics=EvalResult.Model.dynamics(model.result),
+          ~incr_eval=EvalResult.Model.incr_eval(model.result),
           model.editor,
         ),
       ]

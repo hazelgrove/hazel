@@ -7,12 +7,13 @@ module Settings = {
     | HelpfulAssistant
     | Probes
     | LogControl
-    | Problems;
+    | Problems
+    | DebugInfo;
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type problem_category =
     Haz3lcore.ProblemCollection.problem_category =
-      | Syntax | Hole | Static | Warning;
+      | Syntax | Hole | Static | Warning | Projector;
 
   /* Base CSS class for a category */
   let category_cls = cat =>
@@ -21,6 +22,7 @@ module Settings = {
     | Hole => "hole"
     | Static => "static"
     | Warning => "warning"
+    | Projector => "projector-error"
     };
 
   /* Human-readable label */
@@ -30,6 +32,7 @@ module Settings = {
     | Hole => "Holes"
     | Static => "Static Errors"
     | Warning => "Warnings"
+    | Projector => "Projector Errors"
     };
 
   /* Short label for legend */
@@ -39,6 +42,7 @@ module Settings = {
     | Hole => "Hole"
     | Static => "Static"
     | Warning => "Warning"
+    | Projector => "Projector"
     };
 
   /* Badge severity: categories with higher values take priority in the tab icon.
@@ -47,6 +51,7 @@ module Settings = {
     switch (cat) {
     | Syntax
     | Static => 2
+    | Projector
     | Warning => 1
     | Hole => 0
     };
@@ -56,6 +61,7 @@ module Settings = {
     switch (cat) {
     | Syntax
     | Static => "has-errors"
+    | Projector
     | Warning => "has-warnings"
     | Hole => "has-holes"
     };
@@ -65,6 +71,7 @@ module Settings = {
     switch (cat) {
     | Syntax
     | Static => "error"
+    | Projector
     | Warning => "warning"
     | Hole => "hole"
     };
@@ -75,23 +82,48 @@ module Settings = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type problems_settings = {
-    collapsed: list(problem_category),
+    /* Collapsed category sections keyed by `(editor_label, category)` so
+       each editor group has its own per-category collapse state.
+       Single-editor modes pass `""` as the label. */
+    collapsed: list((string, problem_category)),
+    /* Collapsed editor groups keyed by editor label. Only meaningful when
+       there is more than one group shown. */
+    collapsed_editors: list(string),
     flat: bool,
     expanded: list(Id.t),
   };
 
-  let is_collapsed = (cat, settings) => List.mem(cat, settings.collapsed);
+  let is_collapsed = (label, cat, settings) =>
+    List.mem((label, cat), settings.collapsed);
 
-  let toggle_collapsed = (cat, settings) =>
-    if (is_collapsed(cat, settings)) {
+  let toggle_collapsed = (label, cat, settings) =>
+    if (is_collapsed(label, cat, settings)) {
       {
         ...settings,
-        collapsed: List.filter(c => c != cat, settings.collapsed),
+        collapsed:
+          List.filter(pair => pair != (label, cat), settings.collapsed),
       };
     } else {
       {
         ...settings,
-        collapsed: [cat, ...settings.collapsed],
+        collapsed: [(label, cat), ...settings.collapsed],
+      };
+    };
+
+  let is_editor_collapsed = (label, settings) =>
+    List.mem(label, settings.collapsed_editors);
+
+  let toggle_editor_collapsed = (label, settings) =>
+    if (is_editor_collapsed(label, settings)) {
+      {
+        ...settings,
+        collapsed_editors:
+          List.filter(l => l != label, settings.collapsed_editors),
+      };
+    } else {
+      {
+        ...settings,
+        collapsed_editors: [label, ...settings.collapsed_editors],
       };
     };
 
@@ -112,7 +144,8 @@ module Settings = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type problems_action =
-    | ToggleCollapsed(problem_category)
+    | ToggleCollapsed(string, problem_category)
+    | ToggleEditorCollapsed(string)
     | ToggleFlat
     | ToggleExpanded(Id.t);
 
@@ -121,11 +154,34 @@ module Settings = {
     show: bool,
     panel,
     problems: problems_settings,
+    debug_show_raw: bool,
+    /* Collapsed debug sidebar sections/fields, keyed by section title or
+       field label. Persists across cursor moves so collapsing e.g. "ctx"
+       keeps it collapsed regardless of the term under the cursor. */
+    debug_collapsed: list(string),
   };
+
+  let is_debug_collapsed = (key: string, settings: t) =>
+    List.mem(key, settings.debug_collapsed);
+
+  let toggle_debug_collapsed = (key: string, settings: t): t =>
+    if (is_debug_collapsed(key, settings)) {
+      {
+        ...settings,
+        debug_collapsed: List.filter(k => k != key, settings.debug_collapsed),
+      };
+    } else {
+      {
+        ...settings,
+        debug_collapsed: [key, ...settings.debug_collapsed],
+      };
+    };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | ToggleShow
     | SwitchPanel(panel)
-    | Problems(problems_action);
+    | Problems(problems_action)
+    | ToggleDebugRaw
+    | ToggleDebugCollapsed(string);
 };

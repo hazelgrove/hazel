@@ -51,9 +51,9 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
    Special cases:
    - Semicolon with Mod parent prefers Mod (for ModSeq over CellJoin)
    - Mod context falls back to Exp since bare expressions are valid module items */
-let effective_sort = (t: Token.t, z: t): Sort.t => {
-  let local_sort = Relatives.sort(z.relatives);
-  let parent_sort = Ancestors.sort(z.relatives.ancestors);
+let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
+  let local_sort = Relatives.sort(~root, z.relatives);
+  let parent_sort = Ancestors.sort(root, z.relatives.ancestors);
 
   /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
   if (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
@@ -77,31 +77,100 @@ let effective_sort = (t: Token.t, z: t): Sort.t => {
   };
 };
 
-/* Insert a new shard based on token `t` on the `d`-side of the caret */
-let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
+/* Shared core for insert_shard and insert_shard_inplace.
+ * The only difference is the put_down function used. */
+let insert_shard_core =
+    (~put_down: (Segment.t, t) => t, ~id: Id.t, t: Token.t, z: t, ~root): t => {
   let z = destroy_selection(z);
   if (Token.is_secondary(t)) {
-    Zipper.put_down_seg(d, [Piece.mk_secondary(id, t)], z);
-  } else if (Zipper.backpack_find(t, z) != None) {
-    let target = Zipper.backpack_find(t, z) |> Option.get;
-    Zipper.put_down_target(d, target, z);
+    put_down([Piece.mk_secondary(id, t)], z);
   } else {
-    let sort = effective_sort(t, z);
+    let sort = effective_sort(t, z, ~root);
     let (label, delim_d) = expansion(sort, t, z);
     let mold = Form.Molds.get(sort, label);
     let shard =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> (delim_d == Right ? ListUtil.last : List.hd);
-    Zipper.put_down_seg(d, [Tile(shard)], z);
+    put_down([Tile(shard)], z);
   };
 };
 
+/* Insert a new shard based on token `t` on the `d`-side of the caret */
+let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t, ~root): t =>
+  if (Zipper.backpack_find(t, z) != None) {
+    let z = destroy_selection(z);
+    let target = Zipper.backpack_find(t, z) |> Option.get;
+    Zipper.put_down_target(d, target, z, ~root);
+  } else {
+    insert_shard_core(~put_down=Zipper.put_down_seg(d), ~id, t, z, ~root);
+  };
+
 /* Replace `d`-neighbor shard with a new one based on token `t` */
-let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
+let replace_shard = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
   let id = Zipper.adjacent_monotile_or_new_id(d, z);
   let+ z = delete(d, z);
-  insert_shard(~id, ~d, t, z);
+  insert_shard(~id, ~d, t, z, ~root);
 };
+
+/* Like insert_shard but uses put_down_no_reassemble (no adj_pos,
+ * no reassembly). For Inner caret edits where adj_pos would flatten
+ * ancestors and reassembly would absorb the token back. */
+let insert_shard_inplace = (~id: Id.t, t: Token.t, z: t, ~root): t =>
+  insert_shard_core(
+    ~put_down=Zipper.put_down_no_reassemble,
+    ~id,
+    t,
+    z,
+    ~root,
+  );
+
+/* Like replace_shard but without cursor position adjustment.
+ * Used when caret is Inner — the token is replaced in-place
+ * and the caret stays inside the right neighbor.
+ * For secondary pieces (comments, whitespace), directly swaps
+ * the piece in siblings to avoid reassembly introducing grout. */
+let replace_shard_inplace =
+    (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
+  let neighbor = Siblings.neighbor(d, z.relatives.siblings);
+  switch (neighbor) {
+  | Some(Secondary(w)) when Token.is_secondary(t) =>
+    /* Direct replacement: swap the secondary piece in siblings */
+    let new_piece = Piece.Secondary(Secondary.mk(w.id, t));
+    let (l, r) = z.relatives.siblings;
+    let siblings =
+      switch (d) {
+      | Right =>
+        switch (r) {
+        | [_, ...rest] => (l, [new_piece, ...rest])
+        | _ => (l, r)
+        }
+      | Left =>
+        switch (List.rev(l)) {
+        | [_, ...rest] => (List.rev([new_piece, ...rest]), r)
+        | _ => (l, r)
+        }
+      };
+    Some({
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings,
+      },
+    });
+  | _ =>
+    let id = Zipper.adjacent_monotile_or_new_id(d, z);
+    let+ z = delete(d, z);
+    insert_shard_inplace(~id, t, z, ~root);
+  };
+};
+
+/* True unless the caret is at a bare segment edge (no left neighbor, no
+ * ancestor). At a bare edge, a token-merge may need the reassemble/rescan
+ * that the general insert path provides; everywhere else the merged token
+ * has an enclosing tile/form the caret must not escape. */
+let keep_caret_inside_on_append = (z: t): bool =>
+  Siblings.neighbor(Left, z.relatives.siblings) != None
+  || z.relatives.ancestors != [];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
@@ -185,9 +254,12 @@ let preserve_grout_id = (char: string, z: t): (Id.t, t) =>
 /* Check if regrout would insert a grout to our left.
  * Returns the grout so we can insert it ourselves and
  * track its ID for later space redemption. */
-let grout_for_suppressed_space = (z: t): option(Grout.t) =>
+let grout_for_suppressed_space = (z: t, ~root): option(Grout.t) =>
   switch (
-    Siblings.neighbor(Left, remold_regrout(Right, z).relatives.siblings)
+    Siblings.neighbor(
+      Left,
+      remold_regrout(Right, z, ~root).relatives.siblings,
+    )
   ) {
   | Some(Grout(g)) => Some(g)
   | _ => None
@@ -206,7 +278,8 @@ let move_into_string_or_comment = (char: string, z: t): t =>
 
 /* Split creates three tokens; two from splitting the existing one,
  * and a new single-character token (or grout) in the middle. */
-let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
+let split = (z: t, char: string, idx: int, t: Token.t, ~root): option(t) => {
+  let insert_shard = insert_shard(~root);
   let (l, r) = Token.split_nth(t, idx);
   let id = Zipper.adjacent_monotile_or_new_id(Right, z);
   let+ z = z |> Caret.set(Outer) |> Zipper.delete(Right);
@@ -223,7 +296,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
         |> insert_shard(~id, ~d=Left, l)
         |> insert_shard(~id=Id.mk(), ~d=Right, r);
   let z =
-    switch (Token.space == char ? grout_for_suppressed_space(z) : None) {
+    switch (Token.space == char ? grout_for_suppressed_space(z, ~root) : None) {
     | Some(g) =>
       Grout.mark_space_owed(g.id);
       Zipper.put_down_seg(Left, [Grout(g)], z);
@@ -232,7 +305,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
       |> insert_shard(~id=Id.mk(), ~d=Left, char)
       |> move_into_string_or_comment(char)
     };
-  remold_regrout(Right, z);
+  remold_regrout(Right, z, ~root);
 };
 
 /* If the caret is precisely between two tokens, which
@@ -252,15 +325,15 @@ let will_merge = (z: t): option((Token.t, Token.t)) =>
 
 /* If the caret is precisely between two tokens, which
  * can become a valid token if merged, merge those tokens */
-let merge_or_noop = (z: t): t =>
+let merge_or_noop = (z: t, ~root): t =>
   switch (will_merge(z)) {
   | Some((l, r)) =>
     /* We remove the left manually, and then replace the right */
     let z = Zipper.delete(Left, z) |> Option.get;
-    let z = replace_shard(Right, Token.append(l, r), z) |> Option.get;
+    let z = replace_shard(Right, Token.append(l, r), z, ~root) |> Option.get;
     let z = Caret.set(Inner(Token.length(l) - 1), z);
     /* Regrouting direction needed to merge prefixs into infix eg ! */
-    remold_regrout(Right, z);
+    remold_regrout(Right, z, ~root);
   | None => z
   };
 
@@ -280,28 +353,49 @@ let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
   };
 };
 
-/* If char can be appended to either sibling token, do it,
- * otherwise insert a new `char` token */
-let insert_or_append = (char: string, z: t): option(t) => {
-  let+ z_init =
-    switch (sibling_appendability(char, z)) {
-    | None =>
-      let (id, z) = preserve_grout_id(char, z);
-      let z =
-        switch (Grout.redeem_space(id)) {
-        | Some(w) => Zipper.put_down_seg(Left, [Secondary(w)], z)
-        | None => z
-        };
-      Some(insert_shard(~id, ~d=Left, char, z));
-    | Some((d, t)) => replace_shard(d, t, z)
-    };
-  let z_final =
-    z_init
-    |> move_into_string_or_comment(char)
-    |> remold_regrout(Left)
-    |> merge_or_noop;
-  adjust_caret_pos(~z_final, ~z_init);
-};
+/* Append char to a neighboring token if possible (biasing left, see
+ * sibling_appendability), else insert it as a new token. */
+let insert_or_append = (char: string, z: t, ~root): option(t) =>
+  switch (sibling_appendability(char, z)) {
+  | Some((Right, t))
+      when
+        Zipper.adjacent_monotile_id(Right, z) != None
+        && keep_caret_inside_on_append(z) =>
+    /* Prepend to a right monotile, keeping the caret Inner(0) inside the
+     * merged token. The in-place insert skips adj_pos, whose move(Left)
+     * would escape the enclosing tile/form (e.g. length(¦oo) + f). */
+    Caret.set(Inner(0), z)
+    |> replace_shard_inplace(Right, t, ~root)
+    |> Option.map(remold_regrout(Right, ~root))
+  | appendability =>
+    let z =
+      Caret.set(
+        switch (appendability) {
+        | Some((Right, _)) => Inner(0)
+        | None
+        | Some((Left, _)) => Outer
+        },
+        z,
+      );
+    let+ z_init =
+      switch (appendability) {
+      | None =>
+        let (id, z) = preserve_grout_id(char, z);
+        let z =
+          switch (Grout.redeem_space(id)) {
+          | Some(w) => Zipper.put_down_seg(Left, [Secondary(w)], z)
+          | None => z
+          };
+        Some(insert_shard(~id, ~d=Left, char, z, ~root));
+      | Some((d, t)) => replace_shard(d, t, z, ~root)
+      };
+    let z_final =
+      z_init
+      |> move_into_string_or_comment(char)
+      |> remold_regrout(Left, ~root)
+      |> merge_or_noop(~root);
+    adjust_caret_pos(~z_final, ~z_init);
+  };
 
 /* === SELECTION WRAPPING ===
  * When the user types an opening delimiter with an active selection,
@@ -324,9 +418,9 @@ let delimiter_label = (char: string): Label.t =>
 
 /* Wrap selection in balanced delimiters. Creates the wrapping tile
  * as an ancestor with the content inside, retaining the selection. */
-let wrap_balanced = (~deep_reassociate=false, char: string, z: t): t => {
+let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
   let content = z.selection.content;
-  let sort = Relatives.sort(z.relatives);
+  let sort = Relatives.sort(~root, z.relatives);
   let (left_sibs, right_sibs) = z.relatives.siblings;
   let label = delimiter_label(char);
   let mold = Form.Molds.get(sort, label);
@@ -369,7 +463,7 @@ let wrap_balanced = (~deep_reassociate=false, char: string, z: t): t => {
       ],
     },
   };
-  let z = remold_regrout(Right, z);
+  let z = remold_regrout(Right, z, ~root);
   let z = deep_reassociate ? Reassociate.go(z) : z;
   let right = snd(z.relatives.siblings);
   {
@@ -398,7 +492,7 @@ let is_valid_quote_content = (delim: string, text: string): bool =>
 /* Wrap selection in a quote delimiter (string, label, or comment).
  * Returns None if the text contains invalid characters, causing
  * fallthrough to normal insert behavior (selection replacement). */
-let wrap_quote = (char: string, z: t): option(t) => {
+let wrap_quote = (char: string, z: t, ~root): option(t) => {
   let content = z.selection.content;
   let text = segment_text(content);
   if (!is_valid_quote_content(char, text)) {
@@ -408,10 +502,10 @@ let wrap_quote = (char: string, z: t): option(t) => {
     if (Token.is_comment_delim(char)) {
       let comment = "#" ++ text ++ "#";
       let piece = Piece.mk_secondary(Id.mk(), comment);
-      Some(Zipper.insert_segment(z, [piece]));
+      Some(Zipper.insert_segment(z, [piece], ~root));
     } else {
       let token = char ++ text ++ char;
-      let sort = Relatives.sort(z.relatives);
+      let sort = Relatives.sort(~root, z.relatives);
       let mold = Form.Molds.get(sort, [token]);
       let tile: Piece.t =
         Tile({
@@ -421,7 +515,7 @@ let wrap_quote = (char: string, z: t): option(t) => {
           shards: [0],
           children: [],
         });
-      Some(Zipper.insert_segment(z, [tile]));
+      Some(Zipper.insert_segment(z, [tile], ~root));
     };
   };
 };
@@ -429,25 +523,27 @@ let wrap_quote = (char: string, z: t): option(t) => {
 /* Try to wrap selection in a delimiter. Returns Some if wrapping
  * occurred, None to fall through to normal insert behavior. */
 let try_wrap_selection =
-    (~deep_reassociate=false, char: string, z: t): option(t) =>
+    (~deep_reassociate=false, char: string, z: t, ~root): option(t) =>
   if (is_opening_delimiter(char)) {
-    Some(wrap_balanced(~deep_reassociate, char, z));
+    Some(wrap_balanced(~deep_reassociate, char, z, ~root));
   } else if (Token.is_string_or_comment_delim(char)) {
-    wrap_quote(char, z);
+    wrap_quote(char, z, ~root);
   } else {
     None;
   };
 
-let go = (~deep_reassociate=false, char: string, z: t): option(t) => {
+let go = (~deep_reassociate=false, char: string, z: t, ~root): option(t) => {
   /* If there's a selection, try wrapping before falling through */
   switch (
     z.selection.content != []
-      ? try_wrap_selection(~deep_reassociate, char, z) : None
+      ? try_wrap_selection(~deep_reassociate, char, z, ~root) : None
   ) {
   | Some(z) => Some(z)
   | None =>
-    /* Normal path: delete selection (if any) before proceeding */
-    let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
+    /* Normal path: normalize char selection then delete (if any) */
+    let z =
+      z.selection.content != []
+        ? Zipper.normalize_char_selection(z) |> Zipper.destroy_selection : z;
     switch (z.caret, neighbor_tokens(z)) {
     /* If we try to insert a quote inside an existing string, or a #
      * in a comment, we are instead moved to the righthand side of
@@ -463,21 +559,14 @@ let go = (~deep_reassociate=false, char: string, z: t): option(t) => {
       let z = Caret.set(Inner(idx), z);
       Token.is_potential_token(new_token)
         ? z
-          |> replace_shard(Right, new_token)
-          |> Option.map(remold_regrout(Right))
-        : split(z, char, idx, t);
+          |> replace_shard_inplace(Right, new_token, ~root)
+          |> Option.map(
+               Token.is_secondary(new_token)
+                 ? Fun.id : remold_regrout(Right, ~root),
+             )
+        : split(z, char, idx, t, ~root);
     | (Inner(_), (_, None)) => None
-    | (Outer, _) =>
-      let z =
-        Caret.set(
-          switch (sibling_appendability(char, z)) {
-          | Some((Right, _)) => Inner(0)
-          | None
-          | Some((Left, _)) => Outer
-          },
-          z,
-        );
-      insert_or_append(char, z);
+    | (Outer, _) => insert_or_append(char, z, ~root)
     };
   };
 };
@@ -493,9 +582,15 @@ let go =
       ~ci: option(Language.Info.t)=None,
       char: string,
       z: t,
+      ~root,
     )
     : option(t) => {
-  let+ z = go(~deep_reassociate, char, z);
+  let+ z = go(~deep_reassociate, char, z, ~root);
   let z = Triggers.insert(~ci, z);
-  Zipper.rescan_reassemble(Left, z);
+  let z =
+    switch (z.caret) {
+    | Inner(_) => z
+    | Outer => Zipper.rescan_reassemble(Left, z, ~root)
+    };
+  z;
 };

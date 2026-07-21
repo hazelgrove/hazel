@@ -58,6 +58,7 @@ let is_nary =
 let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
+let is_tuple_drv_exp = is_nary(Any.is_drv_exp, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_mod_seq = is_nary(Any.is_mod, ";");
 let is_sig_seq = is_nary(Any.is_sig, ";");
@@ -125,6 +126,26 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
          fun
          | Exp(clause) => Some(clause)
          | _ => None: TermBase.any_t => option(TermBase.exp_t),
+       )
+    |> OptUtil.sequence;
+  Aba.mk(ps, clauses);
+};
+let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
+  open OptUtil.Syntax;
+  let+ ps =
+    ts
+    |> List.map(
+         fun
+         | (_, (["|", "=>"], [Grammar.Drv(Pat(p))])) => Some(p)
+         | _ => None,
+       )
+    |> OptUtil.sequence
+  and+ clauses =
+    kids
+    |> List.map(
+         fun
+         | Grammar.Drv(Exp(clause)) => Some(clause)
+         | _ => None,
        )
     |> OptUtil.sequence;
   Aba.mk(ps, clauses);
@@ -291,10 +312,25 @@ let mk_bad = (ctr, ids, value) => {
 };
 
 let is_hole_label = (t: string) =>
-  t == " " || Token.is_explicit_hole(t) || Token.is_llm_hole(t);
+  t == " "
+  || Token.is_explicit_hole(t)
+  || Token.is_implicit_hole_marker(t)
+  || Token.is_llm_hole(t);
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
+  | Drv(drv) =>
+    Drv(
+      switch (drv) {
+      | Jdmt
+      | Ctx
+      | Prop
+      | Exp => Exp(drv_exp(unsorted(Drv(Exp), skel, seg)))
+      | Pat => Pat(drv_pat(unsorted(Drv(Pat), skel, seg)))
+      | Typ => Typ(drv_typ(unsorted(Drv(Typ), skel, seg)))
+      | TPat => TPat(drv_tpat(unsorted(Drv(TPat), skel, seg)))
+      },
+    )
   | Pat => Pat(pat(unsorted(Pat, skel, seg)))
   | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
   | Typ => Typ(typ(unsorted(Typ, skel, seg)))
@@ -311,19 +347,289 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
       go_s(sort, skel, seg);
     };
   }
+and drv_exp = unsorted => {
+  let (term, inner_ids) = drv_exp_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(
+    e => Drv(Exp(e)),
+    ids,
+    {
+      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      term,
+    },
+  );
+}
+and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
+  let ret = (tm: Drv.Exp.term) => (tm, []);
+  let hole: unsorted => DrvTermBase.exp_term =
+    unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
+  fun
+  | Op(([(_id, t)], [])) as tm =>
+    switch (t) {
+    | ([t], []) =>
+      switch (t) {
+      | "Truth" => ret(Truth)
+      | "Falsity" => ret(Falsity)
+      | "True" => ret(True)
+      | "False" => ret(False)
+      | _ when Token.is_wild(t) => ret(ExpHole)
+      | _ when Token.is_empty_list(t) => ret(Ctx([]))
+      | _ when Token.is_empty_tuple(t) => ret(Triv)
+      | _ when Token.is_int(t) => ret(NumLit(int_of_string(t)))
+      | _
+          when
+            Token.is_var(t)
+            && String.length(t) > 1
+            && String.sub(t, 0, 1) == "$" =>
+        ret(Quote(t))
+      | _ when Token.is_typ_var(t) => ret(Var(t))
+      | _ => ret(hole(tm))
+      }
+    | (["val", "end"], [Drv(Exp(e))]) => ret(Val(e))
+    | (["valid", "end"], [Drv(Typ(t))]) => ret(Type(t))
+    | (["[", "]"], [Drv(Exp(body))]) =>
+      switch (body.term) {
+      | Tuple(es) => (Ctx(es), IdTagged.ids(body))
+      | Pair(e1, e2) => (Ctx([e1, e2]), IdTagged.ids(body))
+      | _ => ret(Ctx([body]))
+      }
+    | (["(", ")"], [Drv(Exp(body))]) =>
+      switch (body.term) {
+      /* A standard Drv pair is parenthesised, so here we collapse
+         [Parens(Tuple(e1, e2))] into [Pair(e1, e2)]. */
+      | Tuple([e1, e2]) => (Pair(e1, e2), IdTagged.ids(body))
+      | _ => ret(Parens(body))
+      }
+    | (["case", "end"], [Drv(Exp(body))]) =>
+      switch (body.term) {
+      | Case(_) as term => (term, IdTagged.ids(body))
+      | _ => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
+    }
+  | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Exp(r))) as tm =>
+    switch (t) {
+    | "\\=/" => ret(Eval(l, r))
+    | "|-" => ret(Entail(l, r))
+    | "," => ret(Tuple([l, r]))
+    | "::" => ret(Cons(l, r))
+    | "@" => ret(Concat(l, r))
+    | "/\\" => ret(And(l, r))
+    | "\\/" => ret(Or(l, r))
+    | "==>" => ret(Impl(l, r))
+    | "+" => ret(BinOp(Plus, l, r))
+    | "-" => ret(BinOp(Minus, l, r))
+    | "*" => ret(BinOp(Times, l, r))
+    | "==" => ret(BinOp(Eq, l, r))
+    | "<" => ret(BinOp(Lt, l, r))
+    | ">" => ret(BinOp(Gt, l, r))
+    | "." =>
+      switch (r.term) {
+      | Var("fst") => (PrjL(l), IdTagged.ids(r))
+      | Var("snd") => (PrjR(l), IdTagged.ids(r))
+      | _ => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
+    }
+  | Bin(Drv(Exp(l)), tiles, Drv(Exp(r))) as tm =>
+    switch (is_tuple_drv_exp(tiles)) {
+    | Some([]) => ret(Pair(l, r))
+    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | None =>
+      switch (is_drv_rules(tiles)) {
+      | Some(([x, y], [e1])) => ret(Case(l, x, e1, y, r))
+      | _ => ret(hole(tm))
+      }
+    }
+  | Bin(Drv(Exp(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
+    switch (t) {
+    | ":" => ret(HasType(l, r))
+    | "=>" => ret(Syn(l, r))
+    | "<=" => ret(Ana(l, r))
+    | _ => ret(hole(tm))
+    }
+  | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
+    switch (t) {
+    | (["-"], []) => ret(Neg(r))
+    | (["!"], []) => ret(Impl(r, Falsity |> Drv.Exp.fresh))
+    | (["|-"], []) => ret(Entail(Ctx([]) |> Drv.Exp.fresh, r))
+    | (["if", "then", "else"], [Drv(Exp(cond)), Drv(Exp(conseq))]) =>
+      ret(If(cond, conseq, r))
+    | (["let", "=", "in"], [Drv(Pat(pat)), Drv(Exp(def))]) =>
+      ret(Let(pat, def, r))
+    | (["fix", "->"], [Drv(Pat(pat))]) => ret(Fix(pat, r))
+    | (["fun", "->"], [Drv(Pat(pat))]) => ret(Fun(pat, r))
+    | _ => ret(hole(tm))
+    }
+  | Pre(([(_id, (labels, [Drv(Typ(l))]))], []), Drv(Typ(r))) as tm =>
+    switch (labels) {
+    | ["consistent", "~"] => ret(Consistent(l, r))
+    | ["matched_arrow", "with"] => ret(MatchedArrow(l, r))
+    | ["matched_prod", "with"] => ret(MatchedProd(l, r))
+    | ["matched_sum", "with"] => ret(MatchedSum(l, r))
+    | _ => ret(hole(tm))
+    }
+  | Post(Drv(Exp(l)), ([(_id, t)], [])) as tm =>
+    switch (t) {
+    | (["(", ")"], [Drv(Exp(r))]) =>
+      switch (l.term) {
+      | Var("L") => (InjL(r), IdTagged.ids(l))
+      | Var("R") => (InjR(r), IdTagged.ids(l))
+      | Var("roll") => (Roll(r), IdTagged.ids(l))
+      | Var("unroll") => (Unroll(r), IdTagged.ids(l))
+      | _ => ret(Ap(l, r))
+      }
+    | _ => ret(hole(tm))
+    }
+  | _ as tm => ret(hole(tm));
+}
+and drv_pat = unsorted => {
+  let (term, inner_ids) = drv_pat_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(
+    p => Drv(Pat(p)),
+    ids,
+    {
+      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      term,
+    },
+  );
+}
+and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
+  let ret = (tm: Drv.Pat.term) => (tm, []);
+  let hole: unsorted => DrvTermBase.pat_term =
+    unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
+  fun
+  | Op(([(_id, ([t], []))], [])) as tm =>
+    switch (t) {
+    | _
+        when
+          Token.is_var(t)
+          && String.length(t) > 1
+          && String.sub(t, 0, 1) == "$" =>
+      ret(Quote(t))
+    | _ when Token.is_typ_var(t) => ret(Var(t))
+    | _ => ret(hole(tm))
+    }
+  | Op(([(_id, (["(", ")"], [Drv(Pat(body))]))], [])) =>
+    ret(Parens(body))
+  | Post(Drv(Pat(l)), ([(_id, (["(", ")"], [Drv(Pat(r))]))], [])) as tm =>
+    switch (l.term) {
+    | Var("L") => (InjL(r), IdTagged.ids(l))
+    | Var("R") => (InjR(r), IdTagged.ids(l))
+    | _ => ret(hole(tm))
+    }
+  | Bin(Drv(Pat(l)), ([(_id, ([":"], []))], []), Drv(Typ(r))) =>
+    ret(Cast(l, r))
+  | Bin(Drv(Pat(l)), ([(_id, ([","], []))], []), Drv(Pat(r))) =>
+    ret(Pair(l, r))
+  | _ as tm => ret(hole(tm));
+}
+
+and drv_typ = unsorted => {
+  let (term, inner_ids) = drv_typ_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(
+    ty => Drv(Typ(ty)),
+    ids,
+    {
+      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      term,
+    },
+  );
+}
+and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
+  let ret = (tm: Drv.Typ.term) => (tm, []);
+  let hole: unsorted => DrvTermBase.typ_term =
+    unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
+  fun
+  | Op(([(_id, ([t], []))], [])) as tm =>
+    switch (t) {
+    | "Num" => ret(Num)
+    | "Bool" => ret(Bool)
+    | "1"
+    | "Unit" => ret(Unit)
+    | _ when Token.is_explicit_hole(t) || Token.is_implicit_hole_marker(t) =>
+      ret(TypHole)
+    | _
+        when
+          Token.is_var(t)
+          && String.length(t) > 1
+          && String.sub(t, 0, 1) == "$" =>
+      ret(Quote(t))
+    | _ when Token.is_typ_var(t) => ret(Var(t))
+    | _ => ret(hole(tm))
+    }
+  | Op(([(_id, (["(", ")"], [Drv(Typ(body))]))], [])) =>
+    ret(Parens(body))
+  | Pre(([(_id, (["rec", "->"], [Drv(TPat(p))]))], []), Drv(Typ(t))) =>
+    ret(Rec(p, t))
+  | Bin(Drv(Typ(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
+    switch (t) {
+    | "->" => ret(Arrow(l, r))
+    | "*" => ret(Prod(l, r))
+    | "+" => ret(Sum(l, r))
+    | _ => ret(hole(tm))
+    }
+  | _ as tm => ret(hole(tm));
+}
+
+and drv_tpat = unsorted => {
+  let (term, inner_ids) = drv_tpat_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  return(
+    tpat => Drv(TPat(tpat)),
+    ids,
+    {
+      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      term,
+    },
+  );
+}
+and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
+  let ret = (tm: Drv.TPat.term) => (tm, []);
+  let hole: unsorted => DrvTermBase.tpat_term =
+    unsorted => Hole(Any.drv_hole(kids_of_unsorted(unsorted)));
+  fun
+  | Op(([(_id, ([t], []))], []))
+      when
+        Token.is_var(t)
+        && String.length(t) > 1
+        && String.sub(t, 0, 1) == "$" =>
+    ret(Quote(t))
+  | Op(([(_id, ([t], []))], [])) when Token.is_typ_var(t) =>
+    ret(Var(t))
+  | _ as tm => ret(hole(tm));
+}
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
-  let ids = ids(unsorted) @ inner_ids;
-
-  let e: TermBase.exp_t =
-    return(e => Exp(e), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  /* The editor root can change while the expression itself is still sort
+     [Exp]; when an [Exp]-sort traversal trips over a Drv child we get a
+     [MultiHole([Drv(_), ...])], which we intercept and re-parse at the
+     [Drv(Exp)] level. */
   switch (term) {
-  | TupLabel(_) =>
-    // The tile id is the id of the tuple not the tuplabel
-    let (e_term, rewrap) = IdTagged.unwrap(e);
-    rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
-  | _ => e
+  | MultiHole([Drv(_), ..._]) =>
+    let (term, inner_ids) = drv_exp_term(unsorted);
+    let ids = ids(unsorted) @ inner_ids;
+    let exp =
+      return(
+        e => Drv(Exp(e)),
+        ids,
+        IdTagged.mk(ids, get_secondary(ids), term),
+      );
+    Grammar.DrvQuote(Exp(exp), Jdmt) |> IdTagged.fresh;
+  | _ =>
+    let ids = ids(unsorted) @ inner_ids;
+    let e: TermBase.exp_t =
+      return(e => Exp(e), ids, IdTagged.mk(ids, get_secondary(ids), term));
+    switch (term) {
+    | TupLabel(_) =>
+      // The tile id is the id of the tuple not the tuplabel
+      let (e_term, rewrap) = IdTagged.unwrap(e);
+      rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
+    | _ => e
+    };
   };
 }
 and exp_term: unsorted => (Exp.term, list(Id.t)) = {
@@ -416,6 +722,21 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | MultiHole(anys) => (MultiHole(anys), ids)
         | Invalid(string) => (Invalid(string), ids)
         }
+      /* The [of_*] / [end] delimiters lift a Drv term back up to sort Exp
+         by wrapping it in a [DrvQuote] node tagged with its derivation sort. */
+      | (["of_jdmt", "end"], [Drv(Exp(j))]) =>
+        ret(DrvQuote(Exp(j), Jdmt))
+      | (["of_ctx", "end"], [Drv(Exp(c))]) => ret(DrvQuote(Exp(c), Ctx))
+      | (["of_prop", "end"], [Drv(Exp(p))]) =>
+        ret(DrvQuote(Exp(p), Prop))
+      | (["of_alfa_exp", "end"], [Drv(Exp(e))]) =>
+        ret(DrvQuote(Exp(e), Exp))
+      | (["of_alfa_typ", "end"], [Drv(Typ(t))]) =>
+        ret(DrvQuote(Typ(t), Typ))
+      | (["of_alfa_pat", "end"], [Drv(Pat(p))]) =>
+        ret(DrvQuote(Pat(p), Pat))
+      | (["of_alfa_tpat", "end"], [Drv(TPat(tp))]) =>
+        ret(DrvQuote(TPat(tp), TPat))
       | ([t], []) when is_hole_label(t) => ret(hole(tm))
       | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))
@@ -428,7 +749,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["$"], []) => UnOp(Meta(Unquote), r)
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
@@ -586,7 +906,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
-          | (["$=="], []) => BinOp(String(Equals), l, r)
           | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>
             switch (l.term) {
@@ -706,13 +1025,23 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
+        | (["()"], []) =>
+          Ap(
+            l,
+            {
+              annotation: {
+                ids: [Id.nullary_ap_flag],
+                secondary: ([], []),
+              },
+              term: Tuple([]),
+            },
+          )
         | (["(", ")"], [Pat(arg)]) => Ap(l, arg)
         | _ => hole(tm)
         },
       )
     | _ => ret(hole(tm))
     }
-  | Pre(_) as tm => ret(hole(tm))
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, ([":"], []))], []) => ret(Asc(p, ty))
@@ -810,6 +1139,14 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["Void"], []) => Sum([])
+        | (["DrvJdmt"], []) => DrvQuoteTy(Jdmt)
+        | (["DrvCtx"], []) => DrvQuoteTy(Ctx)
+        | (["DrvProp"], []) => DrvQuoteTy(Prop)
+        | (["ALFAExp"], []) => DrvQuoteTy(Exp)
+        | (["DrvPat"], []) => DrvQuoteTy(Pat)
+        | (["ALFATyp"], []) => DrvQuoteTy(Typ)
+        | (["DrvTPat"], []) => DrvQuoteTy(TPat)
         | (["_"], []) => ExplicitNonlabel
         | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
         | ([t], []) when Token.is_typ_var(t) => Var(t)
@@ -1083,7 +1420,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({id, kind, model, syntax} as pr) =>
+    | Projector({id, kind, model, syntax, _} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);
@@ -1244,6 +1581,11 @@ let for_projection =
         let sort = Segment.sort_of(skel, seg);
         let unsorted = unsorted(sort, skel, seg);
         switch (sort) {
+        | Drv(_) =>
+          switch (drv_exp(unsorted)) {
+          | {term: Tuple(_), _} => None
+          | _ => Some(Grammar.Drv(Exp(drv_exp(unsorted))))
+          }
         | Exp =>
           switch (exp(unsorted)) {
           | {term: Tuple(_), _} => None
@@ -1269,13 +1611,22 @@ let for_projection =
         | Mod => Some(Mod(mod_(unsorted)))
         | Sig => Some(Sig(sig_(unsorted)))
         | MPat => Some(MPat(mpat(unsorted)))
-        | Any => Some(Any()) /* grout */
+        /* Default unresolved sort to Exp, matching go_s above.
+         * Reject bare Tuple(_) for the same reason as the Exp
+         * branch: at top level it isn't well-structured in
+         * isolation. */
+        | Any =>
+          switch (exp(unsorted)) {
+          | {term: Tuple(_), _} => None
+          | e => Some(Grammar.Exp(e))
+          }
         };
       };
     }
   );
 
-let from_zip_for_sem = (z: Zipper.t) => go(Dump.to_segment(z));
+let from_zip_for_sem = (z: Zipper.t, ~root) =>
+  go(Dump.to_segment(z, ~root));
 
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);

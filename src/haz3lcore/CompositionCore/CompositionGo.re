@@ -217,9 +217,9 @@ module Local = {
       // Note that we paste a segment; so, we convert the string to a segment
       // first, and then insert the segment into the zipper. This helps to
       // avoid potential current buggy parsing issues.
-      Parser.to_segment(code)
+      Parser.to_segment(code, ~root=Exp)
       |> OptUtil.and_then((segment: Segment.t) =>
-           Some(Zipper.insert_segment(z, segment))
+           Some(Zipper.insert_segment(z, segment, ~root=Exp))
          )
       |> return(CantPaste);
     };
@@ -241,7 +241,7 @@ module Local = {
         )
       ) {
       | Some(z') =>
-        switch (Destruct.go(Left, z')) {
+        switch (Destruct.go(Left, z', ~root=Exp)) {
         | None => Error(Action.Failure.Cant_destruct)
         | Some(z'') => Ok(z'')
         }
@@ -637,7 +637,7 @@ module Local = {
     let res =
       try(
         switch (composition_dispatch(a, syntax, z, mk_statics, return)) {
-        | Ok(new_z) => Ok(Dump.to_zipper(new_z))
+        | Ok(new_z) => Ok(Dump.to_zipper(new_z, ~root=Exp))
         | Error(e) => Error(e)
         }
       ) {
@@ -655,7 +655,7 @@ module Public = {
         Statics.mk(
           CoreSettings.on,
           Builtins.ctx_init(Some(Operators.default_mode)),
-          MakeTerm.from_zip_for_sem(z).term,
+          MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
         ),
       )
     );

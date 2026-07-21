@@ -41,6 +41,7 @@ type exp = {
   elab_syn_ty: Typ.t, /* Synthesized type of the elaborated expression */
   marks: list(Mark.t), /* Error marks from statics */
   co_ctx: CoCtx.t, /* Locally free variables */
+  probe_targets: SubexpProbeTargets.t, /* Equality witness for incremental eval cache invalidation */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   message: Message.t, /* DERIVED: non-error inspector payload (Exp only) */
   warnings: list(Warning.list_item),
@@ -58,6 +59,7 @@ type pat = {
   ancestors,
   ctx: Ctx.t,
   co_ctx: CoCtx.t,
+  probe_targets: SubexpProbeTargets.t, /* Equality witness for incremental eval cache invalidation */
   ana: Typ.t,
   elab_syn_ty: Typ.t,
   marks: list(Mark.t),
@@ -135,6 +137,7 @@ type secondary = {
 /* The static information collated for each term */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  | InfoDrv(DrvInfo.t)
   | InfoExp(exp)
   | InfoPat(pat)
   | InfoTyp(typ)
@@ -148,6 +151,7 @@ type t =
 
 let sort_of: t => Sort.t =
   fun
+  | InfoDrv(drv) => Drv(DrvInfo.sort_of(drv))
   | InfoExp({cls: Mod(_), _}) => Mod
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
@@ -158,8 +162,31 @@ let sort_of: t => Sort.t =
   | InfoMPat(_) => MPat
   | Secondary(s) => s.sort;
 
+/* The grammar's mold system uses a single `Drv(Exp)` outer sort for all of
+   `Drv(Jdmt)`, `Drv(Ctx)`, `Drv(Prop)`, and `Drv(Exp)` (see DrvSort.re on the
+   "remolding issue"). Statics disambiguates these sub-sorts, so the info_map
+   is the source of truth when we need the precise Drv sub-sort (e.g. to pick
+   a CSS class like `.token.Drv` vs `.token.Exp`). For any non-Drv mold or
+   when no InfoDrv entry is present, we defer to the mold's outer sort. */
+let refine_sort_from_mold =
+    (~info_map: Id.Map.t(t), ~id: Id.t, mold_out: Sort.t): Sort.t =>
+  switch (mold_out) {
+  | Drv(_) =>
+    switch (Id.Map.find_opt(id, info_map)) {
+    | Some(InfoDrv(drv)) => Drv(DrvInfo.sort_of(drv))
+    | _ => mold_out
+    }
+  | _ => mold_out
+  };
+
+let class_of: t => string =
+  fun
+  | InfoDrv(drv) => DrvInfo.sort_of(drv) |> DrvSort.class_of
+  | _ as i => sort_of(i) |> Sort.show;
+
 let cls_of: t => Cls.t =
   fun
+  | InfoDrv(drv) => DrvInfo.cls_of(drv)
   | InfoExp({cls, _})
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
@@ -171,6 +198,7 @@ let cls_of: t => Cls.t =
 
 let any_of: t => option(Any.t) =
   fun
+  | InfoDrv({term, _}) => Some(Drv(term))
   | InfoExp({user_term, _}) => Some(Exp(user_term))
   | InfoPat({user_term, _}) => Some(Pat(user_term))
   | InfoTyp({user_term, _}) => Some(Typ(user_term))
@@ -182,6 +210,7 @@ let any_of: t => option(Any.t) =
 
 let ctx_of: t => Ctx.t =
   fun
+  | InfoDrv(_) => Ctx.empty_pre_elaboration
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
@@ -193,6 +222,7 @@ let ctx_of: t => Ctx.t =
 
 let ancestors_of: t => ancestors =
   fun
+  | InfoDrv(drv) => DrvInfo.ancestors_of(drv)
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})
@@ -207,6 +237,7 @@ let parent_id_of: t => option(Id.t) =
 
 let id_of: t => Id.t =
   fun
+  | InfoDrv(drv) => DrvInfo.id_of(drv)
   | InfoExp(i) => Exp.rep_id(i.user_term)
   | InfoPat(i) => Pat.rep_id(i.user_term)
   | InfoTyp(i) => Typ.rep_id(i.user_term)
@@ -222,15 +253,19 @@ let marks_of: t => list(Mark.t) =
   | InfoPat({marks, _}) => marks
   | InfoTyp({marks, _})
   | InfoTPat({marks, _}) => marks
+  | InfoDrv(_) /* Drv errors are tracked separately via DrvInfo.error_of. */
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
   | Secondary(_) => [];
 
-/* Determines whether any term is in an error hole. */
-let is_error = (ci: t): bool => {
-  marks_of(ci) != [];
-};
+/* Determines whether any term is in an error hole. Drv info uses its own
+   status representation; everything else reports via the unified marks list. */
+let is_error = (ci: t): bool =>
+  switch (ci) {
+  | InfoDrv(drv) => DrvInfo.is_error(drv)
+  | _ => marks_of(ci) != []
+  };
 
 let warnings_of: t => list(Warning.list_item) =
   fun
@@ -238,6 +273,7 @@ let warnings_of: t => list(Warning.list_item) =
   | InfoPat({warnings, _})
   | InfoTyp({warnings, _})
   | InfoTPat({warnings, _}) => warnings
+  | InfoDrv(_)
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
@@ -260,6 +296,7 @@ let is_typable_term: option(t) => bool =
     false
   | Some(
       InfoTyp(_) | InfoTPat(_) | InfoMod(_) | InfoSig(_) | InfoMPat(_) |
+      InfoDrv(_) |
       Secondary(_),
     ) =>
     false
@@ -267,6 +304,10 @@ let is_typable_term: option(t) => bool =
   | None => false;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
+let exp_probe_targets: exp => SubexpProbeTargets.t =
+  ({probe_targets, _}) => probe_targets;
+let pat_probe_targets: pat => SubexpProbeTargets.t =
+  ({probe_targets, _}) => probe_targets;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_ty: pat => Typ.t = ({ty, _}) => ty;

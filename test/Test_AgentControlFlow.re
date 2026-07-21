@@ -14,7 +14,8 @@ let mk_reply =
   reasoning: None,
 };
 
-let cell_editor = () => CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
+let cell_editor = () =>
+  CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
 
 let with_busy_main = (~seq: int, agent: Agent.Model.t): Agent.Model.t => {
   let chat_id = agent.chat_system.current;

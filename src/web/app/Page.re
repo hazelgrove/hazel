@@ -66,13 +66,56 @@ module Store = {
 module Update = {
   open Updated;
 
-  let get_editor = (model: Model.t): CodeEditable.Model.t =>
+  let get_editor = (model: Model.t): CodeEditable.Model.t => {
+    let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
+      let sp = List.nth(m.scratchpads, m.current);
+      switch (sp.kind) {
+      | Code({editor, _}) => editor.editor
+      /* For Drv scratch slides, expose the Setup editor so the sidebar's
+         problem panel reflects errors from Setup only and ignores problems
+         inside the derivation trees themselves. */
+      | Drv(dm) => dm.cells.setup.editor
+      };
+    };
     switch (model.editors) {
-    | Scratch(m) => List.nth(m.scratchpads, m.current).editor.editor
-    | Documentation(m) => List.nth(m.scratchpads, m.current).editor.editor
+    | Scratch(m) => get_scratchpad_editor(m)
+    | Documentation(m) => get_scratchpad_editor(m)
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
     };
+  };
+
+  /* Editors feeding the Problems sidebar, paired with display labels.
+     `None` labels indicate no section header. */
+  let get_problem_editors =
+      (model: Model.t): list((option(string), list(CodeEditable.Model.t))) => {
+    let scratchpad_editors =
+        (m: ScratchMode.Model.t)
+        : list((option(string), list(CodeEditable.Model.t))) => {
+      let sp = List.nth(m.scratchpads, m.current);
+      switch (sp.kind) {
+      | Code({editor, _}) => [(None, [editor.editor])]
+      | Drv(dm) =>
+        /* Scratch/documentation Drv slides don't render the Prelude. */
+        DerivationExerciseMode.Model.get_problem_editors(
+          ~scratch_mode=true,
+          dm,
+        )
+      };
+    };
+    switch (model.editors) {
+    | Scratch(m) => scratchpad_editors(m)
+    | Documentation(m) => scratchpad_editors(m)
+    | Tutorial(m) => [
+        (None, [List.nth(m.exercises, m.current).cells.user_impl.editor]),
+      ]
+    | Exercises(m) =>
+      ExercisesMode.Model.get_problem_editors(
+        ~instructor_mode=model.globals.settings.instructor_mode,
+        m,
+      )
+    };
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
@@ -86,6 +129,7 @@ module Update = {
     | ExplainThis(ExplainThisUpdate.update)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
+    | Refresh
     | Start
     | Save;
 
@@ -153,6 +197,11 @@ module Update = {
             action,
             model.editors,
           );
+        /* The jump moves the model selection to the target cell but not DOM
+           focus (which stays on the clicked sidebar row). Schedule a focus
+           of the now-active cell after render so the editor receives
+           keystrokes and the caret (gated on :focus) shows there. */
+        Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
@@ -194,40 +243,49 @@ module Update = {
       );
       Store.load() |> return;
     | ExportForInit =>
-      let (filename, content) =
+      let (filename, contents) =
         switch (model.editors) {
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
           let filename =
             (current.name |> StringUtil.sanitize_filename) ++ ".ml";
-
-          let content =
-            Haz3lcore.(
-              [%derive.show: (string, PersistentSegment.t)]((
-                current.name,
-                current.editor.editor.editor.state.zipper
-                |> PersistentSegment.persist,
-              ))
-            );
-          (filename, content);
+          let contents =
+            switch (current.kind) {
+            | Code({editor, _}) =>
+              let serialized =
+                Haz3lcore.(
+                  [%derive.show: (string, PersistentSegment.t)]((
+                    current.name,
+                    editor.editor.editor.state.zipper
+                    |> PersistentSegment.persist,
+                  ))
+                );
+              "let out : string * Haz3lcore.PersistentSegment.t = "
+              ++ serialized;
+            | Drv(m) => DerivationExercise.export_doc_slide_module(m.editors)
+            };
+          (filename, contents);
         | Tutorial(model) =>
-          let current = List.nth(model.exercises, model.current);
+          let current = TutorialsMode.Model.get_current(model);
           let filename = current.editors.module_name ++ ".ml";
-          let content = "not supported";
-          (filename, content);
+          let contents =
+            Tutorial.export_module(
+              current.editors.module_name,
+              {eds: current.editors},
+            );
+          (filename, contents);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
           let filename =
-            ExercisesMode.Model.get_exercise_name(current) ++ ".ml";
-          let content = "not supported";
-          (filename, content);
+            ExercisesMode.Model.get_exercise_module_name(current) ++ ".ml";
+          let contents = ExercisesMode.Model.export_exercise_module(current);
+          (filename, contents);
         };
       JsUtil.download_string_file(
         ~filename,
         ~content_type="text/plain",
-        ~contents=
-          "let out : string * Haz3lcore.PersistentSegment.t = " ++ content,
+        ~contents,
       );
       model |> return_quiet;
     | ActiveEditor(action) =>
@@ -324,7 +382,8 @@ module Update = {
     | Benchmark(Finish) =>
       Benchmark.finish();
       model |> Updated.return_quiet;
-    | Start => model |> return
+    | Refresh => model |> Updated.return_quiet(~recalculate=true)
+    | Start => model |> return // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
       Store.save(model);
@@ -339,6 +398,7 @@ module Update = {
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
+    | Refresh => false
     | Start => false
     | Save => false
     };
@@ -360,11 +420,17 @@ module Update = {
         ~is_edited,
         model.editors,
       );
+    /* Compute cursor info against the POST-calculate editors: some modes
+       (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
+       stitched `cells` during calculate, not during update. Reading cursor
+       info from `model.editors` (pre-calculate) would see stale cell state
+       and yield the wrong ExplainThis highlights for a click/move-only
+       action, which doesn't trigger a full statics rebuild. */
     let cursor_info =
       Editors.Selection.get_cursor_info(
         ~inject=_ => Ui_effect.Ignore,
         ~selection=model.selection,
-        model.editors,
+        editors,
       );
     let color_highlights =
       ExplainThis.get_color_map(
@@ -372,6 +438,27 @@ module Update = {
         ~explainThisModel=model.explain_this,
         cursor_info.info,
       );
+    /* When the user's cursor is inside a derivation tree cell, the
+       deduction-specific highlight map takes precedence over the generic
+       ExplainThis one. We consult the live selection here (rather than
+       Editors.Model.get_derivation_info, which reads the stale `model.pos`
+       inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
+       get misclassified as focus on the derivation. */
+    let derivation_info =
+      Editors.Selection.get_derivation_info(
+        ~selection=model.selection,
+        editors,
+      );
+    let color_highlights =
+      switch (derivation_info) {
+      | Some(_) =>
+        ExplainThis.get_color_map_deduction(
+          ~globals=model.globals,
+          ~explainThisModel=model.explain_this,
+          derivation_info,
+        )
+      | None => color_highlights
+      };
     let globals = Globals.Update.calculate(color_highlights, model.globals);
     {
       ...model,
@@ -431,8 +518,20 @@ module Selection = {
          mk(
            ~section="Settings",
            ~mdIcon="tune",
+           ~action=inject(Globals(Set(SelectionChunkiness))),
+           "Toggle Character-level Mouse",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
            ~action=inject(Globals(Set(Benchmark))),
            "Toggle Print Benchmarks",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(ShowDebugPanel))),
+           "Toggle Debug Sidebar",
          ),
          mk(
            ~section="Settings",
@@ -519,61 +618,7 @@ module Selection = {
 };
 
 module View = {
-  let is_input_field = (elId: option(string)) => {
-    switch (elId) {
-    | Some("title-input-box")
-    | Some("module-name-input")
-    | Some("prompt-input-box")
-    | Some("test-required-input")
-    | Some("point-max-input")
-    | Some("agent-api-key-input") => true
-    | Some(id) when String.starts_with(~prefix="hint-input", id) => true
-    | Some(id) when String.starts_with(~prefix="syntax-hint-input", id) =>
-      true
-    | Some(id) when String.starts_with(~prefix="impl-hint-input", id) => true
-    | _ => false
-    };
-  };
-
-  let selection_has_refractors =
-      (
-        refractors: Haz3lcore.Zipper.Refractor.t,
-        selection: Haz3lcore.Segment.t,
-      )
-      : bool =>
-    if (List.is_empty(refractors.manuals)) {
-      false;
-    } else {
-      let ids = Haz3lcore.Segment.ids(selection);
-      List.exists(
-        id =>
-          List.exists(((id2, _)) => Id.equal(id, id2), refractors.manuals),
-        ids,
-      );
-    };
-
-  let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
-    let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-    let should_set =
-      switch (cursor.editor, cursor.selection) {
-      | (Some(editor), Some(selection)) =>
-        /* If the selection contains refractors, we forgo the segment cache
-         * for the sake of preserving refractors in the copy via expanding
-         * their text invocation form, i.e. ^^refractor_name(<syntax>) */
-        !selection_has_refractors(editor.state.zipper.refractors, selection)
-      | _ => true
-      };
-    should_set
-      ? Haz3lcore.Parser.set_segment_cache(cursor.selection, str) : ();
-    JsUtil.copy(str);
-  };
-
-  let handlers =
-      (
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~cursor: Cursor.cursor(Editors.Update.t),
-        model: Model.t,
-      ) => {
+  let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
       let meta_down = key.meta == Down;
       let meta_effects =
@@ -632,6 +677,29 @@ module View = {
             _,
           } =>
           Some(Update.Globals(Undo))
+        /* Cmd+P (Mac) / Ctrl+P (PC) toggles auto-probe mode.
+           Lost in the keyboard-handling refactor; re-added at the page
+           level since the toggle dispatches Globals(Set(AutoprobeMode)),
+           matching the deferral comment in ProbeProj.re. */
+        | {
+            key: D("P" | "p"),
+            sys: Mac,
+            shift: Up,
+            meta: Down,
+            ctrl: Up,
+            alt: Up,
+            _,
+          }
+        | {
+            key: D("P" | "p"),
+            sys: PC,
+            shift: Up,
+            meta: Up,
+            ctrl: Down,
+            alt: Up,
+            _,
+          } =>
+          Some(Update.Globals(Set(AutoprobeMode)))
         | _ => None
         };
       Effect.(
@@ -656,79 +724,6 @@ module View = {
       Attr.on_focus(_ => {
         JsUtil.focus_clipboard_shim();
         Effect.Ignore;
-      }),
-      Attr.on_copy(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          // Clipboard-shim always holds focus, so native Cmd+C on agent
-          // sidebar text would copy the shim's (empty) content. The helper
-          // writes the window selection to clipboardData + preventDefault'd
-          // when the selection lives inside the agent sidebar.
-          let sidebar_handled =
-            JsUtil.try_copy_window_selection_in_classes(
-              evt,
-              [
-                "agent-main-menu",
-                "chat-view-container",
-                "chat-interface-placeholder",
-              ],
-            );
-          if (is_input_field(elId) || sidebar_handled) {
-            ();
-          } else {
-            let el = Js.Unsafe.coerce(el);
-            if (JsUtil.has_ancestor_class(el, "system-message")
-                || JsUtil.has_ancestor_class(el, "agent-message")) {
-              ();
-            } else {
-              copy(cursor);
-            };
-          };
-        | None => ()
-        };
-        Effect.Ignore;
-      }),
-      Attr.on_cut(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
-            Effect.Ignore;
-          } else {
-            copy(cursor);
-            switch (cursor.editor_action(Destruct(Right))) {
-            | Some(action) => inject(Editors(action))
-            | None => Effect.Ignore
-            };
-          };
-        | None => Effect.Ignore
-        };
-      }),
-    ]
-    @ [
-      Attr.on_paste(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
-            Effect.Ignore;
-          } else {
-            let text =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")));
-            let action =
-              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
-            Dom.preventDefault(evt);
-            switch (cursor.editor_action(action)) {
-            | None => Effect.Ignore
-            | Some(action) => inject(Editors(action))
-            };
-          };
-        | None => Effect.Ignore
-        };
       }),
     ];
   };
@@ -836,7 +831,9 @@ module View = {
         ~explainThisModel,
         ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
         ~editors,
+        ~selection=model.selection,
         ~editor=Update.get_editor(model),
+        ~problem_editors=Update.get_problem_editors(model),
         ~signal=
           fun
           | MakeActive(s: Selection.t) => inject(MakeActive(s)),
@@ -908,7 +905,10 @@ module View = {
       div(
         ~attrs=[
           Attr.id("main"),
-          Attr.class_(Editors.Model.mode_string(editors)),
+          Attr.classes(
+            [Editors.Model.mode_string(editors)]
+            @ Editors.Model.extra_main_classes(editors),
+          ),
           Attr.on_scroll(on_scroll),
         ],
         editors_view,
@@ -916,6 +916,7 @@ module View = {
       sidebar,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
+      HoverRuleSpec.view(~globals),
     ];
   };
 
@@ -930,7 +931,7 @@ module View = {
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
     NinjaKeys.initialize(cursor.contextual_actions);
     div(
-      ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
+      ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );

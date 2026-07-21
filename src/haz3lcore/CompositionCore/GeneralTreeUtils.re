@@ -311,7 +311,7 @@ let update_use_sites_of_var =
             let id = entry.CoCtx.id;
             switch (Select.tile(id, acc_z')) {
             | Some(z') =>
-              switch (Parser.to_zipper(~zipper_init=z', new_name)) {
+              switch (Parser.to_zipper(~root=Exp, ~zipper_init=z', new_name)) {
               | Some(z'') => z''
               | None => z'
               }

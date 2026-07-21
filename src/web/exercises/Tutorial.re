@@ -153,7 +153,7 @@ let pos_of_idx = (idx: int) =>
   };
 
 let zipper_of_code = code => {
-  switch (Parser.to_zipper(code)) {
+  switch (Parser.to_zipper(code, ~root=Exp)) {
   | None => failwith("Transition failed.")
   | Some(zipper) => zipper
   };
@@ -199,7 +199,7 @@ let eds_of_spec =
   };
 };
 
-let visible_in = (pos, ~instructor_mode) => {
+let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
   | YourImpl => true
   | HiddenTests => instructor_mode
@@ -279,7 +279,7 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
 };
 
 let term_of = (editor: Editor.t): Language.Exp.t =>
-  MakeTerm.from_zip_for_sem(editor.state.zipper).term;
+  MakeTerm.from_zip_for_sem(editor.state.zipper, ~root=editor.root).term;
 
 let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t => {
   switch (e1.term) {
@@ -290,6 +290,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Undefined
   | Deferral(_)
   | Atom(_)
+  | DrvQuote(_)
   | ListLit(_)
   | Constructor(_)
   | Closure(_)
@@ -429,12 +430,8 @@ let editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, serialization);
 };
 
-let export_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = ";
+let export_module = (_module_name, {eds, _}: state) => {
+  let prefix = "let exercise: Tutorial.spec = ";
   let record = show_p(editor_pp, eds);
   let data = prefix ++ record ++ "\n";
   data;
@@ -446,12 +443,8 @@ let transitionary_editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
 };
 
-let export_transitionary_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = Exercise.transition(";
+let export_transitionary_module = (_module_name, {eds, _}: state) => {
+  let prefix = "let exercise: Tutorial.spec = Tutorial.transition(";
   let record = show_p(transitionary_editor_pp, eds);
   let data = prefix ++ record ++ ")\n";
   data;
@@ -484,10 +477,10 @@ type persistent_tutorial_mode = list((pos, PersistentZipper.t));
 
 let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
   let lookup = (pos, default) =>
-    if (visible_in(pos, ~instructor_mode)) {
+    if (is_editable(pos, ~instructor_mode)) {
       positioned_zippers
       |> List.assoc_opt(pos)
-      |> Option.map(PersistentZipper.unpersist)
+      |> Option.map(PersistentZipper.unpersist(~root=Exp))
       |> Option.value(~default);
     } else {
       default;
