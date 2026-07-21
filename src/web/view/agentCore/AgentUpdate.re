@@ -62,6 +62,25 @@ let is_retryable_api_error = (code: int): bool =>
 let format_api_error_content = (~code: int, ~message: string): string =>
   "Code: " ++ string_of_int(code) ++ "\nError: " ++ message;
 
+let append_to_chat_system =
+    (~chat_id: Id.t, msg: Message.Model.t, chat_system: ChatSystem.Model.t)
+    : ChatSystem.Model.t =>
+  ChatSystem.Update.update(
+    ChatSystem.Update.Action.ChatAction(
+      Chat.Update.Action.AppendMessage(msg),
+      chat_id,
+    ),
+    chat_system,
+  )
+  |> ChatSystem.Update.get;
+
+/** Append [msg] to [chat_id]'s transcript. */
+let append_message =
+    (~chat_id: Id.t, msg: Message.Model.t, model: Model.t): Model.t => {
+  ...model,
+  chat_system: append_to_chat_system(~chat_id, msg, model.chat_system),
+};
+
 /* In-flight streaming request handles. Not part of Model.t because
    [API.streaming_handle] holds a closure and is not serializable; these
    are strictly transient and meaningless across reloads. Cleared in the
@@ -467,6 +486,18 @@ let send_compaction_request =
   pending_compaction_stream_handle := Some(handle);
 };
 
+/** On the manual (/compact) path, surface [content] as a failure message;
+    auto compaction stays silent. */
+let compaction_unavailable =
+    (~manual: bool, ~chat_id: Id.t, content: string, model: Model.t): Model.t =>
+  manual
+    ? append_message(
+        ~chat_id,
+        Message.Utils.mk_api_failure_message(content),
+        model,
+      )
+    : model;
+
 /** Shared auto (token limit) and manual (/compact) compaction kickoff. */
 let maybe_start_compaction =
     (
@@ -479,72 +510,29 @@ let maybe_start_compaction =
     )
     : Model.t =>
   if (Option.is_some(model.compaction_in_progress)) {
-    if (manual) {
-      let msg =
-        Message.Utils.mk_api_failure_message(
-          "Compaction is already in progress.",
-        );
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            Chat.Update.Action.AppendMessage(msg),
-            chat_id,
-          ),
-          model.chat_system,
-        )
-        |> ChatSystem.Update.get;
-      {
-        ...model,
-        chat_system,
-      };
-    } else {
-      model;
-    };
+    compaction_unavailable(
+      ~manual,
+      ~chat_id,
+      "Compaction is already in progress.",
+      model,
+    );
   } else if (Option.is_some(model.awaiting_response)) {
-    if (manual) {
-      let msg =
-        Message.Utils.mk_api_failure_message(
-          "Wait for the assistant to finish before compacting.",
-        );
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            Chat.Update.Action.AppendMessage(msg),
-            chat_id,
-          ),
-          model.chat_system,
-        )
-        |> ChatSystem.Update.get;
-      {
-        ...model,
-        chat_system,
-      };
-    } else {
-      model;
-    };
+    compaction_unavailable(
+      ~manual,
+      ~chat_id,
+      "Wait for the assistant to finish before compacting.",
+      model,
+    );
   } else {
     let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
     let dialogue = Chat.Utils.dialogue_slice_for_compaction_summary(chat);
     if (dialogue == []) {
-      if (manual) {
-        let msg =
-          Message.Utils.mk_api_failure_message("Nothing to compact yet.");
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AppendMessage(msg),
-              chat_id,
-            ),
-            model.chat_system,
-          )
-          |> ChatSystem.Update.get;
-        {
-          ...model,
-          chat_system,
-        };
-      } else {
-        model;
-      };
+      compaction_unavailable(
+        ~manual,
+        ~chat_id,
+        "Nothing to compact yet.",
+        model,
+      );
     } else {
       let context_msg =
         compaction_context_snapshot_message(
@@ -594,27 +582,12 @@ let maybe_start_compaction =
           compaction_llm_seq: compaction_flight_seq,
         };
       | _ =>
-        if (manual) {
-          let msg =
-            Message.Utils.mk_api_failure_message(
-              "API key or LLM not configured. Cannot compact.",
-            );
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(msg),
-                chat_id,
-              ),
-              model.chat_system,
-            )
-            |> ChatSystem.Update.get;
-          {
-            ...model,
-            chat_system,
-          };
-        } else {
-          model;
-        }
+        compaction_unavailable(
+          ~manual,
+          ~chat_id,
+          "API key or LLM not configured. Cannot compact.",
+          model,
+        )
       };
     };
   };
@@ -739,53 +712,28 @@ let send_message =
       )) {
     Ok(enqueue_while_busy(model, new_message.content));
   } else {
-    let chat_system = model.chat_system;
-    let chat_system =
-      ChatSystem.Update.update(
-        ChatSystem.Update.Action.ChatAction(
-          Chat.Update.Action.AppendMessage(new_message),
-          chat_id,
-        ),
-        chat_system,
-      )
-      |> ChatSystem.Update.get;
+    let model = append_message(~chat_id, new_message, model);
     switch (api_key, llm_id) {
     | (None, _) =>
-      let api_failure_message =
-        Message.Utils.mk_api_failure_message(
-          "An API key is required. Please set an API key in the settings.",
-        );
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            AppendMessage(api_failure_message),
-            chat_id,
+      Ok(
+        append_message(
+          ~chat_id,
+          Message.Utils.mk_api_failure_message(
+            "An API key is required. Please set an API key in the settings.",
           ),
-          chat_system,
-        )
-        |> ChatSystem.Update.get;
-      Ok({
-        ...model,
-        chat_system,
-      });
+          model,
+        ),
+      )
     | (_, None) =>
-      let api_failure_message =
-        Message.Utils.mk_api_failure_message(
-          "LLM ID is required. Please select an LLM in the settings.",
-        );
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            AppendMessage(api_failure_message),
-            chat_id,
+      Ok(
+        append_message(
+          ~chat_id,
+          Message.Utils.mk_api_failure_message(
+            "LLM ID is required. Please select an LLM in the settings.",
           ),
-          chat_system,
-        )
-        |> ChatSystem.Update.get;
-      Ok({
-        ...model,
-        chat_system,
-      });
+          model,
+        ),
+      )
     | (Some(api_key), Some(llm_id)) =>
       let main_flight_seq = model.main_llm_seq + 1;
       send_llm_request(
@@ -795,7 +743,7 @@ let send_message =
             ~model_id=llm_id,
             ~messages=
               Chat.Utils.api_messages_for_openrouter(
-                ChatSystem.Utils.find_chat(chat_id, chat_system),
+                ChatSystem.Utils.find_chat(chat_id, model.chat_system),
               ),
             ~session_id=Some(Id.to_string(chat_id)),
             ~tools=enabled_tools(~mode=session_mode, model.prompting),
@@ -811,7 +759,8 @@ let send_message =
         ~retry_attempt=0,
         ~main_flight_seq,
       );
-      let current_chat = ChatSystem.Utils.find_chat(chat_id, chat_system);
+      let current_chat =
+        ChatSystem.Utils.find_chat(chat_id, model.chat_system);
       if (current_chat.title == "New Chat" && new_message.role == User) {
         if (Option.is_none(model.awaiting_response)
             && Option.is_none(model.compaction_in_progress)) {
@@ -825,7 +774,6 @@ let send_message =
       };
       Ok({
         ...model,
-        chat_system,
         awaiting_response: Some(chat_id),
         main_llm_seq: main_flight_seq,
       });
@@ -849,44 +797,28 @@ let dispatch_follow_up_llm =
       settings.agent_globals.api_key,
       AgentGlobals.get_active_llm_id(settings.agent_globals),
     ) {
-    | (None, _) =>
-      let api_failure_message =
-        Message.Utils.mk_api_failure_message(
-          "An API key is required. Please set an API key in the settings.",
-        );
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            AppendMessage(api_failure_message),
-            chat_id,
+    | (None, _) => {
+        ...
+          append_message(
+            ~chat_id,
+            Message.Utils.mk_api_failure_message(
+              "An API key is required. Please set an API key in the settings.",
+            ),
+            model,
           ),
-          model.chat_system,
-        )
-        |> ChatSystem.Update.get;
-      {
-        ...model,
-        chat_system,
         awaiting_response: None,
-      };
-    | (_, None) =>
-      let api_failure_message =
-        Message.Utils.mk_api_failure_message(
-          "LLM ID is required. Please select an LLM in the settings.",
-        );
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            AppendMessage(api_failure_message),
-            chat_id,
+      }
+    | (_, None) => {
+        ...
+          append_message(
+            ~chat_id,
+            Message.Utils.mk_api_failure_message(
+              "LLM ID is required. Please select an LLM in the settings.",
+            ),
+            model,
           ),
-          model.chat_system,
-        )
-        |> ChatSystem.Update.get;
-      {
-        ...model,
-        chat_system,
         awaiting_response: None,
-      };
+      }
     | (Some(api_key), Some(llm_id)) =>
       let main_flight_seq = model.main_llm_seq + 1;
       send_llm_request(
@@ -1308,19 +1240,9 @@ let handle_llm_response =
           ++ "You can try rephrasing your message.)";
         let new_message =
           Message.Utils.mk_agent_message(fallback_content, reply.usage);
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AppendMessage(new_message),
-              chat_id,
-            ),
-            model.chat_system,
-          )
-          |> ChatSystem.Update.get;
         (
           {
-            ...model,
-            chat_system,
+            ...append_message(~chat_id, new_message, model),
             awaiting_response: None,
             last_empty_retry_attempt: None,
           },
@@ -1338,18 +1260,8 @@ let handle_llm_response =
           content,
           reply.usage,
         );
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            Chat.Update.Action.AppendMessage(new_message),
-            chat_id,
-          ),
-          model.chat_system,
-        )
-        |> ChatSystem.Update.get;
       let model = {
-        ...model,
-        chat_system,
+        ...append_message(~chat_id, new_message, model),
         last_empty_retry_attempt: None,
         last_active_task_nudge_attempt: None,
       };
@@ -1438,25 +1350,12 @@ let handle_llm_response =
             tool_calls,
           );
         let tool_msgs = List.rev(tool_msgs_rev);
-        let chat_system_after_tools =
+        let model_with_tool_msgs =
           List.fold_left(
-            (cs, msg) =>
-              ChatSystem.Update.get(
-                ChatSystem.Update.update(
-                  ChatSystem.Update.Action.ChatAction(
-                    Chat.Update.Action.AppendMessage(msg),
-                    chat_id,
-                  ),
-                  cs,
-                ),
-              ),
-            model_after_tools.chat_system,
+            (m, msg) => append_message(~chat_id, msg, m),
+            model_after_tools,
             tool_msgs,
           );
-        let model_with_tool_msgs = {
-          ...model_after_tools,
-          chat_system: chat_system_after_tools,
-        };
         (
           dispatch_follow_up_llm(
             model_with_tool_msgs,
@@ -1555,19 +1454,9 @@ let update =
           Message.Utils.mk_response_cancelled_message(
             ~content="Agent response cancelled.",
           );
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AppendMessage(cancelled),
-              awaiting_chat_id,
-            ),
-            model.chat_system,
-          )
-          |> ChatSystem.Update.get;
         (
           clear_pending_assistant_stream({
-            ...model,
-            chat_system,
+            ...append_message(~chat_id=awaiting_chat_id, cancelled, model),
             awaiting_response: None,
             last_empty_retry_attempt: None,
             last_active_task_nudge_attempt: None,
@@ -1581,19 +1470,9 @@ let update =
           Message.Utils.mk_response_cancelled_message(
             ~content="Compaction cancelled.",
           );
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AppendMessage(cancelled),
-              compaction_chat_id,
-            ),
-            model.chat_system,
-          )
-          |> ChatSystem.Update.get;
         (
           {
-            ...model,
-            chat_system,
+            ...append_message(~chat_id=compaction_chat_id, cancelled, model),
             compaction_in_progress: None,
             compaction_method_override: None,
             pending_ignore_compaction_reply_seq:
@@ -1675,20 +1554,8 @@ let update =
             Message.Utils.mk_api_failure_message(
               "Compaction returned tool calls instead of a text summary. Try another model, or one that does not emit tools on compaction.",
             );
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(err),
-                chat_id,
-              ),
-              model_cleared.chat_system,
-            )
-            |> ChatSystem.Update.get;
           (
-            {
-              ...model_cleared,
-              chat_system,
-            },
+            append_message(~chat_id, err, model_cleared),
             editor |> Updated.return,
           );
         } else if (content == "") {
@@ -1696,20 +1563,8 @@ let update =
             Message.Utils.mk_api_failure_message(
               "Compaction returned an empty summary.",
             );
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(err),
-                chat_id,
-              ),
-              model_cleared.chat_system,
-            )
-            |> ChatSystem.Update.get;
           (
-            {
-              ...model_cleared,
-              chat_system,
-            },
+            append_message(~chat_id, err, model_cleared),
             editor |> Updated.return,
           );
         } else {
@@ -1718,20 +1573,8 @@ let update =
               ~method=method_label,
               content,
             );
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(summary),
-                chat_id,
-              ),
-              model_cleared.chat_system,
-            )
-            |> ChatSystem.Update.get;
           (
-            {
-              ...model_cleared,
-              chat_system,
-            },
+            append_message(~chat_id, summary, model_cleared),
             editor |> Updated.return,
           );
         };
@@ -1762,22 +1605,7 @@ let update =
       };
     let msg =
       Message.Utils.mk_slash_command_output_message(~payload, ~content);
-    let chat_system =
-      ChatSystem.Update.update(
-        ChatSystem.Update.Action.ChatAction(
-          Chat.Update.Action.AppendMessage(msg),
-          chat_id,
-        ),
-        model.chat_system,
-      )
-      |> ChatSystem.Update.get;
-    (
-      {
-        ...model,
-        chat_system,
-      },
-      editor |> Updated.return,
-    );
+    (append_message(~chat_id, msg, model), editor |> Updated.return);
   | RunSlashCommandHelp(chat_id) =>
     schedule_action(
       Action.AppendSlashCommandOutput(
@@ -1870,24 +1698,13 @@ let update =
             },
             editor |> Updated.return,
           )
-        | _ =>
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(api_error_message),
-                chat_id,
-              ),
-              model.chat_system,
-            )
-            |> ChatSystem.Update.get;
-          (
+        | _ => (
             {
-              ...model,
-              chat_system,
+              ...append_message(~chat_id, api_error_message, model),
               awaiting_response: None,
             },
             editor |> Updated.return,
-          );
+          )
         }
       | CompactionRequest(seq) =>
         switch (model.pending_ignore_compaction_reply_seq) {
@@ -1904,20 +1721,9 @@ let update =
             },
             editor |> Updated.return,
           )
-        | _ =>
-          let chat_system =
-            ChatSystem.Update.update(
-              ChatSystem.Update.Action.ChatAction(
-                Chat.Update.Action.AppendMessage(api_error_message),
-                chat_id,
-              ),
-              model.chat_system,
-            )
-            |> ChatSystem.Update.get;
-          (
+        | _ => (
             {
-              ...model,
-              chat_system,
+              ...append_message(~chat_id, api_error_message, model),
               awaiting_response: None,
               compaction_in_progress:
                 switch (model.compaction_in_progress) {
@@ -1931,7 +1737,7 @@ let update =
                 },
             },
             editor |> Updated.return,
-          );
+          )
         }
       };
     schedule_flush_pending_if_idle_for_chat(m, chat_id, schedule_action);
@@ -1951,26 +1757,11 @@ let update =
         ~sent_to_api=false,
         ~deliver_as_user_on_api=false,
       );
-    let chat_system =
-      ChatSystem.Update.update(
-        ChatSystem.Update.Action.ChatAction(
-          Chat.Update.Action.AppendMessage(retry_note),
-          chat_id,
-        ),
-        model.chat_system,
-      )
-      |> ChatSystem.Update.get;
     let delay_ms = backoff_ms(attempt);
     JsUtil.delay(delay_ms, () =>
       schedule_action(Action.DoRetryApiSend(chat_id, attempt))
     );
-    (
-      {
-        ...model,
-        chat_system,
-      },
-      editor |> Updated.return,
-    );
+    (append_message(~chat_id, retry_note, model), editor |> Updated.return);
   | DoRetryApiSend(chat_id, attempt) =>
     let model =
       update_context(
@@ -2036,19 +1827,9 @@ let update =
           Message.Utils.mk_api_failure_message(
             "API key or LLM not configured. Cannot retry.",
           );
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AppendMessage(api_failure_message),
-              chat_id,
-            ),
-            model.chat_system,
-          )
-          |> ChatSystem.Update.get;
         (
           {
-            ...model,
-            chat_system,
+            ...append_message(~chat_id, api_failure_message, model),
             awaiting_response: None,
           },
           editor |> Updated.return,
@@ -2082,19 +1863,7 @@ let update =
           ~sent_to_api=true,
           ~deliver_as_user_on_api=true,
         );
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            Chat.Update.Action.AppendMessage(retry_message),
-            chat_id,
-          ),
-          model.chat_system,
-        )
-        |> ChatSystem.Update.get;
-      let model = {
-        ...model,
-        chat_system,
-      };
+      let model = append_message(~chat_id, retry_message, model);
       switch (
         settings.agent_globals.api_key,
         AgentGlobals.get_active_llm_id(settings.agent_globals),
@@ -2140,19 +1909,9 @@ let update =
           Message.Utils.mk_api_failure_message(
             "API key or LLM not configured. Cannot retry.",
           );
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AppendMessage(api_failure_message),
-              chat_id,
-            ),
-            model.chat_system,
-          )
-          |> ChatSystem.Update.get;
         (
           {
-            ...model,
-            chat_system,
+            ...append_message(~chat_id, api_failure_message, model),
             awaiting_response: None,
             last_empty_retry_attempt: None,
           },
