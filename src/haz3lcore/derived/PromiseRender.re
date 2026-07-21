@@ -52,7 +52,14 @@ let is_witness_replace = (ins: CanonicalCompletion.insertion): bool =>
 let projectable = (ins: CanonicalCompletion.insertion): bool =>
   ins.delimiters
   |> List.for_all((d: CanonicalCompletion.delimiter_info) =>
-       d.of_shard != None || d.text == ","
+       (d.of_shard != None || d.text == ",")
+       /* a WITNESS delimiter (typed_len set) can only be shown by
+          REPLACING the user's partial token — projecting its full
+          shard alongside the typed prefix duplicates it (`= ? =>`).
+          Single-witness insertions take the replace path before this
+          predicate is consulted; anything else degrades to the
+          remainder-ghost channel. */
+       && d.typed_len == None
      );
 
 let is_grout = (p: Piece.t): bool =>
@@ -430,6 +437,31 @@ let mk_inner =
   let pre_caret = (~caret_witnesses, seg: Segment.t): string => {
     let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
     let caret = DisplayCaret.point(~caret_witnesses, measured, z);
+    /* grout is zero-width in measured but prints as a ?/~ char: the
+       slice column shifts by the holes printed before the caret on
+       its row */
+    let shift = {
+      let rec count = (sg: Segment.t): int =>
+        List.fold_left(
+          (acc, pc: Piece.t) =>
+            switch (pc) {
+            | Grout(g) =>
+              switch (Measured.find_g(g, measured)) {
+              | m when m.origin.row == caret.row && m.origin.col < caret.col =>
+                acc + 1
+              | _ => acc
+              | exception _ => acc
+              }
+            | Tile(t) =>
+              List.fold_left((a, k) => a + count(k), acc, t.children)
+            | _ => acc
+            },
+          0,
+          sg,
+        );
+      count(seg);
+    };
+    let col = caret.col + shift;
     let rows =
       Printer.of_segment(
         ~holes="?",
@@ -441,8 +473,7 @@ let mk_inner =
       |> String.split_on_char('\n');
     let before = List.filteri((i, _) => i < caret.row, rows);
     let at = List.nth_opt(rows, caret.row) |> Option.value(~default="");
-    let prefix =
-      caret.col <= String.length(at) ? String.sub(at, 0, caret.col) : at;
+    let prefix = col <= String.length(at) ? String.sub(at, 0, col) : at;
     String.concat("\n", before @ [prefix]);
   };
   let has_witness_replace =
@@ -456,9 +487,12 @@ let mk_inner =
      If the replace moved pre-caret text (a degenerate interleave where
      reassembling the witness shard shifts a junction), fall back to
      the ghost-splice path, which never touches pre-caret material. */
+  /* the raw baseline goes through the ONE derivation too: the
+     display legitimately shows placed holes before the caret, and by
+     layout invisibility the placed raw agrees with it exactly */
   if (has_witness_replace
       && pre_caret(~caret_witnesses=full.caret_witnesses, full.segment)
-      != pre_caret(~caret_witnesses=[], raw)) {
+      != pre_caret(~caret_witnesses=[], GroutPlace.place(raw))) {
     build(~use_replaces=false);
   } else {
     full;

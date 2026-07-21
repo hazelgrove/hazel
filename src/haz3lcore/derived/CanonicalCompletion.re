@@ -300,7 +300,9 @@ let middle_split_plan =
            child `x ~ f ~ 1` reads BOTH junctions as legal Pat splits
            and the restore falls back as ambiguous */
         let coherent = (ps: Segment.t, sort: Sort.t) =>
-          !clippable_sort(sort)
+          /* Pat only: type-level spans keep the permissive read (the
+             type-adt scoreboard's = restore rides on it) */
+          sort != Sort.Pat
           || !
                List.exists(
                  (p: Piece.t) =>

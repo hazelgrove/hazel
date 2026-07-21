@@ -588,7 +588,11 @@ let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
     | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
       Some(z)
     | (Inner(idx), (_, Some(t))) =>
-      let idx = idx + 1;
+      /* clamp: an Inner index can outlive its token's length across
+         the grout-free reassembly paths (token merges no longer pass
+         through grout stops); inserting past the end means "at the
+         end", never a crash */
+      let idx = min(idx + 1, Token.length(t));
       let new_token = Token.insert_nth(idx, char, t);
       let z = Caret.set(Inner(idx), z);
       Token.is_potential_token(new_token)
