@@ -1,17 +1,9 @@
 type path = list(int);
 type lens = (path, path);
 
-let gap: Typ.t = Typ.temp(Unknown(Hole(EmptyHole)));
+let gap = Typ.gap;
 
-let rec is_gap = (ty: Typ.t): bool =>
-  switch (Typ.term_of(ty)) {
-  | Parens(inner)
-  | Projector(_, inner) => is_gap(inner)
-  | Unknown(Internal)
-  | Unknown(Hole(EmptyHole))
-  | Unknown(SynSwitch) => true
-  | _ => false
-  };
+let is_gap = Typ.is_gap;
 
 let meet = (ctx: Ctx.t, left: Typ.t, right: Typ.t): Typ.t =>
   if (is_gap(left)) {
@@ -32,73 +24,67 @@ let rec unconstrained_result = (query: Typ.t): bool =>
   | _ => is_gap(query)
   };
 
-let typ_children = (ty: Typ.t): list(Typ.t) =>
-  switch (Typ.term_of(ty)) {
-  | Parens(t)
-  | Projector(_, t)
-  | List(t)
-  | Poly(_, t)
-  | TypFun(_, t)
-  | Rec(_, t) => [t]
-  | Arrow(a, b)
-  | TupLabel(a, b)
-  | TypParamAp(a, b)
-  | ProdProjection(a, b)
-  | ProdExtension(a, b) => [a, b]
-  | Prod(ts)
-  | TypTuple(ts) => ts
-  | Sum(variants) =>
-    List.map(
-      fun
-      | ConstructorMap.Variant(_, _, Some(t)) => t
-      | ConstructorMap.Variant(_, _, None) => gap
-      | ConstructorMap.BadEntry(t) => t,
-      variants,
-    )
-  | Unknown(_)
-  | Atom(_)
-  | DrvQuoteTy(_)
-  | Var(_)
-  | ExplicitNonlabel
-  | Label(_)
-  | ProofOf(_)
-  | Sig(_) => []
-  };
+let map_immediate_typ_children = (f: Typ.t => Typ.t, root: Typ.t): Typ.t => {
+  let at_root = ref(true);
+  let stop = (_, node) => node;
+  Typ.map_term(
+    ~f_exp=stop,
+    ~f_pat=stop,
+    ~f_typ=
+      (continue, ty) =>
+        if (at_root^) {
+          at_root := false;
+          continue(ty);
+        } else {
+          f(ty);
+        },
+    ~f_tpat=stop,
+    ~f_rul=stop,
+    ~f_any=stop,
+    root,
+  );
+};
 
-let typ_rebuild = (shape: Typ.t, children: list(Typ.t)): Typ.t =>
-  switch (Typ.term_of(shape), children) {
-  | (Parens(_), [t]) => Parens(t) |> Typ.temp
-  | (Projector(data, _), [t]) => Projector(data, t) |> Typ.temp
-  | (List(_), [t]) => List(t) |> Typ.temp
-  | (Poly(b, _), [t]) => Poly(b, t) |> Typ.temp
-  | (TypFun(b, _), [t]) => TypFun(b, t) |> Typ.temp
-  | (Rec(b, _), [t]) => Rec(b, t) |> Typ.temp
-  | (Arrow(_, _), [a, b]) => Arrow(a, b) |> Typ.temp
-  | (TupLabel(_, _), [a, b]) => TupLabel(a, b) |> Typ.temp
-  | (TypParamAp(_, _), [a, b]) => TypParamAp(a, b) |> Typ.temp
-  | (ProdProjection(_, _), [a, b]) => ProdProjection(a, b) |> Typ.temp
-  | (ProdExtension(_, _), [a, b]) => ProdExtension(a, b) |> Typ.temp
-  | (Prod(_), ts) => Prod(ts) |> Typ.temp
-  | (TypTuple(_), ts) => TypTuple(ts) |> Typ.temp
-  | (Sum(variants), ts) when List.length(variants) == List.length(ts) =>
-    Sum(
-      List.map2(
-        (variant, t) =>
-          switch (variant) {
-          | ConstructorMap.Variant(name, ids, Some(_)) =>
-            is_gap(t)
-              ? ConstructorMap.BadEntry(gap)
-              : ConstructorMap.Variant(name, ids, Some(t))
-          | ConstructorMap.Variant(_, _, None) => variant
-          | ConstructorMap.BadEntry(_) => ConstructorMap.BadEntry(t)
-          },
-        variants,
-        ts,
-      ),
-    )
-    |> Typ.temp
-  | _ => shape
+type typ_view = {
+  children: list(Typ.t),
+  rebuild: list(Typ.t) => option(Typ.t),
+};
+
+let typ_view = (shape: Typ.t): typ_view => {
+  let children = ref([]);
+  let _ =
+    map_immediate_typ_children(
+      child => {
+        children := [child, ...children^];
+        child;
+      },
+      shape,
+    );
+  {
+    children: List.rev(children^),
+    rebuild: replacements => {
+      let remaining = ref(replacements);
+      let complete = ref(true);
+      let rebuilt =
+        map_immediate_typ_children(
+          original =>
+            switch (remaining^) {
+            | [replacement, ...rest] =>
+              remaining := rest;
+              replacement;
+            | [] =>
+              complete := false;
+              original;
+            },
+          shape,
+        );
+      complete^ && remaining^ == [] ? Some(rebuilt) : None;
+    },
   };
+};
+
+let typ_children = ty => typ_view(ty).children;
+let typ_rebuild = (shape, children) => typ_view(shape).rebuild(children);
 
 let aligned_children = (left, right) => {
   let left = typ_children(left);
@@ -197,6 +183,7 @@ let rec lift = (shape: Typ.t, path: path, value: Typ.t): Typ.t =>
       typ_children(shape)
       |> List.mapi((j, child) => j == i ? lift(child, rest, value) : gap)
       |> typ_rebuild(shape)
+      |> Option.value(~default=gap)
     }
   };
 
@@ -221,7 +208,9 @@ let rec query_shell = (shape: Typ.t): Typ.t =>
   | _ =>
     let children = typ_children(shape);
     children == []
-      ? gap : typ_rebuild(shape, List.map(query_shell, children));
+      ? gap
+      : typ_rebuild(shape, List.map(query_shell, children))
+        |> Option.value(~default=gap);
   };
 
 let rec fill_shell = (shape, query) =>
@@ -234,6 +223,7 @@ let rec fill_shell = (shape, query) =>
         shape,
         List.map2(fill_shell, shape_children, query_children),
       )
+      |> Option.value(~default=gap)
     | None => query
     };
   };
@@ -270,35 +260,12 @@ let rec route_query = (parent: Typ.t, child: Typ.t, query: Typ.t): Typ.t =>
               )
             : List.map(route_query(parent, _, query), cs);
         routed == [] || List.for_all(empty_query, routed)
-          ? gap : typ_rebuild(child, routed);
+          ? gap : typ_rebuild(child, routed) |> Option.value(~default=gap);
       }
     }
   };
 
-let rec subtract = (ctx: Ctx.t, query: Typ.t, supplied: Typ.t): Typ.t =>
-  if (is_gap(query)) {
-    gap;
-  } else if (is_gap(supplied)) {
-    query;
-  } else {
-    switch (Typ.term_of(query), Typ.term_of(supplied)) {
-    | (Parens(q), _) => subtract(ctx, q, supplied)
-    | (_, Parens(s)) => subtract(ctx, query, s)
-    | _ =>
-      switch (aligned_children(query, supplied)) {
-      | Some((queries, supplied)) =>
-        typ_rebuild(query, List.map2(subtract(ctx), queries, supplied))
-      | None =>
-        let query' = Typ.weak_head_normalize(ctx, query);
-        let supplied' = Typ.weak_head_normalize(ctx, supplied);
-        if (!Typ.equal(query, query') || !Typ.equal(supplied, supplied')) {
-          subtract(ctx, query', supplied');
-        } else {
-          Typ.meet(ctx, query, supplied) == None ? query : gap;
-        };
-      }
-    };
-  };
+let subtract = Typ.subtract;
 
 let query_residual = (ctx, query, supplied) => {
   let query = subtract(ctx, query, supplied);
@@ -355,7 +322,10 @@ let matched_query = (ctx, query) => {
           |> Typ.temp
         | _ =>
           let children = typ_children(ty);
-          children == [] ? gap : typ_rebuild(ty, List.map(go, children));
+          children == []
+            ? gap
+            : typ_rebuild(ty, List.map(go, children))
+              |> Option.value(~default=gap);
         };
       bindings == [] ? query : go(body);
     | _ => query
@@ -365,41 +335,29 @@ let matched_query = (ctx, query) => {
 };
 
 let query_overlap = (ctx, query, supplied) => {
-  let supplied =
-    switch (Typ.term_of(query)) {
-    | Sum(_) => Typ.weak_head_normalize(ctx, supplied)
-    | _ => supplied
-    };
+  let supplied = Typ.weak_head_normalize(ctx, supplied);
   let overlap =
     query_residual(ctx, query, query_residual(ctx, query, supplied));
   !unconstrained_result(query) && unconstrained_result(overlap)
     ? gap : overlap;
 };
 
-let matched_overlap = (ctx, query, supplied) => {
-  let supplied = Typ.weak_head_normalize(ctx, supplied);
-  switch (Typ.term_of(query), Typ.term_of(supplied)) {
-  | (Sum(queries), Sum(supplied))
-      when List.length(queries) == List.length(supplied) =>
-    let children = typ_children(query);
-    typ_rebuild(
-      query,
-      List.map2(
-        ((query, supplied), child) =>
-          switch (query, supplied) {
-          | (
-              ConstructorMap.Variant(name, _, _),
-              ConstructorMap.Variant(other, _, _),
-            )
-              when name == other => child
-          | _ => gap
-          },
-        List.combine(queries, supplied),
-        children,
-      ),
+let typ_ids = (ty: Typ.t): Id.Set.t => {
+  let ids = ref(Id.Set.empty);
+  let _ =
+    Typ.map_term(
+      ~f_typ=
+        (continue, ty) => {
+          ids :=
+            IdTagged.ids(ty)
+            |> Id.Set.of_list
+            |> Id.Set.add(Typ.rep_id(ty))
+            |> Id.Set.union(ids^);
+          continue(ty);
+        },
+      ty,
     );
-  | _ => query_residual(ctx, query, query_residual(ctx, query, supplied))
-  };
+  ids^;
 };
 
 let ids_of_typ = (actual: Typ.t, query: Typ.t): Id.Set.t => {
@@ -407,35 +365,22 @@ let ids_of_typ = (actual: Typ.t, query: Typ.t): Id.Set.t => {
     if (is_gap(query)) {
       Id.Set.singleton(Typ.rep_id(actual));
     } else {
-      let omitted_entries =
-        switch (Typ.term_of(actual), Typ.term_of(query)) {
-        | (Sum(actual), Sum(query))
-            when List.length(actual) == List.length(query) =>
-          List.map2(
-            (actual, query) =>
-              switch (actual, query) {
-              | (
-                  ConstructorMap.Variant(_, ann, _),
-                  ConstructorMap.BadEntry(q),
-                )
-                  when is_gap(q) =>
-                Id.Set.of_list(ann.ids)
-              | _ => Id.Set.empty
-              },
-            actual,
-            query,
-          )
-          |> List.fold_left(Id.Set.union, Id.Set.empty)
-        | _ => Id.Set.empty
-        };
-      let omitted_children =
+      let actual = expose(actual);
+      let query = expose(query);
+      if (Typ.equal(actual, query)) {
+        Id.Set.empty;
+      } else {
         switch (aligned_children(actual, query)) {
         | Some((actual, query)) =>
           List.map2(go, actual, query)
           |> List.fold_left(Id.Set.union, Id.Set.empty)
-        | None => Id.Set.empty
+        | None =>
+          let actual_ids = typ_ids(actual);
+          let query_ids = typ_ids(query);
+          Id.Set.is_empty(Id.Set.inter(actual_ids, query_ids))
+            ? Id.Set.empty : Id.Set.diff(actual_ids, query_ids);
         };
-      Id.Set.union(omitted_entries, omitted_children);
+      };
     };
   go(actual, query);
 };

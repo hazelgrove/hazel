@@ -27,6 +27,7 @@ let component_route = (f: MatchedTyp.matcher, ctx, i): query_route => {
         shape,
         components |> List.mapi((j, _) => i == j ? psi : gap),
       )
+      |> Option.value(~default=gap)
     | None => gap
     },
 };
@@ -46,7 +47,8 @@ let assembler_route =
   down: q => {
     let parent = asm(shapes);
     let routed = route_query(parent, List.nth(shapes, i), q);
-    empty_query(routed) ? route_query(parent, List.nth(anas, i), q) : routed;
+    empty_query(routed)
+      ? route_query(parent, List.nth(anas, i), q) : routed;
   },
   up: (_, psi) =>
     asm(
@@ -861,49 +863,6 @@ let module_omissions = (m, omitted) =>
     omitted,
   );
 
-let rec matched_body =
-        (
-          ~replace_bound=false,
-          ctx,
-          bound: list(string),
-          schema: Typ.t,
-          query: Typ.t,
-        )
-        : (Typ.t, list((string, Typ.t))) => {
-  let schema = expose(schema);
-  let query = expose(query);
-  switch (Typ.term_of(schema)) {
-  | Var(name) when List.mem(name, bound) => (
-      replace_bound ? query : schema,
-      [(name, query)],
-    )
-  | _ =>
-    let ss = typ_children(schema);
-    let qs = typ_children(query);
-    if (ss != []
-        && Typ.cls_of_term(Typ.term_of(schema))
-        == Typ.cls_of_term(Typ.term_of(query))
-        && List.length(ss) == List.length(qs)) {
-      let pairs =
-        List.map2(matched_body(~replace_bound, ctx, bound), ss, qs);
-      (
-        typ_rebuild(schema, List.map(fst, pairs)),
-        List.concat_map(snd, pairs),
-      );
-    } else {
-      switch (Typ.term_of(query)) {
-      | Sum(_) =>
-        let schema = Typ.weak_head_normalize(ctx, schema);
-        switch (Typ.term_of(schema)) {
-        | Sum(_) => matched_body(~replace_bound, ctx, bound, schema, query)
-        | _ => (query, [])
-        };
-      | _ => (query, [])
-      };
-    };
-  };
-};
-
 let matched_type_application =
     (
       ~direction,
@@ -927,7 +886,13 @@ let matched_type_application =
   let (matched, constraints) =
     implicit && names == []
       ? (query, [])
-      : matched_body(~replace_bound=implicit, ctx, names, schema, query);
+      : Typ.collect_constraints(
+          ~replace_bound=implicit,
+          ctx,
+          names,
+          schema,
+          query,
+        );
   let constraint_for = name =>
     constraints
     |> List.filter_map(((n, ty)) => n == name ? Some(ty) : None)
@@ -1128,6 +1093,32 @@ let slice_forward =
   results_join(ctx, forward);
 };
 
+let matched_branch_decomposition = (ctx, demand, supplied) => {
+  let supplied = Typ.weak_head_normalize(ctx, supplied);
+  switch (Typ.term_of(demand), Typ.term_of(supplied)) {
+  | (Sum(demanded), Sum(supplied)) =>
+    let contains = name =>
+      List.exists(
+        fun
+        | ConstructorMap.Variant(other, _, _) =>
+          Constructor.equal(name, other)
+        | ConstructorMap.BadEntry(_) => false,
+        supplied,
+      );
+    Sum(
+      List.map(
+        fun
+        | ConstructorMap.Variant(name, _, _) as variant =>
+          contains(name) ? variant : ConstructorMap.BadEntry(gap)
+        | ConstructorMap.BadEntry(_) => ConstructorMap.BadEntry(gap),
+        demanded,
+      ),
+    )
+    |> Typ.temp;
+  | _ => query_overlap(ctx, demand, supplied)
+  };
+};
+
 let slice_branches =
     (~overlay, ctx: Ctx.t, branches: list(node), query: Typ.t): result => {
   let matched = matched_query(ctx, query);
@@ -1159,7 +1150,8 @@ let slice_branches =
                 | _ => candidate.psi
                 };
               };
-            let branch_query = matched_overlap(ctx, residual, supplied);
+            let branch_query =
+              matched_branch_decomposition(ctx, residual, supplied);
             let slice =
               empty_query(branch_query) ? branch.dispatch(gap) : candidate;
             {
