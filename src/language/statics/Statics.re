@@ -392,6 +392,12 @@ and uexp_to_info_map =
     StaticsSlice.matched(~parent=uexp, child, k);
   let (let!) = (pattern, k) =>
     k(StaticsSlice.pattern(~parent=uexp, pattern));
+  let (let<|) = (f, k) => k(List.hd(StaticsSlice.decompose(f, ctx, ana)));
+  let (let<>) = (f, k) => {
+    let cs = StaticsSlice.decompose(f, ctx, ana);
+    k((List.nth(cs, 0), List.nth(cs, 1)));
+  };
+  let ( let<* ) = (f, k) => k(StaticsSlice.decompose(f, ctx, ana));
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -671,7 +677,7 @@ and uexp_to_info_map =
       );
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
-      let inner_ana = StaticsSlice.Matched.list(ctx, ana);
+      let<| inner_ana = MatchedTyp.list_slots;
       let anas = List.init(List.length(es), _ => inner_ana);
       let ((es, es_elabs), m) = map_m_go(m, anas, es);
       /* Use elements' synthesized types consistently for both the meet and
@@ -709,7 +715,7 @@ and uexp_to_info_map =
         )
       };
     | Cons(hd, tl) =>
-      let head_ana = StaticsSlice.Matched.list(ctx, ana);
+      let<| head_ana = MatchedTyp.list_slots;
       let* (hd, hd_elab, m) = go(~ana=head_ana, hd, m);
       let tail_ana_ty = Typ.match_synswitch(ana, List(hd.ty) |> Typ.temp);
       let& (tl, tl_elab, m) = go(~ana=Info.pure(tail_ana_ty), tl, m);
@@ -1057,7 +1063,18 @@ and uexp_to_info_map =
                 );
               let* (value_info, value_elab, m) =
                 go(
-                  ~ana=StaticsSlice.Matched.nested(ana, ctx, 1, val_mode),
+                  ~ana=
+                    StaticsSlice.at(
+                      val_mode,
+                      StaticsSlice.compose_route(
+                        ana.route,
+                        StaticsSlice.component_route(
+                          MatchedTyp.label_slots,
+                          ctx,
+                          1,
+                        ),
+                      ),
+                    ),
                   value,
                   m,
                 );
@@ -1157,7 +1174,18 @@ and uexp_to_info_map =
             }
           },
           ([], [], m),
-          StaticsSlice.Matched.elems(ctx, ana_tys),
+          List.mapi(
+            (i, ty) =>
+              StaticsSlice.at(
+                ty,
+                StaticsSlice.component_route(
+                  MatchedTyp.prod_slots(List.length(es)),
+                  ctx,
+                  i,
+                ),
+              ),
+            ana_tys,
+          ),
           List.combine(inferred, es),
         );
 
@@ -1984,7 +2012,7 @@ and uexp_to_info_map =
       };
     | Fun(p, e, typ, n) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (mode_pat, mode_body) = StaticsSlice.Matched.arrow(ctx, ana);
+      let<> (mode_pat, mode_body) = MatchedTyp.arrow_slots;
       let mode_pat =
         switch (typ) {
         | Some(t) => StaticsSlice.at(t, mode_pat.route)
@@ -2043,8 +2071,8 @@ and uexp_to_info_map =
          context with each binder, and rename the expected Poly's
          binder list element-wise so the body's expected type uses the
          user-written names. */
-      let (name_expected_opt, item) =
-        StaticsSlice.Matched.poly_body(ctx, ana);
+      let (name_expected_opt, _) = MatchedTyp.poly_pair_tolerant(ctx, ana);
+      let<| item = MatchedTyp.poly_slots;
       let user_binders = TPat.binders_of(utpat);
       let user_names_safe =
         user_binders

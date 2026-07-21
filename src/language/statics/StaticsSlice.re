@@ -9,36 +9,29 @@ let compose_route = (a: query_route, b: query_route): query_route => {
   up: (shape, psi) => a.up(shape, b.up(a.down(shape), psi)),
 };
 
-let route_component = (ctx: Ctx.t, i: int): query_route => {
-  down: q =>
-    List.nth_opt(typ_children(Typ.weak_head_normalize(ctx, q)), i)
-    |> Option.value(~default=gap),
-  up: (shape, psi) => lift(Typ.weak_head_normalize(ctx, shape), [i], psi),
-};
-
 let at = (ty: Typ.t, route: query_route): routed(Typ.t) => {
   value: ty,
   route,
 };
 
-module Matched = {
-  let slot = (ctx, i, ty): routed(Typ.t) =>
-    at(ty, route_component(ctx, i));
-  let arrow = (ctx, ty): (routed(Typ.t), routed(Typ.t)) => {
-    let (i, o) = MatchedTyp.arrow_tolerant(ctx, ty);
-    (slot(ctx, 0, i), slot(ctx, 1, o));
-  };
-  let list = (ctx, ty): routed(Typ.t) =>
-    slot(ctx, 0, MatchedTyp.list_tolerant(ctx, ty));
-  let poly_body = (ctx, ty): (option(TPat.t), routed(Typ.t)) => {
-    let (binder, body) = MatchedTyp.poly_pair_tolerant(ctx, ty);
-    (binder, slot(ctx, 0, body));
-  };
-  let elems = (ctx, tys: list(Typ.t)): list(routed(Typ.t)) =>
-    List.mapi((i, ty) => slot(ctx, i, ty), tys);
-  let nested = (outer: routed(Typ.t), ctx, i, ty): routed(Typ.t) =>
-    at(ty, compose_route(outer.route, route_component(ctx, i)));
+let component_route = (f: (Ctx.t, Typ.t) => list(Typ.t), ctx, i): query_route => {
+  down: q => List.nth_opt(f(ctx, q), i) |> Option.value(~default=gap),
+  up: (shape, psi) =>
+    typ_rebuild(
+      shape,
+      f(ctx, shape) |> List.mapi((j, _) => i == j ? psi : gap),
+    ),
 };
+
+let decompose =
+    (f: (Ctx.t, Typ.t) => list(Typ.t), ctx, ana): list(routed(Typ.t)) =>
+  f(ctx, ana)
+  |> List.mapi((i, c) =>
+       {
+         value: c,
+         route: component_route(f, ctx, i),
+       }
+     );
 
 type result = {
   omitted: Id.Set.t,

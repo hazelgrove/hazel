@@ -104,3 +104,22 @@ let label = (ctx, ty): option((Typ.t, Typ.t)) =>
     Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
   | _ => None
   };
+
+let arrow_slots = (ctx, ty): list(Typ.t) => {
+  let (i, o) = arrow_tolerant(ctx, ty);
+  [i, o];
+};
+let list_slots = (ctx, ty): list(Typ.t) => [list_tolerant(ctx, ty)];
+let poly_slots = (ctx, ty): list(Typ.t) => [
+  snd(poly_pair_tolerant(ctx, ty)),
+];
+let label_slots = (ctx, ty): list(Typ.t) =>
+  switch (label(ctx, ty)) {
+  | Some((l, v)) => [l, v]
+  | None => [Unknown(Internal) |> temp, Unknown(Internal) |> temp]
+  };
+let prod_slots = (arity, ctx, ty): list(Typ.t) =>
+  switch (args(ctx, ty, arity)) {
+  | L(tys) => tys
+  | R(_) => List.init(arity, _ => Unknown(Internal) |> temp)
+  };
