@@ -173,13 +173,15 @@ module Local = {
                 ),
               )
             | "insert_after" =>
-              let code = get_string(args, "code");
+              /* Models often emit indented code; strip per-line leading
+                 whitespace like user paste does (Hazel re-indents on render) */
+              let code = StringUtil.trim_leading(get_string(args, "code"));
               switch (get_optional_string(args, "path")) {
               | Some(path) => EditorAction(Insert(After, path, code))
               | None => InsertAtProgramBoundary(After, code)
               };
             | "insert_before" =>
-              let code = get_string(args, "code");
+              let code = StringUtil.trim_leading(get_string(args, "code"));
               switch (get_optional_string(args, "path")) {
               | Some(path) => EditorAction(Insert(Before, path, code))
               | None => InsertAtProgramBoundary(Before, code)
