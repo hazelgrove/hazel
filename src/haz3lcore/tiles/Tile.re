@@ -16,16 +16,11 @@ let has_label = (t: t, lbl: Label.t): bool => label(t) == lbl;
 let arity = (t: t): int => List.length(label(t));
 let token = (t: t, i: int): Token.t => List.nth(label(t), i);
 
-/* Form predicates: sites should ask semantic questions about tiles
- * ("is this a comma?") rather than compare label strings; the token
- * spellings live only in Form.re/Token.re. Two strictness levels:
- * - is_form: exact form identity (Compound or its Unsorted fallback);
- * - has_label_of: "shaped like cf" — same label as cf, whatever the
- *   form. Wider than is_form: labels are shared between forms (e.g.
- *   ["(",")"] is both Parens* and Ap*; [","] covers Exp/Pat/Typ and
- *   Drv commas) and Unmolded/Atom tiles can spell the same tokens.
- * The named predicates below are label-family level, preserving the
- * label-comparison semantics of their historical call sites. */
+/* Form predicates. is_form is exact form identity (Compound or its
+ * Unsorted fallback). has_label_of and the named predicates below are
+ * label-family level — labels are shared between forms (e.g.
+ * ["(",")"] is both Parens* and Ap*) — preserving the label-comparison
+ * semantics of their historical call sites. */
 
 let is_form = (t: t, cf: Form.compound_form): bool =>
   switch (t.form) {
@@ -38,43 +33,30 @@ let is_form = (t: t, cf: Form.compound_form): bool =>
 let has_label_of = (t: t, cf: Form.compound_form): bool =>
   Form.has_label_of(t.form, cf);
 
-/* [","]: CommaExp/CommaPat/CommaTyp + Drv commas */
 let is_comma = (t: t): bool => has_label_of(t, CommaExp);
 
-/* ["|","=>"]: Rule + Drv(Rule) */
 let is_case_rule = (t: t): bool => has_label_of(t, Rule);
 
-/* ["case","end"]: Case + Drv(Case) */
 let is_case = (t: t): bool => has_label_of(t, Case);
 
-/* [";"]: CellJoin/ModSeq/SigSeq */
 let is_semi = (t: t): bool => has_label_of(t, CellJoin);
 
-/* ["."]: DotExp/DotTyp/ProdProjection + Drv(Dot) */
 let is_dot = (t: t): bool => has_label_of(t, DotExp);
 
-/* ["="]: labeled-tuple/record binding = (not ==):
- * TupleLabeled{Exp,Pat,Typ} */
 let is_tuple_label_eq = (t: t): bool => has_label_of(t, TupleLabeledExp);
 
-/* ["(",")"]: Parens* AND Ap* (all sorts, incl. Drv) — parens and
- * aps share this label, so this is deliberately family-level */
+/* parens AND aps: all forms spelling ["(",")"], deliberately */
 let is_paren_shaped = (t: t): bool => has_label_of(t, ParensExp);
 
-/* ["[","]"]: ListLit{Exp,Pat}/ListTyp + Drv(List) */
 let is_bracket_shaped = (t: t): bool => has_label_of(t, ListLitExp);
 
-/* ["()"]: Ap{Exp,Pat}Empty + the EmptyTuple atom */
 let is_empty_tuple_shaped = (t: t): bool => label(t) == [Token.empty_tuple];
 
-/* ["?"]: the explicit-hole atom */
 let is_explicit_hole = (t: t): bool => label(t) == [Token.explicit_hole];
 
-/* Multi-delimiter (polytile) forms */
 let is_multidelimiter = (t: t): bool => List.length(label(t)) > 1;
 
-/* Definition-like forms whose final delimiter is `in` (let/type/
- * module/theorem/filter forms) */
+/* let/type/module/theorem/filter forms */
 let ends_with_in = (t: t): bool =>
   switch (label(t) |> List.rev) {
   | ["in", ..._] => true
@@ -192,9 +174,8 @@ let reassemble = (match: Aba.t(t, segment)): t => {
   assert(List.sort(Int.compare, shards) == shards);
   {
     id: t.id,
-    // note: this throws away forms on tiles other than hd.
-    // in cases where those forms differ (pending remold),
-    // reassembled tile should undergo subsequent remolding.
+    // discards forms on non-hd tiles; if they differ (pending
+    // remold), the reassembled tile must be remolded
     form: t.form,
     shards,
     children,

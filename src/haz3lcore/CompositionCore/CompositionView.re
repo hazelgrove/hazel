@@ -238,8 +238,6 @@ module Local = {
 
   let projector_to_segment = (pr: Base.projector): Segment.t =>
     switch (pr.kind) {
-    /* Unmolded placeholder: display-only (feeds Printer.of_segment,
-     * which reads only labels) */
     | Fold => [Piece.mk_tile(Form.Unmolded({|⋱|}), [])]
     | _ => Triggers.projector_to_invoke(pr)
     };

@@ -13,31 +13,20 @@
 open Util;
 open Language;
 
-/* The dispatch head of a root piece: its effective token list —
- * the tokens of its PRESENT shards — classified against the
- * grammar's label menu. Compound identity is matched by
- * constructor below; single tokens carry the token itself so
- * that atomic classification can re-derive from predicates.
- *
- * TRUST BOUNDARY: the head is a pure function of the effective
- * label, not of the tile's stored form. A complete tile's stored
- * compound identity is label-equivalent to its head by
- * construction (labels derive from forms), but the stored atomic
- * class/sort may be stale relative to the context this parse
- * sees (e.g. a TyVar-classified var sitting in Exp context), and
- * an INCOMPLETE tile's present shards may spell a different
- * complete label (e.g. a partial `let _ = _ in` missing its `in`
- * spells the ModLet label ["let","="]). So:
- * - atomic cases below classify by token predicate on Mono's
- *   token, never by the stored atomic class (revisit under the
- *   sort-quotient program);
- * - incomplete tiles fall through to the hole path (Partial)
- *   unless their present shards spell a complete label, exactly
- *   as under string matching;
- * - match arms cover the FULL label-equivalence class (all forms
- *   sharing a label, e.g. `+` = Plus | TypPlus | TypSumSingle |
- *   Drv(Plus | Sum)), so a stale-molded tile still parses by its
- *   label, as it did under string matching. */
+/* The dispatch head of a root piece: its effective token list (the
+ * tokens of its PRESENT shards) classified against the grammar's
+ * label menu. TRUST BOUNDARY: the head is a pure function of the
+ * effective label, never of the tile's stored form — the stored
+ * atomic class/sort may be stale relative to the context this parse
+ * sees (e.g. a TyVar-classified var in Exp context), and an
+ * incomplete tile's present shards may spell a different complete
+ * label (a partial `let _ = _ in` missing its `in` spells the ModLet
+ * label ["let","="]). So atomic cases classify by token predicate on
+ * Mono's token; incomplete tiles fall through to the hole path
+ * (Partial) unless their present shards spell a complete label; and
+ * match arms cover the full label-equivalence class (e.g. `+` = Plus
+ * | TypPlus | TypSumSingle | Drv(Plus | Sum)), so a stale-molded
+ * tile still parses by its label, exactly as under string matching. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type head =
   | Multi(Form.compound_form) /* complete multi-token label (class rep) */
@@ -72,8 +61,6 @@ let head: Piece.t => head =
     _ => ProjWrap,
   );
 
-/* The ["(", ")"] label class, wide enough (13 forms) to warrant a
- * predicate over inline or-patterns at its several use sites. */
 let is_paren_lbl: Form.compound_form => bool =
   fun
   | ParensExp

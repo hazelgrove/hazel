@@ -1,7 +1,5 @@
 open Haz3lcore;
 
-/* Everything here is a registered compound form except exp/pat/typ/tpat
- * below, whose atomic tokens go through classify_label. */
 let mk_tile = (form: Form.compound_form) =>
   Piece.mk_tile(Form.Compound(form));
 let mk_monotile = form => mk_tile(form, []);

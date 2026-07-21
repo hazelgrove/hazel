@@ -84,7 +84,6 @@ let expand_projector = (z: t): option(t) => {
 
 let refractor_to_invoke =
     (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t => [
-  // classifies to Atom(ProjectorInvoke, Exp, _): same op(Exp) mold
   Piece.mk_tile(
     Form.classify_label(Exp, [Token.mk_projector_invoke(kind)]),
     [],
@@ -98,8 +97,6 @@ let refractor_to_invoke_text =
     (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t =>
   switch (kind) {
   | Probe =>
-    /* the brackets classify as Unmolded (display-only path: these
-     * segments feed to_string, which reads only labels) */
     [Piece.mk_tile(Form.Unmolded(Token.probe_start), []), ...seg]
     @ [Piece.mk_tile(Form.Unmolded(Token.probe_end), [])]
   | _ => refractor_to_invoke(kind, seg)

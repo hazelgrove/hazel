@@ -95,11 +95,6 @@ let mk_post_c =
 let mk_parens = (sort: Sort.t) =>
   mk_op_c(LT, Token.tuple_lbl, sort, [sort]);
 
-/* B. Operands: see FormId.atomic_form (moved) */
-
-/* C. Compound Forms: see FormId.drv_compound_form and
-   FormId.compound_form (moved) */
-
 let drv_get: drv_compound_form => def =
   fun
   | OfJdmt => mk_op_c(L, ["of_jdmt", "end"], Exp, [Drv(Exp)])
@@ -609,12 +604,10 @@ module Expansion = {
     };
 };
 
-/* FormId lookup/classification layer (tile-datatype Phase 0c).
- * Byte-equivalent to the Molds oracle above; the equivalence is
- * enforced by property tests in test/Test_FormId.re. Molds remains
- * the source of truth for consumers until the Phase 1 flip. */
+/* FormId lookup/classification layer. Byte-equivalent to the legacy
+ * Molds oracle above (enforced by property tests in
+ * test/Test_FormId.re). */
 
-/* Memoized compound_form => form definition */
 let form_of: compound_form => def = {
   let tbl: Hashtbl.t(compound_form, def) = Hashtbl.create(256);
   List.iter(((cf, form)) => Hashtbl.replace(tbl, cf, form), forms);
@@ -628,7 +621,6 @@ let form_of: compound_form => def = {
 let atomic_defs: list((atomic_form, (Token.t => bool, list(Mold.t)))) =
   List.map(a => (a, get_atomic_form(a)), all_of_atomic_form);
 
-/* (id, mold) candidates for token t; molds in Molds.atomic order */
 let atomic_candidates = (t: Token.t): list((FormId.t, Mold.t)) =>
   List.concat_map(
     ((a, (pred, molds))) =>
@@ -637,11 +629,8 @@ let atomic_candidates = (t: Token.t): list((FormId.t, Mold.t)) =>
     atomic_defs,
   );
 
-/* label => (form, mold) pairs, memoized; per-label mold order
- * reproduces Molds.compounds: the fold there appends same-label
- * molds in forms-declaration order (its remove_assoc/cons only
- * reorders the assoc between DIFFERENT labels, which per-label
- * lookup never observes) */
+/* label => (form, mold) pairs, memoized; per-label order =
+ * forms-declaration order (remolding priority) */
 let compound_defs: Label.t => list((compound_form, Mold.t)) = {
   let tbl: Hashtbl.t(Label.t, list((compound_form, Mold.t))) =
     Hashtbl.create(256);
@@ -655,8 +644,6 @@ let compound_defs: Label.t => list((compound_form, Mold.t)) = {
   label => Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
 };
 
-/* Mirrors Molds.get_base: atomic-classified molds first for
- * single-token labels, then compound molds in declaration order */
 let base_candidates = (label: Label.t): list((FormId.t, Mold.t)) => {
   let compounds =
     compound_defs(label) |> List.map(((cf, m)) => (Compound(cf), m));
@@ -666,7 +653,6 @@ let base_candidates = (label: Label.t): list((FormId.t, Mold.t)) => {
   };
 };
 
-/* Mirrors the Any-fallback in Molds.get */
 let unmolded_mold = (label: Label.t): Mold.t =>
   switch (label) {
   | [t]
@@ -724,15 +710,13 @@ let classify_label = (sort: Sort.t, label: Label.t): FormId.t => {
   };
 };
 
-/* FormId for wrapping a segment in parens at a given sort.
- * Replaces mk_parens on the Segment.mk_duo/parenthesize path:
- * always selects the registered Paren form for the sort (like
- * mk_parens, which built the op-shaped paren mold directly and
- * never the Ap form that classify_label would find first at
- * Drv(Exp)/Drv(Pat)). For sorts with no registered paren form
- * (Rul, Mod, Sig, MPat, Any, remaining Drv sorts) falls back to
- * classify_label, i.e. Unsorted(ParensExp) with the op(Any)
- * fallback mold, where mk_parens built op(sort, [sort]). */
+/* The FormId wrapping a segment in parens at a given sort
+ * (Segment.mk_duo/parenthesize): always the registered Paren form,
+ * never the Ap form classify_label would find first at
+ * Drv(Exp)/Drv(Pat). Sorts with no registered paren form (Rul, Mod,
+ * Sig, MPat, Any, remaining Drv) fall back to classify_label —
+ * Unsorted(ParensExp) with the op(Any) mold, where the old
+ * mk_parens built op(sort, [sort]). */
 let mk_parens_id = (sort: Sort.t): FormId.t =>
   switch (sort) {
   | Exp => Compound(ParensExp)
