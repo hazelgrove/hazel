@@ -1,7 +1,7 @@
 open Util;
 
 let allowed_kinds_line =
-  "kind must be one of: fold, slider, sliderf, check, text, card, csv, livelit (same as the editor projector menu). "
+  "kind must be one of: fold, slider, sliderf, check, text, card, table, csv, livelit (same as the editor projector menu). "
   ++ "Do not use probe or statics here — use place_probe / place_statics instead.";
 
 let catalog_crossref =
@@ -48,7 +48,7 @@ let place_syntax_projector: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Syntax projector kind: fold, slider, sliderf, check, text, card, csv, or livelit.",
+                        "Syntax projector kind: fold, slider, sliderf, check, text, card, table, csv, or livelit.",
                       ),
                     ),
                   ]),
@@ -158,7 +158,7 @@ let toggle_syntax_projector: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Syntax projector kind: fold, slider, sliderf, check, text, card, csv, or livelit.",
+                        "Syntax projector kind: fold, slider, sliderf, check, text, card, table, csv, or livelit.",
                       ),
                     ),
                   ]),
