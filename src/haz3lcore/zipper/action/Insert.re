@@ -405,15 +405,12 @@ let insert_or_append = (char: string, z: t, ~root): option(t) =>
  * backtick, hash) serialize the selection to text and create a
  * token or secondary piece. */
 
-let is_opening_delimiter = (char: string): bool =>
-  char == "(" || char == "[" || char == "{";
+let is_opening_delimiter = Token.is_opening_bracket;
 
 let delimiter_label = (char: string): Label.t =>
-  switch (char) {
-  | "(" => Token.tuple_lbl
-  | "[" => Token.listlit_lbl
-  | "{" => Token.mod_lbl
-  | _ => failwith("not a delimiter: " ++ char)
+  switch (Token.label_of_opening_bracket(char)) {
+  | Some(lbl) => lbl
+  | None => failwith("not a delimiter: " ++ char)
   };
 
 /* Wrap selection in balanced delimiters. Creates the wrapping tile

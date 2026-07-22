@@ -376,31 +376,13 @@ let is_rule_tile = (candidate_id: Id.t, data: TermData.t): bool =>
   | _ => false
   };
 
-/* Keywords that introduce a "body" determining the form's value.
- * When an incomplete tile is missing a shard with one of these,
- * the form's value is hole-like (body not yet typed). */
-let body_introducing_keywords = ["in", "else", "end"];
-
 /* Check if an incomplete tile is missing a body-determining shard.
  * E.g., `let a = expr` (missing "in") - the body determines the value.
  * Such forms should be deprioritized in favor of their subexpressions. */
 let is_incomplete_binding_form = (candidate_id: Id.t, data: TermData.t): bool =>
   switch (TermData.root_tile(candidate_id, data)) {
   | Some(t) when !Tile.is_complete(t) =>
-    /* Check if any missing shard is a body-introducing keyword */
-    let missing_shards = Tile.missing_shards(t);
-    List.exists(
-      (shard: Tile.t) =>
-        switch (shard.shards) {
-        | [i] =>
-          switch (List.nth_opt(Tile.label(shard), i)) {
-          | Some(token) => List.mem(token, body_introducing_keywords)
-          | None => false
-          }
-        | _ => false
-        },
-      missing_shards,
-    );
+    List.exists(Tile.is_body_introducing_shard, Tile.missing_shards(t))
   | _ => false
   };
 

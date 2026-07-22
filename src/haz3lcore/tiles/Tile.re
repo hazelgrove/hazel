@@ -84,6 +84,20 @@ let is_prefix_arrow_form = (t: t): bool =>
   | _ => false
   };
 
+/* Shards that introduce the "body" determining a form's value:
+ * a tile missing one of these has a hole-like value (body not yet
+ * typed). "->" is deliberately excluded. Expects a single-shard
+ * tile as produced by missing_shards. */
+let is_body_introducing_shard = (shard: t): bool =>
+  switch (shard.shards) {
+  | [i] =>
+    switch (List.nth_opt(label(shard), i)) {
+    | Some(token) => List.mem(token, ["in", "else", "end"])
+    | None => false
+    }
+  | _ => false
+  };
+
 let is_complete = (t: t) => arity(t) == List.length(t.shards);
 
 let l_shard = t =>

@@ -261,6 +261,21 @@ let mod_lbl = [mod_start, mod_end];
 let empty_module = append(mod_start, mod_end);
 let is_empty_module = equal(empty_module);
 
+/* Bracket pairs: the single home for the open/close/label
+ * correspondence of the paired bracket delimiters */
+let bracket_pairs: list((t, t, list(t))) = [
+  (tuple_start, tuple_end, tuple_lbl),
+  (list_start, list_end, listlit_lbl),
+  (mod_start, mod_end, mod_lbl),
+];
+
+let is_opening_bracket = (t: t): bool =>
+  List.exists(((op, _, _)) => equal(op, t), bracket_pairs);
+
+let label_of_opening_bracket = (t: t): option(list(t)) =>
+  List.find_opt(((op, _, _)) => equal(op, t), bracket_pairs)
+  |> Option.map(((_, _, lbl)) => lbl);
+
 let const_mono_delims =
   base_typs
   @ bools
