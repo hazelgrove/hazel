@@ -209,7 +209,10 @@ let update =
           ),
         );
       } else {
-        let new_z = Dump.to_zipper(new_z, ~root=Exp);
+        let new_z =
+          CompositionGo.Local.PerformUtils.normalize_top_level(
+            Dump.to_zipper(new_z, ~root=Exp),
+          );
         let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
         let new_code_with_statics =
           CodeWithStatics.Model.mk(new_editor_model);

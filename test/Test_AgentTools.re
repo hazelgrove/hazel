@@ -72,7 +72,13 @@ let run_insert_at_program_boundary =
         ),
       );
     } else {
-      Ok(Dump.to_zipper(new_z, ~root=Exp));
+      /* Mirror AgentToolCallHandler: boundary inserts normalize like the
+         dispatch path. */
+      Ok(
+        CompositionGo.Local.PerformUtils.normalize_top_level(
+          Dump.to_zipper(new_z, ~root=Exp),
+        ),
+      );
     };
   };
 };
@@ -937,7 +943,7 @@ let insert_tests = (
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_indented_code",
-            "let a = 1 in let b = 2 in\nlet c = 3 in\n a + b",
+            "let a = 1 in let b = 2 in\n\nlet c = 3 in\n a + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -960,7 +966,7 @@ let insert_tests = (
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_crlf_code",
-            "let a = 1 in let b = 2 in\nlet c = 3 in\nlet d = 4 in\n a + b",
+            "let a = 1 in let b = 2 in\n\nlet c = 3 in\n\nlet d = 4 in\n a + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -971,7 +977,7 @@ let insert_tests = (
     test_case("insert_after last binding keeps line separator", `Quick, () => {
       check_rendered_exact(
         "insert_after_last_separator",
-        "let a = 1 in let b = 2 in\nlet c = 3 in\n a + b",
+        "let a = 1 in let b = 2 in\n\nlet c = 3 in\n a + b",
         apply_and_render(
           "let a = 1 in let b = 2 in a + b",
           Insert(After, "b", "let c = 3 in"),
@@ -989,7 +995,7 @@ let insert_tests = (
       | Ok(z) =>
         check_rendered_exact(
           "boundary_append_separator",
-          "let a = 1 in let b = 2 in\nlet c = 3 in\n?",
+          "let a = 1 in let b = 2 in\n\nlet c = 3 in\n?",
           render_zipper(z),
         )
       | Error(err) =>
@@ -4318,7 +4324,7 @@ let paste_funnel_tests = (
          the trim must live at the paste funnel, not per tool arm */
       check_rendered_exact(
         "insert_perform_level_indented",
-        "let a = 1 in\nlet c = 3 in\n a",
+        "let a = 1 in\n\nlet c = 3 in\n a",
         apply_and_render(
           "let a = 1 in a",
           Insert(After, "a", "  let c = 3 in"),
@@ -4700,10 +4706,127 @@ let fn_sugar_tests = (
 );
 
 /* ============================================================
+   VERTICAL WHITESPACE NORMALIZATION (agent edits)
+   ============================================================ */
+
+let leading_newline = (s: string): bool =>
+  String.length(s) > 0 && s.[0] == '\n';
+
+let trailing_newlines = (s: string): int => {
+  let rec go = (i, acc) =>
+    i >= 0 && s.[i] == '\n' ? go(i - 1, acc + 1) : acc;
+  go(String.length(s) - 1, 0);
+};
+
+let contains_sub = (haystack: string, needle: string): bool => {
+  let (hl, nl) = (String.length(haystack), String.length(needle));
+  let rec go = i =>
+    i + nl <= hl && (String.sub(haystack, i, nl) == needle || go(i + 1));
+  nl == 0 || go(0);
+};
+
+let whitespace_normalization_tests = (
+  "WhitespaceNormalization",
+  [
+    test_case(
+      "trailing linebreaks do not accumulate over chained edits",
+      `Quick,
+      () => {
+        /* Live-session symptom: blank lines grew at program end as edits
+           near it repeated (each insert's magic-newline wrap left a \n).
+           (update_body over a hole adds no linebreaks — space-pad only —
+           so the accumulation shape is insert-driven.) */
+        let rendered =
+          apply_chain_render(
+            "let a = 1 in ?",
+            [
+              Insert(After, "a", "let b = 2 in"),
+              Insert(After, "b", "let c = 3 in"),
+              Insert(After, "c", "let d = 4 in"),
+            ],
+          );
+        check(
+          bool,
+          "at most one trailing linebreak",
+          true,
+          trailing_newlines(rendered) <= 1,
+        );
+        check_rendered_exact(
+          "chained insert_after spacing",
+          "let a = 1 in\n\nlet b = 2 in\n\nlet c = 3 in\n\nlet d = 4 in\n ?",
+          rendered,
+        );
+      },
+    ),
+    test_case("prepend leaves no leading blank line", `Quick, () => {
+      switch (run_insert_at_program_boundary("1", Before, "let a = 2 in")) {
+      | Ok(z) =>
+        let rendered = render_zipper(z);
+        check(bool, "no leading newline", false, leading_newline(rendered));
+        check_rendered_exact("prepend spacing", "let a = 2 in\n1", rendered);
+      | Error(err) =>
+        Alcotest.fail("prepend failed: " ++ Action.Failure.show(err))
+      }
+    }),
+    test_case(
+      "one blank line between consecutive top-level bindings", `Quick, () => {
+      check_rendered_exact(
+        "inter-binding blank line",
+        "let a = 1 in let b = 2 in\n\nlet c = 3 in\n a + b",
+        apply_and_render(
+          "let a = 1 in let b = 2 in a + b",
+          Insert(After, "b", "let c = 3 in"),
+        ),
+      )
+    }),
+    test_case(
+      "normalization is idempotent across edits",
+      `Quick,
+      () => {
+        check_rendered_exact(
+          "one edit",
+          "let a = 5 in\n\nlet b = 2 in a",
+          apply_and_render(
+            "let a = 1 in\n\nlet b = 2 in a",
+            Update(Definition, "a", "5"),
+          ),
+        );
+        check_rendered_exact(
+          "two edits, spacing stable",
+          "let a = 6 in\n\nlet b = 2 in a",
+          apply_chain_render(
+            "let a = 1 in\n\nlet b = 2 in a",
+            [Update(Definition, "a", "5"), Update(Definition, "a", "6")],
+          ),
+        );
+      },
+    ),
+    test_case(
+      "top-level comment secondaries are preserved",
+      `Quick,
+      () => {
+        let rendered =
+          apply_and_render(
+            "let a = 1 in\n# note #\nlet b = 2 in a",
+            Update(Definition, "a", "5"),
+          );
+        check(
+          bool,
+          "comment survives",
+          true,
+          contains_sub(rendered, "# note #"),
+        );
+      },
+    ),
+  ],
+);
+
+/* ============================================================
    AGGREGATE ALL TESTS
    ============================================================ */
 
 let tests = [
+  whitespace_normalization_tests,
   paste_funnel_tests,
   edit_action_tests,
   insert_at_program_boundary_tests,

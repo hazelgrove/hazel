@@ -261,6 +261,83 @@ module Local = {
         ? seg @ [space()] : seg;
     };
 
+    /* Post-edit vertical-whitespace normalization for the agent structural
+       edit path. Operates on the zipper's top-level segment only (the
+       outermost binding chain); inner definition/body layout is untouched.
+       Motivation: the insert/update arms wrap pasted code as "\n"++code++"\n"
+       ("magic space"), and nothing collapses the resulting linebreak runs, so
+       (1) prepends leave a leading blank line and (2) trailing linebreaks
+       accumulate across successive edits near the program end. Policy:
+       - no blank lines before the first piece,
+       - exactly one blank line (two linebreaks) between consecutive top-level
+         bindings (tiles whose form ends in `in`),
+       - a single linebreak on any other inter-piece boundary that already had
+         one, and at most a single trailing linebreak at program end.
+       Only maximal runs of linebreaks are rewritten; spaces (including body
+       indentation) and comment secondaries are left in place and bound the
+       runs. Fresh ids on the linebreaks are overlay-safe: statics/probes key
+       to term ids. */
+    let is_linebreak = (p: Piece.t): bool =>
+      switch (p) {
+      | Secondary({content: Whitespace(s), _}) => s == Token.linebreak
+      | _ => false
+      };
+    let is_binding_tile = (p: Piece.t): bool =>
+      switch (p) {
+      | Tile(t) => ListUtil.last_opt(t.label) == Some("in")
+      | _ => false
+      };
+    let linebreak = () =>
+      Piece.Secondary({
+        id: Id.mk(),
+        content: Secondary.Whitespace(Token.linebreak),
+      });
+    let normalize_top_level_whitespace = (seg: Segment.t): Segment.t => {
+      /* Group into maximal linebreak runs and everything else (tokens), so a
+         run's immediately bounding tokens decide its normalized count. */
+      let items =
+        List.fold_right(
+          (p, acc) =>
+            switch (is_linebreak(p), acc) {
+            | (true, [`Run(n), ...rest]) => [`Run(n + 1), ...rest]
+            | (true, _) => [`Run(1), ...acc]
+            | (false, _) => [`Tok(p), ...acc]
+            },
+          seg,
+          [],
+        );
+      let rec go = (prev_tok: option(Piece.t), items) =>
+        switch (items) {
+        | [] => []
+        | [`Tok(p), ...rest] => [p, ...go(Some(p), rest)]
+        | [`Run(_), ...rest] =>
+          let next_tok =
+            switch (rest) {
+            | [`Tok(p), ..._] => Some(p)
+            | _ => None
+            };
+          let replacement =
+            switch (prev_tok, next_tok) {
+            | (None, _) => [] /* start of program: no leading blank */
+            | (_, None) => [linebreak()] /* end: single trailing linebreak */
+            | (Some(l), Some(r)) =>
+              is_binding_tile(l) && is_binding_tile(r)
+                ? [linebreak(), linebreak()] : [linebreak()]
+            };
+          replacement @ go(prev_tok, rest);
+        };
+      go(None, items);
+    };
+
+    /* Zip to the top-level segment, normalize its whitespace, and rebuild a
+       zipper. Idempotent. The agent edit path rebuilds the editor from this
+       zipper, so resetting the caret to the segment start is harmless. */
+    let normalize_top_level = (z: Zipper.t): Zipper.t =>
+      z
+      |> Zipper.unselect_and_zip
+      |> normalize_top_level_whitespace
+      |> Zipper.unzip;
+
     /* Form delimiters that lex like identifiers; using one as a variable
        name makes the surrounding code misparse. */
     let reserved_words: list(Token.t) =
@@ -791,7 +868,12 @@ module Local = {
     let res =
       try(
         switch (composition_dispatch(a, syntax, z, mk_statics)) {
-        | Ok(new_z) => Ok(Dump.to_zipper(new_z, ~root=Exp))
+        | Ok(new_z) =>
+          Ok(
+            PerformUtils.normalize_top_level(
+              Dump.to_zipper(new_z, ~root=Exp),
+            ),
+          )
         | Error(e) => Error(e)
         }
       ) {
