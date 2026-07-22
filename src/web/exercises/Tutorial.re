@@ -164,6 +164,20 @@ let zipper_of_code = code => {
 let transition: transitionary_spec => spec =
   p => map(p, zipper_of_code, zipper_of_code);
 
+/* Persistent counterpart of [spec] (see CodeExercise.persistent_spec):
+ * serialized zippers with plaintext fallback; the shipped format for
+ * example modules. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_spec = p(PersistentZipper.t);
+
+let of_persistent: persistent_spec => spec =
+  p =>
+    map(
+      p,
+      PersistentZipper.unpersist(~root=Exp),
+      PersistentZipper.unpersist(~root=Exp),
+    );
+
 let eds_of_spec =
     (
       {

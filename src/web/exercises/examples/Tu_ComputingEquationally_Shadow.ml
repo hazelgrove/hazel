@@ -1,5 +1,5 @@
 let exercise : Tutorial.spec =
-  Tutorial.transition
+  Tutorial.of_persistent
     {
       id = Haz3lcore.Id.v "b8c9d0e1-2345-6789-0abc-def123456789";
       title = "Computing Equationally";
@@ -17,10 +17,51 @@ let exercise : Tutorial.spec =
       display_hint =
         "The stepper toggle is located in the bottom right corner of the cell \
          below \240\159\145\135";
-      your_impl = "";
+      your_impl =
+        {
+          zipper =
+            "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+             Outer)(smart_rounded false)))(relatives((siblings(()((Grout((id \
+             a0114b7e-e458-492e-8134-0ed746f9fd39)(shape \
+             Convex))))))(ancestors())))(caret \
+             Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
+             -1)(pinned_stack())(indicated_call())(time())(seq \
+             0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))";
+          backup_text = "";
+        };
       hidden_tests =
         {
-          tests = "test answer == 26 end;\n";
+          tests =
+            {
+              zipper =
+                "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+                 Outer)(smart_rounded false)))(relatives((siblings(((Tile((id \
+                 2a092175-0d2a-4827-8045-d5d4ffe53f37)(form(Compound \
+                 Test))(shards(0 1))(children(((Secondary((id \
+                 3bfc75a6-ec8e-4692-9ea7-b5c1e67b7db9)(content(Whitespace\" \
+                 \"))))(Tile((id \
+                 98ed9617-b25a-4c2f-8f30-2adcbc495bd6)(form(Tok \
+                 answer))))(Secondary((id \
+                 de571655-0600-4dd6-be41-661e3d342299)(content(Whitespace\" \
+                 \"))))(Tile((id \
+                 dd944d60-a248-47b3-82b0-e558e0aae0c9)(form(Compound \
+                 Equals))))(Secondary((id \
+                 0a09eb29-9a7f-4575-9528-089271b3fe7a)(content(Whitespace\" \
+                 \"))))(Tile((id \
+                 a7f807d3-52ee-4a04-9fcb-402ccb2e8e8e)(form(Tok \
+                 26))))(Secondary((id \
+                 041571de-deef-49ec-81ef-1b80cd0dbc2b)(content(Whitespace\" \
+                 \")))))))))(Tile((id \
+                 ce41e96d-6367-43d9-984f-84483530e4e5)(form(Compound \
+                 CellJoin))))(Secondary((id \
+                 e783d43e-7e75-458a-b3db-4c48294f35c0)(content(Whitespace\"\\n\")))))((Grout((id \
+                 91d7980d-0817-4a8a-8d8b-dcabef6bb104)(shape \
+                 Convex))))))(ancestors())))(caret \
+                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
+                 -1)(pinned_stack())(indicated_call())(time())(seq \
+                 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))";
+              backup_text = "test answer == 26 end;\n";
+            };
           hints = [ "Did you type out the given expression correctly?" ];
         };
       wrapper = true;
@@ -28,7 +69,7 @@ let exercise : Tutorial.spec =
     }
 
 let shadow_exercise : Tutorial.spec =
-  Tutorial.transition
+  Tutorial.of_persistent
     {
       id = Haz3lcore.Id.v "c9d0e1f2-3456-7890-1abc-def234567890";
       title = "Shadowing";
@@ -47,10 +88,51 @@ let shadow_exercise : Tutorial.spec =
          Then, shadow x to the value 7. Make sure you that in both let \
          expression the variable has the same name. ";
       display_hint = "";
-      your_impl = "";
+      your_impl =
+        {
+          zipper =
+            "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+             Outer)(smart_rounded false)))(relatives((siblings(()((Grout((id \
+             8f021435-1748-48e2-bfb8-93832e01b869)(shape \
+             Convex))))))(ancestors())))(caret \
+             Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
+             -1)(pinned_stack())(indicated_call())(time())(seq \
+             0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))";
+          backup_text = "";
+        };
       hidden_tests =
         {
-          tests = "test x == 7 end;\n";
+          tests =
+            {
+              zipper =
+                "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+                 Outer)(smart_rounded false)))(relatives((siblings(((Tile((id \
+                 20daf94a-905b-464d-9b91-9ec9f4313105)(form(Compound \
+                 Test))(shards(0 1))(children(((Secondary((id \
+                 23f8b808-7cf2-4808-8738-3a94465930af)(content(Whitespace\" \
+                 \"))))(Tile((id \
+                 714f0d6b-3c58-4388-bb83-f9e09816d884)(form(Tok \
+                 x))))(Secondary((id \
+                 936eb0d8-0045-4870-9ab7-deabf7a0d039)(content(Whitespace\" \
+                 \"))))(Tile((id \
+                 e8484103-91d8-4587-bdb8-112218d33ed1)(form(Compound \
+                 Equals))))(Secondary((id \
+                 cb2bb466-f01b-419a-a8ba-189cd3335639)(content(Whitespace\" \
+                 \"))))(Tile((id \
+                 9f19ddc2-27aa-427f-aa0d-111505299d07)(form(Tok \
+                 7))))(Secondary((id \
+                 7dbcfed8-2c98-4e96-89de-a578018d6cf6)(content(Whitespace\" \
+                 \")))))))))(Tile((id \
+                 08d2dd0f-5d3a-4571-b77c-250808e2b323)(form(Compound \
+                 CellJoin))))(Secondary((id \
+                 17ac8ca2-6d64-4dea-8be0-8bad11fa8447)(content(Whitespace\"\\n\")))))((Grout((id \
+                 09a9bb26-3b95-4507-9319-ed8f5128207c)(shape \
+                 Convex))))))(ancestors())))(caret \
+                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
+                 -1)(pinned_stack())(indicated_call())(time())(seq \
+                 0)(step_range())(pending_focus())))(autoprobe_target())(pending_probe_cursor()))))";
+              backup_text = "test x == 7 end;\n";
+            };
           hints = [ "Have you shadowed x to 7?" ];
         };
       wrapper = false;

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Split the stdout of migrate_exercises.bc.js into its target .ml files.
 
-DISPOSAL: disposable migration tooling for the tile FormId change. Delete
-this file (together with src/web/LegacyBase.re, src/web/Migrate_slides.re,
-src/web/Migrate_exercises.re, and scripts/README_migrate_tile_format.md)
-once tile-datatype has merged to dev and active feature branches have run
-the recipe in scripts/README_migrate_tile_format.md. Nothing at runtime
-depends on it.
+Originally migration tooling for the tile FormId change; now also part of
+the re-export flow for the example exercise modules' shipped (persistent)
+format, so it stays alongside src/web/Migrate_exercises.re. (The
+migration-specific companions src/web/LegacyBase.re, src/web/LegacyBaseV1.re
+and src/web/Migrate_slides.re remain disposable once tile-datatype has
+merged to dev and active feature branches have run the recipe in
+scripts/README_migrate_tile_format.md.) Nothing at runtime depends on it.
 
 Usage (from repo root):
   dune build src/web/migrate_exercises.bc.js --profile dev

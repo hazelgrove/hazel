@@ -1,18 +1,28 @@
-/* DISPOSAL: disposable migration tooling for the tile FormId change.
- * Delete this file (together with LegacyBase.re,
- * Migrate_slides.re, scripts/split_migrate_output.py, and
- * scripts/README_migrate_tile_format.md) once tile-datatype has merged to dev and active
- * feature branches have run the recipe in
+/* DISPOSAL: originally disposable migration tooling for the tile FormId
+ * change; now also the re-export tool for the example exercise modules'
+ * shipped (persistent) format, so keep it as long as those modules exist.
+ * The migration-specific companions (LegacyBase.re, LegacyBaseV1.re,
+ * Migrate_slides.re) can still be deleted once tile-datatype has merged to
+ * dev and active feature branches have run the recipe in
  * scripts/README_migrate_tile_format.md. Nothing at runtime depends on
- * it. */
+ * this file. */
 
-/* Exporter for the tile-datatype migration (and any future Zipper.t change).
+/* Exporter for the example exercise modules (tile-datatype migration
+ * endpoint, reusable for any future re-export).
  *
- * Prints "transitionary" versions of every example module that embeds
- * Zipper.t literals (see A-Guide-To-Zipper-Transitions.md): each editor
- * becomes a code STRING and the module calls CodeExercise.transition /
- * Tutorial.transition / DerivationExercise.transition at load time, so the
- * module text no longer depends on the Zipper/Tile representation.
+ * Prints PERSISTENT versions of every registered example module: each
+ * editor becomes a PersistentZipper.t literal ({zipper: "<Zipper sexp>",
+ * backup_text: "<program text>"}, the same scheme doc slides use) and the
+ * module calls CodeExercise.of_persistent / Tutorial.of_persistent /
+ * TheoremExercise.of_persistent / DerivationExercise.of_persistent at load
+ * time. Decoding the sexp is ~free (no per-character re-parse at startup),
+ * and a decode failure self-heals by re-parsing backup_text.
+ *
+ * (The string-based "transitionary" format this exporter previously
+ * emitted — see the *.transition functions, which remain — is the
+ * type-independent migration interchange format: it survives Zipper.t
+ * datatype changes at the cost of a startup re-parse. Recipe for feature
+ * branches in scripts/README_migrate_tile_format.md.)
  *
  * Output format (stdout):
  *   ===FILE: <path relative to repo root>===
@@ -23,9 +33,12 @@
  *   <per-file PASS/FAIL lines>
  *   ===END===
  *
- * A file is only emitted if every editor passes the parse-fixpoint check
- * (text |> Parser.to_zipper |> print == text); failures are reported in the
- * summary (and on stderr) and the original file should be left in place.
+ * A file is only emitted if every editor passes (a) the parse-fixpoint
+ * check (text |> Parser.to_zipper |> print == text; guards the backup_text
+ * fallback) and (b) the persistent-decode equivalence check (the emitted
+ * zipper sexp decodes and is segment-structurally equal to the reparse of
+ * backup_text); failures are reported in the summary (and on stderr) and
+ * the original file should be left in place.
  *
  * Build & run (see scripts/README_migrate_tile_format.md):
  *   dune build src/web/migrate_exercises.bc.js --profile dev
@@ -35,14 +48,16 @@
 open Haz3lcore;
 open Web;
 
-let escape_code = (code: string): string =>
-  "\"" ++ String.escaped(code) ++ "\"";
+/* Reset non-persistable refractor state before serialization, mirroring
+ * CodeExercise.editor_pp (keeps manuals, resets multis/sample_focus). */
+let persist_zipper = (z: Zipper.t): PersistentZipper.t =>
+  z
+  |> Zipper.update_refractors(_, Refractors.for_serialization)
+  |> PersistentZipper.persist;
 
-/* Counterpart of the transitionary_editor_pp functions in
- * CodeExercise/Tutorial/DerivationExercise, but over a bare Zipper.t
- * (specs hold zippers, not editors). */
-let zipper_code_pp = (fmt, z: Zipper.t) =>
-  Format.pp_print_string(fmt, escape_code(PersistentZipper.to_string(z)));
+/* Print a zipper as a PersistentZipper.t record literal. */
+let persistent_pp = (fmt, z: Zipper.t) =>
+  PersistentZipper.pp(fmt, persist_zipper(z));
 
 /* One top-level `let` in an output file. The string is the value name. */
 type item =
@@ -167,52 +182,78 @@ let emit_item = (item: item): string =>
   | CodeEx(name, spec) =>
     "let "
     ++ name
-    ++ " : Exercise.t =\n  Code\n    (CodeExercise.transition\n       "
-    ++ CodeExercise.show_p(zipper_code_pp, spec)
+    ++ " : Exercise.t =\n  Code\n    (CodeExercise.of_persistent\n       "
+    ++ CodeExercise.show_p(persistent_pp, spec)
     ++ ")\n"
   | DrvEx(name, spec) =>
     "let "
     ++ name
-    ++ " : Exercise.t =\n  Derivation\n    (DerivationExercise.transition\n       "
-    ++ DerivationExercise.show_p(zipper_code_pp, spec)
+    ++ " : Exercise.t =\n  Derivation\n    (DerivationExercise.of_persistent\n       "
+    ++ DerivationExercise.show_p(persistent_pp, spec)
     ++ ")\n"
   | ThmEx(name, spec) =>
-    let ts: TheoremExercise.transitionary_spec = {
+    let ps: TheoremExercise.persistent_spec = {
       id: spec.id,
       title: spec.title,
       module_name: spec.module_name,
       prompt: spec.prompt,
       max_points: spec.max_points,
-      prelude: PersistentZipper.to_string(spec.prelude),
-      lemmas: PersistentZipper.to_string(spec.lemmas),
-      theorem: PersistentZipper.to_string(spec.theorem),
+      prelude: persist_zipper(spec.prelude),
+      lemmas: persist_zipper(spec.lemmas),
+      theorem: persist_zipper(spec.theorem),
     };
     "let "
     ++ name
-    ++ " : Exercise.t =\n  Theorem\n    (TheoremExercise.transition\n       "
-    ++ TheoremExercise.show_transitionary_spec(ts)
+    ++ " : Exercise.t =\n  Theorem\n    (TheoremExercise.of_persistent\n       "
+    ++ TheoremExercise.show_persistent_spec(ps)
     ++ ")\n";
   | TutorialSpec(name, spec) =>
     "let "
     ++ name
-    ++ " : Tutorial.spec =\n  Tutorial.transition\n    "
-    ++ Tutorial.show_p(zipper_code_pp, spec)
+    ++ " : Tutorial.spec =\n  Tutorial.of_persistent\n    "
+    ++ Tutorial.show_p(persistent_pp, spec)
     ++ "\n"
   | DrvSpec(name, spec) =>
     "let "
     ++ name
-    ++ " : DerivationExercise.spec =\n  DerivationExercise.transition\n    "
-    ++ DerivationExercise.show_p(zipper_code_pp, spec)
+    ++ " : DerivationExercise.spec =\n  DerivationExercise.of_persistent\n    "
+    ++ DerivationExercise.show_p(persistent_pp, spec)
     ++ "\n"
   };
 
 let emit_file = (f: file): string =>
   f.items |> List.map(emit_item) |> String.concat("\n");
 
-/* ---------- parse-fixpoint safety check ----------
- * The transitionary route re-parses program text at startup and FAILWITHS
- * on parse failure, so before converting we verify for every string field:
- *   text |> Parser.to_zipper(~root) |> PersistentZipper.to_string == text */
+/* ---------- safety checks ----------
+ * The backup_text fallback re-parses program text and the exercise loader
+ * FAILWITHS on parse failure, so before converting we verify for every
+ * editor:
+ *  (a) parse fixpoint:
+ *      text |> Parser.to_zipper(~root) |> PersistentZipper.to_string == text
+ *  (b) persistent-decode equivalence: the zipper sexp we emit decodes, and
+ *      its segment structurally equals (ids ignored) the segment obtained
+ *      by re-parsing backup_text — i.e. what transition(text) would have
+ *      produced. */
+
+/* Id-ignoring structural segment equality (copy of
+ * test/EditingPrelude.equal_segment; the test lib is not linkable here). */
+let rec equal_segment = (a: Base.segment, b: Base.segment) =>
+  List.equal(equal_piece, a, b)
+and equal_piece = (a: Base.piece, b: Base.piece) =>
+  switch (a, b) {
+  | (Tile(t1), Tile(t2)) =>
+    Tile.label(t1) == Tile.label(t2)
+    && List.equal(equal_segment, t1.children, t2.children)
+    && Tile.mold(t1) == Tile.mold(t2)
+    && t1.shards == t2.shards
+  | (Grout(g1), Grout(g2)) => g1.shape == g2.shape
+  | (Secondary(s1), Secondary(s2)) => s1.content == s2.content
+  | (Projector(p1), Projector(p2)) =>
+    p1.kind == p2.kind
+    && p1.model == p2.model
+    && equal_piece(p1.syntax, p2.syntax)
+  | _ => false
+  };
 
 type field = {
   label: string,
@@ -296,15 +337,17 @@ let fields_of_item = (item: item): list(field) =>
   | TutorialSpec(name, s) => tutorial_fields(name, s)
   };
 
+let seg_of_zipper = (z: Zipper.t): Base.segment =>
+  Zipper.unselect_and_zip(~erase_buffer=true, z);
+
 let check_field = ({label, root, zipper}: field): option(string) => {
-  let code = PersistentZipper.to_string(zipper);
+  let persisted = persist_zipper(zipper);
+  let code = persisted.backup_text;
   switch (Parser.to_zipper(~root, code)) {
   | None => Some(label ++ ": reparse FAILED (Parser.to_zipper => None)")
   | Some(z2) =>
     let code2 = PersistentZipper.to_string(z2);
-    if (code2 == code) {
-      None;
-    } else {
+    if (code2 != code) {
       Some(
         label
         ++ ": fixpoint MISMATCH\n  original: "
@@ -312,6 +355,30 @@ let check_field = ({label, root, zipper}: field): option(string) => {
         ++ "\n  reprinted: "
         ++ String.escaped(code2),
       );
+    } else {
+      /* what the emitted module will yield at init (bypassing
+       * PersistentZipper.unpersist so a decode failure can't silently
+       * take the backup_text fallback) */
+      switch (Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp) {
+      | exception exn =>
+        Some(
+          label
+          ++ ": persistent sexp decode FAILED ("
+          ++ Printexc.to_string(exn)
+          ++ ")",
+        )
+      | decoded =>
+        equal_segment(seg_of_zipper(decoded), seg_of_zipper(z2))
+          ? None
+          : Some(
+              label
+              ++ ": persistent decode / reparse segment MISMATCH\n"
+              ++ "  decoded:  "
+              ++ String.escaped(Segment.show(seg_of_zipper(decoded)))
+              ++ "\n  reparsed: "
+              ++ String.escaped(Segment.show(seg_of_zipper(z2))),
+            )
+      };
     };
   };
 };

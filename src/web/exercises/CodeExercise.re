@@ -343,6 +343,23 @@ let transition: transitionary_spec => spec =
     };
   };
 
+/* Persistent counterpart of [spec]: each editor is a serialized zipper
+ * plus a plaintext fallback (PersistentZipper.t). This is the shipped
+ * format for example modules — decode at load is ~free, and a decode
+ * failure self-heals by re-parsing backup_text. The string-based
+ * [transitionary_spec] above remains as the type-independent migration
+ * interchange format (see scripts/README_migrate_tile_format.md). */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_spec = p(PersistentZipper.t);
+
+let of_persistent: persistent_spec => spec =
+  p =>
+    map(
+      p,
+      PersistentZipper.unpersist(~root=Exp),
+      PersistentZipper.unpersist(~root=Exp),
+    );
+
 let eds_of_spec =
     (
       {
