@@ -102,7 +102,7 @@ let mk_parens = (sort: Sort.t) =>
  * (out sort -> mold) is a function on them (machine-checked in
  * test/Test_FormId.re). Row order within a family follows the global
  * `priority` order below. */
-let defs_of: family => list(def) =
+let defs_of_rows: family => list(def) =
   fun
   | TypeArrow => [
       mk_infix("->", Typ, P.type_arrow),
@@ -571,7 +571,10 @@ let priority: list(family) = [
 
 let forms: list((family, def)) = {
   let remaining: Hashtbl.t(family, list(def)) = Hashtbl.create(128);
-  List.iter(f => Hashtbl.replace(remaining, f, defs_of(f)), all_of_family);
+  List.iter(
+    f => Hashtbl.replace(remaining, f, defs_of_rows(f)),
+    all_of_family,
+  );
   let deal = (fam: family): def =>
     switch (Hashtbl.find(remaining, fam)) {
     | [] =>
@@ -821,7 +824,7 @@ let atomic_defs: list((atomic_form, (Token.t => bool, list(Mold.t)))) =
  * (classification/remolding priority): (form, mold) pairs. The
  * InfixDelimiterPrefix class carries the TokInfix shape-role; all
  * other classes are token-and-sort determined and collapse to Tok. */
-let atomic_candidates = (t: Token.t): list((FormId.t, Mold.t)) =>
+let atomic_candidates_uncached = (t: Token.t): list((FormId.t, Mold.t)) =>
   List.concat_map(
     ((a, (pred, molds))) =>
       pred(t)
@@ -833,6 +836,20 @@ let atomic_candidates = (t: Token.t): list((FormId.t, Mold.t)) =>
         : [],
     atomic_defs,
   );
+
+/* Memoized per token: accessors derive Tok molds on every read, and
+ * the predicate scan above is the expensive part. Token sets are
+ * session-bounded. */
+let atomic_candidates_tbl: Hashtbl.t(Token.t, list((FormId.t, Mold.t))) =
+  Hashtbl.create(1024);
+let atomic_candidates = (t: Token.t): list((FormId.t, Mold.t)) =>
+  switch (Hashtbl.find_opt(atomic_candidates_tbl, t)) {
+  | Some(c) => c
+  | None =>
+    let c = atomic_candidates_uncached(t);
+    Hashtbl.replace(atomic_candidates_tbl, t, c);
+    c;
+  };
 
 /* label => (family, mold) pairs, memoized; per-label order =
  * priority order (remolding priority) */
@@ -858,10 +875,46 @@ let base_candidates = (label: Label.t): list((FormId.t, Mold.t)) => {
   };
 };
 
+/* Rows, labels, and (family, out-sort) molds are built once at
+ * startup; accessors below are single table lookups. */
+let defs_tbl: Hashtbl.t(family, list(def)) = {
+  let tbl = Hashtbl.create(128);
+  List.iter(f => Hashtbl.replace(tbl, f, defs_of_rows(f)), all_of_family);
+  tbl;
+};
+let defs_of = (fam: family): list(def) => Hashtbl.find(defs_tbl, fam);
+let family_label_tbl: Hashtbl.t(family, Label.t) = {
+  let tbl = Hashtbl.create(128);
+  List.iter(
+    f =>
+      switch (defs_of(f)) {
+      | [def, ..._] => Hashtbl.replace(tbl, f, def.label)
+      | [] => ()
+      },
+    all_of_family,
+  );
+  tbl;
+};
+let family_mold_tbl: Hashtbl.t((family, Sort.t), Mold.t) = {
+  let tbl = Hashtbl.create(256);
+  List.iter(
+    f =>
+      List.iter(
+        (def: def) =>
+          if (!Hashtbl.mem(tbl, (f, def.mold.out))) {
+            Hashtbl.add(tbl, (f, def.mold.out), def.mold);
+          },
+        defs_of(f),
+      ),
+    all_of_family,
+  );
+  tbl;
+};
+
 let label_of_family = (fam: family): Label.t =>
-  switch (defs_of(fam)) {
-  | [def, ..._] => def.label
-  | [] => [] /* unreachable: every family has a row */
+  switch (Hashtbl.find_opt(family_label_tbl, fam)) {
+  | Some(label) => label
+  | None => [] /* unreachable: every family has a row */
   };
 
 let unmolded_mold = (label: Label.t): Mold.t =>
@@ -894,8 +947,8 @@ let has_label_of = (f: FormId.t, fam: family): bool =>
 let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
   switch (f) {
   | Compound(fam) =>
-    switch (List.find_opt((def: def) => def.mold.out == sort, defs_of(fam))) {
-    | Some(def) => def.mold
+    switch (Hashtbl.find_opt(family_mold_tbl, (fam, sort))) {
+    | Some(mold) => mold
     | None => unmolded_mold(label_of_family(fam))
     }
   | Tok(t) =>
