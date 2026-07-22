@@ -169,6 +169,76 @@ let fn_sugar_evaluates = () => {
   );
 };
 
+/* Parse + statics only (big samples may deliberately end in a hole). */
+let assert_parses_clean = (prog: string): unit => {
+  let head = String.sub(prog, 0, min(60, String.length(prog)));
+  switch (parse(prog)) {
+  | None => failf("failed to parse sample starting: %s", head)
+  | Some(z) =>
+    switch (statics_errors(z)) {
+    | [] => ()
+    | errs =>
+      failf(
+        "static errors in sample starting %s: %s",
+        head,
+        String.concat("; ", errs),
+      )
+    }
+  };
+};
+
+/* Language snippets documented across the prompt files. */
+let doc_examples_clean = () =>
+  List.iter(
+    assert_clean,
+    [
+      /* HazelSyntaxNotes: mod builtin, float ops, pipeline */
+      "int_mod(7, 2)",
+      "1.5 +. 2.5 ==. 4.0",
+      "let inc(x) = x + 1 in 1 |> inc",
+      /* HazelSyntaxNotes: polymorphic map */
+      "let map : poly A -> poly B -> ((A -> B), [A]) -> [B] =\n  typfun A -> typfun B -> fun f, xs ->\n    case xs\n    | [] => []\n    | hd :: tl => f(hd) :: map@<A>@<B>(f, tl)\n    end\nin\nmap@<Int>@<Bool>(fun n -> n > 1, [1, 2, 3])",
+      /* HazelSyntaxNotes: modules */
+      "let m = { let x = 1; let y = true } in m.x",
+      "let m = { type T = Int; let x = 5 : T } in m.x",
+      "module M = { let x = 1; let y = 2 } in M.x + M.y",
+      "let m = { module Inner = { let z = 42 }; let r = Inner.z } in m.r",
+      "let outer = { let inner = { let a = 42 } } in outer.inner.a",
+      "module M = { type T = Int } in\nlet x : M.T = 6 in x",
+      /* HazelSyntaxNotes: mutual recursion via tuple binding */
+      "let (even : Int -> Bool, odd : Int -> Bool) =\n  (fun n -> if n == 0 then true else odd(n - 1),\n   fun n -> if n == 0 then false else even(n - 1))\nin\neven(4)",
+      /* HazelDocumentation: implicit recursive type alias */
+      "type MyList = Nil + Cons(Int, MyList) in\nlet x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in x",
+      /* CompositionPrompt: projector concrete syntax */
+      "let speed = ^^slider(60) in speed",
+    ],
+  );
+
+/* Fenced ``` blocks inside a prompt string. */
+let fenced_blocks = (s: string): list(string) => {
+  let parts = Util.StringUtil.plain_split(s, "```");
+  List.filteri((i, _) => i mod 2 == 1, parts);
+};
+
+/* The complete sample programs shipped in HazelDocumentation. */
+let big_samples_clean = () => {
+  List.iter(
+    s => List.iter(assert_parses_clean, fenced_blocks(s)),
+    [
+      HazelDocumentation.sample_tic_tac_toe_program,
+      HazelDocumentation.sample_emoji_paint,
+    ],
+  );
+  let poly_doc =
+    HazelDocumentation.polymorphism_documentation
+    |> String.split_on_char('\n')
+    |> List.filter(l =>
+         Util.StringUtil.plain_search("polymorphismDocumentation", l, 0) < 0
+       )
+    |> String.concat("\n");
+  assert_parses_clean(poly_doc);
+};
+
 let tests = [
   (
     "PromptFactory",
@@ -181,6 +251,16 @@ let tests = [
         fn_sugar_clean,
       ),
       test_case("fn-definition sugar evaluates", `Quick, fn_sugar_evaluates),
+      test_case(
+        "documented examples are statics-clean",
+        `Quick,
+        doc_examples_clean,
+      ),
+      test_case(
+        "shipped sample programs are statics-clean",
+        `Quick,
+        big_samples_clean,
+      ),
     ],
   ),
 ];

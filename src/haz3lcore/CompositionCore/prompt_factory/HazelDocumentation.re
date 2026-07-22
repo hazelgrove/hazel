@@ -55,9 +55,9 @@ let summarized_docs = [
   "let f: Int -> Int = fun x -> x + true in f(1);",
   "```",
   "- The erroneous addition will be wrapped in a non-empty hole, not crash.",
-  "- Hazel's recursive types allow expressive structures.",
+  "- Hazel's recursive types allow expressive structures. A type alias whose top-level operator is a sum is implicitly recursive on its own name.",
   "```",
-  "type MyList = rec A -> (Nil + Cons(Int, A)) in",
+  "type MyList = Nil + Cons(Int, MyList) in",
   "let x: MyList = Cons(1, Cons(2, Cons(3, Nil)));",
   "```",
   "- Hazel supports list processing via pattern matching.",
@@ -93,7 +93,7 @@ let polymorphism_documentation = {|
   # Polymorphism #
 
 # We can take types as parameters to type functions, #
-# and use them in annoatations in the body: #
+# and use them in annotations in the body: #
 let id = typfun A -> fun x : A -> x in
 
 # Such functions are applied like so: #
@@ -117,25 +117,25 @@ let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) =
     | h :: t => f(h) :: map@<A>@<B>(f)(t)
     | _ => emptylist@<B>
     end in
-let ex4 = map@<Int>@<String>(string_of_int)([1,2,3]) in # ["1", "2", "3"] #
+let ex4 = map@<Int>@<Bool>(fun x : Int -> x > 1)([1,2,3]) in # [false, true, true] #
 
 
 # Recursive types #
 
-# We can express types that are the least fixed point of #
-# some type function with the rec keyword. #
-type MyList = rec A -> (Nil + Cons(Int, A)) in
+# A type alias whose top-level operator is a sum is implicitly #
+# a least fixed point on its own name: #
+type MyList = Nil + Cons(Int, MyList) in
 
 # Hazel does not (yet) support higher-kinded or existential types, #
 # So we cannot implement our own polymorphic lists. #
 
-# Now anything that returns an element of the least fixed point matches MyList. #
 let x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in
 
-# Note that if the sum is the top level operator, #
-# type aliases are implicitly least fixed points on their own name: #
-type MyList2 = Nil + Cons(Int, MyList2) in
+# The implicit fixed point only applies when the sum is at top level: #
 type Broken = Int -> (HasInt(Int) + HasMore(Int, Broken)) in
+
+# Explicit fixed-point types (rec A -> ...) exist, but their #
+# constructors are not registered for use — prefer the implicit form. #
 
 
 let list_of_mylist : (MyList -> [Int]) = fun myl : MyList ->
