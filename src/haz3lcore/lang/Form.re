@@ -558,11 +558,20 @@ let form_of: compound_form => def = {
 let atomic_defs: list((atomic_form, (Token.t => bool, list(Mold.t)))) =
   List.map(a => (a, get_atomic_form(a)), all_of_atomic_form);
 
+/* Atomic candidates for a token, in atomic_form declaration order
+ * (classification/remolding priority): (form, mold) pairs. The
+ * InfixDelimiterPrefix class carries the TokInfix shape-role; all
+ * other classes are token-and-sort determined and collapse to Tok. */
 let atomic_candidates = (t: Token.t): list((FormId.t, Mold.t)) =>
   List.concat_map(
     ((a, (pred, molds))) =>
       pred(t)
-        ? List.map((m: Mold.t) => (Atom(a, m.out, t), m), molds) : [],
+        ? List.map(
+            (m: Mold.t) =>
+              a == InfixDelimiterPrefix ? (TokInfix(t), m) : (Tok(t), m),
+            molds,
+          )
+        : [],
     atomic_defs,
   );
 
@@ -583,12 +592,35 @@ let compound_defs: Label.t => list((compound_form, Mold.t)) = {
 
 let base_candidates = (label: Label.t): list((FormId.t, Mold.t)) => {
   let compounds =
-    compound_defs(label) |> List.map(((cf, m)) => (Compound(cf), m));
+    compound_defs(label)
+    |> List.map(((cf, m)) => (Compound(family_of(cf)), m));
   switch (label) {
   | [t] => atomic_candidates(t) @ compounds
   | _ => compounds
   };
 };
+
+/* family => members with defs, in forms-declaration order (the
+ * (family, sort) => mold lookup priority) */
+let family_defs: family => list((compound_form, def)) = {
+  let tbl: Hashtbl.t(family, list((compound_form, def))) =
+    Hashtbl.create(128);
+  List.iter(
+    ((cf, def)) => {
+      let fam = family_of(cf);
+      let prev = Option.value(Hashtbl.find_opt(tbl, fam), ~default=[]);
+      Hashtbl.replace(tbl, fam, prev @ [(cf, def)]);
+    },
+    forms,
+  );
+  fam => Option.value(Hashtbl.find_opt(tbl, fam), ~default=[]);
+};
+
+let label_of_family = (fam: family): Label.t =>
+  switch (family_defs(fam)) {
+  | [(_, def), ..._] => def.label
+  | [] => [] /* unreachable: every family has a member */
+  };
 
 let unmolded_mold = (label: Label.t): Mold.t =>
   switch (label) {
@@ -600,72 +632,98 @@ let unmolded_mold = (label: Label.t): Mold.t =>
 
 let label_of: FormId.t => Label.t =
   fun
-  | Compound(cf)
-  | Unsorted(cf) => form_of(cf).label
-  | Atom(_, _, t)
-  | Unmolded(t) => [t];
+  | Compound(fam) => label_of_family(fam)
+  | Tok(t)
+  | TokInfix(t) => [t];
 
 /* Does this form spell the same label as registered form cf?
- * Label-family check: labels are shared between forms (e.g.
- * ["(",")"] is both Parens* and Ap*), and Unsorted/Unmolded/Atom
- * ids can spell the same tokens as a registered form. */
+ * Label-family check: labels are shared between families (e.g.
+ * ["(",")"] is both Parens and Ap), and Tok ids can spell the same
+ * tokens as a registered form. */
 let has_label_of = (f: FormId.t, cf: compound_form): bool =>
   label_of(f) == form_of(cf).label;
 
-let mold_of: FormId.t => Mold.t =
-  fun
-  | Compound(cf) => form_of(cf).mold
-  | Unsorted(cf) => unmolded_mold(form_of(cf).label)
-  | Atom(a, sort, _) => {
-      let (_, molds) = List.assoc(a, atomic_defs);
-      switch (List.find_opt((m: Mold.t) => m.out == sort, molds)) {
-      | Some(m) => m
-      | None => Mold.mk_op(sort, []) /* not produced by classify_label */
-      };
+/* The mold of a form at the tile's stored sort. Compound: the family
+ * member with that out sort, else the Any-fallback (old Unsorted
+ * behavior; in particular sort=Any always falls back — no form has
+ * out=Any). Tok: the first atomic-candidate mold with that out sort
+ * (atomic_form declaration order), else the Any-fallback (old
+ * Unmolded behavior). TokInfix: the InfixDelimiterPrefix bin,
+ * uniformly at any sort. */
+let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
+  switch (f) {
+  | Compound(fam) =>
+    switch (
+      List.find_opt(
+        ((_, def): (compound_form, def)) => def.mold.out == sort,
+        family_defs(fam),
+      )
+    ) {
+    | Some((_, def)) => def.mold
+    | None => unmolded_mold(label_of_family(fam))
     }
-  | Unmolded(t) => unmolded_mold([t]);
+  | Tok(t) =>
+    switch (
+      List.find_opt(
+        ((_, m): (FormId.t, Mold.t)) => m.out == sort,
+        atomic_candidates(t),
+      )
+    ) {
+    | Some((_, m)) => m
+    | None => unmolded_mold([t])
+    }
+  | TokInfix(_) => Mold.mk_bin(Precedence.concave_grout, sort, [])
+  };
 
-let classify_label = (sort: Sort.t, label: Label.t): FormId.t => {
+/* Classify a label at a sort: the (form, sort-to-store) pair such
+ * that mold_of(form, sort-to-store) reproduces the old Molds.get
+ * mold. First base candidate whose mold fits the sort (atomics
+ * before compounds, declaration order — TokInfix never wins here:
+ * every InfixDelimiterPrefix token is var-shaped, and the var
+ * classes precede it); otherwise the Any-fallback with stored sort
+ * Any. */
+let classify_label = (sort: Sort.t, label: Label.t): (FormId.t, Sort.t) => {
   let fits = ((_, m): (FormId.t, Mold.t)): bool => m.out == sort;
   switch (List.find_opt(fits, base_candidates(label))) {
-  | Some((id, _)) => id
+  | Some((id, _)) => (id, sort)
   | None =>
     switch (compound_defs(label)) {
-    | [(cf, _), ..._] => Unsorted(cf)
+    | [(cf, _), ..._] => (Compound(family_of(cf)), Sort.Any)
     | [] =>
       switch (label) {
-      | [t] => Unmolded(t)
+      | [t] => (Tok(t), Sort.Any)
       | [t, ..._] =>
         /* unregistered multi-token labels don't arise from the
          * grammar; approximate with the head token */
-        Unmolded(t)
-      | [] => Unmolded(Token.empty)
+        (Tok(t), Sort.Any)
+      | [] => (Tok(Token.empty), Sort.Any)
       }
     }
   };
 };
 
-/* The FormId wrapping a segment in parens at a given sort
+/* The form wrapping a segment in parens at a given sort
  * (Segment.mk_duo/parenthesize): always the registered Paren form,
  * never the Ap form classify_label would find first at
  * Drv(Exp)/Drv(Pat). Sorts with no registered paren form (Rul, Mod,
  * Sig, MPat, Any, remaining Drv) fall back to classify_label —
- * Unsorted(ParensExp) with the op(Any) mold, where the old
- * mk_parens built op(sort, [sort]). */
-let mk_parens_id = (sort: Sort.t): FormId.t =>
+ * (Parens, Any) with the op(Any) mold, where the old mk_parens built
+ * op(sort, [sort]). */
+let mk_parens_id = (sort: Sort.t): (FormId.t, Sort.t) =>
   switch (sort) {
-  | Exp => Compound(ParensExp)
-  | Pat => Compound(ParensPat)
-  | Typ => Compound(ParensTyp)
-  | TPat => Compound(ParensTPat)
-  | Drv(Prop) => Compound(Drv(ParenProp))
-  | Drv(Exp) => Compound(Drv(ParenExp))
-  | Drv(Pat) => Compound(Drv(ParenPat))
-  | Drv(Typ) => Compound(Drv(ParenTyp))
+  | Exp
+  | Pat
+  | Typ
+  | TPat
+  | Drv(Prop)
+  | Drv(Exp)
+  | Drv(Pat)
+  | Drv(Typ) => (Compound(Parens), sort)
   | _ => classify_label(sort, Token.tuple_lbl)
   };
 
-let remold_candidates = (label: Label.t, sort: Sort.t): list(FormId.t) =>
+let remold_candidates =
+    (label: Label.t, sort: Sort.t): list((FormId.t, Sort.t)) =>
   base_candidates(label)
   |> List.filter(((_, m): (FormId.t, Mold.t)) => m.out == sort)
-  |> List.map(fst);
+  |> List.map(((id, _)) => (id, sort));

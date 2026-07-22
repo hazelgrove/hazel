@@ -1,5 +1,5 @@
 /* DISPOSAL: disposable migration tooling for the tile FormId change.
- * Delete this file (together with Migrate_slides.re,
+ * Delete this file (together with LegacyBaseV1.re, Migrate_slides.re,
  * Migrate_exercises.re, scripts/split_migrate_output.py, and
  * scripts/README_migrate_tile_format.md) once tile-datatype has merged to dev and active
  * feature branches have run the recipe in
@@ -9,10 +9,13 @@
 /* LegacyBase: the pre-FormId Base syntax types (tiles stored label+mold
  * side by side), kept verbatim from the old Base.re so that old serialized
  * segments still sexp-decode, plus the id-preserving `upgrade` to the
- * current Base representation. Only the sexp grammar matters here: type,
- * constructor, and field names must match the old Base.re exactly.
+ * current (FormId v2) representation: family by (label, mold) match,
+ * stored sort = mold.out, Tok/TokInfix by atomic mold match. Only the
+ * sexp grammar matters here: type, constructor, and field names must
+ * match the old Base.re exactly.
  * Id/Label/Mold/Nib/Grout/Secondary/ProjectorCore are unchanged modules
- * and are reused. Used by the slide migration tool
+ * and are reused. (The intermediate FormId v1 shape lives in
+ * LegacyBaseV1.re.) Used by the slide migration tool
  * (src/web/Migrate_slides.re); see scripts/README_migrate_tile_format.md. */
 
 open Util;
@@ -64,15 +67,18 @@ let show_label = (label: Label.t): string => String.concat(" ", label);
 let show_mold = (mold: Mold.t): string =>
   Sexplib.Sexp.to_string(Mold.sexp_of_t(mold));
 
-/* Exact reverse lookup (label, mold) => FormId, replicating the
- * priority order of Form's classification tables. `exact` paths must
- * reproduce both label and mold; the Any-fallback paths reproduce the
- * label and the (derived) fallback mold shape. */
-let upgrade_form = (label: Label.t, mold: Mold.t): Form.t => {
+/* Exact reverse lookup (label, mold) => (form, sort), replicating the
+ * priority order of Form's classification tables: compound family by
+ * (label, mold) match with sort = mold.out; single tokens by atomic
+ * mold match (Tok, or TokInfix for the InfixDelimiterPrefix bins);
+ * Any-fallback molds => stored sort Any. `exact` paths must reproduce
+ * both label and mold; the Any-fallback paths reproduce the label and
+ * the (derived) fallback mold shape. */
+let upgrade_form = (label: Label.t, mold: Mold.t): (Form.t, Sort.t) => {
   let compounds = Form.compound_defs(label);
-  let classify = (): Form.t => {
+  let classify = (): (Form.t, Sort.t) => {
     incr(count_classified);
-    let id = Form.classify_label(mold.out, label);
+    let (id, sort) = Form.classify_label(mold.out, label);
     classified_log :=
       [
         Printf.sprintf(
@@ -83,9 +89,9 @@ let upgrade_form = (label: Label.t, mold: Mold.t): Form.t => {
         ),
         ...classified_log^,
       ];
-    id;
+    (id, sort);
   };
-  let (id, exact) =
+  let ((id, sort), exact) =
     switch (
       List.find_opt(
         ((_, m): (Form.compound_form, Mold.t)) => m == mold,
@@ -94,7 +100,7 @@ let upgrade_form = (label: Label.t, mold: Mold.t): Form.t => {
     ) {
     | Some((cf, _)) =>
       incr(count_compound);
-      (Form.Compound(cf), true);
+      ((Form.Compound(Form.family_of(cf)), mold.out), true);
     | None =>
       let atomic =
         switch (label) {
@@ -104,17 +110,17 @@ let upgrade_form = (label: Label.t, mold: Mold.t): Form.t => {
         | _ => None
         };
       switch (atomic) {
-      | Some((id, _)) =>
+      | Some((id, m)) =>
         incr(count_atomic);
-        (id, true);
+        ((id, m.out), true);
       | None when List.mem(mold, any_fallback_molds) =>
         switch (compounds, label) {
         | ([(cf, _), ..._], _) =>
           incr(count_any_fallback);
-          (Form.Unsorted(cf), false);
+          ((Form.Compound(Form.family_of(cf)), Sort.Any), false);
         | ([], [t]) =>
           incr(count_any_fallback);
-          (Form.Unmolded(t), false);
+          ((Form.Tok(t), Sort.Any), false);
         | ([], _) => (classify(), false)
         }
       | None => (classify(), false)
@@ -130,18 +136,18 @@ let upgrade_form = (label: Label.t, mold: Mold.t): Form.t => {
       ),
     );
   };
-  if (exact && Form.mold_of(id) != mold) {
+  if (exact && Form.mold_of(id, sort) != mold) {
     failwith(
       Printf.sprintf(
         "LegacyBase.upgrade_form: mold not preserved: [%s] %s => %s (mold %s)",
         show_label(label),
         show_mold(mold),
         Form.show(id),
-        show_mold(Form.mold_of(id)),
+        show_mold(Form.mold_of(id, sort)),
       ),
     );
   };
-  id;
+  (id, sort);
 };
 
 let rec upgrade_segment = (seg: segment): Base.segment =>
@@ -160,8 +166,12 @@ and upgrade_piece = (p: piece): Base.piece =>
     })
   }
 and upgrade_tile = (t: tile): Base.tile => {
-  id: t.id,
-  form: upgrade_form(t.label, t.mold),
-  shards: t.shards,
-  children: List.map(upgrade_segment, t.children),
+  let (form, sort) = upgrade_form(t.label, t.mold);
+  {
+    id: t.id,
+    form,
+    sort,
+    shards: t.shards,
+    children: List.map(upgrade_segment, t.children),
+  };
 };

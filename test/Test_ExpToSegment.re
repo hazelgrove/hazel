@@ -72,8 +72,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              // Atom(IntLit, Exp, "1"): op(Exp) mold as before
-              form: Form.classify_label(Exp, ["1"]),
+              // Tok("1") at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["1"])),
+              sort: snd(Form.classify_label(Exp, ["1"])),
               shards: [0],
               children: [],
             }),
@@ -86,8 +87,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              // Atom(String, Exp, _): op(Exp) mold as before
-              form: Form.classify_label(Exp, ["\"hello\""]),
+              // Tok(string) at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["\"hello\""])),
+              sort: snd(Form.classify_label(Exp, ["\"hello\""])),
               shards: [0],
               children: [],
             }),
@@ -148,8 +150,9 @@ let tests = (
           [
             Tile({
               id: Id.invalid,
-              // Atom(EmptyTuple, Exp, "()"): op(Exp) mold as before
-              form: Form.classify_label(Exp, ["()"]),
+              // Tok("()") at Exp: op(Exp) mold as before
+              form: fst(Form.classify_label(Exp, ["()"])),
+              sort: snd(Form.classify_label(Exp, ["()"])),
               shards: [0],
               children: [],
             }),

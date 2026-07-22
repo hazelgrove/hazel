@@ -15,9 +15,14 @@ and tile = {
   [@equal (_, _) => true]
   id: Id.t,
   form: Form.t,
-  // sexp only: shards/children default to the complete-arity-1 tile
-  // shape ([0], []) and are omitted when equal to it (most tiles).
+  // the local sort guess cached at insertion classification / remold
+  // (the only writers); mold = Form.mold_of(form, sort).
+  // sexp only: sort defaults to Exp and is omitted when Exp;
+  // shards/children default to the complete-arity-1 tile shape
+  // ([0], []) and are omitted when equal to it (most tiles).
   // yojson/show/eq are unchanged.
+  [@sexp.default Sort.Exp] [@sexp_drop_default.sexp]
+  sort: Sort.t,
   [@sexp.default [0]] [@sexp_drop_default.sexp]
   shards: list(int),
   [@sexp.default []] [@sexp_drop_default.sexp]
@@ -41,16 +46,12 @@ let rec map_piece = (~f_piece, x: piece) => {
   x |> f_piece(rec_call);
 };
 /* If the piece is parentheses, return the child. Otherwise,
- * return a singleton segment consisting of the piece */
+ * return a singleton segment consisting of the piece.
+ * The Parens family is op-shaped by construction; the concave-left
+ * Ap family (same ["(",")"] label) is excluded by the family split. */
 let unparenthesize = (piece: piece): segment =>
   switch (piece) {
-  | Tile({form, children: [seg], _}) when Form.has_label_of(form, ParensExp) =>
-    /* op-shaped only: the ["(",")"] label family also covers the
-     * concave-left Ap forms, which are not parentheses */
-    switch (Form.mold_of(form).nibs) {
-    | ({shape: Convex, _}, {shape: Convex, _}) => seg
-    | _ => [piece]
-    }
+  | Tile({form: Form.Compound(Parens), children: [seg], _}) => seg
   | _ => [piece]
   };
 

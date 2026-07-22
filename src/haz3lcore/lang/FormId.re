@@ -222,28 +222,286 @@ type compound_form =
   | SigLet
   | SigType;
 
-/* A form identity: a specific registered form (compound or classified
- * atomic), or one of the two Any-fallback classes for labels that
- * fail to mold at the requested sort:
- * - Unsorted(cf): the label IS registered (cf = first form with that
- *   label) but no registered mold matches the requested sort;
- * - Unmolded(t): the token matches no registered form at all. */
+/* A family is an equivalence class of compound_forms sharing the same
+ * label AND the same outer-nib shape-role (convex/concave pattern):
+ * sort-variants (ConsExp/ConsPat, ParensExp/.../Drv parens) and Drv
+ * twins collapse; same-label shape-splits stay distinct (bin `+` =
+ * Plus vs prefix `+` = SumSingle). Within a family, (out sort -> mold)
+ * is a function, so (family, sort) determines a mold; family_of below
+ * is the canonical projection, machine-checked against the mold tables
+ * in test/Test_FormId.re. Constructor order follows first-member
+ * declaration order in compound_form (traceability only; lookup
+ * priority comes from member order within Form.forms). */
+[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
+type family =
+  | TypeArrow
+  | CellJoin
+  | Plus
+  | Minus
+  | Times
+  | Power
+  | FPower
+  | Divide
+  | Equals
+  | StringConcat
+  | Lt
+  | Gt
+  | NotEquals
+  | Gte
+  | Lte
+  | FPlus
+  | FMinus
+  | FTimes
+  | FDivide
+  | FEquals
+  | FLt
+  | FGt
+  | FNotEquals
+  | FGte
+  | FLte
+  | LogicalAnd
+  | LogicalOrLegacy
+  | LogicalOr
+  | ListConcat
+  | Cons
+  | TypeAsc
+  | TupleLabeled
+  | Dot
+  | TupleExtension
+  | Not
+  | SumSingle
+  | UnaryMinus
+  | Comma
+  | ListLit
+  | Parens
+  | ApEmpty
+  | Ap
+  | ApExpTyp
+  | Case
+  | Test
+  | ProofOf
+  | ProofObject
+  | HintedTest
+  | Fun
+  | Fix
+  | TypFun
+  | Poly
+  | Forall
+  | Rec
+  | Rule
+  | Pipeline
+  | FilterHide
+  | FilterEval
+  | FilterPause
+  | FilterDebug
+  | Use
+  | OfProp
+  | OfCtx
+  | OfJdmt
+  | OfAlfaExp
+  | OfAlfaTyp
+  | OfAlfaPat
+  | OfAlfaTPat
+  | Subst
+  | Glb
+  | Val
+  | Eval
+  | Entail
+  | UnaryEntail
+  | Consistent
+  | MatchedArrow
+  | MatchedProd
+  | MatchedSum
+  | Valid
+  | Syn
+  | And
+  | Impl
+  | If
+  | Let
+  | Theorem
+  | TypeAlias
+  | ModBody
+  | ModLet
+  | ModType
+  | ModuleExp
+  | ModuleMod
+  | SigLet;
+
+let family_of_drv: drv_compound_form => family =
+  fun
+  | OfProp => OfProp
+  | OfCtx => OfCtx
+  | OfJdmt => OfJdmt
+  | OfAlfaExp => OfAlfaExp
+  | OfAlfaTyp => OfAlfaTyp
+  | OfAlfaPat => OfAlfaPat
+  | OfAlfaTPat => OfAlfaTPat
+  | Subst
+  | SubstTy => Subst
+  | Glb => Glb
+  | Val => Val
+  | Eval => Eval
+  | Entail => Entail
+  | UnaryEntail => UnaryEntail
+  | Consistent => Consistent
+  | MatchedArrow => MatchedArrow
+  | MatchedProd => MatchedProd
+  | MatchedSum => MatchedSum
+  | Valid => Valid
+  | HasType => TypeAsc
+  | Syn => Syn
+  | Ana => Lte
+  | And => And
+  | Or => LogicalOrLegacy
+  | Impl => Impl
+  | Not => Not
+  | Cons => Cons
+  | Concat => ListConcat
+  | List => ListLit
+  | Neg => UnaryMinus
+  | Plus => Plus
+  | Minus => Minus
+  | Times => Times
+  | Eq => Equals
+  | Lt => Lt
+  | Gt => Gt
+  | If => If
+  | Let => Let
+  | Fix => Fix
+  | Fun => Fun
+  | Dot => Dot
+  | Case => Case
+  | Rule => Rule
+  | Cast => TypeAsc
+  | Arrow => TypeArrow
+  | Prod => Times
+  | Sum => Plus
+  | Rec => Rec
+  | ApExpEmpty => ApEmpty
+  | ApExp
+  | ApPat => Ap
+  | CommaExp
+  | CommaPat => Comma
+  | ParenProp
+  | ParenExp
+  | ParenPat
+  | ParenTyp => Parens;
+
+let family_of: compound_form => family =
+  fun
+  | TypeArrow => TypeArrow
+  | CellJoin
+  | ModSeq
+  | SigSeq => CellJoin
+  | Plus
+  | TypPlus => Plus
+  | Minus => Minus
+  | Times => Times
+  | Power => Power
+  | FPower => FPower
+  | Divide => Divide
+  | Equals => Equals
+  | StringConcat => StringConcat
+  | Lt => Lt
+  | Gt => Gt
+  | NotEquals => NotEquals
+  | Gte => Gte
+  | Lte => Lte
+  | FPlus => FPlus
+  | FMinus => FMinus
+  | FTimes => FTimes
+  | FDivide => FDivide
+  | FEquals => FEquals
+  | FLt => FLt
+  | FGt => FGt
+  | FNotEquals => FNotEquals
+  | FGte => FGte
+  | FLte => FLte
+  | LogicalAnd => LogicalAnd
+  | LogicalOrLegacy => LogicalOrLegacy
+  | LogicalOr => LogicalOr
+  | ListConcat => ListConcat
+  | ConsExp
+  | ConsPat => Cons
+  | Typeann
+  | TypeAsc
+  | MPatTypeann => TypeAsc
+  | TupleLabeledExp
+  | TupleLabeledPat
+  | TupleLabeledTyp => TupleLabeled
+  | DotExp
+  | DotTyp
+  | ProdProjection => Dot
+  | TupleExtension
+  | ProdExtension => TupleExtension
+  | Not => Not
+  | TypSumSingle => SumSingle
+  | UnaryMinus => UnaryMinus
+  | CommaExp
+  | CommaPat
+  | CommaTyp => Comma
+  | ListLitExp
+  | ListLitPat
+  | ListTyp => ListLit
+  | ParensExp
+  | ParensPat
+  | ParensTyp
+  | ParensTPat => Parens
+  | ApExpEmpty
+  | ApPatEmpty => ApEmpty
+  | ApExp
+  | ApPat
+  | ApTyp => Ap
+  | ApExpTyp => ApExpTyp
+  | Case => Case
+  | Test => Test
+  | ProofOf => ProofOf
+  | ProofObject => ProofObject
+  | HintedTest => HintedTest
+  | Fun => Fun
+  | Fix => Fix
+  | TypFun => TypFun
+  | Poly => Poly
+  | Forall => Forall
+  | Rec => Rec
+  | Rule => Rule
+  | Pipeline => Pipeline
+  | FilterHide => FilterHide
+  | FilterEval => FilterEval
+  | FilterPause => FilterPause
+  | FilterDebug => FilterDebug
+  | Use => Use
+  | Drv(d) => family_of_drv(d)
+  | Let => Let
+  | Theorem => Theorem
+  | TypeAlias => TypeAlias
+  | If => If
+  | ModBody
+  | SigBody => ModBody
+  | ModLet => ModLet
+  | ModType
+  | SigType => ModType
+  | ModuleExp => ModuleExp
+  | ModuleMod => ModuleMod
+  | SigLet => SigLet;
+
+/* A form identity, sort-free: label is derived from the form alone;
+ * the mold is derived from (form, sort) where sort is the tile's
+ * stored local-sort guess (see Base.tile).
+ * - Compound(family): a registered compound form up to sort; if the
+ *   family has no member at the tile's sort, the mold falls back to
+ *   the Any-fallback (old Unsorted behavior);
+ * - Tok(t): a single classified-or-unclassified token (old Atom and
+ *   Unmolded); mold = the token's registered atomic mold at the tile's
+ *   sort, else the Any-fallback;
+ * - TokInfix(t): the keyword-prefix backup-infix shape-role. Exists
+ *   solely for the InfixDelimiterPrefix mechanism (see Form.re's
+ *   infix_delimiter_ops_prefixes rationale); never produced by
+ *   classification, only by remold shape-fitting. Scheduled for
+ *   demolition with virtual grout, which obsoletes IDP entirely
+ *   (plans/completion-provenance.md). */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
-  | Compound(compound_form)
-  | Unsorted(compound_form)
-  | Atom(atomic_form, Sort.t, Token.t)
-  | Unmolded(Token.t);
-
-/* Sexps serialized before Compound was named Compound (stored slide
- * modules, user-saved zippers) spell it `Form`; accept both. This shim
- * can be deleted along with the migration tooling (src/web/LegacyBase.re
- * etc.) if the slide files are regenerated first: they still contain
- * `(Form ...)` heads, which this reads. */
-let t_of_sexp = {
-  let derived = t_of_sexp;
-  fun
-  | Sexplib.Sexp.List([Sexplib.Sexp.Atom("Form" | "form"), ...args]) =>
-    derived(Sexplib.Sexp.List([Sexplib.Sexp.Atom("Compound"), ...args]))
-  | s => derived(s);
-};
+  | Compound(family)
+  | Tok(Token.t)
+  | TokInfix(Token.t);

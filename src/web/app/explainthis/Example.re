@@ -1,7 +1,10 @@
 open Haz3lcore;
 
 let mk_tile = (form: Form.compound_form) =>
-  Piece.mk_tile(Form.Compound(form));
+  Piece.mk_tile((
+    Form.Compound(Form.family_of(form)),
+    Form.get(form).mold.out,
+  ));
 let mk_monotile = form => mk_tile(form, []);
 
 let cons_exp = () => mk_monotile(ConsExp);

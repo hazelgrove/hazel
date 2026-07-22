@@ -11,48 +11,46 @@ type t = tile;
 let id = (t: t) => t.id;
 
 let label = (t: t): Label.t => Form.label_of(t.form);
-let mold = (t: t): Mold.t => Form.mold_of(t.form);
+let mold = (t: t): Mold.t => Form.mold_of(t.form, t.sort);
 let has_label = (t: t, lbl: Label.t): bool => label(t) == lbl;
 let arity = (t: t): int => List.length(label(t));
 let token = (t: t, i: int): Token.t => List.nth(label(t), i);
 
-/* Form predicates. is_form is exact form identity (Compound or its
- * Unsorted fallback). has_label_of and the named predicates below are
- * label-family level — labels are shared between forms (e.g.
- * ["(",")"] is both Parens* and Ap*) — preserving the label-comparison
- * semantics of their historical call sites. */
+/* Form predicates. A family bundles label + shape-role, so most of
+ * the historical label-comparison predicates are now plain form
+ * equality (each label below is spelled by exactly one family);
+ * is_paren_shaped keeps the historical label semantics — the
+ * ["(",")"] label is shared by the Parens and Ap families. */
 
-let is_form = (t: t, cf: Form.compound_form): bool =>
-  switch (t.form) {
-  | Form.Compound(f)
-  | Form.Unsorted(f) => f == cf
-  | Form.Atom(_)
-  | Form.Unmolded(_) => false
-  };
+let is_form = (t: t, fam: Form.family): bool => t.form == Form.Compound(fam);
 
 let has_label_of = (t: t, cf: Form.compound_form): bool =>
   Form.has_label_of(t.form, cf);
 
-let is_comma = (t: t): bool => has_label_of(t, CommaExp);
+let is_comma = (t: t): bool => t.form == Form.Compound(Comma);
 
-let is_case_rule = (t: t): bool => has_label_of(t, Rule);
+let is_case_rule = (t: t): bool => t.form == Form.Compound(Rule);
 
-let is_case = (t: t): bool => has_label_of(t, Case);
+let is_case = (t: t): bool => t.form == Form.Compound(Case);
 
-let is_semi = (t: t): bool => has_label_of(t, CellJoin);
+let is_semi = (t: t): bool => t.form == Form.Compound(CellJoin);
 
-let is_dot = (t: t): bool => has_label_of(t, DotExp);
+let is_dot = (t: t): bool => t.form == Form.Compound(Dot);
 
-let is_tuple_label_eq = (t: t): bool => has_label_of(t, TupleLabeledExp);
+let is_tuple_label_eq = (t: t): bool =>
+  t.form == Form.Compound(TupleLabeled);
 
 /* parens AND aps: all forms spelling ["(",")"], deliberately */
-let is_paren_shaped = (t: t): bool => has_label_of(t, ParensExp);
+let is_paren_shaped = (t: t): bool =>
+  t.form == Form.Compound(Parens) || t.form == Form.Compound(Ap);
 
-let is_bracket_shaped = (t: t): bool => has_label_of(t, ListLitExp);
+let is_bracket_shaped = (t: t): bool => t.form == Form.Compound(ListLit);
 
-let is_empty_tuple_shaped = (t: t): bool => label(t) == [Token.empty_tuple];
+let is_empty_tuple_shaped = (t: t): bool =>
+  t.form == Form.Compound(ApEmpty) || t.form == Form.Tok(Token.empty_tuple);
 
-let is_explicit_hole = (t: t): bool => label(t) == [Token.explicit_hole];
+let is_explicit_hole = (t: t): bool =>
+  t.form == Form.Tok(Token.explicit_hole);
 
 let is_multidelimiter = (t: t): bool => List.length(label(t)) > 1;
 
@@ -123,41 +121,42 @@ let shard_of = (t: t, i: int): t => {
   children: [],
 };
 
-let split_shards = (id, form, shards) =>
+let split_shards = (id, form, sort, shards) =>
   shards
   |> List.map(i =>
        {
          id,
          form,
+         sort,
          shards: [i],
          children: [],
        }
      );
 
 let left_missing_shards = (t: t): list(t) =>
-  List.init(l_shard(t), Fun.id) |> split_shards(t.id, t.form);
+  List.init(l_shard(t), Fun.id) |> split_shards(t.id, t.form, t.sort);
 
 let right_missing_shards = (t: t): list(t) =>
   List.init(arity(t) - r_shard(t) - 1, i => r_shard(t) + i + 1)
-  |> split_shards(t.id, t.form);
+  |> split_shards(t.id, t.form, t.sort);
 
 let missing_shards = (t: t): list(t) =>
   List.filter(i => !List.mem(i, t.shards), List.init(arity(t), Fun.id))
-  |> split_shards(t.id, t.form);
+  |> split_shards(t.id, t.form, t.sort);
 
 let effective_label = (t: t): list(string) =>
   List.map(List.nth(label(t)), t.shards);
 
 // postcond: output segment is nonempty
-let disassemble = ({id, form, shards, children}: t): segment => {
-  let shards = split_shards(id, form, shards);
+let disassemble = ({id, form, sort, shards, children}: t): segment => {
+  let shards = split_shards(id, form, sort, shards);
   Aba.mk(shards, children)
   |> Aba.join(s => [to_piece(s)], Fun.id)
   |> List.concat;
 };
 
-let disintegrate = ({id, form, shards, _}: t): list(tile) => {
-  split_shards(id, form, shards);
+let disintegrate = ({id, form, sort, shards, _}: t): list(tile) => {
+  split_shards(id, form, sort, shards);
 };
 
 let reassemble = (match: Aba.t(t, segment)): t => {
@@ -174,9 +173,10 @@ let reassemble = (match: Aba.t(t, segment)): t => {
   assert(List.sort(Int.compare, shards) == shards);
   {
     id: t.id,
-    // discards forms on non-hd tiles; if they differ (pending
+    // discards forms/sorts on non-hd tiles; if they differ (pending
     // remold), the reassembled tile must be remolded
     form: t.form,
+    sort: t.sort,
     shards,
     children,
   };

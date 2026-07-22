@@ -10,12 +10,13 @@ type t = {
   [@equal (_, _) => true]
   id: Id.t,
   form: Form.t,
+  sort: Sort.t,
   shards: (list(int), list(int)),
   children: (list(Segment.t), list(Segment.t)),
 };
 
 let label = (a: t): Label.t => Form.label_of(a.form);
-let mold = (a: t): Mold.t => Form.mold_of(a.form);
+let mold = (a: t): Mold.t => Form.mold_of(a.form, a.sort);
 
 // TODO(d) revisit naming w.r.t. outer vs inner shards
 let l_shard = a =>
@@ -30,9 +31,10 @@ let nibs = (a: t) => {
   (l, r);
 };
 
-let zip = (child: Segment.t, {id, form, shards, children}: t): Tile.t => {
+let zip = (child: Segment.t, {id, form, sort, shards, children}: t): Tile.t => {
   id,
   form,
+  sort,
   shards: fst(shards) @ snd(shards),
   children: fst(children) @ [child, ...snd(children)],
 };
@@ -54,10 +56,10 @@ let sort = (a: t): Sort.t => {
 };
 
 let disassemble =
-    ({id, form, shards, children: (kids_l, kids_r)}: t): Siblings.t => {
+    ({id, form, sort, shards, children: (kids_l, kids_r)}: t): Siblings.t => {
   let (shards_l, shards_r) =
     shards
-    |> TupleUtil.map2(Tile.split_shards(id, form))
+    |> TupleUtil.map2(Tile.split_shards(id, form, sort))
     |> TupleUtil.map2(List.map(Tile.to_piece));
   let flatten = (shards, kids) =>
     Aba.mk(shards, kids) |> Aba.join(p => [p], Fun.id) |> List.flatten;
@@ -71,7 +73,7 @@ let missing_middle_shards = (a: t): list(Tile.t) => {
   let first_r =
     ListUtil.hd_opt(shards_r) |> OptUtil.get_or_raise(Empty_shard_affix);
   let ls = List.init(first_r - last_l - 1, i => last_l + i + 1);
-  Tile.split_shards(a.id, a.form, ls);
+  Tile.split_shards(a.id, a.form, a.sort, ls);
 };
 
 let reassemble = (match_l: Aba.t(Tile.t, Segment.t) as 'm, match_r: 'm): t => {
@@ -82,6 +84,7 @@ let reassemble = (match_l: Aba.t(Tile.t, Segment.t) as 'm, match_r: 'm): t => {
   {
     id: t_l.id,
     form: t_l.form,
+    sort: t_l.sort,
     shards: (t_l.shards, t_r.shards),
     children: (t_l.children, t_r.children),
   };

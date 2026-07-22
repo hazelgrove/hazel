@@ -1026,10 +1026,12 @@ let should_add_space = (s1, s2) =>
   };
 
 let text_to_pretty = (id, sort, str): pretty => {
+  let (form, sort) = Form.classify_label(sort, [str]);
   p_just([
     Tile({
       id,
-      form: Form.classify_label(sort, [str]),
+      form,
+      sort,
       shards: [0],
       children: [],
     }),
@@ -1069,7 +1071,8 @@ let mk_form =
     };
   Tile({
     id,
-    form: Form.Compound(form_name),
+    form: Form.Compound(Form.family_of(form_name)),
+    sort: form.mold.out,
     shards: List.init(List.length(children) + 1, n => n),
     children,
   });
@@ -1576,6 +1579,7 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
     let mk_jdmt_binop = (op, l, r, sort_l, sort_r) => {
       let+ l = go(l, sort_l)
       and+ r = go(r, sort_r);
+      let (form, sort) = Form.classify_label(Sort.Drv(Exp), [op]);
       l
       @ [
         Tile({
@@ -1584,7 +1588,8 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
            * no registered form. Display-only path (to_string reads
            * only labels), so classify at Drv(Exp); "≯"/"≮"/"≠"/"∈"/"⊆"
            * come out Unmolded. */
-          form: Form.classify_label(Sort.Drv(Exp), [op]),
+          form,
+          sort,
           shards: [0],
           children: [],
         }),
@@ -1701,12 +1706,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       exp,
       settings.show_filters
         ? {
-          let form =
+          let form: Form.compound_form =
             switch (act) {
-            | (Step, One) => Form.FilterPause
-            | (Step, All) => Form.FilterDebug
-            | (Eval, One) => Form.FilterHide
-            | (Eval, All) => Form.FilterEval
+            | (Step, One) => FilterPause
+            | (Step, All) => FilterDebug
+            | (Eval, One) => FilterHide
+            | (Eval, All) => FilterEval
             };
           [mk_form(form, id, [p])] @ e;
         }
@@ -1799,14 +1804,16 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ l = go(l)
     and+ r = go(r);
+    let (form, sort) =
+      Form.classify_label(Sort.Exp, [Operators.bin_op_to_string(op)]);
     wrap(
       exp,
       l
       @ [
         Tile({
           id,
-          form:
-            Form.classify_label(Sort.Exp, [Operators.bin_op_to_string(op)]),
+          form,
+          sort,
           shards: [0],
           children: [],
         }),
@@ -1825,6 +1832,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         Tile({
           id,
           form: Form.Compound(TupleExtension),
+          sort: Sort.Exp,
           shards: [0],
           children: [],
         }),
@@ -1993,7 +2001,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         [
           Tile({
             id: exp |> Exp.rep_id,
-            form: Form.Compound(TupleLabeledExp),
+            form: Form.Compound(TupleLabeled),
+            sort: Sort.Exp,
             shards: [0],
             children: [],
           }),
@@ -2096,6 +2105,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         Tile({
           id,
           form: Form.Compound(Pipeline),
+          sort: Sort.Exp,
           shards: [0],
           children: [],
         }),
@@ -2359,7 +2369,8 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
       @ [
         Tile({
           id: Id.mk(),
-          form: Form.Compound(MPatTypeann),
+          form: Form.Compound(TypeAsc),
+          sort: Sort.MPat,
           shards: [0],
           children: [],
         }),
@@ -2471,7 +2482,8 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         [
           Tile({
             id: pat |> Pat.rep_id,
-            form: Form.Compound(TupleLabeledPat),
+            form: Form.Compound(TupleLabeled),
+            sort: Sort.Pat,
             shards: [0],
             children: [],
           }),
@@ -2705,7 +2717,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         [
           Tile({
             id: typ |> Typ.rep_id,
-            form: Form.Compound(TupleLabeledTyp),
+            form: Form.Compound(TupleLabeled),
+            sort: Sort.Typ,
             shards: [0],
             children: [],
           }),

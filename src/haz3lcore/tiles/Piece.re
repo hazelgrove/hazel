@@ -174,11 +174,12 @@ let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
     shape,
   });
 
-let mk_tile: (Form.t, list(list(t))) => t =
-  (form, children) =>
+let mk_tile: ((Form.t, Sort.t), list(list(t))) => t =
+  ((form, sort), children) =>
     Tile({
       id: Id.mk(),
       form,
+      sort,
       shards: List.mapi((i, _) => i, Form.label_of(form)),
       children,
     });

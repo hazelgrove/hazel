@@ -143,14 +143,16 @@ let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
       let a =
         switch (
           forms
-          |> List.filter(form => {
-               let (l_nib, _) = Mold.nibs(~index=l_idx, Form.mold_of(form));
+          |> List.filter(((form, sort)) => {
+               let (l_nib, _) =
+                 Mold.nibs(~index=l_idx, Form.mold_of(form, sort));
                Nib.Shape.fits(left_shape, Nib.shape(l_nib));
              })
         ) {
-        | [form, ..._] => {
+        | [(form, sort), ..._] => {
             ...a,
             form,
+            sort,
           }
         | [] => a
         };

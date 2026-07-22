@@ -87,9 +87,9 @@ let insert_shard_core =
   } else {
     let sort = effective_sort(t, z, ~root);
     let (label, delim_d) = expansion(sort, t, z);
-    let form = Form.classify_label(sort, label);
+    let (form, sort) = Form.classify_label(sort, label);
     let shard =
-      Tile.split_shards(id, form, List.mapi((i, _) => i, label))
+      Tile.split_shards(id, form, sort, List.mapi((i, _) => i, label))
       |> (delim_d == Right ? ListUtil.last : List.hd);
     put_down([Tile(shard)], z);
   };
@@ -423,10 +423,11 @@ let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
   let sort = Relatives.sort(~root, z.relatives);
   let (left_sibs, right_sibs) = z.relatives.siblings;
   let label = delimiter_label(char);
-  let form = Form.classify_label(sort, label);
+  let (form, sort) = Form.classify_label(sort, label);
   let ancestor: Ancestor.t = {
     id: Id.mk(),
     form,
+    sort,
     shards: ([0], [1]),
     children: ([], []),
   };
@@ -505,11 +506,12 @@ let wrap_quote = (char: string, z: t, ~root): option(t) => {
     } else {
       let token = char ++ text ++ char;
       let sort = Relatives.sort(~root, z.relatives);
-      let form = Form.classify_label(sort, [token]);
+      let (form, sort) = Form.classify_label(sort, [token]);
       let tile: Piece.t =
         Tile({
           id: Id.mk(),
           form,
+          sort,
           shards: [0],
           children: [],
         });

@@ -115,10 +115,11 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
     | [] => None
     | forms =>
       forms
-      |> List.map(form =>
+      |> List.map(((form, sort)) =>
            {
              ...t,
              form,
+             sort,
            }
          )
       |> (
