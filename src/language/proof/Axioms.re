@@ -80,6 +80,7 @@ type operation_metadata = {
   name: string,
   short_name: string,
   example: string,
+  profile_group: option(string),
 };
 
 type visible_step_mode =
@@ -1006,11 +1007,53 @@ let cleanup_capability_for_id =
   | "alg.collect_like_terms" => Some(CollectLikeTerms)
   | _ => None;
 
+let profile_group_for_rule_id =
+  fun
+  | "trig.pythagorean_sin_cos"
+  | "trig.pythagorean_cos_sin"
+  | "trig.cos_squared_pythagorean"
+  | "trig.sin_squared_pythagorean" => Some("Pythagorean identities")
+  | "trig.sin_sum"
+  | "trig.sin_diff"
+  | "trig.cos_sum"
+  | "trig.cos_diff" => Some("Sum and difference identities")
+  | "trig.sin_double"
+  | "trig.sin_double_sum_square"
+  | "trig.cos_double_square"
+  | "trig.cos_double_cos"
+  | "trig.cos_double_sin" => Some("Double-angle identities")
+  | "trig.sin_squared_double"
+  | "trig.cos_squared_double"
+  | "trig.sin_half_squared"
+  | "trig.cos_half_squared" =>
+    Some("Power-reduction and half-angle identities")
+  | "trig.sin_cofunction"
+  | "trig.cos_cofunction"
+  | "trig.sin_pi_sub"
+  | "trig.cos_pi_sub"
+  | "trig.sin_neg"
+  | "trig.cos_neg"
+  | "trig.tan_neg" => Some("Symmetry and cofunction identities")
+  | "calc.diff_function"
+  | "calc.diff_constant"
+  | "calc.diff_variable" => Some("Basic derivatives")
+  | "calc.diff_sum"
+  | "calc.diff_difference"
+  | "calc.diff_negation" => Some("Linearity")
+  | "calc.diff_product"
+  | "calc.diff_quotient"
+  | "calc.diff_power" => Some("Algebraic derivative rules")
+  | "calc.diff_chain"
+  | "calc.diff_chain_sin"
+  | "calc.diff_chain_cos" => Some("Chain and trigonometric derivatives")
+  | _ => None;
+
 let operation_metadata = (~id, ~name, ~short_name, ~example) => {
   id,
   name,
   short_name,
   example,
+  profile_group: profile_group_for_rule_id(id),
 };
 
 let cleanup_capability_metadata =
@@ -1672,7 +1715,7 @@ let rocq_backend_for_rule_id =
     )
   | "alg.cancel_common_add" =>
     Some(
-      rocq_rule_backend(
+      rocq_rule_backend_with_replay(
         ~tactic="hazel_rewrite_step",
         ~integers=[
           "rewrite Z.add_simpl_r",
@@ -1684,6 +1727,8 @@ let rocq_backend_for_rule_id =
           "unfold Rminus; rewrite <- Rplus_assoc; rewrite Rplus_opp_r; rewrite Rplus_0_r",
           "unfold Rminus; rewrite Rplus_assoc; rewrite Rplus_opp_l; rewrite Rplus_0_l",
         ],
+        ~replay_integers=["ring"],
+        ~replay_reals=["unfold Rminus; lra"],
       ),
     )
   | "alg.power_add"

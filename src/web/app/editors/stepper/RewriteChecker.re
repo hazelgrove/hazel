@@ -3804,16 +3804,32 @@ let check_written_step_trace_for_profile =
       switch (direct_cleanup_trace_for_profile(~profile, from_, to_)) {
       | Some(summary) => Some(summary)
       | None =>
-        switch (calculus_check_result_trace_for_profile(~profile, from_, to_)) {
-        | Some(summary) => Some(summary)
-        | None =>
-          check_written_step_trace_at_level(
-            ~level=profile.level,
+        switch (
+          check_single_step_result_for_profile(
+            ~profile,
             ~settings,
             ~env,
             from_,
             to_,
           )
+        ) {
+        | Some(result) when result.justification == "algebra one step" =>
+          Some(trace_summary_of_result(result))
+        | Some(_)
+        | None =>
+          switch (
+            calculus_check_result_trace_for_profile(~profile, from_, to_)
+          ) {
+          | Some(summary) => Some(summary)
+          | None =>
+            check_written_step_trace_at_level(
+              ~level=profile.level,
+              ~settings,
+              ~env,
+              from_,
+              to_,
+            )
+          }
         }
       };
     let candidate =

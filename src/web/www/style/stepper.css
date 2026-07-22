@@ -343,6 +343,11 @@
   gap: 5px;
 }
 
+.proof-search-route {
+  color: var(--BR4);
+  font-size: 0.9em;
+}
+
 .proof-mode-warning {
   color: var(--R2);
   font-weight: 600;
@@ -472,6 +477,45 @@
   flex-direction: column;
   gap: 0.4rem;
   padding: 0.45rem;
+}
+
+.profile-board-subgroup {
+  overflow: hidden;
+  border: 1px solid var(--menu-outline);
+  border-radius: 0.3em;
+  background-color: var(--menu-bkg);
+}
+
+.profile-board-subgroup-toggle {
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  min-height: 2.1rem;
+  padding: 0.4rem 0.55rem;
+  border: 0;
+  background-color: var(--T2);
+  color: var(--BR4);
+  font: inherit;
+  text-align: left;
+}
+
+.profile-board-subgroup-toggle:hover {
+  filter: brightness(0.97);
+}
+
+.profile-board-subgroup-name {
+  color: var(--BR4);
+  font-weight: 700;
+}
+
+.profile-board-subgroup-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.4rem;
 }
 
 .profile-board-control-rule {

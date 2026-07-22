@@ -2706,6 +2706,70 @@ let tests = (
       },
     ),
     test_case(
+      "Trig and Calculus profile subgroups come from rule metadata",
+      `Quick,
+      () => {
+        let subgroup = rule_id =>
+          Axioms.visible_rule_metadata(rule_id).profile_group;
+        check(
+          option(string),
+          "sine sum subgroup",
+          Some("Sum and difference identities"),
+          subgroup("trig.sin_sum"),
+        );
+        check(
+          option(string),
+          "Pythagorean subgroup",
+          Some("Pythagorean identities"),
+          subgroup("trig.pythagorean_sin_cos"),
+        );
+        check(
+          option(string),
+          "calculus linearity subgroup",
+          Some("Linearity"),
+          subgroup("calc.diff_sum"),
+        );
+        check(
+          option(string),
+          "trigonometric derivative subgroup",
+          Some("Chain and trigonometric derivatives"),
+          subgroup("calc.diff_chain_cos"),
+        );
+        check(
+          option(string),
+          "Algebra remains flat",
+          None,
+          subgroup("alg.factor_common"),
+        );
+        let subgroup_id = "visible-subgroup:Calculus:Linearity";
+        check(
+          bool,
+          "nested subgroup starts collapsed",
+          false,
+          Web.ProfileBoard.named_section_expanded(
+            ~default=false,
+            Web.ProfileBoard.Model.init,
+            subgroup_id,
+          ),
+        );
+        let expanded =
+          Web.ProfileBoard.Model.init
+          |> Web.ProfileBoard.Update.update(
+               SetSectionExpanded(subgroup_id, true),
+             );
+        check(
+          bool,
+          "nested subgroup expands independently",
+          true,
+          Web.ProfileBoard.named_section_expanded(
+            ~default=false,
+            expanded,
+            subgroup_id,
+          ),
+        );
+      },
+    ),
+    test_case(
       "custom profile can disable a trig visible rule",
       `Quick,
       () => {
@@ -3642,6 +3706,50 @@ let tests = (
           "only profile-valid proof can replace",
           [false, false, true, false, false],
           verdicts |> List.map(Web.MissingStep.proof_search_can_replace),
+        );
+        check(
+          string,
+          "expected outside-profile rejection hides raw Rocq pretty-print data",
+          "No proof is available using the active Profile.",
+          Web.MissingStep.proof_search_failure_message(
+            ~has_profile_trace=false,
+            "JSCoq failed: Pp_glue Pp_string Unable to unify",
+          ),
+        );
+        check(
+          string,
+          "failed exact replay is identified as a certificate problem",
+          "Rocq could not verify the enabled Profile proof certificate. See the browser console for details.",
+          Web.MissingStep.proof_search_failure_message(
+            ~has_profile_trace=true,
+            "JSCoq failed: Pp_glue Pp_string No applicable tactic",
+          ),
+        );
+        check(
+          string,
+          "worker failures remain distinguishable from invalid results",
+          "Rocq checker failed unexpectedly. See the browser console for details.",
+          Web.MissingStep.proof_search_failure_message(
+            ~has_profile_trace=false,
+            "JSCoq failed: Stack overflow.",
+          ),
+        );
+        let cancellation_summary: Web.RewriteChecker.trace_summary = {
+          justification: "algebra one step",
+          group_name: Some("Algebra"),
+          from_normal_exp: Exp.var("x"),
+          to_normal_exp: Exp.var("x"),
+          from_rule_ids: [],
+          to_rule_ids: [],
+          rule_ids: ["alg.cancel_common_add"],
+          prover_steps: [],
+          exportable: true,
+        };
+        check(
+          string,
+          "valid verdict exposes its named Profile route",
+          "Cancel a common additive term",
+          Web.MissingStep.proof_search_route_label(cancellation_summary),
         );
       },
     ),
@@ -10279,6 +10387,125 @@ let tests = (
           false,
           trace(without_basics, diff(x, x), Exp.int(1)) |> Option.is_some,
         );
+      },
+    ),
+    test_case(
+      "direct cancellation is independent from affine normalization",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let profile = Axioms.math_profile(Algebra);
+        let trace = (profile, source, target) =>
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          );
+        let without_affine = {
+          ...profile,
+          check_result_rule_ids:
+            profile.check_result_rule_ids
+            |> List.filter(rule_id => rule_id != "arith.affine_normalize"),
+        };
+        let without_cancellation =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="alg.cancel_common_add",
+            profile,
+          );
+        let without_either =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="alg.cancel_common_add",
+            without_affine,
+          );
+        let source = minus(plus(x, y), y);
+        check(
+          bool,
+          "enabled cancellation supplies an independent route",
+          true,
+          switch (trace(without_affine, source, x)) {
+          | Some(summary) =>
+            List.mem("alg.cancel_common_add", summary.rule_ids)
+          | None => false
+          },
+        );
+        check(
+          bool,
+          "direct cancellation is preferred when both routes are enabled",
+          true,
+          switch (trace(profile, source, x)) {
+          | Some(summary) =>
+            List.mem("alg.cancel_common_add", summary.rule_ids)
+          | None => false
+          },
+        );
+        check(
+          bool,
+          "affine normalization remains an alternate authorized route",
+          true,
+          switch (trace(without_cancellation, source, x)) {
+          | Some(summary) => summary.rule_ids == ["arith.affine_normalize"]
+          | None => false
+          },
+        );
+        check(
+          bool,
+          "disabling both routes rejects the step",
+          false,
+          trace(without_either, source, x) |> Option.is_some,
+        );
+        check(
+          bool,
+          "a structurally different cancellation uses the same direct rule",
+          true,
+          switch (
+            trace(
+              without_affine,
+              minus(plus(times(Exp.int(2), x), y), y),
+              times(Exp.int(2), x),
+            )
+          ) {
+          | Some(summary) =>
+            List.mem("alg.cancel_common_add", summary.rule_ids)
+          | None => false
+          },
+        );
+        check(
+          bool,
+          "direct cancellation rejects an inequivalent target",
+          false,
+          trace(without_affine, source, y) |> Option.is_some,
+        );
+        let replay = source => {
+          let summary =
+            switch (trace(without_affine, source, x)) {
+            | Some(summary) => summary
+            | None => fail("expected direct cancellation trace")
+            };
+          let request =
+            Web.ProofSearchBackend.{
+              backend: JSCoqTacticSearch,
+              level: Algebra,
+              max_depth: 4,
+              max_states: 80,
+              source,
+              target: x,
+            };
+          Web.ProofSearchBackend.rocq_replay_program(request, summary);
+        };
+        let right_replay = replay(source);
+        let left_replay = replay(plus(y, minus(x, y)));
+        [right_replay, left_replay]
+        |> List.iter(program => {
+             check(
+               bool,
+               "Rocq replay uses a deterministic cancellation certificate",
+               true,
+               string_contains("unfold Rminus; lra", program),
+             )
+           });
       },
     ),
     test_case(

@@ -750,6 +750,95 @@ module View = {
     );
   };
 
+  let rec visible_rule_subgroups = (rules: list(Axioms.visible_rule_policy)) =>
+    switch (rules) {
+    | [] => []
+    | [first, ..._] =>
+      let subgroup = first.Axioms.metadata.profile_group;
+      let (members, remaining) =
+        rules
+        |> List.partition((rule: Axioms.visible_rule_policy) =>
+             rule.metadata.profile_group == subgroup
+           );
+      [(subgroup, members), ...visible_rule_subgroups(remaining)];
+    };
+
+  let visible_rule_nodes = (~model, ~inject, ~level_id, rules) => {
+    let has_subgroups =
+      rules
+      |> List.exists((rule: Axioms.visible_rule_policy) =>
+           rule.metadata.profile_group |> Option.is_some
+         );
+    if (!has_subgroups) {
+      rules |> List.map(rule_controls(~model, ~inject));
+    } else {
+      visible_rule_subgroups(rules)
+      |> List.concat_map(((subgroup, members)) =>
+           switch (subgroup) {
+           | None => members |> List.map(rule_controls(~model, ~inject))
+           | Some(subgroup_name) =>
+             let subgroup_id =
+               "visible-subgroup:" ++ level_id ++ ":" ++ subgroup_name;
+             let expanded =
+               named_section_expanded(~default=false, model, subgroup_id);
+             [
+               div_c(
+                 "profile-board-subgroup",
+                 [
+                   Node.button(
+                     ~attrs=[
+                       Attr.class_("profile-board-subgroup-toggle"),
+                       Attr.create("type", "button"),
+                       Attr.create(
+                         "aria-expanded",
+                         expanded ? "true" : "false",
+                       ),
+                       Attr.on_click(_ =>
+                         inject(
+                           Update.SetSectionExpanded(subgroup_id, !expanded),
+                         )
+                       ),
+                     ],
+                     [
+                       span_c(
+                         "profile-board-level-chevron",
+                         [Node.text(expanded ? "▼" : "▶")],
+                       ),
+                       span_c(
+                         "profile-board-subgroup-name",
+                         [Node.text(subgroup_name)],
+                       ),
+                       span_c(
+                         "profile-board-level-count",
+                         [
+                           Node.text(
+                             string_of_int(List.length(members))
+                             ++ (
+                               List.length(members) == 1
+                                 ? " operation" : " operations"
+                             ),
+                           ),
+                         ],
+                       ),
+                     ],
+                   ),
+                   ...expanded
+                        ? [
+                          div_c(
+                            "profile-board-subgroup-rules",
+                            members
+                            |> List.map(rule_controls(~model, ~inject)),
+                          ),
+                        ]
+                        : [],
+                 ],
+               ),
+             ];
+           }
+         );
+    };
+  };
+
   let level_section =
       (~model, ~inject, ~active_level, group: Axioms.rewrite_group, rules) => {
     let expanded = section_expanded(~active_level, model, group.level);
@@ -790,7 +879,7 @@ module View = {
              ? [
                div_c(
                  "profile-board-level-rules",
-                 rules |> List.map(rule_controls(~model, ~inject)),
+                 visible_rule_nodes(~model, ~inject, ~level_id, rules),
                ),
              ]
              : [],

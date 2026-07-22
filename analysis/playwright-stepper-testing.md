@@ -169,12 +169,45 @@ Use a fresh context and a small typing delay. Assert that
 `body.innerText.split("\n")` contains `Valid`, click `Replace`, and verify the
 named identity derivation rather than accepting a generic equivalence result.
 
+## Calibrated Profile Toggle Checks
+
+Profile-boundary tests must change controls through the rendered Profile pane;
+do not mutate the profile model from JavaScript. After structurally selecting
+the expression:
+
+1. Open exact text `Profile ▼`.
+2. Expand the relevant visible-rule subgroup. Trigonometry and Calculus
+   subgroups start collapsed.
+3. Locate the rule's `label.profile-board-toggle` and click its checkbox.
+4. For `Normalize affine arithmetic`, expand the last Arithmetic level toggle;
+   that toggle belongs to Check Result operations, while the first Arithmetic
+   toggle belongs to visible operations.
+5. Wait about 700 ms after the final toggle, close exact text `Profile ▲`, wait
+   for `.profile-board-layer` to detach, and wait another 700 ms before clicking
+   `Search ▼`. Without both settles, the SVG selection may collapse instead of
+   opening Search.
+
+For the target hole, use its rendered bounding box and a mouse click, then wait
+about 250 ms before typing. A forced SVG click can resolve to the hole while the
+overlying code container keeps editor focus, causing the first target character
+to be lost. Always assert the rendered target text before running Rocq.
+
+For a valid result, also assert the displayed `Profile route:` text. This catches
+unexpected alternate routes—for example, an affine equality can remain valid
+through `Normalize affine arithmetic` even when its more visually obvious
+factoring rule is disabled. For disabled Trigonometry routes, assert both the
+`Invalid` verdict and the concise `No proof is available using the active
+Profile.` message; raw `Pp_*` output belongs only in the browser console.
+
 ## Known Failure Modes
 
 - Clicking the wrong right-side tab opens API, probes, or problems settings.
   Prefer the `Show Stepper` title and the stepper toolbar coordinates above.
 - Clicking an operator places a caret. Dragging across the expression creates
   the structural selection required for Search controls.
+- A forced click on `svg.empty-hole` can leave focus on the overlying code
+  container. Click the hole's coordinates with `page.mouse` and pause before
+  typing the target.
 - Nested settings backdrops intercept clicks even after pressing Escape.
 - Typing closing parentheses into the hidden target editor duplicates Hazel's
   auto-inserted delimiters; use `ArrowRight` to leave each pair.

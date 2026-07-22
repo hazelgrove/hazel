@@ -123,6 +123,57 @@ let proof_search_can_replace =
   | EquivalentOutsideProfile
   | Invalid => false;
 
+let string_contains = (needle, haystack) => {
+  let needle_length = String.length(needle);
+  let haystack_length = String.length(haystack);
+  let rec loop = offset =>
+    offset
+    + needle_length <= haystack_length
+    && (
+      String.sub(haystack, offset, needle_length) == needle
+      || loop(offset + 1)
+    );
+  needle_length == 0 || loop(0);
+};
+
+let proof_search_failure_message = (~has_profile_trace, raw_message) => {
+  let infrastructure_failure =
+    [
+      "Stack overflow",
+      "timed out",
+      "failed to start",
+      "worker failed",
+      "Persistent Rocq worker failed",
+    ]
+    |> List.exists(fragment => string_contains(fragment, raw_message));
+  if (infrastructure_failure) {
+    "Rocq checker failed unexpectedly. See the browser console for details.";
+  } else if (has_profile_trace) {
+    "Rocq could not verify the enabled Profile proof certificate. See the browser console for details.";
+  } else {
+    "No proof is available using the active Profile.";
+  };
+};
+
+let proof_search_route_label = (summary: RewriteChecker.trace_summary) => {
+  let rule_names =
+    summary.rule_ids
+    |> List.filter_map(rule_id =>
+         switch (Axioms.catalog_rule_by_id(rule_id)) {
+         | Some(rule) => Some(rule.metadata.name)
+         | None =>
+           Axioms.cleanup_capability_for_id(rule_id)
+           |> Option.map(capability =>
+                Axioms.cleanup_capability_metadata(capability).name
+              )
+         }
+       )
+    |> RewriteChecker.dedup;
+  rule_names == []
+    ? RewriteChecker.trace_summary_label(summary)
+    : String.concat(" → ", rule_names);
+};
+
 module Update = {
   open Updated;
 
@@ -1751,7 +1802,13 @@ module View = {
                           )
                         };
                       } else {
-                        finish(Invalid, message);
+                        finish(
+                          Invalid,
+                          proof_search_failure_message(
+                            ~has_profile_trace=local_trace |> Option.is_some,
+                            message,
+                          ),
+                        );
                       },
                   ~on_cancel=
                     () =>
@@ -2052,6 +2109,15 @@ module View = {
                       Some(Some(trace_summary)),
                     ) => [
                       Node.text("Valid"),
+                      div_c(
+                        "proof-search-route",
+                        [
+                          Node.text(
+                            "Profile route: "
+                            ++ proof_search_route_label(trace_summary),
+                          ),
+                        ],
+                      ),
                       replace_button(trace_summary),
                     ]
                   | (Model.ProofSearch, Model.ProfileValid, _) => [
@@ -2070,6 +2136,15 @@ module View = {
                     @ [run_proof_search_button]
                   | (_, _, Some(Some(trace_summary))) => [
                       Node.text("Valid"),
+                      div_c(
+                        "proof-search-route",
+                        [
+                          Node.text(
+                            "Profile route: "
+                            ++ proof_search_route_label(trace_summary),
+                          ),
+                        ],
+                      ),
                       replace_button(trace_summary),
                     ]
                   | (_, _, Some(None)) => [Node.text("Invalid")]
