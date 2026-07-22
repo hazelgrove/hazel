@@ -154,8 +154,12 @@ module Utils = {
               let pat_id = Pat.rep_id(pat);
               let def_id = Exp.rep_id(def);
               let body_id = Exp.rep_id(body);
-              // Check if departure point is in the pattern, definition, or body position of the candidate
-              if (Id.equal(def_id, Info.id_of(departure_point))
+              /* Fn-sugar lets desugar to Let(f, Fun(args, def), body) in
+                 statics, so the ancestor chain reaches this Let via the
+                 synthetic Fun wrapper rather than pat/def/body directly;
+                 any chain position is necessarily inside the binding. */
+              if (Option.is_some(FunctionSugar.detect(pat))
+                  || Id.equal(def_id, Info.id_of(departure_point))
                   || Id.equal(body_id, Info.id_of(departure_point))
                   || Id.equal(pat_id, Info.id_of(departure_point))) {
                 // if it is, then set this is as the new nominee for the top-level node
@@ -242,8 +246,9 @@ module Namer = {
     | Wild => "{wild}"
     | EmptyHole => "{empty pattern hole}"
     | MultiHole(_) => "{multi hole}"
-    | Ap(pat1, pat2) =>
-      mk_name_from_pat(pat1) ++ "(" ++ mk_name_from_pat(pat2) ++ ")"
+    /* Fn-definition sugar `let f(x, y) = ...`: the binding is addressed by
+       the bare head name; collisions fall to the #k ambiguity machinery. */
+    | Ap(pat1, _) => mk_name_from_pat(pat1)
     | TupLabel(pat1, pat2) =>
       "(" ++ mk_name_from_pat(pat1) ++ " : " ++ mk_name_from_pat(pat2) ++ ")"
     | Atom(_) => "{atom}"

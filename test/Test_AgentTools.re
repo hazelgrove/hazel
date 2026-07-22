@@ -4414,6 +4414,227 @@ let paste_funnel_tests = (
 );
 
 /* ============================================================
+   FN-DEFINITION SUGAR — bare-name paths + tool coverage
+   `let f(x, y) = ...` binds pattern Ap(Var f, args); the binding is
+   addressed by the bare head name, with #k on collisions.
+   ============================================================ */
+
+let fn_sugar_tests = (
+  "AgentTools.FnSugar",
+  [
+    test_case(
+      "sugared fn is addressed by bare head name",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("let contains(xs, y) = 1 in contains([], 2)");
+        let id = HighLevelNodeMap.path_to_id(node_map, "contains");
+        check(
+          string,
+          "name is bare head",
+          "contains",
+          HighLevelNodeMap.id_to_name(node_map, id),
+        );
+        check(
+          bool,
+          "full rendered pattern is not a path",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "contains((xs, y))")
+          == None,
+        );
+      },
+    ),
+    test_case(
+      "one-param, zero-param, and return-annotated sugar use bare name",
+      `Quick,
+      () => {
+        let nm1 = build_node_map("let inc(x) = x + 1 in inc(1)");
+        check(
+          bool,
+          "one-param path",
+          true,
+          HighLevelNodeMap.path_to_id_opt(nm1, "inc") != None,
+        );
+        let nm0 = build_node_map("let f() = 3 in f()");
+        check(
+          bool,
+          "zero-param path",
+          true,
+          HighLevelNodeMap.path_to_id_opt(nm0, "f") != None,
+        );
+        let nm_asc = build_node_map("let g(x): Int = x in g(1)");
+        check(
+          bool,
+          "return-annotated path",
+          true,
+          HighLevelNodeMap.path_to_id_opt(nm_asc, "g") != None,
+        );
+      },
+    ),
+    test_case(
+      "sugared fn + plain sibling of same name is ambiguous; #k retries",
+      `Quick,
+      () => {
+        let node_map = build_node_map("let f(x) = x in let f = 1 in f");
+        check(
+          bool,
+          "bare shared name is None",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "f") == None,
+        );
+        check(
+          bool,
+          "f#1 resolves",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "f#1") != None,
+        );
+        check(
+          bool,
+          "f#2 resolves",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "f#2") != None,
+        );
+        expect_failure_mentioning(
+          "let f(x) = x in let f = 1 in f",
+          Update(Definition, "f", "9"),
+          ["ambiguous", "\"f#1\"", "\"f#2\""],
+          "fn_sugar_ambiguous_edit",
+        );
+      },
+    ),
+    test_case(
+      "#k-disambiguated edit targets the plain sibling, not the fn",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let f(x) = x in let f = 1 in f",
+            Update(Definition, "f#2", "9"),
+          );
+        check_rendered(
+          "fn_sugar_hash_k_edit",
+          "let f(x) = x in let f = 9 in f",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_definition replaces RHS of sugared fn",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let inc(x) = x + 1 in inc(3)",
+            Update(Definition, "inc", "x + 2"),
+          );
+        check_rendered(
+          "fn_sugar_update_def",
+          "let inc(x) = x + 2 in inc(3)",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_body on sugared fn",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let inc(x) = x + 1 in inc(3)",
+            Update(Body, "inc", "inc(10)"),
+          );
+        check_rendered(
+          "fn_sugar_update_body",
+          "let inc(x) = x + 1 in inc(10)",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_binding_clause on sugared fn",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let inc(x) = x + 1 in inc(3)",
+            Update(BindingClause, "inc", "let inc(x) = x * 2 in"),
+          );
+        check_rendered(
+          "fn_sugar_update_clause",
+          "let inc(x) = x * 2 in inc(3)",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "delete_binding_clause on sugared fn",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let a = 1 in let inc(x) = x + 1 in a",
+            Delete(BindingClause, "inc"),
+          );
+        check_rendered("fn_sugar_delete_clause", "let a = 1 in a", result);
+      },
+    ),
+    test_case(
+      "param-count change on sugared fn is rejected with bound-name counts",
+      `Quick,
+      ()
+      /* old pattern binds inc,x = 2 names; new binds inc,a,b = 3 */
+      =>
+        expect_failure_mentioning(
+          "let inc(x) = x + 1 in inc(3)",
+          Update(Pattern, "inc", "inc(a, b)"),
+          ["Cannot rewrite use sites", "binds 2 name(s)", "binds 3"],
+          "fn_sugar_param_arity_mismatch",
+        )
+      ),
+    test_case(
+      "place_probe on sugared fn path",
+      `Quick,
+      () => {
+        let code = "let f(x) = x + 1 in f(2)";
+        let z = mk_zipper(code);
+        let info_map = mk_statics(z);
+        switch (HighLevelNodeMap.build(z, info_map)) {
+        | None => Alcotest.fail("expected high-level node map")
+        | Some(nm) =>
+          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "f")) {
+          | None => Alcotest.fail("expected path f")
+          | Some(id) =>
+            let syntax = CachedSyntax.init(z);
+            let z2 = ProbePerform.add_manual(~syntax, id, info_map, z);
+            switch (ProbePerform.probe_status(id, info_map, z2.refractors)) {
+            | Manual(_) => ()
+            | _ => Alcotest.fail("expected Manual probe on sugared fn")
+            };
+          }
+        };
+      },
+    ),
+    test_case(
+      "syntax projector target of sugared fn is its definition",
+      `Quick,
+      () => {
+        let node_map = build_node_map("let f(x) = x + 1 in f(2)");
+        check(
+          bool,
+          "def target resolves",
+          true,
+          HighLevelNodeMap.path_to_syntax_projector_target_id_opt(
+            node_map,
+            "f",
+          )
+          != None,
+        );
+      },
+    ),
+  ],
+);
+
+/* ============================================================
    AGGREGATE ALL TESTS
    ============================================================ */
 
@@ -4444,4 +4665,5 @@ let tests = [
   tool_json_tests,
   ascribed_binding_tests,
   rename_and_path_safety_tests,
+  fn_sugar_tests,
 ];
