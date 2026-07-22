@@ -22,10 +22,9 @@ let statics_errors = (z: Zipper.t): list(string) =>
 let squish = (s: string): string =>
   Util.StringUtil.replace(Util.StringUtil.regexp("[\\s]+"), s, "");
 
-/* A word is usable as an identifier iff `let w = 1 in w + 1` parses,
-   roundtrips (no token expanded into a form), and has no static errors. */
-let diagnose = (word: string): option(string) => {
-  let prog = "let " ++ word ++ " = 1 in " ++ word ++ " + 1";
+/* A program is identifier-safe iff it parses, roundtrips (no token
+   expanded into a form), and has no static errors. */
+let diagnose_prog = (prog: string): option(string) =>
   switch (parse(prog)) {
   | None => Some("parse failure")
   | Some(z) =>
@@ -38,6 +37,29 @@ let diagnose = (word: string): option(string) => {
       | errs => Some("static errors: " ++ String.concat("; ", errs))
       };
     };
+  };
+
+/* Probe a word in let-binding and fun-parameter positions. */
+let diagnose = (word: string): option(string) => {
+  switch (diagnose_prog("let " ++ word ++ " = 1 in " ++ word ++ " + 1")) {
+  | Some(why) => Some("let-form: " ++ why)
+  | None =>
+    switch (diagnose_prog("(fun " ++ word ++ " -> " ++ word ++ " + 1)(1)")) {
+    | Some(why) => Some("fun-form: " ++ why)
+    | None => None
+    }
+  };
+};
+
+/* Does the token expand into a form in type position? (statics ignored:
+   a free lowercase type variable errors without being an expansion.) */
+let expands_in_typ = (word: string): bool => {
+  let prog = "type T = " ++ word ++ " in 1";
+  switch (parse(prog)) {
+  | None => true
+  | Some(z) =>
+    let printed = Printer.of_zipper(~holes="?", z);
+    squish(printed) != squish(prog);
   };
 };
 
@@ -72,9 +94,12 @@ let reserved = [
   "of_alfa_tpat",
 ];
 
-/* Delimiter tokens (Form.delims) that still parse as identifiers today
-   (trailing or sort-restricted delimiters). The prompt conservatively
-   reserves them anyway; if one hardens, move it to [reserved]. */
+/* Delimiter tokens (Form.delims) that nonetheless parse as identifiers:
+   the molder is sort-aware, so trailing delimiters (end/then/else/with),
+   Typ-sort keywords (rec/poly), and Drv/ALFA proof-language delimiters
+   (val/valid/consistent/matched_*) all fall back to variables in
+   expression/pattern position. If one hardens, move it to [reserved]
+   and re-tier the prompt warning. */
 let soft_reserved = [
   "consistent",
   "else",
@@ -90,6 +115,10 @@ let soft_reserved = [
   "valid",
   "with",
 ];
+
+/* Reserved in type positions only (backs the prompt's second tier). */
+let typ_reserved = ["rec", "poly"];
+let typ_usable = ["val", "valid", "consistent"];
 
 /* Near-miss words that must stay usable, so the warning doesn't overreach. */
 let usable = [
@@ -121,6 +150,21 @@ let check_usable = () =>
       },
     soft_reserved @ usable,
   );
+
+let check_typ_position = () => {
+  List.iter(
+    w =>
+      expands_in_typ(w)
+        ? () : failf("`%s` no longer expands in type position", w),
+    typ_reserved,
+  );
+  List.iter(
+    w =>
+      expands_in_typ(w)
+        ? failf("`%s` expands in type position; re-tier the warning", w) : (),
+    typ_usable,
+  );
+};
 
 /* A documented program must parse, roundtrip, and be statics-clean. */
 let assert_clean = (prog: string): unit =>
@@ -245,6 +289,7 @@ let tests = [
     [
       test_case("reserved words are unusable", `Quick, check_reserved),
       test_case("non-reserved near-misses are usable", `Quick, check_usable),
+      test_case("type-position keywords", `Quick, check_typ_position),
       test_case(
         "fn-definition sugar is statics-clean",
         `Quick,
