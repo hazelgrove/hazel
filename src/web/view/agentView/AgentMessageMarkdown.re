@@ -187,3 +187,53 @@ let view = (markdown: string): Node.t => {
     };
   div(~attrs=[clss(["agent-message-markdown"])], children);
 };
+
+/** Best-effort virtual closers for a streaming buffer, so `**bold` renders
+    bold immediately instead of flashing literal asterisks until the closer
+    streams in. Scope is deliberately narrow: only inline code (`) and strong
+    (**), only in the last paragraph (emphasis cannot cross blank lines), and
+    never inside a fenced code block (an unclosed fence already reads to
+    end-of-input). Single * and _ are left alone (math, snake_case). */
+let close_dangling_inline = (s: string): string => {
+  let inside_fence =
+    String.split_on_char('\n', s)
+    |> List.filter(l => String.starts_with(~prefix="```", String.trim(l)))
+    |> List.length
+    |> (n => n mod 2 == 1);
+  if (inside_fence) {
+    s;
+  } else {
+    let len = String.length(s);
+    let rec last_blank = i =>
+      i <= 0
+        ? 0 : s.[i] == '\n' && s.[i - 1] == '\n' ? i + 1 : last_blank(i - 1);
+    let para_start = last_blank(len - 1);
+    let para = String.sub(s, para_start, len - para_start);
+    let backticks =
+      String.fold_left((acc, c) => c == '`' ? acc + 1 : acc, 0, para);
+    if (backticks mod 2 == 1) {
+      s ++ "`";
+    } else {
+      /* count ** pairs outside inline-code spans (even-indexed backtick chunks) */
+      let outside_code =
+        String.split_on_char('`', para)
+        |> List.filteri((i, _) => i mod 2 == 0)
+        |> String.concat(" ");
+      let n = String.length(outside_code);
+      let rec count_strong = (i, acc) =>
+        if (i + 1 >= n) {
+          acc;
+        } else if (outside_code.[i] == '*' && outside_code.[i + 1] == '*') {
+          count_strong(i + 2, acc + 1);
+        } else {
+          count_strong(i + 1, acc);
+        };
+      count_strong(0, 0) mod 2 == 1 ? s ++ "**" : s;
+    };
+  };
+};
+
+/** [view] for an in-progress streaming buffer: dangling inline constructs are
+    virtually closed so they format in place as they arrive. */
+let view_streaming = (markdown: string): Node.t =>
+  view(close_dangling_inline(markdown));

@@ -1691,11 +1691,52 @@ let streaming_markdown_tests = [
       let n = String.length(full);
       let rec go = i =>
         if (i <= n) {
-          ignore(AgentMessageMarkdown.view(String.sub(full, 0, i)));
+          ignore(
+            AgentMessageMarkdown.view_streaming(String.sub(full, 0, i)),
+          );
           go(i + 1);
         };
       go(0);
       check_bool("no prefix raised", true, true);
+    },
+  ),
+  test_case(
+    "close_dangling_inline: closes strong and inline code, narrowly",
+    `Quick,
+    () => {
+      let close = AgentMessageMarkdown.close_dangling_inline;
+      check_string("dangling strong", "**bo**", close("**bo"));
+      check_string("dangling code", "a `co`", close("a `co"));
+      check_string(
+        "balanced untouched",
+        "a **b** `c`",
+        close("a **b** `c`"),
+      );
+      check_string(
+        "inside fence untouched",
+        "x\n```\ncode **y",
+        close("x\n```\ncode **y"),
+      );
+      check_string(
+        "earlier paragraph out of scope",
+        "**a\n\nplain tail",
+        close("**a\n\nplain tail"),
+      );
+      check_string(
+        "last paragraph only",
+        "done **ok**\n\ntail **bo**",
+        close("done **ok**\n\ntail **bo"),
+      );
+      check_string(
+        "single star and underscores alone",
+        "2 * 3 and snake_case",
+        close("2 * 3 and snake_case"),
+      );
+      check_string(
+        "star-star inside code span is literal",
+        "`a ** b` fine",
+        close("`a ** b` fine"),
+      );
     },
   ),
 ];

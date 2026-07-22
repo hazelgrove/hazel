@@ -294,7 +294,11 @@ let view =
     AgentGlobals.context_meter_limit_for_active(
       globals.settings.agent_globals,
     );
+  let raw_context_opt =
+    AgentGlobals.context_length_for_active(globals.settings.agent_globals);
   let (meter_base_label, meter_pct_line_opt, fill_pct_opt, hover_title_pct) = {
+    let fmt_tokens = m =>
+      m mod 1000 == 0 ? string_of_int(m / 1000) ++ "k" : string_of_int(m);
     let n_str =
       switch (last_prompt_tokens_opt) {
       | Some(n) => string_of_int(n)
@@ -302,14 +306,31 @@ let view =
       };
     let m_str =
       switch (context_limit_opt) {
-      | Some(m) =>
-        switch (m) {
-        | 100_000 => "100k"
-        | _ => string_of_int(m)
-        }
+      | Some(m) => fmt_tokens(m)
       | None => "—"
       };
-    let base_label = n_str ++ " / " ++ m_str ++ " context used";
+    /* The meter shows the compaction budget, not the model's raw window;
+       say so when they differ (see AgentGlobals.effective_context_meter_limit). */
+    let capped_note =
+      switch (context_limit_opt, raw_context_opt) {
+      | (Some(limit), Some(raw)) when limit < raw =>
+        Some(
+          "compaction budget "
+          ++ fmt_tokens(limit)
+          ++ " (model window "
+          ++ fmt_tokens(raw)
+          ++ ")",
+        )
+      | _ => None
+      };
+    let used_word = capped_note == None ? " context used" : " budget used";
+    let base_label = n_str ++ " / " ++ m_str ++ used_word;
+    let title = pct =>
+      switch (pct, capped_note) {
+      | (Some(p), Some(note)) => Some(p ++ " — " ++ note)
+      | (Some(p), None) => Some(p)
+      | (None, note) => note
+      };
     switch (last_prompt_tokens_opt, context_limit_opt) {
     | (Some(n), Some(m)) when m > 0 =>
       let frac = float_of_int(n) /. float_of_int(m);
@@ -319,9 +340,9 @@ let view =
         base_label,
         Some(pct_line),
         Some(bar_pct),
-        Some(Printf.sprintf("%.2f%%", frac *. 100.0)),
+        title(Some(Printf.sprintf("%.2f%%", frac *. 100.0))),
       );
-    | _ => (base_label, None, None, None)
+    | _ => (base_label, None, None, title(None))
     };
   };
 
