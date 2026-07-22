@@ -1662,6 +1662,44 @@ let http_failure_tests = [
   ),
 ];
 
+/* Streaming markdown: the in-progress bubble now renders partial buffers
+   through AgentMessageMarkdown on every frame. The safety of that rests on
+   CommonMark being total over incomplete input — pin the load-bearing case
+   (an unclosed fence parses as a code block to end-of-input), and smoke the
+   renderer over stream-shaped prefixes. */
+let streaming_markdown_tests = [
+  test_case(
+    "Omd: unclosed fence mid-stream parses as a code block",
+    `Quick,
+    () => {
+      let blocks = Omd.of_string("intro\n```\nlet x = 1");
+      let is_code_tail =
+        switch (List.rev(blocks)) {
+        | [Omd.Code_block(_, _, body), ..._] =>
+          String.trim(body) == "let x = 1"
+        | _ => false
+        };
+      check_bool("tail is code block", true, is_code_tail);
+    },
+  ),
+  test_case(
+    "AgentMessageMarkdown: total over stream-shaped prefixes",
+    `Quick,
+    () => {
+      /* successive prefixes of a message with bold, link, fence */
+      let full = "**bold** start, a [link](https://x.y) then\n```\ncode";
+      let n = String.length(full);
+      let rec go = i =>
+        if (i <= n) {
+          ignore(AgentMessageMarkdown.view(String.sub(full, 0, i)));
+          go(i + 1);
+        };
+      go(0);
+      check_bool("no prefix raised", true, true);
+    },
+  ),
+];
+
 let tests = (
   "Agent UX",
   slash_command_tests
@@ -1679,5 +1717,6 @@ let tests = (
   @ tool_call_summary_tests
   @ api_error_format_tests
   @ stream_accumulator_tests
-  @ http_failure_tests,
+  @ http_failure_tests
+  @ streaming_markdown_tests,
 );

@@ -1833,14 +1833,15 @@ let view =
                 } else {
                   None;
                 };
+              /* Render the partial buffer as markdown on every frame: CommonMark
+                 is total over incomplete input (an unclosed fence reads to
+                 end-of-input), so mid-stream artifacts are transient. */
               let content_node: option(Node.t) =
                 if (has_content) {
                   Some(
                     div(
-                      ~attrs=[
-                        clss(["agent-message", "agent-streaming-plaintext"]),
-                      ],
-                      [text(pending_content)],
+                      ~attrs=[clss(["agent-message"])],
+                      [AgentMessageMarkdown.view(pending_content)],
                     ),
                   );
                 } else {
