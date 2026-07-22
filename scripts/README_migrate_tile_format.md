@@ -1,7 +1,7 @@
 # Migrating zipper-embedding exercise modules (tile-datatype flip)
 
 DISPOSAL: disposable migration tooling for the tile FormId change. Delete
-this file (together with `src/web/LegacyBase.re`, `src/web/LegacyBaseV1.re`,
+this file (together with `src/web/LegacyBase.re`,
 `src/web/Migrate_slides.re`, `src/web/Migrate_exercises.re`, and
 `scripts/split_migrate_output.py`) once tile-datatype has merged to dev and
 active feature branches have run the recipe below. Nothing at runtime
@@ -30,22 +30,19 @@ The 49 slide modules under `src/web/init/docs/` and `src/b2t2/slides/`
 embed segment sexps as strings inside `PersistentSegment.t` records. Old
 (label+mold) sexps still compile but fail decode at runtime and fall back
 to `backup_text`, which orphans the slide's refractor id references.
-`src/web/Migrate_slides.re` is a RENORMALIZER with a THREE-TIER decode:
+`src/web/Migrate_slides.re` is a RENORMALIZER with a TWO-TIER decode:
 CURRENT format first (`Segment.t_of_sexp`: FormId v2 — sort-free
 families + `Tok`/`TokInfix`, tile carries an explicit `sort` field),
-then FormId v1 (`src/web/LegacyBaseV1.re`: sort-committed form ids
-`Compound|Unsorted|Atom|Unmolded`, incl. the `(Form ...)` head alias
-that predated the Compound rename), then the pre-FormId label+mold
-format (`src/web/LegacyBase.re`). Both legacy tiers are upgraded
-id-preservingly (v1: `Compound(cf)` => family + cf's out sort,
-`Atom(class,s,t)` => `(Tok(t), s)` — or `TokInfix` for the
-InfixDelimiterPrefix class, `Unsorted`/`Unmolded` => sort `Any`;
-label+mold: exact reverse lookup with sort = mold.out). It then
-re-emits the full .ml files (`backup_text`/`refractors` untouched).
-Re-encoding normalizes to v2 heads and drops default-valued
+then the pre-FormId label+mold format (`src/web/LegacyBase.re`),
+upgraded id-preservingly (exact reverse lookup with sort = mold.out).
+It then re-emits the full .ml files (`backup_text`/`refractors`
+untouched). Re-encoding normalizes and drops default-valued
 `sort`/`shards`/`children` fields, so the tool is idempotent and usable
-by branches in any of the three states. Do NOT use `hazel slide-encode`
-for this: it re-parses text and re-mints ids, orphaning refractors.
+by branches in either state. (A FormId-v1 tier existed transiently; v1
+sexps only ever appeared on intermediate commits of the tile-datatype
+branch and were regenerated to v2 there.) Do NOT use `hazel
+slide-encode` for this: it re-parses text and re-mints ids, orphaning
+refractors.
 
 If your branch has its own slide files, at the migration commit:
 
@@ -56,7 +53,7 @@ If your branch has its own slide files, at the migration commit:
 3. `dune build src/web/migrate_slides.bc.js --profile dev`
 4. `node --stack-size=8192 --require ./test/idb_stub.js _build/default/src/web/migrate_slides.bc.js > /tmp/migrate_slides_out.txt`
 5. Check the `===SUMMARY===`: every file PASS (each line notes which
-   decode path was taken, `current`, `v1`, or `legacy`); the upgrade-path
+   decode path was taken, `current` or `legacy`); the upgrade-path
    histogram should show `c(any-fallback)=0 d(classified/stale-mold)=0`
    (non-zero d means stale-mold tiles — inspect the logged tiles before
    proceeding; slides decoded as `current` don't touch the histogram).

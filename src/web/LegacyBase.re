@@ -1,5 +1,5 @@
 /* DISPOSAL: disposable migration tooling for the tile FormId change.
- * Delete this file (together with LegacyBaseV1.re, Migrate_slides.re,
+ * Delete this file (together with Migrate_slides.re,
  * Migrate_exercises.re, scripts/split_migrate_output.py, and
  * scripts/README_migrate_tile_format.md) once tile-datatype has merged to dev and active
  * feature branches have run the recipe in
@@ -14,8 +14,7 @@
  * sexp grammar matters here: type, constructor, and field names must
  * match the old Base.re exactly.
  * Id/Label/Mold/Nib/Grout/Secondary/ProjectorCore are unchanged modules
- * and are reused. (The intermediate FormId v1 shape lives in
- * LegacyBaseV1.re.) Used by the slide migration tool
+ * and are reused. Used by the slide migration tool
  * (src/web/Migrate_slides.re); see scripts/README_migrate_tile_format.md. */
 
 open Util;

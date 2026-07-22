@@ -1,5 +1,5 @@
 /* DISPOSAL: disposable migration tooling for the tile FormId change.
- * Delete this file (together with LegacyBase.re, LegacyBaseV1.re,
+ * Delete this file (together with LegacyBase.re,
  * Migrate_exercises.re, scripts/split_migrate_output.py, and
  * scripts/README_migrate_tile_format.md) once tile-datatype has merged to dev and active
  * feature branches have run the recipe in
@@ -14,14 +14,14 @@
  * emitting full replacement .ml files. backup_text and refractors are
  * passed through byte-for-byte.
  *
- * Three-tier decode: CURRENT format first (Segment.t_of_sexp: v2
- * families + Tok/TokInfix + explicit tile sort), then FormId v1
- * (LegacyBaseV1: sort-committed form ids, incl. the `(Form ...)` head
- * alias), then the pre-FormId label+mold format (LegacyBase); the two
- * legacy tiers are upgraded id-preservingly. So the tool is IDEMPOTENT
- * and usable by branches in any of the three states; re-encoding
- * normalizes to v2 heads and drops default-valued sort/shards/children
- * fields.
+ * Two-tier decode: CURRENT format first (Segment.t_of_sexp: v2
+ * families + Tok/TokInfix + explicit tile sort), then the pre-FormId
+ * label+mold format (LegacyBase), upgraded id-preservingly. So the
+ * tool is IDEMPOTENT and usable by branches in either state;
+ * re-encoding normalizes and drops default-valued sort/shards/children
+ * fields. (A FormId-v1 tier existed transiently; v1 sexps only ever
+ * appeared on intermediate commits of the tile-datatype branch and
+ * were regenerated to v2 there.)
  *
  * Output format (stdout), consumed by scripts/split_migrate_output.py:
  *   ===FILE: <path relative to repo root>===
@@ -246,10 +246,10 @@ let entries: list((string, (string, PersistentSegment.t))) = [
   ),
 ];
 
-/* Decode (current format, then FormId v1, then label+mold legacy) =>
- * re-encode. backup_text and refractors pass through untouched. Raises
- * (before anything is emitted) if all decodes fail: such a slide must
- * be investigated, not silently regenerated from backup_text. */
+/* Decode (current format, then label+mold legacy) => re-encode.
+ * backup_text and refractors pass through untouched. Raises (before
+ * anything is emitted) if all decodes fail: such a slide must be
+ * investigated, not silently regenerated from backup_text. */
 let migrate =
     (title: string, p: PersistentSegment.t): (PersistentSegment.t, string) => {
   let sexp =
@@ -266,19 +266,15 @@ let migrate =
     switch (Segment.t_of_sexp(sexp)) {
     | seg => (seg, "current")
     | exception _ =>
-      switch (LegacyBaseV1.segment_of_sexp(sexp)) {
-      | v1 => (LegacyBaseV1.upgrade_segment(v1), "v1")
-      | exception _ =>
-        switch (LegacyBase.segment_of_sexp(sexp)) {
-        | legacy => (LegacyBase.upgrade_segment(legacy), "legacy")
-        | exception exn =>
-          failwith(
-            "segment decode FAILED (current AND v1 AND legacy) for slide \""
-            ++ title
-            ++ "\": "
-            ++ Printexc.to_string(exn),
-          )
-        }
+      switch (LegacyBase.segment_of_sexp(sexp)) {
+      | legacy => (LegacyBase.upgrade_segment(legacy), "legacy")
+      | exception exn =>
+        failwith(
+          "segment decode FAILED (current AND legacy) for slide \""
+          ++ title
+          ++ "\": "
+          ++ Printexc.to_string(exn),
+        )
       }
     };
   (

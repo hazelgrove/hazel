@@ -27,8 +27,7 @@
   WorkerServer
   Migrate_exercises
   Migrate_slides
-  LegacyBase
-  LegacyBaseV1)
+  LegacyBase)
  (libraries
   ezjs_min
   ezjs_idb
@@ -101,7 +100,7 @@
 
 (executable
  (name migrate_slides)
- (modules Migrate_slides LegacyBase LegacyBaseV1)
+ (modules Migrate_slides LegacyBase)
  (libraries ppx_yojson_conv.expander haz3lcore b2t2 web)
  (modes js)
  (preprocess
