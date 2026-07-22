@@ -107,12 +107,65 @@ let check_usable = () =>
     usable,
   );
 
+/* A documented program must parse, roundtrip, and be statics-clean. */
+let assert_clean = (prog: string): unit =>
+  switch (parse(prog)) {
+  | None => failf("failed to parse: %s", prog)
+  | Some(z) =>
+    let printed = Printer.of_zipper(~holes="?", z);
+    if (squish(printed) != squish(prog)) {
+      failf("token expansion changed program: %s", prog);
+    };
+    switch (statics_errors(z)) {
+    | [] => ()
+    | errs =>
+      failf("static errors in %s: %s", prog, String.concat("; ", errs))
+    };
+  };
+
+/* Function-definition sugar documented as preferred in the prompts
+   (HazelSyntaxNotes, Eg_RecFib): `let f(x, y) = body in ...`, with or
+   without annotations, recursive or not. */
+let fn_sugar_clean = () =>
+  List.iter(
+    assert_clean,
+    [
+      "let add(x, y) = x + y in add(1, 2)",
+      "let add(x: Int, y: Int): Int = x + y in add(1, 2)",
+      "let fact(n) = if n < 2 then 1 else n * fact(n - 1) in fact(5)",
+      "let fact(n: Int): Int = if n < 2 then 1 else n * fact(n - 1) in fact(5)",
+      "let f() = 3 in f()",
+      /* explicit form, unannotated recursion (prompt rule 4) */
+      "let fact = fun n -> if n < 2 then 1 else n * fact(n - 1) in fact(5)",
+      /* Eg_RecFib few-shot program */
+      "let fib(n: Int): Int =\n  if n <= 0\n    then 0\n    else if n == 1\n      then 1\n      else fib(n - 1) + fib(n - 2)\nin\ntest fib(0) == 0 end;\ntest fib(1) == 1 end;\ntest fib(5) == 5 end;\ntest fib(10) == 55 end;\nfib(10)",
+      "let fib(n: Int): Int = n in\nlet map_fib(ns: [Int]): [Int] =\n  case ns\n  | [] => []\n  | hd :: tl => fib(hd) :: map_fib(tl)\n  end\nin\ntest map_fib([]) == [] end;\nmap_fib([1, 2, 3, 4, 5])",
+    ],
+  );
+
+let fn_sugar_evaluates = () => {
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "120",
+    "let fact(n) = if n < 2 then 1 else n * fact(n - 1) in fact(5)",
+  );
+  Test_Evaluator_Prelude.parse_and_evaluate_test(
+    "3",
+    "let add(x, y) = x + y in add(1, 2)",
+  );
+};
+
 let tests = [
   (
     "PromptFactory",
     [
       test_case("reserved words are unusable", `Quick, check_reserved),
       test_case("non-reserved near-misses are usable", `Quick, check_usable),
+      test_case(
+        "fn-definition sugar is statics-clean",
+        `Quick,
+        fn_sugar_clean,
+      ),
+      test_case("fn-definition sugar evaluates", `Quick, fn_sugar_evaluates),
     ],
   ),
 ];

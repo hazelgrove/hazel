@@ -129,7 +129,7 @@ let program_model = [
   "let a = 1 in",
   "let b = 2 in",
   "type Color = + Red + Blue in",
-  "let mix = fun c1, c2 -> ? in",
+  "let mix(c1, c2) = ? in",
   "a + b",
   "```",
   "",
