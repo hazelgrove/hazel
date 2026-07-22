@@ -38,13 +38,13 @@ Tool call: `create_new_task`
 Tool call: `insert_before`
 ```json
 {
-  "code": "let fib : Int -> Int = fun n ->\n  if n <= 0\n    then 0\n    else if n == 1\n      then 1\n      else fib(n - 1) + fib(n - 2)\nin"
+  "code": "let fib(n: Int): Int =\n  if n <= 0\n    then 0\n    else if n == 1\n      then 1\n      else fib(n - 1) + fib(n - 2)\nin"
 }
 ```
 
 Agent sees the updated program (via context):
 ```
-let fib : Int -> Int = fun n ->
+let fib(n: Int): Int =
   if n <= 0
     then 0
     else if n == 1
@@ -71,7 +71,7 @@ Tool call: `update_body`
 
 Agent sees:
 ```
-let fib : Int -> Int = fun n ->
+let fib(n: Int): Int =
   if n <= 0
     then 0
     else if n == 1
@@ -102,7 +102,7 @@ Tool call: `mark_active_task_complete`
 
 **Starting program state:**
 ```
-let fib : Int -> Int =
+let fib(n: Int): Int =
   ⋱
 in
 test fib(0) == 0 end;
@@ -142,7 +142,7 @@ Tool call: `insert_after`
 ```json
 {
   "path": "fib",
-  "code": "let map_fib : [Int] -> [Int] = fun ns ->\n  case ns\n  | [] => []\n  | hd :: tl => fib(hd) :: map_fib(tl)\n  end\nin"
+  "code": "let map_fib(ns: [Int]): [Int] =\n  case ns\n  | [] => []\n  | hd :: tl => fib(hd) :: map_fib(tl)\n  end\nin"
 }
 ```
 
@@ -167,10 +167,10 @@ Tool call: `place_probe`
 
 Agent sees (with probe results):
 ```
-let fib : Int -> Int =
+let fib(n: Int): Int =
   ⋱
 in
-let map_fib : [Int] -> [Int] = fun ns ->
+let map_fib(ns: [Int]): [Int] =
   case ns
   | [] => []                                   ≡ []
   | hd :: tl => fib(hd) :: map_fib(tl)        ≡ [1, 1, 2, 3, 5]

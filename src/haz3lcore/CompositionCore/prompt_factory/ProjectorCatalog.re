@@ -89,7 +89,7 @@ let blurb_for_composition_prompt: list(string) = {
     "",
     "### Syntax projector tools (Filbert)",
     "`place_syntax_projector(kind, paths)`, `remove_syntax_projector(paths)`, and `toggle_syntax_projector(kind, paths)` apply **syntax projector** UIs to the term selected by each path.",
-    "`kind` must be a menu projector name (`fold`, `slider`, `sliderf`, `check`, `text`, `card`, `csv`, `livelit`) — not `probe` or `statics` (those use the probe/statics tools).",
+    "`kind` must be a menu projector name (`fold`, `slider`, `sliderf`, `check`, `text`, `card`, `csv`, `table`, `livelit`) — not `probe` or `statics` (those use the probe/statics tools).",
     "",
     "**CRITICAL — livelits are not automatic:** Ordinary Hazel code (`let speed = 50`, `let is_active = true`, list literals, records) renders as **plain text** until you call **`place_syntax_projector`**.",
     "If the user asks how livelits work, or wants sliders/checkboxes/CSV editors/text boxes, you **must** call `place_syntax_projector` with the right `kind` on each binding path (e.g. `slider` on `\"speed\"`, `check` on `\"is_active\"`, `text` on `\"message\"`, `csv` only when the RHS is `[]`, `card` only on playing-card tuples/lists—see livelit lines above; nested paths like `\"config/volume\"`).",
@@ -103,7 +103,7 @@ let blurb_for_composition_prompt: list(string) = {
 let blurb_for_compaction: list(string) = [
   "**Projectors**: **Folds** display as `⋱` (collapsed defs; expand/collapse in the full prompt).",
   "**Refractors** overlay bindings: **probes** show runtime values (`≡` in context); **statics** add a type overlay in the GUI.",
-  "**Livelits** are alternate UIs for literals (checkbox, slider/sliderf, text, card, csv, livelit, plus fold in the menu).",
+  "**Livelits** are alternate UIs for literals (checkbox, slider/sliderf, text, card, csv, table, livelit, plus fold in the menu).",
   "**Agent tools**: `place_syntax_projector` / `remove_syntax_projector` / `toggle_syntax_projector` (see full prompt).",
   "Full detail lives in Filbert’s live system prompt **Projectors and the agent view** section (this excerpt may be truncated).",
 ];
