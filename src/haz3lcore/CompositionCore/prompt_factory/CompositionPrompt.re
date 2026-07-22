@@ -150,6 +150,7 @@ let program_model = [
   "Every `let` or `type` binding is identified by a **path**: a slash-separated list of **pattern names** walking from the outside of the program tree inward.",
   "A binding **nested inside another binding's definition** (to the right of `=` before that outer `in`) gets a longer path: `\"outer/inner\"`.",
   "Bindings that appear one after another in the main `let ... in let ... in` chain are **siblings**; each is named by its pattern only at that level (e.g. `\"b\"`), not prefixed by the previous sibling's name.",
+  "A function-definition binding `let f(x, y) = ... in` is addressed by its **bare name**: path `\"f\"` (parameters are not part of the path).",
   "",
   "**Duplicate path string:** if several bindings share the same path text (e.g. two `let n` in one chain), the bare path is **ambiguous** and tools return an error listing the disambiguated forms. Retry with `\"name#k\"` (k-th occurrence in program order, 1-based, e.g. `\"n#2\"`), or use a **nested** path when the inner binding lives inside another's **definition** (`\"outer/inner\"`).",
   "Prefer **unique binding names** so intent stays obvious.",

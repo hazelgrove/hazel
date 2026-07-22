@@ -6,7 +6,7 @@ This overwrites the ENTIRE definition — including any nested let bindings with
 Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
 
 Parameters:
-path: string — slash-delimited path to the binding (e.g. "b", "M", or "outer/inner"). Inner defs use "outer/inner". If the same name appears more than once in the sibling chain (shadowing), the bare path is ambiguous and the tool errors, listing disambiguated forms; retry with "name#k" (k-th occurrence in program order, 1-based, e.g. "b#2"), or use a nested path when one binding sits inside another's definition.
+path: string — slash-delimited path to the binding (e.g. "b", "M", or "outer/inner"). Inner defs use "outer/inner". A function-definition binding `let f(x, y) = ...` is addressed by its bare name: path "f" (parameters are not part of the path). If the same name appears more than once in the sibling chain (shadowing), the bare path is ambiguous and the tool errors, listing disambiguated forms; retry with "name#k" (k-th occurrence in program order, 1-based, e.g. "b#2"), or use a nested path when one binding sits inside another's definition.
 code: string — the new definition code
 
 Example:
@@ -154,6 +154,8 @@ Automatically updates all use sites of the variable throughout the program.
 Parameters:
 path: string — slash-delimited path to the binding to rename. Nested defs: use outer/inner. Duplicate sibling names are ambiguous — disambiguate with "name#k" (k-th occurrence in program order, 1-based).
 code: string — the new pattern (may include type annotation)
+
+For a function-definition binding `let f(x, y) = ...` the path is just "f" but the pattern is the whole head: rename with code "g(x, y)" (or rename a param with "f(x, z)"); call sites and param uses update automatically.
 
 The rename is rejected (with an explanatory error) if:
 - the new name already occurs as a binder or variable reference within this binding's scope (it could capture existing references), or
