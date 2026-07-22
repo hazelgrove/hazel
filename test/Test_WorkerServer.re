@@ -1,0 +1,98 @@
+/**
+ * Round-trip tests for the eval-worker encodings (issue #2368).
+ *
+ * Two things matter: Marshal (the active encoding) stays depth-proof through
+ * structuredClone, and every encoding is isomorphic (decode ∘ encode = id) on a
+ * normal program. Deep failure of direct/sexp is NOT asserted — raw
+ * structuredClone on a deep graph overflows V8's native stack and segfaults
+ * node uncatchably (in-browser it throws a catchable RangeError; that asymmetry
+ * is why the app wraps the metrics path in try/catch).
+ */
+open Alcotest;
+open Language;
+
+/* The same serializer postMessage applies to its argument. */
+let structured_clone: 'a. 'a => 'a =
+  x =>
+    Js_of_ocaml.Js.Unsafe.fun_call(
+      Js_of_ocaml.Js.Unsafe.pure_js_expr(
+        "(function (x) { return structuredClone(x); })",
+      ),
+      [|Js_of_ocaml.Js.Unsafe.inject(x)|],
+    );
+
+/* Encode -> (clone?) -> decode through one encoding; the abstract encoded type
+ * stays inside the closure so this composes over all encodings uniformly. */
+let rt_of_encoding =
+    (encoding: (module WorkerServer.ENCODING))
+    : ((~clone: bool, WorkerServer.Response.t) => WorkerServer.Response.t) => {
+  module M = (val encoding);
+  (~clone, resp) => {
+    let w = M.encode_response(resp);
+    let w = clone ? structured_clone(w) : w;
+    M.decode_response(w);
+  };
+};
+
+let response_of_exp = (e: Exp.t): WorkerServer.Response.t => [
+  ("cell", Ok((e, EvaluatorState.init))),
+];
+
+let parse = (s: string): Exp.t =>
+  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
+  | Some(e) => e
+  | None => fail("Failed to parse: " ++ s)
+  };
+
+/* Marshal must stay depth-proof: a `Parens`-nesting 20k deep round-trips
+ * through structuredClone. Built iteratively so the fixture itself doesn't
+ * recurse; compared as marshaled bytes since polymorphic `=` would recurse. */
+let test_marshal_depth_proof = (): test_case(_) =>
+  test_case(
+    "Marshal: deep (20k) through structuredClone",
+    `Quick,
+    () => {
+      let e = ref(Exp.fresh(EmptyHole));
+      for (_ in 1 to 20000) {
+        e := Exp.fresh(Parens(e^));
+      };
+      let rt = rt_of_encoding((module WorkerServer.MarshalEncoding));
+      let resp = response_of_exp(e^);
+      check(
+        string,
+        "round-trips to identical bytes",
+        Marshal.to_string(resp, []),
+        Marshal.to_string(rt(~clone=true, resp), []),
+      );
+    },
+  );
+
+/* Every encoding is isomorphic on a normal program: decode ∘ encode preserves
+ * the expression. */
+let test_isomorphic =
+    (~name: string, encoding: (module WorkerServer.ENCODING)): test_case(_) =>
+  test_case(
+    name ++ ": isomorphic",
+    `Quick,
+    () => {
+      let rt = rt_of_encoding(encoding);
+      let e = parse("let x = [1, 2, 3] in x");
+      switch (rt(~clone=true, response_of_exp(e))) {
+      | [("cell", Ok((e', _))), ..._] =>
+        check(bool, "decoded equals original", true, Exp.fast_equal(e, e'))
+      | _ => fail("round-trip did not preserve response shape")
+      };
+    },
+  );
+
+let tests = [
+  (
+    "WorkerServer encodings",
+    [
+      test_marshal_depth_proof(),
+      test_isomorphic(~name="Marshal", (module WorkerServer.MarshalEncoding)),
+      test_isomorphic(~name="Direct", (module WorkerServer.DirectEncoding)),
+      test_isomorphic(~name="Sexp", (module WorkerServer.SexpEncoding)),
+    ],
+  ),
+];
