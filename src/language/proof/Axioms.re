@@ -152,7 +152,7 @@ type math_rule = {
   direction: math_rule_direction,
   hazel_backend: option(hazel_rule_backend),
   rocq_backend: option(rocq_rule_backend),
-  visible_levels: list(rewrite_level),
+  introduced_levels: list(rewrite_level),
   visible_mode: visible_step_mode,
   allowed_cleanup: list(cleanup_capability),
   required_cleanup: list(cleanup_capability),
@@ -232,6 +232,30 @@ let rewrite_level_rank =
   | FunctionsAndLists => 3
   | Calculus => 4;
 
+/* Math levels form a directed acyclic graph. The numeric rank above is only
+   presentation order; capability inheritance must always use this graph. */
+let rewrite_level_parents =
+  fun
+  | Arithmetic => []
+  | Algebra => [Arithmetic]
+  | Trigonometry => [Algebra]
+  | FunctionsAndLists => [Algebra]
+  | Calculus => [Trigonometry];
+
+let rec collect_rewrite_level_ancestors = (visited, level) =>
+  List.mem(level, visited)
+    ? visited
+    : rewrite_level_parents(level)
+      |> List.fold_left(collect_rewrite_level_ancestors, [level, ...visited]);
+
+let inherited_rewrite_levels = level => {
+  let ancestors = collect_rewrite_level_ancestors([], level);
+  rewrite_levels |> List.filter(level => List.mem(level, ancestors));
+};
+
+let rewrite_level_inherits = (~current_level, required_level) =>
+  inherited_rewrite_levels(current_level) |> List.mem(required_level);
+
 let rewrite_level_label =
   fun
   | Arithmetic => "Arithmetic"
@@ -275,7 +299,7 @@ type construct_requirement = {
 };
 
 let required_level_allows = (~current_level, required_level) =>
-  rewrite_level_rank(required_level) <= rewrite_level_rank(current_level);
+  rewrite_level_inherits(~current_level, required_level);
 
 let is_float_pi = value => abs_float(value -. Float.pi) < 0.000001;
 
@@ -383,54 +407,38 @@ let unsupported_construct_ids = (~level, exps) =>
      )
   |> List.rev;
 
-let unsupported_constructs_message = (~level, exps) => {
-  let requirements = unsupported_constructs(~level, exps);
-  let max_requirement =
-    requirements
-    |> List.fold_left(
-         (highest, requirement) =>
-           switch (highest) {
-           | None => Some(requirement)
-           | Some(highest) =>
-             rewrite_level_rank(requirement.required_level)
-             > rewrite_level_rank(highest.required_level)
-               ? Some(requirement) : Some(highest)
-           },
-         None,
+let maximal_required_levels = requirements => {
+  let levels =
+    rewrite_levels
+    |> List.filter(level =>
+         requirements
+         |> List.exists(requirement => requirement.required_level == level)
        );
-  switch (requirements) {
-  | [] => None
-  | _ =>
-    max_requirement
-    |> Option.map(requirement =>
-         "Needs " ++ rewrite_level_label(requirement.required_level)
+  levels
+  |> List.filter(level =>
+       !(
+         levels
+         |> List.exists(other_level =>
+              other_level != level
+              && rewrite_level_inherits(~current_level=other_level, level)
+            )
        )
-  };
+     );
 };
 
-let unsupported_constructs_message_from_requirements = requirements => {
-  let max_requirement =
-    requirements
-    |> List.fold_left(
-         (highest, requirement) =>
-           switch (highest) {
-           | None => Some(requirement)
-           | Some(highest) =>
-             rewrite_level_rank(requirement.required_level)
-             > rewrite_level_rank(highest.required_level)
-               ? Some(requirement) : Some(highest)
-           },
-         None,
-       );
-  switch (requirements) {
+let unsupported_constructs_message_from_requirements = requirements =>
+  switch (maximal_required_levels(requirements)) {
   | [] => None
-  | _ =>
-    max_requirement
-    |> Option.map(requirement =>
-         "Needs " ++ rewrite_level_label(requirement.required_level)
-       )
+  | levels =>
+    Some(
+      "Needs "
+      ++ (levels |> List.map(rewrite_level_label) |> String.concat(" and ")),
+    )
   };
-};
+
+let unsupported_constructs_message = (~level, exps) =>
+  unsupported_constructs(~level, exps)
+  |> unsupported_constructs_message_from_requirements;
 
 let operation_fingerprint = op => Operators.bin_op_to_string(op);
 
@@ -520,7 +528,7 @@ let is_trig_construct_requirement = requirement =>
   is_trig_builtin(requirement.construct);
 
 let can_treat_trig_applications_as_opaque = (~level, source, target) =>
-  rewrite_level_rank(level) >= rewrite_level_rank(Algebra)
+  rewrite_level_inherits(~current_level=level, Algebra)
   && trig_applications_preserved(source, target);
 
 let unsupported_construct_requirements_for_rewrite =
@@ -927,9 +935,10 @@ let rewrite_groups = [
 ];
 
 let allowed_groups = level => {
-  let max_rank = rewrite_level_rank(level);
   rewrite_groups
-  |> List.filter((group: rewrite_group) => group.rank <= max_rank);
+  |> List.filter((group: rewrite_group) =>
+       rewrite_level_inherits(~current_level=level, group.level)
+     );
 };
 
 let rocq_tactic_step = (~id, ~label, ~tactic, ~mode, ~rule_ids) => {
@@ -1601,12 +1610,10 @@ let rocq_backend_for_rule_id =
         ~integers=["rewrite Z.mul_add_distr_l", "rewrite Z.mul_add_distr_r"],
         ~reals=["rewrite Rmult_plus_distr_l", "rewrite Rmult_plus_distr_r"],
         ~replay_integers=[
-          "repeat rewrite Z.mul_add_distr_l",
-          "repeat rewrite Z.mul_add_distr_r",
+          "first [rewrite Z.mul_add_distr_l | rewrite Z.mul_add_distr_r]",
         ],
         ~replay_reals=[
-          "repeat rewrite Rmult_plus_distr_l",
-          "repeat rewrite Rmult_plus_distr_r",
+          "first [rewrite Rmult_plus_distr_l | rewrite Rmult_plus_distr_r]",
         ],
       ),
     )
@@ -1624,8 +1631,12 @@ let rocq_backend_for_rule_id =
         ~tactic="hazel_integer_polynomial",
         ~integers=[],
         ~reals=[],
-        ~replay_integers=["ring"],
-        ~replay_reals=["ring"],
+        ~replay_integers=[
+          "first [rewrite <- Z.mul_add_distr_l | rewrite <- Z.mul_add_distr_r]",
+        ],
+        ~replay_reals=[
+          "first [rewrite <- Rmult_plus_distr_l | rewrite <- Rmult_plus_distr_r]",
+        ],
       ),
     )
   | "alg.expand_polynomial" =>
@@ -1634,18 +1645,11 @@ let rocq_backend_for_rule_id =
         ~tactic="hazel_rewrite_step",
         ~integers=["rewrite Z.mul_add_distr_l", "rewrite Z.mul_add_distr_r"],
         ~reals=["rewrite Rmult_plus_distr_l", "rewrite Rmult_plus_distr_r"],
-        ~replay_integers=[
-          "repeat rewrite Z.mul_add_distr_l",
-          "repeat rewrite Z.mul_add_distr_r",
-          "repeat rewrite Z.add_assoc",
-          "cbn",
-        ],
-        ~replay_reals=[
-          "repeat rewrite Rmult_plus_distr_l",
-          "repeat rewrite Rmult_plus_distr_r",
-          "repeat rewrite Rplus_assoc",
-          "cbn",
-        ],
+        /* This macro is available only when CollectLikeTerms is enabled.
+           Its exact replay may therefore use the corresponding deterministic
+           polynomial certificate instead of recursive rewrite search. */
+        ~replay_integers=["ring"],
+        ~replay_reals=["unfold Rsqr; ring"],
       ),
     )
   | "alg.factor_common" =>
@@ -1662,14 +1666,8 @@ let rocq_backend_for_rule_id =
             ~left_lemma="Rmult_plus_distr_l",
             ~right_lemma="Rmult_plus_distr_r",
           ),
-        ~replay_integers=[
-          "repeat rewrite <- Z.mul_add_distr_l",
-          "repeat rewrite <- Z.mul_add_distr_r",
-        ],
-        ~replay_reals=[
-          "repeat rewrite <- Rmult_plus_distr_l",
-          "repeat rewrite <- Rmult_plus_distr_r",
-        ],
+        ~replay_integers=["ring"],
+        ~replay_reals=["unfold Rsqr; ring"],
       ),
     )
   | "alg.cancel_common_add" =>
@@ -1721,12 +1719,10 @@ let rocq_backend_for_rule_id =
         ~tactic="hazel_algebra",
         ~integers=[],
         ~reals=[],
-        ~replay_integers=[
-          "first [hazel_algebra | hazel_rewrite_search 10%nat | reflexivity]",
-        ],
-        ~replay_reals=[
-          "first [hazel_algebra | hazel_rewrite_search 10%nat | reflexivity]",
-        ],
+        /* Exact replay is not proof search: the normalizer has already
+           certified that this enabled cleanup produced the target. */
+        ~replay_integers=["lia"],
+        ~replay_reals=["lra"],
       ),
     )
   | "arith.reorder_add_terms" =>
@@ -1867,7 +1863,9 @@ let rocq_backend_for_rule_id =
       rocq_rule_backend(
         ~tactic="hazel_trigonometry",
         ~integers=[],
-        ~reals=["hazel_sin_squared_double"],
+        ~reals=[
+          "first [hazel_sin_squared_double | hazel_trig_identity_context]",
+        ],
       ),
     )
   | "trig.cos_squared_double" =>
@@ -1875,7 +1873,9 @@ let rocq_backend_for_rule_id =
       rocq_rule_backend(
         ~tactic="hazel_trigonometry",
         ~integers=[],
-        ~reals=["hazel_cos_squared_double"],
+        ~reals=[
+          "first [hazel_cos_squared_double | hazel_trig_identity_context]",
+        ],
       ),
     )
   | "trig.sin_half_squared" =>
@@ -2053,27 +2053,31 @@ let rocq_cleanup_catalog = [
   ),
   rocq_cleanup_backend(
     ~capability=AddIdentity,
-    ~integers=["rewrite Z.add_0_l", "rewrite Z.add_0_r", "rewrite Z.sub_0_r"],
+    ~integers=[
+      "repeat rewrite Z.add_0_l",
+      "repeat rewrite Z.add_0_r",
+      "repeat rewrite Z.sub_0_r",
+    ],
     ~reals=[
-      "rewrite Rplus_0_l",
-      "rewrite Rplus_0_r",
-      "rewrite Rminus_0_r",
-      "rewrite Ropp_0",
+      "repeat rewrite Rplus_0_l",
+      "repeat rewrite Rplus_0_r",
+      "repeat rewrite Rminus_0_r",
+      "repeat rewrite Ropp_0",
     ],
   ),
   rocq_cleanup_backend(
     ~capability=MulIdentity,
     ~integers=[
-      "rewrite Z.mul_0_l",
-      "rewrite Z.mul_0_r",
-      "rewrite Z.mul_1_l",
-      "rewrite Z.mul_1_r",
+      "repeat rewrite Z.mul_0_l",
+      "repeat rewrite Z.mul_0_r",
+      "repeat rewrite Z.mul_1_l",
+      "repeat rewrite Z.mul_1_r",
     ],
     ~reals=[
-      "rewrite Rmult_0_l",
-      "rewrite Rmult_0_r",
-      "rewrite Rmult_1_l",
-      "rewrite Rmult_1_r",
+      "repeat rewrite Rmult_0_l",
+      "repeat rewrite Rmult_0_r",
+      "repeat rewrite Rmult_1_l",
+      "repeat rewrite Rmult_1_r",
     ],
   ),
   rocq_cleanup_backend(
@@ -2085,12 +2089,12 @@ let rocq_cleanup_catalog = [
   rocq_cleanup_backend(
     ~capability=PowerIdentity,
     ~integers=[],
-    ~reals=["rewrite pow_1", "rewrite pow_O"],
+    ~reals=["repeat rewrite pow_1", "repeat rewrite pow_O"],
   ),
   rocq_cleanup_backend(
     ~capability=PowerNotation,
     ~integers=["rewrite Z.pow_2_r"],
-    ~reals=["unfold Rsqr"],
+    ~reals=["unfold Rsqr; ring"],
   ),
   rocq_cleanup_backend(
     ~capability=CollectLikeTerms,
@@ -2129,7 +2133,7 @@ let catalog_rule_with_kind =
       ~kind,
       ~direction,
       ~hazel_backend,
-      ~visible_levels,
+      ~introduced_levels,
       ~allowed_cleanup,
     ) =>
   level_for_rule_id(id)
@@ -2142,7 +2146,7 @@ let catalog_rule_with_kind =
          direction,
          hazel_backend,
          rocq_backend: rocq_backend_for_rule_id(id),
-         visible_levels,
+         introduced_levels,
          visible_mode: VisibleOnce,
          allowed_cleanup,
          required_cleanup: [],
@@ -2151,13 +2155,13 @@ let catalog_rule_with_kind =
      );
 
 let catalog_rule =
-    (~id, ~direction, ~hazel_backend, ~visible_levels, ~allowed_cleanup) =>
+    (~id, ~direction, ~hazel_backend, ~introduced_levels, ~allowed_cleanup) =>
   catalog_rule_with_kind(
     ~id,
     ~kind=VisibleRule,
     ~direction,
     ~hazel_backend,
-    ~visible_levels,
+    ~introduced_levels,
     ~allowed_cleanup,
   );
 
@@ -2182,7 +2186,7 @@ let math_rule_catalog = {
         ...affine_normalization_backend,
         mode: FinishOnly,
       }),
-    visible_levels: [],
+    introduced_levels: [],
     visible_mode: VisibleOnce,
     allowed_cleanup: [],
     required_cleanup: [
@@ -2206,7 +2210,7 @@ let math_rule_catalog = {
     rocq_rule_backend(
       ~tactic="hazel_factor_polynomial",
       ~integers=["hazel_factor_polynomial"],
-      ~reals=[],
+      ~reals=["unfold Rsqr; ring"],
     );
   let factor_polynomial_rule = {
     id: "alg.factor_polynomial_normalize",
@@ -2226,7 +2230,7 @@ let math_rule_catalog = {
         ...factor_polynomial_backend,
         mode: FinishOnly,
       }),
-    visible_levels: [],
+    introduced_levels: [],
     visible_mode: VisibleOnce,
     allowed_cleanup: [],
     required_cleanup: ac_cleanup @ structural_identity_cleanup,
@@ -2260,7 +2264,7 @@ let math_rule_catalog = {
         ...rational_square_backend,
         mode: FinishOnly,
       }),
-    visible_levels: [],
+    introduced_levels: [],
     visible_mode: VisibleOnce,
     allowed_cleanup: [],
     required_cleanup: ac_cleanup @ structural_identity_cleanup,
@@ -2271,28 +2275,28 @@ let math_rule_catalog = {
       ~id="arith.add_comm",
       ~direction=BothDirections,
       ~hazel_backend=Some(ArithmeticAddComm),
-      ~visible_levels=[Arithmetic, Algebra, Trigonometry, Calculus],
+      ~introduced_levels=[Arithmetic],
       ~allowed_cleanup=[AddAssoc],
     ),
     catalog_rule(
       ~id="arith.const_fold",
       ~direction=Forward,
       ~hazel_backend=Some(ArithmeticConstFold),
-      ~visible_levels=[Arithmetic, Algebra, Trigonometry, Calculus],
+      ~introduced_levels=[Arithmetic],
       ~allowed_cleanup=[AddAssoc],
     ),
     catalog_rule(
       ~id="arith.mul_const",
       ~direction=BothDirections,
       ~hazel_backend=Some(ArithmeticMulConst),
-      ~visible_levels=[Arithmetic, Algebra, Trigonometry, Calculus],
+      ~introduced_levels=[Arithmetic],
       ~allowed_cleanup=[AddAssoc, MulAssoc],
     ),
     catalog_rule(
       ~id="arith.mul_identity",
       ~direction=Forward,
       ~hazel_backend=Some(ArithmeticMulIdentity),
-      ~visible_levels=[Arithmetic, Algebra, Trigonometry, Calculus],
+      ~introduced_levels=[Arithmetic],
       ~allowed_cleanup=[],
     ),
   ];
@@ -2302,28 +2306,28 @@ let math_rule_catalog = {
         ~id="alg.distribute_mul_add",
         ~direction=BothDirections,
         ~hazel_backend=Some(AlgebraDistributeMulAdd),
-        ~visible_levels=[Algebra, Trigonometry, Calculus],
+        ~introduced_levels=[Algebra],
         ~allowed_cleanup=ac_cleanup @ [PowerNotation],
       ),
       catalog_rule(
         ~id="alg.factor_common",
         ~direction=BothDirections,
         ~hazel_backend=Some(AlgebraFactorCommon),
-        ~visible_levels=[Algebra, Trigonometry, Calculus],
+        ~introduced_levels=[Algebra],
         ~allowed_cleanup=ac_cleanup,
       ),
       catalog_rule(
         ~id="alg.cancel_common_add",
         ~direction=BothDirections,
         ~hazel_backend=Some(AlgebraCancelCommonAdd),
-        ~visible_levels=[Algebra, Trigonometry, Calculus],
+        ~introduced_levels=[Algebra],
         ~allowed_cleanup=[AddAssoc, AddComm],
       ),
       catalog_rule(
         ~id="alg.expand_polynomial",
         ~direction=BothDirections,
         ~hazel_backend=Some(AlgebraDistributeMulAdd),
-        ~visible_levels=[],
+        ~introduced_levels=[],
         ~allowed_cleanup=ac_cleanup @ structural_identity_cleanup,
       ),
     ]
@@ -2334,7 +2338,7 @@ let math_rule_catalog = {
              ~id,
              ~direction=BothDirections,
              ~hazel_backend=Some(AlgebraIdentity),
-             ~visible_levels=[Algebra, Trigonometry, Calculus],
+             ~introduced_levels=[Algebra],
              ~allowed_cleanup=[],
            )
          )
@@ -2361,7 +2365,7 @@ let math_rule_catalog = {
            ~kind=is_power_normalizer ? NormalizationRule : CleanupRule,
            ~direction=BothDirections,
            ~hazel_backend=None,
-           ~visible_levels=[],
+           ~introduced_levels=[],
            ~allowed_cleanup=[],
          )
          |> Option.map((rule: math_rule) =>
@@ -2385,7 +2389,7 @@ let math_rule_catalog = {
            ~id=rule.id,
            ~direction=BothDirections,
            ~hazel_backend=Some(TrigIdentity),
-           ~visible_levels=[Trigonometry, Calculus],
+           ~introduced_levels=[Trigonometry],
            ~allowed_cleanup=[],
          )
        );
@@ -2396,7 +2400,7 @@ let math_rule_catalog = {
            ~id=rule.id,
            ~direction=Forward,
            ~hazel_backend=Some(CalculusDerivative),
-           ~visible_levels=rule.id == "calc.diff_chain" ? [] : [Calculus],
+           ~introduced_levels=rule.id == "calc.diff_chain" ? [] : [Calculus],
            ~allowed_cleanup=calculus_step_cleanup_for_rule(rule.id),
          )
        );
@@ -2444,34 +2448,47 @@ let affine_normalization_cleanup = [
   CollectLikeTerms,
 ];
 
-let profile_default_cleanup = [
+/* Each entry contains only capabilities introduced at that node. Profiles
+   inherit the union from every ancestor, so sibling branches stay isolated. */
+let profile_cleanup_introduced = [
   (Arithmetic, affine_normalization_cleanup),
-  (Algebra, affine_normalization_cleanup @ [PowerIdentity, PowerNotation]),
-  (
-    Trigonometry,
-    affine_normalization_cleanup @ [PowerIdentity, PowerNotation],
-  ),
+  (Algebra, [PowerIdentity, PowerNotation]),
+  (Trigonometry, []),
   (FunctionsAndLists, []),
-  (
-    Calculus,
-    ac_cleanup
-    @ structural_identity_cleanup
-    @ [
-      ConstFold,
-      DerivativeBasics,
-      PowerIdentity,
-      PowerNotation,
-      CollectLikeTerms,
-    ],
-  ),
+  (Calculus, [DerivativeBasics]),
 ];
+
+let dedup_cleanup_capabilities = capabilities =>
+  capabilities
+  |> List.fold_left(
+       (acc, capability) =>
+         List.mem(capability, acc) ? acc : [capability, ...acc],
+       [],
+     )
+  |> List.rev;
+
+let profile_default_cleanup_for_level = level =>
+  inherited_rewrite_levels(level)
+  |> List.concat_map(inherited_level =>
+       profile_cleanup_introduced
+       |> List.find_opt(((candidate_level, _cleanup)) =>
+            candidate_level == inherited_level
+          )
+       |> Option.map(((_level, cleanup)) => cleanup)
+       |> Option.value(~default=[])
+     )
+  |> dedup_cleanup_capabilities;
+
+let rule_visible_at_level = (rule: math_rule, level) =>
+  rule.introduced_levels
+  |> List.exists(introduced_level =>
+       rewrite_level_inherits(~current_level=level, introduced_level)
+     );
 
 let step_policy = level => {
   visible_rules:
     math_rule_catalog
-    |> List.filter((rule: math_rule) =>
-         List.mem(level, rule.visible_levels)
-       )
+    |> List.filter((rule: math_rule) => rule_visible_at_level(rule, level))
     |> List.map((rule: math_rule) =>
          {
            rule_id: rule.id,
@@ -2480,13 +2497,7 @@ let step_policy = level => {
            allowed_cleanup: rule.allowed_cleanup,
          }
        ),
-  default_cleanup:
-    profile_default_cleanup
-    |> List.find_opt(((candidate_level, _cleanup)) =>
-         candidate_level == level
-       )
-    |> Option.map(((_level, cleanup)) => cleanup)
-    |> Option.value(~default=[]),
+  default_cleanup: profile_default_cleanup_for_level(level),
 };
 
 let catalog_rule_by_id = rule_id =>
@@ -2534,23 +2545,11 @@ let cleanup_for_visible_rule = (policy: step_policy, rule_id) =>
      )
   |> Option.value(~default=policy.default_cleanup);
 
-let one_step_policy = level =>
-  switch (level) {
-  | Arithmetic => {
-      distribution_step_policy: StrictDistributedForm,
-      allow_polynomial_expansion: false,
-    }
-  | Algebra
-  | Trigonometry => {
-      distribution_step_policy: StrictDistributedForm,
-      allow_polynomial_expansion: true,
-    }
-  | FunctionsAndLists
-  | Calculus => {
-      distribution_step_policy: StrictDistributedForm,
-      allow_polynomial_expansion: false,
-    }
-  };
+let one_step_policy = level => {
+  distribution_step_policy: StrictDistributedForm,
+  allow_polynomial_expansion:
+    rewrite_level_inherits(~current_level=level, Algebra),
+};
 
 let rocq_finish_step = (~id, ~label, ~tactic, ~rule_ids) =>
   rocq_tactic_step(~id, ~label, ~tactic, ~mode=FinishOnly, ~rule_ids);
@@ -2564,7 +2563,7 @@ let rocq_once_step = (~id, ~label, ~tactic, ~rule_ids) =>
 let rocq_repeat_fuel_step = (~id, ~label, ~tactic, ~fuel, ~rule_ids) =>
   rocq_tactic_step(~id, ~label, ~tactic, ~mode=RepeatFuel(fuel), ~rule_ids);
 
-let rocq_check_result_tactic_plan = level => {
+let rocq_check_result_tactic_plan_for_node = level => {
   switch (level) {
   | Arithmetic => {
       id: "hazel_arithmetic_plan",
@@ -2671,31 +2670,17 @@ let rocq_check_result_tactic_plan = level => {
   | FunctionsAndLists => {
       id: "hazel_functions_plan",
       label: "Functions/lists tactic plan",
-      steps: [
-        rocq_finish_step(
-          ~id="functions_finish",
-          ~label="finish functions/lists goal",
-          ~tactic="hazel_functions",
-          ~rule_ids=[],
-        ),
-      ],
+      steps: [],
     }
   | Calculus => {
       id: "hazel_calculus_plan",
       label: "Calculus tactic plan",
-      steps: [
-        rocq_finish_step(
-          ~id="calculus_finish",
-          ~label="finish calculus goal",
-          ~tactic="hazel_calculus",
-          ~rule_ids=[],
-        ),
-      ],
+      steps: [],
     }
   };
 };
 
-let rocq_validate_primitive_tactic_plan = level => {
+let rocq_validate_primitive_tactic_plan_for_node = level => {
   switch (level) {
   | Arithmetic => {
       id: "hazel_arithmetic_primitive_plan",
@@ -2768,7 +2753,7 @@ let rocq_validate_primitive_tactic_plan = level => {
   };
 };
 
-let rocq_validate_macro_tactic_plan = level => {
+let rocq_validate_macro_tactic_plan_for_node = level => {
   switch (level) {
   | Arithmetic => {
       id: "hazel_arithmetic_macro_plan",
@@ -2831,10 +2816,40 @@ let rocq_validate_macro_tactic_plan = level => {
         ),
       ],
     }
-  | FunctionsAndLists => rocq_validate_primitive_tactic_plan(level)
-  | Calculus => rocq_validate_primitive_tactic_plan(level)
+  | FunctionsAndLists => rocq_validate_primitive_tactic_plan_for_node(level)
+  | Calculus => rocq_validate_primitive_tactic_plan_for_node(level)
   };
 };
+
+let compose_inherited_rocq_plan = (~level, ~plan_for_node) => {
+  let local_plan = plan_for_node(level);
+  {
+    ...local_plan,
+    steps:
+      inherited_rewrite_levels(level)
+      |> List.concat_map(inherited_level =>
+           plan_for_node(inherited_level).steps
+         ),
+  };
+};
+
+let rocq_check_result_tactic_plan = level =>
+  compose_inherited_rocq_plan(
+    ~level,
+    ~plan_for_node=rocq_check_result_tactic_plan_for_node,
+  );
+
+let rocq_validate_primitive_tactic_plan = level =>
+  compose_inherited_rocq_plan(
+    ~level,
+    ~plan_for_node=rocq_validate_primitive_tactic_plan_for_node,
+  );
+
+let rocq_validate_macro_tactic_plan = level =>
+  compose_inherited_rocq_plan(
+    ~level,
+    ~plan_for_node=rocq_validate_macro_tactic_plan_for_node,
+  );
 
 let rocq_auto_simplify_tactic_plan = level => {
   let check_plan = rocq_check_result_tactic_plan(level);
@@ -2914,7 +2929,7 @@ let math_profile = level => {
              rule.kind == NormalizationRule
              || rule.kind == GuardedNormalizationRule
            )
-           && rewrite_level_rank(rule.level) <= rewrite_level_rank(level)
+           && rewrite_level_inherits(~current_level=level, rule.level)
          )
       |> List.map((rule: math_rule) => rule.id),
     rocq_macro_rule_id,
@@ -2965,7 +2980,7 @@ let normalization_rules_for_profile = (profile: math_profile) =>
        (
          rule.kind == NormalizationRule || rule.kind == GuardedNormalizationRule
        )
-       && rewrite_level_rank(rule.level) <= profile.rank
+       && rewrite_level_inherits(~current_level=profile.level, rule.level)
        && check_result_rule_enabled(profile, rule.id)
      );
 
@@ -2983,12 +2998,36 @@ let guarded_normalization_backend_for_profile =
   | Some(rule)
       when
         rule.kind == GuardedNormalizationRule
-        && rewrite_level_rank(rule.level) <= profile.rank
+        && rewrite_level_inherits(~current_level=profile.level, rule.level)
         && check_result_rule_enabled(profile, rule.id) =>
     rule.rocq_backend
   | Some(_)
   | None => None
   };
+
+let profile_allows_rocq_rule_id = (profile: math_profile, rule_id) =>
+  visible_rule_enabled(profile.step_policy, rule_id)
+  || check_result_rule_enabled(profile, rule_id)
+  || (
+    switch (cleanup_capability_for_id(rule_id)) {
+    | Some(capability) => cleanup_enabled_for_profile(profile, capability)
+    | None => false
+    }
+  );
+
+let active_rocq_tactic_plan_for_profile = (profile, purpose) => {
+  let plan = rocq_tactic_plan_for_profile(profile, purpose);
+  {
+    ...plan,
+    steps:
+      plan.steps
+      |> List.filter((step: rocq_tactic_step) =>
+           step.rule_ids != []
+           && step.rule_ids
+           |> List.for_all(profile_allows_rocq_rule_id(profile))
+         ),
+  };
+};
 
 let stage_plan_for_profile = (profile: math_profile, stage) => {
   let unresolved = unresolved_visible_rule_ids(profile.step_policy);
@@ -3050,7 +3089,7 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
       post_cleanup: cleanup,
       normalization_backends: normalization_backends_for_profile(profile),
       rocq_plan:
-        rocq_tactic_plan_for_profile(
+        active_rocq_tactic_plan_for_profile(
           profile,
           tactic_plan_purpose_for_stage(stage),
         ),

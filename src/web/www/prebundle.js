@@ -594,6 +594,11 @@ window.HazelJSCoq = {
       ? code.replace(/^From (?:Coq|Stdlib) Require Import [^\n]*\.\s*$/gm, '')
       : code;
     snippet.editor.setValue((manager.__hazelWarmupPrefixCode || '') + suffix);
+    return {
+      reusedWarmupPrefix: !!manager.__hazelWarmupPrefixCode,
+      submittedCodeBytes: suffix.length,
+      retainedSentenceCount: prefixSentences.length,
+    };
   },
 
   async check(
@@ -619,6 +624,12 @@ window.HazelJSCoq = {
       {checkId, kind, codeBytes: jscoqCode.length, advanceLimit},
     );
     let manager;
+    let preparedAt = startedAt;
+    let documentStats = {
+      reusedWarmupPrefix: false,
+      submittedCodeBytes: jscoqCode.length,
+      retainedSentenceCount: 0,
+    };
     try {
       manager = await this.start({code: '', show});
       activeCheck.manager = manager;
@@ -626,7 +637,8 @@ window.HazelJSCoq = {
       if (activeCheck.aborted || (request && request.cancelled)) {
         activeCheck.aborted = true;
       } else {
-        await this.replaceManagerDocument(manager, jscoqCode);
+        documentStats = await this.replaceManagerDocument(manager, jscoqCode);
+        preparedAt = performance.now();
       }
     } catch (error) {
       this.activeChecks.delete(checkId);
@@ -685,7 +697,10 @@ window.HazelJSCoq = {
       manager,
       checkId,
       durationMs,
+      startupDurationMs: Math.round(preparedAt - startedAt),
+      proofDurationMs: Math.round(performance.now() - preparedAt),
       codeBytes: jscoqCode.length,
+      ...documentStats,
     };
     const managerHealth = this.noteManagerCheck(manager, kind);
     this.activeChecks.delete(checkId);
@@ -695,7 +710,10 @@ window.HazelJSCoq = {
       ok: result.ok,
       steps,
       durationMs,
+      startupDurationMs: result.startupDurationMs,
+      proofDurationMs: result.proofDurationMs,
       codeBytes: jscoqCode.length,
+      ...documentStats,
       errorCount: manager.error.length,
       cancelled: activeCheck.aborted,
       managerHealth,
@@ -834,6 +852,9 @@ window.HazelJSCoq = {
         )) {
           this.reset();
         }
+        const fatalWorkerError = result && result.errors && result.errors.some(error =>
+          errorText(error).includes('Stack overflow')
+        );
         const message = result.ok
           ? 'JSCoq passed.'
           : `JSCoq failed:\n${formatErrors(result.errors)}`;
@@ -844,6 +865,11 @@ window.HazelJSCoq = {
         );
         if (request) request.settled = true;
         callback(result.ok ? 'ok' : 'error', message);
+        if (fatalWorkerError) {
+          // A Rocq stack overflow can poison later checks in the persistent
+          // document. Retire it after delivering this result.
+          this.reset();
+        }
         return result;
       });
     })
@@ -867,7 +893,10 @@ window.HazelJSCoq = {
     const kind = code.includes('hazel_profile_search')
       ? 'profile search'
       : 'equivalence fallback';
-    console.log(`[Hazel Rocq debug] generated ${kind} program:\n${code}`);
+    console.log('[Hazel Rocq debug] generated program', {
+      kind,
+      codeBytes: code.length,
+    });
     const requestId = opts.requestId;
     const request = requestId == null
       ? null

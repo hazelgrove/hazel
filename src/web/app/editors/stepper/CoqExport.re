@@ -16,6 +16,7 @@ let rec requires_reals = (d: Language.DHExp.t) =>
   switch (Language.Exp.term_of(d |> Language.DHExp.strip_ascriptions)) {
   | Parens(exp)
   | Asc(exp, _) => requires_reals(exp)
+  | Tuple([exp]) => requires_reals(exp)
   | Atom(Float(_)) => true
   | Var("pi") => true
   | Var(name) when is_real_builtin(name) => true
@@ -32,6 +33,7 @@ let rec real_nat_exponent = (d: Language.DHExp.t) =>
   switch (Language.Exp.term_of(d |> Language.DHExp.strip_ascriptions)) {
   | Parens(exp)
   | Asc(exp, _) => real_nat_exponent(exp)
+  | Tuple([exp]) => real_nat_exponent(exp)
   | Atom(Int(n))
   | Atom(Nat(n)) => Bigint.to_int(n)
   | Atom(SInt(n)) when n >= 0 => Some(n)
@@ -81,6 +83,8 @@ let rec unique_vars_in_ast_helper =
         (d: Language.DHExp.t, unique_vars: Hashtbl.t(string, unit)) => {
   switch (Language.Exp.term_of(d)) {
   | Parens(exp) => unique_vars_in_ast_helper(exp, unique_vars)
+  | Tuple(exps) =>
+    exps |> List.iter(exp => unique_vars_in_ast_helper(exp, unique_vars))
   | BinOp(_, arg1, arg2) =>
     unique_vars_in_ast_helper(arg1, unique_vars);
     unique_vars_in_ast_helper(arg2, unique_vars);
@@ -176,6 +180,11 @@ let string_of_d_reals = (d: Language.DHExp.t) => {
     switch (Language.Exp.term_of(d)) {
     | Parens(exp) => loop(exp)
     | Asc(exp, _) => loop(exp)
+    /* In the math editor a parenthesized scalar may be represented as a
+     * singleton tuple.  It is grouping, not a Rocq product.  Multi-element
+     * tuples remain unsupported here and are handled separately for syntax
+     * such as diff(expression, variable). */
+    | Tuple([exp]) => loop(exp)
     | BinOp(
         Int(Power) | Nat(Power) | SInt(Power) | Float(Power),
         arg1,

@@ -189,6 +189,13 @@ type replacement_result = {
   with_exp: Language.Exp.t,
 };
 
+let reparenthesize_override =
+    (~override: associative_override, ~full_exp: Language.Exp.t) =>
+  Language.Reparenthesize.reparenthesize_selection(
+    ~selected_ids=Segment.ids(override.segment),
+    full_exp,
+  );
+
 let replace_range =
     (~selected: Segment.t, ~replacement: Segment.t, container: Segment.t)
     : option(Segment.t) => {
@@ -233,10 +240,22 @@ let replacement_for_override =
       ~settings=ExpToSegment.Settings.editable(~inline=true),
       with_exp,
     );
+  /* A virtual associative selection is replaced inside the containing
+   * operator's concrete syntax.  Only group the replacement when its
+   * precedence would otherwise let it escape that operand position.  In
+   * particular, wrapping an atom such as [6] manufactured a one-element
+   * tuple [(6)] instead of the intended arithmetic expression [6]. */
+  let replacement =
+    if (ExpToSegment.external_precedence(with_exp)
+        >= ExpToSegment.external_precedence(at_exp)) {
+      [Segment.parenthesize(~sort=Sort.Exp, with_segment)];
+    } else {
+      with_segment;
+    };
   let* replaced_segment =
     replace_range(
       ~selected=override.segment,
-      ~replacement=[Segment.parenthesize(with_segment)],
+      ~replacement,
       container_segment,
     );
   let+ with_exp = exp_of_segment(replaced_segment);

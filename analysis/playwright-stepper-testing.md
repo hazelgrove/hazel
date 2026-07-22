@@ -14,6 +14,26 @@ runs JSCoq, and applies the validated written step.
 
 Playwright is installed at `/Users/nishant/node_modules/playwright`.
 
+If Playwright reports that its version-specific cached Chromium executable is
+missing, use the installed system Chrome instead of reinstalling browsers:
+
+```javascript
+const browser = await chromium.launch({
+  headless: true,
+  executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  args: [
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-crash-reporter",
+    "--disable-session-crashed-bubble",
+  ],
+});
+```
+
+Those flags also prevent the stale “Chrome did not shut down correctly” banner
+from contaminating screenshots and intercepting calibrated clicks. On macOS,
+launching system Chrome from a sandboxed test process may require escalation.
+
 ## Calibrated Algebra Check
 
 Use this smoke case:

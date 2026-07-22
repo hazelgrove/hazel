@@ -23,7 +23,11 @@ let button_d = (~tooltip="", icon, action, ~disabled: bool) =>
     ~attrs=[
       clss(["icon"] @ (disabled ? ["disabled"] : [])),
       Attr.title(tooltip),
-      Attr.on_mousedown(_ => unless(disabled, action)),
+      Attr.on_pointerdown(_ => Effect.Stop_propagation),
+      Attr.on_pointerup(_ => Effect.Stop_propagation),
+      Attr.on_click(_ =>
+        Effect.Many([unless(disabled, action), Effect.Stop_propagation])
+      ),
     ],
     [icon],
   );

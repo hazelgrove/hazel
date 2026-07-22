@@ -108,6 +108,7 @@ and step_action =
   | AddInduction(option(Exp.t))
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
+  | AddReparenthesizedAxiomStep(Exp.t, string, Exp.t, Direction.t, string)
   | AddAlgebriteStep(int, Exp.t, Exp.t)
   | AddReparenthesizeStep(Exp.t)
   | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t)
@@ -940,40 +941,12 @@ and Stepper: {
     switch (step_kind) {
     | WrittenStep({trace_summary: Some(summary), _}) =>
       CoqProofExport.tactic_for_written_summary(~forall_str, ~domain, summary)
-    | AxiomStep({name, _}) => CoqProofExport.tactic_for_axiom_step(name)
+    | AxiomStep({name, _}) =>
+      CoqProofExport.tactic_for_axiom_step(~domain, name)
     | _ => CoqProofExport.default_tactic_for_domain(domain)
     };
 
-  let coq_domain_for_step = (step: step_model) => {
-    let step_expr_requires_reals =
-      CoqExport.requires_reals(step.expr |> Calc.get_saved_exc)
-      || (
-        switch (step.next_step) {
-        | Some(next) =>
-          CoqExport.requires_reals(next.expr |> Calc.get_saved_exc)
-        | None => false
-        }
-      );
-    let summary_requires_reals =
-      switch (step.step_kind) {
-      | WrittenStep({trace_summary: Some(summary), _}) =>
-        CoqProofExport.domain_for_summary(summary) == CoqExport.Reals
-      | _ => false
-      };
-
-    step_expr_requires_reals || summary_requires_reals
-      ? CoqExport.Reals : CoqExport.Integers;
-  };
-
-  let coq_domain_for_steps = steps =>
-    steps
-    |> List.exists(step =>
-         switch (coq_domain_for_step(step)) {
-         | CoqExport.Reals => true
-         | CoqExport.Integers => false
-         }
-       )
-      ? CoqExport.Reals : CoqExport.Integers;
+  let coq_domain_for_steps = _steps => CoqExport.Reals;
 
   let single_step_export = (ind, step: step_model, forall_str, domain) => {
     switch (step.next_step) {
@@ -1033,12 +1006,12 @@ and Stepper: {
       |> List.exists(rule_id =>
            Axioms.cleanup_capability_for_id(rule_id) == Some(capability)
          );
+    let recorded_cleanup =
+      base_profile.step_policy.default_cleanup |> List.filter(cleanup_enabled);
     let calculus_profile: Axioms.math_profile = {
       ...base_profile,
       step_policy: {
-        default_cleanup:
-          base_profile.step_policy.default_cleanup
-          |> List.filter(cleanup_enabled),
+        default_cleanup: recorded_cleanup,
         visible_rules:
           base_profile.step_policy.visible_rules
           |> List.filter((rule: Axioms.visible_rule_policy) =>
@@ -1059,6 +1032,7 @@ and Stepper: {
                ) =>
       ProofSearchBackend.calculus_export_program_for_profile(
         ~profile=calculus_profile,
+        ~recorded_cleanup,
         first_exp,
         next.expr |> Calc.get_saved_exc,
       )
@@ -1072,10 +1046,25 @@ and Stepper: {
     if (List.length(steps) == 0) {
       None;
     } else {
+      let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
+      let last_step = List.nth(steps, List.length(steps) - 1);
+      let completed_derivative_history =
+        switch (last_step.next_step) {
+        | Some(next) =>
+          DifferentiationRewrite.contains_diff(first_exp)
+          && !
+               DifferentiationRewrite.contains_diff(
+                 next.expr |> Calc.get_saved_exc,
+               )
+        | None => false
+        };
       switch (calculus_export_for_steps(steps)) {
       | Some(export) => Some(export)
+      | None when completed_derivative_history =>
+        failwith(
+          "calculus certificate could not replay the completed derivative history under its recorded profile",
+        )
       | None =>
-        let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
         let unique_vars = CoqExport.unique_vars_in_ast(first_exp);
         let domain = coq_domain_for_steps(steps);
         let forall_str =
@@ -1105,7 +1094,6 @@ and Stepper: {
           );
         let (lemmas, invocations) = List.split(lemmas_and_invocations);
         let first_expr = CoqExport.string_of_d_for_domain(~domain, first_exp);
-        let last_step = List.nth(steps, List.length(steps) - 1);
         switch (last_step.next_step) {
         | Some(next) =>
           let final_expr =
@@ -1133,6 +1121,90 @@ and Stepper: {
         };
       };
     };
+  };
+
+  let coq_export_step_kind_name = (step_kind: step_kind_model) =>
+    switch (step_kind) {
+    | SingleStep(_) => "single step"
+    | InductionStep(_) => "induction step"
+    | ForallStep(_) => "forall step"
+    | MissingStep(_) => "missing step"
+    | AxiomStep(_) => "axiom step"
+    | AlgebriteStep(_) => "legacy Algebrite step"
+    | WrittenStep(_) => "written step"
+    | ReparenthesizeStep(_) => "reparenthesization step"
+    | AutoSimplifyStep(_) => "auto-simplify step"
+    };
+
+  let coq_export_exp_debug = (~label, exp: Exp.t) =>
+    Printf.sprintf(
+      "%s class: %s\n%s AST: %s",
+      label,
+      Exp.show_cls(Exp.cls_of_term(exp.term)),
+      label,
+      Exp.show(exp),
+    );
+
+  let coq_export_prover_step_debug = (index, step: RewriteChecker.prover_step) =>
+    Printf.sprintf(
+      "  prover transition %d: rule=%s occurrence=%d\n%s\n%s\n%s\n%s",
+      index,
+      step.rule_id,
+      step.occurrence,
+      coq_export_exp_debug(~label="    before local", step.before_exp),
+      coq_export_exp_debug(~label="    after local", step.after_exp),
+      coq_export_exp_debug(~label="    before full", step.before_full_exp),
+      coq_export_exp_debug(~label="    after full", step.after_full_exp),
+    );
+
+  let log_coq_export_failure = (~model, exn) => {
+    let steps = coq_export_steps(model);
+    let step_reports =
+      steps
+      |> List.mapi((index, step) => {
+           let exp = step.expr |> Calc.get_saved_exc;
+           let next_exp_report =
+             switch (step.next_step) {
+             | Some(next) =>
+               "\n"
+               ++ coq_export_exp_debug(
+                    ~label="  next expression",
+                    next.expr |> Calc.get_saved_exc,
+                  )
+             | None => "\n  next expression: none"
+             };
+           let prover_report =
+             switch (step.step_kind) {
+             | WrittenStep({trace_summary: Some(summary), _}) =>
+               summary.prover_steps
+               |> List.mapi((prover_index, prover_step) =>
+                    coq_export_prover_step_debug(
+                      prover_index + 1,
+                      prover_step,
+                    )
+                  )
+               |> String.concat("\n")
+               |> (report => report == "" ? "" : "\n" ++ report)
+             | _ => ""
+             };
+           Printf.sprintf(
+             "derivation step %d: %s\n%s%s%s",
+             index + 1,
+             coq_export_step_kind_name(step.step_kind),
+             coq_export_exp_debug(~label="  expression", exp),
+             next_exp_report,
+             prover_report,
+           );
+         })
+      |> String.concat("\n\n");
+    let report =
+      Printf.sprintf(
+        "[Hazel Rocq export] failed: %s\nexportable derivation steps: %d\n%s",
+        Printexc.to_string(exn),
+        List.length(steps),
+        step_reports,
+      );
+    Js_of_ocaml.Firebug.console##log(Js_of_ocaml.Js.string(report));
   };
 
   let rec update =
@@ -1195,11 +1267,12 @@ and Stepper: {
             }
           ) {
           | exn =>
+            log_coq_export_failure(~model, exn);
             {
               ...model,
               export_warning: Some(coq_export_error(exn)),
             }
-            |> return_quiet
+            |> return_quiet;
           }
         | (CoqBrowserCheckStarted(check_id), _, _) =>
           {
@@ -1363,6 +1436,50 @@ and Stepper: {
           }
           |> return
         | (AddAxiomStep(_, _, _, _, _), _, _) =>
+          model |> raise_invalid_action
+        | (
+            AddReparenthesizedAxiomStep(
+              reparenthesized_exp,
+              name,
+              at_exp,
+              direction,
+              equality,
+            ),
+            MissingStep(_),
+            _,
+          ) =>
+          let exp =
+            model.expr
+            |> Calc.get_saved_exc(~print="AddReparenthesizedAxiomStep");
+          {
+            ...model,
+            step_kind:
+              ReparenthesizeStep({
+                original_exp: exp,
+                reparenthesized_exp,
+                selected_id: None,
+                evaluate_after_parenthesize: false,
+                next_exp: Calc.Pending,
+              }),
+            next_step:
+              Some({
+                ...init,
+                step_kind:
+                  AxiomStep({
+                    name,
+                    at_idx:
+                      try(ProofHacks.exp_idx(at_exp, reparenthesized_exp)) {
+                      | _ => 0
+                      },
+                    at_exp,
+                    direction,
+                    equality,
+                    next_exp: Calc.Pending,
+                  }),
+              }),
+          }
+          |> return;
+        | (AddReparenthesizedAxiomStep(_, _, _, _, _), _, _) =>
           model |> raise_invalid_action
         | (AddAlgebriteStep(at_idx, at_exp, with_exp), MissingStep(_), _) =>
           {
@@ -1528,6 +1645,7 @@ and Stepper: {
     | AddInduction(_) => true
     | AddForall => true
     | AddAxiomStep(_) => true
+    | AddReparenthesizedAxiomStep(_) => true
     | AddAlgebriteStep(_) => true
     | AddReparenthesizeStep(_) => true
     | AddReparenthesizedAlgebriteStep(_) => true
@@ -1851,6 +1969,10 @@ and Stepper: {
                     | AddInduction(exp) => inject(AddInduction(exp))
                     | AddAxiomStep(name, idx, e1, dir, eq) =>
                       inject(AddAxiomStep(name, idx, e1, dir, eq))
+                    | AddReparenthesizedAxiomStep(e1, name, e2, dir, eq) =>
+                      inject(
+                        AddReparenthesizedAxiomStep(e1, name, e2, dir, eq),
+                      )
                     | AddAlgebriteStep(idx, e1, e2) =>
                       inject(AddAlgebriteStep(idx, e1, e2))
                     | AddReparenthesizeStep(e) =>

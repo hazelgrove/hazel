@@ -2552,6 +2552,10 @@ let check_single_distribution_or_expansion = (group, profile, from_, to_) => {
       );
     } else if (sum_factor_count > 1
                && policy.allow_polynomial_expansion
+               && List.mem(
+                    Axioms.CollectLikeTerms,
+                    profile.Axioms.step_policy.default_cleanup,
+                  )
                && exp_has_sum(to_)
                && polynomial_equivalent_exps(from_, to_)) {
       Some(
@@ -3674,7 +3678,7 @@ let check_written_step_trace_at_level =
 
 let trace_rule_allowed_by_profile = (profile: Axioms.math_profile, rule_id) =>
   switch (Axioms.catalog_rule_by_id(rule_id)) {
-  | Some(rule) when List.mem(profile.level, rule.visible_levels) =>
+  | Some(rule) when Axioms.rule_visible_at_level(rule, profile.level) =>
     Axioms.visible_rule_enabled(profile.step_policy, rule_id)
   | Some(rule)
       when
@@ -3713,64 +3717,149 @@ let check_result_backend_allowed =
   | _ => true
   };
 
+let direct_cleanup_trace_for_profile =
+    (~profile: Axioms.math_profile, from_: Exp.t, to_: Exp.t)
+    : option(trace_summary) => {
+  let enabled = capability =>
+    List.mem(capability, profile.step_policy.default_cleanup);
+  let summary = (rule_ids, steps) =>
+    Some({
+      justification: "profile cleanup",
+      group_name: None,
+      from_normal_exp: to_,
+      to_normal_exp: to_,
+      from_rule_ids: rule_ids,
+      to_rule_ids: [],
+      rule_ids,
+      prover_steps: steps,
+      exportable: true,
+    });
+  let rec rewrite_cleanup = (fuel, current, rule_ids, steps) =>
+    if (fuel <= 0) {
+      None;
+    } else if (steps != [] && TrigRewrite.exp_same(current, to_)) {
+      summary(rule_ids |> dedup, steps);
+    } else {
+      switch (
+        DifferentiationRewrite.cleanup_once(~cleanup_enabled=enabled, current)
+      ) {
+      | Some((next, capability)) =>
+        let rule_id = Axioms.cleanup_capability_label(capability);
+        rewrite_cleanup(
+          fuel - 1,
+          next,
+          rule_ids @ [rule_id],
+          steps
+          @ [
+            prover_step(
+              ~origin=Normalization,
+              ~rule_id,
+              ~before_full_exp=current,
+              ~after_full_exp=next,
+              ~before_exp=current,
+              ~after_exp=next,
+              ~detail="profile-enabled direct cleanup",
+            ),
+          ],
+        );
+      | None => None
+      };
+    };
+  switch (rewrite_cleanup(64, from_, [], [])) {
+  | Some(summary) => Some(summary)
+  | None
+      when
+        enabled(Axioms.PowerNotation)
+        && exp_same_up_to_cleanup([Axioms.PowerNotation], from_, to_) =>
+    let rule_id = Axioms.cleanup_capability_label(Axioms.PowerNotation);
+    summary(
+      [rule_id],
+      [
+        prover_step(
+          ~origin=Normalization,
+          ~rule_id,
+          ~before_full_exp=from_,
+          ~after_full_exp=to_,
+          ~before_exp=from_,
+          ~after_exp=to_,
+          ~detail="profile-enabled power notation cleanup",
+        ),
+      ],
+    );
+  | None => None
+  };
+};
+
 let check_written_step_trace_for_profile =
     (~profile: Axioms.math_profile, ~settings, ~env, from_: Exp.t, to_: Exp.t)
     : option(trace_summary) => {
-  let candidate =
-    switch (calculus_check_result_trace_for_profile(~profile, from_, to_)) {
-    | Some(summary) => Some(summary)
-    | None =>
-      check_written_step_trace_at_level(
-        ~level=profile.level,
-        ~settings,
-        ~env,
-        from_,
-        to_,
-      )
-    };
-  let candidate =
+  let requires_disabled_power_notation =
+    !List.mem(Axioms.PowerNotation, profile.step_policy.default_cleanup)
+    && !TrigRewrite.exp_same(from_, to_)
+    && exp_same_up_to_cleanup([Axioms.PowerNotation], from_, to_);
+  if (requires_disabled_power_notation) {
+    None;
+  } else {
+    let candidate =
+      switch (direct_cleanup_trace_for_profile(~profile, from_, to_)) {
+      | Some(summary) => Some(summary)
+      | None =>
+        switch (calculus_check_result_trace_for_profile(~profile, from_, to_)) {
+        | Some(summary) => Some(summary)
+        | None =>
+          check_written_step_trace_at_level(
+            ~level=profile.level,
+            ~settings,
+            ~env,
+            from_,
+            to_,
+          )
+        }
+      };
+    let candidate =
+      switch (candidate) {
+      | Some(summary)
+          when
+            summary.justification == "arithmetic"
+            && Axioms.check_result_rule_enabled(
+                 profile,
+                 "arith.affine_normalize",
+               ) =>
+        let rule_id = "arith.affine_normalize";
+        Some({
+          ...summary,
+          justification: "affine normalization",
+          from_normal_exp: to_,
+          to_normal_exp: to_,
+          from_rule_ids: [rule_id],
+          to_rule_ids: [],
+          rule_ids: [rule_id],
+          prover_steps: [
+            prover_step(
+              ~origin=Normalization,
+              ~rule_id,
+              ~before_full_exp=from_,
+              ~after_full_exp=to_,
+              ~before_exp=from_,
+              ~after_exp=to_,
+              ~detail="profile-enabled affine normalization",
+            ),
+          ],
+          exportable: true,
+        });
+      | Some(_)
+      | None => candidate
+      };
     switch (candidate) {
     | Some(summary)
         when
-          summary.justification == "arithmetic"
-          && Axioms.check_result_rule_enabled(
-               profile,
-               "arith.affine_normalize",
-             ) =>
-      let rule_id = "arith.affine_normalize";
-      Some({
-        ...summary,
-        justification: "affine normalization",
-        from_normal_exp: to_,
-        to_normal_exp: to_,
-        from_rule_ids: [rule_id],
-        to_rule_ids: [],
-        rule_ids: [rule_id],
-        prover_steps: [
-          prover_step(
-            ~origin=Normalization,
-            ~rule_id,
-            ~before_full_exp=from_,
-            ~after_full_exp=to_,
-            ~before_exp=from_,
-            ~after_exp=to_,
-            ~detail="profile-enabled affine normalization",
-          ),
-        ],
-        exportable: true,
-      });
+          check_result_backend_allowed(profile, summary)
+          && summary.rule_ids
+          |> List.for_all(trace_rule_allowed_by_profile(profile)) =>
+      Some(summary)
     | Some(_)
-    | None => candidate
+    | None => None
     };
-  switch (candidate) {
-  | Some(summary)
-      when
-        check_result_backend_allowed(profile, summary)
-        && summary.rule_ids
-        |> List.for_all(trace_rule_allowed_by_profile(profile)) =>
-    Some(summary)
-  | Some(_)
-  | None => None
   };
 };
 

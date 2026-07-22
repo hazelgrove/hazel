@@ -53,9 +53,14 @@ let local_profile_trace =
     ) {
     | Some(summary) => Some(summary)
     | None =>
-      let allowed_rule_ids =
+      let visible_rule_ids =
         profile.Axioms.step_policy.visible_rules
         |> List.map((rule: Axioms.visible_rule_policy) => rule.rule_id);
+      let normalization_rule_ids =
+        Axioms.normalization_rules_for_profile(profile)
+        |> List.map((rule: Axioms.math_rule) => rule.id);
+      let allowed_rule_ids =
+        RewriteChecker.dedup(visible_rule_ids @ normalization_rule_ids);
       switch (
         AxiomSearch.search(
           ~level=profile.level,
@@ -89,16 +94,9 @@ let effective_profile_for_request = request =>
     request.target,
   );
 
-let domain_for_request = request => {
-  let profile = effective_profile_for_request(request);
-  switch (profile.rocq_domain_policy) {
-  | Axioms.RealsByDefault => CoqExport.Reals
-  | IntegersByDefault =>
-    CoqExport.requires_reals(request.source)
-    || CoqExport.requires_reals(request.target)
-      ? CoqExport.Reals : CoqExport.Integers
-  };
-};
+/* Hazel's user-facing Rocq semantics are uniformly over the reals. Profile
+   selection controls allowed rules, never the theorem's numeric domain. */
+let domain_for_request = _request => CoqExport.Reals;
 
 let vars_for_request = request =>
   CoqExport.unique_vars_in_ast(request.source)
@@ -145,7 +143,8 @@ let rocq_plan_for_profile_and_purpose = (profile, purpose) =>
   | CheckResult =>
     Axioms.stage_plan_for_profile(profile, MultiStepCheck).rocq_plan
   | AutoSimplify => Axioms.stage_plan_for_profile(profile, AutoEval).rocq_plan
-  | ValidateMacroStep => Axioms.rocq_tactic_plan_for_profile(profile, purpose)
+  | ValidateMacroStep =>
+    Axioms.active_rocq_tactic_plan_for_profile(profile, purpose)
   };
 
 let catalog_domain =
@@ -643,6 +642,29 @@ let calculus_source = source =>
   | None => None
   };
 
+/* A Check Result selection may contain one derivative inside an unchanged
+ * arithmetic context.  Retain the concrete diff subterm so its profile result
+ * can be certified without pretending the surrounding [+] or [*] is itself a
+ * derivative. */
+let rec calculus_sources_in = source =>
+  switch (calculus_source(source)) {
+  | Some((expression, variable)) => [(expression, variable, source)]
+  | None =>
+    let recurse = calculus_sources_in;
+    switch (DifferentiationRewrite.strip(source).term) {
+    | BinOp(_, left, right)
+    | Ap(_, left, right) => recurse(left) @ recurse(right)
+    | UnOp(_, inner)
+    | Parens(inner)
+    | Asc(inner, _)
+    | Projector(_, inner) => recurse(inner)
+    | Tuple(entries)
+    | ListLit(entries) => List.concat_map(recurse, entries)
+    | Fun(_, body, _, _) => recurse(body)
+    | _ => []
+    };
+  };
+
 let calculus_cleanup_capabilities_used = (~profile, start) => {
   let rec rounds = (fuel, current, used) =>
     if (fuel <= 0) {
@@ -672,33 +694,40 @@ let calculus_cleanup_capabilities_used = (~profile, start) => {
   rounds(8, start, []);
 };
 
-let calculus_cleanup_script = (~capabilities, ~use_affine_finisher) => {
-  let cleanup_tactics =
-    capabilities
-    |> List.concat_map(capability =>
-         Axioms.rocq_cleanup_tactics(~domain=Axioms.RocqReals, capability)
-       )
-    |> RewriteChecker.dedup;
-  let cleanup =
-    switch (cleanup_tactics) {
-    | [] => ""
-    | tactics =>
-      "repeat first [\n  "
-      ++ (
-        tactics
-        |> List.map(tactic => "progress (" ++ tactic ++ ")")
-        |> String.concat("\n| ")
-      )
-      ++ "\n].\n"
-    };
-  cleanup ++ (use_affine_finisher ? "lra." : "reflexivity.");
-};
+let calculus_cleanup_script = (~capabilities, ~use_affine_finisher) =>
+  if (use_affine_finisher) {
+    "lra.";
+  } else {
+    let cleanup_tactics =
+      capabilities
+      |> List.concat_map(capability =>
+           Axioms.rocq_cleanup_tactics(~domain=Axioms.RocqReals, capability)
+         )
+      |> RewriteChecker.dedup;
+    let cleanup =
+      switch (cleanup_tactics) {
+      | [] => ""
+      | tactics =>
+        "repeat first [\n  "
+        ++ (
+          tactics
+          |> List.map(tactic => "progress (" ++ tactic ++ ")")
+          |> String.concat("\n| ")
+        )
+        ++ "\n].\n"
+      };
+    cleanup ++ "reflexivity.";
+  };
 
 let calculus_search_program =
-    (~profile, ~theorem_name="hazel_rocq_search", request) =>
-  switch (calculus_source(request.source)) {
-  | None => None
-  | Some((expression, variable)) =>
+    (
+      ~profile,
+      ~theorem_name="hazel_rocq_search",
+      ~recorded_cleanup=[],
+      request,
+    ) =>
+  switch (calculus_sources_in(request.source)) {
+  | [(expression, variable, focused_source)] =>
     let rule_enabled = rule_id =>
       !DifferentiationRewrite.is_basic_cleanup_rule_id(rule_id)
       && Axioms.visible_rule_enabled(profile.Axioms.step_policy, rule_id);
@@ -712,16 +741,44 @@ let calculus_search_program =
       );
     let expected =
       DifferentiationRewrite.cleanup(~cleanup_enabled, normalized.exp);
+    let focused_normalized =
+      DifferentiationRewrite.normalize(
+        ~rule_enabled,
+        ~fuel=128,
+        focused_source,
+      );
+    let focused_expected =
+      DifferentiationRewrite.cleanup(
+        ~cleanup_enabled,
+        focused_normalized.exp,
+      );
     let exact_target = TrigRewrite.exp_same(expected, request.target);
-    let affine_target =
-      RewriteChecker.rational_affine_equivalent(expected, request.target)
+    let affine_normal_forms_match =
+      RewriteChecker.rational_affine_normal_forms_equal(
+        expected,
+        request.target,
+      );
+    let profile_affine_target =
+      affine_normal_forms_match
       && Axioms.guarded_normalization_backend_for_profile(
            profile,
            "arith.affine_normalize",
          )
       |> Option.is_some;
+    let recorded_affine_target =
+      affine_normal_forms_match
+      && [Axioms.AddAssoc, AddComm, ConstFold, CollectLikeTerms]
+      |> List.for_all(capability => List.mem(capability, recorded_cleanup));
+    let affine_target = profile_affine_target || recorded_affine_target;
+    let source_is_focused =
+      TrigRewrite.exp_same(request.source, focused_source);
+    let certificate_target =
+      source_is_focused ? request.target : focused_expected;
+    let certificate_affine_target = source_is_focused && affine_target;
     if (!normalized.complete
+        || !focused_normalized.complete
         || DifferentiationRewrite.contains_diff(expected)
+        || DifferentiationRewrite.contains_diff(focused_expected)
         || !exact_target
         && !affine_target) {
       None;
@@ -736,7 +793,7 @@ let calculus_search_program =
            let target =
              CoqExport.string_of_d_for_domain(
                ~domain=CoqExport.Reals,
-               request.target,
+               certificate_target,
              );
            let raw =
              CoqExport.string_of_d_for_domain(
@@ -746,7 +803,7 @@ let calculus_search_program =
            let vars =
              [variable]
              @ CoqExport.unique_vars_in_ast(expression)
-             @ CoqExport.unique_vars_in_ast(request.target)
+             @ CoqExport.unique_vars_in_ast(certificate_target)
              |> RewriteChecker.dedup;
            let hypotheses =
              certificate.nonzero_denominators
@@ -764,7 +821,7 @@ let calculus_search_program =
            let finish =
              if (TrigRewrite.exp_same(
                    certificate.raw_derivative,
-                   request.target,
+                   certificate_target,
                  )) {
                "exact H_hazel_derivative.";
              } else {
@@ -772,18 +829,29 @@ let calculus_search_program =
                  calculus_cleanup_capabilities_used(
                    ~profile,
                    certificate.raw_derivative,
-                 );
-               "replace ("
-               ++ target
-               ++ ") with ("
+                 )
+                 @ recorded_cleanup
+                 |> RewriteChecker.dedup;
+               "assert (H_hazel_cleanup : ("
                ++ raw
-               ++ ").\n"
-               ++ "- exact H_hazel_derivative.\n"
-               ++ "- "
+               ++ ") = ("
+               ++ target
+               ++ ")).\n"
+               ++ "{ "
                ++ calculus_cleanup_script(
                     ~capabilities=cleanup_capabilities,
-                    ~use_affine_finisher=affine_target,
-                  );
+                    ~use_affine_finisher=certificate_affine_target,
+                  )
+               ++ " }\n"
+               ++ "exact (@eq_ind R ("
+               ++ raw
+               ++ ") (fun derivative : R => derivable_pt_lim "
+               ++ function_expression
+               ++ " "
+               ++ variable
+               ++ " derivative) H_hazel_derivative ("
+               ++ target
+               ++ ") H_hazel_cleanup).";
              };
            Printf.sprintf(
              "From Stdlib Require Import Rbase Rfunctions Ranalysis1 Ranalysis3 Rtrigo_reg Lra.\nOpen Scope R_scope.\n\n(* Hazel profile-directed derivative certificate. *)\nTheorem %s : forall %s : R, %sderivable_pt_lim (fun %s : R => %s) %s (%s).\nProof.\nintros.\nassert (H_hazel_derivative : derivable_pt_lim %s %s (%s)).\n{ %s }\n%s\nQed.",
@@ -802,9 +870,11 @@ let calculus_search_program =
            );
          });
     };
+  | _ => None
   };
 
-let calculus_export_program_for_profile = (~profile, source, target) => {
+let calculus_export_program_for_profile =
+    (~profile, ~recorded_cleanup=[], source, target) => {
   let request = {
     backend: JSCoqTacticSearch,
     level: Axioms.Calculus,
@@ -816,6 +886,7 @@ let calculus_export_program_for_profile = (~profile, source, target) => {
   calculus_search_program(
     ~profile,
     ~theorem_name="hazel_derivative",
+    ~recorded_cleanup,
     request,
   );
 };
@@ -926,9 +997,14 @@ let check_result_finisher = (~domain, level) =>
 let profile_check_result_script = "hazel_profile_search";
 
 let equivalence_check_result_script = (~domain, profile) =>
-  "first ["
-  ++ check_result_finisher(~domain, profile.Axioms.level)
-  ++ " | reflexivity]";
+  switch (profile.Axioms.level) {
+  | Axioms.Trigonometry
+  | Calculus => "reflexivity"
+  | _ =>
+    "first ["
+    ++ check_result_finisher(~domain, profile.Axioms.level)
+    ++ " | reflexivity]"
+  };
 
 let rocq_search_program_for_profile_and_purpose_internal =
     (~profile, ~purpose, ~equivalence_fallback, request) => {
@@ -955,8 +1031,14 @@ let rocq_search_program_for_profile_and_purpose_internal =
         goal_directed_finishers(~domain, ~profile, request)
       | _ => []
       };
+    let bounded_equivalence_fallback =
+      equivalence_fallback
+      && (
+        profile.Axioms.level == Axioms.Trigonometry
+        || profile.Axioms.level == Axioms.Calculus
+      );
     let prelude =
-      directed_finishers != []
+      directed_finishers != [] || bounded_equivalence_fallback
         ? direct_certificate_prelude(domain)
         : (
           switch (domain) {
@@ -1017,13 +1099,22 @@ let rocq_equivalence_program_for_profile = (~profile, request) =>
     request,
   );
 
+let string_contains_unqualified = (needle, haystack) => {
+  let needle_len = String.length(needle);
+  let haystack_len = String.length(haystack);
+  let rec loop = offset =>
+    offset
+    + needle_len <= haystack_len
+    && (
+      String.sub(haystack, offset, needle_len) == needle
+      && (offset == 0 || haystack.[offset - 1] != '_')
+      || loop(offset + 1)
+    );
+  needle_len == 0 || loop(0);
+};
+
 let rocq_replay_program = (request, summary) => {
   let domain = domain_for_request(request);
-  let prelude =
-    switch (domain) {
-    | CoqExport.Reals => CoqProofExport.real_prelude
-    | Integers => CoqProofExport.prelude
-    };
   let source = CoqExport.string_of_d_for_domain(~domain, request.source);
   let target = CoqExport.string_of_d_for_domain(~domain, request.target);
   let forall_str = forall_string(~domain, vars_for_request(request));
@@ -1032,6 +1123,15 @@ let rocq_replay_program = (request, summary) => {
       ~domain,
       summary.RewriteChecker.prover_steps,
     );
+  /* Catalog replay tactics are the dependency manifest. Only retain the full
+     Hazel tactic library when a recorded rule explicitly names one of them. */
+  let prelude =
+    string_contains_unqualified("hazel_", replay)
+      ? switch (domain) {
+        | CoqExport.Reals => CoqProofExport.real_prelude
+        | Integers => CoqProofExport.prelude
+        }
+      : CoqProofExport.exact_replay_prelude(domain);
   Printf.sprintf(
     "%s\n(* Exact replay of the Hazel profile trace. *)\nTheorem hazel_rocq_search:%s%s=%s.\nProof.\nintros.\n%s\nQed.",
     prelude,

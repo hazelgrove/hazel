@@ -1,19 +1,42 @@
 module Axioms = Language.Axioms;
 
-let tactic_for_axiom = name =>
-  switch (name) {
-  | "Iden(+)L" => "rewrite Z.add_0_l"
-  | "Iden(+)R" => "rewrite Z.add_0_r"
-  | "Iden(*)L" => "rewrite Z.mul_1_l"
-  | "Iden(*)R" => "rewrite Z.mul_1_r"
-  | "Zero(*)L" => "rewrite Z.mul_0_l"
-  | "Zero(*)R" => "rewrite Z.mul_0_r"
-  | "Comm(+)" => "rewrite Z.add_comm"
-  | "Assoc(+)" => "rewrite Z.add_assoc"
-  | "Comm(*)" => "rewrite Z.mul_comm"
-  | "Assoc(*)" => "rewrite Z.mul_assoc"
-  | _ => "cbv"
+let tactic_for_axiom = (~domain, name) => {
+  let lemma =
+    switch (domain) {
+    | CoqExport.Reals =>
+      switch (name) {
+      | "Iden(+)L" => Some("Rplus_0_l")
+      | "Iden(+)R" => Some("Rplus_0_r")
+      | "Iden(*)L" => Some("Rmult_1_l")
+      | "Iden(*)R" => Some("Rmult_1_r")
+      | "Zero(*)L" => Some("Rmult_0_l")
+      | "Zero(*)R" => Some("Rmult_0_r")
+      | "Comm(+)" => Some("Rplus_comm")
+      | "Assoc(+)" => Some("Rplus_assoc")
+      | "Comm(*)" => Some("Rmult_comm")
+      | "Assoc(*)" => Some("Rmult_assoc")
+      | _ => None
+      }
+    | Integers =>
+      switch (name) {
+      | "Iden(+)L" => Some("Z.add_0_l")
+      | "Iden(+)R" => Some("Z.add_0_r")
+      | "Iden(*)L" => Some("Z.mul_1_l")
+      | "Iden(*)R" => Some("Z.mul_1_r")
+      | "Zero(*)L" => Some("Z.mul_0_l")
+      | "Zero(*)R" => Some("Z.mul_0_r")
+      | "Comm(+)" => Some("Z.add_comm")
+      | "Assoc(+)" => Some("Z.add_assoc")
+      | "Comm(*)" => Some("Z.mul_comm")
+      | "Assoc(*)" => Some("Z.mul_assoc")
+      | _ => None
+      }
+    };
+  switch (lemma) {
+  | Some(lemma) => "rewrite " ++ lemma
+  | None => "cbv"
   };
+};
 
 let is_trig_rule_id = rule_id => {
   let prefix = "trig.";
@@ -33,7 +56,7 @@ let catalog_domain =
   | CoqExport.Integers => Axioms.RocqIntegers
   | Reals => RocqReals;
 
-let rewrite_tactics_for_rule_id = (~domain=CoqExport.Integers, rule_id) =>
+let rewrite_tactics_for_rule_id = (~domain=CoqExport.Reals, rule_id) =>
   switch (Axioms.catalog_rule_by_id(rule_id)) {
   | Some({rocq_backend: Some(backend), _}) =>
     Axioms.rocq_tactics_for_domain(
@@ -79,44 +102,141 @@ let tactic_for_prover_step = (~domain, step: RewriteChecker.prover_step) => {
 
 let assertion_replay_script =
     (~domain, steps: list(RewriteChecker.prover_step)) => {
-  let assert_for_step = (index, step: RewriteChecker.prover_step) =>
+  let same_normalization_transition =
+      (left: RewriteChecker.prover_step, right: RewriteChecker.prover_step) =>
+    left.origin == Normalization
+    && right.origin == Normalization
+    && Language.Exp.fast_equal(left.before_full_exp, right.before_full_exp)
+    && Language.Exp.fast_equal(left.after_full_exp, right.after_full_exp);
+  let rec take_transition_group = (first, grouped, remaining) =>
+    switch (remaining) {
+    | [step, ...rest] when same_normalization_transition(first, step) =>
+      take_transition_group(first, grouped @ [step], rest)
+    | _ => (grouped, remaining)
+    };
+  let rec transition_groups = steps =>
+    switch (steps) {
+    | [] => []
+    | [first, ...rest] =>
+      let (grouped, remaining) =
+        take_transition_group(first, [first], rest);
+      [grouped, ...transition_groups(remaining)];
+    };
+  let directed_distribution_replay = group => {
+    let includes_factoring =
+      group
+      |> List.exists((step: RewriteChecker.prover_step) =>
+           step.rule_id == "alg.factor_common"
+         );
+    let includes_distribution_family =
+      group
+      |> List.exists((step: RewriteChecker.prover_step) =>
+           List.mem(
+             step.rule_id,
+             [
+               "arith.mul_const",
+               "alg.distribute_mul_add",
+               "alg.factor_common",
+             ],
+           )
+         );
+    let is_direct_distribution_transition =
+      switch (group) {
+      | [step, ..._] =>
+        RewriteChecker.distribute_mul_over_add_candidates(step.before_exp)
+        |> List.exists(candidate =>
+             Language.Exp.fast_equal(candidate, step.after_exp)
+           )
+        || RewriteChecker.distribute_mul_over_add_candidates(step.after_exp)
+        |> List.exists(candidate =>
+             Language.Exp.fast_equal(candidate, step.before_exp)
+           )
+      | [] => false
+      };
+    if (includes_distribution_family
+        && (includes_factoring || !is_direct_distribution_transition)) {
+      /* Factoring may collect and reorder several polynomial terms, so a
+         single reverse-distribution rewrite is not a complete certificate. */
+      Some(
+        "ring.",
+      );
+    } else if (!includes_distribution_family) {
+      None;
+    } else {
+      let rewrites =
+        switch (domain) {
+        | CoqExport.Reals => [
+            "rewrite Rmult_plus_distr_l",
+            "rewrite Rmult_plus_distr_r",
+            "rewrite <- Rmult_plus_distr_l",
+            "rewrite <- Rmult_plus_distr_r",
+          ]
+        | Integers => [
+            "rewrite Z.mul_add_distr_l",
+            "rewrite Z.mul_add_distr_r",
+            "rewrite <- Z.mul_add_distr_l",
+            "rewrite <- Z.mul_add_distr_r",
+          ]
+        };
+      Some("first [" ++ String.concat(" | ", rewrites) ++ "]; reflexivity.");
+    };
+  };
+  let tactic_for_transition_group = group =>
+    switch (directed_distribution_replay(group)) {
+    | Some(tactic) => tactic
+    | None =>
+      switch (group) {
+      | [step] => tactic_for_prover_step(~domain, step)
+      | [_, ..._] =>
+        group
+        |> List.concat_map((step: RewriteChecker.prover_step) =>
+             rewrite_tactics_for_rule_id(~domain, step.rule_id)
+           )
+        |> (
+          tactics =>
+            tactics @ ["cbn", "reflexivity"] |> tactic_sequence_script
+        )
+      | [] => "idtac."
+      }
+    };
+  let assert_for_group = (index, group) => {
+    let first: RewriteChecker.prover_step = List.hd(group);
     Printf.sprintf(
       "assert (%s : %s = %s).\n{ %s }",
       cut_name(index),
-      CoqExport.string_of_d_for_domain(~domain, step.before_full_exp),
-      CoqExport.string_of_d_for_domain(~domain, step.after_full_exp),
-      tactic_for_prover_step(~domain, step),
+      CoqExport.string_of_d_for_domain(~domain, first.before_full_exp),
+      CoqExport.string_of_d_for_domain(~domain, first.after_full_exp),
+      tactic_for_transition_group(group),
     );
+  };
+  let groups = transition_groups(steps);
   let replay =
-    steps
-    |> List.mapi((index, _) => cut_name(index + 1))
-    |> List.rev
-    |> List.map(name => "try rewrite <- " ++ name ++ ".")
-    |> String.concat("\n");
+    switch (groups) {
+    | [_] => "exact " ++ cut_name(1) ++ "."
+    | _ =>
+      groups
+      |> List.mapi((index, _) => cut_name(index + 1))
+      |> List.rev
+      |> List.map(name => "try rewrite <- " ++ name ++ ".")
+      |> String.concat("\n")
+    };
   (
-    steps
-    |> List.mapi((index, step) => assert_for_step(index + 1, step))
+    groups
+    |> List.mapi((index, group) => assert_for_group(index + 1, group))
     |> String.concat("\n")
   )
   ++ "\n"
   ++ replay
-  ++ "\nreflexivity.";
+  ++ (
+    switch (groups) {
+    | [_] => ""
+    | _ => "\nreflexivity."
+    }
+  );
 };
 
-let prover_step_requires_reals = (step: RewriteChecker.prover_step) =>
-  CoqExport.requires_reals(step.before_full_exp)
-  || CoqExport.requires_reals(step.after_full_exp)
-  || CoqExport.requires_reals(step.before_exp)
-  || CoqExport.requires_reals(step.after_exp);
-
-let domain_for_summary = (summary: RewriteChecker.trace_summary) =>
-  summary.rule_ids
-  |> List.exists(is_trig_rule_id)
-  || CoqExport.requires_reals(summary.from_normal_exp)
-  || CoqExport.requires_reals(summary.to_normal_exp)
-  || summary.prover_steps
-  |> List.exists(prover_step_requires_reals)
-    ? CoqExport.Reals : CoqExport.Integers;
+/* Every exported Hazel proof uses one stable numeric semantics. */
+let domain_for_summary = (_summary: RewriteChecker.trace_summary) => CoqExport.Reals;
 
 let tactic_group_for_summary = (summary: RewriteChecker.trace_summary) =>
   switch (
@@ -181,9 +301,9 @@ let tactic_for_written_summary = (~forall_str as _, ~domain, summary) => {
   };
 };
 
-let tactic_for_axiom_step = name =>
+let tactic_for_axiom_step = (~domain=CoqExport.Reals, name) =>
   [
-    tactic_for_axiom(name),
+    tactic_for_axiom(~domain, name),
     "cbn",
     "first [hazel_rewrite_search 6%nat | reflexivity]",
   ]
@@ -196,6 +316,16 @@ let default_tactic_for_domain = domain =>
   switch (domain) {
   | CoqExport.Reals => tactic_script(["hazel_arithmetic"])
   | CoqExport.Integers => default_tactic
+  };
+
+/* Exact trace replay normally needs standard lemmas and decision procedures,
+   not Hazel's complete library of search Ltac definitions. */
+let exact_replay_prelude = domain =>
+  switch (domain) {
+  | CoqExport.Integers => "From Stdlib Require Import ZArith Lia Ring.\nOpen Scope Z_scope.\n"
+  | Reals =>
+    "From Stdlib Require Import Rbase Rfunctions Rtrigo1 Cos_plus Lra Ring.\n"
+    ++ "Open Scope R_scope.\n"
   };
 
 let list_comment = (label, values) =>
@@ -427,7 +557,7 @@ let real_prelude =
   ++ "  | O => reflexivity\n"
   ++ "  | S ?n' => first [reflexivity | hazel_rewrite_step; hazel_rewrite_search n']\n"
   ++ "  end.\n\n"
-  ++ "Ltac hazel_rational_square_normalize :=\n"
+  ++ "Ltac hazel_rational_square_collect :=\n"
   ++ "  rewrite Rsqr_div';\n"
   ++ "  rewrite Rsqr_minus;\n"
   ++ "  unfold Rsqr, Rdiv;\n"
@@ -469,6 +599,18 @@ let real_prelude =
   ++ "    rewrite <- (Rplus_assoc a c b)\n"
   ++ "  end;\n"
   ++ "  reflexivity.\n\n"
+  ++ "Ltac hazel_rational_square_normalize :=\n"
+  ++ "  first [\n"
+  ++ "    lazymatch goal with\n"
+  ++ "    | |- context [Rsqr (?numerator / ?denominator)] =>\n"
+  ++ "      unfold Rsqr; field\n"
+  ++ "    end\n"
+  ++ "  | lazymatch goal with\n"
+  ++ "    | |- context [((?left - ?right) * (?left - ?right)) / ?denominator] =>\n"
+  ++ "      unfold Rsqr; field\n"
+  ++ "    end\n"
+  ++ "  | hazel_rational_square_collect\n"
+  ++ "  ].\n\n"
   ++ "Ltac hazel_power_normalize :=\n"
   ++ "  cbn;\n"
   ++ "  try unfold Rsqr;\n"

@@ -1013,7 +1013,7 @@ let tests = (
   "RewriteChecker",
   [
     test_case(
-      "rewrite levels are cumulative",
+      "rewrite levels inherit through a branching DAG",
       `Quick,
       () => {
         check(
@@ -1036,9 +1036,48 @@ let tests = (
         );
         check(
           list(string),
-          "future levels include earlier groups",
+          "calculus inherits the trig branch",
           ["arithmetic", "algebra", "trigonometry", "calculus"],
           Axioms.allowed_groups(Calculus) |> List.map(rewrite_group_name),
+        );
+        check(
+          list(string),
+          "functions branch inherits algebra without trig",
+          ["arithmetic", "algebra"],
+          Axioms.allowed_groups(FunctionsAndLists)
+          |> List.map(rewrite_group_name),
+        );
+        check(
+          list(string),
+          "calculus ancestor closure",
+          ["Arithmetic", "Algebra", "Trigonometry", "Calculus"],
+          Axioms.inherited_rewrite_levels(Calculus)
+          |> List.map(Axioms.rewrite_level_label),
+        );
+        check(
+          list(string),
+          "functions ancestor closure excludes sibling branches",
+          ["Arithmetic", "Algebra", "Functions/lists"],
+          Axioms.inherited_rewrite_levels(FunctionsAndLists)
+          |> List.map(Axioms.rewrite_level_label),
+        );
+        check(
+          bool,
+          "calculus inherits trigonometry",
+          true,
+          Axioms.rewrite_level_inherits(
+            ~current_level=Calculus,
+            Trigonometry,
+          ),
+        );
+        check(
+          bool,
+          "functions branch does not inherit trigonometry",
+          false,
+          Axioms.rewrite_level_inherits(
+            ~current_level=FunctionsAndLists,
+            Trigonometry,
+          ),
         );
         check(
           bool,
@@ -1103,6 +1142,63 @@ let tests = (
           Calculus,
           diff(power(x, Exp.int(2)), x),
           times(Exp.int(2), x),
+          Some("calculus one step"),
+        );
+      },
+    ),
+    test_case(
+      "calculus one step distributes linearity across complete operator chains",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let squared = power(x, Exp.int(2));
+        let three_x = times(Exp.int(3), x);
+        let source =
+          diff(
+            plus(plus(plus(squared, three_x), Exp.int(5)), three_x),
+            x,
+          );
+        let target =
+          plus(
+            plus(
+              plus(diff(squared, x), diff(three_x, x)),
+              diff(Exp.int(5), x),
+            ),
+            diff(three_x, x),
+          );
+        check_written_at_level(
+          "sum rule expands every term",
+          Calculus,
+          source,
+          target,
+          Some("calculus one step"),
+        );
+        let right_associated_source =
+          diff(plus(squared, plus(three_x, Exp.int(5))), x);
+        let right_associated_target =
+          plus(
+            diff(squared, x),
+            plus(diff(three_x, x), diff(Exp.int(5), x)),
+          );
+        check_written_at_level(
+          "sum rule handles right-associated terms",
+          Calculus,
+          right_associated_source,
+          right_associated_target,
+          Some("calculus one step"),
+        );
+        let difference_source =
+          diff(minus(minus(squared, three_x), Exp.int(5)), x);
+        let difference_target =
+          minus(
+            minus(diff(squared, x), diff(three_x, x)),
+            diff(Exp.int(5), x),
+          );
+        check_written_at_level(
+          "difference rule expands every term",
+          Calculus,
+          difference_source,
+          difference_target,
           Some("calculus one step"),
         );
       },
@@ -1436,6 +1532,111 @@ let tests = (
       },
     ),
     test_case(
+      "calculus derivative cleanup does not rewrite constants in the function",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source = diff(times(Exp.int(6), x), x);
+        let target = Exp.int(6);
+        let coq =
+          Web.ProofSearchBackend.calculus_export_program(source, target)
+          |> Option.value(~default="");
+        write_text_file(
+          "/tmp/hazel_stepper_rocq_derivative_constant_product.v",
+          coq,
+        );
+        check(
+          bool,
+          "cleanup uses scoped equality transport",
+          true,
+          string_contains("@eq_ind R", coq)
+          && string_contains("H_hazel_cleanup", coq)
+          && !string_contains("replace (6) with", coq),
+        );
+      },
+    ),
+    test_case(
+      "calculus certifies one derivative inside an arithmetic context",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let certificate = (source, target) =>
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile,
+            source,
+            target,
+          );
+        let right_source =
+          plus(times(Exp.int(2), x), diff(times(Exp.int(6), x), x));
+        let right_target = plus(times(Exp.int(2), x), Exp.int(6));
+        let left_source = plus(diff(power(x, Exp.int(2)), x), Exp.int(5));
+        let left_target = plus(times(Exp.int(2), x), Exp.int(5));
+        [
+          (
+            "right derivative context",
+            "/tmp/hazel_stepper_rocq_derivative_right_context.v",
+            right_source,
+            right_target,
+          ),
+          (
+            "left derivative context",
+            "/tmp/hazel_stepper_rocq_derivative_left_context.v",
+            left_source,
+            left_target,
+          ),
+        ]
+        |> List.iter(((label, path, source, target)) =>
+             switch (certificate(source, target)) {
+             | Some(program) =>
+               write_text_file(path, program);
+               check(
+                 bool,
+                 label,
+                 true,
+                 string_contains(
+                   "Hazel profile-directed derivative certificate",
+                   program,
+                 ),
+               );
+             | None => fail(label ++ " should produce a certificate")
+             }
+           );
+        check(
+          bool,
+          "wrong contextual target is rejected",
+          true,
+          certificate(
+            right_source,
+            plus(times(Exp.int(2), x), Exp.int(7)),
+          )
+          |> Option.is_none,
+        );
+        let product_disabled = {
+          ...profile,
+          step_policy: {
+            ...profile.step_policy,
+            visible_rules:
+              profile.step_policy.visible_rules
+              |> List.filter((rule: Axioms.visible_rule_policy) =>
+                   rule.rule_id != "calc.diff_product"
+                 ),
+          },
+        };
+        check(
+          bool,
+          "profile-disabled product rule is rejected in context",
+          true,
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile=product_disabled,
+            right_source,
+            right_target,
+          )
+          |> Option.is_none,
+        );
+      },
+    ),
+    test_case(
       "calculus emits compositional certificate fixtures",
       `Quick,
       () => {
@@ -1671,14 +1872,22 @@ let tests = (
         check(
           list(string),
           "algebra tactic step modes",
-          ["try_once", "try_once", "try_once", "finish_only"],
+          [
+            "try_once",
+            "try_once",
+            "finish_only",
+            "try_once",
+            "try_once",
+            "try_once",
+            "finish_only",
+          ],
           algebra_profile.rocq_tactic_plan.steps
           |> List.map(rocq_tactic_step_mode),
         );
         check(
           list(string),
           "algebra primitive tactic step modes",
-          ["try_once", "once"],
+          ["try_once", "once", "try_once", "once"],
           Axioms.rocq_tactic_plan_for_profile(
             algebra_profile,
             ValidatePrimitiveStep,
@@ -1721,6 +1930,53 @@ let tests = (
           "trig auto simplify tactic plan",
           "hazel_trigonometry_plan_auto_simplify",
           Axioms.rocq_tactic_plan_for_profile(trig_profile, AutoSimplify).id,
+        );
+        let calculus_profile = Axioms.math_profile(Calculus);
+        check(
+          bool,
+          "calculus exposes inherited trig rules",
+          true,
+          Axioms.visible_rule_enabled(
+            calculus_profile.step_policy,
+            "trig.sin_sum",
+          ),
+        );
+        check(
+          bool,
+          "calculus exposes inherited algebra rules",
+          true,
+          Axioms.visible_rule_enabled(
+            calculus_profile.step_policy,
+            "alg.distribute_mul_add",
+          ),
+        );
+        let functions_profile = Axioms.math_profile(FunctionsAndLists);
+        check(
+          bool,
+          "functions branch exposes inherited algebra rules",
+          true,
+          Axioms.visible_rule_enabled(
+            functions_profile.step_policy,
+            "alg.distribute_mul_add",
+          ),
+        );
+        check(
+          bool,
+          "functions branch excludes sibling trig rules",
+          false,
+          Axioms.visible_rule_enabled(
+            functions_profile.step_policy,
+            "trig.sin_sum",
+          ),
+        );
+        check(
+          bool,
+          "calculus cleanup inherits algebra power cleanup",
+          true,
+          List.mem(
+            Axioms.PowerIdentity,
+            calculus_profile.step_policy.default_cleanup,
+          ),
         );
         check(
           bool,
@@ -1859,10 +2115,10 @@ let tests = (
           list(string),
           "multiplicative identity cleanup comes from cleanup catalog",
           [
-            "rewrite Z.mul_0_l",
-            "rewrite Z.mul_0_r",
-            "rewrite Z.mul_1_l",
-            "rewrite Z.mul_1_r",
+            "repeat rewrite Z.mul_0_l",
+            "repeat rewrite Z.mul_0_r",
+            "repeat rewrite Z.mul_1_l",
+            "repeat rewrite Z.mul_1_r",
           ],
           Axioms.rocq_cleanup_tactics(
             ~domain=Axioms.RocqIntegers,
@@ -1883,8 +2139,8 @@ let tests = (
           check(
             list(string),
             "distribution profile membership comes from catalog",
-            ["Algebra", "Trigonometry", "Calculus"],
-            rule.visible_levels |> List.map(Axioms.rewrite_level_label),
+            ["Algebra"],
+            rule.introduced_levels |> List.map(Axioms.rewrite_level_label),
           );
           check(
             bool,
@@ -2586,6 +2842,295 @@ let tests = (
       },
     ),
     test_case(
+      "collected FOIL one-step requires collect-like-terms",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source =
+          times(
+            plus(times(Exp.int(2), x), Exp.int(3)),
+            plus(x, Exp.int(4)),
+          );
+        let target =
+          plus(
+            plus(times(times(Exp.int(2), x), x), times(Exp.int(11), x)),
+            Exp.int(12),
+          );
+        let algebra = Axioms.math_profile(Algebra);
+        let without_collect =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              algebra.step_policy.default_cleanup
+              |> List.filter(capability =>
+                   capability != Axioms.CollectLikeTerms
+                 ),
+            algebra,
+          );
+        let accepted = profile =>
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          )
+          |> Option.is_some;
+        check(
+          bool,
+          "default Algebra accepts collected expansion",
+          true,
+          accepted(algebra),
+        );
+        check(
+          bool,
+          "disabled Collect rejects collected expansion",
+          false,
+          accepted(without_collect),
+        );
+        check(
+          bool,
+          "Calculus inherits collected Algebra expansion",
+          true,
+          accepted(Axioms.math_profile(Calculus)),
+        );
+      },
+    ),
+    test_case(
+      "calculus one-step accepts parsed builtin diff linearity",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source =
+          builtin_app("diff", Exp.tuple([plus(x, Exp.int(2)), x]));
+        let target = plus(diff(x, x), diff(Exp.int(2), x));
+        check(
+          bool,
+          "builtin diff sum is one calculus step",
+          true,
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile=Axioms.math_profile(Calculus),
+            ~settings,
+            ~env,
+            source,
+            target,
+          )
+          |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "Check Result direct cleanup follows power toggles",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Algebra);
+        let check_trace = (~profile, source, target) =>
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          );
+        let without = (capability, profile: Axioms.math_profile) =>
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(candidate => candidate != capability),
+            profile,
+          );
+        check(
+          bool,
+          "x**1 cleanup is enabled",
+          true,
+          check_trace(~profile, power(x, Exp.int(1)), x) |> Option.is_some,
+        );
+        check(
+          bool,
+          "x**1 cleanup is disabled",
+          false,
+          check_trace(
+            ~profile=without(Axioms.PowerIdentity, profile),
+            power(x, Exp.int(1)),
+            x,
+          )
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "x*x to x**2 notation is enabled",
+          true,
+          check_trace(~profile, times(x, x), power(x, Exp.int(2)))
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "x*x to x**2 notation is disabled",
+          false,
+          check_trace(
+            ~profile=without(Axioms.PowerNotation, profile),
+            times(x, x),
+            power(x, Exp.int(2)),
+          )
+          |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "reported Algebra Check Result goals produce exact real replay",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Algebra);
+        let request = (source, target) =>
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Algebra,
+            max_depth: 4,
+            max_states: 80,
+            source,
+            target,
+          };
+        let replay = (label, path, source, target) => {
+          let request = request(source, target);
+          switch (
+            Web.ProofSearchBackend.local_profile_trace(
+              ~profile,
+              ~settings,
+              ~env,
+              request,
+            )
+          ) {
+          | Some(summary) =>
+            let program =
+              Web.ProofSearchBackend.rocq_replay_program(request, summary);
+            write_text_file(path, program);
+            check(
+              bool,
+              label ++ " uses real variables",
+              true,
+              string_contains(" : R,", program),
+            );
+            check(
+              bool,
+              label ++ " has a ring certificate",
+              true,
+              string_contains("ring", program),
+            );
+          | None => fail(label ++ " should have an enabled profile trace")
+          };
+        };
+        replay(
+          "factored polynomial",
+          "/tmp/hazel_profile_factor_real.v",
+          minus(
+            plus(power(x, Exp.int(2)), times(Exp.int(3), x)),
+            Exp.int(4),
+          ),
+          times(minus(x, Exp.int(1)), plus(x, Exp.int(4))),
+        );
+        replay(
+          "collected FOIL with power notation",
+          "/tmp/hazel_profile_foil_real.v",
+          times(
+            plus(times(Exp.int(2), x), Exp.int(3)),
+            plus(x, Exp.int(4)),
+          ),
+          plus(
+            plus(
+              times(Exp.int(2), power(x, Exp.int(2))),
+              times(Exp.int(11), x),
+            ),
+            Exp.int(12),
+          ),
+        );
+        replay(
+          "power notation cleanup",
+          "/tmp/hazel_profile_power_notation_real.v",
+          times(x, x),
+          power(x, Exp.int(2)),
+        );
+        let identity_request = request(power(x, Exp.int(1)), x);
+        switch (
+          Web.ProofSearchBackend.local_profile_trace(
+            ~profile,
+            ~settings,
+            ~env,
+            identity_request,
+          )
+        ) {
+        | Some(summary) =>
+          let program =
+            Web.ProofSearchBackend.rocq_replay_program(
+              identity_request,
+              summary,
+            );
+          write_text_file(
+            "/tmp/hazel_profile_power_identity_real.v",
+            program,
+          );
+          check(
+            bool,
+            "power identity uses its exact cleanup",
+            true,
+            string_contains("rewrite pow_1", program),
+          );
+        | None => fail("power identity should have an enabled profile trace")
+        };
+      },
+    ),
+    test_case(
+      "disabled Trig equivalence fallback is bounded",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile =
+          Axioms.math_profile(Trigonometry)
+          |> Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="trig.sin_double",
+             );
+        let request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Trigonometry,
+            max_depth: 4,
+            max_states: 80,
+            source: builtin_sin(times(Exp.int(2), x)),
+            target:
+              times(times(Exp.int(2), builtin_sin(x)), builtin_cos(x)),
+          };
+        check(
+          bool,
+          "disabled identity has no profile trace",
+          true,
+          Web.ProofSearchBackend.local_profile_trace(
+            ~profile,
+            ~settings,
+            ~env,
+            request,
+          )
+          |> Option.is_none,
+        );
+        let program =
+          Web.ProofSearchBackend.rocq_equivalence_program_for_profile(
+            ~profile,
+            request,
+          );
+        check(
+          bool,
+          "fallback does not invoke broad recursive Trig search",
+          false,
+          string_contains("hazel_real_algebra", program),
+        );
+        check(
+          bool,
+          "fallback terminates at reflexivity",
+          true,
+          string_contains("intros.\nreflexivity.\nQed.", program),
+        );
+      },
+    ),
+    test_case(
       "Search suggestions respect disabled visible operations",
       `Quick,
       () => {
@@ -2636,7 +3181,10 @@ let tests = (
           );
         let expected_polynomial_step =
           plus(
-            diff(plus(power(x, Exp.int(2)), times(Exp.int(3), x)), x),
+            plus(
+              diff(power(x, Exp.int(2)), x),
+              diff(times(Exp.int(3), x), x),
+            ),
             diff(Exp.int(2), x),
           );
         let different_shape = diff(plus(sin(x), power(x, Exp.int(3))), x);
@@ -3845,6 +4393,56 @@ let tests = (
       },
     ),
     test_case(
+      "calculus inherits trig checking and respects a disabled trig rule",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let source = builtin_sin(plus(x, y));
+        let target =
+          plus(
+            times(builtin_sin(x), builtin_cos(y)),
+            times(builtin_cos(x), builtin_sin(y)),
+          );
+        let calculus_profile = Axioms.math_profile(Calculus);
+        let check_with_profile = profile =>
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          );
+        check(
+          bool,
+          "calculus accepts inherited sine-sum rule",
+          true,
+          check_with_profile(calculus_profile) |> Option.is_some,
+        );
+        let without_sine_sum =
+          calculus_profile
+          |> Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="trig.sin_sum",
+             );
+        check(
+          bool,
+          "disabling inherited sine-sum blocks it in calculus",
+          false,
+          check_with_profile(without_sine_sum) |> Option.is_some,
+        );
+        check(
+          bool,
+          "disabled sine-sum is absent from Check Result stage plan",
+          false,
+          Axioms.stage_plan_for_profile(without_sine_sum, MultiStepCheck).
+            visible_rules
+          |> List.exists((planned: Axioms.planned_visible_rule) =>
+               planned.rule.id == "trig.sin_sum"
+             ),
+        );
+      },
+    ),
+    test_case(
       "algebra polynomial trace records expansion",
       `Quick,
       () => {
@@ -3924,6 +4522,232 @@ let tests = (
       },
     ),
     test_case(
+      "Calculus Check Result replays composite polynomial normalization",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let request = (source, target) =>
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Calculus,
+            max_depth: 4,
+            max_states: 80,
+            source,
+            target,
+          };
+        let trace = (~profile, source, target) =>
+          Web.ProofSearchBackend.local_profile_trace(
+            ~profile,
+            ~settings,
+            ~env,
+            request(source, target),
+          );
+        let source =
+          plus(
+            plus(
+              plus(power(x, Exp.int(2)), times(Exp.int(3), x)),
+              Exp.int(5),
+            ),
+            times(Exp.int(3), x),
+          );
+        let target =
+          plus(
+            plus(power(x, Exp.int(2)), times(Exp.int(6), x)),
+            Exp.int(5),
+          );
+        let summary =
+          switch (trace(~profile, source, target)) {
+          | Some(summary) => summary
+          | None => fail("expected Calculus polynomial profile trace")
+          };
+        check(
+          bool,
+          "trace records polynomial expansion",
+          true,
+          List.mem("alg.expand_polynomial", summary.rule_ids),
+        );
+        check(
+          bool,
+          "trace records like-term collection",
+          true,
+          List.mem("alg.collect_like_terms", summary.rule_ids),
+        );
+        let coq =
+          Web.ProofSearchBackend.rocq_replay_program(
+            request(source, target),
+            summary,
+          );
+        write_text_file("/tmp/hazel_calculus_polynomial_replay.v", coq);
+        check(
+          bool,
+          "composite normalization has one replay assertion",
+          false,
+          string_contains("H_hazel_step_2", coq),
+        );
+        check(
+          bool,
+          "composite replay uses direct profile-authorized collection",
+          true,
+          string_contains("lra; cbn", coq),
+        );
+        check(
+          bool,
+          "exact replay does not include recursive Hazel search",
+          false,
+          string_contains("hazel_rewrite_search", coq),
+        );
+        check(
+          bool,
+          "exact replay omits unrelated tactic definitions",
+          false,
+          string_contains("Ltac hazel_trigonometry", coq),
+        );
+        check(
+          bool,
+          "exact replay program stays compact",
+          true,
+          String.length(coq) < 1500,
+        );
+        check(
+          bool,
+          "all Check Result replay quantifies variables over reals",
+          true,
+          string_contains("forall x : R", coq)
+          && string_contains("Open Scope R_scope.", coq)
+          && !string_contains("Open Scope Z_scope.", coq),
+        );
+        let y = Exp.var("y");
+        check(
+          bool,
+          "structurally different expansion is admitted",
+          true,
+          trace(
+            ~profile,
+            times(plus(y, Exp.int(2)), plus(y, Exp.int(3))),
+            plus(plus(times(y, y), times(Exp.int(5), y)), Exp.int(6)),
+          )
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "incorrect collected coefficient is rejected",
+          false,
+          trace(
+            ~profile,
+            source,
+            plus(plus(times(x, x), times(Exp.int(7), x)), Exp.int(5)),
+          )
+          |> Option.is_some,
+        );
+        let without_collection =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability =>
+                   capability != Axioms.CollectLikeTerms
+                 ),
+            profile,
+          );
+        check(
+          bool,
+          "disabled collection cleanup blocks the composite trace",
+          false,
+          trace(~profile=without_collection, source, target) |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "calculus cleanup replay handles identity orientations",
+      `Quick,
+      () => {
+        let source = plus(Exp.int(6), Exp.int(0));
+        let target = Exp.int(6);
+        let step: Web.RewriteChecker.prover_step = {
+          origin: Normalization,
+          rule_id: "add.identity",
+          before_full_exp: source,
+          after_full_exp: target,
+          before_exp: source,
+          after_exp: target,
+          occurrence: 1,
+          detail: Some("selected one profile cleanup rewrite"),
+        };
+        let summary: Web.RewriteChecker.trace_summary = {
+          justification: "calculus cleanup",
+          group_name: Some("calculus"),
+          from_normal_exp: source,
+          to_normal_exp: target,
+          from_rule_ids: ["add.identity"],
+          to_rule_ids: [],
+          rule_ids: ["add.identity"],
+          prover_steps: [step],
+          exportable: true,
+        };
+        let request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Calculus,
+            max_depth: 4,
+            max_states: 80,
+            source,
+            target,
+          };
+        let coq =
+          Web.ProofSearchBackend.rocq_replay_program(request, summary);
+        write_text_file("/tmp/hazel_calculus_add_identity_replay.v", coq);
+        check(
+          bool,
+          "right identity replay is non-failing",
+          true,
+          string_contains("repeat rewrite Rplus_0_r", coq),
+        );
+        check(
+          bool,
+          "single whole-expression transition closes by its assertion",
+          true,
+          string_contains("exact H_hazel_step_1", coq),
+        );
+        let profile = Axioms.math_profile(Calculus);
+        [
+          (plus(Exp.int(0), Exp.int(6)), Exp.int(6)),
+          (plus(Exp.int(6), Exp.int(0)), Exp.int(6)),
+          (minus(Exp.int(6), Exp.int(0)), Exp.int(6)),
+          (times(Exp.int(1), Exp.int(6)), Exp.int(6)),
+          (times(Exp.int(6), Exp.int(1)), Exp.int(6)),
+        ]
+        |> List.iter(((source, expected)) =>
+             switch (
+               Web.AxiomsBox.calculus_cleanup_actions_for_profile(
+                 ~profile,
+                 source,
+               )
+             ) {
+             | [action] =>
+               check_exp_equal("identity cleanup", expected, action.after_exp)
+             | _ => fail("expected one identity cleanup action")
+             }
+           );
+        let without_add_identity =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability => capability != Axioms.AddIdentity),
+            profile,
+          );
+        check(
+          int,
+          "disabled additive identity has no cleanup action",
+          0,
+          Web.AxiomsBox.calculus_cleanup_actions_for_profile(
+            ~profile=without_add_identity,
+            source,
+          )
+          |> List.length,
+        );
+      },
+    ),
+    test_case(
       "algebra polynomial trace records additive cancellation",
       `Quick,
       () => {
@@ -3959,6 +4783,95 @@ let tests = (
           |> List.exists(rule =>
                rewrite_rule_id(rule) == "alg.cancel_common_add"
              ),
+        );
+      },
+    ),
+    test_case(
+      "Trig Check Result admits profile-enabled nested power normalization",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let request = (source, target) =>
+          Web.ProofSearchBackend.{
+            backend: LocalAxiomSearch,
+            level: Trigonometry,
+            max_depth: 2,
+            max_states: 80,
+            source,
+            target,
+          };
+        let profile = Axioms.math_profile(Trigonometry);
+        let check_trace = (~profile, source, target) =>
+          Web.ProofSearchBackend.local_profile_trace(
+            ~profile,
+            ~settings,
+            ~env,
+            request(source, target),
+          );
+        let cases = [
+          (
+            power(builtin_sin(x), Exp.int(4)),
+            power(power(builtin_sin(x), Exp.int(2)), Exp.int(2)),
+          ),
+          (
+            power(builtin_cos(plus(x, Exp.int(1))), Exp.int(6)),
+            power(
+              power(builtin_cos(plus(x, Exp.int(1))), Exp.int(2)),
+              Exp.int(3),
+            ),
+          ),
+        ];
+        cases
+        |> List.iter(((source, target)) =>
+             switch (check_trace(~profile, source, target)) {
+             | Some(summary) =>
+               check(
+                 bool,
+                 "trace records catalogued power normalization",
+                 true,
+                 List.mem("alg.power_mul", summary.rule_ids),
+               )
+             | None => fail("expected profile-enabled nested power trace")
+             }
+           );
+        check(
+          bool,
+          "non-equivalent nested power is rejected",
+          false,
+          check_trace(
+            ~profile,
+            power(builtin_sin(x), Exp.int(4)),
+            power(power(builtin_sin(x), Exp.int(2)), Exp.int(3)),
+          )
+          |> Option.is_some,
+        );
+        let without_power_cleanup =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability => capability != Axioms.PowerNotation),
+            profile,
+          );
+        let source = power(builtin_sin(x), Exp.int(4));
+        let target = power(power(builtin_sin(x), Exp.int(2)), Exp.int(2));
+        check(
+          bool,
+          "disabled power cleanup blocks power normalization",
+          false,
+          check_trace(~profile=without_power_cleanup, source, target)
+          |> Option.is_some,
+        );
+        let without_distribution =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="alg.distribute_mul_add",
+            profile,
+          );
+        check(
+          bool,
+          "disabled catalog prerequisite blocks power normalization",
+          false,
+          check_trace(~profile=without_distribution, source, target)
+          |> Option.is_some,
         );
       },
     ),
@@ -4687,7 +5600,7 @@ let tests = (
           bool,
           "arithmetic candidate uses arithmetic tactic",
           true,
-          string_contains("solve [\n    lia", arithmetic_coq),
+          string_contains("solve [\n    lra", arithmetic_coq),
         );
         check(
           bool,
@@ -4835,7 +5748,7 @@ let tests = (
           "equivalence fallback contains broad finisher",
           true,
           string_contains(
-            "intros.\nfirst [hazel_integer_polynomial | reflexivity]",
+            "intros.\nfirst [hazel_real_algebra | reflexivity]",
             equivalence_coq,
           ),
         );
@@ -4916,7 +5829,7 @@ let tests = (
           "profile-visible tactic contains only enabled cancellation",
           true,
           string_contains(
-            "Ltac hazel_profile_visible_step :=\n  first [\n    rewrite Z.add_simpl_r\n  | rewrite Z.add_simpl_l\n  | rewrite Z.sub_simpl_r\n  | rewrite Z.sub_add\n  ].\n\nLtac hazel_profile_normalization_step",
+            "Ltac hazel_profile_visible_step :=\n  first [\n    unfold Rminus; rewrite <- Rplus_assoc; rewrite Rplus_opp_r; rewrite Rplus_0_r\n  | unfold Rminus; rewrite Rplus_assoc; rewrite Rplus_opp_l; rewrite Rplus_0_l\n  ].\n\nLtac hazel_profile_normalization_step",
             cancellation_only_coq,
           ),
         );
@@ -5427,6 +6340,21 @@ let tests = (
                "/tmp/hazel_stepper_rocq_profile_" ++ name ++ ".v",
                coq,
              );
+             if (name == "distribute_left") {
+               check(
+                 bool,
+                 "distribution trace uses a bounded directed replay",
+                 true,
+                 (
+                   string_contains("first [rewrite Rmult_plus_distr_l", coq)
+                   || string_contains(
+                        "progress (rewrite Rmult_plus_distr_l)",
+                        coq,
+                      )
+                 )
+                 && !string_contains("repeat rewrite Rmult_plus_distr_l", coq),
+               );
+             };
              check(
                bool,
                name ++ " uses profile search",
@@ -5478,8 +6406,8 @@ let tests = (
         );
         check(
           bool,
-          "integer goal omits real-only trig normalization",
-          false,
+          "universal real trig profile includes trig normalization",
+          true,
           string_contains(
             "hazel_trig_argument_algebra",
             integer_trig_profile_coq,
@@ -5923,7 +6851,16 @@ let tests = (
             false,
             string_contains("ERROR", coq),
           );
+          check(
+            bool,
+            "case study " ++ name ++ " quantifies variables over reals",
+            true,
+            string_contains("forall x : R", coq)
+            && string_contains("Open Scope R_scope", coq)
+            && !string_contains("Open Scope Z_scope", coq),
+          );
         };
+        let sin_x = builtin_sin(x);
         let cos_2x = builtin_cos(times(Exp.int(2), x));
         let cos_4x = builtin_cos(times(Exp.int(4), x));
         let one_minus_cos_2x = minus(Exp.int(1), cos_2x);
@@ -5934,6 +6871,16 @@ let tests = (
           plus(
             minus(Exp.int(1), times(Exp.int(2), cos_2x)),
             power(cos_2x, Exp.int(2)),
+          );
+        let case_study_source =
+          plus(Exp.int(1), times(Exp.int(2), power(sin_x, Exp.int(4))));
+        let case_study_nested_power =
+          plus(
+            Exp.int(1),
+            times(
+              Exp.int(2),
+              power(power(sin_x, Exp.int(2)), Exp.int(2)),
+            ),
           );
         let case_study_after_trig_substitution =
           plus(
@@ -5990,6 +6937,16 @@ let tests = (
             minus(divide(Exp.int(7), Exp.int(4)), cos_2x),
             times(divide(Exp.int(1), Exp.int(4)), cos_4x),
           );
+        dump_case_study_step(
+          "nested_sine_power",
+          case_study_source,
+          case_study_nested_power,
+        );
+        dump_case_study_step(
+          "sine_power_reduction",
+          case_study_nested_power,
+          case_study_after_trig_substitution,
+        );
         dump_case_study_step(
           "square_as_product",
           case_study_after_trig_substitution,
@@ -7527,6 +8484,62 @@ let tests = (
       },
     ),
     test_case(
+      "coq real export treats singleton math tuples as grouping",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let grouped_six = Language.Exp.fresh(Tuple([Exp.int(6)]));
+        let source = plus(times(Exp.int(2), x), grouped_six);
+        let target = plus(times(Exp.int(2), x), Exp.int(6));
+        let printed =
+          Web.CoqExport.string_of_d_for_domain(
+            ~domain=Web.CoqExport.Reals,
+            source,
+          );
+        check(string, "printed expression", "((2 * x) + 6)", printed);
+        check(
+          list(string),
+          "finds variables inside grouping",
+          ["x"],
+          Web.CoqExport.unique_vars_in_ast(source),
+        );
+
+        let trace =
+          Web.ProofSearchBackend.collapsed_macro_summary(
+            Web.ProofSearchBackend.{
+              backend: JSCoqTacticSearch,
+              level: Arithmetic,
+              max_depth: 1,
+              max_states: 8,
+              source,
+              target,
+            },
+          );
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_written_step_export_chain(~source, ~target, ~trace),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected grouped arithmetic export")
+          };
+        write_text_file("/tmp/hazel_singleton_grouping_export.v", export);
+        check(
+          bool,
+          "exports universally over reals",
+          true,
+          string_contains("forall x : R", export),
+        );
+        check(
+          bool,
+          "does not expose Hazel tuple syntax",
+          false,
+          string_contains("Tuple literal", export),
+        );
+      },
+    ),
+    test_case(
       "coq export detects trig applications through variable functions",
       `Quick,
       () => {
@@ -7644,6 +8657,217 @@ let tests = (
           string_contains("(x + 1) <> 0 ->", quotient_export)
           && string_contains("derivable_pt_lim_div", quotient_export),
         );
+
+        let reported_body =
+          plus(
+            plus(
+              plus(power(x, Exp.int(2)), times(Exp.int(3), x)),
+              Exp.int(5),
+            ),
+            times(Exp.int(3), x),
+          );
+        let reported_source = diff(reported_body, x);
+        let reported_target = plus(Exp.int(6), times(Exp.int(2), x));
+        let reported_profile = Axioms.math_profile(Calculus);
+        let reported_normalized =
+          Web.DifferentiationRewrite.normalize(
+            ~rule_enabled=
+              rule_id =>
+                !Web.DifferentiationRewrite.is_basic_cleanup_rule_id(rule_id)
+                && Axioms.visible_rule_enabled(
+                     reported_profile.step_policy,
+                     rule_id,
+                   ),
+            ~fuel=128,
+            reported_source,
+          );
+        let reported_expected =
+          Web.DifferentiationRewrite.cleanup(
+            ~cleanup_enabled=
+              capability =>
+                List.mem(
+                  capability,
+                  reported_profile.step_policy.default_cleanup,
+                ),
+            reported_normalized.exp,
+          );
+        check(
+          bool,
+          "reported polynomial derivative normalization completes",
+          true,
+          reported_normalized.complete,
+        );
+        check(
+          bool,
+          "reported polynomial derivative removes diff",
+          false,
+          Web.DifferentiationRewrite.contains_diff(reported_expected),
+        );
+        check(
+          bool,
+          "reported polynomial derivative has the displayed affine normal form (expected "
+          ++ Web.CoqExport.string_of_d_for_domain(
+               ~domain=Web.CoqExport.Reals,
+               reported_expected,
+             )
+          ++ ")",
+          true,
+          Web.RewriteChecker.rational_affine_normal_forms_equal(
+            reported_expected,
+            reported_target,
+          ),
+        );
+        check(
+          bool,
+          "reported profile authorizes affine finishing",
+          true,
+          Axioms.guarded_normalization_backend_for_profile(
+            reported_profile,
+            "arith.affine_normalize",
+          )
+          |> Option.is_some,
+        );
+        let reported_export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_calculus_export_chain(
+                ~source=reported_source,
+                ~target=reported_target,
+              ),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected collected polynomial derivative export")
+          };
+        write_text_file(
+          "/tmp/hazel_stepper_rocq_derivative_collected_export.v",
+          reported_export,
+        );
+        check(
+          bool,
+          "collected polynomial remains a derivative certificate",
+          true,
+          string_contains("Theorem hazel_derivative", reported_export),
+        );
+        check(
+          bool,
+          "collected polynomial does not fall back to tuple serialization",
+          false,
+          string_contains("Tuple literal", reported_export),
+        );
+
+        let reported_trace_rule_ids = [
+          "alg.expand_polynomial",
+          "alg.collect_like_terms",
+          "calc.diff_sum",
+          "derivative.basics",
+          "calc.diff_product",
+          "mul.identity",
+          "calc.diff_power",
+          "power.identity",
+          "add.identity",
+          "arith.add_assoc",
+          "arith.add_comm",
+          "arith.const_fold",
+          "arith.collect_like_terms",
+          "arith.mul_const",
+        ];
+        let base_profile = Axioms.math_profile(Calculus);
+        let cleanup_enabled = capability =>
+          reported_trace_rule_ids
+          |> List.exists(rule_id =>
+               Axioms.cleanup_capability_for_id(rule_id) == Some(capability)
+             );
+        let recorded_cleanup =
+          base_profile.step_policy.default_cleanup
+          |> List.filter(cleanup_enabled);
+        let reconstructed_profile: Axioms.math_profile = {
+          ...base_profile,
+          step_policy: {
+            default_cleanup: recorded_cleanup,
+            visible_rules:
+              base_profile.step_policy.visible_rules
+              |> List.filter((rule: Axioms.visible_rule_policy) =>
+                   List.mem(rule.rule_id, reported_trace_rule_ids)
+                 ),
+          },
+        };
+        let reconstructed_export =
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile=reconstructed_profile,
+            ~recorded_cleanup,
+            reported_source,
+            reported_target,
+          );
+        check(
+          bool,
+          "reported trace profile still produces calculus certificate",
+          true,
+          reconstructed_export |> Option.is_some,
+        );
+        reconstructed_export
+        |> Option.iter(export =>
+             write_text_file(
+               "/tmp/hazel_stepper_rocq_derivative_reconstructed_profile.v",
+               export,
+             )
+           );
+
+        let other_source =
+          diff(
+            plus(
+              plus(power(x, Exp.int(2)), times(Exp.int(4), x)),
+              Exp.int(7),
+            ),
+            x,
+          );
+        let other_target = plus(Exp.int(4), times(Exp.int(2), x));
+        check(
+          bool,
+          "recorded affine cleanup covers a structurally different polynomial",
+          true,
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile=reconstructed_profile,
+            ~recorded_cleanup,
+            other_source,
+            other_target,
+          )
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "recorded affine cleanup rejects an inequivalent derivative result",
+          false,
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile=reconstructed_profile,
+            ~recorded_cleanup,
+            other_source,
+            plus(Exp.int(5), times(Exp.int(2), x)),
+          )
+          |> Option.is_some,
+        );
+        let cleanup_without_commute =
+          recorded_cleanup
+          |> List.filter(capability => capability != Axioms.AddComm);
+        let profile_without_commute: Axioms.math_profile = {
+          ...reconstructed_profile,
+          step_policy: {
+            ...reconstructed_profile.step_policy,
+            default_cleanup: cleanup_without_commute,
+          },
+        };
+        check(
+          bool,
+          "reordered affine finish is unavailable when its recorded capability is disabled",
+          false,
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile=profile_without_commute,
+            ~recorded_cleanup=cleanup_without_commute,
+            other_source,
+            other_target,
+          )
+          |> Option.is_some,
+        );
       },
     ),
     test_case(
@@ -7738,9 +8962,12 @@ let tests = (
         );
         check(
           bool,
-          "imports Ring for integer polynomial fallback",
+          "imports universal real-number support",
           true,
-          string_contains("Require Import ZArith Lia Ring", export),
+          string_contains(
+            "Require Import Rbase Rfunctions Rtrigo1 Cos_plus Lra Ring",
+            export,
+          ),
         );
         check(
           bool,
@@ -8017,7 +9244,7 @@ let tests = (
       },
     ),
     test_case(
-      "stepper coq export proves integer trinomial square macro",
+      "stepper coq export proves trinomial square macro over reals",
       `Quick,
       () => {
         let export =
@@ -8041,9 +9268,11 @@ let tests = (
         );
         check(
           bool,
-          "exports integer polynomial helper",
+          "exports universal real domain",
           true,
-          string_contains("Ltac hazel_integer_polynomial", export),
+          string_contains("Open Scope R_scope.", export)
+          && !string_contains("Open Scope Z_scope.", export)
+          && !string_contains("Ltac hazel_integer_polynomial", export),
         );
         check(
           bool,
@@ -8266,7 +9495,7 @@ let tests = (
           "exports AC-cleaned whole target",
           true,
           string_contains(
-            "whole: (x*((1+2)+x)) -> (((1*x)+(2*x))+(x*x))",
+            "whole: (x * ((1 + 2) + x)) -> (((1 * x) + (2 * x)) + (x * x))",
             export,
           ),
         );

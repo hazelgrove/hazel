@@ -112,6 +112,24 @@ let replacement_string = (~input: string, ~with_input: string): string => {
   };
 };
 
+let reparenthesized_selection_strings =
+    (input: string): option((string, string)) => {
+  let z = Test_Editing.mk_zipper(input);
+  let (full_exp, _, selection) = effective_selection(z);
+  switch (selection.override) {
+  | None => None
+  | Some(override) =>
+    switch (SelectionEffective.reparenthesize_override(~override, ~full_exp)) {
+    | None => None
+    | Some(result) =>
+      Language.Reparenthesize.selected_exp(result)
+      |> Option.map(selected_exp =>
+           (exp_string(result.exp), exp_string(selected_exp))
+         )
+    }
+  };
+};
+
 let effective_root_string = (input: string): string => {
   let z = Test_Editing.mk_zipper(input);
   let (term, _, selection) = effective_selection(z);
@@ -389,7 +407,28 @@ let tests = (
       ~name="reassociated additive replacement uses highlighted segment",
       ~input={|x ** 2 + §3 * x + 4¦|},
       ~with_input={|¦9|},
-      ~expected={|x ** 2 + (9)|},
+      ~expected={|x ** 2 + 9|},
+    ),
+    test_replacement(
+      ~name="middle arithmetic replacement preserves surrounding addends",
+      ~input={|1 + 2 + §3 + 4¦ + 5|},
+      ~with_input={|¦7|},
+      ~expected={|1 + 2 + 7 + 5|},
+    ),
+    test_case(
+      "middle arithmetic axiom target can be reparenthesized", `Quick, () =>
+      check(
+        option(pair(string, string)),
+        "reparenthesized expression and selected subtree",
+        Some(("1 + 2 + (3 + 4) + 5", "3 + 4")),
+        reparenthesized_selection_strings({|1 + 2 + §3 + 4¦ + 5|}),
+      )
+    ),
+    test_replacement(
+      ~name="compound associative replacement remains grouped",
+      ~input={|1 + 2 + §3 + 4¦ + 5|},
+      ~with_input={|¦7 - 1|},
+      ~expected={|1 + 2 + (7 - 1) + 5|},
     ),
     test(
       ~name="associative selection inside function argument stays in argument",

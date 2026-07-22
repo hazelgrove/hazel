@@ -547,6 +547,59 @@ let tests = (
       },
     ),
     test_case(
+      "reparenthesized axiom replace keeps reparenthesize before axiom",
+      `Quick,
+      () => {
+        let exp = parse_exp("1 + 2 + 3 + 4");
+        let selected_ids =
+          AssocSelection.find_reparenthesize_for_id(
+            middle_plus_id_in_four_term_sum(exp),
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp)
+            |> fst,
+          );
+        let reparenthesized =
+          switch (Reparenthesize.reparenthesize_selection(~selected_ids, exp)) {
+          | Some(result) => result
+          | None => failwith("Expected reparenthesized selection")
+          };
+        let selected_exp =
+          switch (Reparenthesize.selected_exp(reparenthesized)) {
+          | Some(exp) => exp
+          | None => failwith("Expected selected exp")
+          };
+        let initial_step =
+          mk_test_step(~step_kind=StepKindHelpers.mk_missing_step(), ());
+        let (calculated_step, _, _) = test_calculate(~exp, initial_step);
+        let updated_step =
+          StepperBase.Stepper.update(
+            ~settings=Web.Settings.Model.init,
+            StepperBase.AddReparenthesizedAxiomStep(
+              reparenthesized.exp,
+              "test equality",
+              selected_exp,
+              Direction.Right,
+              "test equality",
+            ),
+            calculated_step,
+          ).
+            model;
+        switch (updated_step.step_kind) {
+        | ReparenthesizeStep(_) => ()
+        | _ => failwith("Expected root step to be reparenthesize")
+        };
+        switch (updated_step.next_step) {
+        | Some({step_kind: AxiomStep({at_exp, _}), _}) =>
+          check(
+            bool,
+            "axiom targets the concrete reparenthesized subtree",
+            true,
+            Equality.ignoring_ascriptions.exp(at_exp, parse_exp("2 + 3")),
+          )
+        | _ => failwith("Expected second step to be axiom")
+        };
+      },
+    ),
+    test_case(
       "unparenthesize records a reparenthesize step",
       `Quick,
       () => {

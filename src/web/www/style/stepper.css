@@ -313,6 +313,12 @@
   min-width: 25em;
 }
 
+.rewrite-box,
+.rewrite-box .code-container {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .proof-search-suggestions {
   border-top: 1px solid var(--menu-outline);
   margin-top: 0.4em;

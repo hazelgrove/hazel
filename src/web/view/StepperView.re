@@ -13,13 +13,14 @@ module Model = {
     automation_settings_open: bool,
   };
 
-  let default_rewrite_level = Axioms.Trigonometry;
+  let default_rewrite_level = Axioms.Calculus;
+  let default_automation_stage = Axioms.MultiStepCheck;
 
   let init = {
     cached_elab_subst: Calc.Pending,
     root: StepperBase.init_step,
     rewrite_level: default_rewrite_level,
-    automation_stage: Axioms.MultiStepCheck,
+    automation_stage: default_automation_stage,
     automation_settings_open: false,
   };
 
@@ -35,7 +36,7 @@ module Model = {
       cached_elab_subst: Calc.Pending,
       root: StepperBase.Stepper.unpersist(p.root),
       rewrite_level: default_rewrite_level,
-      automation_stage: Axioms.MultiStepCheck,
+      automation_stage: default_automation_stage,
       automation_settings_open: false,
     };
   };

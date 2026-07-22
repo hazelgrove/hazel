@@ -136,6 +136,19 @@ let rewrite = (~rule_id, ~label, ~before_exp, ~after_exp) =>
 
 let enabled = (~rule_enabled, rule_id) => rule_enabled(rule_id);
 
+let rec distribute_diff_over_operator =
+        (~operator, ~combine, expression, variable) => {
+  let expression = strip(expression);
+  switch (expression.term) {
+  | BinOp(op, left, right) when is_operator(operator, op) =>
+    combine(
+      distribute_diff_over_operator(~operator, ~combine, left, variable),
+      distribute_diff_over_operator(~operator, ~combine, right, variable),
+    )
+  | _ => diff_exp(expression, variable)
+  };
+};
+
 let applicable_at_root = (~rule_enabled, exp) => {
   let before_exp = strip(exp);
   switch (diff_parts(before_exp)) {
@@ -180,17 +193,27 @@ let applicable_at_root = (~rule_enabled, exp) => {
             diff_exp(inner, variable),
           ),
         )
-      | BinOp(op, left, right) when is_operator(Operators.Plus, op) =>
+      | BinOp(op, _, _) when is_operator(Operators.Plus, op) =>
         make(
           "calc.diff_sum",
           "linearity (sum rule)",
-          plus_exp(diff_exp(left, variable), diff_exp(right, variable)),
+          distribute_diff_over_operator(
+            ~operator=Operators.Plus,
+            ~combine=plus_exp,
+            expression,
+            variable,
+          ),
         )
-      | BinOp(op, left, right) when is_operator(Operators.Minus, op) =>
+      | BinOp(op, _, _) when is_operator(Operators.Minus, op) =>
         make(
           "calc.diff_difference",
           "linearity (difference rule)",
-          minus_exp(diff_exp(left, variable), diff_exp(right, variable)),
+          distribute_diff_over_operator(
+            ~operator=Operators.Minus,
+            ~combine=minus_exp,
+            expression,
+            variable,
+          ),
         )
       | BinOp(op, left, right) when is_operator(Operators.Times, op) =>
         make(

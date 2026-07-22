@@ -1121,6 +1121,7 @@ module View = {
     | AddForall
     | HideStepper
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
+    | AddReparenthesizedAxiomStep(Exp.t, string, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
     | AddReparenthesizeStep(Exp.t)
     | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t)
@@ -1209,6 +1210,7 @@ module View = {
       cancel_rocq_searches_except_in_browser(active_search_id);
       let+ (left, right, top, bottom) = segment_bounds;
       let selection_override = associative_override_for_editor(editor);
+      let selection_term_data = editor.editor.syntax.term_data;
 
       let proof_button = (~callback: Ui_effect.t(unit), label: string) => {
         Node.div(
@@ -1275,6 +1277,111 @@ module View = {
         == Some(Calc.get_saved_exc(model.full_visible_exp))
         && Exp.is_fun(Calc.get_saved_exc(model.full_visible_exp));
       };
+
+      /* Written-step actions from both the explicit Replace button and the
+       * suggested-rule arrow must resolve virtual associative selections the
+       * same way.  Such a selection has no subtree index in [full_visible_exp],
+       * so rewrite its concrete range inside the containing associative node. */
+      let add_written_step_for_selection =
+          (
+            trace_summary,
+            rewrite_reparenthesized_exp,
+            at_idx,
+            at_exp,
+            with_exp,
+          ) =>
+        switch (rewrite_reparenthesized_exp) {
+        | Some(reparenthesized_exp) =>
+          signal(
+            AddReparenthesizedWrittenStep(
+              trace_summary,
+              reparenthesized_exp,
+              at_exp,
+              with_exp,
+            ),
+          )
+        | None =>
+          let full_visible_exp =
+            model.full_visible_exp
+            |> Calc.get_saved_exc(~print="full_visible_exp");
+          switch (selection_override) {
+          | Some(override) =>
+            switch (
+              SelectionEffective.replacement_for_override(
+                ~override,
+                ~with_exp,
+                ~full_exp=full_visible_exp,
+                ~term_data=selection_term_data,
+              )
+            ) {
+            | Some({at_exp, with_exp}) =>
+              signal(
+                AddWrittenStep(
+                  trace_summary,
+                  ProofHacks.exp_idx(at_exp, full_visible_exp),
+                  at_exp,
+                  with_exp,
+                ),
+              )
+            | None => Ui_effect.Ignore
+            }
+          | None =>
+            signal(AddWrittenStep(trace_summary, at_idx, at_exp, with_exp))
+          };
+        };
+
+      let add_axiom_step_for_selection =
+          (
+            rewrite_reparenthesized_exp,
+            name,
+            at_idx,
+            at_exp,
+            direction,
+            equality,
+          ) =>
+        switch (rewrite_reparenthesized_exp) {
+        | Some(reparenthesized_exp) =>
+          signal(
+            AddReparenthesizedAxiomStep(
+              reparenthesized_exp,
+              name,
+              at_exp,
+              direction,
+              equality,
+            ),
+          )
+        | None =>
+          let full_visible_exp =
+            model.full_visible_exp
+            |> Calc.get_saved_exc(~print="full_visible_exp");
+          switch (selection_override) {
+          | Some(override) =>
+            switch (
+              SelectionEffective.reparenthesize_override(
+                ~override,
+                ~full_exp=full_visible_exp,
+              )
+            ) {
+            | Some(reparenthesized) =>
+              switch (Language.Reparenthesize.selected_exp(reparenthesized)) {
+              | Some(selected_exp) =>
+                signal(
+                  AddReparenthesizedAxiomStep(
+                    reparenthesized.exp,
+                    name,
+                    selected_exp,
+                    direction,
+                    equality,
+                  ),
+                )
+              | None => Ui_effect.Ignore
+              }
+            | None => Ui_effect.Ignore
+            }
+          | None =>
+            signal(AddAxiomStep(name, at_idx, at_exp, direction, equality))
+          };
+        };
 
       let view_rewrites_box =
           (
@@ -1369,7 +1476,7 @@ module View = {
                               ~override,
                               ~with_exp=substituted_cached_exp,
                               ~full_exp=full_visible_exp,
-                              ~term_data=editor.editor.syntax.term_data,
+                              ~term_data=selection_term_data,
                             )
                           ) {
                           | Some({at_exp, with_exp}) =>
@@ -1465,6 +1572,38 @@ module View = {
             None
           | _ => cached_result
           };
+        /* A successful Rocq callback can outlive the calculated trace cache by
+         * one recalculation.  Reconstruct only the exact current profile trace
+         * so ProfileValid never loses its Replace control, while stale or
+         * outside-profile candidates remain non-committable. */
+        let cached_result =
+          switch (check_mode, proof_search_verdict, cached_result) {
+          | (Model.ProofSearch, Model.ProfileValid, None | Some(None)) =>
+            let request =
+              ProofSearchBackend.{
+                backend: JSCoqTacticSearch,
+                level: rewrite_level,
+                max_depth: 4,
+                max_states: 80,
+                source: unboxed_selected_exp,
+                target: unboxed_cached_exp,
+              };
+            let active_profile =
+              ProfileBoard.apply_model_to_profile(
+                model.profile_board,
+                Axioms.math_profile(rewrite_level),
+              );
+            let env =
+              model.cached_env |> Calc.get_saved_exc(~print="env not cached");
+            ProofSearchBackend.local_profile_trace(
+              ~profile=active_profile,
+              ~settings=globals.settings.core,
+              ~env,
+              request,
+            )
+            |> Option.map(summary => Some(summary));
+          | _ => cached_result
+          };
         let replace_button = trace_summary =>
           Widgets.button(
             ~clss=["proof-button"],
@@ -1477,36 +1616,22 @@ module View = {
                      model.cached_env
                      |> Calc.get_saved_exc(~print="env not cached"),
                    );
-              switch (rewrite_reparenthesized_exp) {
-              | Some(reparenthesized_exp) =>
-                signal(
-                  AddReparenthesizedWrittenStep(
-                    trace_summary,
-                    reparenthesized_exp,
-                    unboxed_selected_exp,
-                    substituted_cached_exp,
-                  ),
-                )
-              | None =>
-                let at_idx =
-                  try(
-                    ProofHacks.exp_idx(
-                      unboxed_selected_exp,
-                      model.full_visible_exp
-                      |> Calc.get_saved_exc(~print="full_visible_exp"),
-                    )
-                  ) {
-                  | _ => 0
-                  };
-                signal(
-                  AddWrittenStep(
-                    trace_summary,
-                    at_idx,
-                    unboxed_selected_exp,
-                    substituted_cached_exp,
-                  ),
-                );
-              };
+              let full_visible_exp =
+                model.full_visible_exp
+                |> Calc.get_saved_exc(~print="full_visible_exp");
+              let at_idx =
+                try(
+                  ProofHacks.exp_idx(unboxed_selected_exp, full_visible_exp)
+                ) {
+                | _ => 0
+                };
+              add_written_step_for_selection(
+                trace_summary,
+                rewrite_reparenthesized_exp,
+                at_idx,
+                unboxed_selected_exp,
+                substituted_cached_exp,
+              );
             },
           );
         let run_proof_search_button =
@@ -2014,10 +2139,34 @@ module View = {
                ~env,
              );
         let replaced_exp =
-          try(
-            ProofHacks.replace_exp_id(selected_id, base_exp, simplified_exp)
-          ) {
-          | _ => base_exp
+          switch (selection_override) {
+          | Some(override) =>
+            switch (
+              SelectionEffective.replacement_for_override(
+                ~override,
+                ~with_exp=simplified_exp,
+                ~full_exp=base_exp,
+                ~term_data=selection_term_data,
+              )
+            ) {
+            | Some({at_exp, with_exp}) =>
+              try(
+                ProofHacks.replace_exp_id(
+                  Exp.rep_id(at_exp),
+                  base_exp,
+                  with_exp,
+                )
+              ) {
+              | _ => base_exp
+              }
+            | None => base_exp
+            }
+          | None =>
+            try(
+              ProofHacks.replace_exp_id(selected_id, base_exp, simplified_exp)
+            ) {
+            | _ => base_exp
+            }
           };
         Exp.fast_equal(base_exp, replaced_exp)
           ? None : Some((full_exp, replaced_exp));
@@ -2346,29 +2495,23 @@ module View = {
                             signal(MakeActive(AxiomBoxSelection(s))),
                         ~add_axiom_step=
                           (a, b, c, d, e) =>
-                            signal(AddAxiomStep(a, b, c, d, e)),
+                            add_axiom_step_for_selection(
+                              rewrite_reparenthesized_exp,
+                              a,
+                              b,
+                              c,
+                              d,
+                              e,
+                            ),
                         ~add_written_step=
                           (summary, at_idx, at_exp, with_exp) =>
-                            switch (rewrite_reparenthesized_exp) {
-                            | Some(reparenthesized_exp) =>
-                              signal(
-                                AddReparenthesizedWrittenStep(
-                                  summary,
-                                  reparenthesized_exp,
-                                  at_exp,
-                                  with_exp,
-                                ),
-                              )
-                            | None =>
-                              signal(
-                                AddWrittenStep(
-                                  summary,
-                                  at_idx,
-                                  at_exp,
-                                  with_exp,
-                                ),
-                              )
-                            },
+                            add_written_step_for_selection(
+                              summary,
+                              rewrite_reparenthesized_exp,
+                              at_idx,
+                              at_exp,
+                              with_exp,
+                            ),
                         ~profile=
                           ProfileBoard.apply_model_to_profile(
                             model.profile_board,
@@ -2514,29 +2657,23 @@ module View = {
                                 signal(MakeActive(AxiomBoxSelection(s))),
                             ~add_axiom_step=
                               (a, b, c, d, e) =>
-                                signal(AddAxiomStep(a, b, c, d, e)),
+                                add_axiom_step_for_selection(
+                                  live_rewrite_reparenthesized_exp,
+                                  a,
+                                  b,
+                                  c,
+                                  d,
+                                  e,
+                                ),
                             ~add_written_step=
                               (summary, at_idx, at_exp, with_exp) =>
-                                switch (live_rewrite_reparenthesized_exp) {
-                                | Some(reparenthesized_exp) =>
-                                  signal(
-                                    AddReparenthesizedWrittenStep(
-                                      summary,
-                                      reparenthesized_exp,
-                                      at_exp,
-                                      with_exp,
-                                    ),
-                                  )
-                                | None =>
-                                  signal(
-                                    AddWrittenStep(
-                                      summary,
-                                      at_idx,
-                                      at_exp,
-                                      with_exp,
-                                    ),
-                                  )
-                                },
+                                add_written_step_for_selection(
+                                  summary,
+                                  live_rewrite_reparenthesized_exp,
+                                  at_idx,
+                                  at_exp,
+                                  with_exp,
+                                ),
                             ~profile=
                               ProfileBoard.apply_model_to_profile(
                                 model.profile_board,
