@@ -18,7 +18,7 @@ let self = [
   "10. **Comments**: `# text #`. MUST have BOTH opening AND closing `#`. Cannot span multiple lines.",
   "11. **No dot-accessor** on tuples. Use destructuring: `let (a, b) = tuple in ...`.",
   "12. **FORBIDDEN keywords**: `rec`, `switch`, `match`, `with`, `of`. NEVER use them.",
-  "13. **Reserved words** — NEVER use as variable/function names: `case`, `debug`, `eval`, `fix`, `forall`, `fun`, `hide`, `hint`, `if`, `in`, `let`, `module`, `pause`, `test`, `theorem`, `type`, `typfun`, `use` (also `proof_object` and the `of_*` prover forms). `eval` and `test` are common traps — name things `evaluate`, `run_tests`, etc. `true`/`false`/`undefined` are literals, equally unusable.",
+  "13. **Reserved words** — form delimiters can NEVER be variable/function names; they lex as keywords and yield confusing errors (e.g. `eval` becomes the eval-filter form). Avoid ALL of: `case`, `consistent`, `debug`, `else`, `end`, `eval`, `fix`, `forall`, `fun`, `hide`, `hint`, `if`, `in`, `let`, `matched_arrow`, `matched_prod`, `matched_sum`, `module`, `of_jdmt`/`of_ctx`/`of_prop`/`of_alfa_*`, `pause`, `poly`, `proof_object`, `proof_of`, `rec`, `test`, `then`, `theorem`, `type`, `typfun`, `use`, `val`, `valid`, `with`. Common traps: `eval`, `test` — name things `evaluate`, `run_tests`, etc. `true`/`false`/`undefined`/`_` are literals/wildcard, equally unusable.",
   "14. **No modulo operator** `%`. Hazel does NOT have `%`. Use integer arithmetic instead: `n - (n / 2) * 2` for mod 2.",
   "15. **Modules**: `{ let x = 1; let y = 2 }` — curly braces, semicolon-separated items. Use `module M = { ... }` for capitalized names.",
   "",

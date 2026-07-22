@@ -41,7 +41,8 @@ let diagnose = (word: string): option(string) => {
   };
 };
 
-/* Words the prompt warns are reserved (HazelSyntaxNotes). */
+/* Words that misparse as identifiers today (leading delimiters expand).
+   The prompt (HazelSyntaxNotes) lists these plus the soft set below. */
 let reserved = [
   "case",
   "debug",
@@ -71,17 +72,31 @@ let reserved = [
   "of_alfa_tpat",
 ];
 
+/* Delimiter tokens (Form.delims) that still parse as identifiers today
+   (trailing or sort-restricted delimiters). The prompt conservatively
+   reserves them anyway; if one hardens, move it to [reserved]. */
+let soft_reserved = [
+  "consistent",
+  "else",
+  "end",
+  "matched_arrow",
+  "matched_prod",
+  "matched_sum",
+  "poly",
+  "proof_of",
+  "rec",
+  "then",
+  "val",
+  "valid",
+  "with",
+];
+
 /* Near-miss words that must stay usable, so the warning doesn't overreach. */
 let usable = [
-  "end",
-  "then",
-  "else",
-  "rec",
-  "poly",
-  "val",
-  "with",
   "of",
   "match",
+  "switch",
+  "do",
   "filter",
   "evaluate",
   "run_tests",
@@ -104,7 +119,7 @@ let check_usable = () =>
       | None => ()
       | Some(why) => failf("`%s` unusable as an identifier: %s", w, why)
       },
-    usable,
+    soft_reserved @ usable,
   );
 
 /* A documented program must parse, roundtrip, and be statics-clean. */
