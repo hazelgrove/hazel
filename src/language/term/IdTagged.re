@@ -9,11 +9,58 @@ module IdTag = {
 
   let empty_secondary: secondary_runs = ([], []);
 
+  /* Shard provenance for canonical completion: for each tile of this term
+     that was completed, the shard indices physically present in the visible
+     segment (missing shards were synthesized). Empty for fully-typed terms.
+     Printing emits only the listed shards; see ExpToSegment. */
+  /* A partially-typed shard: the user's token witnesses the first
+     `len` chars of the shard's text (`i` for `in`); token_id is the
+     original token piece's id so printing reconstructs that exact
+     piece (roundtrip). */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type shard_prefix = {
+    shard: int,
+    len: int,
+    token_id: Id.t,
+    /* concave junction grout adjacent to the witness token in the
+       buffer (leading witnesses sit in operand position, so their
+       brokenness leaves real grout): recorded so the reprint
+       reproduces the buffer's layout exactly */
+    debris: option(Id.t),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type incomplete_mask = {
+    present: list(int),
+    prefixes: list(shard_prefix),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type incomplete_tiles = list((Id.t, incomplete_mask));
+
+  /* Copy semantics: every field must declare what happens under the
+     copy/re-id operations (fast_copy, Exp.replace_all_ids, replace_temp).
+     Two axes decide it:
+     - id-bearing? secondary entries and incomplete masks reference ids,
+       so value copies must DROP them (or remap, which nothing needs yet);
+       naively preserving them would duplicate ids one level down.
+     - source- or value-meaning? lexeme is id-free and carries semantics
+       into values (hole flavor, stuck unknown ops), so copies KEEP it;
+       literal spellings are gated at display instead
+       (ExpToSegment.Settings.use_literal_lexemes).
+     Cache/recompute gates comparing terms must not use annotation-blind
+     equality — see Exp.fast_equal_with_lexemes. */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
     [@show.opaque]
     ids: list(Id.t),
     secondary: secondary_runs,
+    incomplete: incomplete_tiles,
+    /* Surface spelling of single-token terms whose canonical print
+       differs (int/float spellings, quoted labels, explicit/LLM hole
+       tokens). Printing uses it verbatim after validating it still
+       matches the term's value; None for rebuilt/internal terms. */
+    lexeme: option(string),
   };
 
   /* Constructors for IdTag.t */
@@ -22,6 +69,8 @@ module IdTag = {
   let fresh = (): t => {
     ids: [Id.mk()],
     secondary: empty_secondary,
+    incomplete: [],
+    lexeme: None,
   };
 
   /* Create annotation with invalid id and empty secondary (for temporary terms) */
@@ -29,6 +78,8 @@ module IdTag = {
     //TODO(andrew): understand why this is thunked
     ids: [Id.invalid],
     secondary: empty_secondary,
+    incomplete: [],
+    lexeme: None,
   };
 
   /* Create annotation with specific ids and empty secondary.
@@ -36,13 +87,24 @@ module IdTag = {
   let mk_internal = (ids: list(Id.t)): t => {
     ids,
     secondary: empty_secondary,
+    incomplete: [],
+    lexeme: None,
   };
 
   /* Create annotation with specific ids and secondary.
      Use for terms from surface syntax where formatting should be preserved. */
-  let mk = (ids: list(Id.t), secondary: secondary_runs): t => {
+  let mk =
+      (
+        ~incomplete: incomplete_tiles=[],
+        ~lexeme: option(string)=None,
+        ids: list(Id.t),
+        secondary,
+      )
+      : t => {
     ids,
     secondary,
+    incomplete,
+    lexeme,
   };
 };
 
@@ -77,9 +139,17 @@ let mk_internal = (ids: list(Id.t), term: 'a): t('a) => {
 
 /* Create term with specific ids and secondary.
    Use for terms from surface syntax where formatting should be preserved. */
-let mk = (ids: list(Id.t), secondary: IdTag.secondary_runs, term: 'a): t('a) => {
+let mk =
+    (
+      ~incomplete: IdTag.incomplete_tiles=[],
+      ~lexeme: option(string)=None,
+      ids: list(Id.t),
+      secondary: IdTag.secondary_runs,
+      term: 'a,
+    )
+    : t('a) => {
   term,
-  annotation: IdTag.mk(ids, secondary),
+  annotation: IdTag.mk(~incomplete, ~lexeme, ids, secondary),
 };
 
 let term_of = (x: Annotated.t('a, 'b)) => x.term;
@@ -97,32 +167,31 @@ let rep_id = ({annotation: {ids, _}, _}: Annotated.t('a, IdTag.t)) =>
    Note: This discards secondary (formatting) information. If preserving
    formatting through evaluation becomes important, this would need to
    accept a source term and copy its secondary, or we'd need a variant
-   like fast_copy_with_secondary(id, source, term). */
-let fast_copy = (id, {term, _}: t('a)): t('a) => {
+   like fast_copy_with_secondary(id, source, term).
+   Also discards shard provenance: the new ids no longer reference the
+   original tiles. */
+let fast_copy = (id, {term, annotation}: t('a)): t('a) => {
   term,
   annotation: {
     ids: [id],
     secondary: IdTag.empty_secondary,
-  },
-};
-
-/* Generate new ids for term, preserving secondary */
-let new_ids = ({term, annotation: {ids: _, secondary}}: t('a)): t('a) => {
-  term,
-  annotation: {
-    ids: [Id.mk()],
-    secondary,
+    incomplete: [],
+    lexeme: annotation.lexeme,
   },
 };
 
 let ids = ({annotation: {ids, _}, _}: t('a)) => ids;
 
 /* Replace invalid temp ids with fresh ids, preserving secondary */
-let replace_temp = ({term, annotation: {ids, secondary}}: t('a)): t('a) => {
+let replace_temp =
+    ({term, annotation: {ids, secondary, incomplete, lexeme}}: t('a))
+    : t('a) => {
   term,
   annotation: {
     ids: ids == [Id.invalid] ? [Id.mk()] : ids,
     secondary,
+    incomplete,
+    lexeme,
   },
 };
 

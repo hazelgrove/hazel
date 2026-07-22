@@ -254,7 +254,7 @@ module Update = {
         // Extract an exp from the editor
         let cached_exp =
           Calc.set(
-            ~eq=Exp.fast_equal,
+            ~eq=Exp.fast_equal_with_lexemes,
             CodeEditable.Model.get_statics(editor).elaborated,
             cached_exp,
           );
@@ -352,7 +352,7 @@ module View = {
         get_left(
           Int.min(
             current_left,
-            Measured.Rows.find(row, measured.rows).indent,
+            Measured.Rows.find(row, measured.rows).content_start,
           ),
           row + 1,
           final_row,

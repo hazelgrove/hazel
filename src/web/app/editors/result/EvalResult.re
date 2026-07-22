@@ -320,7 +320,8 @@ module Update = {
     let settings =
       cached_settings
       |> Calc.set(settings, ~eq=CoreSettings.eq_ignoring_stepper_modals);
-    let elab = Calc.set(~eq=Exp.fast_equal, statics.elaborated, elab);
+    let elab =
+      Calc.set(~eq=Exp.fast_equal_with_lexemes, statics.elaborated, elab);
     let targets =
       Calc.set(
         ~eq=Id.Map.equal(Sample.equal_capture_spec),

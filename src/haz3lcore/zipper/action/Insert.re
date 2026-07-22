@@ -77,13 +77,42 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   };
 };
 
+/* Calculate indentation for a newly inserted linebreak and insert spaces */
+let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
+  /* Get the full segment to calculate indentation */
+  let seg = Zipper.unselect_and_zip(z);
+  let indent_level = Indentation.level_of(~target_id=linebreak_id, seg);
+  let spaces = Indentation.make_indent_spaces(indent_level);
+  if (spaces == []) {
+    z;
+  } else {
+    Zipper.put_down_seg(Left, spaces, z);
+  };
+};
+
 /* Shared core for insert_shard and insert_shard_inplace.
- * The only difference is the put_down function used. */
+ * The only difference is the put_down function used.
+ * auto_indent applies only to linebreak insertion; the inplace
+ * variant passes false since indentation insertion reassembles. */
 let insert_shard_core =
-    (~put_down: (Segment.t, t) => t, ~id: Id.t, t: Token.t, z: t, ~root): t => {
+    (
+      ~put_down: (Segment.t, t) => t,
+      ~auto_indent: bool,
+      ~id: Id.t,
+      t: Token.t,
+      z: t,
+      ~root,
+    )
+    : t => {
   let z = destroy_selection(z);
   if (Token.is_secondary(t)) {
-    put_down([Piece.mk_secondary(id, t)], z);
+    let z = put_down([Piece.mk_secondary(id, t)], z);
+    /* Auto-insert indentation after linebreaks (only when auto_indent=true) */
+    if (auto_indent && t == Token.linebreak) {
+      insert_indentation_spaces(~linebreak_id=id, z);
+    } else {
+      z;
+    };
   } else {
     let sort = effective_sort(t, z, ~root);
     let (label, delim_d) = expansion(sort, t, z);
@@ -96,20 +125,38 @@ let insert_shard_core =
 };
 
 /* Insert a new shard based on token `t` on the `d`-side of the caret */
-let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t, ~root): t =>
-  if (Zipper.backpack_find(t, z) != None) {
+let insert_shard =
+    (
+      ~auto_indent: bool=true,
+      ~id: Id.t,
+      ~d: Direction.t,
+      t: Token.t,
+      z: t,
+      ~root,
+    )
+    : t =>
+  if (Zipper.find_missing_shard(t, z) != None) {
     let z = destroy_selection(z);
-    let target = Zipper.backpack_find(t, z) |> Option.get;
+    let target = Zipper.find_missing_shard(t, z) |> Option.get;
     Zipper.put_down_target(d, target, z, ~root);
   } else {
-    insert_shard_core(~put_down=Zipper.put_down_seg(d), ~id, t, z, ~root);
+    insert_shard_core(
+      ~put_down=Zipper.put_down_seg(d),
+      ~auto_indent,
+      ~id,
+      t,
+      z,
+      ~root,
+    );
   };
 
 /* Replace `d`-neighbor shard with a new one based on token `t` */
-let replace_shard = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
+let replace_shard =
+    (~auto_indent: bool=true, d: Direction.t, t: Token.t, z: t, ~root)
+    : option(t) => {
   let id = Zipper.adjacent_monotile_or_new_id(d, z);
   let+ z = delete(d, z);
-  insert_shard(~id, ~d, t, z, ~root);
+  insert_shard(~auto_indent, ~id, ~d, t, z, ~root);
 };
 
 /* Like insert_shard but uses put_down_no_reassemble (no adj_pos,
@@ -118,6 +165,7 @@ let replace_shard = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
 let insert_shard_inplace = (~id: Id.t, t: Token.t, z: t, ~root): t =>
   insert_shard_core(
     ~put_down=Zipper.put_down_no_reassemble,
+    ~auto_indent=false,
     ~id,
     t,
     z,
@@ -278,7 +326,9 @@ let move_into_string_or_comment = (char: string, z: t): t =>
 
 /* Split creates three tokens; two from splitting the existing one,
  * and a new single-character token (or grout) in the middle. */
-let split = (z: t, char: string, idx: int, t: Token.t, ~root): option(t) => {
+let split =
+    (~auto_indent: bool, z: t, char: string, idx: int, t: Token.t, ~root)
+    : option(t) => {
   let insert_shard = insert_shard(~root);
   let (l, r) = Token.split_nth(t, idx);
   let id = Zipper.adjacent_monotile_or_new_id(Right, z);
@@ -290,11 +340,11 @@ let split = (z: t, char: string, idx: int, t: Token.t, ~root): option(t) => {
      * rightwards may be a trailing delim of the leftwards. */
     Form.Expansion.is_leading(l) && Form.Expansion.is_leading(r)
       ? z
-        |> insert_shard(~id=Id.mk(), ~d=Right, r)
-        |> insert_shard(~id, ~d=Left, l)
+        |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Right, r)
+        |> insert_shard(~auto_indent, ~id, ~d=Left, l)
       : z
-        |> insert_shard(~id, ~d=Left, l)
-        |> insert_shard(~id=Id.mk(), ~d=Right, r);
+        |> insert_shard(~auto_indent, ~id, ~d=Left, l)
+        |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Right, r);
   let z =
     switch (Token.space == char ? grout_for_suppressed_space(z, ~root) : None) {
     | Some(g) =>
@@ -302,7 +352,7 @@ let split = (z: t, char: string, idx: int, t: Token.t, ~root): option(t) => {
       Zipper.put_down_seg(Left, [Grout(g)], z);
     | None =>
       z
-      |> insert_shard(~id=Id.mk(), ~d=Left, char)
+      |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Left, char)
       |> move_into_string_or_comment(char)
     };
   remold_regrout(Right, z, ~root);
@@ -355,7 +405,8 @@ let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
 
 /* Append char to a neighboring token if possible (biasing left, see
  * sibling_appendability), else insert it as a new token. */
-let insert_or_append = (char: string, z: t, ~root): option(t) =>
+let insert_or_append =
+    (~auto_indent: bool, char: string, z: t, ~root): option(t) =>
   switch (sibling_appendability(char, z)) {
   | Some((Right, t))
       when
@@ -386,8 +437,8 @@ let insert_or_append = (char: string, z: t, ~root): option(t) =>
           | Some(w) => Zipper.put_down_seg(Left, [Secondary(w)], z)
           | None => z
           };
-        Some(insert_shard(~id, ~d=Left, char, z, ~root));
-      | Some((d, t)) => replace_shard(d, t, z, ~root)
+        Some(insert_shard(~auto_indent, ~id, ~d=Left, char, z, ~root));
+      | Some((d, t)) => replace_shard(~auto_indent, d, t, z, ~root)
       };
     let z_final =
       z_init
@@ -418,7 +469,7 @@ let delimiter_label = (char: string): Label.t =>
 
 /* Wrap selection in balanced delimiters. Creates the wrapping tile
  * as an ancestor with the content inside, retaining the selection. */
-let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
+let wrap_balanced = (char: string, z: t, ~root): t => {
   let content = z.selection.content;
   let sort = Relatives.sort(~root, z.relatives);
   let (left_sibs, right_sibs) = z.relatives.siblings;
@@ -464,7 +515,7 @@ let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
     },
   };
   let z = remold_regrout(Right, z, ~root);
-  let z = deep_reassociate ? Reassociate.go(z) : z;
+  let z = Reassociate.go(z);
   let right = snd(z.relatives.siblings);
   {
     ...z,
@@ -522,21 +573,19 @@ let wrap_quote = (char: string, z: t, ~root): option(t) => {
 
 /* Try to wrap selection in a delimiter. Returns Some if wrapping
  * occurred, None to fall through to normal insert behavior. */
-let try_wrap_selection =
-    (~deep_reassociate=false, char: string, z: t, ~root): option(t) =>
+let try_wrap_selection = (char: string, z: t, ~root): option(t) =>
   if (is_opening_delimiter(char)) {
-    Some(wrap_balanced(~deep_reassociate, char, z, ~root));
+    Some(wrap_balanced(char, z, ~root));
   } else if (Token.is_string_or_comment_delim(char)) {
     wrap_quote(char, z, ~root);
   } else {
     None;
   };
 
-let go = (~deep_reassociate=false, char: string, z: t, ~root): option(t) => {
+let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
   /* If there's a selection, try wrapping before falling through */
   switch (
-    z.selection.content != []
-      ? try_wrap_selection(~deep_reassociate, char, z, ~root) : None
+    z.selection.content != [] ? try_wrap_selection(char, z, ~root) : None
   ) {
   | Some(z) => Some(z)
   | None =>
@@ -564,9 +613,9 @@ let go = (~deep_reassociate=false, char: string, z: t, ~root): option(t) => {
                Token.is_secondary(new_token)
                  ? Fun.id : remold_regrout(Right, ~root),
              )
-        : split(z, char, idx, t, ~root);
+        : split(~auto_indent, z, char, idx, t, ~root);
     | (Inner(_), (_, None)) => None
-    | (Outer, _) => insert_or_append(char, z, ~root)
+    | (Outer, _) => insert_or_append(~auto_indent, char, z, ~root)
     };
   };
 };
@@ -578,14 +627,14 @@ let go_inner = go;
  * operations. See Triggers.re for more details */
 let go =
     (
-      ~deep_reassociate=false,
+      ~auto_indent: bool=true,
       ~ci: option(Language.Info.t)=None,
       char: string,
       z: t,
       ~root,
     )
     : option(t) => {
-  let+ z = go(~deep_reassociate, char, z, ~root);
+  let+ z = go(~auto_indent, char, z, ~root);
   let z = Triggers.insert(~ci, z);
   let z =
     switch (z.caret) {

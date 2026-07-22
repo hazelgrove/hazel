@@ -159,14 +159,6 @@ module Settings = {
        field label. Persists across cursor moves so collapsing e.g. "ctx"
        keeps it collapsed regardless of the term under the cursor. */
     debug_collapsed: list(string),
-    /* Encodings (WorkerServer.encoding) enabled in the Worker Messaging panel;
-       only these are benchmarked. Defaults to just the active encoding
-       (Marshal) — Direct and Sexp start off — and is defaulted on load so
-       existing persisted settings (which lack this field) still load. */
-    [@sexp.default [WorkerServer.Marshal]] [@yojson.default
-                                              [WorkerServer.Marshal]
-                                            ]
-    worker_encodings: list(WorkerServer.encoding),
   };
 
   let is_debug_collapsed = (key: string, settings: t) =>
@@ -185,28 +177,11 @@ module Settings = {
       };
     };
 
-  let is_encoding_enabled = (e: WorkerServer.encoding, settings: t) =>
-    List.mem(e, settings.worker_encodings);
-
-  let toggle_encoding = (e: WorkerServer.encoding, settings: t): t =>
-    if (is_encoding_enabled(e, settings)) {
-      {
-        ...settings,
-        worker_encodings: List.filter(x => x != e, settings.worker_encodings),
-      };
-    } else {
-      {
-        ...settings,
-        worker_encodings: [e, ...settings.worker_encodings],
-      };
-    };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | ToggleShow
     | SwitchPanel(panel)
     | Problems(problems_action)
     | ToggleDebugRaw
-    | ToggleDebugCollapsed(string)
-    | ToggleWorkerEncoding(WorkerServer.encoding);
+    | ToggleDebugCollapsed(string);
 };

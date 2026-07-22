@@ -218,7 +218,7 @@ module Update = {
 
                  let goal_exp =
                    Calc.set(
-                     ~eq=Exp.fast_equal,
+                     ~eq=Exp.fast_equal_with_lexemes,
                      rule |> ProofRule.conclusion_exp,
                      goal_exp,
                    );

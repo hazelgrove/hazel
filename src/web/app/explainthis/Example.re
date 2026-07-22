@@ -89,7 +89,7 @@ let space = () => Piece.Secondary(Secondary.mk_space(Id.mk()));
 let mk_example = str => {
   switch (Parser.to_segment(str, ~root=Exp)) {
   | None => []
-  | Some(seg) => seg
+  | Some(seg) => AutoFormat.segment(seg)
   };
 };
 

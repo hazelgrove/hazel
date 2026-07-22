@@ -37,10 +37,15 @@ let rep_tips = (tiles: tile_data) => {
   );
 };
 
+/* Find the leftmost column for decoration paths.
+ * Uses content_start (first non-whitespace) instead of absolute left edge. */
 let min_col = (~first: Point.t, ~last: Point.t, ~rows: Rows.t): int =>
   min(
     first.col,
-    Rows.min_col(ListUtil.range(~lo=first.row, last.row + 1), rows),
+    Rows.min_content_start(
+      ListUtil.range(~lo=first.row, last.row + 1),
+      rows,
+    ),
   );
 
 let m_horizontal = (~hx, ~first: Point.t, ~last: Point.t): path => [

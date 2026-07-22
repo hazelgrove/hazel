@@ -95,7 +95,7 @@ let rec strip_implicit_holes =
     switch (Select.tile(id, z)) {
     | None => z
     | Some(z) =>
-      switch (Destruct.go(Left, z, ~root)) {
+      switch (Destruct.go(Local(Left, ByChar), z, ~root)) {
       | None => z
       | Some(z) => strip_implicit_holes(~implicit_hole, ~root, z)
       }

@@ -38,7 +38,6 @@ module ProjectorShape = ProjectorShape;
 module API = API;
 module OpenRouter = OpenRouter;
 module SafeTriangle = SafeTriangle;
-module FloatingElement = FloatingElement;
 module SvgUtil = SvgUtil;
 
 // Used by [@deriving sexp, yojson)]

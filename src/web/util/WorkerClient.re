@@ -52,7 +52,9 @@ let is_latest = request_id =>
  * values, to dodge the structured-clone overflow on deep results (#2368;
  * see WorkerServer.Active). Callers still deal in Request.t/Response.t. */
 let post_evaluate = (worker, request: Request.t) =>
-  worker##postMessage(Active.encode_request(ClientMessage.Evaluate(request)));
+  worker##postMessage(
+    Active.encode_request(ClientMessage.Evaluate(request)),
+  );
 
 let start_eval_timeout = latest => {
   clear_timer(evalTimeoutId);

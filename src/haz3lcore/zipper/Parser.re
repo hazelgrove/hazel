@@ -59,7 +59,8 @@ let to_zipper =
     (~root, ~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
   let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z, ~root)) {
+    /* Disable auto_indent so Parser faithfully reproduces input without adding spaces */
+    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
       None;
@@ -70,14 +71,14 @@ let to_zipper =
 };
 
 /* Check if the zipper is at a "safe split point": top level with
-   no incomplete tiles (empty backpack), caret between tokens,
+   no incomplete tiles (no missing shards), caret between tokens,
    and we just inserted a whitespace char (ensuring we're at a real
    token boundary, not mid-identifier like 't' before 'type'). */
 let is_split_point = (c: string, z: Zipper.t): bool =>
   Token.is_secondary(c)
   && z.caret == Outer
   && z.relatives.ancestors == []
-  && Zipper.local_backpack(z) == [];
+  && Zipper.local_missing_shards(z) == [];
 
 /* Strip trailing convex grout from a segment. This grout is the
    artifact of Zipper.init()'s initial placeholder that was never
@@ -110,7 +111,9 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
 
   let insert_char = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z, ~root)) {
+    /* Disable auto_indent so Parser faithfully reproduces input without
+     * adding spaces. Matches to_zipper's behavior. */
+    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_segment: " ++ Printexc.to_string(exn));
       None;
@@ -146,7 +149,7 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
 
 /* Quick O(n) check that clipboard has balanced parens/brackets/braces.
    to_segment drops unmatched delimiters (they end up in the parsing
-   zipper's backpack which is lost during segment extraction), so fast
+   zipper's missing-shard remnants, lost during segment extraction), so fast
    paste must not be used for unbalanced clipboard content.
    Conservative: delimiters inside string literals cause false negatives,
    falling back to the correct slow path. */
@@ -183,7 +186,7 @@ let can_fast_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
   len > 0
   && z.caret == Outer
   && z.relatives.ancestors == []
-  && Zipper.local_backpack(z) == []
+  && Zipper.local_missing_shards(z) == []
   && Relatives.sort(~root, z.relatives) == Sort.Exp
   && has_balanced_delimiters(clipboard)
   && {

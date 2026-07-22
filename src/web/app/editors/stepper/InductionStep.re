@@ -205,7 +205,7 @@ module F =
       );
     let elab_scrut_raw =
       Calc.set(
-        ~eq=Exp.fast_equal,
+        ~eq=Exp.fast_equal_with_lexemes,
         CodeEditable.Model.get_statics(scrut).elaborated,
         elab_scrut_raw,
       );
@@ -269,7 +269,7 @@ module F =
       );
     let join_exp =
       Calc.set(
-        ~eq=Exp.fast_equal,
+        ~eq=Exp.fast_equal_with_lexemes,
         new_join_exp |> Option.value(~default=Exp.fresh(EmptyHole)),
         join_exp,
       );

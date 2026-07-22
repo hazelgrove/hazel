@@ -189,5 +189,10 @@ let view =
       seg,
     );
 
-  of_segment(segment);
+  /* Trailing filler: a text layer ending in a linebreak gets no
+     final line box from HTML, so an empty last line left the editor
+     one row short (caret overhanging into the result area). The
+     zero-width space forces the line box and is invisible (and
+     harmless mid-line) otherwise. */
+  of_segment(segment) @ [Node.text("\xe2\x80\x8b")];
 };

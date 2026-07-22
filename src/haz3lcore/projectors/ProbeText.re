@@ -52,11 +52,11 @@ let format_value = (~max_length: int=50, value: Exp.t): string => {
       ~settings={
         ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
+        use_literal_lexemes: false,
       },
       value |> DHExp.strip_ascriptions,
     );
-  let str =
-    Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg);
+  let str = Printer.of_segment(~holes="?", seg);
   /* Remove any remaining newlines */
   let str = StringUtil.replace(StringUtil.regexp("\n"), str, " ");
   /* Truncate if too long */

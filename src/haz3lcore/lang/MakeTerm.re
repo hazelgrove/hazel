@@ -210,6 +210,37 @@ let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
   | [] => IdTagged.IdTag.empty_secondary
   };
 
+/* Shard provenance from canonical completion: tile id -> shard mask
+ * (physically present indices + partially-typed prefixes). Empty
+ * unless parsing a canonically completed segment (see go_impl /
+ * from_zip_for_sem). */
+let shard_masks: ref(Id.Map.t(IdTagged.IdTag.incomplete_mask)) =
+  ref(Id.Map.empty);
+
+/* The subset of this term's tiles that were completed, with their
+ * originally-present shards, for the annotation. */
+let get_incomplete = (ids: list(Id.t)): IdTagged.IdTag.incomplete_tiles =>
+  Id.Map.is_empty(shard_masks^)
+    ? []
+    : ids
+      |> List.filter_map(id =>
+           Id.Map.find_opt(id, shard_masks^)
+           |> Option.map(mask => (id, mask))
+         );
+
+/* Surface spelling of the token a *_term branch just parsed, when its
+ * canonical print differs (int/float spellings, hole tokens). Set only
+ * by non-recursive single-token branches, taken (and cleared) by the
+ * sort wrapper immediately after — so the value can never leak across
+ * terms. */
+let pending_lexeme: ref(option(string)) = ref(None);
+let set_lexeme = (t: Token.t): unit => pending_lexeme := Some(t);
+let take_lexeme = (): option(string) => {
+  let l = pending_lexeme^;
+  pending_lexeme := None;
+  l;
+};
+
 /* Track IDs that are "adopted" from inner terms into outer multi-tile forms.
  *
  * PROBLEM: List literals and case expressions are multi-tile forms where the
@@ -260,7 +291,7 @@ let to_variant_secondary =
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
-  | {term: Var(ctr), annotation: {ids, secondary}} =>
+  | {term: Var(ctr), annotation: {ids, secondary, _}} =>
     Variant(
       ctr,
       {
@@ -280,13 +311,13 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
             MultiHole([
               Typ({
                 term: Var(ctr),
-                annotation: {ids: ids_ctr, secondary: (inner_before, _)},
+                annotation: {ids: ids_ctr, secondary: (inner_before, _), _},
               }),
               Typ(u),
             ]),
           ),
         ),
-      annotation: {ids: ids_ap, secondary: (_, outer_after)},
+      annotation: {ids: ids_ap, secondary: (_, outer_after), _},
     } =>
     /* For constructor applications, use the inner before (constructor's leading space)
        and outer after (trailing space on the whole application) for round-tripping */
@@ -302,7 +333,12 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
 
 let mk_bad = (ctr, ids, value) => {
   let t: Typ.t = {
-    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
+    annotation:
+      IdTagged.IdTag.mk(
+        ~incomplete=get_incomplete(ids),
+        ids,
+        get_secondary(ids),
+      ),
     term: Var(ctr),
   };
   switch (value) {
@@ -316,6 +352,56 @@ let is_hole_label = (t: string) =>
   || Token.is_explicit_hole(t)
   || Token.is_implicit_hole_marker(t)
   || Token.is_llm_hole(t);
+
+/* A construct whose root tiles are all exp-only forms (if/then/else,
+   case/end, ...) stranded in a non-exp context: no typ/pat pattern can
+   match it, so without rerouting it falls to hole() and the tiles are
+   dropped on print. Labels with a mold at the host sort (parens,
+   lists, ->) are NOT rerouted — the sorted cases handle those. */
+let is_exp_only_label = (~host: Sort.t, label: Label.t): bool =>
+  List.length(label) >= 2
+  && (
+    switch (Form.Molds.get_base(label)) {
+    | [] => false
+    | molds =>
+      List.exists((m: Mold.t) => m.out == Sort.Exp, molds)
+      && List.for_all((m: Mold.t) => m.out != host, molds)
+    }
+  );
+
+let root_labels: unsorted => list(Label.t) =
+  tm => {
+    let of_tiles = (tiles: tiles) =>
+      Aba.get_as(tiles) |> List.map(((_, t)) => Aba.get_as(t));
+    switch (tm) {
+    | Op(tiles)
+    | Pre(tiles, _)
+    | Post(_, tiles)
+    | Bin(_, tiles, _) => of_tiles(tiles)
+    };
+  };
+
+let all_exp_only = (~host: Sort.t, tm: unsorted): bool =>
+  switch (root_labels(tm)) {
+  | [] => false
+  | labels => List.for_all(is_exp_only_label(~host), labels)
+  };
+
+/* Is this kid a constructor-named type variable? (the head of a
+   potential sum-type constructor application) */
+let is_ctr_headed: Any.t => bool =
+  fun
+  | Typ({term: Var(name), _}) => Token.is_ctr(name)
+  | _ => false;
+
+let is_exp_kid: Any.t => bool =
+  fun
+  | Exp(_) => true
+  | _ => false;
+let is_pat_kid: Any.t => bool =
+  fun
+  | Pat(_) => true
+  | _ => false;
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
@@ -354,7 +440,12 @@ and drv_exp = unsorted => {
     e => Drv(Exp(e)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      annotation:
+        IdTagged.IdTag.mk(
+          ~incomplete=get_incomplete(ids),
+          ids,
+          get_secondary(ids),
+        ),
       term,
     },
   );
@@ -490,7 +581,12 @@ and drv_pat = unsorted => {
     p => Drv(Pat(p)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      annotation:
+        IdTagged.IdTag.mk(
+          ~incomplete=get_incomplete(ids),
+          ids,
+          get_secondary(ids),
+        ),
       term,
     },
   );
@@ -533,7 +629,12 @@ and drv_typ = unsorted => {
     ty => Drv(Typ(ty)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      annotation:
+        IdTagged.IdTag.mk(
+          ~incomplete=get_incomplete(ids),
+          ids,
+          get_secondary(ids),
+        ),
       term,
     },
   );
@@ -581,7 +682,12 @@ and drv_tpat = unsorted => {
     tpat => Drv(TPat(tpat)),
     ids,
     {
-      annotation: IdTagged.IdTag.mk(ids, IdTagged.IdTag.empty_secondary),
+      annotation:
+        IdTagged.IdTag.mk(
+          ~incomplete=get_incomplete(ids),
+          ids,
+          get_secondary(ids),
+        ),
       term,
     },
   );
@@ -604,6 +710,7 @@ and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
+  let lexeme = take_lexeme();
   /* The editor root can change while the expression itself is still sort
      [Exp]; when an [Exp]-sort traversal trips over a Drv child we get a
      [MultiHole([Drv(_), ...])], which we intercept and re-parse at the
@@ -616,13 +723,28 @@ and exp = unsorted => {
       return(
         e => Drv(Exp(e)),
         ids,
-        IdTagged.mk(ids, get_secondary(ids), term),
+        IdTagged.mk(
+          ~incomplete=get_incomplete(ids),
+          ids,
+          get_secondary(ids),
+          term,
+        ),
       );
     Grammar.DrvQuote(Exp(exp), Jdmt) |> IdTagged.fresh;
   | _ =>
     let ids = ids(unsorted) @ inner_ids;
     let e: TermBase.exp_t =
-      return(e => Exp(e), ids, IdTagged.mk(ids, get_secondary(ids), term));
+      return(
+        e => Exp(e),
+        ids,
+        IdTagged.mk(
+          ~incomplete=get_incomplete(ids),
+          ~lexeme,
+          ids,
+          get_secondary(ids),
+          term,
+        ),
+      );
     switch (term) {
     | TupLabel(_) =>
       // The tile id is the id of the tuple not the tuplabel
@@ -649,13 +771,16 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(Bool(bool_of_string(t))))
       | ([t], []) when Token.is_undefined(t) => ret(Undefined)
       | ([t], []) when Token.is_int(t) =>
-        ret(Atom(Int(Bigint.of_string(t))))
+        set_lexeme(t);
+        ret(Atom(Int(Bigint.of_string(t))));
       | ([t], []) when Token.is_string(t) =>
         ret(Atom(String(Token.strip_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
-        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
+        set_lexeme(t);
+        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)));
       | ([t], []) when Token.is_float(t) =>
-        ret(Atom(Float(float_of_string(t))))
+        set_lexeme(t);
+        ret(Atom(Float(float_of_string(t))));
       | ([t], []) when Token.is_livelit(t) =>
         ret(LivelitName(Token.parse_livelit(t)))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
@@ -676,13 +801,44 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         }
       | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
+      | (["(", ")"], [kid]) =>
+        /* Cross-sort parens (orphan-closer completion): the kid parses
+           at the tile's sort, not Exp; hole() would drop the tile and
+           strand its shard mask. */
+        ret(
+          Parens({
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Exp.hole([kid]),
+          }),
+        )
       | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
+      | (["[", "]"], [kid]) when !is_exp_kid(kid) =>
+        /* Cross-sort list brackets (see the cross-sort parens case) */
+        ret(
+          ListLit([
+            {
+              annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+              term: Exp.hole([kid]),
+            },
+          ]),
+        )
       | (["[", "]"], [Exp(body)]) =>
         /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
            IMPORTANT: Must align with ExpToSegment.exp_to_pretty ListLit case,
            which expects List.hd = bracket, List.tl = commas. */
         switch (body) {
+        | {term: Tuple([{term: TupLabel(_), _}]), _} =>
+          /* Single labeled element: body IS the synthesized singleton
+             wrapper carrying the = tile's id — keep it whole so the
+             printer's singleton-unwrap restores the id (adopting its
+             ids as comma ids would strand them: a one-element list
+             has no commas) */
+          ret(ListLit([body]))
+        | {term: Tuple([]), _} =>
+          /* Unit literal body: [()] is a one-element list of unit, not
+             an empty element list (#1792) */
+          ret(ListLit([body]))
         | {annotation: {ids, _}, term: Tuple(es)} =>
           adopted_ids := ids @ adopted_ids^;
           // Addresses tup_labels in lists like: [l=32, 1]
@@ -737,7 +893,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(DrvQuote(Pat(p), Pat))
       | (["of_alfa_tpat", "end"], [Drv(TPat(tp))]) =>
         ret(DrvQuote(TPat(tp), TPat))
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) when is_hole_label(t) =>
+        set_lexeme(t);
+        ret(hole(tm));
       | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
@@ -812,11 +970,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             Forward,
             l,
             {
-              annotation:
-                IdTagged.IdTag.mk(
-                  [Id.nullary_ap_flag],
-                  get_secondary([Id.nullary_ap_flag]),
-                ),
+              /* Flag id is a shared sentinel, not a tile id — looking it
+                 up in the secondary map would fetch unrelated runs */
+              annotation: IdTagged.IdTag.mk_internal([Id.nullary_ap_flag]),
               term: Tuple([]),
             },
           ),
@@ -929,12 +1085,16 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             | Label(_) => TupLabel(l, r)
             | EmptyHole => TupLabel(l, r)
             | _ =>
-              let (e_term, rewrap) = IdTagged.unwrap(l);
-
+              /* Wrapper shares the inner term's ids but no secondary
+                 (the inner term's own wrap emits it); a fresh inner
+                 would churn ids and drop secondary on every roundtrip */
               TupLabel(
-                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
+                {
+                  annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
+                  term: MultiHole([Exp(l)]),
+                },
                 r,
-              );
+              )
             }
           | (["."], []) =>
             switch (r.term) {
@@ -950,29 +1110,71 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             | Label(_) => Dot(l, r)
             | EmptyHole => Dot(l, r)
             | _ =>
-              let (e_term, rewrap) = IdTagged.unwrap(r);
-
+              /* See the TupLabel case above */
               Dot(
                 l,
-                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
-              );
+                {
+                  annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(r)),
+                  term: MultiHole([Exp(r)]),
+                },
+              )
             }
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
+          | ([op], []) when op != " " =>
+            /* Unknown infix operator: kids survive as a MultiHole; the
+               operator token survives as its lexeme (printed back by
+               ExpToSegment; elaborated as a stuck application). Covers
+               both operator-shaped tokens (@@) and operand-shaped
+               keyword prefixes bin-molded in operator position (the
+               transitional `1 l 2` en route to `let`). The guard
+               matters: grout arrives here as the pseudo-token " ", and
+               plain juxtaposition must NOT carry a lexeme — the
+               elaborator uses its presence to distinguish stuck
+               applications from transient juxtaposition (which keeps
+               eval-to-last semantics). A first-class UnboundOp node can
+               supersede this later. */
+            set_lexeme(op);
+            hole(tm);
           | _ => hole(tm)
           },
         )
       | _ => ret(hole(tm))
       }
     }
+  | Bin(_, ([(_id, ([op], []))], []), _) as tm when op != " " => {
+      /* Unknown infix operator between mixed-sort kids (e.g. the : in
+         `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
+         the same-sort Bin patterns above cannot match) */
+
+      set_lexeme(op);
+      ret(hole(tm));
+    }
+  | Pre(([(_id, ([op], []))], []), _) as tm when op != " " => {
+      /* Stranded prefix op; printed back by the 1-kid MultiHole op
+         branches */
+      set_lexeme(op);
+      ret(hole(tm));
+    }
   | tm => ret(hole(tm));
 }
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted) @ inner_ids;
 
   let p =
-    return(p => Pat(p), ids, IdTagged.mk(ids, get_secondary(ids), term));
+    return(
+      p => Pat(p),
+      ids,
+      IdTagged.mk(
+        ~incomplete=get_incomplete(ids),
+        ~lexeme,
+        ids,
+        get_secondary(ids),
+        term,
+      ),
+    );
   switch (term) {
   | TupLabel(_) => Tuple([p]) |> Pat.fresh
   | _ => p
@@ -982,6 +1184,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   let ret = (term: Pat.term) => (term, []);
   let hole = unsorted => Pat.hole(kids_of_unsorted(unsorted));
   fun
+  | tm when all_exp_only(~host=Sort.Pat, tm) =>
+    /* see typ_term: exp-only forms stranded in pattern context */
+    ret(MultiHole([Exp(exp(tm))]))
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
@@ -991,30 +1196,57 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | ([t], []) when Token.is_bool(t) =>
         ret(Atom(Bool(bool_of_string(t))))
       | ([t], []) when Token.is_float(t) =>
-        ret(Atom(Float(float_of_string(t))))
+        set_lexeme(t);
+        ret(Atom(Float(float_of_string(t))));
       | ([t], []) when Token.is_int(t) =>
-        ret(Atom(Int(Bigint.of_string(t))))
+        set_lexeme(t);
+        ret(Atom(Int(Bigint.of_string(t))));
       | ([t], []) when Token.is_string(t) =>
         ret(Atom(String(Token.strip_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
-        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
+        set_lexeme(t);
+        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)));
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_wild(t) => ret(Wild)
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Pat(body)]) => ret(Parens(body))
+      | (["(", ")"], [kid]) =>
+        /* Cross-sort parens (see the exp case) */
+        ret(
+          Parens({
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Pat.hole([kid]),
+          }),
+        )
       | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => ret(body.term)
+      | (["[", "]"], [kid]) when !is_pat_kid(kid) =>
+        /* Cross-sort list brackets (see the cross-sort parens case) */
+        ret(
+          ListLit([
+            {
+              annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+              term: Pat.hole([kid]),
+            },
+          ]),
+        )
       | (["[", "]"], [Pat(body)]) =>
         /* ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
            IMPORTANT: Must align with ExpToSegment.pat_to_pretty ListLit case,
            which expects List.hd = bracket, List.tl = commas. */
         switch (body) {
+        | {term: Tuple([]), _} =>
+          /* Unit literal body: [()] is a one-element list of unit, not
+             an empty element list (#1792) */
+          ret(ListLit([body]))
         | {term: Tuple(ps), annotation: {ids, _}} =>
           adopted_ids := ids @ adopted_ids^;
           (ListLit(ps), ids);
         | term => ret(ListLit([term]))
         }
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) when is_hole_label(t) =>
+        set_lexeme(t);
+        ret(hole(tm));
       | ([t], []) => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
@@ -1032,6 +1264,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               annotation: {
                 ids: [Id.nullary_ap_flag],
                 secondary: ([], []),
+                incomplete: [],
+                lexeme: None,
               },
               term: Tuple([]),
             },
@@ -1045,6 +1279,10 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, ([":"], []))], []) => ret(Asc(p, ty))
+    | ([(_id, ([op], []))], []) when op != " " =>
+      /* Unknown infix operator (see the exp Bin fallthrough) */
+      set_lexeme(op);
+      ret(hole(tm));
     | _ => ret(hole(tm))
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
@@ -1098,16 +1336,45 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           );
         }
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
+      | ([(_id, ([op], []))], []) when op != " " =>
+        /* Unknown infix operator (see the exp Bin fallthrough) */
+        set_lexeme(op);
+        ret(hole(tm));
       | _ => ret(hole(tm))
       }
+    }
+  | Bin(_, ([(_id, ([op], []))], []), _) as tm when op != " " => {
+      /* Unknown infix operator between mixed-sort kids (e.g. the : in
+         `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
+         the same-sort Bin patterns above cannot match) */
+
+      set_lexeme(op);
+      ret(hole(tm));
+    }
+  | Pre(([(_id, ([op], []))], []), _) as tm when op != " " => {
+      /* Stranded prefix op; printed back by the 1-kid MultiHole op
+         branches */
+      set_lexeme(op);
+      ret(hole(tm));
     }
   | tm => ret(hole(tm));
 }
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted) @ inner_ids;
   let t =
-    return(ty => Typ(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
+    return(
+      ty => Typ(ty),
+      ids,
+      IdTagged.mk(
+        ~incomplete=get_incomplete(ids),
+        ~lexeme,
+        ids,
+        get_secondary(ids),
+        term,
+      ),
+    );
   switch (term) {
   | TupLabel(_) => Prod([t]) |> Typ.fresh
   | _ => t
@@ -1117,6 +1384,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   let ret = (term: Typ.term) => (term, []);
   let hole = unsorted => Typ.hole(kids_of_unsorted(unsorted));
   fun
+  | tm when all_exp_only(~host=Sort.Typ, tm) =>
+    /* exp-only forms stranded in type context (`? : if ? then ? else
+       ?` mid-edit) parse as exp inside a hole wrapper, keeping their
+       tiles, ids, and shard masks printable */
+    ret(Unknown(Hole(MultiHole([Exp(exp(tm))]))))
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, (["{", "}"], [Sig(body)]))], []) =>
@@ -1151,20 +1423,75 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when Token.is_quoted_label(t) =>
-          Label(Token.sub(t, 1, Token.length(t) - 2))
+          set_lexeme(t);
+          Label(Token.sub(t, 1, Token.length(t) - 2));
         | (["(", ")"], [Typ(body)]) => Parens(body)
+        | (["(", ")"], [kid]) =>
+          /* Cross-sort parens (see the exp case) */
+          Parens({
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Typ.hole([kid]),
+          })
         | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when is_hole_label(t) => hole(tm)
+        | (["[", "]"], [kid]) =>
+          /* Cross-sort list brackets (see the cross-sort parens case) */
+          List({
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Typ.hole([kid]),
+          })
+        | ([t], []) when is_hole_label(t) =>
+          set_lexeme(t);
+          hole(tm);
         | ([t], []) => Unknown(Hole(Invalid(t)))
         | _ => hole(tm)
         },
       )
     | _ => ret(hole(tm))
     }
-  | Post(Typ(_t), tiles) as tm =>
+  | Post(l, tiles) as tm =>
     switch (tiles) {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
+    | ([(id, (["(", ")"], [kid]))], [])
+        when get_incomplete([id]) != [] || !is_ctr_headed(l) =>
+      /* Keep the parens tile as a juxtaposed kid so it reprints
+         (hole() would drop it) — except for constructor-headed
+         post-parens (`A(Int)`), which must fall through bare: sum-type
+         parsing reads the MultiHole shape for ctor aps, and a Parens
+         node there prints as A((Int)). */
+      let t =
+        switch (l) {
+        | Typ(t) => t
+        | _ => {
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Typ.hole([l]),
+          }
+        };
+
+      let arg =
+        switch (kid) {
+        | Typ(arg) => arg
+        | _ => {
+            annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+            term: Typ.hole([kid]),
+          }
+        };
+      ret(
+        Unknown(
+          Hole(
+            MultiHole([
+              Typ(t),
+              Typ({
+                annotation: {
+                  ...IdTagged.IdTag.mk_internal([id]),
+                  incomplete: get_incomplete([id]),
+                },
+                term: Parens(arg),
+              }),
+            ]),
+          ),
+        ),
+      );
     | _ => ret(hole(tm))
     }
   /* poly and rec have to be before sum so that they bind tighter.
@@ -1240,15 +1567,44 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | _ => ret(ProdProjection(l, r))
         }
       | ([(_id, (["..."], []))], []) => ret(ProdExtension(l, r))
+      | ([(_id, ([op], []))], []) when op != " " =>
+        /* Unknown infix operator (see the exp Bin fallthrough) */
+        set_lexeme(op);
+        ret(hole(tm));
       | _ => ret(hole(tm))
       }
+    }
+  | Bin(_, ([(_id, ([op], []))], []), _) as tm when op != " " => {
+      /* Unknown infix operator between mixed-sort kids (e.g. the : in
+         `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
+         the same-sort Bin patterns above cannot match) */
+
+      set_lexeme(op);
+      ret(hole(tm));
+    }
+  | Pre(([(_id, ([op], []))], []), _) as tm when op != " " => {
+      /* Stranded prefix op; printed back by the 1-kid MultiHole op
+         branches */
+      set_lexeme(op);
+      ret(hole(tm));
     }
   | tm => ret(hole(tm));
 }
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted);
-  return(ty => TPat(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(
+    ty => TPat(ty),
+    ids,
+    IdTagged.mk(
+      ~incomplete=get_incomplete(ids),
+      ~lexeme,
+      ids,
+      get_secondary(ids),
+      term,
+    ),
+  );
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -1260,7 +1616,9 @@ and tpat_term: unsorted => TPat.term = {
       ret(
         switch (tile) {
         | ([t], []) when Token.is_typ_var(t) => Var(t)
-        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) when is_hole_label(t) =>
+          set_lexeme(t);
+          hole(tm);
         | ([t], []) => Invalid(t)
         | (["PROJ_WRAP", "PROJ_WRAP"], [TPat(body)]) => body.term
         | _ => hole(tm)
@@ -1274,8 +1632,19 @@ and tpat_term: unsorted => TPat.term = {
 /* Phase 1.2: Module parsing - placeholder implementation */
 and mod_ = unsorted => {
   let term = mod_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted);
-  return(m => Mod(m), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(
+    m => Mod(m),
+    ids,
+    IdTagged.mk(
+      ~incomplete=get_incomplete(ids),
+      ~lexeme,
+      ids,
+      get_secondary(ids),
+      term,
+    ),
+  );
 }
 and mod_term: unsorted => TermBase.Mod.term = {
   let ret = (term: TermBase.Mod.term) => term;
@@ -1285,7 +1654,9 @@ and mod_term: unsorted => TermBase.Mod.term = {
     switch (tiles) {
     | ([(_id, tile)], []) =>
       switch (tile) {
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) when is_hole_label(t) =>
+        set_lexeme(t);
+        ret(hole(tm));
       | _ =>
         /* Try parsing as expression and wrap as ModExp */
         let e = exp(Op(tiles));
@@ -1327,8 +1698,19 @@ and mod_term: unsorted => TermBase.Mod.term = {
 }
 and sig_ = unsorted => {
   let term = sig_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted);
-  return(s => Sig(s), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(
+    s => Sig(s),
+    ids,
+    IdTagged.mk(
+      ~incomplete=get_incomplete(ids),
+      ~lexeme,
+      ids,
+      get_secondary(ids),
+      term,
+    ),
+  );
 }
 and sig_term: unsorted => TermBase.Sig.term = {
   let ret = (term: TermBase.Sig.term) => term;
@@ -1338,7 +1720,9 @@ and sig_term: unsorted => TermBase.Sig.term = {
     switch (tiles) {
     | ([(_id, tile)], []) =>
       switch (tile) {
-      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) when is_hole_label(t) =>
+        set_lexeme(t);
+        ret(hole(tm));
       | ([t], []) => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
@@ -1365,8 +1749,19 @@ and sig_term: unsorted => TermBase.Sig.term = {
 }
 and mpat = unsorted => {
   let term = mpat_term(unsorted);
+  let lexeme = take_lexeme();
   let ids = ids(unsorted);
-  return(mp => MPat(mp), ids, IdTagged.mk(ids, get_secondary(ids), term));
+  return(
+    mp => MPat(mp),
+    ids,
+    IdTagged.mk(
+      ~incomplete=get_incomplete(ids),
+      ~lexeme,
+      ids,
+      get_secondary(ids),
+      term,
+    ),
+  );
 }
 and mpat_term: unsorted => TermBase.MPat.term = {
   let ret = (term: TermBase.MPat.term) => term;
@@ -1376,7 +1771,9 @@ and mpat_term: unsorted => TermBase.MPat.term = {
     switch (tiles) {
     | ([(_id, ([t], []))], []) when Token.is_var(t) || Token.is_ctr(t) =>
       ret(Var(t))
-    | ([(_id, ([t], []))], []) when is_hole_label(t) => ret(hole(tm))
+    | ([(_id, ([t], []))], []) when is_hole_label(t) =>
+      set_lexeme(t);
+      ret(hole(tm));
     | ([(_id, ([t], []))], []) => ret(Invalid(t))
     | _ => ret(hole(tm))
     }
@@ -1392,7 +1789,12 @@ and rul = (unsorted): Rul.t => {
   let e = exp(unsorted);
   let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
     term: Rules(scrut, rules),
-    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
+    annotation:
+      IdTagged.IdTag.mk(
+        ~incomplete=get_incomplete(ids),
+        ids,
+        get_secondary(ids),
+      ),
   };
   switch (e) {
   | {term: MultiHole(_), _} =>
@@ -1436,17 +1838,32 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
         | Grammar.Exp(e) =>
           Grammar.Exp({
             term: Projector(projector_data, e),
-            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+            annotation:
+              IdTagged.IdTag.mk(
+                ~incomplete=get_incomplete([id]),
+                [id],
+                get_secondary([id]),
+              ),
           })
         | Grammar.Pat(p) =>
           Grammar.Pat({
             term: Projector(projector_data, p),
-            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+            annotation:
+              IdTagged.IdTag.mk(
+                ~incomplete=get_incomplete([id]),
+                [id],
+                get_secondary([id]),
+              ),
           })
         | Grammar.Typ(t) =>
           Grammar.Typ({
             term: Projector(projector_data, t),
-            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+            annotation:
+              IdTagged.IdTag.mk(
+                ~incomplete=get_incomplete([id]),
+                [id],
+                get_secondary([id]),
+              ),
           })
         | _ => inner
         };
@@ -1540,27 +1957,33 @@ let consolidate_adopted = (): unit => {
      });
 };
 
+/* Unmemoized parse. ~masks carries shard provenance from canonical
+ * completion (tile id -> originally-present shard indices); it cannot be
+ * folded into a segment-keyed memo because the same completed segment can
+ * arise from different visible segments with different masks. */
+let go_impl =
+    (~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty, seg) => {
+  map := TermMap.empty;
+  term_data := Id.Map.empty;
+  projectors := Id.Map.empty;
+  projector_list := [];
+  adopted_ids := [];
+  secondary_map := Segment.SecondaryCollection.collect(seg);
+  shard_masks := masks;
+  pending_lexeme := None;
+  let term = exp(unsorted(Exp, Segment.skel(seg), seg));
+  consolidate_adopted();
+  {
+    term,
+    term_data: term_data^,
+    terms: map^,
+    projectors: projectors^,
+    projector_list: projector_list^,
+  };
+};
+
 let go =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    seg => {
-      map := TermMap.empty;
-      term_data := Id.Map.empty;
-      projectors := Id.Map.empty;
-      projector_list := [];
-      adopted_ids := [];
-      secondary_map := Segment.SecondaryCollection.collect(seg);
-      let term = exp(unsorted(Exp, Segment.skel(seg), seg));
-      consolidate_adopted();
-      {
-        term,
-        term_data: term_data^,
-        terms: map^,
-        projectors: projectors^,
-        projector_list: projector_list^,
-      };
-    },
-  );
+  Core.Memo.general(~cache_size_bound=1000, go_impl(~masks=Id.Map.empty));
 
 let for_projection =
   /* Returns Nul() unless segment represents a well-structured term in isolation.
@@ -1625,8 +2048,20 @@ let for_projection =
     }
   );
 
-let from_zip_for_sem = (z: Zipper.t, ~root) =>
-  go(Dump.to_segment(z, ~root));
+let from_zip_for_sem = (z: Zipper.t, ~root: Sort.t) => {
+  /* Semantic terms come from the canonical completion of the visible
+   * segment (caret-independent, provenance-recorded), replacing the
+   * old caret-sensitive missing-shard dump. The ~root parameter matches the
+   * dev signature; completion is invoked at Exp. */
+  let _ = root;
+  let seg =
+    z
+    |> Zipper.clear_unparsed_buffer
+    |> Zipper.unselect_and_zip(~erase_buffer=true);
+  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  let masks = CanonicalCompletion.masks_of_records(result.shard_records);
+  go_impl(~masks, result.completed_seg);
+};
 
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);

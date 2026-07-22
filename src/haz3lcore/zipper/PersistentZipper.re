@@ -6,7 +6,7 @@ type t = {
   backup_text: string,
 };
 
-let to_string = Printer.of_zipper(~holes="", ~indent="");
+let to_string = Printer.of_zipper(~holes="");
 
 let persist = (zipper: Zipper.t) => {
   {

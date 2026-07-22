@@ -21,18 +21,7 @@ let remove_projectors = (segment: Segment.t) =>
 module Print = {
   let seg = (~holes, segment: Segment.t): string => {
     let segment = remove_projectors(segment);
-    Printer.of_segment(
-      ~holes,
-      ~measured=
-        Measured.of_segment(
-          segment,
-          ProjectorCore.Shape.Map.empty,
-          Id.Map.empty,
-        ),
-      ~caret=None,
-      ~indent=" ",
-      segment,
-    );
+    Printer.of_segment(~holes, ~caret=None, segment);
   };
 
   let term = (term: Any.t): string => {
