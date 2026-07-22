@@ -5,101 +5,6 @@ open Language;
 
 let leading_expander = " ";
 
-/* Specifies type information for syntactic forms. Could in principle be
- * derived by generating segments from Forms, parsing them to terms, and
- * running Statics, but for now, new forms e.g. operators must be added
- * below manually.  */
-module Typ = {
-  let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
-
-  let of_const_mono_delim: list((Token.t, Typ.t)) = [
-    ("true", Atom(Bool) |> Typ.fresh),
-    ("false", Atom(Bool) |> Typ.fresh),
-    //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
-    //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
-    ("\"\"", Atom(String) |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
-    ("_", unk),
-  ];
-
-  /* Only need to add forms here if they have a non-trivial type */
-  let of_leading_delim: list((Token.t, Typ.t)) = [
-    ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
-    (
-      "typfun" ++ leading_expander,
-      Poly(Var("") |> TPat.fresh, unk) |> Typ.fresh,
-    ),
-    ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
-    ("of_jdmt" ++ leading_expander, unk),
-    ("of_ctx" ++ leading_expander, unk),
-    ("of_prop" ++ leading_expander, unk),
-    ("of_alfa_exp" ++ leading_expander, unk),
-    ("of_alfa_typ" ++ leading_expander, unk),
-    ("of_alfa_pat" ++ leading_expander, unk),
-    ("of_alfa_tpat" ++ leading_expander, unk),
-  ];
-
-  let of_infix_delim: list((Token.t, Typ.term)) = [
-    ("|>", Unknown(Internal)),
-    (",", Prod([unk, unk])),
-    ("::", List(unk)),
-    ("@", List(unk)),
-    (";", Unknown(Internal)),
-    ("&&", Atom(Bool)),
-    ("\\/", Atom(Bool)),
-    ("||", Atom(Bool)),
-    ("==.", Atom(Bool)),
-    ("==", Atom(Bool)),
-    ("!", Atom(Bool)),
-    ("!=", Atom(Bool)),
-    ("!=.", Atom(Bool)),
-    ("<", Atom(Bool)),
-    (">", Atom(Bool)),
-    ("<=", Atom(Bool)),
-    (">=", Atom(Bool)),
-    ("<.", Atom(Bool)),
-    (">.", Atom(Bool)),
-    ("<=.", Atom(Bool)),
-    (">=.", Atom(Bool)),
-    ("+", Atom(Int)),
-    ("-", Atom(Int)),
-    ("*", Atom(Int)),
-    ("/", Atom(Int)),
-    ("**", Atom(Int)),
-    ("+.", Atom(Float)),
-    ("-.", Atom(Float)),
-    ("*.", Atom(Float)),
-    ("/.", Atom(Float)),
-    ("**.", Atom(Float)),
-    ("++", Atom(String)),
-  ];
-
-  let expected: Info.t => Typ.t =
-    fun
-    | InfoExp({ana, _})
-    | InfoPat({ana, _}) => ana
-    | _ => Unknown(Internal) |> Typ.fresh;
-
-  let filter_by =
-      (
-        ctx: Ctx.t,
-        expected_ty: Typ.t,
-        self_tys: list((Token.t, Typ.t)),
-        delims: list(string),
-      )
-      : list((Token.t, Typ.t)) =>
-    List.filter_map(
-      delim =>
-        switch (List.assoc_opt(delim, self_tys)) {
-        | _ when Form.is_annoying_delim(delim) => None
-        | None => Some((delim, unk))
-        | Some(self_ty) when Typ.is_consistent(ctx, expected_ty, self_ty) =>
-          Some((delim, self_ty))
-        | Some(_) => None
-        },
-      delims,
-    );
-};
-
 /* Automatically collates most delimiters from Forms, notably all
  * mono delimiters, all infix operators, and all leading delimiters */
 module Delims = {
@@ -173,11 +78,11 @@ module Delims = {
     |> List.sort_uniq(compare);
 
   /* base_typs (String, Int, Float, Bool, Nat, SInt) have Exp/Pat-sort
-   * molds (as constructors) but no type entry in Typ.of_const_mono_delim.
-   * Without an entry, filter_by assigns Unknown type, making them match
-   * any expected type. Exclude them from Exp and Pat suggestions;
-   * constructor suggestions come from TyDiCtx.bound_constructors instead.
-   * They remain in Typ sort for type-position completion. */
+   * molds (as constructors) but derive Unknown self types (free
+   * constructors), which would match any expected type. Exclude them
+   * from Exp and Pat suggestions; constructor suggestions come from
+   * TyDiCtx.bound_constructors instead. They remain in Typ sort for
+   * type-position completion. */
   let const_mono_exp =
     const_mono(Exp) |> List.filter(t => !List.mem(t, Token.base_typs));
   let const_mono_pat =
@@ -199,6 +104,108 @@ module Delims = {
     | Drv(TPat) => const_mono_drv_tpat
     | _ => []
     };
+};
+
+/* Specifies type information for syntactic forms. The const-mono and
+ * infix tables are derived from the grammar at startup: each suggestible
+ * token is parsed to a minimal term (infix operators pick up convex
+ * holes as operands via regrout) and run through Statics in an empty
+ * context; the resulting term's type is the entry. Leading-delimiter
+ * types remain manual (their types live inside unentered children). */
+module Typ = {
+  let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
+
+  /* Only need to add forms here if they have a non-trivial type */
+  let of_leading_delim: list((Token.t, Typ.t)) = [
+    ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
+    (
+      "typfun" ++ leading_expander,
+      Poly(Var("") |> TPat.fresh, unk) |> Typ.fresh,
+    ),
+    ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
+    ("of_jdmt" ++ leading_expander, unk),
+    ("of_ctx" ++ leading_expander, unk),
+    ("of_prop" ++ leading_expander, unk),
+    ("of_alfa_exp" ++ leading_expander, unk),
+    ("of_alfa_typ" ++ leading_expander, unk),
+    ("of_alfa_pat" ++ leading_expander, unk),
+    ("of_alfa_tpat" ++ leading_expander, unk),
+  ];
+
+  /* Consumers ignore Unknown provenance (is_consistent); normalize
+   * for stable, deterministic table entries */
+  let normalize_unknowns: Typ.t => Typ.t =
+    Typ.map_term(~f_typ=(continue, ty) =>
+      switch (Typ.term_of(ty)) {
+      | Unknown(_) => Typ.temp(Unknown(Internal))
+      | _ => continue(ty)
+      }
+    );
+
+  let derive_self_ty = (token: Token.t): option(Typ.t) =>
+    try(
+      switch (Parser.to_term(token, ~root=Exp)) {
+      | None => None
+      | Some(term) =>
+        let (info_map, _) = Statics.mk(CoreSettings.on, Ctx.empty, term);
+        switch (Id.Map.find_opt(Exp.rep_id(term), info_map)) {
+        | Some(InfoExp({ty, _})) => Some(normalize_unknowns(ty))
+        | _ => None
+        };
+      }
+    ) {
+    | _ => None
+    };
+
+  /* "=" (labeled-tuple element) is deliberately untyped: its minimal
+   * form is a singleton labeled product, inconsistent with the n-ary
+   * labeled products it is used to build, so a typed entry would
+   * suppress the suggestion exactly where it is wanted. */
+  let deliberately_untyped: list(Token.t) = ["="];
+
+  let derive_table = (tokens: list(Token.t)): list((Token.t, Typ.t)) =>
+    tokens
+    |> List.filter(t => !List.mem(t, deliberately_untyped))
+    |> List.filter_map(t => derive_self_ty(t) |> Option.map(ty => (t, ty)));
+
+  let of_const_mono_delim: list((Token.t, Typ.t)) =
+    derive_table(
+      List.sort_uniq(
+        compare,
+        Delims.const_mono(Exp) @ Delims.const_mono(Pat),
+      ),
+    );
+
+  let of_infix_delim: list((Token.t, Typ.t)) =
+    derive_table(
+      List.sort_uniq(compare, Delims.infix(Exp) @ Delims.infix(Pat)),
+    );
+
+  let expected: Info.t => Typ.t =
+    fun
+    | InfoExp({ana, _})
+    | InfoPat({ana, _}) => ana
+    | _ => Unknown(Internal) |> Typ.fresh;
+
+  let filter_by =
+      (
+        ctx: Ctx.t,
+        expected_ty: Typ.t,
+        self_tys: list((Token.t, Typ.t)),
+        delims: list(string),
+      )
+      : list((Token.t, Typ.t)) =>
+    List.filter_map(
+      delim =>
+        switch (List.assoc_opt(delim, self_tys)) {
+        | _ when Form.is_annoying_delim(delim) => None
+        | None => Some((delim, unk))
+        | Some(self_ty) when Typ.is_consistent(ctx, expected_ty, self_ty) =>
+          Some((delim, self_ty))
+        | Some(_) => None
+        },
+      delims,
+    );
 };
 
 let suggest_form =
@@ -238,10 +245,7 @@ let suggest_form =
 };
 
 let suggest_operator: Info.t => list(TyDiSuggestion.t) =
-  suggest_form(
-    List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
-    Delims.infix,
-  );
+  suggest_form(Typ.of_infix_delim, Delims.infix);
 
 let suggest_operand: Info.t => list(TyDiSuggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);
