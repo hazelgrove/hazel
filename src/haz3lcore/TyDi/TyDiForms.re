@@ -143,7 +143,7 @@ module Delims = {
     Form.delims
     |> List.filter(token =>
          Form.compound_defs([token])
-         |> List.exists(((_, m): (Form.compound_form, Mold.t)) =>
+         |> List.exists(((_, m): (Form.family, Mold.t)) =>
               m.out == sort && Mold.is_infix_op(m)
             )
        )

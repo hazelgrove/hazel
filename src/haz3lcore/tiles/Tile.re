@@ -24,8 +24,8 @@ let token = (t: t, i: int): Token.t => List.nth(label(t), i);
 
 let is_form = (t: t, fam: Form.family): bool => t.form == Form.Compound(fam);
 
-let has_label_of = (t: t, cf: Form.compound_form): bool =>
-  Form.has_label_of(t.form, cf);
+let has_label_of = (t: t, fam: Form.family): bool =>
+  Form.has_label_of(t.form, fam);
 
 let is_comma = (t: t): bool => t.form == Form.Compound(Comma);
 

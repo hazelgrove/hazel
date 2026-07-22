@@ -93,13 +93,13 @@ let upgrade_form = (label: Label.t, mold: Mold.t): (Form.t, Sort.t) => {
   let ((id, sort), exact) =
     switch (
       List.find_opt(
-        ((_, m): (Form.compound_form, Mold.t)) => m == mold,
+        ((_, m): (Form.family, Mold.t)) => m == mold,
         compounds,
       )
     ) {
-    | Some((cf, _)) =>
+    | Some((fam, _)) =>
       incr(count_compound);
-      ((Form.Compound(Form.family_of(cf)), mold.out), true);
+      ((Form.Compound(fam), mold.out), true);
     | None =>
       let atomic =
         switch (label) {
@@ -114,9 +114,9 @@ let upgrade_form = (label: Label.t, mold: Mold.t): (Form.t, Sort.t) => {
         ((id, m.out), true);
       | None when List.mem(mold, any_fallback_molds) =>
         switch (compounds, label) {
-        | ([(cf, _), ..._], _) =>
+        | ([(fam, _), ..._], _) =>
           incr(count_any_fallback);
-          ((Form.Compound(Form.family_of(cf)), Sort.Any), false);
+          ((Form.Compound(fam), Sort.Any), false);
         | ([], [t]) =>
           incr(count_any_fallback);
           ((Form.Tok(t), Sort.Any), false);

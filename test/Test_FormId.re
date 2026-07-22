@@ -1,7 +1,7 @@
 /* Property tests for the FormId v2 classification layer
  * (Form.classify_label / label_of / mold_of / remold_candidates and
- * the family construction), stated oracle-free against the form
- * registry (Form.forms / Form.get / Form.compound_defs). */
+ * the family table), stated oracle-free against the form registry
+ * (Form.forms / Form.defs_of / Form.compound_defs). */
 open Alcotest;
 open Haz3lcore;
 
@@ -69,23 +69,27 @@ let shape_role = (m: Mold.t): (bool, bool) => {
   (conv(l), conv(r));
 };
 
-/* family construction: family_of is exactly the quotient of
-   compound_form by (label, outer-nib shape-role). */
+/* family construction: the family key is exactly the quotient of the
+   definition rows by (label, outer-nib shape-role). */
 let check_family_grouping = (): unit =>
   List.iter(
-    ((cf1, d1): (Form.compound_form, Form.def)) =>
+    ((fam1, d1): (Form.family, Form.def)) =>
       List.iter(
-        ((cf2, d2): (Form.compound_form, Form.def)) => {
-          let same_family = Form.family_of(cf1) == Form.family_of(cf2);
+        ((fam2, d2): (Form.family, Form.def)) => {
+          let same_family = fam1 == fam2;
           let same_key =
             d1.label == d2.label
             && shape_role(d1.mold) == shape_role(d2.mold);
           check(
             bool,
             "grouping is (label, shape-role) quotient: "
-            ++ Form.show_compound_form(cf1)
+            ++ Form.show_family(fam1)
+            ++ " "
+            ++ Label.show(d1.label)
             ++ " vs "
-            ++ Form.show_compound_form(cf2),
+            ++ Form.show_family(fam2)
+            ++ " "
+            ++ Label.show(d2.label),
             same_key,
             same_family,
           );
@@ -96,48 +100,47 @@ let check_family_grouping = (): unit =>
   );
 
 /* family uniqueness: within a family, (out sort -> mold) is a
-   function — members sharing an out sort must have identical molds
-   (the DotTyp/ProdProjection duplicate row is the one such pair). */
+   function — rows sharing an out sort must have identical molds
+   (the Dot family's duplicate Typ row — the historical
+   DotTyp/ProdProjection pair — is the one such case). */
 let check_family_uniqueness = (): unit =>
   List.iter(
     (fam: Form.family) => {
-      let members = Form.family_defs(fam);
+      let defs = Form.defs_of(fam);
       check(
         bool,
         "every family is inhabited: " ++ Form.show_family(fam),
         true,
-        members != [],
+        defs != [],
       );
       List.iter(
-        ((cf1, d1): (Form.compound_form, Form.def)) =>
+        (d1: Form.def) =>
           List.iter(
-            ((cf2, d2): (Form.compound_form, Form.def)) =>
+            (d2: Form.def) =>
               if (d1.mold.out == d2.mold.out) {
                 check(
                   mold_testable,
                   "out->mold is a function in "
                   ++ Form.show_family(fam)
-                  ++ ": "
-                  ++ Form.show_compound_form(cf1)
-                  ++ " vs "
-                  ++ Form.show_compound_form(cf2),
+                  ++ " at "
+                  ++ Sort.to_string(d1.mold.out),
                   d1.mold,
                   d2.mold,
                 );
               },
-            members,
+            defs,
           ),
-        members,
+        defs,
       );
       List.iter(
-        ((_, d): (Form.compound_form, Form.def)) =>
+        (d: Form.def) =>
           check(
             label_testable,
-            "family label is member label: " ++ Form.show_family(fam),
+            "family label is row label: " ++ Form.show_family(fam),
             Form.label_of_family(fam),
             d.label,
           ),
-        members,
+        defs,
       );
     },
     Form.all_of_family,
@@ -200,8 +203,8 @@ let check_classify = (sort: Sort.t, label: Label.t): unit => {
 /* remold_candidates: every candidate carries the queried sort, fits
    it, and spells the label; candidates are Compound/Tok/TokInfix
    only, atoms (single tokens) before compounds; the compound
-   candidates are the family projections of the label's matching
-   forms in declaration order; TokInfix candidates appear exactly for
+   candidates are the families of the label's matching rows in
+   priority order; TokInfix candidates appear exactly for
    InfixDelimiterPrefix tokens at its four sorts, with the
    concave-grout bin mold. */
 let check_remold = (sort: Sort.t, label: Label.t): unit => {
@@ -227,11 +230,10 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
   );
   let expected_compounds =
     Form.forms
-    |> List.filter(((_, def): (Form.compound_form, Form.def)) =>
+    |> List.filter(((_, def): (Form.family, Form.def)) =>
          def.label == label && def.mold.out == sort
        )
-    |> List.map(fst)
-    |> List.map(Form.family_of);
+    |> List.map(fst);
   let actual_compounds =
     cands
     |> List.filter_map(
@@ -241,7 +243,7 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
        );
   check(
     list(family_testable),
-    "compound families in declaration order: " ++ name,
+    "compound families in priority order: " ++ name,
     expected_compounds,
     actual_compounds,
   );
@@ -294,7 +296,7 @@ let tests = (
   "FormId",
   [
     test_case(
-      "family_of is the (label, shape-role) quotient of compound_form",
+      "family is the (label, shape-role) quotient of the definition rows",
       `Quick,
       check_family_grouping,
     ),
@@ -304,28 +306,30 @@ let tests = (
       check_family_uniqueness,
     ),
     test_case(
-      "Compound(family) label/mold agree with Form.get at each member sort",
+      "Compound(family) label/mold agree with defs_of at each row sort",
       `Quick,
       () =>
       List.iter(
-        cf => {
-          let form = Form.get(cf);
-          let fam = Form.family_of(cf);
-          let name = Form.show_compound_form(cf);
-          check(
-            label_testable,
-            name ++ " label",
-            form.label,
-            Form.label_of(Form.Compound(fam)),
-          );
-          check(
-            mold_testable,
-            name ++ " mold",
-            form.mold,
-            Form.mold_of(Form.Compound(fam), form.mold.out),
-          );
-        },
-        Form.all_of_compound_form,
+        (fam: Form.family) =>
+          List.iter(
+            (def: Form.def) => {
+              let name = Form.show_family(fam);
+              check(
+                label_testable,
+                name ++ " label",
+                def.label,
+                Form.label_of(Form.Compound(fam)),
+              );
+              check(
+                mold_testable,
+                name ++ " mold at " ++ Sort.to_string(def.mold.out),
+                def.mold,
+                Form.mold_of(Form.Compound(fam), def.mold.out),
+              );
+            },
+            Form.defs_of(fam),
+          ),
+        Form.all_of_family,
       )
     ),
     test_case(
@@ -396,7 +400,7 @@ let tests = (
     ),
     test_case(
       "remold_candidates on labels x sorts: sort-fit, label-preserving, "
-      ++ "declaration order, TokInfix placement",
+      ++ "priority order, TokInfix placement",
       `Quick,
       () =>
       List.iter(

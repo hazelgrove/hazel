@@ -2,10 +2,9 @@ open Util;
 open Sort;
 module P = Precedence;
 
-/* The form identity types (atomic_form, drv_compound_form,
- * compound_form, FormId.t) live in FormId.re; included here so
- * existing references (Form.compound_form, bare constructors,
- * all_of_compound_form, ...) keep resolving. In particular
+/* The form identity types (atomic_form, family, FormId.t) live in
+ * FormId.re; included here so existing references (Form.family, bare
+ * constructors, all_of_family, ...) keep resolving. In particular
  * Form.t = FormId.t: a form is its identity; the definition
  * record (label/mold/expansion) is Form.def below. */
 include FormId;
@@ -13,9 +12,10 @@ include FormId;
 /* This module determines the syntactic extent of the language; the
  * entire Syntax module is driven by the below definitions. To add
  * a new syntactic form add a case to either the atomic_form or
- * compound_form types and follow the errors. The cases in their
- * corresponding `get` functions determine the shape, precedence,
- * and expansion behavior of the form.*/
+ * family types and follow the errors: each family needs its rows in
+ * `defs_of` and a position per row in `priority` (checked at module
+ * init). The definitions determine the shape, precedence, and
+ * expansion behavior of each form. */
 
 /* When you complete a token corresponding to a delimiter of a
  * compound form, that token might be 'expanded', which is to say,
@@ -95,239 +95,509 @@ let mk_post_c =
 let mk_parens = (sort: Sort.t) =>
   mk_op_c(LT, Token.tuple_lbl, sort, [sort]);
 
-let drv_get: drv_compound_form => def =
+/* The definition rows of each family: every mold the family's label
+ * takes, one row per out sort (the Dot family's duplicate Typ row is
+ * the one exception, kept for candidate-multiplicity fidelity). All
+ * rows of a family share its label and outer-nib shape-role, and
+ * (out sort -> mold) is a function on them (machine-checked in
+ * test/Test_FormId.re). Row order within a family follows the global
+ * `priority` order below. */
+let defs_of: family => list(def) =
   fun
-  | OfJdmt => mk_op_c(L, ["of_jdmt", "end"], Exp, [Drv(Exp)])
-  | OfCtx => mk_op_c(L, ["of_ctx", "end"], Exp, [Drv(Exp)])
-  | OfProp => mk_op_c(L, ["of_prop", "end"], Exp, [Drv(Exp)])
-  | OfAlfaExp => mk_op_c(L, ["of_alfa_exp", "end"], Exp, [Drv(Exp)])
-  | OfAlfaTyp => mk_op_c(L, ["of_alfa_typ", "end"], Exp, [Drv(Typ)])
-  | OfAlfaPat => mk_op_c(L, ["of_alfa_pat", "end"], Exp, [Drv(Pat)])
-  | OfAlfaTPat => mk_op_c(L, ["of_alfa_tpat", "end"], Exp, [Drv(TPat)])
-  | Subst =>
-    mk_pre_c(
-      Non,
-      ["[", "/", "]"],
-      P.fun_,
-      Drv(Exp),
-      [Drv(Exp), Drv(Pat)],
-    )
-  | SubstTy =>
-    mk_pre_c(
-      Non,
-      ["[", "/", "]"],
-      P.fun_,
-      Drv(Typ),
-      [Drv(Typ), Drv(TPat)],
-    )
-  | Glb =>
-    mk_op_c(Non, ["glb(", ",", ")"], Drv(Typ), [Drv(Typ), Drv(Typ)])
-  | Val => mk_op_c(L, ["val", "end"], Drv(Exp), [Drv(Exp)])
-  | Eval => mk_infix("\\=/", Drv(Exp), P.min)
-  | Entail => mk_infix("|-", Drv(Exp), P.min)
-  | UnaryEntail => mk_pre_c(L, ["|-"], P.min, Drv(Exp), [])
-  | Consistent =>
-    mk(
-      L,
-      ["consistent", "~"],
-      Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
-    )
-  | MatchedArrow =>
-    mk(
-      L,
-      ["matched_arrow", "with"],
-      Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
-    )
-  | MatchedProd =>
-    mk(
-      L,
-      ["matched_prod", "with"],
-      Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
-    )
-  | MatchedSum =>
-    mk(
-      L,
-      ["matched_sum", "with"],
-      Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
-    )
-  | Valid => mk_op_c(L, ["valid", "end"], Drv(Exp), [Drv(Typ)])
-  | HasType =>
-    mk(L, [":"], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
-  | Syn =>
-    mk(L, ["=>"], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
-  | Ana =>
-    mk(L, ["<="], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
-  | And => mk_infix("/\\", Drv(Exp), P.and_)
-  | Or => mk_infix("\\/", Drv(Exp), P.or_)
-  | Impl => mk_infix("==>", Drv(Exp), P.impl)
-  | Not => mk_pre_c(L, ["!"], P.neg, Drv(Exp), [])
-  | Cons =>
-    mk(L, ["::"], Mold.mk_bin'(P.cons, Drv(Exp), Drv(Exp), [], Drv(Exp)))
-  | Concat => mk_infix("@", Drv(Exp), P.plus)
-  | List => mk_op_c(LT, ["[", "]"], Drv(Exp), [Drv(Exp)])
-  | Neg => mk_pre_c(L, ["-"], P.neg, Drv(Exp), [])
-  | Plus => mk_infix("+", Drv(Exp), P.plus)
-  | Minus => mk_infix("-", Drv(Exp), P.plus)
-  | Times => mk_infix("*", Drv(Exp), P.mult)
-  | Eq => mk_infix("==", Drv(Exp), P.eqs)
-  | Lt => mk_infix("<", Drv(Exp), P.eqs)
-  | Gt => mk_infix(">", Drv(Exp), P.eqs)
-  | If =>
-    mk_pre_c(
-      L,
-      ["if", "then", "else"],
-      P.if_,
-      Drv(Exp),
-      [Drv(Exp), Drv(Exp)],
-    )
-  | Let =>
-    mk_pre_c(
-      L,
-      ["let", "=", "in"],
-      P.let_,
-      Drv(Exp),
-      [Drv(Pat), Drv(Exp)],
-    )
-  | Fix => mk_pre_c(L, ["fix", "->"], P.fun_, Drv(Exp), [Drv(Pat)])
-  | Fun => mk_pre_c(L, ["fun", "->"], P.fun_, Drv(Exp), [Drv(Pat)])
-  | Dot => mk_infix(".", Drv(Exp), P.dot)
-  | Case => mk_op_c(L, ["case", "end"], Drv(Exp), [Drv(Exp)])
-  | Rule =>
-    mk(
-      L,
-      ["|", "=>"],
-      Mold.mk_bin'(P.rule_sep, Drv(Exp), Drv(Exp), [Drv(Pat)], Drv(Exp)),
-    )
-  | Cast =>
-    mk(L, [":"], Mold.mk_bin'(P.asc, Drv(Pat), Drv(Pat), [], Drv(Typ)))
-  | Arrow => mk_infix("->", Drv(Typ), P.type_arrow)
-  | Prod => mk_infix("*", Drv(Typ), P.type_prod)
-  | Sum => mk_infix("+", Drv(Typ), P.type_plus)
-  | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Drv(Typ), [Drv(TPat)])
-  | ApExpEmpty => mk_post_c(LT, ["()"], P.ap, Drv(Exp), [])
-  | ApExp => mk_post_c(LT, ["(", ")"], P.ap, Drv(Exp), [Drv(Exp)])
-  | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Drv(Pat), [Drv(Pat)])
-  | CommaExp => mk_infix(",", Drv(Exp), P.comma)
-  | CommaPat => mk_infix(",", Drv(Pat), P.comma)
-  | ParenProp => mk_parens(Drv(Prop))
-  | ParenExp => mk_parens(Drv(Exp))
-  | ParenPat => mk_parens(Drv(Pat))
-  | ParenTyp => mk_parens(Drv(Typ));
+  | TypeArrow => [
+      mk_infix("->", Typ, P.type_arrow),
+      mk_infix("->", Drv(Typ), P.type_arrow),
+    ]
+  | CellJoin => [
+      mk_infix(";", Exp, P.semi),
+      mk_infix(";", Mod, P.mod_seq),
+      mk_infix(";", Sig, P.mod_seq),
+    ]
+  | Plus => [
+      mk_infix("+", Exp, P.plus),
+      mk_infix("+", Typ, P.type_plus),
+      mk_infix("+", Drv(Exp), P.plus),
+      mk_infix("+", Drv(Typ), P.type_plus),
+    ]
+  | Minus => [mk_infix("-", Exp, P.plus), mk_infix("-", Drv(Exp), P.plus)]
+  | Times => [
+      mk_infix("*", Exp, P.mult),
+      mk_infix("*", Drv(Exp), P.mult),
+      mk_infix("*", Drv(Typ), P.type_prod),
+    ]
+  | Power => [mk_infix("**", Exp, P.power)]
+  | FPower => [mk_infix("**.", Exp, P.power)]
+  | Divide => [mk_infix("/", Exp, P.mult)]
+  | Equals => [mk_infix("==", Exp, P.eqs), mk_infix("==", Drv(Exp), P.eqs)]
+  | StringConcat => [mk_infix("++", Exp, P.concat)]
+  | Lt => [mk_infix("<", Exp, P.eqs), mk_infix("<", Drv(Exp), P.eqs)]
+  | Gt => [mk_infix(">", Exp, P.eqs), mk_infix(">", Drv(Exp), P.eqs)]
+  | NotEquals => [mk_infix("!=", Exp, P.eqs)]
+  | Gte => [mk_infix(">=", Exp, P.eqs)]
+  | Lte => [
+      mk_infix("<=", Exp, P.eqs),
+      /* derivation Ana judgment */
+      mk(
+        L,
+        ["<="],
+        Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)),
+      ),
+    ]
+  | FPlus => [mk_infix("+.", Exp, P.plus)]
+  | FMinus => [mk_infix("-.", Exp, P.plus)]
+  | FTimes => [mk_infix("*.", Exp, P.mult)]
+  | FDivide => [mk_infix("/.", Exp, P.mult)]
+  | FEquals => [mk_infix("==.", Exp, P.eqs)]
+  | FLt => [mk_infix("<.", Exp, P.eqs)]
+  | FGt => [mk_infix(">.", Exp, P.eqs)]
+  | FNotEquals => [mk_infix("!=.", Exp, P.eqs)]
+  | FGte => [mk_infix(">=.", Exp, P.eqs)]
+  | FLte => [mk_infix("<=.", Exp, P.eqs)]
+  | LogicalAnd => [mk_infix("&&", Exp, P.and_)]
+  | LogicalOrLegacy => [
+      mk_infix("\\/", Exp, P.or_),
+      mk_infix("\\/", Drv(Exp), P.or_),
+    ]
+  | LogicalOr => [mk_infix("||", Exp, P.or_)]
+  | ListConcat => [
+      mk_infix("@", Exp, P.concat),
+      mk_infix("@", Drv(Exp), P.plus),
+    ]
+  | Cons => [
+      mk_infix("::", Exp, P.cons),
+      mk_infix("::", Pat, P.cons),
+      mk(
+        L,
+        ["::"],
+        Mold.mk_bin'(P.cons, Drv(Exp), Drv(Exp), [], Drv(Exp)),
+      ),
+    ]
+  | TypeAsc => [
+      mk_infix(":", Pat, ~l=Pat, ~r=Typ, P.asc),
+      mk_infix(":", Exp, ~l=Exp, ~r=Typ, P.asc),
+      /* derivation HasType judgment */
+      mk(
+        L,
+        [":"],
+        Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)),
+      ),
+      /* derivation Cast */
+      mk(
+        L,
+        [":"],
+        Mold.mk_bin'(P.asc, Drv(Pat), Drv(Pat), [], Drv(Typ)),
+      ),
+      mk_infix(":", MPat, ~l=MPat, ~r=Typ, P.asc),
+    ]
+  | TupleLabeled => [
+      mk_infix("=", Exp, P.lab),
+      mk_infix("=", Pat, P.lab),
+      mk_infix("=", Typ, P.lab),
+    ]
+  | Dot => [
+      mk_infix(".", Exp, P.dot),
+      mk_infix(".", Typ, P.dot),
+      /* duplicate Typ row: the pre-family DotTyp and ProdProjection
+       * were byte-identical; both rows are kept so remold candidate
+       * multiplicity is unchanged */
+      mk_infix(".", Typ, P.dot),
+      mk_infix(".", Drv(Exp), P.dot),
+    ]
+  | TupleExtension => [
+      mk_infix("...", Exp, P.plus),
+      mk_infix("...", Typ, P.ap),
+    ]
+  | Not => [
+      mk_prefix("!", Exp, P.not_),
+      mk_pre_c(L, ["!"], P.neg, Drv(Exp), []),
+    ]
+  | SumSingle => [mk_prefix("+", Typ, P.or_)]
+  | UnaryMinus => [
+      mk_prefix("-", Exp, P.neg),
+      mk_pre_c(L, ["-"], P.neg, Drv(Exp), []),
+    ]
+  | Comma => [
+      mk_infix(",", Exp, P.comma),
+      mk_infix(",", Pat, P.comma),
+      mk_infix(",", Typ, P.comma),
+      mk_infix(",", Drv(Exp), P.comma),
+      mk_infix(",", Drv(Pat), P.comma),
+    ]
+  | ListLit => [
+      mk_op_c(LT, ["[", "]"], Exp, [Exp]),
+      mk_op_c(LT, ["[", "]"], Pat, [Pat]),
+      mk_op_c(LT, ["[", "]"], Typ, [Typ]),
+      mk_op_c(LT, ["[", "]"], Drv(Exp), [Drv(Exp)]),
+    ]
+  | Parens => [
+      mk_parens(Exp),
+      mk_parens(Pat),
+      mk_parens(Typ),
+      mk_parens(TPat), // HACk (Issue #1913)
+      mk_parens(Drv(Prop)),
+      mk_parens(Drv(Exp)),
+      mk_parens(Drv(Pat)),
+      mk_parens(Drv(Typ)),
+    ]
+  | ApEmpty => [
+      mk_post_c(LT, ["()"], P.ap, Exp, []),
+      mk_post_c(LT, ["()"], P.ap, Pat, []),
+      mk_post_c(LT, ["()"], P.ap, Drv(Exp), []),
+    ]
+  | Ap => [
+      mk_post_c(LT, ["(", ")"], P.ap, Exp, [Exp]),
+      mk_post_c(LT, ["(", ")"], P.ap, Pat, [Pat]),
+      mk_post_c(LT, ["(", ")"], P.type_sum_ap, Typ, [Typ]),
+      mk_post_c(LT, ["(", ")"], P.ap, Drv(Exp), [Drv(Exp)]),
+      mk_post_c(LT, ["(", ")"], P.ap, Drv(Pat), [Drv(Pat)]),
+    ]
+  | ApExpTyp => [mk_post_c(L, ["@<", ">"], P.ap, Exp, [Typ])]
+  | Case => [
+      mk_op_c(L, ["case", "end"], Exp, [Rul]),
+      mk_op_c(L, ["case", "end"], Drv(Exp), [Drv(Exp)]),
+    ]
+  | Test => [mk_op_c(L, ["test", "end"], Exp, [Exp])]
+  | ProofOf => [mk_op_c(L, ["proof_of", "end"], Typ, [Exp])]
+  | ProofObject => [mk_op_c(L, ["proof_object", "end"], Exp, [Exp])]
+  | HintedTest => [mk_op_c(L, ["hint", "test", "end"], Exp, [Exp, Exp])]
+  | Fun => [
+      mk_pre_c(L, ["fun", "->"], P.fun_, Exp, [Pat]),
+      mk_pre_c(L, ["fun", "->"], P.fun_, Drv(Exp), [Drv(Pat)]),
+    ]
+  | Fix => [
+      mk_pre_c(L, ["fix", "->"], P.fun_, Exp, [Pat]),
+      mk_pre_c(L, ["fix", "->"], P.fun_, Drv(Exp), [Drv(Pat)]),
+    ]
+  | TypFun => [mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])]
+  | Poly => [mk_pre_c(L, ["poly", "->"], P.fun_, Typ, [TPat])]
+  | Forall => [mk_pre_c(L, ["forall", "->"], P.fun_, Exp, [Pat])]
+  | Rec => [
+      mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat]),
+      mk_pre_c(L, ["rec", "->"], P.fun_, Drv(Typ), [Drv(TPat)]),
+    ]
+  | Rule => [
+      mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp)),
+      mk(
+        L,
+        ["|", "=>"],
+        Mold.mk_bin'(
+          P.rule_sep,
+          Drv(Exp),
+          Drv(Exp),
+          [Drv(Pat)],
+          Drv(Exp),
+        ),
+      ),
+    ]
+  | Pipeline => [mk_infix("|>", Exp, P.eqs)] // in OCaml, pipeline precedence is in same class as '=', '<', etc.
+  | FilterHide => [mk_pre_c(L, ["hide", "in"], P.let_, Exp, [Exp])]
+  | FilterEval => [mk_pre_c(L, ["eval", "in"], P.let_, Exp, [Exp])]
+  | FilterPause => [mk_pre_c(L, ["pause", "in"], P.let_, Exp, [Exp])]
+  | FilterDebug => [mk_pre_c(L, ["debug", "in"], P.let_, Exp, [Exp])]
+  | Use => [mk_pre_c(L, ["use", "in"], P.let_, Exp, [Typ])]
+  | OfProp => [mk_op_c(L, ["of_prop", "end"], Exp, [Drv(Exp)])]
+  | OfCtx => [mk_op_c(L, ["of_ctx", "end"], Exp, [Drv(Exp)])]
+  | OfJdmt => [mk_op_c(L, ["of_jdmt", "end"], Exp, [Drv(Exp)])]
+  | OfAlfaExp => [mk_op_c(L, ["of_alfa_exp", "end"], Exp, [Drv(Exp)])]
+  | OfAlfaTyp => [mk_op_c(L, ["of_alfa_typ", "end"], Exp, [Drv(Typ)])]
+  | OfAlfaPat => [mk_op_c(L, ["of_alfa_pat", "end"], Exp, [Drv(Pat)])]
+  | OfAlfaTPat => [mk_op_c(L, ["of_alfa_tpat", "end"], Exp, [Drv(TPat)])]
+  | Subst => [
+      mk_pre_c(
+        Non,
+        ["[", "/", "]"],
+        P.fun_,
+        Drv(Exp),
+        [Drv(Exp), Drv(Pat)],
+      ),
+      mk_pre_c(
+        Non,
+        ["[", "/", "]"],
+        P.fun_,
+        Drv(Typ),
+        [Drv(Typ), Drv(TPat)],
+      ),
+    ]
+  | Glb => [
+      mk_op_c(Non, ["glb(", ",", ")"], Drv(Typ), [Drv(Typ), Drv(Typ)]),
+    ]
+  | Val => [mk_op_c(L, ["val", "end"], Drv(Exp), [Drv(Exp)])]
+  | Eval => [mk_infix("\\=/", Drv(Exp), P.min)]
+  | Entail => [mk_infix("|-", Drv(Exp), P.min)]
+  | UnaryEntail => [mk_pre_c(L, ["|-"], P.min, Drv(Exp), [])]
+  | Consistent => [
+      mk(
+        L,
+        ["consistent", "~"],
+        Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      ),
+    ]
+  | MatchedArrow => [
+      mk(
+        L,
+        ["matched_arrow", "with"],
+        Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      ),
+    ]
+  | MatchedProd => [
+      mk(
+        L,
+        ["matched_prod", "with"],
+        Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      ),
+    ]
+  | MatchedSum => [
+      mk(
+        L,
+        ["matched_sum", "with"],
+        Mold.mk_pre'(P.fun_, Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      ),
+    ]
+  | Valid => [mk_op_c(L, ["valid", "end"], Drv(Exp), [Drv(Typ)])]
+  | Syn => [
+      mk(
+        L,
+        ["=>"],
+        Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)),
+      ),
+    ]
+  | And => [mk_infix("/\\", Drv(Exp), P.and_)]
+  | Impl => [mk_infix("==>", Drv(Exp), P.impl)]
+  | If => [
+      mk_pre_c(
+        L,
+        ["if", "then", "else"],
+        P.if_,
+        Drv(Exp),
+        [Drv(Exp), Drv(Exp)],
+      ),
+      mk_pre_c(L, ["if", "then", "else"], P.if_, Exp, [Exp, Exp]),
+    ]
+  | Let => [
+      mk_pre_c(
+        L,
+        ["let", "=", "in"],
+        P.let_,
+        Drv(Exp),
+        [Drv(Pat), Drv(Exp)],
+      ),
+      mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp]),
+    ]
+  | Theorem => [
+      mk_pre_c(L, ["theorem", "=", "in"], P.let_, Exp, [Pat, Exp]),
+    ]
+  | TypeAlias => [
+      mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ]),
+    ]
+  | ModBody => [
+      mk_op_c(LT, ["{", "}"], Exp, [Mod]),
+      mk_op_c(LT, ["{", "}"], Typ, [Sig]),
+    ]
+  | ModLet => [mk_pre_c'(L, ["let", "="], P.let_, Mod, [Pat], Exp)]
+  | ModType => [
+      mk_pre_c'(L, ["type", "="], P.let_, Mod, [TPat], Typ),
+      mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ),
+    ]
+  | ModuleExp => [
+      mk_pre_c'(L, ["module", "=", "in"], P.let_, Exp, [MPat, Exp], Exp),
+    ]
+  | ModuleMod => [mk_pre_c'(L, ["module", "="], P.let_, Mod, [MPat], Exp)]
+  | SigLet => [mk_pre_c'(L, ["let"], P.let_, Sig, [], Pat)];
 
-let get: compound_form => def =
-  fun
-  // INFIX OPERATORS
-  | TypeArrow => mk_infix("->", Typ, P.type_arrow)
-  | CellJoin => mk_infix(";", Exp, P.semi)
-  | Plus => mk_infix("+", Exp, P.plus)
-  | Minus => mk_infix("-", Exp, P.plus)
-  | Times => mk_infix("*", Exp, P.mult)
-  | Power => mk_infix("**", Exp, P.power)
-  | FPower => mk_infix("**.", Exp, P.power)
-  | Divide => mk_infix("/", Exp, P.mult)
-  | Equals => mk_infix("==", Exp, P.eqs)
-  | StringConcat => mk_infix("++", Exp, P.concat)
-  | Lt => mk_infix("<", Exp, P.eqs)
-  | Gt => mk_infix(">", Exp, P.eqs)
-  | NotEquals => mk_infix("!=", Exp, P.eqs)
-  | Gte => mk_infix(">=", Exp, P.eqs)
-  | Lte => mk_infix("<=", Exp, P.eqs)
-  | FPlus => mk_infix("+.", Exp, P.plus)
-  | FMinus => mk_infix("-.", Exp, P.plus)
-  | FTimes => mk_infix("*.", Exp, P.mult)
-  | FDivide => mk_infix("/.", Exp, P.mult)
-  | FEquals => mk_infix("==.", Exp, P.eqs)
-  | FLt => mk_infix("<.", Exp, P.eqs)
-  | FGt => mk_infix(">.", Exp, P.eqs)
-  | FNotEquals => mk_infix("!=.", Exp, P.eqs)
-  | FGte => mk_infix(">=.", Exp, P.eqs)
-  | FLte => mk_infix("<=.", Exp, P.eqs)
-  | LogicalAnd => mk_infix("&&", Exp, P.and_)
-  | LogicalOrLegacy => mk_infix("\\/", Exp, P.or_)
-  | LogicalOr => mk_infix("||", Exp, P.or_)
-  | ListConcat => mk_infix("@", Exp, P.concat)
-  | ConsExp => mk_infix("::", Exp, P.cons)
-  | ConsPat => mk_infix("::", Pat, P.cons)
-  | Typeann => mk_infix(":", Pat, ~l=Pat, ~r=Typ, P.asc)
-  | TupleLabeledExp => mk_infix("=", Exp, P.lab)
-  | TupleLabeledPat => mk_infix("=", Pat, P.lab)
-  | TupleLabeledTyp => mk_infix("=", Typ, P.lab)
-  | DotExp => mk_infix(".", Exp, P.dot)
-  | DotTyp => mk_infix(".", Typ, P.dot)
-  | TypeAsc => mk_infix(":", Exp, ~l=Exp, ~r=Typ, P.asc)
-  | TupleExtension => mk_infix("...", Exp, P.plus)
-  | TypPlus => mk_infix("+", Typ, P.type_plus)
-  | ProdProjection => mk_infix(".", Typ, P.dot)
-  | ProdExtension => mk_infix("...", Typ, P.ap)
-  // UNARY PREFIX OPERATORS
-  | Not => mk_prefix("!", Exp, P.not_)
-  | TypSumSingle => mk_prefix("+", Typ, P.or_)
-  | UnaryMinus => mk_prefix("-", Exp, P.neg)
-  // N-ARY OPS (on the semantics level)
-  | CommaExp => mk_infix(",", Exp, P.comma)
-  | CommaPat => mk_infix(",", Pat, P.comma)
-  | CommaTyp => mk_infix(",", Typ, P.comma)
-  // PAIRED DELIMITERS:
-  | ListLitExp => mk_op_c(LT, ["[", "]"], Exp, [Exp])
-  | ListLitPat => mk_op_c(LT, ["[", "]"], Pat, [Pat])
-  | ListTyp => mk_op_c(LT, ["[", "]"], Typ, [Typ])
-  //NOTE(andrew): parens being below aps is load-bearing, unfortunately
-  | ParensExp => mk_parens(Exp)
-  | ParensPat => mk_parens(Pat)
-  | ParensTyp => mk_parens(Typ)
-  | ParensTPat => mk_parens(TPat) // HACk (Issue #1913)
-  | ApExpEmpty => mk_post_c(LT, ["()"], P.ap, Exp, [])
-  | ApExp => mk_post_c(LT, ["(", ")"], P.ap, Exp, [Exp])
-  | ApPatEmpty => mk_post_c(LT, ["()"], P.ap, Pat, [])
-  | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Pat, [Pat])
-  | ApTyp => mk_post_c(LT, ["(", ")"], P.type_sum_ap, Typ, [Typ])
-  | ApExpTyp => mk_post_c(L, ["@<", ">"], P.ap, Exp, [Typ])
-  | Case => mk_op_c(L, ["case", "end"], Exp, [Rul])
-  | Test => mk_op_c(L, ["test", "end"], Exp, [Exp])
-  | Fun => mk_pre_c(L, ["fun", "->"], P.fun_, Exp, [Pat])
-  | Fix => mk_pre_c(L, ["fix", "->"], P.fun_, Exp, [Pat])
-  | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])
-  | Poly => mk_pre_c(L, ["poly", "->"], P.fun_, Typ, [TPat])
-  | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Exp, [Pat])
-  | ProofObject => mk_op_c(L, ["proof_object", "end"], Exp, [Exp])
-  | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat])
-  | Rule =>
-    mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
-  | Pipeline => mk_infix("|>", Exp, P.eqs) // in OCaml, pipeline precedence is in same class as '=', '<', etc.
-  // DOUBLE DELIMITERS
-  | FilterHide => mk_pre_c(L, ["hide", "in"], P.let_, Exp, [Exp])
-  | FilterEval => mk_pre_c(L, ["eval", "in"], P.let_, Exp, [Exp])
-  | FilterPause => mk_pre_c(L, ["pause", "in"], P.let_, Exp, [Exp])
-  | FilterDebug => mk_pre_c(L, ["debug", "in"], P.let_, Exp, [Exp])
-  | Use => mk_pre_c(L, ["use", "in"], P.let_, Exp, [Typ])
-  // Drv
-  | Drv(drv_compound_form) => drv_get(drv_compound_form)
-  // Theorem Capture
-  | Theorem => mk_pre_c(L, ["theorem", "=", "in"], P.let_, Exp, [Pat, Exp])
-  | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
-  // TRIPLE DELIMITERS
-  | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
-  | TypeAlias => mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])
-  | If => mk_pre_c(L, ["if", "then", "else"], P.if_, Exp, [Exp, Exp])
-  | HintedTest => mk_op_c(L, ["hint", "test", "end"], Exp, [Exp, Exp])
-  // MODULE FORMS
-  | ModBody => mk_op_c(LT, ["{", "}"], Exp, [Mod])
-  | ModSeq => mk_infix(";", Mod, P.mod_seq)
-  | ModLet => mk_pre_c'(L, ["let", "="], P.let_, Mod, [Pat], Exp)
-  | ModType => mk_pre_c'(L, ["type", "="], P.let_, Mod, [TPat], Typ)
-  // MODULE KEYWORD FORMS
-  | ModuleExp =>
-    mk_pre_c'(L, ["module", "=", "in"], P.let_, Exp, [MPat, Exp], Exp)
-  | ModuleMod => mk_pre_c'(L, ["module", "="], P.let_, Mod, [MPat], Exp)
-  | MPatTypeann => mk_infix(":", MPat, ~l=MPat, ~r=Typ, P.asc)
-  // SIGNATURE FORMS
-  | SigBody => mk_op_c(LT, ["{", "}"], Typ, [Sig])
-  | SigSeq => mk_infix(";", Sig, P.mod_seq)
-  | SigLet => mk_pre_c'(L, ["let"], P.let_, Sig, [], Pat)
-  | SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ);
+/* Global classification/remolding priority: the flat row order of the
+ * form table (the old forms-list declaration order). Each occurrence
+ * of a family below is dealt that family's next defs_of row, so a
+ * family with n rows appears n times; a count mismatch fails loudly
+ * at module init. The interleaving is load-bearing wherever families
+ * share a label with rows at the same sort: at Exp/Pat/Typ the Parens
+ * row precedes the Ap row while at Drv sorts the Ap row precedes the
+ * Parens row (classify picks Ap there — see mk_parens_id); likewise
+ * bin-vs-prefix `-` flips between Exp (Minus first) and Drv(Exp)
+ * (UnaryMinus first), and bin `+` vs prefix `+` (SumSingle) and
+ * Entail vs UnaryEntail depend on their relative positions. */
+let priority: list(family) = [
+  TypeArrow,
+  CellJoin,
+  Plus,
+  Minus,
+  Times,
+  Power,
+  FPower,
+  Divide,
+  Equals,
+  StringConcat,
+  Lt,
+  Gt,
+  NotEquals,
+  Gte,
+  Lte,
+  FPlus,
+  FMinus,
+  FTimes,
+  FDivide,
+  FEquals,
+  FLt,
+  FGt,
+  FNotEquals,
+  FGte,
+  FLte,
+  LogicalAnd,
+  LogicalOrLegacy,
+  LogicalOr,
+  ListConcat,
+  Cons,
+  Cons,
+  TypeAsc,
+  TupleLabeled,
+  TupleLabeled,
+  TupleLabeled,
+  Dot,
+  TupleExtension,
+  Dot,
+  TypeAsc,
+  Plus,
+  Dot,
+  TupleExtension,
+  Not,
+  SumSingle,
+  UnaryMinus,
+  Comma,
+  Comma,
+  Comma,
+  ListLit,
+  ListLit,
+  ListLit,
+  Parens,
+  Parens,
+  Parens,
+  Parens,
+  ApEmpty,
+  Ap,
+  ApEmpty,
+  Ap,
+  Ap,
+  ApExpTyp,
+  Case,
+  Test,
+  ProofOf,
+  ProofObject,
+  HintedTest,
+  Fun,
+  Fix,
+  TypFun,
+  Poly,
+  Forall,
+  Rec,
+  Rule,
+  Pipeline,
+  FilterHide,
+  FilterEval,
+  FilterPause,
+  FilterDebug,
+  Use,
+  OfProp,
+  OfCtx,
+  OfJdmt,
+  OfAlfaExp,
+  OfAlfaTyp,
+  OfAlfaPat,
+  OfAlfaTPat,
+  Subst,
+  Subst,
+  Glb,
+  Val,
+  Eval,
+  Entail,
+  UnaryEntail,
+  Consistent,
+  MatchedArrow,
+  MatchedProd,
+  MatchedSum,
+  Valid,
+  TypeAsc,
+  Syn,
+  Lte,
+  And,
+  LogicalOrLegacy,
+  Impl,
+  Not,
+  Cons,
+  ListConcat,
+  ListLit,
+  UnaryMinus,
+  Plus,
+  Minus,
+  Times,
+  Equals,
+  Lt,
+  Gt,
+  If,
+  Let,
+  Fix,
+  Fun,
+  Dot,
+  Case,
+  Rule,
+  TypeAsc,
+  TypeArrow,
+  Times,
+  Plus,
+  Rec,
+  ApEmpty,
+  Ap,
+  Ap,
+  Comma,
+  Comma,
+  Parens,
+  Parens,
+  Parens,
+  Parens,
+  Let,
+  Theorem,
+  TypeAlias,
+  If,
+  ModBody,
+  CellJoin,
+  ModLet,
+  ModType,
+  ModuleExp,
+  ModuleMod,
+  TypeAsc,
+  ModBody,
+  CellJoin,
+  SigLet,
+  ModType,
+];
 
-let forms: list((compound_form, def)) =
-  List.map(f => (f, get(f)), all_of_compound_form);
+let forms: list((family, def)) = {
+  let remaining: Hashtbl.t(family, list(def)) = Hashtbl.create(128);
+  List.iter(f => Hashtbl.replace(remaining, f, defs_of(f)), all_of_family);
+  let deal = (fam: family): def =>
+    switch (Hashtbl.find(remaining, fam)) {
+    | [] =>
+      failwith(
+        "Form.forms: priority lists "
+        ++ show_family(fam)
+        ++ " more often than defs_of has rows",
+      )
+    | [d, ...rest] =>
+      Hashtbl.replace(remaining, fam, rest);
+      d;
+    };
+  let rows = List.map(fam => (fam, deal(fam)), priority);
+  List.iter(
+    fam =>
+      if (Hashtbl.find(remaining, fam) != []) {
+        failwith(
+          "Form.forms: defs_of("
+          ++ show_family(fam)
+          ++ ") has rows not listed in priority",
+        );
+      },
+    all_of_family,
+  );
+  rows;
+};
 
 let delims: list(Token.t) =
   forms |> List.concat_map(((_, t)) => t.label) |> List.sort_uniq(compare);
@@ -347,13 +617,12 @@ let is_annoying_delim = List.mem(_, annoying_delims);
  * delimiter */
 let infix_delimiter_ops_prefixes: list(Token.t) =
   forms
-  |> List.filter_map(((form: compound_form, _)) => {
-       let form = get(form);
+  |> List.filter_map(((_, form: def)) => {
        switch ((form.mold.nibs |> snd).shape) {
        /* Could be pickier here, e.g. just trailing delimiters */
        | _ when List.length(form.label) >= 2 => Some(form.label)
        | _ => None
-       };
+       }
      })
   |> List.concat
   |> List.filter(Token.is_potential_operand)
@@ -545,16 +814,6 @@ module Expansion = {
 /* FormId lookup/classification layer (property-tested in
  * test/Test_FormId.re). */
 
-let form_of: compound_form => def = {
-  let tbl: Hashtbl.t(compound_form, def) = Hashtbl.create(256);
-  List.iter(((cf, form)) => Hashtbl.replace(tbl, cf, form), forms);
-  cf =>
-    switch (Hashtbl.find_opt(tbl, cf)) {
-    | Some(form) => form
-    | None => get(cf) /* unreachable: forms covers all_of_compound_form */
-    };
-};
-
 let atomic_defs: list((atomic_form, (Token.t => bool, list(Mold.t)))) =
   List.map(a => (a, get_atomic_form(a)), all_of_atomic_form);
 
@@ -575,15 +834,15 @@ let atomic_candidates = (t: Token.t): list((FormId.t, Mold.t)) =>
     atomic_defs,
   );
 
-/* label => (form, mold) pairs, memoized; per-label order =
- * forms-declaration order (remolding priority) */
-let compound_defs: Label.t => list((compound_form, Mold.t)) = {
-  let tbl: Hashtbl.t(Label.t, list((compound_form, Mold.t))) =
+/* label => (family, mold) pairs, memoized; per-label order =
+ * priority order (remolding priority) */
+let compound_defs: Label.t => list((family, Mold.t)) = {
+  let tbl: Hashtbl.t(Label.t, list((family, Mold.t))) =
     Hashtbl.create(256);
   List.iter(
-    ((cf, {label, mold, _}: def)) => {
+    ((fam, {label, mold, _}: def)) => {
       let prev = Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
-      Hashtbl.replace(tbl, label, prev @ [(cf, mold)]);
+      Hashtbl.replace(tbl, label, prev @ [(fam, mold)]);
     },
     forms,
   );
@@ -592,34 +851,17 @@ let compound_defs: Label.t => list((compound_form, Mold.t)) = {
 
 let base_candidates = (label: Label.t): list((FormId.t, Mold.t)) => {
   let compounds =
-    compound_defs(label)
-    |> List.map(((cf, m)) => (Compound(family_of(cf)), m));
+    compound_defs(label) |> List.map(((fam, m)) => (Compound(fam), m));
   switch (label) {
   | [t] => atomic_candidates(t) @ compounds
   | _ => compounds
   };
 };
 
-/* family => members with defs, in forms-declaration order (the
- * (family, sort) => mold lookup priority) */
-let family_defs: family => list((compound_form, def)) = {
-  let tbl: Hashtbl.t(family, list((compound_form, def))) =
-    Hashtbl.create(128);
-  List.iter(
-    ((cf, def)) => {
-      let fam = family_of(cf);
-      let prev = Option.value(Hashtbl.find_opt(tbl, fam), ~default=[]);
-      Hashtbl.replace(tbl, fam, prev @ [(cf, def)]);
-    },
-    forms,
-  );
-  fam => Option.value(Hashtbl.find_opt(tbl, fam), ~default=[]);
-};
-
 let label_of_family = (fam: family): Label.t =>
-  switch (family_defs(fam)) {
-  | [(_, def), ..._] => def.label
-  | [] => [] /* unreachable: every family has a member */
+  switch (defs_of(fam)) {
+  | [def, ..._] => def.label
+  | [] => [] /* unreachable: every family has a row */
   };
 
 let unmolded_mold = (label: Label.t): Mold.t =>
@@ -636,15 +878,15 @@ let label_of: FormId.t => Label.t =
   | Tok(t)
   | TokInfix(t) => [t];
 
-/* Does this form spell the same label as registered form cf?
+/* Does this form spell the same label as family fam?
  * Label-family check: labels are shared between families (e.g.
  * ["(",")"] is both Parens and Ap), and Tok ids can spell the same
  * tokens as a registered form. */
-let has_label_of = (f: FormId.t, cf: compound_form): bool =>
-  label_of(f) == form_of(cf).label;
+let has_label_of = (f: FormId.t, fam: family): bool =>
+  label_of(f) == label_of_family(fam);
 
 /* The mold of a form at the tile's stored sort. Compound: the family
- * member with that out sort, else the Any-fallback (old Unsorted
+ * row with that out sort, else the Any-fallback (old Unsorted
  * behavior; in particular sort=Any always falls back — no form has
  * out=Any). Tok: the first atomic-candidate mold with that out sort
  * (atomic_form declaration order), else the Any-fallback (old
@@ -653,13 +895,8 @@ let has_label_of = (f: FormId.t, cf: compound_form): bool =>
 let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
   switch (f) {
   | Compound(fam) =>
-    switch (
-      List.find_opt(
-        ((_, def): (compound_form, def)) => def.mold.out == sort,
-        family_defs(fam),
-      )
-    ) {
-    | Some((_, def)) => def.mold
+    switch (List.find_opt((def: def) => def.mold.out == sort, defs_of(fam))) {
+    | Some(def) => def.mold
     | None => unmolded_mold(label_of_family(fam))
     }
   | Tok(t) =>
@@ -678,7 +915,7 @@ let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
 /* Classify a label at a sort: the (form, sort-to-store) pair such
  * that mold_of(form, sort-to-store) reproduces the old Molds.get
  * mold. First base candidate whose mold fits the sort (atomics
- * before compounds, declaration order — TokInfix never wins here:
+ * before compounds, priority order — TokInfix never wins here:
  * every InfixDelimiterPrefix token is var-shaped, and the var
  * classes precede it); otherwise the Any-fallback with stored sort
  * Any. */
@@ -688,7 +925,7 @@ let classify_label = (sort: Sort.t, label: Label.t): (FormId.t, Sort.t) => {
   | Some((id, _)) => (id, sort)
   | None =>
     switch (compound_defs(label)) {
-    | [(cf, _), ..._] => (Compound(family_of(cf)), Sort.Any)
+    | [(fam, _), ..._] => (Compound(fam), Sort.Any)
     | [] =>
       switch (label) {
       | [t] => (Tok(t), Sort.Any)

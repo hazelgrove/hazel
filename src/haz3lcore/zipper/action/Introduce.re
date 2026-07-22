@@ -214,7 +214,7 @@ module Make =
     let parent = Ancestors.parent(z.relatives.ancestors);
     Option.fold(
       ~none=false,
-      ~some=(a: Ancestor.t) => Form.has_label_of(a.form, ParensExp),
+      ~some=(a: Ancestor.t) => Form.has_label_of(a.form, Parens),
       parent,
     )
     && sibs

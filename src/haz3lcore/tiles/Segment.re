@@ -285,8 +285,8 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         ([Tile(t), ...remolded], shape, []);
       | Some(t)
           when
-            Tile.has_label_of(t, CommaTyp)
-            || Tile.has_label_of(t, TypPlus)
+            Tile.has_label_of(t, Comma)
+            || Tile.has_label_of(t, Plus)
             && List.exists((==)(Sort.Exp), parent_sorts) => (
           [],
           shape,
