@@ -382,14 +382,10 @@ let is_block_form = (p: Piece.t): bool =>
   is_compound_prefix(p)
   || (
     switch (p) {
-    | Tile(t) when Tile.is_complete(t) =>
-      switch (Tile.label(t)) {
-      | ["case", "end"]
-      | ["test", "end"]
-      | ["hint", "test", "end"] => true
-      | [_, "end"] => true
-      | _ => false
-      }
+    | Tile(t) =>
+      Tile.is_complete(t)
+      && Tile.is_multidelimiter(t)
+      && Tile.ends_with_end(t)
     | _ => false
     }
   );
@@ -407,11 +403,12 @@ let segment_starts_with_block = (seg: Segment.t): bool =>
    we only want to tighten f (x) → f(x), not remove breaks before ")". */
 let is_paren_or_bracket = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({shards, children, _} as t)
-      when
-        Tile.is_paren_shaped(t)
-        || Tile.is_bracket_shaped(t)
-        || Tile.has_label_of(t, ApExpTyp) =>
+  | Tile({
+      form: Form.Compound(Parens | Ap | ListLit | ApExpTyp),
+      shards,
+      children,
+      _,
+    }) =>
     /* Complete tile (has children) or opening shard (index 0) */
     List.length(children) > 0 || shards == [0]
   | _ => false
@@ -529,11 +526,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   let try_hanging_delim =
       (content: list(Piece.t), ~suffix: doc=Empty, ()): option(doc) =>
     switch (content) {
-    | [Tile(dt)]
-        when
-          s.hanging_delimiters
-          && (Tile.is_paren_shaped(dt) || Tile.is_bracket_shaped(dt))
-          && List.length(dt.children) > 0 =>
+    | [Tile({form: Form.Compound(Parens | Ap | ListLit), _} as dt)]
+        when s.hanging_delimiters && List.length(dt.children) > 0 =>
       let open_s = Tile.to_piece(Tile.shard_of(dt, 0));
       let close_s = Tile.to_piece(Tile.shard_of(dt, Tile.arity(dt) - 1));
       switch (Tile.contained_children(dt)) {
@@ -571,9 +565,9 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => cats([tile_doc, Break, Group(segment_to_doc(s, rest))])
     };
 
-  switch (Tile.label(t)) {
-  /* Binding forms: let/=/in, type/=/in, theorem/=/in */
-  | [_, "=", "in"] =>
+  switch (t.form) {
+  /* Definition forms: let/=/in, type/=/in, theorem/=/in, module/=/in */
+  | _ when Tile.is_definition_form(t) =>
     switch (triples) {
     | [(_, pat_child, _), (_, binding_child, _)] =>
       let prefix =
@@ -600,7 +594,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* if/then/else */
-  | ["if", "then", "else"] =>
+  | Form.Compound(If) =>
     switch (triples) {
     | [(_, cond_child, _), (_, conseq_child, _)] =>
       /* If conseq is a block-like expression (let/case/fun/if/...), force
@@ -626,7 +620,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* Prefix arrow forms: fun/->, fix/->, typfun/->, poly/->, forall/->, rec/-> */
-  | [_, "->"] =>
+  | _ when Tile.is_prefix_arrow_form(t) =>
     switch (triples) {
     | [(_, param_child, _)] =>
       let param_doc = child_doc(s, param_child);
@@ -661,9 +655,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* Delimiter pairs: (...), [...], {...} */
-  | ["(", ")"]
-  | ["[", "]"]
-  | ["{", "}"] =>
+  | Form.Compound(Parens | Ap | ListLit | ModBody) =>
     switch (triples) {
     | [(_, content_child, _)] =>
       let inner = child_doc(s, content_child);
@@ -689,7 +681,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* Type application: @<...> — tight delimiters, no internal spacing */
-  | ["@<", ">"] =>
+  | Form.Compound(ApExpTyp) =>
     switch (triples) {
     | [(_, content_child, _)] =>
       let inner = child_doc(s, content_child);
@@ -702,7 +694,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* case/end */
-  | ["case", "end"] =>
+  | Form.Compound(Case) =>
     switch (triples) {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
@@ -715,7 +707,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* test/end: always break after "test", "end" trails the last body line */
-  | ["test", "end"] =>
+  | Form.Compound(Test) =>
     switch (triples) {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
@@ -730,7 +722,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* hint/test/end: hint message on first line, test on own line, end trails body */
-  | ["hint", "test", "end"] =>
+  | Form.Compound(HintedTest) =>
     switch (triples) {
     | [(_, msg_child, _), (_, body_child, _)] =>
       let msg = child_doc(s, msg_child);
@@ -751,7 +743,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
 
   /* Other operand forms ending in "end": proof_of/end, proof_object/end.
      Same treatment as case/end (Space after keyword, Break before end). */
-  | [_, "end"] =>
+  | _ when Tile.ends_with_end(t) =>
     switch (triples) {
     | [(_, body_child, _)] =>
       let inner = child_doc(s, body_child);
@@ -764,7 +756,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     }
 
   /* Rule |/=> (case rule tiles with children) */
-  | ["|", "=>"] =>
+  | Form.Compound(Rule) =>
     switch (triples) {
     | [(_, pat_child, _)] =>
       cats([
@@ -779,7 +771,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
 
   /* Filter/use forms: hide/eval/pause/debug/use expr in body.
      Simple binding-like prefix: chains with HardBreak like let-chains. */
-  | [_, "in"] =>
+  | _ when Tile.ends_with_in(t) =>
     switch (triples) {
     | [(_, expr_child, _)] =>
       let tile_doc =

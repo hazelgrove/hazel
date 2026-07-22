@@ -417,17 +417,20 @@ let current_term_id = (z: t): option(Id.t) => {
   | Grout(_)
   | Projector(_) => Some(Piece.id(p))
   | Tile(t) =>
-    switch (Zipper.parent(z)) {
-    | Some(Tile({id, _} as par))
-        when
-          Tile.is_comma(t)
-          && (Tile.is_bracket_shaped(par) || Tile.is_paren_shaped(par)) =>
+    switch (t.form, Zipper.parent(z)) {
+    | (
+        Form.Compound(Comma),
+        Some(Tile({form: Form.Compound(ListLit | Parens | Ap), id, _})),
+      ) =>
       Some(id)
-    | Some(Tile({id, _} as par))
-        when Tile.is_case_rule(t) && rel == Sibling && Tile.is_case(par) =>
+    | (
+        Form.Compound(Rule),
+        Some(Tile({form: Form.Compound(Case), id, _})),
+      )
+        when rel == Sibling =>
       Some(id)
-    | Some(Tile(par))
-        when Tile.is_case_rule(t) && rel == Parent && Tile.is_case_rule(par) =>
+    | (Form.Compound(Rule), Some(Tile({form: Form.Compound(Rule), _})))
+        when rel == Parent =>
       switch (z.relatives.ancestors) {
       | [_, (gp, _), ..._] => Some(gp.id)
       | _ => None
@@ -486,7 +489,7 @@ let containing_rule = (z: t): option(t) => {
   let rule_or_end_of_seg_to_right =
     fun
     | (_, None) => true
-    | (_, Some(Piece.Tile(t))) when Tile.is_case_rule(t) => true
+    | (_, Some(Piece.Tile({form: Form.Compound(Rule), _}))) => true
     | _ => false;
   let grow_right_until_case_or_rule = z =>
     Zipper.do_until_piece(grow_left_by_piece, rule_or_end_of_seg_to_right, z);
@@ -552,16 +555,11 @@ let current_term =
     ) => {
   let* {piece: p, _} = Indicated.for_decoration(z);
   switch (p) {
-  | Tile(t)
-      when
-        defs_exclude_bodies
-        && (
-          Tile.has_label_of(t, Let)
-          || Tile.has_label_of(t, TypeAlias)
-          || Tile.has_label_of(t, ModuleExp)
-        ) =>
+  | Tile({form: Form.Compound(Let | TypeAlias | ModuleExp), _})
+      when defs_exclude_bodies =>
     current_tile(z)
-  | Tile(t) when case_rules && Tile.is_case_rule(t) => containing_rule(z)
+  | Tile({form: Form.Compound(Rule), _}) when case_rules =>
+    containing_rule(z)
   | _ =>
     let* id = current_term_id(z);
     switch (TermData.extreme_ids(id, term_data)) {
@@ -676,7 +674,7 @@ let def_body_indicated =
 let parent_is_rule = (z: t, info_map): option(Id.t) => {
   let is_case_or_rule = (p: Piece.t) =>
     switch (p) {
-    | Tile(t) when Tile.is_case(t) || Tile.is_case_rule(t) => true
+    | Tile({form: Form.Compound(Case | Rule), _}) => true
     | _ => false
     };
   let move_left_until_case_or_rule =
@@ -690,7 +688,7 @@ let parent_is_rule = (z: t, info_map): option(Id.t) => {
     let* z = move_left_until_case_or_rule(z);
     let* {piece: p, _} = Indicated.for_decoration(z);
     switch (p) {
-    | Tile({id, _} as t) when Tile.is_case_rule(t) => Some(id)
+    | Tile({form: Form.Compound(Rule), id, _}) => Some(id)
     | _ => None
     };
   };
@@ -718,7 +716,7 @@ let parent_term_id = (z: t, info_map) => {
 
 let is_rule_tile =
   fun
-  | Piece.Tile(t) when Tile.is_case_rule(t) => true
+  | Piece.Tile({form: Form.Compound(Rule), _}) => true
   | _ => false;
 
 /* Check if id has a module item cls (ModLet, ModType, etc.).

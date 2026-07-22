@@ -54,10 +54,36 @@ let is_explicit_hole = (t: t): bool =>
 
 let is_multidelimiter = (t: t): bool => List.length(label(t)) > 1;
 
+/* Label-shape predicates. These are deliberately label-derived rather
+ * than family lists: they cover every form (current or future) whose
+ * label has the shape, including Drv twins. Delimiter strings for
+ * these shape classes are spelled here and nowhere else. */
+
 /* let/type/module/theorem/filter forms */
 let ends_with_in = (t: t): bool =>
   switch (label(t) |> List.rev) {
   | ["in", ..._] => true
+  | _ => false
+  };
+
+/* case/test/hint-test/proof/of_* operand forms */
+let ends_with_end = (t: t): bool =>
+  switch (label(t) |> List.rev) {
+  | ["end", ..._] => true
+  | _ => false
+  };
+
+/* definition forms: let/type/theorem/module */
+let is_definition_form = (t: t): bool =>
+  switch (label(t)) {
+  | [_, "=", "in"] => true
+  | _ => false
+  };
+
+/* binder prefix forms: fun/fix/typfun/poly/forall/rec */
+let is_prefix_arrow_form = (t: t): bool =>
+  switch (label(t)) {
+  | [_, "->"] => true
   | _ => false
   };
 
