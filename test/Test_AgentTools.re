@@ -4579,6 +4579,71 @@ let fn_sugar_tests = (
       },
     ),
     test_case(
+      "update_pattern renames fn keeping params; call sites update",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let inc(x) = x + 1 in inc(3) + inc(4)",
+            Update(Pattern, "inc", "bump(x)"),
+          );
+        check_rendered(
+          "fn_sugar_rename_fn",
+          "let bump(x) = x + 1 in bump(3) + bump(4)",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_pattern renames recursive sugared fn incl. recursive call",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let fact(n) = if n < 2 then 1 else n * fact(n - 1) in fact(4)",
+            Update(Pattern, "fact", "f(n)"),
+          );
+        check_rendered(
+          "fn_sugar_rename_recursive",
+          "let f(n) = if n < 2 then 1 else n * f(n - 1) in f(4)",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_pattern renames a param only",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let inc(x) = x + 1 in inc(3)",
+            Update(Pattern, "inc", "inc(z)"),
+          );
+        check_rendered(
+          "fn_sugar_rename_param",
+          "let inc(z) = z + 1 in inc(3)",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "param rename leaves same-named outer var in body untouched",
+      `Quick,
+      () => {
+        /* body `+ x` refers to the outer x, not the param */
+        let result =
+          apply_and_render(
+            "let x = 1 in let f(x) = x + 1 in f(2) + x",
+            Update(Pattern, "f", "f(z)"),
+          );
+        check_rendered(
+          "fn_sugar_param_rename_no_capture",
+          "let x = 1 in let f(z) = z + 1 in f(2) + x",
+          result,
+        );
+      },
+    ),
+    test_case(
       "param-count change on sugared fn is rejected with bound-name counts",
       `Quick,
       ()
