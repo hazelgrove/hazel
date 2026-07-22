@@ -31,6 +31,7 @@ let (suite, _) =
       Test_Equality.tests,
       Test_Substitution.tests,
     ]
+    @ Test_WorkerServer.tests
     @ Test_AgentTools.tests
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all

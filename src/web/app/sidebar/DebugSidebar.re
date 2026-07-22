@@ -718,6 +718,11 @@ let toggle_bar = (~globals: Globals.t): Node.t => {
   );
 };
 
+/* Render a debug section (DebugSection.S) inside the collapsible `section`
+   wrapper, so a section module only provides its title + body. */
+let render_section = (module S: DebugSection.S, ~globals): list(Node.t) =>
+  section(~globals, S.title, () => S.view(~globals));
+
 let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
   let raw = globals.settings.sidebar.debug_show_raw;
   div(
@@ -737,10 +742,14 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
             | Some(ci) => info_view(~globals, ~raw, ci)
             };
           let syntax_sections = syntax_view(~globals, ~cursor);
-          switch (info_sections, syntax_sections) {
-          | ([], []) => [text("No info at cursor.")]
-          | _ => info_sections @ syntax_sections
-          };
+          let cursor_sections =
+            switch (info_sections, syntax_sections) {
+            | ([], []) => [text("No info at cursor.")]
+            | _ => info_sections @ syntax_sections
+            };
+          /* Metrics render regardless of cursor state. */
+          cursor_sections
+          @ render_section((module WorkerMessagingSection), ~globals);
         },
       ),
     ],
