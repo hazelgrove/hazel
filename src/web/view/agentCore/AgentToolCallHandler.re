@@ -181,8 +181,6 @@ let update =
     let z = editor.editor.state.zipper;
     let mk_statics = CompositionGo.Public.mk_statics;
     let initial_info_map = mk_statics(z);
-    let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
-      Result.of_option(~error, z);
     let z_at_boundary =
       switch ((direction: Action.Structural.insert_target)) {
       | Before => Move.to_start(z)
@@ -192,9 +190,10 @@ let update =
       CompositionGo.Local.PerformUtils.introduce(
         z_at_boundary,
         "\n" ++ code ++ "\n",
-        return,
       )
     ) {
+    | Error(Action.Failure.Composition_action_failure(msg)) =>
+      Error(Failure.Info(msg))
     | Error(_) =>
       Error(Failure.Info("Failed to insert code at program boundary"))
     | Ok(new_z) =>
@@ -205,7 +204,8 @@ let update =
         Error(
           Failure.Info(
             "Not applying the action you requested as it would introduce new static error(s): "
-            ++ String.concat(", ", new_errors),
+            ++ String.concat(", ", new_errors)
+            ++ CompositionGo.Local.PerformUtils.reserved_word_note(code),
           ),
         );
       } else {

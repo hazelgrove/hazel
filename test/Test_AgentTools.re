@@ -49,8 +49,6 @@ let run_insert_at_program_boundary =
     ) => {
   let z = mk_zipper(code);
   let initial_info_map = mk_statics(z);
-  let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
-    Result.of_option(~error, z);
   let z_at_boundary =
     switch (direction) {
     | Before => Move.to_start(z)
@@ -60,7 +58,6 @@ let run_insert_at_program_boundary =
     CompositionGo.Local.PerformUtils.introduce(
       z_at_boundary,
       "\n" ++ new_code ++ "\n",
-      return,
     )
   ) {
   | Error(e) => Error(e)
@@ -4271,10 +4268,157 @@ let rename_and_path_safety_tests = (
 );
 
 /* ============================================================
+   PASTE FUNNEL — per-line indentation trim + reserved keywords
+   ============================================================ */
+
+let paste_funnel_tests = (
+  "AgentTools.PasteFunnel",
+  [
+    test_case(
+      "update_definition strips per-line leading indentation", `Quick, () => {
+      check_rendered_exact(
+        "update_definition_indented",
+        "let a = fun x ->\n  x + 1 in a",
+        apply_and_render(
+          "let a = 1 in a",
+          Update(Definition, "a", "fun x ->\n  x + 1"),
+        ),
+      )
+    }),
+    test_case("update_body strips per-line leading indentation", `Quick, () => {
+      check_rendered_exact(
+        "update_body_indented",
+        "let a = 1 in let b = 2 in\na + b",
+        apply_and_render(
+          "let a = 1 in a",
+          Update(Body, "a", "let b = 2 in\n  a + b"),
+        ),
+      )
+    }),
+    test_case("update_pattern strips leading indentation", `Quick, () => {
+      check_rendered_exact(
+        "update_pattern_indented",
+        "let b = 1 in b",
+        apply_and_render("let a = 1 in a", Update(Pattern, "a", "  b")),
+      )
+    }),
+    test_case(
+      "update_binding_clause strips per-line leading indentation", `Quick, () => {
+      check_rendered_exact(
+        "update_binding_clause_indented",
+        "let a =\n  2 in a",
+        apply_and_render(
+          "let a = 1 in a",
+          Update(BindingClause, "a", "let a =\n  2 in"),
+        ),
+      )
+    }),
+    test_case("Perform-level insert strips leading indentation", `Quick, () => {
+      /* Direct Structural action, bypassing the tool-arg parsing layer:
+         the trim must live at the paste funnel, not per tool arm */
+      check_rendered_exact(
+        "insert_perform_level_indented",
+        "let a = 1 in\nlet c = 3 in\n a",
+        apply_and_render(
+          "let a = 1 in a",
+          Insert(After, "a", "  let c = 3 in"),
+        ),
+      )
+    }),
+    test_case("insert of `let eval = ...` fails naming keyword", `Quick, () => {
+      expect_failure_mentioning(
+        "let a = 1 in a",
+        Insert(After, "a", "let eval = 1 in"),
+        [
+          "Note: `eval` is a reserved keyword in Hazel and cannot be used as a variable name.",
+        ],
+        "insert_let_eval",
+      )
+    }),
+    test_case("insert of `let evalStep = ...` succeeds", `Quick, () => {
+      check_rendered(
+        "insert_let_evalStep",
+        "let a = 1 in let evalStep = 1 in a",
+        apply_and_render(
+          "let a = 1 in a",
+          Insert(After, "a", "let evalStep = 1 in"),
+        ),
+      )
+    }),
+    test_case("unannotated binding without self-ref succeeds", `Quick, () => {
+      check_rendered(
+        "insert_unannotated_no_self_ref",
+        "let a = 1 in let f = fun n -> n(0) in a",
+        apply_and_render(
+          "let a = 1 in a",
+          Insert(After, "a", "let f = fun n -> n(0) in"),
+        ),
+      )
+    }),
+    test_case("unannotated self-reference is accepted", `Quick, () => {
+      /* Hazel statics scope the binder over its own definition even
+         without a type annotation, so this is not an unbound-name error */
+      check_rendered(
+        "insert_unannotated_self_ref",
+        "let a = 1 in let f = fun n -> f(0) in a",
+        apply_and_render(
+          "let a = 1 in a",
+          Insert(After, "a", "let f = fun n -> f(0) in"),
+        ),
+      )
+    }),
+    test_case("annotated recursion succeeds", `Quick, () => {
+      check_rendered(
+        "insert_annotated_recursion",
+        "let a = 1 in let f : Int -> Int = fun n -> if n < 1 then 0 else f(n - 1) in a",
+        apply_and_render(
+          "let a = 1 in a",
+          Insert(
+            After,
+            "a",
+            "let f : Int -> Int = fun n -> if n < 1 then 0 else f(n - 1) in",
+          ),
+        ),
+      )
+    }),
+    test_case(
+      "update_body with annotated `let eval` fails naming keyword", `Quick, () => {
+      expect_failure_mentioning(
+        "let a = 1 in a",
+        Update(Body, "a", "let eval : Int -> Int = fun t -> t in ?"),
+        ["`eval` is a reserved keyword"],
+        "update_body_let_eval",
+      )
+    }),
+    test_case(
+      "keyword note absent when no reserved word is misused", `Quick, () => {
+      switch (
+        run_agent_action(
+          "let a = 1 in a",
+          Insert(After, "a", "let b = unboundvar in"),
+        )
+      ) {
+      | Ok(_) => Alcotest.fail("expected static-error failure")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "no keyword note in: " ++ msg,
+          false,
+          contains_str(~needle="reserved keyword", msg),
+        )
+      | Error(err) =>
+        Alcotest.fail("unexpected failure: " ++ Action.Failure.show(err))
+      }
+    }),
+  ],
+);
+
+/* ============================================================
    AGGREGATE ALL TESTS
    ============================================================ */
 
 let tests = [
+  paste_funnel_tests,
   edit_action_tests,
   insert_at_program_boundary_tests,
   update_definition_tests,

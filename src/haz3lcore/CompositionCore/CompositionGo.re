@@ -261,25 +261,83 @@ module Local = {
         ? seg @ [space()] : seg;
     };
 
+    /* Form delimiters that lex like identifiers; using one as a variable
+       name makes the surrounding code misparse. */
+    let reserved_words: list(Token.t) =
+      List.filter(Token.is_var, Form.delims);
+
+    let identifier_words = (s: string): list(string) => {
+      let is_id_char = c =>
+        c >= 'a'
+        && c <= 'z'
+        || c >= 'A'
+        && c <= 'Z'
+        || c >= '0'
+        && c <= '9'
+        || c == '_'
+        || c == '\'';
+      let (words, last) =
+        String.fold_left(
+          ((words, cur), c) =>
+            is_id_char(c)
+              ? (words, cur ++ String.make(1, c))
+              : cur == "" ? (words, "") : ([cur, ...words], ""),
+          ([], ""),
+          s,
+        );
+      List.rev(last == "" ? words : [last, ...words]);
+    };
+
+    /* Reserved word in binder position (after let/fun/type), or as the
+       entire code string: the misuse behind most agent paste failures,
+       e.g. `let eval = ...` where `eval` opens a filter form. */
+    let find_reserved_binder = (code: string): option(string) => {
+      let reserved = w => List.mem(w, reserved_words);
+      let trimmed = String.trim(code);
+      if (reserved(trimmed)) {
+        Some(trimmed);
+      } else {
+        let rec scan = words =>
+          switch (words) {
+          | [intro, w, ..._]
+              when List.mem(intro, ["let", "fun", "type"]) && reserved(w) =>
+            Some(w)
+          | [_, ...rest] => scan(rest)
+          | [] => None
+          };
+        scan(identifier_words(code));
+      };
+    };
+
+    let reserved_word_note = (code: string): string =>
+      switch (find_reserved_binder(code)) {
+      | Some(w) =>
+        " Note: `"
+        ++ w
+        ++ "` is a reserved keyword in Hazel and cannot be used as a variable name."
+      | None => ""
+      };
+
+    /* Every agent-supplied code string funnels through here. Strip
+       per-line leading whitespace (models emit indented code; Hazel
+       re-indents structurally on render), then parse to a segment and
+       paste it. Safe: Hazel strings and comments are single-line, so
+       no token can span a linebreak. */
     let introduce =
-        (
-          z: Zipper.t,
-          code: string,
-          return:
-            (Action.Failure.t, option(Zipper.t)) =>
-            result(Zipper.t, Action.Failure.t),
-        ) => {
-      // A wrapper function for trying to paste code into the zipper
-      // Note that we paste a segment; so, we convert the string to a segment
-      // first, and then insert the segment into the zipper. This helps to
-      // avoid potential current buggy parsing issues.
-      Parser.to_segment(code, ~root=Exp)
-      |> OptUtil.and_then((segment: Segment.t) =>
-           Some(
-             Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root=Exp),
-           )
-         )
-      |> return(CantPaste);
+        (z: Zipper.t, code: string): result(Zipper.t, Action.Failure.t) => {
+      let code = StringUtil.trim_leading(code);
+      switch (Parser.to_segment(code, ~root=Exp)) {
+      | Some(segment) =>
+        Ok(
+          Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root=Exp),
+        )
+      | None =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Inserted code failed to parse." ++ reserved_word_note(code),
+          ),
+        )
+      };
     };
 
     let destruct =
@@ -314,9 +372,6 @@ module Local = {
           code: string,
           defs_exclude_bodies: bool,
           syntax: CachedSyntax.t,
-          return:
-            (Action.Failure.t, option(Zipper.t)) =>
-            result(Zipper.t, Action.Failure.t),
         ) => {
       // Select the respective term (in this case the definition term)
       switch (
@@ -330,7 +385,7 @@ module Local = {
       ) {
       | Some(z') =>
         // Paste the code over the selected tile
-        introduce(z', code, return)
+        introduce(z', code)
       | None => Error(Action.Failure.Cant_select)
       };
     };
@@ -341,9 +396,6 @@ module Local = {
           code: string,
           d: Direction.t,
           syntax: CachedSyntax.t,
-          return:
-            (Action.Failure.t, option(Zipper.t)) =>
-            result(Zipper.t, Action.Failure.t),
         ) => {
       switch (
         // ' let a = 0 in'
@@ -357,7 +409,7 @@ module Local = {
       ) {
       | Some(z') =>
         switch (Move.by_token(d, z')) {
-        | Some(z'') => introduce(z'', code, return)
+        | Some(z'') => introduce(z'', code)
         | None => Error(Action.Failure.Cant_move)
         }
       | None => Error(Action.Failure.Cant_select)
@@ -372,9 +424,6 @@ module Local = {
         ~initial_node_map: node_map,
         ~initial_info_map: Id.Map.t(Info.t),
         ~syntax: CachedSyntax.t,
-        ~return:
-           (Action.Failure.t, option(Zipper.t)) =>
-           result(Zipper.t, Action.Failure.t),
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
       ) => {
     switch (e) {
@@ -382,14 +431,7 @@ module Local = {
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Def, initial_node);
       switch (
-        PerformUtils.overwrite_term(
-          initial_z,
-          target_id,
-          code,
-          false,
-          syntax,
-          return,
-        )
+        PerformUtils.overwrite_term(initial_z, target_id, code, false, syntax)
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
@@ -406,7 +448,12 @@ module Local = {
               ~new_info_map,
             )
           ) {
-          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
+          | Some(e) =>
+            Error(
+              Action.Failure.Composition_action_failure(
+                e ++ PerformUtils.reserved_word_note(code),
+              ),
+            )
           | None =>
             let z_after_projectors =
               try({
@@ -445,14 +492,7 @@ module Local = {
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Body, initial_node);
       switch (
-        PerformUtils.overwrite_term(
-          initial_z,
-          target_id,
-          code,
-          false,
-          syntax,
-          return,
-        )
+        PerformUtils.overwrite_term(initial_z, target_id, code, false, syntax)
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
@@ -469,7 +509,12 @@ module Local = {
               ~new_info_map,
             )
           ) {
-          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
+          | Some(e) =>
+            Error(
+              Action.Failure.Composition_action_failure(
+                e ++ PerformUtils.reserved_word_note(code),
+              ),
+            )
           | None => Ok(new_z)
           }
         };
@@ -483,14 +528,7 @@ module Local = {
              "Failed trying to rename all occurences of the pattern. Could not find the old pattern in the statics map.",
            );
       switch (
-        PerformUtils.overwrite_term(
-          initial_z,
-          target_id,
-          code,
-          false,
-          syntax,
-          return,
-        )
+        PerformUtils.overwrite_term(initial_z, target_id, code, false, syntax)
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
@@ -508,7 +546,12 @@ module Local = {
               ~new_node,
             )
           ) {
-          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
+          | Some(e) =>
+            Error(
+              Action.Failure.Composition_action_failure(
+                e ++ PerformUtils.reserved_word_note(code),
+              ),
+            )
           | None =>
             let new_target_id = Utils.get_inner_term_id(Pat, new_node);
             let new_pat =
@@ -604,14 +647,7 @@ module Local = {
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = path_to_id(initial_node_map, path);
       switch (
-        PerformUtils.overwrite_term(
-          initial_z,
-          target_id,
-          code,
-          true,
-          syntax,
-          return,
-        )
+        PerformUtils.overwrite_term(initial_z, target_id, code, true, syntax)
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
@@ -628,7 +664,12 @@ module Local = {
               ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
             )
           ) {
-          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
+          | Some(e) =>
+            Error(
+              Action.Failure.Composition_action_failure(
+                e ++ PerformUtils.reserved_word_note(code),
+              ),
+            )
           | None => Ok(new_z)
           }
         };
@@ -637,16 +678,13 @@ module Local = {
       // todo: figure out a better method than magic space
       let target_id = path_to_id(initial_node_map, path);
       switch (
-        {
-          PerformUtils.insert_term(
-            initial_z,
-            target_id,
-            "\n" ++ code ++ "\n",
-            Direction.Left,
-            syntax,
-            return,
-          );
-        }
+        PerformUtils.insert_term(
+          initial_z,
+          target_id,
+          "\n" ++ code ++ "\n",
+          Direction.Left,
+          syntax,
+        )
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
@@ -657,7 +695,8 @@ module Local = {
           Error(
             Action.Failure.Composition_action_failure(
               "Not applying the action you requested as it would introduce new static error(s): "
-              ++ String.concat(", ", new_errors),
+              ++ String.concat(", ", new_errors)
+              ++ PerformUtils.reserved_word_note(code),
             ),
           );
         } else {
@@ -674,7 +713,6 @@ module Local = {
           "\n" ++ code ++ "\n",
           Direction.Right,
           syntax,
-          return,
         )
       ) {
       | Error(e) => Error(e)
@@ -686,7 +724,8 @@ module Local = {
           Error(
             Action.Failure.Composition_action_failure(
               "Not applying the action you requested as it would introduce new static error(s): "
-              ++ String.concat(", ", new_errors),
+              ++ String.concat(", ", new_errors)
+              ++ PerformUtils.reserved_word_note(code),
             ),
           );
         } else {
@@ -725,9 +764,6 @@ module Local = {
         syntax: CachedSyntax.t,
         z: Zipper.t,
         mk_statics: Zipper.t => StaticsBase.Map.t,
-        return:
-          (Action.Failure.t, option(Zipper.t)) =>
-          result(Zipper.t, Action.Failure.t),
       ) => {
     let initial_info_map = mk_statics(z);
     switch (build(z, initial_info_map)) {
@@ -739,7 +775,6 @@ module Local = {
         ~initial_node_map,
         ~initial_info_map,
         ~syntax,
-        ~return,
         ~mk_statics,
       )
     };
@@ -751,14 +786,11 @@ module Local = {
         ~syntax: CachedSyntax.t,
         ~z: Zipper.t,
         ~a: Action.Structural.t,
-        ~return:
-           (Action.Failure.t, option(Zipper.t)) =>
-           result(Zipper.t, Action.Failure.t),
       )
       : result(Zipper.t, Action.Failure.t) => {
     let res =
       try(
-        switch (composition_dispatch(a, syntax, z, mk_statics, return)) {
+        switch (composition_dispatch(a, syntax, z, mk_statics)) {
         | Ok(new_z) => Ok(Dump.to_zipper(new_z, ~root=Exp))
         | Error(e) => Error(e)
         }

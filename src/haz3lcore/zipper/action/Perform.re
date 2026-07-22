@@ -226,6 +226,6 @@ let go =
   | ToggleLineComment =>
     Comment.go(~deep_reassociate=settings.deep_reassociate, z, ~root)
     |> return(Cant_destruct)
-  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a)
   };
 };
