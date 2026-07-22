@@ -16,11 +16,10 @@ let has_label = (t: t, lbl: Label.t): bool => label(t) == lbl;
 let arity = (t: t): int => List.length(label(t));
 let token = (t: t, i: int): Token.t => List.nth(label(t), i);
 
-/* Form predicates. A family bundles label + shape-role, so most of
- * the historical label-comparison predicates are now plain form
- * equality (each label below is spelled by exactly one family);
- * is_paren_shaped keeps the historical label semantics — the
- * ["(",")"] label is shared by the Parens and Ap families. */
+/* Form predicates: each label below is spelled by exactly one
+ * family, so these are plain form equality. Exception:
+ * is_paren_shaped — the ["(",")"] label is shared by the Parens and
+ * Ap families, and it covers both. */
 
 let is_form = (t: t, fam: Form.family): bool => t.form == Form.Compound(fam);
 
@@ -43,8 +42,6 @@ let is_tuple_label_eq = (t: t): bool =>
 /* parens AND aps: all forms spelling ["(",")"], deliberately */
 let is_paren_shaped = (t: t): bool =>
   t.form == Form.Compound(Parens) || t.form == Form.Compound(Ap);
-
-let is_bracket_shaped = (t: t): bool => t.form == Form.Compound(ListLit);
 
 let is_empty_tuple_shaped = (t: t): bool =>
   t.form == Form.Compound(ApEmpty) || t.form == Form.Tok(Token.empty_tuple);

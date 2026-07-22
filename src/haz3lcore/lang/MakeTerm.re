@@ -13,33 +13,24 @@
 open Util;
 open Language;
 
-/* The dispatch payload of a root piece: its STORED form id (no token
- * pre-processing), with one normalization: TokInfix — the
- * keyword-prefix backup-infix shape-role — is collapsed to Tok at
- * extraction (the bit is mold-only; meaning comes from the token).
- * A family bundles a label with a shape-role, so each arm is a
- * single family constructor: the old per-sort/Drv or-patterns
- * collapse (sort-variants share the family; the tile's sort field
- * doesn't matter here), and same-label shape-splits (bin `+` = Plus
- * vs prefix `+` = SumSingle) are matched at the skel position their
- * shape puts them in. Single-token cases guard on the stored token
- * with the same Token.is_* predicates as the old token dispatch.
- * INCOMPLETE tiles always fall to the hole path: they don't parse as
- * whatever form their present tokens happen to spell (the old "pun"
- * behavior). This needs no completeness flag: every compound arm's
- * kid pattern has length arity(form)-1, while an incomplete tile has
- * len(shards)-1 <= arity(form)-2 kids, so no arm can match one. */
+/* The dispatch payload of a root piece is its stored form id, with
+ * TokInfix collapsed to Tok: the backup-infix bit is mold-only, the
+ * token means the same thing. Compound identity is trusted as
+ * spelled at edit time; a Tok's meaning is re-derived from its token
+ * by the Token.is_* guards below, since a tile's stored sort can be
+ * stale. Incomplete tiles match no compound arm (too few kids for
+ * the arm's kid pattern) and parse as holes. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type head =
-  | F(Form.t) /* tile: its stored form id */
+  | F(Form.t) /* tile */
   | ProjWrap /* projector: in-effect acts as a convex wrapping form */
   | Sec; /* secondary: no tokens */
 
 let head: Piece.t => head =
   Piece.get(
     _ => Sec,
-    /* grout: token " " is unclaimable by tiles; parses as hole via the
-     * is_hole_label guards below, exactly as under token dispatch */
+    /* grout: no tile can carry token " ", so Tok(" ") is
+     * collision-free and parses as hole via is_hole_label below */
     _ => F(Tok(" ")),
     (t: Tile.t) =>
       F(
@@ -51,10 +42,10 @@ let head: Piece.t => head =
     _ => ProjWrap,
   );
 
-/* "()" is the one token storable both as Tok("()") (convex position)
- * and as Compound(ApEmpty) (postfix nullary ap). The old token
- * dispatch treated the two storages identically, so every "()" arm
- * accepts both to keep complete tiles parsing unchanged. */
+/* "()" is spelled both by the empty-tuple token (convex position)
+ * and by the nullary-ap families (postfix); the two storages must
+ * parse identically in each shape position, so every "()" arm
+ * accepts both. */
 let is_empty_tuple_form: Form.t => bool =
   fun
   | Tok(t)
@@ -102,7 +93,7 @@ let is_nary =
     None;
   };
 
-/* label-class predicates for the n-ary delimiters (all arity-1 forms) */
+/* the n-ary delimiter families (all arity 1) */
 let is_comma_form: Form.t => bool =
   fun
   | Compound(Comma) => true
@@ -424,8 +415,8 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
   fun
   | Op(([(_id, t)], [])) as tm =>
     switch (t) {
-    /* compound-stored "()" (nullary-ap forms); Atom-stored "()" takes
-     * the Token.is_empty_tuple guard in the token switch below */
+    /* "()" must mean Triv under both its storages; this is the
+     * nullary-ap one, Tok("()") hits is_empty_tuple below */
     | (F(Compound(ApEmpty)), []) => ret(Triv)
     | (F(Tok(t)), []) =>
       switch (t) {

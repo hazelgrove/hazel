@@ -404,14 +404,14 @@ let defs_of: family => list(def) =
   | ModuleMod => [mk_pre_c'(L, ["module", "="], P.let_, Mod, [MPat], Exp)]
   | SigLet => [mk_pre_c'(L, ["let"], P.let_, Sig, [], Pat)];
 
-/* Global classification/remolding priority: the flat row order of the
- * form table (the old forms-list declaration order). Each occurrence
- * of a family below is dealt that family's next defs_of row, so a
- * family with n rows appears n times; a count mismatch fails loudly
- * at module init. The interleaving is load-bearing wherever families
- * share a label with rows at the same sort: at Exp/Pat/Typ the Parens
- * row precedes the Ap row while at Drv sorts the Ap row precedes the
- * Parens row (classify picks Ap there — see mk_parens_id); likewise
+/* Global classification/remolding priority: the flat row order of
+ * the form table. Each occurrence of a family below is dealt that
+ * family's next defs_of row, so a family with n rows appears n
+ * times; a count mismatch fails loudly at module init. The
+ * interleaving is load-bearing wherever families share a label with
+ * rows at the same sort: at Exp/Pat/Typ the Parens row precedes the
+ * Ap row while at Drv sorts the Ap row precedes the Parens row
+ * (classify picks Ap there — see mk_parens_id); likewise
  * bin-vs-prefix `-` flips between Exp (Minus first) and Drv(Exp)
  * (UnaryMinus first), and bin `+` vs prefix `+` (SumSingle) and
  * Entail vs UnaryEntail depend on their relative positions. */
@@ -886,12 +886,11 @@ let has_label_of = (f: FormId.t, fam: family): bool =>
   label_of(f) == label_of_family(fam);
 
 /* The mold of a form at the tile's stored sort. Compound: the family
- * row with that out sort, else the Any-fallback (old Unsorted
- * behavior; in particular sort=Any always falls back — no form has
- * out=Any). Tok: the first atomic-candidate mold with that out sort
- * (atomic_form declaration order), else the Any-fallback (old
- * Unmolded behavior). TokInfix: the InfixDelimiterPrefix bin,
- * uniformly at any sort. */
+ * row with that out sort, else the Any-fallback (in particular
+ * sort=Any always falls back — no form has out=Any). Tok: the first
+ * atomic-candidate mold with that out sort (atomic_form declaration
+ * order), else the Any-fallback. TokInfix: the InfixDelimiterPrefix
+ * bin, uniformly at any sort. */
 let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
   switch (f) {
   | Compound(fam) =>
@@ -912,13 +911,13 @@ let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
   | TokInfix(_) => Mold.mk_bin(Precedence.concave_grout, sort, [])
   };
 
-/* Classify a label at a sort: the (form, sort-to-store) pair such
- * that mold_of(form, sort-to-store) reproduces the old Molds.get
+/* Classify a label at a sort: the (form, sort) pair to store on the
+ * tile, chosen so that mold_of(form, sort) yields the classified
  * mold. First base candidate whose mold fits the sort (atomics
  * before compounds, priority order — TokInfix never wins here:
  * every InfixDelimiterPrefix token is var-shaped, and the var
- * classes precede it); otherwise the Any-fallback with stored sort
- * Any. */
+ * classes precede it); no fit => the first compound (or Tok) with
+ * stored sort Any. */
 let classify_label = (sort: Sort.t, label: Label.t): (FormId.t, Sort.t) => {
   let fits = ((_, m): (FormId.t, Mold.t)): bool => m.out == sort;
   switch (List.find_opt(fits, base_candidates(label))) {
@@ -942,10 +941,9 @@ let classify_label = (sort: Sort.t, label: Label.t): (FormId.t, Sort.t) => {
 /* The form wrapping a segment in parens at a given sort
  * (Segment.mk_duo/parenthesize): always the registered Paren form,
  * never the Ap form classify_label would find first at
- * Drv(Exp)/Drv(Pat). Sorts with no registered paren form (Rul, Mod,
- * Sig, MPat, Any, remaining Drv) fall back to classify_label —
- * (Parens, Any) with the op(Any) mold, where the old mk_parens built
- * op(sort, [sort]). */
+ * Drv(Exp)/Drv(Pat). Sorts with no registered paren row (Rul, Mod,
+ * Sig, MPat, Any, remaining Drv) fall back to classify_label:
+ * (Parens, Any) with the op(Any) fallback mold. */
 let mk_parens_id = (sort: Sort.t): (FormId.t, Sort.t) =>
   switch (sort) {
   | Exp

@@ -146,11 +146,10 @@ type family =
  * the mold is derived from (form, sort) where sort is the tile's
  * stored local-sort guess (see Base.tile).
  * - Compound(family): a registered compound form up to sort; if the
- *   family has no member at the tile's sort, the mold falls back to
- *   the Any-fallback (old Unsorted behavior);
- * - Tok(t): a single classified-or-unclassified token (old Atom and
- *   Unmolded); mold = the token's registered atomic mold at the tile's
- *   sort, else the Any-fallback;
+ *   family has no row at the tile's sort, the mold is the
+ *   Any-fallback;
+ * - Tok(t): a single token, classified or not; mold = the token's
+ *   registered atomic mold at the tile's sort, else the Any-fallback;
  * - TokInfix(t): the keyword-prefix backup-infix shape-role. Exists
  *   solely for the InfixDelimiterPrefix mechanism (see Form.re's
  *   infix_delimiter_ops_prefixes rationale); never produced by

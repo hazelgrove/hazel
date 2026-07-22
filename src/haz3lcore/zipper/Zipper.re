@@ -297,9 +297,6 @@ let mk_remainder_piece = (tok: Token.t): Piece.t =>
   } else {
     Tile({
       id: Id.mk(),
-      /* Shape nuance vs the old unconditional op(Any) mold: Tok at
-       * Any derives bin(Any) for operator-shaped tokens — unobservable
-       * under the subsequent remold. */
       form: Form.Tok(tok),
       sort: Sort.Any,
       shards: [0],

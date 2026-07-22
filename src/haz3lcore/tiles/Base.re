@@ -20,7 +20,7 @@ and tile = {
   // sexp only: sort defaults to Exp and is omitted when Exp;
   // shards/children default to the complete-arity-1 tile shape
   // ([0], []) and are omitted when equal to it (most tiles).
-  // yojson/show/eq are unchanged.
+  // yojson/show/eq keep full records.
   [@sexp.default Sort.Exp] [@sexp_drop_default.sexp]
   sort: Sort.t,
   [@sexp.default [0]] [@sexp_drop_default.sexp]
@@ -48,7 +48,8 @@ let rec map_piece = (~f_piece, x: piece) => {
 /* If the piece is parentheses, return the child. Otherwise,
  * return a singleton segment consisting of the piece.
  * The Parens family is op-shaped by construction; the concave-left
- * Ap family (same ["(",")"] label) is excluded by the family split. */
+ * Ap family spells the same ["(",")"] label but is a distinct
+ * family, so it does not match here. */
 let unparenthesize = (piece: piece): segment =>
   switch (piece) {
   | Tile({form: Form.Compound(Parens), children: [seg], _}) => seg

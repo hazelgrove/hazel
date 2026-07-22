@@ -1596,10 +1596,9 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
       @ [
         Tile({
           id,
-          /* Off-menu: the old hand-built Drv(Jdmt) binop mold matches
-           * no registered form. Display-only path (to_string reads
-           * only labels), so classify at Drv(Exp); "≯"/"≮"/"≠"/"∈"/"⊆"
-           * come out Unmolded. */
+          /* display-only path: to_string reads only labels, so mold
+           * fidelity doesn't matter; ops like "≯"/"≮"/"≠"/"∈"/"⊆"
+           * spell no registered form and classify as fallback Toks */
           form,
           sort,
           shards: [0],
