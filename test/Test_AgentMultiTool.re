@@ -89,7 +89,8 @@ let test_two_workbench_tools_two_results = () => {
   let settings = Settings.Model.init;
   let agent = Agent.Utils.init();
   let chat_id = agent.chat_system.current;
-  let cell_editor = CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
+  let cell_editor =
+    CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
   let reply =
     mk_reply(
       ~content="ok",
@@ -129,7 +130,8 @@ let test_three_tools_preserve_order = () => {
   let settings = Settings.Model.init;
   let agent = Agent.Utils.init();
   let chat_id = agent.chat_system.current;
-  let cell_editor = CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
+  let cell_editor =
+    CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
   let task_payload =
     yo_assoc([
       (
@@ -184,7 +186,8 @@ let test_invalid_tool_skips_following_tools = () => {
   let settings = Settings.Model.init;
   let agent = Agent.Utils.init();
   let chat_id = agent.chat_system.current;
-  let cell_editor = CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
+  let cell_editor =
+    CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
   let reply =
     mk_reply(
       ~content="partial",
@@ -211,7 +214,8 @@ let test_success_then_fail_then_skip = () => {
   let settings = Settings.Model.init;
   let agent = Agent.Utils.init();
   let chat_id = agent.chat_system.current;
-  let cell_editor = CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
+  let cell_editor =
+    CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
   let reply =
     mk_reply(
       ~content="batch",
@@ -235,7 +239,8 @@ let test_single_tool_call_regression = () => {
   let settings = Settings.Model.init;
   let agent = Agent.Utils.init();
   let chat_id = agent.chat_system.current;
-  let cell_editor = CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
+  let cell_editor =
+    CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
   let reply =
     mk_reply(
       ~content="one",

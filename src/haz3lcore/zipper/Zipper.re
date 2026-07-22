@@ -54,21 +54,17 @@ let regrout = (d: Direction.t, z: t): t => {
   };
 };
 
-let remold = (z: t): t => {
+let remold = (z: t, ~root): t => {
   assert(Selection.is_empty(z.selection));
   {
     ...z,
-    relatives: Relatives.remold(z.relatives),
+    relatives: Relatives.remold(z.relatives, root),
   };
 };
 
-let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
+let remold_regrout = (d: Direction.t, z: t, ~root): t =>
+  z |> remold(~root) |> regrout(d);
 
-/* Rescan siblings for label-based shard conversion, then
- * reassemble + remold + regrout. This handles the case where
- * a standalone monotile should retroactively become a shard
- * of an incomplete tile (e.g. standalone `->` matching `fun`).
- * Should be called after edits, not during cursor movement. */
 /* Rescan ancestor-level siblings: converts standalone monotiles that
  * match a parent ancestor's missing shards, giving them the parent's
  * ID, then absorbs them into the parent via reassemble_parent-style
@@ -177,7 +173,7 @@ let rescan_parent_shards = (z: t): t => {
     | [(a, sibs), (parent, parent_sibs), ...rest] =>
       let rest = go([(parent, parent_sibs), ...rest]);
       switch (rest) {
-      | [] => [(a, sibs)]
+      | [] => [(a, sibs)] /* shouldn't happen */
       | [(parent, parent_sibs), ...rest_tail] =>
         switch (try_absorb(sibs, parent)) {
         | None => [(a, sibs), (parent, parent_sibs), ...rest_tail]
@@ -214,7 +210,12 @@ let rescan_parent_shards = (z: t): t => {
   };
 };
 
-let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t): t => {
+/* Rescan siblings for label-based shard conversion, then
+ * reassemble + remold + regrout. This handles the case where
+ * a standalone monotile should retroactively become a shard
+ * of an incomplete tile (e.g. standalone `->` matching `fun`).
+ * Should be called after edits, not during cursor movement. */
+let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
   let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
     if (siblings == z.relatives.siblings) {
@@ -226,19 +227,28 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t): t => {
           siblings,
         }
         |> Relatives.reassemble
-        |> Relatives.remold
+        |> (r => Relatives.remold(r, root))
         |> Relatives.regrout(d);
       {
         ...z,
         relatives,
       };
     };
+  /* After normal rescan+reassemble, try matching shard tiles in
+   * ancestor-level siblings against their ancestor's missing shards.
+   * This handles delimiters (e.g. =) re-inserted via paste with fresh
+   * IDs that don't match the ancestor tile. After converting IDs,
+   * we flatten through the first ancestor so reassemble can rebuild
+   * the tile at the correct scope. */
   if (with_parent) {
     let z' = rescan_parent_shards(z);
     if (z'.relatives.ancestors != z.relatives.ancestors
         || z'.relatives.siblings != z.relatives.siblings) {
+      /* Parent rescan converted+absorbed shards. Remold and regrout
+       * the updated relatives (no need to flatten/delete_parent since
+       * try_absorb already restructured the ancestors in place). */
       let relatives =
-        z'.relatives |> Relatives.remold |> Relatives.regrout(d);
+        Relatives.remold(z'.relatives, root) |> Relatives.regrout(d);
       {
         ...z',
         relatives,
@@ -278,12 +288,247 @@ let unselect = (~erase_buffer=false, z: t): t => {
   };
 };
 
+/* Create a monotile piece from a token string with a generic mold.
+ * Used for remainder pieces when splitting partial tokens during
+ * char-level selection destruction. Callers' remold_regrout will
+ * assign the correct mold. */
+let mk_remainder_piece = (tok: Token.t): Piece.t =>
+  if (Token.is_secondary(tok)) {
+    Secondary(Secondary.mk(Id.mk(), tok));
+  } else {
+    Tile({
+      id: Id.mk(),
+      label: [tok],
+      mold: Mold.mk_op(Sort.Any, []),
+      shards: [0],
+      children: [],
+    });
+  };
+
 let destroy_selection: t => t =
   z =>
     unselect({
       ...z,
       selection: Selection.empty,
     });
+
+/* Normalize a char-level selection before destruction.
+ * Splits partial boundary tokens and keeps the exterior (unselected)
+ * portions, setting caret appropriately. Must be called explicitly
+ * by top-level actions (Destruct, Insert) — NOT from internal helpers
+ * like replace_shard which set Inner caret for other purposes. */
+let normalize_char_selection = (z: t): t => {
+  /* When smart_rounded is set, the anchor end is displayed at its
+   * piece's outer boundary — user intent is "whole starting token
+   * selected", not partial-from-anchor_caret. Treat as Outer. */
+  let effective_anchor_caret: CaretBase.t =
+    z.selection.smart_rounded ? Outer : z.selection.anchor_caret;
+  let has_char_boundary =
+    effective_anchor_caret != CaretBase.Outer
+    || z.caret != Outer
+    && !Selection.is_empty(z.selection);
+  if (!has_char_boundary || Selection.is_empty(z.selection)) {
+    z;
+  } else {
+    let focus_dir = z.selection.focus;
+    let content = z.selection.content;
+
+    /* Determine inner offsets for left and right boundaries */
+    let (left_offset, right_offset) =
+      switch (focus_dir) {
+      | Right => (
+          switch (effective_anchor_caret) {
+          | CaretBase.Inner(n) => Some(n)
+          | CaretBase.Outer => None
+          },
+          switch (z.caret) {
+          | Inner(n) => Some(n)
+          | Outer => None
+          },
+        )
+      | Left => (
+          switch (z.caret) {
+          | Inner(n) => Some(n)
+          | Outer => None
+          },
+          switch (effective_anchor_caret) {
+          | CaretBase.Inner(n) => Some(n)
+          | CaretBase.Outer => None
+          },
+        )
+      };
+
+    /* Compute left remainder (exterior chars before left boundary) */
+    let left_remainder =
+      switch (left_offset) {
+      | None => None
+      | Some(n) =>
+        switch (content) {
+        | [] => None
+        | [p, ..._] =>
+          switch (Piece.token_of(p)) {
+          | Some(tok) =>
+            let (rest, _) = Token.split_nth(tok, n + 1);
+            rest == "" ? None : Some(rest);
+          | None => None
+          }
+        }
+      };
+
+    /* Compute right remainder (exterior chars after right boundary) */
+    let right_remainder =
+      switch (right_offset) {
+      | None => None
+      | Some(n) =>
+        switch (ListUtil.last_opt(content)) {
+        | None => None
+        | Some(p) =>
+          switch (Piece.token_of(p)) {
+          | Some(tok) =>
+            let (_, rest) = Token.split_nth(tok, n + 1);
+            rest == "" ? None : Some(rest);
+          | None => None
+          }
+        }
+      };
+
+    /* For strings and comments, preserve delimiters that would be
+     * destroyed. If the selection includes an opening/closing delimiter,
+     * add it back to the corresponding remainder. */
+    let (left_remainder, right_remainder) =
+      switch (content) {
+      | [p] when Piece.token_of(p) != None =>
+        let tok = Option.get(Piece.token_of(p));
+        if (Token.is_string_or_comment(tok)) {
+          let tok_len = Token.length(tok);
+          let (opening, _) = Token.split_nth(tok, 1);
+          let (_, closing) = Token.split_nth(tok, tok_len - 1);
+          /* Check if opening delimiter is in the selected (deleted) range */
+          let left_remainder =
+            switch (left_offset) {
+            | None when tok_len > 0 =>
+              /* Selection starts at piece boundary → includes opening delimiter */
+              switch (left_remainder) {
+              | None => Some(opening)
+              | Some(r) => Some(opening ++ r)
+              }
+            | _ => left_remainder
+            };
+          /* Check if closing delimiter is in the selected (deleted) range */
+          let right_remainder =
+            switch (right_offset) {
+            | None when tok_len > 0 =>
+              /* Selection ends at piece boundary → includes closing delimiter */
+              switch (right_remainder) {
+              | None => Some(closing)
+              | Some(r) => Some(r ++ closing)
+              }
+            | _ => right_remainder
+            };
+          (left_remainder, right_remainder);
+        } else {
+          (left_remainder, right_remainder);
+        };
+      | _ => (left_remainder, right_remainder)
+      };
+
+    let left_str = Option.value(left_remainder, ~default="");
+    let right_str = Option.value(right_remainder, ~default="");
+    let is_single_piece = List.length(content) == 1;
+
+    if (is_single_piece) {
+      /* Single-piece: combine remainders into one token to avoid
+       * creating two adjacent pieces that would need grout between them.
+       * Caret is set to Inner at the seam position so callers (like
+       * Insert.go) can insert at the correct spot within the token. */
+      let combined = left_str ++ right_str;
+      let z = {
+        ...z,
+        selection: Selection.empty,
+        caret: Outer,
+      };
+      let z = unselect(z);
+      if (combined == "") {
+        z;
+      } else {
+        let piece = mk_remainder_piece(combined);
+        let seam_pos = Token.length(left_str);
+        let combined_len = Token.length(combined);
+        let max_idx = combined_len - 2;
+        if (seam_pos == 0) {
+          /* No left remainder: piece on right, caret before it */
+          let siblings =
+            Siblings.prepend(Right, [piece], z.relatives.siblings);
+          let relatives =
+            Relatives.reassemble({
+              ...z.relatives,
+              siblings,
+            });
+          {
+            ...z,
+            caret: Outer,
+            relatives,
+          };
+        } else if (seam_pos >= combined_len) {
+          /* No right remainder: piece on left, caret after it */
+          let siblings =
+            Siblings.prepend(Left, [piece], z.relatives.siblings);
+          let relatives =
+            Relatives.reassemble({
+              ...z.relatives,
+              siblings,
+            });
+          {
+            ...z,
+            caret: Outer,
+            relatives,
+          };
+        } else {
+          /* Seam in middle: piece on right, Inner caret at seam */
+          let siblings =
+            Siblings.prepend(Right, [piece], z.relatives.siblings);
+          let relatives =
+            Relatives.reassemble({
+              ...z.relatives,
+              siblings,
+            });
+          {
+            ...z,
+            caret: Inner(min(seam_pos - 1, max_idx)),
+            relatives,
+          };
+        };
+      };
+    } else {
+      /* Multi-piece: separate remainders. Callers (Destruct.go) run
+       * merge_or_noop which will merge adjacent compatible tokens. */
+      let siblings = z.relatives.siblings;
+      let siblings =
+        switch (left_remainder) {
+        | Some(tok) =>
+          Siblings.prepend(Left, [mk_remainder_piece(tok)], siblings)
+        | None => siblings
+        };
+      let siblings =
+        switch (right_remainder) {
+        | Some(tok) =>
+          Siblings.prepend(Right, [mk_remainder_piece(tok)], siblings)
+        | None => siblings
+        };
+      let relatives =
+        Relatives.reassemble({
+          ...z.relatives,
+          siblings,
+        });
+      {
+        ...z,
+        caret: Outer,
+        selection: Selection.empty,
+        relatives,
+      };
+    };
+  };
+};
 
 let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
   z |> unselect(~erase_buffer) |> zip;
@@ -296,6 +541,18 @@ let replace_selection = (focus, segment, z: t): t => {
 let grow_selection = (z: t): option(t) => {
   let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
   let selection = Selection.push(p, z.selection);
+  {
+    ...z,
+    selection,
+    relatives,
+  };
+};
+
+/* Like grow_selection but skips reassembly in push. Used during
+ * char-level selection to prevent shard merging. */
+let grow_selection_raw = (z: t): option(t) => {
+  let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
+  let selection = Selection.push_raw(p, z.selection);
   {
     ...z,
     selection,
@@ -326,8 +583,18 @@ let shrink_selection = (z: t): option(t) => {
 };
 
 let toggle_focus = (z: t): t => {
-  ...z,
-  selection: Selection.toggle_focus(z.selection),
+  /* Swap caret and anchor_caret so each end retains its position.
+   * Both are CaretBase.t so no conversion needed. */
+  let new_anchor_caret = z.caret;
+  let new_caret = z.selection.anchor_caret;
+  {
+    ...z,
+    caret: new_caret,
+    selection: {
+      ...Selection.toggle_focus(z.selection),
+      anchor_caret: new_anchor_caret,
+    },
+  };
 };
 
 let set_focus = (z: t, d: Direction.t): t => {
@@ -342,14 +609,43 @@ let set_focus = (z: t, d: Direction.t): t => {
 };
 
 let directional_unselect = (d: Direction.t, z: t): t => {
+  let landing_at_anchor = d != z.selection.focus;
+  /* Determine the target caret after unselect.
+   * Both caret and anchor_caret are CaretBase.t so no conversion needed. */
+  let target_caret =
+    if (landing_at_anchor) {
+      z.selection.anchor_caret;
+    } else {
+      z.caret;
+    };
   let selection = {
     ...z.selection,
     focus: Direction.toggle(d),
   };
-  unselect({
+  let z =
+    unselect({
+      ...z,
+      selection,
+    });
+  let z = {
     ...z,
-    selection,
-  });
+    caret: target_caret,
+  };
+  /* Inner(n) references the right neighbor. After unselect, if the
+   * referenced piece ended up in left siblings instead, move it right. */
+  switch (target_caret) {
+  | Inner(_) when Siblings.neighbor(Right, z.relatives.siblings) == None =>
+    switch (Relatives.pop(Left, z.relatives)) {
+    | Some((p, relatives)) =>
+      let relatives = Relatives.push(Right, p, relatives);
+      {
+        ...z,
+        relatives,
+      };
+    | None => z
+    }
+  | _ => z
+  };
 };
 
 let unselect = (z: t): t =>
@@ -383,7 +679,8 @@ let select = (d: Direction.t, z: t): option(t) =>
  * Note that this last case necessarily returns an incomplete tile and
  * thus does not retain knowledge of the tile's in-situ completeness */
 let generalized_neighbor = (d: Direction.t, z: t): option(Piece.t) => {
-  let* z = select(d, unselect(z));
+  let uz = unselect(z);
+  let* z = select(d, uz);
   switch (z.selection.content) {
   | [p] => Some(p)
   | _ => None
@@ -514,8 +811,11 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
     );
   };
 
-let insert_segment = (z: t, seg: Segment.t): t =>
-  z |> replace_selection(Right, seg) |> unselect |> remold_regrout(Right);
+let insert_segment = (z: t, seg: Segment.t, ~root): t =>
+  z
+  |> replace_selection(Right, seg)
+  |> unselect
+  |> remold_regrout(Right, ~root);
 
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
@@ -530,6 +830,22 @@ let adj_pos = (d: Direction.t, z: t): t =>
 let put_down_core = (seg: Segment.t, z: t): t =>
   z |> replace_selection(Right, seg) |> unselect;
 
+/* Like put_down_core but skips Relatives.reassemble.
+ * Used for Inner-caret edits where the replaced token would
+ * otherwise be absorbed back into an ancestor tile during
+ * reassembly, leaving the caret pointing at the wrong piece. */
+let put_down_no_reassemble = (seg: Segment.t, z: t): t => {
+  let z = z |> replace_selection(Right, seg);
+  let relatives =
+    z.relatives |> Relatives.prepend(z.selection.focus, z.selection.content);
+  let selection = Selection.empty;
+  {
+    ...z,
+    selection,
+    relatives,
+  };
+};
+
 let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
   z |> put_down_core(seg) |> adj_pos(d);
 
@@ -539,14 +855,17 @@ let can_put_down = z =>
   | _ => z.caret == Outer
   };
 
-let put_down_target = (d: Direction.t, target: Tile.t, z: t): t =>
-  z |> put_down_core([Tile(target)]) |> remold_regrout(Left) |> adj_pos(d);
+let put_down_target = (d: Direction.t, target: Tile.t, z: t, ~root): t =>
+  z
+  |> put_down_core([Tile(target)])
+  |> remold_regrout(Left, ~root)
+  |> adj_pos(d);
 
-let put_down = (z: t): option(t) =>
+let put_down = (z: t, ~root): option(t) =>
   z.caret == Outer
     ? {
       let+ target = backpack_hd(z);
-      put_down_target(Left, target, z);
+      put_down_target(Left, target, z, ~root);
     }
     : None;
 
@@ -663,18 +982,132 @@ module Caret = {
       }
     };
 
+  /* Compute inner offset using a known token (avoids generalized_neighbor
+   * which unselects and gives wrong results during char-level selection). */
+  let inner_offset_for_token = (idx: int, token: Token.t): int =>
+    Token.is_string(token) ? string_offset(token, idx) : idx + 1;
+
+  /* Like inner_offset_for_token but counts GRAPHEMES, not display columns: a
+     wide char (e.g. an emoji) in a string literal is one grapheme but two
+     columns. Used for clipboard text slicing, where the column count would
+     over-trim and leave a trailing quote. */
+  let inner_grapheme_offset = (idx: int): int => idx + 1;
+
   /* Grid position of the caret */
   /* Convert a caret to a concrete grid point for rendering and hit testing. */
-  let point = (measured: Measured.t, z: t): Point.t => {
-    let Point.{row, col} = base_point(measured, z);
-    {
-      row,
-      col: col + offset(z),
+  let point = (measured: Measured.t, z: t): Point.t =>
+    switch (z.caret, z.selection.content) {
+    | (Inner(idx), [_, ..._]) =>
+      /* Char-level selection: caret is inside the focus-side boundary
+       * piece of the selection. Inner(n) always indexes left-to-right
+       * from the token's origin, regardless of focus direction. */
+      let focus_piece =
+        switch (Selection.focus_piece(z.selection)) {
+        | Some(p) => p
+        | None => failwith("Caret.point: Inner caret with empty selection")
+        };
+      let seg = Piece.disassemble(focus_piece);
+      /* Always use the first shard to get origin */
+      let p = List.hd(seg);
+      let m = Measured.find_p(~msg="caret_point_charsel", p, measured);
+      let offset =
+        switch (Piece.token_of(focus_piece)) {
+        | Some(tok) => inner_offset_for_token(idx, tok)
+        | None => idx + 1
+        };
+      {
+        row: m.origin.row,
+        col: m.origin.col + offset,
+      };
+    | _ =>
+      let Point.{row, col} = base_point(measured, z);
+      {
+        row,
+        col: col + offset(z),
+      };
     };
-  };
 
   type t = ZipperBase.caret;
 };
+
+/* Compute character offsets to trim from the left and right ends
+ * of the printed selection content string. Returns (left_chars_to_skip,
+ * right_chars_to_skip). */
+let selection_trim_offsets = (z: t): (int, int) => {
+  let left_trim = (inner_n, content, focus) => {
+    let p =
+      switch ((focus: Direction.t)) {
+      | Right => List.hd(content)
+      | Left => ListUtil.last(content)
+      };
+    let shard = List.hd(Piece.disassemble(p));
+    switch (Piece.token_of(shard)) {
+    | Some(_) => Caret.inner_grapheme_offset(inner_n)
+    | None => 0
+    };
+  };
+  let right_trim = (inner_n, content, focus) => {
+    let p =
+      switch ((focus: Direction.t)) {
+      | Right => ListUtil.last(content)
+      | Left => List.hd(content)
+      };
+    let seg = Piece.disassemble(p);
+    let last_shard = ListUtil.last(seg);
+    switch (Piece.token_of(last_shard)) {
+    | Some(tok) =>
+      let tok_len = Unicode.length(tok);
+      tok_len - Caret.inner_grapheme_offset(inner_n);
+    | None => 0
+    };
+  };
+  let content = z.selection.content;
+  /* When smart_rounded, the anchor displays at its piece's outer
+   * boundary, so no trim from that side. */
+  let effective_anchor_caret: CaretBase.t =
+    z.selection.smart_rounded ? Outer : z.selection.anchor_caret;
+  switch (z.selection.focus) {
+  | Right => (
+      switch (effective_anchor_caret) {
+      | CaretBase.Inner(n) => left_trim(n, content, Right)
+      | CaretBase.Outer => 0
+      },
+      switch (z.caret) {
+      | Inner(n) => right_trim(n, content, Right)
+      | Outer => 0
+      },
+    )
+  | Left => (
+      switch (z.caret) {
+      | Inner(n) => left_trim(n, content, Left)
+      | Outer => 0
+      },
+      switch (effective_anchor_caret) {
+      | CaretBase.Inner(n) => right_trim(n, content, Left)
+      | CaretBase.Outer => 0
+      },
+    )
+  };
+};
+
+/* Trim a printed selection string to account for char-level
+ * boundaries. Takes the full printed text of selection.content
+ * and trims characters from both ends as needed. */
+let trim_selected_text = (z: t, full: string): string =>
+  if (Selection.is_empty(z.selection)) {
+    "";
+  } else {
+    let (l, r) = selection_trim_offsets(z);
+    let total = Unicode.length(full);
+    let len = total - l - r;
+    if (len <= 0) {
+      "";
+    } else {
+      let (_, after_left) = Token.split_nth(full, l);
+      let (selected, _) = Token.split_nth(after_left, len);
+      selected;
+    };
+  };
 
 let do_towards_point =
     (
@@ -712,7 +1145,21 @@ let do_towards_point =
 
   let init = caret_point(z);
   let d_to_goal = direction_to_from(goal, init);
-  let rec go = (prev: t, curr: t) => {
+  let max_iter = 100_000;
+  let rec go = (iter: int, prev: t, curr: t) => {
+    if (iter > max_iter) {
+      failwith(
+        "do_towards_point: exceeded "
+        ++ string_of_int(max_iter)
+        ++ " iterations (goal="
+        ++ Point.show(goal)
+        ++ ", init="
+        ++ Point.show(init)
+        ++ ", curr="
+        ++ Point.show(caret_point(curr))
+        ++ ")",
+      );
+    };
     let curr_p = caret_point(curr);
     let x_progress = Point.dcomp(d_to_goal, curr_p.col, goal.col);
     let y_progress = Point.dcomp(d_to_goal, curr_p.row, goal.row);
@@ -721,7 +1168,11 @@ let do_towards_point =
     | (Under, Over | Exact | Under)
     | (Exact, Under) =>
       switch (f(d_to_goal, curr)) {
-      | Some(next) => go(curr, next)
+      | Some(next) =>
+        /* Guard: if f didn't advance the caret, stop to prevent
+         * infinite loops (e.g. zero-width pieces, measured edge cases) */
+        let next_p = caret_point(next);
+        Point.equals(next_p, curr_p) ? curr : go(iter + 1, curr, next);
       | None => curr /* Should only occur at start/end of program */
       }
     /* If we're there, stop */
@@ -765,32 +1216,66 @@ let do_towards_point =
       }
     };
   };
-  let res = go(z, z);
+  let res = go(0, z, z);
   Measured.Point.equals(caret_point(res), caret_point(z))
     ? None : Some(res);
 };
 
 let selection_anchor_point = (measured, z: t): option(Point.t) => {
-  switch (z.selection) {
-  | {content: [], _} => None
-  | {content, focus: Right, _} =>
-    Some(
-      Measured.find_p(
-        ~msg="selection_anchor_point",
-        List.hd(content),
-        measured,
-      ).
-        origin,
-    )
-  | {content, focus: Left, _} =>
-    Some(
-      Measured.find_p(
-        ~msg="selection_anchor_point",
-        ListUtil.last(content),
-        measured,
-      ).
-        last,
-    )
+  switch (Selection.anchor_piece(z.selection)) {
+  | None => None
+  | Some(anchor_piece) =>
+    /* In smart-rounded mode, render the anchor at the outer boundary
+     * of the anchor piece regardless of anchor_caret's inner position.
+     * This lets the partial-token anchor be preserved internally (so
+     * dragging back in restores it) while the current visible
+     * selection rounds up to the whole token. */
+    let anchor_caret: CaretBase.t =
+      z.selection.smart_rounded ? Outer : z.selection.anchor_caret;
+    let seg = Piece.disassemble(anchor_piece);
+    switch (z.selection.focus) {
+    | Right =>
+      /* Anchor is at the LEFT end */
+      let p = List.hd(seg);
+      let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
+      switch (anchor_caret) {
+      | CaretBase.Outer => Some(m.origin)
+      | CaretBase.Inner(idx) =>
+        let offset =
+          switch (Piece.token_of(anchor_piece)) {
+          | Some(tok) => Caret.inner_offset_for_token(idx, tok)
+          | None => idx + 1
+          };
+        Some({
+          row: m.origin.row,
+          col: m.origin.col + offset,
+        });
+      };
+    | Left =>
+      /* Anchor is at the RIGHT end */
+      let p = ListUtil.last(seg);
+      let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
+      switch (anchor_caret) {
+      | CaretBase.Outer => Some(m.last)
+      | CaretBase.Inner(idx) =>
+        let offset =
+          switch (Piece.token_of(anchor_piece)) {
+          | Some(tok) => Caret.inner_offset_for_token(idx, tok)
+          | None => idx + 1
+          };
+        let p_first = List.hd(seg);
+        let m_first =
+          Measured.find_p(
+            ~msg="selection_anchor_point_origin",
+            p_first,
+            measured,
+          );
+        Some({
+          row: m_first.origin.row,
+          col: m_first.origin.col + offset,
+        });
+      };
+    };
   };
 };
 

@@ -172,11 +172,68 @@ module Option = {
   ];
 };
 
+module JSON = {
+  /* Self-reference for the recursive type */
+  let self: Typ.t = var("JSON");
+
+  /* type JSON =
+     + Assoc([(String, JSON)])
+     + Bool(Bool)
+     + Float(Float)
+     + Int(Int)
+     + List([JSON])
+     + String(String)
+     + Null */
+  let t: Typ.t =
+    rec_(
+      Fresh.TPat.var("JSON"),
+      sum_type([
+        ("Assoc", Some(list(prod([string(), self])))),
+        ("Bool", Some(bool())),
+        ("Float", Some(float())),
+        ("Int", Some(int())),
+        ("List", Some(list(self))),
+        ("String", Some(string())),
+        ("Null", None),
+      ]),
+    );
+
+  open IdTagged.FreshGrammar;
+  let json_assoc =
+    Exp.constructor("Assoc", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_bool =
+    Exp.constructor("Bool", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_float =
+    Exp.constructor("Float", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_int =
+    Exp.constructor("Int", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_list =
+    Exp.constructor("List", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_string =
+    Exp.constructor("String", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_null = Exp.constructor("Null", Some(Some(t)));
+
+  let pat_json_assoc =
+    Pat.constructor("Assoc", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_bool =
+    Pat.constructor("Bool", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_float =
+    Pat.constructor("Float", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_int =
+    Pat.constructor("Int", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_list =
+    Pat.constructor("List", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_string =
+    Pat.constructor("String", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_null = Pat.constructor("Null", Some(Some(t)));
+};
+
 // List of type aliases to add to the context
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
   ("Either", Either.t),
+  ("JSON", JSON.t),
   ("$Meta", meta_type),
 ];
 
@@ -198,6 +255,11 @@ let constructors: Ctx.t = {
       let cons_map =
         switch (Typ.term_of(typ)) {
         | Sum(cons_map) => cons_map
+        | Rec(_, tbody) =>
+          switch (Typ.term_of(tbody)) {
+          | Sum(cons_map) => cons_map
+          | _ => failwith("Type alias must be a sum type")
+          }
         | _ => failwith("Type alias must be a sum type")
         };
       Ctx.add_ctrs(ctx, name, cons_map);
@@ -209,3 +271,49 @@ let constructors: Ctx.t = {
 
 let builtins = Option.builtins;
 let constructor_entries = constructors.entries @ types;
+
+/* Build an Ord-returning compare builtin from an Atom.compare_entry, the
+ * same way of_atom_builtin handles atom-to-atom conversions. */
+let of_atom_compare =
+    ((name, Atom.Cmp(kind, cmp)): (string, Atom.compare_entry))
+    : BuiltinsUtil.fn => {
+  let ty = Typ.fresh_atom(Atom.cls_of_kind(kind));
+  BuiltinsUtil.{
+    name,
+    arg: Prod([ty, ty]),
+    ret: Ord.t.term,
+    imp:
+      binary((d1, d2) => {
+        let-unbox n1 = (Atom(kind), d1);
+        let-unbox n2 = (Atom(kind), d2);
+        Some(
+          switch (cmp(n1, n2)) {
+          | 0 => Ord.eq
+          | n when n < 0 => Ord.lt
+          | _ => Ord.gt
+          },
+        );
+      }),
+    custom_statics: None,
+  };
+};
+
+/* Flip Lt ↔ Gt, leave Eq alone. Lets a descending sort reuse an ascending
+ * comparator without a second pass to reverse the list. */
+let invert_ord: BuiltinsUtil.fn =
+  BuiltinsUtil.{
+    name: "invert_ord",
+    arg: Ord.t.term,
+    ret: Ord.t.term,
+    imp: d =>
+      switch (DHExp.term_of(d)) {
+      | Constructor("Lt", _) => Some(Ord.gt)
+      | Constructor("Gt", _) => Some(Ord.lt)
+      | Constructor("Eq", _) => Some(Ord.eq)
+      | _ => None
+      },
+    custom_statics: None,
+  };
+
+let ord_builtins: list(BuiltinsUtil.fn) =
+  [invert_ord] @ List.map(of_atom_compare, Atom.compare_builtins);

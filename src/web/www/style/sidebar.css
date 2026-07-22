@@ -168,6 +168,28 @@
   user-select: none;
 }
 
+.problem-editor-group {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.25em;
+}
+
+.problem-editor-header {
+  font-weight: bold;
+  font-size: 0.9em;
+  padding: 0.5em 0.5em 0.25em;
+  margin-top: 0.25em;
+  border-top: 1px solid var(--BR2);
+  color: var(--BR3);
+  user-select: none;
+  cursor: pointer;
+}
+
+.problem-editor-group:first-of-type > .problem-editor-header {
+  border-top: none;
+  margin-top: 0;
+}
+
 .problem-row-chevron {
   flex-shrink: 0;
   cursor: pointer;
@@ -346,6 +368,10 @@
   background-color: var(--warning-hole-stroke);
 }
 
+.legend-swatch.projector-error {
+  background-color: var(--R1);
+}
+
 .problem-nav-buttons {
   display: flex;
   gap: 2px;
@@ -414,4 +440,225 @@
   text-align: center;
   color: var(--BR3);
   padding: 1em;
+}
+
+/* ===== Debug Info Panel ===== */
+
+#debug-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--ui-font);
+  /* Slightly denser than the base UI scale; children size relative to this. */
+  font-size: 0.85em;
+  background-color: var(--ui-bkg);
+}
+
+#debug-sidebar .panel-title-bar {
+  flex: 0 0 auto;
+  padding: 0.5em 0.8em;
+  border-bottom: 1px solid var(--BR1);
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--ui-header-text);
+}
+
+#debug-sidebar .panel-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.5em 0.8em 2em;
+  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#debug-sidebar .debug-toggle-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6em;
+  padding: 0.35em 0.8em;
+  border-bottom: 1px solid var(--BR1);
+  background-color: color-mix(in srgb, var(--T1) 70%, transparent);
+}
+
+#debug-sidebar .debug-toggle-label {
+  font-size: 0.86em;
+  color: var(--STONE);
+  font-style: italic;
+}
+
+#debug-sidebar .debug-toggle-button {
+  padding: 0.2em 0.6em;
+  font-size: 0.86em;
+  font-weight: 600;
+  color: var(--BR4);
+  background-color: var(--SAND);
+  border: 1px solid var(--BR1);
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+
+#debug-sidebar .debug-toggle-button:hover {
+  background-color: var(--T2);
+  border-color: var(--BR3);
+}
+
+#debug-sidebar .debug-field-value:not(.raw) {
+  /* Rendered code views bring their own typography; keep the wrapper plain. */
+  padding: 0.15em 0.25em;
+  background-color: var(--SAND);
+  border: 1px solid var(--BR1);
+  border-radius: 2px;
+  overflow-x: auto;
+}
+
+#debug-sidebar .debug-field-value:not(.raw) .code {
+  /* .code otherwise forces --base-font-size, rendering larger than the raw
+     <pre>; inherit the field-value size so both modes match. */
+  font-size: inherit;
+}
+
+#debug-sidebar .debug-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  margin: 0.8em 0 0.4em;
+  padding-bottom: 0.2em;
+  font-weight: 600;
+  font-size: 1em;
+  color: var(--BR4);
+  border-bottom: 1px solid var(--BR1);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  user-select: none;
+}
+
+#debug-sidebar .debug-section-title:first-child {
+  margin-top: 0;
+}
+
+#debug-sidebar .debug-section-chevron,
+#debug-sidebar .debug-field-chevron {
+  flex-shrink: 0;
+  font-size: 0.7em;
+  opacity: 0.4;
+  cursor: pointer;
+  user-select: none;
+}
+
+#debug-sidebar .debug-section-title:hover .debug-section-chevron,
+#debug-sidebar .debug-field-chevron:hover {
+  opacity: 0.7;
+}
+
+#debug-sidebar .debug-field {
+  margin: 0.35em 0;
+  padding: 0.25em 0.4em;
+  border-left: 2px solid var(--BR2);
+  background-color: color-mix(in srgb, var(--T1) 60%, transparent);
+  border-radius: 2px;
+}
+
+#debug-sidebar .debug-field-label {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-family: var(--ui-font);
+  font-size: 0.86em;
+  font-weight: 600;
+  color: var(--STONE);
+  letter-spacing: 0.02em;
+  margin-bottom: 0.15em;
+}
+
+#debug-sidebar .debug-field-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Copy button: hidden until the field is hovered to keep the dense list
+   uncluttered. */
+#debug-sidebar .debug-copy-button {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0 0.25em;
+  font-size: 0.9em;
+  opacity: 0;
+  cursor: pointer;
+  color: var(--BR3);
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+#debug-sidebar .debug-field:hover .debug-copy-button {
+  opacity: 0.55;
+}
+
+#debug-sidebar .debug-copy-button:hover {
+  opacity: 1;
+  color: var(--BR4);
+}
+
+#debug-sidebar .debug-field-value {
+  margin: 0;
+  padding: 0.25em 0.35em;
+  font-family: var(--code-font);
+  font-size: 0.82em;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--STONE);
+  background-color: var(--SAND);
+  border: 1px solid var(--BR1);
+  border-radius: 2px;
+  max-height: 14em;
+  overflow: auto;
+}
+
+#debug-sidebar .debug-ctx,
+#debug-sidebar .debug-coctx {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+}
+
+#debug-sidebar .debug-ctx-empty {
+  font-style: italic;
+  color: var(--BR4);
+}
+
+#debug-sidebar .debug-ctx-row,
+#debug-sidebar .debug-coctx-var {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4em;
+  padding: 0.1em 0;
+  border-bottom: 1px dotted var(--BR1);
+}
+
+#debug-sidebar .debug-ctx-row:last-child,
+#debug-sidebar .debug-coctx-var:last-child {
+  border-bottom: none;
+}
+
+#debug-sidebar .debug-ctx-name {
+  font-weight: 600;
+  color: var(--BR4);
+}
+
+#debug-sidebar .debug-ctx-body {
+  flex: 1;
+  min-width: 0;
+}
+
+#debug-sidebar .debug-coctx-use {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  color: var(--BR4);
 }

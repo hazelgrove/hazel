@@ -1,26 +1,10 @@
 open Util;
 open OptUtil.Syntax;
-// Find exp with id using ugly exception route
 
 exception Found(Exp.t);
 
-// Find a subexpression by id
-let find_exp_id = (id: Id.t, exp: Exp.t) =>
-  switch (
-    Exp.map_term(
-      ~f_exp=
-        (cont, exp) =>
-          if (Exp.rep_id(exp) == id) {
-            raise(Found(exp));
-          } else {
-            cont(exp);
-          },
-      exp,
-    )
-  ) {
-  | exception (Found(x)) => Some(x)
-  | _ => None
-  };
+// Find a subexpression by id (delegates to Exp.find_by_id)
+let find_exp_id = Exp.find_by_id;
 
 // Given an expression e1 that appears in e2, count how many
 // times e1 appears with a different id before e1 in e2.
@@ -447,6 +431,7 @@ let rec replace_exp =
         | DynamicErrorHole(_, _)
         | Deferral(_)
         | Atom(_)
+        | DrvQuote(_, _)
         | ListLit(_)
         | Constructor(_)
         | TypFun(_)

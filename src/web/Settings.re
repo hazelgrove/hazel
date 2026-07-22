@@ -11,6 +11,7 @@ module Model = {
     instructor_mode: bool,
     benchmark: bool,
     show_log_panel: bool,
+    show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
     /* Auto probe: automatically place a multi probe on the body of
@@ -21,6 +22,7 @@ module Model = {
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
+    show_incremental_deco: bool,
   };
 
   let init = {
@@ -35,6 +37,7 @@ module Model = {
       deep_reassociate: true,
       flip_animations: true,
       display_warnings: true,
+      selection_chunkiness: false,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -48,6 +51,7 @@ module Model = {
         show_settings: false,
         show_hidden_steps: false,
         enable_proof: false,
+        project_tables: false,
       },
     },
     async_evaluation: false,
@@ -55,6 +59,7 @@ module Model = {
     instructor_mode: false,
     benchmark: false,
     show_log_panel: false,
+    show_debug_panel: false,
     explainThis: {
       show: true,
       show_feedback: false,
@@ -65,9 +70,12 @@ module Model = {
       show: true,
       problems: {
         collapsed: [],
+        collapsed_editors: [],
         flat: false,
         expanded: [],
       },
+      debug_show_raw: false,
+      debug_collapsed: [],
     },
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
@@ -75,6 +83,7 @@ module Model = {
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
+    show_incremental_deco: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -128,7 +137,8 @@ module Update = {
     | ShowLookups
     | ShowFilters
     | ShowSettings
-    | ShowHiddenSteps;
+    | ShowHiddenSteps
+    | ProjectTables;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -138,12 +148,14 @@ module Update = {
     | Dynamics
     | ProbeAll
     | DeepReassociate
+    | SelectionChunkiness
     | Assist
     | Elaborate
     | Benchmark
     | ContextInspector
     | InstructorMode
     | ShowLogPanel
+    | ShowDebugPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
@@ -153,7 +165,8 @@ module Update = {
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
-    | ShowRowLines;
+    | ShowRowLines
+    | ShowIncrementalDeco;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -207,6 +220,13 @@ module Update = {
             deep_reassociate: !settings.core.deep_reassociate,
           },
         }
+      | SelectionChunkiness => {
+          ...settings,
+          core: {
+            ...settings.core,
+            selection_chunkiness: !settings.core.selection_chunkiness,
+          },
+        }
       | Assist => {
           ...settings,
           core: {
@@ -244,6 +264,10 @@ module Update = {
           | EnableProof => {
               ...evaluation,
               enable_proof: !evaluation.enable_proof,
+            }
+          | ProjectTables => {
+              ...evaluation,
+              project_tables: !evaluation.project_tables,
             }
           | ShowCaseClauses => {
               ...evaluation,
@@ -311,13 +335,25 @@ module Update = {
             panel: windowToSwitchTo,
           },
         }
-      | Sidebar(Problems(ToggleCollapsed(cat))) => {
+      | Sidebar(Problems(ToggleCollapsed(label, cat))) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
             problems:
               SidebarModel.Settings.toggle_collapsed(
+                label,
                 cat,
+                settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(Problems(ToggleEditorCollapsed(label))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_editor_collapsed(
+                label,
                 settings.sidebar.problems,
               ),
           },
@@ -342,6 +378,21 @@ module Update = {
                 settings.sidebar.problems,
               ),
           },
+        }
+      | Sidebar(ToggleDebugRaw) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            debug_show_raw: !settings.sidebar.debug_show_raw,
+          },
+        }
+      | Sidebar(ToggleDebugCollapsed(key)) => {
+          ...settings,
+          sidebar:
+            SidebarModel.Settings.toggle_debug_collapsed(
+              key,
+              settings.sidebar,
+            ),
         }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
@@ -372,6 +423,10 @@ module Update = {
           ...settings,
           show_log_panel:
             !settings.show_log_panel && ExerciseSettings.show_instructor,
+        }
+      | ShowDebugPanel => {
+          ...settings,
+          show_debug_panel: !settings.show_debug_panel,
         }
       | Benchmark => {
           ...settings,
@@ -412,6 +467,10 @@ module Update = {
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
+        }
+      | ShowIncrementalDeco => {
+          ...settings,
+          show_incremental_deco: !settings.show_incremental_deco,
         }
       }
     )

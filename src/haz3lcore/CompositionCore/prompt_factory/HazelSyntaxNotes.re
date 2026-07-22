@@ -42,7 +42,6 @@ let self = [
   "++                 # String concatenation #",
   "::                 # List cons (prepend) #",
   "@                  # List append #",
-  "$==                # String equality #",
   "```",
   "",
   "## Let Bindings",

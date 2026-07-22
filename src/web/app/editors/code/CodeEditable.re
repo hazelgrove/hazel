@@ -80,6 +80,7 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
+             | PrettyPrint
              | Probe(StepInto(_))
              | Dump
              | ToggleLineComment => true
@@ -94,6 +95,7 @@ module Update = {
     | Perform(action) =>
       settings.core.flip_animations && Action.should_animate(action)
         ? Animation.request([Animation.Actions.move("caret")]) : ();
+
       perform(action, model);
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
@@ -102,6 +104,7 @@ module Update = {
       let new_state =
         ContextMenu.WithContext.update(
           ~info_map=model.statics.info_map,
+          ~elaborated=model.statics.elaborated,
           ~zipper=model.editor.state.zipper,
           action,
           model.context_menu,
@@ -279,6 +282,13 @@ module Selection = {
            ~action=action(Introduce),
            "Introduce",
          ),
+         mk(
+           ~mdIcon="format_align_left",
+           ~section="Formatting",
+           ~hotkey=meta ++ "+s",
+           ~action=action(PrettyPrint),
+           "Pretty Print",
+         ),
        ]);
   };
 
@@ -395,37 +405,23 @@ module Selection = {
     | k =>
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
-  let handle_key_event = (~selection, model: Model.t, key: Key.t) => {
-    /* Delegate to context menu key handler when menu is open */
-    let context_menu_result =
-      ContextMenu.WithContext.handle_key(
-        ~info_map=model.statics.info_map,
-        ~zipper=model.editor.state.zipper,
-        key.key,
-        model.context_menu,
-      );
-    switch (context_menu_result) {
-    | ContextMenu.WithContext.MenuUpdate(action) =>
-      Some(Update.ContextMenu(action))
-    | ContextMenu.WithContext.EditorAction(action) =>
-      Some(Update.Perform(action))
-    | ContextMenu.WithContext.Unhandled =>
-      /* Fall through to projector key handoff, then base handler */
-      switch (
-        ProjectorView.key_handoff(
-          model.editor,
-          key,
-          model.editor.syntax.projector_list,
-        )
-      ) {
-      | Some(action) => Some(Update.Perform(Project(action)))
-      | None => handle_key_event(~selection, model, key)
-      }
+  let handle_key_event = (~selection, model: Model.t, key: Key.t) =>
+    /* Context menu key dispatch (Escape/ArrowUp/ArrowDown/Enter) is handled
+     * at the document level by ContextMenuListener while the menu is open,
+     * so it doesn't reach this handler. */
+    switch (
+      ProjectorView.key_handoff(
+        model.editor,
+        key,
+        model.editor.syntax.projector_list,
+      )
+    ) {
+    | Some(action) => Some(Update.Perform(Project(action)))
+    | None => handle_key_event(~selection, model, key)
     };
-  };
 
   let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
-    switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
+    switch (TermData.root_piece(id, model.editor.syntax.term_data)) {
     | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
     | None => None
     };
@@ -440,7 +436,9 @@ module View = {
     current_target
     |> Js.Opt.get(_, _ => failwith(""))
     |> JsUtil.get_child_with_class(_, "code-container")
-    |> Option.get;
+    |> OptUtil.value_exn(
+         ~none=Invalid_argument("CodeEditable.View.container_target"),
+       );
 
   module PointerCapture = {
     /* This uses the Pointer Capture API to keep mouse movement data flowing
@@ -461,6 +459,23 @@ module View = {
 
   module MouseState = Pointer.MkState();
 
+  /* Toggle an `is-resizing` class on the editor's code-container
+   * for the duration of a drag gesture. Used by CSS to suppress
+   * caret-tracking decorations (e.g. variable highlights) while the
+   * selection is being actively manipulated — including the
+   * zero-width frame when a drag crosses back through the anchor. */
+  module DragClass = {
+    let name = Js.string("is-resizing");
+    let add = (target: Js.opt(Js.t(Dom_html.element))): unit =>
+      try(container_target(target)##.classList##add(name)) {
+      | _ => ()
+      };
+    let remove = (target: Js.opt(Js.t(Dom_html.element))): unit =>
+      try(container_target(target)##.classList##remove(name)) {
+      | _ => ()
+      };
+  };
+
   let deco =
       (
         ~expand_selection=false,
@@ -474,7 +489,14 @@ module View = {
       ~font_metrics=globals.font_metrics,
       z,
     ),
-    Arms.Indicated.term(~font_metrics=globals.font_metrics, ~syntax, z),
+    Arms.Indicated.term(
+      ~refine_sort=
+        (id, mold_out) =>
+          Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
+      ~font_metrics=globals.font_metrics,
+      ~syntax,
+      z,
+    ),
     (
       expand_selection
         ? Highlight.selection_expanded(~term_data=syntax.term_data)
@@ -512,6 +534,7 @@ module View = {
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
+        ~incr_eval: Language.IncrEval.t=Language.IncrEval.empty,
         ~expand_selection=?,
         model: Model.t,
       ) => {
@@ -526,10 +549,24 @@ module View = {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
       };
-    /* Sync document-level click listener for closing context menu */
+    /* Sync document-level listeners (click-outside + keyboard) for the
+     * context menu. Keys are dispatched at capture phase so the editor's
+     * window-level handler doesn't see them while the menu is open. */
     ContextMenuListener.sync(
-      selected && Model.context_menu_is_open(model),
-      inject(ContextMenu(ContextMenu.Model.Close)),
+      ~menu_open=selected && Model.context_menu_is_open(model),
+      ~on_close=inject(ContextMenu(ContextMenu.Model.Close)),
+      ~handle_key=
+        key_str =>
+          ContextMenu.WithContext.handle_listener_key(
+            ~info_map=model.statics.info_map,
+            ~elaborated=model.statics.elaborated,
+            ~zipper=model.editor.state.zipper,
+            ~dispatch_menu=a => inject(ContextMenu(a)),
+            ~dispatch_action=a => inject(Perform(a)),
+            model.context_menu,
+            key_str,
+          ),
+      (),
     );
     let edit_decos =
       selected
@@ -550,7 +587,7 @@ module View = {
           ]
           @ (
             switch (model.context_menu) {
-            | Some(selected_index) => [
+            | Some(_) => [
                 /* Backdrop for scroll-close. Click handling is done via
                    ContextMenuListener's document-level event listener. */
                 Node.div(
@@ -564,10 +601,12 @@ module View = {
                 ),
                 ContextMenu.view(
                   ~inject=a => inject(Perform(a)),
+                  ~inject_menu=a => inject(ContextMenu(a)),
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
+                  ~elaborated=model.statics.elaborated,
                   ~font_metrics=globals.font_metrics,
-                  ~selected_index,
+                  ~model=model.context_menu,
                   model.editor.state.zipper,
                 ),
               ]
@@ -600,6 +639,7 @@ module View = {
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
+        ~core_settings=globals.settings.core,
         ~visible?,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
@@ -611,6 +651,7 @@ module View = {
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
+        ~core_settings=globals.settings.core,
         ~visible?,
         ProjectorView.Model.mk(
           ~syntax=model.editor.syntax,
@@ -619,12 +660,35 @@ module View = {
           ~dynamics,
           ~sample_focus=zipper.refractors.sample_focus,
           ~editor_active=selected,
+          ~elaborated=Some(model.statics.elaborated),
         ),
         model.editor.syntax.projector_list,
       );
     ProjectorView.ViewCache.log_frame();
+    /* Tint the background behind ids reused from the last run (cache hits)
+     * with an icy wash, so the user can see what the incremental evaluator
+     * is skipping. Gated behind a nut-menu setting because it's distracting
+     * during normal editing. */
+    let incr_eval_overlay =
+      if (globals.settings.show_incremental_deco) {
+        [
+          Node.div(
+            ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
+            [
+              Highlight.incr_eval(
+                ~font_metrics=globals.font_metrics,
+                ~syntax=model.editor.syntax,
+                incr_eval,
+              ),
+            ],
+          ),
+        ];
+      } else {
+        [];
+      };
     let overlays =
-      [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
+      incr_eval_overlay
+      @ [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors
       @ refractors_model;
@@ -637,29 +701,57 @@ module View = {
         e.loc,
       );
 
+    /* Pointer modifier → optional chunkiness override for
+     * Select(Resize(Point(...))). Alt on Mac / Ctrl on PC swaps to the
+     * non-default chunkiness (BySmart ↔ ByChar) per the "Character-level
+     * mouse" setting. None means "use the settings default". */
+    let drag_chunkiness_override =
+        (pointer: Pointer.Event.t): option(Action.chunkiness) => {
+      let modifier_held =
+        switch (pointer.sys) {
+        | Mac => pointer.alt == Down
+        | PC => pointer.ctrl == Down
+        };
+      modifier_held
+        ? Some(Keyboard.mouse_modifier_chunk(globals.settings.core)) : None;
+    };
+
     let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
       switch (mouse) {
       | {button: Left, shift: Down, _} =>
+        /* Shift+click extends (or starts) a selection and arms a
+         * drag-resize. Registered without click-counting so a
+         * following plain click starts a fresh streak. */
+        MouseState.pointerdown_no_count(loc(mouse));
+        PointerCapture.set(mouse.current_target, pointer_id);
+        DragClass.add(mouse.current_target);
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Select(Resize(Point(loc(mouse)))))),
-        ])
+          inject(
+            Perform(
+              Select(
+                Resize(Point(loc(mouse), drag_chunkiness_override(mouse))),
+              ),
+            ),
+          ),
+        ]);
       | {button: Left, sys: PC, ctrl: Down, _}
       | {button: Left, sys: Mac, meta: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Move(Point(loc(mouse))))),
+          inject(Perform(Move(Point(loc(mouse), None)))),
           inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
         ])
       | {button: Right, ctrl, _} when ctrl != Down =>
         Effect.Many([
           //Effect.Stop_propagation,
           Effect.Prevent_default,
-          inject(Perform(Move(Point(loc(mouse))))),
+          inject(Perform(Move(Point(loc(mouse), None)))),
           inject(ContextMenu(ContextMenu.Model.Toggle)),
         ])
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
+        DragClass.add(mouse.current_target);
         let click_count = MouseState.count();
         /* Check how many clicks have happened recently
          * and cycle between options on-click */
@@ -669,7 +761,7 @@ module View = {
           PointerCapture.set(mouse.current_target, pointer_id);
           Effect.Many([
             signal(MakeActive),
-            inject(Perform(Move(Point(loc(mouse))))),
+            inject(Perform(Move(Point(loc(mouse), None)))),
           ]);
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
@@ -681,6 +773,7 @@ module View = {
     let toggle_button = (e: Pointer.Event.t, pointer_id: int) => {
       MouseState.pointerup(loc(e));
       PointerCapture.release(e.current_target, pointer_id);
+      DragClass.remove(e.current_target);
       EdgeScroll.stop();
       Effect.Ignore;
     };
@@ -691,18 +784,34 @@ module View = {
         /* Recover from stuck state: buttons bitmask says left is up
          * but MouseState thinks it's down (missed pointerup) */
         MouseState.reset();
+        DragClass.remove(pointer.current_target);
         EdgeScroll.stop();
         Effect.Ignore;
       } else {
         let current_loc = loc(pointer);
+        if (left_button_held && MouseState.is_button_down()) {
+          MouseState.note_move(current_loc);
+        };
+        /* Suppress Resize while the cursor has never left the
+         * pointerdown column (avoids spurious post-click scroll).
+         * Once the cursor has departed, even mousemoves that return
+         * to the down-loc dispatch Resize — this is required so the
+         * selection can pass through zero-width when dragging back
+         * across the anchor. */
+        let at_down_loc_without_motion =
+          !MouseState.has_left_down_loc()
+          && Point.equals(current_loc, MouseState.get_down_loc());
         switch (pointer) {
         | {button: Left, _}
             when
               left_button_held
               && MouseState.is_button_down()
-              && !Point.equals(current_loc, MouseState.get_down_loc()) =>
+              && !at_down_loc_without_motion =>
           let container = container_target(pointer.current_target);
           let pixel_loc = pointer.loc;
+          /* Snapshot at mousemove time so edge-scroll fires with the
+           * same chunkiness mode the user had selected. */
+          let chunk_override = drag_chunkiness_override(pointer);
           EdgeScroll.update(
             ~client_y=float_of_int(pointer.loc.row),
             ~on_scroll=() => {
@@ -713,11 +822,15 @@ module View = {
                   pixel_loc,
                 );
               Bonsai.Effect.Expert.handle(
-                inject(Perform(Select(Resize(Point(goal))))),
+                inject(
+                  Perform(Select(Resize(Point(goal, chunk_override)))),
+                ),
               );
             },
           );
-          inject(Perform(Select(Resize(Point(current_loc)))));
+          inject(
+            Perform(Select(Resize(Point(current_loc, chunk_override)))),
+          );
         | _ => Effect.Ignore
         };
       };
@@ -735,6 +848,48 @@ module View = {
         );
       } else {
         let z = model.editor.state.zipper;
+        /* Editor-level clipboard helpers. Bypass the page-level
+           on_copy/on_paste path because Firefox refuses to dispatch
+           native clipboard events to non-editable focused elements
+           (the editor div has tabindex(0) but is not contenteditable). */
+        let selection_has_refractors =
+            (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
+          if (List.is_empty(refractors.manuals)) {
+            false;
+          } else {
+            let ids = Haz3lcore.Segment.ids(selection);
+            List.exists(
+              id =>
+                List.exists(
+                  ((id2, _)) => Id.equal(id, id2),
+                  refractors.manuals,
+                ),
+              ids,
+            );
+          };
+        let copy_selection = () => {
+          let segment = z.selection.content;
+          let full =
+            Printer.of_segment(
+              ~indent=" ",
+              ~refractors=z.refractors.manuals,
+              segment,
+            );
+          let str = Zipper.trim_selected_text(z, full);
+          /* Cache for paste reuse only when nothing was trimmed: a trimmed
+             sub-token string must re-parse on paste, not round-trip to the
+             full segment. */
+          if (str == full && !selection_has_refractors(z.refractors, segment)) {
+            Haz3lcore.Parser.set_segment_cache(Some(segment), str);
+          };
+          JsUtil.write_clipboard(str);
+        };
+        let paste_from_clipboard = () =>
+          JsUtil.read_clipboard(text => {
+            let action =
+              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
+            Bonsai.Effect.Expert.handle(inject(Perform(action)));
+          });
         Key.handler(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
@@ -766,8 +921,75 @@ module View = {
                 && z.relatives.ancestors == []
                 && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
+          /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
+             on_copy/on_paste handlers, so they keep working in
+             Firefox when focus is on a non-editable editor div. */
+          | {
+              key: D("c" | "C"),
+              sys: Mac,
+              shift: Up,
+              meta: Down,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+          | {
+              key: D("c" | "C"),
+              sys: PC,
+              shift: Up,
+              meta: Up,
+              ctrl: Down,
+              alt: Up,
+              _,
+            } =>
+            copy_selection();
+            Effect.Many([Effect.Prevent_default, Effect.Stop_propagation]);
+          | {
+              key: D("x" | "X"),
+              sys: Mac,
+              shift: Up,
+              meta: Down,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+          | {
+              key: D("x" | "X"),
+              sys: PC,
+              shift: Up,
+              meta: Up,
+              ctrl: Down,
+              alt: Up,
+              _,
+            } =>
+            copy_selection();
+            Effect.Many([
+              Effect.Prevent_default,
+              Effect.Stop_propagation,
+              inject(Perform(Destruct(Right))),
+            ]);
+          | {
+              key: D("v" | "V"),
+              sys: Mac,
+              shift: Up,
+              meta: Down,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+          | {
+              key: D("v" | "V"),
+              sys: PC,
+              shift: Up,
+              meta: Up,
+              ctrl: Down,
+              alt: Up,
+              _,
+            } =>
+            paste_from_clipboard();
+            Effect.Many([Effect.Prevent_default, Effect.Stop_propagation]);
           | _ =>
-            /* 2. Normal editor key handling:
+            /* 3. Normal editor key handling:
              *    context menu → projector handoff → Keyboard */
             switch (Selection.handle_key_event(~selection=(), model, key)) {
             | Some(action) =>
@@ -788,6 +1010,9 @@ module View = {
           @ (selected ? ["selected"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
+        /* Tag the active cell so a sidebar jump can move DOM focus to it
+           (see JsUtil.active_cell_id / ProbePerform.FocusEffect). */
+        selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
         key_handler_attr,
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {

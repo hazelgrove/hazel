@@ -41,7 +41,6 @@ let type_binder = 15;
 // ======== PATTERNS =========
 // ======= EXPRESSIONS =======
 
-let unquote = 21;
 // $_____
 let dot = 22 |> left_associative;
 let ap = 23;
@@ -75,6 +74,11 @@ let and_ = 32 |> right_associative;
 // true && _____
 // _____ || false
 let or_ = 33 |> right_associative;
+
+// Derivation Mode Only
+// A /\ B \/ C ==> D
+// ((A /\ B) \/ C) ==> D
+let impl = 34;
 // false || _____
 let concave_grout = 34;
 
@@ -107,7 +111,13 @@ let rule_sep = 46;
    not as `let x = (1; let y = 2)` */
 let mod_seq = 47;
 
-let min = 48;
+// Derivation Mode Only
+// Exp : Typ (HasType)
+// Exp => Typ (Synthesis)
+// Exp <= Typ (Analysis)
+let ann = 48;
+
+let min = 49;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));
@@ -157,7 +167,6 @@ let of_bin_op: Language.Operators.op_bin => t =
   | String(op) =>
     switch (op) {
     | Concat => concat
-    | Equals => eqs
     }
   | Poly(op) =>
     switch (op) {

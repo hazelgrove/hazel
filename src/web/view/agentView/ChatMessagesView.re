@@ -1157,6 +1157,13 @@ let view =
           Option.value(~default=0, usage.cache_read_input_tokens);
         let cache_creation =
           Option.value(~default=0, usage.cache_creation_input_tokens);
+        let cache_write = Option.value(~default=0, usage.cache_write_tokens);
+        /* Billed amount as reported by OpenRouter, in credits. Shown to as many
+           places as a sub-cent charge needs; this is the only number here that
+           reflects what we are actually charged (see [[OpenRouter.Reply.Model.usage]]
+           on why prompt_tokens is not a billing figure). */
+        let fmt_credits = (c: float): string =>
+          Printf.sprintf("%.6f", c) ++ " cr";
         let new_this_turn =
           switch (prev_usage) {
           | Some(p) when p.model_id == usage.model_id =>
@@ -1188,10 +1195,15 @@ let view =
             humanize_tokens(usage.prompt_tokens) ++ " in",
             humanize_tokens(usage.completion_tokens) ++ " out",
           ];
-          if (cache_read > 0) {
-            base @ ["cached: " ++ humanize_tokens(cache_read)];
-          } else {
-            base;
+          let base =
+            if (cache_read > 0) {
+              base @ ["cached: " ++ humanize_tokens(cache_read)];
+            } else {
+              base;
+            };
+          switch (usage.cost) {
+          | Some(c) => base @ [fmt_credits(c)]
+          | None => base
           };
         };
         let row = (label, value) =>
@@ -1241,9 +1253,24 @@ let view =
                 ),
                 row("Cache read", humanize_tokens(cache_read)),
                 row("Cache creation", humanize_tokens(cache_creation)),
+                row("Cache write", humanize_tokens(cache_write)),
                 row(
                   "Output tokens",
                   humanize_tokens(usage.completion_tokens),
+                ),
+                row(
+                  "Cost (billed)",
+                  switch (usage.cost) {
+                  | Some(c) => fmt_credits(c)
+                  | None => "—"
+                  },
+                ),
+                row(
+                  "Upstream cost (BYOK)",
+                  switch (usage.upstream_inference_cost) {
+                  | Some(c) => fmt_credits(c)
+                  | None => "—"
+                  },
                 ),
                 Node.pre(
                   ~attrs=[clss(["agent-token-chip-raw"])],

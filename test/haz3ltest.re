@@ -16,6 +16,9 @@ let (suite, _) =
     [
       Test_ListUtil.tests,
       Test_OptUtil.tests,
+      Test_Atom.tests,
+      Test_Operators.tests,
+      Test_BuiltinsADT.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_Abbreviate.tests,
@@ -23,6 +26,7 @@ let (suite, _) =
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
+      Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
@@ -41,19 +45,27 @@ let (suite, _) =
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
-    @ [
-      Test_Coverage.tests,
-      Test_Unboxing.tests,
-      Test_ProblemCollection.tests,
-    ]
+    @ [Test_Coverage.tests, Test_Unboxing.tests]
+    @ Test_ProblemCollection.tests
+    @ [Test_TermData.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
+    @ Test_TextRoundtrip.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
+    @ [
+      Test_TableCore.tests,
+      Test_TableTransforms.tests,
+      Test_RichProbeRegistry.tests,
+    ]
+    @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
-    @ [Test_VarHighlight.tests],
+    @ [Test_VarHighlight.tests]
+    @ [Test_GradingReport.tests]
+    @ [Test_Derivation.tests]
+    @ Test_DerivationCase.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

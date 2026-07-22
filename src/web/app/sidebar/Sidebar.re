@@ -16,12 +16,16 @@ let switch_to = (~globals: Globals.t, panel: SidebarModel.Settings.panel, _) =>
   Effect.Many([
     globals.inject_global(Set(Sidebar(SwitchPanel(panel)))),
     Effect.Stop_propagation,
+    /* Keep editor focus when switching sidebar sections. */
+    Effect.Prevent_default,
   ]);
 
 let switch_assistant = (~globals: Globals.t, _) =>
   Effect.Many([
     globals.inject_global(Set(Sidebar(ToggleShow))),
     Effect.Stop_propagation,
+    /* Keep editor focus when collapsing/expanding the sidebar. */
+    Effect.Prevent_default,
   ]);
 
 let tab_of =
@@ -79,6 +83,15 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~cls=["log-control-button"],
     ~icon=Icons.gear,
     ~tooltip="Switch to Log Control Panel",
+    ~globals,
+  );
+
+let debug_info_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=DebugInfo,
+    ~cls=["debug-info-button"],
+    ~icon=Icons.info,
+    ~tooltip="Switch to Debug Info Panel",
     ~globals,
   );
 
@@ -172,6 +185,9 @@ let persistent_view =
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
+        )
+        @ (
+          globals.settings.show_debug_panel ? [debug_info_tab(~globals)] : []
         ),
       ),
     ],
@@ -273,16 +289,37 @@ let view =
       ~log_count: int,
       ~editors_inject,
       ~editors: Editors.Model.t,
+      ~selection: Editors.Selection.t,
       ~editor: CodeWithStatics.Model.t,
+      ~problem_editors:
+         list((option(string), list(CodeWithStatics.Model.t))),
       ~signal,
     ) => {
-  let ctx =
-    Haz3lcore.ProblemCollection.make_problem_context(
+  let problem_collection =
+    Haz3lcore.ProblemCollection.make(
       ~display_warnings=globals.settings.core.display_warnings,
-      ~statics=editor.statics,
-      ~syntax=editor.editor.syntax,
+      List.map(
+        ((label, editors: list(CodeWithStatics.Model.t))) =>
+          Haz3lcore.ProblemCollection.{
+            label,
+            sources:
+              List.map(
+                (e: CodeWithStatics.Model.t) =>
+                  Haz3lcore.ProblemCollection.{
+                    statics: e.statics,
+                    syntax: e.editor.syntax,
+                  },
+                editors,
+              ),
+          },
+        problem_editors,
+      ),
     );
-  let counts = Haz3lcore.ProblemCollection.counts_of_context(ctx);
+  let counts = problem_collection.counts;
+  /* See Page.calculate: use the live selection so Prelude/Setup focus
+     doesn't show up as "in a derivation" via the stale model.pos. */
+  let derivation_info =
+    Editors.Selection.get_derivation_info(~selection, editors);
   let sub =
     globals.settings.sidebar.show
       ? div(
@@ -295,7 +332,10 @@ let view =
                 ~globals,
                 ~inject=explain_this_inject,
                 ~explainThisModel,
-                cursor.info,
+                {
+                  cursor: cursor.info,
+                  deduction: derivation_info,
+                },
               )
             | HelpfulAssistant =>
               AgentView.view(~globals, ~editors_inject, ~editors, ~signal)
@@ -312,7 +352,13 @@ let view =
                 ~model=log_model,
                 ~log_entries_count=log_count,
               )
-            | Problems => ProblemSidebar.view(~globals, ~cursor, ~ctx)
+            | Problems =>
+              ProblemSidebar.view(
+                ~globals,
+                ~cursor,
+                ~collection=problem_collection,
+              )
+            | DebugInfo => DebugSidebar.view(~globals, ~cursor)
             },
           ],
         )

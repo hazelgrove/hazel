@@ -54,15 +54,27 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
     //[text("Γ")],
   );
 
-let term_view = (~globals: Globals.t, ci) => {
-  let sort = Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.show;
-
+let term_view = (~globals: Globals.t, ~force_error=false, ci) => {
+  /* Drv(_) sorts have verbose type-level names like "DrvJdmt"/"DrvProp"
+     via Sort.to_string (needed for pretty-printing `DrvQuoteTy`). For the
+     inspector header we prefer the terse form ("Jdmt", "Prop", ...),
+     keeping the ALFA prefix for object-language sorts. */
+  let sort_text =
+    Info.is_label(ci)
+      ? "Label"
+      : (
+        switch (Info.sort_of(ci)) {
+        | Drv(s) => DrvSort.to_string_short(s)
+        | s => Sort.to_string(s)
+        }
+      );
+  let sort_class = Info.is_label(ci) ? "Label" : ci |> Info.class_of;
   div(
     ~attrs=[
       clss(
-        ["ci-header", sort]
+        ["ci-header", sort_class]
         @ (
-          Info.is_error(ci)
+          force_error || Info.is_error(ci)
             ? [errc]
             : Info.is_warning(ci) && globals.settings.core.display_warnings
                 ? [warnc] : [okc]
@@ -71,7 +83,7 @@ let term_view = (~globals: Globals.t, ci) => {
     ],
     [
       ctx_toggle(~globals),
-      div(~attrs=[clss(["term-tag"])], [text(sort)]),
+      div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
     ],
@@ -98,6 +110,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  project_tables: false,
 };
 
 let view_any = (~globals, any: Any.t) =>
@@ -323,7 +336,10 @@ let common_ok_view =
       | Label(l) => [label_view(l)]
       | _ => colon_prefix(show_type_colon) @ [view_type(syn)]
       }
-    | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) =>
+    | (Pat(Var) | Pat(Wild) | Pat(ApFunc), Ana(Consistent({ana, _}))) =>
+      /* Pat(ApFunc) is only produced by the `let f(args) = ...` function
+         sugar (see FunctionSugar.re), where it denotes the function binder
+         as a whole. Render it the same way as a plain variable binder. */
       colon_prefix(show_type_colon) @ [view_type(ana)]
     | (_, Ana(Consistent({ana, syn, _})))
         when Equality.semantic.typ(ana, syn) =>
@@ -1042,6 +1058,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(typ_view(~globals, cls, ~marks, ~message))
   | InfoTPat({cls, marks, message, _}) =>
     wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };
 
@@ -1059,6 +1076,20 @@ let inspector_view = (~globals: Globals.t, ci): Node.t =>
     view_of_info(~globals, ci),
   );
 
+let projector_error_inspector =
+    (
+      ~globals: Globals.t,
+      ci: Language.Info.t,
+      err: Haz3lcore.ProjectorBase.error,
+    ) =>
+  div(
+    ~attrs=[Attr.id("cursor-inspector"), clss([errc])],
+    [
+      term_view(~globals, ~force_error=true, ci),
+      div_err([text(err.message)]),
+    ],
+  );
+
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
@@ -1068,9 +1099,26 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
     ]);
+  /* Look up projector error for the indicated piece */
+  let projector_err =
+    switch (cursor.indicated_piece, cursor.editor) {
+    | (Some(Projector({id, kind, _})), Some(editor)) =>
+      switch (Id.Map.find_opt(id, editor.syntax.projector_errors)) {
+      | Some(err) => Some((kind, err))
+      | None => None
+      }
+    | _ => None
+    };
   switch (cursor.info) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
-  | Some(ci) => bar_view([inspector_view(~globals, ci)])
+  | Some(ci) =>
+    /* Show projector error instead of normal status,
+     * unless there's a statics error (which takes priority) */
+    switch (projector_err) {
+    | Some((_, err)) when !Info.is_error(ci) =>
+      bar_view([projector_error_inspector(~globals, ci, err)])
+    | _ => bar_view([inspector_view(~globals, ci)])
+    }
   };
 };

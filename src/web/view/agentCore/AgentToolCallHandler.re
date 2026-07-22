@@ -11,6 +11,16 @@ type result =
   | Success(Model.t, Updated.t(CellEditor.Model.t))
   | Failure(string);
 
+/** The elaborated form cached alongside [syntax], for projectors that key their
+    init off elaboration ([[ProjectorInit]]'s [elaborate_syntax] kinds, e.g.
+    table). Falls back to the empty elaboration, in which case such projectors
+    simply decline to attach. */
+let elaborated_of_syntax = (syntax: CachedSyntax.t): Language.Exp.t =>
+  switch (syntax.shape_elaborated) {
+  | Some(e) => e
+  | None => CachedStatics.empty.elaborated
+  };
+
 /** Shared dispatch for path-indexed overlay tools (probes, statics, syntax
     projectors). Each such tool takes a list of HighLevelNodeMap paths and
     runs a per-path operation; afterwards any paths that were actually
@@ -83,8 +93,8 @@ let apply_overlay_action =
         ),
       );
     } else {
-      let new_z = Dump.to_zipper(new_z);
-      let new_editor_model = Editor.Model.mk(new_z);
+      let new_z = Dump.to_zipper(new_z, ~root=Exp);
+      let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
       let new_cws =
         CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
 
@@ -199,8 +209,8 @@ let update =
           ),
         );
       } else {
-        let new_z = Dump.to_zipper(new_z);
-        let new_editor_model = Editor.Model.mk(new_z);
+        let new_z = Dump.to_zipper(new_z, ~root=Exp);
+        let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
         let new_code_with_statics =
           CodeWithStatics.Model.mk(new_editor_model);
         Ok((agent, new_code_with_statics));
@@ -336,6 +346,7 @@ let update =
             | PlaceSyntaxProjector(kind, _) =>
               ProjectorPerform.try_place_syntax_projector(
                 ~term_data=syntax.term_data,
+                ~elaborated=elaborated_of_syntax(syntax),
                 id,
                 kind,
                 z,
@@ -343,6 +354,7 @@ let update =
             | ToggleSyntaxProjector(kind, _) =>
               ProjectorPerform.try_toggle_syntax_projector(
                 ~term_data=syntax.term_data,
+                ~elaborated=elaborated_of_syntax(syntax),
                 id,
                 kind,
                 z,

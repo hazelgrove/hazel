@@ -562,6 +562,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           let str = abbreviate_string_token(~min_len=available^, s);
           Atom(String(str));
         };
+      | DrvQuote(_, _) => Invalid("<drv term>")
       | Var(v) => Var(abbreviate_str(available^, v))
       | Label(v) =>
         switch (abbreviate_label(v)) {
@@ -750,13 +751,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           ~make_term=e' => UnOp(Int(Minus), e'),
           e,
         )
-      | UnOp(Meta(Unquote), e) =>
-        handle_unary(
-          ~cost=2, // "$ " (op + space)
-          ~make_term=e' => UnOp(Meta(Unquote), e'),
-          e,
-        )
-
       // Binary operations
       | BinOp(op, e1, e2) =>
         let op_str = Operators.bin_op_to_string(op);
@@ -1586,6 +1580,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
     let term: Typ.term =
       switch (typ |> Typ.term_of) {
       | Unknown(prov) => Unknown(prov)
+      | DrvQuoteTy(s) => DrvQuoteTy(s)
       | Atom(Int) =>
         if (available^ < 3) {
           available := available^ - 1;
@@ -1848,6 +1843,7 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Typ(t) => Typ(abbreviate_typ(t))
   | TPat(tp) => TPat(abbreviate_tpat(tp))
   | Rul(_) => any
+  | Drv(_) => any
   | Mod(m) => Mod(abbreviate_mod_item(m))
   | Sig(s) => Sig(abbreviate_sig_item(s))
   | MPat(mp) => MPat(abbreviate_mpat(mp))

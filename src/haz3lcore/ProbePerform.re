@@ -9,6 +9,7 @@ module FocusEffect = {
    * and we can't dispatch actions from after_display without causing loops. */
   type target =
     | Editor
+    | Cell
     | Probe(Id.t);
 
   let scheduled: ref(option(target)) = ref(None);
@@ -23,6 +24,13 @@ module FocusEffect = {
     scheduled := Some(Editor);
   };
 
+  /* Schedule DOM focus on the active code-editor cell (called after a
+     sidebar jump, which moves the model selection to a different cell
+     without moving DOM focus). */
+  let schedule_cell = (): unit => {
+    scheduled := Some(Cell);
+  };
+
   /* Execute any scheduled focus (called from Main.re after_display).
    * Returns whether focus was executed. */
   let execute = (): bool =>
@@ -31,6 +39,9 @@ module FocusEffect = {
       scheduled := None;
       JsUtil.focus_clipboard_shim();
       true;
+    | Some(Cell) =>
+      scheduled := None;
+      JsUtil.focus_active_cell();
     | Some(Probe(probe_id)) =>
       scheduled := None;
       let elem_id = Id.cls(probe_id);

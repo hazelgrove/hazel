@@ -265,6 +265,9 @@ let tok = (n: int): OpenRouter.Reply.Model.usage =>
     total_tokens: n,
     cache_read_input_tokens: None,
     cache_creation_input_tokens: None,
+    cost: None,
+    upstream_inference_cost: None,
+    cache_write_tokens: None,
     model_id: None,
   };
 
@@ -870,11 +873,11 @@ let toolcall_handler_tests = [
       let agent = Agent.Utils.init();
       let chat_id = agent.chat_system.current;
       let z =
-        switch (Parser.to_zipper("let a = 1 in a")) {
+        switch (Parser.to_zipper("let a = 1 in a", ~root=Exp)) {
         | Some(z) => z
         | None => fail("failed to parse fixture")
         };
-      let cws = CodeWithStatics.Model.mk(Editor.Model.mk(z));
+      let cws = CodeWithStatics.Model.mk(Editor.Model.mk(z, ~root=Exp));
       let action =
         CompositionActions.ProbeAction(
           CompositionActions.PlaceProbe(["bogus", "also_bogus"]),
@@ -910,11 +913,11 @@ let toolcall_handler_tests = [
       let agent = Agent.Utils.init();
       let chat_id = agent.chat_system.current;
       let z =
-        switch (Parser.to_zipper("let a = 1 in a")) {
+        switch (Parser.to_zipper("let a = 1 in a", ~root=Exp)) {
         | Some(z) => z
         | None => fail("failed to parse fixture")
         };
-      let cws = CodeWithStatics.Model.mk(Editor.Model.mk(z));
+      let cws = CodeWithStatics.Model.mk(Editor.Model.mk(z, ~root=Exp));
       let action =
         CompositionActions.StaticsAction(
           CompositionActions.PlaceStatics(["ghost"]),
@@ -945,11 +948,11 @@ let toolcall_handler_tests = [
       let agent = Agent.Utils.init();
       let chat_id = agent.chat_system.current;
       let z =
-        switch (Parser.to_zipper("let a = 1 in a")) {
+        switch (Parser.to_zipper("let a = 1 in a", ~root=Exp)) {
         | Some(z) => z
         | None => fail("failed to parse fixture")
         };
-      let cws = CodeWithStatics.Model.mk(Editor.Model.mk(z));
+      let cws = CodeWithStatics.Model.mk(Editor.Model.mk(z, ~root=Exp));
       let action =
         CompositionActions.ProbeAction(
           CompositionActions.PlaceProbe(["a", "bogus"]),
@@ -970,7 +973,8 @@ let toolcall_handler_tests = [
       let settings = Settings.Model.init;
       let agent = Agent.Utils.init();
       let chat_id = agent.chat_system.current;
-      let cws = CodeWithStatics.Model.mk(Editor.Model.mk(Zipper.init()));
+      let cws =
+        CodeWithStatics.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
       let action =
         CompositionActions.EditorAction(
           Action.Structural.Update(Action.Structural.Definition, "a", "1"),
@@ -1031,11 +1035,11 @@ let context_llm_snapshot_tests = [
     `Quick,
     () => {
       let z =
-        switch (Parser.to_zipper("2")) {
+        switch (Parser.to_zipper("2", ~root=Exp)) {
         | Some(z) => z
         | None => fail("expected parse")
         };
-      let editor = Editor.Model.mk(z);
+      let editor = Editor.Model.mk(z, ~root=Exp);
       let cws = CodeWithStatics.Model.mk(editor);
       let chat = Chat.Utils.init(~system_prompt="p", ~dev_notes="d");
       let eval_result = EvalResult.Model.init;

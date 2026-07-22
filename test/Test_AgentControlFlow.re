@@ -14,7 +14,8 @@ let mk_reply =
   reasoning: None,
 };
 
-let cell_editor = () => CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
+let cell_editor = () =>
+  CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
 
 /* Run the phase-2 send deferral synchronously so [drain_scheduled] sees
    DispatchSend; in the browser it is a 0ms timeout (paint gap). */
