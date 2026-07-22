@@ -14,8 +14,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          b37ec26d-0325-4918-a70c-65e0a2735c91)(form(Compound \
          TypeAlias))(shards(0 1 2))(children(((Secondary((id \
          0f995d3f-a8c7-432b-8b1a-cd89db11f455)(content(Whitespace\" \
-         \"))))(Tile((id ecbb11ba-e097-4c6f-9af4-9dcb15a3d38d)(form(Atom \
-         TyVarP TPat Exp))))(Secondary((id \
+         \"))))(Tile((id ecbb11ba-e097-4c6f-9af4-9dcb15a3d38d)(form(Tok \
+         Exp))(sort TPat)))(Secondary((id \
          0cbc532e-33ac-4bbf-bb5a-56fbe000ea28)(content(Whitespace\" \
          \")))))((Secondary((id \
          a0043c20-7055-4a74-8fda-c2329e175a3d)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -31,14 +31,14 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          9e56f6fc-04f6-4351-8418-c5deb3a33187)(content(Whitespace\" \
          \"))))(Tile((id 74f37607-011b-4d95-9d02-347c40181618)(form(Compound \
-         TypSumSingle))))(Secondary((id \
+         SumSingle))(sort Typ)))(Secondary((id \
          ece98828-783a-4d7f-a27a-174434f70339)(content(Whitespace\" \
-         \"))))(Tile((id c19e50ac-d04f-4721-9853-62526699d7f1)(form(Atom TyVar \
-         Typ Var))))(Tile((id \
-         1248dfd3-197d-4de6-b27d-f11912a92ebf)(form(Compound ApTyp))(shards(0 \
-         1))(children(((Tile((id \
-         58686be1-b96d-4988-90d8-fc5f14ac5ecb)(form(Atom TyVar Typ \
-         String)))))))))(Secondary((id \
+         \"))))(Tile((id c19e50ac-d04f-4721-9853-62526699d7f1)(form(Tok \
+         Var))(sort Typ)))(Tile((id \
+         1248dfd3-197d-4de6-b27d-f11912a92ebf)(form(Compound Ap))(sort \
+         Typ)(shards(0 1))(children(((Tile((id \
+         58686be1-b96d-4988-90d8-fc5f14ac5ecb)(form(Tok String))(sort \
+         Typ))))))))(Secondary((id \
          3d2adfa5-8fa9-4e07-b33d-ed017038c384)(content(Whitespace\"\\n\"))))(Secondary((id \
          7eaa0565-fbeb-4d58-bf3c-ee84f5e7d855)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -52,19 +52,18 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          19847d63-773f-45b2-b446-3e086d9c1dc4)(content(Whitespace\" \
          \"))))(Tile((id 8683ee95-c5b0-4936-bd11-6e7617f9e82f)(form(Compound \
-         TypPlus))))(Secondary((id \
+         Plus))(sort Typ)))(Secondary((id \
          7eab9f09-2bb9-493a-80f8-0f84b23e9d0a)(content(Whitespace\" \
-         \"))))(Tile((id 10210dff-e2d3-4dbc-9c65-839bc5b02b13)(form(Atom TyVar \
-         Typ Lam))))(Tile((id \
-         e865db50-6b16-4194-843a-73cec214cc95)(form(Compound ApTyp))(shards(0 \
-         1))(children(((Tile((id \
-         3a4109ac-2f16-4f56-867d-bc9d6e0ef669)(form(Atom TyVar Typ \
-         String))))(Tile((id \
-         0f684286-6c2b-43e6-a835-a4d2f52b0ae1)(form(Compound \
-         CommaTyp))))(Secondary((id \
+         \"))))(Tile((id 10210dff-e2d3-4dbc-9c65-839bc5b02b13)(form(Tok \
+         Lam))(sort Typ)))(Tile((id \
+         e865db50-6b16-4194-843a-73cec214cc95)(form(Compound Ap))(sort \
+         Typ)(shards(0 1))(children(((Tile((id \
+         3a4109ac-2f16-4f56-867d-bc9d6e0ef669)(form(Tok String))(sort \
+         Typ)))(Tile((id 0f684286-6c2b-43e6-a835-a4d2f52b0ae1)(form(Compound \
+         Comma))(sort Typ)))(Secondary((id \
          a85ddcb5-a402-4107-bf49-7c9557ec6b27)(content(Whitespace\" \
-         \"))))(Tile((id 4cec3bd5-51b8-473a-a217-d43df95915ef)(form(Atom TyVar \
-         Typ Exp)))))))))(Secondary((id \
+         \"))))(Tile((id 4cec3bd5-51b8-473a-a217-d43df95915ef)(form(Tok \
+         Exp))(sort Typ))))))))(Secondary((id \
          73ef5eb1-ab4e-4798-97f7-e7a1267f18c6)(content(Whitespace\"\\n\"))))(Secondary((id \
          13c9671c-4ae8-4643-bad5-294e302f3f5e)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -78,18 +77,18 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          2309fa50-04b3-4ac2-ac5c-66764d591dc3)(content(Whitespace\" \
          \"))))(Tile((id b3b16f3c-badc-4e8f-876c-a7ee6f804a8a)(form(Compound \
-         TypPlus))))(Secondary((id \
+         Plus))(sort Typ)))(Secondary((id \
          04153ce0-afee-49cd-aa47-0889e19ace4f)(content(Whitespace\" \
-         \"))))(Tile((id 8b255d7c-583a-4f1a-908c-85ce63b81db0)(form(Atom TyVar \
-         Typ Ap))))(Tile((id \
-         cb74bda2-032c-417b-9a32-8f40512181c5)(form(Compound ApTyp))(shards(0 \
-         1))(children(((Tile((id \
-         7bf1356b-a035-41bf-88ad-e751d7fbbda3)(form(Atom TyVar Typ \
-         Exp))))(Tile((id 72cd99c4-3657-45b8-bd64-d30688ae62d3)(form(Compound \
-         CommaTyp))))(Secondary((id \
+         \"))))(Tile((id 8b255d7c-583a-4f1a-908c-85ce63b81db0)(form(Tok \
+         Ap))(sort Typ)))(Tile((id \
+         cb74bda2-032c-417b-9a32-8f40512181c5)(form(Compound Ap))(sort \
+         Typ)(shards(0 1))(children(((Tile((id \
+         7bf1356b-a035-41bf-88ad-e751d7fbbda3)(form(Tok Exp))(sort \
+         Typ)))(Tile((id 72cd99c4-3657-45b8-bd64-d30688ae62d3)(form(Compound \
+         Comma))(sort Typ)))(Secondary((id \
          feec5867-10ed-4ce1-b016-a57f51c1011a)(content(Whitespace\" \
-         \"))))(Tile((id be0bcfb2-9fc0-4e50-b829-47566460fda1)(form(Atom TyVar \
-         Typ Exp)))))))))(Secondary((id \
+         \"))))(Tile((id be0bcfb2-9fc0-4e50-b829-47566460fda1)(form(Tok \
+         Exp))(sort Typ))))))))(Secondary((id \
          5a0d3420-8dcb-49ca-9195-ce5f10c7da00)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          c18743ae-650f-4478-9764-06d0956a59b2)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -100,30 +99,30 @@ let out : string * Haz3lcore.PersistentSegment.t =
          3c0d3043-49a2-4081-b1be-71dc0d21419a)(form(Compound Let))(shards(0 1 \
          2))(children(((Secondary((id \
          3d30359a-0bb0-43f7-abb1-087fab0c1715)(content(Whitespace\" \
-         \"))))(Tile((id 4feffdcd-225c-4d45-baa9-7a9e2bdc7d13)(form(Atom Var \
-         Pat subst))))(Tile((id \
-         23f9652c-eb61-4442-807f-e32d2ddeef6a)(form(Compound \
-         Typeann))))(Secondary((id \
+         \"))))(Tile((id 4feffdcd-225c-4d45-baa9-7a9e2bdc7d13)(form(Tok \
+         subst))(sort Pat)))(Tile((id \
+         23f9652c-eb61-4442-807f-e32d2ddeef6a)(form(Compound TypeAsc))(sort \
+         Pat)))(Secondary((id \
          6b017e48-bf77-426f-9ef9-0d7963790618)(content(Whitespace\" \
          \"))))(Tile((id 5f666c2f-2dd9-4345-9a37-f759d40e0f63)(form(Compound \
-         ParensTyp))(shards(0 1))(children(((Tile((id \
-         221a3a00-3b57-466b-b0b5-ad0a9a55dcc7)(form(Atom TyVar Typ \
-         Exp))))(Tile((id 2d392a04-ec13-4cb3-8e5d-ff94fd9e66e9)(form(Compound \
-         CommaTyp))))(Secondary((id \
+         Parens))(sort Typ)(shards(0 1))(children(((Tile((id \
+         221a3a00-3b57-466b-b0b5-ad0a9a55dcc7)(form(Tok Exp))(sort \
+         Typ)))(Tile((id 2d392a04-ec13-4cb3-8e5d-ff94fd9e66e9)(form(Compound \
+         Comma))(sort Typ)))(Secondary((id \
          83b16277-4536-4b1a-b80a-3ec41dc90c5c)(content(Whitespace\" \
-         \"))))(Tile((id 8fda46d9-4f6c-442e-9f55-ff1ec974d4a4)(form(Atom TyVar \
-         Typ String))))(Tile((id \
-         9416f23e-35cf-4197-9159-165249fea007)(form(Compound \
-         CommaTyp))))(Secondary((id \
+         \"))))(Tile((id 8fda46d9-4f6c-442e-9f55-ff1ec974d4a4)(form(Tok \
+         String))(sort Typ)))(Tile((id \
+         9416f23e-35cf-4197-9159-165249fea007)(form(Compound Comma))(sort \
+         Typ)))(Secondary((id \
          7cf607be-1c93-4568-8909-082a2f181c6d)(content(Whitespace\" \
-         \"))))(Tile((id e2d879b4-af46-414a-acd5-95753f7414b6)(form(Atom TyVar \
-         Typ Exp)))))))))(Secondary((id \
+         \"))))(Tile((id e2d879b4-af46-414a-acd5-95753f7414b6)(form(Tok \
+         Exp))(sort Typ))))))))(Secondary((id \
          7e6875a2-7566-44ec-9969-9f302ffc2337)(content(Whitespace\" \
          \"))))(Tile((id b3351b72-25c2-424a-8a7a-c74bdeebd443)(form(Compound \
-         TypeArrow))))(Secondary((id \
+         TypeArrow))(sort Typ)))(Secondary((id \
          5966ba3d-e82e-4edf-a4d7-8a9f8541c5e4)(content(Whitespace\" \
-         \"))))(Tile((id 28d3e17e-6ae0-4c14-bb01-3f1f3cd9c696)(form(Atom TyVar \
-         Typ Exp))))(Secondary((id \
+         \"))))(Tile((id 28d3e17e-6ae0-4c14-bb01-3f1f3cd9c696)(form(Tok \
+         Exp))(sort Typ)))(Secondary((id \
          b786b8c1-362e-47cc-82a7-260a5fced263)(content(Whitespace\" \
          \")))))((Secondary((id \
          a5355e25-659f-42b5-b8a1-a5b918b96abb)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -142,18 +141,18 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Fun))(shards(0 1))(children(((Secondary((id \
          a5f3e3a8-01a7-4d43-8da3-60cbb497f129)(content(Whitespace\" \
          \"))))(Tile((id 371e1f68-b942-4e20-ba61-4a8b453776fd)(form(Compound \
-         ParensPat))(shards(0 1))(children(((Tile((id \
-         978886d4-b9ec-4359-a782-962915c91647)(form(Atom Var Pat \
-         v))))(Tile((id a27ebbd5-501e-4252-8fe1-fe550d186a88)(form(Compound \
-         CommaPat))))(Secondary((id \
+         Parens))(sort Pat)(shards(0 1))(children(((Tile((id \
+         978886d4-b9ec-4359-a782-962915c91647)(form(Tok v))(sort \
+         Pat)))(Tile((id a27ebbd5-501e-4252-8fe1-fe550d186a88)(form(Compound \
+         Comma))(sort Pat)))(Secondary((id \
          89da4df6-123a-4806-8e9b-42ee820ba14d)(content(Whitespace\" \
-         \"))))(Tile((id 75ffef2c-ff09-4b6d-abdc-be601d187b19)(form(Atom Var \
-         Pat name))))(Tile((id \
-         efdf25ec-901f-4a33-920b-658c354750dc)(form(Compound \
-         CommaPat))))(Secondary((id \
+         \"))))(Tile((id 75ffef2c-ff09-4b6d-abdc-be601d187b19)(form(Tok \
+         name))(sort Pat)))(Tile((id \
+         efdf25ec-901f-4a33-920b-658c354750dc)(form(Compound Comma))(sort \
+         Pat)))(Secondary((id \
          b0087900-0ab8-47de-be8c-a04bdf132b78)(content(Whitespace\" \
-         \"))))(Tile((id 563e079e-677c-40f3-a14b-3b01233f1cda)(form(Atom Var \
-         Pat e)))))))))(Secondary((id \
+         \"))))(Tile((id 563e079e-677c-40f3-a14b-3b01233f1cda)(form(Tok \
+         e))(sort Pat))))))))(Secondary((id \
          ff84b11c-c0a0-4a46-b5e9-15b8dac5501b)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          2cfe2043-6a05-485e-bd98-aa9c6e169503)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -183,8 +182,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id d56c5b89-f374-4989-97e9-efdfa61854ab)(form(Compound \
          Case))(shards(0 1))(children(((Secondary((id \
          cdc9c0ec-30ef-44c1-b607-d9ab27c9ddd2)(content(Whitespace\" \
-         \"))))(Tile((id 3c56ea4e-7ab2-475d-aa0f-c3e1bb19bbdb)(form(Atom Var \
-         Exp e))))(Secondary((id \
+         \"))))(Tile((id 3c56ea4e-7ab2-475d-aa0f-c3e1bb19bbdb)(form(Tok \
+         e))))(Secondary((id \
          fd43961f-80e7-42e8-86f3-91908fa07dd4)(content(Whitespace\"\\n\"))))(Secondary((id \
          8f63f147-6513-4e4e-ab39-20ba76788418)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -210,14 +209,14 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          d73611e5-fa91-4f16-9144-5a5cf705a98f)(content(Whitespace\" \
          \"))))(Tile((id eabe55e9-ddd5-4477-a4d6-1d3934d080fb)(form(Compound \
-         Rule))(shards(0 1))(children(((Secondary((id \
+         Rule))(sort Rul)(shards(0 1))(children(((Secondary((id \
          a3c014de-207a-45cd-97ad-ebc41c979e2f)(content(Whitespace\" \
-         \"))))(Tile((id 3212048f-21cd-4a22-a094-01f83e7708ed)(form(Atom Ctr \
-         Pat Var))))(Tile((id \
-         bee41fca-bf1f-492b-860a-3c57447afbda)(form(Compound ApPat))(shards(0 \
-         1))(children(((Tile((id \
-         09f149a9-e227-4fa9-b5a0-bfb6ff1a3329)(form(Atom Var Pat \
-         x)))))))))(Secondary((id \
+         \"))))(Tile((id 3212048f-21cd-4a22-a094-01f83e7708ed)(form(Tok \
+         Var))(sort Pat)))(Tile((id \
+         bee41fca-bf1f-492b-860a-3c57447afbda)(form(Compound Ap))(sort \
+         Pat)(shards(0 1))(children(((Tile((id \
+         09f149a9-e227-4fa9-b5a0-bfb6ff1a3329)(form(Tok x))(sort \
+         Pat))))))))(Secondary((id \
          d12d5abb-a8ef-4f75-815b-bb5922f5d7cd)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          b2f69790-37dc-407c-9648-16ff7ee2cfd6)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -259,24 +258,24 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id a46aac71-d8e0-450e-80e4-67f2b0aa03b2)(form(Compound \
          If))(shards(0 1 2))(children(((Secondary((id \
          6724b0b7-1e37-4f22-8dcd-81bd389bc62a)(content(Whitespace\" \
-         \"))))(Tile((id 8f3e5381-70ca-49e0-8cad-2314fdfd4303)(form(Atom Var \
-         Exp x))))(Secondary((id \
+         \"))))(Tile((id 8f3e5381-70ca-49e0-8cad-2314fdfd4303)(form(Tok \
+         x))))(Secondary((id \
          5efe9fe3-25dc-4e6d-bb4f-7af86e4d01e9)(content(Whitespace\" \
          \"))))(Tile((id 8f1776c7-719d-495e-bc66-b15c25ad333b)(form(Compound \
          Equals))))(Secondary((id \
          ceb8405b-4d7b-4af0-970d-6cab4dc46163)(content(Whitespace\" \
-         \"))))(Tile((id 1b34b1e8-fb08-469f-842d-60b1729fb825)(form(Atom Var \
-         Exp name))))(Secondary((id \
+         \"))))(Tile((id 1b34b1e8-fb08-469f-842d-60b1729fb825)(form(Tok \
+         name))))(Secondary((id \
          c7b7a949-c7ed-417a-9faa-e2f4e1dadfb3)(content(Whitespace\" \
          \")))))((Secondary((id \
          0043af1f-4275-4526-b3f4-cf83e1dc21ce)(content(Whitespace\" \
-         \"))))(Tile((id b986d716-1fcf-4c36-b944-2122bdc36ed4)(form(Atom Var \
-         Exp v))))(Secondary((id \
+         \"))))(Tile((id b986d716-1fcf-4c36-b944-2122bdc36ed4)(form(Tok \
+         v))))(Secondary((id \
          8a05e109-b26f-4654-bca9-21e6140ac3d0)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          1935688f-01f3-4641-b186-4541ef582d43)(content(Whitespace\" \
-         \"))))(Tile((id 5feb5f05-ad03-498d-8d58-546dbaa7dd6f)(form(Atom Var \
-         Exp e))))(Secondary((id \
+         \"))))(Tile((id 5feb5f05-ad03-498d-8d58-546dbaa7dd6f)(form(Tok \
+         e))))(Secondary((id \
          e68b679e-b084-4d8d-8400-ac39d8a201e1)(content(Whitespace\"\\n\"))))(Secondary((id \
          5fe9e59f-9605-4e57-b101-ed3ab4e6920f)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -302,18 +301,18 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          f163b4ae-f1d5-41e1-80a8-846d4b3bd861)(content(Whitespace\" \
          \"))))(Tile((id 54d23883-98de-4e6e-9c49-c7adb9e5a076)(form(Compound \
-         Rule))(shards(0 1))(children(((Secondary((id \
+         Rule))(sort Rul)(shards(0 1))(children(((Secondary((id \
          75e2ae4b-e7a2-46a6-9df4-e83fbc0b1c7d)(content(Whitespace\" \
-         \"))))(Tile((id bcdd292a-9c98-429d-9f13-c4923552e288)(form(Atom Ctr \
-         Pat Lam))))(Tile((id \
-         b89239ef-006c-43fc-9993-e776a6d53267)(form(Compound ApPat))(shards(0 \
-         1))(children(((Tile((id \
-         2a426b0c-f6ed-499c-b9b1-f3f503c8cc2f)(form(Atom Var Pat \
-         x))))(Tile((id 0707eb6b-b578-4c14-8896-74f6c2d1b3eb)(form(Compound \
-         CommaPat))))(Secondary((id \
+         \"))))(Tile((id bcdd292a-9c98-429d-9f13-c4923552e288)(form(Tok \
+         Lam))(sort Pat)))(Tile((id \
+         b89239ef-006c-43fc-9993-e776a6d53267)(form(Compound Ap))(sort \
+         Pat)(shards(0 1))(children(((Tile((id \
+         2a426b0c-f6ed-499c-b9b1-f3f503c8cc2f)(form(Tok x))(sort \
+         Pat)))(Tile((id 0707eb6b-b578-4c14-8896-74f6c2d1b3eb)(form(Compound \
+         Comma))(sort Pat)))(Secondary((id \
          60e4e3c3-b686-4003-b29a-00cede7b8cd6)(content(Whitespace\" \
-         \"))))(Tile((id ad6a6168-e34e-491a-8b23-a3738e903bdb)(form(Atom Var \
-         Pat body)))))))))(Secondary((id \
+         \"))))(Tile((id ad6a6168-e34e-491a-8b23-a3738e903bdb)(form(Tok \
+         body))(sort Pat))))))))(Secondary((id \
          3ecddad0-b130-43f9-b8ff-cbdaf2e965df)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          c953a9bd-e729-4fcd-8a32-224337b8debe)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -352,29 +351,27 @@ let out : string * Haz3lcore.PersistentSegment.t =
          1778ed8a-4247-4d54-93a6-400654d06b20)(content(Whitespace\" \
          \"))))(Secondary((id \
          08c9d13e-fe10-4417-a1a1-4239406c9c8d)(content(Whitespace\" \
-         \"))))(Tile((id 6ac2cff7-ca6c-4e3a-9112-3472f55c15cd)(form(Atom Ctr \
-         Exp Lam))))(Tile((id \
-         f0bfa04a-a685-41d0-b068-079d858ff1a0)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         a8d858b1-2373-43bc-8842-ad5548d05a10)(form(Atom Var Exp \
-         x))))(Tile((id a3b9e3ac-3751-45f9-b00d-fcc069223d92)(form(Compound \
-         CommaExp))))(Secondary((id \
+         \"))))(Tile((id 6ac2cff7-ca6c-4e3a-9112-3472f55c15cd)(form(Tok \
+         Lam))))(Tile((id f0bfa04a-a685-41d0-b068-079d858ff1a0)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         a8d858b1-2373-43bc-8842-ad5548d05a10)(form(Tok x))))(Tile((id \
+         a3b9e3ac-3751-45f9-b00d-fcc069223d92)(form(Compound \
+         Comma))))(Secondary((id \
          4ab4c61d-afc2-4511-9918-171c74603d2a)(content(Whitespace\" \
-         \"))))(Tile((id 90df833a-b93e-4cf2-b5cc-a20126026274)(form(Atom Var \
-         Exp subst))))(Tile((id \
-         333c1def-7997-4329-8462-666ea0370b53)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id 90df833a-b93e-4cf2-b5cc-a20126026274)(form(Tok \
+         subst))))(Tile((id \
+         333c1def-7997-4329-8462-666ea0370b53)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         ac23fd6e-6983-4d71-a1c0-1cf32de05184)(form(Atom Var Exp \
-         v))))(Tile((id 3c251647-f05e-46ac-af8e-e6699dd4e21a)(form(Compound \
-         CommaExp))))(Secondary((id \
+         ac23fd6e-6983-4d71-a1c0-1cf32de05184)(form(Tok v))))(Tile((id \
+         3c251647-f05e-46ac-af8e-e6699dd4e21a)(form(Compound \
+         Comma))))(Secondary((id \
          95b3b865-250b-4eea-9573-a5a77bbd1746)(content(Whitespace\" \
-         \"))))(Tile((id d1472f3c-77fd-482c-942c-e0b806d9ff45)(form(Atom Var \
-         Exp name))))(Tile((id \
-         7303c9d2-2541-4097-a23f-fcc2e0099c19)(form(Compound \
-         CommaExp))))(Secondary((id \
+         \"))))(Tile((id d1472f3c-77fd-482c-942c-e0b806d9ff45)(form(Tok \
+         name))))(Tile((id 7303c9d2-2541-4097-a23f-fcc2e0099c19)(form(Compound \
+         Comma))))(Secondary((id \
          f83c66a9-d675-44a5-a480-90f264875961)(content(Whitespace\" \
-         \"))))(Tile((id 3f954779-d735-4cb2-b880-be5516c5d601)(form(Atom Var \
-         Exp body))))))))))))))(Secondary((id \
+         \"))))(Tile((id 3f954779-d735-4cb2-b880-be5516c5d601)(form(Tok \
+         body))))))))))))))(Secondary((id \
          d9ca0b42-dddd-4d90-b5b2-ed3ae7886a88)(content(Whitespace\"\\n\"))))(Secondary((id \
          e47bcada-94e6-4089-b605-9659fdfbbfcd)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -400,18 +397,18 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          1eb96ae1-8fc7-4c43-b9c8-03ad21c0672a)(content(Whitespace\" \
          \"))))(Tile((id 196a5b84-6810-4d83-9e2a-9aed8d973b0f)(form(Compound \
-         Rule))(shards(0 1))(children(((Secondary((id \
+         Rule))(sort Rul)(shards(0 1))(children(((Secondary((id \
          88adf271-3d3a-480f-818f-28402497727c)(content(Whitespace\" \
-         \"))))(Tile((id ef91f801-6a91-41ba-a62d-bc51c5e901da)(form(Atom Ctr \
-         Pat Ap))))(Tile((id \
-         5ee2ed8c-3df5-462c-9fe5-0bff8afe70f6)(form(Compound ApPat))(shards(0 \
-         1))(children(((Tile((id \
-         4dd0f0a5-7109-4974-a236-4df7496a3e30)(form(Atom Var Pat \
-         f))))(Tile((id eed18403-fdec-421b-abcf-0baefebf64ac)(form(Compound \
-         CommaPat))))(Secondary((id \
+         \"))))(Tile((id ef91f801-6a91-41ba-a62d-bc51c5e901da)(form(Tok \
+         Ap))(sort Pat)))(Tile((id \
+         5ee2ed8c-3df5-462c-9fe5-0bff8afe70f6)(form(Compound Ap))(sort \
+         Pat)(shards(0 1))(children(((Tile((id \
+         4dd0f0a5-7109-4974-a236-4df7496a3e30)(form(Tok f))(sort \
+         Pat)))(Tile((id eed18403-fdec-421b-abcf-0baefebf64ac)(form(Compound \
+         Comma))(sort Pat)))(Secondary((id \
          70431602-886f-4f84-abc9-7f4bfb51ea3e)(content(Whitespace\" \
-         \"))))(Tile((id c7107743-4ff8-44a2-bda1-a513457a044d)(form(Atom Var \
-         Pat arg)))))))))(Secondary((id \
+         \"))))(Tile((id c7107743-4ff8-44a2-bda1-a513457a044d)(form(Tok \
+         arg))(sort Pat))))))))(Secondary((id \
          3fa922d6-8c07-4311-8da6-c5165e81ce2b)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          fdec533c-718f-420d-9af8-757881f4a764)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -450,43 +447,39 @@ let out : string * Haz3lcore.PersistentSegment.t =
          d3d98360-89e6-4b89-bd94-f87524465a36)(content(Whitespace\" \
          \"))))(Secondary((id \
          75057ed3-5e59-4c22-a7c6-d5d7ce336151)(content(Whitespace\" \
-         \"))))(Tile((id 4f93c694-3993-42d3-8816-ee7befde5137)(form(Atom Ctr \
-         Exp Ap))))(Tile((id \
-         9370f886-e69d-4aa4-8449-c5cbd66f5de8)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id 4f93c694-3993-42d3-8816-ee7befde5137)(form(Tok \
+         Ap))))(Tile((id 9370f886-e69d-4aa4-8449-c5cbd66f5de8)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         0b1568c1-33f5-4de3-99a5-07c89288eaf0)(form(Tok subst))))(Tile((id \
+         40823da9-7a69-45ca-abdf-26cddb19118d)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         0b1568c1-33f5-4de3-99a5-07c89288eaf0)(form(Atom Var Exp \
-         subst))))(Tile((id \
-         40823da9-7a69-45ca-abdf-26cddb19118d)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         233b7c1b-0b9d-4712-98be-aa96182588e5)(form(Atom Var Exp \
-         v))))(Tile((id 6b7a3c27-ac21-45ed-9694-3a2241834761)(form(Compound \
-         CommaExp))))(Secondary((id \
+         233b7c1b-0b9d-4712-98be-aa96182588e5)(form(Tok v))))(Tile((id \
+         6b7a3c27-ac21-45ed-9694-3a2241834761)(form(Compound \
+         Comma))))(Secondary((id \
          74371b29-9895-4c10-833e-6de06eccac55)(content(Whitespace\" \
-         \"))))(Tile((id a1d30464-5e9f-4ec7-b83a-2939b3552370)(form(Atom Var \
-         Exp name))))(Tile((id \
-         c95c3b44-6531-4d31-9485-8b25a55caeb3)(form(Compound \
-         CommaExp))))(Secondary((id \
+         \"))))(Tile((id a1d30464-5e9f-4ec7-b83a-2939b3552370)(form(Tok \
+         name))))(Tile((id c95c3b44-6531-4d31-9485-8b25a55caeb3)(form(Compound \
+         Comma))))(Secondary((id \
          ce73393d-a81d-46f1-8066-d4a341faca35)(content(Whitespace\" \
-         \"))))(Tile((id 62719412-be78-47ba-8131-b312e5fdbc56)(form(Atom Var \
-         Exp f)))))))))(Tile((id \
+         \"))))(Tile((id 62719412-be78-47ba-8131-b312e5fdbc56)(form(Tok \
+         f)))))))))(Tile((id \
          b5cd888e-3771-4ce1-a7b5-13d4a2ea71f1)(form(Compound \
-         CommaExp))))(Secondary((id \
+         Comma))))(Secondary((id \
          83aeb8a7-f617-402a-9d56-8c97b42119e2)(content(Whitespace\" \
-         \"))))(Tile((id c3a4b8e5-588c-4a5c-9b28-ca5efa45b5f8)(form(Atom Var \
-         Exp subst))))(Tile((id \
-         2132ac16-0c00-48e9-9838-74563fb5f2a3)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id c3a4b8e5-588c-4a5c-9b28-ca5efa45b5f8)(form(Tok \
+         subst))))(Tile((id \
+         2132ac16-0c00-48e9-9838-74563fb5f2a3)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         144584b3-10d2-4af3-b0d4-ad826ea79501)(form(Atom Var Exp \
-         v))))(Tile((id d675005b-e27f-4fd2-aace-88cad336198c)(form(Compound \
-         CommaExp))))(Secondary((id \
+         144584b3-10d2-4af3-b0d4-ad826ea79501)(form(Tok v))))(Tile((id \
+         d675005b-e27f-4fd2-aace-88cad336198c)(form(Compound \
+         Comma))))(Secondary((id \
          ef1db5bc-b92b-47ed-a894-9011208bc7c7)(content(Whitespace\" \
-         \"))))(Tile((id 84b422f3-567f-47d7-a77e-0bf83547eb11)(form(Atom Var \
-         Exp name))))(Tile((id \
-         fd549519-1935-45ca-8be8-e08fe992eb50)(form(Compound \
-         CommaExp))))(Secondary((id \
+         \"))))(Tile((id 84b422f3-567f-47d7-a77e-0bf83547eb11)(form(Tok \
+         name))))(Tile((id fd549519-1935-45ca-8be8-e08fe992eb50)(form(Compound \
+         Comma))))(Secondary((id \
          b8bdcfe1-d907-40a4-bedb-1603b9b5d774)(content(Whitespace\" \
-         \"))))(Tile((id 0fe8028c-57a4-43af-b8da-2af2d10faf7a)(form(Atom Var \
-         Exp arg))))))))))))))(Secondary((id \
+         \"))))(Tile((id 0fe8028c-57a4-43af-b8da-2af2d10faf7a)(form(Tok \
+         arg))))))))))))))(Secondary((id \
          ad3a0310-3e81-4bec-90e7-494715c9956b)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          dd64d0f9-4a06-4930-b7d6-227c6e9cc927)(content(Whitespace\" \
@@ -499,8 +492,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          c7a54f47-898b-4112-9c3c-41cd6189f420)(form(Compound \
          TypeAlias))(shards(0 1 2))(children(((Secondary((id \
          f318a6a0-9287-4dc6-9524-9998727e3a67)(content(Whitespace\" \
-         \"))))(Tile((id b5a43ba2-6048-46c2-a7d2-5c109adac117)(form(Atom \
-         TyVarP TPat Result))))(Secondary((id \
+         \"))))(Tile((id b5a43ba2-6048-46c2-a7d2-5c109adac117)(form(Tok \
+         Result))(sort TPat)))(Secondary((id \
          86012a41-7e27-4aae-b991-202a7b8a118f)(content(Whitespace\" \
          \")))))((Secondary((id \
          865d217c-7b0c-4104-8254-3c4274515d77)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -516,14 +509,14 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          f9d6837f-ca54-404b-bb21-724b887d404d)(content(Whitespace\" \
          \"))))(Tile((id 20d7806d-c70d-4070-beec-9147e29f92d1)(form(Compound \
-         TypSumSingle))))(Secondary((id \
+         SumSingle))(sort Typ)))(Secondary((id \
          a252670c-cdb5-40c2-8248-37963d471b3f)(content(Whitespace\" \
-         \"))))(Tile((id fff2baf4-b87b-41f0-a827-8be4d50f25e0)(form(Atom TyVar \
-         Typ Error))))(Tile((id \
-         9536a92d-7506-490a-9077-11f1ef9fd88d)(form(Compound ApTyp))(shards(0 \
-         1))(children(((Tile((id \
-         14c5842f-5a74-492e-924b-5cca3015a605)(form(Atom TyVar Typ \
-         String)))))))))(Secondary((id \
+         \"))))(Tile((id fff2baf4-b87b-41f0-a827-8be4d50f25e0)(form(Tok \
+         Error))(sort Typ)))(Tile((id \
+         9536a92d-7506-490a-9077-11f1ef9fd88d)(form(Compound Ap))(sort \
+         Typ)(shards(0 1))(children(((Tile((id \
+         14c5842f-5a74-492e-924b-5cca3015a605)(form(Tok String))(sort \
+         Typ))))))))(Secondary((id \
          5bdf1cfb-e83c-401d-ac87-1665e3e83ac9)(content(Whitespace\"\\n\"))))(Secondary((id \
          46b26c00-29c3-4fb4-b335-d03bee5e8961)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -537,14 +530,14 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          31066ed1-9d00-4456-ba71-b19984176ad1)(content(Whitespace\" \
          \"))))(Tile((id 14c9b183-1dce-40b7-a8db-92a9e0bab826)(form(Compound \
-         TypPlus))))(Secondary((id \
+         Plus))(sort Typ)))(Secondary((id \
          5af1c005-4faf-4f2e-b005-8958327df656)(content(Whitespace\" \
-         \"))))(Tile((id 5600e099-89b2-48c0-860a-910a231f222b)(form(Atom TyVar \
-         Typ Ok))))(Tile((id \
-         1a1a74b6-4440-4460-845a-936df46784ed)(form(Compound ApTyp))(shards(0 \
-         1))(children(((Tile((id \
-         7e9e9a77-66c8-4ac6-9aa9-c8cb159ed0ed)(form(Atom TyVar Typ \
-         Exp)))))))))(Secondary((id \
+         \"))))(Tile((id 5600e099-89b2-48c0-860a-910a231f222b)(form(Tok \
+         Ok))(sort Typ)))(Tile((id \
+         1a1a74b6-4440-4460-845a-936df46784ed)(form(Compound Ap))(sort \
+         Typ)(shards(0 1))(children(((Tile((id \
+         7e9e9a77-66c8-4ac6-9aa9-c8cb159ed0ed)(form(Tok Exp))(sort \
+         Typ))))))))(Secondary((id \
          26ef4f63-f8d9-496c-8451-29d9e063f5a3)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          2756f582-a61f-4698-9701-8426bd0ba8b4)(content(Whitespace\"\\n\"))))(Secondary((id \
          24a2ee67-ce8e-4ca2-ba76-2648d825f0e9)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -562,19 +555,19 @@ let out : string * Haz3lcore.PersistentSegment.t =
          6076d863-f767-42cc-b3f4-208044926b6b)(form(Compound Let))(shards(0 1 \
          2))(children(((Secondary((id \
          54e4c70a-cfe2-45d1-8424-857bcfa34d74)(content(Whitespace\" \
-         \"))))(Tile((id 3c4d6a4a-549f-44a1-8176-c86a257e11bc)(form(Atom Var \
-         Pat absurd))))(Tile((id \
-         d08db6e9-e6df-4b6e-a85b-8abe69809698)(form(Compound \
-         Typeann))))(Secondary((id \
+         \"))))(Tile((id 3c4d6a4a-549f-44a1-8176-c86a257e11bc)(form(Tok \
+         absurd))(sort Pat)))(Tile((id \
+         d08db6e9-e6df-4b6e-a85b-8abe69809698)(form(Compound TypeAsc))(sort \
+         Pat)))(Secondary((id \
          ba221e5e-6fb2-4821-8341-f725fe8c5761)(content(Whitespace\" \
-         \"))))(Tile((id 211c3f7f-13ee-4cf2-b175-c78f1eede111)(form(Atom TyVar \
-         Typ Void))))(Secondary((id \
+         \"))))(Tile((id 211c3f7f-13ee-4cf2-b175-c78f1eede111)(form(Tok \
+         Void))(sort Typ)))(Secondary((id \
          9d8b4dde-8891-4770-9d47-3ab061d2f3d5)(content(Whitespace\" \
          \"))))(Tile((id fa092faf-7878-444d-b202-23042d8e0768)(form(Compound \
-         TypeArrow))))(Secondary((id \
+         TypeArrow))(sort Typ)))(Secondary((id \
          caa235d3-00ed-439a-881f-5a5e17f50a8c)(content(Whitespace\" \
-         \"))))(Tile((id fa91c3de-dbef-4c9d-8ceb-e4732c441452)(form(Atom TyVar \
-         Typ Result))))(Secondary((id \
+         \"))))(Tile((id fa91c3de-dbef-4c9d-8ceb-e4732c441452)(form(Tok \
+         Result))(sort Typ)))(Secondary((id \
          edb593da-e910-46db-b60f-cd842cf2c559)(content(Whitespace\" \
          \")))))((Secondary((id \
          80baa07c-f44d-4607-ae8a-ab17d0c13977)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -592,16 +585,16 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id ec181df7-fca3-44b6-a5af-e51f8d159eb6)(form(Compound \
          Fun))(shards(0 1))(children(((Secondary((id \
          255ea45b-377c-4910-b0ac-737e990fb526)(content(Whitespace\" \
-         \"))))(Tile((id 0214350f-6d46-4723-87a6-c5c05b79b5bb)(form(Atom Var \
-         Pat v))))(Secondary((id \
+         \"))))(Tile((id 0214350f-6d46-4723-87a6-c5c05b79b5bb)(form(Tok \
+         v))(sort Pat)))(Secondary((id \
          02af4aaf-f7c2-4eb7-81d6-ff74a0229e2d)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          d919d49d-bf54-4b2a-a0e0-fe194177bb6d)(content(Whitespace\" \
          \"))))(Tile((id cbd6b4de-2a95-408c-9c27-2df45abd0087)(form(Compound \
          Case))(shards(0 1))(children(((Secondary((id \
          00a3169a-ab49-4123-940b-02c1aca588ef)(content(Whitespace\" \
-         \"))))(Tile((id 43bfdaad-7c58-42bd-9cb4-844f8445710c)(form(Atom Var \
-         Exp v))))(Secondary((id \
+         \"))))(Tile((id 43bfdaad-7c58-42bd-9cb4-844f8445710c)(form(Tok \
+         v))))(Secondary((id \
          7baa1e51-73f2-4d98-95e9-b06f0d693bd4)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          15895c18-f44f-4d4e-aed6-878ff877c3e4)(content(Whitespace\"\\n\")))))))))(Secondary((id \
@@ -617,19 +610,20 @@ let out : string * Haz3lcore.PersistentSegment.t =
          9fc6d44e-2a57-4370-9519-43ab98038101)(form(Compound Let))(shards(0 1 \
          2))(children(((Secondary((id \
          3c621334-8497-4fb7-93b1-64cb990cc3eb)(content(Whitespace\" \
-         \"))))(Tile((id 73c70482-be2b-474d-9b7f-6f248bbfc931)(form(Atom Var \
-         Pat diverge))))(Tile((id \
-         08f0b112-d2ad-41f2-b226-d3ad6c2fc599)(form(Compound \
-         Typeann))))(Secondary((id \
+         \"))))(Tile((id 73c70482-be2b-474d-9b7f-6f248bbfc931)(form(Tok \
+         diverge))(sort Pat)))(Tile((id \
+         08f0b112-d2ad-41f2-b226-d3ad6c2fc599)(form(Compound TypeAsc))(sort \
+         Pat)))(Secondary((id \
          abf9dabb-8a99-4e4a-a412-8e19bde66df1)(content(Whitespace\" \
-         \"))))(Tile((id 179e850f-6039-415d-b50d-d5133b84ad9c)(form(Atom \
-         EmptyTuple Typ\"()\"))))(Secondary((id \
+         \"))))(Tile((id \
+         179e850f-6039-415d-b50d-d5133b84ad9c)(form(Tok\"()\"))(sort \
+         Typ)))(Secondary((id \
          c8708388-2e6f-40fd-a45a-d2a08ea7c034)(content(Whitespace\" \
          \"))))(Tile((id 78eb5914-583f-46cf-a466-5179800fda07)(form(Compound \
-         TypeArrow))))(Secondary((id \
+         TypeArrow))(sort Typ)))(Secondary((id \
          61894858-4905-4b4e-8bec-f5fdb4af12ee)(content(Whitespace\" \
-         \"))))(Tile((id 117a32ef-f358-4901-bc23-56b6436d0e4b)(form(Atom TyVar \
-         Typ Void))))(Secondary((id \
+         \"))))(Tile((id 117a32ef-f358-4901-bc23-56b6436d0e4b)(form(Tok \
+         Void))(sort Typ)))(Secondary((id \
          03139522-5796-47fb-8092-64335ca8124f)(content(Whitespace\" \
          \")))))((Secondary((id \
          ab306625-aade-477b-a395-cf3af3018f7e)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -647,15 +641,16 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id 45c1ad45-6dc2-405c-a748-2aba61a55a3a)(form(Compound \
          Fun))(shards(0 1))(children(((Secondary((id \
          603b6768-9e35-4f7a-b510-b4232e12b14c)(content(Whitespace\" \
-         \"))))(Tile((id 21d62a77-d05f-43ee-8cca-223aeabe1d9f)(form(Atom \
-         EmptyTuple Pat\"()\"))))(Secondary((id \
+         \"))))(Tile((id \
+         21d62a77-d05f-43ee-8cca-223aeabe1d9f)(form(Tok\"()\"))(sort \
+         Pat)))(Secondary((id \
          6d473837-a592-468b-a07a-3ff4779996cd)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          dc8bf780-6bc7-4aff-9c3c-2b0256a95c4c)(content(Whitespace\" \
-         \"))))(Tile((id 3591e8de-b5b8-44f3-be67-af396e338867)(form(Atom Var \
-         Exp diverge))))(Tile((id \
+         \"))))(Tile((id 3591e8de-b5b8-44f3-be67-af396e338867)(form(Tok \
+         diverge))))(Tile((id \
          bace61ca-b061-41b2-9857-014224928a58)(form(Compound \
-         ApExpEmpty))))(Secondary((id \
+         ApEmpty))))(Secondary((id \
          25a49f43-e444-4f8a-9e27-e61e269e709d)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          a3828e92-d006-41f5-b16d-a1eed89ad83f)(content(Whitespace\"\\n\"))))(Secondary((id \
          7617531d-707d-4a32-926c-ffb240327e06)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -665,19 +660,19 @@ let out : string * Haz3lcore.PersistentSegment.t =
          39636527-ded0-423b-b8a8-d5a2f2dfab51)(form(Compound Let))(shards(0 1 \
          2))(children(((Secondary((id \
          2063fbfe-1e5e-4d92-8638-38310d120dcb)(content(Whitespace\" \
-         \"))))(Tile((id bc8cb7ed-5b31-4731-99be-7361e59facea)(form(Atom Var \
-         Pat go))))(Tile((id \
-         be37c513-9e8e-4b61-adeb-8c9938e91a4b)(form(Compound \
-         Typeann))))(Secondary((id \
+         \"))))(Tile((id bc8cb7ed-5b31-4731-99be-7361e59facea)(form(Tok \
+         go))(sort Pat)))(Tile((id \
+         be37c513-9e8e-4b61-adeb-8c9938e91a4b)(form(Compound TypeAsc))(sort \
+         Pat)))(Secondary((id \
          2dda5063-269f-43cb-a139-6210e94b97b5)(content(Whitespace\" \
-         \"))))(Tile((id da965136-ec8b-4cc4-84f6-5a9a14aae92e)(form(Atom TyVar \
-         Typ Exp))))(Secondary((id \
+         \"))))(Tile((id da965136-ec8b-4cc4-84f6-5a9a14aae92e)(form(Tok \
+         Exp))(sort Typ)))(Secondary((id \
          ecdf2dea-4767-46ac-8814-821848f81da0)(content(Whitespace\" \
          \"))))(Tile((id 0622d2df-fc86-4290-8477-c59a46cd53c5)(form(Compound \
-         TypeArrow))))(Secondary((id \
+         TypeArrow))(sort Typ)))(Secondary((id \
          76f36b3a-3d27-4335-9e92-eb5cd354e6d9)(content(Whitespace\" \
-         \"))))(Tile((id e8081c83-aaa7-4d30-9265-ce0b915f6271)(form(Atom TyVar \
-         Typ Result))))(Secondary((id \
+         \"))))(Tile((id e8081c83-aaa7-4d30-9265-ce0b915f6271)(form(Tok \
+         Result))(sort Typ)))(Secondary((id \
          19645dd4-05d5-4c1b-b3eb-b837ec33a6f0)(content(Whitespace\" \
          \")))))((Secondary((id \
          96fd7c6f-cf66-4412-9b9e-37bf189e57e2)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -695,8 +690,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id a5836d1a-4427-426f-8286-1dfee77179ca)(form(Compound \
          Fun))(shards(0 1))(children(((Secondary((id \
          1999875e-854d-4b3e-a93e-d3e4ba26f708)(content(Whitespace\" \
-         \"))))(Tile((id ebfe08da-8d16-4007-8c04-db6a05228a09)(form(Atom Var \
-         Pat e))))(Secondary((id \
+         \"))))(Tile((id ebfe08da-8d16-4007-8c04-db6a05228a09)(form(Tok \
+         e))(sort Pat)))(Secondary((id \
          d895ee77-904d-4de2-9a3b-f4ef5177ce27)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          ee0af6c7-7563-4c8d-a23b-f21ad7b7e29c)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -726,8 +721,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id 0b0d1baf-b1c6-4cbf-a2fc-5cd87d20d10b)(form(Compound \
          Case))(shards(0 1))(children(((Secondary((id \
          966bc79d-3a22-4920-a1e6-ddb38981a45b)(content(Whitespace\" \
-         \"))))(Tile((id 942add22-9361-49f8-9fc9-d312b4e4db69)(form(Atom Var \
-         Exp e))))(Secondary((id \
+         \"))))(Tile((id 942add22-9361-49f8-9fc9-d312b4e4db69)(form(Tok \
+         e))))(Secondary((id \
          6d738d62-bf8b-4609-bb30-f45fc3d9a1ae)(content(Whitespace\"\\n\"))))(Secondary((id \
          eb5bfcf6-1e7c-4cff-886d-5b73d7d838b7)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -753,22 +748,22 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          e48928f0-b717-47c1-941e-4f8800a3dfe1)(content(Whitespace\" \
          \"))))(Tile((id 9e8742f3-5e98-4bae-83ed-dfd41068cf7c)(form(Compound \
-         Rule))(shards(0 1))(children(((Secondary((id \
+         Rule))(sort Rul)(shards(0 1))(children(((Secondary((id \
          26963c2e-aaf4-47fb-b566-c6272b2b01e5)(content(Whitespace\" \
-         \"))))(Tile((id 8c0bc8e0-631e-4c84-a468-4dd983a9306b)(form(Atom Ctr \
-         Pat Var))))(Tile((id \
-         b106f810-dda8-4a8a-9313-cc76001f7d9b)(form(Compound ApPat))(shards(0 \
-         1))(children(((Tile((id \
-         0244548c-8254-4064-b26c-03a1934232f1)(form(Atom Var Pat \
-         _n)))))))))(Secondary((id \
+         \"))))(Tile((id 8c0bc8e0-631e-4c84-a468-4dd983a9306b)(form(Tok \
+         Var))(sort Pat)))(Tile((id \
+         b106f810-dda8-4a8a-9313-cc76001f7d9b)(form(Compound Ap))(sort \
+         Pat)(shards(0 1))(children(((Tile((id \
+         0244548c-8254-4064-b26c-03a1934232f1)(form(Tok _n))(sort \
+         Pat))))))))(Secondary((id \
          73e7c382-2e04-4e96-80ad-26d550d6d2a3)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          e95b386e-3a8c-4590-8e99-8be34b155981)(content(Whitespace\" \
-         \"))))(Tile((id 4692d993-a0db-4f87-b199-6e34a7cecd0d)(form(Atom Ctr \
-         Exp Error))))(Tile((id \
-         30fa981a-fe54-41cf-a2bd-5bb6fe90c89f)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id 4692d993-a0db-4f87-b199-6e34a7cecd0d)(form(Tok \
+         Error))))(Tile((id \
+         30fa981a-fe54-41cf-a2bd-5bb6fe90c89f)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         e3a08f4a-b622-49db-a252-cf63bef3469d)(form(Atom String Exp\"\\\"Free \
+         e3a08f4a-b622-49db-a252-cf63bef3469d)(form(Tok\"\\\"Free \
          Variable\\\"\")))))))))(Secondary((id \
          fec68155-7e1a-4212-b955-29ac2d8eb13c)(content(Whitespace\"\\n\"))))(Secondary((id \
          2c41eafc-1e0b-4d10-b5e5-4d095e2af567)(content(Whitespace\" \
@@ -795,34 +790,33 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          da8fa2a1-eae2-41fd-a831-7d9d84b62382)(content(Whitespace\" \
          \"))))(Tile((id bd18065f-ac31-410e-8ece-56504c0ade47)(form(Compound \
-         Rule))(shards(0 1))(children(((Secondary((id \
+         Rule))(sort Rul)(shards(0 1))(children(((Secondary((id \
          74f154b5-c4f1-45fe-8450-62aa26ce947e)(content(Whitespace\" \
-         \"))))(Tile((id 9f5d9c83-2b4b-4c33-ac38-6384f1cc6d54)(form(Atom Ctr \
-         Pat Lam))))(Tile((id \
-         4e3cead6-c5b8-442a-b5a8-18dbf0e56572)(form(Compound ApPat))(shards(0 \
-         1))(children(((Tile((id \
-         10df2930-a8be-49d0-9f07-f39dc313e254)(form(Atom Var Pat \
-         x))))(Tile((id 9570ce2e-4550-4b79-abdb-9ad9527adef1)(form(Compound \
-         CommaPat))))(Secondary((id \
+         \"))))(Tile((id 9f5d9c83-2b4b-4c33-ac38-6384f1cc6d54)(form(Tok \
+         Lam))(sort Pat)))(Tile((id \
+         4e3cead6-c5b8-442a-b5a8-18dbf0e56572)(form(Compound Ap))(sort \
+         Pat)(shards(0 1))(children(((Tile((id \
+         10df2930-a8be-49d0-9f07-f39dc313e254)(form(Tok x))(sort \
+         Pat)))(Tile((id 9570ce2e-4550-4b79-abdb-9ad9527adef1)(form(Compound \
+         Comma))(sort Pat)))(Secondary((id \
          b8348836-c0c8-4697-b116-5882b691e656)(content(Whitespace\" \
-         \"))))(Tile((id b0971c2f-d28a-4c5d-9489-d66c55fcfb91)(form(Atom Var \
-         Pat body)))))))))(Secondary((id \
+         \"))))(Tile((id b0971c2f-d28a-4c5d-9489-d66c55fcfb91)(form(Tok \
+         body))(sort Pat))))))))(Secondary((id \
          40b7f148-82b7-4d1e-9c64-ea4b1dce0179)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          462b59b1-d212-461b-a35a-29e2fe55d550)(content(Whitespace\" \
-         \"))))(Tile((id 4b82da94-95cc-418a-8d0a-6d633a3ec586)(form(Atom Ctr \
-         Exp Ok))))(Tile((id \
-         9b04d3b5-5683-403d-a5e6-79e993c16ffb)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id 4b82da94-95cc-418a-8d0a-6d633a3ec586)(form(Tok \
+         Ok))))(Tile((id 9b04d3b5-5683-403d-a5e6-79e993c16ffb)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         38d79e45-d8a2-4cc0-99c4-4fd67d43c3ab)(form(Tok Lam))))(Tile((id \
+         39fdacaf-045a-4ba7-b1c4-42cad74e493e)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         38d79e45-d8a2-4cc0-99c4-4fd67d43c3ab)(form(Atom Ctr Exp \
-         Lam))))(Tile((id 39fdacaf-045a-4ba7-b1c4-42cad74e493e)(form(Compound \
-         ApExp))(shards(0 1))(children(((Tile((id \
-         6e5599b9-4ddb-4ea7-8d6c-7d053633c349)(form(Atom Var Exp \
-         x))))(Tile((id 0f4d050e-5f08-4eb8-8ca4-9cbe2b7df984)(form(Compound \
-         CommaExp))))(Secondary((id \
+         6e5599b9-4ddb-4ea7-8d6c-7d053633c349)(form(Tok x))))(Tile((id \
+         0f4d050e-5f08-4eb8-8ca4-9cbe2b7df984)(form(Compound \
+         Comma))))(Secondary((id \
          964c686c-4975-4340-9cef-813468e6abdf)(content(Whitespace\" \
-         \"))))(Tile((id 8077eb8e-abab-4872-8a8d-3805567ab69e)(form(Atom Var \
-         Exp body))))))))))))))(Secondary((id \
+         \"))))(Tile((id 8077eb8e-abab-4872-8a8d-3805567ab69e)(form(Tok \
+         body))))))))))))))(Secondary((id \
          0270b952-8ca5-4d67-a1a8-72182ebae89a)(content(Whitespace\"\\n\"))))(Secondary((id \
          9aaf8a58-3ae7-4cdd-92c6-6c0e3def7bcd)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -848,16 +842,17 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          2bc79b68-c176-48c6-bbea-daef35a0a594)(content(Whitespace\" \
          \"))))(Tile((id ac279b7b-4b9b-4a46-b75e-1a965413c4c2)(form(Compound \
-         Rule))(shards(0 1))(children(((Secondary((id \
+         Rule))(sort Rul)(shards(0 1))(children(((Secondary((id \
          3cb359b7-82f3-4595-abad-3c8e27f3588c)(content(Whitespace\" \
-         \"))))(Tile((id 6f3a4ae5-1e65-4d7f-b4af-cab13fed3980)(form(Atom Ctr \
-         Pat Ap))))(Tile((id \
-         22d97a0b-5ceb-4b58-9ff7-5fbc580fe3aa)(form(Compound ApPat))(shards(0 \
-         1))(children(((Tile((id \
-         a7c07020-3e63-4687-83da-82d8ec59d6f1)(form(Atom Var Pat \
-         e1))))(Tile((id 9ba991d3-a7f8-421e-98e7-c0ba6d7c1d64)(form(Compound \
-         CommaPat))))(Tile((id 24c51d80-c96a-46c2-84f8-571ccb8f47f6)(form(Atom \
-         Var Pat e2)))))))))(Secondary((id \
+         \"))))(Tile((id 6f3a4ae5-1e65-4d7f-b4af-cab13fed3980)(form(Tok \
+         Ap))(sort Pat)))(Tile((id \
+         22d97a0b-5ceb-4b58-9ff7-5fbc580fe3aa)(form(Compound Ap))(sort \
+         Pat)(shards(0 1))(children(((Tile((id \
+         a7c07020-3e63-4687-83da-82d8ec59d6f1)(form(Tok e1))(sort \
+         Pat)))(Tile((id 9ba991d3-a7f8-421e-98e7-c0ba6d7c1d64)(form(Compound \
+         Comma))(sort Pat)))(Tile((id \
+         24c51d80-c96a-46c2-84f8-571ccb8f47f6)(form(Tok e2))(sort \
+         Pat))))))))(Secondary((id \
          b77d350f-6f1b-4872-bb8f-09ac86d59651)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          308d3396-46a7-432d-a809-560afcd8a099)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -899,11 +894,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id b7b7f033-b704-4a26-9d21-75627b19293c)(form(Compound \
          Case))(shards(0 1))(children(((Secondary((id \
          c4dda0d0-5e41-4f28-aef2-3814ccd62b4f)(content(Whitespace\" \
-         \"))))(Tile((id c09ab468-4305-40fc-a8ab-557f7325e5ff)(form(Atom Var \
-         Exp go))))(Tile((id \
-         1951f1bb-6aa0-4a18-b256-f160a43a91c9)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         58fe1a63-e163-4dc5-9be9-af0fca7eb327)(form(Atom Var Exp \
+         \"))))(Tile((id c09ab468-4305-40fc-a8ab-557f7325e5ff)(form(Tok \
+         go))))(Tile((id 1951f1bb-6aa0-4a18-b256-f160a43a91c9)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         58fe1a63-e163-4dc5-9be9-af0fca7eb327)(form(Tok \
          e1)))))))))(Secondary((id \
          7c6cc446-2791-49df-bd18-de3765aa0347)(content(Whitespace\"\\n\"))))(Secondary((id \
          d51ad0bb-e5a6-4bd5-b642-8cce2dd1ae64)(content(Whitespace\" \
@@ -942,21 +936,21 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          4abbe378-ecf5-4e1f-b757-79270b0fdd37)(content(Whitespace\" \
          \"))))(Tile((id 08437116-16e5-44c1-9841-85d04c657fdb)(form(Compound \
-         Rule))(shards(0 1))(children(((Secondary((id \
+         Rule))(sort Rul)(shards(0 1))(children(((Secondary((id \
          f5761218-8f58-4203-b1d4-87638b3f8667)(content(Whitespace\" \
-         \"))))(Tile((id 3b30a720-fd37-4450-b950-cb5766d60e8e)(form(Atom Ctr \
-         Pat Ok))))(Tile((id \
-         fa3f8e26-d391-4477-b8ed-81c4d1155754)(form(Compound ApPat))(shards(0 \
-         1))(children(((Tile((id \
-         d2d28f08-aaf3-4b3d-9d59-3961e1f68a27)(form(Atom Ctr Pat \
-         Lam))))(Tile((id 026d764d-cf32-4f54-a9ea-6ee45ad9a3e5)(form(Compound \
-         ApPat))(shards(0 1))(children(((Tile((id \
-         831620c6-e278-4b70-850c-da08af084b15)(form(Atom Var Pat \
-         x))))(Tile((id 4bfbc59a-268d-46ff-8159-a00ed94a91f1)(form(Compound \
-         CommaPat))))(Secondary((id \
+         \"))))(Tile((id 3b30a720-fd37-4450-b950-cb5766d60e8e)(form(Tok \
+         Ok))(sort Pat)))(Tile((id \
+         fa3f8e26-d391-4477-b8ed-81c4d1155754)(form(Compound Ap))(sort \
+         Pat)(shards(0 1))(children(((Tile((id \
+         d2d28f08-aaf3-4b3d-9d59-3961e1f68a27)(form(Tok Lam))(sort \
+         Pat)))(Tile((id 026d764d-cf32-4f54-a9ea-6ee45ad9a3e5)(form(Compound \
+         Ap))(sort Pat)(shards(0 1))(children(((Tile((id \
+         831620c6-e278-4b70-850c-da08af084b15)(form(Tok x))(sort \
+         Pat)))(Tile((id 4bfbc59a-268d-46ff-8159-a00ed94a91f1)(form(Compound \
+         Comma))(sort Pat)))(Secondary((id \
          1b125caf-3900-4d72-9dd7-d9ca9c4b981c)(content(Whitespace\" \
-         \"))))(Tile((id e3760c07-80c0-4e8a-ae8c-ed6faa7a82d7)(form(Atom Var \
-         Pat body)))))))))))))))))))(Secondary((id \
+         \"))))(Tile((id e3760c07-80c0-4e8a-ae8c-ed6faa7a82d7)(form(Tok \
+         body))(sort Pat))))))))))))))))))(Secondary((id \
          881c7cdf-e003-4ba4-aea3-e112c5ae80b0)(content(Whitespace\"\\n\"))))(Secondary((id \
          ef1006ac-a339-43f6-ba99-819e264e9020)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -1008,11 +1002,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id 90127302-d223-4765-866b-220102e74cc3)(form(Compound \
          Case))(shards(0 1))(children(((Secondary((id \
          6467de21-6abd-4440-a9de-3dd21ccaa027)(content(Whitespace\" \
-         \"))))(Tile((id 32d75b53-602e-4c56-b771-8881f08c09db)(form(Atom Var \
-         Exp go))))(Tile((id \
-         16bd1d97-629b-4235-b6d0-e9e223993d33)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         a831dbf8-7387-4a86-91e6-d2ee634ebd9b)(form(Atom Var Exp \
+         \"))))(Tile((id 32d75b53-602e-4c56-b771-8881f08c09db)(form(Tok \
+         go))))(Tile((id 16bd1d97-629b-4235-b6d0-e9e223993d33)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         a831dbf8-7387-4a86-91e6-d2ee634ebd9b)(form(Tok \
          e2)))))))))(Secondary((id \
          92359862-9e0a-4de9-80a5-cc008137c8ff)(content(Whitespace\"\\n\"))))(Secondary((id \
          1be36e5f-158b-41ce-921e-bed0d05f8c06)(content(Whitespace\" \
@@ -1063,22 +1056,22 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          6712a12b-b218-455e-a7b6-3d7d0679c909)(content(Whitespace\" \
          \"))))(Tile((id e2b8c2b2-c366-4548-abb9-e04af9ed38aa)(form(Compound \
-         Rule))(shards(0 1))(children(((Secondary((id \
+         Rule))(sort Rul)(shards(0 1))(children(((Secondary((id \
          3161fe07-f765-4bb6-8bab-660ad5635180)(content(Whitespace\" \
-         \"))))(Tile((id 951cae4c-1a1f-445c-8174-b60c0c176af9)(form(Atom Ctr \
-         Pat Error))))(Tile((id \
-         ea02fdd5-f592-43cc-ae47-b064ec2f2289)(form(Compound ApPat))(shards(0 \
-         1))(children(((Tile((id \
-         bc15d10c-32c6-466f-b488-caf504da3ebc)(form(Atom Var Pat \
-         err)))))))))(Secondary((id \
+         \"))))(Tile((id 951cae4c-1a1f-445c-8174-b60c0c176af9)(form(Tok \
+         Error))(sort Pat)))(Tile((id \
+         ea02fdd5-f592-43cc-ae47-b064ec2f2289)(form(Compound Ap))(sort \
+         Pat)(shards(0 1))(children(((Tile((id \
+         bc15d10c-32c6-466f-b488-caf504da3ebc)(form(Tok err))(sort \
+         Pat))))))))(Secondary((id \
          49c64753-4581-42cb-bd3f-2a95c070a85e)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          1830c033-cebc-4dcb-b558-b606fa16f316)(content(Whitespace\" \
-         \"))))(Tile((id a8523172-7be2-4922-a132-31ca310a013e)(form(Atom Ctr \
-         Exp Error))))(Tile((id \
-         587b7827-0726-4cca-87d6-67af4ae0ca00)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id a8523172-7be2-4922-a132-31ca310a013e)(form(Tok \
+         Error))))(Tile((id \
+         587b7827-0726-4cca-87d6-67af4ae0ca00)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         8023ceaa-8dcc-4bf5-80cf-5dde05b48f4e)(form(Atom Var Exp \
+         8023ceaa-8dcc-4bf5-80cf-5dde05b48f4e)(form(Tok \
          err)))))))))(Secondary((id \
          8b1f6b4a-56ff-4d75-be54-c717da854658)(content(Whitespace\"\\n\"))))(Secondary((id \
          805ba4ac-9dcc-49ef-9816-959cc1977f08)(content(Whitespace\" \
@@ -1129,36 +1122,33 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          866638ba-02b6-4610-aa6f-a1de03c229da)(content(Whitespace\" \
          \"))))(Tile((id 2dc80bc0-2c61-418a-9446-0fceaa5a60f1)(form(Compound \
-         Rule))(shards(0 1))(children(((Secondary((id \
+         Rule))(sort Rul)(shards(0 1))(children(((Secondary((id \
          cf998a61-78ed-47f8-a1d8-1a891ca89f2a)(content(Whitespace\" \
-         \"))))(Tile((id e71fdd11-142a-4b69-8903-6a6c646be276)(form(Atom Ctr \
-         Pat Ok))))(Tile((id \
-         9ca3535a-7275-43b0-a811-fd018ab8efb9)(form(Compound ApPat))(shards(0 \
-         1))(children(((Tile((id \
-         a2ac1e8e-5631-4f1a-9d55-17e6aa8f5f50)(form(Atom Var Pat \
-         arg)))))))))(Secondary((id \
+         \"))))(Tile((id e71fdd11-142a-4b69-8903-6a6c646be276)(form(Tok \
+         Ok))(sort Pat)))(Tile((id \
+         9ca3535a-7275-43b0-a811-fd018ab8efb9)(form(Compound Ap))(sort \
+         Pat)(shards(0 1))(children(((Tile((id \
+         a2ac1e8e-5631-4f1a-9d55-17e6aa8f5f50)(form(Tok arg))(sort \
+         Pat))))))))(Secondary((id \
          aace43ee-657f-4ab7-9a36-2249c6ff8b6e)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          717674ed-fc63-4662-acfb-654fe3518bf3)(content(Whitespace\" \
-         \"))))(Tile((id f8772976-b2b2-4da7-b8bd-a78938ffe810)(form(Atom Var \
-         Exp go))))(Tile((id \
-         a2e17312-d416-4356-a640-5be53b5ab83d)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id f8772976-b2b2-4da7-b8bd-a78938ffe810)(form(Tok \
+         go))))(Tile((id a2e17312-d416-4356-a640-5be53b5ab83d)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         a849ea1f-058d-4a89-81b0-85fa57e33339)(form(Tok subst))))(Tile((id \
+         e45960bc-5202-4ecc-9942-4cb1dbc36a7e)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         a849ea1f-058d-4a89-81b0-85fa57e33339)(form(Atom Var Exp \
-         subst))))(Tile((id \
-         e45960bc-5202-4ecc-9942-4cb1dbc36a7e)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         6d0bc542-dfca-4a83-9e33-9205641c9be2)(form(Atom Var Exp \
-         arg))))(Tile((id d2b350f8-693e-4f00-a237-99fc37520b1e)(form(Compound \
-         CommaExp))))(Secondary((id \
+         6d0bc542-dfca-4a83-9e33-9205641c9be2)(form(Tok arg))))(Tile((id \
+         d2b350f8-693e-4f00-a237-99fc37520b1e)(form(Compound \
+         Comma))))(Secondary((id \
          8450f8cf-a2cd-4cbf-aec1-2dc0abc3be9f)(content(Whitespace\" \
-         \"))))(Tile((id 58925789-8731-4339-9e38-d29e53c99db6)(form(Atom Var \
-         Exp x))))(Tile((id \
-         3dd822ed-a6ea-4ab6-bc05-f077f105bc39)(form(Compound \
-         CommaExp))))(Secondary((id \
+         \"))))(Tile((id 58925789-8731-4339-9e38-d29e53c99db6)(form(Tok \
+         x))))(Tile((id 3dd822ed-a6ea-4ab6-bc05-f077f105bc39)(form(Compound \
+         Comma))))(Secondary((id \
          816ca881-eb25-4ca5-b5f4-2eede7ad2a3b)(content(Whitespace\" \
-         \"))))(Tile((id cad2544d-638d-45f6-a753-c50265d235df)(form(Atom Var \
-         Exp body))))))))))))))(Secondary((id \
+         \"))))(Tile((id cad2544d-638d-45f6-a753-c50265d235df)(form(Tok \
+         body))))))))))))))(Secondary((id \
          e51620f6-77c3-47bb-96fb-daad3e3b7144)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          cb5097f5-4b4f-4313-91c4-eff62cea7701)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -1198,18 +1188,18 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          9eb10b88-3742-4ca2-b02d-ff229325280b)(content(Whitespace\" \
          \"))))(Tile((id 9d3a08e9-9b34-4c5c-a106-0155a8a674a2)(form(Compound \
-         Rule))(shards(0 1))(children(((Secondary((id \
+         Rule))(sort Rul)(shards(0 1))(children(((Secondary((id \
          d2f3c5c6-0051-40c8-bd5c-d97e1d9b4eea)(content(Whitespace\" \
-         \"))))(Tile((id 099fd9fc-bfb6-4003-ad70-90ddf26d6ff7)(form(Atom Wild \
-         Pat _))))(Secondary((id \
+         \"))))(Tile((id 099fd9fc-bfb6-4003-ad70-90ddf26d6ff7)(form(Tok \
+         _))(sort Pat)))(Secondary((id \
          4325c12e-aafa-4e56-84dd-04e58602db3b)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          7b65edcf-39ab-433f-8d91-63caf7c0e73d)(content(Whitespace\" \
-         \"))))(Tile((id 004d2217-8014-476d-b042-cc3d53d487af)(form(Atom Ctr \
-         Exp Error))))(Tile((id \
-         4a33de49-34ed-4267-86e7-4eec140f11a4)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id 004d2217-8014-476d-b042-cc3d53d487af)(form(Tok \
+         Error))))(Tile((id \
+         4a33de49-34ed-4267-86e7-4eec140f11a4)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         88fcae27-be9b-4c9d-92da-772e709f9a87)(form(Atom String Exp\"\\\"Not a \
+         88fcae27-be9b-4c9d-92da-772e709f9a87)(form(Tok\"\\\"Not a \
          Function\\\"\")))))))))(Secondary((id \
          dfc416dd-9453-4851-abc5-4330d89b35ff)(content(Whitespace\" \
          \")))))))))(Secondary((id \
@@ -1233,15 +1223,13 @@ let out : string * Haz3lcore.PersistentSegment.t =
          636b7a27-9596-4035-86d3-a6b76c5c76ba)(content(Whitespace\" \
          \"))))(Secondary((id \
          87d52d94-ecef-4b52-85dd-3517b09da69e)(content(Whitespace\" \
-         \"))))(Tile((id af37c56a-96b8-426f-af85-398484878967)(form(Atom Var \
-         Exp go))))(Tile((id \
-         a0743772-dfb9-490b-93ab-1df03f373405)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id af37c56a-96b8-426f-af85-398484878967)(form(Tok \
+         go))))(Tile((id a0743772-dfb9-490b-93ab-1df03f373405)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         caf502fd-984d-4fbf-8de2-05c520bba702)(form(Tok Var))))(Tile((id \
+         69f9f371-1fa5-4bb5-9285-932d55747ceb)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         caf502fd-984d-4fbf-8de2-05c520bba702)(form(Atom Ctr Exp \
-         Var))))(Tile((id 69f9f371-1fa5-4bb5-9285-932d55747ceb)(form(Compound \
-         ApExp))(shards(0 1))(children(((Tile((id \
-         05909dd4-e832-4c73-8fb7-1456ba1c3b97)(form(Atom String \
-         Exp\"\\\"yo\\\"\"))))))))))))))(Secondary((id \
+         05909dd4-e832-4c73-8fb7-1456ba1c3b97)(form(Tok\"\\\"yo\\\"\"))))))))))))))(Secondary((id \
          42565370-d90b-4db2-a426-7f5f3d84120b)(content(Whitespace\"\\n\"))))(Secondary((id \
          b20a5d54-309c-4faf-a056-6e1edf25b354)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -1257,11 +1245,11 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id 49a2774f-0988-4564-b487-614525ffbf3a)(form(Compound \
          Equals))))(Secondary((id \
          0e0a4a43-e564-4ba1-afd0-5999f57a3e9c)(content(Whitespace\" \
-         \"))))(Tile((id e0298738-a6cb-4199-bb19-6bf4a8e2b782)(form(Atom Ctr \
-         Exp Error))))(Tile((id \
-         f59ab7eb-eace-4af9-86fd-675d75f5814c)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id e0298738-a6cb-4199-bb19-6bf4a8e2b782)(form(Tok \
+         Error))))(Tile((id \
+         f59ab7eb-eace-4af9-86fd-675d75f5814c)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         9244fcdb-df8e-40bb-b7a9-a7a0ec7d3cca)(form(Atom String Exp\"\\\"Free \
+         9244fcdb-df8e-40bb-b7a9-a7a0ec7d3cca)(form(Tok\"\\\"Free \
          Variable\\\"\")))))))))(Secondary((id \
          930063dc-bfbe-4699-8da6-d33f123c17cc)(content(Whitespace\" \
          \")))))))))(Tile((id \
@@ -1283,36 +1271,30 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ccb7c3ae-43e2-4b82-84ce-7ad96542aee8)(content(Whitespace\" \
          \"))))(Secondary((id \
          eab6e949-6de8-42aa-99bf-22e5b8f174de)(content(Whitespace\" \
-         \"))))(Tile((id 88eeb909-545f-4466-a5c5-9b44237c4eb3)(form(Atom Var \
-         Exp go))))(Tile((id \
-         831167cf-8377-4618-96f9-4f74b5dad8d6)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id 88eeb909-545f-4466-a5c5-9b44237c4eb3)(form(Tok \
+         go))))(Tile((id 831167cf-8377-4618-96f9-4f74b5dad8d6)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         057adeee-dc04-4374-9dae-19101a23416d)(form(Tok Ap))))(Tile((id \
+         b74957c2-aac4-4d1a-bbe2-823229ed4fc6)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         057adeee-dc04-4374-9dae-19101a23416d)(form(Atom Ctr Exp \
-         Ap))))(Tile((id b74957c2-aac4-4d1a-bbe2-823229ed4fc6)(form(Compound \
-         ApExp))(shards(0 1))(children(((Tile((id \
-         c81a24d8-a7ce-45d8-8b60-ad6bd79a3476)(form(Atom Ctr Exp \
-         Var))))(Tile((id 9c2de6e7-b0b5-41b4-9412-ce27923656ba)(form(Compound \
-         ApExp))(shards(0 1))(children(((Tile((id \
-         c1165a34-f9a2-4fc1-9cfd-0a7c1c1b36d1)(form(Atom String \
-         Exp\"\\\"no\\\"\")))))))))(Tile((id \
+         c81a24d8-a7ce-45d8-8b60-ad6bd79a3476)(form(Tok Var))))(Tile((id \
+         9c2de6e7-b0b5-41b4-9412-ce27923656ba)(form(Compound Ap))(shards(0 \
+         1))(children(((Tile((id \
+         c1165a34-f9a2-4fc1-9cfd-0a7c1c1b36d1)(form(Tok\"\\\"no\\\"\")))))))))(Tile((id \
          a805e779-3323-4399-9811-311d58006a44)(form(Compound \
-         CommaExp))))(Secondary((id \
+         Comma))))(Secondary((id \
          18380a89-8cf6-436b-b5e4-4634d1ed6391)(content(Whitespace\" \
-         \"))))(Tile((id ceb614cc-e0ee-4502-8c85-a16b0e9201da)(form(Atom Ctr \
-         Exp Lam))))(Tile((id \
-         e3748708-5a3e-4713-b095-1616c9bbfeaf)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         cbc31b62-5e7b-4a7f-9b6c-554c63676e1a)(form(Atom String \
-         Exp\"\\\"bro\\\"\"))))(Tile((id \
+         \"))))(Tile((id ceb614cc-e0ee-4502-8c85-a16b0e9201da)(form(Tok \
+         Lam))))(Tile((id e3748708-5a3e-4713-b095-1616c9bbfeaf)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         cbc31b62-5e7b-4a7f-9b6c-554c63676e1a)(form(Tok\"\\\"bro\\\"\"))))(Tile((id \
          65fb2982-d09c-48b1-aad5-f47596cfcaa4)(form(Compound \
-         CommaExp))))(Secondary((id \
+         Comma))))(Secondary((id \
          10aa8f6c-ebc3-4ab4-a532-b39e7e0e6db9)(content(Whitespace\" \
-         \"))))(Tile((id e7208776-dc95-48f5-8935-465c1ea84c06)(form(Atom Ctr \
-         Exp Var))))(Tile((id \
-         efbe571e-38c7-4bf0-b9d1-59d2d06905b1)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         2cc02d85-1976-4257-8f1f-88586e5d661c)(form(Atom String \
-         Exp\"\\\"bro\\\"\"))))))))))))))))))))))))(Secondary((id \
+         \"))))(Tile((id e7208776-dc95-48f5-8935-465c1ea84c06)(form(Tok \
+         Var))))(Tile((id efbe571e-38c7-4bf0-b9d1-59d2d06905b1)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         2cc02d85-1976-4257-8f1f-88586e5d661c)(form(Tok\"\\\"bro\\\"\"))))))))))))))))))))))))(Secondary((id \
          7b1339f6-ebec-49d5-99bb-b0c6e57f9769)(content(Whitespace\"\\n\"))))(Secondary((id \
          e7861ca4-9094-450f-87d0-6378ce092ae6)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -1328,11 +1310,11 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id 004c16b2-4209-4eb8-9773-c2eb3b176253)(form(Compound \
          Equals))))(Secondary((id \
          a833a4f2-1814-42c0-96a0-3f4990761583)(content(Whitespace\" \
-         \"))))(Tile((id 8513eaa1-389f-4fed-b738-01d8cc553dae)(form(Atom Ctr \
-         Exp Error))))(Tile((id \
-         07060d9b-6ca2-4e4b-9647-d086a858f27f)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id 8513eaa1-389f-4fed-b738-01d8cc553dae)(form(Tok \
+         Error))))(Tile((id \
+         07060d9b-6ca2-4e4b-9647-d086a858f27f)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         495d3611-60bd-4937-96d1-21461169d4d1)(form(Atom String Exp\"\\\"Not a \
+         495d3611-60bd-4937-96d1-21461169d4d1)(form(Tok\"\\\"Not a \
          Function\\\"\")))))))))(Secondary((id \
          3ba3992e-ad14-454e-bcbd-4a9f8242dff7)(content(Whitespace\" \
          \")))))))))(Tile((id \
@@ -1354,24 +1336,20 @@ let out : string * Haz3lcore.PersistentSegment.t =
          5f72e676-1b35-4989-ac67-8c2e01584c0a)(content(Whitespace\" \
          \"))))(Secondary((id \
          78a5a18c-604b-4dc0-9aad-824b6b26efb4)(content(Whitespace\" \
-         \"))))(Tile((id 70c8a005-98f5-4cd3-a08a-28fe974d1c9a)(form(Atom Var \
-         Exp go))))(Tile((id \
-         df66cf6e-c43b-4318-ac74-432f4beed56e)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id 70c8a005-98f5-4cd3-a08a-28fe974d1c9a)(form(Tok \
+         go))))(Tile((id df66cf6e-c43b-4318-ac74-432f4beed56e)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         347d5815-2fba-40c7-a630-b318e0bac2a0)(form(Tok Lam))))(Tile((id \
+         37fbea78-c2dc-485b-93b4-e21a6d401e7e)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         347d5815-2fba-40c7-a630-b318e0bac2a0)(form(Atom Ctr Exp \
-         Lam))))(Tile((id 37fbea78-c2dc-485b-93b4-e21a6d401e7e)(form(Compound \
-         ApExp))(shards(0 1))(children(((Tile((id \
-         4e6346fb-5dc3-4732-83e2-f72d3716ab3e)(form(Atom String \
-         Exp\"\\\"yo\\\"\"))))(Tile((id \
+         4e6346fb-5dc3-4732-83e2-f72d3716ab3e)(form(Tok\"\\\"yo\\\"\"))))(Tile((id \
          e797f763-3530-4530-880e-6c3f42b2f12d)(form(Compound \
-         CommaExp))))(Secondary((id \
+         Comma))))(Secondary((id \
          25c78db4-ebfe-45a2-a2e9-ee2f998275e9)(content(Whitespace\" \
-         \"))))(Tile((id 41834d98-733a-4653-8546-017586b8f795)(form(Atom Ctr \
-         Exp Var))))(Tile((id \
-         5c87a842-2cd9-45b3-a1cd-a2a268634068)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         a632d6f5-b093-4652-a434-11e96e418a6b)(form(Atom String \
-         Exp\"\\\"yo\\\"\")))))))))))))))))))(Secondary((id \
+         \"))))(Tile((id 41834d98-733a-4653-8546-017586b8f795)(form(Tok \
+         Var))))(Tile((id 5c87a842-2cd9-45b3-a1cd-a2a268634068)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         a632d6f5-b093-4652-a434-11e96e418a6b)(form(Tok\"\\\"yo\\\"\")))))))))))))))))))(Secondary((id \
          05de6c06-6120-46ae-a22a-06fdc5f8876b)(content(Whitespace\"\\n\"))))(Secondary((id \
          f7949b9a-10d5-4f64-b8de-27b69ae73521)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -1387,24 +1365,20 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id ffe5b111-5766-491f-ab01-515d9b8b3400)(form(Compound \
          Equals))))(Secondary((id \
          6c46d1d4-f172-4c21-a9ef-b576ffc0f77c)(content(Whitespace\" \
-         \"))))(Tile((id 066c298f-4c09-40c4-81d6-ec3fbedf7cd0)(form(Atom Ctr \
-         Exp Ok))))(Tile((id \
-         5615a5ba-689e-4b78-b311-2efe4136d59a)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id 066c298f-4c09-40c4-81d6-ec3fbedf7cd0)(form(Tok \
+         Ok))))(Tile((id 5615a5ba-689e-4b78-b311-2efe4136d59a)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         9994b4ed-60f3-4b47-b49f-f5b6a1b16cad)(form(Tok Lam))))(Tile((id \
+         78719246-a66c-455c-b1ef-6f4515ded77c)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         9994b4ed-60f3-4b47-b49f-f5b6a1b16cad)(form(Atom Ctr Exp \
-         Lam))))(Tile((id 78719246-a66c-455c-b1ef-6f4515ded77c)(form(Compound \
-         ApExp))(shards(0 1))(children(((Tile((id \
-         aeceace1-bcb9-4a39-9614-4c07f9d56bcc)(form(Atom String \
-         Exp\"\\\"yo\\\"\"))))(Tile((id \
+         aeceace1-bcb9-4a39-9614-4c07f9d56bcc)(form(Tok\"\\\"yo\\\"\"))))(Tile((id \
          9c1da36d-3fb0-4e9a-b071-9f996e3f8661)(form(Compound \
-         CommaExp))))(Secondary((id \
+         Comma))))(Secondary((id \
          d96a1a53-4e80-4b7e-8a35-06379377ce22)(content(Whitespace\" \
-         \"))))(Tile((id 01debd3a-494c-48f7-bb4c-67183c978701)(form(Atom Ctr \
-         Exp Var))))(Tile((id \
-         3708179f-0847-49c8-9e38-25304ba5a509)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         fa01a9ff-68eb-4e08-ad27-a0f4a014e4aa)(form(Atom String \
-         Exp\"\\\"yo\\\"\")))))))))))))))))))(Secondary((id \
+         \"))))(Tile((id 01debd3a-494c-48f7-bb4c-67183c978701)(form(Tok \
+         Var))))(Tile((id 3708179f-0847-49c8-9e38-25304ba5a509)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         fa01a9ff-68eb-4e08-ad27-a0f4a014e4aa)(form(Tok\"\\\"yo\\\"\")))))))))))))))))))(Secondary((id \
          01bf523d-3c9d-482b-8149-f93e2bbec3f7)(content(Whitespace\" \
          \")))))))))(Tile((id \
          4b010c77-02c0-4aa3-86bf-a8a50caab9c7)(form(Compound \
@@ -1425,45 +1399,37 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ae0ed90f-8174-4192-85e8-817afa438425)(content(Whitespace\" \
          \"))))(Secondary((id \
          f3b9974a-dde4-4d5f-ae83-e2ebc50b095a)(content(Whitespace\" \
-         \"))))(Tile((id 5c3c0cc9-c691-43ea-acfc-c1ffba77f4e3)(form(Atom Var \
-         Exp go))))(Tile((id \
-         48b1bb65-fa5c-49ab-ae35-fb1206bf5ba8)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id 5c3c0cc9-c691-43ea-acfc-c1ffba77f4e3)(form(Tok \
+         go))))(Tile((id 48b1bb65-fa5c-49ab-ae35-fb1206bf5ba8)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         95a170c0-a67a-4e1f-a5bc-2e12b172d2ac)(form(Tok Ap))))(Tile((id \
+         d5283533-b222-4ab0-bad4-5714fcd8bdf7)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         95a170c0-a67a-4e1f-a5bc-2e12b172d2ac)(form(Atom Ctr Exp \
-         Ap))))(Tile((id d5283533-b222-4ab0-bad4-5714fcd8bdf7)(form(Compound \
-         ApExp))(shards(0 1))(children(((Tile((id \
-         6e523fe8-d586-4991-835a-1e7724fc3d31)(form(Atom Ctr Exp \
-         Lam))))(Tile((id 0db814b1-afe5-4059-9981-d5129d0b7119)(form(Compound \
-         ApExp))(shards(0 1))(children(((Tile((id \
-         f94e5114-1237-45b6-b25c-810902d69b89)(form(Atom String \
-         Exp\"\\\"yo\\\"\"))))(Tile((id \
+         6e523fe8-d586-4991-835a-1e7724fc3d31)(form(Tok Lam))))(Tile((id \
+         0db814b1-afe5-4059-9981-d5129d0b7119)(form(Compound Ap))(shards(0 \
+         1))(children(((Tile((id \
+         f94e5114-1237-45b6-b25c-810902d69b89)(form(Tok\"\\\"yo\\\"\"))))(Tile((id \
          4884255e-b376-4b18-91d2-17b902973d46)(form(Compound \
-         CommaExp))))(Secondary((id \
+         Comma))))(Secondary((id \
          2308700d-278f-4bd6-a197-b8328c513902)(content(Whitespace\" \
-         \"))))(Tile((id b2e126d6-b1bb-4db3-b41a-6b23ea490dea)(form(Atom Ctr \
-         Exp Var))))(Tile((id \
-         2b7a0482-c0e6-4585-8eb4-0f9405415f5b)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         b768308e-8739-48ff-b878-c0b88841cc66)(form(Atom String \
-         Exp\"\\\"yo\\\"\"))))))))))))))(Tile((id \
+         \"))))(Tile((id b2e126d6-b1bb-4db3-b41a-6b23ea490dea)(form(Tok \
+         Var))))(Tile((id 2b7a0482-c0e6-4585-8eb4-0f9405415f5b)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         b768308e-8739-48ff-b878-c0b88841cc66)(form(Tok\"\\\"yo\\\"\"))))))))))))))(Tile((id \
          e7cfa39d-35b5-4622-8a06-5c3dff9ff6e0)(form(Compound \
-         CommaExp))))(Secondary((id \
+         Comma))))(Secondary((id \
          6b5be78d-5e33-4903-ac86-3ac6c342cf50)(content(Whitespace\" \
-         \"))))(Tile((id 095bf013-4831-48e6-be48-e4ebeb9775c3)(form(Atom Ctr \
-         Exp Lam))))(Tile((id \
-         dd57bbea-416f-4cca-9357-437a7dd37648)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         7bfed2ac-e927-492a-b461-737dc5781b2a)(form(Atom String \
-         Exp\"\\\"bro\\\"\"))))(Tile((id \
+         \"))))(Tile((id 095bf013-4831-48e6-be48-e4ebeb9775c3)(form(Tok \
+         Lam))))(Tile((id dd57bbea-416f-4cca-9357-437a7dd37648)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         7bfed2ac-e927-492a-b461-737dc5781b2a)(form(Tok\"\\\"bro\\\"\"))))(Tile((id \
          9d757420-d608-4df7-baff-63262ccca1ac)(form(Compound \
-         CommaExp))))(Secondary((id \
+         Comma))))(Secondary((id \
          1535ba8c-a265-46ac-8002-1e234df9a667)(content(Whitespace\" \
-         \"))))(Tile((id 1729cce0-6807-43da-8d38-db4c749e5646)(form(Atom Ctr \
-         Exp Var))))(Tile((id \
-         f2f33945-85ae-4761-a84e-13981a62f2c6)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         c3594cbf-180c-4d06-a7ad-885e50143b66)(form(Atom String \
-         Exp\"\\\"bro\\\"\"))))))))))))))))))))))))(Secondary((id \
+         \"))))(Tile((id 1729cce0-6807-43da-8d38-db4c749e5646)(form(Tok \
+         Var))))(Tile((id f2f33945-85ae-4761-a84e-13981a62f2c6)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         c3594cbf-180c-4d06-a7ad-885e50143b66)(form(Tok\"\\\"bro\\\"\"))))))))))))))))))))))))(Secondary((id \
          5e3f1b19-9e4a-4114-b745-e261ca8d34bf)(content(Whitespace\"\\n\"))))(Secondary((id \
          3b8cec9e-556f-4794-85e6-8985284fc340)(content(Whitespace\" \
          \"))))(Secondary((id \
@@ -1479,24 +1445,20 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id e93b6f3e-f0cc-456a-9869-ed909be0395f)(form(Compound \
          Equals))))(Secondary((id \
          cbe64e3a-71cc-46b4-9d83-debe31c6a785)(content(Whitespace\" \
-         \"))))(Tile((id ebff539f-de51-4be9-92cd-7808277ee6c0)(form(Atom Ctr \
-         Exp Ok))))(Tile((id \
-         1e493e5a-3025-4807-af07-1422fedec096)(form(Compound ApExp))(shards(0 \
+         \"))))(Tile((id ebff539f-de51-4be9-92cd-7808277ee6c0)(form(Tok \
+         Ok))))(Tile((id 1e493e5a-3025-4807-af07-1422fedec096)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         7d9d1983-c79c-4a91-9588-fbbdc4c73a96)(form(Tok Lam))))(Tile((id \
+         574c3ffa-e2be-4a64-b817-b4bdb06c5119)(form(Compound Ap))(shards(0 \
          1))(children(((Tile((id \
-         7d9d1983-c79c-4a91-9588-fbbdc4c73a96)(form(Atom Ctr Exp \
-         Lam))))(Tile((id 574c3ffa-e2be-4a64-b817-b4bdb06c5119)(form(Compound \
-         ApExp))(shards(0 1))(children(((Tile((id \
-         3406187a-9ef9-436b-8883-65efce68f275)(form(Atom String \
-         Exp\"\\\"bro\\\"\"))))(Tile((id \
+         3406187a-9ef9-436b-8883-65efce68f275)(form(Tok\"\\\"bro\\\"\"))))(Tile((id \
          b6475050-6cbe-4e41-b39b-c26721edcf36)(form(Compound \
-         CommaExp))))(Secondary((id \
+         Comma))))(Secondary((id \
          cb35dd9a-e121-4017-9237-bf7cbbdba337)(content(Whitespace\" \
-         \"))))(Tile((id 999f5921-9928-420f-80cb-aa023c0641b3)(form(Atom Ctr \
-         Exp Var))))(Tile((id \
-         4e2b2a9e-8304-4d12-80c9-5e907c3e4224)(form(Compound ApExp))(shards(0 \
-         1))(children(((Tile((id \
-         9dc7e1de-32d0-4a57-986e-b2a52fb5ce83)(form(Atom String \
-         Exp\"\\\"bro\\\"\")))))))))))))))))))(Secondary((id \
+         \"))))(Tile((id 999f5921-9928-420f-80cb-aa023c0641b3)(form(Tok \
+         Var))))(Tile((id 4e2b2a9e-8304-4d12-80c9-5e907c3e4224)(form(Compound \
+         Ap))(shards(0 1))(children(((Tile((id \
+         9dc7e1de-32d0-4a57-986e-b2a52fb5ce83)(form(Tok\"\\\"bro\\\"\")))))))))))))))))))(Secondary((id \
          ca07d7b6-d459-4c2a-9ad1-9657758966a1)(content(Whitespace\" \
          \")))))))))(Tile((id \
          3b65fec4-73d7-43bd-96e2-ad1731fbb95f)(form(Compound \
