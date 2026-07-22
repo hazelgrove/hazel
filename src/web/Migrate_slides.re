@@ -1,10 +1,11 @@
 /* DISPOSAL: disposable migration tooling for the tile FormId change.
- * Delete this file (together with LegacyBase.re,
- * Migrate_exercises.re, scripts/split_migrate_output.py, and
- * scripts/README_migrate_tile_format.md) once tile-datatype has merged to dev and active
- * feature branches have run the recipe in
- * scripts/README_migrate_tile_format.md. Nothing at runtime depends on
- * it. */
+ * Delete this file (together with LegacyBase.re and the migration
+ * sections of scripts/README_migrate_tile_format.md) once tile-datatype
+ * has merged to dev and active feature branches have run the recipe in
+ * scripts/README_migrate_tile_format.md.
+ * (Migrate_exercises.re and scripts/split_migrate_output.py outlive the
+ * migration as the example-module re-export tool.) Nothing at runtime
+ * depends on it. */
 
 /* Serialized-slide renormalizer for the tile-datatype flip.
  *

@@ -75,9 +75,11 @@
  (preprocess
   (pps js_of_ocaml-ppx)))
 
-; Migration exporter: rewrites zipper-embedding example modules as
-; "transitionary" (string-based) modules that survive Zipper.t datatype
-; changes. Run under node; see scripts/README_migrate_tile_format.md.
+; Example-module exporter: rewrites the example exercise modules in the
+; shipped persistent format (serialized zipper sexp + backup_text, decoded
+; via *.of_persistent at startup — no re-parse). The string-based
+; "transitionary" format remains the migration interchange format.
+; Run under node; see scripts/README_migrate_tile_format.md.
 
 (executable
  (name migrate_exercises)
