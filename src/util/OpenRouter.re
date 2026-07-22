@@ -14,6 +14,23 @@ module Reply = {
       cache_read_input_tokens: option(int),
       [@yojson.default None] [@sexp.default None]
       cache_creation_input_tokens: option(int),
+      /* Ground truth for billing. [[prompt_tokens]] is a *reporting* field and
+         is not what we are charged on — the two can disagree (observed on
+         `google/gemini-3-flash-preview`, where prompt_tokens comes back at
+         exactly 2x cache_read). [cost] is the amount OpenRouter actually
+         billed for this request, in credits, so cache savings can be measured
+         rather than inferred from token counts. */
+      [@yojson.default None] [@sexp.default None]
+      cost: option(float),
+      /* BYOK requests only; the provider's own charge behind OpenRouter. */
+      [@yojson.default None] [@sexp.default None]
+      upstream_inference_cost: option(float),
+      /* OpenRouter-normalized cache-write count from [prompt_tokens_details].
+         Distinct from [[cache_creation_input_tokens]], which is the
+         Anthropic-native field and is null on providers that cache
+         implicitly. */
+      [@yojson.default None] [@sexp.default None]
+      cache_write_tokens: option(int),
       [@yojson.default None] [@sexp.default None]
       model_id: option(string),
     };
@@ -465,6 +482,18 @@ module Utils = {
     chat(~key, ~body=json_of_payload, ~handler);
   };
 
+  /** Numeric field tolerant of ints and decimal strings. OpenRouter returns
+      [cost] as a float, but an exact-zero charge deserializes as [`Int(0)],
+      and some providers stringify small decimals — a plain float match would
+      silently drop those to [None] and read as "free". */
+  let num_field = (json: Json.t, field: string): option(float) =>
+    switch (Json.dot(field, json)) {
+    | Some(`Float(f)) => Some(f)
+    | Some(`Int(n)) => Some(float_of_int(n))
+    | Some(`String(s)) => float_of_string_opt(s)
+    | _ => None
+    };
+
   let of_usage = (choices: Json.t): option(Reply.Model.usage) => {
     let* prompt_tokens = API.Json.Parsers.int_field(choices, "prompt_tokens");
     let* completion_tokens =
@@ -482,6 +511,18 @@ module Utils = {
       };
     let cache_creation_input_tokens =
       API.Json.Parsers.int_field(choices, "cache_creation_input_tokens");
+    let cache_write_tokens =
+      switch (Json.dot("prompt_tokens_details", choices)) {
+      | Some(details) =>
+        API.Json.Parsers.int_field(details, "cache_write_tokens")
+      | None => None
+      };
+    let cost = num_field(choices, "cost");
+    let upstream_inference_cost =
+      switch (Json.dot("cost_details", choices)) {
+      | Some(details) => num_field(details, "upstream_inference_cost")
+      | None => None
+      };
     CacheDiag.note_response(
       ~cache_read=cache_read_input_tokens,
       ~cache_creation=cache_creation_input_tokens,
@@ -493,6 +534,9 @@ module Utils = {
         total_tokens,
         cache_read_input_tokens,
         cache_creation_input_tokens,
+        cost,
+        upstream_inference_cost,
+        cache_write_tokens,
         model_id: None,
       }: Reply.Model.usage
     );

@@ -265,6 +265,9 @@ let tok = (n: int): OpenRouter.Reply.Model.usage =>
     total_tokens: n,
     cache_read_input_tokens: None,
     cache_creation_input_tokens: None,
+    cost: None,
+    upstream_inference_cost: None,
+    cache_write_tokens: None,
     model_id: None,
   };
 
