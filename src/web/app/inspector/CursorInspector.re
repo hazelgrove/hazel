@@ -123,8 +123,6 @@ let view_type = (~globals, typ: Typ.t) =>
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
-let build_info_hover_suppressed = ref(false);
-
 let core_mark_err_view =
     (
       ~globals,
@@ -1092,77 +1090,8 @@ let projector_error_inspector =
     ],
   );
 
-let build_info_view = (~globals: Globals.t) => {
-  let link_attrs = href => [
-    Attr.create("href", href),
-    Attr.create("target", "_blank"),
-    Attr.create("rel", "noopener noreferrer"),
-  ];
-  let dirty_suffix = BuildInfo.dirty ? "-dirty" : "";
-  let branch_link =
-    a(
-      ~attrs=
-        link_attrs(
-          "https://github.com/hazelgrove/hazel/tree/" ++ BuildInfo.branch,
-        ),
-      [text(BuildInfo.branch)],
-    );
-  let commit_part =
-    span(
-      ~attrs=[],
-      BuildInfo.dirty || BuildInfo.ahead
-        ? [text("@" ++ BuildInfo.commit_short ++ dirty_suffix)]
-        : [
-          text("@"),
-          a(
-            ~attrs=
-              link_attrs(
-                "https://github.com/hazelgrove/hazel/commit/"
-                ++ BuildInfo.commit_sha,
-              ),
-            [text(BuildInfo.commit_short)],
-          ),
-        ],
-    );
-  let body =
-    span(
-      ~attrs=BuildInfo.dirty ? [clss(["build-info-dirty"])] : [],
-      [branch_link, commit_part],
-    );
-  let hover_suppressed = build_info_hover_suppressed.contents;
-  div(
-    ~attrs=[
-      Attr.id("build-info"),
-      Attr.on_mouseleave(_ => {
-        build_info_hover_suppressed.contents = false;
-        Ui_effect.Ignore;
-      }),
-      clss(
-        ["build-info"]
-        @ (hover_suppressed ? ["hover-suppressed"] : [])
-        @ (globals.settings.build_info_expanded ? ["visible"] : []),
-      ),
-    ],
-    [
-      div(
-        ~attrs=[
-          Attr.on_click(_ => {
-            if (globals.settings.build_info_expanded) {
-              build_info_hover_suppressed.contents = true;
-            };
-            globals.inject_global(Set(BuildInfoExpanded));
-          }),
-          clss(["git"]),
-        ],
-        [Icons.git],
-      ),
-      div(~attrs=[clss(["build-info-panel"])], [body]),
-    ],
-  );
-};
-
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
-  let bar_view = children => div(~attrs=[Attr.id("bottom-bar")], children);
+  let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
       div(
@@ -1180,18 +1109,16 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
       }
     | _ => None
     };
-  let left =
-    switch (cursor.info) {
-    | _ when !globals.settings.core.statics => div_empty
-    | None => err_view("Whitespace or Comment")
-    | Some(ci) =>
-      /* Show projector error instead of normal status,
-       * unless there's a statics error (which takes priority) */
-      switch (projector_err) {
-      | Some((_, err)) when !Info.is_error(ci) =>
-        bar_view([projector_error_inspector(~globals, ci, err)])
-      | _ => bar_view([inspector_view(~globals, ci)])
-      }
-    };
-  bar_view([left, build_info_view(~globals)]);
+  switch (cursor.info) {
+  | _ when !globals.settings.core.statics => div_empty
+  | None => err_view("Whitespace or Comment")
+  | Some(ci) =>
+    /* Show projector error instead of normal status,
+     * unless there's a statics error (which takes priority) */
+    switch (projector_err) {
+    | Some((_, err)) when !Info.is_error(ci) =>
+      bar_view([projector_error_inspector(~globals, ci, err)])
+    | _ => bar_view([inspector_view(~globals, ci)])
+    }
+  };
 };

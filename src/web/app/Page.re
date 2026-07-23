@@ -844,6 +844,78 @@ module View = {
     ),
   ];
 
+  /* Unobtrusive identification of the running build (branch@commit), shown
+   * in the top-right corner so it's clear which build you're looking at
+   * when juggling multiple branches. */
+  let build_info_view = {
+    let link = (href, content) =>
+      a(
+        ~attrs=[
+          Attr.create("href", href),
+          Attr.create("target", "_blank"),
+          Attr.create("rel", "noopener noreferrer"),
+          /* anchors are draggable by default, which makes a drag start a
+             link-drag instead of a text selection; disable so the build
+             info can be selected and copied */
+          Attr.create("draggable", "false"),
+        ],
+        [text(content)],
+      );
+    div(
+      ~attrs=[
+        Attr.id("build-info"),
+        Attr.create("title", "Hazel build: " ++ BuildMeta.label),
+      ],
+      /* single span so the label is one inline formatting context —
+         text selection across flex items is unreliable */
+      [
+        span(
+          ~attrs=[Attr.class_("build-info-label")],
+          [
+            link(
+              "https://github.com/hazelgrove/hazel/tree/" ++ BuildInfo.branch,
+              BuildInfo.branch,
+            ),
+            text("@"),
+            link(
+              "https://github.com/hazelgrove/hazel/commit/"
+              ++ BuildInfo.commit_sha,
+              BuildInfo.commit_short,
+            ),
+            text(BuildMeta.suffix),
+          ],
+        ),
+        /* click-to-copy: the app's always-focused clipboard shim interferes
+           with starting a native text selection here, so provide an explicit
+           copy affordance (glyph supplied by CSS; flashes a check via the
+           transient `copied` class) */
+        span(
+          ~attrs=[
+            Attr.class_("build-info-copy"),
+            Attr.create("title", "Copy \"" ++ BuildMeta.label ++ "\""),
+            Attr.on_click(_ => {
+              let _ =
+                Js.Unsafe.global##.navigator##.clipboard##writeText(
+                  Js.string(BuildMeta.label),
+                );
+              try({
+                let el = JsUtil.get_elem_by_id("build-info");
+                el##.classList##add(Js.string("copied"));
+                JsUtil.delay(1200., () =>
+                  el##.classList##remove(Js.string("copied"))
+                );
+              }) {
+              | _ => ()
+              };
+              Effect.Ignore;
+            }),
+          ],
+          [],
+        ),
+      ],
+    );
+  };
+
   let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
@@ -867,6 +939,7 @@ module View = {
             ),
           ],
         ),
+        build_info_view,
       ],
     );
 
