@@ -418,6 +418,62 @@ module App = {
     ]);
 };
 
+module JSON = {
+  /* Self-reference for the recursive type */
+  let self: Typ.t = var("JSON");
+
+  /* type JSON =
+     + Assoc([(String, JSON)])
+     + Bool(Bool)
+     + Float(Float)
+     + Int(Int)
+     + List([JSON])
+     + String(String)
+     + Null */
+  let t: Typ.t =
+    rec_(
+      Fresh.TPat.var("JSON"),
+      sum_type([
+        ("Assoc", Some(list(prod([string(), self])))),
+        ("Bool", Some(bool())),
+        ("Float", Some(float())),
+        ("Int", Some(int())),
+        ("List", Some(list(self))),
+        ("String", Some(string())),
+        ("Null", None),
+      ]),
+    );
+
+  open IdTagged.FreshGrammar;
+  let json_assoc =
+    Exp.constructor("Assoc", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_bool =
+    Exp.constructor("Bool", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_float =
+    Exp.constructor("Float", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_int =
+    Exp.constructor("Int", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_list =
+    Exp.constructor("List", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_string =
+    Exp.constructor("String", Some(Some(arrow(unknown(SynSwitch), t))));
+  let json_null = Exp.constructor("Null", Some(Some(t)));
+
+  let pat_json_assoc =
+    Pat.constructor("Assoc", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_bool =
+    Pat.constructor("Bool", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_float =
+    Pat.constructor("Float", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_int =
+    Pat.constructor("Int", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_list =
+    Pat.constructor("List", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_string =
+    Pat.constructor("String", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_json_null = Pat.constructor("Null", Some(Some(t)));
+};
+
 // List of type aliases to add to the context
 // Some are sum types (with constructors), others are product types (no constructors)
 let type_aliases: list((string, Typ.t)) = [
@@ -431,6 +487,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("Cmd", Cmd.t),
   ("Sub", Sub.t),
   ("App", App.t),
+  ("JSON", JSON.t),
   ("$Meta", meta_type),
 ];
 
@@ -452,8 +509,11 @@ let constructors: Ctx.t = {
     (ctx, (name, typ)) => {
       switch (Typ.term_of(typ)) {
       | Sum(cons_map) => Ctx.add_ctrs(ctx, name, cons_map)
-      | Rec(_, {term: Sum(cons_map), _}) =>
-        Ctx.add_ctrs(ctx, name, cons_map)
+      | Rec(_, tbody) =>
+        switch (Typ.term_of(tbody)) {
+        | Sum(cons_map) => Ctx.add_ctrs(ctx, name, cons_map)
+        | _ => ctx
+        }
       | _ => ctx // Product types have no constructors to add
       }
     },

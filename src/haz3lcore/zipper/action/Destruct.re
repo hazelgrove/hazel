@@ -100,7 +100,8 @@ let inner_right = (idx: int, z: t, ~root): option(t) =>
 let destruct = (d: Direction.t, z: t, ~root): option(t) =>
   switch (z.caret) {
   | _ when z.selection.content != [] =>
-    Some(z |> capture |> destroy_selection)
+    let z = Zipper.normalize_char_selection(z);
+    Some(z |> capture |> destroy_selection);
   | Outer => outer(d, z, ~root)
   | Inner(idx) =>
     switch (d) {

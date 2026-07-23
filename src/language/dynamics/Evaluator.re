@@ -128,7 +128,7 @@ module Eval = Transition(EvaluatorEVMode);
 
 let rec evaluate =
         (
-          ~reuse_map: IncrEval.reuse_map=IncrEval.empty_reuse_map,
+          ~reuse_map: IncrEval.reuse_map,
           ~prev: IncrEval.t=IncrEval.empty,
           ~info_map: EvalInfoMap.t,
           ~in_closure=?,
@@ -375,6 +375,7 @@ let evaluate_and_limit =
       ~prev: IncrEval.t=IncrEval.empty,
       ~info_map: EvalInfoMap.t=EvalInfoMap.empty,
       ~env,
+      ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
       d: DHExp.t,
     )
     : step_constrained((Exp.t, EvaluatorState.t)) => {
@@ -382,7 +383,8 @@ let evaluate_and_limit =
      This lets types stay as compact Var references through evaluation. */
   Ascriptions.set_ctx(Builtins.ctx_init(None));
   let state = ref(EvaluatorState.mk(~targets));
-  let result = evaluate(~prev, ~info_map, ~call_stack=[], state, env, d);
+  let result =
+    evaluate(~prev, ~info_map, ~call_stack=[], ~reuse_map, state, env, d);
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
   | Completed((_, _, x)) =>

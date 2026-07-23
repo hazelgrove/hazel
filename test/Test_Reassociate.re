@@ -666,7 +666,7 @@ else r)|},
     `Quick,
     () => {
       let sel_l = (n: int): list(Action.t) =>
-        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByToken))));
       let z =
         Test_Editing.mk(
           "if a then if b then if c then 1¦ else 2 else 3 else 4",
@@ -697,7 +697,7 @@ else r)|},
     `Quick,
     () => {
       let sel_l = (n: int): list(Action.t) =>
-        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByToken))));
       let z =
         Test_Editing.mk("if true then let x = 1 in x¦ else 0")
         |> Test_Editing.perform(
@@ -726,7 +726,7 @@ else r)|},
     `Quick,
     () => {
       let sel_l = (n: int): list(Action.t) =>
-        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByToken))));
       let z =
         Test_Editing.mk("fun x -> if true then let y = 1 in y¦ else 0")
         |> Test_Editing.perform(
@@ -809,7 +809,7 @@ let wrap_reassociate_tests = [
        * The inserted ( should pair with existing ),
        * and inserted ) should pair with existing (. */
       let sel_l = (n: int): list(Action.t) =>
-        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByToken))));
       let z =
         Test_Editing.mk("(1, 2, 3)¦")
         |> Test_Editing.perform(
@@ -842,7 +842,7 @@ let wrap_reassociate_tests = [
     () => {
       /* [1, 2, §3]¦] — select "3]" and wrap in brackets. */
       let sel_l = (n: int): list(Action.t) =>
-        List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+        List.init(n, _ => Action.Select(Resize(Local(Left, ByToken))));
       let z =
         Test_Editing.mk("[1, 2, 3]¦")
         |> Test_Editing.perform(
@@ -868,8 +868,237 @@ let wrap_reassociate_tests = [
   ),
 ];
 
+/* Regression tests for three cross-scope reassociation failures that were a
+   regression from the 2026-03-22 "ordered requests" rewrite: all three left a
+   delimiter form incomplete OUTSIDE the caret-local cone, so the request-driven
+   path generated no request and reassociation was a no-op. Fixed by the
+   guarded spine-flattening fallback in Reassociate.go. */
+
+let complete_count = (label, z: Zipper.t): int =>
+  Test_Editing.find_tiles_by_label(label, Zipper.zip(z))
+  |> List.filter(Tile.is_complete)
+  |> List.length;
+
+/* Cut the current selection (Destruct), then paste the same text back. */
+let cut_and_paste = (z: Zipper.t): Zipper.t => {
+  let sel_text =
+    Printer.of_segment(~holes="?", ~indent=" ", z.selection.content);
+  let z =
+    Test_Editing.perform(
+      ~settings=deep_reassociate_settings,
+      z,
+      [Destruct(Right)],
+    );
+  Test_Editing.perform(
+    ~settings=deep_reassociate_settings,
+    z,
+    [Paste(sel_text)],
+  );
+};
+
+let reassociate_regression_tests = [
+  /* Typing `(Foo(5` then inserting a closing `)` before the existing one
+   * should reassociate so the new `)` closes the inner application paren and
+   * the existing `)` closes the outer paren, yielding `(Foo(5))` with two
+   * complete parens. The PASSING test "Parens wrap via out-of-order ( then )"
+   * differs only in that its caret is to the RIGHT of the existing `)` (pure
+   * nesting, no reassociation); here the caret is to the LEFT. */
+  test_case(
+    "Insert ) before existing ) reassociates parens",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.mk("(Foo(5¦)")
+        @ [Insert(")")]
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
+      let n = complete_count(["(", ")"], z);
+      if (Test_Editing.zip_has_incomplete(z) || n != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 2 complete parens, no incomplete tiles; got %d complete, incomplete=%b",
+            n,
+            Test_Editing.zip_has_incomplete(z),
+          ),
+        );
+      };
+    },
+  ),
+  /* Cutting and pasting the first line `let watering_amount(` of a multi-line
+   * function definition should restore the original well-formed program; the
+   * pasted `let` must reassociate with the trailing `=` / `in`. */
+  test_case(
+    "Cut+paste first line of fn def reassociates outer let",
+    `Quick,
+    () => {
+      let program = {|§let watering_amount(¦
+  _name: String,
+  base: Int,
+  phase: MoonPhase): Int =
+  let adjust =
+    case phase
+    | New => 50
+    | Waxing => 20
+    | Full => -30
+    | _ => 0
+    end
+  in
+  base + adjust
+in
+?|};
+      let z =
+        cut_and_paste(
+          Test_Editing.mk_zipper(
+            ~settings=deep_reassociate_settings,
+            program,
+          ),
+        );
+      if (Test_Editing.zip_has_incomplete(z)) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Cut+paste of first line left incomplete tiles (complete lets=%d, expected 2)",
+            complete_count(["let", "=", "in"], z),
+          ),
+        );
+      };
+    },
+  ),
+  /* Same program: cutting and pasting the two lines `  let adjust =` /
+   * `    case phase` should likewise restore the program. */
+  test_case(
+    "Cut+paste let/case lines reassociates outer let",
+    `Quick,
+    () => {
+      let program = {|let watering_amount(
+  _name: String,
+  base: Int,
+  phase: MoonPhase): Int =
+§  let adjust =
+    case phase¦
+    | New => 50
+    | Waxing => 20
+    | Full => -30
+    | _ => 0
+    end
+  in
+  base + adjust
+in
+?|};
+      let z =
+        cut_and_paste(
+          Test_Editing.mk_zipper(
+            ~settings=deep_reassociate_settings,
+            program,
+          ),
+        );
+      if (Test_Editing.zip_has_incomplete(z)) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Cut+paste of let/case lines left incomplete tiles (complete lets=%d, expected 2)",
+            complete_count(["let", "=", "in"], z),
+          ),
+        );
+      };
+    },
+  ),
+  /* With `let a = <hole> in` stubbed out across lines, typing an incomplete
+   * `let b = ` in the definition position and then a second `in` BELOW the
+   * existing `in` should reassociate: the existing `in` closes the inner let
+   * and the new `in` closes the outer. Regression: this raised
+   * Failure("Skel.push_output: split_kids: index out of bounds"). */
+  test_case(
+    "Second in below nested incomplete let reassociates without crash",
+    `Quick,
+    () => {
+      let z0 =
+        Test_Editing.mk("let a = \n¦\nin \n")
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
+      let z1 =
+        Test_Editing.string_to_ltr_actions("let b = ")
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z0);
+      let z2 =
+        Test_Editing.perform(
+          ~settings=deep_reassociate_settings,
+          z1,
+          [Move(End)],
+        );
+      let z3 =
+        Test_Editing.string_to_ltr_actions("in ")
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z2);
+      let n = complete_count(["let", "=", "in"], z3);
+      if (Test_Editing.zip_has_incomplete(z3) || n != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 2 complete lets, no incomplete tiles; got %d complete, incomplete=%b",
+            n,
+            Test_Editing.zip_has_incomplete(z3),
+          ),
+        );
+      };
+      /* The crash surfaced in term construction on the post-reassociation
+       * zipper; assert it directly rather than relying on a next action. */
+      switch (MakeTerm.from_zip_for_sem(z3, ~root=Exp)) {
+      | _ => ()
+      | exception e =>
+        Alcotest.fail(
+          "MakeTerm failed post-reassoc: " ++ Printexc.to_string(e),
+        )
+      };
+    },
+  ),
+  /* Same shape but the outer let already has a body (`c`), so the second
+   * `in` is typed just before existing content instead of at the document
+   * end (space-separated so the keyword doesn't merge with it). Exercises
+   * the accept-path regrout where no new grout is needed. */
+  test_case(
+    "Second in before outer body reassociates without crash",
+    `Quick,
+    () => {
+      let z0 =
+        Test_Editing.mk("let a = \n¦\nin \n c")
+        |> Test_Editing.perform(
+             ~settings=deep_reassociate_settings,
+             Zipper.init(),
+           );
+      let z1 =
+        Test_Editing.string_to_ltr_actions("let b = ")
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z0);
+      let z2 =
+        [Action.Move(End)]
+        @ Test_Editing.mv_l(2)
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z1);
+      let z3 =
+        Test_Editing.string_to_ltr_actions("in ")
+        |> Test_Editing.perform(~settings=deep_reassociate_settings, z2);
+      let n = complete_count(["let", "=", "in"], z3);
+      if (Test_Editing.zip_has_incomplete(z3) || n != 2) {
+        Alcotest.fail(
+          Printf.sprintf(
+            "Expected 2 complete lets, no incomplete tiles; got %d complete, incomplete=%b",
+            n,
+            Test_Editing.zip_has_incomplete(z3),
+          ),
+        );
+      };
+      switch (MakeTerm.from_zip_for_sem(z3, ~root=Exp)) {
+      | _ => ()
+      | exception e =>
+        Alcotest.fail(
+          "MakeTerm failed post-reassoc: " ++ Printexc.to_string(e),
+        )
+      };
+    },
+  ),
+];
+
 let tests = [
   ("Editing.DeepReassociate", deep_reassociate_tests),
   ("Editing.CommentToggleReassociate", comment_toggle_reassociate_tests),
   ("Editing.WrapReassociate", wrap_reassociate_tests),
+  ("Editing.ReassociateRegressions", reassociate_regression_tests),
 ];
