@@ -13,6 +13,17 @@ set -u
 staged=$(git diff --cached --name-only --diff-filter=ACMR)
 [ -z "$staged" ] && exit 0
 
+# GUI commits (e.g. the VS Code Source Control panel) often run git without a
+# login shell, so the opam switch environment may not be on PATH. The opam
+# binary itself usually is, so bootstrap the environment from it if needed.
+if ! command -v dune >/dev/null 2>&1 && command -v opam >/dev/null 2>&1; then
+    eval "$(opam env 2>/dev/null)" >/dev/null 2>&1 || true
+fi
+if ! command -v dune >/dev/null 2>&1; then
+    echo "[pre-commit] dune not found on PATH; skipping autoformat" >&2
+    exit 0
+fi
+
 # Files with unstaged changes; a staged file also in this list is partially staged.
 unstaged=$(git diff --name-only)
 
