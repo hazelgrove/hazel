@@ -20,6 +20,11 @@ let go =
     )
     : Action.Result.t(Zipper.t) => {
   let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fun.id;
+  /* Paste is a rare bulk edit that can leave incomplete delimiter forms
+     anywhere in the pasted region, so it gets the thorough (full-relatives)
+     reassociation guard rather than the cheap caret-local one. */
+  let maybe_reassoc_thorough =
+    settings.deep_reassociate ? Reassociate.go_thorough : Fun.id;
   switch (a) {
   | Introduce =>
     Select.current_term(
@@ -34,14 +39,14 @@ let go =
     |> return(CantIntroduce)
   | Paste(clipboard) =>
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
-    | Some(z) => Ok(maybe_reassoc(z))
+    | Some(z) => Ok(maybe_reassoc_thorough(z))
     | None =>
       (
         Parser.can_fast_paste(clipboard, z, ~root)
           ? Parser.fast_paste(clipboard, z, ~root)
           : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
       )
-      |> Option.map(maybe_reassoc)
+      |> Option.map(maybe_reassoc_thorough)
       |> return(CantPaste)
     }
   | Cut =>
@@ -118,12 +123,17 @@ let go =
     |> return(Cant_move)
   | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
   | Unselect(None) => Ok(Zipper.unselect(z))
-  | Select(Resize(Local(d, _))) =>
+  | Select(Resize(Local(d, ByToken))) =>
     Select.local(d, z) |> return(Cant_select)
-  | Select(Resize(Vertical(d))) =>
+  | Select(Resize(Local(d, ByChar))) =>
+    Select.local_by_char(d, z) |> return(Cant_select)
+  | Select(Resize(Local(d, BySmart))) =>
+    Select.local_smart(d, z) |> return(Cant_select)
+  | Select(Resize(Vertical(d, chunkiness))) =>
     Select.vertical(
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
+      ~chunkiness,
       d,
       z,
     )
@@ -132,16 +142,33 @@ let go =
   | Select(Resize(End)) => Ok(Select.to_end(z))
   | Select(Resize(Line(d))) =>
     Select.to_linebreak(d, z) |> return(Cant_select)
-  | Select(Resize(Point(goal))) =>
-    Select.to_point(~measured=syntax.measured, ~goal, z)
-    |> return(Cant_select)
+  | Select(Resize(Point(goal, override))) =>
+    /* Mouse drag obeys the "Character-level mouse" setting by default
+     * (off → smart, on → char). The drag handler may pass an explicit
+     * `Some(chunkiness)` to override — e.g. Alt+drag on Mac (Ctrl+drag
+     * on PC) selects the opposite chunkiness. */
+    let chunkiness: Action.chunkiness =
+      switch (override) {
+      | Some(c) => c
+      | None => settings.selection_chunkiness ? ByChar : BySmart
+      };
+    Select.to_point(~chunkiness, ~measured=syntax.measured, ~goal, z)
+    |> return(Cant_select);
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
   | Select(All) => Ok(Select.all(z))
   | Select(PointToPoint((p1, p2))) =>
+    /* Precise range selection from two exact points — always char-level
+     * regardless of the smart-selection setting. Smart rounding would
+     * overshoot the intended endpoints. */
     z
     |> Move.to_point(~measured=syntax.measured, ~goal=p1)
     |> OptUtil.and_then(z =>
-         Select.to_point(~measured=syntax.measured, ~goal=p2, z)
+         Select.to_point(
+           ~chunkiness=ByChar,
+           ~measured=syntax.measured,
+           ~goal=p2,
+           z,
+         )
        )
     |> return(Cant_select)
   | Select(Term(Current)) =>
