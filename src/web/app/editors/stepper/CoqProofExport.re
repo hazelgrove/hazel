@@ -100,17 +100,15 @@ let tactic_for_prover_step = (~domain, step: RewriteChecker.prover_step) => {
   };
 };
 
-let assertion_replay_script =
+let recorded_transition_replay_script =
     (~domain, steps: list(RewriteChecker.prover_step)) => {
-  let same_normalization_transition =
+  let same_recorded_transition =
       (left: RewriteChecker.prover_step, right: RewriteChecker.prover_step) =>
-    left.origin == Normalization
-    && right.origin == Normalization
-    && Language.Exp.fast_equal(left.before_full_exp, right.before_full_exp)
+    Language.Exp.fast_equal(left.before_full_exp, right.before_full_exp)
     && Language.Exp.fast_equal(left.after_full_exp, right.after_full_exp);
   let rec take_transition_group = (first, grouped, remaining) =>
     switch (remaining) {
-    | [step, ...rest] when same_normalization_transition(first, step) =>
+    | [step, ...rest] when same_recorded_transition(first, step) =>
       take_transition_group(first, grouped @ [step], rest)
     | _ => (grouped, remaining)
     };
@@ -122,7 +120,12 @@ let assertion_replay_script =
         take_transition_group(first, [first], rest);
       [grouped, ...transition_groups(remaining)];
     };
-  let directed_distribution_replay = group => {
+  let polynomial_transition_replay = group => {
+    let includes_algebra_identity =
+      group
+      |> List.exists((step: RewriteChecker.prover_step) =>
+           List.mem(step.rule_id, Axioms.algebra_identity_rule_ids)
+         );
     let includes_factoring =
       group
       |> List.exists((step: RewriteChecker.prover_step) =>
@@ -153,12 +156,29 @@ let assertion_replay_script =
            )
       | [] => false
       };
-    if (includes_distribution_family
-        && (includes_factoring || !is_direct_distribution_transition)) {
-      /* Factoring may collect and reorder several polynomial terms, so a
-         single reverse-distribution rewrite is not a complete certificate. */
+    if (includes_algebra_identity) {
+      /* Named polynomial identities have already been authorized by the
+         active profile. Use a deterministic certificate here, not as a
+         broader search fallback. JSCoq's first ring invocation can overflow
+         on symbolic subtraction, whereas nra is stable over real goals. */
       Some(
-        "ring.",
+        switch (domain) {
+        | CoqExport.Reals => "unfold Rsqr; nra."
+        | Integers => "ring."
+        },
+      );
+    } else if (includes_distribution_family
+               && (includes_factoring || !is_direct_distribution_transition)) {
+      /* Factoring may collect and reorder several polynomial terms, so a
+         single reverse-distribution rewrite is not a complete certificate.
+         This is exact replay of a profile-authorized transition, not a search
+         fallback; nra is used because JSCoq's first ring invocation is not
+         stable for all multivariable real polynomials. */
+      Some(
+        switch (domain) {
+        | CoqExport.Reals => "unfold Rsqr; nra."
+        | Integers => "ring."
+        },
       );
     } else if (!includes_distribution_family) {
       None;
@@ -182,7 +202,7 @@ let assertion_replay_script =
     };
   };
   let tactic_for_transition_group = group =>
-    switch (directed_distribution_replay(group)) {
+    switch (polynomial_transition_replay(group)) {
     | Some(tactic) => tactic
     | None =>
       switch (group) {
@@ -210,29 +230,29 @@ let assertion_replay_script =
     );
   };
   let groups = transition_groups(steps);
-  let replay =
-    switch (groups) {
-    | [_] => "exact " ++ cut_name(1) ++ "."
-    | _ =>
+  switch (groups) {
+  | [group] =>
+    /* A single recorded transition already has the theorem's complete source
+       and target. Replaying its certificate directly avoids constructing and
+       then immediately eliminating a redundant equality proof. Besides being
+       smaller, it avoids unnecessary intermediate proof terms in JSCoq. */
+    tactic_for_transition_group(group)
+  | _ =>
+    let replay =
       groups
       |> List.mapi((index, _) => cut_name(index + 1))
       |> List.rev
       |> List.map(name => "try rewrite <- " ++ name ++ ".")
+      |> String.concat("\n");
+    (
+      groups
+      |> List.mapi((index, group) => assert_for_group(index + 1, group))
       |> String.concat("\n")
-    };
-  (
-    groups
-    |> List.mapi((index, group) => assert_for_group(index + 1, group))
-    |> String.concat("\n")
-  )
-  ++ "\n"
-  ++ replay
-  ++ (
-    switch (groups) {
-    | [_] => ""
-    | _ => "\nreflexivity."
-    }
-  );
+    )
+    ++ "\n"
+    ++ replay
+    ++ "\nreflexivity.";
+  };
 };
 
 /* Every exported Hazel proof uses one stable numeric semantics. */
@@ -296,7 +316,7 @@ let tactic_for_written_summary = (~forall_str as _, ~domain, summary) => {
     summary_uses_rocq_tactic_search(summary)
       ? tactics_for_summary(~domain, summary) |> tactic_script
       : summary.exportable
-          ? assertion_replay_script(~domain, summary.prover_steps)
+          ? recorded_transition_replay_script(~domain, summary.prover_steps)
           : tactic_for_symbolic_arithmetic_summary(summary)
   };
 };

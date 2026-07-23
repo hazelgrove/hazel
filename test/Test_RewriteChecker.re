@@ -190,10 +190,6 @@ let visible_rule_summary_example =
     (summary: Web.ProfileBoard.visible_rule_summary) =>
   summary.example;
 
-let visible_rule_summary_mode =
-    (summary: Web.ProfileBoard.visible_rule_summary) =>
-  summary.mode_label;
-
 let visible_rule_summary_cleanup =
     (summary: Web.ProfileBoard.visible_rule_summary) =>
   summary.cleanup_labels;
@@ -1754,17 +1750,11 @@ let tests = (
         ) {
         | Some(rule_policy) =>
           check(
-            string,
-            "arithmetic distribution step mode",
-            "once",
-            Axioms.visible_step_mode_label(rule_policy.mode),
-          );
-          check(
             list(string),
             "arithmetic distribution cleanup",
             ["add.assoc", "mul.assoc"],
             rule_policy.allowed_cleanup |> List.map(cleanup_capability_label),
-          );
+          )
         | None => fail("expected arithmetic distribution rule policy")
         };
         check(
@@ -1844,12 +1834,6 @@ let tests = (
         ) {
         | Some(rule_policy) =>
           check(
-            string,
-            "algebra distribution step mode",
-            "once",
-            Axioms.visible_step_mode_label(rule_policy.mode),
-          );
-          check(
             list(string),
             "algebra distribution cleanup",
             [
@@ -1860,7 +1844,7 @@ let tests = (
               "power.notation",
             ],
             rule_policy.allowed_cleanup |> List.map(cleanup_capability_label),
-          );
+          )
         | None => fail("expected algebra distribution rule policy")
         };
         check(
@@ -2374,10 +2358,11 @@ let tests = (
         let step_policy: Axioms.step_policy = {
           ...base.step_policy,
           visible_rules: [
-            Axioms.visible_once_rule(
-              ~rule_id="unknown.rule",
-              ~allowed_cleanup=[],
-            ),
+            {
+              rule_id: "unknown.rule",
+              metadata: Axioms.visible_rule_metadata("unknown.rule"),
+              allowed_cleanup: [],
+            },
             ...base.step_policy.visible_rules,
           ],
         };
@@ -2535,12 +2520,6 @@ let tests = (
             "distribution example",
             "x * (a + b) = x * a + x * b",
             visible_rule_summary_example(distribution),
-          );
-          check(
-            string,
-            "distribution step behavior",
-            "Counts as one step",
-            visible_rule_summary_mode(distribution),
           );
           check(
             list(string),
@@ -2960,6 +2939,374 @@ let tests = (
       },
     ),
     test_case(
+      "uncollected FOIL one-step does not require collect-like-terms",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let algebra = Axioms.math_profile(Algebra);
+        let without_collect =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              algebra.step_policy.default_cleanup
+              |> List.filter(capability =>
+                   capability != Axioms.CollectLikeTerms
+                 ),
+            algebra,
+          );
+        let accepted = (source, target) =>
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile=without_collect,
+            ~settings,
+            ~env,
+            source,
+            target,
+          )
+          |> Option.is_some;
+        let profile_trace = (source, target) =>
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile=without_collect,
+            ~settings,
+            ~env,
+            source,
+            target,
+          );
+        let simple_source =
+          times(plus(x, Exp.int(1)), plus(x, Exp.int(2)));
+        let simple_uncollected =
+          plus(
+            plus(
+              plus(times(x, x), times(Exp.int(1), x)),
+              times(Exp.int(2), x),
+            ),
+            Exp.int(2),
+          );
+        check(
+          bool,
+          "four-term FOIL remains valid without collection",
+          true,
+          accepted(simple_source, simple_uncollected),
+        );
+        check(
+          bool,
+          "Check Result replays uncollected FOIL through the profile",
+          true,
+          profile_trace(simple_source, simple_uncollected) |> Option.is_some,
+        );
+        check(
+          bool,
+          "coefficient FOIL remains valid without collection",
+          true,
+          accepted(
+            times(
+              plus(times(Exp.int(2), x), Exp.int(3)),
+              plus(x, Exp.int(4)),
+            ),
+            plus(
+              plus(
+                plus(
+                  times(times(Exp.int(2), x), x),
+                  times(Exp.int(8), x),
+                ),
+                times(Exp.int(3), x),
+              ),
+              Exp.int(12),
+            ),
+          ),
+        );
+        let coefficient_source =
+          times(
+            plus(times(Exp.int(2), x), Exp.int(3)),
+            plus(x, Exp.int(4)),
+          );
+        let coefficient_power_uncollected =
+          plus(
+            plus(
+              plus(
+                times(Exp.int(2), power(x, Exp.int(2))),
+                times(Exp.int(8), x),
+              ),
+              times(Exp.int(3), x),
+            ),
+            Exp.int(12),
+          );
+        check(
+          bool,
+          "power notation composes with a coefficient product",
+          true,
+          accepted(coefficient_source, coefficient_power_uncollected),
+        );
+        check(
+          bool,
+          "Check Result replays coefficient power notation without collection",
+          true,
+          profile_trace(coefficient_source, coefficient_power_uncollected)
+          |> Option.is_some,
+        );
+        let reverse_coefficient_source =
+          times(
+            plus(x, Exp.int(2)),
+            plus(times(Exp.int(3), x), Exp.int(1)),
+          );
+        let reverse_coefficient_target =
+          plus(
+            plus(
+              plus(times(Exp.int(3), power(x, Exp.int(2))), x),
+              times(Exp.int(6), x),
+            ),
+            Exp.int(2),
+          );
+        check(
+          bool,
+          "power notation composes when the coefficient is in the other factor",
+          true,
+          accepted(reverse_coefficient_source, reverse_coefficient_target),
+        );
+        let cubic_source =
+          times(
+            plus(times(times(Exp.int(4), x), x), Exp.int(2)),
+            plus(x, Exp.int(1)),
+          );
+        let cubic_target =
+          plus(
+            plus(
+              plus(
+                times(Exp.int(4), power(x, Exp.int(3))),
+                times(Exp.int(4), power(x, Exp.int(2))),
+              ),
+              times(Exp.int(2), x),
+            ),
+            Exp.int(2),
+          );
+        check(
+          bool,
+          "coefficient cubic term matches repeated factors",
+          true,
+          Web.RewriteChecker.product_term_same_under_cleanup(
+            without_collect.step_policy.default_cleanup,
+            times(times(times(Exp.int(4), x), x), x),
+            times(Exp.int(4), power(x, Exp.int(3))),
+          ),
+        );
+        check(
+          bool,
+          "coefficient square term matches after identity cleanup",
+          true,
+          Web.RewriteChecker.product_term_same_under_cleanup(
+            without_collect.step_policy.default_cleanup,
+            times(times(times(Exp.int(4), x), x), Exp.int(1)),
+            times(Exp.int(4), power(x, Exp.int(2))),
+          ),
+        );
+        let cubic_repeated_target =
+          plus(
+            plus(
+              plus(
+                times(times(times(Exp.int(4), x), x), x),
+                times(times(Exp.int(4), x), x),
+              ),
+              times(Exp.int(2), x),
+            ),
+            Exp.int(2),
+          );
+        check(
+          bool,
+          "cubic polynomial distribution works before power cleanup",
+          true,
+          accepted(cubic_source, cubic_repeated_target),
+        );
+        let cubic_only_power_target =
+          plus(
+            plus(
+              plus(
+                times(Exp.int(4), power(x, Exp.int(3))),
+                times(times(Exp.int(4), x), x),
+              ),
+              times(Exp.int(2), x),
+            ),
+            Exp.int(2),
+          );
+        check(
+          bool,
+          "cubic power composes independently of square notation",
+          true,
+          accepted(cubic_source, cubic_only_power_target),
+        );
+        check(
+          bool,
+          "power notation composes for cubic polynomial terms",
+          true,
+          Web.RewriteChecker.uncollected_full_distribution_matches(
+            without_collect,
+            cubic_source,
+            cubic_target,
+          ),
+        );
+        check(
+          bool,
+          "cubic powered target remains polynomial-equivalent",
+          true,
+          Web.RewriteChecker.polynomial_equivalent_exps(
+            cubic_source,
+            cubic_target,
+          ),
+        );
+        check(
+          bool,
+          "One Step accepts the composed cubic power target",
+          true,
+          accepted(cubic_source, cubic_target),
+        );
+        check(
+          bool,
+          "incorrect squared coefficient remains invalid",
+          false,
+          accepted(
+            coefficient_source,
+            plus(
+              plus(
+                plus(
+                  times(Exp.int(4), power(x, Exp.int(2))),
+                  times(Exp.int(8), x),
+                ),
+                times(Exp.int(3), x),
+              ),
+              Exp.int(12),
+            ),
+          ),
+        );
+        let without_power =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              without_collect.step_policy.default_cleanup
+              |> List.filter(capability => capability != Axioms.PowerNotation),
+            without_collect,
+          );
+        let accepted_without_power = target =>
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile=without_power,
+            ~settings,
+            ~env,
+            coefficient_source,
+            target,
+          )
+          |> Option.is_some;
+        check(
+          bool,
+          "disabled power notation rejects the powered target",
+          false,
+          accepted_without_power(coefficient_power_uncollected),
+        );
+        check(
+          bool,
+          "disabled power notation still accepts repeated factors",
+          true,
+          accepted_without_power(
+            plus(
+              plus(
+                plus(
+                  times(times(Exp.int(2), x), x),
+                  times(Exp.int(8), x),
+                ),
+                times(Exp.int(3), x),
+              ),
+              Exp.int(12),
+            ),
+          ),
+        );
+        let without_fold =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              algebra.step_policy.default_cleanup
+              |> List.filter(capability => capability != Axioms.ConstFold),
+            algebra,
+          );
+        let constant_source =
+          times(plus(x, Exp.int(2)), plus(x, Exp.int(3)));
+        let constant_products =
+          plus(
+            plus(
+              plus(times(x, x), times(x, Exp.int(3))),
+              times(Exp.int(2), x),
+            ),
+            times(Exp.int(2), Exp.int(3)),
+          );
+        let folded_constant =
+          plus(
+            plus(
+              plus(times(x, x), times(Exp.int(3), x)),
+              times(Exp.int(2), x),
+            ),
+            Exp.int(6),
+          );
+        let accepted_without_fold = target =>
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile=without_fold,
+            ~settings,
+            ~env,
+            constant_source,
+            target,
+          )
+          |> Option.is_some;
+        let profile_trace_without_fold = target =>
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile=without_fold,
+            ~settings,
+            ~env,
+            constant_source,
+            target,
+          );
+        check(
+          bool,
+          "disabled constant folding retains the distributed product",
+          true,
+          accepted_without_fold(constant_products),
+        );
+        check(
+          bool,
+          "Check Result retains products without constant folding",
+          true,
+          profile_trace_without_fold(constant_products) |> Option.is_some,
+        );
+        check(
+          bool,
+          "enabled collection does not bypass disabled constant folding",
+          false,
+          accepted_without_fold(folded_constant),
+        );
+        check(
+          bool,
+          "Check Result cannot bypass disabled constant folding",
+          true,
+          profile_trace_without_fold(folded_constant) |> Option.is_none,
+        );
+        check(
+          bool,
+          "incorrect distributed coefficient is rejected",
+          false,
+          accepted(
+            times(plus(x, Exp.int(1)), plus(x, Exp.int(2))),
+            plus(
+              plus(
+                plus(times(x, x), times(Exp.int(1), x)),
+                times(Exp.int(4), x),
+              ),
+              Exp.int(2),
+            ),
+          ),
+        );
+        check(
+          bool,
+          "Check Result does not replay collected FOIL without collection",
+          true,
+          profile_trace(
+            simple_source,
+            plus(plus(times(x, x), times(Exp.int(3), x)), Exp.int(2)),
+          )
+          |> Option.is_none,
+        );
+      },
+    ),
+    test_case(
       "calculus one-step accepts parsed builtin diff linearity",
       `Quick,
       () => {
@@ -3077,9 +3424,10 @@ let tests = (
             );
             check(
               bool,
-              label ++ " has a ring certificate",
+              label ++ " has a deterministic polynomial certificate",
               true,
-              string_contains("ring", program),
+              string_contains("ring", program)
+              || string_contains("nra", program),
             );
           | None => fail(label ++ " should have an enabled profile trace")
           };
@@ -4613,7 +4961,30 @@ let tests = (
             "local trace records distribution",
             true,
             List.mem("alg.distribute_mul_add", summary.rule_ids),
-          )
+          );
+          let request =
+            Web.ProofSearchBackend.{
+              backend: JSCoqTacticSearch,
+              level: Algebra,
+              max_depth: 4,
+              max_states: 80,
+              source,
+              target,
+            };
+          let coq =
+            Web.ProofSearchBackend.rocq_replay_program(request, summary);
+          check(
+            bool,
+            "FOIL replay coalesces one transition with multiple rule ids",
+            false,
+            string_contains("H_hazel_step_2", coq),
+          );
+          check(
+            bool,
+            "real signed FOIL replay prepares square notation",
+            true,
+            string_contains("unfold Rsqr; nra", coq),
+          );
         | None => fail("expected enabled algebra profile trace")
         };
         let without_distribution =
@@ -4626,6 +4997,130 @@ let tests = (
           "disabled distribution blocks the expansion",
           false,
           check_with_profile(without_distribution) |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "disabled polynomial expansion blocks composite FOIL traces",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let c = Exp.var("c");
+        let d = Exp.var("d");
+        let profile = Axioms.math_profile(Algebra);
+        let without_expansion = {
+          ...profile,
+          check_result_rule_ids:
+            profile.check_result_rule_ids
+            |> List.filter(rule_id => rule_id != "alg.expand_polynomial"),
+        };
+        let trace = (profile, source, target) =>
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          );
+        let numeric_source =
+          times(
+            plus(times(Exp.int(2), x), Exp.int(3)),
+            plus(x, Exp.int(4)),
+          );
+        let numeric_target =
+          plus(
+            plus(
+              times(Exp.int(2), power(x, Exp.int(2))),
+              times(Exp.int(11), x),
+            ),
+            Exp.int(12),
+          );
+        let enabled = trace(profile, numeric_source, numeric_target);
+        check(
+          bool,
+          "enabled expansion accepts collected coefficient FOIL",
+          true,
+          switch (enabled) {
+          | Some(summary) =>
+            List.mem("alg.expand_polynomial", summary.rule_ids)
+          | None => false
+          },
+        );
+        check(
+          bool,
+          "disabled expansion rejects collected coefficient FOIL",
+          false,
+          trace(without_expansion, numeric_source, numeric_target)
+          |> Option.is_some,
+        );
+        let request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Algebra,
+            max_depth: 4,
+            max_states: 80,
+            source: numeric_source,
+            target: numeric_target,
+          };
+        check(
+          bool,
+          "disabled expansion is not recovered by later profile search",
+          false,
+          Web.ProofSearchBackend.local_profile_trace(
+            ~profile=without_expansion,
+            ~settings,
+            ~env,
+            request,
+          )
+          |> Option.is_some,
+        );
+        let symbolic_source = times(plus(a, b), plus(c, d));
+        let symbolic_target =
+          plus(
+            plus(plus(times(a, c), times(a, d)), times(b, c)),
+            times(b, d),
+          );
+        check(
+          bool,
+          "disabled expansion rejects structurally different full FOIL",
+          false,
+          trace(without_expansion, symbolic_source, symbolic_target)
+          |> Option.is_some,
+        );
+        let single_distribution_target =
+          plus(times(plus(a, b), c), times(plus(a, b), d));
+        check(
+          bool,
+          "single enabled distribution remains available",
+          true,
+          switch (
+            trace(
+              without_expansion,
+              symbolic_source,
+              single_distribution_target,
+            )
+          ) {
+          | Some(summary) =>
+            List.mem("alg.distribute_mul_add", summary.rule_ids)
+            && !List.mem("alg.expand_polynomial", summary.rule_ids)
+          | None => false
+          },
+        );
+        let incorrect_target =
+          plus(
+            plus(
+              times(Exp.int(2), power(x, Exp.int(2))),
+              times(Exp.int(10), x),
+            ),
+            Exp.int(12),
+          );
+        check(
+          bool,
+          "incorrect polynomial remains invalid",
+          false,
+          trace(profile, numeric_source, incorrect_target) |> Option.is_some,
         );
       },
     ),
@@ -4766,6 +5261,57 @@ let tests = (
       },
     ),
     test_case(
+      "named algebra identities use a stable real polynomial certificate",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let source = times(plus(x, y), minus(x, y));
+        let target = minus(power(x, Exp.int(2)), power(y, Exp.int(2)));
+        let group =
+          switch (Axioms.rewrite_group_by_name("algebra")) {
+          | Some(group) => group
+          | None => fail("expected algebra rewrite group")
+          };
+        let summary =
+          switch (
+            Web.RewriteChecker.check_single_algebra_identity(
+              group,
+              Axioms.math_profile(Algebra),
+              source,
+              target,
+            )
+          ) {
+          | Some(result) =>
+            Web.RewriteChecker.trace_summary_of_result(result)
+          | None => fail("expected difference-of-squares profile trace")
+          };
+        let request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Algebra,
+            max_depth: 4,
+            max_states: 80,
+            source,
+            target,
+          };
+        let coq =
+          Web.ProofSearchBackend.rocq_replay_program(request, summary);
+        check(
+          bool,
+          "named real identity avoids JSCoq's first-ring overflow",
+          true,
+          string_contains("unfold Rsqr; nra", coq),
+        );
+        check(
+          bool,
+          "single identity transition is replayed directly",
+          false,
+          string_contains("H_hazel_step_", coq),
+        );
+      },
+    ),
+    test_case(
       "calculus cleanup replay handles identity orientations",
       `Quick,
       () => {
@@ -4812,9 +5358,9 @@ let tests = (
         );
         check(
           bool,
-          "single whole-expression transition closes by its assertion",
+          "single whole-expression transition replays directly",
           true,
-          string_contains("exact H_hazel_step_1", coq),
+          !string_contains("H_hazel_step_1", coq),
         );
         let profile = Axioms.math_profile(Calculus);
         [
@@ -8260,6 +8806,73 @@ let tests = (
       },
     ),
     test_case(
+      "single algebra step accepts signed FOIL expansion",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source = times(minus(x, Exp.int(2)), plus(x, Exp.int(5)));
+        let target =
+          minus(
+            plus(power(x, Exp.int(2)), times(Exp.int(3), x)),
+            Exp.int(10),
+          );
+        let result =
+          require_single_step_result_at_level(Algebra, source, target);
+        check(
+          bool,
+          "signed trace has polynomial expansion",
+          true,
+          has_trace_rule("alg.expand_polynomial", result),
+        );
+        check(
+          bool,
+          "signed trace has distribution",
+          true,
+          has_trace_rule("alg.distribute_mul_add", result),
+        );
+        check(
+          bool,
+          "wrong signed coefficient is rejected",
+          false,
+          Web.RewriteChecker.check_single_step_trace_at_level(
+            ~level=Algebra,
+            ~settings,
+            ~env,
+            source,
+            minus(
+              plus(power(x, Exp.int(2)), times(Exp.int(4), x)),
+              Exp.int(10),
+            ),
+          )
+          |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "single algebra step accepts symbolic FOIL expansion",
+      `Quick,
+      () => {
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let c = Exp.var("c");
+        let d = Exp.var("d");
+        let source = times(plus(a, b), plus(c, d));
+        let target =
+          plus(
+            plus(plus(times(a, c), times(a, d)), times(b, c)),
+            times(b, d),
+          );
+        let result =
+          require_single_step_result_at_level(Algebra, source, target);
+        check(
+          bool,
+          "symbolic trace has polynomial expansion",
+          true,
+          has_trace_rule("alg.expand_polynomial", result),
+        );
+      },
+    ),
+    test_case(
       "single algebra step factors a numeric coefficient",
       `Quick,
       () => {
@@ -9188,9 +9801,9 @@ let tests = (
         );
         check(
           bool,
-          "exports named prover assertion",
+          "exports direct single-transition replay",
           true,
-          string_contains("assert (H_hazel_step_1", export),
+          !string_contains("assert (H_hazel_step_1", export),
         );
         check(
           bool,
@@ -9228,9 +9841,9 @@ let tests = (
         );
         check(
           bool,
-          "exports named prover assertion",
+          "exports direct single-transition replay",
           true,
-          string_contains("assert (H_hazel_step_1", export),
+          !string_contains("assert (H_hazel_step_1", export),
         );
         check(
           bool,
@@ -9268,9 +9881,9 @@ let tests = (
         );
         check(
           bool,
-          "exports named prover assertion",
+          "exports direct single-transition replay",
           true,
-          string_contains("assert (H_hazel_step_1", export),
+          !string_contains("assert (H_hazel_step_1", export),
         );
         check(
           bool,
@@ -9311,9 +9924,9 @@ let tests = (
         );
         check(
           bool,
-          "exports named prover assertion",
+          "exports direct single-transition replay",
           true,
-          string_contains("assert (H_hazel_step_1", export),
+          !string_contains("assert (H_hazel_step_1", export),
         );
       },
     ),
@@ -9417,8 +10030,9 @@ let tests = (
           bool,
           "exports exact affine replay",
           true,
-          string_contains("assert (H_hazel_step_", export)
-          && !string_contains("Temporary affine fallback", export),
+          !string_contains("assert (H_hazel_step_", export)
+          && !string_contains("Temporary affine fallback", export)
+          && string_contains("arith.affine_normalize", export),
         );
         check(
           bool,
@@ -10534,9 +11148,10 @@ let tests = (
         );
         check(
           bool,
-          "replay contains stored assertion breadcrumbs",
+          "single-transition replay avoids redundant assertions",
           true,
-          string_contains("assert (H_hazel_step_", coq),
+          !string_contains("assert (H_hazel_step_", coq)
+          && string_contains("ring", coq),
         );
       },
     ),

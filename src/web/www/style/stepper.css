@@ -528,13 +528,6 @@
   background-color: var(--menu-bkg);
 }
 
-.profile-board-control-rule-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .profile-board-control-mode {
   color: var(--BR4);
   font-size: 0.78rem;
@@ -587,10 +580,6 @@
   color: var(--BR4);
   font-size: 0.92rem;
   line-height: 1.2;
-}
-
-.profile-board-control-rule-top .profile-board-toggle {
-  align-items: flex-start;
 }
 
 .profile-board-toggle.disabled {

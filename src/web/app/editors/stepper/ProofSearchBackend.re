@@ -1119,7 +1119,7 @@ let rocq_replay_program = (request, summary) => {
   let target = CoqExport.string_of_d_for_domain(~domain, request.target);
   let forall_str = forall_string(~domain, vars_for_request(request));
   let replay =
-    CoqProofExport.assertion_replay_script(
+    CoqProofExport.recorded_transition_replay_script(
       ~domain,
       summary.RewriteChecker.prover_steps,
     );

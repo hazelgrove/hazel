@@ -63,14 +63,8 @@ type cleanup_capability =
 Add a generic policy for visible rules:
 
 ```reason
-type visible_step_mode =
-  | VisibleOnce
-  | VisibleRepeatFuel(int)
-  | VisibleRepeatUntilStuck;
-
 type visible_rule_policy = {
   rule_id: string,
-  mode: visible_step_mode,
   allowed_cleanup: list(cleanup_capability),
 };
 ```
@@ -103,15 +97,13 @@ Manual one-step validation should become:
 
 1. Read the active `math_profile.step_policy`.
 2. Enumerate candidate applications of enabled visible rules.
-3. Apply exactly the configured amount of visible work, such as one
-   distribution or one trig identity.
+3. Apply one catalogued visible rule.
 4. Compare the user's target modulo only the rule's `allowed_cleanup`.
 5. If the target matches, emit a structured proof trace:
 
 ```json
 {
   "visibleRule": "alg.distribute_mul_add",
-  "visibleMode": "VisibleOnce",
   "cleanup": ["AddAssoc", "AddComm", "MulAssoc", "MulComm"],
   "from": "x * (1 + 2 + x)",
   "to": "x*1 + x*2 + x*x"
@@ -176,8 +168,8 @@ off in strict one-step Algebra.
 
 ### Phase 1: Data Model
 
-- Add `cleanup_capability`, `visible_step_mode`, `visible_rule_policy`, and
-  `step_policy` to `Axioms.re`.
+- Add `cleanup_capability`, `visible_rule_policy`, and `step_policy` to
+  `Axioms.re`.
 - Keep the current `distribution_step_policy` temporarily as a compatibility
   shim.
 - Define named policy presets:

@@ -448,10 +448,8 @@
           </table>
           <div class="callout">
             The stable ids remain internal and prover-facing. The profile UI
-            should show names, short labels, examples, and explanatory mode text
-            such as <code>Counts as one step</code>, not raw ids like
-            <code>alg.distribute_mul_add</code> or implementation labels like
-            <code>once</code>.
+            should show names, short labels, and examples rather than raw ids
+            like <code>alg.distribute_mul_add</code>.
           </div>
         </section>
 
@@ -977,12 +975,6 @@
               Route every written-step path through the resolved profile value:
               One Step, Check Result, Auto Simplify, proof search, browser
               JSCoq, and Coq/Rocq file export.
-            </li>
-            <li>
-              Implement real semantics for repeatable visible-step modes:
-              <code>Counts as one step</code>, bounded repeat, and repeat-until-
-              stuck. The UI labels exist; the Hazel matcher still needs generic
-              repeat execution.
             </li>
             <li>
               Add a shared stage-plan interpreter for <code>One Step</code>,

@@ -103,7 +103,7 @@ let proof_search_verdict_label = (~has_candidate, verdict) =>
   | Model.Ready => has_candidate ? "Candidate ready" : "Ready"
   | Checking => "Rocq checking..."
   | ProfileValid => "Valid"
-  | EquivalentOutsideProfile => "Equivalent, outside profile"
+  | EquivalentOutsideProfile => "Equivalent, but blocked by profile"
   | Invalid => "Invalid"
   };
 

@@ -154,9 +154,7 @@ type example_result = {
 type visible_rule_summary = {
   rule_id: string,
   name: string,
-  short_name: string,
   example: string,
-  mode_label: string,
   cleanup_labels: list(string),
   cleanup_metadata: list(Axioms.operation_metadata),
 };
@@ -202,9 +200,7 @@ let cleanup_labels_for_rules = (profile, rule_ids) =>
 let visible_rule_summary = (rule: Axioms.visible_rule_policy) => {
   rule_id: rule.rule_id,
   name: rule.metadata.name,
-  short_name: rule.metadata.short_name,
   example: rule.metadata.example,
-  mode_label: Axioms.visible_step_mode_display_label(rule.mode),
   cleanup_labels:
     rule.allowed_cleanup |> List.map(Axioms.cleanup_capability_label),
   cleanup_metadata:
@@ -515,7 +511,6 @@ module View = {
       [
         text_row("Rule", rule.name),
         text_row("Example", rule.example),
-        text_row("Step behavior", rule.mode_label),
         div_c(
           "profile-board-row",
           [
@@ -615,24 +610,13 @@ module View = {
     div_c(
       "profile-board-control-rule",
       [
-        div_c(
-          "profile-board-control-rule-top",
-          [
-            checkbox(
-              ~checked=enabled,
-              ~disabled=false,
-              ~label=rule.metadata.name,
-              ~detail=rule.metadata.example,
-              ~on_change=value =>
-              inject(Update.SetRuleEnabled(rule.rule_id, value))
-            ),
-            span_c(
-              "profile-board-control-mode",
-              [
-                Node.text(Axioms.visible_step_mode_display_label(rule.mode)),
-              ],
-            ),
-          ],
+        checkbox(
+          ~checked=enabled,
+          ~disabled=false,
+          ~label=rule.metadata.name,
+          ~detail=rule.metadata.example,
+          ~on_change=value =>
+          inject(Update.SetRuleEnabled(rule.rule_id, value))
         ),
         div_c(
           "profile-board-control-cleanups",
@@ -902,7 +886,7 @@ module View = {
           [
             div_c(
               "profile-board-section-title",
-              [Node.text("Visible rules")],
+              [Node.text("Allowed step operations")],
             ),
             ...List.map(visible_rule, summary.visible_rules),
           ],
@@ -912,7 +896,7 @@ module View = {
           [
             div_c(
               "profile-board-section-title",
-              [Node.text("Default cleanup")],
+              [Node.text("Automatic simplification")],
             ),
             cleanup_list(summary.default_cleanup_metadata),
           ],
@@ -965,7 +949,7 @@ module View = {
                   [
                     div_c(
                       "profile-board-section-title",
-                      [Node.text("Visible operations")],
+                      [Node.text("Allowed step operations")],
                     ),
                     ...base_profile.groups
                        |> List.filter_map((group: Axioms.rewrite_group) => {
@@ -999,7 +983,7 @@ module View = {
                   [
                     div_c(
                       "profile-board-section-title",
-                      [Node.text("Cleanup policies")],
+                      [Node.text("Automatic simplification")],
                     ),
                     ...cleanup_catalog(
                          ~default_cleanup=
@@ -1014,7 +998,7 @@ module View = {
                   [
                     div_c(
                       "profile-board-section-title",
-                      [Node.text("Check Result operations")],
+                      [Node.text("Allowed multi-step methods")],
                     ),
                     ...Axioms.rewrite_levels
                        |> List.filter_map(level => {

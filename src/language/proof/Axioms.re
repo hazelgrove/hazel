@@ -83,15 +83,9 @@ type operation_metadata = {
   profile_group: option(string),
 };
 
-type visible_step_mode =
-  | VisibleOnce
-  | VisibleRepeatFuel(int)
-  | VisibleRepeatUntilStuck;
-
 type visible_rule_policy = {
   rule_id: string,
   metadata: operation_metadata,
-  mode: visible_step_mode,
   allowed_cleanup: list(cleanup_capability),
 };
 
@@ -154,7 +148,6 @@ type math_rule = {
   hazel_backend: option(hazel_rule_backend),
   rocq_backend: option(rocq_rule_backend),
   introduced_levels: list(rewrite_level),
-  visible_mode: visible_step_mode,
   allowed_cleanup: list(cleanup_capability),
   required_cleanup: list(cleanup_capability),
   required_rule_ids: list(string),
@@ -175,7 +168,6 @@ type semantic_proof_atom = {
 
 type planned_visible_rule = {
   rule: math_rule,
-  mode: visible_step_mode,
   allowed_cleanup: list(cleanup_capability),
 };
 
@@ -1491,26 +1483,6 @@ let visible_rule_metadata = rule_id =>
     )
   };
 
-let visible_step_mode_label =
-  fun
-  | VisibleOnce => "once"
-  | VisibleRepeatFuel(fuel) => "repeat_fuel:" ++ string_of_int(fuel)
-  | VisibleRepeatUntilStuck => "repeat_until_stuck";
-
-let visible_step_mode_display_label =
-  fun
-  | VisibleOnce => "Counts as one step"
-  | VisibleRepeatFuel(fuel) =>
-    "May repeat up to " ++ string_of_int(fuel) ++ " times"
-  | VisibleRepeatUntilStuck => "May repeat automatically";
-
-let visible_once_rule = (~rule_id, ~allowed_cleanup) => {
-  rule_id,
-  metadata: visible_rule_metadata(rule_id),
-  mode: VisibleOnce,
-  allowed_cleanup,
-};
-
 let ac_cleanup = [AddAssoc, AddComm, MulAssoc, MulComm];
 
 let structural_identity_cleanup = [AddIdentity, MulIdentity];
@@ -2192,7 +2164,6 @@ let catalog_rule_with_kind =
          hazel_backend,
          rocq_backend: rocq_backend_for_rule_id(id),
          introduced_levels,
-         visible_mode: VisibleOnce,
          allowed_cleanup,
          required_cleanup: [],
          required_rule_ids: [],
@@ -2232,7 +2203,6 @@ let math_rule_catalog = {
         mode: FinishOnly,
       }),
     introduced_levels: [],
-    visible_mode: VisibleOnce,
     allowed_cleanup: [],
     required_cleanup: [
       AddAssoc,
@@ -2276,7 +2246,6 @@ let math_rule_catalog = {
         mode: FinishOnly,
       }),
     introduced_levels: [],
-    visible_mode: VisibleOnce,
     allowed_cleanup: [],
     required_cleanup: ac_cleanup @ structural_identity_cleanup,
     required_rule_ids: [
@@ -2310,7 +2279,6 @@ let math_rule_catalog = {
         mode: FinishOnly,
       }),
     introduced_levels: [],
-    visible_mode: VisibleOnce,
     allowed_cleanup: [],
     required_cleanup: ac_cleanup @ structural_identity_cleanup,
     required_rule_ids: ["alg.distribute_mul_add"],
@@ -2538,7 +2506,6 @@ let step_policy = level => {
          {
            rule_id: rule.id,
            metadata: rule.metadata,
-           mode: rule.visible_mode,
            allowed_cleanup: rule.allowed_cleanup,
          }
        ),
@@ -2568,7 +2535,6 @@ let planned_visible_rules = (policy: step_policy) =>
        |> Option.map(rule =>
             {
               rule,
-              mode: rule_policy.mode,
               allowed_cleanup: rule_policy.allowed_cleanup,
             }
           )
@@ -3098,12 +3064,7 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
            {
              id: planned.rule.id,
              kind: VisibleAtom,
-             mode:
-               switch (planned.mode) {
-               | VisibleOnce => Once
-               | VisibleRepeatFuel(fuel) => RepeatFuel(fuel)
-               | VisibleRepeatUntilStuck => RepeatUntilStuck
-               },
+             mode: Once,
              required_cleanup: planned.allowed_cleanup,
              required_rule_ids: [],
            }

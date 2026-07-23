@@ -185,10 +185,16 @@ let dedup = values =>
      )
   |> List.rev;
 
+let trace_rule = (primary_group, rule_id) =>
+  switch (Axioms.rewrite_rule_by_id(primary_group, rule_id)) {
+  | Some(rule) => Some(rule)
+  | None =>
+    Axioms.rewrite_groups
+    |> List.find_map(group => Axioms.rewrite_rule_by_id(group, rule_id))
+  };
+
 let trace_rules = (group, rule_ids) =>
-  rule_ids
-  |> dedup
-  |> List.filter_map(rule_id => Axioms.rewrite_rule_by_id(group, rule_id));
+  rule_ids |> dedup |> List.filter_map(rule_id => trace_rule(group, rule_id));
 
 let group_named_at_level = (level, name) =>
   Axioms.allowed_groups(level)
@@ -1668,6 +1674,46 @@ let cleanup_has = (capability, cleanup) =>
        candidate == capability
      );
 
+let integer_power_parts = (exp: Exp.t) => {
+  let exp = strip_math_wrappers(exp);
+  switch (exp.term) {
+  | BinOp(power_op, base, exponent) when is_power_op(power_op) =>
+    let exponent =
+      switch (strip_math_wrappers(exponent).term) {
+      | Atom(Int(value))
+      | Atom(Nat(value)) => Bigint.to_int(value)
+      | Atom(SInt(value)) => Some(value)
+      | _ => None
+      };
+    switch (exponent) {
+    | Some(exponent) when exponent >= 2 => Some((base, exponent))
+    | Some(_)
+    | None => None
+    };
+  | _ => None
+  };
+};
+
+/* Compare enabled power notation through the ordinary product structure. */
+let rec product_factors_under_cleanup = (cleanup, exp: Exp.t): list(Exp.t) => {
+  let exp = strip_math_wrappers(exp);
+  switch (integer_power_parts(exp)) {
+  | Some((base, exponent)) when cleanup_has(Axioms.PowerNotation, cleanup) =>
+    let factors = product_factors_under_cleanup(cleanup, base);
+    let rec repeat = (remaining, repeated) =>
+      remaining == 0 ? repeated : repeat(remaining - 1, repeated @ factors);
+    repeat(exponent, []);
+  | Some(_)
+  | None =>
+    switch (exp.term) {
+    | BinOp(times_op, left, right) when is_times_op(times_op) =>
+      product_factors_under_cleanup(cleanup, left)
+      @ product_factors_under_cleanup(cleanup, right)
+    | _ => [exp]
+    }
+  };
+};
+
 let rec exp_same_up_to_cleanup = (cleanup, left, right) => {
   let left = strip_math_wrappers(left);
   let right = strip_math_wrappers(right);
@@ -1707,35 +1753,39 @@ let rec exp_same_up_to_cleanup = (cleanup, left, right) => {
       }
     };
 
-  let square_base = (exp: Exp.t) =>
-    switch (exp.term) {
-    | BinOp(power_op, base, exponent)
-        when is_power_op(power_op) && is_int_two(exponent) =>
-      Some(base)
-    | _ => None
-    };
-
-  let product_square_base = (exp: Exp.t) =>
-    switch (product_factors(exp)) {
-    | [left_factor, right_factor]
+  let repeated_product = (exp: Exp.t) => {
+    let factors = product_factors(exp);
+    switch (factors) {
+    | [first, second, ...rest]
         when
-          exp_same_up_to_cleanup(
-            cleanup_without_power,
-            left_factor,
-            right_factor,
-          ) =>
-      Some(left_factor)
-    | _ => None
+          [second, ...rest]
+          |> List.for_all(factor =>
+               exp_same_up_to_cleanup(cleanup_without_power, first, factor)
+             ) =>
+      Some((first, List.length(factors)))
+    | [_, _, ..._] => None
+    | []
+    | [_] => None
     };
+  };
 
   let same_up_to_power_notation =
-    switch (square_base(left), product_square_base(right)) {
-    | (Some(left_base), Some(right_base)) =>
-      exp_same_up_to_cleanup(cleanup_without_power, left_base, right_base)
+    switch (integer_power_parts(left), repeated_product(right)) {
+    | (Some((left_base, left_exponent)), Some((right_base, right_exponent))) =>
+      left_exponent == right_exponent
+      && exp_same_up_to_cleanup(cleanup_without_power, left_base, right_base)
     | _ =>
-      switch (product_square_base(left), square_base(right)) {
-      | (Some(left_base), Some(right_base)) =>
-        exp_same_up_to_cleanup(cleanup_without_power, left_base, right_base)
+      switch (repeated_product(left), integer_power_parts(right)) {
+      | (
+          Some((left_base, left_exponent)),
+          Some((right_base, right_exponent)),
+        ) =>
+        left_exponent == right_exponent
+        && exp_same_up_to_cleanup(
+             cleanup_without_power,
+             left_base,
+             right_base,
+           )
       | _ => false
       }
     };
@@ -1750,8 +1800,8 @@ let rec exp_same_up_to_cleanup = (cleanup, left, right) => {
         ? unordered_equal(left_terms, right_terms)
         : ordered_equal(left_terms, right_terms);
     } else if (cleanup_has(Axioms.MulAssoc, cleanup)) {
-      let left_factors = product_factors(left);
-      let right_factors = product_factors(right);
+      let left_factors = product_factors_under_cleanup(cleanup, left);
+      let right_factors = product_factors_under_cleanup(cleanup, right);
       if (List.length(left_factors) > 1 || List.length(right_factors) > 1) {
         cleanup_has(Axioms.MulComm, cleanup)
           ? unordered_equal(left_factors, right_factors)
@@ -1763,8 +1813,8 @@ let rec exp_same_up_to_cleanup = (cleanup, left, right) => {
       exp_same(left, right);
     };
   } else if (cleanup_has(Axioms.MulAssoc, cleanup)) {
-    let left_factors = product_factors(left);
-    let right_factors = product_factors(right);
+    let left_factors = product_factors_under_cleanup(cleanup, left);
+    let right_factors = product_factors_under_cleanup(cleanup, right);
     if (List.length(left_factors) > 1 || List.length(right_factors) > 1) {
       cleanup_has(Axioms.MulComm, cleanup)
         ? unordered_equal(left_factors, right_factors)
@@ -1980,6 +2030,19 @@ let polynomial_mul = (left, right) =>
      )
   |> polynomial_canonicalize;
 
+let polynomial_multiplication_folds_constants = (left, right) => {
+  let is_unit = coefficient =>
+    Bigint.equal(Bigint.abs(coefficient), Bigint.one);
+  left
+  |> List.exists(((_, left_coefficient)) =>
+       !is_unit(left_coefficient)
+       && right
+       |> List.exists(((_, right_coefficient)) =>
+            !is_unit(right_coefficient)
+          )
+     );
+};
+
 let rec polynomial_power = (base, exponent) =>
   if (exponent < 0) {
     None;
@@ -2073,15 +2136,24 @@ let rec polynomial_of_exp = (exp: Exp.t): option(polynomial_normalization) => {
     switch (polynomial_of_exp(left), polynomial_of_exp(right)) {
     | (Some(left), Some(right)) =>
       let rule_ids =
-        polynomial_term_count(left.polynomial) > 1
-        || polynomial_term_count(right.polynomial) > 1
-          ? [
-            "alg.expand_polynomial",
-            "alg.distribute_mul_add",
-            "alg.collect_like_terms",
-            ...left.rule_ids @ right.rule_ids,
-          ]
-          : left.rule_ids @ right.rule_ids;
+        (
+          polynomial_term_count(left.polynomial) > 1
+          || polynomial_term_count(right.polynomial) > 1
+            ? [
+              "alg.expand_polynomial",
+              "alg.distribute_mul_add",
+              "alg.collect_like_terms",
+              ...left.rule_ids @ right.rule_ids,
+            ]
+            : left.rule_ids @ right.rule_ids
+        )
+        @ (
+          polynomial_multiplication_folds_constants(
+            left.polynomial,
+            right.polynomial,
+          )
+            ? ["arith.const_fold"] : []
+        );
       Some(
         polynomial_normalization(
           polynomial_mul(left.polynomial, right.polynomial),
@@ -2176,6 +2248,12 @@ let rec polynomial_of_exp = (exp: Exp.t): option(polynomial_normalization) => {
   };
 };
 
+let polynomial_exp_has_multiple_terms = exp =>
+  switch (polynomial_of_exp(exp)) {
+  | Some(normalized) => polynomial_term_count(normalized.polynomial) > 1
+  | None => false
+  };
+
 let exp_of_monomial = (monomial: monomial): Exp.t =>
   switch (monomial) {
   | [] => int_exp(Bigint.one)
@@ -2251,14 +2329,16 @@ let power_has_sum_base = exp => {
   switch (exp.term) {
   | BinOp(power_op, base, exponent)
       when is_power_op(power_op) && polynomial_int_constant(exponent) != None =>
-    exp_has_sum(base)
+    polynomial_exp_has_multiple_terms(base)
   | _ => false
   };
 };
 
 let polynomial_expansion_target = exp => {
   let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
-  if (product_has_sum_factor(exp) || power_has_sum_base(exp)) {
+  let product_has_polynomial_sum_factor =
+    product_factors(exp) |> List.exists(polynomial_exp_has_multiple_terms);
+  if (product_has_polynomial_sum_factor || power_has_sum_base(exp)) {
     switch (polynomial_of_exp(exp)) {
     | Some(normalized)
         when List.mem("alg.expand_polynomial", normalized.rule_ids) =>
@@ -2337,6 +2417,166 @@ let polynomial_equivalent_exps = (left, right) =>
     polynomial_equal(left.polynomial, right.polynomial)
   | _ => false
   };
+
+let polynomial_cleanup_requirements_allowed = (profile, exp) =>
+  switch (polynomial_of_exp(exp)) {
+  | None => false
+  | Some(normalized) =>
+    normalized.rule_ids
+    |> List.for_all(rule_id =>
+         switch (Axioms.cleanup_capability_for_id(rule_id)) {
+         | Some(capability) =>
+           List.mem(capability, profile.Axioms.step_policy.default_cleanup)
+         | None => true
+         }
+       )
+  };
+
+/*
+ * Expand multiplication over additive operands without combining any of the
+ * resulting terms.  This is deliberately separate from polynomial_of_exp:
+ * the polynomial normalizer combines equal monomials, while a profile with
+ * CollectLikeTerms disabled must still be able to perform distribution.
+ */
+let rec fully_distributed_signed_terms = (exp: Exp.t): list((int, Exp.t)) => {
+  let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
+  switch (exp.term) {
+  | BinOp(plus_op, left, right) when is_plus_op(plus_op) =>
+    fully_distributed_signed_terms(left)
+    @ fully_distributed_signed_terms(right)
+  | BinOp(Int(Minus) | SInt(Minus), left, right) =>
+    fully_distributed_signed_terms(left)
+    @ (
+      fully_distributed_signed_terms(right)
+      |> List.map(((sign, term)) => (- sign, term))
+    )
+  | UnOp(Int(Minus) | SInt(Minus), inner) =>
+    fully_distributed_signed_terms(inner)
+    |> List.map(((sign, term)) => (- sign, term))
+  | BinOp(times_op, left, right) when is_times_op(times_op) =>
+    fully_distributed_signed_terms(left)
+    |> List.concat_map(((left_sign, left_term)) =>
+         fully_distributed_signed_terms(right)
+         |> List.map(((right_sign, right_term)) =>
+              (
+                left_sign * right_sign,
+                times_exp_with_op(times_op, left_term, right_term),
+              )
+            )
+       )
+  | _ => [(1, exp)]
+  };
+};
+
+let product_term_same_under_cleanup = (cleanup, left, right) =>
+  if (exp_same_up_to_cleanup(cleanup, left, right)) {
+    true;
+  } else if (!cleanup_has(Axioms.MulAssoc, cleanup)) {
+    false;
+  } else {
+    let cleanup_enabled = capability => cleanup_has(capability, cleanup);
+    let normalize_identities = exp =>
+      DifferentiationRewrite.cleanup(~cleanup_enabled, exp);
+    let normalize_factors = exp => {
+      let factors =
+        product_factors_under_cleanup(cleanup, normalize_identities(exp));
+      if (cleanup_has(Axioms.ConstFold, cleanup)) {
+        let (constant, constant_count, symbolic) =
+          factors
+          |> List.fold_left(
+               ((constant, count, symbolic), factor) =>
+                 switch (polynomial_int_constant(factor)) {
+                 | Some(value) => (
+                     Bigint.( * )(constant, value),
+                     count + 1,
+                     symbolic,
+                   )
+                 | None => (constant, count, symbolic @ [factor])
+                 },
+               (Bigint.one, 0, []),
+             );
+        if (constant_count == 0) {
+          symbolic;
+        } else if (Bigint.equal(constant, Bigint.one)
+                   && symbolic != []
+                   && cleanup_has(Axioms.MulIdentity, cleanup)) {
+          symbolic;
+        } else {
+          [int_exp(constant), ...symbolic];
+        };
+      } else {
+        factors;
+      };
+    };
+    let left_factors = normalize_factors(left);
+    let right_factors = normalize_factors(right);
+    let rec remove_matching = (target, candidates) =>
+      switch (candidates) {
+      | [] => None
+      | [candidate, ...rest]
+          when exp_same_up_to_cleanup(cleanup, target, candidate) =>
+        Some(rest)
+      | [candidate, ...rest] =>
+        remove_matching(target, rest)
+        |> Option.map(rest => [candidate, ...rest])
+      };
+    let rec unordered_equal = (left, right) =>
+      switch (left) {
+      | [] => right == []
+      | [head, ...rest] =>
+        switch (remove_matching(head, right)) {
+        | Some(right) => unordered_equal(rest, right)
+        | None => false
+        }
+      };
+    List.length(left_factors) == List.length(right_factors)
+    && (
+      cleanup_has(Axioms.MulComm, cleanup)
+        ? unordered_equal(left_factors, right_factors)
+        : List.for_all2(
+            (left, right) => exp_same_up_to_cleanup(cleanup, left, right),
+            left_factors,
+            right_factors,
+          )
+    );
+  };
+
+let uncollected_full_distribution_matches = (profile, from_, to_) => {
+  let cleanup = profile.Axioms.step_policy.default_cleanup;
+  if (!cleanup_has(Axioms.AddAssoc, cleanup)) {
+    false;
+  } else {
+    let from_terms = fully_distributed_signed_terms(from_);
+    let to_terms = signed_sum_terms(to_);
+    let term_same = ((left_sign, left), (right_sign, right)) =>
+      left_sign == right_sign
+      && product_term_same_under_cleanup(cleanup, left, right);
+    let rec remove_matching = (target, candidates) =>
+      switch (candidates) {
+      | [] => None
+      | [candidate, ...rest] when term_same(target, candidate) => Some(rest)
+      | [candidate, ...rest] =>
+        remove_matching(target, rest)
+        |> Option.map(rest => [candidate, ...rest])
+      };
+    let rec unordered_equal = (left, right) =>
+      switch (left) {
+      | [] => right == []
+      | [head, ...rest] =>
+        switch (remove_matching(head, right)) {
+        | Some(right) => unordered_equal(rest, right)
+        | None => false
+        }
+      };
+    List.length(from_terms) > 1
+    && List.length(from_terms) == List.length(to_terms)
+    && (
+      cleanup_has(Axioms.AddComm, cleanup)
+        ? unordered_equal(from_terms, to_terms)
+        : List.for_all2(term_same, from_terms, to_terms)
+    );
+  };
+};
 
 let polynomial_normal_exp = exp =>
   exp
@@ -2529,7 +2769,9 @@ let check_single_distribution_or_expansion = (group, profile, from_, to_) => {
         "alg.distribute_mul_add",
       );
     let sum_factor_count =
-      product_factors(from_) |> List.filter(exp_has_sum) |> List.length;
+      product_factors(from_)
+      |> List.filter(polynomial_exp_has_multiple_terms)
+      |> List.length;
     let may_simplify_distribution =
       distribution_policy_allows_simplification(
         policy.Axioms.distribution_step_policy,
@@ -2545,10 +2787,22 @@ let check_single_distribution_or_expansion = (group, profile, from_, to_) => {
       );
     } else if (may_simplify_distribution
                && product_has_sum_factor(from_)
-               && exp_has_sum(to_)
+               && polynomial_exp_has_multiple_terms(to_)
                && polynomial_equivalent_exps(from_, to_)) {
       Some(
         single_algebra_result(group, ["alg.distribute_mul_add"], from_, to_),
+      );
+    } else if (sum_factor_count > 1
+               && policy.allow_polynomial_expansion
+               && uncollected_full_distribution_matches(profile, from_, to_)
+               && polynomial_equivalent_exps(from_, to_)) {
+      Some(
+        single_algebra_result(
+          group,
+          ["alg.expand_polynomial", "alg.distribute_mul_add"],
+          from_,
+          to_,
+        ),
       );
     } else if (sum_factor_count > 1
                && policy.allow_polynomial_expansion
@@ -2556,7 +2810,10 @@ let check_single_distribution_or_expansion = (group, profile, from_, to_) => {
                     Axioms.CollectLikeTerms,
                     profile.Axioms.step_policy.default_cleanup,
                   )
-               && exp_has_sum(to_)
+               && List.length(signed_sum_terms(to_))
+               < List.length(fully_distributed_signed_terms(from_))
+               && polynomial_cleanup_requirements_allowed(profile, from_)
+               && polynomial_exp_has_multiple_terms(to_)
                && polynomial_equivalent_exps(from_, to_)) {
       Some(
         single_algebra_result(
@@ -3467,7 +3724,6 @@ let check_single_catalog_rule =
   let rule_policy: Axioms.visible_rule_policy = {
     rule_id: rule.id,
     metadata: rule.metadata,
-    mode: planned_rule.mode,
     allowed_cleanup: planned_rule.allowed_cleanup,
   };
   let rule_profile: Axioms.math_profile = {
@@ -3677,24 +3933,29 @@ let check_written_step_trace_at_level =
 };
 
 let trace_rule_allowed_by_profile = (profile: Axioms.math_profile, rule_id) =>
-  switch (Axioms.catalog_rule_by_id(rule_id)) {
-  | Some(rule) when Axioms.rule_visible_at_level(rule, profile.level) =>
-    Axioms.visible_rule_enabled(profile.step_policy, rule_id)
-  | Some(rule)
-      when
-        rule.kind == Axioms.NormalizationRule
-        || rule.kind == Axioms.GuardedNormalizationRule =>
-    Axioms.check_result_rule_enabled(profile, rule_id)
-  | Some(_) =>
-    switch (Axioms.cleanup_capability_for_id(rule_id)) {
-    | Some(capability) =>
-      List.mem(capability, profile.step_policy.default_cleanup)
-    | None => false
-    }
+  switch (Axioms.cleanup_capability_for_id(rule_id)) {
+  | Some(capability) =>
+    List.mem(capability, profile.step_policy.default_cleanup)
   | None =>
-    switch (Axioms.cleanup_capability_for_id(rule_id)) {
-    | Some(capability) =>
-      List.mem(capability, profile.step_policy.default_cleanup)
+    switch (Axioms.catalog_rule_by_id(rule_id)) {
+    | Some(rule) when rule.id == "alg.expand_polynomial" =>
+      /* Expansion can produce an uncollected distributed form, so do not
+         require every optional cleanup prerequisite here. The trace gate
+         below separately checks each cleanup rule that was actually used. */
+      List.mem(rule.id, profile.check_result_rule_ids)
+      && profile.one_step_policy.allow_polynomial_expansion
+      && Axioms.visible_rule_enabled(
+           profile.step_policy,
+           "alg.distribute_mul_add",
+         )
+    | Some(rule) when Axioms.rule_visible_at_level(rule, profile.level) =>
+      Axioms.visible_rule_enabled(profile.step_policy, rule_id)
+    | Some(rule)
+        when
+          rule.kind == Axioms.NormalizationRule
+          || rule.kind == Axioms.GuardedNormalizationRule =>
+      Axioms.check_result_rule_enabled(profile, rule_id)
+    | Some(_)
     | None => false
     }
   };
