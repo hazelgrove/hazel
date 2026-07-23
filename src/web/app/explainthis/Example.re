@@ -25,6 +25,10 @@ let operand = (sort, v) => {
   };
   p;
 };
+/* Operator glyphs shown between operands keep their classified
+ * (infix) molds */
+let operator = (sort, v) =>
+  Piece.mk_tile(Form.classify_label(sort, [v]), []);
 let exp = v => operand(Sort.Exp, v);
 let pat = v => operand(Sort.Pat, v);
 let typ = t => operand(Sort.Typ, t);
