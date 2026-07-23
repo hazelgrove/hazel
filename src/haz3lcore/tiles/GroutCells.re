@@ -130,6 +130,46 @@ let classify = (seg: segment): t => {
   go(empty, atoms(seg));
 };
 
+/* the measured-faithful piece stream: consumed spaces removed, so a
+ * classification-blind printer (Printer.of_segment) yields text whose
+ * columns match Measured except one leading char per Pinch hole —
+ * callers that place markers at measured columns shift by the Pinch
+ * count on the row and nothing else */
+let drop_consumed_spaces = (seg: segment): segment => {
+  let cells = classify(seg);
+  let rec go = (sg: segment): segment =>
+    List.filter_map(
+      (p: piece) =>
+        switch (p) {
+        | Secondary(w) when Secondary.is_space(w) && is_consumed(cells, w.id) =>
+          None
+        | Tile(t) =>
+          Some(
+            Tile({
+              ...t,
+              children: List.map(go, t.children),
+            }),
+          )
+        | p => Some(p)
+        },
+      sg,
+    );
+  go(seg);
+};
+
+/* Pinch-class grout on `row` strictly left of (or at, when ~incl)
+ * `col` — the marker shift for classification-blind printed text */
+let pinch_shift =
+    (cells: t, ~grout_positions: list((Id.t, int, int)), ~incl, ~row, ~col)
+    : int =>
+  grout_positions
+  |> List.filter(((id, r, c)) =>
+       cls_of(cells, id) == Some(Pinch)
+       && r == row
+       && (incl ? c <= col : c < col)
+     )
+  |> List.length;
+
 /* does this class occupy a cell (width 1) or none (width 0)? */
 let width = (c: cls): int =>
   switch (c) {

@@ -188,12 +188,22 @@ let view =
 
   let measure_of = p => Measured.find_p(~msg="Text", p, measured);
 
+  /* ONE-HOME cell assignment (GroutCells): the DOM flow mirrors
+     Measured's width transfer — a backed hole owns a real cell, its
+     consumed space renders as nothing, a pinch is zero-width. */
+  let grout_cells = GroutCells.classify(segment);
   let of_secondary = (secondary: Secondary.t) =>
     switch (secondary.content) {
     | Whitespace(str) when str == Token.linebreak =>
       let indent = measure_of(Secondary(secondary)).last.col;
       let token = whitespace_token(DeferredLinebreaks.of_secondary(), indent);
       Node.text(lb_icon ++ token);
+    | Whitespace(str)
+        when
+          str == Token.space
+          && GroutCells.is_consumed(grout_cells, secondary.id) =>
+      /* the adjacent hole owns this cell */
+      Node.span([])
     | Whitespace(str) when str == Token.space => Node.text(ws_icon)
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
     /* a ghost-marked comment is a witness-remainder ghost (spliced
@@ -221,38 +231,10 @@ let view =
     };
   };
 
-  let rec of_segment = (seg: Segment.t): list(Node.t) => {
-    /* the cell a zero-width hole paints into, from its neighbors —
-       the FeltPrint weave rules: following space wins, else preceding
-       space, else line end is a free cell, else a thin pinch */
-    let cell_of = (i: int, arr: array(Piece.t)): EmptyHoleDec.cell => {
-      let n = Array.length(arr);
-      let is_space = (p: Piece.t) =>
-        switch (p) {
-        | Secondary(w) => Secondary.is_space(w)
-        | _ => false
-        };
-      let is_lb = (p: Piece.t) =>
-        switch (p) {
-        | Secondary(w) => Secondary.is_linebreak(w)
-        | _ => false
-        };
-      if (i + 1 < n && is_space(arr[i + 1])) {
-        NextCell;
-      } else if (i + 1 >= n || is_lb(arr[i + 1])) {
-        NextCell; /* line-end free cell */
-      } else if (i - 1 >= 0 && is_space(arr[i - 1])) {
-        PrevCell;
-      } else {
-        Thin;
-      };
-    };
-    let arr = Array.of_list(seg);
-    arr
-    |> Array.to_list
-    |> List.mapi((i, p) => (i, p))
-    |> List.concat_map(((i, p)) =>
-         switch ((p: Piece.t)) {
+  let rec of_segment = (seg: Segment.t): list(Node.t) =>
+    seg
+    |> List.concat_map((p: Piece.t) =>
+         switch (p) {
          | Piece.Tile(t) =>
            let _ =
              switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
@@ -264,12 +246,21 @@ let view =
            Aba.mk(t.shards, t.children)
            |> Aba.join(i => [of_delim(t, i)], of_segment)
            |> List.concat;
-         | Grout(g) => [of_grout(~cell=cell_of(i, arr), g)]
+         | Grout(g) =>
+           /* a backed hole (its space consumed, or the line-end free
+              cell) owns its own box in flow; only a pinch straddles
+              zero-width */
+           let cell: EmptyHoleDec.cell =
+             switch (GroutCells.cls_of(grout_cells, g.id)) {
+             | Some(Pinch) => Thin
+             | Some(NextSpace | PrevSpace | LineEndFree) => Boxed
+             | None => Thin
+             };
+           [of_grout(~cell, g)];
          | Secondary(s) => [of_secondary(s)]
          | Projector(pr) => [of_projector(pr)]
          }
        );
-  };
 
   /* Trailing filler: a text layer ending in a linebreak gets no
      final line box from HTML, so an empty last line left the editor

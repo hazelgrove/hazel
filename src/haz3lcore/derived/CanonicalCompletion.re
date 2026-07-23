@@ -681,11 +681,15 @@ let finish_display =
     | Secondary(w) => Secondary.is_comment(w) && minted(w.id)
     | _ => false
     };
-  let space = (): Piece.t =>
+  let pad_ids: Hashtbl.t(Id.t, unit) = Hashtbl.create(16);
+  let space = (): Piece.t => {
+    let id = Id.mk();
+    Hashtbl.replace(pad_ids, id, ());
     Secondary({
-      id: Id.mk(),
+      id,
       content: Whitespace(" "),
     });
+  };
   let rec pad_seq = (~hot: bool, ps: Segment.t): Segment.t =>
     switch (ps) {
     | [] => []
@@ -762,7 +766,61 @@ let finish_display =
   /* rank AFTER reorder — hopped grout must carry its final position */
   let seg = reorder(seg);
   rank := rank_map(seg);
-  pad_seq(~hot=false, seg);
+  let seg = pad_seq(~hot=false, seg);
+  /* BACKING REPAIR (P4, atomic-form padding under width transfer):
+     a hole consumes an adjacent space's cell, so an oracle pad
+     placed next to a hole vanishes from the screen — exactly the
+     tween-state jank ("let " ghosting `let ?= ?in ?`). Wherever the
+     cell classification says a hole consumed a PAD-minted space,
+     mint one more beside it: one backs the hole, one stays visible,
+     and the display reads space-hole-space like any atomic form.
+     User-typed spaces are never doubled — resting holes borrow
+     typed cells by design. */
+  let cells = GroutCells.classify(seg);
+  /* a consumed space needs backing when the oracle minted it, OR
+     when a MINTED (display-promised) hole consumed a USER-typed
+     space — ghost material must never eat the user's cells (the
+     resting document's borrow behavior is untouched: real placed
+     holes there don't pass through this oracle). Consumption is
+     strictly adjacent, so the consumer is a sibling grout. */
+  let minted_grout = (p: Piece.t): bool =>
+    switch (p) {
+    | Grout(g) => minted(g.id)
+    | _ => false
+    };
+  let rec back_pads = (ps: Segment.t): Segment.t => {
+    let arr = Array.of_list(ps);
+    let n = Array.length(arr);
+    List.init(n, i => i)
+    |> List.concat_map(i =>
+         switch (arr[i]) {
+         | Secondary(w)
+             when
+               Secondary.is_space(w)
+               && GroutCells.is_consumed(cells, w.id)
+               && pad_allowed((w.id, (-1)))
+               && (
+                 Hashtbl.mem(pad_ids, w.id)
+                 || i > 0
+                 && minted_grout(arr[i - 1])
+                 || i
+                 + 1 < n
+                 && minted_grout(arr[i + 1])
+               ) => [
+             arr[i],
+             space(),
+           ]
+         | Tile(t) => [
+             Piece.Tile({
+               ...t,
+               children: List.map(back_pads, t.children),
+             }),
+           ]
+         | p => [p]
+         }
+       );
+  };
+  back_pads(seg);
 };
 
 /* Middle-missing shards (`let x in 2`, `if true else 2` — targeted

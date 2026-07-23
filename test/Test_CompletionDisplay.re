@@ -187,27 +187,28 @@ let display_state_of =
     List.rev(Option.to_list(open_) @ closed);
   };
   let caret = DisplayCaret.point(~caret_witnesses, measured, zc);
+  /* measured-faithful text (width transfer): consumed spaces are
+     omitted so printed columns match measured columns, except one
+     printed ?/~ char per zero-width Pinch hole — markers shift by
+     the pinch count on their row (strictly-before for caret/
+     run-opens, inclusive for run-ends) */
+  let cells = GroutCells.classify(seg);
   let text =
     Printer.of_segment(
       ~holes="?",
       ~concave_holes="~",
       ~indent=" ",
       ~measured,
-      seg,
+      GroutCells.drop_consumed_spaces(seg),
     );
-  /* grout is ZERO-WIDTH in measured but prints as one ?/~ char here,
-     so every marker right of a hole must shift by the holes printed
-     before it on its row (strictly-before for caret/run-opens, which
-     land LEFT of a hole at their own point; inclusive for run-ends,
-     which land after the hole char) */
-  let grout_cols: list((int, int)) = {
-    let rec go = (sg: Segment.t): list((int, int)) =>
+  let grout_positions: list((Id.t, int, int)) = {
+    let rec go = (sg: Segment.t) =>
       List.concat_map(
         (p: Piece.t) =>
           switch (p) {
           | Grout(g) =>
             switch (Measured.find_g(g, measured)) {
-            | m => [(m.origin.row, m.origin.col)]
+            | m => [(g.id, m.origin.row, m.origin.col)]
             | exception _ => []
             }
           | Tile(t) => List.concat_map(go, t.children)
@@ -218,20 +219,62 @@ let display_state_of =
     go(seg);
   };
   let hole_shift = (~incl: bool, p: Util.Point.t): Util.Point.t => {
-    let n =
-      grout_cols
-      |> List.filter(((r, c)) =>
-           r == p.row && (incl ? c <= p.col : c < p.col)
-         )
-      |> List.length;
-    {
-      ...p,
-      col: p.col + n,
-    };
+    ...p,
+    col:
+      p.col
+      + GroutCells.pinch_shift(
+          cells,
+          ~grout_positions,
+          ~incl,
+          ~row=p.row,
+          ~col=p.col,
+        ),
   };
   /* insert markers back-to-front so points stay valid; at a shared
      point later inserts land left, so descending priority yields
      ⟫¦ at a run end and ¦⟪ at a run start */
+  /* witness sub-token remainders (typed_lens) render as ghost runs
+     too: the typed prefix is user text, the remainder is system —
+     the fuzzer's pre-caret compare excises ⟪⟫ spans, so remainders
+     must be inside spans */
+  let witness_runs: list((Util.Point.t, Util.Point.t)) =
+    typed_lens
+    |> List.filter_map((((tid, i), n)) => {
+         let rec find_tile = (sg: Segment.t): option(Tile.t) =>
+           List.fold_left(
+             (acc, p: Piece.t) =>
+               switch (acc, p) {
+               | (Some(_), _) => acc
+               | (None, Tile(t)) =>
+                 Id.equal(t.id, tid)
+                   ? Some(t)
+                   : List.fold_left(
+                       (a, c) => a == None ? find_tile(c) : a,
+                       None,
+                       t.children,
+                     )
+               | (None, _) => None
+               },
+             None,
+             sg,
+           );
+         switch (find_tile(seg)) {
+         | None => None
+         | Some(t) =>
+           switch (
+             Measured.find_shards(t, measured)
+             |> List.find_opt(((j, _)) => j == i)
+           ) {
+           | None => None
+           | Some((_, m)) =>
+             let o: Util.Point.t = {
+               ...m.origin,
+               col: m.origin.col + n,
+             };
+             Util.Point.compare(o, m.last) < 0 ? Some((o, m.last)) : None;
+           }
+         };
+       });
   let mark_list =
     [(hole_shift(~incl=false, caret), 1, "¦")]
     @ List.concat_map(
@@ -240,7 +283,7 @@ let display_state_of =
             (hole_shift(~incl=false, o), 2, "⟪"),
             (hole_shift(~incl=true, l), 0, "⟫"),
           ],
-        runs,
+        runs @ witness_runs,
       );
   let disp =
     mark_list

@@ -437,15 +437,17 @@ let mk_inner =
   let pre_caret = (~caret_witnesses, seg: Segment.t): string => {
     let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
     let caret = DisplayCaret.point(~caret_witnesses, measured, z);
-    /* grout is zero-width in measured but prints as a ?/~ char: the
-       slice column shifts by the holes printed before the caret on
-       its row */
+    /* measured-faithful slice (width transfer): consumed spaces are
+       dropped from the print so columns match measured, except one
+       printed char per zero-width Pinch hole before the caret */
+    let cells = GroutCells.classify(seg);
     let shift = {
       let rec count = (sg: Segment.t): int =>
         List.fold_left(
           (acc, pc: Piece.t) =>
             switch (pc) {
-            | Grout(g) =>
+            | Grout(g)
+                when GroutCells.cls_of(cells, g.id) == Some(GroutCells.Pinch) =>
               switch (Measured.find_g(g, measured)) {
               | m when m.origin.row == caret.row && m.origin.col < caret.col =>
                 acc + 1
@@ -468,7 +470,7 @@ let mk_inner =
         ~concave_holes="~",
         ~indent=" ",
         ~measured,
-        seg,
+        GroutCells.drop_consumed_spaces(seg),
       )
       |> String.split_on_char('\n');
     let before = List.filteri((i, _) => i < caret.row, rows);
