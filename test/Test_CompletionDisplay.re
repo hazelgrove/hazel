@@ -203,7 +203,7 @@ let display_state_of =
     Printer.of_segment(
       ~holes="?",
       ~concave_holes="~",
-      ~indent=" ",
+      ~indent="",
       ~measured,
       GroutCells.drop_consumed_spaces(seg),
     );
@@ -1040,32 +1040,34 @@ let y = (1 + ¦?⟪)⟫ in y   CHIPS[]|},
           string_testable,
           "mg1",
           /* last line: end AND in both ghost at the caret, quiver
-             empty (was CHIPS[end]). The `⟪  end` doubled space is
-             the pre-existing indentation-seam pad jank, tracked in
-             the padding-oracle notes. JUDGED improvement, lines 3-4:
-             `case in` single-spaced — a trailing-space remainder is
-             self-separated, no extra pad. */
+             empty (was CHIPS[end]). RE-JUDGED 2026-07-22 under
+             measured-faithful rendering: phantom doubled indent
+             (add_indent prefix over stored spaces) is gone — rows
+             sit at stored-space columns; typed chars precede the
+             caret at true columns with the witness remainder inside
+             the span (ca¦⟪se …⟫); the old `⟪  in⟫` doubled-space
+             seam healed with it. */
           {|let f(b : Bool) =?
-  ¦⟪  in⟫ ?   CHIPS[]
+  ¦⟪in ?⟫   CHIPS[]
 let f(b : Bool) =
-   ¦ ⟪c in⟫ ?   CHIPS[]
+  c¦ ⟪in ?⟫   CHIPS[]
 let f(b : Bool) =
-    ¦⟪case in⟫ ?   CHIPS[]
+  ca¦⟪se in ?⟫   CHIPS[]
 let f(b : Bool) =
-    c¦⟪ase in⟫ ?   CHIPS[]
+  cas¦⟪e in ?⟫   CHIPS[]
 let f(b : Bool) =
-    ca¦se ⟪? end in⟫ ?   CHIPS[]
+  case¦ ? ⟪end in ?⟫   CHIPS[]
 let f(b : Bool) =
-    cas¦e ⟪? end in⟫ ?   CHIPS[]
+  case ¦? ⟪end in ?⟫   CHIPS[]
 let f(b : Bool) =
-    case¦ ⟪b end in⟫ ?   CHIPS[]
+  case b¦ ⟪end in ?⟫   CHIPS[]
 let f(b : Bool) =
-    case ¦b⟪a end in⟫ ?   CHIPS[]
+  case ba¦ ⟪end in ?⟫   CHIPS[]
 let f(b : Bool) =
-    case b¦a⟪r end in⟫ ?   CHIPS[]
+  case bar¦ ⟪end in ?⟫   CHIPS[]
 let f(b : Bool) =
-    case bar
-  ¦⟪  end in⟫ ?   CHIPS[]|},
+  case bar
+  ¦⟪end in ?⟫   CHIPS[]|},
           trajectory_in(~ctx="let f(b : Bool) =¦", "\ncase bar\n"),
         )
       ),
@@ -1082,42 +1084,43 @@ let f(b : Bool) =
           /* the space keystroke is TEXT-CONSTANT: the typed space
              splits the merged =>+end+in run, both halves slide to
              the caret, and the same-slid-ref tie resolves by
-             ORIGINAL material order (=> before end in). The en⟫d
-             bracket offset is a harness marker-rendering artifact
-             on multiline states (live styles by id, not string
-             position). */
+             ORIGINAL material order. RE-JUDGED 2026-07-22 under
+             measured-faithful rendering: the en⟫d bracket-offset
+             artifact (span marks landing mid-token on multiline
+             states) is HEALED — spans sit at honest columns; the
+             phantom doubled indent on continuation rows is gone. */
           {|let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-   ¦⟪   end i⟫n ?   CHIPS[]
+      case foo
+      | 1 => bar
+   ¦⟪end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-    ¦⟪    end ⟫in ?   CHIPS[]
+      case foo
+      | 1 => bar
+    ¦⟪end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-     ¦⟪     end⟫ in ?   CHIPS[]
+      case foo
+      | 1 => bar
+     ¦⟪end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-      ¦⟪      en⟫d in ?   CHIPS[]
+      case foo
+      | 1 => bar
+      ¦⟪end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-       ¦   ⟪  | ? => ? en⟫d in ?   CHIPS[]
+      case foo
+      | 1 => bar
+      |¦ ? ⟪=> ? end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-        ¦  ⟪  | ? => ? en⟫d in ?   CHIPS[]
+      case foo
+      | 1 => bar
+      | ¦? ⟪=> ? end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-         ¦ ⟪  | _ => ? en⟫d in ?   CHIPS[]
+      case foo
+      | 1 => bar
+      | _¦ ⟪=> ? end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-          ¦⟪  | _ => ? en⟫d in ?   CHIPS[]|},
+      case foo
+      | 1 => bar
+      | _ ¦⟪=> ? end in ?⟫   CHIPS[]|},
           trajectory_in(
             ~ctx=
               "let new_fun(foo: Int, bar: Bool) =\n    case foo\n    | 1 => bar\n¦",
@@ -1181,15 +1184,12 @@ if tr¦⟪ue then ? else ?⟫   CHIPS[]|},
             let measured =
               Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
             let caret = Zipper.Caret.point(measured, z);
-            Printer.of_segment(
-              ~holes="?",
-              ~concave_holes="~",
-              ~indent=" ",
-              ~measured,
-              seg,
-            )
+            FeltPrint.measured_print(~measured, seg)
             |> String.split_on_char('\n')
-            |> Printer.insert_string("¦", caret)
+            |> Printer.insert_string(
+                 "¦",
+                 FeltPrint.measured_caret(~measured, seg, caret),
+               )
             |> String.concat("\n");
           };
           let disp = (code: string): string => {
@@ -1231,15 +1231,12 @@ string_replace(a, b, c)|},
               let measured =
                 Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
               let caret = Zipper.Caret.point(measured, z);
-              Printer.of_segment(
-                ~holes="?",
-                ~concave_holes="~",
-                ~indent=" ",
-                ~measured,
-                seg,
-              )
+              FeltPrint.measured_print(~measured, seg)
               |> String.split_on_char('\n')
-              |> Printer.insert_string("¦", caret)
+              |> Printer.insert_string(
+                   "¦",
+                   FeltPrint.measured_caret(~measured, seg, caret),
+                 )
               |> String.concat("\n");
             },
           );

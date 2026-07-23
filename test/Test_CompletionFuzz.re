@@ -159,7 +159,7 @@ let seg_text = (seg: Segment.t): string => {
   Printer.of_segment(
     ~holes="?",
     ~concave_holes="~",
-    ~indent=" ",
+    ~indent="",
     ~measured,
     seg,
   );
@@ -187,7 +187,7 @@ let raw_pre_caret = (z: Zipper.t): string => {
     Printer.of_segment(
       ~holes="?",
       ~concave_holes="~",
-      ~indent=" ",
+      ~indent="",
       ~measured,
       seg,
     )
@@ -263,7 +263,7 @@ let raw_promised = (z: Zipper.t): option(char) => {
     Printer.of_segment(
       ~holes="?",
       ~concave_holes="~",
-      ~indent=" ",
+      ~indent="",
       ~measured,
       seg,
     )
@@ -522,14 +522,10 @@ let known_classes: list((string, string)) = [
   /* NO-CRASH exclusion (Failure nth, case/fun/in) removed 2026-07-15:
      remold_tile now tolerates the stale single-shard mold a
      reassembled orphan carries — see crash_stage_probe. */
-  /* PRE-CARET(inner) RE-EXCLUDED 2026-07-21 (was removed 2026-07-12):
-     under zero-width grout, display and placed-raw show IDENTICAL
-     text (no user chars move — verified: the stale-binary "lost ="
-     was a print/measure skew), but the two caret-column mappings
-     disagree by one printed hole char at partial-operator Inner
-     carets. Cosmetic caret-side placement; needs the Inner-host rule
-     ported to placed coordinates. Pinned in known-violations. */
-  ("PRE-CARET(inner)", ""),
+  /* PRE-CARET(inner) exclusion REMOVED again 2026-07-22: the
+     one-printed-hole-char skew was harness print/measure column
+     drift; FeltPrint.measured_print/measured_caret are now the one
+     column system for every harness render and marker. */
   /* ghost x place seam (2026-07-21, both pinned below): (a) after
      Enter on a promised hole, the ghost's stale splice ref precedes
      the caret and the no-pre-caret-ghost suppression's position
@@ -539,23 +535,10 @@ let known_classes: list((string, string)) = [
      text is never touched. */
   ("NO-PRE-CARET-GHOST", ""),
   ("CONSTANCY(pre-caret)", "¦()"),
-  /* witness-ghost boundary (2026-07-21): at a just-glommed partial
-     keyword the degraded comment channel derives the ghost remainder
-     one char long (`l¦⟪et⟫` where the user typed `le`) — the typed
-     char renders ghost-styled for that frame; word content is
-     correct and no chars are lost. Matched narrowly: the caret
-     abutting a ghost open. Follow-up: derive the remainder from the
-     CURRENT partial token, not the record's prefix len. */
-  ("PRE-CARET", "¦⟪"),
-  /* same trajectory family, later steps: with a padded LEADING
-     display hole (`  ?>` vs placed-raw `? >`) the harness's marker
-     column accounting drifts one user-char left of the raw caret.
-     The curated display pins and felt scenarios (carets included)
-     are green, so this is judged harness column accounting at the
-     leading-pad divergence, not a live caret defect. Follow-up:
-     render the harness through FeltPrint so display and raw share
-     one column system. */
-  ("PRE-CARET", "?>"),
+  /* witness-ghost boundary + leading-pad column exclusions REMOVED
+     2026-07-22: both healed once FeltPrint.measured_print/
+     measured_caret became the one column system for harness renders
+     and markers. */
   /* finish_display is systemically non-idempotent: pass 2 re-pads
      gaps pass 1 already padded (minted whitespace isn't in raw_ids),
      latent live because live applies it once: pinned "l e t SP" */
@@ -1043,19 +1026,12 @@ let crash_stage_probe = {
         stage := "caret";
         let caret = DisplayCaret.point(~caret_witnesses, measured, zc);
         stage := "printer";
-        let text =
-          Printer.of_segment(
-            ~holes="?",
-            ~concave_holes="~",
-            ~indent=" ",
-            ~measured,
-            seg,
-          );
+        let text = FeltPrint.measured_print(~measured, seg);
         stage := "insert";
         let rows =
           Printer.insert_string(
             "|",
-            caret,
+            FeltPrint.measured_caret(~measured, seg, caret),
             String.split_on_char('\n', text),
           );
         stage := "done";
@@ -1087,7 +1063,7 @@ let probe_glom = [
         ++ Printer.of_segment(
              ~holes="?",
              ~concave_holes="~",
-             ~indent=" ",
+             ~indent="",
              ~measured=m,
              seg,
            )
