@@ -389,6 +389,47 @@ let scenarios = [
     ++ "  1 +¦ 2\n"
     ++ "  1 ¦~2",
   ),
+  /* CARET-AT-BORROWED-CELLS (andrew's live repro, pinned before any
+     caret fix): shrink the gap between delimiters to zero and watch
+     where the caret lands; then walk back left through the borrowed
+     cells. The judged property: the caret column in the felt render
+     always sits between two user glyphs or at a line edge — never
+     inside a sigil's cell, and never at a column the user cannot
+     reach back. */
+  /* FELT ASSESSMENT (judged): through shrink-to-zero the caret is
+     column-stable (no jump when the pinch forms), and walking left
+     crosses exactly one user glyph per press — the caret never
+     enters a sigil's cell and every column is reachable back. The
+     live jank andrew reported traced to the view's old local cell
+     guess, not to placement; these pins hold the felt truth the
+     one-home view now renders. Known residual (pinned in the
+     fuzzer): INNER carets beside a consumed cell resolve one col
+     short. */
+  scenario(
+    "shrink f( ) to zero: pinch forms under the caret",
+    type_string("f( ") @ backspaces(1),
+    "  f¦\n" ++ "  f(¦?\n" ++ "  f( ¦?\n" ++ "  f(¦?",
+  ),
+  scenario(
+    "shrink then walk left through the pinch",
+    type_string("f( ") @ backspaces(1) @ lefts(2),
+    "  f¦\n"
+    ++ "  f(¦?\n"
+    ++ "  f( ¦?\n"
+    ++ "  f(¦?\n"
+    ++ "  f¦(?\n"
+    ++ "  ¦f(?",
+  ),
+  scenario(
+    "shrink an operator gap: 1  2 minus the middle space",
+    type_string("1  2") @ lefts(1) @ backspaces(1),
+    "  1¦\n"
+    ++ "  1 ¦\n"
+    ++ "  1  ¦\n"
+    ++ "  1 ~2¦\n"
+    ++ "  1 ~¦2\n"
+    ++ "  1~¦2",
+  ),
   scenario(
     "delete back through: 1 + 2",
     type_string("1 + 2") @ backspaces(5),
