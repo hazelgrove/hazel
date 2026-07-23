@@ -195,6 +195,15 @@ and sig_item =
  *
  * ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
  */
+/* Subset of Language.Token.base_typs the generator avoids; deliberately
+ * narrower than base_typs (the menhir grammar knows none of
+ * Nat/SInt/Drv*) — do not widen without updating Lexer/Parser. */
+let keyword_base_typs =
+  List.filter(
+    t => List.mem(t, Language.Token.base_typs),
+    ["String", "Int", "Float", "Bool"],
+  );
+
 // TODO handle full constructor ident including nums and '
 let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
   (~minimal_idents) =>
@@ -205,7 +214,7 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         let* leading = char_range('A', 'Z');
         let+ tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
         let ident = String.make(1, leading) ++ tail;
-        if (List.exists(a => a == ident, ["String", "Int", "Float", "Bool"])) {
+        if (List.exists(a => a == ident, keyword_base_typs)) {
           "Keyword";
         } else {
           ident;

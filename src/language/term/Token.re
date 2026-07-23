@@ -113,7 +113,9 @@ let is_string_or_comment = t =>
 let is_string_or_comment_delim = t =>
   is_string_delim(t) || is_comment_delim(t) || is_quoted_label_delim(t);
 
-let bools = ["true", "false"];
+let true_ = "true";
+let false_ = "false";
+let bools = [true_, false_];
 let is_bool = match(regexp("^(" ++ concat("|", bools) ++ ")$"));
 let undefined = "undefined";
 let is_undefined = match(regexp("^" ++ undefined ++ "$"));
@@ -219,24 +221,11 @@ let is_ctr = match(capitalized_name_regexp);
 let quote_label_when_necessary = (l: string): string =>
   is_var(l) || is_ctr(l) ? l : label_quote(l);
 /* Atom type names recognized by MakeTerm as Atom(...) in Typ sort.
- * Also includes Drv* names recognized as DrvQuoteTy(sort).
- * Keep in sync with Ctx.is_base_typ. */
-let base_typs = [
-  "Bool",
-  "Float",
-  "Int",
-  "Nat",
-  "SInt",
-  "String",
-  "Void",
-  "DrvJdmt",
-  "DrvCtx",
-  "DrvProp",
-  "ALFAExp",
-  "DrvPat",
-  "ALFATyp",
-  "DrvTPat",
-];
+ * Also includes Drv* names recognized as DrvQuoteTy(sort), whose
+ * spellings are derived from DrvSort (the single home for them). */
+let base_typs =
+  ["Bool", "Float", "Int", "Nat", "SInt", "String", "Void"]
+  @ List.map(DrvSort.to_string, DrvSort.all);
 let is_base_typ = match(regexp("^(" ++ concat("|", base_typs) ++ ")$"));
 let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
 
