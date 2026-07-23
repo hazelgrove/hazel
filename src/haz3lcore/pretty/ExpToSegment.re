@@ -1807,7 +1807,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ l = go(l)
     and+ r = go(r);
     let (form, sort) =
-      Form.classify_label(Sort.Exp, [Operators.bin_op_to_string(op)]);
+      Form.classify_label(Sort.Exp, [Form.bin_op_to_string(op)]);
     wrap(
       exp,
       l

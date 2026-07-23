@@ -283,3 +283,64 @@ let delims: list(Token.t) =
   all_of_family
   |> List.concat_map(label_of_family)
   |> List.sort_uniq(compare);
+
+/* The family spelling each surface binary operator: joining
+ * Operators' op enums to the label table above makes
+ * bin_op_to_string derived rather than a spelling mirror. The
+ * numeric classes (Int/SInt/Nat) share one surface family per op;
+ * Float ops have their own (F*) families. Lives here, not in
+ * Operators: the AST references op_bin, so Operators sits below
+ * this module and cannot see the label table. */
+let int_op_family: Operators.op_bin_num => family =
+  fun
+  | Plus => Plus
+  | Minus => Minus
+  | Times => Times
+  | Power => Power
+  | Divide => Divide
+  | LessThan => Lt
+  | LessThanOrEqual => Lte
+  | GreaterThan => Gt
+  | GreaterThanOrEqual => Gte;
+
+let float_op_family: Operators.op_bin_float => family =
+  fun
+  | Plus => FPlus
+  | Minus => FMinus
+  | Times => FTimes
+  | Power => FPower
+  | Divide => FDivide
+  | LessThan => FLt
+  | LessThanOrEqual => FLte
+  | GreaterThan => FGt
+  | GreaterThanOrEqual => FGte
+  | Equals => FEquals
+  | NotEquals => FNotEquals;
+
+let bool_op_family: Operators.op_bin_bool => family =
+  fun
+  | And => LogicalAnd
+  | Or => LogicalOr;
+
+let string_op_family: Operators.op_bin_string => family =
+  fun
+  | Concat => StringConcat;
+
+let poly_op_family: Operators.op_bin_poly => family =
+  fun
+  | Equals => Equals
+  | NotEquals => NotEquals;
+
+let bin_op_family: Operators.op_bin => family =
+  fun
+  | SInt(op)
+  | Int(op)
+  | Nat(op) => int_op_family(op)
+  | Float(op) => float_op_family(op)
+  | Bool(op) => bool_op_family(op)
+  | String(op) => string_op_family(op)
+  | Poly(op) => poly_op_family(op);
+
+/* All these families are single-token, so hd is total. */
+let bin_op_to_string = (op: Operators.op_bin): Token.t =>
+  List.hd(label_of_family(bin_op_family(op)));
