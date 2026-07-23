@@ -327,7 +327,160 @@ let mline =
   ++ "  let x =\n  1 in ¦?\n"
   ++ "  let x =\n  1 in x¦";
 
+/* ANDREW'S LIVE REPROS (2026-07-22): the caret model at borrowed
+   cells. A1: deleting the pattern `a` must move the caret ONE
+   perceived position (landing RIGHT of the appearing hole, where
+   `a` was); every subsequent arrow-left/right changes the drawn
+   column (no dead presses); deleting the last pattern space must
+   not throw the caret to another row. Pinned with the
+   editor-faithful of_zipper (caret computed against the placed
+   display measured, exactly as the live editor does). */
+let a1_backspaces =
+  type_string("let a = 1 in a")
+  @ lefts(9)
+  @ backspaces(1)
+  @ backspaces(1)
+  @ lefts(0);
+
 let scenarios = [
+  /* ANDREW'S C REPRO: extra typed spaces beyond the auto-indent are
+     REAL material — backspace deletes them one per press; only a run
+     at (or under) the line's indent level joins the linebreak in one
+     keystroke. Script: let a = SP, Enter (auto-indents body line),
+     type 4 extra spaces, then two backspaces: each removes ONE
+     space; the caret stays on its line. */
+  scenario(
+    "C: backspace beyond the indent deletes one space per press",
+    type_string("let a = ")
+    @ [Action.Insert("\n")]
+    @ type_string("    ")
+    @ backspaces(2),
+    "  l¦\n  le¦\n  let¦?\n  let ¦?\n  let a¦\n  let a ¦\n"
+    ++ "  let a =¦?\n  let a = ¦?\n  let a = \n  ¦?\n  let a = \n   ¦?\n"
+    ++ "  let a = \n    ¦?\n  let a = \n     ¦?\n  let a = \n      ¦?\n"
+    ++ "  let a = \n     ¦?\n  let a = \n    ¦?",
+  ),
+  /* ANDREW'S A1 REPRO PINNED FIXED: deleting `a` moves the caret
+     exactly ONE perceived position, landing RIGHT of the appearing
+     hole (where `a` was); arrow left/right through the borrowed
+     cell each change the drawn column (the consumed-space redirect
+     in Zipper.base_point — no dead presses, no skipping `=`);
+     deleting the last pattern space leaves an empty child whose
+     caret homes to the parent's shard (ancestor fallback), NOT
+     (0,0) — no jump to another row. */
+  /* ANDREW'S B REPRO: an unclosed `let` above absorbs later lines
+     as its presumed body; its owed hole trails the caret. Enter on
+     the later line must NOT indent for that presumption — a derived
+     hole is not user content (Indentation: Grout does not fire the
+     continuation rule). The new line lands at the CURRENT line's
+     level. */
+  scenario(
+    "B: Enter under an unclosed let above stays at the line's level",
+    type_string("let b = \nlet a = 1 in x") @ [Action.Insert("\n")],
+    "  l¦\n  le¦\n  let¦?\n  let ¦?\n  let b¦\n  let b ¦\n"
+    ++ "  let b =¦?\n  let b = ¦?\n  let b = \n  ¦?\n  let b = \n  l¦\n"
+    ++ "  let b = \n  le¦\n  let b = \n  let¦?\n  let b = \n  let ¦?\n"
+    ++ "  let b = \n  let a¦\n  let b = \n  let a ¦\n  let b = \n"
+    ++ "  let a =¦?\n  let b = \n  let a = ¦?\n  let b = \n"
+    ++ "  let a = 1¦\n  let b = \n  let a = 1 ¦\n  let b = \n"
+    ++ "  let a = 1 i¦?\n  let b = \n  let a = 1 in¦?\n  let b = \n"
+    ++ "  let a = 1 in ¦?\n  let b = \n  let a = 1 in x¦\n  let b = \n"
+    ++ "  let a = 1 in x\n¦",
+  ),
+  scenario(
+    "A1: delete the space right of pattern a, then a itself",
+    type_string("let a = 1 in a") @ lefts(8) @ backspaces(2),
+    "  l¦\n"
+    ++ "  le¦\n"
+    ++ "  let¦?\n"
+    ++ "  let ¦?\n"
+    ++ "  let a¦\n"
+    ++ "  let a ¦\n"
+    ++ "  let a =¦?\n"
+    ++ "  let a = ¦?\n"
+    ++ "  let a = 1¦\n"
+    ++ "  let a = 1 ¦\n"
+    ++ "  let a = 1 i¦?\n"
+    ++ "  let a = 1 in¦?\n"
+    ++ "  let a = 1 in ¦?\n"
+    ++ "  let a = 1 in a¦"
+    ++ "\n"
+    ++ "  let a = 1 in ¦a\n"
+    ++ "  let a = 1 in¦ a\n"
+    ++ "  let a = 1 i¦n a\n"
+    ++ "  let a = 1 ¦in a\n"
+    ++ "  let a = 1¦ in a\n"
+    ++ "  let a = ¦1 in a\n"
+    ++ "  let a =¦ 1 in a\n"
+    ++ "  let a ¦= 1 in a"
+    ++ "\n  let a¦= 1 in a"
+    ++ "\n  let?¦= 1 in a",
+  ),
+  scenario(
+    "A1: arrows through the borrowed cell are never dead",
+    type_string("let a = 1 in a")
+    @ lefts(8)
+    @ backspaces(2)
+    @ lefts(1)
+    @ [Action.Move(Local(Right, ByChar))],
+    "  l¦\n"
+    ++ "  le¦\n"
+    ++ "  let¦?\n"
+    ++ "  let ¦?\n"
+    ++ "  let a¦\n"
+    ++ "  let a ¦\n"
+    ++ "  let a =¦?\n"
+    ++ "  let a = ¦?\n"
+    ++ "  let a = 1¦\n"
+    ++ "  let a = 1 ¦\n"
+    ++ "  let a = 1 i¦?\n"
+    ++ "  let a = 1 in¦?\n"
+    ++ "  let a = 1 in ¦?\n"
+    ++ "  let a = 1 in a¦"
+    ++ "\n"
+    ++ "  let a = 1 in ¦a\n"
+    ++ "  let a = 1 in¦ a\n"
+    ++ "  let a = 1 i¦n a\n"
+    ++ "  let a = 1 ¦in a\n"
+    ++ "  let a = 1¦ in a\n"
+    ++ "  let a = ¦1 in a\n"
+    ++ "  let a =¦ 1 in a\n"
+    ++ "  let a ¦= 1 in a"
+    ++ "\n  let a¦= 1 in a"
+    ++ "\n  let?¦= 1 in a"
+    ++ "\n  let¦?= 1 in a"
+    ++ "\n  let?¦= 1 in a",
+  ),
+  scenario(
+    "A1: deleting the last pattern space keeps the caret on its row",
+    type_string("let a = 1 in a") @ lefts(8) @ backspaces(3),
+    "  l¦\n"
+    ++ "  le¦\n"
+    ++ "  let¦?\n"
+    ++ "  let ¦?\n"
+    ++ "  let a¦\n"
+    ++ "  let a ¦\n"
+    ++ "  let a =¦?\n"
+    ++ "  let a = ¦?\n"
+    ++ "  let a = 1¦\n"
+    ++ "  let a = 1 ¦\n"
+    ++ "  let a = 1 i¦?\n"
+    ++ "  let a = 1 in¦?\n"
+    ++ "  let a = 1 in ¦?\n"
+    ++ "  let a = 1 in a¦"
+    ++ "\n"
+    ++ "  let a = 1 in ¦a\n"
+    ++ "  let a = 1 in¦ a\n"
+    ++ "  let a = 1 i¦n a\n"
+    ++ "  let a = 1 ¦in a\n"
+    ++ "  let a = 1¦ in a\n"
+    ++ "  let a = ¦1 in a\n"
+    ++ "  let a =¦ 1 in a\n"
+    ++ "  let a ¦= 1 in a"
+    ++ "\n  let a¦= 1 in a"
+    ++ "\n  let?¦= 1 in a"
+    ++ "\n  let¦?= 1 in a",
+  ),
   scenario(
     "left-to-right entry: let x = 1 in x",
     type_string("let x = 1 in x"),
@@ -446,7 +599,77 @@ let scenarios = [
   ),
 ];
 
+/* A2: the caret FACES the derived hole beside it (ported
+   direction_at_hole): shape probes over Zipper.Caret.direction. */
+let dir_show = (d: option(Util.Direction.t)): string =>
+  switch (d) {
+  | None => "flat"
+  | Some(Left) => "left"
+  | Some(Right) => "right"
+  };
+
+let facing = (name: string, script: list(Action.t), expected: string) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let z =
+        List.fold_left(
+          (z, a) => Test_Editing.perform(z, [a]),
+          Zipper.init(),
+          script,
+        );
+      Alcotest.check(
+        string_testable,
+        name,
+        expected,
+        dir_show(Zipper.Caret.direction(z)),
+      );
+    },
+  );
+
+/* values verified against virtual-grout's absolute()/decide()
+   computation by hand — the port is exact; `right` at a concave
+   hole's right side and `left` leaning on a convex hole both match
+   vg's andrew-approved live behavior */
+let facings = [
+  facing(
+    "A2: let b = 1 typed on the line above an existing let",
+    type_string("let a = 1 in a")
+    @ lefts(14)
+    @ [Action.Insert("\n")]
+    @ lefts(1)
+    @ type_string("let b = 1"),
+    /* the complaint case: was flat-left (edge rule); the derived
+       junction hole between `1` and the next line now drives it */
+    "right",
+  ),
+  facing(
+    "after 1 in let b = 1 (in owed)",
+    type_string("let b = 1"),
+    "right",
+  ),
+  facing("trailing op: 1 +", type_string("1 +"), "left"),
+  facing("trailing op with space: 1 + ", type_string("1 + "), "left"),
+  facing(
+    "left of an operand hole: let x = | in x",
+    type_string("let x = w in x") @ lefts(5) @ backspaces(1) @ lefts(1),
+    "left",
+  ),
+  facing(
+    "right of an operand hole: let x = |SP in x",
+    type_string("let x = w in x") @ lefts(5) @ backspaces(1),
+    "left",
+  ),
+  facing(
+    "between operands: 1 SP 2 mid",
+    type_string("1  2") @ lefts(2),
+    "right",
+  ),
+];
+
 let tests = [
+  ("FeltPrint: caret facing", facings),
   ("FeltPrint: space runs", space_runs),
   ("FeltPrint: empty runs", empty_runs),
   ("FeltPrint: trailing edge", trailing_edge),

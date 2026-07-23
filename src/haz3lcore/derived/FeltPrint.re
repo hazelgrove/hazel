@@ -156,39 +156,19 @@ let render_ghostless = (seg: Segment.t): string =>
     seg,
   );
 
-/* The future-editor view of an edit state: place the (stripped)
- * edit segment fresh, render felt, and mark the caret. The caret's
- * felt column is its raw column minus the width of raw grout before
- * it on its row (grout is width 1 in today's measured, 0 felt). */
+/* The editor view of an edit state, EDITOR-FAITHFUL: the placed
+ * display segment is measured under width transfer, the caret point
+ * is computed exactly as the editor computes it (Zipper.Caret.point
+ * against the DISPLAY measured), and the marker lands via
+ * measured_caret. A caret bug in the live pipeline reproduces here
+ * by construction. */
 let of_zipper = (~caret="¦", z: Zipper.t): string => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-  let raw_measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
-  let point: Point.t = Zipper.Caret.point(raw_measured, z);
-  let grout_before = {
-    let rec go = (sg: segment, acc: int): int =>
-      List.fold_left(
-        (acc, p: piece) =>
-          switch (p) {
-          | Grout(g) =>
-            switch (Measured.find_g(g, raw_measured)) {
-            | m when m.origin.row == point.row && m.origin.col < point.col =>
-              acc + 1
-            | _ => acc
-            | exception _ => acc
-            }
-          | Tile(t) => List.fold_left((a, k) => go(k, a), acc, t.children)
-          | _ => acc
-          },
-        acc,
-        sg,
-      );
-    go(seg, 0);
-  };
-  let felt_point = {
-    ...point,
-    col: point.col - grout_before,
-  };
-  render(GroutPlace.place(seg))
+  let placed = GroutPlace.place(seg);
+  let measured = Measured.of_segment(placed, Id.Map.empty, Id.Map.empty);
+  let point: Point.t = Zipper.Caret.point(measured, z);
+  let felt_point = measured_caret(~measured, placed, point);
+  measured_print(~measured, placed)
   |> String.split_on_char('\n')
   |> Printer.insert_string(caret, felt_point)
   |> String.concat("\n");

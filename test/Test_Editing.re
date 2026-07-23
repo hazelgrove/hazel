@@ -847,7 +847,10 @@ let insertion_tests = [
        stays a tuple LABEL (no keyword expansion inside the label);
        the caret hopping left of the parens after the label remold is
        known jank, tracked by feel */
-    ~goal={|¦(let=)|},
+    /* caret homes to the parent shard now (base_point ancestor
+       fallback), not (0,0) — the pinned pre-fix landing was itself
+       the empty-child caret bug */
+    ~goal={|(let¦=)|},
   ),
 ];
 
@@ -1039,22 +1042,25 @@ let destruct_tests = [
     ~acts=mk({|"a😄¦"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|"a¦"|},
   ),
-  /* INDENT-LEVEL BACKSPACE */
+  /* INDENT-LEVEL BACKSPACE — capped at the line's AUTO-INDENT level
+     (andrew 2026-07-22): this body line's level is 0, so typed
+     spaces are real material, one per press; the 2-space unit
+     dedent applies only within the auto-indent width */
   test(
-    ~name="Indent-level backspace deletes 2 spaces",
+    ~name="Backspace beyond auto-indent deletes 1 space",
     ~acts=mk({|let x = 1 in
     ¦x|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
-  ¦x|},
+   ¦x|},
   ),
   test(
-    ~name="Indent-level backspace deletes 2 of 4 spaces",
+    ~name="Backspace beyond auto-indent deletes 1 of 4 spaces twice",
     ~acts=
       mk({|let x = 1 in
     ¦x|})
       @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
-¦x|},
+  ¦x|},
   ),
   test(
     ~name="Indent-level backspace deletes 1 space when only 1 exists",
@@ -1064,11 +1070,11 @@ let destruct_tests = [
 ¦x|},
   ),
   test(
-    ~name="Indent-level backspace deletes 2 of 3 spaces",
+    ~name="Backspace beyond auto-indent deletes 1 of 3 spaces",
     ~acts=mk({|let x = 1 in
    ¦x|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
- ¦x|},
+  ¦x|},
   ),
   test(
     ~name="Normal backspace when content before cursor",

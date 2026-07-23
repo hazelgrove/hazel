@@ -36,11 +36,14 @@ type cls =
 type t = {
   classes: Id.Map.t(cls),
   consumed: Id.Map.t(unit),
+  /* space id -> the hole that consumed its cell */
+  consumed_by: Id.Map.t(Id.t),
 };
 
 let empty: t = {
   classes: Id.Map.empty,
   consumed: Id.Map.empty,
+  consumed_by: Id.Map.empty,
 };
 
 let cls_of = (cells: t, id: Id.t): option(cls) =>
@@ -48,6 +51,9 @@ let cls_of = (cells: t, id: Id.t): option(cls) =>
 
 let is_consumed = (cells: t, id: Id.t): bool =>
   Id.Map.mem(id, cells.consumed);
+
+let consumer_of = (cells: t, id: Id.t): option(Id.t) =>
+  Id.Map.find_opt(id, cells.consumed_by);
 
 /* flat adjacency stream; ids kept for grout and spaces (the pieces
  * classification assigns to); everything else is Content or Break */
@@ -93,6 +99,7 @@ let classify = (seg: segment): t => {
         {
           classes: Id.Map.add(gid, PrevSpace, cells.classes),
           consumed: Id.Map.add(sid, (), cells.consumed),
+          consumed_by: Id.Map.add(sid, gid, cells.consumed_by),
         },
         tl,
       )
@@ -101,6 +108,7 @@ let classify = (seg: segment): t => {
         {
           classes: Id.Map.add(gid, NextSpace, cells.classes),
           consumed: Id.Map.add(sid, (), cells.consumed),
+          consumed_by: Id.Map.add(sid, gid, cells.consumed_by),
         },
         tl,
       )

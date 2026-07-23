@@ -64,7 +64,11 @@ type t = {
   secondary: Id.Map.t(measurement),
   projectors: Id.Map.t(measurement),
   rows: Rows.t,
-  piece_rows: list(list(Piece.t)) /* NOTE: sublists are reversed */
+  piece_rows: list(list(Piece.t)), /* NOTE: sublists are reversed */
+  /* the width-transfer classification this measurement was computed
+     under — caret consumers use it to resolve collapsed columns at
+     consumed spaces */
+  grout_cells: GroutCells.t,
 };
 
 let empty = {
@@ -74,6 +78,7 @@ let empty = {
   projectors: Id.Map.empty,
   rows: Rows.empty,
   piece_rows: [],
+  grout_cells: GroutCells.empty,
 };
 
 let add_s = (id: Id.t, i: int, m, map) => {
@@ -489,7 +494,11 @@ let of_segment_inner =
     map: empty,
     row_content: empty_row_content_,
   };
-  go(~top_level=true, initial_acc, seg).map;
+  let map = go(~top_level=true, initial_acc, seg).map;
+  {
+    ...map,
+    grout_cells,
+  };
 };
 
 let of_segment_memo = Core.Memo.general(of_segment_inner);

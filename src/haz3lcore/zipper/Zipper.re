@@ -900,13 +900,65 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
           }
         }
       };
+    /* width transfer: a space whose cell was taken by a FOLLOWING
+       hole measures zero wide, so "after the space" would collapse
+       onto the hole's left edge — redirect to the consuming hole's
+       right edge (its origin equals the space's own cell exactly in
+       that case; a preceding-hole consumer shares the space's
+       collapsed column and the redirect is the identity) */
+    let after_space_col = (w: Secondary.t, m: Measured.measurement) =>
+      switch (GroutCells.consumer_of(measured.grout_cells, w.id)) {
+      | Some(gid) =>
+        switch (Id.Map.find_opt(gid, measured.grout)) {
+        | Some(gm) when gm.origin.row == m.last.row && gm.last.col > m.last.col => {
+            ...m,
+            last: gm.last,
+          }
+        | _ => m
+        }
+      | None => m
+      };
     switch (d) {
-    | Left => safe(ListUtil.last(seg), (m: Measured.measurement) => m.last)
+    | Left =>
+      let last = ListUtil.last(seg);
+      let redirect =
+        switch (last) {
+        | Piece.Secondary(w) when Secondary.is_space(w) => (
+            m => after_space_col(w, m)
+          )
+        | _ => (m => m)
+        };
+      safe(last, (m: Measured.measurement) => redirect(m).last);
     | Right => safe(List.hd(seg), (m: Measured.measurement) => m.origin)
     };
-  | None => {
-      row: 0,
-      col: 0,
+  | None =>
+    /* grout-free edit state: a child segment can be EMPTY (its hole
+       is derived, not stored) — the caret's home is then the parent
+       tile's flanking shard, not (0,0) */
+    switch (z.relatives.ancestors) {
+    | [(a, _), ..._] =>
+      let (l_shards, _) = a.shards;
+      switch (
+        ListUtil.split_last_opt(l_shards),
+        Id.Map.find_opt(a.id, measured.tiles),
+      ) {
+      | (Some((_, idx)), Some(shards)) =>
+        switch (List.assoc_opt(idx, shards)) {
+        | Some(m: Measured.measurement) => m.last
+        | None => {
+            row: 0,
+            col: 0,
+          }
+        }
+      | _ => {
+          row: 0,
+          col: 0,
+        }
+      };
+    | [] => {
+        row: 0,
+        col: 0,
+      }
     }
   };
 };
@@ -962,19 +1014,74 @@ module Caret = {
     | _ => 0
     };
 
-  /* Direction the caret is facing in */
+  /* Caret standing in a whitespace run at a nib-shape conflict, or
+     at the trailing edge: face the DERIVED hole as if it were a real
+     neighbor — left of the hole's cell the caret faces a piece of
+     the hole's shape on its right, and vice versa (ported from
+     virtual-grout's direction_at_hole; the placement index decides
+     which side of the hole this caret position sits on). Empty runs
+     qualify only at the trailing edge, where the hole draws in the
+     free cell past the caret. */
+  let direction_at_hole = (z: t): option(Direction.t) => {
+    let (pre, suf) = sibs_with_sel(z);
+    let rec split_ws = (acc, xs: list(Piece.t)) =>
+      switch (xs) {
+      | [Piece.Secondary(w), ...xs] => split_ws([w, ...acc], xs)
+      | _ => (acc, xs)
+      };
+    let (run_l, rest_l) = split_ws([], List.rev(pre));
+    let (run_r_rev, rest_r) = split_ws([], suf);
+    let run = run_l @ List.rev(run_r_rev);
+    let at_trailing_edge = rest_r == [] && z.relatives.ancestors == [];
+    if (run == [] && !at_trailing_edge) {
+      None;
+    } else {
+      let l_shape =
+        switch (rest_l) {
+        | [p, ..._] => p |> Piece.shapes |> Option.map(snd)
+        | [] => Some(Nib.Shape.concave())
+        };
+      let r_shape =
+        switch (rest_r) {
+        | [p, ..._] => p |> Piece.shapes |> Option.map(fst)
+        | [] => Some(Nib.Shape.concave())
+        };
+      switch (l_shape, r_shape) {
+      | (Some(l), Some(r)) when !Nib.Shape.fits(l, r) =>
+        let hole_shape = Nib.Shape.flip(l);
+        let placement =
+          HolePlacement.decide(
+            ~at_boundary=rest_r == [],
+            ~leading=rest_l == [],
+            run,
+          );
+        let side: Direction.t =
+          List.length(run_l) <= placement.index ? Left : Right;
+        Some(Nib.Shape.absolute(side, hole_shape));
+      | _ => None
+      };
+    };
+  };
+
+  /* Direction the caret is facing in. Derived holes win over the
+     plain neighbor/edge rules: a caret standing at a conflict's run
+     faces the hole, not the edge. */
   let direction = (z: t): option(Direction.t) =>
     switch (z.caret) {
     | Inner(_) => None
     | Outer =>
-      switch (Siblings.neighbors(sibs_with_sel(z))) {
-      | (Some(l), Some(r))
-          when
-            Piece.is_secondary(l)
-            && Piece.is_secondary(r)
-            && Selection.is_empty(z.selection) =>
-        None
-      | _ => Siblings.direction_between(sibs_with_sel(z))
+      switch (direction_at_hole(z)) {
+      | Some(d) => Some(d)
+      | None =>
+        switch (Siblings.neighbors(sibs_with_sel(z))) {
+        | (Some(l), Some(r))
+            when
+              Piece.is_secondary(l)
+              && Piece.is_secondary(r)
+              && Selection.is_empty(z.selection) =>
+          None
+        | _ => Siblings.direction_between(sibs_with_sel(z))
+        }
       }
     };
 

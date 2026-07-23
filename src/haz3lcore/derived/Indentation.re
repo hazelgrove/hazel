@@ -71,7 +71,12 @@ let compute_context =
       let new_last_contentful =
         switch (x) {
         | Secondary(s) when Secondary.is_linebreak(s) => last_contentful /* Skip linebreaks */
-        | _ => Some(x) /* Update for contentful pieces (incl. grout) */
+        /* a DERIVED HOLE never anchors indent: it is a presumption,
+           not content — the (incrementor, prev_is_lb) chain reads
+           through it; hole-adjacent cases are governed by the rule
+           ORDER below (end-of-context rules precede the child +2) */
+        | Grout(_) => last_contentful
+        | _ => Some(x) /* Update for contentful pieces */
         };
       [
         (effective_prev, next, effective_next),
@@ -250,9 +255,11 @@ let rec go =
       | Secondary(w) => Secondary.is_linebreak(w)
       | _ => false
       };
+    /* grout is transparent to the marking, as to the anchor chain */
     let rec mark = (flag, xs) =>
       switch (xs) {
       | [] => []
+      | [Piece.Grout(_), ...rest] => [flag, ...mark(flag, rest)]
       | [x, ...rest] => [flag, ...mark(is_lb(x), rest)]
       };
     mark(false, complete_trimmed_seg);
@@ -277,6 +284,14 @@ let rec go =
             | (Some(prev), _) when is_complete_case_rule_with_body(prev) => base
             /* only the FIRST linebreak after an incrementor takes
                the +2; consecutive linebreaks inherit its level */
+            /* end-of-context first (before the incrementor and child
+               +2 rules): a child whose remaining material is only its
+               derived hole (if/then's else line, the let's in line,
+               Enter in empty parens) stays at its entry level — the
+               increments are for content ahead, and a hole is not
+               content */
+            | (_, None) when not_top => base
+            | _ when not_top && effective_next == None => base
             | (Some(prev), _) when is_incrementor(prev) =>
               prev_is_lb ? level : level + 2
             | (None, _) when not_top => base + 2
@@ -292,7 +307,14 @@ let rec go =
             /* Continuation lines in children: when in child context with
              * content before and after the linebreak, use child indentation.
              * Note: This only works after Format, not during auto-indent,
-             * because at typing time next is unknown. */
+             * because at typing time next is unknown.
+             * A DERIVED HOLE is not user content: a presumption owed
+             * after the linebreak (e.g. an unclosed `let` above
+             * absorbing later lines, its owed body hole trailing the
+             * caret) must not indent the user's fresh line — the user
+             * has written nothing there yet (andrew's Enter-indent
+             * repro, 2026-07-22). */
+            | (_, Some(Piece.Grout(_))) when not_top => level
             | (_, Some(_)) when not_top => base + 2
             | (_, Some(_)) => level
             };

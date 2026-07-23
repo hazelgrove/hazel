@@ -1154,9 +1154,13 @@ let opener_wall_tests = [
   edit_case(
     ~name="multiline bracket absorption is not walled",
     /* line 2 starts with an operand, not a prefix form: the opener
-       keeps its maximal-left span across the linebreak */
+       keeps its maximal-left span across the linebreak. The typed
+       space after `1` survives (spaces are real material) and line 2
+       stays at 0 at TYPING time — the documented conservative
+       ambiguous-case behavior; Format indents it later (the old +2
+       here rode on the hole counting as known next-content) */
     ~acts=Test_Editing.mk("[¦1 +\n2]") @ [destruct_l],
-    ~expected="[1+\n  2]",
+    ~expected="[1 +\n2]",
   ),
   edit_case(
     ~name="inline paren around a let keeps its maximal reading",
