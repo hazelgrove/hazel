@@ -9,12 +9,26 @@ let list_concat_exp = () => mk_monotile(ListConcat, Exp);
 let tuple_extension_exp = () => mk_monotile(TupleExtension, Exp);
 let cons_pat = () => mk_monotile(Cons, Pat);
 let seq = () => mk_monotile(CellJoin, Exp);
-/* Pseudo-syntax placeholder tokens ("e1", "...", ...): always convex
- * operands, whatever the token would mean in the grammar */
-let exp = v => Piece.mk_tile((Form.TokOperand(v), Sort.Exp), []);
-let pat = v => Piece.mk_tile((Form.TokOperand(v), Sort.Pat), []);
-let typ = t => Piece.mk_tile((Form.TokOperand(t), Sort.Typ), []);
-let tpat = v => Piece.mk_tile((Form.TokOperand(v), Sort.TPat), []);
+/* Placeholder tokens must be operands: an operator-shaped token here
+ * (e.g. ASCII "..." = TupleExtension) makes the docs segment nonconvex
+ * and crashes the skel. Failfast at init; use Token.ellipsis for
+ * ellipsis placeholders. */
+let operand = (sort, v) => {
+  let p = Piece.mk_tile(Form.classify_label(sort, [v]), []);
+  switch (p) {
+  | Tile(t) =>
+    let (l, r) = Tile.mold(t).nibs;
+    if (l.shape != Convex || r.shape != Convex) {
+      failwith("Example: placeholder is not an operand: " ++ v);
+    };
+  | _ => ()
+  };
+  p;
+};
+let exp = v => operand(Sort.Exp, v);
+let pat = v => operand(Sort.Pat, v);
+let typ = t => operand(Sort.Typ, t);
+let tpat = v => operand(Sort.TPat, v);
 let mk_parens_exp = mk_tile(Parens, Exp);
 let mk_parens_pat = mk_tile(Parens, Pat);
 let mk_parens_typ = mk_tile(Parens, Typ);

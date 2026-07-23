@@ -7,9 +7,9 @@ let tuple_typ: form = {
   let comma = comma_typ();
   {
     id: TupleTyp,
-    syntactic_form: [typ("ty1"), comma, space(), typ("...")],
+    syntactic_form: [typ("ty1"), comma, space(), typ("…")],
     expandable_id:
-      Some((Piece.id(comma), [typ("ty1"), comma_typ(), typ("...")])),
+      Some((Piece.id(comma), [typ("ty1"), comma_typ(), typ("…")])),
     explanation,
     examples: [],
   };

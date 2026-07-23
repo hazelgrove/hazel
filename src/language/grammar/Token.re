@@ -280,7 +280,10 @@ let bad_token_cls: string => bad_token_cls =
 let explicit_hole = "?";
 let llm_hole = "??";
 let llm_advanced_reasoning_hole = "?a";
-let is_explicit_hole = t => t == explicit_hole;
+/* "…" is a hole alias: placeholder ellipses in illustration code
+ * (ExplainThis forms, tutorial examples) are holes semantically */
+let ellipsis = "\xe2\x80\xa6"; /* … */
+let is_explicit_hole = t => t == explicit_hole || t == ellipsis;
 
 /* Implicit-hole marker: the textual stand-in for a Grout piece used by
  * Haz3lcore.TextRoundtrip so decode|encode round-trips preserve Grout

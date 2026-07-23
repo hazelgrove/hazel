@@ -43,9 +43,9 @@ let case_exp: form = {
         space(),
         exp("e1"),
         linebreak(),
-        mk_rule([[space(), pat("..."), space()]]),
+        mk_rule([[space(), pat("…"), space()]]),
         space(),
-        exp("..."),
+        exp("…"),
         linebreak(),
       ],
     ]);

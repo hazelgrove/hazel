@@ -34,9 +34,9 @@ let tuple_exp: form = {
   let comma = comma_exp();
   {
     id: TupleExp,
-    syntactic_form: [exp("e1"), comma, space(), exp("...")],
+    syntactic_form: [exp("e1"), comma, space(), exp("…")],
     expandable_id:
-      Some((Piece.id(comma), [exp("e1"), comma_exp(), exp("...")])),
+      Some((Piece.id(comma), [exp("e1"), comma_exp(), exp("…")])),
     explanation,
     examples: [
       tuple_example_1,

@@ -7,9 +7,9 @@ let tuple_pat: form = {
   let comma = comma_pat();
   {
     id: TuplePat,
-    syntactic_form: [pat("p1"), comma, space(), pat("...")],
+    syntactic_form: [pat("p1"), comma, space(), pat("…")],
     expandable_id:
-      Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("...")])),
+      Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("…")])),
     explanation,
     examples: [],
   };

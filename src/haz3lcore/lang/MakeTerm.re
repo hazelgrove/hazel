@@ -35,8 +35,7 @@ let head: Piece.t => head =
     (t: Tile.t) =>
       F(
         switch (t.form) {
-        | TokInfix(tok)
-        | TokOperand(tok) => Tok(tok)
+        | TokInfix(tok) => Tok(tok)
         | f => f
         },
       ),
@@ -50,8 +49,7 @@ let head: Piece.t => head =
 let is_empty_tuple_form: Form.t => bool =
   fun
   | Tok(t)
-  | TokInfix(t)
-  | TokOperand(t) => Token.is_empty_tuple(t)
+  | TokInfix(t) => Token.is_empty_tuple(t)
   | Compound(ApEmpty) => true
   | Compound(_) => false;
 

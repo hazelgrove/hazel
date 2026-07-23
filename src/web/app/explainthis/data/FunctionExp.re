@@ -286,7 +286,7 @@ let function_listnil_exp: form = {
     examples: [listnil_fun_ex],
   };
 };
-let p = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]);
+let p = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("…")]]);
 let e = exp("e");
 let function_listlit_exp_coloring_ids =
   pat_body_function_exp_coloring_ids(Piece.id(p), Piece.id(e));
@@ -299,7 +299,7 @@ let function_listlit_exp: form = {
     expandable_id:
       Some((
         Piece.id(p),
-        [mk_list_pat([[pat("p1"), comma_pat(), pat("...")]])],
+        [mk_list_pat([[pat("p1"), comma_pat(), pat("…")]])],
       )),
     explanation,
     examples: [listnil_fun_ex, listlit_fun_ex],
@@ -385,7 +385,7 @@ let function_tuple_exp_coloring_ids =
 let function_tuple_exp: form = {
   let explanation = "The only values that match the [*argument pattern*](%s) are %s-tuples where each element matches the corresponding argument element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   let form = [
-    mk_fun([[space(), pat("p1"), comma, space(), pat("..."), space()]]),
+    mk_fun([[space(), pat("p1"), comma, space(), pat("…"), space()]]),
     space(),
     e,
   ];
@@ -393,7 +393,7 @@ let function_tuple_exp: form = {
     id: FunctionExp(Tuple),
     syntactic_form: form,
     expandable_id:
-      Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("...")])),
+      Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("…")])),
     explanation,
     examples: [tuple2_fun_ex, tuple3_fun_ex],
   };

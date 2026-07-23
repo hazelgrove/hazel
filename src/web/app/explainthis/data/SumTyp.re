@@ -12,7 +12,7 @@ let labelled_sum_typ: form = {
       space(),
       divider,
       space(),
-      typ("..."),
+      typ("…"),
       space(),
     ],
     expandable_id: None,

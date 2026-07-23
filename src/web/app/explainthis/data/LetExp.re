@@ -349,7 +349,7 @@ let let_triv_exp: form = {
     examples: [let_triv_ex],
   };
 };
-let p = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]);
+let p = mk_list_pat([[pat("p1"), comma_pat(), space(), pat("…")]]);
 let exp_def = exp("e_def");
 let let_listlit_exp_coloring_ids =
   pat_def_let_exp_coloring_ids(Piece.id(p), Piece.id(exp_def));
@@ -364,7 +364,7 @@ let let_listlit_exp: form = {
     id: LetExp(ListLit),
     syntactic_form: form,
     expandable_id:
-      Some((Piece.id(p), [pat("p1"), comma_pat(), pat("...")])),
+      Some((Piece.id(p), [pat("p1"), comma_pat(), pat("…")])),
     explanation,
     examples: [let_listlit_ex],
   };
@@ -455,7 +455,7 @@ let let_tuple_exp: form = {
   let explanation = "The only values for the [*definition*](%s) that match the [*pattern*](%s) are %s-tuples where each element matches the corresponding element pattern.";
   let form = [
     mk_let([
-      [space(), pat("p1"), comma, space(), pat("..."), space()],
+      [space(), pat("p1"), comma, space(), pat("…"), space()],
       [space(), exp_def, space()],
     ]),
     linebreak(),
@@ -465,7 +465,7 @@ let let_tuple_exp: form = {
     id: LetExp(Tuple),
     syntactic_form: form,
     expandable_id:
-      Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("...")])),
+      Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("…")])),
     explanation,
     examples: [let_tuple2_ex, let_tuple3_ex],
   };

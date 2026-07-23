@@ -7,7 +7,7 @@ let listlit_pat: form = {
   {
     id: ListLitPat,
     syntactic_form: [
-      mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]),
+      mk_list_pat([[pat("p1"), comma_pat(), space(), pat("…")]]),
     ],
     expandable_id: None,
     explanation,
