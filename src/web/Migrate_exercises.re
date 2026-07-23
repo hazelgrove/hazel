@@ -1,7 +1,7 @@
 /* DISPOSAL: originally disposable migration tooling for the tile FormId
  * change; now also the re-export tool for the example exercise modules'
  * shipped (persistent) format, so keep it as long as those modules exist.
- * The migration-specific companions (LegacyBase.re, LegacyBaseV1.re,
+ * The migration-specific companions (LegacyBase.re,
  * Migrate_slides.re) can still be deleted once tile-datatype has merged to
  * dev and active feature branches have run the recipe in
  * scripts/README_migrate_tile_format.md. Nothing at runtime depends on

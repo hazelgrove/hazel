@@ -816,26 +816,32 @@ let family_mold_tbl: Hashtbl.t((family, Sort.t), Mold.t) = {
   tbl;
 };
 
-let unmolded_mold = (label: Label.t): Mold.t =>
+let unmolded_mold = (label: Label.t, sort: Sort.t): Mold.t =>
   switch (label) {
   | [t]
       when Token.is_potential_operator(t) && !Token.is_potential_operand(t) =>
-    Mold.mk_bin(Precedence.max, Any, [])
-  | _ => Mold.mk_op(Any, [])
+    Mold.mk_bin(Precedence.max, sort, [])
+  | _ => Mold.mk_op(sort, [])
   };
 
 /* The mold of a form at the tile's stored sort. Compound: the family
- * row with that out sort, else the Any-fallback (in particular
- * sort=Any always falls back — no form has out=Any). Tok: the first
- * atomic-candidate mold with that out sort (atomic_form declaration
- * order), else the Any-fallback. TokInfix: the InfixDelimiterPrefix
- * bin, uniformly at any sort. */
+ * row with that out sort; rowless Parens wraps one child at the
+ * requested sort; other rowless families get the Any-fallback (in
+ * particular sort=Any always falls back — no form has out=Any). Tok:
+ * the first atomic-candidate mold with that out sort (atomic_form
+ * declaration order), else the fallback at the stored sort
+ * (editor-classified fallbacks store Any; printer-built leaves store
+ * a concrete sort). TokInfix: the InfixDelimiterPrefix bin, uniformly
+ * at any sort. */
 let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
   switch (f) {
   | Compound(fam) =>
     switch (Hashtbl.find_opt(family_mold_tbl, (fam, sort))) {
     | Some(mold) => mold
-    | None => unmolded_mold(label_of_family(fam))
+    /* parens wrap one child at every sort (old mk_parens semantics);
+     * the grammar table only registers the common sorts */
+    | None when fam == Parens => Mold.mk_op(sort, [sort])
+    | None => unmolded_mold(label_of_family(fam), Sort.Any)
     }
   | Tok(t) =>
     switch (
@@ -845,7 +851,7 @@ let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
       )
     ) {
     | Some((_, m)) => m
-    | None => unmolded_mold([t])
+    | None => unmolded_mold([t], sort)
     }
   | TokInfix(_) => Mold.mk_bin(Precedence.concave_grout, sort, [])
   };

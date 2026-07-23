@@ -4,7 +4,7 @@
 Originally migration tooling for the tile FormId change; now also part of
 the re-export flow for the example exercise modules' shipped (persistent)
 format, so it stays alongside src/web/Migrate_exercises.re. (The
-migration-specific companions src/web/LegacyBase.re, src/web/LegacyBaseV1.re
+migration-specific companions src/web/LegacyBase.re
 and src/web/Migrate_slides.re remain disposable once tile-datatype has
 merged to dev and active feature branches have run the recipe in
 scripts/README_migrate_tile_format.md.) Nothing at runtime depends on it.

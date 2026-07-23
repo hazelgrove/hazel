@@ -941,7 +941,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
-      | ([(_id, (op, _))], []) =>
+      | ([(_id, (op, []))], []) =>
         ret(
           switch (op) {
           | F(Compound(Plus)) => BinOp(Int(Plus), l, r)

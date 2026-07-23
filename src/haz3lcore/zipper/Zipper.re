@@ -90,6 +90,7 @@ let rescan_parent_shards = (z: t): t => {
           ...t,
           id: a.Ancestor.id,
           form: a.Ancestor.form,
+          sort: a.Ancestor.sort,
           shards: [idx],
         })
       | None => p
