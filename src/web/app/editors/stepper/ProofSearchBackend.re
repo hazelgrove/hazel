@@ -117,6 +117,13 @@ let forall_string = (~domain, vars) =>
 
 let tactic_plan_purpose_for_automation_stage = Axioms.tactic_plan_purpose_for_stage;
 
+/* Auto simplify chooses the candidate automatically, but validates it with
+   exactly the same profile-bounded proof power as Check Result. */
+let validation_purpose =
+  fun
+  | Axioms.AutoSimplify => Axioms.CheckResult
+  | purpose => purpose;
+
 let effective_level_for_request = request =>
   effective_profile_for_request(request).level;
 
@@ -140,9 +147,9 @@ let rocq_plan_for_profile_and_purpose = (profile, purpose) =>
   switch (purpose) {
   | Axioms.ValidatePrimitiveStep =>
     Axioms.stage_plan_for_profile(profile, Manual).rocq_plan
-  | CheckResult =>
+  | CheckResult
+  | AutoSimplify =>
     Axioms.stage_plan_for_profile(profile, MultiStepCheck).rocq_plan
-  | AutoSimplify => Axioms.stage_plan_for_profile(profile, AutoEval).rocq_plan
   | ValidateMacroStep =>
     Axioms.active_rocq_tactic_plan_for_profile(profile, purpose)
   };
@@ -854,7 +861,7 @@ let calculus_search_program =
                ++ ") H_hazel_cleanup).";
              };
            Printf.sprintf(
-             "From Stdlib Require Import Rbase Rfunctions Ranalysis1 Ranalysis3 Rtrigo_reg Lra.\nOpen Scope R_scope.\n\n(* Hazel profile-directed derivative certificate. *)\nTheorem %s : forall %s : R, %sderivable_pt_lim (fun %s : R => %s) %s (%s).\nProof.\nintros.\nassert (H_hazel_derivative : derivable_pt_lim %s %s (%s)).\n{ %s }\n%s\nQed.",
+             "From Stdlib Require Import Rbase Rfunctions Ranalysis1 Ranalysis3 Rtrigo1 Rtrigo_reg Lra.\nOpen Scope R_scope.\n\n(* Hazel profile-directed derivative certificate. *)\nTheorem %s : forall %s : R, %sderivable_pt_lim (fun %s : R => %s) %s (%s).\nProof.\nintros.\nassert (H_hazel_derivative : derivable_pt_lim %s %s (%s)).\n{ %s }\n%s\nQed.",
              theorem_name,
              String.concat(" ", vars),
              hypotheses,
@@ -1008,6 +1015,7 @@ let equivalence_check_result_script = (~domain, profile) =>
 
 let rocq_search_program_for_profile_and_purpose_internal =
     (~profile, ~purpose, ~equivalence_fallback, request) => {
+  let purpose = validation_purpose(purpose);
   let calculus_program =
     switch (purpose, equivalence_fallback) {
     | (Axioms.CheckResult, false) =>

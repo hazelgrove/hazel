@@ -667,6 +667,10 @@ let normalizer_prover_steps = (~from_, ~to_, rule_ids) => {
     [
       ("arith.add_neg", "cancel additive inverses"),
       ("alg.distribute_mul_add", "distribute multiplication over addition"),
+      (
+        "alg.distribute_div_add",
+        "distribute division over addition or subtraction",
+      ),
       ("alg.factor_common", "factor common multiplicative term"),
       ("alg.expand_polynomial", "expand polynomial product"),
       ("alg.collect_like_terms", "collect polynomial like terms"),
@@ -1521,6 +1525,37 @@ let distribute_factor_over_additive = (times_op, factor, additive) =>
   distribute_factor_over_additive_candidates(times_op, factor, additive)
   |> ListUtil.hd_opt;
 
+let distribute_additive_over_factor_candidates = (times_op, additive, factor) => {
+  let additive = strip_math_wrappers(additive);
+  switch (additive.term) {
+  | BinOp(add_op, _, _) when is_plus_op(add_op) => [
+      shape_sum_terms(additive)
+      |> List.map(term => times_exp_with_op(times_op, term, factor))
+      |> trace_sum_exp,
+    ]
+  | BinOp(add_op, add_left, add_right) when is_minus_op(add_op) =>
+    let left_product = times_exp_with_op(times_op, add_left, factor);
+    let right_product = times_exp_with_op(times_op, add_right, factor);
+    let subtraction =
+      distributed_additive_exp(add_op, left_product, right_product);
+    switch (plus_op_for_minus(add_op)) {
+    | Some(plus_op) =>
+      let negative_right_product =
+        times_exp_with_op(times_op, negate_exp(add_right), factor);
+      [
+        subtraction,
+        plus_exp_with_op(plus_op, left_product, negative_right_product),
+      ];
+    | None => [subtraction]
+    };
+  | _ => []
+  };
+};
+
+let distribute_additive_over_factor = (times_op, additive, factor) =>
+  distribute_additive_over_factor_candidates(times_op, additive, factor)
+  |> ListUtil.hd_opt;
+
 let distribute_factor_over_quotient_numerator = (times_op, factor, quotient) => {
   let quotient = strip_math_wrappers(quotient);
   switch (quotient.term) {
@@ -1549,7 +1584,7 @@ let distribute_mul_over_add = (exp: Exp.t): option(Exp.t) => {
     let right = strip_math_wrappers(right);
     switch (
       distribute_factor_over_additive(times_op, left, right),
-      distribute_factor_over_additive(times_op, right, left),
+      distribute_additive_over_factor(times_op, left, right),
       distribute_factor_over_quotient_numerator(times_op, left, right),
       distribute_factor_over_quotient_numerator(times_op, right, left),
     ) {
@@ -1570,7 +1605,7 @@ let distribute_mul_over_add_candidates = (exp: Exp.t): list(Exp.t) => {
     let left = strip_math_wrappers(left);
     let right = strip_math_wrappers(right);
     distribute_factor_over_additive_candidates(times_op, left, right)
-    @ distribute_factor_over_additive_candidates(times_op, right, left)
+    @ distribute_additive_over_factor_candidates(times_op, left, right)
     @ (
       distribute_factor_over_quotient_numerator(times_op, left, right)
       |> Option.to_list
@@ -1579,6 +1614,22 @@ let distribute_mul_over_add_candidates = (exp: Exp.t): list(Exp.t) => {
       distribute_factor_over_quotient_numerator(times_op, right, left)
       |> Option.to_list
     );
+  | _ => []
+  };
+};
+
+let distribute_div_over_add_candidates = (exp: Exp.t): list(Exp.t) => {
+  let exp = strip_math_wrappers(exp);
+  switch (exp.term) {
+  | BinOp(divide_op, numerator, denominator) when is_divide_op(divide_op) =>
+    switch (strip_math_wrappers(numerator).term) {
+    | BinOp(add_op, left, right)
+        when is_plus_op(add_op) || is_minus_op(add_op) =>
+      let left_quotient = Exp.fresh(BinOp(divide_op, left, denominator));
+      let right_quotient = Exp.fresh(BinOp(divide_op, right, denominator));
+      [distributed_additive_exp(add_op, left_quotient, right_quotient)];
+    | _ => []
+    }
   | _ => []
   };
 };
@@ -2363,13 +2414,20 @@ let normalize_algebra_shape = exp =>
       switch (multiply_conjugates(exp)) {
       | Some(expanded) => Some((expanded, ["alg.expand_polynomial"]))
       | None =>
-        switch (distribute_mul_over_add(exp)) {
-        | Some(expanded) => Some((expanded, ["alg.distribute_mul_add"]))
-        | None =>
-          switch (normalize_common_factor_sum(exp)) {
-          | Some(expanded) =>
-            Some((expanded, ["alg.factor_common", "alg.distribute_mul_add"]))
-          | None => polynomial_expansion_target(exp)
+        switch (distribute_div_over_add_candidates(exp)) {
+        | [expanded, ..._] => Some((expanded, ["alg.distribute_div_add"]))
+        | [] =>
+          switch (distribute_mul_over_add(exp)) {
+          | Some(expanded) => Some((expanded, ["alg.distribute_mul_add"]))
+          | None =>
+            switch (normalize_common_factor_sum(exp)) {
+            | Some(expanded) =>
+              Some((
+                expanded,
+                ["alg.factor_common", "alg.distribute_mul_add"],
+              ))
+            | None => polynomial_expansion_target(exp)
+            }
           }
         }
       }
@@ -2696,6 +2754,21 @@ let local_rewrite_for_algebra = (rule_ids, from_, to_) =>
         to_,
       )
     };
+  } else if (has_rule_id("alg.distribute_div_add", rule_ids)) {
+    switch (distribute_div_over_add_candidates(from_)) {
+    | [after_exp, ..._] => {
+        before_exp: from_,
+        after_exp,
+        occurrence: 1,
+        detail: "single division distribution",
+      }
+    | [] =>
+      whole_local_rewrite(
+        ~detail="single algebra rule over whole expression",
+        from_,
+        to_,
+      )
+    };
   } else {
     whole_local_rewrite(
       ~detail="single algebra rule over whole expression",
@@ -2747,6 +2820,21 @@ let distribution_policy_allows_simplification =
   | Axioms.StrictDistributedForm => false
   | DistributionMaySimplify => true;
 
+let check_single_division_distribution = (group, profile, from_, to_) =>
+  if (!
+        Axioms.visible_rule_enabled(
+          profile.Axioms.step_policy,
+          "alg.distribute_div_add",
+        )) {
+    None;
+  } else {
+    distribute_div_over_add_candidates(from_)
+    |> List.find_opt(distributed => TrigRewrite.exp_same(distributed, to_))
+    |> Option.map(_ =>
+         single_algebra_result(group, ["alg.distribute_div_add"], from_, to_)
+       );
+  };
+
 let check_single_distribution_or_expansion = (group, profile, from_, to_) => {
   let policy = profile.Axioms.one_step_policy;
   let is_named_algebra_identity =
@@ -2776,7 +2864,7 @@ let check_single_distribution_or_expansion = (group, profile, from_, to_) => {
       distribution_policy_allows_simplification(
         policy.Axioms.distribution_step_policy,
       );
-    if (exp_has_sum(to_)
+    if ((exp_has_sum(to_) || polynomial_exp_has_multiple_terms(to_))
         && has_single_distributed_additive_term(
              distribution_cleanup,
              from_,
@@ -3320,10 +3408,16 @@ let check_single_algebra_rule_result_for_profile =
       | Some(result) => Some(result)
       | None =>
         switch (
-          check_single_distribution_or_expansion(group, profile, from_, to_)
+          check_single_division_distribution(group, profile, from_, to_)
         ) {
         | Some(result) => Some(result)
-        | None => check_single_factor_common(group, from_, to_)
+        | None =>
+          switch (
+            check_single_distribution_or_expansion(group, profile, from_, to_)
+          ) {
+          | Some(result) => Some(result)
+          | None => check_single_factor_common(group, from_, to_)
+          }
         }
       }
     };
@@ -3747,6 +3841,7 @@ let check_single_catalog_rule =
         to_,
       )
     | Some(AlgebraDistributeMulAdd)
+    | Some(AlgebraDistributeDivAdd)
     | Some(AlgebraFactorCommon)
     | Some(AlgebraCancelCommonAdd) =>
       check_single_algebra_rule_result_for_profile(
@@ -3943,7 +4038,6 @@ let trace_rule_allowed_by_profile = (profile: Axioms.math_profile, rule_id) =>
          require every optional cleanup prerequisite here. The trace gate
          below separately checks each cleanup rule that was actually used. */
       List.mem(rule.id, profile.check_result_rule_ids)
-      && profile.one_step_policy.allow_polynomial_expansion
       && Axioms.visible_rule_enabled(
            profile.step_policy,
            "alg.distribute_mul_add",

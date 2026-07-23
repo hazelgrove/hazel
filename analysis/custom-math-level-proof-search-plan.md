@@ -137,6 +137,37 @@ teacher-enabled conceptual operation, but its evidence must contain or justify
 a plan composed from repeated distribution plus only the enabled cleanup
 capabilities. This is polynomial-wide behavior, not a FOIL recognizer.
 
+#### Temporary repeated-distribution bridge
+
+The current implementation includes a deliberately small bridge in
+[`ProfileBoard.re`](../src/web/app/editors/stepper/ProfileBoard.re): the
+distribution operation has an **Allow repeated distribution in one step**
+control under **Allowed step operations → Algebra**. It updates
+`one_step_policy.allow_polynomial_expansion` through the temporary
+`one-step.repeat-distribution` option. One Step uses that switch to distinguish
+one primitive distribution from a complete expansion, while Check Result keeps
+its independently authorized expansion route.
+
+This is general polynomial behavior rather than an expression-specific FOIL
+recognizer, but its Profile rendering and policy field are intentionally
+rule-specific. During this refactor:
+
+- replace the hard-coded `alg.distribute_mul_add` UI placement with
+  catalog-driven stage-usage metadata;
+- compile controls such as `Disabled`, `AtMostOne`, and `BoundedClosure` for
+  every eligible primitive rule;
+- preserve primitive factor order so distribution does not implicitly require
+  multiplication commutativity;
+- migrate the existing checkbox state to the compiled distribution allowance;
+- remove `one-step.repeat-distribution` and
+  `allow_polynomial_expansion` after every consumer uses the shared proof-plan
+  policy.
+
+The intended result should look much like the current UI—a repeated-use
+refinement located beside distribution—but it must be generated from catalog
+metadata and reusable for commutation, reassociation, or other rules rather
+than inserted by a distribution-specific branch.
+
 ### Proof-plan intermediate representation
 
 Hazel should produce a typed proof plan before asking Rocq to validate:

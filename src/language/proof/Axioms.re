@@ -113,6 +113,7 @@ type hazel_rule_backend =
   | ArithmeticMulIdentity
   | AlgebraIdentity
   | AlgebraDistributeMulAdd
+  | AlgebraDistributeDivAdd
   | AlgebraFactorCommon
   | AlgebraCancelCommonAdd
   | TrigIdentity
@@ -283,7 +284,7 @@ let automation_stage_detail =
   fun
   | Manual => "one visible Hazel step"
   | MultiStepCheck => "compare normal forms"
-  | AutoEval => "apply rewrite group";
+  | AutoEval => "prefill a simplified result";
 
 type construct_requirement = {
   construct: string,
@@ -643,6 +644,11 @@ let algebra_rewrite_group = {
       id: "alg.distribute_mul_add",
       label: "distribute multiplication over addition",
       prover_hints: [lean("rw [mul_add, add_mul]")],
+    },
+    {
+      id: "alg.distribute_div_add",
+      label: "distribute division over addition or subtraction",
+      prover_hints: [lean("rw [add_div, sub_div]")],
     },
     {
       id: "alg.factor_common",
@@ -1165,6 +1171,13 @@ let visible_rule_metadata = rule_id =>
       ~short_name="Dist",
       ~example="x * (a + b) = x * a + x * b",
     )
+  | "alg.distribute_div_add" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Distribute division over addition or subtraction",
+      ~short_name="Dist /",
+      ~example="(a - b) / c = a / c - b / c",
+    )
   | "alg.factor_common" =>
     operation_metadata(
       ~id=rule_id,
@@ -1491,8 +1504,13 @@ let calculus_step_cleanup =
   structural_identity_cleanup @ [DerivativeBasics, PowerIdentity];
 
 let calculus_step_cleanup_for_rule = rule_id =>
-  List.mem(rule_id, ["calc.diff_power", "calc.diff_product"])
-    ? calculus_step_cleanup : [];
+  /* Keep linearity visible as its own teaching step. Every rule that actually
+     differentiates one term may apply the enabled calculus cleanup policy. */
+  List.mem(
+    rule_id,
+    ["calc.diff_sum", "calc.diff_difference", "calc.diff_negation"],
+  )
+    ? [] : calculus_step_cleanup;
 
 let assoc_cleanup = [AddAssoc, MulAssoc];
 
@@ -1629,6 +1647,18 @@ let rocq_backend_for_rule_id =
         ],
         ~replay_reals=[
           "first [rewrite Rmult_plus_distr_l | rewrite Rmult_plus_distr_r]",
+        ],
+      ),
+    )
+  | "alg.distribute_div_add" =>
+    Some(
+      rocq_rule_backend_with_replay(
+        ~tactic="hazel_rewrite_step",
+        ~integers=[],
+        ~reals=["rewrite Rdiv_plus_distr", "rewrite Rdiv_minus_distr"],
+        ~replay_integers=[],
+        ~replay_reals=[
+          "first [rewrite Rdiv_plus_distr | rewrite Rdiv_minus_distr]",
         ],
       ),
     )
@@ -2323,6 +2353,13 @@ let math_rule_catalog = {
         ~allowed_cleanup=ac_cleanup @ [PowerNotation],
       ),
       catalog_rule(
+        ~id="alg.distribute_div_add",
+        ~direction=Forward,
+        ~hazel_backend=Some(AlgebraDistributeDivAdd),
+        ~introduced_levels=[Algebra],
+        ~allowed_cleanup=[],
+      ),
+      catalog_rule(
         ~id="alg.factor_common",
         ~direction=BothDirections,
         ~hazel_backend=Some(AlgebraFactorCommon),
@@ -2620,6 +2657,7 @@ let rocq_check_result_tactic_plan_for_node = level => {
           ~tactic="hazel_rewrite_search 10%nat",
           ~rule_ids=[
             "alg.distribute_mul_add",
+            "alg.distribute_div_add",
             "alg.factor_common",
             "alg.cancel_common_add",
           ],
@@ -2727,6 +2765,7 @@ let rocq_validate_primitive_tactic_plan_for_node = level => {
           ~tactic="hazel_rewrite_search 1%nat",
           ~rule_ids=[
             "alg.distribute_mul_add",
+            "alg.distribute_div_add",
             "alg.factor_common",
             "alg.cancel_common_add",
           ],
@@ -2796,6 +2835,7 @@ let rocq_validate_macro_tactic_plan_for_node = level => {
           ~fuel=10,
           ~rule_ids=[
             "alg.distribute_mul_add",
+            "alg.distribute_div_add",
             "alg.factor_common",
             "alg.cancel_common_add",
           ],

@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hazel Prover: Thesis Thrust 2 Progress</title>
+    <link rel="stylesheet" href="vendor/reveal.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section class="title-slide">
+          <div class="eyebrow">THESIS PROGRESS · RESEARCH THRUST 2</div>
+          <h1>Hazel prover<br />progress update</h1>
+          <p class="subtitle">
+            Work completed, work remaining for the thesis, and case-study status
+          </p>
+          <div class="title-status">
+            <span class="status done">Current status</span>
+            <strong
+              >Algebra, trigonometry, and a first differentiation draft are
+              working.</strong
+            >
+          </div>
+          <div class="title-art">
+            <img
+              src="assets/differentiation-search.png"
+              alt="Hazel differentiation proof search"
+            />
+          </div>
+          <footer>July 2026 · Nishant Kheterpal</footer>
+        </section>
+
+        <section>
+          <div class="eyebrow">OVERALL STATUS · DONE</div>
+          <h2>Completed areas</h2>
+          <div class="checklist-grid">
+            <article>
+              <span>1</span>
+              <div>
+                <h3>Structural stepper interaction</h3>
+                <p>
+                  Selection snapping, reparenthesization, and expression-focused
+                  rewriting.
+                </p>
+              </div>
+            </article>
+            <article>
+              <span>2</span>
+              <div>
+                <h3>Configurable math profiles</h3>
+                <p>
+                  Arithmetic, Algebra, Trigonometry, and Calculus rule sets.
+                </p>
+              </div>
+            </article>
+            <article>
+              <span>3</span>
+              <div>
+                <h3>Multiple proof modes</h3>
+                <p>Profile-aware One Step, and Search workflows.</p>
+              </div>
+            </article>
+            <article>
+              <span>4</span>
+              <div>
+                <h3>Algebra transformations</h3>
+                <p>
+                  Distribution, FOIL, factoring, cancellation, collection, and
+                  identities.
+                </p>
+              </div>
+            </article>
+            <article>
+              <span>5</span>
+              <div>
+                <h3>Trigonometric transformations</h3>
+                <p>
+                  Trig identities and the main <code>sin⁴(x)</code> derivation.
+                </p>
+              </div>
+            </article>
+            <article>
+              <span>6</span>
+              <div>
+                <h3>Profile-bounded Rocq search</h3>
+                <p>
+                  Search uses only rules and cleanup enabled by the active
+                  profile.
+                </p>
+              </div>
+            </article>
+            <article>
+              <span>7</span>
+              <div>
+                <h3>Interactive JSCoq validation</h3>
+                <p>
+                  Warmup, cancellation, worker recycling, and smaller proof
+                  payloads.
+                </p>
+              </div>
+            </article>
+            <article>
+              <span>8</span>
+              <div>
+                <h3>Standalone proof export</h3>
+                <p>
+                  Hazel derivations produce independently checkable Rocq files.
+                </p>
+              </div>
+            </article>
+            <article>
+              <span>9</span>
+              <div>
+                <h3>Differentiation first draft</h3>
+                <p>
+                  <code>diff(expression, variable)</code> and the main
+                  differentiation rules.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">OVERALL STATUS · TODO FOR THESIS</div>
+          <h2>Work remaining for the thesis</h2>
+          <div class="board thesis-board">
+            <article class="lane active-lane">
+              <h3>Proof search and profiles</h3>
+              <ul>
+                <li>
+                  Use one search architecture across One Step, Search, and Auto
+                  Simplify
+                </li>
+                <li>Smarter tactic search</li>
+                <li>Finish Real-number and division support</li>
+              </ul>
+            </article>
+            <article class="lane active-lane">
+              <h3>Prover primitives</h3>
+              <ul>
+                <li>Persist and reuse named intermediate results</li>
+                <li>Explore -> Theorem promotion?</li>
+              </ul>
+            </article>
+            <article class="lane active-lane">
+              <h3>Remaining case studies</h3>
+              <ul>
+                <li>Implement Taylor series and derivative evaluation</li>
+                <li>Represent Taylor remainders</li>
+                <li>Implement inequality bounding?</li>
+              </ul>
+            </article>
+            <article class="lane active-lane">
+              <h3>Evaluation</h3>
+              <ul>
+                <li>Run the thesis usability and workflow evaluation</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">OVERALL STATUS · AFTER THESIS</div>
+          <h2>Possible follow-on work</h2>
+          <div class="board after-board">
+            <article class="lane later-lane">
+              <h3>Additional mathematics</h3>
+              <ul>
+                <li>Matrices and Jacobian linearization</li>
+                <li>Integration</li>
+                <li>Additional engineering mathematics case studies</li>
+              </ul>
+            </article>
+            <article class="lane later-lane">
+              <h3>Authoring and deployment</h3>
+              <ul>
+                <li>Larger teacher-authored rule libraries</li>
+                <li>Sharing and persistence for custom profiles</li>
+                <li>Larger classroom deployments</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">CROSS-CUTTING TODO · PROFILES AND SEARCH</div>
+          <h2>Two profile-system tasks remain</h2>
+          <div class="board two-board">
+            <article class="lane active-lane">
+              <h3>Enforce the profile boundary</h3>
+              <ul>
+                <li>Make every proof mode obey the same active profile</li>
+                <li>Remove broad prover fallbacks that bypass the profile</li>
+                <li>Test and report which capabilities each proof used</li>
+              </ul>
+            </article>
+            <article class="lane active-lane">
+              <h3>Simplify the profile UI</h3>
+              <ul>
+                <li>Replace the long toggle list with cumulative presets</li>
+                <li>Describe presets by verbosity or course level</li>
+                <li>Keep individual rule controls in an advanced mode</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">CASE STUDY 1 · ALGEBRA AND FOIL</div>
+          <h2>Algebra case-study status</h2>
+          <div class="split">
+            <div class="visual-frame">
+              <img
+                src="assets/factoring.png"
+                alt="Hazel factor suggestion for a quadratic"
+              />
+            </div>
+            <div class="case-board">
+              <article class="mini-lane done-lane">
+                <h3><span class="status done">Done</span></h3>
+                <ul>
+                  <li>Core expansion, factoring, and simplification steps</li>
+                  <li>Common algebraic identities</li>
+                  <li>Profile-aware checking and Rocq export</li>
+                </ul>
+              </article>
+              <article class="mini-lane active-lane">
+                <h3><span class="status active">Remaining</span></h3>
+                <ul>
+                  <li>Complete more structured algebra workflows</li>
+                  <li>Improve exercises and learner-facing guidance</li>
+                  <li>Finish Real-number and division support</li>
+                </ul>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">CASE STUDY 2 · TRIGONOMETRY</div>
+          <h2>Trigonometry case-study status</h2>
+          <div class="equation">
+            1 + 2 sin<sup>4</sup>(x) = 7/4 − cos(2x) + 1/4 cos(4x)
+          </div>
+          <div class="split trig-split">
+            <div class="visual-frame tall">
+              <img
+                src="assets/trig-derivation.png"
+                alt="Full Hazel trigonometric derivation"
+              />
+            </div>
+            <div class="case-board">
+              <article class="mini-lane done-lane">
+                <h3><span class="status done">Done</span></h3>
+                <ul>
+                  <li>Core trigonometric identity catalog</li>
+                  <li>Complete power-reduction case study</li>
+                  <li>JSCoq checking and Rocq export</li>
+                </ul>
+              </article>
+              <article class="mini-lane active-lane">
+                <h3><span class="status active">Remaining</span></h3>
+                <ul>
+                  <li>Package the derivation as an exercise and theorem</li>
+                  <li>Test additional identities</li>
+                  <li>Collect performance measurements</li>
+                </ul>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">CASE STUDY 3 · DIFFERENTIATION</div>
+          <h2>Differentiation case-study status</h2>
+          <div class="split">
+            <div class="visual-frame">
+              <img
+                src="assets/differentiation-search.png"
+                alt="Hazel differentiation rules in proof search"
+              />
+            </div>
+            <div class="case-board">
+              <article class="mini-lane done-lane">
+                <h3><span class="status done">First draft done</span></h3>
+                <ul>
+                  <li>Differentiation syntax and static checks</li>
+                  <li>Standard differentiation rule families</li>
+                  <li>Profile-driven search and Rocq certificates</li>
+                </ul>
+              </article>
+              <article class="mini-lane active-lane">
+                <h3><span class="status active">Remaining</span></h3>
+                <ul>
+                  <li>Broaden tests and worked examples</li>
+                  <li>Support repeated derivatives and evaluation</li>
+                  <li>Persist intermediate derivative results</li>
+                </ul>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">CASE STUDY 4 · TAYLOR SERIES</div>
+          <h2>Taylor-series case-study status</h2>
+          <div class="board two-board">
+            <article class="lane done-lane">
+              <h3><span class="status done">Available foundation</span></h3>
+              <ul>
+                <li>Differentiation and prover infrastructure can be reused</li>
+                <li>Initial syntax and workflow have been outlined</li>
+              </ul>
+            </article>
+            <article class="lane active-lane">
+              <h3><span class="status active">Remaining</span></h3>
+              <ul>
+                <li>Implement the Taylor-series workflow</li>
+                <li>Support derivative reuse and evaluation</li>
+                <li>Add remainder representation and Rocq certification</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">CASE STUDY 5 · INEQUALITY BOUNDING</div>
+          <h2>Inequality case-study status</h2>
+          <div class="board two-board">
+            <article class="lane done-lane">
+              <h3><span class="status done">Available foundation</span></h3>
+              <ul>
+                <li>
+                  Existing algebra, selection, and prover infrastructure can be
+                  reused
+                </li>
+              </ul>
+            </article>
+            <article class="lane active-lane">
+              <h3><span class="status active">Remaining</span></h3>
+              <ul>
+                <li>Define the supported inequality model</li>
+                <li>Add rules, side-condition handling, and Rocq checking</li>
+                <li>Build a representative case study</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">CASE STUDY 6 · JACOBIAN LINEARIZATION</div>
+          <h2>Jacobian case-study status</h2>
+          <div class="board two-board">
+            <article class="lane done-lane">
+              <h3><span class="status done">Available foundation</span></h3>
+              <ul>
+                <li>
+                  The stepper, differentiation, and prover infrastructure may
+                  be reusable
+                </li>
+              </ul>
+            </article>
+            <article class="lane later-lane">
+              <h3><span class="status later">After thesis</span></h3>
+              <ul>
+                <li>Add matrix, vector, and partial-derivative support</li>
+                <li>Implement Jacobian construction and linearization</li>
+                <li>Add Rocq representation and certification</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">
+            CROSS-CUTTING TASKS · TESTING AND EVALUATION
+          </div>
+          <h2>Evidence still needed</h2>
+          <div class="board">
+            <article class="lane done-lane">
+              <h3><span class="status done">Implemented tests</span></h3>
+              <ul>
+                <li>Focused behavior and negative tests</li>
+                <li>Profile-boundary tests</li>
+                <li>Rocq export checks</li>
+              </ul>
+            </article>
+            <article class="lane active-lane">
+              <h3><span class="status active">System measurements</span></h3>
+              <ul>
+                <li>Verify profile boundaries across all proof modes</li>
+                <li>Measure proof-search performance</li>
+                <li>Test long-session stability</li>
+              </ul>
+            </article>
+            <article class="lane active-lane">
+              <h3><span class="status active">Thesis evaluation</span></h3>
+              <ul>
+                <li>Usability and interaction cost</li>
+                <li>Step granularity and mathematical coverage</li>
+                <li>Trust in checked and exported proofs</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section>
+          <div class="eyebrow">SUMMARY</div>
+          <h2>Current thesis status</h2>
+          <div class="summary-table">
+            <div class="summary-row header">
+              <span>Area</span><span>Status</span
+              ><span>Main remaining task</span>
+            </div>
+            <div class="summary-row">
+              <span>Algebra and FOIL</span
+              ><span><b class="status done">Working</b></span
+              ><span>Broader workflows and numeric support</span>
+            </div>
+            <div class="summary-row">
+              <span>Trigonometry</span
+              ><span><b class="status done">Working</b></span
+              ><span>Exercise packaging and evaluation</span>
+            </div>
+            <div class="summary-row">
+              <span>Differentiation</span
+              ><span><b class="status active">First draft</b></span
+              ><span>Longer derivative workflows</span>
+            </div>
+            <div class="summary-row">
+              <span>Taylor series</span
+              ><span><b class="status next">Todo</b></span
+              ><span>Implementation and certification</span>
+            </div>
+            <div class="summary-row">
+              <span>Inequalities</span
+              ><span><b class="status next">Todo</b></span
+              ><span>Rules and case study</span>
+            </div>
+            <div class="summary-row">
+              <span>Jacobian linearization</span
+              ><span><b class="status later">After thesis</b></span
+              ><span>Mathematical and prover support</span>
+            </div>
+            <div class="summary-row">
+              <span>Proof search integration</span
+              ><span><b class="status active">Ongoing</b></span
+              ><span>Unified, profile-bounded search</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+    <script src="vendor/reveal.js"></script>
+    <script src="deck.js"></script>
+  </body>
+</html>

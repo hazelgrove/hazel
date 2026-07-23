@@ -64,6 +64,28 @@ let init_step = {
   coq_check_status: CoqCheckIdle,
 };
 
+let missing_step_with_profile_board = profile_board => {
+  ...init_step,
+  step_kind:
+    MissingStep({
+      ...MissingStep.Model.init,
+      profile_board,
+    }),
+};
+
+let rec carry_profile_board_to_terminal_step = (profile_board, step) =>
+  switch (step.next_step) {
+  | Some(next_step) => {
+      ...step,
+      next_step:
+        Some(carry_profile_board_to_terminal_step(profile_board, next_step)),
+    }
+  | None => {
+      ...step,
+      next_step: Some(missing_step_with_profile_board(profile_board)),
+    }
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_step_kind =
   | SingleStep(SingleStep.persistent'(persistent_step))
@@ -1240,6 +1262,25 @@ and Stepper: {
       | CoqBrowserCheckFinished(_, _, _) => false
       | _ => true
       };
+    let profile_board_to_carry =
+      switch (action, model.step_kind) {
+      | (
+          StepForward(_) | StepForwardOnSelection(_, _) |
+          AutoSimplifySelection(_, _) |
+          AddInduction(_) |
+          AddForall |
+          AddAxiomStep(_, _, _, _, _) |
+          AddReparenthesizedAxiomStep(_, _, _, _, _) |
+          AddAlgebriteStep(_, _, _) |
+          AddReparenthesizeStep(_) |
+          AddReparenthesizedAlgebriteStep(_, _, _) |
+          AddReparenthesizedWrittenStep(_, _, _, _) |
+          AddWrittenStep(_, _, _, _),
+          MissingStep(missing_step),
+        ) =>
+        Some(missing_step.profile_board)
+      | _ => None
+      };
     let updated =
       Updated.(
         switch (action, model.step_kind, model.next_step) {
@@ -1623,6 +1664,18 @@ and Stepper: {
           };
         }
       );
+    let updated =
+      switch (profile_board_to_carry) {
+      | Some(profile_board) => {
+          ...updated,
+          model:
+            carry_profile_board_to_terminal_step(
+              profile_board,
+              updated.model,
+            ),
+        }
+      | None => updated
+      };
     reset_coq_check_status
       ? {
         ...updated,
@@ -1717,6 +1770,11 @@ and Stepper: {
       );
     let info_map = Calc.NewValue(editor.statics.info_map);
     let editor = Calc.OldValue(editor);
+    let profile_board_for_automatic_next_step =
+      switch (step_kind) {
+      | MissingStep(missing_step) => Some(missing_step.profile_board)
+      | _ => None
+      };
     let (step_kind, hidden, next_expr, inner_validity) =
       StepKind.calculate_with_level(
         ~rewrite_level,
@@ -1746,7 +1804,13 @@ and Stepper: {
     let (next_step, last_expr, next_validity) =
       switch (next_expr) {
       | Some(next_expr) =>
-        let next_step = Option.value(~default=init, next_step);
+        let default_next_step =
+          switch (profile_board_for_automatic_next_step) {
+          | Some(profile_board) =>
+            missing_step_with_profile_board(profile_board)
+          | None => init
+          };
+        let next_step = Option.value(~default=default_next_step, next_step);
         let (next_step, last_expr, next_validity) =
           calculate_with_level(
             ~rewrite_level,

@@ -195,6 +195,8 @@ module Update = {
       )
     | RocqProofSearchCancelled(int)
     | AlgebriteSuggestionFinished(option(string), string, string)
+    | AutoSimplifySuggestionFinished(Exp.t, option(string), string)
+    | AutoProfileSimplifySuggestionFinished(Exp.t, option(Exp.t), string)
     | ProfileSuggestionFinished(option(Exp.t), string, string)
     | RewriteEditorAction(CodeEditable.Update.t)
     | WriteStepEditorAction(CodeEditable.Update.t)
@@ -202,7 +204,7 @@ module Update = {
     | ToggleProfileBoard
     | ProfileBoardAction(ProfileBoard.Update.t);
 
-  let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
+  let rec update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model.open_box) {
     | (ToggleAxioms(rewrite_selected_exp, rewrite_reparenthesized_exp), _) =>
       let open_box =
@@ -450,6 +452,88 @@ module Update = {
     | (AlgebriteSuggestionFinished(_, _, _), _) =>
       model |> Updated.return_quiet
     | (
+        AutoSimplifySuggestionFinished(
+          expected_selected_exp,
+          candidate,
+          message,
+        ),
+        WrittenStepOpen({check_mode: ProofSearch, _} as r),
+      ) =>
+      let current_selected_exp =
+        model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp");
+      let selection_still_matches =
+        switch (current_selected_exp) {
+        | Some(current_selected_exp) =>
+          Exp.fast_equal(current_selected_exp, expected_selected_exp)
+        | None => false
+        };
+      if (selection_still_matches) {
+        let model =
+          Model.{
+            ...model,
+            open_box:
+              Model.WrittenStepOpen({
+                ...r,
+                rewrite_selected_exp: Some(expected_selected_exp),
+                rewrite_reparenthesized_exp: None,
+              }),
+          };
+        update(
+          ~settings,
+          AlgebriteSuggestionFinished(
+            candidate,
+            message,
+            "Algebrite auto simplify",
+          ),
+          model,
+        );
+      } else {
+        model |> Updated.return_quiet;
+      };
+    | (AutoSimplifySuggestionFinished(_, _, _), _) =>
+      model |> Updated.return_quiet
+    | (
+        AutoProfileSimplifySuggestionFinished(
+          expected_selected_exp,
+          candidate,
+          message,
+        ),
+        WrittenStepOpen({check_mode: ProofSearch, _} as r),
+      ) =>
+      let current_selected_exp =
+        model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp");
+      let selection_still_matches =
+        switch (current_selected_exp) {
+        | Some(current_selected_exp) =>
+          Exp.fast_equal(current_selected_exp, expected_selected_exp)
+        | None => false
+        };
+      if (selection_still_matches) {
+        let model =
+          Model.{
+            ...model,
+            open_box:
+              Model.WrittenStepOpen({
+                ...r,
+                rewrite_selected_exp: Some(expected_selected_exp),
+                rewrite_reparenthesized_exp: None,
+              }),
+          };
+        update(
+          ~settings,
+          ProfileSuggestionFinished(
+            candidate,
+            message,
+            "profile-driven auto simplification",
+          ),
+          model,
+        );
+      } else {
+        model |> Updated.return_quiet;
+      };
+    | (AutoProfileSimplifySuggestionFinished(_, _, _), _) =>
+      model |> Updated.return_quiet
+    | (
         ProfileSuggestionFinished(candidate, message, source),
         WrittenStepOpen({check_mode: ProofSearch, _} as r),
       ) =>
@@ -581,6 +665,8 @@ module Update = {
     | RocqProofSearchFinished(_, _, _, _)
     | RocqProofSearchCancelled(_)
     | AlgebriteSuggestionFinished(_, _, _)
+    | AutoSimplifySuggestionFinished(_, _, _)
+    | AutoProfileSimplifySuggestionFinished(_, _, _)
     | ProfileSuggestionFinished(_, _, _)
     | RewriteEditorAction(_)
     | WriteStepEditorAction(_)
@@ -1095,6 +1181,46 @@ module Selection = {
   };
 };
 
+module AutoSimplifyDebounce = {
+  /* This follows source-selection changes while the Auto simplify Search pane
+     is open. It intentionally does not debounce target-editor typing. */
+  let debounce_ms = 400.0;
+  let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
+  let scheduled_key: ref(option(string)) = ref(None);
+  let generation = ref(0);
+
+  let cancel = (~reset_key=false, ()) => {
+    switch (timer_id^) {
+    | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
+    | None => ()
+    };
+    timer_id := None;
+    generation := generation^ + 1;
+    if (reset_key) {
+      scheduled_key := None;
+    };
+  };
+
+  let schedule = (~key: string, ~run: unit => unit) =>
+    if (scheduled_key^ != Some(key)) {
+      cancel();
+      scheduled_key := Some(key);
+      let this_generation = generation^;
+      timer_id :=
+        Some(
+          Js_of_ocaml.Dom_html.window##setTimeout(
+            Js_of_ocaml.Js.wrap_callback(() => {
+              timer_id := None;
+              if (generation^ == this_generation) {
+                run();
+              };
+            }),
+            debounce_ms,
+          ),
+        );
+    };
+};
+
 module View = {
   open OptUtil.Syntax;
 
@@ -1164,6 +1290,96 @@ module View = {
       |> ignore
     ) {
     | _ => ()
+    };
+  };
+
+  let algebrite_suggestion_effect =
+      (~inject, ~selected_exp, ~method_name, ~source, ~auto_selected_exp=None) => {
+    let finish = (candidate, message) =>
+      switch (auto_selected_exp) {
+      | Some(expected_selected_exp) =>
+        inject(
+          Update.AutoSimplifySuggestionFinished(
+            expected_selected_exp,
+            candidate,
+            message,
+          ),
+        )
+      | None =>
+        inject(
+          Update.AlgebriteSuggestionFinished(candidate, message, source),
+        )
+      };
+    let fail = message => finish(None, message);
+    switch (AlgebriteSuggestion.serialize_for_algebrite(selected_exp)) {
+    | None => fail("Algebrite suggestion is unavailable for this expression.")
+    | Some(input) =>
+      try({
+        let simplify =
+          Js_of_ocaml.Js.Unsafe.js_expr(
+            "(function(methodName, input) { if (!window.HazelAlgebrite || !window.HazelAlgebrite[methodName]) { throw new Error('Algebrite operation is not available.'); } return window.HazelAlgebrite[methodName](input); })",
+          );
+        let raw_result =
+          Js_of_ocaml.Js.Unsafe.fun_call(
+            simplify,
+            [|
+              Js_of_ocaml.Js.Unsafe.inject(
+                Js_of_ocaml.Js.string(method_name),
+              ),
+              Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(input)),
+            |],
+          );
+        let candidate =
+          raw_result
+          |> Js_of_ocaml.Js.Unsafe.coerce
+          |> Js_of_ocaml.Js.to_string
+          |> AlgebriteSuggestion.hazel_syntax_of_algebrite;
+        candidate == ""
+          ? fail("Algebrite returned an empty suggestion.")
+          : finish(Some(candidate), "Algebrite suggested: " ++ candidate);
+      }) {
+      | Failure(message) => fail("Algebrite suggestion failed: " ++ message)
+      | exn =>
+        fail("Algebrite suggestion failed: " ++ Printexc.to_string(exn))
+      }
+    };
+  };
+
+  let profile_suggestion_effect =
+      (
+        ~inject,
+        ~selected_exp,
+        ~profile,
+        ~settings,
+        ~env,
+        ~auto_selected_exp=None,
+      ) => {
+    let candidate =
+      selected_exp
+      |> Substitution.in_exp(env)
+      |> RewriteChecker.simplify_for_profile(~profile, ~settings, ~env);
+    let message =
+      switch (candidate) {
+      | Some(_) => "Active profile suggested a derivative result."
+      | None => "The active profile could not simplify this expression."
+      };
+    switch (auto_selected_exp) {
+    | Some(expected_selected_exp) =>
+      inject(
+        Update.AutoProfileSimplifySuggestionFinished(
+          expected_selected_exp,
+          candidate,
+          message,
+        ),
+      )
+    | None =>
+      inject(
+        Update.ProfileSuggestionFinished(
+          candidate,
+          message,
+          "profile-driven differentiation",
+        ),
+      )
     };
   };
 
@@ -1831,63 +2047,14 @@ module View = {
         let algebrite_suggestion_button =
             (~label, ~tooltip, ~method_name, ~source) =>
           Widgets.button(
-            ~clss=["proof-button"],
-            Node.text(label),
-            ~tooltip,
-            _ => {
-              let fail = message =>
-                inject(AlgebriteSuggestionFinished(None, message, source));
-              switch (
-                AlgebriteSuggestion.serialize_for_algebrite(
-                  unboxed_selected_exp,
-                )
-              ) {
-              | None =>
-                fail(
-                  "Algebrite suggestion is unavailable for this expression.",
-                )
-              | Some(input) =>
-                try({
-                  let simplify =
-                    Js_of_ocaml.Js.Unsafe.js_expr(
-                      "(function(methodName, input) { if (!window.HazelAlgebrite || !window.HazelAlgebrite[methodName]) { throw new Error('Algebrite operation is not available.'); } return window.HazelAlgebrite[methodName](input); })",
-                    );
-                  let raw_result =
-                    Js_of_ocaml.Js.Unsafe.fun_call(
-                      simplify,
-                      [|
-                        Js_of_ocaml.Js.Unsafe.inject(
-                          Js_of_ocaml.Js.string(method_name),
-                        ),
-                        Js_of_ocaml.Js.Unsafe.inject(
-                          Js_of_ocaml.Js.string(input),
-                        ),
-                      |],
-                    );
-                  let candidate =
-                    raw_result
-                    |> Js_of_ocaml.Js.Unsafe.coerce
-                    |> Js_of_ocaml.Js.to_string
-                    |> AlgebriteSuggestion.hazel_syntax_of_algebrite;
-                  candidate == ""
-                    ? fail("Algebrite returned an empty suggestion.")
-                    : inject(
-                        AlgebriteSuggestionFinished(
-                          Some(candidate),
-                          "Algebrite suggested: " ++ candidate,
-                          source,
-                        ),
-                      );
-                }) {
-                | Failure(message) =>
-                  fail("Algebrite suggestion failed: " ++ message)
-                | exn =>
-                  fail(
-                    "Algebrite suggestion failed: " ++ Printexc.to_string(exn),
-                  )
-                }
-              };
-            },
+            ~clss=["proof-button"], Node.text(label), ~tooltip, _ =>
+            algebrite_suggestion_effect(
+              ~inject,
+              ~selected_exp=unboxed_selected_exp,
+              ~method_name,
+              ~source,
+              ~auto_selected_exp=None,
+            )
           );
         let simplify_with_algebrite_button =
           algebrite_suggestion_button(
@@ -1910,32 +2077,14 @@ module View = {
                   model.profile_board,
                   Axioms.math_profile(rewrite_level),
                 );
-              switch (
-                unboxed_selected_exp
-                |> Substitution.in_exp(env)
-                |> RewriteChecker.simplify_for_profile(
-                     ~profile,
-                     ~settings=globals.settings.core,
-                     ~env,
-                   )
-              ) {
-              | Some(candidate) =>
-                inject(
-                  ProfileSuggestionFinished(
-                    Some(candidate),
-                    "Active profile suggested a derivative result.",
-                    "profile-driven differentiation",
-                  ),
-                )
-              | None =>
-                inject(
-                  ProfileSuggestionFinished(
-                    None,
-                    "The active profile could not simplify this expression.",
-                    "profile-driven differentiation",
-                  ),
-                )
-              };
+              profile_suggestion_effect(
+                ~inject,
+                ~selected_exp=unboxed_selected_exp,
+                ~profile,
+                ~settings=globals.settings.core,
+                ~env,
+                ~auto_selected_exp=None,
+              );
             },
           );
         let factor_with_algebrite_button =
@@ -2170,8 +2319,6 @@ module View = {
         | _ => None
         };
       let step_here_ids = [];
-      let reparenthesize_result: option(Language.Reparenthesize.result) =
-        None;
       let step_here_button: option((string, bool)) = None;
       let selected_exp_for_rewrite =
         Calc.get_saved_exc(
@@ -2181,72 +2328,6 @@ module View = {
       let reparenthesize_result_for_rewrite:
         option(Language.Reparenthesize.result) =
         None;
-      let auto_simplify = {
-        open OptUtil.Syntax;
-        let full_exp =
-          model.full_exp |> Calc.get_saved_exc(~print="full_exp");
-        let full_visible_exp =
-          model.full_visible_exp
-          |> Calc.get_saved_exc(~print="full_visible_exp");
-        let env =
-          model.cached_env |> Calc.get_saved_exc(~print="env not cached");
-        let* (base_exp, selected_id, selected_exp) =
-          switch (reparenthesize_result) {
-          | Some(result: Language.Reparenthesize.result) =>
-            let* selected_exp =
-              ProofHacks.find_exp_id(result.selected_id, result.exp);
-            Some((result.exp, result.selected_id, selected_exp));
-          | None =>
-            let* selected_exp =
-              model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp");
-            Some((full_visible_exp, Exp.rep_id(selected_exp), selected_exp));
-          };
-        let* simplified_exp =
-          selected_exp
-          |> Substitution.in_exp(env)
-          |> RewriteChecker.simplify_for_profile(
-               ~profile=
-                 ProfileBoard.apply_model_to_profile(
-                   model.profile_board,
-                   Axioms.math_profile(rewrite_level),
-                 ),
-               ~settings=globals.settings.core,
-               ~env,
-             );
-        let replaced_exp =
-          switch (selection_override) {
-          | Some(override) =>
-            switch (
-              SelectionEffective.replacement_for_override(
-                ~override,
-                ~with_exp=simplified_exp,
-                ~full_exp=base_exp,
-                ~term_data=selection_term_data,
-              )
-            ) {
-            | Some({at_exp, with_exp}) =>
-              try(
-                ProofHacks.replace_exp_id(
-                  Exp.rep_id(at_exp),
-                  base_exp,
-                  with_exp,
-                )
-              ) {
-              | _ => base_exp
-              }
-            | None => base_exp
-            }
-          | None =>
-            try(
-              ProofHacks.replace_exp_id(selected_id, base_exp, simplified_exp)
-            ) {
-            | _ => base_exp
-            }
-          };
-        Exp.fast_equal(base_exp, replaced_exp)
-          ? None : Some((full_exp, replaced_exp));
-      };
-
       let text_arrow = (b: bool) => if (b) {"▲"} else {"▼"};
 
       let show_manual_actions = automation_stage == Axioms.Manual;
@@ -2262,6 +2343,60 @@ module View = {
       let show_proof_search_actions = automation_stage != Axioms.Manual;
       if (show_proof_search_actions) {
         warmup_rocq_search_in_browser();
+      };
+      if (show_auto_actions) {
+        switch (model.open_box, selected_exp_for_rewrite) {
+        | (
+            Model.WrittenStepOpen({check_mode: Model.ProofSearch, _}),
+            Some(selected_exp),
+          ) =>
+          let key =
+            Axioms.rewrite_level_label(rewrite_level)
+            ++ "|"
+            ++ ProfileBoard.Model.show(model.profile_board)
+            ++ "|"
+            ++ Exp.show(selected_exp);
+          AutoSimplifyDebounce.schedule(
+            ~key,
+            ~run=() => {
+              let effect =
+                switch (rewrite_level) {
+                | Calculus =>
+                  let env =
+                    model.cached_env
+                    |> Calc.get_saved_exc(~print="env not cached");
+                  let profile =
+                    ProfileBoard.apply_model_to_profile(
+                      model.profile_board,
+                      Axioms.math_profile(rewrite_level),
+                    );
+                  profile_suggestion_effect(
+                    ~inject,
+                    ~selected_exp,
+                    ~profile,
+                    ~settings=globals.settings.core,
+                    ~env,
+                    ~auto_selected_exp=Some(selected_exp),
+                  );
+                | Arithmetic
+                | Algebra
+                | Trigonometry
+                | FunctionsAndLists =>
+                  algebrite_suggestion_effect(
+                    ~inject,
+                    ~selected_exp,
+                    ~method_name="simplifyToString",
+                    ~source="Algebrite auto simplify candidate",
+                    ~auto_selected_exp=Some(selected_exp),
+                  )
+                };
+              Ui_effect.Expert.handle(effect);
+            },
+          );
+        | _ => AutoSimplifyDebounce.cancel(~reset_key=true, ())
+        };
+      } else {
+        AutoSimplifyDebounce.cancel(~reset_key=true, ());
       };
 
       let unparenthesize_action_buttons =
@@ -2417,20 +2552,6 @@ module View = {
           ]
           : [];
 
-      let auto_action_buttons =
-        show_auto_actions
-          ? switch (auto_simplify) {
-            | None => []
-            | Some((original_exp, simplified_exp)) => [
-                proof_button(
-                  ~callback=
-                    signal(AutoSimplify(original_exp, simplified_exp)),
-                  "Auto Eval",
-                ),
-              ]
-            }
-          : [];
-
       let rewrite_action_buttons =
         show_rewrite_actions
           ? [
@@ -2489,7 +2610,6 @@ module View = {
           @ manual_action_buttons
           @ check_action_buttons
           @ proof_search_action_buttons
-          @ auto_action_buttons
           @ rewrite_action_buttons
           @ general_proof_buttons,
         );

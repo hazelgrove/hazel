@@ -14,12 +14,14 @@ When a student proposes a result:
 1. Hazel looks for a sequence of enabled rules and cleanup operations that
    transforms the original expression into the proposed result.
 2. If Hazel finds that sequence, it records the exact steps used.
-3. Hazel sends that exact proof trace to Rocq for independent verification.
+3. When the user validates the candidate, Hazel always asks Rocq to verify a
+   generated theorem. Usually this is exact replay of the Hazel trace; calculus
+   uses a semantic derivative certificate instead.
 4. Only a result with both an enabled Profile trace and a successful Rocq proof
    is marked **Valid** and can be inserted with **Replace**.
-5. If Rocq proves the equality but Hazel cannot derive it using the active
-   Profile, Hazel labels it **Equivalent, outside profile** and does not allow
-   replacement.
+5. Only when Hazel has no enabled trace does it run the non-authoritative Rocq
+   equivalence fallback. If that succeeds, Hazel labels the result
+   **Equivalent, outside profile** and does not allow replacement.
 
 The key idea is:
 
@@ -109,7 +111,30 @@ The resulting trace contains:
 - Whether each operation was a visible rewrite or cleanup.
 - Exportability information.
 
-### 4. Rocq certifies the trace
+### 4. Precisely when Rocq runs
+
+The Search pane first computes `local_profile_trace`. Pressing **Validate
+Candidate** or **Run Rocq Search** then invokes Rocq in every case, but the
+generated program depends on that Hazel-side result:
+
+| Hazel-side condition | Program sent to Rocq | Successful verdict |
+| --- | --- | --- |
+| An enabled trace exists and neither side contains `diff` | Deterministic replay of the recorded transitions | **Valid** |
+| An enabled trace exists for a derivative in Check Result or Auto simplify | A semantic `derivable_pt_lim` calculus certificate, followed by only the enabled cleanup transport | **Valid** |
+| No enabled trace exists | A separate equivalence-only program | **Equivalent, outside profile** |
+| Program generation fails or Rocq rejects the program | No proof is accepted | **Invalid** |
+
+Therefore the button label **Run Rocq Search** is broader than what usually
+happens. For an ordinary Profile-valid result, Rocq does not rediscover a
+method: it replays the method Hazel already authorized. For a derivative, it
+checks the corresponding real-analysis proposition. The equivalence fallback
+is reached only when `local_profile_trace` returned `None`.
+
+Auto simplify chooses the candidate automatically, but its candidate is
+validated with the same Check Result proof power and follows the same decision
+tree.
+
+### 5. Rocq certifies an enabled trace
 
 Once Hazel finds a Profile-valid trace, it generates a compact Rocq theorem over
 the real numbers. A polynomial transition may produce a theorem conceptually
@@ -130,10 +155,11 @@ permitted. Hazel has already authorized the exact transition through the
 Profile. Rocq is certifying that the Profile-approved transition is a true
 equality.
 
-### 5. Outside-profile equivalence is kept separate
+### 6. Outside-profile equivalence is kept separate
 
-If Hazel cannot find an enabled trace, it can optionally ask Rocq whether the
-expressions are mathematically equivalent.
+If Hazel cannot find an enabled trace, the UI asks Rocq whether the expressions
+are mathematically equivalent. This is a diagnostic fallback, not a second
+Profile search.
 
 If Rocq succeeds, Hazel displays:
 
@@ -144,6 +170,12 @@ Equivalent, outside profile
 It does not display **Valid**, and **Replace** is unavailable. This gives useful
 mathematical feedback without allowing powerful Rocq automation to bypass a
 teacher's Profile.
+
+The current equivalence scripts are deliberately level-specific. Arithmetic
+may use `lra`, Algebra may use `hazel_real_algebra`, and Functions/Lists may use
+`hazel_functions`. Trigonometry and Calculus currently use only `reflexivity`
+in this outside-profile branch, so broad trig or calculus automation cannot
+silently authorize a missing Profile trace.
 
 ## Complex explanation: implementation details
 
@@ -167,8 +199,13 @@ These are the most useful entry points when reading the implementation:
   calculus trace construction, and the final Profile rule-ID guard.
 - [`ProofSearchBackend.re`](../src/web/app/editors/stepper/ProofSearchBackend.re)
   orchestrates Check Result. `local_profile_trace` orders the Hazel-side
-  checkers, while `profile_search_definitions` generates the bounded Rocq Ltac
-  search from the active Profile.
+  checkers, `rocq_replay_program` emits exact replay, the calculus certificate
+  builder handles derivatives, and `rocq_equivalence_program_for_profile`
+  emits the non-authoritative equivalence fallback.
+- [`MissingStep.re`](../src/web/app/editors/stepper/MissingStep.re) contains the
+  UI decision point that chooses exact replay, a calculus certificate, or the
+  equivalence fallback and maps Rocq success to **Valid** versus
+  **Equivalent, outside profile**.
 - [`AlgebraIdentityRewrite.re`](../src/web/app/editors/stepper/AlgebraIdentityRewrite.re),
   [`TrigRewrite.re`](../src/web/app/editors/stepper/TrigRewrite.re), and
   [`DifferentiationRewrite.re`](../src/web/app/editors/stepper/DifferentiationRewrite.re)
@@ -204,20 +241,25 @@ The path depends on which layer can handle the goal:
    the requested target and construct the needed reorder trace directly. This
    avoids exploding the frontier with every associative/commutative
    permutation. It is goal-directed, but it is not an A* heuristic.
-4. **Generated Rocq search is bounded depth-first/backtracking.**
+4. **The backend also supports generated Profile-bounded Rocq search.**
    [`profile_search_definitions`](../src/web/app/editors/stepper/ProofSearchBackend.re#L901)
    emits `hazel_profile_search_exact n`. Rocq's `first [...]` tries enabled
    tactic branches in their generated order; each successful `progress` step
    recurses with smaller fuel. Operationally this is depth-limited DFS with
    backtracking, preceded by guarded direct finishers and finish-only
-   normalizers.
+   normalizers. This exists for backend search programs and direct callers, but
+   it is not the ordinary Search-pane fallback after Hazel fails to find a
+   trace. In that UI path, an existing non-calculus trace is replayed exactly,
+   while a missing trace goes to the separately labeled equivalence check.
 
 So a concise answer for a meeting is:
 
 > Hazel first uses structural, goal-directed certificate builders; if those do
-> not apply, its local rewrite graph search is bounded BFS. Its generated Rocq
-> fallback is bounded depth-first/backtracking over Profile-enabled tactics.
-> It does not currently use A* or a learned cost heuristic.
+> not apply, its local rewrite graph search is bounded BFS. Profile-valid UI
+> results are normally replayed exactly in Rocq. The backend's generated Rocq
+> search, where used, is bounded depth-first/backtracking over Profile-enabled
+> tactics; the UI's no-trace fallback is a non-authoritative equivalence check.
+> Hazel does not currently use A* or a learned cost heuristic.
 
 This hybrid is intentional. Canonicalization avoids search for domains where a
 direct certificate is available, BFS gives understandable short local rewrite
@@ -428,9 +470,11 @@ proofs.
 
 ### I. The equivalence fallback is deliberately non-authoritative
 
-The broader equivalence program may use a tactic powerful enough to establish
-equality. Its success is not treated as evidence that the Profile permits the
-transformation.
+The equivalence program may use a level-specific tactic powerful enough to
+establish equality. Its success is not treated as evidence that the Profile
+permits the transformation. In the current UI orchestration it is generated
+only after `local_profile_trace` returns `None`; it is not tried after a valid
+trace merely because exact replay failed.
 
 The UI assigns the verdict based on whether an enabled local trace existed:
 

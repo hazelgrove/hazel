@@ -300,6 +300,8 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
         RewriteChecker.times_exp_with_op(op, add_right, right),
       ),
     ]
+  | ("alg.distribute_div_add", _) =>
+    RewriteChecker.distribute_div_over_add_candidates(exp)
   | ("alg.factor_common", BinOp(plus_op, left, right))
       when RewriteChecker.is_plus_op(plus_op) =>
     switch (

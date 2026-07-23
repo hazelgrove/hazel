@@ -547,6 +547,132 @@ let tests = (
       },
     ),
     test_case(
+      "written Replace carries Profile overrides to the next step",
+      `Quick,
+      () => {
+        let source = parse_exp("diff(x ** 2, x)");
+        let target = parse_exp("2 * x ** 1 * diff(x, x)");
+        let profile_board =
+          Web.ProfileBoard.Model.init
+          |> Web.ProfileBoard.Update.update(
+               Web.ProfileBoard.Update.SetCleanupEnabled(
+                 "derivative.basics",
+                 false,
+               ),
+             )
+          |> Web.ProfileBoard.Update.update(
+               Web.ProfileBoard.Update.SetCleanupEnabled(
+                 "power.identity",
+                 false,
+               ),
+             );
+        let missing_step = {
+          ...Web.MissingStep.Model.init,
+          profile_board,
+        };
+        let initial_step =
+          mk_test_step(~step_kind=StepperBase.MissingStep(missing_step), ());
+        let trace: Web.RewriteChecker.trace_summary = {
+          justification: "power rule",
+          group_name: Some("Differentiation"),
+          from_normal_exp: source,
+          to_normal_exp: target,
+          from_rule_ids: [],
+          to_rule_ids: [],
+          rule_ids: ["calc.diff_power"],
+          prover_steps: [],
+          exportable: true,
+        };
+        let updated_step =
+          StepperBase.Stepper.update(
+            ~settings=Web.Settings.Model.init,
+            StepperBase.AddWrittenStep(trace, 0, source, target),
+            initial_step,
+          ).
+            model;
+        switch (updated_step.next_step) {
+        | Some({step_kind: MissingStep(next_missing), _}) =>
+          check(
+            bool,
+            "basic derivatives remain disabled after Replace",
+            false,
+            Web.ProfileBoard.cleanup_capability_enabled(
+              next_missing.profile_board,
+              Axioms.DerivativeBasics,
+            ),
+          );
+          check(
+            bool,
+            "identity powers remain disabled after Replace",
+            false,
+            Web.ProfileBoard.cleanup_capability_enabled(
+              next_missing.profile_board,
+              Axioms.PowerIdentity,
+            ),
+          );
+        | _ => failwith("Expected a profile-aware next MissingStep")
+        };
+      },
+    ),
+    test_case(
+      "automatic steps preserve carried Profile overrides",
+      `Quick,
+      () => {
+        let profile_board =
+          Web.ProfileBoard.Model.init
+          |> Web.ProfileBoard.Update.update(
+               Web.ProfileBoard.Update.SetCleanupEnabled(
+                 "derivative.basics",
+                 false,
+               ),
+             )
+          |> Web.ProfileBoard.Update.update(
+               Web.ProfileBoard.Update.SetCleanupEnabled(
+                 "power.identity",
+                 false,
+               ),
+             );
+        let initial_step =
+          mk_test_step(
+            ~step_kind=
+              StepperBase.MissingStep({
+                ...Web.MissingStep.Model.init,
+                profile_board,
+              }),
+            (),
+          );
+        let (calculated, _, _) =
+          test_calculate(~exp=parse_exp("1 + 2"), initial_step);
+        let rec terminal_step = (step: StepperBase.step_model) =>
+          switch (step.next_step) {
+          | Some(next_step) => terminal_step(next_step)
+          | None => step
+          };
+        switch (terminal_step(calculated).step_kind) {
+        | MissingStep(next_missing) =>
+          check(
+            bool,
+            "basic derivatives survive an automatic step",
+            false,
+            Web.ProfileBoard.cleanup_capability_enabled(
+              next_missing.profile_board,
+              Axioms.DerivativeBasics,
+            ),
+          );
+          check(
+            bool,
+            "identity powers survive an automatic step",
+            false,
+            Web.ProfileBoard.cleanup_capability_enabled(
+              next_missing.profile_board,
+              Axioms.PowerIdentity,
+            ),
+          );
+        | _ => failwith("Expected an automatic step followed by MissingStep")
+        };
+      },
+    ),
+    test_case(
       "reparenthesized axiom replace keeps reparenthesize before axiom",
       `Quick,
       () => {

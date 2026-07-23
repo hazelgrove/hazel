@@ -1528,6 +1528,96 @@ let tests = (
       },
     ),
     test_case(
+      "calculus auto simplify reuses profile derivative certificates",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let request = (source, target) =>
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Calculus,
+            max_depth: 4,
+            max_states: 80,
+            source,
+            target,
+          };
+        let auto_program = (source, target) =>
+          Web.ProofSearchBackend.rocq_search_program_for_profile_and_purpose(
+            ~profile,
+            ~purpose=AutoSimplify,
+            request(source, target),
+          );
+        let polynomial_source =
+          diff(
+            plus(
+              plus(
+                times(Exp.int(2), power(x, Exp.int(2))),
+                times(Exp.int(4), x),
+              ),
+              Exp.int(-2),
+            ),
+            x,
+          );
+        let polynomial_target =
+          Web.RewriteChecker.simplify_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            polynomial_source,
+          )
+          |> Option.value(~default=Exp.int(0));
+        let polynomial_coq =
+          auto_program(polynomial_source, polynomial_target);
+        check(
+          bool,
+          "polynomial auto result gets a derivative certificate",
+          true,
+          string_contains(
+            "Hazel profile-directed derivative certificate",
+            polynomial_coq,
+          ),
+        );
+        let product_source = diff(times(x, builtin_sin(x)), x);
+        let product_target =
+          Web.RewriteChecker.simplify_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            product_source,
+          )
+          |> Option.value(~default=Exp.int(0));
+        let product_coq = auto_program(product_source, product_target);
+        check(
+          bool,
+          "structurally different product auto result is certified",
+          true,
+          string_contains(
+            "Hazel profile-directed derivative certificate",
+            product_coq,
+          ),
+        );
+        let without_power =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_power",
+            profile,
+          );
+        check_raises(
+          "disabled derivative rule remains rejected",
+          Failure(
+            "the active calculus profile cannot certify this derivative candidate",
+          ),
+          () =>
+          Web.ProofSearchBackend.rocq_search_program_for_profile_and_purpose(
+            ~profile=without_power,
+            ~purpose=AutoSimplify,
+            request(diff(power(x, Exp.int(2)), x), times(Exp.int(2), x)),
+          )
+          |> ignore
+        );
+      },
+    ),
+    test_case(
       "calculus derivative cleanup does not rewrite constants in the function",
       `Quick,
       () => {
@@ -1665,6 +1755,20 @@ let tests = (
           true,
           string_contains("derivable_pt_lim_mult", product_coq),
         );
+        let sin_squared_coq =
+          emit(
+            "sin_squared",
+            diff(power(builtin_sin(x), Exp.int(2)), x),
+            times(times(Exp.int(2), builtin_sin(x)), builtin_cos(x)),
+          );
+        check(
+          bool,
+          "sine-squared certificate imports trig definitions",
+          true,
+          string_contains("derivable_pt_lim_Rsqr", sin_squared_coq)
+          && string_contains("derivable_pt_lim_sin", sin_squared_coq)
+          && string_contains("Rtrigo1", sin_squared_coq),
+        );
         let chain_coq =
           emit(
             "sin_chain",
@@ -1679,7 +1783,25 @@ let tests = (
           "chain certificate uses sine and composition lemmas",
           true,
           string_contains("derivable_pt_lim_sin", chain_coq)
-          && string_contains("derivable_pt_lim_comp", chain_coq),
+          && string_contains("derivable_pt_lim_comp", chain_coq)
+          && string_contains("Rtrigo1", chain_coq),
+        );
+        let cos_chain_coq =
+          emit(
+            "cos_chain",
+            diff(builtin_cos(power(x, Exp.int(2))), x),
+            times(
+              negate(builtin_sin(power(x, Exp.int(2)))),
+              times(Exp.int(2), x),
+            ),
+          );
+        check(
+          bool,
+          "cosine chain certificate imports and uses trig derivatives",
+          true,
+          string_contains("derivable_pt_lim_cos", cos_chain_coq)
+          && string_contains("derivable_pt_lim_comp", cos_chain_coq)
+          && string_contains("Rtrigo1", cos_chain_coq),
         );
         let denominator = plus(x, Exp.int(1));
         let quotient_coq =
@@ -2243,6 +2365,7 @@ let tests = (
             "arith.mul_const",
             "arith.mul_identity",
             "alg.distribute_mul_add",
+            "alg.distribute_div_add",
             "alg.factor_common",
             "alg.cancel_common_add",
             "alg.difference_of_squares",
@@ -2417,6 +2540,79 @@ let tests = (
       },
     ),
     test_case(
+      "auto simplify validates with check-result proof power at every math level",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let request = (level, source, target) =>
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level,
+            max_depth: 4,
+            max_states: 80,
+            source,
+            target,
+          };
+        [
+          (
+            "arithmetic",
+            Arithmetic,
+            request(Arithmetic, plus(Exp.int(1), Exp.int(2)), Exp.int(3)),
+          ),
+          (
+            "algebra",
+            Algebra,
+            request(
+              Algebra,
+              times(x, plus(x, Exp.int(1))),
+              plus(times(x, x), x),
+            ),
+          ),
+          (
+            "trigonometry",
+            Trigonometry,
+            request(
+              Trigonometry,
+              plus(
+                power(builtin_sin(x), Exp.int(2)),
+                power(builtin_cos(x), Exp.int(2)),
+              ),
+              Exp.int(1),
+            ),
+          ),
+          (
+            "functions and lists",
+            FunctionsAndLists,
+            request(FunctionsAndLists, plus(x, Exp.int(0)), x),
+          ),
+          (
+            "calculus",
+            Calculus,
+            request(
+              Calculus,
+              diff(power(x, Exp.int(2)), x),
+              times(Exp.int(2), x),
+            ),
+          ),
+        ]
+        |> List.iter(((label, level, candidate)) => {
+             let profile = Axioms.math_profile(level);
+             let program = purpose =>
+               Web.ProofSearchBackend.rocq_search_program_for_profile_and_purpose(
+                 ~profile,
+                 ~purpose,
+                 candidate,
+               );
+             check(
+               string,
+               label ++ " uses identical profile validation",
+               program(CheckResult),
+               program(AutoSimplify),
+             );
+           });
+      },
+    ),
+    test_case(
       "profile board default examples run through the real checker",
       `Quick,
       () => {
@@ -2486,6 +2682,7 @@ let tests = (
             "arith.mul_const",
             "arith.mul_identity",
             "alg.distribute_mul_add",
+            "alg.distribute_div_add",
             "alg.factor_common",
             "alg.cancel_common_add",
             "alg.difference_of_squares",
@@ -2505,6 +2702,7 @@ let tests = (
             _mul_const,
             _mul_identity,
             distribution,
+            _division_distribution,
             _factor,
             _cancel,
             ..._,
@@ -2639,6 +2837,69 @@ let tests = (
             disabled_model,
             "alg.distribute_mul_add",
           ),
+        );
+      },
+    ),
+    test_case(
+      "profile board controls repeated distribution only in One Step",
+      `Quick,
+      () => {
+        let base_profile = Axioms.math_profile(Algebra);
+        check(
+          bool,
+          "Algebra defaults to repeated distribution enabled",
+          true,
+          base_profile.one_step_policy.allow_polynomial_expansion,
+        );
+        let model =
+          Web.ProfileBoard.Model.init
+          |> Web.ProfileBoard.Update.update(
+               Web.ProfileBoard.Update.SetOneStepOptionEnabled(
+                 Web.ProfileBoard.repeated_distribution_option_id,
+                 false,
+               ),
+             );
+        let profile =
+          Web.ProfileBoard.apply_model_to_profile(model, base_profile);
+        check(
+          bool,
+          "Profile option disables repeated One Step distribution",
+          false,
+          profile.one_step_policy.allow_polynomial_expansion,
+        );
+        check(
+          bool,
+          "Check Result expansion selection remains enabled",
+          true,
+          List.mem("alg.expand_polynomial", profile.check_result_rule_ids),
+        );
+        check(
+          bool,
+          "primitive distribution remains enabled",
+          true,
+          Axioms.visible_rule_enabled(
+            profile.step_policy,
+            "alg.distribute_mul_add",
+          ),
+        );
+        let reenabled_model =
+          model
+          |> Web.ProfileBoard.Update.update(
+               SetOneStepOptionEnabled(
+                 Web.ProfileBoard.repeated_distribution_option_id,
+                 true,
+               ),
+             );
+        let reenabled =
+          Web.ProfileBoard.apply_model_to_profile(
+            reenabled_model,
+            base_profile,
+          );
+        check(
+          bool,
+          "re-enabling restores repeated One Step distribution",
+          true,
+          reenabled.one_step_policy.allow_polynomial_expansion,
         );
       },
     ),
@@ -3685,7 +3946,7 @@ let tests = (
           "calc.diff_quotient",
           divide(
             minus(
-              times(diff(x, x), plus(x, Exp.int(1))),
+              plus(x, Exp.int(1)),
               times(x, diff(plus(x, Exp.int(1)), x)),
             ),
             power(plus(x, Exp.int(1)), Exp.int(2)),
@@ -3737,11 +3998,100 @@ let tests = (
           action(~profile=without(Axioms.DerivativeBasics), power_source).
             after_exp,
         );
+        let without_power_or_basics =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability =>
+                   capability != Axioms.PowerIdentity
+                   && capability != Axioms.DerivativeBasics
+                 ),
+            profile,
+          );
+        check_exp_equal(
+          "disabled power identity and derivative basics stay fully visible",
+          times(times(Exp.int(2), power(x, Exp.int(1))), diff(x, x)),
+          action(~profile=without_power_or_basics, power_source).after_exp,
+        );
         check_exp_equal(
           "disabled multiplicative identity stays visible",
           times(times(Exp.int(2), x), Exp.int(1)),
           action(~profile=without(Axioms.MulIdentity), power_source).
             after_exp,
+        );
+      },
+    ),
+    test_case(
+      "all non-linearity calculus rules apply profile basic cleanup",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let without_basics =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability =>
+                   capability != Axioms.DerivativeBasics
+                 ),
+            profile,
+          );
+        let action = (~profile, ~rule_id, source) =>
+          switch (
+            Web.AxiomsBox.calculus_actions_for_profile(~profile, source)
+            |> List.find_opt((rewrite: Web.TrigRewrite.rewrite) =>
+                 rewrite.rule_id == rule_id
+               )
+          ) {
+          | Some(action) => action
+          | None => fail("expected calculus action " ++ rule_id)
+          };
+        [
+          ("product", "calc.diff_product", diff(times(x, Exp.int(3)), x)),
+          (
+            "quotient",
+            "calc.diff_quotient",
+            diff(divide(x, Exp.int(3)), x),
+          ),
+          ("power", "calc.diff_power", diff(power(x, Exp.int(2)), x)),
+          ("sine chain", "calc.diff_chain_sin", diff(builtin_sin(x), x)),
+          ("cosine chain", "calc.diff_chain_cos", diff(builtin_cos(x), x)),
+        ]
+        |> List.iter(((label, rule_id, source)) => {
+             let enabled = action(~profile, ~rule_id, source);
+             let disabled = action(~profile=without_basics, ~rule_id, source);
+             check(
+               bool,
+               label ++ " removes nested basic derivatives when enabled",
+               false,
+               Web.DifferentiationRewrite.contains_diff(enabled.after_exp),
+             );
+             check(
+               bool,
+               label ++ " preserves nested basic derivatives when disabled",
+               true,
+               Web.DifferentiationRewrite.contains_diff(disabled.after_exp),
+             );
+           });
+        let sine_source = diff(builtin_sin(x), x);
+        let sine_action =
+          action(~profile, ~rule_id="calc.diff_chain_sin", sine_source);
+        check_exp_equal(
+          "sine chain cleans to cosine",
+          Web.DifferentiationRewrite.app_exp("cos", x),
+          sine_action.after_exp,
+        );
+        let sine_trace =
+          Web.AxiomsBox.calculus_trace_summary_for_profile(
+            ~profile,
+            ~selected_exp=sine_source,
+            sine_action,
+          );
+        check(
+          bool,
+          "sine cleanup remains explicit in the proof trace",
+          true,
+          List.mem("derivative.basics", sine_trace.rule_ids),
         );
       },
     ),
@@ -4029,7 +4379,7 @@ let tests = (
             "Ready",
             "Rocq checking...",
             "Valid",
-            "Equivalent, outside profile",
+            "Equivalent, but blocked by profile",
             "Invalid",
           ],
           verdicts
@@ -5121,6 +5471,110 @@ let tests = (
           "incorrect polynomial remains invalid",
           false,
           trace(profile, numeric_source, incorrect_target) |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "One Step can limit distribution without limiting Check Result",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source = times(minus(x, Exp.int(2)), plus(x, Exp.int(5)));
+        let right_distribution =
+          plus(
+            times(minus(x, Exp.int(2)), x),
+            times(minus(x, Exp.int(2)), Exp.int(5)),
+          );
+        let left_distribution =
+          minus(
+            times(x, plus(x, Exp.int(5))),
+            times(Exp.int(2), plus(x, Exp.int(5))),
+          );
+        let full_expansion =
+          minus(
+            plus(power(x, Exp.int(2)), times(Exp.int(3), x)),
+            Exp.int(10),
+          );
+        let base_profile = Axioms.math_profile(Algebra);
+        let single_distribution_model =
+          Web.ProfileBoard.Model.init
+          |> Web.ProfileBoard.Update.update(
+               SetOneStepOptionEnabled(
+                 Web.ProfileBoard.repeated_distribution_option_id,
+                 false,
+               ),
+             );
+        let single_distribution_profile =
+          Web.ProfileBoard.apply_model_to_profile(
+            single_distribution_model,
+            base_profile,
+          );
+        let one_step = (profile, target) =>
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          );
+        [
+          ("distribute the right factor", right_distribution),
+          ("distribute the left factor", left_distribution),
+        ]
+        |> List.iter(((label, target)) =>
+             switch (one_step(single_distribution_profile, target)) {
+             | Some(result) =>
+               check(
+                 bool,
+                 label ++ " records primitive distribution",
+                 true,
+                 has_trace_rule("alg.distribute_mul_add", result)
+                 && !has_trace_rule("alg.expand_polynomial", result),
+               )
+             | None => fail(label ++ " should remain a valid One Step result")
+             }
+           );
+        check(
+          bool,
+          "complete FOIL is not one step when repetition is disabled",
+          false,
+          one_step(single_distribution_profile, full_expansion)
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "complete FOIL remains one step when repetition is enabled",
+          true,
+          one_step(base_profile, full_expansion) |> Option.is_some,
+        );
+        let check_result =
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile=single_distribution_profile,
+            ~settings,
+            ~env,
+            source,
+            full_expansion,
+          );
+        check(
+          bool,
+          "Check Result remains independent from One Step granularity",
+          true,
+          switch (check_result) {
+          | Some(summary) =>
+            List.mem("alg.expand_polynomial", summary.rule_ids)
+          | None => false
+          },
+        );
+        let incorrect =
+          minus(
+            plus(power(x, Exp.int(2)), times(Exp.int(4), x)),
+            Exp.int(10),
+          );
+        check(
+          bool,
+          "inequivalent expansion remains invalid",
+          false,
+          one_step(base_profile, incorrect) |> Option.is_some,
         );
       },
     ),
@@ -6439,6 +6893,9 @@ let tests = (
                ~rule_id="alg.distribute_mul_add",
              )
           |> Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="alg.distribute_div_add",
+             )
+          |> Web.ProfileBoard.profile_without_visible_rule(
                ~rule_id="alg.factor_common",
              )
           |> Web.ProfileBoard.profile_without_visible_rule(
@@ -6536,9 +6993,9 @@ let tests = (
           };
         check(
           bool,
-          "auto summary records auto-simplify plan",
+          "auto summary records shared check-result validation plan",
           true,
-          string_contains("hazel_algebra_plan_auto_simplify", auto_detail),
+          string_contains("hazel_algebra_plan", auto_detail),
         );
 
         let x = Exp.var("x");
@@ -7695,6 +8152,204 @@ let tests = (
           | _ => fail("expected one search step")
           };
         | None => fail("expected algebra axiom search proof")
+        };
+      },
+    ),
+    test_case(
+      "division distribution is structural, inherited, and profile controlled",
+      `Quick,
+      () => {
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let c = Exp.var("c");
+        let plus_source = divide(plus(a, b), c);
+        let plus_target = plus(divide(a, c), divide(b, c));
+        let minus_source = divide(minus(a, b), c);
+        let minus_target = minus(divide(a, c), divide(b, c));
+        let direct_trace = (profile, source, target) =>
+          Web.RewriteChecker.check_single_algebra_rule_result_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          )
+          |> Option.map(Web.RewriteChecker.trace_summary_of_result);
+        [Algebra, Trigonometry, Calculus]
+        |> List.iter(level =>
+             check(
+               bool,
+               Axioms.rewrite_level_label(level)
+               ++ " inherits division distribution",
+               true,
+               direct_trace(
+                 Axioms.math_profile(level),
+                 minus_source,
+                 minus_target,
+               )
+               |> Option.map((summary: Web.RewriteChecker.trace_summary) =>
+                    summary.rule_ids == ["alg.distribute_div_add"]
+                  )
+               |> Option.value(~default=false),
+             )
+           );
+        check(
+          bool,
+          "addition uses the same structural rule",
+          true,
+          direct_trace(
+            Axioms.math_profile(Algebra),
+            plus_source,
+            plus_target,
+          )
+          |> Option.is_some,
+        );
+        let x = Exp.var("x");
+        let trig_source =
+          divide(
+            minus(Exp.int(1), builtin_cos(times(Exp.int(2), x))),
+            Exp.int(2),
+          );
+        let trig_target =
+          minus(
+            divide(Exp.int(1), Exp.int(2)),
+            divide(builtin_cos(times(Exp.int(2), x)), Exp.int(2)),
+          );
+        check(
+          bool,
+          "the trig case uses inherited Algebra distribution",
+          true,
+          direct_trace(
+            Axioms.math_profile(Trigonometry),
+            trig_source,
+            trig_target,
+          )
+          |> Option.is_some,
+        );
+        let disabled_profile =
+          Axioms.math_profile(Algebra)
+          |> Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="alg.distribute_div_add",
+             );
+        check(
+          bool,
+          "disabled profile rejects division distribution",
+          true,
+          direct_trace(disabled_profile, minus_source, minus_target)
+          |> Option.is_none,
+        );
+        let check_result_request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Trigonometry,
+            max_depth: 4,
+            max_states: 80,
+            source: trig_source,
+            target: trig_target,
+          };
+        check(
+          bool,
+          "Check Result records the inherited division rule",
+          true,
+          Web.ProofSearchBackend.local_profile_trace(
+            ~profile=Axioms.math_profile(Trigonometry),
+            ~settings,
+            ~env,
+            check_result_request,
+          )
+          |> Option.map((summary: Web.RewriteChecker.trace_summary) =>
+               List.mem("alg.distribute_div_add", summary.rule_ids)
+             )
+          |> Option.value(~default=false),
+        );
+        let disabled_trig_profile =
+          Axioms.math_profile(Trigonometry)
+          |> Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="alg.distribute_div_add",
+             );
+        check(
+          bool,
+          "Check Result rejects the same target when the rule is disabled",
+          true,
+          Web.ProofSearchBackend.local_profile_trace(
+            ~profile=disabled_trig_profile,
+            ~settings,
+            ~env,
+            check_result_request,
+          )
+          |> Option.is_none,
+        );
+        check(
+          bool,
+          "an incorrect denominator remains invalid",
+          true,
+          direct_trace(
+            Axioms.math_profile(Algebra),
+            minus_source,
+            minus(divide(a, c), divide(b, Exp.var("d"))),
+          )
+          |> Option.is_none,
+        );
+        let summary =
+          switch (
+            direct_trace(
+              Axioms.math_profile(Algebra),
+              minus_source,
+              minus_target,
+            )
+          ) {
+          | Some(summary) => summary
+          | None => fail("expected exact division-distribution trace")
+          };
+        let request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Algebra,
+            max_depth: 1,
+            max_states: 80,
+            source: minus_source,
+            target: minus_target,
+          };
+        let replay =
+          Web.ProofSearchBackend.rocq_replay_program(request, summary);
+        write_text_file(
+          "/tmp/hazel_stepper_rocq_division_distribution.v",
+          replay,
+        );
+        check(
+          bool,
+          "Rocq replay uses the exact real-division lemma",
+          true,
+          string_contains("rewrite Rdiv_minus_distr", replay)
+          && !string_contains("nra", replay),
+        );
+      },
+    ),
+    test_case(
+      "axiom search finds one division-distribution step",
+      `Quick,
+      () => {
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let c = Exp.var("c");
+        let from_ = divide(plus(a, b), c);
+        let to_ = plus(divide(a, c), divide(b, c));
+        switch (
+          Web.AxiomSearch.search(
+            ~level=Algebra,
+            ~max_depth=1,
+            ~allowed_rule_ids=["alg.distribute_div_add"],
+            ~log=false,
+            from_,
+            to_,
+          )
+        ) {
+        | Some({steps: [step], _}) =>
+          check(string, "rule", "alg.distribute_div_add", step.rule_id);
+          check_exp_equal("local before", from_, step.before_exp);
+          check_exp_equal("local after", to_, step.after_exp);
+        | Some(_)
+        | None => fail("expected one division-distribution search step")
         };
       },
     ),
