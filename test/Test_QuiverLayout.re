@@ -83,7 +83,7 @@ let probe2 = [
         /* materialization inherits placed positions: empty parens
            pinch the hole, the trailing hole sits one cell after in
            (was regrout-era system pads) */
-        "A: )+=+in@1:11  MAT<let a = 2 in\nlet _: (?)=?in ? >\n"
+        "A: )+=+in@1:12  MAT<let a = 2 in\nlet _: (?)=?in ? >\n"
         ++ "B: =+in@1:19  MAT<let a = 2 in\nlet _: (Int, Bool)=?in ?>",
         "A: "
         ++ full("let a = 2 in\nlet _: (  ¦")

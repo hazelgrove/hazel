@@ -5,7 +5,7 @@ open Language;
 /* Completion-display harness: render what the user actually sees —
    the DISPLAY segment with ghosts spliced at their anchors, caret
    as ¦, ghost runs in ⟪⟫ — plus the chip stream. The string IS the
-   test: display_case("string_replace(a,¦ ⟪?, ?)⟫") types the text
+   test: display_case("string_replace(a,¦ ?⟪, ?)⟫") types the text
    before ¦ and asserts the whole rendering.
 
    REVIEW STANDARD (not just pass/fail): a pinned trajectory is a
@@ -159,6 +159,12 @@ let display_state_of =
              )
           |> List.concat;
         | Grout(g) => [
+            /* holes render UN-tinted even in ghost zones (the
+               andrew-approved look: the hole you're about to fill
+               reads plain; ghost tint covers tokens). The old pins'
+               hole-inside-span look for owed commas was marker-shift
+               arithmetic, not marks truth. OPEN STYLING QUESTION
+               (docketed): should owed holes tint? */
             (is_marked(g.id, None), false, Measured.find_g(g, measured)),
           ]
         | Secondary(w) => [
@@ -275,6 +281,14 @@ let display_state_of =
            }
          };
        });
+  /* a witness remainder already inside a splice run must not nest a
+     second span */
+  let covered = ((o, l): (Util.Point.t, Util.Point.t)): bool =>
+    runs
+    |> List.exists(((o', l'): (Util.Point.t, Util.Point.t)) =>
+         Util.Point.compare(o', o) <= 0 && Util.Point.compare(l, l') <= 0
+       );
+  let witness_runs = witness_runs |> List.filter(r => !covered(r));
   let mark_list =
     [(hole_shift(~incl=false, caret), 1, "¦")]
     @ List.concat_map(
@@ -612,11 +626,11 @@ string_replac¦⟪e⟫   CHIPS[]
 string_replace¦   CHIPS[]
 string_replace(¦⟪?, ?, ?)⟫   CHIPS[]
 string_replace(a¦⟪, ?, ?)⟫   CHIPS[]
-string_replace(a,¦ ⟪?, ?)⟫   CHIPS[]
-string_replace(a, ¦⟪?, ?)⟫   CHIPS[]
+string_replace(a,¦ ?⟪, ?)⟫   CHIPS[]
+string_replace(a, ¦?⟪, ?)⟫   CHIPS[]
 string_replace(a, b¦⟪, ?)⟫   CHIPS[]
-string_replace(a, b,¦ ⟪?)⟫   CHIPS[]
-string_replace(a, b, ¦⟪?)⟫   CHIPS[]
+string_replace(a, b,¦ ?⟪)⟫   CHIPS[]
+string_replace(a, b, ¦?⟪)⟫   CHIPS[]
 string_replace(a, b, c¦⟪)⟫   CHIPS[]
 string_replace(a, b, c)¦   CHIPS[]|},
           trajectory("string_replace(a, b, c)"),
@@ -633,8 +647,8 @@ string_replace(a, b, c)¦   CHIPS[]|},
       /* empty parens presume: the full promise from `(` on */
       display_case("string_replace(¦⟪?, ?, ?)⟫"),
       display_case("string_replace(a¦⟪, ?, ?)⟫"),
-      display_case("string_replace(a,¦ ⟪?, ?)⟫"),
-      display_case("string_replace(a, b,¦ ⟪?)⟫"),
+      display_case("string_replace(a,¦ ?⟪, ?)⟫"),
+      display_case("string_replace(a, b,¦ ?⟪)⟫"),
       display_case("string_replace(a, b, c¦⟪)⟫"),
       display_case("let x = 4 i¦⟪n ?⟫"),
       /* trailing space: the ghost hugs the caret (slide_to_caret) —
@@ -693,7 +707,7 @@ let x = 1 in¦?   CHIPS[]|},
           "let-above",
           {|l¦~
 string_replace(a, b, c)   CHIPS[]
-le¦⟪t ~⟫
+le¦⟪t ⟫~
 string_replace(a, b, c)   CHIPS[]
 let¦ ? ⟪= ? in⟫
 string_replace(a, b, c)   CHIPS[]
@@ -733,10 +747,10 @@ string_replace(a, b, c)   CHIPS[]|},
         check(
           string_testable,
           "let-bk",
-          {|let  ?=  i¦ ⟪in ?⟫   CHIPS[]
-let  ?=  ¦? ⟪in ?⟫   CHIPS[]
-let  ?= ¦? ⟪in ?⟫   CHIPS[]
-let  ?=¦ ? ⟪in ?⟫   CHIPS[]
+          {|let ?=  i¦ ⟪in ?⟫   CHIPS[]
+let ?=  ¦? ⟪in ?⟫   CHIPS[]
+let ?= ¦? ⟪in ?⟫   CHIPS[]
+let ?=¦ ? ⟪in ?⟫   CHIPS[]
 let  ¦? ⟪= ? in ?⟫   CHIPS[]
 let ¦? ⟪= ? in ?⟫   CHIPS[]|},
           trajectory_bk(~ctx="let  =  in¦", 6),
@@ -834,8 +848,8 @@ let a : (St¦⟪ring) = ? in ?⟫   CHIPS[]|},
           string_testable,
           "break-closer",
           {|let y = string_replace(a, b, c¦⟪)⟫ in y   CHIPS[]
-let y = string_replace(a, b, ¦⟪?)⟫ in y   CHIPS[]
-let y = string_replace(a, b,¦ ⟪?)⟫ in y   CHIPS[]|},
+let y = string_replace(a, b, ¦?⟪)⟫ in y   CHIPS[]
+let y = string_replace(a, b,¦ ?⟪)⟫ in y   CHIPS[]|},
           trajectory_bk(~ctx="let y = string_replace(a, b, c)¦ in y", 3),
         )
       ),
@@ -926,8 +940,8 @@ fun x -¦⟪> ?⟫   CHIPS[]|},
           "list-entry",
           {|[¦⟪?]⟫   CHIPS[]
 [1¦⟪]⟫   CHIPS[]
-[1,¦ ⟪?]⟫   CHIPS[]
-[1, ¦⟪?]⟫   CHIPS[]
+[1,¦ ?⟪]⟫   CHIPS[]
+[1, ¦?⟪]⟫   CHIPS[]
 [1, 2¦⟪]⟫   CHIPS[]|},
           trajectory("[1, 2"),
         )
@@ -1008,7 +1022,7 @@ let l : [Int] = st¦⟪ring_length(?):: in ?⟫   CHIPS[]|},
           string_testable,
           "break-inner",
           {|let y = (1 + 2¦⟪)⟫ in y   CHIPS[]
-let y = (1 + ¦⟪?)⟫ in y   CHIPS[]|},
+let y = (1 + ¦?⟪)⟫ in y   CHIPS[]|},
           trajectory_bk(~ctx="let y = (1 + 2)¦ in y", 2),
         )
       ),
@@ -1303,8 +1317,8 @@ let fu¦ ⟪= ? in ?⟫   CHIPS[]
 let fun¦ ? ⟪-> ? in ?⟫   CHIPS[=]
 let fun ¦? ⟪-> ? in ?⟫   CHIPS[=]
 let fun i¦ ⟪-> ? in ?⟫   CHIPS[=]
-let fun ?in¦?   CHIPS[-> | =]
-let fun ?in ¦?   CHIPS[-> | =]|},
+let fun?in¦?   CHIPS[-> | =]
+let fun?in ¦?   CHIPS[-> | =]|},
           trajectory("let fun in "),
         )
       ),
@@ -1322,8 +1336,8 @@ if fun ¦? ⟪-> ? then ? else ?⟫   CHIPS[]
 if fun t¦ ⟪-> ? then ? else ?⟫   CHIPS[]
 if fun th¦ ⟪-> ? then ? else ?⟫   CHIPS[]
 if fun the¦ ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun ?then¦ ? ⟪else ?⟫   CHIPS[->]
-if fun ?then ¦? ⟪else ?⟫   CHIPS[->]|},
+if fun?then¦ ? ⟪else ?⟫   CHIPS[->]
+if fun?then ¦? ⟪else ?⟫   CHIPS[->]|},
           trajectory("if fun then "),
         )
       ),
@@ -1342,7 +1356,7 @@ case fun¦ ? ⟪-> ? end⟫   CHIPS[]
 case fun ¦? ⟪-> ? end⟫   CHIPS[]
 case fun e¦ ⟪-> ? end⟫   CHIPS[]
 case fun en¦ ⟪-> ? end⟫   CHIPS[]
-case fun ?end¦   CHIPS[->]|},
+case fun?end¦   CHIPS[->]|},
           trajectory("case fun end"),
         )
       ),

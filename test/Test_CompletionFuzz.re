@@ -1205,8 +1205,7 @@ let tests = [
       known_case(
         "inner caret in string literal",
         "c a s e SP n SP \"",
-        "PRE-CARET(inner) disp-pre=case n~ raw-pre=case n \\\"" /* REGRESSED under width transfer: same consumed-cell
-           Inner-caret class as the glommed-op pins */,
+        "PRE-CARET(inner) disp-pre=case n~ raw-pre=case n \\\"" /* REGRESSED under width transfer: same consumed-cell   Inner-caret class as the glommed-op pins */,
       ),
       /* INV 4 PAD-IDEMPOTENCE: second finish_display pass re-pads the
          `= ?` gap its first pass already padded (minted whitespace
