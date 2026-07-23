@@ -2598,27 +2598,109 @@ module Agent = {
         }
       );
 
+    /* Resolve the selector against the post-action program and return the
+       actual matched source range to highlight. The caret is restored to the
+       target's start by CompositionGo, so an exact start-position match
+       disambiguates selectors with multiple results. Prefer the semantic
+       focused ID when it owns a segment (highlighting the whole modified
+       subtree), with the measurable surface ID as a fallback. */
+    let selector_highlight_id =
+        (selector: string, editor: CodeWithStatics.Model.t): option(Id.t) => {
+      let z = editor.editor.state.zipper;
+      let syntax = CachedSyntax.init(z);
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let matches =
+        Selector.query(selector, term)
+        |> SelectorFind.sort_by_position(_, syntax);
+      let caret_point = Zipper.Caret.point(syntax.measured, z);
+      let exact_match =
+        List.find_opt(
+          (match_result: Selector.match_result) =>
+            switch (SelectorFind.measure_match_start(match_result, syntax)) {
+            | Some(start) => Point.equals(start, caret_point)
+            | None => false
+            },
+          matches,
+        );
+      let match_result =
+        switch (exact_match) {
+        | Some(_) => exact_match
+        | None => ListUtil.hd_opt(matches)
+        };
+      switch (match_result) {
+      | Some(match_result) =>
+        TermData.segment(match_result.focused_id, syntax.term_data) != None
+          ? Some(match_result.focused_id)
+          : SelectorFind.visual_id(match_result, syntax)
+      | None => None
+      };
+    };
+
+    /* Capture the active selector target before an edit. Structural
+       replacement preserves this semantic ID on the replacement root, so it
+       identifies the complete inserted/wrapped result even when the original
+       selector now matches only the `$` subtree nested inside that result. */
+    let active_selector_id =
+        (selector: string, editor: CodeWithStatics.Model.t): option(Id.t) => {
+      let z = editor.editor.state.zipper;
+      let syntax = CachedSyntax.init(z);
+      let root = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let caret_point = Zipper.Caret.point(syntax.measured, z);
+      switch (SelectorFind.start(~selector, ~root, ~caret_point, ~syntax)) {
+      | Ok(session) =>
+        SelectorFind.active_match(session)
+        |> Option.map((match_result: Selector.match_result) =>
+             match_result.focused_id
+           )
+      | Error(_) => None
+      };
+    };
+
     /* The node an agent action landed on, shown as a highlight in the
        editor (visible even while the editor is unfocused, and restored by
-       undo/redo replay since it lives in the editor model). Edits highlight
-       the edited node; selector-based reads highlight the selected node;
-       other actions leave the previous highlight in place. */
+       undo/redo replay since it lives in the editor model). Selector actions
+       highlight their matched/modified subtree rather than whichever shard
+       happens to be adjacent to the post-edit caret. */
     let agent_highlight_of_action =
         (
           ~after_cursor_id: option(Id.t),
+          ~before_editor: CodeWithStatics.Model.t,
           ~editor: CodeWithStatics.Model.t,
           action: CompositionActions.action,
         )
         : option(Id.t) =>
       switch (action) {
+      | EditorAction(
+          SelectorUpdate(selector, _) | SelectorDelete(selector) |
+          Overwrite(selector, _),
+        ) =>
+        switch (active_selector_id(selector, before_editor)) {
+        | Some(id)
+            when
+              TermData.segment(
+                id,
+                CachedSyntax.init(editor.editor.state.zipper).term_data,
+              )
+              != None =>
+          Some(id)
+        | _ =>
+          switch (selector_highlight_id(selector, editor)) {
+          | Some(_) as highlight => highlight
+          | None => after_cursor_id
+          }
+        }
       | EditorAction(_)
       | Initialize(_)
       | ProbeAction(_) => after_cursor_id
       | ReadAction(
-          Select(_) | GetCanonical(_) | SelectorGetStatics(_) |
-          SelectorGetContext(_),
+          Select(selector) | GetCanonical(selector) |
+          SelectorGetStatics(selector) |
+          SelectorGetContext(selector),
         ) =>
-        Replay.Utils.cursor_id_of_zipper(editor.editor.state.zipper)
+        switch (selector_highlight_id(selector, editor)) {
+        | Some(_) as highlight => highlight
+        | None => Replay.Utils.cursor_id_of_zipper(editor.editor.state.zipper)
+        }
       | _ => editor.agent_highlight
       };
 
@@ -2767,7 +2849,12 @@ module Agent = {
             let editor = {
               ...editor,
               agent_highlight:
-                agent_highlight_of_action(~after_cursor_id, ~editor, action),
+                agent_highlight_of_action(
+                  ~after_cursor_id,
+                  ~before_editor=cell_editor.editor,
+                  ~editor,
+                  action,
+                ),
             };
             (
               model,
@@ -3053,7 +3140,12 @@ module Agent = {
           let editor = {
             ...editor,
             agent_highlight:
-              agent_highlight_of_action(~after_cursor_id, ~editor, action),
+              agent_highlight_of_action(
+                ~after_cursor_id,
+                ~before_editor=cell_editor.editor,
+                ~editor,
+                action,
+              ),
           };
           (
             model,
