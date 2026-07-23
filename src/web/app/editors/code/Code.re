@@ -114,7 +114,10 @@ let view =
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
 
   let g_hole = (shape: Grout.shape, cell: EmptyHoleDec.cell) =>
-    EmptyHoleDec.view((font_metrics, shape, cell));
+    switch (cell) {
+    | Thin => EmptyHoleDec.view_thin(font_metrics)
+    | _ => EmptyHoleDec.view((font_metrics, shape, cell))
+    };
 
   /* Node.t's None/Some shadow option's, so match structurally */
   let ghost_mark = (id: Id.t, shard: option(int)): bool =>
@@ -125,7 +128,8 @@ let view =
     );
 
   let of_grout = (~cell: EmptyHoleDec.cell, g: Grout.t): t => {
-    let hole = g_hole(g.shape, cell);
+    /* the wrapper anchors the out-of-flow thin X (position:relative) */
+    let hole = span_c("grout-hole", [g_hole(g.shape, cell)]);
     ghost_mark(g.id, Option.none)
       ? span_c("in-parsed-buffer", [hole]) : hole;
   };
