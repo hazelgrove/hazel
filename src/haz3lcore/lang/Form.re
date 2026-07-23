@@ -15,7 +15,7 @@ module P = Precedence;
  * FormId.label_of_family and its rows in `rows_of`; if the label is
  * already spelled by another family, order their competition in
  * `same_label_rank`. */
-include FormId;
+include Language.FormId;
 
 /* When you complete a token corresponding to a delimiter of a
  * compound form, that token might be 'expanded', which is to say,
@@ -577,7 +577,7 @@ let atomic_defs: list((atomic_form, (Token.t => bool, list(Mold.t)))) =
  * (classification/remolding priority): (form, mold) pairs. The
  * InfixDelimiterPrefix class carries the TokInfix shape-role; all
  * other classes are token-and-sort determined and collapse to Tok. */
-let atomic_candidates_uncached = (t: Token.t): list((FormId.t, Mold.t)) =>
+let atomic_candidates_uncached = (t: Token.t): list((t, Mold.t)) =>
   List.concat_map(
     ((a, (pred, molds))) =>
       pred(t)
@@ -593,9 +593,9 @@ let atomic_candidates_uncached = (t: Token.t): list((FormId.t, Mold.t)) =>
 /* Memoized per token: accessors derive Tok molds on every read, and
  * the predicate scan above is the expensive part. Token sets are
  * session-bounded. */
-let atomic_candidates_tbl: Hashtbl.t(Token.t, list((FormId.t, Mold.t))) =
+let atomic_candidates_tbl: Hashtbl.t(Token.t, list((t, Mold.t))) =
   Hashtbl.create(1024);
-let atomic_candidates = (t: Token.t): list((FormId.t, Mold.t)) =>
+let atomic_candidates = (t: Token.t): list((t, Mold.t)) =>
   switch (Hashtbl.find_opt(atomic_candidates_tbl, t)) {
   | Some(c) => c
   | None =>
@@ -633,7 +633,7 @@ let compound_defs: Label.t => list((family, Mold.t)) = {
   label => Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
 };
 
-let base_candidates = (label: Label.t): list((FormId.t, Mold.t)) => {
+let base_candidates = (label: Label.t): list((t, Mold.t)) => {
   let compounds =
     compound_defs(label) |> List.map(((fam, m)) => (Compound(fam), m));
   switch (label) {
@@ -692,7 +692,7 @@ let unmolded_mold = (label: Label.t, sort: Sort.t): Mold.t =>
  * (editor-classified fallbacks store Any; printer-built leaves store
  * a concrete sort). TokInfix: the InfixDelimiterPrefix bin, uniformly
  * at any sort. */
-let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
+let mold_of = (f: t, sort: Sort.t): Mold.t =>
   switch (f) {
   | Compound(fam) =>
     switch (Hashtbl.find_opt(family_mold_tbl, (fam, sort))) {
@@ -705,7 +705,7 @@ let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
   | Tok(t) =>
     switch (
       List.find_opt(
-        ((_, m): (FormId.t, Mold.t)) => m.out == sort,
+        ((_, m): (t, Mold.t)) => m.out == sort,
         atomic_candidates(t),
       )
     ) {
@@ -722,8 +722,8 @@ let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
  * every InfixDelimiterPrefix token is var-shaped, and the var
  * classes precede it); no fit => the first compound (or Tok) with
  * stored sort Any. */
-let classify_label = (sort: Sort.t, label: Label.t): (FormId.t, Sort.t) => {
-  let fits = ((_, m): (FormId.t, Mold.t)): bool => m.out == sort;
+let classify_label = (sort: Sort.t, label: Label.t): (t, Sort.t) => {
+  let fits = ((_, m): (t, Mold.t)): bool => m.out == sort;
   switch (List.find_opt(fits, base_candidates(label))) {
   | Some((id, _)) => (id, sort)
   | None =>
@@ -748,7 +748,7 @@ let classify_label = (sort: Sort.t, label: Label.t): (FormId.t, Sort.t) => {
  * Drv(Exp)/Drv(Pat). Sorts with no registered paren row (Rul, Mod,
  * Sig, MPat, Any, remaining Drv) fall back to classify_label:
  * (Parens, Any) with the op(Any) fallback mold. */
-let mk_parens_id = (sort: Sort.t): (FormId.t, Sort.t) =>
+let mk_parens_id = (sort: Sort.t): (t, Sort.t) =>
   switch (sort) {
   | Exp
   | Pat
@@ -761,8 +761,7 @@ let mk_parens_id = (sort: Sort.t): (FormId.t, Sort.t) =>
   | _ => classify_label(sort, Token.tuple_lbl)
   };
 
-let remold_candidates =
-    (label: Label.t, sort: Sort.t): list((FormId.t, Sort.t)) =>
+let remold_candidates = (label: Label.t, sort: Sort.t): list((t, Sort.t)) =>
   base_candidates(label)
-  |> List.filter(((_, m): (FormId.t, Mold.t)) => m.out == sort)
+  |> List.filter(((_, m): (t, Mold.t)) => m.out == sort)
   |> List.map(((id, _)) => (id, sort));
