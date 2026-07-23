@@ -50,6 +50,7 @@ let (suite, _) =
     @ Test_CompletionFuzz.tests
     @ Test_GroutPlace.tests
     @ Test_FeltPrint.tests
+    @ Test_GroutGeometry.tests
     @ Test_CompletionScoreboard.tests
     @ Test_CompletionVisualization.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]

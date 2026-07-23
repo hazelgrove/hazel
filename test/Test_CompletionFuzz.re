@@ -820,6 +820,13 @@ let run_grout_fuzz = (~seeds: int, ~steps: int): string => {
                     ++ flat(FeltPrint.render(GroutPlace.strip(completed))),
                   );
                 };
+                /* measured-level: width transfer keeps row widths
+                   equal to the stripped segment's (LineEndFree rows
+                   +1), and no two width-bearing atoms share a cell */
+                switch (Test_GroutGeometry.invariants(p1)) {
+                | None => ()
+                | Some(v) => bad(~seed, ~step=k, ~inv="G-MEASURED", v)
+                };
               }
             };
           };

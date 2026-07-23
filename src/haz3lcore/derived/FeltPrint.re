@@ -42,59 +42,17 @@ let sigil_default = (cell: cell, shape: Grout.shape): string =>
   | (Pinched, Concave) => {|∻|}
   };
 
-/* flat render stream: tiles and comments are Text, whitespace keeps
- * its identity so the sigil rules can see cells */
-type atom =
-  | Text(string)
-  | Space
-  | Linebreak
-  | G(Grout.shape);
-
-let rec atoms =
-        (~projector_to_segment: projector => segment, seg: segment)
-        : list(atom) =>
-  List.concat_map(
-    (p: piece) =>
-      switch (p) {
-      | Grout(g) => [G(g.shape)]
-      | Secondary(w) when Secondary.is_space(w) => [Space]
-      | Secondary(w) when Secondary.is_linebreak(w) => [Linebreak]
-      | Secondary(w) => [Text(Secondary.get_string(w.content))]
-      | Tile(t) =>
-        Aba.mk(t.shards, t.children)
-        |> Aba.join(
-             i => [Text(List.nth(t.label, i))],
-             kid => atoms(~projector_to_segment, kid),
-           )
-        |> List.concat
-      | Projector(pr) =>
-        atoms(~projector_to_segment, projector_to_segment(pr))
-      },
-    seg,
-  );
-
-let rec weave = (~sigil, ats: list(atom)): string =>
-  switch (ats) {
-  /* rule 3 guarded so rules 1/2 win when the grout's own following
-   * cell can host it */
-  | [Space, G(sh), ...tl]
-      when
-        switch (tl) {
-        | []
-        | [Space, ..._]
-        | [Linebreak, ..._] => false
-        | _ => true
-        } =>
-    sigil(Consumed, sh) ++ weave(~sigil, tl)
-  | [G(sh), Space, ...tl] => sigil(Consumed, sh) ++ weave(~sigil, tl)
-  | [G(sh)] => sigil(Free, sh)
-  | [G(sh), ...[Linebreak, ..._] as tl] =>
-    sigil(Free, sh) ++ weave(~sigil, tl)
-  | [G(sh), ...tl] => sigil(Pinched, sh) ++ weave(~sigil, tl)
-  | [Text(s), ...tl] => s ++ weave(~sigil, tl)
-  | [Space, ...tl] => " " ++ weave(~sigil, tl)
-  | [Linebreak, ...tl] => "\n" ++ weave(~sigil, tl)
-  | [] => ""
+/* the weave rules moved to GroutCells.classify — THE one home for
+ * cell assignment, shared with Measured and the view. This renderer
+ * just prints pieces under that classification: consumed spaces
+ * print as nothing, each grout prints its sigil in the cell class
+ * the classification assigned. */
+let cell_of = (c: GroutCells.cls): cell =>
+  switch (c) {
+  | NextSpace
+  | PrevSpace => Consumed
+  | LineEndFree => Free
+  | Pinch => Pinched
   };
 
 /* No indent pass: on this branch indentation is STORED as space
@@ -106,8 +64,31 @@ let render =
       ~projector_to_segment=Triggers.projector_to_invoke,
       seg: Segment.t,
     )
-    : string =>
-  weave(~sigil, atoms(~projector_to_segment, seg));
+    : string => {
+  let cells = GroutCells.classify(seg);
+  let rec go = (sg: segment): string =>
+    sg
+    |> List.map((p: piece) =>
+         switch (p) {
+         | Grout(g) =>
+           let c =
+             GroutCells.cls_of(cells, g.id)
+             |> Option.value(~default=GroutCells.Pinch);
+           sigil(cell_of(c), g.shape);
+         | Secondary(w) when Secondary.is_space(w) =>
+           GroutCells.is_consumed(cells, w.id) ? "" : " "
+         | Secondary(w) when Secondary.is_linebreak(w) => "\n"
+         | Secondary(w) => Secondary.get_string(w.content)
+         | Tile(t) =>
+           Aba.mk(t.shards, t.children)
+           |> Aba.join(i => List.nth(t.label, i), go)
+           |> String.concat("")
+         | Projector(pr) => go(projector_to_segment(pr))
+         }
+       )
+    |> String.concat("");
+  go(seg);
+};
 
 /* the layout-invisibility left side: consuming sigils restore their
  * cell, non-consuming sigils vanish — must equal render(strip(seg)) */
