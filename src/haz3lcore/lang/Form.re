@@ -713,6 +713,7 @@ let mold_of = (f: t, sort: Sort.t): Mold.t =>
     | None => unmolded_mold([t], sort)
     }
   | TokInfix(_) => Mold.mk_bin(Precedence.concave_grout, sort, [])
+  | TokOperand(_) => Mold.mk_op(sort, [])
   };
 
 /* Classify a label at a sort: the (form, sort) pair to store on the

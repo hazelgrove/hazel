@@ -180,7 +180,8 @@ let check_classify = (sort: Sort.t, label: Label.t): unit => {
       switch (id) {
       | Compound(_) => is_compound_label(label)
       | Tok(_) => !is_compound_label(label)
-      | TokInfix(_) => false
+      | TokInfix(_)
+      | TokOperand(_) => false
       };
     check(bool, "fallback class: " ++ name, true, fallback_ok);
     let fallback_mold =
@@ -252,7 +253,7 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
     switch (cands) {
     | [] => true
     | [(Form.Compound(_), _), ...tl] => atoms_then_compounds(tl, true)
-    | [(Form.Tok(_) | Form.TokInfix(_), _), ...tl] =>
+    | [(Form.Tok(_) | Form.TokInfix(_) | Form.TokOperand(_), _), ...tl] =>
       !seen_compound && atoms_then_compounds(tl, seen_compound)
     };
   check(
@@ -436,7 +437,8 @@ let tests = (
                   switch (id) {
                   | Form.Compound(_) => false
                   | Form.Tok(_)
-                  | Form.TokInfix(_) => true
+                  | Form.TokInfix(_)
+                  | Form.TokOperand(_) => true
                   },
                 );
               };

@@ -150,6 +150,9 @@ type family =
  *   Any-fallback;
  * - Tok(t): a single token, classified or not; mold = the token's
  *   registered atomic mold at the tile's sort, else the Any-fallback;
+ * - TokOperand(t): t rendered as a convex operand regardless of its
+ *   grammar status. Display pseudo-syntax only (ExplainThis placeholder
+ *   tokens like "..."); classification never produces it.
  * - TokInfix(t): the keyword-prefix backup-infix shape-role. Exists
  *   solely for the InfixDelimiterPrefix mechanism (see Form.re's
  *   infix_delimiter_ops_prefixes rationale); never produced by
@@ -158,7 +161,8 @@ type family =
 type t =
   | Compound(family)
   | Tok(Token.t)
-  | TokInfix(Token.t);
+  | TokInfix(Token.t)
+  | TokOperand(Token.t);
 
 /* The label of each compound family: the single home of every
  * delimiter spelling (editor-side definition rows join their labels
@@ -263,7 +267,8 @@ let label_of: t => Label.t =
   fun
   | Compound(fam) => label_of_family(fam)
   | Tok(t)
-  | TokInfix(t) => [t];
+  | TokInfix(t)
+  | TokOperand(t) => [t];
 
 /* Does this form spell the same label as family fam?
  * Label-family check: labels are shared between families (e.g.
