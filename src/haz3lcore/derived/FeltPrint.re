@@ -90,6 +90,58 @@ let render =
   go(seg);
 };
 
+/* MEASURED-FAITHFUL PRINT — the one home for every harness/probe/
+ * fallback-check text render whose columns must line up with
+ * Measured under width transfer. Consumed spaces are omitted (their
+ * cell belongs to the hole, which prints its ?/~ there), so string
+ * indices equal measured columns EXCEPT one printed char per
+ * zero-width Pinch hole; measured_caret maps a measured point to
+ * its printed column (strictly-before pinch count). Callers insert
+ * markers at measured_caret points and never shift themselves. */
+let measured_print =
+    (~holes="?", ~concave_holes="~", ~measured, seg: Segment.t): string =>
+  Printer.of_segment(
+    ~holes,
+    ~concave_holes,
+    ~indent="",
+    ~measured,
+    GroutCells.drop_consumed_spaces(seg),
+  );
+
+let measured_caret =
+    (~measured: Measured.t, seg: Segment.t, pt: Util.Point.t): Util.Point.t => {
+  let cells = GroutCells.classify(seg);
+  let grout_positions = {
+    let rec go = (sg: segment) =>
+      List.concat_map(
+        (p: piece) =>
+          switch (p) {
+          | Grout(g) =>
+            switch (Measured.find_g(g, measured)) {
+            | m => [(g.id, m.origin.row, m.origin.col)]
+            | exception _ => []
+            }
+          | Tile(t) => List.concat_map(go, t.children)
+          | _ => []
+          },
+        sg,
+      );
+    go(seg);
+  };
+  {
+    ...pt,
+    col:
+      pt.col
+      + GroutCells.pinch_shift(
+          cells,
+          ~grout_positions,
+          ~incl=false,
+          ~row=pt.row,
+          ~col=pt.col,
+        ),
+  };
+};
+
 /* the layout-invisibility left side: consuming sigils restore their
  * cell, non-consuming sigils vanish — must equal render(strip(seg)) */
 let render_ghostless = (seg: Segment.t): string =>

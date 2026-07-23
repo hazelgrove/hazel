@@ -437,42 +437,9 @@ let mk_inner =
   let pre_caret = (~caret_witnesses, seg: Segment.t): string => {
     let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
     let caret = DisplayCaret.point(~caret_witnesses, measured, z);
-    /* measured-faithful slice (width transfer): consumed spaces are
-       dropped from the print so columns match measured, except one
-       printed char per zero-width Pinch hole before the caret */
-    let cells = GroutCells.classify(seg);
-    let shift = {
-      let rec count = (sg: Segment.t): int =>
-        List.fold_left(
-          (acc, pc: Piece.t) =>
-            switch (pc) {
-            | Grout(g)
-                when GroutCells.cls_of(cells, g.id) == Some(GroutCells.Pinch) =>
-              switch (Measured.find_g(g, measured)) {
-              | m when m.origin.row == caret.row && m.origin.col < caret.col =>
-                acc + 1
-              | _ => acc
-              | exception _ => acc
-              }
-            | Tile(t) =>
-              List.fold_left((a, k) => a + count(k), acc, t.children)
-            | _ => acc
-            },
-          0,
-          sg,
-        );
-      count(seg);
-    };
-    let col = caret.col + shift;
+    let col = FeltPrint.measured_caret(~measured, seg, caret).col;
     let rows =
-      Printer.of_segment(
-        ~holes="?",
-        ~concave_holes="~",
-        ~indent=" ",
-        ~measured,
-        GroutCells.drop_consumed_spaces(seg),
-      )
-      |> String.split_on_char('\n');
+      FeltPrint.measured_print(~measured, seg) |> String.split_on_char('\n');
     let before = List.filteri((i, _) => i < caret.row, rows);
     let at = List.nth_opt(rows, caret.row) |> Option.value(~default="");
     let prefix = col <= String.length(at) ? String.sub(at, 0, col) : at;
