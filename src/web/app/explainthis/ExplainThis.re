@@ -376,7 +376,7 @@ let example_view =
                   ~caption=None,
                   ~locked=true,
                   {
-                    term
+                    Lazy.force(term)
                     |> Zipper.unzip
                     |> Editor.Model.mk(~root=Exp)
                     |> CellEditor.Model.mk

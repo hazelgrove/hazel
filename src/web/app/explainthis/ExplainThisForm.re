@@ -162,7 +162,7 @@ type example_id =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
   sub_id: example_id,
-  term: Segment.t,
+  term: [@sexp.opaque] [@yojson.opaque] [@opaque] Lazy.t(Segment.t),
   message: string,
 };
 

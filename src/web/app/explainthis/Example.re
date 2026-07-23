@@ -87,12 +87,14 @@ let mk_proof_of = mk_tile(ProofOf, Typ);
 let linebreak = () => Piece.Secondary(Secondary.mk_newline(Id.mk()));
 let space = () => Piece.Secondary(Secondary.mk_space(Id.mk()));
 
-let mk_example = str => {
-  switch (Parser.to_segment(str, ~root=Exp)) {
-  | None => []
-  | Some(seg) => seg
-  };
-};
+/* Examples parse on first display, not at startup */
+let mk_example = str =>
+  lazy(
+    switch (Parser.to_segment(str, ~root=Exp)) {
+    | None => []
+    | Some(seg) => seg
+    }
+  );
 
 /* Int param below should be ~ width of sidebar */
 let abbreviate = Token.abbreviate(20);
