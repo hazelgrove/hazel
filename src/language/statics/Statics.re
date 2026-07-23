@@ -4328,11 +4328,5 @@ let mk =
       ctx,
       exp,
     ) =>
-  if (core.statics) {
-    let start = Util.TimeUtil.now_ms();
-    let result = mk((ana, ctx, exp, probe_ids));
-    Util.TimeUtil.log_time("    Statics.mk (inner)", start);
-    result;
-  } else {
-    (Id.Map.empty, Exp.fresh(Tuple([])));
-  };
+  core.statics
+    ? mk((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));

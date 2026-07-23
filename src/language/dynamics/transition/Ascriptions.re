@@ -32,8 +32,9 @@
    Types in Asc nodes may be compact Var references (e.g., Var("HTML"))
    that need resolution for structural matching. This is a ref rather
    than a direct import to break a dependency cycle (Ascriptions →
-   Builtins → ... → Unboxing → Ascriptions). The context is constant
-   after initialization — it contains only builtin type aliases. */
+   Builtins → ... → Unboxing → Ascriptions); it is set once at
+   module-load time by Evaluator's top-level initializer and is
+   constant afterwards — it contains only builtin type aliases. */
 let ctx_ref: ref(Ctx.t) = ref(Ctx.empty);
 let set_ctx = (ctx: Ctx.t) => ctx_ref := ctx;
 

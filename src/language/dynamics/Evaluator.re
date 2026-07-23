@@ -1,5 +1,12 @@
-open Util;
 open Transition;
+
+/* Initialize Ascriptions with the builtin context at module-load time,
+   so every entry point into ascription transitions (stepper,
+   PatternMatch, Unboxing, projectors) sees it — not just paths that go
+   through `evaluate`. The ref lives in Ascriptions because the direct
+   dependency is cyclic (Ascriptions → Builtins → … → Ascriptions); it
+   is constant after this. */
+let () = Ascriptions.set_ctx(Builtins.ctx_init(None));
 
 [@deriving (show({with_path: false}), eq)]
 type step_constrained('a) =
@@ -379,20 +386,12 @@ let evaluate_and_limit =
       d: DHExp.t,
     )
     : step_constrained((Exp.t, EvaluatorState.t)) => {
-  /* Initialize Ascriptions with builtin context for type resolution.
-     This lets types stay as compact Var references through evaluation. */
-  Ascriptions.set_ctx(Builtins.ctx_init(None));
   let state = ref(EvaluatorState.mk(~targets));
   let result =
     evaluate(~prev, ~info_map, ~call_stack=[], ~reuse_map, state, env, d);
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
   | Completed((_, _, x)) =>
-    /* TODO: replace_all_ids here is likely redundant — Substitution.in_exp
-       already calls it on each substituted value (Substitution.re:34), and
-       display sites (stepper, ExpToSegment) do their own freshening.
-       Consider removing; not performance-critical (Constructor is atomic
-       in map_term so types aren't traversed) but conceptually wrong layer. */
     Completed((x |> Substitution.in_exp(env) |> Exp.replace_all_ids, state^))
   | StepLimitExceeded => StepLimitExceeded
   };
@@ -406,14 +405,9 @@ let evaluate =
       ~env,
       d: DHExp.t,
     )
-    : (Exp.t, EvaluatorState.t) => {
-  let start = TimeUtil.now_ms();
-  let result =
-    switch (evaluate_and_limit(~targets, ~prev, ~info_map, ~env, d)) {
-    | Completed(x) => x
-    | StepLimitExceeded =>
-      raise(Failure("Impossible: Step limit exceeded when not set"))
-    };
-  TimeUtil.log_time("Evaluator.evaluate", start);
-  result;
-};
+    : (Exp.t, EvaluatorState.t) =>
+  switch (evaluate_and_limit(~targets, ~prev, ~info_map, ~env, d)) {
+  | Completed(x) => x
+  | StepLimitExceeded =>
+    raise(Failure("Impossible: Step limit exceeded when not set"))
+  };

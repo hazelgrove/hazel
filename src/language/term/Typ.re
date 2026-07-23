@@ -745,126 +745,93 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 
-/* Normalize profiling counters */
-let normalize_calls = ref(0);
-let normalize_total_ms = ref(0.0);
-let normalize_depth = ref(0);
-
-let reset_normalize_stats = () => {
-  normalize_calls := 0;
-  normalize_total_ms := 0.0;
-  normalize_depth := 0;
-};
-
-let print_normalize_stats = () => {
-  Printf.printf("[NORM] normalize: %d calls\n%!", normalize_calls^);
-};
-
 let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
-  normalize_calls := normalize_calls^ + 1;
-  let is_top = normalize_depth^ == 0;
-  let start =
-    if (is_top) {
-      JsUtil.precise_timestamp();
-    } else {
-      0.0;
-    };
-  normalize_depth := normalize_depth^ + 1;
-  let result = {
-    if (rec_counter > 1000) {
-      failwith("normalize exceeded 1000 recursive calls");
-    };
-    let normalize = normalize(~rec_counter=rec_counter + 1);
-    let (term, rewrap) = unwrap(ty);
-    switch (term) {
-    | Var(x) =>
-      switch (Ctx.lookup_alias(ctx, x)) {
-      | Some(ty) => normalize(ctx, ty)
-      | None => ty
-      }
-    | Unknown(_)
-    | Atom(_)
-    | DrvQuoteTy(_)
-    | ExplicitNonlabel
-    | Label(_) => ty
-    | Parens(t)
-    | Projector(_, t) => normalize(ctx, t)
-    | List(t) =>
-      let t' = normalize(ctx, t);
-      t === t' ? ty : List(t') |> rewrap;
-    | Arrow(t1, t2) =>
-      let t1' = normalize(ctx, t1);
-      let t2' = normalize(ctx, t2);
-      t1 === t1' && t2 === t2' ? ty : Arrow(t1', t2') |> rewrap;
-    | Prod(ts) =>
-      let ts' = List.map(normalize(ctx), ts);
-      let duplicate_labels =
-        LabeledTuple.get_duplicate_labels(match_tup_label, ts');
-      let ts'' =
-        List.is_empty(duplicate_labels)
-          ? ts' : remove_duplicate_labels(~duplicate_labels, ts');
-      List.length(ts) == List.length(ts'') && List.for_all2((===), ts, ts'')
-        ? ty : Prod(ts'') |> rewrap;
-    | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
-    | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
-    | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty)
-    | TupLabel(label, t) =>
-      let label' = normalize(ctx, label);
-      let t' = normalize(ctx, t);
-      label === label' && t === t' ? ty : TupLabel(label', t') |> rewrap;
-    | Sum(ts) =>
-      let ts' = ConstructorMap.map(Option.map(normalize(ctx)), ts);
-      ts === ts' ? ty : Sum(ts') |> rewrap;
-    | Rec(tpat, t) =>
-      let t' = normalize(Ctx.extend_dummy_tvar(ctx, tpat), t);
-      t === t' ? ty : Rec(tpat, t') |> rewrap;
-    | Poly(name, t) =>
-      let t' = normalize(Ctx.extend_dummy_tvar(ctx, name), t);
-      t === t' ? ty : Poly(name, t') |> rewrap;
-    | ProofOf(_) => ty
-    | Sig(items) =>
-      /* Desugar signature to labeled tuple type:
-         { let x : Int; let y : Bool } => (x=Int, y=Bool)
-         Type aliases (SigType) don't contribute to the exported type. */
-      let fields =
-        items
-        |> List.filter_map((item: Sig.t) =>
-             switch (item.term) {
-             | SigLet(pat) =>
-               /* Extract name and type from pattern.
-                  let x : T => name="x", typ=T
-                  let x     => name="x", typ=Unknown */
-               switch (pat.term) {
-               | Asc({term: Var(name), _}, typ) =>
-                 Some(
-                   TupLabel(Label(name) |> temp, normalize(ctx, typ))
-                   |> temp,
-                 )
-               | Var(name) =>
-                 Some(
-                   TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
-                   |> temp,
-                 )
-               | _ => None
-               }
-             | SigType(_, _)
-             | Invalid(_)
-             | EmptyHole
-             | MultiHole(_) => None
+  if (rec_counter > 1000) {
+    failwith("normalize exceeded 1000 recursive calls");
+  };
+  let normalize = normalize(~rec_counter=rec_counter + 1);
+  let (term, rewrap) = unwrap(ty);
+  switch (term) {
+  | Var(x) =>
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => normalize(ctx, ty)
+    | None => ty
+    }
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | ExplicitNonlabel
+  | Label(_) => ty
+  | Parens(t)
+  | Projector(_, t) => normalize(ctx, t)
+  | List(t) =>
+    let t' = normalize(ctx, t);
+    t === t' ? ty : List(t') |> rewrap;
+  | Arrow(t1, t2) =>
+    let t1' = normalize(ctx, t1);
+    let t2' = normalize(ctx, t2);
+    t1 === t1' && t2 === t2' ? ty : Arrow(t1', t2') |> rewrap;
+  | Prod(ts) =>
+    let ts' = List.map(normalize(ctx), ts);
+    let duplicate_labels =
+      LabeledTuple.get_duplicate_labels(match_tup_label, ts');
+    let ts'' =
+      List.is_empty(duplicate_labels)
+        ? ts' : remove_duplicate_labels(~duplicate_labels, ts');
+    List.length(ts) == List.length(ts'') && List.for_all2((===), ts, ts'')
+      ? ty : Prod(ts'') |> rewrap;
+  | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+  | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+  | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty)
+  | TupLabel(label, t) =>
+    let label' = normalize(ctx, label);
+    let t' = normalize(ctx, t);
+    label === label' && t === t' ? ty : TupLabel(label', t') |> rewrap;
+  | Sum(ts) =>
+    let ts' = ConstructorMap.map(Option.map(normalize(ctx)), ts);
+    ts === ts' ? ty : Sum(ts') |> rewrap;
+  | Rec(tpat, t) =>
+    let t' = normalize(Ctx.extend_dummy_tvar(ctx, tpat), t);
+    t === t' ? ty : Rec(tpat, t') |> rewrap;
+  | Poly(name, t) =>
+    let t' = normalize(Ctx.extend_dummy_tvar(ctx, name), t);
+    t === t' ? ty : Poly(name, t') |> rewrap;
+  | ProofOf(_) => ty
+  | Sig(items) =>
+    /* Desugar signature to labeled tuple type:
+       { let x : Int; let y : Bool } => (x=Int, y=Bool)
+       Type aliases (SigType) don't contribute to the exported type. */
+    let fields =
+      items
+      |> List.filter_map((item: Sig.t) =>
+           switch (item.term) {
+           | SigLet(pat) =>
+             /* Extract name and type from pattern.
+                let x : T => name="x", typ=T
+                let x     => name="x", typ=Unknown */
+             switch (pat.term) {
+             | Asc({term: Var(name), _}, typ) =>
+               Some(
+                 TupLabel(Label(name) |> temp, normalize(ctx, typ)) |> temp,
+               )
+             | Var(name) =>
+               Some(
+                 TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
+                 |> temp,
+               )
+             | _ => None
              }
-           );
-      switch (fields) {
-      | [] => Prod([]) |> rewrap
-      | _ => normalize(ctx, Prod(fields) |> rewrap)
-      };
+           | SigType(_, _)
+           | Invalid(_)
+           | EmptyHole
+           | MultiHole(_) => None
+           }
+         );
+    switch (fields) {
+    | [] => Prod([]) |> rewrap
+    | _ => normalize(ctx, Prod(fields) |> rewrap)
     };
   };
-  normalize_depth := normalize_depth^ - 1;
-  if (is_top) {
-    normalize_total_ms :=
-      normalize_total_ms^ +. (JsUtil.precise_timestamp() -. start);
-  };
-  result;
 };
 
 /* Targeted Sig desugaring: Only converts Sig nodes to Prod (labeled tuples),
@@ -914,37 +881,11 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
   };
 };
 
-/* Performance counters for meet */
-let meet_calls = ref(0);
-let meet_sum_calls = ref(0);
-let meet_sum_time_ms = ref(0.0);
-let meet_var_eq = ref(0);
-let meet_rec_rec = ref(0);
-let meet_in_rec = ref(false);
-let meet_sum_from_rec = ref(0);
-let meet_phys_eq = ref(0);
-let meet_var_expand = ref(0);
-let meet_unknown = ref(0);
-let reset_meet_stats = () => {
-  meet_calls := 0;
-  meet_sum_calls := 0;
-  meet_sum_time_ms := 0.0;
-  meet_var_eq := 0;
-  meet_rec_rec := 0;
-  meet_in_rec := false;
-  meet_sum_from_rec := 0;
-  meet_phys_eq := 0;
-  meet_var_expand := 0;
-  meet_unknown := 0;
-};
-
 /* Lattice meet on types. This was called 'join' in the 2019 Hazelnut live paper,
    but we're now calling it 'meet' to clarify that Unknown represents the top
    (least precise) element in the precision ordering: specific types dominate Unknown. */
-let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  incr(meet_calls);
+let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
   if (ty1 === ty2) {
-    incr(meet_phys_eq);
     Some(ty1);
   } else {
     let meet' = meet(ctx);
@@ -956,21 +897,15 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
     | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
     | (Unknown(p1), Unknown(p2)) =>
-      incr(meet_unknown);
       if (p1 == p2) {
         Some(ty1);
       } else {
         Some(Unknown(meet_type_provenance(p1, p2)) |> temp);
-      };
-    | (Unknown(_), _) =>
-      incr(meet_unknown);
-      Some(ty2);
-    | (_, Unknown(_)) =>
-      incr(meet_unknown);
-      Some(ty1);
+      }
+    | (Unknown(_), _) => Some(ty2)
+    | (_, Unknown(_)) => Some(ty1)
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
-        incr(meet_var_eq);
         Some(ty1);
       } else {
         let ty1' = Ctx.lookup_alias(ctx, n1);
@@ -982,31 +917,33 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
         | (None, None) => None
         };
       }
-    /* Var-Rec fast path: when a Var resolves to a Rec with the same
-       tpat name as the Rec we're meeting with, they're the same recursive
-       type — return the compact Var form. This avoids expensive structural
-       comparison of the bodies (which may differ syntactically due to
-       unrolling but are semantically equivalent). The lookup_alias call
-       serves as a soundness check: it verifies the Var actually resolves
-       to a type alias in the current context. */
+    /* Var-Rec fast path: when a Var resolves to the very Rec we're
+       meeting with, return the compact Var form without meeting the
+       (possibly large) bodies. Matching the bound tyvar name alone is
+       NOT sufficient — two structurally different recursive types can
+       share a bound name — so the alias body is verified against the
+       Rec: `===` catches the common case (the Rec originates from this
+       ctx entry, and subst/normalize preserve sharing), `equal` the
+       rest. Unrolled-but-equivalent bodies fall through to the general
+       expansion, which still re-compacts to the Var when the meet
+       equals the alias. */
     | (Var(name), Rec(tp2, _)) =>
       switch (TPat.tyvar_of_utpat(tp2)) {
       | Some(rec_name) when rec_name == name =>
         switch (Ctx.lookup_alias(ctx, name)) {
-        | Some({term: Rec(tp1, _), _})
-            when TPat.tyvar_of_utpat(tp1) == Some(name) =>
-          incr(meet_var_eq);
-          Some(ty1);
+        | Some({term: Rec(tp1, _), _} as ty_alias)
+            when
+              TPat.tyvar_of_utpat(tp1) == Some(name)
+              && (ty_alias === ty2 || equal(ty_alias, ty2)) =>
+          Some(ty1)
         | _ =>
-          /* Var resolves to something other than a matching Rec;
+          /* Var resolves to something other than the same Rec;
              fall through to general Var expansion */
-          incr(meet_var_expand);
           let* ty_name = Ctx.lookup_alias(ctx, name);
           let+ ty_meet = meet'(ty_name, ty2);
           equal(ty_name, ty_meet) ? ty1 : ty_meet;
         }
       | _ =>
-        incr(meet_var_expand);
         let* ty_name = Ctx.lookup_alias(ctx, name);
         let+ ty_meet = meet'(ty_name, ty2);
         equal(ty_name, ty_meet) ? ty1 : ty_meet;
@@ -1015,29 +952,26 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       switch (TPat.tyvar_of_utpat(tp1)) {
       | Some(rec_name) when rec_name == name =>
         switch (Ctx.lookup_alias(ctx, name)) {
-        | Some({term: Rec(tp2, _), _})
-            when TPat.tyvar_of_utpat(tp2) == Some(name) =>
-          incr(meet_var_eq);
-          Some(ty2);
+        | Some({term: Rec(tp2, _), _} as ty_alias)
+            when
+              TPat.tyvar_of_utpat(tp2) == Some(name)
+              && (ty_alias === ty1 || equal(ty_alias, ty1)) =>
+          Some(ty2)
         | _ =>
-          incr(meet_var_expand);
           let* ty_name = Ctx.lookup_alias(ctx, name);
           let+ ty_meet = meet'(ty_name, ty1);
           equal(ty_name, ty_meet) ? ty2 : ty_meet;
         }
       | _ =>
-        incr(meet_var_expand);
         let* ty_name = Ctx.lookup_alias(ctx, name);
         let+ ty_meet = meet'(ty_name, ty1);
         equal(ty_name, ty_meet) ? ty2 : ty_meet;
       }
     | (Var(name), _) =>
-      incr(meet_var_expand);
       let* ty_name = Ctx.lookup_alias(ctx, name);
       let+ ty_meet = meet'(ty_name, ty2);
       equal(ty_name, ty_meet) ? ty1 : ty_meet;
     | (_, Var(name)) =>
-      incr(meet_var_expand);
       let* ty_name = Ctx.lookup_alias(ctx, name);
       let+ ty_meet = meet'(ty_name, ty1);
       equal(ty_name, ty_meet) ? ty2 : ty_meet;
@@ -1047,9 +981,6 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
     | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
     | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
-      incr(meet_rec_rec);
-      let was_in_rec = meet_in_rec^;
-      meet_in_rec := true;
       let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
       let ty1' =
         switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
@@ -1057,12 +988,8 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
         | (_, Some(x2)) => subst(Var(x2) |> temp, tp1, ty1)
         | (_, None) => ty1
         };
-      let result = {
-        let+ ty_body = meet(ctx, ty1', ty2);
-        Rec(tp1, ty_body) |> temp;
-      };
-      meet_in_rec := was_in_rec;
-      result;
+      let+ ty_body = meet(ctx, ty1', ty2);
+      Rec(tp1, ty_body) |> temp;
     | (Rec(_), _) => None
     | (Poly(x1, ty1), Poly(x2, ty2)) =>
       let ty1' =
@@ -1135,18 +1062,8 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       };
     | (Prod(_), _) => None
     | (Sum(sm1), Sum(sm2)) =>
-      incr(meet_sum_calls);
-      if (meet_in_rec^) {
-        incr(meet_sum_from_rec);
-      };
-      let start = JsUtil.precise_timestamp();
-      let result = {
-        let+ sm' = ConstructorMap.meet(equal, meet(ctx), sm1, sm2);
-        Sum(sm') |> temp;
-      };
-      meet_sum_time_ms :=
-        meet_sum_time_ms^ +. (JsUtil.precise_timestamp() -. start);
-      result;
+      let+ sm' = ConstructorMap.meet(equal, meet(ctx), sm1, sm2);
+      Sum(sm') |> temp;
     | (Sum(_), _) => None
     | (List(a), List(b)) =>
       let+ r = meet'(a, b);
@@ -1167,7 +1084,6 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     | (Sig(_), _) => None
     };
   };
-};
 
 /* REQUIRES NORMALIZED TYPES
    Remove synswitches from t1 by matching against t2 */
