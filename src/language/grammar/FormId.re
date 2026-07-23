@@ -1,16 +1,15 @@
-/* FormId is the grammar nucleus: it names every syntactic form and
- * owns each compound family's label — the single textual home of the
- * grammar's delimiter spellings. Everything here needs neither molds
- * nor precedence; the module is a language-side leaf that may depend
- * only on Token and Label. The definition table (molds, expansion)
- * and classification layer live editor-side in Haz3lcore.Form, which
- * re-exports this module via `include FormId`, so `Form.family`,
- * bare constructors, `all_of_family`, `Form.label_of`, ... keep
- * resolving. */
+/* Enumerates Hazel's syntactic forms. `family` identifies each
+ * compound form: one constructor per label x shape-role, spanning
+ * every sort the form inhabits. `atomic_form` classifies free-text
+ * tokens (variables, literals, holes, ...). `FormId.t` is the form
+ * identity a tile stores. Labels — the delimiter spellings — are
+ * defined here (label_of_family); molds and classification live
+ * editor-side in Haz3lcore.Form, keyed by these ids (Form
+ * `include`s this module). */
 
-/* B. Operands:
-   Order in this type determines relative remolding
-   priority for forms with overlapping regexps */
+/* Classes of free-text tokens, recognized by predicate (see
+ * Form.get_atomic_form). Declaration order is classification and
+ * remolding priority for tokens matching more than one class. */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type atomic_form =
@@ -40,16 +39,14 @@ type atomic_form =
   | Type
   | InfixDelimiterPrefix;
 
-/* C. Compound forms, up to sort. A family is an equivalence class of
+/* Compound forms, up to sort. A family is an equivalence class of
  * form definitions sharing the same label AND the same outer-nib
  * shape-role (convex/concave pattern): sort variants (Cons at
  * Exp/Pat/Drv(Exp), parens at eight sorts, ...) collapse into one
  * family; same-label shape-splits stay distinct (bin `+` = Plus vs
  * prefix `+` = SumSingle). Within a family, (out sort -> mold) is a
- * function, so (family, sort) determines a mold. The definitions live
- * in Form.defs_of and their classification/remolding priority in
- * Form.priority; the family invariants are machine-checked in
- * test/Test_FormId.re. */
+ * function, so (family, sort) determines a mold; the family
+ * invariants are machine-checked in test/Test_FormId.re. */
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type family =
   | TypeArrow
@@ -156,20 +153,17 @@ type family =
  * - TokInfix(t): the keyword-prefix backup-infix shape-role. Exists
  *   solely for the InfixDelimiterPrefix mechanism (see Form.re's
  *   infix_delimiter_ops_prefixes rationale); never produced by
- *   classification, only by remold shape-fitting. Scheduled for
- *   demolition with virtual grout, which obsoletes IDP entirely
- *   (plans/completion-provenance.md). */
+ *   classification, only by remold shape-fitting. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Compound(family)
   | Tok(Token.t)
   | TokInfix(Token.t);
 
-/* The label of each compound family. Form.re's definition rows carry
- * no label text; they join it from this table at table build, so
- * each delimiter spelling below is stated exactly once. Bracket
- * labels reference the Token constants to keep the open/close
- * pairing single-homed there. */
+/* The label of each compound family: the single home of every
+ * delimiter spelling (editor-side definition rows join their labels
+ * from this table). Bracket labels reference the Token constants to
+ * keep the open/close pairing single-homed there. */
 let label_of_family: family => Label.t =
   fun
   | TypeArrow => ["->"]
@@ -284,13 +278,12 @@ let delims: list(Token.t) =
   |> List.concat_map(label_of_family)
   |> List.sort_uniq(compare);
 
-/* The family spelling each surface binary operator: joining
- * Operators' op enums to the label table above makes
- * bin_op_to_string derived rather than a spelling mirror. The
- * numeric classes (Int/SInt/Nat) share one surface family per op;
- * Float ops have their own (F*) families. Lives here, not in
- * Operators: the AST references op_bin, so Operators sits below
- * this module and cannot see the label table. */
+/* The surface family of each binary operator; bin_op_to_string
+ * below reads operator spellings off these maps and the label
+ * table. The numeric classes (Int/SInt/Nat) share one surface
+ * family per op; Float ops have their own (F*) families. These maps
+ * live here because Operators sits below this module (the AST
+ * references op_bin) and cannot see the label table. */
 let int_op_family: Operators.op_bin_num => family =
   fun
   | Plus => Plus

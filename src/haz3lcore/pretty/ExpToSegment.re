@@ -1596,9 +1596,10 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
       @ [
         Tile({
           id,
-          /* display-only path: to_string reads only labels, so mold
-           * fidelity doesn't matter; ops like "≯"/"≮"/"≠"/"∈"/"⊆"
-           * spell no registered form and classify as fallback Toks */
+          /* ops with no registered Drv form ("=", "≯", "≮", "≠",
+           * "∈", "⊆") classify to Any-sorted fallbacks whose derived
+           * molds are operator-shaped; these segments only feed
+           * read-only ExplainThis displays */
           form,
           sort,
           shards: [0],

@@ -18,11 +18,10 @@
  * time. Decoding the sexp is ~free (no per-character re-parse at startup),
  * and a decode failure self-heals by re-parsing backup_text.
  *
- * (The string-based "transitionary" format this exporter previously
- * emitted — see the *.transition functions, which remain — is the
- * type-independent migration interchange format: it survives Zipper.t
- * datatype changes at the cost of a startup re-parse. Recipe for feature
- * branches in scripts/README_migrate_tile_format.md.)
+ * (The string-based "transitionary" format — the *.transition functions —
+ * is the type-independent migration interchange format: it survives
+ * Zipper.t datatype changes at the cost of a startup re-parse. Recipe for
+ * feature branches in scripts/README_migrate_tile_format.md.)
  *
  * Output format (stdout):
  *   ===FILE: <path relative to repo root>===

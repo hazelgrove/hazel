@@ -2,23 +2,18 @@ open Util;
 open Sort;
 module P = Precedence;
 
-/* The form identity types (atomic_form, family, FormId.t) and every
- * label spelling (label_of_family, label_of, has_label_of, delims)
- * live language-side in FormId.re; included here so existing
- * references (Form.family, bare constructors, all_of_family,
- * Form.label_of, ...) keep resolving. In particular Form.t =
- * FormId.t: a form is its identity; the definition record
- * (label/mold/expansion) is Form.def below, its label joined from
- * FormId.label_of_family. */
+/* The editor-side form layer. Form identities (FormId.t: atomic
+ * token classes + compound families) and their labels live
+ * language-side in Language.FormId, included below so Form.family,
+ * Form.label_of, the bare constructors, etc. resolve; Form.t =
+ * FormId.t. This module adds everything mold-dependent: per-family
+ * definition rows (mold + expansion behavior), classification of
+ * tokens and labels to forms at a sort (classify_label,
+ * remold_candidates, mold_of), and delimiter-expansion behavior for
+ * typing (Expansion). To add a form, add a constructor in FormId and
+ * follow the errors: each family needs its rows in `rows_of` and a
+ * slot per row in `priority` (counts checked at module init). */
 include FormId;
-
-/* This module determines the syntactic extent of the language; the
- * entire Syntax module is driven by the below definitions. To add
- * a new syntactic form add a case to either the atomic_form or
- * family types and follow the errors: each family needs its rows in
- * `defs_of` and a position per row in `priority` (checked at module
- * init). The definitions determine the shape, precedence, and
- * expansion behavior of each form. */
 
 /* When you complete a token corresponding to a delimiter of a
  * compound form, that token might be 'expanded', which is to say,
@@ -86,10 +81,9 @@ let mk_post_c = (exp, prec, sort: Sort.t, child_sorts: list(Sort.t)) =>
 let mk_parens = (sort: Sort.t) => mk_op_c(LT, sort, [sort]);
 
 /* The definition rows of each family: every mold the family's label
- * takes, one row per out sort (the Dot family's duplicate Typ row is
- * the one exception, kept for candidate-multiplicity fidelity). All
- * rows of a family share its outer-nib shape-role, and (out sort ->
- * mold) is a function on them (machine-checked in
+ * takes, one row per out sort (exception: Dot's duplicate Typ row,
+ * see below). All rows of a family share its outer-nib shape-role,
+ * and (out sort -> mold) is a function on them (machine-checked in
  * test/Test_FormId.re). Row order within a family follows the global
  * `priority` order below. */
 let rows_of: family => list(row) =
@@ -165,9 +159,9 @@ let rows_of: family => list(row) =
   | Dot => [
       mk_infix(Exp, P.dot),
       mk_infix(Typ, P.dot),
-      /* duplicate Typ row: the pre-family DotTyp and ProdProjection
-       * were byte-identical; both rows are kept so remold candidate
-       * multiplicity is unchanged */
+      /* deliberately duplicated Typ row: `.` is offered twice as a
+       * remold candidate at Typ (two historically distinct forms
+       * whose molds coincide) */
       mk_infix(Typ, P.dot),
       mk_infix(Drv(Exp), P.dot),
     ]
@@ -848,8 +842,8 @@ let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
   | Compound(fam) =>
     switch (Hashtbl.find_opt(family_mold_tbl, (fam, sort))) {
     | Some(mold) => mold
-    /* parens wrap one child at every sort (old mk_parens semantics);
-     * the grammar table only registers the common sorts */
+    /* parens wrap one child at every sort; the family table only
+     * registers rows at the grammar's declared sorts */
     | None when fam == Parens => Mold.mk_op(sort, [sort])
     | None => unmolded_mold(label_of_family(fam), Sort.Any)
     }

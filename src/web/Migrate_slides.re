@@ -20,9 +20,7 @@
  * label+mold format (LegacyBase), upgraded id-preservingly. So the
  * tool is IDEMPOTENT and usable by branches in either state;
  * re-encoding normalizes and drops default-valued sort/shards/children
- * fields. (A FormId-v1 tier existed transiently; v1 sexps only ever
- * appeared on intermediate commits of the tile-datatype branch and
- * were regenerated to v2 there.)
+ * fields.
  *
  * Output format (stdout), consumed by scripts/split_migrate_output.py:
  *   ===FILE: <path relative to repo root>===

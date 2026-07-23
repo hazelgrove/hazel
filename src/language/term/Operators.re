@@ -241,10 +241,7 @@ let show_binop: op_bin => string =
   | String(op) => show_op_bin_string(op)
   | Poly(op) => show_op_bin_poly(op);
 
-/* Token spellings of these operators live in the grammar:
- * FormId.bin_op_to_string derives them from the op => family
- * association and the label table. (They cannot be stated here:
- * FormId sits above this module -- the AST references op_bin.) */
+/* Surface token spellings: see FormId.bin_op_to_string. */
 
 /* ========== SEMANTICS ========== */
 

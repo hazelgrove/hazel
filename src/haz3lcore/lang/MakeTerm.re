@@ -1195,8 +1195,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       }
     | ([(_id, tile)], []) =>
       /* Atomic type spellings (base atoms, Void, Drv quote types):
-       * table-driven via BaseAtom (see Language.BaseAtom.table),
-       * looked up once; its Some arm sits at the original priority */
+       * table-driven via BaseAtom (see Language.BaseAtom.table) */
       let base_atom =
         switch (tile) {
         | (F(Tok(t)), []) => Language.BaseAtom.typ_term_of(t)
