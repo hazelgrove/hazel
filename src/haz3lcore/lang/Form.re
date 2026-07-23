@@ -11,8 +11,10 @@ module P = Precedence;
  * tokens and labels to forms at a sort (classify_label,
  * remold_candidates, mold_of), and delimiter-expansion behavior for
  * typing (Expansion). To add a form, add a constructor in FormId and
- * follow the errors: each family needs its rows in `rows_of` and a
- * slot per row in `priority` (counts checked at module init). */
+ * follow the errors: each family needs a label in
+ * FormId.label_of_family and its rows in `rows_of`; if the label is
+ * already spelled by another family, order their competition in
+ * `same_label_rank`. */
 include FormId;
 
 /* When you complete a token corresponding to a delimiter of a
@@ -84,8 +86,9 @@ let mk_parens = (sort: Sort.t) => mk_op_c(LT, sort, [sort]);
  * takes, one row per out sort (exception: Dot's duplicate Typ row,
  * see below). All rows of a family share its outer-nib shape-role,
  * and (out sort -> mold) is a function on them (machine-checked in
- * test/Test_FormId.re). Row order within a family follows the global
- * `priority` order below. */
+ * test/Test_FormId.re). Row order is immaterial: rows at distinct
+ * out sorts never compete, and competition between families spelling
+ * the same label is ordered by `same_label_rank` below. */
 let rows_of: family => list(row) =
   fun
   | TypeArrow => [
@@ -318,203 +321,42 @@ let defs_of_rows = (fam: family): list(def) => {
      });
 };
 
-/* Global classification/remolding priority: the flat row order of
- * the form table. Each occurrence of a family below is dealt that
- * family's next defs_of row, so a family with n rows appears n
- * times; a count mismatch fails loudly at module init. The
- * interleaving is load-bearing wherever families share a label with
- * rows at the same sort: at Exp/Pat/Typ the Parens row precedes the
- * Ap row while at Drv sorts the Ap row precedes the Parens row
- * (classify picks Ap there — see mk_parens_id); likewise
- * bin-vs-prefix `-` flips between Exp (Minus first) and Drv(Exp)
- * (UnaryMinus first), and bin `+` vs prefix `+` (SumSingle) and
- * Entail vs UnaryEntail depend on their relative positions. */
-let priority: list(family) = [
-  TypeArrow,
-  CellJoin,
-  Plus,
-  Minus,
-  Times,
-  Power,
-  FPower,
-  Divide,
-  Equals,
-  StringConcat,
-  Lt,
-  Gt,
-  NotEquals,
-  Gte,
-  Lte,
-  FPlus,
-  FMinus,
-  FTimes,
-  FDivide,
-  FEquals,
-  FLt,
-  FGt,
-  FNotEquals,
-  FGte,
-  FLte,
-  LogicalAnd,
-  LogicalOrLegacy,
-  LogicalOr,
-  ListConcat,
-  Cons,
-  Cons,
-  TypeAsc,
-  TupleLabeled,
-  TupleLabeled,
-  TupleLabeled,
-  Dot,
-  TupleExtension,
-  Dot,
-  TypeAsc,
-  Plus,
-  Dot,
-  TupleExtension,
-  Not,
-  SumSingle,
-  UnaryMinus,
-  Comma,
-  Comma,
-  Comma,
-  ListLit,
-  ListLit,
-  ListLit,
-  Parens,
-  Parens,
-  Parens,
-  Parens,
-  ApEmpty,
-  Ap,
-  ApEmpty,
-  Ap,
-  Ap,
-  ApExpTyp,
-  Case,
-  Test,
-  ProofOf,
-  ProofObject,
-  HintedTest,
-  Fun,
-  Fix,
-  TypFun,
-  Poly,
-  Forall,
-  Rec,
-  Rule,
-  Pipeline,
-  FilterHide,
-  FilterEval,
-  FilterPause,
-  FilterDebug,
-  Use,
-  OfProp,
-  OfCtx,
-  OfJdmt,
-  OfAlfaExp,
-  OfAlfaTyp,
-  OfAlfaPat,
-  OfAlfaTPat,
-  Subst,
-  Subst,
-  Glb,
-  Val,
-  Eval,
-  Entail,
-  UnaryEntail,
-  Consistent,
-  MatchedArrow,
-  MatchedProd,
-  MatchedSum,
-  Valid,
-  TypeAsc,
-  Syn,
-  Lte,
-  And,
-  LogicalOrLegacy,
-  Impl,
-  Not,
-  Cons,
-  ListConcat,
-  ListLit,
-  UnaryMinus,
-  Plus,
-  Minus,
-  Times,
-  Equals,
-  Lt,
-  Gt,
-  If,
-  Let,
-  Fix,
-  Fun,
-  Dot,
-  Case,
-  Rule,
-  TypeAsc,
-  TypeArrow,
-  Times,
-  Plus,
-  Rec,
-  ApEmpty,
-  Ap,
-  Ap,
-  Comma,
-  Comma,
-  Parens,
-  Parens,
-  Parens,
-  Parens,
-  Let,
-  Theorem,
-  TypeAlias,
-  If,
-  ModBody,
-  CellJoin,
-  ModLet,
-  ModType,
-  ModuleExp,
-  ModuleMod,
-  TypeAsc,
-  ModBody,
-  CellJoin,
-  SigLet,
-  ModType,
-];
+/* Same-label candidate priority — the only place where row order in
+ * the form table is meaningful. Four labels are spelled by more than
+ * one family; where their rows share an out sort, classify_label
+ * stores the first fitting row's family and remold offers candidates
+ * in this order (lower rank first; ties keep family declaration
+ * order). NOTE(andrew): parens below aps at Drv sorts is
+ * load-bearing — a Drv `(...)` group classifies as Ap, and explicit
+ * parenthesization there goes through mk_parens_id instead. */
+let same_label_rank = (fam: family, out: Sort.t): int =>
+  switch (fam, out) {
+  /* ["(",")"]: Parens over Ap, flipped at Drv sorts */
+  | (Parens, Drv(_)) => 2
+  | (Ap, _) => 1
+  | (Parens, _) => 0
+  /* ["-"]: bin Minus over prefix UnaryMinus, flipped at Drv(Exp) */
+  | (Minus, Exp) => 0
+  | (UnaryMinus, _) => 1
+  | (Minus, _) => 2
+  /* ["+"]: bin Plus over prefix SumSingle (the sum-type case
+   * separator, reached by remold shape-fitting) */
+  | (Plus, _) => 0
+  | (SumSingle, _) => 1
+  /* ["|-"]: bin Entail over prefix UnaryEntail */
+  | (Entail, _) => 0
+  | (UnaryEntail, _) => 1
+  | _ => 0
+  };
 
-let forms: list((family, def)) = {
-  let remaining: Hashtbl.t(family, list(def)) = Hashtbl.create(128);
-  List.iter(
-    f => Hashtbl.replace(remaining, f, defs_of_rows(f)),
+/* The flat form table: every family's rows, in family declaration
+ * order. This order is immaterial (see same_label_rank); consumers
+ * needing candidate order go through compound_defs. */
+let forms: list((family, def)) =
+  List.concat_map(
+    fam => defs_of_rows(fam) |> List.map(def => (fam, def)),
     all_of_family,
   );
-  let deal = (fam: family): def =>
-    switch (Hashtbl.find(remaining, fam)) {
-    | [] =>
-      failwith(
-        "Form.forms: priority lists "
-        ++ show_family(fam)
-        ++ " more often than defs_of has rows",
-      )
-    | [d, ...rest] =>
-      Hashtbl.replace(remaining, fam, rest);
-      d;
-    };
-  let rows = List.map(fam => (fam, deal(fam)), priority);
-  List.iter(
-    fam =>
-      if (Hashtbl.find(remaining, fam) != []) {
-        failwith(
-          "Form.forms: defs_of("
-          ++ show_family(fam)
-          ++ ") has rows not listed in priority",
-        );
-      },
-    all_of_family,
-  );
-  rows;
-};
 
 /* These are tokens that have proven annoying as TyDi suggestions.
  * This category is doubly nominative in that it has proven hard
@@ -762,8 +604,8 @@ let atomic_candidates = (t: Token.t): list((FormId.t, Mold.t)) =>
     c;
   };
 
-/* label => (family, mold) pairs, memoized; per-label order =
- * priority order (remolding priority) */
+/* label => (family, mold) pairs in candidate order: same_label_rank
+ * first (stable, so ties keep declaration order), memoized. */
 let compound_defs: Label.t => list((family, Mold.t)) = {
   let tbl: Hashtbl.t(Label.t, list((family, Mold.t))) =
     Hashtbl.create(256);
@@ -773,6 +615,20 @@ let compound_defs: Label.t => list((family, Mold.t)) = {
       Hashtbl.replace(tbl, label, prev @ [(fam, mold)]);
     },
     forms,
+  );
+  Hashtbl.filter_map_inplace(
+    (_, rows) =>
+      Some(
+        List.stable_sort(
+          ((f1, m1: Mold.t), (f2, m2: Mold.t)) =>
+            compare(
+              same_label_rank(f1, m1.out),
+              same_label_rank(f2, m2.out),
+            ),
+          rows,
+        ),
+      ),
+    tbl,
   );
   label => Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
 };
@@ -788,8 +644,7 @@ let base_candidates = (label: Label.t): list((FormId.t, Mold.t)) => {
 
 /* Rows, labels, and (family, out-sort) molds are built once at
  * startup; accessors below are single table lookups. defs_tbl groups
- * the single row construction (forms) by family; the deal in forms
- * preserves each family's defs_of_rows order. */
+ * the flat table by family (rows in defs_of_rows order). */
 let defs_tbl: Hashtbl.t(family, list(def)) = {
   let tbl = Hashtbl.create(128);
   List.iter(
@@ -863,7 +718,7 @@ let mold_of = (f: FormId.t, sort: Sort.t): Mold.t =>
 /* Classify a label at a sort: the (form, sort) pair to store on the
  * tile, chosen so that mold_of(form, sort) yields the classified
  * mold. First base candidate whose mold fits the sort (atomics
- * before compounds, priority order — TokInfix never wins here:
+ * before compounds, candidate order — TokInfix never wins here:
  * every InfixDelimiterPrefix token is var-shaped, and the var
  * classes precede it); no fit => the first compound (or Tok) with
  * stored sort Any. */

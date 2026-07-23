@@ -204,10 +204,10 @@ let check_classify = (sort: Sort.t, label: Label.t): unit => {
 /* remold_candidates: every candidate carries the queried sort, fits
    it, and spells the label; candidates are Compound/Tok/TokInfix
    only, atoms (single tokens) before compounds; the compound
-   candidates are the families of the label's matching rows in
-   priority order; TokInfix candidates appear exactly for
-   InfixDelimiterPrefix tokens at its four sorts, with the
-   concave-grout bin mold. */
+   candidates are the families of the label's matching rows (order
+   pinned separately in check_same_label_order); TokInfix candidates
+   appear exactly for InfixDelimiterPrefix tokens at its four sorts,
+   with the concave-grout bin mold. */
 let check_remold = (sort: Sort.t, label: Label.t): unit => {
   let name = case_name(sort, label);
   let cands = Form.remold_candidates(label, sort);
@@ -244,9 +244,9 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
        );
   check(
     list(family_testable),
-    "compound families in priority order: " ++ name,
-    expected_compounds,
-    actual_compounds,
+    "compound families (multiset): " ++ name,
+    List.sort(compare, expected_compounds),
+    List.sort(compare, actual_compounds),
   );
   let rec atoms_then_compounds = (cands, seen_compound) =>
     switch (cands) {
@@ -293,6 +293,52 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
   );
 };
 
+/* Same-label candidate order: where several families spell one
+   label, the first candidate registered at a sort wins
+   classification and leads the remold list (Form.same_label_rank).
+   These pins state every intended order directly. */
+let check_same_label_order = (): unit => {
+  let compounds = (label: Label.t, sort: Sort.t): list(Form.family) =>
+    Form.remold_candidates(label, sort)
+    |> List.filter_map(
+         fun
+         | (Form.Compound(fam), _) => Some(fam)
+         | _ => None,
+       );
+  let pin = (name, label, sort, expected) =>
+    check(list(family_testable), name, expected, compounds(label, sort));
+  let drv = (s: Language.DrvSort.t) => Sort.Drv(s);
+  pin("parens over aps at Exp", Token.tuple_lbl, Exp, [Parens, Ap]);
+  pin("parens over aps at Pat", Token.tuple_lbl, Pat, [Parens, Ap]);
+  pin("parens over aps at Typ", Token.tuple_lbl, Typ, [Parens, Ap]);
+  pin(
+    "aps over parens at Drv(Exp)",
+    Token.tuple_lbl,
+    drv(Exp),
+    [Ap, Parens],
+  );
+  pin(
+    "aps over parens at Drv(Pat)",
+    Token.tuple_lbl,
+    drv(Pat),
+    [Ap, Parens],
+  );
+  pin("bin - over prefix - at Exp", ["-"], Exp, [Minus, UnaryMinus]);
+  pin(
+    "prefix - over bin - at Drv(Exp)",
+    ["-"],
+    drv(Exp),
+    [UnaryMinus, Minus],
+  );
+  pin("bin + over prefix + (sum) at Typ", ["+"], Typ, [Plus, SumSingle]);
+  pin(
+    "entail over unary entail at Drv(Exp)",
+    ["|-"],
+    drv(Exp),
+    [Entail, UnaryEntail],
+  );
+};
+
 let tests = (
   "FormId",
   [
@@ -301,6 +347,7 @@ let tests = (
       `Quick,
       check_family_grouping,
     ),
+    test_case("same-label candidate order", `Quick, check_same_label_order),
     test_case(
       "family uniqueness: (out sort -> mold) is a function; labels agree",
       `Quick,
