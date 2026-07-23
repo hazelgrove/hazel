@@ -106,31 +106,14 @@ module Delims = {
     };
 };
 
-/* Specifies type information for syntactic forms. The const-mono and
- * infix tables are derived from the grammar at startup: each suggestible
- * token is parsed to a minimal term (infix operators pick up convex
- * holes as operands via regrout) and run through Statics in an empty
- * context; the resulting term's type is the entry. Leading-delimiter
- * types remain manual (their types live inside unentered children). */
+/* Specifies type information for syntactic forms. All tables are
+ * derived from the grammar at startup: each suggestible token is
+ * parsed to a minimal term (infix operators pick up convex holes as
+ * operands via regrout; leading delimiters expand to their completed
+ * forms) and run through Statics in an empty context; the resulting
+ * term's type is the entry. */
 module Typ = {
   let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
-
-  /* Only need to add forms here if they have a non-trivial type */
-  let of_leading_delim: list((Token.t, Typ.t)) = [
-    ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
-    (
-      "typfun" ++ leading_expander,
-      Poly(Var("") |> TPat.fresh, unk) |> Typ.fresh,
-    ),
-    ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
-    ("of_jdmt" ++ leading_expander, unk),
-    ("of_ctx" ++ leading_expander, unk),
-    ("of_prop" ++ leading_expander, unk),
-    ("of_alfa_exp" ++ leading_expander, unk),
-    ("of_alfa_typ" ++ leading_expander, unk),
-    ("of_alfa_pat" ++ leading_expander, unk),
-    ("of_alfa_tpat" ++ leading_expander, unk),
-  ];
 
   /* Consumers ignore Unknown provenance (is_consistent); normalize
    * for stable, deterministic table entries */
@@ -157,11 +140,18 @@ module Typ = {
     | _ => None
     };
 
-  /* "=" (labeled-tuple element) is deliberately untyped: its minimal
-   * form is a singleton labeled product, inconsistent with the n-ary
-   * labeled products it is used to build, so a typed entry would
-   * suppress the suggestion exactly where it is wanted. */
-  let deliberately_untyped: list(Token.t) = ["="];
+  /* Deliberately untyped: forms whose minimal-form self type is
+   * inconsistent with the instances they are used to build, so a
+   * typed entry would suppress the suggestion exactly where it is
+   * wanted. "=" (labeled-tuple element) and "{" (module literal)
+   * derive singleton/empty products, inconsistent with the n-ary
+   * products in use; "proof_object" derives ProofOf(<hole>), and
+   * ProofOf consistency requires semantic exp equality. */
+  let deliberately_untyped: list(Token.t) = [
+    "=",
+    "{" ++ leading_expander,
+    "proof_object" ++ leading_expander,
+  ];
 
   let derive_table = (tokens: list(Token.t)): list((Token.t, Typ.t)) =>
     tokens
@@ -179,6 +169,15 @@ module Typ = {
   let of_infix_delim: list((Token.t, Typ.t)) =
     derive_table(
       List.sort_uniq(compare, Delims.infix(Exp) @ Delims.infix(Pat)),
+    );
+
+  /* Leading delimiters (with expander) parse to their completed forms,
+   * so e.g. "fun " derives Arrow(?, ?) and "[ " derives [?]. Only the
+   * Exp/Pat domains matter: suggest_form consults the table only for
+   * those sorts. */
+  let of_leading_delim: list((Token.t, Typ.t)) =
+    derive_table(
+      List.sort_uniq(compare, Delims.leading(Exp) @ Delims.leading(Pat)),
     );
 
   let expected: Info.t => Typ.t =
