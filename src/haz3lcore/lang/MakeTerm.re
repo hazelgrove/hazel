@@ -1198,20 +1198,10 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         switch (tile) {
         | (F(f), []) when is_empty_tuple_form(f) => Prod([])
         | (F(Tok(t)), []) when Token.is_empty_module(t) => Sig([])
-        | (F(Tok("Bool")), []) => Atom(Bool)
-        | (F(Tok("Int")), []) => Atom(Int)
-        | (F(Tok("SInt")), []) => Atom(SInt)
-        | (F(Tok("Float")), []) => Atom(Float)
-        | (F(Tok("String")), []) => Atom(String)
-        | (F(Tok("Nat")), []) => Atom(Nat)
-        | (F(Tok("Void")), []) => Sum([])
-        | (F(Tok("DrvJdmt")), []) => DrvQuoteTy(Jdmt)
-        | (F(Tok("DrvCtx")), []) => DrvQuoteTy(Ctx)
-        | (F(Tok("DrvProp")), []) => DrvQuoteTy(Prop)
-        | (F(Tok("ALFAExp")), []) => DrvQuoteTy(Exp)
-        | (F(Tok("DrvPat")), []) => DrvQuoteTy(Pat)
-        | (F(Tok("ALFATyp")), []) => DrvQuoteTy(Typ)
-        | (F(Tok("DrvTPat")), []) => DrvQuoteTy(TPat)
+        /* Atomic type spellings (base atoms, Void, Drv quote types):
+         * table-driven via BaseAtom; see Language.BaseAtom.table */
+        | (F(Tok(t)), []) when Language.BaseAtom.typ_term_of(t) != None =>
+          Language.BaseAtom.typ_term_of(t) |> Option.get
         | (F(Tok("_")), []) => ExplicitNonlabel
         | (F(Compound(ProofOf)), [Exp(exp)]) => ProofOf(exp)
         | (F(Tok(t)), []) when Token.is_typ_var(t) => Var(t)

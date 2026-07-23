@@ -1281,7 +1281,7 @@ let rec drv_exp_to_pretty =
     l @ [mk_form(Impl, id, [])] @ r;
   | Truth => text_to_pretty(id, Sort.Drv(Prop), "Truth")
   | Falsity => text_to_pretty(id, Sort.Drv(Prop), "Falsity")
-  | Ctx([]) => text_to_pretty(id, Sort.Drv(Ctx), "[]")
+  | Ctx([]) => text_to_pretty(id, Sort.Drv(Ctx), Token.empty_list)
   | Ctx([x, ...xs]) =>
     let* x = go(x, ~sort=Prop)
     and* xs = xs |> List.map(go(~sort=Prop)) |> all;
@@ -1392,7 +1392,7 @@ let rec drv_exp_to_pretty =
     let+ l = go(l, ~sort=Exp)
     and+ r = go(r, ~sort=Exp);
     [mk_form(Parens, id, [l @ [mk_form(Comma, id, [])] @ r])];
-  | Triv => text_to_pretty(id, Sort.Drv(Exp), "()")
+  | Triv => text_to_pretty(id, Sort.Drv(Exp), Token.empty_tuple)
   | PrjL(e) =>
     let+ e = go(e, ~sort=Exp);
     e
@@ -1741,7 +1741,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ]),
     );
   | Undefined =>
-    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined"))
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.undefined))
   | Atom(c) =>
     wrap(
       exp,
@@ -1769,11 +1769,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   // @ [mk_form("typeasc", id, [])]
   // @ (t |> fold_if(settings.fold_cast_types));
   | ListLit([]) =>
-    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]"))
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.empty_list))
   | Deferral(_) =>
-    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_"))
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.wild))
   | ExplicitNonlabel =>
-    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_"))
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.wild))
   | ListLit([x, ...xs]) =>
     /* ID order: [bracket_id] @ comma_ids (outer first, then adopted).
        IMPORTANT: Must align with MakeTerm.exp_term ListLit case,
@@ -1953,7 +1953,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       @ e
       |> fold_fun_if(settings.fold_fn_bodies, name, _, exp),
     );
-  | Tuple([]) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()"))
+  | Tuple([]) =>
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.empty_tuple))
   | Tuple([{term: TupLabel(_), _} as le]) => go(le)
   | Tuple([x, ...xs]) =>
     // TODO: Add optional newlines
@@ -2273,7 +2274,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     );
   | Module([]) =>
     /* Empty module: {} - output as atomic token like empty tuple () */
-    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "{}"))
+    wrap(
+      exp,
+      text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.empty_module),
+    )
   | Module(items) =>
     /* Non-empty module: { item1; item2; ... } */
     let id = exp |> Exp.rep_id;
@@ -2413,9 +2417,10 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         }),
       ]),
     );
-  | Wild => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_"))
+  | Wild =>
+    wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.wild))
   | ExplicitNonlabel =>
-    wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_"))
+    wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.wild))
   | Var(v) => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v))
   | Atom(c) =>
     wrap(
@@ -2425,7 +2430,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Constructor(c, _) =>
     wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c))
   | ListLit([]) =>
-    wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]"))
+    wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.empty_list))
   | ListLit([x, ...xs]) =>
     /* ID order: [bracket_id] @ comma_ids (outer first, then adopted).
        IMPORTANT: Must align with MakeTerm.pat_term ListLit case,
@@ -2460,7 +2465,8 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ p1 = go(p1)
     and+ p2 = go(p2);
     wrap(pat, p1 @ [mk_form(Cons, id, [])] @ p2);
-  | Tuple([]) => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "()"))
+  | Tuple([]) =>
+    wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.empty_tuple))
   | Tuple([x, ...xs]) =>
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
@@ -2664,28 +2670,22 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       };
     wrap(typ, seg);
   | Var(v) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v))
-  | Atom(Int) =>
-    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int"))
-  | Atom(SInt) =>
-    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "SInt"))
-  | Atom(Float) =>
-    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float"))
-  | Atom(Bool) =>
-    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool"))
-  | Atom(String) =>
-    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String"))
+  | Atom(a) =>
+    wrap(
+      typ,
+      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, BaseAtom.atom_token(a)),
+    )
   | DrvQuoteTy(d) =>
     wrap(
       typ,
       text_to_pretty(typ |> Typ.rep_id, Sort.Typ, DrvSort.to_string(d)),
     )
-  | Atom(Nat) =>
-    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat"))
   | List(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
     wrap(typ, [mk_form(ListLit, id, [t])]);
-  | Prod([]) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()"))
+  | Prod([]) =>
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.empty_tuple))
   | Prod([t, ...ts]) =>
     let+ t = go(t)
     and+ ts = ts |> List.map(go) |> all;
@@ -2701,7 +2701,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         ),
     );
   | ExplicitNonlabel =>
-    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "_"))
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.wild))
   | Label(l) =>
     wrap(
       typ,
@@ -2804,7 +2804,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     wrap(typ, t1 @ [mk_form(TypeArrow, id, [])] @ t2);
-  | Sum([]) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Void"))
+  | Sum([]) =>
+    wrap(
+      typ,
+      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, BaseAtom.void_token),
+    )
   | Sum([t]) =>
     let id = typ |> Typ.rep_id;
     let+ t = go_constructor(t);
@@ -2825,7 +2829,10 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     );
   | Sig([]) =>
     /* Empty sig: {} */
-    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "{}"))
+    wrap(
+      typ,
+      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.empty_module),
+    )
   | Sig(items) =>
     /* Non-empty sig: { let x : Int; type T = Bool; ... } */
     let id = typ |> Typ.rep_id;
