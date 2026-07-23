@@ -20,21 +20,21 @@ let init = (
   status = InProgress
 ) in
 
-let getCell = fun (board, pos) -> nth(board, pos) in
+let getCell(board, pos) = nth(board, pos) in
 
-let setCell = fun (board, pos, cell) ->
+let setCell(board, pos, cell) =
   mapi(board, fun (i, c) -> if i == pos then cell else c)
 in
 
-let playerCell = fun p ->
+let playerCell(p) =
   case p | PlayerX => X | PlayerO => O end
 in
 
-let cellStr = fun c ->
+let cellStr(c) =
   case c | Empty => " " | X => "X" | O => "O" end
 in
 
-let threeInRow = fun (a, b, c) ->
+let threeInRow(a, b, c) =
   case (a, b, c)
   | (X, X, X) => Some(X)
   | (O, O, O) => Some(O)
@@ -42,11 +42,11 @@ let threeInRow = fun (a, b, c) ->
   end
 in
 
-let getCells3 = fun (board, i, j, k) ->
+let getCells3(board, i, j, k) =
   (getCell(board, i), getCell(board, j), getCell(board, k))
 in
 
-let checkWinner = fun board ->
+let checkWinner(board) =
   let row0 = threeInRow(getCells3(board, 0, 1, 2)) in
   let row1 = threeInRow(getCells3(board, 3, 4, 5)) in
   let row2 = threeInRow(getCells3(board, 6, 7, 8)) in
@@ -66,30 +66,30 @@ let checkWinner = fun board ->
   end end end end end end end
 in
 
-let isFull = fun board -> for_all(board, fun c -> c != Empty) in
+let isFull(board) = for_all(board, fun c -> c != Empty) in
 
-let cellToPlayer = fun c ->
+let cellToPlayer(c) =
   case c | X => PlayerX | O => PlayerO | Empty => PlayerX end
 in
 
-let calcStatus = fun board ->
+let calcStatus(board) =
   case checkWinner(board)
   | Some(c) => Won(cellToPlayer(c))
   | None => if isFull(board) then Draw else InProgress
   end
 in
 
-let nextPlayer = fun p ->
+let nextPlayer(p) =
   case p | PlayerX => PlayerO | PlayerO => PlayerX end
 in
 
-let isValidMove = fun (model, pos) ->
+let isValidMove(model, pos) =
   pos >= 0 && pos < 9 &&
   getCell(model.board, pos) == Empty &&
   model.status == InProgress
 in
 
-let move = fun (model, pos) ->
+let move(model, pos) =
   if isValidMove(model, pos) then
     let newBoard = setCell(model.board, pos, playerCell(model.turn)) in
     let newStatus = calcStatus(newBoard) in
@@ -97,14 +97,14 @@ let move = fun (model, pos) ->
   else model
 in
 
-let update = fun (msg, model) ->
+let update(msg, model) =
   case msg
   | ClickCell(pos) => (move(model, pos), CmdNone)
   | NewGame => (init, CmdNone)
   end
 in
 
-let view = fun model ->
+let view(model) =
   let statusText =
     case model.status
     | InProgress =>
@@ -197,10 +197,10 @@ let view = fun model ->
   )
 in
 
-let subs = fun _model -> SubNone in
+let subs(_model) = SubNone in
 
 # Helper for playing sequences #
-let play = fun (model, moves) ->
+let play(model, moves) =
   fold_left(moves, fun (m, pos) -> move(m, pos), model)
 in
 

@@ -10,14 +10,14 @@ type Msg =
   + NoOp
 in
 
-let max : (Int, Int) -> Int = fun (a, b) -> if a > b then a else b in
-let min : (Int, Int) -> Int = fun (a, b) -> if a < b then a else b in
+let max(a: Int, b: Int) : Int = if a > b then a else b in
+let min(a: Int, b: Int) : Int = if a < b then a else b in
 
 let step : Int = 20 in
 
 let init = (x=180, y=180) in
 
-let update = fun (msg, model) ->
+let update(msg, model) =
   case msg
   | MoveUp => ((x=model.x, y=max(0, model.y - step)), CmdNone)
   | MoveDown => ((x=model.x, y=min(360, model.y + step)), CmdNone)
@@ -27,7 +27,7 @@ let update = fun (msg, model) ->
   end
 in
 
-let view = fun model ->
+let view(model) =
   Div(
     [
       Id("game"),
@@ -66,12 +66,12 @@ let view = fun model ->
   )
 in
 
-let subs = fun _model ->
-  OnDocumentKeyDown(fun (key, _code, _ctrl, _shift, _alt, _meta) ->
-    if key == "ArrowUp" then MoveUp
-    else if key == "ArrowDown" then MoveDown
-    else if key == "ArrowLeft" then MoveLeft
-    else if key == "ArrowRight" then MoveRight
+let subs(_model) =
+  OnDocumentKeyDown(fun e ->
+    if e.key == "ArrowUp" then MoveUp
+    else if e.key == "ArrowDown" then MoveDown
+    else if e.key == "ArrowLeft" then MoveLeft
+    else if e.key == "ArrowRight" then MoveRight
     else NoOp
   )
 in

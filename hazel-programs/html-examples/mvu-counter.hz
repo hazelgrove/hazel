@@ -2,9 +2,9 @@
 #Elm-style architecture: (init_model, update, view, subs)#
 #msg = Int, model = Int#
 
-let update = fun (msg, model) -> (model + msg, CmdNone) in
+let update(msg, model) = (model + msg, CmdNone) in
 
-let view : Int -> HTML = fun model -> Div(
+let view(model: Int) : HTML = Div(
   [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],
   [
     H2([], [Text("MVU Counter")]),
@@ -37,6 +37,6 @@ let view : Int -> HTML = fun model -> Div(
   )
 in
 
-let subs : Int -> Sub = fun _model -> SubNone in
+let subs(_model: Int) : Sub = SubNone in
 
 (0, update, view, subs)

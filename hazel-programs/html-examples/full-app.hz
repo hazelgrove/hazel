@@ -11,7 +11,7 @@ in
 
 let init = (active_tab="Home", form_name="", form_message="", saved_message="") in
 
-let update = fun (msg, model) ->
+let update(msg, model) =
   case msg
   | Tab(tab) =>
       ((active_tab=tab, form_name=model.form_name, form_message=model.form_message, saved_message=model.saved_message),
@@ -29,7 +29,7 @@ let update = fun (msg, model) ->
   end
 in
 
-let view = fun model ->
+let view(model) =
   let tabs : [String] = ["Home", "Form", "About"] in
   Div(
     [
@@ -156,7 +156,7 @@ let view = fun model ->
   )
 in
 
-let subs = fun _model -> SubNone in
+let subs(_model) = SubNone in
 
 # Tests #
 

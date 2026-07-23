@@ -42,8 +42,7 @@ type Action =
 in
 
 # Calculate base value of a crop #
-let cropValue : Crop -> Int =
-  fun c ->
+let cropValue(c: Crop) : Int =
     case c
     | Moonmelon => 15
     | Starfruit => 20
@@ -53,8 +52,7 @@ let cropValue : Crop -> Int =
 in
 
 # Quality multiplier for harvest value #
-let qualityMultiplier : Quality -> Int =
-  fun q ->
+let qualityMultiplier(q: Quality) : Int =
     case q
     | Bronze => 1
     | Silver => 2
@@ -64,8 +62,7 @@ let qualityMultiplier : Quality -> Int =
 in
 
 # Calculate the value of a single harvest #
-let harvestValue : Harvest -> Int =
-  fun h ->
+let harvestValue(h: Harvest) : Int =
     cropValue(h.crop) * qualityMultiplier(h.quality) * h.quantity
 in
 
@@ -78,8 +75,7 @@ let init : Model = (
 ) in
 
 # Process a harvest action and update the ledger #
-let processHarvest : (Model, Harvest) -> Model =
-  fun (ledger, h) ->
+let processHarvest(ledger: Model, h: Harvest) : Model =
     let value = harvestValue(h) in
     # Check if this harvest continues the quality streak #
     # First harvest never continues a streak (no previous harvest) #
@@ -100,8 +96,7 @@ let processHarvest : (Model, Harvest) -> Model =
 in
 
 # Claim the streak bonus and reset it #
-let claimBonus : Model -> Model =
-  fun ledger ->
+let claimBonus(ledger: Model) : Model =
     (
       harvests = ledger.harvests,
       totalValue = ledger.totalValue + ledger.streakBonus,
@@ -111,8 +106,7 @@ let claimBonus : Model -> Model =
 in
 
 # Close the harvest day - reset streak tracking #
-let closeDay : Model -> Model =
-  fun ledger ->
+let closeDay(ledger: Model) : Model =
     (
       harvests = ledger.harvests,
       totalValue = ledger.totalValue,
@@ -122,7 +116,7 @@ let closeDay : Model -> Model =
 in
 
 # Main update function - (Action, Model) -> (Model, Cmd) #
-let update = fun (action, model) ->
+let update(action, model) =
   case action
   | RecordHarvest(h) => (processHarvest(model, h), CmdNone)
   | ClaimBonus => (claimBonus(model), CmdNone)
@@ -133,8 +127,7 @@ in
 # ===== HELPER FUNCTIONS FOR VIEW ===== #
 
 # Crop name as string #
-let cropName : Crop -> String =
-  fun c ->
+let cropName(c: Crop) : String =
     case c
     | Moonmelon => "Moonmelon"
     | Starfruit => "Starfruit"
@@ -144,8 +137,7 @@ let cropName : Crop -> String =
 in
 
 # Quality name with ghost emoji indicator #
-let qualityLabel : Quality -> String =
-  fun q ->
+let qualityLabel(q: Quality) : String =
     case q
     | Bronze => "Bronze"
     | Silver => "Silver"
@@ -155,8 +147,7 @@ let qualityLabel : Quality -> String =
 in
 
 # Quality emoji indicator #
-let qualityEmoji : Quality -> String =
-  fun q ->
+let qualityEmoji(q: Quality) : String =
     case q
     | Bronze => "🥉"
     | Silver => "🥈"
@@ -166,8 +157,7 @@ let qualityEmoji : Quality -> String =
 in
 
 # Quality accent color for the ghost theme #
-let qualityColor : Quality -> String =
-  fun q ->
+let qualityColor(q: Quality) : String =
     case q
     | Bronze => "#cd7f32"
     | Silver => "#c0c0c0"
@@ -178,7 +168,7 @@ in
 
 # ===== VIEW ===== #
 
-let view : Model -> HTML = fun model ->
+let view(model: Model) : HTML =
   let harvestRows =
     let ordered = reverse(model.harvests) in
     mapi(ordered, fun (i, h) ->
@@ -381,12 +371,12 @@ let view : Model -> HTML = fun model ->
   )
 in
 
-let subs : Model -> Sub = fun _model -> SubNone in
+let subs(_model: Model) : Sub = SubNone in
 
 # ===== TEST HELPERS ===== #
 
-let do_step = fun (acc, a) -> let (m, _) = update(a, acc) in m in
-let do_actions = fun (m, actions) -> fold_left(actions, (fun (acc, a) -> let (m2, _) = update(a, acc) in m2), m) in
+let do_step(acc, a) = let (m, _) = update(a, acc) in m in
+let do_actions(m, actions) = fold_left(actions, (fun (acc, a) -> let (m2, _) = update(a, acc) in m2), m) in
 
 # ===== TESTS ===== #
 

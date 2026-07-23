@@ -23,7 +23,7 @@ Apps are 4-tuples: `(init_model, update, view, subs)`
 Handlers produce **messages**, not new models:
 - `OnClick(msg_value)` - bare message value
 - `OnInput(fun str -> msg)` - event data to message
-- `OnKeyDown(fun key_event -> msg)` - key event to message
+- `OnKeyDown(fun e -> msg)` - key event to message (labeled tuple: use `e.key`, `e.code`, `e.ctrl`, ...)
 
 ### Legacy self-modifying (inline HTML projector)
 
@@ -54,5 +54,7 @@ HTML = Div([attrs], [children]) | Button([attrs], [children]) | Text(str) | ...
 Attr = Class(str) | Style([(key, value)]) | OnClick(msg) | OnInput(String -> msg) | ...
 Cmd  = CmdNone | Focus(id) | Log(msg) | Delay(ms, msg) | ...
 Sub  = SubNone | Every(ms, Float -> msg) | OnDocumentKeyDown(KeyEvent -> msg) | ...
+KeyEvent   = (key=String, code=String, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
+MouseEvent = (x=Float, y=Float, button=Int, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
 App  = (init_model, (msg, model) -> model, model -> HTML, model -> Sub)
 ```

@@ -10,14 +10,13 @@ in
 
 let init = (todos=["Learn Hazel", "Build an app"], input_value="") in
 
-let remove_at : ([String], Int) -> [String] =
-  fun (xs, idx) ->
+let remove_at(xs: [String], idx: Int) : [String] =
     let indexed = mapi(xs, fun (i, x) -> (i, x)) in
     let filtered = filter(indexed, fun pair -> fst(pair) != idx) in
     map(filtered, fun pair -> snd(pair))
 in
 
-let update = fun (msg, model) ->
+let update(msg, model) =
   case msg
   | AddTodo =>
       if model.input_value == "" then (model, CmdNone)
@@ -29,7 +28,7 @@ let update = fun (msg, model) ->
   end
 in
 
-let view = fun model ->
+let view(model) =
   Div(
     [Class("todo-app"), Style([("max-width", "400px"), ("margin", "20px auto"), ("font-family", "sans-serif")])],
     [
@@ -82,7 +81,7 @@ let view = fun model ->
   )
 in
 
-let subs = fun _model -> SubNone in
+let subs(_model) = SubNone in
 
 # Tests #
 

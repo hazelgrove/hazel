@@ -33,11 +33,11 @@ let init = (
   nightMode=true
 ) in
 
-let contains = fun (lst, val) ->
+let contains(lst, val) =
   length(filter(lst, fun x -> x == val)) > 0
 in
 
-let update = fun (msg, model) ->
+let update(msg, model) =
   case msg
   | SelectCategory(cat) =>
       ((category=cat, hoveredSeed=model.hoveredSeed, collected=model.collected,
@@ -81,12 +81,12 @@ let update = fun (msg, model) ->
   end
 in
 
-let filtered_seeds = fun model ->
+let filtered_seeds(model) =
   if model.category == "All" then seeds
   else filter(seeds, fun s -> s.category == model.category)
 in
 
-let view = fun model ->
+let view(model) =
   let bg = if model.nightMode then "#1a1a2e" else "#f0e6d3" in
   let fg = if model.nightMode then "#e0d0ff" else "#2d2d2d" in
   let accent = if model.nightMode then "#7b2d8b" else "#8b4513" in
@@ -303,7 +303,7 @@ let view = fun model ->
   )
 in
 
-let subs = fun _model ->
+let subs(_model) =
   SubBatch([
     OnResize(fun (w, h) -> WindowResized(w, h))
   ])

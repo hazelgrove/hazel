@@ -10,7 +10,7 @@ in
 
 let init = (seconds=0, running=false) in
 
-let update = fun (msg, model) ->
+let update(msg, model) =
   case msg
   | Toggle =>
       ((seconds=model.seconds, running=if model.running then false else true), CmdNone)
@@ -23,7 +23,7 @@ let update = fun (msg, model) ->
   end
 in
 
-let view = fun model ->
+let view(model) =
   let minutes = model.seconds / 60 in
   let secs = int_mod((model.seconds), 60) in
   let time_str =
@@ -61,7 +61,7 @@ let view = fun model ->
   )
 in
 
-let subs = fun model ->
+let subs(model) =
   if model.running then
     Every(1000.0, fun _timestamp -> Tick)
   else

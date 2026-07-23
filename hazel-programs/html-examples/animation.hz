@@ -8,7 +8,7 @@ let friction : Float = 0.99 in
 
 let init = (x=50.0, y=50.0, vx=3.0, vy=0.0) in
 
-let update = fun (_msg, model) ->
+let update(_msg, model) =
   let new_vy = model.vy +. gravity in
   let new_x = model.x +. model.vx in
   let new_y = model.y +. new_vy in
@@ -33,7 +33,7 @@ let update = fun (_msg, model) ->
   ((x=final_x, y=final_y, vx=final_vx, vy=final_vy), CmdNone)
 in
 
-let view = fun model ->
+let view(model) =
   Div(
     [
       Id("animation"),
@@ -80,7 +80,7 @@ let view = fun model ->
   )
 in
 
-let subs = fun _model ->
+let subs(_model) =
   AnimationFrame(fun timestamp -> timestamp)
 in
 
