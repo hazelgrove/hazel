@@ -7,12 +7,13 @@
 
 (rule
  (targets BuildInfo.ml)
- (deps (universe))
+ (deps
+  (universe)
+  (:script ../../scripts/build-info.sh))
  (action
   (with-stdout-to
    %{targets}
-   (bash
-    "SHA_FULL=$(git rev-parse HEAD 2>/dev/null || echo unknown); SHA_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown); BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown); if [ -n \"$(git status --porcelain 2>/dev/null)\" ]; then DIRTY=true; else DIRTY=false; fi; if [ -n \"$(git rev-list @{u}..HEAD 2>/dev/null)\" ]; then AHEAD=true; else AHEAD=false; fi; PR_INFO=\"\"; if command -v gh >/dev/null 2>&1; then PR_INFO=$(gh pr view --json number,url,state --jq 'select(.state == \"OPEN\") | (.number|tostring) + \" \" + .url' 2>/dev/null || true); fi; echo \"let commit_sha = \\\"$SHA_FULL\\\"\"; echo \"let commit_short = \\\"$SHA_SHORT\\\"\"; echo \"let branch = \\\"$BRANCH\\\"\"; echo \"let dirty = $DIRTY\"; echo \"let ahead = $AHEAD\"; if [ -n \"$PR_INFO\" ]; then echo \"let pr_number = Some ${PR_INFO%% *}\"; echo \"let pr_url = Some \\\"${PR_INFO#* }\\\"\"; else echo \"let pr_number = None\"; echo \"let pr_url = None\"; fi"))))
+   (run bash %{script}))))
 
 (library
  (name workerServer)
