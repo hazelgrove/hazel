@@ -874,13 +874,15 @@ module View = {
            mousedown here, which would re-focus the clipboard shim and
            destroy the text selection being started */
         Attr.tabindex(-1),
-        Attr.create("title", "Hazel build: " ++ BuildMeta.label),
       ],
       /* single span so the label is one inline formatting context —
          text selection across flex items is unreliable */
       [
         span(
-          ~attrs=[Attr.class_("build-info-label")],
+          ~attrs=[
+            Attr.class_("build-info-label"),
+            Attr.create("title", "Hazel build: " ++ BuildMeta.label),
+          ],
           [
             link(
               "https://github.com/hazelgrove/hazel/tree/" ++ BuildInfo.branch,
@@ -893,34 +895,18 @@ module View = {
               BuildInfo.commit_short,
             ),
             text(BuildMeta.suffix),
-          ],
-        ),
-        /* click-to-copy: the app's always-focused clipboard shim interferes
-           with starting a native text selection here, so provide an explicit
-           copy affordance (glyph supplied by CSS; flashes a check via the
-           transient `copied` class) */
-        span(
-          ~attrs=[
-            Attr.class_("build-info-copy"),
-            Attr.create("title", "Copy \"" ++ BuildMeta.label ++ "\""),
-            Attr.on_click(_ => {
-              let _ =
-                Js.Unsafe.global##.navigator##.clipboard##writeText(
-                  Js.string(BuildMeta.label),
-                );
-              try({
-                let el = JsUtil.get_elem_by_id("build-info");
-                el##.classList##add(Js.string("copied"));
-                JsUtil.delay(1200., () =>
-                  el##.classList##remove(Js.string("copied"))
-                );
-              }) {
-              | _ => ()
-              };
-              Effect.Ignore;
-            }),
-          ],
-          [],
+          ]
+          /* open PR for this branch, when the gh CLI was available at
+             build time to detect one */
+          @ (
+            switch (BuildInfo.pr_number, BuildInfo.pr_url) {
+            | (Some(n), Some(url)) => [
+                text(" · "),
+                link(url, "#" ++ string_of_int(n)),
+              ]
+            | _ => []
+            }
+          ),
         ),
       ],
     );
