@@ -1,4 +1,3 @@
-open Util;
 open Util.WebUtil;
 open Haz3lcore;
 
@@ -198,7 +197,6 @@ module View = {
   type event;
 
   let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
-    let start = TimeUtil.now_ms();
     let {
       editor:
         {
@@ -208,7 +206,6 @@ module View = {
         },
       _,
     }: Model.t = model;
-    let code_view_start = TimeUtil.now_ms();
     let info_map = model.statics.info_map;
     let refine_sort = (id, mold_out) =>
       Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
@@ -223,7 +220,6 @@ module View = {
         ~refine_sort,
         segment,
       );
-    TimeUtil.log_time("    CodeViewable.view", code_view_start);
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
@@ -245,13 +241,10 @@ module View = {
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
       @ (globals.settings.show_row_lines ? ["show-row-lines"] : []);
-    let result =
-      Node.div(
-        ~attrs=[Attr.classes(container_classes)],
-        // errors after warnings to prioritize errors over warnings
-        [code_text_view, warning_decos, error_decos] @ overlays,
-      );
-    TimeUtil.log_time("  CodeWithStatics.view", start);
-    result;
+    Node.div(
+      ~attrs=[Attr.classes(container_classes)],
+      // errors after warnings to prioritize errors over warnings
+      [code_text_view, warning_decos, error_decos] @ overlays,
+    );
   };
 };

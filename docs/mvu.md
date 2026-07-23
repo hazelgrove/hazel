@@ -24,7 +24,7 @@ type Msg = + Toggle + Reset + Tick in
 
 let init = (seconds=0, running=false) in
 
-let update = fun (msg, model) ->
+let update(msg, model) =
   case msg
   | Toggle =>
       ((seconds=model.seconds, running=if model.running then false else true), CmdNone)
@@ -37,7 +37,7 @@ let update = fun (msg, model) ->
   end
 in
 
-let view = fun model ->
+let view(model) =
   Div([], [
     Text(string_of_int(model.seconds)),
     Button([OnClick(Toggle)], [Text(if model.running then "Pause" else "Start")]),
@@ -45,7 +45,7 @@ let view = fun model ->
   ])
 in
 
-let subs = fun model ->
+let subs(model) =
   if model.running then Every(1000.0, fun _timestamp -> Tick)
   else SubNone
 in
@@ -71,9 +71,9 @@ Event handlers produce **messages** that get routed through `update`:
 | OnBlur | `Msg` (value) | `OnBlur(Blurred)` |
 | OnSubmit | `Msg` (value) | `OnSubmit(Submit)` |
 
-Event data types:
-- `KeyEvent = (key: String, code: String, ctrl: Bool, shift: Bool, alt: Bool, meta: Bool)`
-- `MouseEvent = (clientX: Float, clientY: Float, button: Int, ctrl: Bool, shift: Bool, alt: Bool, meta: Bool)`
+Event data types (labeled tuples — access fields with dot projection, e.g. `fun e -> if e.key == "ArrowUp" then MoveUp else NoOp`):
+- `KeyEvent = (key=String, code=String, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)`
+- `MouseEvent = (x=Float, y=Float, button=Int, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)`
 
 ## Commands
 

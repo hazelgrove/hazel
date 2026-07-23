@@ -20,87 +20,6 @@ open IdTagged.FreshGrammar;
 // Stable projector ID for the sidebar app view (deterministic UUID from string)
 let sidebar_projector_id = Id.mk_str("app-view-sidebar");
 
-// Evaluate directly (skip elaboration/statics). Expressions from
-// MVU runtime contain Closures which the elaborator can't handle.
-let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
-
-// Check if an expression is a function (possibly wrapped in a Closure from evaluation)
-let is_function = (exp: DHExp.t): bool =>
-  switch (exp.term) {
-  | Fun(_)
-  | FixF(_)
-  | Closure(_, {term: Fun(_), _})
-  | Closure(_, {term: FixF(_), _}) => true
-  | _ => false
-  };
-
-// App kind: Elm-style 4-tuple or legacy 3-tuple
-type app_kind =
-  | ElmApp(DHExp.t, DHExp.t, DHExp.t, DHExp.t) // init_model, update, view, subs
-  | LegacyMvuApp(DHExp.t, DHExp.t, DHExp.t); // init_model, view, subs
-
-// Detect app kind: 4-tuple first (more specific), then 3-tuple
-let detect_app_kind = (exp: DHExp.t): option(app_kind) => {
-  switch (exp.term) {
-  // 4-tuple: Elm-style (init_model, update_fn, view_fn, subs_fn)
-  | Tuple([init_model, update_fn, view_fn, subs_fn])
-  | Parens({term: Tuple([init_model, update_fn, view_fn, subs_fn]), _})
-      when is_function(update_fn) && is_function(view_fn) =>
-    Some(ElmApp(init_model, update_fn, view_fn, subs_fn))
-  // 3-tuple: Legacy MVU (init_model, view_fn, subs_fn)
-  | Tuple([init_model, view_fn, subs_fn])
-  | Parens({term: Tuple([init_model, view_fn, subs_fn]), _})
-      when is_function(view_fn) =>
-    Some(LegacyMvuApp(init_model, view_fn, subs_fn))
-  | _ => None
-  };
-};
-
-// Detect MVU App type: returns legacy 3-tuple format for backwards compat
-let detect_mvu_app = (exp: DHExp.t): option((DHExp.t, DHExp.t, DHExp.t)) => {
-  switch (detect_app_kind(exp)) {
-  | Some(LegacyMvuApp(init_model, view_fn, subs_fn)) =>
-    Some((init_model, view_fn, subs_fn))
-  | Some(ElmApp(init_model, _update_fn, view_fn, subs_fn)) =>
-    Some((init_model, view_fn, subs_fn))
-  | None => None
-  };
-};
-
-// Check if expression looks like an MVU App type (3 or 4-tuple with function)
-let looks_like_mvu_app = (exp: DHExp.t): bool =>
-  Option.is_some(detect_app_kind(exp));
-
-// Detect legacy self-modifying App type: ((HTML, Cmd), HTML -> Sub)
-// Returns Some((html_model, init_cmd, subscriptions_fn)) or None
-let detect_legacy_app =
-    (exp: DHExp.t): option((DHExp.t, option(DHExp.t), option(DHExp.t))) => {
-  switch (exp.term) {
-  | Tuple([init, subs_fn])
-  | Parens({term: Tuple([init, subs_fn]), _}) =>
-    switch (init.term) {
-    | Tuple([html_model, init_cmd])
-    | Parens({term: Tuple([html_model, init_cmd]), _}) =>
-      Some((html_model, Some(init_cmd), Some(subs_fn)))
-    | _ => None
-    }
-  | _ => None
-  };
-};
-
-// Check if expression looks like a legacy App type
-let looks_like_legacy_app = (exp: DHExp.t): bool =>
-  switch (exp.term) {
-  | Tuple([init, _subs_fn])
-  | Parens({term: Tuple([init, _subs_fn]), _}) =>
-    switch (init.term) {
-    | Tuple([_html, _cmd])
-    | Parens({term: Tuple([_html, _cmd]), _}) => true
-    | _ => false
-    }
-  | _ => false
-  };
-
 // Extract the evaluated DHExp from a CellEditor
 let get_evaluated_exp = (cell_editor: CellEditor.Model.t): option(DHExp.t) =>
   switch (cell_editor.result.result |> Calc.get_value) {
@@ -113,60 +32,9 @@ let get_evaluated_exp = (cell_editor: CellEditor.Model.t): option(DHExp.t) =>
 let looks_like_html = (d: DHExp.t): bool =>
   switch (d.term) {
   | Ap(_, {term: Constructor(name, _), _}, _) =>
-    HazelDOM.of_constructor(d)
+    MvuShape.of_constructor(d)
     |> Option.is_some
-    && List.mem(
-         name,
-         [
-           "Text",
-           "Bool",
-           "Int",
-           "Float",
-           "Div",
-           "Span",
-           "P",
-           "Pre",
-           "Code",
-           "Blockquote",
-           "H1",
-           "H2",
-           "H3",
-           "H4",
-           "H5",
-           "H6",
-           "Ul",
-           "Ol",
-           "Li",
-           "Form",
-           "Label",
-           "Input",
-           "TextArea",
-           "Button",
-           "Select",
-           "Option",
-           "Checkbox",
-           "Radio",
-           "Range",
-           "A",
-           "Img",
-           "Table",
-           "Thead",
-           "Tbody",
-           "Tr",
-           "Th",
-           "Td",
-           "Header",
-           "Footer",
-           "Nav",
-           "Main",
-           "Section",
-           "Article",
-           "Aside",
-           "Br",
-           "Hr",
-           "Node",
-         ],
-       )
+    && MvuShape.is_html_constructor(name)
   | Constructor("Br", _) => true
   | _ => false
   };
@@ -415,7 +283,7 @@ let view =
   // Render legacy self-modifying app
   let render_legacy_app = (exp: DHExp.t) =>
     try(
-      switch (detect_legacy_app(exp)) {
+      switch (MvuShape.detect_legacy_app(exp)) {
       | Some((html, Some(init_cmd), Some(subs_fn))) =>
         // Run the init command
         let cmd_ctx: CmdRunner.context = {
@@ -426,7 +294,7 @@ let view =
         let cmd_effect = CmdRunner.run(cmd_ctx, init_cmd);
         Bonsai.Effect.Expert.handle(cmd_effect);
         // Evaluate subscriptions
-        let subs = evaluate(Exp.ap(Forward, subs_fn, html));
+        let subs = MvuShape.evaluate(Exp.ap(Forward, subs_fn, html));
         render_html_content(
           ~model=html,
           ~html,
@@ -436,7 +304,7 @@ let view =
         );
       | Some((html, None, Some(subs_fn))) =>
         // No init command, just subscriptions
-        let subs = evaluate(Exp.ap(Forward, subs_fn, html));
+        let subs = MvuShape.evaluate(Exp.ap(Forward, subs_fn, html));
         render_html_content(
           ~model=html,
           ~html,
@@ -471,8 +339,8 @@ let view =
       switch (eval_result) {
       | Some(exp) when exp !== _state.source_result =>
         // Eval result changed! Check if it's still an MVU app
-        switch (detect_app_kind(exp)) {
-        | Some(ElmApp(init_model, update_fn, view_fn, subs_fn)) =>
+        switch (MvuShape.detect_app_kind(exp)) {
+        | Some(MvuShape.ElmApp(init_model, update_fn, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
               RefreshAppView(
@@ -485,7 +353,7 @@ let view =
             ),
           );
           render_mvu_app(_state);
-        | Some(LegacyMvuApp(init_model, view_fn, subs_fn)) =>
+        | Some(MvuShape.LegacyMvuApp(init_model, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
               RefreshAppView(exp, init_model, None, view_fn, subs_fn),
@@ -508,9 +376,9 @@ let view =
         | None => render_instructions()
         | Some(_) => render_error("Evaluation pending or failed")
         }
-      | Some(exp) when looks_like_mvu_app(exp) =>
-        switch (detect_app_kind(exp)) {
-        | Some(ElmApp(init_model, update_fn, view_fn, subs_fn)) =>
+      | Some(exp) when MvuShape.looks_like_mvu_app(exp) =>
+        switch (MvuShape.detect_app_kind(exp)) {
+        | Some(MvuShape.ElmApp(init_model, update_fn, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
               InitAppView(
@@ -531,7 +399,7 @@ let view =
             ],
             [text("Initializing app...")],
           );
-        | Some(LegacyMvuApp(init_model, view_fn, subs_fn)) =>
+        | Some(MvuShape.LegacyMvuApp(init_model, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
               InitAppView(exp, init_model, None, view_fn, subs_fn),
@@ -548,7 +416,8 @@ let view =
           );
         | None => render_error("Invalid MVU App structure")
         }
-      | Some(exp) when looks_like_legacy_app(exp) => render_legacy_app(exp)
+      | Some(exp) when MvuShape.looks_like_legacy_app(exp) =>
+        render_legacy_app(exp)
       | Some(exp) when looks_like_html(exp) =>
         render_html_content(
           ~model=exp,

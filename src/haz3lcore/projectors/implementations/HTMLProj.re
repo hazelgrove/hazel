@@ -3,106 +3,6 @@ open ProjectorBase;
 open Language;
 open IdTagged.FreshGrammar;
 
-// All valid HTML constructor names
-let html_constructors = [
-  // Text/primitive content
-  "Text",
-  "Bool",
-  "Int",
-  "Float",
-  // Structural elements
-  "Div",
-  "Span",
-  "P",
-  "Pre",
-  "Code",
-  "Blockquote",
-  // Headings
-  "H1",
-  "H2",
-  "H3",
-  "H4",
-  "H5",
-  "H6",
-  // Lists
-  "Ul",
-  "Ol",
-  "Li",
-  // Forms
-  "Form",
-  "Label",
-  "Input",
-  "TextArea",
-  "Button",
-  "Select",
-  "Option",
-  "Checkbox",
-  "Radio",
-  "Range",
-  // Links and media
-  "A",
-  "Img",
-  // Tables
-  "Table",
-  "Thead",
-  "Tbody",
-  "Tr",
-  "Th",
-  "Td",
-  // Semantic sections
-  "Header",
-  "Footer",
-  "Nav",
-  "Main",
-  "Section",
-  "Article",
-  "Aside",
-  // Utility
-  "Br",
-  "Hr",
-  // Generic
-  "Node",
-];
-
-// Check if a name is a valid HTML constructor
-let is_html_constructor = (name: string): bool =>
-  List.mem(name, html_constructors);
-
-// Detect if expression is an App type: ((HTML, Cmd), HTML -> Sub)
-// Returns Some((html_model, init_cmd, subscriptions_fn)) or None
-let detect_app =
-    (exp: DHExp.t): option((DHExp.t, option(DHExp.t), option(DHExp.t))) => {
-  switch (exp.term) {
-  | Tuple([init, subs_fn])
-  | Parens({term: Tuple([init, subs_fn]), _}) =>
-    switch (init.term) {
-    | Tuple([html_model, init_cmd])
-    | Parens({term: Tuple([html_model, init_cmd]), _}) =>
-      Some((html_model, Some(init_cmd), Some(subs_fn)))
-    | _ => None
-    }
-  | _ => None
-  };
-};
-
-// Check if expression looks like an App type (for init detection)
-// App = ((HTML, Cmd), HTML -> Sub)
-let looks_like_app = (exp: DHExp.t): bool =>
-  switch (exp.term) {
-  | Tuple([init, _subs_fn])
-  | Parens({term: Tuple([init, _subs_fn]), _}) =>
-    switch (init.term) {
-    | Tuple([_html, _cmd])
-    | Parens({term: Tuple([_html, _cmd]), _}) => true
-    | _ => false
-    }
-  | _ => false
-  };
-
-// Evaluate directly (skip elaboration/statics). Expressions from
-// MVU runtime contain Closures which the elaborator can't handle.
-let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
-
 // Refs for resize drag state
 let wrapper_ref: ref(option(Js_of_ocaml.Js.Unsafe.any)) = ref(None);
 let resize_cols = ref(40);
@@ -148,7 +48,7 @@ module M: Projector = {
     switch (any) {
     // HTML constructor applied to arguments: Div(...), Button(...), etc.
     | Exp({term: Ap(_, {term: Constructor(name, _), _}, _), _} as exp)
-        when is_html_constructor(name) =>
+        when MvuShape.is_html_constructor(name) =>
       Some({
         exp,
         ui: default_ui,
@@ -160,7 +60,7 @@ module M: Projector = {
         ui: default_ui,
       })
     // App type: ((HTML, Cmd), HTML -> Sub) tuple
-    | Exp(exp) when looks_like_app(exp) =>
+    | Exp(exp) when MvuShape.looks_like_legacy_app(exp) =>
       Some({
         exp,
         ui: default_ui,
@@ -214,7 +114,7 @@ module M: Projector = {
 
     // Check if model is an App type vs plain Html
     let (html_model, subscriptions) =
-      switch (detect_app(current_exp)) {
+      switch (MvuShape.detect_legacy_app(current_exp)) {
       | Some((html, Some(init_cmd), Some(subs_fn))) =>
         // It's an App - run init_cmd and evaluate subscriptions
         let cmd_ctx: CmdRunner.context = {
@@ -224,11 +124,11 @@ module M: Projector = {
         };
         let cmd_effect = CmdRunner.run(cmd_ctx, init_cmd);
         Bonsai.Effect.Expert.handle(cmd_effect);
-        let subs = evaluate(Exp.ap(Forward, subs_fn, html));
+        let subs = MvuShape.evaluate(Exp.ap(Forward, subs_fn, html));
         (html, Some(subs));
       | Some((html, None, Some(subs_fn))) =>
         // App with no init cmd
-        let subs = evaluate(Exp.ap(Forward, subs_fn, html));
+        let subs = MvuShape.evaluate(Exp.ap(Forward, subs_fn, html));
         (html, Some(subs));
       | _ =>
         // Plain Html - no subscriptions

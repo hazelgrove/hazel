@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open Util;
 open Language;
 open IdTagged.FreshGrammar;
+open MvuShape;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -27,116 +28,6 @@ let input_type_mappings: list((string, string)) = [
   ("Range", "range"),
 ];
 
-// Strip evaluator wrappers (Asc, Closure, Parens) from outermost level
-let rec strip_wrappers = (d: DHExp.t): DHExp.t =>
-  switch (d.term) {
-  | Asc(inner, _)
-  | Closure(_, inner)
-  | Parens(inner) => strip_wrappers(inner)
-  | _ => d
-  };
-
-// Extract constructor name and body, stripping evaluator wrappers
-let of_constructor = (d: DHExp.t): option((string, DHExp.t)) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | Ap(Forward, fn, body) =>
-    let fn = strip_wrappers(fn);
-    switch (fn.term) {
-    | Constructor(name, _) => Some((name, strip_wrappers(body)))
-    | _ => None
-    };
-  | Constructor(name, _) =>
-    // Nullary constructor - create an empty tuple as placeholder body
-    Some((
-      name,
-      {
-        ...d,
-        term: Tuple([]),
-      },
-    ))
-  | _ => None
-  };
-};
-
-// Check if a DHExp looks like a Cmd value (CmdNone, CmdBatch, etc.)
-let is_cmd = (d: DHExp.t): bool => {
-  switch (of_constructor(strip_wrappers(d))) {
-  | Some(("CmdNone", _))
-  | Some(("CmdBatch", _))
-  | Some(("Focus", _))
-  | Some(("Delay", _))
-  | Some(("Log", _)) => true
-  | _ => false
-  };
-};
-
-let of_pair = (d: DHExp.t): option((string, string)) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | Tuple([k, v]) =>
-    let k = strip_wrappers(k);
-    let v = strip_wrappers(v);
-    switch (k.term, v.term) {
-    | (Atom(String(k)), Atom(String(v))) => Some((k, v))
-    | _ => None
-    };
-  | _ => None
-  };
-};
-
-let of_string_bool_pair = (d: DHExp.t): option((string, bool)) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | Tuple([k, v]) =>
-    let k = strip_wrappers(k);
-    let v = strip_wrappers(v);
-    switch (k.term, v.term) {
-    | (Atom(String(k)), Atom(Bool(v))) => Some((k, v))
-    | _ => None
-    };
-  | _ => None
-  };
-};
-
-let of_string = (d: DHExp.t): option(string) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | Atom(String(s)) => Some(s)
-  | _ => None
-  };
-};
-
-let of_bool = (d: DHExp.t): option(bool) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | Atom(Bool(b)) => Some(b)
-  | _ => None
-  };
-};
-
-let of_int = (d: DHExp.t): option(int) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | Atom(Int(n)) => Bigint.to_int(n)
-  | _ => None
-  };
-};
-
-let of_string_list = (d: DHExp.t): option(list(string)) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | ListLit(items) =>
-    let strings = List.filter_map(of_string, items);
-    if (List.length(strings) == List.length(items)) {
-      Some(strings);
-    } else {
-      None;
-    };
-  | _ => None
-  };
-};
-
 let render_style_attr = (d: DHExp.t): option(string) =>
   switch (of_pair(d)) {
   | Some((name, value)) => Some(name ++ ": " ++ value)
@@ -148,16 +39,6 @@ let render_styles = styles =>
   |> List.filter_map(render_style_attr)
   |> String.concat(";")
   |> Attr.create("style");
-
-// Evaluate directly (skip elaboration/statics). Event handlers are
-// already-evaluated Closures, so re-elaborating would fail.
-let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
-
-// Error boundary: wrap evaluate to catch exceptions and return error Html
-let safe_evaluate = (exp: DHExp.t): result(DHExp.t, string) =>
-  try(Ok(evaluate(exp))) {
-  | exn => Error(Printexc.to_string(exn))
-  };
 
 // Create an error display Html node
 let error_html = (msg: string): DHExp.t =>
@@ -242,12 +123,12 @@ let on_ = (mvu: t, handler, _evt) => {
 let on_input = (mvu: t, handler, _evt, arg) => {
   switch (mvu.update_fn) {
   | Some(_) =>
-    // Elm mode: handler is String -> msg
+    // Elm mode: handler is String -> msg. On error, don't dispatch.
     switch (safe_evaluate(Exp.ap(Forward, handler, Exp.string(arg)))) {
     | Ok(msg) => Effect.Many([Effect.Stop_propagation, mvu.inject(msg)])
     | Error(err) =>
-      let err_html = error_html("Input handler error: " ++ err);
-      Effect.Many([Effect.Stop_propagation, mvu.inject(err_html)]);
+      prerr_endline("HazelDOM: input handler error: " ++ err);
+      Effect.Ignore;
     }
   | None =>
     // Legacy: handler is (Html, String) -> Html
@@ -266,24 +147,25 @@ let on_input = (mvu: t, handler, _evt, arg) => {
 
 // Mouse event: Elm mode: MouseEvent -> msg. Legacy: (Html, MouseEvent) -> Html
 let on_mouse = (mvu: t, handler, evt) => {
+  /* MouseEvent value (labeled tuple, see BuiltinsADT.Event.mouse) */
   let mouse_event =
     Exp.tuple([
-      Exp.float(float_of_int(evt##.clientX)),
-      Exp.float(float_of_int(evt##.clientY)),
-      Exp.int(evt##.button),
-      Exp.bool(Js_of_ocaml.Js.to_bool(evt##.ctrlKey)),
-      Exp.bool(Js_of_ocaml.Js.to_bool(evt##.shiftKey)),
-      Exp.bool(Js_of_ocaml.Js.to_bool(evt##.altKey)),
-      Exp.bool(Js_of_ocaml.Js.to_bool(evt##.metaKey)),
+      field("x", Exp.float(float_of_int(evt##.clientX))),
+      field("y", Exp.float(float_of_int(evt##.clientY))),
+      field("button", Exp.int(evt##.button)),
+      field("ctrl", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.ctrlKey))),
+      field("shift", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.shiftKey))),
+      field("alt", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.altKey))),
+      field("meta", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.metaKey))),
     ]);
   switch (mvu.update_fn) {
   | Some(_) =>
-    // Elm mode: handler is MouseEvent -> msg
+    // Elm mode: handler is MouseEvent -> msg. On error, don't dispatch.
     switch (safe_evaluate(Exp.ap(Forward, handler, mouse_event))) {
     | Ok(msg) => Effect.Many([Effect.Stop_propagation, mvu.inject(msg)])
     | Error(err) =>
-      let err_html = error_html("Mouse handler error: " ++ err);
-      Effect.Many([Effect.Stop_propagation, mvu.inject(err_html)]);
+      prerr_endline("HazelDOM: mouse handler error: " ++ err);
+      Effect.Ignore;
     }
   | None =>
     // Legacy: handler is (Html, MouseEvent) -> Html
@@ -302,28 +184,15 @@ let on_mouse = (mvu: t, handler, evt) => {
 
 // Keyboard event: Elm mode: KeyEvent -> msg. Legacy: (Html, KeyEvent) -> Html
 let on_key = (mvu: t, handler, evt) => {
-  open Js_of_ocaml;
-  let get_key = evt =>
-    Js.to_string(Js.Optdef.get(evt##.key, () => Js.string("")));
-  let get_code = evt =>
-    Js.to_string(Js.Optdef.get(evt##.code, () => Js.string("")));
-  let key_event =
-    Exp.tuple([
-      Exp.string(get_key(evt)),
-      Exp.string(get_code(evt)),
-      Exp.bool(Js.to_bool(evt##.ctrlKey)),
-      Exp.bool(Js.to_bool(evt##.shiftKey)),
-      Exp.bool(Js.to_bool(evt##.altKey)),
-      Exp.bool(Js.to_bool(evt##.metaKey)),
-    ]);
+  let key_event = SubManager.key_event_of_js(evt);
   switch (mvu.update_fn) {
   | Some(_) =>
-    // Elm mode: handler is KeyEvent -> msg
+    // Elm mode: handler is KeyEvent -> msg. On error, don't dispatch.
     switch (safe_evaluate(Exp.ap(Forward, handler, key_event))) {
     | Ok(msg) => Effect.Many([Effect.Stop_propagation, mvu.inject(msg)])
     | Error(err) =>
-      let err_html = error_html("Keyboard handler error: " ++ err);
-      Effect.Many([Effect.Stop_propagation, mvu.inject(err_html)]);
+      prerr_endline("HazelDOM: keyboard handler error: " ++ err);
+      Effect.Ignore;
     }
   | None =>
     // Legacy: handler is (Html, KeyEvent) -> Html
@@ -344,7 +213,12 @@ let on_key = (mvu: t, handler, evt) => {
 
 let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
   let attr_err = (d: DHExp.t) => {
-    prerr_endline("render_attr: " ++ DHExp.show(d));
+    let name =
+      switch (of_constructor(d)) {
+      | Some((name, _)) => name
+      | None => "<not a constructor>"
+      };
+    prerr_endline("HazelDOM: unrecognized attribute: " ++ name);
     Attr.empty;
   };
   switch (of_constructor(d)) {
@@ -518,9 +392,11 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
     | ("OnMouseLeave", handler) => Attr.on_mouseleave(on_(mvu, handler))
     | ("OnFocus", handler) => Attr.on_focus(_ => on_(mvu, handler, ()))
     | ("OnBlur", handler) => Attr.on_blur(_ => on_(mvu, handler, ()))
-    // OnSubmit: For now, we don't have a generic Attr.on for submit events
-    // This is a limitation - form submission requires special handling
-    | ("OnSubmit", _handler) => Attr.empty
+    // Prevent the browser's default form submission (page reload)
+    | ("OnSubmit", handler) =>
+      Attr.on_submit(evt =>
+        Effect.Many([Effect.Prevent_default, on_(mvu, handler, evt)])
+      )
 
     // === Mouse event handlers: (Html, MouseEvent) -> Html ===
     | ("OnMouseDown", handler) => Attr.on_mousedown(on_mouse(mvu, handler))

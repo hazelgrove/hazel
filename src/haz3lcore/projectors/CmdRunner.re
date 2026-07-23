@@ -2,18 +2,19 @@ open Virtual_dom.Vdom;
 open Util;
 open Language;
 open IdTagged.FreshGrammar;
+open MvuShape;
 
 // CmdRunner: Interprets Hazel Cmd values as Ui_effect.t
 //
 // Cmd is a sum type defined in BuiltinsADT.re:
 //   | CmdNone
-//   | Batch(List(Cmd))
+//   | CmdBatch(List(Cmd))
 //   | Focus(String)
 //   | Blur(String)
 //   | ScrollIntoView(String)
 //   | ScrollTo(String, Float, Float)
 //   | CopyToClipboard(String)
-//   | Delay(Float, Html -> Html)
+//   | Delay(Float, Msg)  // legacy mode: Delay(Float, Html -> Html)
 //   | Log(String)
 
 type context = {
@@ -22,84 +23,11 @@ type context = {
   update_fn: option(DHExp.t),
 };
 
-// Strip evaluator wrappers (Asc, Closure, Parens) to find constructor
-let rec of_constructor = (d: DHExp.t): option((string, DHExp.t)) =>
-  switch (d.term) {
-  | Asc(inner, _)
-  | Closure(_, inner)
-  | Parens(inner) => of_constructor(inner)
-  | Ap(Forward, fn, body) =>
-    switch (fn.term) {
-    | Constructor(name, _) => Some((name, body))
-    | Asc({term: Constructor(name, _), _}, _) => Some((name, body))
-    | Closure(_, {term: Constructor(name, _), _}) => Some((name, body))
-    | _ => None
-    }
-  | Constructor(name, _) =>
-    Some((
-      name,
-      {
-        ...d,
-        term: Tuple([]),
-      },
-    ))
-  | _ => None
-  };
-
-// Strip evaluator wrappers (Asc, Closure, Parens) from outermost level
-let rec strip_wrappers = (d: DHExp.t): DHExp.t =>
-  switch (d.term) {
-  | Asc(inner, _)
-  | Closure(_, inner)
-  | Parens(inner) => strip_wrappers(inner)
-  | _ => d
-  };
-
-// Extract string from DHExp
-let of_string = (d: DHExp.t): option(string) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | Atom(String(s)) => Some(s)
-  | _ => None
-  };
-};
-
-// Extract float from DHExp
-let of_float = (d: DHExp.t): option(float) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | Atom(Float(f)) => Some(f)
-  | _ => None
-  };
-};
-
-// Extract list from DHExp
-let of_list = (d: DHExp.t): option(list(DHExp.t)) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | ListLit(items) => Some(items)
-  | _ => None
-  };
-};
-
-// Extract tuple components
-let of_tuple = (d: DHExp.t): option(list(DHExp.t)) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | Tuple(items) => Some(items)
-  | _ => None
-  };
-};
-
-// Evaluate directly (skip elaboration/statics). Command handlers are
-// already-evaluated Closures, so re-elaborating would fail.
-let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
-
 // Run a single command, returning an effect
 let rec run = (ctx: context, cmd: DHExp.t): Ui_effect.t(unit) => {
-  switch (of_constructor(cmd)) {
+  switch (of_constructor_raw(cmd)) {
   | None =>
-    Js_of_ocaml.Firebug.console##log("CmdRunner: not a constructor");
+    prerr_endline("CmdRunner: not a Cmd constructor");
     Effect.Ignore;
 
   | Some(("CmdNone", _)) => Effect.Ignore
@@ -226,9 +154,7 @@ let rec run = (ctx: context, cmd: DHExp.t): Ui_effect.t(unit) => {
     }
 
   | Some((name, _)) =>
-    Js_of_ocaml.Firebug.console##log(
-      Js_of_ocaml.Js.string("CmdRunner: unknown command: " ++ name),
-    );
+    prerr_endline("CmdRunner: unknown command: " ++ name);
     Effect.Ignore;
   };
 };

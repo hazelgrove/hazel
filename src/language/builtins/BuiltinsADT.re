@@ -172,29 +172,35 @@ module Option = {
   ];
 };
 
-// Event data types for keyboard and mouse events
+// Event data types for keyboard and mouse events.
+// Labeled so handlers can use projection (e.key, e.ctrl) instead of
+// positional destructuring.
 module Event = {
-  // KeyEvent: { key: String, code: String, ctrl: Bool, shift: Bool, alt: Bool, meta: Bool }
+  let field = (name: string, ty: Typ.t): Typ.t =>
+    tup_label(label(name), ty);
+
+  // KeyEvent: (key=String, code=String, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
   let key: Typ.t =
     prod([
-      string(), // key
-      string(), // code
-      bool(), // ctrl
-      bool(), // shift
-      bool(), // alt
-      bool() // meta
+      field("key", string()),
+      field("code", string()),
+      field("ctrl", bool()),
+      field("shift", bool()),
+      field("alt", bool()),
+      field("meta", bool()),
     ]);
 
-  // MouseEvent: { clientX: Float, clientY: Float, button: Int, ctrl: Bool, shift: Bool, alt: Bool, meta: Bool }
+  // MouseEvent: (x=Float, y=Float, button=Int, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
+  // button: 0=left, 1=middle, 2=right
   let mouse: Typ.t =
     prod([
-      float(), // clientX
-      float(), // clientY
-      int(), // button (0=left, 1=middle, 2=right)
-      bool(), // ctrl
-      bool(), // shift
-      bool(), // alt
-      bool() // meta
+      field("x", float()),
+      field("y", float()),
+      field("button", int()),
+      field("ctrl", bool()),
+      field("shift", bool()),
+      field("alt", bool()),
+      field("meta", bool()),
     ]);
 };
 
@@ -404,7 +410,10 @@ module Sub = {
 };
 
 // App type for full applications with Elm-style MVU architecture
-// App = (init_model, update: (msg, model) -> model, view: model -> HTML, subs: model -> Sub)
+// App = (init_model, update, view, subs) where
+//   update: (msg, model) -> model, or (msg, model) -> (model, Cmd)
+//   view: model -> HTML
+//   subs: model -> Sub
 module App = {
   let t: Typ.t =
     prod([

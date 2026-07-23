@@ -10,18 +10,11 @@ let evaluate_direct = (exp: Exp.t): Exp.t =>
   Evaluator.evaluate(~env=Builtins.env_init, exp) |> fst;
 
 // Check if an expression is a function (Closure from evaluation)
-let is_function = (exp: Exp.t): bool =>
-  switch (exp.term) {
-  | Fun(_)
-  | FixF(_)
-  | Closure(_, {term: Fun(_), _})
-  | Closure(_, {term: FixF(_), _}) => true
-  | _ => false
-  };
+let is_function = Haz3lcore.MvuShape.is_function;
 
 // Extract 4-tuple components from evaluated MVU app
 let extract_elm_app = (exp: Exp.t): option((Exp.t, Exp.t, Exp.t, Exp.t)) =>
-  switch (Haz3lcore.HazelDOM.strip_wrappers(exp).term) {
+  switch (Haz3lcore.MvuShape.strip_wrappers(exp).term) {
   | Tuple([init_model, update_fn, view_fn, subs_fn])
       when is_function(update_fn) && is_function(view_fn) =>
     Some((init_model, update_fn, view_fn, subs_fn))
@@ -34,76 +27,49 @@ let apply = (fn: Exp.t, arg: Exp.t): Exp.t =>
 
 // Check that a DHExp represents valid HTML (has a recognized constructor at top)
 let rec is_valid_html = (exp: Exp.t): bool => {
-  switch (Haz3lcore.HazelDOM.of_constructor(exp)) {
+  switch (Haz3lcore.MvuShape.of_constructor(exp)) {
   | Some(("Text", body)) =>
     // Text requires a string argument
-    switch (Haz3lcore.HazelDOM.strip_wrappers(body).term) {
+    switch (Haz3lcore.MvuShape.strip_wrappers(body).term) {
     | Atom(String(_)) => true
     | _ => false
     }
   | Some(("Int", body)) =>
-    switch (Haz3lcore.HazelDOM.strip_wrappers(body).term) {
+    switch (Haz3lcore.MvuShape.strip_wrappers(body).term) {
     | Atom(Int(_)) => true
     | _ => false
     }
   | Some(("Float", body)) =>
-    switch (Haz3lcore.HazelDOM.strip_wrappers(body).term) {
+    switch (Haz3lcore.MvuShape.strip_wrappers(body).term) {
     | Atom(Float(_)) => true
     | _ => false
     }
   | Some(("Bool", body)) =>
-    switch (Haz3lcore.HazelDOM.strip_wrappers(body).term) {
+    switch (Haz3lcore.MvuShape.strip_wrappers(body).term) {
     | Atom(Bool(_)) => true
     | _ => false
     }
   | Some(("Br" | "Hr", _)) => true
-  | Some((
-      "Div" | "Span" | "P" | "Pre" | "Code" | "Blockquote" | "H1" | "H2" | "H3" |
-      "H4" |
-      "H5" |
-      "H6" |
-      "Ul" |
-      "Ol" |
-      "Li" |
-      "Form" |
-      "Label" |
-      "Button" |
-      "Select" |
-      "Option" |
-      "Table" |
-      "Thead" |
-      "Tbody" |
-      "Tr" |
-      "Th" |
-      "Td" |
-      "Header" |
-      "Footer" |
-      "Nav" |
-      "Main" |
-      "Section" |
-      "Article" |
-      "Aside" |
-      "Node",
-      body,
-    )) =>
-    // Container elements: check children are valid HTML
-    switch (Haz3lcore.HazelDOM.strip_wrappers(body).term) {
+  | Some(("Input" | "TextArea" | "Img" | "A", _)) => true
+  | Some(("Checkbox" | "Radio" | "Range", _)) => true
+  // Remaining HTML constructors (per MvuShape's derived name set) are
+  // container elements: check children are valid HTML
+  | Some((name, body)) when Haz3lcore.MvuShape.is_html_constructor(name) =>
+    switch (Haz3lcore.MvuShape.strip_wrappers(body).term) {
     | Tuple([_attrs, children]) =>
-      switch (Haz3lcore.HazelDOM.strip_wrappers(children).term) {
+      switch (Haz3lcore.MvuShape.strip_wrappers(children).term) {
       | ListLit(items) => List.for_all(is_valid_html, items)
       | _ => false
       }
     | _ => false
     }
-  | Some(("Input" | "TextArea" | "Img" | "A", _)) => true
-  | Some(("Checkbox" | "Radio" | "Range", _)) => true
   | _ => false
   };
 };
 
 // Describe what's wrong with invalid HTML for error messages
 let describe_html_issue = (exp: Exp.t): string => {
-  switch (Haz3lcore.HazelDOM.of_constructor(exp)) {
+  switch (Haz3lcore.MvuShape.of_constructor(exp)) {
   | None =>
     "Not an HTML constructor. Got: "
     ++ (
@@ -121,7 +87,7 @@ let describe_html_issue = (exp: Exp.t): string => {
     ++ name
     ++ " has invalid body: "
     ++ (
-      switch (Haz3lcore.HazelDOM.strip_wrappers(body).term) {
+      switch (Haz3lcore.MvuShape.strip_wrappers(body).term) {
       | Atom(Int(n)) => "Int(" ++ Bigint.to_string(n) ++ ")"
       | Atom(String(s)) => "String(\"" ++ s ++ "\")"
       | Tuple(items) =>
@@ -141,18 +107,18 @@ let assert_valid_html = (msg: string, exp: Exp.t) =>
 
 // Extract components from a 2-tuple (e.g., (model, cmd) from update)
 let extract_pair = (exp: Exp.t): option((Exp.t, Exp.t)) =>
-  switch (Haz3lcore.HazelDOM.strip_wrappers(exp).term) {
+  switch (Haz3lcore.MvuShape.strip_wrappers(exp).term) {
   | Tuple([a, b]) =>
     Some((
-      Haz3lcore.HazelDOM.strip_wrappers(a),
-      Haz3lcore.HazelDOM.strip_wrappers(b),
+      Haz3lcore.MvuShape.strip_wrappers(a),
+      Haz3lcore.MvuShape.strip_wrappers(b),
     ))
   | _ => None
   };
 
 // Assert that an expression is a specific constructor
 let assert_constructor = (msg: string, expected_name: string, exp: Exp.t) =>
-  switch (Haz3lcore.HazelDOM.of_constructor(exp)) {
+  switch (Haz3lcore.MvuShape.of_constructor(exp)) {
   | Some((name, _)) when name == expected_name => ()
   | Some((name, _)) =>
     fail(msg ++ ": expected " ++ expected_name ++ ", got " ++ name)
@@ -172,7 +138,7 @@ let apply_update =
 
 // Check that a subscription expression has a recognized constructor
 let is_valid_sub = (exp: Exp.t): bool =>
-  switch (Haz3lcore.HazelDOM.of_constructor(exp)) {
+  switch (Haz3lcore.MvuShape.of_constructor(exp)) {
   | Some((
       "SubNone" | "SubBatch" | "Every" | "AnimationFrame" | "OnResize" |
       "OnVisibilityChange" |
@@ -186,15 +152,15 @@ let is_valid_sub = (exp: Exp.t): bool =>
 
 // Extract a named field from a labeled tuple
 let extract_field = (name: string, exp: Exp.t): option(Exp.t) => {
-  switch (Haz3lcore.HazelDOM.strip_wrappers(exp).term) {
+  switch (Haz3lcore.MvuShape.strip_wrappers(exp).term) {
   | Tuple(fields) =>
     let rec find = (
       fun
       | [] => None
       | [field, ...rest] =>
-        switch (Haz3lcore.HazelDOM.strip_wrappers(field).term) {
+        switch (Haz3lcore.MvuShape.strip_wrappers(field).term) {
         | TupLabel({term: Label(label), _}, value) when label == name =>
-          Some(Haz3lcore.HazelDOM.strip_wrappers(value))
+          Some(Haz3lcore.MvuShape.strip_wrappers(value))
         | _ => find(rest)
         }
     );
@@ -282,7 +248,7 @@ let counter_update_increment =
       | Some((init_model, update_fn, _, _)) =>
         let new_model =
           apply(update_fn, Exp.tuple([Exp.int(1), init_model]));
-        let new_model = Haz3lcore.HazelDOM.strip_wrappers(new_model);
+        let new_model = Haz3lcore.MvuShape.strip_wrappers(new_model);
         check(dhexp_typ, "model should be 1", Exp.int(1), new_model);
       | None => fail("Not an Elm app")
       };
@@ -299,7 +265,7 @@ let counter_update_decrement =
       | Some((init_model, update_fn, _, _)) =>
         let new_model =
           apply(update_fn, Exp.tuple([Exp.int(-1), init_model]));
-        let new_model = Haz3lcore.HazelDOM.strip_wrappers(new_model);
+        let new_model = Haz3lcore.MvuShape.strip_wrappers(new_model);
         check(dhexp_typ, "model should be -1", Exp.int(-1), new_model);
       | None => fail("Not an Elm app")
       };
@@ -316,7 +282,7 @@ let counter_view_after_update =
       | Some((init_model, update_fn, view_fn, _)) =>
         let new_model =
           apply(update_fn, Exp.tuple([Exp.int(1), init_model]));
-        let new_model = Haz3lcore.HazelDOM.strip_wrappers(new_model);
+        let new_model = Haz3lcore.MvuShape.strip_wrappers(new_model);
         let html = apply(view_fn, new_model);
         assert_valid_html("view(1)", html);
       | None => fail("Not an Elm app")
@@ -336,14 +302,14 @@ let counter_full_cycle =
         let model = ref(init_model);
         for (_ in 1 to 5) {
           let new_model = apply(update_fn, Exp.tuple([Exp.int(1), model^]));
-          model := Haz3lcore.HazelDOM.strip_wrappers(new_model);
+          model := Haz3lcore.MvuShape.strip_wrappers(new_model);
         };
         check(dhexp_typ, "after 5 increments", Exp.int(5), model^);
         // 2 decrements
         for (_ in 1 to 2) {
           let new_model =
             apply(update_fn, Exp.tuple([Exp.int(-1), model^]));
-          model := Haz3lcore.HazelDOM.strip_wrappers(new_model);
+          model := Haz3lcore.MvuShape.strip_wrappers(new_model);
         };
         check(dhexp_typ, "after 2 decrements", Exp.int(3), model^);
         // View should still be valid
@@ -440,7 +406,7 @@ let keyboard_update_arrow_right =
         // msg is just the key string (extracted from KeyEvent in subs handler)
         let msg = Exp.string("ArrowRight");
         let new_model = apply(update_fn, Exp.tuple([msg, init_model]));
-        let new_model = Haz3lcore.HazelDOM.strip_wrappers(new_model);
+        let new_model = Haz3lcore.MvuShape.strip_wrappers(new_model);
         // Should be (200, 180) - moved right by step=20
         check(
           dhexp_typ,
@@ -463,7 +429,7 @@ let keyboard_view_after_move =
       | Some((init_model, update_fn, view_fn, _)) =>
         let msg = Exp.string("ArrowRight");
         let new_model = apply(update_fn, Exp.tuple([msg, init_model]));
-        let new_model = Haz3lcore.HazelDOM.strip_wrappers(new_model);
+        let new_model = Haz3lcore.MvuShape.strip_wrappers(new_model);
         let html = apply(view_fn, new_model);
         assert_valid_html("view after ArrowRight", html);
       | None => fail("Not an Elm app")
@@ -482,7 +448,7 @@ let strip_wrappers_basic =
     () => {
       let inner = Exp.int(42);
       let wrapped = Exp.asc(inner, Typ.int());
-      let result = Haz3lcore.HazelDOM.strip_wrappers(wrapped);
+      let result = Haz3lcore.MvuShape.strip_wrappers(wrapped);
       check(dhexp_typ, "should strip Asc", inner, result);
     },
   );
@@ -494,7 +460,7 @@ let strip_wrappers_parens =
     () => {
       let inner = Exp.int(42);
       let wrapped = Exp.parens(inner);
-      let result = Haz3lcore.HazelDOM.strip_wrappers(wrapped);
+      let result = Haz3lcore.MvuShape.strip_wrappers(wrapped);
       check(dhexp_typ, "should strip Parens", inner, result);
     },
   );
@@ -505,7 +471,7 @@ let of_constructor_basic =
     `Quick,
     () => {
       let exp = parse_and_evaluate({|Text("hello")|});
-      switch (Haz3lcore.HazelDOM.of_constructor(exp)) {
+      switch (Haz3lcore.MvuShape.of_constructor(exp)) {
       | Some(("Text", _)) => ()
       | Some((name, _)) => fail("Expected Text constructor, got: " ++ name)
       | None => fail("of_constructor returned None")
@@ -519,7 +485,7 @@ let of_constructor_nested =
     `Quick,
     () => {
       let exp = parse_and_evaluate({|Div([], [Text("hi")])|});
-      switch (Haz3lcore.HazelDOM.of_constructor(exp)) {
+      switch (Haz3lcore.MvuShape.of_constructor(exp)) {
       | Some(("Div", _)) => ()
       | Some((name, _)) => fail("Expected Div constructor, got: " ++ name)
       | None => fail("of_constructor returned None")
@@ -794,9 +760,9 @@ let cmd_cmdbatch_has_list_body =
       | Some((init_model, update_fn, _, _)) =>
         let multi_msg = Exp.constructor("Multi", None);
         let (_, cmd) = apply_update(update_fn, multi_msg, init_model);
-        switch (Haz3lcore.HazelDOM.of_constructor(cmd)) {
+        switch (Haz3lcore.MvuShape.of_constructor(cmd)) {
         | Some(("CmdBatch", body)) =>
-          switch (Haz3lcore.HazelDOM.strip_wrappers(body).term) {
+          switch (Haz3lcore.MvuShape.strip_wrappers(body).term) {
           | ListLit(items) =>
             check(
               Alcotest.int,

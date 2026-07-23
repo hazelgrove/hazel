@@ -301,9 +301,6 @@ module Update = {
         try({
           let update_fn = Option.get(state.update_fn);
           // Use evaluate_direct: sub-expressions are already elaborated+evaluated
-          Js_of_ocaml.Firebug.console##log(
-            Js_of_ocaml.Js.string("AppViewMsg: dispatching msg"),
-          );
           let update_result =
             evaluate_direct(
               Language.IdTagged.FreshGrammar.Exp.ap(
@@ -312,25 +309,16 @@ module Update = {
                 Language.IdTagged.FreshGrammar.Exp.tuple([msg, state.model]),
               ),
             );
-          Js_of_ocaml.Firebug.console##log(
-            Js_of_ocaml.Js.string("AppViewMsg: update evaluated OK"),
-          );
           // Extract (new_model, cmd) tuple — update always returns (Model, Cmd)
           let update_result =
-            Haz3lcore.HazelDOM.strip_wrappers(update_result);
+            Haz3lcore.MvuShape.strip_wrappers(update_result);
           let (new_model, cmd) =
             switch (update_result.term) {
-            | Tuple([m, c]) =>
-              Js_of_ocaml.Firebug.console##log(
-                Js_of_ocaml.Js.string(
-                  "AppViewMsg: extracted (model, cmd) tuple",
-                ),
-              );
-              (m, c);
+            | Tuple([m, c]) => (m, c)
             | _ =>
               Js_of_ocaml.Firebug.console##warn(
                 Js_of_ocaml.Js.string(
-                  "AppViewMsg: update result is NOT a tuple, using fallback",
+                  "AppViewMsg: update result is not a tuple, using fallback",
                 ),
               );
               (
@@ -349,9 +337,6 @@ module Update = {
                 new_model,
               ),
             );
-          Js_of_ocaml.Firebug.console##log(
-            Js_of_ocaml.Js.string("AppViewMsg: view evaluated OK"),
-          );
           let subs =
             evaluate_direct(
               Language.IdTagged.FreshGrammar.Exp.ap(
@@ -360,9 +345,6 @@ module Update = {
                 new_model,
               ),
             );
-          Js_of_ocaml.Firebug.console##log(
-            Js_of_ocaml.Js.string("AppViewMsg: subs evaluated OK"),
-          );
           {
             // Run cmd (CmdRunner handles CmdNone as no-op)
 
@@ -439,8 +421,8 @@ module Update = {
         // Check if model structures are compatible (same term kind and arity)
         let models_compatible =
           switch (
-            Haz3lcore.HazelDOM.strip_wrappers(state.model).term,
-            Haz3lcore.HazelDOM.strip_wrappers(init_model).term,
+            Haz3lcore.MvuShape.strip_wrappers(state.model).term,
+            Haz3lcore.MvuShape.strip_wrappers(init_model).term,
           ) {
           | (Atom(Int(_)), Atom(Int(_)))
           | (Atom(Float(_)), Atom(Float(_)))
@@ -664,69 +646,65 @@ module Update = {
         action: t,
         model: Model.t,
       ) => {
-    let start = TimeUtil.now_ms();
     let globals = {
       ...model.globals,
       export_all: Export.export_all,
       get_log_and,
     };
-    let result =
-      switch (action) {
-      | Globals(action) =>
-        update_global(~globals, ~import_log, ~schedule_action, action, model)
-      | Editors(action) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            action,
-            model.editors,
-          );
-        /* Reset visible_rows when switching to modes without viewport culling,
-         * otherwise stale culling bounds hide projectors incorrectly */
-        let globals =
-          switch (action) {
-          | SwitchMode(Tutorial | Exercises) => {
-              ...model.globals,
-              visible_rows: None,
-            }
-          | _ => model.globals
-          };
-        {
-          ...model,
-          editors,
-          globals,
+    switch (action) {
+    | Globals(action) =>
+      update_global(~globals, ~import_log, ~schedule_action, action, model)
+    | Editors(action) =>
+      let* editors =
+        Editors.Update.update(
+          ~globals,
+          ~schedule_action=a => schedule_action(Editors(a)),
+          action,
+          model.editors,
+        );
+      /* Reset visible_rows when switching to modes without viewport culling,
+       * otherwise stale culling bounds hide projectors incorrectly */
+      let globals =
+        switch (action) {
+        | SwitchMode(Tutorial | Exercises) => {
+            ...model.globals,
+            visible_rows: None,
+          }
+        | _ => model.globals
         };
-      | ExplainThis(action) =>
-        let* explain_this =
-          ExplainThisUpdate.set_update(model.explain_this, action);
-        {
-          ...model,
-          explain_this,
-        };
-      | MakeActive(selection) =>
-        {
-          ...model,
-          selection,
-        }
-        |> Updated.return(~is_edit=false, ~scroll_active=false)
-      | Benchmark(Start) =>
-        List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
-        schedule_action(Benchmark(Finish));
-        Benchmark.start();
-        model |> Updated.return_quiet;
-      | Benchmark(Finish) =>
-        Benchmark.finish();
-        model |> Updated.return_quiet;
-      | Refresh => model |> Updated.return_quiet(~recalculate=true)
-      | Start => model |> return // Triggers recalculation at the start
-      | Save =>
-        print_endline("Saving...");
-        Store.save(model);
-        model |> return_quiet;
+      {
+        ...model,
+        editors,
+        globals,
       };
-    TimeUtil.log_time("Page.update TOTAL", start);
-    result;
+    | ExplainThis(action) =>
+      let* explain_this =
+        ExplainThisUpdate.set_update(model.explain_this, action);
+      {
+        ...model,
+        explain_this,
+      };
+    | MakeActive(selection) =>
+      {
+        ...model,
+        selection,
+      }
+      |> Updated.return(~is_edit=false, ~scroll_active=false)
+    | Benchmark(Start) =>
+      List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
+      schedule_action(Benchmark(Finish));
+      Benchmark.start();
+      model |> Updated.return_quiet;
+    | Benchmark(Finish) =>
+      Benchmark.finish();
+      model |> Updated.return_quiet;
+    | Refresh => model |> Updated.return_quiet(~recalculate=true)
+    | Start => model |> return // Triggers recalculation at the start
+    | Save =>
+      print_endline("Saving...");
+      Store.save(model);
+      model |> return_quiet;
+    };
   };
 
   let can_undo = (action: t) => {
@@ -1288,17 +1266,13 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
       ) => {
-    let start = TimeUtil.now_ms();
     let cursor =
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
     NinjaKeys.initialize(cursor.contextual_actions);
-    let result =
-      div(
-        ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
-        [FontSpecimen.view, JsUtil.clipboard_shim]
-        @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
-      );
-    TimeUtil.log_time("Page.view TOTAL", start);
-    result;
+    div(
+      ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
+      [FontSpecimen.view, JsUtil.clipboard_shim]
+      @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
+    );
   };
 };

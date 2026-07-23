@@ -2,16 +2,16 @@
 
 This document describes the HazelHtml web app library as implemented on the `hazel-html` branch. It covers the architecture, types, and runtime components that enable building interactive web applications in Hazel.
 
+The canonical program shape is the Elm-style MVU 4-tuple `(init, update, view, subs)`; see `docs/mvu.md` for the authoritative architecture description. An older "self-modifying" mode (the HTML tree is the model, handlers are `HTML -> HTML`) is still supported as a legacy alternative and is marked as such below.
+
 ## Overview
 
 HazelHtml provides:
 - A comprehensive set of HTML element and attribute types for Hazel
 - A command system for side effects (focus, scroll, clipboard, delays)
 - A subscription system for event sources (resize, keyboard, timers, animation frames)
-- An App type for full application structure with init and subscriptions
+- An Elm-style App shape: `(init, update, view, subs)`
 - Integration with the HTML projector for live rendering
-
-The library follows an Elm-inspired architecture adapted for Hazel's constraints (no type parameters yet).
 
 ## Architecture
 
@@ -21,7 +21,7 @@ The library follows an Elm-inspired architecture adapted for Hazel's constraints
 │                                                             │
 │  Plain Html:  Div([Class("app")], [Text("Hello")])         │
 │                                                             │
-│  Or App:      ((init_html, init_cmd), subscriptions_fn)    │
+│  Or MVU App:  (init, update, view, subs)                   │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -122,36 +122,39 @@ Attr =
   // Data attributes
   | Data(String, String)  // data-{name}={value}
 
-  // Event handlers (self-modifying pattern)
-  | OnClick(HTML -> HTML)
-  | OnDoubleClick(HTML -> HTML)
-  | OnMouseEnter(HTML -> HTML) | OnMouseLeave(HTML -> HTML)
-  | OnMouseDown((HTML, MouseEvent) -> HTML)
-  | OnMouseUp((HTML, MouseEvent) -> HTML)
-  | OnMouseMove((HTML, MouseEvent) -> HTML)
-  | OnKeyDown((HTML, KeyEvent) -> HTML)
-  | OnKeyUp((HTML, KeyEvent) -> HTML)
-  | OnKeyPress((HTML, KeyEvent) -> HTML)
-  | OnInput((HTML, String) -> HTML)
-  | OnChange((HTML, String) -> HTML)
-  | OnFocus(HTML -> HTML) | OnBlur(HTML -> HTML)
-  | OnSubmit(HTML -> HTML)
+  // Event handlers (Elm mode: handlers produce messages)
+  | OnClick(Msg) | OnDoubleClick(Msg)
+  | OnMouseEnter(Msg) | OnMouseLeave(Msg)
+  | OnFocus(Msg) | OnBlur(Msg)
+  | OnSubmit(Msg)                        // prevents default form submission
+  | OnMouseDown(MouseEvent -> Msg)
+  | OnMouseUp(MouseEvent -> Msg)
+  | OnMouseMove(MouseEvent -> Msg)
+  | OnKeyDown(KeyEvent -> Msg)
+  | OnKeyUp(KeyEvent -> Msg)
+  | OnKeyPress(KeyEvent -> Msg)
+  | OnInput(String -> Msg)
+  | OnChange(String -> Msg)
 
   // Generic fallbacks
   | Create(String, String)  // attr(name, value)
   | BoolAttr(String, Bool)
 ```
 
+In legacy self-modifying mode the same handlers instead transform the HTML
+tree directly: simple events are `HTML -> HTML`, data-carrying events are
+`(HTML, data) -> HTML`, and handlers may return `(HTML, Cmd)` to also run a
+command.
+
 ### Event Types
 
-Product types for event data:
+Labeled product types for event data (access fields with dot projection,
+e.g. `fun e -> if e.key == "ArrowUp" then MoveUp else NoOp`):
 
 ```
-KeyEvent = (key, code, ctrl, shift, alt, meta)
-         = (String, String, Bool, Bool, Bool, Bool)
+KeyEvent = (key=String, code=String, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
 
-MouseEvent = (clientX, clientY, button, ctrl, shift, alt, meta)
-           = (Float, Float, Int, Bool, Bool, Bool, Bool)
+MouseEvent = (x=Float, y=Float, button=Int, ctrl=Bool, shift=Bool, alt=Bool, meta=Bool)
 ```
 
 ### Cmd Type
@@ -167,7 +170,8 @@ Cmd =
   | ScrollIntoView(String)            // Scroll element into view
   | ScrollTo(String, Float, Float)    // Scroll element to (x, y)
   | CopyToClipboard(String)           // Copy text to clipboard
-  | Delay(Float, HTML -> HTML)        // Run transform after delay (ms)
+  | Delay(Float, Msg)                 // Dispatch msg after delay (ms)
+                                      // (legacy mode: HTML -> HTML transform)
   | Log(String)                       // Console log
 ```
 
@@ -177,35 +181,39 @@ Recursive sum type for event sources:
 
 ```
 Sub =
-  | SubNone                                           // No subscription
-  | SubBatch(List(Sub))                               // Multiple subscriptions
-  | OnResize((HTML, Int, Int) -> HTML)                // Window resize
-  | OnVisibilityChange((HTML, Bool) -> HTML)          // Tab visibility
-  | OnDocumentKeyDown((HTML, KeyEvent) -> HTML)       // Global keydown
-  | OnDocumentKeyUp((HTML, KeyEvent) -> HTML)         // Global keyup
-  | Every(Float, (HTML, Float) -> HTML)               // Interval timer
-  | AnimationFrame((HTML, Float) -> HTML)             // Animation frame
+  | SubNone                                 // No subscription
+  | SubBatch(List(Sub))                     // Multiple subscriptions
+  | OnResize((Int, Int) -> Msg)             // Window resize
+  | OnVisibilityChange(Bool -> Msg)         // Tab visibility
+  | OnDocumentKeyDown(KeyEvent -> Msg)      // Global keydown
+  | OnDocumentKeyUp(KeyEvent -> Msg)        // Global keyup
+  | Every(Float, Float -> Msg)              // Interval timer
+  | AnimationFrame(Float -> Msg)            // Animation frame
 ```
+
+In legacy mode, subscription handlers take the current model as an extra
+first argument and return new HTML, e.g. `Every(Float, (HTML, Float) -> HTML)`.
 
 ### App Type
 
-Product type for full applications:
+An MVU app is a 4-tuple (see `docs/mvu.md` for the full architecture):
 
 ```
-App = ((HTML, Cmd), HTML -> Sub)
-    = (init, subscriptions)
+App = (init, update, view, subs)
 
 where:
-  init = (initial_html, startup_cmd)
-  subscriptions = function from current HTML to Sub
+  init   = initial model (any Hazel value)
+  update = (Msg, Model) -> (Model, Cmd)
+  view   = Model -> HTML
+  subs   = Model -> Sub
 ```
 
-## Self-Modifying Pattern
+## Legacy Self-Modifying Mode
 
-Since Hazel doesn't have type parameters yet, we use a "self-modifying" pattern where:
-- The model IS the HTML tree
-- Event handlers receive the current HTML and return new HTML
-- Optionally, handlers can return `(HTML, Cmd)` to also trigger effects
+Superseded by the MVU 4-tuple above, but still supported. The app shape is
+`((HTML, Cmd), HTML -> Sub)`: the model IS the HTML tree, event handlers
+receive the current HTML and return new HTML (optionally `(HTML, Cmd)` to
+also trigger effects).
 
 Example:
 ```
@@ -217,7 +225,9 @@ let counter = Div([
 ], [Int(0)])
 ```
 
-When handlers return a tuple `(new_html, cmd)`, the command is executed after updating the model.
+The runtime selects the mode via `HazelDOM.update_fn`: `Some(update)` means
+Elm mode (handlers produce messages), `None` means legacy mode (handlers
+transform the HTML tree).
 
 ## Runtime Components
 
@@ -237,8 +247,14 @@ type t = {
   view_term: DHExp.t => Node.t,
   projector_id: option(Id.t),
   subscriptions: option(DHExp.t),
+  // Some(update) = Elm mode (inject receives msgs);
+  // None = legacy mode (inject receives new HTML models)
+  update_fn: option(DHExp.t),
 };
 ```
+
+Shared shape-detection helpers (wrapper stripping, constructor extraction,
+app detection, the HTML constructor name set) live in `MvuShape.re`.
 
 ### CmdRunner.re
 
@@ -271,6 +287,7 @@ src/language/builtins/
   BuiltinsADT.re          # All types: HTML, Attr, Cmd, Sub, App, KeyEvent, MouseEvent
 
 src/haz3lcore/projectors/
+  MvuShape.re             # Shared shape detection (wrappers, constructors, app kinds)
   HazelDOM.re             # HTML -> Virtual_dom renderer with Cmd/Sub integration
   CmdRunner.re            # Cmd interpreter
   SubManager.re           # Subscription manager
@@ -288,16 +305,20 @@ Div([Class("greeting")], [
 ])
 ```
 
-### With Commands
+### MVU App (canonical)
 ```
-Button([
-  OnClick(fun html ->
-    (Div([], [Text("Focused!")]), Focus("my-input"))
-  )
-], [Text("Focus input")])
+type Msg = + Inc in
+let update(msg, model) =
+  case msg | Inc => (model + 1, CmdNone) end in
+let view(model) =
+  Div([], [Int(model), Button([OnClick(Inc)], [Text("+")])]) in
+let subs(model) = SubNone in
+(0, update, view, subs)
 ```
 
-### Full App
+See `docs/mvu.md` for a fuller example with commands and subscriptions.
+
+### Legacy Self-Modifying App
 ```
 let app = (
   // init: (HTML, Cmd)
@@ -314,18 +335,8 @@ let app = (
 
 1. **Subscription cleanup on removal**: When a projector is removed entirely (not just re-rendered), subscriptions may leak. Proper cleanup would require projector lifecycle hooks.
 
-2. **AnimationFrame cleanup**: AnimationFrame subscriptions recursively request frames and currently can't be stopped.
-
-3. **Error boundaries**: Runtime errors in event handlers are now caught and display inline error UI (red-bordered div with error message). Subscription callback errors are caught and logged to console. Infinite loops or stack overflows may still crash.
+2. **Error boundaries**: Handler evaluation errors are caught. In Elm mode no message is dispatched and the error is logged to the console; in legacy mode an inline error UI (red-bordered div) replaces the model. Subscription callback errors are caught and logged to console. Infinite loops or stack overflows may still crash.
 
 ## Future Enhancements
 
-When Hazel gains type parameters, the types could be parameterized over a message type for full Elm-style architecture:
-```
-Html(msg)
-Attr(msg)
-Cmd(msg)
-Sub(msg)
-```
-
-This would enable separate model/view/update rather than the self-modifying pattern.
+When Hazel gains type parameters, the types could be parameterized over a message type (`Html(msg)`, `Attr(msg)`, `Cmd(msg)`, `Sub(msg)`) for statically-typed message dispatch.

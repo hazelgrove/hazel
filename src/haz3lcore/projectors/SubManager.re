@@ -1,17 +1,19 @@
 open Language;
 open IdTagged.FreshGrammar;
+open MvuShape;
 
 // SubManager: Manages subscriptions for Hazel apps
 //
-// Sub is a sum type defined in BuiltinsADT.re:
+// Sub is a sum type defined in BuiltinsADT.re (Elm-mode handler types;
+// legacy mode prepends the current Html model to the handler args):
 //   | SubNone
 //   | SubBatch(List(Sub))
-//   | OnResize((Html, Int, Int) -> Html)
-//   | OnVisibilityChange((Html, Bool) -> Html)
-//   | OnDocumentKeyDown((Html, KeyEvent) -> Html)
-//   | OnDocumentKeyUp((Html, KeyEvent) -> Html)
-//   | Every(Float, (Html, Float) -> Html)
-//   | AnimationFrame((Html, Float) -> Html)
+//   | OnResize((Int, Int) -> Msg)
+//   | OnVisibilityChange(Bool -> Msg)
+//   | OnDocumentKeyDown(KeyEvent -> Msg)
+//   | OnDocumentKeyUp(KeyEvent -> Msg)
+//   | Every(Float, Float -> Msg)
+//   | AnimationFrame(Float -> Msg)
 
 type context = {
   model: DHExp.t,
@@ -22,81 +24,9 @@ type context = {
 // Track active subscriptions for cleanup
 type sub_handle =
   | IntervalHandle(Js_of_ocaml.Dom_html.interval_id)
-  | AnimationHandle(Js_of_ocaml.Dom_html.animation_frame_request_id)
   | EventHandle(unit => unit); // cleanup function
 
 type active_subs = list(sub_handle);
-
-// Strip evaluator wrappers (Asc, Closure, Parens) to find constructor
-let rec of_constructor = (d: DHExp.t): option((string, DHExp.t)) =>
-  switch (d.term) {
-  | Asc(inner, _)
-  | Closure(_, inner)
-  | Parens(inner) => of_constructor(inner)
-  | Ap(Forward, fn, body) =>
-    switch (fn.term) {
-    | Constructor(name, _) => Some((name, body))
-    | Asc({term: Constructor(name, _), _}, _) => Some((name, body))
-    | Closure(_, {term: Constructor(name, _), _}) => Some((name, body))
-    | _ => None
-    }
-  | Constructor(name, _) =>
-    Some((
-      name,
-      {
-        ...d,
-        term: Tuple([]),
-      },
-    ))
-  | _ => None
-  };
-
-// Strip evaluator wrappers (Asc, Closure, Parens) from outermost level
-let rec strip_wrappers = (d: DHExp.t): DHExp.t =>
-  switch (d.term) {
-  | Asc(inner, _)
-  | Closure(_, inner)
-  | Parens(inner) => strip_wrappers(inner)
-  | _ => d
-  };
-
-// Extract float from DHExp
-let of_float = (d: DHExp.t): option(float) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | Atom(Float(f)) => Some(f)
-  | _ => None
-  };
-};
-
-// Extract list from DHExp
-let of_list = (d: DHExp.t): option(list(DHExp.t)) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | ListLit(items) => Some(items)
-  | _ => None
-  };
-};
-
-// Extract tuple components
-let of_tuple = (d: DHExp.t): option(list(DHExp.t)) => {
-  let d = strip_wrappers(d);
-  switch (d.term) {
-  | Tuple(items) => Some(items)
-  | _ => None
-  };
-};
-
-// Evaluate a Hazel expression directly (skip elaboration/statics).
-// Handlers from subscriptions are already-evaluated Closures, so
-// re-elaborating would fail on runtime-only nodes like Closure.
-let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
-
-// Error boundary: wrap evaluate to catch exceptions
-let safe_evaluate = (exp: DHExp.t): result(DHExp.t, string) =>
-  try(Ok(evaluate(exp))) {
-  | exn => Error(Printexc.to_string(exn))
-  };
 
 // Apply a handler with the current model and additional args
 // With error boundary - logs errors instead of crashing
@@ -134,7 +64,8 @@ let apply_handler = (ctx: context, handler: DHExp.t, args: list(DHExp.t)) => {
   };
 };
 
-// Build a KeyEvent tuple from a JS keyboard event
+// Build a KeyEvent value (labeled tuple, see BuiltinsADT.Event.key)
+// from a JS keyboard event
 let key_event_of_js = evt => {
   open Js_of_ocaml;
   let get_key = evt =>
@@ -142,12 +73,12 @@ let key_event_of_js = evt => {
   let get_code = evt =>
     Js.to_string(Js.Optdef.get(evt##.code, () => Js.string("")));
   Exp.tuple([
-    Exp.string(get_key(evt)),
-    Exp.string(get_code(evt)),
-    Exp.bool(Js.to_bool(evt##.ctrlKey)),
-    Exp.bool(Js.to_bool(evt##.shiftKey)),
-    Exp.bool(Js.to_bool(evt##.altKey)),
-    Exp.bool(Js.to_bool(evt##.metaKey)),
+    field("key", Exp.string(get_key(evt))),
+    field("code", Exp.string(get_code(evt))),
+    field("ctrl", Exp.bool(Js.to_bool(evt##.ctrlKey))),
+    field("shift", Exp.bool(Js.to_bool(evt##.shiftKey))),
+    field("alt", Exp.bool(Js.to_bool(evt##.altKey))),
+    field("meta", Exp.bool(Js.to_bool(evt##.metaKey))),
   ]);
 };
 
@@ -156,9 +87,9 @@ let rec subscribe =
         (ctx: context, sub: DHExp.t, get_model: unit => DHExp.t)
         : list(sub_handle) => {
   Js_of_ocaml.(
-    switch (of_constructor(sub)) {
+    switch (of_constructor_raw(sub)) {
     | None =>
-      Firebug.console##log("SubManager: not a constructor");
+      prerr_endline("SubManager: not a Sub constructor");
       [];
 
     | Some(("SubNone", _)) => []
@@ -309,9 +240,7 @@ let rec subscribe =
       [EventHandle(() => running := false)];
 
     | Some((name, _)) =>
-      Firebug.console##log(
-        Js.string("SubManager: unknown subscription: " ++ name),
-      );
+      prerr_endline("SubManager: unknown subscription: " ++ name);
       [];
     }
   );
@@ -324,7 +253,6 @@ let cleanup = (handles: active_subs): unit => {
       handle =>
         switch (handle) {
         | IntervalHandle(id) => Dom_html.window##clearInterval(id)
-        | AnimationHandle(id) => Dom_html.window##cancelAnimationFrame(id)
         | EventHandle(cleanup_fn) => cleanup_fn()
         },
       handles,
