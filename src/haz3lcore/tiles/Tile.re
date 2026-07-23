@@ -21,8 +21,6 @@ let token = (t: t, i: int): Token.t => List.nth(label(t), i);
  * is_paren_shaped — the ["(",")"] label is shared by the Parens and
  * Ap families, and it covers both. */
 
-let is_form = (t: t, fam: Form.family): bool => t.form == Form.Compound(fam);
-
 let has_label_of = (t: t, fam: Form.family): bool =>
   Form.has_label_of(t.form, fam);
 

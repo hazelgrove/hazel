@@ -1194,27 +1194,32 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       | _ => ret(Sig(flatten_sig(body)))
       }
     | ([(_id, tile)], []) =>
-      ret(
+      /* Atomic type spellings (base atoms, Void, Drv quote types):
+       * table-driven via BaseAtom (see Language.BaseAtom.table),
+       * looked up once; its Some arm sits at the original priority */
+      let base_atom =
         switch (tile) {
-        | (F(f), []) when is_empty_tuple_form(f) => Prod([])
-        | (F(Tok(t)), []) when Token.is_empty_module(t) => Sig([])
-        /* Atomic type spellings (base atoms, Void, Drv quote types):
-         * table-driven via BaseAtom; see Language.BaseAtom.table */
-        | (F(Tok(t)), []) when Language.BaseAtom.typ_term_of(t) != None =>
-          Language.BaseAtom.typ_term_of(t) |> Option.get
-        | (F(Tok("_")), []) => ExplicitNonlabel
-        | (F(Compound(ProofOf)), [Exp(exp)]) => ProofOf(exp)
-        | (F(Tok(t)), []) when Token.is_typ_var(t) => Var(t)
-        | (F(Tok(t)), []) when Token.is_quoted_label(t) =>
+        | (F(Tok(t)), []) => Language.BaseAtom.typ_term_of(t)
+        | _ => None
+        };
+      ret(
+        switch (base_atom, tile) {
+        | (_, (F(f), [])) when is_empty_tuple_form(f) => Prod([])
+        | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) => Sig([])
+        | (Some(term), _) => term
+        | (_, (F(Tok("_")), [])) => ExplicitNonlabel
+        | (_, (F(Compound(ProofOf)), [Exp(exp)])) => ProofOf(exp)
+        | (_, (F(Tok(t)), [])) when Token.is_typ_var(t) => Var(t)
+        | (_, (F(Tok(t)), [])) when Token.is_quoted_label(t) =>
           Label(Token.sub(t, 1, Token.length(t) - 2))
-        | (F(Compound(Parens)), [Typ(body)]) => Parens(body)
-        | (ProjWrap, [Typ(body)]) => body.term
-        | (F(Compound(ListLit)), [Typ(body)]) => List(body)
-        | (F(Tok(t)), []) when is_hole_label(t) => hole(tm)
-        | (F(Tok(t)), []) => Unknown(Hole(Invalid(t)))
+        | (_, (F(Compound(Parens)), [Typ(body)])) => Parens(body)
+        | (_, (ProjWrap, [Typ(body)])) => body.term
+        | (_, (F(Compound(ListLit)), [Typ(body)])) => List(body)
+        | (_, (F(Tok(t)), [])) when is_hole_label(t) => hole(tm)
+        | (_, (F(Tok(t)), [])) => Unknown(Hole(Invalid(t)))
         | _ => hole(tm)
         },
-      )
+      );
     | _ => ret(hole(tm))
     }
   | Post(Typ(_t), tiles) as tm =>

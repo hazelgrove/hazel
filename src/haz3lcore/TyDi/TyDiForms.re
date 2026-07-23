@@ -158,26 +158,35 @@ module Typ = {
     |> List.filter(t => !List.mem(t, deliberately_untyped))
     |> List.filter_map(t => derive_self_ty(t) |> Option.map(ty => (t, ty)));
 
-  let of_const_mono_delim: list((Token.t, Typ.t)) =
-    derive_table(
-      List.sort_uniq(
-        compare,
-        Delims.const_mono(Exp) @ Delims.const_mono(Pat),
-      ),
+  /* Lazy: each entry runs Parser + Statics per token, which is pure
+   * startup cost for the worker/CLI; forced at the suggestion call
+   * sites (suggest_form). */
+  let of_const_mono_delim: Lazy.t(list((Token.t, Typ.t))) =
+    lazy(
+      derive_table(
+        List.sort_uniq(
+          compare,
+          Delims.const_mono(Exp) @ Delims.const_mono(Pat),
+        ),
+      )
     );
 
-  let of_infix_delim: list((Token.t, Typ.t)) =
-    derive_table(
-      List.sort_uniq(compare, Delims.infix(Exp) @ Delims.infix(Pat)),
+  let of_infix_delim: Lazy.t(list((Token.t, Typ.t))) =
+    lazy(
+      derive_table(
+        List.sort_uniq(compare, Delims.infix(Exp) @ Delims.infix(Pat)),
+      )
     );
 
   /* Leading delimiters (with expander) parse to their completed forms,
    * so e.g. "fun " derives Arrow(?, ?) and "[ " derives [?]. Only the
    * Exp/Pat domains matter: suggest_form consults the table only for
    * those sorts. */
-  let of_leading_delim: list((Token.t, Typ.t)) =
-    derive_table(
-      List.sort_uniq(compare, Delims.leading(Exp) @ Delims.leading(Pat)),
+  let of_leading_delim: Lazy.t(list((Token.t, Typ.t))) =
+    lazy(
+      derive_table(
+        List.sort_uniq(compare, Delims.leading(Exp) @ Delims.leading(Pat)),
+      )
     );
 
   let expected: Info.t => Typ.t =
@@ -212,7 +221,12 @@ let suggest_form =
   let sort = Info.sort_of(ci);
   let delims = delims_of_sort(sort);
   let filtered =
-    Typ.filter_by(Info.ctx_of(ci), Typ.expected(ci), ty_map, delims);
+    Typ.filter_by(
+      Info.ctx_of(ci),
+      Typ.expected(ci),
+      Lazy.force(ty_map),
+      delims,
+    );
   switch (sort) {
   | Exp =>
     List.map(

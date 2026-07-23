@@ -130,15 +130,16 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
       )
       |> ListUtil.hd_opt
     };
+  let remolded_mold = Tile.mold(remolded);
+  let orig_mold = Tile.mold(t);
   let children =
     List.fold_right(
       ((l, child, r), children) => {
         let child =
           if (l
               + 1 == r
-              && List.nth(Tile.mold(remolded).in_, l)
-              != List.nth(Tile.mold(t).in_, l)) {
-            remold(child, List.nth(Tile.mold(remolded).in_, l));
+              && List.nth(remolded_mold.in_, l) != List.nth(orig_mold.in_, l)) {
+            remold(child, List.nth(remolded_mold.in_, l));
           } else {
             child;
           };

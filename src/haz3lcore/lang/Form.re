@@ -793,10 +793,20 @@ let base_candidates = (label: Label.t): list((FormId.t, Mold.t)) => {
 };
 
 /* Rows, labels, and (family, out-sort) molds are built once at
- * startup; accessors below are single table lookups. */
+ * startup; accessors below are single table lookups. defs_tbl groups
+ * the single row construction (forms) by family; the deal in forms
+ * preserves each family's defs_of_rows order. */
 let defs_tbl: Hashtbl.t(family, list(def)) = {
   let tbl = Hashtbl.create(128);
-  List.iter(f => Hashtbl.replace(tbl, f, defs_of_rows(f)), all_of_family);
+  List.iter(
+    f =>
+      Hashtbl.replace(
+        tbl,
+        f,
+        forms |> List.filter(((g, _)) => g == f) |> List.map(snd),
+      ),
+    all_of_family,
+  );
   tbl;
 };
 let defs_of = (fam: family): list(def) => Hashtbl.find(defs_tbl, fam);

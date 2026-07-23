@@ -22,7 +22,10 @@ let sort =
   get(
     _ => (Sort.Any, []),
     _ => (Sort.Any, []),
-    t => (Tile.mold(t).out, Tile.mold(t).in_),
+    t => {
+      let mold = Tile.mold(t);
+      (mold.out, mold.in_);
+    },
     _ => (Sort.Any, []),
   );
 

@@ -199,12 +199,16 @@ let operator_tests = (
 
 /* === Derived form-type tables (TyDiForms.Typ) ===
  * The const-mono and infix self-type tables are derived from the
- * grammar at startup. The golden sets below are the old manual
- * tables; derivation must reproduce them (Unknown provenances
- * normalized to Internal). */
+ * grammar (lazily; forced once here). The golden sets below are the
+ * old manual tables; derivation must reproduce them (Unknown
+ * provenances normalized to Internal). */
 
 let typ_t =
   Alcotest.testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
+
+let of_infix_delim = Lazy.force(TyDiForms.Typ.of_infix_delim);
+let of_const_mono_delim = Lazy.force(TyDiForms.Typ.of_const_mono_delim);
+let of_leading_delim = Lazy.force(TyDiForms.Typ.of_leading_delim);
 
 let unk = Typ.temp(Unknown(Internal));
 let bool_ = Typ.temp(Atom(Bool));
@@ -286,34 +290,26 @@ let table_entry_test = (table, (tok, ty)) =>
 
 let golden_infix_tests = (
   "TyDiForms.GoldenInfix",
-  List.map(table_entry_test(TyDiForms.Typ.of_infix_delim), golden_infix),
+  List.map(table_entry_test(of_infix_delim), golden_infix),
 );
 
 let golden_const_mono_tests = (
   "TyDiForms.GoldenConstMono",
-  List.map(
-    table_entry_test(TyDiForms.Typ.of_const_mono_delim),
-    golden_const_mono,
-  ),
+  List.map(table_entry_test(of_const_mono_delim), golden_const_mono),
 );
 
 let golden_leading_tests = (
   "TyDiForms.GoldenLeading",
-  List.map(table_entry_test(TyDiForms.Typ.of_leading_delim), golden_leading),
+  List.map(table_entry_test(of_leading_delim), golden_leading),
 );
 
 let derived_new_tests = (
   "TyDiForms.DerivedNew",
   List.map(
-    table_entry_test(
-      TyDiForms.Typ.of_infix_delim @ TyDiForms.Typ.of_const_mono_delim,
-    ),
+    table_entry_test(of_infix_delim @ of_const_mono_delim),
     derived_new,
   )
-  @ List.map(
-      table_entry_test(TyDiForms.Typ.of_leading_delim),
-      derived_new_leading,
-    ),
+  @ List.map(table_entry_test(of_leading_delim), derived_new_leading),
 );
 
 let absent = (table, tok) =>
@@ -335,13 +331,13 @@ let flagged_tests = (
         Alcotest.option(typ_t),
         "\\/",
         Some(unk),
-        List.assoc_opt("\\/", TyDiForms.Typ.of_infix_delim),
+        List.assoc_opt("\\/", of_infix_delim),
       )
     ),
     /* "!" had a manual Bool entry but is not an infix delim in any
      * sort, so the entry was dead: never a suggestion candidate */
     Alcotest.test_case("prefix ! has no entry", `Quick, () =>
-      absent(TyDiForms.Typ.of_infix_delim, "!")
+      absent(of_infix_delim, "!")
     ),
     /* The manual leading table used Poly(Var(""), unk) for typfun;
      * the minimal form's binder is a TPat hole. Behavior-identical:
@@ -352,7 +348,7 @@ let flagged_tests = (
         Alcotest.option(typ_t),
         "typfun ",
         Some(Typ.temp(Poly(TPat.temp(EmptyHole), unk))),
-        List.assoc_opt("typfun ", TyDiForms.Typ.of_leading_delim),
+        List.assoc_opt("typfun ", of_leading_delim),
       )
     ),
     /* The manual leading table mapped the seven Drv of_* rows to
@@ -368,7 +364,7 @@ let flagged_tests = (
           [Jdmt, Ctx, Prop, Exp, Typ, Pat, TPat],
         ),
         List.map(
-          tok => List.assoc_opt(tok, TyDiForms.Typ.of_leading_delim),
+          tok => List.assoc_opt(tok, of_leading_delim),
           [
             "of_jdmt ",
             "of_ctx ",
@@ -383,16 +379,16 @@ let flagged_tests = (
     ),
     /* "=" is deliberately untyped; see TyDiForms.Typ.deliberately_untyped */
     Alcotest.test_case("labeled-tuple = has no entry", `Quick, () =>
-      absent(TyDiForms.Typ.of_infix_delim, "=")
+      absent(of_infix_delim, "=")
     ),
     /* "{" (module literal) and "proof_object" are deliberately
      * untyped: their minimal-form types (Prod([]), ProofOf(<hole>))
      * are inconsistent with the instances they are used to build */
     Alcotest.test_case("module-literal { has no entry", `Quick, () =>
-      absent(TyDiForms.Typ.of_leading_delim, "{ ")
+      absent(of_leading_delim, "{ ")
     ),
     Alcotest.test_case("proof_object has no entry", `Quick, () =>
-      absent(TyDiForms.Typ.of_leading_delim, "proof_object ")
+      absent(of_leading_delim, "proof_object ")
     ),
     Alcotest.test_case("deliberately_untyped stays minimal", `Quick, () =>
       Alcotest.check(
@@ -420,7 +416,7 @@ let suggestible_tests = {
           "orphans",
           [],
           orphans(
-            TyDiForms.Typ.of_infix_delim,
+            of_infix_delim,
             TyDiForms.Delims.infix(Exp) @ TyDiForms.Delims.infix(Pat),
           ),
         )
@@ -431,7 +427,7 @@ let suggestible_tests = {
           "orphans",
           [],
           orphans(
-            TyDiForms.Typ.of_const_mono_delim,
+            of_const_mono_delim,
             TyDiForms.Delims.const_mono(Exp)
             @ TyDiForms.Delims.const_mono(Pat),
           ),
@@ -443,7 +439,7 @@ let suggestible_tests = {
           "orphans",
           [],
           orphans(
-            TyDiForms.Typ.of_leading_delim,
+            of_leading_delim,
             TyDiForms.Delims.leading(Exp) @ TyDiForms.Delims.leading(Pat),
           ),
         )
