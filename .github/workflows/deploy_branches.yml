@@ -64,6 +64,10 @@ jobs:
         run: opam exec -- make setup-zarith
         working-directory: ./source
       - name: Build Release
+        env:
+          # Lets scripts/build-info.sh (the BuildInfo.ml rule) look up the
+          # branch's open PR so deployed builds link to it.
+          GH_TOKEN: ${{ github.token }}
         run: |
           export DUNE_CACHE=enabled
           opam exec -- dune build @src/fmt --auto-promote src --profile release
