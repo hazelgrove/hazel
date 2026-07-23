@@ -71,6 +71,9 @@
 #top-bar #build-info:hover {
   color: oklch(from var(--ui-bkg) 45% c h);
 }
+#top-bar #build-info:focus {
+  outline: none;
+}
 #top-bar #build-info a {
   color: inherit;
   text-decoration: none;

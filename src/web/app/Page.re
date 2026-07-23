@@ -740,7 +740,8 @@ module View = {
           } else {
             let el = Js.Unsafe.coerce(el);
             if (JsUtil.has_ancestor_class(el, "system-message")
-                || JsUtil.has_ancestor_class(el, "agent-message")) {
+                || JsUtil.has_ancestor_class(el, "agent-message")
+                || JsUtil.has_ancestor_class(el, "build-info")) {
               ();
             } else {
               copy(cursor);
@@ -755,7 +756,11 @@ module View = {
         switch (target) {
         | Some(el) =>
           let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
+          if (is_input_field(elId)
+              || JsUtil.has_ancestor_class(
+                   Js.Unsafe.coerce(el),
+                   "build-info",
+                 )) {
             Effect.Ignore;
           } else {
             copy(cursor);
@@ -864,6 +869,11 @@ module View = {
     div(
       ~attrs=[
         Attr.id("build-info"),
+        Attr.class_("build-info"),
+        /* click-focusable (like #side-bar): keeps #page from blurring on
+           mousedown here, which would re-focus the clipboard shim and
+           destroy the text selection being started */
+        Attr.tabindex(-1),
         Attr.create("title", "Hazel build: " ++ BuildMeta.label),
       ],
       /* single span so the label is one inline formatting context —
