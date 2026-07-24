@@ -75,6 +75,9 @@ type project =
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
+  | SetModelQuiet(int, ProjectorCore.Kind.t, string) /* SetModel minus undo entry: for streaming
+   * drag ticks (e.g. HTML projector resize). The first tick of a gesture
+   * should be a normal SetModel so undo restores the pre-gesture state. */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
   | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */
@@ -202,6 +205,7 @@ let is_edit: t => bool =
   | Project(p) =>
     switch (p) {
     | SetModel(_)
+    | SetModelQuiet(_)
     | SetSyntax(_)
     | SetIndicated(_)
     | RemoveIndicated => true
@@ -211,6 +215,25 @@ let is_edit: t => bool =
     | EscapeToLineEnd(_) => false
     }
   | Probe(_) => true;
+
+/* How much recomputation an edit action requires. Layout edits change
+ * only serialized projector/refractor model strings, which are opaque to
+ * statics/elaboration/evaluation — projector changes with semantic
+ * import flow through SetSyntax instead (see the per-kind audit in the
+ * projector implementations: models hold display state like fold
+ * expansion, card mode, or HTML-projector dimensions). Layout edits
+ * still rebuild CachedSyntax (a projector's placeholder shape can
+ * depend on its model) but reuse the previous CachedStatics and
+ * trigger no re-evaluation. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type recompute_level =
+  | Full
+  | Layout;
+
+let recompute_level: t => recompute_level =
+  fun
+  | Project(SetModel(_) | SetModelQuiet(_)) => Layout
+  | _ => Full;
 
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
@@ -237,6 +260,7 @@ let is_historic: t => bool =
     | SetModel(_)
     | SetIndicated(_)
     | RemoveIndicated => true
+    | SetModelQuiet(_)
     | Focus(_)
     | SampleFocus(_)
     | Escape(_)
@@ -266,6 +290,7 @@ let prevent_in_read_only_editor = (a: t) =>
     switch (p) {
     | SetSyntax(_) => true
     | SetModel(_)
+    | SetModelQuiet(_)
     | SetIndicated(_)
     | RemoveIndicated
     | Focus(_)
@@ -314,5 +339,6 @@ let should_animate: t => bool =
     | Focus(_)
     | SampleFocus(_)
     | Escape(_) => true
+    | SetModelQuiet(_) /* streaming drag ticks; animating would thrash */
     | EscapeToLineEnd(_) => false
     };

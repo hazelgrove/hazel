@@ -266,7 +266,8 @@ let go =
         ),
       );
     };
-  | SetModel(idx, kind, new_model) =>
+  | SetModel(idx, kind, new_model)
+  | SetModelQuiet(idx, kind, new_model) =>
     let id = idx_to_id(kind, idx);
     Ok(
       if (ProjectorCore.Kind.is_refractor(kind)) {

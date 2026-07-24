@@ -7,6 +7,10 @@ open IdTagged.FreshGrammar;
 let wrapper_ref: ref(option(Js_of_ocaml.Js.Unsafe.any)) = ref(None);
 let resize_cols = ref(40);
 let resize_rows = ref(12);
+// Whether this drag gesture has dispatched its first (undoable) tick.
+// First tick goes through `local` so undo restores the pre-drag size;
+// later ticks stream through `local_quiet` (no undo entry per tick).
+let resize_committed = ref(false);
 // Pixel-per-char ratios computed on pointerdown, used during drag
 let px_per_col = ref(10.0);
 let px_per_row = ref(18.0);
@@ -96,7 +100,10 @@ module M: Projector = {
   };
 
   let view =
-      ({model, info, parent, local, view_seg, _}: View.args(model, action)) => {
+      (
+        {model, info, parent, local, local_quiet, view_seg, _}:
+          View.args(model, action),
+      ) => {
     open Virtual_dom.Vdom;
 
     // Get current expression from syntax or fall back to model
@@ -159,6 +166,7 @@ module M: Projector = {
             (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
             resize_cols := model.ui.cols;
             resize_rows := model.ui.rows;
+            resize_committed := false;
             let target =
               evt##.currentTarget
               |> Js_of_ocaml.Js.Opt.get(_, _ => failwith("no target"));
@@ -197,7 +205,12 @@ module M: Projector = {
               if (new_cols != resize_cols^ || new_rows != resize_rows^) {
                 resize_cols := new_cols;
                 resize_rows := new_rows;
-                local(SetDimensions(new_cols, new_rows));
+                if (resize_committed^) {
+                  local_quiet(SetDimensions(new_cols, new_rows));
+                } else {
+                  resize_committed := true;
+                  local(SetDimensions(new_cols, new_rows));
+                };
               } else {
                 Effect.Ignore;
               };
@@ -213,8 +226,9 @@ module M: Projector = {
               JsUtil.releasePointerCapture(target, evt##.pointerId);
             };
             wrapper_ref := None;
-            // Final dispatch in case last mousemove was skipped
-            local(SetDimensions(resize_cols^, resize_rows^));
+            // Final dispatch in case last mousemove was skipped; quiet so
+            // it doesn't add a duplicate undo entry at the gesture's end
+            local_quiet(SetDimensions(resize_cols^, resize_rows^));
           }),
         ],
         [],

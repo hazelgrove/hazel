@@ -146,6 +146,11 @@ module View = {
     info,
     /* A callback for the projector's own actions */
     local: 'action => Ui_effect.t(unit),
+    /* Like `local`, but produces no undo entry (Action.SetModelQuiet).
+     * For streaming model updates during drag gestures: dispatch the
+     * first tick via `local` (so undo restores the pre-gesture state)
+     * and subsequent ticks via `local_quiet`. */
+    local_quiet: 'action => Ui_effect.t(unit),
     /* A callback for parent editor actions */
     parent: external_action => Ui_effect.t(unit),
     /* Creates a non-interactive embedded syntax view,
@@ -270,6 +275,7 @@ module Cook = (C: Projector) : Cooked => {
       model: deserialize_m(args.model),
       info: args.info,
       local: a => args.local(serialize_a(a)),
+      local_quiet: a => args.local_quiet(serialize_a(a)),
       parent: args.parent,
       view_seg: args.view_seg,
       status: args.status,

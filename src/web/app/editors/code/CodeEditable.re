@@ -30,7 +30,20 @@ module Update = {
 
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
-    let perform = (action: Action.t, model: Model.t) =>
+    let perform = (action: Action.t, model: Model.t) => {
+      let is_edit =
+        Action.is_edit(action)
+        /* When probe_all is on, Refractor actions don't require
+         * re-evaluation since all probes are already computed */
+        && !(
+             settings.core.probe_all
+             && (
+               switch (action) {
+               | Probe(_) => true
+               | _ => false
+               }
+             )
+           );
       Editor.Update.update(
         ~settings=settings.core,
         action,
@@ -50,19 +63,19 @@ module Update = {
         | Error(err) => raise(Action.Failure.Exception(err))
       )
       |> Updated.return(
+           /* Layout-level edits (projector SetModel) don't change program
+            * semantics: skip statics/elaboration/re-evaluation downstream
+            * by reporting is_edit=false, but still autosave — the model
+            * string lives in the zipper and must persist. */
            ~is_edit=
-             Action.is_edit(action)
-             /* When probe_all is on, Refractor actions don't require
-              * re-evaluation since all probes are already computed */
-             && !(
-                  settings.core.probe_all
-                  && (
-                    switch (action) {
-                    | Probe(_) => true
-                    | _ => false
-                    }
-                  )
-                ),
+             is_edit
+             && (
+               switch (Action.recompute_level(action)) {
+               | Full => true
+               | Layout => false
+               }
+             ),
+           ~save=is_edit,
            ~recalculate=true,
            ~scroll_active={
              switch (action) {
@@ -91,6 +104,7 @@ module Update = {
              };
            },
          );
+    };
     switch (action) {
     | Perform(action) =>
       settings.core.flip_animations && Action.should_animate(action)

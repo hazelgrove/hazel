@@ -453,6 +453,10 @@ let mk_view =
           let new_model = P.update(p.model, info, a);
           inject(Project(SetModel(idx, p.kind, new_model)));
         },
+        local_quiet: a => {
+          let new_model = P.update(p.model, info, a);
+          inject(Project(SetModelQuiet(idx, p.kind, new_model)));
+        },
         parent: a =>
           switch (a) {
           | FocusById(id) =>
