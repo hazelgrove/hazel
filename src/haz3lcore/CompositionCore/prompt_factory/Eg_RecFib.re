@@ -136,13 +136,13 @@ Tool call: `create_new_task`
 }
 ```
 
-**Step 2 — Insert the new function.** Use `insert_after` to add a binding after `fib`.
+**Step 2 — Insert the new function.** Use `overwrite` with `$` to wrap the existing `fib` binding so the new `map_fib` binding lives inside its body.
 
-Tool call: `insert_after`
+Tool call: `overwrite`
 ```json
 {
-  "path": "fib",
-  "code": "let map_fib : [Int] -> [Int] = fun ns ->\n  case ns\n  | [] => []\n  | hd :: tl => fib(hd) :: map_fib(tl)\n  end\nin"
+  "selector": "% let fib",
+  "code": "$ let map_fib : [Int] -> [Int] = fun ns ->\n  case ns\n  | [] => []\n  | hd :: tl => fib(hd) :: map_fib(tl)\n  end\nin ?"
 }
 ```
 
@@ -191,7 +191,7 @@ Tool call: `remove_probe` → `mark_active_subtask_complete` → `mark_active_ta
 ### Key Patterns to Notice
 
 1. **Plan first**: Create a task with coarse milestones before writing code.
-2. **Use the right tool**: `initialize` for empty programs, `insert_after`/`insert_before` for adding bindings, `update_definition`/`update_body` for modifying existing code.
+2. **Use the right tool**: `initialize` for empty programs, `overwrite` (with `$` to keep or wrap the original) for adding bindings, `update_definition`/`update_body` for modifying existing code.
 3. **Manage context**: Collapsed definitions (⋱) don't need to be expanded if tests or context already explain what they do. Expand only what you need.
 4. **Verify with probes**: After implementing, use `place_probe` to observe runtime values and confirm correctness. Clean up with `remove_probe` when done.
 5. **Check static errors**: After each edit, check the context for type errors. Fix them before moving on.

@@ -23,8 +23,16 @@ module Local = {
     EditTools.update_binding_clause,
     EditTools.delete_binding_clause,
     EditTools.delete_body,
-    EditTools.insert_after,
-    EditTools.insert_before,
+    EditTools.update_type_annotation,
+    EditTools.selector_update,
+    EditTools.selector_delete,
+    EditTools.overwrite,
+    ReadTools.get_syntax,
+    ReadTools.get_statics,
+    ReadTools.get_context,
+    ReadTools.select,
+    ReadTools.get_canonical,
+    ReadTools.get_completeness,
     WorkbenchTools.create_new_task,
     WorkbenchTools.set_active_task,
     WorkbenchTools.unset_active_task,
@@ -114,26 +122,48 @@ module Local = {
                   get_string(args, "code"),
                 ),
               )
-            | "insert_after" =>
-              EditorAction(
-                Insert(
-                  After,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
-            | "insert_before" =>
-              EditorAction(
-                Insert(
-                  Before,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
             | "delete_binding_clause" =>
               EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>
               EditorAction(Delete(Body, get_string(args, "path")))
+            | "update_type_annotation" =>
+              EditorAction(
+                Update(
+                  TypeAnnotation,
+                  get_string(args, "path"),
+                  get_string(args, "code"),
+                ),
+              )
+            | "get_syntax" =>
+              ReadAction(GetSyntax(get_string(args, "path")))
+            | "get_statics" =>
+              ReadAction(GetStatics(get_string(args, "path")))
+            | "get_context" =>
+              ReadAction(GetContext(get_string(args, "path")))
+            | "select" => ReadAction(Select(get_string(args, "selector")))
+            | "get_canonical" =>
+              ReadAction(GetCanonical(get_string(args, "selector")))
+            | "selector_update" =>
+              EditorAction(
+                SelectorUpdate(
+                  get_string(args, "selector"),
+                  get_string(args, "code"),
+                ),
+              )
+            | "selector_delete" =>
+              EditorAction(SelectorDelete(get_string(args, "selector")))
+            | "overwrite" =>
+              EditorAction(
+                Overwrite(
+                  get_string(args, "selector"),
+                  get_string(args, "code"),
+                ),
+              )
+            | "get_completeness" => ReadAction(GetCompleteness)
+            | "selector_get_statics" =>
+              ReadAction(SelectorGetStatics(get_string(args, "selector")))
+            | "selector_get_context" =>
+              ReadAction(SelectorGetContext(get_string(args, "selector")))
             | "create_new_task" =>
               WorkbenchAction(
                 CreateNewTask(
@@ -230,15 +260,30 @@ module Local = {
       "update_pattern(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(Update(BindingClause, path, code)) =>
       "update_binding_clause(\"" ++ path ++ "\", \"" ++ code ++ "\")"
+    | EditorAction(Update(TypeAnnotation, path, code)) =>
+      "update_type_annotation(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(Delete(BindingClause, path)) =>
       "delete_binding_clause(\"" ++ path ++ "\")"
     | EditorAction(Delete(Body, path)) => "delete_body(\"" ++ path ++ "\")"
-    | EditorAction(Delete(Definition | Pattern, path)) =>
+    | EditorAction(Delete(Definition | Pattern | TypeAnnotation, path)) =>
       "delete(\"" ++ path ++ "\")"
-    | EditorAction(Insert(After, path, code)) =>
-      "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Insert(Before, path, code)) =>
-      "insert_before(\"" ++ path ++ "\", \"" ++ code ++ "\")"
+    | ReadAction(GetSyntax(path)) => "get_syntax(\"" ++ path ++ "\")"
+    | ReadAction(GetStatics(path)) => "get_statics(\"" ++ path ++ "\")"
+    | ReadAction(GetContext(path)) => "get_context(\"" ++ path ++ "\")"
+    | ReadAction(Select(selector)) => "select(\"" ++ selector ++ "\")"
+    | ReadAction(GetCanonical(selector)) =>
+      "get_canonical(\"" ++ selector ++ "\")"
+    | ReadAction(GetCompleteness) => "get_completeness()"
+    | ReadAction(SelectorGetStatics(sel)) =>
+      "selector_get_statics(\"" ++ sel ++ "\")"
+    | ReadAction(SelectorGetContext(sel)) =>
+      "selector_get_context(\"" ++ sel ++ "\")"
+    | EditorAction(SelectorUpdate(selector, code)) =>
+      "selector_update(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
+    | EditorAction(SelectorDelete(selector)) =>
+      "selector_delete(\"" ++ selector ++ "\")"
+    | EditorAction(Overwrite(selector, code)) =>
+      "overwrite(\"" ++ selector ++ "\", \"" ++ code ++ "\")"
     | WorkbenchAction(CreateNewTask(task)) =>
       "create_new_task( "
       ++ AgentWorkbench.Utils.TaskUtils.task_to_json_string(task)

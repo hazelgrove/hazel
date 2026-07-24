@@ -10,7 +10,8 @@ module Local = {
   type inner_term =
     | Pat
     | Def
-    | Body;
+    | Body
+    | TypeAnn;
 
   module Utils = {
     let get_inner_term_id = (inner_term: inner_term, node: node): Id.t => {
@@ -30,18 +31,37 @@ module Local = {
           | Pat => Pat.rep_id(pat)
           | Def => Exp.rep_id(def)
           | Body => Exp.rep_id(body)
+          | TypeAnn =>
+            switch (Pat.term_of(pat)) {
+            | Asc(_, typ) => Typ.rep_id(typ)
+            | _ =>
+              raise(
+                Failure("No type annotation found on this binding's pattern"),
+              )
+            }
           }
         | TyAlias(tpat, tdef, body) =>
           switch (inner_term) {
           | Pat => TPat.rep_id(tpat)
           | Def => Typ.rep_id(tdef)
           | Body => Exp.rep_id(body)
+          | TypeAnn => Typ.rep_id(tdef) /* For type alias, the "annotation" is the definition */
           }
         | ModuleExp(mp, def, body) =>
           switch (inner_term) {
           | Pat => MPat.rep_id(mp)
           | Def => Exp.rep_id(def)
           | Body => Exp.rep_id(body)
+          | TypeAnn =>
+            switch (mp.term) {
+            | Asc(_, sig_typ) => Typ.rep_id(sig_typ)
+            | _ =>
+              raise(
+                Failure(
+                  "No type annotation found on this module binding's pattern",
+                ),
+              )
+            }
           }
         | _ =>
           raise(
@@ -90,10 +110,6 @@ module Local = {
       )
       : option((Segment.t, option(Segment.t))) => {
     switch (action) {
-    | Insert(_, _, _) =>
-      let* old_segment = segment_of_term(old_zipper, None, syntax);
-      let new_segment = segment_of_term(new_zipper, None, syntax);
-      Some((old_segment, new_segment));
     | Update(_, path, _)
     | Delete(_, path) =>
       let* old_node_map =
@@ -107,6 +123,13 @@ module Local = {
       let new_segment =
         segment_of_term(new_zipper, Some(new_target_id), syntax);
       Some((old_segment, new_segment));
+    | SelectorUpdate(_, _)
+    | SelectorDelete(_)
+    | Overwrite(_, _) =>
+      /* Selector-driven edits: diff the whole program */
+      let* old_segment = segment_of_term(old_zipper, None, syntax);
+      let new_segment = segment_of_term(new_zipper, None, syntax);
+      Some((old_segment, new_segment));
     };
   };
 
@@ -118,15 +141,119 @@ module Local = {
       | Update(Definition, _, _) => (true, true, false)
       | Update(Body, _, _) => (true, true, true)
       | Update(Pattern, _, _) => (true, false, false)
+      | Update(TypeAnnotation, _, _) => (true, true, false)
       | Update(BindingClause, _, _) => (false, true, false)
-      | Insert(_, _, _) => (false, false, false)
       | Delete(BindingClause, _) => (false, true, false)
       | Delete(Body, _) => (false, false, true)
-      | Delete(Definition | Pattern, _) => (false, false, false)
+      | Delete(Definition | Pattern | TypeAnnotation, _) => (
+          false,
+          false,
+          false,
+        )
+      /* Selector-driven: check everything since we don't know the target */
+      | SelectorUpdate(_, _) => (true, true, true)
+      | SelectorDelete(_) => (true, true, true)
+      | Overwrite(_, _) => (true, true, true)
       };
     };
 
-    let static_error_check =
+    let parse_error_check = (z: Zipper.t): option(string) => {
+      /* Check for parse errors:
+         1. Unmatched delimiters (orphaned shards in the backpack)
+         2. Invalid nodes in the term tree
+         3. MultiHole nodes in the term tree */
+      let backpack = Zipper.local_backpack(z);
+      switch (backpack) {
+      | [_, ..._] as tiles =>
+        let labels =
+          tiles
+          |> List.map((t: Tile.t) =>
+               String.concat(" ", Tile.effective_label(t))
+             );
+        Some(
+          "Parse error: unmatched delimiter(s) ["
+          ++ String.concat(", ", labels)
+          ++ "]. Check for missing or extra delimiters in your code.",
+        );
+      | [] =>
+        /* Check for Invalid/MultiHole nodes in the parsed term */
+        let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+        let errors = ref([]);
+        let _ =
+          Exp.map_term(
+            ~f_exp=
+              (continue, e) => {
+                switch (Exp.term_of(e)) {
+                | Invalid(token) =>
+                  errors := ["Invalid token: \"" ++ token ++ "\"", ...errors^];
+                  e;
+                | MultiHole(_) =>
+                  errors := ["MultiHole (malformed expression)", ...errors^];
+                  e;
+                | _ => continue(e)
+                }
+              },
+            term,
+          );
+        switch (errors^) {
+        | [] => None
+        | errs =>
+          Some(
+            "Parse error: "
+            ++ String.concat("; ", List.rev(errs))
+            ++ ". Check your syntax.",
+          )
+        };
+      };
+    };
+
+    /* Count empty holes in the program. Returns the number of
+       expression, pattern, and type holes. Useful for the agent to
+       know if the program is "complete" (no unfilled holes). */
+    let count_holes = (z: Zipper.t): (int, int, int) => {
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let exp_holes = ref(0);
+      let pat_holes = ref(0);
+      let typ_holes = ref(0);
+      let _ =
+        Exp.map_term(
+          ~f_exp=
+            (continue, e) => {
+              switch (Exp.term_of(e)) {
+              | EmptyHole =>
+                exp_holes := exp_holes^ + 1;
+                e;
+              | _ => continue(e)
+              }
+            },
+          ~f_pat=
+            (continue, p) => {
+              switch (Pat.term_of(p)) {
+              | EmptyHole =>
+                pat_holes := pat_holes^ + 1;
+                p;
+              | _ => continue(p)
+              }
+            },
+          ~f_typ=
+            (continue, t) => {
+              switch (Typ.term_of(t)) {
+              | Unknown(Hole(EmptyHole)) =>
+                typ_holes := typ_holes^ + 1;
+                t;
+              | _ => continue(t)
+              }
+            },
+          term,
+        );
+      (exp_holes^, pat_holes^, typ_holes^);
+    };
+
+    /* Compute a static error warning for an edit. Returns Some(warning)
+       if the edit introduces new errors, None otherwise. This is purely
+       informational — it does NOT block the edit. The agent can use
+       get_statics to investigate and fix any errors. */
+    let static_error_warning =
         (
           ~edit_action: Action.Structural.t,
           ~initial_node: option(node),
@@ -135,14 +262,6 @@ module Local = {
           ~new_info_map: Id.Map.t(Info.t),
         )
         : option(string) => {
-      /*
-       A localized static error check to ensure that newly inserted segments do not introduce any errors.
-
-       This is a localized check, as obligations occuring elsewhere in the program are inevitable for
-       many types of edits.
-
-       of_pat, of_def, and of_body are used to specify which parts of the program to check for errors.
-       */
       let (of_pat, of_def, of_body) =
         edit_action_to_static_error_scrutiny(~edit_action);
       let initial_errors =
@@ -170,29 +289,74 @@ module Local = {
       let new_errors = ErrorPrint.all(new_subtree);
       if (List.length(new_errors) > List.length(initial_errors)) {
         Some(
-          "Not applying the action you requested as it would have the following static error(s): "
-          ++ String.concat(", ", new_errors),
+          "Warning: this edit introduced new static error(s): "
+          ++ String.concat(", ", new_errors)
+          ++ ". Use get_statics to investigate.",
         );
       } else {
         None;
       };
     };
 
-    let statics_map_new_ids =
-        (old_statics: StaticsBase.Map.t, new_statics: StaticsBase.Map.t) => {
-      // Returns only the IDs of the new statics map that are not in the old statics map
-      // This is useful to identify which new static information was added
-      Id.Map.fold(
-        (id, _info, acc) =>
-          // Check if the ID exists in the old statics map
-          switch (StaticsBase.Map.lookup(id, old_statics)) {
-          | Some(_) => acc // ID exists in old map, don't include it
-          | None => [id, ...acc] // ID doesn't exist in old map, include it
-          },
-        new_statics,
-        [],
-      );
+    /* Combined check: parse errors are hard failures (unmatched delimiters,
+       invalid tokens). Static errors produce warnings but do NOT block the
+       edit, allowing multi-step refactoring where intermediate states have
+       type errors. validate_edit_full returns intermediate results
+       (info_map, node_map) for callers that need them (e.g. Pattern rename). */
+    let validate_edit_full =
+        (
+          ~edit_action: Action.Structural.t,
+          ~initial_node: option(node),
+          ~initial_info_map: Id.Map.t(Info.t),
+          ~new_z: Zipper.t,
+          ~mk_statics: Zipper.t => StaticsBase.Map.t,
+        )
+        : result(
+            (Zipper.t, Id.Map.t(Info.t), node_map, option(string)),
+            Action.Failure.t,
+          ) => {
+      switch (parse_error_check(new_z)) {
+      | Some(parse_err) =>
+        Error(Action.Failure.Composition_action_failure(parse_err))
+      | None =>
+        let new_info_map = mk_statics(new_z);
+        switch (build(new_z, new_info_map)) {
+        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | Some(new_node_map) =>
+          let warning =
+            static_error_warning(
+              ~edit_action,
+              ~initial_node,
+              ~initial_info_map,
+              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
+              ~new_info_map,
+            );
+          Ok((new_z, new_info_map, new_node_map, warning));
+        };
+      };
     };
+
+    let validate_edit =
+        (
+          ~edit_action: Action.Structural.t,
+          ~initial_node: option(node),
+          ~initial_info_map: Id.Map.t(Info.t),
+          ~new_z: Zipper.t,
+          ~mk_statics: Zipper.t => StaticsBase.Map.t,
+        )
+        : result((Zipper.t, option(string)), Action.Failure.t) =>
+      switch (
+        validate_edit_full(
+          ~edit_action,
+          ~initial_node,
+          ~initial_info_map,
+          ~new_z,
+          ~mk_statics,
+        )
+      ) {
+      | Ok((z, _, _, warning)) => Ok((z, warning))
+      | Error(e) => Error(e)
+      };
 
     let introduce =
         (
@@ -212,88 +376,6 @@ module Local = {
          )
       |> return(CantPaste);
     };
-
-    let destruct =
-        (
-          ~defs_exclude_bodies: bool,
-          z: Zipper.t,
-          target_id: Id.t,
-          syntax: CachedSyntax.t,
-        ) => {
-      switch (
-        Select.term(
-          ~defs_exclude_bodies,
-          ~case_rules=false,
-          syntax.term_data,
-          target_id,
-          z,
-        )
-      ) {
-      | Some(z') =>
-        switch (Destruct.go(Left, z', ~root=Exp)) {
-        | None => Error(Action.Failure.Cant_destruct)
-        | Some(z'') => Ok(z'')
-        }
-      | None => Error(Action.Failure.Cant_select)
-      };
-    };
-
-    let overwrite_term =
-        (
-          z: Zipper.t,
-          target_id: Id.t,
-          code: string,
-          defs_exclude_bodies: bool,
-          syntax: CachedSyntax.t,
-          return:
-            (Action.Failure.t, option(Zipper.t)) =>
-            result(Zipper.t, Action.Failure.t),
-        ) => {
-      // Select the respective term (in this case the definition term)
-      switch (
-        Select.term(
-          ~defs_exclude_bodies,
-          ~case_rules=false,
-          syntax.term_data, // todo: not sure about this arg
-          target_id,
-          z,
-        )
-      ) {
-      | Some(z') =>
-        // Paste the code over the selected tile
-        introduce(z', code, return)
-      | None => Error(Action.Failure.Cant_select)
-      };
-    };
-    let insert_term =
-        (
-          z: Zipper.t,
-          target_id: Id.t,
-          code: string,
-          d: Direction.t,
-          syntax: CachedSyntax.t,
-          return:
-            (Action.Failure.t, option(Zipper.t)) =>
-            result(Zipper.t, Action.Failure.t),
-        ) => {
-      switch (
-        // ' let a = 0 in'
-        Select.term(
-          ~defs_exclude_bodies=true,
-          ~case_rules=false,
-          syntax.term_data, // todo: not sure about this arg, is it right?
-          target_id,
-          z,
-        )
-      ) {
-      | Some(z') =>
-        switch (Move.by_token(d, z')) {
-        | Some(z'') => introduce(z'', code, return)
-        | None => Error(Action.Failure.Cant_move)
-        }
-      | None => Error(Action.Failure.Cant_select)
-      };
-    };
   };
 
   let edit_dispatch =
@@ -302,252 +384,818 @@ module Local = {
         ~initial_z: Zipper.t,
         ~initial_node_map: node_map,
         ~initial_info_map: Id.Map.t(Info.t),
-        ~syntax: CachedSyntax.t,
-        ~return:
-           (Action.Failure.t, option(Zipper.t)) =>
-           result(Zipper.t, Action.Failure.t),
+        ~syntax as _syntax: CachedSyntax.t,
+        ~return as
+          _return:
+            (Action.Failure.t, option(Zipper.t)) =>
+            result(Zipper.t, Action.Failure.t),
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
-      ) => {
+      )
+      : result((Zipper.t, option(string)), Action.Failure.t) => {
     switch (e) {
     | Update(Definition, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Def, initial_node);
-      switch (
-        PerformUtils.overwrite_term(
-          initial_z,
-          target_id,
-          code,
-          false,
-          syntax,
-          return,
-        )
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
-        | Some(new_node_map) =>
-          switch (
-            PerformUtils.static_error_check(
-              ~edit_action=e,
-              ~initial_node=Some(initial_node),
-              ~initial_info_map,
-              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
-              ~new_info_map,
-            )
-          ) {
-          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
-          | None => Ok(new_z)
+      /* For TyAlias nodes, the definition is a type (not an expression),
+         so we need to use update_type_annotation which uses parse_typ
+         and replace_typ_by_id. */
+      let is_type_alias =
+        switch (initial_node.info) {
+        | InfoExp({user_term: term, _}) =>
+          switch (Exp.term_of(term)) {
+          | TyAlias(_, _, _) => true
+          | _ => false
           }
+        | _ => false
         };
+      let (term_edit_result, kind) =
+        if (is_type_alias) {
+          (
+            TermEdit.update_type_annotation(initial_z, target_id, code),
+            "type alias definition",
+          );
+        } else {
+          (
+            TermEdit.update_definition(initial_z, target_id, code),
+            "definition",
+          );
+        };
+      switch (term_edit_result) {
+      | Some(new_z) =>
+        PerformUtils.validate_edit(
+          ~edit_action=e,
+          ~initial_node=Some(initial_node),
+          ~initial_info_map,
+          ~new_z,
+          ~mk_statics,
+        )
+      | None =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Failed to update "
+            ++ kind
+            ++ ": could not parse \""
+            ++ code
+            ++ "\" as valid code.",
+          ),
+        )
       };
     | Update(Body, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
-      let target_id = Utils.get_inner_term_id(Body, initial_node);
-      switch (
-        PerformUtils.overwrite_term(
-          initial_z,
-          target_id,
-          code,
-          false,
-          syntax,
-          return,
-        )
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
-        | Some(new_node_map) =>
-          switch (
-            PerformUtils.static_error_check(
-              ~edit_action=e,
-              ~initial_node=Some(initial_node),
-              ~initial_info_map,
-              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
-              ~new_info_map,
-            )
-          ) {
-          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
-          | None => Ok(new_z)
-          }
+      let target_id = path_to_id(initial_node_map, path);
+      /* For sequence element nodes (case arms, list/tuple elements), the
+         path points directly to the element expression. For Let/TyAlias
+         nodes, extract the body sub-expression. */
+      let target_id =
+        if (TermEdit.is_sequence_element(initial_z, target_id)) {
+          target_id;
+        } else {
+          Utils.get_inner_term_id(Body, initial_node);
         };
+      let (term_edit_result, kind) =
+        if (TermEdit.is_case_arm(initial_z, target_id)) {
+          (
+            TermEdit.case_update_arm_body(initial_z, target_id, code),
+            "case arm body",
+          );
+        } else if (TermEdit.is_list_element(initial_z, target_id)) {
+          (
+            TermEdit.list_update_element(initial_z, target_id, code),
+            "list element",
+          );
+        } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
+          (
+            TermEdit.tuple_update_element(initial_z, target_id, code),
+            "tuple element",
+          );
+        } else {
+          (TermEdit.update_body(initial_z, target_id, code), "body");
+        };
+      switch (term_edit_result) {
+      | Some(new_z) =>
+        PerformUtils.validate_edit(
+          ~edit_action=e,
+          ~initial_node=Some(initial_node),
+          ~initial_info_map,
+          ~new_z,
+          ~mk_statics,
+        )
+      | None =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Failed to update "
+            ++ kind
+            ++ ": could not parse \""
+            ++ code
+            ++ "\" as valid code.",
+          ),
+        )
       };
     | Update(Pattern, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
-      let target_id = Utils.get_inner_term_id(Pat, initial_node);
-      let old_pat =
-        StaticsBase.Map.lookup(target_id, initial_info_map)
-        |> OptUtil.get_or_fail(
-             "Failed trying to rename all occurences of the pattern. Could not find the old pattern in the statics map.",
-           );
-      switch (
-        PerformUtils.overwrite_term(
-          initial_z,
-          target_id,
-          code,
-          false,
-          syntax,
-          return,
-        )
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
-        | Some(new_node_map) =>
-          switch (
-            PerformUtils.static_error_check(
-              ~edit_action=e,
-              ~initial_info_map,
-              ~initial_node=Some(initial_node),
-              ~new_info_map,
-              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
-            )
-          ) {
-          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
-          | None =>
-            let new_node = node_of_cursor(new_node_map, new_z, new_info_map);
-            let new_target_id = Utils.get_inner_term_id(Pat, new_node);
-            let new_pat =
-              StaticsBase.Map.lookup(new_target_id, new_info_map)
-              |> OptUtil.get_or_fail(
-                   "Failed trying to rename all occurences of the pattern. Could not find the new pattern in the statics map.",
-                 );
-            Ok(
-              GeneralTreeUtils.update_use_sites_of_pat(
-                ~z=new_z,
-                ~co_ctx=
-                  GeneralTreeUtils.get_refs_to(
-                    initial_node.info,
-                    new_info_map,
-                  ),
-                ~old_names=GeneralTreeUtils.get_var_names_from_pat(old_pat),
-                ~new_names=GeneralTreeUtils.get_var_names_from_pat(new_pat),
-              ),
+      let target_id = path_to_id(initial_node_map, path);
+      /* For case arm nodes, use case_update_arm_pattern which finds
+         the arm by its body ID. For list/tuple elements, Pattern update
+         doesn't apply — return an explicit inapplicability error.
+         For Let/TyAlias, use update_pattern which handles
+         pattern replacement and variable renaming. */
+      if (TermEdit.is_list_element(initial_z, target_id)) {
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Update(Pattern) is not applicable to list elements. "
+            ++ "Use Update(Body, ...) to replace the element value.",
+          ),
+        );
+      } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Update(Pattern) is not applicable to tuple elements. "
+            ++ "Use Update(Body, ...) to replace the element value.",
+          ),
+        );
+      } else {
+        let (term_edit_result, kind) =
+          if (TermEdit.is_case_arm(initial_z, target_id)) {
+            (
+              TermEdit.case_update_arm_pattern(initial_z, target_id, code),
+              "case arm pattern",
             );
-          }
+          } else {
+            let pat_id = Utils.get_inner_term_id(Pat, initial_node);
+            (TermEdit.update_pattern(initial_z, pat_id, code), "pattern");
+          };
+        switch (term_edit_result) {
+        | Some(new_z) =>
+          PerformUtils.validate_edit(
+            ~edit_action=e,
+            ~initial_node=Some(initial_node),
+            ~initial_info_map,
+            ~new_z,
+            ~mk_statics,
+          )
+        | None =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Failed to update "
+              ++ kind
+              ++ ": could not parse \""
+              ++ code
+              ++ "\" as a valid pattern.",
+            ),
+          )
         };
       };
     | Update(BindingClause, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = path_to_id(initial_node_map, path);
-      switch (
-        PerformUtils.overwrite_term(
-          initial_z,
-          target_id,
-          code,
-          true,
-          syntax,
-          return,
-        )
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
-        | Some(new_node_map) =>
-          switch (
-            PerformUtils.static_error_check(
-              ~edit_action=e,
-              ~initial_info_map,
-              ~initial_node=Some(initial_node),
-              ~new_info_map,
-              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
-            )
-          ) {
-          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
-          | None => Ok(new_z)
-          }
-        };
-      };
-    | Insert(Before, path, code) =>
-      // todo: figure out a better method than magic space
-      let target_id = path_to_id(initial_node_map, path);
-      switch (
-        {
-          PerformUtils.insert_term(
-            initial_z,
-            target_id,
-            "\n" ++ code ++ "\n",
-            Direction.Left,
-            syntax,
-            return,
-          );
-        }
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        let old_errors = ErrorPrint.all(initial_info_map);
-        let new_errors = ErrorPrint.all(new_info_map);
-        if (List.length(new_errors) > List.length(old_errors)) {
+      /* Case arms, list elements, and tuple elements don't have
+         "binding clauses" — use Update(Body) for those. */
+      if (TermEdit.is_case_arm(initial_z, target_id)) {
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Update(BindingClause) is not applicable to case arms. "
+            ++ "Use Update(Body, ...) or Update(Pattern, ...) instead.",
+          ),
+        );
+      } else if (TermEdit.is_list_element(initial_z, target_id)
+                 || TermEdit.is_tuple_element(initial_z, target_id)) {
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Update(BindingClause) is not applicable to list/tuple elements. "
+            ++ "Use Update(Body, ...) to replace the element value.",
+          ),
+        );
+      } else {
+        let (term_edit_result, kind) =
+          if (TermEdit.is_module_item(initial_z, target_id)) {
+            (
+              TermEdit.module_update_binding(initial_z, target_id, code),
+              "module item",
+            );
+          } else {
+            (
+              TermEdit.update_binding_clause(initial_z, target_id, code),
+              "binding clause",
+            );
+          };
+        switch (term_edit_result) {
+        | Some(new_z) =>
+          PerformUtils.validate_edit(
+            ~edit_action=e,
+            ~initial_node=Some(initial_node),
+            ~initial_info_map,
+            ~new_z,
+            ~mk_statics,
+          )
+        | None =>
           Error(
             Action.Failure.Composition_action_failure(
-              "Not applying the action you requested as it would introduce new static error(s): "
-              ++ String.concat(", ", new_errors),
+              "Failed to update "
+              ++ kind
+              ++ ": could not parse \""
+              ++ code
+              ++ "\" as a valid binding.",
             ),
-          );
-        } else {
-          Ok(new_z);
+          )
         };
       };
-    | Insert(After, path, code) =>
-      // todo: figure out a better method than magic space
-      let target_id = path_to_id(initial_node_map, path);
-      switch (
-        PerformUtils.insert_term(
-          initial_z,
-          target_id,
-          "\n" ++ code ++ "\n",
-          Direction.Right,
-          syntax,
-          return,
+    | Update(TypeAnnotation, path, code) =>
+      let initial_node = path_to_node(initial_node_map, path);
+      let target_id = Utils.get_inner_term_id(TypeAnn, initial_node);
+      switch (TermEdit.update_type_annotation(initial_z, target_id, code)) {
+      | Some(new_z) =>
+        PerformUtils.validate_edit(
+          ~edit_action=e,
+          ~initial_node=Some(initial_node),
+          ~initial_info_map,
+          ~new_z,
+          ~mk_statics,
         )
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        let old_errors = ErrorPrint.all(initial_info_map);
-        let new_errors = ErrorPrint.all(new_info_map);
-        if (List.length(new_errors) > List.length(old_errors)) {
-          Error(
-            Action.Failure.Composition_action_failure(
-              "Not applying the action you requested as it would introduce new static error(s): "
-              ++ String.concat(", ", new_errors),
-            ),
-          );
-        } else {
-          Ok(new_z);
-        };
+      | None =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Failed to update type annotation: could not parse \""
+            ++ code
+            ++ "\" as a valid type.",
+          ),
+        )
       };
     | Delete(BindingClause, path) =>
       let target_id = path_to_id(initial_node_map, path);
-      PerformUtils.destruct(
-        ~defs_exclude_bodies=true,
-        initial_z,
-        target_id,
-        syntax,
-      );
+      let (term_edit_result, kind) =
+        if (TermEdit.is_case_arm(initial_z, target_id)) {
+          (TermEdit.case_delete_arm(initial_z, target_id), "case arm");
+        } else if (TermEdit.is_list_element(initial_z, target_id)) {
+          (
+            TermEdit.list_delete_element(initial_z, target_id),
+            "list element",
+          );
+        } else if (TermEdit.is_tuple_element(initial_z, target_id)) {
+          (
+            TermEdit.tuple_delete_element(initial_z, target_id),
+            "tuple element",
+          );
+        } else if (TermEdit.is_module_item(initial_z, target_id)) {
+          (TermEdit.module_delete(initial_z, target_id), "module item");
+        } else {
+          (TermEdit.delete_binding(initial_z, target_id), "binding");
+        };
+      switch (term_edit_result) {
+      | Some(new_z) => Ok((new_z, None))
+      | None =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Failed to delete "
+            ++ kind
+            ++ " at \""
+            ++ path
+            ++ "\": the element could not be found in the term tree.",
+          ),
+        )
+      };
     | Delete(Body, path) =>
       let node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Body, node);
-      PerformUtils.destruct(
-        ~defs_exclude_bodies=false,
-        initial_z,
-        target_id,
-        syntax,
-      );
-    | Delete(Definition | Pattern, _) =>
+      switch (TermEdit.delete_body(initial_z, target_id)) {
+      | Some(new_z) => Ok((new_z, None))
+      | None =>
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Failed to delete body at \""
+            ++ path
+            ++ "\": the body expression could not be found in the term tree.",
+          ),
+        )
+      };
+    | Delete(Definition | Pattern | TypeAnnotation, _) =>
       Error(
         Action.Failure.Composition_action_failure(
-          "Deleting a definition or pattern is not yet implemented.",
+          "Deleting a definition, pattern, or type annotation is not yet implemented.",
         ),
       )
+
+    /* --- Selector-driven edits --- */
+
+    | SelectorUpdate(selector, code) =>
+      let term = MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term;
+      switch (Selector.query_unique(selector, term)) {
+      | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
+      | Ok({focused, focused_id, _}) =>
+        let parse_err = msg =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Failed to parse replacement code: " ++ msg,
+            ),
+          );
+        switch (focused) {
+        | FocusExp(_) =>
+          switch (TermEdit.parse_exp(code)) {
+          | None => parse_err(code)
+          | Some(new_exp) =>
+            let new_term =
+              TermEdit.replace_exp_by_id(focused_id, _ => new_exp, term);
+            let new_z = TermEdit.term_to_zipper(new_term);
+            Ok((new_z, None));
+          }
+        | FocusPat(_) =>
+          switch (TermEdit.parse_pat(code)) {
+          | None => parse_err(code ++ " (as pattern)")
+          | Some(new_pat) =>
+            let new_term =
+              TermEdit.replace_pat_by_id(focused_id, new_pat, term);
+            let new_z = TermEdit.term_to_zipper(new_term);
+            Ok((new_z, None));
+          }
+        | FocusTyp(_) =>
+          switch (TermEdit.parse_typ(code)) {
+          | None => parse_err(code ++ " (as type)")
+          | Some(new_typ) =>
+            let new_term =
+              TermEdit.replace_typ_by_id(focused_id, new_typ, term);
+            let new_z = TermEdit.term_to_zipper(new_term);
+            Ok((new_z, None));
+          }
+        | FocusMod(_) =>
+          switch (TermEdit.find_module_containing_item(focused_id, term)) {
+          | None =>
+            Error(
+              Action.Failure.Composition_action_failure(
+                "Module item not found for id",
+              ),
+            )
+          | Some((module_id, items, idx)) =>
+            switch (TermEdit.exp_to_mod_item(code)) {
+            | None => parse_err(code ++ " (as module item)")
+            | Some(new_item) =>
+              let new_items = TermEdit.replace_item(items, idx, new_item);
+              let new_term =
+                TermEdit.replace_module_items(module_id, new_items, term);
+              let new_z = TermEdit.term_to_zipper(new_term);
+              Ok((new_z, None));
+            }
+          }
+        };
+      };
+
+    | SelectorDelete(selector) =>
+      let term = MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term;
+      switch (Selector.query_unique(selector, term)) {
+      | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
+      | Ok({focused, focused_id, _}) =>
+        let new_term =
+          switch (focused) {
+          | FocusExp(_) =>
+            let hole = Exp.fresh(EmptyHole);
+            TermEdit.replace_exp_by_id(focused_id, _ => hole, term);
+          | FocusMod(_) =>
+            switch (TermEdit.find_module_containing_item(focused_id, term)) {
+            | None => term
+            | Some((module_id, items, idx)) =>
+              let new_items = TermEdit.delete_item(items, idx);
+              TermEdit.replace_module_items(module_id, new_items, term);
+            }
+          | FocusPat(_) =>
+            let hole = Pat.fresh(EmptyHole);
+            TermEdit.replace_pat_by_id(focused_id, hole, term);
+          | FocusTyp(_) =>
+            let hole = Typ.fresh(Unknown(Hole(EmptyHole)));
+            TermEdit.replace_typ_by_id(focused_id, hole, term);
+          };
+        let new_z = TermEdit.term_to_zipper(new_term);
+        Ok((new_z, None));
+      };
+
+    | Overwrite(selector, code) =>
+      let term = MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term;
+      switch (Selector.query_unique(selector, term)) {
+      | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
+      | Ok({focused, focused_id, _}) =>
+        let edit_result =
+          switch (focused) {
+          | FocusExp(e) =>
+            TermEdit.overwrite_exp(initial_z, focused_id, e, code)
+          | FocusPat(p) =>
+            TermEdit.overwrite_pat(initial_z, focused_id, p, code)
+          | FocusTyp(t) =>
+            TermEdit.overwrite_typ(initial_z, focused_id, t, code)
+          | FocusMod(m) =>
+            TermEdit.overwrite_mod(initial_z, focused_id, m, code)
+          };
+        switch (edit_result) {
+        | Error(msg) => Error(Action.Failure.Composition_action_failure(msg))
+        | Ok(new_z) =>
+          switch (PerformUtils.parse_error_check(new_z)) {
+          | Some(parse_err) =>
+            Error(Action.Failure.Composition_action_failure(parse_err))
+          | None =>
+            let new_info_map = mk_statics(new_z);
+            let old_errors = ErrorPrint.all(initial_info_map);
+            let new_errors = ErrorPrint.all(new_info_map);
+            let warning =
+              if (List.length(new_errors) > List.length(old_errors)) {
+                Some(
+                  "Warning: this edit introduced new static error(s): "
+                  ++ String.concat(", ", new_errors)
+                  ++ ". Use get_statics to investigate.",
+                );
+              } else {
+                None;
+              };
+            Ok((new_z, warning));
+          }
+        };
+      };
+    };
+  };
+
+  let format_typ = (ty: Typ.t): string => ErrorPrint.Print.typ(ty);
+
+  /* TODO: stubbed — see merge brief.
+     The dev branch removed the `Info.status_exp` ADT in favor of a unified
+     `marks: list(Mark.t)` field on `Info.exp`. This formatter previously
+     pattern-matched on NotInHole/InHole/Consistent/AnaDeferralConsistent
+     to produce a human-readable status string. The closest replacement is
+     ErrorPrint.string_of_marks, which renders marks but does not surface
+     the synthesized/expected type the way the old version did. Reproduces
+     a partial status string here (synth type only) and lists marks if any.
+     The selector and path-based read-dispatch handlers below depend on
+     this; they may produce less detailed output than before. */
+  let format_status_exp = (info: Info.exp): string => {
+    let ty_str = "Synthesized type: " ++ format_typ(info.ty);
+    switch (info.marks) {
+    | [] => ty_str
+    | marks =>
+      ty_str
+      ++ "\nStatus: error\nError: "
+      ++ ErrorPrint.string_of_marks(InfoExp(info), marks)
+    };
+  };
+
+  let read_dispatch =
+      (
+        ~action: CompositionActions.read_action,
+        ~z: Zipper.t,
+        ~info_map: Id.Map.t(Info.t),
+        ~syntax: CachedSyntax.t,
+      )
+      : result(string, Action.Failure.t) => {
+    /* Select uses the selector language directly on the term tree,
+       bypassing the HighLevelNodeMap path system */
+    switch (action) {
+    | Select(selector_str) =>
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (Selector.query(selector_str, term)) {
+      | [] =>
+        Error(
+          Composition_action_failure(
+            "No match for selector: " ++ selector_str,
+          ),
+        )
+      | matches =>
+        let results = matches |> List.map(Selector.print_match);
+        Ok(String.concat("\n", results));
+      };
+    | GetCanonical(selector_str) =>
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (Selector.query_unique(selector_str, term)) {
+      | Error(e) =>
+        Error(Composition_action_failure("Selector error: " ++ e))
+      | Ok(m) =>
+        let id = m.focused_id;
+        let num =
+          switch (Selector.canonical_numeric(id, term)) {
+          | Some(path) => Selector.deparse(path)
+          | None => "(not found)"
+          };
+        let named =
+          switch (Selector.canonical_named(id, term)) {
+          | Some(path) => Selector.deparse(path)
+          | None => "(not found)"
+          };
+        Ok("numeric: " ++ num ++ "\nnamed: " ++ named);
+      };
+    | GetCompleteness =>
+      let (exp_holes, pat_holes, typ_holes) = PerformUtils.count_holes(z);
+      let total = exp_holes + pat_holes + typ_holes;
+      if (total == 0) {
+        Ok("Complete: no unfilled holes.");
+      } else {
+        let parts = ref([]);
+        if (typ_holes > 0) {
+          parts := [string_of_int(typ_holes) ++ " type", ...parts^];
+        };
+        if (pat_holes > 0) {
+          parts := [string_of_int(pat_holes) ++ " pattern", ...parts^];
+        };
+        if (exp_holes > 0) {
+          parts := [string_of_int(exp_holes) ++ " expression", ...parts^];
+        };
+        Ok(
+          "Incomplete: "
+          ++ string_of_int(total)
+          ++ " unfilled hole(s) ("
+          ++ String.concat(", ", parts^)
+          ++ ").",
+        );
+      };
+    | SelectorGetStatics(selector_str) =>
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (Selector.query_unique(selector_str, term)) {
+      | Error(e) =>
+        Error(Composition_action_failure("Selector error: " ++ e))
+      | Ok(m) =>
+        let id = m.focused_id;
+        switch (Id.Map.find_opt(id, info_map)) {
+        | None =>
+          Error(
+            Composition_action_failure(
+              "No statics info for selector-resolved node",
+            ),
+          )
+        | Some(info) =>
+          /* TODO: stubbed — see merge brief. Was previously decomposing
+             the `status` field of Info.exp/pat which has been removed in
+             favor of `marks: list(Mark.t)`. */
+          let result =
+            switch (info) {
+            | InfoExp(exp_info) =>
+              "Selector: "
+              ++ selector_str
+              ++ "\nAnalytic (expected) type: "
+              ++ format_typ(exp_info.ana)
+              ++ "\n"
+              ++ format_status_exp(exp_info)
+            | InfoPat(pat_info) =>
+              "Selector: "
+              ++ selector_str
+              ++ "\nAnalytic type: "
+              ++ format_typ(pat_info.ana)
+              ++ "\nStatus: "
+              ++ (
+                switch (pat_info.marks) {
+                | [] => "ok"
+                | marks =>
+                  "error: "
+                  ++ ErrorPrint.string_of_marks(InfoPat(pat_info), marks)
+                }
+              )
+            | info =>
+              "Selector: "
+              ++ selector_str
+              ++ "\nClass: "
+              ++ Cls.show(Info.cls_of(info))
+              ++ (
+                Info.is_error(info)
+                  ? "\nStatus: error: "
+                    ++ ErrorPrint.string_of_marks(info, Info.marks_of(info))
+                  : "\nStatus: ok"
+              )
+            };
+          /* Also gather errors from the subtree */
+          let subtree =
+            GeneralTreeUtils.subtree_of(
+              ~info,
+              ~orig_info_map=info_map,
+              ~of_pat=true,
+              ~of_def=true,
+              ~of_body=true,
+            );
+          let errors = ErrorPrint.all(subtree);
+          let result =
+            switch (errors) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nErrors in subtree:\n"
+              ++ String.concat("\n", errors)
+            };
+          Ok(result);
+        };
+      };
+    | SelectorGetContext(selector_str) =>
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (Selector.query_unique(selector_str, term)) {
+      | Error(e) =>
+        Error(Composition_action_failure("Selector error: " ++ e))
+      | Ok(m) =>
+        let id = m.focused_id;
+        switch (Id.Map.find_opt(id, info_map)) {
+        | None =>
+          Error(
+            Composition_action_failure(
+              "No statics info for selector-resolved node",
+            ),
+          )
+        | Some(info) =>
+          let ctx = Info.ctx_of(info) |> Ctx.filter_shadowed;
+          let vars =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.VarEntry(ve) => Some(ve)
+                 | _ => None
+                 }
+               );
+          let constructors =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.ConstructorEntry(ve) => Some(ve)
+                 | _ => None
+                 }
+               );
+          let type_aliases =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.TVarEntry(te) => Some(te)
+                 | _ => None
+                 }
+               );
+          let fmt_var = (ve: Ctx.var_entry) =>
+            "  " ++ ve.name ++ " : " ++ format_typ(ve.typ);
+          let fmt_tvar = (te: Ctx.tvar_entry) =>
+            switch (te.kind) {
+            | Singleton(ty) => "  " ++ te.name ++ " = " ++ format_typ(ty)
+            | Abstract => "  " ++ te.name ++ " (abstract)"
+            };
+          let result = "Context at selector: " ++ selector_str;
+          let result =
+            switch (vars) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nVariables:\n"
+              ++ String.concat("\n", List.map(fmt_var, vars))
+            };
+          let result =
+            switch (type_aliases) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nType aliases:\n"
+              ++ String.concat("\n", List.map(fmt_tvar, type_aliases))
+            };
+          let result =
+            switch (constructors) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nConstructors:\n"
+              ++ String.concat("\n", List.map(fmt_var, constructors))
+            };
+          Ok(result);
+        };
+      };
+    | _ =>
+      switch (build(z, info_map)) {
+      | None => Error(Cant_derive_local_AST_information)
+      | Some(node_map) =>
+        switch (action) {
+        | GetSyntax(path) =>
+          let node = path_to_node(node_map, path);
+          let target_id = Info.id_of(node.info);
+          switch (segment_of_term(z, Some(target_id), syntax)) {
+          | Some(segment) =>
+            let code = Printer.of_segment(~holes="?", segment);
+            Ok(code);
+          | None =>
+            Error(
+              Composition_action_failure(
+                "Could not select the term at path: " ++ path,
+              ),
+            )
+          };
+        | GetStatics(path) =>
+          let node = path_to_node(node_map, path);
+          /* TODO: stubbed — see merge brief. Status field replaced with marks. */
+          let result =
+            switch (node.info) {
+            | InfoExp(exp_info) =>
+              "Path: "
+              ++ path
+              ++ "\nBinding: "
+              ++ node.name
+              ++ "\nAnalytic (expected) type: "
+              ++ format_typ(exp_info.ana)
+              ++ "\n"
+              ++ format_status_exp(exp_info)
+            | InfoPat(pat_info) =>
+              "Path: "
+              ++ path
+              ++ "\nBinding: "
+              ++ node.name
+              ++ "\nAnalytic type: "
+              ++ format_typ(pat_info.ana)
+              ++ "\nStatus: "
+              ++ (
+                switch (pat_info.marks) {
+                | [] => "ok"
+                | marks =>
+                  "error: "
+                  ++ ErrorPrint.string_of_marks(InfoPat(pat_info), marks)
+                }
+              )
+            | info =>
+              "Path: "
+              ++ path
+              ++ "\nBinding: "
+              ++ node.name
+              ++ "\nClass: "
+              ++ Cls.show(Info.cls_of(info))
+              ++ (
+                Info.is_error(info)
+                  ? "\nStatus: error: "
+                    ++ ErrorPrint.string_of_marks(info, Info.marks_of(info))
+                  : "\nStatus: ok"
+              )
+            };
+          /* Also gather errors from the node's subtree */
+          let subtree =
+            GeneralTreeUtils.subtree_of(
+              ~info=node.info,
+              ~orig_info_map=info_map,
+              ~of_pat=true,
+              ~of_def=true,
+              ~of_body=true,
+            );
+          let errors = ErrorPrint.all(subtree);
+          let result =
+            switch (errors) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nErrors in subtree:\n"
+              ++ String.concat("\n", errors)
+            };
+          Ok(result);
+        | GetContext(path) =>
+          let node = path_to_node(node_map, path);
+          let ctx = Info.ctx_of(node.info) |> Ctx.filter_shadowed;
+          let vars =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.VarEntry(ve) => Some(ve)
+                 | _ => None
+                 }
+               );
+          let constructors =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.ConstructorEntry(ve) => Some(ve)
+                 | _ => None
+                 }
+               );
+          let type_aliases =
+            ctx.entries
+            |> List.filter_map(entry =>
+                 switch (entry) {
+                 | Ctx.TVarEntry(te) => Some(te)
+                 | _ => None
+                 }
+               );
+          let fmt_var = (ve: Ctx.var_entry) =>
+            "  " ++ ve.name ++ " : " ++ format_typ(ve.typ);
+          let fmt_tvar = (te: Ctx.tvar_entry) =>
+            switch (te.kind) {
+            | Singleton(ty) => "  " ++ te.name ++ " = " ++ format_typ(ty)
+            | Abstract => "  " ++ te.name ++ " (abstract)"
+            };
+          let result = "Context at path: " ++ path;
+          let result =
+            switch (vars) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nVariables:\n"
+              ++ String.concat("\n", List.map(fmt_var, vars))
+            };
+          let result =
+            switch (type_aliases) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nType aliases:\n"
+              ++ String.concat("\n", List.map(fmt_tvar, type_aliases))
+            };
+          let result =
+            switch (constructors) {
+            | [] => result
+            | _ =>
+              result
+              ++ "\nConstructors:\n"
+              ++ String.concat("\n", List.map(fmt_var, constructors))
+            };
+          Ok(result);
+        | Select(_)
+        | GetCanonical(_)
+        | GetCompleteness
+        | SelectorGetStatics(_)
+        | SelectorGetContext(_) => assert(false) /* handled above */
+        }
+      }
     };
   };
 
@@ -560,20 +1208,40 @@ module Local = {
         return:
           (Action.Failure.t, option(Zipper.t)) =>
           result(Zipper.t, Action.Failure.t),
-      ) => {
-    let initial_info_map = mk_statics(z);
-    switch (build(z, initial_info_map)) {
-    | None => Error(Action.Failure.Cant_derive_local_AST_information)
-    | Some(initial_node_map) =>
+      )
+      : result((Zipper.t, option(string)), Action.Failure.t) => {
+    /* Selector-driven edits bypass the HighLevelNodeMap entirely —
+       they resolve against the term tree directly via Selector */
+    switch (a) {
+    | SelectorUpdate(_)
+    | SelectorDelete(_)
+    | Overwrite(_) =>
+      let initial_info_map = mk_statics(z);
+      /* Pass an empty node map — selector edits don't use it */
       edit_dispatch(
         ~e=a,
         ~initial_z=z,
-        ~initial_node_map,
+        ~initial_node_map=Id.Map.empty,
         ~initial_info_map,
         ~syntax,
         ~return,
         ~mk_statics,
-      )
+      );
+    | _ =>
+      let initial_info_map = mk_statics(z);
+      switch (build(z, initial_info_map)) {
+      | None => Error(Action.Failure.Cant_derive_local_AST_information)
+      | Some(initial_node_map) =>
+        edit_dispatch(
+          ~e=a,
+          ~initial_z=z,
+          ~initial_node_map,
+          ~initial_info_map,
+          ~syntax,
+          ~return,
+          ~mk_statics,
+        )
+      };
     };
   };
 
@@ -587,11 +1255,12 @@ module Local = {
            (Action.Failure.t, option(Zipper.t)) =>
            result(Zipper.t, Action.Failure.t),
       )
-      : result(Zipper.t, Action.Failure.t) => {
+      : result((Zipper.t, option(string)), Action.Failure.t) => {
     let res =
       try(
         switch (composition_dispatch(a, syntax, z, mk_statics, return)) {
-        | Ok(new_z) => Ok(Dump.to_zipper(new_z, ~root=Exp))
+        | Ok((new_z, warning)) =>
+          Ok((Dump.to_zipper(new_z, ~root=Exp), warning))
         | Error(e) => Error(e)
         }
       ) {
@@ -613,5 +1282,36 @@ module Public = {
         ),
       )
     );
-  let go = Local.go(~mk_statics);
+
+  /* Stores the warning from the most recent structural edit.
+     Set by go(), read by Agent.re to include in success messages.
+     Cleared on each call to go(). */
+  let last_warning: ref(option(string)) = ref(None);
+
+  let go =
+      (
+        ~syntax: CachedSyntax.t,
+        ~z: Zipper.t,
+        ~a: Action.Structural.t,
+        ~return:
+           (Action.Failure.t, option(Zipper.t)) =>
+           result(Zipper.t, Action.Failure.t),
+      ) => {
+    last_warning := None;
+    let result = Local.go(~mk_statics, ~syntax, ~z, ~a, ~return);
+    switch (result) {
+    | Ok((z, warning)) =>
+      last_warning := warning;
+      Ok((z, warning));
+    | Error(_) => result
+    };
+  };
+
+  let read_dispatch =
+      (~action: CompositionActions.read_action, ~z: Zipper.t)
+      : result(string, Action.Failure.t) => {
+    let info_map = mk_statics(z);
+    let syntax = CachedSyntax.init(z);
+    Local.read_dispatch(~action, ~z, ~info_map, ~syntax);
+  };
 };

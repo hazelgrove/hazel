@@ -167,18 +167,31 @@ module Message = {
       };
     };
 
+    let is_read_action = (name: string): bool =>
+      switch (name) {
+      | "get_syntax"
+      | "get_statics"
+      | "get_context" => true
+      | _ => false
+      };
+
     let mk_tool_result_message =
         (tool_result: AgentToolResult.tool_result): Model.t => {
       let sanitized_content = String.trim(tool_result.content);
 
       let msg =
-        tool_result.success
-          ? "The "
-            ++ tool_result.tool_call.name
-            ++ " tool call with the following arguments was successful and has been applied to the model. "
-            ++ " Arguments: "
-            ++ Yojson.Safe.to_string(tool_result.tool_call.args)
-          : sanitized_content;
+        if (!tool_result.success) {
+          sanitized_content;
+        } else if (is_read_action(tool_result.tool_call.name)) {
+          /* Read actions return their content directly to the LLM */
+          sanitized_content;
+        } else {
+          "The "
+          ++ tool_result.tool_call.name
+          ++ " tool call with the following arguments was successful and has been applied to the model. "
+          ++ " Arguments: "
+          ++ Yojson.Safe.to_string(tool_result.tool_call.args);
+        };
       {
         // This is a message from our backend.
         // Protocols require a tool id to be associated, thus we send this is as an OpenRouter.Tool message.contents
@@ -211,6 +224,7 @@ module Message = {
     };
     let mk_context_message =
         (
+          ~cursor_context_content: string="",
           agent_editor_content: string,
           static_errors_content: string,
           test_results_content: string,
@@ -251,6 +265,15 @@ module Message = {
         ++ sanitized_workbench_content
         ++ workbench_content_suffix;
 
+      /* TODO: cursor context is sent on every message but the agent operates
+         path-based, not cursor-based. This may be unnecessary noise.
+         Consider gating on relevance or removing for path-based agents. */
+      let cursor_context_section =
+        switch (String.trim(cursor_context_content)) {
+        | "" => ""
+        | s => "\n<cursorContext>\n" ++ s ++ "\n</cursorContext>\n"
+        };
+
       let context_prefix = "\n<context>\n";
       let context_suffix = "\n</context>\n";
       let context_content =
@@ -258,6 +281,7 @@ module Message = {
         ++ agent_editor_content
         ++ static_errors_content
         ++ test_results_content
+        ++ cursor_context_section
         ++ workbench_content
         ++ context_suffix;
       let content =
@@ -623,6 +647,7 @@ module Chat = {
 
     let update_context =
         (
+          ~cursor_context: string="",
           agent_editor_view: string,
           static_errors_info: string,
           test_results_info: string,
@@ -631,6 +656,7 @@ module Chat = {
         : Model.t => {
       let workbench =
         Message.Utils.mk_context_message(
+          ~cursor_context_content=cursor_context,
           agent_editor_view,
           static_errors_info,
           test_results_info,
@@ -733,6 +759,14 @@ module Chat = {
   };
 
   module Update = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type context_snapshot = {
+      agent_editor_view: string,
+      static_errors: string,
+      test_results: string,
+      cursor_context: string,
+    };
+
     module Action = {
       [@deriving (show({with_path: false}), sexp, yojson)]
       type t =
@@ -741,7 +775,7 @@ module Chat = {
         | BranchOff(Id.t)
         | AgentContextAction(AgentContext.Update.action)
         | WorkbenchAction(AgentWorkbench.Update.Action.action)
-        | UpdateContext(string, string, string)
+        | UpdateContext(context_snapshot)
         | AppendToMessageContent(Id.t, string)
         | OverwriteMessage(Id.t, Message.Model.t)
         | SwitchView(Model.current_view)
@@ -785,16 +819,18 @@ module Chat = {
           })
         | Failure(error) => Error(Failure.Info(error))
         };
-      | UpdateContext(
+      | UpdateContext({
           agent_editor_view,
-          static_errors_info,
-          test_results_info,
-        ) =>
+          static_errors,
+          test_results,
+          cursor_context,
+        }) =>
         Ok(
           Utils.update_context(
+            ~cursor_context,
             agent_editor_view,
-            static_errors_info,
-            test_results_info,
+            static_errors,
+            test_results,
             model,
           ),
         )
@@ -1378,8 +1414,7 @@ module Agent = {
                 "update_binding_clause",
                 "delete_binding_clause",
                 "delete_body",
-                "insert_after",
-                "insert_before",
+                "overwrite",
               ],
             ) => "Edit"
       | n
@@ -1480,6 +1515,29 @@ module Agent = {
                 "Unknown error occured when trying to apply tool request to editor",
               ),
             )
+          }
+        };
+      | ReadAction(read_action) =>
+        let z = editor.editor.state.zipper;
+        let info_map = CompositionGo.Public.mk_statics(z);
+        let syntax = CachedSyntax.init(z);
+        switch (
+          CompositionGo.Local.read_dispatch(
+            ~action=read_action,
+            ~z,
+            ~info_map,
+            ~syntax,
+          )
+        ) {
+        | Ok(_content) =>
+          /* Read actions don't modify the editor. The content is
+             returned as the tool_result content in handle_tool_call. */
+          Ok((agent, editor))
+        | Error(err) =>
+          switch (err) {
+          | Action.Failure.Composition_action_failure(msg) =>
+            Error(Failure.Info(msg))
+          | _ => Error(Failure.Info("Failed to execute read action"))
           }
         };
       | LanguageServerAction(_) =>
@@ -2097,6 +2155,64 @@ module Agent = {
       };
     };
 
+    let format_cursor_context =
+        (z: Zipper.t, info_map: Language.Statics.Map.t): string => {
+      switch (Indicated.ci_of(z, info_map)) {
+      | Some(InfoExp({ana, ctx, ty, _})) =>
+        let expected = ErrorPrint.Print.typ(ana);
+        let synthesized = ErrorPrint.Print.typ(ty);
+        let ctx_entries =
+          Language.Ctx.filter_shadowed(ctx).entries
+          |> List.filter_map((entry: Language.Ctx.entry) =>
+               switch (entry) {
+               | VarEntry({name, typ, _}) =>
+                 Some(name ++ " : " ++ ErrorPrint.Print.typ(typ))
+               | _ => None
+               }
+             );
+        let vars_str =
+          switch (ctx_entries) {
+          | [] => "none"
+          | entries =>
+            let shown = ListUtil.take(10, entries);
+            let suffix =
+              List.length(entries) > 10
+                ? " (+"
+                  ++ string_of_int(List.length(entries) - 10)
+                  ++ " more)"
+                : "";
+            String.concat(", ", shown) ++ suffix;
+          };
+        "Expected type: "
+        ++ expected
+        ++ "\nSynthesized type: "
+        ++ synthesized
+        ++ "\nVariables in scope: "
+        ++ vars_str;
+      | Some(InfoPat({ana, ctx, _})) =>
+        let expected = ErrorPrint.Print.typ(ana);
+        let ctx_entries =
+          Language.Ctx.filter_shadowed(ctx).entries
+          |> List.filter_map((entry: Language.Ctx.entry) =>
+               switch (entry) {
+               | ConstructorEntry({name, typ, _}) =>
+                 Some(name ++ " : " ++ ErrorPrint.Print.typ(typ))
+               | _ => None
+               }
+             );
+        let ctors_str =
+          switch (ctx_entries) {
+          | [] => "none"
+          | entries => String.concat(", ", ListUtil.take(10, entries))
+          };
+        "Pattern expected type: "
+        ++ expected
+        ++ "\nConstructors in scope: "
+        ++ ctors_str;
+      | _ => ""
+      };
+    };
+
     let update_context =
         (
           ~test_results: option(Language.TestResults.t)=?,
@@ -2112,20 +2228,22 @@ module Agent = {
           editor.editor,
           curr_chat.agent_view,
         );
+      let info_map =
+        CompositionGo.Public.mk_statics(editor.editor.state.zipper);
       let static_errors_info_string =
-        ErrorPrint.all(
-          CompositionGo.Public.mk_statics(editor.editor.state.zipper),
-        )
-        |> String.concat("\n");
+        ErrorPrint.all(info_map) |> String.concat("\n");
       let test_results_info_string = test_results_string(test_results);
+      let cursor_context_string =
+        format_cursor_context(editor.editor.state.zipper, info_map);
       let chat_system =
         ChatSystem.Update.update(
           ChatSystem.Update.Action.ChatAction(
-            Chat.Update.Action.UpdateContext(
-              agent_editor_view_string,
-              static_errors_info_string,
-              test_results_info_string,
-            ),
+            Chat.Update.Action.UpdateContext({
+              agent_editor_view: agent_editor_view_string,
+              static_errors: static_errors_info_string,
+              test_results: test_results_info_string,
+              cursor_context: cursor_context_string,
+            }),
             chat_id,
           ),
           model.chat_system,
@@ -2263,9 +2381,29 @@ module Agent = {
         | Ok((model, editor)) =>
           let model = update_context(model, editor, chat_id);
           let success_message =
-            "The "
-            ++ tool_call.name
-            ++ " tool call was successful and has been applied to the model.";
+            switch (action) {
+            | ReadAction(read_action) =>
+              /* For read actions, compute the result content */
+              let z = cell_editor.editor.editor.state.zipper;
+              switch (
+                CompositionGo.Public.read_dispatch(~action=read_action, ~z)
+              ) {
+              | Ok(content) => content
+              | Error(_) =>
+                "The " ++ tool_call.name ++ " tool call encountered an error."
+              };
+            | _ =>
+              let base_msg =
+                "The "
+                ++ tool_call.name
+                ++ " tool call was successful and has been applied to the model.";
+              switch (CompositionGo.Public.last_warning^) {
+              | Some(warning) =>
+                CompositionGo.Public.last_warning := None;
+                base_msg ++ "\n" ++ warning;
+              | None => base_msg
+              };
+            };
           let (before_segment, after_segment) =
             mk_segment_snapshots(
               ~old_editor=cell_editor.editor.editor,

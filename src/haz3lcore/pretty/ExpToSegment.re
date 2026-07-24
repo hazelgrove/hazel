@@ -1038,8 +1038,8 @@ let text_to_pretty = (id, sort, str): pretty => {
 };
 
 /* Settings-aware form builder.
-   PreserveExact: no heuristic spacing (children already have stored secondary)
-   AutoFormat: add spaces based on heuristics */
+   PreserveExact: no heuristic spacing (children already have stored secondary).
+   AutoFormat: always add spaces based on heuristics. */
 let mk_form =
     (
       ~secondary: Settings.secondary_handling,
@@ -1050,12 +1050,12 @@ let mk_form =
     : Piece.t => {
   let form: Form.t = Form.get(form_name);
   assert(List.length(children) == List.length(form.mold.in_));
-  // Add whitespaces only in AutoFormat mode
+  /* Add whitespace between delimiters and children.
+     PreserveExact: no heuristic spacing (stored secondary provides it).
+     AutoFormat: always use should_add_space heuristics. */
   let children =
     switch (secondary) {
-    | PreserveExact =>
-      /* In PreserveExact mode, children already have stored secondary wrapped */
-      children
+    | PreserveExact => Aba.mk(form.label, children) |> Aba.get_bs
     | AutoFormat =>
       Aba.map_abas(
         ((l, child, r)) => {
@@ -1117,8 +1117,8 @@ let pad_ids =
 let list_append = (@);
 
 /* Settings-aware segment concatenation.
-   PreserveExact: no heuristic spacing (rely on stored secondary)
-   AutoFormat: add spaces based on heuristics */
+   PreserveExact: concatenate directly (stored secondary provides spacing).
+   AutoFormat: always uses should_add_space heuristics. */
 let concat_segment =
     (
       ~secondary: Settings.secondary_handling,
@@ -1126,13 +1126,13 @@ let concat_segment =
       seg2: Segment.t,
     )
     : Segment.t =>
-  switch (secondary) {
-  | PreserveExact => list_append(seg1, seg2)
-  | AutoFormat =>
-    switch (seg1, seg2) {
-    | ([], _) => seg2
-    | (_, []) => seg1
-    | _ =>
+  switch (seg1, seg2) {
+  | ([], _) => seg2
+  | (_, []) => seg1
+  | _ =>
+    switch (secondary) {
+    | PreserveExact => list_append(seg1, seg2)
+    | AutoFormat =>
       if (should_add_space(
             Segment.last_string(seg1),
             Segment.first_string(seg2),
@@ -2267,7 +2267,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                 ids,
                 rs,
               )
-              |> List.flatten
+              |> List.fold_left((@), [])
             )
             @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]),
           ],
@@ -3079,6 +3079,23 @@ let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
          ~show_ascriptions=settings.show_ascriptions,
        );
   let p = typ_to_pretty(~settings, typ);
+  p |> PrettySegment.select;
+};
+
+let pat_to_segment = (~settings: Settings.t, pat: Pat.t): Segment.t => {
+  let pat =
+    pat
+    |> parenthesize_pat(
+         ~parenthesization=settings.parenthesization,
+         ~show_filters=settings.show_filters,
+         ~show_ascriptions=settings.show_ascriptions,
+       );
+  let p = pat_to_pretty(~settings, pat);
+  p |> PrettySegment.select;
+};
+
+let mod_to_segment = (~settings: Settings.t, item: Mod.t): Segment.t => {
+  let p = mod_to_pretty(~settings, item);
   p |> PrettySegment.select;
 };
 

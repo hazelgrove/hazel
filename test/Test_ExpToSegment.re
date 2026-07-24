@@ -214,7 +214,7 @@ let tests = (
         check(
           Alcotest.string,
           "Match statement",
-          "case x | A => 1| B => 2 end",
+          "case x | A => 1 | B => 2 end",
           serialized,
         );
       },
