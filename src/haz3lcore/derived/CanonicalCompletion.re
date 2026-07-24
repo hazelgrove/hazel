@@ -3515,6 +3515,46 @@ let splice_precedes_caret = (z: Zipper.t, ins: insertion): bool =>
     };
   };
 
+/* a linebreak strictly separates the splice from the caret: the
+   span sits at an EARLIER LINE's end — free space per the legality
+   rule (it can displace nothing at the caret). Used by the
+   inline-persist scope: pre-caret spans persist iff line-separated;
+   same-row-before-caret spans always demote. */
+let linebreak_between = (z: Zipper.t, ins: insertion): bool =>
+  switch (ins.splice, caret_left_atom(z)) {
+  | (None, _)
+  | (_, None) => false
+  | (Some((id, sh, _)), Some(caret_key)) =>
+    let seg = Zipper.unselect_and_zip(z);
+    let rank = rank_map(seg);
+    let key = (
+      id,
+      switch (sh) {
+      | Some(i) => i
+      | None => (-1)
+      },
+    );
+    switch (Hashtbl.find_opt(rank, key), Hashtbl.find_opt(rank, caret_key)) {
+    | (Some(r), Some(cr)) when r < cr =>
+      let rec lb_in_range = (sg: Segment.t): bool =>
+        List.exists(
+          (p: Piece.t) =>
+            switch (p) {
+            | Secondary(w) when Secondary.is_linebreak(w) =>
+              switch (Hashtbl.find_opt(rank, (w.id, (-1)))) {
+              | Some(lr) => r < lr && lr <= cr
+              | None => false
+              }
+            | Tile(t) => List.exists(lb_in_range, t.children)
+            | _ => false
+            },
+          sg,
+        );
+      lb_in_range(seg);
+    | _ => false
+    };
+  };
+
 /* The ghost hugs the caret when only spaces separate it from the
    run's true position: Tab lands at the caret, and a closer drawn
    left of the caret would portray typing OUTSIDE the completed

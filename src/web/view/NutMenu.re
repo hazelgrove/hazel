@@ -261,6 +261,15 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Enable probes on all top-level definitions"),
       },
       {
+        name: "Inline Persist",
+        active: globals.settings.core.inline_persist,
+        setting: InlinePersist,
+        tooltip:
+          Some(
+            "Trial: keep delimiter/scaffolding ghosts inline when the caret leaves (same-line-and-below)",
+          ),
+      },
+      {
         name: "Cap Undo Stack",
         active: globals.settings.cap_undo_stack,
         setting: CapUndoStack,

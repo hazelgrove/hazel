@@ -61,6 +61,11 @@ type t = {
   probe_all: bool,
   /* Completion-triggered local re-indentation (experimental) */
   auto_reindent: bool,
+  /* TRIAL (obligation-display design): delimiter-closer and tuple-
+     scaffolding ghosts persist INLINE when the caret leaves their
+     zone (same-line-and-below only), instead of demoting to chips.
+     TyDi stays caret-local regardless. */
+  inline_persist: bool,
   format_shortcut: FormatShortcut.t,
   /* Indentation-transparent editing: arrow movement skips leading
      whitespace and backspace at first-content joins lines (deletes
@@ -86,6 +91,7 @@ let off: t = {
   dynamics: false,
   probe_all: false,
   auto_reindent: false,
+  inline_persist: false,
   format_shortcut: FormatShortcut.Spaces,
   indentation_ux: false,
   flip_animations: false,
@@ -102,6 +108,7 @@ let on: t = {
   dynamics: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
   auto_reindent: true,
+  inline_persist: false, /* trial toggle: opt-in only */
   format_shortcut: FormatShortcut.Spaces,
   indentation_ux: true,
   flip_animations: true,

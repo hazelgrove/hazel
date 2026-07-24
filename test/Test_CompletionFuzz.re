@@ -892,6 +892,49 @@ let run_grout_fuzz = (~seeds: int, ~steps: int): string => {
                     };
                   let z0 = Move.to_start(z');
                   walk(z0, Zipper.Caret.point(m_z, z0), 0);
+                  {
+                    /* PERSIST-CARET-STABLE: the trial toggle may only
+                       ADD remote spans — the caret's display point must
+                       be identical with the flag on (remote span churn
+                       can never move the caret; P2 under persist) */
+
+                    let pt_of = (~inline_persist) =>
+                      switch (
+                        Test_CompletionDisplay.display_parts(
+                          ~inline_persist,
+                          z',
+                        )
+                      ) {
+                      | (seg, zc, _, _, caret_witnesses, _, _) =>
+                        let m =
+                          Measured.of_segment(
+                            seg,
+                            Id.Map.empty,
+                            Id.Map.empty,
+                          );
+                        Some(DisplayCaret.point(~caret_witnesses, m, zc));
+                      | exception _ => None
+                      };
+                    switch (
+                      pt_of(~inline_persist=false),
+                      pt_of(~inline_persist=true),
+                    ) {
+                    | (Some(a), Some(b)) when Util.Point.compare(a, b) != 0 =>
+                      bad(
+                        ~seed,
+                        ~step=k,
+                        ~inv="PERSIST-CARET-STABLE",
+                        Printf.sprintf(
+                          "off=(%d,%d) on=(%d,%d)",
+                          a.row,
+                          a.col,
+                          b.row,
+                          b.col,
+                        ),
+                      )
+                    | _ => ()
+                    };
+                  };
                   let here = Zipper.Caret.point(m_z, z');
                   switch (Move.to_point(~measured=m_z, ~goal=here, z')) {
                   | Some(zr)

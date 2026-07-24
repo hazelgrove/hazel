@@ -48,6 +48,9 @@ type t = {
    * that has fresh assist data is the deferred refresh, not the edit
    * frame itself. Movement never arms: activation stays edit-only. */
   ghost_armed: bool,
+  /* the inline_persist flag this cache was built under — a flip
+     forces a re-fork so the toggle takes effect immediately */
+  persist_on: bool,
   /* THE assist stream (A1 single source), assembled frame-fresh by
    * PromiseRender.mk from this frame's syntax + statics' type facts.
    * Cached here because it depends only on (erased segment,
@@ -77,6 +80,7 @@ let mk =
       ~elaborated=None,
       ~obligations=None,
       ~armed=false,
+      ~inline_persist=false,
       z,
     )
     : t => {
@@ -87,7 +91,7 @@ let mk =
   let fork =
     switch (obligations) {
     | Some(obligations) =>
-      PromiseRender.mk(~info_map, ~obligations, ~armed, z)
+      PromiseRender.mk(~info_map, ~obligations, ~armed, ~inline_persist, z)
     | None => DisplayFork.plain(z)
     };
   let DisplayFork.{
@@ -130,6 +134,7 @@ let mk =
     typed_lens,
     caret_witnesses,
     ghost_armed: false,
+    persist_on: inline_persist,
     assist,
     ghosted,
   };
@@ -216,10 +221,19 @@ let calculate =
       ~elaborated=None,
       ~obligations=None,
       ~armed=false,
+      ~inline_persist=false,
       old: t,
     ) =>
   if (old.old) {
-    mk(z, ~info_map, ~dyn_map, ~elaborated, ~obligations, ~armed);
+    mk(
+      z,
+      ~info_map,
+      ~dyn_map,
+      ~elaborated,
+      ~obligations,
+      ~armed,
+      ~inline_persist,
+    );
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)) {

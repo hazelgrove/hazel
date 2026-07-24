@@ -324,8 +324,44 @@ let extend_t2 =
    splice truth. Material is the caller's: this fork reconstructs
    via ghost_pieces, PromiseRender projects from the artifact. */
 let ghost_selection =
-    (~armed: bool, z: Zipper.t, assist: list(CanonicalCompletion.insertion))
-    : list((CanonicalCompletion.insertion, CanonicalCompletion.insertion)) =>
+    (
+      ~armed: bool,
+      ~inline_persist: bool=false,
+      z: Zipper.t,
+      assist: list(CanonicalCompletion.insertion),
+    )
+    : list((CanonicalCompletion.insertion, CanonicalCompletion.insertion)) => {
+  /* INLINE-PERSIST TRIAL (obligation-display design): forced
+     obligations — delimiter closers and T1 scaffolding commas —
+     stay inline at their TRUE positions when the caret is
+     elsewhere, instead of demoting to chips. Persisted spans are
+     NOT slid to the caret (their position is the point), and the
+     splice_precedes_caret guard doubles as the legality scope: a
+     span at-or-after the caret in reading order can never displace
+     the caret (P2). Witnesses and T2 lookahead stay caret-local —
+     they ride the user's typed token. */
+  let persisted =
+    inline_persist
+      ? assist
+        |> List.filter((ins: CanonicalCompletion.insertion) =>
+             ins.delimiters
+             |> List.for_all((d: CanonicalCompletion.delimiter_info) =>
+                  d.typed_len == None && (d.of_shard != None || d.text == ",")
+                )
+           )
+        |> List.filter(ins =>
+             !CanonicalCompletion.splice_precedes_caret(z, ins)
+             /* a pre-caret span persists iff a linebreak separates
+                it from the caret: it sits at an earlier line's END
+                (free space — can displace nothing at the caret).
+                Same-row-before-caret always demotes. Ghost material
+                for closers/commas is single-line, so no span can
+                insert a LINE above the caret (vertical-P2 local
+                minimum holds by construction). */
+             || CanonicalCompletion.linebreak_between(z, ins)
+           )
+        |> List.map(orig => (orig, orig))
+      : [];
   if (armed) {
     /* at most ONE witness ghost per anchor id (stream order wins:
        engine witnesses precede T2) */
@@ -343,15 +379,25 @@ let ghost_selection =
                ? acc : acc @ [ins],
            [],
          );
-    zone
-    |> List.filter_map(orig => {
-         let ins = CanonicalCompletion.slide_to_caret(z, orig);
-         CanonicalCompletion.splice_precedes_caret(z, ins)
-           ? None : Some((orig, ins));
-       });
+    let zoned =
+      zone
+      |> List.filter_map(orig => {
+           let ins = CanonicalCompletion.slide_to_caret(z, orig);
+           CanonicalCompletion.splice_precedes_caret(z, ins)
+             ? None : Some((orig, ins));
+         });
+    /* zone wins on overlap: a caret-zone ghost may be slid; the
+       persisted copy of the same insertion is dropped */
+    let extra =
+      persisted
+      |> List.filter(((orig, _)) =>
+           !List.exists(((zo, _)) => zo === orig, zoned)
+         );
+    zoned @ extra;
   } else {
-    [];
+    persisted;
   };
+};
 
 /* splice in DESCENDING (slid ref, original ref) order: each splice
    inserts directly after its ref, so the LAST-spliced lands closest
@@ -421,7 +467,7 @@ let mk_inner =
     TypeObligations.assist_stream(z, ~info_map, obligations)
     |> extend_t2(~info_map, ~armed, z);
   let ghosts =
-    ghost_selection(~armed, z, assist)
+    ghost_selection(~armed, ~inline_persist=false, z, assist)
     |> List.filter_map(((orig, ins)) =>
          TypeObligations.ghost_pieces(z, ins)
          |> Option.map(pieces => (orig, ins, pieces))

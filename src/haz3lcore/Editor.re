@@ -196,6 +196,8 @@ module Update = {
     let zipper = state.zipper;
     let statics_refreshed = statics.info_map !== syntax.shape_info_map;
     let armed = is_edited || syntax.ghost_armed;
+    let inline_persist =
+      settings.inline_persist && settings.assist && settings.statics;
     let obligations =
       settings.assist && settings.statics ? Some(statics.obligations) : None;
 
@@ -204,7 +206,10 @@ module Update = {
      * between full `mk`, shape-only refresh, or cheap selection-only
      * update — so callers don't need to plumb "statics changed" signals. */
     let syntax =
-      is_edited || armed && statics_refreshed
+      is_edited
+      || (armed || inline_persist)
+      && statics_refreshed
+      || inline_persist != syntax.persist_on
         ? CachedSyntax.mark_old(syntax) : syntax;
     let syntax =
       CachedSyntax.calculate(
@@ -214,6 +219,7 @@ module Update = {
         ~elaborated=Some(statics.elaborated),
         ~obligations,
         ~armed,
+        ~inline_persist,
         syntax,
       );
     let syntax = {

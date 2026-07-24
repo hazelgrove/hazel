@@ -266,6 +266,7 @@ let mk_inner =
       ~info_map: Statics.Map.t,
       ~obligations: list(TypeObligations.t),
       ~armed: bool,
+      ~inline_persist: bool=false,
       z: Zipper.t,
     )
     : DisplayFork.t => {
@@ -296,7 +297,8 @@ let mk_inner =
       obligations,
     )
     |> DisplayFork.extend_t2(~info_map, ~armed, z);
-  let selected = DisplayFork.ghost_selection(~armed, z, assist);
+  let selected =
+    DisplayFork.ghost_selection(~armed, ~inline_persist, z, assist);
   let caret_after = CanonicalCompletion.caret_left_atom(z);
   /* Build the fork. `use_replaces` chooses whether engine witnesses
      (in / => / -> / then) become REAL reified shards in place
@@ -473,10 +475,11 @@ let mk =
       ~info_map: Statics.Map.t,
       ~obligations: list(TypeObligations.t),
       ~armed: bool,
+      ~inline_persist: bool=false,
       z: Zipper.t,
     )
     : DisplayFork.t =>
-  switch (mk_inner(~info_map, ~obligations, ~armed, z)) {
+  switch (mk_inner(~info_map, ~obligations, ~armed, ~inline_persist, z)) {
   | fork => fork
   | exception _ => DisplayFork.plain(z)
   };

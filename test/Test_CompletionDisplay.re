@@ -30,7 +30,7 @@ let string_testable = testable(Fmt.string, String.equal);
    re-typed program mints fresh ids and every id-keyed merge silently
    misses. */
 let display_parts =
-    (z: Zipper.t)
+    (~inline_persist=false, z: Zipper.t)
     : (
         Segment.t,
         Zipper.t,
@@ -44,7 +44,14 @@ let display_parts =
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let obligations = TypeObligations.derive(info_map);
-  let fork = PromiseRender.mk(~info_map, ~obligations, ~armed=true, z);
+  let fork =
+    PromiseRender.mk(
+      ~info_map,
+      ~obligations,
+      ~armed=true,
+      ~inline_persist,
+      z,
+    );
   (
     fork.segment,
     z,
@@ -325,6 +332,10 @@ let display_state_of =
 
 let display_state = (~chips=true, z: Zipper.t): string =>
   display_state_of(~parts=display_parts, ~chips, z);
+
+/* the INLINE-PERSIST trial: same renderer, persist flag on */
+let display_state_persist = (~chips=true, z: Zipper.t): string =>
+  display_state_of(~parts=display_parts(~inline_persist=true), ~chips, z);
 
 /* live-cadence render: statics from `lag` keystrokes back (0 =
    settled/reified), display from the current zipper */
