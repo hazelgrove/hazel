@@ -4,7 +4,6 @@ open Util.WebUtil;
 open Util;
 open Haz3lcore;
 open Language;
-open IdTagged.FreshGrammar;
 
 // App View sidebar panel - renders HTML evaluation results with MVU architecture
 //
@@ -17,8 +16,8 @@ open IdTagged.FreshGrammar;
 //    - Handlers are: Html -> Html
 //    - The HTML tree IS the model
 
-// Stable projector ID for the sidebar app view (deterministic UUID from string)
-let sidebar_projector_id = Id.mk_str("app-view-sidebar");
+// The sidebar app lives in the AppStore under a stable synthetic id
+// (deterministic UUID from string; see AppStore.sidebar_id).
 
 // Extract the evaluated DHExp from a CellEditor
 let get_evaluated_exp = (cell_editor: CellEditor.Model.t): option(DHExp.t) =>
@@ -195,8 +194,9 @@ let view =
     | Some(editor) => get_evaluated_exp(editor)
     };
 
-  // Check if we have active MVU state
-  let is_showing_state = Option.is_some(globals.app_view_state);
+  // Check if we have active MVU state for the sidebar app
+  let sidebar_entry = AppStore.lookup(AppStore.sidebar_id, globals.apps);
+  let is_showing_state = Option.is_some(sidebar_entry);
 
   // Fallback view_term for unknown terms - render as abbreviated Hazel code
   let fallback_view_term = (d: DHExp.t) => {
@@ -233,12 +233,12 @@ let view =
   // Helper to render HTML with error boundary
   // For MVU apps: model is the user's model, html is view_fn(model)
   // For legacy/plain: model IS the html
+  // Render-only: subscriptions are owned by the AppStore update path.
   let render_html_content =
       (
         ~model: DHExp.t,
         ~html: DHExp.t,
         ~inject: DHExp.t => Ui_effect.t(unit),
-        ~subscriptions: option(DHExp.t),
         ~update_fn: option(DHExp.t)=None,
         (),
       ) =>
@@ -247,11 +247,10 @@ let view =
         model,
         inject,
         view_term: fallback_view_term,
-        projector_id: Some(sidebar_projector_id),
-        subscriptions,
+        projector_id: None, // unused: HazelDOM is render-only now
+        subscriptions: None,
         update_fn,
       };
-      HazelDOM.manage_subscriptions(mvu);
       div(
         ~attrs=[
           clss(["app-view-content"]),
@@ -268,59 +267,35 @@ let view =
       render_error("Render error: " ++ msg);
     };
 
-  // Render MVU app from pre-computed state (no evaluation here!)
-  let render_mvu_app = (state: Globals.AppViewState.t) =>
-    // Use pre-computed html and subs from state - evaluation happened in update handler
+  // Render MVU app from pre-computed store entry (no evaluation here!)
+  let render_mvu_app = (entry: AppStore.Entry.t) =>
     render_html_content(
-      ~model=state.model,
-      ~html=state.html,
+      ~model=entry.model,
+      ~html=entry.html,
       ~inject,
-      ~subscriptions=Some(state.subs),
-      ~update_fn=state.update_fn,
+      ~update_fn=entry.update_fn,
       (),
     );
 
-  // Render legacy self-modifying app
+  // Render legacy self-modifying app.
+  // NOTE: render-driven subscriptions for this ((html, cmd), subs) shape
+  // were cut with AppStore v1 (HazelDOM is render-only now).
   let render_legacy_app = (exp: DHExp.t) =>
     try(
       switch (MvuShape.detect_legacy_app(exp)) {
-      | Some((html, Some(init_cmd), Some(subs_fn))) =>
-        // Run the init command
-        let cmd_ctx: CmdRunner.context = {
-          model: html,
-          inject,
-          update_fn: None,
+      | Some((html, init_cmd, _subs_fn)) =>
+        // Run the init command, if any
+        switch (init_cmd) {
+        | Some(init_cmd) =>
+          let cmd_ctx: CmdRunner.context = {
+            model: html,
+            inject,
+            update_fn: None,
+          };
+          Bonsai.Effect.Expert.handle(CmdRunner.run(cmd_ctx, init_cmd));
+        | None => ()
         };
-        let cmd_effect = CmdRunner.run(cmd_ctx, init_cmd);
-        Bonsai.Effect.Expert.handle(cmd_effect);
-        // Evaluate subscriptions
-        let subs = MvuShape.evaluate(Exp.ap(Forward, subs_fn, html));
-        render_html_content(
-          ~model=html,
-          ~html,
-          ~inject,
-          ~subscriptions=Some(subs),
-          (),
-        );
-      | Some((html, None, Some(subs_fn))) =>
-        // No init command, just subscriptions
-        let subs = MvuShape.evaluate(Exp.ap(Forward, subs_fn, html));
-        render_html_content(
-          ~model=html,
-          ~html,
-          ~inject,
-          ~subscriptions=Some(subs),
-          (),
-        );
-      | Some((html, _, None)) =>
-        // No subscriptions
-        render_html_content(
-          ~model=html,
-          ~html,
-          ~inject,
-          ~subscriptions=None,
-          (),
-        )
+        render_html_content(~model=html, ~html, ~inject, ());
       | None =>
         // Failed to detect app structure
         render_error("Invalid App structure")
@@ -333,17 +308,18 @@ let view =
 
   // Get the content to render
   let content =
-    switch (globals.app_view_state) {
-    | Some(_state) =>
+    switch (sidebar_entry) {
+    | Some(entry) =>
       // We have MVU state - check if eval result changed (auto-refresh)
       switch (eval_result) {
-      | Some(exp) when exp !== _state.source_result =>
+      | Some(exp) when exp !== entry.source_result =>
         // Eval result changed! Check if it's still an MVU app
         switch (MvuShape.detect_app_kind(exp)) {
         | Some(MvuShape.ElmApp(init_model, update_fn, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
               RefreshAppView(
+                AppStore.sidebar_id,
                 exp,
                 init_model,
                 Some(update_fn),
@@ -352,21 +328,28 @@ let view =
               ),
             ),
           );
-          render_mvu_app(_state);
+          render_mvu_app(entry);
         | Some(MvuShape.LegacyMvuApp(init_model, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
-              RefreshAppView(exp, init_model, None, view_fn, subs_fn),
+              RefreshAppView(
+                AppStore.sidebar_id,
+                exp,
+                init_model,
+                None,
+                view_fn,
+                subs_fn,
+              ),
             ),
           );
-          render_mvu_app(_state);
+          render_mvu_app(entry);
         | None =>
           // Result changed but isn't MVU (intermediate edit state, holes, etc.)
           // Keep showing current state - user can hit Reset for intentional clear
-          render_mvu_app(_state)
+          render_mvu_app(entry)
         }
-      | Some(_) => render_mvu_app(_state)
-      | None => render_mvu_app(_state)
+      | Some(_) => render_mvu_app(entry)
+      | None => render_mvu_app(entry)
       }
     | None =>
       // No state - check evaluation result
@@ -382,6 +365,7 @@ let view =
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
               InitAppView(
+                AppStore.sidebar_id,
                 exp,
                 init_model,
                 Some(update_fn),
@@ -402,7 +386,14 @@ let view =
         | Some(MvuShape.LegacyMvuApp(init_model, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
-              InitAppView(exp, init_model, None, view_fn, subs_fn),
+              InitAppView(
+                AppStore.sidebar_id,
+                exp,
+                init_model,
+                None,
+                view_fn,
+                subs_fn,
+              ),
             ),
           );
           div(
@@ -419,13 +410,7 @@ let view =
       | Some(exp) when MvuShape.looks_like_legacy_app(exp) =>
         render_legacy_app(exp)
       | Some(exp) when looks_like_html(exp) =>
-        render_html_content(
-          ~model=exp,
-          ~html=exp,
-          ~inject,
-          ~subscriptions=None,
-          (),
-        )
+        render_html_content(~model=exp, ~html=exp, ~inject, ())
       | Some(_exp) => render_not_html()
       }
     };
@@ -439,7 +424,9 @@ let view =
               "style",
               "margin-left: auto; padding: 4px 8px; font-size: 12px; cursor: pointer; background-color: var(--T1); border: 1px solid var(--BR3); color: var(--BR3); border-radius: 0.3em;",
             ),
-            Attr.on_click(_ => globals.inject_global(ResetAppView)),
+            Attr.on_click(_ =>
+              globals.inject_global(ResetAppView(AppStore.sidebar_id))
+            ),
           ],
           [text("Reset")],
         )

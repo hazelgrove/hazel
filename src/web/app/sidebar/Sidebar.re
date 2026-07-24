@@ -360,13 +360,22 @@ let view =
             | AppView =>
               // Wire inject: Elm apps dispatch AppViewMsg, legacy uses SetAppViewModel
               let app_inject = (value: Language.DHExp.t) =>
-                switch (globals.app_view_state) {
-                | Some(state) =>
-                  switch (state.update_fn) {
-                  | Some(_) => globals.inject_global(AppViewMsg(value))
-                  | None => globals.inject_global(SetAppViewModel(value))
+                switch (AppStore.lookup(AppStore.sidebar_id, globals.apps)) {
+                | Some(entry) =>
+                  switch (entry.update_fn) {
+                  | Some(_) =>
+                    globals.inject_global(
+                      AppViewMsg(AppStore.sidebar_id, value),
+                    )
+                  | None =>
+                    globals.inject_global(
+                      SetAppViewModel(AppStore.sidebar_id, value),
+                    )
                   }
-                | None => globals.inject_global(SetAppViewModel(value))
+                | None =>
+                  globals.inject_global(
+                    SetAppViewModel(AppStore.sidebar_id, value),
+                  )
                 };
               AppViewPanel.view(~globals, ~cell_editor, ~inject=app_inject);
             | LogControl =>

@@ -151,17 +151,6 @@ module Update = {
     };
   };
 
-  // Evaluate a Hazel expression with full elaboration (for source-level exprs)
-  let evaluate_exp = (exp: Language.DHExp.t): Language.DHExp.t =>
-    Language.(
-      let (_info_map, elaborated) =
-        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
-      fst(Evaluator.evaluate(~env=Builtins.env_init, elaborated))
-    );
-
-  // Evaluate without re-elaboration (for applying already-evaluated functions)
-  let evaluate_direct = (exp: Language.DHExp.t): Language.DHExp.t =>
-    Language.(fst(Evaluator.evaluate(~env=Builtins.env_init, exp)));
   let update_global =
       (
         ~import_log,
@@ -170,6 +159,19 @@ module Update = {
         action: Globals.Update.t,
         model: Model.t,
       ) => {
+    // AppStore effect context: msgs re-enter through AppViewMsg; cmds run
+    // through CmdRunner.
+    let schedule_app_msg = (id, m) =>
+      schedule_action(Globals(AppViewMsg(id, m)));
+    let run_app_cmd = (ctx: Haz3lcore.CmdRunner.context, cmd) =>
+      Bonsai.Effect.Expert.handle(Haz3lcore.CmdRunner.run(ctx, cmd));
+    let with_apps = (model: Model.t, apps): Model.t => {
+      ...model,
+      globals: {
+        ...model.globals,
+        apps,
+      },
+    };
     switch (action) {
     | SetFontMetrics(fm) =>
       {
@@ -260,295 +262,63 @@ module Update = {
         },
       }
       |> return_quiet
-    | SetAppViewModel(new_model) =>
-      switch (model.globals.app_view_state) {
-      | Some(state) =>
-        let html =
-          evaluate_exp(
-            Language.IdTagged.FreshGrammar.Exp.ap(
-              Forward,
-              state.view_fn,
-              new_model,
-            ),
-          );
-        let subs =
-          evaluate_exp(
-            Language.IdTagged.FreshGrammar.Exp.ap(
-              Forward,
-              state.subs_fn,
-              new_model,
-            ),
-          );
-        {
-          ...model,
-          globals: {
-            ...model.globals,
-            app_view_state:
-              Some({
-                ...state,
-                model: new_model,
-                html,
-                subs,
-              }),
-          },
-        }
-        |> return_quiet;
-      | None => model |> return_quiet // No app initialized yet
-      }
-    | AppViewMsg(msg) =>
-      switch (model.globals.app_view_state) {
-      | Some(state) when Option.is_some(state.update_fn) =>
-        try({
-          let update_fn = Option.get(state.update_fn);
-          // Use evaluate_direct: sub-expressions are already elaborated+evaluated
-          let update_result =
-            evaluate_direct(
-              Language.IdTagged.FreshGrammar.Exp.ap(
-                Forward,
-                update_fn,
-                Language.IdTagged.FreshGrammar.Exp.tuple([msg, state.model]),
-              ),
-            );
-          // Extract (new_model, cmd) tuple — update always returns (Model, Cmd)
-          let update_result =
-            Haz3lcore.MvuShape.strip_wrappers(update_result);
-          let (new_model, cmd) =
-            switch (update_result.term) {
-            | Tuple([m, c]) => (m, c)
-            | _ =>
-              Js_of_ocaml.Firebug.console##warn(
-                Js_of_ocaml.Js.string(
-                  "AppViewMsg: update result is not a tuple, using fallback",
-                ),
-              );
-              (
-                update_result,
-                Language.IdTagged.FreshGrammar.Exp.constructor(
-                  "CmdNone",
-                  None,
-                ),
-              );
-            };
-          let html =
-            evaluate_direct(
-              Language.IdTagged.FreshGrammar.Exp.ap(
-                Forward,
-                state.view_fn,
-                new_model,
-              ),
-            );
-          let subs =
-            evaluate_direct(
-              Language.IdTagged.FreshGrammar.Exp.ap(
-                Forward,
-                state.subs_fn,
-                new_model,
-              ),
-            );
-          {
-            // Run cmd (CmdRunner handles CmdNone as no-op)
-
-            let cmd_ctx: Haz3lcore.CmdRunner.context = {
-              model: new_model,
-              inject: m => {
-                schedule_action(Globals(AppViewMsg(m)));
-                Virtual_dom.Vdom.Effect.Ignore;
-              },
-              update_fn: state.update_fn,
-            };
-            Bonsai.Effect.Expert.handle(
-              Haz3lcore.CmdRunner.run(cmd_ctx, cmd),
-            );
-          };
-          {
-            ...model,
-            globals: {
-              ...model.globals,
-              app_view_state:
-                Some({
-                  ...state,
-                  model: new_model,
-                  html,
-                  subs,
-                }),
-            },
-          }
-          |> return_quiet;
-        }) {
-        | exn =>
-          Js_of_ocaml.Firebug.console##error(
-            Js_of_ocaml.Js.string(
-              "AppViewMsg EXCEPTION: " ++ Printexc.to_string(exn),
-            ),
-          );
-          model |> return_quiet;
-        }
-      | Some(_) => model |> return_quiet // Legacy app: no update_fn
-      | None => model |> return_quiet
-      }
-    | InitAppView(source_result, init_model, update_fn, view_fn, subs_fn) =>
-      let html =
-        evaluate_direct(
-          Language.IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, init_model),
-        );
-      let subs =
-        evaluate_direct(
-          Language.IdTagged.FreshGrammar.Exp.ap(Forward, subs_fn, init_model),
-        );
-      let state: Globals.AppViewState.t = {
+    | SetAppViewModel(id, new_model) =>
+      model
+      |> with_apps(
+           _,
+           AppStore.set_model(
+             ~schedule_msg=schedule_app_msg,
+             id,
+             new_model,
+             model.globals.apps,
+           ),
+         )
+      |> return_quiet
+    | AppViewMsg(id, msg) =>
+      model
+      |> with_apps(
+           _,
+           AppStore.dispatch(
+             ~schedule_msg=schedule_app_msg,
+             ~run_cmd=run_app_cmd,
+             id,
+             msg,
+             model.globals.apps,
+           ),
+         )
+      |> return_quiet
+    // Init and Refresh share rebind semantics: memos re-derive from the
+    // incoming closures; the model survives when the new view accepts it
+    // (live-edit keeps app state). See AppStore.init.
+    | InitAppView(id, source_result, init_model, update_fn, view_fn, subs_fn)
+    | RefreshAppView(
+        id,
         source_result,
-        model: init_model,
+        init_model,
         update_fn,
         view_fn,
         subs_fn,
-        html,
-        subs,
-      };
-      {
-        ...model,
-        globals: {
-          ...model.globals,
-          app_view_state: Some(state),
-        },
-      }
-      |> return_quiet;
-    | RefreshAppView(source_result, init_model, update_fn, view_fn, subs_fn) =>
-      // Code changed - try to preserve current model state (hot reload)
-      // Only preserve model if init_model has compatible structure (same program edited)
-      // Otherwise re-init (different program loaded, e.g. switching tabs)
-      switch (model.globals.app_view_state) {
-      | Some(state) =>
-        // Check if model structures are compatible (same term kind and arity)
-        let models_compatible =
-          switch (
-            Haz3lcore.MvuShape.strip_wrappers(state.model).term,
-            Haz3lcore.MvuShape.strip_wrappers(init_model).term,
-          ) {
-          | (Atom(Int(_)), Atom(Int(_)))
-          | (Atom(Float(_)), Atom(Float(_)))
-          | (Atom(String(_)), Atom(String(_)))
-          | (Atom(Bool(_)), Atom(Bool(_))) => true
-          | (Tuple(xs), Tuple(ys)) => List.length(xs) == List.length(ys)
-          | (ListLit(xs), ListLit(ys)) => List.length(xs) == List.length(ys)
-          | _ => false
-          };
-        let model_to_use =
-          if (models_compatible) {
-            state.model;
-          } else {
-            init_model;
-          };
-        let new_state =
-          try({
-            let html =
-              evaluate_direct(
-                Language.IdTagged.FreshGrammar.Exp.ap(
-                  Forward,
-                  view_fn,
-                  model_to_use,
-                ),
-              );
-            let subs =
-              evaluate_direct(
-                Language.IdTagged.FreshGrammar.Exp.ap(
-                  Forward,
-                  subs_fn,
-                  model_to_use,
-                ),
-              );
-            Globals.AppViewState.{
-              source_result,
-              model: model_to_use,
-              update_fn,
-              view_fn,
-              subs_fn,
-              html,
-              subs,
-            };
-          }) {
-          | _exn =>
-            // Evaluation failed - full re-init with init_model
-            let html =
-              evaluate_direct(
-                Language.IdTagged.FreshGrammar.Exp.ap(
-                  Forward,
-                  view_fn,
-                  init_model,
-                ),
-              );
-            let subs =
-              evaluate_direct(
-                Language.IdTagged.FreshGrammar.Exp.ap(
-                  Forward,
-                  subs_fn,
-                  init_model,
-                ),
-              );
-            Globals.AppViewState.{
-              source_result,
-              model: init_model,
-              update_fn,
-              view_fn,
-              subs_fn,
-              html,
-              subs,
-            };
-          };
-        {
-          ...model,
-          globals: {
-            ...model.globals,
-            app_view_state: Some(new_state),
-          },
-        }
-        |> return_quiet;
-      | None =>
-        // Shouldn't happen (refresh implies existing state), but handle as init
-        let html =
-          evaluate_exp(
-            Language.IdTagged.FreshGrammar.Exp.ap(
-              Forward,
-              view_fn,
-              init_model,
-            ),
-          );
-        let subs =
-          evaluate_exp(
-            Language.IdTagged.FreshGrammar.Exp.ap(
-              Forward,
-              subs_fn,
-              init_model,
-            ),
-          );
-        let state: Globals.AppViewState.t = {
-          source_result,
-          model: init_model,
-          update_fn,
-          view_fn,
-          subs_fn,
-          html,
-          subs,
-        };
-        {
-          ...model,
-          globals: {
-            ...model.globals,
-            app_view_state: Some(state),
-          },
-        }
-        |> return_quiet;
-      }
-    | ResetAppView =>
-      // Clean up sidebar subscriptions before resetting
-      Haz3lcore.HazelDOM.cleanup_sidebar_subscriptions();
-      {
-        ...model,
-        globals: {
-          ...model.globals,
-          app_view_state: None,
-        },
-      }
-      |> return_quiet;
+      ) =>
+      model
+      |> with_apps(
+           _,
+           AppStore.init(
+             ~schedule_msg=schedule_app_msg,
+             id,
+             ~source_result,
+             ~init_model,
+             ~update_fn,
+             ~view_fn,
+             ~subs_fn=Some(subs_fn),
+             model.globals.apps,
+           ),
+         )
+      |> return_quiet
+    | ResetAppView(id) =>
+      // AppStore.remove cleans up the entry's subscriptions
+      model
+      |> with_apps(_, AppStore.remove(id, model.globals.apps))
+      |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
       Export.import_all(
@@ -685,6 +455,11 @@ module Update = {
         explain_this,
       };
     | MakeActive(selection) =>
+      // TODO(gc): run AppStore.gc against the live syntax ids here once they
+      // are cheap to obtain; today inline entries are only reclaimed via
+      // ResetAppView, and the sidebar entry rebinds via its source_result
+      // trigger (matching pre-store behavior, which kept state across
+      // editor switches).
       {
         ...model,
         selection,

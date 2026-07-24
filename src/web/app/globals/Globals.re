@@ -43,22 +43,6 @@ module VisibleRows = {
     };
 };
 
-// MVU App state for the sidebar
-// App = (init_model, view: model -> Html, subs: model -> Sub)
-// We store pre-evaluated html and subs to avoid re-evaluating in view
-module AppViewState = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    source_result: Language.DHExp.t, // Eval result this state was derived from
-    model: Language.DHExp.t, // Current model state
-    update_fn: option(Language.DHExp.t), // Some = Elm update fn, None = legacy
-    view_fn: Language.DHExp.t, // view: model -> Html
-    subs_fn: Language.DHExp.t, // subscriptions: model -> Sub
-    html: Language.DHExp.t, // Pre-evaluated: view_fn(model)
-    subs: Language.DHExp.t // Pre-evaluated: subs_fn(model)
-  };
-};
-
 module Action = {
   [@deriving (show({with_path: false}), yojson, sexp)]
   type log =
@@ -84,10 +68,11 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
-    | SetAppViewModel(Language.DHExp.t) // Update the MVU model state
-    | AppViewMsg(Language.DHExp.t) // Elm mode: route msg through update_fn
-    // InitAppView takes (source_result, model, update_fn option, view_fn, subs_fn)
+    | SetAppViewModel(Haz3lcore.Id.t, Language.DHExp.t) // Update the MVU model state
+    | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // Elm mode: route msg through update_fn
+    // InitAppView takes (id, source_result, model, update_fn option, view_fn, subs_fn)
     | InitAppView(
+        Haz3lcore.Id.t,
         Language.DHExp.t,
         Language.DHExp.t,
         option(Language.DHExp.t),
@@ -96,13 +81,14 @@ module Action = {
       )
     // RefreshAppView: code changed, try to preserve model state
     | RefreshAppView(
+        Haz3lcore.Id.t,
         Language.DHExp.t,
         Language.DHExp.t,
         option(Language.DHExp.t),
         Language.DHExp.t,
         Language.DHExp.t,
       )
-    | ResetAppView // Reset App View to show evaluation result
+    | ResetAppView(Haz3lcore.Id.t) // Drop the app at id; show evaluation result
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;
@@ -117,8 +103,8 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
-    // MVU App View sidebar state
-    app_view_state: option(AppViewState.t),
+    // MVU apps, id-keyed (sidebar app uses AppStore.sidebar_id); not persisted
+    apps: AppStore.t,
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -144,7 +130,7 @@ module Model = {
     font_metrics,
     meta_down: false,
     visible_rows: None,
-    app_view_state: None,
+    apps: AppStore.empty,
     color_highlights: None,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),
@@ -204,7 +190,7 @@ module Update = {
     | AppViewMsg(_) => false
     | InitAppView(_) => false
     | RefreshAppView(_) => false
-    | ResetAppView => false
+    | ResetAppView(_) => false
     | Log(_) => false
     | RethrowException => false
     | ClearException => false
