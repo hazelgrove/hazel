@@ -888,48 +888,19 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
        measurement by id, then to (0,0), rather than crash.
        DisplayCaret.point supplies the exact witness caret column where
        it is wired; this keeps every other caret consumer safe. */
-    let safe = (p: Piece.t, pick): Point.t =>
-      switch (Measured.find_p(~msg="base_point", p, measured)) {
-      | m => pick(m)
-      | exception _ =>
-        switch (Measured.find_by_id(Piece.id(p), measured)) {
-        | Some(m) => pick(m)
-        | None => {
-            row: 0,
-            col: 0,
-          }
+    /* boundary points come from PosMap — THE edit->display mapping
+       home (consumed-space edges, display-replacement tolerance) */
+    let via_posmap = (~side, p: Piece.t): Point.t =>
+      switch (PosMap.point_of_side(~measured, ~side, p)) {
+      | Some(pt) => pt
+      | None => {
+          row: 0,
+          col: 0,
         }
-      };
-    /* width transfer: a space whose cell was taken by a FOLLOWING
-       hole measures zero wide, so "after the space" would collapse
-       onto the hole's left edge — redirect to the consuming hole's
-       right edge (its origin equals the space's own cell exactly in
-       that case; a preceding-hole consumer shares the space's
-       collapsed column and the redirect is the identity) */
-    let after_space_col = (w: Secondary.t, m: Measured.measurement) =>
-      switch (GroutCells.consumer_of(measured.grout_cells, w.id)) {
-      | Some(gid) =>
-        switch (Id.Map.find_opt(gid, measured.grout)) {
-        | Some(gm) when gm.origin.row == m.last.row && gm.last.col > m.last.col => {
-            ...m,
-            last: gm.last,
-          }
-        | _ => m
-        }
-      | None => m
       };
     switch (d) {
-    | Left =>
-      let last = ListUtil.last(seg);
-      let redirect =
-        switch (last) {
-        | Piece.Secondary(w) when Secondary.is_space(w) => (
-            m => after_space_col(w, m)
-          )
-        | _ => (m => m)
-        };
-      safe(last, (m: Measured.measurement) => redirect(m).last);
-    | Right => safe(List.hd(seg), (m: Measured.measurement) => m.origin)
+    | Left => via_posmap(~side=Direction.Left, ListUtil.last(seg))
+    | Right => via_posmap(~side=Direction.Right, List.hd(seg))
     };
   | None =>
     /* grout-free edit state: a child segment can be EMPTY (its hole
@@ -973,15 +944,29 @@ module Caret = {
   /* Determine how many columns to advance for an Inner caret.  Prefer the
      token on the left; if none exists fall back to the token on the right.
      Non-strings retain the classic one-column-per-character behaviour. */
-  let inner_offset = (idx: int, z: t): int =>
-    switch (neighbor_token(Left, z)) {
-    | Some(token) when Token.is_string(token) => string_offset(token, idx)
-    | _ =>
-      switch (neighbor_token(Right, z)) {
-      | Some(token) when Token.is_string(token) => string_offset(token, idx)
-      | _ => idx + 1
+  /* the HOST token (the one Inner(idx) indexes into) can sit on
+     either side (typing hosts Left, movement-entry hosts Right) —
+     only a side whose token actually ADMITS idx may supply the
+     offset, else a neighboring string literal hijacks the width
+     table (fuzzer-found dead stop: caret inside `else` after `","`
+     took the string's offsets) */
+  let inner_offset = (idx: int, z: t): int => {
+    let admits = (token: Token.t): bool => idx <= Token.length(token) - 2;
+    let candidate = (d: Direction.t): option(Token.t) =>
+      switch (neighbor_token(d, z)) {
+      | Some(token) when Token.is_string(token) && admits(token) =>
+        Some(token)
+      | _ => None
+      };
+    switch (candidate(Left)) {
+    | Some(token) => string_offset(token, idx)
+    | None =>
+      switch (candidate(Right)) {
+      | Some(token) => string_offset(token, idx)
+      | None => idx + 1
       }
     };
+  };
 
   let offset = (z: t): int =>
     switch (z.caret) {
@@ -1340,43 +1325,46 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
     | Right =>
       /* Anchor is at the LEFT end */
       let p = List.hd(seg);
-      let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
-      switch (anchor_caret) {
-      | CaretBase.Outer => Some(m.origin)
-      | CaretBase.Inner(idx) =>
+      let origin = PosMap.point_of_side(~measured, ~side=Direction.Right, p);
+      switch (anchor_caret, origin) {
+      | (_, None) => None
+      | (CaretBase.Outer, Some(origin)) => Some(origin)
+      | (CaretBase.Inner(idx), Some(origin)) =>
         let offset =
           switch (Piece.token_of(anchor_piece)) {
           | Some(tok) => Caret.inner_offset_for_token(idx, tok)
           | None => idx + 1
           };
         Some({
-          row: m.origin.row,
-          col: m.origin.col + offset,
+          row: origin.row,
+          col: origin.col + offset,
         });
       };
     | Left =>
-      /* Anchor is at the RIGHT end */
+      /* Anchor is at the RIGHT end: PosMap applies the
+         consumed-space edge rule exactly as the caret does */
       let p = ListUtil.last(seg);
-      let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
-      switch (anchor_caret) {
-      | CaretBase.Outer => Some(m.last)
-      | CaretBase.Inner(idx) =>
+      let last = PosMap.point_of_side(~measured, ~side=Direction.Left, p);
+      switch (anchor_caret, last) {
+      | (_, None) => None
+      | (CaretBase.Outer, Some(last)) => Some(last)
+      | (CaretBase.Inner(idx), Some(_)) =>
         let offset =
           switch (Piece.token_of(anchor_piece)) {
           | Some(tok) => Caret.inner_offset_for_token(idx, tok)
           | None => idx + 1
           };
         let p_first = List.hd(seg);
-        let m_first =
-          Measured.find_p(
-            ~msg="selection_anchor_point_origin",
-            p_first,
-            measured,
-          );
-        Some({
-          row: m_first.origin.row,
-          col: m_first.origin.col + offset,
-        });
+        switch (
+          PosMap.point_of_side(~measured, ~side=Direction.Right, p_first)
+        ) {
+        | None => None
+        | Some(origin) =>
+          Some({
+            row: origin.row,
+            col: origin.col + offset,
+          })
+        };
       };
     };
   };

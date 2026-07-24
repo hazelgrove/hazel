@@ -342,6 +342,96 @@ let a1_backspaces =
   @ backspaces(1)
   @ lefts(0);
 
+/* SELECTION-ANCHOR pin (PosMap): the anchor marker ‹ must obey the
+   same consumed-space edge rule as the caret — shift-selecting left
+   across the borrowed-cell hole of `let ␣ = ...` anchors at the
+   hole's RIGHT edge (where the deleted `a` was), not the collapsed
+   column. Verified failing before selection_anchor_point routed
+   through PosMap. */
+let sel_render = (z: Zipper.t): string => {
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  let placed = GroutPlace.place(seg);
+  let measured = Measured.of_segment(placed, Id.Map.empty, Id.Map.empty);
+  let caret =
+    FeltPrint.measured_caret(
+      ~measured,
+      placed,
+      Zipper.Caret.point(measured, z),
+    );
+  let rows =
+    FeltPrint.measured_print(~measured, placed) |> String.split_on_char('\n');
+  let rows =
+    switch (Zipper.selection_anchor_point(measured, z)) {
+    | Some(a) =>
+      let a = FeltPrint.measured_caret(~measured, placed, a);
+      if (Util.Point.compare(a, caret) >= 0) {
+        rows
+        |> Printer.insert_string("‹", a)
+        |> Printer.insert_string("¦", caret);
+      } else {
+        rows
+        |> Printer.insert_string("¦", caret)
+        |> Printer.insert_string("‹", a);
+      };
+    | None => rows |> Printer.insert_string("¦", caret)
+    };
+  String.concat("\n", rows);
+};
+
+let selection_pins = [
+  /* two-space config (delete only `a`): anchor piece is the REAL
+     space — unconsumed, no redirect involved; pins that the plain
+     path stays plain */
+  test_case(
+    "anchor between spaces, hole in the old cell",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.mk("let a¦ = 1 in a")
+          @ [
+            Action.Destruct(Local(Left, ByChar)),
+            Action.Select(Resize(Local(Left, ByChar))),
+          ],
+        );
+      check(
+        string_testable,
+        "real-space anchor needs no redirect",
+        "let¦ ‹?= 1 in a",
+        sel_render(z),
+      );
+    },
+  ),
+  /* andrew's A1 prep (delete the space, then `a`): the anchor piece
+     IS the consumed space — its right boundary is the hole's right
+     edge, same rule as the caret. Verified failing (anchor collapsed
+     onto the caret's column) before selection_anchor_point routed
+     through PosMap. */
+  test_case(
+    "anchor at consumed-space edge (A1 prep)",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.mk("let a ¦= 1 in a")
+          @ [
+            Action.Destruct(Local(Left, ByChar)),
+            Action.Destruct(Local(Left, ByChar)),
+            Action.Select(Resize(Local(Left, ByChar))),
+          ],
+        );
+      check(
+        string_testable,
+        "consumed-space anchor redirects to the hole edge",
+        "let¦?‹= 1 in a",
+        sel_render(z),
+      );
+    },
+  ),
+];
+
 let scenarios = [
   /* ANDREW'S C REPRO: extra typed spaces beyond the auto-indent are
      REAL material — backspace deletes them one per press; only a run
@@ -677,5 +767,6 @@ let tests = [
   ("FeltPrint: gallery", gallery),
   ("FeltPrint: comments", comments),
   ("FeltPrint: layout invisibility", invisibility),
+  ("FeltPrint: selection", selection_pins),
   ("FeltPrint: scenarios", scenarios),
 ];

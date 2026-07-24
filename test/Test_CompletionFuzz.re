@@ -824,6 +824,93 @@ let run_grout_fuzz = (~seeds: int, ~steps: int): string => {
                     ++ flat(FeltPrint.render(GroutPlace.strip(completed))),
                   );
                 };
+                {
+                  /* POSMAP invariants over the EDIT zipper's caret walk:
+                     forward strictly monotone (no two edit positions
+                     share a display point = no dead stops), and
+                     inverse(forward(caret)) == caret (round trip via
+                     the movement engine's goal resolution) */
+
+                  let seg_z = Zipper.unselect_and_zip(z');
+                  let placed_z = GroutPlace.place(seg_z);
+                  let m_z =
+                    Measured.of_segment(placed_z, Id.Map.empty, Id.Map.empty);
+                  /* two classes of LEGITIMATE column sharing: (a) an
+                     empty child segment (its position must stay
+                     reachable to fill it); (b) crossing a zero-width
+                     EDIT piece — an empty-token Secondary or Tile, a
+                     dev-inherited artifact (probe: SP BK leaves one
+                     between `x` and a string). Both are pre-existing,
+                     not grout regressions; (b) is an upstream
+                     cleanup candidate (skip-or-collapse empties). */
+                  let in_empty_child = (zz: Zipper.t): bool =>
+                    switch (zz.relatives.siblings) {
+                    | ([], []) => true
+                    | _ => false
+                    };
+                  let crossed_empty = (zz: Zipper.t): bool =>
+                    switch (fst(zz.relatives.siblings) |> List.rev) {
+                    | [p, ..._] =>
+                      switch (Measured.find_p(~msg="inv", p, m_z)) {
+                      | m => Util.Point.compare(m.origin, m.last) == 0
+                      | exception _ => true
+                      }
+                    | [] => false
+                    };
+                  let rec walk = (zz: Zipper.t, prev: Util.Point.t, n: int) =>
+                    if (n > 400) {
+                      ();
+                    } else {
+                      switch (Move.local(ByChar, Right, zz)) {
+                      | None => ()
+                      | Some(zz') =>
+                        let pt = Zipper.Caret.point(m_z, zz');
+                        let empty_crossing =
+                          in_empty_child(zz)
+                          || in_empty_child(zz')
+                          || crossed_empty(zz');
+                        if (Util.Point.compare(pt, prev) < 0
+                            || Util.Point.compare(pt, prev) == 0
+                            && !empty_crossing) {
+                          bad(
+                            ~seed,
+                            ~step=k,
+                            ~inv="POSMAP-MONOTONE",
+                            Printf.sprintf(
+                              "stop at (%d,%d) then (%d,%d)",
+                              prev.row,
+                              prev.col,
+                              pt.row,
+                              pt.col,
+                            ),
+                          );
+                          ();
+                        } else {
+                          walk(zz', pt, n + 1);
+                        };
+                      };
+                    };
+                  let z0 = Move.to_start(z');
+                  walk(z0, Zipper.Caret.point(m_z, z0), 0);
+                  let here = Zipper.Caret.point(m_z, z');
+                  switch (Move.to_point(~measured=m_z, ~goal=here, z')) {
+                  | Some(zr)
+                      when
+                        Util.Point.compare(Zipper.Caret.point(m_z, zr), here)
+                        != 0 =>
+                    bad(
+                      ~seed,
+                      ~step=k,
+                      ~inv="POSMAP-ROUNDTRIP",
+                      Printf.sprintf(
+                        "caret (%d,%d) resolves elsewhere",
+                        here.row,
+                        here.col,
+                      ),
+                    )
+                  | _ => ()
+                  };
+                };
                 /* measured-level: width transfer keeps row widths
                    equal to the stripped segment's (LineEndFree rows
                    +1), and no two width-bearing atoms share a cell */
