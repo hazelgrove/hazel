@@ -68,6 +68,7 @@ module Shortcuts = {
   let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
   let type_annotation = () => Os.is_mac^ ? "⌥T" : "Alt+T";
   let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
+  let placement = () => Os.is_mac^ ? "⌥S" : "Alt+S";
   let introduce = () => Os.is_mac^ ? "⌘I" : "Ctrl+I";
   let select_current_term = () => Os.is_mac^ ? "⌘D" : "Ctrl+D";
 };
@@ -255,6 +256,30 @@ module Projectors = {
     };
   };
 
+  let indicated_placement = (z: Zipper.t): option(ProjectorCore.Placement.t) => {
+    let* {piece, _} = Indicated.for_index(z);
+    switch (piece) {
+    | Projector({placement, _}) => Some(placement)
+    | _ => None
+    };
+  };
+
+  /* Dock/undock the indicated projector's primary UI to the sidebar */
+  let placement_data = (z: Zipper.t): list(Menu.item(Action.t)) =>
+    switch (indicated_placement(z)) {
+    | None => []
+    | Some(placement) => [
+        action_item(
+          ~shortcut=Shortcuts.placement(),
+          switch (placement) {
+          | Inline => "Move to sidebar"
+          | Sidebar => "Move inline"
+          },
+          Action.Project(TogglePlacement),
+        ),
+      ]
+    };
+
   let shortcut_of =
       (
         ~chosen_livelit: option(ProjectorCore.Kind.t),
@@ -337,7 +362,7 @@ module Projectors = {
       );
     };
 
-    List.map(make_item, kinds);
+    List.map(make_item, kinds) @ placement_data(z);
   };
 };
 

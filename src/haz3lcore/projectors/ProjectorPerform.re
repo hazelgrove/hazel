@@ -186,7 +186,30 @@ let go =
     };
   };
 
+  /* The indicated projector, if any. Unlike remove_indicated this doesn't
+   * disturb the selection: placement is a display-only change, so the caret
+   * should stay exactly where it was. */
+  let indicated_projector = (z: Zipper.t): option(Base.projector) =>
+    switch (Indicated.for_index(z)) {
+    | Some({piece: Projector(pr), _}) => Some(pr)
+    | _ =>
+      switch (z.selection.content) {
+      | [Projector(pr)] => Some(pr)
+      | _ => None
+      }
+    };
+
+  let toggle_placement = (z: Zipper.t): option(Zipper.t) => {
+    let+ pr = indicated_projector(z);
+    update(ProjectorCore.toggle_placement, pr.id, z);
+  };
+
   switch (a) {
+  | TogglePlacement =>
+    switch (toggle_placement(z)) {
+    | Some(z) => Ok(z)
+    | None => Error(Cant_project)
+    }
   | SetIndicated(Specific(kind)) =>
     switch (set_indicated(z, kind)) {
     | Some(z) => Ok(z)

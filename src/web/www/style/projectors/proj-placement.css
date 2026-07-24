@@ -1,0 +1,138 @@
+/* PROJECTOR PLACEMENT: sidebar-docked projectors
+ *
+ * A projector with placement=Sidebar leaves a chip at the code site and
+ * renders its primary UI in the projectors sidebar panel. The chip's
+ * width is reserved by ProjectorChip.shape (glyph_cols + syntax width),
+ * so the sizes below must stay in sync with it: the icon box is two code
+ * columns wide and the syntax is drawn at code-font size. */
+
+.projector .proj-chip {
+  display: flex;
+  align-items: center;
+  font-family: var(--code-font);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.projector .proj-chip-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2ch;
+  min-width: 2ch;
+  color: var(--BR2);
+}
+
+.projector .proj-chip-icon svg {
+  width: 1.1em;
+  height: 1.1em;
+  fill: currentColor;
+}
+
+.projector .proj-chip-syntax {
+  opacity: 0.75;
+}
+
+.projector.indicated .proj-chip-icon,
+.projector .proj-chip:hover .proj-chip-icon {
+  color: var(--shard-caret-exp);
+}
+
+/* PROJECTORS SIDEBAR PANEL */
+
+#projector-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#projector-panel .header {
+  padding: 6px 8px;
+  color: var(--BR3);
+  border-bottom: 1px solid var(--BR1);
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 0.9em;
+}
+
+#projector-panel .projector-panel-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0.6em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+}
+
+#projector-panel .projector-panel-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  color: var(--BR2);
+  padding: 1em;
+  font-size: 0.9em;
+}
+
+#projector-panel .projector-card {
+  border: 1px solid var(--BR1);
+  border-radius: 0.3em;
+  overflow: hidden;
+}
+
+#projector-panel .projector-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.3em 0.5em;
+  border-bottom: 1px solid var(--BR1);
+  cursor: pointer;
+  font-family: var(--code-font);
+}
+
+#projector-panel .projector-card-header:hover {
+  background: var(--T1);
+}
+
+#projector-panel .projector-card-icon {
+  display: flex;
+  align-items: center;
+  color: var(--BR2);
+}
+
+#projector-panel .projector-card-icon svg {
+  width: 1.1em;
+  height: 1.1em;
+  fill: currentColor;
+}
+
+#projector-panel .projector-card-syntax {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+#projector-panel .projector-card-undock {
+  background: none;
+  border: none;
+  color: var(--BR2);
+  cursor: pointer;
+  padding: 0 0.2em;
+}
+
+#projector-panel .projector-card-undock:hover {
+  color: var(--BR3);
+}
+
+#projector-panel .projector-card-body {
+  padding: 0.5em;
+  overflow: auto;
+}
+
+/* Docked projectors are laid out in flow, not absolutely positioned
+ * against the code; everything else about their styling is unchanged. */
+#projector-panel .projector {
+  position: relative;
+  justify-content: flex-start;
+}

@@ -78,6 +78,7 @@ type project =
   | SetModelQuiet(int, ProjectorCore.Kind.t, string) /* SetModel minus undo entry: for streaming
    * drag ticks (e.g. HTML projector resize). The first tick of a gesture
    * should be a normal SetModel so undo restores the pre-gesture state. */
+  | TogglePlacement /* Dock/undock the indicated projector to/from the sidebar */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
   | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */
@@ -208,6 +209,7 @@ let is_edit: t => bool =
     | SetModelQuiet(_)
     | SetSyntax(_)
     | SetIndicated(_)
+    | TogglePlacement
     | RemoveIndicated => true
     | Focus(_)
     | SampleFocus(_)
@@ -232,7 +234,11 @@ type recompute_level =
 
 let recompute_level: t => recompute_level =
   fun
-  | Project(SetModel(_) | SetModelQuiet(_)) => Layout
+  /* TogglePlacement only moves a projector's UI between the code site and
+   * the sidebar panel; the underlying syntax is untouched, so semantics
+   * can't change. It does change the projector's placeholder shape (full
+   * projector vs. chip), which is a CachedSyntax concern only. */
+  | Project(SetModel(_) | SetModelQuiet(_) | TogglePlacement) => Layout
   | _ => Full;
 
 /* Determines whether undo/redo skips action */
@@ -259,6 +265,7 @@ let is_historic: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
+    | TogglePlacement
     | RemoveIndicated => true
     | SetModelQuiet(_)
     | Focus(_)
@@ -292,6 +299,7 @@ let prevent_in_read_only_editor = (a: t) =>
     | SetModel(_)
     | SetModelQuiet(_)
     | SetIndicated(_)
+    | TogglePlacement
     | RemoveIndicated
     | Focus(_)
     | SampleFocus(_)
@@ -335,6 +343,7 @@ let should_animate: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
+    | TogglePlacement
     | RemoveIndicated
     | Focus(_)
     | SampleFocus(_)

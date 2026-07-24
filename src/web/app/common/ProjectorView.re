@@ -407,6 +407,48 @@ let flex_code =
         segment,
       );
 
+/* A small glyph standing for a projector kind, used by the chip left at
+ * the code site when a projector is docked to the sidebar and by the
+ * sidebar panel's card headers. Sized in CSS to about two code columns
+ * (ProjectorChip.glyph_cols). */
+let kind_icon = (kind: ProjectorCore.Kind.t): Node.t =>
+  switch (kind) {
+  | HTML => Icons.play
+  | TextArea => Icons.pencil
+  | Livelit => Icons.star
+  | Probe
+  | Statics => Icons.microscope2
+  | Fold => text({|⋱|})
+  | Checkbox => text({|☑|})
+  | Slider
+  | SliderF => text({|⇹|})
+  | Card => text({|▤|})
+  | Table => text({|▦|})
+  | Csv => text({|▤|})
+  };
+
+/* Abbreviated read-only rendering of a projector's underlying syntax.
+ * The segment comes from ProjectorChip so its width matches the space
+ * reserved for the chip in the base editor. */
+let chip_syntax = (~font_metrics: FontMetrics.t, p: Base.projector): Node.t =>
+  flex_code(
+    ~font_metrics,
+    ~single_line=true,
+    ~text_only=true,
+    Language.Sort.Exp,
+    ProjectorChip.segment(p),
+  );
+
+/* What a sidebar-docked projector leaves behind at the code site */
+let chip = (~font_metrics: FontMetrics.t, p: Base.projector): Node.t =>
+  div(
+    ~attrs=[Attr.classes(["proj-chip"])],
+    [
+      div_c("proj-chip-icon", [kind_icon(p.kind)]),
+      div_c("proj-chip-syntax", [chip_syntax(~font_metrics, p)]),
+    ],
+  );
+
 /* Route top-level metadata to the projector view function. */
 let mk_view =
     (
@@ -533,8 +575,20 @@ let split_views =
       views.offside
       |> Option.map(offside_wrapper(font_metrics, offside_base))
       |> Option.to_list;
+    /* A docked projector shows a chip here; its primary UI is rendered by
+     * ProjectorPanel instead. Overlay and offside layers are unaffected by
+     * placement. Refractors (skip_inline) never occupy the inline slot. */
+    let inline_view =
+      skip_inline
+        ? []
+        : (
+          switch (p.placement) {
+          | Inline => [views.inline]
+          | Sidebar => [chip(~font_metrics, p)]
+          }
+        );
     wrapper(
-      (skip_inline ? [] : [views.inline])
+      inline_view
       @ [backing_deco(~font_metrics, ~measurement, p)]
       @ offside_view,
     );
@@ -591,6 +645,46 @@ let all =
       [div_c("base", base_views), div_c("overlays", overlay_views)],
     ),
   ];
+};
+
+/* Primary views of the projectors docked to the sidebar, in syntax order
+ * (the order of `projector_list`). The chip at the code site and the view
+ * returned here are the two halves of a docked projector; `mk_view` is
+ * placement-agnostic, so this is the same node the inline placement would
+ * have shown. Viewport culling is deliberately not applied: the panel
+ * shows docked projectors whether or not they're scrolled into view. */
+let sidebar_views =
+    (
+      inject: Action.t => Ui_effect.t(unit),
+      font_metrics: FontMetrics.t,
+      ~core_settings: Language.CoreSettings.t,
+      projector_data: list(Model.projector_data),
+      projector_list: list(Id.t),
+    )
+    : list((Base.projector, Node.t)) => {
+  let syntax_order = (d: Model.projector_data) =>
+    List.find_index(x => x == d.p.id, projector_list)
+    |> Option.value(~default=max_int);
+  projector_data
+  |> List.filter((d: Model.projector_data) =>
+       ProjectorCore.Placement.is_sidebar(d.p.placement)
+     )
+  |> List.sort((d1, d2) => compare(syntax_order(d1), syntax_order(d2)))
+  |> List.map((d: Model.projector_data) => {
+       let views =
+         mk_view(inject, font_metrics, ~core_settings, d, projector_list);
+       /* Same class list the code-site wrapper applies, so per-kind CSS
+        * still matches; the panel overrides the absolute positioning. */
+       (
+         d.p,
+         div(
+           ~attrs=[
+             Attr.classes(projector_clss(~view_error=views.error, d.status)),
+           ],
+           [views.inline],
+         ),
+       );
+     });
 };
 
 let move_dir = (key: Key.t): option(Direction.t) =>

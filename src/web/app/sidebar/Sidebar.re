@@ -86,6 +86,15 @@ let app_view_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let projectors_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Projectors,
+    ~cls=["projectors-button"],
+    ~icon=Icons.chest,
+    ~tooltip="Switch to Projectors Panel",
+    ~globals,
+  );
+
 let log_control_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=LogControl,
@@ -191,6 +200,7 @@ let persistent_view =
           assistant_tab(~globals),
           probes_tab(~globals),
           app_view_tab(~globals),
+          projectors_tab(~globals),
           problems_tab(~globals, ~counts),
         ]
         @ (
@@ -362,6 +372,7 @@ let view =
               let app_inject = (msg: Language.DHExp.t) =>
                 globals.inject_global(AppViewMsg(AppStore.sidebar_id, msg));
               AppViewPanel.view(~globals, ~cell_editor, ~inject=app_inject);
+            | Projectors => ProjectorPanel.view(~globals, ~editor)
             | LogControl =>
               LogSidebar.view(
                 ~globals,
