@@ -30,7 +30,7 @@ let string_testable = testable(Fmt.string, String.equal);
    re-typed program mints fresh ids and every id-keyed merge silently
    misses. */
 let display_parts =
-    (~inline_persist=false, ~armed=true, z: Zipper.t)
+    (~inline_persist: CoreSettings.persist_mode=Off, ~armed=true, z: Zipper.t)
     : (
         Segment.t,
         Zipper.t,
@@ -334,14 +334,14 @@ let display_state_settled = (~chips=true, z: Zipper.t): string =>
   display_state_of(~parts=display_parts(~armed=false), ~chips, z);
 let display_state_settled_persist = (~chips=true, z: Zipper.t): string =>
   display_state_of(
-    ~parts=display_parts(~inline_persist=true, ~armed=false),
+    ~parts=display_parts(~inline_persist=Persist, ~armed=false),
     ~chips,
     z,
   );
 
 /* the INLINE-PERSIST trial: same renderer, persist flag on */
 let display_state_persist = (~chips=true, z: Zipper.t): string =>
-  display_state_of(~parts=display_parts(~inline_persist=true), ~chips, z);
+  display_state_of(~parts=display_parts(~inline_persist=Persist), ~chips, z);
 
 /* live-cadence render: statics from `lag` keystrokes back (0 =
    settled/reified), display from the current zipper */
@@ -643,11 +643,11 @@ string_replac¦⟪e⟫   CHIPS[]
 string_replace¦   CHIPS[]
 string_replace(¦⟪?, ?, ?)⟫   CHIPS[]
 string_replace(a¦⟪, ?, ?)⟫   CHIPS[]
-string_replace(a,¦ ?⟪, ?)⟫   CHIPS[]
-string_replace(a, ¦?⟪, ?)⟫   CHIPS[]
+string_replace(a,¦⟪ ⟫?⟪, ?)⟫   CHIPS[]
+string_replace(a, ⟫¦⟪?⟪, ?)⟫   CHIPS[]
 string_replace(a, b¦⟪, ?)⟫   CHIPS[]
-string_replace(a, b,¦ ?⟪)⟫   CHIPS[]
-string_replace(a, b, ¦?⟪)⟫   CHIPS[]
+string_replace(a, b,¦⟪ ⟫?⟪)⟫   CHIPS[]
+string_replace(a, b, ⟫¦⟪?⟪)⟫   CHIPS[]
 string_replace(a, b, c¦⟪)⟫   CHIPS[]
 string_replace(a, b, c)¦   CHIPS[]|},
           trajectory("string_replace(a, b, c)"),
@@ -664,8 +664,8 @@ string_replace(a, b, c)¦   CHIPS[]|},
       /* empty parens presume: the full promise from `(` on */
       display_case("string_replace(¦⟪?, ?, ?)⟫"),
       display_case("string_replace(a¦⟪, ?, ?)⟫"),
-      display_case("string_replace(a,¦ ?⟪, ?)⟫"),
-      display_case("string_replace(a, b,¦ ?⟪)⟫"),
+      display_case("string_replace(a,¦⟪ ⟫?⟪, ?)⟫"),
+      display_case("string_replace(a, b,¦⟪ ⟫?⟪)⟫"),
       display_case("string_replace(a, b, c¦⟪)⟫"),
       display_case("let x = 4 i¦⟪n ?⟫"),
       /* trailing space: the ghost hugs the caret (slide_to_caret) —
@@ -699,13 +699,13 @@ string_replace(a, b, c)¦   CHIPS[]|},
           "let-blank",
           {|l¦   CHIPS[]
 le¦⟪t ⟫   CHIPS[]
-let¦ ? ⟪= ? in ?⟫   CHIPS[]
-let ¦? ⟪= ? in ?⟫   CHIPS[]
-let x¦ ⟪= ? in ?⟫   CHIPS[]
+let¦⟪ ⟫?⟪ = ? in ?⟫   CHIPS[]
+let ¦?⟪ = ? in ?⟫   CHIPS[]
+let x¦⟪ = ? in ?⟫   CHIPS[]
 let x ¦⟪= ? in ?⟫   CHIPS[]
-let x =¦ ? ⟪in ?⟫   CHIPS[]
-let x = ¦? ⟪in ?⟫   CHIPS[]
-let x = 1¦ ⟪in ?⟫   CHIPS[]
+let x =¦⟪ ⟫?⟪ in ?⟫   CHIPS[]
+let x = ¦?⟪ in ?⟫   CHIPS[]
+let x = 1¦⟪ in ?⟫   CHIPS[]
 let x = 1 ¦⟪in ?⟫   CHIPS[]
 let x = 1 i¦⟪n ?⟫   CHIPS[]
 let x = 1 in¦?   CHIPS[]|},
@@ -726,19 +726,19 @@ let x = 1 in¦?   CHIPS[]|},
 string_replace(a, b, c)   CHIPS[]
 le¦⟪t ⟫~
 string_replace(a, b, c)   CHIPS[]
-let¦ ? ⟪= ? in⟫
+let¦⟪ ⟫?⟪ = ? in⟫
 string_replace(a, b, c)   CHIPS[]
-let ¦? ⟪= ? in⟫
+let ¦?⟪ = ? in⟫
 string_replace(a, b, c)   CHIPS[]
-let x¦ ⟪= ? in⟫
+let x¦⟪ = ? in⟫
 string_replace(a, b, c)   CHIPS[]
 let x ¦⟪= ? in⟫
 string_replace(a, b, c)   CHIPS[]
-let x =¦ ? ⟪in⟫
+let x =¦⟪ ⟫?⟪ in⟫
 string_replace(a, b, c)   CHIPS[]
-let x = ¦? ⟪in⟫
+let x = ¦?⟪ in⟫
 string_replace(a, b, c)   CHIPS[]
-let x = 1¦ ⟪in⟫
+let x = 1¦⟪ in⟫
 string_replace(a, b, c)   CHIPS[]
 let x = 1 ¦⟪in⟫
 string_replace(a, b, c)   CHIPS[]
@@ -764,12 +764,12 @@ string_replace(a, b, c)   CHIPS[]|},
         check(
           string_testable,
           "let-bk",
-          {|let ?=  i¦ ⟪in ?⟫   CHIPS[]
-let ?=  ¦? ⟪in ?⟫   CHIPS[]
-let ?= ¦? ⟪in ?⟫   CHIPS[]
-let ?=¦ ? ⟪in ?⟫   CHIPS[]
-let  ¦? ⟪= ? in ?⟫   CHIPS[]
-let ¦? ⟪= ? in ?⟫   CHIPS[]|},
+          {|let ?=  i¦⟪ in ?⟫   CHIPS[]
+let ?=  ¦?⟪ in ?⟫   CHIPS[]
+let ?= ¦?⟪ in ?⟫   CHIPS[]
+let ?=¦⟪ ⟫?⟪ in ?⟫   CHIPS[]
+let  ¦?⟪ = ? in ?⟫   CHIPS[]
+let ¦?⟪ = ? in ?⟫   CHIPS[]|},
           trajectory_bk(~ctx="let  =  in¦", 6),
         )
       ),
@@ -817,18 +817,18 @@ let a = string_replace(x¦⟪, ?, ?)⟫ in a + 1   CHIPS[]|},
           {|c¦   CHIPS[]
 ca¦⟪se ⟫   CHIPS[]
 cas¦⟪e ⟫   CHIPS[]
-case¦ ? ⟪end⟫   CHIPS[]
-case ¦? ⟪end⟫   CHIPS[]
-case 1¦ ⟪end⟫   CHIPS[]
+case¦⟪ ⟫?⟪ end⟫   CHIPS[]
+case ¦?⟪ end⟫   CHIPS[]
+case 1¦⟪ end⟫   CHIPS[]
 case 1 ¦⟪end⟫   CHIPS[]
-case 1 |¦ ? ⟪=> ? end⟫   CHIPS[]
-case 1 | ¦? ⟪=> ? end⟫   CHIPS[]
-case 1 | 2¦ ⟪=> ? end⟫   CHIPS[]
+case 1 |¦⟪ ⟫?⟪ => ? end⟫   CHIPS[]
+case 1 | ¦?⟪ => ? end⟫   CHIPS[]
+case 1 | 2¦⟪ => ? end⟫   CHIPS[]
 case 1 | 2 ¦⟪=> ? end⟫   CHIPS[]
-case 1 | 2 =¦⟪>⟫ ? ⟪end⟫   CHIPS[]
-case 1 | 2 =>¦ ? ⟪end⟫   CHIPS[]
-case 1 | 2 => ¦? ⟪end⟫   CHIPS[]
-case 1 | 2 => 3¦ ⟪end⟫   CHIPS[]|},
+case 1 | 2 =¦⟪> ⟫?⟪ end⟫   CHIPS[]
+case 1 | 2 =>¦⟪ ⟫?⟪ end⟫   CHIPS[]
+case 1 | 2 => ¦?⟪ end⟫   CHIPS[]
+case 1 | 2 => 3¦⟪ end⟫   CHIPS[]|},
           trajectory("case 1 | 2 => 3"),
         )
       ),
@@ -837,11 +837,11 @@ case 1 | 2 => 3¦ ⟪end⟫   CHIPS[]|},
           string_testable,
           "if-entry",
           {|i¦   CHIPS[]
-if¦ ? ⟪then ? else ?⟫   CHIPS[]
-if ¦? ⟪then ? else ?⟫   CHIPS[]
-if 1¦ ⟪then ? else ?⟫   CHIPS[]
+if¦⟪ ⟫?⟪ then ? else ?⟫   CHIPS[]
+if ¦?⟪ then ? else ?⟫   CHIPS[]
+if 1¦⟪ then ? else ?⟫   CHIPS[]
 if 1 ¦⟪then ? else ?⟫   CHIPS[]
-if 1 <¦ ? ⟪then ? else ?⟫   CHIPS[]|},
+if 1 <¦⟪ ⟫?⟪ then ? else ?⟫   CHIPS[]|},
           trajectory("if 1 <"),
         )
       ),
@@ -865,8 +865,8 @@ let a : (St¦⟪ring) = ? in ?⟫   CHIPS[]|},
           string_testable,
           "break-closer",
           {|let y = string_replace(a, b, c¦⟪)⟫ in y   CHIPS[]
-let y = string_replace(a, b, ¦?⟪)⟫ in y   CHIPS[]
-let y = string_replace(a, b,¦ ?⟪)⟫ in y   CHIPS[]|},
+let y = string_replace(a, b, ⟫¦⟪?⟪)⟫ in y   CHIPS[]
+let y = string_replace(a, b,¦⟪ ⟫?⟪)⟫ in y   CHIPS[]|},
           trajectory_bk(~ctx="let y = string_replace(a, b, c)¦ in y", 3),
         )
       ),
@@ -891,7 +891,7 @@ let y = string_replace(a, b,¦ ?⟪)⟫ in y   CHIPS[]|},
         check(
           string_testable,
           "abandon",
-          {|string_replace(a¦⟪, ?, ?)⟫ ~
+          {|string_replace(a¦⟪, ?, ?) ⟫~
 1 + 1   CHIPS[]
 ---
 string_replace(a~
@@ -943,9 +943,9 @@ string_replace(a~
           "fun-entry",
           {|f¦   CHIPS[]
 fu¦⟪n ⟫   CHIPS[]
-fun¦ ? ⟪-> ?⟫   CHIPS[]
-fun ¦? ⟪-> ?⟫   CHIPS[]
-fun x¦ ⟪-> ?⟫   CHIPS[]
+fun¦⟪ ⟫?⟪ -> ?⟫   CHIPS[]
+fun ¦?⟪ -> ?⟫   CHIPS[]
+fun x¦⟪ -> ?⟫   CHIPS[]
 fun x ¦⟪-> ?⟫   CHIPS[]
 fun x -¦⟪> ?⟫   CHIPS[]|},
           trajectory("fun x -"),
@@ -957,8 +957,8 @@ fun x -¦⟪> ?⟫   CHIPS[]|},
           "list-entry",
           {|[¦⟪?]⟫   CHIPS[]
 [1¦⟪]⟫   CHIPS[]
-[1,¦ ?⟪]⟫   CHIPS[]
-[1, ¦?⟪]⟫   CHIPS[]
+[1,¦⟪ ⟫?⟪]⟫   CHIPS[]
+[1, ⟫¦⟪?⟪]⟫   CHIPS[]
 [1, 2¦⟪]⟫   CHIPS[]|},
           trajectory("[1, 2"),
         )
@@ -1027,7 +1027,7 @@ let s = string_replace(string_capitalize(x¦⟪), ?, ?)⟫ in s   CHIPS[]|},
         check(
           string_testable,
           "lookahead-cons",
-          {|let l : [Int] = s¦ ⟪in ?⟫   CHIPS[]
+          {|let l : [Int] = s¦⟪ in ?⟫   CHIPS[]
 let l : [Int] = st¦⟪ring_length(?):: in ?⟫   CHIPS[]|},
           trajectory_in(~ctx="let l : [Int] = ¦", "st"),
         )
@@ -1039,7 +1039,7 @@ let l : [Int] = st¦⟪ring_length(?):: in ?⟫   CHIPS[]|},
           string_testable,
           "break-inner",
           {|let y = (1 + 2¦⟪)⟫ in y   CHIPS[]
-let y = (1 + ¦?⟪)⟫ in y   CHIPS[]|},
+let y = (1 + ⟫¦⟪?⟪)⟫ in y   CHIPS[]|},
           trajectory_bk(~ctx="let y = (1 + 2)¦ in y", 2),
         )
       ),
@@ -1064,24 +1064,24 @@ let y = (1 + ¦?⟪)⟫ in y   CHIPS[]|},
              caret at true columns with the witness remainder inside
              the span (ca¦⟪se …⟫); the old `⟪  in⟫` doubled-space
              seam healed with it. */
-          {|let f(b : Bool) =?
+          {|let f(b : Bool) =⟪ ⟫?
   ¦⟪in ?⟫   CHIPS[]
 let f(b : Bool) =
-  c¦ ⟪in ?⟫   CHIPS[]
+  c¦⟪ in ?⟫   CHIPS[]
 let f(b : Bool) =
   ca¦⟪se in ?⟫   CHIPS[]
 let f(b : Bool) =
   cas¦⟪e in ?⟫   CHIPS[]
 let f(b : Bool) =
-  case¦ ? ⟪end in ?⟫   CHIPS[]
+  case¦⟪ ⟫?⟪ end in ?⟫   CHIPS[]
 let f(b : Bool) =
-  case ¦? ⟪end in ?⟫   CHIPS[]
+  case ¦?⟪ end in ?⟫   CHIPS[]
 let f(b : Bool) =
-  case b¦ ⟪end in ?⟫   CHIPS[]
+  case b¦⟪ end in ?⟫   CHIPS[]
 let f(b : Bool) =
-  case ba¦ ⟪end in ?⟫   CHIPS[]
+  case ba¦⟪ end in ?⟫   CHIPS[]
 let f(b : Bool) =
-  case bar¦ ⟪end in ?⟫   CHIPS[]
+  case bar¦⟪ end in ?⟫   CHIPS[]
 let f(b : Bool) =
   case bar
   ¦⟪end in ?⟫   CHIPS[]|},
@@ -1125,15 +1125,15 @@ let new_fun(foo: Int, bar: Bool) =
 let new_fun(foo: Int, bar: Bool) =
       case foo
       | 1 => bar
-      |¦ ? ⟪=> ? end in ?⟫   CHIPS[]
+      |¦⟪ ⟫?⟪ => ? end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
       case foo
       | 1 => bar
-      | ¦? ⟪=> ? end in ?⟫   CHIPS[]
+      | ¦?⟪ => ? end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
       case foo
       | 1 => bar
-      | _¦ ⟪=> ? end in ?⟫   CHIPS[]
+      | _¦⟪ => ? end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
       case foo
       | 1 => bar
@@ -1169,7 +1169,7 @@ let new_fun(foo: Int, bar: Bool) =
         check(
           string_testable,
           "p2",
-          {|if t¦ ⟪then ? else ?⟫   CHIPS[]
+          {|if t¦⟪ then ? else ?⟫   CHIPS[]
 if tr¦⟪ue then ? else ?⟫   CHIPS[]|},
           trajectory_in(~ctx="if ¦", "tr"),
         )
@@ -1178,7 +1178,7 @@ if tr¦⟪ue then ? else ?⟫   CHIPS[]|},
         check(
           string_testable,
           "p3",
-          {|if true t¦⟪hen⟫ ? ⟪else ?⟫   CHIPS[]|},
+          {|if true t¦⟪hen ⟫?⟪ else ?⟫   CHIPS[]|},
           trajectory_in(~ctx="if true ¦", "t"),
         )
       ),
@@ -1221,7 +1221,7 @@ if tr¦⟪ue then ? else ?⟫   CHIPS[]|},
                (finish_display reorder) — the rendered caret matches
                the zipper; the display only ADDS material right of it */
             {|raw[let ]: let ¦
-disp[let ]: let ¦? ⟪= ? in ?⟫
+disp[let ]: let ¦?⟪ = ? in ?⟫
 raw[let x ]: let x ¦
 disp[let x ]: let x ¦⟪= ? in ?⟫
 raw[above]: let ¦
@@ -1287,7 +1287,7 @@ string_replace(a, b, c)|},
           check(
             string_testable,
             "no crash",
-            "let¦ ? ⟪= ? in⟫\n\nstring_replace(\"\")   CHIPS[,+,]",
+            "let¦⟪ ⟫?⟪ = ? in⟫\n\nstring_replace(\"\")   CHIPS[,+,]",
             display_state(z),
           );
         },
@@ -1308,13 +1308,13 @@ string_replace(a, b, c)|},
           "fun-case",
           {|f¦   CHIPS[]
 fu¦⟪n ⟫   CHIPS[]
-fun¦ ? ⟪-> ?⟫   CHIPS[]
-fun ¦? ⟪-> ?⟫   CHIPS[]
-fun c¦ ⟪-> ?⟫   CHIPS[]
-fun ca¦ ⟪-> ?⟫   CHIPS[]
-fun cas¦ ⟪-> ?⟫   CHIPS[]
-fun case¦ ? ⟪end⟫   CHIPS[->]
-fun case ¦? ⟪end⟫   CHIPS[->]|},
+fun¦⟪ ⟫?⟪ -> ?⟫   CHIPS[]
+fun ¦?⟪ -> ?⟫   CHIPS[]
+fun c¦⟪ -> ?⟫   CHIPS[]
+fun ca¦⟪ -> ?⟫   CHIPS[]
+fun cas¦⟪ -> ?⟫   CHIPS[]
+fun case¦⟪ ⟫?⟪ end⟫   CHIPS[->]
+fun case ¦?⟪ end⟫   CHIPS[->]|},
           trajectory("fun case "),
         )
       ),
@@ -1324,13 +1324,13 @@ fun case ¦? ⟪end⟫   CHIPS[->]|},
           "let-fun-in",
           {|l¦   CHIPS[]
 le¦⟪t ⟫   CHIPS[]
-let¦ ? ⟪= ? in ?⟫   CHIPS[]
-let ¦? ⟪= ? in ?⟫   CHIPS[]
-let f¦ ⟪= ? in ?⟫   CHIPS[]
-let fu¦ ⟪= ? in ?⟫   CHIPS[]
-let fun¦ ? ⟪-> ? in ?⟫   CHIPS[=]
-let fun ¦? ⟪-> ? in ?⟫   CHIPS[=]
-let fun i¦ ⟪-> ? in ?⟫   CHIPS[=]
+let¦⟪ ⟫?⟪ = ? in ?⟫   CHIPS[]
+let ¦?⟪ = ? in ?⟫   CHIPS[]
+let f¦⟪ = ? in ?⟫   CHIPS[]
+let fu¦⟪ = ? in ?⟫   CHIPS[]
+let fun¦⟪ ⟫?⟪ -> ? in ?⟫   CHIPS[=]
+let fun ¦?⟪ -> ? in ?⟫   CHIPS[=]
+let fun i¦⟪ -> ? in ?⟫   CHIPS[=]
 let fun?in¦?   CHIPS[-> | =]
 let fun?in ¦?   CHIPS[-> | =]|},
           trajectory("let fun in "),
@@ -1341,17 +1341,17 @@ let fun?in ¦?   CHIPS[-> | =]|},
           string_testable,
           "if-fun-then",
           {|i¦   CHIPS[]
-if¦ ? ⟪then ? else ?⟫   CHIPS[]
-if ¦? ⟪then ? else ?⟫   CHIPS[]
-if f¦ ⟪then ? else ?⟫   CHIPS[]
-if fu¦ ⟪then ? else ?⟫   CHIPS[]
-if fun¦ ? ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun ¦? ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun t¦ ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun th¦ ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun the¦ ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun?then¦ ? ⟪else ?⟫   CHIPS[->]
-if fun?then ¦? ⟪else ?⟫   CHIPS[->]|},
+if¦⟪ ⟫?⟪ then ? else ?⟫   CHIPS[]
+if ¦?⟪ then ? else ?⟫   CHIPS[]
+if f¦⟪ then ? else ?⟫   CHIPS[]
+if fu¦⟪ then ? else ?⟫   CHIPS[]
+if fun¦⟪ ⟫?⟪ -> ? then ? else ?⟫   CHIPS[]
+if fun ¦?⟪ -> ? then ? else ?⟫   CHIPS[]
+if fun t¦⟪ -> ? then ? else ?⟫   CHIPS[]
+if fun th¦⟪ -> ? then ? else ?⟫   CHIPS[]
+if fun the¦⟪ -> ? then ? else ?⟫   CHIPS[]
+if fun?then¦⟪ ⟫?⟪ else ?⟫   CHIPS[->]
+if fun?then ¦?⟪ else ?⟫   CHIPS[->]|},
           trajectory("if fun then "),
         )
       ),
@@ -1362,14 +1362,14 @@ if fun?then ¦? ⟪else ?⟫   CHIPS[->]|},
           {|c¦   CHIPS[]
 ca¦⟪se ⟫   CHIPS[]
 cas¦⟪e ⟫   CHIPS[]
-case¦ ? ⟪end⟫   CHIPS[]
-case ¦? ⟪end⟫   CHIPS[]
-case f¦ ⟪end⟫   CHIPS[]
+case¦⟪ ⟫?⟪ end⟫   CHIPS[]
+case ¦?⟪ end⟫   CHIPS[]
+case f¦⟪ end⟫   CHIPS[]
 case fu¦⟪n end⟫   CHIPS[]
-case fun¦ ? ⟪-> ? end⟫   CHIPS[]
-case fun ¦? ⟪-> ? end⟫   CHIPS[]
-case fun e¦ ⟪-> ? end⟫   CHIPS[]
-case fun en¦ ⟪-> ? end⟫   CHIPS[]
+case fun¦⟪ ⟫?⟪ -> ? end⟫   CHIPS[]
+case fun ¦?⟪ -> ? end⟫   CHIPS[]
+case fun e¦⟪ -> ? end⟫   CHIPS[]
+case fun en¦⟪ -> ? end⟫   CHIPS[]
 case fun?end¦   CHIPS[->]|},
           trajectory("case fun end"),
         )
@@ -1381,11 +1381,11 @@ case fun?end¦   CHIPS[->]|},
           {|c¦   CHIPS[]
 ca¦⟪se ⟫   CHIPS[]
 cas¦⟪e ⟫   CHIPS[]
-case¦ ? ⟪end⟫   CHIPS[]
-case ¦? ⟪end⟫   CHIPS[]
-case i¦ ⟪end⟫   CHIPS[]
-case if¦ ? ⟪then ? else ? end⟫   CHIPS[]
-case if ¦? ⟪then ? else ? end⟫   CHIPS[]
+case¦⟪ ⟫?⟪ end⟫   CHIPS[]
+case ¦?⟪ end⟫   CHIPS[]
+case i¦⟪ end⟫   CHIPS[]
+case if¦⟪ ⟫?⟪ then ? else ? end⟫   CHIPS[]
+case if ¦?⟪ then ? else ? end⟫   CHIPS[]
 case if |¦   CHIPS[then+else | =>+end]
 case if | ¦   CHIPS[then+else | =>+end]|},
           trajectory("case if | "),
