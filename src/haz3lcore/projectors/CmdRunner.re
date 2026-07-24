@@ -1,7 +1,6 @@
 open Virtual_dom.Vdom;
 open Util;
 open Language;
-open IdTagged.FreshGrammar;
 open MvuShape;
 
 // CmdRunner: Interprets Hazel Cmd values as Ui_effect.t
@@ -14,14 +13,14 @@ open MvuShape;
 //   | ScrollIntoView(String)
 //   | ScrollTo(String, Float, Float)
 //   | CopyToClipboard(String)
-//   | Delay(Float, Msg)  // legacy mode: Delay(Float, Html -> Html)
+//   | Delay(Float, Msg)
 //   | Log(String)
+//
+// Delay's payload is always a msg, dispatched via ctx.inject when the timer
+// fires (in syntax-commit mode a msg is an Html -> Html transform, so Delay
+// works there uniformly).
 
-type context = {
-  model: DHExp.t,
-  inject: DHExp.t => Ui_effect.t(unit),
-  update_fn: option(DHExp.t),
-};
+type context = {inject: DHExp.t => Ui_effect.t(unit)};
 
 // Run a single command, returning an effect
 let rec run = (ctx: context, cmd: DHExp.t): Ui_effect.t(unit) => {
@@ -112,26 +111,17 @@ let rec run = (ctx: context, cmd: DHExp.t): Ui_effect.t(unit) => {
 
   | Some(("Delay", body)) =>
     switch (of_tuple(body)) {
-    | Some([ms_exp, transform]) =>
+    | Some([ms_exp, msg]) =>
       switch (of_float(ms_exp)) {
       | Some(ms) =>
-        // Schedule after delay
+        // Schedule the msg after the delay
         Effect.of_sync_fun(
           () => {
             let _ =
               Js_of_ocaml.Dom_html.window##setTimeout(
-                Js_of_ocaml.Js.wrap_callback(() => {
-                  switch (ctx.update_fn) {
-                  | Some(_) =>
-                    // Elm mode: transform IS the msg value, dispatch directly
-                    Bonsai.Effect.Expert.handle(ctx.inject(transform))
-                  | None =>
-                    // Legacy: transform is model -> model
-                    let new_model =
-                      evaluate(Exp.ap(Forward, transform, ctx.model));
-                    Bonsai.Effect.Expert.handle(ctx.inject(new_model));
-                  }
-                }),
+                Js_of_ocaml.Js.wrap_callback(() =>
+                  Bonsai.Effect.Expert.handle(ctx.inject(msg))
+                ),
                 ms,
               );
             ();

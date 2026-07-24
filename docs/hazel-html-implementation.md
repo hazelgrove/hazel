@@ -2,7 +2,7 @@
 
 This document describes the HazelHtml web app library as implemented on the `hazel-html` branch. It covers the architecture, types, and runtime components that enable building interactive web applications in Hazel.
 
-The canonical program shape is the Elm-style MVU 4-tuple `(init, update, view, subs)`; see `docs/mvu.md` for the authoritative architecture description. An older "self-modifying" mode (the HTML tree is the model, handlers are `HTML -> HTML`) is still supported as a legacy alternative and is marked as such below.
+The canonical program shape is the Elm-style MVU 4-tuple `(init, update, view, subs)`; see `docs/mvu.md` for the authoritative architecture description. The inline HTML projector runs the same dispatch model with a different commit target ("syntax-commit mode": update = apply, msgs are `Html -> Html` transforms spliced back into the document); see below.
 
 ## Overview
 
@@ -27,18 +27,16 @@ HazelHtml provides:
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   HTMLProj.re (Projector)                   │
-│  - Detects App vs plain Html                                │
-│  - Evaluates subscriptions function for App type            │
-│  - Creates HazelDOM.t context                               │
+│   Commit targets                                            │
+│   - AppStore.re (sidebar): update(msg, model) -> new state  │
+│   - HTMLProj.re (inline):  msg(model) -> SetSyntax splice   │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      HazelDOM.re                            │
 │  - Renders Html ADT to Virtual_dom nodes                    │
-│  - Manages subscription lifecycle (setup/cleanup)           │
-│  - Event handlers execute Cmd when result is (Html, Cmd)    │
+│  - One dispatch path: handlers produce msgs -> inject(msg)  │
 └─────────────────────────────────────────────────────────────┘
                               │
               ┌───────────────┼───────────────┐
@@ -73,7 +71,6 @@ HTML =
   // Forms
   | Form(...) | Label(...) | Input(attrs) | TextArea(attrs, content)
   | Button(...) | Select(...) | Option(attrs, label)
-  | Checkbox(attrs) | Radio(attrs) | Range(attrs)  // Legacy variants
 
   // Links/Media
   | A(...) | Img(attrs)
@@ -141,10 +138,11 @@ Attr =
   | BoolAttr(String, Bool)
 ```
 
-In legacy self-modifying mode the same handlers instead transform the HTML
-tree directly: simple events are `HTML -> HTML`, data-carrying events are
-`(HTML, data) -> HTML`, and handlers may return `(HTML, Cmd)` to also run a
-command.
+In syntax-commit mode (inline projector) the same handlers describe HTML
+transforms: simple-event handlers are `HTML -> HTML` (the handler IS the
+msg), payload handlers are `(HTML, data) -> HTML` and are wrapped into the
+msg `fun m -> handler((m, data))` at dispatch time. A msg may return
+`(HTML, Cmd)` to also run a command.
 
 ### Event Types
 
@@ -171,7 +169,6 @@ Cmd =
   | ScrollTo(String, Float, Float)    // Scroll element to (x, y)
   | CopyToClipboard(String)           // Copy text to clipboard
   | Delay(Float, Msg)                 // Dispatch msg after delay (ms)
-                                      // (legacy mode: HTML -> HTML transform)
   | Log(String)                       // Console log
 ```
 
@@ -191,9 +188,6 @@ Sub =
   | AnimationFrame(Float -> Msg)            // Animation frame
 ```
 
-In legacy mode, subscription handlers take the current model as an extra
-first argument and return new HTML, e.g. `Every(Float, (HTML, Float) -> HTML)`.
-
 ### App Type
 
 An MVU app is a 4-tuple (see `docs/mvu.md` for the full architecture):
@@ -208,26 +202,28 @@ where:
   subs   = Model -> Sub
 ```
 
-## Legacy Self-Modifying Mode
+## Syntax-Commit Mode (inline HTML projector)
 
-Superseded by the MVU 4-tuple above, but still supported. The app shape is
-`((HTML, Cmd), HTML -> Sub)`: the model IS the HTML tree, event handlers
-receive the current HTML and return new HTML (optionally `(HTML, Cmd)` to
-also trigger effects).
+The inline projector renders a bare HTML value; there is no separate model —
+the projected expression IS the model. Dispatch is the same as MVU
+(handlers produce msgs), with `update = apply`: a msg is an `Html -> Html`
+transform, and committing evaluates `msg(model)` and splices the result
+back into the document via `SetSyntax`.
 
 Example:
 ```
-let counter = Div([
+Div([
   OnClick(fun html ->
-    // html is the current state, return new state
+    // html is the current tree, return the new tree
     Div([...], [Int(get_count(html) + 1)])
   )
 ], [Int(0)])
 ```
 
-The runtime selects the mode via `HazelDOM.update_fn`: `Some(update)` means
-Elm mode (handlers produce messages), `None` means legacy mode (handlers
-transform the HTML tree).
+(Formerly a separate "legacy mode" with its own `((HTML, Cmd), HTML -> Sub)`
+app shape and per-handler branching on `update_fn: option(...)`; that split
+is gone — the commit target is the only difference, selected by
+`HazelDOM.t.commit`.)
 
 ## Runtime Components
 
@@ -235,23 +231,24 @@ transform the HTML tree).
 
 The core renderer that:
 1. Converts Hazel HTML ADT to Virtual_dom nodes
-2. Sets up event handlers that evaluate Hazel functions
-3. Detects `(HTML, Cmd)` returns and executes commands via CmdRunner
-4. Manages subscription lifecycle via global registry
+2. Sets up event handlers: each produces a msg and hands it to `inject`
+   (State commit: payload handlers are evaluated `handler(payload)`;
+   Syntax commit: payload handlers are wrapped into
+   `fun m -> handler((m, payload))`)
 
 Key type:
 ```reason
+type commit = State | Syntax; // where inject commits the msg
+
 type t = {
-  model: DHExp.t,
   inject: DHExp.t => Ui_effect.t(unit),
   view_term: DHExp.t => Node.t,
-  projector_id: option(Id.t),
-  subscriptions: option(DHExp.t),
-  // Some(update) = Elm mode (inject receives msgs);
-  // None = legacy mode (inject receives new HTML models)
-  update_fn: option(DHExp.t),
+  commit,
 };
 ```
+
+HazelDOM is render + dispatch only: subscriptions and state live in the
+web-side AppStore (State) or the document itself (Syntax).
 
 Shared shape-detection helpers (wrapper stripping, constructor extraction,
 app detection, the HTML constructor name set) live in `MvuShape.re`.
@@ -274,11 +271,10 @@ Manages subscription lifecycle:
 
 ### HTMLProj.re
 
-The projector wrapper that:
-1. Detects if model is App type vs plain HTML
-2. For App type, extracts HTML and evaluates subscriptions function
-3. Creates HazelDOM.t context with subscription info
-4. Passes projector ID for subscription tracking
+The inline projector (syntax-commit target):
+1. Accepts bare HTML values (recognized head constructor, or `Br`)
+2. On inject(msg), evaluates `msg(model)` and splices the result via
+   `SetSyntax`; an `(Html, Cmd)` result also runs the Cmd via CmdRunner
 
 ## File Structure
 
@@ -287,12 +283,12 @@ src/language/builtins/
   BuiltinsADT.re          # All types: HTML, Attr, Cmd, Sub, App, KeyEvent, MouseEvent
 
 src/haz3lcore/projectors/
-  MvuShape.re             # Shared shape detection (wrappers, constructors, app kinds)
-  HazelDOM.re             # HTML -> Virtual_dom renderer with Cmd/Sub integration
+  MvuShape.re             # Shared shape detection (wrappers, constructors, app kind)
+  HazelDOM.re             # HTML -> Virtual_dom renderer + unified msg dispatch
   CmdRunner.re            # Cmd interpreter
   SubManager.re           # Subscription manager
   implementations/
-    HTMLProj.re           # Projector with App detection
+    HTMLProj.re           # Inline projector (syntax-commit target)
 ```
 
 ## Usage Examples
@@ -318,24 +314,11 @@ let subs(model) = SubNone in
 
 See `docs/mvu.md` for a fuller example with commands and subscriptions.
 
-### Legacy Self-Modifying App
-```
-let app = (
-  // init: (HTML, Cmd)
-  (Div([Id("counter")], [Int(0)]), CmdNone),
-
-  // subscriptions: HTML -> Sub
-  fun html -> Every(1000.0, fun (h, timestamp) ->
-    Div([Id("counter")], [Int(get_count(h) + 1)])
-  )
-)
-```
-
 ## Known Limitations
 
 1. **Subscription cleanup on removal**: When a projector is removed entirely (not just re-rendered), subscriptions may leak. Proper cleanup would require projector lifecycle hooks.
 
-2. **Error boundaries**: Handler evaluation errors are caught. In Elm mode no message is dispatched and the error is logged to the console; in legacy mode an inline error UI (red-bordered div) replaces the model. Subscription callback errors are caught and logged to console. Infinite loops or stack overflows may still crash.
+2. **Error boundaries**: Handler and msg evaluation errors are caught and logged to the console; nothing is dispatched or committed. Subscription callback errors are caught and logged. Infinite loops or stack overflows may still crash.
 
 ## Future Enhancements
 

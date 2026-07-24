@@ -51,7 +51,6 @@ let rec is_valid_html = (exp: Exp.t): bool => {
     }
   | Some(("Br" | "Hr", _)) => true
   | Some(("Input" | "TextArea" | "Img" | "A", _)) => true
-  | Some(("Checkbox" | "Radio" | "Range", _)) => true
   // Remaining HTML constructors (per MvuShape's derived name set) are
   // container elements: check children are valid HTML
   | Some((name, body)) when Haz3lcore.MvuShape.is_html_constructor(name) =>
@@ -170,7 +169,8 @@ let extract_field = (name: string, exp: Exp.t): option(Exp.t) => {
 };
 
 // ============================================================
-// == MVU Counter Tests (existing, legacy update pattern) ==
+// == MVU Counter Tests (bare-model update: update returns model,
+// == not (model, cmd); the runtime falls back to CmdNone) ==
 // ============================================================
 
 let counter_program = {|
@@ -1084,6 +1084,88 @@ let html_semantic_elements =
   );
 
 // ============================================================
+// == Syntax-Commit Msg Tests ==
+// == Inline projector: update = apply. A msg is an Html -> Html ==
+// == transform; committing evaluates msg(model). ==
+// ============================================================
+
+// Simple events: the handler IS the msg.
+let syntax_commit_simple_msg =
+  test_case(
+    "Syntax commit: simple handler is an Html -> Html msg",
+    `Quick,
+    () => {
+      let msg =
+        parse_and_evaluate({|fun m -> Div([], [m, Text("clicked")])|});
+      let model = parse_and_evaluate({|Span([], [Text("hi")])|});
+      let new_html = apply(msg, model);
+      assert_valid_html("msg(model)", new_html);
+      assert_constructor("msg(model)", "Div", new_html);
+    },
+  );
+
+// Payload events wrap the handler shape (model, payload) -> model into a
+// msg: fun m -> handler((m, payload)) (HazelDOM.payload_transform).
+let syntax_commit_payload_msg =
+  test_case(
+    "Syntax commit: payload msg = fun m -> handler((m, payload))",
+    `Quick,
+    () => {
+      let handler = parse_and_evaluate({|fun (m, s) -> Div([], [Text(s)])|});
+      let msg =
+        Haz3lcore.HazelDOM.payload_transform(handler, Exp.string("typed"));
+      let model = parse_and_evaluate({|Div([], [Text("old")])|});
+      let new_html = apply(msg, model);
+      assert_valid_html("payload msg applied", new_html);
+      // The payload must have reached the handler: child is Text("typed")
+      let text_child =
+        switch (Haz3lcore.MvuShape.of_constructor(new_html)) {
+        | Some(("Div", body)) =>
+          switch (Haz3lcore.MvuShape.of_tuple(body)) {
+          | Some([_attrs, children]) =>
+            switch (Haz3lcore.MvuShape.of_list(children)) {
+            | Some([child]) =>
+              switch (Haz3lcore.MvuShape.of_constructor(child)) {
+              | Some(("Text", text_body)) =>
+                Haz3lcore.MvuShape.of_string(text_body)
+              | _ => None
+              }
+            | _ => None
+            }
+          | _ => None
+          }
+        | _ => None
+        };
+      check(
+        Alcotest.option(Alcotest.string),
+        "payload reached the transform",
+        Some("typed"),
+        text_child,
+      );
+    },
+  );
+
+// A msg may also produce (Html, Cmd); the commit splices the Html and runs
+// the Cmd.
+let syntax_commit_html_cmd_result =
+  test_case(
+    "Syntax commit: msg producing (Html, Cmd)",
+    `Quick,
+    () => {
+      let msg =
+        parse_and_evaluate({|fun m -> (Div([], [m]), Log("committed"))|});
+      let model = parse_and_evaluate({|Text("x")|});
+      let result = apply(msg, model);
+      switch (extract_pair(result)) {
+      | Some((html, cmd)) =>
+        assert_valid_html("html half", html);
+        assert_constructor("cmd half", "Log", cmd);
+      | None => fail("msg(model) should be an (Html, Cmd) pair")
+      };
+    },
+  );
+
+// ============================================================
 // == Negative / Edge Case Tests ==
 // ============================================================
 
@@ -1161,7 +1243,7 @@ let neg_unknown_constructor_not_html =
 let tests = (
   "MVU",
   [
-    // Counter (legacy pattern)
+    // Counter (bare-model update pattern)
     counter_detects_as_elm_app,
     counter_init_model_is_zero,
     counter_view_produces_valid_html,
@@ -1169,7 +1251,7 @@ let tests = (
     counter_update_decrement,
     counter_view_after_update,
     counter_full_cycle,
-    // Keyboard game (legacy pattern)
+    // Keyboard game
     keyboard_detects_as_elm_app,
     keyboard_view_produces_valid_html,
     keyboard_update_arrow_right,
@@ -1212,6 +1294,10 @@ let tests = (
     html_a_element,
     html_nested_structure,
     html_semantic_elements,
+    // Syntax-commit msgs (inline projector: update = apply)
+    syntax_commit_simple_msg,
+    syntax_commit_payload_msg,
+    syntax_commit_html_cmd_result,
     // Negative / edge cases
     neg_3tuple_not_elm_app,
     neg_5tuple_not_elm_app,

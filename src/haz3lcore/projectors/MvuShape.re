@@ -184,61 +184,22 @@ let is_function = (exp: DHExp.t): bool =>
   | _ => false
   };
 
-// App kind: Elm-style 4-tuple or legacy MVU 3-tuple
+// App shape: the Elm-style 4-tuple (init_model, update, view, subs)
 type app_kind =
-  | ElmApp(DHExp.t, DHExp.t, DHExp.t, DHExp.t) // init_model, update, view, subs
-  | LegacyMvuApp(DHExp.t, DHExp.t, DHExp.t); // init_model, view, subs
+  | ElmApp(DHExp.t, DHExp.t, DHExp.t, DHExp.t);
 
-// Detect app kind: 4-tuple first (more specific), then 3-tuple
 let detect_app_kind = (exp: DHExp.t): option(app_kind) => {
   switch (exp.term) {
-  // 4-tuple: Elm-style (init_model, update_fn, view_fn, subs_fn)
   | Tuple([init_model, update_fn, view_fn, subs_fn])
   | Parens({term: Tuple([init_model, update_fn, view_fn, subs_fn]), _})
       when is_function(update_fn) && is_function(view_fn) =>
     Some(ElmApp(init_model, update_fn, view_fn, subs_fn))
-  // 3-tuple: Legacy MVU (init_model, view_fn, subs_fn)
-  | Tuple([init_model, view_fn, subs_fn])
-  | Parens({term: Tuple([init_model, view_fn, subs_fn]), _})
-      when is_function(view_fn) =>
-    Some(LegacyMvuApp(init_model, view_fn, subs_fn))
   | _ => None
   };
 };
 
-// Check if expression looks like an MVU App type (3 or 4-tuple with function)
 let looks_like_mvu_app = (exp: DHExp.t): bool =>
   Option.is_some(detect_app_kind(exp));
-
-// Detect legacy self-modifying App type: ((HTML, Cmd), HTML -> Sub)
-// Returns Some((html_model, init_cmd, subscriptions_fn)) or None
-let detect_legacy_app =
-    (exp: DHExp.t): option((DHExp.t, option(DHExp.t), option(DHExp.t))) => {
-  switch (exp.term) {
-  | Tuple([init, subs_fn])
-  | Parens({term: Tuple([init, subs_fn]), _}) =>
-    switch (init.term) {
-    | Tuple([html_model, init_cmd])
-    | Parens({term: Tuple([html_model, init_cmd]), _}) =>
-      Some((html_model, Some(init_cmd), Some(subs_fn)))
-    | _ => None
-    }
-  | _ => None
-  };
-};
-
-// Check if expression looks like a legacy App type
-let looks_like_legacy_app = (exp: DHExp.t): bool =>
-  switch (exp.term) {
-  | Tuple([init, _subs_fn])
-  | Parens({term: Tuple([init, _subs_fn]), _}) =>
-    switch (init.term) {
-    | Tuple([_html, _cmd])
-    | Parens({term: Tuple([_html, _cmd]), _}) => true
-    | _ => false
-    }
-  | _ => false
-  };
 
 // === HTML constructor names ===
 

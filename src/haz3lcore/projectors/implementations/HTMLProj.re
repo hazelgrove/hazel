@@ -3,6 +3,10 @@ open ProjectorBase;
 open Language;
 open IdTagged.FreshGrammar;
 
+// Inline HTML projector, syntax-commit mode: update = apply. Msgs are
+// Html -> Html transforms; committing evaluates msg(model) and splices the
+// result back into the document via SetSyntax.
+
 // Refs for resize drag state
 let wrapper_ref: ref(option(Js_of_ocaml.Js.Unsafe.any)) = ref(None);
 let resize_cols = ref(40);
@@ -63,12 +67,6 @@ module M: Projector = {
         exp,
         ui: default_ui,
       })
-    // App type: ((HTML, Cmd), HTML -> Sub) tuple
-    | Exp(exp) when MvuShape.looks_like_legacy_app(exp) =>
-      Some({
-        exp,
-        ui: default_ui,
-      })
     | _ => None
     };
 
@@ -113,45 +111,36 @@ module M: Projector = {
       | _ => model.exp
       };
 
-    // Inject updates the underlying syntax (expression only)
-    let inject_exp = (new_exp: DHExp.t) =>
+    // Splice a new expression into the underlying syntax
+    let set_syntax = (new_exp: DHExp.t) =>
       parent(
         SetSyntax(Exp(new_exp) |> info.utility.term_to_seg(~inline=true)),
       );
 
-    // Check if model is an App type vs plain Html
-    let (html_model, subscriptions) =
-      switch (MvuShape.detect_legacy_app(current_exp)) {
-      | Some((html, Some(init_cmd), Some(subs_fn))) =>
-        // It's an App - run init_cmd and evaluate subscriptions
-        let cmd_ctx: CmdRunner.context = {
-          model: html,
-          inject: inject_exp,
-          update_fn: None,
-        };
-        let cmd_effect = CmdRunner.run(cmd_ctx, init_cmd);
-        Bonsai.Effect.Expert.handle(cmd_effect);
-        let subs = MvuShape.evaluate(Exp.ap(Forward, subs_fn, html));
-        (html, Some(subs));
-      | Some((html, None, Some(subs_fn))) =>
-        // App with no init cmd
-        let subs = MvuShape.evaluate(Exp.ap(Forward, subs_fn, html));
-        (html, Some(subs));
-      | _ =>
-        // Plain Html - no subscriptions
-        (current_exp, None)
+    // Commit a msg: evaluate msg(model) and splice the result. A
+    // (Html, Cmd) result also runs the Cmd — Delay msgs are transforms
+    // too, so they re-enter through this same inject.
+    let rec inject_msg = (msg: DHExp.t): Ui_effect.t(unit) =>
+      switch (MvuShape.safe_evaluate(Exp.ap(Forward, msg, current_exp))) {
+      | Error(err) =>
+        prerr_endline("HTMLProj: msg eval error: " ++ err);
+        Effect.Ignore;
+      | Ok(result) =>
+        switch (MvuShape.strip_wrappers(result).term) {
+        | Tuple([new_exp, cmd]) =>
+          let cmd_ctx: CmdRunner.context = {inject: inject_msg};
+          Effect.Many([set_syntax(new_exp), CmdRunner.run(cmd_ctx, cmd)]);
+        | _ => set_syntax(result)
+        }
       };
 
     let seed: HazelDOM.t = {
-      model: html_model,
-      inject: inject_exp,
+      inject: inject_msg,
       view_term: term =>
         Exp(term)
         |> info.utility.term_to_seg(~inline=true)
         |> view_seg(~background=false, Exp),
-      projector_id: Some(info.id),
-      subscriptions,
-      update_fn: None,
+      commit: HazelDOM.Syntax,
     };
 
     // Corner resize handle with pointer capture for drag.
@@ -235,7 +224,7 @@ module M: Projector = {
       );
 
     // Main content
-    let content = HazelDOM.go(seed);
+    let content = HazelDOM.go(seed, current_exp);
     let wrapper_classes = ["html-proj-wrapper"];
     let wrapped =
       Node.div(

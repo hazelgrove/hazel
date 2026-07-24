@@ -68,14 +68,13 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
-    | SetAppViewModel(Haz3lcore.Id.t, Language.DHExp.t) // Update the MVU model state
-    | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // Elm mode: route msg through update_fn
-    // InitAppView takes (id, source_result, model, update_fn option, view_fn, subs_fn)
+    | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // route msg through update_fn
+    // InitAppView takes (id, source_result, model, update_fn, view_fn, subs_fn)
     | InitAppView(
         Haz3lcore.Id.t,
         Language.DHExp.t,
         Language.DHExp.t,
-        option(Language.DHExp.t),
+        Language.DHExp.t,
         Language.DHExp.t,
         Language.DHExp.t,
       )
@@ -84,7 +83,7 @@ module Action = {
         Haz3lcore.Id.t,
         Language.DHExp.t,
         Language.DHExp.t,
-        option(Language.DHExp.t),
+        Language.DHExp.t,
         Language.DHExp.t,
         Language.DHExp.t,
       )
@@ -186,7 +185,6 @@ module Update = {
     | Redo => false
     | SetMetaDown(_) => false
     | UpdateVisibleRows(_) => false
-    | SetAppViewModel(_) => false
     | AppViewMsg(_) => false
     | InitAppView(_) => false
     | RefreshAppView(_) => false

@@ -246,10 +246,6 @@ module HTML = {
         ("Button", Some(elem_body())), // Changed: now takes children too
         ("Select", Some(elem_body())),
         ("Option", Some(prod([attrs_only(), string()]))), // attrs, label text
-        // === Legacy input variants (for backwards compat) ===
-        ("Checkbox", Some(attrs_only())),
-        ("Radio", Some(attrs_only())),
-        ("Range", Some(attrs_only())),
         // === Links and media ===
         ("A", Some(elem_body())),
         ("Img", Some(attrs_only())),
@@ -335,11 +331,9 @@ module HTML = {
       // Events with string data: String -> msg
       ("OnInput", Some(arrow(string(), unknown(Internal)))),
       ("OnChange", Some(arrow(string(), unknown(Internal)))),
-      // === Legacy/generic attribute (backwards compat) ===
+      // === Generic attribute escape hatches ===
       ("Create", Some(prod([string(), string()]))), // generic attr(name, value)
-      ("BoolAttr", Some(prod([string(), bool()]))), // generic bool attr
-      // === Legacy event (backwards compat with old OnMousedown casing) ===
-      ("OnMousedown", Some(unknown(Internal))),
+      ("BoolAttr", Some(prod([string(), bool()]))) // generic bool attr
     ]);
 };
 

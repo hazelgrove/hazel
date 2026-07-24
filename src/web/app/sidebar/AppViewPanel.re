@@ -5,16 +5,9 @@ open Util;
 open Haz3lcore;
 open Language;
 
-// App View sidebar panel - renders HTML evaluation results with MVU architecture
-//
-// Supports two app types:
-// 1. MVU App: (init_model, view: model -> Html, subs: model -> Sub)
-//    - Handlers are: model -> model
-//    - Sidebar manages model state, calls view_fn(model) to get HTML
-//
-// 2. Self-modifying App (legacy): ((HTML, Cmd), HTML -> Sub)
-//    - Handlers are: Html -> Html
-//    - The HTML tree IS the model
+// App View sidebar panel - renders MVU apps (the Elm-style 4-tuple
+// (init, update, view, subs)) plus bare HTML values. Handlers produce
+// msgs; the AppStore commits them by evaluating update(msg, model).
 
 // The sidebar app lives in the AppStore under a stable synthetic id
 // (deterministic UUID from string; see AppStore.sidebar_id).
@@ -230,26 +223,15 @@ let view =
     );
   };
 
-  // Helper to render HTML with error boundary
-  // For MVU apps: model is the user's model, html is view_fn(model)
-  // For legacy/plain: model IS the html
+  // Helper to render HTML with error boundary.
   // Render-only: subscriptions are owned by the AppStore update path.
   let render_html_content =
-      (
-        ~model: DHExp.t,
-        ~html: DHExp.t,
-        ~inject: DHExp.t => Ui_effect.t(unit),
-        ~update_fn: option(DHExp.t)=None,
-        (),
-      ) =>
+      (~html: DHExp.t, ~inject: DHExp.t => Ui_effect.t(unit)) =>
     try({
       let mvu: HazelDOM.t = {
-        model,
         inject,
         view_term: fallback_view_term,
-        projector_id: None, // unused: HazelDOM is render-only now
-        subscriptions: None,
-        update_fn,
+        commit: HazelDOM.State,
       };
       div(
         ~attrs=[
@@ -269,42 +251,7 @@ let view =
 
   // Render MVU app from pre-computed store entry (no evaluation here!)
   let render_mvu_app = (entry: AppStore.Entry.t) =>
-    render_html_content(
-      ~model=entry.model,
-      ~html=entry.html,
-      ~inject,
-      ~update_fn=entry.update_fn,
-      (),
-    );
-
-  // Render legacy self-modifying app.
-  // NOTE: render-driven subscriptions for this ((html, cmd), subs) shape
-  // were cut with AppStore v1 (HazelDOM is render-only now).
-  let render_legacy_app = (exp: DHExp.t) =>
-    try(
-      switch (MvuShape.detect_legacy_app(exp)) {
-      | Some((html, init_cmd, _subs_fn)) =>
-        // Run the init command, if any
-        switch (init_cmd) {
-        | Some(init_cmd) =>
-          let cmd_ctx: CmdRunner.context = {
-            model: html,
-            inject,
-            update_fn: None,
-          };
-          Bonsai.Effect.Expert.handle(CmdRunner.run(cmd_ctx, init_cmd));
-        | None => ()
-        };
-        render_html_content(~model=html, ~html, ~inject, ());
-      | None =>
-        // Failed to detect app structure
-        render_error("Invalid App structure")
-      }
-    ) {
-    | exn =>
-      let msg = Printexc.to_string(exn);
-      render_error("Legacy app error: " ++ msg);
-    };
+    render_html_content(~html=entry.html, ~inject);
 
   // Get the content to render
   let content =
@@ -322,21 +269,7 @@ let view =
                 AppStore.sidebar_id,
                 exp,
                 init_model,
-                Some(update_fn),
-                view_fn,
-                subs_fn,
-              ),
-            ),
-          );
-          render_mvu_app(entry);
-        | Some(MvuShape.LegacyMvuApp(init_model, view_fn, subs_fn)) =>
-          Bonsai.Effect.Expert.handle(
-            globals.inject_global(
-              RefreshAppView(
-                AppStore.sidebar_id,
-                exp,
-                init_model,
-                None,
+                update_fn,
                 view_fn,
                 subs_fn,
               ),
@@ -368,29 +301,7 @@ let view =
                 AppStore.sidebar_id,
                 exp,
                 init_model,
-                Some(update_fn),
-                view_fn,
-                subs_fn,
-              ),
-            ),
-          );
-          div(
-            ~attrs=[
-              Attr.create(
-                "style",
-                "padding: 20px; text-align: center; color: #666;",
-              ),
-            ],
-            [text("Initializing app...")],
-          );
-        | Some(MvuShape.LegacyMvuApp(init_model, view_fn, subs_fn)) =>
-          Bonsai.Effect.Expert.handle(
-            globals.inject_global(
-              InitAppView(
-                AppStore.sidebar_id,
-                exp,
-                init_model,
-                None,
+                update_fn,
                 view_fn,
                 subs_fn,
               ),
@@ -407,10 +318,8 @@ let view =
           );
         | None => render_error("Invalid MVU App structure")
         }
-      | Some(exp) when MvuShape.looks_like_legacy_app(exp) =>
-        render_legacy_app(exp)
       | Some(exp) when looks_like_html(exp) =>
-        render_html_content(~model=exp, ~html=exp, ~inject, ())
+        render_html_content(~html=exp, ~inject)
       | Some(_exp) => render_not_html()
       }
     };

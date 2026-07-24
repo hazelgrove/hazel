@@ -358,25 +358,9 @@ let view =
                 ~editor,
               )
             | AppView =>
-              // Wire inject: Elm apps dispatch AppViewMsg, legacy uses SetAppViewModel
-              let app_inject = (value: Language.DHExp.t) =>
-                switch (AppStore.lookup(AppStore.sidebar_id, globals.apps)) {
-                | Some(entry) =>
-                  switch (entry.update_fn) {
-                  | Some(_) =>
-                    globals.inject_global(
-                      AppViewMsg(AppStore.sidebar_id, value),
-                    )
-                  | None =>
-                    globals.inject_global(
-                      SetAppViewModel(AppStore.sidebar_id, value),
-                    )
-                  }
-                | None =>
-                  globals.inject_global(
-                    SetAppViewModel(AppStore.sidebar_id, value),
-                  )
-                };
+              // Sidebar msgs always route through the store's update_fn
+              let app_inject = (msg: Language.DHExp.t) =>
+                globals.inject_global(AppViewMsg(AppStore.sidebar_id, msg));
               AppViewPanel.view(~globals, ~cell_editor, ~inject=app_inject);
             | LogControl =>
               LogSidebar.view(

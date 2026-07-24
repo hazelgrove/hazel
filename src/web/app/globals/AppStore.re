@@ -3,6 +3,8 @@ open Language;
 open IdTagged.FreshGrammar;
 
 /* AppStore: id-keyed store of live MVU apps (sidebar + future inline apps).
+ * This is the state-commit target: dispatching a msg evaluates
+ * update(msg, model) and stores the new model.
  *
  * State/memo split: `model` is THE app state and is owned here. The
  * `update_fn`/`view_fn`/`subs_fn` closures are memos derived from the
@@ -32,7 +34,7 @@ module Entry = {
   type t = {
     source_result: DHExp.t, // program eval result this entry derives from
     model: DHExp.t, // THE state
-    update_fn: option(DHExp.t), // memo: Some = Elm mode, None = legacy
+    update_fn: DHExp.t, // memo: update: (msg, model) -> model' or (model', cmd)
     view_fn: DHExp.t, // memo: view: model -> Html
     subs_fn: option(DHExp.t), // memo: subscriptions: model -> Sub
     html: DHExp.t, // current view value: view_fn(model)
@@ -62,22 +64,6 @@ let lookup = (id: Id.t, store: t): option(Entry.t) =>
 let eval = Haz3lcore.MvuShape.evaluate;
 let safe_eval = Haz3lcore.MvuShape.safe_evaluate;
 
-// Full elaboration, for source-level values (legacy set_model path)
-let eval_elab = (exp: DHExp.t): DHExp.t => {
-  let (_info_map, elaborated) =
-    Statics.mk(
-      CoreSettings.on,
-      Builtins.ctx_init(Some(Operators.Int)),
-      exp,
-    );
-  fst(Evaluator.evaluate(~env=Builtins.env_init, elaborated));
-};
-
-let safe_eval_elab = (exp: DHExp.t): result(DHExp.t, string) =>
-  try(Ok(eval_elab(exp))) {
-  | exn => Error(Printexc.to_string(exn))
-  };
-
 let mk_inject =
     (~schedule_msg: (Id.t, DHExp.t) => unit, id: Id.t, m: DHExp.t)
     : Ui_effect.t(unit) => {
@@ -91,10 +77,8 @@ let mk_inject =
 let resubscribe =
     (
       ~schedule_msg: (Id.t, DHExp.t) => unit,
-      ~elab=false,
       id: Id.t,
       ~model: DHExp.t,
-      ~update_fn: option(DHExp.t),
       ~subs_fn: option(DHExp.t),
       old_handles: list(Haz3lcore.SubManager.sub_handle),
     )
@@ -103,19 +87,16 @@ let resubscribe =
   switch (subs_fn) {
   | None => []
   | Some(subs_fn) =>
-    let subs_exp = Exp.ap(Forward, subs_fn, model);
-    switch (elab ? safe_eval_elab(subs_exp) : safe_eval(subs_exp)) {
+    switch (safe_eval(Exp.ap(Forward, subs_fn, model))) {
     | Error(err) =>
       prerr_endline("AppStore: subscriptions eval error: " ++ err);
       [];
     | Ok(sub) =>
       let ctx: Haz3lcore.SubManager.context = {
-        model,
         inject: mk_inject(~schedule_msg, id),
-        update_fn,
       };
-      Haz3lcore.SubManager.subscribe(ctx, sub, () => model);
-    };
+      Haz3lcore.SubManager.subscribe(ctx, sub);
+    }
   };
 };
 
@@ -129,7 +110,7 @@ let init =
       id: Id.t,
       ~source_result: DHExp.t,
       ~init_model: DHExp.t,
-      ~update_fn: option(DHExp.t),
+      ~update_fn: DHExp.t,
       ~view_fn: DHExp.t,
       ~subs_fn: option(DHExp.t),
       store: t,
@@ -156,7 +137,7 @@ let init =
     | None => []
     };
   let sub_handles =
-    resubscribe(~schedule_msg, id, ~model, ~update_fn, ~subs_fn, old_handles);
+    resubscribe(~schedule_msg, id, ~model, ~subs_fn, old_handles);
   Id.Map.add(
     id,
     Entry.{
@@ -172,46 +153,9 @@ let init =
   );
 };
 
-// Legacy path (no update_fn routing): the injected value IS the new model.
-let set_model =
-    (
-      ~schedule_msg: (Id.t, DHExp.t) => unit,
-      id: Id.t,
-      new_model: DHExp.t,
-      store: t,
-    )
-    : t =>
-  switch (lookup(id, store)) {
-  | None => store // no app at this id yet
-  | Some(entry) =>
-    let html = eval_elab(Exp.ap(Forward, entry.view_fn, new_model));
-    let sub_handles =
-      resubscribe(
-        ~schedule_msg,
-        ~elab=true,
-        id,
-        ~model=new_model,
-        ~update_fn=entry.update_fn,
-        ~subs_fn=entry.subs_fn,
-        entry.sub_handles,
-      );
-    Id.Map.add(
-      id,
-      Entry.{
-        ...entry,
-        model: new_model,
-        html,
-        sub_handles,
-      },
-      store,
-    );
-  };
-
 // Route a msg through the entry's update_fn: eval update(msg, model), accept
 // both `model'` and `(model', cmd)` results, run the cmd, re-derive html,
-// and reconcile subscriptions. Legacy entries (no update_fn) treat the msg
-// as the new model (set_model semantics), so subscription handlers can use
-// a single inject path.
+// and reconcile subscriptions.
 let dispatch =
     (
       ~schedule_msg: (Id.t, DHExp.t) => unit,
@@ -224,62 +168,55 @@ let dispatch =
   switch (lookup(id, store)) {
   | None => store
   | Some(entry) =>
-    switch (entry.update_fn) {
-    | None => set_model(~schedule_msg, id, msg, store)
-    | Some(update_fn) =>
-      try({
-        let result =
-          eval(Exp.ap(Forward, update_fn, Exp.tuple([msg, entry.model])))
-          |> Haz3lcore.MvuShape.strip_wrappers;
-        let (new_model, cmd) =
-          switch (result.term) {
-          | Tuple([m, c]) => (m, c)
-          | _ =>
-            Js_of_ocaml.Firebug.console##warn(
-              Js_of_ocaml.Js.string(
-                "AppStore.dispatch: update result is not a tuple, using fallback",
-              ),
-            );
-            (result, Exp.constructor("CmdNone", None));
-          };
-        let html = eval(Exp.ap(Forward, entry.view_fn, new_model));
-        // Run cmd (CmdRunner handles CmdNone as a no-op)
-        run_cmd(
-          {
-            model: new_model,
-            inject: mk_inject(~schedule_msg, id),
-            update_fn: entry.update_fn,
-          },
-          cmd,
-        );
-        let sub_handles =
-          resubscribe(
-            ~schedule_msg,
-            id,
-            ~model=new_model,
-            ~update_fn=entry.update_fn,
-            ~subs_fn=entry.subs_fn,
-            entry.sub_handles,
+    try({
+      let result =
+        eval(
+          Exp.ap(Forward, entry.update_fn, Exp.tuple([msg, entry.model])),
+        )
+        |> Haz3lcore.MvuShape.strip_wrappers;
+      let (new_model, cmd) =
+        switch (result.term) {
+        | Tuple([m, c]) => (m, c)
+        | _ =>
+          Js_of_ocaml.Firebug.console##warn(
+            Js_of_ocaml.Js.string(
+              "AppStore.dispatch: update result is not a tuple, using fallback",
+            ),
           );
-        Id.Map.add(
+          (result, Exp.constructor("CmdNone", None));
+        };
+      let html = eval(Exp.ap(Forward, entry.view_fn, new_model));
+      // Run cmd (CmdRunner handles CmdNone as a no-op)
+      let cmd_ctx: Haz3lcore.CmdRunner.context = {
+        inject: mk_inject(~schedule_msg, id),
+      };
+      run_cmd(cmd_ctx, cmd);
+      let sub_handles =
+        resubscribe(
+          ~schedule_msg,
           id,
-          Entry.{
-            ...entry,
-            model: new_model,
-            html,
-            sub_handles,
-          },
-          store,
+          ~model=new_model,
+          ~subs_fn=entry.subs_fn,
+          entry.sub_handles,
         );
-      }) {
-      | exn =>
-        Js_of_ocaml.Firebug.console##error(
-          Js_of_ocaml.Js.string(
-            "AppStore.dispatch EXCEPTION: " ++ Printexc.to_string(exn),
-          ),
-        );
-        store;
-      }
+      Id.Map.add(
+        id,
+        Entry.{
+          ...entry,
+          model: new_model,
+          html,
+          sub_handles,
+        },
+        store,
+      );
+    }) {
+    | exn =>
+      Js_of_ocaml.Firebug.console##error(
+        Js_of_ocaml.Js.string(
+          "AppStore.dispatch EXCEPTION: " ++ Printexc.to_string(exn),
+        ),
+      );
+      store;
     }
   };
 

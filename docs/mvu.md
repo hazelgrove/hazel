@@ -251,14 +251,17 @@ Elm uses `Cmd` for HTTP requests and `port` for JavaScript interop. Our command 
 
 ```
 src/web/app/
-  Page.re                    # InitAppView, AppViewMsg, evaluate_direct, keyboard fix
-  globals/Globals.re         # AppViewState type definition
+  Page.re                    # InitAppView, AppViewMsg, keyboard fix
+  globals/Globals.re         # App-view actions
+  globals/AppStore.re        # Id-keyed MVU state store (the state-commit target)
   sidebar/AppViewPanel.re    # App detection, rendering entry point
 
 src/haz3lcore/projectors/
-  HazelDOM.re                # Html -> Virtual_dom renderer, subscription management
+  MvuShape.re                # Shared shape detection (wrappers, constructors, app kind)
+  HazelDOM.re                # Html -> Virtual_dom renderer + unified msg dispatch
   SubManager.re              # Subscription setup/cleanup, handler dispatch
   CmdRunner.re               # Command execution (Focus, Delay, Log, etc.)
+  implementations/HTMLProj.re # Inline projector (the syntax-commit target)
 
 src/language/builtins/
   BuiltinsADT.re            # Type definitions: Html, Attr, Cmd, Sub, KeyEvent, MouseEvent
@@ -278,37 +281,22 @@ hazel-programs/html-examples/
   tictactoe.hz              # Tic-tac-toe game
 ```
 
-## Legacy: Self-Modifying Pattern
+## One Dispatch Model, Two Commit Targets
 
-There is an older "self-modifying" pattern (documented in `hazel-html-implementation.md`) where the HTML tree IS the model — event handlers receive the current HTML and return new HTML directly, with no separate model or message type.
+Handlers always produce a **msg**; dispatch is uniform (HazelDOM's handler builders hand the msg to `inject` and stop propagation). What differs per surface is the commit strategy — `HazelDOM.t.commit`:
 
-This pattern is still supported in the runtime but is not recommended for new programs. It exists as a separate code path, not as a variant of MVU.
+- **State commit** (sidebar App View, `commit: State`): the web-side AppStore evaluates `update(msg, model)` and stores the new model. This is the Elm-style path described throughout this document.
 
-### Where legacy code is entangled with MVU
+- **Syntax commit** (inline HTML projector, `commit: Syntax`): the projected expression IS the model, and a msg is an `Html -> Html` transform. Committing evaluates `msg(model)` and splices the result back into the document via `SetSyntax`. In other words: self-modifying = Elm with `update = apply` and a different commit target.
 
-The branching point is `update_fn: option(DHExp.t)` in `AppViewState` and `HazelDOM.t` — when `Some`, the runtime uses Elm-style dispatch; when `None`, it falls back to legacy behavior. This option is set cleanly at initialization time (`AppViewPanel.detect_app_kind`), not via runtime type inspection.
+Details of the syntax-commit surface (HTMLProj.re):
 
-The branching happens in:
+- Simple-event handlers (`OnClick`, ...) ARE the msg — an `Html -> Html` function.
+- Payload-event handlers (`OnInput`, `OnKeyDown`, `OnMouseDown`, ...) keep the shape `(Html, payload) -> Html`; at dispatch time HazelDOM wraps them into the transform msg `fun m -> handler((m, payload))` (`HazelDOM.payload_transform`).
+- A msg may also produce `(Html, Cmd)`: the Html is spliced and the Cmd runs afterward.
+- `Delay(ms, msg)` works in both modes uniformly, since its payload is always a msg (in syntax-commit mode: a transform that re-enters the same inject).
 
-- **HazelDOM.re**: All 4 event handler functions (`on_`, `on_input`, `on_mouse`, `on_key`) check `mvu.update_fn` to decide whether handlers produce messages (Elm) or return new HTML (legacy).
-
-- **SubManager.re**: `apply_handler` checks `ctx.update_fn`. In Elm mode, the handler takes just event data and produces a message. In legacy mode, the handler takes `(html, event_data)` and returns new HTML.
-
-- **CmdRunner.re**: The `Delay` command checks `ctx.update_fn`. In Elm mode, the delayed value IS the message. In legacy mode, it's a `model -> model` function.
-
-- **AppViewPanel.re**: `detect_app_kind` checks for 4-tuple (Elm) vs 3-tuple (legacy MVU) vs 2-tuple (legacy self-modifying). `render_legacy_app` handles the self-modifying path separately.
-
-- **Page.re**: `AppViewMsg` only fires for Elm apps (guarded by `Option.is_some(state.update_fn)`). `SetAppViewModel` handles legacy direct model replacement.
-
-- **Sidebar.re**: `app_inject` checks `state.update_fn` option to route to `AppViewMsg` (Elm) or `SetAppViewModel` (legacy).
-
-- **HTMLProj.re**: The inline HTML projector always uses `update_fn: None` (legacy mode only).
-
-### Path to further separation
-
-To fully divorce the systems:
-1. Move all legacy branching into a separate module (e.g., `LegacyHazelDOM`)
-2. Have AppViewPanel route to completely different render paths based on app kind
+(Formerly the self-modifying pattern was a separate "legacy mode" selected by `update_fn: option(...)` branches throughout HazelDOM/CmdRunner/SubManager, with 2- and 3-tuple app shapes and a `SetAppViewModel` action; that split is gone.)
 
 Sources:
 - [The Elm Architecture](https://guide.elm-lang.org/architecture/)

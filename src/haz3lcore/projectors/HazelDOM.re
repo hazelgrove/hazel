@@ -4,26 +4,23 @@ open Language;
 open IdTagged.FreshGrammar;
 open MvuShape;
 
+/* Where a dispatched msg is committed:
+ * - State: the web-side AppStore evaluates update(msg, model) and stores
+ *   the new model.
+ * - Syntax: the inline projector (HTMLProj) evaluates msg(model) and
+ *   splices the result back into the document. A msg is an Html -> Html
+ *   transform: self-modifying = Elm with update = apply. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type commit =
+  | State
+  | Syntax;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  model: DHExp.t,
   inject: DHExp.t => Ui_effect.t(unit),
   view_term: DHExp.t => Node.t,
-  // Unused by rendering: subscription lifecycle moved to the web-side
-  // AppStore (update path), so HazelDOM is render-only. Kept so HTMLProj.re
-  // still compiles; its legacy render-driven subs are cut.
-  projector_id: option(Id.t),
-  subscriptions: option(DHExp.t),
-  // Optional: Elm-mode update function. Some = Elm mode, None = legacy mode
-  update_fn: option(DHExp.t),
+  commit,
 };
-
-// Legacy input types that render as <input type="...">
-let input_type_mappings: list((string, string)) = [
-  ("Checkbox", "checkbox"),
-  ("Radio", "radio"),
-  ("Range", "range"),
-];
 
 let render_style_attr = (d: DHExp.t): option(string) =>
   switch (of_pair(d)) {
@@ -37,112 +34,51 @@ let render_styles = styles =>
   |> String.concat(";")
   |> Attr.create("style");
 
-// Create an error display Html node
-let error_html = (msg: string): DHExp.t =>
-  Exp.ap(
-    Forward,
-    Exp.constructor("Div", None),
-    Exp.tuple([
-      Exp.list_lit([
-        Exp.ap(
-          Forward,
-          Exp.constructor("Style", None),
-          Exp.list_lit([
-            Exp.tuple([Exp.string("color"), Exp.string("red")]),
-            Exp.tuple([Exp.string("padding"), Exp.string("8px")]),
-            Exp.tuple([Exp.string("border"), Exp.string("1px solid red")]),
-            Exp.tuple([Exp.string("background"), Exp.string("#fee")]),
-          ]),
-        ),
-      ]),
-      Exp.list_lit([
-        Exp.ap(Forward, Exp.constructor("Text", None), Exp.string(msg)),
-      ]),
-    ]),
+// === Event handlers ===
+//
+// One dispatch path: a handler's job is always to produce a msg, which is
+// handed to mvu.inject; the commit target decides what committing means
+// (see `commit` above).
+
+let dispatch = (mvu: t, msg: DHExp.t): Ui_effect.t(unit) =>
+  Effect.Many([Effect.Stop_propagation, mvu.inject(msg)]);
+
+// Syntax-commit msg for a payload event: fun m -> handler((m, payload)).
+// The already-evaluated handler closure and payload value are embedded
+// directly in the constructed term (the evaluator handles embedded
+// Closures); the commit side applies the msg to the current model.
+let payload_transform = (handler: DHExp.t, payload: DHExp.t): DHExp.t =>
+  Exp.fn(
+    Pat.var("m"),
+    Exp.ap(Forward, handler, Exp.tuple([Exp.var("m"), payload])),
+    None,
+    None,
   );
 
-// === Event handlers ===
+// Simple event: the handler IS the msg (in Syntax mode: an Html -> Html
+// transform).
+let on_ = (mvu: t, handler, _evt) => dispatch(mvu, handler);
 
-// Process handler result: either Html or (Html, Cmd)
-// Returns (new_model, optional_cmd_effect)
-let process_handler_result = (mvu: t, result: DHExp.t): Ui_effect.t(unit) => {
-  // Check if result is a tuple (Html, Cmd)
-  switch (result.term) {
-  | Tuple([new_model, cmd]) =>
-    // Result is (Html, Cmd) - run the command
-    let cmd_ctx: CmdRunner.context = {
-      model: new_model,
-      inject: mvu.inject,
-      update_fn: mvu.update_fn,
-    };
-    let cmd_effect = CmdRunner.run(cmd_ctx, cmd);
-    Effect.Many([
-      Effect.Stop_propagation,
-      mvu.inject(new_model),
-      cmd_effect,
-    ]);
-  | Parens({term: Tuple([new_model, cmd]), _}) =>
-    let cmd_ctx: CmdRunner.context = {
-      model: new_model,
-      inject: mvu.inject,
-      update_fn: mvu.update_fn,
-    };
-    let cmd_effect = CmdRunner.run(cmd_ctx, cmd);
-    Effect.Many([
-      Effect.Stop_propagation,
-      mvu.inject(new_model),
-      cmd_effect,
-    ]);
-  | _ =>
-    // Result is just Html
-    Effect.Many([Effect.Stop_propagation, mvu.inject(result)])
-  };
-};
-
-// Simple event: Elm mode: handler IS the msg value. Legacy: Html -> Html
-let on_ = (mvu: t, handler, _evt) => {
-  switch (mvu.update_fn) {
-  | Some(_) =>
-    // Elm mode: handler IS the msg value, dispatch directly
-    Effect.Many([Effect.Stop_propagation, mvu.inject(handler)])
-  | None =>
-    // Legacy: handler is model -> model
-    switch (safe_evaluate(Exp.ap(Forward, handler, mvu.model))) {
-    | Ok(result) => process_handler_result(mvu, result)
-    | Error(msg) =>
-      let err = error_html("Event handler error: " ++ msg);
-      Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
-    }
-  };
-};
-
-// Input/change event: Elm mode: String -> msg. Legacy: (Html, String) -> Html
-let on_input = (mvu: t, handler, _evt, arg) => {
-  switch (mvu.update_fn) {
-  | Some(_) =>
-    // Elm mode: handler is String -> msg. On error, don't dispatch.
-    switch (safe_evaluate(Exp.ap(Forward, handler, Exp.string(arg)))) {
-    | Ok(msg) => Effect.Many([Effect.Stop_propagation, mvu.inject(msg)])
+// Payload event.
+// State: handler is payload -> msg; evaluate it now. On error, dispatch
+//   nothing (never commit garbage).
+// Syntax: handler is (Html, payload) -> Html; the msg is the transform
+//   fun m -> handler((m, payload)), applied at commit time.
+let on_payload = (mvu: t, what: string, handler, payload: DHExp.t) =>
+  switch (mvu.commit) {
+  | Syntax => dispatch(mvu, payload_transform(handler, payload))
+  | State =>
+    switch (safe_evaluate(Exp.ap(Forward, handler, payload))) {
+    | Ok(msg) => dispatch(mvu, msg)
     | Error(err) =>
-      prerr_endline("HazelDOM: input handler error: " ++ err);
+      prerr_endline("HazelDOM: " ++ what ++ " handler error: " ++ err);
       Effect.Ignore;
     }
-  | None =>
-    // Legacy: handler is (Html, String) -> Html
-    switch (
-      safe_evaluate(
-        Exp.ap(Forward, handler, Exp.tuple([mvu.model, Exp.string(arg)])),
-      )
-    ) {
-    | Ok(result) => process_handler_result(mvu, result)
-    | Error(msg) =>
-      let err = error_html("Input handler error: " ++ msg);
-      Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
-    }
   };
-};
 
-// Mouse event: Elm mode: MouseEvent -> msg. Legacy: (Html, MouseEvent) -> Html
+let on_input = (mvu: t, handler, _evt, arg) =>
+  on_payload(mvu, "input", handler, Exp.string(arg));
+
 let on_mouse = (mvu: t, handler, evt) => {
   /* MouseEvent value (labeled tuple, see BuiltinsADT.Event.mouse) */
   let mouse_event =
@@ -155,56 +91,11 @@ let on_mouse = (mvu: t, handler, evt) => {
       field("alt", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.altKey))),
       field("meta", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.metaKey))),
     ]);
-  switch (mvu.update_fn) {
-  | Some(_) =>
-    // Elm mode: handler is MouseEvent -> msg. On error, don't dispatch.
-    switch (safe_evaluate(Exp.ap(Forward, handler, mouse_event))) {
-    | Ok(msg) => Effect.Many([Effect.Stop_propagation, mvu.inject(msg)])
-    | Error(err) =>
-      prerr_endline("HazelDOM: mouse handler error: " ++ err);
-      Effect.Ignore;
-    }
-  | None =>
-    // Legacy: handler is (Html, MouseEvent) -> Html
-    switch (
-      safe_evaluate(
-        Exp.ap(Forward, handler, Exp.tuple([mvu.model, mouse_event])),
-      )
-    ) {
-    | Ok(result) => process_handler_result(mvu, result)
-    | Error(msg) =>
-      let err = error_html("Mouse handler error: " ++ msg);
-      Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
-    }
-  };
+  on_payload(mvu, "mouse", handler, mouse_event);
 };
 
-// Keyboard event: Elm mode: KeyEvent -> msg. Legacy: (Html, KeyEvent) -> Html
-let on_key = (mvu: t, handler, evt) => {
-  let key_event = SubManager.key_event_of_js(evt);
-  switch (mvu.update_fn) {
-  | Some(_) =>
-    // Elm mode: handler is KeyEvent -> msg. On error, don't dispatch.
-    switch (safe_evaluate(Exp.ap(Forward, handler, key_event))) {
-    | Ok(msg) => Effect.Many([Effect.Stop_propagation, mvu.inject(msg)])
-    | Error(err) =>
-      prerr_endline("HazelDOM: keyboard handler error: " ++ err);
-      Effect.Ignore;
-    }
-  | None =>
-    // Legacy: handler is (Html, KeyEvent) -> Html
-    switch (
-      safe_evaluate(
-        Exp.ap(Forward, handler, Exp.tuple([mvu.model, key_event])),
-      )
-    ) {
-    | Ok(result) => process_handler_result(mvu, result)
-    | Error(msg) =>
-      let err = error_html("Keyboard handler error: " ++ msg);
-      Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
-    }
-  };
-};
+let on_key = (mvu: t, handler, evt) =>
+  on_payload(mvu, "keyboard", handler, SubManager.key_event_of_js(evt));
 
 // === Attribute rendering ===
 
@@ -382,7 +273,7 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
       | None => attr_err(d)
       }
 
-    // === Simple event handlers: Html -> Html ===
+    // === Simple event handlers: the handler IS the msg ===
     | ("OnClick", handler) => Attr.on_click(on_(mvu, handler))
     | ("OnDoubleClick", handler) => Attr.on_double_click(on_(mvu, handler))
     | ("OnMouseEnter", handler) => Attr.on_mouseenter(on_(mvu, handler))
@@ -395,21 +286,21 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
         Effect.Many([Effect.Prevent_default, on_(mvu, handler, evt)])
       )
 
-    // === Mouse event handlers: (Html, MouseEvent) -> Html ===
+    // === Mouse event handlers (payload: MouseEvent) ===
     | ("OnMouseDown", handler) => Attr.on_mousedown(on_mouse(mvu, handler))
     | ("OnMouseUp", handler) => Attr.on_mouseup(on_mouse(mvu, handler))
     | ("OnMouseMove", handler) => Attr.on_mousemove(on_mouse(mvu, handler))
 
-    // === Keyboard event handlers: (Html, KeyEvent) -> Html ===
+    // === Keyboard event handlers (payload: KeyEvent) ===
     | ("OnKeyDown", handler) => Attr.on_keydown(on_key(mvu, handler))
     | ("OnKeyUp", handler) => Attr.on_keyup(on_key(mvu, handler))
     | ("OnKeyPress", handler) => Attr.on_keypress(on_key(mvu, handler))
 
-    // === Input event handlers: (Html, String) -> Html ===
+    // === Input event handlers (payload: String) ===
     | ("OnInput", handler) => Attr.on_input(on_input(mvu, handler))
     | ("OnChange", handler) => Attr.on_change(on_input(mvu, handler))
 
-    // === Legacy/generic attributes ===
+    // === Generic attributes (escape hatches) ===
     | ("Create", p) =>
       switch (of_pair(p)) {
       | Some((k, v)) => Attr.create(k, v)
@@ -421,9 +312,6 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
       | Some((_, false)) => Attr.empty
       | None => attr_err(d)
       }
-
-    // === Legacy event (backwards compat) ===
-    | ("OnMousedown", handler) => Attr.on_mousedown(on_(mvu, handler))
 
     | _ => attr_err(d)
     }
@@ -491,13 +379,6 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
     | ("Img", body) =>
       let (attrs, _) = attrs_only(mvu, body);
       Node.img(~attrs, ());
-
-    // === Legacy input types ===
-    | (constructor_name, body)
-        when List.mem_assoc(constructor_name, input_type_mappings) =>
-      let input_type = List.assoc(constructor_name, input_type_mappings);
-      let (attrs, _) = attrs_only(mvu, body);
-      Node.input(~attrs=[Attr.type_(input_type), ...attrs], ());
 
     // === Node: custom element (tagName, attrs, children) ===
     | ("Node", body) =>
@@ -694,7 +575,7 @@ and node_body =
 
 // Render-only: subscriptions are owned and reconciled by the web-side
 // AppStore update path, never at render time.
-let go = (mvu: t): Node.t => {
+let go = (mvu: t, html: DHExp.t): Node.t => {
   let attrs = [Attr.tabindex(2), Attr.classes(["MVU-render"])];
-  Node.div(~attrs, [render_elem(mvu, mvu.model)]);
+  Node.div(~attrs, [render_elem(mvu, html)]);
 };

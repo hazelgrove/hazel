@@ -4,8 +4,8 @@ open MvuShape;
 
 // SubManager: Manages subscriptions for Hazel apps
 //
-// Sub is a sum type defined in BuiltinsADT.re (Elm-mode handler types;
-// legacy mode prepends the current Html model to the handler args):
+// Sub is a sum type defined in BuiltinsADT.re (handlers take event data and
+// produce a msg):
 //   | SubNone
 //   | SubBatch(List(Sub))
 //   | OnResize((Int, Int) -> Msg)
@@ -15,11 +15,7 @@ open MvuShape;
 //   | Every(Float, Float -> Msg)
 //   | AnimationFrame(Float -> Msg)
 
-type context = {
-  model: DHExp.t,
-  inject: DHExp.t => Ui_effect.t(unit),
-  update_fn: option(DHExp.t),
-};
+type context = {inject: DHExp.t => Ui_effect.t(unit)};
 
 // Track active subscriptions for cleanup
 type sub_handle =
@@ -28,39 +24,21 @@ type sub_handle =
 
 type active_subs = list(sub_handle);
 
-// Apply a handler with the current model and additional args
-// With error boundary - logs errors instead of crashing
+// Apply a handler to event data, producing a msg dispatched via ctx.inject.
+// Error boundary: on handler-eval error, log and dispatch nothing.
 let apply_handler = (ctx: context, handler: DHExp.t, args: list(DHExp.t)) => {
-  switch (ctx.update_fn) {
-  | Some(_) =>
-    // Elm mode: handler takes just event data, produces msg
-    let result =
-      switch (args) {
-      | [] => Ok(handler) // handler IS the msg (no event data)
-      | [single] => safe_evaluate(Exp.ap(Forward, handler, single))
-      | _ => safe_evaluate(Exp.ap(Forward, handler, Exp.tuple(args)))
-      };
-    switch (result) {
-    | Ok(msg) => Bonsai.Effect.Expert.handle(ctx.inject(msg))
-    | Error(err) =>
-      Js_of_ocaml.Firebug.console##error(
-        Js_of_ocaml.Js.string("Subscription handler error: " ++ err),
-      )
+  let result =
+    switch (args) {
+    | [] => Ok(handler) // handler IS the msg (no event data)
+    | [single] => safe_evaluate(Exp.ap(Forward, handler, single))
+    | _ => safe_evaluate(Exp.ap(Forward, handler, Exp.tuple(args)))
     };
-  | None =>
-    // Legacy: handler takes (model, ...args) -> model
-    let arg_exp =
-      switch (args) {
-      | [] => ctx.model
-      | _ => Exp.tuple([ctx.model, ...args])
-      };
-    switch (safe_evaluate(Exp.ap(Forward, handler, arg_exp))) {
-    | Ok(new_model) => Bonsai.Effect.Expert.handle(ctx.inject(new_model))
-    | Error(msg) =>
-      Js_of_ocaml.Firebug.console##error(
-        Js_of_ocaml.Js.string("Subscription handler error: " ++ msg),
-      )
-    };
+  switch (result) {
+  | Ok(msg) => Bonsai.Effect.Expert.handle(ctx.inject(msg))
+  | Error(err) =>
+    Js_of_ocaml.Firebug.console##error(
+      Js_of_ocaml.Js.string("Subscription handler error: " ++ err),
+    )
   };
 };
 
@@ -83,9 +61,7 @@ let key_event_of_js = evt => {
 };
 
 // Subscribe to a single subscription, returning handles for cleanup
-let rec subscribe =
-        (ctx: context, sub: DHExp.t, get_model: unit => DHExp.t)
-        : list(sub_handle) => {
+let rec subscribe = (ctx: context, sub: DHExp.t): list(sub_handle) => {
   Js_of_ocaml.(
     switch (of_constructor_raw(sub)) {
     | None =>
@@ -96,8 +72,7 @@ let rec subscribe =
 
     | Some(("SubBatch", body)) =>
       switch (of_list(body)) {
-      | Some(subs) =>
-        List.concat(List.map(subscribe(ctx, _, get_model), subs))
+      | Some(subs) => List.concat(List.map(subscribe(ctx), subs))
       | None => []
       }
 
@@ -106,12 +81,7 @@ let rec subscribe =
         Dom.handler(_evt => {
           let w = Dom_html.window##.innerWidth;
           let h = Dom_html.window##.innerHeight;
-          let current_model = get_model();
-          let ctx' = {
-            ...ctx,
-            model: current_model,
-          };
-          apply_handler(ctx', handler, [Exp.int(w), Exp.int(h)]);
+          apply_handler(ctx, handler, [Exp.int(w), Exp.int(h)]);
           Js._true;
         });
       let listener_id =
@@ -128,12 +98,7 @@ let rec subscribe =
       let listener =
         Dom.handler(_evt => {
           let visible = Dom_html.document##.hidden |> Js.to_bool |> (!);
-          let current_model = get_model();
-          let ctx' = {
-            ...ctx,
-            model: current_model,
-          };
-          apply_handler(ctx', handler, [Exp.bool(visible)]);
+          apply_handler(ctx, handler, [Exp.bool(visible)]);
           Js._true;
         });
       let listener_id =
@@ -149,12 +114,7 @@ let rec subscribe =
       let listener =
         Dom.handler(evt => {
           let key_event = key_event_of_js(evt);
-          let current_model = get_model();
-          let ctx' = {
-            ...ctx,
-            model: current_model,
-          };
-          apply_handler(ctx', handler, [key_event]);
+          apply_handler(ctx, handler, [key_event]);
           Js._true;
         });
       // Use capture phase (Js._true) so we fire before Hazel's editor handlers
@@ -171,12 +131,7 @@ let rec subscribe =
       let listener =
         Dom.handler(evt => {
           let key_event = key_event_of_js(evt);
-          let current_model = get_model();
-          let ctx' = {
-            ...ctx,
-            model: current_model,
-          };
-          apply_handler(ctx', handler, [key_event]);
+          apply_handler(ctx, handler, [key_event]);
           Js._true;
         });
       // Use capture phase (Js._true) so we fire before Hazel's editor handlers
@@ -199,12 +154,7 @@ let rec subscribe =
               Js.wrap_callback(() => {
                 let perf = Js.Unsafe.coerce(Dom_html.window)##.performance;
                 let timestamp = Js.to_float(perf##now());
-                let current_model = get_model();
-                let ctx' = {
-                  ...ctx,
-                  model: current_model,
-                };
-                apply_handler(ctx', handler, [Exp.float(timestamp)]);
+                apply_handler(ctx, handler, [Exp.float(timestamp)]);
               }),
               ms,
             );
@@ -224,12 +174,7 @@ let rec subscribe =
               Js.wrap_callback(timestamp =>
                 if (running^) {
                   let ts = Js.to_float(timestamp);
-                  let current_model = get_model();
-                  let ctx' = {
-                    ...ctx,
-                    model: current_model,
-                  };
-                  apply_handler(ctx', handler, [Exp.float(ts)]);
+                  apply_handler(ctx, handler, [Exp.float(ts)]);
                   request_frame();
                 }
               ),

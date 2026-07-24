@@ -262,18 +262,6 @@ module Update = {
         },
       }
       |> return_quiet
-    | SetAppViewModel(id, new_model) =>
-      model
-      |> with_apps(
-           _,
-           AppStore.set_model(
-             ~schedule_msg=schedule_app_msg,
-             id,
-             new_model,
-             model.globals.apps,
-           ),
-         )
-      |> return_quiet
     | AppViewMsg(id, msg) =>
       model
       |> with_apps(
