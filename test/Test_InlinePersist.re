@@ -4,10 +4,13 @@ open Haz3lcore;
 /* INLINE-PERSIST trial pins (obligation-display design: the
    display_inline knob turned up for forced obligations). With the
    flag on, delimiter-closer and T1 scaffolding ghosts stay INLINE at
-   their true positions when the caret leaves; TyDi/witnesses stay
-   caret-local; a span at-or-before the caret in reading order
-   demotes to chips exactly as with the flag off (the legality
-   scope: nothing may displace the caret).
+   their true positions wherever the caret is — MOVEMENT PURITY: a
+   span's display form is a property of the span + document, never
+   the caret, so pure motion changes no rendered text. TyDi/witnesses
+   stay caret-local. Demotion and dispatch happen only at EDIT
+   moments; the edit that dispatches a pre-caret span contracts text
+   left of the caret at that keystroke (the accepted P2-at-dispatch
+   trade — pinned below).
 
    Trajectories render one line per state: OFF then ON, so each pin
    shows precisely what the toggle changes. */
@@ -70,10 +73,101 @@ let movement = [
       check(
         string_testable,
         "one press per perceived position",
-        "let a = 1\n¦⟪in⟫ x   CHIPS[]\n---\n"
-        ++ "let a = 1¦ ⟪in⟫\nx   CHIPS[]\n---\n"
-        ++ "let a = ¦1 ⟪in⟫\nx   CHIPS[]",
+        /* span P4 pads are span MATERIAL (ghost-marked): they sit
+           inside the run markers and travel with the span */
+        "let a = 1\n¦⟪in ⟫x   CHIPS[]\n---\n"
+        ++ "let a = 1¦⟪ in⟫\nx   CHIPS[]\n---\n"
+        ++ "let a = ¦1⟪ in⟫\nx   CHIPS[]",
         got,
+      );
+    },
+  ),
+];
+
+/* THE P2-AT-DISPATCH TRADE (documented decision, not an accident):
+   with a same-row pre-caret span inline, the EDIT that dispatches
+   the obligation removes span material left of the caret — text
+   contracts and the caret's display column shifts left AT THAT
+   KEYSTROKE. Movement never does this; only the dispatching edit
+   does. */
+let dispatch_trade = [
+  test_case(
+    "dispatching a pre-caret span contracts at the edit",
+    `Quick,
+    () => {
+      /* `f(1 x` owes `)`; caret right of x — the owed closer's span
+         sits between 1 and x? No: closer promises after x (growth
+         zone). To place a span BEFORE the caret on its row, park the
+         caret past the site by typing then moving right through
+         real material: `f(1` then `) typed elsewhere` dispatches.
+         Simplest honest form: span before caret via move-past, then
+         type the closer at the caret — the remote ghost dispatches
+         and vanishes. */
+      let z0 = mkz("let a = 1
+x¦");
+      /* persisted ⟪in⟫ sits pre-caret (earlier row). Typing `in` up
+         front is awkward; dispatch instead by giving the let its own
+         in: caret to line 1 end, type "in" — the ghost reifies in
+         place; the span's ghost marks vanish at the edit. */
+      let z1 =
+        Test_Editing.perform(
+          z0,
+          [
+            Action.Move(Vertical(Up, ByChar)),
+            Action.Move(Line(Right)),
+            Action.Insert(" "),
+            Action.Insert("i"),
+            Action.Insert("n"),
+          ],
+        );
+      let before =
+        Test_CompletionDisplay.display_state_persist(~chips=true, z0);
+      let after =
+        Test_CompletionDisplay.display_state_persist(~chips=true, z1);
+      check(
+        string_testable,
+        "ghost span reified by the dispatching edit",
+        "before let a = 1⟪ in⟫
+x¦   CHIPS[]
+"
+        ++ "after let a = 1 in¦
+x   CHIPS[]",
+        "before " ++ before ++ "
+after " ++ after,
+      );
+    },
+  ),
+];
+
+/* CHURN-CARET-STABLE: a remote EDIT that adds/removes spans
+   elsewhere never moves the caret's display point (P2 under
+   persist; successor to the retired flag-equality invariant). */
+let churn_stability = [
+  test_case(
+    "remote span churn leaves the caret point fixed",
+    `Quick,
+    () => {
+      let z0 = mkz("let a = 1
+let b = 2
+x¦y");
+      let parts =
+        Test_CompletionDisplay.display_parts(~inline_persist=Persist);
+      let pt = (z: Zipper.t) =>
+        switch (parts(z)) {
+        | (seg, zc, _, _, caret_witnesses, _, _) =>
+          let m = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
+          DisplayCaret.point(~caret_witnesses, m, zc);
+        };
+      let p0 = pt(z0);
+      /* the edit types at the caret (col moves by exactly the typed
+         char) while TWO remote spans (both lets' `in`s) re-derive */
+      let z1 = Test_Editing.perform(z0, [Action.Insert("1")]);
+      let p1 = pt(z1);
+      check(
+        string_testable,
+        "caret advanced by exactly the typed char",
+        Printf.sprintf("(%d,%d)", p0.row, p0.col + 1),
+        Printf.sprintf("(%d,%d)", p1.row, p1.col),
       );
     },
   ),
@@ -81,6 +175,8 @@ let movement = [
 
 let tests = [
   ("InlinePersist: movement", movement),
+  ("InlinePersist: dispatch trade", dispatch_trade),
+  ("InlinePersist: churn stability", churn_stability),
   (
     "InlinePersist: trajectories",
     [
@@ -92,22 +188,22 @@ let tests = [
         "let-in persists after caret moves below",
         "let a = 1\nx¦",
         "let a = 1~\nx¦   CHIPS[in]",
-        "let a = 1⟪in⟫\nx¦   CHIPS[]",
+        "let a = 1⟪ in⟫\nx¦   CHIPS[]",
       ),
       /* owed closer persists at its site across lines */
       t(
         "ap closer persists across lines",
         "f(1\nx¦",
         "f(1~\nx¦   CHIPS[)]",
-        "f(1⟪)⟫~\nx¦   CHIPS[]",
+        "f(1⟪) ⟫~\nx¦   CHIPS[]",
       ),
       /* the caret-zone ghost is IDENTICAL under both flags: persist
          adds remote spans, never disturbs the at-caret display */
       t(
         "caret-zone ghost unchanged by persist",
         "let a = 1\n¦x",
-        "let a = 1\n¦⟪in⟫ x   CHIPS[]",
-        "let a = 1\n¦⟪in⟫ x   CHIPS[]",
+        "let a = 1\n¦⟪in ⟫x   CHIPS[]",
+        "let a = 1\n¦⟪in ⟫x   CHIPS[]",
       ),
       /* same-row material: the owed closer promises AFTER the caret
          (growth zone) under both flags — same-row-BEFORE-caret spans

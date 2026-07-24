@@ -561,38 +561,19 @@ let finish_display =
     (
       ~marks: list((Id.t, option(int))),
       ~raw: Segment.t,
-      ~caret_after: option((Id.t, int))=None,
+      ~marks_out: option(ref(list((Id.t, option(int)))))=None,
       seg: Segment.t,
     )
     : Segment.t => {
-  /* ranks confine pads to gaps AT or AFTER the caret (andrew's
-     policy: the display never changes strictly before the cursor);
-     computed AFTER the reorder pass, so late-bound via a cell */
-  let rank = ref(Hashtbl.create(0));
-  let caret_rank = () =>
-    switch (caret_after) {
-    | None => None
-    | Some(key) => Hashtbl.find_opt(rank^, key)
-    };
-  /* a pad site is identified by the atom LEFT of the gap */
-  let pad_allowed = (left: (Id.t, int)): bool =>
-    switch (caret_rank()) {
-    | None => true
-    | Some(cr) =>
-      switch (Hashtbl.find_opt(rank^, left)) {
-      | Some(r) => r >= cr
-      | None => true
-      }
-    };
-  let right_edge_atom = (p: Piece.t): (Id.t, int) =>
-    switch (p) {
-    | Tile(t) =>
-      switch (Util.ListUtil.last_opt(t.shards)) {
-      | Some(i) => (t.id, i)
-      | None => (t.id, (-1))
-      }
-    | p => (Piece.id(p), (-1))
-    };
+  /* MOVEMENT PURITY (obligation-display design): pads are a function
+     of the MATERIAL, never the caret. A pad mints only where a gap
+     touches SPAN-REGION material — a ghost-marked piece, a hot
+     (marked-tile) interior, or a REGION HOLE (minted grout adjacent
+     to ghost-marked material) — so a span renders identically
+     wherever the caret is, and resting text (no spans) is never
+     padded at all (layout invisibility). The former caret-rank gate
+     (pads only at/after the caret) made the same span render
+     differently as the caret moved — andrew's whitespace flicker. */
   let raw_ids = Hashtbl.create(64);
   let rec collect = (sg: Segment.t) =>
     List.iter(
@@ -607,6 +588,74 @@ let finish_display =
     );
   collect(raw);
   let minted = (id: Id.t) => !Hashtbl.mem(raw_ids, id);
+  /* REGION HOLES: minted grout adjacent (through secondaries) to
+     ghost-marked material — the obligation holes a span carries with
+     it (`let ¦ ? ⟪= ? in ?⟫`). Resting placed holes have user
+     neighbors on both sides and never qualify. */
+  let mark_ids: Hashtbl.t(Id.t, unit) = Hashtbl.create(16);
+  List.iter(
+    ((mid, _): (Id.t, option(int))) => Hashtbl.replace(mark_ids, mid, ()),
+    marks,
+  );
+  let mark_shard = (id: Id.t, sh: int) =>
+    List.exists(
+      ((mid, msh): (Id.t, option(int))) =>
+        Id.equal(mid, id) && msh == Some(sh),
+      marks,
+    );
+  let region: Hashtbl.t(Id.t, unit) = Hashtbl.create(16);
+  /* ~l_ghost/~r_ghost carry the ghostishness of the material BOUNDING
+     this segment — for a child slot, the enclosing tile's flanking
+     shards (exactly the `bound(k)` context the pad walk uses). A hole
+     alone in a child slot (`let ? = ...`) has no siblings to see, so
+     without this it never counts as span material and the span loses
+     its pads. */
+  let rec collect_region =
+          (~l_ghost: bool, ~r_ghost: bool, sg: Segment.t): unit => {
+    let arr = Array.of_list(sg);
+    let n = Array.length(arr);
+    let rec ghostish_from = (i, step) =>
+      i < 0
+        ? l_ghost
+        : i >= n
+            ? r_ghost
+            : (
+              switch (arr[i]) {
+              | Piece.Secondary(w) when !Secondary.is_comment(w) =>
+                ghostish_from(i + step, step)
+              | Piece.Secondary(w) => Hashtbl.mem(mark_ids, w.id)
+              | Piece.Grout(g) => Hashtbl.mem(mark_ids, g.id)
+              | Piece.Tile(t) => Hashtbl.mem(mark_ids, t.id)
+              | Piece.Projector(_) => false
+              }
+            );
+    Array.iteri(
+      (i, p: Piece.t) =>
+        switch (p) {
+        | Grout(g) when minted(g.id) =>
+          if (ghostish_from(i - 1, -1) || ghostish_from(i + 1, 1)) {
+            Hashtbl.replace(region, g.id, ());
+          }
+        | Tile(t) =>
+          let whole = List.mem((t.id, None), marks);
+          List.iteri(
+            (k, c) => {
+              let bound = (j: int) =>
+                switch (List.nth_opt(t.shards, j)) {
+                | Some(i) => whole || mark_shard(t.id, i)
+                | None => whole
+                };
+              collect_region(~l_ghost=bound(k), ~r_ghost=bound(k + 1), c);
+            },
+            t.children,
+          );
+        | _ => ()
+        },
+      arr,
+    );
+  };
+  collect_region(~l_ghost=false, ~r_ghost=false, seg);
+  let region_hole = (id: Id.t) => Hashtbl.mem(region, id);
   let is_space = (p: Piece.t) =>
     switch (p) {
     | Secondary(w) => Secondary.is_space(w)
@@ -637,16 +686,17 @@ let finish_display =
       ((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh,
       marks,
     );
-  let tile_hot = (t: Tile.t) =>
-    List.exists(
-      ((mid, _): (Id.t, option(int))) => Id.equal(mid, t.id),
-      marks,
-    );
+  /* hot = the tile is ghost AS A WHOLE (mark with shard=None): its
+     interior is span content and pads freely. A mere ghost SHARD
+     (user tile with an owed closer) must NOT heat the interior —
+     that padded every gap inside any ap missing its `)`. Shard-level
+     system-ness enters only at the shard's own edges via `edge`. */
+  let tile_hot = (t: Tile.t) => mark_mem(t.id, None);
   /* facing token + system-ness of a piece's edge; None = separator */
   let edge =
       (~hot: bool, p: Piece.t, ~side: Direction.t): option((string, bool)) =>
     switch (p) {
-    | Grout(g) => Some(("?", minted(g.id) || hot))
+    | Grout(g) => Some(("?", hot || region_hole(g.id)))
     /* a comment is content-width material (a TyDi ghost IS a
        display comment) — it separates nothing */
     | Secondary(w) when Secondary.is_comment(w) =>
@@ -703,11 +753,7 @@ let finish_display =
           edge(~hot, a, ~side=Direction.Right),
           edge(~hot, b, ~side=Direction.Left),
         ) {
-        | (Some(l), Some(r))
-            when
-              needs_pad(l, r)
-              && !hugging_comment(b)
-              && pad_allowed(right_edge_atom(a)) => [
+        | (Some(l), Some(r)) when needs_pad(l, r) && !hugging_comment(b) => [
             a,
             space(),
             ...rest,
@@ -733,13 +779,7 @@ let finish_display =
                switch (c) {
                | [first, ..._] =>
                  switch (edge(~hot, first, ~side=Direction.Left)) {
-                 | Some(r)
-                     when
-                       needs_pad(bound(k), r)
-                       && pad_allowed((t.id, List.nth(t.shards, k))) => [
-                     space(),
-                     ...c,
-                   ]
+                 | Some(r) when needs_pad(bound(k), r) => [space(), ...c]
                  | _ => c
                  }
                | [] => c
@@ -747,11 +787,7 @@ let finish_display =
              switch (Util.ListUtil.last_opt(c)) {
              | Some(last) =>
                switch (edge(~hot, last, ~side=Direction.Right)) {
-               | Some(l)
-                   when
-                     needs_pad(l, bound(k + 1))
-                     && pad_allowed(right_edge_atom(last)) =>
-                 c @ [space()]
+               | Some(l) when needs_pad(l, bound(k + 1)) => c @ [space()]
                | _ => c
                }
              | None => c
@@ -763,9 +799,7 @@ let finish_display =
       });
     | p => p
     };
-  /* rank AFTER reorder — hopped grout must carry its final position */
   let seg = reorder(seg);
-  rank := rank_map(seg);
   let seg = pad_seq(~hot=false, seg);
   /* BACKING REPAIR (P4, atomic-form padding under width transfer):
      a hole consumes an adjacent space's cell, so an oracle pad
@@ -783,9 +817,9 @@ let finish_display =
      resting document's borrow behavior is untouched: real placed
      holes there don't pass through this oracle). Consumption is
      strictly adjacent, so the consumer is a sibling grout. */
-  let minted_grout = (p: Piece.t): bool =>
+  let region_grout = (p: Piece.t): bool =>
     switch (p) {
-    | Grout(g) => minted(g.id)
+    | Grout(g) => region_hole(g.id)
     | _ => false
     };
   let rec back_pads = (ps: Segment.t): Segment.t => {
@@ -798,14 +832,19 @@ let finish_display =
              when
                Secondary.is_space(w)
                && GroutCells.is_consumed(cells, w.id)
-               && pad_allowed((w.id, (-1)))
+               /* backing only for SPAN material: an oracle pad the
+                  hole swallowed, or a REGION hole (span-adjacent)
+                  that consumed a user space. A resting borrowed-cell
+                  hole consuming a typed space is the DESIGN — no
+                  extra space, or resting lines would inflate (P5b);
+                  the old caret gate masked exactly this. */
                && (
                  Hashtbl.mem(pad_ids, w.id)
                  || i > 0
-                 && minted_grout(arr[i - 1])
+                 && region_grout(arr[i - 1])
                  || i
                  + 1 < n
-                 && minted_grout(arr[i + 1])
+                 && region_grout(arr[i + 1])
                ) => [
              arr[i],
              space(),
@@ -820,7 +859,13 @@ let finish_display =
          }
        );
   };
-  back_pads(seg);
+  let out = back_pads(seg);
+  switch (marks_out) {
+  | Some(cell) =>
+    Hashtbl.iter((id, ()) => cell := [(id, None), ...cell^], pad_ids)
+  | None => ()
+  };
+  out;
 };
 
 /* Middle-missing shards (`let x in 2`, `if true else 2` — targeted

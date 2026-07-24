@@ -261,12 +261,20 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Enable probes on all top-level definitions"),
       },
       {
-        name: "Inline Persist",
-        active: globals.settings.core.inline_persist,
+        name:
+          "Inline Persist: "
+          ++ (
+            switch (globals.settings.core.inline_persist) {
+            | Off => "Off"
+            | Persist => "Persist"
+            | Always => "Always"
+            }
+          ),
+        active: globals.settings.core.inline_persist != Off,
         setting: InlinePersist,
         tooltip:
           Some(
-            "Trial: keep delimiter/scaffolding ghosts inline when the caret leaves (same-line-and-below)",
+            "Trial dial (click to cycle): Off = ghosts at caret only | Persist = spans stay inline under movement (never displace the caret) | Always = inline unconditionally, may displace the caret at appearance",
           ),
       },
       {

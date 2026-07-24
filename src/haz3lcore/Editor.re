@@ -107,15 +107,24 @@ module Update = {
       let syntax =
         if (syntax.ghost_marks != []) {
           /* a spliced chip ghost: this action must resolve against
-             ghost-free measured (~armed=false, the disarm). mk
-             recomputes assist from the unchanged segment +
-             obligations, so chips persist on movement. */
+             the DISARMED display (~armed=false — movement can't
+             conjure). PERSIST MODE MUST SURVIVE THE DISARM: this
+             rebuild used to default the flag off, so every movement
+             frame collapsed standing spans to chips and the main
+             calculate re-inlined them — a one-frame chips flash at
+             arbitrary positions (andrew's live sighting), and a
+             movement-purity violation. Standing spans are exempt
+             from the armed gate by construction (ghost_selection
+             persists them regardless of ~armed). */
           CachedSyntax.calculate(
             state.zipper,
             old_statics.info_map,
             old_dynamics,
             ~elaborated=Some(old_statics.elaborated),
             ~obligations=Some(old_statics.obligations),
+            ~inline_persist=
+              settings.assist && settings.statics
+                ? settings.inline_persist : Language.CoreSettings.Off,
             CachedSyntax.mark_old(syntax),
           );
         } else {
@@ -197,7 +206,8 @@ module Update = {
     let statics_refreshed = statics.info_map !== syntax.shape_info_map;
     let armed = is_edited || syntax.ghost_armed;
     let inline_persist =
-      settings.inline_persist && settings.assist && settings.statics;
+      settings.assist && settings.statics
+        ? settings.inline_persist : Language.CoreSettings.Off;
     let obligations =
       settings.assist && settings.statics ? Some(statics.obligations) : None;
 
@@ -207,7 +217,7 @@ module Update = {
      * update — so callers don't need to plumb "statics changed" signals. */
     let syntax =
       is_edited
-      || (armed || inline_persist)
+      || (armed || inline_persist != Language.CoreSettings.Off)
       && statics_refreshed
       || inline_persist != syntax.persist_on
         ? CachedSyntax.mark_old(syntax) : syntax;
@@ -220,6 +230,7 @@ module Update = {
         ~obligations,
         ~armed,
         ~inline_persist,
+        ~persist_edit=is_edited,
         syntax,
       );
     let syntax = {

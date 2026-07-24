@@ -48,6 +48,12 @@ module FormatShortcut = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type persist_mode =
+  | Off
+  | Persist
+  | Always;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   statics: bool,
   elaborate: bool,
@@ -61,11 +67,18 @@ type t = {
   probe_all: bool,
   /* Completion-triggered local re-indentation (experimental) */
   auto_reindent: bool,
-  /* TRIAL (obligation-display design): delimiter-closer and tuple-
-     scaffolding ghosts persist INLINE when the caret leaves their
-     zone (same-line-and-below only), instead of demoting to chips.
-     TyDi stays caret-local regardless. */
-  inline_persist: bool,
+  /* TRIAL DIAL (obligation-display design): what happens to forced
+     obligation ghosts (closers, tuple commas) when the caret leaves.
+     Off = caret-zone only (chips elsewhere). Persist = the movement-
+     purity policy: a span inlines at APPEARANCE iff inlining would
+     not displace the caret; once inline it stays inline under all
+     movement (ratchet — movement may promote off-caret-row chips,
+     never demote); demotion/dispatch at edit moments only. Always =
+     inline unconditionally, even when appearance displaces the caret
+     — the experimentation control group (deliberately violates
+     P2-at-appearance so the cost is feelable). TyDi stays caret-
+     local regardless. */
+  inline_persist: persist_mode,
   format_shortcut: FormatShortcut.t,
   /* Indentation-transparent editing: arrow movement skips leading
      whitespace and backspace at first-content joins lines (deletes
@@ -91,7 +104,7 @@ let off: t = {
   dynamics: false,
   probe_all: false,
   auto_reindent: false,
-  inline_persist: false,
+  inline_persist: Off,
   format_shortcut: FormatShortcut.Spaces,
   indentation_ux: false,
   flip_animations: false,
@@ -108,7 +121,7 @@ let on: t = {
   dynamics: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
   auto_reindent: true,
-  inline_persist: false, /* trial toggle: opt-in only */
+  inline_persist: Off, /* trial dial: opt-in only */
   format_shortcut: FormatShortcut.Spaces,
   indentation_ux: true,
   flip_animations: true,

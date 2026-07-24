@@ -266,7 +266,9 @@ let mk_inner =
       ~info_map: Statics.Map.t,
       ~obligations: list(TypeObligations.t),
       ~armed: bool,
-      ~inline_persist: bool=false,
+      ~inline_persist: CoreSettings.persist_mode=CoreSettings.Off,
+      ~persist_state: (list(string), list(string))=([], []),
+      ~persist_edit: bool=false,
       z: Zipper.t,
     )
     : DisplayFork.t => {
@@ -297,9 +299,17 @@ let mk_inner =
       obligations,
     )
     |> DisplayFork.extend_t2(~info_map, ~armed, z);
+  let persist_out = ref(persist_state);
   let selected =
-    DisplayFork.ghost_selection(~armed, ~inline_persist, z, assist);
-  let caret_after = CanonicalCompletion.caret_left_atom(z);
+    DisplayFork.ghost_selection(
+      ~armed,
+      ~inline_persist,
+      ~persist_state,
+      ~persist_edit,
+      ~persist_state_out=Some(persist_out),
+      z,
+      assist,
+    );
   /* Build the fork. `use_replaces` chooses whether engine witnesses
      (in / => / -> / then) become REAL reified shards in place
      (sub-token styled) or stay on the ghost-splice path. A witness
@@ -395,6 +405,7 @@ let mk_inner =
                msh == None && Id.equal(mid, w.id),
              ghost_marks,
            );
+      let pad_marks = ref([]);
       let segment =
         ghost_marks == []
           ? GroutPlace.place(segment)
@@ -407,10 +418,13 @@ let mk_inner =
             |> CanonicalCompletion.finish_display(
                  ~marks=ghost_marks,
                  ~raw,
-                 ~caret_after,
+                 ~marks_out=Some(pad_marks),
                );
+      /* oracle pads are span material: they appear/vanish WITH their
+         span, never with the caret (movement purity) */
       let ghost_marks =
         ghost_marks
+        @ pad_marks^
         @ DisplayFork.inherit_ghost_marks(~marks=ghost_marks, segment);
       if (ghost_marks != [] && !DisplayFork.tiles_well_formed(segment)) {
         failwith("PromiseRender: malformed splice");
@@ -428,6 +442,8 @@ let mk_inner =
       typed_lens: ghost_marks == [] ? [] : typed_lens^,
       caret_witnesses: ghost_marks == [] ? [] : caret_witnesses^,
       assist,
+      persist_known: fst(persist_out^),
+      persist_held: snd(persist_out^),
       ghosted:
         ghost_marks == []
           ? [] : List.map(((o, _, _)) => o, ghosts) @ replaced_ghosted,
@@ -475,11 +491,23 @@ let mk =
       ~info_map: Statics.Map.t,
       ~obligations: list(TypeObligations.t),
       ~armed: bool,
-      ~inline_persist: bool=false,
+      ~inline_persist: CoreSettings.persist_mode=CoreSettings.Off,
+      ~persist_state: (list(string), list(string))=([], []),
+      ~persist_edit: bool=false,
       z: Zipper.t,
     )
     : DisplayFork.t =>
-  switch (mk_inner(~info_map, ~obligations, ~armed, ~inline_persist, z)) {
+  switch (
+    mk_inner(
+      ~info_map,
+      ~obligations,
+      ~armed,
+      ~inline_persist,
+      ~persist_state,
+      ~persist_edit,
+      z,
+    )
+  ) {
   | fork => fork
   | exception _ => DisplayFork.plain(z)
   };

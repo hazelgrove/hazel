@@ -404,7 +404,6 @@ let check_invariants =
           CanonicalCompletion.finish_display(
             ~marks=chip_marks,
             ~raw=Zipper.unselect_and_zip(zc),
-            ~caret_after=CanonicalCompletion.caret_left_atom(zc),
             seg,
           )
         ) {
@@ -685,6 +684,101 @@ let n_steps = 20;
    holes as nothing, reparsing, and re-placing must reproduce the same
    placement (the round-trip bug class as a property). Any violation
    reds the suite. */
+/* MOVEMENT PURITY (obligation-display design): pure caret motion
+   changes no rendered text. From each fuzz state we apply ONE
+   settling movement (the armed->disarmed transition is an
+   edit-adjacent settle step, not steady state), then walk a fixed
+   movement-only suffix; every subsequent render — markers stripped,
+   CHIPS INCLUDED (a chip appearing on movement is a display change,
+   andrew's live report) — must be byte-identical. Checked with
+   inline_persist ON and OFF. */
+let run_movement_purity_fuzz = (~seeds: int, ~steps: int): string => {
+  let buf = Stdlib.Buffer.create(256);
+  let mv_u: Action.t = Move(Vertical(Up, ByChar));
+  let mv_d: Action.t = Move(Vertical(Down, ByChar));
+  let suffix = [
+    mv_l,
+    mv_l,
+    mv_l,
+    mv_u,
+    mv_l,
+    mv_l,
+    mv_d,
+    mv_r,
+    mv_r,
+    mv_r,
+    mv_u,
+    mv_r,
+    mv_d,
+    mv_r,
+    mv_r,
+    mv_l,
+  ];
+  /* STEADY-STATE renders (armed=false, matching live: any action
+     disarms), FULL compare both modes, chips included — during pure
+     motion nothing zone-reactive exists, so the whole frame must be
+     constant: OFF = user text + holes + chips; ON adds the persisted
+     spans. */
+  let render = (~persist: bool, z: Zipper.t): option(string) =>
+    switch (
+      persist
+        ? Test_CompletionDisplay.display_state_settled_persist(
+            ~chips=true,
+            z,
+          )
+        : Test_CompletionDisplay.display_state_settled(~chips=true, z)
+    ) {
+    | s => Some(strip_markers(s))
+    | exception _ => None
+    };
+  for (seed in 1 to seeds) {
+    let script = script_of_seed(seed, steps);
+    let z = replay(script);
+    List.iter(
+      persist => {
+        /* settle: one movement to leave the armed state */
+        let z =
+          switch (apply(z, mv_l)) {
+          | Applied(z) => z
+          | Rejected
+          | Raised(_) => z
+          };
+        let base = render(~persist, z);
+        let _ =
+          List.fold_left(
+            ((z, k), a) =>
+              switch (apply(z, a)) {
+              | Rejected
+              | Raised(_) => (z, k + 1)
+              | Applied(z') =>
+                switch (base, render(~persist, z')) {
+                | (Some(b), Some(cur)) when b != cur =>
+                  Stdlib.Buffer.add_string(
+                    buf,
+                    Printf.sprintf(
+                      "seed=%d persist=%b move#%d INV=MOVEMENT-PURITY\n  base: %s\n  cur:  %s\n",
+                      seed,
+                      persist,
+                      k,
+                      flat(b),
+                      flat(cur),
+                    ),
+                  );
+                  (z', k + 1);
+                | _ => (z', k + 1)
+                }
+              },
+            (z, 1),
+            suffix,
+          );
+        ();
+      },
+      [false, true],
+    );
+  };
+  Stdlib.Buffer.contents(buf);
+};
+
 let run_grout_fuzz = (~seeds: int, ~steps: int): string => {
   let buf = Stdlib.Buffer.create(256);
   let sx = seg => Base.show_segment(seg);
@@ -892,49 +986,16 @@ let run_grout_fuzz = (~seeds: int, ~steps: int): string => {
                     };
                   let z0 = Move.to_start(z');
                   walk(z0, Zipper.Caret.point(m_z, z0), 0);
-                  {
-                    /* PERSIST-CARET-STABLE: the trial toggle may only
-                       ADD remote spans — the caret's display point must
-                       be identical with the flag on (remote span churn
-                       can never move the caret; P2 under persist) */
-
-                    let pt_of = (~inline_persist) =>
-                      switch (
-                        Test_CompletionDisplay.display_parts(
-                          ~inline_persist,
-                          z',
-                        )
-                      ) {
-                      | (seg, zc, _, _, caret_witnesses, _, _) =>
-                        let m =
-                          Measured.of_segment(
-                            seg,
-                            Id.Map.empty,
-                            Id.Map.empty,
-                          );
-                        Some(DisplayCaret.point(~caret_witnesses, m, zc));
-                      | exception _ => None
-                      };
-                    switch (
-                      pt_of(~inline_persist=false),
-                      pt_of(~inline_persist=true),
-                    ) {
-                    | (Some(a), Some(b)) when Util.Point.compare(a, b) != 0 =>
-                      bad(
-                        ~seed,
-                        ~step=k,
-                        ~inv="PERSIST-CARET-STABLE",
-                        Printf.sprintf(
-                          "off=(%d,%d) on=(%d,%d)",
-                          a.row,
-                          a.col,
-                          b.row,
-                          b.col,
-                        ),
-                      )
-                    | _ => ()
-                    };
-                  };
+                  /* PERSIST-CARET-STABLE (flag-on/off caret-point
+                     equality) RETIRED 2026-07-24: under movement
+                     purity a persisted span may sit BEFORE the caret
+                     on its row (display form is a property of the
+                     span, not the caret), so the flag legitimately
+                     shifts the caret's display column there. Its
+                     successors: MOVEMENT-PURITY (this file — nothing
+                     changes under pure motion, either flag) and
+                     CHURN-CARET-STABLE (Test_InlinePersist — a remote
+                     EDIT's span churn never moves the caret). */
                   let here = Zipper.Caret.point(m_z, z');
                   switch (Move.to_point(~measured=m_z, ~goal=here, z')) {
                   | Some(zr)
@@ -1267,6 +1328,22 @@ let tests = [
     ],
   ),
   (
+    "CompletionFuzz: movement purity",
+    [
+      test_case(
+        Printf.sprintf("movement fuzz %d seeds x %d steps", 60, n_steps),
+        `Quick,
+        () =>
+        check(
+          string_testable,
+          "no movement-purity violations",
+          "",
+          run_movement_purity_fuzz(~seeds=60, ~steps=n_steps),
+        )
+      ),
+    ],
+  ),
+  (
     "CompletionFuzz: grout placement",
     [
       test_case(
@@ -1293,18 +1370,17 @@ let tests = [
         "c a s e SP f u n SP |",
         "" /* FIXED: remold_tile tolerates stale single-shard molds */,
       ),
-      /* INV 2 PRE-CARET(inner): typed `=` gloms into `=>` (caret goes
-         Inner); the display mints a pad left of the glommed token, so
-         the rendered caret sits before `=>` while raw is between `=`
-         and `>` */
+      /* INV 2 was PRE-CARET(inner) here: the display minted a pad
+         left of the glommed token while raw had none, so the two
+         pre-caret texts disagreed. HEALED 2026-07-24 — pads are now
+         MATERIAL-scoped (span material, ghost-marked), so the
+         invariant's ghost excision removes them from the compare and
+         the caret mapping agrees. Only the standing systemic
+         PAD-IDEMPOTENCE class remains. */
       known_case(
         "inner caret in glommed op",
         "( > L =",
-        /* Inner caret beside a consumed cell resolves one col short
-           (width-transfer regression, see known_classes) + the
-           systemic finish_display re-pad, now with backing pads */
-        "PRE-CARET(inner) disp-pre=(? raw-pre=(= "
-        ++ "| PAD-IDEMPOTENCE once=(?  =>  ?) twice=(  ?  =>   ?)",
+        "PAD-IDEMPOTENCE once=(?=>  ?) twice=(?=>   ?)",
       ),
       /* INV 2 PRE-CARET(inner), string-literal variant: caret inside
          the auto-closed literal, pad minted before the opening quote */
@@ -1332,13 +1408,13 @@ let tests = [
         "PAD-IDEMPOTENCE once=let ?  = ?  in ? twice=let   ?  =   ?  in ? "
         ++ "| CONSTANCY(post-caret)",
       ),
-      /* INV 2 PRE-CARET(inner), op-glom variant with `|`: raw shows
-         the typed `|` before the caret, display shows the pad */
+      /* INV 2 was PRE-CARET(inner), op-glom variant with `|`: same
+         healed class as the `=>` case above (material-scoped pads);
+         PAD-IDEMPOTENCE alone remains. */
       known_case(
         "inner caret in glommed | op",
         "n , L > n = ( |",
-        "PRE-CARET(inner) disp-pre=n>n=(? raw-pre=n>n=(| "
-        ++ "| PAD-IDEMPOTENCE once=n>n=(?  |,  ?) twice=n>n=(  ?  |,   ?)",
+        "PAD-IDEMPOTENCE once=n>n=(?|,  ?) twice=n>n=(?|,   ?)",
       ),
     ],
   ),
