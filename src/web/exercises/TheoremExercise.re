@@ -10,6 +10,7 @@ type spec = {
   prelude: Haz3lcore.Zipper.t,
   lemmas: Haz3lcore.Zipper.t,
   theorem: Haz3lcore.Zipper.t,
+  write_out_steps: bool,
 };
 
 let blank_spec = (~title, ~module_name): spec => {
@@ -21,4 +22,5 @@ let blank_spec = (~title, ~module_name): spec => {
   prelude: Haz3lcore.Zipper.init(),
   lemmas: Haz3lcore.Zipper.init(),
   theorem: Haz3lcore.Zipper.init(),
+  write_out_steps: true,
 };

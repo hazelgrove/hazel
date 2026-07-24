@@ -31,9 +31,15 @@ let view =
       ),
       setting(
         "π",
-        "proof steps (experimental)",
+        "proof steps",
         settings.enable_proof,
         Evaluation(EnableProof),
+      ),
+      setting(
+        "✍",
+        "write out steps",
+        settings.write_out_steps,
+        Evaluation(WriteOutSteps),
       ),
       setting(
         "|",

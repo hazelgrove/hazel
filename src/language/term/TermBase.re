@@ -307,6 +307,9 @@ and Pat: {
       t
     ) =>
     t;
+
+  // Defined here (instead of Pat.re) to avoid circular dependency with Equality
+  let bindings: t => Binding.s;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = pat_term;
@@ -354,6 +357,43 @@ and Pat: {
         },
     };
     x |> f_pat(rec_call);
+  };
+
+  // Extract all variable bindings from a pattern
+  // Defined here (instead of Pat.re) to avoid circular dependency with Equality
+  let rec bindings = (p: t): Binding.s => {
+    Grammar.(
+      switch (p |> Annotated.term_of) {
+      | Var(x) => [
+          {
+            Binding.id: IdTagged.rep_id(p),
+            name: x,
+          },
+        ]
+      | Wild
+      | Atom(_)
+      | Constructor(_)
+      | Label(_)
+      | ExplicitNonlabel
+      | Invalid(_)
+      | EmptyHole => []
+      | Parens(p)
+      | Projector(_, p)
+      | Asc(p, _) => bindings(p)
+      | MultiHole(things) =>
+        List.concat_map(
+          fun
+          | Grammar.Pat(p) => bindings(p)
+          | _ => [],
+          things,
+        )
+      | Tuple(ps)
+      | ListLit(ps) => List.concat_map(bindings, ps)
+      | Cons(p1, p2) => bindings(p1) @ bindings(p2)
+      | TupLabel(_, p) => bindings(p)
+      | Ap(p1, p2) => bindings(p1) @ bindings(p2)
+      }
+    );
   };
 }
 and Typ: {

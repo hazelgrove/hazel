@@ -478,7 +478,7 @@ module View = {
 
   let deco =
       (
-        ~expand_selection=false,
+        ~expand_selection,
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
@@ -526,6 +526,11 @@ module View = {
     ),
   ];
 
+  type selected =
+    | Yes
+    | JustHighlight
+    | No;
+
   let view =
       (
         ~globals: Globals.t,
@@ -535,10 +540,15 @@ module View = {
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
         ~incr_eval: Language.IncrEval.t=Language.IncrEval.empty,
-        ~expand_selection=?,
+        ~expand_selection=false,
         model: Model.t,
       ) => {
-    let selected = EditMode.is_active(edit_mode);
+    let selected =
+      switch (edit_mode) {
+      | Editable({focus: Some(_), _}) => Yes
+      | Editable({focus: None, highlight: true, _}) => JustHighlight
+      | _ => No
+      };
     let inject =
       switch (edit_mode) {
       | ReadOnly => (_ => Ui_effect.Ignore)
@@ -553,7 +563,7 @@ module View = {
      * context menu. Keys are dispatched at capture phase so the editor's
      * window-level handler doesn't see them while the menu is open. */
     ContextMenuListener.sync(
-      ~menu_open=selected && Model.context_menu_is_open(model),
+      ~menu_open=selected == Yes && Model.context_menu_is_open(model),
       ~on_close=inject(ContextMenu(ContextMenu.Model.Close)),
       ~handle_key=
         key_str =>
@@ -569,51 +579,67 @@ module View = {
       (),
     );
     let edit_decos =
-      selected
-        ? deco(
-            ~expand_selection?,
+      switch (selected) {
+      | Yes =>
+        deco(
+          ~expand_selection,
+          ~syntax=model.editor.syntax,
+          ~info_map=model.statics.info_map,
+          ~globals,
+          model.editor.state.zipper,
+        )
+        @ [
+          Arms.Refractors.all(
+            ~font_metrics=globals.font_metrics,
             ~syntax=model.editor.syntax,
-            ~info_map=model.statics.info_map,
-            ~globals,
+            ~dynamics,
             model.editor.state.zipper,
-          )
-          @ [
-            Arms.Refractors.all(
-              ~font_metrics=globals.font_metrics,
-              ~syntax=model.editor.syntax,
-              ~dynamics,
-              model.editor.state.zipper,
-            ),
-          ]
-          @ (
-            switch (model.context_menu) {
-            | Some(_) => [
-                /* Backdrop for scroll-close. Click handling is done via
-                   ContextMenuListener's document-level event listener. */
-                Node.div(
-                  ~attrs=[
-                    Attr.classes(["context-menu-backdrop"]),
-                    Attr.on_wheel(_ =>
-                      inject(ContextMenu(ContextMenu.Model.Close))
-                    ),
-                  ],
-                  [],
-                ),
-                ContextMenu.view(
-                  ~inject=a => inject(Perform(a)),
-                  ~inject_menu=a => inject(ContextMenu(a)),
-                  ~syntax=model.editor.syntax,
-                  ~info_map=model.statics.info_map,
-                  ~elaborated=model.statics.elaborated,
-                  ~font_metrics=globals.font_metrics,
-                  ~model=model.context_menu,
-                  model.editor.state.zipper,
-                ),
-              ]
-            | None => []
-            }
-          )
-        : [];
+          ),
+        ]
+        @ (
+          switch (model.context_menu) {
+          | Some(_) => [
+              /* Backdrop for scroll-close. Click handling is done via
+                 ContextMenuListener's document-level event listener. */
+              Node.div(
+                ~attrs=[
+                  Attr.classes(["context-menu-backdrop"]),
+                  Attr.on_wheel(_ =>
+                    inject(ContextMenu(ContextMenu.Model.Close))
+                  ),
+                ],
+                [],
+              ),
+              ContextMenu.view(
+                ~inject=a => inject(Perform(a)),
+                ~inject_menu=a => inject(ContextMenu(a)),
+                ~syntax=model.editor.syntax,
+                ~info_map=model.statics.info_map,
+                ~elaborated=model.statics.elaborated,
+                ~font_metrics=globals.font_metrics,
+                ~model=model.context_menu,
+                model.editor.state.zipper,
+              ),
+            ]
+          | None => []
+          }
+        )
+      | JustHighlight => [
+          (
+            expand_selection
+              ? Highlight.selection_expanded(
+                  ~term_data=model.editor.syntax.term_data,
+                )
+              : Highlight.selection
+          )(
+            ~measured=model.editor.syntax.measured,
+            ~shape_map=model.editor.syntax.shape_map,
+            ~font_metrics=globals.font_metrics,
+            model.editor.state.zipper,
+          ),
+        ]
+      | No => []
+      };
     // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
     let refractor_data =
@@ -629,7 +655,7 @@ module View = {
         ~statics=model.statics.info_map,
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
-        ~editor_active=selected,
+        ~editor_active=selected != No,
       );
     // let t1 = JsUtil.precise_timestamp();
     /* Use visible row range from model (updated by scroll handler) */
@@ -659,7 +685,7 @@ module View = {
           ~statics=model.statics.info_map,
           ~dynamics,
           ~sample_focus=zipper.refractors.sample_focus,
-          ~editor_active=selected,
+          ~editor_active=selected != No,
           ~elaborated=Some(model.statics.elaborated),
         ),
         model.editor.syntax.projector_list,
@@ -839,7 +865,7 @@ module View = {
     let display_line_numbers: bool = lines && globals.settings.line_numbers;
 
     let key_handler_attr =
-      if (!selected) {
+      if (selected != Yes) {
         /* Always focusable so first click gives DOM focus.
          * Key events are ignored when not selected — they bubble
          * to Page.re which handles page-level shortcuts. */
@@ -1007,7 +1033,7 @@ module View = {
       ~attrs=[
         Attr.classes(
           ["cell-item", "code-editor"]
-          @ (selected ? ["selected"] : [])
+          @ (selected != No ? ["selected"] : [])
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         /* Tag the active cell so a sidebar jump can move DOM focus to it
@@ -1035,7 +1061,7 @@ module View = {
         ? LineNumbers.View.view(
             model,
             globals.settings.relative_line_numbers,
-            selected,
+            selected != No,
           )
           @ [code_view]
         : [code_view],

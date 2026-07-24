@@ -326,6 +326,7 @@ module F = (Stepper: STEPPER) => {
               | Some(Pattern ()) => Some()
               | _ => None
               },
+            highlight: false,
           }),
         ~dynamics=Dynamics.Map.empty,
         model.pattern,

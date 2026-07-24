@@ -20,6 +20,17 @@ let name_other = (): (Exp.t => string) => {
   );
 };
 
+let rec take_auto_steps = (~settings, ~env, exp: Exp.t): Exp.t => {
+  switch (EvaluatorStep.get_status(~settings, exp, env)) {
+  | EvaluatorStep.AutoStep(step) =>
+    switch (EvaluatorStep.take_step(step)) {
+    | Some(next_exp) => take_auto_steps(~settings, ~env, next_exp)
+    | None => exp
+    }
+  | AvailableSteps(_) => exp
+  };
+};
+
 let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
   switch (exp.term) {
   | Atom(Int(value)) => Bigint.to_string(value)
@@ -62,7 +73,7 @@ let checkEquality = (expr1, expr2): bool => {
 };
 
 // underscores indicate unused arguments
-let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
+let check_rewrite = (~settings, ~env, from_: Exp.t, to_: Exp.t): bool => {
   // TODO maybe type-check a bit here so that we don't have to handle
   // differing types on the Algebrite side
   // Or maybe the stepper itself will guarantee _from and _to always have the same type
@@ -72,6 +83,7 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
   let name_other = name_other();
   let from_ = DHExp.strip_ascriptions(from_);
   let to_ = DHExp.strip_ascriptions(to_);
+  let to_ = take_auto_steps(~settings, ~env, to_);
   let left_str = print_exp_for_algebrite(~name_other, from_);
   let right_str = print_exp_for_algebrite(~name_other, to_);
   print_endline("Checking rewrite:");
@@ -84,4 +96,47 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
   } else {
     checkEquality(left_str, right_str);
   };
+};
+
+let check_written_step =
+    (~settings, ~env, from_: Exp.t, to_: Exp.t): option((string, Exp.t)) => {
+  let take_and_justify = (es: EvaluatorStep.step): option((string, Exp.t)) => {
+    switch (EvaluatorStep.take_step(es)) {
+    | Some(next_exp) =>
+      let kind = EvaluatorStep.get_step_kind(es);
+      let justification = Transition.stepper_justification(kind);
+      let final_exp = take_auto_steps(~settings, ~env, next_exp);
+      Some((justification, final_exp));
+    | None => None
+    };
+  };
+  // checking using evaluation steps
+  let rec get_next_exps = (exp: Exp.t): list((string, Exp.t)) => {
+    switch (EvaluatorStep.get_status(~settings, exp, env)) {
+    | EvaluatorStep.AutoStep(step) =>
+      switch (EvaluatorStep.take_step(step)) {
+      | Some(next_exp) => get_next_exps(next_exp)
+      | None => []
+      }
+    | AvailableSteps(steps) => List.filter_map(take_and_justify, steps)
+    };
+  };
+  let next_exps = get_next_exps(from_);
+  List.find_opt(
+    ((_, e)) =>
+      Equality.equality(
+        Equality.{
+          ...Equality.semantic_settings,
+          env1: Some(env),
+          env2: Some(env),
+          ignore_ascriptions: true,
+          var_eq_named_fun: true,
+        },
+      ).
+        exp(
+        to_,
+        e,
+      ),
+    next_exps,
+  );
 };

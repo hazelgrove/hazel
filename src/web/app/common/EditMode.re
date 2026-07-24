@@ -20,6 +20,7 @@ type t('action, 'focus) =
       escape: Util.Direction.t => Effect.t(unit),
       take_focus: 'focus => Effect.t(unit),
       focus: option('focus),
+      highlight: bool,
     });
 
 let is_active =
