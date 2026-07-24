@@ -1,0 +1,1913 @@
+/* TermEdit: Term-level syntax transformations for structural editing.
+
+      Instead of manipulating the zipper/segment directly (which has sort-context
+      issues for module items), we:
+      1. Get the full program term from the zipper
+      2. Modify the term tree (splice in/out sub-terms)
+      3. Convert back to a segment via ExpToSegment with PreserveExact
+      4. Create a new zipper from the modified segment
+
+      This approach is sort-correct by construction and handles modules cleanly.
+      PreserveExact reads stored secondary (whitespace/newlines) from each term's
+      annotation, preserving the original formatting of unmodified code.
+      Freshly constructed nodes must have their secondary populated explicitly.
+   */
+
+open Util;
+open Language;
+
+/* Round-trip settings: use PreserveExact to preserve original whitespace.
+   MakeTerm populates each term's annotation.secondary with (before, after)
+   whitespace runs from the original segment. PreserveExact emits these
+   verbatim. Freshly constructed nodes must have their secondary populated
+   explicitly (via fresh_exp_with_secondary or ensure_leading_secondary).
+   inline: true avoids generating additional heuristic newlines that
+   would double up with stored secondary. */
+let roundtrip_settings: ExpToSegment.Settings.t = {
+  secondary: PreserveExact,
+  parenthesization: Structural,
+  label_format: QuoteWhenNecessary,
+  inline: true,
+  fold_case_clauses: false,
+  fold_fn_bodies: `NoFold,
+  hide_fixpoints: false,
+  show_ascriptions: true,
+  show_filters: true,
+  show_unknown_as_hole: true,
+  project_tables: false,
+};
+
+/* Create a newline Secondary token */
+let mk_newline = (): Secondary.t => {
+  id: Id.mk(),
+  content: Whitespace("\n"),
+};
+
+/* Create a space Secondary token */
+let mk_space = (): Secondary.t => {
+  id: Id.mk(),
+  content: Whitespace(" "),
+};
+
+/* Create an Exp.t with secondary annotation (before, after whitespace runs).
+   Use this for programmatically constructed nodes that need whitespace
+   around them when rendered with PreserveExact mode. */
+let fresh_exp_with_secondary =
+    (~before=[], ~after=[], term: TermBase.exp_term): Exp.t => {
+  let e = Exp.fresh(term);
+  {
+    ...e,
+    annotation: {
+      ...e.annotation,
+      secondary: (before, after),
+    },
+  };
+};
+
+/* Ensure an expression has leading secondary (whitespace before it).
+   If it already has before-secondary, return unchanged.
+   Otherwise add the default (a space). */
+let ensure_leading_secondary = (~default=mk_space(), e: Exp.t): Exp.t => {
+  let (before, after) = e.annotation.secondary;
+  switch (before) {
+  | [] => {
+      ...e,
+      annotation: {
+        ...e.annotation,
+        secondary: ([default], after),
+      },
+    }
+  | _ => e
+  };
+};
+
+/* Convert a term back to a zipper via round-trip */
+let term_to_zipper = (term: Exp.t): Zipper.t => {
+  let segment =
+    ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term);
+  Zipper.unzip(segment);
+};
+
+/* Replace a Module's items list in a term tree using Exp.map_term.
+   Walks the entire tree looking for the module with the given ID
+   and replaces its items list. */
+let replace_module_items =
+    (target_module_id: Id.t, new_items: list(Mod.t), term: Exp.t): Exp.t => {
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        if (Id.equal(Exp.rep_id(e), target_module_id)) {
+          switch (Exp.term_of(e)) {
+          | Module(_) => {
+              ...e,
+              term: Module(new_items),
+            }
+          | _ => continue(e)
+          };
+        } else {
+          continue(e);
+        },
+    term,
+  );
+};
+
+/* Find which module contains the target item, given the item's ID.
+   Returns (module_exp_id, module_items, item_index). */
+let find_module_containing_item =
+    (target_item_id: Id.t, term: Exp.t): option((Id.t, list(Mod.t), int)) => {
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Module(items) =>
+            switch (
+              ListUtil.findi_opt(
+                (item: Mod.t) => Id.equal(Mod.rep_id(item), target_item_id),
+                items,
+              )
+            ) {
+            | Some((idx, _)) =>
+              result := Some((Exp.rep_id(e), items, idx));
+              e;
+            | None => continue(e)
+            }
+          | _ => continue(e)
+          }
+        },
+      term,
+    );
+  result^;
+};
+
+/* Convert an Exp.t to a ModLet/ModType/ModExp item.
+   Let → ModLet, TyAlias → ModType, anything else → ModExp. */
+let exp_to_mod_item_term = (term: Exp.t): Mod.t => {
+  let item_term: TermBase.Mod.term =
+    switch (Exp.term_of(term)) {
+    | Let(pat, def, _) => ModLet(pat, def)
+    | TyAlias(tpat, tdef, _) => ModType(tpat, tdef)
+    | _ => ModExp(term)
+    };
+  /* Add a space before the item so it renders as "; let b = 2"
+     rather than ";let b = 2" when round-tripped */
+  let space: Secondary.t = {
+    id: Id.mk(),
+    content: Whitespace(" "),
+  };
+  IdTagged.mk([Id.mk()], ([space], []), item_term);
+};
+
+/* Convert an expression "let x = 42" to a ModLet item.
+   Parses the code, and if it's a Let(pat, def, _), extracts pat+def into ModLet.
+   Also handles type T = ... → ModType, and bare expressions → ModExp. */
+let exp_to_mod_item = (code: string): option(Mod.t) =>
+  switch (Parser.to_term(code, ~root=Exp)) {
+  | Some(term) => Some(exp_to_mod_item_term(term))
+  | None => None
+  };
+
+/* Delete a module item by index from the items list.
+   Returns the modified items list (no hole left). */
+let delete_item = (items: list(Mod.t), idx: int): list(Mod.t) =>
+  List.filteri((i, _) => i != idx, items);
+
+/* Insert a module item at a position in the items list.
+   Left = before idx, Right = after idx.
+   When inserting at the end, adds trailing secondary (space before })
+   to the new last item. */
+let insert_item =
+    (items: list(Mod.t), idx: int, new_item: Mod.t, d: Direction.t)
+    : list(Mod.t) => {
+  let insert_at = d == Left ? idx : idx + 1;
+  let (before, after) = ListUtil.split_n(insert_at, items);
+  /* If inserting at the end, add a trailing space to the new item
+     so there's whitespace before the closing } delimiter */
+  let new_item =
+    switch (after) {
+    | [] =>
+      let (item_before, _) = new_item.annotation.secondary;
+      let space: Secondary.t = {
+        id: Id.mk(),
+        content: Whitespace(" "),
+      };
+      IdTagged.mk(
+        new_item.annotation.ids,
+        (item_before, [space]),
+        new_item.term,
+      );
+    | _ => new_item
+    };
+  before @ [new_item] @ after;
+};
+
+/* Copy secondary from one Mod item to another. */
+let copy_mod_secondary = (from: Mod.t, to_: Mod.t): Mod.t => {
+  let (before, after) = from.annotation.secondary;
+  IdTagged.mk(to_.annotation.ids, (before, after), to_.term);
+};
+
+/* Replace a module item at a position in the items list.
+   Copies secondary from original item to preserve positional whitespace. */
+let replace_item =
+    (items: list(Mod.t), idx: int, new_item: Mod.t): list(Mod.t) =>
+  List.mapi(
+    (i, item) => i == idx ? copy_mod_secondary(item, new_item) : item,
+    items,
+  );
+
+/* --- High-level edit operations --- */
+
+/* Delete a module item cleanly (no hole left).
+   target_item_id: the ID of the ModLet/ModType item to delete.
+   Returns the modified zipper, or None if the item wasn't found. */
+let module_delete = (z: Zipper.t, target_item_id: Id.t): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_module_containing_item(target_item_id, term)) {
+  | Some((module_id, items, idx)) =>
+    let new_items = delete_item(items, idx);
+    let new_term = replace_module_items(module_id, new_items, term);
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+/* Insert a new item into a module.
+   target_item_id: the ID of the reference item (insert before/after it).
+   code: the text to parse as a module item.
+   d: Left = before, Right = after. */
+let module_insert =
+    (z: Zipper.t, target_item_id: Id.t, code: string, d: Direction.t)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_module_containing_item(target_item_id, term)) {
+  | Some((module_id, items, idx)) =>
+    switch (exp_to_mod_item(code)) {
+    | Some(new_item) =>
+      let new_items = insert_item(items, idx, new_item, d);
+      let new_term = replace_module_items(module_id, new_items, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+/* Replace a module item's binding clause.
+   target_item_id: the ID of the item to replace.
+   code: the full new binding clause text (e.g. "let y = 42"). */
+let module_update_binding =
+    (z: Zipper.t, target_item_id: Id.t, code: string): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_module_containing_item(target_item_id, term)) {
+  | Some((module_id, items, idx)) =>
+    switch (exp_to_mod_item(code)) {
+    | Some(new_item) =>
+      let new_items = replace_item(items, idx, new_item);
+      let new_term = replace_module_items(module_id, new_items, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+/* Check if a target ID is inside a Module expression */
+let is_module_item = (z: Zipper.t, target_id: Id.t): bool => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_module_containing_item(target_id, term)) {
+  | Some(_) => true
+  | None => false
+  };
+};
+
+/* Find the module item ID that contains or matches a given expression ID.
+   This bridges selector-focused IDs (which target sub-expressions like defs)
+   to module item IDs needed by module_insert/module_delete. */
+let find_module_item_id = (z: Zipper.t, exp_id: Id.t): option(Id.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  /* First check if exp_id IS a module item ID directly */
+  switch (find_module_containing_item(exp_id, term)) {
+  | Some(_) => Some(exp_id)
+  | None =>
+    /* Otherwise scan all modules to find an item whose sub-expression
+       (pat/def) has the given ID */
+    let result = ref(None);
+    let _ =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) => {
+            switch (Exp.term_of(e)) {
+            | Module(items) =>
+              List.iter(
+                (item: Mod.t) =>
+                  switch (item.term) {
+                  | ModLet(pat, def) =>
+                    if (Id.equal(Pat.rep_id(pat), exp_id)
+                        || Id.equal(Exp.rep_id(def), exp_id)) {
+                      result := Some(Mod.rep_id(item));
+                    }
+                  | ModuleMod(mpat, def) =>
+                    if (Id.equal(IdTagged.rep_id(mpat), exp_id)
+                        || Id.equal(Exp.rep_id(def), exp_id)) {
+                      result := Some(Mod.rep_id(item));
+                    }
+                  | ModType(tpat, _tdef) =>
+                    if (Id.equal(TPat.rep_id(tpat), exp_id)) {
+                      result := Some(Mod.rep_id(item));
+                    }
+                  | ModExp(e') =>
+                    if (Id.equal(Exp.rep_id(e'), exp_id)) {
+                      result := Some(Mod.rep_id(item));
+                    }
+                  | _ => ()
+                  },
+                items,
+              );
+              continue(e);
+            | _ => continue(e)
+            }
+          },
+        term,
+      );
+    result^;
+  };
+};
+
+/* --- General-purpose term-level edit operations --- */
+
+/* Extract the effective leading (before) secondary from an expression.
+   For compound forms like BinOp where the root's before-secondary is empty
+   (because MakeTerm assigns it to the leftmost leaf), this walks left
+   to find the actual leading whitespace. */
+let rec leading_secondary_of = (e: Exp.t): list(Secondary.t) => {
+  let (before, _) = e.annotation.secondary;
+  switch (before) {
+  | [_, ..._] => before
+  | [] =>
+    switch (Exp.term_of(e)) {
+    | BinOp(_, e1, _)
+    | Seq(e1, _)
+    | Cons(e1, _)
+    | ListConcat(e1, _) => leading_secondary_of(e1)
+    | Ap(_, e1, _) => leading_secondary_of(e1)
+    | Tuple([e1, ..._])
+    | ListLit([e1, ..._]) => leading_secondary_of(e1)
+    | _ => []
+    }
+  };
+};
+
+/* Extract the effective trailing (after) secondary from an expression.
+   Symmetric to leading_secondary_of: walks rightward for compound forms
+   where the root's after-secondary is empty but the rightmost leaf has it. */
+let rec trailing_secondary_of = (e: Exp.t): list(Secondary.t) => {
+  let (_, after) = e.annotation.secondary;
+  switch (after) {
+  | [_, ..._] => after
+  | [] =>
+    switch (Exp.term_of(e)) {
+    | BinOp(_, _, e2)
+    | Seq(_, e2)
+    | Cons(_, e2)
+    | ListConcat(_, e2) => trailing_secondary_of(e2)
+    | Ap(_, _, e2) => trailing_secondary_of(e2)
+    | Tuple(es)
+    | ListLit(es) =>
+      switch (ListUtil.last_opt(es)) {
+      | Some(last) => trailing_secondary_of(last)
+      | None => []
+      }
+    /* Prefix forms: body/else is the rightmost content after the tile */
+    | Fun(_, body, _, _)
+    | FixF(_, body, _)
+    | TypFun(_, body, _)
+    | Forall(_, body)
+    | Filter(_, body)
+    | Let(_, _, body)
+    | TyAlias(_, _, body)
+    | ModuleExp(_, _, body) => trailing_secondary_of(body)
+    | If(_, _, else_) => trailing_secondary_of(else_)
+    | _ => []
+    }
+  };
+};
+
+/* Copy positional secondary (whitespace) from one term to another.
+   When replacing a node in the tree, the replacement should inherit the
+   original's secondary so PreserveExact mode maintains correct spacing.
+   For compound forms where leading/trailing whitespace lives on a child
+   (e.g., BinOp root has empty secondary), extracts via walking left/right. */
+let copy_exp_secondary = (from: Exp.t, to_: Exp.t): Exp.t => {
+  let (from_before, from_after) = from.annotation.secondary;
+  let before =
+    switch (from_before) {
+    | [_, ..._] => from_before
+    | [] => leading_secondary_of(from)
+    };
+  let after =
+    switch (from_after) {
+    | [_, ..._] => from_after
+    | [] => trailing_secondary_of(from)
+    };
+  {
+    ...to_,
+    annotation: {
+      ...to_.annotation,
+      secondary: (before, after),
+    },
+  };
+};
+let copy_pat_secondary = (from: Pat.t, to_: Pat.t): Pat.t => {
+  ...to_,
+  annotation: {
+    ...to_.annotation,
+    secondary: from.annotation.secondary,
+  },
+};
+let copy_typ_secondary = (from: Typ.t, to_: Typ.t): Typ.t => {
+  ...to_,
+  annotation: {
+    ...to_.annotation,
+    secondary: from.annotation.secondary,
+  },
+};
+let copy_tpat_secondary = (from: TPat.t, to_: TPat.t): TPat.t => {
+  ...to_,
+  annotation: {
+    ...to_.annotation,
+    secondary: from.annotation.secondary,
+  },
+};
+
+/* Replace a sub-expression by ID anywhere in the term tree.
+   The replacement function receives the matched expression and returns
+   the new expression to substitute. Automatically copies positional
+   secondary from the original to the replacement when the ID changes,
+   preserving whitespace context for PreserveExact rendering. */
+let replace_exp_by_id =
+    (target_id: Id.t, f: Exp.t => Exp.t, term: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        if (Id.equal(Exp.rep_id(e), target_id)) {
+          let result = f(e);
+          /* Copy secondary when IDs differ (fresh replacement node).
+             When IDs match (spread/mutation), secondary already correct. */
+          if (Id.equal(Exp.rep_id(result), Exp.rep_id(e))) {
+            result;
+          } else {
+            copy_exp_secondary(e, result);
+          };
+        } else {
+          continue(e);
+        },
+    term,
+  );
+
+/* Replace a sub-pattern by ID. Walks the term tree and within any
+   expression that contains the target pattern, replaces it.
+   Copies secondary from original to preserve positional whitespace. */
+let replace_pat_by_id = (target_id: Id.t, new_pat: Pat.t, term: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_pat=
+      (continue, p) =>
+        if (Id.equal(Pat.rep_id(p), target_id)) {
+          copy_pat_secondary(p, new_pat);
+        } else {
+          continue(p);
+        },
+    term,
+  );
+
+/* Replace a sub-type by ID.
+   Copies secondary from original to preserve positional whitespace. */
+let replace_typ_by_id = (target_id: Id.t, new_typ: Typ.t, term: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_typ=
+      (continue, t) =>
+        if (Id.equal(Typ.rep_id(t), target_id)) {
+          copy_typ_secondary(t, new_typ);
+        } else {
+          continue(t);
+        },
+    term,
+  );
+
+/* Replace a sub-tpat by ID.
+   Copies secondary from original to preserve positional whitespace. */
+let replace_tpat_by_id =
+    (target_id: Id.t, new_tpat: TPat.t, term: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_tpat=
+      (continue, tp) =>
+        if (Id.equal(TPat.rep_id(tp), target_id)) {
+          copy_tpat_secondary(tp, new_tpat);
+        } else {
+          continue(tp);
+        },
+    term,
+  );
+
+/* Parse code as an expression term.
+   Returns None if the code has parse errors (unmatched delimiters,
+   invalid tokens, or malformed expressions). */
+let parse_exp = (code: string): option(Exp.t) =>
+  switch (Parser.to_zipper(~root=Exp, code)) {
+  | Some(z) =>
+    /* Check for unmatched delimiters in backpack */
+    let backpack = Zipper.local_backpack(z);
+    switch (backpack) {
+    | [_, ..._] => None
+    | [] =>
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      /* Check for Invalid/MultiHole in the parsed term */
+      let has_errors = ref(false);
+      let _ =
+        Exp.map_term(
+          ~f_exp=
+            (continue, e) =>
+              switch (Exp.term_of(e)) {
+              | Invalid(_)
+              | MultiHole(_) =>
+                has_errors := true;
+                e;
+              | _ => continue(e)
+              },
+          term,
+        );
+      if (has_errors^) {
+        None;
+      } else {
+        Some(term);
+      };
+    };
+  | None => None
+  };
+
+/* Parse code as a pattern term */
+let parse_pat = (code: string): option(Pat.t) =>
+  switch (Parser.to_term("let " ++ code ++ " = 0 in 0", ~root=Exp)) {
+  | Some(term) =>
+    switch (Exp.term_of(term)) {
+    | Let(pat, _, _) => Some(pat)
+    | _ => None
+    }
+  | None => None
+  };
+
+/* Parse code as a type term */
+let parse_typ = (code: string): option(Typ.t) =>
+  switch (Parser.to_term("let x : " ++ code ++ " = 0 in 0", ~root=Exp)) {
+  | Some(term) =>
+    switch (Exp.term_of(term)) {
+    | Let(pat, _, _) =>
+      switch (Pat.term_of(pat)) {
+      | Asc(_, typ) => Some(typ)
+      | _ => None
+      }
+    | _ => None
+    }
+  | None => None
+  };
+
+/* --- Case arm operations --- */
+
+/* A case arm is (Pat.t, Exp.t) — pattern + body. */
+type case_arm = (Pat.t, Exp.t);
+
+/* Replace the arms list of a Match expression by ID. */
+let replace_match_arms =
+    (target_match_id: Id.t, new_arms: list(case_arm), term: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        if (Id.equal(Exp.rep_id(e), target_match_id)) {
+          switch (Exp.term_of(e)) {
+          | Match(scrutinee, _) => {
+              ...e,
+              term: Match(scrutinee, new_arms),
+            }
+          | _ => continue(e)
+          };
+        } else {
+          continue(e);
+        },
+    term,
+  );
+
+/* Find the Match expression containing an arm whose body has the given ID.
+   Returns (match_id, scrutinee, arms, arm_index). */
+let find_match_containing_arm_by_body =
+    (target_body_id: Id.t, term: Exp.t)
+    : option((Id.t, Exp.t, list(case_arm), int)) => {
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Match(scrutinee, arms) =>
+            switch (
+              ListUtil.findi_opt(
+                ((_, body)) => Id.equal(Exp.rep_id(body), target_body_id),
+                arms,
+              )
+            ) {
+            | Some((idx, _)) =>
+              result := Some((Exp.rep_id(e), scrutinee, arms, idx));
+              e;
+            | None => continue(e)
+            }
+          | _ => continue(e)
+          }
+        },
+      term,
+    );
+  result^;
+};
+
+/* Find the Match expression containing an arm whose pattern has the given ID. */
+let find_match_containing_arm_by_pat =
+    (target_pat_id: Id.t, term: Exp.t)
+    : option((Id.t, Exp.t, list(case_arm), int)) => {
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Match(scrutinee, arms) =>
+            switch (
+              ListUtil.findi_opt(
+                ((pat, _)) => Id.equal(Pat.rep_id(pat), target_pat_id),
+                arms,
+              )
+            ) {
+            | Some((idx, _)) =>
+              result := Some((Exp.rep_id(e), scrutinee, arms, idx));
+              e;
+            | None => continue(e)
+            }
+          | _ => continue(e)
+          }
+        },
+      term,
+    );
+  result^;
+};
+
+/* Find the Match expression containing an arm by either pattern or body ID. */
+let find_match_containing_arm =
+    (target_id: Id.t, term: Exp.t)
+    : option((Id.t, Exp.t, list(case_arm), int)) =>
+  switch (find_match_containing_arm_by_body(target_id, term)) {
+  | Some(_) as result => result
+  | None => find_match_containing_arm_by_pat(target_id, term)
+  };
+
+/* Parse a case arm string (e.g., "| Foo(x) => x + 1" or "Foo(x) => x + 1")
+   by wrapping it in a dummy case expression and extracting the arm. */
+let parse_case_arm = (code: string): option(case_arm) => {
+  /* Strip leading | if present */
+  let code =
+    String.trim(code)
+    |> (
+      s =>
+        if (String.length(s) > 0 && s.[0] == '|') {
+          String.trim(String.sub(s, 1, String.length(s) - 1));
+        } else {
+          s;
+        }
+    );
+  switch (parse_exp("case ? | " ++ code ++ " end")) {
+  | Some(term) =>
+    switch (Exp.term_of(term)) {
+    | Match(_, [(pat, body)]) => Some((pat, body))
+    | _ => None
+    }
+  | None => None
+  };
+};
+
+/* Delete a case arm by index. */
+let case_delete_arm =
+    (z: Zipper.t, target_arm_body_id: Id.t): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_match_containing_arm(target_arm_body_id, term)) {
+  | Some((match_id, _, arms, idx)) =>
+    let new_arms = List.filteri((i, _) => i != idx, arms);
+    let new_term = replace_match_arms(match_id, new_arms, term);
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+/* Insert a case arm before/after a reference arm. */
+let case_insert_arm =
+    (z: Zipper.t, target_arm_body_id: Id.t, code: string, d: Direction.t)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_match_containing_arm(target_arm_body_id, term)) {
+  | Some((match_id, _, arms, idx)) =>
+    switch (parse_case_arm(code)) {
+    | Some(new_arm) =>
+      let insert_at = d == Left ? idx : idx + 1;
+      let (before, after) = ListUtil.split_n(insert_at, arms);
+      let new_arms = before @ [new_arm] @ after;
+      let new_term = replace_match_arms(match_id, new_arms, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+/* Update the body of a case arm.
+   Copies secondary from old body to new to preserve positional whitespace. */
+let case_update_arm_body =
+    (z: Zipper.t, target_arm_body_id: Id.t, code: string): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_match_containing_arm_by_body(target_arm_body_id, term)) {
+  | Some((match_id, _, arms, idx)) =>
+    switch (parse_exp(code)) {
+    | Some(new_body) =>
+      let new_arms =
+        List.mapi(
+          (i, (pat, body)) =>
+            i == idx
+              ? (pat, copy_exp_secondary(body, new_body)) : (pat, body),
+          arms,
+        );
+      let new_term = replace_match_arms(match_id, new_arms, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+/* Update the pattern of a case arm.
+   Copies secondary from old pattern to new to preserve positional whitespace. */
+let case_update_arm_pattern =
+    (z: Zipper.t, target_arm_body_id: Id.t, code: string): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_match_containing_arm_by_body(target_arm_body_id, term)) {
+  | Some((match_id, _, arms, idx)) =>
+    switch (parse_pat(code)) {
+    | Some(new_pat) =>
+      let new_arms =
+        List.mapi(
+          (i, (pat, body)) =>
+            i == idx
+              ? (copy_pat_secondary(pat, new_pat), body) : (pat, body),
+          arms,
+        );
+      let new_term = replace_match_arms(match_id, new_arms, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+/* Check if a target ID is inside a Match expression (is a case arm component) */
+let is_case_arm = (z: Zipper.t, target_id: Id.t): bool => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_match_containing_arm(target_id, term)) {
+  | Some(_) => true
+  | None => false
+  };
+};
+
+/* --- List element operations --- */
+
+/* Replace the elements of a ListLit expression by ID. */
+let replace_list_elements =
+    (target_list_id: Id.t, new_elements: list(Exp.t), term: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        if (Id.equal(Exp.rep_id(e), target_list_id)) {
+          switch (Exp.term_of(e)) {
+          | ListLit(_) => {
+              ...e,
+              term: ListLit(new_elements),
+            }
+          | _ => continue(e)
+          };
+        } else {
+          continue(e);
+        },
+    term,
+  );
+
+let exp_contains_id = (root: Exp.t, target_id: Id.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          if (Id.equal(Exp.rep_id(e), target_id)) {
+            found := true;
+          };
+          continue(e);
+        },
+      root,
+    );
+  found^;
+};
+
+/* Find the ListLit containing an element with the given ID.
+   Returns (list_id, elements, element_index). */
+let find_list_containing_element =
+    (target_element_id: Id.t, term: Exp.t)
+    : option((Id.t, list(Exp.t), int)) => {
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | ListLit(elements) =>
+            switch (
+              ListUtil.findi_opt(
+                el =>
+                  Id.equal(Exp.rep_id(el), target_element_id)
+                  || exp_contains_id(el, target_element_id),
+                elements,
+              )
+            ) {
+            | Some((idx, _)) =>
+              result := Some((Exp.rep_id(e), elements, idx));
+              e;
+            | None => continue(e)
+            }
+          | _ => continue(e)
+          }
+        },
+      term,
+    );
+  result^;
+};
+
+let list_delete_element =
+    (z: Zipper.t, target_element_id: Id.t): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_list_containing_element(target_element_id, term)) {
+  | Some((list_id, elements, idx)) =>
+    let new_elements = List.filteri((i, _) => i != idx, elements);
+    let new_term = replace_list_elements(list_id, new_elements, term);
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+let list_insert_element =
+    (z: Zipper.t, target_element_id: Id.t, code: string, d: Direction.t)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_list_containing_element(target_element_id, term)) {
+  | Some((list_id, elements, idx)) =>
+    switch (parse_exp(code)) {
+    | Some(new_element) =>
+      let insert_at = d == Left ? idx : idx + 1;
+      let (before, after) = ListUtil.split_n(insert_at, elements);
+      let new_elements = before @ [new_element] @ after;
+      let new_term = replace_list_elements(list_id, new_elements, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+let list_update_element =
+    (z: Zipper.t, target_element_id: Id.t, code: string): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_list_containing_element(target_element_id, term)) {
+  | Some((list_id, elements, idx)) =>
+    switch (parse_exp(code)) {
+    | Some(new_element) =>
+      let new_elements =
+        List.mapi((i, el) => i == idx ? new_element : el, elements);
+      let new_term = replace_list_elements(list_id, new_elements, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+let is_list_element = (z: Zipper.t, target_id: Id.t): bool => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_list_containing_element(target_id, term)) {
+  | Some(_) => true
+  | None => false
+  };
+};
+
+/* --- Tuple element operations --- */
+
+/* Replace the elements of a Tuple expression by ID. */
+let replace_tuple_elements =
+    (target_tuple_id: Id.t, new_elements: list(Exp.t), term: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        if (Id.equal(Exp.rep_id(e), target_tuple_id)) {
+          switch (Exp.term_of(e)) {
+          | Tuple(_) => {
+              ...e,
+              term: Tuple(new_elements),
+            }
+          | _ => continue(e)
+          };
+        } else {
+          continue(e);
+        },
+    term,
+  );
+
+/* Find the Tuple containing an element with the given ID.
+   Returns (tuple_id, elements, element_index). */
+let find_tuple_containing_element =
+    (target_element_id: Id.t, term: Exp.t)
+    : option((Id.t, list(Exp.t), int)) => {
+  let result = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Tuple(elements) =>
+            switch (
+              ListUtil.findi_opt(
+                el =>
+                  Id.equal(Exp.rep_id(el), target_element_id)
+                  || exp_contains_id(el, target_element_id),
+                elements,
+              )
+            ) {
+            | Some((idx, _)) =>
+              result := Some((Exp.rep_id(e), elements, idx));
+              e;
+            | None => continue(e)
+            }
+          | _ => continue(e)
+          }
+        },
+      term,
+    );
+  result^;
+};
+
+let tuple_delete_element =
+    (z: Zipper.t, target_element_id: Id.t): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_tuple_containing_element(target_element_id, term)) {
+  | Some((tuple_id, elements, idx)) =>
+    let new_elements = List.filteri((i, _) => i != idx, elements);
+    let new_term = replace_tuple_elements(tuple_id, new_elements, term);
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+let tuple_insert_element =
+    (z: Zipper.t, target_element_id: Id.t, code: string, d: Direction.t)
+    : option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_tuple_containing_element(target_element_id, term)) {
+  | Some((tuple_id, elements, idx)) =>
+    switch (parse_exp(code)) {
+    | Some(new_element) =>
+      let insert_at = d == Left ? idx : idx + 1;
+      let (before, after) = ListUtil.split_n(insert_at, elements);
+      let new_elements = before @ [new_element] @ after;
+      let new_term = replace_tuple_elements(tuple_id, new_elements, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+let tuple_update_element =
+    (z: Zipper.t, target_element_id: Id.t, code: string): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_tuple_containing_element(target_element_id, term)) {
+  | Some((tuple_id, elements, idx)) =>
+    switch (parse_exp(code)) {
+    | Some(new_element) =>
+      let new_elements =
+        List.mapi((i, el) => i == idx ? new_element : el, elements);
+      let new_term = replace_tuple_elements(tuple_id, new_elements, term);
+      Some(term_to_zipper(new_term));
+    | None => None
+    }
+  | None => None
+  };
+};
+
+let is_tuple_element = (z: Zipper.t, target_id: Id.t): bool => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (find_tuple_containing_element(target_id, term)) {
+  | Some(_) => true
+  | None => false
+  };
+};
+
+/* Check if a target ID is any kind of sequence element (case arm, list, or tuple) */
+let is_sequence_element = (z: Zipper.t, target_id: Id.t): bool =>
+  is_case_arm(z, target_id)
+  || is_list_element(z, target_id)
+  || is_tuple_element(z, target_id);
+
+/* Whether target is a direct child of a semicolon sequence (test line, etc.). */
+let find_seq_containing_child =
+    (target_id: Id.t, term: Exp.t): option((Id.t, Direction.t)) => {
+  let found = ref(None);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (Exp.term_of(e)) {
+          | Seq(e1, e2) =>
+            if (Id.equal(Exp.rep_id(e1), target_id)) {
+              found := Some((Exp.rep_id(e), Direction.Left));
+            } else if (Id.equal(Exp.rep_id(e2), target_id)) {
+              found := Some((Exp.rep_id(e), Direction.Right));
+            };
+            continue(e);
+          | _ => continue(e)
+          }
+        },
+      term,
+    );
+  found^;
+};
+
+/* --- Update operations on let-chain bindings --- */
+
+/* Update the definition of a binding (the expression after = ).
+   target_id: the ID of the definition expression to replace. */
+let update_definition =
+    (z: Zipper.t, target_id: Id.t, code: string): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (parse_exp(code)) {
+  | Some(new_def) =>
+    let new_term = replace_exp_by_id(target_id, _ => new_def, term);
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+/* Update the body of a binding (the expression after in).
+   target_id: the ID of the body expression to replace. */
+let update_body =
+    (z: Zipper.t, target_id: Id.t, code: string): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (parse_exp(code)) {
+  | Some(new_body) =>
+    let new_term = replace_exp_by_id(target_id, _ => new_body, term);
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+/* Check if a pattern binds a given variable name. */
+let rec pat_binds = (pat: Pat.t, name: string): bool =>
+  switch (Pat.term_of(pat)) {
+  | Var(n) => String.equal(n, name)
+  | Asc(p, _)
+  | Parens(p) => pat_binds(p, name)
+  | Tuple(ps) => List.exists(p => pat_binds(p, name), ps)
+  | Cons(p1, p2) => pat_binds(p1, name) || pat_binds(p2, name)
+  | _ => false
+  };
+
+/* Get the variable name from a pattern (simple or annotated). */
+let pat_var_name = (pat: Pat.t): option(string) =>
+  switch (Pat.term_of(pat)) {
+  | Var(n) => Some(n)
+  | Asc(p, _) =>
+    switch (Pat.term_of(p)) {
+    | Var(n) => Some(n)
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* Rename a variable in an expression tree, respecting shadowing.
+   Stops renaming in the body of any Let/Fun that re-binds the same name. */
+let rename_var_in_exp =
+    (old_name: string, new_name: string, term: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        switch (Exp.term_of(e)) {
+        | Var(name) when String.equal(name, old_name) => {
+            ...e,
+            term: Var(new_name),
+          }
+        | Let(pat, def, body) when pat_binds(pat, old_name) =>
+          /* Shadowed: rename in def (for recursive bindings) but not body */
+          {
+            ...e,
+            term: Let(pat, continue(def), body),
+          }
+        | _ => continue(e)
+        },
+    term,
+  );
+
+/* Update a pattern in a binding and rename all variable references.
+   target_id: the ID of the pattern to replace.
+   Does the rename at the term level (before round-trip) so it works
+   correctly regardless of ID changes from the round-trip. */
+let update_pattern =
+    (z: Zipper.t, target_id: Id.t, code: string): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (parse_pat(code)) {
+  | Some(new_pat) =>
+    let new_name = pat_var_name(new_pat);
+    /* Find the Let or ModLet containing this pattern, replace it, and rename vars */
+    let new_term =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) =>
+            switch (Exp.term_of(e)) {
+            | Let(pat, def, body) when Id.equal(Pat.rep_id(pat), target_id) =>
+              let old_name = pat_var_name(pat);
+              /* Rename variables in def and body */
+              let (def, body) =
+                switch (old_name, new_name) {
+                | (Some(old_n), Some(new_n))
+                    when !String.equal(old_n, new_n) => (
+                    rename_var_in_exp(old_n, new_n, def),
+                    rename_var_in_exp(old_n, new_n, body),
+                  )
+                | _ => (def, body)
+                };
+              {
+                ...e,
+                term: Let(new_pat, continue(def), continue(body)),
+              };
+            | Module(items) =>
+              /* Check if any ModLet has the target pattern */
+              let target_idx =
+                ListUtil.findi_opt(
+                  (item: Mod.t) =>
+                    switch (item.term) {
+                    | ModLet(pat, _) => Id.equal(Pat.rep_id(pat), target_id)
+                    | _ => false
+                    },
+                  items,
+                );
+              switch (target_idx) {
+              | Some((idx, target_item)) =>
+                let old_name =
+                  switch (target_item.term) {
+                  | ModLet(pat, _) => pat_var_name(pat)
+                  | _ => None
+                  };
+                let should_rename =
+                  switch (old_name, new_name) {
+                  | (Some(old_n), Some(new_n))
+                      when !String.equal(old_n, new_n) =>
+                    Some((old_n, new_n))
+                  | _ => None
+                  };
+                let new_items =
+                  List.mapi(
+                    (i, item: Mod.t) =>
+                      if (i == idx) {
+                        switch (item.term) {
+                        | ModLet(_, def) =>
+                          let def =
+                            switch (should_rename) {
+                            | Some((old_n, new_n)) =>
+                              rename_var_in_exp(old_n, new_n, def)
+                            | None => def
+                            };
+                          let new_term: TermBase.mod_term =
+                            ModLet(new_pat, def);
+                          {
+                            ...item,
+                            term: new_term,
+                          };
+                        | _ => item
+                        };
+                      } else if (i > idx) {
+                        switch (should_rename) {
+                        | Some((old_n, new_n)) =>
+                          switch (item.term) {
+                          | ModLet(p, def) =>
+                            let new_term: TermBase.mod_term =
+                              ModLet(
+                                p,
+                                rename_var_in_exp(old_n, new_n, def),
+                              );
+                            {
+                              ...item,
+                              term: new_term,
+                            };
+                          | ModExp(exp) =>
+                            let new_term: TermBase.mod_term =
+                              ModExp(rename_var_in_exp(old_n, new_n, exp));
+                            {
+                              ...item,
+                              term: new_term,
+                            };
+                          | _ => item
+                          }
+                        | None => item
+                        };
+                      } else {
+                        item;
+                      },
+                    items,
+                  );
+                {
+                  ...e,
+                  term: Module(new_items),
+                };
+              | None => continue(e)
+              };
+            | _ => continue(e)
+            },
+        term,
+      );
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+/* Update a type annotation.
+   target_id: the ID of the type to replace. */
+let update_type_annotation =
+    (z: Zipper.t, target_id: Id.t, code: string): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (parse_typ(code)) {
+  | Some(new_typ) =>
+    let new_term = replace_typ_by_id(target_id, new_typ, term);
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+/* Replace the innermost body of a Let/TyAlias chain with the given body.
+   For `Let(a, 1, Let(x, a+10, _))`, replaces the `_` with `body`. */
+let rec replace_innermost_body = (parsed: Exp.t, body: Exp.t): Exp.t =>
+  switch (Exp.term_of(parsed)) {
+  | Let(p, d, inner) => {
+      ...parsed,
+      term: Let(p, d, replace_innermost_body(inner, body)),
+    }
+  | TyAlias(tp, td, inner) => {
+      ...parsed,
+      term: TyAlias(tp, td, replace_innermost_body(inner, body)),
+    }
+  | _ => body
+  };
+
+/* Update the entire binding clause of a let expression.
+   Parses the code and replaces the Let/TyAlias node's pat+def,
+   threading the original body as the innermost body of the replacement chain.
+   target_id: the ID of the Let/TyAlias expression itself. */
+let update_binding_clause =
+    (z: Zipper.t, target_id: Id.t, code: string): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (parse_exp(code)) {
+  | Some(parsed) =>
+    let new_term =
+      replace_exp_by_id(
+        target_id,
+        e =>
+          switch (Exp.term_of(e), Exp.term_of(parsed)) {
+          /* Replace binding clause(s), keeping the original body */
+          | (Let(_, _, body), Let(_, _, _)) =>
+            replace_innermost_body(parsed, body)
+          /* Replace tpat+tdef of a TyAlias, keeping the original body */
+          | (TyAlias(_, _, body), TyAlias(_, _, _)) =>
+            replace_innermost_body(parsed, body)
+          /* For bare expressions (Seq items), replace entirely */
+          | _ => parsed
+          },
+        term,
+      );
+    Some(term_to_zipper(new_term));
+  | None => None
+  };
+};
+
+/* Delete a binding from a let-chain.
+   For Let(pat, def, body): removes the binding and replaces with body.
+   For Seq(e, rest): removes e and replaces with rest.
+   target_id: the ID of the Let/TyAlias/Seq/ModuleExp expression. */
+let delete_binding = (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let new_term =
+    replace_exp_by_id(
+      target_id,
+      e =>
+        switch (Exp.term_of(e)) {
+        | Let(_, _, body) => body
+        | TyAlias(_, _, body) => body
+        | ModuleExp(_, _, body) => body
+        | Seq(_, rest) => rest
+        | _ => e /* Can't delete a non-binding expression */
+        },
+      term,
+    );
+  Some(term_to_zipper(new_term));
+};
+
+/* Delete a body expression.
+   Replaces the body with an empty hole.
+   target_id: the ID of the body expression. */
+let delete_body = (z: Zipper.t, target_id: Id.t): option(Zipper.t) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let hole = Exp.fresh(EmptyHole);
+  let new_term = replace_exp_by_id(target_id, _ => hole, term);
+  Some(term_to_zipper(new_term));
+};
+
+let ow_placeholder = "__OW_PH__";
+
+/* Replace literal $ tokens in source text with the placeholder
+   identifier. Naive replacement; $ inside string literals is also
+   substituted (documented limitation). */
+let preprocess_dollar = (code: string): string =>
+  String.concat(ow_placeholder, String.split_on_char('$', code));
+
+/* Print a focused term to inline source text (suitable for re-parsing). */
+let print_exp_inline = (e: Exp.t): string => {
+  let settings = ExpToSegment.Settings.of_core(~inline=true, CoreSettings.on);
+  let segment = ExpToSegment.exp_to_segment(~settings, e);
+  Printer.of_segment(~holes="?", segment);
+};
+let print_pat_inline = (p: Pat.t): string => {
+  let settings = ExpToSegment.Settings.of_core(~inline=true, CoreSettings.on);
+  let segment = ExpToSegment.pat_to_segment(~settings, p);
+  Printer.of_segment(~holes="?", segment);
+};
+let print_typ_inline = (t: Typ.t): string => {
+  let settings = ExpToSegment.Settings.of_core(~inline=true, CoreSettings.on);
+  let segment = ExpToSegment.typ_to_segment(~settings, t);
+  Printer.of_segment(~holes="?", segment);
+};
+let print_mod_inline = (m: Mod.t): string => {
+  let settings = ExpToSegment.Settings.of_core(~inline=true, CoreSettings.on);
+  let segment = ExpToSegment.mod_to_segment(~settings, m);
+  Printer.of_segment(~holes="?", segment);
+};
+
+/* Flatten a Seq tree to the list of its top-level lines. */
+let rec seq_to_list_exp = (e: Exp.t): list(Exp.t) =>
+  switch (Exp.term_of(e)) {
+  | Seq(e1, e2) => seq_to_list_exp(e1) @ seq_to_list_exp(e2)
+  | _ => [e]
+  };
+
+/* Flatten an expression into a list of module items.
+   Handles two common shapes that can both appear when parsing the code
+   string for an overwrite targeting a module item position:
+   - Seq(e1, e2): split at `;` into items
+   - Let(p, def, body): emit ModLet(p, def) then recurse into body
+     (this happens when the parser turns `let X = Y; rest` into
+      Let(X, Y, rest) rather than Seq(Let(X, Y, ?), rest))
+   - TyAlias(tp, td, body): same idea for type aliases
+   - EmptyHole: drop (these arise as trailing holes in let/type bodies)
+   - anything else: wrap as ModExp */
+let rec exp_to_mod_items = (e: Exp.t): list(Mod.t) =>
+  switch (Exp.term_of(e)) {
+  | Seq(e1, e2) => exp_to_mod_items(e1) @ exp_to_mod_items(e2)
+  | Let(pat, def, body) =>
+    /* When the parser sees `let X = Y; rest`, it parses Y as
+       def=Seq(actual_def, rest_of_items) and leaves body=EmptyHole.
+       Split off the trailing items from the def in that case. */
+    let (real_def, def_extras) =
+      switch (Exp.term_of(def)) {
+      | Seq(d1, d2) => (d1, exp_to_mod_items(d2))
+      | _ => (def, [])
+      };
+    let head_let: TermBase.Mod.term = ModLet(pat, real_def);
+    let space: Secondary.t = {
+      id: Id.mk(),
+      content: Whitespace(" "),
+    };
+    let head: Mod.t = IdTagged.mk([Id.mk()], ([space], []), head_let);
+    let body_items =
+      switch (Exp.term_of(body)) {
+      | EmptyHole => []
+      | _ => exp_to_mod_items(body)
+      };
+    [head, ...def_extras] @ body_items;
+  | TyAlias(tpat, tdef, body) =>
+    let head_typ: TermBase.Mod.term = ModType(tpat, tdef);
+    let space: Secondary.t = {
+      id: Id.mk(),
+      content: Whitespace(" "),
+    };
+    let head: Mod.t = IdTagged.mk([Id.mk()], ([space], []), head_typ);
+    let tail =
+      switch (Exp.term_of(body)) {
+      | EmptyHole => []
+      | _ => exp_to_mod_items(body)
+      };
+    [head, ...tail];
+  | EmptyHole => []
+  | _ => [exp_to_mod_item_term(e)]
+  };
+
+/* Merge placeholder + original secondary. The placeholder's secondary
+   reflects the whitespace context where `$` appears in the user's `code`;
+   the original's secondary reflects its position in the source tree.
+   Prefer the placeholder's side when present (to honor explicit spacing
+   in `code`); fall back to original's side otherwise (so identity `$`
+   preserves the original's positional whitespace). */
+let merge_exp_secondary = (placeholder: Exp.t, original: Exp.t): Exp.t => {
+  let (p_before, p_after) = placeholder.annotation.secondary;
+  let (o_before, o_after) = original.annotation.secondary;
+  let before = p_before == [] ? o_before : p_before;
+  let after = p_after == [] ? o_after : p_after;
+  {
+    ...original,
+    annotation: {
+      ...original.annotation,
+      secondary: (before, after),
+    },
+  };
+};
+
+let merge_pat_secondary = (placeholder: Pat.t, original: Pat.t): Pat.t => {
+  let (p_before, p_after) = placeholder.annotation.secondary;
+  let (o_before, o_after) = original.annotation.secondary;
+  let before = p_before == [] ? o_before : p_before;
+  let after = p_after == [] ? o_after : p_after;
+  {
+    ...original,
+    annotation: {
+      ...original.annotation,
+      secondary: (before, after),
+    },
+  };
+};
+
+let merge_typ_secondary = (placeholder: Typ.t, original: Typ.t): Typ.t => {
+  let (p_before, p_after) = placeholder.annotation.secondary;
+  let (o_before, o_after) = original.annotation.secondary;
+  let before = p_before == [] ? o_before : p_before;
+  let after = p_after == [] ? o_after : p_after;
+  {
+    ...original,
+    annotation: {
+      ...original.annotation,
+      secondary: (before, after),
+    },
+  };
+};
+
+/* Substitute Var(__OW_PH__) inside `in_term` with `original`.
+   Merges placeholder + original secondary so $ inherits spacing both
+   from the source pattern and from the original's position. First
+   occurrence is used directly; subsequent ones re-parse `original_str`
+   so each substitution gets fresh ids. */
+let substitute_placeholder_in_exp =
+    (original: Exp.t, original_str: string, in_term: Exp.t): Exp.t => {
+  let used = ref(false);
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        switch (Exp.term_of(e)) {
+        | Var(name) when String.equal(name, ow_placeholder) =>
+          if (! used^) {
+            used := true;
+            merge_exp_secondary(e, original);
+          } else {
+            switch (parse_exp(original_str)) {
+            | Some(t) => merge_exp_secondary(e, t)
+            | None => merge_exp_secondary(e, original)
+            };
+          }
+        | _ => continue(e)
+        },
+    in_term,
+  );
+};
+
+/* Substitute pat-level Var(__OW_PH__) with `original` pat. */
+let substitute_placeholder_in_pat_term =
+    (original: Pat.t, original_str: string, in_term: Pat.t): Pat.t => {
+  let used = ref(false);
+  Pat.map_term(
+    ~f_pat=
+      (continue, p) =>
+        switch (Pat.term_of(p)) {
+        | Var(name) when String.equal(name, ow_placeholder) =>
+          if (! used^) {
+            used := true;
+            merge_pat_secondary(p, original);
+          } else {
+            switch (parse_pat(original_str)) {
+            | Some(t) => merge_pat_secondary(p, t)
+            | None => merge_pat_secondary(p, original)
+            };
+          }
+        | _ => continue(p)
+        },
+    in_term,
+  );
+};
+
+/* Substitute typ-level Var(__OW_PH__) with `original` typ. */
+let substitute_placeholder_in_typ_term =
+    (original: Typ.t, original_str: string, in_term: Typ.t): Typ.t => {
+  let used = ref(false);
+  Typ.map_term(
+    ~f_typ=
+      (continue, t) =>
+        switch (Typ.term_of(t)) {
+        | Var(name) when String.equal(name, ow_placeholder) =>
+          if (! used^) {
+            used := true;
+            merge_typ_secondary(t, original);
+          } else {
+            switch (parse_typ(original_str)) {
+            | Some(t') => merge_typ_secondary(t, t')
+            | None => merge_typ_secondary(t, original)
+            };
+          }
+        | _ => continue(t)
+        },
+    in_term,
+  );
+};
+
+/* Parent splice context for an Exp target. */
+type exp_splice_context =
+  | InListElement(Id.t, list(Exp.t), int)
+  | InTupleElement(Id.t, list(Exp.t), int)
+  | InModuleItem(Id.t, list(Mod.t), int)
+  | InSeqLine /* target is a direct child of a Seq, no special splicing needed */
+  | InOther;
+
+let detect_exp_splice_context =
+    (term: Exp.t, target_id: Id.t): exp_splice_context => {
+  let direct_list =
+    switch (find_list_containing_element(target_id, term)) {
+    | Some((id, els, idx)) =>
+      switch (List.nth_opt(els, idx)) {
+      | Some(el) when Id.equal(Exp.rep_id(el), target_id) =>
+        Some((id, els, idx))
+      | _ => None
+      }
+    | None => None
+    };
+  switch (direct_list) {
+  | Some((id, els, idx)) => InListElement(id, els, idx)
+  | None =>
+    let direct_tuple =
+      switch (find_tuple_containing_element(target_id, term)) {
+      | Some((id, els, idx)) =>
+        switch (List.nth_opt(els, idx)) {
+        | Some(el) when Id.equal(Exp.rep_id(el), target_id) =>
+          Some((id, els, idx))
+        | _ => None
+        }
+      | None => None
+      };
+    switch (direct_tuple) {
+    | Some((id, els, idx)) => InTupleElement(id, els, idx)
+    | None =>
+      let direct_mod =
+        switch (find_module_containing_item(target_id, term)) {
+        | Some((id, items, idx)) =>
+          switch (List.nth_opt(items, idx)) {
+          | Some(item) when Id.equal(Mod.rep_id(item), target_id) =>
+            Some((id, items, idx))
+          | _ => None
+          }
+        | None => None
+        };
+      switch (direct_mod) {
+      | Some((id, items, idx)) => InModuleItem(id, items, idx)
+      | None =>
+        switch (find_seq_containing_child(target_id, term)) {
+        | Some(_) => InSeqLine
+        | None => InOther
+        }
+      };
+    };
+  };
+};
+
+/* Splice helper: replace items[idx] with new_items. */
+let splice_at = (items: list('a), idx: int, new_items: list('a)): list('a) =>
+  items |> List.mapi((i, it) => i == idx ? new_items : [it]) |> List.concat;
+
+/* Like splice_at, but preserves the leading/trailing whitespace secondaries
+   of the replaced module item on the boundaries of the new items. This
+   matters when the replaced item was at the start or end of the list and
+   carried separating whitespace before/after `{` / `}` delimiters. */
+let splice_mod_items_preserving_boundary =
+    (items: list(Mod.t), idx: int, new_items: list(Mod.t)): list(Mod.t) => {
+  let is_last = idx == List.length(items) - 1;
+  let trailing_space: Secondary.t = {
+    id: Id.mk(),
+    content: Whitespace(" "),
+  };
+  switch (List.nth_opt(items, idx), new_items) {
+  | (Some(orig), [first, ...rest]) =>
+    let (orig_before, _) = orig.annotation.secondary;
+    let (first_before, first_after) = first.annotation.secondary;
+    let first_before' = first_before == [] ? orig_before : first_before;
+    let new_first =
+      IdTagged.mk(
+        first.annotation.ids,
+        (first_before', first_after),
+        first.term,
+      );
+    /* If the replaced item was the last in the module, ensure the
+       new last item carries a trailing space so it renders as "X }"
+       rather than "X}" before the closing brace. */
+    let add_trailing = (item: Mod.t): Mod.t =>
+      if (!is_last) {
+        item;
+      } else {
+        let (b, a) = item.annotation.secondary;
+        let a' = a == [] ? [trailing_space] : a;
+        IdTagged.mk(item.annotation.ids, (b, a'), item.term);
+      };
+    let new_items =
+      switch (rest) {
+      | [] => [add_trailing(new_first)]
+      | _ =>
+        let (last, mid_rev) =
+          switch (List.rev(rest)) {
+          | [] => (new_first, [])
+          | [last, ...mid_rev] => (last, mid_rev)
+          };
+        [new_first] @ List.rev(mid_rev) @ [add_trailing(last)];
+      };
+    splice_at(items, idx, new_items);
+  | (_, _) => splice_at(items, idx, new_items)
+  };
+};
+
+/* Overwrite an Exp target with code (which may contain $).
+   Detects parent context (list/tuple/module) and splices when the parsed
+   code's shape matches the splice rule for that context; otherwise does
+   a plain replace. */
+let overwrite_exp =
+    (z: Zipper.t, target_id: Id.t, original: Exp.t, code: string)
+    : result(Zipper.t, string) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let original_str = print_exp_inline(original);
+  let preprocessed = preprocess_dollar(code);
+  switch (parse_exp(preprocessed)) {
+  | None =>
+    Error(
+      "Failed to parse \""
+      ++ code
+      ++ "\" as an expression after $ substitution.",
+    )
+  | Some(parsed) =>
+    let substituted =
+      substitute_placeholder_in_exp(original, original_str, parsed);
+    let context = detect_exp_splice_context(term, target_id);
+    let new_term =
+      switch (context, Exp.term_of(substituted)) {
+      | (InListElement(list_id, els, idx), Tuple(items)) =>
+        let new_elements = splice_at(els, idx, items);
+        replace_list_elements(list_id, new_elements, term);
+      | (InTupleElement(tuple_id, els, idx), Tuple(items)) =>
+        let new_elements = splice_at(els, idx, items);
+        replace_tuple_elements(tuple_id, new_elements, term);
+      | (InModuleItem(mod_id, items, idx), _) =>
+        let new_items_for_idx = exp_to_mod_items(substituted);
+        let new_items =
+          splice_mod_items_preserving_boundary(items, idx, new_items_for_idx);
+        replace_module_items(mod_id, new_items, term);
+      | _ => replace_exp_by_id(target_id, _ => substituted, term)
+      };
+    Ok(term_to_zipper(new_term));
+  };
+};
+
+let rec pat_has_broken_node = (p: Pat.t): bool =>
+  switch (Pat.term_of(p)) {
+  | Invalid(_)
+  | MultiHole(_) => true
+  | Asc(p2, _) => pat_has_broken_node(p2)
+  | Tuple(ps)
+  | ListLit(ps) => List.exists(pat_has_broken_node, ps)
+  | Cons(p1, p2)
+  | TupLabel(p1, p2)
+  | Ap(p1, p2) => pat_has_broken_node(p1) || pat_has_broken_node(p2)
+  | Parens(p2)
+  | Projector(_, p2) => pat_has_broken_node(p2)
+  | Constructor(_, _)
+  | EmptyHole
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | Var(_)
+  | Label(_) => false
+  };
+
+let rec typ_has_broken_node = (t: Typ.t): bool =>
+  switch (Typ.term_of(t)) {
+  | Unknown(Hole(Invalid(_)))
+  | Unknown(Hole(MultiHole(_))) => true
+  | Arrow(t1, t2)
+  | TupLabel(t1, t2)
+  | ProdProjection(t1, t2)
+  | ProdExtension(t1, t2) =>
+    typ_has_broken_node(t1) || typ_has_broken_node(t2)
+  | Rec(_, t2)
+  | Poly(_, t2) => typ_has_broken_node(t2)
+  | Prod(ts) => List.exists(typ_has_broken_node, ts)
+  | List(t2)
+  | Parens(t2)
+  | Projector(_, t2) => typ_has_broken_node(t2)
+  | Unknown(SynSwitch)
+  | Unknown(Internal)
+  | Unknown(Hole(EmptyHole))
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | Sum(_)
+  | ProofOf(_)
+  | Sig(_) => false
+  };
+
+let normalize_ws = (s: string): string => {
+  let chars = List.init(String.length(s), i => s.[i]);
+  let rec go = (acc, in_ws, cs) =>
+    switch (cs) {
+    | [] => acc
+    | [c, ...rest] when c == ' ' || c == '\n' || c == '\t' || c == '\r' =>
+      if (in_ws) {
+        go(acc, true, rest);
+      } else {
+        go(acc ++ " ", true, rest);
+      }
+    | [c, ...rest] => go(acc ++ String.make(1, c), false, rest)
+    };
+  String.trim(go("", false, chars));
+};
+
+/* Overwrite a Pat target. Plain replace with $ substitution.
+   After substitution, checks for three failure modes:
+   1. Placeholder still present (substitution couldn't reach it)
+   2. Result contains MultiHole/Invalid nodes
+   3. Round-trip mismatch (parser silently dropped input tokens) */
+let overwrite_pat =
+    (z: Zipper.t, target_id: Id.t, original: Pat.t, code: string)
+    : result(Zipper.t, string) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let original_str = print_pat_inline(original);
+  let preprocessed = preprocess_dollar(code);
+  switch (parse_pat(preprocessed)) {
+  | None => Error("Failed to parse \"" ++ code ++ "\" as a pattern.")
+  | Some(parsed) =>
+    let parsed_roundtrip = normalize_ws(print_pat_inline(parsed));
+    let input_normalized = normalize_ws(preprocessed);
+    if (parsed_roundtrip != input_normalized) {
+      Error(
+        "The code \""
+        ++ code
+        ++ "\" is not valid in pattern position. "
+        ++ "The selector targets a pattern (e.g. the name in `let x = ...`); "
+        ++ "use only pattern-valid syntax such as variable names, "
+        ++ "tuples, constructors, or wildcards.",
+      );
+    } else {
+      let substituted =
+        substitute_placeholder_in_pat_term(original, original_str, parsed);
+      let rendered = print_pat_inline(substituted);
+      if (StringUtil.plain_split(rendered, ow_placeholder) |> List.length > 1) {
+        Error(
+          "The code \""
+          ++ code
+          ++ "\" is not valid in pattern position. "
+          ++ "The selector targets a pattern (e.g. the name in `let x = ...`); "
+          ++ "use only pattern-valid syntax such as variable names, "
+          ++ "tuples, constructors, or wildcards.",
+        );
+      } else if (pat_has_broken_node(substituted)) {
+        Error(
+          "The code \""
+          ++ code
+          ++ "\" produces invalid syntax in pattern position. "
+          ++ "The selector targets a pattern; "
+          ++ "use only pattern-valid syntax such as variable names, "
+          ++ "tuples, constructors, or wildcards.",
+        );
+      } else {
+        let new_term = replace_pat_by_id(target_id, substituted, term);
+        Ok(term_to_zipper(new_term));
+      };
+    };
+  };
+};
+
+/* Overwrite a Typ target. Plain replace with $ substitution.
+   After substitution, checks for:
+   1. Round-trip mismatch (parser silently dropped input tokens)
+   2. Placeholder still present (substitution couldn't reach it)
+   3. Result contains MultiHole/Invalid nodes */
+let overwrite_typ =
+    (z: Zipper.t, target_id: Id.t, original: Typ.t, code: string)
+    : result(Zipper.t, string) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let original_str = print_typ_inline(original);
+  let preprocessed = preprocess_dollar(code);
+  switch (parse_typ(preprocessed)) {
+  | None => Error("Failed to parse \"" ++ code ++ "\" as a type.")
+  | Some(parsed) =>
+    let parsed_roundtrip = normalize_ws(print_typ_inline(parsed));
+    let input_normalized = normalize_ws(preprocessed);
+    if (parsed_roundtrip != input_normalized) {
+      Error(
+        "The code \""
+        ++ code
+        ++ "\" is not valid in type position. "
+        ++ "The selector targets a type annotation; "
+        ++ "use only type-valid syntax such as Int, Bool, "
+        ++ "arrow types, or type variables.",
+      );
+    } else {
+      let substituted =
+        substitute_placeholder_in_typ_term(original, original_str, parsed);
+      let rendered = print_typ_inline(substituted);
+      if (StringUtil.plain_split(rendered, ow_placeholder) |> List.length > 1) {
+        Error(
+          "The code \""
+          ++ code
+          ++ "\" is not valid in type position. "
+          ++ "The selector targets a type annotation; "
+          ++ "use only type-valid syntax such as Int, Bool, "
+          ++ "arrow types, or type variables.",
+        );
+      } else if (typ_has_broken_node(substituted)) {
+        Error(
+          "The code \""
+          ++ code
+          ++ "\" produces invalid syntax in type position. "
+          ++ "The selector targets a type annotation; "
+          ++ "use only type-valid syntax such as Int, Bool, "
+          ++ "arrow types, or type variables.",
+        );
+      } else {
+        let new_term = replace_typ_by_id(target_id, substituted, term);
+        Ok(term_to_zipper(new_term));
+      };
+    };
+  };
+};
+
+/* Overwrite a Module item target. Splices a Seq of items when the
+   parsed code is a Seq; otherwise replaces the single item.
+   Uses Parser.to_term directly (rather than parse_exp) since module
+   items can be bare `let x = 1` forms without `in`. */
+let overwrite_mod =
+    (z: Zipper.t, target_id: Id.t, original: Mod.t, code: string)
+    : result(Zipper.t, string) => {
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let original_str = print_mod_inline(original);
+  let preprocessed = preprocess_dollar(code);
+  switch (find_module_containing_item(target_id, term)) {
+  | None => Error("Module item not found.")
+  | Some((mod_id, items, idx)) =>
+    switch (Parser.to_term(preprocessed, ~root=Exp)) {
+    | None =>
+      Error(
+        "Failed to parse \""
+        ++ code
+        ++ "\" as a module item after $ substitution.",
+      )
+    | Some(parsed) =>
+      /* Substitute placeholder inside the parsed expression with the
+         original module item's printed form re-parsed as an exp. */
+      let original_as_exp =
+        switch (Parser.to_term(original_str, ~root=Exp)) {
+        | Some(t) => t
+        | None => Exp.fresh(EmptyHole)
+        };
+      let substituted =
+        substitute_placeholder_in_exp(original_as_exp, original_str, parsed);
+      let new_items_for_idx = exp_to_mod_items(substituted);
+      let new_items =
+        splice_mod_items_preserving_boundary(items, idx, new_items_for_idx);
+      let new_term = replace_module_items(mod_id, new_items, term);
+      Ok(term_to_zipper(new_term));
+    }
+  };
+};

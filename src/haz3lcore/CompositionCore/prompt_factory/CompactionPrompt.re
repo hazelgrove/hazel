@@ -85,7 +85,7 @@ let preamble_sections = [
   "",
   "Filbert's tools are grouped roughly as: **view** (`expand`, `collapse`, `place_probe`,",
   "`remove_probe`, `toggle_probe`), **edit** (`initialize`, `update_definition`, `update_body`,",
-  "`update_pattern`, `update_binding_clause`, `insert_before`, `insert_after`, `delete_binding_clause`),",
+  "`update_pattern`, `update_binding_clause`, `overwrite`, `delete_binding_clause`),",
   "and **plan / workbench** (`create_new_task`, `mark_active_subtask_complete`, `mark_active_task_complete`,",
   "and related). When the user or assistant discusses a tool by name or JSON, keep the **same names**",
   "in your summary so later turns remain searchable.",

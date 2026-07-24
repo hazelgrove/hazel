@@ -1,0 +1,112 @@
+/* Action Explorer toolbar */
+
+#action-explorer {
+  grid-row: 2 / span 1;
+  grid-column: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--ui-bkg, #f5f5f5);
+  border-bottom: 1px solid var(--BR2, #ddd);
+  font-size: 13px;
+  z-index: 5;
+}
+
+/* When action explorer is present, shift main content down */
+#page:has(#action-explorer) {
+  grid-template-rows: 2em auto minmax(0, 1fr) 2em;
+}
+
+#page:has(#action-explorer) #main {
+  grid-row: 3 / span 1;
+}
+
+#page:has(#action-explorer) #bottom-bar {
+  grid-row: 4 / span 1;
+}
+
+.ae-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ae-controls select {
+  padding: 3px 6px;
+  border: 1px solid var(--BR2, #ccc);
+  border-radius: 3px;
+  background: var(--T1, white);
+  color: var(--STONE, #333);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ae-controls input[type="text"] {
+  padding: 3px 8px;
+  border: 1px solid var(--BR2, #ccc);
+  border-radius: 3px;
+  font-family: var(--code-font, monospace);
+  font-size: 12px;
+  background: var(--T1, white);
+  color: var(--STONE, #333);
+}
+
+.ae-path,
+.ae-selector {
+  flex: 1;
+  min-width: 140px;
+}
+
+.ae-code {
+  flex: 1;
+  min-width: 100px;
+}
+
+.ae-execute {
+  padding: 3px 12px;
+  background: var(--G0, #4a90d9);
+  color: white;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  user-select: none;
+}
+
+.ae-execute:hover {
+  opacity: 0.85;
+}
+
+.ae-execute:active {
+  opacity: 0.7;
+}
+
+.ae-match-count {
+  font-size: 11px;
+  color: var(--BR3, #888);
+  white-space: nowrap;
+}
+
+.ae-result {
+  font-size: 12px;
+  font-family: var(--code-font, monospace);
+  padding: 2px 4px;
+  color: var(--BR4, #666);
+  white-space: pre-wrap;
+  max-height: 60px;
+  overflow-y: auto;
+}
+
+/* Action explorer code highlights */
+svg.shard.action-explorer-match {
+  z-index: var(--err-hole-z, 1);
+  pointer-events: none;
+}
+svg.shard.action-explorer-match > path {
+  fill: rgba(100, 160, 220, 0.18);
+  stroke: rgba(80, 140, 200, 0.6);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}

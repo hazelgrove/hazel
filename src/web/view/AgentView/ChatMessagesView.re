@@ -909,8 +909,7 @@ let view =
         | "update_binding_clause"
         | "delete_binding_clause"
         | "delete_body"
-        | "insert_before"
-        | "insert_after" => true
+        | "overwrite" => true
         | _ => false
         };
       };
