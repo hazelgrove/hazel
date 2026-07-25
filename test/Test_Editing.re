@@ -4767,8 +4767,8 @@ b|}))
 ];
 
 /* Backspacing inside a token whose piece has a left sibling: the
- * replacement token must land on the caret's right, so the Inner index
- * keeps referring to it. */
+ * replacement must land on the caret's right for Inner(n) to still
+ * refer to it. */
 let inner_destruct_tests = [
   test(
     ~name="Backspace inside string with left sibling",
@@ -4790,9 +4790,7 @@ let inner_destruct_tests = [
     ~acts=mk({|1 + "aa"¦|}) @ mv_l(2) @ [Destruct(Right)],
     ~goal={|1 + "a¦"|},
   ),
-  /* Wrapping a char-level selection in quotes drops the selection, so
-   * the leftover Inner caret must go too, or the next edit indexes it
-   * against an unrelated piece. */
+  /* Quote-wrapping drops the selection; its Inner caret must go too. */
   test(
     ~name="Wrap char-level selection in quotes",
     ~acts=
@@ -4815,12 +4813,11 @@ let inner_destruct_tests = [
   ),
 ];
 
-/* Grapheme clusters (emoji, combining marks) are a single Inner caret
- * position but multiple bytes/UTF-16 units, and emoji are two columns
- * wide. Editing next to one must stay in grapheme units throughout. */
+/* A grapheme cluster is one Inner caret position but several bytes, so
+ * editing beside one must stay in grapheme units throughout. */
 let grapheme_tests = [
-  /* Pins that Intl.Segmenter is available in the test environment: the
-     code-point fallback in Unicode.graphemes would count 5 and 2 here. */
+  /* Also pins that Intl.Segmenter is present: the code-point fallback in
+     Unicode.graphemes would count 5 and 2 here. */
   test_case(
     "Multi-codepoint clusters count as one grapheme",
     `Quick,

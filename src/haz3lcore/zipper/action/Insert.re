@@ -498,9 +498,8 @@ let wrap_quote = (char: string, z: t, ~root): option(t) => {
   if (!is_valid_quote_content(char, text)) {
     None;
   } else {
-    /* The selection is gone, so a char-level Inner caret left over from
-     * it no longer indexes anything; keep it and later edits misread it
-     * against whatever piece ends up on the right. */
+    /* An Inner caret left over from the destroyed selection would be
+     * misread against whatever piece ends up on the right. */
     let z = destroy_selection(z) |> Caret.set(Outer);
     if (Token.is_comment_delim(char)) {
       let comment = "#" ++ text ++ "#";

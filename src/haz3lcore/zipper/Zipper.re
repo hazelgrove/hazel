@@ -827,15 +827,9 @@ let adj_pos = (d: Direction.t, z: t): t =>
     }
   };
 
-/* Unselects with the caret forced Outer. `directional_unselect` repairs
- * an Inner caret left dangling by the unselect (Inner(n) is
- * right-neighbor-relative) by stepping one piece right; but the caller's
- * `adj_pos(Right)` takes that same step deliberately, to land the
- * segment on the caret's right. Applying both steps the caret a piece
- * too far, so `Inner(n)` ends up indexing the wrong token — e.g.
- * backspacing in `1 + "aa|"` leaves the caret pointing into the space
- * before the string. The repair is redundant here: adj_pos re-establishes
- * the invariant on its own. */
+/* Unselect with the caret Outer: directional_unselect would step an Inner
+ * caret one piece right, and the caller's adj_pos(Right) already does that,
+ * leaving Inner(n) indexing the wrong token. */
 let put_down_core = (seg: Segment.t, z: t): t => {
   let caret = z.caret;
   let z =
