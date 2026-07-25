@@ -670,8 +670,8 @@ let all =
   ];
 };
 
-/* Primary views of the projectors docked to the sidebar, in syntax order
- * (the order of `projector_list`). The chip at the code site and the view
+/* Primary views of the projectors docked to the sidebar, ordered as they
+ * read on screen. The chip at the code site and the view
  * returned here are the two halves of a docked projector; `mk_view` is
  * placement-agnostic, so this is the same node the inline placement would
  * have shown. Viewport culling is deliberately not applied: the panel
@@ -685,14 +685,14 @@ let sidebar_views =
       projector_list: list(Id.t),
     )
     : list((Base.projector, Node.t)) => {
-  /* MakeTerm builds projector_list by prepending, so it is in reverse
-   * syntax order; reverse once here rather than per comparison. Note the
-   * indices projector actions carry are positions in projector_list
-   * itself, not in this reversal. */
-  let by_syntax = List.rev(projector_list);
-  let syntax_order = (d: Model.projector_data) =>
-    List.find_index(x => x == d.p.id, by_syntax)
-    |> Option.value(~default=max_int);
+  /* Order cards the way they read on screen. Deliberately NOT by position
+   * in projector_list: MakeTerm logs projectors during a skel-driven
+   * descent, so that list's order follows the traversal, not the source.
+   * The measured origin is unambiguous. */
+  let syntax_order = (d: Model.projector_data) => (
+    d.measurement.origin.row,
+    d.measurement.origin.col,
+  );
   /* In the panel there is no absolutely-positioned box from the code
    * editor, so projectors that size themselves against it (height: 100%,
    * e.g. TextArea) would collapse to nothing. Give them the same number
