@@ -28,6 +28,10 @@ module ViewCache = {
      * only handle on "the app state changed". Zero for kinds that don't
      * read the store, so a ticking app doesn't invalidate every projector. */
     app_version: int,
+    /* Views close over the cell size (view_seg renders code with it, and
+     * projectors that resize themselves convert pixels with it), so a zoom
+     * or font-size change has to expire the entry. */
+    font_metrics: FontMetrics.t,
     status: View.status,
     model: string,
     view: View.t,
@@ -45,6 +49,7 @@ module ViewCache = {
         ~status,
         ~model,
         ~app_version,
+        ~font_metrics,
       )
       : option(View.t) =>
     switch (Hashtbl.find_opt(cache, id)) {
@@ -57,6 +62,7 @@ module ViewCache = {
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
           && e.app_version == app_version
+          && e.font_metrics == font_metrics
           && e.status == status
           && e.model == model =>
       Some(e.view)
@@ -74,6 +80,7 @@ module ViewCache = {
         ~status,
         ~model,
         ~app_version,
+        ~font_metrics,
         ~view,
       ) =>
     Hashtbl.replace(
@@ -87,6 +94,7 @@ module ViewCache = {
         core_settings,
         settings_version: ProbeProj.Settings.version^,
         app_version,
+        font_metrics,
         status,
         model,
         view,
@@ -184,6 +192,7 @@ module Model = {
     kind: p.kind,
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
+    placement: p.placement,
   };
 
   let mk =
@@ -255,7 +264,7 @@ let projector_clss =
       /* Docked: the div holds a chip, not the projector's own UI, so CSS
        * can neutralize this kind's styling and make every chip look alike */
       ~chipped: bool=false,
-      {kind, sort, indication, selected, error, warning}: Model.status,
+      {kind, sort, indication, selected, error, warning, _}: Model.status,
     ) =>
   ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
   @ (chipped ? ["chipped"] : [])
@@ -497,6 +506,7 @@ let mk_view =
       ~status,
       ~model=p.model,
       ~app_version,
+      ~font_metrics,
     )
   ) {
   | Some(view) =>
@@ -541,6 +551,8 @@ let mk_view =
           ),
         status,
         core_settings,
+        col_width: font_metrics.col_width,
+        row_height: font_metrics.row_height,
       });
     ViewCache.store(
       p.id,
@@ -552,6 +564,7 @@ let mk_view =
       ~status,
       ~model=p.model,
       ~app_version,
+      ~font_metrics,
       ~view,
     );
     view;

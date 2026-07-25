@@ -19,17 +19,103 @@ open IdTagged.FreshGrammar;
 // to HTML or to an app), while `view` is authoritative and reads the live
 // value recorded by this projector's probe (`dynamics = true`).
 
-// Refs for resize drag state
-let wrapper_ref: ref(option(Js_of_ocaml.Js.Unsafe.any)) = ref(None);
+/* RESIZE DRAG
+ *
+ * The projector's size is `ui.cols` x `ui.rows` character cells, which the
+ * editor turns into pixels at the font's cell size. A drag therefore only
+ * has to convert a pixel delta into a cell delta.
+ *
+ * Everything the drag needs is sampled once, at pointerdown, into
+ * `resize_anchor`; the new size is always `anchor + round(delta / cell)`.
+ * Nothing is re-read from the DOM while the pointer moves, so a reflow
+ * caused by the resize itself cannot move the frame of reference. */
+
+/* Which of the two dimensions a given handle drives. */
+type resize_axes = {
+  horizontal: bool,
+  vertical: bool,
+};
+
+type resize_anchor = {
+  start_x: float,
+  start_y: float,
+  start_cols: int,
+  start_rows: int,
+  axes: resize_axes,
+  /* The editor's true cell size, from FontMetrics — not a ratio derived
+   * from the projector's own rendered box. */
+  col_width: float,
+  row_height: float,
+};
+
+/* Only one drag can be live at a time, so this state is global. */
+let resize_anchor: ref(option(resize_anchor)) = ref(None);
 let resize_cols = ref(40);
 let resize_rows = ref(12);
 // Whether this drag gesture has dispatched its first (undoable) tick.
 // First tick goes through `local` so undo restores the pre-drag size;
 // later ticks stream through `local_quiet` (no undo entry per tick).
 let resize_committed = ref(false);
-// Pixel-per-char ratios computed on pointerdown, used during drag
-let px_per_col = ref(10.0);
-let px_per_row = ref(18.0);
+
+/* Cursor lock: while dragging, every element shows the drag cursor, so
+ * passing over app content doesn't flicker back to a text or pointer
+ * cursor. One class per axis pair; see proj-html.css. */
+let drag_cursor_classes = [
+  "html-proj-resizing-x",
+  "html-proj-resizing-y",
+  "html-proj-resizing-xy",
+];
+
+let set_drag_cursor = (cls: option(string)): unit => {
+  let body = Js_of_ocaml.Dom_html.document##.body;
+  List.iter(
+    c => body##.classList##remove(Js_of_ocaml.Js.string(c)),
+    drag_cursor_classes,
+  );
+  switch (cls) {
+  | Some(c) => body##.classList##add(Js_of_ocaml.Js.string(c))
+  | None => ()
+  };
+};
+
+let drag_cursor_class = (axes: resize_axes): string =>
+  switch (axes) {
+  | {horizontal: true, vertical: true} => "html-proj-resizing-xy"
+  | {horizontal: true, vertical: false} => "html-proj-resizing-x"
+  | _ => "html-proj-resizing-y"
+  };
+
+/* Pointer position in client coordinates, as floats: the drag is
+ * delta-based, so sub-pixel precision keeps it smooth under zoom. */
+let client_pos = (evt): (float, float) => {
+  let e = Js_of_ocaml.Js.Unsafe.coerce(evt);
+  let x: float = e##.clientX;
+  let y: float = e##.clientY;
+  (x, y);
+};
+
+/* virtual_dom 0.16 has Attr.on_pointerdown/on_pointerup but no
+ * on_pointermove. Assigning the IDL event-handler property is equivalent,
+ * and being an ordinary vdom attr it is reapplied on every render, so the
+ * handler never closes over a stale model. */
+let on_pointer_prop =
+    (
+      name: string,
+      handler:
+        Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent) =>
+        Virtual_dom.Vdom.Effect.t(unit),
+    ) =>
+  Virtual_dom.Vdom.Attr.property(
+    name,
+    Js_of_ocaml.Js.Unsafe.inject(
+      Js_of_ocaml.Js.wrap_callback(evt =>
+        Bonsai.Effect.Expert.handle(handler(evt))
+      ),
+    ),
+  );
+
+let target_of = evt =>
+  evt##.currentTarget |> Js_of_ocaml.Js.Opt.get(_, _ => failwith("no target"));
 
 // Checkpoint writes are debounced per app: a model is persisted once the app
 // has been idle this long, never per message.
@@ -186,7 +272,18 @@ module M: Projector = {
 
   let view =
       (
-        {model, info, parent, local, local_quiet, view_seg, _}:
+        {
+          model,
+          info,
+          parent,
+          local,
+          local_quiet,
+          view_seg,
+          status,
+          col_width,
+          row_height,
+          _,
+        }:
           View.args(model, action),
       ) => {
     open Virtual_dom.Vdom;
@@ -279,93 +376,155 @@ module M: Projector = {
       | _ => HazelDOM.go(syntax_seed, current_exp)
       };
 
-    // Corner resize handle with pointer capture for drag.
-    // On pointerdown: compute px-per-char ratios from the .projector container.
-    // On mousemove: convert cursor position to char units; dispatch when changed.
-    // The framework handles visual resizing via placeholder recomputation.
-    let resize_handle =
+    /* One drag tick: the size is always measured from the anchor, never
+       from the previous tick or from the element's current geometry. */
+    let resize_move = evt =>
+      switch (resize_anchor^) {
+      | None => Effect.Ignore
+      | Some(anchor) =>
+        let (x, y) = client_pos(evt);
+        let delta = (d: float, cell: float) =>
+          int_of_float(Float.round(d /. cell));
+        let cols =
+          anchor.axes.horizontal
+            ? max(
+                8,
+                anchor.start_cols
+                + delta(x -. anchor.start_x, anchor.col_width),
+              )
+            : anchor.start_cols;
+        let rows =
+          anchor.axes.vertical
+            ? max(
+                3,
+                anchor.start_rows
+                + delta(y -. anchor.start_y, anchor.row_height),
+              )
+            : anchor.start_rows;
+        if (cols != resize_cols^ || rows != resize_rows^) {
+          resize_cols := cols;
+          resize_rows := rows;
+          if (resize_committed^) {
+            local_quiet(SetDimensions(cols, rows));
+          } else {
+            resize_committed := true;
+            local(SetDimensions(cols, rows));
+          };
+        } else {
+          Effect.Ignore;
+        };
+      };
+
+    /* Ends the gesture, from pointerup or from losing capture. Idempotent:
+       releasing capture in pointerup fires lostpointercapture right after. */
+    let resize_end = evt =>
+      switch (resize_anchor^) {
+      | None => Effect.Ignore
+      | Some(_) =>
+        let target = target_of(evt);
+        if (JsUtil.hasPointerCapture(target, evt##.pointerId)) {
+          JsUtil.releasePointerCapture(target, evt##.pointerId);
+        };
+        let committed = resize_committed^;
+        let (cols, rows) = (resize_cols^, resize_rows^);
+        resize_anchor := None;
+        resize_committed := false;
+        set_drag_cursor(None);
+        /* Settle on the last computed size, in case a move was dropped.
+           Quiet, so the gesture stays one undo step. */
+        committed ? local_quiet(SetDimensions(cols, rows)) : Effect.Ignore;
+      };
+
+    let resize_handle = (~clss: list(string), axes: resize_axes) =>
       Node.div(
         ~attrs=[
-          Attr.classes(["html-proj-resize-handle"]),
+          Attr.classes(["html-proj-resize", ...clss]),
           Attr.on_pointerdown(
             (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
+            let target = target_of(evt);
+            JsUtil.setPointerCapture(target, evt##.pointerId);
+            let (x, y) = client_pos(evt);
+            resize_anchor :=
+              Some({
+                start_x: x,
+                start_y: y,
+                start_cols: model.ui.cols,
+                start_rows: model.ui.rows,
+                axes,
+                col_width: Float.max(1.0, col_width),
+                row_height: Float.max(1.0, row_height),
+              });
             resize_cols := model.ui.cols;
             resize_rows := model.ui.rows;
             resize_committed := false;
-            let target =
-              evt##.currentTarget
-              |> Js_of_ocaml.Js.Opt.get(_, _ => failwith("no target"));
-            JsUtil.setPointerCapture(target, evt##.pointerId);
-            // wrapper = .html-proj-wrapper, container = .projector
-            let wrapper = Js_of_ocaml.Js.Unsafe.coerce(target)##.parentNode;
-            wrapper_ref := Some(wrapper);
-            let container = wrapper##.parentNode;
-            let cw: float = max(1.0, float_of_int(container##.offsetWidth));
-            let ch: float = max(1.0, float_of_int(container##.offsetHeight));
-            px_per_col := cw /. float_of_int(model.ui.cols);
-            px_per_row := ch /. float_of_int(model.ui.rows);
-            Effect.Ignore;
+            set_drag_cursor(Some(drag_cursor_class(axes)));
+            /* Don't let the grab start a text selection in the app below */
+            Effect.Prevent_default;
           }),
-          Attr.on_mousemove(evt => {
-            switch (wrapper_ref^) {
-            | Some(wrapper) =>
-              let container =
-                Js_of_ocaml.Js.Unsafe.coerce(wrapper)##.parentNode;
-              let rect = container##getBoundingClientRect();
-              let left: float = rect##.left;
-              let top: float = rect##.top;
-              let e = Js_of_ocaml.Js.Unsafe.coerce(evt);
-              let client_x: float = float_of_int(e##.clientX);
-              let client_y: float = float_of_int(e##.clientY);
-              let new_cols =
-                max(
-                  8,
-                  int_of_float(floor((client_x -. left) /. px_per_col^)),
-                );
-              let new_rows =
-                max(
-                  3,
-                  int_of_float(floor((client_y -. top) /. px_per_row^)),
-                );
-              if (new_cols != resize_cols^ || new_rows != resize_rows^) {
-                resize_cols := new_cols;
-                resize_rows := new_rows;
-                if (resize_committed^) {
-                  local_quiet(SetDimensions(new_cols, new_rows));
-                } else {
-                  resize_committed := true;
-                  local(SetDimensions(new_cols, new_rows));
-                };
-              } else {
-                Effect.Ignore;
-              };
-            | None => Effect.Ignore
-            }
-          }),
-          Attr.on_pointerup(
-            (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
-            let target =
-              evt##.currentTarget
-              |> Js_of_ocaml.Js.Opt.get(_, _ => failwith("no target"));
-            if (JsUtil.hasPointerCapture(target, evt##.pointerId)) {
-              JsUtil.releasePointerCapture(target, evt##.pointerId);
-            };
-            wrapper_ref := None;
-            // Final dispatch in case last mousemove was skipped; quiet so
-            // it doesn't add a duplicate undo entry at the gesture's end
-            local_quiet(SetDimensions(resize_cols^, resize_rows^));
-          }),
+          on_pointer_prop("onpointermove", resize_move),
+          on_pointer_prop("onlostpointercapture", resize_end),
+          Attr.on_pointerup(resize_end),
         ],
         [],
       );
 
-    let wrapper_classes = ["html-proj-wrapper"];
-    let wrapped =
-      Node.div(
-        ~attrs=[Attr.classes(wrapper_classes)],
-        [content, resize_handle],
+    /* Inline, the projector owns both dimensions: right edge, bottom edge,
+       and corner. Docked, the panel owns the width, so only the bottom
+       edge is grabbable. */
+    let inline_placement = status.placement == ProjectorCore.Placement.Inline;
+    let handles =
+      (
+        inline_placement
+          ? [
+            resize_handle(
+              ~clss=["edge-x"],
+              {
+                horizontal: true,
+                vertical: false,
+              },
+            ),
+          ]
+          : []
+      )
+      @ [
+        resize_handle(
+          ~clss=["edge-y"],
+          {
+            horizontal: false,
+            vertical: true,
+          },
+        ),
+      ]
+      @ (
+        inline_placement
+          ? [
+            resize_handle(
+              ~clss=["corner"],
+              {
+                horizontal: true,
+                vertical: true,
+              },
+            ),
+          ]
+          : []
       );
 
-    View.mk(wrapped);
+    /* The handles are siblings of the scrolling wrapper, not children of
+       it: inside an `overflow: auto` box they would anchor to the content,
+       not to the visible edge, and drift as the app content grew. */
+    let wrapped =
+      Node.div(~attrs=[Attr.classes(["html-proj-wrapper"])], [content]);
+    let frame =
+      Node.div(
+        ~attrs=[
+          Attr.classes(
+            ["html-proj-frame", "resizable-y"]
+            @ (inline_placement ? ["resizable-x"] : []),
+          ),
+        ],
+        [wrapped, ...handles],
+      );
+
+    View.mk(frame);
   };
 };

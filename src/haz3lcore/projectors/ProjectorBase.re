@@ -126,7 +126,12 @@ module View = {
     indication: option(Direction.t), /* Is the parent editor caret adjacent? */
     selected: bool, /* Is the projector contained within a selection? */
     error: bool, /* Is there an error mark on the projector? */
-    warning: bool /* Is there a warning mark on the projector? */
+    warning: bool, /* Is there a warning mark on the projector? */
+    /* Where this instance draws its primary UI. Inline means in-place in
+     * the code, Sidebar means docked in the projectors panel. Projectors
+     * whose UI differs between the two (e.g. a docked panel owns its own
+     * width, so width-resizing affordances make no sense there) read this. */
+    placement: ProjectorCore.Placement.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -160,6 +165,13 @@ module View = {
     status,
     /* Core settings for feature flags */
     core_settings: Language.CoreSettings.t,
+    /* The parent editor's character-cell size in CSS pixels. This is the
+     * FontMetrics the editor lays itself out with; it lives web-side, so
+     * the two numbers are passed through rather than the module. A
+     * projector's placeholder is measured in cells, so these convert
+     * between pixel gestures and model dimensions. */
+    col_width: float,
+    row_height: float,
   };
 
   let mk = (~overlay=None, ~offside=None, ~error=false, inline) => {
@@ -280,6 +292,8 @@ module Cook = (C: Projector) : Cooked => {
       view_seg: args.view_seg,
       status: args.status,
       core_settings: args.core_settings,
+      col_width: args.col_width,
+      row_height: args.row_height,
     });
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
