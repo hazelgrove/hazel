@@ -63,19 +63,19 @@ let t = (name: string, input: string, expected: string) =>
   );
 
 let space_runs = [
-  t("operand hole, one space", "let x = in x", "let x = ?in x"),
-  t("operand hole, two spaces", "let x =  in x", "let x = ? in x"),
+  t("operand hole, one space", "let x = in x", "let x =? in x"),
+  t("operand hole, two spaces", "let x =  in x", "let x =?  in x"),
   t("operand hole, three spaces", "let x =   in x", "let x = ?  in x"),
   t(
     "operand hole, long run anchors left",
     "let x =     in x",
-    "let x = ?    in x",
+    "let x =  ?   in x",
   ),
-  t("operator hole, one space", "1 2", "1 ~2"),
-  t("operator hole, two spaces", "1  2", "1 ~ 2"),
-  t("operator hole, long run anchors left", "1     2", "1 ~    2"),
-  t("adjacent operators", "1 + + 2", "1 + ?+ 2"),
-  t("leading operand hole in child", "let x = + 2 in x", "let x = ?+ 2 in x"),
+  t("operator hole, one space", "1 2", "1~ 2"),
+  t("operator hole, two spaces", "1  2", "1~  2"),
+  t("operator hole, long run anchors left", "1     2", "1  ~   2"),
+  t("adjacent operators", "1 + + 2", "1 +? + 2"),
+  t("leading operand hole in child", "let x = + 2 in x", "let x =? + 2 in x"),
 ];
 
 let empty_runs = [
@@ -83,7 +83,7 @@ let empty_runs = [
   t("no whitespace, child leading", "(* 2)", "(?* 2)"),
   t("leading at top level, no whitespace", "* 2", "?* 2"),
   t("leading anchors right: one space before token", "  * 2", "?  * 2"),
-  t("leading long run anchors right", "    * 2", "  ?  * 2"),
+  t("leading long run anchors right", "    * 2", " ?   * 2"),
 ];
 
 let trailing_edge = [
@@ -183,23 +183,23 @@ let gallery = [
   t(
     "missing if condition, one space",
     "if then 2 else 3",
-    "if ?then 2 else 3",
+    "if? then 2 else 3",
   ),
   t(
     "missing if condition, two spaces",
     "if  then 2 else 3",
-    "if ? then 2 else 3",
+    "if?  then 2 else 3",
   ),
-  t("missing list element", "[1, , 3]", "[1, ?, 3]"),
-  t("missing fun pattern", "fun -> 2", "fun ?-> 2"),
-  t("missing ap argument", "f( )", "f( ?)"),
-  t("adjacent operands", {|"a" "b"|}, {|"a" ~"b"|}),
-  t("missing operand before in", "let x = 1 + in x", "let x = 1 + ?in x"),
+  t("missing list element", "[1, , 3]", "[1,? , 3]"),
+  t("missing fun pattern", "fun -> 2", "fun? -> 2"),
+  t("missing ap argument", "f( )", "f(? )"),
+  t("adjacent operands", {|"a" "b"|}, {|"a"~ "b"|}),
+  t("missing operand before in", "let x = 1 + in x", "let x = 1 +? in x"),
   t("trailing hole after multiline program", "1 +\n2 +\n", "1 +\n2 +\n?"),
 ];
 
 let comments = [
-  t("space then comment: hole after the space", "1 + #c#", "1 + ?#c#"),
+  t("space then comment: hole after the space", "1 + #c#", "1 +? #c#"),
   t("comment directly adjacent: pinched before it", "1 +#c#", "1 +?#c#"),
   t("linebreak then comment: end of previous line", "1 +\n#c#", "1 +?\n#c#"),
   t("no conflict across comment line", "1 +\n#c#\n2", "1 +\n#c#\n2"),
@@ -386,7 +386,108 @@ let coincidence = {
   ];
 };
 
+/* P9 HARNESS FIDELITY: the felt harness and the DISPLAY path must
+   place holes in the same cells. FeltPrint exists to approximate the
+   screen; when the two drifted (the retired `reorder` pass hopped
+   holes past their gap's spaces in the display path only) every felt
+   pin could pass while the editor was visibly wrong. This guard
+   fails on any such drift.
+
+   Compared: FeltPrint.render of the placed segment vs the display
+   path's own render with ghost material and markers stripped. What
+   it does NOT cover: the DOM/pixel layer (Code.re margins and the
+   thin-X overlay) — that remains eyes-only. */
+let fidelity = {
+  let strip_ghost = (s: string): string => {
+    let rec go = (s: string): string =>
+      switch (Test_CompletionDisplay.split_first("⟪", s)) {
+      | None => s
+      | Some((pre, rest)) =>
+        switch (Test_CompletionDisplay.split_first("⟫", rest)) {
+        | None => pre
+        | Some((_, post)) => pre ++ go(post)
+        }
+      };
+    go(s);
+  };
+  let strip_caret = (s: string): string => {
+    let rec go = s =>
+      switch (Test_CompletionDisplay.split_first("¦", s)) {
+      | None => s
+      | Some((pre, post)) => pre ++ go(post)
+      };
+    go(s);
+  };
+  let corpus = [
+    "let=",
+    "let =",
+    "let  =",
+    "let   =",
+    "let    =",
+    "let     =",
+    "1 +",
+    "1 +  ",
+    "f( )",
+    "[1, , 3]",
+    "(1 +)",
+    "let x =  in x",
+    "case\n| 1 => 1 end",
+  ];
+  [
+    test_case(
+      "harness agrees with the display path",
+      `Quick,
+      () => {
+        let out =
+          corpus
+          |> List.map(src => {
+               let z =
+                 Test_Editing.perform(
+                   Zipper.init(),
+                   Test_Editing.mk(src ++ "¦"),
+                 );
+               let placed =
+                 GroutPlace.place(
+                   Zipper.unselect_and_zip(~erase_buffer=true, z),
+                 );
+               /* compare POSITIONS, not glyph vocabulary: the felt
+                  renderer distinguishes pinch sigils (‽ ∻) where the
+                  display printer prints plain ? ~ */
+               let felt =
+                 FeltPrint.render(
+                   ~sigil=
+                     (_, shape: Grout.shape) =>
+                       switch (shape) {
+                       | Convex => "?"
+                       | Concave => "~"
+                       },
+                   placed,
+                 );
+               let disp =
+                 switch (
+                   Test_CompletionDisplay.display_state(~chips=false, z)
+                 ) {
+                 | s => strip_caret(strip_ghost(s))
+                 | exception _ => "RAISED"
+                 };
+               felt == disp
+                 ? ""
+                 : Printf.sprintf(
+                     "src=%s felt=%s disp=%s\n",
+                     String.escaped(src),
+                     String.escaped(felt),
+                     String.escaped(disp),
+                   );
+             })
+          |> String.concat("");
+        check(string_testable, "felt == display placement", "", out);
+      },
+    ),
+  ];
+};
+
 let tests = [
+  ("GroutPlace: harness fidelity", fidelity),
   ("GroutPlace: space runs", space_runs),
   ("GroutPlace: empty runs", empty_runs),
   ("GroutPlace: trailing edge", trailing_edge),
