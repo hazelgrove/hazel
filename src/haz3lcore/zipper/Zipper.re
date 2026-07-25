@@ -931,22 +931,24 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
 };
 
 module Caret = {
-  /* String shards can span multiple columns because emoji render wider than
-     ASCII.  Translate an inner caret index into measured columns by consulting
-     the token width table. */
-  let string_offset = (token: Token.t, idx: int): int =>
-    1 + Token.string_prefix_columns(token, idx);
+  /* Any shard can span more columns than it has graphemes, because emoji and
+     CJK render two columns wide. Translate an inner caret index into measured
+     columns by consulting the token width table. */
+  let token_offset = (token: Token.t, idx: int): int =>
+    Token.prefix_columns(token, idx + 1);
 
-  /* Determine how many columns to advance for an Inner caret.  Prefer the
-     token on the left; if none exists fall back to the token on the right.
-     Non-strings retain the classic one-column-per-character behaviour. */
+  /* Columns to advance for an Inner caret. `Inner(n)` is
+     right-neighbor-relative (see Move: the right generalized neighbor is the
+     piece it indexes into), so the RIGHT token decides the offset; the left
+     token is only consulted at the very end of the program, where there is
+     no right neighbor. */
   let inner_offset = (idx: int, z: t): int =>
-    switch (neighbor_token(Left, z)) {
-    | Some(token) when Token.is_string(token) => string_offset(token, idx)
-    | _ =>
-      switch (neighbor_token(Right, z)) {
-      | Some(token) when Token.is_string(token) => string_offset(token, idx)
-      | _ => idx + 1
+    switch (neighbor_token(Right, z)) {
+    | Some(token) => token_offset(token, idx)
+    | None =>
+      switch (neighbor_token(Left, z)) {
+      | Some(token) => token_offset(token, idx)
+      | None => idx + 1
       }
     };
 
@@ -1000,12 +1002,11 @@ module Caret = {
   /* Compute inner offset using a known token (avoids generalized_neighbor
    * which unselects and gives wrong results during char-level selection). */
   let inner_offset_for_token = (idx: int, token: Token.t): int =>
-    Token.is_string(token) ? string_offset(token, idx) : idx + 1;
+    token_offset(token, idx);
 
   /* Like inner_offset_for_token but counts GRAPHEMES, not display columns: a
-     wide char (e.g. an emoji) in a string literal is one grapheme but two
-     columns. Used for clipboard text slicing, where the column count would
-     over-trim and leave a trailing quote. */
+     wide char (e.g. an emoji) is one grapheme but two columns. Used for
+     clipboard text slicing, where the column count would over-trim. */
   let inner_grapheme_offset = (idx: int): int => idx + 1;
 
   /* Grid position of the caret */

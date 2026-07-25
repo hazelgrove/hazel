@@ -2,10 +2,12 @@ open Virtual_dom.Vdom;
 open Node;
 open Util;
 
-/* For Unicode graphemes (in particular emojis) which do not conform
+/* For Unicode graphemes (emoji, CJK, fullwidth forms) which do not conform
    to the character grid, we render them as a single cell with a width
    that matches the number of columns they occupy. This is currently
-   limited to either one or two columns. */
+   limited to either one or two columns. Widths come from Unicode.Width,
+   the same source Measured and the caret arithmetic use, so what is drawn
+   and what is measured cannot drift apart. */
 
 type segment =
   | Text(string)
@@ -20,7 +22,7 @@ let segments_for_token = (token: string): list(segment) => {
        (acc, cluster) =>
          if (cluster == "") {
            acc;
-         } else if (Unicode.Width.is_emoji_cluster(cluster)) {
+         } else if (Unicode.Width.is_wide_cluster(cluster)) {
            [
              Grapheme(cluster, Unicode.Width.classify_cluster(cluster)),
              ...acc,

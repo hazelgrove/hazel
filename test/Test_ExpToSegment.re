@@ -438,6 +438,14 @@ let tests = (
     test_case("ProdProjection - empty label", `Quick, () => {
       type_equivalent_to_make_term("(``=Int).``")
     }),
+    test_case("ProdProjection - non-ASCII label", `Quick, () => {
+      /* The Typ-sort decoder used to slice quoted labels with a byte offset
+       * and a grapheme length, truncating any label with a non-ASCII
+       * character into invalid UTF-8. */
+      type_equivalent_to_make_term(
+        "(`café`=Int).`café`",
+      )
+    }),
     test_case("ProdProjection - label with spaces", `Quick, () => {
       type_equivalent_to_make_term(
         "(`label with spaces`=Int).`label with spaces`",

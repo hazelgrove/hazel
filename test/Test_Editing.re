@@ -4918,6 +4918,92 @@ let grapheme_tests = [
       @ [Destruct(Left), Destruct(Left)],
     ~goal={|"👨‍👩‍👧¦"|},
   ),
+  /* Outside string literals. Wide clusters used to be measured as one column
+   * everywhere but inside a string, so the caret drifted left of where it was
+   * drawn on any row containing one. */
+  test(
+    ~name="Insert emoji into a comment",
+    ~acts=mk({|#he¦llo#|}) @ [Insert({|😀|})],
+    ~goal={|#he😀¦llo#?|},
+  ),
+  test(
+    ~name="Insert after emoji in a comment",
+    ~acts=mk({|#he😀¦llo#|}) @ [Insert("X")],
+    ~goal={|#he😀X¦llo#?|},
+  ),
+  test(
+    ~name="Backspace an emoji in a comment",
+    ~acts=mk({|#he😀¦llo#|}) @ [Destruct(Left)],
+    ~goal={|#he¦llo#?|},
+  ),
+  test(
+    ~name="Move by char across emoji in a comment",
+    ~acts=mk({|#a😀b#¦|}) @ mv_l(3) @ mv_r(1),
+    ~goal={|#a😀¦b#?|},
+  ),
+  test(
+    ~name="Insert after CJK in a comment",
+    ~acts=mk({|#日本¦語#|}) @ [Insert("X")],
+    ~goal={|#日本X¦語#?|},
+  ),
+  test(
+    ~name="Caret after a comment containing an emoji",
+    ~acts=mk({|#😀# 1 + ¦2|}),
+    ~goal={|#😀# 1 + ¦2|},
+  ),
+  test(
+    ~name="Insert emoji into an identifier",
+    ~acts=mk({|ab¦c|}) @ [Insert({|😀|})],
+    ~goal={|ab😀¦c|},
+  ),
+  test_case(
+    "Emoji typed inside an identifier is its own token",
+    `Quick,
+    () => {
+      /* Identifiers are still ASCII-only (Token.var_regexp), so the emoji
+       * splits the name instead of extending it. Pinned because the printed
+       * text `ab😀c` gives no hint that it is three tiles. */
+      let z = mk({|ab¦c|}) @ [Insert({|😀|})] |> perform(Zipper.init());
+      let labels =
+        Zipper.unselect_and_zip(~erase_buffer=true, z)
+        |> List.filter_map((p: Piece.t) =>
+             switch (p) {
+             | Tile(t) => Some(String.concat("", t.label))
+             | _ => None
+             }
+           );
+      check(list(string), "tiles", ["ab", {|😀|}, "c"], labels);
+    },
+  ),
+  test_case(
+    "Wide clusters outside strings are measured as two columns",
+    `Quick,
+    () => {
+      let cols = (init: string) => {
+        let z = mk(init) |> perform(Zipper.init());
+        let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+        let m = Printer.measured_no_projectors(seg);
+        (
+          Zipper.Caret.point(m, z).col,
+          Measured.Rows.find(0, m.rows).max_col,
+        );
+      };
+      /* `#a😀b#` is five clusters but six columns */
+      check(pair(int, int), "comment", (6, 7), cols({|#a😀b#¦|}));
+      check(
+        pair(int, int),
+        "cjk comment",
+        (8, 9),
+        cols({|#日本語#¦|}),
+      );
+      check(
+        pair(int, int),
+        "string literal",
+        (6, 6),
+        cols({|"a😀b"¦|}),
+      );
+    },
+  ),
 ];
 
 let tests = [

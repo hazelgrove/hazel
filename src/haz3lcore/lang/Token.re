@@ -11,17 +11,16 @@ type bad_token_cls =
 
 let compare = String.compare;
 let equal = String.equal;
-let sub = String.sub;
 let concat = String.concat;
 let starts_with = String.starts_with;
 let split_on_char = String.split_on_char;
 let sort_uniq = List.sort_uniq(compare);
 let match = StringUtil.match;
 let regexp = StringUtil.regexp;
+let unicode_match = StringUtil.unicode_match;
+let unicode_regexp = StringUtil.unicode_regexp;
 let prefixes = StringUtil.prefixes;
 let abbreviate = StringUtil.abbreviate;
-let num_linebreaks = StringUtil.num_linebreaks;
-let max_line_width = StringUtil.max_line_width;
 
 let length = Unicode.length;
 let append = Unicode.append;
@@ -59,6 +58,9 @@ let is_string = t =>
 let string_delim = "\"";
 let empty_string = append(string_delim, string_delim);
 let is_string_delim = (==)(string_delim);
+/* Byte-based, which is exactly right here: every delimiter we quote with is
+   a one-byte ASCII character, so the bytes stripped are the delimiters
+   whatever the quoted content is. */
 let strip_quotes = (~quote="\"", s) =>
   if (String.length(s) < 2) {
     s;
@@ -71,26 +73,21 @@ let strip_quotes = (~quote="\"", s) =>
 
 let string_quote = s => "\"" ++ s ++ "\"";
 
-/* Grapheme width: Functions taking into account that some unicode
-   chracters have greater than 1 character grid width */
+/* Grapheme width: functions taking into account that some unicode
+   clusters (emoji, CJK, fullwidth forms) occupy two grid columns.
+   These apply to EVERY token; Unicode.Width short-circuits on ASCII, so
+   the common case costs a byte scan. */
 
 let column_to_grapheme_index = Unicode.Width.column_to_grapheme_index;
 
-/* Number of measured columns occupied by the first `count` graphemes of a
-   string literal (excluding surrounding quotes). Non-strings fall back to
-   the legacy "one column per char" assumption. */
-let string_prefix_columns = (t: t, count: int): int =>
-  is_string(t)
-    ? Unicode.Width.columns_through_prefix(strip_quotes(t), count) : count;
+/* Measured columns occupied by the first `count` graphemes of the token. */
+let prefix_columns = (t: t, count: int): int =>
+  Unicode.Width.columns_through_prefix(t, count);
+
+let columns = Unicode.Width.columns_of_string;
 
 let bounding_box = (t: t): Point.t => {
-  /* Currently only supporting emojis in strings; this is a
-     conservative choice to guard against perf regressions;
-     it can likely be relaxed. See also Code.re */
-  let (row, col) =
-    is_string(t)
-      ? Unicode.Width.bounding_box_for(t)
-      : (num_linebreaks(t), max_line_width(t));
+  let (row, col) = Unicode.Width.bounding_box_for(t);
   Point.mk(~row, ~col);
 };
 
@@ -146,14 +143,26 @@ let is_potential_operand =
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]|, or the implicit-hole marker ¿. ¿ is excluded
  *  so that decoded slides like `[1, ¿, 3]` don't merge `¿,` into a
- *  single operator token; see Haz3lcore.TextRoundtrip. */
+ *  single operator token; see Haz3lcore.TextRoundtrip.
+ *
+ *  These two use the UTF-8-aware matcher rather than StringUtil.match:
+ *  Js_of_ocaml.Regexp is byte-oriented, so `¿` in the class would exclude
+ *  its two UTF-8 bytes (0xC2, 0xBF) independently -- rejecting `¢ £ © ± ¬`
+ *  (lead byte 0xC2) and `ſ` and every codepoint whose trailing byte is 0xBF
+ *  -- while `\s` would reject anything containing byte 0xA0 (e.g. `à`).
+ *  Every other regexp here has an ASCII-only character class, for which the
+ *  byte-oriented matcher gives the same answers. */
 
 let is_potential_operator =
   /* Multiline operators not supported */
-  match(regexp("^[^a-zA-Z0-9_'?\\^$\"`#¿\n\\s\\[\\]\\(\\)\\{\\}]+$"));
+  unicode_match(
+    unicode_regexp("^[^a-zA-Z0-9_'?\\^$\"`#¿\n\\s\\[\\]\\(\\)\\{\\}]+$"),
+  );
 
 let begins_with_potential_operator =
-  match(regexp("^[^a-zA-Z0-9_'?$\"`#¿\n\\s\\[\\]\\(\\)\\{\\}]+"));
+  unicode_match(
+    unicode_regexp("^[^a-zA-Z0-9_'?$\"`#¿\n\\s\\[\\]\\(\\)\\{\\}]+"),
+  );
 
 let is_potential_token = t =>
   if (match(regexp("^>"), t)) {
@@ -196,8 +205,8 @@ let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let is_livelit = str => match(regexp("^(\\^)([a-z][A-Za-z0-9_]*)$"), str);
 
 let parse_livelit = (str): string =>
-  if (length(str) > 1 && sub(str, 0, 1) == "^") {
-    sub(str, 1, length(str) - 1);
+  if (length(str) > 1 && starts_with(~prefix="^", str)) {
+    rm_first(str);
   } else {
     "invalid form";
   };
@@ -295,7 +304,7 @@ let projector_invoke_prefix = "^^";
 let of_projector_invoke = (input: t): option(t) =>
   if (starts_with(~prefix=projector_invoke_prefix, input)
       && length(input) > 2) {
-    Some(sub(input, 2, length(input) - 2));
+    Some(snd(split_nth(input, 2)));
   } else {
     None;
   };

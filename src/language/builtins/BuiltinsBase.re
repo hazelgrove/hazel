@@ -302,7 +302,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(Int),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.int(String.length(s)));
+      Some(Exp.int(UnicodeStr.length(s)));
     },
     custom_statics: None,
   },
@@ -312,7 +312,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(String.trim(s)));
+      Some(Exp.string(UnicodeStr.trim(s)));
     },
     custom_statics: None,
   },
@@ -322,7 +322,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(String.escaped(s)));
+      Some(Exp.string(UnicodeStr.escaped(s)));
     },
     custom_statics: None,
   },
@@ -342,7 +342,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(String.uppercase_ascii(s)));
+      Some(Exp.string(UnicodeStr.uppercase(s)));
     },
     custom_statics: None,
   },
@@ -352,7 +352,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(String.lowercase_ascii(s)));
+      Some(Exp.string(UnicodeStr.lowercase(s)));
     },
     custom_statics: None,
   },
@@ -362,7 +362,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(String.capitalize_ascii(s)));
+      Some(Exp.string(UnicodeStr.capitalize(s)));
     },
     custom_statics: None,
   },
@@ -372,7 +372,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(String.uncapitalize_ascii(s)));
+      Some(Exp.string(UnicodeStr.uncapitalize(s)));
     },
     custom_statics: None,
   },
@@ -399,23 +399,21 @@ let string_fns: list(BuiltinsUtil.fn) = [
     arg: Prod([string(), int(), int()]),
     ret: Atom(String),
     imp:
+      /* Offsets and lengths are in graphemes, so a slice never splits a
+         cluster; out-of-range slices still land in an IndexOutOfBounds hole. */
       ternary((d1, d2, d3) => {
         open Exp;
         let-unbox s = (Atom(String), d1);
         let-unbox idx = (Atom(Int), d2);
         let-unbox len = (Atom(Int), d3);
-        try(
-          Some(
-            string(
-              String.sub(
-                s,
-                idx |> Bigint.to_int |> Option.get,
-                len |> Bigint.to_int |> Option.get,
-              ),
-            ),
-          )
-        ) {
-        | Invalid_argument(_) =>
+        let sliced =
+          switch (Bigint.to_int(idx), Bigint.to_int(len)) {
+          | (Some(idx), Some(len)) => UnicodeStr.sub(s, idx, len)
+          | _ => None
+          };
+        switch (sliced) {
+        | Some(sliced) => Some(string(sliced))
+        | None =>
           let d' = BuiltinFun("string_sub") |> DHExp.fresh;
           let d' = Ap(Forward, d', d1) |> DHExp.fresh;
           let d' = DynamicErrorHole(d', IndexOutOfBounds) |> DHExp.fresh;
@@ -429,13 +427,13 @@ let string_fns: list(BuiltinsUtil.fn) = [
     arg: Prod([string(), string()]),
     ret: List(string()),
     imp:
+      /* d1 is the (literal) separator, d2 the string being split. */
       binary((d1, d2) => {
         open Exp;
-        let-unbox s = (Atom(String), d1);
-        let-unbox sep = (Atom(String), d2);
-        let split_str = StringUtil.plain_split(sep, s);
-        let split_str' = List.map(s => string(s), split_str);
-        Some(list_lit(split_str'));
+        let-unbox sep = (Atom(String), d1);
+        let-unbox s = (Atom(String), d2);
+        let parts = UnicodeStr.split(sep, s) |> List.map(s => string(s));
+        Some(list_lit(parts));
       }),
     custom_statics: None,
   },
@@ -447,7 +445,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
       binary((d1, d2) => {
         let-unbox regexp = (Atom(String), d1);
         let-unbox str = (Atom(String), d2);
-        Some(Exp.bool(StringUtil.plain_match(regexp, str)));
+        Some(Exp.bool(UnicodeStr.matches(regexp, str)));
       }),
     custom_statics: None,
   },
@@ -460,7 +458,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
         let-unbox regexp = (Atom(String), d1);
         let-unbox str = (Atom(String), d2);
         let-unbox repl = (Atom(String), d3);
-        Some(Exp.string(StringUtil.plain_replace(regexp, str, repl)));
+        Some(Exp.string(UnicodeStr.replace(regexp, str, repl)));
       }),
     custom_statics: None,
   },
@@ -470,7 +468,8 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(Int),
     imp:
       ternary((d1, d2, d3) => {
-        /* Returns index; -1 if not found */
+        /* Start index and result are both grapheme offsets, so the result
+           feeds straight into string_sub. -1 if not found. */
         let-unbox regexp = (Atom(String), d1);
         let-unbox str = (Atom(String), d2);
         let-unbox idx = (Atom(Int), d3);
@@ -478,7 +477,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
           Exp.int(
             switch (Bigint.to_int(idx)) {
             | None => (-1)
-            | Some(idx) => StringUtil.plain_search(regexp, str, idx)
+            | Some(idx) => UnicodeStr.search(regexp, str, idx)
             },
           ),
         );
