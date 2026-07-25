@@ -435,6 +435,12 @@ let ghost_selection =
                ? acc : acc @ [ins],
            [],
          );
+    /* GHOSTS DO NOT CROSS LINEBREAKS (P8, andrew 2026-07-24): the
+       same-line hug stays (removing it entirely suppresses every
+       entry-time ghost to a chip — see slide_to_caret); the V3.3
+       linebreak-crossing is retired, it was the "spooky space" seat:
+       one arrow press relocated the ghost to the caret's line and
+       minted a pad there. */
     let zoned =
       zone
       |> List.filter_map(orig => {

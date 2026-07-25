@@ -74,8 +74,12 @@ let movement = [
         string_testable,
         "one press per perceived position",
         /* span P4 pads are span MATERIAL (ghost-marked): they sit
-           inside the run markers and travel with the span */
-        "let a = 1\n¦⟪in ⟫x   CHIPS[]\n---\n"
+           inside the run markers and travel with the span.
+           RE-PINNED 2026-07-24 (P8): the ghost no longer crosses the
+           linebreak to the caret's line — it stays at its true
+           position on line 1, so from the caret on line 2 it is a
+           chip in Off mode and inline under persist. */
+        "let a = 1⟪ in⟫\n¦x   CHIPS[]\n---\n"
         ++ "let a = 1¦⟪ in⟫\nx   CHIPS[]\n---\n"
         ++ "let a = ¦1⟪ in⟫\nx   CHIPS[]",
         got,
@@ -259,11 +263,17 @@ let tests = [
       ),
       /* the caret-zone ghost is IDENTICAL under both flags: persist
          adds remote spans, never disturbs the at-caret display */
+      /* RE-PINNED 2026-07-24 (P8): with the linebreak-crossing slide
+         retired, a ghost anchored on the PREVIOUS line stays there.
+         From the caret on line 2 that is pre-caret material, so Off
+         shows a chip; persist keeps it inline at its true position.
+         This is the R1 "spooky space" fix: one arrow press can no
+         longer relocate the ghost onto the caret's line. */
       t(
-        "caret-zone ghost unchanged by persist",
+        "previous-line ghost stays put; persist keeps it inline",
         "let a = 1\n¦x",
-        "let a = 1\n¦⟪in ⟫x   CHIPS[]",
-        "let a = 1\n¦⟪in ⟫x   CHIPS[]",
+        "let a = 1~\n¦x   CHIPS[in]",
+        "let a = 1⟪ in⟫\n¦x   CHIPS[]",
       ),
       /* same-row material: the owed closer promises AFTER the caret
          (growth zone) under both flags — same-row-BEFORE-caret spans
