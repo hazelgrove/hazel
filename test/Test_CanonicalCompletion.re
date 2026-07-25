@@ -930,7 +930,7 @@ let junction_tests = [
     /* IMPROVED: was pinned as ambiguous fallback; junction-bearing
        spans no longer count as coherent Pat operands, so x|y is the
        unique sort-legal split and the = restores instead of junking */
-    ~expected_no_sep="let x= y ~1 in 2",
+    ~expected_no_sep="let x= y~ 1 in 2",
   ),
 ];
 
@@ -986,13 +986,13 @@ let trailing_junction_tests = [
     ~name="ambiguous junctions: no drop",
     ~input="if true then 1 2 3",
     ~expected="if true then 1 2 3 else ?",
-    ~expected_no_sep="if true then 1 ~2 ~3else?",
+    ~expected_no_sep="if true then 1~ 2~ 3else?",
   ),
   test_sep(
     ~name="closers never junction-drop",
     ~input="[1 2",
     ~expected="[1 2]",
-    ~expected_no_sep="[1 ~2]",
+    ~expected_no_sep="[1~ 2]",
   ),
   test_sep(
     ~name="junction drop across linebreak",
@@ -1231,7 +1231,7 @@ let leading_witness_tests = [
   edit_case(
     ~name="fresh cas conjures nothing",
     ~acts=Test_Editing.string_to_ltr_actions("cas 1"),
-    ~expected="cas ~1",
+    ~expected="cas~ 1",
   ),
 ];
 
@@ -1779,12 +1779,12 @@ let placement_guard_tests = [
     ~acts=Test_Editing.mk("let x =¦ f 1 in x") @ [destruct_l],
     /* the = restores at the definition junction, weave at the mint
        side of the run — the guarded property is the JUNCTION */
-    ~expected="let x=  f ~1 in x",
+    ~expected="let x=  f~ 1 in x",
   ),
   edit_case(
     ~name="deleted = multiline restores at line end",
     ~acts=Test_Editing.mk("let x =¦\nf 1 in x") @ [destruct_l],
-    ~expected="let x =\n f ~1 in x",
+    ~expected="let x =\n f~ 1 in x",
   ),
   edit_case(
     ~name="deleted rule arrow with next-line body restores exactly",

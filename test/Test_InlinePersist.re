@@ -99,10 +99,10 @@ let dispatch_trade = [
     "dispatching a pre-caret span contracts at the edit",
     `Quick,
     () => {
-      /* `f(1 x` owes `)`; caret right of x — the owed closer's span
+      /* `f(1 x` owes `)`; caret left of x — the owed closer's span
          sits between 1 and x? No: closer promises after x (growth
          zone). To place a span BEFORE the caret on its row, park the
-         caret past the site by typing then moving right through
+         caret past the site by typing then moving left through
          real material: `f(1` then `) typed elsewhere` dispatches.
          Simplest honest form: span before caret via move-past, then
          type the closer at the caret — the remote ghost dispatches

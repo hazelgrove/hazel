@@ -122,20 +122,23 @@ let decide = (~at_boundary: bool, ~leading=false, run: list(Secondary.t)): t => 
       };
     };
   } else {
-    /* single-line gap with content on both sides: one space from the
-     * anchor (insert past the first space; for leading holes, before
-     * the last space); an empty gap pinches the hole directly between
-     * the tokens */
+    /* single-line gap with content on both sides: the hole sits
+     * ROUGHLY CENTERED in the gap (andrew 2026-07-24, deliberately
+     * DEVIATING from virtual-grout's one-space-from-the-anchor rule,
+     * which hugged the left token and looked wrong in wide gaps).
+     * The hole occupies one of the gap's cells and the remaining
+     * whitespace splits as evenly as possible (an odd remainder
+     * goes to the right). Rendered: 1 space -> `let?=` (the hole
+     * paints into that space, no width added), 3 -> `let ? =`,
+     * 5 -> `let  ?  =`. An empty gap pinches the hole directly
+     * between the tokens. */
     switch (n) {
     | 0 => {
         index: 0,
         style: Thin,
       }
     | n => {
-        /* the felt render draws the hole in the cell of the space
-         * FOLLOWING the piece, so a leading hole inserts two cells
-         * before its right anchor to keep one space between them */
-        index: leading ? max(n - 2, 0) : 1,
+        index: leading ? max((n - 1) / 2, 0) : (n - 1) / 2,
         style: Thick,
       }
     };

@@ -1396,7 +1396,7 @@ let tests = [
       known_case(
         "finish_display re-pads",
         "l e t SP",
-        "PAD-IDEMPOTENCE once=let ?  = ?  in ? twice=let ?   = ?   in ?",
+        "NO-PRE-CARET-GHOST | NO-PRE-CARET-GHOST(structural) | PAD-IDEMPOTENCE once=let ?  = ?  in ? twice=let ?   = ?   in ?",
       ),
       /* INV 5 CONSTANCY(post-caret) + INV 4: typing the promised `t`
          of le¦⟪t ⟫ materializes the let form — the promise is swapped

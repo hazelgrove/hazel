@@ -44,16 +44,16 @@ let t = (name: string, input: string, expected: string) =>
 
 let space_runs = [
   t("operand hole, one space", "let x = in x", "let x =?in x"),
-  t("operand hole, two spaces", "let x =  in x", "let x = ?in x"),
+  t("operand hole, two spaces", "let x =  in x", "let x =? in x"),
   t("operand hole, three spaces", "let x =   in x", "let x = ? in x"),
   t(
     "operand hole, long run anchors left",
     "let x =     in x",
-    "let x = ?   in x",
+    "let x =  ?  in x",
   ),
   t("operator hole, one space", "1 2", "1~2"),
-  t("operator hole, two spaces", "1  2", "1 ~2"),
-  t("operator hole, long run anchors left", "1     2", "1 ~   2"),
+  t("operator hole, two spaces", "1  2", "1~ 2"),
+  t("operator hole, long run anchors left", "1     2", "1  ~  2"),
   t("adjacent operators", "1 + + 2", "1 +?+ 2"),
   t("leading operand hole in child", "let x = + 2 in x", "let x =?+ 2 in x"),
 ];
@@ -63,7 +63,7 @@ let empty_runs = [
   t("no whitespace, child leading", "(* 2)", "(‽* 2)"),
   t("leading at top level, no whitespace", "* 2", "‽* 2"),
   t("leading anchors right: one space before token", "  * 2", "? * 2"),
-  t("leading long run anchors right", "    * 2", "  ? * 2"),
+  t("leading long run anchors right", "    * 2", " ?  * 2"),
 ];
 
 let trailing_edge = [
@@ -168,7 +168,7 @@ let gallery = [
   t(
     "missing if condition, two spaces",
     "if  then 2 else 3",
-    "if ?then 2 else 3",
+    "if? then 2 else 3",
   ),
   t("missing list element", "[1, , 3]", "[1,?, 3]"),
   t("missing fun pattern", "fun -> 2", "fun?-> 2"),
@@ -309,7 +309,7 @@ let idel =
   ++ "  let x = 1 i¦n x\n"
   ++ "  let x = 1 ¦in x\n"
   ++ "  let x = 1¦ in x\n"
-  ++ "  let x = ¦?in x";
+  ++ "  let x =?¦ in x";
 
 let mline =
   "  l¦\n"
@@ -398,7 +398,7 @@ let selection_pins = [
       check(
         string_testable,
         "real-space anchor needs no redirect",
-        "let¦ ‹?= 1 in a",
+        "let¦?‹ = 1 in a",
         sel_render(z),
       );
     },
@@ -630,7 +630,7 @@ let scenarios = [
     ++ "  1 + 2¦\n"
     ++ "  1 + ¦2\n"
     ++ "  1 +¦ 2\n"
-    ++ "  1 ¦~2",
+    ++ "  1~¦ 2",
   ),
   /* CARET-AT-BORROWED-CELLS (andrew's live repro, pinned before any
      caret fix): shrink the gap between delimiters to zero and watch
@@ -669,8 +669,8 @@ let scenarios = [
     "  1¦\n"
     ++ "  1 ¦\n"
     ++ "  1  ¦\n"
-    ++ "  1 ~2¦\n"
-    ++ "  1 ~¦2\n"
+    ++ "  1~ 2¦\n"
+    ++ "  1~ ¦2\n"
     ++ "  1~¦2",
   ),
   scenario(
@@ -751,10 +751,15 @@ let facings = [
     type_string("let x = w in x") @ lefts(5) @ backspaces(1),
     "left",
   ),
+  /* RE-PINNED with centered placement: the concave hole now sits in
+     the FIRST cell of the 2-space gap rather than the second, so a
+     caret in the middle of the gap is on the hole's right, not its
+     left, and faces accordingly. The facing rule itself is unchanged
+     — this is the hole moving, not the caret logic. */
   facing(
     "between operands: 1 SP 2 mid",
     type_string("1  2") @ lefts(2),
-    "right",
+    "left",
   ),
 ];
 

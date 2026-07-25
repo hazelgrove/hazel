@@ -264,7 +264,7 @@ let probe_chips = [
       "cmp",
       /* hole at the policy position (one space from anchor) — same
          rule as the Test_GroutPlace pin table */
-      "A: let f : (Int, String, Bool)->Int = fun x -> f(1 ~ 2)in? ||| B: let g : (Int, String, Bool) -> Int = fun x -> 1 in g(1 ~ 2)",
+      "A: let f : (Int, String, Bool)->Int = fun x -> f(1~  2)in? ||| B: let g : (Int, String, Bool) -> Int = fun x -> 1 in g(1~  2)",
       "A: "
       ++ completed_of("let f : (Int, String, Bool)->Int = fun x -> f(1  2¦")
       ++ " ||| B: "
