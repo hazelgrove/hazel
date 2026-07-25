@@ -827,8 +827,29 @@ let adj_pos = (d: Direction.t, z: t): t =>
     }
   };
 
-let put_down_core = (seg: Segment.t, z: t): t =>
-  z |> replace_selection(Right, seg) |> unselect;
+/* Unselects with the caret forced Outer. `directional_unselect` repairs
+ * an Inner caret left dangling by the unselect (Inner(n) is
+ * right-neighbor-relative) by stepping one piece right; but the caller's
+ * `adj_pos(Right)` takes that same step deliberately, to land the
+ * segment on the caret's right. Applying both steps the caret a piece
+ * too far, so `Inner(n)` ends up indexing the wrong token — e.g.
+ * backspacing in `1 + "aa|"` leaves the caret pointing into the space
+ * before the string. The repair is redundant here: adj_pos re-establishes
+ * the invariant on its own. */
+let put_down_core = (seg: Segment.t, z: t): t => {
+  let caret = z.caret;
+  let z =
+    {
+      ...z,
+      caret: Outer,
+    }
+    |> replace_selection(Right, seg)
+    |> unselect;
+  {
+    ...z,
+    caret,
+  };
+};
 
 /* Like put_down_core but skips Relatives.reassemble.
  * Used for Inner-caret edits where the replaced token would
