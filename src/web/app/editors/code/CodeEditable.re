@@ -660,6 +660,14 @@ module View = {
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
       );
     // let t2 = JsUtil.precise_timestamp();
+    /* Clicking a docked projector's chip reveals its card. SwitchPanel
+     * expands a collapsed sidebar, but toggles the panel shut if it's
+     * already the one showing, so skip it in that case. */
+    let open_panel =
+      globals.settings.sidebar.show
+      && globals.settings.sidebar.panel == SidebarModel.Settings.Projectors
+        ? Effect.Ignore
+        : globals.inject_global(Set(Sidebar(SwitchPanel(Projectors))));
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
@@ -667,6 +675,7 @@ module View = {
         globals.font_metrics,
         ~core_settings=globals.settings.core,
         ~visible?,
+        ~open_panel,
         ProjectorView.Model.mk(
           ~syntax=model.editor.syntax,
           ~indicated=Indicated.for_decoration(zipper),

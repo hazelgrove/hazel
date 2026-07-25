@@ -17,6 +17,8 @@ An MVU program is a **4-tuple**:
 - `view`: `Model -> Html` — renders model to HTML
 - `subs`: `Model -> Sub` — returns active subscriptions based on current model
 
+The labeled form `(init=..., update=..., view=..., subs=...)` is also accepted, in any order.
+
 ### Example: Timer
 
 ```

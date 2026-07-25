@@ -252,9 +252,13 @@ let backing_deco =
 let projector_clss =
     (
       ~view_error: bool=false,
+      /* Docked: the div holds a chip, not the projector's own UI, so CSS
+       * can neutralize this kind's styling and make every chip look alike */
+      ~chipped: bool=false,
       {kind, sort, indication, selected, error, warning}: Model.status,
     ) =>
   ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
+  @ (chipped ? ["chipped"] : [])
   @ (selected ? ["selected"] : [])
   @ (error || view_error ? ["error"] : [])
   @ (warning ? ["warning"] : [])
@@ -276,13 +280,14 @@ let view_wrapper =
       ~measurement: Measured.measurement,
       ~status: Model.status,
       ~view_error: bool=false,
+      ~chipped: bool=false,
       ~idx: int,
       ~kind: ProjectorCore.Kind.t,
       views: list(Node.t),
     ) =>
   div(
     ~attrs=[
-      Attr.classes(projector_clss(~view_error, status)),
+      Attr.classes(projector_clss(~view_error, ~chipped, status)),
       /* Stopping propagation here stops the base editor's
        * drag-select interaction from being triggered.
        * However, we let right-clicks bubble through so the
@@ -416,10 +421,9 @@ let flex_code =
         segment,
       );
 
-/* A small glyph standing for a projector kind, used by the chip left at
- * the code site when a projector is docked to the sidebar and by the
- * sidebar panel's card headers. Sized in CSS to about two code columns
- * (ProjectorChip.glyph_cols). */
+/* A small glyph standing for a projector kind, used by the sidebar
+ * panel's card headers. The chip left at the code site deliberately does
+ * NOT use this: it is one fixed glyph for every kind. */
 let kind_icon = (kind: ProjectorCore.Kind.t): Node.t =>
   switch (kind) {
   | HTML => Icons.play
@@ -436,9 +440,8 @@ let kind_icon = (kind: ProjectorCore.Kind.t): Node.t =>
   | Csv => text({|▤|})
   };
 
-/* Abbreviated read-only rendering of a projector's underlying syntax.
- * The segment comes from ProjectorChip so its width matches the space
- * reserved for the chip in the base editor. */
+/* Abbreviated read-only rendering of a projector's underlying syntax,
+ * shown in the sidebar card header. */
 let chip_syntax = (~font_metrics: FontMetrics.t, p: Base.projector): Node.t =>
   flex_code(
     ~font_metrics,
@@ -448,14 +451,17 @@ let chip_syntax = (~font_metrics: FontMetrics.t, p: Base.projector): Node.t =>
     ProjectorChip.segment(p),
   );
 
-/* What a sidebar-docked projector leaves behind at the code site */
-let chip = (~font_metrics: FontMetrics.t, p: Base.projector): Node.t =>
+/* What a sidebar-docked projector leaves behind at the code site: one
+ * fixed glyph, identical for every kind, drawn in the space reserved by
+ * ProjectorChip.shape. Clicking it reveals the projector's card. */
+let chip = (~open_panel: Ui_effect.t(unit)): Node.t =>
   div(
-    ~attrs=[Attr.classes(["proj-chip"])],
-    [
-      div_c("proj-chip-icon", [kind_icon(p.kind)]),
-      div_c("proj-chip-syntax", [chip_syntax(~font_metrics, p)]),
+    ~attrs=[
+      Attr.classes(["proj-chip"]),
+      Attr.title("Show in the Projectors panel"),
+      Attr.on_click(_ => open_panel),
     ],
+    [text(ProjectorChip.glyph)],
   );
 
 /* Route top-level metadata to the projector view function. */
@@ -561,11 +567,16 @@ let split_views =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~skip_inline: bool,
+      /* What clicking a chip does; supplied by the code editor, which is
+       * the only caller that can render one */
+      ~open_panel: Ui_effect.t(unit)=Effect.Ignore,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
     )
     : (Node.t, option(Node.t)) => {
   let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+  let chipped =
+    !skip_inline && ProjectorCore.Placement.is_sidebar(p.placement);
   let views =
     mk_view(
       inject,
@@ -582,6 +593,7 @@ let split_views =
       ~measurement,
       ~status,
       ~view_error=views.error,
+      ~chipped,
       ~idx,
       ~kind=p.kind,
     );
@@ -594,14 +606,7 @@ let split_views =
      * ProjectorPanel instead. Overlay and offside layers are unaffected by
      * placement. Refractors (skip_inline) never occupy the inline slot. */
     let inline_view =
-      skip_inline
-        ? []
-        : (
-          switch (p.placement) {
-          | Inline => [views.inline]
-          | Sidebar => [chip(~font_metrics, p)]
-          }
-        );
+      skip_inline ? [] : chipped ? [chip(~open_panel)] : [views.inline];
     wrapper(
       inline_view
       @ [backing_deco(~font_metrics, ~measurement, p)]
@@ -624,6 +629,8 @@ let all =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(visible_rows)=?,
+      /* Reveals the Projectors panel; what a chip click does */
+      ~open_panel: Ui_effect.t(unit)=Effect.Ignore,
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
     ) => {
@@ -645,6 +652,7 @@ let all =
          split_views(
            ~skip_inline=false,
            ~core_settings,
+           ~open_panel,
            inject,
            make_active,
            font_metrics,
@@ -677,9 +685,30 @@ let sidebar_views =
       projector_list: list(Id.t),
     )
     : list((Base.projector, Node.t)) => {
+  /* MakeTerm builds projector_list by prepending, so it is in reverse
+   * syntax order; reverse once here rather than per comparison. Note the
+   * indices projector actions carry are positions in projector_list
+   * itself, not in this reversal. */
+  let by_syntax = List.rev(projector_list);
   let syntax_order = (d: Model.projector_data) =>
-    List.find_index(x => x == d.p.id, projector_list)
+    List.find_index(x => x == d.p.id, by_syntax)
     |> Option.value(~default=max_int);
+  /* In the panel there is no absolutely-positioned box from the code
+   * editor, so projectors that size themselves against it (height: 100%,
+   * e.g. TextArea) would collapse to nothing. Give them the same number
+   * of rows the inline placement would have reserved. */
+  let docked_style = (d: Model.projector_data): string => {
+    let (module P) = ProjectorInit.to_module(d.p.kind);
+    let rows =
+      switch (P.placeholder(d.p.model, d.info)) {
+      | {vertical: Inline, _} => 1
+      | {vertical: Tab(n) | Block(n), _} => n + 1
+      };
+    Printf.sprintf(
+      "height: %fpx;",
+      float_of_int(rows) *. font_metrics.row_height,
+    );
+  };
   projector_data
   |> List.filter((d: Model.projector_data) =>
        ProjectorCore.Placement.is_sidebar(d.p.placement)
@@ -695,6 +724,7 @@ let sidebar_views =
          div(
            ~attrs=[
              Attr.classes(projector_clss(~view_error=views.error, d.status)),
+             Attr.create("style", docked_style(d)),
            ],
            [views.inline],
          ),
@@ -728,6 +758,9 @@ let key_handoff =
     Siblings.neighbors(editor.state.zipper.relatives.siblings),
   ) {
   | _ when z.caret != Outer => None
+  /* A docked projector has no UI at the code site to hand off to */
+  | (Some(Left), (Some(Projector({placement: Sidebar, _})), _))
+  | (Some(Right), (_, Some(Projector({placement: Sidebar, _})))) => None
   | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
     let (module P) = ProjectorInit.to_module(kind);
     let idx = List.find_index(x => x == id, projector_list) |> Option.get;

@@ -188,12 +188,45 @@ let is_function = (exp: DHExp.t): bool =>
 type app_kind =
   | ElmApp(DHExp.t, DHExp.t, DHExp.t, DHExp.t);
 
-let detect_app_kind = (exp: DHExp.t): option(app_kind) => {
-  switch (exp.term) {
-  | Tuple([init_model, update_fn, view_fn, subs_fn])
-  | Parens({term: Tuple([init_model, update_fn, view_fn, subs_fn]), _})
+// A labeled tuple element `name = value`, if it is one. The value is left
+// alone: update/view are Closures, and is_function looks through those.
+let of_field = (d: DHExp.t): option((string, DHExp.t)) =>
+  switch (strip_wrappers(d).term) {
+  | TupLabel({term: Label(name), _}, v) => Some((name, v))
+  | _ => None
+  };
+
+// The app fields, when written as a labeled tuple. All four must be
+// labeled (order is then irrelevant); a partially labeled tuple falls
+// through to the positional reading.
+let of_labeled_app = (elements: list(DHExp.t)): option(app_kind) => {
+  let fields = List.filter_map(of_field, elements);
+  let all_labeled = List.length(elements) == 4 && List.length(fields) == 4;
+  let get = name => all_labeled ? List.assoc_opt(name, fields) : None;
+  switch (get("init"), get("update"), get("view"), get("subs")) {
+  | (Some(init_model), Some(update_fn), Some(view_fn), Some(subs_fn))
       when is_function(update_fn) && is_function(view_fn) =>
     Some(ElmApp(init_model, update_fn, view_fn, subs_fn))
+  | _ => None
+  };
+};
+
+let of_positional_app = (elements: list(DHExp.t)): option(app_kind) =>
+  switch (elements) {
+  | [init_model, update_fn, view_fn, subs_fn]
+      when is_function(update_fn) && is_function(view_fn) =>
+    Some(ElmApp(init_model, update_fn, view_fn, subs_fn))
+  | _ => None
+  };
+
+let detect_app_kind = (exp: DHExp.t): option(app_kind) => {
+  switch (exp.term) {
+  | Tuple(elements)
+  | Parens({term: Tuple(elements), _}) =>
+    switch (of_labeled_app(elements)) {
+    | Some(app) => Some(app)
+    | None => of_positional_app(elements)
+    }
   | _ => None
   };
 };

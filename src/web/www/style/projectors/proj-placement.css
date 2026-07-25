@@ -1,42 +1,47 @@
 /* PROJECTOR PLACEMENT: sidebar-docked projectors
  *
  * A projector with placement=Sidebar leaves a chip at the code site and
- * renders its primary UI in the projectors sidebar panel. The chip's
- * width is reserved by ProjectorChip.shape (glyph_cols + syntax width),
- * so the sizes below must stay in sync with it: the icon box is two code
- * columns wide and the syntax is drawn at code-font size. */
+ * renders its primary UI in the projectors sidebar panel. The chip is one
+ * fixed glyph (ProjectorChip.glyph), the same for every kind, styled
+ * after the fold projector: the default shard backing plus a drop shadow.
+ * It fills the box the editor reserved for it (ProjectorChip.shape), so
+ * the drawn width can't drift from the reserved width. */
+
+/* The projector div carries its kind's class, so these rules neutralize
+ * per-kind styling to make every chip look alike. */
+.projector.chipped {
+  cursor: pointer;
+  justify-content: center;
+  align-items: center;
+  background: none;
+}
 
 .projector .proj-chip {
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  line-height: 1;
   font-family: var(--code-font);
+  color: var(--BR2);
   cursor: pointer;
   white-space: nowrap;
-  overflow: hidden;
 }
 
-.projector .proj-chip-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2ch;
-  min-width: 2ch;
-  color: var(--BR2);
+/* Persistent, kind-independent backing. The extra qualifiers outrank
+ * per-kind rules that hide or recolor the backing for their own inline
+ * view (e.g. `.projector.card:not(.selected) > svg { display: none }`). */
+.projectors .base .projector.chipped > svg {
+  display: block;
+  fill: var(--shard_projector);
+  stroke: none;
+  filter: drop-shadow(0.7px 0.7px 0px var(--BR3));
 }
 
-.projector .proj-chip-icon svg {
-  width: 1.1em;
-  height: 1.1em;
-  fill: currentColor;
-}
-
-.projector .proj-chip-syntax {
-  opacity: 0.75;
-}
-
-.projector.indicated .proj-chip-icon,
-.projector .proj-chip:hover .proj-chip-icon {
-  color: var(--shard-caret-exp);
+.projectors .base .projector.chipped.indicated > svg {
+  fill: var(--shard-caret-exp);
+  filter: drop-shadow(0.7px 0.7px 0px var(--BR4));
 }
 
 /* PROJECTORS SIDEBAR PANEL */
@@ -131,7 +136,9 @@
 }
 
 /* Docked projectors are laid out in flow, not absolutely positioned
- * against the code; everything else about their styling is unchanged. */
+ * against the code; everything else about their styling is unchanged.
+ * Height comes from an inline style (ProjectorView.sidebar_views) since
+ * projectors sized with height:100% have no box to resolve against here. */
 #projector-panel .projector {
   position: relative;
   justify-content: flex-start;

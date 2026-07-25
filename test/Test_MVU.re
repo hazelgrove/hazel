@@ -1201,6 +1201,46 @@ let neg_5tuple_not_elm_app =
     },
   );
 
+// == Labeled app tuples ==
+// detect_app_kind also accepts (init=…, update=…, view=…, subs=…), matched
+// by name rather than by position.
+
+let labeled_app_program = (fields: string) =>
+  {|
+let update(msg, model) = model + msg in
+let view(model) = Div([], [Int(model)]) in
+let subs(_model) = SubNone in
+|}
+  ++ fields;
+
+let check_labeled_app = (what: string, fields: string) => {
+  let result = parse_and_evaluate(labeled_app_program(fields));
+  switch (Haz3lcore.MvuShape.detect_app_kind(result)) {
+  | Some(ElmApp(init_model, _, _, _)) =>
+    switch (Haz3lcore.MvuShape.strip_wrappers(init_model).term) {
+    | Atom(Int(n)) when Bigint.to_int(n) == Some(0) => ()
+    | _ => fail(what ++ ": init should be the value labeled `init`")
+    }
+  | None => fail(what ++ " should detect as Elm app")
+  };
+};
+
+let labeled_app_detected =
+  test_case("Labeled app tuple detects as Elm app", `Quick, () =>
+    check_labeled_app(
+      "Labeled app",
+      {|(init=0, update=update, view=view, subs=subs)|},
+    )
+  );
+
+let labeled_app_permuted_detected =
+  test_case("Permuted labeled app tuple detects as Elm app", `Quick, () =>
+    check_labeled_app(
+      "Permuted labeled app",
+      {|(view=view, subs=subs, init=0, update=update)|},
+    )
+  );
+
 let neg_bare_string_not_html =
   test_case("Neg: bare string is not valid HTML", `Quick, () => {
     check(
@@ -1562,6 +1602,9 @@ let tests = (
     checkpoint_restore_accepted,
     checkpoint_restore_rejected_by_changed_view,
     checkpoint_restore_rejected_when_unreadable,
+    // Labeled app tuples
+    labeled_app_detected,
+    labeled_app_permuted_detected,
     // Negative / edge cases
     neg_3tuple_not_elm_app,
     neg_5tuple_not_elm_app,

@@ -2,24 +2,30 @@ open Language;
 
 /* The compact stand-in rendered at the code site for a projector whose
  * primary UI has been docked to the sidebar panel (see
- * ProjectorCore.Placement). A chip is a kind glyph followed by a few
- * characters of the projector's underlying syntax.
+ * ProjectorCore.Placement). A chip is one fixed glyph, the same for
+ * every projector kind, like the fold projector's ⋱.
  *
- * Both the space reserved in the base editor (via
- * ProjectorInfo.ShapeMapSemantics) and the syntax rendered by
- * ProjectorView come from `segment` below, so the placeholder shape
- * can't drift from what is actually drawn. */
+ * `shape` is what the base editor reserves (via
+ * ProjectorInfo.ShapeMapSemantics) and `glyph_cols` is what the chip is
+ * drawn at (proj-placement.css), so the two can't drift.
+ *
+ * `segment` is the abbreviated syntax shown in the sidebar card header;
+ * it is not part of the chip. */
 
-/* Characters of underlying syntax shown in the chip */
-let available = 10;
+/* The chip glyph: an arrow into a bar, for "docked off to the right" */
+let glyph = {|⇥|};
 
-/* Columns reserved for the kind glyph and the gap after it */
+/* Columns the chip occupies, glyph included */
 let glyph_cols = 2;
+
+/* Characters of underlying syntax shown in the sidebar card header */
+let available = 10;
 
 let inline_settings =
   ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off);
 
-/* Abbreviated rendering of a projector's underlying syntax */
+/* Abbreviated rendering of a projector's underlying syntax, for the
+ * sidebar card header */
 let segment = (p: Base.projector): Base.segment => {
   let seg = Piece.unparenthesize(p.syntax);
   switch (MakeTerm.for_projection(seg)) {
@@ -36,12 +42,7 @@ let segment = (p: Base.projector): Base.segment => {
   };
 };
 
-let text = (seg: Base.segment): string =>
-  Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg);
-
-/* Space the base editor leaves for a docked projector. Chips are always
- * single-line: the abbreviated segment is built with inline settings. */
-let shape = (p: Base.projector): ProjectorCore.Shape.t => {
-  let (_, cols) = Util.Unicode.Width.bounding_box_for(text(segment(p)));
-  ProjectorCore.Shape.inline(glyph_cols + cols);
-};
+/* Space the base editor leaves for a docked projector: one glyph, on one
+ * line, regardless of kind or syntax. */
+let shape = (_: Base.projector): ProjectorCore.Shape.t =>
+  ProjectorCore.Shape.inline(glyph_cols);
