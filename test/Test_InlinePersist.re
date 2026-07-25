@@ -173,7 +173,67 @@ x¦y");
   ),
 ];
 
+/* PERSIST vs ALWAYS: the appearance test (a span may inline only if
+   inlining cannot displace the caret) essentially never FIRES for
+   forced obligations, because a closer's true position is the far
+   end of its enclosing structure — at or after the caret — and owed
+   commas sit just before that closer. Measured over the fuzz corpus:
+   1166 states, ZERO divergence between Persist and Always. Recorded
+   as a property so we learn if that ever stops being true: the
+   policy's spatial restriction is, empirically, not what makes
+   persistence safe (the ratchet and material-scoped pads are). */
+let mode_agreement = {
+  let diverge = ref(0);
+  let example = ref("");
+  for (seed in 1 to 60) {
+    let script = Test_CompletionFuzz.script_of_seed(seed, 20);
+    let z = ref(Zipper.init());
+    List.iter(
+      a =>
+        switch (Test_CompletionFuzz.apply(z^, a)) {
+        | Applied(z') =>
+          z := z';
+          let render = mode =>
+            try(
+              Test_CompletionDisplay.display_state_of(
+                ~parts=
+                  Test_CompletionDisplay.display_parts(~inline_persist=mode),
+                ~chips=true,
+                z',
+              )
+            ) {
+            | _ => "ERR"
+            };
+          let (p, al) = (
+            render(Language.CoreSettings.Persist),
+            render(Language.CoreSettings.Always),
+          );
+          if (p != al) {
+            incr(diverge);
+            if (example^ == "") {
+              example := "P: " ++ p ++ " || A: " ++ al;
+            };
+          };
+        | _ => ()
+        },
+      script,
+    );
+  };
+  [
+    Alcotest.test_case("Persist and Always agree on the corpus", `Quick, () =>
+      Alcotest.check(
+        Alcotest.string,
+        "divergences",
+        "0",
+        string_of_int(diverge^)
+        ++ (example^ == "" ? "" : " first=" ++ example^),
+      )
+    ),
+  ];
+};
+
 let tests = [
+  ("InlinePersist: mode agreement", mode_agreement),
   ("InlinePersist: movement", movement),
   ("InlinePersist: dispatch trade", dispatch_trade),
   ("InlinePersist: churn stability", churn_stability),
