@@ -165,12 +165,17 @@ module Update = {
       schedule_action(Globals(AppViewMsg(id, m)));
     let run_app_cmd = (ctx: Haz3lcore.CmdRunner.context, cmd) =>
       Bonsai.Effect.Expert.handle(Haz3lcore.CmdRunner.run(ctx, cmd));
+    /* The store is an input to projector views that their memo cache can't
+       see (ProjectorView.ViewCache); the counter is how it participates. */
     let with_apps = (model: Model.t, apps): Model.t => {
-      ...model,
-      globals: {
-        ...model.globals,
-        apps,
-      },
+      Haz3lcore.AppBridge.bump();
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          apps,
+        },
+      };
     };
     switch (action) {
     | SetFontMetrics(fm) =>
@@ -298,6 +303,7 @@ module Update = {
              ~update_fn,
              ~view_fn,
              ~subs_fn=Some(subs_fn),
+             ~checkpoint=AppBridgeInstall.take_checkpoint(id),
              model.globals.apps,
            ),
          )
@@ -923,6 +929,9 @@ module View = {
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
+    /* Point the core-side app bridge at this frame's store + inject, so
+       inline app projectors (HTMLProj) can reach the AppStore. */
+    AppBridgeInstall.install(~globals);
     let bottom_bar = CursorInspector.view(~globals, cursor);
     let sidebar =
       Sidebar.view(

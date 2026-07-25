@@ -225,3 +225,65 @@ let html_constructor_names: list(string) = variant_names(BuiltinsADT.HTML.t);
 
 let is_html_constructor = (name: string): bool =>
   List.mem(name, html_constructor_names);
+
+// Is this value HTML (an application of an HTML constructor, or a nullary
+// one like Br)?
+let is_html = (d: DHExp.t): bool =>
+  switch (of_constructor(d)) {
+  | Some((name, _)) => is_html_constructor(name)
+  | None => false
+  };
+
+// === Checkpoints ===
+//
+// An app model can be persisted in the projector's (serialized) model only
+// if it is a plain value: functions and closures carry environments that
+// don't survive a round trip, so a model holding one is simply not
+// checkpointed.
+
+let is_closure_free = (d: DHExp.t): bool => {
+  let ok = ref(true);
+  let f_exp = (continue, e: DHExp.t) => {
+    switch (e.term) {
+    | Fun(_)
+    | TypFun(_)
+    | FixF(_)
+    | Closure(_)
+    | BuiltinFun(_) => ok := false
+    | _ => ()
+    };
+    continue(e);
+  };
+  let _ = Exp.map_term(~f_exp, d);
+  ok^;
+};
+
+let serialize_model = (d: DHExp.t): option(string) =>
+  is_closure_free(d)
+    ? Some(d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string) : None;
+
+let deserialize_model = (s: string): option(DHExp.t) =>
+  try(Some(s |> Sexplib.Sexp.of_string |> DHExp.t_of_sexp)) {
+  | _ => None
+  };
+
+// Restore a checkpointed model for an app whose current view is `view_fn`.
+// The checkpoint is used only if it still deserializes AND the current view
+// renders it as HTML; a checkpoint left over from an incompatible earlier
+// version of the program is discarded rather than breaking the app. (The
+// html check matters because Hazel is gradual: applying a view to a model
+// of the wrong shape usually yields an indeterminate value, not an error.)
+// Returns the model paired with its rendered html.
+let restore_model =
+    (~view_fn: DHExp.t, checkpoint: string): option((DHExp.t, DHExp.t)) =>
+  switch (deserialize_model(checkpoint)) {
+  | None => None
+  | Some(model) =>
+    switch (
+      safe_evaluate(IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, model))
+    ) {
+    | Ok(html) when is_html(html) => Some((model, html))
+    | Ok(_)
+    | Error(_) => None
+    }
+  };

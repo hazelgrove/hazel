@@ -47,3 +47,12 @@
 .MVU-render {
   height: 100%;
 }
+
+/* Terse status line: no value yet, or a value that is neither app nor HTML */
+.html-proj-message {
+  padding: 4px 6px;
+  color: var(--BR3);
+  font-size: 0.9em;
+  font-style: italic;
+  opacity: 0.7;
+}

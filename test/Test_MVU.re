@@ -1237,6 +1237,259 @@ let neg_unknown_constructor_not_html =
   );
 
 // ============================================================
+// == Projector dynamics ==
+// == HTMLProj decides which commit mode to use from the live
+// == value of the syntax it replaces, which it gets by asking
+// == for dynamics (Projector.dynamics -> a probe on its id).
+// ============================================================
+
+let projector_dynamics_records_a_sample =
+  test_case(
+    "A dynamics projector's id gets a sample of its expression's value",
+    `Quick,
+    () => {
+      // Wrap an expression in a Projector node, as MakeTerm does for a
+      // projected piece; the projector's id is the node's id.
+      let inner = parse_exp("Div([], [Text(\"hi\")])");
+      let term: Grammar.exp_term(IdTagged.IdTag.t) =
+        Projector(
+          {
+            kind: ProjectorKind.HTML,
+            model: "",
+          },
+          inner,
+        );
+      let projected: Exp.t = IdTagged.fresh(term);
+      let id = IdTagged.rep_id(projected);
+      let probe_ids = Id.Map.singleton(id, ());
+      let settings = CoreSettings.on;
+      let (info_map, elaborated) =
+        Statics.mk(
+          ~probe_ids,
+          settings,
+          Builtins.ctx_init(Some(Int)),
+          projected,
+        );
+      let targets =
+        Haz3lcore.CachedStatics.compute_targets(
+          ~settings,
+          ~info_map,
+          ~probe_ids,
+        );
+      let (_, state) =
+        Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+      switch (
+        Sample.Map.lookup(id, EvaluatorState.get_probes(state))
+        |> Option.value(~default=[])
+      ) {
+      | [] => fail("no sample recorded at the projector's id")
+      | [sample, ..._] =>
+        check(
+          Alcotest.bool,
+          "sample value is the evaluated HTML",
+          true,
+          Haz3lcore.MvuShape.is_html(sample.value),
+        )
+      };
+    },
+  );
+
+let projector_dynamics_flag_selects_probe_ids =
+  test_case(
+    "Only projectors asking for dynamics become probe targets",
+    `Quick,
+    () => {
+      let piece: Haz3lcore.Base.piece =
+        Grout({
+          id: Id.mk(),
+          shape: Convex,
+        });
+      let mk = kind => {
+        let id = Id.mk();
+        (id, Haz3lcore.ProjectorCore.mk(~id, kind, piece, ""));
+      };
+      let (html_id, html) = mk(ProjectorKind.HTML);
+      let (fold_id, fold) = mk(ProjectorKind.Fold);
+      let ids =
+        Haz3lcore.CachedStatics.projector_probe_ids(
+          Id.Map.of_list([(html_id, html), (fold_id, fold)]),
+        );
+      check(
+        Alcotest.bool,
+        "html projector probed",
+        true,
+        Id.Map.mem(html_id, ids),
+      );
+      check(
+        Alcotest.bool,
+        "fold projector not probed",
+        false,
+        Id.Map.mem(fold_id, ids),
+      );
+    },
+  );
+
+// ============================================================
+// == Checkpoints ==
+// == An app model is persisted in the projector's model only if
+// == it is a plain value, and restored only if the current view
+// == still renders it.
+// ============================================================
+
+let checkpoint_program = {|
+let init = (count=1, label="hi") in
+let update = fun (msg, model) -> (model, CmdNone) in
+let view = fun model -> Div([], [Text(model.label), Int(model.count)]) in
+let subs = fun _model -> SubNone in
+(init, update, view, subs)
+|};
+
+// Same app, but the view now expects a constructor model
+let checkpoint_program_v2 = {|
+type Shape = + Circle + Square in
+let init : Shape = Circle in
+let update = fun (msg, model) -> (model, CmdNone) in
+let view = fun model -> case model | Circle => Div([], [Text("circle")]) end in
+let subs = fun _model -> SubNone in
+(init, update, view, subs)
+|};
+
+// A model that carries a function, so it can't be checkpointed
+let closure_model_program = {|
+let init = (count=1, fmt=fun x -> x) in
+let update = fun (msg, model) -> (model, CmdNone) in
+let view = fun model -> Div([], [Int(model.count)]) in
+let subs = fun _model -> SubNone in
+(init, update, view, subs)
+|};
+
+let app_of = (program: string) =>
+  switch (extract_elm_app(parse_and_evaluate(program))) {
+  | Some(app) => app
+  | None => failwith("test program is not an Elm app")
+  };
+
+let checkpoint_plain_model_is_closure_free =
+  test_case(
+    "Plain model is closure-free and serializes",
+    `Quick,
+    () => {
+      let (init_model, _, _, _) = app_of(checkpoint_program);
+      check(
+        Alcotest.bool,
+        "closure-free",
+        true,
+        Haz3lcore.MvuShape.is_closure_free(init_model),
+      );
+      check(
+        Alcotest.bool,
+        "serializes",
+        true,
+        Option.is_some(Haz3lcore.MvuShape.serialize_model(init_model)),
+      );
+    },
+  );
+
+let checkpoint_closure_model_rejected =
+  test_case(
+    "Model containing a function is not checkpointed",
+    `Quick,
+    () => {
+      let (init_model, _, _, _) = app_of(closure_model_program);
+      check(
+        Alcotest.bool,
+        "not closure-free",
+        false,
+        Haz3lcore.MvuShape.is_closure_free(init_model),
+      );
+      check(
+        Alcotest.bool,
+        "no checkpoint",
+        true,
+        Haz3lcore.MvuShape.serialize_model(init_model) == None,
+      );
+    },
+  );
+
+let checkpoint_bare_lambda_rejected =
+  test_case("Bare lambda is not closure-free", `Quick, () =>
+    check(
+      Alcotest.bool,
+      "lambda rejected",
+      false,
+      Haz3lcore.MvuShape.is_closure_free(
+        Exp.fn(Pat.var("x"), Exp.var("x"), None, None),
+      ),
+    )
+  );
+
+let checkpoint_roundtrip =
+  test_case(
+    "Checkpoint round-trips",
+    `Quick,
+    () => {
+      let (init_model, _, _, _) = app_of(checkpoint_program);
+      switch (Haz3lcore.MvuShape.serialize_model(init_model)) {
+      | None => fail("model should be serializable")
+      | Some(s) =>
+        switch (Haz3lcore.MvuShape.deserialize_model(s)) {
+        | None => fail("checkpoint should deserialize")
+        | Some(restored) =>
+          check(dhexp_typ, "round-trip equal", init_model, restored)
+        }
+      };
+    },
+  );
+
+let checkpoint_restore_accepted =
+  test_case(
+    "Checkpoint restores under the same view",
+    `Quick,
+    () => {
+      let (init_model, _, view_fn, _) = app_of(checkpoint_program);
+      let s = Option.get(Haz3lcore.MvuShape.serialize_model(init_model));
+      switch (Haz3lcore.MvuShape.restore_model(~view_fn, s)) {
+      | None => fail("checkpoint should be restored")
+      | Some((model, html)) =>
+        check(dhexp_typ, "restored model", init_model, model);
+        assert_valid_html("view(restored)", html);
+      };
+    },
+  );
+
+let checkpoint_restore_rejected_by_changed_view =
+  test_case(
+    "Checkpoint incompatible with a changed view is discarded",
+    `Quick,
+    () => {
+      let (init_model, _, _, _) = app_of(checkpoint_program);
+      let (_, _, view_fn_v2, _) = app_of(checkpoint_program_v2);
+      let s = Option.get(Haz3lcore.MvuShape.serialize_model(init_model));
+      check(
+        Alcotest.bool,
+        "discarded",
+        true,
+        Haz3lcore.MvuShape.restore_model(~view_fn=view_fn_v2, s) == None,
+      );
+    },
+  );
+
+let checkpoint_restore_rejected_when_unreadable =
+  test_case(
+    "Unreadable checkpoint is discarded",
+    `Quick,
+    () => {
+      let (_, _, view_fn, _) = app_of(checkpoint_program);
+      check(
+        Alcotest.bool,
+        "discarded",
+        true,
+        Haz3lcore.MvuShape.restore_model(~view_fn, "(not a model") == None,
+      );
+    },
+  );
+
+// ============================================================
 // == All tests ==
 // ============================================================
 
@@ -1298,6 +1551,17 @@ let tests = (
     syntax_commit_simple_msg,
     syntax_commit_payload_msg,
     syntax_commit_html_cmd_result,
+    // Projector dynamics
+    projector_dynamics_records_a_sample,
+    projector_dynamics_flag_selects_probe_ids,
+    // Checkpoints
+    checkpoint_plain_model_is_closure_free,
+    checkpoint_closure_model_rejected,
+    checkpoint_bare_lambda_rejected,
+    checkpoint_roundtrip,
+    checkpoint_restore_accepted,
+    checkpoint_restore_rejected_by_changed_view,
+    checkpoint_restore_rejected_when_unreadable,
     // Negative / edge cases
     neg_3tuple_not_elm_app,
     neg_5tuple_not_elm_app,

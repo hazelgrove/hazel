@@ -113,15 +113,22 @@ let init =
       ~update_fn: DHExp.t,
       ~view_fn: DHExp.t,
       ~subs_fn: option(DHExp.t),
+      ~checkpoint: option(string)=None,
       store: t,
     )
     : t => {
   let old = lookup(id, store);
   let (model, html) = {
-    let fresh = () => (
-      init_model,
-      eval(Exp.ap(Forward, view_fn, init_model)),
-    );
+    /* Building the entry from scratch: prefer a checkpointed model, but
+       only if the current view still renders it — otherwise discard it
+       silently and start from the app's own init model. */
+    let restored = () =>
+      Option.bind(checkpoint, Haz3lcore.MvuShape.restore_model(~view_fn));
+    let fresh = () =>
+      switch (restored()) {
+      | Some(restored) => restored
+      | None => (init_model, eval(Exp.ap(Forward, view_fn, init_model)))
+      };
     switch (old) {
     | Some(old) =>
       switch (safe_eval(Exp.ap(Forward, view_fn, old.model))) {
@@ -218,6 +225,15 @@ let dispatch =
       );
       store;
     }
+  };
+
+/* The entry's model, serialized, if it is closure-free. A model holding
+ * functions/closures can't round-trip, so it simply isn't checkpointed —
+ * no error, the app just starts from `init` next time. */
+let checkpoint = (id: Id.t, store: t): option(string) =>
+  switch (lookup(id, store)) {
+  | None => None
+  | Some(entry) => Haz3lcore.MvuShape.serialize_model(entry.model)
   };
 
 let remove = (id: Id.t, store: t): t =>

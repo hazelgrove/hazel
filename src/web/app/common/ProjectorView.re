@@ -23,6 +23,11 @@ module ViewCache = {
     elaborated: option(Language.Exp.t),
     core_settings: Language.CoreSettings.t,
     settings_version: int,
+    /* The MVU app store lives in the web model, out of reach here; app
+     * projectors read it through AppBridge, so its counter is the cache's
+     * only handle on "the app state changed". Zero for kinds that don't
+     * read the store, so a ticking app doesn't invalidate every projector. */
+    app_version: int,
     status: View.status,
     model: string,
     view: View.t,
@@ -39,6 +44,7 @@ module ViewCache = {
         ~core_settings,
         ~status,
         ~model,
+        ~app_version,
       )
       : option(View.t) =>
     switch (Hashtbl.find_opt(cache, id)) {
@@ -50,6 +56,7 @@ module ViewCache = {
           && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
+          && e.app_version == app_version
           && e.status == status
           && e.model == model =>
       Some(e.view)
@@ -66,6 +73,7 @@ module ViewCache = {
         ~core_settings,
         ~status,
         ~model,
+        ~app_version,
         ~view,
       ) =>
     Hashtbl.replace(
@@ -78,6 +86,7 @@ module ViewCache = {
         elaborated,
         core_settings,
         settings_version: ProbeProj.Settings.version^,
+        app_version,
         status,
         model,
         view,
@@ -467,7 +476,10 @@ let mk_view =
       }: Model.projector_data,
       projector_list: list(Id.t),
     )
-    : View.t =>
+    : View.t => {
+  /* Only the app projector reads the AppStore, so only its cache entry
+     has to expire when the store changes. */
+  let app_version = p.kind == ProjectorCore.Kind.HTML ? AppBridge.version^ : 0;
   switch (
     ViewCache.lookup(
       p.id,
@@ -478,6 +490,7 @@ let mk_view =
       ~core_settings,
       ~status,
       ~model=p.model,
+      ~app_version,
     )
   ) {
   | Some(view) =>
@@ -532,10 +545,12 @@ let mk_view =
       ~core_settings,
       ~status,
       ~model=p.model,
+      ~app_version,
       ~view,
     );
     view;
   };
+};
 
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */

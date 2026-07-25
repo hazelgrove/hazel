@@ -3,9 +3,21 @@ open ProjectorBase;
 open Language;
 open IdTagged.FreshGrammar;
 
-// Inline HTML projector, syntax-commit mode: update = apply. Msgs are
-// Html -> Html transforms; committing evaluates msg(model) and splices the
-// result back into the document via SetSyntax.
+// The HTML projector: one projector, two commit modes, picked by what the
+// projected expression's live value turns out to be.
+//
+// - Elm app — an (init, update, view, subs) 4-tuple — commits to STATE: the
+//   app's model lives in the web-side AppStore, reached through AppBridge,
+//   and a msg goes to update(msg, model). An app can sit anywhere in a
+//   program (and, docked with Alt+S, anywhere on screen).
+// - bare HTML commits to SYNTAX (update = apply): msgs are Html -> Html
+//   transforms, and committing evaluates msg(model) and splices the result
+//   back into the document via SetSyntax.
+//
+// Detection is two-phase, because `init` only ever sees pre-evaluation
+// syntax: `init` is permissive and syntactic (anything that could evaluate
+// to HTML or to an app), while `view` is authoritative and reads the live
+// value recorded by this projector's probe (`dynamics = true`).
 
 // Refs for resize drag state
 let wrapper_ref: ref(option(Js_of_ocaml.Js.Unsafe.any)) = ref(None);
@@ -18,6 +30,62 @@ let resize_committed = ref(false);
 // Pixel-per-char ratios computed on pointerdown, used during drag
 let px_per_col = ref(10.0);
 let px_per_row = ref(18.0);
+
+// Checkpoint writes are debounced per app: a model is persisted once the app
+// has been idle this long, never per message.
+let checkpoint_delay_ms = 2000.0;
+let checkpoint_timers: Hashtbl.t(Id.t, Js_of_ocaml.Dom_html.timeout_id) =
+  Hashtbl.create(4);
+
+/* (Re)arm the idle timer for `id`. When it fires, ask the store for a
+ * checkpoint (None if the model holds closures) and, if it differs from
+ * what the projector model already carries, save it quietly — a checkpoint
+ * is not an edit and must not land in the undo history. */
+let schedule_checkpoint =
+    (
+      ~id: Id.t,
+      ~current: option(string),
+      ~save: option(string) => Ui_effect.t(unit),
+    )
+    : unit => {
+  switch (Hashtbl.find_opt(checkpoint_timers, id)) {
+  | Some(timer) => Js_of_ocaml.Dom_html.window##clearTimeout(timer)
+  | None => ()
+  };
+  let timer =
+    Js_of_ocaml.Dom_html.window##setTimeout(
+      Js_of_ocaml.Js.wrap_callback(() => {
+        Hashtbl.remove(checkpoint_timers, id);
+        let checkpoint = AppBridge.checkpoint^(id);
+        if (checkpoint != current) {
+          Bonsai.Effect.Expert.handle(save(checkpoint));
+        };
+      }),
+      checkpoint_delay_ms,
+    );
+  Hashtbl.replace(checkpoint_timers, id, timer);
+};
+
+/* The live value of the projected syntax, if the probe has recorded one.
+ * Sample-selection rule: the latest sample by `seq`. For an app or an HTML
+ * value that's the value produced by the most recent evaluation of this
+ * expression — and the only sample at all, for the common case of an
+ * expression evaluated once per run. */
+let live_value = (info: ProjectorBase.info): option(DHExp.t) =>
+  switch (info.dynamics) {
+  | None => None
+  | Some({samples, _}) =>
+    List.fold_left(
+      (acc, s: Sample.t) =>
+        switch (acc) {
+        | Some(best: Sample.t) when best.seq >= s.seq => acc
+        | _ => Some(s)
+        },
+      None,
+      samples,
+    )
+    |> Option.map((s: Sample.t) => MvuShape.strip_wrappers(s.value))
+  };
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -45,33 +113,48 @@ module M: Projector = {
   type model = {
     exp: Grammar.exp_t(IdTagged.IdTag.t),
     ui: ui_state,
+    /* State-commit mode only: the app model, serialized, when it is
+       closure-free. Defaulted so models persisted before checkpoints
+       existed still load. */
+    [@sexp.default None] [@yojson.default None]
+    checkpoint: option(string),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | SetDimensions(int, int)
-    | ResetSize;
+    | ResetSize
+    | SetCheckpoint(option(string));
 
-  let init = (any: Any.t) =>
+  /* Permissive and syntactic: accept bare HTML, plus anything that could
+     evaluate to an app. `view` has the live value and makes the call. */
+  let init = (any: Any.t) => {
+    let accept = exp =>
+      Some({
+        exp,
+        ui: default_ui,
+        checkpoint: None,
+      });
     switch (any) {
     // HTML constructor applied to arguments: Div(...), Button(...), etc.
     | Exp({term: Ap(_, {term: Constructor(name, _), _}, _), _} as exp)
         when MvuShape.is_html_constructor(name) =>
-      Some({
-        exp,
-        ui: default_ui,
-      })
+      accept(exp)
     // Nullary HTML constructor: Br
-    | Exp({term: Constructor("Br", _), _} as exp) =>
-      Some({
-        exp,
-        ui: default_ui,
-      })
+    | Exp({term: Constructor("Br", _), _} as exp) => accept(exp)
+    // A literal 4-tuple, or an expression whose value we can't know yet
+    | Exp({term: Tuple([_, _, _, _]), _} as exp)
+    | Exp({term: Parens({term: Tuple([_, _, _, _]), _}), _} as exp)
+    | Exp({term: Var(_), _} as exp)
+    | Exp({term: Ap(_), _} as exp) => accept(exp)
     | _ => None
     };
+  };
 
   let focusable = Focusable.non;
-  let dynamics = false;
+  /* Instruments this projector with a probe, so `info.dynamics` carries the
+     live value of the syntax it replaces (see live_value). */
+  let dynamics = true;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
 
@@ -93,6 +176,10 @@ module M: Projector = {
     | ResetSize => {
         ...m,
         ui: default_ui,
+      }
+    | SetCheckpoint(checkpoint) => {
+        ...m,
+        checkpoint,
       }
     };
   };
@@ -134,14 +221,63 @@ module M: Projector = {
         }
       };
 
-    let seed: HazelDOM.t = {
+    // Unknown terms fall back to an embedded read-only syntax view
+    let view_term = term =>
+      Exp(term)
+      |> info.utility.term_to_seg(~inline=true)
+      |> view_seg(~background=false, Exp);
+
+    let syntax_seed: HazelDOM.t = {
       inject: inject_msg,
-      view_term: term =>
-        Exp(term)
-        |> info.utility.term_to_seg(~inline=true)
-        |> view_seg(~background=false, Exp),
+      view_term,
       commit: HazelDOM.Syntax,
     };
+
+    let message = (text: string) =>
+      Node.div(
+        ~attrs=[Attr.classes(["html-proj-message"])],
+        [Node.text(text)],
+      );
+
+    /* State commit. The store owns the model; we hand it the evaluated app
+       (plus any checkpoint to restore from) and render whatever html it
+       currently holds. `ensure_app` is a no-op once the entry is current,
+       which is what keeps this render-time call cheap. */
+    let app_content = (app: DHExp.t) => {
+      AppBridge.ensure_app^(info.id, app, model.checkpoint);
+      switch (AppBridge.current_html^(info.id)) {
+      | None => message("starting app…")
+      | Some(html) =>
+        let seed: HazelDOM.t = {
+          inject: msg => {
+            schedule_checkpoint(
+              ~id=info.id, ~current=model.checkpoint, ~save=c =>
+              local_quiet(SetCheckpoint(c))
+            );
+            AppBridge.dispatch^(info.id, msg);
+          },
+          view_term,
+          commit: HazelDOM.State,
+        };
+        HazelDOM.go(seed, html);
+      };
+    };
+
+    /* What this projector is showing is decided by the live value: an app
+       renders from the store, HTML renders (and edits) the syntax, and
+       anything else says so instead of dumping a term. Without a value
+       (dynamics off, or not evaluated yet) we fall back to the syntax,
+       which is exactly the pre-app behavior for bare HTML. */
+    let content =
+      switch (live_value(info)) {
+      | Some(value) when Option.is_some(MvuShape.detect_app_kind(value)) =>
+        app_content(value)
+      | Some(value)
+          when !MvuShape.is_html(value) && !MvuShape.is_html(current_exp) =>
+        message("not an HTML value or app")
+      | None when !MvuShape.is_html(current_exp) => message("no value yet")
+      | _ => HazelDOM.go(syntax_seed, current_exp)
+      };
 
     // Corner resize handle with pointer capture for drag.
     // On pointerdown: compute px-per-char ratios from the .projector container.
@@ -223,8 +359,6 @@ module M: Projector = {
         [],
       );
 
-    // Main content
-    let content = HazelDOM.go(seed, current_exp);
     let wrapper_classes = ["html-proj-wrapper"];
     let wrapped =
       Node.div(
