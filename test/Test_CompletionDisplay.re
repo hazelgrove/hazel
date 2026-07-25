@@ -765,10 +765,10 @@ string_replace(a, b, c)   CHIPS[]|},
           string_testable,
           "let-bk",
           {|let ?=  i¦⟪ in ?⟫   CHIPS[]
-let ?=  ¦?⟪ in ?⟫   CHIPS[]
+let ?= ?¦⟪ in ?⟫   CHIPS[]
 let ?= ¦?⟪ in ?⟫   CHIPS[]
 let ?=¦⟪ ⟫?⟪ in ?⟫   CHIPS[]
-let  ¦?⟪ = ? in ?⟫   CHIPS[]
+let ?¦⟪ = ? in ?⟫   CHIPS[]
 let ¦?⟪ = ? in ?⟫   CHIPS[]|},
           trajectory_bk(~ctx="let  =  in¦", 6),
         )
@@ -1064,8 +1064,8 @@ let y = (1 + ⟫¦⟪?⟪)⟫ in y   CHIPS[]|},
              caret at true columns with the witness remainder inside
              the span (ca¦⟪se …⟫); the old `⟪  in⟫` doubled-space
              seam healed with it. */
-          {|let f(b : Bool) =⟪ ⟫?
-  ¦⟪in ?⟫   CHIPS[]
+          {|let f(b : Bool) =
+  ¦?   CHIPS[in]
 let f(b : Bool) =
   c¦⟪ in ?⟫   CHIPS[]
 let f(b : Bool) =
@@ -1084,7 +1084,7 @@ let f(b : Bool) =
   case bar¦⟪ end in ?⟫   CHIPS[]
 let f(b : Bool) =
   case bar
-  ¦⟪end in ?⟫   CHIPS[]|},
+  ¦⟪in ?⟫   CHIPS[end]|},
           trajectory_in(~ctx="let f(b : Bool) =¦", "\ncase bar\n"),
         )
       ),

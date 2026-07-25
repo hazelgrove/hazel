@@ -656,31 +656,6 @@ let finish_display =
   };
   collect_region(~l_ghost=false, ~r_ghost=false, seg);
   let region_hole = (id: Id.t) => Hashtbl.mem(region, id);
-  let is_space = (p: Piece.t) =>
-    switch (p) {
-    | Secondary(w) => Secondary.is_space(w)
-    | _ => false
-    };
-  let rec reorder = (ps: Segment.t): Segment.t =>
-    switch (ps) {
-    | [] => []
-    | [Piece.Grout(g) as pg, ...rest] when minted(g.id) =>
-      let rec take = (acc, rest) =>
-        switch (rest) {
-        | [p, ...tl] when is_space(p) => take([p, ...acc], tl)
-        | _ => (List.rev(acc), rest)
-        };
-      let (sps, rest) = take([], rest);
-      sps @ [pg, ...reorder(rest)];
-    | [Piece.Tile(t), ...rest] => [
-        Piece.Tile({
-          ...t,
-          children: List.map(reorder, t.children),
-        }),
-        ...reorder(rest),
-      ]
-    | [p, ...rest] => [p, ...reorder(rest)]
-    };
   let mark_mem = (id: Id.t, sh: option(int)) =>
     List.exists(
       ((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh,
@@ -799,7 +774,15 @@ let finish_display =
       });
     | p => p
     };
-  let seg = reorder(seg);
+  /* NO REORDER (2026-07-24): this pass used to hop MINTED grout over
+     following typed spaces, from the era when the edit state stored
+     grout — then "minted" meant only display-synthesized holes and
+     the hop fixed a caret jump. Under grout-free editing EVERY hole
+     is minted, so the pass relocated every hole past its gap's
+     spaces, silently overriding GroutPlace's placement policy (the
+     display hugged the delimiter while the harness centered — the
+     harness/screen divergence). Placement now has ONE authority:
+     GroutPlace. Nothing downstream may move a hole. */
   let seg = pad_seq(~hot=false, seg);
   /* BACKING REPAIR (P4, atomic-form padding under width transfer):
      a hole consumes an adjacent space's cell, so an oracle pad
@@ -3607,6 +3590,20 @@ let linebreak_between = (z: Zipper.t, ins: insertion): bool =>
    (the caret-lock misorder janks). Linebreaks are whitespace: a
    caret on a fresh line is a valid drop position, and a closer
    ghosted there sits on its own line (andrew's post-Enter case). */
+/* SLIDE TO CARET, SPACES ONLY (P8, andrew 2026-07-24).
+   A ghost anchored at a token separated from the caret by nothing
+   but SPACES renders at the caret rather than tight against its
+   anchor. This is load-bearing, not cosmetic: with a trailing space
+   typed (`let ¦`) the ghost's true anchor precedes the caret, so the
+   no-pre-caret rule would otherwise suppress the whole entry-time
+   ghost to a chip.
+
+   RETIRED (2026-07-24): the V3.3 extension that let the slide cross
+   LINEBREAKS ("whitespace is whitespace"). That is what made a ghost
+   jump to the caret's line and mint a pad there on a single arrow
+   press — andrew's "spooky space" report, and a movement-purity
+   violation since the ghost relocated across lines as the caret
+   moved. Within a line the hug stays; a linebreak is a wall. */
 let slide_to_caret = (z: Zipper.t, ins: insertion): insertion =>
   switch (ins.splice, z.caret) {
   | (Some((id, sh, Direction.Right)), Outer) =>
@@ -3625,10 +3622,11 @@ let slide_to_caret = (z: Zipper.t, ins: insertion): insertion =>
         | _ => true
         }
       );
+    /* SPACES only: a linebreak is a wall (see above) */
     let all_spaces =
       List.for_all((q: Piece.t) =>
         switch (q) {
-        | Secondary(_) => true
+        | Secondary(w) => Secondary.is_space(w)
         | _ => false
         }
       );

@@ -1396,7 +1396,7 @@ let tests = [
       known_case(
         "finish_display re-pads",
         "l e t SP",
-        "PAD-IDEMPOTENCE once=let ?  = ?  in ? twice=let   ?  =   ?  in ?",
+        "PAD-IDEMPOTENCE once=let ?  = ?  in ? twice=let ?   = ?   in ?",
       ),
       /* INV 5 CONSTANCY(post-caret) + INV 4: typing the promised `t`
          of le¦⟪t ⟫ materializes the let form — the promise is swapped
@@ -1405,7 +1405,7 @@ let tests = [
       known_case(
         "keyword materialization expands promise",
         "l e t",
-        "PAD-IDEMPOTENCE once=let ?  = ?  in ? twice=let   ?  =   ?  in ? "
+        "PAD-IDEMPOTENCE once=let ?  = ?  in ? twice=let ?   = ?   in ? "
         ++ "| CONSTANCY(post-caret)",
       ),
       /* INV 2 was PRE-CARET(inner), op-glom variant with `|`: same
