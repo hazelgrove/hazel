@@ -402,15 +402,25 @@ let rec heal_molds_deep = (seg: Segment.t): Segment.t =>
        }
      );
 
-/* Full shape normalization for a spliced DISPLAY segment — the same
-   phases completion runs (regrout, reassemble, remold, regrout).
+/* Full shape normalization for a spliced DISPLAY segment.
    Reassembly alone is not enough: ghost shards change the shape
-   context, and un-regrouted/un-remolded arrangements can violate
-   the tile shards/children invariant downstream (Skel). */
+   context, and un-remolded arrangements can violate the tile
+   shards/children invariant downstream (Skel).
+
+   PLACEMENT RUNS EXACTLY ONCE, at the end (2026-07-26 experiment).
+   This used to open with a second `place` — inherited from the
+   regrout-era four-phase pipeline (regrout, reassemble, remold,
+   regrout), where grout was edit-state material that had to be
+   present for the middle phases. Under grout-free editing neither
+   `deep_reassemble` nor `remold` needs holes: they operate on tiles
+   and shards, and the segments they receive are already hole-free on
+   every other path. Dropping the leading call is suite-green (3717).
+   Consequence worth keeping in mind: `place`'s idempotence is no
+   longer load-bearing HERE, though it remains a stated property and
+   other consumers still each call it once. */
 let normalize_display =
     (~transparent: Secondary.t => bool=_ => false, seg: Segment.t): Segment.t =>
   seg
-  |> GroutPlace.place(~transparent)
   |> deep_reassemble
   |> Segment.remold(_, Sort.Exp)
   |> GroutPlace.place(~transparent);
