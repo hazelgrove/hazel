@@ -71,3 +71,6 @@ plans/
 # Cursor IDE (local)
 .cursor/
 AGENTS.md
+
+# local dev-server staging dir (built bundle + statics) — never commit
+_serve/
