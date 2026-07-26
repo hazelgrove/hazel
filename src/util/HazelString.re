@@ -115,34 +115,7 @@ let escaped = (s: string): string => {
   Buffer.contents(buf);
 };
 
-/* Compile with the `u` flag, falling back to no `u` for patterns it rejects
-   (e.g. `\-`, an unmatched `{`) so we never turn a working pattern into an
-   exception. */
-let regexp_factory: Js.Unsafe.any =
-  Js.Unsafe.eval_string(
-    "(function (pattern, flags) {\n"
-    ++ "  try { return new RegExp(pattern, flags + 'u'); }\n"
-    ++ "  catch (e) { return new RegExp(pattern, flags); }\n"
-    ++ "})",
-  );
-
-/* `~global` is not cosmetic: replace/split need `g`, but a `g`-flagged
-   regex is stateful under `test` (lastIndex advances between calls), so
-   predicates must compile without it. */
-let regexp = (~global: bool, pattern: string): Js.t(Js.regExp) =>
-  Js.Unsafe.fun_call(
-    regexp_factory,
-    [|
-      Js.Unsafe.inject(Js.string(pattern)),
-      Js.Unsafe.inject(Js.string(global ? "g" : "")),
-    |],
-  );
-
-let compile = (pattern: string): Js.t(Js.regExp) =>
-  regexp(~global=true, pattern);
-
-let test = (re: Js.t(Js.regExp), s: string): bool =>
-  Js.to_bool(re##test(Js.string(s)));
+let compile = StringUtil.unicode_regexp(~global=true);
 
 /* Escape the regex metacharacters so a literal string matches itself. Every
    character escaped here is a legal identity escape under the `u` flag, and

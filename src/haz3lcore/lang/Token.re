@@ -136,63 +136,32 @@ let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
 
-/* THE OPERATOR ALPHABET.
+/* Operators are a closed list; names are everything left over. That keeps
+ * the two disjoint by construction (mold resolution needs it) and makes a
+ * new Unicode character default to being a name.
  *
- * Operators are an explicit, closed list of characters. Hazel has no
- * user-defined operators, so this is the whole set the language can build a
- * form out of, and everything outside it is free to be a name.
- *
- * The ASCII half is exactly the 18 characters that were operator characters
- * before names took Unicode; it is a pin, not a policy, and must not grow or
- * shrink. The non-ASCII half is a whitelist, and the test for membership is
- * "does the language put this in an OPERATOR POSITION", not "does Hazel ever
- * print it": these five are the Drv judgment symbols that
- * Haz3lcore.ExpToSegment emits as infix tiles, alongside the ASCII `< > =`.
- *
- * Deliberately NOT here, all of which Hazel does print:
- *   `…`          the abbreviation marker (Language.Abbreviate). It is also a
- *                placeholder OPERAND on another branch, so it has to fall
- *                through to the name class -- do not add it.
- *   `→`          likewise only appears inside abbreviated display text.
- *   `∧ ∨ ⊃ ⊥ ⊤`  Drv rule NAMES (`∧-E-L`, `⊃-I`), which are command-palette
- *                and ExplainThis labels, never tiles.
- *   `⟦ ⟧ ⋱`      probe and fold markers, which are tiles but carry atomic
- *                OPERAND molds, so the name class is where they belong.
- *
- * Membership is deliberately NOT a Unicode property question. Categories
- * like Emoji_Presentation describe how a character RENDERS, not whether it
- * operates on anything, and testing them split near-identical pairs (`✔` a
- * name but `✓` an operator). Being explicit also means a new Unicode
- * character defaults to being a name rather than silently an operator. */
+ * The ASCII 18 are a pin: exactly the operator characters from before names
+ * took Unicode. A character earns a place in the Unicode half by appearing
+ * in operator POSITION, not by being printed -- these five are the Drv
+ * judgment symbols ExpToSegment emits as infix tiles. */
 let ascii_operator_chars = {|!%&*+,\-./:;<=>@\\|~|};
 let unicode_operator_chars = {|∈≠≮≯⊆|};
 let operator_chars = ascii_operator_chars ++ unicode_operator_chars;
 
-/* Characters in NEITHER class: the string/comment/quoted-label delimiters,
- * the instant-expanding paired delimiters ()[]{}, whitespace, control
- * characters, and the implicit-hole marker ¿. ¿ is excluded so that decoded
- * slides like `[1, ¿, 3]` don't merge `¿,` into a single token; see
- * Haz3lcore.TextRoundtrip. */
+/* Neither class: delimiters, whitespace, control characters, and the
+ * implicit-hole marker. ¿ is excluded so a decoded slide like `[1, ¿, 3]`
+ * doesn't merge `¿,` into one token; see Haz3lcore.TextRoundtrip. */
 let excluded_chars = {|"`#¿\s\x00-\x1F\x7F\[\]\(\)\{\}|};
 
-/* THE NAME ALPHABET is the complement: any character that is neither an
- * operator nor excluded is a name character. So `é 日 😀 © ™ ✓ ✔ ★ ☀ λ` all
- * behave identically, combining marks keep a decomposed `é` in one name, and
- * the glue multi-codepoint emoji are built from (ZWJ, regional indicators,
- * skin-tone modifiers) needs no special mention. On ASCII this comes out at
- * exactly `a-zA-Z0-9_'?^$` as before, where `?` is the hole prefix and `^`
- * the livelit/projector prefix; the stricter var/ctr regexps further down
- * drop everything but `_` and `'`.
- *
- * Writing names as the negated class is what keeps the two classes disjoint
- * by construction; mold resolution is ambiguous otherwise. */
+/* Names are the complement, so `é 日 😀 © ✓ λ` all behave alike and a
+ * decomposed `é` stays one name. On ASCII this is exactly `a-zA-Z0-9_'?^$`
+ * as before; the var/ctr regexps below drop all but `_` and `'`. */
 let non_name_chars = operator_chars ++ excluded_chars;
 
-/* These use the UTF-8-aware matcher rather than StringUtil.match:
- * Js_of_ocaml.Regexp is byte-oriented, so `¿` in the class would exclude its
- * two UTF-8 bytes (0xC2, 0xBF) independently -- rejecting `¢ £ ± ¬` (lead
- * byte 0xC2) and every codepoint whose trailing byte is 0xBF -- while `\s`
- * would reject anything containing byte 0xA0. */
+/* UTF-8-aware rather than StringUtil.match: Js_of_ocaml.Regexp is
+ * byte-oriented, so `¿` in a class excludes its two bytes independently --
+ * rejecting `¢ £ ± ¬` and anything ending 0xBF -- and `\s` rejects anything
+ * containing byte 0xA0. */
 let is_potential_operand =
   unicode_match(
     unicode_regexp(

@@ -188,16 +188,12 @@ and sig_item =
   | SigItemLet(pat)
   | SigItemType(tpat, typ);
 
-/* Names take every non-ASCII character except the operator whitelist (see
- * Token.operator_chars): accented Latin, CJK, caseless scripts, emoji
- * including multi-codepoint sequences, and text-presentation symbols. The
- * generators below mix these in so the MakeTerm/Menhir equivalence tests
- * actually exercise the alphabet rather than only ASCII.
+/* Mixed into the generators so the MakeTerm/Menhir equivalence tests
+ * exercise the name alphabet rather than only ASCII.
  *
- * Constructors keep an ASCII-uppercase LEAD: ocamllex cannot test the case of
- * a multi-byte character, so a name led by `Ć` lexes as an identifier there
- * while the editor calls it a constructor. Generating one would be testing a
- * known divergence, not the round-trip. */
+ * Constructors keep an ASCII-uppercase LEAD: ocamllex cannot test the case
+ * of a multi-byte character, so `Ć…` lexes as an identifier there while the
+ * editor calls it a constructor — a known divergence, not worth generating. */
 let nonascii_name_chars = [
   "\xc3\xa9", /* é */
   "\xc3\x9f", /* ß */

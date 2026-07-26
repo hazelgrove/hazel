@@ -312,12 +312,10 @@ let destroy_selection: t => t =
       selection: Selection.empty,
     });
 
-/* Inner offsets of a char-level selection's two boundaries, expressed in the
- * frame of the first and last selected pieces; `None` on a side means the
- * selection reaches that piece's outer boundary.
- * When smart_rounded is set, the anchor end is displayed at its piece's
- * outer boundary — user intent is "whole starting token selected", not
- * partial-from-anchor_caret — so it reads as Outer. */
+/* Inner offsets of a char selection's boundaries, in the frame of the first
+ * and last selected pieces; `None` means that side reaches the piece's outer
+ * boundary. smart_rounded reads as Outer: the anchor is displayed at its
+ * piece's edge, so the intent is "whole starting token". */
 let char_selection_offsets = (z: t): (option(int), option(int)) => {
   let inner = (c: CaretBase.t): option(int) =>
     switch (c) {
@@ -351,11 +349,10 @@ let splittable_token = (p: Piece.t): option(Token.t) =>
   | _ => None
   };
 
-/* A fragment of a split monotile inherits the source tile's mold: fragments
- * can end up outside the remold pass that follows (wrap_balanced moves them
- * into the ancestor frame), where an Any-sorted placeholder would read as a
- * shapeless operand and attract spurious grout. Shards of multi-token tiles
- * have no such mold to reuse and fall back to the generic monotile. */
+/* Fragments inherit the source tile's mold, because they can land outside
+ * the following remold pass (wrap_balanced moves them into the ancestor
+ * frame) where an Any-sorted placeholder attracts spurious grout. Shards
+ * have no mold to reuse and fall back to the generic monotile. */
 let split_piece = (p: Piece.t, tok: Token.t): Piece.t =>
   switch (p) {
   | Tile({label: [_], shards: [0], _} as t) =>
@@ -367,13 +364,10 @@ let split_piece = (p: Piece.t, tok: Token.t): Piece.t =>
   | _ => mk_remainder_piece(tok)
   };
 
-/* Split a char-level selection into the unselected head of its first piece,
- * the pieces actually covered by the selection, and the unselected tail of
- * its last piece. Nothing is deleted and nothing is placed: callers decide
- * where the remainders go (contrast normalize_char_selection, which puts
- * them back around the caret and drops the selection).
- * Returns `([], content, [])` when no boundary is strictly inside a piece,
- * so callers can use it unconditionally. */
+/* (unselected head, selected pieces, unselected tail). Nothing is deleted or
+ * placed — callers decide where the remainders go, unlike
+ * normalize_char_selection, which drops the selection and rejoins them.
+ * Returns `([], content, [])` when nothing is partially selected. */
 let split_char_selection = (z: t): (Segment.t, Segment.t, Segment.t) =>
   if (!has_char_selection(z)) {
     ([], z.selection.content, []);

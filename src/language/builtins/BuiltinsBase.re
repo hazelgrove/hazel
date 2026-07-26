@@ -302,7 +302,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(Int),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.int(UnicodeStr.length(s)));
+      Some(Exp.int(HazelString.length(s)));
     },
     custom_statics: None,
   },
@@ -312,7 +312,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(UnicodeStr.trim(s)));
+      Some(Exp.string(HazelString.trim(s)));
     },
     custom_statics: None,
   },
@@ -322,7 +322,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(UnicodeStr.escaped(s)));
+      Some(Exp.string(HazelString.escaped(s)));
     },
     custom_statics: None,
   },
@@ -342,7 +342,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(UnicodeStr.uppercase(s)));
+      Some(Exp.string(HazelString.uppercase(s)));
     },
     custom_statics: None,
   },
@@ -352,7 +352,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(UnicodeStr.lowercase(s)));
+      Some(Exp.string(HazelString.lowercase(s)));
     },
     custom_statics: None,
   },
@@ -362,7 +362,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(UnicodeStr.capitalize(s)));
+      Some(Exp.string(HazelString.capitalize(s)));
     },
     custom_statics: None,
   },
@@ -372,7 +372,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
     ret: Atom(String),
     imp: d => {
       let-unbox s = (Atom(String), d);
-      Some(Exp.string(UnicodeStr.uncapitalize(s)));
+      Some(Exp.string(HazelString.uncapitalize(s)));
     },
     custom_statics: None,
   },
@@ -408,7 +408,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
         let-unbox len = (Atom(Int), d3);
         let sliced =
           switch (Bigint.to_int(idx), Bigint.to_int(len)) {
-          | (Some(idx), Some(len)) => UnicodeStr.sub(s, idx, len)
+          | (Some(idx), Some(len)) => HazelString.sub(s, idx, len)
           | _ => None
           };
         switch (sliced) {
@@ -432,7 +432,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
         open Exp;
         let-unbox sep = (Atom(String), d1);
         let-unbox s = (Atom(String), d2);
-        let parts = UnicodeStr.split(sep, s) |> List.map(s => string(s));
+        let parts = HazelString.split(sep, s) |> List.map(s => string(s));
         Some(list_lit(parts));
       }),
     custom_statics: None,
@@ -445,7 +445,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
       binary((d1, d2) => {
         let-unbox regexp = (Atom(String), d1);
         let-unbox str = (Atom(String), d2);
-        Some(Exp.bool(UnicodeStr.matches(regexp, str)));
+        Some(Exp.bool(HazelString.matches(regexp, str)));
       }),
     custom_statics: None,
   },
@@ -458,7 +458,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
         let-unbox regexp = (Atom(String), d1);
         let-unbox str = (Atom(String), d2);
         let-unbox repl = (Atom(String), d3);
-        Some(Exp.string(UnicodeStr.replace(regexp, str, repl)));
+        Some(Exp.string(HazelString.replace(regexp, str, repl)));
       }),
     custom_statics: None,
   },
@@ -477,7 +477,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
           Exp.int(
             switch (Bigint.to_int(idx)) {
             | None => (-1)
-            | Some(idx) => UnicodeStr.search(regexp, str, idx)
+            | Some(idx) => HazelString.search(regexp, str, idx)
             },
           ),
         );

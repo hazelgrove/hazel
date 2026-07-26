@@ -21,24 +21,37 @@ let regexp: string => regexp = Js_of_ocaml.Regexp.regexp;
 let match = (r: regexp, s: string): bool =>
   Js_of_ocaml.Regexp.string_match(r, s, 0) |> Option.is_some;
 
-/* BYTE-oriented vs CODEPOINT-oriented matching. `regexp`/`match` above go
-   through Js_of_ocaml.Regexp, which maps each BYTE of both the pattern and
-   the subject to one JS character. That is fine for ASCII-only patterns and
-   subjects, but a pattern mentioning a non-ASCII character (or `\s`, which
-   matches U+00A0) then constrains individual UTF-8 bytes, which no non-ASCII
-   subject survives intact. The pair below compiles the pattern with the `u`
-   flag over properly decoded text instead, so classes range over whole
-   codepoints. */
+/* `regexp`/`match` above are BYTE-oriented: Js_of_ocaml.Regexp maps each
+   byte of the pattern and subject to one JS character, so a class holding a
+   non-ASCII character (or `\s`, which matches U+00A0) constrains individual
+   UTF-8 bytes. The pair below compiles with `u` over decoded text instead. */
 
 type unicode_regexp = Js_of_ocaml.Js.t(Js_of_ocaml.Js.regExp);
 
-/* Non-global: these compile predicates used with `test`, and `g` would
-   make them stateful across calls. See UnicodeStr.regexp. */
-let unicode_regexp = (src: string): unicode_regexp =>
-  UnicodeStr.regexp(~global=false, src);
+/* Falls back to no `u` for the patterns it rejects (`\-`, a lone `{`), so
+   compiling never turns a working pattern into an exception. */
+let unicode_regexp_factory: Js_of_ocaml.Js.Unsafe.any =
+  Js_of_ocaml.Js.Unsafe.eval_string(
+    "(function (pattern, flags) {\n"
+    ++ "  try { return new RegExp(pattern, flags + 'u'); }\n"
+    ++ "  catch (e) { return new RegExp(pattern, flags); }\n"
+    ++ "})",
+  );
+
+/* `~global` is not cosmetic: replace and split need `g`, but a `g`-flagged
+   regex is stateful under `test` (lastIndex advances between calls), so
+   predicates must compile without it. */
+let unicode_regexp = (~global=false, src: string): unicode_regexp =>
+  Js_of_ocaml.Js.Unsafe.fun_call(
+    unicode_regexp_factory,
+    [|
+      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(src)),
+      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(global ? "g" : "")),
+    |],
+  );
 
 let unicode_match = (r: unicode_regexp, s: string): bool =>
-  UnicodeStr.test(r, s);
+  Js_of_ocaml.Js.to_bool(r##test(Js_of_ocaml.Js.string(s)));
 
 let replace = Js_of_ocaml.Regexp.global_replace;
 
