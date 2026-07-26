@@ -58,6 +58,29 @@ let consumed_space_edges =
   | None => m
   };
 
+/* TRAILING-HOLE EDGE (P10 fill-position affinity): a LineEndFree
+   hole is the ONLY class that adds a column — the others borrow an
+   existing whitespace cell, so they cannot shift what follows. Its
+   column therefore pushes the right neighbour's origin (a linebreak,
+   say) one cell past the caret's true position, and mapping a caret
+   through that neighbour draws it on the hole's RIGHT — where nothing
+   exists. The hole marks where content will land, so the caret sits
+   BEFORE it: redirect to the hole's origin. Geometric (the hole's
+   `last` meets the neighbour's `origin` on one row), so it needs no
+   structural traversal and applies to every consumer of this map. */
+let trailing_hole_origin = (~measured: Measured.t, origin: Point.t): Point.t =>
+  Id.Map.fold(
+    (gid, gm: Measured.measurement, acc: Point.t) =>
+      switch (GroutCells.cls_of(measured.grout_cells, gid)) {
+      | Some(GroutCells.LineEndFree)
+          when gm.last.row == acc.row && gm.last.col == acc.col =>
+        gm.origin
+      | _ => acc
+      },
+    measured.grout,
+    origin,
+  );
+
 /* measurement lookup that tolerates display-side replacement (a
    promise-render witness swaps a partial token for its completed
    shard, so the edit id can be absent from `measured`) */
@@ -83,7 +106,8 @@ let point_of_side =
   |> Option.map(m =>
        switch (side) {
        | Direction.Left => redirect(m).last
-       | Direction.Right => redirect(m).origin
+       | Direction.Right =>
+         trailing_hole_origin(~measured, redirect(m).origin)
        }
      );
 };
