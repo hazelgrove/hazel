@@ -951,6 +951,96 @@ let arrow_step_case = (name: string, program: string) =>
     },
   );
 
+/* P14 CARET-COLUMN INVARIANCE. The caret's rendered column in the
+   PLACED display equals its column in the GROUT-STRIPPED render.
+   WHY it must hold: borrowed-cell holes add no width (layout
+   invisibility), so they cannot shift the caret; the only
+   width-adding material (a LineEndFree hole, and any pad) is
+   TRAILING by construction and therefore falls to the caret's RIGHT.
+   Equivalently, in andrew's framing: the caret is the boundary
+   between left and right siblings, typed material lands at the front
+   of the right siblings, so the caret draws where the next typed
+   character would appear — display-only material in its own gap
+   renders to its right.
+
+   This is the caret-side twin of layout invisibility, and it is the
+   GENERAL statement of what PosMap's trailing-hole redirect
+   implements narrowly. VERIFIED LOAD-BEARING: with that redirect
+   disabled this pin fails on the first program at step 9
+   (placed col 5 vs stripped col 4) — i.e. the property is not
+   self-enforcing, the redirect is its current implementation, and
+   this pin is the guard that will catch the next thing that breaks
+   it (a line-end pad being the expected next candidate). */
+let caret_col_case = (name: string, program: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z0 = Test_Editing.perform(Zipper.init(), Test_Editing.mk(program));
+      let cols = (z: Zipper.t) => {
+        let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+        let mp =
+          Measured.of_segment(
+            GroutPlace.place(seg),
+            Id.Map.empty,
+            Id.Map.empty,
+          );
+        let ms =
+          Measured.of_segment(
+            GroutPlace.strip(seg),
+            Id.Map.empty,
+            Id.Map.empty,
+          );
+        (Zipper.Caret.point(mp, z), Zipper.Caret.point(ms, z));
+      };
+      let rec walk = (z: Zipper.t, n: int, acc: list(string)) => {
+        let (p, st) = cols(z);
+        let acc =
+          p == st
+            ? acc
+            : [
+              Printf.sprintf(
+                "step %d placed=(%d,%d) stripped=(%d,%d)",
+                n,
+                p.row,
+                p.col,
+                st.row,
+                st.col,
+              ),
+              ...acc,
+            ];
+        n > 60
+          ? acc
+          : (
+            switch (Move.local(ByChar, Right, z)) {
+            | None => acc
+            | Some(z') => walk(z', n + 1, acc)
+            }
+          );
+      };
+      let z_start = Move.to_start(z0);
+      check(
+        string_testable,
+        name,
+        "",
+        String.concat(" | ", List.rev(walk(z_start, 0, []))),
+      );
+    },
+  );
+
+let caret_cols = [
+  caret_col_case("trailing hole after then", "if true\nthen\nelse 4¦"),
+  caret_col_case("trailing hole at doc end", "1 +¦"),
+  caret_col_case("trailing hole before linebreak", "1 +\n2¦"),
+  caret_col_case("interior hole, wide gap", "let    = 1 in 2¦"),
+  caret_col_case("pinched hole", "(1 +)¦"),
+  caret_col_case("leading hole", "* 2¦"),
+  caret_col_case("hole-only row", "let x =\n\nin x¦"),
+  caret_col_case("adjacent operands", "1 2¦"),
+  caret_col_case("string literal", "\"ab\"¦"),
+  caret_col_case("case scaffold", "case 1\n| 2 => 3\nend¦"),
+];
+
 let arrow_steps = [
   arrow_step_case("trailing hole after then", "if true\nthen\nelse 4¦"),
   arrow_step_case("trailing hole at doc end", "1 +¦"),
@@ -961,6 +1051,7 @@ let arrow_steps = [
 
 let tests = [
   ("FeltPrint: arrow step", arrow_steps),
+  ("FeltPrint: caret column invariance", caret_cols),
   ("FeltPrint: caret facing", facings),
   ("FeltPrint: facing matrix", facing_matrix),
   ("FeltPrint: space runs", space_runs),

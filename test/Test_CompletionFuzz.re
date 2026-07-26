@@ -951,6 +951,44 @@ let run_grout_fuzz = (~seeds: int, ~steps: int): string => {
                       }
                     | [] => false
                     };
+                  /* P14 CARET-COLUMN INVARIANCE: the caret's column
+                     in the PLACED render equals its column in the
+                     GROUT-STRIPPED render. Borrowed-cell holes add no
+                     width so cannot shift it; the only width-adding
+                     material (a line-end hole, and any pad) is
+                     trailing and must fall to the caret's RIGHT. The
+                     caret-side twin of layout invisibility, and the
+                     general statement of what PosMap's trailing-hole
+                     redirect implements narrowly. NOTE: the random
+                     corpus rarely reaches a line-end hole on a walked
+                     path — Test_FeltPrint "caret column invariance"
+                     pins it on concrete programs, and those are what
+                     actually fail when the redirect is removed. */
+                  let m_strip =
+                    Measured.of_segment(
+                      GroutPlace.strip(seg_z),
+                      Id.Map.empty,
+                      Id.Map.empty,
+                    );
+                  let caret_col_invariant = (zz: Zipper.t) => {
+                    let p = Zipper.Caret.point(m_z, zz);
+                    let st = Zipper.Caret.point(m_strip, zz);
+                    if (p != st) {
+                      bad(
+                        ~seed,
+                        ~step=k,
+                        ~inv="CARET-COLUMN-INVARIANT",
+                        Printf.sprintf(
+                          "placed=(%d,%d) stripped=(%d,%d)",
+                          p.row,
+                          p.col,
+                          st.row,
+                          st.col,
+                        ),
+                      );
+                    };
+                  };
+                  caret_col_invariant(z');
                   let rec walk = (zz: Zipper.t, prev: Util.Point.t, n: int) =>
                     if (n > 400) {
                       ();
