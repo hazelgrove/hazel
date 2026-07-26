@@ -893,7 +893,74 @@ let facing_matrix = [
   ),
 ];
 
+/* P13 ARROW-STEP, pinned directly. The fuzz corpus does NOT generate
+   a line-end hole on a walked path (verified: with the trailing-hole
+   redirect disabled, the fuzz ARROW-STEP check still passes), so the
+   property needs concrete programs too. Walking by single ByChar
+   moves, every step must advance the RENDERED caret exactly one
+   column or change row — a two-column jump means system material was
+   drawn on the wrong side of the position. Andrew's repro is the
+   first entry: before the fix, the step off the end of `then` jumped
+   two columns because the line-end hole added a column and the caret
+   mapped past it. */
+let arrow_step_case = (name: string, program: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z0 = Test_Editing.perform(Zipper.init(), Test_Editing.mk(program));
+      let m = (z: Zipper.t) => {
+        let placed =
+          GroutPlace.place(Zipper.unselect_and_zip(~erase_buffer=true, z));
+        let measured =
+          Measured.of_segment(placed, Id.Map.empty, Id.Map.empty);
+        Zipper.Caret.point(measured, z);
+      };
+      let rec walk =
+              (z: Zipper.t, prev: Util.Point.t, n: int, acc: list(string)) =>
+        n > 60
+          ? acc
+          : (
+            switch (Move.local(ByChar, Right, z)) {
+            | None => acc
+            | Some(z') =>
+              let pt = m(z');
+              let bad =
+                pt.row == prev.row && pt.col - prev.col > 1
+                  ? [
+                    Printf.sprintf(
+                      "jump (%d,%d)->(%d,%d)",
+                      prev.row,
+                      prev.col,
+                      pt.row,
+                      pt.col,
+                    ),
+                    ...acc,
+                  ]
+                  : acc;
+              walk(z', pt, n + 1, bad);
+            }
+          );
+      let z_start = Move.to_start(z0);
+      check(
+        string_testable,
+        name,
+        "",
+        String.concat(" | ", List.rev(walk(z_start, m(z_start), 0, []))),
+      );
+    },
+  );
+
+let arrow_steps = [
+  arrow_step_case("trailing hole after then", "if true\nthen\nelse 4¦"),
+  arrow_step_case("trailing hole at doc end", "1 +¦"),
+  arrow_step_case("trailing hole before linebreak", "1 +\n2¦"),
+  arrow_step_case("interior holes", "let  = 1 in 2¦"),
+  arrow_step_case("pinched hole", "(1 +)¦"),
+];
+
 let tests = [
+  ("FeltPrint: arrow step", arrow_steps),
   ("FeltPrint: caret facing", facings),
   ("FeltPrint: facing matrix", facing_matrix),
   ("FeltPrint: space runs", space_runs),

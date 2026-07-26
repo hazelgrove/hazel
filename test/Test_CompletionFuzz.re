@@ -963,9 +963,49 @@ let run_grout_fuzz = (~seeds: int, ~steps: int): string => {
                           in_empty_child(zz)
                           || in_empty_child(zz')
                           || crossed_empty(zz');
-                        if (Util.Point.compare(pt, prev) < 0
-                            || Util.Point.compare(pt, prev) == 0
-                            && !empty_crossing) {
+                        /* P13 ARROW-STEP: one ByChar move advances the
+                           RENDERED caret by exactly one column, or
+                           changes row. A two-column jump means system
+                           material was drawn on the wrong side of the
+                           position (the trailing-hole bug: a line-end
+                           hole added a column and the caret mapped
+                           past it). MONOTONE cannot catch this — it
+                           forbids ties and reversals, not gaps.
+                           Exceptions, enumerated not waived: row
+                           changes; the empty-crossing classes above
+                           (zero-width edit pieces, empty children);
+                           and wide glyphs, where an Inner step inside
+                           a string literal advances by the glyph's
+                           column width. */
+                        let wide_glyph =
+                          switch (
+                            zz'.caret,
+                            Zipper.neighbor_token(Left, zz'),
+                          ) {
+                          | (Inner(_), Some(t)) => Token.is_string(t)
+                          | _ => false
+                          };
+                        if (pt.row == prev.row
+                            && pt.col
+                            - prev.col > 1
+                            && !empty_crossing
+                            && !wide_glyph) {
+                          bad(
+                            ~seed,
+                            ~step=k,
+                            ~inv="ARROW-STEP",
+                            Printf.sprintf(
+                              "one move jumped (%d,%d)->(%d,%d)",
+                              prev.row,
+                              prev.col,
+                              pt.row,
+                              pt.col,
+                            ),
+                          );
+                          ();
+                        } else if (Util.Point.compare(pt, prev) < 0
+                                   || Util.Point.compare(pt, prev) == 0
+                                   && !empty_crossing) {
                           bad(
                             ~seed,
                             ~step=k,
