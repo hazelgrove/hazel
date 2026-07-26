@@ -100,18 +100,6 @@
   background: var(--T1);
 }
 
-#projector-panel .projector-card-icon {
-  display: flex;
-  align-items: center;
-  color: var(--BR2);
-}
-
-#projector-panel .projector-card-icon svg {
-  width: 1.1em;
-  height: 1.1em;
-  fill: currentColor;
-}
-
 #projector-panel .projector-card-syntax {
   flex: 1;
   overflow: hidden;

@@ -430,25 +430,6 @@ let flex_code =
         segment,
       );
 
-/* A small glyph standing for a projector kind, used by the sidebar
- * panel's card headers. The chip left at the code site deliberately does
- * NOT use this: it is one fixed glyph for every kind. */
-let kind_icon = (kind: ProjectorCore.Kind.t): Node.t =>
-  switch (kind) {
-  | HTML => Icons.play
-  | TextArea => Icons.pencil
-  | Livelit => Icons.star
-  | Probe
-  | Statics => Icons.microscope2
-  | Fold => text({|⋱|})
-  | Checkbox => text({|☑|})
-  | Slider
-  | SliderF => text({|⇹|})
-  | Card => text({|▤|})
-  | Table => text({|▦|})
-  | Csv => text({|▤|})
-  };
-
 /* Abbreviated read-only rendering of a projector's underlying syntax,
  * shown in the sidebar card header. */
 let chip_syntax = (~font_metrics: FontMetrics.t, p: Base.projector): Node.t =>

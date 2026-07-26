@@ -81,7 +81,7 @@ let projectors_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=Projectors,
     ~cls=["projectors-button"],
-    ~icon=Icons.chest,
+    ~icon=Icons.library,
     ~tooltip="Switch to Projectors Panel",
     ~globals,
   );

@@ -8,8 +8,10 @@ open Haz3lcore;
  * chip (ProjectorView.chip). Undocking is the same action that docked it
  * (Action.Project(TogglePlacement) on the indicated projector). */
 
+/* Global jump: resolves which editor holds the id, selects that cell, and
+ * focuses it (the caret is hidden unless .code-editor has DOM focus). */
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
-  globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
+  globals.inject_global(JumpToTile(id));
 
 let empty_view = (): Node.t =>
   div(
@@ -32,7 +34,6 @@ let card =
           Attr.on_click(jump_to(~globals, p.id)),
         ],
         [
-          div_c("projector-card-icon", [ProjectorView.kind_icon(p.kind)]),
           div_c(
             "projector-card-syntax",
             [

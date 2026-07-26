@@ -4,8 +4,10 @@ open Util.WebUtil;
 open Haz3lcore;
 open Language;
 
+/* Global jump: resolves which editor holds the id, selects that cell, and
+ * focuses it (the caret is hidden unless .code-editor has DOM focus). */
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
-  globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
+  globals.inject_global(JumpToTile(id));
 
 let exp_view = (~available, term: Exp.t) =>
   Abbreviate.abbreviate_exp(~available, term)
