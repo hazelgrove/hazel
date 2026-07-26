@@ -200,8 +200,8 @@ module M: Projector = {
     exp: Grammar.exp_t(IdTagged.IdTag.t),
     ui: ui_state,
     /* State-commit mode only: the app model, serialized, when it is
-       closure-free. Defaulted so models persisted before checkpoints
-       existed still load. */
+       checkpointable (MvuShape.is_checkpointable). Defaulted so models
+       persisted before checkpoints existed still load. */
     [@sexp.default None] [@yojson.default None]
     checkpoint: option(string),
   };

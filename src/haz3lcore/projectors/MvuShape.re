@@ -2,7 +2,7 @@ open Util;
 open Language;
 
 /* Shared shape-detection for the MVU/HTML runtime (HazelDOM, CmdRunner,
-   SubManager, HTMLProj, AppViewPanel, tests): evaluator-wrapper stripping,
+   SubManager, HTMLProj, tests): evaluator-wrapper stripping,
    constructor/primitive extraction, app-shape detection, and the HTML
    constructor name set (derived from BuiltinsADT.HTML.t). */
 
@@ -269,20 +269,24 @@ let is_html = (d: DHExp.t): bool =>
 
 // === Checkpoints ===
 //
-// An app model can be persisted in the projector's (serialized) model only
-// if it is a plain value: functions and closures carry environments that
-// don't survive a round trip, so a model holding one is simply not
-// checkpointed.
+// Rejects terms carrying a captured environment. Functions are fine:
+// Evaluator.evaluate substitutes environments away (see its INVARIANT), so
+// a Fun/TypFun/FixF/BuiltinFun in a value is closed syntax and sexps like
+// any other term. Environments do serialize, but a closure over the
+// builtins env is ~200KB of checkpoint and by the invariant should never
+// reach here at all.
+//
+// Does NOT prove closedness — only `evaluate` guarantees that. A model
+// arriving some other way with an open term would restore to unbound
+// variables, and restore_model's render check is not an airtight backstop
+// (a view can embed a function without applying it).
 
-let is_closure_free = (d: DHExp.t): bool => {
+let is_checkpointable = (d: DHExp.t): bool => {
   let ok = ref(true);
   let f_exp = (continue, e: DHExp.t) => {
     switch (e.term) {
-    | Fun(_)
-    | TypFun(_)
-    | FixF(_)
     | Closure(_)
-    | BuiltinFun(_) => ok := false
+    | FixF(_, _, Some(_)) => ok := false
     | _ => ()
     };
     continue(e);
@@ -292,7 +296,7 @@ let is_closure_free = (d: DHExp.t): bool => {
 };
 
 let serialize_model = (d: DHExp.t): option(string) =>
-  is_closure_free(d)
+  is_checkpointable(d)
     ? Some(d |> DHExp.sexp_of_t |> Sexplib.Sexp.to_string) : None;
 
 let deserialize_model = (s: string): option(DHExp.t) =>

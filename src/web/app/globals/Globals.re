@@ -78,16 +78,6 @@ module Action = {
         Language.DHExp.t,
         Language.DHExp.t,
       )
-    // RefreshAppView: code changed, try to preserve model state
-    | RefreshAppView(
-        Haz3lcore.Id.t,
-        Language.DHExp.t,
-        Language.DHExp.t,
-        Language.DHExp.t,
-        Language.DHExp.t,
-        Language.DHExp.t,
-      )
-    | ResetAppView(Haz3lcore.Id.t) // Drop the app at id; show evaluation result
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;
@@ -102,7 +92,7 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
-    // MVU apps, id-keyed (sidebar app uses AppStore.sidebar_id); not persisted
+    // MVU apps, keyed by app-projector syntax id; not persisted
     apps: AppStore.t,
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
@@ -187,8 +177,6 @@ module Update = {
     | UpdateVisibleRows(_) => false
     | AppViewMsg(_) => false
     | InitAppView(_) => false
-    | RefreshAppView(_) => false
-    | ResetAppView(_) => false
     | Log(_) => false
     | RethrowException => false
     | ClearException => false

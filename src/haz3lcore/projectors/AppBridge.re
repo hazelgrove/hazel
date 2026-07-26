@@ -26,7 +26,7 @@ let current_html: ref(Id.t => option(DHExp.t)) = ref(_ => None);
 let dispatch: ref((Id.t, DHExp.t) => Ui_effect.t(unit)) =
   ref((_, _) => Ui_effect.Ignore);
 
-/* The entry's model, serialized, if it is closure-free; see
+/* The entry's model, serialized, if it is checkpointable; see
  * AppStore.checkpoint. None when there's nothing safe to persist. */
 let checkpoint: ref(Id.t => option(string)) = ref(_ => None);
 

@@ -1371,10 +1371,44 @@ let projector_dynamics_flag_selects_probe_ids =
 
 // ============================================================
 // == Checkpoints ==
-// == An app model is persisted in the projector's model only if
-// == it is a plain value, and restored only if the current view
-// == still renders it.
+// == An app model is persisted in the projector's model unless it
+// == carries a captured environment, and restored only if the
+// == current view still renders it.
 // ============================================================
+
+// True if any subterm satisfies `pred`
+let contains = (pred: Exp.t => bool, d: Exp.t): bool => {
+  let found = ref(false);
+  let f_exp = (continue, e: Exp.t) => {
+    if (pred(e)) {
+      found := true;
+    };
+    continue(e);
+  };
+  let _ = Language.Exp.map_term(~f_exp, d);
+  found^;
+};
+
+/* Round-trip evidence: serializes, parses back to an equal term whose own
+   serialization is byte-identical, and still evaluates. */
+let assert_roundtrips = (label: string, model: Exp.t) =>
+  switch (Haz3lcore.MvuShape.serialize_model(model)) {
+  | None => fail(label ++ ": should be checkpointable")
+  | Some(s) =>
+    switch (Haz3lcore.MvuShape.deserialize_model(s)) {
+    | None => fail(label ++ ": should deserialize")
+    | Some(restored) =>
+      check(dhexp_typ, label ++ ": round-trip equal", model, restored);
+      switch (Haz3lcore.MvuShape.serialize_model(restored)) {
+      | None => fail(label ++ ": restored term should re-serialize")
+      | Some(s') => check(Alcotest.string, label ++ ": stable sexp", s, s')
+      };
+      switch (Haz3lcore.MvuShape.safe_evaluate(restored)) {
+      | Ok(_) => ()
+      | Error(m) => fail(label ++ ": restored term should evaluate: " ++ m)
+      };
+    }
+  };
 
 let checkpoint_program = {|
 let init = (count=1, label="hi") in
@@ -1394,8 +1428,8 @@ let subs = fun _model -> SubNone in
 (init, update, view, subs)
 |};
 
-// A model that carries a function, so it can't be checkpointed
-let closure_model_program = {|
+// A model that carries a function; the function is closed after evaluation
+let function_model_program = {|
 let init = (count=1, fmt=fun x -> x) in
 let update = fun (msg, model) -> (model, CmdNone) in
 let view = fun model -> Div([], [Int(model.count)]) in
@@ -1409,17 +1443,17 @@ let app_of = (program: string) =>
   | None => failwith("test program is not an Elm app")
   };
 
-let checkpoint_plain_model_is_closure_free =
+let checkpoint_plain_model_is_checkpointable =
   test_case(
-    "Plain model is closure-free and serializes",
+    "Plain model is checkpointable and serializes",
     `Quick,
     () => {
       let (init_model, _, _, _) = app_of(checkpoint_program);
       check(
         Alcotest.bool,
-        "closure-free",
+        "checkpointable",
         true,
-        Haz3lcore.MvuShape.is_closure_free(init_model),
+        Haz3lcore.MvuShape.is_checkpointable(init_model),
       );
       check(
         Alcotest.bool,
@@ -1430,37 +1464,152 @@ let checkpoint_plain_model_is_closure_free =
     },
   );
 
-let checkpoint_closure_model_rejected =
+let checkpoint_function_model_accepted =
   test_case(
-    "Model containing a function is not checkpointed",
+    "Model carrying a function is checkpointed and restores",
     `Quick,
     () => {
-      let (init_model, _, _, _) = app_of(closure_model_program);
-      check(
-        Alcotest.bool,
-        "not closure-free",
-        false,
-        Haz3lcore.MvuShape.is_closure_free(init_model),
-      );
-      check(
-        Alcotest.bool,
-        "no checkpoint",
-        true,
-        Haz3lcore.MvuShape.serialize_model(init_model) == None,
-      );
+      let (init_model, _, view_fn, _) = app_of(function_model_program);
+      assert_roundtrips("function model", init_model);
+      let s = Option.get(Haz3lcore.MvuShape.serialize_model(init_model));
+      switch (Haz3lcore.MvuShape.restore_model(~view_fn, s)) {
+      | None => fail("checkpoint should be restored")
+      | Some((model, html)) =>
+        check(dhexp_typ, "restored model", init_model, model);
+        assert_valid_html("view(restored)", html);
+      };
     },
   );
 
-let checkpoint_bare_lambda_rejected =
-  test_case("Bare lambda is not closure-free", `Quick, () =>
+let checkpoint_bare_lambda_accepted =
+  test_case("Bare lambda is checkpointable", `Quick, () =>
     check(
       Alcotest.bool,
-      "lambda rejected",
-      false,
-      Haz3lcore.MvuShape.is_closure_free(
+      "lambda accepted",
+      true,
+      Haz3lcore.MvuShape.is_checkpointable(
         Exp.fn(Pat.var("x"), Exp.var("x"), None, None),
       ),
     )
+  );
+
+/* One per function form a model can legitimately hold: each is closed
+   after evaluation (Evaluator.evaluate substitutes environments away), so
+   each is ordinary syntax that survives the sexp round trip. */
+
+let checkpoint_form_roundtrip = (label, program, present: Exp.t => bool) =>
+  test_case(
+    "Checkpoint round-trips a model holding a " ++ label,
+    `Quick,
+    () => {
+      let model = parse_and_evaluate(program);
+      check(
+        Alcotest.bool,
+        label ++ " present after evaluation",
+        true,
+        contains(present, model),
+      );
+      assert_roundtrips(label, model);
+    },
+  );
+
+let checkpoint_closed_fun_roundtrip =
+  test_case(
+    "Checkpoint round-trips a model holding a closed Fun",
+    `Quick,
+    () => {
+      // `n` is substituted in, so nothing in the value refers to it
+      let model =
+        parse_and_evaluate({|let n = 5 in let f = fun x -> x + n in (f, 1)|});
+      check(
+        Alcotest.bool,
+        "Fun present",
+        true,
+        contains(
+          e =>
+            switch (e.term) {
+            | Fun(_) => true
+            | _ => false
+            },
+          model,
+        ),
+      );
+      check(
+        Alcotest.bool,
+        "no free n",
+        false,
+        contains(
+          e =>
+            switch (e.term) {
+            | Var("n") => true
+            | _ => false
+            },
+          model,
+        ),
+      );
+      assert_roundtrips("closed Fun", model);
+    },
+  );
+
+let checkpoint_typfun_roundtrip =
+  checkpoint_form_roundtrip("TypFun", {|(typfun a -> fun (x : a) -> x, 1)|}, e =>
+    switch (e.term) {
+    | TypFun(_) => true
+    | _ => false
+    }
+  );
+
+let checkpoint_fixf_roundtrip =
+  checkpoint_form_roundtrip(
+    "FixF", {|let f = fun x -> if x == 0 then 0 else f(x - 1) in (f, 1)|}, e =>
+    switch (e.term) {
+    | FixF(_, _, None) => true
+    | _ => false
+    }
+  );
+
+let checkpoint_builtin_fun_roundtrip =
+  checkpoint_form_roundtrip("BuiltinFun", {|(abs, 1)|}, e =>
+    switch (e.term) {
+    | BuiltinFun(_) => true
+    | _ => false
+    }
+  );
+
+/* Environments are what the guard actually rejects. Evaluator.evaluate
+   never returns one (its INVARIANT), so this is defensive. */
+let checkpoint_captured_env_rejected =
+  test_case(
+    "Terms carrying an environment are not checkpointed",
+    `Quick,
+    () => {
+      let env = Environment.of_list([("y", Exp.int(3))]);
+      let body = Exp.fn(Pat.var("x"), Exp.var("y"), None, None);
+      List.iter(
+        ((label, e)) => {
+          check(
+            Alcotest.bool,
+            label ++ ": not checkpointable",
+            false,
+            Haz3lcore.MvuShape.is_checkpointable(e),
+          );
+          check(
+            Alcotest.bool,
+            label ++ ": no checkpoint",
+            true,
+            Haz3lcore.MvuShape.serialize_model(e) == None,
+          );
+        },
+        [
+          ("Closure", Exp.closure(env, body)),
+          ("FixF with env", Exp.fix_f(Pat.var("f"), body, Some(env))),
+          (
+            "nested Closure",
+            Exp.tuple([Exp.int(1), Exp.closure(env, body)]),
+          ),
+        ],
+      );
+    },
   );
 
 let checkpoint_roundtrip =
@@ -1595,9 +1744,14 @@ let tests = (
     projector_dynamics_records_a_sample,
     projector_dynamics_flag_selects_probe_ids,
     // Checkpoints
-    checkpoint_plain_model_is_closure_free,
-    checkpoint_closure_model_rejected,
-    checkpoint_bare_lambda_rejected,
+    checkpoint_plain_model_is_checkpointable,
+    checkpoint_function_model_accepted,
+    checkpoint_bare_lambda_accepted,
+    checkpoint_closed_fun_roundtrip,
+    checkpoint_typfun_roundtrip,
+    checkpoint_fixf_roundtrip,
+    checkpoint_builtin_fun_roundtrip,
+    checkpoint_captured_env_rejected,
     checkpoint_roundtrip,
     checkpoint_restore_accepted,
     checkpoint_restore_rejected_by_changed_view,

@@ -7,8 +7,8 @@ open Language;
  * Page.main_view, so they always read the current store and inject. */
 
 /* Checkpoints handed over by the projector, consumed when the store builds
- * the entry. Kept out of the action payload so the existing app-view actions
- * (which AppViewPanel also sends) are untouched. */
+ * the entry. Kept out of the action payload so the app-view actions are
+ * untouched. */
 let pending_checkpoints: Hashtbl.t(Id.t, string) = Hashtbl.create(4);
 
 let take_checkpoint = (id: Id.t): option(string) => {

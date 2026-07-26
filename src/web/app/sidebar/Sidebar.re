@@ -77,15 +77,6 @@ let probes_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
-let app_view_tab = (~globals: Globals.t): Node.t =>
-  tab_of(
-    ~panel=AppView,
-    ~cls=["app-view-button"],
-    ~icon=Icons.play,
-    ~tooltip="Switch to App View",
-    ~globals,
-  );
-
 let projectors_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=Projectors,
@@ -199,7 +190,6 @@ let persistent_view =
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
-          app_view_tab(~globals),
           projectors_tab(~globals),
           problems_tab(~globals, ~counts),
         ]
@@ -314,7 +304,6 @@ let view =
       ~problem_editors:
          list((option(string), list(CodeWithStatics.Model.t))),
       ~signal,
-      ~cell_editor: option(CellEditor.Model.t),
     ) => {
   let problem_collection =
     Haz3lcore.ProblemCollection.make(
@@ -367,11 +356,6 @@ let view =
                 ~cursor,
                 ~editor,
               )
-            | AppView =>
-              // Sidebar msgs always route through the store's update_fn
-              let app_inject = (msg: Language.DHExp.t) =>
-                globals.inject_global(AppViewMsg(AppStore.sidebar_id, msg));
-              AppViewPanel.view(~globals, ~cell_editor, ~inject=app_inject);
             | Projectors => ProjectorPanel.view(~globals, ~editor)
             | LogControl =>
               LogSidebar.view(

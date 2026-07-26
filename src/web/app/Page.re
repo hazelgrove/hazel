@@ -135,22 +135,6 @@ module Update = {
 
   let equal = (===);
 
-  // Get full CellEditor including evaluation result (for App View sidebar)
-  let get_cell_editor = (model: Model.t): option(CellEditor.Model.t) => {
-    let scratchpad_editor = (sp: ScratchMode.Scratchpad.t) =>
-      switch (sp.kind) {
-      | Code({editor, _}) => Some(editor)
-      | Drv(_) => None
-      };
-    switch (model.editors) {
-    | Scratch(m) => scratchpad_editor(List.nth(m.scratchpads, m.current))
-    | Documentation(m) =>
-      scratchpad_editor(List.nth(m.scratchpads, m.current))
-    | Tutorial(_)
-    | Exercises(_) => None // These have different cell structures
-    };
-  };
-
   let update_global =
       (
         ~import_log,
@@ -280,18 +264,10 @@ module Update = {
            ),
          )
       |> return_quiet
-    // Init and Refresh share rebind semantics: memos re-derive from the
-    // incoming closures; the model survives when the new view accepts it
-    // (live-edit keeps app state). See AppStore.init.
-    | InitAppView(id, source_result, init_model, update_fn, view_fn, subs_fn)
-    | RefreshAppView(
-        id,
-        source_result,
-        init_model,
-        update_fn,
-        view_fn,
-        subs_fn,
-      ) =>
+    /* Init doubles as rebind: memos re-derive from the incoming closures;
+       the model survives when the new view accepts it (live-edit keeps app
+       state). See AppStore.init. */
+    | InitAppView(id, source_result, init_model, update_fn, view_fn, subs_fn) =>
       model
       |> with_apps(
            _,
@@ -307,11 +283,6 @@ module Update = {
              model.globals.apps,
            ),
          )
-      |> return_quiet
-    | ResetAppView(id) =>
-      // AppStore.remove cleans up the entry's subscriptions
-      model
-      |> with_apps(_, AppStore.remove(id, model.globals.apps))
       |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
@@ -450,10 +421,7 @@ module Update = {
       };
     | MakeActive(selection) =>
       // TODO(gc): run AppStore.gc against the live syntax ids here once they
-      // are cheap to obtain; today inline entries are only reclaimed via
-      // ResetAppView, and the sidebar entry rebinds via its source_result
-      // trigger (matching pre-store behavior, which kept state across
-      // editor switches).
+      // are cheap to obtain; nothing reclaims store entries today.
       {
         ...model,
         selection,
@@ -949,7 +917,6 @@ module View = {
           | MakeActive(s: Selection.t) => inject(MakeActive(s)),
         ~log_model,
         ~log_count,
-        ~cell_editor=Update.get_cell_editor(model),
         ~cursor,
       );
     let editors_view =

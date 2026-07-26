@@ -2,9 +2,9 @@ open Util;
 open Language;
 open IdTagged.FreshGrammar;
 
-/* AppStore: id-keyed store of live MVU apps (sidebar + future inline apps).
- * This is the state-commit target: dispatching a msg evaluates
- * update(msg, model) and stores the new model.
+/* AppStore: id-keyed store of live MVU apps, keyed by the syntax id of the
+ * app projector rendering them. This is the state-commit target:
+ * dispatching a msg evaluates update(msg, model) and stores the new model.
  *
  * State/memo split: `model` is THE app state and is owned here. The
  * `update_fn`/`view_fn`/`subs_fn` closures are memos derived from the
@@ -49,9 +49,6 @@ type t = Id.Map.t(Entry.t);
 let pp = (fmt: Format.formatter, store: t): unit =>
   Format.fprintf(fmt, "<AppStore: %d apps>", Id.Map.cardinal(store));
 let show = (store: t): string => Format.asprintf("%a", pp, store);
-
-// Synthetic id for the sidebar app (deterministic UUID from string)
-let sidebar_id: Id.t = Id.mk_str("app-view-sidebar");
 
 let empty: t = Id.Map.empty;
 
@@ -227,9 +224,9 @@ let dispatch =
     }
   };
 
-/* The entry's model, serialized, if it is closure-free. A model holding
- * functions/closures can't round-trip, so it simply isn't checkpointed —
- * no error, the app just starts from `init` next time. */
+/* The entry's model, serialized, unless it carries a captured environment
+ * (see MvuShape.is_checkpointable). Not checkpointing is not an error: the
+ * app just starts from `init` next time. */
 let checkpoint = (id: Id.t, store: t): option(string) =>
   switch (lookup(id, store)) {
   | None => None
@@ -244,12 +241,10 @@ let remove = (id: Id.t, store: t): t =>
     Id.Map.remove(id, store);
   };
 
-// Drop every entry whose id fails the liveness predicate. The synthetic
-// sidebar entry is never gc'd (its id corresponds to no syntax).
+// Drop every entry whose id fails the liveness predicate.
 let gc = (live: Id.t => bool, store: t): t =>
   Id.Map.fold(
-    (id, _entry, acc) =>
-      id == sidebar_id || live(id) ? acc : remove(id, acc),
+    (id, _entry, acc) => live(id) ? acc : remove(id, acc),
     store,
     store,
   );
