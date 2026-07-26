@@ -71,6 +71,20 @@ let strip_quotes = (~quote="\"", s) =>
 
 let string_quote = s => "\"" ++ s ++ "\"";
 
+let raw_string_regexp = regexp("^r\"[^\n]*\"$"); /* Multiline raw strings not supported */
+let is_raw_string = t =>
+  match(raw_string_regexp, t) && List.length(split_on_char('"', t)) < 4;
+
+let strip_raw_quotes = s =>
+  if (String.length(s) < 3) {
+    s;
+  } else if (String.sub(s, 0, 2) != "r\""
+             || String.sub(s, String.length(s) - 1, 1) != "\"") {
+    s;
+  } else {
+    String.sub(s, 2, String.length(s) - 3);
+  };
+
 /* Grapheme width: Functions taking into account that some unicode
    chracters have greater than 1 character grid width */
 
@@ -169,6 +183,8 @@ let is_potential_token = t =>
     || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
+    || is_raw_string(t)
+    || t == "r\""
     || is_comment(t)
     || is_quoted_label(t);
   };

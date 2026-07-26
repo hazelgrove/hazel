@@ -652,6 +652,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(Int(Bigint.of_string(t))))
       | ([t], []) when Token.is_string(t) =>
         ret(Atom(String(Token.strip_quotes(t))))
+      | ([t], []) when Token.is_raw_string(t) =>
+        ret(Atom(String(Token.strip_raw_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
         ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
       | ([t], []) when Token.is_float(t) =>
@@ -996,6 +998,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         ret(Atom(Int(Bigint.of_string(t))))
       | ([t], []) when Token.is_string(t) =>
         ret(Atom(String(Token.strip_quotes(t))))
+      | ([t], []) when Token.is_raw_string(t) =>
+        ret(Atom(String(Token.strip_raw_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
         ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
       | ([t], []) when Token.is_var(t) => ret(Var(t))

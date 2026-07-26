@@ -24,6 +24,7 @@ let float = ['0'-'9']+ '.' ['0'-'9']*
 (* negative ints are done through unop *)
 let int = ['0'-'9'] ['0'-'9']*
 
+let raw_string = 'r' '"' ([^ '"' '\\'] | '\\' ['"' '\\'])* '"'
 let string = '"' ([^ '"' '\\'] | '\\' ['"' '\\'])* '"'
 let quoted_label = '`' ([^ '`' '\\'] | '\\' [''' '\\'])* '`'
 
@@ -44,6 +45,7 @@ rule token =
     | newline { advance_line lexbuf; token lexbuf}
     | ints as i { INT (int_of_string i) }
     | float as f { FLOAT (parse_float_string f )}
+    | raw_string as r { STRING (String.sub r 2 (String.length r - 3)) }
     | string as s { STRING (String.sub s 1 (String.length s - 2)) }
     | quoted_label as l { QUOTED_LABEL (String.sub l 1 (String.length l - 2)) }
     | projector_invoke as p { PROJECTOR_INVOKE p }
