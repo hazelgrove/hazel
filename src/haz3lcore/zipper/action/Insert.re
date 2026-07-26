@@ -419,9 +419,18 @@ let delimiter_label = (char: string): Label.t =>
 /* Wrap selection in balanced delimiters. Creates the wrapping tile
  * as an ancestor with the content inside, retaining the selection. */
 let wrap_balanced = (~deep_reassociate=false, char: string, z: t, ~root): t => {
-  let content = z.selection.content;
+  /* Sort is read before the remainders move: they are fragments of the
+   * tokens already at this position, so the wrapping tile's mold is the
+   * one it would get without them. */
   let sort = Relatives.sort(~root, z.relatives);
+  /* A char-level selection holds whole boundary pieces; only the selected
+   * characters go inside the new tile, the rest stay outside it. */
+  let (left_rem, content, right_rem) = Zipper.split_char_selection(z);
   let (left_sibs, right_sibs) = z.relatives.siblings;
+  let (left_sibs, right_sibs) = (
+    left_sibs @ left_rem,
+    right_rem @ right_sibs,
+  );
   let label = delimiter_label(char);
   let mold = Form.Molds.get(sort, label);
   let ancestor: Ancestor.t = {

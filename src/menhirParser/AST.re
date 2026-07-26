@@ -188,8 +188,9 @@ and sig_item =
   | SigItemLet(pat)
   | SigItemType(tpat, typ);
 
-/* Names take Unicode (see Token.unicode_name_chars): accented Latin, CJK,
- * caseless scripts, and emoji including multi-codepoint sequences. The
+/* Names take every non-ASCII character except the operator whitelist (see
+ * Token.operator_chars): accented Latin, CJK, caseless scripts, emoji
+ * including multi-codepoint sequences, and text-presentation symbols. The
  * generators below mix these in so the MakeTerm/Menhir equivalence tests
  * actually exercise the alphabet rather than only ASCII.
  *
@@ -202,6 +203,7 @@ let nonascii_name_chars = [
   "\xc3\x9f", /* ß */
   "\xce\xbb", /* λ */
   "\xe6\x97\xa5", /* 日 */
+  "\xc2\xa9", /* ©, a symbol rather than a letter -- still a name */
   "\xf0\x9f\x98\x80", /* 😀 */
   "\xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x91\xa7" /* 👨‍👩‍👧 */
 ];

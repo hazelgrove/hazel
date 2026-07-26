@@ -79,9 +79,9 @@ let full_parser_test = (name: string, exp: Exp.t, actual: string) =>
     },
   );
 
-/* Names take Unicode (Token.unicode_name_chars), so the ocamllex alphabet has
- * to accept them too or text stops round-tripping. Parse, print, reparse: the
- * printed form must be stable and must still contain the name. */
+/* Names take Unicode (everything but Token.operator_chars), so the ocamllex
+ * alphabet has to accept them too or text stops round-tripping. Parse, print,
+ * reparse: the printed form must be stable and must still contain the name. */
 let print_exp = exp =>
   Haz3lcore.Printer.of_segment(
     ~holes="?",
@@ -297,6 +297,12 @@ let tests =
       menhir_roundtrip_test(
         "Accented name round-trips",
         "let caf\xc3\xa9 = 5 in caf\xc3\xa9 + 1",
+      ),
+      /* © is a symbol, not a letter. It used to be an operator, so this
+       * split into three tokens; the ocamllex alphabet has to agree. */
+      menhir_roundtrip_test(
+        "Symbol inside a name round-trips",
+        "let a\xc2\xa9b = 5 in a\xc2\xa9b + 1",
       ),
       menhir_roundtrip_test(
         "CJK name round-trips",

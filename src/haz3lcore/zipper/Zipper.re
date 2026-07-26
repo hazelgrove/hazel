@@ -343,6 +343,85 @@ let has_char_selection = (z: t): bool =>
     }
   );
 
+/* Splitting a string/comment literal would strand its delimiters, so those
+ * boundary tokens are kept whole; everything else splits on the offset. */
+let splittable_token = (p: Piece.t): option(Token.t) =>
+  switch (Piece.token_of(p)) {
+  | Some(tok) when !Token.is_string_or_comment(tok) => Some(tok)
+  | _ => None
+  };
+
+/* A fragment of a split monotile inherits the source tile's mold: fragments
+ * can end up outside the remold pass that follows (wrap_balanced moves them
+ * into the ancestor frame), where an Any-sorted placeholder would read as a
+ * shapeless operand and attract spurious grout. Shards of multi-token tiles
+ * have no such mold to reuse and fall back to the generic monotile. */
+let split_piece = (p: Piece.t, tok: Token.t): Piece.t =>
+  switch (p) {
+  | Tile({label: [_], shards: [0], _} as t) =>
+    Tile({
+      ...t,
+      id: Id.mk(),
+      label: [tok],
+    })
+  | _ => mk_remainder_piece(tok)
+  };
+
+/* Split a char-level selection into the unselected head of its first piece,
+ * the pieces actually covered by the selection, and the unselected tail of
+ * its last piece. Nothing is deleted and nothing is placed: callers decide
+ * where the remainders go (contrast normalize_char_selection, which puts
+ * them back around the caret and drops the selection).
+ * Returns `([], content, [])` when no boundary is strictly inside a piece,
+ * so callers can use it unconditionally. */
+let split_char_selection = (z: t): (Segment.t, Segment.t, Segment.t) =>
+  if (!has_char_selection(z)) {
+    ([], z.selection.content, []);
+  } else {
+    let content = z.selection.content;
+    let (left_offset, right_offset) = char_selection_offsets(z);
+    let seg = (p: Piece.t, tok: Token.t): Segment.t =>
+      tok == "" ? [] : [split_piece(p, tok)];
+    /* Offsets are token positions of the caret, one past the char they name */
+    let cut = (tok: Token.t, n: int) =>
+      Token.split_nth(tok, max(0, min(n, Token.length(tok))));
+    switch (content) {
+    | [] => ([], content, [])
+    | [p] =>
+      /* Both boundaries in one token: head and tail are separated by the
+       * selection, so unlike deletion they never need rejoining. */
+      switch (splittable_token(p)) {
+      | None => ([], content, [])
+      | Some(tok) =>
+        let len = Token.length(tok);
+        let lo = Option.fold(~none=0, ~some=n => n + 1, left_offset);
+        let lo = max(0, min(lo, len));
+        let hi = Option.fold(~none=len, ~some=n => n + 1, right_offset);
+        let hi = max(lo, min(hi, len));
+        let (head, rest) = cut(tok, lo);
+        let (mid, tail) = cut(rest, hi - lo);
+        (seg(p, head), seg(p, mid), seg(p, tail));
+      }
+    | [first, ...rest] =>
+      let (middle, last) = ListUtil.split_last(rest);
+      let (left_rem, first_sel) =
+        switch (left_offset, splittable_token(first)) {
+        | (Some(n), Some(tok)) =>
+          let (head, sel) = cut(tok, n + 1);
+          (seg(first, head), seg(first, sel));
+        | _ => ([], [first])
+        };
+      let (last_sel, right_rem) =
+        switch (right_offset, splittable_token(last)) {
+        | (Some(n), Some(tok)) =>
+          let (sel, tail) = cut(tok, n + 1);
+          (seg(last, sel), seg(last, tail));
+        | _ => ([last], [])
+        };
+      (left_rem, first_sel @ middle @ last_sel, right_rem);
+    };
+  };
+
 /* Normalize a char-level selection before destruction.
  * Splits partial boundary tokens and keeps the exterior (unselected)
  * portions, setting caret appropriately. Must be called explicitly

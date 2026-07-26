@@ -4840,6 +4840,92 @@ let inner_destruct_tests = [
       ],
     ~goal={|abc ++" xyz"¦|},
   ),
+  /* Balanced wrapping likewise takes only the selected characters: the
+   * unselected head and tail of the boundary tokens stay outside the new
+   * tile, on opposite sides of it. The operator holes are how Hazel already
+   * grouts a paren tile beside an operand — typing `(ab)cd` or `1 + 2(3)4`
+   * from scratch grouts the same way. */
+  test(
+    ~name="Wrap char-level selection interior to a token in parens",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("(")],
+    ~goal={|ab(§c¦)~d|},
+  ),
+  test(
+    ~name="Wrap right-focused char-level selection in parens",
+    ~acts=mk({|abcd¦|}) @ mv_l(3) @ sel_r(2) @ [Insert("(")],
+    ~goal={|a(§bc¦)~d|},
+  ),
+  /* Partial `++` outside, its other half plus the whole of `xyz` inside. */
+  test(
+    ~name="Wrap char-level selection spanning a token boundary in parens",
+    ~acts=mk({|abc ++ xyz¦|}) @ sel_l(5) @ [Insert("(")],
+    ~goal={|abc +(?§+ xyz¦)|},
+  ),
+  /* Selection reaching a token edge has a remainder on one side only. */
+  test(
+    ~name="Wrap char-level selection ending on a token boundary in parens",
+    ~acts=mk({|abcd¦|}) @ sel_l(2) @ [Insert("(")],
+    ~goal={|ab(§cd¦)|},
+  ),
+  test(
+    ~name="Wrap char-level selection starting on a token boundary in parens",
+    ~acts=mk({|abcd¦|}) @ mv_l(2) @ sel_l(2) @ [Insert("(")],
+    ~goal={|(§ab¦)~cd|},
+  ),
+  test(
+    ~name="Wrap char-level selection interior to a token in brackets",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("[")],
+    ~goal={|ab~[§c¦]~d|},
+  ),
+  test(
+    ~name="Wrap char-level selection interior to a token in braces",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("{")],
+    ~goal={|ab~{§c¦}~d|},
+  ),
+  test(
+    ~name="Wrap char-level selection in parens inside a let",
+    ~acts=mk({|let x = 12¦34 in x|}) @ sel_l(1) @ [Insert("(")],
+    ~goal={|let x = 1(§2¦)~34 in x|},
+  ),
+  test(
+    ~name="Edit after wrapping char-level selection in parens",
+    ~acts=
+      mk({|abcd¦|})
+      @ mv_l(1)
+      @ sel_l(1)
+      @ [Insert("("), Unselect(None)]
+      @ string_to_ltr_actions("+1"),
+    ~goal={|ab(c+1¦)~d|},
+  ),
+  /* smart_rounded reads the anchor as Outer, so the whole token is wrapped. */
+  test(
+    ~name="Wrap smart-rounded selection in parens takes the whole token",
+    ~acts=
+      mk({|abc ++ xyz¦|})
+      @ mv_l(1)
+      @ [
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Insert("("),
+      ],
+    ~goal={|abc ++(§ xyz¦)|},
+  ),
+  /* Whole-piece selections are untouched by the split. */
+  test(
+    ~name="Wrap whole-token selection in parens beside an operand",
+    ~acts=
+      mk({|¦ab cd|})
+      @ [Select(Resize(Local(Right, ByToken)))]
+      @ [Insert("(")],
+    ~goal={|(§ab¦) ~cd|},
+  ),
+  /* Splitting a string would strand its delimiters, so it wraps whole. */
+  test(
+    ~name="Wrap char-level selection inside a string wraps the whole string",
+    ~acts=mk({|"abcd"¦|}) @ mv_l(2) @ sel_l(1) @ [Insert("(")],
+    ~goal={|(§"abcd"¦)|},
+  ),
 ];
 
 /* A grapheme cluster is one Inner caret position but several bytes, so

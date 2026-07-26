@@ -136,87 +136,82 @@ let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
 
-/* THE NAME ALPHABET.
+/* THE OPERATOR ALPHABET.
  *
- * Names (variables, constructors, type variables, livelit names, labels) are
- * the ASCII set Hazel has always taken, plus:
- *   \p{L}  \p{N}   Unicode letters and digits: `café`, `日本語`, `Σigma`
- *   \p{M}            combining marks, so a decomposed `é` (e + U+0301) is one
- *                    name rather than a name followed by an operator
- *   emoji            \p{Emoji_Presentation} for the pictographs themselves,
- *                    plus the glue that multi-codepoint emoji are built from:
- *                    ZWJ (U+200D) for sequences like 👨‍👩‍👧, regional
- *                    indicators for flags, and the skin-tone modifiers. Those
- *                    three are NOT Emoji_Presentation, and without them a
- *                    family or flag emoji would still split into several
- *                    tiles. (\p{M} already covers VS16 and the keycap mark.)
+ * Operators are an explicit, closed list of characters. Hazel has no
+ * user-defined operators, so this is the whole set the language can build a
+ * form out of, and everything outside it is free to be a name.
  *
- *                    Deliberately NOT \p{Extended_Pictographic}: that also
- *                    covers text-presentation symbols (© ® ™ ↔ ‼ ℹ ☀ ✔ ⚠),
- *                    which read as operators, were operators before Unicode
- *                    names existed, and would otherwise split near-identical
- *                    pairs — ✔ a name but ✓ an operator.
+ * The ASCII half is exactly the 18 characters that were operator characters
+ * before names took Unicode; it is a pin, not a policy, and must not grow or
+ * shrink. The non-ASCII half is a whitelist, and the test for membership is
+ * "does the language put this in an OPERATOR POSITION", not "does Hazel ever
+ * print it": these five are the Drv judgment symbols that
+ * Haz3lcore.ExpToSegment emits as infix tiles, alongside the ASCII `< > =`.
  *
- * The name and operator classes must stay disjoint or mold resolution is
- * ambiguous, so every character here is subtracted from the operator class
- * below. Hazel has no user-defined operators, so nothing is lost. */
-let unicode_name_chars = {|\p{L}\p{N}\p{M}\p{Emoji_Presentation}\p{Regional_Indicator}\p{Emoji_Modifier}\u200D|};
+ * Deliberately NOT here, all of which Hazel does print:
+ *   `…`          the abbreviation marker (Language.Abbreviate). It is also a
+ *                placeholder OPERAND on another branch, so it has to fall
+ *                through to the name class -- do not add it.
+ *   `→`          likewise only appears inside abbreviated display text.
+ *   `∧ ∨ ⊃ ⊥ ⊤`  Drv rule NAMES (`∧-E-L`, `⊃-I`), which are command-palette
+ *                and ExplainThis labels, never tiles.
+ *   `⟦ ⟧ ⋱`      probe and fold markers, which are tiles but carry atomic
+ *                OPERAND molds, so the name class is where they belong.
+ *
+ * Membership is deliberately NOT a Unicode property question. Categories
+ * like Emoji_Presentation describe how a character RENDERS, not whether it
+ * operates on anything, and testing them split near-identical pairs (`✔` a
+ * name but `✓` an operator). Being explicit also means a new Unicode
+ * character defaults to being a name rather than silently an operator. */
+let ascii_operator_chars = {|!%&*+,\-./:;<=>@\\|~|};
+let unicode_operator_chars = {|∈≠≮≯⊆|};
+let operator_chars = ascii_operator_chars ++ unicode_operator_chars;
 
-/* ASCII characters a token-in-progress may carry: `?` (holes), `^` (livelit
- * and projector prefixes), `$`. The stricter var/ctr regexps below drop them. */
-let ascii_operand_chars = {|a-zA-Z0-9_'?\^$|};
-let ascii_operand_chars_sans_caret = {|a-zA-Z0-9_'?$|};
+/* Characters in NEITHER class: the string/comment/quoted-label delimiters,
+ * the instant-expanding paired delimiters ()[]{}, whitespace, control
+ * characters, and the implicit-hole marker ¿. ¿ is excluded so that decoded
+ * slides like `[1, ¿, 3]` don't merge `¿,` into a single token; see
+ * Haz3lcore.TextRoundtrip. */
+let excluded_chars = {|"`#¿\s\x00-\x1F\x7F\[\]\(\)\{\}|};
 
+/* THE NAME ALPHABET is the complement: any character that is neither an
+ * operator nor excluded is a name character. So `é 日 😀 © ™ ✓ ✔ ★ ☀ λ` all
+ * behave identically, combining marks keep a decomposed `é` in one name, and
+ * the glue multi-codepoint emoji are built from (ZWJ, regional indicators,
+ * skin-tone modifiers) needs no special mention. On ASCII this comes out at
+ * exactly `a-zA-Z0-9_'?^$` as before, where `?` is the hole prefix and `^`
+ * the livelit/projector prefix; the stricter var/ctr regexps further down
+ * drop everything but `_` and `'`.
+ *
+ * Writing names as the negated class is what keeps the two classes disjoint
+ * by construction; mold resolution is ambiguous otherwise. */
+let non_name_chars = operator_chars ++ excluded_chars;
+
+/* These use the UTF-8-aware matcher rather than StringUtil.match:
+ * Js_of_ocaml.Regexp is byte-oriented, so `¿` in the class would exclude its
+ * two UTF-8 bytes (0xC2, 0xBF) independently -- rejecting `¢ £ ± ¬` (lead
+ * byte 0xC2) and every codepoint whose trailing byte is 0xBF -- while `\s`
+ * would reject anything containing byte 0xA0. */
 let is_potential_operand =
   unicode_match(
     unicode_regexp(
-      "^(["
-      ++ ascii_operand_chars
-      ++ unicode_name_chars
-      ++ "]+)$|^([0-9_]+\\.["
-      ++ {|a-zA-Z0-9_'\.?|}
-      ++ unicode_name_chars
-      ++ "]*)$",
+      "^([^"
+      ++ non_name_chars
+      ++ "]+)$|^([0-9_]+\\.(?:[^"
+      ++ non_name_chars
+      ++ {|\^\$]|\.)*)$|},
     ),
   );
-
-/* Anything else is considered a potential operator, as long
- *  as it does not contain any name character (above), whitespace,
- *  linebreaks, comment delimiters, string delimiters, or the instant
- *  expanding paired delimiters: ()[]|, or the implicit-hole marker ¿. ¿ is
- *  excluded so that decoded slides like `[1, ¿, 3]` don't merge `¿,` into a
- *  single operator token; see Haz3lcore.TextRoundtrip.
- *
- *  These use the UTF-8-aware matcher rather than StringUtil.match:
- *  Js_of_ocaml.Regexp is byte-oriented, so `¿` in the class would exclude
- *  its two UTF-8 bytes (0xC2, 0xBF) independently -- rejecting `¢ £ ± ¬`
- *  (lead byte 0xC2) and every codepoint whose trailing byte is 0xBF -- while
- *  `\s` would reject anything containing byte 0xA0. `\p{...}` likewise only
- *  ranges over codepoints under the `u` flag. */
-let operator_excluded_delims = {|"`#¿\n\s\[\]\(\)\{\}|};
 
 let is_potential_operator =
   /* Multiline operators not supported */
-  unicode_match(
-    unicode_regexp(
-      "^[^"
-      ++ ascii_operand_chars
-      ++ unicode_name_chars
-      ++ operator_excluded_delims
-      ++ "]+$",
-    ),
-  );
+  unicode_match(unicode_regexp("^[" ++ operator_chars ++ "]+$"));
 
+/* `^` leads the livelit and projector-invocation prefixes, so a token
+ * starting with it wants the same spacing an operator gets. */
 let begins_with_potential_operator =
-  unicode_match(
-    unicode_regexp(
-      "^[^"
-      ++ ascii_operand_chars_sans_caret
-      ++ unicode_name_chars
-      ++ operator_excluded_delims
-      ++ "]+",
-    ),
-  );
+  unicode_match(unicode_regexp("^[" ++ operator_chars ++ {|\^]+|}));
 
 let is_potential_token = t =>
   if (match(regexp("^>"), t)) {
@@ -263,24 +258,20 @@ let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
  * as uppercase. */
 let uppercase_chars = {|\p{Lu}\p{Lt}|};
 
-/* What may start a name: a letter, `_`, or a pictograph/flag. Not digits, not
- * combining marks, not the emoji joiners -- none of those begin a name. */
-let name_start_chars = {|_\p{L}\p{Emoji_Presentation}\p{Regional_Indicator}|};
+/* What may continue a name: every name character except the ASCII
+ * modifier-ish ones, which only ever prefix or suffix a token. `'` is
+ * allowed in vars but not constructors, matching the ASCII behaviour. What
+ * may START a name additionally excludes digits, so `1abc` is not a name. */
+let name_start_class = "[^" ++ non_name_chars ++ {|0-9'?\^\$]|};
+let name_rest_class = "[^" ++ non_name_chars ++ {|'?\^\$]|};
+let var_rest_class = "[^" ++ non_name_chars ++ {|?\^\$]|};
 
-/* What may continue a name. `'` is allowed in vars but not constructors,
- * matching the previous ASCII behaviour. */
-let name_rest_chars = "_" ++ unicode_name_chars;
-let var_rest_chars = "_'" ++ unicode_name_chars;
-
-let lowercase_start =
-  "(?![" ++ uppercase_chars ++ "])[" ++ name_start_chars ++ "]";
+let lowercase_start = "(?![" ++ uppercase_chars ++ "])" ++ name_start_class;
 let uppercase_start = "[" ++ uppercase_chars ++ "]";
 
 let is_livelit =
   unicode_match(
-    unicode_regexp(
-      "^\\^" ++ lowercase_start ++ "[" ++ name_rest_chars ++ "]*$",
-    ),
+    unicode_regexp("^\\^" ++ lowercase_start ++ name_rest_class ++ "*$"),
   );
 
 let parse_livelit = (str): string =>
@@ -295,21 +286,17 @@ let var_regexp =
   unicode_regexp(
     "(^"
     ++ lowercase_start
-    ++ "["
-    ++ var_rest_chars
-    ++ "]*$)|(^\\$["
-    ++ name_start_chars
-    ++ "]["
-    ++ var_rest_chars
-    ++ "]*$)|(^"
+    ++ var_rest_class
+    ++ "*$)|(^\\$"
+    ++ name_start_class
+    ++ var_rest_class
+    ++ "*$)|(^"
     ++ uppercase_start
-    ++ "["
-    ++ var_rest_chars
-    ++ "]*\\."
+    ++ var_rest_class
+    ++ "*\\."
     ++ lowercase_start
-    ++ "["
-    ++ var_rest_chars
-    ++ "]*$)",
+    ++ var_rest_class
+    ++ "*$)",
   );
 let is_var = str =>
   !is_bool(str)
@@ -319,7 +306,7 @@ let is_var = str =>
   && unicode_match(var_regexp, str);
 
 let capitalized_name_regexp =
-  unicode_regexp("^" ++ uppercase_start ++ "[" ++ name_rest_chars ++ "]*$");
+  unicode_regexp("^" ++ uppercase_start ++ name_rest_class ++ "*$");
 let is_ctr = unicode_match(capitalized_name_regexp);
 
 let quote_label_when_necessary = (l: string): string =>

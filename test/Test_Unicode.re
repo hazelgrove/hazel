@@ -198,93 +198,237 @@ let width_tests = [
   ),
 ];
 
-/* Token classification: these regexes exclude `¿` and whitespace, which only
- * works if the character class ranges over codepoints. With byte-oriented
- * matching, `¿` (0xC2 0xBF) rejected every character encoded with either
- * byte, and `\s` rejected every character containing byte 0xA0. */
+/* Token classification. Operators are an explicit, closed list: the 18 ASCII
+ * characters that were operator characters before names took Unicode, plus a
+ * whitelist of the non-ASCII characters Hazel emits as tokens. Everything
+ * else non-ASCII is a name character. The regexes still have to range over
+ * codepoints rather than UTF-8 bytes: with byte-oriented matching, `¿`
+ * (0xC2 0xBF) rejected every character encoded with either byte, and `\s`
+ * rejected every character containing byte 0xA0. */
+
+/* The complete ASCII operator alphabet. This list is a pin: it is exactly
+ * what the old negated definition worked out to, and it must not grow or
+ * shrink, so ASCII editing behaviour is unchanged. */
+let ascii_operators = [
+  "!",
+  "%",
+  "&",
+  "*",
+  "+",
+  ",",
+  "-",
+  ".",
+  "/",
+  ":",
+  ";",
+  "<",
+  "=",
+  ">",
+  "@",
+  "\\",
+  "|",
+  "~",
+];
+
+/* The complete non-ASCII operator whitelist: the Drv judgment symbols that
+ * Haz3lcore.ExpToSegment emits as INFIX tiles, alongside the ASCII `< > =`.
+ * Occupying an operator position is the test, not merely being printed. */
+let unicode_operators = [
+  "\xe2\x88\x88", /* ∈ */
+  "\xe2\x89\xa0", /* ≠ */
+  "\xe2\x89\xae", /* ≮ */
+  "\xe2\x89\xaf", /* ≯ */
+  "\xe2\x8a\x86" /* ⊆ */
+];
+
+/* Characters that used to be operators only because they were left over
+ * after the Unicode name categories were subtracted. They are names now. */
+let former_operators = [
+  "\xc2\xa2", /* ¢ -- lead byte 0xC2, same as ¿ */
+  "\xc2\xa3", /* £ */
+  "\xc2\xab", /* « */
+  "\xc2\xb0", /* ° */
+  "\xc2\xb1", /* ± */
+  "\xc2\xac", /* ¬ */
+  "\xc3\x97", /* × */
+  "\xc2\xa9", /* © */
+  "\xe2\x84\xa2", /* ™ */
+  "\xe2\x9c\x93", /* ✓ */
+  "\xe2\x9c\x94", /* ✔ -- and its near-twin agrees */
+  "\xe2\x98\x85", /* ★ */
+  "\xe2\x98\x80", /* ☀ */
+  "\xe2\x86\x92", /* → */
+  "\xe2\x80\xa6", /* … -- see the dedicated test below */
+  "\xe2\x88\xa7", /* ∧, a Drv rule-name symbol -- label, never a token */
+  "\xe2\x88\xa8", /* ∨ */
+  "\xe2\x8a\x83", /* ⊃ */
+  "\xe2\x8a\xa5", /* ⊥ */
+  "\xe2\x8a\xa4" /* ⊤ */
+];
+
 let operator_tests = [
   test_case(
-    "non-ASCII symbols are potential operators",
+    "the ASCII operator alphabet is exactly these 18 characters",
     `Quick,
     () => {
-      let potential = s =>
-        check(bool, s, true, Token.is_potential_operator(s));
-      potential("\xc2\xa2"); /* ¢ -- lead byte 0xC2, same as ¿ */
-      potential("\xc2\xa3"); /* £ */
-      potential("\xc2\xab"); /* « */
-      potential("\xc2\xb0"); /* ° */
-      potential("\xc2\xb1"); /* ± */
-      potential("\xc2\xac"); /* ¬ */
-      potential("\xc3\x97"); /* × */
-      potential("\xe2\x86\x92"); /* → */
-      potential("\xe2\x89\xa0"); /* ≠ */
-      potential("+");
-      potential("|>");
+      check(int, "count", 18, List.length(ascii_operators));
+      List.iter(
+        s => check(bool, s, true, Token.is_potential_operator(s)),
+        ascii_operators,
+      );
+      /* Nothing else printable-ASCII is an operator, and the ASCII NAME
+       * alphabet is likewise exactly what it was. Together these pin ASCII
+       * editing behaviour as unchanged by the move to an explicit list. */
+      let is_ascii_name = c =>
+        c >= 'a'
+        && c <= 'z'
+        || c >= 'A'
+        && c <= 'Z'
+        || c >= '0'
+        && c <= '9'
+        || List.mem(c, ['_', '\'', '?', '^', '$']);
+      for (c in 0x21 to 0x7e) {
+        let s = String.make(1, Char.chr(c));
+        check(
+          bool,
+          "operator " ++ s,
+          List.mem(s, ascii_operators),
+          Token.is_potential_operator(s),
+        );
+        check(
+          bool,
+          "name " ++ s,
+          is_ascii_name(Char.chr(c)),
+          Token.is_potential_operand(s),
+        );
+      };
+      check(
+        bool,
+        "multi-character",
+        true,
+        Token.is_potential_operator("|>"),
+      );
+      check(bool, "++", true, Token.is_potential_operator("++"));
     },
   ),
   test_case(
-    "the Drv judgment and proof vocabulary stays operator",
+    "the non-ASCII whitelist is operator, and it is the Drv vocabulary",
     `Quick,
     () => {
-      /* These are the Unicode operators the language actually uses (Drv
-       * judgments, derivation rule names, arrows). All are math/other
-       * symbols rather than letters, so widening names to \p{L} etc. must
-       * not swallow them. Pinned because it silently would if the name
-       * class ever grew to \p{S}. */
-      let potential = s =>
-        check(bool, s, true, Token.is_potential_operator(s));
-      potential("\xe2\x88\x88"); /* ∈ */
-      potential("\xe2\x8a\x86"); /* ⊆ */
-      potential("\xe2\x89\xa0"); /* ≠ */
-      potential("\xe2\x89\xae"); /* ≮ */
-      potential("\xe2\x89\xaf"); /* ≯ */
-      potential("\xe2\x88\xa7"); /* ∧ */
-      potential("\xe2\x88\xa8"); /* ∨ */
-      potential("\xe2\x8a\x83"); /* ⊃ */
-      potential("\xe2\x8a\xa5"); /* ⊥ */
-      potential("\xe2\x8a\xa4"); /* ⊤ */
-      potential("\xe2\x86\x92"); /* → */
-      potential("\xe2\x87\x90"); /* ⇐ */
-      potential("\xe2\x87\x92"); /* ⇒ */
-      potential("\xe2\x87\x94"); /* ⇔ */
-      potential("\xe2\x87\xa8"); /* ⇨ */
-      potential("\xe2\x88\x85"); /* ∅ */
-      potential("\xe2\x88\x9e"); /* ∞ */
+      /* These are the only Unicode characters the language emits as tokens
+       * (Drv judgments, printed by ExpToSegment). Pinned in both directions:
+       * dropping one would silently make it a name. */
+      List.iter(
+        s => check(bool, s, true, Token.is_potential_operator(s)),
+        unicode_operators,
+      );
+      List.iter(
+        s => check(bool, s, false, Token.is_potential_operand(s)),
+        unicode_operators,
+      );
     },
   ),
   test_case(
-    "excluded characters are not potential operators",
+    "every other non-ASCII character is a name character",
     `Quick,
     () => {
+      /* THE CHANGE: membership is no longer a Unicode-category question, so
+       * symbols, pictographs, letters and marks all behave the same. The
+       * near-twins ✔ and ✓ used to land on opposite sides. */
+      let name = s => {
+        check(bool, s, true, Token.is_potential_operand(s));
+        check(bool, s, false, Token.is_potential_operator(s));
+      };
+      List.iter(name, former_operators);
+      name("\xc3\xa9"); /* é */
+      name("\xe6\x97\xa5"); /* 日 */
+      name("\xf0\x9f\x98\x80"); /* 😀 */
+      name("\xce\xbb"); /* λ */
+      name("\xc5\xbf"); /* ſ -- trailing byte 0xBF, same as ¿ */
+      name("\xc3\xa0"); /* à -- trailing byte 0xA0, which \s matches */
+      name("\xcc\x81"); /* combining acute */
+      name("\xe2\x80\x8d"); /* ZWJ, the emoji-sequence glue */
+    },
+  ),
+  test_case(
+    "the ellipsis is a name character, not an operator",
+    `Quick,
+    () => {
+      /* Hazel prints … all over the place (Language.Abbreviate truncation
+       * markers, probe-projector abbreviations), but being printed is not
+       * the test: it never occupies an operator position, and it is a
+       * placeholder OPERAND on another branch. Pinned so nobody adds it to
+       * the whitelist on the grounds that ExpToSegment emits it. */
+      let ellipsis = "\xe2\x80\xa6";
+      check(
+        bool,
+        "not operator",
+        false,
+        Token.is_potential_operator(ellipsis),
+      );
+      check(bool, "is operand", true, Token.is_potential_operand(ellipsis));
+      check(bool, "is var", true, Token.is_var(ellipsis));
+      check(
+        bool,
+        "not an operator start",
+        false,
+        Token.begins_with_potential_operator(ellipsis),
+      );
+    },
+  ),
+  test_case(
+    "the name and operator classes are disjoint",
+    `Quick,
+    () => {
+      /* Mold resolution is ambiguous if a character is in both. Sweep all of
+       * ASCII plus every non-ASCII character named anywhere in this file. */
+      let both = s =>
+        Token.is_potential_operand(s) && Token.is_potential_operator(s);
+      for (c in 0 to 0x7f) {
+        let s = String.make(1, Char.chr(c));
+        check(bool, Printf.sprintf("ascii %#x", c), false, both(s));
+      };
+      List.iter(
+        s => check(bool, s, false, both(s)),
+        ascii_operators
+        @ unicode_operators
+        @ former_operators
+        @ [
+          Token.implicit_hole_marker,
+          "\xc2\xa0",
+          "\xc3\xa9",
+          "\xe6\x97\xa5",
+          "\xf0\x9f\x98\x80",
+          "\xce\xbb",
+          "\xcc\x81",
+          "\xe2\x80\x8d",
+        ],
+      );
+    },
+  ),
+  test_case(
+    "excluded characters are in neither class",
+    `Quick,
+    () => {
+      let neither = s => {
+        check(bool, s, false, Token.is_potential_operator(s));
+        check(bool, s, false, Token.is_potential_operand(s));
+      };
+      neither(Token.implicit_hole_marker); /* ¿ */
+      neither("(");
+      neither("\"");
+      neither("#");
+      neither("`");
+      neither(" ");
+      neither("\n");
+      neither("\xc2\xa0"); /* NBSP is Unicode whitespace */
+      neither("");
       let not_potential = s =>
         check(bool, s, false, Token.is_potential_operator(s));
-      not_potential(Token.implicit_hole_marker); /* ¿ */
       not_potential("+\xc2\xbf");
       not_potential("a");
       not_potential("+ ");
       not_potential("+\n");
-      not_potential("(");
-      not_potential("\"");
-      not_potential("#");
-      not_potential("\xc2\xa0"); /* NBSP is Unicode whitespace */
-      not_potential("");
-      /* Name characters: the name and operator classes are disjoint, so
-       * everything a name may contain is excluded here. */
-      not_potential("\xc5\xbf"); /* ſ -- trailing byte 0xBF, same as ¿ */
-      not_potential("\xc3\xa0"); /* à -- trailing byte 0xA0, which \s matches */
-      not_potential("\xce\xbb"); /* λ */
-      not_potential("\xf0\x9f\x98\x80"); /* 😀 */
-      not_potential("\xe6\x97\xa5"); /* 日 */
-      not_potential("\xcc\x81"); /* combining acute */
-      /* Text-presentation symbols stay operators: they are
-       * Extended_Pictographic but not Emoji_Presentation, and were
-       * operators before names took Unicode. */
-      let potential = s =>
-        check(bool, s, true, Token.is_potential_operator(s));
-      potential("\xc2\xa9"); /* © */
-      potential("\xe2\x84\xa2"); /* ™ */
-      potential("\xe2\x9c\x94"); /* ✔ */
-      potential("\xe2\x9c\x93"); /* ✓ -- and its near-twin agrees */
     },
   ),
   test_case(
@@ -307,8 +451,22 @@ let operator_tests = [
       );
       check(
         bool,
-        "begins_with on non-ASCII operator",
+        "begins_with on whitelisted operator",
         true,
+        Token.begins_with_potential_operator("\xe2\x88\x88x"),
+      );
+      /* `^` prefixes livelits and projector invocations */
+      check(
+        bool,
+        "begins_with on caret",
+        true,
+        Token.begins_with_potential_operator("^^fold"),
+      );
+      /* No longer an operator, so no longer an operator start */
+      check(
+        bool,
+        "begins_with on a name character",
+        false,
         Token.begins_with_potential_operator("\xc2\xa2+"),
       );
     },
@@ -362,9 +520,10 @@ let operator_tests = [
   ),
 ];
 
-/* The name alphabet: Unicode letters/digits/marks/emoji are name characters,
- * and caseless characters count as non-uppercase, so a name led by an emoji
- * or a CJK character is a variable rather than a constructor. */
+/* The name alphabet: every non-ASCII character except the operator whitelist
+ * is a name character, and caseless characters count as non-uppercase, so a
+ * name led by an emoji, a symbol or a CJK character is a variable rather than
+ * a constructor. */
 let cafe = "caf\xc3\xa9"; /* café */
 let cafe_decomposed = "cafe\xcc\x81"; /* café, e + U+0301 */
 let nihongo = "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"; /* 日本語 */
@@ -374,6 +533,39 @@ let flag = "\xf0\x9f\x87\xba\xf0\x9f\x87\xb8"; /* 🇺🇸 */
 let thumb_toned = "\xf0\x9f\x91\x8d\xf0\x9f\x8f\xbd"; /* 👍🏽 */
 
 let name_tests = [
+  test_case(
+    "symbols inside a name do not split it",
+    `Quick,
+    () => {
+      /* These characters used to be operators, so `a©b` lexed as three
+       * tokens. They are ordinary name characters now. */
+      let one_name = s => {
+        check(bool, s, true, Token.is_potential_operand(s));
+        check(bool, s, true, Token.is_var(s));
+      };
+      one_name("a\xc2\xa9b"); /* a©b */
+      one_name("a\xe2\x9c\x93b"); /* a✓b */
+      one_name("a\xe2\x9c\x94b"); /* a✔b */
+      one_name("a\xe2\x98\x85b"); /* a★b */
+      one_name("a\xe2\x80\xa6b"); /* a…b, the abbreviation marker */
+      /* but a whitelisted operator still splits one */
+      check(
+        bool,
+        "a∈b",
+        false,
+        Token.is_potential_operand("a\xe2\x88\x88b"),
+      );
+      /* leading symbols are non-uppercase, so still variables */
+      List.iter(
+        s => check(bool, s, true, Token.is_var(s ++ "x")),
+        former_operators,
+      );
+      List.iter(
+        s => check(bool, s, false, Token.is_ctr(s ++ "x")),
+        former_operators,
+      );
+    },
+  ),
   test_case(
     "Unicode names are single potential operands",
     `Quick,
