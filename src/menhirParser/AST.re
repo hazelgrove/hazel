@@ -188,6 +188,30 @@ and sig_item =
   | SigItemLet(pat)
   | SigItemType(tpat, typ);
 
+/* Names take Unicode (see Token.unicode_name_chars): accented Latin, CJK,
+ * caseless scripts, and emoji including multi-codepoint sequences. The
+ * generators below mix these in so the MakeTerm/Menhir equivalence tests
+ * actually exercise the alphabet rather than only ASCII.
+ *
+ * Constructors keep an ASCII-uppercase LEAD: ocamllex cannot test the case of
+ * a multi-byte character, so a name led by `Ć` lexes as an identifier there
+ * while the editor calls it a constructor. Generating one would be testing a
+ * known divergence, not the round-trip. */
+let nonascii_name_chars = [
+  "\xc3\xa9", /* é */
+  "\xc3\x9f", /* ß */
+  "\xce\xbb", /* λ */
+  "\xe6\x97\xa5", /* 日 */
+  "\xf0\x9f\x98\x80", /* 😀 */
+  "\xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x91\xa7" /* 👨‍👩‍👧 */
+];
+
+/* Usually empty, so most generated names stay ASCII and shrink well. */
+let nonascii_name_suffix: QCheck.Gen.t(string) =
+  QCheck.Gen.(
+    frequency([(4, pure("")), (1, oneofl(nonascii_name_chars))])
+  );
+
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
  *
@@ -203,8 +227,9 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         oneof([pure("A"), pure("B")]);
       } else {
         let* leading = char_range('A', 'Z');
-        let+ tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
-        let ident = String.make(1, leading) ++ tail;
+        let* tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
+        let+ suffix = nonascii_name_suffix;
+        let ident = String.make(1, leading) ++ tail ++ suffix;
         if (List.exists(a => a == ident, ["String", "Int", "Float", "Bool"])) {
           "Keyword";
         } else {
@@ -229,7 +254,12 @@ let gen_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
       if (minimal_idents) {
         oneof([pure("x"), pure("y")]);
       } else {
-        string_size(~gen=char_range('a', 'z'), int_range(1, 1));
+        /* Non-ASCII names are single graphemes, so like the single-character
+         * ASCII ones they cannot be a prefix of a keyword. */
+        frequency([
+          (4, string_size(~gen=char_range('a', 'z'), int_range(1, 1))),
+          (1, oneofl(nonascii_name_chars)),
+        ]);
       }
     );
 
@@ -311,7 +341,11 @@ let gen_tpat: (~minimal_idents: bool) => QCheck.Gen.t(tpat) =
  */
 let gen_string_literal: QCheck.Gen.t(string) =
   // TODO This should be anything printable other than `"`
-  QCheck.Gen.(string_small_of(char_range('a', 'z')));
+  QCheck.Gen.(
+    let* ascii = string_small_of(char_range('a', 'z'));
+    let+ extra = nonascii_name_suffix;
+    ascii ++ extra
+  );
 
 let gen_label: QCheck.Gen.t(string) = gen_ident(~minimal_idents=false);
 

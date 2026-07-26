@@ -211,19 +211,45 @@ let operator_tests = [
         check(bool, s, true, Token.is_potential_operator(s));
       potential("\xc2\xa2"); /* ¢ -- lead byte 0xC2, same as ¿ */
       potential("\xc2\xa3"); /* £ */
-      potential("\xc2\xa9"); /* © */
       potential("\xc2\xab"); /* « */
       potential("\xc2\xb0"); /* ° */
       potential("\xc2\xb1"); /* ± */
       potential("\xc2\xac"); /* ¬ */
-      potential("\xc5\xbf"); /* ſ -- trailing byte 0xBF, same as ¿ */
-      potential("\xc3\xa0"); /* à -- trailing byte 0xA0, which \s matches */
+      potential("\xc3\x97"); /* × */
       potential("\xe2\x86\x92"); /* → */
-      potential("\xce\xbb"); /* λ */
-      potential("\xf0\x9f\x98\x80"); /* 😀 */
-      potential("\xe6\x97\xa5"); /* 日 */
+      potential("\xe2\x89\xa0"); /* ≠ */
       potential("+");
       potential("|>");
+    },
+  ),
+  test_case(
+    "the Drv judgment and proof vocabulary stays operator",
+    `Quick,
+    () => {
+      /* These are the Unicode operators the language actually uses (Drv
+       * judgments, derivation rule names, arrows). All are math/other
+       * symbols rather than letters, so widening names to \p{L} etc. must
+       * not swallow them. Pinned because it silently would if the name
+       * class ever grew to \p{S}. */
+      let potential = s =>
+        check(bool, s, true, Token.is_potential_operator(s));
+      potential("\xe2\x88\x88"); /* ∈ */
+      potential("\xe2\x8a\x86"); /* ⊆ */
+      potential("\xe2\x89\xa0"); /* ≠ */
+      potential("\xe2\x89\xae"); /* ≮ */
+      potential("\xe2\x89\xaf"); /* ≯ */
+      potential("\xe2\x88\xa7"); /* ∧ */
+      potential("\xe2\x88\xa8"); /* ∨ */
+      potential("\xe2\x8a\x83"); /* ⊃ */
+      potential("\xe2\x8a\xa5"); /* ⊥ */
+      potential("\xe2\x8a\xa4"); /* ⊤ */
+      potential("\xe2\x86\x92"); /* → */
+      potential("\xe2\x87\x90"); /* ⇐ */
+      potential("\xe2\x87\x92"); /* ⇒ */
+      potential("\xe2\x87\x94"); /* ⇔ */
+      potential("\xe2\x87\xa8"); /* ⇨ */
+      potential("\xe2\x88\x85"); /* ∅ */
+      potential("\xe2\x88\x9e"); /* ∞ */
     },
   ),
   test_case(
@@ -242,6 +268,23 @@ let operator_tests = [
       not_potential("#");
       not_potential("\xc2\xa0"); /* NBSP is Unicode whitespace */
       not_potential("");
+      /* Name characters: the name and operator classes are disjoint, so
+       * everything a name may contain is excluded here. */
+      not_potential("\xc5\xbf"); /* ſ -- trailing byte 0xBF, same as ¿ */
+      not_potential("\xc3\xa0"); /* à -- trailing byte 0xA0, which \s matches */
+      not_potential("\xce\xbb"); /* λ */
+      not_potential("\xf0\x9f\x98\x80"); /* 😀 */
+      not_potential("\xe6\x97\xa5"); /* 日 */
+      not_potential("\xcc\x81"); /* combining acute */
+      /* Text-presentation symbols stay operators: they are
+       * Extended_Pictographic but not Emoji_Presentation, and were
+       * operators before names took Unicode. */
+      let potential = s =>
+        check(bool, s, true, Token.is_potential_operator(s));
+      potential("\xc2\xa9"); /* © */
+      potential("\xe2\x84\xa2"); /* ™ */
+      potential("\xe2\x9c\x94"); /* ✔ */
+      potential("\xe2\x9c\x93"); /* ✓ -- and its near-twin agrees */
     },
   ),
   test_case(
@@ -319,6 +362,114 @@ let operator_tests = [
   ),
 ];
 
+/* The name alphabet: Unicode letters/digits/marks/emoji are name characters,
+ * and caseless characters count as non-uppercase, so a name led by an emoji
+ * or a CJK character is a variable rather than a constructor. */
+let cafe = "caf\xc3\xa9"; /* café */
+let cafe_decomposed = "cafe\xcc\x81"; /* café, e + U+0301 */
+let nihongo = "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"; /* 日本語 */
+let grin = "\xf0\x9f\x98\x80"; /* 😀 */
+let family = "\xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x91\xa7"; /* 👨‍👩‍👧 */
+let flag = "\xf0\x9f\x87\xba\xf0\x9f\x87\xb8"; /* 🇺🇸 */
+let thumb_toned = "\xf0\x9f\x91\x8d\xf0\x9f\x8f\xbd"; /* 👍🏽 */
+
+let name_tests = [
+  test_case(
+    "Unicode names are single potential operands",
+    `Quick,
+    () => {
+      let operand = s => check(bool, s, true, Token.is_potential_operand(s));
+      operand(cafe);
+      operand(cafe_decomposed);
+      operand(nihongo);
+      operand("x" ++ grin);
+      operand(grin ++ "x");
+      /* Multi-codepoint emoji: ZWJ sequences, flags and skin tones are only
+       * one token if the joiners count as name characters too. */
+      operand(family);
+      operand(flag);
+      operand(thumb_toned);
+      operand("\xce\xa3igma"); /* Σigma */
+    },
+  ),
+  test_case(
+    "an operator next to a Unicode name is not part of it",
+    `Quick,
+    () => {
+      let not_operand = s =>
+        check(bool, s, false, Token.is_potential_operand(s));
+      not_operand(cafe ++ "+1");
+      not_operand(nihongo ++ "++x");
+      not_operand(grin ++ "+");
+      check(bool, "+", true, Token.is_potential_operator("+"));
+      check(bool, "++", true, Token.is_potential_operator("++"));
+    },
+  ),
+  test_case(
+    "caseless characters count as non-uppercase",
+    `Quick,
+    () => {
+      let var_ = s => check(bool, s, true, Token.is_var(s));
+      let ctr = s => check(bool, s, true, Token.is_ctr(s));
+      let not_var = s => check(bool, s, false, Token.is_var(s));
+      let not_ctr = s => check(bool, s, false, Token.is_ctr(s));
+      var_(cafe);
+      var_(cafe_decomposed);
+      var_(nihongo);
+      var_(grin ++ "foo");
+      var_("x" ++ grin);
+      var_("\xcf\x83igma"); /* σigma */
+      not_ctr(cafe);
+      not_ctr(nihongo);
+      not_ctr(grin ++ "foo");
+      ctr("Caf\xc3\xa9"); /* Café */
+      ctr("Foo" ++ grin);
+      ctr("\xce\xa3igma"); /* Σigma */
+      ctr("\xc7\x85ungla"); /* ǅungla, titlecase */
+      not_var("Caf\xc3\xa9");
+      not_var("Foo" ++ grin);
+      /* Both are type variables either way */
+      check(bool, "typ var lower", true, Token.is_typ_var(nihongo));
+      check(bool, "typ var upper", true, Token.is_typ_var("Caf\xc3\xa9"));
+    },
+  ),
+  test_case(
+    "a decomposed accent stays inside the name",
+    `Quick,
+    () => {
+      /* One name, and one grapheme fewer than its codepoints. */
+      check(bool, "operand", true, Token.is_potential_operand("e\xcc\x81"));
+      check(bool, "var", true, Token.is_var("e\xcc\x81"));
+      check(int, "graphemes", 4, Token.length(cafe_decomposed));
+      check(int, "bytes", 6, String.length(cafe_decomposed));
+    },
+  ),
+  test_case(
+    "livelit and label names take Unicode",
+    `Quick,
+    () => {
+      check(bool, "livelit", true, Token.is_livelit("^" ++ cafe));
+      check(bool, "livelit cjk", true, Token.is_livelit("^" ++ nihongo));
+      check(bool, "livelit emoji", true, Token.is_livelit("^" ++ grin));
+      /* Livelit names are variable-like, so a capitalized one is rejected */
+      check(bool, "livelit ctr", false, Token.is_livelit("^Caf\xc3\xa9"));
+      /* Labels that are already names print unquoted */
+      check(
+        string,
+        "label unquoted",
+        nihongo,
+        Token.quote_label_when_necessary(nihongo),
+      );
+      check(
+        string,
+        "label quoted",
+        Token.label_quote("a b"),
+        Token.quote_label_when_necessary("a b"),
+      );
+    },
+  ),
+];
+
 /* The keydown handler decides "is this a character key?" by measuring
  * KeyboardEvent.key. Measuring it in BYTES excluded every non-ASCII key. */
 let key_action = (k: string): option(Action.t) =>
@@ -386,5 +537,6 @@ let tests = [
   ),
   ("Unicode.Width", width_tests),
   ("Token.Potential", operator_tests),
+  ("Token.Names", name_tests),
   ("Keyboard.Insert", keyboard_tests),
 ];

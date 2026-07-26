@@ -4790,14 +4790,15 @@ let inner_destruct_tests = [
     ~acts=mk({|1 + "aa"¦|}) @ mv_l(2) @ [Destruct(Right)],
     ~goal={|1 + "a¦"|},
   ),
-  /* Quote-wrapping drops the selection; its Inner caret must go too. */
+  /* Quote-wrapping wraps exactly the selected characters, not the whole
+   * boundary tokens, and the selection's Inner caret must not survive it. */
   test(
     ~name="Wrap char-level selection in quotes",
     ~acts=
       mk({|"aa" ++ "x"¦|})
       @ mv_l(4)
       @ [Select(Resize(Local(Left, ByChar))), Insert("\"")],
-    ~goal={|"aa" ~"++"~¦ "x"|},
+    ~goal={|"aa" +"+"~¦ "x"|},
   ),
   test(
     ~name="Delete after wrapping char-level selection in quotes",
@@ -4809,7 +4810,35 @@ let inner_destruct_tests = [
         Insert("\""),
         Destruct(Right),
       ],
-    ~goal={|"aa" ~"++"~¦"x"|},
+    ~goal={|"aa" +"+"~¦"x"|},
+  ),
+  /* Only `c` is wrapped; `ab` and `d` survive on either side. The trailing
+   * hole is how Hazel already grouts three adjacent operands — typing
+   * `ab"c"d` from scratch produces the same shape. */
+  test(
+    ~name="Wrap char-level selection interior to a token in quotes",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("\"")],
+    ~goal={|ab~"c"¦d?|},
+  ),
+  test(
+    ~name="Wrap char-level selection spanning a token boundary in quotes",
+    ~acts=mk({|abc ++ xyz¦|}) @ sel_l(5) @ [Insert("\"")],
+    ~goal={|abc +"+ xyz"¦|},
+  ),
+  /* smart_rounded displays the anchor at its piece's outer edge, so the
+   * whole starting token is what gets wrapped. */
+  test(
+    ~name="Wrap smart-rounded selection takes the whole starting token",
+    ~acts=
+      mk({|abc ++ xyz¦|})
+      @ mv_l(1)
+      @ [
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Insert("\""),
+      ],
+    ~goal={|abc ++" xyz"¦|},
   ),
 ];
 
@@ -4957,14 +4986,13 @@ let grapheme_tests = [
     ~goal={|ab😀¦c|},
   ),
   test_case(
-    "Emoji typed inside an identifier is its own token",
+    "Unicode identifiers are a single tile",
     `Quick,
     () => {
-      /* Identifiers are still ASCII-only (Token.var_regexp), so the emoji
-       * splits the name instead of extending it. Pinned because the printed
-       * text `ab😀c` gives no hint that it is three tiles. */
-      let z = mk({|ab¦c|}) @ [Insert({|😀|})] |> perform(Zipper.init());
-      let labels =
+      /* Names take Unicode letters, digits, marks and emoji, so none of these
+       * split. Pinned because the printed text gives no hint of tile count. */
+      let tiles = acts => {
+        let z = acts |> perform(Zipper.init());
         Zipper.unselect_and_zip(~erase_buffer=true, z)
         |> List.filter_map((p: Piece.t) =>
              switch (p) {
@@ -4972,8 +5000,50 @@ let grapheme_tests = [
              | _ => None
              }
            );
-      check(list(string), "tiles", ["ab", {|😀|}, "c"], labels);
+      };
+      check(
+        list(string),
+        "emoji inside a name",
+        [{|ab😀c|}],
+        tiles(mk({|ab¦c|}) @ [Insert({|😀|})]),
+      );
+      check(
+        list(string),
+        "accented name",
+        [{|café|}],
+        tiles(mk({|café¦|})),
+      );
+      check(
+        list(string),
+        "CJK name",
+        [{|日本語|}],
+        tiles(mk({|日本語¦|})),
+      );
+      check(
+        list(string),
+        "name led by an emoji",
+        [{|😀x|}],
+        tiles(mk({|😀x¦|})),
+      );
+      /* Decomposed: e + U+0301, one grapheme, still one name. */
+      check(
+        list(string),
+        "decomposed accent stays in the name",
+        ["cafe\xcc\x81"],
+        tiles(mk("cafe\xcc\x81\xc2\xa6")),
+      );
+      check(
+        list(string),
+        "operator next to a Unicode name still splits",
+        [{|café|}, "+", "1"],
+        tiles(mk({|café+1¦|})),
+      );
     },
+  ),
+  test(
+    ~name="Backspace removes one grapheme from a Unicode name",
+    ~acts=mk({|café¦|}) @ [Destruct(Left)],
+    ~goal={|caf¦|},
   ),
   test_case(
     "Wide clusters outside strings are measured as two columns",

@@ -312,51 +312,48 @@ let destroy_selection: t => t =
       selection: Selection.empty,
     });
 
+/* Inner offsets of a char-level selection's two boundaries, expressed in the
+ * frame of the first and last selected pieces; `None` on a side means the
+ * selection reaches that piece's outer boundary.
+ * When smart_rounded is set, the anchor end is displayed at its piece's
+ * outer boundary — user intent is "whole starting token selected", not
+ * partial-from-anchor_caret — so it reads as Outer. */
+let char_selection_offsets = (z: t): (option(int), option(int)) => {
+  let inner = (c: CaretBase.t): option(int) =>
+    switch (c) {
+    | CaretBase.Inner(n) => Some(n)
+    | CaretBase.Outer => None
+    };
+  let anchor: CaretBase.t =
+    z.selection.smart_rounded ? Outer : z.selection.anchor_caret;
+  switch (z.selection.focus) {
+  | Right => (inner(anchor), inner(z.caret))
+  | Left => (inner(z.caret), inner(anchor))
+  };
+};
+
+/* Whether the selection has at least one boundary strictly inside a piece,
+ * i.e. `selection.content` holds more than what is actually selected. */
+let has_char_selection = (z: t): bool =>
+  !Selection.is_empty(z.selection)
+  && (
+    switch (char_selection_offsets(z)) {
+    | (None, None) => false
+    | _ => true
+    }
+  );
+
 /* Normalize a char-level selection before destruction.
  * Splits partial boundary tokens and keeps the exterior (unselected)
  * portions, setting caret appropriately. Must be called explicitly
  * by top-level actions (Destruct, Insert) — NOT from internal helpers
  * like replace_shard which set Inner caret for other purposes. */
-let normalize_char_selection = (z: t): t => {
-  /* When smart_rounded is set, the anchor end is displayed at its
-   * piece's outer boundary — user intent is "whole starting token
-   * selected", not partial-from-anchor_caret. Treat as Outer. */
-  let effective_anchor_caret: CaretBase.t =
-    z.selection.smart_rounded ? Outer : z.selection.anchor_caret;
-  let has_char_boundary =
-    effective_anchor_caret != CaretBase.Outer
-    || z.caret != Outer
-    && !Selection.is_empty(z.selection);
-  if (!has_char_boundary || Selection.is_empty(z.selection)) {
+let normalize_char_selection = (z: t): t =>
+  if (!has_char_selection(z)) {
     z;
   } else {
-    let focus_dir = z.selection.focus;
     let content = z.selection.content;
-
-    /* Determine inner offsets for left and right boundaries */
-    let (left_offset, right_offset) =
-      switch (focus_dir) {
-      | Right => (
-          switch (effective_anchor_caret) {
-          | CaretBase.Inner(n) => Some(n)
-          | CaretBase.Outer => None
-          },
-          switch (z.caret) {
-          | Inner(n) => Some(n)
-          | Outer => None
-          },
-        )
-      | Left => (
-          switch (z.caret) {
-          | Inner(n) => Some(n)
-          | Outer => None
-          },
-          switch (effective_anchor_caret) {
-          | CaretBase.Inner(n) => Some(n)
-          | CaretBase.Outer => None
-          },
-        )
-      };
+    let (left_offset, right_offset) = char_selection_offsets(z);
 
     /* Compute left remainder (exterior chars before left boundary) */
     let left_remainder =
@@ -528,7 +525,6 @@ let normalize_char_selection = (z: t): t => {
       };
     };
   };
-};
 
 let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
   z |> unselect(~erase_buffer) |> zip;

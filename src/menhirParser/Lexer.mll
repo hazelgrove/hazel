@@ -31,8 +31,23 @@ let newline = '\r' | '\n' | "\r\n"
 
 let whitespace = [' ' '\t']+
 
-let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
-let constructor_ident = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+(* Names may contain Unicode (see Token.unicode_name_chars in haz3lcore).
+   ocamllex is byte-oriented and has no Unicode property support, so the
+   closest we can express is "any non-ASCII byte is a name character". That
+   is a superset of the editor's rule -- a non-ASCII *symbol* like `→`, which
+   the editor treats as an operator, lexes here as an identifier rather than
+   raising a lex error -- but it is a superset in the safe direction: every
+   name the editor accepts round-trips through this lexer.
+
+   Known divergence: a name starting with a non-ASCII UPPERCASE letter (`Ćtr`)
+   is a constructor in the editor but lexes as an identifier here, because
+   `constructor_ident` cannot test the case of a multi-byte character.
+   Distinguishing it would mean enumerating the UTF-8 encoding of \p{Lu}. *)
+let nonascii = ['\128'-'\255']
+let name_start = ['a'-'z' '_'] | nonascii
+let name_rest = ['a'-'z' 'A'-'Z' '0'-'9' '_'] | nonascii
+let identifier = name_start name_rest*
+let constructor_ident = ['A'-'Z'] name_rest*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
 let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
