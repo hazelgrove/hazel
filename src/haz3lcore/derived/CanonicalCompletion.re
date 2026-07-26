@@ -416,56 +416,13 @@ let normalize_display =
   |> GroutPlace.place(~transparent);
 
 /* F1 predicates shared by ghost display and Tab acceptance — the
-   ghost's spacing IS the promise of what Tab types */
-let f1_hugs_left = (t: string): bool =>
-  String.length(t) > 0
-  && (
-    switch (t.[0]) {
-    | ','
-    | ')'
-    | ']'
-    | '}' => true
-    | _ => false
-    }
-  );
-let f1_closes = (t: string): bool =>
-  String.length(t) > 0
-  && (
-    switch (t.[String.length(t) - 1]) {
-    | ')'
-    | ']'
-    | '}' => true
-    | _ => false
-    }
-  );
-let f1_opens = (t: string): bool =>
-  String.length(t) > 0
-  && (
-    switch (t.[String.length(t) - 1]) {
-    | '('
-    | '[' => true
-    | _ => false
-    }
-  );
-
-/* STYLE padding for system material: how formatted code LOOKS —
- * pad every junction except where a token opens (`f(`) or hugs left
- * (`,` `)` `]`).
- *
- * Deliberately NOT SpaceNormalize.needs_space, which was tried and
- * rejected 2026-07-26: that rule answers a different question. It is
- * a LEXICAL-SAFETY rule (would these two tokens glom into one? is
- * separation required?), intentionally conservative so the printer
- * never disturbs user spacing. It answers false for `,` `?` and for
- * `x` `=`, so reusing it under-pads system material into `f(a,?,?)`
- * and `let x= ? in ?`. Style padding is a superset.
- *
- * They must never CONTRADICT, though: anything the printer deems
- * lexically required must also be padded here, or the display would
- * show two tokens glommed. Test_GroutPlace "padding soundness" pins
- * that implication over a token-pair corpus (P12). */
-let f1_pad_style = (lt: string, rt: string): bool =>
-  !f1_opens(lt) && !f1_hugs_left(rt);
+   ghost's spacing IS the promise of what Tab types. The rule itself
+   lives in PadStyle (tiles/), the one home, so hole-cell
+   classification can consume it too; these are re-exports. */
+let f1_hugs_left = PadStyle.hugs_left;
+let f1_closes = PadStyle.closes;
+let f1_opens = PadStyle.opens;
+let f1_pad_style = PadStyle.pad;
 
 /* === Display padding oracle ===
  * ONE deterministic rule for whitespace around system material,
