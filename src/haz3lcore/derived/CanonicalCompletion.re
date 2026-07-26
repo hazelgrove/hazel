@@ -448,6 +448,25 @@ let f1_opens = (t: string): bool =>
     }
   );
 
+/* STYLE padding for system material: how formatted code LOOKS —
+ * pad every junction except where a token opens (`f(`) or hugs left
+ * (`,` `)` `]`).
+ *
+ * Deliberately NOT SpaceNormalize.needs_space, which was tried and
+ * rejected 2026-07-26: that rule answers a different question. It is
+ * a LEXICAL-SAFETY rule (would these two tokens glom into one? is
+ * separation required?), intentionally conservative so the printer
+ * never disturbs user spacing. It answers false for `,` `?` and for
+ * `x` `=`, so reusing it under-pads system material into `f(a,?,?)`
+ * and `let x= ? in ?`. Style padding is a superset.
+ *
+ * They must never CONTRADICT, though: anything the printer deems
+ * lexically required must also be padded here, or the display would
+ * show two tokens glommed. Test_GroutPlace "padding soundness" pins
+ * that implication over a token-pair corpus (P12). */
+let f1_pad_style = (lt: string, rt: string): bool =>
+  !f1_opens(lt) && !f1_hugs_left(rt);
+
 /* === Display padding oracle ===
  * ONE deterministic rule for whitespace around system material,
  * applied AFTER normalization so nothing downstream can reorder it:
@@ -695,10 +714,7 @@ let finish_display =
   let ends_in_space = (t: string) =>
     String.length(t) > 0 && t.[String.length(t) - 1] == ' ';
   let needs_pad = ((lt, lsys), (rt, rsys)) =>
-    (lsys || rsys)
-    && !f1_opens(lt)
-    && !ends_in_space(lt)
-    && !f1_hugs_left(rt);
+    (lsys || rsys) && !ends_in_space(lt) && f1_pad_style(lt, rt);
   /* a MINTED comment is a witness-remainder ghost: it continues the
      typed token, so its left edge always hugs */
   let hugging_comment = (p: Piece.t): bool =>

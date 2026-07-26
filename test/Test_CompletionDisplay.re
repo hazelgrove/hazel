@@ -764,11 +764,11 @@ string_replace(a, b, c)   CHIPS[]|},
         check(
           string_testable,
           "let-bk",
-          {|let? =  i¦⟪ in ?⟫   CHIPS[]
-let? =⟪ ⟫?⟪  ¦in ?⟫   CHIPS[]
-let? =⟪ ⟫?¦⟪ in ?⟫   CHIPS[]
-let? =¦⟪ ⟫?⟪ in ?⟫   CHIPS[]
-let⟪ ⟫?⟪  ¦= ? in ?⟫   CHIPS[]
+          {|let ?=  i¦⟪ in ?⟫   CHIPS[]
+let ?= ?¦⟪ in ?⟫   CHIPS[]
+let ?=⟪ ⟫?¦⟪ in ?⟫   CHIPS[]
+let ?=¦⟪ ⟫?⟪ in ?⟫   CHIPS[]
+let ?¦⟪ = ? in ?⟫   CHIPS[]
 let⟪ ⟫?¦⟪ = ? in ?⟫   CHIPS[]|},
           trajectory_bk(~ctx="let  =  in¦", 6),
         )

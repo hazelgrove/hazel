@@ -496,7 +496,81 @@ let fidelity = {
   ];
 };
 
+/* P12 PADDING SOUNDNESS. Two spacing rules exist and answer different
+   questions: SpaceNormalize.needs_space is LEXICAL SAFETY (would these
+   tokens glom? is separation required?), deliberately conservative so
+   the pretty-printer never disturbs user spacing; the completion
+   oracle's f1_pad_style is STYLE (how formatted code looks), a
+   superset — it pads `,` `?` and `x` `=`, which the printer leaves
+   alone. Reuse was tried 2026-07-26 and rejected: consuming
+   needs_space under-padded system material to `f(a,?,?)` and
+   `let x= ? in ?`.
+
+   They may differ, but must never CONTRADICT: anything lexically
+   required must also be style-padded, or the display would glom two
+   tokens together. This pins that implication so the two cannot drift
+   into conflict. */
+let pad_corpus = [
+  "let",
+  "in",
+  "if",
+  "then",
+  "else",
+  "case",
+  "end",
+  "fun",
+  "=>",
+  "|",
+  "x",
+  "foo",
+  "1",
+  "42",
+  "?",
+  "=",
+  "+",
+  "-",
+  "*",
+  "::",
+  "&&",
+  "<",
+  "(",
+  ")",
+  "[",
+  "]",
+  ",",
+  ";",
+  "\"s\"",
+];
+
+let padding_soundness = [
+  test_case(
+    "lexically-required spacing is always style-padded",
+    `Quick,
+    () => {
+      let bad =
+        List.concat_map(
+          a =>
+            List.filter_map(
+              b =>
+                SpaceNormalize.needs_space(a, b)
+                && !CanonicalCompletion.f1_pad_style(a, b)
+                  ? Some(Printf.sprintf("%s|%s", a, b)) : None,
+              pad_corpus,
+            ),
+          pad_corpus,
+        );
+      check(
+        string_testable,
+        "no contradictions",
+        "",
+        String.concat(" ", bad),
+      );
+    },
+  ),
+];
+
 let tests = [
+  ("GroutPlace: padding soundness", padding_soundness),
   ("GroutPlace: harness fidelity", fidelity),
   ("GroutPlace: space runs", space_runs),
   ("GroutPlace: empty runs", empty_runs),
