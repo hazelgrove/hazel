@@ -59,14 +59,21 @@ let is_string = t =>
 let string_delim = "\"";
 let empty_string = append(string_delim, string_delim);
 let is_string_delim = (==)(string_delim);
-let strip_quotes = (~quote="\"", s) =>
+let strip_quotes = (~quote="\"", ~escaping: bool=false, s) =>
   if (String.length(s) < 2) {
     s;
   } else if (String.sub(s, 0, 1) != quote
              || String.sub(s, String.length(s) - 1, 1) != quote) {
     s;
   } else {
-    String.sub(s, 1, String.length(s) - 2);
+    let body = String.sub(s, 1, String.length(s) - 2);
+    if (escaping) {
+      try(Scanf.unescaped(body)) {
+      | _ => body
+      };
+    } else {
+      body;
+    };
   };
 
 let string_quote = s => "\"" ++ s ++ "\"";
