@@ -251,14 +251,14 @@ let tests = [
       t(
         "let-in persists after caret moves below",
         "let a = 1\nx¦",
-        "let a = 1~\nx¦   CHIPS[in]",
+        "let a = 1 ~\nx¦   CHIPS[in]",
         "let a = 1⟪ in⟫\nx¦   CHIPS[]",
       ),
       /* owed closer persists at its site across lines */
       t(
         "ap closer persists across lines",
         "f(1\nx¦",
-        "f(1~\nx¦   CHIPS[)]",
+        "f(1 ~\nx¦   CHIPS[)]",
         "f(1⟪) ⟫~\nx¦   CHIPS[]",
       ),
       /* the caret-zone ghost is IDENTICAL under both flags: persist
@@ -272,7 +272,7 @@ let tests = [
       t(
         "previous-line ghost stays put; persist keeps it inline",
         "let a = 1\n¦x",
-        "let a = 1~\n¦x   CHIPS[in]",
+        "let a = 1 ~\n¦x   CHIPS[in]",
         "let a = 1⟪ in⟫\n¦x   CHIPS[]",
       ),
       /* same-row material: the owed closer promises AFTER the caret

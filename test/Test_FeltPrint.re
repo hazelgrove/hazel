@@ -77,7 +77,7 @@ let empty_runs = [
 ];
 
 let trailing_edge = [
-  t("trailing at top level, no whitespace", "1 +", "1 +?"),
+  t("trailing at top level, no whitespace", "1 +", "1 + ?"),
   t("trailing space survives next to the hole", "1 + ", "1 + ?"),
   t("trailing two spaces: hole in the second", "1 +  ", "1 + ?"),
   t(
@@ -120,7 +120,7 @@ let linebreaks = [
   t(
     "mid-segment linebreak: end of previous line",
     "let x =\nin x",
-    "let x =?\nin x",
+    "let x = ?\nin x",
   ),
   t(
     "mid-segment space then linebreak: space survives",
@@ -130,12 +130,12 @@ let linebreaks = [
   t(
     "case scrutinee: stays on case's line",
     "case\n| 1 => 1 end",
-    "case?\n| 1 => 1 end",
+    "case ?\n| 1 => 1 end",
   ),
   t(
     "case scrutinee with indented rule",
     "case\n  | 1 => 1 end",
-    "case?\n  | 1 => 1 end",
+    "case ?\n  | 1 => 1 end",
   ),
   t(
     "blank line inside gap is the prepared slot",
@@ -160,7 +160,7 @@ let linebreaks = [
   t(
     "comment occupies the blank line: hole falls back to owner's line",
     "let a =\n  #c#\nin a",
-    "let a =?\n  #c#\nin a",
+    "let a = ?\n  #c#\nin a",
   ),
   t(
     "spaces before linebreak: hole on previous line",
@@ -191,7 +191,7 @@ let gallery = [
 let comments = [
   t("space then comment: hole in the space", "1 + #c#", "1 +?#c#"),
   t("comment directly adjacent: thin before it", "1 +#c#", "1 +‽#c#"),
-  t("linebreak then comment: end of previous line", "1 +\n#c#", "1 +?\n#c#"),
+  t("linebreak then comment: end of previous line", "1 +\n#c#", "1 + ?\n#c#"),
   t("no conflict across comment line", "1 +\n#c#\n2", "1 +\n#c#\n2"),
 ];
 
@@ -298,16 +298,16 @@ let lefts = (n: int): list(Action.t) =>
 let entry_let =
   "  l¦\n"
   ++ "  le¦\n"
-  ++ "  let¦?\n"
+  ++ "  let¦ ?\n"
   ++ "  let ¦?\n"
   ++ "  let x¦\n"
   ++ "  let x ¦\n"
-  ++ "  let x =¦?\n"
+  ++ "  let x =¦ ?\n"
   ++ "  let x = ¦?\n"
   ++ "  let x = 1¦\n"
   ++ "  let x = 1 ¦\n"
-  ++ "  let x = 1 i¦?\n"
-  ++ "  let x = 1 in¦?\n"
+  ++ "  let x = 1 i¦ ?\n"
+  ++ "  let x = 1 in¦ ?\n"
   ++ "  let x = 1 in ¦?\n"
   ++ "  let x = 1 in x¦";
 
@@ -324,18 +324,25 @@ let idel =
 let mline =
   "  l¦\n"
   ++ "  le¦\n"
-  ++ "  let¦?\n"
+  ++ "  let¦ ?\n"
   ++ "  let ¦?\n"
   ++ "  let x¦\n"
   ++ "  let x ¦\n"
-  ++ "  let x =¦?\n"
-  ++ "  let x =\n  ¦?\n"
-  ++ "  let x =\n  1¦\n"
-  ++ "  let x =\n  1 ¦\n"
-  ++ "  let x =\n  1 i¦?\n"
-  ++ "  let x =\n  1 in¦?\n"
-  ++ "  let x =\n  1 in ¦?\n"
-  ++ "  let x =\n  1 in x¦";
+  ++ "  let x =¦ ?\n"
+  ++ "  let x =\n"
+  ++ "  ¦?\n"
+  ++ "  let x =\n"
+  ++ "  1¦\n"
+  ++ "  let x =\n"
+  ++ "  1 ¦\n"
+  ++ "  let x =\n"
+  ++ "  1 i¦ ?\n"
+  ++ "  let x =\n"
+  ++ "  1 in¦ ?\n"
+  ++ "  let x =\n"
+  ++ "  1 in ¦?\n"
+  ++ "  let x =\n"
+  ++ "  1 in x¦";
 
 /* ANDREW'S LIVE REPROS (2026-07-22): the caret model at borrowed
    cells. A1: deleting the pattern `a` must move the caret ONE
@@ -455,10 +462,28 @@ let scenarios = [
     @ [Action.Insert("\n")]
     @ type_string("    ")
     @ backspaces(2),
-    "  l¦\n  le¦\n  let¦?\n  let ¦?\n  let a¦\n  let a ¦\n"
-    ++ "  let a =¦?\n  let a = ¦?\n  let a = \n  ¦?\n  let a = \n   ¦?\n"
-    ++ "  let a = \n    ¦?\n  let a = \n     ¦?\n  let a = \n      ¦?\n"
-    ++ "  let a = \n     ¦?\n  let a = \n    ¦?",
+    "  l¦\n"
+    ++ "  le¦\n"
+    ++ "  let¦ ?\n"
+    ++ "  let ¦?\n"
+    ++ "  let a¦\n"
+    ++ "  let a ¦\n"
+    ++ "  let a =¦ ?\n"
+    ++ "  let a = ¦?\n"
+    ++ "  let a = \n"
+    ++ "  ¦?\n"
+    ++ "  let a = \n"
+    ++ "   ¦?\n"
+    ++ "  let a = \n"
+    ++ "    ¦?\n"
+    ++ "  let a = \n"
+    ++ "     ¦?\n"
+    ++ "  let a = \n"
+    ++ "      ¦?\n"
+    ++ "  let a = \n"
+    ++ "     ¦?\n"
+    ++ "  let a = \n"
+    ++ "    ¦?",
   ),
   /* ANDREW'S A1 REPRO PINNED FIXED: deleting `a` moves the caret
      exactly ONE perceived position, landing RIGHT of the appearing
@@ -477,34 +502,65 @@ let scenarios = [
   scenario(
     "B: Enter under an unclosed let above stays at the line's level",
     type_string("let b = \nlet a = 1 in x") @ [Action.Insert("\n")],
-    "  l¦\n  le¦\n  let¦?\n  let ¦?\n  let b¦\n  let b ¦\n"
-    ++ "  let b =¦?\n  let b = ¦?\n  let b = \n  ¦?\n  let b = \n  l¦\n"
-    ++ "  let b = \n  le¦\n  let b = \n  let¦?\n  let b = \n  let ¦?\n"
-    ++ "  let b = \n  let a¦\n  let b = \n  let a ¦\n  let b = \n"
-    ++ "  let a =¦?\n  let b = \n  let a = ¦?\n  let b = \n"
-    ++ "  let a = 1¦\n  let b = \n  let a = 1 ¦\n  let b = \n"
-    ++ "  let a = 1 i¦?\n  let b = \n  let a = 1 in¦?\n  let b = \n"
-    ++ "  let a = 1 in ¦?\n  let b = \n  let a = 1 in x¦\n  let b = \n"
-    ++ "  let a = 1 in x\n¦",
+    "  l¦\n"
+    ++ "  le¦\n"
+    ++ "  let¦ ?\n"
+    ++ "  let ¦?\n"
+    ++ "  let b¦\n"
+    ++ "  let b ¦\n"
+    ++ "  let b =¦ ?\n"
+    ++ "  let b = ¦?\n"
+    ++ "  let b = \n"
+    ++ "  ¦?\n"
+    ++ "  let b = \n"
+    ++ "  l¦\n"
+    ++ "  let b = \n"
+    ++ "  le¦\n"
+    ++ "  let b = \n"
+    ++ "  let¦ ?\n"
+    ++ "  let b = \n"
+    ++ "  let ¦?\n"
+    ++ "  let b = \n"
+    ++ "  let a¦\n"
+    ++ "  let b = \n"
+    ++ "  let a ¦\n"
+    ++ "  let b = \n"
+    ++ "  let a =¦ ?\n"
+    ++ "  let b = \n"
+    ++ "  let a = ¦?\n"
+    ++ "  let b = \n"
+    ++ "  let a = 1¦\n"
+    ++ "  let b = \n"
+    ++ "  let a = 1 ¦\n"
+    ++ "  let b = \n"
+    ++ "  let a = 1 i¦ ?\n"
+    ++ "  let b = \n"
+    ++ "  let a = 1 in¦ ?\n"
+    ++ "  let b = \n"
+    ++ "  let a = 1 in ¦?\n"
+    ++ "  let b = \n"
+    ++ "  let a = 1 in x¦\n"
+    ++ "  let b = \n"
+    ++ "  let a = 1 in x\n"
+    ++ "¦",
   ),
   scenario(
     "A1: delete the space right of pattern a, then a itself",
     type_string("let a = 1 in a") @ lefts(8) @ backspaces(2),
     "  l¦\n"
     ++ "  le¦\n"
-    ++ "  let¦?\n"
+    ++ "  let¦ ?\n"
     ++ "  let ¦?\n"
     ++ "  let a¦\n"
     ++ "  let a ¦\n"
-    ++ "  let a =¦?\n"
+    ++ "  let a =¦ ?\n"
     ++ "  let a = ¦?\n"
     ++ "  let a = 1¦\n"
     ++ "  let a = 1 ¦\n"
-    ++ "  let a = 1 i¦?\n"
-    ++ "  let a = 1 in¦?\n"
+    ++ "  let a = 1 i¦ ?\n"
+    ++ "  let a = 1 in¦ ?\n"
     ++ "  let a = 1 in ¦?\n"
-    ++ "  let a = 1 in a¦"
-    ++ "\n"
+    ++ "  let a = 1 in a¦\n"
     ++ "  let a = 1 in ¦a\n"
     ++ "  let a = 1 in¦ a\n"
     ++ "  let a = 1 i¦n a\n"
@@ -512,9 +568,9 @@ let scenarios = [
     ++ "  let a = 1¦ in a\n"
     ++ "  let a = ¦1 in a\n"
     ++ "  let a =¦ 1 in a\n"
-    ++ "  let a ¦= 1 in a"
-    ++ "\n  let a¦= 1 in a"
-    ++ "\n  let?¦= 1 in a",
+    ++ "  let a ¦= 1 in a\n"
+    ++ "  let a¦= 1 in a\n"
+    ++ "  let?¦= 1 in a",
   ),
   scenario(
     "A1: arrows through the borrowed cell are never dead",
@@ -525,19 +581,18 @@ let scenarios = [
     @ [Action.Move(Local(Right, ByChar))],
     "  l¦\n"
     ++ "  le¦\n"
-    ++ "  let¦?\n"
+    ++ "  let¦ ?\n"
     ++ "  let ¦?\n"
     ++ "  let a¦\n"
     ++ "  let a ¦\n"
-    ++ "  let a =¦?\n"
+    ++ "  let a =¦ ?\n"
     ++ "  let a = ¦?\n"
     ++ "  let a = 1¦\n"
     ++ "  let a = 1 ¦\n"
-    ++ "  let a = 1 i¦?\n"
-    ++ "  let a = 1 in¦?\n"
+    ++ "  let a = 1 i¦ ?\n"
+    ++ "  let a = 1 in¦ ?\n"
     ++ "  let a = 1 in ¦?\n"
-    ++ "  let a = 1 in a¦"
-    ++ "\n"
+    ++ "  let a = 1 in a¦\n"
     ++ "  let a = 1 in ¦a\n"
     ++ "  let a = 1 in¦ a\n"
     ++ "  let a = 1 i¦n a\n"
@@ -545,30 +600,29 @@ let scenarios = [
     ++ "  let a = 1¦ in a\n"
     ++ "  let a = ¦1 in a\n"
     ++ "  let a =¦ 1 in a\n"
-    ++ "  let a ¦= 1 in a"
-    ++ "\n  let a¦= 1 in a"
-    ++ "\n  let?¦= 1 in a"
-    ++ "\n  let¦?= 1 in a"
-    ++ "\n  let?¦= 1 in a",
+    ++ "  let a ¦= 1 in a\n"
+    ++ "  let a¦= 1 in a\n"
+    ++ "  let?¦= 1 in a\n"
+    ++ "  let¦?= 1 in a\n"
+    ++ "  let?¦= 1 in a",
   ),
   scenario(
     "A1: deleting the last pattern space keeps the caret on its row",
     type_string("let a = 1 in a") @ lefts(8) @ backspaces(3),
     "  l¦\n"
     ++ "  le¦\n"
-    ++ "  let¦?\n"
+    ++ "  let¦ ?\n"
     ++ "  let ¦?\n"
     ++ "  let a¦\n"
     ++ "  let a ¦\n"
-    ++ "  let a =¦?\n"
+    ++ "  let a =¦ ?\n"
     ++ "  let a = ¦?\n"
     ++ "  let a = 1¦\n"
     ++ "  let a = 1 ¦\n"
-    ++ "  let a = 1 i¦?\n"
-    ++ "  let a = 1 in¦?\n"
+    ++ "  let a = 1 i¦ ?\n"
+    ++ "  let a = 1 in¦ ?\n"
     ++ "  let a = 1 in ¦?\n"
-    ++ "  let a = 1 in a¦"
-    ++ "\n"
+    ++ "  let a = 1 in a¦\n"
     ++ "  let a = 1 in ¦a\n"
     ++ "  let a = 1 in¦ a\n"
     ++ "  let a = 1 i¦n a\n"
@@ -576,33 +630,33 @@ let scenarios = [
     ++ "  let a = 1¦ in a\n"
     ++ "  let a = ¦1 in a\n"
     ++ "  let a =¦ 1 in a\n"
-    ++ "  let a ¦= 1 in a"
-    ++ "\n  let a¦= 1 in a"
-    ++ "\n  let?¦= 1 in a"
-    ++ "\n  let¦?= 1 in a",
+    ++ "  let a ¦= 1 in a\n"
+    ++ "  let a¦= 1 in a\n"
+    ++ "  let?¦= 1 in a\n"
+    ++ "  let¦?= 1 in a",
   ),
   scenario(
     "left-to-right entry: let x = 1 in x",
     type_string("let x = 1 in x"),
     "  l¦\n"
     ++ "  le¦\n"
-    ++ "  let¦?\n"
+    ++ "  let¦ ?\n"
     ++ "  let ¦?\n"
     ++ "  let x¦\n"
     ++ "  let x ¦\n"
-    ++ "  let x =¦?\n"
+    ++ "  let x =¦ ?\n"
     ++ "  let x = ¦?\n"
     ++ "  let x = 1¦\n"
     ++ "  let x = 1 ¦\n"
-    ++ "  let x = 1 i¦?\n"
-    ++ "  let x = 1 in¦?\n"
+    ++ "  let x = 1 i¦ ?\n"
+    ++ "  let x = 1 in¦ ?\n"
     ++ "  let x = 1 in ¦?\n"
     ++ "  let x = 1 in x¦",
   ),
   scenario(
     "left-to-right entry: 1 + 2",
     type_string("1 + 2"),
-    "  1¦\n" ++ "  1 ¦\n" ++ "  1 +¦?\n" ++ "  1 + ¦?\n" ++ "  1 + 2¦",
+    "  1¦\n  1 ¦\n  1 +¦ ?\n  1 + ¦?\n  1 + 2¦",
   ),
   /* FELT ASSESSMENT: pure caret movement produces zero hole churn;
      deleting `1` materializes the hole IN the vacated cell with the
@@ -633,14 +687,7 @@ let scenarios = [
   scenario(
     "kill an operator mid-program: 1 + 2 minus the +",
     type_string("1 + 2") @ lefts(2) @ backspaces(1),
-    "  1¦\n"
-    ++ "  1 ¦\n"
-    ++ "  1 +¦?\n"
-    ++ "  1 + ¦?\n"
-    ++ "  1 + 2¦\n"
-    ++ "  1 + ¦2\n"
-    ++ "  1 +¦ 2\n"
-    ++ "  1 ¦~2",
+    "  1¦\n  1 ¦\n  1 +¦ ?\n  1 + ¦?\n  1 + 2¦\n  1 + ¦2\n  1 +¦ 2\n  1 ¦~2",
   ),
   /* CARET-AT-BORROWED-CELLS (andrew's live repro, pinned before any
      caret fix): shrink the gap between delimiters to zero and watch
@@ -661,38 +708,28 @@ let scenarios = [
   scenario(
     "shrink f( ) to zero: pinch forms under the caret",
     type_string("f( ") @ backspaces(1),
-    "  f¦\n" ++ "  f(¦?\n" ++ "  f( ¦?\n" ++ "  f(¦?",
+    "  f¦\n  f(¦?\n  f( ¦?\n  f(¦?",
   ),
   scenario(
     "shrink then walk left through the pinch",
     type_string("f( ") @ backspaces(1) @ lefts(2),
-    "  f¦\n"
-    ++ "  f(¦?\n"
-    ++ "  f( ¦?\n"
-    ++ "  f(¦?\n"
-    ++ "  f¦(?\n"
-    ++ "  ¦f(?",
+    "  f¦\n  f(¦?\n  f( ¦?\n  f(¦?\n  f¦(?\n  ¦f(?",
   ),
   scenario(
     "shrink an operator gap: 1  2 minus the middle space",
     type_string("1  2") @ lefts(1) @ backspaces(1),
-    "  1¦\n"
-    ++ "  1 ¦\n"
-    ++ "  1  ¦\n"
-    ++ "  1 ~2¦\n"
-    ++ "  1 ~¦2\n"
-    ++ "  1~¦2",
+    "  1¦\n  1 ¦\n  1  ¦\n  1 ~2¦\n  1 ~¦2\n  1~¦2",
   ),
   scenario(
     "delete back through: 1 + 2",
     type_string("1 + 2") @ backspaces(5),
     "  1¦\n"
     ++ "  1 ¦\n"
-    ++ "  1 +¦?\n"
+    ++ "  1 +¦ ?\n"
     ++ "  1 + ¦?\n"
     ++ "  1 + 2¦\n"
     ++ "  1 + ¦?\n"
-    ++ "  1 +¦?\n"
+    ++ "  1 +¦ ?\n"
     ++ "  1 ¦\n"
     ++ "  1¦\n"
     ++ "  ¦?",
@@ -820,18 +857,18 @@ let facing_matrix = [
       ++ "    1¦ ~2                 right\n"
       ++ "    ¦1 ~2                 left\n"
       ++ "  1 +\n"
-      ++ "    1 +¦?                 left\n"
-      ++ "    1 ¦+?                 right\n"
-      ++ "    1¦ +?                 right\n"
-      ++ "    ¦1 +?                 left\n"
+      ++ "    1 +¦ ?                left\n"
+      ++ "    1 ¦+ ?                right\n"
+      ++ "    1¦ + ?                right\n"
+      ++ "    ¦1 + ?                left\n"
       ++ "  let  =\n"
-      ++ "    let ?=¦?              left\n"
-      ++ "    let ?¦=?              right\n"
-      ++ "    let ¦?=?              left\n"
-      ++ "    let¦ ?=?              left\n"
-      ++ "    le¦t ?=?              flat\n"
-      ++ "    l¦et ?=?              flat\n"
-      ++ "    ¦let ?=?              left\n"
+      ++ "    let ?=¦ ?             left\n"
+      ++ "    let ?¦= ?             right\n"
+      ++ "    let ¦?= ?             left\n"
+      ++ "    let¦ ?= ?             left\n"
+      ++ "    le¦t ?= ?             flat\n"
+      ++ "    l¦et ?= ?             flat\n"
+      ++ "    ¦let ?= ?             left\n"
       ++ "  let a =  in a\n"
       ++ "    let a = ?in a¦        right\n"
       ++ "    let a = ?in ¦a        left\n"

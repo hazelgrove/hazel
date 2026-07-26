@@ -41,12 +41,15 @@ let visible_atoms =
           switch (GroutCells.cls_of(cells, g.id)) {
           | Some(Pinch)
           | None => []
-          | Some(_) =>
+          | Some(c) =>
             let sigil =
               switch (g.shape) {
               | Convex => "?"
               | Concave => "~"
               };
+            /* a LineEndPadded hole measures TWO columns: a blank pad
+               cell then the glyph, so the glyph sits at origin+1 */
+            let sigil = c == GroutCells.LineEndPadded ? " " ++ sigil : sigil;
             [(Measured.find_g(g, m), sigil)];
           }
         | Secondary(w) when Secondary.is_space(w) =>
@@ -169,14 +172,28 @@ let invariants = (placed: Segment.t): option(string) => {
     let mp = measured_of(placed);
     let ms = measured_of(stripped);
     let cells = GroutCells.classify(placed);
+    /* AMENDED 2026-07-26: allowance is the WIDTH of the line-end hole
+       on the row — one for LineEndFree, TWO for LineEndPadded (blank
+       pad + glyph). Both sit past the line's text, so neither
+       displaces anything; interior rows keep zero growth. */
     let free_rows = {
       let rec go = (sg: Segment.t, acc) =>
         List.fold_left(
           (acc, p: Piece.t) =>
             switch (p) {
             | Piece.Grout(g)
-                when GroutCells.cls_of(cells, g.id) == Some(LineEndFree) => [
-                Measured.find_g(g, mp).origin.row,
+                when
+                  switch (GroutCells.cls_of(cells, g.id)) {
+                  | Some(c) => GroutCells.is_line_end(c)
+                  | None => false
+                  } => [
+                (
+                  Measured.find_g(g, mp).origin.row,
+                  switch (GroutCells.cls_of(cells, g.id)) {
+                  | Some(c) => GroutCells.width(c)
+                  | None => 0
+                  },
+                ),
                 ...acc,
               ]
             | Tile(t) => List.fold_left((a, k) => go(k, a), acc, t.children)
@@ -195,7 +212,10 @@ let invariants = (placed: Segment.t): option(string) => {
           | Some(sh) => sh.max_col
           | None => 0
           };
-        let allowance = List.mem(r, free_rows) ? 1 : 0;
+        let allowance =
+          free_rows
+          |> List.filter(((row, _)) => row == r)
+          |> List.fold_left((mx, (_, w)) => max(mx, w), 0);
         if (shape.max_col > sw + allowance || shape.max_col < sw) {
           bad :=
             Some(
@@ -283,16 +303,32 @@ let tests = [
         let mp = measured_of(placed);
         let ms = measured_of(stripped);
         let cells = GroutCells.classify(placed);
-        /* rows whose width may exceed stripped by one: rows hosting a
-           LineEndFree hole */
+        /* AMENDED 2026-07-26 for the trailing pad: a row's placed
+           width may exceed its stripped width by the columns the
+           line-end classes occupy — one for LineEndFree, TWO for
+           LineEndPadded (blank pad + glyph). Justified because both
+           sit past the line's text and so displace nothing; interior
+           rows keep the zero-growth bound (layout invisibility). The
+           allowance is per row, taking the widest line-end hole on
+           it. */
         let free_rows = {
           let rec go = (sg: Segment.t, acc) =>
             List.fold_left(
               (acc, p: Piece.t) =>
                 switch (p) {
                 | Piece.Grout(g)
-                    when GroutCells.cls_of(cells, g.id) == Some(LineEndFree) => [
-                    Measured.find_g(g, mp).origin.row,
+                    when
+                      switch (GroutCells.cls_of(cells, g.id)) {
+                      | Some(c) => GroutCells.is_line_end(c)
+                      | None => false
+                      } => [
+                    (
+                      Measured.find_g(g, mp).origin.row,
+                      switch (GroutCells.cls_of(cells, g.id)) {
+                      | Some(c) => GroutCells.width(c)
+                      | None => 0
+                      },
+                    ),
                     ...acc,
                   ]
                 | Tile(t) =>
@@ -312,7 +348,10 @@ let tests = [
               | Some(s) => s.max_col
               | None => 0
               };
-            let allowance = List.mem(r, free_rows) ? 1 : 0;
+            let allowance =
+              free_rows
+              |> List.filter(((row, _)) => row == r)
+              |> List.fold_left((mx, (_, w)) => max(mx, w), 0);
             if (shape.max_col > sw + allowance || shape.max_col < sw) {
               bad :=
                 [

@@ -708,7 +708,7 @@ let x =⟪ ⟫?¦⟪ in ?⟫   CHIPS[]
 let x = 1¦⟪ in ?⟫   CHIPS[]
 let x = 1 ¦⟪in ?⟫   CHIPS[]
 let x = 1 i¦⟪n ?⟫   CHIPS[]
-let x = 1 in¦?   CHIPS[]|},
+let x = 1 in¦ ?   CHIPS[]|},
           trajectory("let x = 1 in"),
         )
       ),
@@ -722,9 +722,9 @@ let x = 1 in¦?   CHIPS[]|},
         check(
           string_testable,
           "let-above",
-          {|l¦~
+          {|l¦ ~
 string_replace(a, b, c)   CHIPS[]
-le¦⟪t ⟫~
+le¦⟪t ⟫ ~
 string_replace(a, b, c)   CHIPS[]
 let¦⟪ ⟫?⟪ = ? in⟫
 string_replace(a, b, c)   CHIPS[]
@@ -894,10 +894,10 @@ let y = string_replace(a, b,¦⟪ ⟫?⟪)⟫ in y   CHIPS[]|},
           {|string_replace(a¦⟪, ?, ?) ⟫~
 1 + 1   CHIPS[]
 ---
-string_replace(a~
+string_replace(a ~
 1 + 1¦   CHIPS[,+,+)]
 ---
-string_replace(a~
+string_replace(a ~
 1 + 1 + 2¦   CHIPS[,+,+)]|},
           {
             let z =
@@ -1331,7 +1331,7 @@ let fu¦⟪ = ? in ?⟫   CHIPS[]
 let fun¦⟪ ⟫?⟪ -> ? in ?⟫   CHIPS[=]
 let fun⟪ ⟫?¦⟪ -> ? in ?⟫   CHIPS[=]
 let fun i¦⟪ -> ? in ?⟫   CHIPS[=]
-let fun?in¦?   CHIPS[-> | =]
+let fun?in¦ ?   CHIPS[-> | =]
 let fun?in ¦?   CHIPS[-> | =]|},
           trajectory("let fun in "),
         )
