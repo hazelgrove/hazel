@@ -62,18 +62,28 @@ let t = (name: string, input: string, expected: string) =>
     )
   );
 
+/* PLACEMENT RULE CHANGED 2026-07-26 (andrew): interior gaps put AT
+   MOST ONE space before the hole, remainder after — reverting toward
+   virtual-grout's anchor rule and away from the centering tried on
+   2026-07-24. Rationale: P10 FILL-POSITION AFFINITY (the hole must
+   sit at/after the caret so typed content REPLACES it rather than
+   vanishing from behind the caret) plus trajectory weighting (gaps
+   of 1-3 are what left-to-right entry visits; wider gaps are
+   marginal). Also maximally stable: the hole moves only on the 1->2
+   gap transition. Pins in this file with a leading space before the
+   sigil were re-judged under that rule. */
 let space_runs = [
   t("operand hole, one space", "let x = in x", "let x =? in x"),
-  t("operand hole, two spaces", "let x =  in x", "let x =?  in x"),
+  t("operand hole, two spaces", "let x =  in x", "let x = ? in x"),
   t("operand hole, three spaces", "let x =   in x", "let x = ?  in x"),
   t(
     "operand hole, long run anchors left",
     "let x =     in x",
-    "let x =  ?   in x",
+    "let x = ?    in x",
   ),
   t("operator hole, one space", "1 2", "1~ 2"),
-  t("operator hole, two spaces", "1  2", "1~  2"),
-  t("operator hole, long run anchors left", "1     2", "1  ~   2"),
+  t("operator hole, two spaces", "1  2", "1 ~ 2"),
+  t("operator hole, long run anchors left", "1     2", "1 ~    2"),
   t("adjacent operators", "1 + + 2", "1 +? + 2"),
   t("leading operand hole in child", "let x = + 2 in x", "let x =? + 2 in x"),
 ];
@@ -83,7 +93,7 @@ let empty_runs = [
   t("no whitespace, child leading", "(* 2)", "(?* 2)"),
   t("leading at top level, no whitespace", "* 2", "?* 2"),
   t("leading anchors right: one space before token", "  * 2", "?  * 2"),
-  t("leading long run anchors right", "    * 2", " ?   * 2"),
+  t("leading long run anchors right", "    * 2", "  ?  * 2"),
 ];
 
 let trailing_edge = [
@@ -188,7 +198,7 @@ let gallery = [
   t(
     "missing if condition, two spaces",
     "if  then 2 else 3",
-    "if?  then 2 else 3",
+    "if ? then 2 else 3",
   ),
   t("missing list element", "[1, , 3]", "[1,? , 3]"),
   t("missing fun pattern", "fun -> 2", "fun? -> 2"),

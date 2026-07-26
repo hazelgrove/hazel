@@ -122,23 +122,30 @@ let decide = (~at_boundary: bool, ~leading=false, run: list(Secondary.t)): t => 
       };
     };
   } else {
-    /* single-line gap with content on both sides: the hole sits
-     * ROUGHLY CENTERED in the gap (andrew 2026-07-24, deliberately
-     * DEVIATING from virtual-grout's one-space-from-the-anchor rule,
-     * which hugged the left token and looked wrong in wide gaps).
-     * The hole occupies one of the gap's cells and the remaining
-     * whitespace splits as evenly as possible (an odd remainder
-     * goes to the right). Rendered: 1 space -> `let?=` (the hole
-     * paints into that space, no width added), 3 -> `let ? =`,
-     * 5 -> `let  ?  =`. An empty gap pinches the hole directly
-     * between the tokens. */
+    /* single-line gap with content on both sides: AT MOST ONE space
+     * before the hole, the rest after (andrew 2026-07-26, settled
+     * after trying centering). Rendered: 1 space -> `let?=` (the hole
+     * paints into that space, no width added), 2 -> `let ?=`,
+     * 3 -> `let ? =`, 5 -> `let ?   =`. An empty gap pinches the hole
+     * directly between the tokens.
+     *
+     * WHY, over centering (P10 FILL-POSITION AFFINITY + trajectory
+     * weighting — see plans/obligation-display-design.md): typing a
+     * space right after `let` must leave the hole AFTER the caret,
+     * where the operand you are about to type will land, so the
+     * operand replaces the hole rather than the hole vanishing from
+     * behind the caret. Centering-with-left-bias failed exactly that
+     * case. This rule also moves the hole on ONLY the 1->2 gap
+     * transition and never again — maximally stable — and it agrees
+     * with centering on every gap up to 3, which is the range
+     * left-to-right entry actually visits. */
     switch (n) {
     | 0 => {
         index: 0,
         style: Thin,
       }
     | n => {
-        index: leading ? max((n - 1) / 2, 0) : (n - 1) / 2,
+        index: leading ? max(n - 2, 0) : min(1, n - 1),
         style: Thick,
       }
     };
