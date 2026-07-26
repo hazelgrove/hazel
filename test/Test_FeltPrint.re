@@ -42,18 +42,28 @@ let t = (name: string, input: string, expected: string) =>
 
 /* ---- the virtual-grout pin table, reproduced from placed pieces ---- */
 
+/* PLACEMENT RULE CHANGED 2026-07-26 (andrew): interior gaps put AT
+   MOST ONE space before the hole, remainder after — reverting toward
+   virtual-grout's anchor rule and away from the centering tried on
+   2026-07-24. Rationale: P10 FILL-POSITION AFFINITY (the hole must
+   sit at/after the caret so typed content REPLACES it rather than
+   vanishing from behind the caret) plus trajectory weighting (gaps
+   of 1-3 are what left-to-right entry visits; wider gaps are
+   marginal). Also maximally stable: the hole moves only on the 1->2
+   gap transition. Pins in this file with a leading space before the
+   sigil were re-judged under that rule. */
 let space_runs = [
   t("operand hole, one space", "let x = in x", "let x =?in x"),
-  t("operand hole, two spaces", "let x =  in x", "let x =? in x"),
+  t("operand hole, two spaces", "let x =  in x", "let x = ?in x"),
   t("operand hole, three spaces", "let x =   in x", "let x = ? in x"),
   t(
     "operand hole, long run anchors left",
     "let x =     in x",
-    "let x =  ?  in x",
+    "let x = ?   in x",
   ),
   t("operator hole, one space", "1 2", "1~2"),
-  t("operator hole, two spaces", "1  2", "1~ 2"),
-  t("operator hole, long run anchors left", "1     2", "1  ~  2"),
+  t("operator hole, two spaces", "1  2", "1 ~2"),
+  t("operator hole, long run anchors left", "1     2", "1 ~   2"),
   t("adjacent operators", "1 + + 2", "1 +?+ 2"),
   t("leading operand hole in child", "let x = + 2 in x", "let x =?+ 2 in x"),
 ];
@@ -63,7 +73,7 @@ let empty_runs = [
   t("no whitespace, child leading", "(* 2)", "(‽* 2)"),
   t("leading at top level, no whitespace", "* 2", "‽* 2"),
   t("leading anchors right: one space before token", "  * 2", "? * 2"),
-  t("leading long run anchors right", "    * 2", " ?  * 2"),
+  t("leading long run anchors right", "    * 2", "  ? * 2"),
 ];
 
 let trailing_edge = [
@@ -168,7 +178,7 @@ let gallery = [
   t(
     "missing if condition, two spaces",
     "if  then 2 else 3",
-    "if? then 2 else 3",
+    "if ?then 2 else 3",
   ),
   t("missing list element", "[1, , 3]", "[1,?, 3]"),
   t("missing fun pattern", "fun -> 2", "fun?-> 2"),
@@ -309,7 +319,7 @@ let idel =
   ++ "  let x = 1 i¦n x\n"
   ++ "  let x = 1 ¦in x\n"
   ++ "  let x = 1¦ in x\n"
-  ++ "  let x =?¦ in x";
+  ++ "  let x = ¦?in x";
 
 let mline =
   "  l¦\n"
@@ -398,7 +408,7 @@ let selection_pins = [
       check(
         string_testable,
         "real-space anchor needs no redirect",
-        "let¦?‹ = 1 in a",
+        "let¦ ‹?= 1 in a",
         sel_render(z),
       );
     },
@@ -630,7 +640,7 @@ let scenarios = [
     ++ "  1 + 2¦\n"
     ++ "  1 + ¦2\n"
     ++ "  1 +¦ 2\n"
-    ++ "  1~¦ 2",
+    ++ "  1 ¦~2",
   ),
   /* CARET-AT-BORROWED-CELLS (andrew's live repro, pinned before any
      caret fix): shrink the gap between delimiters to zero and watch
@@ -669,8 +679,8 @@ let scenarios = [
     "  1¦\n"
     ++ "  1 ¦\n"
     ++ "  1  ¦\n"
-    ++ "  1~ 2¦\n"
-    ++ "  1~ ¦2\n"
+    ++ "  1 ~2¦\n"
+    ++ "  1 ~¦2\n"
     ++ "  1~¦2",
   ),
   scenario(
@@ -751,20 +761,141 @@ let facings = [
     type_string("let x = w in x") @ lefts(5) @ backspaces(1),
     "left",
   ),
-  /* RE-PINNED with centered placement: the concave hole now sits in
-     the FIRST cell of the 2-space gap rather than the second, so a
-     caret in the middle of the gap is on the hole's right, not its
-     left, and faces accordingly. The facing rule itself is unchanged
-     — this is the hole moving, not the caret logic. */
+  /* RE-PINNED 2026-07-26 for the at-most-one-space-before rule: in
+     `1  2` the concave hole sits in the SECOND cell of the gap
+     (hugging `2`), so a caret mid-gap is on the hole's LEFT and
+     faces right. The facing rule is unchanged — the hole moved. */
   facing(
     "between operands: 1 SP 2 mid",
     type_string("1  2") @ lefts(2),
-    "left",
+    "right",
+  ),
+];
+
+/* EXHAUSTIVE FACING MATRIX (P11). Generated, not hand-listed: every
+   caret position of a corpus chosen so that each neighbour kind
+   occurs on each side — real token, convex hole, concave hole,
+   document edge, and (the class that kept breaking) an ENCLOSING
+   SHARD across a child-slot boundary. Hand-listing an abstract
+   product would pin unrealizable cells; sweeping real programs pins
+   exactly the configurations the editor can reach.
+
+   The pin is the whole table, so ANY facing change anywhere diffs
+   here. Rows read: caret render, then the facing at that position. */
+let matrix_corpus = [
+  "1  2" /* concave hole, top level, wide gap */,
+  "1 +" /* trailing convex hole at the document edge */,
+  "let  =" /* convex hole in a child slot: the P11 case */,
+  "let a =  in a" /* convex hole between enclosing shards */,
+  "(1 +)" /* pinch against an enclosing closer */,
+  "( * 2)" /* leading hole inside a child slot */,
+  "if  then 1 else 2" /* hole between keyword shards */,
+];
+
+let matrix_rows = (prog: string): list(string) => {
+  let z_end =
+    Test_Editing.perform(Zipper.init(), Test_Editing.mk(prog ++ "¦"));
+  let n = String.length(prog);
+  List.init(n + 1, k => k)
+  |> List.map(k => {
+       let z = Test_Editing.perform(z_end, lefts(k));
+       Printf.sprintf(
+         "    %-22s %s",
+         FeltPrint.of_zipper(z),
+         dir_show(Zipper.Caret.direction(z)),
+       );
+     })
+  |> List.sort_uniq(String.compare);
+};
+
+let facing_matrix = [
+  Alcotest.test_case("facing matrix over realizable positions", `Quick, () =>
+    Alcotest.check(
+      string_testable,
+      "matrix",
+      "  1  2\n"
+      ++ "    1 ~2¦                 right\n"
+      ++ "    1 ~¦2                 left\n"
+      ++ "    1 ¦~2                 right\n"
+      ++ "    1¦ ~2                 right\n"
+      ++ "    ¦1 ~2                 left\n"
+      ++ "  1 +\n"
+      ++ "    1 +¦?                 left\n"
+      ++ "    1 ¦+?                 right\n"
+      ++ "    1¦ +?                 right\n"
+      ++ "    ¦1 +?                 left\n"
+      ++ "  let  =\n"
+      ++ "    let ?=¦?              left\n"
+      ++ "    let ?¦=?              right\n"
+      ++ "    let ¦?=?              left\n"
+      ++ "    let¦ ?=?              left\n"
+      ++ "    le¦t ?=?              flat\n"
+      ++ "    l¦et ?=?              flat\n"
+      ++ "    ¦let ?=?              left\n"
+      ++ "  let a =  in a\n"
+      ++ "    let a = ?in a¦        right\n"
+      ++ "    let a = ?in ¦a        left\n"
+      ++ "    let a = ?in¦ a        left\n"
+      ++ "    let a = ?i¦n a        flat\n"
+      ++ "    let a = ?¦in a        right\n"
+      ++ "    let a = ¦?in a        left\n"
+      ++ "    let a =¦ ?in a        left\n"
+      ++ "    let a ¦= ?in a        right\n"
+      ++ "    let a¦ = ?in a        right\n"
+      ++ "    let ¦a = ?in a        left\n"
+      ++ "    let¦ a = ?in a        left\n"
+      ++ "    le¦t a = ?in a        flat\n"
+      ++ "    l¦et a = ?in a        flat\n"
+      ++ "    ¦let a = ?in a        left\n"
+      ++ "  (1 +)\n"
+      ++ "    (1 +?)¦               right\n"
+      ++ "    (1 +¦?)               left\n"
+      ++ "    (1 ¦+?)               right\n"
+      ++ "    (1¦ +?)               right\n"
+      ++ "    (¦1 +?)               left\n"
+      ++ "    ¦(1 +?)               left\n"
+      ++ "  ( * 2)\n"
+      ++ "    (?* 2)¦               right\n"
+      ++ "    (?* 2¦)               right\n"
+      ++ "    (?* ¦2)               left\n"
+      ++ "    (?*¦ 2)               left\n"
+      ++ "    (?¦* 2)               right\n"
+      ++ "    (¦?* 2)               left\n"
+      ++ "    ¦(?* 2)               left\n"
+      ++ "  if  then 1 else 2\n"
+      ++ "    if ?then 1 else 2¦    right\n"
+      ++ "    if ?then 1 else ¦2    left\n"
+      ++ "    if ?then 1 else¦ 2    left\n"
+      ++ "    if ?then 1 els¦e 2    flat\n"
+      ++ "    if ?then 1 el¦se 2    flat\n"
+      ++ "    if ?then 1 e¦lse 2    flat\n"
+      ++ "    if ?then 1 ¦else 2    right\n"
+      ++ "    if ?then 1¦ else 2    right\n"
+      ++ "    if ?then ¦1 else 2    left\n"
+      ++ "    if ?then¦ 1 else 2    left\n"
+      ++ "    if ?the¦n 1 else 2    flat\n"
+      ++ "    if ?th¦en 1 else 2    flat\n"
+      ++ "    if ?t¦hen 1 else 2    flat\n"
+      ++ "    if ?¦then 1 else 2    right\n"
+      ++ "    if ¦?then 1 else 2    left\n"
+      ++ "    if¦ ?then 1 else 2    left\n"
+      ++ "    i¦f ?then 1 else 2    flat\n"
+      ++ "    ¦if ?then 1 else 2    left",
+      matrix_corpus
+      |> List.map(p =>
+           "  "
+           ++ String.escaped(p)
+           ++ "\n"
+           ++ String.concat("\n", matrix_rows(p))
+         )
+      |> String.concat("\n"),
+    )
   ),
 ];
 
 let tests = [
   ("FeltPrint: caret facing", facings),
+  ("FeltPrint: facing matrix", facing_matrix),
   ("FeltPrint: space runs", space_runs),
   ("FeltPrint: empty runs", empty_runs),
   ("FeltPrint: trailing edge", trailing_edge),

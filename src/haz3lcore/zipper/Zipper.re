@@ -1021,23 +1021,36 @@ module Caret = {
     if (run == [] && !at_trailing_edge) {
       None;
     } else {
+      /* P11: neighbours are flanking MATERIAL, not flanking siblings —
+         an empty affix inside a child slot means the enclosing shard
+         is the neighbour, NOT a document edge (BoundaryCtx). */
+      let (anc_l, anc_r) =
+        BoundaryCtx.ancestor_bounds(z.relatives.ancestors);
       let l_shape =
         switch (rest_l) {
         | [p, ..._] => p |> Piece.shapes |> Option.map(snd)
-        | [] => Some(Nib.Shape.concave())
+        | [] =>
+          switch (anc_l) {
+          | Some(_) as s => s
+          | None => Some(Nib.Shape.concave())
+          }
         };
       let r_shape =
         switch (rest_r) {
         | [p, ..._] => p |> Piece.shapes |> Option.map(fst)
-        | [] => Some(Nib.Shape.concave())
+        | [] =>
+          switch (anc_r) {
+          | Some(_) as s => s
+          | None => Some(Nib.Shape.concave())
+          }
         };
       switch (l_shape, r_shape) {
       | (Some(l), Some(r)) when !Nib.Shape.fits(l, r) =>
         let hole_shape = Nib.Shape.flip(l);
         let placement =
           HolePlacement.decide(
-            ~at_boundary=rest_r == [],
-            ~leading=rest_l == [],
+            ~at_boundary=rest_r == [] && anc_r == None,
+            ~leading=rest_l == [] && anc_l == None,
             run,
           );
         let side: Direction.t =
