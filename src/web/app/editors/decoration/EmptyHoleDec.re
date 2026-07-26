@@ -17,7 +17,11 @@ type cell =
   | NextCell /* following space / line-end free cell */
   | PrevCell /* preceding space holds the hole */
   | Thin /* pinched between tokens */
-  | Boxed; /* standalone (chips): keep the glyph's own box */
+  | Boxed /* standalone (chips): keep the glyph's own box */
+  | BoxedPad; /* line-end hole whose anchor wants separation: keep the
+                 glyph's box and push it one cell right, leaving a
+                 blank pad cell. Both cells sit past the line's text,
+                 so nothing is displaced. */
 
 let view =
   Core.Memo.general(
@@ -29,6 +33,7 @@ let view =
       | PrevCell => Printf.sprintf("margin-left: -%fpx;", w)
       | Thin => "" /* dispatched to view_thin below */
       | Boxed => ""
+      | BoxedPad => Printf.sprintf("margin-left: %fpx;", w)
       };
     Node.create_svg(
       "svg",

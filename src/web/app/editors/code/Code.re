@@ -258,6 +258,7 @@ let view =
              switch (GroutCells.cls_of(grout_cells, g.id)) {
              | Some(Pinch) => Thin
              | Some(NextSpace | PrevSpace | LineEndFree) => Boxed
+             | Some(LineEndPadded) => BoxedPad
              | None => Thin
              };
            [of_grout(~cell, g)];

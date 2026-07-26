@@ -32,12 +32,14 @@ open Base;
 type cell =
   | Consumed /* rules 1/3: sigil occupies an existing space cell */
   | Free /* rule 2: free cell at a line end */
+  | Padded /* rule 2b: free cell at a line end, one cell out, with a
+              blank pad cell between anchor and sigil */
   | Pinched; /* rule 4: zero-width between tokens */
 
 let sigil_default = (cell: cell, shape: Grout.shape): string =>
   switch (cell, shape) {
-  | (Consumed | Free, Convex) => "?"
-  | (Consumed | Free, Concave) => "~"
+  | (Consumed | Free | Padded, Convex) => "?"
+  | (Consumed | Free | Padded, Concave) => "~"
   | (Pinched, Convex) => {|‽|}
   | (Pinched, Concave) => {|∻|}
   };
@@ -52,6 +54,7 @@ let cell_of = (c: GroutCells.cls): cell =>
   | NextSpace
   | PrevSpace => Consumed
   | LineEndFree => Free
+  | LineEndPadded => Padded
   | Pinch => Pinched
   };
 
@@ -74,7 +77,15 @@ let render =
            let c =
              GroutCells.cls_of(cells, g.id)
              |> Option.value(~default=GroutCells.Pinch);
-           sigil(cell_of(c), g.shape);
+           /* the pad is a CELL property, not glyph vocabulary — emit
+              it here rather than inside the sigil, so a caller that
+              overrides ~sigil to normalise glyphs (the P9 fidelity
+              check) keeps the pad. A sigil that renders nothing
+              (render_ghostless) suppresses its pad too: both cells
+              are system material past the line's text. */
+           let glyph = sigil(cell_of(c), g.shape);
+           let pad = c == GroutCells.LineEndPadded && glyph != "" ? " " : "";
+           pad ++ glyph;
          | Secondary(w) when Secondary.is_space(w) =>
            GroutCells.is_consumed(cells, w.id) ? "" : " "
          | Secondary(w) when Secondary.is_linebreak(w) => "\n"
@@ -150,7 +161,11 @@ let render_ghostless = (seg: Segment.t): string =>
       (cell, _) =>
         switch (cell) {
         | Consumed => " "
+        /* line-end material (its pad included, suppressed with the
+           glyph in the weave) is past the text: it contributes
+           nothing the stripped render would show */
         | Free
+        | Padded
         | Pinched => ""
         },
     seg,

@@ -58,22 +58,28 @@ let consumed_space_edges =
   | None => m
   };
 
-/* TRAILING-HOLE EDGE (P10 fill-position affinity): a LineEndFree
-   hole is the ONLY class that adds a column — the others borrow an
-   existing whitespace cell, so they cannot shift what follows. Its
+/* TRAILING-HOLE EDGE (P10 fill-position affinity): the line-end
+   classes are the ONLY ones that add columns — the others borrow an
+   existing whitespace cell, so they cannot shift what follows. Their
    column therefore pushes the right neighbour's origin (a linebreak,
    say) one cell past the caret's true position, and mapping a caret
    through that neighbour draws it on the hole's RIGHT — where nothing
    exists. The hole marks where content will land, so the caret sits
-   BEFORE it: redirect to the hole's origin. Geometric (the hole's
-   `last` meets the neighbour's `origin` on one row), so it needs no
+   BEFORE it: redirect to the hole's ORIGIN — which for LineEndPadded
+   is the blank pad cell, i.e. immediately after the anchor token, so
+   the caret lands before the pad (`then¦ ?`) and a typed char appears
+   exactly where the caret was drawn. Geometric (the hole's `last`
+   meets the neighbour's `origin` on one row), so it needs no
    structural traversal and applies to every consumer of this map. */
 let trailing_hole_origin = (~measured: Measured.t, origin: Point.t): Point.t =>
   Id.Map.fold(
     (gid, gm: Measured.measurement, acc: Point.t) =>
       switch (GroutCells.cls_of(measured.grout_cells, gid)) {
-      | Some(GroutCells.LineEndFree)
-          when gm.last.row == acc.row && gm.last.col == acc.col =>
+      | Some(c)
+          when
+            GroutCells.is_line_end(c)
+            && gm.last.row == acc.row
+            && gm.last.col == acc.col =>
         gm.origin
       | _ => acc
       },
