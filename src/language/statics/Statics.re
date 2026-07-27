@@ -437,6 +437,16 @@ and uexp_to_info_map =
   let pat_edge = (~first=false, role) =>
     edge(~at=here, ~first, role, (i: Info.pat) => i.slice);
   let (let@) = (component, k) => pat_edge(~first=true, Binder, component, k);
+  // combines an appending pattern Binder (@) with its branch Alternative (+).
+  let (let@+) = ((branch, pat_result), k) =>
+    pat_edge(
+      Binder,
+      pat_result,
+      ((p_info, p_elab, m)) => {
+        let+ (_, _, m) = (branch, p_elab, m);
+        k((p_info, p_elab, m));
+      },
+    );
   // use when an annotation is a type component of this rule's type.
   // let ( let** ) = (component, k) => typ_edge(Part, component, k);
   // use when an annotation is sliced backwards by this rule's binders.
@@ -2553,10 +2563,31 @@ and uexp_to_info_map =
       let$ (scrut, scrut_elab, m) = go(~ana=syn, scrut, m);
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(Exp.rep_id, es);
-      let (ps', _) =
-        map_m(
-          (p, m) => {
-            let (info, _, m) =
+      let (
+        p_ctxs,
+        es,
+        es_elabs,
+        e_syn_tys,
+        e_co_ctxs,
+        constraints,
+        ps_elabs,
+        m,
+      ) =
+        List.fold_left(
+          (
+            (
+              p_ctxs,
+              es,
+              es_elabs,
+              e_syn_tys,
+              e_co_ctxs,
+              constraints,
+              ps_elabs,
+              m,
+            ),
+            (p, e),
+          ) => {
+            let (p', _, _) =
               go_pat(
                 ~is_synswitch=false,
                 ~co_ctx=CoCtx.empty,
@@ -2564,51 +2595,33 @@ and uexp_to_info_map =
                 p,
                 m,
               );
-            (info, m);
+            let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana, e, m);
+            let@+ (p_info, p_elab, m) = (
+              e,
+              go_pat(
+                ~is_synswitch=false,
+                ~co_ctx=e.co_ctx,
+                ~ana=scrut.ty,
+                p,
+                m,
+              ),
+            );
+            (
+              p_ctxs @ [p'.ctx],
+              es @ [e],
+              es_elabs @ [e_elab],
+              e_syn_tys @ [e.elab_syn_ty],
+              e_co_ctxs @ [e.co_ctx],
+              constraints @ [Info.pat_constraint(p_info)],
+              ps_elabs @ [p_elab],
+              m,
+            );
           },
-          ps,
-          m,
+          ([], [], [], [], [], [], [], m),
+          rules,
         );
-
-      let p_ctxs = List.map(Info.pat_ctx, ps');
-      let (es, es_elabs, m) =
-        List.fold_left2(
-          ((es, elabs, m), e, ctx) =>
-            go(~ctx, ~ana, e, m)
-            |> (((e, elab, m)) => (es @ [e], elabs @ [elab], m)),
-          ([], [], m),
-          es,
-          p_ctxs,
-        );
-
-      let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
-      let e_co_ctxs = List.map(Info.exp_co_ctx, es);
       let (syn_ty_match, marks_match) =
         ConstructorStaticsHelpers.syn_marks_match(ctx, e_syn_tys, branch_ids);
-      let (constraints, ps_elabs, m) =
-        List.fold_left(
-          (
-            (
-              constraints: list(Coverage.Constraint.t),
-              ps_elabs: list(Pat.t),
-              m: Map.t,
-            ),
-            ((p, co_ctx), e: Info.exp),
-          ) => {
-            let (info, p_elab, m) =
-              go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
-            let m =
-              m
-              |> record(~id=here, Binder, info.slice)
-              |> record(~id=here, Alternative, e.slice);
-            let p_constraint = Info.pat_constraint(info);
-            ([p_constraint, ...constraints], ps_elabs @ [p_elab], m);
-          },
-          ([], [], m),
-          List.combine(List.combine(ps, e_co_ctxs), es),
-        );
-
-      let constraints = List.rev(constraints);
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
       let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
