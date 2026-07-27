@@ -557,6 +557,8 @@ module type ExpressionStatics = {
       ~inferred_label: option(string)=?,
       ~label_sort: bool=?,
       ~dot_labels: list(string)=?,
+      ~slice_schema: option(Typ.t)=?,
+      ~slice_references: list(Info.slice_reference)=?,
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);

@@ -97,14 +97,34 @@ let reclassify_expanded_module_items =
       let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
       switch (StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m)) {
       | Some(info) =>
+        let slice_group_members =
+          info.slice_children
+          |> List.concat_map((edge: Info.slice_child) =>
+               switch (edge.pattern, edge.mode) {
+               | (Some(id), _) => [id]
+               | (None, _) when edge.type_source != None =>
+                 switch (StaticsBase.Map.lookup_exp(edge.child, m)) {
+                 | Some(child) =>
+                   Ctx.added_bindings(child.ctx, info.ctx).entries
+                   |> List.filter_map(
+                        fun
+                        | Ctx.TVarEntry({id, _}) => Some(id)
+                        | _ => None,
+                      )
+                 | None => []
+                 }
+               | _ => []
+               }
+             );
         StaticsBase.Map.add_info(
           ids,
           Info.InfoExp({
             ...info,
             cls: mod_cls,
+            slice_group_members,
           }),
           m,
-        )
+        );
       | None => m
       };
     },

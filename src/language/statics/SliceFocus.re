@@ -80,22 +80,24 @@ let overlay_for = (~direction, ~focus, ~query, m: Id.Map.t(Info.t)): overlay => 
 };
 
 let focus_shell_ids = (m: Id.Map.t(Info.t), focus: Id.t): Id.Set.t => {
-  let rec go =
-    fun
+  let rec go = (child, ancestors) =>
+    switch (ancestors) {
     | [id, ...rest] =>
       switch (Id.Map.find_opt(id, m)) {
-      | Some(
-          Info.InfoExp({
-            user_term: {term: Parens(_) | Asc(_, _), _} as e,
-            _,
-          }),
-        ) =>
-        Id.Set.union(go(rest), Id.Set.of_list(IdTagged.ids(e)))
+      | Some(Info.InfoExp({user_term, slice_children, _}))
+          when
+            List.exists(
+              (edge: Info.slice_child) =>
+                edge.focus_shell && Id.equal(edge.child, child),
+              slice_children,
+            ) =>
+        Id.Set.union(go(id, rest), Id.Set.of_list(IdTagged.ids(user_term)))
       | _ => Id.Set.empty
       }
-    | [] => Id.Set.empty;
+    | [] => Id.Set.empty
+    };
   switch (Id.Map.find_opt(focus, m)) {
-  | Some(Info.InfoExp({ancestors, _})) => go(ancestors)
+  | Some(Info.InfoExp({ancestors, _})) => go(focus, ancestors)
   | _ => Id.Set.empty
   };
 };
@@ -214,6 +216,7 @@ type edge_view = {
   view_mode: Info.slice_child_mode,
   view_shape: Typ.t,
   view_ana: Typ.t,
+  view_type_source: bool,
 };
 
 type directive =
@@ -231,6 +234,7 @@ let node_directives =
   let checked_path = view =>
     direction == `Ana
     && view.view_mode == SliceOmit
+    && !view.view_type_source
     && Id.Set.mem(view.view_id, path)
     && (
       is_gap(focus_query)
@@ -250,9 +254,7 @@ let node_directives =
           is_focus(focus, view.view_id) ? ForceOmit : RouteUp(gap);
         } else if (Id.Set.mem(view.view_id, path)) {
           RouteUp(
-            direction == `Ana
-            && !pattern_focus
-            && view.view_mode != SliceAscribe
+            direction == `Ana && !pattern_focus && !view.view_type_source
               ? route_query(parent_shape, view.view_shape, focus_query) : gap,
           );
         } else if (checked != None

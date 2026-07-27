@@ -90,6 +90,12 @@ let ctors = [
 
 let wrappers = [
   synthesis_case("ascription-int", "(1 : Int)", "Int", "(? : Int)"),
+  synthesis_case(
+    "proof-object-dependency",
+    "proof_object true end",
+    "proof_of true end",
+    "proof_object true end",
+  ),
   synthesis_case("label-full", "(l=1)", "(l=Int)", "(l=1)"),
   synthesis_case("label-gradual", "(l=1)", "(l=?)", "(l=?)"),
   synthesis_case("explicit-nonlabel", "(~1)", "(~Int)", "(~1)"),

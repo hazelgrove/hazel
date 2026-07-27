@@ -323,6 +323,8 @@ and uexp_to_info_map =
         ~inferred_label: option(string)=None,
         ~label_sort=false,
         ~dot_labels: list(string)=[],
+        ~slice_schema: option(Typ.t)=None,
+        ~slice_references: list(Info.slice_reference)=[],
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
@@ -346,6 +348,9 @@ and uexp_to_info_map =
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
     let (slice_children, m) =
       StaticsSlice.take_children(~id=Exp.rep_id(user_term), m);
+    let references =
+      DemandCtx.references(ctx, ~use=Exp.rep_id(user_term), co_ctx)
+      @ slice_references;
     let info: Info.exp = {
       cls,
       elab_syn_ty,
@@ -364,6 +369,11 @@ and uexp_to_info_map =
       label_sort,
       dot_labels,
       slice_children,
+      slice_source: {
+        schema: Option.value(~default=ty, slice_schema),
+        references,
+      },
+      slice_group_members: [],
       route,
       assemble,
     };
@@ -390,6 +400,11 @@ and uexp_to_info_map =
   let (let+) = (child, k) =>
     StaticsSlice.alternative(~parent=uexp, child, k);
   let (let&&) = (child, k) => StaticsSlice.prune(~parent=uexp, child, k);
+  let (let&&&) = (child, k) =>
+    StaticsSlice.checked_source(~parent=uexp, child, k);
+  let (let^^^) = (child, k) =>
+    StaticsSlice.transparent(~parent=uexp, child, k);
+  let (let@@@) = (child, k) => StaticsSlice.alias(~parent=uexp, child, k);
   let ( let*** ) = (child, k) =>
     StaticsSlice.matched(~parent=uexp, child, k);
   let (let!) = (pattern, k) =>
@@ -399,7 +414,6 @@ and uexp_to_info_map =
     let cs = StaticsSlice.decompose(f, ctx, ana);
     k((List.nth(cs, 0), List.nth(cs, 1)));
   };
-  let ( let<* ) = (f, k) => k(StaticsSlice.decompose(f, ctx, ana));
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -582,7 +596,10 @@ and uexp_to_info_map =
       let (t, m) = go_typ(t2, ~expects=TypExpectation.TypeExpected, m);
       /* Desugar any Sig types in the annotation without full normalization */
       let t_ty = Typ.desugar_sig(ctx, t.user_term);
-      let* (e, e_elab, m) = go(~ana=Info.pure(t_ty), ~ctx=t.ctx, e, m);
+      let&&& (e, e_elab, m) = (
+        t2,
+        go(~ana=Info.pure(t_ty), ~ctx=t.ctx, e, m),
+      );
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
@@ -822,6 +839,7 @@ and uexp_to_info_map =
         ~elab_syn_ty=syn_v,
         ~marks=marks_v,
         ~co_ctx,
+        ~slice_schema=Some(syn_v),
         m,
       );
     | DynamicErrorHole(e, err) =>
@@ -834,7 +852,7 @@ and uexp_to_info_map =
         m,
       );
     | Parens(e) =>
-      let* (e, e_elab, m) = go(~ana=Info.pure(ana), e, m);
+      let^^^ (e, e_elab, m) = go(~ana=Info.pure(ana), e, m);
       add(
         ~elab_term=Parens(e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -1659,7 +1677,14 @@ and uexp_to_info_map =
           let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
           let elab_term = Var(name) |> rewrap;
           let (info, _, m) =
-            add(~elab_term, ~elab_syn_ty=typ, ~marks=[], ~co_ctx, m);
+            add(
+              ~elab_term,
+              ~elab_syn_ty=typ,
+              ~marks=[],
+              ~co_ctx,
+              ~slice_schema=Some(typ),
+              m,
+            );
           let m =
             add_info(
               ids,
@@ -1677,6 +1702,13 @@ and uexp_to_info_map =
             ~elab_syn_ty=syn_res,
             ~marks=marks_res,
             ~co_ctx=CoCtx.empty,
+            ~slice_references=[
+              DemandCtx.constructor_reference(
+                ctx,
+                ~use=Exp.rep_id(uexp),
+                ctr,
+              ),
+            ],
             m,
           );
         }
@@ -1762,6 +1794,9 @@ and uexp_to_info_map =
           ~elab_syn_ty,
           ~marks=marks_res,
           ~co_ctx=CoCtx.empty,
+          ~slice_references=[
+            DemandCtx.constructor_reference(ctx, ~use=Exp.rep_id(uexp), ctr),
+          ],
           m,
         );
       };
@@ -1866,7 +1901,12 @@ and uexp_to_info_map =
              {
                let uexp_to_info_map =
                    (~ctx, ~ana=?, ~is_in_filter=?, ~ancestors=?, exp, m) =>
-                 go(~ctx, ~ana?, ~is_in_filter?, ~ancestors?, exp, m);
+                 StaticsSlice.keep(
+                   ~parent=uexp,
+                   go(~ctx, ~ana?, ~is_in_filter?, ~ancestors?, exp, m),
+                   result =>
+                   result
+                 );
                let add = add;
              }),
             m,
@@ -1993,7 +2033,12 @@ and uexp_to_info_map =
            {
              let uexp_to_info_map =
                  (~ctx, ~ana=?, ~is_in_filter=?, ~ancestors=?, exp, m) =>
-               go(~ctx, ~ana?, ~is_in_filter?, ~ancestors?, exp, m);
+               StaticsSlice.keep(
+                 ~parent=uexp,
+                 go(~ctx, ~ana?, ~is_in_filter?, ~ancestors?, exp, m),
+                 result =>
+                 result
+               );
              let add = add;
            }),
           m,
@@ -2484,8 +2529,17 @@ and uexp_to_info_map =
         m,
       );
     | ProofObject(e) =>
-      let (_, e_elab, m) =
-        go(~ctx, ~ana=Info.pure(Atom(Bool) |> Typ.temp), e, m);
+      let proof_ana = Atom(Bool) |> Typ.temp;
+      let* (_, e_elab, m) =
+        go(
+          ~ctx,
+          ~ana={
+            value: proof_ana,
+            route: StaticsSlice.dependency_route(proof_ana),
+          },
+          e,
+          m,
+        );
       add(
         ~elab_term=ProofObject(e_elab) |> rewrap,
         ~elab_syn_ty=Typ.temp(ProofOf(e)),
@@ -2713,6 +2767,7 @@ and uexp_to_info_map =
         );
       add(~elab_term, ~elab_syn_ty, ~marks=marks_match', ~co_ctx, m);
     | TyAlias(typat, utyp, body) =>
+      let alias_source_typ = utyp;
       /* Desugar Sig types so type aliases like `type T = {let x : Int}`
          store `Prod([TupLabel(...)])` rather than `Sig([...])` in the
          context (so meet/join can unify them with module expression
@@ -2972,8 +3027,10 @@ and uexp_to_info_map =
           | Some(sm) => Ctx.add_ctrs_with_params(ctx_body, name, params, sm)
           | None => ctx_body
           };
-        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
-          go(~ctx=ctx_body, ~ana=Info.pure(ana), body, m);
+        let@@@ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) = (
+          alias_source_typ,
+          go(~ctx=ctx_body, ~ana=Info.pure(ana), body, m),
+        );
         let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
         let m =
           utyp_to_info_map(
@@ -3045,8 +3102,10 @@ and uexp_to_info_map =
             }
           | _ => ctx_body
           };
-        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
-          go(~ctx=ctx_body, ~ana=Info.pure(ana), body, m);
+        let@@@ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) = (
+          alias_source_typ,
+          go(~ctx=ctx_body, ~ana=Info.pure(ana), body, m),
+        );
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
         let m =
           utyp_to_info_map(
@@ -3077,8 +3136,10 @@ and uexp_to_info_map =
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) =>
-        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
-          go(~ctx, ~ana=Info.pure(ana), body, m);
+        let@@@ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) = (
+          alias_source_typ,
+          go(~ctx, ~ana=Info.pure(ana), body, m),
+        );
         let m =
           utyp_to_info_map(
             ~ctx,
@@ -3275,6 +3336,10 @@ and upat_to_info_map =
         ~label_inference: option(Info.label_inference(Info.pat))=None,
         ~inferred_label: option(LabeledTuple.label)=None,
         ~label_sort=false,
+        ~slice_bindings: list(Info.slice_binding)=[],
+        ~slice_has_ascription=false,
+        ~slice_annotations: list(Typ.t)=[],
+        ~slice_references: list(Info.slice_reference)=[],
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
@@ -3332,6 +3397,10 @@ and upat_to_info_map =
       inferred_label,
       label_sort,
       slice_children,
+      slice_bindings,
+      slice_has_ascription,
+      slice_annotations,
+      slice_references,
       route,
     };
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoPat(info), m));
@@ -3619,6 +3688,11 @@ and upat_to_info_map =
           typ: ctx_typ,
           custom_statics: None,
         });
+      let slice_binding: Info.slice_binding = {
+        name,
+        id: Pat.rep_id(upat),
+        typ: ctx_typ,
+      };
 
       List.exists(l => name == l, duplicate_bindings)
         ? {
@@ -3626,6 +3700,7 @@ and upat_to_info_map =
             ~elab_syn_ty=unknown,
             ~marks=[Mark.DuplicateVar(name, unknown)],
             ~ctx=Ctx.extend(ctx, entry),
+            ~slice_bindings=[slice_binding],
             ~constraint_=Coverage.Constraint.Truth,
             m,
           );
@@ -3634,12 +3709,13 @@ and upat_to_info_map =
             ~elab_syn_ty=unknown,
             ~marks=[],
             ~ctx=Ctx.extend(ctx, entry),
+            ~slice_bindings=[slice_binding],
             ~constraint_=Coverage.Constraint.Truth,
             m,
           );
 
     | TupLabel({term: ExplicitNonlabel, _} as label, p) =>
-      let (p, p_elab, m) = go(~ana=Info.pure(ana), ~ctx, p, m);
+      let* (p, p_elab, m) = go(~ana=Info.pure(ana), ~ctx, p, m);
       /* Add info for the ExplicitNonlabel directly */
       let (_, _, m) =
         add(
@@ -3670,7 +3746,7 @@ and upat_to_info_map =
     | TupLabel(label, p) =>
       let (labmode, val_mode) =
         LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-      let (p, _, m) =
+      let* (p, _, m) =
         go(~ctx, ~ana=Info.pure(val_mode), ~duplicate_bindings, p, m);
       let (lab_name, m) =
         switch (label.term) {
@@ -3713,7 +3789,7 @@ and upat_to_info_map =
             );
           (None, m);
         | _ =>
-          let (p_info, p_elab, m) =
+          let* (p_info, p_elab, m) =
             go(~ctx, ~ana=Info.pure(labmode), label, m);
           let (_, _, m) =
             add(
@@ -3801,7 +3877,7 @@ and upat_to_info_map =
           ) =>
             switch (e.term) {
             | TupLabel({term: ExplicitNonlabel, _}, _) =>
-              let (info, elab, m) =
+              let* (info, elab, m) =
                 go(
                   ~ctx,
                   ~ana,
@@ -3830,7 +3906,7 @@ and upat_to_info_map =
                   ctx,
                   ana.value,
                 );
-              let (value_info, value_elab, m) =
+              let* (value_info, value_elab, m) =
                 go(
                   ~ctx,
                   ~ana=
@@ -3897,7 +3973,7 @@ and upat_to_info_map =
                     );
                   (None, false, m);
                 | _ =>
-                  let (p_info, p_elab, m) =
+                  let* (p_info, p_elab, m) =
                     go(~ctx, ~ana=Info.pure(labmode), label, m);
                   let (p_info, _, m) =
                     add(
@@ -4091,6 +4167,10 @@ and upat_to_info_map =
         ~marks=cms_ctr,
         ~ctx,
         ~constraint_=Coverage.Constraint.Ap(ctr, None),
+        ~slice_annotations=Option.to_list(Option.join(ty)),
+        ~slice_references=[
+          DemandCtx.constructor_reference(ctx, ~use=Pat.rep_id(upat), ctr),
+        ],
         m,
       );
     | Ap(fn, arg) =>
@@ -4134,6 +4214,8 @@ and upat_to_info_map =
         ~marks=[],
         ~ctx=p.ctx,
         ~constraint_=p.constraint_,
+        ~slice_has_ascription=true,
+        ~slice_annotations=[ann.user_term],
         m,
       );
     };

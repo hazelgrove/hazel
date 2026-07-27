@@ -37,9 +37,6 @@ type slice_child_mode =
   | SliceOmit
   | SliceSource
   | SlicePrune
-  | SliceAscribe
-  | SliceAlias
-  | SliceModule
   | SliceAlternative
   | SliceMatched;
 
@@ -86,12 +83,37 @@ type slice_child = {
   mode: slice_child_mode,
   child: Id.t,
   pattern: option(Id.t),
+  type_source: option(Typ.t),
+  focus_shell: bool,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slice_scratch = {
   children: list(slice_child),
   patterns: list(Id.t),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slice_binding = {
+  name: string,
+  id: Id.t,
+  typ: Typ.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slice_reference = {
+  name: string,
+  use: Id.t,
+  value: option(Ctx.var_entry),
+  constructor: option(Ctx.var_entry),
+  alias: option(Ctx.tvar_entry),
+  demand_as_value: bool,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slice_source = {
+  schema: Typ.t,
+  references: list(slice_reference),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -113,6 +135,8 @@ type exp = {
   label_sort: bool, /* When in the position of a label */
   dot_labels: list(string), /* Available labels when in dot-access position */
   slice_children: list(slice_child),
+  slice_source,
+  slice_group_members: list(Id.t),
   route: query_route,
   assemble: option(assembler),
 };
@@ -136,6 +160,10 @@ type pat = {
   inferred_label: option(LabeledTuple.label),
   label_sort: bool, /* When in the position of a label */
   slice_children: list(slice_child),
+  slice_bindings: list(slice_binding),
+  slice_has_ascription: bool,
+  slice_annotations: list(Typ.t),
+  slice_references: list(slice_reference),
   route: query_route,
 };
 

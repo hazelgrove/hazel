@@ -257,6 +257,11 @@ let handle_tuple_operation =
             label_sort: false,
             dot_labels: [],
             slice_children: [],
+            slice_source: {
+              schema: args_typ,
+              references: [],
+            },
+            slice_group_members: [],
             route: Info.identity_route,
             assemble: None,
           }),
@@ -454,6 +459,11 @@ let group_by_label_statics =
             label_sort: false,
             dot_labels: [],
             slice_children: [],
+            slice_source: {
+              schema: Prod([table_info.ty, unknown]) |> Typ.temp,
+              references: [],
+            },
+            slice_group_members: [],
             route: Info.identity_route,
             assemble: None,
           }),
