@@ -31,90 +31,24 @@ type label_inference('a) =
       introduced_labels: list(LabeledTuple.label),
     });
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slice_child_mode =
-  | SliceKeep
-  | SliceOmit
-  | SliceSource
-  | SlicePrune
-  | SliceAlternative
-  | SliceMatched;
+type slice = Slice.t;
+let opaque_slice: slice = Slice.opaque;
+let pp_slice = (fmt: Format.formatter, _: slice) =>
+  Format.pp_print_string(fmt, "<slice>");
+let sexp_of_slice = (_: slice): Sexplib.Sexp.t => Sexplib.Sexp.List([]);
+let slice_of_sexp = (_: Sexplib.Sexp.t): slice => opaque_slice;
+let yojson_of_slice = (_: slice): Yojson.Safe.t => `Null;
+let slice_of_yojson = (_: Yojson.Safe.t): slice => opaque_slice;
 
-type query_route = {
-  down: Typ.t => Typ.t,
-  up: (Typ.t, Typ.t) => Typ.t,
-};
-let identity_route: query_route = {
-  down: x => x,
-  up: (_, psi) => psi,
-};
-let pp_query_route = (fmt: Format.formatter, _: query_route) =>
-  Format.pp_print_string(fmt, "<route>");
-let sexp_of_query_route = (_: query_route): Sexplib.Sexp.t =>
+/* Children recorded by the binding operators, consumed by the next `add`. */
+type slice_scratch = list((Slice.role, Slice.t));
+let pp_slice_scratch = (fmt: Format.formatter, _: slice_scratch) =>
+  Format.pp_print_string(fmt, "<slice scratch>");
+let sexp_of_slice_scratch = (_: slice_scratch): Sexplib.Sexp.t =>
   Sexplib.Sexp.List([]);
-let query_route_of_sexp = (_: Sexplib.Sexp.t): query_route => identity_route;
-let yojson_of_query_route = (_: query_route): Yojson.Safe.t => `Null;
-let query_route_of_yojson = (_: Yojson.Safe.t): query_route => identity_route;
-
-type assembler = list(Typ.t) => Typ.t;
-let pp_assembler = (fmt: Format.formatter, _: assembler) =>
-  Format.pp_print_string(fmt, "<assembler>");
-let sexp_of_assembler = (_: assembler): Sexplib.Sexp.t =>
-  Sexplib.Sexp.List([]);
-let assembler_of_sexp = (_: Sexplib.Sexp.t): assembler => List.hd;
-let yojson_of_assembler = (_: assembler): Yojson.Safe.t => `Null;
-let assembler_of_yojson = (_: Yojson.Safe.t): assembler => List.hd;
-
-type routed('a) = {
-  value: 'a,
-  route: query_route,
-};
-let pure = (value: 'a): routed('a) => {
-  value,
-  route: identity_route,
-};
-let map = (f: 'a => 'b, {value, route}: routed('a)): routed('b) => {
-  value: f(value),
-  route,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slice_child = {
-  mode: slice_child_mode,
-  child: Id.t,
-  pattern: option(Id.t),
-  type_source: option(Typ.t),
-  focus_shell: bool,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slice_scratch = {
-  children: list(slice_child),
-  patterns: list(Id.t),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slice_binding = {
-  name: string,
-  id: Id.t,
-  typ: Typ.t,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slice_reference = {
-  name: string,
-  use: Id.t,
-  value: option(Ctx.var_entry),
-  constructor: option(Ctx.var_entry),
-  alias: option(Ctx.tvar_entry),
-  demand_as_value: bool,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slice_source = {
-  schema: Typ.t,
-  references: list(slice_reference),
-};
+let slice_scratch_of_sexp = (_: Sexplib.Sexp.t): slice_scratch => [];
+let yojson_of_slice_scratch = (_: slice_scratch): Yojson.Safe.t => `Null;
+let slice_scratch_of_yojson = (_: Yojson.Safe.t): slice_scratch => [];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
@@ -134,11 +68,7 @@ type exp = {
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
   label_sort: bool, /* When in the position of a label */
   dot_labels: list(string), /* Available labels when in dot-access position */
-  slice_children: list(slice_child),
-  slice_source,
-  slice_group_members: list(Id.t),
-  route: query_route,
-  assemble: option(assembler),
+  slice,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -159,12 +89,7 @@ type pat = {
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
   label_sort: bool, /* When in the position of a label */
-  slice_children: list(slice_child),
-  slice_bindings: list(slice_binding),
-  slice_has_ascription: bool,
-  slice_annotations: list(Typ.t),
-  slice_references: list(slice_reference),
-  route: query_route,
+  slice,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -177,6 +102,7 @@ type typ = {
   marks: list(Mark.t),
   message: option(Message.t), /* Some(TypOk(_)) when marks = [] */
   warnings: list(Warning.list_item),
+  slice,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -1545,6 +1545,191 @@ let rec subtract = (ctx: Ctx.t, left: t, right: t): t =>
     };
   };
 
+// The one place that knows each former's arity; slice query routing is derived
+// from it, so a new former needs a case here and a MatchedTyp matcher.
+let children = (ty: t): list(t) =>
+  switch (term_of(ty)) {
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_)
+  | Sig(_) => []
+  | List(inner)
+  | TypFun(_, inner)
+  | Parens(inner)
+  | Projector(_, inner)
+  | Rec(_, inner)
+  | Poly(_, inner) => [inner]
+  | Arrow(left, right)
+  | TupLabel(left, right)
+  | TypParamAp(left, right)
+  | ProdProjection(left, right)
+  | ProdExtension(left, right) => [left, right]
+  | Prod(items)
+  | TypTuple(items) => items
+  | Sum(variants) =>
+    /* A variant's name travels as the `Var(c)` node `map_term` reconstructs
+       for it, so a query can drop a whole variant by gapping its name. */
+    List.concat_map(
+      fun
+      | ConstructorMap.Variant(name, ann, payload) => [
+          IdTagged.mk_internal(ann.ids, Var(name): term),
+          ...Option.to_list(payload),
+        ]
+      | ConstructorMap.BadEntry(inner) => [inner],
+      variants,
+    )
+  };
+
+let rebuild = (shape: t, replacements: list(t)): option(t) => {
+  let (term, rewrap) = unwrap(shape);
+  let one = f =>
+    switch (replacements) {
+    | [inner] => Some(f(inner) |> rewrap)
+    | _ => None
+    };
+  let two = f =>
+    switch (replacements) {
+    | [left, right] => Some(f(left, right) |> rewrap)
+    | _ => None
+    };
+  let many = (items, f) =>
+    List.length(items) == List.length(replacements)
+      ? Some(f(replacements) |> rewrap) : None;
+  switch (term) {
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_)
+  | Sig(_) => replacements == [] ? Some(shape) : None
+  | List(_) => one(inner => List(inner))
+  | TypFun(binder, _) => one(inner => TypFun(binder, inner))
+  | Parens(_) => one(inner => Parens(inner))
+  | Projector(data, _) => one(inner => Projector(data, inner))
+  | Rec(binder, _) => one(inner => Rec(binder, inner))
+  | Poly(binder, _) => one(inner => Poly(binder, inner))
+  | Arrow(_, _) => two((left, right) => Arrow(left, right))
+  | TupLabel(_, _) => two((left, right) => TupLabel(left, right))
+  | TypParamAp(_, _) => two((left, right) => TypParamAp(left, right))
+  | ProdProjection(_, _) =>
+    two((left, right) => ProdProjection(left, right))
+  | ProdExtension(_, _) => two((left, right) => ProdExtension(left, right))
+  | Prod(items) => many(items, items => Prod(items))
+  | TypTuple(items) => many(items, items => TypTuple(items))
+  | Sum(variants) =>
+    let variant = (name, ann, named, payload) =>
+      switch (term_of(named)) {
+      | Var(name') => ConstructorMap.Variant(name', ann, payload)
+      | _ =>
+        ConstructorMap.BadEntry(
+          switch (payload) {
+          | Some(payload) => payload
+          | None => named
+          },
+        )
+      };
+    let rec refill = (variants, replacements) =>
+      switch (variants, replacements) {
+      | ([], []) => Some([])
+      | (
+          [ConstructorMap.Variant(name, ann, None), ...rest],
+          [named, ...replacements],
+        ) =>
+        refill(rest, replacements)
+        |> Option.map(List.cons(variant(name, ann, named, None)))
+      | (
+          [ConstructorMap.Variant(name, ann, Some(_)), ...rest],
+          [named, payload, ...replacements],
+        ) =>
+        refill(rest, replacements)
+        |> Option.map(List.cons(variant(name, ann, named, Some(payload))))
+      | ([ConstructorMap.BadEntry(_), ...rest], [inner, ...replacements]) =>
+        refill(rest, replacements)
+        |> Option.map(List.cons(ConstructorMap.BadEntry(inner)))
+      | _ => None
+      };
+    refill(variants, replacements)
+    |> Option.map(variants => Sum(variants) |> rewrap);
+  };
+};
+
+let embed = (shape: t, i: int, child: t): t =>
+  children(shape)
+  |> List.mapi((j, _) => j == i ? child : gap)
+  |> rebuild(shape)
+  |> Option.value(~default=gap);
+
+let component = (shape: t, i: int): t =>
+  List.nth_opt(children(shape), i) |> Option.value(~default=gap);
+
+// Slice-lattice join: a gap carries no information, so it absorbs.
+let meet_gap = (ctx: Ctx.t, left: t, right: t): t =>
+  if (is_gap(left)) {
+    right;
+  } else if (is_gap(right)) {
+    left;
+  } else {
+    meet(ctx, left, right) |> Option.value(~default=left);
+  };
+
+let meet_gap_all = (ctx: Ctx.t, tys: list(t)): t =>
+  List.fold_left(meet_gap(ctx), gap, tys);
+
+// The matched query ▷ for an instantiated alias: what the definition must
+// supply for the application to supply `query`.
+let matched_query = (ctx: Ctx.t, query: t): t => {
+  let rec peel = (binders, definition) =>
+    switch (term_of(definition)) {
+    | TypFun(pattern, body) =>
+      peel(binders @ TPat.binders_of(pattern), body)
+    | _ => (binders, definition)
+    };
+  switch (term_of(query)) {
+  | TypParamAp({term: Var(name), _}, arguments) =>
+    switch (Ctx.lookup_tvar(ctx, name)) {
+    | Some(Singleton(definition)) =>
+      let (binders, body) = peel([], definition);
+      let arguments =
+        switch (term_of(arguments)) {
+        | TypTuple(arguments) => arguments
+        | _ => [arguments]
+        };
+      let binders = List.filter_map(TPat.tyvar_of_utpat, binders);
+      let bindings =
+        List.length(binders) == List.length(arguments)
+          ? List.combine(binders, arguments) : [];
+      let rec go = ty =>
+        switch (term_of(ty)) {
+        | Var(name) =>
+          List.find_map(
+            ((bound, query)) => bound == name ? Some(query) : None,
+            bindings,
+          )
+          |> Option.value(~default=gap)
+        | TypParamAp(fn, arg) =>
+          let arg = go(arg);
+          is_empty(arg) ? gap : TypParamAp(fn, arg) |> temp;
+        | Sum(_) => gap
+        | _ =>
+          switch (children(ty)) {
+          | [] => gap
+          | kids =>
+            rebuild(ty, List.map(go, kids)) |> Option.value(~default=gap)
+          }
+        };
+      bindings == [] ? query : go(body);
+    | _ => query
+    }
+  | _ => query
+  };
+};
+
 /**
    * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
    *

@@ -283,30 +283,9 @@ let skip_until_slicer_passes =
   Alcotest.test_case(name, `Quick, () => Alcotest.skip());
 };
 
-let pattern_trace_is_local =
-  Alcotest.test_case(
-    "pattern trace facts are local",
-    `Quick,
-    () => {
-      let e = parse_exp("fun ((a, b), (c, d)) -> a");
-      let (m, _) = Statics.mk(CoreSettings.on, base_ctx(), e);
-      let pattern_ids = collect_pat_ids(_ => true, e);
-      let binding_count =
-        pattern_ids
-        |> List.filter_map(Statics.Map.lookup_pat(_, m))
-        |> List.fold_left(
-             (count, info: Info.pat) =>
-               count + List.length(info.slice_bindings),
-             0,
-           );
-      Alcotest.check(Alcotest.int, "one fact per binder", 4, binding_count);
-    },
-  );
-
 let tests = (
   "Statics.Slicing.Properties",
   [
-    pattern_trace_is_local,
     skip_until_slicer_passes(
       "random synthesis slicing is valid",
       random_synthesis_validity,

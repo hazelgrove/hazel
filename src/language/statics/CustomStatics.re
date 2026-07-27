@@ -63,8 +63,7 @@ let analyze_argument =
       arg,
     ) => {
   open S;
-  let (arg_info, _, m) =
-    uexp_to_info_map(~ctx, ~ana=Info.pure(syn), arg, m);
+  let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
   switch (extract_entries(Typ.normalize(ctx, arg_info.ty))) {
   | Success(entries) => (
@@ -129,8 +128,7 @@ let analyze_label_to_info_map =
     | EmptyHole
     | _ => None
     };
-  let (i, i_elab, m) =
-    S.uexp_to_info_map(~ctx, ~ana=Info.pure(labmode), label, m);
+  let (i, i_elab, m) = S.uexp_to_info_map(~ctx, ~ana=labmode, label, m);
   let m =
     switch (label.term) {
     | Label(name) =>
@@ -196,8 +194,7 @@ let labels_to_info_map =
 let invalid_args_fallback =
     (module S: ExpressionStatics, ~ctx, ~fn_info: Info.exp, ~error, m, arg) => {
   S.(
-    let (arg_info, arg_elab, m) =
-      uexp_to_info_map(~ctx, ~ana=Info.pure(syn), arg, m);
+    let (arg_info, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
     add(
       ~elab_term=mk_builtin_ap_elab(fn_info, arg_elab),
       ~elab_syn_ty=unknown,
@@ -224,8 +221,7 @@ let handle_tuple_operation =
     | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
       /* Ensure all source tuple nodes get baseline info entries before
          specialized builtin tuple/label analysis rewrites parts of the arg. */
-      let (_, arg_elab, m) =
-        uexp_to_info_map(~ctx, ~ana=Info.pure(syn), arg, m);
+      let (_, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
       let (labeled_tup_info: option(tuple_type), tup_info, m: Map.t) =
         analyze_tuple_argument((module S), ~ctx, m, tup);
 
@@ -256,14 +252,7 @@ let handle_tuple_operation =
             inferred_label: None,
             label_sort: false,
             dot_labels: [],
-            slice_children: [],
-            slice_source: {
-              schema: args_typ,
-              references: [],
-            },
-            slice_group_members: [],
-            route: Info.identity_route,
-            assemble: None,
+            slice: Slice.opaque,
           }),
           m,
         );
@@ -418,8 +407,7 @@ let group_by_label_statics =
   S.(
     switch (arg.term) {
     | Tuple([table, pivot_label]) =>
-      let (_, arg_elab, m) =
-        uexp_to_info_map(~ctx, ~ana=Info.pure(syn), arg, m);
+      let (_, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
       let (row_info: option(tuple_type), table_info, m) =
         analyze_table_argument((module S), ~ctx, m, table);
 
@@ -458,14 +446,7 @@ let group_by_label_statics =
             inferred_label: None,
             label_sort: false,
             dot_labels: [],
-            slice_children: [],
-            slice_source: {
-              schema: Prod([table_info.ty, unknown]) |> Typ.temp,
-              references: [],
-            },
-            slice_group_members: [],
-            route: Info.identity_route,
-            assemble: None,
+            slice: Slice.opaque,
           }),
           m,
         );
@@ -528,7 +509,7 @@ let to_lvs_statics =
   open S;
   let (ty_in, ty_out) =
     MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_info.ty);
-  let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=Info.pure(ty_in), arg, m);
+  let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
   switch (Typ.normalize(ctx, arg.ty).term) {
   | Prod(entries) =>
@@ -600,7 +581,7 @@ let omit_all_labels_statics =
   S.(
     let (ty_in, ty_out) =
       MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_info.ty);
-    let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=Info.pure(ty_in), arg, m);
+    let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
     switch (Typ.normalize(ctx, arg.ty).term) {
     | Prod(entries) =>
@@ -657,7 +638,7 @@ let analyze_args_syn =
     (module S: ExpressionStatics, ~ctx: Ctx.t, args, m: Map.t) =>
   map_m(
     (arg, m) =>
-      S.uexp_to_info_map(~ctx, ~ana=Info.pure(syn), arg, m)
+      S.uexp_to_info_map(~ctx, ~ana=syn, arg, m)
       |> (((info, _, m)) => (info, m)),
     args,
     m,
@@ -677,8 +658,7 @@ let custom_statics_deferred_ap =
     switch (kind, args) {
     | (ProjectLabels | SelectLabels | OmitLabels, [tup, ...labels])
         when List.length(labels) > 0 =>
-      let (tup_info, _, m) =
-        uexp_to_info_map(~ctx, ~ana=Info.pure(syn), tup, m);
+      let (tup_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, tup, m);
       let (_, m) = validate_label_arguments((module S), ~ctx, labels, m);
 
       add(
@@ -689,8 +669,7 @@ let custom_statics_deferred_ap =
       );
 
     | (GroupByLabel, [table, pivot_label]) =>
-      let (table_info, _, m) =
-        uexp_to_info_map(~ctx, ~ana=Info.pure(syn), table, m);
+      let (table_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, table, m);
       let (_, m) =
         validate_label_arguments((module S), ~ctx, [pivot_label], m);
 
@@ -702,8 +681,7 @@ let custom_statics_deferred_ap =
       );
 
     | (ToLvs | OmitAllLabels, [arg]) =>
-      let (arg_info, _, m) =
-        uexp_to_info_map(~ctx, ~ana=Info.pure(syn), arg, m);
+      let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
       add(
         ~elab_syn_ty=unknown,
