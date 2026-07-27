@@ -4,15 +4,12 @@ open Vdom_input_widgets;
 open ProjectorBase;
 let clss = Attr.classes;
 
-module M: Projector = {
+module Model = ProjectorCore.Model.Csv;
+open Model;
+
+module M: Projector with type model = Model.t = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model =
-    | NoFile // No file selected
-    | FileLoaded({
-        filename: string,
-        content: string,
-        with_headers: bool,
-      }); // File loaded with header toggle
+  type model = Model.t;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | SetFile({

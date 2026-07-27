@@ -166,9 +166,12 @@ module View = {
 };
 
 /* To add a new projector:
- * 1. Create a new module implementing Projector (e.g. FoldProj)
- * 2. Add an entry for it in ProjectorCore.Kind.t
- * 3. Register the module in ProjectorInit.to_module
+ * 1. Create a new module implementing Projector (e.g. FoldProj), with
+ *    its model type in ProjectorCore.Model (src/language/ProjectorModel.re)
+ * 2. Add an entry for it in ProjectorCore.Kind.t and a constructor
+ *    carrying the model in ProjectorCore.Model.t
+ * 3. Register the module in ProjectorInit; the compiler will point at
+ *    each switch that needs a case
  * 4. If you want to expose the projector via a keyboard
  *    shortcut, add a Project(...) entry in Keyboard.re
  * 5. If you want to expose the projector in the projector
@@ -245,39 +248,20 @@ module type Projector = {
   let error: (model, info) => option(error);
 };
 
-/* A cooked projector is the same as the base module
- * signature except model & action are serialized so
- * they may be used by the Editor without it having
- * specialized knowledge of projector internals */
-module type Cooked =
-  Projector with type model = string and type action = string;
-
-module Cook = (C: Projector) : Cooked => {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = string;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = string;
-  let serialize_m = m => m |> C.sexp_of_model |> Sexplib.Sexp.to_string;
-  let deserialize_m = s => s |> Sexplib.Sexp.of_string |> C.model_of_sexp;
-  let serialize_a = a => a |> C.sexp_of_action |> Sexplib.Sexp.to_string;
-  let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
-  let init = any => C.init(any) |> Option.map(serialize_m);
-  let focusable = C.focusable;
-  let dynamics = C.dynamics;
-  let elaborate_syntax = C.elaborate_syntax;
-  let view = (args: View.args(model, action)) =>
-    C.view({
-      model: deserialize_m(args.model),
-      info: args.info,
-      local: a => args.local(serialize_a(a)),
-      parent: args.parent,
-      view_seg: args.view_seg,
-      status: args.status,
-      core_settings: args.core_settings,
-    });
-  let placeholder = m =>
-    m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
-  let update = (m, i, a) =>
-    C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
-  let error = (m, i) => C.error(m |> deserialize_m, i);
+/* The members of Projector that don't mention the model or action, so
+ * they can be reached from a Kind.t alone. Two callers need that: the
+ * context menu, which asks whether a kind applies before any model
+ * exists, and focus dispatch, which only carries the kind. */
+module type Static = {
+  let focusable: Focusable.t;
+  let dynamics: bool;
+  let elaborate_syntax: bool;
 };
+
+/* View arguments as seen at the dispatch boundary in ProjectorInit,
+ * where the concrete projector isn't known yet. The model is the tagged
+ * union, and `local` receives the projector's *next* model rather than an
+ * action: ProjectorInit.view applies the projector's own `update` on the
+ * way out, so per-projector action types never leave their
+ * implementations and the editor needs no way to represent them. */
+type view_args = View.args(ProjectorCore.Model.t, ProjectorCore.Model.t);

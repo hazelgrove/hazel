@@ -24,7 +24,7 @@ module ViewCache = {
     core_settings: Language.CoreSettings.t,
     settings_version: int,
     status: View.status,
-    model: string,
+    model: ProjectorCore.Model.t,
     view: View.t,
   };
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
@@ -51,7 +51,7 @@ module ViewCache = {
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
           && e.status == status
-          && e.model == model =>
+          && ProjectorCore.Model.equal(e.model, model) =>
       Some(e.view)
     | _ => None
     };
@@ -172,7 +172,7 @@ module Model = {
     warning:
       Option.map(Language.Info.is_warning, info.statics)
       |> Option.value(~default=false),
-    kind: p.kind,
+    kind: ProjectorCore.kind(p),
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
   };
@@ -443,16 +443,14 @@ let mk_view =
     view;
   | None =>
     ViewCache.misses := ViewCache.misses^ + 1;
-    let (module P) = ProjectorInit.to_module(p.kind);
     let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
     let view =
-      P.view({
+      ProjectorInit.view({
         model: p.model,
         info,
-        local: a => {
-          let new_model = P.update(p.model, info, a);
-          inject(Project(SetModel(idx, p.kind, new_model)));
-        },
+        /* ProjectorInit.view has already applied the projector's update, so
+         * this receives the new model directly rather than an action. */
+        local: new_model => inject(Project(SetModel(idx, new_model))),
         parent: a =>
           switch (a) {
           | FocusById(id) =>
@@ -462,7 +460,7 @@ let mk_view =
               inject(Project(Focus(target_idx, Probe, None)))
             | None => Effect.Ignore
             };
-          | a => inject(handle(idx, p.kind, a))
+          | a => inject(handle(idx, ProjectorCore.kind(p), a))
           },
         view_seg:
           (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
@@ -522,7 +520,7 @@ let split_views =
       ~status,
       ~view_error=views.error,
       ~idx,
-      ~kind=p.kind,
+      ~kind=ProjectorCore.kind(p),
     );
   let line_view = {
     let offside_view =
@@ -615,13 +613,15 @@ let key_handoff =
     Siblings.neighbors(editor.state.zipper.relatives.siblings),
   ) {
   | _ when z.caret != Outer => None
-  | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
-    let (module P) = ProjectorInit.to_module(kind);
+  | (Some(Left), (Some(Projector({id, model, _})), _)) =>
+    let kind = ProjectorCore.Model.kind(model);
+    let (module P) = ProjectorInit.statics(kind);
     let idx = List.find_index(x => x == id, projector_list) |> Option.get;
     P.focusable.keyboard != None
       ? Some(Focus(idx, kind, Some(Right))) : None;
-  | (Some(Right), (_, Some(Projector({id, kind, _})))) =>
-    let (module P) = ProjectorInit.to_module(kind);
+  | (Some(Right), (_, Some(Projector({id, model, _})))) =>
+    let kind = ProjectorCore.Model.kind(model);
+    let (module P) = ProjectorInit.statics(kind);
     let idx = List.find_index(x => x == id, projector_list) |> Option.get;
     P.focusable.keyboard != None
       ? Some(Focus(idx, kind, Some(Left))) : None;

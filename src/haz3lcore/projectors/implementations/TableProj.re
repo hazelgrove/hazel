@@ -40,7 +40,7 @@ let table =
     ~rows=List.map(row_cells(info.utility, view_seg), rows),
   );
 
-module M: Projector = {
+module M: Projector with type model = unit = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
   [@deriving (show({with_path: false}), sexp, yojson)]

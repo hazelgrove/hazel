@@ -3,29 +3,14 @@ open ProjectorBase;
 open Virtual_dom.Vdom;
 open Node;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  [@default "⋱"]
-  text: string,
-  expanded: bool,
-  always_render: bool,
-};
+module Model = ProjectorCore.Model.Fold;
+open Model;
 
-let default: t = {
-  text: "⋱",
-  expanded: false,
-  always_render: false,
-};
+let default = Model.default;
 
-let t_of_sexp = (sexp: Sexplib.Sexp.t): t =>
-  switch (t_of_sexp(sexp)) {
-  | exception _ => default
-  | t => t
-  };
-
-module M: Projector = {
+module M: Projector with type model = Model.t = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = t;
+  type model = Model.t;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | Toggle;

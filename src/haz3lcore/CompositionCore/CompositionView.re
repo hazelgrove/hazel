@@ -89,7 +89,8 @@ module Local = {
       ) {
       | Some(z') =>
         switch (z'.selection.content) {
-        | [Piece.Projector(pr)] => pr.kind == ProjectorCore.Kind.Fold
+        | [Piece.Projector(pr)] =>
+          ProjectorCore.kind(pr) == ProjectorCore.Kind.Fold
         | _ => false
         }
       | None => false
@@ -237,7 +238,7 @@ module Local = {
   };
 
   let projector_to_segment = (pr: Base.projector): Segment.t =>
-    switch (pr.kind) {
+    switch (ProjectorCore.kind(pr)) {
     | Fold => [Piece.mk_tile(Form.mk_atom_op(Exp, {|⋱|}), [])]
     | _ => Triggers.projector_to_invoke(pr)
     };

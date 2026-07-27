@@ -95,7 +95,7 @@ let textarea =
     [],
   );
 
-module M: Projector = {
+module M: Projector with type model = unit = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
   [@deriving (show({with_path: false}), sexp, yojson)]

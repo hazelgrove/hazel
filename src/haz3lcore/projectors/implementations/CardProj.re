@@ -3,23 +3,16 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type mode =
-  | Show
-  | Choose(int)
-  | Flipped;
+module Model = ProjectorCore.Model.Card;
+open Model;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model = {mode};
+type mode = Model.mode;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type model = Model.t;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | SetMode(mode);
-
-let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
-  switch (model_of_sexp(sexp)) {
-  | exception _ => {mode: Show}
-  | m => m
-  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type suit =
@@ -610,7 +603,7 @@ type m = model;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
 
-module M: Projector = {
+module M: Projector with type model = Model.t = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = m;
   [@deriving (show({with_path: false}), sexp, yojson)]

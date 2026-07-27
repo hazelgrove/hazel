@@ -1420,17 +1420,14 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({id, kind, model, syntax, _} as pr) =>
+    | Projector({id, model, syntax} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);
       let inner = go_s(sort, Segment.skel(seg), seg);
-      /* Construct Projector term with proper annotation, preserving
-       * projector metadata (kind, model) in the term for round-tripping */
-      let projector_data: Grammar.projector_data = {
-        kind,
-        model,
-      };
+      /* Construct Projector term with proper annotation, preserving the
+       * projector model in the term for round-tripping */
+      let projector_data: Grammar.projector_data = {model: model};
       let wrapped =
         switch (inner) {
         | Grammar.Exp(e) =>

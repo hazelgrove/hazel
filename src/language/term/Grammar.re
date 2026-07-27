@@ -1,11 +1,10 @@
 open Util;
 
-/* Projector metadata for term-level projector wrappers */
+/* Projector metadata for term-level projector wrappers. Carried through
+ * MakeTerm -> ExpToSegment so projector state survives a term round-trip.
+ * The kind is recoverable via ProjectorModel.kind, so it isn't stored. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type projector_data = {
-  kind: ProjectorKind.t,
-  model: string,
-};
+type projector_data = {model: ProjectorModel.t};
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type deferral_position_t =

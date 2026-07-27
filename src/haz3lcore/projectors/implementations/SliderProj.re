@@ -2,7 +2,7 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
-module M: Projector = {
+module M: Projector with type model = unit = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
   [@deriving (show({with_path: false}), sexp, yojson)]

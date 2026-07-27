@@ -74,7 +74,7 @@ type project =
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
-  | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
+  | SetModel(int, ProjectorCore.Model.t) /* Set model (projector or refractor); the kind comes from the model */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
   | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */

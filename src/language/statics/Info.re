@@ -332,12 +332,10 @@ let is_label = (info: t): bool =>
 /* Extract the projector kind from an info, if it represents a projector term */
 let projector_kind_of = (info: t): option(ProjectorKind.t) =>
   switch (info) {
-  | InfoExp({user_term: {term: Projector({kind, _}, _), _}, _}) =>
-    Some(kind)
-  | InfoPat({user_term: {term: Projector({kind, _}, _), _}, _}) =>
-    Some(kind)
-  | InfoTyp({user_term: {term: Projector({kind, _}, _), _}, _}) =>
-    Some(kind)
+  | InfoExp({user_term: {term: Projector({model}, _), _}, _})
+  | InfoPat({user_term: {term: Projector({model}, _), _}, _})
+  | InfoTyp({user_term: {term: Projector({model}, _), _}, _}) =>
+    Some(ProjectorModel.kind(model))
   | _ => None
   };
 
