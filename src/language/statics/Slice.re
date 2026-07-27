@@ -604,13 +604,18 @@ let recorded = (~scratch, ~id: Id.t, m) =>
   | None => []
   };
 
-// Append a sub-term to what the enclosing rule has recorded so far.
-let record = (~scratch, ~id: Id.t, role: role, sub_term: t, m) =>
+// Append a sub-term to what the enclosing rule has recorded so far, or, for a
+// binder checked after what it scopes, put it in front.
+let record = (~scratch, ~id: Id.t, ~first=false, role: role, sub_term: t, m) => {
+  let so_far = recorded(~scratch, ~id, m);
   Id.Map.add(
     id,
-    scratch.write(recorded(~scratch, ~id, m) @ [(role, sub_term)]),
+    scratch.write(
+      first ? [(role, sub_term), ...so_far] : so_far @ [(role, sub_term)],
+    ),
     m,
   );
+};
 
 let take = (~scratch, ~id: Id.t, m) =>
   switch (Option.bind(Id.Map.find_opt(id, m), scratch.read)) {
@@ -618,8 +623,13 @@ let take = (~scratch, ~id: Id.t, m) =>
   | None => ([], m)
   };
 
-let edge = (~scratch, ~at: Id.t, role, slice_of, (info, elab, m), k) =>
-  k((info, elab, record(~scratch, ~id=at, role, slice_of(info), m)));
+let edge =
+    (~scratch, ~at: Id.t, ~first=false, role, slice_of, (info, elab, m), k) =>
+  k((
+    info,
+    elab,
+    record(~scratch, ~id=at, ~first, role, slice_of(info), m),
+  ));
 
 let edge_typ = (~scratch, ~at: Id.t, role, slice_of, (info, m), k) =>
   k((info, record(~scratch, ~id=at, role, slice_of(info), m)));

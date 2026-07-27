@@ -19,11 +19,19 @@ let slice_scratch: Slice.scratch(Info.t) = {
   write: children => Info.InfoSliceScratch(children),
 };
 
-let record = (~id, role, component, m) =>
-  Slice.record(~scratch=slice_scratch, ~id, role, component, m);
+let record = (~id, ~first=false, role, component, m) =>
+  Slice.record(~scratch=slice_scratch, ~id, ~first, role, component, m);
 let take_recorded = (~id, m) => Slice.take(~scratch=slice_scratch, ~id, m);
-let edge = (~at, role, slice_of, component, k) =>
-  Slice.edge(~scratch=slice_scratch, ~at, role, slice_of, component, k);
+let edge = (~at, ~first=false, role, slice_of, component, k) =>
+  Slice.edge(
+    ~scratch=slice_scratch,
+    ~at,
+    ~first,
+    role,
+    slice_of,
+    component,
+    k,
+  );
 let edge_typ = (~at, role, slice_of, component, k) =>
   Slice.edge_typ(~scratch=slice_scratch, ~at, role, slice_of, component, k);
 
@@ -423,15 +431,16 @@ and uexp_to_info_map =
   let (let+) = (component, k) => exp_edge(Alternative, component, k);
   // use when an annotation supplies this rule's whole type: `(e : Int)`'s `Int`
   let (let^^) = (component, k) => typ_edge(Through, component, k);
-  // use when a pattern binds names without contributing to this rule's type:
-  // `let (x, y) = d in b`'s pattern. Unused: the binder rules re-analyze their
-  // pattern after the body, so they record it themselves once both are checked.
-  // let pat_edge = role => edge(~at=here, role, (i: Info.pat) => i.slice);
-  // let (let!) = (component, k) => pat_edge(Binder, component, k);
+  // use when a pattern binds names for the rest of this rule: `fun p -> e`,
+  // `let p = d in b`. Recorded in front of what it scopes, since the binder
+  // rules re-analyze their pattern only once the body has been checked.
+  let pat_edge = (~first=false, role) =>
+    edge(~at=here, ~first, role, (i: Info.pat) => i.slice);
+  let (let@) = (component, k) => pat_edge(~first=true, Binder, component, k);
   // use when an annotation is a type component of this rule's type.
   // let ( let** ) = (component, k) => typ_edge(Part, component, k);
   // use when an annotation is sliced backwards by this rule's binders.
-  // let (let$$) = (component, k) => typ_edge(Source, component, k);
+  let (let$$) = (component, k) => typ_edge(Source, component, k);
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -2104,19 +2113,15 @@ and uexp_to_info_map =
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
-      let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
+      let* (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
       /* Second pass: re-analyze the pattern to attach the body's co_ctx.
          Use `p'.ty` (the ana-meet'd type) rather than `p'.elab_syn_ty`.
          For bare `Var`/`EmptyHole` patterns `elab_syn_ty` is `?`, which
          would erase the ana info on the pattern (breaking e.g. the
          Introduce feature and any display that relies on the pattern's
          recorded `ana`). `p'.ty` preserves the ana. */
-      let (p, p_elab, m) =
+      let@ (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
-      let m =
-        m
-        |> record(~id=here, Binder, p.slice)
-        |> record(~id=here, Part, e.slice);
       let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
       let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
@@ -2292,7 +2297,7 @@ and uexp_to_info_map =
       let is_rec = is_recursive(ctx, p, def, rec_check_ty);
       let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
         if (!is_rec) {
-          let (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
+          let$ (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
           let ty_p_ana = def.ty;
           let (p_ana', _, _) =
             go_pat(
@@ -2334,7 +2339,7 @@ and uexp_to_info_map =
             | ((_, _), _) =>
               ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
             };
-          let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
+          let$ (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
           (def, def_elab, def_ctx, m, ty_p_ana);
         };
       /* Inject module type exports into body context */
@@ -2364,15 +2369,10 @@ and uexp_to_info_map =
           | _ => p_ana_ctx
           }
         };
-      let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
+      let^ (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
-      let (p_ana, p_elab, m) =
+      let@ (p_ana, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
-      let m =
-        m
-        |> record(~id=here, Binder, p_ana.slice)
-        |> record(~id=here, Source, def.slice)
-        |> record(~id=here, Through, body.slice);
       let syn_ty_let = body.elab_syn_ty;
       let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check(
@@ -2943,14 +2943,7 @@ and uexp_to_info_map =
           | Some(sm) => Ctx.add_ctrs_with_params(ctx_body, name, params, sm)
           | None => ctx_body
           };
-        let (
-          {co_ctx, elab_syn_ty: ty_body, slice: body_slice, _}: Info.exp,
-          body_elab,
-          m,
-        ) =
-          go(~ctx=ctx_body, ~ana, body, m);
-        let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
-        let (def_info, m) =
+        let$$ (_, m) =
           utyp_to_info_map(
             ~ctx=ctx_for_def,
             ~ancestors=ancestors_inclusive,
@@ -2958,20 +2951,22 @@ and uexp_to_info_map =
             utyp,
             m,
           );
+        let^ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+          go(~ctx=ctx_body, ~ana, body, m);
+        let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
         let m =
-          m
-          |> record(
-               ~id=here,
-               Binder,
-               Slice.binding(
-                 ~sort=Alias,
-                 ~name,
-                 ~id=TPat.rep_id(typat),
-                 ~ids=Id.Set.of_list(IdTagged.ids(typat)),
-               ),
-             )
-          |> record(~id=here, Source, def_info.slice)
-          |> record(~id=here, Through, body_slice);
+          record(
+            ~id=here,
+            ~first=true,
+            Binder,
+            Slice.binding(
+              ~sort=Alias,
+              ~name,
+              ~id=TPat.rep_id(typat),
+              ~ids=Id.Set.of_list(IdTagged.ids(typat)),
+            ),
+            m,
+          );
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,
@@ -3033,14 +3028,7 @@ and uexp_to_info_map =
             }
           | _ => ctx_body
           };
-        let (
-          {co_ctx, elab_syn_ty: ty_body, slice: body_slice, _}: Info.exp,
-          body_elab,
-          m,
-        ) =
-          go(~ctx=ctx_body, ~ana, body, m);
-        let ty_escape = Typ.subst(ty_def, typat, ty_body);
-        let (def_info, m) =
+        let$$ (_, m) =
           utyp_to_info_map(
             ~ctx=ctx_def,
             ~ancestors=ancestors_inclusive,
@@ -3048,20 +3036,22 @@ and uexp_to_info_map =
             utyp,
             m,
           );
+        let^ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+          go(~ctx=ctx_body, ~ana, body, m);
+        let ty_escape = Typ.subst(ty_def, typat, ty_body);
         let m =
-          m
-          |> record(
-               ~id=here,
-               Binder,
-               Slice.binding(
-                 ~sort=Alias,
-                 ~name,
-                 ~id=TPat.rep_id(typat),
-                 ~ids=Id.Set.of_list(IdTagged.ids(typat)),
-               ),
-             )
-          |> record(~id=here, Source, def_info.slice)
-          |> record(~id=here, Through, body_slice);
+          record(
+            ~id=here,
+            ~first=true,
+            Binder,
+            Slice.binding(
+              ~sort=Alias,
+              ~name,
+              ~id=TPat.rep_id(typat),
+              ~ids=Id.Set.of_list(IdTagged.ids(typat)),
+            ),
+            m,
+          );
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,
