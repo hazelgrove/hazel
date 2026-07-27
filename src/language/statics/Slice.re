@@ -41,10 +41,10 @@ type t = {
 type role =
   | Part // an argument of the type constructor this rule applies
   | Through // the whole constructed type, no constructor applied
-  | Omit // checked, but absent from the constructed type
+  | Omit // only type checked, kept out of the slice
   | Source // a definition, sliced by the demand this rule's binders produce
   | Alternative // one branch; the branches split the query co-Heytingly
-  | Binder; // binds names, but absent from the constructed type
+  | Binder; // binds names, without contributing to the constructed type
 
 // A name a term uses, and what the term's query demands of it.
 type use = {

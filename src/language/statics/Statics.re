@@ -408,21 +408,24 @@ and uexp_to_info_map =
   let here = Exp.rep_id(uexp);
   let exp_edge = role => edge(~at=here, role, (i: Info.exp) => i.slice);
   let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
-  // use when this rule applies a type constructor to the child's type: `1 :: []`
+  // use when the sub-term's type becomes an argument of the type constructor
+  // this rule applies: in `1 :: []` the head's `Int` is the argument of `[_]`
   let ( let* ) = (component, k) => exp_edge(Part, component, k);
-  // use when the child's type is this rule's whole type: `(e)`, `1; e`
+  // use when the sub-term's type is this rule's whole type: `(e)`, `1; e`
   let (let^) = (component, k) => exp_edge(Through, component, k);
-  // use when the child is checked but supplies no type: `f(x)`'s `x`
+  // use for any sub-term that is only type checked: `f(x)`'s `x`
   let (let&) = (component, k) => exp_edge(Omit, component, k);
-  // use when the child is a definition the binders demand from: `case e | ...`'s `e`
+  // use when the sub-term is a definition the binders demand from:
+  // `case e | ...`'s `e`
   let (let$) = (component, k) => exp_edge(Source, component, k);
-  // use when the children are branches supplying one type: `if c then a else b`
+  // use when the sub-term is one of several branches supplying the same type:
+  // `if c then a else b`
   let (let+) = (component, k) => exp_edge(Alternative, component, k);
   // use when an annotation supplies this rule's whole type: `(e : Int)`'s `Int`
   let (let^^) = (component, k) => typ_edge(Through, component, k);
-  // use when a pattern binds names but supplies no type: `let (x, y) = d in b`'s
-  // pattern. Unused: the binder rules re-analyze their pattern after the body,
-  // so they record it themselves once both are checked.
+  // use when a pattern binds names without contributing to this rule's type:
+  // `let (x, y) = d in b`'s pattern. Unused: the binder rules re-analyze their
+  // pattern after the body, so they record it themselves once both are checked.
   // let pat_edge = role => edge(~at=here, role, (i: Info.pat) => i.slice);
   // let (let!) = (component, k) => pat_edge(Binder, component, k);
   // use when an annotation is one argument of this rule's type constructor.
@@ -3368,15 +3371,16 @@ and upat_to_info_map =
   let here = Pat.rep_id(upat);
   let pat_edge = role => edge(~at=here, role, (i: Info.pat) => i.slice);
   let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
-  // use when the child's type is this pattern's whole type: `(p)`
+  // use when the sub-pattern's type is this pattern's whole type: `(p)`
   let (let^) = (component, k) => pat_edge(Through, component, k);
   // use when an annotation supplies this pattern's whole type: `(p : Int)`'s `Int`
   let (let^^) = (component, k) => typ_edge(Through, component, k);
-  // use when this pattern applies a type constructor to the child's type:
-  // `hd :: tl`. Unused: the pattern rules that do this fold over their
-  // children, so they record them in the fold.
+  // use when the sub-pattern's type becomes an argument of the type constructor
+  // this pattern applies: in `hd :: tl` the head's `Int` is the argument of
+  // `[_]`. Unused: the pattern rules that do this fold over their sub-patterns,
+  // so they record them in the fold.
   // let ( let* ) = (component, k) => pat_edge(Part, component, k);
-  // use when a sub-pattern is checked but supplies no type.
+  // use for any sub-pattern that is only type checked.
   // let (let&) = (component, k) => pat_edge(Omit, component, k);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
 
