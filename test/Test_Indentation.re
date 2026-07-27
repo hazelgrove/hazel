@@ -51,6 +51,57 @@ let test_indent_after_format = (~name, ~init, ~goal): test_case(_) => {
 };
 
 let indentation_tests = [
+  /* === PARTITION-AWARE AUTO-INDENT (2026-07-27, andrew) ===
+     The walk consumes the canonical completion's PARTITIONER, so
+     layout is evidence: lines the user wrote FLUSH under an unclosed
+     construct are siblings (each partition restarts at base — no
+     additive staircase, and Format does not resurrect one), while
+     indented lines are absorbed (the typed-through staircase, where
+     each accepted suggestion articulates the nesting, is unchanged —
+     see the typed pins throughout this file). Flush states are built
+     with Paste: typing would accept suggestions and articulate. */
+  test_case(
+    "flush sibling: Enter under a flat-written let chain stays flat",
+    `Quick,
+    () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "flush repro 1",
+      "let a =\nlet b = 1 in\n9",
+      [Action.Paste("let a =\nlet b = 1 in")]
+      @ string_to_ltr_actions("\n9")
+      |> perform(Zipper.init())
+      |> Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char),
+    )
+  ),
+  test_case(
+    "flush stacked lets: suggestion is local, never additive", `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "flush repro 2",
+      /* NOTE vs artifact-grout: there the same gesture suggests 2
+         (level_of derives the let's def hole fresh, so the fresh
+         line reads as the def slot); this branch's stored-grout
+         channel has no hole here, so the suggestion is flat. Both
+         are NON-ADDITIVE, which is the pinned property. */
+      "let a =\nlet b =\nlet c =\nlet d =\n9",
+      [Action.Paste("let a =\nlet b =\nlet c =\nlet d =")]
+      @ string_to_ltr_actions("\n9")
+      |> perform(Zipper.init())
+      |> Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char),
+    )
+  ),
+  test_case("format respects articulated flat layout", `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "flush repro 2 format",
+      "let a =\nlet b =\nlet c =\nlet d =\n9",
+      [Action.Paste("let a =\nlet b =\nlet c =\nlet d =\n9")]
+      @ [Action.Format(Indent)]
+      |> perform(Zipper.init())
+      |> Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char),
+    )
+  ),
   /* Consecutive linebreaks after an indenting form share one level —
      each Enter must not staircase (regression: level+2 compounded per
      blank line) */

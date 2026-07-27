@@ -336,15 +336,45 @@ let rec go =
   map;
 };
 
+/* ONE PARTITIONER (2026-07-27, andrew; ported from artifact-grout
+   cc4339373d): the walk consumes the CANONICAL COMPLETION'S
+   PARTITIONER — the same layout-intent reading that decides what the
+   surfaced completion absorbs — so indent suggestions agree with the
+   completion about which lines belong to an unclosed construct.
+   Lines WITH content partition by their actual layout (flush-written
+   lines under an unclosed let are siblings — no additive staircase);
+   a CONTENTLESS line is no evidence at all (~absorb_empty_lines):
+   the fresh line Enter just made stays inside the open construct,
+   where typing will land. Within a partition the walk keeps its
+   shallow absorb-reading rather than the completed GEOMETRY: owed
+   closers anchor at end-of-typed-content for display/Tab, but a
+   delimiter obligation's position is flexible, so an owed closer is
+   not a wall for next-line typing. */
+let partitions = (seg: Segment.t): list(Segment.t) =>
+  CanonicalCompletion.partition_segment(~absorb_empty_lines=true, seg)
+  |> List.map(fst);
+
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
-  go(~not_top=false, 0, seg);
+  seg
+  |> partitions
+  |> List.fold_left(
+       (map, part) =>
+         Id.Map.union(
+           (_, a, _) => Some(a),
+           go(~not_top=false, 0, part),
+           map,
+         ),
+       Id.Map.empty,
+     );
 
 /* Look up indentation for a single linebreak by ID.
  * Uses exception-based short-circuit for efficiency. */
 let level_of = (~target_id: Id.t, seg: Segment.t): int =>
   try(
     {
-      ignore(go(~not_top=false, ~target_id, 0, seg));
+      seg
+      |> partitions
+      |> List.iter(part => ignore(go(~not_top=false, ~target_id, 0, part)));
       0;
     }
   ) {
