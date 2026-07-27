@@ -2336,13 +2336,23 @@ let exp_of_polynomial_term = ((monomial, coeff)) => {
 };
 
 let exp_of_polynomial = (polynomial: polynomial): Exp.t => {
-  let terms =
-    polynomial |> polynomial_canonicalize |> List.map(exp_of_polynomial_term);
+  let terms = polynomial |> polynomial_canonicalize;
   switch (terms) {
   | [] => int_exp(Bigint.zero)
-  | [term] => term
-  | [first, second, ...rest] =>
-    List.fold_left(plus_exp, plus_exp(first, second), rest)
+  | [first, ...rest] =>
+    rest
+    |> List.fold_left(
+         (acc, (monomial, coefficient) as term) =>
+           if (Bigint.(<)(coefficient, Bigint.zero)) {
+             minus_exp(
+               acc,
+               exp_of_polynomial_term((monomial, Bigint.abs(coefficient))),
+             );
+           } else {
+             plus_exp(acc, exp_of_polynomial_term(term));
+           },
+         exp_of_polynomial_term(first),
+       )
   };
 };
 
@@ -3753,6 +3763,52 @@ let calculus_check_result_trace_for_profile =
       switch (cleaned) {
       | None => None
       | Some((result, rules, steps)) =>
+        let affine_finish = () => {
+          let finish = (from_body, to_body) =>
+            check_with(
+              ~settings=CoreSettings.on,
+              ~env=Environment.empty,
+              from_body,
+              to_body,
+              affine_checker_at_level(profile.level),
+            );
+          switch (finish(result, to_)) {
+          | Some(_) as finished => finished
+          | None =>
+            switch (
+              DifferentiationRewrite.strip(result).term,
+              DifferentiationRewrite.strip(to_).term,
+            ) {
+            | (
+                Fun(result_pattern, result_body, _, _),
+                Fun(target_pattern, target_body, _, _),
+              )
+                when
+                  DifferentiationRewrite.function_parameter_name(
+                    result_pattern,
+                  )
+                  == DifferentiationRewrite.function_parameter_name(
+                       target_pattern,
+                     ) =>
+              finish(result_body, target_body)
+              |> Option.map((affine: check_result) =>
+                   {
+                     ...affine,
+                     prover_steps:
+                       affine.prover_steps
+                       |> List.map((step: prover_step) =>
+                            {
+                              ...step,
+                              before_full_exp: result,
+                              after_full_exp: to_,
+                            }
+                          ),
+                   }
+                 )
+            | _ => None
+            }
+          };
+        };
         let finished =
           if (TrigRewrite.exp_same(result, to_)
               || Equality.ignoring_ascriptions.exp(result, to_)) {
@@ -3761,13 +3817,7 @@ let calculus_check_result_trace_for_profile =
                        profile,
                        "arith.affine_normalize",
                      )) {
-            check_with(
-              ~settings=CoreSettings.on,
-              ~env=Environment.empty,
-              result,
-              to_,
-              affine_checker_at_level(profile.level),
-            )
+            affine_finish()
             |> Option.map((affine: check_result) =>
                  (to_, rules @ affine.trace, steps @ affine.prover_steps)
                );

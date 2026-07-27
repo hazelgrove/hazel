@@ -633,20 +633,43 @@ let rec derivative_certificate_for_expression = (~variable, expression) => {
 };
 
 let calculus_source = source =>
-  switch (DifferentiationRewrite.diff_parts(source)) {
-  | Some((expression, variable)) =>
-    switch (DifferentiationRewrite.variable_name(variable)) {
-    | None => None
-    | Some(variable_name) =>
-      switch (DifferentiationRewrite.strip(expression).term) {
-      | Fun(pattern, body, _, _) =>
-        DifferentiationRewrite.function_parameter_name(pattern)
-        == Some(variable_name)
-          ? Some((DifferentiationRewrite.strip(body), variable_name)) : None
-      | _ => Some((DifferentiationRewrite.strip(expression), variable_name))
-      }
+  switch (DifferentiationRewrite.function_diff_argument(source)) {
+  | Some(function_exp) =>
+    switch (DifferentiationRewrite.strip(function_exp).term) {
+    | Fun(pattern, body, _, _) =>
+      DifferentiationRewrite.function_parameter_name(pattern)
+      |> Option.map(variable =>
+           (DifferentiationRewrite.strip(body), variable)
+         )
+    | _ => None
     }
-  | None => None
+  | None =>
+    switch (DifferentiationRewrite.diff_parts(source)) {
+    | Some((expression, variable)) =>
+      switch (DifferentiationRewrite.variable_name(variable)) {
+      | None => None
+      | Some(variable_name) =>
+        switch (DifferentiationRewrite.strip(expression).term) {
+        | Fun(pattern, body, _, _) =>
+          DifferentiationRewrite.function_parameter_name(pattern)
+          == Some(variable_name)
+            ? Some((DifferentiationRewrite.strip(body), variable_name))
+            : None
+        | _ =>
+          Some((DifferentiationRewrite.strip(expression), variable_name))
+        }
+      }
+    | None => None
+    }
+  };
+
+let function_derivative_target_body = (~source, target) =>
+  switch (
+    DifferentiationRewrite.function_diff_argument(source),
+    DifferentiationRewrite.strip(target).term,
+  ) {
+  | (Some(_), Fun(_, body, _, _)) => DifferentiationRewrite.strip(body)
+  | _ => target
   };
 
 /* A Check Result selection may contain one derivative inside an unchanged
@@ -780,7 +803,12 @@ let calculus_search_program =
     let source_is_focused =
       TrigRewrite.exp_same(request.source, focused_source);
     let certificate_target =
-      source_is_focused ? request.target : focused_expected;
+      source_is_focused
+        ? function_derivative_target_body(
+            ~source=request.source,
+            request.target,
+          )
+        : focused_expected;
     let certificate_affine_target = source_is_focused && affine_target;
     if (!normalized.complete
         || !focused_normalized.complete

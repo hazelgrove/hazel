@@ -48,6 +48,21 @@ let tests = (
       "let x = 1.0 in diff(x, (x))",
       Some(float()),
     ),
+    fully_consistent_typecheck(
+      "diff maps a unary float function to its derivative function",
+      "diff(fun x : Float -> x *. x)",
+      Some(arrow(float(), float())),
+    ),
+    fully_consistent_typecheck(
+      "the function returned by diff can be applied",
+      "diff(fun x : Float -> x *. x)(5.0)",
+      Some(float()),
+    ),
+    fully_consistent_typecheck(
+      "function sugar can store and apply a derivative function",
+      "let f(x) = x ** 2 + 3 * x + 5 in let f_prime = diff(f) in f_prime(5)",
+      Some(int()),
+    ),
     test_case("diff rejects a non-variable second argument", `Quick, () =>
       annotated_tree_test(
         "diff(1.0, 2.0)",

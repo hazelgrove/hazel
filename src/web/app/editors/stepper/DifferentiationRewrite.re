@@ -27,6 +27,7 @@ let power_exp = (left, right) =>
 let neg_exp = exp => Exp.fresh(UnOp(Operators.Int(Operators.Minus), exp));
 let diff_exp = (expression, variable) =>
   app_exp("diff", tuple_exp([expression, variable]));
+let function_diff_exp = expression => app_exp("diff", expression);
 
 let function_name = exp => {
   let exp = strip(exp);
@@ -45,6 +46,18 @@ let diff_parts = exp => {
     | (Some("diff"), Tuple([expression, variable])) =>
       Some((strip(expression), strip(variable)))
     | _ => None
+    }
+  | _ => None
+  };
+};
+
+let function_diff_argument = exp => {
+  let exp = strip(exp);
+  switch (exp.term) {
+  | Ap(Operators.Forward, fn, arg) when function_name(fn) == Some("diff") =>
+    switch (strip(arg).term) {
+    | Tuple([_, _]) => None
+    | _ => Some(strip(arg))
     }
   | _ => None
   };
@@ -151,119 +164,143 @@ let rec distribute_diff_over_operator =
 
 let applicable_at_root = (~rule_enabled, exp) => {
   let before_exp = strip(exp);
-  switch (diff_parts(before_exp)) {
-  | None => []
-  | Some((expression, variable)) =>
-    switch (variable_name(variable)) {
+  let make = (rule_id, label, after_exp) =>
+    enabled(~rule_enabled, rule_id)
+      ? [rewrite(~rule_id, ~label, ~before_exp, ~after_exp)] : [];
+  switch (function_diff_argument(before_exp)) {
+  | Some(function_exp) =>
+    switch (strip(function_exp).term) {
+    | Fun(pat, body, return_typ, name) =>
+      switch (function_parameter_name(pat)) {
+      | Some(parameter) =>
+        make(
+          "calc.diff_function_value",
+          "differentiate function",
+          Exp.fresh(
+            Fun(
+              pat,
+              diff_exp(strip(body), var_exp(parameter)),
+              return_typ,
+              name,
+            ),
+          ),
+        )
+      | None => []
+      }
+    | _ => []
+    }
+  | None =>
+    switch (diff_parts(before_exp)) {
     | None => []
-    | Some(variable_name) =>
-      let make = (rule_id, label, after_exp) =>
-        enabled(~rule_enabled, rule_id)
-          ? [rewrite(~rule_id, ~label, ~before_exp, ~after_exp)] : [];
-      let expression = strip(expression);
-      switch (expression.term) {
-      | Fun(pat, body, _, _) =>
-        switch (function_parameter_name(pat)) {
-        | Some(bound_name) when bound_name == variable_name =>
+    | Some((expression, variable)) =>
+      switch (variable_name(variable)) {
+      | None => []
+      | Some(variable_name) =>
+        let expression = strip(expression);
+        switch (expression.term) {
+        | Fun(pat, body, _, _) =>
+          switch (function_parameter_name(pat)) {
+          | Some(bound_name) when bound_name == variable_name =>
+            make(
+              "calc.diff_function",
+              "differentiate function body",
+              diff_exp(strip(body), variable),
+            )
+          | _ => []
+          }
+        | Var(name) when name == variable_name =>
+          make("calc.diff_variable", "derivative of a variable", int_exp(1))
+        | _ when !depends_on(variable_name, expression) =>
+          make("calc.diff_constant", "derivative of a constant", int_exp(0))
+        | Ap(Operators.Forward, fn, inner)
+            when function_name(fn) == Some("sin") =>
           make(
-            "calc.diff_function",
-            "differentiate function body",
-            diff_exp(strip(body), variable),
+            "calc.diff_chain_sin",
+            "sine chain rule",
+            times_exp(app_exp("cos", inner), diff_exp(inner, variable)),
           )
-        | _ => []
-        }
-      | Var(name) when name == variable_name =>
-        make("calc.diff_variable", "derivative of a variable", int_exp(1))
-      | _ when !depends_on(variable_name, expression) =>
-        make("calc.diff_constant", "derivative of a constant", int_exp(0))
-      | Ap(Operators.Forward, fn, inner)
-          when function_name(fn) == Some("sin") =>
-        make(
-          "calc.diff_chain_sin",
-          "sine chain rule",
-          times_exp(app_exp("cos", inner), diff_exp(inner, variable)),
-        )
-      | Ap(Operators.Forward, fn, inner)
-          when function_name(fn) == Some("cos") =>
-        make(
-          "calc.diff_chain_cos",
-          "cosine chain rule",
-          times_exp(
-            neg_exp(app_exp("sin", inner)),
-            diff_exp(inner, variable),
-          ),
-        )
-      | BinOp(op, _, _) when is_operator(Operators.Plus, op) =>
-        make(
-          "calc.diff_sum",
-          "linearity (sum rule)",
-          distribute_diff_over_operator(
-            ~operator=Operators.Plus,
-            ~combine=plus_exp,
-            expression,
-            variable,
-          ),
-        )
-      | BinOp(op, _, _) when is_operator(Operators.Minus, op) =>
-        make(
-          "calc.diff_difference",
-          "linearity (difference rule)",
-          distribute_diff_over_operator(
-            ~operator=Operators.Minus,
-            ~combine=minus_exp,
-            expression,
-            variable,
-          ),
-        )
-      | BinOp(op, left, right) when is_operator(Operators.Times, op) =>
-        make(
-          "calc.diff_product",
-          "product rule",
-          plus_exp(
-            times_exp(diff_exp(left, variable), right),
-            times_exp(left, diff_exp(right, variable)),
-          ),
-        )
-      | BinOp(op, numerator, denominator)
-          when is_operator(Operators.Divide, op) =>
-        make(
-          "calc.diff_quotient",
-          "quotient rule (denominator nonzero)",
-          divide_exp(
-            minus_exp(
-              times_exp(diff_exp(numerator, variable), denominator),
-              times_exp(numerator, diff_exp(denominator, variable)),
-            ),
-            power_exp(denominator, int_exp(2)),
-          ),
-        )
-      | BinOp(op, base, exponent) when is_operator(Operators.Power, op) =>
-        switch (integer_constant(exponent)) {
-        | Some(power) when power > 0 =>
+        | Ap(Operators.Forward, fn, inner)
+            when function_name(fn) == Some("cos") =>
           make(
-            "calc.diff_power",
-            "power rule",
+            "calc.diff_chain_cos",
+            "cosine chain rule",
             times_exp(
-              times_exp(
-                int_exp(power),
-                power_exp(base, int_exp(power - 1)),
-              ),
-              diff_exp(base, variable),
+              neg_exp(app_exp("sin", inner)),
+              diff_exp(inner, variable),
             ),
           )
+        | BinOp(op, _, _) when is_operator(Operators.Plus, op) =>
+          make(
+            "calc.diff_sum",
+            "linearity (sum rule)",
+            distribute_diff_over_operator(
+              ~operator=Operators.Plus,
+              ~combine=plus_exp,
+              expression,
+              variable,
+            ),
+          )
+        | BinOp(op, _, _) when is_operator(Operators.Minus, op) =>
+          make(
+            "calc.diff_difference",
+            "linearity (difference rule)",
+            distribute_diff_over_operator(
+              ~operator=Operators.Minus,
+              ~combine=minus_exp,
+              expression,
+              variable,
+            ),
+          )
+        | BinOp(op, left, right) when is_operator(Operators.Times, op) =>
+          make(
+            "calc.diff_product",
+            "product rule",
+            plus_exp(
+              times_exp(diff_exp(left, variable), right),
+              times_exp(left, diff_exp(right, variable)),
+            ),
+          )
+        | BinOp(op, numerator, denominator)
+            when is_operator(Operators.Divide, op) =>
+          make(
+            "calc.diff_quotient",
+            "quotient rule (denominator nonzero)",
+            divide_exp(
+              minus_exp(
+                times_exp(diff_exp(numerator, variable), denominator),
+                times_exp(numerator, diff_exp(denominator, variable)),
+              ),
+              power_exp(denominator, int_exp(2)),
+            ),
+          )
+        | BinOp(op, base, exponent) when is_operator(Operators.Power, op) =>
+          switch (integer_constant(exponent)) {
+          | Some(power) when power > 0 =>
+            make(
+              "calc.diff_power",
+              "power rule",
+              times_exp(
+                times_exp(
+                  int_exp(power),
+                  power_exp(base, int_exp(power - 1)),
+                ),
+                diff_exp(base, variable),
+              ),
+            )
+          | _ => []
+          }
+        | UnOp(
+            Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus),
+            inner,
+          ) =>
+          make(
+            "calc.diff_negation",
+            "derivative negation rule",
+            neg_exp(diff_exp(inner, variable)),
+          )
         | _ => []
-        }
-      | UnOp(
-          Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus),
-          inner,
-        ) =>
-        make(
-          "calc.diff_negation",
-          "derivative negation rule",
-          neg_exp(diff_exp(inner, variable)),
-        )
-      | _ => []
-      };
+        };
+      }
     }
   };
 };
@@ -321,6 +358,11 @@ let rec rewrite_first = (~rule_enabled, exp) => {
       |> Option.map(((inner, step)) =>
            (Exp.fresh(Projector(label, inner)), step)
          )
+    | Fun(pat, body, return_typ, name) =>
+      rewrite_first(~rule_enabled, body)
+      |> Option.map(((body, step)) =>
+           (Exp.fresh(Fun(pat, body, return_typ, name)), step)
+         )
     | _ => None
     };
   };
@@ -348,7 +390,8 @@ let normalize = (~rule_enabled, ~fuel=128, exp) => {
 };
 
 let rec contains_diff = exp =>
-  if (Option.is_some(diff_parts(exp))) {
+  if (Option.is_some(diff_parts(exp))
+      || Option.is_some(function_diff_argument(exp))) {
     true;
   } else {
     switch (strip(exp).term) {
@@ -367,6 +410,16 @@ let rec contains_diff = exp =>
 
 let is_zero = exp => integer_constant(exp) == Some(0);
 let is_one = exp => integer_constant(exp) == Some(1);
+
+let negative_operand = exp =>
+  switch (strip(exp).term) {
+  | UnOp(
+      Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus),
+      inner,
+    ) =>
+    Some(inner)
+  | _ => None
+  };
 
 let is_basic_cleanup_rule_id = rule_id =>
   rule_id == "calc.diff_constant" || rule_id == "calc.diff_variable";
@@ -402,6 +455,11 @@ let rec cleanup = (~cleanup_enabled, exp) => {
         } else if (cleanup_enabled(Axioms.CollectLikeTerms)
                    && exp_same(left, right)) {
           times_exp(int_exp(2), left);
+        } else if (cleanup_enabled(Axioms.CollectLikeTerms)) {
+          switch (negative_operand(right)) {
+          | Some(right) => minus_exp(left, right)
+          | None => rebuild_binary(op, left, right)
+          };
         } else {
           rebuild_binary(op, left, right);
         };
@@ -444,6 +502,8 @@ let rec cleanup = (~cleanup_enabled, exp) => {
     | Tuple(entries) => tuple_exp(List.map(recurse, entries))
     | Parens(inner) => recurse(inner)
     | Asc(inner, _) => recurse(inner)
+    | Fun(pat, body, return_typ, name) =>
+      Exp.fresh(Fun(pat, recurse(body), return_typ, name))
     | _ => exp
     }
   };
@@ -492,6 +552,11 @@ let rec cleanup_once = (~cleanup_enabled, exp) => {
             } else if (cleanup_enabled(Axioms.CollectLikeTerms)
                        && exp_same(left, right)) {
               changed(Axioms.CollectLikeTerms, times_exp(int_exp(2), left));
+            } else if (cleanup_enabled(Axioms.CollectLikeTerms)) {
+              negative_operand(right)
+              |> Option.map(right =>
+                   (minus_exp(left, right), Axioms.CollectLikeTerms)
+                 );
             } else {
               None;
             };
@@ -563,6 +628,11 @@ let rec cleanup_once = (~cleanup_enabled, exp) => {
       loop([], entries);
     | Parens(inner)
     | Asc(inner, _) => recurse(inner)
+    | Fun(pat, body, return_typ, name) =>
+      recurse(body)
+      |> Option.map(((body, capability)) =>
+           (Exp.fresh(Fun(pat, body, return_typ, name)), capability)
+         )
     | _ => None
     }
   };

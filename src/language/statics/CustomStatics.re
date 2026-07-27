@@ -667,8 +667,26 @@ let diff_variable_statics =
       arg: Exp.t,
     ) => {
   S.(
-    let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
-    let (arg_info, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
+    let explicit_diff = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+    let function_diff_ty = Arrow(unknown, unknown) |> Typ.temp;
+    let (arg_ana, explicit_result_ty) =
+      switch (arg.term) {
+      | Tuple([_, _]) =>
+        let (input, output) = explicit_diff;
+        (input, Some(output));
+      | _ => (function_diff_ty, None)
+      };
+    let (arg_info, arg_elab, m) =
+      uexp_to_info_map(~ctx, ~ana=arg_ana, arg, m);
+    let result_ty =
+      switch (explicit_result_ty) {
+      | Some(result_ty) => result_ty
+      | None =>
+        switch (Typ.normalize(ctx, arg_info.ty).term) {
+        | Arrow(input, output) => Arrow(input, output) |> Typ.temp
+        | _ => function_diff_ty
+        }
+      };
     let m =
       switch (arg.term) {
       | Tuple([_, variable]) when !is_variable_argument(variable) =>
@@ -678,7 +696,7 @@ let diff_variable_statics =
 
     add(
       ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg_elab),
-      ~elab_syn_ty=ty_out,
+      ~elab_syn_ty=result_ty,
       ~marks=[],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
       m,

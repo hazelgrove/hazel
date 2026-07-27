@@ -864,6 +864,11 @@ let calculus_rewrite_group = {
   rank: rewrite_level_rank(Calculus),
   rules: [
     {
+      id: "calc.diff_function_value",
+      label: "differentiate a function",
+      prover_hints: [lean("fun_prop")],
+    },
+    {
       id: "calc.diff_function",
       label: "differentiate a named function body",
       prover_hints: [lean("simp")],
@@ -1032,6 +1037,7 @@ let profile_group_for_rule_id =
   | "trig.sin_neg"
   | "trig.cos_neg"
   | "trig.tan_neg" => Some("Symmetry and cofunction identities")
+  | "calc.diff_function_value"
   | "calc.diff_function"
   | "calc.diff_constant"
   | "calc.diff_variable" => Some("Basic derivatives")
@@ -1240,6 +1246,13 @@ let visible_rule_metadata = rule_id =>
       ~name="Expand or factor the cube of a difference",
       ~short_name="(a-b)^3",
       ~example="(a - b)**3 = a**3 - 3*a**2*b + 3*a*b**2 - b**3",
+    )
+  | "calc.diff_function_value" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Differentiate a function value",
+      ~short_name="Function derivative",
+      ~example="diff(fun x -> x**2) = fun x -> diff(x**2, x)",
     )
   | "calc.diff_function" =>
     operation_metadata(

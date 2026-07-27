@@ -34,6 +34,7 @@ let builtin_app = (name, arg) =>
 
 let diff = (expression, variable) =>
   app("diff", Exp.tuple([expression, variable]));
+let function_diff = expression => app("diff", expression);
 
 let sin = arg => app("sin", arg);
 let cos = arg => app("cos", arg);
@@ -1367,6 +1368,362 @@ let tests = (
           "normalization removes diff",
           false,
           Web.DifferentiationRewrite.contains_diff(normalized.exp),
+        );
+      },
+    ),
+    test_case(
+      "calculus differentiates a function value without freeing its binder",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let body = power(x, Exp.int(2));
+        let function_ = Exp.fn(Pat.var("x"), body, None, Some("f"));
+        let source = function_diff(function_);
+        let lifted = Exp.fn(Pat.var("x"), diff(body, x), None, Some("f"));
+        check_written_at_level(
+          "binder-preserving function derivative",
+          Calculus,
+          source,
+          lifted,
+          Some("calculus one step"),
+        );
+        let normalized =
+          Web.DifferentiationRewrite.normalize(
+            ~rule_enabled=_ => true,
+            source,
+          );
+        check(bool, "normalization completes", true, normalized.complete);
+        check(
+          bool,
+          "normalization removes diff inside function",
+          false,
+          Web.DifferentiationRewrite.contains_diff(normalized.exp),
+        );
+        let expected =
+          Exp.fn(
+            Pat.var("x"),
+            times(times(Exp.int(2), power(x, Exp.int(1))), Exp.int(1)),
+            None,
+            Some("f"),
+          );
+        check_exp_equal(
+          "the derivative remains a function",
+          expected,
+          normalized.exp,
+        );
+        let applied_source =
+          Language.Exp.fresh(Ap(Operators.Forward, source, Exp.int(5)));
+        switch (
+          Web.DifferentiationRewrite.rewrite_first(
+            ~rule_enabled=_ => true,
+            applied_source,
+          )
+        ) {
+        | Some((result, step)) =>
+          check(
+            string,
+            "embedded application uses the function derivative rule",
+            "calc.diff_function_value",
+            step.rule_id,
+          );
+          check_exp_equal(
+            "the derivative function remains callable",
+            Language.Exp.fresh(Ap(Operators.Forward, lifted, Exp.int(5))),
+            result,
+          );
+        | None => fail("expected differentiation inside function application")
+        };
+      },
+    ),
+    test_case(
+      "function-valued differentiation respects calculus profile rules",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let body = power(x, Exp.int(2));
+        let source =
+          function_diff(Exp.fn(Pat.var("x"), body, None, Some("f")));
+        let target =
+          Exp.fn(Pat.var("x"), times(Exp.int(2), x), None, Some("f"));
+        let profile = Axioms.math_profile(Calculus);
+        let trace =
+          Web.RewriteChecker.calculus_check_result_trace_for_profile(
+            ~profile,
+            source,
+            target,
+          );
+        check(
+          bool,
+          "enabled function and power rules certify the result",
+          true,
+          Option.is_some(trace),
+        );
+        let disabled_profile = {
+          ...profile,
+          step_policy: {
+            ...profile.step_policy,
+            visible_rules:
+              profile.step_policy.visible_rules
+              |> List.filter((rule: Axioms.visible_rule_policy) =>
+                   rule.rule_id != "calc.diff_power"
+                 ),
+          },
+        };
+        check(
+          bool,
+          "disabled power rule rejects the finished derivative function",
+          true,
+          Web.RewriteChecker.calculus_check_result_trace_for_profile(
+            ~profile=disabled_profile,
+            source,
+            target,
+          )
+          |> Option.is_none,
+        );
+        let without_cleanup = capability =>
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(candidate => candidate != capability),
+            profile,
+          );
+        check(
+          bool,
+          "disabled basic derivative cleanup rejects diff(x, x) removal",
+          true,
+          Web.RewriteChecker.calculus_check_result_trace_for_profile(
+            ~profile=without_cleanup(Axioms.DerivativeBasics),
+            source,
+            target,
+          )
+          |> Option.is_none,
+        );
+        check(
+          bool,
+          "disabled identity-power cleanup rejects x**1 removal",
+          true,
+          Web.RewriteChecker.calculus_check_result_trace_for_profile(
+            ~profile=without_cleanup(Axioms.PowerIdentity),
+            source,
+            target,
+          )
+          |> Option.is_none,
+        );
+        switch (
+          Web.RewriteChecker.simplify_for_profile(
+            ~profile=disabled_profile,
+            ~settings,
+            ~env,
+            source,
+          )
+        ) {
+        | Some(result) =>
+          check(
+            bool,
+            "auto simplify retains the unresolved derivative",
+            true,
+            Web.DifferentiationRewrite.contains_diff(result),
+          )
+        | None => ()
+        };
+      },
+    ),
+    test_case(
+      "function-valued Check Result covers product trig and quotient rules",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let function_ = body => Exp.fn(Pat.var("x"), body, None, Some("f"));
+        let profile = Axioms.math_profile(Calculus);
+        let accepts = (profile, body, derivative) =>
+          Web.RewriteChecker.calculus_check_result_trace_for_profile(
+            ~profile,
+            function_diff(function_(body)),
+            function_(derivative),
+          )
+          |> Option.is_some;
+        let product_body =
+          times(plus(x, Exp.int(1)), minus(x, Exp.int(2)));
+        let product_derivative = minus(times(Exp.int(2), x), Exp.int(1));
+        check(
+          bool,
+          "product function is accepted",
+          true,
+          accepts(profile, product_body, product_derivative),
+        );
+        let without_product =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_product",
+            profile,
+          );
+        check(
+          bool,
+          "disabled product rule rejects the same result",
+          false,
+          accepts(without_product, product_body, product_derivative),
+        );
+        let trig_body = power(builtin_sin(x), Exp.int(2));
+        let trig_derivative =
+          times(times(Exp.int(2), builtin_sin(x)), cos(x));
+        check(
+          bool,
+          "trig function is accepted",
+          true,
+          accepts(profile, trig_body, trig_derivative),
+        );
+        let without_sine_chain =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_chain_sin",
+            profile,
+          );
+        check(
+          bool,
+          "disabled sine chain rule rejects the same result",
+          false,
+          accepts(without_sine_chain, trig_body, trig_derivative),
+        );
+        let denominator = plus(x, Exp.int(1));
+        let quotient_body = divide(Exp.int(1), denominator);
+        let quotient_derivative =
+          divide(negate(Exp.int(1)), power(denominator, Exp.int(2)));
+        check(
+          bool,
+          "quotient function is accepted",
+          true,
+          accepts(profile, quotient_body, quotient_derivative),
+        );
+        let without_quotient =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_quotient",
+            profile,
+          );
+        check(
+          bool,
+          "disabled quotient rule rejects the same result",
+          false,
+          accepts(without_quotient, quotient_body, quotient_derivative),
+        );
+        let quotient_export =
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile,
+            function_diff(function_(quotient_body)),
+            function_(quotient_derivative),
+          )
+          |> Option.get;
+        write_text_file(
+          "/tmp/hazel_function_derivative_quotient_export.v",
+          quotient_export,
+        );
+        check(
+          bool,
+          "quotient export records the nonzero denominator hypothesis",
+          true,
+          string_contains("(x + 1) <> 0 ->", quotient_export),
+        );
+      },
+    ),
+    test_case(
+      "function-valued differentiation preserves closure variables and shadowing",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let a = Exp.var("a");
+        let source =
+          function_diff(
+            Exp.fn(Pat.var("x"), times(a, x), None, Some("scaled")),
+          );
+        let normalized =
+          Web.DifferentiationRewrite.normalize(
+            ~rule_enabled=_ => true,
+            source,
+          );
+        let expected =
+          Exp.fn(
+            Pat.var("x"),
+            plus(times(Exp.int(0), x), times(a, Exp.int(1))),
+            None,
+            Some("scaled"),
+          );
+        check_exp_equal(
+          "free coefficient remains free under the original binder",
+          expected,
+          normalized.exp,
+        );
+        let nested_identity = Exp.fn(Pat.var("x"), x, None, Some("inner"));
+        let nested_body =
+          Language.Exp.fresh(Ap(Operators.Forward, nested_identity, x));
+        let nested_source =
+          function_diff(
+            Exp.fn(Pat.var("x"), nested_body, None, Some("outer")),
+          );
+        let lifted =
+          Web.DifferentiationRewrite.rewrite_first(
+            ~rule_enabled=_ => true,
+            nested_source,
+          );
+        switch (lifted) {
+        | Some((result, _)) =>
+          let expected =
+            Exp.fn(
+              Pat.var("x"),
+              diff(nested_body, x),
+              None,
+              Some("outer"),
+            );
+          check_exp_equal(
+            "nested shadowing is untouched by function lifting",
+            expected,
+            result,
+          );
+        | None => fail("expected function-valued differentiation step")
+        };
+      },
+    ),
+    test_case(
+      "Rocq export certifies a function-valued derivative pointwise",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let body =
+          plus(
+            plus(power(x, Exp.int(2)), times(Exp.int(3), x)),
+            Exp.int(5),
+          );
+        let source =
+          function_diff(Exp.fn(Pat.var("x"), body, None, Some("f")));
+        let target =
+          Exp.fn(
+            Pat.var("x"),
+            plus(times(Exp.int(2), x), Exp.int(3)),
+            None,
+            Some("f"),
+          );
+        let export =
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile=Axioms.math_profile(Calculus),
+            source,
+            target,
+          )
+          |> Option.get;
+        write_text_file("/tmp/hazel_function_derivative_export.v", export);
+        check(
+          bool,
+          "exports a pointwise real derivative theorem",
+          true,
+          string_contains("forall x : R", export)
+          && string_contains("derivable_pt_lim (fun x : R =>", export),
+        );
+        check(
+          bool,
+          "exports the simplified derivative body",
+          true,
+          string_contains("((2 * x) + 3)", export),
+        );
+        check(
+          bool,
+          "does not serialize a Hazel function equality",
+          false,
+          string_contains("unsupported Coq real export term", export),
         );
       },
     ),
@@ -6014,6 +6371,36 @@ let tests = (
         Exp.int(3),
         Some("arithmetic"),
       )
+    ),
+    test_case(
+      "polynomial normalization renders negative trailing terms as subtraction",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source =
+          plus(plus(plus(x, x), negate(Exp.int(1))), Exp.int(0));
+        let expected = minus(times(Exp.int(2), x), Exp.int(1));
+        let actual =
+          Web.RewriteChecker.simplify_for_profile(
+            ~profile=Axioms.math_profile(Calculus),
+            ~settings,
+            ~env,
+            source,
+          )
+          |> Option.get;
+        check_exp_equal(
+          "negative constant uses subtraction syntax",
+          expected,
+          actual,
+        );
+        check_written_at_level(
+          "subtraction result remains profile-certifiable",
+          Calculus,
+          source,
+          expected,
+          Some("arithmetic"),
+        );
+      },
     ),
     test_case(
       "single eval step accepts one evaluator transition",
