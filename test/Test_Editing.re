@@ -1026,22 +1026,26 @@ let destruct_tests = [
     ~acts=mk({|"a😄¦"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|"a¦"|},
   ),
-  /* INDENT-LEVEL BACKSPACE */
+  /* INDENT-LEVEL BACKSPACE — capped at the line's AUTO-INDENT level
+     (andrew 2026-07-22, ported from artifact-grout 1c2bc75efb): this
+     body line's level is 0, so typed spaces are real material, one
+     per press; the 2-space unit dedent applies only within the
+     auto-indent width */
   test(
-    ~name="Indent-level backspace deletes 2 spaces",
+    ~name="Backspace beyond auto-indent deletes 1 space",
     ~acts=mk({|let x = 1 in
     ¦x|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
-  ¦x|},
+   ¦x|},
   ),
   test(
-    ~name="Indent-level backspace deletes 2 of 4 spaces",
+    ~name="Backspace beyond auto-indent deletes 1 of 4 spaces twice",
     ~acts=
       mk({|let x = 1 in
     ¦x|})
       @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
-¦x|},
+  ¦x|},
   ),
   test(
     ~name="Indent-level backspace deletes 1 space when only 1 exists",
@@ -1051,11 +1055,11 @@ let destruct_tests = [
 ¦x|},
   ),
   test(
-    ~name="Indent-level backspace deletes 2 of 3 spaces",
+    ~name="Backspace beyond auto-indent deletes 1 of 3 spaces",
     ~acts=mk({|let x = 1 in
    ¦x|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
- ¦x|},
+  ¦x|},
   ),
   test(
     ~name="Normal backspace when content before cursor",
