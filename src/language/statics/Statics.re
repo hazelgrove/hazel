@@ -443,6 +443,19 @@ and uexp_to_info_map =
       );
     (List.split(pairs), m);
   };
+  let map_m_go_part = (m, anas, es) => {
+    let (pairs, m) =
+      map_m2(
+        (ana, e, m) => {
+          let* (e, elab, m) = go(~ana, e, m);
+          ((e, elab), m);
+        },
+        anas,
+        es,
+        m,
+      );
+    (List.split(pairs), m);
+  };
   let map_m_go_omit = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -707,13 +720,7 @@ and uexp_to_info_map =
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana);
       let anas = List.init(List.length(es), _ => inner_ana_ty);
-      let ((es, es_elabs), m) = map_m_go(m, anas, es);
-      let m =
-        List.fold_left(
-          (m, e: Info.exp) => record(~id=here, Part, e.slice, m),
-          m,
-          es,
-        );
+      let ((es, es_elabs), m) = map_m_go_part(m, anas, es);
       /* Use elements' synthesized types consistently for both the meet and
          the per-element ascription decision. Using `e.ty` (ana-coerced)
          would disagree with the syn-based meet and cause spurious Asc
