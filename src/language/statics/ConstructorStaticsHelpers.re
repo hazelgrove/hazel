@@ -163,3 +163,67 @@ let instantiation_args_for =
     }
   | _ => []
   };
+
+let alias_of_ctr = (ctx: Ctx.t, ctr: Constructor.t): option(Ctx.tvar_entry) =>
+  List.find_map(
+    fun
+    | Ctx.TVarEntry({kind: Singleton(definition), _} as entry) =>
+      switch (Typ.get_sum_constructors(ctx, definition)) {
+      | Some(variants)
+          when
+            List.exists(
+              fun
+              | ConstructorMap.Variant(name, _, _) =>
+                Constructor.equal(name, ctr)
+              | ConstructorMap.BadEntry(_) => false,
+              variants,
+            ) =>
+        Some(entry)
+      | _ => None
+      }
+    | _ => None,
+    ctx.entries,
+  );
+
+let rec minimal_definition =
+        (ctx: Ctx.t, ctr: Constructor.t, payload: Typ.t, definition: Typ.t)
+        : Typ.t => {
+  let (term, rewrap) = Typ.unwrap(definition);
+  switch (term) {
+  | TypFun(binder, body) =>
+    TypFun(binder, minimal_definition(ctx, ctr, payload, body)) |> rewrap
+  | Rec(binder, body) =>
+    Rec(binder, minimal_definition(ctx, ctr, payload, body)) |> rewrap
+  | Poly(binder, body) =>
+    Poly(binder, minimal_definition(ctx, ctr, payload, body)) |> rewrap
+  | Parens(inner) =>
+    Parens(minimal_definition(ctx, ctr, payload, inner)) |> rewrap
+  | Sum(variants) =>
+    Sum(
+      List.map(
+        fun
+        | ConstructorMap.Variant(name, ann, arg)
+            when Constructor.equal(name, ctr) =>
+          ConstructorMap.Variant(name, ann, Option.map(_ => payload, arg))
+        | _ => ConstructorMap.BadEntry(Typ.gap),
+        variants,
+      ),
+    )
+    |> rewrap
+  | _ => definition
+  };
+};
+
+let alias_demand =
+    (ctx: Ctx.t, ctr: Constructor.t, entry: Ctx.tvar_entry, query: Typ.t)
+    : Typ.t =>
+  switch (entry.kind) {
+  | Abstract => Typ.gap
+  | Singleton(definition) =>
+    let payload =
+      switch (MatchedTyp.strict2(MatchedTyp.arrow, ctx, query)) {
+      | Some((payload, _)) => payload
+      | None => Typ.gap
+      };
+    minimal_definition(ctx, ctr, payload, definition);
+  };

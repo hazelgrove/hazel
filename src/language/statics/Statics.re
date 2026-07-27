@@ -11,11 +11,6 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
-/* Slicing plumbing. The binding operators below record each child's role
-   against the parent id; the parent's `add` takes the record and hands it to
-   `Slice.mk`, which derives the query routing. Nothing else in a rule is
-   slicing-specific. */
-
 let subtree_ids = (x: Any.t): Id.Set.t => {
   let ids = ref(Id.Set.empty);
   let f:
@@ -370,7 +365,7 @@ and uexp_to_info_map =
         ~inferred_label: option(string)=None,
         ~label_sort=false,
         ~dot_labels: list(string)=[],
-        ~uses: list((Slice.sort, string, Id.t))=[],
+        ~uses: list(Slice.use)=[],
         ~slice: option(Slice.t)=None,
         m: Map.t,
       )
@@ -876,7 +871,7 @@ and uexp_to_info_map =
         ~elab_syn_ty=syn_v,
         ~marks=marks_v,
         ~co_ctx,
-        ~uses=[(Slice.Value, name, Exp.rep_id(uexp))],
+        ~uses=[Slice.use(~sort=Value, ~name, ~id=Exp.rep_id(uexp), ())],
         m,
       );
     | DynamicErrorHole(e, err) =>
@@ -1679,6 +1674,14 @@ and uexp_to_info_map =
             ~elab_syn_ty=syn_res,
             ~marks=marks_res,
             ~co_ctx=CoCtx.empty,
+            ~uses=[
+              Slice.use(
+                ~sort=Constructor,
+                ~name=ctr,
+                ~id=Exp.rep_id(uexp),
+                (),
+              ),
+            ],
             m,
           );
         }
@@ -1759,11 +1762,31 @@ and uexp_to_info_map =
           | Some(m) when marks_res == [] => [m]
           | Some(_) => marks_res
           };
+        let uses =
+          [
+            Slice.use(~sort=Constructor, ~name=ctr, ~id=Exp.rep_id(uexp), ()),
+          ]
+          @ (
+            switch (ConstructorStaticsHelpers.alias_of_ctr(ctx, ctr)) {
+            | Some(entry) => [
+                Slice.use(
+                  ~sort=Alias,
+                  ~name=entry.name,
+                  ~id=entry.id,
+                  ~demanded=
+                    ConstructorStaticsHelpers.alias_demand(ctx, ctr, entry),
+                  (),
+                ),
+              ]
+            | None => []
+            }
+          );
         add(
           ~elab_term,
           ~elab_syn_ty,
           ~marks=marks_res,
           ~co_ctx=CoCtx.empty,
+          ~uses,
           m,
         );
       };
@@ -1882,7 +1905,6 @@ and uexp_to_info_map =
           let& (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
-          /* The result is the codomain of the function's own type. */
           let slice =
             Some(
               Slice.component(
@@ -2075,8 +2097,6 @@ and uexp_to_info_map =
          recorded `ana`). `p'.ty` preserves the ana. */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
-      /* The recorded pattern is the second pass, so the parameter and body
-         edges are recorded here, in the order the arrow's components take. */
       let m =
         m
         |> record(~id=parent, Binder, p.slice)
@@ -2332,8 +2352,6 @@ and uexp_to_info_map =
       /* add co_ctx to pattern */
       let (p_ana, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
-      /* The recorded pattern is the co-ctx pass, so the binder, the
-         definition it demands, and the body are recorded here. */
       let m =
         m
         |> record(~id=parent, Binder, p_ana.slice)
@@ -2554,8 +2572,6 @@ and uexp_to_info_map =
       let e_co_ctxs = List.map(Info.exp_co_ctx, es);
       let (syn_ty_match, marks_match) =
         ConstructorStaticsHelpers.syn_marks_match(ctx, e_syn_tys, branch_ids);
-      /* The rule pattern is re-analyzed with its branch's co-ctx, so pattern
-         and branch are recorded here rather than at their recursions. */
       let (constraints, ps_elabs, m) =
         List.fold_left(
           (
@@ -2911,18 +2927,35 @@ and uexp_to_info_map =
           | Some(sm) => Ctx.add_ctrs_with_params(ctx_body, name, params, sm)
           | None => ctx_body
           };
-        let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        let (
+          {co_ctx, elab_syn_ty: ty_body, slice: body_slice, _}: Info.exp,
+          body_elab,
+          m,
+        ) =
           go(~ctx=ctx_body, ~ana, body, m);
         let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
-        let m =
+        let (def_info, m) =
           utyp_to_info_map(
             ~ctx=ctx_for_def,
             ~ancestors=ancestors_inclusive,
             ~expects=AnyKindExpected,
             utyp,
             m,
-          )
-          |> snd;
+          );
+        let m =
+          m
+          |> record(
+               ~id=parent,
+               Binder,
+               Slice.binding(
+                 ~sort=Alias,
+                 ~name,
+                 ~id=TPat.rep_id(typat),
+                 ~ids=Id.Set.of_list(IdTagged.ids(typat)),
+               ),
+             )
+          |> record(~id=parent, Source, def_info.slice)
+          |> record(~id=parent, Through, body_slice);
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,
@@ -2984,18 +3017,35 @@ and uexp_to_info_map =
             }
           | _ => ctx_body
           };
-        let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        let (
+          {co_ctx, elab_syn_ty: ty_body, slice: body_slice, _}: Info.exp,
+          body_elab,
+          m,
+        ) =
           go(~ctx=ctx_body, ~ana, body, m);
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
-        let m =
+        let (def_info, m) =
           utyp_to_info_map(
             ~ctx=ctx_def,
             ~ancestors=ancestors_inclusive,
             ~expects=AnyKindExpected,
             utyp,
             m,
-          )
-          |> snd;
+          );
+        let m =
+          m
+          |> record(
+               ~id=parent,
+               Binder,
+               Slice.binding(
+                 ~sort=Alias,
+                 ~name,
+                 ~id=TPat.rep_id(typat),
+                 ~ids=Id.Set.of_list(IdTagged.ids(typat)),
+               ),
+             )
+          |> record(~id=parent, Source, def_info.slice)
+          |> record(~id=parent, Through, body_slice);
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,
@@ -3209,8 +3259,8 @@ and upat_to_info_map =
         ~label_inference: option(Info.label_inference(Info.pat))=None,
         ~inferred_label: option(LabeledTuple.label)=None,
         ~label_sort=false,
-        ~binds: list((string, Id.t))=[],
-        ~uses: list((Slice.sort, string, Id.t))=[],
+        ~binds: list((Slice.sort, string, Id.t))=[],
+        ~uses: list(Slice.use)=[],
         ~slice: option(Slice.t)=None,
         m: Id.Map.t(Info.t),
       )
@@ -3572,7 +3622,7 @@ and upat_to_info_map =
             ~marks=[Mark.DuplicateVar(name, unknown)],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
-            ~binds=[(name, Pat.rep_id(upat))],
+            ~binds=[(Slice.Value, name, Pat.rep_id(upat))],
             m,
           );
         }
@@ -3581,7 +3631,7 @@ and upat_to_info_map =
             ~marks=[],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
-            ~binds=[(name, Pat.rep_id(upat))],
+            ~binds=[(Slice.Value, name, Pat.rep_id(upat))],
             m,
           );
 
@@ -4408,8 +4458,6 @@ and utyp_to_info_map =
   let ancestors_inclusive = [Typ.rep_id(utyp)] @ ancestors;
   let ancestors = (); // Deliberately shadowed so there's no risk of using it by mistake
   let _ = ancestors;
-  /* Every child of a type former is a component of it, in `Typ.children`
-     order, so the traversal records them itself. */
   let go =
       (~ctx=ctx, ~expects=TypExpectation.TypeExpected, t: Typ.t, m: Map.t) => {
     let (info, m) =

@@ -541,7 +541,7 @@ module type ExpressionStatics = {
       ~inferred_label: option(string)=?,
       ~label_sort: bool=?,
       ~dot_labels: list(string)=?,
-      ~uses: list((Slice.sort, string, Id.t))=?,
+      ~uses: list(Slice.use)=?,
       ~slice: option(Slice.t)=?,
       Map.t
     ) =>

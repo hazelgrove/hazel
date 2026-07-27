@@ -1545,8 +1545,6 @@ let rec subtract = (ctx: Ctx.t, left: t, right: t): t =>
     };
   };
 
-// The one place that knows each former's arity; slice query routing is derived
-// from it, so a new former needs a case here and a MatchedTyp matcher.
 let children = (ty: t): list(t) =>
   switch (term_of(ty)) {
   | Unknown(_)
@@ -1571,8 +1569,6 @@ let children = (ty: t): list(t) =>
   | Prod(items)
   | TypTuple(items) => items
   | Sum(variants) =>
-    /* A variant's name travels as the `Var(c)` node `map_term` reconstructs
-       for it, so a query can drop a whole variant by gapping its name. */
     List.concat_map(
       fun
       | ConstructorMap.Variant(name, ann, payload) => [
@@ -1668,7 +1664,6 @@ let embed = (shape: t, i: int, child: t): t =>
 let component = (shape: t, i: int): t =>
   List.nth_opt(children(shape), i) |> Option.value(~default=gap);
 
-// Slice-lattice join: a gap carries no information, so it absorbs.
 let meet_gap = (ctx: Ctx.t, left: t, right: t): t =>
   if (is_gap(left)) {
     right;
@@ -1681,8 +1676,6 @@ let meet_gap = (ctx: Ctx.t, left: t, right: t): t =>
 let meet_gap_all = (ctx: Ctx.t, tys: list(t)): t =>
   List.fold_left(meet_gap(ctx), gap, tys);
 
-// The matched query ▷ for an instantiated alias: what the definition must
-// supply for the application to supply `query`.
 let matched_query = (ctx: Ctx.t, query: t): t => {
   let rec peel = (binders, definition) =>
     switch (term_of(definition)) {

@@ -38,6 +38,13 @@ type role =
   | Alternative
   | Binder;
 
+type use = {
+  sort,
+  name: string,
+  id: Id.t,
+  demanded: Typ.t => Typ.t,
+};
+
 exception Focus_not_found(Id.t);
 exception Wrong_focus_sort;
 exception Incompatible_query(Typ.t);
@@ -183,15 +190,10 @@ let residual = (ctx: Ctx.t, query: Typ.t, supplied: Typ.t): Typ.t => {
   Typ.is_empty(left) ? gap : left;
 };
 
-/* Which children fill the shape's components: the parts, together with the
-   binders when a part is present, since a binder that carries type structure
-   (a function's parameter) always precedes the parts it scopes. */
 let fills = (children: list((role, t)), role, node: t): bool =>
   List.exists(((role, _)) => role == Part, children)
   && (role == Part || role == Binder && node.binder);
 
-/* The query each filled component receives: the shape's components matched
-   against the query's, or the single component every part shares (List). */
 let route =
     (ctx: Ctx.t, shape: Typ.t, query: Typ.t, count: int)
     : (list(Typ.t), bool) => {
@@ -251,9 +253,6 @@ let place = (ctx: Ctx.t, shape: Typ.t, children: list((role, t)), query) => {
   (placed, broadcast);
 };
 
-/* Forward pass: everything whose query is already known. Alternatives consume
-   the co-Heyting residual left to right, so a later branch is only asked for
-   what the earlier ones did not supply. */
 let forward = (ctx: Ctx.t, env: env, query: Typ.t, placed: list(placed)) => {
   let (placed, _) =
     List.fold_left(
@@ -293,8 +292,6 @@ let forward = (ctx: Ctx.t, env: env, query: Typ.t, placed: list(placed)) => {
   placed;
 };
 
-/* Reverse pass: a binder is resolved against the assumptions of the children
-   it scopes, which are the ones to its right up to the next binder. */
 let backward = (ctx: Ctx.t, env: env, placed: list(placed)) => {
   let (placed, _) =
     List.fold_left(
@@ -332,9 +329,6 @@ let backward = (ctx: Ctx.t, env: env, placed: list(placed)) => {
   placed;
 };
 
-/* A source is sliced backwards, once, at the join of the demands the binders
-   of this rule produced. Once and not once per branch: dispatching a shared
-   scrutinee twice would omit whatever either branch did not ask for. */
 let sources = (ctx: Ctx.t, env: env, placed: list(placed)) => {
   let demanded =
     placed
@@ -431,7 +425,6 @@ let assemble = (~ctx: Ctx.t, ~shape: Typ.t, ~children: list((role, t))) => {
           ? Typ.rebuild(shape, parts) |> Option.value(~default=gap)
           : Typ.meet_gap_all(ctx, parts)
       };
-    /* Nothing demanded of any binder is no demand at all. */
     let psi = Typ.is_empty(psi) ? gap : psi;
     {
       ...merge(ctx, List.map(snd, needs)),
@@ -447,17 +440,22 @@ let unit_demand = (_env, gamma) => {
   gamma,
 };
 
-let binder_demand = (~name, ~id, _env, gamma) => {
-  let demanded = lookup(~sort=Value, ~name, gamma);
+let binder_demand = (~sort, ~name, ~id, _env, gamma) => {
+  let demanded = lookup(~sort, ~name, gamma);
   {
     omitted: is_gap(demanded) ? Id.Set.singleton(id) : Id.Set.empty,
-    gamma: discharge(~sort=Value, ~name, gamma),
+    gamma: discharge(~sort, ~name, gamma),
     psi: demanded,
   };
 };
 
-/* Every node is wrapped: the focus overrides the incoming query, and a node
-   nothing asks for omits its whole subtree unless the focus is beneath it. */
+let use = (~sort, ~name, ~id, ~demanded=Fun.id, ()): use => {
+  sort,
+  name,
+  id,
+  demanded,
+};
+
 let mk =
     (
       ~ctx: Ctx.t,
@@ -465,8 +463,8 @@ let mk =
       ~ids: Id.Set.t,
       ~shape: Typ.t,
       ~children: list((role, t))=[],
-      ~uses: list((sort, string, Id.t))=[],
-      ~binds: list((string, Id.t))=[],
+      ~uses: list(use)=[],
+      ~binds: list((sort, string, Id.t))=[],
       ~binder: bool=false,
       ~override: option(t)=None,
       (),
@@ -479,13 +477,13 @@ let mk =
     };
   let demand =
     switch (binds) {
-    | [(name, id)] => binder_demand(~name, ~id)
+    | [(sort, name, id)] => binder_demand(~sort, ~name, ~id)
     | [] => demand
     | binds => (
         (env, gamma) =>
           List.fold_left(
-            (need, (name, id)) => {
-              let one = binder_demand(~name, ~id, env, need.gamma);
+            (need, (sort, name, id)) => {
+              let one = binder_demand(~sort, ~name, ~id, env, need.gamma);
               {
                 ...merge(ctx, [need, one]),
                 psi: Typ.meet_gap(ctx, need.psi, one.psi),
@@ -517,8 +515,13 @@ let mk =
       let slice = assembled(env, query);
       let used =
         uses
-        |> List.map(((sort, name, id)) =>
-             singleton(~sort, ~name, ~id, query)
+        |> List.map(u =>
+             singleton(
+               ~sort=u.sort,
+               ~name=u.name,
+               ~id=u.id,
+               u.demanded(query),
+             )
            )
         |> join_all(ctx);
       {
@@ -539,6 +542,23 @@ let mk =
 
 let leaf = (~ctx, ~id, ~ids, ~shape): t => mk(~ctx, ~id, ~ids, ~shape, ());
 
+let binding = (~sort, ~name, ~id, ~ids): t => {
+  shape: gap,
+  ids,
+  binder: true,
+  dispatch: (_, query) =>
+    is_gap(query)
+      ? {
+        ...empty_slice,
+        omitted: ids,
+      }
+      : {
+        ...empty_slice,
+        psi: query,
+      },
+  demand: binder_demand(~sort, ~name, ~id),
+};
+
 let opaque: t = {
   shape: gap,
   ids: Id.Set.empty,
@@ -550,9 +570,6 @@ let opaque: t = {
   demand: unit_demand,
 };
 
-/* The escape hatch, for a rule whose result type is a component of a child's
-   type: the query is embedded into the child's shape and the child's answer
-   projected back out. */
 let component =
     (~ctx: Ctx.t, ~matcher: MatchedTyp.matcher, ~index, node: t): t => {
   let components = ty => MatchedTyp.tolerant(matcher, ctx, ty);
@@ -587,8 +604,6 @@ type result = {
   ana: Typ.t,
 };
 
-/* Ancestors that are transparent wrappers around the focus, which the cursor
-   inspector does not protect from omission. */
 let focus_shell_ids = (_info_map, _id: Id.t): Id.Set.t => Id.Set.empty;
 
 let slice =
