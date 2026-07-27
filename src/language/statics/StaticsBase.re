@@ -406,6 +406,13 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
     | Some({term: Unknown(Internal), _}) => d
+    /* Settle the common case before resolving anything: normalizing to
+       compare is what makes HTML programs slow, since `Var("HTML")` expands
+       to ~7800 nodes (its variants re-expand `Attr`, which re-expands the
+       event types) and BOTH sides expand before the comparison starts.
+       Equal types normalize equally, and in practice the two sides are the
+       same type — 85-100% of calls across the example programs. */
+    | Some(ty) when Typ.fast_equal(ty, t) => d
     | Some(ty)
         when !Typ.fast_equal(Typ.normalize(ctx, ty), Typ.normalize(ctx, t)) =>
       asc(d, ty)
