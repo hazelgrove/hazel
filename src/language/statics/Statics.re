@@ -47,10 +47,11 @@ let record = (~id: Id.t, role: Slice.role, child: Slice.t, m: Map.t): Map.t =>
     m,
   );
 
-let take_children = (~id: Id.t, m: Map.t): (Info.slice_scratch, Map.t) => (
-  scratch(~id, m),
-  Id.Map.remove(id, m),
-);
+let take_children = (~id: Id.t, m: Map.t): (Info.slice_scratch, Map.t) =>
+  switch (Map.lookup(id, m)) {
+  | Some(InfoSliceScratch(children)) => (children, Id.Map.remove(id, m))
+  | _ => ([], m)
+  };
 
 let edge = (~parent: Id.t, role: Slice.role, slice_of, child, k) => {
   let (info, elab, m) = child;
