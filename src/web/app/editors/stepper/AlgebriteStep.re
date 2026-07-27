@@ -95,8 +95,7 @@ module F =
       |> Calc.map_saved(Option.some)
       |> {
         let.calc exp = exp;
-        let* e = ProofHacks.nth_exp(at_exp, at_idx, exp);
-        Some(ProofHacks.replace_exp_id(e |> DHExp.rep_id, exp, with_exp));
+        ProofHacks.replace_nth_exp(at_exp, at_idx, exp, with_exp);
       }
       |> Calc.to_option;
     (

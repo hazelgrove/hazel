@@ -464,7 +464,7 @@ let rec ids_with_paren_inners = (exp: Exp.t): list(list(Id.t)) =>
 
 let get_step_id_in = (step: step, exp: Exp.t): option(Id.t) => {
   let persistent = EvalObj.persist(step);
-  ProofHacks.nth_exp(persistent.at_exp, persistent.exp_idx, exp)
+  ProofHacks.relocate_exp(persistent.at_exp, persistent.exp_idx, exp)
   |> Option.map(exp => exp |> display_exp_for_step(step.knd) |> Exp.rep_id);
 };
 
@@ -500,7 +500,7 @@ let refresh_step =
     decompose(exp, env)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   let* desired_ids =
-    ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp)
+    ProofHacks.relocate_exp(step.at_exp, step.exp_idx, exp)
     |> Option.map(ids_with_paren_inners);
   let* (h, x) =
     List.find_opt(

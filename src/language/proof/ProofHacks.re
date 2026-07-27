@@ -2,6 +2,7 @@ open Util;
 open OptUtil.Syntax;
 
 exception Found(Exp.t);
+exception Ambiguous;
 
 // Find a subexpression by id (delegates to Exp.find_by_id)
 let find_exp_id = Exp.find_by_id;
@@ -60,6 +61,36 @@ let nth_exp = (e1: Exp.t, n: int, e2: Exp.t) => {
   };
 };
 
+// Relocate a persisted expression without silently moving it to a newly
+// inserted identical occurrence. Stable IDs preserve the precise target when
+// available; structural fallback is allowed only when it is unambiguous.
+let relocate_exp = (e1: Exp.t, _n: int, e2: Exp.t) =>
+  switch (find_exp_id(Exp.rep_id(e1), e2)) {
+  | Some(e) when Equality.ignoring_ascriptions.exp(e, e1) => Some(e)
+  | _ =>
+    let found = ref(None);
+    switch (
+      Exp.map_term(
+        ~f_exp=
+          (cont, exp) =>
+            if (Equality.ignoring_ascriptions.exp(exp, e1)) {
+              switch (found^) {
+              | None =>
+                found := Some(exp);
+                exp;
+              | Some(_) => raise(Ambiguous)
+              };
+            } else {
+              cont(exp);
+            },
+        e2,
+      )
+    ) {
+    | exception Ambiguous => None
+    | _ => found^
+    };
+  };
+
 let replace_exp_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
   Exp.map_term(
     ~f_exp=
@@ -71,6 +102,13 @@ let replace_exp_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
         },
     exp,
   );
+
+// Replay a stored local replacement in a recalculated expression. This is the
+// same expression-plus-occurrence lookup used by persisted evaluator steps.
+let replace_nth_exp = (at_exp, at_idx, exp, with_exp) => {
+  let* current_at_exp = relocate_exp(at_exp, at_idx, exp);
+  Some(replace_exp_id(Exp.rep_id(current_at_exp), exp, with_exp));
+};
 
 let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   let term = exp |> Exp.term_of;

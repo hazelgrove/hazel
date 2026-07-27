@@ -369,6 +369,88 @@ let tests = (
         check(dhexp_typ, "let x = 5 in x + 1 -> 5 + 1", expected, result);
       },
     ),
+    test_case(
+      "single arithmetic step survives an unrelated source edit",
+      `Quick,
+      () => {
+        let original = parse_exp("1 + 2 + x");
+        let edited = parse_exp("1 + 2 + y");
+        let step =
+          mk_test_step(
+            ~step_kind=StepKindHelpers.mk_auto_single_step(original),
+            (),
+          );
+        let (calculated, _, _) = test_calculate(~exp=original, step);
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind) {
+        | SingleStep(_) => ()
+        | _ => failwith("Expected the arithmetic step to be preserved")
+        };
+        check(
+          dhexp_typ,
+          "the stored arithmetic operation is replayed in the edited source",
+          parse_exp("3 + y"),
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
+    test_case(
+      "single arithmetic step does not move to an inserted duplicate target",
+      `Quick,
+      () => {
+        let original = parse_exp("f(0, 1 + 2)");
+        let edited = parse_exp("f(1 + 2, 0, 1 + 2)");
+        let step =
+          mk_test_step(
+            ~step_kind=StepKindHelpers.mk_auto_single_step(original),
+            (),
+          );
+        let (calculated, _, _) = test_calculate(~exp=original, step);
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind) {
+        | MissingStep(_) => ()
+        | _ =>
+          failwith(
+            "Expected an ambiguous duplicate target to truncate the step",
+          )
+        };
+        check(
+          dhexp_typ,
+          "neither identical occurrence is changed",
+          edited,
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
+    test_case(
+      "single arithmetic step truncates when its target changes",
+      `Quick,
+      () => {
+        let original = parse_exp("1 + 2 + x");
+        let edited = parse_exp("1 + 4 + x");
+        let step =
+          mk_test_step(
+            ~step_kind=StepKindHelpers.mk_auto_single_step(original),
+            (),
+          );
+        let (calculated, _, _) = test_calculate(~exp=original, step);
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind) {
+        | MissingStep(_) => ()
+        | _ =>
+          failwith("Expected the incompatible arithmetic step to truncate")
+        };
+        check(
+          dhexp_typ,
+          "the edited expression remains unchanged",
+          edited,
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
     // ============================================================
     // Validity tests
     // ============================================================
@@ -464,6 +546,237 @@ let tests = (
         let (_, final_exp, _) =
           run_step_chain(~initial_exp=elab, ~step_kinds=[step1, step2], ());
         check(dhexp_typ, "1 + 2 + 3 -> 6", parse_exp("6"), final_exp);
+      },
+    ),
+    test_case(
+      "arithmetic chain preserves its longest replayable prefix after an edit",
+      `Quick,
+      () => {
+        let original = parse_exp("1 + 2 + 3");
+        let step1 = StepKindHelpers.mk_auto_single_step(original);
+        let after_first = run_single_step(~exp=original, ~step_kind=step1);
+        let step2 = StepKindHelpers.mk_auto_single_step(after_first);
+        let (calculated, _, _) =
+          run_step_chain(
+            ~initial_exp=original,
+            ~step_kinds=[step1, step2],
+            (),
+          );
+        let edited = parse_exp("1 + 2 + 4");
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind, recalculated.next_step) {
+        | (SingleStep(_), Some({step_kind: MissingStep(_), _})) => ()
+        | _ =>
+          failwith(
+            "Expected the first arithmetic step to survive and the second to truncate",
+          )
+        };
+        check(
+          dhexp_typ,
+          "the valid prefix is replayed against the edited source",
+          parse_exp("3 + 4"),
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
+    test_case(
+      "axiom step survives an unrelated source edit",
+      `Quick,
+      () => {
+        let original = parse_exp("f(1 == 1)");
+        let edited = parse_exp("g(f(1 == 1))");
+        let equality = parse_exp("1 == 1");
+        let step =
+          mk_test_step(
+            ~step_kind=
+              StepKindHelpers.mk_axiom_step(
+                ~name="Reflexive(==)",
+                ~equality="Reflexive(==)",
+                equality,
+              ),
+            (),
+          );
+        let (calculated, _, _) = test_calculate(~exp=original, step);
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind) {
+        | AxiomStep(_) => ()
+        | _ => failwith("Expected the axiom step to be preserved")
+        };
+        check(
+          dhexp_typ,
+          "the axiom is reapplied at the relocated target",
+          parse_exp("g(f(true))"),
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
+    test_case(
+      "written step survives an unrelated source edit",
+      `Quick,
+      () => {
+        let original = parse_exp("f(x + 0)");
+        let edited = parse_exp("g(f(x + 0))");
+        let step =
+          mk_test_step(
+            ~step_kind=
+              StepperBase.WrittenStep({
+                at_idx: 0,
+                at_exp: parse_exp("x + 0"),
+                with_exp: parse_exp("x"),
+                justification: "remove additive identity",
+                trace_summary: None,
+                next_exp: Calc.Pending,
+              }),
+            (),
+          );
+        let (calculated, _, _) = test_calculate(~exp=original, step);
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind) {
+        | WrittenStep(_) => ()
+        | _ => failwith("Expected the written step to be preserved")
+        };
+        check(
+          dhexp_typ,
+          "the written replacement is applied at the relocated target",
+          parse_exp("g(f(x))"),
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
+    test_case(
+      "Algebrite step survives an unrelated source edit",
+      `Quick,
+      () => {
+        let original = parse_exp("f(1 + 2)");
+        let edited = parse_exp("g(f(1 + 2))");
+        let step =
+          mk_test_step(
+            ~step_kind=
+              StepperBase.AlgebriteStep({
+                at_idx: 0,
+                at_exp: parse_exp("1 + 2"),
+                with_exp: parse_exp("3"),
+                next_exp: Calc.Pending,
+              }),
+            (),
+          );
+        let (calculated, _, _) = test_calculate(~exp=original, step);
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind) {
+        | AlgebriteStep(_) => ()
+        | _ => failwith("Expected the Algebrite step to be preserved")
+        };
+        check(
+          dhexp_typ,
+          "the Algebrite replacement is applied at the relocated target",
+          parse_exp("g(f(3))"),
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
+    test_case(
+      "reparenthesization step survives an unrelated outer source edit",
+      `Quick,
+      () => {
+        let original = parse_exp("1 + (2 + 3)");
+        let reparenthesized = parse_exp("(1 + 2) + 3");
+        let step =
+          mk_test_step(
+            ~step_kind=
+              StepperBase.ReparenthesizeStep({
+                original_exp: original,
+                reparenthesized_exp: reparenthesized,
+                selected_id: None,
+                evaluate_after_parenthesize: false,
+                next_exp: Calc.Pending,
+              }),
+            (),
+          );
+        let (calculated, _, _) = test_calculate(~exp=original, step);
+        let edited = parse_exp("f(1 + (2 + 3))");
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind) {
+        | ReparenthesizeStep(_) => ()
+        | _ =>
+          failwith("Expected the reparenthesization step to be preserved")
+        };
+        check(
+          dhexp_typ,
+          "the structural replacement is replayed at the relocated target",
+          parse_exp("f((1 + 2) + 3)"),
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
+    test_case(
+      "reparenthesization recipe remains local across repeated source edits",
+      `Quick,
+      () => {
+        let original = parse_exp("1 + (2 + 3)");
+        let reparenthesized = parse_exp("(1 + 2) + 3");
+        let step =
+          mk_test_step(
+            ~step_kind=
+              StepperBase.ReparenthesizeStep({
+                original_exp: original,
+                reparenthesized_exp: reparenthesized,
+                selected_id: None,
+                evaluate_after_parenthesize: false,
+                next_exp: Calc.Pending,
+              }),
+            (),
+          );
+        let (calculated, _, _) = test_calculate(~exp=original, step);
+        let (first_recalculation, _, _) =
+          test_calculate(~exp=parse_exp("f(1 + (2 + 3))"), calculated);
+        let (_, final_exp, _) =
+          test_calculate(
+            ~exp=parse_exp("g(1 + (2 + 3))"),
+            first_recalculation,
+          );
+        check(
+          dhexp_typ,
+          "the second edit receives only the local reparenthesization",
+          parse_exp("g((1 + 2) + 3)"),
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
+    test_case(
+      "Auto Simplify step survives an unrelated outer source edit",
+      `Quick,
+      () => {
+        let original = parse_exp("x + 0");
+        let simplified = parse_exp("x");
+        let step =
+          mk_test_step(
+            ~step_kind=
+              StepperBase.AutoSimplifyStep({
+                original_exp: original,
+                simplified_exp: simplified,
+                next_exp: Calc.Pending,
+              }),
+            (),
+          );
+        let (calculated, _, _) = test_calculate(~exp=original, step);
+        let edited = parse_exp("f(x + 0)");
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind) {
+        | AutoSimplifyStep(_) => ()
+        | _ => failwith("Expected the Auto Simplify step to be preserved")
+        };
+        check(
+          dhexp_typ,
+          "the simplification is replayed at the relocated target",
+          parse_exp("f(x)"),
+          Calc.get_value(final_exp),
+        );
       },
     ),
     test_case(

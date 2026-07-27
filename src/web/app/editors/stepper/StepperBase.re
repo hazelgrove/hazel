@@ -502,16 +502,31 @@ module rec StepKind: {
         _,
       }) =>
       let current_exp = exp |> Calc.get_value;
-      if (!DHExp.fast_equal(current_exp, original_exp)) {
-        None; /* upstream changed; fall back to MissingStep */
-      } else {
+      /* selected_id belongs to the original reparenthesized expression and
+         cannot safely identify a node after relocating the whole rewrite. */
+      let replayed_exp =
+        if (DHExp.fast_equal(current_exp, original_exp)) {
+          Some(reparenthesized_exp);
+        } else if (evaluate_after_parenthesize) {
+          None;
+        } else {
+          ProofHacks.replace_nth_exp(
+            original_exp,
+            0,
+            current_exp,
+            reparenthesized_exp,
+          );
+        };
+      switch (replayed_exp) {
+      | None => None
+      | Some(replayed_exp) =>
         let next_exp =
           if (evaluate_after_parenthesize) {
             let steps =
               switch (
                 EvaluatorStep.get_status(
                   ~settings=Calc.get_value(settings),
-                  reparenthesized_exp,
+                  replayed_exp,
                   Calc.get_value(ctx) |> SemanticCtx.get_env,
                 )
               ) {
@@ -524,9 +539,7 @@ module rec StepKind: {
               | Some(selected_id) =>
                 steps
                 |> List.find_opt(step =>
-                     switch (
-                       EvaluatorStep.get_step_id_in(step, reparenthesized_exp)
-                     ) {
+                     switch (EvaluatorStep.get_step_id_in(step, replayed_exp)) {
                      | Some(id) => id == selected_id
                      | None => EvaluatorStep.get_step_id(step) == selected_id
                      }
@@ -535,11 +548,11 @@ module rec StepKind: {
             switch (matching_step) {
             | Some(step) =>
               EvaluatorStep.take_step(step)
-              |> Option.value(~default=reparenthesized_exp)
-            | None => reparenthesized_exp
+              |> Option.value(~default=replayed_exp)
+            | None => replayed_exp
             };
           } else {
-            reparenthesized_exp;
+            replayed_exp;
           };
         Some((
           ReparenthesizeStep({
@@ -556,19 +569,26 @@ module rec StepKind: {
       };
     | AutoSimplifyStep({original_exp, simplified_exp, _}) =>
       let current_exp = exp |> Calc.get_value;
-      if (!DHExp.fast_equal(current_exp, original_exp)) {
-        None;
-      } else {
+      switch (
+        ProofHacks.replace_nth_exp(
+          original_exp,
+          0,
+          current_exp,
+          simplified_exp,
+        )
+      ) {
+      | None => None
+      | Some(next_exp) =>
         Some((
           AutoSimplifyStep({
             original_exp,
             simplified_exp,
-            next_exp: Calc.Calculated(simplified_exp),
+            next_exp: Calc.Calculated(next_exp),
           }): model,
           Calc.set(false, hidden),
-          Some(Calc.NewValue(simplified_exp)),
+          Some(Calc.NewValue(next_exp)),
           Calc.OldValue(None),
-        ));
+        ))
       };
     };
 
