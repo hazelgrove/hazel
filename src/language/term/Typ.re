@@ -1657,7 +1657,17 @@ let rebuild = (shape: t, replacements: list(t)): option(t) => {
 
 let embed = (shape: t, i: int, child: t): t =>
   children(shape)
-  |> List.mapi((j, _) => j == i ? child : gap)
+  |> List.mapi((j, sibling) =>
+       if (j == i) {
+         child;
+       } else {
+         switch (term_of(sibling)) {
+         | Label(_)
+         | ExplicitNonlabel => sibling
+         | _ => gap
+         };
+       }
+     )
   |> rebuild(shape)
   |> Option.value(~default=gap);
 

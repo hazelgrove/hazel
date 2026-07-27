@@ -1480,17 +1480,43 @@ and uexp_to_info_map =
         | Label(name) =>
           let element: option(Typ.t) =
             LabeledTuple.find_label(Typ.match_tup_label, ts, name);
+          let field_index =
+            List.find_index(
+              (t: Typ.t) =>
+                switch (Typ.match_tup_label(t)) {
+                | Some((label, _)) => label == name
+                | None => false
+                },
+              ts,
+            );
           switch (element) {
           | Some({term: TupLabel(_, typ), _})
           | Some(typ) =>
+            let slice =
+              Option.map(
+                index =>
+                  Slice.component(
+                    ~ctx,
+                    ~matcher=MatchedTyp.label,
+                    ~index=1,
+                    Slice.component(
+                      ~ctx,
+                      ~matcher=MatchedTyp.prod(List.length(ts)),
+                      ~index,
+                      info_e1.slice,
+                    ),
+                  ),
+                field_index,
+              );
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=typ,
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
+              ~slice,
               m,
-            )
+            );
           | None =>
             add(
               ~elab_term=dot_elab,

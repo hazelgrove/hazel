@@ -581,12 +581,7 @@ let component =
     binder: false,
     dispatch: (env, query) => {
       let embedded =
-        Typ.rebuild(
-          node.shape,
-          components(node.shape)
-          |> List.mapi((i, _) => i == index ? query : gap),
-        )
-        |> Option.value(~default=gap);
+        Typ.embed(Typ.weak_head_normalize(ctx, node.shape), index, query);
       let slice = node.dispatch(env, embedded);
       {
         ...slice,
