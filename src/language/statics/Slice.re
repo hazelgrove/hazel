@@ -259,7 +259,6 @@ let forward = (ctx: Ctx.t, env: env, query: Typ.t, placed: list(placed)) => {
     List.fold_left(
       ((acc, left), item) =>
         switch (item.role) {
-        | _ when item.node.binder => (acc @ [item], left)
         | Part
         | Through => (
             acc
@@ -300,7 +299,7 @@ let backward = (ctx: Ctx.t, env: env, placed: list(placed)) => {
   let (placed, _) =
     List.fold_left(
       ((acc, gamma), item) =>
-        if (item.node.binder) {
+        if (item.role == Binder) {
           let need = item.node.demand(env, gamma);
           let query = Typ.meet_gap(ctx, item.query, need.psi);
           let slice = item.node.dispatch(env, query);
@@ -339,7 +338,7 @@ let backward = (ctx: Ctx.t, env: env, placed: list(placed)) => {
 let sources = (ctx: Ctx.t, env: env, placed: list(placed)) => {
   let demanded =
     placed
-    |> List.filter(item => item.node.binder)
+    |> List.filter(item => item.role == Binder)
     |> List.filter_map(item => item.result)
     |> List.map(slice => slice.psi)
     |> Typ.meet_gap_all(ctx);
@@ -432,6 +431,8 @@ let assemble = (~ctx: Ctx.t, ~shape: Typ.t, ~children: list((role, t))) => {
           ? Typ.rebuild(shape, parts) |> Option.value(~default=gap)
           : Typ.meet_gap_all(ctx, parts)
       };
+    /* Nothing demanded of any binder is no demand at all. */
+    let psi = Typ.is_empty(psi) ? gap : psi;
     {
       ...merge(ctx, List.map(snd, needs)),
       gamma,

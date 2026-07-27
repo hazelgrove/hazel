@@ -465,6 +465,19 @@ and uexp_to_info_map =
       );
     (List.split(pairs), m);
   };
+  let map_m_go_omit = (m, anas, es) => {
+    let (pairs, m) =
+      map_m2(
+        (ana, e, m) => {
+          let& (e, elab, m) = go(~ana, e, m);
+          ((e, elab), m);
+        },
+        anas,
+        es,
+        m,
+      );
+    (List.split(pairs), m);
+  };
   let go_pat = upat_to_info_map(~ctx, ~ancestors=ancestors_inclusive);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive);
   /* Analyze an expression in label position. Adds info for the label
@@ -909,7 +922,7 @@ and uexp_to_info_map =
       | Defined(ty_in, ty_out, _) =>
         let ty_in = Atom(Atom.cls_of_kind(ty_in)) |> Typ.temp;
         let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
-        let (e, e_elab, m) = go(~ana=ty_in, e, m);
+        let& (e, e_elab, m) = go(~ana=ty_in, e, m);
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
           ~elab_syn_ty=ty_out,
@@ -923,8 +936,8 @@ and uexp_to_info_map =
       let op_semantics = Operators.semantics_of_bin_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
-        let (e1, e1_elab, m) = go(~ana=syn, e1, m);
-        let (e2, e2_elab, m) = go(~ana=syn, e2, m);
+        let& (e1, e1_elab, m) = go(~ana=syn, e1, m);
+        let& (e2, e2_elab, m) = go(~ana=syn, e2, m);
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -935,7 +948,7 @@ and uexp_to_info_map =
       | DefinedPoly(_) =>
         let ids = List.map(Exp.rep_id, [e1, e2]);
         let ((es, es_elabs), m) =
-          map_m_go(
+          map_m_go_omit(
             m,
             [Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp],
             [e1, e2],
@@ -974,8 +987,8 @@ and uexp_to_info_map =
         let ty1 = Atom(Atom.cls_of_kind(ty1)) |> Typ.temp;
         let ty2 = Atom(Atom.cls_of_kind(ty2)) |> Typ.temp;
         let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
-        let (e1, e1_elab, m) = go(~ana=ty1, e1, m);
-        let (e2, e2_elab, m) = go(~ana=ty2, e2, m);
+        let& (e1, e1_elab, m) = go(~ana=ty1, e1, m);
+        let& (e2, e2_elab, m) = go(~ana=ty2, e2, m);
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=ty_out,
@@ -3298,10 +3311,12 @@ and upat_to_info_map =
   };
   let parent = Pat.rep_id(upat);
   let pat_edge = role => edge(~parent, role, (i: Info.pat) => i.slice);
-  let typ_edge = role => edge(~parent, role, (i: Info.typ) => i.slice);
+  let typ_edge = (role, (info: Info.typ, m), k) =>
+    k((info, record(~id=parent, role, info.slice, m)));
   let ( let* ) = (child, k) => pat_edge(Part, child, k);
   let (let^) = (child, k) => pat_edge(Through, child, k);
   let (let&) = (child, k) => pat_edge(Omit, child, k);
+  let (let^^) = (child, k) => typ_edge(Through, child, k);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
 
   let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) =>
@@ -4027,11 +4042,11 @@ and upat_to_info_map =
         m,
       );
     | Asc(p, ann) =>
-      let (ann, m) =
+      let^^ (ann, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ann, m);
       /* Desugar any Sig types in the annotation without full normalization */
       let ann_ty = Typ.desugar_sig(ctx, ann.user_term);
-      let (p, p_elab, m) =
+      let^ (p, p_elab, m) =
         go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
       add(
         ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
@@ -5226,18 +5241,25 @@ let slice =
         }
       }
     };
-  let compatible =
-    switch (focus) {
-    | None => true
-    | Some(id) =>
-      switch (Map.lookup(id, m)) {
-      | Some(InfoExp(info)) =>
-        Typ.is_gap(query) || Typ.meet(info.ctx, info.ty, query) != None
-      | _ => true
+  let compatible = (ctx, actual) =>
+    Typ.meet(ctx, actual, query) != None
+    || (
+      switch (
+        Typ.term_of(Typ.weak_head_normalize(ctx, actual)),
+        Typ.term_of(Typ.weak_head_normalize(ctx, query)),
+      ) {
+      | (Sum(_), Sum(_) | Var(_) | TypParamAp(_, _)) => true
+      | _ => false
       }
-    };
-  if (!compatible) {
-    raise(Slice.Incompatible_query(query));
+    );
+  switch (focus) {
+  | Some(id) when !Typ.is_gap(query) =>
+    switch (Map.lookup(id, m)) {
+    | Some(InfoExp(info)) when !compatible(info.ctx, info.elab_syn_ty) =>
+      raise(Slice.Incompatible_query(query))
+    | _ => ()
+    }
+  | _ => ()
   };
   Slice.slice(
     ~focus,
