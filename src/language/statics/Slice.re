@@ -25,9 +25,10 @@ type env = {
 };
 
 // A sliceable type: a type plus its query routing, forwards and backwards.
-// Writing ⊑ for "at most as precise as" (? ⊑ τ for every τ):
-//   dispatch: υ ⊑ ψ ⊑ shape, and υ₁ ⊑ υ₂ ⟹ ψ₁ ⊑ ψ₂
-//   demand:   ψ ⊑ shape, and γ₁ ⊑ γ₂ ⟹ ψ₁ ⊑ ψ₂
+// υ is the query asked of it, γ the assumptions a body accumulated, ψ the
+// sliced type answered with, and ⊑ is "at most as precise as" (? ⊑ τ for all τ):
+//   dispatch(υ) = {psi: ψ, _}   υ ⊑ ψ ⊑ shape,   υ₁ ⊑ υ₂ ⟹ ψ₁ ⊑ ψ₂
+//   demand(γ)   = {psi: ψ, _}   ψ ⊑ shape,       γ₁ ⊑ γ₂ ⟹ ψ₁ ⊑ ψ₂
 type t = {
   shape: Typ.t,
   ids: Id.Set.t,
@@ -97,17 +98,11 @@ let empty_slice: slice = {
   psi: gap,
 };
 
-let key_of_sort =
-  fun
-  | Value => 0
-  | Constructor => 1
-  | Alias => 2;
-
-let entry_key = (entry: Ctx.entry): option((int, string)) =>
+let entry_key = (entry: Ctx.entry): option((sort, string)) =>
   switch (entry) {
-  | VarEntry({name, _}) => Some((key_of_sort(Value), name))
-  | ConstructorEntry({name, _}) => Some((key_of_sort(Constructor), name))
-  | TVarEntry({name, _}) => Some((key_of_sort(Alias), name))
+  | VarEntry({name, _}) => Some((Value, name))
+  | ConstructorEntry({name, _}) => Some((Constructor, name))
+  | TVarEntry({name, _}) => Some((Alias, name))
   | LivelitEntry(_) => None
   };
 
@@ -198,17 +193,14 @@ let join_all = (ctx: Ctx.t, gammas: list(Ctx.t)): Ctx.t =>
 
 let lookup = (~sort, ~name, gamma: Ctx.t): Typ.t =>
   gamma.entries
-  |> List.find_opt(e => entry_key(e) == Some((key_of_sort(sort), name)))
+  |> List.find_opt(e => entry_key(e) == Some((sort, name)))
   |> Option.map(entry_typ)
   |> Option.value(~default=gap);
 
 let discharge = (~sort, ~name, gamma: Ctx.t): Ctx.t => {
   ...gamma,
   entries:
-    List.filter(
-      e => entry_key(e) != Some((key_of_sort(sort), name)),
-      gamma.entries,
-    ),
+    List.filter(e => entry_key(e) != Some((sort, name)), gamma.entries),
 };
 
 let merge = (ctx: Ctx.t, slices: list(slice)): slice => {
@@ -610,8 +602,6 @@ let edge = (~scratch, ~at: Id.t, role, slice_of, (info, elab, m), k) =>
 let edge_typ = (~scratch, ~at: Id.t, role, slice_of, (info, m), k) =>
   k((info, record(~scratch, ~id=at, role, slice_of(info), m)));
 
-let leaf = (~ctx, ~id, ~ids, ~shape): t => mk(~ctx, ~id, ~ids, ~shape, ());
-
 let binding = (~sort, ~name, ~id, ~ids): t => {
   shape: gap,
   ids,
@@ -669,8 +659,6 @@ type result = {
   psi: Typ.t,
   ana: Typ.t,
 };
-
-let focus_shell_ids = (_info_map, _id: Id.t): Id.Set.t => Id.Set.empty;
 
 // What the entry point needs to know about the focused node.
 type focused = {

@@ -407,17 +407,13 @@ and uexp_to_info_map =
   };
   let here = Exp.rep_id(uexp);
   let exp_edge = role => edge(~at=here, role, (i: Info.exp) => i.slice);
-  let pat_edge = role => edge(~at=here, role, (i: Info.pat) => i.slice);
   let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
   let ( let* ) = (component, k) => exp_edge(Part, component, k);
   let (let^) = (component, k) => exp_edge(Through, component, k);
   let (let&) = (component, k) => exp_edge(Omit, component, k);
   let (let$) = (component, k) => exp_edge(Source, component, k);
   let (let+) = (component, k) => exp_edge(Alternative, component, k);
-  let (let!) = (component, k) => pat_edge(Binder, component, k);
   let (let^^) = (component, k) => typ_edge(Through, component, k);
-  let ( let** ) = (component, k) => typ_edge(Part, component, k);
-  let (let$$) = (component, k) => typ_edge(Source, component, k);
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -3357,9 +3353,7 @@ and upat_to_info_map =
   let here = Pat.rep_id(upat);
   let pat_edge = role => edge(~at=here, role, (i: Info.pat) => i.slice);
   let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
-  let ( let* ) = (component, k) => pat_edge(Part, component, k);
   let (let^) = (component, k) => pat_edge(Through, component, k);
-  let (let&) = (component, k) => pat_edge(Omit, component, k);
   let (let^^) = (component, k) => typ_edge(Through, component, k);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
 

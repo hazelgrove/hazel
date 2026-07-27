@@ -578,11 +578,8 @@ module TypeSlicing = {
       }
     };
 
-  let protected_ids = (~info_map: Statics.Map.t, ci: Info.t): Id.Set.t =>
-    Id.Set.diff(
-      id_set_of_list(Info.ancestors_of(ci)),
-      Statics.Slice.focus_shell_ids(info_map, Info.id_of(ci)),
-    );
+  let protected_ids = (~info_map as _: Statics.Map.t, ci: Info.t): Id.Set.t =>
+    id_set_of_list(Info.ancestors_of(ci));
 
   let slice_for_target =
       (

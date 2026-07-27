@@ -1671,9 +1671,6 @@ let embed = (shape: t, i: int, child: t): t =>
   |> rebuild(shape)
   |> Option.value(~default=gap);
 
-let component = (shape: t, i: int): t =>
-  List.nth_opt(children(shape), i) |> Option.value(~default=gap);
-
 let meet_gap = (ctx: Ctx.t, left: t, right: t): t =>
   if (is_gap(left)) {
     right;
