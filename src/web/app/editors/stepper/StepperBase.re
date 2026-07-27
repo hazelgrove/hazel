@@ -173,6 +173,7 @@ module rec StepKind: {
   let calculate_with_level:
     (
       ~rewrite_level: Axioms.rewrite_level,
+      ~automation_stage: Axioms.automation_stage,
       ~settings: Calc.t(CoreSettings.t),
       ~hidden: Calc.saved(bool),
       ~exp: Calc.t(Exp.t),
@@ -335,6 +336,7 @@ module rec StepKind: {
   let rec calculate_with_level =
           (
             ~rewrite_level: Axioms.rewrite_level,
+            ~automation_stage: Axioms.automation_stage,
             ~settings: Calc.t(CoreSettings.t),
             ~hidden: Calc.saved(bool),
             ~exp: Calc.t(Exp.t),
@@ -407,6 +409,7 @@ module rec StepKind: {
       | Some(evalobj) =>
         calculate_with_level(
           ~rewrite_level,
+          ~automation_stage,
           ~settings,
           ~info_map,
           ~exp=exp |> Calc.make_new,
@@ -425,6 +428,7 @@ module rec StepKind: {
           MissingStep(
             MissingStep.Update.calculate(
               ~rewrite_level,
+              ~automation_stage,
               ~settings=settings |> Calc.get_value,
               exp,
               info_map,
@@ -572,6 +576,7 @@ module rec StepKind: {
       (~settings, ~hidden, ~exp, ~ctx, ~editor, ~info_map, ~ana, model) =>
     calculate_with_level(
       ~rewrite_level=Axioms.Arithmetic,
+      ~automation_stage=Axioms.MultiStepCheck,
       ~settings,
       ~hidden,
       ~exp,
@@ -874,6 +879,7 @@ and Stepper: {
   let calculate_with_level:
     (
       ~rewrite_level: Axioms.rewrite_level,
+      ~automation_stage: Axioms.automation_stage,
       ~settings: Calc.t(CoreSettings.t),
       ~exp: Calc.t(Exp.t),
       ~ctx: Calc.t(SemanticCtx.t),
@@ -1715,6 +1721,7 @@ and Stepper: {
   let rec calculate_with_level =
           (
             ~rewrite_level: Axioms.rewrite_level,
+            ~automation_stage: Axioms.automation_stage,
             ~settings: Calc.t(CoreSettings.t),
             ~exp as expr: Calc.t(Exp.t),
             ~ctx: Calc.t(SemanticCtx.t),
@@ -1778,6 +1785,7 @@ and Stepper: {
     let (step_kind, hidden, next_expr, inner_validity) =
       StepKind.calculate_with_level(
         ~rewrite_level,
+        ~automation_stage,
         ~settings,
         ~ctx,
         ~exp=expr,
@@ -1791,6 +1799,7 @@ and Stepper: {
            MissingStep(MissingStep.Model.init)
            |> StepKind.calculate_with_level(
                 ~rewrite_level,
+                ~automation_stage,
                 ~settings,
                 ~ctx,
                 ~exp=expr,
@@ -1814,6 +1823,7 @@ and Stepper: {
         let (next_step, last_expr, next_validity) =
           calculate_with_level(
             ~rewrite_level,
+            ~automation_stage,
             ~settings,
             ~exp=next_expr,
             ~ctx,
@@ -1857,6 +1867,7 @@ and Stepper: {
   let calculate = (~settings, ~exp, ~ctx, ~ana, model) =>
     calculate_with_level(
       ~rewrite_level=Axioms.Arithmetic,
+      ~automation_stage=Axioms.MultiStepCheck,
       ~settings,
       ~exp,
       ~ctx,

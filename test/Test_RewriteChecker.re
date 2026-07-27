@@ -4809,6 +4809,65 @@ let tests = (
       },
     ),
     test_case(
+      "open proof box invalidates cached state when math level changes",
+      `Quick,
+      () => {
+        check(
+          bool,
+          "same level keeps the current result",
+          false,
+          Web.MissingStep.proof_search_state_is_stale(
+            ~calculated_rewrite_level=Some(Axioms.Algebra),
+            ~rewrite_level=Axioms.Algebra,
+            ~calculated_automation_stage=Some(Axioms.MultiStepCheck),
+            ~automation_stage=Axioms.MultiStepCheck,
+            ~target_exp_changed=false,
+            ~proof_search_source=None,
+          ),
+        );
+        check(
+          bool,
+          "new level invalidates the current result",
+          true,
+          Web.MissingStep.proof_search_state_is_stale(
+            ~calculated_rewrite_level=Some(Axioms.Algebra),
+            ~rewrite_level=Axioms.Calculus,
+            ~calculated_automation_stage=Some(Axioms.MultiStepCheck),
+            ~automation_stage=Axioms.MultiStepCheck,
+            ~target_exp_changed=false,
+            ~proof_search_source=Some("automatic candidate"),
+          ),
+        );
+        check(
+          bool,
+          "new automation mode invalidates the current result",
+          true,
+          Web.MissingStep.proof_search_state_is_stale(
+            ~calculated_rewrite_level=Some(Axioms.Algebra),
+            ~rewrite_level=Axioms.Algebra,
+            ~calculated_automation_stage=Some(Axioms.MultiStepCheck),
+            ~automation_stage=Axioms.Manual,
+            ~target_exp_changed=false,
+            ~proof_search_source=None,
+          ),
+        );
+        check(
+          bool,
+          "manual mode uses one-step validation",
+          true,
+          Web.MissingStep.check_mode_for_automation_stage(Axioms.Manual)
+          == Web.MissingStep.Model.SingleEvalStep,
+        );
+        check(
+          bool,
+          "automatic mode uses profile search",
+          true,
+          Web.MissingStep.check_mode_for_automation_stage(Axioms.AutoEval)
+          == Web.MissingStep.Model.ProofSearch,
+        );
+      },
+    ),
+    test_case(
       "proof-search cancellation resets only the active check",
       `Quick,
       () => {
@@ -4837,6 +4896,8 @@ let tests = (
                 proof_search_max_depth: 4,
                 proof_search_max_states: 80,
                 proof_search_source: None,
+                calculated_rewrite_level: None,
+                calculated_automation_stage: None,
                 cached_exp: Calc.Pending,
                 cached_result: Calc.Pending,
               }),

@@ -110,6 +110,7 @@ module Update = {
     let (root, _, _) =
       StepperBase.Stepper.calculate_with_level(
         ~rewrite_level,
+        ~automation_stage,
         ~settings,
         ~ctx,
         ~exp=elab_subst,

@@ -50,6 +50,8 @@ module Model = {
         proof_search_max_depth: int,
         proof_search_max_states: int,
         proof_search_source: option(string),
+        calculated_rewrite_level: option(Axioms.rewrite_level),
+        calculated_automation_stage: option(Axioms.automation_stage),
         cached_exp: Calc.saved(Exp.t),
         cached_result: Calc.saved(option(RewriteChecker.trace_summary)),
       })
@@ -122,6 +124,27 @@ let proof_search_can_replace =
   | Checking
   | EquivalentOutsideProfile
   | Invalid => false;
+
+let proof_search_state_is_stale =
+    (
+      ~calculated_rewrite_level,
+      ~rewrite_level,
+      ~calculated_automation_stage,
+      ~automation_stage,
+      ~target_exp_changed,
+      ~proof_search_source,
+    ) =>
+  calculated_rewrite_level != Some(rewrite_level)
+  || calculated_automation_stage != Some(automation_stage)
+  || target_exp_changed
+  && proof_search_source
+  |> Option.is_none;
+
+let check_mode_for_automation_stage =
+  fun
+  | Axioms.Manual => Model.SingleEvalStep
+  | MultiStepCheck
+  | AutoEval => Model.ProofSearch;
 
 let string_contains = (needle, haystack) => {
   let needle_length = String.length(needle);
@@ -282,6 +305,8 @@ module Update = {
             proof_search_max_depth: 4,
             proof_search_max_states: 80,
             proof_search_source: None,
+            calculated_rewrite_level: None,
+            calculated_automation_stage: None,
             cached_exp: Calc.Pending,
             cached_result: Calc.Pending,
           })
@@ -679,6 +704,7 @@ module Update = {
   let calculate =
       (
         ~rewrite_level: Axioms.rewrite_level,
+        ~automation_stage: Axioms.automation_stage,
         ~settings: CoreSettings.t,
         exp,
         info_map,
@@ -943,9 +969,16 @@ module Update = {
           proof_search_max_depth,
           proof_search_max_states,
           proof_search_source,
+          calculated_rewrite_level,
+          calculated_automation_stage,
           cached_exp,
           cached_result,
         }) =>
+        let automation_stage_changed =
+          calculated_automation_stage != Some(automation_stage);
+        let check_mode =
+          automation_stage_changed
+            ? check_mode_for_automation_stage(automation_stage) : check_mode;
         // Calculate syntax, holes, types, etc for the editor
         let ana = Calc.get_value(selected_ana);
         let editor =
@@ -977,8 +1010,19 @@ module Update = {
             CodeEditable.Model.get_statics(editor).elaborated,
             cached_exp,
           );
+        let rewrite_level_changed =
+          calculated_rewrite_level != Some(rewrite_level);
         let reset_proof_search =
-          target_exp_changed && proof_search_source |> Option.is_none;
+          proof_search_state_is_stale(
+            ~calculated_rewrite_level,
+            ~rewrite_level,
+            ~calculated_automation_stage,
+            ~automation_stage,
+            ~target_exp_changed,
+            ~proof_search_source,
+          );
+        let cached_result =
+          rewrite_level_changed ? Calc.Pending : cached_result;
         // Reset result if editor changes
         let cached_result =
           switch (check_mode) {
@@ -1067,6 +1111,8 @@ module Update = {
           proof_search_max_depth,
           proof_search_max_states,
           proof_search_source: reset_proof_search ? None : proof_search_source,
+          calculated_rewrite_level: Some(rewrite_level),
+          calculated_automation_stage: Some(automation_stage),
           cached_exp: cached_exp |> Calc.save,
           cached_result,
         });
@@ -1112,6 +1158,8 @@ module Update = {
           proof_search_max_depth: 4,
           proof_search_max_states: 80,
           proof_search_source: None,
+          calculated_rewrite_level: Some(rewrite_level),
+          calculated_automation_stage: Some(automation_stage),
           cached_exp: Calc.Pending,
           cached_result: Calc.Pending,
         })
@@ -2783,6 +2831,8 @@ module View = {
                     proof_search_max_depth: _,
                     proof_search_max_states: _,
                     proof_search_source,
+                    calculated_rewrite_level: _,
+                    calculated_automation_stage: _,
                     cached_exp,
                     cached_result,
                   }) =>
