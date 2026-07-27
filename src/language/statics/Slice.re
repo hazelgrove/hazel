@@ -45,12 +45,40 @@ type use = {
   demanded: Typ.t => Typ.t,
 };
 
+type scratch('info) = {
+  read: 'info => option(list((role, t))),
+  write: list((role, t)) => 'info,
+};
+
 exception Focus_not_found(Id.t);
 exception Wrong_focus_sort;
 exception Incompatible_query(Typ.t);
 
 let gap = Typ.gap;
 let is_gap = Typ.is_gap;
+
+let subtree_ids = (x: Any.t): Id.Set.t => {
+  let ids = ref(Id.Set.empty);
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, x) => {
+      ids :=
+        List.fold_left(
+          (ids, id) => Id.Set.add(id, ids),
+          ids^,
+          IdTagged.ids(x),
+        );
+      continue(x);
+    };
+  let _ = Any.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, x);
+  ids^;
+};
+
+let exp_ids = (e: Exp.t) => subtree_ids(Exp(e));
+let pat_ids = (p: Pat.t) => subtree_ids(Pat(p));
+let typ_ids = (t: Typ.t) => subtree_ids(Typ(t));
 
 let empty_gamma: Ctx.t = Ctx.empty;
 
@@ -540,6 +568,31 @@ let mk =
   };
 };
 
+let recorded = (~scratch, ~id: Id.t, m) =>
+  switch (Id.Map.find_opt(id, m)) {
+  | Some(info) => scratch.read(info) |> Option.value(~default=[])
+  | None => []
+  };
+
+let record = (~scratch, ~id: Id.t, role: role, child: t, m) =>
+  Id.Map.add(
+    id,
+    scratch.write(recorded(~scratch, ~id, m) @ [(role, child)]),
+    m,
+  );
+
+let take = (~scratch, ~id: Id.t, m) =>
+  switch (Option.bind(Id.Map.find_opt(id, m), scratch.read)) {
+  | Some(children) => (children, Id.Map.remove(id, m))
+  | None => ([], m)
+  };
+
+let edge = (~scratch, ~parent: Id.t, role, slice_of, (info, elab, m), k) =>
+  k((info, elab, record(~scratch, ~id=parent, role, slice_of(info), m)));
+
+let edge_typ = (~scratch, ~parent: Id.t, role, slice_of, (info, m), k) =>
+  k((info, record(~scratch, ~id=parent, role, slice_of(info), m)));
+
 let leaf = (~ctx, ~id, ~ids, ~shape): t => mk(~ctx, ~id, ~ids, ~shape, ());
 
 let binding = (~sort, ~name, ~id, ~ids): t => {
@@ -601,9 +654,48 @@ type result = {
 
 let focus_shell_ids = (_info_map, _id: Id.t): Id.Set.t => Id.Set.empty;
 
+type focused = {
+  is_exp: bool,
+  ancestors: list(Id.t),
+  ctx: Ctx.t,
+  syn: Typ.t,
+};
+
+let compatible = (ctx: Ctx.t, actual: Typ.t, query: Typ.t): bool =>
+  Typ.meet(ctx, actual, query) != None
+  || (
+    switch (
+      Typ.term_of(Typ.weak_head_normalize(ctx, actual)),
+      Typ.term_of(Typ.weak_head_normalize(ctx, query)),
+    ) {
+    | (Sum(_), Sum(_) | Var(_) | TypParamAp(_, _)) => true
+    | _ => false
+    }
+  );
+
 let slice =
-    (~focus: option(Id.t), ~root_id: Id.t, ~path: Id.Set.t, ~root: t, query)
+    (
+      ~focus: option(Id.t),
+      ~root_id: Id.t,
+      ~root: t,
+      ~focused: Id.t => option(focused),
+      query,
+    )
     : result => {
+  let path =
+    switch (focus) {
+    | None => Id.Set.empty
+    | Some(id) =>
+      switch (focused(id)) {
+      | None => raise(Focus_not_found(id))
+      | Some({is_exp: false, _}) => raise(Wrong_focus_sort)
+      | Some({ancestors, ctx, syn, _}) =>
+        if (!is_gap(query) && !compatible(ctx, syn, query)) {
+          raise(Incompatible_query(query));
+        };
+        Id.Set.of_list(ancestors);
+      }
+    };
   let env = {
     focus,
     query,

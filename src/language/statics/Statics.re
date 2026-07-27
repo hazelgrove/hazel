@@ -11,52 +11,21 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
-let subtree_ids = (x: Any.t): Id.Set.t => {
-  let ids = ref(Id.Set.empty);
-  let f:
-    'a.
-    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
-   =
-    (continue, x) => {
-      ids :=
-        List.fold_left(
-          (ids, id) => Id.Set.add(id, ids),
-          ids^,
-          IdTagged.ids(x),
-        );
-      continue(x);
-    };
-  let _ = Any.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, x);
-  ids^;
+let slice_scratch: Slice.scratch(Info.t) = {
+  read:
+    fun
+    | Info.InfoSliceScratch(children) => Some(children)
+    | _ => None,
+  write: children => Info.InfoSliceScratch(children),
 };
 
-let exp_ids = (e: Exp.t) => subtree_ids(Exp(e));
-let pat_ids = (p: Pat.t) => subtree_ids(Pat(p));
-let typ_ids = (t: Typ.t) => subtree_ids(Typ(t));
-
-let scratch = (~id: Id.t, m: Map.t): Info.slice_scratch =>
-  switch (Map.lookup(id, m)) {
-  | Some(InfoSliceScratch(children)) => children
-  | _ => []
-  };
-
-let record = (~id: Id.t, role: Slice.role, child: Slice.t, m: Map.t): Map.t =>
-  Id.Map.add(
-    id,
-    Info.InfoSliceScratch(scratch(~id, m) @ [(role, child)]),
-    m,
-  );
-
-let take_children = (~id: Id.t, m: Map.t): (Info.slice_scratch, Map.t) =>
-  switch (Map.lookup(id, m)) {
-  | Some(InfoSliceScratch(children)) => (children, Id.Map.remove(id, m))
-  | _ => ([], m)
-  };
-
-let edge = (~parent: Id.t, role: Slice.role, slice_of, child, k) => {
-  let (info, elab, m) = child;
-  k((info, elab, record(~id=parent, role, slice_of(info), m)));
-};
+let record = (~id, role, child, m) =>
+  Slice.record(~scratch=slice_scratch, ~id, role, child, m);
+let take_children = (~id, m) => Slice.take(~scratch=slice_scratch, ~id, m);
+let edge = (~parent, role, slice_of, child, k) =>
+  Slice.edge(~scratch=slice_scratch, ~parent, role, slice_of, child, k);
+let edge_typ = (~parent, role, slice_of, child, k) =>
+  Slice.edge_typ(~scratch=slice_scratch, ~parent, role, slice_of, child, k);
 
 /* Compute a type's kind without descending into descendants. The
    recursive `utyp_to_info_map` traversal puts kind marks on each node
@@ -394,7 +363,7 @@ and uexp_to_info_map =
       Slice.mk(
         ~ctx,
         ~id=Exp.rep_id(user_term),
-        ~ids=exp_ids(user_term),
+        ~ids=Slice.exp_ids(user_term),
         ~shape=elab_syn_ty,
         ~children,
         ~uses,
@@ -439,8 +408,7 @@ and uexp_to_info_map =
   let parent = Exp.rep_id(uexp);
   let exp_edge = role => edge(~parent, role, (i: Info.exp) => i.slice);
   let pat_edge = role => edge(~parent, role, (i: Info.pat) => i.slice);
-  let typ_edge = (role, (info: Info.typ, m), k) =>
-    k((info, record(~id=parent, role, info.slice, m)));
+  let typ_edge = role => edge_typ(~parent, role, (i: Info.typ) => i.slice);
   let ( let* ) = (child, k) => exp_edge(Part, child, k);
   let (let^) = (child, k) => exp_edge(Through, child, k);
   let (let&) = (child, k) => exp_edge(Omit, child, k);
@@ -3331,7 +3299,7 @@ and upat_to_info_map =
       Slice.mk(
         ~ctx,
         ~id=Pat.rep_id(user_term),
-        ~ids=pat_ids(user_term),
+        ~ids=Slice.pat_ids(user_term),
         ~shape=ty,
         ~children,
         ~uses,
@@ -3388,8 +3356,7 @@ and upat_to_info_map =
   };
   let parent = Pat.rep_id(upat);
   let pat_edge = role => edge(~parent, role, (i: Info.pat) => i.slice);
-  let typ_edge = (role, (info: Info.typ, m), k) =>
-    k((info, record(~id=parent, role, info.slice, m)));
+  let typ_edge = role => edge_typ(~parent, role, (i: Info.typ) => i.slice);
   let ( let* ) = (child, k) => pat_edge(Part, child, k);
   let (let^) = (child, k) => pat_edge(Through, child, k);
   let (let&) = (child, k) => pat_edge(Omit, child, k);
@@ -4463,7 +4430,7 @@ and utyp_to_info_map =
       Slice.mk(
         ~ctx,
         ~id=Typ.rep_id(utyp),
-        ~ids=typ_ids(utyp),
+        ~ids=Slice.typ_ids(utyp),
         ~shape=utyp,
         ~children,
         ~uses,
@@ -5303,44 +5270,25 @@ let slice =
   let _ = direction;
   let (root, _, m) =
     uexp_to_info_map(~ana, ~ctx, ~ancestors=[], exp, Id.Map.empty);
-  let path =
-    switch (focus) {
-    | None => Id.Set.empty
-    | Some(id) =>
-      switch (Map.lookup(id, m)) {
-      | None => raise(Slice.Focus_not_found(id))
-      | Some(info) =>
-        switch (Info.sort_of(info)) {
-        | Exp => Id.Set.of_list(Info.ancestors_of(info))
-        | _ => raise(Slice.Wrong_focus_sort)
-        }
-      }
-    };
-  let compatible = (ctx, actual) =>
-    Typ.meet(ctx, actual, query) != None
-    || (
-      switch (
-        Typ.term_of(Typ.weak_head_normalize(ctx, actual)),
-        Typ.term_of(Typ.weak_head_normalize(ctx, query)),
-      ) {
-      | (Sum(_), Sum(_) | Var(_) | TypParamAp(_, _)) => true
-      | _ => false
-      }
-    );
-  switch (focus) {
-  | Some(id) when !Typ.is_gap(query) =>
-    switch (Map.lookup(id, m)) {
-    | Some(InfoExp(info)) when !compatible(info.ctx, info.elab_syn_ty) =>
-      raise(Slice.Incompatible_query(query))
-    | _ => ()
-    }
-  | _ => ()
-  };
+  let focused = id =>
+    Map.lookup(id, m)
+    |> Option.map((info: Info.t) =>
+         Slice.{
+           is_exp: Info.sort_of(info) == Exp,
+           ancestors: Info.ancestors_of(info),
+           ctx: Info.ctx_of(info),
+           syn:
+             switch (info) {
+             | InfoExp({elab_syn_ty, _}) => elab_syn_ty
+             | _ => Typ.gap
+             },
+         }
+       );
   Slice.slice(
     ~focus,
     ~root_id=Exp.rep_id(exp),
-    ~path,
     ~root=root.slice,
+    ~focused,
     query,
   );
 };
