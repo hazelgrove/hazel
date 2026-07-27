@@ -3,9 +3,54 @@ open Alcotest;
 open Language;
 open IdTagged.FreshGrammar;
 
+/* + A(Int) + A(String): ill-formed but reachable from surface syntax, and the
+   repeated name is what made ConstructorMap.venn_regions pair the variants up
+   in reverse (Hashtbl.add/find_opt are LIFO), so the sum compared unequal to a
+   copy of itself. */
+let dup_ctr_sum = () =>
+  Typ.sum([
+    ConstructorMap.Variant(
+      "A",
+      ConstructorMap.empty_variant_ann,
+      Some(Typ.int()),
+    ),
+    ConstructorMap.Variant(
+      "A",
+      ConstructorMap.empty_variant_ann,
+      Some(Typ.string()),
+    ),
+  ]);
+
 let tests = (
   "Equality",
   [
+    test_case(
+      "sum with a repeated constructor name equals a copy of itself",
+      `Quick,
+      () => {
+        check(
+          bool,
+          "+ A(Int) + A(String) === + A(Int) + A(String)",
+          true,
+          Equality.semantic.typ(dup_ctr_sum(), dup_ctr_sum()),
+        );
+        check(
+          bool,
+          "+ A(Int) + A(String) !== + A(Int)",
+          false,
+          Equality.semantic.typ(
+            dup_ctr_sum(),
+            Typ.sum([
+              ConstructorMap.Variant(
+                "A",
+                ConstructorMap.empty_variant_ann,
+                Some(Typ.int()),
+              ),
+            ]),
+          ),
+        );
+      },
+    ),
     test_case(
       "let alpha equivalence",
       `Quick,

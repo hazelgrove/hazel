@@ -107,68 +107,92 @@ let constructor_key =
   | Variant(ctr, _, _) => Some(ctr)
   | BadEntry(_) => None;
 
-/* computes all three regions of a venn diagram of two sets represented as lists */
+/* computes all three regions of a venn diagram of two sets represented as lists.
+
+   Variants are matched by constructor name through an index (so this stays
+   linear in the size of the maps); BadEntries fall back to a linear scan with
+   `f`. Sums may contain repeated constructor names, so the pairing order is
+   load-bearing: we pair the FIRST xs entry with the FIRST ys entry of a given
+   name and drop the later duplicates. Using Hashtbl.add/find_opt/remove as a
+   multi-binding stack instead pairs duplicates up in reverse, which makes a
+   sum compare unequal to a structural copy of itself. */
 let venn_regions =
     (f: ('a, 'a) => bool, xs: list('a), ys: list('a))
     : (list(('a, 'a)), list('a), list('a)) => {
-  /* Build hashtable from ys keyed by constructor name */
-  let ys_tbl: Hashtbl.t(string, 'a) = Hashtbl.create(List.length(ys));
-  List.iter(
-    y =>
+  /* First ys entry per constructor name, plus the positions of ys BadEntries */
+  let ys_first: Hashtbl.t(string, 'a) = Hashtbl.create(List.length(ys));
+  let ys_bad = ref([]);
+  List.iteri(
+    (i, y) =>
       switch (constructor_key(y)) {
-      | Some(key) => Hashtbl.add(ys_tbl, key, y)
-      | None => ()
+      | Some(key) =>
+        if (!Hashtbl.mem(ys_first, key)) {
+          Hashtbl.add(ys_first, key, y);
+        }
+      | None => ys_bad := [(i, y), ...ys_bad^]
       },
     ys,
   );
-  /* Collect BadEntry items from ys for fallback matching */
-  let ys_bad_entries = List.filter(y => constructor_key(y) == None, ys);
-  let ys_bad_matched: Hashtbl.t(int, bool) =
-    Hashtbl.create(List.length(ys_bad_entries));
-  /* Track seen constructor names for dedup of xs (preserving original behavior) */
-  let seen_xs: Hashtbl.t(string, bool) = Hashtbl.create(List.length(xs));
+  let ys_bad = List.rev(ys_bad^);
+  /* Constructor names consumed by some x. A match consumes *every* ys entry
+     sharing that name, so those never reach `right`. */
+  let matched_keys: Hashtbl.t(string, unit) =
+    Hashtbl.create(List.length(ys));
+  /* Positions (in ys) of BadEntries consumed by some x */
+  let bad_consumed: Hashtbl.t(int, unit) =
+    Hashtbl.create(List.length(ys_bad));
+  /* Constructor names of xs already processed; later duplicates are dropped */
+  let seen_keys: Hashtbl.t(string, unit) = Hashtbl.create(List.length(xs));
+  /* BadEntry xs already processed, for the same dedup on payloads */
+  let seen_bad = ref([]);
   let acc = ref([]);
   let left = ref([]);
   List.iter(
     x =>
       switch (constructor_key(x)) {
       | Some(key) =>
-        switch (Hashtbl.find_opt(ys_tbl, key)) {
-        | Some(y) =>
-          Hashtbl.remove(ys_tbl, key);
-          Hashtbl.replace(seen_xs, key, true);
-          acc := [(x, y), ...acc^];
-        | None =>
-          if (!Hashtbl.mem(seen_xs, key)) {
-            Hashtbl.replace(seen_xs, key, true);
-            left := [x, ...left^];
-          }
+        if (!Hashtbl.mem(seen_keys, key)) {
+          Hashtbl.replace(seen_keys, key, ());
+          switch (Hashtbl.find_opt(ys_first, key)) {
+          | Some(y) =>
+            Hashtbl.replace(matched_keys, key, ());
+            acc := [(x, y), ...acc^];
+          | None => left := [x, ...left^]
+          };
         }
       | None =>
-        /* BadEntry: fall back to linear scan against ys_bad_entries */
-        let matched = ref(false);
-        List.iteri(
-          (i, y) =>
-            if (! matched^ && !Hashtbl.mem(ys_bad_matched, i) && f(x, y)) {
-              Hashtbl.add(ys_bad_matched, i, true);
-              matched := true;
-              acc := [(x, y), ...acc^];
+        let first_match = ref(None);
+        List.iter(
+          ((i, y)) =>
+            if (!Hashtbl.mem(bad_consumed, i) && f(x, y)) {
+              Hashtbl.replace(bad_consumed, i, ());
+              if (Option.is_none(first_match^)) {
+                first_match := Some(y);
+              };
             },
-          ys_bad_entries,
+          ys_bad,
         );
-        if (! matched^) {
-          left := [x, ...left^];
+        switch (first_match^) {
+        | Some(y) => acc := [(x, y), ...acc^]
+        | None =>
+          if (!List.exists(f(x, _), seen_bad^)) {
+            left := [x, ...left^];
+          }
         };
+        seen_bad := [x, ...seen_bad^];
       },
     xs,
   );
-  /* Remaining ys: unmatched Variant entries still in hashtable + unmatched BadEntries */
+  /* Whatever of ys nothing in xs consumed, in the original order */
   let right =
-    Hashtbl.fold((_key, y, r) => [y, ...r], ys_tbl, [])
-    @ List.filteri(
-        (i, _y) => !Hashtbl.mem(ys_bad_matched, i),
-        ys_bad_entries,
-      );
+    List.filteri(
+      (i, y) =>
+        switch (constructor_key(y)) {
+        | Some(key) => !Hashtbl.mem(matched_keys, key)
+        | None => !Hashtbl.mem(bad_consumed, i)
+        },
+      ys,
+    );
   (acc^ |> List.rev, left^ |> List.rev, right);
 };
 
