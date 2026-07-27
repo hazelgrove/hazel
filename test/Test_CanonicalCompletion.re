@@ -1075,17 +1075,23 @@ let case_repair_edit_tests = [
 /* === Entry experience (typed through the edit pipeline) ===
    The motivating flows for trailing completion: adding a new let
    between existing definitions, and starting a definition inside a
-   function body. Enter auto-indents the following line, so the new
-   let absorbs it as body (the designed wrapping read) and its `in`
-   junction-drops at the chain boundary — `let x = 3 in let b = ...`.
-   Guards the entry experience against heuristic additions. */
+   function body. Guards the entry experience against heuristic
+   additions.
+
+   RE-JUDGED 2026-07-27 (indentation consumes the completion's
+   partitioner): a flush-written following definition is a SIBLING —
+   the new let's `in` junction-drops at the chain boundary and the
+   rest of the program does NOT shift right. The old expectation
+   (`let b` re-indented to 2) was the wrapping read of the retired
+   absorb-everything walk; inserting a definition mid-program should
+   not re-indent everything below it. */
 let entry_experience_tests = [
   edit_case(
     ~name="new let typed between existing definitions",
     ~acts=
       Test_Editing.mk("let a = 1 in\n¦let b = 2 in\nb")
       @ Test_Editing.string_to_ltr_actions("let x = 3\n"),
-    ~expected="let a = 1 in\nlet x = 3in\n  let b = 2 in\nb",
+    ~expected="let a = 1 in\nlet x = 3in\nlet b = 2 in\nb",
   ),
   edit_case(
     ~name="new let typed at start of fun body",

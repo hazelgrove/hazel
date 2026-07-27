@@ -358,11 +358,47 @@ let rec go =
   map;
 };
 
+/* ONE PARTITIONER (2026-07-27, andrew): the walk consumes the
+   CANONICAL COMPLETION'S PARTITIONER — the same layout-intent
+   reading that decides what the surfaced completion absorbs — so
+   indent suggestions agree with the completion about which lines
+   belong to an unclosed construct. Lines WITH content partition by
+   their actual layout: flush-written lines under an unclosed let are
+   siblings (no staircase — each partition restarts at base), indented
+   ones are absorbed (nested, the typed-through reading). A
+   CONTENTLESS line is no evidence at all (~absorb_empty_lines): the
+   fresh line Enter just made is the very thing whose meaning is
+   being decided, so it stays inside the open construct — where
+   typing will land (P10 fill position).
+
+   Within a partition the walk keeps its own shallow absorb-reading
+   rather than the completed GEOMETRY: the completion anchors owed
+   closers at the end of typed content (before trailing linebreaks —
+   the right display/Tab promise, P10), but a delimiter obligation's
+   position is FLEXIBLE (the taxonomy), so for the indent question an
+   owed closer is not a wall — the construct is still open, and the
+   next line is its content. Consuming completed_seg directly was
+   tried first (2026-07-27) and reproduced the outside level for
+   parens, defs and rule bodies alike. */
+let partitions = (seg: Segment.t): list(Segment.t) =>
+  CanonicalCompletion.partition_segment(~absorb_empty_lines=true, seg)
+  |> List.map(fst);
+
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
   /* indentation rules read content anchors after linebreaks; the
      edit state is grout-free, so derive the holes first — a hole is
      content for indentation exactly as it is for statics */
-  go(~not_top=false, 0, GroutPlace.place(seg));
+  GroutPlace.place(seg)
+  |> partitions
+  |> List.fold_left(
+       (map, part) =>
+         Id.Map.union(
+           (_, a, _) => Some(a),
+           go(~not_top=false, 0, part),
+           map,
+         ),
+       Id.Map.empty,
+     );
 
 /* Move the derived hole of the blank run containing `lb` to sit
    right after `lb`: for indent queries the obligation anchors where
@@ -424,7 +460,9 @@ let level_of = (~anchor_lb=?, ~target_id: Id.t, seg: Segment.t): int =>
       | Some(lb) => anchor_hole_after(~lb, placed)
       | None => placed
       };
-    ignore(go(~not_top=false, ~target_id, 0, placed));
+    placed
+    |> partitions
+    |> List.iter(part => ignore(go(~not_top=false, ~target_id, 0, part)));
     0;
   }) {
   /* Not found, default to 0 */

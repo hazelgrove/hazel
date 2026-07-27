@@ -1544,6 +1544,18 @@ let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool =>
     };
   switch (first_content(rest)) {
   | Some(Tile(t)) when t.mold.out == Sort.Rul => true
+  /* (c) a line opening with a concave-LEFT piece — an infix or
+     postfix operator, a comma, a stranded closer shard — requires a
+     left operand from the previous line, so it cannot start anything
+     new (`+ 2` under an unclosed paren is a continuation, whatever
+     its indent) */
+  | Some(Tile(t))
+      when
+        switch (Tile.shapes(t)) {
+        | (Concave(_), _) => true
+        | _ => false
+        } =>
+    true
   | Some(Tile({label: [tok], children: [], _})) =>
     incomplete_acc
     |> List.exists((it: Tile.t) => {
@@ -1561,8 +1573,24 @@ let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool =>
   };
 };
 
+/* Does this line (the pieces up to its linebreak) carry any user
+   content? Spaces and grout are not content; comments are. Used by
+   ~absorb_empty_lines: a contentless line is no evidence of intent,
+   so the relative-indent heuristic has nothing to read there. */
+let line_has_content = (rest: Segment.t): bool => {
+  let rec scan = (sg: Segment.t) =>
+    switch (sg) {
+    | [] => false
+    | [Piece.Secondary(w), ..._] when Secondary.is_linebreak(w) => false
+    | [Piece.Secondary(w), ...tl] when Secondary.is_space(w) => scan(tl)
+    | [Piece.Grout(_), ...tl] => scan(tl)
+    | [_, ..._] => true
+    };
+  scan(rest);
+};
+
 let partition_segment =
-    (~use_indent_heuristic=true, seg: Segment.t)
+    (~use_indent_heuristic=true, ~absorb_empty_lines=false, seg: Segment.t)
     : list((Segment.t, list(Tile.t))) => {
   let rec go =
           (
@@ -1612,6 +1640,7 @@ let partition_segment =
           when
             incomplete_before
             && spaces_after <= inc_ind
+            && (!absorb_empty_lines || line_has_content(rest))
             && !continuation_line(incomplete_acc, rest) =>
         /* Partition: content at same/lesser indent than incomplete tile */
         let current = List.rev(acc);
