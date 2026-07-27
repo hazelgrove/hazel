@@ -19,13 +19,13 @@ let slice_scratch: Slice.scratch(Info.t) = {
   write: children => Info.InfoSliceScratch(children),
 };
 
-let record = (~id, role, child, m) =>
-  Slice.record(~scratch=slice_scratch, ~id, role, child, m);
+let record = (~id, role, component, m) =>
+  Slice.record(~scratch=slice_scratch, ~id, role, component, m);
 let take_children = (~id, m) => Slice.take(~scratch=slice_scratch, ~id, m);
-let edge = (~parent, role, slice_of, child, k) =>
-  Slice.edge(~scratch=slice_scratch, ~parent, role, slice_of, child, k);
-let edge_typ = (~parent, role, slice_of, child, k) =>
-  Slice.edge_typ(~scratch=slice_scratch, ~parent, role, slice_of, child, k);
+let edge = (~at, role, slice_of, component, k) =>
+  Slice.edge(~scratch=slice_scratch, ~at, role, slice_of, component, k);
+let edge_typ = (~at, role, slice_of, component, k) =>
+  Slice.edge_typ(~scratch=slice_scratch, ~at, role, slice_of, component, k);
 
 /* Compute a type's kind without descending into descendants. The
    recursive `utyp_to_info_map` traversal puts kind marks on each node
@@ -365,7 +365,7 @@ and uexp_to_info_map =
         ~id=Exp.rep_id(user_term),
         ~ids=Slice.exp_ids(user_term),
         ~shape=elab_syn_ty,
-        ~children,
+        ~components=children,
         ~uses,
         ~override=slice,
         (),
@@ -405,19 +405,19 @@ and uexp_to_info_map =
       : (Info.exp, Exp.t, Map.t) => {
     uexp_to_info_map(~ctx, ~ana, ~is_in_filter, ~ancestors, uexp, m);
   };
-  let parent = Exp.rep_id(uexp);
-  let exp_edge = role => edge(~parent, role, (i: Info.exp) => i.slice);
-  let pat_edge = role => edge(~parent, role, (i: Info.pat) => i.slice);
-  let typ_edge = role => edge_typ(~parent, role, (i: Info.typ) => i.slice);
-  let ( let* ) = (child, k) => exp_edge(Part, child, k);
-  let (let^) = (child, k) => exp_edge(Through, child, k);
-  let (let&) = (child, k) => exp_edge(Omit, child, k);
-  let (let$) = (child, k) => exp_edge(Source, child, k);
-  let (let+) = (child, k) => exp_edge(Alternative, child, k);
-  let (let!) = (child, k) => pat_edge(Binder, child, k);
-  let (let^^) = (child, k) => typ_edge(Through, child, k);
-  let ( let** ) = (child, k) => typ_edge(Part, child, k);
-  let (let$$) = (child, k) => typ_edge(Source, child, k);
+  let here = Exp.rep_id(uexp);
+  let exp_edge = role => edge(~at=here, role, (i: Info.exp) => i.slice);
+  let pat_edge = role => edge(~at=here, role, (i: Info.pat) => i.slice);
+  let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
+  let ( let* ) = (component, k) => exp_edge(Part, component, k);
+  let (let^) = (component, k) => exp_edge(Through, component, k);
+  let (let&) = (component, k) => exp_edge(Omit, component, k);
+  let (let$) = (component, k) => exp_edge(Source, component, k);
+  let (let+) = (component, k) => exp_edge(Alternative, component, k);
+  let (let!) = (component, k) => pat_edge(Binder, component, k);
+  let (let^^) = (component, k) => typ_edge(Through, component, k);
+  let ( let** ) = (component, k) => typ_edge(Part, component, k);
+  let (let$$) = (component, k) => typ_edge(Source, component, k);
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -696,7 +696,7 @@ and uexp_to_info_map =
       let ((es, es_elabs), m) = map_m_go(m, anas, es);
       let m =
         List.fold_left(
-          (m, e: Info.exp) => record(~id=parent, Part, e.slice, m),
+          (m, e: Info.exp) => record(~id=here, Part, e.slice, m),
           m,
           es,
         );
@@ -1191,7 +1191,7 @@ and uexp_to_info_map =
 
       let m =
         List.fold_left(
-          (m, e: Info.exp) => record(~id=parent, Part, e.slice, m),
+          (m, e: Info.exp) => record(~id=here, Part, e.slice, m),
           m,
           es',
         );
@@ -2094,8 +2094,8 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
       let m =
         m
-        |> record(~id=parent, Binder, p.slice)
-        |> record(~id=parent, Part, e.slice);
+        |> record(~id=here, Binder, p.slice)
+        |> record(~id=here, Part, e.slice);
       let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
       let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
@@ -2349,9 +2349,9 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
       let m =
         m
-        |> record(~id=parent, Binder, p_ana.slice)
-        |> record(~id=parent, Source, def.slice)
-        |> record(~id=parent, Through, body.slice);
+        |> record(~id=here, Binder, p_ana.slice)
+        |> record(~id=here, Source, def.slice)
+        |> record(~id=here, Through, body.slice);
       let syn_ty_let = body.elab_syn_ty;
       let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check(
@@ -2581,8 +2581,8 @@ and uexp_to_info_map =
               go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
             let m =
               m
-              |> record(~id=parent, Binder, info.slice)
-              |> record(~id=parent, Alternative, e.slice);
+              |> record(~id=here, Binder, info.slice)
+              |> record(~id=here, Alternative, e.slice);
             let p_constraint = Info.pat_constraint(info);
             ([p_constraint, ...constraints], ps_elabs @ [p_elab], m);
           },
@@ -2940,7 +2940,7 @@ and uexp_to_info_map =
         let m =
           m
           |> record(
-               ~id=parent,
+               ~id=here,
                Binder,
                Slice.binding(
                  ~sort=Alias,
@@ -2949,8 +2949,8 @@ and uexp_to_info_map =
                  ~ids=Id.Set.of_list(IdTagged.ids(typat)),
                ),
              )
-          |> record(~id=parent, Source, def_info.slice)
-          |> record(~id=parent, Through, body_slice);
+          |> record(~id=here, Source, def_info.slice)
+          |> record(~id=here, Through, body_slice);
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,
@@ -3030,7 +3030,7 @@ and uexp_to_info_map =
         let m =
           m
           |> record(
-               ~id=parent,
+               ~id=here,
                Binder,
                Slice.binding(
                  ~sort=Alias,
@@ -3039,8 +3039,8 @@ and uexp_to_info_map =
                  ~ids=Id.Set.of_list(IdTagged.ids(typat)),
                ),
              )
-          |> record(~id=parent, Source, def_info.slice)
-          |> record(~id=parent, Through, body_slice);
+          |> record(~id=here, Source, def_info.slice)
+          |> record(~id=here, Through, body_slice);
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,
@@ -3301,7 +3301,7 @@ and upat_to_info_map =
         ~id=Pat.rep_id(user_term),
         ~ids=Slice.pat_ids(user_term),
         ~shape=ty,
-        ~children,
+        ~components=children,
         ~uses,
         ~binds,
         ~binder=true,
@@ -3354,13 +3354,13 @@ and upat_to_info_map =
       m: Map.t,
     );
   };
-  let parent = Pat.rep_id(upat);
-  let pat_edge = role => edge(~parent, role, (i: Info.pat) => i.slice);
-  let typ_edge = role => edge_typ(~parent, role, (i: Info.typ) => i.slice);
-  let ( let* ) = (child, k) => pat_edge(Part, child, k);
-  let (let^) = (child, k) => pat_edge(Through, child, k);
-  let (let&) = (child, k) => pat_edge(Omit, child, k);
-  let (let^^) = (child, k) => typ_edge(Through, child, k);
+  let here = Pat.rep_id(upat);
+  let pat_edge = role => edge(~at=here, role, (i: Info.pat) => i.slice);
+  let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
+  let ( let* ) = (component, k) => pat_edge(Part, component, k);
+  let (let^) = (component, k) => pat_edge(Through, component, k);
+  let (let&) = (component, k) => pat_edge(Omit, component, k);
+  let (let^^) = (component, k) => typ_edge(Through, component, k);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
 
   let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) =>
@@ -3970,7 +3970,7 @@ and upat_to_info_map =
       let constraint_ = Coverage.Constraint.Tuple(cons);
       let m =
         List.fold_left(
-          (m, p: Info.pat) => record(~id=parent, Part, p.slice, m),
+          (m, p: Info.pat) => record(~id=here, Part, p.slice, m),
           m,
           info_pats,
         );
@@ -4432,7 +4432,7 @@ and utyp_to_info_map =
         ~id=Typ.rep_id(utyp),
         ~ids=Slice.typ_ids(utyp),
         ~shape=utyp,
-        ~children,
+        ~components=children,
         ~uses,
         (),
       );

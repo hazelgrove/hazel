@@ -25,6 +25,9 @@ type env = {
 };
 
 // A sliceable type: a type plus its query routing, forwards and backwards.
+// Writing ⊑ for "at most as precise as" (? ⊑ τ for every τ):
+//   dispatch: υ ⊑ ψ ⊑ shape, and υ₁ ⊑ υ₂ ⟹ ψ₁ ⊑ ψ₂
+//   demand:   ψ ⊑ shape, and γ₁ ⊑ γ₂ ⟹ ψ₁ ⊑ ψ₂
 type t = {
   shape: Typ.t,
   ids: Id.Set.t,
@@ -33,14 +36,14 @@ type t = {
   demand: (env, Ctx.t) => slice,
 };
 
-// How a child relates to its parent's type; one per child recursion.
+// How a sub-term's type enters the type this rule constructs.
 type role =
-  | Part // a component of my type
-  | Through // my type itself
-  | Omit // checked, not kept
-  | Source // a definition, sliced by the demand my binders produce
-  | Alternative // one branch; siblings split the query co-Heytingly
-  | Binder; // binds names, and is not a component of my type
+  | Part // an argument of the type constructor this rule applies
+  | Through // the whole constructed type, no constructor applied
+  | Omit // checked, but absent from the constructed type
+  | Source // a definition, sliced by the demand this rule's binders produce
+  | Alternative // one branch; the branches split the query co-Heytingly
+  | Binder; // binds names, but absent from the constructed type
 
 // A name a term uses, and what the term's query demands of it.
 type use = {
@@ -50,7 +53,7 @@ type use = {
   demanded: Typ.t => Typ.t,
 };
 
-// How the checker's info map carries children until the parent's `add` takes them.
+// How the checker's info map carries recorded components until `add` takes them.
 type scratch('info) = {
   read: 'info => option(list((role, t))),
   write: list((role, t)) => 'info,
@@ -224,8 +227,8 @@ let residual = (ctx: Ctx.t, query: Typ.t, supplied: Typ.t): Typ.t => {
   Typ.is_empty(left) ? gap : left;
 };
 
-let fills = (children: list((role, t)), role, node: t): bool =>
-  List.exists(((role, _)) => role == Part, children)
+let fills = (components: list((role, t)), role, node: t): bool =>
+  List.exists(((role, _)) => role == Part, components)
   && (role == Part || role == Binder && node.binder);
 
 let route =
@@ -245,7 +248,7 @@ let route =
   };
 };
 
-// A child mid-assembly: its routed query, and its slice once dispatched.
+// A recorded component mid-assembly: its routed query, and its slice once dispatched.
 type placed = {
   role,
   node: t,
@@ -253,11 +256,11 @@ type placed = {
   result: option(slice),
 };
 
-let place = (ctx: Ctx.t, shape: Typ.t, children: list((role, t)), query) => {
-  let fills = fills(children);
+let place = (ctx: Ctx.t, shape: Typ.t, components: list((role, t)), query) => {
+  let fills = fills(components);
   let count =
     List.length(
-      List.filter(((role, node)) => fills(role, node), children),
+      List.filter(((role, node)) => fills(role, node), components),
     );
   let (queries, broadcast) = route(ctx, shape, query, count);
   let (placed, _) =
@@ -283,7 +286,7 @@ let place = (ctx: Ctx.t, shape: Typ.t, children: list((role, t)), query) => {
         );
       },
       ([], 0),
-      children,
+      components,
     );
   (placed, broadcast);
 };
@@ -414,9 +417,9 @@ let assembled_psi =
   };
 };
 
-let assemble = (~ctx: Ctx.t, ~shape: Typ.t, ~children: list((role, t))) => {
+let assemble = (~ctx: Ctx.t, ~shape: Typ.t, ~components: list((role, t))) => {
   let dispatch = (env, query) => {
-    let (placed, broadcast) = place(ctx, shape, children, query);
+    let (placed, broadcast) = place(ctx, shape, components, query);
     let placed =
       placed
       |> forward(ctx, env, query)
@@ -426,7 +429,14 @@ let assemble = (~ctx: Ctx.t, ~shape: Typ.t, ~children: list((role, t))) => {
     {
       ...merge(ctx, slices),
       psi:
-        assembled_psi(ctx, shape, query, fills(children), broadcast, placed),
+        assembled_psi(
+          ctx,
+          shape,
+          query,
+          fills(components),
+          broadcast,
+          placed,
+        ),
     };
   };
   let demand = (env, gamma) => {
@@ -444,7 +454,7 @@ let assemble = (~ctx: Ctx.t, ~shape: Typ.t, ~children: list((role, t))) => {
           | Alternative => (needs, gamma)
           },
         ([], gamma),
-        List.rev(children),
+        List.rev(components),
       );
     let parts =
       needs
@@ -497,7 +507,7 @@ let mk =
       ~id: Id.t,
       ~ids: Id.Set.t,
       ~shape: Typ.t,
-      ~children: list((role, t))=[],
+      ~components: list((role, t))=[],
       ~uses: list(use)=[],
       ~binds: list((sort, string, Id.t))=[],
       ~binder: bool=false,
@@ -508,7 +518,7 @@ let mk =
   let (assembled, demand) =
     switch (override) {
     | Some(node) => (node.dispatch, node.demand)
-    | None => assemble(~ctx, ~shape, ~children)
+    | None => assemble(~ctx, ~shape, ~components)
     };
   let demand =
     switch (binds) {
@@ -533,7 +543,7 @@ let mk =
       )
     };
   let checked =
-    children
+    components
     |> List.filter_map(((role, node)) =>
          role == Omit ? Some(node.ids) : None
        )
@@ -581,24 +591,24 @@ let recorded = (~scratch, ~id: Id.t, m) =>
   | None => []
   };
 
-let record = (~scratch, ~id: Id.t, role: role, child: t, m) =>
+let record = (~scratch, ~id: Id.t, role: role, component: t, m) =>
   Id.Map.add(
     id,
-    scratch.write(recorded(~scratch, ~id, m) @ [(role, child)]),
+    scratch.write(recorded(~scratch, ~id, m) @ [(role, component)]),
     m,
   );
 
 let take = (~scratch, ~id: Id.t, m) =>
   switch (Option.bind(Id.Map.find_opt(id, m), scratch.read)) {
-  | Some(children) => (children, Id.Map.remove(id, m))
+  | Some(components) => (components, Id.Map.remove(id, m))
   | None => ([], m)
   };
 
-let edge = (~scratch, ~parent: Id.t, role, slice_of, (info, elab, m), k) =>
-  k((info, elab, record(~scratch, ~id=parent, role, slice_of(info), m)));
+let edge = (~scratch, ~at: Id.t, role, slice_of, (info, elab, m), k) =>
+  k((info, elab, record(~scratch, ~id=at, role, slice_of(info), m)));
 
-let edge_typ = (~scratch, ~parent: Id.t, role, slice_of, (info, m), k) =>
-  k((info, record(~scratch, ~id=parent, role, slice_of(info), m)));
+let edge_typ = (~scratch, ~at: Id.t, role, slice_of, (info, m), k) =>
+  k((info, record(~scratch, ~id=at, role, slice_of(info), m)));
 
 let leaf = (~ctx, ~id, ~ids, ~shape): t => mk(~ctx, ~id, ~ids, ~shape, ());
 
