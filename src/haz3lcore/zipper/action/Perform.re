@@ -66,9 +66,12 @@ let at_line_leading_whitespace = (z: Zipper.t): bool =>
 
 /* Backspace inverts enter: when the caret sits at first-content (or a
    blank line's position) with [linebreak ++ spaces*] immediately left
-   of it at its own level, return the space count — one keystroke then
-   removes the whole indentation AND its linebreak. */
-let indent_join_run = (z: Zipper.t): option(int) =>
+   of it at its own level, return (space count, linebreak id) — one
+   keystroke then removes the whole indentation AND its linebreak.
+   The consumer gates on the run being no wider than the line's
+   AUTO-INDENT level: spaces the user typed beyond the indent are
+   real material, deleted one per press (andrew 2026-07-22). */
+let indent_join_run = (z: Zipper.t): option((int, Id.t)) =>
   if (z.caret != Outer || z.selection.content != []) {
     None;
   } else {
@@ -85,7 +88,7 @@ let indent_join_run = (z: Zipper.t): option(int) =>
         | [Piece.Secondary(s), ...rest] when Secondary.is_space(s) =>
           scan(n + 1, rest)
         | [Piece.Secondary(s), ..._] when Secondary.is_linebreak(s) =>
-          Some(n)
+          Some((n, s.id))
         | _ => None
         };
       scan(0, List.rev(fst(z.relatives.siblings)));
@@ -487,7 +490,19 @@ let rec go =
     let join =
       switch (d) {
       | Local(Left, ByChar) when settings.indentation_ux =>
-        indent_join_run(z)
+        switch (indent_join_run(z)) {
+        | Some((n, lb_id)) =>
+          /* the one-keystroke join covers AUTO-INDENT width only:
+             a run wider than the line's indent level means typed
+             spaces beyond it — those delete one per press */
+          let level =
+            Indentation.level_of(
+              ~target_id=lb_id,
+              Zipper.unselect_and_zip(z),
+            );
+          n <= level ? Some(n) : None;
+        | None => None
+        }
       | _ => None
       };
     switch (join) {

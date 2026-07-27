@@ -996,6 +996,20 @@ let ux_case = (~name, ~acts, ~expected) =>
 let bsp = Action.Destruct(Local(Left, ByChar));
 
 let indent_ux_tests = [
+  /* C CAP (ported from artifact-grout 1c2bc75efb, andrew's 2026-07-22
+     live repro): spaces typed BEYOND the line's auto-indent level are
+     real material — backspace deletes them one per press; the 2-space
+     indent unit and the one-keystroke enter-join apply only within
+     the auto-indent width. Before the cap, two backspaces here ate
+     four spaces (6 -> 2). */
+  ux_case(
+    ~name="backspace beyond the indent deletes one space per press",
+    ~acts=
+      string_to_ltr_actions("let a = \n")
+      @ string_to_ltr_actions("    ")
+      @ [bsp, bsp],
+    ~expected="let a = \n    ?",
+  ),
   ux_case(
     ~name="backspace at line start inverts enter (indent + linebreak)",
     ~acts=string_to_ltr_actions("fun q ->\n") @ [bsp],
