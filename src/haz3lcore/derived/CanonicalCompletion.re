@@ -680,8 +680,16 @@ let finish_display =
      remainder like `t ` — real tokens never do) is self-separated */
   let ends_in_space = (t: string) =>
     String.length(t) > 0 && t.[String.length(t) - 1] == ' ';
-  let needs_pad = ((lt, lsys), (rt, rsys)) =>
-    (lsys || rsys) && !ends_in_space(lt) && f1_pad_style(lt, rt);
+  /* P15: the pad rule consults the left piece's MOLD, not just its
+     token — a prefix operator hugs its operand hole (`!?`). Child
+     bounds are shards of multi-token tiles, never prefix ops. */
+  let piece_prefix_op = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile(t) => Mold.is_prefix_op(t.mold)
+    | _ => false
+    };
+  let needs_pad = (~l_prefix=false, (lt, lsys), (rt, rsys)) =>
+    (lsys || rsys) && !ends_in_space(lt) && f1_pad_style(~l_prefix, lt, rt);
   /* a MINTED comment is a witness-remainder ghost: it continues the
      typed token, so its left edge always hugs */
   let hugging_comment = (p: Piece.t): bool =>
@@ -711,7 +719,10 @@ let finish_display =
           edge(~hot, a, ~side=Direction.Right),
           edge(~hot, b, ~side=Direction.Left),
         ) {
-        | (Some(l), Some(r)) when needs_pad(l, r) && !hugging_comment(b) => [
+        | (Some(l), Some(r))
+            when
+              needs_pad(~l_prefix=piece_prefix_op(a), l, r)
+              && !hugging_comment(b) => [
             a,
             space(),
             ...rest,
@@ -745,7 +756,14 @@ let finish_display =
              switch (Util.ListUtil.last_opt(c)) {
              | Some(last) =>
                switch (edge(~hot, last, ~side=Direction.Right)) {
-               | Some(l) when needs_pad(l, bound(k + 1)) => c @ [space()]
+               | Some(l)
+                   when
+                     needs_pad(
+                       ~l_prefix=piece_prefix_op(last),
+                       l,
+                       bound(k + 1),
+                     ) =>
+                 c @ [space()]
                | _ => c
                }
              | None => c

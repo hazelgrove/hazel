@@ -552,6 +552,7 @@ let pad_corpus = [
   "=",
   "+",
   "-",
+  "!",
   "*",
   "::",
   "&&",
@@ -565,19 +566,49 @@ let pad_corpus = [
   "\"s\"",
 ];
 
+/* tokens that can mold as a prefix operator (Form: Not, UnaryMinus,
+   TypSumSingle) — the P15 hug is a MOLD fact, so the implication is
+   swept under both moldings of these */
+let prefixable = ["!", "-", "+"];
+
 let padding_soundness = [
   test_case(
     "lexically-required spacing is always style-padded",
     `Quick,
     () => {
+      /* P15 scope note: `?` in this corpus stands for the HOLE, which
+         is not a token — nothing can lexically glom with a hole, so
+         needs_space's verdict on the literal glyph `?` reasons about
+         a character that isn't in the document. Hole junctions are
+         therefore exempt from the lexical premise here (their padding
+         is pinned by the felt corpus); before this exemption the
+         implication "passed" on pairs like `!`|`?` for exactly that
+         bogus reason. */
+      let hole = PadStyle.hole_token;
       let bad =
         List.concat_map(
           a =>
-            List.filter_map(
+            List.concat_map(
               b =>
-                SpaceNormalize.needs_space(a, b)
-                && !CanonicalCompletion.f1_pad_style(a, b)
-                  ? Some(Printf.sprintf("%s|%s", a, b)) : None,
+                if (a == hole || b == hole) {
+                  [];
+                } else {
+                  List.filter_map(
+                    l_prefix =>
+                      SpaceNormalize.needs_space(a, b)
+                      && !CanonicalCompletion.f1_pad_style(~l_prefix, a, b)
+                        ? Some(
+                            Printf.sprintf(
+                              "%s|%s%s",
+                              a,
+                              b,
+                              l_prefix ? "(pre)" : "",
+                            ),
+                          )
+                        : None,
+                    List.mem(a, prefixable) ? [false, true] : [false],
+                  );
+                },
               pad_corpus,
             ),
           pad_corpus,

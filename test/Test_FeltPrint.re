@@ -78,6 +78,14 @@ let empty_runs = [
 
 let trailing_edge = [
   t("trailing at top level, no whitespace", "1 +", "1 + ?"),
+  /* P15: a PREFIX operator hugs its operand hole — a mold fact
+     (convex left nib, concave right), invisible to the char-level
+     pad rule, which used to pad `! ?` here. Contrast `1 +` above:
+     the same trailing-hole class, but an INFIX left neighbor keeps
+     its pad. */
+  t("trailing prefix op hugs its hole", "!", "!?"),
+  t("unary minus after an infix op hugs its hole", "1 + -", "1 + -?"),
+  t("prefix op with a real operand: no hole, no question", "!t", "!t"),
   t("trailing space survives next to the hole", "1 + ", "1 + ?"),
   t("trailing two spaces: hole in the second", "1 +  ", "1 + ?"),
   t(
@@ -658,6 +666,10 @@ let scenarios = [
     type_string("1 + 2"),
     "  1¦\n  1 ¦\n  1 +¦ ?\n  1 + ¦?\n  1 + 2¦",
   ),
+  /* P15 entry feel: the operand hole appears flush against the
+     prefix operator (`!¦?`, not `!¦ ?`) and typing the operand
+     replaces it in place */
+  scenario("prefix-operator entry: !t", type_string("!t"), "  !¦?\n  !t¦"),
   /* FELT ASSESSMENT: pure caret movement produces zero hole churn;
      deleting `1` materializes the hole IN the vacated cell with the
      caret at its left and `in x` never moving a column; retyping is
@@ -827,6 +839,7 @@ let matrix_corpus = [
   "(1 +)" /* pinch against an enclosing closer */,
   "( * 2)" /* leading hole inside a child slot */,
   "if  then 1 else 2" /* hole between keyword shards */,
+  "1 + !" /* prefix op flush against its hole (P15, no pad cell) */,
 ];
 
 let matrix_rows = (prog: string): list(string) => {
@@ -917,7 +930,14 @@ let facing_matrix = [
       ++ "    if ¦?then 1 else 2    left\n"
       ++ "    if¦ ?then 1 else 2    left\n"
       ++ "    i¦f ?then 1 else 2    flat\n"
-      ++ "    ¦if ?then 1 else 2    left",
+      ++ "    ¦if ?then 1 else 2    left\n"
+      ++ "  1 + !\n"
+      ++ "    1 + !¦?               left\n"
+      ++ "    1 + ¦!?               left\n"
+      ++ "    1 +¦ !?               left\n"
+      ++ "    1 ¦+ !?               right\n"
+      ++ "    1¦ + !?               right\n"
+      ++ "    ¦1 + !?               left",
       matrix_corpus
       |> List.map(p =>
            "  "

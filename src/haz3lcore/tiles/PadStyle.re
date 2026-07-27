@@ -52,8 +52,22 @@ let opens = (t: string): bool =>
     }
   );
 
-let pad = (lt: string, rt: string): bool => !opens(lt) && !hugs_left(rt);
-
 /* the hole token, as the padding rule sees it (a hole is an operand:
  * it never hugs left, so a pad depends only on the token before it) */
 let hole_token = "?";
+
+/* P15: junction personality is MOLD-derived where the characters
+ * can't carry it. "Prefix operator" (takes an operand right, none
+ * left) is a mold fact — `!` and unary `-` reveal nothing at the
+ * character level, and the char rule wrongly padded `!` from its
+ * operand hole (`! ?`). Callers that hold the piece pass
+ * Mold.is_prefix_op; string-only callers get the old rule.
+ *
+ * The hug is scoped to the HOLE: in display, a prefix operator's
+ * operand junction is always hole-mediated (placement mints the
+ * operand hole — `!?`), and a REAL operand beside it (`!t`) is an
+ * all-user junction the oracle never re-spaces (P5b). Symbolic
+ * pairs like `!` `-` keep their pad, so the P12 implication
+ * (lexically required => style-padded) is untouched. */
+let pad = (~l_prefix: bool=false, lt: string, rt: string): bool =>
+  l_prefix && rt == hole_token ? false : !opens(lt) && !hugs_left(rt);

@@ -68,12 +68,23 @@ let consumer_of = (cells: t, id: Id.t): option(Id.t) =>
   Id.Map.find_opt(id, cells.consumed_by);
 
 /* flat adjacency stream; ids kept for grout and spaces (the pieces
- * classification assigns to); everything else is Content or Break */
+ * classification assigns to); everything else is Content or Break.
+ * Content carries the mold fact the pad rule needs (P15): whether
+ * its piece is a prefix operator, which the token text can't say */
 type atom =
-  | Content(string) /* a token's text: the pad rule's left operand */
+  | Content({
+      text: string,
+      prefix_op: bool,
+    })
   | Break
   | S(Id.t)
   | G(Id.t, Grout.shape);
+
+let content = (~prefix_op=false, text: string): atom =>
+  Content({
+    text,
+    prefix_op,
+  });
 
 let rec atoms = (seg: segment): list(atom) =>
   List.concat_map(
@@ -82,13 +93,15 @@ let rec atoms = (seg: segment): list(atom) =>
       | Grout(g) => [G(g.id, g.shape)]
       | Secondary(w) when Secondary.is_space(w) => [S(w.id)]
       | Secondary(w) when Secondary.is_linebreak(w) => [Break]
-      | Secondary(w) => [Content(Secondary.get_string(w.content))]
+      | Secondary(w) => [content(Secondary.get_string(w.content))]
       | Tile(t) =>
+        let prefix_op = Mold.is_prefix_op(t.mold);
         Aba.mk(t.shards, t.children)
         |> Aba.join(
              i =>
                [
-                 Content(
+                 content(
+                   ~prefix_op,
                    switch (List.nth_opt(t.label, i)) {
                    | Some(tok) => tok
                    | None => ""
@@ -97,8 +110,8 @@ let rec atoms = (seg: segment): list(atom) =>
                ],
              atoms,
            )
-        |> List.concat
-      | Projector(_) => [Content("")]
+        |> List.concat;
+      | Projector(_) => [content("")]
       },
     seg,
   );
@@ -116,7 +129,8 @@ let classify = (seg: segment): t => {
      nothing there is no anchor to separate from. */
   let line_end_cls = (prev: option(atom)): cls =>
     switch (prev) {
-    | Some(Content(lt)) when PadStyle.pad(lt, PadStyle.hole_token) =>
+    | Some(Content({text: lt, prefix_op}))
+        when PadStyle.pad(~l_prefix=prefix_op, lt, PadStyle.hole_token) =>
       LineEndPadded
     | _ => LineEndFree
     };

@@ -680,6 +680,9 @@ string_replace(a, b, c)¦   CHIPS[]|},
          `f(?)` promise (JUDGED improvement with the ap-close rule —
          the ghost used to end at the unbalanced `(`) */
       display_case("let x : String = st¦⟪ring_capitalize(?) in ?⟫"),
+      /* P15: the operand hole hugs a prefix operator even as span
+         material — the oracle consults the mold, not the glyph */
+      display_case("let a = !¦?⟪ in ?⟫"),
     ],
   ),
   (
