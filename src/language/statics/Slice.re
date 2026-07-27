@@ -4,17 +4,10 @@
    terms which explain it. The slicing function is derived from the type
    checker's binding operators in Statics.re, automagically inferring slicing.
 
-   `slice` is the entry point, and every node is wrapped by `mk`, which applies
-   the focus and omits the subtree of anything nothing asks for. Under it,
-   `assemble` derives both directions from the sub-terms the rule recorded,
-   running `place` (each gets its query, `route` matching the query's type
-   components to the constructed type's), `forward` (dispatch what is known,
-   branches taking `residual`s in turn), `backward` (each binder resolved by
-   `binder_demand` against what it scopes), `sources` (each definition once) and
-   `assembled_psi` (rebuild the sliced type). `join` combines assumptions,
-   `record` is how a rule's sub-terms arrive, `binding` is a bare-name binder,
-   and `component` is the escape hatch for a result that is a type component of
-   a sub-term's type. */
+   `slice` explains a query at the root. Every node is wrapped by `mk`, and
+   under it `assemble` turns the sub-terms a rule recorded into the two
+   directions: forwards, a query on the constructed type; backwards, the demand
+   a binder's body places on its definition. */
 
 // The namespace a demanded name lives in.
 type sort =
