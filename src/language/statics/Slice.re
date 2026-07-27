@@ -1,27 +1,30 @@
-/* Slice.re — sliceable types.
+/* Slice.re - sliceable types.
 
    A sliceable type is a type paired with the routing of a query on it back to
    the terms that produced it. The routing is derived from the roles the
-   checker's binding operators record on each child recursion, so a typing rule
-   never writes slicing logic: `assemble` is the whole interpreter. */
+   checker's binding operators in Statics.re, automagically inferring slicing. */
 
+// The namespace a demanded name lives in.
 type sort =
   | Value
   | Constructor
   | Alias;
 
+// A query's answer: dropped ids, minimal assumptions, sliced type.
 type slice = {
   omitted: Id.Set.t,
   gamma: Ctx.t,
   psi: Typ.t,
 };
 
+// The focus of the whole query, threaded unchanged through every dispatch.
 type env = {
   focus: option(Id.t),
   query: Typ.t,
   path: Id.Set.t,
 };
 
+// A sliceable type: a type plus its query routing, forwards and backwards.
 type t = {
   shape: Typ.t,
   ids: Id.Set.t,
@@ -30,14 +33,16 @@ type t = {
   demand: (env, Ctx.t) => slice,
 };
 
+// How a child relates to its parent's type; one per child recursion.
 type role =
-  | Part
-  | Through
-  | Omit
-  | Source
-  | Alternative
-  | Binder;
+  | Part // a component of my type
+  | Through // my type itself
+  | Omit // checked, not kept
+  | Source // a definition, sliced by the demand my binders produce
+  | Alternative // one branch; siblings split the query co-Heytingly
+  | Binder; // binds names, and is not a component of my type
 
+// A name a term uses, and what the term's query demands of it.
 type use = {
   sort,
   name: string,
@@ -45,6 +50,7 @@ type use = {
   demanded: Typ.t => Typ.t,
 };
 
+// How the checker's info map carries children until the parent's `add` takes them.
 type scratch('info) = {
   read: 'info => option(list((role, t))),
   write: list((role, t)) => 'info,
@@ -239,6 +245,7 @@ let route =
   };
 };
 
+// A child mid-assembly: its routed query, and its slice once dispatched.
 type placed = {
   role,
   node: t,
@@ -645,6 +652,7 @@ let component =
   };
 };
 
+// What a slice query returns to the UI and the tests.
 type result = {
   omitted: Id.Set.t,
   gamma: Ctx.t,
@@ -654,6 +662,7 @@ type result = {
 
 let focus_shell_ids = (_info_map, _id: Id.t): Id.Set.t => Id.Set.empty;
 
+// What the entry point needs to know about the focused node.
 type focused = {
   is_exp: bool,
   ancestors: list(Id.t),
