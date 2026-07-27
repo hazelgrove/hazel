@@ -1,8 +1,20 @@
 /* Slice.re - sliceable types.
 
-   A sliceable type is a type paired with the routing of a query on it back to
-   the terms that produced it. The routing is derived from the roles the
-   checker's binding operators in Statics.re, automagically inferring slicing. */
+   A sliceable type is a type with a lazy function to slice the type, getting
+   terms which explain it. The slicing function is derived from the type
+   checker's binding operators in Statics.re, automagically inferring slicing.
+
+   `slice` is the entry point, and every node is wrapped by `mk`, which applies
+   the focus and omits the subtree of anything nothing asks for. Under it,
+   `assemble` derives both directions from the sub-terms the rule recorded,
+   running `place` (each gets its query, `route` matching the query's type
+   components to the constructed type's), `forward` (dispatch what is known,
+   branches taking `residual`s in turn), `backward` (each binder resolved by
+   `binder_demand` against what it scopes), `sources` (each definition once) and
+   `assembled_psi` (rebuild the sliced type). `join` combines assumptions,
+   `record` is how a rule's sub-terms arrive, `binding` is a bare-name binder,
+   and `component` is the escape hatch for a result that is a type component of
+   a sub-term's type. */
 
 // The namespace a demanded name lives in.
 type sort =
@@ -39,7 +51,7 @@ type t = {
 
 // How a sub-term's type enters the type this rule constructs.
 type role =
-  | Part // an argument of the type constructor this rule applies
+  | Part // a type component of the type this rule constructs
   | Through // the whole constructed type, no constructor applied
   | Omit // only type checked, kept out of the slice
   | Source // a definition, sliced by the demand this rule's binders produce
@@ -54,7 +66,8 @@ type use = {
   demanded: Typ.t => Typ.t,
 };
 
-// How the checker's info map carries recorded components until `add` takes them.
+// How the checker's info map carries a rule's recorded sub-terms until `add`
+// takes them.
 type scratch('info) = {
   read: 'info => option(list((role, t))),
   write: list((role, t)) => 'info,
@@ -165,6 +178,7 @@ let singleton = (~sort, ~name, ~id, typ): Ctx.t => {
   entries: [entry_of(~sort, ~name, ~id, typ)],
 };
 
+// Assumptions combine per name by meet: what both sides ask of it.
 let join = (ctx: Ctx.t, left: Ctx.t, right: Ctx.t): Ctx.t => {
   let add = (entries, entry) =>
     switch (entry_key(entry)) {
@@ -214,15 +228,18 @@ let merge = (ctx: Ctx.t, slices: list(slice)): slice => {
   psi: gap,
 };
 
+// What a query still asks for once `supplied` has answered part of it.
 let residual = (ctx: Ctx.t, query: Typ.t, supplied: Typ.t): Typ.t => {
   let left = Typ.subtract(ctx, query, supplied);
   Typ.is_empty(left) ? gap : left;
 };
 
-let fills = (components: list((role, t)), role, node: t): bool =>
-  List.exists(((role, _)) => role == Part, components)
+let fills = (sub_terms: list((role, t)), role, node: t): bool =>
+  List.exists(((role, _)) => role == Part, sub_terms)
   && (role == Part || role == Binder && node.binder);
 
+// Match the query's type components to the constructed type's, or share the
+// one type component between them all (a list literal and its elements).
 let route =
     (ctx: Ctx.t, shape: Typ.t, query: Typ.t, count: int)
     : (list(Typ.t), bool) => {
@@ -240,7 +257,8 @@ let route =
   };
 };
 
-// A recorded component mid-assembly: its routed query, and its slice once dispatched.
+// A recorded sub-term mid-assembly: its routed query, and its slice once
+// dispatched.
 type placed = {
   role,
   node: t,
@@ -248,11 +266,12 @@ type placed = {
   result: option(slice),
 };
 
-let place = (ctx: Ctx.t, shape: Typ.t, components: list((role, t)), query) => {
-  let fills = fills(components);
+// Give every recorded sub-term the query it is asked at.
+let place = (ctx: Ctx.t, shape: Typ.t, sub_terms: list((role, t)), query) => {
+  let fills = fills(sub_terms);
   let count =
     List.length(
-      List.filter(((role, node)) => fills(role, node), components),
+      List.filter(((role, node)) => fills(role, node), sub_terms),
     );
   let (queries, broadcast) = route(ctx, shape, query, count);
   let (placed, _) =
@@ -278,11 +297,12 @@ let place = (ctx: Ctx.t, shape: Typ.t, components: list((role, t)), query) => {
         );
       },
       ([], 0),
-      components,
+      sub_terms,
     );
   (placed, broadcast);
 };
 
+// Dispatch the sub-terms whose query is known; branches take residuals in turn.
 let forward = (ctx: Ctx.t, env: env, query: Typ.t, placed: list(placed)) => {
   let (placed, _) =
     List.fold_left(
@@ -322,6 +342,7 @@ let forward = (ctx: Ctx.t, env: env, query: Typ.t, placed: list(placed)) => {
   placed;
 };
 
+// Resolve each binder against the assumptions of what it scopes.
 let backward = (ctx: Ctx.t, env: env, placed: list(placed)) => {
   let (placed, _) =
     List.fold_left(
@@ -359,6 +380,7 @@ let backward = (ctx: Ctx.t, env: env, placed: list(placed)) => {
   placed;
 };
 
+// Dispatch each definition once, at the join of the demands the binders produced.
 let sources = (ctx: Ctx.t, env: env, placed: list(placed)) => {
   let demanded =
     placed
@@ -380,6 +402,7 @@ let sources = (ctx: Ctx.t, env: env, placed: list(placed)) => {
   );
 };
 
+// Rebuild the sliced type from the type components the sub-terms supplied.
 let assembled_psi =
     (
       ctx: Ctx.t,
@@ -409,9 +432,10 @@ let assembled_psi =
   };
 };
 
-let assemble = (~ctx: Ctx.t, ~shape: Typ.t, ~components: list((role, t))) => {
+// The interpreter: both directions, derived from the sub-terms recorded.
+let assemble = (~ctx: Ctx.t, ~shape: Typ.t, ~sub_terms: list((role, t))) => {
   let dispatch = (env, query) => {
-    let (placed, broadcast) = place(ctx, shape, components, query);
+    let (placed, broadcast) = place(ctx, shape, sub_terms, query);
     let placed =
       placed
       |> forward(ctx, env, query)
@@ -425,7 +449,7 @@ let assemble = (~ctx: Ctx.t, ~shape: Typ.t, ~components: list((role, t))) => {
           ctx,
           shape,
           query,
-          fills(components),
+          fills(sub_terms),
           broadcast,
           placed,
         ),
@@ -446,7 +470,7 @@ let assemble = (~ctx: Ctx.t, ~shape: Typ.t, ~components: list((role, t))) => {
           | Alternative => (needs, gamma)
           },
         ([], gamma),
-        List.rev(components),
+        List.rev(sub_terms),
       );
     let parts =
       needs
@@ -477,6 +501,8 @@ let unit_demand = (_env, gamma) => {
   gamma,
 };
 
+// Resolve one bound name: what the assumptions ask of it, and its id if
+// nothing does.
 let binder_demand = (~sort, ~name, ~id, _env, gamma) => {
   let demanded = lookup(~sort, ~name, gamma);
   {
@@ -493,13 +519,15 @@ let use = (~sort, ~name, ~id, ~demanded=Fun.id, ()): use => {
   demanded,
 };
 
+// Wrap a node: the focus overrides its query, and a node nothing asks for
+// omits its whole subtree.
 let mk =
     (
       ~ctx: Ctx.t,
       ~id: Id.t,
       ~ids: Id.Set.t,
       ~shape: Typ.t,
-      ~components: list((role, t))=[],
+      ~sub_terms: list((role, t))=[],
       ~uses: list(use)=[],
       ~binds: list((sort, string, Id.t))=[],
       ~binder: bool=false,
@@ -510,7 +538,7 @@ let mk =
   let (assembled, demand) =
     switch (override) {
     | Some(node) => (node.dispatch, node.demand)
-    | None => assemble(~ctx, ~shape, ~components)
+    | None => assemble(~ctx, ~shape, ~sub_terms)
     };
   let demand =
     switch (binds) {
@@ -535,7 +563,7 @@ let mk =
       )
     };
   let checked =
-    components
+    sub_terms
     |> List.filter_map(((role, node)) =>
          role == Omit ? Some(node.ids) : None
        )
@@ -583,10 +611,11 @@ let recorded = (~scratch, ~id: Id.t, m) =>
   | None => []
   };
 
-let record = (~scratch, ~id: Id.t, role: role, component: t, m) =>
+// Append a sub-term to what the enclosing rule has recorded so far.
+let record = (~scratch, ~id: Id.t, role: role, sub_term: t, m) =>
   Id.Map.add(
     id,
-    scratch.write(recorded(~scratch, ~id, m) @ [(role, component)]),
+    scratch.write(recorded(~scratch, ~id, m) @ [(role, sub_term)]),
     m,
   );
 
@@ -602,6 +631,7 @@ let edge = (~scratch, ~at: Id.t, role, slice_of, (info, elab, m), k) =>
 let edge_typ = (~scratch, ~at: Id.t, role, slice_of, (info, m), k) =>
   k((info, record(~scratch, ~id=at, role, slice_of(info), m)));
 
+// A binding site that is a bare name rather than a pattern, such as a type alias.
 let binding = (~sort, ~name, ~id, ~ids): t => {
   shape: gap,
   ids,
@@ -630,6 +660,8 @@ let opaque: t = {
   demand: unit_demand,
 };
 
+// For a rule whose result is a type component of a sub-term's type: embed
+// the query in that type, project the answer back out.
 let component =
     (~ctx: Ctx.t, ~matcher: MatchedTyp.matcher, ~index, node: t): t => {
   let components = ty => MatchedTyp.tolerant(matcher, ctx, ty);
@@ -680,6 +712,7 @@ let compatible = (ctx: Ctx.t, actual: Typ.t, query: Typ.t): bool =>
     }
   );
 
+// Entry point: check the focus, then dispatch the root at the query.
 let slice =
     (
       ~focus: option(Id.t),

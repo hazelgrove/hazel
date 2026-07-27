@@ -21,7 +21,7 @@ let slice_scratch: Slice.scratch(Info.t) = {
 
 let record = (~id, role, component, m) =>
   Slice.record(~scratch=slice_scratch, ~id, role, component, m);
-let take_children = (~id, m) => Slice.take(~scratch=slice_scratch, ~id, m);
+let take_recorded = (~id, m) => Slice.take(~scratch=slice_scratch, ~id, m);
 let edge = (~at, role, slice_of, component, k) =>
   Slice.edge(~scratch=slice_scratch, ~at, role, slice_of, component, k);
 let edge_typ = (~at, role, slice_of, component, k) =>
@@ -358,14 +358,14 @@ and uexp_to_info_map =
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
-    let (children, m) = take_children(~id=Exp.rep_id(user_term), m);
+    let (recorded, m) = take_recorded(~id=Exp.rep_id(user_term), m);
     let slice =
       Slice.mk(
         ~ctx,
         ~id=Exp.rep_id(user_term),
         ~ids=Slice.exp_ids(user_term),
         ~shape=elab_syn_ty,
-        ~components=children,
+        ~sub_terms=recorded,
         ~uses,
         ~override=slice,
         (),
@@ -408,8 +408,8 @@ and uexp_to_info_map =
   let here = Exp.rep_id(uexp);
   let exp_edge = role => edge(~at=here, role, (i: Info.exp) => i.slice);
   let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
-  // use when the sub-term's type becomes an argument of the type constructor
-  // this rule applies: in `1 :: []` the head's `Int` is the argument of `[_]`
+  // use when the sub-term's type is a type component of the type this rule
+  // constructs: in `1 :: []` the head's `Int` is the type component of `[_]`
   let ( let* ) = (component, k) => exp_edge(Part, component, k);
   // use when the sub-term's type is this rule's whole type: `(e)`, `1; e`
   let (let^) = (component, k) => exp_edge(Through, component, k);
@@ -428,7 +428,7 @@ and uexp_to_info_map =
   // pattern after the body, so they record it themselves once both are checked.
   // let pat_edge = role => edge(~at=here, role, (i: Info.pat) => i.slice);
   // let (let!) = (component, k) => pat_edge(Binder, component, k);
-  // use when an annotation is one argument of this rule's type constructor.
+  // use when an annotation is a type component of this rule's type.
   // let ( let** ) = (component, k) => typ_edge(Part, component, k);
   // use when an annotation is sliced backwards by this rule's binders.
   // let (let$$) = (component, k) => typ_edge(Source, component, k);
@@ -3308,14 +3308,14 @@ and upat_to_info_map =
       | (_, true) => Hole(Some(constraint_))
       | (_, false) => constraint_
       };
-    let (children, m) = take_children(~id=Pat.rep_id(user_term), m);
+    let (recorded, m) = take_recorded(~id=Pat.rep_id(user_term), m);
     let slice =
       Slice.mk(
         ~ctx,
         ~id=Pat.rep_id(user_term),
         ~ids=Slice.pat_ids(user_term),
         ~shape=ty,
-        ~components=children,
+        ~sub_terms=recorded,
         ~uses,
         ~binds,
         ~binder=true,
@@ -3375,10 +3375,10 @@ and upat_to_info_map =
   let (let^) = (component, k) => pat_edge(Through, component, k);
   // use when an annotation supplies this pattern's whole type: `(p : Int)`'s `Int`
   let (let^^) = (component, k) => typ_edge(Through, component, k);
-  // use when the sub-pattern's type becomes an argument of the type constructor
-  // this pattern applies: in `hd :: tl` the head's `Int` is the argument of
-  // `[_]`. Unused: the pattern rules that do this fold over their sub-patterns,
-  // so they record them in the fold.
+  // use when the sub-pattern's type is a type component of this pattern's
+  // type: in `hd :: tl` the head's `Int` is the type component of `[_]`.
+  // Unused: the pattern rules that do this fold over their sub-patterns, so
+  // they record them in the fold.
   // let ( let* ) = (component, k) => pat_edge(Part, component, k);
   // use for any sub-pattern that is only type checked.
   // let (let&) = (component, k) => pat_edge(Omit, component, k);
@@ -4446,14 +4446,14 @@ and utyp_to_info_map =
         Cls.Typ(Constructor)
       | (_, cls) => Cls.Typ(cls)
       };
-    let (children, m) = take_children(~id=Typ.rep_id(utyp), m);
+    let (recorded, m) = take_recorded(~id=Typ.rep_id(utyp), m);
     let slice =
       Slice.mk(
         ~ctx,
         ~id=Typ.rep_id(utyp),
         ~ids=Slice.typ_ids(utyp),
         ~shape=utyp,
-        ~components=children,
+        ~sub_terms=recorded,
         ~uses,
         (),
       );
