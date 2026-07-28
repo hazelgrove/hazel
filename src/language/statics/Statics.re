@@ -415,12 +415,19 @@ and uexp_to_info_map =
   let here = Exp.rep_id(uexp);
   let exp_edge = role => edge(~at=here, role, (i: Info.exp) => i.slice);
   let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
+  /* The symbol names the role; doubling it says the sub-term is a type rather
+     than an expression, and a suffix modifies the role. So `let^` takes a
+     sub-term's whole type, `let^^` an annotation's, `let^?` takes it only when
+     the query asks for something concrete, and `let@@` binds a type name where
+     `let@` binds a pattern. */
   // use when the sub-term's type is a type component of the type this rule
   // constructs: in `1 :: []` the head's `Int` is the type component of `[_]`
   let ( let* ) = (component, k) => exp_edge(Part, component, k);
   // use when the sub-term's type is this rule's whole type: `(e)`, `1; e`
   let (let^) = (component, k) => exp_edge(Through, component, k);
-  let (let&&) = (component, k) => exp_edge(Prune, component, k);
+  // use when the sub-term supplies this rule's type but has nothing to say
+  // when the query asks for no more than a shape: `[1] @ []`
+  let (let^?) = (component, k) => exp_edge(Prune, component, k);
   // use for any sub-term that is only type checked: `f(x)`'s `x`
   let (let&) = (component, k) => exp_edge(Omit, component, k);
   // use when the sub-term is a definition the binders demand from:
@@ -455,7 +462,8 @@ and uexp_to_info_map =
       ),
       m,
     );
-  let (let<) = ((i, elab, m), k) =>
+  // use when this rule's type is a projection of a sub-term's: `f(x)`, `r.a`
+  let ( let^* ) = ((i, elab, m), k) =>
     k((i, elab, result_of(~via=[(MatchedTyp.arrow_former, 1)], i, m)));
   // use when a name rather than a pattern binds for the rest of this rule:
   // `type T = d in b`
@@ -843,7 +851,7 @@ and uexp_to_info_map =
       let inner_ana_ty =
         List(MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana)) |> Typ.temp;
       let ids = List.map(Exp.rep_id, [e1, e2]);
-      let&& (e1, e1_elab, m) = go(~ana=inner_ana_ty, e1, m);
+      let^? (e1, e1_elab, m) = go(~ana=inner_ana_ty, e1, m);
       let& (e2, e2_elab, m) = go(~ana=inner_ana_ty, e2, m);
       /* Project each argument's synthesized type to its list element type.
          `list_tolerant` returns `?` when the arg's syn isn't a list, which
@@ -1972,7 +1980,7 @@ and uexp_to_info_map =
             ...fn,
             slice: instantiated_slice(fn.elab_syn_ty, fn.slice),
           };
-          let< (_, _, m) = (result, fn_elab, m);
+          let^* (_, _, m) = (result, fn_elab, m);
           Id.is_nullary_ap_flag(IdTagged.ids(arg.user_term))
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
             ? add(
