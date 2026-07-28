@@ -4096,11 +4096,7 @@ and utyp_to_info_map =
         };
       };
     | (TypeExpected | AnyKindExpected, TypFun(_, _)) =>
-      /* `TypFun` has an `Arrow` kind. Accept it as kind-OK at this
-         node; descendants are visited via the `TypFun` arm of the
-         outer `switch` with `AnyKindExpected` so a curried tail
-         doesn't repeat this check. */
-      ok(Message.Type(utyp))
+      err(TypFunNotSurfaceSyntax)
     | (TypeExpected | AnyKindExpected, _) =>
       switch (kind_marks_for_expected_type(~expects, utyp)) {
       | [] => ok(Message.Type(utyp))

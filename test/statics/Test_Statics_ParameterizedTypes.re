@@ -901,96 +901,44 @@ map@<Int, Int>([1, 2, 3], fun x -> x * 2)
         |> List.map(ms => Marks([ms])),
       )
     }),
-    /* Type-level type function as the body of a type alias.
-       `type T = typfun a -> body` is the prefix-binder form of
-       `type T(a) = body` and should produce the same kind /
-       elaboration shape: `T` has kind `Type -> Type` and
-       `T(Int)` normalizes through the existing higher-kinded
-       reduction. */
     test_case(
-      "type T = typfun a -> body parses + checks like type T(a) = body",
+      "typfun is rejected in a type alias body",
       `Quick,
       () => {
-      Alcotest.check(
-        list(testable_issue),
-        "no static errors on type-level typfun alias body",
-        [],
-        static_errors(
-          {|
+        let marks =
+          static_errors(
+            {|
 type Option = typfun a -> + None + Some(a) in
 let x : Option(Int) = Some(3) in x
 |},
-        )
-        |> List.map(ms => Marks([ms])),
-      )
-    }),
+          );
+        check(
+          bool,
+          "typfun mark",
+          true,
+          has_mark(TypFunNotSurfaceSyntax, marks),
+        );
+      },
+    ),
     test_case(
-      "type-level multi-binder typfun: type Either = typfun a, b -> ...",
+      "parameterized type aliases remain accepted",
       `Quick,
       () => {
-      Alcotest.check(
-        list(testable_issue),
-        "no static errors on type-level multi-binder typfun",
-        [],
-        static_errors(
-          {|
-type Either = typfun a, b -> + Left(a) + Right(b) in
-let x : Either(Int, Bool) = Right(true) in x
+        let marks =
+          static_errors(
+            {|
+type Option(A) = + None + Some(A) in
+let x : Option(Int) = Some(3) in x
 |},
-        )
-        |> List.map(ms => Marks([ms])),
-      )
-    }),
-    /* Curried `typfun a -> typfun b -> body` keeps each unary
-       `TypFun` distinct: the alias has the *curried* kind
-       `Type -> Type -> kind(body)` (rather than the tuple-arrow
-       `(Type, Type) -> Type` of the multi-binder form
-       `typfun a, b -> body`). Applying it one argument at a time
-       must succeed at every prefix:
-         T(String) :: Type -> Type
-         T(String)(Exp) :: Type
-       The previous implementation aggressively flattened the
-       curried chain into a multi-binder `TypFun(Tuple([a, b]), body)`,
-       which gave `T` kind `(Type, Type) -> Type` and rejected the
-       partial application `T(String)` as an arity error. */
-    test_case(
-      "type-level curried typfun: type T = typfun a -> typfun b -> ...",
-      `Quick,
-      () => {
-      Alcotest.check(
-        list(testable_issue),
-        "no static errors on curried typfun and curried application",
-        [],
-        static_errors(
-          {|
-type PResult = typfun err -> typfun ok -> + Error(err) + Ok(ok) in
-type R = PResult(String)(Bool) in
-let x : R = Ok(true) in x
-|},
-        )
-        |> List.map(ms => Marks([ms])),
-      )
-    }),
-    /* Companion to the curried-typfun test: the *partial*
-       application `PResult(String)` (without the second arg) must
-       have kind `Type -> Type`. Used as a type alias body, it
-       defines a new unary type constructor. */
-    test_case(
-      "curried typfun supports partial type-level application", `Quick, () => {
-      Alcotest.check(
-        list(testable_issue),
-        "no static errors using a curried typfun's partial application",
-        [],
-        static_errors(
-          {|
-type PResult = typfun err -> typfun ok -> + Error(err) + Ok(ok) in
-type StringResult = PResult(String) in
-let x : StringResult(Int) = Ok(7) in x
-|},
-        )
-        |> List.map(ms => Marks([ms])),
-      )
-    }),
+          );
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors",
+          [],
+          List.map(m => Marks([m]), marks),
+        );
+      },
+    ),
     /* Regression: applying a multi-binder type abstraction
        `e@<Int>` (one arg) when its `Poly` expects two reports a
        focused error on the *type application* with result type
