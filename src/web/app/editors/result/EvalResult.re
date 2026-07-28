@@ -23,6 +23,9 @@ module Model = {
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
     incr_eval: Calc.saved(EvaluatorState.incr_eval),
+    /* ReusePass prediction for the current/last eval. Feeds the frozen debug
+     * tint; kept after completion so fast evals remain inspectable. */
+    predicted_reuse: EvaluatorState.incr_eval,
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
@@ -43,6 +46,7 @@ module Model = {
     result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
     dynamics: Calc.Pending,
     incr_eval: Calc.Pending,
+    predicted_reuse: IncrEval.empty,
     streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
     pending_eval_ids: [],
@@ -69,6 +73,7 @@ module Model = {
         result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
         dynamics: Calc.Pending,
         incr_eval: Calc.Pending,
+        predicted_reuse: IncrEval.empty,
         streaming_outbox: Calc.Pending,
         streaming_state: Calc.Pending,
         pending_eval_ids: [],
@@ -100,6 +105,9 @@ module Model = {
 
   let incr_eval = (model: t): EvaluatorState.incr_eval =>
     model.incr_eval |> Calc.get_saved(IncrEval.empty);
+
+  let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
+    model.predicted_reuse;
 
   let eval_is_pending = (model: t): bool =>
     switch (Calc.get_value(model.result)) {
@@ -176,19 +184,7 @@ module Update = {
 
   let stream_visible_ids =
       (stream: IncrEval.outbox(EvaluatorState.t)): list(Id.t) =>
-    Id.Map.fold(
-      (id, entry: IncrEval.entry(EvaluatorState.t), acc) => {
-        let subtree_ids = ref([]);
-        let f_exp = (continue, e: Exp.t): Exp.t => {
-          subtree_ids := [Exp.rep_id(e), ...subtree_ids^];
-          continue(e);
-        };
-        let _ = TermBase.Exp.map_term(~f_exp, entry.prev_elab);
-        [id, ...subtree_ids^] @ acc;
-      },
-      stream.completed.entries,
-      [],
-    );
+    IncrEval.visible_ids(stream.completed);
 
   let remove_streamed_ids = (stream, pending_eval_ids) => {
     let completed_ids =
@@ -273,9 +269,12 @@ module Update = {
       }
       |> Updated.return_quiet
     | (UpdateStreamingEval(stream), _) =>
+      /* Worker ReusePlan arrives here (via on_ack). Snapshot it for the
+       * frozen debug tint; also seed the streaming outbox / pending worklist. */
       {
         ...model,
         result: Calc.NewValue(ProgramResult.evaluating),
+        predicted_reuse: stream.completed,
         streaming_outbox: Calc.Calculated(Some(stream)),
         streaming_state: Calc.Pending,
         pending_eval_ids: remove_streamed_ids(stream, model.pending_eval_ids),
@@ -309,6 +308,7 @@ module Update = {
           result,
           dynamics,
           incr_eval,
+          predicted_reuse,
           streaming_outbox,
           streaming_state,
           pending_eval_ids,
@@ -410,6 +410,23 @@ module Update = {
       | OldValue(ProgramResult.ResultPending(_)) => pending_eval_ids
       | OldValue(ProgramResult.ResultOk(_))
       | OldValue(ProgramResult.ResultFail(_)) => []
+      };
+
+    /* Clear on a fresh eval request; ReusePlan / sync path re-fills it.
+     * Otherwise keep the last prediction so the frozen tint stays useful
+     * after a fast eval completes. */
+    let predicted_reuse =
+      switch (result, queue_worker) {
+      | (NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)), _) =>
+        IncrEval.empty
+      | (NewValue(ProgramResult.ResultOk(_)), None) =>
+        ReusePass.reuse_pass(
+          ~prev=prev_incr,
+          ~info_map=eval_info_map,
+          ~env=Builtins.env_init,
+          Calc.get_value(elab),
+        )
+      | _ => predicted_reuse
       };
 
     let streaming_state =
@@ -552,6 +569,7 @@ module Update = {
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
         incr_eval: incr_eval |> Calc.save,
+        predicted_reuse,
         streaming_outbox: streaming_outbox |> Calc.save,
         streaming_state: streaming_state |> Calc.save,
         pending_eval_ids,

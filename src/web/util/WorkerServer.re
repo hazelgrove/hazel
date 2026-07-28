@@ -332,13 +332,14 @@ let post_batch_result = (model, request_id, completed) =>
 
 let post_stream_update =
     (
+      ~allow_empty=false,
       model,
       request_id,
       key,
       update: Language.IncrEval.outbox(Language.EvaluatorState.t),
     ) =>
   if (is_latest(model, request_id)
-      && !Language.IncrEval.outbox_is_empty(update)) {
+      && (allow_empty || !Language.IncrEval.outbox_is_empty(update))) {
     post_message(
       ServerMessage.Stream({
         request_id,

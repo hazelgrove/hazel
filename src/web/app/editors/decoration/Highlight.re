@@ -685,6 +685,7 @@ let colors =
     ),
   );
 
+/* `predicted_reuse` is the ReusePass plan (not the accumulating cache). */
 let incr_eval =
     (
       ~font_metrics: FontMetrics.t,
@@ -692,7 +693,7 @@ let incr_eval =
       ~pending_eval_ids: list(Id.t)=[],
       ~show_active_eval: bool=false,
       ~show_frozen: bool=true,
-      incr: Language.EvaluatorState.incr_eval,
+      predicted_reuse: Language.EvaluatorState.incr_eval,
     ) => {
   let range_eq = ((o1, l1), (o2, l2)) =>
     Point.equals(o1, o2) && Point.equals(l1, l2);
@@ -730,7 +731,8 @@ let incr_eval =
       ranged_ids,
     );
   let frozen_ids =
-    show_frozen ? Language.IncrEval.frozen_ids(~ack_incr=incr) : [];
+    show_frozen
+      ? Language.IncrEval.frozen_ids(~ack_incr=predicted_reuse) : [];
   let pending_eval_ranges =
     pending_eval_ids |> ranged_ids_of |> List.sort(range_compare);
   let active_ids =

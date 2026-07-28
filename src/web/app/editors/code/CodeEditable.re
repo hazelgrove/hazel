@@ -534,7 +534,7 @@ module View = {
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
-        ~incr_eval: option(Language.EvaluatorState.incr_eval)=?,
+        ~predicted_reuse: option(Language.EvaluatorState.incr_eval)=?,
         ~pending_eval_ids: list(Id.t)=[],
         ~show_active_eval: bool=false,
         ~expand_selection=?,
@@ -667,15 +667,15 @@ module View = {
         model.editor.syntax.projector_list,
       );
     ProjectorView.ViewCache.log_frame();
-    /* The nut-menu setting only controls blue cache-hit highlights. Pending
+    /* The nut-menu setting paints ReusePass predictions (frozen tint). Pending
      * evaluation highlights are transient progress feedback, so keep them on
      * while the worker is running. */
     let incr_eval_overlay =
       switch (
-        incr_eval,
+        predicted_reuse,
         globals.settings.show_incremental_deco || pending_eval_ids != [],
       ) {
-      | (Some(incr_eval), true) => [
+      | (Some(predicted_reuse), true) => [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
             [
@@ -685,7 +685,7 @@ module View = {
                 ~pending_eval_ids,
                 ~show_active_eval,
                 ~show_frozen=globals.settings.show_incremental_deco,
-                incr_eval,
+                predicted_reuse,
               ),
             ],
           ),
