@@ -78,7 +78,7 @@ type tpat =
   | InvalidTPat(string)
   | EmptyHoleTPat
   | VarTPat(string)
-  | ParamTPat(string, list(tpat))
+  | ParamTPat(tpat, list(tpat))
   | TupleTPat(list(tpat));
 
 [@deriving (show({with_path: false}), sexp, eq)]
@@ -331,7 +331,7 @@ let gen_tpat_binder: (~minimal_idents: bool) => QCheck.Gen.t(tpat) =
 
 /**
  * `tpat` for the head of a `type T(a, …) = body` declaration. May be
- * a plain `Var(name)` or `ParamTPat(name, params)` with each param a
+ * a plain `Var(name)` or `ParamTPat(Var(name), params)` with each param a
  * fresh distinct variable. `TupleTPat` is rejected at the alias
  * head, so it isn't generated here.
  */
@@ -345,7 +345,7 @@ let gen_tpat_alias: (~minimal_idents: bool) => QCheck.Gen.t(tpat) =
       let* len = int_range(1, 3);
       let+ params =
         list_size(return(len), map(x => VarTPat(x), gen_ident));
-      ParamTPat(head, params);
+      ParamTPat(VarTPat(head), params);
     };
     oneof([gen_var, gen_param]);
   };

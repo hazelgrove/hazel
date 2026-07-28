@@ -85,7 +85,6 @@ type t =
      `typlam`, or `rec` (e.g. `poly A(a) -> ...`). The associated
      string is the head name (or `"?"` if the head is a hole). */
   | TPatParamNotAtAliasHead(string)
-  | TypFunNotSurfaceSyntax
   | TypFreeTypeVariable(string)
   | TypKindMismatch({
       expected: TypKind.t,

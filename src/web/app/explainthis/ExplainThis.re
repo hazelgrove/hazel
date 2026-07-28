@@ -3208,7 +3208,7 @@ let get_doc =
       };
     | TypFun(_, _) =>
       simple(
-        "`typfun` is an internal type function introduced by a parameterized type declaration; do not use it in surface syntax.",
+        "`typfun` introduces a type-level function. It has a higher kind, so it can define a parameterized type alias but cannot be used where a proper type is expected.",
       )
     | TypParamAp(callee, ty_arg) =>
       let callee_id = List.nth(IdTagged.ids(callee), 0);

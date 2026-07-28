@@ -106,7 +106,6 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (BadTheorem(t1), BadTheorem(t2)) => Typ.fast_equal(t1, t2)
     | (Redundant, Redundant) => true
     | (ExpectedConstructor, ExpectedConstructor) => true
-    | (TypFunNotSurfaceSyntax, TypFunNotSurfaceSyntax) => true
     | (TypFreeTypeVariable(a), TypFreeTypeVariable(b)) => a == b
     | (
         TypKindMismatch({expected: e1, actual: a1}),

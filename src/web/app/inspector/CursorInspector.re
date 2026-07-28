@@ -543,12 +543,6 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text(" type argument" ++ (expected == 1 ? "" : "s") ++ ", got "),
       code(string_of_int(actual)),
     ]
-  | TypFunNotSurfaceSyntax => [
-      code("typfun"),
-      text(
-        " is an internal type function; use a parameterized type alias instead",
-      ),
-    ]
   | TypWantConstructorFoundAp
   | TypWantConstructorFoundType(_) => [text("Expected a constructor")]
   | TypWantTypeFoundAp => [text("Must be part of a sum type")]

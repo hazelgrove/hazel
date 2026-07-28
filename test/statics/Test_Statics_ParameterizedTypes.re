@@ -902,7 +902,7 @@ map@<Int, Int>([1, 2, 3], fun x -> x * 2)
       )
     }),
     test_case(
-      "typfun is rejected in a type alias body",
+      "typfun is accepted in a type alias body",
       `Quick,
       () => {
         let marks =
@@ -912,11 +912,11 @@ type Option = typfun a -> + None + Some(a) in
 let x : Option(Int) = Some(3) in x
 |},
           );
-        check(
-          bool,
-          "typfun mark",
-          true,
-          has_mark(TypFunNotSurfaceSyntax, marks),
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors",
+          [],
+          List.map(m => Marks([m]), marks),
         );
       },
     ),
@@ -936,6 +936,44 @@ let x : Option(Int) = Some(3) in x
           "no static errors",
           [],
           List.map(m => Marks([m]), marks),
+        );
+      },
+    ),
+    test_case(
+      "curried parameterized type aliases are accepted",
+      `Quick,
+      () => {
+        let marks =
+          static_errors(
+            {|
+type Pair(A)(B) = (A, B) in
+let x : Pair(Int)(String) = (1, "x") in x
+|},
+          );
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors",
+          [],
+          List.map(m => Marks([m]), marks),
+        );
+      },
+    ),
+    test_case(
+      "typfun is rejected where an annotation expects a Type",
+      `Quick,
+      () => {
+        let marks = static_errors({|let x : typfun A -> A = ? in x|});
+        check(
+          bool,
+          "kind mismatch",
+          true,
+          has_mark(
+            TypKindMismatch({
+              expected: TypKind.Type,
+              actual: TypKind.Arrow([TypKind.Type], TypKind.Type),
+            }),
+            marks,
+          ),
         );
       },
     ),

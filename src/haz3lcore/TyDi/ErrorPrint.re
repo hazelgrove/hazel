@@ -160,7 +160,6 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TypParamApplyNonArrowKind(_)
   | TypParamApplyArityMismatch(_)
   | TypAbsApplyArityMismatch(_)
-  | TypFunNotSurfaceSyntax
   | TypDuplicateConstructor(_)
   | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp
@@ -208,7 +207,6 @@ let pat_marks_to_string =
 
 let typ_mark_string: Mark.t => string =
   fun
-  | TypFunNotSurfaceSyntax => "typfun is an internal type function; use a parameterized type alias instead"
   | TypFreeTypeVariable(name) => prn("Type variable %s is not bound", name)
   | BadToken(token) => prn("\"%s\" isn't a valid type token", token)
   | TypWantConstructorFoundAp => "Expected a constructor, found application"

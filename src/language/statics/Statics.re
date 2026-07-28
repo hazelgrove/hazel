@@ -2426,6 +2426,37 @@ and uexp_to_info_map =
         );
       add(~elab_term, ~elab_syn_ty, ~marks=marks_match', ~co_ctx, m);
     | TyAlias(typat, utyp, body) =>
+      let rec curried_alias_head = (typat: TPat.t) =>
+        switch (typat.term) {
+        | Param(head, params) =>
+          curried_alias_head(head)
+          |> Option.map(((head, groups)) => (head, groups @ [params]))
+        | Var(_) => Some((typat, []))
+        | Parens(inner) => curried_alias_head(inner)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_)
+        | Tuple(_) => None
+        };
+      let binder_of_params = params =>
+        switch (params) {
+        | [param] => param
+        | _ => (Tuple(params): TPat.term) |> TPat.temp
+        };
+      let (typat, utyp) =
+        switch (curried_alias_head(typat)) {
+        | Some((head, [_first, _second, ..._] as groups)) =>
+          let utyp =
+            List.fold_right(
+              (params, body) =>
+                TypFun(binder_of_params(params), body) |> Typ.temp,
+              groups,
+              utyp,
+            );
+          (head, utyp);
+        | Some((_head, [] | [_]))
+        | None => (typat, utyp)
+        };
       /* Desugar Sig types so type aliases like `type T = {let x : Int}`
          store `Prod([TupLabel(...)])` rather than `Sig([...])` in the
          context (so meet/join can unify them with module expression
@@ -4095,8 +4126,6 @@ and utyp_to_info_map =
           ok(Message.Type(utyp));
         };
       };
-    | (TypeExpected | AnyKindExpected, TypFun(_, _)) =>
-      err(TypFunNotSurfaceSyntax)
     | (TypeExpected | AnyKindExpected, _) =>
       switch (kind_marks_for_expected_type(~expects, utyp)) {
       | [] => ok(Message.Type(utyp))

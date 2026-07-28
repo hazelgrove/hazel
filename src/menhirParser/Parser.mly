@@ -328,8 +328,7 @@ tpat:
     | TP_TPAT; s = STRING {InvalidTPat(s)}
     | p = PROJECTOR_INVOKE {InvalidTPat(p)}
     | QUESTION {EmptyHoleTPat}
-    | v = IDENT; OPEN_PAREN; ps = separated_list(COMMA, tpat); CLOSE_PAREN {ParamTPat(v, ps)}
-    | v = CONSTRUCTOR_IDENT; OPEN_PAREN; ps = separated_list(COMMA, tpat); CLOSE_PAREN {ParamTPat(v, ps)}
+    | head = tpat; OPEN_PAREN; ps = separated_list(COMMA, tpat); CLOSE_PAREN {ParamTPat(head, ps)}
     | v = IDENT {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
 
@@ -420,4 +419,3 @@ modItem:
 sigItem:
     | LET; p = pat { SigItemLet(p) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { SigItemType(tp, ty) }
-

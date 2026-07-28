@@ -577,8 +577,8 @@ and TPat: {
     | InvalidTPat(s) => invalid(s)
     | EmptyHoleTPat => empty_hole()
     | VarTPat(s) => var(s)
-    | ParamTPat(name, params) =>
-      param(var(name), List.map(of_menhir_ast, params))
+    | ParamTPat(head, params) =>
+      param(of_menhir_ast(head), List.map(of_menhir_ast, params))
     | TupleTPat(tps) => tuple(List.map(of_menhir_ast, tps))
     };
   };
@@ -588,13 +588,7 @@ and TPat: {
     | EmptyHole => EmptyHoleTPat
     | Var(x) => VarTPat(x)
     | Param(head, params) =>
-      let name =
-        switch (head.term) {
-        | Var(x) => x
-        | Invalid(s) => s
-        | _ => "?"
-        };
-      ParamTPat(name, List.map(of_core, params));
+      ParamTPat(of_core(head), List.map(of_core, params))
     | Tuple(tps) => TupleTPat(List.map(of_core, tps))
     /* Parens are dropped on conversion to the Menhir AST (the
        round-trip tests compare syntactic shape without surface
