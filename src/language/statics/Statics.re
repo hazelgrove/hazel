@@ -441,6 +441,34 @@ and uexp_to_info_map =
   // let ( let** ) = (component, k) => typ_edge(Part, component, k);
   // use when an annotation is sliced backwards by this rule's binders.
   let (let$$) = (component, k) => typ_edge(Source, component, k);
+  // use when this rule's type is a type component of a sub-term's, named by
+  // the former that decomposes it: `f(x)`'s result, `r.a`'s field
+  let result_of = (~via, i: Info.exp, m) =>
+    record(
+      ~id=here,
+      Through,
+      List.fold_left(
+        (node, (former, index)) =>
+          Slice.component(~ctx, ~former, ~index, node),
+        i.slice,
+        via,
+      ),
+      m,
+    );
+  let (let<) = ((i, elab, m), k) =>
+    k((i, elab, result_of(~via=[(MatchedTyp.arrow_former, 1)], i, m)));
+  // use when a name rather than a pattern binds for the rest of this rule:
+  // `type T = d in b`
+  let (let@@) = ((sort, name, id, ids, m), k) =>
+    k(
+      record(
+        ~id=here,
+        ~first=true,
+        Binder,
+        Slice.binding(~sort, ~name, ~id, ~ids),
+        m,
+      ),
+    );
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -1502,20 +1530,12 @@ and uexp_to_info_map =
               switch (field_index) {
               | None => m
               | Some(index) =>
-                record(
-                  ~id=here,
-                  Through,
-                  Slice.component(
-                    ~ctx,
-                    ~former=MatchedTyp.label_former,
-                    ~index=1,
-                    Slice.component(
-                      ~ctx,
-                      ~former=MatchedTyp.prod_former(List.length(ts)),
-                      ~index,
-                      info_e1.slice,
-                    ),
-                  ),
+                result_of(
+                  ~via=[
+                    (MatchedTyp.prod_former(List.length(ts)), index),
+                    (MatchedTyp.label_former, 1),
+                  ],
+                  info_e1,
                   m,
                 )
               };
@@ -1801,7 +1821,7 @@ and uexp_to_info_map =
           [
             CoCtx.singleton(
               ~sort=CoCtx.Constructor,
-              ~demanded=_ => elab_syn_ty,
+              ~demanded=Some(elab_syn_ty),
               ctr,
               Exp.rep_id(uexp),
               ana,
@@ -1813,7 +1833,14 @@ and uexp_to_info_map =
                 CoCtx.singleton(
                   ~sort=CoCtx.Alias,
                   ~demanded=
-                    ConstructorStaticsHelpers.alias_demand(ctx, ctr, entry),
+                    Some(
+                      ConstructorStaticsHelpers.alias_demand(
+                        ctx,
+                        ctr,
+                        entry,
+                        ana,
+                      ),
+                    ),
                   entry.name,
                   Exp.rep_id(uexp),
                   ana,
@@ -1940,20 +1967,12 @@ and uexp_to_info_map =
           let& (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
-          let m =
-            record(
-              ~id=here,
-              Through,
-              Slice.component(
-                ~ctx,
-                ~former=MatchedTyp.arrow_former,
-                ~index=1,
-                /* the implicit instantiation demands under the binders it
-                   peeled */
-                instantiated_slice(fn.elab_syn_ty, fn.slice),
-              ),
-              m,
-            );
+          /* the implicit instantiation demands under the binders it peeled */
+          let result = {
+            ...fn,
+            slice: instantiated_slice(fn.elab_syn_ty, fn.slice),
+          };
+          let< (_, _, m) = (result, fn_elab, m);
           Id.is_nullary_ap_flag(IdTagged.ids(arg.user_term))
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
             ? add(
@@ -2601,9 +2620,8 @@ and uexp_to_info_map =
                 p,
                 m,
               );
-            let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana, e, m);
-            /* the rule's pattern is recorded ahead of the branch it scopes */
-            let (p_info, p_elab, m) =
+            let+ (e, e_elab, m) = go(~ctx=p'.ctx, ~ana, e, m);
+            let@ (p_info, p_elab, m) =
               go_pat(
                 ~is_synswitch=false,
                 ~co_ctx=e.co_ctx,
@@ -2611,10 +2629,6 @@ and uexp_to_info_map =
                 p,
                 m,
               );
-            let m =
-              m
-              |> record(~id=here, Binder, p_info.slice)
-              |> record(~id=here, Alternative, e.slice);
             (
               p_ctxs @ [p'.ctx],
               es @ [e],
@@ -2973,19 +2987,13 @@ and uexp_to_info_map =
         let^ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx=ctx_body, ~ana, body, m);
         let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
-        let m =
-          record(
-            ~id=here,
-            ~first=true,
-            Binder,
-            Slice.binding(
-              ~sort=CoCtx.Alias,
-              ~name,
-              ~id=TPat.rep_id(typat),
-              ~ids=Id.Set.of_list(IdTagged.ids(typat)),
-            ),
-            m,
-          );
+        let@@ m = (
+          CoCtx.Alias,
+          name,
+          TPat.rep_id(typat),
+          Id.Set.of_list(IdTagged.ids(typat)),
+          m,
+        );
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,
@@ -3058,19 +3066,13 @@ and uexp_to_info_map =
         let^ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx=ctx_body, ~ana, body, m);
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
-        let m =
-          record(
-            ~id=here,
-            ~first=true,
-            Binder,
-            Slice.binding(
-              ~sort=CoCtx.Alias,
-              ~name,
-              ~id=TPat.rep_id(typat),
-              ~ids=Id.Set.of_list(IdTagged.ids(typat)),
-            ),
-            m,
-          );
+        let@@ m = (
+          CoCtx.Alias,
+          name,
+          TPat.rep_id(typat),
+          Id.Set.of_list(IdTagged.ids(typat)),
+          m,
+        );
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,

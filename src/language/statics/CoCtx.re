@@ -33,21 +33,14 @@ type sort =
   | Constructor
   | Alias;
 
-type demand = Typ.t => Typ.t;
-// Slices are opaque after serialization, so their demand closures can be too.
-let pp_demand = (fmt: Format.formatter, _: demand) =>
-  Format.pp_print_string(fmt, "<demand>");
-let sexp_of_demand = (_: demand): Sexplib.Sexp.t => Sexplib.Sexp.List([]);
-let demand_of_sexp = (_: Sexplib.Sexp.t): demand => Fun.id;
-let yojson_of_demand = (_: demand): Yojson.Safe.t => `Null;
-let demand_of_yojson = (_: Yojson.Safe.t): demand => Fun.id;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
   sort,
   id: Id.t,
   expected_ty: Typ.t,
-  demanded: demand,
+  /* What a slice of this use asks of the name where the checker knows more
+     than the query does: a constructor asks for its own type. */
+  demanded: option(Typ.t),
 };
 
 /* Each co-context entry is a list of the uses of a variable
@@ -125,7 +118,7 @@ let union: list(t) => t =
     );
   };
 
-let singleton = (~sort=Value, ~demanded=Fun.id, name, id, expected_ty): t => [
+let singleton = (~sort=Value, ~demanded=None, name, id, expected_ty): t => [
   (
     name,
     [
@@ -171,7 +164,7 @@ let of_bindings = (bindings: Binding.s): t =>
             sort: Value,
             id: b.id,
             expected_ty: Typ.fresh(Unknown(Internal)),
-            demanded: Fun.id,
+            demanded: None,
           },
         ],
       ),

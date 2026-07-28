@@ -567,7 +567,7 @@ let mk =
                ~sort=entry.sort,
                ~name,
                ~id=entry.id,
-               entry.demanded(query),
+               entry.demanded |> Option.value(~default=query),
              )
            )
         |> join_all(ctx);
