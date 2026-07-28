@@ -127,10 +127,9 @@ module View = {
     selected: bool, /* Is the projector contained within a selection? */
     error: bool, /* Is there an error mark on the projector? */
     warning: bool, /* Is there a warning mark on the projector? */
-    /* Where this instance draws its primary UI. Inline means in-place in
-     * the code, Sidebar means docked in the projectors panel. Projectors
-     * whose UI differs between the two (e.g. a docked panel owns its own
-     * width, so width-resizing affordances make no sense there) read this. */
+    /* Inline (in-place) or Sidebar (docked). Read by projectors whose UI
+       differs between the two — a docked panel owns its own width, so
+       width-resize affordances make no sense there. */
     placement: ProjectorCore.Placement.t,
   };
 
@@ -151,10 +150,9 @@ module View = {
     info,
     /* A callback for the projector's own actions */
     local: 'action => Ui_effect.t(unit),
-    /* Like `local`, but produces no undo entry (Action.SetModelQuiet).
-     * For streaming model updates during drag gestures: dispatch the
-     * first tick via `local` (so undo restores the pre-gesture state)
-     * and subsequent ticks via `local_quiet`. */
+    /* `local` without an undo entry (Action.SetModelQuiet). For drags: send
+       the first tick via `local` so undo restores the pre-gesture state, the
+       rest via this. */
     local_quiet: 'action => Ui_effect.t(unit),
     /* A callback for parent editor actions */
     parent: external_action => Ui_effect.t(unit),
@@ -165,11 +163,9 @@ module View = {
     status,
     /* Core settings for feature flags */
     core_settings: Language.CoreSettings.t,
-    /* The parent editor's character-cell size in CSS pixels. This is the
-     * FontMetrics the editor lays itself out with; it lives web-side, so
-     * the two numbers are passed through rather than the module. A
-     * projector's placeholder is measured in cells, so these convert
-     * between pixel gestures and model dimensions. */
+    /* The editor's cell size in CSS pixels (from web-side FontMetrics, hence
+       passed as two floats). Placeholders are measured in cells, so these
+       convert pixel gestures to model dimensions. */
     col_width: float,
     row_height: float,
   };
