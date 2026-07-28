@@ -479,6 +479,7 @@ module Update = {
       };
     | (_, Derivation(_)) => model |> raise_invalid_action
     | (_, SwitchExercise(n)) =>
+      WorkerClient.cancel();
       Model.{
         current: n,
         exercises: model.exercises,

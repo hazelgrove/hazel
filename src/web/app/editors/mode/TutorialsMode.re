@@ -230,6 +230,7 @@ module Update = {
       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
     switch (action) {
     | Tutorial(TutorialMode.Update.MoveToNextExercise) =>
+      WorkerClient.cancel();
       Model.{
         current:
           (model.current + 1 + List.length(model.exercises))
@@ -238,6 +239,7 @@ module Update = {
       }
       |> return
     | Tutorial(TutorialMode.Update.MoveToPrevExercise) =>
+      WorkerClient.cancel();
       Model.{
         current:
           (model.current - 1 + List.length(model.exercises))
@@ -262,6 +264,7 @@ module Update = {
         exercises: new_exercises,
       };
     | SwitchExercise(n) =>
+      WorkerClient.cancel();
       Model.{
         current: n,
         exercises: model.exercises,

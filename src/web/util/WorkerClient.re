@@ -66,6 +66,16 @@ let fail_latest = latest => {
   latest.callbacks.timeout(latest.request.batch);
 };
 
+/* Drop the in-flight request without invoking timeout/result callbacks.
+ * Used when navigating away (slide/exercise switch) so stale stream chunks
+ * cannot land on the newly selected editor. The worker may still finish the
+ * abandoned request; client-side is_latest ignores its messages. A subsequent
+ * request() posts Evaluate and the server abandons stale slices. */
+let cancel = (): unit => {
+  clear_timeouts();
+  latestRequest := None;
+};
+
 let setupWorkerMessageHandler = worker => {
   worker##.onmessage :=
     Dom.handler(evt => {

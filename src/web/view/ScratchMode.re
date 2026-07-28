@@ -860,12 +860,14 @@ module Update = {
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
     | SwitchSlide(i) =>
+      WorkerClient.cancel();
       let* current = i |> Updated.return;
       {
         ...model,
         current,
       };
     | AddSlide =>
+      WorkerClient.cancel();
       Updated.return(
         add_new_slide(
           ~kind=NewCode,
@@ -875,6 +877,7 @@ module Update = {
         ),
       )
     | AddDrvSlide =>
+      WorkerClient.cancel();
       Updated.return(
         add_new_slide(
           ~kind=NewDrv,
@@ -924,6 +927,7 @@ module Update = {
           "Are you SURE you want to delete this slide? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
+        WorkerClient.cancel();
         let deleted_name = List.nth(model.scratchpads, model.current).name;
         persist_cache := Maps.StringMap.remove(deleted_name, persist_cache^);
         dirty_slides := Sets.StringSet.remove(deleted_name, dirty_slides^);
