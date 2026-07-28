@@ -122,6 +122,11 @@ let tests = (
       Some(int()),
     ),
     fully_consistent_typecheck(
+      "curried arguments",
+      "let add(x: Int)(y: Int): Int = x + y in add(3)(4)",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
       "single argument, no annotations",
       "let inc(x) = x + 1 in inc(3)",
       Some(int()),
