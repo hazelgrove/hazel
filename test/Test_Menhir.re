@@ -219,6 +219,28 @@ let tests =
       full_parser_test("Bool Literal", bool(true), "true"),
       full_parser_test("Empty Hole", empty_hole(), "?"),
       full_parser_test("Var", var("x"), "x"),
+      full_parser_test(
+        "Taylor derivatives",
+        ap(Forward, var("taylor_derivatives"), tuple([var("f"), int(3)])),
+        "taylor_derivatives(f, 3)",
+      ),
+      full_parser_test(
+        "Taylor derivatives scoped continuation",
+        let_(
+          Pat.var("f_deriv_1"),
+          ap(Forward, var("diff"), var("f")),
+          let_(
+            Pat.var("f_deriv_2"),
+            ap(Forward, var("diff"), var("f_deriv_1")),
+            let_(
+              Pat.var("f_deriv_3"),
+              ap(Forward, var("diff"), var("f_deriv_2")),
+              ap(Forward, var("f_deriv_1"), int(15)),
+            ),
+          ),
+        ),
+        "taylor_derivatives(f, 3) in f_deriv_1(15)",
+      ),
       full_parser_test("Parens", parens(var("y")), "(y)"),
       full_parser_test(
         "bin_op",

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stepper Progress Update</title>
+  <style>
+    :root {
+      --paper: #f7f1df;
+      --ink: #25383d;
+      --olive: #75652e;
+      --gold: #ddb850;
+      --green: #2f855a;
+      --muted: #766f5c;
+      --line: rgba(117, 101, 46, 0.24);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      overflow: hidden;
+      color: var(--ink);
+      background: #ded5bc;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main { height: 100%; }
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      min-height: 100%;
+      padding: clamp(42px, 7vh, 86px) clamp(52px, 8vw, 128px);
+      background:
+        radial-gradient(circle at 92% 8%, rgba(221, 184, 80, 0.25), transparent 25%),
+        var(--paper);
+    }
+    .slide.active { display: flex; flex-direction: column; }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      color: var(--olive);
+      font-size: clamp(15px, 1.4vw, 22px);
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    h1, h2 { margin: 0; line-height: 1.04; letter-spacing: -0.04em; }
+    h1 { max-width: 900px; font-size: clamp(58px, 8.2vw, 118px); }
+    h2 { max-width: 1100px; font-size: clamp(42px, 5.4vw, 76px); }
+    .lede {
+      max-width: 880px;
+      margin: 30px 0 0;
+      color: var(--muted);
+      font-size: clamp(24px, 2.6vw, 38px);
+      line-height: 1.35;
+    }
+
+    .rule { width: 82px; height: 8px; margin: 28px 0 34px; background: var(--gold); }
+    .items {
+      display: grid;
+      gap: clamp(17px, 2.2vh, 29px);
+      max-width: 1120px;
+      margin-top: clamp(34px, 6vh, 70px);
+      padding: 0;
+      list-style: none;
+    }
+    .items li {
+      position: relative;
+      padding-left: 44px;
+      font-size: clamp(24px, 2.5vw, 38px);
+      line-height: 1.28;
+    }
+    .items li::before {
+      content: "";
+      position: absolute;
+      left: 2px;
+      top: 0.33em;
+      width: 18px;
+      height: 18px;
+      border: 3px solid var(--olive);
+    }
+    .items li.done::before {
+      border-color: var(--green);
+      background: var(--green);
+      box-shadow: inset 0 0 0 4px var(--paper);
+    }
+    .items strong { color: var(--olive); }
+    code {
+      padding: 0.05em 0.22em;
+      border-radius: 0.2em;
+      background: rgba(117, 101, 46, 0.1);
+      color: var(--ink);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    .columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(46px, 8vw, 120px);
+      margin-top: clamp(38px, 6vh, 72px);
+    }
+    .columns h3 {
+      margin: 0 0 24px;
+      color: var(--olive);
+      font-size: clamp(26px, 2.8vw, 40px);
+    }
+    .columns .items { margin-top: 0; }
+    .columns .items li { font-size: clamp(21px, 2vw, 31px); }
+
+    .priority {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 24px 36px;
+      max-width: 1050px;
+      margin-top: clamp(42px, 7vh, 78px);
+      align-items: start;
+    }
+    .priority .n {
+      color: var(--gold);
+      font-size: clamp(50px, 6vw, 86px);
+      font-weight: 900;
+      line-height: 0.9;
+    }
+    .priority p {
+      margin: 0;
+      font-size: clamp(24px, 2.4vw, 36px);
+      line-height: 1.25;
+    }
+
+    footer {
+      position: absolute;
+      right: clamp(28px, 4vw, 60px);
+      bottom: 26px;
+      left: clamp(28px, 4vw, 60px);
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .bar { flex: 1; height: 4px; background: var(--line); }
+    .bar > span { display: block; height: 100%; background: var(--gold); transition: width 180ms ease; }
+    .controls { margin-left: auto; white-space: nowrap; }
+
+    @media (max-width: 760px) {
+      .slide { padding: 38px 32px 70px; }
+      .columns { grid-template-columns: 1fr; gap: 30px; }
+      .items { margin-top: 30px; }
+      .priority { grid-template-columns: 62px 1fr; gap: 18px; }
+      .controls { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="slide active">
+      <p class="eyebrow">Progress update</p>
+      <h1>Stepper progress</h1>
+      <div class="rule"></div>
+      <p class="lede">Completed work and next tasks.</p>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Current state</p>
+      <h2>Completed</h2>
+      <ul class="items">
+        <li class="done">Search box updates when math mode changes.</li>
+        <li class="done">Steps persist when the program changes.</li>
+        <li>Reals branch created.</li>
+      </ul>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">General</p>
+      <h2>Core tasks</h2>
+      <ul class="items">
+        <li>Merge PRs, especially <code>explore</code>.</li>
+        <li>Improve tactic search; write design doc for Cyrus.</li>
+        <li>Add teacher UI for rewrites and math levels.</li>
+        <li>Add <strong>none / once / many</strong> profile search settings.</li>
+      </ul>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">General</p>
+      <h2>Open design questions</h2>
+      <ul class="items">
+        <li>How should Rocq export handle programs and <code>let</code>?</li>
+        <li>Should each expression or stepper export separately?</li>
+        <li>Stepper result persistence—blocked on stepper syntax PR?</li>
+      </ul>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Case studies</p>
+      <h2>Algebra</h2>
+      <div class="columns">
+        <div>
+          <h3>Math</h3>
+          <ul class="items">
+            <li>Square roots</li>
+            <li>Completing the square</li>
+            <li>Division</li>
+          </ul>
+        </div>
+        <div>
+          <h3>UI</h3>
+          <ul class="items">
+            <li>FOIL arrow substitution?</li>
+            <li>Find where arrow substitutions are defined.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Case studies</p>
+      <h2>Trig, calculus, Taylor series</h2>
+      <div class="columns">
+        <div>
+          <h3>Trigonometry</h3>
+          <ul class="items">
+            <li>List all trig identities.</li>
+            <li>Add product-to-sum identities.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Calculus / Taylor</h3>
+          <ul class="items">
+            <li>Indefinite integrals.</li>
+            <li>Evaluate derivatives at points.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span id="count">1 / 6</span>
+    <div class="bar"><span id="progress"></span></div>
+    <span class="controls">← → navigate · Home / End</span>
+  </footer>
+
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    const count = document.getElementById('count');
+    const progress = document.getElementById('progress');
+    let index = 0;
+
+    function show(next) {
+      index = Math.max(0, Math.min(slides.length - 1, next));
+      slides.forEach((slide, i) => slide.classList.toggle('active', i === index));
+      count.textContent = `${index + 1} / ${slides.length}`;
+      progress.style.width = `${((index + 1) / slides.length) * 100}%`;
+      history.replaceState(null, '', `#${index + 1}`);
+    }
+
+    document.addEventListener('keydown', event => {
+      if (['ArrowRight', 'PageDown', ' '].includes(event.key)) show(index + 1);
+      if (['ArrowLeft', 'PageUp'].includes(event.key)) show(index - 1);
+      if (event.key === 'Home') show(0);
+      if (event.key === 'End') show(slides.length - 1);
+    });
+    document.addEventListener('click', event => {
+      if (event.clientX > innerWidth / 2) show(index + 1);
+      else show(index - 1);
+    });
+    show(Math.max(0, (parseInt(location.hash.slice(1), 10) || 1) - 1));
+  </script>
+</body>
+</html>

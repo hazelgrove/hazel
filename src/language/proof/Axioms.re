@@ -274,6 +274,9 @@ let rewrite_level_enabled =
   | Calculus => true
   | FunctionsAndLists => false;
 
+let selectable_rewrite_levels =
+  rewrite_levels |> List.filter(rewrite_level_enabled);
+
 let automation_stage_label =
   fun
   | Manual => "One step"
@@ -305,7 +308,8 @@ let is_trig_builtin = name =>
   | _ => false
   };
 
-let is_calculus_builtin = name => name == "diff";
+let is_calculus_builtin = name =>
+  name == "diff" || name == "taylor_derivatives";
 
 let require = (construct, required_level, exp) => {
   construct,
@@ -864,6 +868,11 @@ let calculus_rewrite_group = {
   rank: rewrite_level_rank(Calculus),
   rules: [
     {
+      id: "calc.taylor_derivatives",
+      label: "expand derivative sequence",
+      prover_hints: [],
+    },
+    {
       id: "calc.diff_function_value",
       label: "differentiate a function",
       prover_hints: [lean("fun_prop")],
@@ -1037,6 +1046,7 @@ let profile_group_for_rule_id =
   | "trig.sin_neg"
   | "trig.cos_neg"
   | "trig.tan_neg" => Some("Symmetry and cofunction identities")
+  | "calc.taylor_derivatives" => Some("Derivative sequences")
   | "calc.diff_function_value"
   | "calc.diff_function"
   | "calc.diff_constant"
@@ -1246,6 +1256,13 @@ let visible_rule_metadata = rule_id =>
       ~name="Expand or factor the cube of a difference",
       ~short_name="(a-b)^3",
       ~example="(a - b)**3 = a**3 - 3*a**2*b + 3*a*b**2 - b**3",
+    )
+  | "calc.taylor_derivatives" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Expand a sequence of function derivatives",
+      ~short_name="Derivative sequence",
+      ~example="taylor_derivatives(f, 3)",
     )
   | "calc.diff_function_value" =>
     operation_metadata(

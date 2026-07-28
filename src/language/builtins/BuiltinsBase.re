@@ -54,6 +54,14 @@ let misc_fns: list(BuiltinsUtil.fn) = [
     custom_statics: Some(Ctx.DiffVariable),
   },
   {
+    name: "taylor_derivatives",
+    arg:
+      Prod([Fresh.Typ.arrow(unknown(Internal), unknown(Internal)), int()]),
+    ret: Unknown(Internal),
+    imp: _ => None,
+    custom_statics: None,
+  },
+  {
     /* Println for probes study */
 
     name: "print",

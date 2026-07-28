@@ -432,6 +432,59 @@ type persistent = EvalObj.persistent;
 
 let persist = EvalObj.persist;
 
+exception AmbiguousContinuationEdit;
+
+/* A let substitution remains the same evaluator redex when only its
+ * continuation changes. This is deliberately narrower than general
+ * expression matching: the binder and definition must still agree, and a
+ * structural fallback is accepted only when there is one such binding. */
+let same_binding_before_body = (before: Exp.t, after: Exp.t): bool =>
+  switch (Exp.term_of(before), Exp.term_of(after)) {
+  | (
+      Let(before_pat, before_definition, _),
+      Let(after_pat, after_definition, _),
+    ) =>
+    Equality.ignoring_ascriptions.pat(before_pat, after_pat)
+    && Equality.ignoring_ascriptions.exp(before_definition, after_definition)
+  | _ => false
+  };
+
+let relocate_persistent_exp = (persistent: persistent, exp: Exp.t) =>
+  switch (ProofHacks.relocate_exp(persistent.at_exp, persistent.exp_idx, exp)) {
+  | Some(found) => Some(found)
+  | None =>
+    switch (Exp.term_of(persistent.at_exp)) {
+    | Let(_, _, _) =>
+      switch (ProofHacks.find_exp_id(Exp.rep_id(persistent.at_exp), exp)) {
+      | Some(found) when same_binding_before_body(persistent.at_exp, found) =>
+        Some(found)
+      | _ =>
+        let found = ref(None);
+        switch (
+          Exp.map_term(
+            ~f_exp=
+              (cont, candidate) =>
+                if (same_binding_before_body(persistent.at_exp, candidate)) {
+                  switch (found^) {
+                  | None =>
+                    found := Some(candidate);
+                    candidate;
+                  | Some(_) => raise(AmbiguousContinuationEdit)
+                  };
+                } else {
+                  cont(candidate);
+                },
+            exp,
+          )
+        ) {
+        | exception AmbiguousContinuationEdit => None
+        | _ => found^
+        };
+      }
+    | _ => None
+    }
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status =
   | AutoStep(step)
@@ -464,7 +517,7 @@ let rec ids_with_paren_inners = (exp: Exp.t): list(list(Id.t)) =>
 
 let get_step_id_in = (step: step, exp: Exp.t): option(Id.t) => {
   let persistent = EvalObj.persist(step);
-  ProofHacks.relocate_exp(persistent.at_exp, persistent.exp_idx, exp)
+  relocate_persistent_exp(persistent, exp)
   |> Option.map(exp => exp |> display_exp_for_step(step.knd) |> Exp.rep_id);
 };
 
@@ -500,8 +553,7 @@ let refresh_step =
     decompose(exp, env)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   let* desired_ids =
-    ProofHacks.relocate_exp(step.at_exp, step.exp_idx, exp)
-    |> Option.map(ids_with_paren_inners);
+    relocate_persistent_exp(step, exp) |> Option.map(ids_with_paren_inners);
   let* (h, x) =
     List.find_opt(
       ((_, step': step)) =>

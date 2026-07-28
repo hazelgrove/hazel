@@ -60,6 +60,43 @@ parameter as a free variable or capture variables from an enclosing scope.
 - General splice/projector support such as `^^diff` and `^^diff_proof`.
 - Treating derivative values as a new primitive runtime representation.
 
+## Taylor Derivative Teaching Workflow
+
+Add a small, separate teaching operation:
+
+```text
+taylor_derivatives(f, n) in body
+```
+
+For `n > 0`, it expands to a capture-safe chain of ordinary function-valued
+derivatives:
+
+```text
+let f_deriv_1 = diff(f) in
+let f_deriv_2 = diff(f_deriv_1) in
+let f_deriv_3 = diff(f_deriv_2) in
+body
+```
+
+The generated bindings use fresh ordinary Hazel identifiers. There is no
+special prime rendering. `n` is the number of differentiations, and the body
+can use any generated derivative while it remains in scope. For example,
+`taylor_derivatives(f, 3) in f_deriv_1(5)` can step and evaluate the first
+derivative at `5`. At order zero, the expansion leaves the body unchanged.
+The standalone form `taylor_derivatives(f, n)` remains supported as shorthand
+whose continuation is a hole.
+
+This operation deliberately does not construct a Taylor polynomial yet. Future
+work may add:
+
+```text
+taylor(f, center, n)
+```
+
+which reuses the derivative-chain builder to construct the degree-`n`
+polynomial, including derivative evaluation, powers, and factorials. Rocq
+export for that polynomial and its remainder theorem is also deferred.
+
 ## Current Architecture and Failure
 
 ### Static signature

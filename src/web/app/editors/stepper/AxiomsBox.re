@@ -371,7 +371,7 @@ module View = {
          );
     let simplification_actions =
       (
-        algebra_enabled
+        Axioms.check_result_rule_enabled(profile, "arith.affine_normalize")
           ? TrigRewrite.scalar_product_simplifications_at_root(selected_exp)
           : []
       )
@@ -552,70 +552,50 @@ module View = {
           ),
         ],
       );
-    let trace_summary_for_simplification = (rewrite: TrigRewrite.rewrite) => {
-      let normalization_summary = () =>
-        RewriteChecker.{
-          justification: "trigonometry argument normalization",
-          group_name: Some("trigonometry"),
-          from_normal_exp: selected_exp,
-          to_normal_exp: rewrite.after_exp,
-          from_rule_ids: [rewrite.rule_id],
-          to_rule_ids: [],
-          rule_ids: [rewrite.rule_id],
-          prover_steps: [
-            prover_step(
-              ~origin=Normalization,
-              ~rule_id=rewrite.rule_id,
-              ~before_full_exp=selected_exp,
-              ~after_full_exp=rewrite.after_exp,
-              ~before_exp=rewrite.before_exp,
-              ~after_exp=rewrite.after_exp,
-              ~detail="normalize scalar products in trig argument",
-            ),
-          ],
-          exportable: true,
-        };
+    let trace_summary_for_simplification = (rewrite: TrigRewrite.rewrite) =>
       switch (
-        RewriteChecker.check_single_step_trace_at_level(
-          ~level=rewrite_level,
+        RewriteChecker.check_written_step_trace_for_profile(
+          ~profile,
           ~settings=globals.settings.core,
           ~env,
           selected_exp,
           rewrite.after_exp,
         )
       ) {
-      | Some({prover_steps: [_, ..._], _} as summary) => summary
+      | Some({prover_steps: [_, ..._], _} as summary) => Some(summary)
       | Some(_)
-      | None => normalization_summary()
+      | None => None
       };
-    };
     let simplification_action_view = (rewrite: TrigRewrite.rewrite) =>
-      div_c(
-        "assumption-box",
-        [
-          Widgets.button_d(
-            Node.text("==>"),
-            add_written_step(
-              trace_summary_for_simplification(rewrite),
-              selected_exp_idx,
-              selected_exp,
-              rewrite.after_exp,
-            ),
-            ~disabled=false,
-          ),
-          Node.text(" " ++ rewrite.label ++ ": "),
-          CodeViewable.view_any(
-            ~globals,
-            ~settings=
-              Haz3lcore.ExpToSegment.Settings.of_core(
-                ~inline=true,
-                ~fold_fn_bodies=`Text,
-                globals.settings.core,
-              ),
-            Exp(rewrite.after_exp),
-          ),
-        ],
-      );
+      trace_summary_for_simplification(rewrite)
+      |> Option.map(summary =>
+           div_c(
+             "assumption-box",
+             [
+               Widgets.button_d(
+                 Node.text("==>"),
+                 add_written_step(
+                   summary,
+                   selected_exp_idx,
+                   selected_exp,
+                   rewrite.after_exp,
+                 ),
+                 ~disabled=false,
+               ),
+               Node.text(" " ++ rewrite.label ++ ": "),
+               CodeViewable.view_any(
+                 ~globals,
+                 ~settings=
+                   Haz3lcore.ExpToSegment.Settings.of_core(
+                     ~inline=true,
+                     ~fold_fn_bodies=`Text,
+                     globals.settings.core,
+                   ),
+                 Exp(rewrite.after_exp),
+               ),
+             ],
+           )
+         );
     let trace_summary_for_algebra_shape = (rewrite: TrigRewrite.rewrite) =>
       RewriteChecker.check_single_step_result_for_profile(
         ~profile,
@@ -669,11 +649,13 @@ module View = {
         ]
       };
     let simplification_section =
-      switch (simplification_actions) {
+      switch (
+        List.filter_map(simplification_action_view, simplification_actions)
+      ) {
       | [] => []
-      | actions => [
+      | action_views => [
           div_c("assumption-box", [Node.text("Simplifications")]),
-          ...List.map(simplification_action_view, actions),
+          ...action_views,
         ]
       };
     let trig_section =

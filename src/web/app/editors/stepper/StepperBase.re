@@ -1113,19 +1113,9 @@ and Stepper: {
           "calculus certificate could not replay the completed derivative history under its recorded profile",
         )
       | None =>
-        let unique_vars = CoqExport.unique_vars_in_ast(first_exp);
         let domain = coq_domain_for_steps(steps);
         let forall_str =
-          switch (unique_vars) {
-          | [] => ""
-          | vars =>
-            switch (domain) {
-            | CoqExport.Reals =>
-              "forall " ++ String.concat(" ", vars) ++ " : R,"
-            | CoqExport.Integers =>
-              "forall " ++ String.concat(" ", vars) ++ ","
-            }
-          };
+          CoqExport.forall_string_for_domain(~domain, [first_exp]);
         let lemmas_and_invocations =
           List.mapi(
             (ind, step) =>

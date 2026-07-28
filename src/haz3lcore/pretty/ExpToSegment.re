@@ -2170,7 +2170,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ e1 = go(e1)
     and+ e2 = go(e2);
     let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
-    wrap(exp, e1 @ [mk_form(CellJoin, id, [])] @ e2);
+    wrap(exp, e1 @ [mk_form(Form.CellJoin, id, [])] @ e2);
   | Test(e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);

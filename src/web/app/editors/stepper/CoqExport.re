@@ -82,7 +82,8 @@ let integer_op_to_string = (op: Language.Operators.op_bin_num) =>
 let rec unique_vars_in_ast_helper =
         (d: Language.DHExp.t, unique_vars: Hashtbl.t(string, unit)) => {
   switch (Language.Exp.term_of(d)) {
-  | Parens(exp) => unique_vars_in_ast_helper(exp, unique_vars)
+  | Parens(exp)
+  | Asc(exp, _) => unique_vars_in_ast_helper(exp, unique_vars)
   | Tuple(exps) =>
     exps |> List.iter(exp => unique_vars_in_ast_helper(exp, unique_vars))
   | BinOp(_, arg1, arg2) =>
@@ -104,6 +105,86 @@ let unique_vars_in_ast = (d: Language.DHExp.t) => {
   let unique_vars = Hashtbl.create(1);
   unique_vars_in_ast_helper(d, unique_vars);
   List.of_seq(Hashtbl.to_seq_keys(unique_vars));
+};
+
+/* Function-position identifiers need a function type in Rocq, while ordinary
+   variables remain scalar. Keep this separate from [unique_vars_in_ast] so an
+   application such as [f(t)] cannot accidentally quantify [f] as a real. */
+let rec unique_unary_function_vars_in_ast_helper =
+        (d: Language.DHExp.t, unique_vars: Hashtbl.t(string, unit)) => {
+  let recurse = exp =>
+    unique_unary_function_vars_in_ast_helper(exp, unique_vars);
+  switch (Language.Exp.term_of(d)) {
+  | Parens(exp)
+  | Asc(exp, _)
+  | UnOp(_, exp) => recurse(exp)
+  | Tuple(exps) => exps |> List.iter(recurse)
+  | BinOp(_, left, right) =>
+    recurse(left);
+    recurse(right);
+  | Ap(_, fn, arg) =>
+    switch (Language.Exp.term_of(fn |> Language.DHExp.strip_ascriptions)) {
+    | Var(name) when !is_real_builtin(name) =>
+      if (!Hashtbl.mem(unique_vars, name)) {
+        Hashtbl.add(unique_vars, name, ());
+      }
+    | _ => recurse(fn)
+    };
+    recurse(arg);
+  | _ => ()
+  };
+};
+
+let unique_unary_function_vars_in_ast = (d: Language.DHExp.t) => {
+  let unique_vars = Hashtbl.create(1);
+  unique_unary_function_vars_in_ast_helper(d, unique_vars);
+  List.of_seq(Hashtbl.to_seq_keys(unique_vars));
+};
+
+let dedup_strings = strings => {
+  let seen = Hashtbl.create(1);
+  strings
+  |> List.filter(value =>
+       if (Hashtbl.mem(seen, value)) {
+         false;
+       } else {
+         Hashtbl.add(seen, value, ());
+         true;
+       }
+     );
+};
+
+let forall_string_for_domain = (~domain, expressions) => {
+  let functions =
+    expressions
+    |> List.map(unique_unary_function_vars_in_ast)
+    |> List.flatten
+    |> dedup_strings;
+  let scalars =
+    expressions
+    |> List.map(unique_vars_in_ast)
+    |> List.flatten
+    |> dedup_strings
+    |> List.filter(name => !List.mem(name, functions));
+  let scalar_type =
+    switch (domain) {
+    | Reals => "R"
+    | Integers => "Z"
+    };
+  switch (functions, scalars) {
+  | ([], []) => ""
+  | ([], scalars) =>
+    "forall " ++ String.concat(" ", scalars) ++ " : " ++ scalar_type ++ ","
+  | (functions, scalars) =>
+    let function_binders =
+      functions
+      |> List.map(name =>
+           "(" ++ name ++ " : " ++ scalar_type ++ " -> " ++ scalar_type ++ ")"
+         );
+    let scalar_binders =
+      scalars |> List.map(name => "(" ++ name ++ " : " ++ scalar_type ++ ")");
+    "forall " ++ String.concat(" ", function_binders @ scalar_binders) ++ ",";
+  };
 };
 
 // Count all occurrences of an integer v in the AST v

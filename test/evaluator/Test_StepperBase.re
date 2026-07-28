@@ -396,6 +396,100 @@ let tests = (
       },
     ),
     test_case(
+      "let substitution survives an edit to its continuation",
+      `Quick,
+      () => {
+        let original = parse_exp("let f = fun x -> x * x in f");
+        let edited = parse_exp("let f = fun x -> x * x in f + 2");
+        let step =
+          mk_test_step(
+            ~step_kind=StepKindHelpers.mk_auto_single_step(original),
+            (),
+          );
+        let (calculated, _, _) = test_calculate(~exp=original, step);
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind) {
+        | SingleStep(_) => ()
+        | _ => failwith("Expected the let substitution to be preserved")
+        };
+        check(
+          dhexp_typ,
+          "the unchanged binding is substituted into the edited body",
+          parse_exp("(fun x -> x * x) + 2"),
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
+    test_case(
+      "let substitution does not move to duplicate compatible bindings",
+      `Quick,
+      () => {
+        let original = parse_exp("let f = fun x -> x * x in f");
+        let edited =
+          parse_exp(
+            "(let f = fun x -> x * x in f) + (let f = fun x -> x * x in f)",
+          );
+        let step =
+          mk_test_step(
+            ~step_kind=StepKindHelpers.mk_auto_single_step(original),
+            (),
+          );
+        let (calculated, _, _) = test_calculate(~exp=original, step);
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind) {
+        | MissingStep(_) => ()
+        | _ => failwith("Expected an ambiguous let binding to truncate")
+        };
+        check(
+          dhexp_typ,
+          "neither compatible binding is substituted",
+          edited,
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
+    test_case(
+      "steps after let substitution survive a continuation edit",
+      `Quick,
+      () => {
+        let original = parse_exp("let f = fun x -> 1 + 2 + x in f");
+        let first = StepKindHelpers.mk_auto_single_step(original);
+        let second: StepperBase.step_kind_model =
+          StepperBase.WrittenStep({
+            at_idx: 0,
+            at_exp: parse_exp("1 + 2"),
+            with_exp: parse_exp("3"),
+            justification: "fold constants",
+            trace_summary: None,
+            next_exp: Calc.Pending,
+          });
+        let (calculated, _, _) =
+          run_step_chain(
+            ~initial_exp=original,
+            ~step_kinds=[first, second],
+            (),
+          );
+        let edited = parse_exp("let f = fun x -> 1 + 2 + x in f + 2");
+        let (recalculated, final_exp, _) =
+          test_calculate(~exp=edited, calculated);
+        switch (recalculated.step_kind, recalculated.next_step) {
+        | (SingleStep(_), Some({step_kind: WrittenStep(_), _})) => ()
+        | _ =>
+          failwith(
+            "Expected both the substitution and its following step to persist",
+          )
+        };
+        check(
+          dhexp_typ,
+          "the saved inner step is replayed inside the edited continuation",
+          parse_exp("(fun x -> 3 + x) + 2"),
+          Calc.get_value(final_exp),
+        );
+      },
+    ),
+    test_case(
       "single arithmetic step does not move to an inserted duplicate target",
       `Quick,
       () => {

@@ -51,6 +51,7 @@ rule token =
     | "false" { FALSE }
     | "module" { MODULE }
     | "let" { LET }
+    | "taylor_derivatives" { TAYLOR_DERIVATIVES }
     | "in" { IN }
     | "end" { END }
     | "fun" { FUN }

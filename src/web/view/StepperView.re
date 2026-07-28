@@ -209,7 +209,7 @@ module View = {
           ),
           Node.div(
             ~attrs=[Attr.class_("math-automation-options")],
-            Axioms.rewrite_levels
+            Axioms.selectable_rewrite_levels
             |> List.map(level => {
                  let enabled = Axioms.rewrite_level_enabled(level);
                  control_option(

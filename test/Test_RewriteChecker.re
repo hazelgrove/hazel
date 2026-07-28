@@ -35,6 +35,8 @@ let builtin_app = (name, arg) =>
 let diff = (expression, variable) =>
   app("diff", Exp.tuple([expression, variable]));
 let function_diff = expression => app("diff", expression);
+let taylor_derivatives = (function_, order) =>
+  app("taylor_derivatives", Exp.tuple([function_, Exp.int(order)]));
 
 let sin = arg => app("sin", arg);
 let cos = arg => app("cos", arg);
@@ -1100,6 +1102,13 @@ let tests = (
           true,
           Axioms.rewrite_level_enabled(Calculus),
         );
+        check(
+          list(string),
+          "disabled internal levels are absent from the selector",
+          ["Arithmetic", "Algebra", "Trigonometry", "Calculus"],
+          Axioms.selectable_rewrite_levels
+          |> List.map(Axioms.rewrite_level_label),
+        );
       },
     ),
     test_case(
@@ -1436,6 +1445,128 @@ let tests = (
       },
     ),
     test_case(
+      "Taylor derivative sequence expands to fresh function bindings",
+      `Quick,
+      () => {
+        let source = taylor_derivatives(Exp.var("f"), 3);
+        switch (
+          Web.DifferentiationRewrite.rewrite_first(
+            ~rule_enabled=_ => true,
+            source,
+          )
+        ) {
+        | Some((result, step)) =>
+          check(
+            string,
+            "the teaching expansion has its own reusable calculus rule",
+            "calc.taylor_derivatives",
+            step.rule_id,
+          );
+          let expected =
+            Exp.let_(
+              Pat.var("f_deriv_1"),
+              function_diff(Exp.var("f")),
+              Exp.let_(
+                Pat.var("f_deriv_2"),
+                function_diff(Exp.var("f_deriv_1")),
+                Exp.let_(
+                  Pat.var("f_deriv_3"),
+                  function_diff(Exp.var("f_deriv_2")),
+                  Language.Exp.fresh(EmptyHole),
+                ),
+              ),
+            );
+          check_exp_equal(
+            "three derivatives become three lets",
+            expected,
+            result,
+          );
+        | None => fail("expected Taylor derivative sequence expansion")
+        };
+
+        let captured_name = Exp.var("f_deriv_1");
+        let anonymous =
+          Exp.fn(
+            Pat.var("x"),
+            plus(Exp.var("x"), captured_name),
+            None,
+            None,
+          );
+        let capture_source = taylor_derivatives(anonymous, 1);
+        switch (
+          Web.DifferentiationRewrite.rewrite_first(
+            ~rule_enabled=_ => true,
+            capture_source,
+          )
+        ) {
+        | Some((result, _)) =>
+          let expected =
+            Exp.let_(
+              Pat.var("f_deriv_1_1"),
+              function_diff(anonymous),
+              Language.Exp.fresh(EmptyHole),
+            );
+          check_exp_equal(
+            "an existing closure name forces a fresh derivative name",
+            expected,
+            result,
+          );
+        | None => fail("expected capture-safe Taylor derivative expansion")
+        };
+
+        let zero = taylor_derivatives(Exp.var("f"), 0);
+        switch (
+          Web.DifferentiationRewrite.rewrite_first(
+            ~rule_enabled=_ => true,
+            zero,
+          )
+        ) {
+        | Some((result, _)) =>
+          check_exp_equal(
+            "order zero leaves an editable result hole",
+            Language.Exp.fresh(EmptyHole),
+            result,
+          )
+        | None => fail("expected order-zero Taylor derivative expansion")
+        };
+
+        check(
+          bool,
+          "the derivative-sequence rule can be disabled by the profile",
+          true,
+          Web.DifferentiationRewrite.rewrite_first(
+            ~rule_enabled=rule_id => rule_id != "calc.taylor_derivatives",
+            source,
+          )
+          == None,
+        );
+        check(
+          bool,
+          "the calculus router recognizes a derivative sequence",
+          true,
+          Web.DifferentiationRewrite.contains_diff(source),
+        );
+        check(
+          option(string),
+          "calculus accepts the derivative-sequence builtin",
+          None,
+          Web.AxiomSearch.unsupported_constructs_message(
+            ~level=Calculus,
+            [source],
+          ),
+        );
+        check(
+          option(string),
+          "lower levels still require calculus for derivative sequences",
+          Some("Needs Calculus"),
+          Web.AxiomSearch.unsupported_constructs_message(
+            ~level=Algebra,
+            [source],
+          ),
+        );
+      },
+    ),
+    test_case(
       "function-valued differentiation respects calculus profile rules",
       `Quick,
       () => {
@@ -1724,6 +1855,83 @@ let tests = (
           "does not serialize a Hazel function equality",
           false,
           string_contains("unsupported Coq real export term", export),
+        );
+
+        let cubic_body = plus(power(x, Exp.int(3)), times(Exp.int(2), x));
+        let cubic_source = diff(cubic_body, x);
+        let cubic_target =
+          plus(times(Exp.int(3), power(x, Exp.int(2))), Exp.int(2));
+        let cubic_export =
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile=Axioms.math_profile(Calculus),
+            cubic_source,
+            cubic_target,
+          )
+          |> Option.get;
+        write_text_file(
+          "/tmp/hazel_function_derivative_cubic_export.v",
+          cubic_export,
+        );
+        check(
+          bool,
+          "higher powers reconcile Rocq's INR/pred derivative form",
+          true,
+          string_contains("derivable_pt_lim_pow", cubic_export)
+          && string_contains(
+               "replace ((3 * Rsqr (x))) with (INR 3",
+               cubic_export,
+             ),
+        );
+
+        let shifted = plus(x, Exp.int(1));
+        let shifted_quartic_source = diff(power(shifted, Exp.int(4)), x);
+        let shifted_quartic_target =
+          times(Exp.int(4), power(shifted, Exp.int(3)));
+        let shifted_quartic_export =
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile=Axioms.math_profile(Calculus),
+            shifted_quartic_source,
+            shifted_quartic_target,
+          )
+          |> Option.get;
+        write_text_file(
+          "/tmp/hazel_function_derivative_shifted_quartic_export.v",
+          shifted_quartic_export,
+        );
+        check(
+          bool,
+          "the same certificate handles a shifted quartic",
+          true,
+          string_contains("derivable_pt_lim_pow", shifted_quartic_export)
+          && string_contains("INR 4", shifted_quartic_export),
+        );
+
+        let profile_without_power =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_power",
+            Axioms.math_profile(Calculus),
+          );
+        check(
+          bool,
+          "a disabled power rule still blocks the cubic certificate",
+          true,
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile=profile_without_power,
+            cubic_source,
+            cubic_target,
+          )
+          |> Option.is_none,
+        );
+        check(
+          bool,
+          "an incorrect cubic derivative is still rejected",
+          true,
+          Web.ProofSearchBackend.calculus_export_program_for_profile(
+            ~profile=Axioms.math_profile(Calculus),
+            cubic_source,
+            plus(times(Exp.int(3), power(x, Exp.int(2))), Exp.int(3)),
+          )
+          |> Option.is_none,
         );
       },
     ),
@@ -12054,6 +12262,273 @@ let tests = (
       },
     ),
     test_case(
+      "rational scalar and sign normalization is general and profile-bound",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let sin_2x = builtin_sin(times(Exp.int(2), x));
+        let scaled_negative =
+          divide(
+            times(times(negate(sin_2x), Exp.int(2)), Exp.int(2)),
+            Exp.int(4),
+          );
+        let source = minus(Exp.int(0), scaled_negative);
+        let profile = Axioms.math_profile(Calculus);
+        let trace = (profile, source, target) =>
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          );
+        check(
+          bool,
+          "rational affine model recognizes the scalar equality",
+          true,
+          Web.RewriteChecker.rational_affine_equivalent_with_constant_reordering(
+            source,
+            sin_2x,
+          ),
+        );
+        let scalar_summary =
+          switch (trace(profile, source, sin_2x)) {
+          | Some(summary) => summary
+          | None => fail("expected profile-bound rational scalar trace")
+          };
+        check(
+          bool,
+          "cancels a rational scalar and two negatives around an opaque atom",
+          true,
+          scalar_summary.rule_ids == ["arith.affine_normalize"],
+        );
+        let replay_request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Calculus,
+            max_depth: 4,
+            max_states: 80,
+            source,
+            target: sin_2x,
+          };
+        let replay =
+          Web.ProofSearchBackend.rocq_replay_program(
+            replay_request,
+            scalar_summary,
+          );
+        check(
+          bool,
+          "Rocq uses the exact affine certificate without recursive search",
+          true,
+          string_contains("lra", replay)
+          && !string_contains("hazel_rewrite_search", replay),
+        );
+        check_exp_equal(
+          "suggestion normalizer reaches the same exact target",
+          sin_2x,
+          Web.TrigRewrite.simplify_scalar_products(source),
+        );
+        check_exp_equal(
+          "reduces a structurally different rational coefficient",
+          divide(times(Exp.int(3), y), Exp.int(2)),
+          Web.TrigRewrite.simplify_scalar_products(
+            divide(times(Exp.int(6), y), Exp.int(4)),
+          ),
+        );
+        check_exp_equal(
+          "normalizes subtraction of a negative without a special atom",
+          plus(x, y),
+          Web.TrigRewrite.simplify_scalar_products(minus(x, negate(y))),
+        );
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        check(
+          bool,
+          "affine model recognizes subtraction of a negative",
+          true,
+          Web.RewriteChecker.rational_affine_equivalent_with_constant_reordering(
+            minus(a, negate(b)),
+            plus(a, b),
+          ),
+        );
+        check(
+          bool,
+          "profile affine authorizer recognizes subtraction of a negative",
+          true,
+          Web.RewriteChecker.rational_affine_trace_for_profile(
+            ~profile,
+            minus(a, negate(b)),
+            plus(a, b),
+          )
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "no earlier cleanup shadows the affine route",
+          false,
+          Web.RewriteChecker.direct_cleanup_trace_for_profile(
+            ~profile,
+            minus(a, negate(b)),
+            plus(a, b),
+          )
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "no calculus route shadows the affine route",
+          false,
+          Web.RewriteChecker.calculus_check_result_trace_for_profile(
+            ~profile,
+            minus(a, negate(b)),
+            plus(a, b),
+          )
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "no earlier single-step route shadows the affine route",
+          false,
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            minus(a, negate(b)),
+            plus(a, b),
+          )
+          |> Option.is_some,
+        );
+        let subtraction_summary =
+          switch (trace(profile, minus(a, negate(b)), plus(a, b))) {
+          | Some(summary) => summary
+          | None => fail("expected general subtraction-of-negative trace")
+          };
+        check(
+          bool,
+          "subtraction of a negative uses the exact affine operation",
+          true,
+          subtraction_summary.rule_ids == ["arith.affine_normalize"],
+        );
+        let t = Exp.var("t");
+        let f_t = app("f", t);
+        let function_summary =
+          switch (trace(profile, negate(negate(f_t)), f_t)) {
+          | Some(summary) => summary
+          | None =>
+            fail("expected double-negative function application trace")
+          };
+        let function_request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Calculus,
+            max_depth: 4,
+            max_states: 80,
+            source: negate(negate(f_t)),
+            target: f_t,
+          };
+        let function_replay =
+          Web.ProofSearchBackend.rocq_replay_program(
+            function_request,
+            function_summary,
+          );
+        check(
+          bool,
+          "Rocq quantifies an opaque unary real function and its argument",
+          true,
+          string_contains("(f : R -> R)", function_replay)
+          && string_contains("(t : R)", function_replay),
+        );
+        check(
+          bool,
+          "rejects a wrong scalar result",
+          false,
+          trace(profile, source, times(Exp.int(2), sin_2x))
+          |> Option.is_some,
+        );
+        let without_const_folding =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability => capability != Axioms.ConstFold),
+            profile,
+          );
+        check(
+          bool,
+          "disabled affine prerequisite rejects scalar normalization",
+          false,
+          trace(without_const_folding, source, sin_2x) |> Option.is_some,
+        );
+        let without_affine_operation = {
+          ...profile,
+          check_result_rule_ids:
+            profile.check_result_rule_ids
+            |> List.filter(rule_id => rule_id != "arith.affine_normalize"),
+        };
+        check(
+          bool,
+          "disabled affine operation rejects subtraction of a negative",
+          false,
+          trace(without_affine_operation, minus(a, negate(b)), plus(a, b))
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "disabled affine operation rejects double-negative function cleanup",
+          false,
+          trace(without_affine_operation, negate(negate(f_t)), f_t)
+          |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "division distribution handles the trig power-reduction shape",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let two = Exp.int(2);
+        let cos_2x = builtin_cos(times(two, x));
+        let source = divide(minus(Exp.int(1), cos_2x), two);
+        let target = minus(divide(Exp.int(1), two), divide(cos_2x, two));
+        let profile = Axioms.math_profile(Calculus);
+        let trace =
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          );
+        check(
+          bool,
+          "calculus inherits exact division distribution",
+          true,
+          switch (trace) {
+          | Some(summary) =>
+            List.mem("alg.distribute_div_add", summary.rule_ids)
+          | None => false
+          },
+        );
+        let without_distribution =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="alg.distribute_div_add",
+            profile,
+          );
+        check(
+          bool,
+          "disabled division distribution rejects the same target",
+          false,
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile=without_distribution,
+            ~settings,
+            ~env,
+            source,
+            target,
+          )
+          |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
       "profile-bound calculus Check Result records cleanup steps",
       `Quick,
       () => {
@@ -12103,6 +12578,103 @@ let tests = (
           "disabled derivative cleanup blocks basic derivative",
           false,
           trace(without_basics, diff(x, x), Exp.int(1)) |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "calculus composes nested product differentiation with profile arithmetic",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let trace = (profile, source, target) =>
+          Web.RewriteChecker.calculus_check_result_trace_for_profile(
+            ~profile,
+            source,
+            target,
+          );
+        let nested_left =
+          diff(times(Exp.int(3), times(Exp.int(2), x)), x);
+        let nested_right =
+          diff(times(times(x, Exp.int(4)), Exp.int(3)), x);
+        let left_trace = trace(profile, nested_left, Exp.int(6));
+        let right_trace = trace(profile, nested_right, Exp.int(12));
+        check(
+          bool,
+          "nested constants on the left are certified",
+          true,
+          switch (left_trace) {
+          | Some(summary) =>
+            List.mem("calc.diff_product", summary.rule_ids)
+            && List.mem("arith.affine_normalize", summary.rule_ids)
+          | None => false
+          },
+        );
+        check(
+          bool,
+          "a different nesting and constant orientation is certified",
+          true,
+          Option.is_some(right_trace),
+        );
+        check(
+          bool,
+          "an incorrect nested-product derivative is rejected",
+          false,
+          trace(profile, nested_left, Exp.int(7)) |> Option.is_some,
+        );
+        let without_product =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_product",
+            profile,
+          );
+        check(
+          bool,
+          "disabled product rule blocks the derivative",
+          false,
+          trace(without_product, nested_left, Exp.int(6)) |> Option.is_some,
+        );
+        let without_constant_folding =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability => capability != Axioms.ConstFold),
+            profile,
+          );
+        check(
+          bool,
+          "disabled affine prerequisite blocks scalar completion",
+          false,
+          trace(without_constant_folding, nested_left, Exp.int(6))
+          |> Option.is_some,
+        );
+        let export = (source, target, path) => {
+          let coq =
+            Web.ProofSearchBackend.calculus_export_program_for_profile(
+              ~profile,
+              source,
+              target,
+            )
+            |> Option.value(~default="");
+          write_text_file(path, coq);
+          check(
+            bool,
+            "nested product has a profile-directed Rocq certificate",
+            true,
+            string_contains(
+              "Hazel profile-directed derivative certificate",
+              coq,
+            ),
+          );
+        };
+        export(
+          nested_left,
+          Exp.int(6),
+          "/tmp/hazel_stepper_rocq_derivative_nested_left_product.v",
+        );
+        export(
+          nested_right,
+          Exp.int(12),
+          "/tmp/hazel_stepper_rocq_derivative_nested_right_product.v",
         );
       },
     ),

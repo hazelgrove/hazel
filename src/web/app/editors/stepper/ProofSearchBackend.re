@@ -98,22 +98,11 @@ let effective_profile_for_request = request =>
    selection controls allowed rules, never the theorem's numeric domain. */
 let domain_for_request = _request => CoqExport.Reals;
 
-let vars_for_request = request =>
-  CoqExport.unique_vars_in_ast(request.source)
-  @ CoqExport.unique_vars_in_ast(request.target)
-  |> RewriteChecker.dedup;
-
-let forall_string = (~domain, vars) =>
-  switch (vars) {
-  | [] => ""
-  | vars =>
-    let typ =
-      switch (domain) {
-      | CoqExport.Reals => "R"
-      | Integers => "Z"
-      };
-    "forall " ++ String.concat(" ", vars) ++ " : " ++ typ ++ ",";
-  };
+let forall_string_for_request = (~domain, request) =>
+  CoqExport.forall_string_for_domain(
+    ~domain,
+    [request.source, request.target],
+  );
 
 let tactic_plan_purpose_for_automation_stage = Axioms.tactic_plan_purpose_for_stage;
 
@@ -472,6 +461,11 @@ let rec derivative_certificate_for_expression = (~variable, expression) => {
             outer_derivative,
             base_proof.raw_derivative,
           );
+        let outer_derivative_string =
+          CoqExport.string_of_d_for_domain(
+            ~domain=CoqExport.Reals,
+            outer_derivative,
+          );
         let raw_derivative_string =
           CoqExport.string_of_d_for_domain(
             ~domain=CoqExport.Reals,
@@ -504,21 +498,26 @@ let rec derivative_certificate_for_expression = (~variable, expression) => {
             ++ " ("
             ++ base_derivative
             ++ ") ("
+            ++ outer_derivative_string
+            ++ ")).\n"
+            ++ proof_block(base_proof.proof)
+            ++ "\n{ "
             ++ (
               power == 2
-                ? "2 * " ++ base_at
-                : "INR "
+                ? "apply derivable_pt_lim_Rsqr."
+                : "replace ("
+                  ++ outer_derivative_string
+                  ++ ") with (INR "
                   ++ string_of_int(power)
                   ++ " * ("
                   ++ base_at
                   ++ ") ^ pred "
                   ++ string_of_int(power)
+                  ++ ").\n"
+                  ++ "{ apply derivable_pt_lim_pow. }\n"
+                  ++ "{ cbn; try unfold Rsqr; ring. }"
             )
-            ++ ")).\n"
-            ++ proof_block(base_proof.proof)
-            ++ "\n{ apply "
-            ++ (power == 2 ? "derivable_pt_lim_Rsqr" : "derivable_pt_lim_pow")
-            ++ ". }",
+            ++ " }",
           nonzero_denominators: base_proof.nonzero_denominators,
         });
       | _ => None
@@ -889,7 +888,7 @@ let calculus_search_program =
                ++ ") H_hazel_cleanup).";
              };
            Printf.sprintf(
-             "From Stdlib Require Import Rbase Rfunctions Ranalysis1 Ranalysis3 Rtrigo1 Rtrigo_reg Lra.\nOpen Scope R_scope.\n\n(* Hazel profile-directed derivative certificate. *)\nTheorem %s : forall %s : R, %sderivable_pt_lim (fun %s : R => %s) %s (%s).\nProof.\nintros.\nassert (H_hazel_derivative : derivable_pt_lim %s %s (%s)).\n{ %s }\n%s\nQed.",
+             "From Stdlib Require Import Rbase Rfunctions Ranalysis1 Ranalysis3 Rtrigo1 Rtrigo_reg Lra Ring.\nOpen Scope R_scope.\n\n(* Hazel profile-directed derivative certificate. *)\nTheorem %s : forall %s : R, %sderivable_pt_lim (fun %s : R => %s) %s (%s).\nProof.\nintros.\nassert (H_hazel_derivative : derivable_pt_lim %s %s (%s)).\n{ %s }\n%s\nQed.",
              theorem_name,
              String.concat(" ", vars),
              hypotheses,
@@ -1084,7 +1083,7 @@ let rocq_search_program_for_profile_and_purpose_internal =
         );
     let source = CoqExport.string_of_d_for_domain(~domain, request.source);
     let target = CoqExport.string_of_d_for_domain(~domain, request.target);
-    let forall_str = forall_string(~domain, vars_for_request(request));
+    let forall_str = forall_string_for_request(~domain, request);
     let (search_definitions, tactic_script) =
       switch (purpose, equivalence_fallback) {
       | (Axioms.CheckResult, false) when directed_finishers != [] => (
@@ -1153,7 +1152,7 @@ let rocq_replay_program = (request, summary) => {
   let domain = domain_for_request(request);
   let source = CoqExport.string_of_d_for_domain(~domain, request.source);
   let target = CoqExport.string_of_d_for_domain(~domain, request.target);
-  let forall_str = forall_string(~domain, vars_for_request(request));
+  let forall_str = forall_string_for_request(~domain, request);
   let replay =
     CoqProofExport.recorded_transition_replay_script(
       ~domain,

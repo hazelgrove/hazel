@@ -1,5 +1,75 @@
 %{
 open AST
+
+let rec taylor_pat_names = function
+  | VarPat name -> [name]
+  | AscPat (pat, _) | IndicationPat pat -> taylor_pat_names pat
+  | TuplePat pats | ListPat pats -> List.flatten (List.map taylor_pat_names pats)
+  | ConsPat (left, right) | ApPat (left, right) | TupLabelPat (left, right) ->
+      taylor_pat_names left @ taylor_pat_names right
+  | _ -> []
+
+let rec taylor_exp_names = function
+  | Var name -> [name]
+  | BinExp (left, _, right) | TupLabel (left, right) | Dot (left, right)
+  | ApExp (left, right) | Cons (left, right) | ListConcat (left, right)
+  | Seq (left, right) | TupleExtension (left, right) ->
+      taylor_exp_names left @ taylor_exp_names right
+  | UnOp (_, inner) | ProofObject inner | Asc (inner, _) | Test inner
+  | TypAp (inner, _) | IndicationExp inner -> taylor_exp_names inner
+  | ListExp entries | TupleExp entries ->
+      List.flatten (List.map taylor_exp_names entries)
+  | Let (pat, definition, body) | Theorem (pat, definition, body) ->
+      taylor_pat_names pat @ taylor_exp_names definition @ taylor_exp_names body
+  | Fun (pat, body, _) | ForallExp (pat, body) | FixF (pat, body) ->
+      taylor_pat_names pat @ taylor_exp_names body
+  | TypFun (_, body) -> taylor_exp_names body
+  | CaseExp (scrutinee, rules) ->
+      taylor_exp_names scrutinee
+      @ List.flatten
+          (List.map
+             (fun (pat, body) -> taylor_pat_names pat @ taylor_exp_names body)
+             rules)
+  | If (condition, then_, else_) ->
+      taylor_exp_names condition @ taylor_exp_names then_ @ taylor_exp_names else_
+  | Filter (_, filter, body) -> taylor_exp_names filter @ taylor_exp_names body
+  | HintedTest (test, hint) -> taylor_exp_names test @ taylor_exp_names hint
+  | DynamicErrorHole (inner, _) -> taylor_exp_names inner
+  | TyAlias (_, _, body) | Use (_, body) -> taylor_exp_names body
+  | Module items ->
+      List.flatten
+        (List.map
+           (function
+             | ModItemLet (pat, exp) -> taylor_pat_names pat @ taylor_exp_names exp
+             | ModItemType _ -> []
+             | ModItemExp exp -> taylor_exp_names exp
+             | ModItemModule (pat, exp) -> taylor_pat_names pat @ taylor_exp_names exp)
+           items)
+  | ModuleExp (pat, definition, body) ->
+      taylor_pat_names pat @ taylor_exp_names definition @ taylor_exp_names body
+  | Atom _ | Constructor _ | Label _ | ExplicitNonlabel | EmptyHole
+  | BuiltinFun _ | Undefined | Deferral | InvalidExp _ -> []
+
+let rec unused_taylor_name candidate used suffix =
+  let name =
+    if suffix = 0 then candidate else candidate ^ "_" ^ string_of_int suffix
+  in
+  if List.mem name used then unused_taylor_name candidate used (suffix + 1)
+  else name
+
+let lower_scoped_taylor_derivatives function_exp order continuation =
+  let base = match function_exp with Var name -> name | _ -> "f" in
+  let rec build index current used =
+    if index > order then continuation
+    else
+      let candidate = base ^ "_deriv_" ^ string_of_int index in
+      let name = unused_taylor_name candidate used 0 in
+      Let
+        ( VarPat name,
+          ApExp (Var "diff", current),
+          build (index + 1) (Var name) (name :: used) )
+  in
+  build 1 function_exp (taylor_exp_names function_exp)
 %}
 
 
@@ -36,6 +106,7 @@ open AST
 %token <int> INT
 %token <float> FLOAT
 %token LET
+%token TAYLOR_DERIVATIVES
 %token MODULE
 %token FUN
 %token CASE
@@ -117,6 +188,8 @@ open AST
 
 
 /* Structural mixfix forms - loosest binding (bodies include flat sequences) */
+%nonassoc TAYLOR_CALL
+%nonassoc IN
 %nonassoc LET_EXP
 %right SUM_TYP
 %right DASH_ARROW
@@ -357,6 +430,21 @@ exp:
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
     | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) }
+    | TAYLOR_DERIVATIVES; OPEN_PAREN; function_exp = exp; COMMA; order = exp; CLOSE_PAREN {
+        ApExp(
+          Var "taylor_derivatives",
+          TupleExp([function_exp; order])
+        )
+      } %prec TAYLOR_CALL
+    | TAYLOR_DERIVATIVES; OPEN_PAREN; function_exp = exp; COMMA; order = exp; CLOSE_PAREN; IN; body = exp {
+        match order with
+        | Atom (Int value) ->
+            (match Bigint.to_int value with
+             | Some count when count >= 0 ->
+                 lower_scoped_taylor_derivatives function_exp count body
+             | _ -> InvalidExp "Taylor derivative order must be a nonnegative integer")
+        | _ -> InvalidExp "Taylor derivative order must be a nonnegative integer"
+      } %prec LET_EXP
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
     | MODULE; i = IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(i), e1, e2) } %prec LET_EXP
     | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(c), e1, e2) } %prec LET_EXP
@@ -404,4 +492,3 @@ modItem:
 sigItem:
     | LET; p = pat { SigItemLet(p) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { SigItemType(tp, ty) }
-
