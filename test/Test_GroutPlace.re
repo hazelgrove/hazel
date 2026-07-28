@@ -73,7 +73,7 @@ let t = (name: string, input: string, expected: string) =>
    gap transition. Pins in this file with a leading space before the
    sigil were re-judged under that rule. */
 let space_runs = [
-  t("operand hole, one space", "let x = in x", "let x =? in x"),
+  t("operand hole, one space", "let x = in x", "let x = ?in x"),
   t("operand hole, two spaces", "let x =  in x", "let x = ? in x"),
   t("operand hole, three spaces", "let x =   in x", "let x = ?  in x"),
   t(
@@ -81,11 +81,11 @@ let space_runs = [
     "let x =     in x",
     "let x = ?    in x",
   ),
-  t("operator hole, one space", "1 2", "1~ 2"),
+  t("operator hole, one space", "1 2", "1 ~2"),
   t("operator hole, two spaces", "1  2", "1 ~ 2"),
   t("operator hole, long run anchors left", "1     2", "1 ~    2"),
-  t("adjacent operators", "1 + + 2", "1 +? + 2"),
-  t("leading operand hole in child", "let x = + 2 in x", "let x =? + 2 in x"),
+  t("adjacent operators", "1 + + 2", "1 + ?+ 2"),
+  t("leading operand hole in child", "let x = + 2 in x", "let x = ?+ 2 in x"),
 ];
 
 let empty_runs = [
@@ -193,23 +193,23 @@ let gallery = [
   t(
     "missing if condition, one space",
     "if then 2 else 3",
-    "if? then 2 else 3",
+    "if ?then 2 else 3",
   ),
   t(
     "missing if condition, two spaces",
     "if  then 2 else 3",
     "if ? then 2 else 3",
   ),
-  t("missing list element", "[1, , 3]", "[1,? , 3]"),
-  t("missing fun pattern", "fun -> 2", "fun? -> 2"),
-  t("missing ap argument", "f( )", "f(? )"),
-  t("adjacent operands", {|"a" "b"|}, {|"a"~ "b"|}),
-  t("missing operand before in", "let x = 1 + in x", "let x = 1 +? in x"),
+  t("missing list element", "[1, , 3]", "[1, ?, 3]"),
+  t("missing fun pattern", "fun -> 2", "fun ?-> 2"),
+  t("missing ap argument", "f( )", "f( ?)"),
+  t("adjacent operands", {|"a" "b"|}, {|"a" ~"b"|}),
+  t("missing operand before in", "let x = 1 + in x", "let x = 1 + ?in x"),
   t("trailing hole after multiline program", "1 +\n2 +\n", "1 +\n2 +\n?"),
 ];
 
 let comments = [
-  t("space then comment: hole after the space", "1 + #c#", "1 +? #c#"),
+  t("space then comment: hole after the space", "1 + #c#", "1 + ?#c#"),
   t("comment directly adjacent: pinched before it", "1 +#c#", "1 +?#c#"),
   t("linebreak then comment: end of previous line", "1 +\n#c#", "1 +?\n#c#"),
   t("no conflict across comment line", "1 +\n#c#\n2", "1 +\n#c#\n2"),

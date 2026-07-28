@@ -909,7 +909,7 @@ let facing_matrix = [
       ++ "    (?* 2¦)               right\n"
       ++ "    (?* ¦2)               left\n"
       ++ "    (?*¦ 2)               left\n"
-      ++ "    (?¦* 2)               right\n"
+      ++ "    (?¦* 2)               left\n"
       ++ "    (¦?* 2)               left\n"
       ++ "    ¦(?* 2)               left\n"
       ++ "  if  then 1 else 2\n"

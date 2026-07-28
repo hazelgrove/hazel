@@ -122,30 +122,34 @@ let decide = (~at_boundary: bool, ~leading=false, run: list(Secondary.t)): t => 
       };
     };
   } else {
-    /* single-line gap with content on both sides: AT MOST ONE space
-     * before the hole, the rest after (andrew 2026-07-26, settled
-     * after trying centering). Rendered: 1 space -> `let?=` (the hole
-     * paints into that space, no width added), 2 -> `let ?=`,
-     * 3 -> `let ? =`, 5 -> `let ?   =`. An empty gap pinches the hole
-     * directly between the tokens.
+    /* single-line gap with content on both sides: EXACTLY ONE space
+     * before the hole where the gap has one, the rest after (andrew
+     * 2026-07-26 rule, gap-1 ordering corrected 2026-07-27). Rendered:
+     * 1 space -> `let?=` (the hole paints into that space's cell, no
+     * width added), 2 -> `let ?=`, 3 -> `let ? =`, 5 -> `let ?   =`.
+     * An empty gap pinches the hole directly between the tokens.
      *
      * WHY, over centering (P10 FILL-POSITION AFFINITY + trajectory
      * weighting — see plans/obligation-display-design.md): typing a
      * space right after `let` must leave the hole AFTER the caret,
      * where the operand you are about to type will land, so the
      * operand replaces the hole rather than the hole vanishing from
-     * behind the caret. Centering-with-left-bias failed exactly that
-     * case. This rule also moves the hole on ONLY the 1->2 gap
-     * transition and never again — maximally stable — and it agrees
-     * with centering on every gap up to 3, which is the range
-     * left-to-right entry actually visits. */
+     * behind the caret. GAP-1 ORDER (2026-07-27): the hole goes AFTER
+     * the single space in PIECE ORDER too — `min(1, n - 1)` put it
+     * before, which was this rule failing its own motivating example:
+     * at `let ␣¦` the hole (and the oracle pad at its far junction)
+     * landed BEFORE the caret, so the drawn caret jumped two columns
+     * on one keypress (`let¦` -> `let ?¦`). The render is identical
+     * either way at gap 1 (one cell); the order decides which side of
+     * the hole the caret's boundary maps to. This also makes the hole
+     * position fully stable: it never moves on any gap transition. */
     switch (n) {
     | 0 => {
         index: 0,
         style: Thin,
       }
     | n => {
-        index: leading ? max(n - 2, 0) : min(1, n - 1),
+        index: leading ? max(n - 2, 0) : min(1, n),
         style: Thick,
       }
     };
