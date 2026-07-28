@@ -902,24 +902,73 @@ map@<Int, Int>([1, 2, 3], fun x -> x * 2)
       )
     }),
     test_case(
-      "single-parameter type aliases support application syntax",
+      "type T = typfun a -> body parses + checks like type T(a) = body",
       `Quick,
       () => {
-        let marks =
-          static_errors(
-            {|
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors on type-level typfun alias body",
+        [],
+        static_errors(
+          {|
 type Option(a) = + None + Some(a) in
 let x : Option(Int) = Some(3) in x
 |},
-          );
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors",
-          [],
-          List.map(m => Marks([m]), marks),
-        );
-      },
-    ),
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
+    test_case(
+      "type-level multi-binder typfun: type Either = typfun a, b -> ...",
+      `Quick,
+      () => {
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors on type-level multi-binder typfun",
+        [],
+        static_errors(
+          {|
+type Either(a, b) = + Left(a) + Right(b) in
+let x : Either(Int, Bool) = Right(true) in x
+|},
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
+    test_case(
+      "type-level curried typfun: type T = typfun a -> typfun b -> ...",
+      `Quick,
+      () => {
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors on curried typfun and curried application",
+        [],
+        static_errors(
+          {|
+type PResult(err)(ok) = + Error(err) + Ok(ok) in
+type R = PResult(String)(Bool) in
+let x : R = Ok(true) in x
+|},
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
+    test_case(
+      "curried typfun supports partial type-level application", `Quick, () => {
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors using a curried typfun's partial application",
+        [],
+        static_errors(
+          {|
+type PResult(err)(ok) = + Error(err) + Ok(ok) in
+type StringResult = PResult(String) in
+let x : StringResult(Int) = Ok(7) in x
+|},
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
     test_case(
       "typfun is rejected in a type alias body",
       `Quick,
@@ -936,44 +985,6 @@ let x : Option(Int) = Some(3) in x
           "typfun mark",
           true,
           has_mark(TypFunNotSurfaceSyntax, marks),
-        );
-      },
-    ),
-    test_case(
-      "parameterized type aliases remain accepted",
-      `Quick,
-      () => {
-        let marks =
-          static_errors(
-            {|
-type Option(A) = + None + Some(A) in
-let x : Option(Int) = Some(3) in x
-|},
-          );
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors",
-          [],
-          List.map(m => Marks([m]), marks),
-        );
-      },
-    ),
-    test_case(
-      "curried parameterized type aliases are accepted",
-      `Quick,
-      () => {
-        let marks =
-          static_errors(
-            {|
-type Pair(A)(B) = (A, B) in
-let x : Pair(Int)(String) = (1, "x") in x
-|},
-          );
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors",
-          [],
-          List.map(m => Marks([m]), marks),
         );
       },
     ),
@@ -1192,23 +1203,21 @@ A
       },
     ),
     test_case(
-      "recursive parameterized type aliases support application syntax",
+      "type-level recursive typfun: type List = typfun a -> + Nil + Cons(a, List(a))",
       `Quick,
       () => {
-        let marks =
-          static_errors(
-            {|
+      Alcotest.check(
+        list(testable_issue),
+        "no static errors on recursive type-level typfun",
+        [],
+        static_errors(
+          {|
 type List(a) = + Nil + Cons(a, List(a)) in
 let xs : List(Int) = Cons((1, Nil)) in xs
 |},
-          );
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors",
-          [],
-          List.map(m => Marks([m]), marks),
-        );
-      },
-    ),
+        )
+        |> List.map(ms => Marks([ms])),
+      )
+    }),
   ],
 );
