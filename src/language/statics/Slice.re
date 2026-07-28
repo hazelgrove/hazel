@@ -9,12 +9,6 @@
    directions: forwards, a query on the constructed type; backwards, the demand
    a binder's body places on its definition. */
 
-// The namespace a demanded name lives in.
-type sort =
-  | Value
-  | Constructor
-  | Alias;
-
 // A query's answer: dropped ids, minimal assumptions, sliced type.
 type slice = {
   omitted: Id.Set.t,
@@ -50,14 +44,6 @@ type role =
   | Source // a definition, sliced by the demand this rule's binders produce
   | Alternative // one branch; the branches split the query co-Heytingly
   | Binder; // binds names, without contributing to the constructed type
-
-// A name a term uses, and what the term's query demands of it.
-type use = {
-  sort,
-  name: string,
-  id: Id.t,
-  demanded: Typ.t => Typ.t,
-};
 
 // How the checker's info map carries a rule's recorded sub-terms until `add`
 // takes them.
@@ -104,11 +90,11 @@ let empty_slice: slice = {
   psi: gap,
 };
 
-let entry_key = (entry: Ctx.entry): option((sort, string)) =>
+let entry_key = (entry: Ctx.entry): option((CoCtx.sort, string)) =>
   switch (entry) {
-  | VarEntry({name, _}) => Some((Value, name))
-  | ConstructorEntry({name, _}) => Some((Constructor, name))
-  | TVarEntry({name, _}) => Some((Alias, name))
+  | VarEntry({name, _}) => Some((CoCtx.Value, name))
+  | ConstructorEntry({name, _}) => Some((CoCtx.Constructor, name))
+  | TVarEntry({name, _}) => Some((CoCtx.Alias, name))
   | LivelitEntry(_) => None
   };
 
@@ -143,21 +129,21 @@ let entry_with_typ = (entry: Ctx.entry, typ: Typ.t): Ctx.entry =>
 
 let entry_of = (~sort, ~name, ~id, typ): Ctx.entry =>
   switch (sort) {
-  | Value =>
+  | CoCtx.Value =>
     Ctx.VarEntry({
       name,
       id,
       typ,
       custom_statics: None,
     })
-  | Constructor =>
+  | CoCtx.Constructor =>
     Ctx.ConstructorEntry({
       name,
       id,
       typ,
       custom_statics: None,
     })
-  | Alias =>
+  | CoCtx.Alias =>
     Ctx.TVarEntry({
       name,
       id,
@@ -505,13 +491,6 @@ let binder_demand = (~sort, ~name, ~id, _env, gamma) => {
   };
 };
 
-let use = (~sort, ~name, ~id, ~demanded=Fun.id, ()): use => {
-  sort,
-  name,
-  id,
-  demanded,
-};
-
 // Wrap a node: the focus overrides its query, and a node nothing asks for
 // omits its whole subtree.
 let mk =
@@ -521,8 +500,8 @@ let mk =
       ~ids: Id.Set.t,
       ~shape: Typ.t,
       ~sub_terms: list((role, t))=[],
-      ~uses: list(use)=[],
-      ~binds: list((sort, string, Id.t))=[],
+      ~co_ctx: CoCtx.t=CoCtx.empty,
+      ~binds: list((CoCtx.sort, string, Id.t))=[],
       ~binder: bool=false,
       ~override: option(t)=None,
       (),
@@ -572,15 +551,24 @@ let mk =
     } else {
       let slice = assembled(env, query);
       let used =
-        uses
-        |> List.map(u =>
+        co_ctx
+        |> CoCtx.entries_at(id)
+        |> List.map(((name, entry: CoCtx.entry)) => {
+             let use_id =
+               switch (entry.sort) {
+               | CoCtx.Alias =>
+                 Ctx.lookup_tvar_id(ctx, name)
+                 |> Option.value(~default=entry.id)
+               | CoCtx.Value
+               | CoCtx.Constructor => entry.id
+               };
              singleton(
-               ~sort=u.sort,
-               ~name=u.name,
-               ~id=u.id,
-               u.demanded(query),
-             )
-           )
+               ~sort=entry.sort,
+               ~name,
+               ~id=use_id,
+               entry.demanded(query),
+             );
+           })
         |> join_all(ctx);
       {
         ...slice,

@@ -59,7 +59,7 @@ type exp = {
   ana: Typ.t, /* Parental type expectations  */
   elab_syn_ty: Typ.t, /* Synthesized type of the elaborated expression */
   marks: list(Mark.t), /* Error marks from statics */
-  co_ctx: CoCtx.t, /* Locally free variables */
+  co_ctx: CoCtx.t, /* Locally free names */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   message: Message.t, /* DERIVED: non-error inspector payload (Exp only) */
   warnings: list(Warning.list_item),

@@ -343,7 +343,6 @@ and uexp_to_info_map =
         ~inferred_label: option(string)=None,
         ~label_sort=false,
         ~dot_labels: list(string)=[],
-        ~uses: list(Slice.use)=[],
         ~slice: option(Slice.t)=None,
         m: Map.t,
       )
@@ -374,7 +373,7 @@ and uexp_to_info_map =
         ~ids=Slice.exp_ids(user_term),
         ~shape=elab_syn_ty,
         ~sub_terms=recorded,
-        ~uses,
+        ~co_ctx,
         ~override=slice,
         (),
       );
@@ -880,7 +879,6 @@ and uexp_to_info_map =
         ~elab_syn_ty=syn_v,
         ~marks=marks_v,
         ~co_ctx,
-        ~uses=[Slice.use(~sort=Value, ~name, ~id=Exp.rep_id(uexp), ())],
         m,
       );
     | DynamicErrorHole(e, err) =>
@@ -1705,15 +1703,13 @@ and uexp_to_info_map =
             ~elab_term,
             ~elab_syn_ty=syn_res,
             ~marks=marks_res,
-            ~co_ctx=CoCtx.empty,
-            ~uses=[
-              Slice.use(
-                ~sort=Constructor,
-                ~name=ctr,
-                ~id=Exp.rep_id(uexp),
-                (),
+            ~co_ctx=
+              CoCtx.singleton(
+                ~sort=CoCtx.Constructor,
+                ctr,
+                Exp.rep_id(uexp),
+                ana,
               ),
-            ],
             m,
           );
         }
@@ -1794,33 +1790,32 @@ and uexp_to_info_map =
           | Some(m) when marks_res == [] => [m]
           | Some(_) => marks_res
           };
-        let uses =
+        let co_ctx =
           [
-            Slice.use(~sort=Constructor, ~name=ctr, ~id=Exp.rep_id(uexp), ()),
+            CoCtx.singleton(
+              ~sort=CoCtx.Constructor,
+              ctr,
+              Exp.rep_id(uexp),
+              ana,
+            ),
           ]
           @ (
             switch (ConstructorStaticsHelpers.alias_of_ctr(ctx, ctr)) {
             | Some(entry) => [
-                Slice.use(
-                  ~sort=Alias,
-                  ~name=entry.name,
-                  ~id=entry.id,
+                CoCtx.singleton(
+                  ~sort=CoCtx.Alias,
                   ~demanded=
                     ConstructorStaticsHelpers.alias_demand(ctx, ctr, entry),
-                  (),
+                  entry.name,
+                  Exp.rep_id(uexp),
+                  ana,
                 ),
               ]
             | None => []
             }
-          );
-        add(
-          ~elab_term,
-          ~elab_syn_ty,
-          ~marks=marks_res,
-          ~co_ctx=CoCtx.empty,
-          ~uses,
-          m,
-        );
+          )
+          |> CoCtx.union;
+        add(~elab_term, ~elab_syn_ty, ~marks=marks_res, ~co_ctx, m);
       };
     | Ap(dir, fn, arg) =>
       switch (fn.term) {
@@ -2224,7 +2219,7 @@ and uexp_to_info_map =
         ~elab_term=TypAbs(utpat, body_elab, tfname) |> rewrap,
         ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
         ~marks=[],
-        ~co_ctx=body.co_ctx,
+        ~co_ctx=CoCtx.mk(ctx, ctx_body, body.co_ctx),
         m,
       );
     | Let(p, def, body) when Option.is_some(FunctionSugar.detect(p)) =>
@@ -2970,7 +2965,7 @@ and uexp_to_info_map =
             ~first=true,
             Binder,
             Slice.binding(
-              ~sort=Alias,
+              ~sort=CoCtx.Alias,
               ~name,
               ~id=TPat.rep_id(typat),
               ~ids=Id.Set.of_list(IdTagged.ids(typat)),
@@ -2987,7 +2982,7 @@ and uexp_to_info_map =
           ~elab_term=body_elab,
           ~elab_syn_ty=ty_escape,
           ~marks=[],
-          ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
+          ~co_ctx=CoCtx.union([CoCtx.mk(ctx, ctx_body, co_ctx), typ_refs]),
           m,
         );
       | Var(name) when !Ctx.is_base_typ(name) =>
@@ -3055,7 +3050,7 @@ and uexp_to_info_map =
             ~first=true,
             Binder,
             Slice.binding(
-              ~sort=Alias,
+              ~sort=CoCtx.Alias,
               ~name,
               ~id=TPat.rep_id(typat),
               ~ids=Id.Set.of_list(IdTagged.ids(typat)),
@@ -3072,7 +3067,7 @@ and uexp_to_info_map =
           ~elab_term=body_elab,
           ~elab_syn_ty=ty_escape,
           ~marks=[],
-          ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
+          ~co_ctx=CoCtx.union([CoCtx.mk(ctx, ctx_body, co_ctx), typ_refs]),
           m,
         );
       | Var(_)
@@ -3275,8 +3270,7 @@ and upat_to_info_map =
         ~label_inference: option(Info.label_inference(Info.pat))=None,
         ~inferred_label: option(LabeledTuple.label)=None,
         ~label_sort=false,
-        ~binds: list((Slice.sort, string, Id.t))=[],
-        ~uses: list(Slice.use)=[],
+        ~binds: list((CoCtx.sort, string, Id.t))=[],
         ~slice: option(Slice.t)=None,
         m: Id.Map.t(Info.t),
       )
@@ -3323,7 +3317,6 @@ and upat_to_info_map =
         ~ids=Slice.pat_ids(user_term),
         ~shape=ty,
         ~sub_terms=recorded,
-        ~uses,
         ~binds,
         ~binder=true,
         ~override=slice,
@@ -3642,7 +3635,7 @@ and upat_to_info_map =
             ~marks=[Mark.DuplicateVar(name, unknown)],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
-            ~binds=[(Slice.Value, name, Pat.rep_id(upat))],
+            ~binds=[(CoCtx.Value, name, Pat.rep_id(upat))],
             m,
           );
         }
@@ -3651,7 +3644,7 @@ and upat_to_info_map =
             ~marks=[],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
-            ~binds=[(Slice.Value, name, Pat.rep_id(upat))],
+            ~binds=[(CoCtx.Value, name, Pat.rep_id(upat))],
             m,
           );
 
@@ -4429,7 +4422,7 @@ and utyp_to_info_map =
       }
     };
   };
-  let add = (~expects=expects, ~utyp=utyp, ~uses=[], m) => {
+  let add = (~expects=expects, ~utyp=utyp, m) => {
     let st = status_for_node(~expects, utyp);
     let cls: Cls.t =
       switch (expects, Typ.cls_of_term(utyp.term)) {
@@ -4449,7 +4442,6 @@ and utyp_to_info_map =
         ~ids=Slice.typ_ids(utyp),
         ~shape=utyp,
         ~sub_terms=recorded,
-        ~uses,
         (),
       );
     let info: Info.typ = {
