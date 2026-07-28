@@ -227,3 +227,18 @@ let alias_demand =
       };
     minimal_definition(ctx, ctr, payload, definition);
   };
+
+// A constructor pattern's payload, as a component of the type it matches.
+let payload_matcher = (ctr: Constructor.t): MatchedTyp.matcher =>
+  (ctx, ty) =>
+    Typ.get_sum_constructors(ctx, ty)
+    |> Option.map(
+         List.find_map(
+           fun
+           | ConstructorMap.Variant(name, _, payload)
+               when Constructor.equal(name, ctr) =>
+             Some([payload |> Option.value(~default=Typ.gap)])
+           | _ => None,
+         ),
+       )
+    |> Option.join;

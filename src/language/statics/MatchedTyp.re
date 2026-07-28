@@ -150,3 +150,32 @@ let prod_rearrange = (ctx, es, get_label_es, ty, constructor) => {
     |> Option.value(~default=List.init(List.length(es), _ => internal())),
   );
 };
+
+/* A former pairs a matcher with the constructor it matches, so a query can be
+   embedded into a type that does not decompose (an unknown callee's codomain
+   is still an arrow's codomain). */
+type former = {
+  match_: matcher,
+  build: list(Typ.t) => Typ.t,
+};
+
+let arrow_former = {
+  match_: arrow,
+  build:
+    fun
+    | [ty_in, ty_out] => Arrow(ty_in, ty_out) |> temp
+    | _ => internal(),
+};
+
+let label_former = {
+  match_: label,
+  build:
+    fun
+    | [l, v] => TupLabel(l, v) |> temp
+    | _ => internal(),
+};
+
+let prod_former = arity => {
+  match_: prod(arity),
+  build: tys => Prod(tys) |> temp,
+};

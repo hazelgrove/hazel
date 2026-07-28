@@ -343,7 +343,7 @@ and uexp_to_info_map =
         ~inferred_label: option(string)=None,
         ~label_sort=false,
         ~dot_labels: list(string)=[],
-        ~slice: option(Slice.t)=None,
+        ~matcher: option(MatchedTyp.matcher)=None,
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
@@ -374,7 +374,7 @@ and uexp_to_info_map =
         ~shape=elab_syn_ty,
         ~sub_terms=recorded,
         ~co_ctx,
-        ~override=slice,
+        ~matcher,
         (),
       );
     let info: Info.exp = {
@@ -437,16 +437,6 @@ and uexp_to_info_map =
   let pat_edge = (~first=false, role) =>
     edge(~at=here, ~first, role, (i: Info.pat) => i.slice);
   let (let@) = (component, k) => pat_edge(~first=true, Binder, component, k);
-  // combines an appending pattern Binder (@) with its branch Alternative (+).
-  let (let@+) = ((branch, pat_result), k) =>
-    pat_edge(
-      Binder,
-      pat_result,
-      ((p_info, p_elab, m)) => {
-        let+ (_, _, m) = (branch, p_elab, m);
-        k((p_info, p_elab, m));
-      },
-    );
   // use when an annotation is a type component of this rule's type.
   // let ( let** ) = (component, k) => typ_edge(Part, component, k);
   // use when an annotation is sliced backwards by this rule's binders.
@@ -1497,29 +1487,33 @@ and uexp_to_info_map =
           switch (element) {
           | Some({term: TupLabel(_, typ), _})
           | Some(typ) =>
-            let slice =
-              Option.map(
-                index =>
+            let m =
+              switch (field_index) {
+              | None => m
+              | Some(index) =>
+                record(
+                  ~id=here,
+                  Through,
                   Slice.component(
                     ~ctx,
-                    ~matcher=MatchedTyp.label,
+                    ~former=MatchedTyp.label_former,
                     ~index=1,
                     Slice.component(
                       ~ctx,
-                      ~matcher=MatchedTyp.prod(List.length(ts)),
+                      ~former=MatchedTyp.prod_former(List.length(ts)),
                       ~index,
                       info_e1.slice,
                     ),
                   ),
-                field_index,
-              );
+                  m,
+                )
+              };
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=typ,
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
-              ~slice,
               m,
             );
           | None =>
@@ -1796,6 +1790,7 @@ and uexp_to_info_map =
           [
             CoCtx.singleton(
               ~sort=CoCtx.Constructor,
+              ~demanded=_ => elab_syn_ty,
               ctr,
               Exp.rep_id(uexp),
               ana,
@@ -1934,15 +1929,17 @@ and uexp_to_info_map =
           let& (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
-          let slice =
-            Some(
+          let m =
+            record(
+              ~id=here,
+              Through,
               Slice.component(
                 ~ctx,
-                ~matcher=MatchedTyp.arrow,
+                ~former=MatchedTyp.arrow_former,
                 ~index=1,
-                ~fallback=out => Arrow(arg.elab_syn_ty, out) |> Typ.temp,
                 fn.slice,
               ),
+              m,
             );
           Id.is_nullary_ap_flag(IdTagged.ids(arg.user_term))
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
@@ -1951,7 +1948,6 @@ and uexp_to_info_map =
                 ~elab_syn_ty=ty_out,
                 ~marks=[BadTrivAp(ty_in)],
                 ~co_ctx=co_ap,
-                ~slice,
                 m,
               )
             : add(
@@ -1959,7 +1955,6 @@ and uexp_to_info_map =
                 ~elab_syn_ty=ty_out,
                 ~marks=[],
                 ~co_ctx=co_ap,
-                ~slice,
                 m,
               );
         };
@@ -2594,16 +2589,19 @@ and uexp_to_info_map =
                 m,
               );
             let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana, e, m);
-            let@+ (p_info, p_elab, m) = (
-              e,
+            /* the rule's pattern is recorded ahead of the branch it scopes */
+            let (p_info, p_elab, m) =
               go_pat(
                 ~is_synswitch=false,
                 ~co_ctx=e.co_ctx,
                 ~ana=scrut.ty,
                 p,
                 m,
-              ),
-            );
+              );
+            let m =
+              m
+              |> record(~id=here, Binder, p_info.slice)
+              |> record(~id=here, Alternative, e.slice);
             (
               p_ctxs @ [p'.ctx],
               es @ [e],
@@ -3273,8 +3271,8 @@ and upat_to_info_map =
         ~label_inference: option(Info.label_inference(Info.pat))=None,
         ~inferred_label: option(LabeledTuple.label)=None,
         ~label_sort=false,
-        ~binds: list((CoCtx.sort, string, Id.t))=[],
-        ~slice: option(Slice.t)=None,
+        ~binds: option((CoCtx.sort, string, Id.t))=None,
+        ~matcher: option(MatchedTyp.matcher)=None,
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
@@ -3322,7 +3320,7 @@ and upat_to_info_map =
         ~sub_terms=recorded,
         ~binds,
         ~binder=true,
-        ~override=slice,
+        ~matcher,
         (),
       );
     let info: Info.pat = {
@@ -3639,7 +3637,7 @@ and upat_to_info_map =
             ~marks=[Mark.DuplicateVar(name, unknown)],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
-            ~binds=[(CoCtx.Value, name, Pat.rep_id(upat))],
+            ~binds=Some((CoCtx.Value, name, Pat.rep_id(upat))),
             m,
           );
         }
@@ -3648,7 +3646,7 @@ and upat_to_info_map =
             ~marks=[],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
-            ~binds=[(CoCtx.Value, name, Pat.rep_id(upat))],
+            ~binds=Some((CoCtx.Value, name, Pat.rep_id(upat))),
             m,
           );
 
@@ -4091,15 +4089,7 @@ and upat_to_info_map =
         | None => Coverage.Constraint.Hole(None)
         };
       add(
-        ~slice=
-          Some(
-            Slice.component(
-              ~ctx,
-              ~matcher=MatchedTyp.arrow,
-              ~index=0,
-              fn'.slice,
-            ),
-          ),
+        ~matcher=Option.map(ConstructorStaticsHelpers.payload_matcher, ctr),
         ~elab_term=Ap(fn_elab, arg_elab) |> rewrap,
         ~elab_syn_ty=ty_out,
         ~marks=[],
