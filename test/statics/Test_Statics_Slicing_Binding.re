@@ -34,6 +34,12 @@ let binding_synthesis = [
     "type T = A(Int) in let A(x) = ? in x",
   ),
   synthesis_case(
+    "bind-ctor-sum-used",
+    "type T = +A(Int) in let A(x) = A(1) in x",
+    "Int",
+    "type T = +A(Int) in let A(x) = ? in x",
+  ),
+  synthesis_case(
     "bind-ctor-unused",
     "type T = A(Int) in let A(x) = A(1) in 0",
     "Int",
