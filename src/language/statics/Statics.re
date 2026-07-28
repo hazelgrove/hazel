@@ -460,8 +460,6 @@ and uexp_to_info_map =
   // let ( let** ) = (component, k) => typ_edge(Part, component, k);
   // use when an annotation is sliced backwards by this rule's binders.
   let (let$$) = (component, k) => typ_edge(Source, component, k);
-  // use when this rule's type is a type component of a sub-term's, named by
-  // the former that decomposes it: `f(x)`'s result, `r.a`'s field
   let result_of = (~via, i: Info.exp, m) =>
     record(
       ~id=here,
@@ -474,9 +472,10 @@ and uexp_to_info_map =
       ),
       m,
     );
-  // use when this rule's type is a projection of a sub-term's: `f(x)`, `r.a`
-  let ( let^* ) = ((i, elab, m), k) =>
-    k((i, elab, result_of(~via=[(MatchedTyp.arrow_former, 1)], i, m)));
+  // use when this rule's type is a projection of a sub-term's, at the component
+  // the rule names by former and index: `f(x)`'s result, `e@<T>`'s poly body
+  let ( let^* ) = ((via, i: Info.exp, elab, m), k) =>
+    k((i, elab, result_of(~via, i, m)));
   // use when a name rather than a pattern binds for the rest of this rule:
   // `type T = d in b`
   let (let@@) = ((sort, name, id, ids, m), k) =>
@@ -1962,12 +1961,21 @@ and uexp_to_info_map =
           let& (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
-          /* the implicit instantiation demands under the binders it peeled */
+          /* the implicit instantiation demands under the binders it peeled,
+             and answers at the type they were instantiated to */
           let result = {
             ...fn,
-            slice: instantiated_slice(fn.elab_syn_ty, fn.slice),
+            slice: {
+              ...instantiated_slice(fn.elab_syn_ty, fn.slice),
+              shape: fn_ty,
+            },
           };
-          let^* (_, _, m) = (result, fn_elab, m);
+          let^* (_, _, m) = (
+            [(MatchedTyp.arrow_former, 1)],
+            result,
+            fn_elab,
+            m,
+          );
           Id.is_nullary_ap_flag(IdTagged.ids(arg.user_term))
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
             ? add(
@@ -1989,6 +1997,7 @@ and uexp_to_info_map =
     | TypAp(fn, utyp) =>
       let typfn_ana = Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
       let (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
+      let^* (_, _, m) = ([(MatchedTyp.poly_former, 0)], fn, fn_elab, m);
       let (_, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
       let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;

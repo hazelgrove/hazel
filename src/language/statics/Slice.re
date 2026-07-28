@@ -558,7 +558,7 @@ let mk =
     // nothing. An unknown type supplies nothing in particular, but is asked.
     let unasked =
       is_gap(query)
-      || !is_gap(shape)
+      || !Typ.is_empty(shape)
       && Typ.is_consistent(ctx, query, shape)
       && Typ.is_empty(capped)
       && !Typ.is_empty(query);
@@ -705,7 +705,8 @@ let component = (~ctx: Ctx.t, ~former: MatchedTyp.former, ~index, node: t): t =>
       // A type the matcher does not decompose is asked for one the former builds.
       let embedded =
         switch (former.match_(ctx, shape)) {
-        | Some(_) => Typ.embed(shape, index, query)
+        | Some(_) =>
+          Typ.embed(shape, index, Typ.mask(project(shape), query))
         | None =>
           components(shape)
           |> List.mapi((i, _) => i == index ? query : gap)

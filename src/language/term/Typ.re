@@ -1658,6 +1658,22 @@ let rebuild = (shape: t, replacements: list(t)): option(t) => {
   };
 };
 
+// The part of `shape` a query reaches, in the shape's own vocabulary.
+let rec mask = (shape: t, query: t): t =>
+  if (is_gap(query)) {
+    gap;
+  } else if (is_gap(shape)) {
+    query;
+  } else {
+    switch (children(shape), children(query)) {
+    | (kids, queries)
+        when kids != [] && List.length(kids) == List.length(queries) =>
+      rebuild(shape, List.map2(mask, kids, queries))
+      |> Option.value(~default=shape)
+    | _ => shape
+    };
+  };
+
 let embed = (shape: t, i: int, child: t): t =>
   children(shape)
   |> List.mapi((j, sibling) =>
