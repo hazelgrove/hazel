@@ -294,11 +294,12 @@ let replace_int_lit_by_id = (~target: Id.t, ~to_: Bigint.t, exp: Exp.t): Exp.t =
 let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
   Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
 
-let eval_limited = (~prev=IncrEval.empty, ~info_map, ~step_limit, elab: Exp.t) =>
+let eval_limited =
+    (~prev=IncrEval.empty, ~eval_info, ~step_limit, elab: Exp.t) =>
   Evaluator.evaluate_and_limit(
     ~step_limit,
     ~prev,
-    ~info_map,
+    ~eval_info,
     ~env=Builtins.env_init,
     elab,
   );
@@ -314,8 +315,8 @@ let qcheck_incremental_matches_fresh_after_edit =
     ((seed, exp)) => {
       /* Only swallow known-benign static/dynamic failures so real
        * incremental-eval disagreements surface as clean PBT failures. */
-      let try_eval = (~prev=?, info_map, elab) =>
-        try(Some(eval_limited(~prev?, ~info_map, ~step_limit=10000, elab))) {
+      let try_eval = (~prev=?, eval_info, elab) =>
+        try(Some(eval_limited(~prev?, ~eval_info, ~step_limit=10000, elab))) {
         | Failure(msg)
             when
               List.exists(
@@ -423,33 +424,6 @@ let rec finish_yielding_with_stream =
   };
 };
 
-let finish_yielding_with_stream =
-    (~remaining_slices: int, ~stream, evaluation) => {
-  if (remaining_slices <= 0) {
-    fail("Yielding evaluation did not complete");
-  };
-  switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
-  | EvaluationCompleted(value) =>
-    let stream =
-      IncrEval.add_stream(
-        Evaluator.drain_streaming_outbox(evaluation).completed,
-        stream,
-      );
-    (value, stream);
-  | EvaluationYielded(evaluation) =>
-    let stream =
-      IncrEval.add_stream(
-        Evaluator.drain_streaming_outbox(evaluation).completed,
-        stream,
-      );
-    finish_yielding_with_stream(
-      ~remaining_slices=remaining_slices - 1,
-      ~stream,
-      evaluation,
-    );
-  };
-};
-
 let yielding_evaluation_test =
   test_case(
     "Yielding evaluation resumes to the synchronous result",
@@ -487,7 +461,7 @@ let yielding_streaming_outbox_test =
           Builtins.ctx_init(Some(Int)),
           parse_exp("let x = 1 in let y = x + 2 in y"),
         );
-      let info_map =
+      let eval_info =
         EvalInfo.of_info_map(
           ~probe_all=CoreSettings.on.probe_all,
           ~targets=Id.Map.empty,
@@ -495,7 +469,7 @@ let yielding_streaming_outbox_test =
         );
       let evaluation =
         Evaluator.start_yielding_evaluation(
-          ~info_map,
+          ~eval_info,
           ~env=Builtins.env_init,
           exp,
         );
@@ -551,7 +525,7 @@ let yielding_streaming_current_state_test =
           Builtins.ctx_init(Some(Int)),
           parse_exp("let x = 1 + 2 in let y = x + 3 in y"),
         );
-      let info_map =
+      let eval_info =
         EvalInfo.of_info_map(
           ~probe_all=CoreSettings.on.probe_all,
           ~targets=Id.Map.empty,
@@ -559,7 +533,7 @@ let yielding_streaming_current_state_test =
         );
       let evaluation =
         Evaluator.start_yielding_evaluation(
-          ~info_map,
+          ~eval_info,
           ~env=Builtins.env_init,
           exp,
         );
@@ -599,7 +573,7 @@ let rec check_streaming_tests_monotonic =
           ~remaining_slices: int,
           ~prev_test_count: int,
           ~accumulated: IncrEval.outbox(EvaluatorState.t),
-          ~info_map,
+          ~eval_info,
           ~exp,
           evaluation,
         ) =>
@@ -629,7 +603,7 @@ let rec check_streaming_tests_monotonic =
           bool,
           "current is keyed by a program id",
           true,
-          Option.is_some(EvalInfo.find_opt(id, info_map)),
+          Option.is_some(EvalInfo.find_opt(id, eval_info)),
         );
       | None => ()
       };
@@ -646,7 +620,7 @@ let rec check_streaming_tests_monotonic =
         ~remaining_slices=remaining_slices - 1,
         ~prev_test_count=test_count,
         ~accumulated,
-        ~info_map,
+        ~eval_info,
         ~exp,
         evaluation,
       );
@@ -666,7 +640,7 @@ let yielding_streaming_current_id_invalid_race_test =
             "test 1 == 1 end; test 2 == 2 end; test 3 == 3 end; test 4 == 4 end",
           ),
         );
-      let info_map =
+      let eval_info =
         EvalInfo.of_info_map(
           ~probe_all=false,
           ~targets=Id.Map.empty,
@@ -674,7 +648,7 @@ let yielding_streaming_current_id_invalid_race_test =
         );
       let evaluation =
         Evaluator.start_yielding_evaluation(
-          ~info_map,
+          ~eval_info,
           ~env=Builtins.env_init,
           exp,
         );
@@ -683,7 +657,7 @@ let yielding_streaming_current_id_invalid_race_test =
           ~remaining_slices=5000,
           ~prev_test_count=0,
           ~accumulated=IncrEval.empty_outbox,
-          ~info_map,
+          ~eval_info,
           ~exp,
           evaluation,
         );

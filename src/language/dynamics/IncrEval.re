@@ -152,8 +152,7 @@ let visible_ids = (incr: t('state)): list(Id.t) => {
 };
 
 /* Ids the UI should paint as "frozen" for a reuse plan / prediction. */
-let frozen_ids = (~ack_incr: t('state)): list(Id.t) =>
-  visible_ids(ack_incr);
+let frozen_ids = (~incr: t('state)): list(Id.t) => visible_ids(incr);
 
 let equal_provenance = (a: provenance, b: provenance): bool =>
   Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
@@ -308,10 +307,10 @@ let update_maps_after_binding =
 
 let reuse_check =
     (
-      ~call_stack: CallStack.t',
+      ~call_stack: CallStack.state,
       ~prev: t('state),
       ~reuse_map: reuse_map,
-      ~info_map: EvalInfo.t,
+      ~eval_info: EvalInfo.t,
       ~id: Id.t,
     )
     : option(entry('state)) => {
@@ -319,7 +318,7 @@ let reuse_check =
 
   let* () = OptUtil.some_if(call_stack.stack == [] && !is_empty(prev), ());
   let* entry = Id.Map.find_opt(id, prev.entries);
-  let* info = EvalInfo.find_opt(id, info_map);
+  let* info = EvalInfo.find_opt(id, eval_info);
 
   let elab_same = Exp.fast_equal(entry.prev_elab, info.elab_term);
   let* () = OptUtil.some_if(elab_same, ());

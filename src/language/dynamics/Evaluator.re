@@ -63,10 +63,10 @@ let rec evaluate =
         (
           ~prev: EvaluatorState.incr_eval=IncrEval.empty,
           ~reused_ids: Id.Map.t(unit),
-          ~info_map: EvalInfo.t,
+          ~eval_info: EvalInfo.t,
           // Call Stack
           ~in_closure=?,
-          ~call_stack: CallStack.t',
+          ~call_stack: CallStack.state,
           // Inputs
           ~reuse_map: IncrEval.reuse_map,
           env,
@@ -78,11 +78,10 @@ let rec evaluate =
         )
         : Trampoline.t(DHExp.t) => {
   /* NOTE: This trampoline looks like it only returns an expression, but
-   * it also mutates the eval_state and outbox references while it's
-   * running. This is a bit of a hack, but it's necessary because the
-   * trampoline is used to implement the incremental evaluation algorithm. */
+   * it also mutates the parent_state and outbox references while it's
+   * running. */
 
-  let evaluate = evaluate(~prev, ~reused_ids, ~info_map, ~outbox);
+  let evaluate = evaluate(~prev, ~reused_ids, ~eval_info, ~outbox);
   let expr_id = DHExp.rep_id(exp);
   /* Only key outbox.current by ids from the elaborated program.
    * Stepped intermediates use Id.invalid (targets empty / probes off) or
@@ -96,7 +95,7 @@ let rec evaluate =
    * real-id publish remains until the next program node. */
   let current_top_id =
     if (call_stack.stack == []) {
-      switch (EvalInfo.find_opt(expr_id, info_map)) {
+      switch (EvalInfo.find_opt(expr_id, eval_info)) {
       | Some(_) => Some(expr_id)
       | None => None
       };
@@ -132,7 +131,7 @@ let rec evaluate =
           child,
         ),
       ~mode=`Environment,
-      ~targets=info_map.targets,
+      ~targets=eval_info.targets,
       ~in_closure?,
       env,
       exp,
@@ -146,7 +145,7 @@ let rec evaluate =
       eval_0_main(~reuse_map, ~in_closure?, ~call_stack, ~state, env, exp);
 
     let (call_stack, new_state) =
-      EvaluatorState.update(info_map, state^, call_stack, env, exp, effects);
+      EvaluatorState.update(eval_info, state^, call_stack, env, exp, effects);
 
     state := new_state;
     update_outbox_current(state^);
@@ -224,7 +223,7 @@ let rec evaluate =
       );
 
     // Record probe sample if required
-    switch (Id.Map.find_opt(expr_id, info_map.targets)) {
+    switch (Id.Map.find_opt(expr_id, eval_info.targets)) {
     | Some(probe) =>
       let step_start = current_step_count;
       let step_end = state^.step_count - 1;
@@ -256,7 +255,7 @@ let rec evaluate =
   // Do the above but also reuse the previous result if possible
   let eval_4_reuse =
       (
-        ~call_stack: CallStack.t',
+        ~call_stack: CallStack.state,
         ~state: ref(EvaluatorState.t),
         ~expr_id,
         env,
@@ -268,7 +267,7 @@ let rec evaluate =
         ~call_stack,
         ~prev,
         ~reuse_map,
-        ~info_map,
+        ~eval_info,
         ~id=expr_id,
       )
     ) {
@@ -279,19 +278,17 @@ let rec evaluate =
       // Add the entry to the next incremental evaluation cache
       state := EvaluatorState.add_incr_entry(state^, expr_id, entry);
       // Copy cache entries for every sub-id of the reused subtree from prev
-      let f_exp = (continue, e: Exp.t): Exp.t => {
-        let sub_id = Exp.rep_id(e);
-        if (!Id.equal(sub_id, expr_id)) {
-          switch (Id.Map.find_opt(sub_id, prev.entries)) {
-          | Some(sub_entry) =>
-            state := EvaluatorState.add_incr_entry(state^, sub_id, sub_entry)
-          | None => ()
-          };
+      state :=
+        {
+          ...state^,
+          incr_eval:
+            IncrEval.copy_descendant_entries(
+              ~root_id=expr_id,
+              ~root=entry.prev_elab,
+              ~prev,
+              state^.incr_eval,
+            ),
         };
-        continue(e);
-      };
-      let _ = TermBase.Exp.map_term(~f_exp, entry.prev_elab);
-      // Return
       Trampoline.return(entry.value);
     | None =>
       // Evaluation cache miss: evaluate the expression from scratch
@@ -303,7 +300,7 @@ let rec evaluate =
         if (call_stack.stack != []) {
           None;
         } else {
-          EvalInfo.find_opt(expr_id, info_map);
+          EvalInfo.find_opt(expr_id, eval_info);
         };
       switch (info_snapshot) {
       | None => Trampoline.return(final_value)
@@ -324,7 +321,6 @@ let rec evaluate =
           state: replay_state(state^),
         };
 
-        // Return
         switch (outbox) {
         | Some(outbox) =>
           outbox := IncrEval.add_outbox_entry(expr_id, entry, outbox^)
@@ -338,7 +334,7 @@ let rec evaluate =
 
   // [PERF] We collect separate states for top-level expressions so we can replay those states.
   let eval_5_state_merge =
-      (~call_stack: CallStack.t', ~state, ~expr_id, env, exp) =>
+      (~call_stack: CallStack.state, ~state, ~expr_id, env, exp) =>
     if (call_stack.stack == []) {
       let inner_state =
         ref(EvaluatorState.empty_at(parent_state^.step_count));
@@ -365,27 +361,24 @@ type limited_result =
   | LimitedCompleted((Exp.t, EvaluatorState.t))
   | StepLimitExceeded;
 
-let evaluate_and_limit =
-    (
-      ~step_limit: int,
-      ~prev: EvaluatorState.incr_eval=IncrEval.empty,
-      ~info_map: EvalInfo.t=EvalInfo.empty,
-      ~env,
-      ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
-      ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t)))=?,
-      d: DHExp.t,
-    )
-    : limited_result => {
+let finish = (~env, e: DHExp.t): Exp.t =>
+  e |> Substitution.in_exp(env) |> Exp.replace_all_ids;
+
+/* Shared setup for all evaluation entry points: run the reuse pass to find
+ * reusable cache entries, then build the (unstarted) evaluation trampoline. */
+let prepare_evaluation =
+    (~prev, ~eval_info: EvalInfo.t, ~env, ~reuse_map, ~outbox, d: DHExp.t)
+    : (ref(EvaluatorState.t), Trampoline.t(DHExp.t)) => {
   let state = ref(EvaluatorState.empty);
   let reused_ids =
     Id.Map.map(
       _ => (),
-      ReusePass.reuse_pass(~prev, ~info_map, ~env, ~reuse_map, d).entries,
+      ReusePass.reuse_pass(~prev, ~eval_info, ~env, ~reuse_map, d).entries,
     );
   let result =
     evaluate(
       ~prev,
-      ~info_map,
+      ~eval_info,
       ~call_stack=CallStack.empty,
       ~reuse_map,
       ~reused_ids,
@@ -395,17 +388,29 @@ let evaluate_and_limit =
       env,
       d,
     );
-  let result =
+  (state, result);
+};
+
+let evaluate_and_limit =
+    (
+      ~step_limit: int,
+      ~prev: EvaluatorState.incr_eval=IncrEval.empty,
+      ~eval_info: EvalInfo.t=EvalInfo.empty,
+      ~env,
+      ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
+      ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t)))=?,
+      d: DHExp.t,
+    )
+    : limited_result => {
+  let (state, result) =
+    prepare_evaluation(~prev, ~eval_info, ~env, ~reuse_map, ~outbox, d);
+  switch (
     Trampoline.Yielding.run_slice(
       ~step_budget=step_limit,
       result |> Trampoline.Yielding.start,
-    );
-  switch (result) {
-  | SliceDone(x) =>
-    LimitedCompleted((
-      x |> Substitution.in_exp(env) |> Exp.replace_all_ids,
-      state^,
-    ))
+    )
+  ) {
+  | SliceDone(x) => LimitedCompleted((finish(~env, x), state^))
   | SliceYielded(_) => StepLimitExceeded
   };
 };
@@ -424,30 +429,20 @@ type yielding_result =
 let start_yielding_evaluation =
     (
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
-      ~info_map: EvalInfo.t=EvalInfo.empty,
+      ~eval_info: EvalInfo.t=EvalInfo.empty,
       ~env,
       ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
       d: DHExp.t,
     )
     : yielding_evaluation => {
-  let state = ref(EvaluatorState.empty);
   let outbox = ref(IncrEval.empty_outbox);
-  let reused_ids =
-    Id.Map.map(
-      _ => (),
-      ReusePass.reuse_pass(~prev, ~info_map, ~env, ~reuse_map, d).entries,
-    );
-  let result =
-    evaluate(
-      ~outbox=Some(outbox),
+  let (state, result) =
+    prepare_evaluation(
       ~prev,
-      ~info_map,
-      ~call_stack=CallStack.empty,
+      ~eval_info,
+      ~env,
       ~reuse_map,
-      ~reused_ids,
-      ~parent_state=state,
-      ~current_top_id=None,
-      env,
+      ~outbox=Some(outbox),
       d,
     );
   {
@@ -471,10 +466,7 @@ let run_yielding_slice =
     Trampoline.Yielding.run_slice(~step_budget, evaluation.continuation)
   ) {
   | SliceDone(x) =>
-    EvaluationCompleted((
-      x |> Substitution.in_exp(evaluation.env) |> Exp.replace_all_ids,
-      evaluation.state^,
-    ))
+    EvaluationCompleted((finish(~env=evaluation.env, x), evaluation.state^))
   | SliceYielded(continuation) =>
     EvaluationYielded({
       ...evaluation,
@@ -491,31 +483,19 @@ let yielding_step_count = (evaluation: yielding_evaluation): int => {
 let evaluate =
     (
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
-      ~info_map: EvalInfo.t=EvalInfo.empty,
+      ~eval_info: EvalInfo.t=EvalInfo.empty,
       ~env,
       d: DHExp.t,
     )
     : (Exp.t, EvaluatorState.t) => {
-  let state = ref(EvaluatorState.empty);
-  let reuse_map = IncrEval.clean_reuse_map_of_env(env);
-  let reused_ids =
-    Id.Map.map(
-      _ => (),
-      ReusePass.reuse_pass(~prev, ~info_map, ~env, ~reuse_map, d).entries,
-    );
-  let result =
-    evaluate(
+  let (state, result) =
+    prepare_evaluation(
       ~prev,
-      ~info_map,
-      ~call_stack=CallStack.empty,
-      ~reuse_map,
-      ~reused_ids,
-      ~parent_state=state,
-      env,
-      d,
+      ~eval_info,
+      ~env,
+      ~reuse_map=IncrEval.clean_reuse_map_of_env(env),
       ~outbox=None,
-      ~current_top_id=None,
+      d,
     );
-  let e = Trampoline.run(result);
-  (e |> Substitution.in_exp(env) |> Exp.replace_all_ids, state^);
+  (finish(~env, Trampoline.run(result)), state^);
 };

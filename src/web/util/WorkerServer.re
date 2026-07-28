@@ -12,7 +12,7 @@ module Request = {
     prev: Language.EvaluatorState.incr_eval,
   };
   [@deriving (show, sexp, yojson)]
-  type batch = list((string, value));
+  type batch = list((key, value));
   [@deriving (show, sexp, yojson)]
   type t = {
     request_id: int,
@@ -41,6 +41,15 @@ module ClientMessage = {
 };
 
 module ServerMessage = {
+  /* Reuse-pass predictions for immediate UI tinting (frozen vs re-eval). */
+  [@deriving (show, sexp, yojson)]
+  type reuse_predictions =
+    list((key, Language.IncrEval.t(Language.EvaluatorState.t)));
+
+  /* Cache entries completed so far for one batch item. */
+  [@deriving (show, sexp, yojson)]
+  type stream_update = Language.IncrEval.outbox(Language.EvaluatorState.t);
+
   /* Instant liveness ping — must not do ReusePass or other batch work. */
   [@deriving (show, sexp, yojson)]
   type ack = {request_id: int};
@@ -49,14 +58,14 @@ module ServerMessage = {
   [@deriving (show, sexp, yojson)]
   type reuse_plan = {
     request_id: int,
-    initial: list((key, Language.IncrEval.t(Language.EvaluatorState.t))),
+    initial: reuse_predictions,
   };
 
   [@deriving (show, sexp, yojson)]
   type stream = {
     request_id: int,
     key,
-    update: Language.IncrEval.outbox(Language.EvaluatorState.t),
+    update: stream_update,
   };
 
   [@deriving (show, sexp, yojson)]
@@ -201,22 +210,27 @@ let module_of_encoding = (e: encoding): (module ENCODING) =>
  * change it. */
 module Active = MarshalEncoding;
 
+let error_response = exn =>
+  switch (exn) {
+  | Language.EvaluatorError.Exception(reason) =>
+    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
+    Error(Language.ProgramResult.EvaulatorError(reason));
+  | exn =>
+    print_endline("EXN:" ++ Printexc.to_string(exn));
+    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
+  };
+
 let evaluate_sync = (req_value: Request.value): Response.value => {
   let Request.{expr, eval_info_map, prev} = req_value;
   switch (
     Language.Evaluator.evaluate(
       ~prev,
-      ~info_map=eval_info_map,
+      ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
       expr,
     )
   ) {
-  | exception (Language.EvaluatorError.Exception(reason)) =>
-    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
-    Error(Language.ProgramResult.EvaulatorError(reason));
-  | exception exn =>
-    print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
+  | exception exn => error_response(exn)
   | (result, state) => Ok((result, state))
   };
 };
@@ -262,26 +276,13 @@ let initial_model = {
  * 3. Eval slices — `Stream` updates, then `Result`.
  * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
-let error_response = exn =>
-  switch (exn) {
-  | Language.EvaluatorError.Exception(reason) =>
-    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
-    Error(Language.ProgramResult.EvaulatorError(reason));
-  | exn =>
-    print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
-  };
-
-let finish_success = ((result, state)): Response.value =>
-  Ok((result, state));
-
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   let Request.{expr, eval_info_map, prev} = req_value;
   let stream =
     switch (
       Language.ReusePass.reuse_pass(
         ~prev,
-        ~info_map=eval_info_map,
+        ~eval_info=eval_info_map,
         ~env=Language.Builtins.env_init,
         expr,
       )
@@ -297,7 +298,7 @@ let start_evaluation = (req_value: Request.value): evaluation_start => {
   switch (
     Language.Evaluator.start_yielding_evaluation(
       ~prev,
-      ~info_map=eval_info_map,
+      ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
       expr,
     )
@@ -369,18 +370,10 @@ let post_reuse_plan = (model, request: Request.t) =>
     );
   };
 
-let schedule_async = callback => {
-  ignore(
-    Js.Unsafe.meth_call(
-      Js.Unsafe.global,
-      "setTimeout",
-      [|
-        Js.Unsafe.inject(Js.wrap_callback(callback)),
-        Js.Unsafe.inject(0.),
-      |],
-    ),
-  );
-};
+/* Dom_html.window is unavailable in a worker, so go through the global
+ * object for setTimeout. */
+let schedule_async = callback =>
+  ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), 0.));
 
 let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {
@@ -471,7 +464,7 @@ and run_scheduled_slice = model => {
         running.key,
         running.evaluation,
       );
-      finish_current_item(model, running, finish_success(value));
+      finish_current_item(model, running, Ok(value));
     | EvaluationYielded(evaluation) =>
       flush_stream_update(model, running.request_id, running.key, evaluation);
       if (Language.Evaluator.yielding_step_count(evaluation)

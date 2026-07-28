@@ -1082,59 +1082,17 @@ module Update = {
           ~stitch=x => x,
           editor,
         );
-      switch (worker_request^) {
-      | [] => ()
-      | _ =>
-        WorkerClient.request(
-          worker_request^,
-          ~handler=
-            r => {
-              schedule_action(
-                CellAction(
-                  ResultAction(
-                    UpdateResult(
-                      switch (r |> List.hd |> snd) {
-                      | Ok((r, s)) =>
-                        Language.ProgramResult.ResultOk({
-                          result: r,
-                          state: s,
-                        })
-                      | Error(e) => Language.ProgramResult.ResultFail(e)
-                      },
-                    ),
-                  ),
-                ),
-              )
-            },
-          ~timeout=
-            _ =>
-              schedule_action(
-                CellAction(
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
-                ),
-              ),
-          ~on_ack=
-            initial =>
-              switch (initial |> List.hd |> snd) {
-              | stream =>
-                schedule_action(
-                  CellAction(
-                    ResultAction(
-                      UpdateStreamingEval(
-                        Language.IncrEval.outbox_of_completed(stream),
-                      ),
-                    ),
-                  ),
-                )
-              | exception _ => ()
-              },
-          ~on_stream=
-            (_, stream) =>
-              schedule_action(
-                CellAction(ResultAction(MergeStreamingEval(stream))),
-              ),
-        )
-      };
+      let dispatch = (_key, action) =>
+        schedule_action(CellAction(ResultAction(action)));
+      EvalRequest.request(
+        worker_request^,
+        ~pos_of_key=key => key,
+        ~dispatch,
+        ~on_timeout=
+          List.iter(((key, _)) =>
+            dispatch(key, UpdateResult(ResultFail(Timeout)))
+          ),
+      );
       let new_sp =
         ListUtil.put_nth(
           model.current,

@@ -16,7 +16,7 @@ let tests = (
           );
 
         Alcotest.check(
-          step_limited(dhexp_typ),
+          step_limited,
           "1. +. 2. = 3.",
           LimitedCompleted((float(3.), EvaluatorState.empty)),
           result,
@@ -44,7 +44,7 @@ let tests = (
           );
 
         Alcotest.check(
-          step_limited(dhexp_typ),
+          step_limited,
           "(fun x -> x + 1)(5)",
           LimitedCompleted((int(6), EvaluatorState.empty)),
           result,

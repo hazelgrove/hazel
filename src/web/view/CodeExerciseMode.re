@@ -480,27 +480,15 @@ module Update = {
         model.cells,
       );
 
-    WorkerClient.request(
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let pos' = CodeExercise.pos_of_key(pos);
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          schedule_action(
-            Editor(pos', ResultAction(UpdateResult(result'))),
-          );
-        }),
-      ~timeout=
-        _ => {
-          let _ =
+      ~pos_of_key=CodeExercise.pos_of_key,
+      ~dispatch=
+        (pos, action) =>
+          schedule_action(Editor(pos, ResultAction(action))),
+      ~on_timeout=
+        _ =>
+          ignore(
             CodeExercise.map_stitched(
               (pos, _) =>
                 schedule_action(
@@ -510,34 +498,6 @@ module Update = {
                   ),
                 ),
               model.cells,
-            );
-          ();
-        },
-      ~on_ack=
-        initial => {
-          let _ =
-            List.iter(
-              ((pos, stream)) =>
-                schedule_action(
-                  Editor(
-                    CodeExercise.pos_of_key(pos),
-                    ResultAction(
-                      UpdateStreamingEval(
-                        Language.IncrEval.outbox_of_completed(stream),
-                      ),
-                    ),
-                  ),
-                ),
-              initial,
-            );
-          ();
-        },
-      ~on_stream=
-        (pos, stream) =>
-          schedule_action(
-            Editor(
-              CodeExercise.pos_of_key(pos),
-              ResultAction(MergeStreamingEval(stream)),
             ),
           ),
     );
@@ -713,7 +673,8 @@ module View = {
     /* While a cell is ResultPending, dynamics can reflect a partial stream
        collector — do not treat those as settled grades (same gate as
        TutorialMode's ResultPending checkmark). */
-    let settled_test_results = (cell_editor: CellEditor.Model.t) =>
+    let settled_test_results =
+        (cell_editor: CellEditor.Model.t): option(Language.TestResults.t) =>
       EvalResult.Model.eval_is_pending(cell_editor.result)
         ? None : EvalResult.Model.test_results(cell_editor.result);
 

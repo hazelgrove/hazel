@@ -111,6 +111,10 @@ let append = (base: t, ext: t): t => {
   };
 };
 
+/* Restart a state's timeline at step 0, shifting its probe step bounds
+ * accordingly (used when replaying cached/streamed states). */
+let rebase = (ext: t): t => append(empty, ext);
+
 let get_tests = ({tests, _}) => tests;
 
 let get_probes = ({probes, _}) => probes;
@@ -160,14 +164,14 @@ let add_sample = (state: t, sample: Sample.t) => {
 
 let update =
     (
-      info_map: EvalInfo.t,
+      eval_info: EvalInfo.t,
       state: t,
-      call_stack: CallStack.t',
+      call_stack: CallStack.state,
       env: Environment.t(Exp.t),
       init: DHExp.t,
       side_effects: list(effect),
     )
-    : (CallStack.t', t) => {
+    : (CallStack.state, t) => {
   /* Elide arg value for storage (handles closures, etc.) */
   let elide_arg =
       (env: Environment.t(Exp.t), d: DHExp.t): Sample.Env.elided_value =>
@@ -196,7 +200,7 @@ let update =
   };
 
   List.fold_left(
-    ((call_stack: CallStack.t', state: t), effect: effect) =>
+    ((call_stack: CallStack.state, state: t), effect: effect) =>
       switch (effect) {
       | RecordStackFrame(fn_name, arg_opt, fn_def_id) =>
         let app_id = DHExp.rep_id(init);
@@ -205,7 +209,7 @@ let update =
          * with many function calls but no probes on those calls. */
         let call_stack =
           switch (arg_opt) {
-          | Some(arg) when Id.Map.mem(app_id, info_map.targets) =>
+          | Some(arg) when Id.Map.mem(app_id, eval_info.targets) =>
             let elided_arg = elide_arg(env, arg);
             CallStack.add_app_arg(call_stack, app_id, elided_arg);
           | Some(_)

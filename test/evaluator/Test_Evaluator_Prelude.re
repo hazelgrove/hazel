@@ -54,6 +54,39 @@ let parse_exp = (s: string) => {
   };
 };
 
+/* Build probe capture targets from a zipper's refractors: the union of the
+ * manual and ephemeral probe ids, each paired with the refs visible at that
+ * probe (refs_in for expressions, bound_in for patterns). */
+let targets_of_zipper =
+    (z: Haz3lcore.Zipper.t, info_map: Statics.Map.t): Sample.targets => {
+  /* Extract probe IDs directly from zipper's refractors.
+   * Map values to unit since we only need the IDs as keys. */
+  let probe_ids =
+    Id.Map.union(
+      (_, _, _) => Some(),
+      Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
+      Id.Map.map(_ => (), z.refractors.multis.ephemerals),
+    );
+  /* Build targets from probe_ids, computing refs for each */
+  Id.Map.fold(
+    (id, (), acc) => {
+      let refs =
+        switch (Statics.Map.lookup_exp(id, info_map)) {
+        | Some(_) => Statics.Map.refs_in(info_map, id)
+        | None =>
+          switch (Statics.Map.lookup_pat(id, info_map)) {
+          | Some(_) => Statics.Map.bound_in(info_map, id)
+          | None => []
+          }
+        };
+      let spec: Sample.capture_spec = {refs: refs};
+      Id.Map.add(id, spec, acc);
+    },
+    probe_ids,
+    Id.Map.empty,
+  );
+};
+
 /* Parse code with probes (^^probe syntax), elaborate it, and build targets */
 let parse_with_probes =
     (s: string): (Exp.t, Exp.t, Statics.Map.t, Sample.targets) => {
@@ -62,39 +95,10 @@ let parse_with_probes =
   | Some(z) =>
     let make_term_result = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
     let term = make_term_result.term;
-    /* Extract probe IDs directly from zipper's refractors.
-     * Map values to unit since we only need the IDs as keys. */
-    let probe_ids =
-      Id.Map.union(
-        (_, _, _) => Some(),
-        Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
-        Id.Map.map(_ => (), z.refractors.multis.ephemerals),
-      );
-
     /* Build statics map for refs lookup and evaluation */
     let (info_map, elaborated) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-
-    /* Build targets from probe_ids, computing refs for each */
-    let targets: Sample.targets =
-      Id.Map.fold(
-        (id, (), acc) => {
-          let refs =
-            switch (Statics.Map.lookup_exp(id, info_map)) {
-            | Some(_) => Statics.Map.refs_in(info_map, id)
-            | None =>
-              switch (Statics.Map.lookup_pat(id, info_map)) {
-              | Some(_) => Statics.Map.bound_in(info_map, id)
-              | None => []
-              }
-            };
-          let spec: Sample.capture_spec = {refs: refs};
-          Id.Map.add(id, spec, acc);
-        },
-        probe_ids,
-        Id.Map.empty,
-      );
-
+    let targets = targets_of_zipper(z, info_map);
     (term, elaborated, info_map, targets);
   };
 };
@@ -149,7 +153,7 @@ let equal_limited_result =
   | _ => false
   };
 
-let step_limited = (_: Alcotest.testable('a)) =>
+let step_limited =
   testable(
     Fmt.using(Evaluator.show_limited_result, Fmt.string),
     equal_limited_result,

@@ -14,7 +14,7 @@ type limited_result =
 let evaluate:
   (
     ~prev: EvaluatorState.incr_eval=?,
-    ~info_map: EvalInfo.t=?,
+    ~eval_info: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
     Exp.t
   ) =>
@@ -24,7 +24,7 @@ let evaluate_and_limit:
   (
     ~step_limit: int,
     ~prev: EvaluatorState.incr_eval=?,
-    ~info_map: EvalInfo.t=?,
+    ~eval_info: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,
     ~outbox: ref(IncrEval.outbox(EvaluatorState.t))=?,
@@ -35,7 +35,7 @@ let evaluate_and_limit:
 let start_yielding_evaluation:
   (
     ~prev: EvaluatorState.incr_eval=?,
-    ~info_map: EvalInfo.t=?,
+    ~eval_info: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,
     Exp.t

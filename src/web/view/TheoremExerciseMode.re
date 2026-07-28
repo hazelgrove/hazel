@@ -375,101 +375,22 @@ module Update = {
 
     // Send to worker
 
-    WorkerClient.request(
+    let dispatch = (key, action) =>
+      switch (key) {
+      | "lemmas" =>
+        schedule_action(Prelude(ResultAction(action)));
+        schedule_action(Lemmas(ResultAction(action)));
+      | "theorem" => schedule_action(Theorem(ResultAction(action)))
+      | _ => ()
+      };
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          switch (pos) {
-          | "lemmas" =>
-            schedule_action(Prelude(ResultAction(UpdateResult(result'))));
-            schedule_action(Lemmas(ResultAction(UpdateResult(result'))));
-          | "theorem" =>
-            schedule_action(Theorem(ResultAction(UpdateResult(result'))))
-          | _ => ()
-          };
-        }),
-      ~timeout=
-        _ => {
-          List.iter(
-            fun
-            | "lemmas" => {
-                schedule_action(
-                  Prelude(ResultAction(UpdateResult(ResultFail(Timeout)))),
-                );
-                schedule_action(
-                  Lemmas(ResultAction(UpdateResult(ResultFail(Timeout)))),
-                );
-              }
-            | "theorem" =>
-              schedule_action(
-                Theorem(ResultAction(UpdateResult(ResultFail(Timeout)))),
-              )
-            | _ => (),
-            List.map(((pos, _)) => pos, worker_request^),
-          )
-        },
-      ~on_ack=
-        initial =>
-          List.iter(
-            fun
-            | ("lemmas", stream) => {
-                schedule_action(
-                  Prelude(
-                    ResultAction(
-                      UpdateStreamingEval(
-                        Language.IncrEval.outbox_of_completed(stream),
-                      ),
-                    ),
-                  ),
-                );
-                schedule_action(
-                  Lemmas(
-                    ResultAction(
-                      UpdateStreamingEval(
-                        Language.IncrEval.outbox_of_completed(stream),
-                      ),
-                    ),
-                  ),
-                );
-              }
-            | ("theorem", stream) =>
-              schedule_action(
-                Theorem(
-                  ResultAction(
-                    UpdateStreamingEval(
-                      Language.IncrEval.outbox_of_completed(stream),
-                    ),
-                  ),
-                ),
-              )
-            | _ => (),
-            initial,
-          ),
-      ~on_stream=
-        (pos, stream) =>
-          switch (pos) {
-          | "lemmas" =>
-            schedule_action(
-              Prelude(ResultAction(MergeStreamingEval(stream))),
-            );
-            schedule_action(
-              Lemmas(ResultAction(MergeStreamingEval(stream))),
-            );
-          | "theorem" =>
-            schedule_action(
-              Theorem(ResultAction(MergeStreamingEval(stream))),
-            )
-          | _ => ()
-          },
+      ~pos_of_key=key => key,
+      ~dispatch,
+      ~on_timeout=
+        List.iter(((key, _)) =>
+          dispatch(key, UpdateResult(ResultFail(Timeout)))
+        ),
     );
 
     {

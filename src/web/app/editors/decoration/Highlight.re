@@ -353,10 +353,14 @@ let bbox_of = (rows: list(row_data)): option(bbox) =>
     );
   };
 
+/* Fraction of a group's width covered by the active-eval sweep bar. */
+let sweep_width_ratio = 0.45;
+
 let svg_of_group =
     (
       ~font_metrics: FontMetrics.t,
       ~clss: list(string),
+      ~sweep: bool=false,
       rows: list(row_data),
     )
     : option(Node.t) =>
@@ -369,7 +373,8 @@ let svg_of_group =
 
     let path_cmds =
       outline_path(~origin_col=bb.min_col, ~origin_row=bb.min_row, rows);
-    let active = List.mem("incremental-active", clss);
+    /* Clip-path ids must be document-unique; derive one from the group's
+     * bounding box (cols are fractional, so scale to tenths of a column). */
     let clip_id =
       Printf.sprintf(
         "incremental-active-%d-%d-%d-%d",
@@ -378,9 +383,9 @@ let svg_of_group =
         int_of_float(bb.max_col *. 10.0),
         bb.max_row,
       );
-    let sweep_width = max(1.0, width_f *. 0.45);
     let active_sweep =
-      if (active) {
+      if (sweep) {
+        let sweep_width = max(1.0, width_f *. sweep_width_ratio);
         [
           Node.create_svg(
             "defs",
@@ -546,6 +551,7 @@ let of_segment =
       ~font_metrics: FontMetrics.t,
       ~shape_init: ShardDec.tip,
       ~clss: list(string),
+      ~sweep: bool=false,
       segment: Segment.t,
     )
     : list(Node.t) => {
@@ -553,7 +559,7 @@ let of_segment =
     rows_of_segment(~measured, ~shape_map, ~shape_init, segment)
     |> List.map(((m, tips)) => row_data_of(m, tips));
   let groups = group_consecutive(rows);
-  List.filter_map(svg_of_group(~font_metrics, ~clss), groups);
+  List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep), groups);
 };
 
 let selection =
@@ -651,6 +657,7 @@ let color =
     (
       ~syntax: CachedSyntax.t,
       ~font_metrics: FontMetrics.t,
+      ~sweep: bool=false,
       clss: list(string),
       id: Id.t,
     ) =>
@@ -662,6 +669,7 @@ let color =
       ~font_metrics,
       ~shape_init=Some(Convex),
       ~clss,
+      ~sweep,
       segment,
     )
   | None => []
@@ -731,8 +739,7 @@ let incr_eval =
       ranged_ids,
     );
   let frozen_ids =
-    show_frozen
-      ? Language.IncrEval.frozen_ids(~ack_incr=predicted_reuse) : [];
+    show_frozen ? Language.IncrEval.frozen_ids(~incr=predicted_reuse) : [];
   let pending_eval_ranges =
     pending_eval_ids |> ranged_ids_of |> List.sort(range_compare);
   let active_ids =
@@ -741,7 +748,7 @@ let incr_eval =
     } else {
       [];
     };
-  let pending_leaf_ids =
+  let pending_inactive_ranges =
     pending_eval_ranges
     |> List.filter(((_, range)) =>
          !
@@ -761,13 +768,14 @@ let incr_eval =
     @ List.concat_map(
         ((id, _)) =>
           color(~syntax, ~font_metrics, ["incremental-pending"], id),
-        pending_leaf_ids,
+        pending_inactive_ranges,
       )
     @ List.concat_map(
         ((id, _)) =>
           color(
             ~syntax,
             ~font_metrics,
+            ~sweep=true,
             ["incremental-pending", "incremental-active"],
             id,
           ),

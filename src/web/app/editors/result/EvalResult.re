@@ -126,75 +126,6 @@ module Model = {
 module Update = {
   open Updated;
 
-  let is_chain = (exp: Exp.t) =>
-    switch (Exp.term_of(exp)) {
-    | Let(_)
-    | Seq(_) => true
-    | _ => false
-    };
-
-  let is_inside_function = (info_map, info) =>
-    Info.ancestors_of(info)
-    |> List.exists(ancestor_id =>
-         switch (Id.Map.find_opt(ancestor_id, info_map)) {
-         | Some(Info.InfoExp({user_term, _})) =>
-           switch (Exp.term_of(user_term)) {
-           | Fun(_)
-           | TypFun(_) => true
-           | _ => false
-           }
-         | _ => false
-         }
-       );
-
-  let is_top_level_leaf = (info_map, id, info) =>
-    switch (info) {
-    | Info.InfoExp({user_term, _}) when !is_inside_function(info_map, info) =>
-      switch (Info.parent_id_of(info)) {
-      | None => !is_chain(user_term)
-      | Some(parent_id) =>
-        switch (Id.Map.find_opt(parent_id, info_map)) {
-        | Some(Info.InfoExp({user_term: parent, _})) =>
-          switch (Exp.term_of(parent)) {
-          | Let(_, def, body) =>
-            Id.equal(id, Exp.rep_id(def))
-            || Id.equal(id, Exp.rep_id(body))
-            && !is_chain(user_term)
-          | Seq(d1, d2) =>
-            Id.equal(id, Exp.rep_id(d1))
-            || Id.equal(id, Exp.rep_id(d2))
-            && !is_chain(user_term)
-          | Test(_)
-          | HintedTest(_, _) => false
-          | _ => false
-          }
-        | _ => false
-        }
-      }
-    | _ => false
-    };
-
-  let pending_eval_worklist = (info_map: Statics.Map.t): list(Id.t) =>
-    Id.Map.fold(
-      (id, info, acc) =>
-        is_top_level_leaf(info_map, id, info) ? [id, ...acc] : acc,
-      info_map,
-      [],
-    );
-
-  let stream_visible_ids =
-      (stream: IncrEval.outbox(EvaluatorState.t)): list(Id.t) =>
-    IncrEval.visible_ids(stream.completed);
-
-  let remove_streamed_ids = (stream, pending_eval_ids) => {
-    let completed_ids =
-      stream_visible_ids(stream) |> List.sort_uniq(Id.compare);
-    pending_eval_ids
-    |> List.filter(id =>
-         !List.exists(done_id => Id.equal(id, done_id), completed_ids)
-       );
-  };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | ToggleStepper
@@ -277,7 +208,8 @@ module Update = {
         predicted_reuse: stream.completed,
         streaming_outbox: Calc.Calculated(Some(stream)),
         streaming_state: Calc.Pending,
-        pending_eval_ids: remove_streamed_ids(stream, model.pending_eval_ids),
+        pending_eval_ids:
+          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
       }
       |> Updated.return_quiet
     | (MergeStreamingEval(stream), _) =>
@@ -290,7 +222,8 @@ module Update = {
         streaming_outbox:
           Calc.Calculated(Some(IncrEval.merge_outbox(stream, current))),
         streaming_state: Calc.Pending,
-        pending_eval_ids: remove_streamed_ids(stream, model.pending_eval_ids),
+        pending_eval_ids:
+          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
       }
       |> Updated.return_quiet;
     };
@@ -398,7 +331,7 @@ module Update = {
       | NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)) =>
         if (Calc.get_value(settings).dynamics) {
           switch (queue_worker) {
-          | Some(_) => pending_eval_worklist(statics.info_map)
+          | Some(_) => EvalWorklist.pending_ids(statics.info_map)
           | None => []
           };
         } else {
@@ -421,7 +354,7 @@ module Update = {
       | (NewValue(ProgramResult.ResultOk(_)), None) =>
         ReusePass.reuse_pass(
           ~prev=prev_incr,
-          ~info_map=eval_info_map,
+          ~eval_info=eval_info_map,
           ~env=Builtins.env_init,
           Calc.get_value(elab),
         )
@@ -441,6 +374,13 @@ module Update = {
       };
 
     // Turn state into dynamics map
+    let dynamics_of_state = (state: EvaluatorState.t) =>
+      Dynamics.{
+        probe_map: state |> EvaluatorState.get_probes,
+        test_results:
+          state |> EvaluatorState.get_tests |> TestResults.mk_results,
+        theorems: state |> EvaluatorState.get_theorems,
+      };
     let dynamics =
       dynamics
       |> {
@@ -448,27 +388,12 @@ module Update = {
         and.calc streaming_state = streaming_state;
         switch (result, streaming_state) {
         | (ProgramResult.ResultPending(_), Some(state)) =>
-          Some(
-            Dynamics.{
-              probe_map: state |> EvaluatorState.get_probes,
-              test_results:
-                state |> EvaluatorState.get_tests |> TestResults.mk_results,
-              theorems: state |> EvaluatorState.get_theorems,
-            },
-          )
-        | (ProgramResult.ResultPending(_), None) =>
-          dynamics |> Calc.get_saved(None)
+          Some(dynamics_of_state(state))
+        | (ProgramResult.ResultPending(_), None)
         | (ProgramResult.ResultFail(_), _) =>
           dynamics |> Calc.get_saved(None)
         | (ProgramResult.ResultOk({state, _}), _) =>
-          Some(
-            Dynamics.{
-              probe_map: state |> EvaluatorState.get_probes,
-              test_results:
-                state |> EvaluatorState.get_tests |> TestResults.mk_results,
-              theorems: state |> EvaluatorState.get_theorems,
-            },
-          )
+          Some(dynamics_of_state(state))
         };
       };
 
@@ -642,7 +567,7 @@ module View = {
 
   let status_classes_of: ProgramResult.t('a) => list(string) =
     fun
-    | ResultPending(AwaitingWorkerAck) => ["pending", "pending-attention"]
+    | ResultPending(AwaitingWorkerAck) => ["pending", "pending-ack"]
     | ResultPending(Evaluating) => ["pending", "pending-evaluating"]
     | ResultOk(_) => ["ok"]
     | ResultFail(_) => ["fail"];
