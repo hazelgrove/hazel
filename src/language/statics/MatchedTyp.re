@@ -191,17 +191,18 @@ let poly_former = {
 // Decomposes an instantiated type into the arguments for `binders`, bundled as
 // the surface writes them, and rebuilds by substituting them back into `body`.
 let instantiation_former = (~binders: list(TPat.t), ~body: Typ.t): former => {
+  let bundle =
+    fun
+    | [arg] => arg
+    | args => TypTuple(args) |> temp;
   let unbundle = (arg: Typ.t) =>
     switch (term_of(arg)) {
     | TypTuple(args) => args
     | _ => [arg]
     };
   {
-    match_: (ctx, query) =>
-      switch (Typ.matched_instantiation(ctx, ~binders, ~body, query)) {
-      | [arg] => Some([arg])
-      | args => Some([TypTuple(args) |> temp])
-      },
+    match_: (ctx, ty) =>
+      Some([bundle(Typ.matched_instantiation(ctx, ~binders, ~body, ty))]),
     build:
       fun
       | [arg] when List.length(unbundle(arg)) == List.length(binders) =>

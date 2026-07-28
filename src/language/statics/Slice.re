@@ -666,27 +666,19 @@ let opaque: t = {
   demand: unit_demand,
 };
 
-// A use of an implicitly instantiated type is demanded under a binder the
-// program never wrote, so the former builds one rather than keeping its own.
-let instantiated = (~ctx: Ctx.t, ~former: MatchedTyp.former, node: t): t => {
-  let project = ty =>
-    MatchedTyp.tolerant(former.match_, ctx, ty)
-    |> List.nth_opt(_, 0)
-    |> Option.value(~default=gap);
-  {
-    shape: project(node.shape),
-    ids: node.ids,
-    binder: false,
-    declared: false,
-    dispatch: (env, query) => {
-      let slice = node.dispatch(env, former.build([query]));
-      {
-        ...slice,
-        psi: project(slice.psi),
-      };
-    },
-    demand: unit_demand,
-  };
+// A sub-term whose type this rule rearranges: it says what to demand of the
+// sub-term, and how to read the answer back.
+let reshaped = (~demand: Typ.t => Typ.t, ~answer: Typ.t => Typ.t, node: t): t => {
+  ...node,
+  shape: answer(node.shape),
+  demand: unit_demand,
+  dispatch: (env, query) => {
+    let slice = node.dispatch(env, demand(query));
+    {
+      ...slice,
+      psi: answer(slice.psi),
+    };
+  },
 };
 
 // For a rule whose result is a type component of a sub-term's type: embed
