@@ -143,9 +143,9 @@ let binding_synthesis = [
   ),
   synthesis_case(
     "bind-typfun-curried",
-    "type Result = typfun E -> typfun A -> Error(E) + Ok(A) in Ok@<String, Bool>(true)",
+    "type Result(E, A) = Error(E) + Ok(A) in Ok@<String, Bool>(true)",
     "Result(?, Bool)",
-    "type Result = typfun ? -> typfun A -> ? + Ok(A) in Ok@<?, Bool>(?)",
+    "type Result(?, A) = ? + Ok(A) in Ok@<?, Bool>(?)",
   ),
 ];
 

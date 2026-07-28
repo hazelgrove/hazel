@@ -1658,19 +1658,19 @@ let rebuild = (shape: t, replacements: list(t)): option(t) => {
   };
 };
 
-// The part of `shape` a query reaches, in the shape's own vocabulary.
-let rec mask = (shape: t, query: t): t =>
-  if (is_gap(query)) {
+// `ty` where `known` is known, in `ty`'s own vocabulary: leaves survive at the
+// positions `known` is concrete, and gap elsewhere.
+let rec mask = (ty: t, known: t): t =>
+  if (is_gap(known)) {
     gap;
-  } else if (is_gap(shape)) {
-    query;
+  } else if (is_gap(ty)) {
+    known;
   } else {
-    switch (children(shape), children(query)) {
-    | (kids, queries)
-        when kids != [] && List.length(kids) == List.length(queries) =>
-      rebuild(shape, List.map2(mask, kids, queries))
-      |> Option.value(~default=shape)
-    | _ => shape
+    switch (children(ty), children(known)) {
+    | (kids, parts)
+        when kids != [] && List.length(kids) == List.length(parts) =>
+      rebuild(ty, List.map2(mask, kids, parts)) |> Option.value(~default=ty)
+    | _ => ty
     };
   };
 
@@ -1701,6 +1701,33 @@ let meet_gap = (ctx: Ctx.t, left: t, right: t): t =>
 
 let meet_gap_all = (ctx: Ctx.t, tys: list(t)): t =>
   List.fold_left(meet_gap(ctx), gap, tys);
+
+// The arguments instantiating `binders` that make `body` into `ty`: each
+// parameter takes the meet of `ty` at the positions where it occurs.
+let matched_instantiation =
+    (ctx: Ctx.t, ~binders: list(TPat.t), ~body: t, ty: t): list(t) => {
+  let rec collect = (found, body: t, ty: t) =>
+    switch (term_of(body)) {
+    | Var(name) => [(name, ty), ...found]
+    | _ =>
+      switch (children(body), children(ty)) {
+      | (kids, parts) when List.length(kids) == List.length(parts) =>
+        List.fold_left2(collect, found, kids, parts)
+      | _ => found
+      }
+    };
+  let found = collect([], body, ty);
+  binders
+  |> List.map(binder =>
+       switch (TPat.tyvar_of_utpat(binder)) {
+       | None => gap
+       | Some(name) =>
+         found
+         |> List.filter_map(((n, q)) => n == name ? Some(q) : None)
+         |> meet_gap_all(ctx)
+       }
+     );
+};
 
 let matched_query = (ctx: Ctx.t, query: t): t => {
   let rec peel = (binders, definition) =>

@@ -456,8 +456,8 @@ and uexp_to_info_map =
         k((p_info, p_elab, m));
       },
     );
-  // use when an annotation is a type component of this rule's type.
-  // let ( let** ) = (component, k) => typ_edge(Part, component, k);
+  // use when an annotation is a type component of this rule's type: `e@<T>`'s `T`
+  let ( let** ) = (component, k) => typ_edge(Part, component, k);
   // use when an annotation is sliced backwards by this rule's binders.
   let (let$$) = (component, k) => typ_edge(Source, component, k);
   let result_of = (~via, i: Info.exp, m) =>
@@ -1998,7 +1998,7 @@ and uexp_to_info_map =
       let typfn_ana = Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
       let (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
       let^* (_, _, m) = ([(MatchedTyp.poly_former, 0)], fn, fn_elab, m);
-      let (_, m) =
+      let** (_, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
       let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
       let (option_name, ty_body) = MatchedTyp.poly_pair_tolerant(ctx, fn.ty);
@@ -2036,7 +2036,16 @@ and uexp_to_info_map =
             );
           };
         };
-      add(~elab_term, ~elab_syn_ty, ~marks, ~co_ctx=fn.co_ctx, m);
+      let former =
+        Option.map(
+          name =>
+            MatchedTyp.instantiation_former(
+              ~binders=TPat.binders_of(name),
+              ~body=ty_body,
+            ),
+          option_name,
+        );
+      add(~former, ~elab_term, ~elab_syn_ty, ~marks, ~co_ctx=fn.co_ctx, m);
     | DeferredAp(fn, args) =>
       /* If this is a builtin with custom statics */
       let custom_statics =

@@ -371,11 +371,8 @@ let typaps = [
     "Some@<Int>(?)",
   ),
   synthesis_case(
-    ~ctx=
-      prelude_ctx(
-        "type Either = typfun A -> typfun B -> Left(A) + Right(B) in",
-      ),
-    ~aliases=[("Either", "typfun ? -> typfun B -> ? + Right(?)")],
+    ~ctx=prelude_ctx("type Either(A, B) = Left(A) + Right(B) in"),
+    ~aliases=[("Either", "typfun ?, B -> ? + Right(?)")],
     "param-either-explicit",
     "Right@<Int, Bool>(true)",
     "Either(?, Bool)",
@@ -398,11 +395,8 @@ let typaps = [
     "(? : Option(Int))",
   ),
   synthesis_case(
-    ~ctx=
-      prelude_ctx(
-        "type Either = typfun A -> typfun B -> Left(A) + Right(B) in",
-      ),
-    ~aliases=[("Either", "typfun ? -> typfun B -> ?")],
+    ~ctx=prelude_ctx("type Either(A, B) = Left(A) + Right(B) in"),
+    ~aliases=[("Either", "typfun ?, B -> ?")],
     "param-either-annotation",
     "(Right(true) : Either(Int, Bool))",
     "Either(?, Bool)",

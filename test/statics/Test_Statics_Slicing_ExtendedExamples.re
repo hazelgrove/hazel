@@ -241,7 +241,7 @@ let ctor_alias_examples = [
   ),
 ];
 
-let either_prelude = "type Either = typfun A -> typfun B -> Left(A) + Right(B) in";
+let either_prelude = "type Either(A, B) = Left(A) + Right(B) in";
 
 let if_joins = [
   synthesis_case(
@@ -267,7 +267,7 @@ let if_joins = [
   ),
   synthesis_case(
     ~ctx=ctx_var(~ctx=prelude_ctx(either_prelude), "c", "Bool"),
-    ~aliases=[("Either", "typfun A -> typfun B -> Left(A) + Right(B)")],
+    ~aliases=[("Either", "typfun A, B -> Left(A) + Right(B)")],
     "if-join-either-full",
     "if c then Left@<Int, ?>(1) else Right@<?, Bool>(true)",
     "Either(Int, Bool)",
@@ -296,7 +296,7 @@ let if_joins = [
   ),
   synthesis_case(
     ~ctx=ctx_var(~ctx=prelude_ctx(either_prelude), "c", "Bool"),
-    ~aliases=[("Either", "typfun A -> typfun B -> Left(A) + ?")],
+    ~aliases=[("Either", "typfun A, B -> Left(A) + ?")],
     "if-join-either-left",
     "if c then Left@<Int, ?>(1) else Right@<?, Bool>(true)",
     "Either(Int, ?)",
