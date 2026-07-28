@@ -1103,7 +1103,7 @@ and uexp_to_info_map =
         let e1_entries = List.map(extract_entry, ts1);
         let e2_entries = List.map(extract_entry, ts2);
 
-        let ty: Grammar.typ_t(IdTagged.IdTag.t) =
+        let typ_of_entries = entries =>
           IdTagged.FreshGrammar.Typ.(
             prod(
               List.map(
@@ -1112,12 +1112,53 @@ and uexp_to_info_map =
                   | Some(l) => tup_label(label(l), d)
                   | None => d
                   },
-                LabeledTuple.extension(e1_entries, e2_entries),
+                entries,
               ),
             )
           );
-
-        add(~elab_term, ~elab_syn_ty=ty, ~marks=[], ~co_ctx, m);
+        let entries_of = (ty: Typ.t) =>
+          switch (Typ.term_of(Typ.weak_head_normalize(ctx, ty))) {
+          | Prod(ts) => List.map(extract_entry, ts)
+          | _ => []
+          };
+        /* each operand supplies the entries it labelled, and nothing else */
+        let supplied = (entries, from) =>
+          typ_of_entries(
+            List.map(
+              ((lab, _)) =>
+                (
+                  lab,
+                  List.assoc_opt(lab, from) |> Option.value(~default=Typ.gap),
+                ),
+              entries,
+            ),
+          );
+        let former: MatchedTyp.former = {
+          match_: (_, query) => {
+            let from = entries_of(query);
+            Some([supplied(e1_entries, from), supplied(e2_entries, from)]);
+          },
+          build: (
+            fun
+            | [q1, q2] =>
+              typ_of_entries(
+                LabeledTuple.extension(entries_of(q1), entries_of(q2)),
+              )
+            | _ => Typ.gap
+          ),
+        };
+        let ty =
+          typ_of_entries(LabeledTuple.extension(e1_entries, e2_entries));
+        let* (_, _, m) = (t1, e1_elab, m);
+        let* (_, _, m) = (t2, e2_elab, m);
+        add(
+          ~former=Some(former),
+          ~elab_term,
+          ~elab_syn_ty=ty,
+          ~marks=[],
+          ~co_ctx,
+          m,
+        );
       | _ =>
         add(
           ~elab_term,
