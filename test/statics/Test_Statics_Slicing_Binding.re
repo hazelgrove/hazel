@@ -29,9 +29,9 @@ let binding_synthesis = [
   ),
   synthesis_case(
     "bind-ctor-used",
-    "type T = A(Int) in let A(x) = A(1) in x",
+    "type T = +A(Int) in let A(x) = A(1) in x",
     "Int",
-    "type T = A(Int) in let A(x) = ? in x",
+    "type T = +A(Int) in let A(x) = ? in x",
   ),
   synthesis_case(
     "bind-ctor-sum-used",
@@ -41,7 +41,7 @@ let binding_synthesis = [
   ),
   synthesis_case(
     "bind-ctor-unused",
-    "type T = A(Int) in let A(x) = A(1) in 0",
+    "type T = +A(Int) in let A(x) = A(1) in 0",
     "Int",
     "type ? = ? in let ? = ? in 0",
   ),
@@ -95,9 +95,9 @@ let binding_synthesis = [
   ),
   synthesis_case(
     "bind-typfun-option",
-    "type Option = typfun A -> None + Some(A) in Some@<Int>(1)",
+    "type Option(A) = None + Some(A) in Some@<Int>(1)",
     "Option(Int)",
-    "type Option = typfun A -> ? + Some(A) in Some@<Int>(?)",
+    "type Option(A) = ? + Some(A) in Some@<Int>(?)",
   ),
   synthesis_case(
     ~focus=e => exp_var(e, "x"),
@@ -227,9 +227,9 @@ let binding_analysis = [
   analysis_case(
     ~focus=first_int,
     "bind-ana-ctor-ann-def",
-    "type T = A(Int) in let v : T = A(1) in v",
+    "type T = +A(Int) in let v : T = A(1) in v",
     "Int",
-    "type T = A(Int) in let ? : ? = A(?) in ?",
+    "type T = +A(Int) in let ? : ? = A(?) in ?",
   ),
   analysis_case(
     ~focus=first_int,
@@ -279,23 +279,23 @@ let pattern_focus = [
   analysis_case(
     ~focus=e => pat_var(e, "x"),
     "pat-ctor-component",
-    "type T = A(Int) in let A(x) : T = A(1) in 0",
+    "type T = +A(Int) in let A(x) : T = A(1) in 0",
     "Int",
-    "type T = A(Int) in let A(?) : ? = ? in ?",
+    "type T = +A(Int) in let A(?) : ? = ? in ?",
   ),
   analysis_case(
     ~focus=e => pat_var(e, "x"),
     "pat-ctor-shadow-ann",
-    "type T1 = A(Int) in type T2 = A(String) in let A(x) : T1 = A(1) in 0",
+    "type T1 = +A(Int) in type T2 = +A(String) in let A(x) : T1 = A(1) in 0",
     "Int",
-    "type T1 = A(Int) in type T2 = A(String) in let A(?) : T1 = ? in ?",
+    "type T1 = +A(Int) in type T2 = +A(String) in let A(?) : T1 = ? in ?",
   ),
   analysis_case(
     ~focus=e => pat_var(e, "x"),
     "pat-ctor-shadow-unann",
-    "type T1 = A(Int) in type T2 = A(String) in let A(x) = A(\"s\") in 0",
+    "type T1 = +A(Int) in type T2 = +A(String) in let A(x) = A(\"s\") in 0",
     "String",
-    "type ? = ? in type T2 = A(String) in let A(?) = ? in ?",
+    "type ? = ? in type T2 = +A(String) in let A(?) = ? in ?",
   ),
   analysis_case(
     ~focus=pat_wild,

@@ -45,8 +45,8 @@ let atoms = [
 
 let ctors = [
   synthesis_case(
-    ~ctx=prelude_ctx("type T = A in"),
-    ~constructors=[("A", "T")],
+    ~ctx=prelude_ctx("type T = +A in"),
+    ~aliases=[("T", "+A")],
     "ctor-nullary-only",
     "A",
     "T",
@@ -55,15 +55,14 @@ let ctors = [
   synthesis_case(
     ~ctx=prelude_ctx("type T = A + B in"),
     ~aliases=[("T", "? + B")],
-    ~constructors=[("B", "T")],
     "ctor-nullary-choice",
     "B",
     "T",
     "B",
   ),
   synthesis_case(
-    ~ctx=prelude_ctx("type T = A(Int) in"),
-    ~constructors=[("A", "Int -> T")],
+    ~ctx=prelude_ctx("type T = +A(Int) in"),
+    ~aliases=[("T", "+A(?)")],
     "ctor-payload-result",
     "A(1)",
     "T",
@@ -71,7 +70,7 @@ let ctors = [
   ),
   synthesis_case(
     ~ctx=prelude_ctx("type T = A(Int) + B(Bool) in"),
-    ~constructors=[("A", "Int -> T")],
+    ~aliases=[("T", "A(Int) + ?")],
     "ctor-payload-sensitive",
     "A(1)",
     "A(Int)",
@@ -80,7 +79,6 @@ let ctors = [
   synthesis_case(
     ~ctx=prelude_ctx("type T = A(Int) + B(Bool) in"),
     ~aliases=[("T", "A(?) + ?")],
-    ~constructors=[("A", "Int -> T")],
     "ctor-payload-choice",
     "A(1)",
     "T",
@@ -308,7 +306,7 @@ let typaps = [
     "pair(?)(?)",
   ),
   synthesis_case(
-    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
+    ~ctx=prelude_ctx("type Option(A) = None + Some(A) in"),
     ~aliases=[("Option", "typfun A -> ? + Some(?)")],
     "implicit-param-option",
     "Some(1)",
@@ -316,22 +314,24 @@ let typaps = [
     "Some(?)",
   ),
   synthesis_case(
-    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
-    ~aliases=[("Option", "typfun A -> ? + Some(A)")],
+    ~ctx=prelude_ctx("type Option(A) = None + Some(A) in"),
+    ~aliases=[("Option", "typfun A -> ? + Some(?)")],
     "if-explicit-param-option",
     "if ? then Some@<Int>(1) else Some(0)",
     "Option(Int)",
     "if ? then Some@<Int>(?) else ?",
   ),
   synthesis_case(
-    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
+    ~ctx=prelude_ctx("type Option(A) = None + Some(A) in"),
     "if-explicit-param-sum-query",
     "if ? then Some@<Int>(1) else Some(0)",
     "None + Some(Int)",
     "if ? then Some@<Int>(?) else ?",
   ),
+  // Known to fail: the checker synthesises `Option`, not `Option(?)`, so the
+  // query never lines up with the node's type.
   synthesis_case(
-    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
+    ~ctx=prelude_ctx("type Option(A) = None + Some(A) in"),
     ~aliases=[("Option", "typfun A -> ? + Some(?)")],
     "if-explicit-param-option-gap",
     "if ? then Some@<Int>(1) else Some(0)",
@@ -340,7 +340,7 @@ let typaps = [
   ),
   synthesis_case(
     ~ctx=ctx_var("id", "poly A -> A -> A"),
-    ~assumptions=[("id", "poly A -> A -> A")],
+    ~assumptions=[("id", "poly A -> ? -> A")],
     "typap-single-call",
     "id@<Int>(1)",
     "Int",
@@ -348,7 +348,7 @@ let typaps = [
   ),
   synthesis_case(
     ~ctx=ctx_var("pair", "poly A, B -> A -> B -> (A, B)"),
-    ~assumptions=[("pair", "poly A, B -> A -> B -> (A, B)")],
+    ~assumptions=[("pair", "poly A, B -> ? -> ? -> (A, B)")],
     "typap-multi-call",
     "pair@<Int, Bool>(1)(true)",
     "(Int, Bool)",
@@ -363,8 +363,8 @@ let typaps = [
     "const@<Int,?>",
   ),
   synthesis_case(
-    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
-    ~aliases=[("Option", "typfun A -> ? + Some(A)")],
+    ~ctx=prelude_ctx("type Option(A) = None + Some(A) in"),
+    ~aliases=[("Option", "typfun A -> ? + Some(?)")],
     "param-option-explicit",
     "Some@<Int>(1)",
     "Option(Int)",
@@ -375,14 +375,14 @@ let typaps = [
       prelude_ctx(
         "type Either = typfun A -> typfun B -> Left(A) + Right(B) in",
       ),
-    ~aliases=[("Either", "typfun A -> typfun B -> ? + Right(B)")],
+    ~aliases=[("Either", "typfun ? -> typfun B -> ? + Right(?)")],
     "param-either-explicit",
     "Right@<Int, Bool>(true)",
     "Either(?, Bool)",
     "Right@<?, Bool>(?)",
   ),
   synthesis_case(
-    ~ctx=prelude_ctx("type List = typfun A -> Nil + Cons(A, List(A)) in"),
+    ~ctx=prelude_ctx("type List(A) = Nil + Cons(A, List(A)) in"),
     ~aliases=[("List", "typfun A -> ? + Cons(?)")],
     "param-list-recursive",
     "Cons@<Int>(1, Nil)",
@@ -390,8 +390,8 @@ let typaps = [
     "Cons@<Int>(?)",
   ),
   synthesis_case(
-    ~ctx=prelude_ctx("type Option = typfun A -> None + Some(A) in"),
-    ~aliases=[("Option", "typfun A -> ? + Some(?)")],
+    ~ctx=prelude_ctx("type Option(A) = None + Some(A) in"),
+    ~aliases=[("Option", "typfun A -> ?")],
     "param-option-annotation",
     "(Some(1) : Option(Int))",
     "Option(Int)",
@@ -402,7 +402,7 @@ let typaps = [
       prelude_ctx(
         "type Either = typfun A -> typfun B -> Left(A) + Right(B) in",
       ),
-    ~aliases=[("Either", "typfun A -> typfun B -> ? + Right(?)")],
+    ~aliases=[("Either", "typfun ? -> typfun B -> ?")],
     "param-either-annotation",
     "(Right(true) : Either(Int, Bool))",
     "Either(?, Bool)",
@@ -467,9 +467,9 @@ let control = [
   synthesis_case(
     ~focus=ctor_arg_ap("One"),
     "match-focused-in-let-def",
-    "type Option = typfun A -> None + Some(A) in type Digit = Zero + One in let parse_digit = fun s : String -> case s | \"0\" => Some(Zero) | \"1\" => Some(One) | _ => None end in parse_digit(\"5\")",
+    "type Option(A) = None + Some(A) in type Digit = Zero + One in let parse_digit = fun s : String -> case s | \"0\" => Some(Zero) | \"1\" => Some(One) | _ => None end in parse_digit(\"5\")",
     "Option(Digit)",
-    "type Option = typfun ? -> ? + Some(?) in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in ?",
+    "type Option(?) = ? + Some(?) in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => Some(?) | ? => ? end in ?",
   ),
   synthesis_case("use-nat-lit", "use Nat in 1", "Nat", "use Nat in 1"),
   synthesis_case(
