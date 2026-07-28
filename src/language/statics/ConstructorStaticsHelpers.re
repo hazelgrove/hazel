@@ -164,11 +164,21 @@ let instantiation_args_for =
   | _ => []
   };
 
+// A parameterized alias is a sum only under its binders.
+let rec definition_body = (definition: Typ.t): Typ.t =>
+  switch (Typ.term_of(definition)) {
+  | TypFun(_, body)
+  | Rec(_, body)
+  | Poly(_, body)
+  | Parens(body) => definition_body(body)
+  | _ => definition
+  };
+
 let alias_of_ctr = (ctx: Ctx.t, ctr: Constructor.t): option(Ctx.tvar_entry) =>
   List.find_map(
     fun
     | Ctx.TVarEntry({kind: Singleton(definition), _} as entry) =>
-      switch (Typ.get_sum_constructors(ctx, definition)) {
+      switch (Typ.get_sum_constructors(ctx, definition_body(definition))) {
       | Some(variants)
           when
             List.exists(

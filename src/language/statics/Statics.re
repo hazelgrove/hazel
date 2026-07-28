@@ -572,6 +572,17 @@ and uexp_to_info_map =
     | None => (ty, elab)
     };
 
+  let rec instantiated_slice = (ty: Typ.t, slice: Slice.t): Slice.t =>
+    switch (MatchedTyp.poly_pair(ctx, ty)) {
+    | Some((Some(_), body)) =>
+      instantiated_slice(
+        body,
+        Slice.instantiated(~ctx, ~former=MatchedTyp.poly_former, slice),
+      )
+    | Some((None, _))
+    | None => slice
+    };
+
   let rec expects_poly_callee = (e: Exp.t): bool =>
     switch (e.term) {
     | Var(v) =>
@@ -1937,7 +1948,9 @@ and uexp_to_info_map =
                 ~ctx,
                 ~former=MatchedTyp.arrow_former,
                 ~index=1,
-                fn.slice,
+                /* the implicit instantiation demands under the binders it
+                   peeled */
+                instantiated_slice(fn.elab_syn_ty, fn.slice),
               ),
               m,
             );

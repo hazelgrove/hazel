@@ -179,3 +179,11 @@ let prod_former = arity => {
   match_: prod(arity),
   build: tys => Prod(tys) |> temp,
 };
+
+let poly_former = {
+  match_: poly,
+  build:
+    fun
+    | [body] => Poly(EmptyHole |> TPat.fresh, body) |> temp
+    | _ => internal(),
+};
