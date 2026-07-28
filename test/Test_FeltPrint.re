@@ -840,6 +840,8 @@ let matrix_corpus = [
   "( * 2)" /* leading hole inside a child slot */,
   "if  then 1 else 2" /* hole between keyword shards */,
   "1 + !" /* prefix op flush against its hole (P15, no pad cell) */,
+  "1 2" /* concave hole in a SINGLE-space gap (drawn-cell facing) */,
+  "let =" /* convex hole in a single-space child gap */,
 ];
 
 let matrix_rows = (prog: string): list(string) => {
@@ -909,7 +911,7 @@ let facing_matrix = [
       ++ "    (?* 2¦)               right\n"
       ++ "    (?* ¦2)               left\n"
       ++ "    (?*¦ 2)               left\n"
-      ++ "    (?¦* 2)               left\n"
+      ++ "    (?¦* 2)               right\n"
       ++ "    (¦?* 2)               left\n"
       ++ "    ¦(?* 2)               left\n"
       ++ "  if  then 1 else 2\n"
@@ -937,7 +939,19 @@ let facing_matrix = [
       ++ "    1 +¦ !?               left\n"
       ++ "    1 ¦+ !?               right\n"
       ++ "    1¦ + !?               right\n"
-      ++ "    ¦1 + !?               left",
+      ++ "    ¦1 + !?               left\n"
+      ++ "  1 2\n"
+      ++ "    1~2¦                  right\n"
+      ++ "    1~¦2                  left\n"
+      ++ "    1¦~2                  right\n"
+      ++ "    ¦1~2                  left\n"
+      ++ "  let =\n"
+      ++ "    let?=¦ ?              left\n"
+      ++ "    let?¦= ?              right\n"
+      ++ "    let¦?= ?              left\n"
+      ++ "    le¦t?= ?              flat\n"
+      ++ "    l¦et?= ?              flat\n"
+      ++ "    ¦let?= ?              left",
       matrix_corpus
       |> List.map(p =>
            "  "

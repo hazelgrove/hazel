@@ -1053,8 +1053,21 @@ module Caret = {
             ~leading=rest_l == [] && anc_l == None,
             run,
           );
-        let side: Direction.t =
-          List.length(run_l) <= placement.index ? Left : Right;
+        /* facing follows the DRAWN cell, not the piece index: an
+           interior single-line hole placed AFTER its whole run
+           (gap-1 order, 2026-07-28) borrows the LAST space's cell
+           (PrevSpace), so it draws one cell left of its index —
+           the caret after that space is drawn at the hole's RIGHT
+           edge and must face accordingly (andrew's live repro:
+           both sides of `( ?,` showed the left chevron). */
+        let single_line = !List.exists(Secondary.is_linebreak, run);
+        let drawn =
+          single_line
+          && !at_trailing_edge
+          && run != []
+          && placement.index >= List.length(run)
+            ? placement.index - 1 : placement.index;
+        let side: Direction.t = List.length(run_l) <= drawn ? Left : Right;
         Some(Nib.Shape.absolute(side, hole_shape));
       | _ => None
       };
