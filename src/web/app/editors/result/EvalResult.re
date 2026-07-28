@@ -417,8 +417,7 @@ module Update = {
      * after a fast eval completes. */
     let predicted_reuse =
       switch (result, queue_worker) {
-      | (NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)), _) =>
-        IncrEval.empty
+      | (NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)), _) => IncrEval.empty
       | (NewValue(ProgramResult.ResultOk(_)), None) =>
         ReusePass.reuse_pass(
           ~prev=prev_incr,

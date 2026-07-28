@@ -484,7 +484,7 @@ module Update = {
         current: n,
         exercises: model.exercises,
       }
-      |> return
+      |> return;
     | (_, ExportModule) =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_exercise_module(model);

@@ -875,7 +875,7 @@ module Update = {
           model,
           is_documentation,
         ),
-      )
+      );
     | AddDrvSlide =>
       WorkerClient.cancel();
       Updated.return(
@@ -885,7 +885,7 @@ module Update = {
           model,
           is_documentation,
         ),
-      )
+      );
     | RenameSlide =>
       let current = List.nth(model.scratchpads, model.current);
       let new_name =

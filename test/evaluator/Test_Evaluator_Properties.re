@@ -613,9 +613,8 @@ let rec check_streaming_tests_monotonic =
           Evaluator.drain_streaming_outbox(evaluation),
           accumulated,
         );
-      let collected =
-        StreamCollector.collect_stream_state(accumulated, exp);
-      TestMap.count(collected.tests)
+      let collected = StreamCollector.collect_stream_state(accumulated, exp);
+      TestMap.count(collected.tests);
     | EvaluationYielded(evaluation) =>
       let update = Evaluator.drain_streaming_outbox(evaluation);
       switch (update.current) {
@@ -635,8 +634,7 @@ let rec check_streaming_tests_monotonic =
       | None => ()
       };
       let accumulated = IncrEval.merge_outbox(update, accumulated);
-      let collected =
-        StreamCollector.collect_stream_state(accumulated, exp);
+      let collected = StreamCollector.collect_stream_state(accumulated, exp);
       let test_count = TestMap.count(collected.tests);
       check(
         bool,

@@ -215,7 +215,10 @@ module TestValidationReport = {
             : Option.to_list(
                 report.test_results
                 |> Option.map(test_results =>
-                     TestView.test_bar(~inject_jump=signal_jump, ~test_results)
+                     TestView.test_bar(
+                       ~inject_jump=signal_jump,
+                       ~test_results,
+                     )
                    ),
               )
         ),

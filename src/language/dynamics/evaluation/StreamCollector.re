@@ -53,8 +53,7 @@ let rec collect_stream_state_for =
      * here collides with temps this walk itself creates and truncates
      * collection — streamed results appear to go backwards. */
     | Some({id: current_id, state})
-        when
-          Id.equal(id, current_id) && !Id.equal(current_id, Id.invalid) =>
+        when Id.equal(id, current_id) && !Id.equal(current_id, Id.invalid) =>
       EvaluatorState.append(EvaluatorState.empty, state)
     | Some(_)
     | None =>

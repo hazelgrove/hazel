@@ -101,7 +101,7 @@ let rec evaluate =
       | None => None
       };
     } else {
-      current_top_id
+      current_top_id;
     };
   let replay_state = (state: EvaluatorState.t): EvaluatorState.t => {
     ...state,
