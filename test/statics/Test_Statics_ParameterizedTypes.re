@@ -927,6 +927,30 @@ map@<Int, Int>([1, 2, 3], fun x -> x * 2)
       },
     ),
     test_case(
+      "typfun kind errors are reported inside a type alias body",
+      `Quick,
+      () => {
+        let marks =
+          static_errors(
+            {|
+type T = typfun A -> typfun B -> (A, typfun C -> C) in ?
+|},
+          );
+        check(
+          bool,
+          "kind mismatch",
+          true,
+          has_mark(
+            TypKindMismatch({
+              expected: TypKind.Type,
+              actual: TypKind.Arrow([TypKind.Type], TypKind.Type),
+            }),
+            marks,
+          ),
+        );
+      },
+    ),
+    test_case(
       "type T = typfun a -> body parses + checks like type T(a) = body",
       `Quick,
       () => {

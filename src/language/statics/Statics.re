@@ -3882,6 +3882,13 @@ and utyp_to_info_map =
     switch (expects, utyp.term) {
     | (TypeExpected, TypFun(_, _)) when allow_typfun =>
       ok(Message.Type(utyp))
+    | (AnyKindExpected, TypFun(_, _)) =>
+      err(
+        TypKindMismatch({
+          expected: TypKind.Type,
+          actual: kind_of_typ(ctx, utyp),
+        }),
+      )
     | (_, Unknown(Hole(Invalid(token)))) => err(BadToken(token))
     | (LabelExpected(_), Unknown(Hole(EmptyHole))) =>
       ok(Message.EmptyLabel)
