@@ -641,7 +641,7 @@ string_repl¦⟪ace⟫   CHIPS[]
 string_repla¦⟪ce⟫   CHIPS[]
 string_replac¦⟪e⟫   CHIPS[]
 string_replace¦   CHIPS[]
-string_replace(¦⟪?, ?, ?)⟫   CHIPS[]
+string_replace(¦?⟪, ?, ?)⟫   CHIPS[]
 string_replace(a¦⟪, ?, ?)⟫   CHIPS[]
 string_replace(a,¦⟪ ⟫?⟪, ?)⟫   CHIPS[]
 string_replace(a, ⟫¦⟪?⟪, ?)⟫   CHIPS[]
@@ -662,7 +662,7 @@ string_replace(a, b, c)¦   CHIPS[]|},
        order — the two middle cases were v1's buffer-jank states) */
     [
       /* empty parens presume: the full promise from `(` on */
-      display_case("string_replace(¦⟪?, ?, ?)⟫"),
+      display_case("string_replace(¦?⟪, ?, ?)⟫"),
       display_case("string_replace(a¦⟪, ?, ?)⟫"),
       display_case("string_replace(a,¦⟪ ⟫?⟪, ?)⟫"),
       display_case("string_replace(a, b,¦⟪ ⟫?⟪)⟫"),
@@ -796,7 +796,7 @@ let a = string_repl¦⟪ace⟫ in a + 1   CHIPS[]
 let a = string_repla¦⟪ce⟫ in a + 1   CHIPS[]
 let a = string_replac¦⟪e⟫ in a + 1   CHIPS[]
 let a = string_replace¦ in a + 1   CHIPS[]
-let a = string_replace(¦⟪?, ?, ?)⟫ in a + 1   CHIPS[]
+let a = string_replace(¦?⟪, ?, ?)⟫ in a + 1   CHIPS[]
 let a = string_replace(x¦⟪, ?, ?)⟫ in a + 1   CHIPS[]|},
           trajectory_in(~ctx="let a = ¦ in a + 1", "string_replace(x"),
         )
@@ -855,7 +855,7 @@ if 1 <¦⟪ ⟫?⟪ then ? else ?⟫   CHIPS[]|},
         check(
           string_testable,
           "annot-tydi",
-          {|let a : (¦⟪?) = ? in ?⟫   CHIPS[]
+          {|let a : (¦?⟪) = ? in ?⟫   CHIPS[]
 let a : (S¦⟪) = ? in ?⟫   CHIPS[]
 let a : (St¦⟪ring) = ? in ?⟫   CHIPS[]|},
           trajectory_in(~ctx="let a : ¦", "(St"),
@@ -958,7 +958,7 @@ fun x -¦⟪> ?⟫   CHIPS[]|},
         check(
           string_testable,
           "list-entry",
-          {|[¦⟪?]⟫   CHIPS[]
+          {|[¦?⟪]⟫   CHIPS[]
 [1¦⟪]⟫   CHIPS[]
 [1,¦⟪ ⟫?⟪]⟫   CHIPS[]
 [1, ⟫¦⟪?⟪]⟫   CHIPS[]
@@ -995,7 +995,7 @@ let s = string_repl¦⟪ace⟫ in s   CHIPS[]
 let s = string_repla¦⟪ce⟫ in s   CHIPS[]
 let s = string_replac¦⟪e⟫ in s   CHIPS[]
 let s = string_replace¦ in s   CHIPS[]
-let s = string_replace(¦⟪?, ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(¦?⟪, ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(s¦⟪, ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(st¦⟪ring_capitalize(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(str¦⟪ing_capitalize(?), ?, ?)⟫ in s   CHIPS[]
@@ -1013,7 +1013,7 @@ let s = string_replace(string_capital¦⟪ize(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitali¦⟪ze(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitaliz¦⟪e(?), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitalize¦⟪(?), ?, ?)⟫ in s   CHIPS[]
-let s = string_replace(string_capitalize(¦⟪?), ?, ?)⟫ in s   CHIPS[]
+let s = string_replace(string_capitalize(¦?⟪), ?, ?)⟫ in s   CHIPS[]
 let s = string_replace(string_capitalize(x¦⟪), ?, ?)⟫ in s   CHIPS[]|},
           trajectory_in(
             ~ctx="let s = ¦ in s",

@@ -833,6 +833,21 @@ let finish_display =
              arr[i],
              space(),
            ]
+         /* P16 SUBSTITUTION RENDERING: a SPAN hole at a hug-hug
+            junction (`foo(` before its ghost comma) has no space to
+            borrow and would degrade to a zero-width pinch. It stands
+            in its operand's first cell, so mint a consumable backing
+            space after it — the hole takes that cell (NextSpace) and
+            no visible pad appears where style hugs: `foo(?, ?)`.
+            Resting pinches (`(1 +‽)`) never pass through this
+            oracle and stay zero-width (P2). */
+         | Grout(g)
+             when
+               GroutCells.cls_of(cells, g.id) == Some(GroutCells.Pinch)
+               && region_hole(g.id) => [
+             arr[i],
+             space(),
+           ]
          | Tile(t) => [
              Piece.Tile({
                ...t,
