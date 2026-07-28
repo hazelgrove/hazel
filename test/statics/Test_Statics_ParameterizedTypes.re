@@ -977,6 +977,30 @@ let x : Pair(Int)(String) = (1, "x") in x
         );
       },
     ),
+    test_case(
+      "typfun is rejected inside a type alias body",
+      `Quick,
+      () => {
+        let marks =
+          static_errors(
+            {|
+type T = typfun A -> typfun B -> (A, typfun C -> C) in ?
+|},
+          );
+        check(
+          bool,
+          "kind mismatch",
+          true,
+          has_mark(
+            TypKindMismatch({
+              expected: TypKind.Type,
+              actual: TypKind.Arrow([TypKind.Type], TypKind.Type),
+            }),
+            marks,
+          ),
+        );
+      },
+    ),
     /* Regression: applying a multi-binder type abstraction
        `e@<Int>` (one arg) when its `Poly` expects two reports a
        focused error on the *type application* with result type
