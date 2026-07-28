@@ -9,22 +9,6 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
-/* HTML/MVU example apps (docs/mvu/). Each is a working Elm-style app:
-   project the 4-tuple at the bottom to run it. */
-let mvu_slides: list((string, PersistentSegment.t)) = [
-  MvuCounter.out,
-  MvuTimer.out,
-  MvuTodoList.out,
-  MvuFirefly.out,
-  MvuCropPlotter.out,
-  MvuTicTacToe.out,
-  MvuGameOfLife.out,
-  MvuGardenAlmanac.out,
-  MvuSeedCatalog.out,
-  MvuHarvestStreak.out,
-  MvuNutrientRotation.out,
-];
-
 let documentation_slides: list((string, PersistentSegment.t)) =
   [
     BasicReference.out,
@@ -38,7 +22,7 @@ let documentation_slides: list((string, PersistentSegment.t)) =
     Probes.out,
     Livelits.out,
   ]
-  @ mvu_slides
+  @ Mvu.Slides.all_slides
   @ B2t2.Slides.all_slides;
 
 let startup: PersistentData.t = {
