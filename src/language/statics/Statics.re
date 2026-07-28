@@ -2454,7 +2454,8 @@ and uexp_to_info_map =
               utyp,
             );
           (head, utyp);
-        | Some((_head, [] | [_]))
+        | Some((_, []))
+        | Some((_, [_]))
         | None => (typat, utyp)
         };
       /* Desugar Sig types so type aliases like `type T = {let x : Int}`
