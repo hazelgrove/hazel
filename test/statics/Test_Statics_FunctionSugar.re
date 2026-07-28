@@ -132,6 +132,11 @@ let tests = (
       Some(int()),
     ),
     fully_consistent_typecheck(
+      "ordinary let binding does not activate function sugar",
+      "let x = 1 in x",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
       "zero arguments",
       "let answer(): Int = 42 in answer()",
       Some(int()),
