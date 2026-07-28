@@ -53,7 +53,11 @@ let match_inner_binder = (pat: Pat.t): option((Pat.t, list(Pat.t))) => {
             |> IdTagged.fresh_deterministic(Pat.rep_id(fn))
           : arg;
       go(fn, [arg, ...args]);
-    | Var(_) => Some((pat, args))
+    | Var(_) =>
+      switch (args) {
+      | [] => None
+      | _ => Some((pat, args))
+      }
     | _ => None
     };
   go(pat, []);
