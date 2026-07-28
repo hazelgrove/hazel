@@ -902,7 +902,26 @@ map@<Int, Int>([1, 2, 3], fun x -> x * 2)
       )
     }),
     test_case(
-      "typfun is accepted in a type alias body",
+      "single-parameter type aliases support application syntax",
+      `Quick,
+      () => {
+        let marks =
+          static_errors(
+            {|
+type Option(a) = + None + Some(a) in
+let x : Option(Int) = Some(3) in x
+|},
+          );
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors",
+          [],
+          List.map(m => Marks([m]), marks),
+        );
+      },
+    ),
+    test_case(
+      "typfun is rejected in a type alias body",
       `Quick,
       () => {
         let marks =
@@ -912,11 +931,11 @@ type Option = typfun a -> + None + Some(a) in
 let x : Option(Int) = Some(3) in x
 |},
           );
-        Alcotest.check(
-          list(testable_issue),
-          "no static errors",
-          [],
-          List.map(m => Marks([m]), marks),
+        check(
+          bool,
+          "typfun mark",
+          true,
+          has_mark(TypFunNotSurfaceSyntax, marks),
         );
       },
     ),
@@ -965,39 +984,9 @@ let x : Pair(Int)(String) = (1, "x") in x
         let marks = static_errors({|let x : typfun A -> A = ? in x|});
         check(
           bool,
-          "kind mismatch",
+          "typfun mark",
           true,
-          has_mark(
-            TypKindMismatch({
-              expected: TypKind.Type,
-              actual: TypKind.Arrow([TypKind.Type], TypKind.Type),
-            }),
-            marks,
-          ),
-        );
-      },
-    ),
-    test_case(
-      "typfun is rejected inside a type alias body",
-      `Quick,
-      () => {
-        let marks =
-          static_errors(
-            {|
-type T = typfun A -> typfun B -> (A, typfun C -> C) in ?
-|},
-          );
-        check(
-          bool,
-          "kind mismatch",
-          true,
-          has_mark(
-            TypKindMismatch({
-              expected: TypKind.Type,
-              actual: TypKind.Arrow([TypKind.Type], TypKind.Type),
-            }),
-            marks,
-          ),
+          has_mark(TypFunNotSurfaceSyntax, marks),
         );
       },
     ),
@@ -1203,31 +1192,23 @@ A
       },
     ),
     test_case(
-      "type-level recursive typfun: type List = typfun a -> + Nil + Cons(a, List(a))",
+      "recursive parameterized type aliases support application syntax",
       `Quick,
       () => {
-      /* Self-reference inside a type-level typfun body: the alias
-         name `List` is captured as a recursive reference (the
-         `Var` branch of TyAlias detects it via `free_vars` and
-         wraps in `Rec`), and `List(Int)` normalizes via the
-         higher-kinded reduction.
-
-         `+ Cons(a, List(a))` declares Cons with a single tuple
-         payload `(a, List(a))`, so applications are
-         `Cons((1, Nil))`. Same shape as the prefix-binder form
-         `type List(a) = …` test elsewhere in this file. */
-      Alcotest.check(
-        list(testable_issue),
-        "no static errors on recursive type-level typfun",
-        [],
-        static_errors(
-          {|
-type List = typfun a -> + Nil + Cons(a, List(a)) in
+        let marks =
+          static_errors(
+            {|
+type List(a) = + Nil + Cons(a, List(a)) in
 let xs : List(Int) = Cons((1, Nil)) in xs
 |},
-        )
-        |> List.map(ms => Marks([ms])),
-      )
-    }),
+          );
+        Alcotest.check(
+          list(testable_issue),
+          "no static errors",
+          [],
+          List.map(m => Marks([m]), marks),
+        );
+      },
+    ),
   ],
 );

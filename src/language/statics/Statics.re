@@ -11,6 +11,13 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+let rec is_surface_typfun = (typ: Typ.t): bool =>
+  switch (typ.term) {
+  | Parens(inner) => is_surface_typfun(inner)
+  | TypFun(_, _) => true
+  | _ => false
+  };
+
 /* Compute a type's kind without descending into descendants. The
    recursive `utyp_to_info_map` traversal puts kind marks on each node
    individually, so this helper is purely for "what kind does the
@@ -2425,6 +2432,22 @@ and uexp_to_info_map =
           branch_ids,
         );
       add(~elab_term, ~elab_syn_ty, ~marks=marks_match', ~co_ctx, m);
+    | TyAlias(typat, utyp, body) when is_surface_typfun(utyp) =>
+      let m =
+        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
+        |> snd;
+      let m =
+        utyp_to_info_map(
+          ~ctx,
+          ~ancestors=ancestors_inclusive,
+          ~expects=AnyKindExpected,
+          utyp,
+          m,
+        )
+        |> snd;
+      let ({co_ctx, elab_syn_ty, _}: Info.exp, body_elab, m) =
+        go(~ctx, ~ana, body, m);
+      add(~elab_term=body_elab, ~elab_syn_ty, ~marks=[], ~co_ctx, m);
     | TyAlias(typat, utyp, body) =>
       let rec curried_alias_head = (typat: TPat.t) =>
         switch (typat.term) {
@@ -2443,7 +2466,7 @@ and uexp_to_info_map =
         | [param] => param
         | _ => (Tuple(params): TPat.term) |> TPat.temp
         };
-      let (typat, utyp) =
+      let (typat, utyp, generated_typfun_depth) =
         switch (curried_alias_head(typat)) {
         | Some((head, [_first, _second, ..._] as groups)) =>
           let utyp =
@@ -2453,149 +2476,23 @@ and uexp_to_info_map =
               groups,
               utyp,
             );
-          (head, utyp);
+          (head, utyp, List.length(groups));
         | Some((_, []))
         | Some((_, [_]))
-        | None => (typat, utyp)
+        | None => (typat, utyp, 0)
         };
       /* Desugar Sig types so type aliases like `type T = {let x : Int}`
          store `Prod([TupLabel(...)])` rather than `Sig([...])` in the
          context (so meet/join can unify them with module expression
          types). */
       let utyp_desugared = Typ.desugar_sig(ctx, utyp);
-      /* `type T = typfun a, b -> body` is the prefix-binder spelling
-         of `type T(a, b) = body` — a single multi-binder `TypFun`.
-         Peel it so the alias takes the `Param`-branch path
-         (params extension, polymorphic constructor schemas,
-         tuple-arrow kind `(Type, …) -> Type`).
-
-         A *curried* form `type T = typfun a -> typfun b -> body`
-         is left intact: each unary `TypFun` stays as its own
-         binder so the alias has the curried kind
-         `Type -> Type -> kind(body)` and accepts curried
-         applications `T(a)(b)`. `peel_typlams` refuses to peel a
-         TypFun whose body is itself a TypFun. */
-      let rec strip_parens = (t: Typ.t): Typ.t =>
-        switch (t.term) {
-        | Parens(inner) => strip_parens(inner)
-        | Unknown(_)
-        | Atom(_)
-        | DrvQuoteTy(_)
-        | Label(_)
-        | ExplicitNonlabel
-        | Var(_)
-        | Projector(_)
-        | ProdProjection(_)
-        | List(_)
-        | Arrow(_)
-        | TupLabel(_)
-        | ProdExtension(_)
-        | Prod(_)
-        | Sum(_)
-        | Poly(_)
-        | ProofOf(_)
-        | Sig(_)
-        | TypTuple(_)
-        | TypFun(_)
-        | TypParamAp(_)
-        | Rec(_) => t
-        };
-      let peel_typlams = (typ: Typ.t): (list(TPat.t), Typ.t) => {
-        let stripped = strip_parens(typ);
-        switch (stripped.term) {
-        | TypFun(p, inner) =>
-          let stripped_inner = strip_parens(inner);
-          switch (stripped_inner.term) {
-          | TypFun(_) => ([], typ)
-          | Unknown(_)
-          | Atom(_)
-          | DrvQuoteTy(_)
-          | Label(_)
-          | ExplicitNonlabel
-          | Var(_)
-          | Parens(_)
-          | Projector(_)
-          | ProdProjection(_)
-          | List(_)
-          | Arrow(_)
-          | TupLabel(_)
-          | ProdExtension(_)
-          | Prod(_)
-          | Sum(_)
-          | Poly(_)
-          | ProofOf(_)
-          | Sig(_)
-          | TypTuple(_)
-          | TypParamAp(_)
-          | Rec(_) => (TPat.binders_of(p), stripped_inner)
-          };
-        | Unknown(_)
-        | Atom(_)
-        | DrvQuoteTy(_)
-        | Label(_)
-        | ExplicitNonlabel
-        | Var(_)
-        | Parens(_)
-        | Projector(_)
-        | ProdProjection(_)
-        | List(_)
-        | Arrow(_)
-        | TupLabel(_)
-        | ProdExtension(_)
-        | Prod(_)
-        | Sum(_)
-        | Poly(_)
-        | ProofOf(_)
-        | Sig(_)
-        | TypTuple(_)
-        | TypParamAp(_)
-        | Rec(_) => ([], typ)
-        };
-      };
-      /* If the typat is a bare `Var(name)` and the body has a
-         peelable single multi-binder `TypFun`, rebundle as
-         `Param(head, params)` so the rest of the branch treats this
-         identically to the explicit `type Name(params) = body`
-         spelling. The new `Param` reuses the original `Var` tile id
-         for its head so jump-to-definition lands on the alias
-         name. */
-      let (typat, utyp, utyp_desugared) =
-        switch (typat.term, peel_typlams(utyp_desugared)) {
-        | (Var(name), ([_, ..._] as params, inner_body)) =>
-          let head: TPat.t = {
-            term: Var(name),
-            annotation: typat.annotation,
-          };
-          let new_typat: TPat.t = {
-            term: Param(head, params),
-            annotation: typat.annotation,
-          };
-          let (_, inner_orig) = peel_typlams(utyp);
-          (new_typat, inner_orig, inner_body);
-        /* No rebundle: either typat isn't a `Var` (already a
-           `Param`/`Tuple`/etc.), or `peel_typlams` returned no
-           binders (body isn't a peelable `TypFun`). */
-        | (Var(_), ([], _))
-        | (
-            Param(_, _) | Tuple(_) | Parens(_) | Invalid(_) | EmptyHole |
-            MultiHole(_),
-            _,
-          ) => (
-            typat,
-            utyp,
-            utyp_desugared,
-          )
-        };
       /* Single source of truth for the alias's kind: stored on the
          `TVarEntry`, surfaced at the alias-name tpat through
          `~alias_kind`, and consumed by every downstream
          `kind_of_typ` lookup of a `Var(name)` reference to this
          alias. Mirrors the kind `kind_of_typ` derives from the
-         alias body — `(Type, …) -> kind(body)` for the rebundled
-         multi-binder case (with the params bound abstractly in the
-         body's context), or just `kind_of_typ(body)` otherwise (a
-         curried `typfun a -> typfun b -> Sum(...)` body yields
-         `Type -> Type -> Type`). */
+         alias body — `(Type, …) -> kind(body)` for a parameterized
+         alias, or `kind_of_typ(body)` otherwise. */
       let alias_body_kind =
         switch (typat.term) {
         | Param(_, params) =>
@@ -2725,6 +2622,7 @@ and uexp_to_info_map =
             ~ctx=ctx_for_def,
             ~ancestors=ancestors_inclusive,
             ~expects=AnyKindExpected,
+            ~generated_typfun_depth,
             utyp,
             m,
           )
@@ -2798,6 +2696,7 @@ and uexp_to_info_map =
             ~ctx=ctx_def,
             ~ancestors=ancestors_inclusive,
             ~expects=AnyKindExpected,
+            ~generated_typfun_depth,
             utyp,
             m,
           )
@@ -2829,6 +2728,7 @@ and uexp_to_info_map =
             ~ctx,
             ~ancestors=ancestors_inclusive,
             ~expects=AnyKindExpected,
+            ~generated_typfun_depth,
             utyp,
             m,
           )
@@ -3864,6 +3764,7 @@ and utyp_to_info_map =
     (
       ~ctx,
       ~expects=TypExpectation.TypeExpected,
+      ~generated_typfun_depth=0,
       ~ancestors,
       utyp: Typ.t,
       m: Map.t,
@@ -3905,6 +3806,9 @@ and utyp_to_info_map =
       ([m], None);
     };
     switch (expects, utyp.term) {
+    | (TypeExpected | AnyKindExpected, TypFun(_, _))
+        when generated_typfun_depth == 0 =>
+      err(TypFunNotSurfaceSyntax)
     | (_, Unknown(Hole(Invalid(token)))) => err(BadToken(token))
     | (LabelExpected(_), Unknown(Hole(EmptyHole))) =>
       ok(Message.EmptyLabel)
@@ -4163,7 +4067,14 @@ and utyp_to_info_map =
   let _ = ancestors;
   let go =
       (~ctx=ctx, ~expects=TypExpectation.TypeExpected, t: Typ.t, m: Map.t) =>
-    utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~expects, t, m);
+    utyp_to_info_map(
+      ~ctx,
+      ~ancestors=ancestors_inclusive,
+      ~expects,
+      ~generated_typfun_depth,
+      t,
+      m,
+    );
   switch (term) {
   | Unknown(Hole(MultiHole(tms))) =>
     let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
@@ -4386,6 +4297,7 @@ and utyp_to_info_map =
            outer `TypFun` already accounts for that extra arrow in
            its own kind, so don't re-flag it here. */
         ~expects=AnyKindExpected,
+        ~generated_typfun_depth=Int.max(0, generated_typfun_depth - 1),
         m,
       )
       |> snd;
