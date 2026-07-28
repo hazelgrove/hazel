@@ -683,6 +683,28 @@ string_replace(a, b, c)¦   CHIPS[]|},
       /* P15: the operand hole hugs a prefix operator even as span
          material — the oracle consults the mold, not the glyph */
       display_case("let a = !¦?⟪ in ?⟫"),
+      /* P16 SUBSTITUTION RENDERING (andrew's live foo( case): a
+         2-ary application's FIRST hole gets a cell (backing at the
+         hug-hug junction), rendering as the formatted completion
+         with ? at operand slots — not a zero-width pinch glommed
+         to the ghost comma */
+      test_case(
+        "P16: two-ary application entry",
+        `Quick,
+        () => {
+          let z =
+            Test_Editing.perform(
+              Zipper.init(),
+              Test_Editing.mk("let foo = fun(x, y) -> x + y in foo(¦"),
+            );
+          check(
+            string_testable,
+            "foo( first hole has a cell",
+            "let foo = fun(x, y) -> x + y in foo(¦?⟪, ?)⟫",
+            display_state(~chips=false, z),
+          );
+        },
+      ),
     ],
   ),
   (
