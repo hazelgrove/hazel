@@ -2,7 +2,12 @@ open Js_of_ocaml;
 open WorkerServer;
 
 let name = "worker.js"; // Worker file name
-let ackTimeoutDuration = 1000; // Worker attention timeout in ms
+/* Warm-worker attention timeout. Must exceed a typical eval slice so a busy
+ * but healthy worker is not killed mid-slice before it can ACK. */
+let ackTimeoutDuration = 5000;
+/* After terminate+respawn the browser must fetch/parse worker.js (multi-MB). */
+let ackColdStartTimeoutDuration = 15000;
+let maxAckRetries = 3;
 let evalTimeoutDuration = 20000; // Evaluation timeout in ms
 
 type callbacks = {
@@ -17,6 +22,7 @@ type callbacks = {
 type latest = {
   request: Request.t,
   callbacks,
+  ack_retries: int,
   /* Correlates this request with its WorkerMetrics record (None when
    * metrics are off) so the response-side benchmark lands on the row
    * the request-side benchmark created. */
@@ -54,74 +60,53 @@ let is_latest = request_id =>
 let post_evaluate = (worker, request: Request.t) =>
   worker##postMessage(Active.encode_request(ClientMessage.Evaluate(request)));
 
-let start_eval_timeout = latest => {
-  clear_timer(evalTimeoutId);
-  evalTimeoutId :=
-    Some(
-      Dom_html.window##setTimeout(
-        Js.wrap_callback(() =>
-          if (is_latest(latest.request.request_id)) {
-            clear_timeouts();
-            latestRequest := None;
-            latest.callbacks.timeout(latest.request.batch);
-          }
-        ),
-        float_of_int(evalTimeoutDuration),
-      ),
-    );
+let fail_latest = latest => {
+  clear_timeouts();
+  latestRequest := None;
+  latest.callbacks.timeout(latest.request.batch);
 };
-
-let handle_ack = ({ServerMessage.request_id, initial}: ServerMessage.ack) =>
-  if (is_latest(request_id)) {
-    clear_timer(ackTimeoutId);
-    switch (latestRequest^) {
-    | Some(latest) =>
-      latest.callbacks.on_ack(initial);
-      start_eval_timeout(latest);
-    | None => ()
-    };
-  }
-and handle_stream =
-    ({ServerMessage.request_id, key, update}: ServerMessage.stream) =>
-  if (is_latest(request_id)) {
-    switch (latestRequest^) {
-    | Some(latest) => latest.callbacks.on_stream(key, update)
-    | None => ()
-    };
-  }
-and handle_result = (request_id, response) =>
-  if (is_latest(request_id)) {
-    clear_timeouts();
-    switch (latestRequest^) {
-    | Some(latest) =>
-      latestRequest := None;
-      latest.callbacks.handler(response);
-    | None => ()
-    };
-  };
 
 let setupWorkerMessageHandler = worker => {
   worker##.onmessage :=
     Dom.handler(evt => {
       switch (Active.decode_response(evt##.data)) {
-      | ServerMessage.Ack(ack) => handle_ack(ack)
-      | ServerMessage.Stream(stream) => handle_stream(stream)
-      | ServerMessage.Result({request_id, response}) as msg =>
-        /* Grab the metrics correlation id before handle_result clears
-         * latestRequest. Hand the result off first; benchmarking the other
-         * encodings can take tens of ms and must not delay evaluation
-         * latency. */
-        let metrics_id =
+      | ServerMessage.Ack({request_id}) =>
+        /* Liveness only — reuse tinting arrives next via ReusePlan. */
+        if (is_latest(request_id)) {
+          clear_timer(ackTimeoutId);
+        }
+      | ServerMessage.ReusePlan({request_id, initial}) =>
+        if (is_latest(request_id)) {
           switch (latestRequest^) {
-          | Some({request: {request_id: rid, _}, metrics_id, _})
-              when rid == request_id => metrics_id
-          | _ => None
+          | Some(latest) => latest.callbacks.on_ack(initial)
+          | None => ()
           };
-        handle_result(request_id, response);
-        switch (metrics_id) {
-        | Some(id) => WorkerMetrics.record_response(id, msg)
-        | None => ()
-        };
+        }
+      | ServerMessage.Stream(stream) =>
+        if (is_latest(stream.request_id)) {
+          switch (latestRequest^) {
+          | Some(latest) =>
+            latest.callbacks.on_stream(stream.key, stream.update)
+          | None => ()
+          };
+        }
+      | ServerMessage.Result({request_id, response}) as msg =>
+        if (is_latest(request_id)) {
+          /* Grab the metrics correlation id before clearing latestRequest.
+           * Hand the result off first; benchmarking the other encodings can
+           * take tens of ms and must not delay evaluation latency. */
+          switch (latestRequest^) {
+          | Some(latest) =>
+            latestRequest := None;
+            clear_timeouts();
+            latest.callbacks.handler(response);
+            switch (latest.metrics_id) {
+            | Some(id) => WorkerMetrics.record_response(id, msg)
+            | None => ()
+            };
+          | None => ()
+          };
+        }
       };
       Js._true;
     });
@@ -141,19 +126,49 @@ let restart_worker = (): unit => {
   workerRef.contents = initWorker();
 };
 
-let rec start_ack_timeout = latest => {
-  clear_timer(ackTimeoutId);
-  ackTimeoutId :=
+/* Wall-clock cap for the whole request (including ACK wait). On expiry the
+ * worker is terminated so a runaway eval cannot keep a core busy after the
+ * UI has already shown Timeout. */
+let start_eval_timeout = latest => {
+  clear_timer(evalTimeoutId);
+  evalTimeoutId :=
     Some(
       Dom_html.window##setTimeout(
         Js.wrap_callback(() =>
           if (is_latest(latest.request.request_id)) {
             restart_worker();
-            post_evaluate(workerRef.contents, latest.request);
-            start_ack_timeout(latest);
+            fail_latest(latest);
           }
         ),
-        float_of_int(ackTimeoutDuration),
+        float_of_int(evalTimeoutDuration),
+      ),
+    );
+};
+
+let rec start_ack_timeout = (~cold_start, latest) => {
+  clear_timer(ackTimeoutId);
+  let duration = cold_start ? ackColdStartTimeoutDuration : ackTimeoutDuration;
+  ackTimeoutId :=
+    Some(
+      Dom_html.window##setTimeout(
+        Js.wrap_callback(() =>
+          if (is_latest(latest.request.request_id)) {
+            if (latest.ack_retries >= maxAckRetries) {
+              restart_worker();
+              fail_latest(latest);
+            } else {
+              let latest = {
+                ...latest,
+                ack_retries: latest.ack_retries + 1,
+              };
+              latestRequest := Some(latest);
+              restart_worker();
+              post_evaluate(workerRef.contents, latest.request);
+              start_ack_timeout(~cold_start=true, latest);
+            };
+          }
+        ),
+        float_of_int(duration),
       ),
     );
 };
@@ -201,9 +216,11 @@ let request =
         on_ack,
         on_stream,
       },
+      ack_retries: 0,
       metrics_id,
     };
     latestRequest := Some(latest);
     post_evaluate(workerRef.contents, latest.request);
-    start_ack_timeout(latest);
+    start_eval_timeout(latest);
+    start_ack_timeout(~cold_start=false, latest);
   };

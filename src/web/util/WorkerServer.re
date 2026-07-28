@@ -41,8 +41,13 @@ module ClientMessage = {
 };
 
 module ServerMessage = {
+  /* Instant liveness ping — must not do ReusePass or other batch work. */
   [@deriving (show, sexp, yojson)]
-  type ack = {
+  type ack = {request_id: int};
+
+  /* Predicted reusable cache entries for UI tinting (frozen vs re-eval). */
+  [@deriving (show, sexp, yojson)]
+  type reuse_plan = {
     request_id: int,
     initial: list((key, Language.IncrEval.t(Language.EvaluatorState.t))),
   };
@@ -63,6 +68,7 @@ module ServerMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
     | Ack(ack)
+    | ReusePlan(reuse_plan)
     | Stream(stream)
     | Result(result);
 };
@@ -229,6 +235,7 @@ type running = {
 
 type runtime =
   | Idle
+  | Planning
   | Starting
   | Running(running);
 
@@ -239,19 +246,21 @@ type model = {
 };
 
 let slice_step_budget = 5000;
+/* Cumulative trampoline-step backstop across slices for a single batch item.
+ * Wall-clock timeout + worker terminate is the primary runaway guard; this
+ * stops pathological cases that somehow evade the client timer. */
+let total_step_limit = 1_000_000;
 let initial_model = {
   latest_request: None,
   runtime: Idle,
   slice_already_scheduled: false,
 };
 
-/* Worker execution model:
- * - `on_request` records only the newest batch and immediately ACKs with
- *   predicted reusable entries for UI tinting.
- * - The worker evaluates one batch item at a time in small async slices.
- * - After each yielded slice, completed cache entries are streamed to the UI.
- * - If a newer request arrives, the next scheduled slice abandons the stale
- *   batch and begins the latest one. */
+/* Worker execution model (three phases per request):
+ * 1. Instant `Ack` — liveness only; no ReusePass.
+ * 2. `ReusePlan` — predicted reusable entries for frozen/re-eval tinting.
+ * 3. Eval slices — `Stream` updates, then `Result`.
+ * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
 let error_response = exn =>
   switch (exn) {
@@ -344,13 +353,20 @@ let flush_stream_update = (model, request_id, key, evaluation) => {
   post_stream_update(model, request_id, key, update);
 };
 
+/* ACK must be cheap: the client treats missing ACK as a dead worker and will
+ * terminate/respawn. ReusePass belongs in `ReusePlan`, not here. */
 let post_ack = (request: Request.t) =>
-  post_message(
-    ServerMessage.Ack({
-      request_id: request.request_id,
-      initial: List.map(predict_reuse_for_request, request.batch),
-    }),
-  );
+  post_message(ServerMessage.Ack({request_id: request.request_id}));
+
+let post_reuse_plan = (model, request: Request.t) =>
+  if (is_latest(model, request.request_id)) {
+    post_message(
+      ServerMessage.ReusePlan({
+        request_id: request.request_id,
+        initial: List.map(predict_reuse_for_request, request.batch),
+      }),
+    );
+  };
 
 let schedule_async = callback => {
   ignore(
@@ -414,6 +430,19 @@ and finish_current_item = (model, running, response) =>
     [(running.key, response), ...running.completed],
     running.remaining,
   )
+and plan_latest_batch = model =>
+  switch (model.latest_request) {
+  | None => {
+      ...model,
+      runtime: Idle,
+    }
+  | Some(request) =>
+    post_reuse_plan(model, request);
+    {
+      ...model,
+      runtime: Starting,
+    };
+  }
 and run_scheduled_slice = model => {
   let model = {
     ...model,
@@ -421,9 +450,10 @@ and run_scheduled_slice = model => {
   };
   switch (model.runtime) {
   | Idle => model
+  | Planning => plan_latest_batch(model)
   | Starting => begin_latest_batch(model)
   | Running(running) when !is_latest(model, running.request_id) =>
-    begin_latest_batch(model)
+    plan_latest_batch(model)
   | Running(running) =>
     switch (
       Language.Evaluator.run_yielding_slice(
@@ -443,15 +473,24 @@ and run_scheduled_slice = model => {
       finish_current_item(model, running, finish_success(value));
     | EvaluationYielded(evaluation) =>
       flush_stream_update(model, running.request_id, running.key, evaluation);
-      let model = {
-        ...model,
-        runtime:
-          Running({
-            ...running,
-            evaluation,
-          }),
+      if (Language.Evaluator.yielding_step_count(evaluation)
+          >= total_step_limit) {
+        finish_current_item(
+          model,
+          running,
+          Error(Language.ProgramResult.Timeout),
+        );
+      } else {
+        let model = {
+          ...model,
+          runtime:
+            Running({
+              ...running,
+              evaluation,
+            }),
+        };
+        model;
       };
-      model;
     }
   };
 };
@@ -463,6 +502,7 @@ let install_message_handler = () => {
     let should_schedule_slice =
       switch (next_model.runtime) {
       | Idle => false
+      | Planning
       | Starting
       | Running(_) => !next_model.slice_already_scheduled
       };
@@ -484,7 +524,7 @@ let install_message_handler = () => {
     commit({
       ...model^,
       latest_request: Some(request),
-      runtime: Starting,
+      runtime: Planning,
     });
   };
 

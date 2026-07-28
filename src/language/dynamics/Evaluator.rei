@@ -45,5 +45,7 @@ let start_yielding_evaluation:
 let run_yielding_slice:
   (~step_budget: int, yielding_evaluation) => yielding_result;
 
+let yielding_step_count: yielding_evaluation => int;
+
 let drain_streaming_outbox:
   yielding_evaluation => IncrEval.outbox(EvaluatorState.t);

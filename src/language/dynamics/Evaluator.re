@@ -465,6 +465,12 @@ let run_yielding_slice =
     })
   };
 
+let yielding_step_count = (evaluation: yielding_evaluation): int => {
+  let Trampoline.Yielding.Continuation(_, _, step_counter) =
+    evaluation.continuation;
+  step_counter;
+};
+
 let evaluate =
     (
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
