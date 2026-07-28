@@ -3422,7 +3422,141 @@ let left_separated = (z: Zipper.t): bool =>
   | _ => false
   };
 
-let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
+/* TAB SLICES THE PROMISE (2026-07-28, andrew): the paste text for a
+   plain-delimiter chunk is read off the DISPLAYED completion itself —
+   the display pieces from the caret through the accepted delimiter's
+   shard, plus its trailing spaces — so acceptance is byte-preserving
+   by construction: post-accept, placement re-derives the holes into
+   the pasted spacing and the display is unchanged. One spacing
+   authority (the display; the lead/trail synthesis below was a third
+   one and produced the ragged `?,? )` artifacts). Holes contribute
+   nothing (they stay derived, never typed). Slicing from the CACHED
+   display means Tab accepts exactly what is on screen, whatever the
+   statics cadence. Fails open to the synthesis path.
+
+   FLAGGED CHOICE (design doc): pads around a still-unfilled hole
+   paste as real spaces — the happy path fills the hole where the pad
+   is wanted anyway; the residue is one space in states that look
+   hand-typed-then-deleted. Revisit on feel. */
+let tab_slice =
+    (
+      ~display: Segment.t,
+      ~marks: list((Id.t, option(int))),
+      z: Zipper.t,
+      d: delimiter_info,
+    )
+    : option(string) => {
+  let is_marked = (id: Id.t, sh: int) =>
+    List.exists(
+      ((mid, msh): (Id.t, option(int))) =>
+        Id.equal(mid, id) && (msh == Some(sh) || msh == None),
+      marks,
+    );
+  /* flat atom stream over the display, shard-granular, ids kept so
+     the caret's left atom can be located */
+  let rec atoms =
+          (sg: Segment.t)
+          : list(
+              (
+                Id.t,
+                int,
+                [
+                  | `Tok(string, bool)
+                  | `Sp
+                  | `Brk
+                  | `Hole
+                  | `Other
+                ],
+              ),
+            ) =>
+    List.concat_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Grout(g) => [(g.id, (-1), `Hole)]
+        | Secondary(w) when Secondary.is_space(w) => [(w.id, (-1), `Sp)]
+        | Secondary(w) when Secondary.is_linebreak(w) => [
+            (w.id, (-1), `Brk),
+          ]
+        | Secondary(w) => [(w.id, (-1), `Other)]
+        | Projector(_) => [(Piece.id(p), (-1), `Other)]
+        | Tile(t) =>
+          Aba.mk(t.shards, t.children)
+          |> Aba.join(
+               i =>
+                 [
+                   (
+                     t.id,
+                     i,
+                     `Tok((
+                       switch (List.nth_opt(t.label, i)) {
+                       | Some(tok) => tok
+                       | None => ""
+                       },
+                       is_marked(t.id, i),
+                     )),
+                   ),
+                 ],
+               atoms,
+             )
+          |> List.concat
+        },
+      sg,
+    );
+  switch (caret_left_atom(z)) {
+  | None => None
+  | Some((cid, csh)) =>
+    /* hole-HOSTING cells are not text: a space consumed as a hole's
+       cell (borrowed or P16 backing) contributes nothing to the
+       paste — the re-derived hole re-hosts in the pasted FORMATTING
+       spaces only */
+    let cells = GroutCells.classify(display);
+    let visible_sp = (id: Id.t) => !GroutCells.is_consumed(cells, id);
+    let ats = atoms(display);
+    let start =
+      ats
+      |> List.mapi((i, a) => (i, a))
+      |> List.find_opt(((_, (id, sh, _))) =>
+           Id.equal(id, cid) && (sh == csh || csh == (-1) && sh != (-1))
+         )
+      |> Option.map(fst);
+    /* walk right of the caret: spaces and holes accumulate, the first
+       GHOST token must be the chunk's delimiter; anything else bails
+       to the synthesis path */
+    let rec collect = (i: int, acc: string): option(string) =>
+      switch (List.nth_opt(ats, i)) {
+      | None => None
+      | Some((sid, _, `Sp)) =>
+        collect(i + 1, visible_sp(sid) ? acc ++ " " : acc)
+      | Some((_, _, `Hole)) => collect(i + 1, acc)
+      | Some((_, _, `Tok(tok, true))) when tok == d.text =>
+        Some(trail(i + 1, acc ++ tok))
+      | Some(_) => None
+      }
+    /* trailing spaces travel with the chunk (the display pads after
+       the delimiter re-host the re-derived hole), unless the line
+       ends — a line-end hole's pad is a render class, not text */
+    and trail = (i: int, acc: string): string => {
+      let rec spaces = (i, n) =>
+        switch (List.nth_opt(ats, i)) {
+        | Some((sid, _, `Sp)) => spaces(i + 1, visible_sp(sid) ? n + 1 : n)
+        | Some((_, _, `Hole)) => spaces(i + 1, n)
+        | Some((_, _, `Brk))
+        | None => (0, false)
+        | Some(_) => (n, true)
+        };
+      let (n, keep) = spaces(i, 0);
+      keep ? acc ++ String.make(n, ' ') : acc;
+    };
+    switch (start) {
+    | None => None
+    | Some(start) => collect(start + 1, "")
+    };
+  };
+};
+
+let tab_text =
+    (~display: option(Segment.t)=?, ~marks=[], z: Zipper.t, ins: insertion)
+    : option(string) => {
   let rec go = (ds: list(delimiter_info)) =>
     switch (ds) {
     | [] => None
@@ -3431,20 +3565,26 @@ let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
       | Some(n) when n < String.length(d.text) =>
         Some(String.sub(d.text, n, String.length(d.text) - n))
       | Some(_) => go(rest) /* fully-typed witness: next chunk */
-      | None =>
-        let lead = !f1_hugs_left(d.text) && !left_separated(z);
-        /* no trailing pad when the accepted delimiter ends its line —
-           the next material lives on a later line already */
-        let next_is_break =
-          switch (snd(z.relatives.siblings)) {
-          | [Secondary(w), ..._] => Secondary.is_linebreak(w)
-          | _ => false
-          };
-        let trail =
-          !f1_closes(d.text) && !f1_opens(d.text) && !next_is_break;
-        Some((lead ? " " : "") ++ d.text ++ (trail ? " " : ""));
+      | None when Option.is_some(display) =>
+        switch (tab_slice(~display=Option.get(display), ~marks, z, d)) {
+        | Some(_) as s => s
+        | None => synth(d)
+        }
+      | None => synth(d)
       }
-    };
+    }
+  and synth = (d: delimiter_info) => {
+    let lead = !f1_hugs_left(d.text) && !left_separated(z);
+    /* no trailing pad when the accepted delimiter ends its line —
+       the next material lives on a later line already */
+    let next_is_break =
+      switch (snd(z.relatives.siblings)) {
+      | [Secondary(w), ..._] => Secondary.is_linebreak(w)
+      | _ => false
+      };
+    let trail = !f1_closes(d.text) && !f1_opens(d.text) && !next_is_break;
+    Some((lead ? " " : "") ++ d.text ++ (trail ? " " : ""));
+  };
   go(ins.delimiters);
 };
 

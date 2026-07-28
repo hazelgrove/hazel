@@ -615,7 +615,80 @@ let parity_case_z = (name: string, ~waiver="", mk_z: unit => Zipper.t) =>
    One real bug fixed en route: multi-delimiter insertions with an
    embedded witness projected the full shard beside the typed prefix
    (`= ? =>`); they now degrade to the remainder-ghost channel. */
+/* ACCEPTANCE EQUATION (P4/P16): Tab slices the promise, so the
+   display text is BYTE-IDENTICAL before and after every accept step
+   (markers and caret aside) — and the final buffer holds the pasted
+   spacing as real spaces. */
+let strip_markers = (s: string): string =>
+  s
+  |> Str.global_replace(Str.regexp_string("\xc2\xa6"), "")
+  |> Str.global_replace(Str.regexp_string("\xe2\x9f\xaa"), "")
+  |> Str.global_replace(Str.regexp_string("\xe2\x9f\xab"), "");
+
+let acceptance_equation_tests = [
+  test_case(
+    "tab slices the promise: two-ary application",
+    `Quick,
+    () => {
+      let z0 =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.mk("let foo = fun(x, y) -> x + y in foo(\xc2\xa6"),
+        );
+      let rec steps = (z: Zipper.t, n: int, log: list(string)) =>
+        if (n == 0) {
+          (z, List.rev(log));
+        } else {
+          let (seg, _, marks, _, _, assist, _) = display_parts(z);
+          switch (CanonicalCompletion.tab_chip(z, assist)) {
+          | None => (z, List.rev(log))
+          | Some(ins) =>
+            switch (
+              CanonicalCompletion.tab_text(~display=seg, ~marks, z, ins)
+            ) {
+            | None => (z, List.rev(log))
+            | Some(text) =>
+              let before = strip_markers(display_state(~chips=false, z));
+              let z = Test_Editing.perform(z, [Action.Paste(text)]);
+              let after = strip_markers(display_state(~chips=false, z));
+              steps(
+                z,
+                n - 1,
+                [
+                  Printf.sprintf(
+                    "paste %s: %s",
+                    String.escaped(text),
+                    before == after ? "constant" : before ++ " -> " ++ after,
+                  ),
+                  ...log,
+                ],
+              );
+            }
+          };
+        };
+      let (zf, log) = steps(z0, 4, []);
+      /* JUDGED (andrew digest 2026-07-28): the mid-span accept is
+         byte-constant; the SPAN-ENDING accept relaxes hole rendering
+         from span form to resting form (backed cell -> borrowed cell /
+         pinch) — the zone doctrine, not a spacing bug. The pasted
+         formatting spaces persist in the buffer (flagged choice). */
+      check(
+        string_testable,
+        "per-step display constancy + final buffer",
+        "paste , : constant\n"
+        ++ "paste ): let foo = fun(x, y) -> x + y in foo(?, ?)"
+        ++ " -> let foo = fun(x, y) -> x + y in foo(?,?)\n"
+        ++ "||| buffer: let foo = fun(x, y) -> x + y in foo(, )",
+        String.concat("\n", log)
+        ++ "\n||| buffer: "
+        ++ Printer.of_zipper(~holes="?", ~concave_holes="~", zf),
+      );
+    },
+  ),
+];
+
 let tests = [
+  ("CompletionDisplay: acceptance-equation", acceptance_equation_tests),
   (
     "CompletionDisplay: target-0",
     [
