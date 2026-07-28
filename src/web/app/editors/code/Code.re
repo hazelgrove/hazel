@@ -13,6 +13,64 @@ let is_ref = (token: string, sort: Sort.t) =>
   && !Token.is_base_typ(token)
   && Token.is_typ_var(token);
 
+let render_string_with_escapes =
+    (~font_metrics: FontMetrics.t, token: string): list(t) => {
+  let body = Token.strip_quotes(token);
+  let len = String.length(body);
+
+  let rec split =
+          (i: int, acc: list((bool, string))): list((bool, string)) =>
+    if (i >= len) {
+      List.rev(acc);
+    } else if (body.[i] != '\\') {
+      let j = ref(i);
+      while (j.contents < len && body.[j.contents] != '\\') {
+        j := j.contents + 1;
+      };
+      let piece = String.sub(body, i, j.contents - i);
+      split(j.contents, [(false, piece), ...acc]);
+    } else if
+      /* body.[i] == '\\' */
+      (i + 1 >= len) {
+      split(i + 1, [(true, "\\"), ...acc]);
+    } else if (body.[i + 1] == 'u' && i + 2 < len && body.[i + 2] == '{') {
+      let k = ref(i + 3);
+      while (k.contents < len && body.[k.contents] != '}') {
+        k := k.contents + 1;
+      };
+      let esc =
+        if (k.contents < len) {
+          String.sub(body, i, k.contents - i + 1);
+        } else {
+          String.sub(body, i, len - i);
+        };
+      split(k.contents < len ? k.contents + 1 : len, [(true, esc), ...acc]);
+    } else if (body.[i + 1] == 'x' && i + 3 < len) {
+      let esc = String.sub(body, i, 4); /* \xNN */
+      split(i + 4, [(true, esc), ...acc]);
+    } else {
+      let esc = String.sub(body, i, 2); /* backslash + next char */
+      split(i + 2, [(true, esc), ...acc]);
+    };
+
+  let pieces = split(0, []);
+
+  let open_q = text("\"");
+  let close_q = text("\"");
+
+  let inner_nodes =
+    pieces
+    |> List.concat_map(((is_esc, s)) =>
+         if (is_esc) {
+           [span(~attrs=[Attr.classes(["escape"])], [text(s)])];
+         } else {
+           GraphemeView.render(~font_metrics, s);
+         }
+       );
+
+  [open_q, ...inner_nodes] @ [close_q];
+};
+
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
@@ -33,6 +91,7 @@ let of_delim' =
         | _ when Token.is_llm_hole(token) => "llm-waiting"
         | _ when Token.is_explicit_hole(token) => "explicit-hole"
         | _ when Token.is_string(token) => "string-lit"
+        | _ when Token.is_raw_string(token) => "raw-string-lit"
         | _ when is_infix_var => "Any" /* Budget error deco */
         | _ => Sort.class_of(sort)
         };
@@ -53,7 +112,9 @@ let of_delim' =
            conservative choice to guard against perf regressions;
            it can likely be relaxed. See also Token.bounding_box */
         base_cls == "string-lit"
-          ? GraphemeView.render(~font_metrics, token) : [text(token)],
+          ? render_string_with_escapes(~font_metrics, token)
+          : base_cls == "raw-string-lit"
+              ? GraphemeView.render(~font_metrics, token) : [text(token)],
       );
     },
   );

@@ -119,6 +119,18 @@
   color: var(--token-string-lit);
 }
 
+.code .token.string-lit .escape {
+  color: var(--token-escape);
+}
+
+.code .token.mono.raw-string-lit {
+  color: var(--token-string-lit);
+}
+
+.code .token.poly.raw-string-lit {
+  color: var(--token-string-lit);
+}
+
 /* code completion tokens */
 .code .in-unparsed-buffer {
   color: var(--token-buffer);
