@@ -77,7 +77,7 @@ for entry in "${PROGRAMS[@]}"; do
   cols="${size%x*}"
   rows="${size#*x}"
 
-  hz="hazel-programs/html-examples/$src.hz"
+  hz="hazel-programs/mvu/$src.hz"
   flat="$TMP/$src.hz"
 
   # Hazel comments are single-line `# ... #`. A comment spanning two lines

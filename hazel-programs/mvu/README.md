@@ -1,8 +1,7 @@
-# HazelHtml Example Programs
+# MVU Example Programs
 
-These example programs demonstrate the HazelHtml web app library features.
-They share a night-garden setting, and every one is a complete MVU app with
-inline tests.
+Ten complete MVU apps with inline tests, sharing a night-garden setting.
+These are the source for the `MVU / ...` documentation slides in `src/mvu`.
 
 ## How to Use
 
@@ -27,7 +26,7 @@ stale encoding** — edit a `.hz` without regenerating and the slide keeps
 shipping the old program. After any edit here:
 
 ```
-./hazel-programs/html-examples/regen-slides.sh
+./hazel-programs/mvu/regen-slides.sh
 ```
 
 That strips indentation (Hazel computes it at layout time, so baked-in

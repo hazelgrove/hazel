@@ -4,7 +4,7 @@
  * `(init, update, view, subs)` tuple carrying an HTML projector, so the
  * slide opens with the app already running.
  *
- * Generated from the .hz files in hazel-programs/html-examples via
+ * Generated from the .hz files in hazel-programs/mvu via
  * `hazel slide-encode`. Those files are the editable source — edit one
  * WITHOUT re-encoding and the slide silently keeps the old program.
  *
