@@ -107,7 +107,7 @@ let append = (base: t, ext: t): t => {
     step_count: base.step_count + (ext.step_count - ext.initial_step_count),
     probes,
     tests,
-    theorems: base.theorems @ ext.theorems,
+    theorems: ext.theorems @ base.theorems,
   };
 };
 
