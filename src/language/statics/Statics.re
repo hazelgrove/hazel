@@ -1628,8 +1628,8 @@ and uexp_to_info_map =
         m,
       );
     | HintedTest(e, hint) =>
-      let (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
-      let (hint, hint_elab, m) = go(~ana=Atom(String) |> Typ.temp, hint, m);
+      let& (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
+      let& (hint, hint_elab, m) = go(~ana=Atom(String) |> Typ.temp, hint, m);
       add(
         ~elab_term=HintedTest(e_elab, hint_elab) |> rewrap,
         ~elab_syn_ty=Prod([]) |> Typ.temp,
@@ -2146,9 +2146,9 @@ and uexp_to_info_map =
         m,
       );
     | Forall(p, e) =>
-      let (p, p_elab, m) =
+      let@ (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
-      let (e, e_elab, m) =
+      let& (e, e_elab, m) =
         go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
@@ -2242,7 +2242,7 @@ and uexp_to_info_map =
           ~def,
           ~body,
         );
-      let (rewritten_info, rewritten_elab, m) = go(~ana, rewritten, m);
+      let^ (rewritten_info, rewritten_elab, m) = go(~ana, rewritten, m);
       let m = FunctionSugar.add_binder_infos(m, ~user_pat=p, ~f_name);
       add(
         ~elab_term=rewritten_elab,
@@ -2431,7 +2431,8 @@ and uexp_to_info_map =
       );
     | Theorem({term: Var(_), _} as p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let& (e1', e1_elab, m) =
+        go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(
           ~is_synswitch=false,
@@ -2440,9 +2441,9 @@ and uexp_to_info_map =
           p,
           m,
         );
-      let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
+      let^ (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
-      let (p, p_elab, m) =
+      let@ (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
@@ -2459,12 +2460,13 @@ and uexp_to_info_map =
       );
     | Theorem(p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let& (_, e1_elab, m) =
+        go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
+      let^ (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
-      let (p, p_elab, m) =
+      let@ (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
@@ -3121,7 +3123,7 @@ and uexp_to_info_map =
         | Some(mode) => Ctx.set_use_mode(ctx, Some(mode))
         | None => ctx
         };
-      let (body, body_elab, m) = go(~ctx=ctx', ~ana, body, m);
+      let^ (body, body_elab, m) = go(~ctx=ctx', ~ana, body, m);
       switch (use_mode) {
       | Some(_) =>
         add(
