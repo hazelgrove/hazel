@@ -590,12 +590,116 @@ let yielding_streaming_current_state_test =
     },
   );
 
+/* Regression: with probes off, stepped terms share Id.invalid (Exp.temp).
+ * If outbox.current is keyed by that id, StreamCollector matches it against
+ * its own walk temps and truncates — streamed test counts can go backwards
+ * mid-run (e.g. 2 -> 1). current must stay keyed by a real program id. */
+let rec check_streaming_tests_monotonic =
+        (
+          ~remaining_slices: int,
+          ~prev_test_count: int,
+          ~accumulated: IncrEval.outbox(EvaluatorState.t),
+          ~info_map,
+          ~exp,
+          evaluation,
+        ) =>
+  if (remaining_slices <= 0) {
+    fail("Yielding evaluation did not complete");
+  } else {
+    switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+    | EvaluationCompleted(_) =>
+      let accumulated =
+        IncrEval.merge_outbox(
+          Evaluator.drain_streaming_outbox(evaluation),
+          accumulated,
+        );
+      let collected =
+        StreamCollector.collect_stream_state(accumulated, exp);
+      TestMap.count(collected.tests)
+    | EvaluationYielded(evaluation) =>
+      let update = Evaluator.drain_streaming_outbox(evaluation);
+      switch (update.current) {
+      | Some({id, _}) =>
+        check(
+          bool,
+          "current is never keyed by Id.invalid",
+          false,
+          Id.equal(id, Id.invalid),
+        );
+        check(
+          bool,
+          "current is keyed by a program id",
+          true,
+          Option.is_some(EvalInfo.find_opt(id, info_map)),
+        );
+      | None => ()
+      };
+      let accumulated = IncrEval.merge_outbox(update, accumulated);
+      let collected =
+        StreamCollector.collect_stream_state(accumulated, exp);
+      let test_count = TestMap.count(collected.tests);
+      check(
+        bool,
+        "streamed test count is monotonic",
+        true,
+        test_count >= prev_test_count,
+      );
+      check_streaming_tests_monotonic(
+        ~remaining_slices=remaining_slices - 1,
+        ~prev_test_count=test_count,
+        ~accumulated,
+        ~info_map,
+        ~exp,
+        evaluation,
+      );
+    };
+  };
+
+let yielding_streaming_current_id_invalid_race_test =
+  test_case(
+    "Stream collector current is not keyed by Id.invalid (probes off)",
+    `Quick,
+    () => {
+      let (info_map, exp) =
+        Statics.mk(
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Int)),
+          parse_exp(
+            "test 1 == 1 end; test 2 == 2 end; test 3 == 3 end; test 4 == 4 end",
+          ),
+        );
+      let info_map =
+        EvalInfo.of_info_map(
+          ~probe_all=false,
+          ~targets=Id.Map.empty,
+          info_map,
+        );
+      let evaluation =
+        Evaluator.start_yielding_evaluation(
+          ~info_map,
+          ~env=Builtins.env_init,
+          exp,
+        );
+      let final_count =
+        check_streaming_tests_monotonic(
+          ~remaining_slices=5000,
+          ~prev_test_count=0,
+          ~accumulated=IncrEval.empty_outbox,
+          ~info_map,
+          ~exp,
+          evaluation,
+        );
+      check(int, "all tests eventually stream", 4, final_count);
+    },
+  );
+
 let tests = (
   "Evaluator.Properties",
   [
     yielding_evaluation_test,
     yielding_streaming_outbox_test,
     yielding_streaming_current_state_test,
+    yielding_streaming_current_id_invalid_race_test,
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),

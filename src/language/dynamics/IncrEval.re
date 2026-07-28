@@ -105,7 +105,14 @@ let add_stream = (stream: t('state), incr: t('state)): t('state) => {
 let merge_outbox =
     (stream: outbox('state), outbox: outbox('state)): outbox('state) => {
   completed: add_stream(stream.completed, outbox.completed),
-  current: stream.current,
+  /* A slice that only finished completed entries (or only stepped through
+   * non-program ids) may omit current. Keep the prior in-flight publish so
+   * mid-stream UI state does not flicker away between slices. */
+  current:
+    switch (stream.current) {
+    | Some(_) as current => current
+    | None => outbox.current
+    },
 };
 
 let copy_descendant_entries =

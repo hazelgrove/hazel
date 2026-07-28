@@ -84,8 +84,25 @@ let rec evaluate =
 
   let evaluate = evaluate(~prev, ~reused_ids, ~info_map, ~outbox);
   let expr_id = DHExp.rep_id(exp);
+  /* Only key outbox.current by ids from the elaborated program.
+   * Stepped intermediates use Id.invalid (targets empty / probes off) or
+   * fresh UUIDs (probes on). Publishing under those ids either collides with
+   * StreamCollector's own Exp.temp nodes (truncating the walk so streamed
+   * results appear to go backwards) or never matches the walk. Keeping a
+   * prior program id across intermediates is also wrong: eval_5 gives temps
+   * a fresh empty inner_state, and publishing that under the kept id makes
+   * the collector short-circuit with an empty/partial state. Leave current
+   * untouched instead (current_top_id = None ⇒ no outbox write) so the last
+   * real-id publish remains until the next program node. */
   let current_top_id =
-    call_stack.stack == [] ? Some(expr_id) : current_top_id;
+    if (call_stack.stack == []) {
+      switch (EvalInfo.find_opt(expr_id, info_map)) {
+      | Some(_) => Some(expr_id)
+      | None => None
+      };
+    } else {
+      current_top_id
+    };
   let replay_state = (state: EvaluatorState.t): EvaluatorState.t => {
     ...state,
     incr_eval: IncrEval.empty,
