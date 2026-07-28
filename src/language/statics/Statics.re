@@ -420,6 +420,7 @@ and uexp_to_info_map =
   let ( let* ) = (component, k) => exp_edge(Part, component, k);
   // use when the sub-term's type is this rule's whole type: `(e)`, `1; e`
   let (let^) = (component, k) => exp_edge(Through, component, k);
+  let (let&&) = (component, k) => exp_edge(Prune, component, k);
   // use for any sub-term that is only type checked: `f(x)`'s `x`
   let (let&) = (component, k) => exp_edge(Omit, component, k);
   // use when the sub-term is a definition the binders demand from:
@@ -813,7 +814,7 @@ and uexp_to_info_map =
       let inner_ana_ty =
         List(MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana)) |> Typ.temp;
       let ids = List.map(Exp.rep_id, [e1, e2]);
-      let^ (e1, e1_elab, m) = go(~ana=inner_ana_ty, e1, m);
+      let&& (e1, e1_elab, m) = go(~ana=inner_ana_ty, e1, m);
       let& (e2, e2_elab, m) = go(~ana=inner_ana_ty, e2, m);
       /* Project each argument's synthesized type to its list element type.
          `list_tolerant` returns `?` when the arg's syn isn't a list, which
@@ -1938,6 +1939,8 @@ and uexp_to_info_map =
                 ~ctx,
                 ~matcher=MatchedTyp.arrow,
                 ~index=1,
+                ~fallback=out =>
+                  Arrow(arg.elab_syn_ty, out) |> Typ.temp,
                 fn.slice,
               ),
             );

@@ -1545,6 +1545,9 @@ let rec subtract = (ctx: Ctx.t, left: t, right: t): t =>
     };
   };
 
+let overlap = (ctx: Ctx.t, query: t, supplied: t): t =>
+  subtract(ctx, query, subtract(ctx, query, supplied));
+
 let children = (ty: t): list(t) =>
   switch (term_of(ty)) {
   | Unknown(_)
