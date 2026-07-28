@@ -3782,7 +3782,13 @@ and upat_to_info_map =
       );
     | Asc(p, ann) =>
       let (ann, m) =
-        utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ann, m);
+        utyp_to_info_map(
+          ~ctx,
+          ~ancestors=ancestors_inclusive,
+          ~allow_typfun=false,
+          ann,
+          m,
+        );
       /* Desugar any Sig types in the annotation without full normalization */
       let ann_ty = Typ.desugar_sig(ctx, ann.user_term);
       let (p, p_elab, m) =
@@ -3832,6 +3838,7 @@ and utyp_to_info_map =
     (
       ~ctx,
       ~expects=TypExpectation.TypeExpected,
+      ~allow_typfun=true,
       ~ancestors,
       utyp: Typ.t,
       m: Map.t,
@@ -3873,6 +3880,8 @@ and utyp_to_info_map =
       ([m], None);
     };
     switch (expects, utyp.term) {
+    | (TypeExpected, TypFun(_, _)) when allow_typfun =>
+      ok(Message.Type(utyp))
     | (_, Unknown(Hole(Invalid(token)))) => err(BadToken(token))
     | (LabelExpected(_), Unknown(Hole(EmptyHole))) =>
       ok(Message.EmptyLabel)
@@ -4131,7 +4140,14 @@ and utyp_to_info_map =
   let _ = ancestors;
   let go =
       (~ctx=ctx, ~expects=TypExpectation.TypeExpected, t: Typ.t, m: Map.t) =>
-    utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~expects, t, m);
+    utyp_to_info_map(
+      ~ctx,
+      ~ancestors=ancestors_inclusive,
+      ~expects,
+      ~allow_typfun,
+      t,
+      m,
+    );
   switch (term) {
   | Unknown(Hole(MultiHole(tms))) =>
     let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
