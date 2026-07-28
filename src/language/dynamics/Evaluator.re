@@ -127,6 +127,7 @@ module Eval = Transition(EvaluatorEVMode);
 
 let rec evaluate =
         (
+          ~track_reuse: bool,
           ~reuse_map: IncrEval.reuse_map,
           ~prev: IncrEval.t=IncrEval.empty,
           ~info_map: EvalInfoMap.t,
@@ -187,6 +188,7 @@ let rec evaluate =
         Eval.transition(
           (~in_closure=?, env, init) =>
             evaluate(
+              ~track_reuse,
               ~reuse_map,
               ~prev,
               ~info_map,
@@ -230,22 +232,25 @@ let rec evaluate =
        * previous cache. Otherwise the binding shadows any outer provenance
        * for those names and dependents must be recalculated. */
       let body_reuse_map =
-        List.fold_left(
-          (reuse_map, effect) =>
-            switch (effect) {
-            | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
-              let source_id = DHExp.rep_id(rhs);
-              IncrEval.update_maps_after_binding(
-                ~rhs_reused=IncrEval.was_reused(source_id, state^.incr_eval),
-                ~source_id,
-                pat,
-                ~reuse_map,
-              );
-            | _ => reuse_map
-            },
-          reuse_map,
-          effects,
-        );
+        track_reuse
+          ? List.fold_left(
+              (reuse_map, effect) =>
+                switch (effect) {
+                | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
+                  let source_id = DHExp.rep_id(rhs);
+                  IncrEval.update_maps_after_binding(
+                    ~rhs_reused=
+                      IncrEval.was_reused(source_id, state^.incr_eval),
+                    ~source_id,
+                    pat,
+                    ~reuse_map,
+                  );
+                | _ => reuse_map
+                },
+              reuse_map,
+              effects,
+            )
+          : reuse_map;
 
       switch (is_finished) {
       | Final => Trampoline.return((EvaluatorEVMode.Final, [], next))
@@ -282,6 +287,7 @@ let rec evaluate =
             Trampoline.Next(
               () =>
                 evaluate(
+                  ~track_reuse,
                   ~reuse_map=body_reuse_map,
                   ~prev,
                   ~info_map,
@@ -319,6 +325,7 @@ let rec evaluate =
           Trampoline.Next(
             () =>
               evaluate(
+                ~track_reuse,
                 ~reuse_map=body_reuse_map,
                 ~prev,
                 ~info_map,
@@ -374,13 +381,36 @@ let evaluate_and_limit =
       ~prev: IncrEval.t=IncrEval.empty,
       ~info_map: EvalInfoMap.t=EvalInfoMap.empty,
       ~env,
-      ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
+      ~reuse_map: option(IncrEval.reuse_map)=?,
       d: DHExp.t,
     )
     : step_constrained((Exp.t, EvaluatorState.t)) => {
+  /* The reuse map is only ever consumed by reuse_check (needs a non-empty
+   * prev) or by incr-entry snapshots (needs a non-empty info_map). When
+   * neither can happen — e.g. `hazel run`, MVU app dispatch — skip
+   * maintaining it: the per-binder remove_pat_bindings walk dominates
+   * evaluation otherwise. */
+  let track_reuse =
+    !IncrEval.is_empty(prev) || !EvalInfoMap.is_empty(info_map);
+  let reuse_map =
+    switch (reuse_map) {
+    | Some(m) => m
+    | None =>
+      track_reuse
+        ? IncrEval.clean_reuse_map_of_env(env) : IncrEval.empty_reuse_map
+    };
   let state = ref(EvaluatorState.mk(~targets));
   let result =
-    evaluate(~prev, ~info_map, ~call_stack=[], ~reuse_map, state, env, d);
+    evaluate(
+      ~track_reuse,
+      ~prev,
+      ~info_map,
+      ~call_stack=[],
+      ~reuse_map,
+      state,
+      env,
+      d,
+    );
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
   | Completed((_, _, x)) =>

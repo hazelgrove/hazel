@@ -13,6 +13,8 @@ type t = Id.Map.t(entry);
 
 let empty: t = Id.Map.empty;
 
+let is_empty = Id.Map.is_empty;
+
 let find_opt = Id.Map.find_opt;
 
 let of_info_map = (~probe_all: bool, info_map: StaticsBase.Map.t): t =>
