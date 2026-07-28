@@ -561,7 +561,8 @@ let accept_pins = [
   /* junction crossing clamp (typed-juxtaposition reading wins over
      the joint )+=> deletion reading — byte-identical states, entry
      stability precedent; costs one pair-exactness, gains a reverse
-     convergence) */
+     convergence); reverse convergence +1 again on c-p
+     (tabs-vs-materialize equivalence work) */
   ("type-adt", "40/2/0 of 42 | reverse 21/21"),
   ("tuple-list", "10/2/0 of 12 | reverse 6/6"),
   ("case-def-inline", "11/1/0 of 12 | reverse 6/6"),

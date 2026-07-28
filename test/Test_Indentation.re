@@ -102,6 +102,16 @@ let indentation_tests = [
       |> Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char),
     )
   ),
+  /* an incrementor (fun ->) inside a child raises the level for ALL
+     following sibling lines, not just the first (regression: chain
+     lines after the first flattened back to the child opening) */
+  test_indent_after_format(
+    ~name="fun-body let chain indents uniformly",
+    ~init=
+      "let render =\nfun w ->\nlet margin = 4 in\nlet pad = w / margin in\nlet inner = w - pad * 2 in\ninner + pad\nin\nrender(3)",
+    ~goal=
+      "let render =\n  fun w ->\n    let margin = 4 in\n    let pad = w / margin in\n    let inner = w - pad * 2 in\n    inner + pad\nin\nrender(3)",
+  ),
   /* Consecutive linebreaks after an indenting form share one level —
      each Enter must not staircase (regression: level+2 compounded per
      blank line) */
@@ -1130,13 +1140,13 @@ let grout_indent_tests = [
     ~name="hole branches indent like literal branches",
     ~init="let f =\nfun x ->\nlet x =\nif x < 0 then\nelse\nin\nf(3)",
     ~goal=
-      "let f =\n  fun x ->\n    let x =\n      if x < 0 then?\n      else?\n    in\n  f(3)",
+      "let f =\n  fun x ->\n    let x =\n      if x < 0 then?\n      else?\n    in\n    f(3)",
   ),
   test_indent_after_format(
     ~name="literal branches (mirror of the hole case)",
     ~init="let f =\nfun x ->\nlet x =\nif x < 0 then\n1\nelse 2\nin\nf(3)",
     ~goal=
-      "let f =\n  fun x ->\n    let x =\n      if x < 0 then\n        1\n      else 2\n    in\n  f(3)",
+      "let f =\n  fun x ->\n    let x =\n      if x < 0 then\n        1\n      else 2\n    in\n    f(3)",
   ),
 ];
 
