@@ -1,4 +1,4 @@
-#HazelHtml Full App Example#
+#HazelHtml Full App Example: a night garden almanac#
 #Elm-style architecture with tabs, forms, commands, and subscriptions#
 #msg = Msg sum type, model = (active_tab=String, form_name=String, form_message=String, saved_message=String)#
 
@@ -9,7 +9,7 @@ type Msg =
   + Submit
 in
 
-let init = (active_tab="Home", form_name="", form_message="", saved_message="") in
+let init = (active_tab="Grove", form_name="", form_message="", saved_message="") in
 
 let update(msg, model) =
   case msg
@@ -25,12 +25,12 @@ let update(msg, model) =
   | Submit =>
       let new_saved = model.form_name ++ ": " ++ model.form_message in
       ((active_tab=model.active_tab, form_name="", form_message="", saved_message=new_saved),
-       CmdBatch([Log("Form submitted: " ++ new_saved), Focus("name-input")]))
+       CmdBatch([Log("Note left: " ++ new_saved), Focus("name-input")]))
   end
 in
 
 let view(model) =
-  let tabs : [String] = ["Home", "Form", "About"] in
+  let tabs : [String] = ["Grove", "Notes", "About"] in
   Div(
     [
       Id("app"),
@@ -69,10 +69,10 @@ let view(model) =
       Div(
         [Style([("padding", "20px"), ("min-height", "200px")])],
         [
-          if model.active_tab == "Home" then
+          if model.active_tab == "Grove" then
             Div([], [
-              H2([], [Text("Welcome to HazelHtml!")]),
-              P([], [Text("This is a demo app showing various features:")]),
+              H2([], [Text("Welcome to the Night Garden!")]),
+              P([], [Text("An almanac for the moonlit beds, showing off:")]),
               Ul([], [
                 Li([], [Text("Tab navigation")]),
                 Li([], [Text("Form handling with OnInput")]),
@@ -82,23 +82,23 @@ let view(model) =
               if model.saved_message != "" then
                 Div(
                   [Style([("background", "#e8f5e9"), ("padding", "10px"), ("margin-top", "20px"), ("border-radius", "4px")])],
-                  [Text("Last saved: " ++ model.saved_message)]
+                  [Text("Last note: " ++ model.saved_message)]
                 )
               else
                 Div([], [])
             ])
-          else if model.active_tab == "Form" then
+          else if model.active_tab == "Notes" then
             Div([], [
-              H2([], [Text("Contact Form")]),
+              H2([], [Text("Gardener's Notes")]),
               Div(
                 [Style([("margin-bottom", "15px")])],
                 [
-                  Label([Style([("display", "block"), ("margin-bottom", "5px")])], [Text("Name:")]),
+                  Label([Style([("display", "block"), ("margin-bottom", "5px")])], [Text("Gardener:")]),
                   Input([
                     Id("name-input"),
                     Type("text"),
                     Value(model.form_name),
-                    Placeholder("Enter your name"),
+                    Placeholder("Who tended the beds?"),
                     OnInput(fun value -> Name(value)),
                     Style([("width", "100%"), ("padding", "8px"), ("box-sizing", "border-box")])
                   ])
@@ -107,11 +107,11 @@ let view(model) =
               Div(
                 [Style([("margin-bottom", "15px")])],
                 [
-                  Label([Style([("display", "block"), ("margin-bottom", "5px")])], [Text("Message:")]),
+                  Label([Style([("display", "block"), ("margin-bottom", "5px")])], [Text("Note:")]),
                   TextArea(
                     [
                       Value(model.form_message),
-                      Placeholder("Enter your message"),
+                      Placeholder("What did you plant tonight?"),
                       OnInput(fun value -> Message(value)),
                       Style([("width", "100%"), ("padding", "8px"), ("height", "100px"), ("box-sizing", "border-box")])
                     ],
@@ -131,7 +131,7 @@ let view(model) =
                     ("border-radius", "4px")
                   ])
                 ],
-                [Text("Submit")]
+                [Text("Leave Note")]
               )
             ])
           else
@@ -150,7 +150,7 @@ let view(model) =
       #Footer#
       Div(
         [Style([("background", "#f5f5f5"), ("padding", "10px"), ("text-align", "center"), ("color", "#666"), ("font-size", "12px")])],
-        [Text("Built with HazelHtml")]
+        [Text("Built with HazelHtml, under a full moon")]
       )
     ]
   )
@@ -162,34 +162,34 @@ let subs(_model) = SubNone in
 
 hint "tab switch"
 test
-  let (m, _cmd) = update(Tab("Form"), init) in
-  m.active_tab == "Form"
+  let (m, _cmd) = update(Tab("Notes"), init) in
+  m.active_tab == "Notes"
 end;
 
 hint "name input"
 test
-  let (m, _cmd) = update(Name("Alice"), init) in
-  m.form_name == "Alice"
+  let (m, _cmd) = update(Name("Wren"), init) in
+  m.form_name == "Wren"
 end;
 
 hint "message input"
 test
-  let (m, _cmd) = update(Message("Hello"), init) in
-  m.form_message == "Hello"
+  let (m, _cmd) = update(Message("Sowed starfruit"), init) in
+  m.form_message == "Sowed starfruit"
 end;
 
 hint "submit clears form and saves"
 test
-  let filled = (active_tab="Form", form_name="Bob", form_message="Hi", saved_message="") in
+  let filled = (active_tab="Notes", form_name="Wren", form_message="Sowed starfruit", saved_message="") in
   let (m, _cmd) = update(Submit, filled) in
-  m.form_name == "" && m.form_message == "" && m.saved_message == "Bob: Hi"
+  m.form_name == "" && m.form_message == "" && m.saved_message == "Wren: Sowed starfruit"
 end;
 
 hint "tab preserves form data"
 test
-  let (filled, _) = update(Name("Alice"), init) in
+  let (filled, _) = update(Name("Wren"), init) in
   let (m, _cmd) = update(Tab("About"), filled) in
-  m.form_name == "Alice"
+  m.form_name == "Wren"
 end;
 
 (init, update, view, subs)

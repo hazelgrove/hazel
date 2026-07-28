@@ -1,5 +1,5 @@
 #HazelHtml Keyboard Game#
-#Move a box with arrow keys using OnDocumentKeyDown subscription#
+#Steer a firefly around the grove with arrow keys, via OnDocumentKeyDown#
 #msg = Msg sum type, model = (x=Int, y=Int)#
 
 type Msg =
@@ -30,36 +30,37 @@ in
 let view(model) =
   Div(
     [
-      Id("game"),
+      Id("grove"),
       Style([
         ("width", "400px"),
         ("height", "400px"),
         ("position", "relative"),
-        ("background", "#f0f0f0"),
-        ("border", "2px solid #333"),
+        ("background", "#0d1117"),
+        ("border", "2px solid #30363d"),
         ("margin", "20px auto")
       ])
     ],
     [
       Div(
-        [Style([("text-align", "center"), ("padding", "10px"), ("color", "#666")])],
-        [Text("Use arrow keys to move the box")]
+        [Style([("text-align", "center"), ("padding", "10px"), ("color", "#8b949e")])],
+        [Text("Steer the firefly with the arrow keys")]
       ),
       Div(
         [Style([
           ("width", "40px"),
           ("height", "40px"),
-          ("background", "#4CAF50"),
+          ("background", "#f7e26b"),
           ("position", "absolute"),
           ("left", string_of_int(model.x) ++ "px"),
           ("top", string_of_int(model.y) ++ "px"),
-          ("border-radius", "4px"),
+          ("border-radius", "50%"),
+          ("box-shadow", "0 0 18px #f7e26b"),
           ("transition", "all 0.1s ease")
         ])],
         []
       ),
       Div(
-        [Style([("position", "absolute"), ("bottom", "10px"), ("left", "10px"), ("color", "#333")])],
+        [Style([("position", "absolute"), ("bottom", "10px"), ("left", "10px"), ("color", "#8b949e")])],
         [Text("Position: (" ++ string_of_int(model.x) ++ ", " ++ string_of_int(model.y) ++ ")")]
       )
     ]

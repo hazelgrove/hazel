@@ -1,5 +1,5 @@
 # GAME OF LIFE MVU #
-# Conway's cellular automaton with interactive grid #
+# A night garden that grows by Conway's rules: click cells to sow #
 
 type Cell = + Dead + Alive in
 
@@ -124,7 +124,8 @@ let view(model) =
             ("font-family", "monospace"), ("background", "#0a0a14"), ("padding", "20px"),
             ("border-radius", "8px"), ("color", "#ccc")])],
     [
-      H2([Style([("color", "#39ff14")])], [Text("Game of Life")]),
+      H2([Style([("color", "#39ff14"), ("margin-bottom", "2px")])], [Text("🌱 Garden of Life")]),
+      P([Style([("font-size", "12px"), ("color", "#8b949e"), ("margin-top", "0")])], [Text("Sow a cell; the grove spreads by Conway's rules")]),
       P([], [Text("Generation: " ++ string_of_int(model.generation))]),
       # Grid using Table #
       Table(

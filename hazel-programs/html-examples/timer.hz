@@ -1,4 +1,4 @@
-#HazelHtml Timer Example#
+#HazelHtml Timer Example: how long the beds have been watered#
 #Elm-style architecture with subscriptions#
 #msg = Msg sum type, model = (seconds=Int, running=Bool)#
 
@@ -33,10 +33,11 @@ let view(model) =
   Div(
     [
       Id("timer"),
-      Class("timer-app"),
+      Class("watering-timer"),
       Style([("text-align", "center"), ("padding", "40px"), ("font-family", "monospace")])
     ],
     [
+      H2([Style([("margin", "0"), ("font-size", "16px"), ("color", "#4a7c59")])], [Text("🌙 Watering Timer")]),
       H1([Style([("font-size", "72px"), ("margin", "20px")])], [Text(time_str)]),
       Div(
         [],
@@ -46,7 +47,7 @@ let view(model) =
               OnClick(Toggle),
               Style([("font-size", "24px"), ("padding", "15px 30px"), ("margin", "10px"), ("cursor", "pointer")])
             ],
-            [Text(if model.running then "Pause" else "Start")]
+            [Text(if model.running then "Pause" else "Water")]
           ),
           Button(
             [

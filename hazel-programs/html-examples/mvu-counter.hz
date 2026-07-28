@@ -1,4 +1,4 @@
-#MVU Counter Example#
+#MVU Counter Example: moonflowers in bloom#
 #Elm-style architecture: (init_model, update, view, subs)#
 #msg = Int, model = Int#
 
@@ -7,7 +7,7 @@ let update(msg, model) = (model + msg, CmdNone) in
 let view(model: Int) : HTML = Div(
   [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],
   [
-    H2([], [Text("MVU Counter")]),
+    H2([], [Text("Moonflowers in Bloom")]),
     Div(
       [Style([("font-size", "48px"), ("margin", "20px")])],
       [Int(model)]
@@ -31,12 +31,20 @@ let view(model: Int) : HTML = Div(
       ),
       P(
         [Style([("color", "#666"), ("font-size", "12px")])],
-        [Text("Click buttons to change count")]
+        [Text("Plant a moonflower, or pick one")]
       )
     ]
   )
 in
 
 let subs(_model: Int) : Sub = SubNone in
+
+# Tests #
+
+hint "planting adds a moonflower"
+test let (m, _cmd) = update(1, 0) in m == 1 end;
+
+hint "picking removes one"
+test let (m, _cmd) = update(-1, 5) in m == 4 end;
 
 (0, update, view, subs)

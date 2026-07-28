@@ -1,5 +1,5 @@
-#HazelHtml Todo List Example#
-#A todo list with add/remove functionality#
+#HazelHtml Todo List Example: tonight's planting list#
+#A todo list with add/remove, entered through a Form with OnSubmit#
 #msg = Msg sum type, model = (todos=[String], input_value=String)#
 
 type Msg =
@@ -8,7 +8,7 @@ type Msg =
   + UpdateInput(String)
 in
 
-let init = (todos=["Learn Hazel", "Build an app"], input_value="") in
+let init = (todos=["Water the moonmelons", "Sow starfruit seeds"], input_value="") in
 
 let remove_at(xs: [String], idx: Int) : [String] =
     let indexed = mapi(xs, fun (i, x) -> (i, x)) in
@@ -32,28 +32,30 @@ let view(model) =
   Div(
     [Class("todo-app"), Style([("max-width", "400px"), ("margin", "20px auto"), ("font-family", "sans-serif")])],
     [
-      H2([Style([("text-align", "center")])], [Text("Todo List")]),
-      #Input form#
-      Div(
-        [Style([("display", "flex"), ("margin-bottom", "20px")])],
+      H2([Style([("text-align", "center")])], [Text("🌙 Planting List")]),
+      #Submitting the form (Enter or the button) adds the chore#
+      Form(
+        [OnSubmit(AddTodo), Style([("display", "flex"), ("margin-bottom", "20px")])],
         [
           Input([
             Type("text"),
             Value(model.input_value),
-            Placeholder("Add a todo..."),
+            Placeholder("Add a garden chore..."),
+            Required(true),
             OnInput(fun value -> UpdateInput(value)),
             Style([("flex", "1"), ("padding", "8px"), ("font-size", "16px")])
           ]),
           Button(
             [
-              OnClick(AddTodo),
+              Type("submit"),
+              Disabled(model.input_value == ""),
               Style([("padding", "8px 16px"), ("background", "#4CAF50"), ("color", "white"), ("border", "none"), ("cursor", "pointer")])
             ],
-            [Text("Add")]
+            [Text("Plant")]
           )
         ]
       ),
-      #Todo items#
+      #Chores#
       Ul(
         [Style([("list-style", "none"), ("padding", "0"), ("margin", "0")])],
         mapi(model.todos, fun (index, item) ->
@@ -72,10 +74,10 @@ let view(model) =
           )
         )
       ),
-      #Item count#
+      #Chore count#
       Div(
         [Style([("text-align", "center"), ("color", "#666"), ("margin-top", "10px")])],
-        [Text(string_of_int(length(model.todos)) ++ " items")]
+        [Text(string_of_int(length(model.todos)) ++ " chores tonight")]
       )
     ]
   )
@@ -85,13 +87,13 @@ let subs(_model) = SubNone in
 
 # Tests #
 
-hint "add todo appends to list"
+hint "submitting the form appends the chore"
 test
   let (m, _cmd) = update(AddTodo, (todos=["A"], input_value="B")) in
   m.todos == ["A", "B"] && m.input_value == ""
 end;
 
-hint "add empty todo does nothing"
+hint "submitting an empty input does nothing"
 test
   let (m, _cmd) = update(AddTodo, (todos=["A"], input_value="")) in
   m.todos == ["A"]
