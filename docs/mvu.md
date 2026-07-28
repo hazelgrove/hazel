@@ -10,23 +10,29 @@ revisiting.
 An MVU program is a **4-tuple** `(init, update, view, subs)`:
 
 - `init` — the initial model (any Hazel value)
-- `update` — `(Msg, Model) -> (Model, Cmd)`
+- `update` — `(Model, Action) -> (Model, Cmd)`
 - `view` — `Model -> Html`
 - `subs` — `Model -> Sub`
 
 The labeled form `(init=..., update=..., view=..., subs=...)` is also accepted,
 in any order.
 
+**Naming.** Hazel programs call the message type `Action`, and the model comes
+first in `update` — that matches `fold_left`'s `(acc, elem)` and Hazel's own
+subject-first argument convention, so `update` folds directly over a list of
+actions. The OCaml implementation still says `msg`, because `action` is taken
+there twice over: `HTMLProj` has its own projector `action` type, and
+`Haz3lcore.Action` is the editor-action module. The asymmetry is deliberate.
+
 ```
-type Msg = + Toggle + Tick in
+type Action = + Toggle + Tick in
 let init = (seconds=0, running=false) in
-let update(msg, model) =
-  case msg
-  | Toggle =>
-      ((seconds=model.seconds, running=if model.running then false else true), CmdNone)
+let update(model, action) =
+  case action
+  | Toggle => ((seconds=model.seconds, running=!model.running), CmdNone)
   | Tick =>
-      if model.running then
-        ((seconds=model.seconds + 1, running=model.running), CmdNone)
+      if model.running
+      then ((seconds=model.seconds + 1, running=model.running), CmdNone)
       else (model, CmdNone)
   end
 in
@@ -65,14 +71,14 @@ Event data are labeled tuples, so fields come out by dot projection:
 
 ### Event handlers
 
-Handlers produce **messages**, which route through `update`.
+Handlers produce **actions**, which route through `update`.
 
 | Event | Handler type |
 |-------|-------------|
-| `OnClick`, `OnDoubleClick`, `OnMouseEnter`, `OnMouseLeave`, `OnFocus`, `OnBlur`, `OnSubmit` | `Msg` (a value, e.g. `OnClick(Toggle)`) |
-| `OnInput`, `OnChange` | `String -> Msg` |
-| `OnKeyDown`, `OnKeyUp`, `OnKeyPress` | `KeyEvent -> Msg` |
-| `OnMouseDown`, `OnMouseUp`, `OnMouseMove` | `MouseEvent -> Msg` |
+| `OnClick`, `OnDoubleClick`, `OnMouseEnter`, `OnMouseLeave`, `OnFocus`, `OnBlur`, `OnSubmit` | `Action` (a value, e.g. `OnClick(Toggle)`) |
+| `OnInput`, `OnChange` | `String -> Action` |
+| `OnKeyDown`, `OnKeyUp`, `OnKeyPress` | `KeyEvent -> Action` |
+| `OnMouseDown`, `OnMouseUp`, `OnMouseMove` | `MouseEvent -> Action` |
 
 `OnSubmit` also prevents the browser's default form submission.
 
@@ -88,7 +94,7 @@ Side effects returned from `update` alongside the new model.
 | `ScrollIntoView("element-id")` | Scroll element into view |
 | `ScrollTo("element-id", x, y)` | Scroll to position |
 | `CopyToClipboard("text")` | Copy text to clipboard |
-| `Delay(500.0, MyMsg)` | Dispatch a message after a delay (ms) |
+| `Delay(500.0, MyAction)` | Dispatch an action after a delay (ms) |
 | `Log("debug info")` | Print to the browser console |
 
 ### Subscriptions
@@ -99,11 +105,11 @@ returning `SubNone` for a previously active subscription tears it down.
 | Subscription | Handler type |
 |-------------|-------------|
 | `SubNone`, `SubBatch([sub1, sub2])` | — |
-| `Every(1000.0, handler)` | `Float -> Msg` (interval ms; handler gets a timestamp) |
-| `AnimationFrame(handler)` | `Float -> Msg` |
-| `OnResize(handler)` | `(Int, Int) -> Msg` (width, height) |
-| `OnVisibilityChange(handler)` | `Bool -> Msg` (`true` when visible) |
-| `OnDocumentKeyDown(handler)`, `OnDocumentKeyUp(handler)` | `KeyEvent -> Msg` (capture phase) |
+| `Every(1000.0, handler)` | `Float -> Action` (interval ms; handler gets a timestamp) |
+| `AnimationFrame(handler)` | `Float -> Action` |
+| `OnResize(handler)` | `(Int, Int) -> Action` (width, height) |
+| `OnVisibilityChange(handler)` | `Bool -> Action` (`true` when visible) |
+| `OnDocumentKeyDown(handler)`, `OnDocumentKeyUp(handler)` | `KeyEvent -> Action` (capture phase) |
 
 ### Inline tests
 
@@ -113,11 +119,22 @@ the runtime:
 ```
 hint "toggle starts timer"
 test
-  let (m, _cmd) = update(Toggle, init) in
+  let (m, _) = update(init, Toggle) in
   m.running == true
 end;
 
 (init, update, view, subs)
+```
+
+An `update` that never issues a command can return a bare `Model` and be lifted
+at the tuple, which keeps the tests free of `CmdNone` noise:
+
+```
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
+  fun (model, action) -> (f(model, action), CmdNone)
+in
+
+(init, noCmd(update), view, subs)
 ```
 
 From the CLI: `node _build/default/src/CLI/cli.bc.js test myprogram.hz`
@@ -134,197 +151,86 @@ viewed alongside the code instead of inside it.
 expression's live value turns out to be:
 
 - **State commit** (`commit: State`) — the value is an `(init, update, view, subs)`
-  4-tuple. The model lives in the web-side AppStore; a msg goes to
-  `update(msg, model)`. This is the Elm path.
+  4-tuple. The model lives in the web-side AppStore; an action goes to
+  `update(model, action)`. This is the Elm path.
 - **Syntax commit** (`commit: Syntax`) — the value is bare HTML. The projected
-  expression IS the model, and a msg is an `Html -> Html` transform. Committing
-  evaluates `msg(model)` and splices the result back into the document via
-  `SetSyntax`.
+  expression IS the model, and an action is an `Html -> Html` transform.
+  Committing evaluates `action(model)` and splices the result back into the
+  document via `SetSyntax`.
 
-Handlers always produce a **msg** and dispatch is uniform; only the commit
+Handlers always produce an **action** and dispatch is uniform; only the commit
 strategy differs.
 
 ### Dispatch cycle
 
-1. An event fires (click, subscription timer, delayed command, ...).
-2. The handler produces a `Msg` value; `HazelDOM` hands it to `inject` and stops propagation.
-3. **State commit**: the AppStore entry evaluates `update(msg, model)`, extracts
-   `(new_model, cmd)`, runs `cmd` through `CmdRunner`, re-derives `view(new_model)`
-   and `subs(new_model)`, and reconciles its subscription handles.
-   **Syntax commit**: `HTMLProj` evaluates `msg(model)` and splices the resulting
-   Html back into the document (an `(Html, Cmd)` result also runs the Cmd).
+An event fires; the handler produces an `Action`; `HazelDOM` hands it to
+`inject` and stops propagation. Then, for **state commit**: the AppStore entry
+evaluates `update(model, action)`, runs the returned `cmd` through `CmdRunner`,
+re-derives `view` and `subs`, and reconciles subscription handles. For **syntax
+commit**: `HTMLProj` evaluates `action(model)` and splices the resulting Html
+back in.
 
-**`evaluate_direct`**: every runtime application (update, view, subs, handlers,
-subscription callbacks) is plain `Evaluator.evaluate` — no `Statics.mk`, no
-elaboration. Necessary because handlers are `Closure` nodes left over from a
-previous evaluation, and the elaborator does not understand runtime-only
-constructs like `Closure(env, body)`.
+Three things to know if you work on this path:
 
-**Wrapper stripping**: the evaluator wraps values in `Asc`, `Closure` and
-`Parens`; these must be stripped before matching on constructors.
-`MvuShape.strip_wrappers` / `of_constructor` do this throughout.
-
-**Cmd extraction**: `update` is expected to return `(Model, Cmd)`. If the result
-is not a tuple (e.g. mid-edit), the whole result is treated as the model with
-`CmdNone`.
+- **Everything runs through plain `Evaluator.evaluate`** — no statics, no
+  elaboration. Handlers are `Closure` nodes left from a previous evaluation, and
+  the elaborator doesn't understand runtime-only constructs.
+- **Values arrive wrapped** in `Asc`/`Closure`/`Parens`; strip them before
+  matching on constructors (`MvuShape.strip_wrappers`).
+- **A non-tuple `update` result** is treated as the model with `CmdNone`, and
+  warns. That is for transient edit states only — don't rely on it, since it
+  puts two `update` types through one slot and defeats a future type check on
+  the 4-tuple. Use the `noCmd` lift shown above.
 
 ## Design decisions
 
-These are the load-bearing ones — the places where a different choice was
-available and might still be worth taking.
+The load-bearing ones — where a different choice was available and might still
+be worth taking.
 
-### MVU state lives in page state, not in the syntax
+**State lives in page state, not the syntax.** The model is an entry in
+`AppStore.t = Id.Map.t(Entry.t)`, keyed by the projector's term id. It can't
+live in the syntax: models hold evaluated closures, which don't serialize, and
+a projector `SetModel` is an *edit*, so a write per message would be an
+O(document) rewrite with statics and re-evaluation behind it. Only `model` is
+state; `update_fn`/`view_fn`/`subs_fn`/`html` are memos, re-derived on
+re-evaluation. On re-eval the model survives if `view(old_model)` still
+evaluates, so editing your update function live keeps app state. Store updates
+ride non-historic `is_edit=false` actions, so app interaction stays out of undo.
 
-The app model is an entry in an id-keyed store (`Globals.Model.apps`,
-`AppStore.t = Id.Map.t(Entry.t)`), not in the projector's model string or the
-document.
+**`Project(SetModel)` recomputes layout only.** Model strings are opaque to
+statics — every kind was audited, and those that do affect semantics (sliders,
+checkbox, textarea, livelits) commit via `SetSyntax`, which stays Full. So
+`SetModel` rebuilds `CachedSyntax` and the measured maps, reuses
+`CachedStatics`, and schedules no re-evaluation. `SetModelQuiet` is the
+non-historic twin: a drag pushes one history entry on the first tick and
+streams quiet updates after.
 
-Why not in the syntax: the model holds closures — `update`/`view`/`subs` are
-evaluated function values, which don't serialize — and a projector `SetModel` is
-an *edit* action, so a write per message would be an O(document) rewrite with
-statics, elaboration and re-evaluation behind it. (The Layout classification
-below cuts that cost for the model writes that do happen — checkpoints,
-drag-resize — but it doesn't make a per-message document write a good idea.)
-Keeping state in page state makes dispatch O(handler eval).
+**Self-modifying HTML is Elm with `update = apply`.** There is no separate
+legacy mode; a self-modifying handler is just an action interpreted by
+application, and payload events build it as `fun m -> handler((m, payload))`.
+*Limitation worth revisiting*: syntax commit splices an **evaluated** value
+back, and evaluation erases variables, so it only really works on closed HTML.
+A syntactic transformation would lift that.
 
-Contracts the store keeps:
+**Placement is a framework feature, not an HTML one.** `placement: Inline |
+Sidebar` lives on `ProjectorCore.t`, defaulted on deserialization for
+back-compat, so any projector kind docks with zero per-kind changes.
+`ProjectorChip` owns both the chip segment and its `Shape`, so the drawn and
+reserved widths can't drift.
 
-- **State vs memo split.** Only `model` is state. `update_fn`/`view_fn`/`subs_fn`/
-  `html` are memos derived by evaluating the program: never persisted, always
-  rebuildable. The type documents which is which.
-- **Keyed by syntax identity.** `Id.Map` keyed by the projector's term id, so
-  multiple inline apps in one document each get their own entry for free.
-- **Edit-independent.** All store updates ride actions with `is_edit=false` and
-  non-historic, so app interaction never enters the undo history.
-- **Entries own their subscriptions.** `sub_handles` live in the entry, and every
-  operation that changes `model` reconciles them. This retired a module-global
-  `HazelDOM.active_subscriptions` table and moved subscription reconciliation out
-  of the render path into the update path — so unrelated renders no longer reset
-  timer phase.
-- **Rebind on re-eval.** When the program re-evaluates, the memos are re-derived
-  and the model *survives* if it is still compatible with the new program
-  (`view(old_model)` still evaluates), else it resets to the new `init`. Editing
-  your update function live keeps your app state.
+**App detection is two-phase.** `init` is permissive and syntactic (anything
+that could evaluate to HTML or an app); `view` is authoritative and reads the
+live value from this projector's probe. The cost is a wider context menu — see
+limitations.
 
-### `Project(SetModel)` recomputes layout only
+**AppBridge.** Core can't depend on web, so the web layer installs function
+refs at startup and core-only builds (CLI, tests) get inert defaults. Precedent:
+`Ascriptions.ctx_ref`.
 
-Projector model strings are opaque to statics — every projector kind was audited,
-and the ones that do affect semantics (sliders, checkbox, textarea, livelits)
-commit through `SetSyntax`, which stays a Full recompute. So `Project(SetModel)`
-is classified as a **Layout** edit: `CachedSyntax` and the measured/shape maps
-rebuild, `CachedStatics` is reused, and no worker re-evaluation is scheduled.
-This is what makes app dispatch and drag-resize cheap, and it also stopped
-sliders from re-running statics per tick.
-
-`SetModelQuiet` is the non-historic twin: a drag gesture pushes one history entry
-on the first tick and streams quiet updates after, so undo restores the pre-drag
-state in one step. Autosave still fires, via a separate `Updated.save` field.
-
-### Self-modifying HTML is Elm with `update = apply`
-
-The old inline projector had its own "legacy mode" — separate app shapes, a
-`SetAppViewModel` action, and `update_fn: option(...)` branching through
-HazelDOM/CmdRunner/SubManager. That is gone. A self-modifying handler is just a
-msg whose interpretation is `apply`: `HazelDOM.t = {inject, view_term, commit}`,
-and payload events build the msg as `fun m -> handler((m, payload))`
-(`payload_transform`), so `Delay(ms, msg)` and `(Html, Cmd)` results work
-identically in both modes.
-
-**Known limitation, worth revisiting**: syntax-commit splices an *evaluated*
-value back into the document. Evaluation erases variables — `let x = "ON" in
-Div(..., [Text(x)])` commits with `x` already replaced by its value, and any
-surrounding binding structure is lost. So syntax commit really only works on
-closed HTML. A syntactic transformation (rewriting the projected expression
-rather than replacing it with its value) would lift that, and is the natural next
-step if self-modifying HTML is pursued further.
-
-### Projector placement is a framework feature, not an HTML feature
-
-`placement: Inline | Sidebar` is a field on the projector instance
-(`ProjectorCore.t`), marked `[@sexp.default]` so documents serialized before the
-field still load. `Alt+S` or the context menu toggles it; the code site keeps a
-chip and the projector's primary view renders as a card in the Projectors sidebar
-panel, with jump-to-source and undock.
-
-Routing is generic — `mk_view` is unchanged and placement-agnostic, and
-`split_views` picks chip-vs-inline the same way refractors already pick
-`skip_inline` — so this works for every projector kind with zero per-projector
-code. Overlay and offside decorations keep rendering at the code site in both
-placements. `TogglePlacement` is a Layout edit (footprint changes, semantics
-cannot), historic, one undo step.
-
-Two details that cost a round of fixes. **`ProjectorChip` owns both the chip's
-segment and its `Shape`**, so the reserved footprint and the drawn width cannot
-drift apart. **Panel order comes from the projector's measured origin (row, col)**,
-not from `projector_list` — that list follows MakeTerm's skel-driven traversal,
-which is neither source order nor its reverse, whereas the measured origin is the
-same measurement that positions the projector at the code site, so it is
-on-screen order by construction.
-
-Placement also pushed two generally-useful things into the projector framework:
-`View.args` carries `col_width`/`row_height` (font metrics live web-side and
-projectors had no access), and `View.status` carries `placement` (projectors could
-not tell whether they were docked). The HTML projector's resize uses the former:
-it anchors cursor and cols/rows at pointerdown and sizes from the delta, never
-re-reading geometry mid-drag, which is what makes it immune to the reflow its own
-resizing causes.
-
-### App detection is two-phase
-
-`Projector.init` only ever sees pre-evaluation syntax, so it cannot know what an
-expression will evaluate to.
-
-- `init` is **permissive and syntactic**: bare HTML (an HTML constructor
-  application, or `Br`), plus anything that could evaluate to an app — a literal
-  or labeled 4-tuple, a variable, an application.
-- `view` is **authoritative**: `HTMLProj` sets `dynamics = true`, so the
-  projected expression is probed and `info.dynamics` carries its live value (the
-  latest sample by `seq`). `MvuShape.detect_app_kind` picks the commit mode from
-  that value. A value that is neither an app nor HTML says so rather than dumping
-  a term; no value at all (not yet evaluated) falls back to rendering the syntax.
-
-`Projector.dynamics` had been a **dead flag** since its consumer was removed with
-the legacy maketerm probe code. It was rewired additively in `CachedStatics`:
-a projector that asks for dynamics gets its term id added to the probe targets,
-exactly like a manual probe, so nothing changes for projectors that don't ask.
-
-### AppBridge: core reaches the web-side store through refs
-
-`HTMLProj` is in `haz3lcore`; the AppStore is in `web`, and core cannot depend on
-web. `AppBridge` (core) holds a set of function refs that `AppBridgeInstall`
-populates from `Page.main_view`, where both the store and `inject_global` are in
-scope — the same indirection `Ascriptions.ctx_ref` uses. Defaults are inert, so
-core-only builds behave as if no store existed.
-
-| Ref | Meaning |
-|-----|---------|
-| `ensure_app(id, app, checkpoint)` | Create or rebind the store entry for `id`; no-op when already bound to this value |
-| `current_html(id)` | The entry's current `view_fn(model)`, `None` until built |
-| `dispatch(id, msg)` | Route a msg to the entry's `update_fn` |
-| `checkpoint(id)` | The entry's model, serialized, if closure-free |
-| `version` | Bumped on every store change, so `ProjectorView.ViewCache` can see it |
-
-`ensure_app` schedules the existing init action rather than mutating, so render
-stays effect-light.
-
-### Checkpoints
-
-A projected app's model is persisted into the projector's own model string, so an
-app keeps its state across a document reload.
-
-- **What persists**: the model, sexp-serialized, **iff it is closure-free** — no
-  `Fun`/`TypFun`/`FixF`/`Closure`/`BuiltinFun` anywhere inside. A model holding a
-  function simply isn't checkpointed; no error, the app just starts from `init`
-  next time.
-- **When**: debounced, never per message. Each dispatch re-arms a 2s idle timer;
-  the write goes through the quiet non-historic path, so it is neither an edit nor
-  an undo entry.
-- **Restore**: a checkpoint is *validated against the current view* before being
-  adopted — it must deserialize, and `view` must accept it. How strict that second
-  test is (evaluates, vs. evaluates and yields HTML) is a tuning knob: Hazel is
-  gradual, so a wrong-shaped model usually yields an indeterminate value rather
-  than an error, and looser trades "stale state survives an edit" against "state
-  is dropped too eagerly". Either way rejection is silent and `init` is used.
+**Checkpoints.** After 2s idle, a closure-free model is written quietly into the
+projector model so an app survives reload. Restoring requires `view(model)` to
+both evaluate and yield HTML; a wrong shape is discarded silently rather than
+erroring.
 
 ## Keyboard focus
 
@@ -383,7 +289,8 @@ compose. No ports and no HTTP: commands cover DOM operations and scheduling only
 | `src/haz3lcore/projectors/implementations/HTMLProj.re` | the projector: state or syntax commit, resize |
 | `src/language/builtins/BuiltinsADT.re` | `Html`, `Attr`, `Cmd`, `Sub`, `KeyEvent`, `MouseEvent` |
 | `src/CLI/Cli.re`, `src/CLI/Run.re` | the `test` command, `evaluate_with_tests` |
-| `hazel-programs/html-examples/` | mvu-counter, timer, animation, keyboard-game, todo-list, full-app, emojipaint, tictactoe |
+| `hazel-programs/html-examples/` | the ten example apps; `regen-slides.sh` re-encodes them into `src/mvu` |
+| `src/mvu/` | those apps as documentation slides, grouped under `MVU / ...` |
 
 Sources: [The Elm Architecture](https://guide.elm-lang.org/architecture/),
 [Beginning Elm — Commands](https://elmprogramming.com/commands.html).

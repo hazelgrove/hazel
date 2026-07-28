@@ -1,104 +1,135 @@
-#HazelHtml Timer Example: how long the beds have been watered#
-#Elm-style architecture with subscriptions#
-#msg = Msg sum type, model = (seconds=Int, running=Bool)#
+# Watering Timer #
 
-type Msg =
+# How long the beds have been watered. Shows subscriptions: `Every` drives #
+# the clock, and `subs` returns it only while the timer is running. #
+
+type Action =
   + Toggle
   + Reset
   + Tick
 in
 
-let init = (seconds=0, running=false) in
+type Model = (
+  seconds = Int,
+  running = Bool
+) in
 
-let update(msg, model) =
-  case msg
-  | Toggle =>
-      ((seconds=model.seconds, running=if model.running then false else true), CmdNone)
-  | Reset =>
-      ((seconds=0, running=false), CmdNone)
+let init: Model = (
+  seconds = 0,
+  running = false
+) in
+
+let update(model: Model, action: Action): Model =
+  case action
+  | Toggle => (seconds = model.seconds, running = !model.running)
+  | Reset => (seconds = 0, running = false)
   | Tick =>
-      if model.running then
-        ((seconds=model.seconds + 1, running=model.running), CmdNone)
-      else (model, CmdNone)
+      if model.running
+      then (seconds = model.seconds + 1, running = model.running)
+      else model
   end
 in
 
-let view(model) =
-  let minutes = model.seconds / 60 in
-  let secs = int_mod((model.seconds), 60) in
-  let time_str =
-    (if minutes < 10 then "0" else "") ++ string_of_int(minutes) ++ ":" ++
-    (if secs < 10 then "0" else "") ++ string_of_int(secs)
-  in
+let clock(seconds: Int): String =
+  let minutes = seconds / 60 in
+  let secs = int_mod(seconds, 60) in
+  (if minutes < 10 then "0" else "") ++ string_of_int(minutes) ++ ":" ++
+  (if secs < 10 then "0" else "") ++ string_of_int(secs)
+in
+
+let button(label: String, action: Action, primary: Bool): HTML =
+  Button(
+    [OnClick(action),
+     Style([("padding", "0.35em 0.6em"), ("border-radius", "3px"),
+            ("cursor", "pointer"), ("font-family", "inherit"), ("font-size", "0.85em"),
+            ("background", if primary then "var(--G0)" else "var(--T1)"),
+            ("color", if primary then "var(--SAND)" else "var(--STONE)"),
+            ("border", if primary then "1px solid var(--G0)" else "1px solid var(--BR1)")])],
+    [Text(label)]
+  )
+in
+
+let view(model: Model): HTML =
   Div(
     [
       Id("timer"),
       Class("watering-timer"),
-      Style([("text-align", "center"), ("padding", "40px"), ("font-family", "monospace")])
+      Style([("max-width", "280px"), ("margin", "0 auto"),
+             ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
+             ("background", "var(--SAND)"), ("color", "var(--STONE)"),
+             ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+             ("overflow", "hidden")])
     ],
     [
-      H2([Style([("margin", "0"), ("font-size", "16px"), ("color", "#4a7c59")])], [Text("🌙 Watering Timer")]),
-      H1([Style([("font-size", "72px"), ("margin", "20px")])], [Text(time_str)]),
       Div(
-        [],
+        [Style([("padding", "0.9em 1em 0.8em"), ("text-align", "center"),
+                ("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+        [Text("🌙 Watering Timer")]
+      ),
+      Div(
+        [Style([("padding", "0.7em 1em"), ("text-align", "center"),
+                ("background", "var(--T2)"), ("font-size", "1.5em"),
+                ("font-weight", "bold"),
+                ("color", if model.running then "var(--G0)" else "var(--BR4)"),
+                ("border-top", "1px solid var(--BR1)"),
+                ("border-bottom", "1px solid var(--BR1)")])],
+        [Text(clock(model.seconds))]
+      ),
+      Div(
+        [Style([("padding", "0.7em 1em"), ("display", "grid"),
+                ("grid-template-columns", "1fr 1fr"), ("gap", "0.4em")])],
         [
-          Button(
-            [
-              OnClick(Toggle),
-              Style([("font-size", "24px"), ("padding", "15px 30px"), ("margin", "10px"), ("cursor", "pointer")])
-            ],
-            [Text(if model.running then "Pause" else "Water")]
-          ),
-          Button(
-            [
-              OnClick(Reset),
-              Style([("font-size", "24px"), ("padding", "15px 30px"), ("margin", "10px"), ("cursor", "pointer")])
-            ],
-            [Text("Reset")]
-          )
+          button(if model.running then "Pause" else "Water", Toggle, !model.running),
+          button("Reset", Reset, false)
         ]
+      ),
+      Div(
+        [Style([("padding", "0.6em 1em"), ("text-align", "center"),
+                ("font-size", "0.75em"), ("color", "var(--BR3)"),
+                ("border-top", "1px solid var(--BR1)")])],
+        [Text(if model.running then "Watering..." else "Paused")]
       )
     ]
   )
 in
 
-let subs(model) =
-  if model.running then
-    Every(1000.0, fun _timestamp -> Tick)
-  else
-    SubNone
+let subs(model: Model): Sub =
+  if model.running
+  then Every(1000.0, fun _timestamp -> Tick)
+  else SubNone
 in
 
 # Tests #
 
 hint "toggle starts timer"
 test
-  let (m, _cmd) = update(Toggle, init) in
+  let m = update(init, Toggle) in
   m.running == true && m.seconds == 0
 end;
 
 hint "toggle pauses running timer"
 test
-  let (m, _cmd) = update(Toggle, (seconds=5, running=true)) in
+  let m = update((seconds=5, running=true), Toggle) in
   m.running == false && m.seconds == 5
 end;
 
 hint "tick increments when running"
-test
-  let (m, _cmd) = update(Tick, (seconds=3, running=true)) in
-  m.seconds == 4
-end;
+test update((seconds=3, running=true), Tick).seconds == 4 end;
 
 hint "tick does nothing when paused"
-test
-  let (m, _cmd) = update(Tick, (seconds=3, running=false)) in
-  m.seconds == 3
-end;
+test update((seconds=3, running=false), Tick).seconds == 3 end;
 
 hint "reset stops and zeroes"
 test
-  let (m, _cmd) = update(Reset, (seconds=42, running=true)) in
+  let m = update((seconds=42, running=true), Reset) in
   m.seconds == 0 && m.running == false
 end;
 
-(init, update, view, subs)
+# Nothing here issues a command, so `update` returns a bare Model and is #
+# lifted into the (Model, Cmd) shape the app tuple expects. #
+
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
+  fun (model, action) -> (f(model, action), CmdNone)
+in
+
+(init, noCmd(update), view, subs)

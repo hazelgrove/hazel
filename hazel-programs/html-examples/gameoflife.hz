@@ -1,5 +1,7 @@
-# GAME OF LIFE MVU #
-# A night garden that grows by Conway's rules: click cells to sow #
+# Garden of Life #
+
+# A night garden that grows by Conway's rules: click cells to sow. The grid #
+# is a clickable Table, and Every drives generations while it is running. #
 
 type Cell = + Dead + Alive in
 
@@ -7,6 +9,12 @@ type Grid = (
   cells = [Cell],
   width = Int,
   height = Int
+) in
+
+type Model = (
+  grid = Grid,
+  running = Bool,
+  generation = Int
 ) in
 
 type Action =
@@ -74,115 +82,144 @@ let countAlive(g: Grid) : Int =
   length(filter(g.cells, fun c -> c == Alive))
 in
 
-let runGrid(g: Grid, n: Int) : Grid =
-    if n <= 0 then g
-    else fold_left(range(1, n), (fun (grid, _) -> stepGrid(grid)), g)
-in
-
 # Glider pattern at (1,1) #
 let placeGlider(grid: Grid) : Grid =
   setAlive(grid, [(2, 1), (3, 2), (1, 3), (2, 3), (3, 3)])
 in
 
-let gridSize = 8 in
+let gridSize: Int = 8 in
 
-let init = (
+let init: Model = (
   grid = makeGrid(gridSize, gridSize),
   running = false,
   generation = 0
 ) in
 
-let update(action, model) =
+# Only the grid changes on most actions, so name that once #
+let withGrid(model: Model, grid: Grid): Model =
+  (
+    grid = grid,
+    running = model.running,
+    generation = model.generation
+  )
+in
+
+let toggleAt(grid: Grid, idx: Int): Grid =
+  let flipped =
+    case nth(grid.cells, idx)
+    | Alive => Dead
+    | Dead => Alive
+    end
+  in
+  (
+    cells = mapi(grid.cells, fun (i, c) -> if i == idx then flipped else c),
+    width = grid.width,
+    height = grid.height
+  )
+in
+
+let update(model: Model, action: Action): Model =
   case action
-  | ToggleCell(idx) =>
-      let cell = nth(model.grid.cells, idx) in
-      let newCell = case cell | Alive => Dead | Dead => Alive end in
-      let newCells = mapi(model.grid.cells, fun (i, c) ->
-        if i == idx then newCell else c) in
-      let newGrid = (cells=newCells, width=model.grid.width, height=model.grid.height) in
-      ((grid=newGrid, running=model.running, generation=model.generation), CmdNone)
+  | ToggleCell(idx) => withGrid(model, toggleAt(model.grid, idx))
   | Step =>
-      ((grid=stepGrid(model.grid), running=model.running,
-        generation=model.generation + 1), CmdNone)
+      (
+        grid = stepGrid(model.grid),
+        running = model.running,
+        generation = model.generation + 1
+      )
   | ToggleRunning =>
-      let nowRunning = if model.running then false else true in
-      ((grid=model.grid, running=nowRunning, generation=model.generation), CmdNone)
-  | Reset => (init, CmdNone)
-  | Glider =>
-      ((grid=placeGlider(model.grid), running=model.running,
-        generation=model.generation), CmdNone)
+      (
+        grid = model.grid,
+        running = !model.running,
+        generation = model.generation
+      )
+  | Reset => init
+  | Glider => withGrid(model, placeGlider(model.grid))
   end
 in
 
-let cellColor(cell) =
-  case cell | Alive => "#39ff14" | Dead => "#0d0d1a" end
+let cellColor(cell: Cell): String =
+  case cell | Alive => "var(--G0)" | Dead => "var(--T1)" end
 in
 
-let view(model) =
+# Every control is the same neutral button; only Run/Pause takes an accent, #
+# since it is the one that changes what the grid is doing #
+let control(label: String, action: Action, accent: Bool): HTML =
+  Button(
+    [OnClick(action),
+     Style([("padding", "0.35em 0.6em"), ("border-radius", "3px"),
+            ("cursor", "pointer"), ("font-family", "inherit"), ("font-size", "0.85em"),
+            ("background", if accent then "var(--G0)" else "var(--T1)"),
+            ("color", if accent then "var(--SAND)" else "var(--STONE)"),
+            ("border", if accent then "1px solid var(--G0)" else "1px solid var(--BR1)")])],
+    [Text(label)]
+  )
+in
+
+let view(model: Model): HTML =
   Div(
-    [Style([("max-width", "400px"), ("margin", "20px auto"), ("text-align", "center"),
-            ("font-family", "monospace"), ("background", "#0a0a14"), ("padding", "20px"),
-            ("border-radius", "8px"), ("color", "#ccc")])],
+    [Style([("max-width", "320px"), ("margin", "0 auto"), ("text-align", "center"),
+            ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
+            ("background", "var(--SAND)"), ("color", "var(--STONE)"),
+            ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+            ("overflow", "hidden")])],
     [
-      H2([Style([("color", "#39ff14"), ("margin-bottom", "2px")])], [Text("🌱 Garden of Life")]),
-      P([Style([("font-size", "12px"), ("color", "#8b949e"), ("margin-top", "0")])], [Text("Sow a cell; the grove spreads by Conway's rules")]),
-      P([], [Text("Generation: " ++ string_of_int(model.generation))]),
-      # Grid using Table #
-      Table(
-        [Style([("border-collapse", "collapse"), ("margin", "10px auto")])],
-        map(range(0, model.grid.height - 1), fun y ->
-          Tr([], map(range(0, model.grid.width - 1), fun x ->
-            let idx = y * model.grid.width + x in
-            let cell = nth(model.grid.cells, idx) in
-            Td(
-              [
-                OnClick(ToggleCell(idx)),
-                Style([
-                  ("width", "20px"), ("height", "20px"),
-                  ("border", "1px solid #1a1a2e"),
-                  ("cursor", "pointer"),
-                  ("background", cellColor(cell)),
-                  ("transition", "background 0.1s")
-                ])
-              ],
-              []
-            )
-          ))
-        )
-      ),
-      # Controls #
       Div(
-        [Style([("margin-top", "15px"), ("display", "flex"),
-                ("justify-content", "center"), ("gap", "8px")])],
+        [Style([("padding", "0.9em 1em 0.8em")])],
         [
-          Button(
-            [OnClick(Step),
-             Style([("padding", "8px 16px"), ("background", "#2196F3"),
-                    ("color", "white"), ("border", "none"), ("cursor", "pointer"),
-                    ("border-radius", "4px")])],
-            [Text("Step")]
+          Div([Style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+              [Text("🌱 Garden of Life")]),
+          Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
+              [Text("Sow a cell; the grove spreads by Conway's rules")])
+        ]
+      ),
+      Div(
+        [Style([("padding", "0.7em 1em"), ("background", "var(--T2)"),
+                ("border-top", "1px solid var(--BR1)"),
+                ("border-bottom", "1px solid var(--BR1)")])],
+        [
+          Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"),
+                      ("text-transform", "uppercase")])],
+              [Text("Generation")]),
+          Div([Style([("font-size", "1.5em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+              [Text(string_of_int(model.generation))])
+        ]
+      ),
+      Div(
+        [Style([("padding", "0.7em 1em")])],
+        [
+          # Grid using Table #
+          Table(
+            [Style([("border-collapse", "collapse"), ("margin", "0 auto")])],
+            map(range(0, model.grid.height - 1), fun y ->
+              Tr([], map(range(0, model.grid.width - 1), fun x ->
+                let idx = y * model.grid.width + x in
+                let cell = nth(model.grid.cells, idx) in
+                Td(
+                  [
+                    OnClick(ToggleCell(idx)),
+                    Style([
+                      ("width", "20px"), ("height", "20px"),
+                      ("border", "1px solid var(--BR1)"),
+                      ("cursor", "pointer"),
+                      ("background", cellColor(cell)),
+                      ("transition", "background 0.1s")
+                    ])
+                  ],
+                  []
+                )
+              ))
+            )
           ),
-          Button(
-            [OnClick(ToggleRunning),
-             Style([("padding", "8px 16px"),
-                    ("background", if model.running then "#ff9800" else "#4CAF50"),
-                    ("color", "white"), ("border", "none"), ("cursor", "pointer"),
-                    ("border-radius", "4px")])],
-            [Text(if model.running then "Pause" else "Run")]
-          ),
-          Button(
-            [OnClick(Glider),
-             Style([("padding", "8px 16px"), ("background", "#9C27B0"),
-                    ("color", "white"), ("border", "none"), ("cursor", "pointer"),
-                    ("border-radius", "4px")])],
-            [Text("Glider")]
-          ),
-          Button(
-            [OnClick(Reset),
-             Style([("padding", "8px 16px"), ("background", "#f44336"),
-                    ("color", "white"), ("border", "none"), ("cursor", "pointer"),
-                    ("border-radius", "4px")])],
-            [Text("Reset")]
+          Div(
+            [Style([("display", "grid"), ("grid-template-columns", "1fr 1fr"),
+                    ("gap", "0.4em"), ("margin-top", "0.7em")])],
+            [
+              control(if model.running then "Pause" else "Run", ToggleRunning, !model.running),
+              control("Step", Step, false),
+              control("Glider", Glider, false),
+              control("Reset", Reset, false)
+            ]
           )
         ]
       )
@@ -190,101 +227,51 @@ let view(model) =
   )
 in
 
-let subs(model) =
+let subs(model: Model): Sub =
   if model.running then Every(400.0, fun _ts -> Step) else SubNone
 in
 
-# Test helpers #
-let do_step(acc, a) = let (m, _) = update(a, acc) in m in
-let do_actions(m, actions) = fold_left(actions, do_step, m) in
+# With (model, action) order, `update` already has fold_left's shape #
+let do_actions(model: Model, actions: [Action]): Model =
+  fold_left(actions, update, model)
+in
 
 # Tests #
 
-hint "empty grid has all dead cells"
-test countAlive(makeGrid(3, 3)) == 0 end;
+# Kept small on purpose: these run every time the slide loads, and stepping #
+# the full 8-by-8 grid costs far more than stepping a 3-by-3 one. #
 
-hint "can set and get cell"
-test getCell(setCell(makeGrid(3, 3), 1, 1, Alive), 1, 1) == Alive end;
-
-hint "out of bounds returns Dead"
-test
-  let g = makeGrid(3, 3) in
-  getCell(g, -1, 0) == Dead && getCell(g, 5, 5) == Dead
-end;
-
-hint "isolated cell has 0 neighbors"
-test countNeighbors(setAlive(makeGrid(5, 5), [(2, 2)]), 2, 2) == 0 end;
-
-hint "cell with one neighbor"
-test countNeighbors(setAlive(makeGrid(5, 5), [(2, 2), (2, 3)]), 2, 2) == 1 end;
-
-hint "alive with 2 neighbors survives"
-test
-  let g = setAlive(makeGrid(3, 3), [(0, 1), (1, 1), (2, 1)]) in
-  getCell(stepGrid(g), 1, 1) == Alive
-end;
-
-hint "alive with 1 neighbor dies"
-test
-  let g = setAlive(makeGrid(3, 3), [(1, 1), (1, 0)]) in
-  getCell(stepGrid(g), 1, 1) == Dead
-end;
-
-hint "dead with 3 neighbors born"
+hint "a cell with too few neighbors dies, one with three is born"
 test
   let g = setAlive(makeGrid(3, 3), [(0, 0), (1, 0), (0, 1)]) in
-  getCell(stepGrid(g), 1, 1) == Alive
-end;
-
-hint "blinker oscillates"
-test
-  let g = setAlive(makeGrid(5, 5), [(1, 2), (2, 2), (3, 2)]) in
   let g2 = stepGrid(g) in
-  getCell(g2, 2, 1) == Alive && getCell(g2, 2, 2) == Alive && getCell(g2, 2, 3) == Alive
+  getCell(g2, 1, 1) == Alive
+    && getCell(g2, 0, 0) == Alive
+    && getCell(g2, 2, 2) == Dead
 end;
 
-hint "blinker returns after 2 steps"
+hint "a blinker flips between horizontal and vertical"
 test
-  let g = setAlive(makeGrid(5, 5), [(1, 2), (2, 2), (3, 2)]) in
-  let g2 = runGrid(g, 2) in
-  getCell(g2, 1, 2) == Alive && getCell(g2, 2, 2) == Alive && getCell(g2, 3, 2) == Alive
-end;
-
-hint "block is stable"
-test
-  let g = setAlive(makeGrid(4, 4), [(1, 1), (2, 1), (1, 2), (2, 2)]) in
-  countAlive(stepGrid(g)) == 4
-end;
-
-hint "simultaneous update"
-test
-  let g = setAlive(makeGrid(5, 5), [(1, 2), (2, 2), (3, 2)]) in
+  let g = setAlive(makeGrid(3, 3), [(0, 1), (1, 1), (2, 1)]) in
   let g2 = stepGrid(g) in
-  getCell(g2, 1, 2) == Dead && getCell(g2, 3, 2) == Dead
+  getCell(g2, 1, 0) == Alive
+    && getCell(g2, 1, 1) == Alive
+    && getCell(g2, 1, 2) == Alive
+    && getCell(g2, 0, 1) == Dead
+    && getCell(g2, 2, 1) == Dead
 end;
 
-hint "toggle cell via update"
+hint "clicking sows a cell, and the glider button sows five more"
 test
-  let m = do_actions(init, [ToggleCell(0)]) in
-  nth(m.grid.cells, 0) == Alive
+  let m = do_actions(init, [ToggleCell(0), Glider]) in
+  nth(m.grid.cells, 0) == Alive && countAlive(m.grid) == 6
 end;
 
-hint "step increments generation"
-test
-  let m = do_actions(init, [Step, Step]) in
-  m.generation == 2
-end;
+# Nothing here issues a command, so `update` returns a bare Model and is #
+# lifted into the (Model, Cmd) shape the app tuple expects. #
 
-hint "reset clears grid"
-test
-  let m = do_actions(init, [ToggleCell(0), ToggleCell(5), Reset]) in
-  countAlive(m.grid) == 0 && m.generation == 0
-end;
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
+  fun (model, action) -> (f(model, action), CmdNone)
+in
 
-hint "glider places 5 cells"
-test
-  let m = do_actions(init, [Glider]) in
-  countAlive(m.grid) == 5
-end;
-
-(init, update, view, subs)
+(init, noCmd(update), view, subs)

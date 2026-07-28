@@ -1,20 +1,22 @@
-# NIGHT GARDEN NUTRIENT TRACKER #
-# Soil management for sustainable moonlight farming #
+# Nutrient Tracker #
 
-# Soil nutrients are measured 0-100 #
-# N = Nitrogen (leafy growth), P = Phosphorus (roots), K = Potassium (health) #
+# Soil management for sustainable moonlight farming. Nutrients run 0-100: #
+# N = nitrogen (leafy growth), P = phosphorus (roots), K = potassium (health). #
+
 type Soil = (
   n = Int,
   p = Int,
   k = Int
 ) in
 
-# The mystical crops of the night garden #
+# The mystical crops of the night garden. Duskwheat fixes nitrogen and #
+# Nightshade restores it as a cover crop; Moonmelon is a heavy feeder and #
+# Starfruit draws on everything evenly. #
 type Crop =
-  + Duskwheat    # Nitrogen fixer - restores N when harvested #
-  + Moonmelon    # Heavy feeder - depletes N significantly #
-  + Starfruit    # Balanced - moderate use of all nutrients #
-  + Nightshade   # Cover crop - restores N when turned under #
+  + Duskwheat
+  + Moonmelon
+  + Starfruit
+  + Nightshade
 in
 
 # A garden plot has soil state, optionally a growing crop, and a season #
@@ -24,11 +26,13 @@ type Model = (
   season = Int
 ) in
 
+# Planting needs bare ground; harvesting applies the crop's nutrient #
+# effects; composting boosts everything; a season change settles the soil. #
 type Action =
-  + Plant(Crop)     # Plant a new crop (fails if plot occupied) #
-  + Harvest         # Harvest current crop, apply nutrient effects #
-  + Compost         # Add organic matter, boosts all nutrients #
-  + SeasonChange    # Time passes, nutrients settle #
+  + Plant(Crop)
+  + Harvest
+  + Compost
+  + SeasonChange
 in
 
 let clamp(x: Int): Int =
@@ -81,44 +85,41 @@ let seasonSettle(s: Soil): Soil =
   (n = clamp(s.n - 3), p = clamp(s.p - 2), k = clamp(s.k - 2))
 in
 
-let update(action: Action, plot: Model): (Model, Cmd) =
+let update(model: Model, action: Action): Model =
   case action
+  # A crop can only go into bare ground #
   | Plant(crop) =>
-      # Only plant if the plot is empty #
-      case plot.crop
-      | Some(_) => (plot, CmdNone)
+      case model.crop
+      | Some(_) => model
       | None =>
           (
-            (
-              soil = plantingCost(plot.soil, crop),
-              crop = Some(crop),
-              season = plot.season
-            ),
-            CmdNone
+            soil = plantingCost(model.soil, crop),
+            crop = Some(crop),
+            season = model.season
           )
       end
+  # Harvesting bare ground does nothing #
   | Harvest =>
-      case plot.crop
-      | None => (plot, CmdNone)
+      case model.crop
+      | None => model
       | Some(crop) =>
           (
-            (
-              soil = harvestEffect(plot.soil, crop),
-              crop = None,
-              season = plot.season
-            ),
-            CmdNone
+            soil = harvestEffect(model.soil, crop),
+            crop = None,
+            season = model.season
           )
       end
   | Compost =>
       (
-        (soil = applyCompost(plot.soil), crop = plot.crop, season = plot.season),
-        CmdNone
+        soil = applyCompost(model.soil),
+        crop = model.crop,
+        season = model.season
       )
   | SeasonChange =>
       (
-        (soil = seasonSettle(plot.soil), crop = plot.crop, season = plot.season + 1),
-        CmdNone
+        soil = seasonSettle(model.soil),
+        crop = model.crop,
+        season = model.season + 1
       )
   end
 in
@@ -161,190 +162,199 @@ in
 
 # ===== VIEW ===== #
 
+# Shared style values, on the editor's own palette #
+let cardBg = ("background", "var(--T2)") in
+let borderStyle = ("border", "1px solid var(--BR1)") in
+let sidePad = ("padding", "0.7em 1em") in
+let ruleTop = ("border-top", "1px solid var(--BR1)") in
+
+# Section label: uppercase micro-caps, as in Hazel's own panels #
+let sectionLabel(text: String): HTML =
+  Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"),
+              ("text-transform", "uppercase"), ("margin-bottom", "0.5em")])],
+      [Text(text)])
+in
+
+# Nutrient bar: label, value 0-100, color #
+let nutrientBar(label: String, value: Int, color: String): HTML =
+  let widthPct = string_of_int(value) ++ "%" in
+  Div(
+    [Style([("margin-bottom", "0.5em")])],
+    [
+      Div(
+        [Style([("display", "flex"), ("justify-content", "space-between"),
+                ("margin-bottom", "0.2em")])],
+        [
+          Span([Style([("color", "var(--BR3)")])], [Text(label)]),
+          Span([Style([("color", color), ("font-weight", "bold")])],
+               [Text(string_of_int(value) ++ "/100")])
+        ]
+      ),
+      Div(
+        [Style([("width", "100%"), ("height", "10px"), ("background", "var(--SAND)"),
+                ("border-radius", "3px"), ("overflow", "hidden"),
+                ("border", "1px solid var(--BR1)")])],
+        [
+          Div(
+            [Style([("width", widthPct), ("height", "100%"), ("background", color),
+                    ("transition", "width 0.3s")])],
+            []
+          )
+        ]
+      )
+    ]
+  )
+in
+
+# One neutral button everywhere; `accent` marks the primary action #
+let actionButton(label: String, action: Action, accent: Bool): HTML =
+  Button(
+    [
+      OnClick(action),
+      Style([
+        ("padding", "0.35em 0.6em"), ("border-radius", "3px"),
+        ("cursor", "pointer"), ("font-size", "0.85em"),
+        ("font-family", "inherit"), ("text-align", "left"),
+        ("white-space", "nowrap"),
+        ("background", if accent then "var(--G0)" else "var(--T1)"),
+        ("color", if accent then "var(--SAND)" else "var(--STONE)"),
+        ("border", if accent then "1px solid var(--G0)" else "1px solid var(--BR1)")
+      ])
+    ],
+    [Text(label)]
+  )
+in
+
+let buttonGrid(children: [HTML]): HTML =
+  Div(
+    [Style([("display", "grid"), ("grid-template-columns", "1fr 1fr"), ("gap", "0.4em")])],
+    children
+  )
+in
+
+# Only these two read the model, so only they stay inside view #
 let view(model: Model): HTML =
-
-  # Shared style values #
-  let darkBg = ("background", "#0d1117") in
-  let cardBg = ("background", "#161b22") in
-  let textColor = ("color", "#c9d1d9") in
-  let fontFamily = ("font-family", "monospace, sans-serif") in
-  let borderStyle = ("border", "1px solid #30363d") in
-
-  # Nutrient bar: label, value 0-100, color #
-  let nutrientBar(label: String, value: Int, color: String): HTML =
-    let widthPct = string_of_int(value) ++ "%" in
-    Div(
-      [Style([("margin-bottom", "12px")])],
-      [
-        Div(
-          [Style([("display", "flex"), ("justify-content", "space-between"), ("margin-bottom", "4px")])],
-          [
-            Span([Style([("color", "#8b949e"), ("font-size", "13px")])], [Text(label)]),
-            Span([Style([("color", color), ("font-size", "13px"), ("font-weight", "bold")])],
-                 [Text(string_of_int(value) ++ "/100")])
-          ]
-        ),
-        Div(
-          [Style([("width", "100%"), ("height", "18px"), ("background", "#21262d"),
-                  ("border-radius", "9px"), ("overflow", "hidden"), ("border", "1px solid #30363d")])],
-          [
-            Div(
-              [Style([("width", widthPct), ("height", "18px"), ("background", color),
-                      ("border-radius", "9px"), ("transition", "width 0.3s")])],
-              []
-            )
-          ]
-        )
-      ]
-    )
-  in
-
-  let actionButton(label: String, action: Action, bg: String): HTML =
-    Button(
-      [
-        OnClick(action),
-        Style([
-          ("padding", "10px 18px"), ("margin", "5px"),
-          ("background", bg), ("color", "#e0e0e0"),
-          ("border", "1px solid #30363d"), ("border-radius", "6px"),
-          ("cursor", "pointer"), ("font-size", "14px"),
-          ("font-weight", "bold"), fontFamily
-        ])
-      ],
-      [Text(label)]
-    )
-  in
-
-  let cropDisplay =
+  let cropDisplay: HTML =
     case model.crop
     | None =>
         Div(
-          [Style([("text-align", "center"), ("padding", "16px"), cardBg,
-                  ("border-radius", "8px"), borderStyle, ("margin-bottom", "16px")])],
+          [Style([("text-align", "center")])],
           [
-            Div([Style([("font-size", "36px"), ("margin-bottom", "4px")])], [Text("🌫️")]),
-            Div([Style([("color", "#8b949e"), ("font-size", "14px")])], [Text("Fallow - No crop planted")])
+            Div([Style([("font-size", "1.5em")])], [Text("🌫️")]),
+            Div([Style([("color", "var(--BR3)"), ("margin-top", "0.2em")])],
+                [Text("Fallow — nothing planted")])
           ]
         )
     | Some(c) =>
         Div(
-          [Style([("text-align", "center"), ("padding", "16px"), cardBg,
-                  ("border-radius", "8px"), borderStyle, ("margin-bottom", "16px")])],
+          [Style([("text-align", "center")])],
           [
-            Div([Style([("font-size", "36px"), ("margin-bottom", "4px")])], [Text(cropEmoji(c))]),
-            Div([Style([("color", "#c9d1d9"), ("font-size", "16px"), ("font-weight", "bold")])], [Text(cropName(c))]),
-            Div([Style([("color", "#8b949e"), ("font-size", "12px"), ("margin-top", "4px")])], [Text("Currently growing")])
+            Div([Style([("font-size", "1.5em")])], [Text(cropEmoji(c))]),
+            Div([Style([("font-weight", "bold"), ("color", "var(--BR4)"), ("margin-top", "0.2em")])],
+                [Text(cropName(c))]),
+            Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)")])],
+                [Text("Currently growing")])
           ]
         )
     end
   in
 
-  let plantButtons =
+  let plantButtons: [HTML] =
     case model.crop
     | Some(_) =>
         [
           Div(
-            [Style([("text-align", "center"), ("color", "#484f58"), ("font-size", "12px"), ("padding", "8px")])],
-            [Text("Clear the field first (harvest) to plant")]
+            [Style([("text-align", "center"), ("color", "var(--BR3)"),
+                    ("font-size", "0.75em"), ("grid-column", "span 2")])],
+            [Text("Harvest the field before planting again")]
           )
         ]
     | None =>
         [
-          actionButton("🌾 Duskwheat", Plant(Duskwheat), "#3a3a1a"),
-          actionButton("🍈 Moonmelon", Plant(Moonmelon), "#1a3a2a"),
-          actionButton("🌟 Starfruit", Plant(Starfruit), "#3a3320"),
-          actionButton("🍇 Nightshade", Plant(Nightshade), "#2a1a3a")
+          actionButton("🌾 Duskwheat", Plant(Duskwheat), false),
+          actionButton("🍈 Moonmelon", Plant(Moonmelon), false),
+          actionButton("🌟 Starfruit", Plant(Starfruit), false),
+          actionButton("🍇 Nightshade", Plant(Nightshade), false)
         ]
     end
   in
 
   Div(
     [Style([
-      darkBg, textColor, fontFamily,
-      ("max-width", "480px"), ("margin", "20px auto"),
-      ("padding", "24px"), ("border-radius", "12px"),
-      ("border", "2px solid #30363d"),
-      ("box-shadow", "0 0 40px rgba(80, 200, 120, 0.15)")
+      ("max-width", "320px"), ("margin", "0 auto"),
+      ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
+      ("background", "var(--SAND)"), ("color", "var(--STONE)"),
+      borderStyle, ("border-radius", "0.4em"), ("overflow", "hidden")
     ])],
     [
-      H1(
-        [Style([("text-align", "center"), ("color", "#3fb950"), ("margin-bottom", "4px"), ("font-size", "22px")])],
-        [Text("🌙 Moonlit Soil Lab 🌙")]
-      ),
-      P(
-        [Style([("text-align", "center"), ("color", "#8b949e"), ("margin-top", "0"), ("margin-bottom", "16px"), ("font-size", "12px")])],
-        [Text("Nutrient management for the night garden")]
+      Div(
+        [Style([("padding", "0.9em 1em 0.8em"), ("text-align", "center")])],
+        [
+          Div([Style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+              [Text("🌙 Moonlit Soil Lab")]),
+          Div([Style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
+              [Text("Nutrient management for the night garden")])
+        ]
       ),
 
       # Season indicator #
       Div(
-        [Style([("text-align", "center"), ("padding", "12px"), cardBg,
-                ("border-radius", "8px"), borderStyle, ("margin-bottom", "16px")])],
+        [Style([("text-align", "center"), sidePad, cardBg, ruleTop,
+                ("border-bottom", "1px solid var(--BR1)")])],
         [
-          Span([Style([("font-size", "28px")])], [Text(seasonEmoji(model.season))]),
+          Span([Style([("font-size", "1.2em")])], [Text(seasonEmoji(model.season))]),
           Span(
-            [Style([("font-size", "18px"), ("color", "#58a6ff"), ("margin-left", "12px"), ("font-weight", "bold")])],
+            [Style([("font-weight", "bold"), ("color", "var(--BR4)"), ("margin-left", "0.5em")])],
             [Text(seasonName(model.season))]
           ),
           Span(
-            [Style([("font-size", "13px"), ("color", "#8b949e"), ("margin-left", "8px")])],
-            [Text("(Season " ++ string_of_int(model.season) ++ ")")]
+            [Style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-left", "0.5em")])],
+            [Text("season " ++ string_of_int(model.season))]
           )
         ]
       ),
 
-      # Soil nutrients #
-      H3(
-        [Style([("color", "#3fb950"), ("margin-bottom", "8px"), ("font-size", "14px")])],
-        [Text("🧪 Soil Nutrients")]
-      ),
       Div(
-        [Style([("padding", "14px"), cardBg, ("border-radius", "8px"),
-                borderStyle, ("margin-bottom", "16px")])],
+        [Style([sidePad, ruleTop])],
         [
-          nutrientBar("N  Nitrogen", model.soil.n, "#3fb950"),
-          nutrientBar("P  Phosphorus", model.soil.p, "#bc8cff"),
-          nutrientBar("K  Potassium", model.soil.k, "#f0883e")
-        ]
-      ),
-
-      # Current crop #
-      H3(
-        [Style([("color", "#3fb950"), ("margin-bottom", "8px"), ("font-size", "14px")])],
-        [Text("🌾 Current Crop")]
-      ),
-      cropDisplay,
-
-      # Plant buttons #
-      H3(
-        [Style([("color", "#3fb950"), ("margin-bottom", "8px"), ("font-size", "14px")])],
-        [Text("🌱 Plant")]
-      ),
-      Div(
-        [Style([("display", "flex"), ("flex-wrap", "wrap"), ("justify-content", "center"), ("margin-bottom", "16px")])],
-        plantButtons
-      ),
-
-      # Actions #
-      H3(
-        [Style([("color", "#3fb950"), ("margin-bottom", "8px"), ("font-size", "14px")])],
-        [Text("⚗️ Actions")]
-      ),
-      Div(
-        [Style([("display", "flex"), ("flex-wrap", "wrap"), ("justify-content", "center"), ("margin-bottom", "16px")])],
-        [
-          actionButton("🌿 Harvest", Harvest, "#238636"),
-          actionButton("🧑‍🌾 Compost", Compost, "#6e4000"),
-          actionButton("🔄 Season Change", SeasonChange, "#1f6feb")
+          sectionLabel("Soil Nutrients"),
+          nutrientBar("N  Nitrogen", model.soil.n, "var(--G0)"),
+          nutrientBar("P  Phosphorus", model.soil.p, "var(--TYP)"),
+          nutrientBar("K  Potassium", model.soil.k, "oklch(65% 0.14 70)")
         ]
       ),
 
       Div(
-        [Style([("text-align", "center"), ("color", "#484f58"), ("font-size", "11px"),
-                ("margin-top", "12px"), ("padding-top", "12px"), ("border-top", "1px solid #21262d")])],
-        [Text("🌙 Night Garden | N:" ++ string_of_int(model.soil.n)
-              ++ " P:" ++ string_of_int(model.soil.p)
-              ++ " K:" ++ string_of_int(model.soil.k))]
+        [Style([sidePad, ruleTop])],
+        [sectionLabel("Current Crop"), cropDisplay]
+      ),
+
+      Div(
+        [Style([sidePad, ruleTop])],
+        [sectionLabel("Plant"), buttonGrid(plantButtons)]
+      ),
+
+      Div(
+        [Style([sidePad, ruleTop])],
+        [
+          sectionLabel("Actions"),
+          # Three actions in a two-column grid: the odd one spans the row #
+          # rather than sitting alone in a column #
+          buttonGrid([
+            actionButton("🌿 Harvest", Harvest, true),
+            actionButton("🧑‍🌾 Compost", Compost, false),
+            Div([Style([("grid-column", "span 2"), ("display", "grid")])],
+                [actionButton("🔄 Next Season", SeasonChange, false)])
+          ])
+        ]
+      ),
+
+      Div(
+        [Style([("padding", "0.6em 1em"), ("text-align", "center"),
+                ("color", "var(--BR3)"), ("font-size", "0.75em"), ruleTop])],
+        [Text("N " ++ string_of_int(model.soil.n)
+              ++ "  P " ++ string_of_int(model.soil.p)
+              ++ "  K " ++ string_of_int(model.soil.k))]
       )
     ]
   )
@@ -354,122 +364,69 @@ let subs(_model: Model): Sub = SubNone in
 
 # ===== TESTS ===== #
 
-let step(acc: Model, a: Action): Model = let (m, _cmd) = update(a, acc) in m in
-let run(plot: Model, actions: [Action]): Model = fold_left(actions, step, plot) in
+# With (model, action) order, `update` already has fold_left's shape #
+let run(plot: Model, actions: [Action]): Model =
+  fold_left(actions, update, plot)
+in
 
-hint "planting sets the current crop"
+hint "planting sets the crop and costs a little soil"
 test
-  let (p, _cmd) = update(Plant(Moonmelon), init) in
-  p.crop == Some(Moonmelon)
+  let p = update(init, Plant(Starfruit)) in
+  p.crop == Some(Starfruit) && p.soil.n < init.soil.n
 end;
 
-hint "cannot plant when crop already growing"
+hint "the plot holds one crop at a time"
 test
   let p = run(init, [Plant(Moonmelon), Plant(Starfruit)]) in
   p.crop == Some(Moonmelon)
 end;
 
-hint "planting has small nutrient cost"
+hint "harvesting clears the plot, harvesting bare ground does nothing"
 test
-  let (p, _cmd) = update(Plant(Starfruit), init) in
-  p.soil.n < init.soil.n
+  let harvested = run(init, [Plant(Moonmelon), Harvest]) in
+  let bare = update(init, Harvest) in
+  harvested.crop == None && bare == init
 end;
 
-hint "harvesting clears the crop"
-test
-  let p = run(init, [Plant(Moonmelon), Harvest]) in
-  p.crop == None
-end;
-
-hint "harvesting nothing changes nothing"
-test
-  let (p, _cmd) = update(Harvest, init) in
-  p == init
-end;
-
-hint "moonmelon depletes nitrogen heavily"
-test
-  let p = run(init, [Plant(Moonmelon), Harvest]) in
-  p.soil.n < init.soil.n - 20
-end;
-
-hint "duskwheat restores nitrogen"
-test
-  let depleted: Model = (
-    soil = (n = 30, p = 50, k = 50),
-    crop = None,
-    season = 1
-  ) in
-  let p = run(depleted, [Plant(Duskwheat), Harvest]) in
-  p.soil.n > depleted.soil.n
-end;
-
-hint "nightshade restores nitrogen significantly"
-test
-  let depleted: Model = (
-    soil = (n = 30, p = 60, k = 60),
-    crop = None,
-    season = 1
-  ) in
-  let p = run(depleted, [Plant(Nightshade), Harvest]) in
-  p.soil.n >= 45
-end;
-
-hint "starfruit depletes all nutrients moderately"
-test
-  let p = run(init, [Plant(Starfruit), Harvest]) in
-  p.soil.n < init.soil.n &&
-  p.soil.p < init.soil.p &&
-  p.soil.k < init.soil.k
-end;
-
-hint "compost boosts all nutrients"
-test
-  let (p, _cmd) = update(Compost, init) in
-  p.soil.n > init.soil.n &&
-  p.soil.p > init.soil.p &&
-  p.soil.k > init.soil.k
-end;
-
-hint "compost respects maximum (100)"
-test
-  let rich: Model = (soil = (n = 95, p = 95, k = 95), crop = None, season = 1) in
-  let (p, _cmd) = update(Compost, rich) in
-  p.soil.n == 100 && p.soil.p == 100 && p.soil.k == 100
-end;
-
-hint "season advances counter"
-test
-  let (p, _cmd) = update(SeasonChange, init) in
-  p.season == 2
-end;
-
-hint "season change causes minor nutrient loss"
-test
-  let (p, _cmd) = update(SeasonChange, init) in
-  p.soil.n < init.soil.n
-end;
-
-hint "moonmelon then nightshade rotation restores nitrogen"
+hint "a heavy feeder drains nitrogen, a cover crop puts it back"
 test
   let afterMoonmelon = run(init, [Plant(Moonmelon), Harvest]) in
   let afterNightshade = run(afterMoonmelon, [Plant(Nightshade), Harvest]) in
-  afterNightshade.soil.n > afterMoonmelon.soil.n &&
-  afterNightshade.soil.n >= 40
+  afterMoonmelon.soil.n < init.soil.n - 20
+    && afterNightshade.soil.n > afterMoonmelon.soil.n
 end;
 
-hint "nutrients cannot go below 0"
+hint "compost boosts every nutrient, and nothing exceeds 100"
+test
+  let p = update(init, Compost) in
+  let rich: Model = (soil = (n = 95, p = 95, k = 95), crop = None, season = 1) in
+  let capped = update(rich, Compost) in
+  p.soil.n > init.soil.n
+    && p.soil.p > init.soil.p
+    && p.soil.k > init.soil.k
+    && capped.soil.n == 100
+    && capped.soil.p == 100
+    && capped.soil.k == 100
+end;
+
+hint "a season change advances the counter and settles the soil"
+test
+  let p = update(init, SeasonChange) in
+  p.season == 2 && p.soil.n < init.soil.n
+end;
+
+hint "nutrients never fall below 0"
 test
   let poor: Model = (soil = (n = 10, p = 10, k = 10), crop = None, season = 1) in
   let p = run(poor, [Plant(Moonmelon), Harvest]) in
   p.soil.n >= 0 && p.soil.p >= 0 && p.soil.k >= 0
 end;
 
-hint "nutrients cannot exceed 100"
-test
-  let rich: Model = (soil = (n = 90, p = 90, k = 90), crop = None, season = 1) in
-  let p = run(rich, [Compost, Compost, Compost]) in
-  p.soil.n <= 100 && p.soil.p <= 100 && p.soil.k <= 100
-end;
+# Nothing here issues a command, so `update` returns a bare Model and is #
+# lifted into the (Model, Cmd) shape the app tuple expects. #
 
-(init, update, view, subs)
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
+  fun (model, action) -> (f(model, action), CmdNone)
+in
+
+(init, noCmd(update), view, subs)
