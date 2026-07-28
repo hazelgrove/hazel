@@ -55,7 +55,22 @@ let perform =
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
       switch (perform(a, z, ~root=Exp)) {
-      | Ok(z) => z
+      | Ok(z) =>
+        /* Term construction must be total on every reachable editor state
+         * (statics/display consume it after every action). Checking here
+         * (rather than only on the pre-state of the NEXT action) means the
+         * final state of every test is covered too. */
+        switch (MakeTerm.from_zip_for_sem(z, ~root=Exp)) {
+        | _ => z
+        | exception e =>
+          print_endline("Zipper: " ++ Zipper.show(z));
+          Alcotest.fail(
+            "Malformed state after action "
+            ++ Action.show(a)
+            ++ ": "
+            ++ Printexc.to_string(e),
+          );
+        }
       | Error(err) =>
         print_endline("Zipper: " ++ Zipper.show(z));
         Alcotest.fail("Failed on action: " ++ Action.Failure.show(err));
