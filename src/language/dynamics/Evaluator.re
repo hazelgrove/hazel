@@ -497,5 +497,8 @@ let evaluate =
       ~outbox=None,
       d,
     );
-  (finish(~env, Trampoline.run(result)), state^);
+  /* Must be sequenced before reading `state`: running the trampoline is what
+     populates it, and tuple components are evaluated right-to-left. */
+  let value = finish(~env, Trampoline.run(result));
+  (value, state^);
 };
