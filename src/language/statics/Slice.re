@@ -32,6 +32,8 @@ type t = {
   shape: Typ.t,
   ids: Id.Set.t,
   binder: bool,
+  // its components come from a declaration, so a definition supplies none of them
+  declared: bool,
   dispatch: (env, Typ.t) => slice,
   demand: (env, Ctx.t) => slice,
 };
@@ -221,15 +223,19 @@ let fills = (sub_terms: list((role, t)), role, node: t): bool =>
 // Match the query's type components to the constructed type's, or share the
 // one type component between them all (a list literal and its elements).
 let route =
-    (~matcher: option(MatchedTyp.matcher), ctx, shape, query, count: int)
+    (~former: option(MatchedTyp.former), ctx, shape, query, count: int)
     : (list(Typ.t), bool) => {
   let components = ty =>
-    switch (matcher) {
-    | Some(matcher) => MatchedTyp.tolerant(matcher, ctx, ty)
+    switch (former) {
+    | Some(former) => MatchedTyp.tolerant(former.match_, ctx, ty)
     | None => Typ.children(ty)
     };
-  let arity = List.length(components(shape));
   let supplied = components(Typ.weak_head_normalize(ctx, query));
+  let arity =
+    switch (components(shape)) {
+    | [] => List.length(supplied)
+    | components => List.length(components)
+    };
   let broadcast = arity == 1 && count > 1;
   if (is_gap(query) || supplied == []) {
     (List.init(count, _ => gap), broadcast);
@@ -252,13 +258,13 @@ type placed = {
 };
 
 // Give every recorded sub-term the query it is asked at.
-let place = (~matcher, ctx: Ctx.t, shape: Typ.t, sub_terms, query) => {
+let place = (~former, ctx: Ctx.t, shape: Typ.t, sub_terms, query) => {
   let fills = fills(sub_terms);
   let count =
     List.length(
       List.filter(((role, node)) => fills(role, node), sub_terms),
     );
-  let (queries, broadcast) = route(~matcher, ctx, shape, query, count);
+  let (queries, broadcast) = route(~former, ctx, shape, query, count);
   let (placed, _) =
     List.fold_left(
       ((placed, taken), (role, node)) => {
@@ -383,7 +389,7 @@ let backward = (ctx: Ctx.t, env: env, placed: list(placed)) => {
 let sources = (ctx: Ctx.t, env: env, placed: list(placed)) => {
   let demanded =
     placed
-    |> List.filter(item => item.role == Binder)
+    |> List.filter(item => item.role == Binder && !item.node.declared)
     |> List.filter_map(item => item.result)
     |> List.map(slice => slice.psi)
     |> Typ.meet_gap_all(ctx);
@@ -432,9 +438,9 @@ let assembled_psi =
 };
 
 // The interpreter: both directions, derived from the sub-terms recorded.
-let assemble = (~ctx: Ctx.t, ~matcher, ~shape: Typ.t, ~sub_terms) => {
+let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
   let dispatch = (env, query) => {
-    let (placed, broadcast) = place(~matcher, ctx, shape, sub_terms, query);
+    let (placed, broadcast) = place(~former, ctx, shape, sub_terms, query);
     let placed =
       placed
       |> forward(ctx, env, query)
@@ -482,9 +488,14 @@ let assemble = (~ctx: Ctx.t, ~matcher, ~shape: Typ.t, ~sub_terms) => {
       | [] =>
         needs |> List.map(((_, need)) => need.psi) |> Typ.meet_gap_all(ctx)
       | parts =>
-        List.length(parts) == List.length(Typ.children(shape))
-          ? Typ.rebuild(shape, parts) |> Option.value(~default=gap)
-          : Typ.meet_gap_all(ctx, parts)
+        switch (former) {
+        | Some(former) =>
+          List.for_all(Typ.is_empty, parts) ? gap : former.build(parts)
+        | None =>
+          List.length(parts) == List.length(Typ.children(shape))
+            ? Typ.rebuild(shape, parts) |> Option.value(~default=gap)
+            : Typ.meet_gap_all(ctx, parts)
+        }
       };
     let psi = Typ.is_empty(psi) ? gap : psi;
     {
@@ -521,14 +532,14 @@ let mk =
       ~ids: Id.Set.t,
       ~shape: Typ.t,
       ~sub_terms: list((role, t))=[],
-      ~matcher: option(MatchedTyp.matcher)=None,
+      ~former: option(MatchedTyp.former)=None,
       ~co_ctx: CoCtx.t=CoCtx.empty,
       ~binds: option((CoCtx.sort, string, Id.t))=None,
       ~binder: bool=false,
       (),
     )
     : t => {
-  let (assembled, demand) = assemble(~ctx, ~matcher, ~shape, ~sub_terms);
+  let (assembled, demand) = assemble(~ctx, ~former, ~shape, ~sub_terms);
   let demand =
     switch (binds) {
     | Some((sort, name, id)) => binder_demand(~sort, ~name, ~id)
@@ -582,6 +593,7 @@ let mk =
     shape,
     ids,
     binder,
+    declared: former != None,
     dispatch,
     demand,
   };
@@ -628,6 +640,7 @@ let binding = (~sort, ~name, ~id, ~ids): t => {
   shape: gap,
   ids,
   binder: true,
+  declared: false,
   dispatch: (_, query) =>
     is_gap(query)
       ? {
@@ -645,6 +658,7 @@ let opaque: t = {
   shape: gap,
   ids: Id.Set.empty,
   binder: false,
+  declared: false,
   dispatch: (_, query) => {
     ...empty_slice,
     psi: query,
@@ -663,6 +677,7 @@ let instantiated = (~ctx: Ctx.t, ~former: MatchedTyp.former, node: t): t => {
     shape: project(node.shape),
     ids: node.ids,
     binder: false,
+    declared: false,
     dispatch: (env, query) => {
       let slice = node.dispatch(env, former.build([query]));
       {
@@ -684,6 +699,7 @@ let component = (~ctx: Ctx.t, ~former: MatchedTyp.former, ~index, node: t): t =>
     shape: project(node.shape),
     ids: node.ids,
     binder: false,
+    declared: false,
     dispatch: (env, query) => {
       let shape = Typ.weak_head_normalize(ctx, node.shape);
       // A type the matcher does not decompose is asked for one the former builds.

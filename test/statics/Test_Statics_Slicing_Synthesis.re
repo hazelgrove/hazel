@@ -412,6 +412,13 @@ let typaps = [
 
 let control = [
   synthesis_case(
+    ~ctx=prelude_ctx("type T = A(Int) + B(Int) in"),
+    "match-shared-branch-binder",
+    "case A(1) | A(x) => (x, ?) | B(x) => (?, x) end",
+    "(Int, Int)",
+    "case ? | A(x) => (x, ?) | B(x) => (?, x) end",
+  ),
+  synthesis_case(
     ~ctx=ctx_var("c", "Bool"),
     "if-then-only",
     "if c then 1 else 2",

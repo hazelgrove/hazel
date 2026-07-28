@@ -343,7 +343,7 @@ and uexp_to_info_map =
         ~inferred_label: option(string)=None,
         ~label_sort=false,
         ~dot_labels: list(string)=[],
-        ~matcher: option(MatchedTyp.matcher)=None,
+        ~former: option(MatchedTyp.former)=None,
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
@@ -374,7 +374,7 @@ and uexp_to_info_map =
         ~shape=elab_syn_ty,
         ~sub_terms=recorded,
         ~co_ctx,
-        ~matcher,
+        ~former,
         (),
       );
     let info: Info.exp = {
@@ -444,6 +444,18 @@ and uexp_to_info_map =
   let pat_edge = (~first=false, role) =>
     edge(~at=here, ~first, role, (i: Info.pat) => i.slice);
   let (let@) = (component, k) => pat_edge(~first=true, Binder, component, k);
+  /* use when a rule has several binders, each scoping one alternative: the
+     pair is recorded in order, since prepending would put every binder before
+     every alternative and let the first consume them all. */
+  let (let@+) = ((branch, pat_result), k) =>
+    pat_edge(
+      Binder,
+      pat_result,
+      ((p_info, p_elab, m)) => {
+        let+ (_, _, m) = (branch, p_elab, m);
+        k((p_info, p_elab, m));
+      },
+    );
   // use when an annotation is a type component of this rule's type.
   // let ( let** ) = (component, k) => typ_edge(Part, component, k);
   // use when an annotation is sliced backwards by this rule's binders.
@@ -1826,38 +1838,13 @@ and uexp_to_info_map =
           | Some(_) => marks_res
           };
         let co_ctx =
-          [
-            CoCtx.singleton(
-              ~sort=CoCtx.Constructor,
-              ~demanded=Some(elab_syn_ty),
-              ctr,
-              Exp.rep_id(uexp),
-              ana,
-            ),
-          ]
-          @ (
-            switch (ConstructorStaticsHelpers.alias_of_ctr(ctx, ctr)) {
-            | Some(entry) => [
-                CoCtx.singleton(
-                  ~sort=CoCtx.Alias,
-                  ~demanded=
-                    Some(
-                      ConstructorStaticsHelpers.alias_demand(
-                        ctx,
-                        ctr,
-                        entry,
-                        ana,
-                      ),
-                    ),
-                  entry.name,
-                  Exp.rep_id(uexp),
-                  ana,
-                ),
-              ]
-            | None => []
-            }
-          )
-          |> CoCtx.union;
+          ConstructorStaticsHelpers.ctr_uses(
+            ctx,
+            ~ctr,
+            ~id=Exp.rep_id(uexp),
+            ~ana,
+            ~typ=elab_syn_ty,
+          );
         add(~elab_term, ~elab_syn_ty, ~marks=marks_res, ~co_ctx, m);
       };
     | Ap(dir, fn, arg) =>
@@ -2628,15 +2615,17 @@ and uexp_to_info_map =
                 p,
                 m,
               );
-            let+ (e, e_elab, m) = go(~ctx=p'.ctx, ~ana, e, m);
-            let@ (p_info, p_elab, m) =
+            let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana, e, m);
+            let@+ (p_info, p_elab, m) = (
+              e,
               go_pat(
                 ~is_synswitch=false,
                 ~co_ctx=e.co_ctx,
                 ~ana=scrut.ty,
                 p,
                 m,
-              );
+              ),
+            );
             (
               p_ctxs @ [p'.ctx],
               es @ [e],
@@ -3295,7 +3284,7 @@ and upat_to_info_map =
         ~inferred_label: option(LabeledTuple.label)=None,
         ~label_sort=false,
         ~binds: option((CoCtx.sort, string, Id.t))=None,
-        ~matcher: option(MatchedTyp.matcher)=None,
+        ~former: option(MatchedTyp.former)=None,
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
@@ -3342,8 +3331,9 @@ and upat_to_info_map =
         ~shape=ty,
         ~sub_terms=recorded,
         ~binds,
+        ~co_ctx,
         ~binder=true,
-        ~matcher,
+        ~former,
         (),
       );
     let info: Info.pat = {
@@ -4088,6 +4078,17 @@ and upat_to_info_map =
         ~elab_syn_ty=syn_ctr,
         ~marks=cms_ctr,
         ~ctx,
+        ~co_ctx=
+          CoCtx.union([
+            co_ctx,
+            ConstructorStaticsHelpers.ctr_uses(
+              ctx,
+              ~ctr,
+              ~id=Pat.rep_id(upat),
+              ~ana,
+              ~typ=syn_ctr,
+            ),
+          ]),
         ~constraint_=Coverage.Constraint.Ap(ctr, None),
         m,
       );
@@ -4105,18 +4106,33 @@ and upat_to_info_map =
       };
       let (ty_in, ty_out) =
         MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn'.elab_syn_ty);
-      let! (arg, arg_elab, m) = go(~ctx, ~ana=ty_in, arg, m);
+      let* (arg, arg_elab, m) = go(~ctx, ~ana=ty_in, arg, m);
       let constraint_ =
         switch (ctr) {
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
         | None => Coverage.Constraint.Hole(None)
         };
       add(
-        ~matcher=Option.map(ConstructorStaticsHelpers.payload_matcher, ctr),
+        ~former=Option.map(ConstructorStaticsHelpers.payload_former, ctr),
         ~elab_term=Ap(fn_elab, arg_elab) |> rewrap,
         ~elab_syn_ty=ty_out,
         ~marks=[],
         ~ctx=arg.ctx,
+        ~co_ctx=
+          CoCtx.union([
+            co_ctx,
+            switch (ctr) {
+            | Some(ctr) =>
+              ConstructorStaticsHelpers.ctr_uses(
+                ctx,
+                ~ctr,
+                ~id=Pat.rep_id(upat),
+                ~ana=fn_ana,
+                ~typ=fn'.elab_syn_ty,
+              )
+            | None => CoCtx.empty
+            },
+          ]),
         ~constraint_,
         m,
       );

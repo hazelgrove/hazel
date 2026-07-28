@@ -31,7 +31,7 @@ let binding_synthesis = [
     "bind-ctor-used",
     "type T = A(Int) in let A(x) = A(1) in x",
     "Int",
-    "type T = A(Int) in let A(x) = A(?) in x",
+    "type T = A(Int) in let A(x) = ? in x",
   ),
   synthesis_case(
     "bind-ctor-unused",
@@ -49,7 +49,7 @@ let binding_synthesis = [
     "bind-match-one-branch",
     "type T = A(Int) + B(Bool) in case A(1) | A(x) => x | B(y) => 0 end",
     "Int",
-    "type T = A(Int) + ? in case A(?) | A(x) => x | ? => ? end",
+    "type T = A(Int) + ? in case ? | A(x) => x | ? => ? end",
   ),
   synthesis_case(
     "match-reverse-tuple-pat",

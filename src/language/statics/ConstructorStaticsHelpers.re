@@ -164,35 +164,29 @@ let instantiation_args_for =
   | _ => []
   };
 
-// A parameterized alias is a sum only under its binders.
-let rec definition_body = (definition: Typ.t): Typ.t =>
-  switch (Typ.term_of(definition)) {
-  | TypFun(_, body)
-  | Rec(_, body)
-  | Poly(_, body)
-  | Parens(body) => definition_body(body)
-  | _ => definition
+// The alias a constructor belongs to is the head of its result type.
+let rec result_head = (ty: Typ.t): option(string) =>
+  switch (Typ.term_of(ty)) {
+  | Arrow(_, out) => result_head(out)
+  | Parens(inner)
+  | Rec(_, inner)
+  | Poly(_, inner)
+  | TypFun(_, inner) => result_head(inner)
+  | TypParamAp(head, _) => result_head(head)
+  | Var(name) => Some(name)
+  | _ => None
   };
 
 let alias_of_ctr = (ctx: Ctx.t, ctr: Constructor.t): option(Ctx.tvar_entry) =>
-  List.find_map(
-    fun
-    | Ctx.TVarEntry({kind: Singleton(definition), _} as entry) =>
-      switch (Typ.get_sum_constructors(ctx, definition_body(definition))) {
-      | Some(variants)
-          when
-            List.exists(
-              fun
-              | ConstructorMap.Variant(name, _, _) =>
-                Constructor.equal(name, ctr)
-              | ConstructorMap.BadEntry(_) => false,
-              variants,
-            ) =>
-        Some(entry)
-      | _ => None
-      }
-    | _ => None,
-    ctx.entries,
+  Util.OptUtil.Syntax.(
+    let* {typ, _}: Ctx.var_entry = Ctx.lookup_ctr(ctx, ctr);
+    let* name = result_head(typ);
+    List.find_map(
+      fun
+      | Ctx.TVarEntry(entry) when entry.name == name => Some(entry)
+      | _ => None,
+      ctx.entries,
+    )
   );
 
 let rec minimal_definition =
@@ -238,9 +232,37 @@ let alias_demand =
     minimal_definition(ctx, ctr, payload, definition);
   };
 
+let ctr_uses =
+    (ctx: Ctx.t, ~ctr: Constructor.t, ~id: Id.t, ~ana: Typ.t, ~typ: Typ.t)
+    : CoCtx.t =>
+  [
+    CoCtx.singleton(
+      ~sort=CoCtx.Constructor,
+      ~demanded=Some(typ),
+      ctr,
+      id,
+      ana,
+    ),
+  ]
+  @ (
+    switch (alias_of_ctr(ctx, ctr)) {
+    | Some(entry) => [
+        CoCtx.singleton(
+          ~sort=CoCtx.Alias,
+          ~demanded=Some(alias_demand(ctx, ctr, entry, ana)),
+          entry.name,
+          id,
+          ana,
+        ),
+      ]
+    | None => []
+    }
+  )
+  |> CoCtx.union;
+
 // A constructor pattern's payload, as a component of the type it matches.
-let payload_matcher = (ctr: Constructor.t): MatchedTyp.matcher =>
-  (ctx, ty) =>
+let payload_former = (ctr: Constructor.t): MatchedTyp.former => {
+  match_: (ctx, ty) =>
     Typ.get_sum_constructors(ctx, ty)
     |> Option.map(
          List.find_map(
@@ -251,4 +273,17 @@ let payload_matcher = (ctr: Constructor.t): MatchedTyp.matcher =>
            | _ => None,
          ),
        )
-    |> Option.join;
+    |> Option.join,
+  build:
+    fun
+    | [payload] =>
+      Sum([
+        ConstructorMap.Variant(
+          ctr,
+          ConstructorMap.empty_variant_ann,
+          Some(payload),
+        ),
+      ])
+      |> Typ.temp
+    | _ => Typ.gap,
+};
