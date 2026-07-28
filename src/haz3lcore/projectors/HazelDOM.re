@@ -5,7 +5,7 @@ open IdTagged.FreshGrammar;
 open MvuShape;
 
 /* Where a dispatched msg is committed:
- * - State: the web-side AppStore evaluates update(msg, model) and stores
+ * - State: the web-side AppStore evaluates update(model, msg) and stores
  *   the new model.
  * - Syntax: the inline projector (HTMLProj) evaluates msg(model) and
  *   splices the result back into the document. A msg is an Html -> Html
@@ -143,7 +143,11 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
       }
     | ("Value", body) =>
       switch (of_string(body)) {
-      | Some(s) => Attr.value(s)
+      /* Both the attribute and the property: once a user has typed into an
+         input, the browser stops mirroring the attribute into the displayed
+         value, so an attribute-only update cannot clear or reset the field.
+         An MVU app that empties `Value` after a submit needs the property. */
+      | Some(s) => Attr.many([Attr.value(s), Attr.value_prop(s)])
       | None => attr_err(d)
       }
     | ("Checked", body) =>
@@ -364,7 +368,11 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
     | ("TextArea", body) =>
       switch (attrs_and_string(mvu, body)) {
       | Some((attrs, content)) =>
-        Node.textarea(~attrs=attrs @ [Attr.value(content)], [])
+        /* Property as well as attribute, for the same reason as `Value` */
+        Node.textarea(
+          ~attrs=attrs @ [Attr.value(content), Attr.value_prop(content)],
+          [],
+        )
       | None => of_error(elide_errors, mvu, d)
       }
 

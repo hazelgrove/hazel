@@ -2,20 +2,15 @@ open Util;
 open Language;
 open IdTagged.FreshGrammar;
 
-/* AppStore: id-keyed store of live MVU apps, keyed by the syntax id of the
- * app projector rendering them. This is the state-commit target:
- * dispatching a msg evaluates update(msg, model) and stores the new model.
+/* Live MVU apps, keyed by the syntax id of the projector rendering them.
+ * Dispatching evaluates update(model, msg) and stores the result.
  *
- * State/memo split: `model` is THE app state and is owned here. The
- * `update_fn`/`view_fn`/`subs_fn` closures are memos derived from the
- * program's eval result; they are rebuilt whenever the program re-evaluates
- * (see `init` rebind). `html` is the current view value (view_fn(model)).
+ * `model` is THE state and is owned here; the three closures are memos
+ * re-derived whenever the program re-evaluates (see `init` rebind).
  *
- * Ownership contract: `sub_handles` are live DOM/timer subscriptions owned
- * by the entry. Every operation that changes `model` reconciles them
- * (cleanup old handles, subscribe against the new model), and remove/gc
- * clean them up. Subscription lifecycle lives in the update path here,
- * never at render time. */
+ * `sub_handles` are live DOM/timer subscriptions owned by the entry: every
+ * operation that changes `model` reconciles them, so subscription lifecycle
+ * lives in this update path and never at render time. */
 
 /* Live DOM/timer handles: opaque to (de)serialization. */
 module Handles = {
@@ -34,7 +29,7 @@ module Entry = {
   type t = {
     source_result: DHExp.t, // program eval result this entry derives from
     model: DHExp.t, // THE state
-    update_fn: DHExp.t, // memo: update: (msg, model) -> model' or (model', cmd)
+    update_fn: DHExp.t, // memo: update: (model, msg) -> (model', cmd)
     view_fn: DHExp.t, // memo: view: model -> Html
     subs_fn: option(DHExp.t), // memo: subscriptions: model -> Sub
     html: DHExp.t, // current view value: view_fn(model)
@@ -157,7 +152,7 @@ let init =
   );
 };
 
-// Route a msg through the entry's update_fn: eval update(msg, model), accept
+// Route a msg through the entry's update_fn: eval update(model, msg), accept
 // both `model'` and `(model', cmd)` results, run the cmd, re-derive html,
 // and reconcile subscriptions.
 let dispatch =
@@ -175,7 +170,8 @@ let dispatch =
     try({
       let result =
         eval(
-          Exp.ap(Forward, entry.update_fn, Exp.tuple([msg, entry.model])),
+          /* Model first: `update(model, action)`. */
+          Exp.ap(Forward, entry.update_fn, Exp.tuple([entry.model, msg])),
         )
         |> Haz3lcore.MvuShape.strip_wrappers;
       let (new_model, cmd) =

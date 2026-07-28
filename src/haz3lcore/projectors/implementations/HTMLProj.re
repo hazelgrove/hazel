@@ -8,7 +8,7 @@ open IdTagged.FreshGrammar;
 //
 // - Elm app — an (init, update, view, subs) 4-tuple — commits to STATE: the
 //   app's model lives in the web-side AppStore, reached through AppBridge,
-//   and a msg goes to update(msg, model). An app can sit anywhere in a
+//   and a msg goes to update(model, msg). An app can sit anywhere in a
 //   program (and, docked with Alt+S, anywhere on screen).
 // - bare HTML commits to SYNTAX (update = apply): msgs are Html -> Html
 //   transforms, and committing evaluates msg(model) and splices the result
@@ -19,16 +19,11 @@ open IdTagged.FreshGrammar;
 // to HTML or to an app), while `view` is authoritative and reads the live
 // value recorded by this projector's probe (`dynamics = true`).
 
-/* RESIZE DRAG
- *
- * The projector's size is `ui.cols` x `ui.rows` character cells, which the
- * editor turns into pixels at the font's cell size. A drag therefore only
- * has to convert a pixel delta into a cell delta.
- *
- * Everything the drag needs is sampled once, at pointerdown, into
- * `resize_anchor`; the new size is always `anchor + round(delta / cell)`.
- * Nothing is re-read from the DOM while the pointer moves, so a reflow
- * caused by the resize itself cannot move the frame of reference. */
+/* RESIZE DRAG. Size is `ui.cols` x `ui.rows` character cells, so a drag just
+ * converts a pixel delta into a cell delta. Everything needed is sampled once
+ * at pointerdown into `resize_anchor` and the new size is always
+ * `anchor + round(delta / cell)` — nothing is re-read from the DOM mid-drag,
+ * so a reflow caused by the resize can't move the frame of reference. */
 
 /* Which of the two dimensions a given handle drives. */
 type resize_axes = {
