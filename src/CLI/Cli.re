@@ -542,6 +542,53 @@ let bench_parse = (iterations: int, paths: list(string)): unit => {
   Printf.printf("\n");
 };
 
+/* Benchmark evaluation performance: parse+statics once, evaluate N times.
+ * "Plain" is the non-incremental path (prev/info_map empty, as used by the
+ * CLI `run` and MVU apps); "Incr" is a cache-seeding incremental run
+ * (info_map populated, prev empty, as used by the web editor's first run). */
+let bench_eval = (iterations: int, paths: list(string)): unit => {
+  let now = () =>
+    Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf
+    |> Js_of_ocaml.Js.float_of_number;
+  Printf.printf(
+    "%-40s %8s %12s %12s\n",
+    "File",
+    "Iters",
+    "Plain(ms)",
+    "Incr(ms)",
+  );
+  Printf.printf("%s\n", String.make(76, '-'));
+  List.iter(
+    path => {
+      let program = read_input(path);
+      let parsed = parse_program(program);
+      let (elab, info_map) = Run.elab_and_eval_info(parsed);
+      ignore(Run.evaluate_elab(elab));
+      let t0 = now();
+      for (_ in 1 to iterations) {
+        ignore(Run.evaluate_elab(elab));
+      };
+      let t1 = now();
+      let plain = (t1 -. t0) /. float_of_int(iterations);
+      ignore(Run.evaluate_elab_incr(~info_map, elab));
+      let t2 = now();
+      for (_ in 1 to iterations) {
+        ignore(Run.evaluate_elab_incr(~info_map, elab));
+      };
+      let t3 = now();
+      let incr = (t3 -. t2) /. float_of_int(iterations);
+      Printf.printf(
+        "%-40s %8d %12.1f %12.1f\n",
+        path,
+        iterations,
+        plain,
+        incr,
+      );
+    },
+    paths,
+  );
+};
+
 /* Common arg: path or "-" for stdin */
 let input_arg = {
   let doc = "Path to Hazel source file, or '-' to read from stdin.";
@@ -790,6 +837,20 @@ let bench_parse_cmd = {
   Cmd.v(info, Term.(const(bench_parse) $ iterations_arg $ files_arg));
 };
 
+let bench_eval_cmd = {
+  let doc = "Benchmark evaluation performance on one or more .hz files.";
+  let iterations_arg = {
+    let doc = "Number of iterations per file (default: 10).";
+    Arg.(value & opt(int, 10) & info(["n", "iterations"], ~doc));
+  };
+  let files_arg = {
+    let doc = "Hazel source files to benchmark.";
+    Arg.(non_empty & pos_all(string, []) & info([], ~docv="FILES", ~doc));
+  };
+  let info = Cmd.info("bench-eval", ~doc);
+  Cmd.v(info, Term.(const(bench_eval) $ iterations_arg $ files_arg));
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
@@ -805,6 +866,7 @@ let default_cmd = {
       grade_json_cmd,
       grade_report_cmd,
       bench_parse_cmd,
+      bench_eval_cmd,
       slide_list_cmd,
       slide_decode_cmd,
       slide_encode_cmd,
