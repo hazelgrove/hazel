@@ -23,6 +23,18 @@ type env = {
   path: Id.Set.t,
 };
 
+type witness =
+  | Syn(Typ.t)
+  | Ana(Typ.t);
+
+// The context above the focus either synthesises ψ or analyses against υ.
+type analysis = {
+  omitted: Id.Set.t,
+  retained: Id.Set.t,
+  gamma: Ctx.t,
+  witness,
+};
+
 // A sliceable type: a type plus its query routing, forwards and backwards.
 // υ is the query asked of it, γ the assumptions a body accumulated, ψ the
 // sliced type answered with, and ⊑ is "at most as precise as" (? ⊑ τ for all τ):
@@ -35,6 +47,7 @@ type t = {
   // its components come from a declaration, so a definition supplies none of them
   declared: bool,
   dispatch: (env, Typ.t) => slice,
+  analyse: env => analysis,
   demand: (env, Ctx.t) => slice,
 };
 
@@ -91,6 +104,20 @@ let empty_slice: slice = {
   omitted: Id.Set.empty,
   gamma: empty_gamma,
   psi: gap,
+};
+
+let empty_analysis = {
+  omitted: Id.Set.empty,
+  retained: Id.Set.empty,
+  gamma: empty_gamma,
+  witness: Syn(gap),
+};
+
+let analysis_of_slice = (slice: slice): analysis => {
+  omitted: slice.omitted,
+  retained: Id.Set.empty,
+  gamma: slice.gamma,
+  witness: Syn(slice.psi),
 };
 
 let entry_key = (entry: Ctx.entry): option((CoCtx.sort, string)) =>
@@ -202,12 +229,22 @@ let discharge = (~sort, ~name, gamma: Ctx.t): Ctx.t => {
 let merge = (ctx: Ctx.t, slices: list(slice)): slice => {
   omitted:
     List.fold_left(
-      (ids, s) => Id.Set.union(ids, s.omitted),
+      (ids, s: slice) => Id.Set.union(ids, s.omitted),
       Id.Set.empty,
       slices,
     ),
-  gamma: join_all(ctx, List.map(s => s.gamma, slices)),
+  gamma: join_all(ctx, List.map((s: slice) => s.gamma, slices)),
   psi: gap,
+};
+
+let combine_analysis = (ctx: Ctx.t, left: analysis, right: analysis) => {
+  let retained = Id.Set.union(left.retained, right.retained);
+  {
+    omitted: Id.Set.diff(Id.Set.union(left.omitted, right.omitted), retained),
+    retained,
+    gamma: join(ctx, left.gamma, right.gamma),
+    witness: right.witness,
+  };
 };
 
 // What a query still asks for once `supplied` has answered part of it.
@@ -247,6 +284,86 @@ let route =
     (List.init(count, _ => gap), broadcast);
   };
 };
+
+let lift =
+    (
+      ~former: option(MatchedTyp.former),
+      ctx: Ctx.t,
+      shape,
+      sub_terms: list((role, t)),
+      selected: int,
+      query,
+    )
+    : Typ.t =>
+  if (is_gap(query)) {
+    gap;
+  } else {
+    let (role, node) = List.nth(sub_terms, selected);
+    if (!fills(sub_terms, role, node)) {
+      query;
+    } else {
+      let positions =
+        sub_terms
+        |> List.mapi((index, (role, node)) =>
+             fills(sub_terms, role, node) ? Some(index) : None
+           )
+        |> List.filter_map(x => x);
+      let component =
+        positions
+        |> List.mapi((index, position) =>
+             position == selected ? Some(index) : None
+           )
+        |> List.find_map(x => x)
+        |> Option.value(~default=0);
+      let shape = Typ.weak_head_normalize(ctx, shape);
+      let components =
+        switch (former) {
+        | Some(former) => MatchedTyp.tolerant(former.match_, ctx, shape)
+        | None => Typ.children(shape)
+        };
+      let component =
+        List.length(components) == 1 && List.length(positions) > 1
+          ? 0 : component;
+      let parts =
+        List.mapi(
+          (index, _) => index == component ? query : gap,
+          components,
+        );
+      switch (former) {
+      | Some(former) when parts != [] => former.build(parts)
+      | Some(_) => query
+      | None => Typ.rebuild(shape, parts) |> Option.value(~default=query)
+      };
+    };
+  };
+
+let dispatch_analysis = (~project=x => x, node: t, env, query): analysis => {
+  let slice =
+    node.dispatch(
+      {
+        ...env,
+        focus: None,
+        path: Id.Set.empty,
+      },
+      query,
+    );
+  {
+    omitted: slice.omitted,
+    retained: Id.Set.diff(node.ids, slice.omitted),
+    gamma: slice.gamma,
+    witness: Syn(project(slice.psi)),
+  };
+};
+
+let source_analysis = (~embed, ~project, node: t, env): analysis =>
+  switch (node.analyse(env)) {
+  | {witness: Ana(query), _} =>
+    dispatch_analysis(~project, node, env, embed(query))
+  | {witness: Syn(query), _} as inner => {
+      ...inner,
+      witness: Syn(project(query)),
+    }
+  };
 
 // A recorded sub-term mid-assembly: its routed query, and its slice once
 // dispatched.
@@ -504,7 +621,70 @@ let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
       psi,
     };
   };
-  (dispatch, demand);
+  let analyse = env => {
+    let selected =
+      sub_terms
+      |> List.mapi((index, (_, node)) =>
+           Id.Set.is_empty(Id.Set.inter(node.ids, env.path))
+             ? None : Some(index)
+         )
+      |> List.find_map(x => x);
+    switch (selected) {
+    | None => empty_analysis
+    | Some(index) =>
+      let (role, node) = List.nth(sub_terms, index);
+      let inner = node.analyse(env);
+      let siblings =
+        sub_terms
+        |> List.mapi((other, (_, node)) =>
+             other == index ? Id.Set.empty : node.ids
+           )
+        |> List.fold_left(Id.Set.union, Id.Set.empty);
+      let finish = result => {
+        ...result,
+        omitted:
+          Id.Set.diff(
+            Id.Set.union(result.omitted, siblings),
+            result.retained,
+          ),
+      };
+      switch (inner.witness, role) {
+      | (Ana(query), Source) =>
+        sub_terms
+        |> List.fold_left(
+             (result, (role, node)) =>
+               role == Binder
+                 ? combine_analysis(
+                     ctx,
+                     result,
+                     dispatch_analysis(node, env, query),
+                   )
+                 : result,
+             dispatch_analysis(~project=_ => gap, node, env, query),
+           )
+        |> finish
+      | (Ana(_), Omit) =>
+        {
+          ...inner,
+          witness: Syn(shape),
+        }
+        |> finish
+      | (Ana(query), _) =>
+        {
+          ...inner,
+          witness: Ana(lift(~former, ctx, shape, sub_terms, index, query)),
+        }
+        |> finish
+      | (Syn(query), _) =>
+        {
+          ...inner,
+          witness: Syn(lift(~former, ctx, shape, sub_terms, index, query)),
+        }
+        |> finish
+      };
+    };
+  };
+  (dispatch, analyse, demand);
 };
 
 let unit_demand = (_env, gamma) => {
@@ -539,7 +719,8 @@ let mk =
       (),
     )
     : t => {
-  let (assembled, demand) = assemble(~ctx, ~former, ~shape, ~sub_terms);
+  let (assembled, analyse_assembled, demand) =
+    assemble(~ctx, ~former, ~shape, ~sub_terms);
   let demand =
     switch (binds) {
     | Some((sort, name, id)) => binder_demand(~sort, ~name, ~id)
@@ -589,12 +770,24 @@ let mk =
       };
     };
   };
+  let analyse = env =>
+    if (env.focus == Some(id)) {
+      {
+        omitted: ids,
+        retained: Id.Set.empty,
+        gamma: empty_gamma,
+        witness: Ana(env.query),
+      };
+    } else {
+      analyse_assembled(env);
+    };
   {
     shape,
     ids,
     binder,
     declared: former != None,
     dispatch,
+    analyse,
     demand,
   };
 };
@@ -651,6 +844,7 @@ let binding = (~sort, ~name, ~id, ~ids): t => {
         ...empty_slice,
         psi: query,
       },
+  analyse: _ => empty_analysis,
   demand: binder_demand(~sort, ~name, ~id),
 };
 
@@ -663,6 +857,7 @@ let opaque: t = {
     ...empty_slice,
     psi: query,
   },
+  analyse: _ => empty_analysis,
   demand: unit_demand,
 };
 
@@ -685,40 +880,58 @@ let instantiated = (~ctx: Ctx.t, ~former: MatchedTyp.former, node: t): t => {
         psi: project(slice.psi),
       };
     },
+    analyse:
+      source_analysis(~embed=query => former.build([query]), ~project, node),
     demand: unit_demand,
   };
 };
 
 // For a rule whose result is a type component of a sub-term's type: embed
 // the query in that type, project the answer back out.
-let component = (~ctx: Ctx.t, ~former: MatchedTyp.former, ~index, node: t): t => {
+let routed =
+    (~ctx: Ctx.t, ~former: MatchedTyp.former, ~input, ~output, node: t): t => {
   let components = ty => MatchedTyp.tolerant(former.match_, ctx, ty);
-  let project = ty =>
+  let project = (index, ty) =>
     List.nth_opt(components(ty), index) |> Option.value(~default=gap);
+  let embed = (index, query) => {
+    let shape = Typ.weak_head_normalize(ctx, node.shape);
+    switch (former.match_(ctx, shape)) {
+    | Some(_) => Typ.embed(shape, index, query)
+    | None =>
+      components(shape)
+      |> List.mapi((i, _) => i == index ? query : gap)
+      |> former.build
+    };
+  };
   {
-    shape: project(node.shape),
+    shape: project(output, node.shape),
     ids: node.ids,
     binder: false,
     declared: false,
     dispatch: (env, query) => {
-      let shape = Typ.weak_head_normalize(ctx, node.shape);
-      // A type the matcher does not decompose is asked for one the former builds.
-      let embedded =
-        switch (former.match_(ctx, shape)) {
-        | Some(_) => Typ.embed(shape, index, query)
-        | None =>
-          components(shape)
-          |> List.mapi((i, _) => i == index ? query : gap)
-          |> former.build
-        };
-      let slice = node.dispatch(env, embedded);
+      let slice = node.dispatch(env, embed(input, query));
       {
         ...slice,
-        psi: project(slice.psi),
+        psi: project(output, slice.psi),
       };
     },
+    analyse:
+      source_analysis(~embed=embed(output), ~project=project(output), node),
     demand: unit_demand,
   };
+};
+
+let component = (~ctx, ~former, ~index, node) =>
+  routed(~ctx, ~former, ~input=index, ~output=index, node);
+
+// A checked premise asks its explicit source for the outer υ it needs.
+let checked_by = (~ctx: Ctx.t, ~source: t, checked: t): t => {
+  ...checked,
+  analyse: env =>
+    switch (checked.analyse(env)) {
+    | {witness: Syn(query) | Ana(query), _} as inner =>
+      combine_analysis(ctx, inner, dispatch_analysis(source, env, query))
+    },
 };
 
 // What a slice query returns to the UI and the tests.
@@ -728,6 +941,11 @@ type result = {
   psi: Typ.t,
   ana: Typ.t,
 };
+
+type direction = [
+  | `Syn
+  | `Ana
+];
 
 // What the entry point needs to know about the focused node.
 type focused = {
@@ -753,6 +971,7 @@ let compatible = (ctx: Ctx.t, actual: Typ.t, query: Typ.t): bool =>
 let slice =
     (
       ~focus: option(Id.t),
+      ~direction: direction,
       ~root_id: Id.t,
       ~root: t,
       ~focused: Id.t => option(focused),
@@ -765,12 +984,16 @@ let slice =
     | Some(id) =>
       switch (focused(id)) {
       | None => raise(Focus_not_found(id))
-      | Some({is_exp: false, _}) => raise(Wrong_focus_sort)
+      | Some({is_exp: false, _}) when direction == `Syn =>
+        raise(Wrong_focus_sort)
       | Some({ancestors, ctx, syn, _}) =>
-        if (!is_gap(query) && !compatible(ctx, syn, query)) {
+        if (direction == `Syn
+            && !is_gap(query)
+            && !compatible(ctx, syn, query)) {
           raise(Incompatible_query(query));
         };
-        Id.Set.of_list(ancestors);
+        let path = Id.Set.of_list(ancestors);
+        direction == `Ana ? Id.Set.add(id, path) : path;
       }
     };
   let env = {
@@ -779,11 +1002,24 @@ let slice =
     path,
   };
   let at_root = focus == None || focus == Some(root_id);
-  let slice = root.dispatch(env, at_root ? query : gap);
-  {
-    omitted: slice.omitted,
-    gamma: slice.gamma,
-    psi: slice.psi,
-    ana: gap,
+  let analysis =
+    switch (direction) {
+    | `Syn => analysis_of_slice(root.dispatch(env, at_root ? query : gap))
+    | `Ana when at_root => analysis_of_slice(root.dispatch(env, query))
+    | `Ana => root.analyse(env)
+    };
+  switch (analysis.witness) {
+  | Syn(psi) => {
+      omitted: analysis.omitted,
+      gamma: analysis.gamma,
+      psi,
+      ana: gap,
+    }
+  | Ana(ana) => {
+      omitted: analysis.omitted,
+      gamma: analysis.gamma,
+      psi: gap,
+      ana,
+    }
   };
 };

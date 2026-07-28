@@ -430,6 +430,15 @@ and uexp_to_info_map =
   let (let^?) = (component, k) => exp_edge(Prune, component, k);
   // use for any sub-term that is only type checked: `f(x)`'s `x`
   let (let&) = (component, k) => exp_edge(Omit, component, k);
+  // use when a checked sub-term's expected υ is supplied by an explicit source
+  let (let&>) = ((source, component), k) =>
+    edge(
+      ~at=here,
+      Omit,
+      (i: Info.exp) => Slice.checked_by(~ctx, ~source, i.slice),
+      component,
+      k,
+    );
   // use when the sub-term is a definition the binders demand from:
   // `case e | ...`'s `e`
   let (let$) = (component, k) => exp_edge(Source, component, k);
@@ -689,7 +698,7 @@ and uexp_to_info_map =
       let^^ (t, m) = go_typ(t2, ~expects=TypExpectation.TypeExpected, m);
       /* Desugar any Sig types in the annotation without full normalization */
       let t_ty = Typ.desugar_sig(ctx, t.user_term);
-      let& (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
+      let&> (e, e_elab, m) = (t.slice, go(~ana=t_ty, ~ctx=t.ctx, e, m));
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
@@ -1959,14 +1968,22 @@ and uexp_to_info_map =
             implicit_poly_instantiate(fn.elab_syn_ty, fn_elab);
           let (ty_in, ty_out) =
             MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_ty);
-          let& (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
-          let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
-          let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
-          /* the implicit instantiation demands under the binders it peeled */
           let result = {
             ...fn,
             slice: instantiated_slice(fn.elab_syn_ty, fn.slice),
           };
+          let source =
+            Slice.routed(
+              ~ctx,
+              ~former=MatchedTyp.arrow_former,
+              ~input=0,
+              ~output=1,
+              result.slice,
+            );
+          let&> (arg, arg_elab, m) = (source, go(~ana=ty_in, arg, m));
+          let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
+          let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
+          /* the implicit instantiation demands under the binders it peeled */
           let^* (_, _, m) = (result, fn_elab, m);
           Id.is_nullary_ap_flag(IdTagged.ids(arg.user_term))
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
@@ -3387,6 +3404,15 @@ and upat_to_info_map =
   let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
   // use when the sub-pattern's type is this pattern's whole type: `(p)`
   let (let^) = (component, k) => pat_edge(Through, component, k);
+  // use when a checked pattern's expected υ is supplied by an annotation
+  let (let^>) = ((source, component), k) =>
+    edge(
+      ~at=here,
+      Through,
+      (i: Info.pat) => Slice.checked_by(~ctx, ~source, i.slice),
+      component,
+      k,
+    );
   // use when an annotation supplies this pattern's whole type: `(p : Int)`'s `Int`
   let (let^^) = (component, k) => typ_edge(Through, component, k);
   // use when the sub-pattern's type is a type component of this pattern's
@@ -4143,8 +4169,10 @@ and upat_to_info_map =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ann, m);
       /* Desugar any Sig types in the annotation without full normalization */
       let ann_ty = Typ.desugar_sig(ctx, ann.user_term);
-      let^ (p, p_elab, m) =
-        go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
+      let^> (p, p_elab, m) = (
+        ann.slice,
+        go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m),
+      );
       add(
         ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
         ~elab_syn_ty=ann_ty,
@@ -5309,21 +5337,18 @@ let mk_typ = (core: CoreSettings.t, ctx, typ: Typ.t): Map.t =>
 
 module Slice = Slice;
 
-let slice =
-    (
-      ~ctx=Ctx.empty_pre_elaboration,
-      ~ana=Typ.temp(Unknown(SynSwitch)),
-      ~focus=None,
-      ~direction=`Syn,
-      exp,
-      query,
-    )
+// Slice without re-running type checking.
+let slice_map =
+    (~info_map: Map.t, ~root_exp: Exp.t, ~focus=None, ~direction=`Syn, query)
     : Slice.result => {
-  let _ = direction;
-  let (root, _, m) =
-    uexp_to_info_map(~ana, ~ctx, ~ancestors=[], exp, Id.Map.empty);
+  let root_id = Exp.rep_id(root_exp);
+  let root =
+    switch (Map.lookup_exp(root_id, info_map)) {
+    | Some(root) => root
+    | None => raise(Slice.Focus_not_found(root_id))
+    };
   let focused = id =>
-    Map.lookup(id, m)
+    Map.lookup(id, info_map)
     |> Option.map((info: Info.t) =>
          Slice.{
            is_exp: Info.sort_of(info) == Exp,
@@ -5338,9 +5363,25 @@ let slice =
        );
   Slice.slice(
     ~focus,
-    ~root_id=Exp.rep_id(exp),
+    ~direction,
+    ~root_id,
     ~root=root.slice,
     ~focused,
     query,
   );
+};
+
+let slice =
+    (
+      ~ctx=Ctx.empty_pre_elaboration,
+      ~ana=Typ.temp(Unknown(SynSwitch)),
+      ~focus=None,
+      ~direction=`Syn,
+      exp,
+      query,
+    )
+    : Slice.result => {
+  let (_, _, m) =
+    uexp_to_info_map(~ana, ~ctx, ~ancestors=[], exp, Id.Map.empty);
+  slice_map(~info_map=m, ~root_exp=exp, ~focus, ~direction, query);
 };
