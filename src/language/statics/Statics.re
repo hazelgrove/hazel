@@ -1629,7 +1629,8 @@ and uexp_to_info_map =
       );
     | HintedTest(e, hint) =>
       let& (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
-      let& (hint, hint_elab, m) = go(~ana=Atom(String) |> Typ.temp, hint, m);
+      let& (hint, hint_elab, m) =
+        go(~ana=Atom(String) |> Typ.temp, hint, m);
       add(
         ~elab_term=HintedTest(e_elab, hint_elab) |> rewrap,
         ~elab_syn_ty=Prod([]) |> Typ.temp,
@@ -1939,8 +1940,7 @@ and uexp_to_info_map =
                 ~ctx,
                 ~matcher=MatchedTyp.arrow,
                 ~index=1,
-                ~fallback=out =>
-                  Arrow(arg.elab_syn_ty, out) |> Typ.temp,
+                ~fallback=out => Arrow(arg.elab_syn_ty, out) |> Typ.temp,
                 fn.slice,
               ),
             );
@@ -2431,8 +2431,7 @@ and uexp_to_info_map =
       );
     | Theorem({term: Var(_), _} as p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let& (e1', e1_elab, m) =
-        go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let& (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(
           ~is_synswitch=false,
@@ -2460,8 +2459,7 @@ and uexp_to_info_map =
       );
     | Theorem(p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let& (_, e1_elab, m) =
-        go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let& (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let^ (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
@@ -3383,6 +3381,7 @@ and upat_to_info_map =
   // use when the sub-pattern's type is a type component of this pattern's
   // type: in `hd :: tl` the head's `Int` is the type component of `[_]`.
   let ( let* ) = (component, k) => pat_edge(Part, component, k);
+  let (let!) = (component, k) => pat_edge(Binder, component, k);
   // use for any sub-pattern that is only type checked.
   // let (let&) = (component, k) => pat_edge(Omit, component, k);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
@@ -4085,13 +4084,22 @@ and upat_to_info_map =
       };
       let (ty_in, ty_out) =
         MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn'.elab_syn_ty);
-      let (arg, arg_elab, m) = go(~ctx, ~ana=ty_in, arg, m);
+      let! (arg, arg_elab, m) = go(~ctx, ~ana=ty_in, arg, m);
       let constraint_ =
         switch (ctr) {
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
         | None => Coverage.Constraint.Hole(None)
         };
       add(
+        ~slice=
+          Some(
+            Slice.component(
+              ~ctx,
+              ~matcher=MatchedTyp.arrow,
+              ~index=0,
+              fn'.slice,
+            ),
+          ),
         ~elab_term=Ap(fn_elab, arg_elab) |> rewrap,
         ~elab_syn_ty=ty_out,
         ~marks=[],

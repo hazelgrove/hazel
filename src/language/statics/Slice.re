@@ -265,8 +265,7 @@ let place = (ctx: Ctx.t, shape: Typ.t, sub_terms: list((role, t)), query) => {
           };
         let query =
           role == Prune && Typ.children(query) != [] && Typ.is_empty(query)
-            ? gap
-            : query;
+            ? gap : query;
         (
           placed
           @ [
@@ -319,13 +318,16 @@ let forward = (ctx: Ctx.t, env: env, query: Typ.t, placed: list(placed)) => {
             ],
             residual(ctx, left, slice.psi),
           );
-        | Omit
-            when
-              !Id.Set.is_empty(Id.Set.inter(item.node.ids, env.path)) =>
-          (
-            acc @ [{...item, result: Some(item.node.dispatch(env, gap))}],
+        | Omit when !Id.Set.is_empty(Id.Set.inter(item.node.ids, env.path)) => (
+            acc
+            @ [
+              {
+                ...item,
+                result: Some(item.node.dispatch(env, gap)),
+              },
+            ],
             left,
-          );
+          )
         | Omit
         | Source
         | Binder => (acc @ [item], left)
@@ -523,11 +525,11 @@ let mk =
       (),
     )
     : t => {
-  let (assembled, demand) =
-    switch (override) {
-    | Some(node) => (node.dispatch, node.demand)
-    | None => assemble(~ctx, ~shape, ~sub_terms)
-    };
+  let (assembled, demand) = assemble(~ctx, ~shape, ~sub_terms);
+  let assembled =
+    override
+    |> Option.map(node => node.dispatch)
+    |> Option.value(~default=assembled);
   let demand =
     switch (binds) {
     | [(sort, name, id)] => binder_demand(~sort, ~name, ~id)
@@ -581,22 +583,15 @@ let mk =
                };
              let demanded =
                entry.sort == CoCtx.Constructor
-                 ?
-                 Ctx.lookup_ctr(ctx, name)
-                 |> Option.map((entry: Ctx.var_entry) => entry.typ)
-                 |> Option.value(~default=entry.demanded(query))
+                 ? Ctx.lookup_ctr(ctx, name)
+                   |> Option.map((entry: Ctx.var_entry) => entry.typ)
+                   |> Option.value(~default=entry.demanded(query))
                  : entry.demanded(query);
-             singleton(
-               ~sort=entry.sort,
-               ~name,
-               ~id=use_id,
-               demanded,
-             );
+             singleton(~sort=entry.sort, ~name, ~id=use_id, demanded);
            })
         |> join_all(ctx);
       {
-        omitted:
-          Id.Set.union(slice.omitted, Id.Set.diff(checked, env.path)),
+        omitted: Id.Set.union(slice.omitted, Id.Set.diff(checked, env.path)),
         gamma: join(ctx, slice.gamma, used),
         psi: capped,
       };
@@ -679,7 +674,13 @@ let opaque: t = {
 // For a rule whose result is a type component of a sub-term's type: embed
 // the query in that type, project the answer back out.
 let component =
-    (~ctx: Ctx.t, ~matcher: MatchedTyp.matcher, ~index, ~fallback=Fun.id, node: t)
+    (
+      ~ctx: Ctx.t,
+      ~matcher: MatchedTyp.matcher,
+      ~index,
+      ~fallback=Fun.id,
+      node: t,
+    )
     : t => {
   let components = ty => MatchedTyp.tolerant(matcher, ctx, ty);
   let project = ty =>
