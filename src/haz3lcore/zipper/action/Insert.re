@@ -549,7 +549,15 @@ let go = (~deep_reassociate=false, char: string, z: t, ~root): option(t) => {
      * in a comment, we are instead moved to the righthand side of
      * the operand. Note that this behavior is load-bearing for the
      * current parsing approach including Paste */
-    | (_, (_, Some(t))) when Token.closing_stringlit_or_comment(char, t) =>
+    | (Inner(idx), (_, Some(t)))
+        when
+          Token.closing_stringlit_or_comment(char, t)
+          && !(
+               String.length(t) > 0
+               && t.[0] == '"'
+               && char == "\""
+               && Token.string_quote_is_escaped(t, idx + 1)
+             ) =>
       z |> Caret.set(Outer) |> Zipper.move(Right)
     | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
       Some(z)
@@ -558,6 +566,10 @@ let go = (~deep_reassociate=false, char: string, z: t, ~root): option(t) => {
       let new_token = Token.insert_nth(idx, char, t);
       let z = Caret.set(Inner(idx), z);
       Token.is_potential_token(new_token)
+      || String.length(new_token) > 0
+      && new_token.[0] == '"'
+      && char == "\""
+      && Token.string_quote_is_escaped(new_token, idx)
         ? z
           |> replace_shard_inplace(Right, new_token, ~root)
           |> Option.map(

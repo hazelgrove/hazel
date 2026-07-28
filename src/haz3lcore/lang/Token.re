@@ -53,9 +53,8 @@ let is_secondary = t => List.mem(t, [space, linebreak]) || is_comment(t);
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
-let string_regexp = regexp("^\"([^\n\"]|(\\\\\"))*\"$"); /* Multiline strings not supported */
-let is_string = t =>
-  match(string_regexp, t) && List.length(split_on_char('"', t)) < 4;
+let string_regexp = regexp("^\"([^\"]|(\\\\\"))*\"$");
+let is_string = t => match(string_regexp, t);
 let string_delim = "\"";
 let empty_string = append(string_delim, string_delim);
 let is_string_delim = (==)(string_delim);
@@ -77,6 +76,16 @@ let strip_quotes = (~quote="\"", ~escaping: bool=false, s) =>
   };
 
 let string_quote = s => "\"" ++ s ++ "\"";
+
+let string_quote_is_escaped = (s: t, idx: int): bool => {
+  let rec count_backslashes = (i: int, n: int): int =>
+    if (i < 0 || s.[i] != '\\') {
+      n;
+    } else {
+      count_backslashes(i - 1, n + 1);
+    };
+  count_backslashes(idx - 1, 0) mod 2 == 1;
+};
 
 let raw_string_regexp = regexp("^r\"[^\n]*\"$"); /* Multiline raw strings not supported */
 let is_raw_string = t =>
@@ -123,6 +132,8 @@ let label_quote = s => label_delim ++ s ++ label_delim;
 
 let closing_stringlit_or_comment = (char, t: t): bool =>
   is_string(t)
+  && is_string_delim(char)
+  || is_raw_string(t)
   && is_string_delim(char)
   || is_comment(t)
   && is_comment_delim(char)
