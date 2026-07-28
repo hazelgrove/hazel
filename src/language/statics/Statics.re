@@ -3392,7 +3392,9 @@ and upat_to_info_map =
   // use when the sub-pattern's type is a type component of this pattern's
   // type: in `hd :: tl` the head's `Int` is the type component of `[_]`.
   let ( let* ) = (component, k) => pat_edge(Part, component, k);
-  let (let!) = (component, k) => pat_edge(Binder, component, k);
+  // use when a sub-pattern binds names for the rest of this pattern, without
+  // supplying any of its type.
+  // let (let!) = (component, k) => pat_edge(Binder, component, k);
   // use for any sub-pattern that is only type checked.
   // let (let&) = (component, k) => pat_edge(Omit, component, k);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;

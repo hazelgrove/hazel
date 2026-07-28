@@ -1622,7 +1622,7 @@ let rebuild = (shape: t, replacements: list(t)): option(t) => {
   | Prod(items) => many(items, items => Prod(items))
   | TypTuple(items) => many(items, items => TypTuple(items))
   | Sum(variants) =>
-    let variant = (name, ann, named, payload) =>
+    let variant = (ann, named, payload) =>
       switch (term_of(named)) {
       | Var(name') => ConstructorMap.Variant(name', ann, payload)
       | _ =>
@@ -1637,17 +1637,17 @@ let rebuild = (shape: t, replacements: list(t)): option(t) => {
       switch (variants, replacements) {
       | ([], []) => Some([])
       | (
-          [ConstructorMap.Variant(name, ann, None), ...rest],
+          [ConstructorMap.Variant(_, ann, None), ...rest],
           [named, ...replacements],
         ) =>
         refill(rest, replacements)
-        |> Option.map(List.cons(variant(name, ann, named, None)))
+        |> Option.map(List.cons(variant(ann, named, None)))
       | (
-          [ConstructorMap.Variant(name, ann, Some(_)), ...rest],
+          [ConstructorMap.Variant(_, ann, Some(_)), ...rest],
           [named, payload, ...replacements],
         ) =>
         refill(rest, replacements)
-        |> Option.map(List.cons(variant(name, ann, named, Some(payload))))
+        |> Option.map(List.cons(variant(ann, named, Some(payload))))
       | ([ConstructorMap.BadEntry(_), ...rest], [inner, ...replacements]) =>
         refill(rest, replacements)
         |> Option.map(List.cons(ConstructorMap.BadEntry(inner)))
