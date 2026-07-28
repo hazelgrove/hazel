@@ -91,6 +91,8 @@ let raw_string_regexp = regexp("^r\"[^\n]*\"$"); /* Multiline raw strings not su
 let is_raw_string = t =>
   match(raw_string_regexp, t) && List.length(split_on_char('"', t)) < 4;
 
+let is_raw_string_start = (==)("r\"");
+
 let strip_raw_quotes = s =>
   if (String.length(s) < 3) {
     s;

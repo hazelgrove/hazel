@@ -26,6 +26,9 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   | _ when Token.is_string_delim(t) || Token.is_quoted_label_delim(t) =>
     /* Special case for constructing string/label literals. */
     ([t ++ t], Left)
+  | _ when Token.is_raw_string_start(t) =>
+    /* Special case for constructing raw string literals. */
+    ([t ++ "\""], Left)
   | "|" when before_case_shard(z) || inside_case(z) =>
     /* SPECIAL CASE: Case rule delimiter.
        Inside a case, always expand | to Rule form regardless of local sort.
