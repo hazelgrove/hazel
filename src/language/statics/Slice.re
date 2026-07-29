@@ -257,16 +257,35 @@ let fills = (sub_terms: list((role, t)), role, node: t): bool =>
   List.exists(((role, _)) => role == Part, sub_terms)
   && (role == Part || role == Binder && node.binder);
 
+// Break a type into the parts a rule's sub-terms fill.
+let components = (~former: option(MatchedTyp.former), ctx, ty) =>
+  switch (former) {
+  | Some(former) => MatchedTyp.tolerant(former.match_, ctx, ty)
+  | None => Typ.children(ty)
+  };
+
+// Which component slot each sub-term fills, and the query each is asked at.
+// Read forwards by `place` and backwards by `lift`, so they cannot disagree.
+type routing = {
+  slots: list(option(int)),
+  queries: list(Typ.t),
+  broadcast: bool,
+};
+
 // Match the query's type components to the constructed type's, or share the
 // one type component between them all (a list literal and its elements).
 let route =
-    (~former: option(MatchedTyp.former), ctx, shape, query, count: int)
-    : (list(Typ.t), bool) => {
-  let components = ty =>
-    switch (former) {
-    | Some(former) => MatchedTyp.tolerant(former.match_, ctx, ty)
-    | None => Typ.children(ty)
-    };
+    (~former: option(MatchedTyp.former), ctx, shape, sub_terms, query)
+    : routing => {
+  let fills = fills(sub_terms);
+  let (count, slots) =
+    List.fold_left_map(
+      (taken, (role, node)) =>
+        fills(role, node) ? (taken + 1, Some(taken)) : (taken, None),
+      0,
+      sub_terms,
+    );
+  let components = components(~former, ctx);
   let supplied = components(Typ.weak_head_normalize(ctx, query));
   let arity =
     switch (components(shape)) {
@@ -274,23 +293,30 @@ let route =
     | components => List.length(components)
     };
   let broadcast = arity == 1 && count > 1;
-  if (is_gap(query) || supplied == []) {
-    (List.init(count, _ => gap), broadcast);
-  } else if (count == arity && List.length(supplied) == arity) {
-    (supplied, false);
-  } else if (broadcast && List.length(supplied) == 1) {
-    (List.init(count, _ => List.hd(supplied)), true);
-  } else {
-    (List.init(count, _ => gap), broadcast);
+  let queries =
+    if (is_gap(query) || supplied == []) {
+      List.init(count, _ => gap);
+    } else if (count == arity && List.length(supplied) == arity) {
+      supplied;
+    } else if (broadcast && List.length(supplied) == 1) {
+      List.init(count, _ => List.hd(supplied));
+    } else {
+      List.init(count, _ => gap);
+    };
+  {
+    slots,
+    queries,
+    broadcast,
   };
 };
 
+// The inverse of `place`: put a query back in the slot the routing gave it.
 let lift =
     (
       ~former: option(MatchedTyp.former),
+      ~routing: routing,
       ctx: Ctx.t,
       shape,
-      sub_terms: list((role, t)),
       selected: int,
       query,
     )
@@ -298,37 +324,14 @@ let lift =
   if (is_gap(query)) {
     gap;
   } else {
-    let (role, node) = List.nth(sub_terms, selected);
-    if (!fills(sub_terms, role, node)) {
-      query;
-    } else {
-      let positions =
-        sub_terms
-        |> List.mapi((index, (role, node)) =>
-             fills(sub_terms, role, node) ? Some(index) : None
-           )
-        |> List.filter_map(x => x);
-      let component =
-        positions
-        |> List.mapi((index, position) =>
-             position == selected ? Some(index) : None
-           )
-        |> List.find_map(x => x)
-        |> Option.value(~default=0);
+    switch (List.nth(routing.slots, selected)) {
+    | None => query
+    | Some(slot) =>
       let shape = Typ.weak_head_normalize(ctx, shape);
-      let components =
-        switch (former) {
-        | Some(former) => MatchedTyp.tolerant(former.match_, ctx, shape)
-        | None => Typ.children(shape)
-        };
-      let component =
-        List.length(components) == 1 && List.length(positions) > 1
-          ? 0 : component;
+      let components = components(~former, ctx, shape);
+      let slot = routing.broadcast ? 0 : slot;
       let parts =
-        List.mapi(
-          (index, _) => index == component ? query : gap,
-          components,
-        );
+        List.mapi((index, _) => index == slot ? query : gap, components);
       switch (former) {
       | Some(former) when parts != [] => former.build(parts)
       | Some(_) => query
@@ -375,43 +378,27 @@ type placed = {
 };
 
 // Give every recorded sub-term the query it is asked at.
-let place = (~former, ctx: Ctx.t, shape: Typ.t, sub_terms, query) => {
-  let fills = fills(sub_terms);
-  let count =
-    List.length(
-      List.filter(((role, node)) => fills(role, node), sub_terms),
-    );
-  let (queries, broadcast) = route(~former, ctx, shape, query, count);
-  let (placed, _) =
-    List.fold_left(
-      ((placed, taken), (role, node)) => {
-        let (query, taken) =
-          if (fills(role, node)) {
-            (List.nth(queries, taken), taken + 1);
-          } else {
-            (role == Through || role == Prune ? query : gap, taken);
-          };
-        let query =
-          role == Prune && Typ.children(query) != [] && Typ.is_empty(query)
-            ? gap : query;
-        (
-          placed
-          @ [
-            {
-              role: role == Prune ? Through : role,
-              node,
-              query,
-              result: None,
-            },
-          ],
-          taken,
-        );
-      },
-      ([], 0),
-      sub_terms,
-    );
-  (placed, broadcast);
-};
+let place = (~routing: routing, sub_terms, query) =>
+  List.map2(
+    (slot, (role, node)) => {
+      let query =
+        switch (slot) {
+        | Some(taken) => List.nth(routing.queries, taken)
+        | None => role == Through || role == Prune ? query : gap
+        };
+      let query =
+        role == Prune && Typ.children(query) != [] && Typ.is_empty(query)
+          ? gap : query;
+      {
+        role: role == Prune ? Through : role,
+        node,
+        query,
+        result: None,
+      };
+    },
+    routing.slots,
+    sub_terms,
+  );
 
 // Dispatch the sub-terms whose query is known; branches take residuals in turn.
 let forward = (ctx: Ctx.t, env: env, query: Typ.t, placed: list(placed)) => {
@@ -557,9 +544,9 @@ let assembled_psi =
 // The interpreter: both directions, derived from the sub-terms recorded.
 let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
   let dispatch = (env, query) => {
-    let (placed, broadcast) = place(~former, ctx, shape, sub_terms, query);
+    let routing = route(~former, ctx, shape, sub_terms, query);
     let placed =
-      placed
+      place(~routing, sub_terms, query)
       |> forward(ctx, env, query)
       |> backward(ctx, env)
       |> sources(ctx, env);
@@ -572,7 +559,7 @@ let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
           shape,
           query,
           fills(sub_terms),
-          broadcast,
+          routing.broadcast,
           placed,
         ),
     };
@@ -648,6 +635,10 @@ let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
             result.retained,
           ),
       };
+      let lifted = query => {
+        let routing = route(~former, ctx, shape, sub_terms, query);
+        lift(~former, ~routing, ctx, shape, index, query);
+      };
       switch (inner.witness, role) {
       | (Ana(query), Source) =>
         sub_terms
@@ -672,13 +663,13 @@ let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
       | (Ana(query), _) =>
         {
           ...inner,
-          witness: Ana(lift(~former, ctx, shape, sub_terms, index, query)),
+          witness: Ana(lifted(query)),
         }
         |> finish
       | (Syn(query), _) =>
         {
           ...inner,
-          witness: Syn(lift(~former, ctx, shape, sub_terms, index, query)),
+          witness: Syn(lifted(query)),
         }
         |> finish
       };
@@ -955,18 +946,6 @@ type focused = {
   syn: Typ.t,
 };
 
-let compatible = (ctx: Ctx.t, actual: Typ.t, query: Typ.t): bool =>
-  Typ.meet(ctx, actual, query) != None
-  || (
-    switch (
-      Typ.term_of(Typ.weak_head_normalize(ctx, actual)),
-      Typ.term_of(Typ.weak_head_normalize(ctx, query)),
-    ) {
-    | (Sum(_), Sum(_) | Var(_) | TypParamAp(_, _)) => true
-    | _ => false
-    }
-  );
-
 // Entry point: check the focus, then dispatch the root at the query.
 let slice =
     (
@@ -989,7 +968,7 @@ let slice =
       | Some({ancestors, ctx, syn, _}) =>
         if (direction == `Syn
             && !is_gap(query)
-            && !compatible(ctx, syn, query)) {
+            && !Typ.is_askable(ctx, syn, query)) {
           raise(Incompatible_query(query));
         };
         let path = Id.Set.of_list(ancestors);
