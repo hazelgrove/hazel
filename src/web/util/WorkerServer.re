@@ -262,8 +262,14 @@ type model = {
 let slice_step_budget = 5000;
 /* Cumulative trampoline-step backstop across slices for a single batch item.
  * Wall-clock timeout + worker terminate is the primary runaway guard; this
- * stops pathological cases that somehow evade the client timer. */
-let total_step_limit = 1_000_000;
+ * stops pathological cases that somehow evade the client timer.
+ *
+ * Units are trampoline TRANSITIONS (one per Bind/Next/Done), not evaluator
+ * steps — hundreds of transitions per reduction, roughly 1M transitions ≈ 2s
+ * of sliced evaluation in-browser. The backstop must sit well beyond the 20s
+ * client timer or ordinary heavy programs (e.g. range(1,5000)) get killed at
+ * ~2s and surface as spurious "Evaluation timed out". */
+let total_step_limit = 100_000_000;
 let initial_model = {
   latest_request: None,
   runtime: Idle,
