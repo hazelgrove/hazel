@@ -977,7 +977,7 @@ let x : StringResult(Int) = Ok(7) in x
           static_errors(
             {|
 type Option = typfun a -> + None + Some(a) in
-let x : Option(Int) = Some(3) in x
+?
 |},
           );
         check(
@@ -985,6 +985,17 @@ let x : Option(Int) = Some(3) in x
           "typfun mark",
           true,
           has_mark(TypFunNotSurfaceSyntax, marks),
+        );
+        check(
+          bool,
+          "no kind errors",
+          false,
+          List.exists(
+            fun
+            | Mark.TypKindMismatch(_) => true
+            | _ => false,
+            marks,
+          ),
         );
       },
     ),
@@ -998,6 +1009,17 @@ let x : Option(Int) = Some(3) in x
           "typfun mark",
           true,
           has_mark(TypFunNotSurfaceSyntax, marks),
+        );
+        check(
+          bool,
+          "no kind errors",
+          false,
+          List.exists(
+            fun
+            | Mark.TypKindMismatch(_) => true
+            | _ => false,
+            marks,
+          ),
         );
       },
     ),
