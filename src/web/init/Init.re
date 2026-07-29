@@ -22,6 +22,7 @@ let documentation_slides: list((string, PersistentSegment.t)) =
     Probes.out,
     Livelits.out,
   ]
+  @ Livelitdemos.Slides.all_slides
   @ Mvu.Slides.all_slides
   @ B2t2.Slides.all_slides;
 

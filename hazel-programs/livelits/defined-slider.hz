@@ -1,0 +1,41 @@
+# User-Defined Livelits #
+
+# A livelit is a live GUI for a value in your program. Define one #
+# with a livelit name (^name) bound to a module: #
+
+# init:   the model a fresh use starts with #
+# update: (Model, Action) -> Model, run when the GUI acts #
+# view:   Model -> HTML, whose handlers emit Actions #
+# expand: Model -> value, what a use means to the program #
+
+let ^pct = {
+  type Model = Int;
+  type Action = Int;
+
+  let init : Model = 50;
+
+  let update = fun (m, a) : (Model, Action) -> a;
+
+  let view = fun m : Model ->
+    Div(
+      [Style([("display", "flex"), ("gap", "0.5em"),
+              ("align-items", "center"),
+              ("font-family", "var(--code-font)"),
+              ("font-size", "0.8em")])],
+      [
+        Input([
+          Type("range"), Min("0"), Max("100"),
+          Value(string_of_int(m)),
+          OnInput(fun s -> int_of_string(s))
+        ]),
+        Text(string_of_int(m) ++ "%")
+      ]
+    );
+
+  let expand = fun m : Model -> m
+} in
+
+# Each use below carries its own model, stored right here in the #
+# text: drag a slider and watch its argument change. #
+
+^^livelit(^pct(25)) + ^^livelit(^pct(75))

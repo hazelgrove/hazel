@@ -6,7 +6,6 @@ Hazel implements a version of the live literals (livelits) mechanism described i
 
 - No parameters
 - No splices
-- No user-defined livelits (only builtins)
 
 ## Overview
 
@@ -14,7 +13,42 @@ A livelit is a live GUI widget which can be inserted into expressions and genera
 
 Each livelit maintains an internal model, which we do not intend clients of the livelit to interact with. When testing a livelit you've created, you can unproject the livelit (by clicking the button on the bottom right of the Hazel UI) and edit this internal model directly.
 
-Livelits live in the typing context, so they can be viewed using the context inspector, but currently there is no way to add new user-defined livelits.
+Livelits live in the typing context, so they can be viewed using the context inspector. They can be defined either as OCaml builtins or in Hazel itself.
+
+## User-Defined Livelits
+
+A Hazel program can define a livelit by binding a livelit name to a module:
+
+```
+let ^pct = {
+  type Model = Int;
+  type Action = Int;
+  let init : Model = 50;
+  let update = fun (m, a) : (Model, Action) -> a;
+  let view = fun m : Model -> ...;
+  let expand = fun m : Model -> m
+} in
+^pct(25) + ^pct(75)
+```
+
+with `update: (Model, Action) => Model`, `view: Model => HTML` (handlers emit
+Actions, as in the MVU apps — see mvu.md), and `expand: Model => Expansion`.
+An optional member `size = (width, height)` sets the projector size in
+character cells. Type members are accepted but not yet semantically
+load-bearing. Helpers are ordinary additional members. Since modules are
+sugar for labeled tuples, a positional `(init, update, view, expand[, size])`
+tuple is accepted as the equivalent form.
+
+Each use elaborates to `^name.expand(model)` through the runtime `^name`
+binding, so shadowing and scoping behave like ordinary lets, and each use's
+model lives in its own argument syntax. The definition must be closed —
+`update`/`view` evaluate in the builtin environment at render time — so
+helpers belong among its members.
+
+Example programs: `hazel-programs/livelits/` (shipped as the "Livelits" doc
+slides; regenerate with `regen-slides.sh` there after edits). The adapter is
+`src/language/statics/UserLivelit.re`; rendering is the `user_def` branch of
+`LivelitProj.re`.
 
 ## Creating a Built-in Livelit
 
