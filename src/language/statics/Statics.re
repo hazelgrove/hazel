@@ -484,8 +484,8 @@ and uexp_to_info_map =
       m,
     );
   // use when this rule's type is a projection of a sub-term's: `f(x)`, `r.a`
-  let ( let^* ) = ((i, elab, m), k) =>
-    k((i, elab, result_of(~via=[(MatchedTyp.arrow_former, 1)], i, m)));
+  let ( let^* ) = ((via, (i, elab, m)), k) =>
+    k((i, elab, result_of(~via, i, m)));
   // use when a name rather than a pattern binds for the rest of this rule:
   // `type T = d in b`
   let (let@@) = ((sort, name, id, ids, m), k) =>
@@ -1180,7 +1180,7 @@ and uexp_to_info_map =
           // that analyzes a TupLabel and its children inline, rather than recursing into
           // a separate rule, so shadow the edge to record children under the wrapper id.
           let ( let* ) = (component, k) => exp_edge(Part, component, k);
-          let (let@) = (component, k) =>
+          let (let*@) = (component, k) =>
             exp_edge(~first=true, Part, component, k);
           let (labmode, val_mode) =
             LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
@@ -1194,7 +1194,7 @@ and uexp_to_info_map =
                   ~expected_labels,
                   ~duplicate_labels,
                 );
-              let@ (_, _, m) =
+              let*@ (_, _, m) =
                 add(
                   ~user_term=label,
                   ~ancestors=ancestors_inclusive,
@@ -1213,7 +1213,7 @@ and uexp_to_info_map =
                 );
               (Some(name), label_invalid, m);
             | EmptyHole =>
-              let@ (_, _, m) =
+              let*@ (_, _, m) =
                 add(
                   ~user_term=label,
                   ~ancestors=ancestors_inclusive,
@@ -1541,8 +1541,6 @@ and uexp_to_info_map =
 
         switch (e2.term) {
         | Label(name) =>
-          let element: option(Typ.t) =
-            LabeledTuple.find_label(Typ.match_tup_label, ts, name);
           let field_index =
             List.find_index(
               (t: Typ.t) =>
@@ -1552,6 +1550,8 @@ and uexp_to_info_map =
                 },
               ts,
             );
+          let element: option(Typ.t) =
+            Option.map(List.nth(ts), field_index);
           switch (element) {
           | Some({term: TupLabel(_, typ), _})
           | Some(typ) =>
@@ -1984,7 +1984,10 @@ and uexp_to_info_map =
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
           /* the implicit instantiation demands under the binders it peeled */
-          let^* (_, _, m) = (result, fn_elab, m);
+          let^* (_, _, m) = (
+            [(MatchedTyp.arrow_former, 1)],
+            (result, fn_elab, m),
+          );
           Id.is_nullary_ap_flag(IdTagged.ids(arg.user_term))
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
             ? add(
@@ -3868,7 +3871,7 @@ and upat_to_info_map =
           // that analyzes a TupLabel and its children inline, rather than recursing into
           // a separate rule, so shadow the edge to record children under the wrapper id.
           let ( let* ) = (component, k) => pat_edge(Part, component, k);
-          let (let@) = (component, k) =>
+          let (let*@) = (component, k) =>
             pat_edge(~first=true, Part, component, k);
           let (labmode, val_mode) =
             LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
@@ -3889,7 +3892,7 @@ and upat_to_info_map =
                   ~expected_labels,
                   ~duplicate_labels=new_duplicate_labels,
                 );
-              let@ (_, _, m) =
+              let*@ (_, _, m) =
                 add(
                   ~user_term=label,
                   ~elab_term=label,
@@ -3908,7 +3911,7 @@ and upat_to_info_map =
                 );
               (Some(name), label_invalid, m);
             | EmptyHole =>
-              let@ (_, _, m) =
+              let*@ (_, _, m) =
                 add(
                   ~user_term=label,
                   ~elab_term=label,
