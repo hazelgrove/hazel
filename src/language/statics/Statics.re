@@ -3782,7 +3782,13 @@ and upat_to_info_map =
       );
     | Asc(p, ann) =>
       let (ann, m) =
-        utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ann, m);
+        utyp_to_info_map(
+          ~ctx,
+          ~ancestors=ancestors_inclusive,
+          ~allow_typfun=false,
+          ann,
+          m,
+        );
       /* Desugar any Sig types in the annotation without full normalization */
       let ann_ty = Typ.desugar_sig(ctx, ann.user_term);
       let (p, p_elab, m) =
@@ -3832,6 +3838,7 @@ and utyp_to_info_map =
     (
       ~ctx,
       ~expects=TypExpectation.TypeExpected,
+      ~allow_typfun=true,
       ~ancestors,
       utyp: Typ.t,
       m: Map.t,
@@ -3873,6 +3880,8 @@ and utyp_to_info_map =
       ([m], None);
     };
     switch (expects, utyp.term) {
+    | (TypeExpected, TypFun(_, _)) when allow_typfun =>
+      ok(Message.Type(utyp))
     | (_, Unknown(Hole(Invalid(token)))) => err(BadToken(token))
     | (LabelExpected(_), Unknown(Hole(EmptyHole))) =>
       ok(Message.EmptyLabel)
@@ -4095,12 +4104,6 @@ and utyp_to_info_map =
           ok(Message.Type(utyp));
         };
       };
-    | (TypeExpected | AnyKindExpected, TypFun(_, _)) =>
-      /* `TypFun` has an `Arrow` kind. Accept it as kind-OK at this
-         node; descendants are visited via the `TypFun` arm of the
-         outer `switch` with `AnyKindExpected` so a curried tail
-         doesn't repeat this check. */
-      ok(Message.Type(utyp))
     | (TypeExpected | AnyKindExpected, _) =>
       switch (kind_marks_for_expected_type(~expects, utyp)) {
       | [] => ok(Message.Type(utyp))
@@ -4137,7 +4140,14 @@ and utyp_to_info_map =
   let _ = ancestors;
   let go =
       (~ctx=ctx, ~expects=TypExpectation.TypeExpected, t: Typ.t, m: Map.t) =>
-    utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~expects, t, m);
+    utyp_to_info_map(
+      ~ctx,
+      ~ancestors=ancestors_inclusive,
+      ~expects,
+      ~allow_typfun,
+      t,
+      m,
+    );
   switch (term) {
   | Unknown(Hole(MultiHole(tms))) =>
     let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
@@ -4331,6 +4341,13 @@ and utyp_to_info_map =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m);
   | TypFun(utpat, tbody) =>
+    let rec starts_with_typfun = (typ: Typ.t) =>
+      switch (typ.term) {
+      | TypFun(_, _) => true
+      | Parens(inner) => starts_with_typfun(inner)
+      | _ => false
+      };
+    let allow_typfun_in_body = allow_typfun && starts_with_typfun(tbody);
     let body_ctx =
       List.fold_left(
         (ctx, b: TPat.t) =>
@@ -4360,6 +4377,7 @@ and utyp_to_info_map =
            outer `TypFun` already accounts for that extra arrow in
            its own kind, so don't re-flag it here. */
         ~expects=AnyKindExpected,
+        ~allow_typfun=allow_typfun_in_body,
         m,
       )
       |> snd;
