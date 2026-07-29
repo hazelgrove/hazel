@@ -96,27 +96,32 @@ let trim = ((as_, bs): t('a, 'b)): option(('a, t('b, 'a), 'a)) =>
     Some((l, mk(bs, as_), r));
   };
 
+/* Stack-safe (built on fold_left over the reversed list): abas here can be
+ * segment-sized (tens of thousands of pieces, e.g. splitting a large list
+ * value in Segment.reassemble), and stdlib fold_right's per-element
+ * recursion overflows the JS stack under js_of_ocaml. */
 let split = (f: 'c => Either.t('a, 'b), cs: list('c)): t(list('a), 'b) =>
-  List.fold_right(
-    (c, (as_, bs)) =>
+  List.fold_left(
+    ((as_, bs), c) =>
       switch (f(c)) {
       | L(a) =>
         let (hd, tl) = ListUtil.split_first(as_);
         ([[a, ...hd], ...tl], bs);
       | R(b) => ([[], ...as_], [b, ...bs])
       },
-    cs,
     mk([[]], []),
+    List.rev(cs),
   );
 
 let join = (f_a: 'a => 'c, f_b: 'b => 'c, aba: t('a, 'b)): list('c) => {
   let (as_, a) = ListUtil.split_last(get_as(aba));
   let bs = get_bs(aba);
-  List.fold_right2(
-    (a, b, cs) => [f_a(a), f_b(b), ...cs],
-    as_,
-    bs,
+  /* rev_map2 (reversed pairs) + fold_left rather than fold_right2:
+   * stack-safe (see split), same output order */
+  List.fold_left(
+    (cs, (a, b)) => [f_a(a), f_b(b), ...cs],
     [f_a(a)],
+    List.rev_map2((a, b) => (a, b), as_, bs),
   );
 };
 
@@ -148,5 +153,11 @@ let fold_left_map =
 let fold_right =
     (f_ab: ('a, 'b, 'c) => 'c, f_a: 'a => 'c, (as_, bs): t('a, 'b)) => {
   let (as_, a) = ListUtil.split_last(as_);
-  List.fold_right2(f_ab, as_, bs, f_a(a));
+  /* rev_map2 (reversed pairs) + fold_left rather than fold_right2:
+   * stack-safe (see split), same evaluation result */
+  List.fold_left(
+    (acc, (a, b)) => f_ab(a, b, acc),
+    f_a(a),
+    List.rev_map2((a, b) => (a, b), as_, bs),
+  );
 };
