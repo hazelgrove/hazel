@@ -662,3 +662,112 @@
   gap: 0.3em;
   color: var(--BR4);
 }
+
+/* Worker Messaging section: per-variant on/off chips above the shared table. */
+#debug-sidebar .wm-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em;
+  margin: 0.3em 0;
+}
+
+#debug-sidebar .wm-toggle {
+  cursor: pointer;
+  user-select: none;
+  padding: 0.05em 0.35em;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+#debug-sidebar .wm-toggle.on {
+  color: var(--BR4);
+}
+
+#debug-sidebar .wm-toggle.off {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+#debug-sidebar .wm-toggle:hover {
+  background: var(--T3);
+}
+
+/* All requests share one benchmark table so columns align; requests are
+   separated by styled group rows. */
+#debug-sidebar .wm-scroll {
+  overflow-x: auto; /* wide numbers scroll rather than clip the status column */
+  margin-top: 0.3em;
+}
+
+#debug-sidebar .wire-metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+#debug-sidebar .wire-metrics-table td {
+  padding: 0.1em 0.25em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+#debug-sidebar .wire-metrics-table .wm-head {
+  font-weight: 600;
+  color: var(--BR3);
+  border-bottom: 1px solid var(--BR1);
+}
+
+#debug-sidebar .wire-metrics-table .wm-wire {
+  text-align: left;
+  padding-left: 0.6em;
+}
+
+#debug-sidebar .wire-metrics-table .wm-total {
+  font-weight: 600;
+}
+
+/* Group separators. `wm-req` starts a new request (strong top rule + tint);
+   `wm-resp` is the lighter response sub-header within the same request. */
+#debug-sidebar .wire-metrics-table .wm-group {
+  text-align: left;
+  padding: 0.25em 0.3em 0.15em;
+}
+
+#debug-sidebar .wire-metrics-table .wm-req {
+  font-weight: 600;
+  color: var(--BR4);
+  background: var(--T3);
+  border-top: 2px solid var(--BR2);
+}
+
+#debug-sidebar .wire-metrics-table .wm-resp,
+#debug-sidebar .wire-metrics-table .wm-note {
+  font-style: italic;
+  color: var(--BR3);
+  opacity: 0.8;
+}
+
+#debug-sidebar .wire-metrics-table .wm-ok {
+  color: var(--G0);
+}
+
+#debug-sidebar .wire-metrics-table .wm-fail {
+  color: var(--R2);
+  text-align: left;
+  max-width: 8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#debug-sidebar .wm-empty {
+  opacity: 0.6;
+  font-style: italic;
+  margin: 0.3em 0;
+}
+
+/* Units legend above the shared table. */
+#debug-sidebar .wm-legend {
+  opacity: 0.6;
+  font-style: italic;
+  margin: 0.2em 0;
+}

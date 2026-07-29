@@ -865,6 +865,45 @@ let toggle_statics =
     };
   };
 
+/** Ensure statics overlays are on for this binding; idempotent if already statics. */
+let place_statics_at =
+    (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
+    : Zipper.t =>
+  if (!can_statics(id, info_map)) {
+    z;
+  } else {
+    let target_ids = target_subterm_ids(id, info_map);
+    let add_statics = z =>
+      List.fold_left(
+        (z, tid) => Zipper.add_manual(tid, Statics, z),
+        z,
+        target_ids,
+      );
+    switch (probe_status(id, info_map, z.refractors)) {
+    | Statics(_) => z
+    | Manual(ids) => rm_manual(ids, z) |> add_statics
+    | Multi => rm_multi(~syntax, ~info_map, id, z) |> add_statics
+    | Ephemeral(_)
+    | Suppressed(_)
+    | Non => add_statics(z)
+    };
+  };
+
+/** Remove only statics manual entries for targets of this path; leaves probes intact. */
+let remove_statics_at =
+    (id: Id.t, info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
+  let target_ids = target_subterm_ids(id, info_map);
+  Zipper.update_manuals(
+    manuals =>
+      List.filter(
+        ((mid, entry: Refractors.entry)) =>
+          !(List.mem(mid, target_ids) && entry.kind == Statics),
+        manuals,
+      ),
+    z,
+  );
+};
+
 let go =
     (
       ~statics as {info_map, _}: CachedStatics.t,
