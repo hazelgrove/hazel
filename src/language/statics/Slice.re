@@ -856,16 +856,9 @@ let opaque: t = {
   demand: unit_demand,
 };
 
-// `probe` is how the analysis direction asks, which differs from `demand`
-// wherever the answer is taken from a different component than the query.
-let reshaped =
-    (
-      ~demand: Typ.t => Typ.t,
-      ~answer: Typ.t => Typ.t,
-      ~probe: Typ.t => Typ.t=demand,
-      node: t,
-    )
-    : t => {
+// `demand` rewrites a query into the one to ask the wrapped node; `answer`
+// projects that node's reply back out.
+let reshaped = (~demand: Typ.t => Typ.t, ~answer: Typ.t => Typ.t, node: t): t => {
   ...node,
   shape: answer(node.shape),
   demand: unit_demand,
@@ -876,7 +869,7 @@ let reshaped =
       psi: answer(slice.psi),
     };
   },
-  analyse: source_analysis(~embed=probe, ~project=answer, node),
+  analyse: source_analysis(~embed=demand, ~project=answer, node),
 };
 
 // For a rule whose result is a type component of a sub-term's type: embed
@@ -891,13 +884,7 @@ let routed =
     Typ.embed(~build=former.build, shape, components(shape), index, query);
   };
   {
-    ...
-      reshaped(
-        ~demand=embed(input),
-        ~answer=project(output),
-        ~probe=embed(output),
-        node,
-      ),
+    ...reshaped(~demand=embed(input), ~answer=project(output), node),
     binder: false,
     declared: false,
   };
