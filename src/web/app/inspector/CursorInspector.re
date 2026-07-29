@@ -603,11 +603,11 @@ module TypeSlicing = {
           };
         let omitted =
           switch (
-            Statics.slice(
-              ~ctx=Info.ctx_of(ci),
+            Statics.slice_map(
+              ~info_map,
+              ~root_exp,
               ~focus=Some(Info.id_of(ci)),
               ~direction,
-              root_exp,
               query,
             )
           ) {
