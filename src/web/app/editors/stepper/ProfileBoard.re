@@ -22,24 +22,16 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type one_step_override = {
-    option_id: string,
-    enabled: bool,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     rule_overrides: list(rule_override),
     cleanup_overrides: list(cleanup_override),
     section_overrides: list(section_override),
-    one_step_overrides: list(one_step_override),
   };
 
   let init = {
     rule_overrides: [],
     cleanup_overrides: [],
     section_overrides: [],
-    one_step_overrides: [],
   };
 };
 
@@ -48,8 +40,7 @@ module Update = {
   type t =
     | SetRuleEnabled(string, bool)
     | SetCleanupEnabled(string, bool)
-    | SetSectionExpanded(string, bool)
-    | SetOneStepOptionEnabled(string, bool);
+    | SetSectionExpanded(string, bool);
 
   let default_rule_override = rule_id =>
     Model.{
@@ -139,22 +130,6 @@ module Update = {
           ...section_overrides,
         ],
       };
-    | SetOneStepOptionEnabled(option_id, enabled) =>
-      let one_step_overrides =
-        model.one_step_overrides
-        |> List.filter((override: Model.one_step_override) =>
-             override.option_id != option_id
-           );
-      Model.{
-        ...model,
-        one_step_overrides: [
-          Model.{
-            option_id,
-            enabled,
-          },
-          ...one_step_overrides,
-        ],
-      };
     };
 };
 
@@ -234,8 +209,6 @@ let visible_rule_summary = (rule: Axioms.visible_rule_policy) => {
 
 let cleanup_capability_id = Axioms.cleanup_capability_label;
 
-let repeated_distribution_option_id = "one-step.repeat-distribution";
-
 let rule_override = (model: Model.t, rule_id) =>
   model.rule_overrides
   |> List.find_opt((rule_override: Model.rule_override) =>
@@ -261,17 +234,6 @@ let cleanup_capability_enabled = (model: Model.t, capability) => {
   | None => true
   };
 };
-
-let one_step_option_enabled = (model: Model.t, option_id) =>
-  switch (
-    model.one_step_overrides
-    |> List.find_opt((override: Model.one_step_override) =>
-         override.option_id == option_id
-       )
-  ) {
-  | Some({enabled, _}) => enabled
-  | None => true
-  };
 
 let section_expanded = (~active_level, model: Model.t, level) => {
   let level_id = Axioms.rewrite_level_label(level);
@@ -344,12 +306,9 @@ let profile_without_visible_rule = (~rule_id, profile) => {
 
 let apply_model_to_profile = (model: Model.t, profile) => {
   let current_policy: Axioms.step_policy = profile.Axioms.step_policy;
-  let current_one_step_policy = profile.Axioms.one_step_policy;
   let cleanup_enabled = cleanup_capability_enabled(model);
   Axioms.{
     ...profile,
-    check_result_rule_ids:
-      profile.check_result_rule_ids |> List.filter(rule_enabled(model)),
     step_policy: {
       default_cleanup:
         current_policy.default_cleanup |> List.filter(cleanup_enabled),
@@ -364,12 +323,6 @@ let apply_model_to_profile = (model: Model.t, profile) => {
                rule,
              )
            ),
-    },
-    one_step_policy: {
-      ...current_one_step_policy,
-      allow_polynomial_expansion:
-        current_one_step_policy.allow_polynomial_expansion
-        && one_step_option_enabled(model, repeated_distribution_option_id),
     },
   };
 };
@@ -650,7 +603,29 @@ module View = {
       ],
     );
 
-  let rule_controls = (~model, ~inject, rule: Axioms.visible_rule_policy) => {
+  let stage_usage_label = (stage, usage) =>
+    switch (stage, usage) {
+    | (Axioms.Manual, Axioms.Disabled) => "Hidden"
+    | (Manual, AtMostOne | BoundedClosure(_)) => "Available"
+    | (MultiStepCheck, Disabled) => "Never"
+    | (MultiStepCheck, AtMostOne) => "Once"
+    | (MultiStepCheck, BoundedClosure(_)) => "Many"
+    | (AutoEval, Disabled) => "Off"
+    | (AutoEval, AtMostOne | BoundedClosure(_)) => "Use for suggestions"
+    };
+
+  let compiled_usage = (~profile, ~capability_id, stage) =>
+    Axioms.stage_plan_for_profile(profile, stage).capabilities
+    |> List.find_opt((capability: Axioms.compiled_capability) =>
+         capability.id == capability_id
+       )
+    |> Option.map((capability: Axioms.compiled_capability) =>
+         capability.usage
+       )
+    |> Option.value(~default=Axioms.Disabled);
+
+  let rule_controls =
+      (~model, ~inject, ~effective_profile, rule: Axioms.visible_rule_policy) => {
     let enabled = rule_enabled(model, rule.rule_id);
     div_c(
       "profile-board-control-rule",
@@ -677,6 +652,29 @@ module View = {
             ),
           ],
         ),
+        div_c(
+          "profile-board-control-usage",
+          Axioms.automation_stages
+          |> List.map(stage =>
+               span_c(
+                 "profile-board-usage-stage",
+                 [
+                   Node.text(
+                     Axioms.automation_stage_label(stage)
+                     ++ ": "
+                     ++ stage_usage_label(
+                          stage,
+                          compiled_usage(
+                            ~profile=effective_profile,
+                            ~capability_id=rule.rule_id,
+                            stage,
+                          ),
+                        ),
+                   ),
+                 ],
+               )
+             ),
+        ),
       ],
     );
   };
@@ -700,114 +698,10 @@ module View = {
     );
   };
 
-  let repeated_distribution_control = (~model, ~inject, ~base_profile) =>
-    div_c(
-      "profile-board-control-rule",
-      [
-        checkbox(
-          ~checked=
-            base_profile.Axioms.one_step_policy.allow_polynomial_expansion
-            && one_step_option_enabled(model, repeated_distribution_option_id),
-          ~disabled=!rule_enabled(model, "alg.distribute_mul_add"),
-          ~label="Allow repeated distribution in one step",
-          ~detail="Use distribution more than once in a written step.",
-          ~on_change=value =>
-          inject(
-            Update.SetOneStepOptionEnabled(
-              repeated_distribution_option_id,
-              value,
-            ),
-          )
-        ),
-      ],
-    );
-
   let visible_rule_controls =
-      (~model, ~inject, ~base_profile, rule: Axioms.visible_rule_policy) => [
-    rule_controls(~model, ~inject, rule),
-    ...rule.rule_id == "alg.distribute_mul_add"
-         ? [repeated_distribution_control(~model, ~inject, ~base_profile)]
-         : [],
+      (~model, ~inject, ~effective_profile, rule: Axioms.visible_rule_policy) => [
+    rule_controls(~model, ~inject, ~effective_profile, rule),
   ];
-
-  let check_result_rule_controls = (~model, ~inject, rule: Axioms.math_rule) => {
-    let cleanup =
-      rule.required_cleanup
-      |> List.map(Axioms.cleanup_capability_metadata)
-      |> List.map((metadata: Axioms.operation_metadata) =>
-           metadata.short_name
-         )
-      |> String.concat(", ");
-    let prerequisite_detail =
-      cleanup == ""
-        ? rule.metadata.example
-        : rule.metadata.example ++ " · requires " ++ cleanup;
-    div_c(
-      "profile-board-control-rule",
-      [
-        checkbox(
-          ~checked=rule_enabled(model, rule.id),
-          ~disabled=false,
-          ~label=rule.metadata.name,
-          ~detail=prerequisite_detail,
-          ~on_change=value =>
-          inject(Update.SetRuleEnabled(rule.id, value))
-        ),
-        span_c(
-          "profile-board-control-mode",
-          [Node.text("Check Result only")],
-        ),
-      ],
-    );
-  };
-
-  let check_result_level_section =
-      (~model, ~inject, ~active_level, level, rules) => {
-    let level_label = Axioms.rewrite_level_label(level);
-    let level_id = "check-result:" ++ level_label;
-    let expanded =
-      named_section_expanded(~default=level == active_level, model, level_id);
-    div_c(
-      "profile-board-level",
-      [
-        Node.button(
-          ~attrs=[
-            Attr.class_("profile-board-level-toggle"),
-            Attr.create("type", "button"),
-            Attr.create("aria-expanded", expanded ? "true" : "false"),
-            Attr.on_click(_ =>
-              inject(Update.SetSectionExpanded(level_id, !expanded))
-            ),
-          ],
-          [
-            span_c(
-              "profile-board-level-chevron",
-              [Node.text(expanded ? "▼" : "▶")],
-            ),
-            span_c("profile-board-level-name", [Node.text(level_label)]),
-            span_c(
-              "profile-board-level-count",
-              [
-                Node.text(
-                  string_of_int(List.length(rules))
-                  ++ (List.length(rules) == 1 ? " operation" : " operations"),
-                ),
-              ],
-            ),
-          ],
-        ),
-        ...expanded
-             ? [
-               div_c(
-                 "profile-board-level-rules",
-                 rules
-                 |> List.map(check_result_rule_controls(~model, ~inject)),
-               ),
-             ]
-             : [],
-      ],
-    );
-  };
 
   let rec visible_rule_subgroups = (rules: list(Axioms.visible_rule_policy)) =>
     switch (rules) {
@@ -822,7 +716,8 @@ module View = {
       [(subgroup, members), ...visible_rule_subgroups(remaining)];
     };
 
-  let visible_rule_nodes = (~model, ~inject, ~base_profile, ~level_id, rules) => {
+  let visible_rule_nodes =
+      (~model, ~inject, ~effective_profile, ~level_id, rules) => {
     let has_subgroups =
       rules
       |> List.exists((rule: Axioms.visible_rule_policy) =>
@@ -831,7 +726,7 @@ module View = {
     if (!has_subgroups) {
       rules
       |> List.concat_map(
-           visible_rule_controls(~model, ~inject, ~base_profile),
+           visible_rule_controls(~model, ~inject, ~effective_profile),
          );
     } else {
       visible_rule_subgroups(rules)
@@ -840,7 +735,7 @@ module View = {
            | None =>
              members
              |> List.concat_map(
-                  visible_rule_controls(~model, ~inject, ~base_profile),
+                  visible_rule_controls(~model, ~inject, ~effective_profile),
                 )
            | Some(subgroup_name) =>
              let subgroup_id =
@@ -897,7 +792,7 @@ module View = {
                                  visible_rule_controls(
                                    ~model,
                                    ~inject,
-                                   ~base_profile,
+                                   ~effective_profile,
                                  ),
                                ),
                           ),
@@ -915,7 +810,7 @@ module View = {
       (
         ~model,
         ~inject,
-        ~base_profile,
+        ~effective_profile,
         ~active_level,
         group: Axioms.rewrite_group,
         rules,
@@ -961,7 +856,7 @@ module View = {
                  visible_rule_nodes(
                    ~model,
                    ~inject,
-                   ~base_profile,
+                   ~effective_profile,
                    ~level_id,
                    rules,
                  ),
@@ -1007,7 +902,15 @@ module View = {
   };
 
   let editable =
-      (~model, ~inject, ~on_close, ~base_profile, ~summary, ~results) => {
+      (
+        ~model,
+        ~inject,
+        ~on_close,
+        ~base_profile,
+        ~effective_profile,
+        ~summary,
+        ~results,
+      ) => {
     ignore(results);
     Node.div(
       ~attrs=[Attr.class_("profile-board-layer")],
@@ -1071,7 +974,7 @@ module View = {
                                   level_section(
                                     ~model,
                                     ~inject,
-                                    ~base_profile,
+                                    ~effective_profile,
                                     ~active_level=base_profile.level,
                                     group,
                                     rules,
@@ -1093,35 +996,6 @@ module View = {
                          base_profile.Axioms.step_policy.visible_rules,
                        )
                        |> List.map(cleanup_policy_controls(~model, ~inject)),
-                  ],
-                ),
-                div_c(
-                  "profile-board-controls",
-                  [
-                    div_c(
-                      "profile-board-section-title",
-                      [Node.text("Allowed multi-step methods")],
-                    ),
-                    ...Axioms.rewrite_levels
-                       |> List.filter_map(level => {
-                            let rules =
-                              base_profile.check_result_rule_ids
-                              |> List.filter_map(Axioms.catalog_rule_by_id)
-                              |> List.filter((rule: Axioms.math_rule) =>
-                                   rule.level == level
-                                 );
-                            rules == []
-                              ? None
-                              : Some(
-                                  check_result_level_section(
-                                    ~model,
-                                    ~inject,
-                                    ~active_level=base_profile.level,
-                                    level,
-                                    rules,
-                                  ),
-                                );
-                          }),
                   ],
                 ),
               ],

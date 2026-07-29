@@ -185,62 +185,6 @@ let calculus_actions_for_profile =
   calculus_action_details_for_profile(~profile, selected_exp)
   |> List.map((details: calculus_action_details) => details.rewrite);
 
-let calculus_trace_summary_for_profile =
-    (~profile: Axioms.math_profile, ~selected_exp, rewrite) => {
-  let details =
-    calculus_action_details_for_profile(~profile, selected_exp)
-    |> List.find_opt((details: calculus_action_details) =>
-         details.rewrite.rule_id == rewrite.TrigRewrite.rule_id
-       )
-    |> Option.value(
-         ~default={
-           rewrite,
-           rule_after_exp: rewrite.after_exp,
-           cleanup_steps: [],
-         },
-       );
-  let cleanup_rule_ids =
-    details.cleanup_steps
-    |> List.map((step: calculus_cleanup_step) =>
-         Axioms.cleanup_capability_label(step.capability)
-       );
-  let rule_ids = [rewrite.rule_id, ...cleanup_rule_ids] |> ListUtil.dedup;
-  RewriteChecker.{
-    justification: "calculus one step",
-    group_name: Some("calculus"),
-    from_normal_exp: selected_exp,
-    to_normal_exp: rewrite.after_exp,
-    from_rule_ids: rule_ids,
-    to_rule_ids: [],
-    rule_ids,
-    prover_steps: [
-      prover_step(
-        ~origin=ManualRewrite,
-        ~rule_id=rewrite.rule_id,
-        ~before_full_exp=selected_exp,
-        ~after_full_exp=details.rule_after_exp,
-        ~before_exp=rewrite.before_exp,
-        ~after_exp=details.rule_after_exp,
-        ~detail="selected differentiation rule",
-      ),
-      ...List.map(
-           (step: calculus_cleanup_step) =>
-             prover_step(
-               ~origin=Normalization,
-               ~rule_id=Axioms.cleanup_capability_label(step.capability),
-               ~before_full_exp=step.before_exp,
-               ~after_full_exp=step.after_exp,
-               ~before_exp=step.before_exp,
-               ~after_exp=step.after_exp,
-               ~detail="apply enabled calculus cleanup policy",
-             ),
-           details.cleanup_steps,
-         ),
-    ],
-    exportable: true,
-  };
-};
-
 let calculus_cleanup_actions_for_profile =
     (~profile: Axioms.math_profile, selected_exp) => {
   let cleanup_enabled = capability =>
@@ -274,7 +218,7 @@ let algebra_shape_label = rule_ids =>
 module View = {
   let view =
       (
-        ~globals,
+        ~globals: Globals.t,
         ~info_map,
         ~env,
         ~full_exp,
@@ -284,8 +228,7 @@ module View = {
         ~add_axiom_step:
            (string, int, Exp.t, Direction.t, string) => Ui_effect.t(unit),
         ~add_written_step:
-           (RewriteChecker.trace_summary, int, Exp.t, Exp.t) =>
-           Ui_effect.t(unit),
+           (ProofTrace.trace_summary, int, Exp.t, Exp.t) => Ui_effect.t(unit),
         ~profile: Axioms.math_profile,
         ~rewrite_level: Axioms.rewrite_level,
         ~show_mode_warning: bool,
@@ -310,6 +253,20 @@ module View = {
       TrigRewrite.applicable_at_root(selected_exp)
       |> List.filter((rewrite: TrigRewrite.rewrite) =>
            List.mem(rewrite.rule_id, allowed_trig_rule_ids)
+         )
+      |> List.filter(rewrite_allowed)
+      |> (
+        filter == ""
+          ? x => x
+          : List.filter((rewrite: TrigRewrite.rewrite) =>
+              StringUtil.subseq_search(rewrite.label, filter)
+              || StringUtil.subseq_search(rewrite.rule_id, filter)
+            )
+      );
+    let session_actions =
+      Axioms.session_rewrites_for_profile(profile)
+      |> List.concat_map((definition: Axioms.session_rewrite) =>
+           SessionRewrite.rewrites_at_root(definition, selected_exp)
          )
       |> List.filter(rewrite_allowed)
       |> (
@@ -371,7 +328,11 @@ module View = {
          );
     let simplification_actions =
       (
-        Axioms.check_result_rule_enabled(profile, "arith.affine_normalize")
+        Axioms.normalization_rule_id_enabled_for_profile(
+          profile,
+          Axioms.MultiStepCheck,
+          "arith.affine_normalize",
+        )
           ? TrigRewrite.scalar_product_simplifications_at_root(selected_exp)
           : []
       )
@@ -409,6 +370,7 @@ module View = {
       algebra_shape_actions != []
       || simplification_actions != []
       || trig_actions != []
+      || session_actions != []
       || calculus_actions != []
       || calculus_cleanup_actions != []
         ? []
@@ -425,147 +387,56 @@ module View = {
           | None => []
           }
         );
-    let trace_summary_for_trig = (rewrite: TrigRewrite.rewrite) =>
-      RewriteChecker.{
-        justification: "trigonometry one step",
-        group_name: Some("trigonometry"),
-        from_normal_exp: selected_exp,
-        to_normal_exp: rewrite.after_exp,
-        from_rule_ids: [rewrite.rule_id],
-        to_rule_ids: [],
-        rule_ids: [rewrite.rule_id],
-        prover_steps: [
-          prover_step(
-            ~origin=ManualRewrite,
-            ~rule_id=rewrite.rule_id,
-            ~before_full_exp=selected_exp,
-            ~after_full_exp=rewrite.after_exp,
-            ~before_exp=rewrite.before_exp,
-            ~after_exp=rewrite.after_exp,
-            ~detail="selected trig identity",
-          ),
-        ],
-        exportable: false,
-      };
+    let authorized_plan_for_rewrite = (rewrite: TrigRewrite.rewrite) =>
+      ProfileProofPlan.authorize({
+        profile,
+        stage: Axioms.Manual,
+        candidate_origin: ProfileProofPlan.DisplayedSuggestion,
+        settings: globals.settings.core,
+        env,
+        source: selected_exp,
+        target: rewrite.after_exp,
+        max_depth: 1,
+        max_states: 80,
+      })
+      |> ProfileProofPlan.authorized_plan;
     let trig_action_view = (rewrite: TrigRewrite.rewrite) =>
-      div_c(
-        "assumption-box",
-        [
-          Widgets.button_d(
-            Node.text("==>"),
-            add_written_step(
-              trace_summary_for_trig(rewrite),
-              selected_exp_idx,
-              selected_exp,
-              rewrite.after_exp,
-            ),
-            ~disabled=false,
-          ),
-          Node.text(" " ++ rewrite.label ++ ": "),
-          CodeViewable.view_any(
-            ~globals,
-            ~settings=
-              Haz3lcore.ExpToSegment.Settings.of_core(
-                ~inline=true,
-                ~fold_fn_bodies=`Text,
-                globals.settings.core,
-              ),
-            Exp(rewrite.after_exp),
-          ),
-        ],
-      );
-    let trace_summary_for_calculus = (rewrite: TrigRewrite.rewrite) =>
-      calculus_trace_summary_for_profile(~profile, ~selected_exp, rewrite);
+      authorized_plan_for_rewrite(rewrite)
+      |> Option.map((plan: ProfileProofPlan.authorized_plan) =>
+           div_c(
+             "assumption-box",
+             [
+               Widgets.button_d(
+                 Node.text("==>"),
+                 add_written_step(
+                   plan.summary,
+                   selected_exp_idx,
+                   selected_exp,
+                   rewrite.after_exp,
+                 ),
+                 ~disabled=false,
+               ),
+               Node.text(" " ++ rewrite.label ++ ": "),
+               CodeViewable.view_any(
+                 ~globals,
+                 ~settings=
+                   Haz3lcore.ExpToSegment.Settings.of_core(
+                     ~inline=true,
+                     ~fold_fn_bodies=`Text,
+                     globals.settings.core,
+                   ),
+                 Exp(rewrite.after_exp),
+               ),
+             ],
+           )
+         );
     let calculus_action_view = (rewrite: TrigRewrite.rewrite) =>
-      div_c(
-        "assumption-box",
-        [
-          Widgets.button_d(
-            Node.text("==>"),
-            add_written_step(
-              trace_summary_for_calculus(rewrite),
-              selected_exp_idx,
-              selected_exp,
-              rewrite.after_exp,
-            ),
-            ~disabled=false,
-          ),
-          Node.text(" " ++ rewrite.label ++ ": "),
-          CodeViewable.view_any(
-            ~globals,
-            ~settings=
-              Haz3lcore.ExpToSegment.Settings.of_core(
-                ~inline=true,
-                ~fold_fn_bodies=`Text,
-                globals.settings.core,
-              ),
-            Exp(rewrite.after_exp),
-          ),
-        ],
-      );
-    let trace_summary_for_calculus_cleanup = (rewrite: TrigRewrite.rewrite) =>
-      RewriteChecker.{
-        justification: "calculus cleanup",
-        group_name: Some("calculus"),
-        from_normal_exp: selected_exp,
-        to_normal_exp: rewrite.after_exp,
-        from_rule_ids: [rewrite.rule_id],
-        to_rule_ids: [],
-        rule_ids: [rewrite.rule_id],
-        prover_steps: [
-          prover_step(
-            ~origin=Normalization,
-            ~rule_id=rewrite.rule_id,
-            ~before_full_exp=selected_exp,
-            ~after_full_exp=rewrite.after_exp,
-            ~before_exp=rewrite.before_exp,
-            ~after_exp=rewrite.after_exp,
-            ~detail="selected one profile cleanup rewrite",
-          ),
-        ],
-        exportable: true,
-      };
+      trig_action_view(rewrite);
     let calculus_cleanup_action_view = (rewrite: TrigRewrite.rewrite) =>
-      div_c(
-        "assumption-box",
-        [
-          Widgets.button_d(
-            Node.text("==>"),
-            add_written_step(
-              trace_summary_for_calculus_cleanup(rewrite),
-              selected_exp_idx,
-              selected_exp,
-              rewrite.after_exp,
-            ),
-            ~disabled=false,
-          ),
-          Node.text(" " ++ rewrite.label ++ ": "),
-          CodeViewable.view_any(
-            ~globals,
-            ~settings=
-              Haz3lcore.ExpToSegment.Settings.of_core(
-                ~inline=true,
-                ~fold_fn_bodies=`Text,
-                globals.settings.core,
-              ),
-            Exp(rewrite.after_exp),
-          ),
-        ],
-      );
+      trig_action_view(rewrite);
     let trace_summary_for_simplification = (rewrite: TrigRewrite.rewrite) =>
-      switch (
-        RewriteChecker.check_written_step_trace_for_profile(
-          ~profile,
-          ~settings=globals.settings.core,
-          ~env,
-          selected_exp,
-          rewrite.after_exp,
-        )
-      ) {
-      | Some({prover_steps: [_, ..._], _} as summary) => Some(summary)
-      | Some(_)
-      | None => None
-      };
+      authorized_plan_for_rewrite(rewrite)
+      |> Option.map((plan: ProfileProofPlan.authorized_plan) => plan.summary);
     let simplification_action_view = (rewrite: TrigRewrite.rewrite) =>
       trace_summary_for_simplification(rewrite)
       |> Option.map(summary =>
@@ -597,14 +468,8 @@ module View = {
            )
          );
     let trace_summary_for_algebra_shape = (rewrite: TrigRewrite.rewrite) =>
-      RewriteChecker.check_single_step_result_for_profile(
-        ~profile,
-        ~settings=globals.settings.core,
-        ~env,
-        selected_exp,
-        rewrite.after_exp,
-      )
-      |> Option.map(RewriteChecker.trace_summary_of_result);
+      authorized_plan_for_rewrite(rewrite)
+      |> Option.map((plan: ProfileProofPlan.authorized_plan) => plan.summary);
     let algebra_shape_action_view = (rewrite: TrigRewrite.rewrite) =>
       trace_summary_for_algebra_shape(rewrite)
       |> Option.map(summary =>
@@ -659,27 +524,43 @@ module View = {
         ]
       };
     let trig_section =
-      switch (trig_actions) {
+      switch (List.filter_map(trig_action_view, trig_actions)) {
       | [] => []
-      | actions => [
+      | action_views => [
           div_c("assumption-box", [Node.text("Trig identities")]),
-          ...List.map(trig_action_view, actions),
+          ...action_views,
+        ]
+      };
+    let session_section =
+      switch (List.filter_map(trig_action_view, session_actions)) {
+      | [] => []
+      | action_views => [
+          div_c(
+            "assumption-box session-rewrite-heading",
+            [Node.text("Session rewrites (unproved)")],
+          ),
+          ...action_views,
         ]
       };
     let calculus_section =
-      switch (calculus_actions) {
+      switch (List.filter_map(calculus_action_view, calculus_actions)) {
       | [] => []
-      | actions => [
+      | action_views => [
           div_c("assumption-box", [Node.text("Differentiation")]),
-          ...List.map(calculus_action_view, actions),
+          ...action_views,
         ]
       };
     let calculus_cleanup_section =
-      switch (calculus_cleanup_actions) {
+      switch (
+        List.filter_map(
+          calculus_cleanup_action_view,
+          calculus_cleanup_actions,
+        )
+      ) {
       | [] => []
-      | actions => [
+      | action_views => [
           div_c("assumption-box", [Node.text("Calculus cleanup")]),
-          ...List.map(calculus_cleanup_action_view, actions),
+          ...action_views,
         ]
       };
     [
@@ -698,6 +579,7 @@ module View = {
     @ simplification_section
     @ calculus_section
     @ calculus_cleanup_section
+    @ session_section
     @ trig_section
     @ List.map(
         (am: AssumptionBox.Model.t) =>

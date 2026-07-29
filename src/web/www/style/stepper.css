@@ -177,6 +177,14 @@
   gap: 0.5em;
 }
 
+.derivation-math-mode-toolbar {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5em;
+  margin: 0.4em 0 0.4em 2em;
+  color: var(--BR4);
+}
+
 .math-automation-controls {
   display: flex;
   flex-direction: column;
@@ -278,9 +286,21 @@
   pointer-events: all;
   background-color: var(--BR4);
   color: var(--T3) !important;
-  padding: 0.2em 0.5em;
+  min-height: 2em;
+  padding: 0.35em 0.6em;
   border-radius: 0.2em;
   white-space: nowrap;
+}
+
+.proof-select {
+  cursor: pointer;
+  pointer-events: all;
+  min-height: 2em;
+  width: 100%;
+  background-color: var(--BR4);
+  color: var(--T3);
+  padding: 0.35em 0.6em;
+  border-radius: 0.2em;
 }
 
 .axiom-box {
@@ -381,6 +401,197 @@
   border-radius: 0.4em;
   background-color: var(--light-page-color);
   box-shadow: 0px 10px 20px var(--menu-shadow);
+}
+
+.math-mode-builder-modal {
+  top: 4vh;
+  right: max(1rem, calc((100vw - 52rem) / 2));
+  width: min(52rem, calc(100vw - 2rem));
+  max-height: 92vh;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0.65rem;
+}
+
+.math-mode-builder-modal .profile-board-modal-top {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--menu-outline);
+  background-color: var(--menu-bkg);
+}
+
+.math-mode-builder-heading {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.math-mode-builder-wrap {
+  max-height: calc(92vh - 4.2rem);
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 1rem;
+  background-color: var(--light-page-color);
+}
+
+.math-mode-builder-section {
+  box-sizing: border-box;
+  padding: 0.85rem;
+  border: 1px solid var(--menu-outline);
+  border-radius: 0.45rem;
+  background-color: var(--menu-bkg);
+}
+
+.profile-board-cleanup-policies.math-mode-builder-section {
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--menu-outline);
+}
+
+.math-mode-builder-field,
+.math-mode-builder-parent-row {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.math-mode-builder-field-label {
+  color: var(--BR4);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.math-mode-builder-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.35rem;
+  box-sizing: border-box;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid var(--menu-outline);
+  border-radius: 0.3rem;
+  background-color: var(--light-page-color);
+  color: var(--BR4);
+  font: inherit;
+}
+
+.math-mode-builder-input:focus {
+  border-color: var(--BR4);
+  outline: 2px solid color-mix(in srgb, var(--BR4) 20%, transparent);
+  outline-offset: 1px;
+}
+
+.math-mode-builder-input.math-pattern {
+  font-family: var(--code-font);
+}
+
+.math-mode-builder-choice-row,
+.math-mode-builder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.math-mode-builder-parent-row.empty {
+  display: none;
+}
+
+.math-mode-builder-parent-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.4rem;
+}
+
+.math-mode-builder-parent-options .profile-board-toggle {
+  width: 100%;
+}
+
+.math-mode-builder-choice.proof-button,
+.math-mode-builder-actions .proof-button {
+  min-height: 2.2rem;
+  border: 1px solid var(--menu-outline);
+  background-color: var(--light-page-color);
+  color: var(--BR4) !important;
+  box-shadow: none;
+}
+
+.math-mode-builder-choice.proof-button.selected {
+  border-color: var(--BR4);
+  background-color: var(--BR4);
+  color: var(--T3) !important;
+}
+
+.math-mode-builder-primary.proof-button {
+  align-self: flex-start;
+  min-height: 2.35rem;
+  padding-right: 0.9rem;
+  padding-left: 0.9rem;
+}
+
+.math-mode-builder-syntax-hint,
+.math-mode-builder-status {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--menu-outline);
+  border-radius: 0.3rem;
+  background-color: var(--T3);
+  color: var(--BR4);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.math-mode-builder-syntax-hint {
+  overflow-wrap: anywhere;
+  font-family: var(--code-font);
+}
+
+.math-mode-builder-section pre {
+  max-width: 100%;
+  margin: 0;
+  overflow: auto;
+  color: var(--BR4);
+  font-size: 0.8rem;
+}
+
+.math-mode-builder-untrusted-rule {
+  display: grid;
+  gap: 0.55rem;
+  border-color: var(--warning-hole-stroke);
+  background-color: var(--T3);
+  color: var(--BR4);
+}
+
+.math-mode-builder-untrusted-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  color: var(--BR4);
+}
+
+.math-mode-builder-untrusted-badge {
+  padding: 0.16rem 0.42rem;
+  border: 1px solid var(--warning-hole-stroke);
+  border-radius: 999px;
+  background-color: var(--light-page-color);
+  color: var(--BR4);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.math-mode-builder-untrusted-warning,
+.session-rewrite-heading,
+.session-rewrite-warning {
+  color: var(--BR4);
+}
+
+.session-rewrite-heading {
+  border-left: 3px solid var(--warning-hole-stroke);
+  font-weight: 700;
 }
 
 .profile-board-modal-top {
@@ -580,6 +791,19 @@
   color: var(--BR4);
   font-size: 0.92rem;
   line-height: 1.2;
+}
+
+.profile-board-control-usage {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.35rem;
+  padding-left: 1.35rem;
+}
+
+.profile-board-usage-stage {
+  color: var(--BR4);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .profile-board-toggle.disabled {
@@ -790,6 +1014,29 @@
 
   .profile-board-example-rules {
     grid-column: 1;
+  }
+
+  .math-mode-builder-modal {
+    top: 1rem;
+    right: 1rem;
+    left: 1rem;
+    width: auto;
+    max-height: calc(100vh - 2rem);
+  }
+
+  .math-mode-builder-wrap {
+    max-height: calc(100vh - 6.2rem);
+    padding: 0.7rem;
+  }
+
+  .math-mode-builder-field,
+  .math-mode-builder-parent-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .math-mode-builder-parent-options {
+    grid-template-columns: 1fr;
   }
 }
 

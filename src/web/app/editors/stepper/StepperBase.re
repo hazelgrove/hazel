@@ -64,25 +64,13 @@ let init_step = {
   coq_check_status: CoqCheckIdle,
 };
 
-let missing_step_with_profile_board = profile_board => {
-  ...init_step,
-  step_kind:
-    MissingStep({
-      ...MissingStep.Model.init,
-      profile_board,
-    }),
-};
-
-let rec carry_profile_board_to_terminal_step = (profile_board, step) =>
+let rec terminal_missing_step = (step: step_model) =>
   switch (step.next_step) {
-  | Some(next_step) => {
-      ...step,
-      next_step:
-        Some(carry_profile_board_to_terminal_step(profile_board, next_step)),
-    }
-  | None => {
-      ...step,
-      next_step: Some(missing_step_with_profile_board(profile_board)),
+  | Some(next_step) => terminal_missing_step(next_step)
+  | None =>
+    switch (step.step_kind) {
+    | MissingStep(missing_step) => Some(missing_step)
+    | _ => None
     }
   };
 
@@ -135,12 +123,12 @@ and step_action =
   | AddReparenthesizeStep(Exp.t)
   | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t)
   | AddReparenthesizedWrittenStep(
-      RewriteChecker.trace_summary,
+      ProofTrace.trace_summary,
       Exp.t,
       Exp.t,
       Exp.t,
     )
-  | AddWrittenStep(RewriteChecker.trace_summary, int, Exp.t, Exp.t)
+  | AddWrittenStep(ProofTrace.trace_summary, int, Exp.t, Exp.t)
   | CoqExport
   | CoqBrowserCheckStarted(int)
   | CoqBrowserCheckUnavailable(string)
@@ -174,6 +162,7 @@ module rec StepKind: {
     (
       ~rewrite_level: Axioms.rewrite_level,
       ~automation_stage: Axioms.automation_stage,
+      ~active_profile: Axioms.math_profile,
       ~settings: Calc.t(CoreSettings.t),
       ~hidden: Calc.saved(bool),
       ~exp: Calc.t(Exp.t),
@@ -337,6 +326,7 @@ module rec StepKind: {
           (
             ~rewrite_level: Axioms.rewrite_level,
             ~automation_stage: Axioms.automation_stage,
+            ~active_profile: Axioms.math_profile,
             ~settings: Calc.t(CoreSettings.t),
             ~hidden: Calc.saved(bool),
             ~exp: Calc.t(Exp.t),
@@ -410,6 +400,7 @@ module rec StepKind: {
         calculate_with_level(
           ~rewrite_level,
           ~automation_stage,
+          ~active_profile,
           ~settings,
           ~info_map,
           ~exp=exp |> Calc.make_new,
@@ -429,6 +420,7 @@ module rec StepKind: {
             MissingStep.Update.calculate(
               ~rewrite_level,
               ~automation_stage,
+              ~active_profile,
               ~settings=settings |> Calc.get_value,
               exp,
               info_map,
@@ -597,6 +589,7 @@ module rec StepKind: {
     calculate_with_level(
       ~rewrite_level=Axioms.Arithmetic,
       ~automation_stage=Axioms.MultiStepCheck,
+      ~active_profile=Axioms.math_profile(Axioms.Arithmetic),
       ~settings,
       ~hidden,
       ~exp,
@@ -900,6 +893,7 @@ and Stepper: {
     (
       ~rewrite_level: Axioms.rewrite_level,
       ~automation_stage: Axioms.automation_stage,
+      ~active_profile: Axioms.math_profile,
       ~settings: Calc.t(CoreSettings.t),
       ~exp: Calc.t(Exp.t),
       ~ctx: Calc.t(SemanticCtx.t),
@@ -916,10 +910,12 @@ and Stepper: {
       ~focus: option(step_focus),
       ~rewrite_level: Axioms.rewrite_level,
       ~automation_stage: Axioms.automation_stage,
+      ~active_profile: Axioms.math_profile,
       ~is_toplevel: bool,
       step_model
     ) =>
     list(WebUtil.Node.t);
+  let terminal_missing_step: step_model => option(MissingStep.Model.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_model;
@@ -929,6 +925,8 @@ and Stepper: {
   type action = step_action;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = step_focus;
+
+  let terminal_missing_step = terminal_missing_step;
 
   let init = {
     expr: Calc.Pending,
@@ -1032,6 +1030,17 @@ and Stepper: {
       }
     };
 
+  let untrusted_session_rule_ids = steps =>
+    steps
+    |> List.concat_map((step: step_model) =>
+         switch (step.step_kind) {
+         | WrittenStep({trace_summary: Some(summary), _}) =>
+           summary.rule_ids |> List.filter(SessionRewrite.is_session_rule_id)
+         | _ => []
+         }
+       )
+    |> RewriteChecker.dedup;
+
   let calculus_export_for_steps = steps => {
     let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
     let last_step = List.nth(steps, List.length(steps) - 1);
@@ -1040,8 +1049,8 @@ and Stepper: {
       |> List.concat_map((step: step_model) =>
            switch (step.step_kind) {
            | WrittenStep({trace_summary: Some(summary), _}) =>
-             summary.RewriteChecker.prover_steps
-             |> List.map((proof_step: RewriteChecker.prover_step) =>
+             summary.ProofTrace.prover_steps
+             |> List.map((proof_step: ProofTrace.prover_step) =>
                   proof_step.rule_id
                 )
            | _ => []
@@ -1094,6 +1103,14 @@ and Stepper: {
     if (List.length(steps) == 0) {
       None;
     } else {
+      let untrusted_rule_ids = untrusted_session_rule_ids(steps);
+      if (untrusted_rule_ids != []) {
+        failwith(
+          "proof contains an untrusted session rewrite ("
+          ++ String.concat(", ", untrusted_rule_ids)
+          ++ "). Remove that step or replace it with a reviewed, certificate-backed rewrite before exporting Rocq.",
+        );
+      };
       let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
       let last_step = List.nth(steps, List.length(steps) - 1);
       let completed_derivative_history =
@@ -1183,7 +1200,7 @@ and Stepper: {
       Exp.show(exp),
     );
 
-  let coq_export_prover_step_debug = (index, step: RewriteChecker.prover_step) =>
+  let coq_export_prover_step_debug = (index, step: ProofTrace.prover_step) =>
     Printf.sprintf(
       "  prover transition %d: rule=%s occurrence=%d\n%s\n%s\n%s\n%s",
       index,
@@ -1277,25 +1294,6 @@ and Stepper: {
       | CoqBrowserCheckUnavailable(_)
       | CoqBrowserCheckFinished(_, _, _) => false
       | _ => true
-      };
-    let profile_board_to_carry =
-      switch (action, model.step_kind) {
-      | (
-          StepForward(_) | StepForwardOnSelection(_, _) |
-          AutoSimplifySelection(_, _) |
-          AddInduction(_) |
-          AddForall |
-          AddAxiomStep(_, _, _, _, _) |
-          AddReparenthesizedAxiomStep(_, _, _, _, _) |
-          AddAlgebriteStep(_, _, _) |
-          AddReparenthesizeStep(_) |
-          AddReparenthesizedAlgebriteStep(_, _, _) |
-          AddReparenthesizedWrittenStep(_, _, _, _) |
-          AddWrittenStep(_, _, _, _),
-          MissingStep(missing_step),
-        ) =>
-        Some(missing_step.profile_board)
-      | _ => None
       };
     let updated =
       Updated.(
@@ -1642,7 +1640,7 @@ and Stepper: {
                     at_exp,
                     with_exp,
                     justification:
-                      RewriteChecker.trace_summary_label(trace_summary),
+                      ProofTrace.trace_summary_label(trace_summary),
                     trace_summary: Some(trace_summary),
                     next_exp: Calc.Pending,
                   }),
@@ -1663,8 +1661,7 @@ and Stepper: {
                 at_idx,
                 at_exp,
                 with_exp,
-                justification:
-                  RewriteChecker.trace_summary_label(trace_summary),
+                justification: ProofTrace.trace_summary_label(trace_summary),
                 trace_summary: Some(trace_summary),
                 next_exp: Calc.Pending,
               }),
@@ -1680,18 +1677,6 @@ and Stepper: {
           };
         }
       );
-    let updated =
-      switch (profile_board_to_carry) {
-      | Some(profile_board) => {
-          ...updated,
-          model:
-            carry_profile_board_to_terminal_step(
-              profile_board,
-              updated.model,
-            ),
-        }
-      | None => updated
-      };
     reset_coq_check_status
       ? {
         ...updated,
@@ -1732,6 +1717,7 @@ and Stepper: {
           (
             ~rewrite_level: Axioms.rewrite_level,
             ~automation_stage: Axioms.automation_stage,
+            ~active_profile: Axioms.math_profile,
             ~settings: Calc.t(CoreSettings.t),
             ~exp as expr: Calc.t(Exp.t),
             ~ctx: Calc.t(SemanticCtx.t),
@@ -1787,15 +1773,11 @@ and Stepper: {
       );
     let info_map = Calc.NewValue(editor.statics.info_map);
     let editor = Calc.OldValue(editor);
-    let profile_board_for_automatic_next_step =
-      switch (step_kind) {
-      | MissingStep(missing_step) => Some(missing_step.profile_board)
-      | _ => None
-      };
     let (step_kind, hidden, next_expr, inner_validity) =
       StepKind.calculate_with_level(
         ~rewrite_level,
         ~automation_stage,
+        ~active_profile,
         ~settings,
         ~ctx,
         ~exp=expr,
@@ -1810,6 +1792,7 @@ and Stepper: {
            |> StepKind.calculate_with_level(
                 ~rewrite_level,
                 ~automation_stage,
+                ~active_profile,
                 ~settings,
                 ~ctx,
                 ~exp=expr,
@@ -1823,17 +1806,12 @@ and Stepper: {
     let (next_step, last_expr, next_validity) =
       switch (next_expr) {
       | Some(next_expr) =>
-        let default_next_step =
-          switch (profile_board_for_automatic_next_step) {
-          | Some(profile_board) =>
-            missing_step_with_profile_board(profile_board)
-          | None => init
-          };
-        let next_step = Option.value(~default=default_next_step, next_step);
+        let next_step = Option.value(~default=init, next_step);
         let (next_step, last_expr, next_validity) =
           calculate_with_level(
             ~rewrite_level,
             ~automation_stage,
+            ~active_profile,
             ~settings,
             ~exp=next_expr,
             ~ctx,
@@ -1878,6 +1856,7 @@ and Stepper: {
     calculate_with_level(
       ~rewrite_level=Axioms.Arithmetic,
       ~automation_stage=Axioms.MultiStepCheck,
+      ~active_profile=Axioms.math_profile(Axioms.Arithmetic),
       ~settings,
       ~exp,
       ~ctx,
@@ -1928,6 +1907,7 @@ and Stepper: {
             ~focus: option(step_focus),
             ~rewrite_level: Axioms.rewrite_level,
             ~automation_stage: Axioms.automation_stage,
+            ~active_profile: Axioms.math_profile,
             ~is_toplevel: bool=false,
             ~undo: option(Ui_effect.t(unit)),
             model: step_model,
@@ -2045,6 +2025,7 @@ and Stepper: {
                     },
                   ~rewrite_level,
                   ~automation_stage,
+                  ~active_profile,
                   ~signal=
                     fun
                     | HideStepper => hide_stepper
@@ -2182,6 +2163,7 @@ and Stepper: {
             },
           ~rewrite_level,
           ~automation_stage,
+          ~active_profile,
           ~undo=
             if (model.hidden |> Calc.get_saved_exc(~print="hidden")) {
               undo;
@@ -2204,6 +2186,7 @@ and Stepper: {
         ~focus: option(step_focus),
         ~rewrite_level: Axioms.rewrite_level,
         ~automation_stage: Axioms.automation_stage,
+        ~active_profile: Axioms.math_profile,
         ~is_toplevel: bool,
         root_step,
       ) => {
@@ -2241,6 +2224,7 @@ and Stepper: {
           ~focus,
           ~rewrite_level,
           ~automation_stage,
+          ~active_profile,
           ~is_toplevel,
           ~undo=None,
           root_step,
@@ -2268,6 +2252,7 @@ and Stepper: {
       ~focus,
       ~rewrite_level=Axioms.Arithmetic,
       ~automation_stage=Axioms.MultiStepCheck,
+      ~active_profile=Axioms.math_profile(Axioms.Arithmetic),
       ~is_toplevel,
       root_step,
     );

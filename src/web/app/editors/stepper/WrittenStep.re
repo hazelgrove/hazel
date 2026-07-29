@@ -13,7 +13,7 @@ type model'('stepper) = {
   at_exp: Exp.t,
   with_exp: Exp.t,
   justification: string,
-  trace_summary: option(RewriteChecker.trace_summary),
+  trace_summary: option(ProofTrace.trace_summary),
   next_exp: Calc.saved(Exp.t),
 };
 
@@ -23,7 +23,7 @@ type persistent'('stepper) = {
   at_exp: Exp.t,
   with_exp: Exp.t,
   justification: string,
-  trace_summary: option(RewriteChecker.trace_summary),
+  trace_summary: option(ProofTrace.trace_summary),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -139,18 +139,12 @@ module F =
       ) =>
     switch (m.trace_summary) {
     | Some(summary) =>
-      let rule_count = List.length(summary.rule_ids);
       let suffix =
         summary.exportable
-          ? Printf.sprintf(
-              " (%d exportable %s)",
-              rule_count,
-              rule_count == 1 ? "rule" : "rules",
-            )
-          : "";
-      WebUtil.Node.text(
-        RewriteChecker.trace_summary_label(summary) ++ suffix,
-      );
+          ? ""
+          : summary.rule_ids |> List.exists(SessionRewrite.is_session_rule_id)
+              ? " (no prover export)" : " (non-exportable)";
+      WebUtil.Node.text(ProofTrace.trace_summary_label(summary) ++ suffix);
     | None => WebUtil.Node.text(m.justification)
     };
 

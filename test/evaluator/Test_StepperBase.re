@@ -954,7 +954,81 @@ let tests = (
       },
     ),
     test_case(
-      "written Replace carries Profile overrides to the next step",
+      "reparenthesized written Replace keeps the captured selection",
+      `Quick,
+      () => {
+        let exp = parse_exp("1 + 2 + 3 + 4");
+        let selected_ids =
+          AssocSelection.find_reparenthesize_for_id(
+            middle_plus_id_in_four_term_sum(exp),
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp)
+            |> fst,
+          );
+        let reparenthesized =
+          switch (Reparenthesize.reparenthesize_selection(~selected_ids, exp)) {
+          | Some(result) => result
+          | None => failwith("Expected reparenthesized selection")
+          };
+        let selected_exp =
+          switch (Reparenthesize.selected_exp(reparenthesized)) {
+          | Some(exp) => exp
+          | None => failwith("Expected selected exp")
+          };
+        let target = parse_exp("6 - 1");
+        let trace: Web.ProofTrace.trace_summary = {
+          justification: "written test step",
+          group_name: Some("test"),
+          from_normal_exp: selected_exp,
+          to_normal_exp: target,
+          from_rule_ids: [],
+          to_rule_ids: [],
+          rule_ids: [],
+          prover_steps: [],
+          exportable: true,
+        };
+        let initial_step =
+          mk_test_step(~step_kind=StepKindHelpers.mk_missing_step(), ());
+        let (calculated_step, _, _) = test_calculate(~exp, initial_step);
+        let updated_step =
+          StepperBase.Stepper.update(
+            ~settings=Web.Settings.Model.init,
+            StepperBase.AddReparenthesizedWrittenStep(
+              trace,
+              reparenthesized.exp,
+              selected_exp,
+              target,
+            ),
+            calculated_step,
+          ).
+            model;
+        let (calculated_updated_step, final_exp, _) =
+          test_calculate(~exp, updated_step);
+        switch (calculated_updated_step.step_kind) {
+        | ReparenthesizeStep(_) => ()
+        | _ => failwith("Expected root step to be reparenthesize")
+        };
+        let written_step =
+          switch (calculated_updated_step.next_step) {
+          | Some(step) => step
+          | None => failwith("Expected written next step")
+          };
+        switch (written_step.step_kind) {
+        | WrittenStep(_) => ()
+        | _ => failwith("Expected second step to be written")
+        };
+        check(
+          bool,
+          "final expression replaces only the captured associative chunk",
+          true,
+          Equality.ignoring_ascriptions.exp(
+            Calc.get_value(final_exp),
+            parse_exp("1 + (6 - 1) + 4"),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "written Replace uses the derivation-owned active Profile",
       `Quick,
       () => {
         let source = parse_exp("diff(x ** 2, x)");
@@ -973,13 +1047,15 @@ let tests = (
                  false,
                ),
              );
-        let missing_step = {
-          ...Web.MissingStep.Model.init,
-          profile_board,
-        };
+        let missing_step = Web.MissingStep.Model.init;
+        let active_profile =
+          Web.ProfileBoard.apply_model_to_profile(
+            profile_board,
+            Axioms.math_profile(Calculus),
+          );
         let initial_step =
           mk_test_step(~step_kind=StepperBase.MissingStep(missing_step), ());
-        let trace: Web.RewriteChecker.trace_summary = {
+        let trace: Web.ProofTrace.trace_summary = {
           justification: "power rule",
           group_name: Some("Differentiation"),
           from_normal_exp: source,
@@ -997,27 +1073,27 @@ let tests = (
             initial_step,
           ).
             model;
-        switch (updated_step.next_step) {
-        | Some({step_kind: MissingStep(next_missing), _}) =>
+        switch (updated_step.step_kind) {
+        | WrittenStep(_) =>
           check(
             bool,
-            "basic derivatives remain disabled after Replace",
+            "basic derivatives remain disabled in the active Profile",
             false,
-            Web.ProfileBoard.cleanup_capability_enabled(
-              next_missing.profile_board,
+            List.mem(
               Axioms.DerivativeBasics,
+              active_profile.Axioms.step_policy.default_cleanup,
             ),
           );
           check(
             bool,
-            "identity powers remain disabled after Replace",
+            "identity powers remain disabled in the active Profile",
             false,
-            Web.ProfileBoard.cleanup_capability_enabled(
-              next_missing.profile_board,
+            List.mem(
               Axioms.PowerIdentity,
+              active_profile.Axioms.step_policy.default_cleanup,
             ),
           );
-        | _ => failwith("Expected a profile-aware next MissingStep")
+        | _ => failwith("Expected Replace to install a written step")
         };
       },
     ),
@@ -1039,40 +1115,56 @@ let tests = (
                  false,
                ),
              );
+        let active_profile =
+          Web.ProfileBoard.apply_model_to_profile(
+            profile_board,
+            Axioms.math_profile(Calculus),
+          );
         let initial_step =
           mk_test_step(
-            ~step_kind=
-              StepperBase.MissingStep({
-                ...Web.MissingStep.Model.init,
-                profile_board,
-              }),
+            ~step_kind=StepperBase.MissingStep(Web.MissingStep.Model.init),
             (),
           );
         let (calculated, _, _) =
-          test_calculate(~exp=parse_exp("1 + 2"), initial_step);
+          StepperBase.Stepper.calculate_with_level(
+            ~rewrite_level=Calculus,
+            ~automation_stage=MultiStepCheck,
+            ~active_profile,
+            ~settings=Calc.NewValue(CoreSettings.on),
+            ~exp=Calc.NewValue(parse_exp("1 + 2")),
+            ~ctx=
+              Calc.NewValue(
+                SemanticCtx.of_ctx_and_env(
+                  Builtins.ctx_init(Some(Int)),
+                  Builtins.env_init,
+                ),
+              ),
+            ~ana=Calc.NewValue(IdTagged.FreshGrammar.Typ.int()),
+            initial_step,
+          );
         let rec terminal_step = (step: StepperBase.step_model) =>
           switch (step.next_step) {
           | Some(next_step) => terminal_step(next_step)
           | None => step
           };
         switch (terminal_step(calculated).step_kind) {
-        | MissingStep(next_missing) =>
+        | MissingStep(_next_missing) =>
           check(
             bool,
             "basic derivatives survive an automatic step",
             false,
-            Web.ProfileBoard.cleanup_capability_enabled(
-              next_missing.profile_board,
+            List.mem(
               Axioms.DerivativeBasics,
+              active_profile.Axioms.step_policy.default_cleanup,
             ),
           );
           check(
             bool,
             "identity powers survive an automatic step",
             false,
-            Web.ProfileBoard.cleanup_capability_enabled(
-              next_missing.profile_board,
+            List.mem(
               Axioms.PowerIdentity,
+              active_profile.Axioms.step_policy.default_cleanup,
             ),
           );
         | _ => failwith("Expected an automatic step followed by MissingStep")

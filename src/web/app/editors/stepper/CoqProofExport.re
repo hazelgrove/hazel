@@ -82,7 +82,7 @@ let tactic_sequence_script = tactics =>
 
 let cut_name = index => "H_hazel_step_" ++ string_of_int(index);
 
-let tactic_for_prover_step = (~domain, step: RewriteChecker.prover_step) => {
+let tactic_for_prover_step = (~domain, step: ProofTrace.prover_step) => {
   switch (Axioms.rocq_tactic_group_for_macro_rule_id(step.rule_id)) {
   | Some(tactic_group) => tactic_script([tactic_group])
   | None =>
@@ -91,7 +91,12 @@ let tactic_for_prover_step = (~domain, step: RewriteChecker.prover_step) => {
       tactic_script([
         "first [hazel_power_normalize | hazel_rewrite_search 8%nat | hazel_mul_reorder | reflexivity]",
       ])
-    | "arith.simplify_scalar_products" => tactic_script(["hazel_algebra"])
+    | "arith.simplify_scalar_products" =>
+      tactic_script([
+        domain == CoqExport.Reals
+          ? "first [lra | field | hazel_trig_argument_algebra; first [lra | field]]"
+          : "hazel_algebra",
+      ])
     | _ =>
       rewrite_tactics_for_rule_id(~domain, step.rule_id)
       @ ["cbn", "reflexivity"]
@@ -101,9 +106,9 @@ let tactic_for_prover_step = (~domain, step: RewriteChecker.prover_step) => {
 };
 
 let recorded_transition_replay_script =
-    (~domain, steps: list(RewriteChecker.prover_step)) => {
+    (~domain, ~contextual=false, steps: list(ProofTrace.prover_step)) => {
   let same_recorded_transition =
-      (left: RewriteChecker.prover_step, right: RewriteChecker.prover_step) =>
+      (left: ProofTrace.prover_step, right: ProofTrace.prover_step) =>
     Language.Exp.fast_equal(left.before_full_exp, right.before_full_exp)
     && Language.Exp.fast_equal(left.after_full_exp, right.after_full_exp);
   let rec take_transition_group = (first, grouped, remaining) =>
@@ -123,25 +128,39 @@ let recorded_transition_replay_script =
   let polynomial_transition_replay = group => {
     let includes_algebra_identity =
       group
-      |> List.exists((step: RewriteChecker.prover_step) =>
+      |> List.exists((step: ProofTrace.prover_step) =>
            List.mem(step.rule_id, Axioms.algebra_identity_rule_ids)
          );
     let includes_factoring =
       group
-      |> List.exists((step: RewriteChecker.prover_step) =>
+      |> List.exists((step: ProofTrace.prover_step) =>
            step.rule_id == "alg.factor_common"
          );
     let includes_distribution_family =
       group
-      |> List.exists((step: RewriteChecker.prover_step) =>
+      |> List.exists((step: ProofTrace.prover_step) =>
            List.mem(
              step.rule_id,
              [
                "arith.mul_const",
                "alg.distribute_mul_add",
+               "alg.distribute_div_add",
                "alg.factor_common",
+               "alg.expand_polynomial",
              ],
            )
+         );
+    let includes_rational_division =
+      group
+      |> List.exists((step: ProofTrace.prover_step) =>
+           RewriteChecker.contains_rational_division(step.before_exp)
+           || RewriteChecker.contains_rational_division(step.after_exp)
+         );
+    let includes_rational_arithmetic =
+      group
+      |> List.exists((step: ProofTrace.prover_step) =>
+           step.rule_id == "arith.const_fold"
+           || step.rule_id == "arith.simplify_scalar_products"
          );
     let is_direct_distribution_transition =
       switch (group) {
@@ -156,7 +175,22 @@ let recorded_transition_replay_script =
            )
       | [] => false
       };
-    if (includes_algebra_identity) {
+    if (domain == CoqExport.Reals
+        && includes_rational_division
+        && (
+          includes_algebra_identity
+          || includes_distribution_family
+          || includes_rational_arithmetic
+        )) {
+      /* Real division by numeric scalars is not a polynomial operation to
+         `ring`: inverses such as [/ 2] need their field laws. The transition
+         has already been authorized from the recorded catalog evidence, so
+         `field` is only its exact certificate. It treats arbitrary function
+         applications as opaque real atoms. */
+      Some(
+        "try unfold Rsqr; field.",
+      );
+    } else if (includes_algebra_identity) {
       /* Named polynomial identities have already been authorized by the
          active profile. Use a deterministic certificate here, not as a
          broader search fallback. JSCoq's first ring invocation can overflow
@@ -209,7 +243,7 @@ let recorded_transition_replay_script =
       | [step] => tactic_for_prover_step(~domain, step)
       | [_, ..._] =>
         group
-        |> List.concat_map((step: RewriteChecker.prover_step) =>
+        |> List.concat_map((step: ProofTrace.prover_step) =>
              rewrite_tactics_for_rule_id(~domain, step.rule_id)
            )
         |> (
@@ -220,7 +254,7 @@ let recorded_transition_replay_script =
       }
     };
   let assert_for_group = (index, group) => {
-    let first: RewriteChecker.prover_step = List.hd(group);
+    let first: ProofTrace.prover_step = List.hd(group);
     Printf.sprintf(
       "assert (%s : %s = %s).\n{ %s }",
       cut_name(index),
@@ -237,28 +271,37 @@ let recorded_transition_replay_script =
        then immediately eliminating a redundant equality proof. Besides being
        smaller, it avoids unnecessary intermediate proof terms in JSCoq. */
     tactic_for_transition_group(group)
-  | _ =>
-    let replay =
-      groups
-      |> List.mapi((index, _) => cut_name(index + 1))
-      |> List.rev
-      |> List.map(name => "try rewrite <- " ++ name ++ ".")
-      |> String.concat("\n");
+  | [] => "reflexivity."
+  | groups =>
+    let cut_names = groups |> List.mapi((index, _) => cut_name(index + 1));
+    let rec transitive_proof = names =>
+      switch (names) {
+      | [name] => name
+      | [name, ...rest] =>
+        "eq_trans " ++ name ++ " (" ++ transitive_proof(rest) ++ ")"
+      | [] => "eq_refl _"
+      };
     (
       groups
       |> List.mapi((index, group) => assert_for_group(index + 1, group))
       |> String.concat("\n")
     )
     ++ "\n"
-    ++ replay
-    ++ "\nreflexivity.";
+    ++ (
+      contextual
+        ? cut_names
+          |> List.map(name => "rewrite " ++ name ++ ".")
+          |> String.concat("\n")
+          |> (rewrites => rewrites ++ "\nreflexivity.")
+        : "exact (" ++ transitive_proof(cut_names) ++ ")."
+    );
   };
 };
 
 /* Every exported Hazel proof uses one stable numeric semantics. */
-let domain_for_summary = (_summary: RewriteChecker.trace_summary) => CoqExport.Reals;
+let domain_for_summary = (_summary: ProofTrace.trace_summary) => CoqExport.Reals;
 
-let tactic_group_for_summary = (summary: RewriteChecker.trace_summary) =>
+let tactic_group_for_summary = (summary: ProofTrace.trace_summary) =>
   switch (
     summary.rule_ids
     |> List.filter_map(Axioms.rocq_tactic_group_for_macro_rule_id)
@@ -278,15 +321,15 @@ let is_rocq_tactic_search_rule_id =
   | "rocq.tactic_search" => true
   | rule_id => Axioms.is_rocq_macro_rule_id(rule_id);
 
-let summary_uses_rocq_tactic_search = (summary: RewriteChecker.trace_summary) =>
+let summary_uses_rocq_tactic_search = (summary: ProofTrace.trace_summary) =>
   summary.rule_ids
   |> List.exists(is_rocq_tactic_search_rule_id)
   || summary.prover_steps
-  |> List.exists((step: RewriteChecker.prover_step) =>
+  |> List.exists((step: ProofTrace.prover_step) =>
        is_rocq_tactic_search_rule_id(step.rule_id)
      );
 
-let tactics_for_summary = (~domain, summary: RewriteChecker.trace_summary) => {
+let tactics_for_summary = (~domain, summary: ProofTrace.trace_summary) => {
   let recorded_tactics =
     summary.rule_ids
     |> List.concat_map(rule_id =>
@@ -301,7 +344,7 @@ let tactics_for_summary = (~domain, summary: RewriteChecker.trace_summary) => {
 };
 
 let tactic_for_symbolic_arithmetic_summary =
-    (summary: RewriteChecker.trace_summary) =>
+    (summary: ProofTrace.trace_summary) =>
   switch (summary.group_name) {
   | Some("arithmetic") => "(* Temporary affine fallback while symbolic normalization emits finer local breadcrumbs. *)\nlia."
   | _ =>
@@ -310,13 +353,17 @@ let tactic_for_symbolic_arithmetic_summary =
   };
 
 let tactic_for_written_summary = (~forall_str as _, ~domain, summary) => {
-  switch (summary.RewriteChecker.prover_steps) {
+  switch (summary.ProofTrace.prover_steps) {
   | [] => tactics_for_summary(~domain, summary) |> tactic_script
   | _ =>
     summary_uses_rocq_tactic_search(summary)
       ? tactics_for_summary(~domain, summary) |> tactic_script
       : summary.exportable
-          ? recorded_transition_replay_script(~domain, summary.prover_steps)
+          ? recorded_transition_replay_script(
+              ~domain,
+              ~contextual=true,
+              summary.prover_steps,
+            )
           : tactic_for_symbolic_arithmetic_summary(summary)
   };
 };
@@ -356,11 +403,11 @@ let list_comment = (label, values) =>
 
 let prover_step_origin =
   fun
-  | RewriteChecker.ManualRewrite => "manual rewrite"
+  | ProofTrace.ManualRewrite => "manual rewrite"
   | Normalization => "normalization"
   | AutoEvaluation => "auto evaluation";
 
-let prover_step_comment = (~domain, index, step: RewriteChecker.prover_step) =>
+let prover_step_comment = (~domain, index, step: ProofTrace.prover_step) =>
   Printf.sprintf(
     "(* Hazel prover step %d: %s (%s), occurrence %d%s\n   local: %s -> %s\n   whole: %s -> %s *)\n",
     index,
@@ -384,10 +431,10 @@ let prover_steps_comment = (~domain, steps) =>
      )
   |> String.concat("");
 
-let written_trace_comment = (summary: RewriteChecker.trace_summary) => {
+let written_trace_comment = (summary: ProofTrace.trace_summary) => {
   let domain = domain_for_summary(summary);
   "(* Hazel written step: "
-  ++ RewriteChecker.trace_summary_label(summary)
+  ++ ProofTrace.trace_summary_label(summary)
   ++ " *)\n"
   ++ (
     switch (summary.group_name) {
@@ -577,60 +624,6 @@ let real_prelude =
   ++ "  | O => reflexivity\n"
   ++ "  | S ?n' => first [reflexivity | hazel_rewrite_step; hazel_rewrite_search n']\n"
   ++ "  end.\n\n"
-  ++ "Ltac hazel_rational_square_collect :=\n"
-  ++ "  rewrite Rsqr_div';\n"
-  ++ "  rewrite Rsqr_minus;\n"
-  ++ "  unfold Rsqr, Rdiv;\n"
-  ++ "  cbn;\n"
-  ++ "  rewrite Rinv_mult;\n"
-  ++ "  match goal with\n"
-  ++ "  | |- 2 * (?a * (/ 2 * / 2)) = _ =>\n"
-  ++ "    rewrite <- (Rmult_assoc 2 a (/ 2 * / 2));\n"
-  ++ "    rewrite (Rmult_comm 2 a);\n"
-  ++ "    rewrite (Rmult_assoc a 2 (/ 2 * / 2));\n"
-  ++ "    rewrite <- (Rmult_assoc 2 (/ 2) (/ 2))\n"
-  ++ "  end;\n"
-  ++ "  rewrite Rinv_r by lra;\n"
-  ++ "  repeat rewrite Rmult_1_l;\n"
-  ++ "  repeat rewrite Rmult_1_r;\n"
-  ++ "  unfold Rminus;\n"
-  ++ "  repeat rewrite Rmult_plus_distr_r;\n"
-  ++ "  repeat rewrite Rmult_1_l;\n"
-  ++ "  repeat rewrite Rmult_1_r;\n"
-  ++ "  match goal with\n"
-  ++ "  | |- context [-(2 * ?c) * / 2] =>\n"
-  ++ "    rewrite Ropp_mult_distr_l_reverse;\n"
-  ++ "    replace ((2 * c) * / 2) with c by\n"
-  ++ "      (rewrite Rmult_assoc;\n"
-  ++ "       rewrite (Rmult_comm c (/ 2));\n"
-  ++ "       rewrite <- Rmult_assoc;\n"
-  ++ "       rewrite Rinv_r by lra;\n"
-  ++ "       rewrite Rmult_1_l;\n"
-  ++ "       reflexivity)\n"
-  ++ "  end;\n"
-  ++ "  match goal with\n"
-  ++ "  | |- context [(?c * ?c) * / 2] =>\n"
-  ++ "    rewrite (Rmult_comm (c * c) (/ 2))\n"
-  ++ "  end;\n"
-  ++ "  match goal with\n"
-  ++ "  | |- (?a + ?b) + ?c = _ =>\n"
-  ++ "    rewrite (Rplus_assoc a b c);\n"
-  ++ "    rewrite (Rplus_comm b c);\n"
-  ++ "    rewrite <- (Rplus_assoc a c b)\n"
-  ++ "  end;\n"
-  ++ "  reflexivity.\n\n"
-  ++ "Ltac hazel_rational_square_normalize :=\n"
-  ++ "  first [\n"
-  ++ "    lazymatch goal with\n"
-  ++ "    | |- context [Rsqr (?numerator / ?denominator)] =>\n"
-  ++ "      unfold Rsqr; field\n"
-  ++ "    end\n"
-  ++ "  | lazymatch goal with\n"
-  ++ "    | |- context [((?left - ?right) * (?left - ?right)) / ?denominator] =>\n"
-  ++ "      unfold Rsqr; field\n"
-  ++ "    end\n"
-  ++ "  | hazel_rational_square_collect\n"
-  ++ "  ].\n\n"
   ++ "Ltac hazel_power_normalize :=\n"
   ++ "  cbn;\n"
   ++ "  try unfold Rsqr;\n"

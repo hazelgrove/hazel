@@ -1,5 +1,6 @@
 open Util;
 open Language;
+open ProofTrace;
 
 let rec take_auto_steps = (~settings, ~env, exp: Exp.t): Exp.t => {
   switch (EvaluatorStep.get_status(~settings, exp, env)) {
@@ -33,24 +34,6 @@ type normalized = {
   rule_ids: list(string),
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type prover_step_origin =
-  | ManualRewrite
-  | Normalization
-  | AutoEvaluation;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type prover_step = {
-  origin: prover_step_origin,
-  rule_id: string,
-  before_full_exp: Exp.t,
-  after_full_exp: Exp.t,
-  before_exp: Exp.t,
-  after_exp: Exp.t,
-  occurrence: int,
-  detail: option(string),
-};
-
 type check_result = {
   justification: string,
   group: option(Axioms.rewrite_group),
@@ -59,24 +42,11 @@ type check_result = {
   from_trace: list(Axioms.rewrite_rule),
   to_trace: list(Axioms.rewrite_rule),
   trace: list(Axioms.rewrite_rule),
-  prover_steps: list(prover_step),
+  prover_steps: list(ProofTrace.prover_step),
   exportable: bool,
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type trace_summary = {
-  justification: string,
-  group_name: option(string),
-  from_normal_exp: Exp.t,
-  to_normal_exp: Exp.t,
-  from_rule_ids: list(string),
-  to_rule_ids: list(string),
-  rule_ids: list(string),
-  prover_steps: list(prover_step),
-  exportable: bool,
-};
-
-let trace_summary_of_result = (result: check_result): trace_summary => {
+let trace_summary_of_result = (result: check_result): ProofTrace.trace_summary => {
   justification: result.justification,
   group_name:
     result.group |> Option.map((group: Axioms.rewrite_group) => group.name),
@@ -90,9 +60,6 @@ let trace_summary_of_result = (result: check_result): trace_summary => {
   prover_steps: result.prover_steps,
   exportable: result.exportable,
 };
-
-let trace_summary_label = (summary: trace_summary): string =>
-  summary.justification;
 
 let prover_step_at =
     (
@@ -177,13 +144,7 @@ type checker = {
 
 let is_zero = Bigint.equal(Bigint.zero);
 
-let dedup = values =>
-  values
-  |> List.fold_left(
-       (acc, value) => List.mem(value, acc) ? acc : [value, ...acc],
-       [],
-     )
-  |> List.rev;
+let dedup = MathRewriteUtil.dedup;
 
 let trace_rule = (primary_group, rule_id) =>
   switch (Axioms.rewrite_rule_by_id(primary_group, rule_id)) {
@@ -449,18 +410,16 @@ let normalize_affine = (~settings, ~env, exp: Exp.t): option(normal_form) => {
   |> Option.map(normalized => Affine(canonicalize(normalized.affine)));
 };
 
-let int_exp = value => Exp.fresh(Atom(Int(value)));
+let int_exp = MathRewriteUtil.int_exp;
 
 let var_exp = name => Exp.fresh(Var(name));
 
-let plus_exp = (left, right) =>
-  Exp.fresh(BinOp(Operators.Int(Operators.Plus), left, right));
+let plus_exp = MathRewriteUtil.plus_exp;
 
 let minus_exp = (left, right) =>
   Exp.fresh(BinOp(Operators.Int(Operators.Minus), left, right));
 
-let times_exp = (left, right) =>
-  Exp.fresh(BinOp(Operators.Int(Operators.Times), left, right));
+let times_exp = MathRewriteUtil.times_exp;
 
 let negate_exp = exp =>
   Exp.fresh(UnOp(Operators.Int(Operators.Minus), exp));
@@ -496,21 +455,9 @@ let simplify_arithmetic = (~settings, ~env, exp: Exp.t): option(Exp.t) => {
   };
 };
 
-let is_plus_op =
-  fun
-  | Operators.Int(Operators.Plus)
-  | Nat(Plus)
-  | SInt(Plus)
-  | Float(Plus) => true
-  | _ => false;
+let is_plus_op = MathRewriteUtil.is_plus_op;
 
-let is_times_op =
-  fun
-  | Operators.Int(Operators.Times)
-  | Nat(Times)
-  | SInt(Times)
-  | Float(Times) => true
-  | _ => false;
+let is_times_op = MathRewriteUtil.is_times_op;
 
 let is_divide_op =
   fun
@@ -527,12 +474,7 @@ let is_power_op =
   | SInt(Power) => true
   | _ => false;
 
-let rec strip_math_wrappers = (exp: Exp.t) =>
-  switch (exp.term) {
-  | Parens(exp)
-  | Asc(exp, _) => strip_math_wrappers(exp)
-  | _ => exp
-  };
+let strip_math_wrappers = MathRewriteUtil.strip_math_wrappers;
 
 let rec trace_addition_terms = (exp: Exp.t): list(Exp.t) => {
   let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
@@ -695,11 +637,9 @@ let normalizer_prover_steps = (~from_, ~to_, rule_ids) => {
 let exp_compare = (left, right) =>
   String.compare(Exp.show(left), Exp.show(right));
 
-let plus_exp_with_op = (op, left, right) =>
-  Exp.fresh(BinOp(op, left, right));
+let plus_exp_with_op = MathRewriteUtil.plus_exp_with_op;
 
-let times_exp_with_op = (op, left, right) =>
-  Exp.fresh(BinOp(op, left, right));
+let times_exp_with_op = MathRewriteUtil.times_exp_with_op;
 
 let sorted_pair = (left, right) =>
   exp_compare(left, right) <= 0 ? (left, right) : (right, left);
@@ -1331,7 +1271,11 @@ let rational_affine_equivalent_with_capabilities =
 let rational_affine_trace_for_profile =
     (~profile: Axioms.math_profile, from_: Exp.t, to_: Exp.t)
     : option(trace_summary) =>
-  if (Axioms.check_result_rule_enabled(profile, "arith.affine_normalize")
+  if (Axioms.normalization_rule_id_enabled_for_profile(
+        profile,
+        Axioms.MultiStepCheck,
+        "arith.affine_normalize",
+      )
       && rational_affine_equivalent_with_constant_reordering(from_, to_)
       && !same_math_exp(from_, to_)) {
     let rule_id = "arith.affine_normalize";
@@ -1371,6 +1315,456 @@ let rec contains_additive_shape = exp => {
   | Ap(_, fn, arg) =>
     contains_additive_shape(fn) || contains_additive_shape(arg)
   | _ => false
+  };
+};
+
+/* Exact commutative polynomials with rational coefficients. Mathematical
+ * subexpressions such as cos(2*x) are opaque atoms; only +, -, *, division by
+ * a nonzero rational constant, and small natural powers are interpreted. */
+type rational_monomial = list(Exp.t);
+type rational_polynomial = list((rational_monomial, rational_coeff));
+
+let rec rational_monomial_remove = (atom, factors) =>
+  switch (factors) {
+  | [] => None
+  | [factor, ...rest] when same_math_exp(atom, factor) => Some(rest)
+  | [factor, ...rest] =>
+    rational_monomial_remove(atom, rest)
+    |> Option.map(rest => [factor, ...rest])
+  };
+
+let rec rational_monomial_equal = (left, right) =>
+  switch (left) {
+  | [] => right == []
+  | [factor, ...rest] =>
+    switch (rational_monomial_remove(factor, right)) {
+    | Some(right) => rational_monomial_equal(rest, right)
+    | None => false
+    }
+  };
+
+let rec rational_polynomial_add_term = (monomial, coeff, polynomial) =>
+  if (rational_is_zero(coeff)) {
+    polynomial;
+  } else {
+    switch (polynomial) {
+    | [] => [(monomial, coeff)]
+    | [(candidate, candidate_coeff), ...rest]
+        when rational_monomial_equal(monomial, candidate) =>
+      let combined = rational_add(coeff, candidate_coeff);
+      rational_is_zero(combined) ? rest : [(candidate, combined), ...rest];
+    | [candidate, ...rest] => [
+        candidate,
+        ...rational_polynomial_add_term(monomial, coeff, rest),
+      ]
+    };
+  };
+
+let rational_polynomial_canonicalize = polynomial =>
+  polynomial
+  |> List.fold_left(
+       (result, (monomial, coeff)) =>
+         rational_polynomial_add_term(monomial, coeff, result),
+       [],
+     );
+
+let rational_polynomial_constant = coeff =>
+  rational_is_zero(coeff) ? [] : [([], coeff)];
+
+let rational_polynomial_atom = exp => [
+  ([strip_math_wrappers(exp)], rational_one),
+];
+
+let rational_polynomial_add = (left, right) =>
+  rational_polynomial_canonicalize(left @ right);
+
+let rational_polynomial_scale = (scalar, polynomial) =>
+  polynomial
+  |> List.filter_map(((monomial, coeff)) => {
+       let coeff = rational_multiply(scalar, coeff);
+       rational_is_zero(coeff) ? None : Some((monomial, coeff));
+     });
+
+let rational_polynomial_negate = polynomial =>
+  rational_polynomial_scale(
+    rational_coeff(Bigint.neg(Bigint.one), Bigint.one),
+    polynomial,
+  );
+
+let rational_polynomial_multiply = (left, right) =>
+  if (List.length(left) * List.length(right) > 256) {
+    None;
+  } else {
+    left
+    |> List.fold_left(
+         (result, (left_monomial, left_coeff)) =>
+           right
+           |> List.fold_left(
+                (result, (right_monomial, right_coeff)) =>
+                  rational_polynomial_add_term(
+                    left_monomial @ right_monomial,
+                    rational_multiply(left_coeff, right_coeff),
+                    result,
+                  ),
+                result,
+              ),
+         [],
+       )
+    |> Option.some;
+  };
+
+let rational_polynomial_as_constant = polynomial =>
+  switch (rational_polynomial_canonicalize(polynomial)) {
+  | [] => Some(rational_zero)
+  | [([], coeff)] => Some(coeff)
+  | [_]
+  | [_, ..._] => None
+  };
+
+let rec rational_polynomial_power = (base, exponent) =>
+  if (exponent < 0 || exponent > 8) {
+    None;
+  } else if (exponent == 0) {
+    Some(rational_polynomial_constant(rational_one));
+  } else {
+    switch (rational_polynomial_power(base, exponent - 1)) {
+    | Some(powered) => rational_polynomial_multiply(base, powered)
+    | None => None
+    };
+  };
+
+let rational_polynomial_integer_constant = exp => {
+  let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
+  switch (exp.term) {
+  | Atom(Int(value))
+  | Atom(Nat(value)) => Some(value)
+  | Atom(SInt(value)) => Some(Bigint.of_int(value))
+  | _ => None
+  };
+};
+
+let rec rational_polynomial_of_exp = (exp: Exp.t) => {
+  let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
+  switch (exp.term) {
+  | Atom(Int(value))
+  | Atom(Nat(value)) =>
+    Some(rational_polynomial_constant(rational_coeff(value, Bigint.one)))
+  | Atom(SInt(value)) =>
+    Some(
+      rational_polynomial_constant(
+        rational_coeff(Bigint.of_int(value), Bigint.one),
+      ),
+    )
+  | Parens(inner)
+  | Asc(inner, _) => rational_polynomial_of_exp(inner)
+  | UnOp(op, inner) when is_numeric_minus(op) =>
+    rational_polynomial_of_exp(inner)
+    |> Option.map(rational_polynomial_negate)
+  | BinOp(op, left, right) when is_plus_op(op) || is_minus_op(op) =>
+    switch (
+      rational_polynomial_of_exp(left),
+      rational_polynomial_of_exp(right),
+    ) {
+    | (Some(left), Some(right)) =>
+      Some(
+        rational_polynomial_add(
+          left,
+          is_minus_op(op) ? rational_polynomial_negate(right) : right,
+        ),
+      )
+    | _ => None
+    }
+  | BinOp(op, left, right) when is_times_op(op) =>
+    switch (
+      rational_polynomial_of_exp(left),
+      rational_polynomial_of_exp(right),
+    ) {
+    | (Some(left), Some(right)) =>
+      rational_polynomial_multiply(left, right)
+    | _ => None
+    }
+  | BinOp(op, numerator, denominator) when is_divide_op(op) =>
+    switch (
+      rational_polynomial_of_exp(numerator),
+      rational_polynomial_of_exp(denominator),
+    ) {
+    | (Some(numerator), Some(denominator)) =>
+      switch (
+        rational_polynomial_as_constant(denominator)
+        |> Option.bind(_, rational_inverse)
+      ) {
+      | Some(scale) => Some(rational_polynomial_scale(scale, numerator))
+      | None => Some(rational_polynomial_atom(exp))
+      }
+    | _ => None
+    }
+  | BinOp(op, base, exponent) when is_power_op(op) =>
+    switch (
+      rational_polynomial_of_exp(base),
+      rational_polynomial_integer_constant(exponent),
+    ) {
+    | (Some(base), Some(exponent)) =>
+      switch (Bigint.to_int(exponent)) {
+      | Some(exponent) => rational_polynomial_power(base, exponent)
+      | None => Some(rational_polynomial_atom(exp))
+      }
+    | _ => Some(rational_polynomial_atom(exp))
+    }
+  | _ => Some(rational_polynomial_atom(exp))
+  };
+};
+
+let rec rational_polynomial_remove_term = (monomial, coeff, polynomial) =>
+  switch (polynomial) {
+  | [] => None
+  | [(candidate_monomial, candidate_coeff), ...rest]
+      when
+        rational_monomial_equal(monomial, candidate_monomial)
+        && rational_equal(coeff, candidate_coeff) =>
+    Some(rest)
+  | [term, ...rest] =>
+    rational_polynomial_remove_term(monomial, coeff, rest)
+    |> Option.map(rest => [term, ...rest])
+  };
+
+let rec rational_polynomial_equal = (left, right) =>
+  switch (left) {
+  | [] => right == []
+  | [(monomial, coeff), ...rest] =>
+    switch (rational_polynomial_remove_term(monomial, coeff, right)) {
+    | Some(right) => rational_polynomial_equal(rest, right)
+    | None => false
+    }
+  };
+
+let rational_polynomial_equivalent = (left, right) =>
+  switch (
+    rational_polynomial_of_exp(left),
+    rational_polynomial_of_exp(right),
+  ) {
+  | (Some(left), Some(right)) =>
+    rational_polynomial_equal(
+      rational_polynomial_canonicalize(left),
+      rational_polynomial_canonicalize(right),
+    )
+  | _ => false
+  };
+
+let rec contains_rational_division = exp => {
+  let exp = strip_math_wrappers(exp);
+  switch (exp.term) {
+  | BinOp(op, _, denominator) when is_divide_op(op) =>
+    switch (
+      rational_polynomial_of_exp(denominator)
+      |> Option.bind(_, rational_polynomial_as_constant)
+    ) {
+    | Some(value) => !rational_is_zero(value)
+    | None => false
+    }
+  | BinOp(_, left, right) =>
+    contains_rational_division(left) || contains_rational_division(right)
+  | UnOp(_, inner) => contains_rational_division(inner)
+  | Ap(_, fn, arg) =>
+    contains_rational_division(fn) || contains_rational_division(arg)
+  | _ => false
+  };
+};
+
+let rec contains_rational_polynomial_expansion_shape = exp => {
+  let exp = strip_math_wrappers(exp);
+  switch (exp.term) {
+  | BinOp(op, left, right) when is_times_op(op) =>
+    contains_additive_shape(left)
+    || contains_additive_shape(right)
+    || contains_rational_polynomial_expansion_shape(left)
+    || contains_rational_polynomial_expansion_shape(right)
+  | BinOp(_, left, right) =>
+    contains_rational_polynomial_expansion_shape(left)
+    || contains_rational_polynomial_expansion_shape(right)
+  | UnOp(_, inner) => contains_rational_polynomial_expansion_shape(inner)
+  | Ap(_, fn, arg) =>
+    contains_rational_polynomial_expansion_shape(fn)
+    || contains_rational_polynomial_expansion_shape(arg)
+  | _ => false
+  };
+};
+
+let rewrites_at_one_math_occurrence = (~at_root, exp) => {
+  let rec walk = exp => {
+    let exp = strip_math_wrappers(exp);
+    let root = at_root(exp);
+    let children =
+      switch (exp.term) {
+      | BinOp(op, left, right) =>
+        (walk(left) |> List.map(left => Exp.fresh(BinOp(op, left, right))))
+        @ (
+          walk(right)
+          |> List.map(right => Exp.fresh(BinOp(op, left, right)))
+        )
+      | UnOp(op, inner) =>
+        walk(inner) |> List.map(inner => Exp.fresh(UnOp(op, inner)))
+      | Ap(direction, fn, arg) =>
+        (walk(fn) |> List.map(fn => Exp.fresh(Ap(direction, fn, arg))))
+        @ (walk(arg) |> List.map(arg => Exp.fresh(Ap(direction, fn, arg))))
+      | _ => []
+      };
+    root @ children;
+  };
+  walk(exp);
+};
+
+/* Check Result may compose the focused scalar normalizer with the catalogued
+ * complete-expansion macro. Opaque atoms keep this independent of any
+ * particular trig function, while the explicit AC requirement prevents this
+ * commutative polynomial certificate from leaking into noncommutative modes. */
+let rational_polynomial_expansion_trace_for_profile =
+    (~profile: Axioms.math_profile, ~stage, from_: Exp.t, to_: Exp.t) => {
+  let scalar_rule_id = "arith.simplify_scalar_products";
+  let expansion_rule_id = "alg.expand_polynomial";
+  let plan = Axioms.stage_plan_for_profile(profile, stage);
+  let manual_plan = Axioms.stage_plan_for_profile(profile, Axioms.Manual);
+  let rule_enabled = rule_id =>
+    Axioms.compiled_capability_enabled(plan, rule_id)
+    || Axioms.compiled_capability_enabled(manual_plan, rule_id)
+    || Axioms.visible_rule_enabled(profile.step_policy, rule_id);
+  let division_rule_id = "alg.distribute_div_add";
+  let division_rewrite =
+    rule_enabled(division_rule_id)
+      ? rewrites_at_one_math_occurrence(
+          ~at_root=MathRewriteUtil.distribute_div_over_add_candidates,
+          from_,
+        )
+        |> List.find_opt(candidate =>
+             AlgebraIdentityRewrite.applicable_at_root(candidate)
+             |> List.exists((rewrite: TrigRewrite.rewrite) =>
+                  rule_enabled(rewrite.rule_id)
+                  && rational_polynomial_equivalent(rewrite.after_exp, to_)
+                )
+           )
+      : None;
+  let prepared_from = division_rewrite |> Option.value(~default=from_);
+  /* A named catalog identity may expose the polynomial shape that the
+     expansion normalizer needs. This is a general two-phase composition over
+     the enabled identity catalog, not a recognizer for a reported example. */
+  let identity_rewrite =
+    AlgebraIdentityRewrite.applicable_at_root(prepared_from)
+    |> List.find_opt((rewrite: TrigRewrite.rewrite) =>
+         rule_enabled(rewrite.rule_id)
+         && rational_polynomial_equivalent(rewrite.after_exp, to_)
+       );
+  let identity_from =
+    identity_rewrite
+    |> Option.map((rewrite: TrigRewrite.rewrite) => rewrite.after_exp)
+    |> Option.value(~default=prepared_from);
+  let scalar_from =
+    ArithmeticNormalization.simplify_scalar_products(identity_from);
+  let scalar_needed = !same_math_exp(scalar_from, identity_from);
+  let commutative_cleanup = [
+    Axioms.AddAssoc,
+    Axioms.AddComm,
+    Axioms.MulAssoc,
+    Axioms.MulComm,
+    Axioms.MulIdentity,
+    Axioms.ConstFold,
+    Axioms.CollectLikeTerms,
+  ];
+  if (Axioms.normalization_rule_id_enabled_for_profile(
+        profile,
+        stage,
+        expansion_rule_id,
+      )
+      && (
+        !scalar_needed
+        || Axioms.compiled_capability_enabled(plan, scalar_rule_id)
+      )
+      && commutative_cleanup
+      |> List.for_all(capability =>
+           List.mem(capability, profile.step_policy.default_cleanup)
+         )
+      && (
+        identity_rewrite != None
+        || contains_rational_polynomial_expansion_shape(identity_from)
+        || contains_rational_polynomial_expansion_shape(scalar_from)
+      )
+      && rational_polynomial_equivalent(scalar_from, to_)
+      && !same_math_exp(from_, to_)) {
+    let division_steps =
+      switch (division_rewrite) {
+      | Some(after) => [
+          prover_step(
+            ~origin=Normalization,
+            ~rule_id=division_rule_id,
+            ~before_full_exp=from_,
+            ~after_full_exp=after,
+            ~before_exp=from_,
+            ~after_exp=after,
+            ~detail="profile-enabled quotient distribution",
+          ),
+        ]
+      | None => []
+      };
+    let identity_steps =
+      switch (identity_rewrite) {
+      | Some(rewrite) => [
+          prover_step(
+            ~origin=Normalization,
+            ~rule_id=rewrite.rule_id,
+            ~before_full_exp=prepared_from,
+            ~after_full_exp=rewrite.after_exp,
+            ~before_exp=prepared_from,
+            ~after_exp=rewrite.after_exp,
+            ~detail="profile-enabled named polynomial identity",
+          ),
+        ]
+      | None => []
+      };
+    let scalar_steps =
+      scalar_needed
+        ? [
+          prover_step(
+            ~origin=Normalization,
+            ~rule_id=scalar_rule_id,
+            ~before_full_exp=identity_from,
+            ~after_full_exp=scalar_from,
+            ~before_exp=identity_from,
+            ~after_exp=scalar_from,
+            ~detail="profile-enabled scalar and argument normalization",
+          ),
+        ]
+        : [];
+    let expansion_step =
+      prover_step(
+        ~origin=Normalization,
+        ~rule_id=expansion_rule_id,
+        ~before_full_exp=scalar_from,
+        ~after_full_exp=to_,
+        ~before_exp=scalar_from,
+        ~after_exp=to_,
+        ~detail="profile-enabled exact rational polynomial expansion",
+      );
+    let rule_ids =
+      (division_rewrite != None ? [division_rule_id] : [])
+      @ (
+        identity_rewrite
+        |> Option.map((rewrite: TrigRewrite.rewrite) => [rewrite.rule_id])
+        |> Option.value(~default=[])
+      )
+      @ (scalar_needed ? [scalar_rule_id] : [])
+      @ [expansion_rule_id];
+    Some({
+      justification: "rational polynomial expansion",
+      group_name: Some("algebra"),
+      from_normal_exp: to_,
+      to_normal_exp: to_,
+      from_rule_ids: rule_ids,
+      to_rule_ids: [],
+      rule_ids,
+      prover_steps:
+        division_steps @ identity_steps @ scalar_steps @ [expansion_step],
+      exportable: true,
+    });
+  } else {
+    None;
   };
 };
 
@@ -1654,30 +2048,9 @@ let distribute_mul_over_add_candidates = (exp: Exp.t): list(Exp.t) => {
   };
 };
 
-let distribute_div_over_add_candidates = (exp: Exp.t): list(Exp.t) => {
-  let exp = strip_math_wrappers(exp);
-  switch (exp.term) {
-  | BinOp(divide_op, numerator, denominator) when is_divide_op(divide_op) =>
-    switch (strip_math_wrappers(numerator).term) {
-    | BinOp(add_op, left, right)
-        when is_plus_op(add_op) || is_minus_op(add_op) =>
-      let left_quotient = Exp.fresh(BinOp(divide_op, left, denominator));
-      let right_quotient = Exp.fresh(BinOp(divide_op, right, denominator));
-      [distributed_additive_exp(add_op, left_quotient, right_quotient)];
-    | _ => []
-    }
-  | _ => []
-  };
-};
+let distribute_div_over_add_candidates = MathRewriteUtil.distribute_div_over_add_candidates;
 
-let factors_of_product = exp => {
-  let exp = strip_math_wrappers(exp);
-  switch (exp.term) {
-  | BinOp(times_op, left, right) when is_times_op(times_op) =>
-    Some((times_op, strip_math_wrappers(left), strip_math_wrappers(right)))
-  | _ => None
-  };
-};
+let factors_of_product = MathRewriteUtil.factors_of_product;
 
 let shared_factor_normal_exp =
     (plus_op, left_product, right_product): option(Exp.t) => {
@@ -1720,8 +2093,7 @@ let normalize_common_factor_sum = (exp: Exp.t): option(Exp.t) => {
   };
 };
 
-let exp_same = (left, right) =>
-  Exp.fast_equal(strip_math_wrappers(left), strip_math_wrappers(right));
+let exp_same = MathRewriteUtil.exp_same;
 
 let rec sum_terms = (exp: Exp.t): list(Exp.t) => {
   let exp = strip_math_wrappers(exp);
@@ -2883,6 +3255,11 @@ let check_single_division_distribution = (group, profile, from_, to_) =>
 
 let check_single_distribution_or_expansion = (group, profile, from_, to_) => {
   let policy = profile.Axioms.one_step_policy;
+  let expansion_enabled =
+    Axioms.compiled_capability_enabled(
+      Axioms.stage_plan_for_profile(profile, Axioms.Manual),
+      "alg.expand_polynomial",
+    );
   let is_named_algebra_identity =
     AlgebraIdentityRewrite.applicable_at_root(from_)
     |> List.exists((rewrite: TrigRewrite.rewrite) =>
@@ -2927,7 +3304,7 @@ let check_single_distribution_or_expansion = (group, profile, from_, to_) => {
         single_algebra_result(group, ["alg.distribute_mul_add"], from_, to_),
       );
     } else if (sum_factor_count > 1
-               && policy.allow_polynomial_expansion
+               && expansion_enabled
                && uncollected_full_distribution_matches(profile, from_, to_)
                && polynomial_equivalent_exps(from_, to_)) {
       Some(
@@ -2939,7 +3316,7 @@ let check_single_distribution_or_expansion = (group, profile, from_, to_) => {
         ),
       );
     } else if (sum_factor_count > 1
-               && policy.allow_polynomial_expansion
+               && expansion_enabled
                && List.mem(
                     Axioms.CollectLikeTerms,
                     profile.Axioms.step_policy.default_cleanup,
@@ -3227,15 +3604,7 @@ let exactly_one_adjacent_swap = (left, right) => {
   List.length(left) == List.length(right) && loop(true, left, right);
 };
 
-let int_constant = exp => {
-  let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
-  switch (exp.term) {
-  | Atom(Int(value))
-  | Atom(Nat(value)) => Some(value)
-  | Atom(SInt(value)) => Some(Bigint.of_int(value))
-  | _ => None
-  };
-};
+let int_constant = MathRewriteUtil.int_constant;
 
 let rec exp_is_integer_arithmetic = exp => {
   let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
@@ -3324,7 +3693,35 @@ let check_single_arithmetic_rule_result_for_profile =
   switch (arithmetic_group_at_level(profile.level)) {
   | None => None
   | Some(group) =>
+    let exact_rational_fold =
+      switch (ArithmeticNormalization.fold_rational_constant(from_)) {
+      | Some(folded) => Exp.fast_equal(folded, to_)
+      | None => false
+      };
     switch (flatten_addition(from_), flatten_addition(to_)) {
+    | _ when exact_rational_fold =>
+      let trace = trace_rules(group, ["arith.const_fold"]);
+      Some({
+        justification: "arithmetic one step",
+        group: Some(group),
+        from_normal_exp: from_ |> DHExp.strip_ascriptions,
+        to_normal_exp: to_ |> DHExp.strip_ascriptions,
+        from_trace: trace,
+        to_trace: [],
+        trace,
+        prover_steps: [
+          prover_step(
+            ~origin=ManualRewrite,
+            ~rule_id="arith.const_fold",
+            ~before_full_exp=from_,
+            ~after_full_exp=to_,
+            ~before_exp=from_,
+            ~after_exp=to_,
+            ~detail="exact rational constant fold",
+          ),
+        ],
+        exportable: true,
+      });
     | (Some((_, from_terms)), Some((_, to_terms)))
         when exactly_one_adjacent_swap(from_terms, to_terms) =>
       let trace = trace_rules(group, ["arith.add_comm"]);
@@ -3420,7 +3817,7 @@ let check_single_arithmetic_rule_result_for_profile =
         exportable: true,
       });
     | _ => None
-    }
+    };
   };
 };
 
@@ -3867,8 +4264,9 @@ let calculus_check_result_trace_for_profile =
             if (TrigRewrite.exp_same(result, to_)
                 || Equality.ignoring_ascriptions.exp(result, to_)) {
               Some((result, rules, steps));
-            } else if (Axioms.check_result_rule_enabled(
+            } else if (Axioms.normalization_rule_id_enabled_for_profile(
                          profile,
+                         Axioms.MultiStepCheck,
                          "arith.affine_normalize",
                        )) {
               affine_finish()
@@ -3940,12 +4338,19 @@ let check_single_catalog_rule =
     rule_id: rule.id,
     metadata: rule.metadata,
     allowed_cleanup: planned_rule.allowed_cleanup,
+    session_rewrite: None,
   };
   let rule_profile: Axioms.math_profile = {
     ...profile,
     step_policy: {
       ...profile.Axioms.step_policy,
-      visible_rules: [rule_policy],
+      visible_rules: [
+        rule_policy,
+        ...profile.step_policy.visible_rules
+           |> List.filter((candidate: Axioms.visible_rule_policy) =>
+                List.mem(candidate.rule_id, rule.required_rule_ids)
+              ),
+      ],
     },
   };
   let result =
@@ -3961,6 +4366,39 @@ let check_single_catalog_rule =
         from_,
         to_,
       )
+    | Some(ArithmeticScalarNormalize) =>
+      let normalized =
+        ArithmeticNormalization.simplify_scalar_products(from_);
+      if (TrigRewrite.exp_same(normalized, to_)) {
+        switch (arithmetic_group_at_level(profile.level)) {
+        | None => None
+        | Some(group) =>
+          let trace = trace_rules(group, [rule.id]);
+          Some({
+            justification: "scalar/sign normalization",
+            group: Some(group),
+            from_normal_exp: from_,
+            to_normal_exp: to_,
+            from_trace: trace,
+            to_trace: [],
+            trace,
+            prover_steps: [
+              prover_step(
+                ~origin=ManualRewrite,
+                ~rule_id=rule.id,
+                ~before_full_exp=from_,
+                ~after_full_exp=to_,
+                ~before_exp=from_,
+                ~after_exp=to_,
+                ~detail="focused arithmetic scalar/sign normalization",
+              ),
+            ],
+            exportable: true,
+          });
+        };
+      } else {
+        None;
+      };
     | Some(AlgebraDistributeMulAdd)
     | Some(AlgebraDistributeDivAdd)
     | Some(AlgebraFactorCommon)
@@ -4018,6 +4456,45 @@ let check_single_step_result_for_stage_plan =
        check_single_catalog_rule(~profile, ~settings, ~env, from_, to_, rule)
      );
 
+let check_single_session_rewrite_result =
+    (~profile: Axioms.math_profile, from_: Exp.t, to_: Exp.t) =>
+  Axioms.session_rewrites_for_profile(profile)
+  |> List.find_map((definition: Axioms.session_rewrite) =>
+       SessionRewrite.rewrites_at_root(definition, from_)
+       |> List.find_opt((rewrite: TrigRewrite.rewrite) =>
+            TrigRewrite.exp_same(rewrite.after_exp, to_)
+          )
+       |> Option.map((rewrite: TrigRewrite.rewrite) => {
+            let rule: Axioms.rewrite_rule = {
+              id: definition.id,
+              label: definition.label,
+              prover_hints: [],
+            };
+            {
+              justification: "untrusted session rewrite",
+              group: None,
+              from_normal_exp: from_,
+              to_normal_exp: to_,
+              from_trace: [rule],
+              to_trace: [],
+              trace: [rule],
+              prover_steps: [
+                prover_step(
+                  ~origin=ManualRewrite,
+                  ~rule_id=definition.id,
+                  ~before_full_exp=from_,
+                  ~after_full_exp=to_,
+                  ~before_exp=rewrite.before_exp,
+                  ~after_exp=rewrite.after_exp,
+                  ~detail=
+                    "untrusted session-only rewrite; no Rocq certificate",
+                ),
+              ],
+              exportable: false,
+            };
+          })
+     );
+
 let check_single_step_result_for_profile =
     (~profile: Axioms.math_profile, ~settings, ~env, from_: Exp.t, to_: Exp.t) => {
   let plan = Axioms.stage_plan_for_profile(profile, Manual);
@@ -4032,7 +4509,11 @@ let check_single_step_result_for_profile =
     )
   ) {
   | Some(result) => Some(result)
-  | None => check_single_eval_step_result(~settings, ~env, from_, to_)
+  | None =>
+    switch (check_single_session_rewrite_result(~profile, from_, to_)) {
+    | Some(result) => Some(result)
+    | None => check_single_eval_step_result(~settings, ~env, from_, to_)
+    }
   };
 };
 
@@ -4148,50 +4629,17 @@ let check_written_step_trace_at_level =
   |> Option.map(trace_summary_of_result);
 };
 
-let trace_rule_allowed_by_profile = (profile: Axioms.math_profile, rule_id) =>
-  switch (Axioms.cleanup_capability_for_id(rule_id)) {
-  | Some(capability) =>
-    List.mem(capability, profile.step_policy.default_cleanup)
-  | None =>
-    switch (Axioms.catalog_rule_by_id(rule_id)) {
-    | Some(rule) when rule.id == "alg.expand_polynomial" =>
-      /* Expansion can produce an uncollected distributed form, so do not
-         require every optional cleanup prerequisite here. The trace gate
-         below separately checks each cleanup rule that was actually used. */
-      List.mem(rule.id, profile.check_result_rule_ids)
-      && Axioms.visible_rule_enabled(
-           profile.step_policy,
-           "alg.distribute_mul_add",
-         )
-    | Some(rule) when Axioms.rule_visible_at_level(rule, profile.level) =>
-      Axioms.visible_rule_enabled(profile.step_policy, rule_id)
-    | Some(rule)
-        when
-          rule.kind == Axioms.NormalizationRule
-          || rule.kind == Axioms.GuardedNormalizationRule =>
-      Axioms.check_result_rule_enabled(profile, rule_id)
-    | Some(_)
-    | None => false
-    }
-  };
-
-let check_result_backend_allowed =
-    (profile: Axioms.math_profile, summary: trace_summary) =>
-  switch (summary.justification) {
-  | "arithmetic" =>
-    Axioms.check_result_rule_enabled(profile, "arith.affine_normalize")
-  | "algebra" =>
-    profile.check_result_rule_ids
-    |> List.exists(rule_id =>
-         switch (Axioms.catalog_rule_by_id(rule_id)) {
-         | Some(rule) when rule.level == Axioms.Algebra =>
-           Axioms.check_result_rule_enabled(profile, rule_id)
-         | Some(_)
-         | None => false
-         }
-       )
-  | _ => true
-  };
+let trace_rule_allowed_by_profile = (profile: Axioms.math_profile, rule_id) => {
+  let capability_id =
+    switch (Axioms.cleanup_capability_for_id(rule_id)) {
+    | Some(capability) => Axioms.cleanup_capability_label(capability)
+    | None => rule_id
+    };
+  Axioms.compiled_capability_enabled(
+    Axioms.stage_plan_for_profile(profile, Axioms.MultiStepCheck),
+    capability_id,
+  );
+};
 
 let direct_cleanup_trace_for_profile =
     (~profile: Axioms.math_profile, from_: Exp.t, to_: Exp.t)
@@ -4267,7 +4715,14 @@ let direct_cleanup_trace_for_profile =
 };
 
 let check_written_step_trace_for_profile =
-    (~profile: Axioms.math_profile, ~settings, ~env, from_: Exp.t, to_: Exp.t)
+    (
+      ~stage=Axioms.MultiStepCheck,
+      ~profile: Axioms.math_profile,
+      ~settings,
+      ~env,
+      from_: Exp.t,
+      to_: Exp.t,
+    )
     : option(trace_summary) => {
   let requires_disabled_power_notation =
     !List.mem(Axioms.PowerNotation, profile.step_policy.default_cleanup)
@@ -4281,8 +4736,9 @@ let check_written_step_trace_for_profile =
       | Some(summary) => Some(summary)
       | None =>
         switch (
-          check_single_step_result_for_profile(
+          check_single_step_result_for_stage_plan(
             ~profile,
+            ~plan=Axioms.stage_plan_for_profile(profile, stage),
             ~settings,
             ~env,
             from_,
@@ -4298,16 +4754,27 @@ let check_written_step_trace_for_profile =
           ) {
           | Some(summary) => Some(summary)
           | None =>
-            switch (rational_affine_trace_for_profile(~profile, from_, to_)) {
-            | Some(summary) => Some(summary)
-            | None =>
-              check_written_step_trace_at_level(
-                ~level=profile.level,
-                ~settings,
-                ~env,
+            switch (
+              rational_polynomial_expansion_trace_for_profile(
+                ~profile,
+                ~stage,
                 from_,
                 to_,
               )
+            ) {
+            | Some(summary) => Some(summary)
+            | None =>
+              switch (rational_affine_trace_for_profile(~profile, from_, to_)) {
+              | Some(summary) => Some(summary)
+              | None =>
+                check_written_step_trace_at_level(
+                  ~level=profile.level,
+                  ~settings,
+                  ~env,
+                  from_,
+                  to_,
+                )
+              }
             }
           }
         }
@@ -4317,8 +4784,9 @@ let check_written_step_trace_for_profile =
       | Some(summary)
           when
             summary.justification == "arithmetic"
-            && Axioms.check_result_rule_enabled(
+            && Axioms.normalization_rule_id_enabled_for_profile(
                  profile,
+                 Axioms.MultiStepCheck,
                  "arith.affine_normalize",
                ) =>
         let rule_id = "arith.affine_normalize";
@@ -4349,8 +4817,7 @@ let check_written_step_trace_for_profile =
     switch (candidate) {
     | Some(summary)
         when
-          check_result_backend_allowed(profile, summary)
-          && summary.rule_ids
+          summary.rule_ids
           |> List.for_all(trace_rule_allowed_by_profile(profile)) =>
       Some(summary)
     | Some(_)

@@ -7,6 +7,59 @@ open Util;
 let settings = CoreSettings.on;
 let env = Environment.empty;
 
+/* Legacy macro fixtures remain test-local so production proof search cannot
+   manufacture a collapsed authorization trace. */
+let collapsed_macro_summary_for_purpose = (~purpose, request) => {
+  let profile =
+    Axioms.effective_profile_for_rewrite(
+      ~requested_level=request.Web.ProofSearchBackend.level,
+      request.source,
+      request.target,
+    );
+  let plan =
+    Web.ProofSearchBackend.rocq_plan_for_profile_and_purpose(
+      profile,
+      purpose,
+    );
+  let rule_id = profile.rocq_macro_rule_id;
+  let step =
+    Web.ProofTrace.prover_step(
+      ~origin=Normalization,
+      ~rule_id,
+      ~before_full_exp=request.source,
+      ~after_full_exp=request.target,
+      ~before_exp=request.source,
+      ~after_exp=request.target,
+      ~detail="legacy macro export fixture: " ++ plan.id,
+    );
+  Web.ProofTrace.{
+    justification: "Rocq tactic search",
+    group_name:
+      List.rev(profile.groups)
+      |> ListUtil.hd_opt
+      |> Option.map((group: Axioms.rewrite_group) => group.name),
+    from_normal_exp: request.target,
+    to_normal_exp: request.target,
+    from_rule_ids: [rule_id],
+    to_rule_ids: [],
+    rule_ids: [rule_id],
+    prover_steps: [step],
+    exportable: true,
+  };
+};
+
+let collapsed_macro_summary = request =>
+  collapsed_macro_summary_for_purpose(~purpose=Axioms.CheckResult, request);
+
+let local_profile_trace = (~profile, ~settings, ~env, request) =>
+  Web.ProofSearchBackend.local_profile_plan(
+    ~profile,
+    ~settings,
+    ~env,
+    request,
+  )
+  |> Option.map((plan: Web.ProfileProofPlan.authorized_plan) => plan.summary);
+
 let plus = (left, right) =>
   Exp.bin_op(Operators.Int(Operators.Plus), left, right);
 
@@ -166,10 +219,9 @@ let has_trace_rule = (rule_id, result: Web.RewriteChecker.check_result) =>
 
 let has_rule_id = (rule_id, rule_ids) => rule_ids |> List.mem(rule_id);
 
-let prover_step_rule_id = (step: Web.RewriteChecker.prover_step) =>
-  step.rule_id;
+let prover_step_rule_id = (step: Web.ProofTrace.prover_step) => step.rule_id;
 
-let prover_step_origin = (step: Web.RewriteChecker.prover_step) =>
+let prover_step_origin = (step: Web.ProofTrace.prover_step) =>
   switch (step.origin) {
   | ManualRewrite => "manual"
   | Normalization => "normalization"
@@ -221,13 +273,7 @@ let check_exp_equal = (name, expected, actual) =>
   );
 
 let check_prover_step =
-    (
-      name,
-      rule_id,
-      before_exp,
-      after_exp,
-      step: Web.RewriteChecker.prover_step,
-    ) => {
+    (name, rule_id, before_exp, after_exp, step: Web.ProofTrace.prover_step) => {
   check(string, name ++ " rule", rule_id, step.rule_id);
   check_exp_equal(name ++ " local before", before_exp, step.before_exp);
   check_exp_equal(name ++ " local after", after_exp, step.after_exp);
@@ -337,7 +383,7 @@ let sample_export_chain = () => {
           at_idx: 0,
           at_exp: reparenthesized,
           with_exp: target,
-          justification: Web.RewriteChecker.trace_summary_label(trace),
+          justification: Web.ProofTrace.trace_summary_label(trace),
           trace_summary: Some(trace),
           next_exp: saved(target),
         }),
@@ -371,7 +417,7 @@ let sample_written_step_export_chain = (~source, ~target, ~trace) => {
         at_idx: 0,
         at_exp: source,
         with_exp: target,
-        justification: Web.RewriteChecker.trace_summary_label(trace),
+        justification: Web.ProofTrace.trace_summary_label(trace),
         trace_summary: Some(trace),
         next_exp: saved(target),
       }),
@@ -440,7 +486,7 @@ let sample_rocq_algebra_with_var_trig_export_chain = () => {
       times(divide(Exp.int(1), Exp.int(4)), cos(times(Exp.int(4), x))),
     );
   let trace =
-    Web.ProofSearchBackend.collapsed_macro_summary(
+    collapsed_macro_summary(
       Web.ProofSearchBackend.{
         backend: JSCoqTacticSearch,
         level: Trigonometry,
@@ -455,7 +501,7 @@ let sample_rocq_algebra_with_var_trig_export_chain = () => {
 
 let sample_calculus_export_chain = (~source, ~target) => {
   let trace =
-    Web.ProofSearchBackend.collapsed_macro_summary(
+    collapsed_macro_summary(
       Web.ProofSearchBackend.{
         backend: JSCoqTacticSearch,
         level: Calculus,
@@ -473,7 +519,7 @@ let sample_local_algebra_under_trig_export_chain = () => {
   let local_source = times(Exp.int(2), times(Exp.int(2), x));
   let local_target = times(Exp.int(4), x);
   let trace =
-    Web.ProofSearchBackend.collapsed_macro_summary(
+    collapsed_macro_summary(
       Web.ProofSearchBackend.{
         backend: JSCoqTacticSearch,
         level: Algebra,
@@ -502,7 +548,7 @@ let sample_local_algebra_under_mul_context_export_chain = () => {
     times(times(Exp.int(2), divide(Exp.int(1), Exp.int(2))), trig_tail);
   let local_target = trig_tail;
   let trace =
-    Web.ProofSearchBackend.collapsed_macro_summary(
+    collapsed_macro_summary(
       Web.ProofSearchBackend.{
         backend: JSCoqTacticSearch,
         level: Algebra,
@@ -538,7 +584,7 @@ let sample_integer_trinomial_square_export_chain = () => {
       times(c, c),
     );
   let trace =
-    Web.ProofSearchBackend.collapsed_macro_summary(
+    collapsed_macro_summary(
       Web.ProofSearchBackend.{
         backend: JSCoqTacticSearch,
         level: Algebra,
@@ -879,7 +925,7 @@ let sample_scalar_product_simplification_export_chain = () => {
       times(Exp.int(2), builtin_cos(times(Exp.int(2), x))),
     );
   let trace =
-    Web.RewriteChecker.{
+    Web.ProofTrace.{
       justification: "simplify scalar products",
       group_name: Some("arithmetic"),
       from_normal_exp: source,
@@ -919,7 +965,7 @@ let sample_real_distribution_export_chain = () => {
       times(Exp.int(2), Exp.int(1)),
     );
   let trace =
-    Web.RewriteChecker.{
+    Web.ProofTrace.{
       justification: "algebra one step",
       group_name: Some("algebra"),
       from_normal_exp: source,
@@ -954,7 +1000,7 @@ let sample_real_distribution_with_cleanup_export_chain = () => {
     );
   let target = plus(times(Exp.int(2), builtin_cos(x)), Exp.int(2));
   let trace =
-    Web.RewriteChecker.{
+    Web.ProofTrace.{
       justification: "algebra one step",
       group_name: Some("algebra"),
       from_normal_exp: source,
@@ -1000,7 +1046,7 @@ let sample_real_distribution_with_cleanup_export_chain = () => {
         at_idx: 0,
         at_exp: source,
         with_exp: distributed,
-        justification: Web.RewriteChecker.trace_summary_label(trace),
+        justification: Web.ProofTrace.trace_summary_label(trace),
         trace_summary: Some(trace),
         next_exp: saved(distributed),
       }),
@@ -2427,7 +2473,10 @@ let tests = (
           bool,
           "arithmetic polynomial expansion disabled",
           false,
-          arithmetic_profile.one_step_policy.allow_polynomial_expansion,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(arithmetic_profile, Manual),
+            "alg.expand_polynomial",
+          ),
         );
         switch (
           Axioms.visible_rule_policy_for_rule(
@@ -2511,7 +2560,10 @@ let tests = (
           bool,
           "algebra polynomial expansion enabled",
           true,
-          algebra_profile.one_step_policy.allow_polynomial_expansion,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(algebra_profile, Manual),
+            "alg.expand_polynomial",
+          ),
         );
         switch (
           Axioms.visible_rule_policy_for_rule(
@@ -2929,10 +2981,12 @@ let tests = (
             "arith.const_fold",
             "arith.mul_const",
             "arith.mul_identity",
+            "arith.simplify_scalar_products",
             "alg.distribute_mul_add",
             "alg.distribute_div_add",
             "alg.factor_common",
             "alg.cancel_common_add",
+            "alg.expand_polynomial",
             "alg.difference_of_squares",
             "alg.square_of_sum",
             "alg.square_of_difference",
@@ -2952,6 +3006,7 @@ let tests = (
             _const_fold,
             _mul_const,
             _mul_identity,
+            _scalar_normalize,
             distribution,
             ..._,
           ] =>
@@ -3050,6 +3105,7 @@ let tests = (
               rule_id: "unknown.rule",
               metadata: Axioms.visible_rule_metadata("unknown.rule"),
               allowed_cleanup: [],
+              session_rewrite: None,
             },
             ...base.step_policy.visible_rules,
           ],
@@ -3066,6 +3122,1256 @@ let tests = (
           () =>
           Axioms.stage_plan_for_profile(profile, Manual) |> ignore
         );
+      },
+    ),
+    test_case(
+      "capability override configuration errors are structured",
+      `Quick,
+      () => {
+        let base = Axioms.math_profile(Algebra);
+        let override =
+            (capability_id, usage): Axioms.capability_usage_override => {
+          capability_id,
+          stage: MultiStepCheck,
+          usage,
+        };
+        let unknown = {
+          ...base,
+          capability_usage_overrides: [
+            override("unknown.capability", Disabled),
+          ],
+        };
+        check(
+          bool,
+          "unknown override",
+          true,
+          switch (Axioms.validate_profile_configuration(unknown)) {
+          | Some(Axioms.UnknownCapabilityOverride("unknown.capability")) =>
+            true
+          | _ => false
+          },
+        );
+        let invalid_bound = {
+          ...base,
+          capability_usage_overrides: [
+            override(
+              "alg.distribute_mul_add",
+              BoundedClosure({
+                max_uses: 0,
+                max_states: 20,
+                cost: 1,
+              }),
+            ),
+          ],
+        };
+        check(
+          bool,
+          "invalid closure bound",
+          true,
+          switch (Axioms.validate_profile_configuration(invalid_bound)) {
+          | Some(Axioms.InvalidCapabilityUsage("alg.distribute_mul_add")) =>
+            true
+          | _ => false
+          },
+        );
+        let duplicate = {
+          ...base,
+          capability_usage_overrides: [
+            override("alg.distribute_mul_add", AtMostOne),
+            override("alg.distribute_mul_add", Disabled),
+          ],
+        };
+        check(
+          bool,
+          "duplicate stage override",
+          true,
+          switch (Axioms.validate_profile_configuration(duplicate)) {
+          | Some(
+              Axioms.DuplicateCapabilityOverride(
+                "alg.distribute_mul_add",
+                MultiStepCheck,
+              ),
+            ) =>
+            true
+          | _ => false
+          },
+        );
+        let cannot_widen = {
+          ...Axioms.math_profile(Arithmetic),
+          capability_usage_overrides: [override("calc.diff_sum", AtMostOne)],
+        };
+        check(
+          bool,
+          "an override cannot add an unavailable inherited capability",
+          false,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(cannot_widen, MultiStepCheck),
+            "calc.diff_sum",
+          ),
+        );
+        let bounded = {
+          ...base,
+          capability_usage_overrides: [
+            override(
+              "alg.distribute_mul_add",
+              BoundedClosure({
+                max_uses: 4,
+                max_states: 7,
+                cost: 1,
+              }),
+            ),
+          ],
+        };
+        let bounded_plan =
+          Axioms.stage_plan_for_profile(bounded, MultiStepCheck);
+        check(
+          int,
+          "compiled closure tightens the caller search budget",
+          7,
+          Axioms.compiled_search_state_limit(~requested=80, bounded_plan),
+        );
+        check(
+          int,
+          "caller may request a tighter search budget",
+          3,
+          Axioms.compiled_search_state_limit(~requested=3, bounded_plan),
+        );
+      },
+    ),
+    test_case(
+      "custom noncommutative profile is enforced by the shared authorizer",
+      `Quick,
+      () => {
+        let profile =
+          Axioms.profile_with_capability_disabled(
+            Axioms.math_profile(Algebra),
+            "mul.comm",
+          );
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let c = Exp.var("c");
+        let authorize = (stage, candidate_origin, source, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage,
+            candidate_origin,
+            settings,
+            env,
+            source,
+            target,
+            max_depth: 4,
+            max_states: 80,
+          });
+        let accepted = result =>
+          switch (result) {
+          | Web.ProfileProofPlan.Authorized(_) => true
+          | Rejected(_) => false
+          };
+        let accepted_in_both_stages = (source, target) =>
+          accepted(authorize(Manual, UserEntered, source, target))
+          && accepted(authorize(MultiStepCheck, UserEntered, source, target));
+        [
+          (
+            "multiplication associativity",
+            times(times(a, b), c),
+            times(a, times(b, c)),
+          ),
+          (
+            "left distribution",
+            times(a, plus(b, c)),
+            plus(times(a, b), times(a, c)),
+          ),
+          (
+            "right distribution",
+            times(plus(a, b), c),
+            plus(times(a, c), times(b, c)),
+          ),
+          ("multiplicative identity", times(a, Exp.int(1)), a),
+        ]
+        |> List.iter(((label, source, target)) =>
+             check(
+               bool,
+               label ++ " is accepted in One Step and Check Result",
+               true,
+               accepted_in_both_stages(source, target),
+             )
+           );
+        [
+          ("single commute", times(a, b), times(b, a)),
+          (
+            "three-factor reversal",
+            times(times(a, b), c),
+            times(times(c, b), a),
+          ),
+          (
+            "distribution plus hidden commute",
+            times(a, plus(b, c)),
+            plus(times(b, a), times(c, a)),
+          ),
+        ]
+        |> List.iter(((label, source, target)) =>
+             check(
+               bool,
+               label ++ " is rejected in One Step and Check Result",
+               false,
+               accepted(authorize(Manual, UserEntered, source, target))
+               || accepted(
+                    authorize(MultiStepCheck, UserEntered, source, target),
+                  ),
+             )
+           );
+        let source = times(a, plus(b, c));
+        let target = plus(times(a, b), times(a, c));
+        let manual_candidate =
+          authorize(MultiStepCheck, UserEntered, source, target);
+        let automatic_candidate =
+          authorize(AutoEval, AutomaticSimplify, source, target);
+        check(
+          bool,
+          "candidate origin does not change authorization or fingerprint",
+          true,
+          switch (manual_candidate, automatic_candidate) {
+          | (Authorized(left), Authorized(right)) =>
+            left.capability_use_counts == right.capability_use_counts
+            && left.profile_fingerprint == right.profile_fingerprint
+          | _ => false
+          },
+        );
+        switch (manual_candidate) {
+        | Authorized(plan) =>
+          let request =
+            Web.ProofSearchBackend.{
+              backend: JSCoqTacticSearch,
+              level: Algebra,
+              max_depth: 4,
+              max_states: 80,
+              source,
+              target,
+            };
+          let program =
+            Web.ProofSearchBackend.rocq_program_for_authorized_plan(
+              ~profile,
+              request,
+              plan,
+            );
+          check(
+            bool,
+            "typed noncommutative certificate replays distribution only",
+            true,
+            string_contains("Rmult_plus_distr", program)
+            && !string_contains("Rmult_comm", program)
+            && !string_contains("ring", program)
+            && !string_contains("lra", program),
+          );
+        | Rejected(rejection) =>
+          fail(Web.ProfileProofPlan.rejection_message(rejection))
+        };
+        check(
+          bool,
+          "multiplication commutativity compiles to zero use",
+          true,
+          switch (
+            Axioms.compiled_capability_for_id(
+              Axioms.stage_plan_for_profile(profile, MultiStepCheck),
+              "mul.comm",
+            )
+          ) {
+          | Some({usage: Axioms.Disabled, _}) => true
+          | _ => false
+          },
+        );
+      },
+    ),
+    test_case(
+      "scalar normalization suggestions use a focused catalog capability",
+      `Quick,
+      () => {
+        let profile = Axioms.math_profile(Algebra);
+        let x = Exp.var("x");
+        let authorize = (~profile=profile, source, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage: Manual,
+            candidate_origin: DisplayedSuggestion,
+            settings,
+            env,
+            source,
+            target,
+            max_depth: 1,
+            max_states: 80,
+          });
+        [
+          ("double negative", negate(negate(x)), x),
+          (
+            "integer scalar product",
+            times(times(Exp.int(2), x), Exp.int(3)),
+            times(Exp.int(6), x),
+          ),
+          (
+            "rational scalar reduction",
+            divide(times(Exp.int(6), x), Exp.int(4)),
+            divide(times(Exp.int(3), x), Exp.int(2)),
+          ),
+        ]
+        |> List.iter(((label, source, target)) =>
+             switch (authorize(source, target)) {
+             | Authorized(plan) =>
+               check(
+                 bool,
+                 label ++ " uses the scalar capability",
+                 true,
+                 List.mem(
+                   "arith.simplify_scalar_products",
+                   plan.capability_ids,
+                 ),
+               )
+             | Rejected(rejection) =>
+               fail(
+                 label
+                 ++ ": "
+                 ++ Web.ProfileProofPlan.rejection_message(rejection),
+               )
+             }
+           );
+        check(
+          bool,
+          "an incorrect scalar result is rejected",
+          true,
+          switch (authorize(times(Exp.int(2), x), times(Exp.int(3), x))) {
+          | Rejected(_) => true
+          | Authorized(_) => false
+          },
+        );
+        let disabled =
+          Axioms.profile_with_capability_disabled(
+            profile,
+            "arith.simplify_scalar_products",
+          );
+        check(
+          bool,
+          "a disabled scalar capability cannot authorize the same target",
+          true,
+          switch (authorize(~profile=disabled, negate(negate(x)), x)) {
+          | Rejected(_) => true
+          | Authorized(_) => false
+          },
+        );
+      },
+    ),
+    test_case(
+      "serializable custom math-mode DAG resolves into the shared profile",
+      `Quick,
+      () => {
+        let usage_overrides =
+          Axioms.automation_stages
+          |> List.map((stage): Axioms.capability_usage_override =>
+               {
+                 capability_id: "mul.comm",
+                 stage,
+                 usage: Disabled,
+               }
+             );
+        let matrix_mode: CustomMathMode.definition = {
+          id: "matrix-algebra",
+          label: "Matrix algebra",
+          detail: "Associative and distributive multiplication without commutation",
+          parents: [BuiltInParent(Algebra)],
+          rule_overrides: [],
+          cleanup_overrides: [
+            {
+              capability_id: "mul.comm",
+              enabled: false,
+            },
+          ],
+          usage_overrides,
+          teacher_rewrites: [],
+        };
+        let json = CustomMathMode.yojson_of_definition(matrix_mode);
+        check(
+          string,
+          "definition JSON round trip",
+          Yojson.Safe.to_string(json),
+          json
+          |> CustomMathMode.definition_of_yojson
+          |> CustomMathMode.yojson_of_definition
+          |> Yojson.Safe.to_string,
+        );
+        let profile =
+          switch (
+            CustomMathMode.resolve(
+              ~definitions=[matrix_mode],
+              "matrix-algebra",
+            )
+          ) {
+          | Ok(profile) => profile
+          | Error(error) =>
+            fail(CustomMathMode.resolution_error_message(error))
+          };
+        let library: CustomMathMode.library = {
+          schema_version: CustomMathMode.current_schema_version,
+          definitions: [matrix_mode],
+          active_id: Some(matrix_mode.id),
+        };
+        let library_json = CustomMathMode.yojson_of_library(library);
+        let round_tripped_library =
+          library_json |> CustomMathMode.library_of_yojson;
+        check(
+          string,
+          "versioned library JSON round trip",
+          Yojson.Safe.to_string(library_json),
+          round_tripped_library
+          |> CustomMathMode.yojson_of_library
+          |> Yojson.Safe.to_string,
+        );
+        check(
+          bool,
+          "round-tripped library revalidates",
+          true,
+          switch (CustomMathMode.validate_library(round_tripped_library)) {
+          | Ok () => true
+          | Error(_) => false
+          },
+        );
+        let round_tripped_profile =
+          switch (
+            CustomMathMode.resolve(
+              ~definitions=round_tripped_library.definitions,
+              "matrix-algebra",
+            )
+          ) {
+          | Ok(profile) => profile
+          | Error(error) =>
+            fail(CustomMathMode.resolution_error_message(error))
+          };
+        check(
+          string,
+          "round trip preserves the compiled profile fingerprint",
+          Web.ProfileProofPlan.profile_fingerprint(profile, MultiStepCheck),
+          Web.ProfileProofPlan.profile_fingerprint(
+            round_tripped_profile,
+            MultiStepCheck,
+          ),
+        );
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let c = Exp.var("c");
+        let authorize = (source, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage: MultiStepCheck,
+            candidate_origin: UserEntered,
+            settings,
+            env,
+            source,
+            target,
+            max_depth: 4,
+            max_states: 80,
+          });
+        check(
+          bool,
+          "resolved mode retains associativity",
+          true,
+          switch (authorize(times(times(a, b), c), times(a, times(b, c)))) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+        check(
+          bool,
+          "resolved mode rejects commutation",
+          true,
+          switch (authorize(times(a, b), times(b, a))) {
+          | Rejected(_) => true
+          | Authorized(_) => false
+          },
+        );
+        let left: CustomMathMode.definition = {
+          ...matrix_mode,
+          id: "left",
+          parents: [CustomParent("right")],
+        };
+        let right: CustomMathMode.definition = {
+          ...matrix_mode,
+          id: "right",
+          parents: [CustomParent("left")],
+        };
+        check(
+          bool,
+          "cycles are rejected structurally",
+          true,
+          switch (CustomMathMode.resolve(~definitions=[left, right], "left")) {
+          | Error(CustomMathMode.InheritanceCycle(_)) => true
+          | _ => false
+          },
+        );
+        check(
+          bool,
+          "library load revalidates inheritance cycles",
+          true,
+          switch (
+            CustomMathMode.validate_library({
+              schema_version: CustomMathMode.current_schema_version,
+              definitions: [left, right],
+              active_id: None,
+            })
+          ) {
+          | Error(
+              CustomMathMode.InvalidLibraryDefinition(_, InheritanceCycle(_)),
+            ) =>
+            true
+          | _ => false
+          },
+        );
+        let unknown: CustomMathMode.definition = {
+          ...matrix_mode,
+          id: "unknown",
+          rule_overrides: [
+            {
+              rule_id: "missing.rule",
+              enabled: true,
+            },
+          ],
+        };
+        check(
+          bool,
+          "unknown rule IDs are rejected",
+          true,
+          switch (CustomMathMode.resolve(~definitions=[unknown], "unknown")) {
+          | Error(CustomMathMode.UnknownRule("missing.rule")) => true
+          | _ => false
+          },
+        );
+      },
+    ),
+    test_case(
+      "extracted proof traces preserve durable JSON",
+      `Quick,
+      () => {
+        let source = times(Exp.var("x"), Exp.int(1));
+        let target = Exp.var("x");
+        let summary: Web.ProofTrace.trace_summary = {
+          justification: "multiplicative identity",
+          group_name: Some("arithmetic"),
+          from_normal_exp: target,
+          to_normal_exp: target,
+          from_rule_ids: ["mul.identity"],
+          to_rule_ids: [],
+          rule_ids: ["mul.identity"],
+          prover_steps: [
+            Web.ProofTrace.prover_step(
+              ~origin=Web.ProofTrace.Normalization,
+              ~rule_id="mul.identity",
+              ~before_full_exp=source,
+              ~after_full_exp=target,
+              ~before_exp=source,
+              ~after_exp=target,
+              ~detail="JSON compatibility fixture",
+            ),
+          ],
+          exportable: true,
+        };
+        let extracted_json = Web.ProofTrace.yojson_of_trace_summary(summary);
+        check(
+          string,
+          "extracted JSON round-trips without schema changes",
+          Yojson.Safe.to_string(extracted_json),
+          extracted_json
+          |> Web.ProofTrace.trace_summary_of_yojson
+          |> Web.ProofTrace.yojson_of_trace_summary
+          |> Yojson.Safe.to_string,
+        );
+      },
+    ),
+    test_case(
+      "teacher builder compiles through the serializable custom-mode model",
+      `Quick,
+      () => {
+        let model =
+          Web.MathModeBuilder.Model.init
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetLabel("Noncommutative lab"),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetParent(Algebra),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetCleanupEnabled(
+                 "mul.comm",
+                 false,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetUsage(
+                 "mul.comm",
+                 Manual,
+                 Disabled,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetUsage(
+                 "mul.comm",
+                 MultiStepCheck,
+                 Disabled,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetUsage(
+                 "mul.comm",
+                 AutoEval,
+                 Disabled,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetActive(true),
+             );
+        let profile =
+          Web.MathModeBuilder.effective_profile(
+            ~fallback=Axioms.math_profile(Algebra),
+            model,
+          );
+        check(string, "custom label", "Noncommutative lab", profile.label);
+        check(
+          bool,
+          "builder disables multiplication commutation in Check Result",
+          false,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(profile, MultiStepCheck),
+            "mul.comm",
+          ),
+        );
+        let inspected_profile =
+          Web.ProfileBoard.apply_model_to_profile(
+            Web.ProfileBoard.Model.init,
+            profile,
+          );
+        check(
+          bool,
+          "Profile inspection preserves Builder usage policy",
+          false,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(inspected_profile, MultiStepCheck),
+            "mul.comm",
+          ),
+        );
+        let json = Web.MathModeBuilder.Model.yojson_of_t(model);
+        check(
+          string,
+          "builder state JSON round trip",
+          Yojson.Safe.to_string(json),
+          json
+          |> Web.MathModeBuilder.Model.t_of_yojson
+          |> Web.MathModeBuilder.Model.yojson_of_t
+          |> Yojson.Safe.to_string,
+        );
+        let saved =
+          model
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SaveDefinition,
+             );
+        check(
+          int,
+          "save stores a reusable definition",
+          1,
+          List.length(saved.saved_definitions),
+        );
+        let duplicated =
+          saved
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.DuplicateDefinition,
+             );
+        check(
+          bool,
+          "duplicates are inactive drafts",
+          false,
+          duplicated.active,
+        );
+        check(
+          string,
+          "duplicate gets a stable copy id",
+          "my-math-mode-copy",
+          duplicated.id,
+        );
+        let exported =
+          Web.MathModeBuilder.definition(model)
+          |> CustomMathMode.yojson_of_definition
+          |> Yojson.Safe.to_string;
+        let imported =
+          Web.MathModeBuilder.Model.init
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetImportJson(exported),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.ImportDefinition,
+             );
+        check(
+          string,
+          "import restores the definition",
+          model.label,
+          imported.label,
+        );
+        let multi_parent =
+          Web.MathModeBuilder.Model.init
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetAdditionalParent(
+                 Trigonometry,
+                 true,
+               ),
+             );
+        check(
+          int,
+          "builder serializes multiple parents",
+          2,
+          List.length(Web.MathModeBuilder.definition(multi_parent).parents),
+        );
+        let upward_usage =
+          Web.MathModeBuilder.Model.init
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetUsage(
+                 "alg.distribute_mul_add",
+                 MultiStepCheck,
+                 Disabled,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetUsage(
+                 "alg.distribute_mul_add",
+                 Manual,
+                 AtMostOne,
+               ),
+             );
+        check(
+          bool,
+          "One Step availability removes a conflicting higher-stage Never override",
+          false,
+          upward_usage.usage_overrides
+          |> List.exists((override: Axioms.capability_usage_override) =>
+               override.capability_id == "alg.distribute_mul_add"
+               && override.stage == MultiStepCheck
+               && override.usage == Disabled
+             ),
+        );
+        let draft_added =
+          Web.MathModeBuilder.Model.init
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetRewriteDraftSource(
+                 "sin($a + $b)",
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetRewriteDraftTarget(
+                 "sin($a)*cos($b) + cos($a)*sin($b)",
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.AddRewriteDraft,
+             );
+        check(
+          int,
+          "reviewed text-entry contract is accepted",
+          1,
+          List.length(draft_added.teacher_rewrites),
+        );
+        let malformed_draft =
+          Web.MathModeBuilder.Model.init
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetRewriteDraftSource(
+                 "sin($unbound)",
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.AddRewriteDraft,
+             );
+        check(
+          int,
+          "incomplete text-entry contract is rejected",
+          0,
+          List.length(malformed_draft.teacher_rewrites),
+        );
+      },
+    ),
+    test_case(
+      "untrusted session rewrites are manual-only and non-exportable",
+      `Quick,
+      () => {
+        let source_pattern = "sin($a)*sin($b)";
+        let target_pattern = "(cos($a - $b) - cos($a + $b))/2";
+        let model =
+          Web.MathModeBuilder.Model.blank
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetParent(Trigonometry),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetRewriteDraftSource(
+                 source_pattern,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetRewriteDraftTarget(
+                 target_pattern,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.AddRewriteDraft,
+             );
+        check(
+          int,
+          "arbitrary pattern becomes a session rewrite",
+          1,
+          List.length(model.session_rewrites),
+        );
+        check(
+          int,
+          "arbitrary pattern does not become a reviewed rewrite",
+          0,
+          List.length(model.teacher_rewrites),
+        );
+        let active_model = {
+          ...model,
+          active: true,
+        };
+        let profile =
+          Web.MathModeBuilder.effective_profile(
+            ~fallback=Axioms.math_profile(Trigonometry),
+            active_model,
+          );
+        let definition = List.hd(model.session_rewrites);
+        check(
+          bool,
+          "session rule is visible on the effective profile",
+          true,
+          Axioms.visible_rule_enabled(profile.step_policy, definition.id),
+        );
+        check(
+          bool,
+          "session rule is excluded from Manual stage planning",
+          false,
+          Axioms.stage_plan_for_profile(profile, Manual).visible_rules
+          |> List.exists((rule: Axioms.planned_visible_rule) =>
+               rule.rule.id == definition.id
+             ),
+        );
+        let product_to_sum = (a, b) =>
+          divide(minus(cos(minus(a, b)), cos(plus(a, b))), Exp.int(2));
+        let authorize = (profile, stage, source, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage,
+            candidate_origin: UserEntered,
+            settings,
+            env,
+            source,
+            target,
+            max_depth: 1,
+            max_states: 40,
+          });
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let source = times(sin(x), sin(y));
+        let target = product_to_sum(x, y);
+        let plan =
+          switch (authorize(profile, Manual, source, target)) {
+          | Authorized(plan) => plan
+          | Rejected(rejection) =>
+            fail(
+              "expected session rewrite authorization: "
+              ++ Web.ProfileProofPlan.rejection_message(rejection),
+            )
+          };
+        check(bool, "manual plan is non-exportable", false, plan.exportable);
+        check(
+          bool,
+          "manual plan records only the session rule",
+          true,
+          plan.summary.rule_ids == [definition.id]
+          && plan.summary.exportable == false,
+        );
+        let nested_a = plus(x, Exp.int(1));
+        let nested_b = times(Exp.int(2), y);
+        check(
+          bool,
+          "the same schema matches a structurally different instance",
+          true,
+          switch (
+            authorize(
+              profile,
+              Manual,
+              times(sin(nested_a), sin(nested_b)),
+              product_to_sum(nested_a, nested_b),
+            )
+          ) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+        check(
+          bool,
+          "an incorrect target is rejected",
+          false,
+          switch (
+            authorize(profile, Manual, source, plus(target, Exp.int(1)))
+          ) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+        let forward_model =
+          Web.MathModeBuilder.Update.update(
+            Web.MathModeBuilder.Update.SetSessionRewriteDirection(
+              definition.id,
+              Forward,
+            ),
+            active_model,
+          );
+        let forward_profile =
+          Web.MathModeBuilder.effective_profile(
+            ~fallback=Axioms.math_profile(Trigonometry),
+            forward_model,
+          );
+        check(
+          bool,
+          "forward-only session rewrite rejects contraction",
+          false,
+          switch (authorize(forward_profile, Manual, target, source)) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+        let inactive_profile =
+          Web.MathModeBuilder.effective_profile(
+            ~fallback=Axioms.math_profile(Trigonometry),
+            {
+              ...model,
+              active: false,
+            },
+          );
+        check(
+          bool,
+          "inactive custom mode does not expose the session rewrite",
+          false,
+          Axioms.visible_rule_enabled(
+            inactive_profile.step_policy,
+            definition.id,
+          ),
+        );
+        check(
+          bool,
+          "Check Result stage never receives the session capability",
+          false,
+          Axioms.stage_plan_for_profile(profile, MultiStepCheck).capabilities
+          |> List.exists((capability: Axioms.compiled_capability) =>
+               capability.id == definition.id
+             ),
+        );
+        let request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Trigonometry,
+            max_depth: 1,
+            max_states: 40,
+            source,
+            target,
+          };
+        check_raises(
+          "Rocq generation rejects the untrusted plan",
+          Failure("untrusted session rewrites are not Rocq-exportable"),
+          () =>
+          Web.ProofSearchBackend.rocq_program_for_authorized_plan(
+            ~profile,
+            request,
+            plan,
+          )
+          |> ignore
+        );
+        check(
+          bool,
+          "target-only metavariables are rejected",
+          true,
+          switch (
+            Web.SessionRewrite.make(
+              ~id="session.untrusted.bad",
+              ~source_pattern="$a + 1",
+              ~target_pattern="$b",
+            )
+          ) {
+          | Error(Web.SessionRewrite.TargetOnlyMetavariable("b")) => true
+          | _ => false
+          },
+        );
+        check(
+          bool,
+          "session rewrites are omitted from saved custom-mode definitions",
+          true,
+          Web.MathModeBuilder.definition(active_model).teacher_rewrites == [],
+        );
+      },
+    ),
+    test_case(
+      "approved teacher trig rewrites enforce schema subset direction and stage",
+      `Quick,
+      () => {
+        let approved =
+          TeacherRewrite.approved_schema("trig.sin_sum") |> Option.get;
+        check(
+          bool,
+          "approved schema validates",
+          true,
+          TeacherRewrite.validate(approved) == Ok(approved),
+        );
+        check(
+          bool,
+          "empty pattern is rejected",
+          true,
+          switch (
+            TeacherRewrite.validate({
+              ...approved,
+              source_pattern: "",
+            })
+          ) {
+          | Error(TeacherRewrite.MalformedPatterns("trig.sin_sum")) => true
+          | _ => false
+          },
+        );
+        check(
+          bool,
+          "mismatched certificate is rejected",
+          true,
+          switch (
+            TeacherRewrite.validate({
+              ...approved,
+              certificate_ref: "rocq.rewrite.cos_plus",
+            })
+          ) {
+          | Error(TeacherRewrite.MismatchedCertificate("trig.sin_sum")) =>
+            true
+          | _ => false
+          },
+        );
+        check(
+          bool,
+          "One Step-only imported availability is rejected",
+          true,
+          switch (
+            TeacherRewrite.validate({
+              ...approved,
+              stages: [Manual],
+            })
+          ) {
+          | Error(TeacherRewrite.InvalidStages("trig.sin_sum")) => true
+          | _ => false
+          },
+        );
+        let trig_ids =
+          TeacherRewrite.approved_schemas
+          |> List.map((definition: TeacherRewrite.definition) =>
+               definition.id
+             );
+        trig_ids
+        |> List.iter(selected_id => {
+             let base_model =
+               Web.MathModeBuilder.Model.init
+               |> Web.MathModeBuilder.Update.update(
+                    Web.MathModeBuilder.Update.SetParent(Trigonometry),
+                  );
+             let isolated_model =
+               trig_ids
+               |> List.fold_left(
+                    (model, rule_id) =>
+                      Web.MathModeBuilder.Update.update(
+                        Web.MathModeBuilder.Update.SetRuleEnabled(
+                          rule_id,
+                          false,
+                        ),
+                        model,
+                      ),
+                    base_model,
+                  )
+               |> Web.MathModeBuilder.Update.update(
+                    Web.MathModeBuilder.Update.SetTeacherRewriteEnabled(
+                      selected_id,
+                      true,
+                    ),
+                  )
+               |> Web.MathModeBuilder.Update.update(
+                    Web.MathModeBuilder.Update.SetActive(true),
+                  );
+             let isolated_profile =
+               Web.MathModeBuilder.effective_profile(
+                 ~fallback=Axioms.math_profile(Trigonometry),
+                 isolated_model,
+               );
+             trig_ids
+             |> List.iter(rule_id =>
+                  check(
+                    bool,
+                    selected_id ++ " independently controls " ++ rule_id,
+                    rule_id == selected_id,
+                    Axioms.visible_rule_enabled(
+                      isolated_profile.step_policy,
+                      rule_id,
+                    ),
+                  )
+                );
+           });
+        let model =
+          Web.MathModeBuilder.Model.init
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetParent(Trigonometry),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetRuleEnabled(
+                 "trig.sin_sum",
+                 false,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetRuleEnabled(
+                 "trig.cos_sum",
+                 false,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetRuleEnabled(
+                 "trig.sin_diff",
+                 false,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetRuleEnabled(
+                 "trig.cos_diff",
+                 false,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetTeacherRewriteEnabled(
+                 "trig.sin_sum",
+                 true,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetTeacherRewriteDirection(
+                 "trig.sin_sum",
+                 Forward,
+               ),
+             )
+          |> Web.MathModeBuilder.Update.update(
+               Web.MathModeBuilder.Update.SetActive(true),
+             );
+        let profile =
+          Web.MathModeBuilder.effective_profile(
+            ~fallback=Axioms.math_profile(Trigonometry),
+            model,
+          );
+        let authorize = (stage, source, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage,
+            candidate_origin: UserEntered,
+            settings,
+            env,
+            source,
+            target,
+            max_depth: 4,
+            max_states: 100,
+          });
+        let expansion = (a, b) =>
+          plus(times(sin(a), cos(b)), times(cos(a), sin(b)));
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let source = sin(plus(a, b));
+        let target = expansion(a, b);
+        let forward = authorize(Manual, source, target);
+        check(
+          bool,
+          "forward schema is authorized",
+          true,
+          switch (forward) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+        [MultiStepCheck, AutoEval]
+        |> List.iter(stage =>
+             check(
+               bool,
+               "One Step availability inherits upward",
+               true,
+               switch (authorize(stage, source, target)) {
+               | Authorized(_) => true
+               | Rejected(_) => false
+               },
+             )
+           );
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let nested_a = plus(x, Exp.int(1));
+        let nested_b = times(Exp.int(2), y);
+        check(
+          bool,
+          "structurally different metavariable instances are authorized",
+          true,
+          switch (
+            authorize(
+              Manual,
+              sin(plus(nested_a, nested_b)),
+              expansion(nested_a, nested_b),
+            )
+          ) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+        [
+          ("reverse direction", authorize(Manual, target, source)),
+          (
+            "incorrect target",
+            authorize(Manual, source, plus(target, Exp.int(1))),
+          ),
+          (
+            "disabled subset identity",
+            authorize(
+              Manual,
+              cos(plus(a, b)),
+              minus(times(cos(a), cos(b)), times(sin(a), sin(b))),
+            ),
+          ),
+        ]
+        |> List.iter(((label, result)) =>
+             check(
+               bool,
+               label,
+               true,
+               switch (result) {
+               | Web.ProfileProofPlan.Rejected(_) => true
+               | Web.ProfileProofPlan.Authorized(_) => false
+               },
+             )
+           );
+        switch (forward) {
+        | Authorized(plan) =>
+          let request =
+            Web.ProofSearchBackend.{
+              backend: JSCoqTacticSearch,
+              level: Trigonometry,
+              max_depth: 4,
+              max_states: 100,
+              source,
+              target,
+            };
+          let program =
+            Web.ProofSearchBackend.rocq_program_for_authorized_plan(
+              ~profile,
+              request,
+              plan,
+            );
+          check(
+            bool,
+            "Rocq replay uses the approved sine-sum certificate",
+            true,
+            string_contains("sin_plus", program),
+          );
+        | Rejected(rejection) =>
+          fail(Web.ProfileProofPlan.rejection_message(rejection))
+        };
       },
     ),
     test_case(
@@ -3100,6 +4406,205 @@ let tests = (
             Web.ProofSearchBackend.tactic_plan_purpose_for_automation_stage(
               Axioms.AutoEval,
             ),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "rational binomial squares use visible primitive rewrite paths",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let c = builtin_cos(times(Exp.int(2), x));
+        let source_quotient =
+          power(divide(minus(Exp.int(1), c), Exp.int(2)), Exp.int(2));
+        let source_distributed =
+          power(
+            minus(divide(Exp.int(1), Exp.int(2)), divide(c, Exp.int(2))),
+            Exp.int(2),
+          );
+        let square_expansion = (left, right) =>
+          plus(
+            minus(
+              power(left, Exp.int(2)),
+              times(times(Exp.int(2), left), right),
+            ),
+            power(right, Exp.int(2)),
+          );
+        let half = divide(Exp.int(1), Exp.int(2));
+        let c_half = divide(c, Exp.int(2));
+        let source_expansion = square_expansion(half, c_half);
+        let screenshot_target =
+          times(
+            half,
+            plus(minus(half, c), times(half, power(c, Exp.int(2)))),
+          );
+        let visible_search = (profile, source, target) =>
+          Web.AxiomSearch.search(
+            ~level=profile.Axioms.level,
+            ~max_depth=1,
+            ~allowed_rule_ids=
+              Axioms.stage_plan_for_profile(profile, Manual).visible_rules
+              |> List.map((planned: Axioms.planned_visible_rule) =>
+                   planned.rule.id
+                 ),
+            ~log=false,
+            source,
+            target,
+          )
+          |> Option.is_some;
+        [Trigonometry, Calculus]
+        |> List.iter(level => {
+             let profile = Axioms.math_profile(level);
+             check(
+               bool,
+               Axioms.rewrite_level_label(level)
+               ++ " distributes a quotient using the visible primitive",
+               true,
+               visible_search(profile, source_quotient, source_distributed),
+             );
+             check(
+               bool,
+               Axioms.rewrite_level_label(level)
+               ++ " expands the resulting square using the visible identity",
+               true,
+               visible_search(profile, source_distributed, source_expansion),
+             );
+           });
+        let profile = Axioms.math_profile(Trigonometry);
+        let authorize = (profile, source) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage: Axioms.MultiStepCheck,
+            candidate_origin: Web.ProfileProofPlan.UserEntered,
+            settings,
+            env,
+            source,
+            target: screenshot_target,
+            max_depth: 4,
+            max_states: 80,
+          });
+        [
+          ("distributed quotient square", source_distributed),
+          ("nested quotient square", source_quotient),
+        ]
+        |> List.iter(((label, source)) => {
+             switch (authorize(profile, source)) {
+             | Authorized(plan) =>
+               check(
+                 bool,
+                 label
+                 ++ " reaches its rational polynomial target without search",
+                 true,
+                 List.mem("alg.square_of_difference", plan.capability_ids)
+                 && List.mem("alg.expand_polynomial", plan.capability_ids),
+               );
+               let request =
+                 Web.ProofSearchBackend.{
+                   backend: JSCoqTacticSearch,
+                   level: Trigonometry,
+                   max_depth: 4,
+                   max_states: 80,
+                   source,
+                   target: screenshot_target,
+                 };
+               let program =
+                 Web.ProofSearchBackend.rocq_program_for_authorized_plan(
+                   ~profile,
+                   request,
+                   plan,
+                 );
+               let path =
+                 label == "nested quotient square"
+                   ? "/tmp/hazel_nested_quotient_square.v"
+                   : "/tmp/hazel_distributed_quotient_square.v";
+               write_text_file(path, program);
+               check(
+                 bool,
+                 label ++ " emits exact field replay for rational division",
+                 true,
+                 string_contains("field.", program),
+               );
+             | Rejected(rejection) =>
+               fail(Web.ProfileProofPlan.rejection_message(rejection))
+             }
+           });
+        let three_quarters = divide(Exp.int(3), Exp.int(4));
+        let c_fifth = divide(c, Exp.int(5));
+        let different_source =
+          power(minus(three_quarters, c_fifth), Exp.int(2));
+        let different_expansion = square_expansion(three_quarters, c_fifth);
+        check(
+          bool,
+          "the primitive square identity handles different rational terms",
+          true,
+          visible_search(profile, different_source, different_expansion),
+        );
+        check(
+          bool,
+          "the primitive path rejects an incorrect expansion",
+          false,
+          visible_search(
+            profile,
+            different_source,
+            plus(different_expansion, Exp.int(1)),
+          ),
+        );
+        let without_division_distribution =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="alg.distribute_div_add",
+            profile,
+          );
+        check(
+          bool,
+          "disabling quotient distribution removes that primitive path",
+          false,
+          visible_search(
+            without_division_distribution,
+            source_quotient,
+            source_distributed,
+          ),
+        );
+        let without_square_identity =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="alg.square_of_difference",
+            profile,
+          );
+        check(
+          bool,
+          "the composed screenshot route still respects a disabled square identity",
+          false,
+          switch (authorize(without_square_identity, source_distributed)) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+        check(
+          bool,
+          "disabling the square identity removes that primitive path",
+          false,
+          visible_search(
+            without_square_identity,
+            source_distributed,
+            source_expansion,
+          ),
+        );
+        check(
+          bool,
+          "Calculus non-derivatives do not trigger derivative auto simplify",
+          false,
+          Web.MissingStep.auto_simplify_uses_profile(
+            Calculus,
+            source_quotient,
+          ),
+        );
+        check(
+          bool,
+          "Calculus derivatives retain profile-driven differentiation",
+          true,
+          Web.MissingStep.auto_simplify_uses_profile(
+            Calculus,
+            diff(power(x, Exp.int(2)), x),
           ),
         );
       },
@@ -3178,6 +4683,365 @@ let tests = (
       },
     ),
     test_case(
+      "rational polynomial cleanup composes inherited scalar normalization and expansion",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let c2 = builtin_cos(times(Exp.int(2), x));
+        let c4 = builtin_cos(times(Exp.int(4), x));
+        let source =
+          times(
+            Exp.int(2),
+            times(
+              divide(Exp.int(1), Exp.int(2)),
+              plus(
+                minus(divide(Exp.int(1), Exp.int(2)), c2),
+                times(
+                  divide(Exp.int(1), Exp.int(2)),
+                  power(c2, Exp.int(2)),
+                ),
+              ),
+            ),
+          );
+        let target =
+          plus(
+            minus(divide(Exp.int(1), Exp.int(2)), c2),
+            times(divide(Exp.int(1), Exp.int(2)), power(c2, Exp.int(2))),
+          );
+        let nested_argument_source =
+          plus(
+            Exp.int(1),
+            plus(
+              minus(divide(Exp.int(1), Exp.int(2)), c2),
+              times(
+                divide(Exp.int(1), Exp.int(2)),
+                divide(
+                  plus(
+                    Exp.int(1),
+                    builtin_cos(times(Exp.int(2), times(Exp.int(2), x))),
+                  ),
+                  Exp.int(2),
+                ),
+              ),
+            ),
+          );
+        let nested_argument_target =
+          plus(
+            minus(divide(Exp.int(7), Exp.int(4)), c2),
+            times(divide(Exp.int(1), Exp.int(4)), c4),
+          );
+        let authorize =
+            (~profile, ~stage=Axioms.MultiStepCheck, source, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage,
+            candidate_origin:
+              stage == Axioms.AutoEval
+                ? Web.ProfileProofPlan.AutomaticSimplify : UserEntered,
+            settings,
+            env,
+            source,
+            target,
+            max_depth: 6,
+            max_states: 80,
+          });
+        let scalar_nested_source =
+          Web.ArithmeticNormalization.simplify_scalar_products(
+            nested_argument_source,
+          );
+        check(
+          bool,
+          "the nested screenshot retains a rational expansion shape after scalar cleanup",
+          true,
+          Web.RewriteChecker.contains_rational_polynomial_expansion_shape(
+            nested_argument_source,
+          )
+          || Web.RewriteChecker.contains_rational_polynomial_expansion_shape(
+               scalar_nested_source,
+             ),
+        );
+        check(
+          bool,
+          "the nested screenshot endpoints have the same exact rational polynomial",
+          true,
+          Web.RewriteChecker.rational_polynomial_equivalent(
+            scalar_nested_source,
+            nested_argument_target,
+          ),
+        );
+        check(
+          bool,
+          "the nested screenshot transition has a direct catalog expansion witness",
+          true,
+          Web.RewriteChecker.rational_polynomial_expansion_trace_for_profile(
+            ~profile=Axioms.math_profile(Trigonometry),
+            ~stage=Axioms.MultiStepCheck,
+            nested_argument_source,
+            nested_argument_target,
+          )
+          |> Option.is_some,
+        );
+        [Trigonometry, Calculus]
+        |> List.iter(level => {
+             let profile = Axioms.math_profile(level);
+             [
+               (source, target, false),
+               (nested_argument_source, nested_argument_target, true),
+             ]
+             |> List.iter(((source, target, needs_expansion)) =>
+                  switch (authorize(~profile, source, target)) {
+                  | Authorized(plan) =>
+                    check(
+                      bool,
+                      Axioms.rewrite_level_label(level)
+                      ++ " records scalar cleanup and polynomial expansion",
+                      true,
+                      List.mem(
+                        "arith.simplify_scalar_products",
+                        plan.capability_ids,
+                      )
+                      && (
+                        !needs_expansion
+                        || List.mem(
+                             "alg.expand_polynomial",
+                             plan.capability_ids,
+                           )
+                      ),
+                    )
+                  | Rejected(rejection) =>
+                    fail(Web.ProfileProofPlan.rejection_message(rejection))
+                  }
+                );
+             check(
+               bool,
+               Axioms.rewrite_level_label(level)
+               ++ " Auto Simplify has the same rational-polynomial authority",
+               true,
+               switch (
+                 authorize(~profile, ~stage=Axioms.AutoEval, source, target)
+               ) {
+               | Authorized(_) => true
+               | Rejected(_) => false
+               },
+             );
+           });
+        let profile = Axioms.math_profile(Trigonometry);
+        let half = divide(Exp.int(1), Exp.int(2));
+        let scalar_target = minus(half, c2);
+        let scalar_source = times(times(Exp.int(2), half), scalar_target);
+        let opaque_fx = app("f", x);
+        let opaque_target =
+          plus(opaque_fx, divide(Exp.int(3), Exp.int(4)));
+        let opaque_source = times(times(Exp.int(2), half), opaque_target);
+        [
+          (
+            "cosine scalar cleanup",
+            "/tmp/hazel_profile_rational_scalar_cos.v",
+            scalar_source,
+            scalar_target,
+          ),
+          (
+            "opaque-function scalar cleanup",
+            "/tmp/hazel_profile_rational_scalar_opaque.v",
+            opaque_source,
+            opaque_target,
+          ),
+          (
+            "rational polynomial cleanup",
+            "/tmp/hazel_profile_rational_polynomial_cos.v",
+            source,
+            target,
+          ),
+        ]
+        |> List.iter(((label, path, source, target)) => {
+             let plan =
+               switch (authorize(~profile, source, target)) {
+               | Authorized(plan) => plan
+               | Rejected(rejection) =>
+                 fail(
+                   label
+                   ++ ": "
+                   ++ Web.ProfileProofPlan.rejection_message(rejection),
+                 )
+               };
+             let request =
+               Web.ProofSearchBackend.{
+                 backend: JSCoqTacticSearch,
+                 level: Trigonometry,
+                 max_depth: 6,
+                 max_states: 80,
+                 source,
+                 target,
+               };
+             let program =
+               Web.ProofSearchBackend.rocq_program_for_authorized_plan(
+                 ~profile,
+                 request,
+                 plan,
+               );
+             write_text_file(path, program);
+             check(
+               bool,
+               label ++ " emits exact profile replay",
+               true,
+               string_contains(
+                 "Exact replay of the Hazel profile trace",
+                 program,
+               )
+               && !string_contains("ERROR", program),
+             );
+             if (label == "rational polynomial cleanup") {
+               check(
+                 bool,
+                 "multiple recorded transitions compose by equality transitivity",
+                 true,
+                 string_contains("exact (eq_trans", program)
+                 && !string_contains("try rewrite <- H_hazel_step_", program),
+               );
+               let contextual =
+                 Web.CoqProofExport.tactic_for_written_summary(
+                   ~forall_str="forall x : R,",
+                   ~domain=Web.CoqExport.Reals,
+                   plan.summary,
+                 );
+               check(
+                 bool,
+                 "embedded derivation replay rewrites local transitions forward",
+                 true,
+                 string_contains("rewrite H_hazel_step_1.", contextual)
+                 && string_contains("rewrite H_hazel_step_2.", contextual)
+                 && !string_contains("exact (eq_trans", contextual),
+               );
+               let embedded_source = plus(Exp.int(1), target);
+               let embedded_target = plus(Exp.int(1), source);
+               let contextual_program =
+                 Web.CoqProofExport.real_prelude
+                 ++ "\nTheorem hazel_contextual_replay:forall x : R,"
+                 ++ Web.CoqExport.string_of_d_for_domain(
+                      ~domain=Web.CoqExport.Reals,
+                      embedded_source,
+                    )
+                 ++ "="
+                 ++ Web.CoqExport.string_of_d_for_domain(
+                      ~domain=Web.CoqExport.Reals,
+                      embedded_target,
+                    )
+                 ++ ".\nProof.\nintros.\n"
+                 ++ contextual
+                 ++ "\nQed.\n";
+               write_text_file(
+                 "/tmp/hazel_profile_contextual_rational_polynomial.v",
+                 contextual_program,
+               );
+             };
+           });
+        let scalar_replay_step =
+          Web.ProofTrace.prover_step(
+            ~origin=Web.ProofTrace.Normalization,
+            ~rule_id="arith.simplify_scalar_products",
+            ~before_full_exp=scalar_source,
+            ~after_full_exp=scalar_target,
+            ~before_exp=scalar_source,
+            ~after_exp=scalar_target,
+            ~detail="normalize rational scalars around an opaque atom",
+          );
+        check(
+          bool,
+          "real scalar replay avoids ring on rational opaque expressions",
+          true,
+          Web.CoqProofExport.tactic_for_prover_step(
+            ~domain=Web.CoqExport.Reals,
+            scalar_replay_step,
+          )
+          |> string_contains("first [lra | field"),
+        );
+        check(
+          bool,
+          "an incorrect rational-polynomial target is rejected",
+          false,
+          switch (authorize(~profile, source, plus(target, Exp.int(1)))) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+        let without_expansion =
+          Axioms.profile_with_capability_disabled(
+            profile,
+            "alg.expand_polynomial",
+          );
+        check(
+          bool,
+          "disabled polynomial expansion is not recovered by scalar cleanup",
+          false,
+          switch (authorize(~profile=without_expansion, source, target)) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+        let without_scalar_cleanup =
+          Axioms.profile_with_capability_disabled(
+            profile,
+            "arith.simplify_scalar_products",
+          );
+        check(
+          bool,
+          "disabled scalar cleanup is not recovered by the expansion macro",
+          false,
+          switch (authorize(~profile=without_scalar_cleanup, source, target)) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+        let noncommutative =
+          Axioms.profile_with_capability_disabled(profile, "mul.comm");
+        let commutativity_required_source =
+          times(
+            divide(Exp.int(1), Exp.int(2)),
+            times(target, Exp.int(2)),
+          );
+        check(
+          bool,
+          "compact commutative polynomial cleanup is unavailable without MulComm",
+          true,
+          Web.RewriteChecker.rational_polynomial_expansion_trace_for_profile(
+            ~profile=noncommutative,
+            ~stage=Axioms.MultiStepCheck,
+            commutativity_required_source,
+            target,
+          )
+          |> Option.is_none,
+        );
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let d = Exp.var("d");
+        let structurally_different_source =
+          times(
+            Exp.int(3),
+            plus(
+              times(divide(Exp.int(1), Exp.int(3)), plus(a, b)),
+              times(divide(Exp.int(2), Exp.int(3)), d),
+            ),
+          );
+        let structurally_different_target =
+          plus(plus(a, b), times(Exp.int(2), d));
+        check(
+          bool,
+          "a structurally different rational distribution is authorized",
+          true,
+          switch (
+            authorize(
+              ~profile,
+              structurally_different_source,
+              structurally_different_target,
+            )
+          ) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+      },
+    ),
+    test_case(
       "profile board default examples run through the real checker",
       `Quick,
       () => {
@@ -3246,10 +5110,12 @@ let tests = (
             "arith.const_fold",
             "arith.mul_const",
             "arith.mul_identity",
+            "arith.simplify_scalar_products",
             "alg.distribute_mul_add",
             "alg.distribute_div_add",
             "alg.factor_common",
             "alg.cancel_common_add",
+            "alg.expand_polynomial",
             "alg.difference_of_squares",
             "alg.square_of_sum",
             "alg.square_of_difference",
@@ -3266,6 +5132,7 @@ let tests = (
             _const_fold,
             _mul_const,
             _mul_identity,
+            _scalar_normalize,
             distribution,
             _division_distribution,
             _factor,
@@ -3406,7 +5273,7 @@ let tests = (
       },
     ),
     test_case(
-      "profile board controls repeated distribution only in One Step",
+      "polynomial expansion macro has stage-specific usage",
       `Quick,
       () => {
         let base_profile = Axioms.math_profile(Algebra);
@@ -3414,29 +5281,39 @@ let tests = (
           bool,
           "Algebra defaults to repeated distribution enabled",
           true,
-          base_profile.one_step_policy.allow_polynomial_expansion,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(base_profile, Manual),
+            "alg.expand_polynomial",
+          ),
         );
-        let model =
-          Web.ProfileBoard.Model.init
-          |> Web.ProfileBoard.Update.update(
-               Web.ProfileBoard.Update.SetOneStepOptionEnabled(
-                 Web.ProfileBoard.repeated_distribution_option_id,
-                 false,
-               ),
-             );
         let profile =
-          Web.ProfileBoard.apply_model_to_profile(model, base_profile);
+          Axioms.profile_with_capability_usage_overrides(
+            base_profile,
+            [
+              {
+                capability_id: "alg.expand_polynomial",
+                stage: Manual,
+                usage: Disabled,
+              },
+            ],
+          );
         check(
           bool,
           "Profile option disables repeated One Step distribution",
           false,
-          profile.one_step_policy.allow_polynomial_expansion,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(profile, Manual),
+            "alg.expand_polynomial",
+          ),
         );
         check(
           bool,
           "Check Result expansion selection remains enabled",
           true,
-          List.mem("alg.expand_polynomial", profile.check_result_rule_ids),
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(profile, MultiStepCheck),
+            "alg.expand_polynomial",
+          ),
         );
         check(
           bool,
@@ -3447,24 +5324,15 @@ let tests = (
             "alg.distribute_mul_add",
           ),
         );
-        let reenabled_model =
-          model
-          |> Web.ProfileBoard.Update.update(
-               SetOneStepOptionEnabled(
-                 Web.ProfileBoard.repeated_distribution_option_id,
-                 true,
-               ),
-             );
-        let reenabled =
-          Web.ProfileBoard.apply_model_to_profile(
-            reenabled_model,
-            base_profile,
-          );
+        let reenabled = base_profile;
         check(
           bool,
           "re-enabling restores repeated One Step distribution",
           true,
-          reenabled.one_step_policy.allow_polynomial_expansion,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(reenabled, Manual),
+            "alg.expand_polynomial",
+          ),
         );
       },
     ),
@@ -3511,7 +5379,7 @@ let tests = (
       },
     ),
     test_case(
-      "Trig and Calculus profile subgroups come from rule metadata",
+      "Algebra, Trig, and Calculus profile subgroups come from rule metadata",
       `Quick,
       () => {
         let subgroup = rule_id =>
@@ -3537,14 +5405,20 @@ let tests = (
         check(
           option(string),
           "trigonometric derivative subgroup",
-          Some("Chain and trigonometric derivatives"),
+          Some("Trigonometric chain rules"),
           subgroup("calc.diff_chain_cos"),
         );
         check(
           option(string),
-          "Algebra remains flat",
-          None,
+          "Algebra distribution subgroup",
+          Some("Distribution and factoring"),
           subgroup("alg.factor_common"),
+        );
+        check(
+          option(string),
+          "Algebra square identity subgroup",
+          Some("Square identities"),
+          subgroup("alg.square_of_sum"),
         );
         let subgroup_id = "visible-subgroup:Calculus:Linearity";
         check(
@@ -3572,6 +5446,64 @@ let tests = (
             subgroup_id,
           ),
         );
+        let builder =
+          Web.MathModeBuilder.Model.blank
+          |> Web.MathModeBuilder.Update.update(
+               SetOperationGroupExpanded("Distribution and factoring", true),
+             );
+        check(
+          bool,
+          "builder operation subgroup expands independently",
+          true,
+          List.mem(
+            "Distribution and factoring",
+            builder.Web.MathModeBuilder.Model.expanded_operation_groups,
+          ),
+        );
+        check(
+          bool,
+          "builder exposes inherited Check Result-only normalizers",
+          true,
+          Web.MathModeBuilder.check_result_normalizers_for_level(Trigonometry)
+          |> List.exists((rule: Axioms.math_rule) =>
+               rule.id == "arith.affine_normalize"
+             ),
+        );
+        check(
+          bool,
+          "builder does not duplicate visible operations as helpers",
+          false,
+          Web.MathModeBuilder.check_result_normalizers_for_level(Trigonometry)
+          |> List.exists((rule: Axioms.math_rule) =>
+               rule.id == "alg.expand_polynomial"
+             ),
+        );
+        let without_affine_normalization =
+          Web.MathModeBuilder.Model.blank
+          |> Web.MathModeBuilder.Update.update(
+               SetUsage(
+                 "arith.affine_normalize",
+                 Axioms.MultiStepCheck,
+                 Axioms.Disabled,
+               ),
+             );
+        switch (
+          Web.MathModeBuilder.resolved_profile(without_affine_normalization)
+        ) {
+        | Ok(profile) =>
+          check(
+            bool,
+            "builder Check Result helper control disables its normalizer",
+            false,
+            Axioms.normalization_rule_id_enabled_for_profile(
+              profile,
+              MultiStepCheck,
+              "arith.affine_normalize",
+            ),
+          )
+        | Error(error) =>
+          fail(CustomMathMode.resolution_error_message(error))
+        };
       },
     ),
     test_case(
@@ -4230,14 +6162,7 @@ let tests = (
           };
         let replay = (label, path, source, target) => {
           let request = request(source, target);
-          switch (
-            Web.ProofSearchBackend.local_profile_trace(
-              ~profile,
-              ~settings,
-              ~env,
-              request,
-            )
-          ) {
+          switch (local_profile_trace(~profile, ~settings, ~env, request)) {
           | Some(summary) =>
             let program =
               Web.ProofSearchBackend.rocq_replay_program(request, summary);
@@ -4255,7 +6180,31 @@ let tests = (
               string_contains("ring", program)
               || string_contains("nra", program),
             );
-          | None => fail(label ++ " should have an enabled profile trace")
+          | None =>
+            switch (
+              Web.ProfileProofPlan.authorize({
+                profile,
+                stage: Axioms.MultiStepCheck,
+                candidate_origin: Web.ProfileProofPlan.UserEntered,
+                settings,
+                env,
+                source,
+                target,
+                max_depth: request.max_depth,
+                max_states: request.max_states,
+              })
+            ) {
+            | Web.ProfileProofPlan.Rejected(rejection) =>
+              fail(
+                label
+                ++ " should have an enabled profile trace: "
+                ++ Web.ProfileProofPlan.rejection_message(rejection),
+              )
+            | Authorized(_) =>
+              fail(
+                label ++ " compatibility facade dropped an authorized plan",
+              )
+            }
           };
         };
         replay(
@@ -4290,12 +6239,7 @@ let tests = (
         );
         let identity_request = request(power(x, Exp.int(1)), x);
         switch (
-          Web.ProofSearchBackend.local_profile_trace(
-            ~profile,
-            ~settings,
-            ~env,
-            identity_request,
-          )
+          local_profile_trace(~profile, ~settings, ~env, identity_request)
         ) {
         | Some(summary) =>
           let program =
@@ -4341,12 +6285,7 @@ let tests = (
           bool,
           "disabled identity has no profile trace",
           true,
-          Web.ProofSearchBackend.local_profile_trace(
-            ~profile,
-            ~settings,
-            ~env,
-            request,
-          )
+          local_profile_trace(~profile, ~settings, ~env, request)
           |> Option.is_none,
         );
         let program =
@@ -4647,11 +6586,23 @@ let tests = (
           sine_action.after_exp,
         );
         let sine_trace =
-          Web.AxiomsBox.calculus_trace_summary_for_profile(
-            ~profile,
-            ~selected_exp=sine_source,
-            sine_action,
-          );
+          switch (
+            Web.ProfileProofPlan.authorize({
+              profile,
+              stage: Manual,
+              candidate_origin: DisplayedSuggestion,
+              settings,
+              env,
+              source: sine_source,
+              target: sine_action.after_exp,
+              max_depth: 1,
+              max_states: 80,
+            })
+          ) {
+          | Authorized(plan) => plan.summary
+          | Rejected(rejection) =>
+            fail(Web.ProfileProofPlan.rejection_message(rejection))
+          };
         check(
           bool,
           "sine cleanup remains explicit in the proof trace",
@@ -4675,11 +6626,23 @@ let tests = (
           | _ => fail("expected one product action")
           };
         let summary =
-          Web.AxiomsBox.calculus_trace_summary_for_profile(
-            ~profile,
-            ~selected_exp=source,
-            action,
-          );
+          switch (
+            Web.ProfileProofPlan.authorize({
+              profile,
+              stage: Manual,
+              candidate_origin: DisplayedSuggestion,
+              settings,
+              env,
+              source,
+              target: action.after_exp,
+              max_depth: 1,
+              max_states: 80,
+            })
+          ) {
+          | Authorized(plan) => plan.summary
+          | Rejected(rejection) =>
+            fail(Web.ProfileProofPlan.rejection_message(rejection))
+          };
         check(bool, "trace remains exportable", true, summary.exportable);
         check(
           bool,
@@ -4711,9 +6674,7 @@ let tests = (
           summary.prover_steps
           |> List.rev
           |> ListUtil.hd_opt
-          |> Option.map((step: Web.RewriteChecker.prover_step) =>
-               step.after_exp
-             )
+          |> Option.map((step: Web.ProofTrace.prover_step) => step.after_exp)
           |> Option.value(~default=source),
         );
         let replay =
@@ -4745,11 +6706,23 @@ let tests = (
           | _ => fail("expected one sum action")
           };
         let sum_summary =
-          Web.AxiomsBox.calculus_trace_summary_for_profile(
-            ~profile,
-            ~selected_exp=sum_source,
-            sum_action,
-          );
+          switch (
+            Web.ProfileProofPlan.authorize({
+              profile,
+              stage: Manual,
+              candidate_origin: DisplayedSuggestion,
+              settings,
+              env,
+              source: sum_source,
+              target: sum_action.after_exp,
+              max_depth: 1,
+              max_states: 80,
+            })
+          ) {
+          | Authorized(plan) => plan.summary
+          | Rejected(rejection) =>
+            fail(Web.ProfileProofPlan.rejection_message(rejection))
+          };
         check(
           int,
           "linearity remains one visible step",
@@ -4997,7 +6970,7 @@ let tests = (
             "JSCoq failed: Stack overflow.",
           ),
         );
-        let cancellation_summary: Web.RewriteChecker.trace_summary = {
+        let cancellation_summary: Web.ProofTrace.trace_summary = {
           justification: "algebra one step",
           group_name: Some("Algebra"),
           from_normal_exp: Exp.var("x"),
@@ -5146,9 +7119,94 @@ let tests = (
         );
         check(
           bool,
-          "matching cancellation restores Ready",
+          "matching cancellation records Cancelled",
           true,
-          state(cancelled_result) == (false, Ready, None),
+          state(cancelled_result) == (false, Cancelled, None),
+        );
+      },
+    ),
+    test_case(
+      "incremental axiom search preserves positive negative and disabled-rule behavior",
+      `Quick,
+      () => {
+        let finish = progress => {
+          let rec loop = (slices, progress) =>
+            switch (Web.AxiomSearch.continue_search(~work_budget=1, progress)) {
+            | SearchComplete(result) => (slices + 1, result)
+            | SearchPending(_) as progress => loop(slices + 1, progress)
+            };
+          loop(0, progress);
+        };
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let z = Exp.var("z");
+        let distribution_source = times(x, plus(y, z));
+        let distribution_target = plus(times(x, y), times(x, z));
+        let (distribution_slices, distribution_result) =
+          Web.AxiomSearch.start_search(
+            ~level=Axioms.Algebra,
+            ~max_depth=1,
+            ~allowed_rule_ids=["alg.distribute_mul_add"],
+            distribution_source,
+            distribution_target,
+          )
+          |> finish;
+        let (_identity_slices, identity_result) =
+          Web.AxiomSearch.start_search(
+            ~level=Axioms.Algebra,
+            ~max_depth=1,
+            ~allowed_rule_ids=["arith.add_zero"],
+            plus(x, Exp.int(0)),
+            x,
+          )
+          |> finish;
+        let (_negative_slices, negative_result) =
+          Web.AxiomSearch.start_search(
+            ~level=Axioms.Algebra,
+            ~max_depth=1,
+            ~allowed_rule_ids=["arith.add_zero"],
+            plus(x, Exp.int(0)),
+            plus(x, Exp.int(1)),
+          )
+          |> finish;
+        let (_disabled_slices, disabled_result) =
+          Web.AxiomSearch.start_search(
+            ~level=Axioms.Algebra,
+            ~max_depth=1,
+            ~allowed_rule_ids=["arith.mul_identity"],
+            plus(x, Exp.int(0)),
+            x,
+          )
+          |> finish;
+        check(
+          bool,
+          "distribution spans task slices",
+          true,
+          distribution_slices > 1,
+        );
+        check(
+          bool,
+          "distribution remains provable",
+          true,
+          Option.is_some(distribution_result),
+        );
+        check(
+          bool,
+          "different identity remains provable",
+          true,
+          Option.is_some(identity_result),
+        );
+        check(
+          bool,
+          "wrong target remains rejected",
+          true,
+          Option.is_none(negative_result),
+        );
+        check(
+          bool,
+          "disabled required rule remains rejected",
+          true,
+          Option.is_none(disabled_result),
         );
       },
     ),
@@ -5740,7 +7798,7 @@ let tests = (
             source,
             target,
           )
-          |> Option.map((trace: Web.RewriteChecker.trace_summary) =>
+          |> Option.map((trace: Web.ProofTrace.trace_summary) =>
                trace.justification
              ),
         );
@@ -5986,12 +8044,11 @@ let tests = (
         let c = Exp.var("c");
         let d = Exp.var("d");
         let profile = Axioms.math_profile(Algebra);
-        let without_expansion = {
-          ...profile,
-          check_result_rule_ids:
-            profile.check_result_rule_ids
-            |> List.filter(rule_id => rule_id != "alg.expand_polynomial"),
-        };
+        let without_expansion =
+          Axioms.profile_with_capability_disabled(
+            profile,
+            "alg.expand_polynomial",
+          );
         let trace = (profile, source, target) =>
           Web.RewriteChecker.check_written_step_trace_for_profile(
             ~profile,
@@ -6044,7 +8101,7 @@ let tests = (
           bool,
           "disabled expansion is not recovered by later profile search",
           false,
-          Web.ProofSearchBackend.local_profile_trace(
+          local_profile_trace(
             ~profile=without_expansion,
             ~settings,
             ~env,
@@ -6122,18 +8179,16 @@ let tests = (
             Exp.int(10),
           );
         let base_profile = Axioms.math_profile(Algebra);
-        let single_distribution_model =
-          Web.ProfileBoard.Model.init
-          |> Web.ProfileBoard.Update.update(
-               SetOneStepOptionEnabled(
-                 Web.ProfileBoard.repeated_distribution_option_id,
-                 false,
-               ),
-             );
         let single_distribution_profile =
-          Web.ProfileBoard.apply_model_to_profile(
-            single_distribution_model,
+          Axioms.profile_with_capability_usage_overrides(
             base_profile,
+            [
+              {
+                capability_id: "alg.expand_polynomial",
+                stage: Manual,
+                usage: Disabled,
+              },
+            ],
           );
         let one_step = (profile, target) =>
           Web.RewriteChecker.check_single_step_result_for_profile(
@@ -6220,7 +8275,7 @@ let tests = (
             target,
           };
         let trace = (~profile, source, target) =>
-          Web.ProofSearchBackend.local_profile_trace(
+          local_profile_trace(
             ~profile,
             ~settings,
             ~env,
@@ -6397,7 +8452,7 @@ let tests = (
       () => {
         let source = plus(Exp.int(6), Exp.int(0));
         let target = Exp.int(6);
-        let step: Web.RewriteChecker.prover_step = {
+        let step: Web.ProofTrace.prover_step = {
           origin: Normalization,
           rule_id: "add.identity",
           before_full_exp: source,
@@ -6407,7 +8462,7 @@ let tests = (
           occurrence: 1,
           detail: Some("selected one profile cleanup rewrite"),
         };
-        let summary: Web.RewriteChecker.trace_summary = {
+        let summary: Web.ProofTrace.trace_summary = {
           justification: "calculus cleanup",
           group_name: Some("calculus"),
           from_normal_exp: source,
@@ -6536,7 +8591,7 @@ let tests = (
           };
         let profile = Axioms.math_profile(Trigonometry);
         let check_trace = (~profile, source, target) =>
-          Web.ProofSearchBackend.local_profile_trace(
+          local_profile_trace(
             ~profile,
             ~settings,
             ~env,
@@ -7262,6 +9317,152 @@ let tests = (
       },
     ),
     test_case(
+      "exact rational constant folding is general and profile gated",
+      `Quick,
+      () => {
+        let profile = Axioms.math_profile(Arithmetic);
+        let visible_rule_ids = profile =>
+          Axioms.stage_plan_for_profile(profile, Manual).visible_rules
+          |> List.map((planned: Axioms.planned_visible_rule) =>
+               planned.rule.id
+             );
+        let accepts = (profile, source, target) =>
+          Web.AxiomSearch.search(
+            ~level=profile.Axioms.level,
+            ~max_depth=1,
+            ~allowed_rule_ids=visible_rule_ids(profile),
+            ~log=false,
+            source,
+            target,
+          )
+          |> Option.is_some;
+        let half = divide(Exp.int(1), Exp.int(2));
+        [
+          (
+            "rational power",
+            power(half, Exp.int(2)),
+            divide(Exp.int(1), Exp.int(4)),
+          ),
+          (
+            "rational addition",
+            plus(half, divide(Exp.int(1), Exp.int(3))),
+            divide(Exp.int(5), Exp.int(6)),
+          ),
+          (
+            "nested rational division",
+            divide(
+              divide(Exp.int(3), Exp.int(4)),
+              divide(Exp.int(2), Exp.int(5)),
+            ),
+            divide(Exp.int(15), Exp.int(8)),
+          ),
+        ]
+        |> List.iter(((label, source, target)) =>
+             check(bool, label, true, accepts(profile, source, target))
+           );
+        check(
+          bool,
+          "an incorrect rational result is rejected",
+          false,
+          accepts(
+            profile,
+            plus(half, divide(Exp.int(1), Exp.int(3))),
+            divide(Exp.int(4), Exp.int(5)),
+          ),
+        );
+        let without_constant_folding =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="arith.const_fold",
+            profile,
+          );
+        check(
+          bool,
+          "disabling Evaluate constants removes rational folding",
+          false,
+          accepts(
+            without_constant_folding,
+            power(half, Exp.int(2)),
+            divide(Exp.int(1), Exp.int(4)),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "rational constant and scalar cleanup finish before breadth-first expansion",
+      `Quick,
+      () => {
+        let half = divide(Exp.int(1), Exp.int(2));
+        switch (
+          Web.AxiomSearch.start_search(
+            ~level=Axioms.Arithmetic,
+            ~max_depth=1,
+            ~max_states=1,
+            ~allowed_rule_ids=["arith.const_fold"],
+            power(half, Exp.int(2)),
+            divide(Exp.int(1), Exp.int(4)),
+          )
+        ) {
+        | SearchComplete(Some(result)) =>
+          check(
+            list(string),
+            "constant fold evidence",
+            ["arith.const_fold"],
+            result.applications
+            |> List.map((app: Web.AxiomSearch.application) => app.rule.id),
+          )
+        | _ => fail("expected immediate rational constant-fold finish")
+        };
+        let x = Exp.var("x");
+        switch (
+          Web.AxiomSearch.start_search(
+            ~level=Axioms.Algebra,
+            ~max_depth=1,
+            ~max_states=1,
+            ~allowed_rule_ids=["arith.simplify_scalar_products"],
+            times(Exp.int(2), times(Exp.int(3), x)),
+            times(Exp.int(6), x),
+          )
+        ) {
+        | SearchComplete(Some(result)) =>
+          check(
+            list(string),
+            "scalar cleanup evidence",
+            ["arith.simplify_scalar_products"],
+            result.applications
+            |> List.map((app: Web.AxiomSearch.application) => app.rule.id),
+          )
+        | _ => fail("expected immediate scalar-cleanup finish")
+        };
+      },
+    ),
+    test_case(
+      "real rational constant-fold replay uses an exact field certificate",
+      `Quick,
+      () => {
+        let source = power(divide(Exp.int(1), Exp.int(2)), Exp.int(2));
+        let target = divide(Exp.int(1), Exp.int(4));
+        let step =
+          Web.ProofTrace.prover_step(
+            ~origin=Web.ProofTrace.Normalization,
+            ~rule_id="arith.const_fold",
+            ~before_full_exp=source,
+            ~after_full_exp=target,
+            ~before_exp=source,
+            ~after_exp=target,
+            ~detail="exact rational constant fold",
+          );
+        check(
+          string,
+          "field replay",
+          "field.",
+          Web.CoqProofExport.recorded_transition_replay_script(
+            ~domain=Web.CoqExport.Reals,
+            [step],
+          ),
+        );
+      },
+    ),
+    test_case(
       "proof search backend routes local axiom search",
       `Quick,
       () => {
@@ -7370,7 +9571,7 @@ let tests = (
           bool,
           "arithmetic macro is labeled",
           true,
-          Web.ProofSearchBackend.collapsed_macro_summary(arithmetic_request)
+          collapsed_macro_summary(arithmetic_request)
           |> (
             summary =>
               List.mem("rocq.arithmetic_tactic_search", summary.rule_ids)
@@ -7412,7 +9613,7 @@ let tests = (
           bool,
           "algebra macro is labeled",
           true,
-          Web.ProofSearchBackend.collapsed_macro_summary(algebra_request)
+          collapsed_macro_summary(algebra_request)
           |> (
             summary =>
               List.mem("rocq.algebra_tactic_search", summary.rule_ids)
@@ -7622,7 +9823,7 @@ let tests = (
           ),
         );
         let primitive_summary =
-          Web.ProofSearchBackend.collapsed_macro_summary_for_purpose(
+          collapsed_macro_summary_for_purpose(
             ~purpose=ValidatePrimitiveStep,
             algebra_request,
           );
@@ -7638,7 +9839,7 @@ let tests = (
           string_contains("hazel_algebra_primitive_plan", primitive_detail),
         );
         let auto_summary =
-          Web.ProofSearchBackend.collapsed_macro_summary_for_purpose(
+          collapsed_macro_summary_for_purpose(
             ~purpose=AutoSimplify,
             algebra_request,
           );
@@ -8234,9 +10435,7 @@ let tests = (
           bool,
           "trig-mode algebra macro is labeled algebra",
           true,
-          Web.ProofSearchBackend.collapsed_macro_summary(
-            algebra_in_trig_request,
-          )
+          collapsed_macro_summary(algebra_in_trig_request)
           |> (
             summary =>
               List.mem("rocq.algebra_tactic_search", summary.rule_ids)
@@ -8450,46 +10649,6 @@ let tests = (
         let quotient_square_numerator =
           minus(Exp.int(1), builtin_cos(times(Exp.int(2), x)));
         let quotient_square = divide(quotient_square_numerator, Exp.int(2));
-        let cos_2x = builtin_cos(times(Exp.int(2), x));
-        let rational_square_request =
-          Web.ProofSearchBackend.{
-            backend: Web.ProofSearchBackend.JSCoqTacticSearch,
-            level: Trigonometry,
-            max_depth: 4,
-            max_states: 80,
-            source: times(Exp.int(2), power(quotient_square, Exp.int(2))),
-            target:
-              plus(
-                minus(divide(Exp.int(1), Exp.int(2)), cos_2x),
-                times(
-                  divide(Exp.int(1), Exp.int(2)),
-                  power(cos_2x, Exp.int(2)),
-                ),
-              ),
-          };
-        let rational_square_coq =
-          Web.ProofSearchBackend.rocq_search_program(rational_square_request);
-        write_text_file(
-          "/tmp/hazel_stepper_rocq_rational_square_normalize.v",
-          rational_square_coq,
-        );
-        check(
-          bool,
-          "trig Check Result includes bounded rational-square normalization",
-          true,
-          string_contains(
-            "solve [hazel_rational_square_normalize]",
-            rational_square_coq,
-          ),
-        );
-        check(
-          bool,
-          "rational-square proof avoids Rocq 9-only division lemmas",
-          false,
-          string_contains("Rdiv_mult_distr", rational_square_coq)
-          || string_contains("Rmult_div_assoc", rational_square_coq)
-          || string_contains("Rmult_div_r", rational_square_coq),
-        );
         let real_quotient_square_request =
           Web.ProofSearchBackend.{
             backend: Web.ProofSearchBackend.JSCoqTacticSearch,
@@ -8843,7 +11002,7 @@ let tests = (
                  minus_source,
                  minus_target,
                )
-               |> Option.map((summary: Web.RewriteChecker.trace_summary) =>
+               |> Option.map((summary: Web.ProofTrace.trace_summary) =>
                     summary.rule_ids == ["alg.distribute_div_add"]
                   )
                |> Option.value(~default=false),
@@ -8907,13 +11066,13 @@ let tests = (
           bool,
           "Check Result records the inherited division rule",
           true,
-          Web.ProofSearchBackend.local_profile_trace(
+          local_profile_trace(
             ~profile=Axioms.math_profile(Trigonometry),
             ~settings,
             ~env,
             check_result_request,
           )
-          |> Option.map((summary: Web.RewriteChecker.trace_summary) =>
+          |> Option.map((summary: Web.ProofTrace.trace_summary) =>
                List.mem("alg.distribute_div_add", summary.rule_ids)
              )
           |> Option.value(~default=false),
@@ -8927,7 +11086,7 @@ let tests = (
           bool,
           "Check Result rejects the same target when the rule is disabled",
           true,
-          Web.ProofSearchBackend.local_profile_trace(
+          local_profile_trace(
             ~profile=disabled_trig_profile,
             ~settings,
             ~env,
@@ -9435,7 +11594,7 @@ let tests = (
             "trace includes sine sum",
             true,
             result.steps
-            |> List.exists((step: Web.RewriteChecker.prover_step) =>
+            |> List.exists((step: Web.ProofTrace.prover_step) =>
                  step.rule_id == "trig.sin_sum"
                ),
           );
@@ -9444,7 +11603,7 @@ let tests = (
             "trace includes multiplication reorder",
             true,
             result.steps
-            |> List.exists((step: Web.RewriteChecker.prover_step) =>
+            |> List.exists((step: Web.ProofTrace.prover_step) =>
                  step.rule_id == "arith.reorder_mul_factors"
                ),
           );
@@ -9672,7 +11831,7 @@ let tests = (
             "trace includes sine double-angle",
             true,
             result.steps
-            |> List.exists((step: Web.RewriteChecker.prover_step) =>
+            |> List.exists((step: Web.ProofTrace.prover_step) =>
                  step.rule_id == "trig.sin_double"
                ),
           );
@@ -9681,7 +11840,7 @@ let tests = (
             "trace includes multiplication reorder",
             true,
             result.steps
-            |> List.exists((step: Web.RewriteChecker.prover_step) =>
+            |> List.exists((step: Web.ProofTrace.prover_step) =>
                  step.rule_id == "arith.reorder_mul_factors"
                ),
           );
@@ -9791,7 +11950,7 @@ let tests = (
             "uses small addition reorder",
             true,
             result.steps
-            |> List.exists((step: Web.RewriteChecker.prover_step) =>
+            |> List.exists((step: Web.ProofTrace.prover_step) =>
                  step.rule_id == "arith.reorder_add_terms"
                ),
           );
@@ -10327,7 +12486,7 @@ let tests = (
           string,
           "label",
           "affine normalization",
-          Web.RewriteChecker.trace_summary_label(summary),
+          Web.ProofTrace.trace_summary_label(summary),
         );
         check(
           option(string),
@@ -10537,7 +12696,7 @@ let tests = (
         );
 
         let trace =
-          Web.ProofSearchBackend.collapsed_macro_summary(
+          collapsed_macro_summary(
             Web.ProofSearchBackend.{
               backend: JSCoqTacticSearch,
               level: Arithmetic,
@@ -11456,6 +13615,63 @@ let tests = (
       },
     ),
     test_case(
+      "real export replays trig-argument scalar cleanup and rational distribution",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let nested_cos =
+          builtin_cos(times(Exp.int(2), times(Exp.int(2), x)));
+        let cos_4x = builtin_cos(times(Exp.int(4), x));
+        let scalar_step =
+          Web.ProofTrace.prover_step(
+            ~origin=Web.ProofTrace.Normalization,
+            ~rule_id="arith.simplify_scalar_products",
+            ~before_full_exp=nested_cos,
+            ~after_full_exp=cos_4x,
+            ~before_exp=nested_cos,
+            ~after_exp=cos_4x,
+            ~detail="normalize a trigonometric argument",
+          );
+        check(
+          bool,
+          "scalar cleanup tries the trig-argument congruence certificate",
+          true,
+          Web.CoqProofExport.tactic_for_prover_step(
+            ~domain=Web.CoqExport.Reals,
+            scalar_step,
+          )
+          |> string_contains("hazel_trig_argument_algebra"),
+        );
+        let half = divide(Exp.int(1), Exp.int(2));
+        let distribution_source =
+          times(half, divide(plus(Exp.int(1), cos_4x), Exp.int(2)));
+        let distribution_target =
+          plus(
+            divide(times(half, cos_4x), Exp.int(2)),
+            divide(times(half, Exp.int(1)), Exp.int(2)),
+          );
+        let distribution_step =
+          Web.ProofTrace.prover_step(
+            ~origin=Web.ProofTrace.ManualRewrite,
+            ~rule_id="alg.distribute_mul_add",
+            ~before_full_exp=distribution_source,
+            ~after_full_exp=distribution_target,
+            ~before_exp=distribution_source,
+            ~after_exp=distribution_target,
+            ~detail="distribute a rational scalar",
+          );
+        check(
+          string,
+          "rational distribution uses an exact field certificate",
+          "field.",
+          Web.CoqProofExport.recorded_transition_replay_script(
+            ~domain=Web.CoqExport.Reals,
+            [distribution_step],
+          ),
+        );
+      },
+    ),
+    test_case(
       "stepper coq export dumps three-term distribution proof",
       `Quick,
       () => {
@@ -12185,23 +14401,24 @@ let tests = (
           bool,
           "missing cleanup prerequisite disables affine operation",
           false,
-          Axioms.check_result_rule_enabled(
+          Axioms.normalization_rule_id_enabled_for_profile(
             without_comm,
+            MultiStepCheck,
             "arith.affine_normalize",
           ),
         );
-        let without_operation = {
-          ...profile,
-          check_result_rule_ids:
-            profile.check_result_rule_ids
-            |> List.filter(rule_id => rule_id != "arith.affine_normalize"),
-        };
+        let without_operation =
+          Axioms.profile_with_capability_disabled(
+            profile,
+            "arith.affine_normalize",
+          );
         check(
           bool,
           "explicit operation toggle disables affine operation",
           false,
-          Axioms.check_result_rule_enabled(
+          Axioms.normalization_rule_id_enabled_for_profile(
             without_operation,
+            MultiStepCheck,
             "arith.affine_normalize",
           ),
         );
@@ -12387,8 +14604,8 @@ let tests = (
         );
         check(
           bool,
-          "no earlier single-step route shadows the affine route",
-          false,
+          "the focused Manual scalar operation recognizes the same target",
+          true,
           Web.RewriteChecker.check_single_step_result_for_profile(
             ~profile,
             ~settings,
@@ -12458,12 +14675,11 @@ let tests = (
           false,
           trace(without_const_folding, source, sin_2x) |> Option.is_some,
         );
-        let without_affine_operation = {
-          ...profile,
-          check_result_rule_ids:
-            profile.check_result_rule_ids
-            |> List.filter(rule_id => rule_id != "arith.affine_normalize"),
-        };
+        let without_affine_operation =
+          Axioms.profile_with_capability_disabled(
+            profile,
+            "arith.affine_normalize",
+          );
         check(
           bool,
           "disabled affine operation rejects subtraction of a negative",
@@ -12552,7 +14768,7 @@ let tests = (
           | Some(summary) =>
             List.mem("derivative.basics", summary.rule_ids)
             && summary.prover_steps
-            |> List.exists((step: Web.RewriteChecker.prover_step) =>
+            |> List.exists((step: Web.ProofTrace.prover_step) =>
                  step.rule_id == "derivative.basics"
                )
           | None => false
@@ -12693,12 +14909,11 @@ let tests = (
             source,
             target,
           );
-        let without_affine = {
-          ...profile,
-          check_result_rule_ids:
-            profile.check_result_rule_ids
-            |> List.filter(rule_id => rule_id != "arith.affine_normalize"),
-        };
+        let without_affine =
+          Axioms.profile_with_capability_disabled(
+            profile,
+            "arith.affine_normalize",
+          );
         let without_cancellation =
           Web.ProfileBoard.profile_without_visible_rule(
             ~rule_id="alg.cancel_common_add",

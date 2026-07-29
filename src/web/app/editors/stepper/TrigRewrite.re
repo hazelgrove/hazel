@@ -443,155 +443,31 @@ let apply_spec = (spec: spec, exp) =>
   apply_spec_direction(spec, spec.left, spec.right, exp)
   @ apply_spec_direction(spec, spec.right, spec.left, exp);
 
+let transition_direction = (rule_id, before_exp, after_exp) =>
+  specs_for_rule(rule_id)
+  |> List.find_map(spec => {
+       let reaches = (before_pat, after_pat) =>
+         apply_spec_direction(spec, before_pat, after_pat, before_exp)
+         |> List.exists((rewrite: rewrite) =>
+              exp_same(rewrite.after_exp, after_exp)
+            );
+       if (reaches(spec.left, spec.right)) {
+         Some(Axioms.Forward);
+       } else if (reaches(spec.right, spec.left)) {
+         Some(Axioms.Backward);
+       } else {
+         None;
+       };
+     });
+
 let apply_rule_at_root = (rule_id, exp) =>
   specs_for_rule(rule_id) |> List.concat_map(spec => apply_spec(spec, exp));
 
 let applicable_at_root = exp =>
   specs |> List.concat_map(spec => apply_spec(spec, exp));
 
-let rec flatten_mul = exp => {
-  let exp = strip(exp);
-  switch (exp.term) {
-  | BinOp(op, left, right) when op_matches(Mul, op) =>
-    flatten_mul(left) @ flatten_mul(right)
-  | _ => [exp]
-  };
-};
-
-let rebuild_positive_product = (coefficient, factors) =>
-  switch (coefficient, factors) {
-  | (0, _) => int_exp(0)
-  | (1, []) => int_exp(1)
-  | (1, [factor]) => factor
-  | (1, [first, second, ...rest]) =>
-    List.fold_left(
-      (acc, factor) => times_exp(acc, factor),
-      times_exp(first, second),
-      rest,
-    )
-  | (_, []) => int_exp(coefficient)
-  | (_, factors) =>
-    List.fold_left(
-      (acc, factor) => times_exp(acc, factor),
-      int_exp(coefficient),
-      factors,
-    )
-  };
-
-let rebuild_product = (coefficient, factors) =>
-  coefficient < 0
-    ? neg_exp(rebuild_positive_product(- coefficient, factors))
-    : rebuild_positive_product(coefficient, factors);
-
-let rec gcd = (left, right) => {
-  let left = abs(left);
-  let right = abs(right);
-  right == 0 ? left : gcd(right, left mod right);
-};
-
-let negative_operand = exp =>
-  switch (strip(exp).term) {
-  | UnOp(
-      Operators.Int(Operators.Minus) | Nat(Minus) | SInt(Minus) |
-      Float(Minus),
-      inner,
-    ) =>
-    Some(inner)
-  | _ => None
-  };
-
-let product_parts = factors => {
-  let rec collect = (coefficient, symbolic_factors, remaining) =>
-    switch (remaining) {
-    | [] => (coefficient, List.rev(symbolic_factors))
-    | [factor, ...rest] =>
-      switch (int_constant(factor), negative_operand(factor)) {
-      | (Some(value), _) =>
-        collect(coefficient * value, symbolic_factors, rest)
-      | (None, Some(inner)) =>
-        collect(- coefficient, symbolic_factors, flatten_mul(inner) @ rest)
-      | (None, None) =>
-        collect(coefficient, [factor, ...symbolic_factors], rest)
-      }
-    };
-  collect(1, [], factors);
-};
-
-let simplify_scalar_quotient = (numerator, denominator) =>
-  switch (int_constant(denominator)) {
-  | Some(denominator) when denominator != 0 =>
-    let (coefficient, factors) = numerator |> flatten_mul |> product_parts;
-    let sign = denominator < 0 ? (-1) : 1;
-    let denominator = abs(denominator);
-    let divisor = gcd(coefficient, denominator);
-    let coefficient = coefficient / divisor * sign;
-    let denominator = denominator / divisor;
-    let numerator = rebuild_product(coefficient, factors);
-    denominator == 1
-      ? numerator : divide_exp(numerator, int_exp(denominator));
-  | Some(_)
-  | None => divide_exp(numerator, denominator)
-  };
-
-let rec simplify_product = exp => {
-  let factors = flatten_mul(exp) |> List.map(simplify_scalar_products);
-  let (coefficient, symbolic_factors) = product_parts(factors);
-  rebuild_product(coefficient, symbolic_factors);
-}
-
-and simplify_scalar_products = exp => {
-  let exp = strip(exp);
-  switch (exp.term) {
-  | BinOp(op, _, _) when op_matches(Mul, op) => simplify_product(exp)
-  | BinOp(op, left, right) when op_matches(Div, op) =>
-    simplify_scalar_quotient(
-      simplify_scalar_products(left),
-      simplify_scalar_products(right),
-    )
-  | BinOp(op, left, right) when op_matches(Sub, op) =>
-    let left = simplify_scalar_products(left);
-    let right = simplify_scalar_products(right);
-    switch (negative_operand(right)) {
-    | Some(positive) =>
-      int_constant(left) == Some(0) ? positive : plus_exp(left, positive)
-    | None => minus_exp(left, right)
-    };
-  | BinOp(op, left, right) when op_matches(Add, op) =>
-    let left = simplify_scalar_products(left);
-    let right = simplify_scalar_products(right);
-    switch (negative_operand(right)) {
-    | Some(positive) => minus_exp(left, positive)
-    | None => plus_exp(left, right)
-    };
-  | BinOp(op, left, right) =>
-    let left' = simplify_scalar_products(left);
-    let right' = simplify_scalar_products(right);
-    Exp.fresh(BinOp(op, left', right'));
-  | UnOp(
-      (
-        Operators.Int(Operators.Minus) | Nat(Minus) | SInt(Minus) |
-        Float(Minus)
-      ) as op,
-      inner,
-    ) =>
-    let inner = simplify_scalar_products(inner);
-    switch (negative_operand(inner)) {
-    | Some(positive) => positive
-    | None => Exp.fresh(UnOp(op, inner))
-    };
-  | UnOp(op, inner) => Exp.fresh(UnOp(op, simplify_scalar_products(inner)))
-  | Ap(dir, fn, arg) =>
-    Exp.fresh(
-      Ap(dir, simplify_scalar_products(fn), simplify_scalar_products(arg)),
-    )
-  | Parens(inner) => Exp.fresh(Parens(simplify_scalar_products(inner)))
-  | Asc(inner, typ) => Exp.fresh(Asc(simplify_scalar_products(inner), typ))
-  | Projector(label, inner) =>
-    Exp.fresh(Projector(label, simplify_scalar_products(inner)))
-  | _ => exp
-  };
-};
-
+/* Compatibility alias while callers migrate to the arithmetic provider. */
+let simplify_scalar_products = ArithmeticNormalization.simplify_scalar_products;
 let scalar_product_simplifications_at_root = exp => {
   let before_exp = strip(exp);
   let after_exp = simplify_scalar_products(before_exp);

@@ -1,4 +1,5 @@
 open Language;
+open Util;
 
 type backend =
   | LocalAxiomSearch
@@ -14,8 +15,7 @@ type request = {
 };
 
 type outcome =
-  | PrimitiveTrace(RewriteChecker.trace_summary)
-  | CollapsedMacro(RewriteChecker.trace_summary)
+  | PrimitiveTrace(ProofTrace.trace_summary)
   | Rejected(string);
 
 let local_axiom_search = request =>
@@ -30,61 +30,115 @@ let local_axiom_search = request =>
   |> Option.map(summary => PrimitiveTrace(summary))
   |> Option.value(~default=Rejected("local axiom search found no proof"));
 
-let local_profile_trace =
-    (~profile, ~settings, ~env, request)
-    : option(RewriteChecker.trace_summary) => {
-  switch (
-    RewriteChecker.calculus_check_result_trace_for_profile(
+let local_profile_plan =
+    (
+      ~candidate_origin=ProfileProofPlan.UserEntered,
       ~profile,
-      request.source,
-      request.target,
+      ~settings,
+      ~env,
+      request,
     )
-  ) {
-  | Some(summary) => Some(summary)
-  | None =>
-    switch (
-      RewriteChecker.check_written_step_trace_for_profile(
-        ~profile,
-        ~settings,
-        ~env,
-        request.source,
-        request.target,
-      )
-    ) {
-    | Some(summary) => Some(summary)
-    | None =>
-      let visible_rule_ids =
-        profile.Axioms.step_policy.visible_rules
-        |> List.map((rule: Axioms.visible_rule_policy) => rule.rule_id);
-      let normalization_rule_ids =
-        Axioms.normalization_rules_for_profile(profile)
-        |> List.map((rule: Axioms.math_rule) => rule.id);
-      let allowed_rule_ids =
-        RewriteChecker.dedup(visible_rule_ids @ normalization_rule_ids);
-      switch (
-        AxiomSearch.search(
-          ~level=profile.level,
-          ~max_depth=request.max_depth,
-          ~max_states=request.max_states,
-          ~allowed_rule_ids,
-          ~log=false,
-          request.source,
-          request.target,
-        )
-        |> Option.map(AxiomSearch.trace_summary)
-      ) {
-      | Some(summary)
-          when
-            summary.RewriteChecker.rule_ids
-            |> List.for_all(
-                 RewriteChecker.trace_rule_allowed_by_profile(profile),
-               ) =>
-        Some(summary)
-      | Some(_)
-      | None => None
-      };
-    }
-  };
+    : option(ProfileProofPlan.authorized_plan) => {
+  ProfileProofPlan.authorize({
+    profile,
+    stage: Axioms.MultiStepCheck,
+    candidate_origin,
+    settings,
+    env,
+    source: request.source,
+    target: request.target,
+    max_depth: request.max_depth,
+    max_states: request.max_states,
+  })
+  |> ProfileProofPlan.authorized_plan;
+};
+
+type local_planning_outcome =
+  | LocalPlanningFinished(option(ProfileProofPlan.authorized_plan))
+  | LocalPlanningCancelled
+  | LocalPlanningTimedOut
+  | LocalPlanningFailed(string);
+
+let active_local_planning_id: ref(option(int)) = ref(None);
+
+let cancel_local_profile_plans_except = check_id =>
+  active_local_planning_id := check_id;
+
+/* Direct semantic checkers run in the first scheduled task. If they need the
+   catalog search fallback, that breadth-first search advances one state per
+   browser task so rendering, cancellation, and the deadline remain live. */
+let local_profile_plan_incremental =
+    (
+      ~check_id,
+      ~candidate_origin=ProfileProofPlan.UserEntered,
+      ~profile,
+      ~settings,
+      ~env,
+      ~timeout_ms=8000.0,
+      ~on_finish,
+      request: request,
+    ) => {
+  active_local_planning_id := Some(check_id);
+  let started_at = JsUtil.date_now()##getTime;
+  let authorization_request =
+    ProfileProofPlan.{
+      profile,
+      stage: Axioms.MultiStepCheck,
+      candidate_origin,
+      settings,
+      env,
+      source: request.source,
+      target: request.target,
+      max_depth: request.max_depth,
+      max_states: request.max_states,
+    };
+  let finish = outcome =>
+    if (active_local_planning_id^ == Some(check_id)) {
+      active_local_planning_id := None;
+      on_finish(outcome);
+    };
+  let rec schedule = progress =>
+    Js_of_ocaml.Dom_html.window##setTimeout(
+      Js_of_ocaml.Js.wrap_callback(() =>
+        if (active_local_planning_id^ != Some(check_id)) {
+          on_finish(LocalPlanningCancelled);
+        } else if (JsUtil.date_now()##getTime -. started_at >= timeout_ms) {
+          finish(LocalPlanningTimedOut);
+        } else {
+          try(
+            switch (
+              progress
+              |> Option.map(
+                   ProfileProofPlan.continue_authorize(~work_budget=1),
+                 )
+              |> Option.value(
+                   ~default=
+                     ProfileProofPlan.start_authorize(authorization_request),
+                 )
+            ) {
+            | ProfileProofPlan.PlanningComplete(result) =>
+              finish(
+                LocalPlanningFinished(
+                  ProfileProofPlan.authorized_plan(result),
+                ),
+              )
+            | PlanningSearch(_, _) as progress => schedule(Some(progress))
+            }
+          ) {
+          | Failure(message) => finish(LocalPlanningFailed(message))
+          | _ =>
+            finish(
+              LocalPlanningFailed(
+                "unexpected exception during local profile planning",
+              ),
+            )
+          };
+        }
+      ),
+      0.0,
+    )
+    |> ignore;
+  schedule(None);
 };
 
 let effective_profile_for_request = request =>
@@ -1156,7 +1210,7 @@ let rocq_replay_program = (request, summary) => {
   let replay =
     CoqProofExport.recorded_transition_replay_script(
       ~domain,
-      summary.RewriteChecker.prover_steps,
+      summary.ProofTrace.prover_steps,
     );
   /* Catalog replay tactics are the dependency manifest. Only retain the full
      Hazel tactic library when a recorded rule explicitly names one of them. */
@@ -1177,6 +1231,31 @@ let rocq_replay_program = (request, summary) => {
   );
 };
 
+let rocq_program_for_authorized_plan =
+    (~profile, request, plan: ProfileProofPlan.authorized_plan) =>
+  switch (plan.certificate_strategy) {
+  | ProfileProofPlan.DerivativeCertificate =>
+    let recorded_cleanup =
+      plan.summary.rule_ids
+      |> List.filter_map(Axioms.cleanup_capability_for_id);
+    switch (calculus_search_program(~profile, ~recorded_cleanup, request)) {
+    | Some(program) => program
+    | None =>
+      failwith(
+        "the authorized derivative plan has no matching Rocq certificate",
+      )
+    };
+  | EvaluationEvidence when !plan.exportable =>
+    failwith("the authorized evaluator transition is not Rocq-exportable")
+  | UntrustedSessionRewrite =>
+    failwith("untrusted session rewrites are not Rocq-exportable")
+  | LemmaReplay
+  | AffineCertificate
+  | PolynomialCertificate
+  | TrigonometricCertificate
+  | EvaluationEvidence => rocq_replay_program(request, plan.summary)
+  };
+
 let rocq_search_program_for_purpose = (~purpose, request) =>
   rocq_search_program_for_profile_and_purpose(
     ~profile=effective_profile_for_request(request),
@@ -1187,45 +1266,6 @@ let rocq_search_program_for_purpose = (~purpose, request) =>
 let rocq_search_program = request =>
   rocq_search_program_for_purpose(~purpose=Axioms.CheckResult, request);
 
-let macro_detail_for_plan = (plan: Axioms.rocq_tactic_plan) =>
-  "JSCoq/Rocq tactic-search plan: " ++ plan.id;
-
-let collapsed_macro_summary_for_purpose = (~purpose, request) => {
-  let profile = effective_profile_for_request(request);
-  let plan = rocq_plan_for_profile_and_purpose(profile, purpose);
-  let group_name =
-    switch (List.rev(profile.groups)) {
-    | [group, ..._] => Some(group.name)
-    | [] => None
-    };
-  let rule_id = profile.rocq_macro_rule_id;
-  let step =
-    RewriteChecker.{
-      origin: Normalization,
-      rule_id,
-      before_full_exp: request.source,
-      after_full_exp: request.target,
-      before_exp: request.source,
-      after_exp: request.target,
-      occurrence: 1,
-      detail: Some(macro_detail_for_plan(plan)),
-    };
-  RewriteChecker.{
-    justification: "Rocq tactic search",
-    group_name,
-    from_normal_exp: request.target,
-    to_normal_exp: request.target,
-    from_rule_ids: [rule_id],
-    to_rule_ids: [],
-    rule_ids: [rule_id],
-    prover_steps: [step],
-    exportable: true,
-  };
-};
-
-let collapsed_macro_summary = request =>
-  collapsed_macro_summary_for_purpose(~purpose=Axioms.CheckResult, request);
-
 let search = request =>
   switch (request.backend) {
   | LocalAxiomSearch => local_axiom_search(request)
@@ -1235,8 +1275,7 @@ let search = request =>
 
 let trace_summary = outcome =>
   switch (outcome) {
-  | PrimitiveTrace(summary)
-  | CollapsedMacro(summary) => Some(summary)
+  | PrimitiveTrace(summary) => Some(summary)
   | Rejected(_) => None
   };
 

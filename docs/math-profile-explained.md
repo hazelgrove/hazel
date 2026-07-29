@@ -90,7 +90,6 @@ Current examples include:
 - Normalize affine arithmetic.
 - Expand a polynomial product.
 - Verify a factored polynomial.
-- Normalize a squared rational binomial.
 
 For example:
 

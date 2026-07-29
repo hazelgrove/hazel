@@ -1,3 +1,5 @@
+open Util;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type rewrite_level =
   | Arithmetic
@@ -83,10 +85,31 @@ type operation_metadata = {
   profile_group: option(string),
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type math_rule_direction =
+  | Forward
+  | Backward
+  | BothDirections;
+
+/* A deliberately non-certificate-backed rewrite.  These definitions live in
+   the in-memory Math Mode Builder model and are carried on the effective
+   profile only so the manual suggestion/checking surfaces can see them.
+   Stage planning and Rocq planning ignore them. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type session_rewrite = {
+  id: string,
+  label: string,
+  source_pattern: string,
+  target_pattern: string,
+  metavariables: list(string),
+  direction: math_rule_direction,
+};
+
 type visible_rule_policy = {
   rule_id: string,
   metadata: operation_metadata,
   allowed_cleanup: list(cleanup_capability),
+  session_rewrite: option(session_rewrite),
 };
 
 type step_policy = {
@@ -101,16 +124,12 @@ type math_rule_kind =
   | GuardedNormalizationRule
   | TacticOnlyRule;
 
-type math_rule_direction =
-  | Forward
-  | Backward
-  | BothDirections;
-
 type hazel_rule_backend =
   | ArithmeticAddComm
   | ArithmeticConstFold
   | ArithmeticMulConst
   | ArithmeticMulIdentity
+  | ArithmeticScalarNormalize
   | AlgebraIdentity
   | AlgebraDistributeMulAdd
   | AlgebraDistributeDivAdd
@@ -146,6 +165,7 @@ type math_rule = {
   level: rewrite_level,
   kind: math_rule_kind,
   direction: math_rule_direction,
+  supported_stages: list(automation_stage),
   hazel_backend: option(hazel_rule_backend),
   rocq_backend: option(rocq_rule_backend),
   introduced_levels: list(rewrite_level),
@@ -167,14 +187,57 @@ type semantic_proof_atom = {
   required_rule_ids: list(string),
 };
 
+/* Availability and cardinality are deliberately separate.  This is the
+   compiled execution policy used by Hazel-side authorization; Rocq tactic
+   modes are certificate implementation details and cannot widen it. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type rewrite_usage =
+  | Disabled
+  | AtMostOne
+  | BoundedClosure({
+      max_uses: int,
+      max_states: int,
+      cost: int,
+    });
+
+type compiled_capability = {
+  id: string,
+  usage: rewrite_usage,
+  required_cleanup: list(cleanup_capability),
+  required_rule_ids: list(string),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type capability_usage_override = {
+  capability_id: string,
+  stage: automation_stage,
+  usage: rewrite_usage,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type capability_direction_override = {
+  capability_id: string,
+  direction: math_rule_direction,
+};
+
+type profile_configuration_error =
+  | UnknownCapabilityOverride(string)
+  | InvalidCapabilityUsage(string)
+  | DuplicateCapabilityOverride(string, automation_stage)
+  | UnknownDirectionOverride(string)
+  | DuplicateDirectionOverride(string)
+  | UnknownCapabilityDependency(string, string);
+
 type planned_visible_rule = {
   rule: math_rule,
+  direction: math_rule_direction,
   allowed_cleanup: list(cleanup_capability),
 };
 
 type stage_plan = {
   stage: automation_stage,
   atoms: list(semantic_proof_atom),
+  capabilities: list(compiled_capability),
   pre_cleanup: list(cleanup_capability),
   visible_rules: list(planned_visible_rule),
   post_cleanup: list(cleanup_capability),
@@ -186,10 +249,7 @@ type distribution_step_policy =
   | StrictDistributedForm
   | DistributionMaySimplify;
 
-type one_step_policy = {
-  distribution_step_policy,
-  allow_polynomial_expansion: bool,
-};
+type one_step_policy = {distribution_step_policy};
 
 type math_profile = {
   level: rewrite_level,
@@ -200,7 +260,8 @@ type math_profile = {
   groups: list(rewrite_group),
   one_step_policy,
   step_policy,
-  check_result_rule_ids: list(string),
+  capability_usage_overrides: list(capability_usage_override),
+  capability_direction_overrides: list(capability_direction_override),
   rocq_macro_rule_id: string,
   rocq_tactic_group: string,
   rocq_tactic_plan,
@@ -279,15 +340,15 @@ let selectable_rewrite_levels =
 
 let automation_stage_label =
   fun
-  | Manual => "One step"
-  | MultiStepCheck => "Check result"
-  | AutoEval => "Auto simplify";
+  | Manual => "One Step"
+  | MultiStepCheck => "Check Result"
+  | AutoEval => "Suggest Result";
 
 let automation_stage_detail =
   fun
-  | Manual => "one visible Hazel step"
-  | MultiStepCheck => "compare normal forms"
-  | AutoEval => "prefill a simplified result";
+  | Manual => "make this operation available as one visible Hazel step"
+  | MultiStepCheck => "maximum uses while checking one submitted result"
+  | AutoEval => "allow this operation when prefilling the search field; this does not apply a step";
 
 type construct_requirement = {
   construct: string,
@@ -619,6 +680,11 @@ let arithmetic_rewrite_group = {
       id: "arith.mul_identity",
       label: "remove multiplicative identity",
       prover_hints: [lean("rw [one_mul, mul_one]")],
+    },
+    {
+      id: "arith.simplify_scalar_products",
+      label: "simplify scalar products and signs",
+      prover_hints: [lean("ring")],
     },
     {
       id: "arith.collect_like_terms",
@@ -1019,8 +1085,37 @@ let cleanup_capability_for_id =
   | "alg.collect_like_terms" => Some(CollectLikeTerms)
   | _ => None;
 
+let primitive_rule_id_for_cleanup =
+  fun
+  | AddAssoc => "arith.add_assoc"
+  | AddComm => "arith.add_comm"
+  | MulAssoc => "arith.mul_assoc"
+  | MulComm => "arith.mul_comm"
+  | AddIdentity => "arith.add_zero"
+  | MulIdentity => "arith.mul_identity"
+  | ConstFold => "arith.const_fold"
+  | DerivativeBasics => "derivative.basics"
+  | PowerIdentity => "power.identity"
+  | PowerNotation => "power.notation"
+  | CollectLikeTerms => "alg.collect_like_terms";
+
 let profile_group_for_rule_id =
   fun
+  | "alg.distribute_mul_add"
+  | "alg.distribute_div_add"
+  | "alg.factor_common"
+  | "alg.expand_polynomial" => Some("Distribution and factoring")
+  | "alg.power_add"
+  | "alg.power_mul" => Some("Power rules")
+  | "alg.collect_like_terms"
+  | "alg.cancel_common_add" => Some("Collecting and cancellation")
+  | "alg.difference_of_squares"
+  | "alg.square_of_sum"
+  | "alg.square_of_difference" => Some("Square identities")
+  | "alg.difference_of_cubes"
+  | "alg.sum_of_cubes"
+  | "alg.cube_of_sum"
+  | "alg.cube_of_difference" => Some("Cube identities")
   | "trig.pythagorean_sin_cos"
   | "trig.pythagorean_cos_sin"
   | "trig.cos_squared_pythagorean"
@@ -1048,18 +1143,18 @@ let profile_group_for_rule_id =
   | "trig.tan_neg" => Some("Symmetry and cofunction identities")
   | "calc.taylor_derivatives" => Some("Derivative sequences")
   | "calc.diff_function_value"
-  | "calc.diff_function"
+  | "calc.diff_function" => Some("Function derivatives")
   | "calc.diff_constant"
-  | "calc.diff_variable" => Some("Basic derivatives")
+  | "calc.diff_variable" => Some("Constants and variables")
   | "calc.diff_sum"
   | "calc.diff_difference"
   | "calc.diff_negation" => Some("Linearity")
   | "calc.diff_product"
-  | "calc.diff_quotient"
-  | "calc.diff_power" => Some("Algebraic derivative rules")
-  | "calc.diff_chain"
+  | "calc.diff_quotient" => Some("Product and quotient rules")
+  | "calc.diff_power" => Some("Power rule")
+  | "calc.diff_chain" => Some("Chain rule")
   | "calc.diff_chain_sin"
-  | "calc.diff_chain_cos" => Some("Chain and trigonometric derivatives")
+  | "calc.diff_chain_cos" => Some("Trigonometric chain rules")
   | _ => None;
 
 let operation_metadata = (~id, ~name, ~short_name, ~example) => {
@@ -1193,6 +1288,13 @@ let visible_rule_metadata = rule_id =>
       ~name="Distribute division over addition or subtraction",
       ~short_name="Dist /",
       ~example="(a - b) / c = a / c - b / c",
+    )
+  | "alg.expand_polynomial" =>
+    operation_metadata(
+      ~id=rule_id,
+      ~name="Expand a polynomial product",
+      ~short_name="Expand",
+      ~example="(a + b) * (c + d) = a*c + a*d + b*c + b*d",
     )
   | "alg.factor_common" =>
     operation_metadata(
@@ -1698,6 +1800,14 @@ let rocq_backend_for_rule_id =
         ~tactic="hazel_rewrite_step",
         ~integers=["rewrite Z.mul_1_l", "rewrite Z.mul_1_r"],
         ~reals=["rewrite Rmult_1_l", "rewrite Rmult_1_r"],
+      ),
+    )
+  | "arith.simplify_scalar_products" =>
+    Some(
+      rocq_rule_backend(
+        ~tactic="hazel_algebra",
+        ~integers=["ring"],
+        ~reals=["unfold Rsqr; ring"],
       ),
     )
   | rule_id when List.mem(rule_id, algebra_identity_rule_ids) =>
@@ -2221,6 +2331,7 @@ let catalog_rule_with_kind =
          level,
          kind,
          direction,
+         supported_stages: automation_stages,
          hazel_backend,
          rocq_backend: rocq_backend_for_rule_id(id),
          introduced_levels,
@@ -2256,6 +2367,7 @@ let math_rule_catalog = {
     level: Arithmetic,
     kind: GuardedNormalizationRule,
     direction: BothDirections,
+    supported_stages: [MultiStepCheck, AutoEval],
     hazel_backend: None,
     rocq_backend:
       Some({
@@ -2299,6 +2411,7 @@ let math_rule_catalog = {
     level: Algebra,
     kind: NormalizationRule,
     direction: BothDirections,
+    supported_stages: [MultiStepCheck, AutoEval],
     hazel_backend: None,
     rocq_backend:
       Some({
@@ -2314,65 +2427,57 @@ let math_rule_catalog = {
       "alg.cancel_common_add",
     ],
   };
-  let rational_square_backend =
-    rocq_rule_backend(
-      ~tactic="hazel_rational_square_normalize",
-      ~integers=[],
-      ~reals=["hazel_rational_square_normalize"],
-    );
-  let rational_square_rule = {
-    id: "alg.rational_square_normalize",
-    metadata:
-      operation_metadata(
-        ~id="alg.rational_square_normalize",
-        ~name="Normalize a squared rational binomial",
-        ~short_name="Square /",
-        ~example="2*((1-x)/2)**2 = 1/2-x+1/2*x**2",
+  let arithmetic_rules =
+    [
+      catalog_rule(
+        ~id="arith.add_comm",
+        ~direction=BothDirections,
+        ~hazel_backend=Some(ArithmeticAddComm),
+        ~introduced_levels=[Arithmetic],
+        ~allowed_cleanup=[AddAssoc],
       ),
-    level: Algebra,
-    kind: NormalizationRule,
-    direction: Forward,
-    hazel_backend: None,
-    rocq_backend:
-      Some({
-        ...rational_square_backend,
-        mode: FinishOnly,
-      }),
-    introduced_levels: [],
-    allowed_cleanup: [],
-    required_cleanup: ac_cleanup @ structural_identity_cleanup,
-    required_rule_ids: ["alg.distribute_mul_add"],
-  };
-  let arithmetic_rules = [
-    catalog_rule(
-      ~id="arith.add_comm",
-      ~direction=BothDirections,
-      ~hazel_backend=Some(ArithmeticAddComm),
-      ~introduced_levels=[Arithmetic],
-      ~allowed_cleanup=[AddAssoc],
-    ),
-    catalog_rule(
-      ~id="arith.const_fold",
-      ~direction=Forward,
-      ~hazel_backend=Some(ArithmeticConstFold),
-      ~introduced_levels=[Arithmetic],
-      ~allowed_cleanup=[AddAssoc],
-    ),
-    catalog_rule(
-      ~id="arith.mul_const",
-      ~direction=BothDirections,
-      ~hazel_backend=Some(ArithmeticMulConst),
-      ~introduced_levels=[Arithmetic],
-      ~allowed_cleanup=[AddAssoc, MulAssoc],
-    ),
-    catalog_rule(
-      ~id="arith.mul_identity",
-      ~direction=Forward,
-      ~hazel_backend=Some(ArithmeticMulIdentity),
-      ~introduced_levels=[Arithmetic],
-      ~allowed_cleanup=[],
-    ),
-  ];
+      catalog_rule(
+        ~id="arith.const_fold",
+        ~direction=Forward,
+        ~hazel_backend=Some(ArithmeticConstFold),
+        ~introduced_levels=[Arithmetic],
+        ~allowed_cleanup=[AddAssoc],
+      ),
+      catalog_rule(
+        ~id="arith.mul_const",
+        ~direction=BothDirections,
+        ~hazel_backend=Some(ArithmeticMulConst),
+        ~introduced_levels=[Arithmetic],
+        ~allowed_cleanup=[AddAssoc, MulAssoc],
+      ),
+      catalog_rule(
+        ~id="arith.mul_identity",
+        ~direction=Forward,
+        ~hazel_backend=Some(ArithmeticMulIdentity),
+        ~introduced_levels=[Arithmetic],
+        ~allowed_cleanup=[],
+      ),
+      catalog_rule(
+        ~id="arith.simplify_scalar_products",
+        ~direction=Forward,
+        ~hazel_backend=Some(ArithmeticScalarNormalize),
+        ~introduced_levels=[Arithmetic],
+        ~allowed_cleanup=[],
+      ),
+    ]
+    |> List.map((entry: option(math_rule)) =>
+         switch (entry) {
+         | Some(rule) when rule.id == "arith.simplify_scalar_products" =>
+           Some({
+             ...rule,
+             supported_stages: automation_stages,
+             required_cleanup: [MulAssoc, MulComm, MulIdentity, ConstFold],
+             required_rule_ids: ["arith.mul_identity", "arith.const_fold"],
+           })
+         | Some(_)
+         | None => entry
+         }
+       );
   let algebra_rules =
     [
       catalog_rule(
@@ -2407,7 +2512,7 @@ let math_rule_catalog = {
         ~id="alg.expand_polynomial",
         ~direction=BothDirections,
         ~hazel_backend=Some(AlgebraDistributeMulAdd),
-        ~introduced_levels=[],
+        ~introduced_levels=[Algebra],
         ~allowed_cleanup=ac_cleanup @ structural_identity_cleanup,
       ),
     ]
@@ -2449,8 +2554,8 @@ let math_rule_catalog = {
            ~allowed_cleanup=[],
          )
          |> Option.map((rule: math_rule) =>
-              is_power_normalizer
-                ? {
+              if (is_power_normalizer) {
+                {
                   ...rule,
                   required_cleanup: [
                     PowerIdentity,
@@ -2458,8 +2563,22 @@ let math_rule_catalog = {
                     MulIdentity,
                   ],
                   required_rule_ids: ["alg.distribute_mul_add"],
-                }
-                : rule
+                };
+              } else if (id == "arith.reorder_add_terms") {
+                {
+                  ...rule,
+                  required_cleanup: [AddAssoc, AddComm],
+                  required_rule_ids: ["arith.add_assoc", "arith.add_comm"],
+                };
+              } else if (id == "arith.reorder_mul_factors") {
+                {
+                  ...rule,
+                  required_cleanup: [MulAssoc, MulComm],
+                  required_rule_ids: ["arith.mul_assoc", "arith.mul_comm"],
+                };
+              } else {
+                rule;
+              }
             );
        });
   let trig_rules =
@@ -2493,10 +2612,10 @@ let math_rule_catalog = {
              {
                ...rule,
                kind: NormalizationRule,
-               required_cleanup:
-                 ac_cleanup
-                 @ structural_identity_cleanup
-                 @ [ConstFold, CollectLikeTerms],
+               /* Expansion itself requires distribution. Any associativity,
+                  identity, folding, or collection used by a particular
+                  target is recorded and validated separately in its plan. */
+               required_cleanup: [],
                required_rule_ids: ["alg.distribute_mul_add"],
              }: math_rule,
            )
@@ -2509,11 +2628,7 @@ let math_rule_catalog = {
   @ replay_only_rules
   @ trig_rules
   @ calculus_rules
-  @ [
-    Some(affine_normalization_rule),
-    Some(factor_polynomial_rule),
-    Some(rational_square_rule),
-  ]
+  @ [Some(affine_normalization_rule), Some(factor_polynomial_rule)]
   |> List.filter_map(value => value);
 };
 
@@ -2574,6 +2689,7 @@ let step_policy = level => {
            rule_id: rule.id,
            metadata: rule.metadata,
            allowed_cleanup: rule.allowed_cleanup,
+           session_rewrite: None,
          }
        ),
   default_cleanup: profile_default_cleanup_for_level(level),
@@ -2585,9 +2701,15 @@ let catalog_rule_by_id = rule_id =>
 let unresolved_visible_rule_ids = (policy: step_policy) =>
   policy.visible_rules
   |> List.filter_map((rule: visible_rule_policy) =>
-       catalog_rule_by_id(rule.rule_id) |> Option.is_some
+       rule.session_rewrite != None
+       || catalog_rule_by_id(rule.rule_id)
+       |> Option.is_some
          ? None : Some(rule.rule_id)
      );
+
+let session_rewrites_for_profile = (profile: math_profile) =>
+  profile.step_policy.visible_rules
+  |> List.filter_map((policy: visible_rule_policy) => policy.session_rewrite);
 
 let visible_catalog_rules = (policy: step_policy) =>
   policy.visible_rules
@@ -2602,6 +2724,7 @@ let planned_visible_rules = (policy: step_policy) =>
        |> Option.map(rule =>
             {
               rule,
+              direction: rule.direction,
               allowed_cleanup: rule_policy.allowed_cleanup,
             }
           )
@@ -2623,10 +2746,8 @@ let cleanup_for_visible_rule = (policy: step_policy, rule_id) =>
      )
   |> Option.value(~default=policy.default_cleanup);
 
-let one_step_policy = level => {
+let one_step_policy = _level => {
   distribution_step_policy: StrictDistributedForm,
-  allow_polynomial_expansion:
-    rewrite_level_inherits(~current_level=level, Algebra),
 };
 
 let rocq_finish_step = (~id, ~label, ~tactic, ~rule_ids) =>
@@ -3003,22 +3124,186 @@ let math_profile = level => {
     groups: allowed_groups(level),
     one_step_policy: one_step_policy(level),
     step_policy: step_policy(level),
-    check_result_rule_ids:
-      math_rule_catalog
-      |> List.filter((rule: math_rule) =>
-           (
-             rule.kind == NormalizationRule
-             || rule.kind == GuardedNormalizationRule
-           )
-           && rewrite_level_inherits(~current_level=level, rule.level)
-         )
-      |> List.map((rule: math_rule) => rule.id),
+    capability_usage_overrides: [],
+    capability_direction_overrides: [],
     rocq_macro_rule_id,
     rocq_tactic_group,
     rocq_tactic_plan: rocq_tactic_plan(level),
     rocq_tactic_plans: rocq_tactic_plans(level),
     rocq_domain_policy,
   };
+};
+
+let profile_with_capability_usage_overrides =
+    (profile: math_profile, capability_usage_overrides) => {
+  ...profile,
+  capability_usage_overrides,
+};
+
+let profile_configuration_error_message =
+  fun
+  | UnknownCapabilityOverride(capability_id) =>
+    "Unknown capability override: " ++ capability_id
+  | InvalidCapabilityUsage(capability_id) =>
+    "Capability has an invalid bounded-closure policy: " ++ capability_id
+  | DuplicateCapabilityOverride(capability_id, stage) =>
+    "Capability has more than one override for "
+    ++ automation_stage_label(stage)
+    ++ ": "
+    ++ capability_id
+  | UnknownDirectionOverride(capability_id) =>
+    "Unknown direction override: " ++ capability_id
+  | DuplicateDirectionOverride(capability_id) =>
+    "Capability has more than one direction override: " ++ capability_id
+  | UnknownCapabilityDependency(capability_id, dependency_id) =>
+    "Capability "
+    ++ capability_id
+    ++ " has an unknown dependency: "
+    ++ dependency_id;
+
+let known_capability_id = capability_id =>
+  cleanup_capability_for_id(capability_id) != None
+  || catalog_rule_by_id(capability_id) != None;
+
+let rewrite_usage_is_well_formed =
+  fun
+  | Disabled
+  | AtMostOne => true
+  | BoundedClosure({max_uses, max_states, cost}) =>
+    max_uses > 0 && max_states > 0 && cost >= 0;
+
+let validate_profile_configuration = (profile: math_profile) => {
+  let rec duplicate_override = (overrides: list(capability_usage_override)) =>
+    switch (overrides) {
+    | [] => None
+    | [override, ...rest] =>
+      rest
+      |> List.exists((candidate: capability_usage_override) =>
+           candidate.capability_id == override.capability_id
+           && candidate.stage == override.stage
+         )
+        ? Some((override.capability_id, override.stage))
+        : duplicate_override(rest)
+    };
+  let rec duplicate_direction_override =
+          (overrides: list(capability_direction_override)) =>
+    switch (overrides) {
+    | [] => None
+    | [override, ...rest] =>
+      rest
+      |> List.exists((candidate: capability_direction_override) =>
+           candidate.capability_id == override.capability_id
+         )
+        ? Some(override.capability_id) : duplicate_direction_override(rest)
+    };
+  switch (
+    profile.capability_usage_overrides
+    |> List.find_opt((override: capability_usage_override) =>
+         !known_capability_id(override.capability_id)
+       )
+  ) {
+  | Some(override) =>
+    Some(UnknownCapabilityOverride(override.capability_id))
+  | None =>
+    switch (
+      profile.capability_usage_overrides
+      |> List.find_opt((override: capability_usage_override) =>
+           !rewrite_usage_is_well_formed(override.usage)
+         )
+    ) {
+    | Some(override) => Some(InvalidCapabilityUsage(override.capability_id))
+    | None =>
+      switch (duplicate_override(profile.capability_usage_overrides)) {
+      | Some((capability_id, stage)) =>
+        Some(DuplicateCapabilityOverride(capability_id, stage))
+      | None =>
+        switch (
+          profile.capability_direction_overrides
+          |> List.find_opt((override: capability_direction_override) =>
+               catalog_rule_by_id(override.capability_id) == None
+             )
+        ) {
+        | Some(override) =>
+          Some(UnknownDirectionOverride(override.capability_id))
+        | None =>
+          switch (
+            duplicate_direction_override(
+              profile.capability_direction_overrides,
+            )
+          ) {
+          | Some(capability_id) =>
+            Some(DuplicateDirectionOverride(capability_id))
+          | None =>
+            math_rule_catalog
+            |> List.find_map((rule: math_rule) =>
+                 rule.required_rule_ids
+                 |> List.find_opt(dependency_id =>
+                      !known_capability_id(dependency_id)
+                    )
+                 |> Option.map(dependency_id =>
+                      UnknownCapabilityDependency(rule.id, dependency_id)
+                    )
+               )
+          }
+        }
+      }
+    }
+  };
+};
+
+let profile_with_capability_disabled = (profile: math_profile, capability_id) => {
+  let disabled_capability_ids =
+    switch (cleanup_capability_for_id(capability_id)) {
+    | Some(cleanup) => [
+        capability_id,
+        primitive_rule_id_for_cleanup(cleanup),
+      ]
+    | None => [capability_id]
+    };
+  let profile =
+    switch (cleanup_capability_for_id(capability_id)) {
+    | None => profile
+    | Some(disabled_cleanup) => {
+        ...profile,
+        step_policy: {
+          default_cleanup:
+            profile.step_policy.default_cleanup
+            |> List.filter(cleanup => cleanup != disabled_cleanup),
+          visible_rules:
+            profile.step_policy.visible_rules
+            |> List.map((rule: visible_rule_policy) =>
+                 {
+                   ...rule,
+                   allowed_cleanup:
+                     rule.allowed_cleanup
+                     |> List.filter(cleanup => cleanup != disabled_cleanup),
+                 }
+               ),
+        },
+      }
+    };
+  profile_with_capability_usage_overrides(
+    profile,
+    (
+      profile.capability_usage_overrides
+      |> List.filter((override: capability_usage_override) =>
+           !List.mem(override.capability_id, disabled_capability_ids)
+         )
+    )
+    @ (
+      automation_stages
+      |> List.concat_map(stage =>
+           disabled_capability_ids
+           |> List.map(capability_id =>
+                {
+                  capability_id,
+                  stage,
+                  usage: Disabled,
+                }
+              )
+         )
+    ),
+  );
 };
 
 let rocq_tactic_plan_for_profile = (profile, purpose) =>
@@ -3046,23 +3331,34 @@ let rule_prerequisites_satisfied = (profile: math_profile, rule: math_rule) =>
        visible_rule_enabled(profile.step_policy, rule_id)
      );
 
-let check_result_rule_enabled = (profile: math_profile, rule_id) =>
-  List.mem(rule_id, profile.check_result_rule_ids)
-  && (
-    switch (catalog_rule_by_id(rule_id)) {
-    | Some(rule) => rule_prerequisites_satisfied(profile, rule)
-    | None => false
-    }
-  );
+let normalization_rule_enabled_for_profile =
+    (profile: math_profile, stage, rule: math_rule) => {
+  let usage =
+    profile.capability_usage_overrides
+    |> List.rev
+    |> List.find_opt((override: capability_usage_override) =>
+         override.capability_id == rule.id && override.stage == stage
+       )
+    |> Option.map((override: capability_usage_override) => override.usage)
+    |> Option.value(~default=AtMostOne);
+  (rule.kind == NormalizationRule || rule.kind == GuardedNormalizationRule)
+  && List.mem(stage, rule.supported_stages)
+  && rewrite_level_inherits(~current_level=profile.level, rule.level)
+  && rule_prerequisites_satisfied(profile, rule)
+  && usage != Disabled;
+};
+
+let normalization_rule_id_enabled_for_profile = (profile, stage, rule_id) =>
+  switch (catalog_rule_by_id(rule_id)) {
+  | Some(rule) =>
+    normalization_rule_enabled_for_profile(profile, stage, rule)
+  | None => false
+  };
 
 let normalization_rules_for_profile = (profile: math_profile) =>
   math_rule_catalog
   |> List.filter((rule: math_rule) =>
-       (
-         rule.kind == NormalizationRule || rule.kind == GuardedNormalizationRule
-       )
-       && rewrite_level_inherits(~current_level=profile.level, rule.level)
-       && check_result_rule_enabled(profile, rule.id)
+       normalization_rule_enabled_for_profile(profile, MultiStepCheck, rule)
      );
 
 let normalization_backends_for_profile = (profile: math_profile) => {
@@ -3079,8 +3375,11 @@ let guarded_normalization_backend_for_profile =
   | Some(rule)
       when
         rule.kind == GuardedNormalizationRule
-        && rewrite_level_inherits(~current_level=profile.level, rule.level)
-        && check_result_rule_enabled(profile, rule.id) =>
+        && normalization_rule_enabled_for_profile(
+             profile,
+             MultiStepCheck,
+             rule,
+           ) =>
     rule.rocq_backend
   | Some(_)
   | None => None
@@ -3088,7 +3387,13 @@ let guarded_normalization_backend_for_profile =
 
 let profile_allows_rocq_rule_id = (profile: math_profile, rule_id) =>
   visible_rule_enabled(profile.step_policy, rule_id)
-  || check_result_rule_enabled(profile, rule_id)
+  || (
+    switch (catalog_rule_by_id(rule_id)) {
+    | Some(rule) =>
+      normalization_rule_enabled_for_profile(profile, MultiStepCheck, rule)
+    | None => false
+    }
+  )
   || (
     switch (cleanup_capability_for_id(rule_id)) {
     | Some(capability) => cleanup_enabled_for_profile(profile, capability)
@@ -3117,6 +3422,24 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
     invalid_arg("Unknown math rule in profile stage plan: " ++ rule_id)
   | [] =>
     let cleanup = profile.step_policy.default_cleanup;
+    let direction_for_rule = (rule: math_rule) =>
+      profile.capability_direction_overrides
+      |> List.rev
+      |> List.find_opt((override: capability_direction_override) =>
+           override.capability_id == rule.id
+         )
+      |> Option.map((override: capability_direction_override) =>
+           override.direction
+         )
+      |> Option.value(~default=rule.direction);
+    let planned_rules =
+      planned_visible_rules(profile.step_policy)
+      |> List.map((planned: planned_visible_rule) =>
+           {
+             ...planned,
+             direction: direction_for_rule(planned.rule),
+           }
+         );
     let cleanup_atoms =
       cleanup
       |> List.map(capability =>
@@ -3129,19 +3452,26 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
            }
          );
     let visible_atoms =
-      planned_visible_rules(profile.step_policy)
+      planned_rules
+      |> List.filter((planned: planned_visible_rule) =>
+           List.mem(stage, planned.rule.supported_stages)
+           && rule_prerequisites_satisfied(profile, planned.rule)
+         )
       |> List.map((planned: planned_visible_rule) =>
            {
              id: planned.rule.id,
              kind: VisibleAtom,
              mode: Once,
-             required_cleanup: planned.allowed_cleanup,
-             required_rule_ids: [],
+             required_cleanup: planned.rule.required_cleanup,
+             required_rule_ids: planned.rule.required_rule_ids,
            }
          );
     let normalizer_atoms =
       stage == MultiStepCheck
         ? normalization_rules_for_profile(profile)
+          |> List.filter((rule: math_rule) =>
+               List.mem(stage, rule.supported_stages)
+             )
           |> List.map((rule: math_rule) =>
                {
                  id: rule.id,
@@ -3157,11 +3487,86 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
                }
              )
         : [];
+    let default_usage_for_atom = (atom: semantic_proof_atom) =>
+      switch (stage, atom.kind) {
+      | (Manual, VisibleAtom) => AtMostOne
+      | (Manual, CleanupAtom) =>
+        BoundedClosure({
+          max_uses: 64,
+          max_states: 128,
+          cost: 1,
+        })
+      | (Manual, CheckNormalizerAtom) => Disabled
+      | (MultiStepCheck | AutoEval, CleanupAtom) =>
+        BoundedClosure({
+          max_uses: 64,
+          max_states: 256,
+          cost: 1,
+        })
+      | (MultiStepCheck | AutoEval, VisibleAtom) =>
+        BoundedClosure({
+          max_uses: 12,
+          max_states: 256,
+          cost: 1,
+        })
+      | (MultiStepCheck | AutoEval, CheckNormalizerAtom) => AtMostOne
+      };
+    let usage_for_atom = (atom: semantic_proof_atom) =>
+      profile.capability_usage_overrides
+      |> List.rev
+      |> List.find_opt((override: capability_usage_override) =>
+           override.capability_id == atom.id && override.stage == stage
+         )
+      |> Option.map((override: capability_usage_override) => override.usage)
+      |> Option.value(~default=default_usage_for_atom(atom));
+    let capabilities =
+      cleanup_atoms
+      @ visible_atoms
+      @ normalizer_atoms
+      |> List.map((atom: semantic_proof_atom) =>
+           {
+             id: atom.id,
+             usage: usage_for_atom(atom),
+             required_cleanup: atom.required_cleanup,
+             required_rule_ids: atom.required_rule_ids,
+           }
+         );
+    let capabilities =
+      profile.capability_usage_overrides
+      |> List.filter((override: capability_usage_override) =>
+           override.stage == stage
+           && override.usage == Disabled
+           && !(
+                capabilities
+                |> List.exists((capability: compiled_capability) =>
+                     capability.id == override.capability_id
+                   )
+              )
+         )
+      |> List.fold_left(
+           (capabilities, override: capability_usage_override) =>
+             capabilities
+             @ [
+               {
+                 id: override.capability_id,
+                 usage: override.usage,
+                 required_cleanup: [],
+                 required_rule_ids: [],
+               },
+             ],
+           capabilities,
+         );
     {
       stage,
       atoms: cleanup_atoms @ visible_atoms @ normalizer_atoms,
+      capabilities,
       pre_cleanup: cleanup,
-      visible_rules: planned_visible_rules(profile.step_policy),
+      visible_rules:
+        planned_rules
+        |> List.filter((planned: planned_visible_rule) =>
+             List.mem(stage, planned.rule.supported_stages)
+             && rule_prerequisites_satisfied(profile, planned.rule)
+           ),
       post_cleanup: cleanup,
       normalization_backends: normalization_backends_for_profile(profile),
       rocq_plan:
@@ -3172,6 +3577,68 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
     };
   };
 };
+
+let compiled_capability_for_id = (plan: stage_plan, capability_id) =>
+  plan.capabilities
+  |> List.find_opt((capability: compiled_capability) =>
+       capability.id == capability_id
+     );
+
+let rewrite_usage_allows_count = (usage, count) =>
+  switch (usage) {
+  | Disabled => count == 0
+  | AtMostOne => count <= 1
+  | BoundedClosure({max_uses, _}) => count <= max_uses
+  };
+
+let compiled_capability_enabled = (plan, capability_id) =>
+  switch (compiled_capability_for_id(plan, capability_id)) {
+  | Some({usage: Disabled, _})
+  | None => false
+  | Some(_) => true
+  };
+
+let compiled_search_state_limit = (~requested, plan: stage_plan) =>
+  plan.capabilities
+  |> List.fold_left(
+       (limit, capability: compiled_capability) =>
+         switch (capability.usage) {
+         | BoundedClosure({max_states, _}) => min(limit, max_states)
+         | Disabled
+         | AtMostOne => limit
+         },
+       max(1, requested),
+     );
+
+let compiled_capability_requirements_satisfied =
+    (plan, capability: compiled_capability) =>
+  capability.required_cleanup
+  |> List.for_all(cleanup =>
+       compiled_capability_enabled(plan, cleanup_capability_label(cleanup))
+     )
+  && capability.required_rule_ids
+  |> List.for_all(compiled_capability_enabled(plan));
+
+let validate_capability_use_counts = (plan: stage_plan, uses) =>
+  uses
+  |> List.find_map(((capability_id, count)) =>
+       switch (compiled_capability_for_id(plan, capability_id)) {
+       | None => Some("Capability is disabled or unknown: " ++ capability_id)
+       | Some(capability)
+           when !rewrite_usage_allows_count(capability.usage, count) =>
+         Some(
+           "Capability usage exceeds the compiled stage allowance: "
+           ++ capability_id,
+         )
+       | Some(capability)
+           when !compiled_capability_requirements_satisfied(plan, capability) =>
+         Some(
+           "Capability has a disabled prerequisite in the compiled stage: "
+           ++ capability_id,
+         )
+       | Some(_) => None
+       }
+     );
 
 let stage_plan_for_level = (level, stage) =>
   stage_plan_for_profile(math_profile(level), stage);

@@ -14,7 +14,10 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type proof_search_verdict =
     | Ready
+    | Planning
     | Checking
+    | Cancelled
+    | TimedOut
     | ProfileValid
     | EquivalentOutsideProfile
     | Invalid;
@@ -35,7 +38,6 @@ module Model = {
         cached_exp: Calc.saved(Exp.t),
         cached_result: Calc.saved(bool),
       })
-    | ProfileBoardOpen
     | WrittenStepOpen({
         editor: CodeEditable.Model.t,
         check_mode: written_step_check_mode,
@@ -53,7 +55,7 @@ module Model = {
         calculated_rewrite_level: option(Axioms.rewrite_level),
         calculated_automation_stage: option(Axioms.automation_stage),
         cached_exp: Calc.saved(Exp.t),
-        cached_result: Calc.saved(option(RewriteChecker.trace_summary)),
+        cached_result: Calc.saved(option(ProfileProofPlan.authorized_plan)),
       })
     | NoneOpen;
 
@@ -69,7 +71,6 @@ module Model = {
     full_exp: Calc.saved(Exp.t),
     full_visible_exp: Calc.saved(Exp.t),
     assumptions: Calc.saved(option(assumptions)),
-    profile_board: ProfileBoard.Model.t,
     open_box,
     cached_env: Calc.saved(Environment.t(Exp.t)) // TODO[Matt]: remove this later, just to get env into view for now.
   };
@@ -82,7 +83,6 @@ module Model = {
     full_exp: Calc.Pending,
     full_visible_exp: Calc.Pending,
     assumptions: Calc.Pending,
-    profile_board: ProfileBoard.Model.init,
     open_box: NoneOpen,
     cached_env: Calc.Pending,
   };
@@ -103,7 +103,10 @@ module Model = {
 let proof_search_verdict_label = (~has_candidate, verdict) =>
   switch (verdict) {
   | Model.Ready => has_candidate ? "Candidate ready" : "Ready"
+  | Planning => "Planning with active profile..."
   | Checking => "Rocq checking..."
+  | Cancelled => "Cancelled"
+  | TimedOut => "Timed out"
   | ProfileValid => "Valid"
   | EquivalentOutsideProfile => "Equivalent, but blocked by profile"
   | Invalid => "Invalid"
@@ -121,7 +124,10 @@ let proof_search_can_replace =
   fun
   | Model.ProfileValid => true
   | Ready
+  | Planning
   | Checking
+  | Cancelled
+  | TimedOut
   | EquivalentOutsideProfile
   | Invalid => false;
 
@@ -178,7 +184,7 @@ let proof_search_failure_message = (~has_profile_trace, raw_message) => {
   };
 };
 
-let proof_search_route_label = (summary: RewriteChecker.trace_summary) => {
+let proof_search_route_label = (summary: ProofTrace.trace_summary) => {
   let rule_names =
     summary.rule_ids
     |> List.filter_map(rule_id =>
@@ -193,7 +199,7 @@ let proof_search_route_label = (summary: RewriteChecker.trace_summary) => {
        )
     |> RewriteChecker.dedup;
   rule_names == []
-    ? RewriteChecker.trace_summary_label(summary)
+    ? ProofTrace.trace_summary_label(summary)
     : String.concat(" → ", rule_names);
 };
 
@@ -210,11 +216,12 @@ module Update = {
         option(Exp.t),
       )
     | RunProofSearch(int, int, int, option(Exp.t), option(Exp.t))
+    | RocqProofSearchStarted(int)
     | RocqProofSearchFinished(
         int,
         Model.proof_search_verdict,
         string,
-        RewriteChecker.trace_summary,
+        option(ProfileProofPlan.authorized_plan),
       )
     | RocqProofSearchCancelled(int)
     | AlgebriteSuggestionFinished(option(string), string, string)
@@ -223,9 +230,7 @@ module Update = {
     | ProfileSuggestionFinished(option(Exp.t), string, string)
     | RewriteEditorAction(CodeEditable.Update.t)
     | WriteStepEditorAction(CodeEditable.Update.t)
-    | AxiomBoxAction(AxiomsBox.Update.t)
-    | ToggleProfileBoard
-    | ProfileBoardAction(ProfileBoard.Update.t);
+    | AxiomBoxAction(AxiomsBox.Update.t);
 
   let rec update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model.open_box) {
@@ -233,7 +238,6 @@ module Update = {
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | ProfileBoardOpen
         | RewritesOpen(_)
         | WrittenStepOpen(_) =>
           Model.AxiomsOpen({
@@ -253,7 +257,6 @@ module Update = {
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | ProfileBoardOpen
         | AxiomsOpen(_)
         | WrittenStepOpen(_) =>
           Model.RewritesOpen({
@@ -285,7 +288,6 @@ module Update = {
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | ProfileBoardOpen
         | AxiomsOpen(_)
         | RewritesOpen(_) =>
           Model.WrittenStepOpen({
@@ -346,9 +348,9 @@ module Update = {
             rewrite_selected_exp,
             rewrite_reparenthesized_exp,
             proof_search_requested: true,
-            proof_search_verdict: Checking,
+            proof_search_verdict: Planning,
             proof_search_check_id: Some(check_id),
-            proof_search_message: Some("Rocq checking..."),
+            proof_search_message: Some("Planning with the active Profile..."),
             proof_search_max_depth: max_depth,
             proof_search_max_states: max_states,
             cached_result: Calc.Pending,
@@ -356,6 +358,25 @@ module Update = {
       }
       |> Updated.return_quiet(~recalculate=true, ~logged=true)
     | (RunProofSearch(_, _, _, _, _), _) => model |> Updated.return_quiet
+    | (
+        RocqProofSearchStarted(check_id),
+        WrittenStepOpen(
+          {check_mode: ProofSearch, proof_search_check_id, _} as r,
+        ),
+      ) =>
+      proof_search_check_id == Some(check_id)
+        ? Model.{
+            ...model,
+            open_box:
+              Model.WrittenStepOpen({
+                ...r,
+                proof_search_verdict: Checking,
+                proof_search_message: Some("Rocq checking..."),
+              }),
+          }
+          |> Updated.return_quiet(~logged=true)
+        : model |> Updated.return_quiet
+    | (RocqProofSearchStarted(_), _) => model |> Updated.return_quiet
     | (
         RocqProofSearchFinished(check_id, verdict, message, trace_summary),
         WrittenStepOpen(
@@ -379,7 +400,7 @@ module Update = {
                 proof_search_message: Some(message),
                 cached_result:
                   Calc.Calculated(
-                    verdict == ProfileValid ? Some(trace_summary) : None,
+                    verdict == ProfileValid ? trace_summary : None,
                   ),
               }),
           }
@@ -400,9 +421,9 @@ module Update = {
               Model.WrittenStepOpen({
                 ...r,
                 proof_search_requested: false,
-                proof_search_verdict: Ready,
+                proof_search_verdict: Cancelled,
                 proof_search_check_id: None,
-                proof_search_message: None,
+                proof_search_message: Some("Proof search was cancelled."),
                 cached_result: Calc.Pending,
               }),
           }
@@ -661,23 +682,6 @@ module Update = {
           }),
       };
     | (AxiomBoxAction(_), _) => model |> Updated.raise_invalid_action
-    | (ToggleProfileBoard, _) =>
-      Model.{
-        ...model,
-        open_box:
-          switch (model.open_box) {
-          | ProfileBoardOpen => NoneOpen
-          | _ => ProfileBoardOpen
-          },
-      }
-      |> Updated.return_quiet(~logged=true)
-    | (ProfileBoardAction(action), _) =>
-      Model.{
-        ...model,
-        profile_board:
-          ProfileBoard.Update.update(action, model.profile_board),
-      }
-      |> Updated.return_quiet(~recalculate=true, ~logged=true)
     };
   };
 
@@ -687,6 +691,7 @@ module Update = {
     | ProposeRewrite(_, _)
     | ProposeWrittenStep(_, _, _)
     | RunProofSearch(_, _, _, _, _)
+    | RocqProofSearchStarted(_)
     | RocqProofSearchFinished(_, _, _, _)
     | RocqProofSearchCancelled(_)
     | AlgebriteSuggestionFinished(_, _, _)
@@ -696,8 +701,6 @@ module Update = {
     | RewriteEditorAction(_)
     | WriteStepEditorAction(_)
     | AxiomBoxAction(_) => false
-    | ToggleProfileBoard
-    | ProfileBoardAction(_) => false
     };
   };
 
@@ -705,6 +708,7 @@ module Update = {
       (
         ~rewrite_level: Axioms.rewrite_level,
         ~automation_stage: Axioms.automation_stage,
+        ~active_profile: Axioms.math_profile,
         ~settings: CoreSettings.t,
         exp,
         info_map,
@@ -718,13 +722,13 @@ module Update = {
           full_exp: _,
           full_visible_exp: _,
           selected_id,
-          profile_board,
           open_box,
           cached_env,
         }: Model.t,
         editor,
       )
       : Model.t => {
+    let effective_profile = _level => active_profile;
     let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
     let full_visible_exp = Calc.NewValue(editor.statics.term);
     let visible_terms = Calc.NewValue(editor.editor.syntax.terms);
@@ -952,7 +956,6 @@ module Update = {
           cached_exp: cached_exp |> Calc.save,
           cached_result: cached_result |> Calc.save,
         });
-      | ProfileBoardOpen => ProfileBoardOpen
       | WrittenStepOpen({source_full_visible_exp, _})
           when !source_is_current(source_full_visible_exp) => Model.NoneOpen
       | WrittenStepOpen({
@@ -1050,32 +1053,33 @@ module Update = {
               let to_exp = Substitution.in_exp(env, to_exp);
               switch (check_mode) {
               | SingleEvalStep =>
-                let profile =
-                  ProfileBoard.apply_model_to_profile(
-                    profile_board,
-                    Axioms.math_profile(rewrite_level),
-                  );
-                RewriteChecker.check_single_step_result_for_profile(
-                  ~profile,
-                  ~settings,
-                  ~env,
-                  from_exp,
-                  to_exp,
-                )
-                |> Option.map(RewriteChecker.trace_summary_of_result);
+                let profile = effective_profile(rewrite_level);
+                ProfileProofPlan.authorize({
+                  profile,
+                  stage: Axioms.Manual,
+                  candidate_origin: ProfileProofPlan.UserEntered,
+                  settings,
+                  env,
+                  source: from_exp,
+                  target: to_exp,
+                  max_depth: 1,
+                  max_states: 80,
+                })
+                |> ProfileProofPlan.authorized_plan;
               | CheckResult =>
-                let profile =
-                  ProfileBoard.apply_model_to_profile(
-                    profile_board,
-                    Axioms.math_profile(rewrite_level),
-                  );
-                RewriteChecker.check_written_step_trace_for_profile(
-                  ~profile,
-                  ~settings,
-                  ~env,
-                  from_exp,
-                  to_exp,
-                );
+                let profile = effective_profile(rewrite_level);
+                ProfileProofPlan.authorize({
+                  profile,
+                  stage: Axioms.MultiStepCheck,
+                  candidate_origin: ProfileProofPlan.UserEntered,
+                  settings,
+                  env,
+                  source: from_exp,
+                  target: to_exp,
+                  max_depth: 4,
+                  max_states: 80,
+                })
+                |> ProfileProofPlan.authorized_plan;
               | ProofSearch => None
               };
             }
@@ -1163,7 +1167,7 @@ module Update = {
           cached_exp: Calc.Pending,
           cached_result: Calc.Pending,
         })
-      | NoneOpen => NoneOpen
+      | NoneOpen => open_box
       };
     };
     let cached_env =
@@ -1180,7 +1184,6 @@ module Update = {
       full_visible_exp: full_visible_exp |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
-      profile_board,
       open_box,
       cached_env: cached_env |> Calc.save,
     };
@@ -1269,6 +1272,9 @@ module AutoSimplifyDebounce = {
     };
 };
 
+let auto_simplify_uses_profile = (level, exp) =>
+  level == Axioms.Calculus && DifferentiationRewrite.contains_diff(exp);
+
 module View = {
   open OptUtil.Syntax;
 
@@ -1339,6 +1345,11 @@ module View = {
     ) {
     | _ => ()
     };
+  };
+
+  let cancel_proof_searches_except_in_browser = check_id => {
+    ProofSearchBackend.cancel_local_profile_plans_except(check_id);
+    cancel_rocq_searches_except_in_browser(check_id);
   };
 
   let algebrite_suggestion_effect =
@@ -1441,12 +1452,12 @@ module View = {
     | AddReparenthesizeStep(Exp.t)
     | AddReparenthesizedAlgebriteStep(Exp.t, Exp.t, Exp.t)
     | AddReparenthesizedWrittenStep(
-        RewriteChecker.trace_summary,
+        ProofTrace.trace_summary,
         Exp.t,
         Exp.t,
         Exp.t,
       )
-    | AddWrittenStep(RewriteChecker.trace_summary, int, Exp.t, Exp.t)
+    | AddWrittenStep(ProofTrace.trace_summary, int, Exp.t, Exp.t)
     | AutoSimplify(Exp.t, Exp.t)
     | MakeActive(Selection.t)
     | TakeStep(int)
@@ -1502,10 +1513,12 @@ module View = {
         ~selected: option(Selection.t),
         ~rewrite_level: Axioms.rewrite_level,
         ~automation_stage: Axioms.automation_stage,
+        ~active_profile: Axioms.math_profile,
         ~info_map,
         model: Model.t,
       ) =>
     {
+      let active_profile_for_model = (_model, _rewrite_level) => active_profile;
       let segment_bounds =
         get_segment_bounds(
           ~measured=editor.editor.syntax.measured,
@@ -1522,7 +1535,7 @@ module View = {
           Some(check_id)
         | _ => None
         };
-      cancel_rocq_searches_except_in_browser(active_search_id);
+      cancel_proof_searches_except_in_browser(active_search_id);
       let+ (left, right, top, bottom) = segment_bounds;
       let selection_override = associative_override_for_editor(editor);
       let selection_term_data = editor.editor.syntax.term_data;
@@ -1604,9 +1617,34 @@ module View = {
             at_idx,
             at_exp,
             with_exp,
-          ) =>
-        switch (rewrite_reparenthesized_exp) {
-        | Some(reparenthesized_exp) =>
+          ) => {
+        let full_visible_exp =
+          model.full_visible_exp
+          |> Calc.get_saved_exc(~print="full_visible_exp");
+        let direct_override =
+          selection_override
+          |> Option.bind(_, override =>
+               SelectionEffective.replacement_for_override(
+                 ~override,
+                 ~with_exp,
+                 ~full_exp=full_visible_exp,
+                 ~term_data=selection_term_data,
+               )
+             );
+        switch (direct_override, rewrite_reparenthesized_exp) {
+        | (Some({at_exp, with_exp}), _) =>
+          signal(
+            AddWrittenStep(
+              trace_summary,
+              ProofHacks.exp_idx(at_exp, full_visible_exp),
+              at_exp,
+              with_exp,
+            ),
+          )
+        | (None, Some(reparenthesized_exp)) =>
+          /* The main editor can lose its virtual associative range when the
+           * target mini-editor takes focus.  Keep the concrete source captured
+           * when Search opened so Replace still has a real subtree to target. */
           signal(
             AddReparenthesizedWrittenStep(
               trace_summary,
@@ -1615,35 +1653,10 @@ module View = {
               with_exp,
             ),
           )
-        | None =>
-          let full_visible_exp =
-            model.full_visible_exp
-            |> Calc.get_saved_exc(~print="full_visible_exp");
-          switch (selection_override) {
-          | Some(override) =>
-            switch (
-              SelectionEffective.replacement_for_override(
-                ~override,
-                ~with_exp,
-                ~full_exp=full_visible_exp,
-                ~term_data=selection_term_data,
-              )
-            ) {
-            | Some({at_exp, with_exp}) =>
-              signal(
-                AddWrittenStep(
-                  trace_summary,
-                  ProofHacks.exp_idx(at_exp, full_visible_exp),
-                  at_exp,
-                  with_exp,
-                ),
-              )
-            | None => Ui_effect.Ignore
-            }
-          | None =>
-            signal(AddWrittenStep(trace_summary, at_idx, at_exp, with_exp))
-          };
+        | (None, None) =>
+          signal(AddWrittenStep(trace_summary, at_idx, at_exp, with_exp))
         };
+      };
 
       let add_axiom_step_for_selection =
           (
@@ -1841,6 +1854,7 @@ module View = {
             rewrite_selected_exp,
             rewrite_reparenthesized_exp,
             proof_search_verdict,
+            proof_search_check_id,
             proof_search_message,
             proof_search_source,
             cached_exp,
@@ -1862,8 +1876,16 @@ module View = {
               ),
             )
           };
-        let proof_summary_matches_current = summary =>
-          switch (summary.RewriteChecker.prover_steps) {
+        let proof_plan_matches_current =
+            (plan: ProfileProofPlan.authorized_plan) => {
+          let summary = plan.summary;
+          let active_profile = active_profile_for_model(model, rewrite_level);
+          let active_fingerprint =
+            ProfileProofPlan.profile_fingerprint(
+              active_profile,
+              automation_stage,
+            );
+          switch (summary.ProofTrace.prover_steps) {
           | [] => false
           | [first_step, ...rest_steps] =>
             let last_step =
@@ -1871,19 +1893,21 @@ module View = {
               | [] => first_step
               | _ => ListUtil.last(rest_steps)
               };
-            Equality.ignoring_ascriptions.exp(
-              first_step.before_full_exp,
-              unboxed_selected_exp,
-            )
+            plan.profile_fingerprint == active_fingerprint
+            && Equality.ignoring_ascriptions.exp(
+                 first_step.before_full_exp,
+                 unboxed_selected_exp,
+               )
             && Equality.ignoring_ascriptions.exp(
                  last_step.after_full_exp,
                  unboxed_cached_exp,
                );
           };
+        };
         let cached_result =
           switch (check_mode, cached_result) {
-          | (Model.ProofSearch, Some(Some(summary)))
-              when !proof_summary_matches_current(summary) =>
+          | (Model.ProofSearch, Some(Some(plan)))
+              when !proof_plan_matches_current(plan) =>
             None
           | _ => cached_result
           };
@@ -1904,22 +1928,19 @@ module View = {
                 target: unboxed_cached_exp,
               };
             let active_profile =
-              ProfileBoard.apply_model_to_profile(
-                model.profile_board,
-                Axioms.math_profile(rewrite_level),
-              );
+              active_profile_for_model(model, rewrite_level);
             let env =
               model.cached_env |> Calc.get_saved_exc(~print="env not cached");
-            ProofSearchBackend.local_profile_trace(
+            ProofSearchBackend.local_profile_plan(
               ~profile=active_profile,
               ~settings=globals.settings.core,
               ~env,
               request,
             )
-            |> Option.map(summary => Some(summary));
+            |> Option.map(plan => Some(plan));
           | _ => cached_result
           };
-        let replace_button = trace_summary =>
+        let replace_button = (plan: ProfileProofPlan.authorized_plan) =>
           Widgets.button(
             ~clss=["proof-button"],
             Node.text("Replace"),
@@ -1941,7 +1962,7 @@ module View = {
                 | _ => 0
                 };
               add_written_step_for_selection(
-                trace_summary,
+                plan.summary,
                 rewrite_reparenthesized_exp,
                 at_idx,
                 unboxed_selected_exp,
@@ -1949,6 +1970,19 @@ module View = {
               );
             },
           );
+        let cancel_proof_search_button =
+          proof_search_check_id
+          |> Option.map(check_id =>
+               Widgets.button(
+                 ~clss=["proof-button"],
+                 Node.text("Cancel"),
+                 ~tooltip="cancel profile planning and Rocq checking",
+                 _ => {
+                   cancel_proof_searches_except_in_browser(None);
+                   inject(RocqProofSearchCancelled(check_id));
+                 },
+               )
+             );
         let run_proof_search_button =
           Widgets.button(
             ~clss=["proof-button"],
@@ -1971,34 +2005,11 @@ module View = {
                   source: unboxed_selected_exp,
                   target: unboxed_cached_exp,
                 };
-              let tactic_plan_purpose =
-                ProofSearchBackend.tactic_plan_purpose_for_automation_stage(
-                  automation_stage,
-                );
               let active_profile =
-                ProfileBoard.apply_model_to_profile(
-                  model.profile_board,
-                  Axioms.math_profile(rewrite_level),
-                );
+                active_profile_for_model(model, rewrite_level);
               let env =
                 model.cached_env
                 |> Calc.get_saved_exc(~print="env not cached");
-              let local_trace =
-                ProofSearchBackend.local_profile_trace(
-                  ~profile=active_profile,
-                  ~settings=globals.settings.core,
-                  ~env,
-                  request,
-                );
-              let trace_summary =
-                local_trace
-                |> Option.value(
-                     ~default=
-                       ProofSearchBackend.collapsed_macro_summary_for_purpose(
-                         ~purpose=tactic_plan_purpose,
-                         request,
-                       ),
-                   );
               let start_search =
                 inject(
                   RunProofSearch(
@@ -2009,87 +2020,137 @@ module View = {
                     rewrite_reparenthesized_exp,
                   ),
                 );
-              let fail_search = message =>
-                inject(
-                  RocqProofSearchFinished(
-                    check_id,
-                    Invalid,
-                    "Rocq export failed: " ++ message,
-                    trace_summary,
-                  ),
-                );
-              try({
-                let coq_data =
-                  switch (local_trace) {
-                  | Some(_)
-                      when
-                        DifferentiationRewrite.contains_diff(request.source)
-                        || DifferentiationRewrite.contains_diff(
-                             request.target,
-                           ) =>
-                    ProofSearchBackend.rocq_search_program_for_profile_and_purpose(
-                      ~profile=active_profile,
-                      ~purpose=tactic_plan_purpose,
-                      request,
-                    )
-                  | Some(summary) =>
-                    ProofSearchBackend.rocq_replay_program(request, summary)
-                  | None =>
-                    ProofSearchBackend.rocq_equivalence_program_for_profile(
-                      ~profile=active_profile,
-                      request,
-                    )
-                  };
-                let finish = (verdict, message) =>
+              let start_rocq = local_plan =>
+                try({
+                  let local_trace =
+                    local_plan
+                    |> Option.map((plan: ProfileProofPlan.authorized_plan) =>
+                         plan.summary
+                       );
+                  let coq_data =
+                    switch (local_plan) {
+                    | Some(plan) =>
+                      ProofSearchBackend.rocq_program_for_authorized_plan(
+                        ~profile=active_profile,
+                        request,
+                        plan,
+                      )
+                    | None =>
+                      ProofSearchBackend.rocq_equivalence_program_for_profile(
+                        ~profile=active_profile,
+                        request,
+                      )
+                    };
+                  let finish = (verdict, message) =>
+                    Ui_effect.Expert.handle(
+                      inject(
+                        RocqProofSearchFinished(
+                          check_id,
+                          verdict,
+                          message,
+                          local_plan,
+                        ),
+                      ),
+                    );
+                  Ui_effect.Expert.handle(
+                    inject(RocqProofSearchStarted(check_id)),
+                  );
+                  check_rocq_search_in_browser(
+                    ~check_id,
+                    ~coq_data,
+                    ~on_result=
+                      (ok, message) =>
+                        if (ok) {
+                          switch (local_trace) {
+                          | Some(_) => finish(ProfileValid, message)
+                          | None =>
+                            finish(
+                              EquivalentOutsideProfile,
+                              "Equivalent, but the active profile has no enabled trace for this result. Enable the required operation or cleanup capability.",
+                            )
+                          };
+                        } else {
+                          finish(
+                            string_contains("timed out", message)
+                              ? TimedOut : Invalid,
+                            proof_search_failure_message(
+                              ~has_profile_trace=local_trace |> Option.is_some,
+                              message,
+                            ),
+                          );
+                        },
+                    ~on_cancel=
+                      () =>
+                        Ui_effect.Expert.handle(
+                          inject(RocqProofSearchCancelled(check_id)),
+                        ),
+                  );
+                }) {
+                | Failure(message) =>
                   Ui_effect.Expert.handle(
                     inject(
                       RocqProofSearchFinished(
                         check_id,
-                        verdict,
-                        message,
-                        trace_summary,
+                        Invalid,
+                        "Rocq export failed: " ++ message,
+                        None,
                       ),
                     ),
-                  );
-                check_rocq_search_in_browser(
-                  ~check_id,
-                  ~coq_data,
-                  ~on_result=
-                    (ok, message) =>
-                      if (ok) {
-                        switch (local_trace) {
-                        | Some(_) => finish(ProfileValid, message)
-                        | None =>
-                          finish(
-                            EquivalentOutsideProfile,
-                            "Equivalent, but the active profile has no enabled trace for this result. Enable the required operation or cleanup capability.",
-                          )
-                        };
-                      } else {
-                        finish(
-                          Invalid,
-                          proof_search_failure_message(
-                            ~has_profile_trace=local_trace |> Option.is_some,
-                            message,
-                          ),
-                        );
-                      },
-                  ~on_cancel=
-                    () =>
-                      Ui_effect.Expert.handle(
-                        inject(RocqProofSearchCancelled(check_id)),
+                  )
+                | _ =>
+                  Ui_effect.Expert.handle(
+                    inject(
+                      RocqProofSearchFinished(
+                        check_id,
+                        Invalid,
+                        "Rocq export failed: unexpected exception while generating Coq",
+                        None,
                       ),
-                );
-                start_search;
-              }) {
-              | Failure(message) =>
-                Ui_effect.Many([start_search, fail_search(message)])
-              | _ =>
-                Ui_effect.Many([
-                  start_search,
-                  fail_search("unexpected exception while generating Coq"),
-                ])
-              };
+                    ),
+                  )
+                };
+              ProofSearchBackend.local_profile_plan_incremental(
+                ~check_id,
+                ~candidate_origin=
+                  proof_search_source |> Option.is_some
+                    ? ProfileProofPlan.AutomaticSimplify
+                    : ProfileProofPlan.UserEntered,
+                ~profile=active_profile,
+                ~settings=globals.settings.core,
+                ~env,
+                ~on_finish=
+                  fun
+                  | ProofSearchBackend.LocalPlanningFinished(local_plan) =>
+                    start_rocq(local_plan)
+                  | LocalPlanningCancelled =>
+                    Ui_effect.Expert.handle(
+                      inject(RocqProofSearchCancelled(check_id)),
+                    )
+                  | LocalPlanningTimedOut =>
+                    Ui_effect.Expert.handle(
+                      inject(
+                        RocqProofSearchFinished(
+                          check_id,
+                          TimedOut,
+                          "Profile planning timed out before Rocq checking began.",
+                          None,
+                        ),
+                      ),
+                    )
+                  | LocalPlanningFailed(message) =>
+                    Ui_effect.Expert.handle(
+                      inject(
+                        RocqProofSearchFinished(
+                          check_id,
+                          Invalid,
+                          "Profile planning failed: " ++ message,
+                          None,
+                        ),
+                      ),
+                    ),
+                request,
+              );
+              start_search;
             },
           );
         let algebrite_suggestion_button =
@@ -2120,11 +2181,7 @@ module View = {
               let env =
                 model.cached_env
                 |> Calc.get_saved_exc(~print="env not cached");
-              let profile =
-                ProfileBoard.apply_model_to_profile(
-                  model.profile_board,
-                  Axioms.math_profile(rewrite_level),
-                );
+              let profile = active_profile_for_model(model, rewrite_level);
               profile_suggestion_effect(
                 ~inject,
                 ~selected_exp=unboxed_selected_exp,
@@ -2183,7 +2240,14 @@ module View = {
               )
             | Arithmetic
             | FunctionsAndLists => [simplify_with_algebrite_button]
-            | Calculus => [simplify_with_profile_button]
+            | Calculus => [
+                auto_simplify_uses_profile(
+                  rewrite_level,
+                  unboxed_selected_exp,
+                )
+                  ? simplify_with_profile_button
+                  : simplify_with_algebrite_button,
+              ]
             }
           | _ => []
           };
@@ -2193,6 +2257,23 @@ module View = {
             ~source=unboxed_selected_exp,
             ~target=unboxed_cached_exp,
           );
+        let inactive_session_warning =
+          check_mode == Model.ProofSearch
+          && Axioms.session_rewrites_for_profile(
+               active_profile_for_model(model, rewrite_level),
+             )
+          != []
+            ? [
+              div_c(
+                "proof-mode-warning session-rewrite-warning",
+                [
+                  Node.text(
+                    "Untrusted session rewrites cannot export proofs.",
+                  ),
+                ],
+              ),
+            ]
+            : [];
         let mode_issue_view = message =>
           div_c("proof-mode-warning", [Node.text(message)]);
         let mode_issue_ids =
@@ -2269,6 +2350,7 @@ module View = {
               ),
             ]
             @ suggestions
+            @ inactive_session_warning
             @ [
               div_c(
                 "proof-search-status",
@@ -2276,11 +2358,18 @@ module View = {
                 | Some(message) => [mode_issue_view(message)]
                 | None =>
                   switch (check_mode, proof_search_verdict, cached_result) {
-                  | (Model.ProofSearch, Model.Checking, _) => [
+                  | (Model.ProofSearch, Model.Planning | Model.Checking, _) => [
                       Node.text(
                         proof_search_message
-                        |> Option.value(~default="Rocq checking..."),
+                        |> Option.value(
+                             ~default=
+                               proof_search_verdict_label(
+                                 ~has_candidate=false,
+                                 proof_search_verdict,
+                               ),
+                           ),
                       ),
+                      ...cancel_proof_search_button |> Option.to_list,
                     ]
                   | (Model.ProofSearch, Model.Ready, _) => [
                       Node.text(
@@ -2291,6 +2380,23 @@ module View = {
                       ),
                       run_proof_search_button,
                     ]
+                  | (Model.ProofSearch, Model.Cancelled | Model.TimedOut, _) =>
+                    [
+                      Node.text(
+                        proof_search_verdict_label(
+                          ~has_candidate=false,
+                          proof_search_verdict,
+                        ),
+                      ),
+                    ]
+                    @ (
+                      proof_search_message
+                      |> Option.map(message =>
+                           div_c("proof-search-error", [Node.text(message)])
+                         )
+                      |> Option.to_list
+                    )
+                    @ [run_proof_search_button]
                   | (Model.ProofSearch, Model.EquivalentOutsideProfile, _) => [
                       Node.text(
                         proof_search_verdict_label(
@@ -2303,7 +2409,7 @@ module View = {
                   | (
                       Model.ProofSearch,
                       Model.ProfileValid,
-                      Some(Some(trace_summary)),
+                      Some(Some(plan)),
                     ) => [
                       Node.text("Valid"),
                       div_c(
@@ -2311,11 +2417,11 @@ module View = {
                         [
                           Node.text(
                             "Profile route: "
-                            ++ proof_search_route_label(trace_summary),
+                            ++ proof_search_route_label(plan.summary),
                           ),
                         ],
                       ),
-                      replace_button(trace_summary),
+                      replace_button(plan),
                     ]
                   | (Model.ProofSearch, Model.ProfileValid, _) => [
                       Node.text("Valid"),
@@ -2331,18 +2437,18 @@ module View = {
                       }
                     )
                     @ [run_proof_search_button]
-                  | (_, _, Some(Some(trace_summary))) => [
+                  | (_, _, Some(Some(plan))) => [
                       Node.text("Valid"),
                       div_c(
                         "proof-search-route",
                         [
                           Node.text(
                             "Profile route: "
-                            ++ proof_search_route_label(trace_summary),
+                            ++ proof_search_route_label(plan.summary),
                           ),
                         ],
                       ),
-                      replace_button(trace_summary),
+                      replace_button(plan),
                     ]
                   | (_, _, Some(None)) => [Node.text("Invalid")]
                   | (_, _, None) => [Node.text("...")]
@@ -2375,7 +2481,15 @@ module View = {
         );
       let reparenthesize_result_for_rewrite:
         option(Language.Reparenthesize.result) =
-        None;
+        selection_override
+        |> Option.bind(_, override =>
+             SelectionEffective.reparenthesize_override(
+               ~override,
+               ~full_exp=
+                 model.full_visible_exp
+                 |> Calc.get_saved_exc(~print="full_visible_exp"),
+             )
+           );
       let text_arrow = (b: bool) => if (b) {"▲"} else {"▼"};
 
       let show_manual_actions = automation_stage == Axioms.Manual;
@@ -2401,23 +2515,22 @@ module View = {
           let key =
             Axioms.rewrite_level_label(rewrite_level)
             ++ "|"
-            ++ ProfileBoard.Model.show(model.profile_board)
+            ++ ProfileProofPlan.profile_fingerprint(
+                 active_profile_for_model(model, rewrite_level),
+                 automation_stage,
+               )
             ++ "|"
             ++ Exp.show(selected_exp);
           AutoSimplifyDebounce.schedule(
             ~key,
             ~run=() => {
               let effect =
-                switch (rewrite_level) {
-                | Calculus =>
+                if (auto_simplify_uses_profile(rewrite_level, selected_exp)) {
                   let env =
                     model.cached_env
                     |> Calc.get_saved_exc(~print="env not cached");
                   let profile =
-                    ProfileBoard.apply_model_to_profile(
-                      model.profile_board,
-                      Axioms.math_profile(rewrite_level),
-                    );
+                    active_profile_for_model(model, rewrite_level);
                   profile_suggestion_effect(
                     ~inject,
                     ~selected_exp,
@@ -2426,17 +2539,14 @@ module View = {
                     ~env,
                     ~auto_selected_exp=Some(selected_exp),
                   );
-                | Arithmetic
-                | Algebra
-                | Trigonometry
-                | FunctionsAndLists =>
+                } else {
                   algebrite_suggestion_effect(
                     ~inject,
                     ~selected_exp,
                     ~method_name="simplifyToString",
                     ~source="Algebrite auto simplify candidate",
                     ~auto_selected_exp=Some(selected_exp),
-                  )
+                  );
                 };
               Ui_effect.Expert.handle(effect);
             },
@@ -2627,16 +2737,6 @@ module View = {
 
       let general_proof_buttons = [
         proof_button(
-          ~callback=inject(ToggleProfileBoard),
-          "Profile "
-          ++ text_arrow(
-               switch (model.open_box) {
-               | Model.ProfileBoardOpen => true
-               | _ => false
-               },
-             ),
-        ),
-        proof_button(
           ~callback=
             Ui_effect.Many([
               globals.inject_global(Set(Evaluation(ForceShowRecord))),
@@ -2756,10 +2856,7 @@ module View = {
                               with_exp,
                             ),
                         ~profile=
-                          ProfileBoard.apply_model_to_profile(
-                            model.profile_board,
-                            Axioms.math_profile(rewrite_level),
-                          ),
+                          active_profile_for_model(model, rewrite_level),
                         ~rewrite_level,
                         ~show_mode_warning=true,
                         ~full_exp=full_exp_for_axioms,
@@ -2783,40 +2880,6 @@ module View = {
                     cached_exp,
                     cached_result |> Calc.saved_to_option,
                   )
-                | ProfileBoardOpen =>
-                  let env =
-                    model.cached_env
-                    |> Calc.get_saved_exc(~print="env not cached");
-                  let base_profile = Axioms.math_profile(rewrite_level);
-                  let active_profile =
-                    ProfileBoard.apply_model_to_profile(
-                      model.profile_board,
-                      base_profile,
-                    );
-                  let summary = ProfileBoard.profile_summary(active_profile);
-                  let results =
-                    ProfileBoard.default_examples
-                    |> List.filter((example: ProfileBoard.example) =>
-                         example.level == rewrite_level
-                       )
-                    |> List.map(example =>
-                         ProfileBoard.run_example_with_profile(
-                           ~settings=globals.settings.core,
-                           ~env,
-                           ~profile=active_profile,
-                           example,
-                         )
-                       );
-                  [
-                    ProfileBoard.View.editable(
-                      ~model=model.profile_board,
-                      ~inject=action => inject(ProfileBoardAction(action)),
-                      ~on_close=inject(ToggleProfileBoard),
-                      ~base_profile,
-                      ~summary,
-                      ~results,
-                    ),
-                  ];
                 | WrittenStepOpen({
                     editor,
                     check_mode,
@@ -2826,7 +2889,7 @@ module View = {
                     source_full_visible_exp: _,
                     proof_search_requested: _,
                     proof_search_verdict,
-                    proof_search_check_id: _,
+                    proof_search_check_id,
                     proof_search_message,
                     proof_search_max_depth: _,
                     proof_search_max_states: _,
@@ -2848,19 +2911,26 @@ module View = {
                       Equality.ignoring_ascriptions.exp(a, b)
                     | _ => false
                     };
+                  let reparenthesized_source_changed =
+                    switch (
+                      rewrite_reparenthesized_exp,
+                      live_rewrite_reparenthesized_exp,
+                    ) {
+                    /* Losing the range because the mini-editor took focus is
+                     * not a source edit.  The open box also tracks the full
+                     * source expression and is closed separately if it changes. */
+                    | (Some(_), None) => false
+                    | (stored, live) => !option_exp_equal(stored, live)
+                    };
                   let source_selection_changed =
                     !
                       option_exp_equal(
                         rewrite_selected_exp,
                         selected_exp_for_rewrite,
                       )
-                    || !
-                         option_exp_equal(
-                           rewrite_reparenthesized_exp,
-                           live_rewrite_reparenthesized_exp,
-                         );
+                    || reparenthesized_source_changed;
                   if (source_selection_changed) {
-                    cancel_rocq_searches_except_in_browser(None);
+                    cancel_proof_searches_except_in_browser(None);
                   };
                   let suggestions =
                     switch (
@@ -2914,16 +2984,13 @@ module View = {
                               (summary, at_idx, at_exp, with_exp) =>
                                 add_written_step_for_selection(
                                   summary,
-                                  live_rewrite_reparenthesized_exp,
+                                  rewrite_reparenthesized_exp,
                                   at_idx,
                                   at_exp,
                                   with_exp,
                                 ),
                             ~profile=
-                              ProfileBoard.apply_model_to_profile(
-                                model.profile_board,
-                                Axioms.math_profile(rewrite_level),
-                              ),
+                              active_profile_for_model(model, rewrite_level),
                             ~rewrite_level,
                             ~show_mode_warning=false,
                             ~full_exp=full_exp_for_axioms,
@@ -2938,9 +3005,10 @@ module View = {
                     editor,
                     check_mode,
                     selected_exp_for_rewrite,
-                    live_rewrite_reparenthesized_exp,
+                    rewrite_reparenthesized_exp,
                     source_selection_changed
                       ? Model.Ready : proof_search_verdict,
+                    source_selection_changed ? None : proof_search_check_id,
                     source_selection_changed ? None : proof_search_message,
                     source_selection_changed ? None : proof_search_source,
                     cached_exp,
@@ -2981,7 +3049,7 @@ module View = {
         "s",
         true,
         _ => {
-          cancel_rocq_searches_except_in_browser(None);
+          cancel_proof_searches_except_in_browser(None);
           hide_stepper;
         },
       );

@@ -13,20 +13,20 @@ type application = {
 type result = {
   source: Exp.t,
   target: Exp.t,
-  steps: list(RewriteChecker.prover_step),
+  steps: list(ProofTrace.prover_step),
   applications: list(application),
 };
 
 let strip = exp =>
-  exp |> DHExp.strip_ascriptions |> RewriteChecker.strip_math_wrappers;
+  exp |> DHExp.strip_ascriptions |> MathRewriteUtil.strip_math_wrappers;
 
 let exp_same = (left, right) =>
-  RewriteChecker.exp_same(strip(left), strip(right))
+  MathRewriteUtil.exp_same(strip(left), strip(right))
   || TrigRewrite.exp_same(strip(left), strip(right));
 
-let int_exp = RewriteChecker.int_exp;
-let plus_exp = RewriteChecker.plus_exp;
-let times_exp = RewriteChecker.times_exp;
+let int_exp = MathRewriteUtil.int_exp;
+let plus_exp = MathRewriteUtil.plus_exp;
+let times_exp = MathRewriteUtil.times_exp;
 
 let power_exp_with_op = (op, base, exponent) =>
   Exp.fresh(BinOp(op, base, exponent));
@@ -43,7 +43,7 @@ let allowed_rules = level =>
 let allowed_rule_ids = level =>
   allowed_rules(level) |> List.map((rule: Axioms.rewrite_rule) => rule.id);
 
-let int_constant = exp => RewriteChecker.int_constant(strip(exp));
+let int_constant = exp => MathRewriteUtil.int_constant(strip(exp));
 
 let is_power_op =
   fun
@@ -67,7 +67,7 @@ let rec has_hole = exp =>
 let rec flatten_plus = exp => {
   let exp = strip(exp);
   switch (exp.term) {
-  | BinOp(op, left, right) when RewriteChecker.is_plus_op(op) =>
+  | BinOp(op, left, right) when MathRewriteUtil.is_plus_op(op) =>
     flatten_plus(left) @ flatten_plus(right)
   | _ => [exp]
   };
@@ -76,7 +76,7 @@ let rec flatten_plus = exp => {
 let rec flatten_times = exp => {
   let exp = strip(exp);
   switch (exp.term) {
-  | BinOp(op, left, right) when RewriteChecker.is_times_op(op) =>
+  | BinOp(op, left, right) when MathRewriteUtil.is_times_op(op) =>
     flatten_times(left) @ flatten_times(right)
   | _ => [exp]
   };
@@ -205,53 +205,55 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
   let exp = strip(exp);
   switch (rule_id, exp.term) {
   | ("arith.add_comm", BinOp(op, left, right))
-      when RewriteChecker.is_plus_op(op) => [
-      RewriteChecker.plus_exp_with_op(op, right, left),
+      when MathRewriteUtil.is_plus_op(op) => [
+      MathRewriteUtil.plus_exp_with_op(op, right, left),
     ]
   | ("arith.mul_comm", BinOp(op, left, right))
-      when RewriteChecker.is_times_op(op) => [
-      RewriteChecker.times_exp_with_op(op, right, left),
+      when MathRewriteUtil.is_times_op(op) => [
+      MathRewriteUtil.times_exp_with_op(op, right, left),
     ]
   | ("arith.add_assoc", BinOp(op, {term: BinOp(inner_op, a, b), _}, c))
       when
-        RewriteChecker.is_plus_op(op) && RewriteChecker.is_plus_op(inner_op) => [
-      RewriteChecker.plus_exp_with_op(
+        MathRewriteUtil.is_plus_op(op)
+        && MathRewriteUtil.is_plus_op(inner_op) => [
+      MathRewriteUtil.plus_exp_with_op(
         op,
         a,
-        RewriteChecker.plus_exp_with_op(op, b, c),
+        MathRewriteUtil.plus_exp_with_op(op, b, c),
       ),
     ]
   | ("arith.add_assoc", BinOp(op, a, {term: BinOp(inner_op, b, c), _}))
       when
-        RewriteChecker.is_plus_op(op) && RewriteChecker.is_plus_op(inner_op) => [
-      RewriteChecker.plus_exp_with_op(
+        MathRewriteUtil.is_plus_op(op)
+        && MathRewriteUtil.is_plus_op(inner_op) => [
+      MathRewriteUtil.plus_exp_with_op(
         op,
-        RewriteChecker.plus_exp_with_op(op, a, b),
+        MathRewriteUtil.plus_exp_with_op(op, a, b),
         c,
       ),
     ]
   | ("arith.mul_assoc", BinOp(op, {term: BinOp(inner_op, a, b), _}, c))
       when
-        RewriteChecker.is_times_op(op)
-        && RewriteChecker.is_times_op(inner_op) => [
-      RewriteChecker.times_exp_with_op(
+        MathRewriteUtil.is_times_op(op)
+        && MathRewriteUtil.is_times_op(inner_op) => [
+      MathRewriteUtil.times_exp_with_op(
         op,
         a,
-        RewriteChecker.times_exp_with_op(op, b, c),
+        MathRewriteUtil.times_exp_with_op(op, b, c),
       ),
     ]
   | ("arith.mul_assoc", BinOp(op, a, {term: BinOp(inner_op, b, c), _}))
       when
-        RewriteChecker.is_times_op(op)
-        && RewriteChecker.is_times_op(inner_op) => [
-      RewriteChecker.times_exp_with_op(
+        MathRewriteUtil.is_times_op(op)
+        && MathRewriteUtil.is_times_op(inner_op) => [
+      MathRewriteUtil.times_exp_with_op(
         op,
-        RewriteChecker.times_exp_with_op(op, a, b),
+        MathRewriteUtil.times_exp_with_op(op, a, b),
         c,
       ),
     ]
   | ("arith.add_zero", BinOp(op, left, right))
-      when RewriteChecker.is_plus_op(op) =>
+      when MathRewriteUtil.is_plus_op(op) =>
     switch (int_constant(left), int_constant(right)) {
     | (Some(value), _) when Bigint.equal(value, Bigint.zero) => [
         strip(right),
@@ -261,31 +263,29 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
       ]
     | _ => []
     }
-  | ("arith.const_fold", BinOp(op, left, right))
-      when RewriteChecker.is_plus_op(op) =>
-    switch (int_constant(left), int_constant(right)) {
-    | (Some(left), Some(right)) => [int_exp(Bigint.(+)(left, right))]
-    | _ => []
-    }
-  | ("arith.const_fold", BinOp(op, left, right))
-      when RewriteChecker.is_times_op(op) =>
-    switch (int_constant(left), int_constant(right)) {
-    | (Some(left), Some(right)) => [int_exp(Bigint.( * )(left, right))]
-    | _ => []
+  | ("arith.const_fold", _) =>
+    switch (ArithmeticNormalization.fold_rational_constant(exp)) {
+    | Some(folded) when !exp_same(exp, folded) => [folded]
+    | Some(_)
+    | None => []
     }
   | ("arith.reorder_add_terms", _) => small_addition_permutations(exp)
   | ("arith.reorder_mul_factors", _) =>
     small_multiplication_permutations(exp)
+  | ("arith.simplify_scalar_products", _) =>
+    let simplified = ArithmeticNormalization.simplify_scalar_products(exp);
+    exp_same(exp, simplified) ? [] : [simplified];
   | (
       "alg.distribute_mul_add",
       BinOp(op, left, {term: BinOp(plus_op, add_left, add_right), _}),
     )
       when
-        RewriteChecker.is_times_op(op) && RewriteChecker.is_plus_op(plus_op) => [
-      RewriteChecker.plus_exp_with_op(
+        MathRewriteUtil.is_times_op(op)
+        && MathRewriteUtil.is_plus_op(plus_op) => [
+      MathRewriteUtil.plus_exp_with_op(
         plus_op,
-        RewriteChecker.times_exp_with_op(op, left, add_left),
-        RewriteChecker.times_exp_with_op(op, left, add_right),
+        MathRewriteUtil.times_exp_with_op(op, left, add_left),
+        MathRewriteUtil.times_exp_with_op(op, left, add_right),
       ),
     ]
   | (
@@ -293,20 +293,21 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
       BinOp(op, {term: BinOp(plus_op, add_left, add_right), _}, right),
     )
       when
-        RewriteChecker.is_times_op(op) && RewriteChecker.is_plus_op(plus_op) => [
-      RewriteChecker.plus_exp_with_op(
+        MathRewriteUtil.is_times_op(op)
+        && MathRewriteUtil.is_plus_op(plus_op) => [
+      MathRewriteUtil.plus_exp_with_op(
         plus_op,
-        RewriteChecker.times_exp_with_op(op, add_left, right),
-        RewriteChecker.times_exp_with_op(op, add_right, right),
+        MathRewriteUtil.times_exp_with_op(op, add_left, right),
+        MathRewriteUtil.times_exp_with_op(op, add_right, right),
       ),
     ]
   | ("alg.distribute_div_add", _) =>
-    RewriteChecker.distribute_div_over_add_candidates(exp)
+    MathRewriteUtil.distribute_div_over_add_candidates(exp)
   | ("alg.factor_common", BinOp(plus_op, left, right))
-      when RewriteChecker.is_plus_op(plus_op) =>
+      when MathRewriteUtil.is_plus_op(plus_op) =>
     switch (
-      RewriteChecker.factors_of_product(left),
-      RewriteChecker.factors_of_product(right),
+      MathRewriteUtil.factors_of_product(left),
+      MathRewriteUtil.factors_of_product(right),
     ) {
     | (Some((times_op, a, b)), Some((right_times_op, c, d)))
         when times_op == right_times_op && exp_same(a, c) => [
@@ -331,7 +332,7 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
     let syntactic_splits =
       switch (strip(exponent).term) {
       | BinOp(plus_op, left_exp, right_exp)
-          when RewriteChecker.is_plus_op(plus_op) => [
+          when MathRewriteUtil.is_plus_op(plus_op) => [
           (strip(left_exp), strip(right_exp)),
         ]
       | _ => []
@@ -455,8 +456,8 @@ let apply_rule_everywhere = (rule, exp): list(application) => {
 };
 
 let application_to_prover_step = (app: application) =>
-  RewriteChecker.prover_step_at(
-    ~origin=Normalization,
+  ProofTrace.prover_step_at(
+    ~origin=ProofTrace.Normalization,
     ~rule_id=app.rule.id,
     ~before_full_exp=app.before_full_exp,
     ~after_full_exp=app.after_full_exp,
@@ -524,6 +525,28 @@ let targeted_multiplication_reorder = (source, target): option(result) =>
     target,
   );
 
+let targeted_rule_transform = (~rule_id, ~transform, source, target) =>
+  switch (rule_by_id(rule_id), transform(source)) {
+  | (Some(rule), Some(transformed)) when exp_same(transformed, target) =>
+    let source = strip(source);
+    let target = strip(target);
+    let app = {
+      rule,
+      before_full_exp: source,
+      after_full_exp: target,
+      before_exp: source,
+      after_exp: target,
+      occurrence: 1,
+    };
+    Some({
+      source,
+      target,
+      steps: [application_to_prover_step(app)],
+      applications: [app],
+    });
+  | _ => None
+  };
+
 let string_starts_with = (prefix, value) => {
   let prefix_len = String.length(prefix);
   String.length(value) >= prefix_len
@@ -536,11 +559,11 @@ let group_name_for_rule_ids = rule_ids =>
     : rule_ids |> List.exists(string_starts_with("alg."))
         ? Some("algebra") : Some("arithmetic");
 
-let trace_summary = (result: result): RewriteChecker.trace_summary => {
+let trace_summary = (result: result): ProofTrace.trace_summary => {
   let rule_ids =
     result.applications
     |> List.map((app: application) => app.rule.id)
-    |> RewriteChecker.dedup;
+    |> MathRewriteUtil.dedup;
   {
     justification: "bounded axiom search",
     group_name: group_name_for_rule_ids(rule_ids),
@@ -675,13 +698,79 @@ let unsupported_construct_ids_for_rewrite = Axioms.unsupported_construct_ids_for
 
 let unsupported_constructs_message_for_rewrite = Axioms.unsupported_constructs_message_for_rewrite;
 
-let search =
+type search_node = (Exp.t, list(ProofTrace.prover_step), list(application));
+
+type search_session = {
+  source: Exp.t,
+  target: Exp.t,
+  level: Axioms.rewrite_level,
+  max_depth: int,
+  max_states: int,
+  allowed_rule_ids: list(string),
+  rules: list(Axioms.rewrite_rule),
+  depth: int,
+  seen: list(string),
+  frontier: list(search_node),
+  next: list(search_node),
+  generated_this_depth: int,
+};
+
+type search_progress =
+  | SearchPending(search_session)
+  | SearchComplete(option(result));
+
+let targeted_finish_from = (~level, ~allowed_rule_ids, ~target, exp) => {
+  let has_targeted_rule = rule_id =>
+    allowed_rules(level)
+    |> List.exists((rule: Axioms.rewrite_rule) =>
+         rule.id == rule_id
+         && (allowed_rule_ids == [] || List.mem(rule.id, allowed_rule_ids))
+       );
+  let candidates = [
+    (
+      "arith.const_fold",
+      () =>
+        targeted_rule_transform(
+          ~rule_id="arith.const_fold",
+          ~transform=ArithmeticNormalization.fold_rational_constant,
+          exp,
+          target,
+        ),
+    ),
+    (
+      "arith.simplify_scalar_products",
+      () => {
+        let transformed =
+          ArithmeticNormalization.simplify_scalar_products(exp);
+        targeted_rule_transform(
+          ~rule_id="arith.simplify_scalar_products",
+          ~transform=_ => Some(transformed),
+          exp,
+          target,
+        );
+      },
+    ),
+    (
+      "arith.reorder_add_terms",
+      () => targeted_addition_reorder(exp, target),
+    ),
+    (
+      "arith.reorder_mul_factors",
+      () => targeted_multiplication_reorder(exp, target),
+    ),
+  ];
+  candidates
+  |> List.find_map(((rule_id, candidate)) =>
+       has_targeted_rule(rule_id) ? candidate() : None
+     );
+};
+
+let start_search =
     (
       ~level=Axioms.Arithmetic,
       ~max_depth=4,
       ~max_states=250,
       ~allowed_rule_ids=[],
-      ~log=true,
       source,
       target,
     ) => {
@@ -696,128 +785,199 @@ let search =
     |> List.filter((rule: Axioms.rewrite_rule) =>
          allowed_rule_ids == [] || List.mem(rule.id, allowed_rule_ids)
        );
-  let has_targeted_rule = rule_id =>
-    allowed_rules(level)
-    |> List.exists((rule: Axioms.rewrite_rule) =>
-         rule.id == rule_id
-         && (allowed_rule_ids == [] || List.mem(rule.id, allowed_rule_ids))
-       );
+  let source = strip(source);
   let target = strip(target);
   if (has_hole(source)
       || has_hole(target)
       || unsupported_constructs_for_rewrite(~level, ~source, ~target) != []) {
-    None;
+    SearchComplete(None);
   } else {
-    let targeted_reorder_from = exp =>
-      switch (
-        has_targeted_rule("arith.reorder_add_terms"),
-        has_targeted_rule("arith.reorder_mul_factors"),
-      ) {
-      | (true, _) =>
-        switch (targeted_addition_reorder(exp, target)) {
-        | Some(result) => Some(result)
-        | None when has_targeted_rule("arith.reorder_mul_factors") =>
-          targeted_multiplication_reorder(exp, target)
-        | None => None
-        }
-      | (false, true) => targeted_multiplication_reorder(exp, target)
-      | (false, false) => None
-      };
-    let targeted_result = targeted_reorder_from(source);
-    switch (targeted_result) {
-    | Some(result) =>
-      if (log) {
-        log_search_result(
-          ~source,
-          ~target,
-          ~level,
-          ~max_depth,
-          ~allowed_rule_ids,
-          Some(result),
-        );
-      };
-      Some(result);
+    switch (
+      max_depth > 0
+        ? targeted_finish_from(~level, ~allowed_rule_ids, ~target, source)
+        : None
+    ) {
+    | Some(result) => SearchComplete(Some(result))
     | None =>
-      let generated_this_depth = ref(0);
-      let generation_budget = max(1, max_states * 4);
-      let rec bounded_concat_map = (items, f) =>
-        switch (items) {
-        | [] => []
-        | [item, ...rest] =>
-          generated_this_depth^ >= generation_budget
-            ? [] : f(item) @ bounded_concat_map(rest, f)
-        };
-      let rec bfs = (depth, seen, frontier) =>
-        if (depth > max_depth) {
-          None;
-        } else {
-          let finish_state = ((exp, steps, applications)) =>
-            if (exp_same(exp, target)) {
-              Some({
-                source: strip(source),
-                target: exp,
-                steps: List.rev(steps),
-                applications: List.rev(applications),
-              });
-            } else {
-              switch (targeted_reorder_from(exp)) {
-              | Some(reorder_result) =>
-                Some({
-                  source: strip(source),
-                  target,
-                  steps: List.rev(reorder_result.steps @ steps),
-                  applications:
-                    List.rev(reorder_result.applications @ applications),
-                })
-              | None => None
-              };
-            };
-          switch (
-            frontier |> List.filter_map(finish_state) |> ListUtil.hd_opt
-          ) {
-          | Some(result) => Some(result)
-          | None =>
-            generated_this_depth := 0;
-            let next =
-              bounded_concat_map(frontier, ((exp, steps, applications)) =>
-                bounded_concat_map(rules, rule =>
-                  apply_rule_everywhere(rule, exp)
-                  |> List.filter_map(app =>
-                       if (generated_this_depth^ >= generation_budget) {
-                         None;
-                       } else {
-                         generated_this_depth := generated_this_depth^ + 1;
-                         Some((
-                           strip(app.after_full_exp),
-                           [application_to_prover_step(app), ...steps],
-                           [app, ...applications],
-                         ));
-                       }
-                     )
-                )
-              )
-              |> List.filter(((exp, _, _)) =>
-                   !List.mem(state_key(exp), seen)
-                 );
-            let next = ListUtil.take(max_states, next);
-            let seen =
-              seen @ (next |> List.map(((exp, _, _)) => state_key(exp)));
-            next == [] ? None : bfs(depth + 1, seen, next);
-          };
-        };
-      let result =
-        bfs(0, [state_key(source)], [(strip(source), [], [])]);
-      if (log) {
-        log_search_result(
-          ~source,
-          ~target,
-          ~level,
-          ~max_depth,
-          ~allowed_rule_ids,
-          result,
-        );
-      };
-      result;
+      SearchPending({
+        source,
+        target,
+        level,
+        max_depth,
+        max_states,
+        allowed_rule_ids,
+        rules,
+        depth: 0,
+        seen: [state_key(source)],
+        frontier: [(source, [], [])],
+        next: [],
+        generated_this_depth: 0,
+      })
     };
   };
+};
+
+let finish_node = (session, (exp, steps, applications): search_node) =>
+  if (exp_same(exp, session.target)) {
+    Some({
+      source: session.source,
+      target: exp,
+      steps: List.rev(steps),
+      applications: List.rev(applications),
+    });
+  } else {
+    switch (
+      session.depth < session.max_depth
+        ? targeted_finish_from(
+            ~level=session.level,
+            ~allowed_rule_ids=session.allowed_rule_ids,
+            ~target=session.target,
+            exp,
+          )
+        : None
+    ) {
+    | Some(reorder_result) =>
+      Some({
+        source: session.source,
+        target: session.target,
+        steps: List.rev(reorder_result.steps @ steps),
+        applications: List.rev(reorder_result.applications @ applications),
+      })
+    | None => None
+    };
+  };
+
+let expand_node = (session, (exp, steps, applications): search_node) => {
+  let generation_budget = max(1, session.max_states * 4);
+  let capacity = session.max_states - List.length(session.next);
+  if (session.depth >= session.max_depth
+      || capacity <= 0
+      || session.generated_this_depth >= generation_budget) {
+    session;
+  } else {
+    let remaining_generation =
+      generation_budget - session.generated_this_depth;
+    let candidates =
+      session.rules
+      |> List.concat_map(rule =>
+           apply_rule_everywhere(rule, exp)
+           |> List.map(app =>
+                (
+                  strip(app.after_full_exp),
+                  [application_to_prover_step(app), ...steps],
+                  [app, ...applications],
+                )
+              )
+         )
+      |> ListUtil.take(remaining_generation);
+    let generated_this_depth =
+      session.generated_this_depth + List.length(candidates);
+    let rec add_unseen = (seen, next, remaining, candidates) =>
+      switch (candidates) {
+      | [] => (seen, next)
+      | _ when remaining <= 0 => (seen, next)
+      | [(candidate_exp, _, _) as candidate, ...rest] =>
+        let key = state_key(candidate_exp);
+        List.mem(key, seen)
+          ? add_unseen(seen, next, remaining, rest)
+          : add_unseen(
+              [key, ...seen],
+              [candidate, ...next],
+              remaining - 1,
+              rest,
+            );
+      };
+    let (seen, next) =
+      add_unseen(session.seen, session.next, capacity, candidates);
+    {
+      ...session,
+      seen,
+      next,
+      generated_this_depth,
+    };
+  };
+};
+
+/* Process only a bounded number of frontier nodes. Browser callers can yield
+   between slices, while synchronous callers retain the original API below. */
+let rec continue_search = (~work_budget=1, progress) =>
+  switch (progress) {
+  | SearchComplete(_) => progress
+  | SearchPending(session) =>
+    if (work_budget <= 0) {
+      progress;
+    } else {
+      switch (session.frontier) {
+      | [node, ...rest] =>
+        switch (finish_node(session, node)) {
+        | Some(result) => SearchComplete(Some(result))
+        | None =>
+          let session =
+            expand_node(
+              {
+                ...session,
+                frontier: rest,
+              },
+              node,
+            );
+          continue_search(
+            ~work_budget=work_budget - 1,
+            SearchPending(session),
+          );
+        }
+      | [] =>
+        if (session.next == [] || session.depth >= session.max_depth) {
+          SearchComplete(None);
+        } else {
+          continue_search(
+            ~work_budget,
+            SearchPending({
+              ...session,
+              depth: session.depth + 1,
+              frontier: List.rev(session.next),
+              next: [],
+              generated_this_depth: 0,
+            }),
+          );
+        }
+      };
+    }
+  };
+
+let search =
+    (
+      ~level=Axioms.Arithmetic,
+      ~max_depth=4,
+      ~max_states=250,
+      ~allowed_rule_ids=[],
+      ~log=true,
+      source,
+      target,
+    ) => {
+  let rec finish = progress =>
+    switch (continue_search(~work_budget=max_states, progress)) {
+    | SearchComplete(result) => result
+    | SearchPending(_) as progress => finish(progress)
+    };
+  let result =
+    start_search(
+      ~level,
+      ~max_depth,
+      ~max_states,
+      ~allowed_rule_ids,
+      source,
+      target,
+    )
+    |> finish;
+  if (log) {
+    log_search_result(
+      ~source,
+      ~target,
+      ~level,
+      ~max_depth,
+      ~allowed_rule_ids,
+      result,
+    );
+  };
+  result;
 };
