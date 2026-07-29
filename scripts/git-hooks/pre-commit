@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -u
+
+# Autoformat the code being committed without touching anything that isn't
+# staged:
+#   - Fully staged files that the formatter fixes are re-staged, so the commit
+#     picks up the formatting automatically.
+#   - Partially staged files can't be re-staged safely (git add would sweep
+#     the unstaged hunks into the commit), so if the formatter changes one of
+#     those the commit is aborted and the developer resolves it.
+# `git commit --no-verify` bypasses this hook.
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+# GUI commits (e.g. the VS Code Source Control panel) often run git without a
+# login shell, so the opam switch environment may not be on PATH. The opam
+# binary itself usually is, so bootstrap the environment from it if needed.
+if ! command -v dune >/dev/null 2>&1 && command -v opam >/dev/null 2>&1; then
+    eval "$(opam env 2>/dev/null)" >/dev/null 2>&1 || true
+fi
+if ! command -v dune >/dev/null 2>&1; then
+    echo "[pre-commit] dune not found on PATH; skipping autoformat" >&2
+    exit 0
+fi
+
+# Files with unstaged changes; a staged file also in this list is partially staged.
+unstaged=$(git diff --name-only)
+
+# Record each staged file's working-tree content so we can tell exactly which
+# files the formatter changes (a partially staged file already differs from
+# the index, so "did it change?" has to be answered by content, not by diff).
+files=()
+hashes=()
+while IFS= read -r f; do
+    [ -e "$f" ] || continue
+    files+=("$f")
+    hashes+=("$(git hash-object -- "$f")")
+done <<<"$staged"
+
+echo "[pre-commit] dune fmt --auto-promote"
+dune fmt --auto-promote || true
+
+blocked=()
+for i in "${!files[@]}"; do
+    f=${files[$i]}
+    [ -e "$f" ] || continue
+    [ "$(git hash-object -- "$f")" = "${hashes[$i]}" ] && continue
+    if grep -qxF -- "$f" <<<"$unstaged"; then
+        blocked+=("$f")
+    else
+        git add -- "$f"
+    fi
+done
+
+if [ ${#blocked[@]} -gt 0 ]; then
+    {
+        echo "[pre-commit] Commit aborted: the formatter changed partially staged file(s):"
+        printf '  %s\n' "${blocked[@]}"
+        echo "Re-staging them automatically would also stage your unstaged edits."
+        echo "The formatting fixes are now in your working tree (unstaged). Either:"
+        echo "  - fully stage the file (git add <file>) and commit again,"
+        echo "  - stage just the formatting hunks (git add -p) and commit again, or"
+        echo "  - git commit --no-verify if the staged portion is already formatted."
+    } >&2
+    exit 1
+fi
