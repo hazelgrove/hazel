@@ -3882,13 +3882,6 @@ and utyp_to_info_map =
     switch (expects, utyp.term) {
     | (TypeExpected, TypFun(_, _)) when allow_typfun =>
       ok(Message.Type(utyp))
-    | (AnyKindExpected, TypFun(_, _)) =>
-      err(
-        TypKindMismatch({
-          expected: TypKind.Type,
-          actual: kind_of_typ(ctx, utyp),
-        }),
-      )
     | (_, Unknown(Hole(Invalid(token)))) => err(BadToken(token))
     | (LabelExpected(_), Unknown(Hole(EmptyHole))) =>
       ok(Message.EmptyLabel)
@@ -4348,6 +4341,13 @@ and utyp_to_info_map =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m);
   | TypFun(utpat, tbody) =>
+    let rec starts_with_typfun = (typ: Typ.t) =>
+      switch (typ.term) {
+      | TypFun(_, _) => true
+      | Parens(inner) => starts_with_typfun(inner)
+      | _ => false
+      };
+    let allow_typfun_in_body = allow_typfun && starts_with_typfun(tbody);
     let body_ctx =
       List.fold_left(
         (ctx, b: TPat.t) =>
@@ -4377,6 +4377,7 @@ and utyp_to_info_map =
            outer `TypFun` already accounts for that extra arrow in
            its own kind, so don't re-flag it here. */
         ~expects=AnyKindExpected,
+        ~allow_typfun=allow_typfun_in_body,
         m,
       )
       |> snd;

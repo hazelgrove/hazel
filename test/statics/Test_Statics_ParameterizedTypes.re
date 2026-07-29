@@ -937,16 +937,23 @@ type T = typfun A -> typfun B -> (A, typfun C -> C) in ?
 |},
           );
         check(
-          bool,
-          "kind mismatch",
-          true,
-          has_mark(
-            TypKindMismatch({
-              expected: TypKind.Type,
-              actual: TypKind.Arrow([TypKind.Type], TypKind.Type),
-            }),
-            marks,
-          ),
+          list(testable_issue),
+          "kind mismatch only on the non-prenex typfun",
+          [
+            Marks([
+              TypKindMismatch({
+                expected: TypKind.Type,
+                actual: TypKind.Arrow([TypKind.Type], TypKind.Type),
+              }),
+            ]),
+            Marks([
+              TypKindMismatch({
+                expected: TypKind.Type,
+                actual: TypKind.Arrow([TypKind.Type], TypKind.Type),
+              }),
+            ]),
+          ],
+          List.map(mark => Marks([mark]), marks),
         );
       },
     ),
