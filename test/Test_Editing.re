@@ -55,7 +55,22 @@ let perform =
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
       switch (perform(a, z, ~root=Exp)) {
-      | Ok(z) => z
+      | Ok(z) =>
+        /* Term construction must be total on every reachable editor state
+         * (statics/display consume it after every action). Checking here
+         * (rather than only on the pre-state of the NEXT action) means the
+         * final state of every test is covered too. */
+        switch (MakeTerm.from_zip_for_sem(z, ~root=Exp)) {
+        | _ => z
+        | exception e =>
+          print_endline("Zipper: " ++ Zipper.show(z));
+          Alcotest.fail(
+            "Malformed state after action "
+            ++ Action.show(a)
+            ++ ": "
+            ++ Printexc.to_string(e),
+          );
+        }
       | Error(err) =>
         print_endline("Zipper: " ++ Zipper.show(z));
         Alcotest.fail("Failed on action: " ++ Action.Failure.show(err));
@@ -269,7 +284,8 @@ let basic_tests = [
   test(
     ~name="Paste splitting text into token at Inner caret",
     ~acts=mk("hel¦lo") @ [Paste("a b")],
-    ~goal="hela~¦blo",
+    /* Caret lands after the pasted text (at the end of "b"), not before it */
+    ~goal="hela~b¦lo",
   ),
   test(
     ~name="Paste into token inside let expression",
@@ -368,6 +384,16 @@ let insertion_tests = [
     ~name="Insert char at start of token",
     ~acts=mk({|¦oo|}) @ [Insert("f")],
     ~goal={|f¦oo|},
+  ),
+  test(
+    ~name="Insert char at start of token inside function application",
+    ~acts=mk({|length(¦oo)|}) @ [Insert("f")],
+    ~goal={|length(f¦oo)|},
+  ),
+  test(
+    ~name="Insert char at start of token in let body",
+    ~acts=mk({|let x = 1 in ¦oo|}) @ [Insert("f")],
+    ~goal={|let x = 1 in f¦oo|},
   ),
   test(
     ~name="Insert char inside token",

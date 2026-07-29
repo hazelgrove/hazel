@@ -32,7 +32,10 @@ let (suite, _) =
       Test_Equality.tests,
       Test_Substitution.tests,
     ]
+    @ Test_WorkerServer.tests
     @ Test_AgentTools.tests
+    @ Test_AgentMultiTool.tests
+    @ Test_AgentControlFlow.tests
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
@@ -65,7 +68,9 @@ let (suite, _) =
     @ [Test_VarHighlight.tests]
     @ [Test_GradingReport.tests]
     @ [Test_Derivation.tests]
-    @ Test_DerivationCase.tests,
+    @ Test_DerivationCase.tests
+    @ [Test_ShardCrashRepro.tests]
+    @ Test_PromptFactory.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
