@@ -44,6 +44,7 @@ type role =
   | Through // the whole constructed type, no constructor applied
   | Prune // Through, but omit a structurally empty query
   | Omit // only type checked, kept out of the slice
+  | Retain // no type contribution, but retained and focusable
   | Source // a definition, sliced by the demand this rule's binders produce
   | Alternative // one branch; the branches split the query co-Heytingly
   | Binder; // binds names, without contributing to the constructed type
@@ -327,7 +328,8 @@ let forward = (ctx: Ctx.t, env: env, query: Typ.t, placed: list(placed)) => {
             ],
             residual(ctx, left, slice.psi),
           );
-        | Omit when !Id.Set.is_empty(Id.Set.inter(item.node.ids, env.path)) => (
+        | Omit
+        | Retain when !Id.Set.is_empty(Id.Set.inter(item.node.ids, env.path)) => (
             acc
             @ [
               {
@@ -338,6 +340,7 @@ let forward = (ctx: Ctx.t, env: env, query: Typ.t, placed: list(placed)) => {
             left,
           )
         | Omit
+        | Retain
         | Source
         | Binder => (acc @ [item], left)
         },
@@ -472,6 +475,7 @@ let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
             let need = node.demand(env, gamma);
             ([(role, need), ...needs], need.gamma);
           | Omit
+          | Retain
           | Source
           | Alternative => (needs, gamma)
           },

@@ -286,6 +286,23 @@ let functions = [
     "add(_, ?)",
   ),
   synthesis_case(
+    ~ctx=ctx_var("f", "(Int, Bool, String) -> Float"),
+    ~assumptions=[("f", "(Int, ?, String) -> Float")],
+    "deferred-app-multiple",
+    "f(_, true, _)",
+    "(Int, String) -> Float",
+    "f(_, ?, _)",
+  ),
+  synthesis_case(
+    ~ctx=ctx_var("add", "(Int, Int) -> Int"),
+    ~focus=
+      e => first("deferral", collect_exp_ids(Language.Exp.is_deferral, e)),
+    "deferred-app-focus",
+    "add(_, 1)",
+    "Int",
+    "add(_, ?)",
+  ),
+  synthesis_case(
     ~assumptions=[("string_length", "? -> Int")],
     "builtin-string-length",
     "string_length(\"s\")",
@@ -340,8 +357,6 @@ let typaps = [
     "None + Some(Int)",
     "if ? then Some@<Int>(?) else ?",
   ),
-  // Known to fail: the checker synthesises `Option`, not `Option(?)`, so the
-  // query never lines up with the node's type.
   synthesis_case(
     ~ctx=prelude_ctx("type Option(A) = None + Some(A) in"),
     ~aliases=[("Option", "typfun A -> ? + Some(?)")],

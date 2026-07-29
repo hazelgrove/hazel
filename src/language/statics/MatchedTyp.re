@@ -256,6 +256,48 @@ let prod_extension_former = (ctx: Ctx.t, left: Typ.t, right: Typ.t): former => {
   };
 };
 
+let bundle_args =
+  fun
+  | [ty] => ty
+  | tys => Prod(tys) |> temp;
+
+let deferred_ap_former = (ctx: Ctx.t, deferred: list(bool)): former => {
+  let rec refill = (deferred, supplied) =>
+    switch (deferred, supplied) {
+    | ([], _) => []
+    | ([true, ...rest], [ty, ...supplied]) => [
+        ty,
+        ...refill(rest, supplied),
+      ]
+    | ([_, ...rest], supplied) => [gap, ...refill(rest, supplied)]
+    };
+  let remaining = List.length(List.filter(Fun.id, deferred));
+  let kept = inputs =>
+    List.combine(deferred, inputs)
+    |> List.filter_map(((keep, input)) => keep ? Some(input) : None);
+  let partial = (inputs, codomain) =>
+    Arrow(bundle_args(kept(inputs)), codomain) |> temp;
+  {
+    match_: (ctx, ty) =>
+      switch (strict2(arrow, ctx, ty)) {
+      | Some((domain, codomain)) =>
+        switch (args(ctx, domain, List.length(deferred))) {
+        | L(inputs) => Some([partial(inputs, codomain)])
+        | R(_) => None
+        }
+      | None => None
+      },
+    build:
+      fun
+      | [partial] => {
+          let (domain, codomain) = tolerant2(arrow, ctx, partial);
+          let supplied = tolerant(prod(remaining), ctx, domain);
+          Arrow(bundle_args(refill(deferred, supplied)), codomain) |> temp;
+        }
+      | _ => internal(),
+  };
+};
+
 // Matches an instantiated body back to its surface type arguments.
 let instantiation_former = (~binders: list(TPat.t), ~body: Typ.t): former => {
   let bundle =

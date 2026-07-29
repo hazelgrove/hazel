@@ -488,55 +488,20 @@ and uexp_to_info_map =
         m,
       ),
     );
-  let map_m_go = (m, anas, es) => {
+  let map_m_go = (~roles=?, m, anas, es) => {
+    let roles =
+      Option.value(~default=List.init(List.length(es), _ => None), roles);
     let (pairs, m) =
       map_m2(
-        (ana, e, m) =>
-          go(~ana, e, m) |> (((e, elab, m)) => ((e, elab), m)),
-        anas,
-        es,
-        m,
-      );
-    (List.split(pairs), m);
-  };
-  let map_m_go_part = (m, anas, es) => {
-    let (pairs, m) =
-      map_m2(
-        (ana, e, m) => {
-          let* (e, elab, m) = go(~ana, e, m);
-          ((e, elab), m);
+        ((role, ana), e, m) => {
+          let result = go(~ana, e, m);
+          let finish = ((e, elab, m)) => ((e, elab), m);
+          switch (role) {
+          | Some(role) => exp_edge(role, result, finish)
+          | None => finish(result)
+          };
         },
-        anas,
-        es,
-        m,
-      );
-    (List.split(pairs), m);
-  };
-  // like `map_m_go_omit`, but the flagged sub-terms stay in the slice
-  let map_m_go_omit_except = (m, keep, anas, es) => {
-    let (pairs, m) =
-      map_m2(
-        ((keep, ana), e, m) =>
-          if (keep) {
-            go(~ana, e, m) |> (((e, elab, m)) => ((e, elab), m));
-          } else {
-            let& (e, elab, m) = go(~ana, e, m);
-            ((e, elab), m);
-          },
-        List.combine(keep, anas),
-        es,
-        m,
-      );
-    (List.split(pairs), m);
-  };
-  let map_m_go_omit = (m, anas, es) => {
-    let (pairs, m) =
-      map_m2(
-        (ana, e, m) => {
-          let& (e, elab, m) = go(~ana, e, m);
-          ((e, elab), m);
-        },
-        anas,
+        List.combine(roles, anas),
         es,
         m,
       );
@@ -808,7 +773,8 @@ and uexp_to_info_map =
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana);
       let anas = List.init(List.length(es), _ => inner_ana_ty);
-      let ((es, es_elabs), m) = map_m_go_part(m, anas, es);
+      let ((es, es_elabs), m) =
+        map_m_go(~roles=List.map(_ => Some(Slice.Part), es), m, anas, es);
       /* Use elements' synthesized types consistently for both the meet and
          the per-element ascription decision. Using `e.ty` (ana-coerced)
          would disagree with the syn-based meet and cause spurious Asc
@@ -1020,7 +986,8 @@ and uexp_to_info_map =
       | DefinedPoly(_) =>
         let ids = List.map(Exp.rep_id, [e1, e2]);
         let ((es, es_elabs), m) =
-          map_m_go_omit(
+          map_m_go(
+            ~roles=[Some(Slice.Omit), Some(Slice.Omit)],
             m,
             [Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp],
             [e1, e2],
@@ -2126,64 +2093,25 @@ and uexp_to_info_map =
         | L(ty_ins) =>
           let deferred = List.map(Exp.is_deferral, args);
           let ((args_infos, args_elabs), m) =
-            map_m_go_omit_except(m, deferred, ty_ins, args);
+            map_m_go(
+              ~roles=
+                List.map(
+                  keep => Some(keep ? Slice.Retain : Slice.Omit),
+                  deferred,
+                ),
+              m,
+              ty_ins,
+              args,
+            );
           let arg_co_ctx =
             CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
-          /* the callee is asked for what the deferred slots still need */
-          let refill = (domain: Typ.t): Typ.t => {
-            let rec fill = (deferred, supplied) =>
-              switch (deferred, supplied) {
-              | ([], _) => []
-              | ([true, ...rest], [ty, ...supplied]) => [
-                  ty,
-                  ...fill(rest, supplied),
-                ]
-              | ([_, ...rest], supplied) => [
-                  Typ.gap,
-                  ...fill(rest, supplied),
-                ]
-              };
-            Prod(
-              fill(
-                deferred,
-                MatchedTyp.tolerant(
-                  MatchedTyp.prod(
-                    List.length(List.filter(Fun.id, deferred)),
-                  ),
-                  ctx,
-                  domain,
-                ),
-              ),
-            )
-            |> Typ.temp;
-          };
-          let^ (_, _, m) = (
-            {
-              ...fn,
-              slice:
-                Slice.reshaped(
-                  ~demand=
-                    q => {
-                      let (domain, out) =
-                        MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, q);
-                      Arrow(refill(domain), out) |> Typ.temp;
-                    },
-                  ~answer=Fun.id,
-                  fn.slice,
-                ),
-            },
-            fn_elab,
-            m,
-          );
+          let former = MatchedTyp.deferred_ap_former(ctx, deferred);
+          let^* (_, _, m) = ([(former, 0)], fn, fn_elab, m);
           let ty_in' =
             List.combine(ty_ins, args)
             |> List.filter(((_, e)) => Exp.is_deferral(e))
             |> List.map(fst)
-            |> (
-              fun
-              | [x] => x
-              | xs => Prod(xs) |> Typ.temp
-            );
+            |> MatchedTyp.bundle_args;
           add(
             ~elab_term=DeferredAp(fn_elab, args_elabs) |> rewrap,
             ~elab_syn_ty=Arrow(ty_in', ty_out) |> Typ.temp,

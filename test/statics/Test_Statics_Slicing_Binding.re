@@ -94,7 +94,7 @@ let binding_synthesis = [
     "theorem ? = ? in 1",
   ),
   synthesis_case(
-    "bind-typfun-option",
+    "bind-param-option",
     "type Option(A) = None + Some(A) in Some@<Int>(1)",
     "Option(Int)",
     "type Option(A) = ? + Some(A) in Some@<Int>(?)",
@@ -142,7 +142,7 @@ let binding_synthesis = [
     "let ? = ? in ?",
   ),
   synthesis_case(
-    "bind-typfun-curried",
+    "bind-param-curried",
     "type Result(E, A) = Error(E) + Ok(A) in Ok@<String, Bool>(true)",
     "Result(?, Bool)",
     "type Result(?, A) = ? + Ok(A) in Ok@<?, Bool>(?)",
