@@ -1287,6 +1287,19 @@ let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   meet(ctx, ty1, ty2) != None;
 
+// A sum answers a query naming it, however the query spells the name.
+let is_askable = (ctx: Ctx.t, actual: t, query: t): bool =>
+  is_consistent(ctx, actual, query)
+  || (
+    switch (
+      term_of(weak_head_normalize(ctx, actual)),
+      term_of(weak_head_normalize(ctx, query)),
+    ) {
+    | (Sum(_), Sum(_) | Var(_) | TypParamAp(_, _)) => true
+    | _ => false
+    }
+  );
+
 let gap: t = temp(Unknown(Hole(EmptyHole)));
 
 let rec is_gap = (ty: t): bool =>
