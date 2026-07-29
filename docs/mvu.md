@@ -79,8 +79,12 @@ Handlers produce **actions**, which route through `update`.
 | `OnInput`, `OnChange` | `String -> Action` |
 | `OnKeyDown`, `OnKeyUp`, `OnKeyPress` | `KeyEvent -> Action` |
 | `OnMouseDown`, `OnMouseUp`, `OnMouseMove` | `MouseEvent -> Action` |
+| `OnClickAt` | `(Int, Int) -> Action` — click position relative to the element, in px |
 
 `OnSubmit` also prevents the browser's default form submission.
+`OnClickAt` is what a widget needs to interpret a click on its own surface;
+the `MouseEvent` coordinates are viewport-relative, which Hazel code cannot
+convert (it has no access to the element's position).
 
 ### Commands
 

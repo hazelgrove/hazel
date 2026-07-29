@@ -324,6 +324,8 @@ module HTML = {
       ("OnMouseDown", Some(arrow(var("MouseEvent"), unknown(Internal)))),
       ("OnMouseUp", Some(arrow(var("MouseEvent"), unknown(Internal)))),
       ("OnMouseMove", Some(arrow(var("MouseEvent"), unknown(Internal)))),
+      // Click with element-relative position: (x, y) in px -> msg
+      ("OnClickAt", Some(arrow(prod([int(), int()]), unknown(Internal)))),
       // Events with key data: KeyEvent -> msg
       ("OnKeyDown", Some(arrow(var("KeyEvent"), unknown(Internal)))),
       ("OnKeyUp", Some(arrow(var("KeyEvent"), unknown(Internal)))),

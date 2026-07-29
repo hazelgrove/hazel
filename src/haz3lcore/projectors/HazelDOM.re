@@ -94,6 +94,14 @@ let on_mouse = (mvu: t, handler, evt) => {
   on_payload(mvu, "mouse", handler, mouse_event);
 };
 
+/* Click position relative to the element, as an (x, y) int pair — what a
+   widget needs to interpret a click on its own surface (clientX/clientY in
+   MouseEvent can't be, since Hazel code can't learn the element's origin). */
+let on_click_at = (mvu: t, handler, evt) => {
+  let pos = Exp.tuple([Exp.int(evt##.offsetX), Exp.int(evt##.offsetY)]);
+  on_payload(mvu, "click-at", handler, pos);
+};
+
 let on_key = (mvu: t, handler, evt) =>
   on_payload(mvu, "keyboard", handler, SubManager.key_event_of_js(evt));
 
@@ -294,6 +302,7 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
     | ("OnMouseDown", handler) => Attr.on_mousedown(on_mouse(mvu, handler))
     | ("OnMouseUp", handler) => Attr.on_mouseup(on_mouse(mvu, handler))
     | ("OnMouseMove", handler) => Attr.on_mousemove(on_mouse(mvu, handler))
+    | ("OnClickAt", handler) => Attr.on_click(on_click_at(mvu, handler))
 
     // === Keyboard event handlers (payload: KeyEvent) ===
     | ("OnKeyDown", handler) => Attr.on_keydown(on_key(mvu, handler))
