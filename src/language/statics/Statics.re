@@ -506,7 +506,8 @@ and uexp_to_info_map =
         ~elab_term=LivelitName(name) |> rewrap,
         ~elab_syn_ty=syn_lit,
         ~marks=marks_lit,
-        ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
+        /* caret-prefixed to match the `let ^name` binder's Var entry */
+        ~co_ctx=CoCtx.singleton("^" ++ name, Exp.rep_id(uexp), ana),
         m,
       );
     | ListLit(es) =>
@@ -2079,6 +2080,27 @@ and uexp_to_info_map =
           | _ => p_ana_ctx
           }
         };
+      /* Bind a livelit: `let ^name = (init, update, view, expand) in ...`
+         additionally puts a LivelitEntry in the body's context. The
+         definition also remains an ordinary binding of `^name`, which the
+         expansion of each use references at runtime. */
+      let (p_ana_ctx, livelit_marks) =
+        switch (UserLivelit.binder_name(p)) {
+        | Some(ll_name) =>
+          switch (
+            UserLivelit.mk(
+              ~name=ll_name,
+              ~id=Pat.rep_id(p),
+              ~def_user=def.user_term,
+              ~def_elab,
+              ~def_ty=def.ty,
+            )
+          ) {
+          | Ok(ll) => (Ctx.extend(p_ana_ctx, Ctx.LivelitEntry(ll)), [])
+          | Error(e) => (p_ana_ctx, [Mark.InvalidLivelitDef(e)])
+          }
+        | None => (p_ana_ctx, [])
+        };
       let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, p_elab, m) =
@@ -2159,7 +2181,7 @@ and uexp_to_info_map =
       add(
         ~elab_term,
         ~elab_syn_ty=syn_ty_let,
-        ~marks=marks_let,
+        ~marks=livelit_marks @ marks_let,
         ~co_ctx=
           CoCtx.union([
             def.co_ctx,

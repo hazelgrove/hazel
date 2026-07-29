@@ -26,6 +26,10 @@ type raw_livelit = {
   update: (action_exp, model_exp) => model_exp,
   view: (model_exp, send_action) => Virtual_dom.Vdom.Node.t,
   size: ProjectorShape.t,
+  /* User-defined livelits only: the elaborated definition record
+     (init, update, view, expand). The projector evaluates it at render
+     time; `update`/`view` above are unused placeholders in that case. */
+  user_def: option(TermBase.Exp.t),
 };
 
 // referenced in docs/livelits.md
@@ -81,4 +85,5 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
     };
   },
   size: B.size,
+  user_def: None,
 };

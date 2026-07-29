@@ -58,6 +58,7 @@ let (suite, _) =
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,
     ]
+    @ Test_UserLivelits.tests
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
