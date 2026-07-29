@@ -191,8 +191,11 @@ module M: Projector = {
     };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  /* GUI state only. The projected expression is NOT kept here: it already
+     lives in the projector's syntax, and a copy would go stale (nothing
+     updates it) and would embed ids, which stops the projector round-tripping
+     through text. */
   type model = {
-    exp: Grammar.exp_t(IdTagged.IdTag.t),
     ui: ui_state,
     /* State-commit mode only: the app model, serialized, when it is
        checkpointable (MvuShape.is_checkpointable). Defaulted so models
@@ -210,24 +213,22 @@ module M: Projector = {
   /* Permissive and syntactic: accept bare HTML, plus anything that could
      evaluate to an app. `view` has the live value and makes the call. */
   let init = (any: Any.t) => {
-    let accept = exp =>
+    let accept =
       Some({
-        exp,
         ui: default_ui,
         checkpoint: None,
       });
     switch (any) {
     // HTML constructor applied to arguments: Div(...), Button(...), etc.
-    | Exp({term: Ap(_, {term: Constructor(name, _), _}, _), _} as exp)
-        when MvuShape.is_html_constructor(name) =>
-      accept(exp)
+    | Exp({term: Ap(_, {term: Constructor(name, _), _}, _), _})
+        when MvuShape.is_html_constructor(name) => accept
     // Nullary HTML constructor: Br
-    | Exp({term: Constructor("Br", _), _} as exp) => accept(exp)
+    | Exp({term: Constructor("Br", _), _}) => accept
     // A literal 4-tuple, or an expression whose value we can't know yet
-    | Exp({term: Tuple([_, _, _, _]), _} as exp)
-    | Exp({term: Parens({term: Tuple([_, _, _, _]), _}), _} as exp)
-    | Exp({term: Var(_), _} as exp)
-    | Exp({term: Ap(_), _} as exp) => accept(exp)
+    | Exp({term: Tuple([_, _, _, _]), _})
+    | Exp({term: Parens({term: Tuple([_, _, _, _]), _}), _})
+    | Exp({term: Var(_), _})
+    | Exp({term: Ap(_), _}) => accept
     | _ => None
     };
   };
@@ -283,11 +284,13 @@ module M: Projector = {
       ) => {
     open Virtual_dom.Vdom;
 
-    // Get current expression from syntax or fall back to model
-    let current_exp =
+    /* The projector's syntax is the only source for the expression. If it
+       won't convert (mid-edit, malformed), there is nothing honest to render
+       and the `content` switch below falls through to a message. */
+    let current_exp: option(DHExp.t) =
       switch (info.syntax |> info.utility.seg_to_term) {
-      | Some(Exp(term)) => term
-      | _ => model.exp
+      | Some(Exp(term)) => Some(term)
+      | _ => None
       };
 
     // Splice a new expression into the underlying syntax
@@ -300,16 +303,22 @@ module M: Projector = {
     // (Html, Cmd) result also runs the Cmd — Delay msgs are transforms
     // too, so they re-enter through this same inject.
     let rec inject_msg = (msg: DHExp.t): Ui_effect.t(unit) =>
-      switch (MvuShape.safe_evaluate(Exp.ap(Forward, msg, current_exp))) {
-      | Error(err) =>
-        prerr_endline("HTMLProj: msg eval error: " ++ err);
-        Effect.Ignore;
-      | Ok(result) =>
-        switch (MvuShape.strip_wrappers(result).term) {
-        | Tuple([new_exp, cmd]) =>
-          let cmd_ctx: CmdRunner.context = {inject: inject_msg};
-          Effect.Many([set_syntax(new_exp), CmdRunner.run(cmd_ctx, cmd)]);
-        | _ => set_syntax(result)
+      switch (current_exp) {
+      /* Syntax commit needs an expression to transform; without one there is
+         nothing to apply the msg to. */
+      | None => Effect.Ignore
+      | Some(exp) =>
+        switch (MvuShape.safe_evaluate(Exp.ap(Forward, msg, exp))) {
+        | Error(err) =>
+          prerr_endline("HTMLProj: msg eval error: " ++ err);
+          Effect.Ignore;
+        | Ok(result) =>
+          switch (MvuShape.strip_wrappers(result).term) {
+          | Tuple([new_exp, cmd]) =>
+            let cmd_ctx: CmdRunner.context = {inject: inject_msg};
+            Effect.Many([set_syntax(new_exp), CmdRunner.run(cmd_ctx, cmd)]);
+          | _ => set_syntax(result)
+          }
         }
       };
 
@@ -360,15 +369,21 @@ module M: Projector = {
        anything else says so instead of dumping a term. Without a value
        (dynamics off, or not evaluated yet) we fall back to the syntax,
        which is exactly the pre-app behavior for bare HTML. */
+    let syntax_is_html =
+      switch (current_exp) {
+      | Some(exp) => MvuShape.is_html(exp)
+      | None => false
+      };
     let content =
-      switch (live_value(info)) {
-      | Some(value) when Option.is_some(MvuShape.detect_app_kind(value)) =>
+      switch (live_value(info), current_exp) {
+      | (Some(value), _)
+          when Option.is_some(MvuShape.detect_app_kind(value)) =>
         app_content(value)
-      | Some(value)
-          when !MvuShape.is_html(value) && !MvuShape.is_html(current_exp) =>
+      | (Some(value), _) when !MvuShape.is_html(value) && !syntax_is_html =>
         message("not an HTML value or app")
-      | None when !MvuShape.is_html(current_exp) => message("no value yet")
-      | _ => HazelDOM.go(syntax_seed, current_exp)
+      | (None, _) when !syntax_is_html => message("no value yet")
+      | (_, Some(exp)) => HazelDOM.go(syntax_seed, exp)
+      | (_, None) => message("no value yet")
       };
 
     /* One drag tick: the size is always measured from the anchor, never

@@ -129,3 +129,29 @@ body.html-proj-resizing-xy * {
   font-style: italic;
   opacity: 0.7;
 }
+
+/* DOCKED: the app sizes to its own content.
+ *
+ * Inline, the editor reserves a fixed box and the app fills it (height:100%).
+ * In the panel there is no such box: the panel is the app's container, so a
+ * percentage height would resolve against an auto-height parent and collapse.
+ * Letting content drive the height also keeps the docked size out of the
+ * projector model, which cannot round-trip through a slide's backup_text. */
+#projector-panel .projector.html,
+#projector-panel .projector.html .html-proj-frame,
+#projector-panel .projector.html .html-proj-wrapper,
+#projector-panel .projector.html .MVU-render {
+  height: auto;
+}
+
+/* The wrapper scrolls when a box is imposed; docked there is no box to
+ * overflow, so a scrollbar here would be permanent and pointless. */
+#projector-panel .projector.html .html-proj-wrapper {
+  overflow: visible;
+}
+
+/* Vertical resize is meaningless when the app decides its own height. */
+#projector-panel .projector.html .html-proj-resize.edge-y,
+#projector-panel .projector.html .html-proj-resize.corner {
+  display: none;
+}

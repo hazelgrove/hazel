@@ -690,19 +690,28 @@ let sidebar_views =
   /* In the panel there is no absolutely-positioned box from the code
    * editor, so projectors that size themselves against it (height: 100%,
    * e.g. TextArea) would collapse to nothing. Give them the same number
-   * of rows the inline placement would have reserved. */
-  let docked_style = (d: Model.projector_data): string => {
-    let (module P) = ProjectorInit.to_module(d.p.kind);
-    let rows =
-      switch (P.placeholder(d.p.model, d.info)) {
-      | {vertical: Inline, _} => 1
-      | {vertical: Tab(n) | Block(n), _} => n + 1
-      };
-    Printf.sprintf(
-      "height: %fpx;",
-      float_of_int(rows) *. font_metrics.row_height,
-    );
-  };
+   * of rows the inline placement would have reserved.
+   *
+   * HTML is the exception: an app in the panel sizes to its own content
+   * (see proj-html.css), so imposing a height here would either clip it or
+   * leave dead space. That also keeps a docked app's height out of the
+   * projector model, which matters because model state has no textual
+   * form and so cannot survive a backup_text round-trip. */
+  let docked_style = (d: Model.projector_data): string =>
+    switch (d.p.kind) {
+    | HTML => ""
+    | _ =>
+      let (module P) = ProjectorInit.to_module(d.p.kind);
+      let rows =
+        switch (P.placeholder(d.p.model, d.info)) {
+        | {vertical: Inline, _} => 1
+        | {vertical: Tab(n) | Block(n), _} => n + 1
+        };
+      Printf.sprintf(
+        "height: %fpx;",
+        float_of_int(rows) *. font_metrics.row_height,
+      );
+    };
   projector_data
   |> List.filter((d: Model.projector_data) =>
        ProjectorCore.Placement.is_sidebar(d.p.placement)

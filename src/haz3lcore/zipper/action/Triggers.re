@@ -25,7 +25,7 @@ let exp_to_seg =
   );
 
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
-  let* name = Token.of_projector_invoke(name);
+  let* (name, placement) = Token.of_projector_invoke_parts(name);
   let kind = ProjectorCore.Kind.of_name(name);
   /* Statics haven't run yet at trigger time, so we pass the empty
    * elaborated expression. This means elaborate_syntax projectors
@@ -34,6 +34,7 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
   ProjectorPerform.init(
     kind,
     syntax,
+    ~placement,
     ~elaborated=CachedStatics.empty.elaborated,
   );
 };
@@ -81,8 +82,16 @@ let expand_projector = (z: t): option(t) => {
 };
 
 let refractor_to_invoke =
-    (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t => [
-  Piece.mk_tile(Form.mk_atom_op(Exp, Token.mk_projector_invoke(kind)), []),
+    (
+      ~placement=ProjectorCore.Placement.Inline,
+      kind: ProjectorCore.Kind.t,
+      seg: Segment.t,
+    )
+    : Segment.t => [
+  Piece.mk_tile(
+    Form.mk_atom_op(Exp, Token.mk_projector_invoke(~placement, kind)),
+    [],
+  ),
   Piece.mk_tile(Form.get(ApExp), [seg]),
 ];
 
@@ -98,7 +107,11 @@ let refractor_to_invoke_text =
   };
 
 let projector_to_invoke = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke(pr.kind, Piece.unparenthesize(pr.syntax));
+  refractor_to_invoke(
+    ~placement=pr.placement,
+    pr.kind,
+    Piece.unparenthesize(pr.syntax),
+  );
 
 let projector_to_invoke_text = (pr: Base.projector): Segment.t =>
   refractor_to_invoke_text(pr.kind, Piece.unparenthesize(pr.syntax));

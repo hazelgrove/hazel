@@ -13,15 +13,19 @@
 #      leading spaces on top of it, so baked-in indentation shows up doubled
 #      and drifting. Flat input renders correctly indented.
 #
-#   2. The final (init, update, view, subs) tuple is wrapped in ^^html(...)
-#      so the slide opens with the app already running.
+#   2. The final (init, update, view, subs) tuple is wrapped in
+#      ^^html_sidebar(...) so the slide opens with the app already running and
+#      docked in the projector panel, leaving a chip at the code site. The
+#      `_sidebar` suffix is part of the invoke token, so the placement lives in
+#      the TEXT — a slide stores both a zipper and its backup_text, and if
+#      placement were patched into the zipper afterwards the two would disagree
+#      and DocSlides.ReparseBackuptext would (rightly) fail.
 #
-#   3. The generated projector is switched to `placement Sidebar`, so the app
-#      docks in the projector panel and leaves a chip at the code site, and
-#      is given a size that fits its content. HTMLProj defaults to 40x12
-#      character cells, which clips all but the smallest of these. Docked,
-#      the panel owns the width, so `rows` is what matters; `cols` applies
-#      when a reader undocks the app back inline.
+#      Nothing else is patched into the encoded slide. A slide stores a zipper
+#      AND a backup_text, and only what the TEXT can express survives a reparse
+#      (DocSlides.ReparseBackuptext checks exactly this), so a slide can only
+#      carry projectors in their default model state. Docked apps size to their
+#      content (proj-html.css), so they no longer need a baked-in size.
 
 set -euo pipefail
 
@@ -31,25 +35,18 @@ OUT=src/mvu
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-# <source .hz>:<generated module>:<cols>x<rows>:<slide title>
-#
-# Rows are measured, not guessed: a row is ~24.9px, and these come from each
-# app's rendered content height plus a row of slack. The three whose content
-# grows as you use them carry extra headroom on purpose — the planting list
-# (todo items), the harvest ledger (table rows) and the seed catalog (its
-# collection list). Docked, `cols` has no effect since the panel owns the
-# width; it applies when a reader undocks the app back inline.
+# <source .hz>:<generated module>:<slide title>
 PROGRAMS=(
-  "mvu-counter:MvuCounter:40x9:Counter"
-  "timer:MvuTimer:44x9:Watering Timer"
-  "todo-list:MvuTodoList:48x13:Planting List"
-  "keyboard-game:MvuFirefly:56x17:Firefly"
-  "crop-plotter:MvuCropPlotter:52x17:Crop Plotter"
-  "tictactoe:MvuTicTacToe:52x16:Sprouts and Shrooms"
-  "gameoflife:MvuGameOfLife:56x16:Garden of Life"
-  "seed-catalog:MvuSeedCatalog:60x35:Seed Catalog"
-  "harvest-streak:MvuHarvestStreak:60x22:Harvest Ledger"
-  "nutrient-rotation:MvuNutrientRotation:56x24:Nutrient Tracker"
+  "mvu-counter:MvuCounter:Counter"
+  "timer:MvuTimer:Watering Timer"
+  "todo-list:MvuTodoList:Planting List"
+  "keyboard-game:MvuFirefly:Firefly"
+  "crop-plotter:MvuCropPlotter:Crop Plotter"
+  "tictactoe:MvuTicTacToe:Sprouts and Shrooms"
+  "gameoflife:MvuGameOfLife:Garden of Life"
+  "seed-catalog:MvuSeedCatalog:Seed Catalog"
+  "harvest-streak:MvuHarvestStreak:Harvest Ledger"
+  "nutrient-rotation:MvuNutrientRotation:Nutrient Tracker"
 )
 
 # The trailing app tuple is usually `(init, update, view, subs)`, but a program
@@ -71,11 +68,7 @@ for entry in "${PROGRAMS[@]}"; do
   matched=$((matched + 1))
   rest="${entry#*:}"
   mod="${rest%%:*}"
-  rest="${rest#*:}"
-  size="${rest%%:*}"
   title="${rest#*:}"
-  cols="${size%x*}"
-  rows="${size#*x}"
 
   hz="hazel-programs/mvu/$src.hz"
   flat="$TMP/$src.hz"
@@ -104,19 +97,17 @@ PY
     echo "$hz: expected to end in an app tuple, found: $tuple" >&2
     exit 1
   fi
-  perl -0pi -e "s/\Q$tuple\E(\s*)\z/^^html($tuple)\$1/" "$flat"
+  perl -0pi -e "s/\Q$tuple\E(\s*)\z/^^html_sidebar($tuple)\$1/" "$flat"
 
   $HAZEL slide-encode --title="$title" -o "$OUT/$mod.ml" "$flat"
 
-  # slide-encode always emits Inline; these apps ship docked.
-  if ! grep -q 'placement Inline' "$OUT/$mod.ml"; then
-    echo "$OUT/$mod.ml: no projector encoded" >&2
+  # The ^^html_sidebar trigger already docks it; just confirm one encoded.
+  if ! grep -q 'placement Sidebar' "$OUT/$mod.ml"; then
+    echo "$OUT/$mod.ml: no docked projector encoded" >&2
     exit 1
   fi
-  perl -pi -e 's/placement Inline/placement Sidebar/g' "$OUT/$mod.ml"
-  perl -pi -e "s/\(cols \d+\)\(rows \d+\)/(cols $cols)(rows $rows)/g" "$OUT/$mod.ml"
 
-  echo "$mod.ml  <-  $src.hz  ($title, ${cols}x${rows})"
+  echo "$mod.ml  <-  $src.hz  ($title)"
 done
 
 if [ "$matched" -eq 0 ]; then
@@ -128,10 +119,9 @@ fi
 # Left unformatted, the next `make test-quick` (and CI) fails on the promotion
 # alone, with 3000+ passing tests buried above it. Format here instead.
 #
-# Do this AFTER the size/placement rewrites above, not before: ocamlformat
-# breaks the long persisted string with `\`-continuations, which preserves the
-# string's value but splits `(cols N)(rows M)` across lines so it no longer
-# matches. The rewrites need the unformatted, single-line form.
+# ocamlformat breaks the long persisted string with `\`-continuations, which
+# preserves the string's value but splits it across lines — so any grep-based
+# inspection of a formatted slide must join continuations first.
 dune build @src/mvu/fmt --auto-promote 2>/dev/null || true
 
 echo

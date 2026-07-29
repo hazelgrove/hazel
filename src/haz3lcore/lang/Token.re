@@ -292,6 +292,12 @@ let is_llm_hole = t => t == llm_hole || t == llm_advanced_reasoning_hole;
 /* Projector invocation textual syntax */
 let projector_invoke_prefix = "^^";
 
+/* A docked projector's invoke token carries its placement, so that a
+   projector survives a round-trip through text (a slide stores both a
+   zipper and its backup_text; if placement were only in the zipper the two
+   would disagree). `_` is safe as a separator: no kind name contains one. */
+let projector_invoke_sidebar = "_sidebar";
+
 let of_projector_invoke = (input: t): option(t) =>
   if (starts_with(~prefix=projector_invoke_prefix, input)
       && length(input) > 2) {
@@ -300,14 +306,40 @@ let of_projector_invoke = (input: t): option(t) =>
     None;
   };
 
+/* Kind name and placement, split apart. */
+let of_projector_invoke_parts =
+    (input: t): option((t, ProjectorCore.Placement.t)) =>
+  switch (of_projector_invoke(input)) {
+  | None => None
+  | Some(body) =>
+    String.ends_with(~suffix=projector_invoke_sidebar, body)
+      ? Some((
+          String.sub(
+            body,
+            0,
+            String.length(body) - String.length(projector_invoke_sidebar),
+          ),
+          ProjectorCore.Placement.Sidebar,
+        ))
+      : Some((body, ProjectorCore.Placement.Inline))
+  };
+
 let is_projector_invoke = (str: t): bool =>
-  switch (of_projector_invoke(str)) {
-  | Some(name) => ProjectorCore.Kind.is_name(name)
+  switch (of_projector_invoke_parts(str)) {
+  | Some((name, _)) => ProjectorCore.Kind.is_name(name)
   | None => false
   };
 
-let mk_projector_invoke = (kind: ProjectorCore.Kind.t): string =>
-  append(projector_invoke_prefix, ProjectorCore.Kind.name(kind));
+let mk_projector_invoke =
+    (~placement=ProjectorCore.Placement.Inline, kind: ProjectorCore.Kind.t)
+    : string =>
+  append(projector_invoke_prefix, ProjectorCore.Kind.name(kind))
+  ++ (
+    switch (placement) {
+    | Inline => ""
+    | Sidebar => projector_invoke_sidebar
+    }
+  );
 
 /* Unicode probe brackets for CLI text output */
 let probe_start = "⟦";

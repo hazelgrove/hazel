@@ -108,7 +108,11 @@ jobs:
           eval $(opam env)
           make ci
         working-directory: ./source
-        timeout-minutes: 20
+        # `make ci` runs the suite under bisect_ppx with --force, which is far
+        # heavier than `make test-quick`. Doc-slide tests dominate it: the
+        # reparse check covers every slide and the text round-trip ~9s each.
+        # 20 was not enough once the MVU slides landed, and neither was 30.
+        timeout-minutes: 60
       - name: Test Report
         uses: dorny/test-reporter@v1
         with:
