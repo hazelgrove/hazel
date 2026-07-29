@@ -1353,6 +1353,17 @@ let rec collect_constraints =
       collect_constraints(~replace_bound, ctx, bound, schema, demand);
     let collect_many = (schemas, demands) =>
       List.map2(collect_pair, schemas, demands);
+    let collect_under = (pattern, schema, demand) => {
+      let shadowed =
+        TPat.binders_of(pattern) |> List.filter_map(TPat.tyvar_of_utpat);
+      collect_constraints(
+        ~replace_bound,
+        ctx,
+        List.filter(name => !List.mem(name, shadowed), bound),
+        schema,
+        demand,
+      );
+    };
     let fallback = () =>
       if (equal(schema, demand)) {
         (demand, []);
@@ -1374,13 +1385,13 @@ let rec collect_constraints =
       let (matched, constraints) = collect_pair(schema, demand);
       (List(matched) |> temp, constraints);
     | (TypFun(pattern, schema), TypFun(_, demand)) =>
-      let (matched, constraints) = collect_pair(schema, demand);
+      let (matched, constraints) = collect_under(pattern, schema, demand);
       (TypFun(pattern, matched) |> temp, constraints);
     | (Rec(pattern, schema), Rec(_, demand)) =>
-      let (matched, constraints) = collect_pair(schema, demand);
+      let (matched, constraints) = collect_under(pattern, schema, demand);
       (Rec(pattern, matched) |> temp, constraints);
     | (Poly(pattern, schema), Poly(_, demand)) =>
-      let (matched, constraints) = collect_pair(schema, demand);
+      let (matched, constraints) = collect_under(pattern, schema, demand);
       (Poly(pattern, matched) |> temp, constraints);
     | (Arrow(s1, s2), Arrow(d1, d2)) =>
       let (m1, c1) = collect_pair(s1, d1);
@@ -1658,37 +1669,37 @@ let rebuild = (shape: t, replacements: list(t)): option(t) => {
   };
 };
 
-// `ty` where `known` is known, in `ty`'s own vocabulary: leaves survive at the
-// positions `known` is concrete, and gap elsewhere.
-let rec mask = (ty: t, known: t): t =>
-  if (is_gap(known)) {
-    gap;
-  } else if (is_gap(ty)) {
-    known;
-  } else {
-    switch (children(ty), children(known)) {
-    | (kids, parts)
-        when kids != [] && List.length(kids) == List.length(parts) =>
-      rebuild(ty, List.map2(mask, kids, parts)) |> Option.value(~default=ty)
-    | _ => ty
+let embed = (~build, shape: t, components: list(t), i: int, child: t): t => {
+  let rec mask = (ty: t, known: t): t =>
+    if (is_gap(known)) {
+      gap;
+    } else if (is_gap(ty)) {
+      known;
+    } else {
+      switch (children(ty), children(known)) {
+      | (kids, parts)
+          when kids != [] && List.length(kids) == List.length(parts) =>
+        rebuild(ty, List.map2(mask, kids, parts))
+        |> Option.value(~default=ty)
+      | _ => ty
+      };
     };
-  };
-
-let embed = (shape: t, i: int, child: t): t =>
-  children(shape)
-  |> List.mapi((j, sibling) =>
-       if (j == i) {
-         child;
-       } else {
-         switch (term_of(sibling)) {
-         | Label(_)
-         | ExplicitNonlabel => sibling
-         | _ => gap
-         };
-       }
-     )
-  |> rebuild(shape)
-  |> Option.value(~default=gap);
+  let replacements =
+    List.mapi(
+      (j, sibling) =>
+        if (j == i) {
+          mask(sibling, child);
+        } else {
+          switch (term_of(sibling)) {
+          | Label(_)
+          | ExplicitNonlabel => sibling
+          | _ => gap
+          };
+        },
+      components,
+    );
+  rebuild(shape, replacements) |> Option.value(~default=build(replacements));
+};
 
 let meet_gap = (ctx: Ctx.t, left: t, right: t): t =>
   if (is_gap(left)) {
@@ -1701,33 +1712,6 @@ let meet_gap = (ctx: Ctx.t, left: t, right: t): t =>
 
 let meet_gap_all = (ctx: Ctx.t, tys: list(t)): t =>
   List.fold_left(meet_gap(ctx), gap, tys);
-
-// The arguments instantiating `binders` that make `body` into `ty`: each
-// parameter takes the meet of `ty` at the positions where it occurs.
-let matched_instantiation =
-    (ctx: Ctx.t, ~binders: list(TPat.t), ~body: t, ty: t): list(t) => {
-  let rec collect = (found, body: t, ty: t) =>
-    switch (term_of(body)) {
-    | Var(name) => [(name, ty), ...found]
-    | _ =>
-      switch (children(body), children(ty)) {
-      | (kids, parts) when List.length(kids) == List.length(parts) =>
-        List.fold_left2(collect, found, kids, parts)
-      | _ => found
-      }
-    };
-  let found = collect([], body, ty);
-  binders
-  |> List.map(binder =>
-       switch (TPat.tyvar_of_utpat(binder)) {
-       | None => gap
-       | Some(name) =>
-         found
-         |> List.filter_map(((n, q)) => n == name ? Some(q) : None)
-         |> meet_gap_all(ctx)
-       }
-     );
-};
 
 let matched_query = (ctx: Ctx.t, query: t): t => {
   let rec peel = (binders, definition) =>

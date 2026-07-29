@@ -1093,62 +1093,13 @@ and uexp_to_info_map =
         Typ.normalize(ctx, t2.ty).term,
       ) {
       | (Prod(ts1), Prod(ts2)) =>
-        let extract_entry: Typ.t => (option(string), Typ.t) = (
-          t =>
-            switch (Typ.match_tup_label(t)) {
-            | Some((name, t)) => (Some(name), t)
-            | None => (None, t)
-            }
-        );
-        let e1_entries = List.map(extract_entry, ts1);
-        let e2_entries = List.map(extract_entry, ts2);
-
-        let typ_of_entries = entries =>
-          IdTagged.FreshGrammar.Typ.(
-            prod(
-              List.map(
-                ((lab, d)) =>
-                  switch (lab) {
-                  | Some(l) => tup_label(label(l), d)
-                  | None => d
-                  },
-                entries,
-              ),
-            )
+        let former =
+          MatchedTyp.prod_extension_former(
+            ctx,
+            Prod(ts1) |> Typ.temp,
+            Prod(ts2) |> Typ.temp,
           );
-        let entries_of = (ty: Typ.t) =>
-          switch (Typ.term_of(Typ.weak_head_normalize(ctx, ty))) {
-          | Prod(ts) => List.map(extract_entry, ts)
-          | _ => []
-          };
-        /* each operand supplies the entries it labelled, and nothing else */
-        let supplied = (entries, from) =>
-          typ_of_entries(
-            List.map(
-              ((lab, _)) =>
-                (
-                  lab,
-                  List.assoc_opt(lab, from) |> Option.value(~default=Typ.gap),
-                ),
-              entries,
-            ),
-          );
-        let former: MatchedTyp.former = {
-          match_: (_, query) => {
-            let from = entries_of(query);
-            Some([supplied(e1_entries, from), supplied(e2_entries, from)]);
-          },
-          build: (
-            fun
-            | [q1, q2] =>
-              typ_of_entries(
-                LabeledTuple.extension(entries_of(q1), entries_of(q2)),
-              )
-            | _ => Typ.gap
-          ),
-        };
-        let ty =
-          typ_of_entries(LabeledTuple.extension(e1_entries, e2_entries));
+        let ty = former.build([t1.ty, t2.ty]);
         let* (_, _, m) = (t1, e1_elab, m);
         let* (_, _, m) = (t2, e2_elab, m);
         add(

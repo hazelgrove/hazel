@@ -188,8 +188,75 @@ let poly_former = {
     | _ => internal(),
 };
 
-// Decomposes an instantiated type into the arguments for `binders`, bundled as
-// the surface writes them, and rebuilds by substituting them back into `body`.
+let prod_extension_former = (ctx: Ctx.t, left: Typ.t, right: Typ.t): former => {
+  let entry = ty =>
+    switch (match_tup_label(ty)) {
+    | Some((label, payload)) => (Some(label), payload)
+    | None => (None, ty)
+    };
+  let entries = ty =>
+    switch (term_of(weak_head_normalize(ctx, ty))) {
+    | Prod(ts) => List.map(entry, ts)
+    | _ => []
+    };
+  let wrap =
+    fun
+    | (Some(label), payload) =>
+      TupLabel(Label(label) |> temp, payload) |> temp
+    | (None, payload) => payload;
+  let product = entries => Prod(List.map(wrap, entries)) |> temp;
+  let left_entries = entries(left);
+  let right_entries = entries(right);
+  let output_entries = LabeledTuple.extension(left_entries, right_entries);
+  let origins =
+    LabeledTuple.extension(
+      List.mapi((i, (label, _)) => (label, (true, i)), left_entries),
+      List.mapi((i, (label, _)) => (label, (false, i)), right_entries),
+    );
+  let split = (side, original, routed) =>
+    List.mapi(
+      (index, (label, _)) => {
+        let payload =
+          List.find_map(
+            (((_, (from_left, source)), (_, query))) =>
+              from_left == side && source == index ? Some(query) : None,
+            routed,
+          )
+          |> Option.value(~default=Typ.gap);
+        (label, payload);
+      },
+      original,
+    );
+  {
+    match_: (ctx, query) =>
+      switch (term_of(weak_head_normalize(ctx, query))) {
+      | Unknown(SynSwitch) => Some([synswitch(), synswitch()])
+      | Prod(ts) when List.length(ts) == List.length(output_entries) =>
+        let ts =
+          LabeledTuple.rearrange(
+            match_tup_label,
+            match_tup_label,
+            List.map(wrap, output_entries),
+            ts,
+            (label, payload) =>
+            wrap((Some(label), payload))
+          );
+        let routed = List.combine(origins, List.map(entry, ts));
+        Some([
+          split(true, left_entries, routed) |> product,
+          split(false, right_entries, routed) |> product,
+        ]);
+      | _ => None
+      },
+    build:
+      fun
+      | [left, right] =>
+        product(LabeledTuple.extension(entries(left), entries(right)))
+      | _ => internal(),
+  };
+};
+
+// Matches an instantiated body back to its surface type arguments.
 let instantiation_former = (~binders: list(TPat.t), ~body: Typ.t): former => {
   let bundle =
     fun
@@ -201,8 +268,25 @@ let instantiation_former = (~binders: list(TPat.t), ~body: Typ.t): former => {
     | _ => [arg]
     };
   {
-    match_: (ctx, ty) =>
-      Some([bundle(Typ.matched_instantiation(ctx, ~binders, ~body, ty))]),
+    match_: (ctx, ty) => {
+      let names = List.filter_map(TPat.tyvar_of_utpat, binders);
+      let (_, constraints) = Typ.collect_constraints(ctx, names, body, ty);
+      let args =
+        List.map(
+          binder =>
+            switch (TPat.tyvar_of_utpat(binder)) {
+            | None => Typ.gap
+            | Some(name) =>
+              constraints
+              |> List.filter_map(((found, query)) =>
+                   found == name ? Some(query) : None
+                 )
+              |> Typ.meet_gap_all(ctx)
+            },
+          binders,
+        );
+      Some([bundle(args)]);
+    },
     build:
       fun
       | [arg] when List.length(unbundle(arg)) == List.length(binders) =>

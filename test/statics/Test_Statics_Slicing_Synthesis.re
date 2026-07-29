@@ -123,6 +123,18 @@ let products = [
     "(a=?, b=Bool)",
     "(a=?) ... (b=true)",
   ),
+  synthesis_case(
+    "tuple-extension-override",
+    "(a=1) ... (a=2)",
+    "(a=Int)",
+    "(a=?) ... (a=2)",
+  ),
+  synthesis_case(
+    "tuple-extension-unlabelled",
+    "(1, true) ... (\"s\", 2.0)",
+    "(?, Bool, ?, ?)",
+    "(?, true) ... (?, ?)",
+  ),
   synthesis_case("list-single-full", "[1]", "[Int]", "[1]"),
   synthesis_case("list-single-gradual", "[1]", "[?]", "[?]"),
   synthesis_case("list-empty-gradual", "[]", "[?]", "[]"),

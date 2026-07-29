@@ -482,6 +482,25 @@ let structural_traversal_tests = (
       },
     ),
     test_case(
+      "does not collect through a shadowing binder",
+      `Quick,
+      () => {
+        let (_, constraints) =
+          Typ.collect_constraints(
+            Builtins.ctx_init(None),
+            ["A"],
+            typ_fun(Var("A") |> TPat.temp, var("A")),
+            typ_fun(Var("B") |> TPat.temp, int()),
+          );
+        check(
+          Alcotest.list(Alcotest.pair(Alcotest.string, typ)),
+          "constraints",
+          [],
+          constraints,
+        );
+      },
+    ),
+    test_case(
       "rebuilding rejects arity mismatches",
       `Quick,
       () => {

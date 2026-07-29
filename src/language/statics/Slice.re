@@ -666,8 +666,6 @@ let opaque: t = {
   demand: unit_demand,
 };
 
-// A sub-term whose type this rule rearranges: it says what to demand of the
-// sub-term, and how to read the answer back.
 let reshaped = (~demand: Typ.t => Typ.t, ~answer: Typ.t => Typ.t, node: t): t => {
   ...node,
   shape: answer(node.shape),
@@ -694,16 +692,14 @@ let component = (~ctx: Ctx.t, ~former: MatchedTyp.former, ~index, node: t): t =>
     declared: false,
     dispatch: (env, query) => {
       let shape = Typ.weak_head_normalize(ctx, node.shape);
-      // A type the matcher does not decompose is asked for one the former builds.
       let embedded =
-        switch (former.match_(ctx, shape)) {
-        | Some(_) =>
-          Typ.embed(shape, index, Typ.mask(project(shape), query))
-        | None =>
-          components(shape)
-          |> List.mapi((i, _) => i == index ? query : gap)
-          |> former.build
-        };
+        Typ.embed(
+          ~build=former.build,
+          shape,
+          components(shape),
+          index,
+          query,
+        );
       let slice = node.dispatch(env, embedded);
       {
         ...slice,
