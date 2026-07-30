@@ -401,6 +401,11 @@ and Typ: {
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let exp_map_term =
       Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let map_typ_pair = (left, right) => {
+      let left = typ_map_term(left);
+      let right = typ_map_term(right);
+      (left, right);
+    };
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -417,16 +422,20 @@ and Typ: {
         | List(t) => List(typ_map_term(t))
         | TypFun(tp, t) => TypFun(tpat_map_term(tp), typ_map_term(t))
         | TypParamAp(t1, t2) =>
-          TypParamAp(typ_map_term(t1), typ_map_term(t2))
+          let (t1, t2) = map_typ_pair(t1, t2);
+          TypParamAp(t1, t2);
         | TypTuple(ts) => TypTuple(List.map(typ_map_term, ts))
         | Unknown(Hole(MultiHole(things))) =>
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))
         | TupLabel(label, e) =>
-          TupLabel(typ_map_term(label), typ_map_term(e))
+          let (label, e) = map_typ_pair(label, e);
+          TupLabel(label, e);
         | Parens(e) => Parens(typ_map_term(e))
         | Projector(data, t) => Projector(data, typ_map_term(t))
-        | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
+        | Arrow(t1, t2) =>
+          let (t1, t2) = map_typ_pair(t1, t2);
+          Arrow(t1, t2);
         | Sum(variants) =>
           Sum(
             List.map(
@@ -450,7 +459,13 @@ and Typ: {
                       },
                       Option.map(typ_map_term, t),
                     )
-                  | t => BadEntry(typ_map_term(t))
+                  | mapped_constructor =>
+                    BadEntry(
+                      switch (t) {
+                      | Some(payload) => typ_map_term(payload)
+                      | None => mapped_constructor
+                      },
+                    )
                   };
                 }
               | ConstructorMap.BadEntry(t) =>
@@ -459,9 +474,11 @@ and Typ: {
             ),
           )
         | ProdProjection(t1, t2) =>
-          ProdProjection(typ_map_term(t1), typ_map_term(t2))
+          let (t1, t2) = map_typ_pair(t1, t2);
+          ProdProjection(t1, t2);
         | ProdExtension(t1, t2) =>
-          ProdExtension(typ_map_term(t1), typ_map_term(t2))
+          let (t1, t2) = map_typ_pair(t1, t2);
+          ProdExtension(t1, t2);
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Poly(tp, t) => Poly(tpat_map_term(tp), typ_map_term(t))
         | ProofOf(e) => ProofOf(exp_map_term(e))
