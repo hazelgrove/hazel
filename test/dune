@@ -12,13 +12,17 @@
    \
    Haz3ltest
    Haz3ltest_web
+   Test_AgentControlFlow
+   Test_AgentMultiTool
    Test_AgentTools
    Test_AgentUX
    Test_Derivation
    Test_GradingReport
+   Test_PromptFactory
    Test_ReparseDocSlides
    Test_StepperBase
-   Test_TextRoundtrip))
+   Test_TextRoundtrip
+   Test_WorkerServer))
  (libraries str haz3lcore menhirParser junit_alcotest bisect_ppx.runtime)
  (preprocess
   (pps ppx_deriving.show ppx_sexp_conv)))
@@ -38,13 +42,17 @@
  (name haz3ltest_web)
  (modules
   Haz3ltest_web
+  Test_AgentControlFlow
+  Test_AgentMultiTool
   Test_AgentTools
   Test_AgentUX
   Test_Derivation
   Test_GradingReport
+  Test_PromptFactory
   Test_ReparseDocSlides
   Test_StepperBase
-  Test_TextRoundtrip)
+  Test_TextRoundtrip
+  Test_WorkerServer)
  (libraries haz3ltest_common web junit_alcotest bisect_ppx.runtime)
  (modes js)
  (preprocess
