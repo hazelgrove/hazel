@@ -323,31 +323,3 @@ let ctr_uses =
     }
   )
   |> CoCtx.union;
-
-// A constructor pattern's payload, as a component of the type it matches.
-let payload_former = (ctr: Constructor.t): MatchedTyp.former => {
-  match_: (ctx, ty) =>
-    Typ.get_sum_constructors(ctx, ty)
-    |> Option.map(
-         List.find_map(
-           fun
-           | ConstructorMap.Variant(name, _, payload)
-               when Constructor.equal(name, ctr) =>
-             Some([payload |> Option.value(~default=Typ.gap)])
-           | _ => None,
-         ),
-       )
-    |> Option.join,
-  build:
-    fun
-    | [payload] =>
-      Sum([
-        ConstructorMap.Variant(
-          ctr,
-          ConstructorMap.empty_variant_ann,
-          Some(payload),
-        ),
-      ])
-      |> Typ.temp
-    | _ => Typ.gap,
-};

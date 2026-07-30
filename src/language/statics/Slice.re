@@ -45,7 +45,6 @@ type t = {
   ids: Id.Set.t,
   binder: bool,
   supplied: Typ.t,
-  declared: bool,
   dispatch: (env, Typ.t) => slice,
   analyse: env => analysis,
   demand: (env, Ctx.t) => slice,
@@ -72,6 +71,7 @@ type scratch('info) = {
 exception Focus_not_found(Id.t);
 exception Wrong_focus_sort;
 exception Incompatible_query(Typ.t);
+exception Missing_former(Id.t);
 
 let gap = Typ.gap;
 let is_gap = Typ.is_gap;
@@ -258,11 +258,38 @@ let fills = (sub_terms: list((role, t)), role, node: t): bool =>
   List.exists(((role, _)) => role == Part, sub_terms)
   && (role == Part || role == Binder && node.binder);
 
-// Break a type into the parts a rule's sub-terms fill.
-let components = (~former: option(MatchedTyp.former), ctx, ty) =>
+let components = (former: MatchedTyp.former, ctx, ty) =>
+  switch (former.parts(ty)) {
+  | Some(parts) => parts
+  | None =>
+    switch (former.parts(Typ.weak_head_normalize(ctx, ty))) {
+    | Some(parts) => parts
+    | None => List.init(former.arity, _ => MatchedTyp.internal())
+    }
+  };
+
+let form_component = (former: MatchedTyp.former, selected, component) =>
+  List.init(former.arity, index => index == selected ? component : gap)
+  |> former.whole;
+
+let embed = (former: MatchedTyp.former, ctx, shape, selected, query) => {
+  let shape = components(former, ctx, shape);
+  List.init(former.arity, index =>
+    if (index == selected) {
+      query;
+    } else if (List.nth_opt(former.fixed, index) == Some(true)) {
+      List.nth_opt(shape, index) |> Option.value(~default=gap);
+    } else {
+      gap;
+    }
+  )
+  |> former.whole;
+};
+
+let require_former = (~id, former) =>
   switch (former) {
-  | Some(former) => MatchedTyp.tolerant(former.match_, ctx, ty)
-  | None => Typ.children(ty)
+  | Some(former) => former
+  | None => raise(Missing_former(id))
   };
 
 // Which component slot each sub-term fills, and the query each is asked at.
@@ -276,7 +303,7 @@ type routing = {
 // Match the query's type components to the constructed type's, or share the
 // one type component between them all (a list literal and its elements).
 let route =
-    (~former: option(MatchedTyp.former), ctx, shape, sub_terms, query)
+    (~id, ~former: option(MatchedTyp.former), ctx, shape, sub_terms, query)
     : routing => {
   let fills = fills(sub_terms);
   let (count, slots) =
@@ -286,30 +313,39 @@ let route =
       0,
       sub_terms,
     );
-  let components = components(~former, ctx);
-  let supplied = components(Typ.weak_head_normalize(ctx, query));
-  let arity =
-    switch (components(shape)) {
-    | [] => List.length(supplied)
-    | components => List.length(components)
+  if (count == 0) {
+    {
+      slots,
+      queries: [],
+      broadcast: false,
     };
-  let broadcast = arity == 1 && count > 1;
-  let queries =
-    if (is_gap(query) || supplied == []) {
-      List.init(count, _ => gap);
-    } else if (count == arity && List.length(supplied) == arity) {
-      supplied;
-    } else if (count == 1 && arity == 1) {
-      [query];
-    } else if (broadcast && List.length(supplied) == 1) {
-      List.init(count, _ => List.hd(supplied));
-    } else {
-      List.init(count, _ => gap);
+  } else {
+    let former: MatchedTyp.former = require_former(~id, former);
+    let components = components(former, ctx);
+    let supplied = components(Typ.weak_head_normalize(ctx, query));
+    let arity =
+      switch (components(shape)) {
+      | [] => List.length(supplied)
+      | components => List.length(components)
+      };
+    let broadcast = arity == 1 && count > 1;
+    let queries =
+      if (is_gap(query) || supplied == []) {
+        List.init(count, _ => gap);
+      } else if (count == arity && List.length(supplied) == arity) {
+        supplied;
+      } else if (count == 1 && arity == 1) {
+        [query];
+      } else if (broadcast && List.length(supplied) == 1) {
+        List.init(count, _ => List.hd(supplied));
+      } else {
+        List.init(count, _ => gap);
+      };
+    {
+      slots,
+      queries,
+      broadcast,
     };
-  {
-    slots,
-    queries,
-    broadcast,
   };
 };
 
@@ -317,9 +353,10 @@ let route =
 let lift =
     (
       ~former: option(MatchedTyp.former),
+      ~id,
       ~routing: routing,
-      ctx: Ctx.t,
-      shape,
+      ~ctx,
+      ~shape,
       selected: int,
       query,
     )
@@ -330,16 +367,9 @@ let lift =
     switch (List.nth(routing.slots, selected)) {
     | None => query
     | Some(slot) =>
-      let shape = Typ.weak_head_normalize(ctx, shape);
-      let components = components(~former, ctx, shape);
+      let former: MatchedTyp.former = require_former(~id, former);
       let slot = routing.broadcast ? 0 : slot;
-      let parts =
-        List.mapi((index, _) => index == slot ? query : gap, components);
-      switch (former) {
-      | Some(former) when parts != [] => former.build(parts)
-      | Some(_) => query
-      | None => Typ.rebuild(shape, parts) |> Option.value(~default=query)
-      };
+      embed(former, ctx, shape, slot, query);
     };
   };
 
@@ -386,7 +416,7 @@ type placed = {
 };
 
 // Give every recorded sub-term the query it is asked at.
-let place = (~routing: routing, sub_terms, query) =>
+let place = (~id, ~former, ~routing: routing, ctx, sub_terms, query) =>
   List.map2(
     (slot, (role, node)) => {
       let query =
@@ -395,8 +425,14 @@ let place = (~routing: routing, sub_terms, query) =>
         | None => role == Through || role == Prune ? query : gap
         };
       let query =
-        role == Prune && Typ.children(query) != [] && Typ.is_empty(query)
-          ? gap : query;
+        if (role == Prune) {
+          let former: MatchedTyp.former = require_former(~id, former);
+          let components = components(former, ctx, query);
+          components != [] && List.for_all(Typ.is_empty, components)
+            ? gap : query;
+        } else {
+          query;
+        };
       {
         role: role == Prune ? Through : role,
         node,
@@ -528,8 +564,9 @@ let sources = (ctx: Ctx.t, env: env, placed: list(placed)) => {
 // Rebuild the sliced type from the type components the sub-terms supplied.
 let assembled_psi =
     (
+      ~id,
+      ~former,
       ctx: Ctx.t,
-      shape: Typ.t,
       query: Typ.t,
       fills,
       broadcast,
@@ -551,16 +588,17 @@ let assembled_psi =
   | ([], alternatives, _) => Typ.meet_gap_all(ctx, alternatives)
   | (filled, _, _) =>
     let filled = broadcast ? [Typ.meet_gap_all(ctx, filled)] : filled;
-    Typ.rebuild(shape, filled) |> Option.value(~default=query);
+    let former: MatchedTyp.former = require_former(~id, former);
+    List.for_all(Typ.is_empty, filled) ? gap : former.whole(filled);
   };
 };
 
 // The interpreter: both directions, derived from the sub-terms recorded.
-let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
+let assemble = (~ctx: Ctx.t, ~id, ~former, ~shape: Typ.t, ~sub_terms) => {
   let dispatch = (env, query) => {
-    let routing = route(~former, ctx, shape, sub_terms, query);
+    let routing = route(~id, ~former, ctx, shape, sub_terms, query);
     let placed =
-      place(~routing, sub_terms, query)
+      place(~id, ~former, ~routing, ctx, sub_terms, query)
       |> forward(ctx, env, query)
       |> backward(ctx, env)
       |> sources(ctx, env);
@@ -569,8 +607,9 @@ let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
       ...merge(ctx, slices),
       psi:
         assembled_psi(
+          ~id,
+          ~former,
           ctx,
-          shape,
           query,
           fills(sub_terms),
           routing.broadcast,
@@ -607,14 +646,8 @@ let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
       | [] =>
         needs |> List.map(((_, need)) => need.psi) |> Typ.meet_gap_all(ctx)
       | parts =>
-        switch (former) {
-        | Some(former) =>
-          List.for_all(Typ.is_empty, parts) ? gap : former.build(parts)
-        | None =>
-          List.length(parts) == List.length(Typ.children(shape))
-            ? Typ.rebuild(shape, parts) |> Option.value(~default=gap)
-            : Typ.meet_gap_all(ctx, parts)
-        }
+        let former: MatchedTyp.former = require_former(~id, former);
+        List.for_all(Typ.is_empty, parts) ? gap : former.whole(parts);
       };
     let psi = Typ.is_empty(psi) ? gap : psi;
     {
@@ -665,8 +698,8 @@ let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
           ),
       };
       let lifted = query => {
-        let routing = route(~former, ctx, shape, sub_terms, query);
-        lift(~former, ~routing, ctx, shape, index, query);
+        let routing = route(~id, ~former, ctx, shape, sub_terms, query);
+        lift(~id, ~former, ~routing, ~ctx, ~shape, index, query);
       };
       switch (inner.witness, role) {
       | (Ana(query), Source) =>
@@ -754,16 +787,24 @@ let mk =
       ~ids: Id.Set.t,
       ~shape: Typ.t,
       ~sub_terms: list((role, t))=[],
-      ~former: option(MatchedTyp.former)=None,
+      ~formation: option(MatchedTyp.formation)=?,
       ~co_ctx: CoCtx.t=CoCtx.empty,
       ~binds: option((CoCtx.sort, string, Id.t))=None,
       ~binder: bool=false,
-      ~declared: bool=false,
       (),
     )
     : t => {
+  let former =
+    Option.map(
+      (formation: MatchedTyp.formation) => formation.former,
+      formation,
+    );
+  let _ =
+    List.exists(((role, _)) => role == Part || role == Prune, sub_terms)
+    && former == None
+      ? raise(Missing_former(id)) : ();
   let (assembled, analyse_assembled, demand) =
-    assemble(~ctx, ~former, ~shape, ~sub_terms);
+    assemble(~ctx, ~id, ~former, ~shape, ~sub_terms);
   let demand =
     switch (binds) {
     | Some((sort, name, id)) => binder_demand(~sort, ~name, ~id)
@@ -829,40 +870,34 @@ let mk =
         gamma: join(ctx, result.gamma, uses(gap)),
       };
     };
-  let declared =
-    declared
-    || former != None
-    || List.exists(
-         ((role, node)) => role == Through && node.declared,
-         sub_terms,
-       );
   let of_role = role =>
     List.filter_map(
       ((r, node: t)) => r == role ? Some(node.supplied) : None,
       sub_terms,
     );
   let supplied =
-    if (declared) {
-      former == None ? shape : Typ.without_type_args(shape);
-    } else {
-      switch (of_role(Part)) {
-      | [] => Typ.meet_gap_all(ctx, of_role(Through))
-      | parts =>
-        switch (former) {
-        | Some(former) =>
-          List.for_all(Typ.is_empty, parts) ? gap : former.build(parts)
-        | None =>
-          List.length(parts) == List.length(Typ.children(shape))
-            ? Typ.rebuild(shape, parts) |> Option.value(~default=gap) : gap
-        }
-      };
+    switch (of_role(Part)) {
+    | [] =>
+      switch (of_role(Through)) {
+      | [] =>
+        formation
+        |> Option.map(MatchedTyp.formed_type)
+        |> Option.value(~default=gap)
+      | throughs => Typ.meet_gap_all(ctx, throughs)
+      }
+    | parts =>
+      let former: MatchedTyp.former = require_former(~id, former);
+      let parts =
+        former.arity == 1 && List.length(parts) > 1
+          ? [Typ.meet_gap_all(ctx, parts)] : parts;
+      former.whole(parts);
     };
+  let supplied = Typ.is_empty(supplied) ? gap : supplied;
   {
     shape,
     ids,
     binder,
     supplied,
-    declared,
     dispatch,
     analyse,
     demand,
@@ -877,21 +912,29 @@ let recorded = (~scratch, ~id: Id.t, m) =>
 
 // Append a sub-term to what the enclosing rule has recorded so far, or, for a
 // binder checked after what it scopes, put it in front.
-let record = (~scratch, ~id: Id.t, ~first=false, role: role, sub_term: t, m) => {
-  let so_far = recorded(~scratch, ~id, m);
-  Id.Map.add(
-    id,
-    scratch.write(
-      first ? [(role, sub_term), ...so_far] : so_far @ [(role, sub_term)],
-    ),
-    m,
-  );
-};
+let record = (~scratch, ~id: Id.t, ~first=false, role: role, sub_term: t, m) =>
+  if (id == Id.invalid) {
+    m;
+  } else {
+    let so_far = recorded(~scratch, ~id, m);
+    Id.Map.add(
+      id,
+      scratch.write(
+        first
+          ? [(role, sub_term), ...so_far] : so_far @ [(role, sub_term)],
+      ),
+      m,
+    );
+  };
 
 let take = (~scratch, ~id: Id.t, m) =>
-  switch (Option.bind(Id.Map.find_opt(id, m), scratch.read)) {
-  | Some(components) => (components, Id.Map.remove(id, m))
-  | None => ([], m)
+  if (id == Id.invalid) {
+    ([], Id.Map.remove(id, m));
+  } else {
+    switch (Option.bind(Id.Map.find_opt(id, m), scratch.read)) {
+    | Some(components) => (components, Id.Map.remove(id, m))
+    | None => ([], m)
+    };
   };
 
 let edge =
@@ -911,7 +954,6 @@ let binding = (~sort, ~name, ~id, ~ids, ~demand_of: Ctx.t => Typ.t): t => {
   ids,
   binder: true,
   supplied: gap,
-  declared: false,
   dispatch: (_, query) =>
     is_gap(query)
       ? {
@@ -938,7 +980,6 @@ let opaque: t = {
   ids: Id.Set.empty,
   binder: false,
   supplied: gap,
-  declared: false,
   dispatch: (_, query) => {
     ...empty_slice,
     psi: query,
@@ -963,27 +1004,71 @@ let reshaped = (~demand: Typ.t => Typ.t, ~answer: Typ.t => Typ.t, node: t): t =>
   analyse: source_analysis(~embed=demand, ~project=answer, node),
 };
 
+let type_instantiation =
+    (~ctx, ~binder, ~body, ~former: MatchedTyp.former, node) => {
+  let binders = TPat.binders_of(binder);
+  let bundle =
+    fun
+    | [arg] => arg
+    | args => TypTuple(args) |> Typ.temp;
+  let unbundle = (arg: Typ.t) =>
+    switch (Typ.term_of(arg)) {
+    | TypTuple(args) => args
+    | _ => [arg]
+    };
+  let demand = query => {
+    let names = List.filter_map(TPat.tyvar_of_utpat, binders);
+    let (_, constraints) = Typ.collect_constraints(ctx, names, body, query);
+    binders
+    |> List.map(binder =>
+         switch (TPat.tyvar_of_utpat(binder)) {
+         | None => gap
+         | Some(name) =>
+           constraints
+           |> List.filter_map(((found, query)) =>
+                found == name ? Some(query) : None
+              )
+           |> Typ.meet_gap_all(ctx)
+         }
+       )
+    |> bundle;
+  };
+  let answer = arg => {
+    let args = unbundle(arg);
+    former.whole(args);
+  };
+  reshaped(~demand, ~answer, node);
+};
+
 // For a rule whose result is a type component of a sub-term's type: embed
 // the query in that type, project the answer back out.
 let routed =
     (~ctx: Ctx.t, ~former: MatchedTyp.former, ~input, ~output, node: t): t => {
-  let components = components(~former=Some(former), ctx);
+  let components = components(former, ctx);
   let answer = ty =>
     List.nth_opt(components(ty), output) |> Option.value(~default=gap);
   let demand = query => {
-    let shape = Typ.weak_head_normalize(ctx, node.shape);
-    Typ.embed(~build=former.build, shape, components(shape), input, query);
+    embed(former, ctx, node.shape, input, query);
   };
   {
     ...reshaped(~demand, ~answer, node),
     binder: false,
     supplied: gap,
-    declared: false,
   };
 };
 
 let component = (~ctx, ~former, ~index, node) =>
   routed(~ctx, ~former, ~input=index, ~output=index, node);
+
+let formed = (~ctx, ~former, ~index, node) =>
+  reshaped(
+    ~demand=
+      query =>
+        List.nth_opt(components(former, ctx, query), index)
+        |> Option.value(~default=gap),
+    ~answer=form_component(former, index),
+    node,
+  );
 
 // A checked premise asks its explicit source for the outer υ it needs.
 let checked_by = (~ctx: Ctx.t, ~source: t, checked: t): t => {

@@ -138,6 +138,18 @@ let products = [
   synthesis_case("list-single-full", "[1]", "[Int]", "[1]"),
   synthesis_case("list-single-gradual", "[1]", "[?]", "[?]"),
   synthesis_case("list-empty-gradual", "[]", "[?]", "[]"),
+  synthesis_case(
+    "list-meet-needs-both-elements",
+    "[(1, ?), (?, 2)]",
+    "[(Int, Int)]",
+    "[(1, ?), (?, 2)]",
+  ),
+  synthesis_case(
+    "list-meet-needs-first-element",
+    "[(1, ?), (?, 2)]",
+    "[(Int, ?)]",
+    "[(1, ?), ?]",
+  ),
   synthesis_case("list-cons-full", "1 :: []", "[Int]", "1 :: ?"),
   synthesis_case("list-cons-gradual", "1 :: []", "[?]", "? :: ?"),
   synthesis_case("list-concat-full", "[1] @ []", "[Int]", "[1] @ ?"),

@@ -311,114 +311,191 @@ let normalize_tests = (
   ],
 );
 
-let structural_traversal_tests = (
-  "Typ structural traversal",
+let former_tests = (
+  "MatchedTyp formers",
   IdTagged.FreshGrammar.Typ.[
     test_case(
-      "collects only the first type layer",
+      "matches the components it builds",
       `Quick,
       () => {
-        let shape = arrow(list(int()), bool());
+        let former: MatchedTyp.former = MatchedTyp.arrow_former;
+        let components = [list(int()), bool()];
         check(
           Alcotest.list(typ),
-          "arrow children",
-          [list(int()), bool()],
-          Typ.children(shape),
+          "arrow components",
+          components,
+          former.parts(former.whole(components))
+          |> Option.value(~default=[]),
         );
       },
     ),
     test_case(
-      "sum traversal includes constructors, payloads, and bad entries",
+      "label former derives the resulting type",
       `Quick,
       () => {
-        let ann_a = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
-        let ann_b = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
-        let shape =
-          sum([
-            ConstructorMap.Variant("A", ann_a, Some(int())),
-            ConstructorMap.Variant("B", ann_b, None),
-            ConstructorMap.BadEntry(bool()),
-          ]);
+        let former: MatchedTyp.former = MatchedTyp.label_former;
         check(
-          Alcotest.list(typ),
-          "sum children",
-          [var("A"), int(), var("B"), bool()],
-          Typ.children(shape),
+          typ,
+          "formed label",
+          tup_label(label("field"), bool()),
+          MatchedTyp.formed_type(
+            MatchedTyp.form(former, [label("field"), bool()]),
+          ),
         );
       },
     ),
     test_case(
-      "sum rebuilding consumes a stable traversal",
+      "sum former preserves variant structure",
       `Quick,
       () => {
         let ann_a = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
         let ann_b = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
-        let shape =
-          sum([
-            ConstructorMap.Variant("A", ann_a, Some(int())),
-            ConstructorMap.Variant("B", ann_b, None),
-            ConstructorMap.BadEntry(bool()),
-          ]);
-        let rebuilt =
-          Typ.rebuild(shape, [var("X"), string(), var("Y"), nat()]);
+        let variants = [
+          ConstructorMap.Variant("A", ann_a, Some(int())),
+          ConstructorMap.Variant("B", ann_b, None),
+          ConstructorMap.BadEntry(bool()),
+        ];
+        let former: MatchedTyp.former = MatchedTyp.sum_former(variants);
         check(
-          option(typ),
+          typ,
           "rebuilt sum",
-          Some(
-            sum([
-              ConstructorMap.Variant("X", ann_a, Some(string())),
-              ConstructorMap.Variant("Y", ann_b, None),
-              ConstructorMap.BadEntry(nat()),
-            ]),
-          ),
-          rebuilt,
+          sum([
+            ConstructorMap.Variant("X", ann_a, Some(string())),
+            ConstructorMap.Variant("Y", ann_b, None),
+            ConstructorMap.BadEntry(nat()),
+          ]),
+          former.whole([
+            var("X"),
+            string(),
+            var("Y"),
+            Typ.gap,
+            nat(),
+            Typ.gap,
+          ]),
         );
       },
     ),
     test_case(
-      "constructor replacement continues through the bad entry",
+      "Part requires a former",
       `Quick,
       () => {
-        let ann_a = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
-        let ann_b = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
-        let shape =
-          sum([
-            ConstructorMap.Variant("A", ann_a, Some(int())),
-            ConstructorMap.Variant("B", ann_b, None),
-          ]);
-        check(
-          option(typ),
-          "constructor replaced by gap",
-          Some(
-            sum([
-              ConstructorMap.BadEntry(bool()),
-              ConstructorMap.Variant("B", ann_b, None),
-            ]),
-          ),
-          Typ.rebuild(shape, [Typ.gap, bool(), var("B")]),
+        let id = Id.mk();
+        check_raises(
+          "missing Part former", Statics.Slice.Missing_former(id), () =>
+          ignore(
+            Statics.Slice.mk(
+              ~ctx=Ctx.empty,
+              ~id,
+              ~ids=Id.Set.singleton(id),
+              ~shape=int(),
+              ~sub_terms=[(Statics.Slice.Part, Statics.Slice.opaque)],
+              (),
+            ),
+          )
         );
       },
     ),
     test_case(
-      "nullary collapse preserves the following traversal slot",
+      "Prune requires a former",
       `Quick,
       () => {
-        let ann = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let id = Id.mk();
+        check_raises(
+          "missing Prune former", Statics.Slice.Missing_former(id), () =>
+          ignore(
+            Statics.Slice.mk(
+              ~ctx=Ctx.empty,
+              ~id,
+              ~ids=Id.Set.singleton(id),
+              ~shape=int(),
+              ~sub_terms=[(Statics.Slice.Prune, Statics.Slice.opaque)],
+              (),
+            ),
+          )
+        );
+      },
+    ),
+    test_case(
+      "supply comes from the formation, not the checked shape",
+      `Quick,
+      () => {
+        let id = Id.mk();
+        let slice =
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape=int(),
+            ~formation=MatchedTyp.identity(Typ.gap),
+            (),
+          );
+        check(typ, "unannotated supply", Typ.gap, slice.supplied);
+      },
+    ),
+    test_case(
+      "Part supplies are rebuilt by the formation",
+      `Quick,
+      () => {
+        let leaf = ty => {
+          let id = Id.mk();
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape=ty,
+            ~formation=MatchedTyp.identity(ty),
+            (),
+          );
+        };
+        let id = Id.mk();
+        let slice =
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape=list(int()),
+            ~sub_terms=[
+              (Statics.Slice.Part, leaf(int())),
+              (Statics.Slice.Part, leaf(int())),
+            ],
+            ~formation=MatchedTyp.form(MatchedTyp.list_former, [int()]),
+            (),
+          );
+        check(typ, "list supply", list(int()), slice.supplied);
+      },
+    ),
+    test_case(
+      "a constructor formation supplies its fixed shell",
+      `Quick,
+      () => {
+        let ann_none = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_some = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
         let shape =
           sum([
-            ConstructorMap.Variant("A", ann, None),
-            ConstructorMap.BadEntry(bool()),
+            ConstructorMap.Variant("None", ann_none, None),
+            ConstructorMap.Variant("Some", ann_some, Some(int())),
           ]);
+        let former =
+          MatchedTyp.sum_payload_former(~shape, ~expanded=shape, "Some");
+        let id = Id.mk();
+        let slice =
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape,
+            ~sub_terms=[(Statics.Slice.Part, Statics.Slice.opaque)],
+            ~formation=MatchedTyp.form(former, [int()]),
+            (),
+          );
         check(
-          option(typ),
-          "nullary constructor replaced by gap",
-          Some(
-            sum([
-              ConstructorMap.BadEntry(Typ.gap),
-              ConstructorMap.BadEntry(nat()),
-            ]),
-          ),
-          Typ.rebuild(shape, [Typ.gap, nat()]),
+          typ,
+          "constructor shell",
+          sum([
+            ConstructorMap.Variant("None", ann_none, None),
+            ConstructorMap.Variant("Some", ann_some, Some(Typ.gap)),
+          ]),
+          slice.supplied,
         );
       },
     ),
@@ -500,31 +577,7 @@ let structural_traversal_tests = (
         );
       },
     ),
-    test_case(
-      "rebuilding rejects arity mismatches",
-      `Quick,
-      () => {
-        let shape = arrow(int(), bool());
-        check(
-          option(typ),
-          "too few children",
-          None,
-          Typ.rebuild(shape, [int()]),
-        );
-        check(
-          option(typ),
-          "too many children",
-          None,
-          Typ.rebuild(shape, [int(), bool(), string()]),
-        );
-      },
-    ),
   ],
 );
 
-let tests = [
-  meet_tests,
-  fast_equal_tests,
-  normalize_tests,
-  structural_traversal_tests,
-];
+let tests = [meet_tests, fast_equal_tests, normalize_tests, former_tests];
