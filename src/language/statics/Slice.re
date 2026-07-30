@@ -344,13 +344,20 @@ let lift =
     };
   };
 
-let dispatch_analysis = (~project=x => x, node: t, env, query): analysis => {
+/* `reveal` keeps the way down to the focus, for the sub-term the focus is in:
+   its spine is retained even where nothing is asked of it. */
+let dispatch_analysis =
+    (~project=x => x, ~reveal=false, node: t, env, query): analysis => {
   let slice =
     node.dispatch(
       {
         ...env,
         focus: None,
-        path: Id.Set.empty,
+        path:
+          switch (reveal ? env.focus : None) {
+          | Some(focus) => Id.Set.remove(focus, env.path)
+          | None => Id.Set.empty
+          },
       },
       query,
     );
@@ -678,7 +685,13 @@ let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
                } else {
                  result;
                },
-             dispatch_analysis(~project=_ => gap, node, env, asked),
+             dispatch_analysis(
+               ~project=_ => gap,
+               ~reveal=true,
+               node,
+               env,
+               asked,
+             ),
            )
         |> finish;
       | (Ana(_), Omit) =>
