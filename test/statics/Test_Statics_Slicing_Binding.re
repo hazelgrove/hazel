@@ -63,6 +63,35 @@ let binding_synthesis = [
     "Int",
     "type ? = ? in let ? = ? in 0",
   ),
+  /* A constructor pattern takes its payload type from the alias, not from the
+     definition, so it subtracts from the definition's query exactly as an
+     annotation does: the definition below supplies nothing. */
+  synthesis_case(
+    "bind-ctor-pat-subtracts",
+    "type T = +A((Int, Bool)) in let A((x, y)) = A((1, true)) in x",
+    "Int",
+    "type T = +A((Int, ?)) in let A((x, ?)) = ? in x",
+  ),
+  synthesis_case(
+    "bind-ann-pat-subtracts",
+    "let (x : Int) = 1 in x",
+    "Int",
+    "let (x : Int) = ? in x",
+  ),
+  /* Polymorphic: the payload type is not fixed by the alias, so the
+     instantiation in the definition is load-bearing and only the argument goes. */
+  synthesis_case(
+    "bind-poly-ctor-pat",
+    "type T = typfun A -> +C(A) in let C(x) = C@<Int>(1) in x",
+    "Int",
+    "type T = typfun A -> +C(A) in let C(x) = C@<Int>(?) in x",
+  ),
+  /* Polymorphic type info can come from the pattern AND the definition:
+       type T = typfun A -> typfun B -> +D(A, B) in
+       let D@<Int, ?>(x,y) = D@<?>@<Bool>(1, true) in (x, y)   @ (Int, Bool)
+     keeping both instantiations and omitting only the arguments `1, true`.
+     Skipped: this form does not yet parse on the polymorphism branch. */
+  Alcotest.test_case("bind-poly-ctor-pat-both", `Quick, () => Alcotest.skip()),
   synthesis_case(
     "bind-joined-uses",
     "let x = (a=1, b=true) in (x.a, x.b)",
