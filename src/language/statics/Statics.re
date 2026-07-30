@@ -4735,15 +4735,7 @@ and utyp_to_info_map =
         ctx,
         TPat.binders_of(utpat),
       );
-    let m =
-      utyp_to_info_map(
-        tbody,
-        ~ctx=body_ctx,
-        ~ancestors=ancestors_inclusive,
-        ~expects=TypeExpected,
-        m,
-      )
-      |> snd;
+    let m = go(~ctx=body_ctx, tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m);
@@ -4767,19 +4759,11 @@ and utyp_to_info_map =
         ctx,
         TPat.binders_of(utpat),
       );
-    let m =
-      utyp_to_info_map(
-        tbody,
-        ~ctx=body_ctx,
-        ~ancestors=ancestors_inclusive,
-        /* The body may itself be a `TypFun` (curried alias) or a
-           partial `TypParamAp` whose result is an arrow kind; the
-           outer `TypFun` already accounts for that extra arrow in
-           its own kind, so don't re-flag it here. */
-        ~expects=AnyKindExpected,
-        m,
-      )
-      |> snd;
+    /* The body may itself be a `TypFun` (curried alias) or a
+       partial `TypParamAp` whose result is an arrow kind; the
+       outer `TypFun` already accounts for that extra arrow in
+       its own kind, so don't re-flag it here. */
+    let m = go(~ctx=body_ctx, ~expects=AnyKindExpected, tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m);
@@ -4804,28 +4788,12 @@ and utyp_to_info_map =
           typ_kind: TypKind.Type,
         },
       );
-    let m =
-      utyp_to_info_map(
-        tbody,
-        ~ctx=body_ctx,
-        ~ancestors=ancestors_inclusive,
-        ~expects=TypeExpected,
-        m,
-      )
-      |> snd;
+    let m = go(~ctx=body_ctx, tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Rec(utpat, tbody) =>
-    let m =
-      utyp_to_info_map(
-        tbody,
-        ~ctx,
-        ~ancestors=ancestors_inclusive,
-        ~expects=TypeExpected,
-        m,
-      )
-      |> snd;
+    let m = go(tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew

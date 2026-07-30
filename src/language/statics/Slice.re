@@ -44,7 +44,9 @@ type t = {
   shape: Typ.t,
   ids: Id.Set.t,
   binder: bool,
-  // its components come from a declaration, so a definition supplies none of them
+  // the part of this node's type that a declaration already supplies, so a
+  // definition is only ever asked for what is left after subtracting it
+  supplied: Typ.t,
   declared: bool,
   dispatch: (env, Typ.t) => slice,
   analyse: env => analysis,
@@ -496,9 +498,13 @@ let backward = (ctx: Ctx.t, env: env, placed: list(placed)) => {
 let sources = (ctx: Ctx.t, env: env, placed: list(placed)) => {
   let demanded =
     placed
-    |> List.filter(item => item.role == Binder && !item.node.declared)
-    |> List.filter_map(item => item.result)
-    |> List.map(slice => slice.psi)
+    |> List.filter(item => item.role == Binder)
+    |> List.filter_map(item =>
+         Option.map(
+           (slice: slice) => residual(ctx, slice.psi, item.node.supplied),
+           item.result,
+         )
+       )
     |> Typ.meet_gap_all(ctx);
   List.map(
     item =>
@@ -777,17 +783,40 @@ let mk =
     } else {
       analyse_assembled(env);
     };
+  let declared =
+    declared
+    || former != None
+    || List.exists(
+         ((role, node)) => role == Through && node.declared,
+         sub_terms,
+       );
+  let of_role = role =>
+    List.filter_map(
+      ((r, node: t)) => r == role ? Some(node.supplied) : None,
+      sub_terms,
+    );
+  let supplied =
+    if (declared) {
+      shape;
+    } else {
+      switch (of_role(Part)) {
+      | [] => Typ.meet_gap_all(ctx, of_role(Through))
+      | parts =>
+        switch (former) {
+        | Some(former) =>
+          List.for_all(Typ.is_empty, parts) ? gap : former.build(parts)
+        | None =>
+          List.length(parts) == List.length(Typ.children(shape))
+            ? Typ.rebuild(shape, parts) |> Option.value(~default=gap) : gap
+        }
+      };
+    };
   {
     shape,
     ids,
     binder,
-    declared:
-      declared
-      || former != None
-      || List.exists(
-           ((role, node)) => role == Through && node.declared,
-           sub_terms,
-         ),
+    supplied,
+    declared,
     dispatch,
     analyse,
     demand,
@@ -835,6 +864,7 @@ let binding = (~sort, ~name, ~id, ~ids): t => {
   shape: gap,
   ids,
   binder: true,
+  supplied: gap,
   declared: false,
   dispatch: (_, query) =>
     is_gap(query)
@@ -854,6 +884,7 @@ let opaque: t = {
   shape: gap,
   ids: Id.Set.empty,
   binder: false,
+  supplied: gap,
   declared: false,
   dispatch: (_, query) => {
     ...empty_slice,
@@ -893,6 +924,7 @@ let routed =
   {
     ...reshaped(~demand, ~answer, node),
     binder: false,
+    supplied: gap,
     declared: false,
   };
 };
