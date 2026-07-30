@@ -7,14 +7,12 @@ open Js_of_ocaml;
 
 open JsUtil;
 
-let _ = confirm; // Temporary. Silencing warnings from unused Icon open.
-
 // View components for different views
 module ViewComponents = {
   let prompt_view =
       (
         ~content: string,
-        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
@@ -31,11 +29,9 @@ module ViewComponents = {
                 Attr.on_click(_ =>
                   Effect.Many([
                     agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.SwitchView(
-                            Agent.Chat.Model.Messages,
-                          ),
+                      Agent.Update.Action.ChatSystemAction(
+                        ChatSystem.Update.Action.ChatAction(
+                          Chat.Update.Action.SwitchView(Chat.Model.Messages),
                           chat_id,
                         ),
                       ),
@@ -49,7 +45,7 @@ module ViewComponents = {
           ],
         ),
         div(
-          ~attrs=[clss(["view-content", "system-message"])],
+          ~attrs=[clss(["view-content", "full-screen-doc"])],
           [text(content)],
         ),
       ],
@@ -59,7 +55,7 @@ module ViewComponents = {
   let developer_notes_view =
       (
         ~content: string,
-        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
@@ -76,11 +72,9 @@ module ViewComponents = {
                 Attr.on_click(_ =>
                   Effect.Many([
                     agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.SwitchView(
-                            Agent.Chat.Model.Messages,
-                          ),
+                      Agent.Update.Action.ChatSystemAction(
+                        ChatSystem.Update.Action.ChatAction(
+                          Chat.Update.Action.SwitchView(Chat.Model.Messages),
                           chat_id,
                         ),
                       ),
@@ -94,7 +88,7 @@ module ViewComponents = {
           ],
         ),
         div(
-          ~attrs=[clss(["view-content", "system-message"])],
+          ~attrs=[clss(["view-content", "full-screen-doc"])],
           [text(content)],
         ),
       ],
@@ -107,7 +101,8 @@ module ViewComponents = {
         ~code_with_statics: CodeWithStatics.Model.t,
         ~agent_view: AgentContext.Model.t,
         ~eval_result: EvalResult.Model.t,
-        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~current_chat: Chat.Model.t,
+        ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
@@ -268,25 +263,52 @@ module ViewComponents = {
           [
             div(~attrs=[clss(["view-title"])], [text("Agent Context")]),
             div(
-              ~attrs=[
-                clss(["view-close-button", "icon"]),
-                Attr.on_click(_ =>
-                  Effect.Many([
-                    agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.SwitchView(
-                            Agent.Chat.Model.Messages,
-                          ),
-                          chat_id,
-                        ),
-                      ),
+              ~attrs=[clss(["view-header-actions"])],
+              [
+                div(
+                  ~attrs=[
+                    clss(["view-close-button", "icon"]),
+                    Attr.title(
+                      "Copy the exact context snapshot text sent to the model (XML-style blocks + footer).",
                     ),
-                    Effect.Stop_propagation,
-                  ])
+                    Attr.on_click(_ => {
+                      let snapshot =
+                        Agent.Utils.llm_context_snapshot_text(
+                          ~session_mode=
+                            globals.settings.agent_globals.session_mode,
+                          ~cell_result=eval_result,
+                          code_with_statics,
+                          current_chat,
+                        );
+                      copy_via_shim(snapshot);
+                      show_copy_toast();
+                      Effect.Stop_propagation;
+                    }),
+                  ],
+                  [Icons.copy],
+                ),
+                div(
+                  ~attrs=[
+                    clss(["view-close-button", "icon"]),
+                    Attr.on_click(_ =>
+                      Effect.Many([
+                        agent_inject(
+                          Agent.Update.Action.ChatSystemAction(
+                            ChatSystem.Update.Action.ChatAction(
+                              Chat.Update.Action.SwitchView(
+                                Chat.Model.Messages,
+                              ),
+                              chat_id,
+                            ),
+                          ),
+                        ),
+                        Effect.Stop_propagation,
+                      ])
+                    ),
+                  ],
+                  [Icons.cancel],
                 ),
               ],
-              [Icons.cancel],
             ),
           ],
         ),
@@ -313,23 +335,25 @@ module ViewComponents = {
 
   let tools_view =
       (
-        ~agent_model: Agent.Agent.Model.t,
-        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~agent_model: Agent.Model.t,
+        ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
-    let tools = agent_model.prompting.tools;
+    /* Use [[CompositionUtils.Public.tools]], not [[prompting.tools]]: the latter is
+       persisted with the scratchpad and can lag behind the in-code registry. */
+    let tools = CompositionUtils.Public.tools;
     let disabled = agent_model.prompting.disabled_tool_names;
     let expanded = agent_model.tools_view_expanded;
 
     let tool_items =
       tools
       |> List.filter_map((tool: API.Json.t) => {
-           switch (Agent.Agent.ToolUtils.get_name(tool)) {
+           switch (Agent.ToolUtils.get_name(tool)) {
            | Some(name) =>
-             let category = Agent.Agent.ToolUtils.category_of_tool(name);
+             let category = Agent.ToolUtils.category_of_tool(name);
              let description =
-               Agent.Agent.ToolUtils.get_description(tool)
+               Agent.ToolUtils.get_description(tool)
                |> Option.value(~default="No description.");
              let is_enabled = !List.mem(name, disabled);
              let is_expanded = List.mem(name, expanded);
@@ -364,19 +388,23 @@ module ViewComponents = {
       let toggle_tool = _ =>
         Effect.Many([
           agent_inject(
-            Agent.Agent.Update.Action.SetToolEnabled(name, !is_enabled),
+            Agent.Update.Action.SetToolEnabled(name, !is_enabled),
           ),
           Effect.Stop_propagation,
         ]);
       let toggle_expand = _ =>
         Effect.Many([
-          agent_inject(
-            Agent.Agent.Update.Action.ToggleToolsViewExpanded(name),
-          ),
+          agent_inject(Agent.Update.Action.ToggleToolsViewExpanded(name)),
           Effect.Stop_propagation,
         ]);
       div(
-        ~attrs=[clss(["tools-view-item"])],
+        ~attrs=[
+          clss(
+            ["tools-view-item"]
+            @ (is_enabled ? [] : ["tools-view-item-disabled"])
+            @ (is_expanded ? ["tools-view-item-expanded"] : []),
+          ),
+        ],
         [
           div(
             ~attrs=[
@@ -392,6 +420,11 @@ module ViewComponents = {
                 ~attrs=[
                   clss(["tools-view-item-toggle"]),
                   Attr.on_click(toggle_tool),
+                  Attr.title(
+                    is_enabled
+                      ? "Disable tool for this chat"
+                      : "Enable tool for this chat",
+                  ),
                 ],
                 [
                   is_enabled
@@ -417,12 +450,49 @@ module ViewComponents = {
 
     let render_category =
         (category: string, items: list((string, string, bool, bool))) => {
+      let all_enabled = List.for_all(((_, _, en, _)) => en, items);
+      let toggle_category = _ =>
+        Effect.Many([
+          agent_inject(
+            Agent.Update.Action.SetToolsInCategoryEnabled(
+              category,
+              !all_enabled,
+            ),
+          ),
+          Effect.Stop_propagation,
+        ]);
       div(
         ~attrs=[clss(["tools-view-category"])],
         [
           div(
-            ~attrs=[clss(["tools-view-category-title"])],
-            [text(category)],
+            ~attrs=[clss(["tools-view-category-title-row"])],
+            [
+              div(
+                ~attrs=[clss(["tools-view-category-title-label"])],
+                [text(category)],
+              ),
+              div(
+                ~attrs=[
+                  clss(
+                    [
+                      "tools-view-item-toggle",
+                      "tools-view-category-master-toggle",
+                    ]
+                    @ (all_enabled ? [] : ["tools-view-category-master-off"]),
+                  ),
+                  Attr.on_click(toggle_category),
+                  Attr.title(
+                    all_enabled
+                      ? "Disable all tools in this category for this chat"
+                      : "Enable all tools in this category for this chat",
+                  ),
+                ],
+                [
+                  all_enabled
+                    ? Icons.circle_with_check : Icons.circle_with_no_check,
+                ],
+              ),
+            ],
           ),
           div(
             ~attrs=[clss(["tools-view-category-items"])],
@@ -449,11 +519,9 @@ module ViewComponents = {
                 Attr.on_click(_ =>
                   Effect.Many([
                     agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.SwitchView(
-                            Agent.Chat.Model.Messages,
-                          ),
+                      Agent.Update.Action.ChatSystemAction(
+                        ChatSystem.Update.Action.ChatAction(
+                          Chat.Update.Action.SwitchView(Chat.Model.Messages),
                           chat_id,
                         ),
                       ),
@@ -476,7 +544,7 @@ module ViewComponents = {
 
   let workbench_view =
       (
-        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
@@ -493,11 +561,9 @@ module ViewComponents = {
                 Attr.on_click(_ =>
                   Effect.Many([
                     agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.SwitchView(
-                            Agent.Chat.Model.Messages,
-                          ),
+                      Agent.Update.Action.ChatSystemAction(
+                        ChatSystem.Update.Action.ChatAction(
+                          Chat.Update.Action.SwitchView(Chat.Model.Messages),
                           chat_id,
                         ),
                       ),
@@ -525,11 +591,204 @@ type timeline_node = {
   index: int,
 };
 
+/** Changes when the messages pane content or trailing banners change height. */
+let chat_messages_scroll_stamp =
+    (
+      ~chunked_chat: ChunkedUIChat.Model.t,
+      ~awaiting_dots: bool,
+      ~compaction_banner: bool,
+      ~pending_content: string,
+      ~pending_reasoning: string,
+    )
+    : int => {
+  let acc = ref(0);
+  let mix = (n: int) => acc := Hashtbl.hash((acc^, n));
+  List.iter(
+    (chunk: ChunkedUIChat.Model.chunk) =>
+      switch (chunk) {
+      | UserMessage({content, origin_id}) =>
+        mix(1);
+        mix(String.length(content));
+        mix(Hashtbl.hash(origin_id));
+      | AgentResponseChunk({content, agent_reasoning, tool_results}) =>
+        mix(2);
+        List.iter(
+          (m: Message.Model.t) => {
+            mix(String.length(m.content));
+            mix(Hashtbl.hash(m.id));
+            switch (m.reasoning) {
+            | Some(r) => mix(String.length(r))
+            | None => mix(0)
+            };
+            switch (m.role) {
+            | ToolResult(tr) => mix(tr.expanded ? 1 : 0)
+            | Agent(_) => mix(3)
+            | User => mix(4)
+            | System(_) => mix(5)
+            };
+          },
+          content,
+        );
+        List.iter(s => mix(String.length(s)), agent_reasoning);
+        List.iter(
+          (tr: AgentToolResult.tool_result) => {
+            mix(String.length(tr.content));
+            mix(tr.expanded ? 1 : 0);
+            mix(tr.success ? 1 : 0);
+            mix(Hashtbl.hash(tr.tool_call.id));
+          },
+          tool_results,
+        );
+      | CompactionNotice({method, content}) =>
+        mix(6);
+        mix(String.length(method));
+        mix(String.length(content));
+      | ErrorMessage(s) =>
+        mix(7);
+        mix(String.length(s));
+      | ResponseCancelledMessage(s) =>
+        mix(8);
+        mix(String.length(s));
+      | SlashCommandOutputMessage(payload) =>
+        mix(9);
+        switch (payload) {
+        | CostOutput(p) =>
+          mix(91);
+          mix(p.cost_input_tokens);
+          mix(p.cost_output_tokens);
+          mix(String.length(p.cost_model));
+        | CreditsOutput(p) =>
+          mix(92);
+          mix(int_of_float(p.credits_used *. 1000.));
+          mix(int_of_float(p.credits_total *. 1000.));
+        | UsageOutput(p) =>
+          mix(93);
+          mix(int_of_float(p.usage_total *. 1000.));
+        | KeyOutput(k) =>
+          mix(96);
+          mix(String.length(k));
+        | HelpOutput(p) =>
+          mix(94);
+          mix(List.length(p.help_entries));
+        | Notice(s) =>
+          mix(97);
+          mix(String.length(s));
+        | SlashError(s) =>
+          mix(95);
+          mix(String.length(s));
+        };
+      },
+    chunked_chat.log,
+  );
+  mix(awaiting_dots ? 11 : 0);
+  mix(compaction_banner ? 13 : 0);
+  /* Keeps the stamp moving while streaming deltas accumulate into the
+     in-progress bubble; otherwise the scroll hook sees a stable input
+     and the user has to manually chase the stream. */
+  mix(String.length(pending_content));
+  mix(String.length(pending_reasoning));
+  acc^;
+};
+
+/** Scroll the messages list to the bottom only while the user stays pinned to the bottom. */
+module ChatMessagesScrollHook = {
+  module State = {
+    type t = {
+      mutable stick_to_bottom: bool,
+      mutable listener_id: option(Dom_html.event_listener_id),
+    };
+  };
+
+  module Input = {
+    [@deriving sexp_of]
+    type t = int;
+
+    let combine = (_, y) => y;
+  };
+
+  let bottom_slack_px = 12.0;
+
+  let is_near_bottom = (el: Js.t(Dom_html.element)): bool => {
+    let h = Js.Unsafe.coerce(el);
+    let st = float_of_int(h##.scrollTop);
+    let ch = float_of_int(h##.clientHeight);
+    let sh = float_of_int(h##.scrollHeight);
+    sh -. st -. ch <= bottom_slack_px;
+  };
+
+  let scroll_to_bottom = (el: Js.t(Dom_html.element)): unit => {
+    let h = Js.Unsafe.coerce(el);
+    h##.scrollTop :=  h##.scrollHeight;
+  };
+
+  /** After vdom patch, flex layout and user-message textarea autosize (rAF + [delay 0])
+      can grow [scrollHeight] without changing the scroll stamp — schedule follow-up scrolls. */
+  let schedule_scroll_to_bottom = (el: Js.t(Dom_html.element)): unit => {
+    let run = () => scroll_to_bottom(el);
+    ignore(
+      Dom_html.window##requestAnimationFrame(
+        Js.wrap_callback((_: float) => {
+          run();
+          JsUtil.delay(
+            0.0,
+            () => {
+              run();
+              JsUtil.delay(0.0, run);
+            },
+          );
+        }),
+      ),
+    );
+  };
+
+  include Virtual_dom.Vdom.Attr.Hooks.Make({
+    module State = State;
+    module Input = Input;
+
+    let init = (_input: Input.t, _element) =>
+      State.{
+        stick_to_bottom: true,
+        listener_id: None,
+      };
+
+    let on_mount = (_input: Input.t, state: State.t, element) => {
+      scroll_to_bottom(element);
+      schedule_scroll_to_bottom(element);
+      let handler =
+        Dom.handler(_evt => {
+          state.stick_to_bottom = is_near_bottom(element);
+          Js._true;
+        });
+      let id =
+        Dom.addEventListener(
+          element,
+          Dom_html.Event.scroll,
+          handler,
+          Js._false,
+        );
+      state.listener_id = Some(id);
+    };
+
+    let update =
+        (~old_input: Input.t, ~new_input: Input.t, state: State.t, element) =>
+      if (old_input != new_input && state.stick_to_bottom) {
+        scroll_to_bottom(element);
+        schedule_scroll_to_bottom(element);
+      };
+
+    let destroy = (_input: Input.t, state: State.t, _element) =>
+      switch (state.listener_id) {
+      | Some(id) => Dom_html.removeEventListener(id)
+      | None => ()
+      };
+  });
+};
+
 let view =
     (
       ~globals: Globals.t,
-      ~agent_model: Agent.Agent.Model.t,
-      ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+      ~agent_model: Agent.Model.t,
+      ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
       ~signal: Editors.View.signal => Effect.t(unit),
       ~code_with_statics: CodeWithStatics.Model.t,
       ~eval_result: EvalResult.Model.t,
@@ -537,9 +796,15 @@ let view =
     : Node.t => {
   let chat_system = agent_model.chat_system;
   let current_chat_id = chat_system.current;
-  let current_chat =
-    Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
-  let chunked_chat = Agent.ChunkedUIChat.Utils.mk(current_chat);
+  let current_chat = ChatSystem.Utils.find_chat(current_chat_id, chat_system);
+  let chunked_chat = ChunkedUIChat.Utils.mk(current_chat);
+  // Build the high-level node map once for this render pass, used by tool-call rows
+  // for stale-path detection and cmd/ctrl-click jump targets.
+  let node_map: option(HighLevelNodeMap.t) = {
+    let z = code_with_statics.editor.state.zipper;
+    let info_map = CompositionGo.Public.mk_statics(z);
+    HighLevelNodeMap.build(z, info_map);
+  };
 
   // Auto-resize textarea helper
   let autosize_textarea = (id: string) => {
@@ -578,25 +843,21 @@ let view =
     let trimmed_content = String.trim(updated_content);
     if (String.length(trimmed_content) > 0) {
       // Create a new user message with updated content
-      let updated_message =
-        Agent.Message.Utils.mk_user_message(trimmed_content);
+      let updated_message = Message.Utils.mk_user_message(trimmed_content);
       // Send the message (appends and triggers LLM response)
       Effect.Many([
         agent_inject(
-          Agent.Agent.Update.Action.ChatSystemAction(
-            Agent.ChatSystem.Update.Action.ChatAction(
-              Agent.Chat.Update.Action.BranchOff(
-                Agent.Chat.Utils.parent_of(message_id, current_chat).id,
+          Agent.Update.Action.ChatSystemAction(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.BranchOff(
+                Chat.Utils.parent_of(message_id, current_chat).id,
               ),
               current_chat_id,
             ),
           ),
         ),
         agent_inject(
-          Agent.Agent.Update.Action.SendMessage(
-            updated_message,
-            current_chat_id,
-          ),
+          Agent.Update.Action.SendMessage(updated_message, current_chat_id),
         ),
         Effect.Stop_propagation,
       ]);
@@ -609,7 +870,7 @@ let view =
   let render_branch_navigation = (message_id: Id.t): Node.t => {
     // Find parent message and check if it has multiple children
     let parent_msg_opt =
-      try(Some(Agent.Chat.Utils.parent_of(message_id, current_chat))) {
+      try(Some(Chat.Utils.parent_of(message_id, current_chat))) {
       | _ => None
       };
     switch (parent_msg_opt) {
@@ -638,9 +899,9 @@ let view =
               List.nth(parent_msg.children, current_index - 1);
             Effect.Many([
               agent_inject(
-                Agent.Agent.Update.Action.ChatSystemAction(
-                  Agent.ChatSystem.Update.Action.ChatAction(
-                    Agent.Chat.Update.Action.SwitchBranch(
+                Agent.Update.Action.ChatSystemAction(
+                  ChatSystem.Update.Action.ChatAction(
+                    Chat.Update.Action.SwitchBranch(
                       parent_msg.id,
                       prev_child_id,
                     ),
@@ -659,9 +920,9 @@ let view =
               List.nth(parent_msg.children, current_index + 1);
             Effect.Many([
               agent_inject(
-                Agent.Agent.Update.Action.ChatSystemAction(
-                  Agent.ChatSystem.Update.Action.ChatAction(
-                    Agent.Chat.Update.Action.SwitchBranch(
+                Agent.Update.Action.ChatSystemAction(
+                  ChatSystem.Update.Action.ChatAction(
+                    Chat.Update.Action.SwitchBranch(
                       parent_msg.id,
                       next_child_id,
                     ),
@@ -720,9 +981,9 @@ let view =
     ),
   );
 
-  let render_chunk = (index: int, chunk: Agent.ChunkedUIChat.Model.chunk) => {
+  let render_chunk = (index: int, chunk: ChunkedUIChat.Model.chunk) => {
     switch (chunk) {
-    | Agent.ChunkedUIChat.Model.UserMessage(user_msg) =>
+    | ChunkedUIChat.Model.UserMessage(user_msg) =>
       // User messages on the right, editable
       let unique_id = "user-message-input-" ++ string_of_int(index);
       // Auto-size on mount - run after element is inserted into DOM
@@ -839,71 +1100,306 @@ let view =
           ),
         ],
       );
-    | Agent.ChunkedUIChat.Model.AgentResponseChunk(agent_chunk) =>
+    | ChunkedUIChat.Model.AgentResponseChunk(agent_chunk) =>
       // Agent response chunk - display messages linearly
-      // Render each message in the content list linearly
-      // Filter out empty agent messages - don't display them at all
-      let linear_messages_display =
-        agent_chunk.content
-        |> List.filter_map((msg: Agent.Message.Model.t) => {
-             switch (msg.role) {
-             | Agent(_) =>
-               // Only show agent message if it has content
-               if (msg.content != "" && String.trim(msg.content) != "") {
-                 Some(
-                   div(
-                     ~attrs=[clss(["agent-message"])],
-                     [text(msg.content)],
-                   ),
-                 );
-               } else {
-                 None; // Don't display empty agent messages
-               }
-             | Agent.Message.Model.System(Agent.Message.Model.RetryNote) =>
-               Some(
-                 div(
-                   ~attrs=[
-                     clss(["agent-system-message", "agent-retry-note"]),
-                   ],
-                   [text(msg.content)],
-                 ),
-               )
-             | ToolResult(tool_result) =>
-               // Tool call message - display inline with expand/collapse
-               let toggle_expanded = _ => {
-                 Effect.Many([
-                   agent_inject(
-                     Agent.Agent.Update.Action.ChatSystemAction(
-                       Agent.ChatSystem.Update.Action.ChatAction(
-                         Agent.Chat.Update.Action.MessageAction(
-                           msg.id,
-                           Agent.Message.Update.SetToolResultExpanded(
-                             !tool_result.expanded,
-                           ),
-                         ),
-                         current_chat_id,
-                       ),
-                     ),
-                   ),
-                   Effect.Stop_propagation,
-                 ]);
-               };
-               Some(
-                 ToolResultView.view(
-                   ~globals,
-                   ~tool_result,
-                   ~toggle_expanded,
-                 ),
-               );
-             | _ => None
-             }
-           });
-
-      let linear_display = linear_messages_display;
+      // Render each message in the content list linearly.
+      // Group consecutive ToolResult messages into a "batch" wrapper:
+      // tool calls produced by a single LLM turn are emitted as one batch
+      // (an Agent message ends the batch, as does a RetryNote / non-tool entry).
+      let render_tool_node =
+          (msg: Message.Model.t, tool_result: AgentToolResult.tool_result) => {
+        let toggle_expanded = _ => {
+          Effect.Many([
+            agent_inject(
+              Agent.Update.Action.ChatSystemAction(
+                ChatSystem.Update.Action.ChatAction(
+                  Chat.Update.Action.MessageAction(
+                    msg.id,
+                    Message.Update.SetToolResultExpanded(
+                      !tool_result.expanded,
+                    ),
+                  ),
+                  current_chat_id,
+                ),
+              ),
+            ),
+            Effect.Stop_propagation,
+          ]);
+        };
+        ToolResultView.view(
+          ~globals,
+          ~node_map?,
+          ~tool_result,
+          ~toggle_expanded,
+          (),
+        );
+      };
+      let wrap_batch = (nodes: list(Node.t)): Node.t =>
+        switch (nodes) {
+        | [single] =>
+          // Solo tool call — no batch decoration
+          single
+        | _ => div(~attrs=[clss(["agent-tool-call-batch"])], nodes)
+        };
+      let humanize_tokens = (n: int): string =>
+        if (n >= 1000) {
+          Printf.sprintf("%.1fk", float_of_int(n) /. 1000.0);
+        } else {
+          string_of_int(n);
+        };
+      let render_token_chip =
+          (
+            ~msg_id: Id.t,
+            ~usage: OpenRouter.Reply.Model.usage,
+            ~prev_usage: option(OpenRouter.Reply.Model.usage),
+          )
+          : Node.t => {
+        let cache_read =
+          Option.value(~default=0, usage.cache_read_input_tokens);
+        let cache_creation =
+          Option.value(~default=0, usage.cache_creation_input_tokens);
+        let cache_write = Option.value(~default=0, usage.cache_write_tokens);
+        /* Billed amount as reported by OpenRouter, in credits. Shown to as many
+           places as a sub-cent charge needs; this is the only number here that
+           reflects what we are actually charged (see [[OpenRouter.Reply.Model.usage]]
+           on why prompt_tokens is not a billing figure). */
+        let fmt_credits = (c: float): string =>
+          Printf.sprintf("%.6f", c) ++ " cr";
+        let new_this_turn =
+          switch (prev_usage) {
+          | Some(p) when p.model_id == usage.model_id =>
+            max(
+              0,
+              usage.prompt_tokens - p.prompt_tokens - p.completion_tokens,
+            )
+          | _ => usage.prompt_tokens
+          };
+        let preexisting = max(0, usage.prompt_tokens - new_this_turn);
+        let chip_dom_id = "agent-token-chip-" ++ Id.to_string(msg_id);
+        let toggle = _ => {
+          Js.Opt.iter(
+            Dom_html.document##getElementById(Js.string(chip_dom_id)),
+            el => {
+              let cl = el##.classList;
+              let cls_str = Js.string("agent-token-chip-expanded");
+              if (Js.to_bool(cl##contains(cls_str))) {
+                cl##remove(cls_str);
+              } else {
+                cl##add(cls_str);
+              };
+            },
+          );
+          Effect.Stop_propagation;
+        };
+        let summary_parts = {
+          let base = [
+            humanize_tokens(usage.prompt_tokens) ++ " in",
+            humanize_tokens(usage.completion_tokens) ++ " out",
+          ];
+          let base =
+            if (cache_read > 0) {
+              base @ ["cached: " ++ humanize_tokens(cache_read)];
+            } else {
+              base;
+            };
+          switch (usage.cost) {
+          | Some(c) => base @ [fmt_credits(c)]
+          | None => base
+          };
+        };
+        let row = (label, value) =>
+          div(
+            ~attrs=[clss(["agent-token-chip-row"])],
+            [
+              span(
+                ~attrs=[clss(["agent-token-chip-label"])],
+                [text(label)],
+              ),
+              span(
+                ~attrs=[clss(["agent-token-chip-value"])],
+                [text(value)],
+              ),
+            ],
+          );
+        let raw_json =
+          try(
+            OpenRouter.Reply.Model.yojson_of_usage(usage)
+            |> Yojson.Safe.pretty_to_string
+          ) {
+          | _ => ""
+          };
+        div(
+          ~attrs=[
+            Attr.id(chip_dom_id),
+            clss(["agent-token-chip"]),
+            Attr.on_click(toggle),
+            Attr.title("Click for detailed token breakdown"),
+          ],
+          [
+            div(
+              ~attrs=[clss(["agent-token-chip-summary"])],
+              [text(String.concat(" \xc2\xb7 ", summary_parts))],
+            ),
+            div(
+              ~attrs=[clss(["agent-token-chip-body"])],
+              [
+                row(
+                  "Total payload tokens",
+                  humanize_tokens(usage.prompt_tokens),
+                ),
+                row("New tokens this turn", humanize_tokens(new_this_turn)),
+                row(
+                  "Preexisting (prior context)",
+                  humanize_tokens(preexisting),
+                ),
+                row("Cache read", humanize_tokens(cache_read)),
+                row("Cache creation", humanize_tokens(cache_creation)),
+                row("Cache write", humanize_tokens(cache_write)),
+                row(
+                  "Output tokens",
+                  humanize_tokens(usage.completion_tokens),
+                ),
+                row(
+                  "Cost (billed)",
+                  switch (usage.cost) {
+                  | Some(c) => fmt_credits(c)
+                  | None => "—"
+                  },
+                ),
+                row(
+                  "Upstream cost (BYOK)",
+                  switch (usage.upstream_inference_cost) {
+                  | Some(c) => fmt_credits(c)
+                  | None => "—"
+                  },
+                ),
+                Node.pre(
+                  ~attrs=[clss(["agent-token-chip-raw"])],
+                  [text(raw_json)],
+                ),
+              ],
+            ),
+          ],
+        );
+      };
+      let prev_agent_usage_ref =
+        ref(None: option(OpenRouter.Reply.Model.usage));
+      let (linear_display_rev, pending_batch) =
+        List.fold_left(
+          ((acc, batch), msg: Message.Model.t) => {
+            let flush = (acc, batch) =>
+              switch (List.rev(batch)) {
+              | [] => acc
+              | xs => [wrap_batch(xs), ...acc]
+              };
+            switch (msg.role) {
+            | ToolResult(tool_result) => (
+                acc,
+                [render_tool_node(msg, tool_result), ...batch],
+              )
+            | Agent(usage_opt) =>
+              let acc = flush(acc, batch);
+              let metadata_node: option(Node.t) =
+                switch (usage_opt) {
+                | Some(usage) =>
+                  Some(
+                    render_token_chip(
+                      ~msg_id=msg.id,
+                      ~usage,
+                      ~prev_usage=prev_agent_usage_ref^,
+                    ),
+                  )
+                | None => None
+                };
+              prev_agent_usage_ref := usage_opt;
+              let show_thinking = globals.settings.agent_globals.show_thinking;
+              let format_thinking_duration = (ms: int): string => {
+                let secs = max(0, ms / 1000);
+                if (secs < 60) {
+                  "Thought for " ++ string_of_int(secs) ++ "s";
+                } else {
+                  let m = secs / 60;
+                  let s = secs mod 60;
+                  "Thought for "
+                  ++ string_of_int(m)
+                  ++ "m "
+                  ++ string_of_int(s)
+                  ++ "s";
+                };
+              };
+              let reasoning_node: option(Node.t) =
+                switch (show_thinking, msg.reasoning) {
+                | (true, Some(text_content))
+                    when String.trim(text_content) != "" =>
+                  let header_text =
+                    switch (msg.reasoning_duration_ms) {
+                    | Some(ms) => format_thinking_duration(ms)
+                    | None => "Thinking"
+                    };
+                  Some(
+                    div(
+                      ~attrs=[clss(["agent-thinking-block"])],
+                      [
+                        div(
+                          ~attrs=[clss(["agent-thinking-header"])],
+                          [text(header_text)],
+                        ),
+                        div(
+                          ~attrs=[clss(["agent-thinking-text"])],
+                          [AgentMessageMarkdown.view(text_content)],
+                        ),
+                      ],
+                    ),
+                  );
+                | _ => None
+                };
+              let content_node: option(Node.t) =
+                if (msg.content != "" && String.trim(msg.content) != "") {
+                  Some(
+                    div(
+                      ~attrs=[clss(["agent-message"])],
+                      [AgentMessageMarkdown.view(msg.content)],
+                    ),
+                  );
+                } else {
+                  None;
+                };
+              let nodes =
+                List.filter_map(
+                  x => x,
+                  [reasoning_node, content_node, metadata_node],
+                );
+              switch (nodes) {
+              | [] => (acc, [])
+              | xs => (List.rev_append(xs, acc), [])
+              };
+            | System(RetryNote) =>
+              let acc = flush(acc, batch);
+              let node =
+                div(
+                  ~attrs=[
+                    clss(["agent-system-message", "agent-retry-note"]),
+                  ],
+                  [text(msg.content)],
+                );
+              ([node, ...acc], []);
+            | System(ResponseCancelled)
+            | _ => (acc, batch)
+            };
+          },
+          ([], []),
+          agent_chunk.content,
+        );
+      let linear_display =
+        List.rev(
+          switch (List.rev(pending_batch)) {
+          | [] => linear_display_rev
+          | xs => [wrap_batch(xs), ...linear_display_rev]
+          },
+        );
 
       let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool => {
         switch (tool_result.tool_call.name) {
-        | "initialize"
         | "update_definition"
         | "update_body"
         | "update_pattern"
@@ -922,7 +1418,7 @@ let view =
       // Extract message IDs and tool results from content for toggle wiring
       let tool_result_messages =
         agent_chunk.content
-        |> List.filter_map((msg: Agent.Message.Model.t) =>
+        |> List.filter_map((msg: Message.Model.t) =>
              switch (msg.role) {
              | ToolResult(tool_result) => Some((msg.id, tool_result))
              | _ => None
@@ -973,11 +1469,11 @@ let view =
         );
         Effect.Many([
           agent_inject(
-            Agent.Agent.Update.Action.ChatSystemAction(
-              Agent.ChatSystem.Update.Action.ChatAction(
-                Agent.Chat.Update.Action.MessageAction(
+            Agent.Update.Action.ChatSystemAction(
+              ChatSystem.Update.Action.ChatAction(
+                Chat.Update.Action.MessageAction(
                   msg_id,
-                  Agent.Message.Update.SetToolResultExpanded(true),
+                  Message.Update.SetToolResultExpanded(true),
                 ),
                 current_chat_id,
               ),
@@ -987,24 +1483,9 @@ let view =
         ]);
       };
 
-      let edit_calls_summary =
+      let edit_summary_nodes =
         switch (edit_tool_results) {
-        | [] =>
-          div(
-            ~attrs=[
-              clss(["agent-tool-summary", "agent-tool-summary-empty"]),
-            ],
-            [
-              div(
-                ~attrs=[clss(["agent-tool-summary-header"])],
-                [text("Edits Performed")],
-              ),
-              div(
-                ~attrs=[clss(["agent-tool-summary-empty-text"])],
-                [text("No edit tool calls were made in this response.")],
-              ),
-            ],
-          )
+        | [] => []
         | [first, ...rest] =>
           let all_edits = [first, ...rest];
 
@@ -1025,7 +1506,7 @@ let view =
               | Some(segment) =>
                 Effect.Many([
                   agent_inject(
-                    Agent.Agent.Update.Action.LoadTimelineSegment(
+                    Agent.Update.Action.LoadTimelineSegment(
                       segment,
                       node.index,
                     ),
@@ -1059,7 +1540,13 @@ let view =
           let render_summary_tool_link =
               (tool_result: AgentToolResult.tool_result) => {
             let status_class =
-              tool_result.success ? "tool-call-success" : "tool-call-failure";
+              if (tool_result.skipped) {
+                "tool-call-skipped";
+              } else if (tool_result.success) {
+                "tool-call-success";
+              } else {
+                "tool-call-failure";
+              };
             let msg_id_opt =
               List.find_opt(
                 ((_, msg_tr): (Id.t, AgentToolResult.tool_result)) =>
@@ -1072,6 +1559,14 @@ let view =
                 scroll_to_tool_call(tool_result.tool_call.id, msg_id)
               | None => Effect.Stop_propagation
               };
+            let summary_opt =
+              ToolCallSummary.of_tool_call(tool_result.tool_call);
+            let signifier_node =
+              switch (summary_opt) {
+              | Some({signifier: Some(s), _}) =>
+                span(~attrs=[clss(["tool-call-signifier"])], [text(s)])
+              | _ => Node.none
+              };
             div(
               ~attrs=[
                 clss(["summary-tool-link"]),
@@ -1083,12 +1578,25 @@ let view =
               [
                 div(
                   ~attrs=[clss(["tool-call-status-icon", status_class])],
-                  [tool_result.success ? Icons.confirm : Icons.cancel],
+                  [
+                    if (tool_result.skipped) {
+                      Icons.circle_with_minus;
+                    } else if (tool_result.success) {
+                      Icons.confirm;
+                    } else {
+                      Icons.cancel;
+                    },
+                  ],
                 ),
                 span(
                   ~attrs=[clss(["summary-tool-link-name"])],
-                  [text(tool_result.tool_call.name)],
+                  [
+                    text(
+                      ToolCallSummary.display_name_for(tool_result.tool_call),
+                    ),
+                  ],
                 ),
+                signifier_node,
                 span(
                   ~attrs=[clss(["summary-tool-link-arrow"])],
                   [text({|↗|})],
@@ -1135,7 +1643,7 @@ let view =
                   clss(["agent-restore-original-button"]),
                   Attr.on_click(_ =>
                     Effect.Many([
-                      agent_inject(Agent.Agent.Update.Action.RestoreOriginal),
+                      agent_inject(Agent.Update.Action.RestoreOriginal),
                       Effect.Stop_propagation,
                     ])
                   ),
@@ -1148,37 +1656,39 @@ let view =
             | None => div(~attrs=[], [])
             };
 
-          div(
-            ~attrs=[
-              clss(["agent-tool-summary", "collapsed"]),
-              Attr.id(summary_dom_id),
-            ],
-            [
-              div(
-                ~attrs=[
-                  clss(["agent-tool-summary-header"]),
-                  Attr.on_click(toggle_summary_collapsed),
-                ],
-                [
-                  div(
-                    ~attrs=[clss(["agent-tool-summary-title"])],
-                    [
-                      span(
-                        ~attrs=[clss(["summary-collapse-icon"])],
-                        [text({|▾|})],
-                      ),
-                      text("Edits Performed"),
-                    ],
-                  ),
-                  restore_button,
-                ],
-              ),
-              div(
-                ~attrs=[clss(["agent-tool-summary-content"])],
-                interleaved_elements,
-              ),
-            ],
-          );
+          [
+            div(
+              ~attrs=[
+                clss(["agent-tool-summary", "collapsed"]),
+                Attr.id(summary_dom_id),
+              ],
+              [
+                div(
+                  ~attrs=[
+                    clss(["agent-tool-summary-header"]),
+                    Attr.on_click(toggle_summary_collapsed),
+                  ],
+                  [
+                    div(
+                      ~attrs=[clss(["agent-tool-summary-title"])],
+                      [
+                        span(
+                          ~attrs=[clss(["summary-collapse-icon"])],
+                          [text({|▾|})],
+                        ),
+                        text("Edits Performed"),
+                      ],
+                    ),
+                    restore_button,
+                  ],
+                ),
+                div(
+                  ~attrs=[clss(["agent-tool-summary-content"])],
+                  interleaved_elements,
+                ),
+              ],
+            ),
+          ];
         };
 
       div(
@@ -1191,11 +1701,11 @@ let view =
           ),
           div(
             ~attrs=[clss(["agent-message-wrapper"])],
-            linear_display @ [edit_calls_summary],
+            linear_display @ edit_summary_nodes,
           ),
         ],
       );
-    | Agent.ChunkedUIChat.Model.CompactionNotice({method, content}) =>
+    | ChunkedUIChat.Model.CompactionNotice({method, content}) =>
       div(
         ~attrs=[clss(["message-container", "compaction-notice-container"])],
         [
@@ -1209,10 +1719,13 @@ let view =
             ~attrs=[clss(["compaction-notice-method"])],
             [text("Method: " ++ method)],
           ),
-          div(~attrs=[clss(["compaction-notice-body"])], [text(content)]),
+          div(
+            ~attrs=[clss(["compaction-notice-body"])],
+            [AgentMessageMarkdown.view(content)],
+          ),
         ],
       )
-    | Agent.ChunkedUIChat.Model.ErrorMessage(error_content) =>
+    | ChunkedUIChat.Model.ErrorMessage(error_content) =>
       // Error messages centered, red
       div(
         ~attrs=[
@@ -1220,13 +1733,55 @@ let view =
         ],
         [div(~attrs=[clss(["system-message"])], [text(error_content)])],
       )
+    | ChunkedUIChat.Model.ResponseCancelledMessage(content) =>
+      div(
+        ~attrs=[
+          clss([
+            "message-container",
+            "system-message-container",
+            "response-cancelled-message-container",
+          ]),
+        ],
+        [
+          div(
+            ~attrs=[
+              clss([
+                "system-message",
+                "agent-system-message",
+                "agent-response-cancelled",
+              ]),
+            ],
+            [text(content)],
+          ),
+        ],
+      )
+    | ChunkedUIChat.Model.SlashCommandOutputMessage(payload) =>
+      SlashCommandOutputView.view(payload)
     };
   };
 
   // Check current view and render appropriate view
   switch (current_chat.current_view) {
-  | Agent.Chat.Model.Messages =>
+  | Chat.Model.Messages =>
     // Normal messages view (content only, bottom bar handled in ChatView)
+    let awaiting_dots =
+      switch (agent_model.awaiting_response) {
+      | Some(id) when id == current_chat_id => true
+      | _ => false
+      };
+    let compaction_banner =
+      switch (agent_model.compaction_in_progress) {
+      | Some(id) when id == current_chat_id => true
+      | _ => false
+      };
+    let scroll_sync_stamp =
+      chat_messages_scroll_stamp(
+        ~chunked_chat,
+        ~awaiting_dots,
+        ~compaction_banner,
+        ~pending_content=agent_model.pending_assistant_content,
+        ~pending_reasoning=agent_model.pending_assistant_reasoning,
+      );
     div(
       ~attrs=[clss(["chat-messages-view"])],
       [
@@ -1237,11 +1792,78 @@ let view =
         ),
         // Chunks display area
         div(
-          ~attrs=[clss(["chat-messages-container"])],
+          ~attrs=[
+            clss(["chat-messages-container"]),
+            Attr.create_hook(
+              "hazel-chat-messages-auto-scroll",
+              ChatMessagesScrollHook.create(scroll_sync_stamp),
+            ),
+          ],
           List.mapi(render_chunk, chunked_chat.log)
           @ (
             switch (agent_model.awaiting_response) {
-            | Some(awaiting_id) when awaiting_id == current_chat_id => [
+            | Some(awaiting_id) when awaiting_id == current_chat_id =>
+              let show_thinking = globals.settings.agent_globals.show_thinking;
+              let pending_content = agent_model.pending_assistant_content;
+              let pending_reasoning = agent_model.pending_assistant_reasoning;
+              let has_reasoning =
+                show_thinking && String.trim(pending_reasoning) != "";
+              let has_content = String.trim(pending_content) != "";
+              let reasoning_node: option(Node.t) =
+                if (has_reasoning) {
+                  Some(
+                    div(
+                      ~attrs=[clss(["agent-thinking-block"])],
+                      [
+                        div(
+                          ~attrs=[clss(["agent-thinking-header"])],
+                          [text("Thinking")],
+                        ),
+                        div(
+                          ~attrs=[
+                            clss([
+                              "agent-thinking-text",
+                              "agent-streaming-plaintext",
+                            ]),
+                          ],
+                          [text(pending_reasoning)],
+                        ),
+                      ],
+                    ),
+                  );
+                } else {
+                  None;
+                };
+              /* Render the partial buffer as markdown on every frame; dangling
+                 inline constructs are virtually closed so they format in place
+                 (see AgentMessageMarkdown.close_dangling_inline). */
+              let content_node: option(Node.t) =
+                if (has_content) {
+                  Some(
+                    div(
+                      ~attrs=[clss(["agent-message"])],
+                      [AgentMessageMarkdown.view_streaming(pending_content)],
+                    ),
+                  );
+                } else {
+                  None;
+                };
+              let body_nodes: list(Node.t) =
+                if (has_reasoning || has_content) {
+                  List.filter_map(x => x, [reasoning_node, content_node]);
+                } else {
+                  [
+                    div(
+                      ~attrs=[clss(["agent-message-loading-dots"])],
+                      [
+                        span(~attrs=[clss(["dot", "dot1"])], []),
+                        span(~attrs=[clss(["dot", "dot2"])], []),
+                        span(~attrs=[clss(["dot"])], []),
+                      ],
+                    ),
+                  ];
+                };
+              [
                 div(
                   ~attrs=[
                     clss(["message-container", "agent-message-container"]),
@@ -1251,19 +1873,12 @@ let view =
                       ~attrs=[
                         clss(["message-identifier", "llm-identifier"]),
                       ],
-                      [text("Agent")],
+                      [Icons.filbert, text("Filbert")],
                     ),
-                    div(
-                      ~attrs=[clss(["agent-message-loading-dots"])],
-                      [
-                        span(~attrs=[clss(["dot", "dot1"])], []),
-                        span(~attrs=[clss(["dot", "dot2"])], []),
-                        span(~attrs=[clss(["dot"])], []),
-                      ],
-                    ),
+                    ...body_nodes,
                   ],
                 ),
-              ]
+              ];
             | _ => []
             }
           )
@@ -1280,37 +1895,38 @@ let view =
           ),
         ),
       ],
-    )
-  | Agent.Chat.Model.Prompt =>
+    );
+  | Chat.Model.Prompt =>
     ViewComponents.prompt_view(
       ~content=chunked_chat.prompt,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )
-  | Agent.Chat.Model.DeveloperNotes =>
+  | Chat.Model.DeveloperNotes =>
     ViewComponents.developer_notes_view(
       ~content=chunked_chat.developer_notes,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )
-  | Agent.Chat.Model.Tools =>
+  | Chat.Model.Tools =>
     ViewComponents.tools_view(
       ~agent_model,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )
-  | Agent.Chat.Model.AgentEditorView
-  | Agent.Chat.Model.StaticErrors =>
+  | Chat.Model.AgentEditorView
+  | Chat.Model.StaticErrors =>
     // Both AgentEditorView and StaticErrors now show context
     ViewComponents.context_view(
       ~globals,
       ~code_with_statics,
       ~agent_view=current_chat.agent_view,
       ~eval_result,
+      ~current_chat,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )
-  | Agent.Chat.Model.Workbench =>
+  | Chat.Model.Workbench =>
     ViewComponents.workbench_view(~agent_inject, ~chat_id=current_chat_id)
   };
 };

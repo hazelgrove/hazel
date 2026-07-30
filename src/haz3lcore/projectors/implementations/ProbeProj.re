@@ -396,9 +396,9 @@ let cursor_clss =
 };
 
 module Debug = {
-  let stack = (stack: Sample.call_stack): string =>
+  let stack = (stack: CallStack.t): string =>
     stack
-    |> List.map((f: Sample.stack_frame) => Id.str3(f.id))
+    |> List.map((f: CallStack.frame) => Id.str3(f.id))
     |> String.concat("\n");
 
   let str = (~ap_id: option(Id.t), sample: Sample.t): string =>
@@ -428,14 +428,7 @@ let find_compatible_renderer =
 let pin_call = (ctx: probe_ctx) =>
   switch (ctx.ap_id, Dynamics.Info.is_in(ctx.dynamics)) {
   | (Some(ap_id), Some(sample)) =>
-    let call_stack = [
-      {
-        Sample.id: ap_id,
-        name: None,
-        fn_def_id: None,
-      },
-      ...sample.call_stack,
-    ];
+    let call_stack = CallStack.extend(ap_id, sample.call_stack);
     ctx.parent(Probe(Pin(call_stack, ap_id)));
   | _ => Effect.Ignore
   };
@@ -570,18 +563,14 @@ let env_val = (ctx: probe_ctx, view_seg, sample, en: Sample.Env.entry): Node.t =
 let show_pin = (ctx: probe_ctx, sample: Sample.t) => {
   switch (ctx.ap_id, ctx.dynamics.sample_focus.pinned_stack) {
   | (Some(ap_id), Some(pinned_stack)) =>
-    /* Compare by ID only - function names may differ */
-    Sample.ids_of_stack(pinned_stack)
-    == [ap_id, ...Sample.ids_of_stack(sample.call_stack)]
+    CallStack.equal(pinned_stack, CallStack.extend(ap_id, sample.call_stack))
   | _ => false
   };
 };
 
 let show_focus = (ctx: probe_ctx, sample: Sample.t) =>
   switch (ctx.dynamics.sample_focus.pinned_stack) {
-  | Some(pinned_stack) =>
-    Sample.ids_of_stack(pinned_stack)
-    == Sample.ids_of_stack(sample.call_stack)
+  | Some(pinned_stack) => CallStack.equal(pinned_stack, sample.call_stack)
   | _ => false
   };
 

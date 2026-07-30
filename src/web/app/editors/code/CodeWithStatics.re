@@ -23,7 +23,9 @@ module Model = {
     context_menu: context_menu_state,
     statics: CachedStatics.t,
     dynamics: Dynamics.t,
-    live_typing: Calc.saved((StaticsBase.Map.t, list(Id.t))),
+    /* (live info map, live error ids, wall-clock time of the last live pass).
+     * The timestamp drives the streaming throttle in Update.calculate. */
+    live_typing: Calc.saved((StaticsBase.Map.t, list(Id.t), float)),
     sample_focus: Calc.saved(Language.Sample.Focus.t),
   };
 
@@ -151,6 +153,11 @@ module Update = {
   // There are no events for a read-only editor
   type t;
 
+  /* While the worker streams partial results, run the live-typing pass at
+   * most once per this window; a settled result always runs it (the caller
+   * passes ~eval_pending=false once evaluation completes). */
+  let live_typing_stream_throttle_ms = 500.0;
+
   /* Calculates the statics for the editor. */
   let calculate =
       (
@@ -161,6 +168,7 @@ module Update = {
         ~ctx=?,
         ~stitch,
         ~dynamics: Calc.t(Dynamics.t),
+        ~eval_pending=false,
         ~is_dynamic_term,
         ~ana=?,
         {
@@ -229,12 +237,28 @@ module Update = {
     let sample_focus_calc =
       Calc.set(~eq=Sample.Focus.equal, current_sample_focus, sample_focus);
 
+    /* Streaming throttle: while the worker is still evaluating, partial
+     * dynamics arrive once per stream slice. Running the live pass (a full
+     * Statics.mk) on every slice would swamp the main thread, so within the
+     * throttle window we present the streamed dynamics as OldValue — the
+     * saved live typing is kept and no pass runs. The settled result always
+     * arrives with eval_pending=false, so the final pass is never skipped. */
+    let last_live_run =
+      live_typing
+      |> Calc.get_saved((StaticsBase.Map.empty, [], 0.))
+      |> (((_, _, t)) => t);
+    let dynamics_for_live =
+      eval_pending
+      && JsUtil.timestamp()
+      -. last_live_run < live_typing_stream_throttle_ms
+        ? Calc.make_old(dynamics) : dynamics;
+
     let live_typing =
       if (settings.live_typing) {
         Calc.Syntax.(
           live_typing
           |> {
-            let.calc dyn = dynamics
+            let.calc dyn = dynamics_for_live
             and.calc curr_sample_focus = sample_focus_calc;
 
             let filtered_dynamics =
@@ -278,17 +302,19 @@ module Update = {
                 live_typing_info_map,
               );
 
-            (live_typing_info_map, live_typing_error_ids);
+            (live_typing_info_map, live_typing_error_ids, JsUtil.timestamp());
           }
         );
       } else {
-        Calc.set((StaticsBase.Map.empty, []), live_typing);
+        Calc.set((StaticsBase.Map.empty, [], 0.), live_typing);
       };
 
+    let (live_typing_info_map, live_typing_error_ids, _) =
+      live_typing |> Calc.get_value;
     let statics: CachedStatics.t = {
       ...statics,
-      live_typing_info_map: live_typing |> Calc.get_value |> fst,
-      live_typing_error_ids: live_typing |> Calc.get_value |> snd,
+      live_typing_info_map,
+      live_typing_error_ids,
     };
 
     let editor =

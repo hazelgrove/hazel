@@ -18,9 +18,13 @@ let summarized_docs = [
   "```",
   "let f: (Int, ?) -> Int = fun a, b -> a + 1 in f(1, 2);",
   "```",
+  "- Named functions are preferably defined with parameters on the let (return type after the parens); `fun` is for anonymous lambdas. Recursion needs no `rec` keyword.",
+  "```",
+  "let add(x: Int, y: Int): Int = x + y in add(1, 2);",
+  "```",
   "- Hazel also supports polymorphic functions.",
   "```",
-  "let poly_id: forall a -> a -> a = typfun a -> fun x: a -> x;",
+  "let poly_id: poly a -> a -> a = typfun a -> fun x: a -> x;",
   "```",
   "- Polymorphic functions can be applied with type arguments using `@<T>` syntax.",
   "```",
@@ -51,9 +55,9 @@ let summarized_docs = [
   "let f: Int -> Int = fun x -> x + true in f(1);",
   "```",
   "- The erroneous addition will be wrapped in a non-empty hole, not crash.",
-  "- Hazel's recursive types allow expressive structures.",
+  "- Hazel's recursive types allow expressive structures. A type alias whose top-level operator is a sum is implicitly recursive on its own name.",
   "```",
-  "type MyList = rec A -> (Nil + Cons(Int, A)) in",
+  "type MyList = Nil + Cons(Int, MyList) in",
   "let x: MyList = Cons(1, Cons(2, Cons(3, Nil)));",
   "```",
   "- Hazel supports list processing via pattern matching.",
@@ -72,7 +76,7 @@ let summarized_docs = [
   "   fun n -> if n == 0 then false else even(n - 1))",
   "in even(4);",
   "```",
-  "- Projectors and livelits provide visual editing tools in Hazel's GUI.",
+  "- Projectors (folds, probes, statics overlays, livelits such as checkbox/slider/csv) are summarized in Filbert’s system prompt projector catalog.",
   "- Hazel allows tests to be included inline.",
   "```",
   "test 2 + 2 == 4 end;",
@@ -89,49 +93,49 @@ let polymorphism_documentation = {|
   # Polymorphism #
 
 # We can take types as parameters to type functions, #
-# and use them in annoatations in the body: #
+# and use them in annotations in the body: #
 let id = typfun A -> fun x : A -> x in
 
 # Such functions are applied like so: #
 let ex1 = id@<Int>(1) in # 1 #
 
-# We can annotate the type of a type function with a forall. #
-let const : forall A -> forall B -> A -> B -> A =
+# We can annotate the type of a type function with a poly. #
+let const : poly A -> poly B -> A -> B -> A =
   typfun A -> typfun B -> fun x -> fun y -> x in
 let ex2 = const@<Int>@<String>(2)("Hello World") in # 2 #
 
 # We can go beyond rank 1 polymorphism: #
-let apply_both : forall A -> forall B -> (forall D -> D -> D) -> (A , B) -> (A , B) =
+let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> (A , B) =
   typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
 let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in # (3, "Hello World") #
 
 # Finally, here is a more in-depth, yet applicable example: polymorphic map #
-let emptylist : forall A -> [A] = typfun A -> [] in # polymorphic constant #
-let map : forall A -> forall B -> (A -> B) -> ([A] -> [B]) =
+let emptylist : poly A -> [A] = typfun A -> [] in # polymorphic constant #
+let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) =
   typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] ->
     case l
     | h :: t => f(h) :: map@<A>@<B>(f)(t)
     | _ => emptylist@<B>
     end in
-let ex4 = map@<Int>@<String>(string_of_int)([1,2,3]) in # ["1", "2", "3"] #
+let ex4 = map@<Int>@<Bool>(fun x : Int -> x > 1)([1,2,3]) in # [false, true, true] #
 
 
 # Recursive types #
 
-# We can express types that are the least fixed point of #
-# some type function with the rec keyword. #
-type MyList = rec A -> (Nil + Cons(Int, A)) in
+# A type alias whose top-level operator is a sum is implicitly #
+# a least fixed point on its own name: #
+type MyList = Nil + Cons(Int, MyList) in
 
 # Hazel does not (yet) support higher-kinded or existential types, #
 # So we cannot implement our own polymorphic lists. #
 
-# Now anything that returns an element of the least fixed point matches MyList. #
 let x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in
 
-# Note that if the sum is the top level operator, #
-# type aliases are implicitly least fixed points on their own name: #
-type MyList2 = Nil + Cons(Int, MyList2) in
+# The implicit fixed point only applies when the sum is at top level: #
 type Broken = Int -> (HasInt(Int) + HasMore(Int, Broken)) in
+
+# Explicit fixed-point types (rec A -> ...) exist, but their #
+# constructors are not registered for use — prefer the implicit form. #
 
 
 let list_of_mylist : (MyList -> [Int]) = fun myl : MyList ->

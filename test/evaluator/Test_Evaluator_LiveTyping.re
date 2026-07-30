@@ -160,7 +160,11 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
 
   // Evaluate the elaborated expression to collect dynamic information
   let (_, evaluation_state) =
-    Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated_exp);
+    Evaluator.evaluate(
+      ~eval_info=EvalInfo.of_targets(targets),
+      ~env=Builtins.env_init,
+      elaborated_exp,
+    );
 
   // Extract probe data and type instantiations from the evaluation state
   let probe_data = EvaluatorState.get_probes(evaluation_state);
@@ -250,7 +254,11 @@ let live_error_ids_of =
       ~probe_ids=Id.Map.empty,
     );
   let (_, state) =
-    Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+    Evaluator.evaluate(
+      ~eval_info=EvalInfo.of_targets(targets),
+      ~env=Builtins.env_init,
+      elaborated,
+    );
   let dynamics =
     mk_live_typing(
       EvaluatorState.get_probes(state),
@@ -286,7 +294,11 @@ let precision_property = (exp: Exp.t): bool =>
           ~probe_ids=Id.Map.empty,
         );
       let (_, state) =
-        Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+        Evaluator.evaluate(
+          ~eval_info=EvalInfo.of_targets(targets),
+          ~env=Builtins.env_init,
+          elaborated,
+        );
       let dynamics =
         mk_live_typing(
           EvaluatorState.get_probes(state),
@@ -514,7 +526,11 @@ in
             ~probe_ids=Id.Map.empty,
           );
         let (_, state) =
-          Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+          Evaluator.evaluate(
+            ~eval_info=EvalInfo.of_targets(targets),
+            ~env=Builtins.env_init,
+            elaborated,
+          );
         let dynamics =
           mk_live_typing(
             EvaluatorState.get_probes(state),
@@ -561,7 +577,11 @@ in
             ~probe_ids=Id.Map.empty,
           );
         let (_, state) =
-          Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+          Evaluator.evaluate(
+            ~eval_info=EvalInfo.of_targets(targets),
+            ~env=Builtins.env_init,
+            elaborated,
+          );
         let dynamics =
           mk_live_typing(
             EvaluatorState.get_probes(state),
