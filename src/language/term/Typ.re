@@ -1596,13 +1596,14 @@ let children = (ty: t): list(t) =>
   | Prod(items)
   | TypTuple(items) => items
   | Sum(variants) =>
+    // two per variant, so gapping one keeps the arity its siblings routed at
     List.concat_map(
       fun
       | ConstructorMap.Variant(name, ann, payload) => [
           IdTagged.mk_internal(ann.ids, Var(name): term),
-          ...Option.to_list(payload),
+          Option.value(~default=gap, payload),
         ]
-      | ConstructorMap.BadEntry(inner) => [inner],
+      | ConstructorMap.BadEntry(inner) => [inner, gap],
       variants,
     )
   };
@@ -1662,7 +1663,7 @@ let rebuild = (shape: t, replacements: list(t)): option(t) => {
       | ([], []) => Some([])
       | (
           [ConstructorMap.Variant(_, ann, None), ...rest],
-          [named, ...replacements],
+          [named, _, ...replacements],
         ) =>
         refill(rest, replacements)
         |> Option.map(List.cons(variant(ann, named, None)))
@@ -1672,7 +1673,7 @@ let rebuild = (shape: t, replacements: list(t)): option(t) => {
         ) =>
         refill(rest, replacements)
         |> Option.map(List.cons(variant(ann, named, Some(payload))))
-      | ([ConstructorMap.BadEntry(_), ...rest], [inner, ...replacements]) =>
+      | ([ConstructorMap.BadEntry(_), ...rest], [inner, _, ...replacements]) =>
         refill(rest, replacements)
         |> Option.map(List.cons(ConstructorMap.BadEntry(inner)))
       | _ => None
