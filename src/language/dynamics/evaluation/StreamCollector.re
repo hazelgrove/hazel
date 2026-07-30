@@ -1,40 +1,11 @@
 open Transition;
 
-module CollectStreamEVMode: {
-  include
-    EV_MODE with
-      type inner_result = (EvaluatorState.t, rule) and
-      type result = (EvaluatorState.t, rule);
-} = {
-  type result = (EvaluatorState.t, rule);
-  type inner_result = result;
-  type requirement('a) = (EvaluatorState.t, 'a);
-  type requirements('a, 'b) = (EvaluatorState.t, 'a, 'b);
-
-  let req_final = (f, _, x) => {
-    let (state, _) = f(x);
-    (state, x);
-  };
-
-  let rec req_all_final = (f, i, xs) =>
-    switch (xs) {
-    | [] => (EvaluatorState.empty, [])
-    | [x, ...xs] =>
-      let (state, x) = req_final(f, x => x, x);
-      let (states, xs) = req_all_final(f, i, xs);
-      (EvaluatorState.append(state, states), [x, ...xs]);
-    };
-
-  let otherwise = (_, c) => (EvaluatorState.empty, (), c);
-
-  let (and.) = ((state1, x1, c1), (state2, x2)) => (
-    EvaluatorState.append(state1, state2),
-    (x1, x2),
-    c1(x2),
-  );
-
-  let (let.) = ((state, x, _), s) => (state, s(x));
-};
+module CollectStreamEVMode =
+  AccumulatingEVMode.Make({
+    type t = EvaluatorState.t;
+    let empty = EvaluatorState.empty;
+    let combine = EvaluatorState.append;
+  });
 
 module CollectStreamTransition = Transition(CollectStreamEVMode);
 
@@ -44,13 +15,17 @@ let rec collect_stream_state_for =
   let id = DHExp.rep_id(d);
   switch (Id.Map.find_opt(id, stream.completed.entries)) {
   | Some(entry) =>
-    let state = EvaluatorState.append(EvaluatorState.empty, entry.state);
+    let state = EvaluatorState.rebase(entry.state);
     let state = EvaluatorState.add_incr_entry(state, id, entry);
     state;
   | None =>
     switch (stream.current) {
-    | Some({id: current_id, state}) when Id.equal(id, current_id) =>
-      EvaluatorState.append(EvaluatorState.empty, state)
+    /* Id.invalid is shared by all Exp.temp nodes (probes off). Matching it
+     * here collides with temps this walk itself creates and truncates
+     * collection — streamed results appear to go backwards. */
+    | Some({id: current_id, state})
+        when Id.equal(id, current_id) && !Id.equal(current_id, Id.invalid) =>
+      EvaluatorState.rebase(state)
     | Some(_)
     | None =>
       let (req_state, rule) =

@@ -105,7 +105,14 @@ let add_stream = (stream: t('state), incr: t('state)): t('state) => {
 let merge_outbox =
     (stream: outbox('state), outbox: outbox('state)): outbox('state) => {
   completed: add_stream(stream.completed, outbox.completed),
-  current: stream.current,
+  /* A slice that only finished completed entries (or only stepped through
+   * non-program ids) may omit current. Keep the prior in-flight publish so
+   * mid-stream UI state does not flicker away between slices. */
+  current:
+    switch (stream.current) {
+    | Some(_) as current => current
+    | None => outbox.current
+    },
 };
 
 let copy_descendant_entries =
@@ -126,8 +133,11 @@ let copy_descendant_entries =
   acc^;
 };
 
-/* The set of ids the UI should paint as "frozen" this run.*/
-let frozen_ids = (~ack_incr: t('state)): list(Id.t) => {
+/* Surface ids covered by cache entries: each entry short-circuits a subtree,
+ * so expand via prev_elab rather than using only the map keys. Used by the
+ * pending-eval worklist (to drop settled ids) and by the frozen debug tint
+ * (to paint a reuse prediction). */
+let visible_ids = (incr: t('state)): list(Id.t) => {
   let acc = ref([]);
   let collect_subtree = (root: Exp.t): unit => {
     let f_exp = (continue, e: Exp.t): Exp.t => {
@@ -137,12 +147,12 @@ let frozen_ids = (~ack_incr: t('state)): list(Id.t) => {
     let _ = TermBase.Exp.map_term(~f_exp, root);
     ();
   };
-  Id.Map.iter(
-    (_, entry) => collect_subtree(entry.prev_elab),
-    ack_incr.entries,
-  );
+  Id.Map.iter((_, entry) => collect_subtree(entry.prev_elab), incr.entries);
   acc^;
 };
+
+/* Ids the UI should paint as "frozen" for a reuse plan / prediction. */
+let frozen_ids = (~incr: t('state)): list(Id.t) => visible_ids(incr);
 
 let equal_provenance = (a: provenance, b: provenance): bool =>
   Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
@@ -297,10 +307,10 @@ let update_maps_after_binding =
 
 let reuse_check =
     (
-      ~call_stack: CallStack.t',
+      ~call_stack: CallStack.state,
       ~prev: t('state),
       ~reuse_map: reuse_map,
-      ~info_map: EvalInfo.t,
+      ~eval_info: EvalInfo.t,
       ~id: Id.t,
     )
     : option(entry('state)) => {
@@ -308,7 +318,7 @@ let reuse_check =
 
   let* () = OptUtil.some_if(call_stack.stack == [] && !is_empty(prev), ());
   let* entry = Id.Map.find_opt(id, prev.entries);
-  let* info = EvalInfo.find_opt(id, info_map);
+  let* info = EvalInfo.find_opt(id, eval_info);
 
   let elab_same =
     Exp.fast_equal(entry.prev_elab, info.elab_term)

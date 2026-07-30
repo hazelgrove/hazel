@@ -1,6 +1,6 @@
 /*
-  This module defines the custom stack machine for the evaluator (so that we can
-  we don't get OCaml stack overflows).
+  This module defines the custom stack machine for the evaluator (so that we
+  don't get OCaml stack overflows).
 
   We also include the ability to yield a computation so that the webworker can
   pause and communicate with the main thread.
@@ -45,6 +45,8 @@ let run = t => run(t, Finished);
 // Running the stack machine (with yielding).
 
 module Yielding = {
+  /* The int is the cumulative step count across all slices so far; it feeds
+   * Evaluator.yielding_step_count (total-step runaway backstop). */
   type continuation('a) =
     | Continuation(t('b), callstack('b, 'a), int): continuation('a);
 

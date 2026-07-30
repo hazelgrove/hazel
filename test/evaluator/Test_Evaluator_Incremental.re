@@ -47,14 +47,14 @@ let eval_incr =
     (~prev: EvaluatorState.incr_eval=IncrEval.empty, exp: Exp.t)
     : (Exp.t, EvaluatorState.t, EvaluatorState.incr_eval) => {
   let (info_map, elab) = statics_and_elab(exp);
-  let info_map =
+  let eval_info =
     EvalInfo.of_info_map(
       ~probe_all=CoreSettings.on.probe_all,
       ~targets=Id.Map.empty,
       info_map,
     );
   let (result, state) =
-    Evaluator.evaluate(~prev, ~info_map, ~env=Builtins.env_init, elab);
+    Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init, elab);
   (result, state, state.incr_eval);
 };
 
@@ -148,8 +148,8 @@ let reuse_plan =
     (~prev: EvaluatorState.incr_eval=IncrEval.empty, exp: Exp.t)
     : EvaluatorState.incr_eval => {
   let (info_map, elab) = statics_and_elab(exp);
-  let info_map = eval_info_of_statics(info_map);
-  ReusePass.reuse_pass(~prev, ~info_map, ~env=Builtins.env_init, elab);
+  let eval_info = eval_info_of_statics(info_map);
+  ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
 };
 
 let has_reuse = (ack_incr: EvaluatorState.incr_eval): bool =>
@@ -160,7 +160,15 @@ let directly_reused = (id: Id.t, ack_incr: EvaluatorState.incr_eval): bool =>
 
 let frozen_ids_for =
     (~prev: EvaluatorState.incr_eval, exp: Exp.t): list(Id.t) =>
-  IncrEval.frozen_ids(~ack_incr=reuse_plan(~prev, exp));
+  IncrEval.frozen_ids(~incr=reuse_plan(~prev, exp));
+
+/* Run eval_incr AND compute the reuse plan for the same (~prev, exp) pair in
+ * one go, for tests that assert on both the result and the plan. */
+let eval_incr_with_plan = (~prev, exp) => {
+  let plan = reuse_plan(~prev, exp);
+  let (result, state, incr) = eval_incr(~prev, exp);
+  (result, state, incr, plan);
+};
 
 /* Running twice with the SAME Exp.t (so ids are identical): the second run
  * should reuse lots of entries. Without replace_int_lit / id preservation
@@ -171,13 +179,13 @@ let test_reuse_same_program = () => {
   let src = "let x = 1 + 2 in let y = x + 10 in y";
   let exp = parse_exp(src);
   let (r1, _, incr1) = eval_incr(exp);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp);
   check(dhexp_typ, "Reuse preserves the result value", r1, r2);
   check(
     bool,
     "Second run actually reused entries (reused list non-empty)",
     true,
-    has_reuse(reuse_plan(~prev=incr1, exp)),
+    has_reuse(plan2),
   );
 };
 
@@ -186,9 +194,9 @@ let test_streaming_plan_reuses_root_without_descending = () => {
   let exp = parse_exp(src);
   let (_, _, prev) = eval_incr(exp);
   let (info_map, elab) = statics_and_elab(exp);
-  let info_map = eval_info_of_statics(info_map);
+  let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~info_map, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
   let root_id = Exp.rep_id(elab);
   check(
     bool,
@@ -210,9 +218,9 @@ let test_streaming_plan_omits_misses_and_keeps_children = () => {
   let exp2 = replace_int_lit(~from=100, ~to_=200, exp1);
   let (_, _, prev) = eval_incr(exp1);
   let (info_map, elab) = statics_and_elab(exp2);
-  let info_map = eval_info_of_statics(info_map);
+  let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~info_map, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
   let root_id = Exp.rep_id(elab);
   check(
     bool,
@@ -233,9 +241,9 @@ let test_materialize_stream_state_marks_reused_entries = () => {
   let exp = parse_exp(src);
   let (_, _, prev) = eval_incr(exp);
   let (info_map, elab) = statics_and_elab(exp);
-  let info_map = eval_info_of_statics(info_map);
+  let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~info_map, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
   let state =
     StreamCollector.collect_stream_state(
       IncrEval.outbox_of_completed(stream),
@@ -256,42 +264,16 @@ let test_materialize_stream_state_marks_reused_entries = () => {
   );
 };
 
-let probe_targets = (z: Zipper.t, info_map: Statics.Map.t): Sample.targets => {
-  let probe_ids =
-    Id.Map.union(
-      (_, _, _) => Some(),
-      Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
-      Id.Map.map(_ => (), z.refractors.multis.ephemerals),
-    );
-  Id.Map.fold(
-    (id, (), acc) => {
-      let refs =
-        switch (Statics.Map.lookup_exp(id, info_map)) {
-        | Some(_) => Statics.Map.refs_in(info_map, id)
-        | None =>
-          switch (Statics.Map.lookup_pat(id, info_map)) {
-          | Some(_) => Statics.Map.bound_in(info_map, id)
-          | None => []
-          }
-        };
-      let spec: Sample.capture_spec = {refs: refs};
-      Id.Map.add(id, spec, acc);
-    },
-    probe_ids,
-    Id.Map.empty,
-  );
-};
-
 let eval_with_targets =
     (~prev: EvaluatorState.incr_eval=IncrEval.empty, ~term, ~targets, ()) => {
   let (info_map, elab) = statics_and_elab(term);
-  let info_map =
+  let eval_info =
     EvalInfo.of_info_map(
       ~probe_all=CoreSettings.on.probe_all,
       ~targets,
       info_map,
     );
-  Evaluator.evaluate(~prev, ~info_map, ~env=Builtins.env_init, elab);
+  Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init, elab);
 };
 
 let replace_first_u_plus_one = (exp: Exp.t): Exp.t => {
@@ -314,48 +296,32 @@ let replace_first_u_plus_one = (exp: Exp.t): Exp.t => {
   TermBase.Exp.map_term(~f_exp, exp);
 };
 
-let replace_first_int_lit = (~from: int, ~to_: int, exp: Exp.t): Exp.t => {
-  let changed = ref(false);
-  let f_exp = (continue, e: Exp.t): Exp.t =>
-    if (changed^) {
-      continue(e);
-    } else {
-      switch (e.term) {
-      | Atom(Int(n)) when Bigint.to_string(n) == string_of_int(from) =>
-        changed := true;
-        {
-          ...e,
-          term: Atom(Int(Bigint.of_int(to_))),
-        };
-      | _ => continue(e)
-      };
-    };
-  TermBase.Exp.map_term(~f_exp, exp);
-};
-
-let test_reused_probe_samples_survive_final_incremental_result = () => {
-  let src = {|let u = 15 in
-let fib = fun x ->
-  if x < 2 then 1 else fib(x-1) + fib(x-2) in
-let x = ^^probe(fib(u)) in
-print(x);
-let y = ^^probe(fib(u+1)) in
-test y == 2582 end;
-let z = fib(u) in
-print(z);
-let w = ^^probe(fib(u+2)) in
-let u = ^^probe(fib(u+3)) in
-(x,y,z,w)|};
+/* Shared driver for the probe-replay regression tests below. Parses `src`
+ * (which uses ^^probe syntax), evaluates it fresh, applies `edit` (an
+ * id-preserving in-place transform), then evaluates the edited program both
+ * from scratch and incrementally (prev = run 1's cache). The incremental
+ * run's final probe samples must match the fresh run's: same sample count
+ * (`count_msg`) and a sample present for every current target
+ * (`targets_msg`). */
+let check_probe_samples_survive_edit =
+    (
+      ~src: string,
+      ~parse_fail: string,
+      ~edit: Exp.t => Exp.t,
+      ~count_msg: string,
+      ~targets_msg: string,
+      (),
+    ) => {
   switch (Parser.to_zipper(~root=Exp, src)) {
-  | None => failwith("could not parse probe regression program")
+  | None => failwith(parse_fail)
   | Some(z) =>
     let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
     let (info_map1, _) = statics_and_elab(term);
-    let targets1 = probe_targets(z, info_map1);
+    let targets1 = targets_of_zipper(z, info_map1);
     let (_, state1) = eval_with_targets(~term, ~targets=targets1, ());
-    let edited = replace_first_u_plus_one(term);
+    let edited = edit(term);
     let (info_map2, _) = statics_and_elab(edited);
-    let targets2 = probe_targets(z, info_map2);
+    let targets2 = targets_of_zipper(z, info_map2);
     let (_, fresh_state2) =
       eval_with_targets(~term=edited, ~targets=targets2, ());
     let (_, incr_state2) =
@@ -367,13 +333,13 @@ let u = ^^probe(fib(u+3)) in
       );
     check(
       int,
-      "incremental final result preserves reused probe samples",
+      count_msg,
       Id.Map.cardinal(EvaluatorState.get_probes(fresh_state2)),
       Id.Map.cardinal(EvaluatorState.get_probes(incr_state2)),
     );
     check(
       bool,
-      "each current probe target has a sample after final incremental result",
+      targets_msg,
       true,
       Id.Map.for_all(
         (id, _) => Id.Map.mem(id, EvaluatorState.get_probes(incr_state2)),
@@ -383,8 +349,44 @@ let u = ^^probe(fib(u+3)) in
   };
 };
 
-let test_test_literal_edit_preserves_downstream_reused_probes = () => {
-  let src = {|let u = 16 in
+/* Pins: probe samples captured on run 1 (e.g. on the unedited `fib(u)`
+ * probes) must be replayed into the FINAL incremental result after an
+ * id-preserving edit (here: rewriting `fib(u+1)` to `fib(u)`). The magic
+ * number 2582 in `test y == 2582` is just a literal near this program's fib
+ * outputs (with u=15 and fib(0)=fib(1)=1, fib(u+1)=1597, fib(17)=2584);
+ * whether the in-program `test` passes is irrelevant to the regression. */
+let test_reused_probe_samples_survive_final_incremental_result = () =>
+  check_probe_samples_survive_edit(
+    ~src=
+      {|let u = 15 in
+let fib = fun x ->
+  if x < 2 then 1 else fib(x-1) + fib(x-2) in
+let x = ^^probe(fib(u)) in
+print(x);
+let y = ^^probe(fib(u+1)) in
+test y == 2582 end;
+let z = fib(u) in
+print(z);
+let w = ^^probe(fib(u+2)) in
+let u = ^^probe(fib(u+3)) in
+(x,y,z,w)|},
+    ~parse_fail="could not parse probe regression program",
+    ~edit=replace_first_u_plus_one,
+    ~count_msg="incremental final result preserves reused probe samples",
+    ~targets_msg=
+      "each current probe target has a sample after final incremental result",
+    (),
+  );
+
+/* Pins: editing only a `test` expression's literal must not drop reused
+ * probe samples on the probes downstream of it. The magic number 2584 is
+ * this program's fib output (with u=16 and fib(0)=fib(1)=1, y = fib(u+1) =
+ * fib(17) = 2584); the edit bumps it to 2585 so only the test literal's
+ * token changes while every probe's subtree keeps its ids. */
+let test_test_literal_edit_preserves_downstream_reused_probes = () =>
+  check_probe_samples_survive_edit(
+    ~src=
+      {|let u = 16 in
 let fib' = fun x ->
   if x < 2 then 1 else fib'(x-1) + fib'(x-2) in
 let fib = fun ^^probe(x) -> fib'(x) in
@@ -396,43 +398,16 @@ let z = fib(u) in
 print(z);
 let w = ^^probe(fib(u-2)) in
 let u = ^^probe(fib(u+1)) in
-(x,y,z,w)|};
-  switch (Parser.to_zipper(~root=Exp, src)) {
-  | None => failwith("could not parse test-literal probe regression program")
-  | Some(z) =>
-    let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
-    let (info_map1, _) = statics_and_elab(term);
-    let targets1 = probe_targets(z, info_map1);
-    let (_, state1) = eval_with_targets(~term, ~targets=targets1, ());
-    let edited = replace_first_int_lit(~from=2584, ~to_=2585, term);
-    let (info_map2, _) = statics_and_elab(edited);
-    let targets2 = probe_targets(z, info_map2);
-    let (_, fresh_state2) =
-      eval_with_targets(~term=edited, ~targets=targets2, ());
-    let (_, incr_state2) =
-      eval_with_targets(
-        ~prev=state1.incr_eval,
-        ~term=edited,
-        ~targets=targets2,
-        (),
-      );
-    check(
-      int,
-      "test literal edit preserves probe sample count",
-      Id.Map.cardinal(EvaluatorState.get_probes(fresh_state2)),
-      Id.Map.cardinal(EvaluatorState.get_probes(incr_state2)),
-    );
-    check(
-      bool,
+(x,y,z,w)|},
+    ~parse_fail="could not parse test-literal probe regression program",
+    /* 2584 occurs exactly once in the source, so the replace-everywhere
+     * helper is equivalent to the old replace-first traversal. */
+    ~edit=exp => replace_int_lit(~from=2584, ~to_=2585, exp),
+    ~count_msg="test literal edit preserves probe sample count",
+    ~targets_msg=
       "each current probe target has samples after test literal edit",
-      true,
-      Id.Map.for_all(
-        (id, _) => Id.Map.mem(id, EvaluatorState.get_probes(incr_state2)),
-        targets2,
-      ),
-    );
-  };
-};
+    (),
+  );
 
 /* Non-deferred subtrees below the outer let should ALSO get cache entries.
  * Bug this pins: treating every Closure wrapper as a deferred boundary
@@ -469,7 +444,7 @@ let test_partial_reuse_after_edit = () => {
     !Exp.fast_equal(exp1, exp2),
   );
   let (_, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(
     dhexp_typ,
     "Edit to z's rhs produces updated result",
@@ -483,7 +458,7 @@ let test_partial_reuse_after_edit = () => {
     bool,
     "Unchanged subtrees reused from prev map",
     true,
-    has_reuse(reuse_plan(~prev=incr1, exp2)),
+    has_reuse(plan2),
   );
 };
 
@@ -508,7 +483,7 @@ let test_dirty_propagates_to_downstream_sum = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=77, ~to_=2, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "First run sum = 5 + 77 = 82", parse_exp("82"), r1);
   check(
     dhexp_typ,
@@ -523,7 +498,7 @@ let test_dirty_propagates_to_downstream_sum = () => {
     bool,
     "Second run reuses at least some entries",
     true,
-    has_reuse(reuse_plan(~prev=incr1, exp2)),
+    has_reuse(plan2),
   );
 };
 
@@ -553,8 +528,8 @@ let test_rhs_edit_after_body_edit_invalidates_body = () => {
   let exp2 = replace_int_lit(~from=88, ~to_=99, exp1);
   let exp3 = replace_int_lit(~from=77, ~to_=2, exp2);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
-  let (r3, _, _) = eval_incr(~prev=incr2, exp3);
+  let (r2, _, incr2, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
+  let (r3, _, _, plan3) = eval_incr_with_plan(~prev=incr2, exp3);
   check(dhexp_typ, "Run 1: 5 + 77 + 88 = 170", parse_exp("170"), r1);
   check(dhexp_typ, "Run 2: 5 + 77 + 99 = 181", parse_exp("181"), r2);
   check(
@@ -570,13 +545,13 @@ let test_rhs_edit_after_body_edit_invalidates_body = () => {
     bool,
     "Run 2 reused some entries (not a from-scratch eval)",
     true,
-    has_reuse(reuse_plan(~prev=incr1, exp2)),
+    has_reuse(plan2),
   );
   check(
     bool,
     "Run 3 reused some entries (not a from-scratch eval)",
     true,
-    has_reuse(reuse_plan(~prev=incr2, exp3)),
+    has_reuse(plan3),
   );
 };
 
@@ -599,7 +574,7 @@ let test_function_body_edit_invalidates_apps = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=9, ~to_=3, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: 45 + 90 = 135", parse_exp("135"), r1);
   check(
     dhexp_typ,
@@ -612,7 +587,7 @@ let test_function_body_edit_invalidates_apps = () => {
     bool,
     "Second run still reuses some entries (call-site args)",
     true,
-    has_reuse(reuse_plan(~prev=incr1, exp2)),
+    has_reuse(plan2),
   );
 };
 
@@ -625,7 +600,7 @@ let test_function_arg_edit_reuses_other_calls = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=7, ~to_=100, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: 14 + 22 = 36", parse_exp("36"), r1);
   check(
     dhexp_typ,
@@ -633,12 +608,7 @@ let test_function_arg_edit_reuses_other_calls = () => {
     parse_exp("222"),
     r2,
   );
-  check(
-    bool,
-    "Second run reuses some entries",
-    true,
-    has_reuse(reuse_plan(~prev=incr1, exp2)),
-  );
+  check(bool, "Second run reuses some entries", true, has_reuse(plan2));
 };
 
 /* Editing an expression sequenced before a function call should not force
@@ -685,13 +655,13 @@ in
     };
   };
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 2 result is unchanged after 6 -> 4", r1, r2);
   check(
     bool,
     "f(20) is reused after editing only the preceding sequence expression",
     true,
-    directly_reused(f20_id, reuse_plan(~prev=incr1, exp2)),
+    directly_reused(f20_id, plan2),
   );
 };
 
@@ -704,7 +674,7 @@ let test_if_untaken_branch_edit_reuses = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=77, ~to_=999, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: taken branch = 42", parse_exp("42"), r1);
   check(
     dhexp_typ,
@@ -716,7 +686,7 @@ let test_if_untaken_branch_edit_reuses = () => {
     bool,
     "Untaken-branch edit leaves reusable entries",
     true,
-    has_reuse(reuse_plan(~prev=incr1, exp2)),
+    has_reuse(plan2),
   );
 };
 
@@ -727,7 +697,7 @@ let test_if_taken_branch_edit_updates = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=42, ~to_=13, exp1);
   let (_, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(
     dhexp_typ,
     "Run 2 after taken-branch edit: 13 (not stale 42)",
@@ -738,7 +708,7 @@ let test_if_taken_branch_edit_updates = () => {
     bool,
     "Second run still reuses some entries",
     true,
-    has_reuse(reuse_plan(~prev=incr1, exp2)),
+    has_reuse(plan2),
   );
 };
 
@@ -750,7 +720,7 @@ let test_match_untaken_arm_edit_reuses = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=22, ~to_=333, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: matched 0 -> 11", parse_exp("11"), r1);
   check(
     dhexp_typ,
@@ -762,7 +732,7 @@ let test_match_untaken_arm_edit_reuses = () => {
     bool,
     "Untaken-arm edit leaves reusable entries",
     true,
-    has_reuse(reuse_plan(~prev=incr1, exp2)),
+    has_reuse(plan2),
   );
 };
 
@@ -805,7 +775,7 @@ let test_tuple_destructuring_edit_updates = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=20, ~to_=200, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: 10 + 20 + 30 = 60", parse_exp("60"), r1);
   check(
     dhexp_typ,
@@ -813,12 +783,7 @@ let test_tuple_destructuring_edit_updates = () => {
     parse_exp("240"),
     r2,
   );
-  check(
-    bool,
-    "Second run reuses some entries",
-    true,
-    has_reuse(reuse_plan(~prev=incr1, exp2)),
-  );
+  check(bool, "Second run reuses some entries", true, has_reuse(plan2));
 };
 
 /* List literal: same idea — editing one element shouldn't break the result.
@@ -853,7 +818,7 @@ let test_shadowing_inner_let_edit = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=7, ~to_=77, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: 10 + 7 = 17", parse_exp("17"), r1);
   check(
     dhexp_typ,
@@ -861,12 +826,7 @@ let test_shadowing_inner_let_edit = () => {
     parse_exp("87"),
     r2,
   );
-  check(
-    bool,
-    "Shadowing still allows reuse",
-    true,
-    has_reuse(reuse_plan(~prev=incr1, exp2)),
-  );
+  check(bool, "Shadowing still allows reuse", true, has_reuse(plan2));
 };
 
 /* Function bodies are a DEFERRED boundary: no incremental entries are
@@ -897,7 +857,7 @@ let test_probe_replay_on_reuse = () => {
   let src = "let x = 1 + 2 in x + 10";
   let exp = parse_exp(src);
   let (info_map, elab) = statics_and_elab(exp);
-  let info_map =
+  let eval_info =
     EvalInfo.of_info_map(
       ~probe_all=CoreSettings.on.probe_all,
       ~targets=Id.Map.empty,
@@ -907,7 +867,7 @@ let test_probe_replay_on_reuse = () => {
   let (_, state1) =
     Evaluator.evaluate(
       ~prev=IncrEval.empty,
-      ~info_map,
+      ~eval_info,
       ~env=Builtins.env_init,
       elab,
     );
@@ -916,7 +876,7 @@ let test_probe_replay_on_reuse = () => {
   let (_, state2) =
     Evaluator.evaluate(
       ~prev=state1.incr_eval,
-      ~info_map,
+      ~eval_info,
       ~env=Builtins.env_init,
       elab,
     );
@@ -1049,7 +1009,6 @@ let c = {
     List.length(c_inner_modlet_ids),
   );
   let (_, _, incr1) = eval_incr(exp1);
-  let (_, _, _incr2) = eval_incr(~prev=incr1, exp2);
   /* The "frozen set" is what the UI should paint as frozen. The reuse
    * plan can contain an ancestor that short-circuits evaluation; frozen ids
    * expand that to the elab-descendant closure by walking cached prev_elab
@@ -1188,7 +1147,6 @@ let test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen = () => {
     | _ => failwith("rhs inner is not a 2-tuple")
     };
   let (_, _, incr1) = eval_incr(exp1);
-  let (_, _, _incr2) = eval_incr(~prev=incr1, exp2);
   let frozen = frozen_ids_for(~prev=incr1, exp2);
   check(bool, "Atom 0 is in frozen set", true, List.mem(zero_id, frozen));
   check(
@@ -1245,7 +1203,7 @@ let test_delete_inner_let_uncovers_outer_binding = () => {
     !Exp.fast_equal(exp_with, exp_without),
   );
   let (r1, _, incr1) = eval_incr(exp_with);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp_without);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp_without);
   check(dhexp_typ, "Run 1: inner x=1 wins, x+x = 2", parse_exp("2"), r1);
   check(
     dhexp_typ,
@@ -1257,7 +1215,7 @@ let test_delete_inner_let_uncovers_outer_binding = () => {
     bool,
     "Second run reuses at least some entries (not a from-scratch eval)",
     true,
-    has_reuse(reuse_plan(~prev=incr1, exp_without)),
+    has_reuse(plan2),
   );
 };
 
@@ -1278,7 +1236,7 @@ let test_add_inner_let_shadows_outer_binding = () => {
   let exp_with = parse_exp(src);
   let exp_without = strip_let_with_int_rhs(~rhs_val=1, exp_with);
   let (r1, _, incr1) = eval_incr(exp_without);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp_with);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp_with);
   check(dhexp_typ, "Run 1: only outer x=10, x+x = 20", parse_exp("20"), r1);
   check(
     dhexp_typ,
@@ -1290,7 +1248,7 @@ let test_add_inner_let_shadows_outer_binding = () => {
     bool,
     "Second run reuses at least some entries (not a from-scratch eval)",
     true,
-    has_reuse(reuse_plan(~prev=incr1, exp_with)),
+    has_reuse(plan2),
   );
 };
 
@@ -1356,14 +1314,14 @@ f(8)|};
     };
   };
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: f(8) = 1", parse_exp("1"), r1);
   check(dhexp_typ, "Run 2: f(8) = 1 (unchanged)", parse_exp("1"), r2);
   check(
     bool,
     "Run 2 reuses something (sanity, not a from-scratch run)",
     true,
-    has_reuse(reuse_plan(~prev=incr1, exp2)),
+    has_reuse(plan2),
   );
   /* The actual bug we're pinning: `f(8)` should be reused — it doesn't
    * reference the `_ = 55` binding and `f`'s rhs is unchanged. With the
@@ -1372,7 +1330,7 @@ f(8)|};
     bool,
     "f(8) is reused on run 2 (it doesn't depend on the edited _-binding)",
     true,
-    directly_reused(f8_id, reuse_plan(~prev=incr1, exp2)),
+    directly_reused(f8_id, plan2),
   );
 };
 
@@ -1422,7 +1380,7 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
   };
   let (r1, _, incr1) = eval_incr(exp1);
   let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
-  let (r3, _, _) = eval_incr(~prev=incr2, exp3);
+  let (r3, _, _, plan3) = eval_incr_with_plan(~prev=incr2, exp3);
   check(dhexp_typ, "Run 1: 1+2+3+4 = 10", parse_exp("10"), r1);
   check(dhexp_typ, "Run 2: 1+2+3+5 = 11", parse_exp("11"), r2);
   check(dhexp_typ, "Run 3: 1+2+4+5 = 12", parse_exp("12"), r3);
@@ -1449,7 +1407,7 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
     bool,
     "Run 3: `1 + 2` is reused (its subtree is unchanged since run 1)",
     true,
-    directly_reused(plus_1_2_id, reuse_plan(~prev=incr2, exp3)),
+    directly_reused(plus_1_2_id, plan3),
   );
 };
 
@@ -1570,7 +1528,7 @@ let test_let_rhs_becomes_hole_invalidates_body = () => {
     };
   };
   let (r1, _, incr1) = eval_incr(exp_without_hole);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp_with_hole);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp_with_hole);
   print_endline("DIAG r1 = " ++ Exp.show(r1));
   print_endline("DIAG r2 = " ++ Exp.show(r2));
   check(dhexp_typ, "Run 1: x = 4, x + 1 = 5", parse_exp("5"), r1);
@@ -1584,7 +1542,7 @@ let test_let_rhs_becomes_hole_invalidates_body = () => {
     bool,
     "Body `x + 1` is NOT reused on run 2 (its binding became indet)",
     false,
-    directly_reused(body_id, reuse_plan(~prev=incr1, exp_with_hole)),
+    directly_reused(body_id, plan2),
   );
 };
 
@@ -1685,7 +1643,7 @@ n|};
     };
   };
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(
     dhexp_typ,
     "Run 1: string_length(\"hello\") = 5",
@@ -1699,7 +1657,7 @@ n|};
     bool,
     "string_length(\"hello\") Ap is reused on run 2",
     true,
-    directly_reused(builtin_ap_id, reuse_plan(~prev=incr1, exp2)),
+    directly_reused(builtin_ap_id, plan2),
   );
 };
 

@@ -564,7 +564,7 @@ let mode_title = (~explain_this_inject) => {
 };
 
 let run_button = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
-  let measured = editor.editor.syntax.measured;
+  let measured = Haz3lcore.CachedSyntax.measured(editor.editor.syntax);
   div(
     ~attrs=[
       clss(["run-button"]),
@@ -599,7 +599,7 @@ let render_print_entry = (entry: print_entry): Node.t =>
   );
 
 let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
-  let measured = editor.editor.syntax.measured;
+  let measured = Haz3lcore.CachedSyntax.measured(editor.editor.syntax);
   /* Determine what entries to display */
   let entries =
     switch (eval_mode_ref^) {

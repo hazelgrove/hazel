@@ -23,6 +23,9 @@ module Model = {
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
     incr_eval: Calc.saved(EvaluatorState.incr_eval),
+    /* ReusePass prediction for the current/last eval. Feeds the frozen debug
+     * tint; kept after completion so fast evals remain inspectable. */
+    predicted_reuse: EvaluatorState.incr_eval,
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
@@ -43,6 +46,7 @@ module Model = {
     result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
     dynamics: Calc.Pending,
     incr_eval: Calc.Pending,
+    predicted_reuse: IncrEval.empty,
     streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
     pending_eval_ids: [],
@@ -69,6 +73,7 @@ module Model = {
         result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
         dynamics: Calc.Pending,
         incr_eval: Calc.Pending,
+        predicted_reuse: IncrEval.empty,
         streaming_outbox: Calc.Pending,
         streaming_state: Calc.Pending,
         pending_eval_ids: [],
@@ -115,6 +120,9 @@ module Model = {
   let incr_eval = (model: t): EvaluatorState.incr_eval =>
     model.incr_eval |> Calc.get_saved(IncrEval.empty);
 
+  let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
+    model.predicted_reuse;
+
   let eval_is_pending = (model: t): bool =>
     switch (Calc.get_value(model.result)) {
     | ProgramResult.ResultPending(_) => true
@@ -131,87 +139,6 @@ module Model = {
 
 module Update = {
   open Updated;
-
-  let is_chain = (exp: Exp.t) =>
-    switch (Exp.term_of(exp)) {
-    | Let(_)
-    | Seq(_) => true
-    | _ => false
-    };
-
-  let is_inside_function = (info_map, info) =>
-    Info.ancestors_of(info)
-    |> List.exists(ancestor_id =>
-         switch (Id.Map.find_opt(ancestor_id, info_map)) {
-         | Some(Info.InfoExp({user_term, _})) =>
-           switch (Exp.term_of(user_term)) {
-           | Fun(_)
-           | TypFun(_) => true
-           | _ => false
-           }
-         | _ => false
-         }
-       );
-
-  let is_top_level_leaf = (info_map, id, info) =>
-    switch (info) {
-    | Info.InfoExp({user_term, _}) when !is_inside_function(info_map, info) =>
-      switch (Info.parent_id_of(info)) {
-      | None => !is_chain(user_term)
-      | Some(parent_id) =>
-        switch (Id.Map.find_opt(parent_id, info_map)) {
-        | Some(Info.InfoExp({user_term: parent, _})) =>
-          switch (Exp.term_of(parent)) {
-          | Let(_, def, body) =>
-            Id.equal(id, Exp.rep_id(def))
-            || Id.equal(id, Exp.rep_id(body))
-            && !is_chain(user_term)
-          | Seq(d1, d2) =>
-            Id.equal(id, Exp.rep_id(d1))
-            || Id.equal(id, Exp.rep_id(d2))
-            && !is_chain(user_term)
-          | Test(_)
-          | HintedTest(_, _) => false
-          | _ => false
-          }
-        | _ => false
-        }
-      }
-    | _ => false
-    };
-
-  let pending_eval_worklist = (info_map: Statics.Map.t): list(Id.t) =>
-    Id.Map.fold(
-      (id, info, acc) =>
-        is_top_level_leaf(info_map, id, info) ? [id, ...acc] : acc,
-      info_map,
-      [],
-    );
-
-  let stream_visible_ids =
-      (stream: IncrEval.outbox(EvaluatorState.t)): list(Id.t) =>
-    Id.Map.fold(
-      (id, entry: IncrEval.entry(EvaluatorState.t), acc) => {
-        let subtree_ids = ref([]);
-        let f_exp = (continue, e: Exp.t): Exp.t => {
-          subtree_ids := [Exp.rep_id(e), ...subtree_ids^];
-          continue(e);
-        };
-        let _ = TermBase.Exp.map_term(~f_exp, entry.prev_elab);
-        [id, ...subtree_ids^] @ acc;
-      },
-      stream.completed.entries,
-      [],
-    );
-
-  let remove_streamed_ids = (stream, pending_eval_ids) => {
-    let completed_ids =
-      stream_visible_ids(stream) |> List.sort_uniq(Id.compare);
-    pending_eval_ids
-    |> List.filter(id =>
-         !List.exists(done_id => Id.equal(id, done_id), completed_ids)
-       );
-  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -287,12 +214,16 @@ module Update = {
       }
       |> Updated.return_quiet
     | (UpdateStreamingEval(stream), _) =>
+      /* Worker ReusePlan arrives here (via on_ack). Snapshot it for the
+       * frozen debug tint; also seed the streaming outbox / pending worklist. */
       {
         ...model,
         result: Calc.NewValue(ProgramResult.evaluating),
+        predicted_reuse: stream.completed,
         streaming_outbox: Calc.Calculated(Some(stream)),
         streaming_state: Calc.Pending,
-        pending_eval_ids: remove_streamed_ids(stream, model.pending_eval_ids),
+        pending_eval_ids:
+          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
       }
       |> Updated.return_quiet
     | (MergeStreamingEval(stream), _) =>
@@ -305,7 +236,8 @@ module Update = {
         streaming_outbox:
           Calc.Calculated(Some(IncrEval.merge_outbox(stream, current))),
         streaming_state: Calc.Pending,
-        pending_eval_ids: remove_streamed_ids(stream, model.pending_eval_ids),
+        pending_eval_ids:
+          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
       }
       |> Updated.return_quiet;
     };
@@ -323,6 +255,7 @@ module Update = {
           result,
           dynamics,
           incr_eval,
+          predicted_reuse,
           streaming_outbox,
           streaming_state,
           pending_eval_ids,
@@ -413,7 +346,7 @@ module Update = {
       | NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)) =>
         if (Calc.get_value(settings).dynamics) {
           switch (queue_worker) {
-          | Some(_) => pending_eval_worklist(statics.info_map)
+          | Some(_) => EvalWorklist.pending_ids(statics.info_map)
           | None => []
           };
         } else {
@@ -425,6 +358,22 @@ module Update = {
       | OldValue(ProgramResult.ResultPending(_)) => pending_eval_ids
       | OldValue(ProgramResult.ResultOk(_))
       | OldValue(ProgramResult.ResultFail(_)) => []
+      };
+
+    /* Clear on a fresh eval request; ReusePlan / sync path re-fills it.
+     * Otherwise keep the last prediction so the frozen tint stays useful
+     * after a fast eval completes. */
+    let predicted_reuse =
+      switch (result, queue_worker) {
+      | (NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)), _) => IncrEval.empty
+      | (NewValue(ProgramResult.ResultOk(_)), None) =>
+        ReusePass.reuse_pass(
+          ~prev=prev_incr,
+          ~eval_info=eval_info_map,
+          ~env=Builtins.env_init,
+          Calc.get_value(elab),
+        )
+      | _ => predicted_reuse
       };
 
     let streaming_state =
@@ -440,6 +389,14 @@ module Update = {
       };
 
     // Turn state into dynamics map
+    let dynamics_of_state = (state: EvaluatorState.t) =>
+      Dynamics.{
+        probe_map: state |> EvaluatorState.get_probes,
+        test_results:
+          state |> EvaluatorState.get_tests |> TestResults.mk_results,
+        theorems: state |> EvaluatorState.get_theorems,
+        proof_map: state |> EvaluatorState.get_proof_map,
+      };
     let dynamics =
       dynamics
       |> {
@@ -447,29 +404,13 @@ module Update = {
         and.calc streaming_state = streaming_state;
         switch (result, streaming_state) {
         | (ProgramResult.ResultPending(_), Some(state)) =>
-          Some(
-            Dynamics.{
-              probe_map: state |> EvaluatorState.get_probes,
-              test_results:
-                state |> EvaluatorState.get_tests |> TestResults.mk_results,
-              theorems: state |> EvaluatorState.get_theorems,
-              proof_map: state |> EvaluatorState.get_proof_map,
-            },
-          )
+          Some(dynamics_of_state(state))
         | (ProgramResult.ResultPending(_), None) =>
           dynamics |> Calc.get_saved(None)
         | (ProgramResult.ResultFail(_), _) =>
           dynamics |> Calc.get_saved(None)
         | (ProgramResult.ResultOk({state, _}), _) =>
-          Some(
-            Dynamics.{
-              probe_map: state |> EvaluatorState.get_probes,
-              test_results:
-                state |> EvaluatorState.get_tests |> TestResults.mk_results,
-              theorems: state |> EvaluatorState.get_theorems,
-              proof_map: state |> EvaluatorState.get_proof_map,
-            },
-          )
+          Some(dynamics_of_state(state))
         };
       };
 
@@ -569,6 +510,7 @@ module Update = {
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
         incr_eval: incr_eval |> Calc.save,
+        predicted_reuse,
         streaming_outbox: streaming_outbox |> Calc.save,
         streaming_state: streaming_state |> Calc.save,
         pending_eval_ids,
@@ -642,7 +584,7 @@ module View = {
 
   let status_classes_of: ProgramResult.t('a) => list(string) =
     fun
-    | ResultPending(AwaitingWorkerAck) => ["pending", "pending-attention"]
+    | ResultPending(AwaitingWorkerAck) => ["pending", "pending-ack"]
     | ResultPending(Evaluating) => ["pending", "pending-evaluating"]
     | ResultOk(_) => ["ok"]
     | ResultFail(_) => ["fail"];
@@ -818,7 +760,7 @@ module View = {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor.syntax.measured,
+              ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
               result,
             ),
           ]
@@ -878,7 +820,7 @@ module View = {
             | Some(result) => [
                 test_result_layer(
                   ~font_metrics=globals.font_metrics,
-                  ~measured=editor.syntax.measured,
+                  ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
                   result,
                 ),
               ]
@@ -895,7 +837,7 @@ module View = {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor.syntax.measured,
+              ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
               result,
             ),
           ]

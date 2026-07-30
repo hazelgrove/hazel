@@ -59,41 +59,13 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
   | Some(z) =>
     let MakeTerm.{term, term_data, _} =
       MakeTerm.from_zip_for_sem(z, ~root=Exp);
-    /* Extract probe IDs directly from zipper's refractors.
-     * Map values to unit since we only need the IDs as keys. */
-    let probe_ids =
-      Id.Map.union(
-        (_, _, _) => Some(),
-        Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
-        Id.Map.map(_ => (), z.refractors.multis.ephemerals),
-      );
     let (info_map, elaborated) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-    let targets: Sample.targets =
-      Id.Map.fold(
-        (id, (), acc) => {
-          let refs =
-            switch (Statics.Map.lookup_exp(id, info_map)) {
-            | Some(_) => Statics.Map.refs_in(info_map, id)
-            | None =>
-              switch (Statics.Map.lookup_pat(id, info_map)) {
-              | Some(_) => Statics.Map.bound_in(info_map, id)
-              | None => []
-              }
-            };
-          let spec: Sample.capture_spec = {refs: refs};
-          Id.Map.add(id, spec, acc);
-        },
-        probe_ids,
-        Id.Map.empty,
-      );
+    let targets = Test_Evaluator_Prelude.targets_of_zipper(z, info_map);
 
     let (_, state) =
       Evaluator.evaluate(
-        ~info_map={
-          statics: Id.Map.empty,
-          targets,
-        },
+        ~eval_info=EvalInfo.of_targets(targets),
         ~env=Builtins.env_init,
         elaborated,
       );

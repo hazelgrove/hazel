@@ -502,7 +502,7 @@ let view =
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
-  let caret_point = Zipper.Caret.point(syntax.measured, z);
+  let caret_point = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
   let items = get_all_items(~info_map, ~elaborated, z);
   let menu_items =
     Menu.render(

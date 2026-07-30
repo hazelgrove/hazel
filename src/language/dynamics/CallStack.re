@@ -39,7 +39,8 @@ let extend = (app_id: Id.t, stack: t): t => [
   ...stack,
 ];
 
-// This should really be defined in Sample.re
+/* Conceptually belongs to Sample.re, but lives here because Sample
+ * depends on CallStack and this type is needed for app_args below. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type elided_value =
   | Opaque
@@ -52,13 +53,15 @@ type elided_value =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type app_args = Id.Map.t(list((t, elided_value)));
 
-type t' = {
+/* Full call-stack state threaded through evaluation: the stack itself plus
+ * recorded argument values for applications. */
+type state = {
   stack: t,
-  app_args /* Argument values for function applications */,
+  app_args,
 };
 
 /* Add an argument value for an application */
-let add_app_arg = (state: t', app_id: Id.t, arg: elided_value): t' => {
+let add_app_arg = (state: state, app_id: Id.t, arg: elided_value): state => {
   let existing =
     Id.Map.find_opt(app_id, state.app_args) |> Option.value(~default=[]);
   {
@@ -71,7 +74,7 @@ let add_app_arg = (state: t', app_id: Id.t, arg: elided_value): t' => {
 /* Look up argument value for an application at a specific call_stack.
  * Used when creating samples for probes on Ap expressions. */
 let lookup_app_arg =
-    (state: t', app_id: Id.t, call_stack: t): option(elided_value) =>
+    (state: state, app_id: Id.t, call_stack: t): option(elided_value) =>
   switch (Id.Map.find_opt(app_id, state.app_args)) {
   | None => None
   | Some(entries) =>
@@ -82,7 +85,7 @@ let lookup_app_arg =
     )
   };
 
-let add_entry = (state: t', frame: frame): t' => {
+let add_entry = (state: state, frame: frame): state => {
   {
     ...state,
     stack: [frame, ...state.stack],

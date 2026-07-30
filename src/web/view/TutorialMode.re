@@ -279,27 +279,15 @@ module Update = {
         stitched_elabs,
         model.cells,
       );
-    WorkerClient.request(
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let pos' = Tutorial.pos_of_key(pos);
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          schedule_action(
-            Editor(pos', ResultAction(UpdateResult(result'))),
-          );
-        }),
-      ~timeout=
-        _ => {
-          let _ =
+      ~pos_of_key=Tutorial.pos_of_key,
+      ~dispatch=
+        (pos, action) =>
+          schedule_action(Editor(pos, ResultAction(action))),
+      ~on_timeout=
+        _ =>
+          ignore(
             Tutorial.map_stitched(
               (pos, _) =>
                 schedule_action(
@@ -309,34 +297,6 @@ module Update = {
                   ),
                 ),
               model.cells,
-            );
-          ();
-        },
-      ~on_ack=
-        initial => {
-          let _ =
-            List.iter(
-              ((pos, stream)) =>
-                schedule_action(
-                  Editor(
-                    Tutorial.pos_of_key(pos),
-                    ResultAction(
-                      UpdateStreamingEval(
-                        Language.IncrEval.outbox_of_completed(stream),
-                      ),
-                    ),
-                  ),
-                ),
-              initial,
-            );
-          ();
-        },
-      ~on_stream=
-        (pos, stream) =>
-          schedule_action(
-            Editor(
-              Tutorial.pos_of_key(pos),
-              ResultAction(MergeStreamingEval(stream)),
             ),
           ),
     );

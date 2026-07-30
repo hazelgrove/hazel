@@ -13,6 +13,14 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Perform(Action.t)
+    /* Perform, confined to the region described by the given target.
+     * Emitted by sub-editor views (see SubEditor.re): the action is
+     * vetted in `update` against the live zipper — rejected if it would
+     * edit outside the splice, delete the host syntax at the splice's
+     * edges, or move the caret out of the splice. View-level key guards
+     * can't enforce this: they close over the render-time zipper, which
+     * is stale during keystroke bursts. */
+    | PerformConfined(SubEditor.Target.t, Action.t)
     | TAB
     | ContextMenu(ContextMenu.Model.action)
     | DebugConsole(string);
@@ -21,7 +29,8 @@ module Update = {
 
   let can_undo = (action: t) => {
     switch (action) {
-    | Perform(action) => Action.is_historic(action)
+    | Perform(action)
+    | PerformConfined(_, action) => Action.is_historic(action)
     | TAB => true
     | ContextMenu(_) => false
     | DebugConsole(_) => false
@@ -98,6 +107,15 @@ module Update = {
         ? Animation.request([Animation.Actions.move("caret")]) : ();
 
       perform(action, model);
+    | PerformConfined(target, action) =>
+      switch (SubEditor.confine_pre(~target, ~action, model.editor)) {
+      | None => model |> Updated.return_quiet
+      | Some(sub) =>
+        let updated = perform(action, model);
+        Action.is_edit(action)
+        || SubEditor.confine_post(sub, updated.model.editor.state.zipper)
+          ? updated : model |> Updated.return_quiet;
+      }
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
       model |> Updated.return_quiet;
@@ -151,6 +169,18 @@ module Update = {
   };
 
   let calculate = CodeWithStatics.Update.calculate;
+};
+
+/* A capability handle on the main editor, passed down to views that
+ * render sub-editors (see SubEditor.re): the current model to render
+ * splices from, and an inject that routes editor actions back to the
+ * main editor's update. Plumbed CellEditor → EvalResult → Theorems →
+ * StepperView → step views alongside ~edit_syntax. */
+module Channel = {
+  type t = {
+    model: Model.t,
+    inject: Update.t => Ui_effect.t(unit),
+  };
 };
 
 module Selection = {
@@ -341,7 +371,7 @@ module Selection = {
   /* Focus a probe on the current line (for end-of-line bounce) */
   let focus_probe_on_row = (model: Model.t): option(Update.t) => {
     let z = model.editor.state.zipper;
-    let measured = model.editor.syntax.measured;
+    let measured = CachedSyntax.measured(model.editor.syntax);
     let caret_row = Zipper.Caret.point(measured, z).row;
     let refractors =
       z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
@@ -518,7 +548,7 @@ module View = {
       ) =>
     [
       CaretDec.view(
-        ~measured=syntax.measured,
+        ~measured=CachedSyntax.measured(syntax),
         ~font_metrics=globals.font_metrics,
         z,
       ),
@@ -535,7 +565,7 @@ module View = {
           ? Highlight.selection_expanded(~term_data=syntax.term_data)
           : Highlight.selection
       )(
-        ~measured=syntax.measured,
+        ~measured=CachedSyntax.measured(syntax),
         ~shape_map=syntax.shape_map,
         ~font_metrics=globals.font_metrics,
         z,
@@ -546,7 +576,7 @@ module View = {
         globals.color_highlights,
       ),
       VarHighlight.view(
-        ~measured=syntax.measured,
+        ~measured=CachedSyntax.measured(syntax),
         ~font_metrics=globals.font_metrics,
         ~info_map,
         z,
@@ -556,11 +586,11 @@ module View = {
       globals.settings.quiver
         ? [
           QuiverDec.view(
-            ~measured=syntax.measured,
+            ~measured=CachedSyntax.measured(syntax),
             ~font_metrics=globals.font_metrics,
             ~engine_seg=Zipper.unselect_and_zip(~erase_buffer=true, z),
             ~caret_pos={
-              let p = Zipper.Caret.point(syntax.measured, z);
+              let p = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
               Some((p.row, p.col));
             },
             ~caret_form=
@@ -573,7 +603,7 @@ module View = {
                        (t.id, Haz3lcore.Tile.l_shard(t))
                      )
                 : None,
-            syntax.segment,
+            CachedSyntax.segment(syntax),
           ),
         ]
         /* quiver off: clear stale claims so probes don't stack
@@ -592,18 +622,52 @@ module View = {
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
-        ~incr_eval: option(Language.EvaluatorState.incr_eval)=?,
+        ~predicted_reuse: option(Language.EvaluatorState.incr_eval)=?,
         ~pending_eval_ids: list(Id.t)=[],
         ~show_active_eval: bool=false,
         ~proof_map: Language.ProofMap.t=Language.ProofMap.empty,
         ~expand_selection=?,
+        ~sub_editor: option(SubEditor.t)=None,
         model: Model.t,
       ) => {
+    /* Sub-editor mode: render the main editor's model through a splice.
+     * The displayed main_splice is overridden to be splice-local so
+     * layout starts at a local origin, while the zipper, statics and
+     * history remain the main editor's — the splice's pieces ARE main
+     * editor pieces, so edits in either view are edits to the same
+     * segment. */
+    let is_sub = Option.is_some(sub_editor);
+    let syntax =
+      switch (sub_editor) {
+      | Some(sub) => {
+          ...model.editor.syntax,
+          main_splice: sub.splice,
+        }
+      | None => model.editor.syntax
+      };
+    let model = {
+      ...model,
+      editor: {
+        ...model.editor,
+        syntax,
+      },
+    };
+
     let selected = EditMode.is_active(edit_mode);
-    let inject =
+    let inject_raw =
       switch (edit_mode) {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({inject, _}) => inject
+      };
+    /* Sub-editor views emit ordinary Perform/TAB actions; rewrite them
+     * here so every pointer/keyboard/clipboard path is confined without
+     * callers remembering to wrap. */
+    let inject = (a: Update.t) =>
+      switch (sub_editor, a) {
+      | (Some(sub), Perform(action)) =>
+        inject_raw(PerformConfined(sub.target, action))
+      | (Some(_), TAB) => Ui_effect.Ignore
+      | (_, a) => inject_raw(a)
       };
     let escape =
       switch (edit_mode) {
@@ -612,131 +676,194 @@ module View = {
       };
     /* Sync document-level listeners (click-outside + keyboard) for the
      * context menu. Keys are dispatched at capture phase so the editor's
-     * window-level handler doesn't see them while the menu is open. */
-    ContextMenuListener.sync(
-      ~menu_open=selected && Model.context_menu_is_open(model),
-      ~on_close=inject(ContextMenu(ContextMenu.Model.Close)),
-      ~handle_key=
-        key_str =>
-          ContextMenu.WithContext.handle_listener_key(
-            ~info_map=model.statics.info_map,
-            ~elaborated=model.statics.elaborated,
-            ~zipper=model.editor.state.zipper,
-            ~dispatch_menu=a => inject(ContextMenu(a)),
-            ~dispatch_action=a => inject(Perform(a)),
-            model.context_menu,
-            key_str,
-          ),
-      (),
-    );
-    let edit_decos =
-      selected
-        ? deco(
-            ~expand_selection?,
-            ~syntax=model.editor.syntax,
-            ~info_map=model.statics.info_map,
-            ~globals,
-            ~on_apply=
-              Some(id => inject(Perform(ApplyCompletion(One(id))))),
-            model.editor.state.zipper,
-          )
-          @ [
-            Arms.Refractors.all(
-              ~font_metrics=globals.font_metrics,
-              ~syntax=model.editor.syntax,
-              ~dynamics,
-              model.editor.state.zipper,
+     * window-level handler doesn't see them while the menu is open.
+     * Sub-editors skip this: the listener registry is a singleton owned
+     * by the main editor's view, and the context menu is disabled in
+     * sub-editors anyway. */
+    if (!is_sub) {
+      ContextMenuListener.sync(
+        ~menu_open=selected && Model.context_menu_is_open(model),
+        ~on_close=inject(ContextMenu(ContextMenu.Model.Close)),
+        ~handle_key=
+          key_str =>
+            ContextMenu.WithContext.handle_listener_key(
+              ~info_map=model.statics.info_map,
+              ~elaborated=model.statics.elaborated,
+              ~zipper=model.editor.state.zipper,
+              ~dispatch_menu=a => inject(ContextMenu(a)),
+              ~dispatch_action=a => inject(Perform(a)),
+              model.context_menu,
+              key_str,
             ),
-          ]
-          @ (
-            switch (model.context_menu) {
-            | Some(_) => [
-                /* Backdrop for scroll-close. Click handling is done via
-                   ContextMenuListener's document-level event listener. */
-                Node.div(
-                  ~attrs=[
-                    Attr.classes(["context-menu-backdrop"]),
-                    Attr.on_wheel(_ =>
-                      inject(ContextMenu(ContextMenu.Model.Close))
-                    ),
-                  ],
-                  [],
-                ),
-                ContextMenu.view(
-                  ~inject=a => inject(Perform(a)),
-                  ~inject_menu=a => inject(ContextMenu(a)),
-                  ~syntax=model.editor.syntax,
-                  ~info_map=model.statics.info_map,
-                  ~elaborated=model.statics.elaborated,
-                  ~font_metrics=globals.font_metrics,
-                  ~model=model.context_menu,
-                  model.editor.state.zipper,
-                ),
-              ]
+        (),
+      );
+    };
+    let edit_decos =
+      switch (sub_editor) {
+      | Some(sub) =>
+        /* Lean decoration set for sub-editors: caret + selection only,
+         * and only while the main caret is inside the splice — the
+         * splice-local measured map cannot measure outside pieces, and
+         * an unfocused-but-live splice needs no cursor decoration. */
+        selected && SubEditor.caret_in_splice(sub, model.editor.state.zipper)
+          ? {
+            let z = model.editor.state.zipper;
+            let syntax = model.editor.syntax;
+            switch (SubEditor.caret_point(sub, z)) {
             | None => []
-            }
-          )
-        : [];
+            | Some(origin) =>
+              /* Guard each deco separately: both can raise on measured
+               * lookups of pieces just outside the splice (e.g. a
+               * char-level selection anchored at the splice's first
+               * piece), and a raising selection highlight must not
+               * take the caret down with it. */
+              let caret =
+                switch (
+                  CaretDec.view(
+                    ~measured=CachedSyntax.measured(syntax),
+                    ~font_metrics=globals.font_metrics,
+                    ~origin,
+                    z,
+                  )
+                ) {
+                | exception _ => []
+                | caret => [caret]
+                };
+              let selection =
+                switch (
+                  Highlight.selection(
+                    ~measured=CachedSyntax.measured(syntax),
+                    ~shape_map=syntax.shape_map,
+                    ~font_metrics=globals.font_metrics,
+                    z,
+                  )
+                ) {
+                | exception _ => []
+                | selection => [selection]
+                };
+              caret @ selection;
+            };
+          }
+          : []
+      | None =>
+        selected
+          ? deco(
+              ~expand_selection?,
+              ~syntax=model.editor.syntax,
+              ~info_map=model.statics.info_map,
+              ~globals,
+              model.editor.state.zipper,
+            )
+            @ [
+              Arms.Refractors.all(
+                ~font_metrics=globals.font_metrics,
+                ~syntax=model.editor.syntax,
+                ~dynamics,
+                model.editor.state.zipper,
+              ),
+            ]
+            @ (
+              switch (model.context_menu) {
+              | Some(_) => [
+                  /* Backdrop for scroll-close. Click handling is done via
+                     ContextMenuListener's document-level event listener. */
+                  Node.div(
+                    ~attrs=[
+                      Attr.classes(["context-menu-backdrop"]),
+                      Attr.on_wheel(_ =>
+                        inject(ContextMenu(ContextMenu.Model.Close))
+                      ),
+                    ],
+                    [],
+                  ),
+                  ContextMenu.view(
+                    ~inject=a => inject(Perform(a)),
+                    ~inject_menu=a => inject(ContextMenu(a)),
+                    ~syntax=model.editor.syntax,
+                    ~info_map=model.statics.info_map,
+                    ~elaborated=model.statics.elaborated,
+                    ~font_metrics=globals.font_metrics,
+                    ~model=model.context_menu,
+                    model.editor.state.zipper,
+                  ),
+                ]
+              | None => []
+              }
+            )
+          : []
+      };
     // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
-    let refractor_data =
-      RefractorView.mk_data(
-        ~refractors=
-          Id.Map.union(
-            (_, _, b) => Some(b),
-            zipper.refractors.manuals |> Id.Map.of_list,
-            zipper.refractors.multis.ephemerals,
-          ),
-        ~syntax=model.editor.syntax,
-        ~indicated=Indicated.for_decoration(zipper),
-        ~statics=model.statics.info_map,
-        ~dynamics,
-        ~sample_focus=zipper.refractors.sample_focus,
-        ~editor_active=selected,
-      );
-    // let t1 = JsUtil.precise_timestamp();
     /* Use visible row range from model (updated by scroll handler) */
     let visible = globals.visible_rows;
+    /* Refractor / projector overlays are main-editor-level features whose
+     * positions come from measured lookups over the whole buffer; the
+     * splice-local measured map can't serve them, so sub-editors render
+     * without them. */
     let refractors_model =
-      RefractorView.all(
-        x => inject(Perform(x)),
-        signal(MakeActive),
-        globals.font_metrics,
-        ~core_settings=globals.settings.core,
-        ~visible?,
-        refractor_data,
-        List.map(fst, zipper.refractors.manuals)
-        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
-      );
+      if (is_sub) {
+        [];
+      } else {
+        let refractor_data =
+          RefractorView.mk_data(
+            ~refractors=
+              Id.Map.union(
+                (_, _, b) => Some(b),
+                zipper.refractors.manuals |> Id.Map.of_list,
+                zipper.refractors.multis.ephemerals,
+              ),
+            ~syntax=model.editor.syntax,
+            ~indicated=Indicated.for_decoration(zipper),
+            ~statics=model.statics.info_map,
+            ~dynamics,
+            ~sample_focus=zipper.refractors.sample_focus,
+            ~editor_active=selected,
+          );
+        RefractorView.all(
+          x => inject(Perform(x)),
+          signal(MakeActive),
+          globals.font_metrics,
+          ~core_settings=globals.settings.core,
+          ~visible?,
+          refractor_data,
+          List.map(fst, zipper.refractors.manuals)
+          @ List.map(
+              fst,
+              Id.Map.to_list(zipper.refractors.multis.ephemerals),
+            ),
+        );
+      };
     // let t2 = JsUtil.precise_timestamp();
     let projectors =
-      ProjectorView.all(
-        x => inject(Perform(x)),
-        signal(MakeActive),
-        globals.font_metrics,
-        ~core_settings=globals.settings.core,
-        ~visible?,
-        ProjectorView.Model.mk(
-          ~syntax=model.editor.syntax,
-          ~indicated=Indicated.for_decoration(zipper),
-          ~statics=model.statics.info_map,
-          ~dynamics,
-          ~sample_focus=zipper.refractors.sample_focus,
-          ~editor_active=selected,
-          ~elaborated=Some(model.statics.elaborated),
-        ),
-        model.editor.syntax.projector_list,
-      );
+      is_sub
+        ? []
+        : ProjectorView.all(
+            x => inject(Perform(x)),
+            signal(MakeActive),
+            globals.font_metrics,
+            ~core_settings=globals.settings.core,
+            ~visible?,
+            ProjectorView.Model.mk(
+              ~syntax=model.editor.syntax,
+              ~indicated=Indicated.for_decoration(zipper),
+              ~statics=model.statics.info_map,
+              ~dynamics,
+              ~sample_focus=zipper.refractors.sample_focus,
+              ~editor_active=selected,
+              ~elaborated=Some(model.statics.elaborated),
+            ),
+            model.editor.syntax.projector_list,
+          );
     ProjectorView.ViewCache.log_frame();
-    /* The nut-menu setting only controls blue cache-hit highlights. Pending
+    /* The nut-menu setting paints ReusePass predictions (frozen tint). Pending
      * evaluation highlights are transient progress feedback, so keep them on
      * while the worker is running. */
     let incr_eval_overlay =
       switch (
-        incr_eval,
+        predicted_reuse,
         globals.settings.show_incremental_deco || pending_eval_ids != [],
       ) {
-      | (Some(incr_eval), true) => [
+      | (Some(predicted_reuse), true) => [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
             [
@@ -746,7 +873,7 @@ module View = {
                 ~pending_eval_ids,
                 ~show_active_eval,
                 ~show_frozen=globals.settings.show_incremental_deco,
-                incr_eval,
+                predicted_reuse,
               ),
             ],
           ),
@@ -763,12 +890,22 @@ module View = {
     let code_view =
       CodeWithStatics.View.view(~globals, ~overlays, ~proof_map, model);
 
-    let loc = (e: Pointer.Event.t) =>
-      FontMetrics.get_goal(
-        ~font_metrics=globals.font_metrics,
-        container_target(e.current_target),
-        e.loc,
-      );
+    let loc = (e: Pointer.Event.t) => {
+      let raw =
+        FontMetrics.get_goal(
+          ~font_metrics=globals.font_metrics,
+          container_target(e.current_target),
+          e.loc,
+        );
+      /* Sub-editor pointer goals arrive splice-local; the zipper actions
+       * they feed (Move/Select Point) resolve against the main editor's
+       * measured map, so translate into main-editor coordinates (clamped
+       * to the splice so the caret can't be moused out of it). */
+      switch (sub_editor) {
+      | Some(sub) => SubEditor.translate_goal(sub, raw)
+      | None => raw
+      };
+    };
 
     /* Pointer modifier → optional chunkiness override for
      * Select(Resize(Point(...))). Alt on Mac / Ctrl on PC swaps to the
@@ -833,7 +970,9 @@ module View = {
             inject(Perform(Move(Point(loc(mouse), None)))),
           ]);
         | 2 => inject(Perform(Select(Smart(2))))
-        | 3 => inject(Perform(Select(Smart(3))))
+        /* Triple-click's line-select would grab the whole main-editor
+         * line the splice sits on; cap it at term-select in sub-editors. */
+        | 3 => inject(Perform(Select(Smart(is_sub ? 2 : 3))))
         | _ => failwith("THEN PERISH")
         };
       | _ => Effect.Ignore
@@ -881,22 +1020,27 @@ module View = {
           /* Snapshot at mousemove time so edge-scroll fires with the
            * same chunkiness mode the user had selected. */
           let chunk_override = drag_chunkiness_override(pointer);
-          EdgeScroll.update(
-            ~client_y=float_of_int(pointer.loc.row),
-            ~on_scroll=() => {
-              let goal =
-                FontMetrics.get_goal(
-                  ~font_metrics=globals.font_metrics,
-                  container,
-                  pixel_loc,
+          /* No edge-scroll for sub-editors: they're inline single-line
+           * views, and the scroll callback's goal lookup bypasses the
+           * splice coordinate translation. */
+          if (!is_sub) {
+            EdgeScroll.update(
+              ~client_y=float_of_int(pointer.loc.row),
+              ~on_scroll=() => {
+                let goal =
+                  FontMetrics.get_goal(
+                    ~font_metrics=globals.font_metrics,
+                    container,
+                    pixel_loc,
+                  );
+                Bonsai.Effect.Expert.handle(
+                  inject(
+                    Perform(Select(Resize(Point(goal, chunk_override)))),
+                  ),
                 );
-              Bonsai.Effect.Expert.handle(
-                inject(
-                  Perform(Select(Resize(Point(goal, chunk_override)))),
-                ),
-              );
-            },
-          );
+              },
+            );
+          };
           inject(
             Perform(Select(Resize(Point(current_loc, chunk_override)))),
           );
@@ -959,10 +1103,34 @@ module View = {
               Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
             Bonsai.Effect.Expert.handle(inject(Perform(action)));
           });
+        /* Editing-boundary predicates. For the main editor the boundary
+         * is the buffer's extremes; for a sub-editor it's the splice's
+         * edges (the caret must not move into, or delete, the host
+         * syntax surrounding the splice). */
+        let is_at_left = () =>
+          switch (sub_editor) {
+          | Some(sub) => SubEditor.caret_at_left(sub, z)
+          | None =>
+            z.caret == Outer
+            && z.relatives.ancestors == []
+            && fst(Siblings.neighbors(z.relatives.siblings)) == None
+          };
+        let is_at_right = () =>
+          switch (sub_editor) {
+          | Some(sub) => SubEditor.caret_at_right(sub, z)
+          | None =>
+            z.caret == Outer
+            && z.relatives.ancestors == []
+            && snd(Siblings.neighbors(z.relatives.siblings)) == None
+          };
         Key.handler(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
-           *    so boundary escape must be checked before delegation. */
+           *    so boundary escape must be checked before delegation.
+           *    Note: for sub-editors these view-level guards are UX
+           *    only — `z` is the render-time zipper, stale during
+           *    keystroke bursts. Enforcement happens at update time
+           *    (Update.PerformConfined). */
           switch (key) {
           | {
               key: D("ArrowLeft" | "ArrowUp"),
@@ -972,10 +1140,7 @@ module View = {
               alt: Up,
               _,
             }
-              when
-                z.caret == Outer
-                && z.relatives.ancestors == []
-                && fst(Siblings.neighbors(z.relatives.siblings)) == None =>
+              when is_at_left() =>
             Effect.Many([Effect.Prevent_default, escape(Left)])
           | {
               key: D("ArrowRight" | "ArrowDown"),
@@ -985,11 +1150,24 @@ module View = {
               alt: Up,
               _,
             }
-              when
-                z.caret == Outer
-                && z.relatives.ancestors == []
-                && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
+              when is_at_right() =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
+          /* Sub-editor caret confinement (UX layer; see note above):
+           * keys whose main-editor semantics would take the caret out
+           * of the splice (vertical and line-wise moves, whole-buffer
+           * select) are swallowed. */
+          | {
+              key:
+                D(
+                  "ArrowUp" | "ArrowDown" | "Home" | "End" | "PageUp" |
+                  "PageDown",
+                ),
+              _,
+            }
+              when is_sub => Effect.Prevent_default
+          | {key: D("a" | "A"), sys: Mac, meta: Down, ctrl: Up, alt: Up, _}
+          | {key: D("a" | "A"), sys: PC, meta: Up, ctrl: Down, alt: Up, _}
+              when is_sub => Effect.Prevent_default
           /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
              on_copy/on_paste handlers, so they keep working in
              Firefox when focus is on a non-editable editor div. */

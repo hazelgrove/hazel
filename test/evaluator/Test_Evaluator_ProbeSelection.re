@@ -22,11 +22,7 @@ let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
   let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
     Evaluator.evaluate(
-      ~info_map=
-        EvalInfo.{
-          statics: Id.Map.empty,
-          targets,
-        },
+      ~eval_info=EvalInfo.of_targets(targets),
       ~env=Builtins.env_init,
       elaborated,
     );
@@ -753,11 +749,7 @@ in ^^probe(f(42))|};
       let elaborated = elaborate(term);
       let (_, state) =
         Evaluator.evaluate(
-          ~info_map=
-            EvalInfo.{
-              statics: Id.Map.empty,
-              targets,
-            },
+          ~eval_info=EvalInfo.of_targets(targets),
           ~env=Builtins.env_init,
           elaborated,
         );

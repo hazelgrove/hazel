@@ -377,12 +377,12 @@ let rec go =
             List.to_seq(statics.warning_ids),
             Seq.filter_map(
               (g: Grout.t) => g.shape == Convex ? Some(g.id) : None,
-              List.to_seq(Segment.holes(syntax.segment)),
+              List.to_seq(Segment.holes(CachedSyntax.segment(syntax))),
             ),
           ),
         ),
       ~col_target=Option.value(col_target, ~default=0),
-      ~measured=syntax.measured,
+      ~measured=CachedSyntax.measured(syntax),
       d,
       z,
     )
@@ -410,7 +410,7 @@ let rec go =
   | Select(Resize(Vertical(d, chunkiness))) =>
     Select.vertical(
       ~col_target=Option.value(col_target, ~default=0),
-      ~measured=syntax.measured,
+      ~measured=CachedSyntax.measured(syntax),
       ~chunkiness,
       d,
       z,
@@ -430,7 +430,12 @@ let rec go =
       | Some(c) => c
       | None => settings.selection_chunkiness ? ByChar : BySmart
       };
-    Select.to_point(~chunkiness, ~measured=syntax.measured, ~goal, z)
+    Select.to_point(
+      ~chunkiness,
+      ~measured=CachedSyntax.measured(syntax),
+      ~goal,
+      z,
+    )
     |> return(Cant_select);
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
   | Select(All) => Ok(Select.all(z))
@@ -439,11 +444,11 @@ let rec go =
      * regardless of the smart-selection setting. Smart rounding would
      * overshoot the intended endpoints. */
     z
-    |> Move.to_point(~measured=syntax.measured, ~goal=p1)
+    |> Move.to_point(~measured=CachedSyntax.measured(syntax), ~goal=p1)
     |> OptUtil.and_then(z =>
          Select.to_point(
            ~chunkiness=ByChar,
-           ~measured=syntax.measured,
+           ~measured=CachedSyntax.measured(syntax),
            ~goal=p2,
            z,
          )
@@ -452,7 +457,7 @@ let rec go =
   | Select(Term(Current)) =>
     Select.select_enclosing_term(
       syntax.term_data,
-      syntax.measured,
+      CachedSyntax.measured(syntax),
       statics.info_map,
       z,
     )
@@ -552,6 +557,6 @@ let rec go =
     Comment.go(z, ~root)
     |> Option.map(LocalReformat.go(~before))
     |> return(Cant_destruct);
-  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a)
   };
 };

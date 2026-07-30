@@ -22,7 +22,7 @@ module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type code = {
     editor: CellEditor.Model.t,
-    agent: Agent.Agent.Model.t,
+    agent: Agent.Model.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -39,7 +39,7 @@ module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type code_persistent = {
     editor: option(CellEditor.Model.persistent),
-    agent: Agent.Agent.Persistent.t,
+    agent: Agent.Persistent.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -82,7 +82,7 @@ module Scratchpad = {
         kind:
           CodePersist({
             editor: editor_persist,
-            agent: Agent.Agent.Persistent.persist(agent),
+            agent: Agent.Persistent.persist(agent),
           }),
       };
     | Drv(m) => {
@@ -108,7 +108,7 @@ module Scratchpad = {
                 editor,
               )
               |> CellEditor.Model.unpersist(~settings),
-            agent: Agent.Agent.Persistent.unpersist(agent),
+            agent: Agent.Persistent.unpersist(agent),
           }),
       }
     | DrvPersist(dp) => {
@@ -134,7 +134,7 @@ module Scratchpad = {
     kind:
       Code({
         editor,
-        agent: Agent.Agent.Utils.init(),
+        agent: Agent.Utils.init(),
       }),
   };
 
@@ -194,7 +194,7 @@ module Model = {
               kind:
                 CodePersist({
                   editor: editor_persist,
-                  agent: Agent.Agent.Persistent.persist(agent),
+                  agent: Agent.Persistent.persist(agent),
                 }),
             };
           | Drv(m) =>
@@ -255,7 +255,7 @@ module Model = {
    Key layout:
      <prefix>:_meta         → slide_meta (current_index, names)
      <prefix>:<name>        → CellEditor.Model.persistent
-     <prefix>:<name>:agent  → Agent.Agent.Persistent.t */
+     <prefix>:<name>:agent  → Agent.Persistent.t */
 module Persist = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type slide_meta = {
@@ -308,7 +308,7 @@ module Persist = {
           Some(
             Scratchpad.CodePersist({
               editor: Some(e),
-              agent: Agent.Agent.Persistent.persist(Agent.Agent.Utils.init()),
+              agent: Agent.Persistent.persist(Agent.Utils.init()),
             }),
           )
         | exception _ => None
@@ -322,22 +322,17 @@ module Persist = {
   };
 
   let save_agent =
-      (prefix: string, name: string, agent: Agent.Agent.Persistent.t): unit => {
+      (prefix: string, name: string, agent: Agent.Persistent.t): unit => {
     let key = agent_key(prefix, name);
     let serialized =
-      agent |> Agent.Agent.Persistent.sexp_of_t |> Sexplib.Sexp.to_string;
+      agent |> Agent.Persistent.sexp_of_t |> Sexplib.Sexp.to_string;
     HazelDB.kv_save(key, serialized);
   };
 
-  let load_agent =
-      (prefix: string, name: string): option(Agent.Agent.Persistent.t) =>
+  let load_agent = (prefix: string, name: string): option(Agent.Persistent.t) =>
     switch (HazelDB.kv_get(agent_key(prefix, name))) {
     | Some(data) =>
-      try(
-        Some(
-          data |> Sexplib.Sexp.of_string |> Agent.Agent.Persistent.t_of_sexp,
-        )
-      ) {
+      try(Some(data |> Sexplib.Sexp.of_string |> Agent.Persistent.t_of_sexp)) {
       | _ => None
       }
     | None => None
@@ -394,7 +389,7 @@ module Persist = {
                 }
               )
               |> CellEditor.Model.unpersist(~settings),
-            agent: Agent.Agent.Persistent.unpersist(agent),
+            agent: Agent.Persistent.unpersist(agent),
           }),
       };
     | Some(DrvPersist(p)) =>
@@ -431,8 +426,8 @@ module Persist = {
       | None =>
         let agent =
           switch (load_agent(prefix, name)) {
-          | Some(p) => Agent.Agent.Persistent.unpersist(p)
-          | None => Agent.Agent.Utils.init()
+          | Some(p) => Agent.Persistent.unpersist(p)
+          | None => Agent.Utils.init()
           };
         Scratchpad.{
           name,
@@ -504,8 +499,7 @@ module Persist = {
             let agent =
               switch (load_agent(prefix, name)) {
               | Some(a) => a
-              | None =>
-                Agent.Agent.Persistent.persist(Agent.Agent.Utils.init())
+              | None => Agent.Persistent.persist(Agent.Utils.init())
               };
             Scratchpad.{
               name,
@@ -604,7 +598,7 @@ module Update = {
   type t =
     | CellAction(CellEditor.Update.t)
     | RefreshStatics
-    | AgentAction(Agent.Agent.Update.Action.t)
+    | AgentAction(Agent.Update.Action.t)
     | DrvAction(DerivationExerciseMode.Update.t)
     | SwitchSlide(int)
     | ResetCurrent
@@ -772,16 +766,10 @@ module Update = {
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
       | Code({editor, agent}) =>
-        let schedule_agent = (a: Agent.Agent.Update.Action.t) =>
+        let schedule_agent = (a: Agent.Update.Action.t) =>
           schedule_action(AgentAction(a));
         let (new_agent, updated_editor) =
-          Agent.Agent.Update.update(
-            a,
-            agent,
-            editor,
-            settings,
-            schedule_agent,
-          );
+          Agent.Update.update(a, agent, editor, settings, schedule_agent);
         let* new_ed = updated_editor;
         let new_sp =
           ListUtil.put_nth(
@@ -860,12 +848,14 @@ module Update = {
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
     | SwitchSlide(i) =>
+      WorkerClient.cancel();
       let* current = i |> Updated.return;
       {
         ...model,
         current,
       };
     | AddSlide =>
+      WorkerClient.cancel();
       Updated.return(
         add_new_slide(
           ~kind=NewCode,
@@ -873,8 +863,9 @@ module Update = {
           model,
           is_documentation,
         ),
-      )
+      );
     | AddDrvSlide =>
+      WorkerClient.cancel();
       Updated.return(
         add_new_slide(
           ~kind=NewDrv,
@@ -882,7 +873,7 @@ module Update = {
           model,
           is_documentation,
         ),
-      )
+      );
     | RenameSlide =>
       let current = List.nth(model.scratchpads, model.current);
       let new_name =
@@ -924,6 +915,7 @@ module Update = {
           "Are you SURE you want to delete this slide? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
+        WorkerClient.cancel();
         let deleted_name = List.nth(model.scratchpads, model.current).name;
         persist_cache := Maps.StringMap.remove(deleted_name, persist_cache^);
         dirty_slides := Sets.StringSet.remove(deleted_name, dirty_slides^);
@@ -1078,59 +1070,17 @@ module Update = {
           ~stitch=x => x,
           editor,
         );
-      switch (worker_request^) {
-      | [] => ()
-      | _ =>
-        WorkerClient.request(
-          worker_request^,
-          ~handler=
-            r => {
-              schedule_action(
-                CellAction(
-                  ResultAction(
-                    UpdateResult(
-                      switch (r |> List.hd |> snd) {
-                      | Ok((r, s)) =>
-                        Language.ProgramResult.ResultOk({
-                          result: r,
-                          state: s,
-                        })
-                      | Error(e) => Language.ProgramResult.ResultFail(e)
-                      },
-                    ),
-                  ),
-                ),
-              )
-            },
-          ~timeout=
-            _ =>
-              schedule_action(
-                CellAction(
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
-                ),
-              ),
-          ~on_ack=
-            initial =>
-              switch (initial |> List.hd |> snd) {
-              | stream =>
-                schedule_action(
-                  CellAction(
-                    ResultAction(
-                      UpdateStreamingEval(
-                        Language.IncrEval.outbox_of_completed(stream),
-                      ),
-                    ),
-                  ),
-                )
-              | exception _ => ()
-              },
-          ~on_stream=
-            (_, stream) =>
-              schedule_action(
-                CellAction(ResultAction(MergeStreamingEval(stream))),
-              ),
-        )
-      };
+      let dispatch = (_key, action) =>
+        schedule_action(CellAction(ResultAction(action)));
+      EvalRequest.request(
+        worker_request^,
+        ~pos_of_key=key => key,
+        ~dispatch,
+        ~on_timeout=
+          List.iter(((key, _)) =>
+            dispatch(key, UpdateResult(ResultFail(Timeout)))
+          ),
+      );
       let new_sp =
         ListUtil.put_nth(
           model.current,

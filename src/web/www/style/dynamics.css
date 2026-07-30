@@ -2,10 +2,6 @@
 
 /* DYNAMICS */
 
-:root {
-  --eval-recalc-visual-delay: 180ms;
-}
-
 .cell-result {
   display: flex;
   flex-direction: row;
@@ -55,13 +51,9 @@
   transition: opacity 0.2s linear var(--eval-recalc-visual-delay);
 }
 
-.cell-result .status.pending-attention .spinner {
+.cell-result .status.pending-ack .spinner {
   animation: eval-spinner-spin 1.6s linear var(--eval-recalc-visual-delay)
     infinite reverse;
-}
-
-.cell-result .status.pending-evaluating .spinner {
-  animation: none;
 }
 
 .cell-result .status .eq {
@@ -188,26 +180,22 @@ svg.shard.incremental-frozen {
   filter: drop-shadow(0 0 1px rgba(160, 210, 255, 0.75));
 }
 
-svg.shard.incremental-pending,
-svg.shard.incremental-active {
+/* Active shards also carry the incremental-pending class (Highlight.re). */
+svg.shard.incremental-pending {
   animation: incremental-pending-reveal 80ms linear
     var(--eval-recalc-visual-delay) forwards;
   opacity: 0;
 }
 
 svg.shard.incremental-pending > path {
-  fill: var(--incremental-pending, oklch(52% 0.03 220 / 11%));
-  stroke: var(--incremental-pending-edge, oklch(52% 0.03 220 / 16%));
+  fill: var(--incremental-pending);
+  stroke: var(--incremental-pending-edge);
   stroke-width: 0.5px;
   vector-effect: non-scaling-stroke;
 }
 
-svg.shard.incremental-active > path {
-  fill: var(--incremental-pending, oklch(52% 0.03 220 / 11%));
-}
-
 svg.shard.incremental-active .incremental-sweep {
-  fill: var(--incremental-active-sweep, oklch(100% 0 0 / 56%));
+  fill: var(--incremental-active-sweep);
   transform-box: fill-box;
   transform-origin: center;
   animation: incremental-active-sweep 1.35s cubic-bezier(0.4, 0, 0.2, 1)

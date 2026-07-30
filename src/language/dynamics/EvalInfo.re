@@ -36,6 +36,12 @@ let empty: t = {
 let find_opt = (id: Id.t, map: t): option(entry) =>
   Id.Map.find_opt(id, map.statics);
 
+/* For callers (CLI, tests) that evaluate without statics. */
+let of_targets = (targets: Sample.targets): t => {
+  ...empty,
+  targets,
+};
+
 let of_info_map =
     (~probe_all: bool, ~targets: Sample.targets, info_map: StaticsBase.Map.t)
     : t => {

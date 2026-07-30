@@ -479,11 +479,12 @@ module Update = {
       };
     | (_, Derivation(_)) => model |> raise_invalid_action
     | (_, SwitchExercise(n)) =>
+      WorkerClient.cancel();
       Model.{
         current: n,
         exercises: model.exercises,
       }
-      |> return
+      |> return;
     | (_, ExportModule) =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_exercise_module(model);
