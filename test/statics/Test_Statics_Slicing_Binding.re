@@ -27,8 +27,6 @@ let binding_synthesis = [
     "Bool",
     "let (?, (y, ?)) = (?, (true, ?)) in y",
   ),
-  /* The pattern's type is rebuilt from every bound variable's assumption:
-     x : Int, y unused, z : ? -> Int, so the definition is asked (Int, ?, ? -> Int). */
   synthesis_case(
     ~ctx=ctx_var("f", "Bool -> Int"),
     "bind-tuple-combined-demands",
@@ -36,8 +34,6 @@ let binding_synthesis = [
     "(Int, Int)",
     "let (x, ?, z) = (1, ?, f) in (x, z(?))",
   ),
-  /* An annotated part takes its type from the annotation, so it is subtracted from
-     the definition's query: the definition is asked (?, ?, ? -> Int), not (Int, ...). */
   synthesis_case(
     ~ctx=ctx_var("f", "Bool -> Int"),
     "bind-tuple-annotated-part",
@@ -63,9 +59,6 @@ let binding_synthesis = [
     "Int",
     "type ? = ? in let ? = ? in 0",
   ),
-  /* A constructor pattern takes its payload type from the alias, not from the
-     definition, so it subtracts from the definition's query exactly as an
-     annotation does: the definition below supplies nothing. */
   synthesis_case(
     "bind-ctor-pat-subtracts",
     "type T = +A((Int, Bool)) in let A((x, y)) = A((1, true)) in x",
@@ -78,8 +71,6 @@ let binding_synthesis = [
     "Int",
     "let (x : Int) = ? in x",
   ),
-  /* Polymorphic: the payload type is not fixed by the alias, so the
-     instantiation in the definition is load-bearing and only the argument goes. */
   synthesis_case(
     "bind-poly-ctor-pat",
     "type T = typfun A -> +C(A) in let C(x) = C@<Int>(1) in x",

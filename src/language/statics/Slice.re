@@ -711,6 +711,7 @@ let mk =
       ~co_ctx: CoCtx.t=CoCtx.empty,
       ~binds: option((CoCtx.sort, string, Id.t))=None,
       ~binder: bool=false,
+      ~declared: bool=false,
       (),
     )
     : t => {
@@ -780,7 +781,13 @@ let mk =
     shape,
     ids,
     binder,
-    declared: former != None,
+    declared:
+      declared
+      || former != None
+      || List.exists(
+           ((role, node)) => role == Through && node.declared,
+           sub_terms,
+         ),
     dispatch,
     analyse,
     demand,

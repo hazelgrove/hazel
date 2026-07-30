@@ -4521,6 +4521,7 @@ and utyp_to_info_map =
         ~ids=Slice.typ_ids(utyp),
         ~shape=utyp,
         ~sub_terms=recorded,
+        ~declared=true,
         (),
       );
     let info: Info.typ = {
@@ -4700,8 +4701,7 @@ and utyp_to_info_map =
     let (m, _) =
       List.fold_left(
         variant_to_info_map(
-          ~ctx,
-          ~ancestors=ancestors_inclusive,
+          ~go=(expects, t, m) => go(~expects, t, m),
           ~ty_sum=utyp,
         ),
         (m, []),
@@ -5107,40 +5107,34 @@ and utpat_to_info_map =
   };
 }
 and variant_to_info_map =
-    (
-      ~ctx,
-      ~ancestors,
-      ~ty_sum,
-      (m, ctrs),
-      uty: ConstructorMap.variant(Typ.t),
-    ) => {
-  open TypExpectation;
-  let go = expects => utyp_to_info_map(~ctx, ~ancestors, ~expects);
-  switch (uty) {
-  | BadEntry(uty) =>
-    let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;
-    (m, ctrs);
-  | Variant(ctr, ann, param) =>
-    let m =
-      go(
-        ConstructorExpected(
-          List.mem(ctr, ctrs) ? Duplicate : Unique,
-          ty_sum,
-        ),
-        {
-          term: Var(ctr),
-          annotation: IdTagged.IdTag.mk_internal(ann.ids),
-        },
-        m,
-      )
-      |> snd;
-    let m =
-      switch (param) {
-      | Some(param_ty) => go(TypeExpected, param_ty, m) |> snd
-      | None => m
-      };
-    (m, [ctr, ...ctrs]);
-  };
+    (~go, ~ty_sum, (m, ctrs), uty: ConstructorMap.variant(Typ.t)) => {
+  TypExpectation.(
+    switch (uty) {
+    | BadEntry(uty) =>
+      let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;
+      (m, ctrs);
+    | Variant(ctr, ann, param) =>
+      let m =
+        go(
+          ConstructorExpected(
+            List.mem(ctr, ctrs) ? Duplicate : Unique,
+            ty_sum,
+          ),
+          {
+            term: Var(ctr),
+            annotation: IdTagged.IdTag.mk_internal(ann.ids),
+          },
+          m,
+        )
+        |> snd;
+      let m =
+        switch (param) {
+        | Some(param_ty) => go(TypeExpected, param_ty, m) |> snd
+        | None => m
+        };
+      (m, [ctr, ...ctrs]);
+    }
+  );
 }
 and rul_to_info_map =
     (~ctx, ~ancestors, r: Rul.t, m: Map.t): (CoCtx.t, Any.t, Map.t) =>
