@@ -19,22 +19,26 @@ open Test_Evaluator_Prelude;
 let get_all_samples = (code: string): list(Sample.t) => {
   let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
-    Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+    Evaluator.evaluate(
+      ~eval_info=EvalInfo.of_targets(targets),
+      ~env=Builtins.env_init,
+      elaborated,
+    );
   let probes = EvaluatorState.get_probes(state);
   Id.Map.bindings(probes) |> List.concat_map(snd);
 };
 
 /* Show call stack for debugging */
-let show_call_stack = (cs: Sample.call_stack): string =>
+let show_call_stack = (cs: CallStack.t): string =>
   "["
   ++ String.concat(
        ", ",
-       List.map((f: Sample.stack_frame) => Id.str3(f.id), cs),
+       List.map((f: CallStack.frame) => Id.str3(f.id), cs),
      )
   ++ "]";
 
 let call_stack_testable =
-  testable(Fmt.using(show_call_stack, Fmt.string), Sample.equal_call_stack);
+  testable(Fmt.using(show_call_stack, Fmt.string), CallStack.equal);
 
 /* Test that multiple top-level probed applications have the same (empty) call_stack.
  * This is the bug: if they have different call_stacks (containing their own app_ids),
@@ -312,7 +316,7 @@ in m.f(1); m.f(2)|},
  * binding site is only a parameter). These tests pin down which calls record
  * a navigable fn_def_id. */
 let frame_fn_def_id = (s: Sample.t): option(Id.t) =>
-  Option.bind(s.frame, (f: Sample.stack_frame) => f.fn_def_id);
+  Option.bind(s.frame, (f: CallStack.frame) => f.fn_def_id);
 
 let single_sample = (label, code): Sample.t => {
   let samples = get_all_samples(code);
@@ -350,7 +354,11 @@ let step_into_frame_tests = [
       let check_resolves = (label, code) => {
         let (_term, elaborated, info_map, targets) = parse_with_probes(code);
         let (_, state) =
-          Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+          Evaluator.evaluate(
+            ~eval_info=EvalInfo.of_targets(targets),
+            ~env=Builtins.env_init,
+            elaborated,
+          );
         let samples =
           EvaluatorState.get_probes(state)
           |> Id.Map.bindings

@@ -488,38 +488,26 @@ module Update = {
         model.cells,
       );
 
-    WorkerClient.request(
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let pos' = CodeExercise.pos_of_key(pos);
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          schedule_action(
-            Editor(pos', ResultAction(UpdateResult(result'))),
-          );
-        }),
-      ~timeout=_ => {
-        let _ =
-          CodeExercise.map_stitched(
-            (pos, _) =>
-              schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+      ~pos_of_key=CodeExercise.pos_of_key,
+      ~dispatch=
+        (pos, action) =>
+          schedule_action(Editor(pos, ResultAction(action))),
+      ~on_timeout=
+        _ =>
+          ignore(
+            CodeExercise.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
                 ),
-              ),
-            model.cells,
-          );
-        ();
-      },
+              model.cells,
+            ),
+          ),
     );
 
     /* The following section pulls statics back from cells into the editors
@@ -690,17 +678,35 @@ module View = {
       CodeExercise.stitched('a) =
       model.cells;
 
+    /* While a cell is ResultPending, dynamics can reflect a partial stream
+       collector — do not treat those as settled grades (same gate as
+       TutorialMode's ResultPending checkmark). */
+    let settled_test_results =
+        (cell_editor: CellEditor.Model.t): option(Language.TestResults.t) =>
+      EvalResult.Model.eval_is_pending(cell_editor.result)
+        ? None : EvalResult.Model.test_results(cell_editor.result);
+
     let stitched_tests =
       CodeExercise.map_stitched(
-        (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results,
+        (_, cell_editor) => settled_test_results(cell_editor),
         model.cells,
       );
 
     let grading_report = CodeGrading.GradingReport.mk(eds, ~stitched_tests);
 
+    let grading_pending =
+      EvalResult.Model.eval_is_pending(test_validation.result)
+      || EvalResult.Model.eval_is_pending(hidden_tests.result)
+      || List.exists(
+           (cell: CellEditor.Model.t) =>
+             EvalResult.Model.eval_is_pending(cell.result),
+           hidden_bugs,
+         );
+
     let score_view =
-      CodeGrading.GradingReport.view_overall_score(grading_report);
+      grading_pending
+        ? Grading.pending_score_view()
+        : CodeGrading.GradingReport.view_overall_score(grading_report);
 
     /* Renders a cell only if `shown_in`; returns [] when hidden.
        `result_kind` is thunked so hidden cells build nothing. */
@@ -875,6 +881,8 @@ module View = {
               (x, y) => inject(Instructor(UpdateTestValRep(x, y))),
             ~signal_textbox_active=signal(MakeActive(TextBox)),
             ~editing_test_val_rep=editing_flags.editing_test_val_rep,
+            ~eval_pending=
+              EvalResult.Model.eval_is_pending(test_validation.result),
             grading_report.test_validation_report,
             grading_report.point_distribution.test_validation,
             eds.your_tests.required,
@@ -891,6 +899,13 @@ module View = {
         ~inject_update_mut_test_rep=
           (x, y) => inject(Instructor(UpdateMutTestRep(x, y))),
         ~select_textbox=signal(MakeActive(TextBox)),
+        ~eval_pending=
+          EvalResult.Model.eval_is_pending(test_validation.result)
+          || List.exists(
+               (cell: CellEditor.Model.t) =>
+                 EvalResult.Model.eval_is_pending(cell.result),
+               hidden_bugs,
+             ),
         grading_report.mutation_testing_report,
         grading_report.point_distribution.mutation_testing,
       );
@@ -950,6 +965,7 @@ module View = {
           (x, y) => inject(Instructor(UpdateImplGrdRep(x, y))),
         ~select_textbox=signal(MakeActive(TextBox)),
         ~editing_impl_grd_rep=editing_flags.editing_impl_grd_rep,
+        ~eval_pending=EvalResult.Model.eval_is_pending(hidden_tests.result),
         ~report=grading_report.impl_grading_report,
         ~syntax_report=grading_report.syntax_report,
         ~max_points=grading_report.point_distribution.impl_grading,
