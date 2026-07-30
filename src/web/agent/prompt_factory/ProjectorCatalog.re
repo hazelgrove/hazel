@@ -38,7 +38,9 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
     )
   | Fold
   | Probe
-  | Statics => None
+  | Statics
+  /* Edit-time resolution hook, not a menu projector the agent can place. */
+  | Seed => None
   };
 
 let uniq_livelit_lines: list(string) = {
