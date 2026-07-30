@@ -2003,17 +2003,19 @@ and uexp_to_info_map =
             arg,
           )
         | None =>
+          // For implicit poly application #2376
           let (fn_ty, fn_elab) =
             implicit_poly_instantiate(fn.elab_syn_ty, fn_elab);
-          let (ty_in, ty_out) =
-            MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_ty);
+          let fn_slice = instantiated_slice(fn.elab_syn_ty, fn.slice);
           let result = {
             ...fn,
             slice: {
-              ...instantiated_slice(fn.elab_syn_ty, fn.slice),
+              ...fn_slice,
               shape: fn_ty,
             },
           };
+          let (ty_in, ty_out) =
+            MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_ty);
           let source =
             Slice.routed(
               ~ctx,
