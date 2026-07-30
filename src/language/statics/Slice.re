@@ -798,7 +798,7 @@ let mk =
     );
   let supplied =
     if (declared) {
-      shape;
+      former == None ? shape : Typ.without_type_args(shape);
     } else {
       switch (of_role(Part)) {
       | [] => Typ.meet_gap_all(ctx, of_role(Through))
