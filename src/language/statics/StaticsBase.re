@@ -530,7 +530,7 @@ module type ExpressionStatics = {
     (
       ~user_term: Exp.t=?,
       ~elab_term: Exp.t,
-      ~elab_syn_ty: Typ.t,
+      ~elab_syn_ty: Typ.t=?,
       ~marks: list(Mark.t)=?,
       ~warnings: list(Warning.list_item)=?,
       ~ctx: Ctx.t=?,
@@ -543,6 +543,7 @@ module type ExpressionStatics = {
       ~label_sort: bool=?,
       ~dot_labels: list(string)=?,
       ~former: option(MatchedTyp.former)=?,
+      ~formation: MatchedTyp.formation=?,
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);

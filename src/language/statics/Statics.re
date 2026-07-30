@@ -331,7 +331,7 @@ and uexp_to_info_map =
       (
         ~user_term=uexp,
         ~elab_term: Exp.t,
-        ~elab_syn_ty: Typ.t,
+        ~elab_syn_ty: option(Typ.t)=?,
         ~marks: list(Mark.t)=[],
         ~warnings: list(Warning.list_item)=[],
         ~ctx=ctx,
@@ -344,9 +344,23 @@ and uexp_to_info_map =
         ~label_sort=false,
         ~dot_labels: list(string)=[],
         ~former: option(MatchedTyp.former)=None,
+        ~formation: option(MatchedTyp.formation)=?,
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
+    let (recorded, m) = take_recorded(~id=Exp.rep_id(user_term), m);
+    let elab_syn_ty =
+      switch (formation, elab_syn_ty) {
+      | (Some(formation), _) => MatchedTyp.formed_type(formation)
+      | (None, Some(elab_syn_ty)) => elab_syn_ty
+      | (None, None) => failwith("missing expression result type")
+      };
+    let former =
+      switch (former, formation) {
+      | (Some(former), _) => Some(former)
+      | (None, Some({former, _})) => Some(former)
+      | (None, None) => None
+      };
     let marks =
       switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
       | None => marks
@@ -365,7 +379,6 @@ and uexp_to_info_map =
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
-    let (recorded, m) = take_recorded(~id=Exp.rep_id(user_term), m);
     let slice =
       Slice.mk(
         ~ctx,
@@ -465,8 +478,6 @@ and uexp_to_info_map =
         k((p_info, p_elab, m));
       },
     );
-  // use when an annotation is a type component of this rule's type: `e@<T>`'s `T`
-  let ( let** ) = (component, k) => typ_edge(Part, component, k);
   // use when an annotation is sliced backwards by this rule's binders.
   let (let$$) = (component, k) => typ_edge(Source, component, k);
   let result_of = (~via, i: Info.exp, m) =>
@@ -612,15 +623,33 @@ and uexp_to_info_map =
 
   let rec instantiated_slice = (ty: Typ.t, slice: Slice.t): Slice.t =>
     switch (MatchedTyp.poly_pair(ctx, ty)) {
-    | Some((Some(_), body)) =>
+    | Some((Some(binder), body)) =>
+      let holes =
+        TPat.binders_of(binder) |> List.map(_ => EmptyHole |> TPat.fresh);
+      let binder =
+        switch (holes) {
+        | [hole] => hole
+        | holes => Tuple(holes) |> TPat.fresh
+        };
+      let former = MatchedTyp.poly_former(binder);
       instantiated_slice(
         body,
         Slice.reshaped(
-          ~demand=q => Poly(EmptyHole |> TPat.fresh, q) |> Typ.temp,
-          ~answer=MatchedTyp.tolerant1(MatchedTyp.poly, ctx),
+          ~demand=
+            q => MatchedTyp.form(former, [q]) |> MatchedTyp.formed_type,
+          ~answer=
+            ty =>
+              former.parts(Typ.weak_head_normalize(ctx, ty))
+              |> Option.bind(
+                   _,
+                   fun
+                   | [body] => Some(body)
+                   | _ => None,
+                 )
+              |> Option.value(~default=MatchedTyp.internal()),
           slice,
         ),
-      )
+      );
     | Some((None, _))
     | None => slice
     };
@@ -782,8 +811,24 @@ and uexp_to_info_map =
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana);
       let anas = List.init(List.length(es), _ => inner_ana_ty);
-      let ((es, es_elabs), m) =
-        map_m_go(~roles=List.map(_ => Some(Slice.Part), es), m, anas, es);
+      let ((es, es_elabs), m) = map_m_go(m, anas, es);
+      let m =
+        List.fold_left(
+          (m, info: Info.exp) =>
+            record(
+              ~id=here,
+              Slice.Alternative,
+              Slice.formed(
+                ~ctx,
+                ~former=MatchedTyp.list_former,
+                ~index=0,
+                info.slice,
+              ),
+              m,
+            ),
+          m,
+          es,
+        );
       /* Use elements' synthesized types consistently for both the meet and
          the per-element ascription decision. Using `e.ty` (ana-coerced)
          would disagree with the syn-based meet and cause spurious Asc
@@ -799,10 +844,15 @@ and uexp_to_info_map =
         );
       switch (meet_ty) {
       | None =>
-        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
+        let formation =
+          MatchedTyp.form(
+            MatchedTyp.list_former,
+            [Unknown(Internal) |> Typ.temp],
+          );
+        let syn_no_meet = MatchedTyp.formed_type(formation);
         add(
+          ~formation,
           ~elab_term=ListLit(ds) |> rewrap,
-          ~elab_syn_ty=syn_no_meet,
           ~marks=
             should_emit_nomeet_mark(ctx, ana, syn_no_meet)
               ? [NoMeet(List, Typ.add_source(ids, syn_tys))] : [],
@@ -811,8 +861,8 @@ and uexp_to_info_map =
         );
       | Some(ty) =>
         add(
+          ~formation=MatchedTyp.form(MatchedTyp.list_former, [ty]),
           ~elab_term=ListLit(ds) |> rewrap,
-          ~elab_syn_ty=List(ty) |> Typ.temp,
           ~marks=[],
           ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
           m,
@@ -848,8 +898,9 @@ and uexp_to_info_map =
         )
         |> rewrap;
       add(
+        ~formation=
+          MatchedTyp.form(MatchedTyp.list_former, [inner_elab_syn_ty]),
         ~elab_term,
-        ~elab_syn_ty=List(inner_elab_syn_ty) |> Typ.temp,
         ~marks=[],
         ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
         m,
@@ -876,10 +927,15 @@ and uexp_to_info_map =
         )
       ) {
       | None =>
-        let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
+        let formation =
+          MatchedTyp.form(
+            MatchedTyp.list_former,
+            [Unknown(Internal) |> Typ.temp],
+          );
+        let syn_no_meet = MatchedTyp.formed_type(formation);
         add(
+          ~formation,
           ~elab_term=ListConcat(e1_elab, e2_elab) |> rewrap,
-          ~elab_syn_ty=syn_no_meet,
           ~marks=
             should_emit_nomeet_mark(ctx, ana, syn_no_meet)
               ? [
@@ -894,8 +950,8 @@ and uexp_to_info_map =
         );
       | Some(elem_ty) =>
         add(
+          ~formation=MatchedTyp.form(MatchedTyp.list_former, [elem_ty]),
           ~elab_term=ListConcat(e1_elab, e2_elab) |> rewrap,
-          ~elab_syn_ty=List(elem_ty) |> Typ.temp,
           ~marks=[],
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
           m,
@@ -1071,17 +1127,14 @@ and uexp_to_info_map =
       | (Prod(ts1), Prod(ts2)) =>
         let former =
           MatchedTyp.prod_extension_former(
-            ctx,
             Prod(ts1) |> Typ.temp,
             Prod(ts2) |> Typ.temp,
           );
-        let ty = former.build([t1.ty, t2.ty]);
         let* (_, _, m) = (t1, e1_elab, m);
         let* (_, _, m) = (t2, e2_elab, m);
         add(
-          ~former=Some(former),
+          ~formation=MatchedTyp.form(former, [t1.ty, t2.ty]),
           ~elab_term,
-          ~elab_syn_ty=ty,
           ~marks=[],
           ~co_ctx,
           m,
@@ -1231,12 +1284,12 @@ and uexp_to_info_map =
             );
           let (e_info, elab, m) =
             add(
+              ~formation=MatchedTyp.reform(MatchedTyp.label_former, syn_tl),
               ~user_term=e,
               ~elab_term=TupLabel(label, value_elab) |> rewrap,
               ~ctx,
               ~ana,
               ~ancestors=ancestors_inclusive,
-              ~elab_syn_ty=syn_tl,
               ~marks=cms_tl,
               ~co_ctx=value_info.co_ctx,
               ~label_inference=None,
@@ -1306,8 +1359,12 @@ and uexp_to_info_map =
         | _ => Tuple(es_elab) |> rewrap
         };
       add(
+        ~formation=
+          MatchedTyp.reform(
+            MatchedTyp.prod_former(List.length(ty_list)),
+            syn_tuple,
+          ),
         ~elab_term=tuple_elab,
-        ~elab_syn_ty=syn_tuple,
         ~marks=cms_tuple,
         ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')),
         ~label_inference=
@@ -1994,11 +2051,15 @@ and uexp_to_info_map =
     | TypAp(fn, utyp) =>
       let typfn_ana = Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
       let (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
-      let^* (_, _, m) = ([(MatchedTyp.poly_former, 0)], fn, fn_elab, m);
-      let** (_, m) =
-        utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
-      let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
       let (option_name, ty_body) = MatchedTyp.poly_pair_tolerant(ctx, fn.ty);
+      let binder =
+        option_name |> Option.value(~default=EmptyHole |> TPat.fresh);
+      let^* (_, _, m) = (
+        [(MatchedTyp.poly_former(binder), 0)],
+        fn,
+        fn_elab,
+        m,
+      );
       /* Check the type-arg arity against the `Poly` binders. A
          multi-binder `Poly(TPat.Tuple([a, b, …]), body)` requires
          all args in one source-level application (surface
@@ -2034,15 +2095,69 @@ and uexp_to_info_map =
           };
         };
       let former =
-        Option.map(
-          name =>
-            MatchedTyp.instantiation_former(
-              ~binders=TPat.binders_of(name),
-              ~body=ty_body,
-            ),
-          option_name,
-        );
-      add(~former, ~elab_term, ~elab_syn_ty, ~marks, ~co_ctx=fn.co_ctx, m);
+        switch (option_name, marks) {
+        | (Some(name), []) =>
+          let binders = TPat.binders_of(name);
+          let bundle = (
+            fun
+            | [arg] => arg
+            | args => TypTuple(args) |> Typ.temp
+          );
+          let unbundle = (arg: Typ.t) =>
+            switch (Typ.term_of(arg)) {
+            | TypTuple(args) => args
+            | _ => [arg]
+            };
+          let demand = query => {
+            let names = List.filter_map(TPat.tyvar_of_utpat, binders);
+            let (_, constraints) =
+              Typ.collect_constraints(ctx, names, ty_body, query);
+            binders
+            |> List.map(binder =>
+                 switch (TPat.tyvar_of_utpat(binder)) {
+                 | None => Typ.gap
+                 | Some(name) =>
+                   constraints
+                   |> List.filter_map(((found, query)) =>
+                        found == name ? Some(query) : None
+                      )
+                   |> Typ.meet_gap_all(ctx)
+                 }
+               )
+            |> bundle;
+          };
+          let answer = arg => {
+            let args = unbundle(arg);
+            List.length(args) == List.length(binders)
+              ? Typ.subst_many(args, binders, ty_body) : MatchedTyp.internal();
+          };
+          Some((demand, answer));
+        | (Some(_), [_, ..._])
+        | (None, _) => None
+        };
+      let type_arg =
+        utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
+      let (_, m) =
+        switch (former) {
+        | Some((demand, answer)) =>
+          edge_typ(
+            ~at=here,
+            Slice.Through,
+            (i: Info.typ) => Slice.reshaped(~demand, ~answer, i.slice),
+            type_arg,
+            Fun.id,
+          )
+        | None => typ_edge(Slice.Omit, type_arg, Fun.id)
+        };
+      let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
+      add(
+        ~formation=
+          MatchedTyp.form(MatchedTyp.identity_former, [elab_syn_ty]),
+        ~elab_term,
+        ~marks,
+        ~co_ctx=fn.co_ctx,
+        m,
+      );
     | DeferredAp(fn, args) =>
       /* If this is a builtin with custom statics */
       let custom_statics =
@@ -2122,7 +2237,7 @@ and uexp_to_info_map =
             );
           let arg_co_ctx =
             CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
-          let former = MatchedTyp.deferred_ap_former(ctx, deferred);
+          let former = MatchedTyp.deferred_ap_former(deferred);
           let^* (_, _, m) = ([(former, 0)], fn, fn_elab, m);
           let ty_in' =
             List.combine(ty_ins, args)
@@ -2185,8 +2300,9 @@ and uexp_to_info_map =
         };
       let elab_term = Fun(p_elab, e_elab, Some(p.ty), n) |> rewrap;
       add(
+        ~formation=
+          MatchedTyp.form(MatchedTyp.arrow_former, [p.ty, e.elab_syn_ty]),
         ~elab_term,
-        ~elab_syn_ty=syn_ty_fun,
         ~marks=marks_fun,
         ~co_ctx=CoCtx.union([CoCtx.mk(ctx, p.ctx, e.co_ctx), pat_typ_refs]),
         m,
@@ -3320,7 +3436,7 @@ and upat_to_info_map =
         ~co_ctx=co_ctx,
         ~ana=ana,
         ~ancestors=ancestors_inclusive,
-        ~elab_syn_ty: Typ.t,
+        ~elab_syn_ty: option(Typ.t)=?,
         ~marks: list(Mark.t)=[],
         ~warnings: list(Warning.list_item)=[],
         ~constraint_: Coverage.Constraint.t,
@@ -3329,9 +3445,24 @@ and upat_to_info_map =
         ~label_sort=false,
         ~binds: option((CoCtx.sort, string, Id.t))=None,
         ~former: option(MatchedTyp.former)=None,
+        ~formation: option(MatchedTyp.formation)=?,
+        ~declared=false,
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
+    let (recorded, m) = take_recorded(~id=Pat.rep_id(user_term), m);
+    let elab_syn_ty =
+      switch (formation, elab_syn_ty) {
+      | (Some(formation), _) => MatchedTyp.formed_type(formation)
+      | (None, Some(elab_syn_ty)) => elab_syn_ty
+      | (None, None) => failwith("missing pattern result type")
+      };
+    let former =
+      switch (former, formation) {
+      | (Some(former), _) => Some(former)
+      | (None, Some({former, _})) => Some(former)
+      | (None, None) => None
+      };
     let marks =
       if (marks != []) {
         marks;
@@ -3366,7 +3497,6 @@ and upat_to_info_map =
       | (_, true) => Hole(Some(constraint_))
       | (_, false) => constraint_
       };
-    let (recorded, m) = take_recorded(~id=Pat.rep_id(user_term), m);
     let slice =
       Slice.mk(
         ~ctx,
@@ -3378,6 +3508,7 @@ and upat_to_info_map =
         ~co_ctx,
         ~binder=true,
         ~former,
+        ~declared_supply=declared ? Some(Typ.without_type_args(ty)) : None,
         (),
       );
     let info: Info.pat = {
@@ -3997,13 +4128,13 @@ and upat_to_info_map =
           let elab_tl = TupLabel(label, value_elab) |> e_rewrap;
           let (info, _, m) =
             add(
+              ~formation=MatchedTyp.reform(MatchedTyp.label_former, syn_tl),
               ~user_term=e,
               ~elab_term=elab_tl,
               ~ctx=value_info.ctx,
               ~co_ctx,
               ~ana,
               ~ancestors=ancestors_inclusive,
-              ~elab_syn_ty=syn_tl,
               ~marks=cms_tl,
               ~constraint_,
               ~label_inference=None,
@@ -4073,7 +4204,16 @@ and upat_to_info_map =
           tys,
         );
       add(
-        ~elab_syn_ty=syn_tp,
+        ~formation=
+          MatchedTyp.reform(
+            MatchedTyp.prod_former(
+              switch (Typ.term_of(syn_tp)) {
+              | Prod(tys) => List.length(tys)
+              | _ => List.length(info_pats)
+              },
+            ),
+            syn_tp,
+          ),
         ~marks=cms_tp,
         ~ctx,
         ~constraint_,
@@ -4162,16 +4302,20 @@ and upat_to_info_map =
       };
       let (ty_in, ty_out) =
         MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn'.elab_syn_ty);
-      let* (arg, arg_elab, m) = go(~ctx, ~ana=ty_in, arg, m);
+      let arg_role = ctr == None ? Slice.Omit : Slice.Part;
+      let (arg, arg_elab, m) =
+        pat_edge(arg_role, go(~ctx, ~ana=ty_in, arg, m), Fun.id);
       let constraint_ =
         switch (ctr) {
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
         | None => Coverage.Constraint.Hole(None)
         };
+      let former = Option.map(ConstructorStaticsHelpers.payload_former, ctr);
       add(
-        ~former=Option.map(ConstructorStaticsHelpers.payload_former, ctr),
+        ~former,
+        ~formation=MatchedTyp.form(MatchedTyp.identity_former, [ty_out]),
+        ~declared=ctr != None,
         ~elab_term=Ap(fn_elab, arg_elab) |> rewrap,
-        ~elab_syn_ty=ty_out,
         ~marks=[],
         ~ctx=arg.ctx,
         ~co_ctx=
@@ -4523,7 +4667,13 @@ and utyp_to_info_map =
       }
     };
   };
-  let add = (~expects=expects, ~utyp=utyp, m) => {
+  let add =
+      (
+        ~expects=expects,
+        ~utyp=utyp,
+        ~formation: option(MatchedTyp.formation)=?,
+        m,
+      ) => {
     let st = status_for_node(~expects, utyp);
     let cls: Cls.t =
       switch (expects, Typ.cls_of_term(utyp.term)) {
@@ -4536,14 +4686,23 @@ and utyp_to_info_map =
       | (_, cls) => Cls.Typ(cls)
       };
     let (recorded, m) = take_recorded(~id=Typ.rep_id(utyp), m);
+    let (shape, former) =
+      switch (formation) {
+      | Some({former, _} as formation) => (
+          MatchedTyp.formed_type(formation),
+          Some(former),
+        )
+      | None => (utyp, None)
+      };
     let slice =
       Slice.mk(
         ~ctx,
         ~id=Typ.rep_id(utyp),
         ~ids=Slice.typ_ids(utyp),
-        ~shape=utyp,
+        ~shape,
         ~sub_terms=recorded,
-        ~declared=true,
+        ~former,
+        ~declared_supply=Some(Typ.without_type_args(shape)),
         (),
       );
     let info: Info.typ = {
@@ -4578,13 +4737,25 @@ and utyp_to_info_map =
   | Var(_) =>
     /* Names are resolved in this function's status rules */
     add(m)
-  | List(t)
-  | Parens(t)
-  | Projector(_, t) => add(go(t, m) |> snd)
+  | List(t) =>
+    add(
+      ~formation=MatchedTyp.reform(MatchedTyp.list_former, utyp),
+      go(t, m) |> snd,
+    )
+  | Parens(t) =>
+    add(
+      ~formation=MatchedTyp.reform(MatchedTyp.parens_former, utyp),
+      go(t, m) |> snd,
+    )
+  | Projector(data, t) =>
+    add(
+      ~formation=MatchedTyp.reform(MatchedTyp.projector_former(data), utyp),
+      go(t, m) |> snd,
+    )
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
-    add(m);
+    add(~formation=MatchedTyp.reform(MatchedTyp.arrow_former, utyp), m);
   | TypParamAp(t1, t2) =>
     /* The callee `t1` isn't in `TypeExpected` position — its kind
        is constrained by the enclosing `TypParamAp`, not required
@@ -4628,13 +4799,23 @@ and utyp_to_info_map =
     };
     let m = add_info(IdTagged.ids(t1), InfoTyp(fn_info), m);
     let m = go(t2, m) |> snd;
-    add(m);
+    add(
+      ~formation=MatchedTyp.reform(MatchedTyp.typ_param_ap_former, utyp),
+      m,
+    );
   | TypTuple(ts) =>
     /* `TypTuple` is the multi-arg bundle in a `TypParamAp`; the
        node itself is checked at its parent's site. Recurse so each
        element gets its own kind info. */
     let m = map_m(go, ts, m) |> snd;
-    add(m);
+    add(
+      ~formation=
+        MatchedTyp.reform(
+          MatchedTyp.typ_tuple_former(List.length(ts)),
+          utyp,
+        ),
+      m,
+    );
   | Prod(ts) =>
     let duplicate_labels =
       LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
@@ -4657,7 +4838,11 @@ and utyp_to_info_map =
             m,
           )
           |> snd;
-    add(m);
+    add(
+      ~formation=
+        MatchedTyp.reform(MatchedTyp.prod_former(List.length(ts)), utyp),
+      m,
+    );
   | ProdProjection(t, label) =>
     let labels =
       switch (Typ.normalize(ctx, t).term) {
@@ -4670,13 +4855,21 @@ and utyp_to_info_map =
         )
       | _ => None
       };
-    let m = go(~expects=LabelProjectionExpected(labels), label, m) |> snd;
     let m = go(~expects=ProductExpected, t, m) |> snd;
-    add(~expects=TypeExpected, m);
+    let m = go(~expects=LabelProjectionExpected(labels), label, m) |> snd;
+    add(
+      ~expects=TypeExpected,
+      ~formation=MatchedTyp.reform(MatchedTyp.prod_projection_former, utyp),
+      m,
+    );
   | ProdExtension(t1, t2) =>
     let m = go(~expects=ProductExpected, t1, m) |> snd;
     let m = go(~expects=ProductExpected, t2, m) |> snd;
-    add(m);
+    add(
+      ~formation=
+        MatchedTyp.reform(MatchedTyp.prod_extension_node_former, utyp),
+      m,
+    );
   | ExplicitNonlabel =>
     let ancestors = List.tl(ancestors_inclusive); // Recover original ancestors
 
@@ -4717,7 +4910,11 @@ and utyp_to_info_map =
       };
     let m = go(~expects=expects_label, label, m) |> snd;
     let m = go(t, m) |> snd;
-    add(~expects=TypeExpected, m);
+    add(
+      ~expects=TypeExpected,
+      ~formation=MatchedTyp.reform(MatchedTyp.label_former, utyp),
+      m,
+    );
   | Label(_) => add(m)
   | Sum(variants) =>
     let (m, _) =
@@ -4730,7 +4927,10 @@ and utyp_to_info_map =
         (m, []),
         variants,
       );
-    add(m);
+    add(
+      ~formation=MatchedTyp.reform(MatchedTyp.sum_former(variants), utyp),
+      m,
+    );
   | Poly(utpat, tbody) =>
     /* `utpat` may be a single binder (`Var`) or `TPat.Tuple([…])`
        representing `poly a, b, … -> body`. Extend the body context
@@ -4759,7 +4959,10 @@ and utyp_to_info_map =
     let m = go(~ctx=body_ctx, tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
-    add(m);
+    add(
+      ~formation=MatchedTyp.reform(MatchedTyp.poly_former(utpat), utyp),
+      m,
+    );
   | TypFun(utpat, tbody) =>
     let body_ctx =
       List.fold_left(
@@ -4787,7 +4990,10 @@ and utyp_to_info_map =
     let m = go(~ctx=body_ctx, ~expects=AnyKindExpected, tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
-    add(m);
+    add(
+      ~formation=MatchedTyp.reform(MatchedTyp.typ_fun_former(utpat), utyp),
+      m,
+    );
   | ProofOf(e) =>
     let (_, _, m) =
       uexp_to_info_map(
@@ -4812,12 +5018,18 @@ and utyp_to_info_map =
     let m = go(~ctx=body_ctx, tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
-    add(m); // TODO: check with andrew
+    add(
+      ~formation=MatchedTyp.reform(MatchedTyp.rec_former(utpat), utyp),
+      m,
+    ); // TODO: check with andrew
   | Rec(utpat, tbody) =>
     let m = go(tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
-    add(m); // TODO: check with andrew
+    add(
+      ~formation=MatchedTyp.reform(MatchedTyp.rec_former(utpat), utyp),
+      m,
+    ); // TODO: check with andrew
   | Sig(items) =>
     let m =
       List.fold_left(
