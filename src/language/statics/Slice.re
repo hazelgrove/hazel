@@ -642,12 +642,26 @@ let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
              other == index ? Id.Set.empty : node.ids
            )
         |> List.fold_left(Id.Set.union, Id.Set.empty);
+      let ids_of = keep =>
+        List.fold_left(
+          (acc, (role, node: t)) =>
+            keep(role, node) ? Id.Set.union(acc, node.ids) : acc,
+          Id.Set.empty,
+          sub_terms,
+        );
+      let asked =
+        ids_of((role, node) =>
+          role == Binder && !is_gap(node.demand(env, inner.gamma).psi)
+        );
+      let scoped =
+        Id.Set.is_empty(asked)
+          ? asked : Id.Set.union(asked, ids_of((role, _) => role == Source));
       let finish = result => {
         ...result,
         omitted:
           Id.Set.diff(
             Id.Set.union(result.omitted, siblings),
-            result.retained,
+            Id.Set.union(result.retained, scoped),
           ),
       };
       let lifted = query => {
