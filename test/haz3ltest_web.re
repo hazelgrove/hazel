@@ -17,7 +17,11 @@ let (suite, _) =
     ~argv=Sys.argv,
     "HazelWebTests",
     Test_AgentTools.tests
+    @ Test_AgentMultiTool.tests
+    @ Test_AgentControlFlow.tests
     @ [Test_AgentUX.tests]
+    @ Test_WorkerServer.tests
+    @ Test_PromptFactory.tests
     @ Test_ReparseDocSlides.tests
     @ Test_TextRoundtrip.tests
     @ [
