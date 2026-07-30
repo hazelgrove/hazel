@@ -1320,16 +1320,6 @@ let rec is_gap = (ty: t): bool =>
   | _ => false
   };
 
-let rec without_type_args = (ty: t): t => {
-  let (term, rewrap) = unwrap(ty);
-  switch (term) {
-  | TypParamAp(head, _) =>
-    TypParamAp(without_type_args(head), gap) |> rewrap
-  | Parens(inner) => Parens(without_type_args(inner)) |> rewrap
-  | _ => ty
-  };
-};
-
 let rec is_empty = (ty: t): bool =>
   if (is_gap(ty)) {
     true;

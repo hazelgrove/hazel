@@ -416,6 +416,90 @@ let former_tests = (
       },
     ),
     test_case(
+      "supply comes from the formation, not the checked shape",
+      `Quick,
+      () => {
+        let id = Id.mk();
+        let slice =
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape=int(),
+            ~formation=MatchedTyp.identity(Typ.gap),
+            (),
+          );
+        check(typ, "unannotated supply", Typ.gap, slice.supplied);
+      },
+    ),
+    test_case(
+      "Part supplies are rebuilt by the formation",
+      `Quick,
+      () => {
+        let leaf = ty => {
+          let id = Id.mk();
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape=ty,
+            ~formation=MatchedTyp.identity(ty),
+            (),
+          );
+        };
+        let id = Id.mk();
+        let slice =
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape=list(int()),
+            ~sub_terms=[
+              (Statics.Slice.Part, leaf(int())),
+              (Statics.Slice.Part, leaf(int())),
+            ],
+            ~formation=MatchedTyp.form(MatchedTyp.list_former, [int()]),
+            (),
+          );
+        check(typ, "list supply", list(int()), slice.supplied);
+      },
+    ),
+    test_case(
+      "a constructor formation supplies its fixed shell",
+      `Quick,
+      () => {
+        let ann_none = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_some = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let shape =
+          sum([
+            ConstructorMap.Variant("None", ann_none, None),
+            ConstructorMap.Variant("Some", ann_some, Some(int())),
+          ]);
+        let former =
+          MatchedTyp.sum_payload_former(~shape, ~expanded=shape, "Some");
+        let id = Id.mk();
+        let slice =
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape,
+            ~sub_terms=[(Statics.Slice.Part, Statics.Slice.opaque)],
+            ~formation=MatchedTyp.form(former, [int()]),
+            (),
+          );
+        check(
+          typ,
+          "constructor shell",
+          sum([
+            ConstructorMap.Variant("None", ann_none, None),
+            ConstructorMap.Variant("Some", ann_some, Some(Typ.gap)),
+          ]),
+          slice.supplied,
+        );
+      },
+    ),
+    test_case(
       "subtracts sum types by constructor",
       `Quick,
       () => {

@@ -45,7 +45,6 @@ type t = {
   ids: Id.Set.t,
   binder: bool,
   supplied: Typ.t,
-  declared: bool,
   dispatch: (env, Typ.t) => slice,
   analyse: env => analysis,
   demand: (env, Ctx.t) => slice,
@@ -788,14 +787,18 @@ let mk =
       ~ids: Id.Set.t,
       ~shape: Typ.t,
       ~sub_terms: list((role, t))=[],
-      ~former: option(MatchedTyp.former)=None,
+      ~formation: option(MatchedTyp.formation)=?,
       ~co_ctx: CoCtx.t=CoCtx.empty,
       ~binds: option((CoCtx.sort, string, Id.t))=None,
       ~binder: bool=false,
-      ~declared_supply: option(Typ.t)=None,
       (),
     )
     : t => {
+  let former =
+    Option.map(
+      (formation: MatchedTyp.formation) => formation.former,
+      formation,
+    );
   let _ =
     List.exists(((role, _)) => role == Part || role == Prune, sub_terms)
     && former == None
@@ -867,34 +870,34 @@ let mk =
         gamma: join(ctx, result.gamma, uses(gap)),
       };
     };
-  let declared =
-    declared_supply != None
-    || List.exists(
-         ((role, node)) => role == Through && node.declared,
-         sub_terms,
-       );
   let of_role = role =>
     List.filter_map(
       ((r, node: t)) => r == role ? Some(node.supplied) : None,
       sub_terms,
     );
   let supplied =
-    switch (declared_supply) {
-    | Some(supplied) => supplied
-    | None =>
-      switch (of_role(Part)) {
-      | [] => Typ.meet_gap_all(ctx, of_role(Through))
-      | parts =>
-        let former: MatchedTyp.former = require_former(~id, former);
-        List.for_all(Typ.is_empty, parts) ? gap : former.whole(parts);
+    switch (of_role(Part)) {
+    | [] =>
+      switch (of_role(Through)) {
+      | [] =>
+        formation
+        |> Option.map(MatchedTyp.formed_type)
+        |> Option.value(~default=gap)
+      | throughs => Typ.meet_gap_all(ctx, throughs)
       }
+    | parts =>
+      let former: MatchedTyp.former = require_former(~id, former);
+      let parts =
+        former.arity == 1 && List.length(parts) > 1
+          ? [Typ.meet_gap_all(ctx, parts)] : parts;
+      former.whole(parts);
     };
+  let supplied = Typ.is_empty(supplied) ? gap : supplied;
   {
     shape,
     ids,
     binder,
     supplied,
-    declared,
     dispatch,
     analyse,
     demand,
@@ -951,7 +954,6 @@ let binding = (~sort, ~name, ~id, ~ids, ~demand_of: Ctx.t => Typ.t): t => {
   ids,
   binder: true,
   supplied: gap,
-  declared: false,
   dispatch: (_, query) =>
     is_gap(query)
       ? {
@@ -978,7 +980,6 @@ let opaque: t = {
   ids: Id.Set.empty,
   binder: false,
   supplied: gap,
-  declared: false,
   dispatch: (_, query) => {
     ...empty_slice,
     psi: query,
@@ -1003,7 +1004,8 @@ let reshaped = (~demand: Typ.t => Typ.t, ~answer: Typ.t => Typ.t, node: t): t =>
   analyse: source_analysis(~embed=demand, ~project=answer, node),
 };
 
-let type_instantiation = (~ctx, ~binder, ~body, ~former, node) => {
+let type_instantiation =
+    (~ctx, ~binder, ~body, ~former: MatchedTyp.former, node) => {
   let binders = TPat.binders_of(binder);
   let bundle =
     fun
@@ -1052,7 +1054,6 @@ let routed =
     ...reshaped(~demand, ~answer, node),
     binder: false,
     supplied: gap,
-    declared: false,
   };
 };
 

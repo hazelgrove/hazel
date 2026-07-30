@@ -348,7 +348,6 @@ and uexp_to_info_map =
       : (Info.exp, Exp.t, Map.t) => {
     let (recorded, m) = take_recorded(~id=Exp.rep_id(user_term), m);
     let elab_syn_ty = MatchedTyp.formed_type(formation);
-    let former = Some(formation.former);
     let marks =
       switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
       | None => marks
@@ -375,7 +374,7 @@ and uexp_to_info_map =
         ~shape=elab_syn_ty,
         ~sub_terms=recorded,
         ~co_ctx,
-        ~former,
+        ~formation,
         (),
       );
     let info: Info.exp = {
@@ -3421,13 +3420,11 @@ and upat_to_info_map =
         ~inferred_label: option(LabeledTuple.label)=None,
         ~label_sort=false,
         ~binds: option((CoCtx.sort, string, Id.t))=None,
-        ~declared=false,
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
     let (recorded, m) = take_recorded(~id=Pat.rep_id(user_term), m);
     let elab_syn_ty = MatchedTyp.formed_type(formation);
-    let former = Some(formation.former);
     let marks =
       if (marks != []) {
         marks;
@@ -3472,8 +3469,7 @@ and upat_to_info_map =
         ~binds,
         ~co_ctx,
         ~binder=true,
-        ~former,
-        ~declared_supply=declared ? Some(Typ.without_type_args(ty)) : None,
+        ~formation,
         (),
       );
     let info: Info.pat = {
@@ -4283,7 +4279,6 @@ and upat_to_info_map =
         };
       add(
         ~formation,
-        ~declared=ctr != None,
         ~elab_term=Ap(fn_elab, arg_elab) |> rewrap,
         ~marks=[],
         ~ctx=arg.ctx,
@@ -4651,7 +4646,6 @@ and utyp_to_info_map =
       };
     let (recorded, m) = take_recorded(~id=Typ.rep_id(utyp), m);
     let shape = MatchedTyp.formed_type(formation);
-    let former = Some(formation.former);
     let slice =
       Slice.mk(
         ~ctx,
@@ -4659,8 +4653,7 @@ and utyp_to_info_map =
         ~ids=Slice.typ_ids(utyp),
         ~shape,
         ~sub_terms=recorded,
-        ~former,
-        ~declared_supply=Some(Typ.without_type_args(shape)),
+        ~formation,
         (),
       );
     let info: Info.typ = {
