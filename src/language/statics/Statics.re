@@ -415,21 +415,13 @@ and uexp_to_info_map =
   let here = Exp.rep_id(uexp);
   let exp_edge = role => edge(~at=here, role, (i: Info.exp) => i.slice);
   let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
-  /* The symbol names the role; doubling it says the sub-term is a type rather
-     than an expression, and a suffix modifies the role. So `let^` takes a
-     sub-term's whole type, `let^^` an annotation's, `let^?` takes it only when
-     the query asks for something concrete, and `let@@` binds a type name where
-     `let@` binds a pattern. */
-  // use when the sub-term's type is a type component of the type this rule
-  // constructs: in `1 :: []` the head's `Int` is the type component of `[_]`
+  /* `let*` contributes a formed type component; with the identity former it
+     contributes the whole type. `let&` marks a checked-only premise. */
   let ( let* ) = (component, k) => exp_edge(Part, component, k);
-  // use when the sub-term's type is this rule's whole type: `(e)`, `1; e`
-  let (let^) = (component, k) => exp_edge(Through, component, k);
+  let (let&) = (component, k) => exp_edge(Omit, component, k);
   // use when the sub-term supplies this rule's type but has nothing to say
   // when the query asks for no more than a shape: `[1] @ []`
   let (let^?) = (component, k) => exp_edge(Prune, component, k);
-  // use for any sub-term that is only type checked: `f(x)`'s `x`
-  let (let&) = (component, k) => exp_edge(Omit, component, k);
   // use when a checked sub-term's expected υ is supplied by an explicit source
   let (let&>) = ((source, component), k) =>
     edge(
@@ -969,7 +961,7 @@ and uexp_to_info_map =
         m,
       );
     | DynamicErrorHole(e, err) =>
-      let^ (e, e_elab, m) = go(~ana, e, m);
+      let* (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=DynamicErrorHole(e_elab, err) |> rewrap,
         ~formation=MatchedTyp.identity(e.elab_syn_ty),
@@ -978,7 +970,7 @@ and uexp_to_info_map =
         m,
       );
     | Parens(e) =>
-      let^ (e, e_elab, m) = go(~ana, e, m);
+      let* (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Parens(e_elab) |> rewrap,
         ~formation=MatchedTyp.identity(e.elab_syn_ty),
@@ -987,7 +979,7 @@ and uexp_to_info_map =
         m,
       );
     | Projector(data, e) =>
-      let^ (e, e_elab, m) = go(~ana, e, m);
+      let* (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Projector(data, e_elab) |> rewrap,
         ~formation=MatchedTyp.identity(e.elab_syn_ty),
@@ -1720,7 +1712,7 @@ and uexp_to_info_map =
       );
     | Filter(Filter({pat: cond, act}), body) =>
       let& (cond, cond_elab, m) = go(~ana=syn, cond, m, ~is_in_filter=true);
-      let^ (body, body_elab, m) = go(~ana, body, m);
+      let* (body, body_elab, m) = go(~ana, body, m);
       add(
         ~elab_term=
           Filter(
@@ -1737,7 +1729,7 @@ and uexp_to_info_map =
         m,
       );
     | Filter(Residue(i, act), body) =>
-      let^ (body, body_elab, m) = go(~ana, body, m);
+      let* (body, body_elab, m) = go(~ana, body, m);
       add(
         ~elab_term=Filter(Residue(i, act), body_elab) |> rewrap,
         ~formation=MatchedTyp.identity(body.elab_syn_ty),
@@ -1747,7 +1739,7 @@ and uexp_to_info_map =
       );
     | Seq(e1, e2) =>
       let& (e1, e1_elab, m) = go(~ana=syn, e1, m);
-      let^ (e2, e2_elab, m) = go(~ana, e2, m);
+      let* (e2, e2_elab, m) = go(~ana, e2, m);
       add(
         ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
         ~formation=MatchedTyp.identity(e2.elab_syn_ty),
@@ -2374,7 +2366,7 @@ and uexp_to_info_map =
           ~def,
           ~body,
         );
-      let^ (rewritten_info, rewritten_elab, m) = go(~ana, rewritten, m);
+      let* (rewritten_info, rewritten_elab, m) = go(~ana, rewritten, m);
       let m = FunctionSugar.add_binder_infos(m, ~user_pat=p, ~f_name);
       add(
         ~elab_term=rewritten_elab,
@@ -2506,7 +2498,7 @@ and uexp_to_info_map =
           | _ => p_ana_ctx
           }
         };
-      let^ (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
+      let* (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let@ (p_ana, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
@@ -2572,7 +2564,7 @@ and uexp_to_info_map =
           p,
           m,
         );
-      let^ (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
+      let* (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let@ (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
@@ -2594,7 +2586,7 @@ and uexp_to_info_map =
       let& (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let^ (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
+      let* (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let@ (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
@@ -3097,7 +3089,7 @@ and uexp_to_info_map =
             utyp,
             m,
           );
-        let^ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx=ctx_body, ~ana, body, m);
         let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
         let@@ m = (
@@ -3186,7 +3178,7 @@ and uexp_to_info_map =
             utyp,
             m,
           );
-        let^ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
           go(~ctx=ctx_body, ~ana, body, m);
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
         let@@ m = (
@@ -3267,7 +3259,7 @@ and uexp_to_info_map =
         | Some(mode) => Ctx.set_use_mode(ctx, Some(mode))
         | None => ctx
         };
-      let^ (body, body_elab, m) = go(~ctx=ctx', ~ana, body, m);
+      let* (body, body_elab, m) = go(~ctx=ctx', ~ana, body, m);
       switch (use_mode) {
       | Some(_) =>
         add(
@@ -3521,8 +3513,7 @@ and upat_to_info_map =
   let here = Pat.rep_id(upat);
   let pat_edge = role => edge(~at=here, role, (i: Info.pat) => i.slice);
   let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
-  // use when the sub-pattern's type is this pattern's whole type: `(p)`
-  let (let^) = (component, k) => pat_edge(Through, component, k);
+  let ( let* ) = (component, k) => pat_edge(Part, component, k);
   // use when a checked pattern's expected υ is supplied by an annotation
   let (let^>) = ((source, component), k) =>
     edge(
@@ -3534,9 +3525,6 @@ and upat_to_info_map =
     );
   // use when an annotation supplies this pattern's whole type: `(p : Int)`'s `Int`
   let (let^^) = (component, k) => typ_edge(Through, component, k);
-  // use when the sub-pattern's type is a type component of this pattern's
-  // type: in `hd :: tl` the head's `Int` is the type component of `[_]`.
-  let ( let* ) = (component, k) => pat_edge(Part, component, k);
   // use when a sub-pattern binds names for the rest of this pattern, without
   // supplying any of its type.
   // let (let!) = (component, k) => pat_edge(Binder, component, k);
@@ -4193,7 +4181,7 @@ and upat_to_info_map =
         m,
       )
     | Parens(p) =>
-      let^ (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
+      let* (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add(
         ~elab_term=Parens(p_elab) |> rewrap,
         ~formation=MatchedTyp.identity(p.elab_syn_ty),
