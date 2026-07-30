@@ -410,48 +410,48 @@ let forward = (ctx: Ctx.t, env: env, query: Typ.t, placed: list(placed)) => {
         | Part
         | Through
         | Prune => (
-            acc
-            @ [
+            [
               {
                 ...item,
                 result: Some(item.node.dispatch(env, item.query)),
               },
+              ...acc,
             ],
             left,
           )
         | Alternative =>
           let slice = item.node.dispatch(env, left);
           (
-            acc
-            @ [
+            [
               {
                 ...item,
                 query: left,
                 result: Some(slice),
               },
+              ...acc,
             ],
             residual(ctx, left, slice.psi),
           );
         | Omit
         | Retain when !Id.Set.is_empty(Id.Set.inter(item.node.ids, env.path)) => (
-            acc
-            @ [
+            [
               {
                 ...item,
                 result: Some(item.node.dispatch(env, gap)),
               },
+              ...acc,
             ],
             left,
           )
         | Omit
         | Retain
         | Source
-        | Binder => (acc @ [item], left)
+        | Binder => ([item, ...acc], left)
         },
       ([], query),
       placed,
     );
-  placed;
+  List.rev(placed);
 };
 
 // Resolve each binder against the assumptions of what it scopes.
@@ -876,15 +876,15 @@ let reshaped = (~demand: Typ.t => Typ.t, ~answer: Typ.t => Typ.t, node: t): t =>
 // the query in that type, project the answer back out.
 let routed =
     (~ctx: Ctx.t, ~former: MatchedTyp.former, ~input, ~output, node: t): t => {
-  let components = ty => MatchedTyp.tolerant(former.match_, ctx, ty);
-  let project = (index, ty) =>
-    List.nth_opt(components(ty), index) |> Option.value(~default=gap);
-  let embed = (index, query) => {
+  let components = components(~former=Some(former), ctx);
+  let answer = ty =>
+    List.nth_opt(components(ty), output) |> Option.value(~default=gap);
+  let demand = query => {
     let shape = Typ.weak_head_normalize(ctx, node.shape);
-    Typ.embed(~build=former.build, shape, components(shape), index, query);
+    Typ.embed(~build=former.build, shape, components(shape), input, query);
   };
   {
-    ...reshaped(~demand=embed(input), ~answer=project(output), node),
+    ...reshaped(~demand, ~answer, node),
     binder: false,
     declared: false,
   };
