@@ -248,17 +248,19 @@ let alias_demand_of =
         | ConstructorMap.BadEntry(_) => None
         | ConstructorMap.Variant(ctr, _, _) => {
             let ty = lookup_ctr(ctr);
+            // an applied constructor asks behind an arrow, a pattern asks inside the sum
+            let payload =
+              switch (MatchedTyp.strict2(MatchedTyp.arrow, ctx, ty)) {
+              | Some((payload, _)) => Some(payload)
+              | None =>
+                Typ.get_sum_constructors(ctx, ty)
+                |> Option.map(ConstructorMap.get_entry(ctr))
+                |> Option.join
+                |> Option.join
+              };
             Typ.is_gap(ty)
               ? None
-              : Some(
-                  minimal_definition(
-                    ctx,
-                    ctr,
-                    MatchedTyp.strict2(MatchedTyp.arrow, ctx, ty)
-                    |> Option.map(fst),
-                    definition,
-                  ),
-                );
+              : Some(minimal_definition(ctx, ctr, payload, definition));
           },
         variants,
       )

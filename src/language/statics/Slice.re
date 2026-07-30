@@ -300,6 +300,8 @@ let route =
       List.init(count, _ => gap);
     } else if (count == arity && List.length(supplied) == arity) {
       supplied;
+    } else if (count == 1 && arity == 1) {
+      [query];
     } else if (broadcast && List.length(supplied) == 1) {
       List.init(count, _ => List.hd(supplied));
     } else {
