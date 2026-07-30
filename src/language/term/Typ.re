@@ -1606,7 +1606,6 @@ let children = (ty: t): list(t) =>
   | Prod(items)
   | TypTuple(items) => items
   | Sum(variants) =>
-    // two per variant, so gapping one keeps the arity its siblings routed at
     List.concat_map(
       fun
       | ConstructorMap.Variant(name, ann, payload) => [

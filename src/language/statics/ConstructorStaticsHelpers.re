@@ -230,7 +230,21 @@ let rec minimal_definition =
   };
 };
 
-// Met over the constructors gamma still asks for, at the payload it settled on.
+let ctr_payload = (ctx: Ctx.t, ctr: Constructor.t, ty: Typ.t): option(Typ.t) =>
+  switch (MatchedTyp.strict2(MatchedTyp.arrow, ctx, ty)) {
+  | Some((payload, _)) when !Typ.is_gap(payload) => Some(payload)
+  | Some((_, out)) =>
+    Typ.get_sum_constructors(ctx, out)
+    |> Option.map(ConstructorMap.get_entry(ctr))
+    |> Option.join
+    |> Option.join
+  | None =>
+    Typ.get_sum_constructors(ctx, ty)
+    |> Option.map(ConstructorMap.get_entry(ctr))
+    |> Option.join
+    |> Option.join
+  };
+
 let alias_demand_of =
     (
       ctx: Ctx.t,
@@ -248,16 +262,7 @@ let alias_demand_of =
         | ConstructorMap.BadEntry(_) => None
         | ConstructorMap.Variant(ctr, _, _) => {
             let ty = lookup_ctr(ctr);
-            // an applied constructor asks behind an arrow, a pattern asks inside the sum
-            let payload =
-              switch (MatchedTyp.strict2(MatchedTyp.arrow, ctx, ty)) {
-              | Some((payload, _)) => Some(payload)
-              | None =>
-                Typ.get_sum_constructors(ctx, ty)
-                |> Option.map(ConstructorMap.get_entry(ctr))
-                |> Option.join
-                |> Option.join
-              };
+            let payload = ctr_payload(ctx, ctr, ty);
             Typ.is_gap(ty)
               ? None
               : Some(minimal_definition(ctx, ctr, payload, definition));
@@ -280,15 +285,11 @@ let alias_demand =
   switch (entry.kind) {
   | Abstract => Typ.gap
   | Singleton(definition) =>
-    // a pattern learns its payload from gamma later, so keep the declared one
     let payload =
       from_pattern
         ? None
         : Some(
-            switch (MatchedTyp.strict2(MatchedTyp.arrow, ctx, query)) {
-            | Some((payload, _)) => payload
-            | None => Typ.gap
-            },
+            ctr_payload(ctx, ctr, query) |> Option.value(~default=Typ.gap),
           );
     minimal_definition(ctx, ctr, payload, definition);
   };

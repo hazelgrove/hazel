@@ -38,8 +38,8 @@ type entry = {
   sort,
   id: Id.t,
   expected_ty: Typ.t,
-  /* What a slice of this use asks of the name where the checker knows more
-     than the query does: a constructor asks for its own type. */
+  /* What this use asks of the name where the checker knows more than the
+     analysed type does: a constructor asks for its own type. */
   demanded: option(Typ.t),
 };
 
