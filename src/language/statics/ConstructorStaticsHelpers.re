@@ -233,13 +233,8 @@ let rec minimal_definition =
 let ctr_payload = (ctx: Ctx.t, ctr: Constructor.t, ty: Typ.t): option(Typ.t) =>
   switch (MatchedTyp.strict2(MatchedTyp.arrow, ctx, ty)) {
   | Some((payload, _)) when !Typ.is_gap(payload) => Some(payload)
-  | Some((_, out)) =>
-    Typ.get_sum_constructors(ctx, out)
-    |> Option.map(ConstructorMap.get_entry(ctr))
-    |> Option.join
-    |> Option.join
-  | None =>
-    Typ.get_sum_constructors(ctx, ty)
+  | matched =>
+    Typ.get_sum_constructors(ctx, Option.fold(~none=ty, ~some=snd, matched))
     |> Option.map(ConstructorMap.get_entry(ctr))
     |> Option.join
     |> Option.join
