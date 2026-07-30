@@ -4117,6 +4117,7 @@ and upat_to_info_map =
           CoCtx.union([
             co_ctx,
             ConstructorStaticsHelpers.ctr_uses(
+              ~from_pattern=true,
               ctx,
               ~ctr,
               ~id=Pat.rep_id(upat),
@@ -4159,6 +4160,7 @@ and upat_to_info_map =
             switch (ctr) {
             | Some(ctr) =>
               ConstructorStaticsHelpers.ctr_uses(
+                ~from_pattern=true,
                 ctx,
                 ~ctr,
                 ~id=Pat.rep_id(upat),

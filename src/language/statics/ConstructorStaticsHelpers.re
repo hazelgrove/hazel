@@ -190,7 +190,12 @@ let alias_of_ctr = (ctx: Ctx.t, ctr: Constructor.t): option(Ctx.tvar_entry) =>
   );
 
 let rec minimal_definition =
-        (ctx: Ctx.t, ctr: Constructor.t, payload: Typ.t, definition: Typ.t)
+        (
+          ctx: Ctx.t,
+          ctr: Constructor.t,
+          payload: option(Typ.t),
+          definition: Typ.t,
+        )
         : Typ.t => {
   let (term, rewrap) = Typ.unwrap(definition);
   switch (term) {
@@ -208,7 +213,14 @@ let rec minimal_definition =
         fun
         | ConstructorMap.Variant(name, ann, arg)
             when Constructor.equal(name, ctr) =>
-          ConstructorMap.Variant(name, ann, Option.map(_ => payload, arg))
+          ConstructorMap.Variant(
+            name,
+            ann,
+            switch (payload) {
+            | Some(payload) => Option.map(_ => payload, arg)
+            | None => arg
+            },
+          )
         | _ => ConstructorMap.BadEntry(Typ.gap),
         variants,
       ),
@@ -219,21 +231,39 @@ let rec minimal_definition =
 };
 
 let alias_demand =
-    (ctx: Ctx.t, ctr: Constructor.t, entry: Ctx.tvar_entry, query: Typ.t)
+    (
+      ~from_pattern: bool,
+      ctx: Ctx.t,
+      ctr: Constructor.t,
+      entry: Ctx.tvar_entry,
+      query: Typ.t,
+    )
     : Typ.t =>
   switch (entry.kind) {
   | Abstract => Typ.gap
   | Singleton(definition) =>
+    // a pattern learns its payload from gamma later, so keep the declared one
     let payload =
-      switch (MatchedTyp.strict2(MatchedTyp.arrow, ctx, query)) {
-      | Some((payload, _)) => payload
-      | None => Typ.gap
-      };
+      from_pattern
+        ? None
+        : Some(
+            switch (MatchedTyp.strict2(MatchedTyp.arrow, ctx, query)) {
+            | Some((payload, _)) => payload
+            | None => Typ.gap
+            },
+          );
     minimal_definition(ctx, ctr, payload, definition);
   };
 
 let ctr_uses =
-    (ctx: Ctx.t, ~ctr: Constructor.t, ~id: Id.t, ~ana: Typ.t, ~typ: Typ.t)
+    (
+      ~from_pattern=false,
+      ctx: Ctx.t,
+      ~ctr: Constructor.t,
+      ~id: Id.t,
+      ~ana: Typ.t,
+      ~typ: Typ.t,
+    )
     : CoCtx.t =>
   [
     CoCtx.singleton(
@@ -249,7 +279,7 @@ let ctr_uses =
     | Some(entry) => [
         CoCtx.singleton(
           ~sort=CoCtx.Alias,
-          ~demanded=Some(alias_demand(ctx, ctr, entry, ana)),
+          ~demanded=Some(alias_demand(~from_pattern, ctx, ctr, entry, ana)),
           entry.name,
           id,
           ana,
