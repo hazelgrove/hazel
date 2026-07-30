@@ -1287,8 +1287,6 @@ let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   meet(ctx, ty1, ty2) != None;
 
-/* A name standing for a definition, as opposed to the definition written out.
-   Asking a name at its expansion is not yet supported. */
 let rec names_a_definition = (ctx: Ctx.t, ty: t): bool =>
   switch (term_of(ty)) {
   | Parens(inner)

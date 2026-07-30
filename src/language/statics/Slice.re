@@ -44,7 +44,6 @@ type t = {
   shape: Typ.t,
   ids: Id.Set.t,
   binder: bool,
-  // the part of this node's type a declaration already supplies
   supplied: Typ.t,
   declared: bool,
   dispatch: (env, Typ.t) => slice,
@@ -344,8 +343,6 @@ let lift =
     };
   };
 
-/* `reveal` keeps the way down to the focus, for the sub-term the focus is in:
-   its spine is retained even where nothing is asked of it. */
 let dispatch_analysis =
     (~project=x => x, ~reveal=false, node: t, env, query): analysis => {
   let slice =
