@@ -230,6 +230,42 @@ let rec minimal_definition =
   };
 };
 
+// Met over the constructors gamma still asks for, at the payload it settled on.
+let alias_demand_of =
+    (
+      ctx: Ctx.t,
+      ~definition: Typ.t,
+      ~fallback: Typ.t,
+      lookup_ctr: Constructor.t => Typ.t,
+    )
+    : Typ.t => {
+  let demands =
+    switch (Typ.get_sum_constructors(ctx, definition)) {
+    | None => []
+    | Some(variants) =>
+      List.filter_map(
+        fun
+        | ConstructorMap.BadEntry(_) => None
+        | ConstructorMap.Variant(ctr, _, _) => {
+            let ty = lookup_ctr(ctr);
+            Typ.is_gap(ty)
+              ? None
+              : Some(
+                  minimal_definition(
+                    ctx,
+                    ctr,
+                    MatchedTyp.strict2(MatchedTyp.arrow, ctx, ty)
+                    |> Option.map(fst),
+                    definition,
+                  ),
+                );
+          },
+        variants,
+      )
+    };
+  demands == [] ? fallback : Typ.meet_gap_all(ctx, demands);
+};
+
 let alias_demand =
     (
       ~from_pattern: bool,
@@ -268,7 +304,7 @@ let ctr_uses =
   [
     CoCtx.singleton(
       ~sort=CoCtx.Constructor,
-      ~demanded=Some(typ),
+      ~demanded=from_pattern ? None : Some(typ),
       ctr,
       id,
       ana,

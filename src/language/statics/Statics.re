@@ -487,13 +487,13 @@ and uexp_to_info_map =
     k((i, elab, result_of(~via, i, m)));
   // use when a name rather than a pattern binds for the rest of this rule:
   // `type T = d in b`
-  let (let@@) = ((sort, name, id, ids, peel, m), k) =>
+  let (let@@) = ((sort, name, id, ids, demand_of, m), k) =>
     k(
       record(
         ~id=here,
         ~first=true,
         Binder,
-        Slice.binding(~sort, ~name, ~id, ~ids, ~peel),
+        Slice.binding(~sort, ~name, ~id, ~ids, ~demand_of),
         m,
       ),
     );
@@ -3014,15 +3014,13 @@ and uexp_to_info_map =
           TPat.rep_id(typat),
           Id.Set.of_list(IdTagged.ids(typat)),
           (
-            ty =>
-              List.fold_left(
-                (ty, _) =>
-                  switch (Typ.term_of(ty)) {
-                  | TypFun(_, body) => body
-                  | _ => ty
-                  },
-                ty,
-                params,
+            gamma =>
+              ConstructorStaticsHelpers.alias_demand_of(
+                ctx_for_def,
+                ~definition=utyp_desugared,
+                ~fallback=Slice.lookup(~sort=CoCtx.Alias, ~name, gamma),
+                ctr =>
+                Slice.lookup(~sort=CoCtx.Constructor, ~name=ctr, gamma)
               )
           ),
           m,
@@ -3104,7 +3102,16 @@ and uexp_to_info_map =
           name,
           TPat.rep_id(typat),
           Id.Set.of_list(IdTagged.ids(typat)),
-          (x => x),
+          (
+            gamma =>
+              ConstructorStaticsHelpers.alias_demand_of(
+                ctx_def,
+                ~definition=utyp_desugared,
+                ~fallback=Slice.lookup(~sort=CoCtx.Alias, ~name, gamma),
+                ctr =>
+                Slice.lookup(~sort=CoCtx.Constructor, ~name=ctr, gamma)
+              )
+          ),
           m,
         );
         let typ_refs =

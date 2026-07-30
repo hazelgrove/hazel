@@ -859,9 +859,7 @@ let edge_typ = (~scratch, ~at: Id.t, role, slice_of, (info, m), k) =>
   k((info, record(~scratch, ~id=at, role, slice_of(info), m)));
 
 // A binding site that is a bare name rather than a pattern, such as a type alias.
-// `peel` strips the binders a rule wrote on the left of its definition, which
-// the context's kind carries but the written definition node does not.
-let binding = (~sort, ~name, ~id, ~ids, ~peel: Typ.t => Typ.t): t => {
+let binding = (~sort, ~name, ~id, ~ids, ~demand_of: Ctx.t => Typ.t): t => {
   shape: gap,
   ids,
   binder: true,
@@ -878,11 +876,12 @@ let binding = (~sort, ~name, ~id, ~ids, ~peel: Typ.t => Typ.t): t => {
         psi: query,
       },
   analyse: _ => empty_analysis,
-  demand: (env, gamma) => {
-    let need = binder_demand(~sort, ~name, ~id, env, gamma);
+  demand: (_, gamma) => {
+    let demanded = demand_of(gamma);
     {
-      ...need,
-      psi: peel(need.psi),
+      omitted: is_gap(demanded) ? Id.Set.singleton(id) : Id.Set.empty,
+      gamma: discharge(~sort, ~name, gamma),
+      psi: demanded,
     };
   },
 };
