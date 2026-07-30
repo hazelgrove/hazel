@@ -27,6 +27,24 @@ let binding_synthesis = [
     "Bool",
     "let (?, (y, ?)) = (?, (true, ?)) in y",
   ),
+  /* The pattern's type is rebuilt from every bound variable's assumption:
+     x : Int, y unused, z : ? -> Int, so the definition is asked (Int, ?, ? -> Int). */
+  synthesis_case(
+    ~ctx=ctx_var("f", "Bool -> Int"),
+    "bind-tuple-combined-demands",
+    "let (x, y, z) = (1, true, f) in (x, z(?))",
+    "(Int, Int)",
+    "let (x, ?, z) = (1, ?, f) in (x, z(?))",
+  ),
+  /* An annotated part takes its type from the annotation, so it is subtracted from
+     the definition's query: the definition is asked (?, ?, ? -> Int), not (Int, ...). */
+  synthesis_case(
+    ~ctx=ctx_var("f", "Bool -> Int"),
+    "bind-tuple-annotated-part",
+    "let (x : Int, y, z) = (1, true, f) in (x, z(?))",
+    "(Int, Int)",
+    "let (x : Int, ?, z) = (?, ?, f) in (x, z(?))",
+  ),
   synthesis_case(
     "bind-ctor-used",
     "type T = +A(Int) in let A(x) = A(1) in x",
