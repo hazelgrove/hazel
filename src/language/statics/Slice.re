@@ -890,21 +890,29 @@ let recorded = (~scratch, ~id: Id.t, m) =>
 
 // Append a sub-term to what the enclosing rule has recorded so far, or, for a
 // binder checked after what it scopes, put it in front.
-let record = (~scratch, ~id: Id.t, ~first=false, role: role, sub_term: t, m) => {
-  let so_far = recorded(~scratch, ~id, m);
-  Id.Map.add(
-    id,
-    scratch.write(
-      first ? [(role, sub_term), ...so_far] : so_far @ [(role, sub_term)],
-    ),
-    m,
-  );
-};
+let record = (~scratch, ~id: Id.t, ~first=false, role: role, sub_term: t, m) =>
+  if (id == Id.invalid) {
+    m;
+  } else {
+    let so_far = recorded(~scratch, ~id, m);
+    Id.Map.add(
+      id,
+      scratch.write(
+        first
+          ? [(role, sub_term), ...so_far] : so_far @ [(role, sub_term)],
+      ),
+      m,
+    );
+  };
 
 let take = (~scratch, ~id: Id.t, m) =>
-  switch (Option.bind(Id.Map.find_opt(id, m), scratch.read)) {
-  | Some(components) => (components, Id.Map.remove(id, m))
-  | None => ([], m)
+  if (id == Id.invalid) {
+    ([], Id.Map.remove(id, m));
+  } else {
+    switch (Option.bind(Id.Map.find_opt(id, m), scratch.read)) {
+    | Some(components) => (components, Id.Map.remove(id, m))
+    | None => ([], m)
+    };
   };
 
 let edge =

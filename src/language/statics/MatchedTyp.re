@@ -195,6 +195,8 @@ let identity_former =
       | _ => internal(),
   );
 
+let identity = ty => form(identity_former, [ty]);
+
 let arrow_former =
   make_former(
     ~arity=2,
@@ -252,6 +254,77 @@ let prod_former = arity =>
         },
     ~whole=items => Prod(items) |> temp,
   );
+
+let tuple_former = (~duplicate_labels, items) => {
+  let (_, slots) =
+    List.fold_left_map(
+      (seen, item) =>
+        switch (match_tup_label(item)) {
+        | Some((label, _)) when List.mem(label, duplicate_labels) =>
+          List.mem(label, seen)
+            ? (seen, (false, None))
+            : ([label, ...seen], (true, Some(label)))
+        | _ => (seen, (true, None))
+        },
+      [],
+      items,
+    );
+  let output_arity = List.filter(((keep, _)) => keep, slots) |> List.length;
+  make_former(
+    ~arity=List.length(items),
+    ~parts=
+      ty =>
+        switch (term_of(ty)) {
+        | Prod(outputs) when List.length(outputs) == output_arity =>
+          let (_, components) =
+            List.fold_left_map(
+              (outputs, (keep, _)) =>
+                if (keep) {
+                  switch (outputs) {
+                  | [output, ...outputs] => (outputs, output)
+                  | [] => ([], gap)
+                  };
+                } else {
+                  (outputs, gap);
+                },
+              outputs,
+              slots,
+            );
+          Some(components);
+        | _ => None
+        },
+    ~whole=
+      components =>
+        if (List.length(components) != List.length(slots)) {
+          internal();
+        } else {
+          List.map2(
+            ((keep, duplicate), component) =>
+              if (!keep) {
+                None;
+              } else {
+                switch (duplicate) {
+                | None => Some(component)
+                | Some(label) =>
+                  Some(
+                    is_empty(component)
+                      ? component
+                      : TupLabel(
+                          Label(label) |> temp,
+                          Unknown(Internal) |> temp,
+                        )
+                        |> temp,
+                  )
+                };
+              },
+            slots,
+            components,
+          )
+          |> List.filter_map(Fun.id)
+          |> (items => Prod(items) |> temp);
+        },
+  );
+};
 
 let poly_former = binder =>
   make_former(

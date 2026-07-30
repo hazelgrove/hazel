@@ -331,7 +331,7 @@ and uexp_to_info_map =
       (
         ~user_term=uexp,
         ~elab_term: Exp.t,
-        ~elab_syn_ty: option(Typ.t)=?,
+        ~formation: MatchedTyp.formation,
         ~marks: list(Mark.t)=[],
         ~warnings: list(Warning.list_item)=[],
         ~ctx=ctx,
@@ -343,24 +343,12 @@ and uexp_to_info_map =
         ~inferred_label: option(string)=None,
         ~label_sort=false,
         ~dot_labels: list(string)=[],
-        ~former: option(MatchedTyp.former)=None,
-        ~formation: option(MatchedTyp.formation)=?,
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
     let (recorded, m) = take_recorded(~id=Exp.rep_id(user_term), m);
-    let elab_syn_ty =
-      switch (formation, elab_syn_ty) {
-      | (Some(formation), _) => MatchedTyp.formed_type(formation)
-      | (None, Some(elab_syn_ty)) => elab_syn_ty
-      | (None, None) => failwith("missing expression result type")
-      };
-    let former =
-      switch (former, formation) {
-      | (Some(former), _) => Some(former)
-      | (None, Some({former, _})) => Some(former)
-      | (None, None) => None
-      };
+    let elab_syn_ty = MatchedTyp.formed_type(formation);
+    let former = Some(formation.former);
     let marks =
       switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
       | None => marks
@@ -683,7 +671,7 @@ and uexp_to_info_map =
       let (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Closure(env, e_elab) |> rewrap,
-        ~elab_syn_ty=e.elab_syn_ty,
+        ~formation=MatchedTyp.identity(e.elab_syn_ty),
         ~marks=[],
         ~co_ctx=e.co_ctx,
         m,
@@ -693,7 +681,7 @@ and uexp_to_info_map =
       let (e2, e2_elab, m) = go(~ana=syn, e2, m);
       add(
         ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
         ~marks=[IsMulti],
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
         m,
@@ -703,7 +691,7 @@ and uexp_to_info_map =
         multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
       add(
         ~elab_term=MultiHole(tms_elab) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
         ~marks=[IsMulti],
         ~co_ctx=CoCtx.union(co_ctxs),
         m,
@@ -717,7 +705,7 @@ and uexp_to_info_map =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
         ~elab_term=Asc(e_elab, Typ.normalize(ctx, t2)) |> rewrap,
-        ~elab_syn_ty=t_ty,
+        ~formation=MatchedTyp.identity(t_ty),
         ~marks=[],
         ~co_ctx=CoCtx.union([e.co_ctx, typ_refs]),
         m,
@@ -725,7 +713,7 @@ and uexp_to_info_map =
     | Invalid(token) =>
       add(
         ~elab_term=Invalid(token) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
         ~marks=[BadToken(token)],
         ~co_ctx=hole_co_ctx,
         m,
@@ -733,7 +721,7 @@ and uexp_to_info_map =
     | EmptyHole =>
       add(
         ~elab_term=EmptyHole |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
         ~marks=[],
         ~co_ctx=hole_co_ctx,
         m,
@@ -746,7 +734,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term=Deferral(position) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
         ~marks,
         ~message?,
         ~co_ctx=CoCtx.empty,
@@ -755,7 +743,8 @@ and uexp_to_info_map =
     | Undefined =>
       add(
         ~elab_term=Undefined |> rewrap,
-        ~elab_syn_ty=Unknown(Hole(EmptyHole)) |> Typ.temp,
+        ~formation=
+          MatchedTyp.identity(Unknown(Hole(EmptyHole)) |> Typ.temp),
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
@@ -765,7 +754,7 @@ and uexp_to_info_map =
         drv_to_info_map(term, m, ~ctx, ~ancestors=ancestors_inclusive, ~sort);
       add(
         ~elab_term=DrvQuote(term, sort) |> rewrap,
-        ~elab_syn_ty=DrvQuoteTy(sort) |> Typ.temp,
+        ~formation=MatchedTyp.identity(DrvQuoteTy(sort) |> Typ.temp),
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
@@ -779,7 +768,7 @@ and uexp_to_info_map =
         let ty = Atom(Atom.cls_of_t(c)) |> Typ.temp;
         add(
           ~elab_term=Atom(c) |> rewrap,
-          ~elab_syn_ty=ty,
+          ~formation=MatchedTyp.identity(ty),
           ~marks=[],
           ~co_ctx=CoCtx.empty,
           m,
@@ -787,7 +776,7 @@ and uexp_to_info_map =
       | R(BadInt(str)) =>
         add(
           ~elab_term=Invalid(str) |> rewrap,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
           ~marks=[BadToken(str)],
           ~co_ctx=CoCtx.empty,
           m,
@@ -802,7 +791,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term=LivelitName(name) |> rewrap,
-        ~elab_syn_ty=syn_lit,
+        ~formation=MatchedTyp.identity(syn_lit),
         ~marks=marks_lit,
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
         m,
@@ -962,7 +951,7 @@ and uexp_to_info_map =
          expression/value, so we synthesize to `?` without consulting the ctx. */
       add(
         ~elab_term=Var(name) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
@@ -977,7 +966,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term=Var(name) |> rewrap,
-        ~elab_syn_ty=syn_v,
+        ~formation=MatchedTyp.identity(syn_v),
         ~marks=marks_v,
         ~co_ctx,
         m,
@@ -986,7 +975,7 @@ and uexp_to_info_map =
       let^ (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=DynamicErrorHole(e_elab, err) |> rewrap,
-        ~elab_syn_ty=e.elab_syn_ty,
+        ~formation=MatchedTyp.identity(e.elab_syn_ty),
         ~marks=e.marks,
         ~co_ctx=e.co_ctx,
         m,
@@ -995,7 +984,7 @@ and uexp_to_info_map =
       let^ (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Parens(e_elab) |> rewrap,
-        ~elab_syn_ty=e.elab_syn_ty,
+        ~formation=MatchedTyp.identity(e.elab_syn_ty),
         ~marks=e.marks,
         ~co_ctx=e.co_ctx,
         m,
@@ -1004,7 +993,7 @@ and uexp_to_info_map =
       let^ (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Projector(data, e_elab) |> rewrap,
-        ~elab_syn_ty=e.elab_syn_ty,
+        ~formation=MatchedTyp.identity(e.elab_syn_ty),
         ~marks=e.marks,
         ~co_ctx=e.co_ctx,
         m,
@@ -1017,7 +1006,7 @@ and uexp_to_info_map =
         let& (e, e_elab, m) = go(~ana=syn, e, m);
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
           ~marks=[BadOperator(msg)],
           ~co_ctx=e.co_ctx,
           m,
@@ -1028,7 +1017,7 @@ and uexp_to_info_map =
         let& (e, e_elab, m) = go(~ana=ty_in, e, m);
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
-          ~elab_syn_ty=ty_out,
+          ~formation=MatchedTyp.identity(ty_out),
           ~marks=[],
           ~co_ctx=e.co_ctx,
           m,
@@ -1043,7 +1032,7 @@ and uexp_to_info_map =
         let& (e2, e2_elab, m) = go(~ana=syn, e2, m);
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
           ~marks=[BadOperator(msg)],
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
           m,
@@ -1065,7 +1054,7 @@ and uexp_to_info_map =
         | None =>
           add(
             ~elab_term=elab_poly,
-            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
+            ~formation=MatchedTyp.identity(Atom(Bool) |> Typ.fresh),
             ~marks=[NoMeet(PolyEq, Typ.add_source(ids, tys))],
             ~co_ctx=co_poly,
             m,
@@ -1073,7 +1062,7 @@ and uexp_to_info_map =
         | Some(ty) when Typ.normalize(ctx, ty) |> Typ.has_fun =>
           add(
             ~elab_term=elab_poly,
-            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
+            ~formation=MatchedTyp.identity(Atom(Bool) |> Typ.fresh),
             ~marks=[CompareFun(ty)],
             ~co_ctx=co_poly,
             m,
@@ -1081,7 +1070,7 @@ and uexp_to_info_map =
         | Some(_) =>
           add(
             ~elab_term=elab_poly,
-            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
+            ~formation=MatchedTyp.identity(Atom(Bool) |> Typ.fresh),
             ~marks=[],
             ~co_ctx=co_poly,
             m,
@@ -1095,7 +1084,7 @@ and uexp_to_info_map =
         let& (e2, e2_elab, m) = go(~ana=ty2, e2, m);
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
-          ~elab_syn_ty=ty_out,
+          ~formation=MatchedTyp.identity(ty_out),
           ~marks=[],
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
           m,
@@ -1125,15 +1114,13 @@ and uexp_to_info_map =
         Typ.normalize(ctx, t2.ty).term,
       ) {
       | (Prod(ts1), Prod(ts2)) =>
-        let former =
-          MatchedTyp.prod_extension_former(
-            Prod(ts1) |> Typ.temp,
-            Prod(ts2) |> Typ.temp,
-          );
+        let left = Prod(ts1) |> Typ.temp;
+        let right = Prod(ts2) |> Typ.temp;
+        let former = MatchedTyp.prod_extension_former(left, right);
         let* (_, _, m) = (t1, e1_elab, m);
         let* (_, _, m) = (t2, e2_elab, m);
         add(
-          ~formation=MatchedTyp.form(former, [t1.ty, t2.ty]),
+          ~formation=MatchedTyp.form(former, [left, right]),
           ~elab_term,
           ~marks=[],
           ~co_ctx,
@@ -1142,7 +1129,8 @@ and uexp_to_info_map =
       | _ =>
         add(
           ~elab_term,
-          ~elab_syn_ty=IdTagged.FreshGrammar.Typ.unknown(Internal),
+          ~formation=
+            MatchedTyp.identity(IdTagged.FreshGrammar.Typ.unknown(Internal)),
           ~marks=[],
           ~co_ctx,
           m,
@@ -1233,7 +1221,7 @@ and uexp_to_info_map =
                   ~elab_term=label,
                   ~ctx,
                   ~ana=labmode,
-                  ~elab_syn_ty=label_syn,
+                  ~formation=MatchedTyp.identity(label_syn),
                   ~marks=label_marks,
                   ~co_ctx=CoCtx.empty,
                   ~label_inference=None,
@@ -1252,7 +1240,8 @@ and uexp_to_info_map =
                   ~elab_term=label,
                   ~ctx,
                   ~ana=labmode,
-                  ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+                  ~formation=
+                    MatchedTyp.identity(Unknown(SynSwitch) |> Typ.temp),
                   ~marks=[],
                   ~co_ctx=CoCtx.empty,
                   ~label_inference=None,
@@ -1335,7 +1324,7 @@ and uexp_to_info_map =
           ~get_marks=(e: Info.exp) => e.marks,
           es',
         );
-      let (syn_tuple, cms_tuple) =
+      let (_, cms_tuple) =
         LabeledTupleStaticsHelpers.finalize_tuple_type(
           ~duplicate_labels,
           ~invalid_labels,
@@ -1358,12 +1347,9 @@ and uexp_to_info_map =
           |> rewrap
         | _ => Tuple(es_elab) |> rewrap
         };
+      let former = MatchedTyp.tuple_former(~duplicate_labels, ty_list);
       add(
-        ~formation=
-          MatchedTyp.reform(
-            MatchedTyp.prod_former(List.length(ty_list)),
-            syn_tuple,
-          ),
+        ~formation=MatchedTyp.form(former, ty_list),
         ~elab_term=tuple_elab,
         ~marks=cms_tuple,
         ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')),
@@ -1386,7 +1372,7 @@ and uexp_to_info_map =
           ~ancestors=ancestors_inclusive,
           ~ctx,
           ~ana=syn,
-          ~elab_syn_ty=ExplicitNonlabel |> Typ.temp,
+          ~formation=MatchedTyp.identity(ExplicitNonlabel |> Typ.temp),
           ~marks=[],
           ~co_ctx=CoCtx.empty,
           ~label_inference=None,
@@ -1398,8 +1384,11 @@ and uexp_to_info_map =
         );
       add(
         ~elab_term=TupLabel(elab_label, elab_inner) |> rewrap,
-        ~elab_syn_ty=
-          TupLabel(ExplicitNonlabel |> Typ.temp, e.elab_syn_ty) |> Typ.temp,
+        ~formation=
+          MatchedTyp.form(
+            MatchedTyp.label_former,
+            [ExplicitNonlabel |> Typ.temp, e.elab_syn_ty],
+          ),
         ~marks=[],
         ~co_ctx=e.co_ctx,
         m,
@@ -1418,7 +1407,7 @@ and uexp_to_info_map =
               ~ancestors=ancestors_inclusive,
               ~ctx,
               ~ana=labmode,
-              ~elab_syn_ty=Label(name) |> Typ.temp,
+              ~formation=MatchedTyp.identity(Label(name) |> Typ.temp),
               ~marks=[],
               ~co_ctx=CoCtx.empty,
               ~label_inference=None,
@@ -1437,7 +1426,7 @@ and uexp_to_info_map =
               ~ancestors=ancestors_inclusive,
               ~ctx,
               ~ana=labmode,
-              ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+              ~formation=MatchedTyp.identity(Unknown(SynSwitch) |> Typ.temp),
               ~marks=[],
               ~co_ctx=CoCtx.empty,
               ~label_inference=None,
@@ -1466,7 +1455,7 @@ and uexp_to_info_map =
         );
       add(
         ~elab_term=TupLabel(label, elab_child) |> rewrap,
-        ~elab_syn_ty=syn_tl,
+        ~formation=MatchedTyp.reform(MatchedTyp.label_former, syn_tl),
         ~marks=cms_tl,
         ~co_ctx=e.co_ctx,
         m,
@@ -1474,7 +1463,7 @@ and uexp_to_info_map =
     | ExplicitNonlabel =>
       add(
         ~elab_term=ExplicitNonlabel |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
         ~marks=[ExplicitNonlabel],
         ~co_ctx=CoCtx.empty,
         m,
@@ -1482,7 +1471,7 @@ and uexp_to_info_map =
     | Label(name) =>
       add(
         ~elab_term=Label(name) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
         ~marks=[UnexpectedLabelSort(name)],
         ~co_ctx=CoCtx.empty,
         m,
@@ -1495,7 +1484,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term=BuiltinFun(string) |> rewrap,
-        ~elab_syn_ty=syn_b,
+        ~formation=MatchedTyp.identity(syn_b),
         ~marks=marks_b,
         ~co_ctx=CoCtx.empty,
         m,
@@ -1527,7 +1516,7 @@ and uexp_to_info_map =
             ~ancestors=ancestors_inclusive,
             ~ctx,
             ~ana=syn,
-            ~elab_syn_ty=Label(name) |> Typ.temp,
+            ~formation=MatchedTyp.identity(Label(name) |> Typ.temp),
             ~marks=[],
             ~co_ctx=CoCtx.empty,
             ~label_inference=None,
@@ -1606,7 +1595,7 @@ and uexp_to_info_map =
               };
             add(
               ~elab_term=dot_elab,
-              ~elab_syn_ty=typ,
+              ~formation=MatchedTyp.identity(typ),
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1615,7 +1604,7 @@ and uexp_to_info_map =
           | None =>
             add(
               ~elab_term=dot_elab,
-              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+              ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
               ~marks=[LabelNotFound(name, labels)],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1625,7 +1614,7 @@ and uexp_to_info_map =
         | EmptyHole =>
           add(
             ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
             ~marks=[],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1634,7 +1623,7 @@ and uexp_to_info_map =
         | _ =>
           add(
             ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
             ~marks=[BadLabel(Exp(e2))],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1654,7 +1643,7 @@ and uexp_to_info_map =
           | Some(typ) =>
             add(
               ~elab_term=dot_elab,
-              ~elab_syn_ty=List(typ) |> Typ.fresh,
+              ~formation=MatchedTyp.form(MatchedTyp.list_former, [typ]),
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1663,7 +1652,7 @@ and uexp_to_info_map =
           | None =>
             add(
               ~elab_term=dot_elab,
-              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+              ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
               ~marks=[LabelNotFound(name, labels)],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1673,7 +1662,7 @@ and uexp_to_info_map =
         | EmptyHole =>
           add(
             ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
             ~marks=[],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1682,7 +1671,7 @@ and uexp_to_info_map =
         | _ =>
           add(
             ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
             ~marks=[BadLabel(Exp(e2))],
             ~dot_labels=available_labels,
             ~co_ctx=dot_co_ctx,
@@ -1692,7 +1681,11 @@ and uexp_to_info_map =
       | List({term: Unknown(_), _}) =>
         add(
           ~elab_term=dot_elab,
-          ~elab_syn_ty=List(Unknown(Internal) |> Typ.temp) |> Typ.temp,
+          ~formation=
+            MatchedTyp.form(
+              MatchedTyp.list_former,
+              [Unknown(Internal) |> Typ.temp],
+            ),
           ~marks=[],
           ~dot_labels=available_labels,
           ~co_ctx=dot_co_ctx,
@@ -1701,7 +1694,7 @@ and uexp_to_info_map =
       | _ =>
         add(
           ~elab_term=dot_elab,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
           ~marks=[DotOperatorRequiresTuple],
           ~dot_labels=available_labels,
           ~co_ctx=dot_co_ctx,
@@ -1712,7 +1705,7 @@ and uexp_to_info_map =
       let& (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=Test(e_elab) |> rewrap,
-        ~elab_syn_ty=Prod([]) |> Typ.temp,
+        ~formation=MatchedTyp.form(MatchedTyp.prod_former(0), []),
         ~marks=[],
         ~co_ctx=e.co_ctx,
         m,
@@ -1723,7 +1716,7 @@ and uexp_to_info_map =
         go(~ana=Atom(String) |> Typ.temp, hint, m);
       add(
         ~elab_term=HintedTest(e_elab, hint_elab) |> rewrap,
-        ~elab_syn_ty=Prod([]) |> Typ.temp,
+        ~formation=MatchedTyp.form(MatchedTyp.prod_former(0), []),
         ~marks=[],
         ~co_ctx=CoCtx.union([e.co_ctx, hint.co_ctx]),
         m,
@@ -1741,7 +1734,7 @@ and uexp_to_info_map =
             body_elab,
           )
           |> rewrap,
-        ~elab_syn_ty=body.elab_syn_ty,
+        ~formation=MatchedTyp.identity(body.elab_syn_ty),
         ~marks=[],
         ~co_ctx=CoCtx.union([cond.co_ctx, body.co_ctx]),
         m,
@@ -1750,7 +1743,7 @@ and uexp_to_info_map =
       let^ (body, body_elab, m) = go(~ana, body, m);
       add(
         ~elab_term=Filter(Residue(i, act), body_elab) |> rewrap,
-        ~elab_syn_ty=body.elab_syn_ty,
+        ~formation=MatchedTyp.identity(body.elab_syn_ty),
         ~marks=[],
         ~co_ctx=CoCtx.union([body.co_ctx]),
         m,
@@ -1760,7 +1753,7 @@ and uexp_to_info_map =
       let^ (e2, e2_elab, m) = go(~ana, e2, m);
       add(
         ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=e2.elab_syn_ty,
+        ~formation=MatchedTyp.identity(e2.elab_syn_ty),
         ~marks=[],
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
         m,
@@ -1778,7 +1771,13 @@ and uexp_to_info_map =
           let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
           let elab_term = Var(name) |> rewrap;
           let (info, _, m) =
-            add(~elab_term, ~elab_syn_ty=typ, ~marks=[], ~co_ctx, m);
+            add(
+              ~elab_term,
+              ~formation=MatchedTyp.identity(typ),
+              ~marks=[],
+              ~co_ctx,
+              m,
+            );
           let m =
             add_info(
               ids,
@@ -1793,7 +1792,7 @@ and uexp_to_info_map =
           let elab_term = Constructor(ctr, Some(None)) |> rewrap;
           add(
             ~elab_term,
-            ~elab_syn_ty=syn_res,
+            ~formation=MatchedTyp.identity(syn_res),
             ~marks=marks_res,
             ~co_ctx=
               CoCtx.singleton(
@@ -1890,7 +1889,13 @@ and uexp_to_info_map =
             ~ana,
             ~typ=elab_syn_ty,
           );
-        add(~elab_term, ~elab_syn_ty, ~marks=marks_res, ~co_ctx, m);
+        add(
+          ~elab_term,
+          ~formation=MatchedTyp.identity(elab_syn_ty),
+          ~marks=marks_res,
+          ~co_ctx,
+          m,
+        );
       };
     | Ap(dir, fn, arg) =>
       switch (fn.term) {
@@ -1907,7 +1912,7 @@ and uexp_to_info_map =
             let (info, elab, m) =
               add(
                 ~elab_term=expanded,
-                ~elab_syn_ty=expansion_t,
+                ~formation=MatchedTyp.identity(expansion_t),
                 ~marks=[],
                 ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                 m,
@@ -1922,7 +1927,7 @@ and uexp_to_info_map =
             // if we can't expand, flag as improper model
             add(
               ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
-              ~elab_syn_ty=expansion_t,
+              ~formation=MatchedTyp.identity(expansion_t),
               ~marks=[BadLivelitModel(expansion_t)],
               ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
               m,
@@ -1936,7 +1941,7 @@ and uexp_to_info_map =
             go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
           add(
             ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
             ~marks=[],
             ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
             m,
@@ -2034,14 +2039,14 @@ and uexp_to_info_map =
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
             ? add(
                 ~elab_term,
-                ~elab_syn_ty=ty_out,
+                ~formation=MatchedTyp.identity(ty_out),
                 ~marks=[BadTrivAp(ty_in)],
                 ~co_ctx=co_ap,
                 m,
               )
             : add(
                 ~elab_term,
-                ~elab_syn_ty=ty_out,
+                ~formation=MatchedTyp.identity(ty_out),
                 ~marks=[],
                 ~co_ctx=co_ap,
                 m,
@@ -2246,7 +2251,8 @@ and uexp_to_info_map =
             |> MatchedTyp.bundle_args;
           add(
             ~elab_term=DeferredAp(fn_elab, args_elabs) |> rewrap,
-            ~elab_syn_ty=Arrow(ty_in', ty_out) |> Typ.temp,
+            ~formation=
+              MatchedTyp.form(MatchedTyp.arrow_former, [ty_in', ty_out]),
             ~marks=[],
             ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
             m,
@@ -2258,7 +2264,7 @@ and uexp_to_info_map =
           let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
           add(
             ~elab_term=DeferredAp(fn_elab, args_elabs) |> rewrap,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
             ~marks=[
               IsBadPartialAp(
                 ArityMismatch({
@@ -2314,7 +2320,7 @@ and uexp_to_info_map =
         go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
-        ~elab_syn_ty=Atom(Bool) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Atom(Bool) |> Typ.temp),
         ~marks=[],
         ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
         m,
@@ -2382,7 +2388,11 @@ and uexp_to_info_map =
       let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
         ~elab_term=TypAbs(utpat, body_elab, tfname) |> rewrap,
-        ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
+        ~formation=
+          MatchedTyp.form(
+            MatchedTyp.poly_former(utpat),
+            [body.elab_syn_ty],
+          ),
         ~marks=[],
         ~co_ctx=CoCtx.mk(ctx, ctx_body, body.co_ctx),
         m,
@@ -2408,7 +2418,7 @@ and uexp_to_info_map =
       let m = FunctionSugar.add_binder_infos(m, ~user_pat=p, ~f_name);
       add(
         ~elab_term=rewritten_elab,
-        ~elab_syn_ty=rewritten_info.elab_syn_ty,
+        ~formation=MatchedTyp.identity(rewritten_info.elab_syn_ty),
         ~marks=rewritten_info.marks,
         ~co_ctx=rewritten_info.co_ctx,
         m,
@@ -2581,7 +2591,7 @@ and uexp_to_info_map =
         };
       add(
         ~elab_term,
-        ~elab_syn_ty=syn_ty_let,
+        ~formation=MatchedTyp.identity(syn_ty_let),
         ~marks=marks_let,
         ~co_ctx=
           CoCtx.union([
@@ -2608,7 +2618,7 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=e2.elab_syn_ty,
+        ~formation=MatchedTyp.identity(e2.elab_syn_ty),
         ~marks=[],
         ~co_ctx=
           CoCtx.union([
@@ -2630,7 +2640,7 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=e2.elab_syn_ty,
+        ~formation=MatchedTyp.identity(e2.elab_syn_ty),
         ~marks=[BadTheorem(e2.ty)],
         ~co_ctx=
           CoCtx.union([
@@ -2644,7 +2654,7 @@ and uexp_to_info_map =
       let (_, e_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=ProofObject(e_elab) |> rewrap,
-        ~elab_syn_ty=Typ.temp(ProofOf(e)),
+        ~formation=MatchedTyp.identity(Typ.temp(ProofOf(e))),
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
@@ -2660,7 +2670,7 @@ and uexp_to_info_map =
         FixF(p_elab, Asc(e_elab, p'.ty) |> Exp.fresh, env) |> rewrap;
       add(
         ~elab_term,
-        ~elab_syn_ty=p'.elab_syn_ty,
+        ~formation=MatchedTyp.identity(p'.elab_syn_ty),
         ~marks=[],
         ~co_ctx=
           CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx), pat_typ_refs]),
@@ -2714,7 +2724,7 @@ and uexp_to_info_map =
         );
       add(
         ~elab_term=elab,
-        ~elab_syn_ty,
+        ~formation=MatchedTyp.identity(elab_syn_ty),
         ~marks=cms_if,
         ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
         m,
@@ -2852,7 +2862,13 @@ and uexp_to_info_map =
           List.map(branch_fresh_syn, es),
           branch_ids,
         );
-      add(~elab_term, ~elab_syn_ty, ~marks=marks_match', ~co_ctx, m);
+      add(
+        ~elab_term,
+        ~formation=MatchedTyp.identity(elab_syn_ty),
+        ~marks=marks_match',
+        ~co_ctx,
+        m,
+      );
     | TyAlias(typat, utyp, body) =>
       /* Desugar Sig types so type aliases like `type T = {let x : Int}`
          store `Prod([TupLabel(...)])` rather than `Sig([...])` in the
@@ -3149,7 +3165,7 @@ and uexp_to_info_map =
           );
         add(
           ~elab_term=body_elab,
-          ~elab_syn_ty=ty_escape,
+          ~formation=MatchedTyp.identity(ty_escape),
           ~marks=[],
           ~co_ctx=CoCtx.union([CoCtx.mk(ctx, ctx_body, co_ctx), typ_refs]),
           m,
@@ -3238,7 +3254,7 @@ and uexp_to_info_map =
           );
         add(
           ~elab_term=body_elab,
-          ~elab_syn_ty=ty_escape,
+          ~formation=MatchedTyp.identity(ty_escape),
           ~marks=[],
           ~co_ctx=CoCtx.union([CoCtx.mk(ctx, ctx_body, co_ctx), typ_refs]),
           m,
@@ -3269,7 +3285,7 @@ and uexp_to_info_map =
           );
         add(
           ~elab_term=body_elab,
-          ~elab_syn_ty=ty_body,
+          ~formation=MatchedTyp.identity(ty_body),
           ~marks=[],
           ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
           m,
@@ -3296,7 +3312,7 @@ and uexp_to_info_map =
       | Some(_) =>
         add(
           ~elab_term=body_elab,
-          ~elab_syn_ty=body.elab_syn_ty,
+          ~formation=MatchedTyp.identity(body.elab_syn_ty),
           ~marks=[],
           ~co_ctx=body.co_ctx,
           m,
@@ -3305,7 +3321,7 @@ and uexp_to_info_map =
           when Typ.fast_equal(Unknown(Internal) |> Typ.temp, typ.user_term) =>
         add(
           ~elab_term=body_elab,
-          ~elab_syn_ty=body.elab_syn_ty,
+          ~formation=MatchedTyp.identity(body.elab_syn_ty),
           ~marks=[],
           ~co_ctx=body.co_ctx,
           m,
@@ -3313,7 +3329,7 @@ and uexp_to_info_map =
       | None =>
         add(
           ~elab_term=body_elab,
-          ~elab_syn_ty=body.elab_syn_ty,
+          ~formation=MatchedTyp.identity(body.elab_syn_ty),
           ~marks=[
             InvalidUseMode({
               bad_typ: typ.user_term,
@@ -3345,7 +3361,7 @@ and uexp_to_info_map =
         );
       add(
         ~elab_term=module_elab,
-        ~elab_syn_ty=actual_ty,
+        ~formation=MatchedTyp.identity(actual_ty),
         ~marks=[],
         ~co_ctx=expanded_info.co_ctx,
         m,
@@ -3386,7 +3402,7 @@ and uexp_to_info_map =
         ModuleHelpers.moduleexp_elab(~def_elab_direct, expanded_elab);
       add(
         ~elab_term=moduleexp_elab,
-        ~elab_syn_ty=expanded_info.elab_syn_ty,
+        ~formation=MatchedTyp.identity(expanded_info.elab_syn_ty),
         ~marks=[],
         ~co_ctx=expanded_info.co_ctx,
         m,
@@ -3436,7 +3452,7 @@ and upat_to_info_map =
         ~co_ctx=co_ctx,
         ~ana=ana,
         ~ancestors=ancestors_inclusive,
-        ~elab_syn_ty: option(Typ.t)=?,
+        ~formation: MatchedTyp.formation,
         ~marks: list(Mark.t)=[],
         ~warnings: list(Warning.list_item)=[],
         ~constraint_: Coverage.Constraint.t,
@@ -3444,25 +3460,13 @@ and upat_to_info_map =
         ~inferred_label: option(LabeledTuple.label)=None,
         ~label_sort=false,
         ~binds: option((CoCtx.sort, string, Id.t))=None,
-        ~former: option(MatchedTyp.former)=None,
-        ~formation: option(MatchedTyp.formation)=?,
         ~declared=false,
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
     let (recorded, m) = take_recorded(~id=Pat.rep_id(user_term), m);
-    let elab_syn_ty =
-      switch (formation, elab_syn_ty) {
-      | (Some(formation), _) => MatchedTyp.formed_type(formation)
-      | (None, Some(elab_syn_ty)) => elab_syn_ty
-      | (None, None) => failwith("missing pattern result type")
-      };
-    let former =
-      switch (former, formation) {
-      | (Some(former), _) => Some(former)
-      | (None, Some({former, _})) => Some(former)
-      | (None, None) => None
-      };
+    let elab_syn_ty = MatchedTyp.formed_type(formation);
+    let former = Some(formation.former);
     let marks =
       if (marks != []) {
         marks;
@@ -3622,7 +3626,7 @@ and upat_to_info_map =
     | MultiHole(tms) =>
       let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
       add(
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
         ~marks=[IsMulti],
         ~ctx,
         ~constraint_=Coverage.Constraint.Hole(None),
@@ -3630,7 +3634,7 @@ and upat_to_info_map =
       );
     | Invalid(token) =>
       add(
-        ~elab_syn_ty=SynTy.unknown_internal(),
+        ~formation=MatchedTyp.identity(SynTy.unknown_internal()),
         ~marks=[BadToken(token)],
         ~ctx,
         ~constraint_=Coverage.Constraint.Hole(None),
@@ -3638,7 +3642,7 @@ and upat_to_info_map =
       )
     | EmptyHole =>
       add(
-        ~elab_syn_ty=unknown,
+        ~formation=MatchedTyp.identity(unknown),
         ~marks=[],
         ~ctx,
         ~constraint_=Coverage.Constraint.Hole(None),
@@ -3651,7 +3655,7 @@ and upat_to_info_map =
       | L(Nat(nat)) =>
         add(
           ~elab_term=Atom(Nat(nat)) |> rewrap,
-          ~elab_syn_ty=Atom(Nat) |> Typ.temp,
+          ~formation=MatchedTyp.identity(Atom(Nat) |> Typ.temp),
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.BigInt(nat),
@@ -3660,7 +3664,7 @@ and upat_to_info_map =
       | L(Int(int)) =>
         add(
           ~elab_term=Atom(Int(int)) |> rewrap,
-          ~elab_syn_ty=Atom(Int) |> Typ.temp,
+          ~formation=MatchedTyp.identity(Atom(Int) |> Typ.temp),
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.BigInt(int),
@@ -3669,7 +3673,7 @@ and upat_to_info_map =
       | L(SInt(int)) =>
         add(
           ~elab_term=Atom(SInt(int)) |> rewrap,
-          ~elab_syn_ty=Atom(SInt) |> Typ.temp,
+          ~formation=MatchedTyp.identity(Atom(SInt) |> Typ.temp),
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.SInt(int),
@@ -3678,7 +3682,7 @@ and upat_to_info_map =
       | L(Float(float)) =>
         add(
           ~elab_term=Atom(Float(float)) |> rewrap,
-          ~elab_syn_ty=Atom(Float) |> Typ.temp,
+          ~formation=MatchedTyp.identity(Atom(Float) |> Typ.temp),
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.Float(float),
@@ -3687,7 +3691,7 @@ and upat_to_info_map =
       | L(Bool(bool)) =>
         add(
           ~elab_term=Atom(Bool(bool)) |> rewrap,
-          ~elab_syn_ty=Atom(Bool) |> Typ.temp,
+          ~formation=MatchedTyp.identity(Atom(Bool) |> Typ.temp),
           ~marks=[],
           ~ctx,
           ~constraint_=
@@ -3697,7 +3701,7 @@ and upat_to_info_map =
       | L(String(string)) =>
         add(
           ~elab_term=Atom(String(string)) |> rewrap,
-          ~elab_syn_ty=Atom(String) |> Typ.temp,
+          ~formation=MatchedTyp.identity(Atom(String) |> Typ.temp),
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.String(string),
@@ -3706,7 +3710,7 @@ and upat_to_info_map =
       | R(BadInt(str)) =>
         add(
           ~elab_term=Invalid(str) |> rewrap,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
           ~marks=[BadToken(str)],
           ~ctx,
           ~constraint_=Coverage.Constraint.Hole(None),
@@ -3765,7 +3769,7 @@ and upat_to_info_map =
         let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
         add(
           ~elab_term=ListLit(ps_elabs) |> rewrap,
-          ~elab_syn_ty=syn_no_meet,
+          ~formation=MatchedTyp.reform(MatchedTyp.list_former, syn_no_meet),
           ~marks=
             should_emit_nomeet_mark(ctx, ana, syn_no_meet)
               ? [NoMeet(List, Typ.add_source(ids, tys))] : [],
@@ -3776,7 +3780,7 @@ and upat_to_info_map =
       | Some(ty) =>
         add(
           ~elab_term=ListLit(ps_elabs) |> rewrap,
-          ~elab_syn_ty=List(ty) |> Typ.temp,
+          ~formation=MatchedTyp.form(MatchedTyp.list_former, [ty]),
           ~marks=[],
           ~ctx,
           ~constraint_=list_constraint(cons),
@@ -3802,7 +3806,7 @@ and upat_to_info_map =
         go(~ctx=hd.ctx, ~ana=List(refined_inner) |> Typ.fresh, tl, m);
       add(
         ~elab_term=Cons(hd_elab, tl_elab) |> rewrap,
-        ~elab_syn_ty=List(hd.elab_syn_ty) |> Typ.temp,
+        ~formation=MatchedTyp.form(MatchedTyp.list_former, [hd.elab_syn_ty]),
         ~marks=[],
         ~ctx=tl.ctx,
         ~constraint_=Coverage.Constraint.cons(hd.constraint_, tl.constraint_),
@@ -3810,7 +3814,7 @@ and upat_to_info_map =
       );
     | Wild =>
       add(
-        ~elab_syn_ty=unknown,
+        ~formation=MatchedTyp.identity(unknown),
         ~marks=[],
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
@@ -3832,7 +3836,7 @@ and upat_to_info_map =
       List.exists(l => name == l, duplicate_bindings)
         ? {
           add(
-            ~elab_syn_ty=unknown,
+            ~formation=MatchedTyp.identity(unknown),
             ~marks=[Mark.DuplicateVar(name, unknown)],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
@@ -3841,7 +3845,7 @@ and upat_to_info_map =
           );
         }
         : add(
-            ~elab_syn_ty=unknown,
+            ~formation=MatchedTyp.identity(unknown),
             ~marks=[],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
@@ -3860,7 +3864,7 @@ and upat_to_info_map =
           ~co_ctx,
           ~ana=syn,
           ~ancestors=ancestors_inclusive,
-          ~elab_syn_ty=ExplicitNonlabel |> Typ.temp,
+          ~formation=MatchedTyp.identity(ExplicitNonlabel |> Typ.temp),
           ~marks=[],
           ~constraint_=Coverage.Constraint.Truth,
           ~label_inference=None,
@@ -3872,7 +3876,7 @@ and upat_to_info_map =
       (p, p_elab, add_info(ids, InfoPat(p), m));
     | ExplicitNonlabel =>
       add(
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
         ~marks=[ExplicitNonlabel],
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
@@ -3893,7 +3897,7 @@ and upat_to_info_map =
               ~co_ctx,
               ~ana=labmode,
               ~ancestors=ancestors_inclusive,
-              ~elab_syn_ty=Label(name) |> Typ.temp,
+              ~formation=MatchedTyp.identity(Label(name) |> Typ.temp),
               ~marks=[],
               ~constraint_=Coverage.Constraint.Truth,
               ~label_inference=None,
@@ -3912,7 +3916,7 @@ and upat_to_info_map =
               ~co_ctx,
               ~ana=labmode,
               ~ancestors=ancestors_inclusive,
-              ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+              ~formation=MatchedTyp.identity(Unknown(SynSwitch) |> Typ.temp),
               ~marks=[],
               ~constraint_=Coverage.Constraint.Truth,
               ~label_inference=None,
@@ -3932,7 +3936,7 @@ and upat_to_info_map =
               ~co_ctx=p_info.co_ctx,
               ~ana=p_info.ana,
               ~ancestors=p_info.ancestors,
-              ~elab_syn_ty=p_info.elab_syn_ty,
+              ~formation=MatchedTyp.identity(p_info.elab_syn_ty),
               ~marks=p_info.marks @ [BadLabel(Pat(label))],
               ~constraint_=p_info.constraint_,
               ~label_inference=p_info.label_inference,
@@ -3951,7 +3955,7 @@ and upat_to_info_map =
           ~malformed_source=Pat(label),
         );
       add(
-        ~elab_syn_ty=syn_tl,
+        ~formation=MatchedTyp.reform(MatchedTyp.label_former, syn_tl),
         ~marks=cms_tl,
         ~ctx=p.ctx,
         ~constraint_=Coverage.Constraint.Tuple([p.constraint_]),
@@ -4055,7 +4059,7 @@ and upat_to_info_map =
                   ~co_ctx,
                   ~ana=labmode,
                   ~ancestors=ancestors_inclusive,
-                  ~elab_syn_ty=label_syn,
+                  ~formation=MatchedTyp.identity(label_syn),
                   ~marks=label_marks,
                   ~constraint_=Coverage.Constraint.Truth,
                   ~label_inference=None,
@@ -4074,7 +4078,8 @@ and upat_to_info_map =
                   ~co_ctx,
                   ~ana=labmode,
                   ~ancestors=ancestors_inclusive,
-                  ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+                  ~formation=
+                    MatchedTyp.identity(Unknown(SynSwitch) |> Typ.temp),
                   ~marks=[],
                   ~constraint_=Coverage.Constraint.Truth,
                   ~label_inference=None,
@@ -4094,7 +4099,7 @@ and upat_to_info_map =
                   ~co_ctx=p_info.co_ctx,
                   ~ana=p_info.ana,
                   ~ancestors=p_info.ancestors,
-                  ~elab_syn_ty=p_info.elab_syn_ty,
+                  ~formation=MatchedTyp.identity(p_info.elab_syn_ty),
                   ~marks=p_info.marks @ [BadLabel(Pat(label))],
                   ~constraint_=p_info.constraint_,
                   ~label_inference=p_info.label_inference,
@@ -4196,24 +4201,16 @@ and upat_to_info_map =
           ~get_marks=(e: Info.pat) => e.marks,
           info_pats,
         );
-      let (syn_tp, cms_tp) =
+      let (_, cms_tp) =
         LabeledTupleStaticsHelpers.finalize_tuple_type(
           ~duplicate_labels,
           ~invalid_labels,
           ~malformed_labels,
           tys,
         );
+      let former = MatchedTyp.tuple_former(~duplicate_labels, tys);
       add(
-        ~formation=
-          MatchedTyp.reform(
-            MatchedTyp.prod_former(
-              switch (Typ.term_of(syn_tp)) {
-              | Prod(tys) => List.length(tys)
-              | _ => List.length(info_pats)
-              },
-            ),
-            syn_tp,
-          ),
+        ~formation=MatchedTyp.form(former, tys),
         ~marks=cms_tp,
         ~ctx,
         ~constraint_,
@@ -4229,7 +4226,7 @@ and upat_to_info_map =
       );
     | Label(name) =>
       add(
-        ~elab_syn_ty=Label(name) |> Typ.temp,
+        ~formation=MatchedTyp.identity(Label(name) |> Typ.temp),
         ~marks=[],
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
@@ -4239,7 +4236,7 @@ and upat_to_info_map =
       let^ (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add(
         ~elab_term=Parens(p_elab) |> rewrap,
-        ~elab_syn_ty=p.elab_syn_ty,
+        ~formation=MatchedTyp.identity(p.elab_syn_ty),
         ~marks=p.marks,
         ~ctx=p.ctx,
         ~constraint_=p.constraint_,
@@ -4249,7 +4246,7 @@ and upat_to_info_map =
       let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add(
         ~elab_term=Projector(data, p_elab) |> rewrap,
-        ~elab_syn_ty=p.elab_syn_ty,
+        ~formation=MatchedTyp.identity(p.elab_syn_ty),
         ~marks=p.marks,
         ~ctx=p.ctx,
         ~constraint_=p.constraint_,
@@ -4270,7 +4267,7 @@ and upat_to_info_map =
         };
       add(
         ~elab_term=Constructor(ctr, Some(elab_ty)) |> rewrap,
-        ~elab_syn_ty=syn_ctr,
+        ~formation=MatchedTyp.identity(syn_ctr),
         ~marks=cms_ctr,
         ~ctx,
         ~co_ctx=
@@ -4302,7 +4299,30 @@ and upat_to_info_map =
       };
       let (ty_in, ty_out) =
         MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn'.elab_syn_ty);
-      let arg_role = ctr == None ? Slice.Omit : Slice.Part;
+      let (formation, arg_role) =
+        switch (ctr) {
+        | Some(ctr) =>
+          let former =
+            ConstructorStaticsHelpers.payload_former(
+              ~shape=ty_out,
+              ~expanded=Typ.weak_head_normalize(ctx, ty_out),
+              ctr,
+            );
+          switch (former.parts(ty_out)) {
+          | Some(components) => (
+              MatchedTyp.form(former, components),
+              Slice.Binder,
+            )
+          | None => (
+              MatchedTyp.form(MatchedTyp.identity_former, [ty_out]),
+              Slice.Binder,
+            )
+          };
+        | None => (
+            MatchedTyp.form(MatchedTyp.identity_former, [ty_out]),
+            Slice.Omit,
+          )
+        };
       let (arg, arg_elab, m) =
         pat_edge(arg_role, go(~ctx, ~ana=ty_in, arg, m), Fun.id);
       let constraint_ =
@@ -4310,10 +4330,8 @@ and upat_to_info_map =
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
         | None => Coverage.Constraint.Hole(None)
         };
-      let former = Option.map(ConstructorStaticsHelpers.payload_former, ctr);
       add(
-        ~former,
-        ~formation=MatchedTyp.form(MatchedTyp.identity_former, [ty_out]),
+        ~formation,
         ~declared=ctr != None,
         ~elab_term=Ap(fn_elab, arg_elab) |> rewrap,
         ~marks=[],
@@ -4348,7 +4366,7 @@ and upat_to_info_map =
       );
       add(
         ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
-        ~elab_syn_ty=ann_ty,
+        ~formation=MatchedTyp.identity(ann_ty),
         ~marks=[],
         ~ctx=p.ctx,
         ~constraint_=p.constraint_,
@@ -4668,12 +4686,7 @@ and utyp_to_info_map =
     };
   };
   let add =
-      (
-        ~expects=expects,
-        ~utyp=utyp,
-        ~formation: option(MatchedTyp.formation)=?,
-        m,
-      ) => {
+      (~expects=expects, ~utyp=utyp, ~formation: MatchedTyp.formation, m) => {
     let st = status_for_node(~expects, utyp);
     let cls: Cls.t =
       switch (expects, Typ.cls_of_term(utyp.term)) {
@@ -4686,14 +4699,8 @@ and utyp_to_info_map =
       | (_, cls) => Cls.Typ(cls)
       };
     let (recorded, m) = take_recorded(~id=Typ.rep_id(utyp), m);
-    let (shape, former) =
-      switch (formation) {
-      | Some({former, _} as formation) => (
-          MatchedTyp.formed_type(formation),
-          Some(former),
-        )
-      | None => (utyp, None)
-      };
+    let shape = MatchedTyp.formed_type(formation);
+    let former = Some(formation.former);
     let slice =
       Slice.mk(
         ~ctx,
@@ -4730,13 +4737,13 @@ and utyp_to_info_map =
   switch (term) {
   | Unknown(Hole(MultiHole(tms))) =>
     let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
-    add(m);
+    add(~formation=MatchedTyp.identity(utyp), m);
   | Unknown(_)
-  | DrvQuoteTy(_) => add(m)
-  | Atom(_) => add(m)
+  | DrvQuoteTy(_) => add(~formation=MatchedTyp.identity(utyp), m)
+  | Atom(_) => add(~formation=MatchedTyp.identity(utyp), m)
   | Var(_) =>
     /* Names are resolved in this function's status rules */
-    add(m)
+    add(~formation=MatchedTyp.identity(utyp), m)
   | List(t) =>
     add(
       ~formation=MatchedTyp.reform(MatchedTyp.list_former, utyp),
@@ -4901,7 +4908,12 @@ and utyp_to_info_map =
     };
 
     let m = add_info(label.annotation.ids, InfoTyp(label_info), m);
-    add(~expects=TypeExpected, ~utyp=t, m);
+    add(
+      ~expects=TypeExpected,
+      ~utyp=t,
+      ~formation=MatchedTyp.identity(t),
+      m,
+    );
   | TupLabel(label, t) =>
     let expects_label =
       switch (expects) {
@@ -4915,7 +4927,7 @@ and utyp_to_info_map =
       ~formation=MatchedTyp.reform(MatchedTyp.label_former, utyp),
       m,
     );
-  | Label(_) => add(m)
+  | Label(_) => add(~formation=MatchedTyp.identity(utyp), m)
   | Sum(variants) =>
     let (m, _) =
       List.fold_left(
@@ -5003,7 +5015,7 @@ and utyp_to_info_map =
         e,
         m,
       );
-    add(m);
+    add(~formation=MatchedTyp.identity(utyp), m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(
@@ -5046,7 +5058,7 @@ and utyp_to_info_map =
         m,
         items,
       );
-    add(m);
+    add(~formation=MatchedTyp.identity(utyp), m);
   };
 }
 and utpat_to_info_map =
