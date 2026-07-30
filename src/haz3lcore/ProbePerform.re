@@ -734,7 +734,7 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
 let step_into_call_stack =
     (
       ~syntax: CachedSyntax.t,
-      ~call_stack: Sample.call_stack,
+      ~call_stack: CallStack.t,
       ~ap_id: Id.t,
       info_map: Statics.Map.t,
       z: Zipper.t,
@@ -780,14 +780,7 @@ let step_into_call_stack =
     };
 
   /* Set pin and dyn cursor using the call_stack */
-  let new_stack: Sample.call_stack = [
-    {
-      id: ap_id,
-      name: None,
-      fn_def_id: None,
-    },
-    ...call_stack,
-  ];
+  let new_stack = CallStack.extend(ap_id, call_stack);
 
   /* Determine where to jump and where to look for samples.
    * For function literals:
