@@ -4263,7 +4263,7 @@ and upat_to_info_map =
       };
       let (ty_in, ty_out) =
         MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn'.elab_syn_ty);
-      let (formation, arg_role) =
+      let formation =
         switch (ctr) {
         | Some(ctr) =>
           let former =
@@ -4272,23 +4272,10 @@ and upat_to_info_map =
               ~expanded=Typ.weak_head_normalize(ctx, ty_out),
               ctr,
             );
-          switch (former.parts(ty_out)) {
-          | Some(components) => (
-              MatchedTyp.form(former, components),
-              Slice.Binder,
-            )
-          | None => (
-              MatchedTyp.form(MatchedTyp.identity_former, [ty_out]),
-              Slice.Binder,
-            )
-          };
-        | None => (
-            MatchedTyp.form(MatchedTyp.identity_former, [ty_out]),
-            Slice.Omit,
-          )
+          MatchedTyp.form(former, [ty_in]);
+        | None => MatchedTyp.identity(ty_out)
         };
-      let (arg, arg_elab, m) =
-        pat_edge(arg_role, go(~ctx, ~ana=ty_in, arg, m), Fun.id);
+      let* (arg, arg_elab, m) = go(~ctx, ~ana=ty_in, arg, m);
       let constraint_ =
         switch (ctr) {
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
