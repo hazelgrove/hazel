@@ -1568,10 +1568,9 @@ let rec subtract = (ctx: Ctx.t, left: t, right: t): t =>
           fun
           | ConstructorMap.Variant(name, annotation, payload) as left =>
             switch (find_variant(name), payload) {
-            | (None, _) => left
-            | (Some(None), None) => ConstructorMap.BadEntry(gap)
+            | (None, _)
             | (Some(None), Some(_)) => left
-            | (Some(Some(_)), None) => ConstructorMap.BadEntry(gap)
+            | (Some(_), None) => ConstructorMap.BadEntry(gap)
             | (Some(Some(right)), Some(left)) =>
               let residual = subtract(ctx, left, right);
               is_empty(residual)
