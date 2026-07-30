@@ -75,7 +75,13 @@ module Model = {
         expanded: [],
       },
       debug_show_raw: false,
-      debug_collapsed: [],
+      /* Start the Worker Messaging benchmark section collapsed so it doesn't
+         run by default (benchmarking is gated on the section being expanded).
+         Must match WorkerMessagingSection.title. */
+      debug_collapsed: ["Worker Messaging"],
+      /* Only the active encoding (Marshal) is benchmarked by default; Direct
+         and Sexp start unchecked. */
+      worker_encodings: [WorkerServer.Marshal],
     },
     autoprobe_mode: false,
     agent_globals: AgentGlobals.init(),
@@ -393,6 +399,10 @@ module Update = {
               key,
               settings.sidebar,
             ),
+        }
+      | Sidebar(ToggleWorkerEncoding(e)) => {
+          ...settings,
+          sidebar: SidebarModel.Settings.toggle_encoding(e, settings.sidebar),
         }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
