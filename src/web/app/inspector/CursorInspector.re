@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
 open Util;
+open Haz3lcore;
 open Language;
 
 let errc = "error";
@@ -55,7 +56,10 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
     //[text("Γ")],
   );
 
-let term_view = (~globals: Globals.t, ci) => {
+let slicing_tag =
+  div(~attrs=[clss(["term-tag", "slicing-tag"])], [text("slicing")]);
+
+let term_view = (~globals: Globals.t, ~slice_header=false, ci) => {
   /* Drv(_) sorts have verbose type-level names like "DrvJdmt"/"DrvProp"
      via Sort.to_string (needed for pretty-printing `DrvQuoteTy`). For the
      inspector header we prefer the terse form ("Jdmt", "Prop", ...),
@@ -87,6 +91,7 @@ let term_view = (~globals: Globals.t, ci) => {
       div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
+      ...slice_header ? [slicing_tag] : [],
     ],
   );
 };
@@ -113,6 +118,1060 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
 };
 
+module TypeTarget = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Synthesizing
+    | Analyzing;
+
+  let label =
+    fun
+    | Synthesizing => "syn"
+    | Analyzing => "ana";
+};
+
+let fold_editor_permits = (action: CodeEditable.Update.t): bool =>
+  switch (action) {
+  | Perform(Move(_) | Select(_) | Unselect(_) | Copy | Project(_)) => true
+  | Perform(
+      Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut | Buffer(_) |
+      Structural(_) |
+      Probe(_) |
+      PrettyPrint |
+      Dump |
+      Introduce |
+      ToggleLineComment,
+    )
+  | ContextMenu(_)
+  | DebugConsole(_)
+  | TAB => false
+  };
+
+let type_menu_showing: ContextMenu.parts = {
+  jump_to_binding: false,
+  select_term: true,
+  introduce: false,
+  refractors: false,
+  projectors: true,
+};
+
+let type_editor_of_type = (~ctx=?, typ: Typ.t): (Id.t, CodeEditable.Model.t) => {
+  let typ = Typ.replace_temp(typ);
+  let zipper =
+    ExpToSegment.typ_to_segment(~settings=code_view_settings, typ)
+    |> Zipper.unzip;
+  let statics =
+    CachedStatics.init(
+      ~settings=CoreSettings.on,
+      ~stitch=x => x,
+      ~ctx?,
+      ~is_dynamic_term=false,
+      ~root=Sort.Typ,
+      zipper,
+    );
+  (
+    Typ.rep_id(typ),
+    zipper
+    |> Editor.Model.mk(~root=Sort.Typ)
+    |> CodeWithStatics.Model.mk(~statics),
+  );
+};
+
+let explain_type_tooltip = "Explain this type by folding parts of it into a slicing query.";
+
+let typ_for_target = (target: TypeTarget.t, ci: Info.t): option(Typ.t) =>
+  switch (ci, target) {
+  | (InfoExp({elab_syn_ty, _}), Synthesizing)
+  | (InfoPat({elab_syn_ty, _}), Synthesizing) => Some(elab_syn_ty)
+  | (InfoExp({ana, _}), Analyzing)
+  | (InfoPat({ana, _}), Analyzing) =>
+    Some(Statics.ana_skip_explicit_nonlabel(ana))
+  | _ => None
+  };
+
+module ErrorSlicing = {
+  let fold_model =
+    FoldProj.sexp_of_t(FoldProj.default) |> Sexplib.Sexp.to_string;
+
+  let fold_data: Grammar.projector_data = {
+    kind: ProjectorCore.Kind.Fold,
+    model: fold_model,
+  };
+
+  let fold = (typ: Typ.t): Typ.t => Typ.fresh(Projector(fold_data, typ));
+
+  let rec strip_parens = (typ: Typ.t): Typ.t =>
+    switch (Typ.term_of(typ)) {
+    | Parens(t) => strip_parens(t)
+    | _ => typ
+    };
+
+  let shell = (typ: Typ.t): Typ.t => {
+    let typ = strip_parens(typ);
+    switch (Typ.term_of(typ)) {
+    | Arrow(a, b) => Typ.fresh(Arrow(fold(a), fold(b)))
+    | Prod(ts) => Typ.fresh(Prod(List.map(fold, ts)))
+    | List(t) => Typ.fresh(List(fold(t)))
+    | TypParamAp(fn, args) => Typ.fresh(TypParamAp(fn, fold(args)))
+    | _ => typ
+    };
+  };
+
+  let rec queries =
+          (ctx: Ctx.t, syn: Typ.t, ana: Typ.t): option((Typ.t, Typ.t)) =>
+    switch (Typ.meet(ctx, syn, ana)) {
+    | Some(_) => None
+    | exception _ => None
+    | None =>
+      switch (
+        Typ.term_of(strip_parens(syn)),
+        Typ.term_of(strip_parens(ana)),
+      ) {
+      | (Arrow(s1, s2), Arrow(a1, a2)) =>
+        switch (queries(ctx, s1, a1)) {
+        | Some((qs, qa)) =>
+          Some((
+            Typ.fresh(Arrow(qs, fold(s2))),
+            Typ.fresh(Arrow(qa, fold(a2))),
+          ))
+        | None =>
+          switch (queries(ctx, s2, a2)) {
+          | Some((qs, qa)) =>
+            Some((
+              Typ.fresh(Arrow(fold(s1), qs)),
+              Typ.fresh(Arrow(fold(a1), qa)),
+            ))
+          | None => Some((shell(syn), shell(ana)))
+          }
+        }
+      | (Prod(ss), Prod(aas)) when List.length(ss) == List.length(aas) =>
+        let rec first_clash = (i, ss', aas') =>
+          switch (ss', aas') {
+          | ([s, ...srest], [a, ...arest]) =>
+            switch (queries(ctx, s, a)) {
+            | Some(q) => Some((i, q))
+            | None => first_clash(i + 1, srest, arest)
+            }
+          | _ => None
+          };
+        switch (first_clash(0, ss, aas)) {
+        | Some((i, (qs, qa))) =>
+          let wrap = (tys, q) =>
+            Typ.fresh(
+              Prod(List.mapi((j, t) => j == i ? q : fold(t), tys)),
+            );
+          Some((wrap(ss, qs), wrap(aas, qa)));
+        | None => Some((shell(syn), shell(ana)))
+        };
+      | (List(s), List(a)) =>
+        switch (queries(ctx, s, a)) {
+        | Some((qs, qa)) =>
+          Some((Typ.fresh(List(qs)), Typ.fresh(List(qa))))
+        | None => Some((shell(syn), shell(ana)))
+        }
+      | (TypParamAp(sf, sa), TypParamAp(af, aa))
+          when Typ.fast_equal(sf, af) =>
+        switch (queries(ctx, sa, aa)) {
+        | Some((qs, qa)) =>
+          Some((
+            Typ.fresh(TypParamAp(sf, qs)),
+            Typ.fresh(TypParamAp(af, qa)),
+          ))
+        | None => Some((shell(syn), shell(ana)))
+        }
+      | (TypTuple(ss), TypTuple(aas))
+          when List.length(ss) == List.length(aas) =>
+        let rec first_clash = (i, ss', aas') =>
+          switch (ss', aas') {
+          | ([s, ...srest], [a, ...arest]) =>
+            switch (queries(ctx, s, a)) {
+            | Some(q) => Some((i, q))
+            | None => first_clash(i + 1, srest, arest)
+            }
+          | _ => None
+          };
+        switch (first_clash(0, ss, aas)) {
+        | Some((i, (qs, qa))) =>
+          let wrap = (tys, q) =>
+            Typ.fresh(
+              TypTuple(List.mapi((j, t) => j == i ? q : fold(t), tys)),
+            );
+          Some((wrap(ss, qs), wrap(aas, qa)));
+        | None => Some((shell(syn), shell(ana)))
+        };
+      | _ => Some((shell(syn), shell(ana)))
+      }
+    };
+
+  let for_info = (ci: Info.t): option((Typ.t, Typ.t)) =>
+    switch (ci) {
+    | InfoExp({elab_syn_ty, ana, ctx, _})
+    | InfoPat({elab_syn_ty, ana, ctx, _}) =>
+      queries(ctx, elab_syn_ty, Statics.ana_skip_explicit_nonlabel(ana))
+    | _ => None
+    };
+};
+
+module Model = {
+  module OptionalId = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | NoId
+      | SomeId(Id.t);
+  };
+
+  module EditorSlot = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | NoEditor
+      | SomeEditor(CodeEditable.Model.t);
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type row = {
+    active: bool,
+    cursor_id: OptionalId.t,
+    typ_id: OptionalId.t,
+    editor: EditorSlot.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type menu_state =
+    | NoMenu
+    | Menu(TypeTarget.t, float, float);
+
+  /* Which editor the live (blue) secondary cursor is in. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus_target =
+    | Main
+    | Fold(TypeTarget.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type anchor_caret =
+    | NoCaret
+    | Caret(Id.t, Direction.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    syn: row,
+    ana: row,
+    menu: menu_state,
+    anchor: OptionalId.t,
+    anchor_caret,
+    focus_target,
+  };
+
+  let empty_row = {
+    active: false,
+    cursor_id: OptionalId.NoId,
+    typ_id: OptionalId.NoId,
+    editor: EditorSlot.NoEditor,
+  };
+
+  let init = {
+    syn: empty_row,
+    ana: empty_row,
+    menu: NoMenu,
+    anchor: OptionalId.NoId,
+    anchor_caret: NoCaret,
+    focus_target: Main,
+  };
+
+  let set_focus_main = (model: t): t =>
+    switch (model.focus_target) {
+    | Main => model
+    | Fold(_) => {
+        ...model,
+        focus_target: Main,
+      }
+    };
+
+  let row = (target: TypeTarget.t, model: t): row =>
+    switch (target) {
+    | Synthesizing => model.syn
+    | Analyzing => model.ana
+    };
+
+  let put_row = (target: TypeTarget.t, row: row, model: t): t =>
+    switch (target) {
+    | Synthesizing => {
+        ...model,
+        syn: row,
+      }
+    | Analyzing => {
+        ...model,
+        ana: row,
+      }
+    };
+
+  let refresh_row = (target: TypeTarget.t, ci: Info.t, row: row): row =>
+    switch (typ_for_target(target, ci)) {
+    | None => empty_row
+    | Some(typ) =>
+      let cursor_id = Info.id_of(ci);
+      let source_typ_id = Typ.rep_id(typ);
+      switch (row.cursor_id, row.typ_id, row.editor) {
+      | (_, OptionalId.SomeId(_), EditorSlot.SomeEditor(_)) when row.active => {
+          ...row,
+          cursor_id: OptionalId.SomeId(cursor_id),
+          typ_id:
+            Id.equal(source_typ_id, Id.invalid)
+              ? row.typ_id : OptionalId.SomeId(source_typ_id),
+        }
+      | (
+          OptionalId.SomeId(old_cursor),
+          OptionalId.SomeId(old_typ),
+          EditorSlot.SomeEditor(_),
+        )
+          when
+            Id.equal(old_cursor, cursor_id)
+            && (
+              Id.equal(source_typ_id, Id.invalid)
+              || Id.equal(old_typ, source_typ_id)
+            ) => row
+      | _ =>
+        let (typ_id, editor) =
+          type_editor_of_type(~ctx=Info.ctx_of(ci), typ);
+        {
+          ...row,
+          cursor_id: OptionalId.SomeId(cursor_id),
+          typ_id: OptionalId.SomeId(typ_id),
+          editor: EditorSlot.SomeEditor(editor),
+        };
+      };
+    };
+
+  let has_active = model => model.syn.active || model.ana.active;
+
+  let anchor_id = (model: t): option(Id.t) =>
+    switch (model.anchor) {
+    | OptionalId.SomeId(id) => Some(id)
+    | OptionalId.NoId => None
+    };
+
+  let slice_anchor = (model: t): option((Id.t, Direction.t)) =>
+    switch (has_active(model), model.anchor_caret) {
+    | (true, Caret(id, side)) => Some((id, side))
+    | _ => None
+    };
+
+  let refresh_for_info = (ci: Info.t, model: t): t =>
+    if (has_active(model)) {
+      model;
+    } else {
+      switch (ci) {
+      | InfoExp(_)
+      | InfoPat(_) => {
+          ...model,
+          syn: refresh_row(Synthesizing, ci, model.syn),
+          ana: refresh_row(Analyzing, ci, model.ana),
+        }
+      | _ => init
+      };
+    };
+};
+
+let caret_anchor = (z: Zipper.t): Model.anchor_caret =>
+  switch (z.selection.content) {
+  | [_, ..._] as content =>
+    switch (z.selection.focus) {
+    | Direction.Left =>
+      Model.Caret(Piece.id(List.hd(content)), Direction.Left)
+    | Direction.Right =>
+      Model.Caret(Piece.id(ListUtil.last(content)), Direction.Right)
+    }
+  | [] =>
+    switch (Zipper.generalized_neighbors(z)) {
+    | (Some(l), _) => Model.Caret(Piece.id(l), Direction.Right)
+    | (_, Some(r)) => Model.Caret(Piece.id(r), Direction.Left)
+    | (None, None) => Model.NoCaret
+    }
+  };
+
+let selection_root_info =
+    (~info_map: Statics.Map.t, z: Zipper.t): option(Info.t) =>
+  switch (z.selection.content) {
+  | [] => None
+  | content =>
+    switch (Segment.root_id(Segment.skel(content), content)) {
+    | id => Statics.Map.lookup(id, info_map)
+    | exception _ => None
+    }
+  };
+
+let type_slicing_focus_of_row =
+    (target: TypeTarget.t, row: Model.row): option((string, Ctx.t, Typ.t)) =>
+  switch (row.active, row.editor) {
+  | (true, Model.EditorSlot.SomeEditor(editor)) =>
+    switch (
+      Indicated.ci_of(editor.editor.state.zipper, editor.statics.info_map)
+    ) {
+    | Some(InfoTyp({user_term, ctx, _})) =>
+      Some((
+        "Type Slicing ("
+        ++ (
+          switch (target) {
+          | Synthesizing => "Synthesis"
+          | Analyzing => "Analysis"
+          }
+        )
+        ++ ")",
+        ctx,
+        user_term,
+      ))
+    | _ => None
+    }
+  | _ => None
+  };
+
+let type_slicing_focuses = (model: Model.t): list((string, Ctx.t, Typ.t)) =>
+  [
+    type_slicing_focus_of_row(Synthesizing, model.syn),
+    type_slicing_focus_of_row(Analyzing, model.ana),
+  ]
+  |> List.filter_map(focus => focus);
+
+module TypeSlicing = {
+  let id_set_of_list = (ids: list(Id.t)): Id.Set.t =>
+    List.fold_left((acc, id) => Id.Set.add(id, acc), Id.Set.empty, ids);
+
+  let typ_of_editor = (editor: CodeEditable.Model.t): option(Typ.t) =>
+    switch (
+      editor.editor.state.zipper
+      |> Zipper.unselect_and_zip
+      |> MakeTerm.for_projection_as(~sort=Sort.Typ)
+    ) {
+    | Some(Typ(typ)) => Some(typ)
+    | _ => None
+    };
+
+  let whole_fold_query = (editor: CodeEditable.Model.t): option(Typ.t) =>
+    switch (editor.editor.state.zipper |> Zipper.unselect_and_zip) {
+    | [Piece.Projector({kind, _})] when kind == ProjectorCore.Kind.Fold =>
+      Some(Statics.Slice.gap)
+    | _ => None
+    };
+
+  let query_of_typ = (typ: Typ.t): Typ.t => {
+    let rec strip_parens = (typ: Typ.t): Typ.t =>
+      switch (Typ.term_of(typ)) {
+      | Parens(t) => strip_parens(t)
+      | _ => typ
+      };
+    let f_typ = (continue, typ: Typ.t) => {
+      let typ = strip_parens(typ);
+      switch (typ.term) {
+      | Projector({kind, _}, _) when kind == ProjectorCore.Kind.Fold => Statics.Slice.gap
+      | _ => continue(typ)
+      };
+    };
+    Typ.map_term(~f_typ, typ);
+  };
+
+  let query_of_row = (row: Model.row): option(Typ.t) =>
+    switch (row.editor) {
+    | Model.EditorSlot.NoEditor => None
+    | Model.EditorSlot.SomeEditor(editor) =>
+      switch (whole_fold_query(editor)) {
+      | Some(_) as query => query
+      | None => Option.map(query_of_typ, typ_of_editor(editor))
+      }
+    };
+
+  let protected_ids = (~info_map as _: Statics.Map.t, ci: Info.t): Id.Set.t =>
+    id_set_of_list(Info.ancestors_of(ci));
+
+  let slice_for_target =
+      (
+        ~root_exp: Exp.t,
+        ~info_map: Statics.Map.t,
+        ~ci: Info.t,
+        target: TypeTarget.t,
+        row: Model.row,
+      )
+      : option(Id.Set.t) =>
+    if (!row.active) {
+      None;
+    } else {
+      switch (query_of_row(row)) {
+      | None => Some(Id.Set.empty)
+      | Some(query) =>
+        let direction =
+          switch (target) {
+          | Synthesizing => `Syn
+          | Analyzing => `Ana
+          };
+        let omitted =
+          switch (
+            Statics.slice_map(
+              ~info_map,
+              ~root_exp,
+              ~focus=Some(Info.id_of(ci)),
+              ~direction,
+              query,
+            )
+          ) {
+          | exception (Statics.Slice.Incompatible_query(_)) => Id.Set.empty
+          | {omitted, _} => omitted
+          };
+        if (DebugConsole.slice_reconstruction_logging^) {
+          let reconstruction =
+            Language.SliceReconstruct.reconstruct(omitted, root_exp)
+            |> ExpToSegment.exp_to_segment(
+                 ~settings=ExpToSegment.Settings.editable(~inline=true),
+                 _,
+               )
+            |> Printer.of_segment(~holes="?", _);
+          print_endline(
+            "SLICE "
+            ++ (direction == `Syn ? "syn" : "ana")
+            ++ " reconstruction: "
+            ++ reconstruction,
+          );
+        };
+        Some(Id.Set.diff(omitted, protected_ids(~info_map, ci)));
+      };
+    };
+
+  let expand_omitted = (~term_data: TermData.t, ids: Id.Set.t): Id.Set.t =>
+    Id.Set.fold(
+      (id, acc) =>
+        switch (TermData.segment(id, term_data)) {
+        | Some(seg) =>
+          List.fold_left(
+            (acc, id) => Id.Set.add(id, acc),
+            acc,
+            Segment.ids(seg),
+          )
+        | None => acc
+        },
+      ids,
+      ids,
+    );
+
+  let anchor_info =
+      (
+        ~info_map: Statics.Map.t,
+        ~fallback_ci: option(Info.t),
+        model: Model.t,
+      )
+      : option(Info.t) =>
+    switch (model.anchor) {
+    | Model.OptionalId.SomeId(id) =>
+      switch (Statics.Map.lookup(id, info_map)) {
+      | Some(_) as ci => ci
+      | None => fallback_ci
+      }
+    | Model.OptionalId.NoId => fallback_ci
+    };
+
+  let slice_for_model_row =
+      (
+        ~root_exp: Exp.t,
+        ~info_map: Statics.Map.t,
+        ~anchor_ci: option(Info.t),
+        target: TypeTarget.t,
+        row: Model.row,
+      )
+      : option(Id.Set.t) =>
+    switch (anchor_ci) {
+    | Some(ci) => slice_for_target(~root_exp, ~info_map, ~ci, target, row)
+    | None => None
+    };
+
+  let omitted_ids_for_model =
+      (
+        ~root_exp: Exp.t,
+        ~term_data: TermData.t,
+        ~info_map: Statics.Map.t,
+        ~fallback_ci: option(Info.t),
+        model: Model.t,
+      )
+      : Id.Set.t => {
+    let anchor_ci = anchor_info(~info_map, ~fallback_ci, model);
+    let syn =
+      slice_for_model_row(
+        ~root_exp,
+        ~info_map,
+        ~anchor_ci,
+        Synthesizing,
+        model.syn,
+      );
+    let ana =
+      slice_for_model_row(
+        ~root_exp,
+        ~info_map,
+        ~anchor_ci,
+        Analyzing,
+        model.ana,
+      );
+    switch (syn, ana) {
+    | (Some(syn), Some(ana)) =>
+      Id.Set.inter(
+        expand_omitted(~term_data, syn),
+        expand_omitted(~term_data, ana),
+      )
+    | (Some(ids), None)
+    | (None, Some(ids)) => ids
+    | (None, None) => Id.Set.empty
+    };
+  };
+};
+
+module ProgramFolds = {
+  type result = {
+    model: CodeEditable.Model.t,
+    changed: bool,
+  };
+
+  let with_zipper = (zipper: Zipper.t, model: CodeEditable.Model.t) => {
+    let editor = Editor.Model.mk(zipper, ~root=model.editor.root);
+    {
+      ...model,
+      editor: {
+        ...editor,
+        syntax: CachedSyntax.mark_old(editor.syntax),
+      },
+      context_menu: None,
+    };
+  };
+
+  let remove_all = (model: CodeEditable.Model.t): result => {
+    let changed = ref(false);
+    let remove_piece = (piece: Piece.t): Segment.t =>
+      switch (piece) {
+      | Piece.Projector({kind, syntax, _})
+          when kind == ProjectorCore.Kind.Fold =>
+        changed := true;
+        Piece.unparenthesize(syntax);
+      | _ => [piece]
+      };
+    {
+      model:
+        model
+        |> with_zipper(
+             ZipperBase.MapPiece.go(remove_piece, model.editor.state.zipper),
+             _,
+           ),
+      changed: changed^,
+    };
+  };
+
+  let apply_folds = (~omitted: Id.Set.t, model: CodeEditable.Model.t): result =>
+    if (Id.Set.is_empty(omitted)) {
+      {
+        model,
+        changed: false,
+      };
+    } else {
+      let syntax = model.editor.syntax;
+      let foldable = (sort: Sort.t, seg: Segment.t): bool =>
+        switch (ProjectorPerform.init_as(~sort, ProjectorCore.Kind.Fold, seg)) {
+        | Some(_) => true
+        | None => false
+        | exception _ => false
+        };
+      let target_candidates =
+        Id.Set.fold(
+          (id, targets) =>
+            switch (TermData.segment(id, syntax.term_data)) {
+            | Some(seg) =>
+              switch (Id.Map.find_opt(id, syntax.term_data)) {
+              | Some(TermData.{root_piece, sort, _}) =>
+                foldable(sort, seg)
+                  ? [
+                    (id, Piece.id(root_piece), sort, seg, List.length(seg)),
+                    ...targets,
+                  ]
+                  : targets
+              | None => targets
+              }
+            | None => targets
+            },
+          omitted,
+          [],
+        )
+        |> List.sort(((_, _, _, _, a), (_, _, _, _, b)) => compare(b, a));
+      let (target_entries, covered) =
+        List.fold_left(
+          ((targets, covered), (term_id, root_id, sort, seg, _)) =>
+            if (Id.Set.mem(root_id, covered)) {
+              (targets, covered);
+            } else {
+              let covered =
+                List.fold_left(
+                  (covered, piece) => Id.Set.add(Piece.id(piece), covered),
+                  covered,
+                  seg,
+                );
+              ([(term_id, root_id, sort, seg), ...targets], covered);
+            },
+          ([], Id.Set.empty),
+          target_candidates,
+        );
+      let fold_targets =
+        List.fold_left(
+          (targets, (_, root_id, sort, seg)) =>
+            Id.Map.add(root_id, (sort, seg), targets),
+          Id.Map.empty,
+          target_entries,
+        );
+      let zipper_contains = (seg: Segment.t, z: Zipper.t): bool => {
+        let target_ids =
+          List.fold_left(
+            (ids, id) => Id.Set.add(id, ids),
+            Id.Set.empty,
+            Segment.ids(seg),
+          );
+        let has_target_id = ids =>
+          List.exists(id => Id.Set.mem(id, target_ids), ids);
+        let (left, right) = z.relatives.siblings;
+        has_target_id(Segment.ids(z.selection.content))
+        || has_target_id(Segment.ids(left))
+        && has_target_id(Segment.ids(right))
+        || (
+          switch (Indicated.index(z)) {
+          | Some(id) => Id.Set.mem(id, target_ids)
+          | None => false
+          }
+        )
+        || List.exists(
+             ((ancestor, _)) =>
+               Id.Set.mem(ancestor.Ancestor.id, target_ids),
+             z.relatives.ancestors,
+           );
+      };
+      let fold_cursor_target = (z: Zipper.t): option(Zipper.t) => {
+        switch (
+          target_entries
+          |> List.find_opt(((_, _, _, seg)) => zipper_contains(seg, z))
+        ) {
+        | None => None
+        | Some((term_id, _, _, _)) =>
+          switch (
+            Select.term(
+              ~defs_exclude_bodies=false,
+              ~case_rules=false,
+              syntax.term_data,
+              term_id,
+              z,
+            )
+          ) {
+          | None => None
+          | Some(selected) =>
+            switch (
+              ProjectorPerform.go(
+                syntax.term_data,
+                Action.SetIndicated(Specific(ProjectorCore.Kind.Fold)),
+                selected,
+                syntax.projector_list,
+                [],
+              )
+            ) {
+            | Ok(z) => Some(z)
+            | Error(_) => None
+            }
+          }
+        };
+      };
+      let changed = ref(false);
+      let add_piece = (piece: Piece.t): Segment.t =>
+        switch (Id.Map.find_opt(Piece.id(piece), fold_targets)) {
+        | Some((sort, seg)) =>
+          switch (
+            ProjectorPerform.init_as(~sort, ProjectorCore.Kind.Fold, seg)
+          ) {
+          | Some(projected) =>
+            changed := true;
+            [projected];
+          | None => [piece]
+          }
+        | None => Id.Set.mem(Piece.id(piece), covered) ? [] : [piece]
+        };
+      let zipper =
+        switch (fold_cursor_target(model.editor.state.zipper)) {
+        | Some(z) =>
+          changed := true;
+          z;
+        | None => model.editor.state.zipper
+        };
+      let model =
+        model |> with_zipper(ZipperBase.MapPiece.go(add_piece, zipper), _);
+      {
+        model,
+        changed: changed^,
+      };
+    };
+
+  let root_exp = (model: CodeEditable.Model.t): option(Exp.t) =>
+    switch (
+      model.editor.state.zipper
+      |> Zipper.unselect_and_zip
+      |> MakeTerm.for_projection
+    ) {
+    | Some(Exp(exp)) => Some(exp)
+    | _ => None
+    };
+
+  let apply_type_slice =
+      (
+        ~info_map: Statics.Map.t,
+        ~fallback_ci: option(Info.t),
+        ~cursor_inspector: Model.t,
+        model: CodeEditable.Model.t,
+      )
+      : result =>
+    if (!Model.has_active(cursor_inspector)) {
+      {
+        model,
+        changed: false,
+      };
+    } else {
+      switch (root_exp(model)) {
+      | Some(root_exp) =>
+        let ids =
+          TypeSlicing.omitted_ids_for_model(
+            ~root_exp,
+            ~term_data=model.editor.syntax.term_data,
+            ~info_map,
+            ~fallback_ci,
+            cursor_inspector,
+          );
+        apply_folds(~omitted=ids, model);
+      | None => {
+          model,
+          changed: false,
+        }
+      };
+    };
+};
+
+module Update = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Toggle(TypeTarget.t)
+    | ExplainError
+    | TypeEditor(TypeTarget.t, CodeEditable.Update.t)
+    | OpenMenu(TypeTarget.t, float, float)
+    | Focus(TypeTarget.t)
+    | CloseMenu;
+
+  let can_undo = (_: t) => false;
+
+  let type_editor_caret_selector = "#cursor-inspector .type-summary-editor.active .caret";
+
+  let animate_type_editor_caret =
+      (~settings: Settings.t, action: CodeEditable.Update.t) =>
+    switch (action) {
+    | Perform(action)
+        when settings.core.flip_animations && Action.should_animate(action) =>
+      Animation.request([Animation.Actions.move(type_editor_caret_selector)])
+    | _ => ()
+    };
+
+  let calculate_type_editor =
+      (~settings: Settings.t, ~ctx=?, model: CodeEditable.Model.t)
+      : CodeEditable.Model.t =>
+    CodeWithStatics.Update.calculate(
+      ~settings=settings.core,
+      ~is_edited=true,
+      ~ctx?,
+      ~stitch=x => x,
+      ~dynamics=model.dynamics,
+      ~is_dynamic_term=false,
+      model,
+    );
+
+  let move_editor_to_root =
+      (~settings: Settings.t, ~ctx=?, row: Model.row): Model.row =>
+    switch (row.typ_id, row.editor) {
+    | (Model.OptionalId.SomeId(id), Model.EditorSlot.SomeEditor(editor)) =>
+      switch (CodeEditable.Selection.jump_to_tile(id, editor)) {
+      | Some(action) =>
+        animate_type_editor_caret(~settings, action);
+        let updated = CodeEditable.Update.update(~settings, action, editor);
+        {
+          ...row,
+          editor:
+            Model.EditorSlot.SomeEditor(
+              calculate_type_editor(~settings, ~ctx?, updated.model),
+            ),
+        };
+      | None => row
+      }
+    | _ => row
+    };
+
+  let update =
+      (
+        ~settings: Settings.t,
+        ~cursor_info: option(Info.t),
+        action: t,
+        model: Model.t,
+      )
+      : Updated.t(Model.t) =>
+    switch (action, cursor_info) {
+    | (TypeEditor(_, _) | OpenMenu(_, _, _) | Focus(_) | CloseMenu, _) =>
+      switch (action) {
+      | Focus(target) =>
+        {
+          ...model,
+          focus_target: Model.Fold(target),
+        }
+        |> Updated.return_quiet
+      | TypeEditor(target, editor_action) =>
+        let row = Model.row(target, model);
+        switch (row.active, row.editor) {
+        | (true, Model.EditorSlot.SomeEditor(editor))
+            when fold_editor_permits(editor_action) =>
+          animate_type_editor_caret(~settings, editor_action);
+          let updated =
+            CodeEditable.Update.update(~settings, editor_action, editor);
+          let ctx = Option.map(Info.ctx_of, cursor_info);
+          let model =
+            {
+              ...row,
+              editor:
+                Model.EditorSlot.SomeEditor(
+                  calculate_type_editor(~settings, ~ctx?, updated.model),
+                ),
+            }
+            |> Model.put_row(target, _, model);
+          {
+            ...model,
+            focus_target: Model.Fold(target),
+          }
+          |> Updated.return_quiet;
+        | _ => model |> Updated.return_quiet
+        };
+      | OpenMenu(target, x, y) =>
+        {
+          ...model,
+          menu: Model.Menu(target, x, y),
+        }
+        |> Updated.return_quiet
+      | CloseMenu =>
+        {
+          ...model,
+          menu: Model.NoMenu,
+        }
+        |> Updated.return_quiet
+      | Toggle(_)
+      | ExplainError => model |> Updated.return_quiet
+      }
+    | (_, None) => model |> Updated.return_quiet
+    | (_, Some(ci)) =>
+      let model = Model.refresh_for_info(ci, model);
+      switch (action) {
+      | Toggle(target) =>
+        let was_active = Model.has_active(model);
+        let row0 = Model.row(target, model);
+        let now_active = !row0.active;
+        let row =
+          if (now_active) {
+            move_editor_to_root(
+              ~settings,
+              ~ctx=Info.ctx_of(ci),
+              Model.refresh_row(
+                target,
+                ci,
+                {
+                  ...row0,
+                  active: true,
+                },
+              ),
+            );
+          } else {
+            {
+              ...row0,
+              active: false,
+            };
+          };
+        let model = Model.put_row(target, row, model);
+        let anchor =
+          Model.has_active(model)
+            ? was_active
+                ? model.anchor : Model.OptionalId.SomeId(Info.id_of(ci))
+            : Model.OptionalId.NoId;
+        {
+          ...model,
+          anchor,
+          focus_target: Model.Main,
+        }
+        |> Updated.return_quiet;
+      | ExplainError =>
+        switch (ErrorSlicing.for_info(ci)) {
+        | None => model |> Updated.return_quiet
+        | Some((syn_query, ana_query)) =>
+          let mk_row = typ => {
+            let (typ_id, editor) =
+              type_editor_of_type(~ctx=Info.ctx_of(ci), typ);
+            Model.{
+              active: true,
+              cursor_id: Model.OptionalId.SomeId(Info.id_of(ci)),
+              typ_id: Model.OptionalId.SomeId(typ_id),
+              editor: Model.EditorSlot.SomeEditor(editor),
+            };
+          };
+          {
+            ...model,
+            syn: mk_row(syn_query),
+            ana: mk_row(ana_query),
+            anchor: Model.OptionalId.SomeId(Info.id_of(ci)),
+            focus_target: Model.Main,
+          }
+          |> Updated.return_quiet;
+        }
+      | TypeEditor(target, editor_action) =>
+        let row = Model.row(target, model);
+        switch (row.active, row.editor) {
+        | (true, Model.EditorSlot.SomeEditor(editor))
+            when fold_editor_permits(editor_action) =>
+          animate_type_editor_caret(~settings, editor_action);
+          let updated =
+            CodeEditable.Update.update(~settings, editor_action, editor);
+          let model =
+            {
+              ...row,
+              editor:
+                Model.EditorSlot.SomeEditor(
+                  calculate_type_editor(
+                    ~settings,
+                    ~ctx=Info.ctx_of(ci),
+                    updated.model,
+                  ),
+                ),
+            }
+            |> Model.put_row(target, _, model);
+          {
+            ...model,
+            focus_target: Model.Fold(target),
+          }
+          |> Updated.return_quiet;
+        | _ => model |> Updated.return_quiet
+        };
+      | OpenMenu(target, x, y) =>
+        {
+          ...model,
+          menu: Model.Menu(target, x, y),
+        }
+        |> Updated.return_quiet
+      | Focus(target) =>
+        {
+          ...model,
+          focus_target: Model.Fold(target),
+        }
+        |> Updated.return_quiet
+      | CloseMenu =>
+        {
+          ...model,
+          menu: Model.NoMenu,
+        }
+        |> Updated.return_quiet
+      };
+    };
+};
+
 let view_any = (~globals, any: Any.t) =>
   any
   |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
@@ -123,6 +1182,126 @@ let view_type = (~globals, typ: Typ.t) =>
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
+/* Inline type in a message: static, or a fold editor when toggled. */
+let type_slot =
+    (
+      ~globals,
+      ~model: Model.t,
+      ~inject: Update.t => Ui_effect.t(unit),
+      target: TypeTarget.t,
+      typ: Typ.t,
+    )
+    : Node.t => {
+  let row_model = Model.row(target, model);
+  let toggle =
+    div(
+      ~attrs=[
+        clss(["explain-toggle"] @ (row_model.active ? ["active"] : [])),
+        Attr.title(explain_type_tooltip),
+        Attr.on_pointerdown(_ =>
+          Effect.Many([
+            Effect.Stop_propagation,
+            inject(Update.Toggle(target)),
+          ])
+        ),
+      ],
+      [Icons.explain_this],
+    );
+  let editor_focused =
+    switch (model.focus_target) {
+    | Model.Fold(focused) => focused == target
+    | Model.Main => false
+    };
+  let body =
+    switch (row_model.active, row_model.editor) {
+    | (true, Model.EditorSlot.SomeEditor(editor)) =>
+      let edit_mode =
+        EditMode.Editable({
+          inject: action =>
+            fold_editor_permits(action)
+              ? inject(Update.TypeEditor(target, action)) : Ui_effect.Ignore,
+          escape: _ => Ui_effect.Ignore,
+          take_focus: _ => Ui_effect.Ignore,
+          focus: editor_focused ? Some() : None,
+        });
+      div(
+        ~attrs=[
+          clss(["type-summary-editor", "active"]),
+          Attr.on_pointerdown(evt => {
+            let button: int = Js_of_ocaml.Js.Unsafe.get(evt, "button");
+            if (button == 2) {
+              let x: float = Js_of_ocaml.Js.Unsafe.get(evt, "clientX");
+              let y: float = Js_of_ocaml.Js.Unsafe.get(evt, "clientY");
+              Effect.Many([
+                Effect.Prevent_default,
+                inject(Update.OpenMenu(target, x, y)),
+              ]);
+            } else {
+              inject(Update.Focus(target));
+            };
+          }),
+        ],
+        [
+          CodeEditable.View.view(
+            ~globals,
+            ~signal=_ => Ui_effect.Ignore,
+            ~edit_mode,
+            ~dynamics=editor.dynamics,
+            editor,
+          ),
+        ],
+      );
+    | _ => view_type(~globals, typ)
+    };
+  let menu =
+    switch (model.menu, row_model.editor) {
+    | (Model.Menu(mt, x, y), Model.EditorSlot.SomeEditor(editor))
+        when mt == target && row_model.active =>
+      let menu_inject = (action: Action.t) =>
+        Effect.Many([
+          inject(Update.TypeEditor(target, Perform(action))),
+          inject(Update.CloseMenu),
+        ]);
+      let items =
+        ContextMenu.get_sections(
+          ~showing=type_menu_showing,
+          ~info_map=editor.statics.info_map,
+          editor.editor.state.zipper,
+        )
+        |> List.map(
+             List.map(
+               ContextMenu.menu_item_view(
+                 ~inject=menu_inject,
+                 ~is_selected=false,
+               ),
+             ),
+           )
+        |> ListUtil.join([ContextMenu.divider])
+        |> List.concat;
+      [
+        div(
+          ~attrs=[
+            clss(["context-menu-backdrop"]),
+            Attr.on_pointerdown(_ => inject(Update.CloseMenu)),
+          ],
+          [],
+        ),
+        div(
+          ~attrs=[
+            clss(["context-menu", "open-up-right", "type-slice-menu"]),
+            Attr.create(
+              "style",
+              Printf.sprintf("left: %fpx; top: %fpx;", x, y),
+            ),
+          ],
+          [ContextMenu.context_menu(items)],
+        ),
+      ];
+    | _ => []
+    };
+  div(~attrs=[clss(["type-slot"])], [body, toggle] @ menu);
+};
+
 let core_mark_err_view =
     (
       ~globals,
@@ -132,11 +1311,21 @@ let core_mark_err_view =
       ~inferred_label: option(LabeledTuple.label),
       ~ctx: Ctx.t,
       ~ana: Typ.t,
+      ~syn_view: option(Typ.t => Node.t)=?,
+      ~ana_view: option(Typ.t => Node.t)=?,
       cls: Cls.t,
       m: Mark.t,
     ) => {
   let view_type = view_type(~globals);
   let view_any = view_any(~globals);
+  let syn_view =
+    Option.value(syn_view, ~default=ty =>
+      view_type(ty) |> code_box_container
+    );
+  let ana_view =
+    Option.value(ana_view, ~default=ty =>
+      view_type(ty) |> code_box_container
+    );
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation_view = (~ana: Typ.t, ~syn: Typ.t) =>
     switch (syn.term, ana.term) {
@@ -148,9 +1337,9 @@ let core_mark_err_view =
     | _ =>
       colon_prefix(show_type_colon)
       @ [
-        view_type(syn) |> code_box_container,
+        syn_view(syn),
         text("inconsistent with expected type"),
-        view_type(ana) |> code_box_container,
+        ana_view(ana),
       ]
       @ (
         switch (lifted_ty) {
@@ -309,10 +1498,14 @@ let common_ok_view =
       ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
       ~label_sort: bool,
+      ~syn_view: option(Typ.t => Node.t)=?,
+      ~ana_view: option(Typ.t => Node.t)=?,
       cls: Cls.t,
       ok: Message.ok_common,
     ) => {
   let view_type = view_type(~globals);
+  let syn_view = Option.value(syn_view, ~default=view_type);
+  let ana_view = Option.value(ana_view, ~default=view_type);
   (
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
@@ -330,30 +1523,31 @@ let common_ok_view =
     | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
     | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
         text("Fillable by any expression of type"),
-        view_type(ana),
+        ana_view(ana),
       ]
     | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
         text("Fillable by any pattern of type"),
-        view_type(ana),
+        ana_view(ana),
       ]
     | (_, Syn(syn)) =>
       switch (syn.term) {
       | Label(l) => [label_view(l)]
-      | _ => colon_prefix(show_type_colon) @ [view_type(syn)]
+      | _ => colon_prefix(show_type_colon) @ [syn_view(syn)]
       }
     | (Pat(Var) | Pat(Wild) | Pat(ApFunc), Ana(Consistent({ana, _}))) =>
       /* Pat(ApFunc) is only produced by the `let f(args) = ...` function
          sugar (see FunctionSugar.re), where it denotes the function binder
          as a whole. Render it the same way as a plain variable binder. */
-      colon_prefix(show_type_colon) @ [view_type(ana)]
+      colon_prefix(show_type_colon) @ [ana_view(ana)]
     | (_, Ana(Consistent({ana, syn, _})))
         when Equality.semantic.typ(ana, syn) =>
       switch (syn.term) {
       | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
         colon_prefix(show_type_colon)
-        @ [view_type(syn)]
+        @ [syn_view(syn)]
         @ [text("equals expected type")]
+        @ [ana_view(ana)]
         @ (
           switch (lifted_ty) {
           | None => []
@@ -386,10 +1580,10 @@ let common_ok_view =
         | Label(l) => [code(l), text(" is a valid label")]
         | _ =>
           colon_prefix(show_type_colon)
-          @ [view_type(syn), text("consistent with expected type")]
+          @ [syn_view(syn), text("consistent with expected type")]
         }
       )
-      @ [view_type(ana)]
+      @ [ana_view(ana)]
       @ (
         switch (lifted_ty) {
         | None => []
@@ -420,7 +1614,7 @@ let common_ok_view =
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
       ]
-      @ [text("but consistent with expected"), view_type(ana)]
+      @ [text("but consistent with expected"), ana_view(ana)]
     }
   )
   @ (
@@ -601,7 +1795,15 @@ let rec automatic_inserted_labels_pat =
   };
 
 let exp_mark_err_view =
-    (~globals, ~show_type_colon=true, cls: Cls.t, m: Mark.t, info: Info.exp) => {
+    (
+      ~globals,
+      ~show_type_colon=true,
+      ~syn_view: option(Typ.t => Node.t)=?,
+      ~ana_view: option(Typ.t => Node.t)=?,
+      cls: Cls.t,
+      m: Mark.t,
+      info: Info.exp,
+    ) => {
   let introduced_labels =
     switch (info.label_inference) {
     | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
@@ -629,6 +1831,8 @@ let exp_mark_err_view =
         ~inferred_label,
         ~ctx,
         ~ana,
+        ~syn_view?,
+        ~ana_view?,
         cls,
         m,
       ),
@@ -810,10 +2014,22 @@ let exp_view =
     (
       ~globals,
       ~show_type_colon=true,
+      ~slicing: option((Model.t, Update.t => Ui_effect.t(unit)))=?,
       cls: Cls.t,
       message: Message.t,
       info: Info.exp,
     ) => {
+  let (syn_view, ana_view): (
+    option(Typ.t => Node.t),
+    option(Typ.t => Node.t),
+  ) =
+    switch (slicing) {
+    | None => (None, None)
+    | Some((model, inject)) => (
+        Some(type_slot(~globals, ~model, ~inject, Synthesizing)),
+        Some(type_slot(~globals, ~model, ~inject, Analyzing)),
+      )
+    };
   let introduced_labels =
     switch (info.label_inference) {
     | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
@@ -846,12 +2062,15 @@ let exp_view =
           ~introduced_labels,
           ~inferred_label,
           ~label_sort=info.label_sort,
+          ~syn_view?,
+          ~ana_view?,
           cls,
           Message.Syn(info.elab_syn_ty),
         ),
       )
     | Exp(AnaDeferralConsistent(ana)) =>
-      div_ok([text("Expecting type"), view_type(~globals, ana)])
+      let render = Option.value(ana_view, ~default=view_type(~globals));
+      div_ok([text("Expecting type"), render(ana)]);
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(
@@ -862,6 +2081,8 @@ let exp_view =
           ~introduced_labels,
           ~inferred_label,
           ~label_sort=info.label_sort,
+          ~syn_view?,
+          ~ana_view?,
           cls,
           ok,
         ),
@@ -873,7 +2094,16 @@ let exp_view =
     }
   | true =>
     switch (Mark.highest(marks)) {
-    | Some(m) => exp_mark_err_view(~globals, ~show_type_colon, cls, m, info)
+    | Some(m) =>
+      exp_mark_err_view(
+        ~globals,
+        ~show_type_colon,
+        ~syn_view?,
+        ~ana_view?,
+        cls,
+        m,
+        info,
+      )
     | None =>
       div_err([
         text("(internal) expression marks indicate error but no syn mark"),
@@ -886,6 +2116,8 @@ let pat_marks_err_view =
     (
       ~globals,
       ~show_type_colon=true,
+      ~syn_view: option(Typ.t => Node.t)=?,
+      ~ana_view: option(Typ.t => Node.t)=?,
       cls: Cls.t,
       marks: list(Mark.t),
       info: Info.pat,
@@ -922,6 +2154,8 @@ let pat_marks_err_view =
             ~lifted_ty,
             ~ctx,
             ~ana,
+            ~syn_view?,
+            ~ana_view?,
             cls,
             m,
           ),
@@ -944,6 +2178,8 @@ let pat_marks_err_view =
           ~lifted_ty,
           ~ctx,
           ~ana,
+          ~syn_view?,
+          ~ana_view?,
           cls,
           m,
         ),
@@ -956,10 +2192,22 @@ let pat_view =
     (
       ~globals,
       ~show_type_colon=true,
+      ~slicing: option((Model.t, Update.t => Ui_effect.t(unit)))=?,
       cls: Cls.t,
       message: Message.t,
       info: Info.pat,
     ) => {
+  let (syn_view, ana_view): (
+    option(Typ.t => Node.t),
+    option(Typ.t => Node.t),
+  ) =
+    switch (slicing) {
+    | None => (None, None)
+    | Some((model, inject)) => (
+        Some(type_slot(~globals, ~model, ~inject, Synthesizing)),
+        Some(type_slot(~globals, ~model, ~inject, Analyzing)),
+      )
+    };
   let lifted_ty =
     switch (info.label_inference) {
     | Some(SingletonLabelInference(_)) => Some(info.ty)
@@ -976,7 +2224,15 @@ let pat_view =
 
   let marks = info.marks;
   marks != []
-    ? pat_marks_err_view(~globals, ~show_type_colon, cls, marks, info)
+    ? pat_marks_err_view(
+        ~globals,
+        ~show_type_colon,
+        ~syn_view?,
+        ~ana_view?,
+        cls,
+        marks,
+        info,
+      )
     : {
       let ok =
         switch (message) {
@@ -1000,6 +2256,8 @@ let pat_view =
           ~introduced_labels,
           ~inferred_label,
           ~label_sort=info.label_sort,
+          ~syn_view?,
+          ~ana_view?,
           cls,
           ok,
         );
@@ -1099,17 +2357,47 @@ let tpat_view =
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
-let view_of_info = (~globals, ci): list(Node.t) => {
-  let wrapper = status_view => [term_view(~globals, ci), status_view];
+let explain_error_tooltip = "Explain this type error by slicing both types up to their first inconsistency.";
+
+let explain_error_button = (~inject: Update.t => Ui_effect.t(unit)) =>
+  div(
+    ~attrs=[
+      clss(["explain-error-button"]),
+      Attr.title(explain_error_tooltip),
+      Attr.on_pointerdown(_ =>
+        Effect.Many([Effect.Stop_propagation, inject(Update.ExplainError)])
+      ),
+    ],
+    [Icons.explain_this, text("Explain error")],
+  );
+
+let view_of_info =
+    (
+      ~globals,
+      ~slice_header=false,
+      ~slicing: option((Model.t, Update.t => Ui_effect.t(unit)))=?,
+      ci,
+    )
+    : list(Node.t) => {
+  let error_button =
+    switch (slicing) {
+    | Some((_, inject)) when ErrorSlicing.for_info(ci) != None => [
+        explain_error_button(~inject),
+      ]
+    | _ => []
+    };
+  let wrapper = status_view =>
+    [term_view(~globals, ~slice_header, ci), status_view] @ error_button;
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
+  | InfoSliceScratch(_) => wrapper(div([]))
   | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, _} as ie) =>
-    wrapper(exp_view(~globals, cls, message, ie))
+    wrapper(exp_view(~globals, ~slicing?, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
-    wrapper(pat_view(~globals, cls, message, ip))
+    wrapper(pat_view(~globals, ~slicing?, cls, message, ip))
   | InfoTyp({cls, marks, message, _}) =>
     wrapper(typ_view(~globals, cls, ~marks, ~message))
   | InfoTPat({cls, marks, message, _}) =>
@@ -1118,32 +2406,128 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   };
 };
 
-let inspector_view = (~globals: Globals.t, ci): Node.t =>
+let status_class = (~globals: Globals.t, ci): string =>
+  Info.is_error(ci)
+    ? errc
+    : Info.is_warning(ci) && globals.settings.core.display_warnings
+        ? warnc : okc;
+
+let bar_of_info =
+    (~globals: Globals.t, ~slicing=?, ~id=?, ~extra_cls: list(string)=[], ci)
+    : Node.t =>
   div(
-    ~attrs=[
-      Attr.id("cursor-inspector"),
-      clss([
-        Info.is_error(ci)
-          ? errc
-          : Info.is_warning(ci) && globals.settings.core.display_warnings
-              ? warnc : okc,
-      ]),
-    ],
-    view_of_info(~globals, ci),
+    ~attrs=
+      (
+        switch (id) {
+        | Some(id) => [Attr.id(id)]
+        | None => []
+        }
+      )
+      @ [
+        clss(["cursor-inspector", status_class(~globals, ci)] @ extra_cls),
+      ],
+    view_of_info(~globals, ~slicing?, ci),
   );
 
-let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
+let fold_bar_of_info = (~globals: Globals.t, ci): Node.t => {
+  let body =
+    switch (Info.projector_kind_of(ci)) {
+    | Some(ProjectorKind.Fold) => [
+        term_view(~globals, ~slice_header=true, ci),
+        div_ok([text("ignored typing info")]),
+      ]
+    | _ => view_of_info(~globals, ~slice_header=true, ci)
+    };
+  div(
+    ~attrs=[
+      clss([
+        "cursor-inspector",
+        status_class(~globals, ci),
+        "secondary",
+        "fold-source",
+      ]),
+    ],
+    body,
+  );
+};
+
+let secondary_info =
+    (~model: Model.t, fallback: option(Info.t)): option(Info.t) =>
+  switch (model.focus_target) {
+  | Model.Main => fallback
+  | Model.Fold(target) =>
+    switch (Model.row(target, model).editor) {
+    | Model.EditorSlot.SomeEditor(editor) =>
+      switch (
+        Indicated.ci_of(editor.editor.state.zipper, editor.statics.info_map)
+      ) {
+      | Some(_) as ci => ci
+      | None => fallback
+      }
+    | Model.EditorSlot.NoEditor => fallback
+    }
+  };
+
+let secondary_bar =
+    (~globals: Globals.t, ~model: Model.t, ~fallback: Info.t): Node.t =>
+  switch (model.focus_target) {
+  | Model.Fold(target) =>
+    switch (Model.row(target, model).editor) {
+    | Model.EditorSlot.SomeEditor(editor) =>
+      switch (
+        Indicated.ci_of(editor.editor.state.zipper, editor.statics.info_map)
+      ) {
+      | Some(fold_ci) => fold_bar_of_info(~globals, fold_ci)
+      | None => bar_of_info(~globals, ~extra_cls=["secondary"], fallback)
+      }
+    | Model.EditorSlot.NoEditor =>
+      bar_of_info(~globals, ~extra_cls=["secondary"], fallback)
+    }
+  | Model.Main => bar_of_info(~globals, ~extra_cls=["secondary"], fallback)
+  };
+
+let view =
+    (
+      ~globals: Globals.t,
+      ~model: Model.t,
+      ~inject: Update.t => Ui_effect.t(unit),
+      ~anchor_info: option(Info.t)=None,
+      cursor: Cursor.cursor(Editors.Update.t),
+    ) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
       div(
-        ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
+        ~attrs=[
+          Attr.id("cursor-inspector"),
+          clss(["cursor-inspector", "no-info"]),
+        ],
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
     ]);
   switch (cursor.info) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
-  | Some(ci) => bar_view([inspector_view(~globals, ci)])
+  | Some(ci) when Model.has_active(model) =>
+    let anchor_ci = Option.value(anchor_info, ~default=ci);
+    let slicing_bar =
+      bar_of_info(
+        ~globals,
+        ~slicing=(model, inject),
+        ~id="cursor-inspector",
+        ~extra_cls=["slicing-active"],
+        anchor_ci,
+      );
+    let plain_bar = secondary_bar(~globals, ~model, ~fallback=ci);
+    bar_view([plain_bar, slicing_bar]);
+  | Some(ci) =>
+    bar_view([
+      bar_of_info(
+        ~globals,
+        ~slicing=(Model.refresh_for_info(ci, model), inject),
+        ~id="cursor-inspector",
+        ci,
+      ),
+    ])
   };
 };

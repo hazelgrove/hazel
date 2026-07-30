@@ -197,7 +197,7 @@ let invalid_args_fallback =
     let (arg_info, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
     add(
       ~elab_term=mk_builtin_ap_elab(fn_info, arg_elab),
-      ~elab_syn_ty=unknown,
+      ~formation=MatchedTyp.identity(unknown),
       ~marks=[error],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
       m,
@@ -252,6 +252,7 @@ let handle_tuple_operation =
             inferred_label: None,
             label_sort: false,
             dot_labels: [],
+            slice: Slice.opaque,
           }),
           m,
         );
@@ -259,7 +260,7 @@ let handle_tuple_operation =
       let result_type = compute_result_type(labeled_tup_info, labels);
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg_elab),
-        ~elab_syn_ty=result_type,
+        ~formation=MatchedTyp.identity(result_type),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
         m,
@@ -445,6 +446,7 @@ let group_by_label_statics =
             inferred_label: None,
             label_sort: false,
             dot_labels: [],
+            slice: Slice.opaque,
           }),
           m,
         );
@@ -477,7 +479,7 @@ let group_by_label_statics =
 
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg_elab),
-        ~elab_syn_ty=unknown,
+        ~formation=MatchedTyp.identity(unknown),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
         m,
@@ -505,7 +507,8 @@ let to_lvs_statics =
       arg: Exp.t,
     ) => {
   open S;
-  let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+  let (ty_in, ty_out) =
+    MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_info.ty);
   let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
   switch (Typ.normalize(ctx, arg.ty).term) {
@@ -525,14 +528,17 @@ let to_lvs_statics =
 
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-        ~elab_syn_ty=
-          IdTagged.FreshGrammar.Typ.(
-            list(
-              prod([
-                tup_label(label("label"), string()),
-                tup_label(label("value"), joined_typ),
-              ]),
-            )
+        ~formation=
+          MatchedTyp.form(
+            MatchedTyp.list_former,
+            [
+              IdTagged.FreshGrammar.Typ.(
+                prod([
+                  tup_label(label("label"), string()),
+                  tup_label(label("value"), joined_typ),
+                ])
+              ),
+            ],
           ),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
@@ -541,7 +547,7 @@ let to_lvs_statics =
     | _ =>
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-        ~elab_syn_ty=ty_out,
+        ~formation=MatchedTyp.identity(ty_out),
         ~marks=[BuiltinError(ToLvsMissingLabelsOnTuple(ty_out))],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
@@ -550,7 +556,7 @@ let to_lvs_statics =
   | Unknown(_) =>
     add(
       ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-      ~elab_syn_ty=ty_out,
+      ~formation=MatchedTyp.identity(ty_out),
       ~marks=[],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
       m,
@@ -558,7 +564,7 @@ let to_lvs_statics =
   | _ =>
     add(
       ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-      ~elab_syn_ty=ty_out,
+      ~formation=MatchedTyp.identity(ty_out),
       ~marks=[BuiltinError(ToLvsMissingLabelsOnTuple(ty_out))],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
       m,
@@ -576,7 +582,8 @@ let omit_all_labels_statics =
       arg: Exp.t,
     ) => {
   S.(
-    let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+    let (ty_in, ty_out) =
+      MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_info.ty);
     let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
     switch (Typ.normalize(ctx, arg.ty).term) {
@@ -593,7 +600,11 @@ let omit_all_labels_statics =
 
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-        ~elab_syn_ty=Typ.to_product(entries),
+        ~formation=
+          MatchedTyp.form(
+            MatchedTyp.prod_former(List.length(entries)),
+            entries,
+          ),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
@@ -601,7 +612,7 @@ let omit_all_labels_statics =
     | Unknown(_) =>
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-        ~elab_syn_ty=ty_out,
+        ~formation=MatchedTyp.identity(ty_out),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
@@ -609,7 +620,7 @@ let omit_all_labels_statics =
     | _ =>
       add(
         ~elab_term=mk_builtin_ap_elab(fn_info, arg.elab_term),
-        ~elab_syn_ty=unknown,
+        ~formation=MatchedTyp.identity(unknown),
         ~marks=[BuiltinError(ArgumentMustBeTuple)],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
@@ -658,7 +669,8 @@ let custom_statics_deferred_ap =
       let (_, m) = validate_label_arguments((module S), ~ctx, labels, m);
 
       add(
-        ~elab_syn_ty=Arrow(unknown, unknown) |> Typ.temp,
+        ~formation=
+          MatchedTyp.form(MatchedTyp.arrow_former, [unknown, unknown]),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
         m,
@@ -670,7 +682,7 @@ let custom_statics_deferred_ap =
         validate_label_arguments((module S), ~ctx, [pivot_label], m);
 
       add(
-        ~elab_syn_ty=unknown,
+        ~formation=MatchedTyp.identity(unknown),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
         m,
@@ -680,7 +692,7 @@ let custom_statics_deferred_ap =
       let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
       add(
-        ~elab_syn_ty=unknown,
+        ~formation=MatchedTyp.identity(unknown),
         ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
         m,
@@ -698,7 +710,7 @@ let custom_statics_deferred_ap =
         );
 
       add(
-        ~elab_syn_ty=unknown,
+        ~formation=MatchedTyp.identity(unknown),
         ~marks=[BuiltinError(AtLeast2Arguments)],
         ~co_ctx=combined_co_ctx,
         m,
@@ -716,7 +728,7 @@ let custom_statics_deferred_ap =
         );
 
       add(
-        ~elab_syn_ty=unknown,
+        ~formation=MatchedTyp.identity(unknown),
         ~marks=[BuiltinError(Exactly2Arguments)],
         ~co_ctx=combined_co_ctx,
         m,
@@ -738,7 +750,8 @@ let custom_statics_deferred_ap =
         |> Typ.to_product;
 
       add(
-        ~elab_syn_ty=Arrow(ty_in', unknown) |> Typ.temp,
+        ~formation=
+          MatchedTyp.form(MatchedTyp.arrow_former, [ty_in', unknown]),
         ~marks=[],
         ~co_ctx=combined_co_ctx,
         m,

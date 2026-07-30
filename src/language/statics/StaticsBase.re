@@ -48,6 +48,7 @@ module Map = {
     switch (lookup(id, m)) {
     | Some(InfoExp({co_ctx, ctx, _})) =>
       co_ctx
+      |> CoCtx.values
       |> Util.VarMap.to_list
       |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
     | _ => []
@@ -529,7 +530,7 @@ module type ExpressionStatics = {
     (
       ~user_term: Exp.t=?,
       ~elab_term: Exp.t,
-      ~elab_syn_ty: Typ.t,
+      ~formation: MatchedTyp.formation,
       ~marks: list(Mark.t)=?,
       ~warnings: list(Warning.list_item)=?,
       ~ctx: Ctx.t=?,

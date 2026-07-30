@@ -90,7 +90,7 @@ select {
   width: 100vw;
   display: grid;
   /* Row 1: top-bar, Row 2: focus-bar, Row 3: main, Row 4: bottom-bar */
-  grid-template: 2em auto minmax(0, 1fr) 2em / 1fr fit-content(18em);
+  grid-template: 2em auto minmax(0, 1fr) auto / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--STONE);
   user-select: none;
@@ -351,11 +351,19 @@ select {
   grid-row: 4 / span 1;
   grid-column: 1 / span 2;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: stretch;
   background-color: var(--ui-bkg);
   outline: 0.6px solid var(--BR2);
+}
+
+#bottom-bar > .cursor-inspector {
+  height: 2em;
+  flex: none;
+}
+
+#bottom-bar > .cursor-inspector:not(:last-child) {
+  border-bottom: 0.6px solid var(--BR2);
 }
 
 ninja-keys {

@@ -16,6 +16,7 @@ module Model = {
     globals: Globals.Model.t,
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
+    cursor_inspector: CursorInspector.Model.t,
     selection,
   };
 
@@ -31,6 +32,7 @@ module Model = {
       globals,
       editors,
       explain_this: ExplainThisModel.init,
+      cursor_inspector: CursorInspector.Model.init,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -49,6 +51,7 @@ module Store = {
       editors,
       globals,
       explain_this,
+      cursor_inspector: CursorInspector.Model.init,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -85,6 +88,264 @@ module Update = {
     };
   };
 
+  type code_sync_result = {
+    code: CodeEditable.Model.t,
+    changed: bool,
+  };
+
+  type editors_sync_result = {
+    editors: Editors.Model.t,
+    changed: bool,
+    visited: bool,
+  };
+
+  let map_scratch_code_model =
+      (
+        f: CodeEditable.Model.t => code_sync_result,
+        model: ScratchMode.Model.t,
+      )
+      : (ScratchMode.Model.t, bool, bool) => {
+    let scratchpad = List.nth(model.scratchpads, model.current);
+    switch (scratchpad.kind) {
+    | ScratchMode.Scratchpad.Code({editor, agent}) =>
+      let result = f(editor.editor);
+      let editor = {
+        ...editor,
+        editor: result.code,
+      };
+      let scratchpad = {
+        ...scratchpad,
+        kind:
+          ScratchMode.Scratchpad.Code({
+            editor,
+            agent,
+          }),
+      };
+      (
+        {
+          ...model,
+          scratchpads:
+            ListUtil.put_nth(model.current, scratchpad, model.scratchpads),
+        },
+        result.changed,
+        true,
+      );
+    | ScratchMode.Scratchpad.Drv(_) => (model, false, false)
+    };
+  };
+
+  let map_active_code_model =
+      (f: CodeEditable.Model.t => code_sync_result, editors: Editors.Model.t)
+      : editors_sync_result => {
+    switch (editors) {
+    | Editors.Model.Scratch(model) =>
+      let (model, changed, visited) = map_scratch_code_model(f, model);
+      {
+        editors: Editors.Model.Scratch(model),
+        changed,
+        visited,
+      };
+    | Editors.Model.Documentation(model) =>
+      let (model, changed, visited) = map_scratch_code_model(f, model);
+      {
+        editors: Editors.Model.Documentation(model),
+        changed,
+        visited,
+      };
+    | Editors.Model.Tutorial(model) =>
+      let exercise = List.nth(model.exercises, model.current);
+      let cell = exercise.cells.user_impl;
+      let result = f(cell.editor);
+      let cell = {
+        ...cell,
+        editor: result.code,
+      };
+      let exercise = {
+        ...exercise,
+        editors:
+          Tutorial.put_main_editor(
+            ~selection=Tutorial.YourImpl,
+            exercise.editors,
+            result.code.editor,
+          ),
+        cells: Tutorial.put_stitched(Tutorial.YourImpl, exercise.cells, cell),
+      };
+      {
+        editors:
+          Editors.Model.Tutorial({
+            ...model,
+            exercises:
+              ListUtil.put_nth(model.current, exercise, model.exercises),
+          }),
+        changed: result.changed,
+        visited: true,
+      };
+    | Editors.Model.Exercises(model) =>
+      let current = List.nth(model.exercises, model.current);
+      switch (current) {
+      | ExercisesMode.Model.Code(exercise) =>
+        let cell = exercise.cells.user_impl;
+        let result = f(cell.editor);
+        let cell = {
+          ...cell,
+          editor: result.code,
+        };
+        let exercise = {
+          ...exercise,
+          editors:
+            CodeExercise.put_main_editor(
+              ~selection=CodeExercise.YourImpl,
+              exercise.editors,
+              result.code.editor,
+            ),
+          cells:
+            CodeExercise.put_stitched(
+              CodeExercise.YourImpl,
+              exercise.cells,
+              cell,
+            ),
+        };
+        {
+          editors:
+            Editors.Model.Exercises({
+              ...model,
+              exercises:
+                ListUtil.put_nth(
+                  model.current,
+                  ExercisesMode.Model.Code(exercise),
+                  model.exercises,
+                ),
+            }),
+          changed: result.changed,
+          visited: true,
+        };
+      | ExercisesMode.Model.Derivation(exercise) =>
+        let cell = exercise.cells.setup;
+        let result = f(cell.editor);
+        let cell = {
+          ...cell,
+          editor: result.code,
+        };
+        let exercise = {
+          ...exercise,
+          editors:
+            DerivationExercise.put_main_editor(
+              ~selection=DerivationExercise.Setup,
+              exercise.editors,
+              result.code.editor,
+            ),
+          cells:
+            DerivationExercise.put_stitched(
+              DerivationExercise.Setup,
+              exercise.cells,
+              cell,
+            ),
+        };
+        {
+          editors:
+            Editors.Model.Exercises({
+              ...model,
+              exercises:
+                ListUtil.put_nth(
+                  model.current,
+                  ExercisesMode.Model.Derivation(exercise),
+                  model.exercises,
+                ),
+            }),
+          changed: result.changed,
+          visited: true,
+        };
+      | ExercisesMode.Model.Theorem(exercise) =>
+        let cell = exercise.cells.theorem;
+        let result = f(cell.editor);
+        let cell = {
+          ...cell,
+          editor: result.code,
+        };
+        let exercise = {
+          ...exercise,
+          cells: {
+            ...exercise.cells,
+            theorem: cell,
+          },
+        };
+        {
+          editors:
+            Editors.Model.Exercises({
+              ...model,
+              exercises:
+                ListUtil.put_nth(
+                  model.current,
+                  ExercisesMode.Model.Theorem(exercise),
+                  model.exercises,
+                ),
+            }),
+          changed: result.changed,
+          visited: true,
+        };
+      };
+    };
+  };
+
+  let sync_explain_folds =
+      (
+        ~refresh_cursor_inspector=true,
+        ~reslice: bool,
+        ~cursor_info: option(Language.Info.t),
+        ~previous_cursor_inspector: CursorInspector.Model.t,
+        model: Model.t,
+      )
+      : (Model.t, bool) => {
+    let cursor_inspector =
+      if (refresh_cursor_inspector) {
+        switch (cursor_info) {
+        | Some(ci) =>
+          CursorInspector.Model.refresh_for_info(ci, model.cursor_inspector)
+        | None => CursorInspector.Model.init
+        };
+      } else {
+        model.cursor_inspector;
+      };
+    if (!reslice
+        || !CursorInspector.Model.has_active(previous_cursor_inspector)
+        && !CursorInspector.Model.has_active(cursor_inspector)) {
+      (
+        {
+          ...model,
+          cursor_inspector,
+        },
+        false,
+      );
+    } else {
+      let sync_code = (code: CodeEditable.Model.t): code_sync_result => {
+        /* TODO: remember the folds applied by type slicing so this can
+           preserve unrelated user folds instead of unfolding every fold. */
+        let unfolded = CursorInspector.ProgramFolds.remove_all(code);
+        let code = unfolded.model;
+        let applied =
+          CursorInspector.ProgramFolds.apply_type_slice(
+            ~info_map=code.statics.info_map,
+            ~fallback_ci=cursor_info,
+            ~cursor_inspector,
+            code,
+          );
+        {
+          code: applied.model,
+          changed: unfolded.changed || applied.changed,
+        };
+      };
+      let result = map_active_code_model(sync_code, model.editors);
+      (
+        {
+          ...model,
+          editors: result.editors,
+          cursor_inspector,
+        },
+        result.visited && result.changed,
+      );
+    };
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
     | Start
@@ -95,6 +356,7 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
+    | CursorInspector(CursorInspector.Update.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Refresh
@@ -102,6 +364,23 @@ module Update = {
     | Save;
 
   let equal = (===);
+
+  let cursor_inspector_reslices = (action: CursorInspector.Update.t): bool =>
+    switch (action) {
+    | Toggle(_)
+    | ExplainError => true
+    | TypeEditor(_, editor_action) =>
+      switch (editor_action) {
+      | CodeEditable.Update.Perform(action) =>
+        Haz3lcore.Action.is_edit(action)
+      | TAB => true
+      | ContextMenu(_)
+      | DebugConsole(_) => false
+      }
+    | OpenMenu(_, _, _)
+    | Focus(_)
+    | CloseMenu => false
+    };
 
   let update_global =
       (
@@ -300,9 +579,28 @@ module Update = {
     };
     switch (action) {
     | Globals(action) =>
-      update_global(~globals, ~import_log, ~schedule_action, action, model)
+      let updated =
+        update_global(~globals, ~import_log, ~schedule_action, action, model);
+      let cursor_info =
+        Editors.Selection.get_cursor_info(
+          ~inject=_ => Ui_effect.Ignore,
+          ~selection=updated.model.selection,
+          updated.model.editors,
+        );
+      let (model, _folds_changed) =
+        sync_explain_folds(
+          ~reslice=false,
+          ~cursor_info=cursor_info.info,
+          ~previous_cursor_inspector=model.cursor_inspector,
+          updated.model,
+        );
+      {
+        ...updated,
+        model,
+        recalculate: updated.recalculate,
+      };
     | Editors(action) =>
-      let* editors =
+      let updated_editors =
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
@@ -319,10 +617,33 @@ module Update = {
           }
         | _ => model.globals
         };
-      {
+      let model = {
         ...model,
-        editors,
+        editors: updated_editors.model,
         globals,
+      };
+      let cursor_info =
+        Editors.Selection.get_cursor_info(
+          ~inject=_ => Ui_effect.Ignore,
+          ~selection=model.selection,
+          model.editors,
+        );
+      let (model, _folds_changed) =
+        sync_explain_folds(
+          ~reslice=false,
+          ~cursor_info=cursor_info.info,
+          ~previous_cursor_inspector=model.cursor_inspector,
+          model,
+        );
+      let model = {
+        ...model,
+        cursor_inspector:
+          CursorInspector.Model.set_focus_main(model.cursor_inspector),
+      };
+      {
+        ...updated_editors,
+        model,
+        recalculate: updated_editors.recalculate,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -330,6 +651,59 @@ module Update = {
       {
         ...model,
         explain_this,
+      };
+    | CursorInspector(action) =>
+      let previous_cursor_inspector = model.cursor_inspector;
+      let cursor_info =
+        Editors.Selection.get_cursor_info(
+          ~inject=_ => Ui_effect.Ignore,
+          ~selection=model.selection,
+          model.editors,
+        );
+      let editor = get_editor(model);
+      let toggle_info =
+        switch (
+          CursorInspector.selection_root_info(
+            ~info_map=editor.statics.info_map,
+            editor.editor.state.zipper,
+          )
+        ) {
+        | Some(_) as ci => ci
+        | None => cursor_info.info
+        };
+      let updated_cursor_inspector =
+        CursorInspector.Update.update(
+          ~settings=model.globals.settings,
+          ~cursor_info=toggle_info,
+          action,
+          model.cursor_inspector,
+        );
+      let just_activated =
+        !CursorInspector.Model.has_active(previous_cursor_inspector)
+        && CursorInspector.Model.has_active(updated_cursor_inspector.model);
+      let cursor_inspector = {
+        ...updated_cursor_inspector.model,
+        anchor_caret:
+          just_activated
+            ? CursorInspector.caret_anchor(editor.editor.state.zipper)
+            : updated_cursor_inspector.model.anchor_caret,
+      };
+      let model = {
+        ...model,
+        cursor_inspector,
+      };
+      let (model, _folds_changed) =
+        sync_explain_folds(
+          ~refresh_cursor_inspector=false,
+          ~reslice=cursor_inspector_reslices(action),
+          ~cursor_info=toggle_info,
+          ~previous_cursor_inspector,
+          model,
+        );
+      {
+        ...updated_cursor_inspector,
+        model,
+        recalculate: updated_cursor_inspector.recalculate,
       };
     | MakeActive(selection) =>
       {
@@ -359,6 +733,7 @@ module Update = {
     | Globals(action) => Globals.Update.can_undo(action)
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
+    | CursorInspector(action) => CursorInspector.Update.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
     | Refresh => false
@@ -853,7 +1228,13 @@ module View = {
         ~log_model,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
-        {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
+        {
+          globals,
+          editors,
+          explain_this: explainThisModel,
+          cursor_inspector,
+          selection,
+        } as model: Model.t,
       ) => {
     let log_count = LogCount.get();
     let globals = {
@@ -863,14 +1244,41 @@ module View = {
       get_log_count: _ =>
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
+      slice_anchor: CursorInspector.Model.slice_anchor(cursor_inspector),
+      slice_anchor_term:
+        CursorInspector.Model.has_active(cursor_inspector)
+          ? CursorInspector.Model.anchor_id(cursor_inspector) : None,
     };
-    let bottom_bar = CursorInspector.view(~globals, cursor);
+    let cursor = {
+      ...cursor,
+      info:
+        CursorInspector.secondary_info(~model=cursor_inspector, cursor.info),
+    };
+    let anchor_info =
+      switch (CursorInspector.Model.anchor_id(cursor_inspector)) {
+      | Some(id) =>
+        Language.Statics.Map.lookup(
+          id,
+          Update.get_editor(model).statics.info_map,
+        )
+      | None => None
+      };
+    let bottom_bar =
+      CursorInspector.view(
+        ~globals,
+        ~model=cursor_inspector,
+        ~inject=a => inject(CursorInspector(a)),
+        ~anchor_info,
+        cursor,
+      );
     let sidebar =
       Sidebar.view(
         ~globals,
         ~explain_this_inject=
           (action: ExplainThisUpdate.update) => inject(ExplainThis(action)),
         ~explainThisModel,
+        ~type_slicing_focuses=
+          CursorInspector.type_slicing_focuses(cursor_inspector),
         ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
         ~editors,
         ~selection=model.selection,

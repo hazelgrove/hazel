@@ -52,6 +52,7 @@ let (suite, _) =
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
+    @ [Test_TypeSlicingUI.tests]
     @ [Test_VarHighlight.tests]
     @ [Test_GradingReport.tests]
     @ [Test_Derivation.tests]

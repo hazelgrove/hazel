@@ -971,12 +971,14 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
              | Asc({term: Var(name), _}, typ) =>
                Some(
                  TupLabel(Label(name) |> temp, desugar_sig(ctx, typ))
-                 |> temp,
+                 |> temp
+                 |> IdTagged.fast_copy(IdTagged.rep_id(item)),
                )
              | Var(name) =>
                Some(
                  TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
-                 |> temp,
+                 |> temp
+                 |> IdTagged.fast_copy(IdTagged.rep_id(item)),
                )
              | _ => None
              }
@@ -991,7 +993,7 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
     | _ => Prod(fields) |> rewrap
     };
   | Parens(t) => Parens(desugar_sig(ctx, t)) |> rewrap
-  | Projector(_, t) => desugar_sig(ctx, t)
+  | Projector(data, t) => Projector(data, desugar_sig(ctx, t)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
   | TypParamAp(t1, t2) =>
@@ -1284,6 +1286,310 @@ let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   meet(ctx, ty1, ty2) != None;
+
+let rec names_a_definition = (ctx: Ctx.t, ty: t): bool =>
+  switch (term_of(ty)) {
+  | Parens(inner)
+  | Projector(_, inner)
+  | TypParamAp(inner, _) => names_a_definition(ctx, inner)
+  | Var(name) => Ctx.lookup_alias(ctx, name) != None
+  | _ => false
+  };
+
+let is_askable = (ctx: Ctx.t, actual: t, query: t): bool =>
+  if (names_a_definition(ctx, actual)) {
+    names_a_definition(ctx, query)
+    && is_consistent(
+         ctx,
+         weak_head_normalize(ctx, actual),
+         weak_head_normalize(ctx, query),
+       );
+  } else {
+    is_consistent(ctx, actual, query);
+  };
+
+let gap: t = temp(Unknown(Hole(EmptyHole)));
+
+let rec is_gap = (ty: t): bool =>
+  switch (term_of(ty)) {
+  | Parens(inner)
+  | Projector(_, inner) => is_gap(inner)
+  | Unknown(Internal)
+  | Unknown(Hole(EmptyHole))
+  | Unknown(SynSwitch) => true
+  | _ => false
+  };
+
+let rec is_empty = (ty: t): bool =>
+  if (is_gap(ty)) {
+    true;
+  } else {
+    switch (term_of(ty)) {
+    | List(inner)
+    | TypFun(_, inner)
+    | Parens(inner)
+    | Projector(_, inner)
+    | Rec(_, inner)
+    | Poly(_, inner) => is_empty(inner)
+    | Arrow(left, right)
+    | TupLabel(left, right)
+    | TypParamAp(left, right)
+    | ProdProjection(left, right)
+    | ProdExtension(left, right) => is_empty(left) && is_empty(right)
+    | Prod(items)
+    | TypTuple(items) => List.for_all(is_empty, items)
+    | Sum(variants) =>
+      List.for_all(
+        fun
+        | ConstructorMap.BadEntry(inner) => is_empty(inner)
+        | ConstructorMap.Variant(_, _, _) => false,
+        variants,
+      )
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Var(_)
+    | ExplicitNonlabel
+    | Label(_)
+    | ProofOf(_)
+    | Sig(_) => false
+    };
+  };
+
+let rec collect_constraints =
+        (
+          ~replace_bound=false,
+          ctx,
+          bound: list(string),
+          schema: t,
+          demand: t,
+        ) =>
+  switch (term_of(schema)) {
+  | Var(name) when List.mem(name, bound) => (
+      replace_bound ? demand : schema,
+      [(name, demand)],
+    )
+  | _ =>
+    let collect_pair = (schema, demand) =>
+      collect_constraints(~replace_bound, ctx, bound, schema, demand);
+    let collect_many = (schemas, demands) =>
+      List.map2(collect_pair, schemas, demands);
+    let collect_under = (pattern, schema, demand) => {
+      let shadowed =
+        TPat.binders_of(pattern) |> List.filter_map(TPat.tyvar_of_utpat);
+      collect_constraints(
+        ~replace_bound,
+        ctx,
+        List.filter(name => !List.mem(name, shadowed), bound),
+        schema,
+        demand,
+      );
+    };
+    let fallback = () =>
+      if (equal(schema, demand)) {
+        (demand, []);
+      } else {
+        let schema' = weak_head_normalize(ctx, schema);
+        let demand' = weak_head_normalize(ctx, demand);
+        if (!equal(schema, schema') || !equal(demand, demand')) {
+          collect_constraints(~replace_bound, ctx, bound, schema', demand');
+        } else {
+          (demand, []);
+        };
+      };
+    switch (term_of(schema), term_of(demand)) {
+    | (Parens(schema), _) => collect_pair(schema, demand)
+    | (_, Parens(demand)) => collect_pair(schema, demand)
+    | (Projector(_, schema), _) => collect_pair(schema, demand)
+    | (_, Projector(_, demand)) => collect_pair(schema, demand)
+    | (List(schema), List(demand)) =>
+      let (matched, constraints) = collect_pair(schema, demand);
+      (List(matched) |> temp, constraints);
+    | (TypFun(pattern, schema), TypFun(_, demand)) =>
+      let (matched, constraints) = collect_under(pattern, schema, demand);
+      (TypFun(pattern, matched) |> temp, constraints);
+    | (Rec(pattern, schema), Rec(_, demand)) =>
+      let (matched, constraints) = collect_under(pattern, schema, demand);
+      (Rec(pattern, matched) |> temp, constraints);
+    | (Poly(pattern, schema), Poly(_, demand)) =>
+      let (matched, constraints) = collect_under(pattern, schema, demand);
+      (Poly(pattern, matched) |> temp, constraints);
+    | (Arrow(s1, s2), Arrow(d1, d2)) =>
+      let (m1, c1) = collect_pair(s1, d1);
+      let (m2, c2) = collect_pair(s2, d2);
+      (Arrow(m1, m2) |> temp, c1 @ c2);
+    | (TupLabel(s1, s2), TupLabel(d1, d2)) =>
+      let (m1, c1) = collect_pair(s1, d1);
+      let (m2, c2) = collect_pair(s2, d2);
+      (TupLabel(m1, m2) |> temp, c1 @ c2);
+    | (TypParamAp(s1, s2), TypParamAp(d1, d2)) =>
+      let (m1, c1) = collect_pair(s1, d1);
+      let (m2, c2) = collect_pair(s2, d2);
+      (TypParamAp(m1, m2) |> temp, c1 @ c2);
+    | (ProdProjection(s1, s2), ProdProjection(d1, d2)) =>
+      let (m1, c1) = collect_pair(s1, d1);
+      let (m2, c2) = collect_pair(s2, d2);
+      (ProdProjection(m1, m2) |> temp, c1 @ c2);
+    | (ProdExtension(s1, s2), ProdExtension(d1, d2)) =>
+      let (m1, c1) = collect_pair(s1, d1);
+      let (m2, c2) = collect_pair(s2, d2);
+      (ProdExtension(m1, m2) |> temp, c1 @ c2);
+    | (Prod(schemas), Prod(demands))
+    | (TypTuple(schemas), TypTuple(demands))
+        when List.length(schemas) == List.length(demands) =>
+      let matches = collect_many(schemas, demands);
+      let matched = List.map(fst, matches);
+      let constraints = List.concat_map(snd, matches);
+      switch (term_of(schema)) {
+      | Prod(_) => (Prod(matched) |> temp, constraints)
+      | TypTuple(_) => (TypTuple(matched) |> temp, constraints)
+      | _ => (demand, [])
+      };
+    | (Sum(schemas), Sum(demands)) =>
+      let find_variant = name =>
+        List.find_map(
+          fun
+          | ConstructorMap.Variant(other, _, payload)
+              when Constructor.equal(name, other) =>
+            Some(payload)
+          | ConstructorMap.Variant(_, _, _)
+          | ConstructorMap.BadEntry(_) => None,
+          demands,
+        );
+      let matches =
+        List.map(
+          fun
+          | ConstructorMap.Variant(name, annotation, Some(schema)) => {
+              let target =
+                switch (find_variant(name)) {
+                | Some(Some(target)) => target
+                | Some(None)
+                | None => gap
+                };
+              let (matched, constraints) = collect_pair(schema, target);
+              let variant =
+                is_empty(target)
+                  ? ConstructorMap.BadEntry(gap)
+                  : ConstructorMap.Variant(name, annotation, Some(matched));
+              (variant, constraints);
+            }
+          | ConstructorMap.Variant(name, annotation, None) => {
+              let variant =
+                switch (find_variant(name)) {
+                | Some(None) =>
+                  ConstructorMap.Variant(name, annotation, None)
+                | Some(Some(_))
+                | None => ConstructorMap.BadEntry(gap)
+                };
+              (variant, []);
+            }
+          | ConstructorMap.BadEntry(_) => (ConstructorMap.BadEntry(gap), []),
+          schemas,
+        );
+      (Sum(List.map(fst, matches)) |> temp, List.concat_map(snd, matches));
+    | _ => fallback()
+    };
+  };
+
+// Co-Heyting subtraction
+let rec subtract = (ctx: Ctx.t, left: t, right: t): t =>
+  if (is_gap(left)) {
+    gap;
+  } else if (is_gap(right)) {
+    left;
+  } else if (equal(left, right)) {
+    gap;
+  } else {
+    let subtract_pair = (left, right) => subtract(ctx, left, right);
+    let fallback = () => {
+      let left' = weak_head_normalize(ctx, left);
+      let right' = weak_head_normalize(ctx, right);
+      if (!equal(left, left') || !equal(right, right')) {
+        subtract(ctx, left', right');
+      } else {
+        meet(ctx, left, right) == None ? left : gap;
+      };
+    };
+    switch (term_of(left), term_of(right)) {
+    | (Parens(inner), _) => subtract(ctx, inner, right)
+    | (_, Parens(inner)) => subtract(ctx, left, inner)
+    | (Projector(_, inner), _) => subtract(ctx, inner, right)
+    | (_, Projector(_, inner)) => subtract(ctx, left, inner)
+    | (List(left), List(right)) =>
+      List(subtract(ctx, left, right)) |> temp
+    | (TypFun(pattern, left), TypFun(_, right)) =>
+      TypFun(pattern, subtract(ctx, left, right)) |> temp
+    | (Rec(pattern, left), Rec(_, right)) =>
+      Rec(pattern, subtract(ctx, left, right)) |> temp
+    | (Poly(pattern, left), Poly(_, right)) =>
+      Poly(pattern, subtract(ctx, left, right)) |> temp
+    | (Arrow(l1, l2), Arrow(r1, r2)) =>
+      Arrow(subtract_pair(l1, r1), subtract_pair(l2, r2)) |> temp
+    | (TupLabel(l1, l2), TupLabel(r1, r2)) =>
+      TupLabel(subtract_pair(l1, r1), subtract_pair(l2, r2)) |> temp
+    | (TypParamAp(l1, l2), TypParamAp(r1, r2)) =>
+      TypParamAp(subtract_pair(l1, r1), subtract_pair(l2, r2)) |> temp
+    | (ProdProjection(l1, l2), ProdProjection(r1, r2)) =>
+      ProdProjection(subtract_pair(l1, r1), subtract_pair(l2, r2)) |> temp
+    | (ProdExtension(l1, l2), ProdExtension(r1, r2)) =>
+      ProdExtension(subtract_pair(l1, r1), subtract_pair(l2, r2)) |> temp
+    | (Prod(lefts), Prod(rights))
+    | (TypTuple(lefts), TypTuple(rights))
+        when List.length(lefts) == List.length(rights) =>
+      let residual = List.map2(subtract_pair, lefts, rights);
+      switch (term_of(left)) {
+      | Prod(_) => Prod(residual) |> temp
+      | TypTuple(_) => TypTuple(residual) |> temp
+      | _ => left
+      };
+    | (Sum(left_variants), Sum(right_variants)) =>
+      let find_variant = name =>
+        List.find_map(
+          fun
+          | ConstructorMap.Variant(other, _, payload)
+              when Constructor.equal(name, other) =>
+            Some(payload)
+          | ConstructorMap.Variant(_, _, _)
+          | ConstructorMap.BadEntry(_) => None,
+          right_variants,
+        );
+      Sum(
+        List.map(
+          fun
+          | ConstructorMap.Variant(name, annotation, payload) as left =>
+            switch (find_variant(name), payload) {
+            | (None, _)
+            | (Some(None), Some(_)) => left
+            | (Some(_), None) => ConstructorMap.BadEntry(gap)
+            | (Some(Some(right)), Some(left)) =>
+              let residual = subtract(ctx, left, right);
+              is_empty(residual)
+                ? ConstructorMap.BadEntry(gap)
+                : ConstructorMap.Variant(name, annotation, Some(residual));
+            }
+          | ConstructorMap.BadEntry(left) => ConstructorMap.BadEntry(left),
+          left_variants,
+        ),
+      )
+      |> temp;
+    | _ => fallback()
+    };
+  };
+
+let overlap = (ctx: Ctx.t, query: t, supplied: t): t =>
+  subtract(ctx, query, subtract(ctx, query, supplied));
+
+let meet_gap = (ctx: Ctx.t, left: t, right: t): t =>
+  if (is_gap(left)) {
+    right;
+  } else if (is_gap(right)) {
+    left;
+  } else {
+    meet(ctx, left, right) |> Option.value(~default=left);
+  };
+
+let meet_gap_all = (ctx: Ctx.t, tys: list(t)): t =>
+  List.fold_left(meet_gap(ctx), gap, tys);
 
 /**
    * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).

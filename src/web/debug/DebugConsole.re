@@ -4,6 +4,8 @@ open Haz3lcore;
    It was originally directly in Keyboard, but that added a handler
    dependency on the model, which is technically against architecture */
 
+let slice_reconstruction_logging: ref(bool) = ref(false);
+
 let print =
     (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
     : unit => {
@@ -101,6 +103,21 @@ let print =
     print("=== Program with Probes ===");
     print(text);
     print("===========================");
+  | "F10" =>
+    slice_reconstruction_logging := ! slice_reconstruction_logging^;
+    print(
+      "DEBUG: slice reconstruction logging "
+      ++ (slice_reconstruction_logging^ ? "ON" : "OFF"),
+    );
+  | "F11" =>
+    zipper
+    |> Zipper.unselect_and_zip
+    |> Printer.of_segment(
+         ~holes="?",
+         ~projector_to_segment=_ => [Piece.mk_grout(Convex)],
+         _,
+       )
+    |> print
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

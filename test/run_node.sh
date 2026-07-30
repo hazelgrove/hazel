@@ -8,7 +8,7 @@
 # build directory alongside the compiled JS.
 #
 # Node.js flags:
-#  --stack-size=8192: increase stack to 8MB for deeply recursive tests
+#  --stack-size=32768: increase stack to 32MB for deeply recursive tests
 #    (e.g., Pattern Coverage Checker)
 #  --require idb_stub.js: provide minimal IndexedDB globals for Node.js
 #    (Ezjs_idb captures IDBKeyRange at module init time)
@@ -19,4 +19,6 @@ if [ -z "$IDB_STUB" ] || [ -z "$TEST_JS" ]; then
   : "${TEST_JS:=$BUILD_DIR/haz3ltest.bc.js}"
 fi
 
-exec node --stack-size=8192 --require "$IDB_STUB" "$TEST_JS" "$@"
+ulimit -s 65536 2>/dev/null || true
+
+exec node --stack-size=32768 --require "$IDB_STUB" "$TEST_JS" "$@"

@@ -311,4 +311,273 @@ let normalize_tests = (
   ],
 );
 
-let tests = [meet_tests, fast_equal_tests, normalize_tests];
+let former_tests = (
+  "MatchedTyp formers",
+  IdTagged.FreshGrammar.Typ.[
+    test_case(
+      "matches the components it builds",
+      `Quick,
+      () => {
+        let former: MatchedTyp.former = MatchedTyp.arrow_former;
+        let components = [list(int()), bool()];
+        check(
+          Alcotest.list(typ),
+          "arrow components",
+          components,
+          former.parts(former.whole(components))
+          |> Option.value(~default=[]),
+        );
+      },
+    ),
+    test_case(
+      "label former derives the resulting type",
+      `Quick,
+      () => {
+        let former: MatchedTyp.former = MatchedTyp.label_former;
+        check(
+          typ,
+          "formed label",
+          tup_label(label("field"), bool()),
+          MatchedTyp.formed_type(
+            MatchedTyp.form(former, [label("field"), bool()]),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "sum former preserves variant structure",
+      `Quick,
+      () => {
+        let ann_a = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_b = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let variants = [
+          ConstructorMap.Variant("A", ann_a, Some(int())),
+          ConstructorMap.Variant("B", ann_b, None),
+          ConstructorMap.BadEntry(bool()),
+        ];
+        let former: MatchedTyp.former = MatchedTyp.sum_former(variants);
+        check(
+          typ,
+          "rebuilt sum",
+          sum([
+            ConstructorMap.Variant("X", ann_a, Some(string())),
+            ConstructorMap.Variant("Y", ann_b, None),
+            ConstructorMap.BadEntry(nat()),
+          ]),
+          former.whole([
+            var("X"),
+            string(),
+            var("Y"),
+            Typ.gap,
+            nat(),
+            Typ.gap,
+          ]),
+        );
+      },
+    ),
+    test_case(
+      "Part requires a former",
+      `Quick,
+      () => {
+        let id = Id.mk();
+        check_raises(
+          "missing Part former", Statics.Slice.Missing_former(id), () =>
+          ignore(
+            Statics.Slice.mk(
+              ~ctx=Ctx.empty,
+              ~id,
+              ~ids=Id.Set.singleton(id),
+              ~shape=int(),
+              ~sub_terms=[(Statics.Slice.Part, Statics.Slice.opaque)],
+              (),
+            ),
+          )
+        );
+      },
+    ),
+    test_case(
+      "Prune requires a former",
+      `Quick,
+      () => {
+        let id = Id.mk();
+        check_raises(
+          "missing Prune former", Statics.Slice.Missing_former(id), () =>
+          ignore(
+            Statics.Slice.mk(
+              ~ctx=Ctx.empty,
+              ~id,
+              ~ids=Id.Set.singleton(id),
+              ~shape=int(),
+              ~sub_terms=[(Statics.Slice.Prune, Statics.Slice.opaque)],
+              (),
+            ),
+          )
+        );
+      },
+    ),
+    test_case(
+      "supply comes from the formation, not the checked shape",
+      `Quick,
+      () => {
+        let id = Id.mk();
+        let slice =
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape=int(),
+            ~formation=MatchedTyp.identity(Typ.gap),
+            (),
+          );
+        check(typ, "unannotated supply", Typ.gap, slice.supplied);
+      },
+    ),
+    test_case(
+      "Part supplies are rebuilt by the formation",
+      `Quick,
+      () => {
+        let leaf = ty => {
+          let id = Id.mk();
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape=ty,
+            ~formation=MatchedTyp.identity(ty),
+            (),
+          );
+        };
+        let id = Id.mk();
+        let slice =
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape=list(int()),
+            ~sub_terms=[
+              (Statics.Slice.Part, leaf(int())),
+              (Statics.Slice.Part, leaf(int())),
+            ],
+            ~formation=MatchedTyp.form(MatchedTyp.list_former, [int()]),
+            (),
+          );
+        check(typ, "list supply", list(int()), slice.supplied);
+      },
+    ),
+    test_case(
+      "a constructor formation supplies its fixed shell",
+      `Quick,
+      () => {
+        let ann_none = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_some = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let shape =
+          sum([
+            ConstructorMap.Variant("None", ann_none, None),
+            ConstructorMap.Variant("Some", ann_some, Some(int())),
+          ]);
+        let former =
+          MatchedTyp.sum_payload_former(~shape, ~expanded=shape, "Some");
+        let id = Id.mk();
+        let slice =
+          Statics.Slice.mk(
+            ~ctx=Ctx.empty,
+            ~id,
+            ~ids=Id.Set.singleton(id),
+            ~shape,
+            ~sub_terms=[(Statics.Slice.Part, Statics.Slice.opaque)],
+            ~formation=MatchedTyp.form(former, [int()]),
+            (),
+          );
+        check(
+          typ,
+          "constructor shell",
+          sum([
+            ConstructorMap.Variant("None", ann_none, None),
+            ConstructorMap.Variant("Some", ann_some, Some(Typ.gap)),
+          ]),
+          slice.supplied,
+        );
+      },
+    ),
+    test_case(
+      "subtracts sum types by constructor",
+      `Quick,
+      () => {
+        let ann_a = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_b = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let query =
+          sum([
+            ConstructorMap.Variant("A", ann_a, Some(int())),
+            ConstructorMap.Variant("B", ann_b, Some(bool())),
+          ]);
+        let supplied =
+          sum([
+            ConstructorMap.Variant("A", ann_a, Some(int())),
+            ConstructorMap.Variant("B", ann_b, Some(Typ.gap)),
+          ]);
+        check(
+          typ,
+          "residual type",
+          sum([
+            ConstructorMap.BadEntry(Typ.gap),
+            ConstructorMap.Variant("B", ann_b, Some(bool())),
+          ]),
+          Typ.subtract(Builtins.ctx_init(None), query, supplied),
+        );
+      },
+    ),
+    test_case(
+      "collects constraints from reordered sum variants",
+      `Quick,
+      () => {
+        let ann_a = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_b = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let schema =
+          sum([
+            ConstructorMap.Variant("A", ann_a, Some(var("X"))),
+            ConstructorMap.Variant("B", ann_b, Some(var("Y"))),
+          ]);
+        let demand =
+          sum([
+            ConstructorMap.Variant("B", ann_b, Some(bool())),
+            ConstructorMap.Variant("A", ann_a, Some(int())),
+          ]);
+        let (matched, constraints) =
+          Typ.collect_constraints(
+            Builtins.ctx_init(None),
+            ["X", "Y"],
+            schema,
+            demand,
+          );
+        check(typ, "matched schema order", schema, matched);
+        check(
+          Alcotest.list(Alcotest.pair(Alcotest.string, typ)),
+          "constraints",
+          [("X", int()), ("Y", bool())],
+          constraints,
+        );
+      },
+    ),
+    test_case(
+      "does not collect through a shadowing binder",
+      `Quick,
+      () => {
+        let (_, constraints) =
+          Typ.collect_constraints(
+            Builtins.ctx_init(None),
+            ["A"],
+            typ_fun(Var("A") |> TPat.temp, var("A")),
+            typ_fun(Var("B") |> TPat.temp, int()),
+          );
+        check(
+          Alcotest.list(Alcotest.pair(Alcotest.string, typ)),
+          "constraints",
+          [],
+          constraints,
+        );
+      },
+    ),
+  ],
+);
+
+let tests = [meet_tests, fast_equal_tests, normalize_tests, former_tests];

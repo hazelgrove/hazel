@@ -1,6 +1,6 @@
 /* CURSOR INSPECTOR */
 
-#cursor-inspector {
+.cursor-inspector {
   display: flex;
   align-items: stretch;
   gap: 0.5em;
@@ -9,30 +9,45 @@
   min-width: 0;
 }
 
-#cursor-inspector.no-info {
+.cursor-inspector.no-info {
   align-items: center;
 }
 
-#cursor-inspector.error {
+.cursor-inspector.error {
   border-color: var(--R1);
 }
 
-#cursor-inspector.warning {
+.cursor-inspector.warning {
   border-color: var(--Y1);
 }
 
-#cursor-inspector .icon {
+.cursor-inspector.slicing-active {
+  outline: 1.5px solid var(--caret-color-secondary);
+  outline-offset: -1px;
+  border-radius: 0 1.1em 0 0;
+  background-color: oklch(from var(--caret-color-secondary) 95% 0.025 h);
+}
+
+.cursor-inspector.secondary.fold-source {
+  background-color: oklch(from var(--caret-color-secondary) 96% 0.018 h);
+}
+
+.cursor-inspector.secondary.fold-source .ci-header {
+  outline-color: var(--caret-color-secondary);
+}
+
+.cursor-inspector .icon {
   display: flex;
   padding: 0.2em;
   mix-blend-mode: luminosity;
 }
 
-#cursor-inspector .syntax-class {
+.cursor-inspector .syntax-class {
   display: flex;
   align-items: center;
 }
 
-#cursor-inspector .gamma {
+.cursor-inspector .gamma {
   cursor: pointer;
   display: flex;
   font-family: math;
@@ -46,7 +61,7 @@
   align-items: center;
 }
 
-#cursor-inspector .gamma svg {
+.cursor-inspector .gamma svg {
   pointer-events: auto;
   fill: var(--cell-active);
   scale: 0.66;
@@ -54,72 +69,72 @@
   transition: scale 0.1s ease-in;
 }
 
-#cursor-inspector .gamma:hover svg {
+.cursor-inspector .gamma:hover svg {
   scale: 0.9;
   animation: jello 0.6s ease 0s 1 normal forwards;
 }
 
-#cursor-inspector .Exp .gamma {
+.cursor-inspector .Exp .gamma {
   background-color: var(--ci-icon-bkg);
 }
 
-#cursor-inspector .Pat .gamma {
+.cursor-inspector .Pat .gamma {
   background-color: var(--token-pat);
 }
 
-#cursor-inspector .Typ .gamma {
+.cursor-inspector .Typ .gamma {
   background-color: var(--token-typ);
 }
 
-#cursor-inspector .Drv .gamma {
+.cursor-inspector .Drv .gamma {
   background-color: var(--token-drv);
 }
 
-#cursor-inspector .TPat .gamma {
+.cursor-inspector .TPat .gamma {
   background-color: var(--token-tpat);
 }
 
-#cursor-inspector .Label .gamma {
+.cursor-inspector .Label .gamma {
   background-color: var(--token-label);
 }
-#cursor-inspector .Mod .gamma {
+.cursor-inspector .Mod .gamma {
   background-color: var(--token-mod);
 }
-#cursor-inspector .Sig .gamma {
+.cursor-inspector .Sig .gamma {
   background-color: var(--token-sig);
 }
-#cursor-inspector .MPat .gamma {
+.cursor-inspector .MPat .gamma {
   background-color: var(--token-mpat);
 }
 
-#cursor-inspector .ci-header .gamma.visible,
-#cursor-inspector .ci-header.error .gamma.visible,
+.cursor-inspector .ci-header .gamma.visible,
+.cursor-inspector .ci-header.error .gamma.visible,
 #bottom-bar:has(~ .context-inspector:hover) .gamma {
   background-color: #dfcc99;
   outline: 0.3px solid var(--BR3);
   color: var(--BR4);
 }
 
-#cursor-inspector .ci-header .gamma:hover,
-#cursor-inspector .ci-header.warning .gamma:hover,
-#cursor-inspector .ci-header .gamma.visible,
-#cursor-inspector .ci-header.warning .gamma.visible,
+.cursor-inspector .ci-header .gamma:hover,
+.cursor-inspector .ci-header.warning .gamma:hover,
+.cursor-inspector .ci-header .gamma.visible,
+.cursor-inspector .ci-header.warning .gamma.visible,
 #bottom-bar:has(~ .context-inspector:hover) .gamma {
   background-color: #dfcc99;
   outline: 0.3px solid var(--warning-hole-stroke);
   color: var(--warning-hole-stroke);
 }
 
-#cursor-inspector .ci-header .gamma.visible svg {
+.cursor-inspector .ci-header .gamma.visible svg {
   fill: var(--BR4);
 }
 
-#cursor-inspector .gamma.visible,
+.cursor-inspector .gamma.visible,
 #bottom-bar:has(~ .context-inspector:hover) .gamma {
   border-radius: 0;
 }
 
-#cursor-inspector .ci-header {
+.cursor-inspector .ci-header {
   outline: 0.6px solid var(--BR2);
   padding: 0em 0.6em 0em 0em;
   border-radius: 0 1.1em 0 0;
@@ -129,203 +144,212 @@
   white-space: nowrap;
 }
 
-#cursor-inspector .ci-header.error {
+.cursor-inspector .ci-header.error {
   background-color: var(--ci-status-error-bkg);
   color: var(--ci-status-error-text);
 }
 
-#cursor-inspector .ci-header.error .gamma {
+.cursor-inspector .ci-header.error .gamma {
   background-color: var(--R2);
 }
 
-#cursor-inspector .ci-header.error .toggle-switch {
+.cursor-inspector .ci-header.error .toggle-switch {
   background-color: var(--R2);
 }
 
-#cursor-inspector .ci-header.error .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.error .toggle-switch .toggle-knob {
   color: var(--R2);
 }
 
-#cursor-inspector .ci-header.warning {
+.cursor-inspector .ci-header.warning {
   background-color: var(--ci-status-warning-bkg);
   color: var(--ci-status-warning-text);
 }
-#cursor-inspector .ci-header.warning .gamma {
+.cursor-inspector .ci-header.warning .gamma {
   background-color: var(--warning-hole-stroke);
 }
-#cursor-inspector .ci-header.warning .toggle-switch {
+.cursor-inspector .ci-header.warning .toggle-switch {
   background-color: var(--warning-hole-stroke);
 }
-#cursor-inspector .ci-header.warning .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.warning .toggle-switch .toggle-knob {
   color: var(--warning-hole-stroke);
 }
 
-#cursor-inspector .ci-header.ok .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.ok .toggle-switch .toggle-knob {
   background-color: var(--SAND);
 }
 
-#cursor-inspector .ci-header.ok.Exp .toggle-switch.active {
+.cursor-inspector .ci-header.ok.Exp .toggle-switch.active {
   background-color: var(--BR3);
 }
 
-#cursor-inspector .ci-header.ok.Pat .toggle-switch.active {
+.cursor-inspector .ci-header.ok.Pat .toggle-switch.active {
   background-color: var(--token-pat);
 }
 
-#cursor-inspector .ci-header.ok.Typ .toggle-switch.active {
+.cursor-inspector .ci-header.ok.Typ .toggle-switch.active {
   background-color: var(--token-typ);
 }
 
-#cursor-inspector .ci-header.ok.Drv .toggle-switch.active {
+.cursor-inspector .ci-header.ok.Drv .toggle-switch.active {
   background-color: var(--token-drv);
 }
 
-#cursor-inspector .ci-header.ok.TPat .toggle-switch.active {
+.cursor-inspector .ci-header.ok.TPat .toggle-switch.active {
   background-color: var(--token-tpat);
 }
 
-#cursor-inspector .ci-header.ok.Label .toggle-switch.active {
+.cursor-inspector .ci-header.ok.Label .toggle-switch.active {
   background-color: var(--token-label);
 }
-#cursor-inspector .ci-header.ok.Mod .toggle-switch.active {
+.cursor-inspector .ci-header.ok.Mod .toggle-switch.active {
   background-color: var(--token-mod);
 }
-#cursor-inspector .ci-header.ok.Sig .toggle-switch.active {
+.cursor-inspector .ci-header.ok.Sig .toggle-switch.active {
   background-color: var(--token-sig);
 }
-#cursor-inspector .ci-header.ok.MPat .toggle-switch.active {
+.cursor-inspector .ci-header.ok.MPat .toggle-switch.active {
   background-color: var(--token-mpat);
 }
-#cursor-inspector .ci-header.ok.Exp .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.ok.Exp .toggle-switch .toggle-knob {
   color: var(--BR3);
 }
 
-#cursor-inspector .ci-header.ok.Pat .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.ok.Pat .toggle-switch .toggle-knob {
   color: var(--token-pat);
 }
 
-#cursor-inspector .ci-header.ok.Typ .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.ok.Typ .toggle-switch .toggle-knob {
   color: var(--token-typ);
 }
 
-#cursor-inspector .ci-header.ok.Drv .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.ok.Drv .toggle-switch .toggle-knob {
   color: var(--token-drv);
 }
 
-#cursor-inspector .ci-header.ok.TPat .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.ok.TPat .toggle-switch .toggle-knob {
   color: var(--token-tpat);
 }
 
-#cursor-inspector .ci-header.ok.Label .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.ok.Label .toggle-switch .toggle-knob {
   color: var(--token-label);
 }
-#cursor-inspector .ci-header.ok.Mod .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.ok.Mod .toggle-switch .toggle-knob {
   color: var(--token-mod);
 }
-#cursor-inspector .ci-header.ok.Sig .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.ok.Sig .toggle-switch .toggle-knob {
   color: var(--token-sig);
 }
-#cursor-inspector .ci-header.ok.MPat .toggle-switch .toggle-knob {
+.cursor-inspector .ci-header.ok.MPat .toggle-switch .toggle-knob {
   color: var(--token-mpat);
 }
 
-#cursor-inspector .ci-header.ok.Any {
+.cursor-inspector .ci-header.ok.Any {
   background-color: var(--shard-any);
   color: var(--shadow-any);
 }
 
-#cursor-inspector .ci-header.ok.Exp {
+.cursor-inspector .ci-header.ok.Exp {
   background-color: var(--shard-exp);
   color: var(--BR3);
 }
 
-#cursor-inspector .ci-header.ok.Pat {
+.cursor-inspector .ci-header.ok.Pat {
   background-color: var(--shard-pat);
   color: var(--token-pat);
 }
 
-#cursor-inspector .ci-header.ok.Typ {
+.cursor-inspector .ci-header.ok.Typ {
   background-color: var(--shard-typ);
   color: var(--token-typ);
 }
 
-#cursor-inspector .ci-header.ok.Drv {
+.cursor-inspector .ci-header.ok.Drv {
   background-color: var(--shard-drv);
   color: var(--token-drv);
 }
 
-#cursor-inspector .ci-header.ok.TPat {
+.cursor-inspector .ci-header.ok.TPat {
   background-color: var(--shard-tpat);
   color: var(--token-tpat);
 }
 
-#cursor-inspector .ci-header.ok.Label {
+.cursor-inspector .ci-header.ok.Label {
   background-color: var(--shard-label);
   color: var(--token-label);
 }
-#cursor-inspector .ci-header.ok.Mod {
+.cursor-inspector .ci-header.ok.Mod {
   background-color: var(--shard-mod);
   color: var(--token-mod);
 }
-#cursor-inspector .ci-header.ok.Sig {
+.cursor-inspector .ci-header.ok.Sig {
   background-color: var(--shard-sig);
   color: var(--token-sig);
 }
-#cursor-inspector .ci-header.ok.MPat {
+.cursor-inspector .ci-header.ok.MPat {
   background-color: var(--shard-mpat);
   color: var(--token-mpat);
 }
 
-#cursor-inspector .term-tag {
+.cursor-inspector .term-tag {
   font-weight: bolder;
   text-transform: uppercase;
 }
 
-#cursor-inspector .divider {
+.cursor-inspector .slicing-tag {
+  font-weight: bolder;
+  text-transform: uppercase;
+  color: var(--caret-color-secondary);
+  padding: 0em 0.4em;
+  display: flex;
+  align-items: center;
+}
+
+.cursor-inspector .divider {
   color: var(--BR2);
 }
 
-#cursor-inspector.error .divider {
+.cursor-inspector.error .divider {
   color: var(--R2) !important;
 }
-#cursor-inspector.warning .divider {
+.cursor-inspector.warning .divider {
   color: var(--O1) !important;
 }
-#cursor-inspector .Pat .divider {
+.cursor-inspector .Pat .divider {
   color: var(--token-pat);
 }
 
-#cursor-inspector .Typ .divider {
+.cursor-inspector .Typ .divider {
   color: var(--token-typ);
 }
 
-#cursor-inspector .TPat .divider {
+.cursor-inspector .TPat .divider {
   color: var(--token-tpat);
 }
-#cursor-inspector .Mod .divider {
+.cursor-inspector .Mod .divider {
   color: var(--token-mod);
 }
-#cursor-inspector .Sig .divider {
+.cursor-inspector .Sig .divider {
   color: var(--token-sig);
 }
-#cursor-inspector .MPat .divider {
+.cursor-inspector .MPat .divider {
   color: var(--token-mpat);
 }
 
-#cursor-inspector .status.error .code {
+.cursor-inspector .status.error .code {
   padding: 0 0.3em 0 0.3em;
   border-radius: 0.2em;
   border-bottom: 1px solid var(--ci-status-error-text);
 }
-#cursor-inspector .status.warning .code {
+.cursor-inspector .status.warning .code {
   padding: 0 0.3em 0 0.3em;
   border-radius: 0.2em;
   border-bottom: 1px solid var(--ci-status-warning-text);
 }
 
-#cursor-inspector .status.ok,
-#cursor-inspector .status.error,
-#cursor-inspector .status.warning {
+.cursor-inspector .status.ok,
+.cursor-inspector .status.error,
+.cursor-inspector .status.warning {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -333,15 +357,117 @@
   color: var(--ci-status-text);
 }
 
-#cursor-inspector .status.error {
+.cursor-inspector .type-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  min-width: 0;
+}
+
+.cursor-inspector .type-slot .code-box-container {
+  min-width: 0;
+}
+
+.cursor-inspector .type-summary-editor {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.cursor-inspector .type-summary-editor .cell-item.code-editor {
+  display: block;
+  flex: 0 0 auto;
+  min-width: max-content;
+  width: max-content;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  background: transparent;
+}
+
+.cursor-inspector .type-summary-editor .code-container {
+  min-width: max-content;
+  width: max-content;
+}
+
+.cursor-inspector .type-summary-editor .code {
+  display: inline-block;
+}
+
+.cursor-inspector .type-summary-editor.active .cell-item.code-editor {
+  outline: 1px solid var(--BR2);
+}
+
+.cursor-inspector .type-summary-editor.active .caret {
+  visibility: visible;
+}
+
+.cursor-inspector .explain-toggle {
+  display: inline-flex;
+  width: 1.1em;
+  height: 1.1em;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--BR3);
+  background-color: var(--shard-exp);
+}
+
+.cursor-inspector .explain-toggle svg {
+  width: 0.7em;
+  height: 0.7em;
+  fill: currentColor;
+}
+
+.cursor-inspector .explain-toggle:hover svg {
+  animation: jello 0.6s ease 0s 1 normal forwards;
+}
+
+.cursor-inspector .explain-toggle.active {
+  color: var(--light-page-color);
+  background-color: var(--BR3);
+}
+
+.cursor-inspector .explain-error-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 0.35em;
+  padding: 0.15em 0.7em;
+  border-radius: 1.1em;
+  cursor: pointer;
+  background-color: var(--R1);
+  color: var(--light-page-color);
+  font-weight: bolder;
+  white-space: nowrap;
+}
+
+.cursor-inspector .explain-error-button svg {
+  width: 0.8em;
+  height: 0.8em;
+  fill: currentColor;
+}
+
+.cursor-inspector .explain-error-button:hover svg {
+  animation: jello 0.6s ease 0s 1 normal forwards;
+}
+
+.cursor-inspector .type-slice-menu {
+  position: fixed;
+}
+
+.cursor-inspector .status.error {
   color: var(--ci-status-error-text);
 }
 
-#cursor-inspector .status.warning {
+.cursor-inspector .status.warning {
   color: var(--ci-status-warning-text);
 }
 
-#cursor-inspector .code {
+.cursor-inspector .code {
   position: relative;
 }
 

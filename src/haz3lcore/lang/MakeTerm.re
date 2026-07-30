@@ -1626,7 +1626,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);
-      let inner = go_s(sort, Segment.skel(seg), seg);
+      let inner = go_s(sort, Segment.skel(~sort, seg), seg);
       /* Construct Projector term with proper annotation, preserving
        * projector metadata (kind, model) in the term for round-tripping */
       let projector_data: Grammar.projector_data = {
@@ -1764,6 +1764,54 @@ let go =
     },
   );
 
+let go_typ =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    seg => {
+      map := TermMap.empty;
+      term_data := Id.Map.empty;
+      projectors := Id.Map.empty;
+      projector_list := [];
+      adopted_ids := [];
+      secondary_map := Segment.SecondaryCollection.collect(seg);
+      let term = typ(unsorted(Typ, Segment.skel(~sort=Sort.Typ, seg), seg));
+      consolidate_adopted();
+      term;
+    },
+  );
+
+let for_projection_as =
+  Core.Memo.general(
+    ~cache_size_bound=1000, ((sort, seg): (Sort.t, Segment.t)) =>
+    if (!Segment.deep_tile_complete(seg)) {
+      None;
+    } else if (Segment.is_padded(seg)) {
+      None;
+    } else {
+      switch (Segment.skel(~sort, seg)) {
+      | exception _ => None
+      | skel =>
+        let unsorted = unsorted(sort, skel, seg);
+        switch (sort) {
+        | Drv(_) => Some(Grammar.Drv(Exp(drv_exp(unsorted))))
+        | Exp => Some(Grammar.Exp(exp(unsorted)))
+        | Pat => Some(Pat(pat(unsorted)))
+        | Typ => Some(Typ(typ(unsorted)))
+        | TPat => Some(TPat(tpat(unsorted)))
+        /* Rul case below prevents returning pseudo-terms
+         * consisting of case scrutinee + rule(s) */
+        | Rul => None
+        | Mod => Some(Mod(mod_(unsorted)))
+        | Sig => Some(Sig(sig_(unsorted)))
+        | MPat => Some(MPat(mpat(unsorted)))
+        | Any => Some(Any()) /* grout */
+        };
+      };
+    }
+  );
+
+let for_projection_as = (~sort, seg) => for_projection_as((sort, seg));
+
 let for_projection =
   /* Returns Nul() unless segment represents a well-structured term in isolation.
    * This means that the term is complete, modulo non-empty holes and sort errors.
@@ -1781,39 +1829,12 @@ let for_projection =
       | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
         let sort = Segment.sort_of(skel, seg);
-        let unsorted = unsorted(sort, skel, seg);
-        switch (sort) {
-        | Drv(_) =>
-          switch (drv_exp(unsorted)) {
-          | {term: Tuple(_), _} => None
-          | _ => Some(Grammar.Drv(Exp(drv_exp(unsorted))))
-          }
-        | Exp =>
-          switch (exp(unsorted)) {
-          | {term: Tuple(_), _} => None
-          | _ => Some(Grammar.Exp(exp(unsorted)))
-          }
-        | Pat =>
-          switch (pat(unsorted)) {
-          | {term: Tuple(_), _} => None
-          | _ => Some(Pat(pat(unsorted)))
-          }
-        | Typ =>
-          switch (typ(unsorted)) {
-          | {term: Prod(_), _} => None
-          | _ => Some(Typ(typ(unsorted)))
-          }
-        | TPat =>
-          switch (tpat(unsorted)) {
-          | _ => Some(TPat(tpat(unsorted)))
-          }
-        /* Rul case below prevents returning pseudo-terms
-         * consisting of case scrutinee + rule(s) */
-        | Rul => None
-        | Mod => Some(Mod(mod_(unsorted)))
-        | Sig => Some(Sig(sig_(unsorted)))
-        | MPat => Some(MPat(mpat(unsorted)))
-        | Any => Some(Any()) /* grout */
+        switch (for_projection_as(~sort, seg)) {
+        | Some(Drv(Exp({term: Tuple(_), _}))) => None
+        | Some(Exp({term: Tuple(_), _})) => None
+        | Some(Pat({term: Tuple(_), _})) => None
+        | Some(Typ({term: Prod(_), _})) => None
+        | any => any
         };
       };
     }
@@ -1824,3 +1845,9 @@ let from_zip_for_sem = (z: Zipper.t, ~root) =>
 
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);
+
+let from_zip_typ_for_sem = (z: Zipper.t, ~root) =>
+  go_typ(Dump.to_segment(z, ~root));
+
+let from_zip_typ_for_sem =
+  Core.Memo.general(~cache_size_bound=1000, from_zip_typ_for_sem);

@@ -15,4 +15,10 @@ let tests =
     Test_Statics_Fixpoint.tests,
     Test_Statics_Properties.tests,
     Test_Statics_Parens.tests,
+    Test_Statics_Slicing_Synthesis.tests,
+    Test_Statics_Slicing_Analysis.tests,
+    Test_Statics_Slicing_Binding.tests,
+    Test_Statics_Slicing_InvalidQuery.tests,
+    Test_Statics_Slicing_ExtendedExamples.tests,
+    Test_Statics_Slicing_Properties.tests,
   ];

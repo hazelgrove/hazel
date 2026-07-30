@@ -31,6 +31,25 @@ type label_inference('a) =
       introduced_labels: list(LabeledTuple.label),
     });
 
+type slice = Slice.t;
+let opaque_slice: slice = Slice.opaque;
+let pp_slice = (fmt: Format.formatter, _: slice) =>
+  Format.pp_print_string(fmt, "<slice>");
+let sexp_of_slice = (_: slice): Sexplib.Sexp.t => Sexplib.Sexp.List([]);
+let slice_of_sexp = (_: Sexplib.Sexp.t): slice => opaque_slice;
+let yojson_of_slice = (_: slice): Yojson.Safe.t => `Null;
+let slice_of_yojson = (_: Yojson.Safe.t): slice => opaque_slice;
+
+/* Children recorded by the binding operators, consumed by the next `add`. */
+type slice_scratch = list((Slice.role, Slice.t));
+let pp_slice_scratch = (fmt: Format.formatter, _: slice_scratch) =>
+  Format.pp_print_string(fmt, "<slice scratch>");
+let sexp_of_slice_scratch = (_: slice_scratch): Sexplib.Sexp.t =>
+  Sexplib.Sexp.List([]);
+let slice_scratch_of_sexp = (_: Sexplib.Sexp.t): slice_scratch => [];
+let yojson_of_slice_scratch = (_: slice_scratch): Yojson.Safe.t => `Null;
+let slice_scratch_of_yojson = (_: Yojson.Safe.t): slice_scratch => [];
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
   user_term: Exp.t, /* The term under consideration */
@@ -40,7 +59,7 @@ type exp = {
   ana: Typ.t, /* Parental type expectations  */
   elab_syn_ty: Typ.t, /* Synthesized type of the elaborated expression */
   marks: list(Mark.t), /* Error marks from statics */
-  co_ctx: CoCtx.t, /* Locally free variables */
+  co_ctx: CoCtx.t, /* Locally free names */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   message: Message.t, /* DERIVED: non-error inspector payload (Exp only) */
   warnings: list(Warning.list_item),
@@ -48,7 +67,8 @@ type exp = {
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
   label_sort: bool, /* When in the position of a label */
-  dot_labels: list(string) /* Available labels when in dot-access position */
+  dot_labels: list(string), /* Available labels when in dot-access position */
+  slice,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -68,7 +88,8 @@ type pat = {
   constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
-  label_sort: bool /* When in the position of a label */
+  label_sort: bool, /* When in the position of a label */
+  slice,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -81,6 +102,7 @@ type typ = {
   marks: list(Mark.t),
   message: option(Message.t), /* Some(TypOk(_)) when marks = [] */
   warnings: list(Warning.list_item),
+  slice,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -143,6 +165,7 @@ type t =
   | InfoMod(mod_)
   | InfoSig(sig_)
   | InfoMPat(mpat)
+  | InfoSliceScratch(slice_scratch)
   | Secondary(secondary);
 
 /* ==================================== Getters ==================================== */
@@ -158,6 +181,7 @@ let sort_of: t => Sort.t =
   | InfoMod(_) => Mod
   | InfoSig(_) => Sig
   | InfoMPat(_) => MPat
+  | InfoSliceScratch(_) => Exp
   | Secondary(s) => s.sort;
 
 /* The grammar's mold system uses a single `Drv(Exp)` outer sort for all of
@@ -192,7 +216,8 @@ let cls_of: t => Cls.t =
   | InfoMod({cls, _})
   | InfoSig({cls, _})
   | InfoMPat({cls, _})
-  | Secondary({cls, _}) => cls;
+  | Secondary({cls, _}) => cls
+  | InfoSliceScratch(_) => Exp(Exp.EmptyHole);
 
 /* User-facing class name, context-aware where the static `Cls.show`
    loses information. Currently specializes tpat `Var` based on the
@@ -219,6 +244,7 @@ let any_of: t => option(Any.t) =
   | InfoMod({user_term, _}) => Some(Mod(user_term))
   | InfoSig({user_term, _}) => Some(Sig(user_term))
   | InfoMPat({user_term, _}) => Some(MPat(user_term))
+  | InfoSliceScratch(_) => None
   | Secondary(_) => None;
 
 let ctx_of: t => Ctx.t =
@@ -231,7 +257,8 @@ let ctx_of: t => Ctx.t =
   | InfoMod({ctx, _})
   | InfoSig({ctx, _})
   | InfoMPat({ctx, _})
-  | Secondary({ctx, _}) => ctx;
+  | Secondary({ctx, _}) => ctx
+  | InfoSliceScratch(_) => Ctx.empty_pre_elaboration;
 
 let ancestors_of: t => ancestors =
   fun
@@ -243,6 +270,7 @@ let ancestors_of: t => ancestors =
   | InfoMod({ancestors, _})
   | InfoSig({ancestors, _})
   | InfoMPat({ancestors, _}) => ancestors
+  | InfoSliceScratch(_) => []
   | Secondary(_) => []; //TODO
 
 let parent_id_of: t => option(Id.t) =
@@ -258,6 +286,7 @@ let id_of: t => Id.t =
   | InfoMod({id, _})
   | InfoSig({id, _})
   | InfoMPat({id, _}) => id
+  | InfoSliceScratch(_) => Id.mk()
   | Secondary(s) => s.id;
 
 let marks_of: t => list(Mark.t) =
@@ -270,6 +299,7 @@ let marks_of: t => list(Mark.t) =
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
+  | InfoSliceScratch(_)
   | Secondary(_) => [];
 
 /* Determines whether any term is in an error hole. Drv info uses its own
@@ -290,6 +320,7 @@ let warnings_of: t => list(Warning.list_item) =
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
+  | InfoSliceScratch(_)
   | Secondary(_) => [];
 
 let is_warning = (ci: t): bool => warnings_of(ci) != [];
@@ -310,6 +341,7 @@ let is_typable_term: option(t) => bool =
   | Some(
       InfoTyp(_) | InfoTPat(_) | InfoMod(_) | InfoSig(_) | InfoMPat(_) |
       InfoDrv(_) |
+      InfoSliceScratch(_) |
       Secondary(_),
     ) =>
     false

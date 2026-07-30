@@ -880,6 +880,7 @@ let get_doc =
     sig_type_message(tp, t)
   | Some(InfoSig(_)) => simple("Signature item")
   | Some(InfoMPat(_)) => simple("Module name")
+  | Some(InfoSliceScratch(_)) => default
   | Some(
       InfoExp({cls: Mod(ModLet), user_term: {term: Let(p, e, _), _}, _}),
     ) =>
@@ -3736,11 +3737,178 @@ type info = {
   deduction: info_deduction,
 };
 
+let slice_view_settings: ExpToSegment.Settings.t = {
+  secondary: AutoFormat,
+  parenthesization: Defensive,
+  label_format: QuoteWhenNecessary,
+  inline: true,
+  fold_case_clauses: false,
+  fold_fn_bodies: `NoFold,
+  hide_fixpoints: false,
+  show_ascriptions: true,
+  show_filters: false,
+  show_unknown_as_hole: true,
+};
+
+module TypeSlicing = {
+  type example = {
+    omitted: Typ.t,
+    query: Typ.t,
+  };
+
+  let fold_model =
+    FoldProj.sexp_of_t({
+      text: "⋱",
+      expanded: false,
+      always_render: false,
+    })
+    |> Sexplib.Sexp.to_string;
+
+  let fold_data: Grammar.projector_data = {
+    kind: ProjectorCore.Kind.Fold,
+    model: fold_model,
+  };
+
+  let fold = (typ: Typ.t): Typ.t => Typ.fresh(Projector(fold_data, typ));
+
+  let rec can_fold = (typ: Typ.t): bool =>
+    switch (Typ.term_of(typ)) {
+    | Projector(_)
+    | Unknown(_) => false
+    | Parens(t) => can_fold(t)
+    | _ => true
+    };
+
+  let fold_first_at_depth = (~depth: int, typ: Typ.t): option(example) => {
+    let omitted: ref(option(Typ.t)) = ref(None: option(Typ.t));
+    let rec go = (depth, typ: Typ.t) =>
+      if (omitted^ != None) {
+        typ;
+      } else if (depth <= 0) {
+        if (can_fold(typ)) {
+          omitted := Some(typ);
+          fold(typ);
+        } else {
+          typ;
+        };
+      } else {
+        switch (Typ.term_of(typ)) {
+        | Projector(_)
+        | Unknown(_) => typ
+        | term =>
+          let child_depth =
+            switch (term) {
+            | Parens(_) => depth
+            | _ => depth - 1
+            };
+          let root = ref(true);
+          Typ.map_term(
+            ~f_typ=
+              (continue, child) =>
+                if (omitted^ != None) {
+                  child;
+                } else if (root^) {
+                  root := false;
+                  continue(child);
+                } else {
+                  go(child_depth, child);
+                },
+            typ,
+          );
+        };
+      };
+    let query = go(depth, typ);
+    switch (omitted^) {
+    | Some(omitted) =>
+      Some({
+        omitted,
+        query,
+      })
+    | None => None
+    };
+  };
+
+  let examples = (typ: Typ.t): list(example) =>
+    [1, 2] |> List.filter_map(depth => fold_first_at_depth(~depth, typ));
+};
+
+let type_slicing_section =
+    (~globals: Globals.t, ~title: string, ~typ: Typ.t): Node.t => {
+  let view_typ =
+    CodeViewable.view_typ(~globals, ~settings=slice_view_settings);
+  let query_row = (label, t) =>
+    div(
+      ~attrs=[clss(["slice-query"])],
+      [
+        span(~attrs=[clss(["slice-query-label"])], [text(label)]),
+        view_typ(t),
+      ],
+    );
+  let example_row = (i, example: TypeSlicing.example) => {
+    let omitted = example.omitted;
+    let query = example.query;
+    div(
+      ~attrs=[clss(["slice-query"])],
+      [
+        span(
+          ~attrs=[clss(["slice-query-label"])],
+          [text("Example " ++ string_of_int(i + 1) ++ ":")],
+        ),
+        span(
+          ~attrs=[clss(["slice-query-description"])],
+          [text("omitting the first")],
+        ),
+        view_typ(omitted),
+        span(
+          ~attrs=[clss(["slice-query-description"])],
+          [text("corresponds to query")],
+        ),
+        view_typ(query),
+      ],
+    );
+  };
+  let queries =
+    [query_row("Current query", typ)]
+    @ List.mapi(example_row, TypeSlicing.examples(typ));
+  let blurb = [
+    div(
+      ~attrs=[clss(["slice-blurb"])],
+      [
+        text(
+          "Type slicing finds the parts of the program responsible for this "
+          ++ "type. Fold (hide) a part of the type to form a query: the slice "
+          ++ "is the smallest part of the program that still explains the "
+          ++ "unfolded part. The queries below show progressively larger "
+          ++ "folded regions.",
+        ),
+      ],
+    ),
+  ];
+  /* TODO: surface minimised contexts via a cursor-inspector icon. */
+  let assumptions = [
+    div(
+      ~attrs=[clss(["slice-assumptions"])],
+      [
+        text(
+          "Each query also yields the minimal assumptions / context it "
+          ++ "depends on (TODO: to be surfaced via a cursor-inspector icon).",
+        ),
+      ],
+    ),
+  ];
+  section(
+    ~section_clss="type-slicing",
+    ~title,
+    blurb @ queries @ assumptions,
+  );
+};
+
 let view =
     (
       ~globals: Globals.t,
       ~inject,
       ~explainThisModel: ExplainThisModel.t,
+      ~type_slicing_focuses: list((string, Ctx.t, Typ.t)),
       info: info,
     ) => {
   // This gets the info from the infomap before singleton autolabelling
@@ -3759,6 +3927,17 @@ let view =
       info.deduction,
       MessageContent(inject, globals),
     );
+  let slicing_sections =
+    switch (type_slicing_focuses) {
+    | [] => []
+    | focuses =>
+      List.map(
+        ((title, _ctx, typ)) =>
+          type_slicing_section(~globals, ~title, ~typ),
+        focuses,
+      )
+      @ [div(~attrs=[clss(["hline"])], [])]
+    };
   div(
     ~attrs=[Attr.id("explain-this")],
     [
@@ -3775,6 +3954,7 @@ let view =
         ],
       ),
     ]
+    @ slicing_sections
     @ (
       switch (info.deduction) {
       | Some({rule, _}) => [
