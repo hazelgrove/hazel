@@ -487,13 +487,13 @@ and uexp_to_info_map =
     k((i, elab, result_of(~via, i, m)));
   // use when a name rather than a pattern binds for the rest of this rule:
   // `type T = d in b`
-  let (let@@) = ((sort, name, id, ids, m), k) =>
+  let (let@@) = ((sort, name, id, ids, peel, m), k) =>
     k(
       record(
         ~id=here,
         ~first=true,
         Binder,
-        Slice.binding(~sort, ~name, ~id, ~ids),
+        Slice.binding(~sort, ~name, ~id, ~ids, ~peel),
         m,
       ),
     );
@@ -3013,6 +3013,18 @@ and uexp_to_info_map =
           name,
           TPat.rep_id(typat),
           Id.Set.of_list(IdTagged.ids(typat)),
+          (
+            ty =>
+              List.fold_left(
+                (ty, _) =>
+                  switch (Typ.term_of(ty)) {
+                  | TypFun(_, body) => body
+                  | _ => ty
+                  },
+                ty,
+                params,
+              )
+          ),
           m,
         );
         let typ_refs =
@@ -3092,6 +3104,7 @@ and uexp_to_info_map =
           name,
           TPat.rep_id(typat),
           Id.Set.of_list(IdTagged.ids(typat)),
+          (x => x),
           m,
         );
         let typ_refs =
@@ -4704,6 +4717,7 @@ and utyp_to_info_map =
       List.fold_left(
         variant_to_info_map(
           ~go=(expects, t, m) => go(~expects, t, m),
+          ~absent=record(~id=Typ.rep_id(utyp), Part, Slice.opaque),
           ~ty_sum=utyp,
         ),
         (m, []),
@@ -5077,12 +5091,12 @@ and utpat_to_info_map =
   };
 }
 and variant_to_info_map =
-    (~go, ~ty_sum, (m, ctrs), uty: ConstructorMap.variant(Typ.t)) => {
+    (~go, ~absent, ~ty_sum, (m, ctrs), uty: ConstructorMap.variant(Typ.t)) => {
   TypExpectation.(
     switch (uty) {
     | BadEntry(uty) =>
       let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;
-      (m, ctrs);
+      (absent(m), ctrs);
     | Variant(ctr, ann, param) =>
       let m =
         go(
@@ -5100,7 +5114,7 @@ and variant_to_info_map =
       let m =
         switch (param) {
         | Some(param_ty) => go(TypeExpected, param_ty, m) |> snd
-        | None => m
+        | None => absent(m)
         };
       (m, [ctr, ...ctrs]);
     }

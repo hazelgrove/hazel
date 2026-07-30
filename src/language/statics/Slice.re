@@ -44,8 +44,7 @@ type t = {
   shape: Typ.t,
   ids: Id.Set.t,
   binder: bool,
-  // the part of this node's type that a declaration already supplies, so a
-  // definition is only ever asked for what is left after subtracting it
+  // the part of this node's type a declaration already supplies
   supplied: Typ.t,
   declared: bool,
   dispatch: (env, Typ.t) => slice,
@@ -860,7 +859,9 @@ let edge_typ = (~scratch, ~at: Id.t, role, slice_of, (info, m), k) =>
   k((info, record(~scratch, ~id=at, role, slice_of(info), m)));
 
 // A binding site that is a bare name rather than a pattern, such as a type alias.
-let binding = (~sort, ~name, ~id, ~ids): t => {
+// `peel` strips the binders a rule wrote on the left of its definition, which
+// the context's kind carries but the written definition node does not.
+let binding = (~sort, ~name, ~id, ~ids, ~peel: Typ.t => Typ.t): t => {
   shape: gap,
   ids,
   binder: true,
@@ -877,7 +878,13 @@ let binding = (~sort, ~name, ~id, ~ids): t => {
         psi: query,
       },
   analyse: _ => empty_analysis,
-  demand: binder_demand(~sort, ~name, ~id),
+  demand: (env, gamma) => {
+    let need = binder_demand(~sort, ~name, ~id, env, gamma);
+    {
+      ...need,
+      psi: peel(need.psi),
+    };
+  },
 };
 
 let opaque: t = {
