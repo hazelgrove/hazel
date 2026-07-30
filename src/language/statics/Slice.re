@@ -676,12 +676,26 @@ let assemble = (~ctx: Ctx.t, ~id, ~former, ~shape: Typ.t, ~sub_terms) => {
              other == index ? Id.Set.empty : node.ids
            )
         |> List.fold_left(Id.Set.union, Id.Set.empty);
+      let ids_of = keep =>
+        List.fold_left(
+          (acc, (role, node: t)) =>
+            keep(role, node) ? Id.Set.union(acc, node.ids) : acc,
+          Id.Set.empty,
+          sub_terms,
+        );
+      let asked =
+        ids_of((role, node) =>
+          role == Binder && !is_gap(node.demand(env, inner.gamma).psi)
+        );
+      let scoped =
+        Id.Set.is_empty(asked)
+          ? asked : Id.Set.union(asked, ids_of((role, _) => role == Source));
       let finish = result => {
         ...result,
         omitted:
           Id.Set.diff(
             Id.Set.union(result.omitted, siblings),
-            result.retained,
+            Id.Set.union(result.retained, scoped),
           ),
       };
       let lifted = query => {
@@ -799,6 +813,18 @@ let mk =
          role == Omit ? Some(node.ids) : None
        )
     |> List.fold_left(Id.Set.union, Id.Set.empty);
+  let uses = query =>
+    co_ctx
+    |> CoCtx.entries_at(id)
+    |> List.map(((name, entry: CoCtx.entry)) =>
+         singleton(
+           ~sort=entry.sort,
+           ~name,
+           ~id=entry.id,
+           entry.demanded |> Option.value(~default=query),
+         )
+       )
+    |> join_all(ctx);
   let dispatch = (env, query) => {
     let query = env.focus == Some(id) ? env.query : query;
     let capped = Typ.overlap(ctx, query, shape);
@@ -818,18 +844,7 @@ let mk =
       };
     } else {
       let slice = assembled(env, query);
-      let used =
-        co_ctx
-        |> CoCtx.entries_at(id)
-        |> List.map(((name, entry: CoCtx.entry)) =>
-             singleton(
-               ~sort=entry.sort,
-               ~name,
-               ~id=entry.id,
-               entry.demanded |> Option.value(~default=query),
-             )
-           )
-        |> join_all(ctx);
+      let used = uses(query);
       {
         omitted: Id.Set.union(slice.omitted, Id.Set.diff(checked, env.path)),
         gamma: join(ctx, slice.gamma, used),
@@ -846,7 +861,11 @@ let mk =
         witness: Ana(env.query),
       };
     } else {
-      analyse_assembled(env);
+      let result = analyse_assembled(env);
+      {
+        ...result,
+        gamma: join(ctx, result.gamma, uses(gap)),
+      };
     };
   let declared =
     declared_supply != None

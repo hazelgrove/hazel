@@ -3756,8 +3756,11 @@ and upat_to_info_map =
       let (ctx, tys, cons, m, infos, ps_elabs) =
         fold_patterns_with_modes(
           ~analyze=
-            (~ctx, ~ana, ~duplicate_bindings, p, m) =>
-              go(~ctx, ~ana, ~duplicate_bindings, p, m),
+            (~ctx, ~ana, ~duplicate_bindings, p, m) => {
+              let* (p, p_elab, m) =
+                go(~ctx, ~ana, ~duplicate_bindings, p, m);
+              (p, p_elab, m);
+            },
           ~ctx,
           ps,
           refined_modes,

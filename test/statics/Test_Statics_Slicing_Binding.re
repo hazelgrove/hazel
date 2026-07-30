@@ -267,7 +267,7 @@ let binding_analysis = [
     "bind-ana-ctor-ann-def",
     "type T = +A(Int) in let v : T = A(1) in v",
     "Int",
-    "type T = +A(Int) in let ? : ? = A(?) in ?",
+    "type T = +A(Int) in let ? = A(?) in ?",
   ),
   analysis_case(
     ~focus=first_int,
