@@ -182,7 +182,7 @@ let binding_synthesis = [
   synthesis_case(
     "bind-param-curried",
     "type Result(E, A) = Error(E) + Ok(A) in Ok@<String, Bool>(true)",
-    "Result(?, Bool)",
+    "Error(?) + Ok(Bool)",
     "type Result(?, A) = ? + Ok(A) in Ok@<?, Bool>(?)",
   ),
 ];

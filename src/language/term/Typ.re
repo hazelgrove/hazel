@@ -1287,18 +1287,28 @@ let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   meet(ctx, ty1, ty2) != None;
 
-// A sum answers a query naming it, however the query spells the name.
+/* A name standing for a definition, as opposed to the definition written out.
+   Asking a name at its expansion is not yet supported. */
+let rec names_a_definition = (ctx: Ctx.t, ty: t): bool =>
+  switch (term_of(ty)) {
+  | Parens(inner)
+  | Projector(_, inner)
+  | TypParamAp(inner, _) => names_a_definition(ctx, inner)
+  | Var(name) => Ctx.lookup_alias(ctx, name) != None
+  | _ => false
+  };
+
 let is_askable = (ctx: Ctx.t, actual: t, query: t): bool =>
-  is_consistent(ctx, actual, query)
-  || (
-    switch (
-      term_of(weak_head_normalize(ctx, actual)),
-      term_of(weak_head_normalize(ctx, query)),
-    ) {
-    | (Sum(_), Sum(_) | Var(_) | TypParamAp(_, _)) => true
-    | _ => false
-    }
-  );
+  if (names_a_definition(ctx, actual)) {
+    names_a_definition(ctx, query)
+    && is_consistent(
+         ctx,
+         weak_head_normalize(ctx, actual),
+         weak_head_normalize(ctx, query),
+       );
+  } else {
+    is_consistent(ctx, actual, query);
+  };
 
 let gap: t = temp(Unknown(Hole(EmptyHole)));
 

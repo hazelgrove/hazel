@@ -70,10 +70,10 @@ let ctors = [
   ),
   synthesis_case(
     ~ctx=prelude_ctx("type T = A(Int) + B(Bool) in"),
-    ~aliases=[("T", "A(Int) + ?")],
+    ~aliases=[("T", "A(?) + ?")],
     "ctor-payload-sensitive",
     "A(1)",
-    "A(Int)",
+    "T",
     "A(?)",
   ),
   synthesis_case(
