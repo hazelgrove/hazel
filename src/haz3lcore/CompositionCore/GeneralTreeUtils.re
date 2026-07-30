@@ -29,7 +29,7 @@ let subtree_of =
                   ~is_synswitch=false,
                   ~ctx=pat_info.ctx,
                   ~co_ctx=pat_info.co_ctx,
-                  ~ana=Language.Info.pure(pat_info.ana),
+                  ~ana=pat_info.ana,
                   ~ancestors=pat_info.ancestors,
                   ~duplicate_bindings=[],
                   pat,
@@ -45,7 +45,7 @@ let subtree_of =
               let (_, _, m) =
                 Statics.uexp_to_info_map(
                   ~ctx=def_info.ctx,
-                  ~ana=Language.Info.pure(def_info.ana),
+                  ~ana=def_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=def_info.ancestors,
                   def,
@@ -61,7 +61,7 @@ let subtree_of =
               let (_, _, m) =
                 Statics.uexp_to_info_map(
                   ~ctx=body_info.ctx,
-                  ~ana=Language.Info.pure(body_info.ana),
+                  ~ana=body_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=body_info.ancestors,
                   body,
@@ -105,7 +105,7 @@ let subtree_of =
               let (_, _, m) =
                 Statics.uexp_to_info_map(
                   ~ctx=body_info.ctx,
-                  ~ana=Language.Info.pure(body_info.ana),
+                  ~ana=body_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=body_info.ancestors,
                   body,
@@ -132,7 +132,7 @@ let subtree_of =
               let (_, _, m) =
                 Statics.uexp_to_info_map(
                   ~ctx=def_info.ctx,
-                  ~ana=Language.Info.pure(def_info.ana),
+                  ~ana=def_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=def_info.ancestors,
                   def,
@@ -148,7 +148,7 @@ let subtree_of =
               let (_, _, m) =
                 Statics.uexp_to_info_map(
                   ~ctx=body_info.ctx,
-                  ~ana=Language.Info.pure(body_info.ana),
+                  ~ana=body_info.ana,
                   ~is_in_filter=false,
                   ~ancestors=body_info.ancestors,
                   body,
@@ -182,14 +182,14 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
 
   switch (curr) {
   | InfoExp(info) =>
-    let entire_coctx = info.co_ctx;
+    let entire_coctx = CoCtx.values(info.co_ctx);
     let body_coctx =
       switch (Exp.term_of(info.user_term)) {
       | Let(_, _, body)
       | TyAlias(_, _, body)
       | ModuleExp(_, _, body) =>
         switch (exp_to_info(body)) {
-        | InfoExp({co_ctx, _}) => co_ctx
+        | InfoExp({co_ctx, _}) => CoCtx.values(co_ctx)
         | _ =>
           raise(
             Failure("Body of let/type alias/module is not an expression"),
@@ -277,7 +277,7 @@ let update_use_sites_of_var =
         acc_z;
       },
     z,
-    co_ctx,
+    CoCtx.values(co_ctx),
   );
 };
 

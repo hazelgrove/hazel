@@ -323,7 +323,7 @@ let structural_traversal_tests = (
           Alcotest.list(typ),
           "arrow children",
           [list(int()), bool()],
-          Statics.Slice.typ_children(shape),
+          Typ.children(shape),
         );
       },
     ),
@@ -343,7 +343,7 @@ let structural_traversal_tests = (
           Alcotest.list(typ),
           "sum children",
           [var("A"), int(), var("B"), bool()],
-          Statics.Slice.typ_children(shape),
+          Typ.children(shape),
         );
       },
     ),
@@ -360,10 +360,7 @@ let structural_traversal_tests = (
             ConstructorMap.BadEntry(bool()),
           ]);
         let rebuilt =
-          Statics.Slice.typ_rebuild(
-            shape,
-            [var("X"), string(), var("Y"), nat()],
-          );
+          Typ.rebuild(shape, [var("X"), string(), var("Y"), nat()]);
         check(
           option(typ),
           "rebuilt sum",
@@ -398,10 +395,7 @@ let structural_traversal_tests = (
               ConstructorMap.Variant("B", ann_b, None),
             ]),
           ),
-          Statics.Slice.typ_rebuild(
-            shape,
-            [Statics.Slice.gap, bool(), var("B")],
-          ),
+          Typ.rebuild(shape, [Typ.gap, bool(), var("B")]),
         );
       },
     ),
@@ -420,11 +414,11 @@ let structural_traversal_tests = (
           "nullary constructor replaced by gap",
           Some(
             sum([
-              ConstructorMap.BadEntry(Statics.Slice.gap),
+              ConstructorMap.BadEntry(Typ.gap),
               ConstructorMap.BadEntry(nat()),
             ]),
           ),
-          Statics.Slice.typ_rebuild(shape, [Statics.Slice.gap, nat()]),
+          Typ.rebuild(shape, [Typ.gap, nat()]),
         );
       },
     ),
@@ -488,6 +482,25 @@ let structural_traversal_tests = (
       },
     ),
     test_case(
+      "does not collect through a shadowing binder",
+      `Quick,
+      () => {
+        let (_, constraints) =
+          Typ.collect_constraints(
+            Builtins.ctx_init(None),
+            ["A"],
+            typ_fun(Var("A") |> TPat.temp, var("A")),
+            typ_fun(Var("B") |> TPat.temp, int()),
+          );
+        check(
+          Alcotest.list(Alcotest.pair(Alcotest.string, typ)),
+          "constraints",
+          [],
+          constraints,
+        );
+      },
+    ),
+    test_case(
       "rebuilding rejects arity mismatches",
       `Quick,
       () => {
@@ -496,13 +509,13 @@ let structural_traversal_tests = (
           option(typ),
           "too few children",
           None,
-          Statics.Slice.typ_rebuild(shape, [int()]),
+          Typ.rebuild(shape, [int()]),
         );
         check(
           option(typ),
           "too many children",
           None,
-          Statics.Slice.typ_rebuild(shape, [int(), bool(), string()]),
+          Typ.rebuild(shape, [int(), bool(), string()]),
         );
       },
     ),

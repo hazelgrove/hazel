@@ -11,6 +11,30 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+let slice_scratch: Slice.scratch(Info.t) = {
+  read:
+    fun
+    | Info.InfoSliceScratch(children) => Some(children)
+    | _ => None,
+  write: children => Info.InfoSliceScratch(children),
+};
+
+let record = (~id, ~first=false, role, component, m) =>
+  Slice.record(~scratch=slice_scratch, ~id, ~first, role, component, m);
+let take_recorded = (~id, m) => Slice.take(~scratch=slice_scratch, ~id, m);
+let edge = (~at, ~first=false, role, slice_of, component, k) =>
+  Slice.edge(
+    ~scratch=slice_scratch,
+    ~at,
+    ~first,
+    role,
+    slice_of,
+    component,
+    k,
+  );
+let edge_typ = (~at, role, slice_of, component, k) =>
+  Slice.edge_typ(~scratch=slice_scratch, ~at, role, slice_of, component, k);
+
 /* Compute a type's kind without descending into descendants. The
    recursive `utyp_to_info_map` traversal puts kind marks on each node
    individually, so this helper is purely for "what kind does the
@@ -294,15 +318,13 @@ and drv_to_info_map =
 and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
-      ~ana=Info.pure(syn),
+      ~ana=syn,
       ~is_in_filter=false,
       ~ancestors,
       uexp: Exp.t,
       m: Map.t,
     )
     : (Info.exp, Exp.t, Map.t) => {
-  let route = ana.route;
-  let ana = ana.value;
   let ids = IdTagged.ids(uexp);
   let (term, rewrap) = Exp.unwrap(uexp);
   let add =
@@ -315,14 +337,13 @@ and uexp_to_info_map =
         ~ctx=ctx,
         ~ana=ana,
         ~ancestors=ancestors,
-        ~route=route,
-        ~assemble: option(Info.assembler)=None,
         ~co_ctx: CoCtx.t,
         ~message: option(Message.t)=?,
         ~label_inference: option(Info.label_inference(Info.exp))=None, // TODO[Matt]: combine with message
         ~inferred_label: option(string)=None,
         ~label_sort=false,
         ~dot_labels: list(string)=[],
+        ~former: option(MatchedTyp.former)=None,
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
@@ -344,8 +365,18 @@ and uexp_to_info_map =
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
-    let (slice_children, m) =
-      StaticsSlice.take_children(~id=Exp.rep_id(user_term), m);
+    let (recorded, m) = take_recorded(~id=Exp.rep_id(user_term), m);
+    let slice =
+      Slice.mk(
+        ~ctx,
+        ~id=Exp.rep_id(user_term),
+        ~ids=Slice.exp_ids(user_term),
+        ~shape=elab_syn_ty,
+        ~sub_terms=recorded,
+        ~co_ctx,
+        ~former,
+        (),
+      );
     let info: Info.exp = {
       cls,
       elab_syn_ty,
@@ -363,9 +394,7 @@ and uexp_to_info_map =
       inferred_label,
       label_sort,
       dot_labels,
-      slice_children,
-      route,
-      assemble,
+      slice,
     };
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoExp(info), m));
   };
@@ -374,7 +403,7 @@ and uexp_to_info_map =
   let go =
       (
         ~ctx=ctx,
-        ~ana=Info.pure(syn),
+        ~ana=syn,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors_inclusive,
         uexp: Exp.t,
@@ -383,48 +412,105 @@ and uexp_to_info_map =
       : (Info.exp, Exp.t, Map.t) => {
     uexp_to_info_map(~ctx, ~ana, ~is_in_filter, ~ancestors, uexp, m);
   };
-  let ( let* ) = (child, k) => StaticsSlice.keep(~parent=uexp, child, k);
-  let (let&) = (child, k) => StaticsSlice.omit(~parent=uexp, child, k);
-  let (let$) = (child, k) =>
-    StaticsSlice.source_child(~parent=uexp, child, k);
-  let (let+) = (child, k) =>
-    StaticsSlice.alternative(~parent=uexp, child, k);
-  let (let&&) = (child, k) => StaticsSlice.prune(~parent=uexp, child, k);
-  let ( let*** ) = (child, k) =>
-    StaticsSlice.matched(~parent=uexp, child, k);
-  let (let!) = (pattern, k) =>
-    k(StaticsSlice.pattern(~parent=uexp, pattern));
-  let (let<|) = (f, k) => k(List.hd(StaticsSlice.decompose(f, ctx, ana)));
-  let (let<>) = (f, k) => {
-    let cs = StaticsSlice.decompose(f, ctx, ana);
-    k((List.nth(cs, 0), List.nth(cs, 1)));
-  };
-  let ( let<* ) = (f, k) => k(StaticsSlice.decompose(f, ctx, ana));
-  let map_m_go = (m, anas, es) => {
-    let (pairs, m) =
-      map_m2(
-        (ana, e, m) => {
-          let* (e, elab, m) = go(~ana, e, m);
-          ((e, elab), m);
-        },
-        anas,
-        es,
+  let here = Exp.rep_id(uexp);
+  let exp_edge = role => edge(~at=here, role, (i: Info.exp) => i.slice);
+  let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
+  /* The symbol names the role; doubling it says the sub-term is a type rather
+     than an expression, and a suffix modifies the role. So `let^` takes a
+     sub-term's whole type, `let^^` an annotation's, `let^?` takes it only when
+     the query asks for something concrete, and `let@@` binds a type name where
+     `let@` binds a pattern. */
+  // use when the sub-term's type is a type component of the type this rule
+  // constructs: in `1 :: []` the head's `Int` is the type component of `[_]`
+  let ( let* ) = (component, k) => exp_edge(Part, component, k);
+  // use when the sub-term's type is this rule's whole type: `(e)`, `1; e`
+  let (let^) = (component, k) => exp_edge(Through, component, k);
+  // use when the sub-term supplies this rule's type but has nothing to say
+  // when the query asks for no more than a shape: `[1] @ []`
+  let (let^?) = (component, k) => exp_edge(Prune, component, k);
+  // use for any sub-term that is only type checked: `f(x)`'s `x`
+  let (let&) = (component, k) => exp_edge(Omit, component, k);
+  // use when a checked sub-term's expected υ is supplied by an explicit source
+  let (let&>) = ((source, component), k) =>
+    edge(
+      ~at=here,
+      Omit,
+      (i: Info.exp) => Slice.checked_by(~ctx, ~source, i.slice),
+      component,
+      k,
+    );
+  // use when the sub-term is a definition the binders demand from:
+  // `case e | ...`'s `e`
+  let (let$) = (component, k) => exp_edge(Source, component, k);
+  // use when the sub-term is one of several branches supplying the same type:
+  // `if c then a else b`
+  let (let+) = (component, k) => exp_edge(Alternative, component, k);
+  // use when an annotation supplies this rule's whole type: `(e : Int)`'s `Int`
+  let (let^^) = (component, k) => typ_edge(Through, component, k);
+  // use when a pattern binds names for the rest of this rule: `fun p -> e`,
+  // `let p = d in b`. Recorded in front of what it scopes, since the binder
+  // rules re-analyze their pattern only once the body has been checked.
+  let pat_edge = (~first=false, role) =>
+    edge(~at=here, ~first, role, (i: Info.pat) => i.slice);
+  let (let@) = (component, k) => pat_edge(~first=true, Binder, component, k);
+  /* use when a rule has several binders, each scoping one alternative: the
+     pair is recorded in order, since prepending would put every binder before
+     every alternative and let the first consume them all. */
+  let (let@+) = ((branch, pat_result), k) =>
+    pat_edge(
+      Binder,
+      pat_result,
+      ((p_info, p_elab, m)) => {
+        let+ (_, _, m) = (branch, p_elab, m);
+        k((p_info, p_elab, m));
+      },
+    );
+  // use when an annotation is a type component of this rule's type: `e@<T>`'s `T`
+  let ( let** ) = (component, k) => typ_edge(Part, component, k);
+  // use when an annotation is sliced backwards by this rule's binders.
+  let (let$$) = (component, k) => typ_edge(Source, component, k);
+  let result_of = (~via, i: Info.exp, m) =>
+    record(
+      ~id=here,
+      Through,
+      List.fold_left(
+        (node, (former, index)) =>
+          Slice.component(~ctx, ~former, ~index, node),
+        i.slice,
+        via,
+      ),
+      m,
+    );
+  // use when this rule's type is a projection of a sub-term's, at the component
+  // the rule names by former and index: `f(x)`'s result, `e@<T>`'s poly body
+  let ( let^* ) = ((via, i: Info.exp, elab, m), k) =>
+    k((i, elab, result_of(~via, i, m)));
+  // use when a name rather than a pattern binds for the rest of this rule:
+  // `type T = d in b`
+  let (let@@) = ((sort, name, id, ids, demand_of, m), k) =>
+    k(
+      record(
+        ~id=here,
+        ~first=true,
+        Binder,
+        Slice.binding(~sort, ~name, ~id, ~ids, ~demand_of),
         m,
-      );
-    (List.split(pairs), m);
-  };
-  let map_m_go_deferred = (m, anas, es) => {
+      ),
+    );
+  let map_m_go = (~roles=?, m, anas, es) => {
+    let roles =
+      Option.value(~default=List.init(List.length(es), _ => None), roles);
     let (pairs, m) =
       map_m2(
-        (ana, e, m) =>
-          if (Exp.is_deferral(e)) {
-            let* (e, elab, m) = go(~ana, e, m);
-            ((e, elab), m);
-          } else {
-            let& (e, elab, m) = go(~ana, e, m);
-            ((e, elab), m);
-          },
-        anas,
+        ((role, ana), e, m) => {
+          let result = go(~ana, e, m);
+          let finish = ((e, elab, m)) => ((e, elab), m);
+          switch (role) {
+          | Some(role) => exp_edge(role, result, finish)
+          | None => finish(result)
+          };
+        },
+        List.combine(roles, anas),
         es,
         m,
       );
@@ -442,7 +528,7 @@ and uexp_to_info_map =
     let (inner_info, _, m) =
       uexp_to_info_map(
         ~ctx,
-        ~ana=Info.pure(inner_ty),
+        ~ana=inner_ty,
         ~is_in_filter,
         ~ancestors=ancestors_inclusive,
         original_expression,
@@ -465,7 +551,7 @@ and uexp_to_info_map =
     let (info, _, m) =
       uexp_to_info_map(
         ~ctx,
-        ~ana=Info.pure(ana),
+        ~ana,
         ~ancestors=ancestors_inclusive,
         elaborated_exp,
         m,
@@ -524,6 +610,21 @@ and uexp_to_info_map =
     | None => (ty, elab)
     };
 
+  let rec instantiated_slice = (ty: Typ.t, slice: Slice.t): Slice.t =>
+    switch (MatchedTyp.poly_pair(ctx, ty)) {
+    | Some((Some(_), body)) =>
+      instantiated_slice(
+        body,
+        Slice.reshaped(
+          ~demand=q => Poly(EmptyHole |> TPat.fresh, q) |> Typ.temp,
+          ~answer=MatchedTyp.tolerant1(MatchedTyp.poly, ctx),
+          slice,
+        ),
+      )
+    | Some((None, _))
+    | None => slice
+    };
+
   let rec expects_poly_callee = (e: Exp.t): bool =>
     switch (e.term) {
     | Var(v) =>
@@ -550,7 +651,7 @@ and uexp_to_info_map =
     switch (term) {
     | Closure(env, e) =>
       // TODO: implement closure type checking properly - see how dynamic type assignment does it
-      let* (e, e_elab, m) = go(~ana=Info.pure(ana), e, m);
+      let (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Closure(env, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -559,8 +660,8 @@ and uexp_to_info_map =
         m,
       );
     | MultiHole([Exp(e1), Exp(e2)]) =>
-      let& (e1, e1_elab, m) = go(~ana=Info.pure(syn), e1, m);
-      let* (e2, e2_elab, m) = go(~ana=Info.pure(syn), e2, m);
+      let (e1, e1_elab, m) = go(~ana=syn, e1, m);
+      let (e2, e2_elab, m) = go(~ana=syn, e2, m);
       add(
         ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -579,10 +680,10 @@ and uexp_to_info_map =
         m,
       );
     | Asc(e, t2) =>
-      let (t, m) = go_typ(t2, ~expects=TypExpectation.TypeExpected, m);
+      let^^ (t, m) = go_typ(t2, ~expects=TypExpectation.TypeExpected, m);
       /* Desugar any Sig types in the annotation without full normalization */
       let t_ty = Typ.desugar_sig(ctx, t.user_term);
-      let* (e, e_elab, m) = go(~ana=Info.pure(t_ty), ~ctx=t.ctx, e, m);
+      let&> (e, e_elab, m) = (t.slice, go(~ana=t_ty, ~ctx=t.ctx, e, m));
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
@@ -679,9 +780,10 @@ and uexp_to_info_map =
       );
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
-      let<| inner_ana = MatchedTyp.list;
-      let anas = List.init(List.length(es), _ => inner_ana);
-      let ((es, es_elabs), m) = map_m_go(m, anas, es);
+      let inner_ana_ty = MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana);
+      let anas = List.init(List.length(es), _ => inner_ana_ty);
+      let ((es, es_elabs), m) =
+        map_m_go(~roles=List.map(_ => Some(Slice.Part), es), m, anas, es);
       /* Use elements' synthesized types consistently for both the meet and
          the per-element ascription decision. Using `e.ty` (ana-coerced)
          would disagree with the syn-based meet and cause spurious Asc
@@ -717,10 +819,10 @@ and uexp_to_info_map =
         )
       };
     | Cons(hd, tl) =>
-      let<| head_ana = MatchedTyp.list;
-      let* (hd, hd_elab, m) = go(~ana=head_ana, hd, m);
+      let head_ana_ty = MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana);
+      let* (hd, hd_elab, m) = go(~ana=head_ana_ty, hd, m);
       let tail_ana_ty = Typ.match_synswitch(ana, List(hd.ty) |> Typ.temp);
-      let& (tl, tl_elab, m) = go(~ana=Info.pure(tail_ana_ty), tl, m);
+      let& (tl, tl_elab, m) = go(~ana=tail_ana_ty, tl, m);
       /* `hd` was analyzed against `head_ana_ty` (the element-level ana),
          so `hd.ty` already incorporates ana info at the element level.
          Using it directly as the element type means fresh re-synthesis of
@@ -756,8 +858,8 @@ and uexp_to_info_map =
       let inner_ana_ty =
         List(MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana)) |> Typ.temp;
       let ids = List.map(Exp.rep_id, [e1, e2]);
-      let&& (e1, e1_elab, m) = go(~ana=Info.pure(inner_ana_ty), e1, m);
-      let& (e2, e2_elab, m) = go(~ana=Info.pure(inner_ana_ty), e2, m);
+      let^? (e1, e1_elab, m) = go(~ana=inner_ana_ty, e1, m);
+      let& (e2, e2_elab, m) = go(~ana=inner_ana_ty, e2, m);
       /* Project each argument's synthesized type to its list element type.
          `list_tolerant` returns `?` when the arg's syn isn't a list, which
          is the correct behaviour for e.g. `A @ A` (where each `A` syns to
@@ -825,7 +927,7 @@ and uexp_to_info_map =
         m,
       );
     | DynamicErrorHole(e, err) =>
-      let* (e, e_elab, m) = go(~ana=Info.pure(ana), e, m);
+      let^ (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=DynamicErrorHole(e_elab, err) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -834,7 +936,7 @@ and uexp_to_info_map =
         m,
       );
     | Parens(e) =>
-      let* (e, e_elab, m) = go(~ana=Info.pure(ana), e, m);
+      let^ (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Parens(e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -843,7 +945,7 @@ and uexp_to_info_map =
         m,
       );
     | Projector(data, e) =>
-      let* (e, e_elab, m) = go(~ana=Info.pure(ana), e, m);
+      let^ (e, e_elab, m) = go(~ana, e, m);
       add(
         ~elab_term=Projector(data, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -856,7 +958,7 @@ and uexp_to_info_map =
       let op_semantics = Operators.semantics_of_un_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
-        let& (e, e_elab, m) = go(~ana=Info.pure(syn), e, m);
+        let& (e, e_elab, m) = go(~ana=syn, e, m);
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
           ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -867,7 +969,7 @@ and uexp_to_info_map =
       | Defined(ty_in, ty_out, _) =>
         let ty_in = Atom(Atom.cls_of_kind(ty_in)) |> Typ.temp;
         let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
-        let& (e, e_elab, m) = go(~ana=Info.pure(ty_in), e, m);
+        let& (e, e_elab, m) = go(~ana=ty_in, e, m);
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
           ~elab_syn_ty=ty_out,
@@ -881,8 +983,8 @@ and uexp_to_info_map =
       let op_semantics = Operators.semantics_of_bin_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
-        let& (e1, e1_elab, m) = go(~ana=Info.pure(syn), e1, m);
-        let& (e2, e2_elab, m) = go(~ana=Info.pure(syn), e2, m);
+        let& (e1, e1_elab, m) = go(~ana=syn, e1, m);
+        let& (e2, e2_elab, m) = go(~ana=syn, e2, m);
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -892,12 +994,13 @@ and uexp_to_info_map =
         );
       | DefinedPoly(_) =>
         let ids = List.map(Exp.rep_id, [e1, e2]);
-        let& (e1_info, e1_elab, m) =
-          go(~ana=Info.pure(Unknown(Internal) |> Typ.temp), e1, m);
-        let& (e2_info, e2_elab, m) =
-          go(~ana=Info.pure(Unknown(Internal) |> Typ.temp), e2, m);
-        let es = [e1_info, e2_info];
-        let es_elabs = [e1_elab, e2_elab];
+        let ((es, es_elabs), m) =
+          map_m_go(
+            ~roles=[Some(Slice.Omit), Some(Slice.Omit)],
+            m,
+            [Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp],
+            [e1, e2],
+          );
         let tys = List.map(Info.exp_ty, es);
         let elab_poly =
           BinOp(op, List.nth(es_elabs, 0), List.nth(es_elabs, 1)) |> rewrap;
@@ -932,8 +1035,8 @@ and uexp_to_info_map =
         let ty1 = Atom(Atom.cls_of_kind(ty1)) |> Typ.temp;
         let ty2 = Atom(Atom.cls_of_kind(ty2)) |> Typ.temp;
         let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
-        let& (e1, e1_elab, m) = go(~ana=Info.pure(ty1), e1, m);
-        let& (e2, e2_elab, m) = go(~ana=Info.pure(ty2), e2, m);
+        let& (e1, e1_elab, m) = go(~ana=ty1, e1, m);
+        let& (e2, e2_elab, m) = go(~ana=ty2, e2, m);
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=ty_out,
@@ -943,14 +1046,14 @@ and uexp_to_info_map =
         );
       };
     | TupleExtension(e1, e2) =>
-      let* (t1, e1_elab, m) = go(e1, m);
+      let (t1, e1_elab, m) = go(e1, m);
       let m =
         switch (Typ.normalize(ctx, t1.ty).term) {
         | Prod(_)
         | Unknown(_) => m
         | _ => append_mark_exp(m, e1, [TupleExtensionRequiresTuples])
         };
-      let* (t2, e2_elab, m) = go(e2, m);
+      let (t2, e2_elab, m) = go(e2, m);
       let m =
         switch (Typ.normalize(ctx, t2.ty).term) {
         | Prod(_)
@@ -961,48 +1064,28 @@ and uexp_to_info_map =
       let co_ctx = CoCtx.union([t1.co_ctx, t2.co_ctx]);
       let elab_term = TupleExtension(e1_elab, e2_elab) |> rewrap;
 
-      let extract_entry: Typ.t => (option(string), Typ.t) = (
-        t =>
-          switch (Typ.match_tup_label(t)) {
-          | Some((name, t)) => (Some(name), t)
-          | None => (None, t)
-          }
-      );
-      let entries_of = t =>
-        switch (Typ.term_of(Typ.normalize(ctx, t))) {
-        | Prod(ts) => List.map(extract_entry, ts)
-        | _ => []
-        };
-      let assemble: Info.assembler = (
-        fun
-        | [a, b] =>
-          Prod(
-            List.map(
-              ((lab, d)) =>
-                switch (lab) {
-                | Some(l) => TupLabel(Label(l) |> Typ.temp, d) |> Typ.temp
-                | None => d
-                },
-              LabeledTuple.extension(entries_of(a), entries_of(b)),
-            ),
-          )
-          |> Typ.temp
-        | _ => Unknown(Internal) |> Typ.temp
-      );
-
       switch (
         Typ.normalize(ctx, t1.ty).term,
         Typ.normalize(ctx, t2.ty).term,
       ) {
-      | (Prod(_), Prod(_)) =>
+      | (Prod(ts1), Prod(ts2)) =>
+        let former =
+          MatchedTyp.prod_extension_former(
+            ctx,
+            Prod(ts1) |> Typ.temp,
+            Prod(ts2) |> Typ.temp,
+          );
+        let ty = former.build([t1.ty, t2.ty]);
+        let* (_, _, m) = (t1, e1_elab, m);
+        let* (_, _, m) = (t2, e2_elab, m);
         add(
+          ~former=Some(former),
           ~elab_term,
-          ~elab_syn_ty=assemble([t1.ty, t2.ty]),
-          ~assemble=Some(assemble),
+          ~elab_syn_ty=ty,
           ~marks=[],
           ~co_ctx,
           m,
-        )
+        );
       | _ =>
         add(
           ~elab_term,
@@ -1058,152 +1141,131 @@ and uexp_to_info_map =
           es,
         );
 
-      let (es', es_elab, m) =
-        List.fold_left2(
-          ((es, es_elab, m), ana, (inferred_label, e: Exp.t)) => {
-            switch (e.term) {
-            | TupLabel({term: ExplicitNonlabel, _}, _) =>
-              let* (e_info, elab, m) = go(~ana, e, m);
-              let (e_info, m) =
-                LabeledTupleStaticsHelpers.apply_inferred_label_exp(
-                  ~inferred_label,
-                  e_info,
-                  m,
-                );
-              (es @ [e_info], es_elab @ [elab], m);
-            | TupLabel(label, value) =>
-              let (labmode, val_mode) =
-                LabeledTupleStaticsHelpers.decompose_label_mode(
-                  ctx,
-                  ana.value,
-                );
-              let* (value_info, value_elab, m) =
-                go(
-                  ~ana=
-                    StaticsSlice.at(
-                      val_mode,
-                      StaticsSlice.compose_route(
-                        ana.route,
-                        StaticsSlice.component_route(
-                          MatchedTyp.label,
-                          ctx,
-                          1,
-                        ),
-                      ),
-                    ),
-                  value,
-                  m,
-                );
-              let (lab_name, label_invalid, m) =
-                switch (label.term) {
-                | Label(name) =>
-                  let (label_syn, label_marks, label_invalid) =
-                    LabeledTupleStaticsHelpers.validate_label_name(
-                      ~name,
-                      ~expected_labels,
-                      ~duplicate_labels,
-                    );
-                  let (_, _, m) =
-                    add(
-                      ~user_term=label,
-                      ~ancestors=ancestors_inclusive,
-                      ~elab_term=label,
-                      ~ctx,
-                      ~ana=labmode,
-                      ~elab_syn_ty=label_syn,
-                      ~marks=label_marks,
-                      ~co_ctx=CoCtx.empty,
-                      ~label_inference=None,
-                      ~inferred_label=None,
-                      ~dot_labels=[],
-                      ~label_sort=true,
-                      ~warnings=[],
-                      m,
-                    );
-                  (Some(name), label_invalid, m);
-                | EmptyHole =>
-                  let (_, _, m) =
-                    add(
-                      ~user_term=label,
-                      ~ancestors=ancestors_inclusive,
-                      ~elab_term=label,
-                      ~ctx,
-                      ~ana=labmode,
-                      ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
-                      ~marks=[],
-                      ~co_ctx=CoCtx.empty,
-                      ~label_inference=None,
-                      ~inferred_label=None,
-                      ~dot_labels=[],
-                      ~label_sort=true,
-                      ~warnings=[],
-                      m,
-                    );
-                  (None, false, m);
-                | _ =>
-                  let (_, _, m) = go(~ana=Info.pure(labmode), label, m);
-                  (
-                    None,
-                    false,
-                    m
-                    |> append_mark_exp(_, label, [BadLabel(Exp(label))])
-                    |> set_label_sort_exp(_, label, true),
-                  );
-                };
-              let (syn_tl, cms_tl) =
-                LabeledTupleStaticsHelpers.tup_label_self_type(
-                  ~lab_name,
-                  ~label_invalid,
+      let element = (ana, inferred_label, e: Exp.t, m) =>
+        switch (e.term) {
+        | TupLabel({term: ExplicitNonlabel, _}, _) =>
+          let (e_info, elab, m) = go(~ana, e, m);
+          let (e_info, m) =
+            LabeledTupleStaticsHelpers.apply_inferred_label_exp(
+              ~inferred_label,
+              e_info,
+              m,
+            );
+          (e_info, elab, m);
+        | TupLabel(label, value) =>
+          let exp_edge = (~first=false, role) =>
+            edge(~at=Exp.rep_id(e), ~first, role, (i: Info.exp) => i.slice);
+          // This is a bit hacky: Tuple type checking uses an ad-hoc hand-rolled fold
+          // that analyzes a TupLabel and its children inline, rather than recursing into
+          // a separate rule, so shadow the edge to record children under the wrapper id.
+          let ( let* ) = (component, k) => exp_edge(Part, component, k);
+          let (let*@) = (component, k) =>
+            exp_edge(~first=true, Part, component, k);
+          let (labmode, val_mode) =
+            LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
+          let* (value_info, value_elab, m) = go(~ana=val_mode, value, m);
+          let (lab_name, label_invalid, m) =
+            switch (label.term) {
+            | Label(name) =>
+              let (label_syn, label_marks, label_invalid) =
+                LabeledTupleStaticsHelpers.validate_label_name(
+                  ~name,
+                  ~expected_labels,
                   ~duplicate_labels,
-                  ~value_ty=value_info.elab_syn_ty,
-                  ~label_is_empty_hole=label.term == EmptyHole,
-                  ~malformed_source=Exp(label),
                 );
-              let* (e_info, elab, m) =
+              let*@ (_, _, m) =
                 add(
-                  ~user_term=e,
-                  ~elab_term=TupLabel(label, value_elab) |> rewrap,
-                  ~ctx,
-                  ~ana=ana.value,
+                  ~user_term=label,
                   ~ancestors=ancestors_inclusive,
-                  ~route=ana.route,
-                  ~elab_syn_ty=syn_tl,
-                  ~marks=cms_tl,
-                  ~co_ctx=value_info.co_ctx,
+                  ~elab_term=label,
+                  ~ctx,
+                  ~ana=labmode,
+                  ~elab_syn_ty=label_syn,
+                  ~marks=label_marks,
+                  ~co_ctx=CoCtx.empty,
                   ~label_inference=None,
-                  ~inferred_label,
+                  ~inferred_label=None,
                   ~dot_labels=[],
-                  ~label_sort=false,
+                  ~label_sort=true,
                   ~warnings=[],
                   m,
                 );
-              (es @ [e_info], es_elab @ [elab], m);
-            | _ =>
-              let* (e_info, elab, m) = go(~ana, e, m);
-              let (e_info, m) =
-                LabeledTupleStaticsHelpers.apply_inferred_label_exp(
-                  ~inferred_label,
-                  e_info,
+              (Some(name), label_invalid, m);
+            | EmptyHole =>
+              let*@ (_, _, m) =
+                add(
+                  ~user_term=label,
+                  ~ancestors=ancestors_inclusive,
+                  ~elab_term=label,
+                  ~ctx,
+                  ~ana=labmode,
+                  ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+                  ~marks=[],
+                  ~co_ctx=CoCtx.empty,
+                  ~label_inference=None,
+                  ~inferred_label=None,
+                  ~dot_labels=[],
+                  ~label_sort=true,
+                  ~warnings=[],
                   m,
                 );
-              (es @ [e_info], es_elab @ [elab], m);
-            }
+              (None, false, m);
+            | _ =>
+              let (_, _, m) = go(~ana=labmode, label, m);
+              (
+                None,
+                false,
+                m
+                |> append_mark_exp(_, label, [BadLabel(Exp(label))])
+                |> set_label_sort_exp(_, label, true),
+              );
+            };
+          let (syn_tl, cms_tl) =
+            LabeledTupleStaticsHelpers.tup_label_self_type(
+              ~lab_name,
+              ~label_invalid,
+              ~duplicate_labels,
+              ~value_ty=value_info.elab_syn_ty,
+              ~label_is_empty_hole=label.term == EmptyHole,
+              ~malformed_source=Exp(label),
+            );
+          let (e_info, elab, m) =
+            add(
+              ~user_term=e,
+              ~elab_term=TupLabel(label, value_elab) |> rewrap,
+              ~ctx,
+              ~ana,
+              ~ancestors=ancestors_inclusive,
+              ~elab_syn_ty=syn_tl,
+              ~marks=cms_tl,
+              ~co_ctx=value_info.co_ctx,
+              ~label_inference=None,
+              ~inferred_label,
+              ~dot_labels=[],
+              ~label_sort=false,
+              ~warnings=[],
+              m,
+            );
+          (e_info, elab, m);
+        | _ =>
+          let (e_info, elab, m) = go(~ana, e, m);
+          let (e_info, m) =
+            LabeledTupleStaticsHelpers.apply_inferred_label_exp(
+              ~inferred_label,
+              e_info,
+              m,
+            );
+          (e_info, elab, m);
+        };
+
+      let (es', es_elab, m) =
+        List.fold_left2(
+          ((es, es_elab, m), ana, (inferred_label, e: Exp.t)) => {
+            let* (e_info, elab, m) = element(ana, inferred_label, e, m);
+            (es @ [e_info], es_elab @ [elab], m);
           },
           ([], [], m),
-          List.mapi(
-            (i, ty) =>
-              StaticsSlice.at(
-                ty,
-                StaticsSlice.component_route(
-                  LabeledTupleStaticsHelpers.prod_entry_matcher(
-                    ~entry_labels=new_labels,
-                  ),
-                  ctx,
-                  i,
-                ),
-              ),
-            ana_tys,
-          ),
+          ana_tys,
           List.combine(inferred, es),
         );
 
@@ -1258,7 +1320,7 @@ and uexp_to_info_map =
         m,
       );
     | TupLabel({term: ExplicitNonlabel, _} as label, e) =>
-      let* (e, elab_inner, m) = go(~ana=Info.pure(ana), e, m);
+      let (e, elab_inner, m) = go(~ana, e, m);
       /* Add info for the ExplicitNonlabel directly */
       let (_, elab_label, m) =
         add(
@@ -1288,7 +1350,7 @@ and uexp_to_info_map =
     | TupLabel(label, e) =>
       let (labmode, val_mode) =
         LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-      let* (e, elab_child, m) = go(~ana=Info.pure(val_mode), e, m);
+      let (e, elab_child, m) = go(~ana=val_mode, e, m);
       let (lab_name, m) =
         switch (label.term) {
         | Label(name) =>
@@ -1330,7 +1392,7 @@ and uexp_to_info_map =
             );
           (None, m);
         | _ =>
-          let (_, _, m) = go(~ana=Info.pure(labmode), label, m);
+          let (_, _, m) = go(~ana=labmode, label, m);
           (
             None,
             m
@@ -1383,7 +1445,7 @@ and uexp_to_info_map =
       );
 
     | Dot(e1, e2) =>
-      let* (info_e1, e1_elab, m) = go(~ana=Info.pure(syn), e1, m);
+      let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
       let available_labels = {
         let ty = Typ.normalize(ctx, info_e1.ty);
         switch (ty.term) {
@@ -1394,23 +1456,6 @@ and uexp_to_info_map =
         | _ => []
         };
       };
-      let dot_assemble = (name): Info.assembler => (
-        fun
-        | [record] => {
-            let field = ts =>
-              switch (LabeledTuple.find_label(Typ.match_tup_label, ts, name)) {
-              | Some({term: TupLabel(_, typ), _})
-              | Some(typ) => typ
-              | None => Unknown(Internal) |> Typ.temp
-              };
-            switch (Typ.term_of(Typ.normalize(ctx, record))) {
-            | Prod(ts) => field(ts)
-            | List({term: Prod(ts), _}) => List(field(ts)) |> Typ.temp
-            | _ => Unknown(Internal) |> Typ.temp
-            };
-          }
-        | _ => Unknown(Internal) |> Typ.temp
-      );
 
       /* Analyze label child, then patch with label_sort, dot_labels,
          and correct self (Label produces UnexpectedLabelSort by default,
@@ -1437,7 +1482,7 @@ and uexp_to_info_map =
           )
         | _ =>
           /* Malformed label — analyze via go to cover sub-expression IDs */
-          let& (info_e2, elab_e2, m) = go(~ana=Info.pure(syn), e2, m);
+          let (info_e2, elab_e2, m) = go(~ana=syn, e2, m);
           (
             info_e2,
             elab_e2,
@@ -1463,7 +1508,7 @@ and uexp_to_info_map =
               |> Typ.temp,
             ])
             |> Typ.temp;
-          let (_, _, m) = go(~ana=Info.pure(ty), e1, m);
+          let (_, _, m) = go(~ana=ty, e1, m);
           (ty, m);
         | _ => (Typ.normalize(ctx, info_e1.ty), m)
         };
@@ -1475,20 +1520,41 @@ and uexp_to_info_map =
 
         switch (e2.term) {
         | Label(name) =>
+          let field_index =
+            List.find_index(
+              (t: Typ.t) =>
+                switch (Typ.match_tup_label(t)) {
+                | Some((label, _)) => label == name
+                | None => false
+                },
+              ts,
+            );
           let element: option(Typ.t) =
-            LabeledTuple.find_label(Typ.match_tup_label, ts, name);
+            Option.map(List.nth(ts), field_index);
           switch (element) {
           | Some({term: TupLabel(_, typ), _})
           | Some(typ) =>
+            let m =
+              switch (field_index) {
+              | None => m
+              | Some(index) =>
+                result_of(
+                  ~via=[
+                    (MatchedTyp.prod_former(List.length(ts)), index),
+                    (MatchedTyp.label_former, 1),
+                  ],
+                  info_e1,
+                  m,
+                )
+              };
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=typ,
-              ~assemble=Some(dot_assemble(name)),
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
               m,
-            )
+            );
           | None =>
             add(
               ~elab_term=dot_elab,
@@ -1532,7 +1598,6 @@ and uexp_to_info_map =
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=List(typ) |> Typ.fresh,
-              ~assemble=Some(dot_assemble(name)),
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1587,8 +1652,7 @@ and uexp_to_info_map =
         )
       };
     | Test(e) =>
-      let& (e, e_elab, m) =
-        go(~ana=Info.pure(Atom(Bool) |> Typ.temp), e, m);
+      let& (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=Test(e_elab) |> rewrap,
         ~elab_syn_ty=Prod([]) |> Typ.temp,
@@ -1597,10 +1661,9 @@ and uexp_to_info_map =
         m,
       );
     | HintedTest(e, hint) =>
-      let& (e, e_elab, m) =
-        go(~ana=Info.pure(Atom(Bool) |> Typ.temp), e, m);
+      let& (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       let& (hint, hint_elab, m) =
-        go(~ana=Info.pure(Atom(String) |> Typ.temp), hint, m);
+        go(~ana=Atom(String) |> Typ.temp, hint, m);
       add(
         ~elab_term=HintedTest(e_elab, hint_elab) |> rewrap,
         ~elab_syn_ty=Prod([]) |> Typ.temp,
@@ -1609,9 +1672,8 @@ and uexp_to_info_map =
         m,
       );
     | Filter(Filter({pat: cond, act}), body) =>
-      let& (cond, cond_elab, m) =
-        go(~ana=Info.pure(syn), cond, m, ~is_in_filter=true);
-      let* (body, body_elab, m) = go(~ana=Info.pure(ana), body, m);
+      let& (cond, cond_elab, m) = go(~ana=syn, cond, m, ~is_in_filter=true);
+      let^ (body, body_elab, m) = go(~ana, body, m);
       add(
         ~elab_term=
           Filter(
@@ -1628,7 +1690,7 @@ and uexp_to_info_map =
         m,
       );
     | Filter(Residue(i, act), body) =>
-      let* (body, body_elab, m) = go(~ana=Info.pure(ana), body, m);
+      let^ (body, body_elab, m) = go(~ana, body, m);
       add(
         ~elab_term=Filter(Residue(i, act), body_elab) |> rewrap,
         ~elab_syn_ty=body.elab_syn_ty,
@@ -1637,8 +1699,8 @@ and uexp_to_info_map =
         m,
       );
     | Seq(e1, e2) =>
-      let& (e1, e1_elab, m) = go(~ana=Info.pure(syn), e1, m);
-      let* (e2, e2_elab, m) = go(~ana=Info.pure(ana), e2, m);
+      let& (e1, e1_elab, m) = go(~ana=syn, e1, m);
+      let^ (e2, e2_elab, m) = go(~ana, e2, m);
       add(
         ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
@@ -1676,7 +1738,13 @@ and uexp_to_info_map =
             ~elab_term,
             ~elab_syn_ty=syn_res,
             ~marks=marks_res,
-            ~co_ctx=CoCtx.empty,
+            ~co_ctx=
+              CoCtx.singleton(
+                ~sort=CoCtx.Constructor,
+                ctr,
+                Exp.rep_id(uexp),
+                ana,
+              ),
             m,
           );
         }
@@ -1757,13 +1825,15 @@ and uexp_to_info_map =
           | Some(m) when marks_res == [] => [m]
           | Some(_) => marks_res
           };
-        add(
-          ~elab_term,
-          ~elab_syn_ty,
-          ~marks=marks_res,
-          ~co_ctx=CoCtx.empty,
-          m,
-        );
+        let co_ctx =
+          ConstructorStaticsHelpers.ctr_uses(
+            ctx,
+            ~ctr,
+            ~id=Exp.rep_id(uexp),
+            ~ana,
+            ~typ=elab_syn_ty,
+          );
+        add(~elab_term, ~elab_syn_ty, ~marks=marks_res, ~co_ctx, m);
       };
     | Ap(dir, fn, arg) =>
       switch (fn.term) {
@@ -1771,8 +1841,8 @@ and uexp_to_info_map =
         // refer to livelit context to find types
         switch (Ctx.lookup_livelit(ctx, s)) {
         | Some({expansion_t, model_t, expand, _}) =>
-          let* (fn, fn_elab, m) = go(~ana=Info.pure(expansion_t), fn, m);
-          let& (arg, arg_elab, m) = go(~ana=Info.pure(model_t), arg, m);
+          let (fn, fn_elab, m) = go(~ana=expansion_t, fn, m);
+          let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
 
           // try to expand
           switch (expand(arg.user_term)) {
@@ -1803,10 +1873,10 @@ and uexp_to_info_map =
           };
 
         | None =>
-          let* (fn, fn_elab, m) =
-            go(~ana=Info.pure(Unknown(Internal) |> Typ.temp), fn, m);
-          let& (arg, arg_elab, m) =
-            go(~ana=Info.pure(Unknown(Internal) |> Typ.temp), arg, m);
+          let (fn, fn_elab, m) =
+            go(~ana=Unknown(Internal) |> Typ.temp, fn, m);
+          let (arg, arg_elab, m) =
+            go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
           add(
             ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
             ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -1854,7 +1924,7 @@ and uexp_to_info_map =
               ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
               : Arrow(syn, syn) |> Typ.temp
           };
-        let*** (fn, fn_elab, m) = go(~ana=Info.pure(fn_ana), fn, m);
+        let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
         switch (custom_statics) {
         | Some(kind) =>
           CustomStatics.custom_statics_ap(
@@ -1877,9 +1947,32 @@ and uexp_to_info_map =
             implicit_poly_instantiate(fn.elab_syn_ty, fn_elab);
           let (ty_in, ty_out) =
             MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_ty);
-          let& (arg, arg_elab, m) = go(~ana=Info.pure(ty_in), arg, m);
+          let result = {
+            ...fn,
+            slice: {
+              ...instantiated_slice(fn.elab_syn_ty, fn.slice),
+              shape: fn_ty,
+            },
+          };
+          let source =
+            Slice.routed(
+              ~ctx,
+              ~former=MatchedTyp.arrow_former,
+              ~input=0,
+              ~output=1,
+              result.slice,
+            );
+          let&> (arg, arg_elab, m) = (source, go(~ana=ty_in, arg, m));
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
+          /* the implicit instantiation demands under the binders it peeled,
+             and answers at the type they were instantiated to */
+          let^* (_, _, m) = (
+            [(MatchedTyp.arrow_former, 1)],
+            result,
+            fn_elab,
+            m,
+          );
           Id.is_nullary_ap_flag(IdTagged.ids(arg.user_term))
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
             ? add(
@@ -1900,8 +1993,9 @@ and uexp_to_info_map =
       }
     | TypAp(fn, utyp) =>
       let typfn_ana = Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
-      let* (fn, fn_elab, m) = go(~ana=Info.pure(typfn_ana), fn, m);
-      let (_, m) =
+      let (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
+      let^* (_, _, m) = ([(MatchedTyp.poly_former, 0)], fn, fn_elab, m);
+      let** (_, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
       let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
       let (option_name, ty_body) = MatchedTyp.poly_pair_tolerant(ctx, fn.ty);
@@ -1939,7 +2033,16 @@ and uexp_to_info_map =
             );
           };
         };
-      add(~elab_term, ~elab_syn_ty, ~marks, ~co_ctx=fn.co_ctx, m);
+      let former =
+        Option.map(
+          name =>
+            MatchedTyp.instantiation_former(
+              ~binders=TPat.binders_of(name),
+              ~body=ty_body,
+            ),
+          option_name,
+        );
+      add(~former, ~elab_term, ~elab_syn_ty, ~marks, ~co_ctx=fn.co_ctx, m);
     | DeferredAp(fn, args) =>
       /* If this is a builtin with custom statics */
       let custom_statics =
@@ -1979,7 +2082,7 @@ and uexp_to_info_map =
             ? Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp
             : Arrow(syn, syn) |> Typ.temp
         };
-      let* (fn, fn_elab, m) = go(~ana=Info.pure(fn_ana), fn, m);
+      let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
 
       switch (custom_statics) {
       | Some(kind) =>
@@ -2000,45 +2103,35 @@ and uexp_to_info_map =
           args,
         )
       | None =>
-        let (fn_ty, fn_elab) =
-          implicit_poly_instantiate(fn.elab_syn_ty, fn_elab);
-        let (ty_in, _) = MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_ty);
+        let (ty_in, ty_out) =
+          MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn.ty);
         let num_args = List.length(args);
         switch (MatchedTyp.args(ctx, ty_in, num_args)) {
         | L(ty_ins) =>
+          let deferred = List.map(Exp.is_deferral, args);
           let ((args_infos, args_elabs), m) =
-            map_m_go_deferred(m, List.map(Info.pure, ty_ins), args);
+            map_m_go(
+              ~roles=
+                List.map(
+                  keep => Some(keep ? Slice.Retain : Slice.Omit),
+                  deferred,
+                ),
+              m,
+              ty_ins,
+              args,
+            );
           let arg_co_ctx =
             CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
-          let deferred_mask = List.map(Exp.is_deferral, args);
-          let assemble: Info.assembler = (
-            fun
-            | [fn_ty, ..._] => {
-                let (ty_in, ty_out) =
-                  MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn_ty);
-                let ty_ins =
-                  switch (MatchedTyp.args(ctx, ty_in, num_args)) {
-                  | L(ts) => ts
-                  | R(_) =>
-                    List.init(num_args, _ => Unknown(Internal) |> Typ.temp)
-                  };
-                let ty_in' =
-                  List.combine(ty_ins, deferred_mask)
-                  |> List.filter(((_, d)) => d)
-                  |> List.map(fst)
-                  |> (
-                    fun
-                    | [x] => x
-                    | xs => Prod(xs) |> Typ.temp
-                  );
-                Arrow(ty_in', ty_out) |> Typ.temp;
-              }
-            | [] => Unknown(Internal) |> Typ.temp
-          );
+          let former = MatchedTyp.deferred_ap_former(ctx, deferred);
+          let^* (_, _, m) = ([(former, 0)], fn, fn_elab, m);
+          let ty_in' =
+            List.combine(ty_ins, args)
+            |> List.filter(((_, e)) => Exp.is_deferral(e))
+            |> List.map(fst)
+            |> MatchedTyp.bundle_args;
           add(
             ~elab_term=DeferredAp(fn_elab, args_elabs) |> rewrap,
-            ~elab_syn_ty=assemble([fn_ty]),
-            ~assemble=Some(assemble),
+            ~elab_syn_ty=Arrow(ty_in', ty_out) |> Typ.temp,
             ~marks=[],
             ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
             m,
@@ -2046,8 +2139,7 @@ and uexp_to_info_map =
         | R(expected) =>
           let ty_ins =
             List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
-          let ((args, args_elabs), m) =
-            map_m_go(m, List.map(Info.pure, ty_ins), args);
+          let ((args, args_elabs), m) = map_m_go(m, ty_ins, args);
           let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
           add(
             ~elab_term=DeferredAp(fn_elab, args_elabs) |> rewrap,
@@ -2067,13 +2159,10 @@ and uexp_to_info_map =
       };
     | Fun(p, e, typ, n) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let<> (mode_pat, mode_body) = MatchedTyp.arrow;
-      let mode_pat =
-        switch (typ) {
-        | Some(t) => StaticsSlice.at(t, mode_pat.route)
-        | None => mode_pat
-        };
-      let! (p', _, m) =
+      let (mode_pat, mode_body) =
+        MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, ana);
+      let mode_pat = Option.value(~default=mode_pat, typ);
+      let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
       let* (e, e_elab, m) = go(~ctx=p'.ctx, ~ana=mode_body, e, m);
       /* Second pass: re-analyze the pattern to attach the body's co_ctx.
@@ -2082,14 +2171,8 @@ and uexp_to_info_map =
          would erase the ana info on the pattern (breaking e.g. the
          Introduce feature and any display that relies on the pattern's
          recorded `ana`). `p'.ty` preserves the ana. */
-      let (p, p_elab, m) =
-        go_pat(
-          ~is_synswitch=false,
-          ~co_ctx=e.co_ctx,
-          ~ana=Info.pure(p'.ty),
-          p,
-          m,
-        );
+      let@ (p, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
       let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
       let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
@@ -2109,10 +2192,10 @@ and uexp_to_info_map =
         m,
       );
     | Forall(p, e) =>
-      let! (p, p_elab, m) =
+      let@ (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
       let& (e, e_elab, m) =
-        go(~ctx=p.ctx, ~ana=Info.pure(Atom(Bool) |> Typ.temp), e, m);
+        go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
         ~elab_syn_ty=Atom(Bool) |> Typ.temp,
@@ -2126,8 +2209,8 @@ and uexp_to_info_map =
          context with each binder, and rename the expected Poly's
          binder list element-wise so the body's expected type uses the
          user-written names. */
-      let (name_expected_opt, _) = MatchedTyp.poly_pair_tolerant(ctx, ana);
-      let<| item = MatchedTyp.poly;
+      let (name_expected_opt, item) =
+        MatchedTyp.poly_pair_tolerant(ctx, ana);
       let user_binders = TPat.binders_of(utpat);
       let user_names_safe =
         user_binders
@@ -2138,30 +2221,26 @@ and uexp_to_info_map =
              }
            );
       let mode_body =
-        Info.map(
-          item =>
-            switch (name_expected_opt) {
-            | Some(expected_tpat) =>
-              let expected_binders = TPat.binders_of(expected_tpat);
-              if (List.length(expected_binders) != List.length(user_binders)) {
-                item;
-              } else {
-                List.fold_left2(
-                  (body, exp_b, user_b) =>
-                    switch (TPat.tyvar_of_utpat(user_b)) {
-                    | Some(name) when !Ctx.is_base_typ(name) =>
-                      Typ.subst(Var(name) |> Typ.temp, exp_b, body)
-                    | _ => body
-                    },
-                  item,
-                  expected_binders,
-                  user_binders,
-                );
-              };
-            | None => item
-            },
-          item,
-        );
+        switch (name_expected_opt) {
+        | Some(expected_tpat) =>
+          let expected_binders = TPat.binders_of(expected_tpat);
+          if (List.length(expected_binders) != List.length(user_binders)) {
+            item;
+          } else {
+            List.fold_left2(
+              (body, exp_b, user_b) =>
+                switch (TPat.tyvar_of_utpat(user_b)) {
+                | Some(name) when !Ctx.is_base_typ(name) =>
+                  Typ.subst(Var(name) |> Typ.temp, exp_b, body)
+                | _ => body
+                },
+              item,
+              expected_binders,
+              user_binders,
+            );
+          };
+        | None => item
+        };
       let ctx_body =
         List.fold_left(
           (ctx, b: TPat.t) =>
@@ -2184,12 +2263,12 @@ and uexp_to_info_map =
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
         |> snd;
-      let* (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
+      let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
         ~elab_term=TypAbs(utpat, body_elab, tfname) |> rewrap,
         ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
         ~marks=[],
-        ~co_ctx=body.co_ctx,
+        ~co_ctx=CoCtx.mk(ctx, ctx_body, body.co_ctx),
         m,
       );
     | Let(p, def, body) when Option.is_some(FunctionSugar.detect(p)) =>
@@ -2209,8 +2288,7 @@ and uexp_to_info_map =
           ~def,
           ~body,
         );
-      let* (rewritten_info, rewritten_elab, m) =
-        go(~ana=Info.pure(ana), rewritten, m);
+      let^ (rewritten_info, rewritten_elab, m) = go(~ana, rewritten, m);
       let m = FunctionSugar.add_binder_infos(m, ~user_pat=p, ~f_name);
       add(
         ~elab_term=rewritten_elab,
@@ -2246,14 +2324,8 @@ and uexp_to_info_map =
         | Constructor(v, _) when Ctx.lookup_var(ctx, v) != None => Some(v)
         | _ => None
         };
-      let! (p_syn, _, m) =
-        go_pat(
-          ~is_synswitch=true,
-          ~co_ctx=CoCtx.empty,
-          ~ana=Info.pure(syn),
-          p,
-          m,
-        );
+      let (p_syn, _, _) =
+        go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (def_term, def_rewrap) = Exp.unwrap(def);
       let def =
         switch (def_term, Typ.term_of(Typ.normalize(ctx, p_syn.ty))) {
@@ -2267,8 +2339,7 @@ and uexp_to_info_map =
           |> def_rewrap
         | (_, _) => def
         };
-      let (def_rec_probe, _, _) =
-        go(~ctx=p_syn.ctx, ~ana=Info.pure(p_syn.ty), def, m);
+      let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
       let rec_check_ty =
         switch (Typ.term_of(Typ.normalize(ctx, p_syn.ty))) {
         | Unknown(SynSwitch) => def_rec_probe.ty
@@ -2277,33 +2348,31 @@ and uexp_to_info_map =
       let is_rec = is_recursive(ctx, p, def, rec_check_ty);
       let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
         if (!is_rec) {
-          let$ (def, def_elab, m) = go(~ana=Info.pure(p_syn.ty), def, m);
+          let$ (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
           let ty_p_ana = def.ty;
           let (p_ana', _, _) =
             go_pat(
               ~is_synswitch=false,
               ~co_ctx=CoCtx.empty,
-              ~ana=Info.pure(ty_p_ana),
+              ~ana=ty_p_ana,
               p,
               m,
             );
           (def, def_elab, p_ana'.ctx, m, ty_p_ana);
         } else {
-          let (def_base, _, _) =
-            go(~ctx=p_syn.ctx, ~ana=Info.pure(p_syn.ty), def, m);
+          let (def_base, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
           let ty_p_ana = def_base.ty;
           /* Analyze pattern to incorporate def type into ctx */
           let (p_ana', _, _) =
             go_pat(
               ~is_synswitch=false,
               ~co_ctx=CoCtx.empty,
-              ~ana=Info.pure(ty_p_ana),
+              ~ana=ty_p_ana,
               p,
               m,
             );
           let def_ctx = p_ana'.ctx;
-          let (def_base2, _, _) =
-            go(~ctx=def_ctx, ~ana=Info.pure(p_syn.ty), def, m);
+          let (def_base2, _, _) = go(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
           let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
             Typ.term_of(ty_p) == Unknown(SynSwitch)
             && !Typ.equal(ty_fn1, ty_fn2)
@@ -2321,8 +2390,7 @@ and uexp_to_info_map =
             | ((_, _), _) =>
               ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
             };
-          let$ (def, def_elab, m) =
-            go(~ctx=def_ctx, ~ana=Info.pure(ana), def, m);
+          let$ (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
           (def, def_elab, def_ctx, m, ty_p_ana);
         };
       /* Inject module type exports into body context */
@@ -2352,17 +2420,10 @@ and uexp_to_info_map =
           | _ => p_ana_ctx
           }
         };
-      let* (body, body_elab, m) =
-        go(~ctx=p_ana_ctx, ~ana=Info.pure(ana), body, m);
+      let^ (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
-      let (p_ana, p_elab, m) =
-        go_pat(
-          ~is_synswitch=false,
-          ~co_ctx=body.co_ctx,
-          ~ana=Info.pure(ty_p_ana),
-          p,
-          m,
-        );
+      let@ (p_ana, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
       let syn_ty_let = body.elab_syn_ty;
       let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check(
@@ -2416,26 +2477,19 @@ and uexp_to_info_map =
       );
     | Theorem({term: Var(_), _} as p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let$ (e1', e1_elab, m) =
-        go(~ctx, ~ana=Info.pure(Atom(Bool) |> Typ.temp), e1, m);
-      let! (p', _, m) =
+      let& (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (p', _, _) =
         go_pat(
           ~is_synswitch=false,
           ~co_ctx=CoCtx.empty,
-          ~ana=Info.pure(Typ.fresh(ProofOf(e1))),
+          ~ana=Typ.fresh(ProofOf(e1)),
           p,
           m,
         );
-      let* (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana=Info.pure(ana), e2, m);
+      let^ (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
-      let (p, p_elab, m) =
-        go_pat(
-          ~is_synswitch=false,
-          ~co_ctx=e2.co_ctx,
-          ~ana=Info.pure(syn),
-          p,
-          m,
-        );
+      let@ (p, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
@@ -2451,26 +2505,13 @@ and uexp_to_info_map =
       );
     | Theorem(p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let$ (_, e1_elab, m) =
-        go(~ctx, ~ana=Info.pure(Atom(Bool) |> Typ.temp), e1, m);
-      let! (p', _, m) =
-        go_pat(
-          ~is_synswitch=false,
-          ~co_ctx=CoCtx.empty,
-          ~ana=Info.pure(syn),
-          p,
-          m,
-        );
-      let* (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana=Info.pure(ana), e2, m);
+      let& (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (p', _, _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+      let^ (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
-      let (p, p_elab, m) =
-        go_pat(
-          ~is_synswitch=false,
-          ~co_ctx=e2.co_ctx,
-          ~ana=Info.pure(syn),
-          p,
-          m,
-        );
+      let@ (p, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
@@ -2484,8 +2525,7 @@ and uexp_to_info_map =
         m,
       );
     | ProofObject(e) =>
-      let (_, e_elab, m) =
-        go(~ctx, ~ana=Info.pure(Atom(Bool) |> Typ.temp), e, m);
+      let (_, e_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=ProofObject(e_elab) |> rewrap,
         ~elab_syn_ty=Typ.temp(ProofOf(e)),
@@ -2494,23 +2534,11 @@ and uexp_to_info_map =
         m,
       ); // TODO[Matt]: do types need coctxs now?
     | FixF(p, e, env) =>
-      let! (p', _, m) =
-        go_pat(
-          ~is_synswitch=false,
-          ~co_ctx=CoCtx.empty,
-          ~ana=Info.pure(ana),
-          p,
-          m,
-        );
-      let$ (e', e_elab, m) = go(~ctx=p'.ctx, ~ana=Info.pure(p'.ty), e, m);
+      let (p', _, _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);
+      let (e', e_elab, m) = go(~ctx=p'.ctx, ~ana=p'.ty, e, m);
       let (p'', p_elab, m) =
-        go_pat(
-          ~is_synswitch=false,
-          ~co_ctx=e'.co_ctx,
-          ~ana=Info.pure(ana),
-          p,
-          m,
-        );
+        go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, p, m);
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let elab_term =
         FixF(p_elab, Asc(e_elab, p'.ty) |> Exp.fresh, env) |> rewrap;
@@ -2524,10 +2552,9 @@ and uexp_to_info_map =
       );
     | If(e0, e1, e2) =>
       let branch_ids = List.map(Exp.rep_id, [e1, e2]);
-      let& (cond, cond_elab, m) =
-        go(~ana=Info.pure(Atom(Bool) |> Typ.temp), e0, m);
-      let+ (cons, cons_elab, m) = go(~ana=Info.pure(ana), e1, m);
-      let+ (alt, alt_elab, m) = go(~ana=Info.pure(ana), e2, m);
+      let& (cond, cond_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
+      let+ (cons, cons_elab, m) = go(~ana, e1, m);
+      let+ (alt, alt_elab, m) = go(~ana, e2, m);
       let (syn_if, cms_if) =
         ConstructorStaticsHelpers.syn_marks_match(
           ctx,
@@ -2577,70 +2604,68 @@ and uexp_to_info_map =
         m,
       );
     | Match(scrut, rules) =>
-      let$ (scrut, scrut_elab, m) = go(~ana=Info.pure(syn), scrut, m);
+      let$ (scrut, scrut_elab, m) = go(~ana=syn, scrut, m);
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(Exp.rep_id, es);
-      let (ps', m) =
-        map_m(
-          (p, m) => {
-            let! (info, _, m) =
-              go_pat(
-                ~is_synswitch=false,
-                ~co_ctx=CoCtx.empty,
-                ~ana=Info.pure(scrut.ty),
-                p,
-                m,
-              );
-            (info, m);
-          },
-          ps,
-          m,
-        );
-
-      let p_ctxs = List.map(Info.pat_ctx, ps');
-      let (es, es_elabs, m) =
-        List.fold_left2(
-          ((es, elabs, m), e, pattern) => {
-            let+ (e, elab, m) =
-              go(~ctx=Info.pat_ctx(pattern), ~ana=Info.pure(ana), e, m);
-            (es @ [e], elabs @ [elab], m);
-          },
-          ([], [], m),
-          es,
-          ps',
-        );
-
-      let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
-      let e_co_ctxs = List.map(Info.exp_co_ctx, es);
-      let (syn_ty_match, marks_match) =
-        ConstructorStaticsHelpers.syn_marks_match(ctx, e_syn_tys, branch_ids);
-      let (constraints, ps_elabs, m) =
+      let (
+        p_ctxs,
+        es,
+        es_elabs,
+        e_syn_tys,
+        e_co_ctxs,
+        constraints,
+        ps_elabs,
+        m,
+      ) =
         List.fold_left(
           (
             (
-              constraints: list(Coverage.Constraint.t),
-              ps_elabs: list(Pat.t),
-              m: Map.t,
+              p_ctxs,
+              es,
+              es_elabs,
+              e_syn_tys,
+              e_co_ctxs,
+              constraints,
+              ps_elabs,
+              m,
             ),
-            (p, co_ctx),
+            (p, e),
           ) => {
-            let (info, p_elab, m) =
+            let (p', _, _) =
               go_pat(
                 ~is_synswitch=false,
-                ~co_ctx,
-                ~ana=Info.pure(scrut.ty),
+                ~co_ctx=CoCtx.empty,
+                ~ana=scrut.ty,
                 p,
                 m,
               );
-
-            let p_constraint = Info.pat_constraint(info);
-            ([p_constraint, ...constraints], ps_elabs @ [p_elab], m);
+            let (e, e_elab, m) = go(~ctx=p'.ctx, ~ana, e, m);
+            let@+ (p_info, p_elab, m) = (
+              e,
+              go_pat(
+                ~is_synswitch=false,
+                ~co_ctx=e.co_ctx,
+                ~ana=scrut.ty,
+                p,
+                m,
+              ),
+            );
+            (
+              p_ctxs @ [p'.ctx],
+              es @ [e],
+              es_elabs @ [e_elab],
+              e_syn_tys @ [e.elab_syn_ty],
+              e_co_ctxs @ [e.co_ctx],
+              constraints @ [Info.pat_constraint(p_info)],
+              ps_elabs @ [p_elab],
+              m,
+            );
           },
-          ([], [], m),
-          List.combine(ps, e_co_ctxs),
+          ([], [], [], [], [], [], [], m),
+          rules,
         );
-
-      let constraints = List.rev(constraints);
+      let (syn_ty_match, marks_match) =
+        ConstructorStaticsHelpers.syn_marks_match(ctx, e_syn_tys, branch_ids);
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
       let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
@@ -2972,18 +2997,34 @@ and uexp_to_info_map =
           | Some(sm) => Ctx.add_ctrs_with_params(ctx_body, name, params, sm)
           | None => ctx_body
           };
-        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
-          go(~ctx=ctx_body, ~ana=Info.pure(ana), body, m);
-        let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
-        let m =
+        let$$ (_, m) =
           utyp_to_info_map(
             ~ctx=ctx_for_def,
             ~ancestors=ancestors_inclusive,
             ~expects=AnyKindExpected,
             utyp,
             m,
-          )
-          |> snd;
+          );
+        let^ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+          go(~ctx=ctx_body, ~ana, body, m);
+        let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
+        let@@ m = (
+          CoCtx.Alias,
+          name,
+          TPat.rep_id(typat),
+          Id.Set.of_list(IdTagged.ids(typat)),
+          (
+            gamma =>
+              ConstructorStaticsHelpers.alias_demand_of(
+                ctx_for_def,
+                ~definition=utyp_desugared,
+                ~fallback=Slice.lookup(~sort=CoCtx.Alias, ~name, gamma),
+                ctr =>
+                Slice.lookup(~sort=CoCtx.Constructor, ~name=ctr, gamma)
+              )
+          ),
+          m,
+        );
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,
@@ -2994,7 +3035,7 @@ and uexp_to_info_map =
           ~elab_term=body_elab,
           ~elab_syn_ty=ty_escape,
           ~marks=[],
-          ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
+          ~co_ctx=CoCtx.union([CoCtx.mk(ctx, ctx_body, co_ctx), typ_refs]),
           m,
         );
       | Var(name) when !Ctx.is_base_typ(name) =>
@@ -3045,18 +3086,34 @@ and uexp_to_info_map =
             }
           | _ => ctx_body
           };
-        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
-          go(~ctx=ctx_body, ~ana=Info.pure(ana), body, m);
-        let ty_escape = Typ.subst(ty_def, typat, ty_body);
-        let m =
+        let$$ (_, m) =
           utyp_to_info_map(
             ~ctx=ctx_def,
             ~ancestors=ancestors_inclusive,
             ~expects=AnyKindExpected,
             utyp,
             m,
-          )
-          |> snd;
+          );
+        let^ ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+          go(~ctx=ctx_body, ~ana, body, m);
+        let ty_escape = Typ.subst(ty_def, typat, ty_body);
+        let@@ m = (
+          CoCtx.Alias,
+          name,
+          TPat.rep_id(typat),
+          Id.Set.of_list(IdTagged.ids(typat)),
+          (
+            gamma =>
+              ConstructorStaticsHelpers.alias_demand_of(
+                ctx_def,
+                ~definition=utyp_desugared,
+                ~fallback=Slice.lookup(~sort=CoCtx.Alias, ~name, gamma),
+                ctr =>
+                Slice.lookup(~sort=CoCtx.Constructor, ~name=ctr, gamma)
+              )
+          ),
+          m,
+        );
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,
@@ -3067,7 +3124,7 @@ and uexp_to_info_map =
           ~elab_term=body_elab,
           ~elab_syn_ty=ty_escape,
           ~marks=[],
-          ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
+          ~co_ctx=CoCtx.union([CoCtx.mk(ctx, ctx_body, co_ctx), typ_refs]),
           m,
         );
       | Var(_)
@@ -3077,8 +3134,8 @@ and uexp_to_info_map =
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) =>
-        let* ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
-          go(~ctx, ~ana=Info.pure(ana), body, m);
+        let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+          go(~ctx, ~ana, body, m);
         let m =
           utyp_to_info_map(
             ~ctx,
@@ -3118,8 +3175,7 @@ and uexp_to_info_map =
         | Some(mode) => Ctx.set_use_mode(ctx, Some(mode))
         | None => ctx
         };
-      let* (body, body_elab, m) =
-        go(~ctx=ctx', ~ana=Info.pure(ana), body, m);
+      let^ (body, body_elab, m) = go(~ctx=ctx', ~ana, body, m);
       switch (use_mode) {
       | Some(_) =>
         add(
@@ -3161,7 +3217,7 @@ and uexp_to_info_map =
          ana. Using ~ana here would double-count type inconsistencies (once on
          the expansion's inner tuple, once on the Module expression). */
       let expanded = ExpandModule.expand(~ana, items);
-      let* (expanded_info, expanded_elab, m) = go(expanded, m);
+      let (expanded_info, expanded_elab, m) = go(expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
       /* Build actual Prod type from module's exported bindings, rather than
          using expanded_info.ty which masks width errors via fixed_typ. */
@@ -3189,8 +3245,7 @@ and uexp_to_info_map =
           Exp.rep_id(uexp),
           Exp.fresh(Let(pat, def, body)),
         );
-      let (expanded_info, expanded_elab, m) =
-        go(~ana=Info.pure(ana), expanded, m);
+      let (expanded_info, expanded_elab, m) = go(~ana, expanded, m);
       /* Override cls to show "Module binding" */
       let m =
         switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
@@ -3210,7 +3265,7 @@ and uexp_to_info_map =
         | Asc(_, typ) => typ
         | _ => syn
         };
-      let (_, def_elab_direct, m) = go(~ana=Info.pure(def_ana), def, m);
+      let (_, def_elab_direct, m) = go(~ana=def_ana, def, m);
       let moduleexp_elab =
         ModuleHelpers.moduleexp_elab(~def_elab_direct, expanded_elab);
       add(
@@ -3229,7 +3284,7 @@ and uexp_to_info_map =
   | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
     // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
     // So for performance reasons we'll just do it here.
-    let (e, _, m) = go(~ana=Info.pure(syn), uexp, m);
+    let (e, _, m) = go(~ana=syn, uexp, m);
 
     switch (Typ.weak_head_normalize(ctx, e.ty).term) {
     | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
@@ -3248,14 +3303,12 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~duplicate_bindings: list(string)=[],
-      ~ana: Info.routed(Typ.t)=Info.pure(Unknown(Internal) |> Typ.temp),
+      ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
       upat: Pat.t,
       m: Map.t,
     )
     : (Info.pat, Pat.t, Map.t) => {
-  let route = ana.route;
-  let ana = ana.value;
   let ids = IdTagged.ids(upat);
   let (term, rewrap) = Pat.unwrap(upat);
   let ancestors_inclusive = [Pat.rep_id(upat)] @ ancestors;
@@ -3267,7 +3320,6 @@ and upat_to_info_map =
         ~co_ctx=co_ctx,
         ~ana=ana,
         ~ancestors=ancestors_inclusive,
-        ~route=route,
         ~elab_syn_ty: Typ.t,
         ~marks: list(Mark.t)=[],
         ~warnings: list(Warning.list_item)=[],
@@ -3275,6 +3327,8 @@ and upat_to_info_map =
         ~label_inference: option(Info.label_inference(Info.pat))=None,
         ~inferred_label: option(LabeledTuple.label)=None,
         ~label_sort=false,
+        ~binds: option((CoCtx.sort, string, Id.t))=None,
+        ~former: option(MatchedTyp.former)=None,
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
@@ -3312,8 +3366,20 @@ and upat_to_info_map =
       | (_, true) => Hole(Some(constraint_))
       | (_, false) => constraint_
       };
-    let (slice_children, m) =
-      StaticsSlice.take_children(~id=Pat.rep_id(user_term), m);
+    let (recorded, m) = take_recorded(~id=Pat.rep_id(user_term), m);
+    let slice =
+      Slice.mk(
+        ~ctx,
+        ~id=Pat.rep_id(user_term),
+        ~ids=Slice.pat_ids(user_term),
+        ~shape=ty,
+        ~sub_terms=recorded,
+        ~binds,
+        ~co_ctx,
+        ~binder=true,
+        ~former,
+        (),
+      );
     let info: Info.pat = {
       cls,
       elab_syn_ty,
@@ -3331,22 +3397,19 @@ and upat_to_info_map =
       label_inference,
       inferred_label,
       label_sort,
-      slice_children,
-      route,
+      slice,
     };
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoPat(info), m));
   };
   let ancestors = (); // Deliberately shadowed so there's no risk of using it by mistake
   let _ = ancestors;
-  let ( let* ) = (child, k) =>
-    StaticsSlice.pat_edge(SliceKeep, ~parent=upat, child, k);
   let go =
       (
         ~is_synswitch=is_synswitch,
         ~ctx=ctx,
         ~co_ctx=co_ctx,
         ~duplicate_bindings=[],
-        ~ana=Info.pure(ana),
+        ~ana=ana,
         ~under_ascription=false,
         upat: Pat.t,
         m: Map.t,
@@ -3363,6 +3426,30 @@ and upat_to_info_map =
       m: Map.t,
     );
   };
+  let here = Pat.rep_id(upat);
+  let pat_edge = role => edge(~at=here, role, (i: Info.pat) => i.slice);
+  let typ_edge = role => edge_typ(~at=here, role, (i: Info.typ) => i.slice);
+  // use when the sub-pattern's type is this pattern's whole type: `(p)`
+  let (let^) = (component, k) => pat_edge(Through, component, k);
+  // use when a checked pattern's expected υ is supplied by an annotation
+  let (let^>) = ((source, component), k) =>
+    edge(
+      ~at=here,
+      Through,
+      (i: Info.pat) => Slice.checked_by(~ctx, ~source, i.slice),
+      component,
+      k,
+    );
+  // use when an annotation supplies this pattern's whole type: `(p : Int)`'s `Int`
+  let (let^^) = (component, k) => typ_edge(Through, component, k);
+  // use when the sub-pattern's type is a type component of this pattern's
+  // type: in `hd :: tl` the head's `Int` is the type component of `[_]`.
+  let ( let* ) = (component, k) => pat_edge(Part, component, k);
+  // use when a sub-pattern binds names for the rest of this pattern, without
+  // supplying any of its type.
+  // let (let!) = (component, k) => pat_edge(Binder, component, k);
+  // use for any sub-pattern that is only type checked.
+  // let (let&) = (component, k) => pat_edge(Omit, component, k);
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
 
   let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) =>
@@ -3374,7 +3461,7 @@ and upat_to_info_map =
             ~co_ctx,
             ~is_synswitch,
             ~ancestors=ancestors_inclusive,
-            ~ana=Info.pure(ana),
+            ~ana,
             pat,
             m,
           ),
@@ -3385,7 +3472,7 @@ and upat_to_info_map =
             ~co_ctx,
             ~is_synswitch,
             ~ancestors=ancestors_inclusive,
-            ~ana=Info.pure(ana),
+            ~ana,
             pat,
             m,
           ),
@@ -3514,7 +3601,7 @@ and upat_to_info_map =
         fold_patterns_with_modes(
           ~analyze=
             (~ctx, ~ana, ~duplicate_bindings, p, m) =>
-              go(~ctx, ~ana=Info.pure(ana), ~duplicate_bindings, p, m),
+              go(~ctx, ~ana, ~duplicate_bindings, p, m),
           ~ctx,
           ps,
           modes,
@@ -3535,9 +3622,9 @@ and upat_to_info_map =
         fold_patterns_with_modes(
           ~analyze=
             (~ctx, ~ana, ~duplicate_bindings, p, m) => {
-              let* (info, elab, m) =
-                go(~ctx, ~ana=Info.pure(ana), ~duplicate_bindings, p, m);
-              (info, elab, m);
+              let* (p, p_elab, m) =
+                go(~ctx, ~ana, ~duplicate_bindings, p, m);
+              (p, p_elab, m);
             },
           ~ctx,
           ps,
@@ -3572,7 +3659,7 @@ and upat_to_info_map =
       let inner_ty = MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana);
       /* First pass: determine the head's synthesized type so we can refine
          the element type used to analyze both the head and tail in pass two. */
-      let (hd_first, _, _) = go(~ctx, ~ana=Info.pure(inner_ty), hd, m);
+      let (hd_first, _, _) = go(~ctx, ~ana=inner_ty, hd, m);
       let refined_inner =
         switch (Typ.meet(ctx, inner_ty, hd_first.ty)) {
         | Some(ty) => ty
@@ -3582,15 +3669,9 @@ and upat_to_info_map =
          pattern-variable bindings (e.g. `x` in `0 :: x` giving `x : [Int]`)
          pick up the refined type in their context. Mirrors the re-analysis
          performed for `Let` patterns once the def's type is known. */
-      let* (hd, hd_elab, m) =
-        go(~ctx, ~ana=Info.pure(refined_inner), hd, m);
-      let* (tl, tl_elab, m) =
-        go(
-          ~ctx=hd.ctx,
-          ~ana=Info.pure(List(refined_inner) |> Typ.fresh),
-          tl,
-          m,
-        );
+      let (hd, hd_elab, m) = go(~ctx, ~ana=refined_inner, hd, m);
+      let (tl, tl_elab, m) =
+        go(~ctx=hd.ctx, ~ana=List(refined_inner) |> Typ.fresh, tl, m);
       add(
         ~elab_term=Cons(hd_elab, tl_elab) |> rewrap,
         ~elab_syn_ty=List(hd.elab_syn_ty) |> Typ.temp,
@@ -3627,6 +3708,7 @@ and upat_to_info_map =
             ~marks=[Mark.DuplicateVar(name, unknown)],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
+            ~binds=Some((CoCtx.Value, name, Pat.rep_id(upat))),
             m,
           );
         }
@@ -3635,11 +3717,12 @@ and upat_to_info_map =
             ~marks=[],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
+            ~binds=Some((CoCtx.Value, name, Pat.rep_id(upat))),
             m,
           );
 
     | TupLabel({term: ExplicitNonlabel, _} as label, p) =>
-      let (p, p_elab, m) = go(~ana=Info.pure(ana), ~ctx, p, m);
+      let (p, p_elab, m) = go(~ana, ~ctx, p, m);
       /* Add info for the ExplicitNonlabel directly */
       let (_, _, m) =
         add(
@@ -3670,8 +3753,7 @@ and upat_to_info_map =
     | TupLabel(label, p) =>
       let (labmode, val_mode) =
         LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-      let (p, _, m) =
-        go(~ctx, ~ana=Info.pure(val_mode), ~duplicate_bindings, p, m);
+      let (p, _, m) = go(~ctx, ~ana=val_mode, ~duplicate_bindings, p, m);
       let (lab_name, m) =
         switch (label.term) {
         | Label(name) =>
@@ -3713,8 +3795,7 @@ and upat_to_info_map =
             );
           (None, m);
         | _ =>
-          let (p_info, p_elab, m) =
-            go(~ctx, ~ana=Info.pure(labmode), label, m);
+          let (p_info, p_elab, m) = go(~ctx, ~ana=labmode, label, m);
           let (_, _, m) =
             add(
               ~user_term=p_info.user_term,
@@ -3792,220 +3873,187 @@ and upat_to_info_map =
           ps,
         );
 
+      let element = (ctx, inferred_label, e: Pat.t, ana, m) =>
+        switch (e.term) {
+        | TupLabel({term: ExplicitNonlabel, _}, _) =>
+          let (info, elab, m) =
+            go(
+              ~ctx,
+              ~ana,
+              ~duplicate_bindings=duplicate_bindings @ new_duplicate_bindings,
+              e,
+              m,
+            );
+          let (info, m) =
+            LabeledTupleStaticsHelpers.apply_inferred_label_pat(
+              ~inferred_label,
+              info,
+              m,
+            );
+          (info, elab, m);
+        | TupLabel(label, value) =>
+          let pat_edge = (~first=false, role) =>
+            edge(~at=Pat.rep_id(e), ~first, role, (i: Info.pat) => i.slice);
+          // This is a bit hacky: Tuple type checking uses an ad-hoc hand-rolled fold
+          // that analyzes a TupLabel and its children inline, rather than recursing into
+          // a separate rule, so shadow the edge to record children under the wrapper id.
+          let ( let* ) = (component, k) => pat_edge(Part, component, k);
+          let (let*@) = (component, k) =>
+            pat_edge(~first=true, Part, component, k);
+          let (labmode, val_mode) =
+            LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
+          let* (value_info, value_elab, m) =
+            go(
+              ~ctx,
+              ~ana=val_mode,
+              ~duplicate_bindings=duplicate_bindings @ new_duplicate_bindings,
+              value,
+              m,
+            );
+          let (lab_name, label_invalid, m) =
+            switch (label.term) {
+            | Label(name) =>
+              let (label_syn, label_marks, label_invalid) =
+                LabeledTupleStaticsHelpers.validate_label_name(
+                  ~name,
+                  ~expected_labels,
+                  ~duplicate_labels=new_duplicate_labels,
+                );
+              let*@ (_, _, m) =
+                add(
+                  ~user_term=label,
+                  ~elab_term=label,
+                  ~ctx,
+                  ~co_ctx,
+                  ~ana=labmode,
+                  ~ancestors=ancestors_inclusive,
+                  ~elab_syn_ty=label_syn,
+                  ~marks=label_marks,
+                  ~constraint_=Coverage.Constraint.Truth,
+                  ~label_inference=None,
+                  ~inferred_label=None,
+                  ~label_sort=true,
+                  ~warnings=[],
+                  m,
+                );
+              (Some(name), label_invalid, m);
+            | EmptyHole =>
+              let*@ (_, _, m) =
+                add(
+                  ~user_term=label,
+                  ~elab_term=label,
+                  ~ctx,
+                  ~co_ctx,
+                  ~ana=labmode,
+                  ~ancestors=ancestors_inclusive,
+                  ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+                  ~marks=[],
+                  ~constraint_=Coverage.Constraint.Truth,
+                  ~label_inference=None,
+                  ~inferred_label=None,
+                  ~label_sort=true,
+                  ~warnings=[],
+                  m,
+                );
+              (None, false, m);
+            | _ =>
+              let (p_info, p_elab, m) = go(~ctx, ~ana=labmode, label, m);
+              let (p_info, _, m) =
+                add(
+                  ~user_term=p_info.user_term,
+                  ~elab_term=p_elab,
+                  ~ctx=p_info.ctx,
+                  ~co_ctx=p_info.co_ctx,
+                  ~ana=p_info.ana,
+                  ~ancestors=p_info.ancestors,
+                  ~elab_syn_ty=p_info.elab_syn_ty,
+                  ~marks=p_info.marks @ [BadLabel(Pat(label))],
+                  ~constraint_=p_info.constraint_,
+                  ~label_inference=p_info.label_inference,
+                  ~inferred_label=p_info.inferred_label,
+                  ~label_sort=true,
+                  ~warnings=p_info.warnings,
+                  m,
+                );
+              (
+                None,
+                false,
+                add_info(
+                  IdTagged.ids(p_info.user_term),
+                  InfoPat(p_info),
+                  m,
+                ),
+              );
+            };
+          let (syn_tl, cms_tl) =
+            LabeledTupleStaticsHelpers.tup_label_self_type(
+              ~lab_name,
+              ~label_invalid,
+              ~duplicate_labels=new_duplicate_labels,
+              ~value_ty=value_info.elab_syn_ty,
+              ~label_is_empty_hole=label.term == EmptyHole,
+              ~malformed_source=Pat(label),
+            );
+          let constraint_ =
+            Coverage.Constraint.Tuple([value_info.constraint_]);
+          let (_, e_rewrap) = Pat.unwrap(e);
+          let elab_tl = TupLabel(label, value_elab) |> e_rewrap;
+          let (info, _, m) =
+            add(
+              ~user_term=e,
+              ~elab_term=elab_tl,
+              ~ctx=value_info.ctx,
+              ~co_ctx,
+              ~ana,
+              ~ancestors=ancestors_inclusive,
+              ~elab_syn_ty=syn_tl,
+              ~marks=cms_tl,
+              ~constraint_,
+              ~label_inference=None,
+              ~inferred_label,
+              ~label_sort=false,
+              ~warnings=[],
+              m,
+            );
+          (info, elab_tl, m);
+        | _ =>
+          let (info, elab, m) =
+            go(
+              ~ctx,
+              ~ana,
+              ~duplicate_bindings=duplicate_bindings @ new_duplicate_bindings,
+              e,
+              m,
+            );
+          let (info, m) =
+            LabeledTupleStaticsHelpers.apply_inferred_label_pat(
+              ~inferred_label,
+              info,
+              m,
+            );
+          (info, elab, m);
+        };
+
       let (ctx, tys, cons, m, info_pats, ps_elabs) =
         List.fold_left2(
           (
             (ctx, tys, cons, m, info_all, elabs),
             (inferred_label, e: Pat.t),
             ana,
-          ) =>
-            switch (e.term) {
-            | TupLabel({term: ExplicitNonlabel, _}, _) =>
-              let (info, elab, m) =
-                go(
-                  ~ctx,
-                  ~ana,
-                  ~duplicate_bindings=
-                    duplicate_bindings @ new_duplicate_bindings,
-                  e,
-                  m,
-                );
-              let (info, m) =
-                LabeledTupleStaticsHelpers.apply_inferred_label_pat(
-                  ~inferred_label,
-                  info,
-                  m,
-                );
-              (
-                info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
-                m,
-                info_all @ [info],
-                elabs @ [elab],
-              );
-            | TupLabel(label, value) =>
-              let (labmode, val_mode) =
-                LabeledTupleStaticsHelpers.decompose_label_mode(
-                  ctx,
-                  ana.value,
-                );
-              let (value_info, value_elab, m) =
-                go(
-                  ~ctx,
-                  ~ana=
-                    StaticsSlice.at(
-                      val_mode,
-                      StaticsSlice.compose_route(
-                        ana.route,
-                        StaticsSlice.component_route(
-                          MatchedTyp.label,
-                          ctx,
-                          1,
-                        ),
-                      ),
-                    ),
-                  ~duplicate_bindings=
-                    duplicate_bindings @ new_duplicate_bindings,
-                  value,
-                  m,
-                );
-              let (lab_name, label_invalid, m) =
-                switch (label.term) {
-                | Label(name) =>
-                  let (label_syn, label_marks, label_invalid) =
-                    LabeledTupleStaticsHelpers.validate_label_name(
-                      ~name,
-                      ~expected_labels,
-                      ~duplicate_labels=new_duplicate_labels,
-                    );
-                  let (_, _, m) =
-                    add(
-                      ~user_term=label,
-                      ~elab_term=label,
-                      ~ctx,
-                      ~co_ctx,
-                      ~ana=labmode,
-                      ~ancestors=ancestors_inclusive,
-                      ~elab_syn_ty=label_syn,
-                      ~marks=label_marks,
-                      ~constraint_=Coverage.Constraint.Truth,
-                      ~label_inference=None,
-                      ~inferred_label=None,
-                      ~label_sort=true,
-                      ~warnings=[],
-                      m,
-                    );
-                  (Some(name), label_invalid, m);
-                | EmptyHole =>
-                  let (_, _, m) =
-                    add(
-                      ~user_term=label,
-                      ~elab_term=label,
-                      ~ctx,
-                      ~co_ctx,
-                      ~ana=labmode,
-                      ~ancestors=ancestors_inclusive,
-                      ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
-                      ~marks=[],
-                      ~constraint_=Coverage.Constraint.Truth,
-                      ~label_inference=None,
-                      ~inferred_label=None,
-                      ~label_sort=true,
-                      ~warnings=[],
-                      m,
-                    );
-                  (None, false, m);
-                | _ =>
-                  let (p_info, p_elab, m) =
-                    go(~ctx, ~ana=Info.pure(labmode), label, m);
-                  let (p_info, _, m) =
-                    add(
-                      ~user_term=p_info.user_term,
-                      ~elab_term=p_elab,
-                      ~ctx=p_info.ctx,
-                      ~co_ctx=p_info.co_ctx,
-                      ~ana=p_info.ana,
-                      ~ancestors=p_info.ancestors,
-                      ~elab_syn_ty=p_info.elab_syn_ty,
-                      ~marks=p_info.marks @ [BadLabel(Pat(label))],
-                      ~constraint_=p_info.constraint_,
-                      ~label_inference=p_info.label_inference,
-                      ~inferred_label=p_info.inferred_label,
-                      ~label_sort=true,
-                      ~warnings=p_info.warnings,
-                      m,
-                    );
-                  (
-                    None,
-                    false,
-                    add_info(
-                      IdTagged.ids(p_info.user_term),
-                      InfoPat(p_info),
-                      m,
-                    ),
-                  );
-                };
-              let (syn_tl, cms_tl) =
-                LabeledTupleStaticsHelpers.tup_label_self_type(
-                  ~lab_name,
-                  ~label_invalid,
-                  ~duplicate_labels=new_duplicate_labels,
-                  ~value_ty=value_info.elab_syn_ty,
-                  ~label_is_empty_hole=label.term == EmptyHole,
-                  ~malformed_source=Pat(label),
-                );
-              let constraint_ =
-                Coverage.Constraint.Tuple([value_info.constraint_]);
-              let (_, e_rewrap) = Pat.unwrap(e);
-              let elab_tl = TupLabel(label, value_elab) |> e_rewrap;
-              let (info, _, m) =
-                add(
-                  ~user_term=e,
-                  ~elab_term=elab_tl,
-                  ~ctx=value_info.ctx,
-                  ~co_ctx,
-                  ~ana=ana.value,
-                  ~ancestors=ancestors_inclusive,
-                  ~route=ana.route,
-                  ~elab_syn_ty=syn_tl,
-                  ~marks=cms_tl,
-                  ~constraint_,
-                  ~label_inference=None,
-                  ~inferred_label,
-                  ~label_sort=false,
-                  ~warnings=[],
-                  m,
-                );
-              (
-                info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
-                m,
-                info_all @ [info],
-                elabs @ [elab_tl],
-              );
-            | _ =>
-              let* (info, elab, m) =
-                go(
-                  ~ctx,
-                  ~ana,
-                  ~duplicate_bindings=
-                    duplicate_bindings @ new_duplicate_bindings,
-                  e,
-                  m,
-                );
-              let (info, m) =
-                LabeledTupleStaticsHelpers.apply_inferred_label_pat(
-                  ~inferred_label,
-                  info,
-                  m,
-                );
-              (
-                info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
-                m,
-                info_all @ [info],
-                elabs @ [elab],
-              );
-            },
+          ) => {
+            let* (info, elab, m) = element(ctx, inferred_label, e, ana, m);
+            (
+              info.ctx,
+              tys @ [info.elab_syn_ty],
+              cons @ [info.constraint_],
+              m,
+              info_all @ [info],
+              elabs @ [elab],
+            );
+          },
           (ctx, [], [], m, [], []),
           List.combine(inferred, ps),
-          List.mapi(
-            (i, ty) =>
-              StaticsSlice.at(
-                ty,
-                StaticsSlice.component_route(
-                  LabeledTupleStaticsHelpers.prod_entry_matcher(
-                    ~entry_labels=new_labels,
-                  ),
-                  ctx,
-                  i,
-                ),
-              ),
-            modes,
-          ),
+          modes,
         );
       let constraint_ = Coverage.Constraint.Tuple(cons);
 
@@ -4051,8 +4099,7 @@ and upat_to_info_map =
         m,
       )
     | Parens(p) =>
-      let* (p, p_elab, m) =
-        go(~ctx, ~ana=Info.pure(ana), p, ~duplicate_bindings, m);
+      let^ (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add(
         ~elab_term=Parens(p_elab) |> rewrap,
         ~elab_syn_ty=p.elab_syn_ty,
@@ -4062,8 +4109,7 @@ and upat_to_info_map =
         m,
       );
     | Projector(data, p) =>
-      let* (p, p_elab, m) =
-        go(~ctx, ~ana=Info.pure(ana), p, ~duplicate_bindings, m);
+      let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add(
         ~elab_term=Projector(data, p_elab) |> rewrap,
         ~elab_syn_ty=p.elab_syn_ty,
@@ -4090,13 +4136,25 @@ and upat_to_info_map =
         ~elab_syn_ty=syn_ctr,
         ~marks=cms_ctr,
         ~ctx,
+        ~co_ctx=
+          CoCtx.union([
+            co_ctx,
+            ConstructorStaticsHelpers.ctr_uses(
+              ~from_pattern=true,
+              ctx,
+              ~ctr,
+              ~id=Pat.rep_id(upat),
+              ~ana,
+              ~typ=syn_ctr,
+            ),
+          ]),
         ~constraint_=Coverage.Constraint.Ap(ctr, None),
         m,
       );
     | Ap(fn, arg) =>
       let ctr = Pat.ctr_name(fn);
       let fn_ana = Arrow(syn, ana) |> Typ.temp;
-      let* (fn', fn_elab, m) = go(~ctx, ~ana=Info.pure(fn_ana), fn, m);
+      let (fn', fn_elab, m) = go(~ctx, ~ana=fn_ana, fn, m);
       let m = {
         switch (ctr) {
         | Some(_) => m
@@ -4107,27 +4165,46 @@ and upat_to_info_map =
       };
       let (ty_in, ty_out) =
         MatchedTyp.tolerant2(MatchedTyp.arrow, ctx, fn'.elab_syn_ty);
-      let* (arg, arg_elab, m) = go(~ctx, ~ana=Info.pure(ty_in), arg, m);
+      let* (arg, arg_elab, m) = go(~ctx, ~ana=ty_in, arg, m);
       let constraint_ =
         switch (ctr) {
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
         | None => Coverage.Constraint.Hole(None)
         };
       add(
+        ~former=Option.map(ConstructorStaticsHelpers.payload_former, ctr),
         ~elab_term=Ap(fn_elab, arg_elab) |> rewrap,
         ~elab_syn_ty=ty_out,
         ~marks=[],
         ~ctx=arg.ctx,
+        ~co_ctx=
+          CoCtx.union([
+            co_ctx,
+            switch (ctr) {
+            | Some(ctr) =>
+              ConstructorStaticsHelpers.ctr_uses(
+                ~from_pattern=true,
+                ctx,
+                ~ctr,
+                ~id=Pat.rep_id(upat),
+                ~ana=fn_ana,
+                ~typ=fn'.elab_syn_ty,
+              )
+            | None => CoCtx.empty
+            },
+          ]),
         ~constraint_,
         m,
       );
     | Asc(p, ann) =>
-      let (ann, m) =
+      let^^ (ann, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ann, m);
       /* Desugar any Sig types in the annotation without full normalization */
       let ann_ty = Typ.desugar_sig(ctx, ann.user_term);
-      let* (p, p_elab, m) =
-        go(~ctx, ~under_ascription=true, ~ana=Info.pure(ann_ty), p, m);
+      let^> (p, p_elab, m) = (
+        ann.slice,
+        go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m),
+      );
       add(
         ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
         ~elab_syn_ty=ann_ty,
@@ -4146,7 +4223,7 @@ and upat_to_info_map =
     | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
       // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
       // So for performance reasons we'll just do it here.
-      let (e, _, m) = go(~ana=Info.pure(syn), ~ctx, upat, m);
+      let (e, _, m) = go(~ana=syn, ~ctx, upat, m);
 
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
       | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
@@ -4461,6 +4538,17 @@ and utyp_to_info_map =
         Cls.Typ(Constructor)
       | (_, cls) => Cls.Typ(cls)
       };
+    let (recorded, m) = take_recorded(~id=Typ.rep_id(utyp), m);
+    let slice =
+      Slice.mk(
+        ~ctx,
+        ~id=Typ.rep_id(utyp),
+        ~ids=Slice.typ_ids(utyp),
+        ~shape=utyp,
+        ~sub_terms=recorded,
+        ~declared=true,
+        (),
+      );
     let info: Info.typ = {
       cls,
       ctx,
@@ -4470,6 +4558,7 @@ and utyp_to_info_map =
       expects,
       warnings: [],
       user_term: utyp,
+      slice,
     };
     (info, add_info(ids, InfoTyp(info), m));
   };
@@ -4477,8 +4566,11 @@ and utyp_to_info_map =
   let ancestors = (); // Deliberately shadowed so there's no risk of using it by mistake
   let _ = ancestors;
   let go =
-      (~ctx=ctx, ~expects=TypExpectation.TypeExpected, t: Typ.t, m: Map.t) =>
-    utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~expects, t, m);
+      (~ctx=ctx, ~expects=TypExpectation.TypeExpected, t: Typ.t, m: Map.t) => {
+    let (info, m) =
+      utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~expects, t, m);
+    (info, record(~id=Typ.rep_id(utyp), Part, info.slice, m));
+  };
   switch (term) {
   | Unknown(Hole(MultiHole(tms))) =>
     let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
@@ -4521,6 +4613,11 @@ and utyp_to_info_map =
       );
     let fn_message =
       kept_marks == [] ? Some(Message.TypOk(Message.Kind(fn_kind))) : None;
+    let prior_slice =
+      switch (Map.lookup(Typ.rep_id(t1), m)) {
+      | Some(InfoTyp(info)) => info.slice
+      | _ => Slice.opaque
+      };
     let fn_info: Info.typ = {
       cls: Cls.Typ(Typ.cls_of_term(t1.term)),
       ctx,
@@ -4530,6 +4627,7 @@ and utyp_to_info_map =
       expects,
       warnings: [],
       user_term: t1,
+      slice: prior_slice,
     };
     let m = add_info(IdTagged.ids(t1), InfoTyp(fn_info), m);
     let m = go(t2, m) |> snd;
@@ -4594,6 +4692,7 @@ and utyp_to_info_map =
       expects,
       user_term: utyp,
       warnings: [],
+      slice: Slice.opaque,
     };
     (info, add_info(ids, InfoTyp(info), m));
   | TupLabel({term: ExplicitNonlabel, _} as label, t) =>
@@ -4608,6 +4707,7 @@ and utyp_to_info_map =
       expects,
       user_term: utyp,
       warnings: [],
+      slice: Slice.opaque,
     };
 
     let m = add_info(label.annotation.ids, InfoTyp(label_info), m);
@@ -4626,8 +4726,8 @@ and utyp_to_info_map =
     let (m, _) =
       List.fold_left(
         variant_to_info_map(
-          ~ctx,
-          ~ancestors=ancestors_inclusive,
+          ~go=(expects, t, m) => go(~expects, t, m),
+          ~absent=record(~id=Typ.rep_id(utyp), Part, Slice.opaque),
           ~ty_sum=utyp,
         ),
         (m, []),
@@ -4659,15 +4759,7 @@ and utyp_to_info_map =
         ctx,
         TPat.binders_of(utpat),
       );
-    let m =
-      utyp_to_info_map(
-        tbody,
-        ~ctx=body_ctx,
-        ~ancestors=ancestors_inclusive,
-        ~expects=TypeExpected,
-        m,
-      )
-      |> snd;
+    let m = go(~ctx=body_ctx, tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m);
@@ -4691,19 +4783,11 @@ and utyp_to_info_map =
         ctx,
         TPat.binders_of(utpat),
       );
-    let m =
-      utyp_to_info_map(
-        tbody,
-        ~ctx=body_ctx,
-        ~ancestors=ancestors_inclusive,
-        /* The body may itself be a `TypFun` (curried alias) or a
-           partial `TypParamAp` whose result is an arrow kind; the
-           outer `TypFun` already accounts for that extra arrow in
-           its own kind, so don't re-flag it here. */
-        ~expects=AnyKindExpected,
-        m,
-      )
-      |> snd;
+    /* The body may itself be a `TypFun` (curried alias) or a
+       partial `TypParamAp` whose result is an arrow kind; the
+       outer `TypFun` already accounts for that extra arrow in
+       its own kind, so don't re-flag it here. */
+    let m = go(~ctx=body_ctx, ~expects=AnyKindExpected, tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m);
@@ -4712,7 +4796,7 @@ and utyp_to_info_map =
       uexp_to_info_map(
         ~ctx,
         ~ancestors=ancestors_inclusive,
-        ~ana=Info.pure(Atom(Bool) |> Typ.temp),
+        ~ana=Atom(Bool) |> Typ.temp,
         e,
         m,
       );
@@ -4728,28 +4812,12 @@ and utyp_to_info_map =
           typ_kind: TypKind.Type,
         },
       );
-    let m =
-      utyp_to_info_map(
-        tbody,
-        ~ctx=body_ctx,
-        ~ancestors=ancestors_inclusive,
-        ~expects=TypeExpected,
-        m,
-      )
-      |> snd;
+    let m = go(~ctx=body_ctx, tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Rec(utpat, tbody) =>
-    let m =
-      utyp_to_info_map(
-        tbody,
-        ~ctx,
-        ~ancestors=ancestors_inclusive,
-        ~expects=TypeExpected,
-        m,
-      )
-      |> snd;
+    let m = go(tbody, m) |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
@@ -5033,40 +5101,34 @@ and utpat_to_info_map =
   };
 }
 and variant_to_info_map =
-    (
-      ~ctx,
-      ~ancestors,
-      ~ty_sum,
-      (m, ctrs),
-      uty: ConstructorMap.variant(Typ.t),
-    ) => {
-  open TypExpectation;
-  let go = expects => utyp_to_info_map(~ctx, ~ancestors, ~expects);
-  switch (uty) {
-  | BadEntry(uty) =>
-    let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;
-    (m, ctrs);
-  | Variant(ctr, ann, param) =>
-    let m =
-      go(
-        ConstructorExpected(
-          List.mem(ctr, ctrs) ? Duplicate : Unique,
-          ty_sum,
-        ),
-        {
-          term: Var(ctr),
-          annotation: IdTagged.IdTag.mk_internal(ann.ids),
-        },
-        m,
-      )
-      |> snd;
-    let m =
-      switch (param) {
-      | Some(param_ty) => go(TypeExpected, param_ty, m) |> snd
-      | None => m
-      };
-    (m, [ctr, ...ctrs]);
-  };
+    (~go, ~absent, ~ty_sum, (m, ctrs), uty: ConstructorMap.variant(Typ.t)) => {
+  TypExpectation.(
+    switch (uty) {
+    | BadEntry(uty) =>
+      let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;
+      (absent(m), ctrs);
+    | Variant(ctr, ann, param) =>
+      let m =
+        go(
+          ConstructorExpected(
+            List.mem(ctr, ctrs) ? Duplicate : Unique,
+            ty_sum,
+          ),
+          {
+            term: Var(ctr),
+            annotation: IdTagged.IdTag.mk_internal(ann.ids),
+          },
+          m,
+        )
+        |> snd;
+      let m =
+        switch (param) {
+        | Some(param_ty) => go(TypeExpected, param_ty, m) |> snd
+        | None => absent(m)
+        };
+      (m, [ctr, ...ctrs]);
+    }
+  );
 }
 and rul_to_info_map =
     (~ctx, ~ancestors, r: Rul.t, m: Map.t): (CoCtx.t, Any.t, Map.t) =>
@@ -5222,13 +5284,7 @@ let mk =
     ~cache_size_bound=1000,
     (ana, ctx, e) => {
       let (_, elab, m) =
-        uexp_to_info_map(
-          ~ana=Info.pure(ana),
-          ~ctx,
-          ~ancestors=[],
-          e,
-          Id.Map.empty,
-        );
+        uexp_to_info_map(~ana, ~ctx, ~ancestors=[], e, Id.Map.empty);
       /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
          Ensure they all resolve to the same info entry for cursor features. */
       let m_ref = ref(m);
@@ -5274,7 +5330,42 @@ let mk_typ = (core: CoreSettings.t, ctx, typ: Typ.t): Map.t =>
     Id.Map.empty;
   };
 
-module Slice = StaticsSlice;
+module Slice = Slice;
+
+// Slice without re-running type checking.
+let slice_map =
+    (~info_map: Map.t, ~root_exp: Exp.t, ~focus=None, ~direction=`Syn, query)
+    : Slice.result => {
+  let root_id = Exp.rep_id(root_exp);
+  let root =
+    switch (Map.lookup_exp(root_id, info_map)) {
+    | Some(root) => root
+    | None => raise(Slice.Focus_not_found(root_id))
+    };
+  let focused = id =>
+    Map.lookup(id, info_map)
+    |> Option.map((info: Info.t) =>
+         Slice.{
+           is_exp: Info.sort_of(info) == Exp,
+           ancestors: Info.ancestors_of(info),
+           ctx: Info.ctx_of(info),
+           syn:
+             switch (info) {
+             | InfoExp({elab_syn_ty, _}) => elab_syn_ty
+             | _ => Typ.gap
+             },
+         }
+       );
+  Slice.slice(
+    ~focus,
+    ~direction,
+    ~root_id,
+    ~root=root.slice,
+    ~focused,
+    query,
+  );
+};
+
 let slice =
     (
       ~ctx=Ctx.empty_pre_elaboration,
@@ -5283,14 +5374,9 @@ let slice =
       ~direction=`Syn,
       exp,
       query,
-    ) => {
-  let root =
-    uexp_to_info_map(
-      ~ana=Info.pure(ana),
-      ~ctx,
-      ~ancestors=[],
-      exp,
-      Id.Map.empty,
-    );
-  StaticsSlice.slice(~focus, ~direction, root, query);
+    )
+    : Slice.result => {
+  let (_, _, m) =
+    uexp_to_info_map(~ana, ~ctx, ~ancestors=[], exp, Id.Map.empty);
+  slice_map(~info_map=m, ~root_exp=exp, ~focus, ~direction, query);
 };
