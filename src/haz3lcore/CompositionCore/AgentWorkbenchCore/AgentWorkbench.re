@@ -545,7 +545,11 @@ module Update = {
         | MarkActiveSubtaskFailed(string) // reason
         | MarkActiveTaskFailed(string) // reason
         | AddNewSubtaskToActiveTask(subtask) // title, description;
-        | ReorderSubtasksInActiveTask(list(string)); // list of subtask titles in new order
+        | ReorderSubtasksInActiveTask(list(string)) // list of subtask titles in new order
+        | UpdateActiveTask(option(string), option(string)) // new_title, new_description
+        | UpdateActiveSubtask(option(string), option(string)) // new_title, new_description
+        | DeleteTask(string) // task title
+        | DeleteSubtask(string); // subtask title (from active task)
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -757,33 +761,49 @@ module Update = {
         switch (MainUtils.active_task(model)) {
         | None => Failure("No active task to mark complete")
         | Some(active_task) =>
-          switch (TaskUtils.get_incompleted_subtasks(active_task)) {
-          | [] =>
-            let clock_it = JsUtil.timestamp();
-            let task = {
-              ...active_task,
-              completion_info:
-                Some({
-                  summary,
-                  elapsed_time: clock_it -. active_task.metadata.began_at,
-                  status: Completed,
-                }),
-              metadata: {
-                ...active_task.metadata,
-                completed_at: Some(clock_it),
-                last_updated_at: clock_it,
+          let clock_it = JsUtil.timestamp();
+          let task_with_subtasks_done =
+            List.fold_left(
+              (task, subtask: subtask) => {
+                let updated_subtask = {
+                  ...subtask,
+                  completion_info:
+                    Some({
+                      summary: "(Auto-completed when the parent task was marked complete.)",
+                      elapsed_time: clock_it -. subtask.metadata.began_at,
+                      status: Completed,
+                    }),
+                  metadata: {
+                    ...subtask.metadata,
+                    completed_at: Some(clock_it),
+                    last_updated_at: clock_it,
+                  },
+                };
+                TaskUtils.write_subtask(~task, ~subtask=updated_subtask);
               },
-            };
-            UpdateUtils.write_task(~model, ~task);
-          | incompleted_subtasks =>
-            let incompleted_titles =
-              incompleted_subtasks
-              |> List.map((subtask: subtask) => subtask.title);
-            Failure(
-              "Cannot mark active task complete. Please complete the following subtasks first before marking the task complete: "
-              ++ String.concat(", ", incompleted_titles),
+              active_task,
+              TaskUtils.get_incompleted_subtasks(active_task),
             );
-          }
+          let task = {
+            ...task_with_subtasks_done,
+            active_subtask:
+              TaskUtils.get_next_incomplete_subtask_title(
+                task_with_subtasks_done,
+              ),
+            completion_info:
+              Some({
+                summary,
+                elapsed_time:
+                  clock_it -. task_with_subtasks_done.metadata.began_at,
+                status: Completed,
+              }),
+            metadata: {
+              ...task_with_subtasks_done.metadata,
+              completed_at: Some(clock_it),
+              last_updated_at: clock_it,
+            },
+          };
+          UpdateUtils.write_task(~model, ~task);
         }
       | MarkActiveTaskIncomplete =>
         /*
@@ -960,6 +980,184 @@ module Update = {
             subtask_ordering: new_ordering,
           };
           UpdateUtils.write_task(~model, ~task=updated_task);
+        }
+      | UpdateActiveTask(new_title_opt, new_description_opt) =>
+        /*
+         - Updates the active task's title and/or description
+         - If the title is changed, the task_dict key is renamed and active_task/display_task pointers are updated
+         */
+        switch (MainUtils.active_task(model)) {
+        | None => Failure("No active task to update")
+        | Some(active_task) =>
+          let clock_it = JsUtil.timestamp();
+          let new_title =
+            switch (new_title_opt) {
+            | Some(t) => t
+            | None => active_task.title
+            };
+          let new_description =
+            switch (new_description_opt) {
+            | Some(d) => d
+            | None => active_task.description
+            };
+          let title_changed = new_title != active_task.title;
+          let updated_task = {
+            ...active_task,
+            title: new_title,
+            description: new_description,
+            metadata: {
+              ...active_task.metadata,
+              last_updated_at: clock_it,
+            },
+          };
+          if (title_changed) {
+            if (Maps.StringMap.mem(new_title, model.task_dict)) {
+              Failure(
+                "A task with the title \"" ++ new_title ++ "\" already exists",
+              );
+            } else {
+              let model = {
+                task_dict:
+                  Maps.StringMap.remove(active_task.title, model.task_dict),
+                active_task: Some(new_title),
+                t_ui: {
+                  ...model.t_ui,
+                  display_task:
+                    switch (model.t_ui.display_task) {
+                    | Some(t) when t == active_task.title => Some(new_title)
+                    | other => other
+                    },
+                },
+              };
+              UpdateUtils.write_task(~model, ~task=updated_task);
+            };
+          } else {
+            UpdateUtils.write_task(~model, ~task=updated_task);
+          };
+        }
+      | UpdateActiveSubtask(new_title_opt, new_description_opt) =>
+        /*
+         - Updates the active subtask's title and/or description
+         - If the title is changed, the subtasks-map key, subtask_ordering entry, and active_subtask pointer are updated
+         */
+        switch (MainUtils.active_task(model)) {
+        | None => Failure("No active task to update subtask in")
+        | Some(active_task) =>
+          switch (TaskUtils.active_subtask(active_task)) {
+          | None => Failure("No active subtask to update")
+          | Some(active_subtask) =>
+            let clock_it = JsUtil.timestamp();
+            let new_title =
+              switch (new_title_opt) {
+              | Some(t) => t
+              | None => active_subtask.title
+              };
+            let new_description =
+              switch (new_description_opt) {
+              | Some(d) => d
+              | None => active_subtask.description
+              };
+            let title_changed = new_title != active_subtask.title;
+            let updated_subtask = {
+              ...active_subtask,
+              title: new_title,
+              description: new_description,
+              metadata: {
+                ...active_subtask.metadata,
+                last_updated_at: clock_it,
+              },
+            };
+            if (title_changed) {
+              if (Maps.StringMap.mem(new_title, active_task.subtasks)) {
+                Failure(
+                  "A subtask with the title \""
+                  ++ new_title
+                  ++ "\" already exists",
+                );
+              } else {
+                let updated_subtasks =
+                  active_task.subtasks
+                  |> Maps.StringMap.remove(active_subtask.title)
+                  |> Maps.StringMap.add(new_title, updated_subtask);
+                let updated_ordering =
+                  List.map(
+                    (t: string) => t == active_subtask.title ? new_title : t,
+                    active_task.subtask_ordering,
+                  );
+                let updated_task = {
+                  ...active_task,
+                  subtasks: updated_subtasks,
+                  subtask_ordering: updated_ordering,
+                  active_subtask: Some(new_title),
+                };
+                UpdateUtils.write_task(~model, ~task=updated_task);
+              };
+            } else {
+              let updated_task =
+                TaskUtils.write_subtask(
+                  ~task=active_task,
+                  ~subtask=updated_subtask,
+                );
+              UpdateUtils.write_task(~model, ~task=updated_task);
+            };
+          }
+        }
+      | DeleteTask(title) =>
+        /*
+         - Hard-deletes the task with the given title
+         - Clears active_task and display_task if they pointed to the deleted task
+         */
+        switch (Maps.StringMap.find_opt(title, model.task_dict)) {
+        | None =>
+          Failure("No task with title \"" ++ title ++ "\" found to delete")
+        | Some(_) =>
+          Success({
+            task_dict: Maps.StringMap.remove(title, model.task_dict),
+            active_task:
+              switch (model.active_task) {
+              | Some(t) when t == title => None
+              | other => other
+              },
+            t_ui: {
+              ...model.t_ui,
+              display_task:
+                switch (model.t_ui.display_task) {
+                | Some(t) when t == title => None
+                | other => other
+                },
+            },
+          })
+        }
+      | DeleteSubtask(title) =>
+        /*
+         - Hard-deletes the subtask with the given title from the active task
+         - Removes it from the ordering and clears active_subtask if it matched
+         */
+        switch (MainUtils.active_task(model)) {
+        | None => Failure("No active task to delete subtask from")
+        | Some(active_task) =>
+          switch (Maps.StringMap.find_opt(title, active_task.subtasks)) {
+          | None =>
+            Failure(
+              "No subtask with title \"" ++ title ++ "\" found in active task",
+            )
+          | Some(_) =>
+            let updated_task = {
+              ...active_task,
+              subtasks: Maps.StringMap.remove(title, active_task.subtasks),
+              subtask_ordering:
+                List.filter(
+                  (t: string) => t != title,
+                  active_task.subtask_ordering,
+                ),
+              active_subtask:
+                switch (active_task.active_subtask) {
+                | Some(t) when t == title => None
+                | other => other
+                },
+            };
+            UpdateUtils.write_task(~model, ~task=updated_task);
+          }
         }
       }
     };
