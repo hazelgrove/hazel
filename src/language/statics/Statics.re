@@ -496,7 +496,8 @@ and uexp_to_info_map =
         m,
       ),
     );
-  let map_m_go = (~roles=?, m, anas, es) => {
+  let map_m_go =
+      (~roles=?, ~slice=(info: Info.exp) => info.slice, m, anas, es) => {
     let roles =
       Option.value(~default=List.init(List.length(es), _ => None), roles);
     let (pairs, m) =
@@ -505,7 +506,7 @@ and uexp_to_info_map =
           let result = go(~ana, e, m);
           let finish = ((e, elab, m)) => ((e, elab), m);
           switch (role) {
-          | Some(role) => exp_edge(role, result, finish)
+          | Some(role) => edge(~at=here, role, slice, result, finish)
           | None => finish(result)
           };
         },
@@ -800,22 +801,19 @@ and uexp_to_info_map =
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = MatchedTyp.tolerant1(MatchedTyp.list, ctx, ana);
       let anas = List.init(List.length(es), _ => inner_ana_ty);
-      let ((es, es_elabs), m) = map_m_go(m, anas, es);
-      let m =
-        List.fold_left(
-          (m, info: Info.exp) =>
-            record(
-              ~id=here,
-              Slice.Alternative,
+      let ((es, es_elabs), m) =
+        map_m_go(
+          ~roles=List.map(_ => Some(Slice.Alternative), es),
+          ~slice=
+            (info: Info.exp) =>
               Slice.formed(
                 ~ctx,
                 ~former=MatchedTyp.list_former,
                 ~index=0,
                 info.slice,
               ),
-              m,
-            ),
           m,
+          anas,
           es,
         );
       /* Use elements' synthesized types consistently for both the meet and
