@@ -1003,6 +1003,41 @@ let reshaped = (~demand: Typ.t => Typ.t, ~answer: Typ.t => Typ.t, node: t): t =>
   analyse: source_analysis(~embed=demand, ~project=answer, node),
 };
 
+let type_instantiation = (~ctx, ~binder, ~body, ~former, node) => {
+  let binders = TPat.binders_of(binder);
+  let bundle =
+    fun
+    | [arg] => arg
+    | args => TypTuple(args) |> Typ.temp;
+  let unbundle = (arg: Typ.t) =>
+    switch (Typ.term_of(arg)) {
+    | TypTuple(args) => args
+    | _ => [arg]
+    };
+  let demand = query => {
+    let names = List.filter_map(TPat.tyvar_of_utpat, binders);
+    let (_, constraints) = Typ.collect_constraints(ctx, names, body, query);
+    binders
+    |> List.map(binder =>
+         switch (TPat.tyvar_of_utpat(binder)) {
+         | None => gap
+         | Some(name) =>
+           constraints
+           |> List.filter_map(((found, query)) =>
+                found == name ? Some(query) : None
+              )
+           |> Typ.meet_gap_all(ctx)
+         }
+       )
+    |> bundle;
+  };
+  let answer = arg => {
+    let args = unbundle(arg);
+    former.whole(args);
+  };
+  reshaped(~demand, ~answer, node);
+};
+
 // For a rule whose result is a type component of a sub-term's type: embed
 // the query in that type, project the answer back out.
 let routed =

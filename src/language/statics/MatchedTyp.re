@@ -398,6 +398,17 @@ let typ_tuple_former = arity =>
     ~whole=items => TypTuple(items) |> temp,
   );
 
+// Query inversion for explicit instantiation is handled by Slice.
+let typ_ap_former = (~binders, ~body) =>
+  make_former(
+    ~arity=List.length(binders),
+    ~parts=_ => None,
+    ~whole=
+      args =>
+        List.length(args) == List.length(binders)
+          ? Typ.subst_many(args, binders, body) : internal(),
+  );
+
 let prod_projection_former =
   make_former_with_fixed(
     ~arity=2,

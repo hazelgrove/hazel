@@ -2073,11 +2073,11 @@ and uexp_to_info_map =
          as the result so the surrounding expression doesn't see a
          body with free type variables left over from a partial
          substitution. */
-      let (elab_syn_ty, marks) =
+      let (formation, marks, instantiation) =
         switch (option_name) {
-        | None => (ty_body, [])
-        | Some(name) =>
-          let binders = TPat.binders_of(name);
+        | None => (MatchedTyp.identity(ty_body), [], None)
+        | Some(binder) =>
+          let binders = TPat.binders_of(binder);
           let n_expected = List.length(binders);
           let arg_list =
             switch (Typ.term_of(utyp), n_expected) {
@@ -2086,83 +2086,44 @@ and uexp_to_info_map =
             };
           let n_actual = List.length(arg_list);
           if (n_expected == n_actual) {
-            (Typ.subst_many(arg_list, binders, ty_body), []);
+            let former = MatchedTyp.typ_ap_former(~binders, ~body=ty_body);
+            (MatchedTyp.form(former, arg_list), [], Some((binder, former)));
           } else {
             (
-              Unknown(Internal) |> Typ.temp,
+              MatchedTyp.identity(Unknown(Internal) |> Typ.temp),
               [
                 Mark.TypAbsApplyArityMismatch({
                   expected: n_expected,
                   actual: n_actual,
                 }),
               ],
+              None,
             );
           };
-        };
-      let former =
-        switch (option_name, marks) {
-        | (Some(name), []) =>
-          let binders = TPat.binders_of(name);
-          let bundle = (
-            fun
-            | [arg] => arg
-            | args => TypTuple(args) |> Typ.temp
-          );
-          let unbundle = (arg: Typ.t) =>
-            switch (Typ.term_of(arg)) {
-            | TypTuple(args) => args
-            | _ => [arg]
-            };
-          let demand = query => {
-            let names = List.filter_map(TPat.tyvar_of_utpat, binders);
-            let (_, constraints) =
-              Typ.collect_constraints(ctx, names, ty_body, query);
-            binders
-            |> List.map(binder =>
-                 switch (TPat.tyvar_of_utpat(binder)) {
-                 | None => Typ.gap
-                 | Some(name) =>
-                   constraints
-                   |> List.filter_map(((found, query)) =>
-                        found == name ? Some(query) : None
-                      )
-                   |> Typ.meet_gap_all(ctx)
-                 }
-               )
-            |> bundle;
-          };
-          let answer = arg => {
-            let args = unbundle(arg);
-            List.length(args) == List.length(binders)
-              ? Typ.subst_many(args, binders, ty_body) : MatchedTyp.internal();
-          };
-          Some((demand, answer));
-        | (Some(_), [_, ..._])
-        | (None, _) => None
         };
       let type_arg =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
       let (_, m) =
-        switch (former) {
-        | Some((demand, answer)) =>
+        switch (instantiation) {
+        | Some((binder, former)) =>
           edge_typ(
             ~at=here,
             Slice.Through,
-            (i: Info.typ) => Slice.reshaped(~demand, ~answer, i.slice),
+            (i: Info.typ) =>
+              Slice.type_instantiation(
+                ~ctx,
+                ~binder,
+                ~body=ty_body,
+                ~former,
+                i.slice,
+              ),
             type_arg,
             Fun.id,
           )
         | None => typ_edge(Slice.Omit, type_arg, Fun.id)
         };
       let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
-      add(
-        ~formation=
-          MatchedTyp.form(MatchedTyp.identity_former, [elab_syn_ty]),
-        ~elab_term,
-        ~marks,
-        ~co_ctx=fn.co_ctx,
-        m,
-      );
+      add(~formation, ~elab_term, ~marks, ~co_ctx=fn.co_ctx, m);
     | DeferredAp(fn, args) =>
       /* If this is a builtin with custom statics */
       let custom_statics =
