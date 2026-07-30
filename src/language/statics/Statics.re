@@ -4304,7 +4304,7 @@ and upat_to_info_map =
         switch (ctr) {
         | Some(ctr) =>
           let former =
-            ConstructorStaticsHelpers.payload_former(
+            MatchedTyp.sum_payload_former(
               ~shape=ty_out,
               ~expanded=Typ.weak_head_normalize(ctx, ty_out),
               ctr,

@@ -521,6 +521,56 @@ let sum_former = (shape_variants: list(ConstructorMap.variant(Typ.t))) => {
   );
 };
 
+let sum_payload_former =
+    (~shape: Typ.t, ~expanded: Typ.t, ctr: Constructor.t): former => {
+  let payload_of = variants =>
+    List.find_map(
+      fun
+      | ConstructorMap.Variant(name, _, payload)
+          when Constructor.equal(name, ctr) =>
+        Some(payload |> Option.value(~default=gap))
+      | _ => None,
+      variants,
+    )
+    |> Option.value(~default=gap);
+  let original_payload =
+    switch (term_of(expanded)) {
+    | Sum(variants) => payload_of(variants)
+    | _ => gap
+    };
+  make_former(
+    ~arity=1,
+    ~parts=
+      ty => {
+        let ty = Typ.fast_equal(ty, shape) ? expanded : ty;
+        switch (term_of(ty)) {
+        | Sum(variants) => Some([payload_of(variants)])
+        | _ => None
+        };
+      },
+    ~whole=
+      fun
+      | [payload] when Typ.fast_equal(payload, original_payload) => shape
+      | [payload] =>
+        switch (term_of(expanded)) {
+        | Sum(variants) =>
+          Sum(
+            List.map(
+              fun
+              | ConstructorMap.Variant(name, ann, _)
+                  when Constructor.equal(name, ctr) =>
+                ConstructorMap.Variant(name, ann, Some(payload))
+              | variant => variant,
+              variants,
+            ),
+          )
+          |> temp
+        | _ => gap
+        }
+      | _ => gap,
+  );
+};
+
 let prod_extension_former = (left: Typ.t, right: Typ.t): former => {
   let entry = ty =>
     switch (match_tup_label(ty)) {
