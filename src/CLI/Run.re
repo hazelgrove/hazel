@@ -23,7 +23,7 @@ let evaluate_incremental =
     (~prev: EvaluatorState.incr_eval=IncrEval.empty, exp: Exp.t)
     : (Exp.t, EvaluatorState.incr_eval) => {
   let (statics, elab) = statics_and_elab(exp);
-  let info_map =
+  let eval_info =
     EvalInfo.of_info_map(
       ~probe_all=CoreSettings.on.probe_all,
       ~targets=Id.Map.empty,
@@ -32,7 +32,7 @@ let evaluate_incremental =
   let (result, state) =
     Evaluator.evaluate(
       ~prev,
-      ~info_map,
+      ~eval_info,
       ~statics,
       ~env=Builtins.env_init,
       elab,
@@ -55,11 +55,7 @@ let evaluate_with_probe_map =
   let elaborated = elaborate(exp);
   let (result, state) =
     Evaluator.evaluate(
-      ~info_map=
-        EvalInfo.{
-          statics: Id.Map.empty,
-          targets: sample_map,
-        },
+      ~eval_info=EvalInfo.of_targets(sample_map),
       ~env=Builtins.env_init,
       elaborated,
     );

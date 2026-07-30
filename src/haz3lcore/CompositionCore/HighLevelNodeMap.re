@@ -154,8 +154,12 @@ module Utils = {
               let pat_id = Pat.rep_id(pat);
               let def_id = Exp.rep_id(def);
               let body_id = Exp.rep_id(body);
-              // Check if departure point is in the pattern, definition, or body position of the candidate
-              if (Id.equal(def_id, Info.id_of(departure_point))
+              /* Fn-sugar lets desugar to Let(f, Fun(args, def), body) in
+                 statics, so the ancestor chain reaches this Let via the
+                 synthetic Fun wrapper rather than pat/def/body directly;
+                 any chain position is necessarily inside the binding. */
+              if (Option.is_some(FunctionSugar.detect(pat))
+                  || Id.equal(def_id, Info.id_of(departure_point))
                   || Id.equal(body_id, Info.id_of(departure_point))
                   || Id.equal(pat_id, Info.id_of(departure_point))) {
                 // if it is, then set this is as the new nominee for the top-level node
@@ -242,8 +246,9 @@ module Namer = {
     | Wild => "{wild}"
     | EmptyHole => "{empty pattern hole}"
     | MultiHole(_) => "{multi hole}"
-    | Ap(pat1, pat2) =>
-      mk_name_from_pat(pat1) ++ "(" ++ mk_name_from_pat(pat2) ++ ")"
+    /* Fn-definition sugar `let f(x, y) = ...`: the binding is addressed by
+       the bare head name; collisions fall to the #k ambiguity machinery. */
+    | Ap(pat1, _) => mk_name_from_pat(pat1)
     | TupLabel(pat1, pat2) =>
       "(" ++ mk_name_from_pat(pat1) ++ " : " ++ mk_name_from_pat(pat2) ++ ")"
     | Atom(_) => "{atom}"
@@ -404,18 +409,23 @@ let siblings_of = (node_map: t, node: node): list(node) => {
   List.map((id: Id.t) => find(node_map, id), node.siblings);
 };
 
+/* `mod` binds tighter than `+/-`, so parens matter; also wrap negatives before mod. */
 let next_sibling_of = (node: node): option(Id.t) => {
-  List.nth_opt(
-    node.siblings,
-    node.sibling_idx + 1 mod List.length(node.siblings),
-  );
+  let len = List.length(node.siblings);
+  if (len == 0) {
+    None;
+  } else {
+    List.nth_opt(node.siblings, (node.sibling_idx + 1) mod len);
+  };
 };
 
 let prev_sibling_of = (node: node): option(Id.t) => {
-  List.nth_opt(
-    node.siblings,
-    node.sibling_idx - 1 mod List.length(node.siblings),
-  );
+  let len = List.length(node.siblings);
+  if (len == 0) {
+    None;
+  } else {
+    List.nth_opt(node.siblings, (node.sibling_idx - 1 + len) mod len);
+  };
 };
 
 let lowest_enclosing_node_of = (info: Info.t, node_map: t): option(node) => {
@@ -516,24 +526,11 @@ let rec build_children =
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
       let es_mapped = List.map(exp_to_info, es);
+      /* [build_children] threads the accumulated map, so each result already
+         contains everything in the accumulator; no per-child merge needed. */
       List.fold_left(
-        (acc_map: t, e: Info.t) => {
-          let new_node_map = build_children(e, path, acc_map, info_map);
-          Id.Map.merge(
-            (_: Id.t, n1: option(node), n2: option(node)) =>
-              switch (n1, n2) {
-              | (Some(_v1), Some(v2)) =>
-                // If both maps have the same key, prefer the one with more complete data
-                // (e.g., the one that was built later with more context)
-                Some(v2)
-              | (Some(v), None) => Some(v)
-              | (None, Some(v)) => Some(v)
-              | (None, None) => None
-              },
-            acc_map,
-            new_node_map,
-          );
-        },
+        (acc_map: t, e: Info.t) =>
+          build_children(e, path, acc_map, info_map),
         node_map,
         es_mapped,
       );
@@ -609,66 +606,163 @@ let id_path_to_name_path = (id_path: list(Id.t), node_map: t): list(string) => {
   List.map((id: Id.t) => id_to_name(node_map, id), id_path);
 };
 
-let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
-  let path_names = split_path(path);
+/** Paths may carry a trailing `#k` (1-based) selecting the k-th binding, in
+    program order, among several that share the same name path (shadowing).
+    A `#` not followed by a positive integer is treated as part of the name. */
+let split_disambiguator = (path: string): (string, option(int)) => {
+  switch (String.rindex_opt(path, '#')) {
+  | None => (path, None)
+  | Some(i) =>
+    let base = String.sub(path, 0, i);
+    let suffix = String.sub(path, i + 1, String.length(path) - i - 1);
+    switch (int_of_string_opt(suffix)) {
+    | Some(k) when k >= 1 => (base, Some(k))
+    | _ => (path, None)
+    };
+  };
+};
+
+/** Deterministic order for bindings sharing a name path: lowest
+    [[sibling_idx]] first (program order within a chain), [[Id.compare]] as
+    tiebreak. Defines the numbering used by the `#k` disambiguator. */
+let sort_ids_in_program_order = (node_map: t, ids: list(Id.t)): list(Id.t) => {
+  let cmp = (id1: Id.t, id2: Id.t): int => {
+    let n1 = find(node_map, id1);
+    let n2 = find(node_map, id2);
+    switch (Int.compare(n1.sibling_idx, n2.sibling_idx)) {
+    | 0 => Id.compare(id1, id2)
+    | c => c
+    };
+  };
+  List.sort(cmp, ids);
+};
+
+let matches_for_path = (node_map: t, path_names: list(string)): list(Id.t) => {
   // Convert each node's path (list of Ids) to a list of names and compare
-  // XXX: Very hacky and ineffecient (O(n) in size of node_map)
-  // TODO: Implement a method which improves the efficiency of this operation
+  // XXX: O(n) in bindings (not program size); fine until node maps get large.
   Id.Map.bindings(node_map)
-  |> List.find_map(((id: Id.t, node: node)) =>
-       if (id_path_to_name_path(node.path, node_map) == path_names) {
-         Some(id);
-       } else {
-         None;
-       }
-     );
+  |> List.filter_map(((id: Id.t, node: node)) =>
+       id_path_to_name_path(node.path, node_map) == path_names
+         ? Some(id) : None
+     )
+  |> sort_ids_in_program_order(node_map);
+};
+
+let ambiguous_path_message = (base: string, ids: list(Id.t)): string => {
+  let n = List.length(ids);
+  let options =
+    List.init(n, i => "\"" ++ base ++ "#" ++ string_of_int(i + 1) ++ "\"")
+    |> String.concat(", ");
+  "Path \""
+  ++ base
+  ++ "\" is ambiguous: "
+  ++ string_of_int(n)
+  ++ " bindings share this path (same name, e.g. shadowing)."
+  ++ "\nRetry with one of the disambiguated paths: "
+  ++ options
+  ++ " (\"#1\" is the earliest binding in program order).";
+};
+
+let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
+  let (base, occurrence) = split_disambiguator(path);
+  let matches = matches_for_path(node_map, split_path(base));
+  switch (matches, occurrence) {
+  | ([], _) => None
+  | (ids, Some(k)) => List.nth_opt(ids, k - 1)
+  | ([id], None) => Some(id)
+  | ([_, _, ..._], None) => None // ambiguous: refuse to guess (see path_to_id)
+  };
+};
+
+/** Map nodes are keyed by the **binding** expression (Let / TyAlias / ModuleExp).
+    [[Select.term]] + syntax projectors must target the **definition** (rhs), not the whole binding. */
+let binding_id_to_syntax_projector_target_id =
+    (node_map: t, binding_id: Id.t): option(Id.t) => {
+  switch (Id.Map.find_opt(binding_id, node_map)) {
+  | None => None
+  | Some(node) =>
+    switch (node.info) {
+    | InfoExp({user_term: term, _}) =>
+      switch (Exp.term_of(term)) {
+      | Let(_, def, _) => Some(Exp.rep_id(def))
+      | TyAlias(_, typ, _) => Some(Typ.rep_id(typ))
+      | ModuleExp(_, def, _) => Some(Exp.rep_id(def))
+      | _ => None
+      }
+    | _ => None
+    }
+  };
+};
+
+let path_to_syntax_projector_target_id_opt =
+    (node_map: t, path: string): option(Id.t) => {
+  switch (path_to_id_opt(node_map, path)) {
+  | None => None
+  | Some(binding_id) =>
+    binding_id_to_syntax_projector_target_id(node_map, binding_id)
+  };
 };
 
 let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
-  // Returns the most similar name of a node in the tree to the given ill-formed path
-  // This uses the levenshtein distance to find the closest match
+  // Prefer matching the **last** path segment (binding name) so nested bindings
+  // like outer/t rank above top-level outer when the user typed "t".
   let path_names = split_path(path);
 
   let path_str = path;
+  let want_last = ListUtil.last_opt(path_names) |> Option.value(~default="");
 
-  /* Helper to compute distance between a candidate node's name-path and the input */
-  let distance_for_node = (node: node): (int, int) => {
+  /* suffix_dist, list_dist, char_dist, neg_depth (deeper wins on tie). */
+  let distance_for_node = (node: node): (int, int, int, int) => {
     let candidate_names = id_path_to_name_path(node.path, node_map);
+    let cand_last =
+      ListUtil.last_opt(candidate_names) |> Option.value(~default="");
+    let suffix_dist = StringUtil.levenshtein_distance(want_last, cand_last);
     let list_dist =
       StringUtil.levenshtein_list_distance(path_names, candidate_names);
     let candidate_str = String.concat("/", candidate_names);
     let char_dist = StringUtil.levenshtein_distance(path_str, candidate_str);
-    (list_dist, char_dist);
+    let neg_depth = - List.length(node.path);
+    (suffix_dist, list_dist, char_dist, neg_depth);
   };
 
-  /* Iterate over the map to find the minimum distance candidate */
+  let is_better =
+      (
+        (s1, l1, c1, d1): (int, int, int, int),
+        (s2, l2, c2, d2): (int, int, int, int),
+      )
+      : bool =>
+    if (s1 < s2) {
+      true;
+    } else if (s1 > s2) {
+      false;
+    } else if (l1 < l2) {
+      true;
+    } else if (l1 > l2) {
+      false;
+    } else if (c1 < c2) {
+      true;
+    } else if (c1 > c2) {
+      false;
+    } else {
+      d1 < d2;
+    };
+
   switch (Id.Map.bindings(node_map)) {
-  | [] =>
-    raise(Failure("No nodes to compare when searching for closest path"))
+  /* Called from error-handling paths (path_to_id failure branch); must not raise. */
+  | [] => ""
   | bindings =>
     let (first_id, first_node) = List.hd(bindings);
-    let initial_acc = (first_id, first_node, distance_for_node(first_node));
+    let d0 = distance_for_node(first_node);
+    let initial_acc = (first_id, first_node, d0);
 
     let (best_id, _best_node, _best_dist) =
       List.fold_left(
-        ((acc_id, acc_node, (acc_ld, acc_cd)), (id, node)) => {
-          let (ld, cd) = distance_for_node(node);
-          if (ld < acc_ld) {
-            (id, node, (ld, cd));
-          } else if (ld == acc_ld) {
-            if (cd < acc_cd) {
-              (id, node, (ld, cd));
-            } else if (cd == acc_cd) {
-              if (List.length(node.path) < List.length(acc_node.path)) {
-                (id, node, (ld, cd));
-              } else {
-                (acc_id, acc_node, (acc_ld, acc_cd));
-              };
-            } else {
-              (acc_id, acc_node, (acc_ld, acc_cd));
-            };
+        ((acc_id, acc_node, acc_d), (id, node)) => {
+          let d = distance_for_node(node);
+          if (is_better(d, acc_d)) {
+            (id, node, d);
           } else {
-            (acc_id, acc_node, (acc_ld, acc_cd));
+            (acc_id, acc_node, acc_d);
           };
         },
         initial_acc,
@@ -683,34 +777,97 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
   };
 };
 
-let path_to_id = (node_map: t, path: string): Id.t => {
-  let path_names = split_path(path);
-  // Convert each node's path (list of Ids) to a list of names and compare
-  // XXX: Very hacky and ineffecient (O(n) in size of node_map)
-  // TODO: Implement a method which improves the efficiency of this operation
-  try(
-    Option.get(
+/** All binding paths in [[node_map]] rendered as their slash-joined name
+    strings, sorted for stable output. Used for failure diagnostics so the
+    agent can self-correct rather than guess. */
+let all_path_strings = (node_map: t): list(string) => {
+  Id.Map.bindings(node_map)
+  |> List.map(((_, node: node)) =>
+       String.concat(
+         "/",
+         List.map((id: Id.t) => id_to_name(node_map, id), node.path),
+       )
+     )
+  |> List.sort_uniq(String.compare);
+};
+
+/** If [[path]] is a bare name (no `/`) and exactly one binding in the map has
+    that as its last name segment, return its full qualified path. This catches
+    the nested-binding case ("meant Square/Piece?") where the bare name didn't
+    match top-level but is uniquely present deeper. */
+let unique_suffix_match = (node_map: t, path: string): option(string) =>
+  if (String.contains(path, '/')) {
+    None;
+  } else {
+    let matches =
       Id.Map.bindings(node_map)
-      |> List.find_map(((id: Id.t, node: node)) =>
-           if (id_path_to_name_path(node.path, node_map) == path_names) {
-             Some(id);
-           } else {
-             None;
-           }
-         ),
-    )
-  ) {
-  | _ =>
+      |> List.filter_map(((_, node: node)) => {
+           let names =
+             List.map((id: Id.t) => id_to_name(node_map, id), node.path);
+           switch (ListUtil.last_opt(names)) {
+           | Some(last) when String.equal(last, path) =>
+             Some(String.concat("/", names))
+           | _ => None
+           };
+         });
+    switch (matches) {
+    | [qualified] => Some(qualified)
+    | _ => None
+    };
+  };
+
+let path_to_id = (node_map: t, path: string): Id.t => {
+  let (base, occurrence) = split_disambiguator(path);
+  let matches = matches_for_path(node_map, split_path(base));
+  switch (matches, occurrence) {
+  | ([], _) =>
+    let closest = closest_valid_path_to_ill_path(node_map, base);
+    let suffix_hint =
+      switch (unique_suffix_match(node_map, base)) {
+      | Some(qualified) when !String.equal(qualified, closest) =>
+        "\nOr the fully qualified nested path \"" ++ qualified ++ "\"."
+      | _ => ""
+      };
+    let available = all_path_strings(node_map);
+    let available_str =
+      switch (available) {
+      | [] => ""
+      | xs => "\nAvailable paths in the node map: " ++ String.concat(", ", xs)
+      };
     raise(
       Failure(
         "Path \""
         ++ path
         ++ "\" not found in node map"
         ++ "\nPerhaps you meant \""
-        ++ closest_valid_path_to_ill_path(node_map, path)
-        ++ "\"?",
+        ++ closest
+        ++ "\"?"
+        ++ suffix_hint
+        ++ "\nNested bindings use paths like outer/inner (not just the inner name)."
+        ++ available_str,
       ),
-    )
+    );
+  | (ids, Some(k)) =>
+    switch (List.nth_opt(ids, k - 1)) {
+    | Some(id) => id
+    | None =>
+      raise(
+        Failure(
+          "Path \""
+          ++ path
+          ++ "\": occurrence #"
+          ++ string_of_int(k)
+          ++ " is out of range; only "
+          ++ string_of_int(List.length(ids))
+          ++ " binding(s) match \""
+          ++ base
+          ++ "\".",
+        ),
+      )
+    }
+  | ([id], None) => id
+  | ([_, _, ..._] as ids, None) =>
+    raise(Failure(ambiguous_path_message(base, ids)))
   };
 };
 
@@ -829,6 +986,9 @@ module Public = {
   let path_to_id_opt =
     // Gets the node id from a path, returns None if the path is not found
     path_to_id_opt;
+  let path_to_syntax_projector_target_id_opt =
+    // Rep id of the binding's definition term (for place_syntax_projector / toggle / remove)
+    path_to_syntax_projector_target_id_opt;
   let path_to_node =
     // Gets the node from a path
     path_to_node;

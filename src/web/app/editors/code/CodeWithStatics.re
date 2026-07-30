@@ -207,12 +207,14 @@ module View = {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
+          syntax: {selection_ids, shape_map, term_data, _} as syntax,
           state: {zipper: z, _},
           _,
         },
       _,
     }: Model.t = model;
+    let measured = CachedSyntax.measured(syntax);
+    let segment = CachedSyntax.segment(syntax);
     let info_map = model.statics.info_map;
     let refine_sort = (id, mold_out) =>
       Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);

@@ -12,7 +12,7 @@ module Request = {
     prev: Language.EvaluatorState.incr_eval,
   };
   [@deriving (show, sexp, yojson)]
-  type batch = list((string, value));
+  type batch = list((key, value));
   [@deriving (show, sexp, yojson)]
   type t = {
     request_id: int,
@@ -41,17 +41,31 @@ module ClientMessage = {
 };
 
 module ServerMessage = {
+  /* Reuse-pass predictions for immediate UI tinting (frozen vs re-eval). */
   [@deriving (show, sexp, yojson)]
-  type ack = {
+  type reuse_predictions =
+    list((key, Language.IncrEval.t(Language.EvaluatorState.t)));
+
+  /* Cache entries completed so far for one batch item. */
+  [@deriving (show, sexp, yojson)]
+  type stream_update = Language.IncrEval.outbox(Language.EvaluatorState.t);
+
+  /* Instant liveness ping — must not do ReusePass or other batch work. */
+  [@deriving (show, sexp, yojson)]
+  type ack = {request_id: int};
+
+  /* Predicted reusable cache entries for UI tinting (frozen vs re-eval). */
+  [@deriving (show, sexp, yojson)]
+  type reuse_plan = {
     request_id: int,
-    initial: list((key, Language.IncrEval.t(Language.EvaluatorState.t))),
+    initial: reuse_predictions,
   };
 
   [@deriving (show, sexp, yojson)]
   type stream = {
     request_id: int,
     key,
-    update: Language.IncrEval.outbox(Language.EvaluatorState.t),
+    update: stream_update,
   };
 
   [@deriving (show, sexp, yojson)]
@@ -63,6 +77,7 @@ module ServerMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
     | Ack(ack)
+    | ReusePlan(reuse_plan)
     | Stream(stream)
     | Result(result);
 };
@@ -195,22 +210,27 @@ let module_of_encoding = (e: encoding): (module ENCODING) =>
  * change it. */
 module Active = MarshalEncoding;
 
+let error_response = exn =>
+  switch (exn) {
+  | Language.EvaluatorError.Exception(reason) =>
+    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
+    Error(Language.ProgramResult.EvaulatorError(reason));
+  | exn =>
+    print_endline("EXN:" ++ Printexc.to_string(exn));
+    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
+  };
+
 let evaluate_sync = (req_value: Request.value): Response.value => {
   let Request.{expr, eval_info_map, prev} = req_value;
   switch (
     Language.Evaluator.evaluate(
       ~prev,
-      ~info_map=eval_info_map,
+      ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
       expr,
     )
   ) {
-  | exception (Language.EvaluatorError.Exception(reason)) =>
-    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
-    Error(Language.ProgramResult.EvaulatorError(reason));
-  | exception exn =>
-    print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
+  | exception exn => error_response(exn)
   | (result, state) => Ok((result, state))
   };
 };
@@ -229,6 +249,7 @@ type running = {
 
 type runtime =
   | Idle
+  | Planning
   | Starting
   | Running(running);
 
@@ -239,32 +260,27 @@ type model = {
 };
 
 let slice_step_budget = 5000;
+/* Cumulative trampoline-step backstop across slices for a single batch item.
+ * Wall-clock timeout + worker terminate is the primary runaway guard; this
+ * stops pathological cases that somehow evade the client timer.
+ *
+ * Units are trampoline TRANSITIONS (one per Bind/Next/Done), not evaluator
+ * steps — hundreds of transitions per reduction, roughly 1M transitions ≈ 2s
+ * of sliced evaluation in-browser. The backstop must sit well beyond the 20s
+ * client timer or ordinary heavy programs (e.g. range(1,5000)) get killed at
+ * ~2s and surface as spurious "Evaluation timed out". */
+let total_step_limit = 100_000_000;
 let initial_model = {
   latest_request: None,
   runtime: Idle,
   slice_already_scheduled: false,
 };
 
-/* Worker execution model:
- * - `on_request` records only the newest batch and immediately ACKs with
- *   predicted reusable entries for UI tinting.
- * - The worker evaluates one batch item at a time in small async slices.
- * - After each yielded slice, completed cache entries are streamed to the UI.
- * - If a newer request arrives, the next scheduled slice abandons the stale
- *   batch and begins the latest one. */
-
-let error_response = exn =>
-  switch (exn) {
-  | Language.EvaluatorError.Exception(reason) =>
-    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
-    Error(Language.ProgramResult.EvaulatorError(reason));
-  | exn =>
-    print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
-  };
-
-let finish_success = ((result, state)): Response.value =>
-  Ok((result, state));
+/* Worker execution model (three phases per request):
+ * 1. Instant `Ack` — liveness only; no ReusePass.
+ * 2. `ReusePlan` — predicted reusable entries for frozen/re-eval tinting.
+ * 3. Eval slices — `Stream` updates, then `Result`.
+ * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   let Request.{expr, eval_info_map, prev} = req_value;
@@ -272,7 +288,7 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
     switch (
       Language.ReusePass.reuse_pass(
         ~prev,
-        ~info_map=eval_info_map,
+        ~eval_info=eval_info_map,
         ~env=Language.Builtins.env_init,
         expr,
       )
@@ -288,7 +304,7 @@ let start_evaluation = (req_value: Request.value): evaluation_start => {
   switch (
     Language.Evaluator.start_yielding_evaluation(
       ~prev,
-      ~info_map=eval_info_map,
+      ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
       expr,
     )
@@ -323,13 +339,14 @@ let post_batch_result = (model, request_id, completed) =>
 
 let post_stream_update =
     (
+      ~allow_empty=false,
       model,
       request_id,
       key,
       update: Language.IncrEval.outbox(Language.EvaluatorState.t),
     ) =>
   if (is_latest(model, request_id)
-      && !Language.IncrEval.outbox_is_empty(update)) {
+      && (allow_empty || !Language.IncrEval.outbox_is_empty(update))) {
     post_message(
       ServerMessage.Stream({
         request_id,
@@ -344,26 +361,25 @@ let flush_stream_update = (model, request_id, key, evaluation) => {
   post_stream_update(model, request_id, key, update);
 };
 
+/* ACK must be cheap: the client treats missing ACK as a dead worker and will
+ * terminate/respawn. ReusePass belongs in `ReusePlan`, not here. */
 let post_ack = (request: Request.t) =>
-  post_message(
-    ServerMessage.Ack({
-      request_id: request.request_id,
-      initial: List.map(predict_reuse_for_request, request.batch),
-    }),
-  );
+  post_message(ServerMessage.Ack({request_id: request.request_id}));
 
-let schedule_async = callback => {
-  ignore(
-    Js.Unsafe.meth_call(
-      Js.Unsafe.global,
-      "setTimeout",
-      [|
-        Js.Unsafe.inject(Js.wrap_callback(callback)),
-        Js.Unsafe.inject(0.),
-      |],
-    ),
-  );
-};
+let post_reuse_plan = (model, request: Request.t) =>
+  if (is_latest(model, request.request_id)) {
+    post_message(
+      ServerMessage.ReusePlan({
+        request_id: request.request_id,
+        initial: List.map(predict_reuse_for_request, request.batch),
+      }),
+    );
+  };
+
+/* Dom_html.window is unavailable in a worker, so go through the global
+ * object for setTimeout. */
+let schedule_async = callback =>
+  ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), 0.));
 
 let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {
@@ -414,6 +430,19 @@ and finish_current_item = (model, running, response) =>
     [(running.key, response), ...running.completed],
     running.remaining,
   )
+and plan_latest_batch = model =>
+  switch (model.latest_request) {
+  | None => {
+      ...model,
+      runtime: Idle,
+    }
+  | Some(request) =>
+    post_reuse_plan(model, request);
+    {
+      ...model,
+      runtime: Starting,
+    };
+  }
 and run_scheduled_slice = model => {
   let model = {
     ...model,
@@ -421,9 +450,10 @@ and run_scheduled_slice = model => {
   };
   switch (model.runtime) {
   | Idle => model
+  | Planning => plan_latest_batch(model)
   | Starting => begin_latest_batch(model)
   | Running(running) when !is_latest(model, running.request_id) =>
-    begin_latest_batch(model)
+    plan_latest_batch(model)
   | Running(running) =>
     switch (
       Language.Evaluator.run_yielding_slice(
@@ -440,18 +470,27 @@ and run_scheduled_slice = model => {
         running.key,
         running.evaluation,
       );
-      finish_current_item(model, running, finish_success(value));
+      finish_current_item(model, running, Ok(value));
     | EvaluationYielded(evaluation) =>
       flush_stream_update(model, running.request_id, running.key, evaluation);
-      let model = {
-        ...model,
-        runtime:
-          Running({
-            ...running,
-            evaluation,
-          }),
+      if (Language.Evaluator.yielding_step_count(evaluation)
+          >= total_step_limit) {
+        finish_current_item(
+          model,
+          running,
+          Error(Language.ProgramResult.Timeout),
+        );
+      } else {
+        let model = {
+          ...model,
+          runtime:
+            Running({
+              ...running,
+              evaluation,
+            }),
+        };
+        model;
       };
-      model;
     }
   };
 };
@@ -463,6 +502,7 @@ let install_message_handler = () => {
     let should_schedule_slice =
       switch (next_model.runtime) {
       | Idle => false
+      | Planning
       | Starting
       | Running(_) => !next_model.slice_already_scheduled
       };
@@ -484,7 +524,7 @@ let install_message_handler = () => {
     commit({
       ...model^,
       latest_request: Some(request),
-      runtime: Starting,
+      runtime: Planning,
     });
   };
 

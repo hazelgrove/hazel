@@ -194,8 +194,10 @@ let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
     let z_a = mk(version_a) |> perform(~settings, Zipper.init());
     let z_b = mk(version_b) |> perform(~settings, Zipper.init());
     /* Get caret Points from each */
-    let measured_a = CachedSyntax.init(z_a).measured;
-    let measured_b = CachedSyntax.init(z_b).measured;
+    let measured_a =
+      Haz3lcore.CachedSyntax.measured(Haz3lcore.CachedSyntax.init(z_a));
+    let measured_b =
+      Haz3lcore.CachedSyntax.measured(Haz3lcore.CachedSyntax.init(z_b));
     let anchor_pt = Zipper.Caret.point(measured_a, z_a);
     let focus_pt = Zipper.Caret.point(measured_b, z_b);
     /* Apply PointToPoint: moves to anchor, selects to focus */
@@ -278,8 +280,8 @@ let parse_zipper = (~settings=default_settings, init: string): Zipper.t => {
       chars |> List.filter(c => c != selection_char) |> Token.of_list;
     let z_a = parse_with_caret(version_a);
     let z_b = parse_with_caret(version_b);
-    let measured_a = CachedSyntax.init(z_a).measured;
-    let measured_b = CachedSyntax.init(z_b).measured;
+    let measured_a = CachedSyntax.init(z_a) |> CachedSyntax.measured;
+    let measured_b = CachedSyntax.init(z_b) |> CachedSyntax.measured;
     let anchor_pt = Zipper.Caret.point(measured_a, z_a);
     let focus_pt = Zipper.Caret.point(measured_b, z_b);
     [Action.Select(PointToPoint((anchor_pt, focus_pt)))]
@@ -5206,6 +5208,160 @@ b|}))
   ),
 ];
 
+/* Backspacing inside a token whose piece has a left sibling: the
+ * replacement must land on the caret's right for Inner(n) to still
+ * refer to it. */
+let inner_destruct_tests = [
+  test(
+    ~name="Backspace inside string with left sibling",
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~goal={|1 + "a¦"|},
+  ),
+  test(
+    ~name="Backspace twice inside string with left sibling",
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(1) @ [Destruct(Left), Destruct(Left)],
+    ~goal={|1 + "¦"|},
+  ),
+  test(
+    ~name="Backspace inside identifier with left sibling",
+    ~acts=mk({|1 + abc¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~goal={|1 + a¦c|},
+  ),
+  test(
+    ~name="Delete forward inside string with left sibling",
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(2) @ [Destruct(Right)],
+    ~goal={|1 + "a¦"|},
+  ),
+  /* Quote-wrapping drops the selection; its Inner caret must go too. */
+  test(
+    ~name="Wrap char-level selection in quotes",
+    ~acts=
+      mk({|"aa" ++ "x"¦|})
+      @ mv_l(4)
+      @ [Select(Resize(Local(Left, ByChar))), Insert("\"")],
+    ~goal={|"aa" ~"++"~¦ "x"|},
+  ),
+  test(
+    ~name="Delete after wrapping char-level selection in quotes",
+    ~acts=
+      mk({|"aa" ++ "x"¦|})
+      @ mv_l(4)
+      @ [
+        Select(Resize(Local(Left, ByChar))),
+        Insert("\""),
+        Destruct(Right),
+      ],
+    ~goal={|"aa" ~"++"~¦"x"|},
+  ),
+];
+
+/* A grapheme cluster is one Inner caret position but several bytes, so
+ * editing beside one must stay in grapheme units throughout. */
+let grapheme_tests = [
+  /* Also pins that Intl.Segmenter is present: the code-point fallback in
+     Unicode.graphemes would count 5 and 2 here. */
+  test_case(
+    "Multi-codepoint clusters count as one grapheme",
+    `Quick,
+    () => {
+      check(int, "ZWJ family", 1, Token.length({|👨‍👩‍👧|}));
+      check(int, "e + combining acute", 1, Token.length({|é|}));
+      check(int, "emoji", 1, Token.length({|😀|}));
+    },
+  ),
+  test(
+    ~name="Insert after emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Insert("1")],
+    ~goal={|"😀1¦"|},
+  ),
+  test(
+    ~name="Insert then backspace after emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Insert("1"), Destruct(Left)],
+    ~goal={|"😀¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after emoji in string",
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Left), Destruct(Left)],
+    ~goal={|"😀¦"|},
+  ),
+  test(
+    ~name="Backspace the emoji itself",
+    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~goal={|"¦"|},
+  ),
+  test(
+    ~name="Delete forward over emoji from start of string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Destruct(Right)],
+    ~goal={|"¦"|},
+  ),
+  test(
+    ~name="Insert before emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Insert("1")],
+    ~goal={|"1¦😀"|},
+  ),
+  test(
+    ~name="Insert then backspace before emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Insert("1"), Destruct(Left)],
+    ~goal={|"¦😀"|},
+  ),
+  test(
+    ~name="Insert then backspace after mid-string emoji",
+    ~acts=mk({|"a😀b"¦|}) @ mv_l(2) @ [Insert("1"), Destruct(Left)],
+    ~goal={|"a😀¦b"|},
+  ),
+  test(
+    ~name="Backspace mid-string emoji",
+    ~acts=mk({|"a😀b"¦|}) @ mv_l(2) @ [Destruct(Left)],
+    ~goal={|"a¦b"|},
+  ),
+  test(
+    ~name="Move by char across emoji round trip",
+    ~acts=mk({|"a😀b"¦|}) @ mv_l(3) @ mv_r(1),
+    ~goal={|"a😀¦b"|},
+  ),
+  test(
+    ~name="Insert then backspace after emoji, string with left sibling",
+    ~acts=mk({|1 + "😀"¦|}) @ mv_l(1) @ [Insert("1"), Destruct(Left)],
+    ~goal={|1 + "😀¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after emoji, left sibling",
+    ~acts=
+      mk({|1 + "😀"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Left), Destruct(Left)],
+    ~goal={|1 + "😀¦"|},
+  ),
+  test(
+    ~name="Backspace the emoji itself, string with left sibling",
+    ~acts=mk({|1 + "a😀"¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~goal={|1 + "a¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after combining-mark grapheme",
+    ~acts=
+      mk({|"é"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Left), Destruct(Left)],
+    ~goal={|"é¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after ZWJ emoji",
+    ~acts=
+      mk({|"👨‍👩‍👧"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Left), Destruct(Left)],
+    ~goal={|"👨‍👩‍👧¦"|},
+  ),
+];
+
 let tests = [
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
@@ -5238,4 +5394,6 @@ let tests = [
   ("Editing.MultiDelimSelectionBugs", multi_delim_selection_bug_tests),
   ("Editing.MultiDelimBackpackBugs", multi_delim_backpack_tests),
   ("Editing.CrossBoundary", cross_boundary_tests),
+  ("Editing.InnerDestruct", inner_destruct_tests),
+  ("Editing.Grapheme", grapheme_tests),
 ];

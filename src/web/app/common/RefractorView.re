@@ -38,7 +38,8 @@ let mk_data =
     )
     : list(ProjectorView.Model.projector_data) => {
   open Util.OptUtil.Syntax;
-  let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
+  let {term_data, selection_ids, _}: CachedSyntax.t = syntax;
+  let measured = CachedSyntax.measured(syntax);
   List.filter_map(
     ((id, entry)) => {
       /* Construct full Base.projector on demand for rendering,

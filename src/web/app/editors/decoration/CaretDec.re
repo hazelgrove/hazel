@@ -55,16 +55,27 @@ let view =
     (
       ~measured: Haz3lcore.Measured.t,
       ~font_metrics: FontMetrics.t,
+      /* Optional pre-computed caret position. Sub-editors pass this:
+       * their splice-local measured map can't measure the caret's
+       * representative piece at the splice boundary (it's the
+       * whitespace just outside), so they compute the point themselves
+       * (SubEditor.caret_point). */
+      ~origin: option(Point.t)=?,
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
   open Haz3lcore;
   let side = side_of(z);
+  let origin =
+    switch (origin) {
+    | Some(origin) => origin
+    | None => Zipper.Caret.point(measured, z)
+    };
   main(
     ~font_metrics,
     ~profile={
       side,
-      origin: Zipper.Caret.point(measured, z),
+      origin,
       shape: Zipper.Caret.direction(z),
     },
   );

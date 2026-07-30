@@ -76,8 +76,8 @@ let trim_leading = (s: string): string => {
   s
   |> replace(regexp("\r\n"), _, "\n")  // Normalize Windows line breaks
   |> replace(regexp("\r"), _, "\n")  // Normalize old Mac line breaks
-  |> replace(regexp("^[ ]*"), _, "")  // Remove leading spaces at start
-  |> replace(regexp("\n[ ]*"), _, "\n"); // Remove leading spaces after newlines
+  |> replace(regexp("^[\\t \\r]*"), _, "")  // Leading horizontal WS at start
+  |> replace(regexp("\n[\\t \\r]*"), _, "\n"); // After each newline
 };
 
 let isEmptyOrWhitespace = str => {
@@ -105,17 +105,18 @@ let sanitize_filename = (s: string): string => {
 
 let trim_trailing_whitespace = (str: string): string => {
   let lines = String.split_on_char('\n', str);
+  let is_trailing_ws = (c: char): bool => c == ' ' || c == '\t' || c == '\r';
   let trim_line = (line: string): string => {
     let chars = String.to_seq(line) |> List.of_seq;
-    let rec drop_leading_spaces = (chars: list(char)): list(char) =>
+    let rec drop_trailing_ws = (chars: list(char)): list(char) =>
       switch (chars) {
       | [] => []
-      | [' ', ...rest] => drop_leading_spaces(rest)
+      | [c, ...rest] when is_trailing_ws(c) => drop_trailing_ws(rest)
       | [c, ...rest] => [c, ...rest]
       };
-    // Reverse, drop leading spaces, reverse back = drop trailing spaces
+    // Reverse, drop leading WS from reversed = drop trailing WS on line
     let reversed_chars = List.rev(chars);
-    let trimmed_reversed = drop_leading_spaces(reversed_chars);
+    let trimmed_reversed = drop_trailing_ws(reversed_chars);
     let trimmed_chars = List.rev(trimmed_reversed);
     String.of_seq(List.to_seq(trimmed_chars));
   };

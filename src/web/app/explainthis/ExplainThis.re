@@ -248,7 +248,7 @@ let expander_deco =
         TermData.extreme_measures(
           id,
           editor.syntax.term_data,
-          editor.syntax.measured,
+          Haz3lcore.CachedSyntax.measured(editor.syntax),
         )
       ) {
       | Some((origin, _)) => origin

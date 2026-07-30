@@ -12,11 +12,11 @@ type limited_result =
   | StepLimitExceeded;
 
 /* Incremental evaluator. Reuses entries from `prev` for non-deferred
- * sub-expressions whose elaboration (per `info_map`) and co-ctx
+ * sub-expressions whose elaboration (per `eval_info`) and co-ctx
  * dependencies are unchanged. Pass `prev=IncrEval.empty` and
- * `info_map=EvalInfoMap.empty` (the defaults) to opt out of reuse.
+ * `eval_info=EvalInfoMap.empty` (the defaults) to opt out of reuse.
  *
- * `info_map` is a serializable projection of the statics info_map — the
+ * `eval_info` is a serializable projection of the statics info_map — the
  * full StaticsBase.Map.t embeds LivelitCtx closures and can't cross
  * postMessage. Callers with statics should project via
  * EvalInfoMap.of_info_map first.
@@ -28,7 +28,7 @@ type limited_result =
 let evaluate:
   (
     ~prev: EvaluatorState.incr_eval=?,
-    ~info_map: EvalInfo.t=?,
+    ~eval_info: EvalInfo.t=?,
     ~statics: Statics.Map.t=?,
     ~env: Environment.t(Exp.t),
     Exp.t
@@ -39,7 +39,7 @@ let evaluate_and_limit:
   (
     ~step_limit: int,
     ~prev: EvaluatorState.incr_eval=?,
-    ~info_map: EvalInfo.t=?,
+    ~eval_info: EvalInfo.t=?,
     ~statics: Statics.Map.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,
@@ -51,7 +51,7 @@ let evaluate_and_limit:
 let start_yielding_evaluation:
   (
     ~prev: EvaluatorState.incr_eval=?,
-    ~info_map: EvalInfo.t=?,
+    ~eval_info: EvalInfo.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,
     Exp.t
@@ -60,6 +60,8 @@ let start_yielding_evaluation:
 
 let run_yielding_slice:
   (~step_budget: int, yielding_evaluation) => yielding_result;
+
+let yielding_step_count: yielding_evaluation => int;
 
 let drain_streaming_outbox:
   yielding_evaluation => IncrEval.outbox(EvaluatorState.t);

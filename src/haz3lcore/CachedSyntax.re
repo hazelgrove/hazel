@@ -1,7 +1,14 @@
-type t = {
-  old: bool,
+type splice = {
   segment: Segment.t,
   measured: Measured.t,
+  /* A list of projector IDs in the order they appear in the segment
+   * (allows actions to refer to projectors by index) */
+  projector_list: list(Id.t),
+};
+
+type t = {
+  old: bool,
+  main_splice: splice,
   selection_ids: list(Id.t),
   /* May differ from the term used for semantics: with shards missing,
    * that term is built from the canonically COMPLETED segment
@@ -9,8 +16,6 @@ type t = {
    * between the two views. */
   term_data: TermData.t,
   terms: TermMap.t,
-  /* A list of projector IDs in the order they appear in the segment
-   * (allows actions to refer to projectors by index) */
   projector_list: list(Id.t),
   /* Since the introduction of shape_map below, caching projectors
    * here is almost vesigial (currently used only for error deco) */
@@ -53,9 +58,12 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     Measured.of_segment(segment, projector_shapes, refractor_shape_map);
   {
     old: false,
-    segment,
+    main_splice: {
+      segment,
+      measured,
+      projector_list,
+    },
     term_data,
-    measured,
     selection_ids: Selection.selection_ids(z.selection),
     terms,
     projectors,
@@ -95,12 +103,19 @@ let refresh_shapes =
     );
   let refractor_shape_map = Id.Map.empty;
   let measured =
-    Measured.of_segment(old.segment, shape_map, refractor_shape_map);
+    Measured.of_segment(
+      old.main_splice.segment,
+      shape_map,
+      refractor_shape_map,
+    );
   {
     ...old,
+    main_splice: {
+      ...old.main_splice,
+      measured,
+    },
     shape_map,
     projector_errors,
-    measured,
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
@@ -136,3 +151,6 @@ let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
       selection_ids: Selection.selection_ids(z.selection),
     };
   };
+
+let measured = (syntax: t) => syntax.main_splice.measured;
+let segment = (syntax: t) => syntax.main_splice.segment;
