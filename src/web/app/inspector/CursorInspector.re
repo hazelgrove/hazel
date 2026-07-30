@@ -1104,13 +1104,17 @@ let view_of_info =
 
 let inspector_view = (~globals: Globals.t, ~live_typing_info, ci): Node.t => {
   /* If the static info is error-free but the dynamic (live-typing) info
-     reports an error, show the dynamic info with the lightning badge. */
+     reports an error, show the dynamic info with the lightning badge.
+     Only live-reportable marks (Mark.is_live_reportable) count as live
+     typing errors — this must agree with
+     StaticsBase.Map.live_typing_error_ids, which drives the error
+     decorations and the Problems sidebar. */
   let (display_info, is_live_typing_error) =
     if (Info.is_error(ci)) {
       (ci, false);
     } else {
       switch (live_typing_info) {
-      | Some(di) when Info.is_error(di) => (di, true)
+      | Some(di) when Info.has_live_reportable_mark(di) => (di, true)
       | _ => (ci, false)
       };
     };

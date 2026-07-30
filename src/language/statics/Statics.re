@@ -1923,7 +1923,7 @@ and uexp_to_info_map =
     | TypFun(utpat, body, tfname) =>
       let (name_expected_opt, item) =
         MatchedTyp.poly_pair_tolerant(ctx, ana);
-      let (mode_body, ctx_body) =
+      let (mode_body, ctx_body, live_insts) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.is_base_typ(name) =>
           let mode_body = {
@@ -1934,16 +1934,19 @@ and uexp_to_info_map =
             };
           };
           let tpat_id = TPat.rep_id(utpat);
-          let ctx_body =
-            switch (LiveTyping.Map.lookup_type_inst(tpat_id, dynamics)) {
-            | Some([_, ..._] as insts) =>
+          switch (LiveTyping.Map.lookup_type_inst(tpat_id, dynamics)) {
+          | Some([_, ..._] as insts) => (
+              mode_body,
               LiveTyping.extend_ctx_with_instantiations(
                 ctx,
                 name,
                 tpat_id,
                 insts,
-              )
-            | _ =>
+              ),
+              true,
+            )
+          | _ => (
+              mode_body,
               Ctx.extend_tvar(
                 ctx,
                 {
@@ -1951,19 +1954,28 @@ and uexp_to_info_map =
                   id: tpat_id,
                   kind: Abstract,
                 },
-              )
-            };
-          (mode_body, ctx_body);
+              ),
+              false,
+            )
+          };
         | Some(_)
-        | None => (item, ctx)
+        | None => (item, ctx, false)
         };
       let m =
         utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
         |> snd;
       let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
+      /* Under live instantiations the body's synthesized type contains the
+         binder's runtime concretization; re-generalize it against the
+         annotation slice so the Poly we synthesize doesn't quantify a
+         variable its own body has already concretized. */
+      let body_syn_ty =
+        live_insts
+          ? LiveTyping.reabstract(ctx_body, mode_body, body.elab_syn_ty)
+          : body.elab_syn_ty;
       add(
         ~elab_term=TypFun(utpat, body_elab, tfname) |> rewrap,
-        ~elab_syn_ty=Poly(utpat, body.elab_syn_ty) |> Typ.temp,
+        ~elab_syn_ty=Poly(utpat, body_syn_ty) |> Typ.temp,
         ~marks=[],
         ~co_ctx=body.co_ctx,
         ~probe_targets=body.probe_targets,
