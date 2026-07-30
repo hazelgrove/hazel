@@ -20,7 +20,7 @@ let free_variables =
         };
       | Some(_) => None
       },
-    co_ctx,
+    CoCtx.values(co_ctx),
   );
 };
 

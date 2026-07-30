@@ -48,6 +48,7 @@ module Map = {
     switch (lookup(id, m)) {
     | Some(InfoExp({co_ctx, ctx, _})) =>
       co_ctx
+      |> CoCtx.values
       |> Util.VarMap.to_list
       |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
     | _ => []
@@ -541,6 +542,7 @@ module type ExpressionStatics = {
       ~inferred_label: option(string)=?,
       ~label_sort: bool=?,
       ~dot_labels: list(string)=?,
+      ~former: option(MatchedTyp.former)=?,
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);

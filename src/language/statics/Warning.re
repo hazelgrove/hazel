@@ -25,7 +25,7 @@ let var_is_unused = (co_ctx, name): t =>
   if (String.starts_with(~prefix="_", name) || CoCtx.contains_hole(co_ctx)) {
     None;
   } else {
-    switch (VarMap.lookup(co_ctx, name)) {
+    switch (VarMap.lookup(CoCtx.values(co_ctx), name)) {
     | None => WarningPat(UnusedVar(name))
     | Some(_) => None
     };

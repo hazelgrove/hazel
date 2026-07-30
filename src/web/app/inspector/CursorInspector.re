@@ -578,11 +578,8 @@ module TypeSlicing = {
       }
     };
 
-  let protected_ids = (~info_map: Statics.Map.t, ci: Info.t): Id.Set.t =>
-    Id.Set.diff(
-      id_set_of_list(Info.ancestors_of(ci)),
-      Statics.Slice.focus_shell_ids(info_map, Info.id_of(ci)),
-    );
+  let protected_ids = (~info_map as _: Statics.Map.t, ci: Info.t): Id.Set.t =>
+    id_set_of_list(Info.ancestors_of(ci));
 
   let slice_for_target =
       (
@@ -605,14 +602,18 @@ module TypeSlicing = {
           | Analyzing => `Ana
           };
         let omitted =
-          Statics.slice(
-            ~ctx=Info.ctx_of(ci),
-            ~focus=Some(Info.id_of(ci)),
-            ~direction,
-            root_exp,
-            query,
-          ).
-            omitted;
+          switch (
+            Statics.slice_map(
+              ~info_map,
+              ~root_exp,
+              ~focus=Some(Info.id_of(ci)),
+              ~direction,
+              query,
+            )
+          ) {
+          | exception (Statics.Slice.Incompatible_query(_)) => Id.Set.empty
+          | {omitted, _} => omitted
+          };
         if (DebugConsole.slice_reconstruction_logging^) {
           let reconstruction =
             Language.SliceReconstruct.reconstruct(omitted, root_exp)

@@ -41,7 +41,7 @@ let exp_ctor = (name: string, e: Exp.t): Id.t =>
     ),
   );
 
-let ex1_src = "type Option = typfun A -> None + Some(A) in type Digit = Zero + One + Two + Three + Four + Five + Six + Seven + Eight + Nine in let parse_digit = fun c : String -> case c | \"0\" => Some(Zero) | \"1\" => Some(One) | \"2\" => Some(Two) | \"3\" => Some(Three) | \"4\" => Some(Four) | \"5\" => Some(Five) | \"6\" => Some(Six) | \"7\" => Some(Seven) | \"8\" => Some(Eight) | \"9\" => Some(Nine) | _ => None end in parse_digit(\"5\")";
+let ex1_src = "type Option(A) = None + Some(A) in type Digit = Zero + One + Two + Three + Four + Five + Six + Seven + Eight + Nine in let parse_digit = fun c : String -> case c | \"0\" => Some(Zero) | \"1\" => Some(One) | \"2\" => Some(Two) | \"3\" => Some(Three) | \"4\" => Some(Four) | \"5\" => Some(Five) | \"6\" => Some(Six) | \"7\" => Some(Seven) | \"8\" => Some(Eight) | \"9\" => Some(Nine) | _ => None end in parse_digit(\"5\")";
 
 let parse_digit_examples = [
   synthesis_case(
@@ -49,7 +49,7 @@ let parse_digit_examples = [
     "ex1-parse-digit-syn",
     ex1_src,
     "String -> Option(Digit)",
-    "type Option = typfun ? -> ? + Some(?) in type ? = ? in let parse_digit = fun ? : String -> case ? | ? => Some(?) | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? end in parse_digit(?)",
+    "type Option(?) = ? + Some(?) in type ? = ? in let parse_digit = fun ? : String -> case ? | ? => Some(?) | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? end in parse_digit(?)",
   ),
   analysis_case(
     ~focus=str_lit("5"),
@@ -60,7 +60,7 @@ let parse_digit_examples = [
   ),
 ];
 
-let ex2_src = "type Option = typfun A -> None + Some(A) in type Digit = Zero + One in type Pin = (Digit, Digit) in let seq = abs A -> abs B -> fun (p : String -> Option((String, A))) -> fun (f : A -> Option((String, B))) -> fun (s : String) -> case p(s) | None => None | Some((s2, a)) => f(a) end in let digit_parser = fun (s : String) -> Some((s, Zero)) in let parse_pin = fun (s : String) -> seq@<Digit, Pin>(digit_parser)(fun (d1 : Digit) -> seq@<Digit, Pin>(digit_parser)(fun (d2 : Digit) -> fun (s2 : String) -> Some((s2, (d1, d2))))(s))(s) in parse_pin(\"12\")";
+let ex2_src = "type Option(A) = None + Some(A) in type Digit = Zero + One in type Pin = (Digit, Digit) in let seq = abs A -> abs B -> fun (p : String -> Option((String, A))) -> fun (f : A -> Option((String, B))) -> fun (s : String) -> case p(s) | None => None | Some((s2, a)) => f(a) end in let digit_parser = fun (s : String) -> Some((s, Zero)) in let parse_pin = fun (s : String) -> seq@<Digit>@<Pin>(digit_parser)(fun (d1 : Digit) -> seq@<Digit>@<Pin>(digit_parser)(fun (d2 : Digit) -> fun (s2 : String) -> Some((s2, (d1, d2))))(s))(s) in parse_pin(\"12\")";
 
 let seq_pin_examples = [
   synthesis_case(
@@ -68,7 +68,7 @@ let seq_pin_examples = [
     "ex2-seq-error-syn",
     ex2_src,
     "Digit -> String -> Option((String, Pin))",
-    "type Option = typfun ? -> ? + Some(?) in type Digit = ? in type ? = ? in let ? = ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun (? : Digit) -> fun (? : String) -> Some(?))(?))(?) in ?",
+    "type Option(?) = ? + Some(?) in type Digit = ? in type ? = ? in let ? = ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun (? : Digit) -> fun (? : String) -> Some(?))(?))(?) in ?",
   ),
   synthesis_case(
     ~focus=fun_binding("d2"),
@@ -82,18 +82,18 @@ let seq_pin_examples = [
     "ex2-seq-error-ana",
     ex2_src,
     "Digit -> Option((String, Pin))",
-    "type Option = ? in type Digit = ? in type Pin = ? in let seq = abs A -> abs B -> fun ? -> fun (? : A -> Option((String, B))) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<Digit, Pin>(?)(?)(?))(?) in ?",
+    "type Option = ? in type Digit = ? in type Pin = ? in let seq = abs A -> abs B -> fun ? -> fun (? : A -> Option((String, B))) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<Digit>@<Pin>(?)(?)(?))(?) in ?",
   ),
   analysis_case(
     ~focus=fun_binding("d2"),
     "ex2-seq-error-ana-refined",
     ex2_src,
     "? -> Option(?)",
-    "type Option = ? in type ? = ? in type ? = ? in let seq = abs ? -> abs ? -> fun ? -> fun (? : ? -> Option(?)) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<?, ?>(?)(?)(?))(?) in ?",
+    "type Option = ? in type ? = ? in type ? = ? in let seq = abs ? -> abs ? -> fun ? -> fun (? : ? -> Option(?)) -> ? in let ? = ? in let ? = fun ? -> ?(fun ? -> seq@<?>@<?>(?)(?)(?))(?) in ?",
   ),
 ];
 
-let demo_src = "type Option = typfun A -> None + Some(A) in type Digit = Zero + One + Two + Three + Four + Five + Six + Seven + Eight + Nine in type Pin = (Digit, Digit, Digit, Digit) in let parse_digit = fun c : String -> case c | \"0\" => Some@<Digit>(Zero) | \"1\" => Some(One) | \"2\" => Some(Two) | \"3\" => Some(Three) | \"4\" => Some(Four) | \"5\" => Some(Five) | \"6\" => Some(Six) | \"7\" => Some(Seven) | \"8\" => Some(Eight) | \"9\" => Some(Nine) | _ => None end in let seq = abs A -> abs B -> fun (p : String -> Option((String, A))) -> fun (f : A -> Option((String, B))) -> fun (s : String) -> case p(s) | None => None | Some((s2, a)) => f(a) end in let digit_parser = fun (s : String) -> case parse_digit(s) | Some(d) => Some((s, d)) | None => None end in let parse_pin = fun (s : String) -> seq@<Digit>@<Pin>(digit_parser)(fun (d1 : Digit) -> seq@<Digit>@<Pin>(digit_parser)(fun (d2 : Digit) -> seq@<Digit>@<Pin>(digit_parser)(fun (d3 : Digit) -> seq@<Digit>@<Pin>(digit_parser)(fun (d4 : Digit) -> fun (s2 : String) -> Some((s2, (d1, d2, d3, d4))))(s))(s))(s))(s) in parse_pin(\"1234\")";
+let demo_src = "type Option(A) = None + Some(A) in type Digit = Zero + One + Two + Three + Four + Five + Six + Seven + Eight + Nine in type Pin = (Digit, Digit, Digit, Digit) in let parse_digit = fun c : String -> case c | \"0\" => Some@<Digit>(Zero) | \"1\" => Some(One) | \"2\" => Some(Two) | \"3\" => Some(Three) | \"4\" => Some(Four) | \"5\" => Some(Five) | \"6\" => Some(Six) | \"7\" => Some(Seven) | \"8\" => Some(Eight) | \"9\" => Some(Nine) | _ => None end in let seq = abs A -> abs B -> fun (p : String -> Option((String, A))) -> fun (f : A -> Option((String, B))) -> fun (s : String) -> case p(s) | None => None | Some((s2, a)) => f(a) end in let digit_parser = fun (s : String) -> case parse_digit(s) | Some(d) => Some((s, d)) | None => None end in let parse_pin = fun (s : String) -> seq@<Digit>@<Pin>(digit_parser)(fun (d1 : Digit) -> seq@<Digit>@<Pin>(digit_parser)(fun (d2 : Digit) -> seq@<Digit>@<Pin>(digit_parser)(fun (d3 : Digit) -> seq@<Digit>@<Pin>(digit_parser)(fun (d4 : Digit) -> fun (s2 : String) -> Some((s2, (d1, d2, d3, d4))))(s))(s))(s))(s) in parse_pin(\"1234\")";
 
 let demo_slice_case =
     (
@@ -157,12 +157,12 @@ let demo_examples = [
   demo_syn_case(
     ~focus=ctor_arg_ap("Five"),
     "demo-focus-some-five",
-    "type Option = typfun ? -> ? + Some(?) in type ? = ? in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => Some(?) | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? end in ?",
+    "type Option(?) = ? + Some(?) in type ? = ? in type ? = ? in let ? = fun ? -> case ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? | ? => Some(?) | ? => ? | ? => ? | ? => ? | ? => ? | ? => ? end in ?",
   ),
   demo_syn_case(
     ~focus=e => exp_var(e, "seq"),
     "demo-focus-seq-use",
-    "type Option = typfun ? -> None + ? in type ? = ? in type ? = ? in let ? = ? in let seq = abs A -> abs B -> fun (? : String -> Option((String, A))) -> fun (? : A -> Option((String, B))) -> fun (? : String) -> case ? | ? => None | ? => ? end in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<?>@<?>(?)(?)(?))(?))(?))(?) in ?",
+    "type Option(?) = ? in type ? = ? in type ? = ? in let ? = ? in let seq = abs A -> abs B -> fun (? : String -> Option((String, A))) -> fun (? : A -> Option((String, B))) -> fun (? : String) -> case ? | ? => ? | ? => ? end in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> seq@<?>@<?>(?)(?)(?))(?))(?))(?) in ?",
   ),
   demo_syn_case(
     ~focus=e => exp_var(e, "d1"),
@@ -177,7 +177,7 @@ let demo_examples = [
   demo_syn_case(
     ~focus=errfn,
     "demo-focus-errfn-syn",
-    "type Option = typfun ? -> ? + Some(?) in type Digit = ? in type ? = ? in let ? = ? in let ? = ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> ?(fun (? : Digit) -> fun (? : String) -> Some(?))(?))(?))(?))(?) in ?",
+    "type Option(?) = ? + Some(?) in type Digit = ? in type ? = ? in let ? = ? in let ? = ? in let ? = ? in let ? = fun ? -> ?(fun ? -> ?(fun ? -> ?(fun ? -> ?(fun (? : Digit) -> fun (? : String) -> Some(?))(?))(?))(?))(?) in ?",
   ),
   demo_ana_case(
     ~focus=errfn,
@@ -241,7 +241,7 @@ let ctor_alias_examples = [
   ),
 ];
 
-let either_prelude = "type Either = typfun A -> typfun B -> Left(A) + Right(B) in";
+let either_prelude = "type Either(A, B) = Left(A) + Right(B) in";
 
 let if_joins = [
   synthesis_case(
@@ -249,58 +249,58 @@ let if_joins = [
     "if-join-product-full",
     "if c then (1, ?) else (?, 2)",
     "(Int, Int)",
-    "if c then (1, ?) else (?, 2)",
+    "if ? then (1, ?) else (?, 2)",
   ),
   synthesis_case(
     ~ctx=ctx_var("c", "Bool"),
     "if-join-product-left",
     "if c then (1, ?) else (?, 2)",
     "(Int, ?)",
-    "if c then (1, ?) else ?",
+    "if ? then (1, ?) else ?",
   ),
   synthesis_case(
     ~ctx=ctx_var("c", "Bool"),
     "if-join-product-right",
     "if c then (1, ?) else (?, 2)",
     "(?, Int)",
-    "if c then ? else (?, 2)",
+    "if ? then ? else (?, 2)",
   ),
   synthesis_case(
     ~ctx=ctx_var(~ctx=prelude_ctx(either_prelude), "c", "Bool"),
-    ~aliases=[("Either", "typfun A -> typfun B -> Left(A) + Right(B)")],
+    ~aliases=[("Either", "typfun A, B -> Left(A) + Right(B)")],
     "if-join-either-full",
     "if c then Left@<Int, ?>(1) else Right@<?, Bool>(true)",
     "Either(Int, Bool)",
-    "if c then Left@<Int, ?>(?) else Right@<?, Bool>(?)",
+    "if ? then Left@<Int, ?>(?) else Right@<?, Bool>(?)",
   ),
   synthesis_case(
     ~ctx=ctx_var(~ctx=prelude_ctx(either_prelude), "c", "Bool"),
     "if-join-either-explicit-sum-full",
     "if c then Left@<Int, ?>(1) else Right@<?, Bool>(true)",
     "+ Left(Int) + Right(Bool)",
-    "if c then Left@<Int, ?>(?) else Right@<?, Bool>(?)",
+    "if ? then Left@<Int, ?>(?) else Right@<?, Bool>(?)",
   ),
   synthesis_case(
     ~ctx=ctx_var(~ctx=prelude_ctx(either_prelude), "c", "Bool"),
-    "if-join-either-explicit-sum-left",
+    "if-join-either-explicit-sum-left-gap",
     "if c then Left@<Int, ?>(1) else Right@<?, Bool>(true)",
     "+ Left(Int) + ?",
-    "if c then Left@<Int, ?>(?) else ?",
+    "if ? then Left@<Int, ?>(?) else ?",
   ),
   synthesis_case(
     ~ctx=ctx_var(~ctx=prelude_ctx(either_prelude), "c", "Bool"),
-    "if-join-either-explicit-sum-left",
+    "if-join-either-explicit-sum-left-shaped-gap",
     "if c then Left@<Int, ?>(1) else Right@<?, Bool>(true)",
     "+ Left(Int) + Right(?)",
-    "if c then Left@<Int, ?>(?) else ?",
+    "if ? then Left@<Int, ?>(?) else ?",
   ),
   synthesis_case(
     ~ctx=ctx_var(~ctx=prelude_ctx(either_prelude), "c", "Bool"),
-    ~aliases=[("Either", "typfun A -> typfun B -> Left(A) + ?")],
+    ~aliases=[("Either", "typfun A, B -> Left(A) + ?")],
     "if-join-either-left",
     "if c then Left@<Int, ?>(1) else Right@<?, Bool>(true)",
     "Either(Int, ?)",
-    "if c then Left@<Int, ?>(?) else ?",
+    "if ? then Left@<Int, ?>(?) else ?",
   ),
 ];
 

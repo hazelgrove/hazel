@@ -311,4 +311,220 @@ let normalize_tests = (
   ],
 );
 
-let tests = [meet_tests, fast_equal_tests, normalize_tests];
+let structural_traversal_tests = (
+  "Typ structural traversal",
+  IdTagged.FreshGrammar.Typ.[
+    test_case(
+      "collects only the first type layer",
+      `Quick,
+      () => {
+        let shape = arrow(list(int()), bool());
+        check(
+          Alcotest.list(typ),
+          "arrow children",
+          [list(int()), bool()],
+          Typ.children(shape),
+        );
+      },
+    ),
+    test_case(
+      "sum traversal includes constructors, payloads, and bad entries",
+      `Quick,
+      () => {
+        let ann_a = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_b = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let shape =
+          sum([
+            ConstructorMap.Variant("A", ann_a, Some(int())),
+            ConstructorMap.Variant("B", ann_b, None),
+            ConstructorMap.BadEntry(bool()),
+          ]);
+        check(
+          Alcotest.list(typ),
+          "sum children",
+          [var("A"), int(), var("B"), bool()],
+          Typ.children(shape),
+        );
+      },
+    ),
+    test_case(
+      "sum rebuilding consumes a stable traversal",
+      `Quick,
+      () => {
+        let ann_a = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_b = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let shape =
+          sum([
+            ConstructorMap.Variant("A", ann_a, Some(int())),
+            ConstructorMap.Variant("B", ann_b, None),
+            ConstructorMap.BadEntry(bool()),
+          ]);
+        let rebuilt =
+          Typ.rebuild(shape, [var("X"), string(), var("Y"), nat()]);
+        check(
+          option(typ),
+          "rebuilt sum",
+          Some(
+            sum([
+              ConstructorMap.Variant("X", ann_a, Some(string())),
+              ConstructorMap.Variant("Y", ann_b, None),
+              ConstructorMap.BadEntry(nat()),
+            ]),
+          ),
+          rebuilt,
+        );
+      },
+    ),
+    test_case(
+      "constructor replacement continues through the bad entry",
+      `Quick,
+      () => {
+        let ann_a = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_b = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let shape =
+          sum([
+            ConstructorMap.Variant("A", ann_a, Some(int())),
+            ConstructorMap.Variant("B", ann_b, None),
+          ]);
+        check(
+          option(typ),
+          "constructor replaced by gap",
+          Some(
+            sum([
+              ConstructorMap.BadEntry(bool()),
+              ConstructorMap.Variant("B", ann_b, None),
+            ]),
+          ),
+          Typ.rebuild(shape, [Typ.gap, bool(), var("B")]),
+        );
+      },
+    ),
+    test_case(
+      "nullary collapse preserves the following traversal slot",
+      `Quick,
+      () => {
+        let ann = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let shape =
+          sum([
+            ConstructorMap.Variant("A", ann, None),
+            ConstructorMap.BadEntry(bool()),
+          ]);
+        check(
+          option(typ),
+          "nullary constructor replaced by gap",
+          Some(
+            sum([
+              ConstructorMap.BadEntry(Typ.gap),
+              ConstructorMap.BadEntry(nat()),
+            ]),
+          ),
+          Typ.rebuild(shape, [Typ.gap, nat()]),
+        );
+      },
+    ),
+    test_case(
+      "subtracts sum types by constructor",
+      `Quick,
+      () => {
+        let ann_a = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_b = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let query =
+          sum([
+            ConstructorMap.Variant("A", ann_a, Some(int())),
+            ConstructorMap.Variant("B", ann_b, Some(bool())),
+          ]);
+        let supplied =
+          sum([
+            ConstructorMap.Variant("A", ann_a, Some(int())),
+            ConstructorMap.Variant("B", ann_b, Some(Typ.gap)),
+          ]);
+        check(
+          typ,
+          "residual type",
+          sum([
+            ConstructorMap.BadEntry(Typ.gap),
+            ConstructorMap.Variant("B", ann_b, Some(bool())),
+          ]),
+          Typ.subtract(Builtins.ctx_init(None), query, supplied),
+        );
+      },
+    ),
+    test_case(
+      "collects constraints from reordered sum variants",
+      `Quick,
+      () => {
+        let ann_a = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let ann_b = ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ());
+        let schema =
+          sum([
+            ConstructorMap.Variant("A", ann_a, Some(var("X"))),
+            ConstructorMap.Variant("B", ann_b, Some(var("Y"))),
+          ]);
+        let demand =
+          sum([
+            ConstructorMap.Variant("B", ann_b, Some(bool())),
+            ConstructorMap.Variant("A", ann_a, Some(int())),
+          ]);
+        let (matched, constraints) =
+          Typ.collect_constraints(
+            Builtins.ctx_init(None),
+            ["X", "Y"],
+            schema,
+            demand,
+          );
+        check(typ, "matched schema order", schema, matched);
+        check(
+          Alcotest.list(Alcotest.pair(Alcotest.string, typ)),
+          "constraints",
+          [("X", int()), ("Y", bool())],
+          constraints,
+        );
+      },
+    ),
+    test_case(
+      "does not collect through a shadowing binder",
+      `Quick,
+      () => {
+        let (_, constraints) =
+          Typ.collect_constraints(
+            Builtins.ctx_init(None),
+            ["A"],
+            typ_fun(Var("A") |> TPat.temp, var("A")),
+            typ_fun(Var("B") |> TPat.temp, int()),
+          );
+        check(
+          Alcotest.list(Alcotest.pair(Alcotest.string, typ)),
+          "constraints",
+          [],
+          constraints,
+        );
+      },
+    ),
+    test_case(
+      "rebuilding rejects arity mismatches",
+      `Quick,
+      () => {
+        let shape = arrow(int(), bool());
+        check(
+          option(typ),
+          "too few children",
+          None,
+          Typ.rebuild(shape, [int()]),
+        );
+        check(
+          option(typ),
+          "too many children",
+          None,
+          Typ.rebuild(shape, [int(), bool(), string()]),
+        );
+      },
+    ),
+  ],
+);
+
+let tests = [
+  meet_tests,
+  fast_equal_tests,
+  normalize_tests,
+  structural_traversal_tests,
+];

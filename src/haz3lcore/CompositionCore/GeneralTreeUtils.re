@@ -182,14 +182,14 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
 
   switch (curr) {
   | InfoExp(info) =>
-    let entire_coctx = info.co_ctx;
+    let entire_coctx = CoCtx.values(info.co_ctx);
     let body_coctx =
       switch (Exp.term_of(info.user_term)) {
       | Let(_, _, body)
       | TyAlias(_, _, body)
       | ModuleExp(_, _, body) =>
         switch (exp_to_info(body)) {
-        | InfoExp({co_ctx, _}) => co_ctx
+        | InfoExp({co_ctx, _}) => CoCtx.values(co_ctx)
         | _ =>
           raise(
             Failure("Body of let/type alias/module is not an expression"),
@@ -277,7 +277,7 @@ let update_use_sites_of_var =
         acc_z;
       },
     z,
-    co_ctx,
+    CoCtx.values(co_ctx),
   );
 };
 

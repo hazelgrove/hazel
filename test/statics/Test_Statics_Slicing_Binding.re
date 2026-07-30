@@ -28,17 +28,61 @@ let binding_synthesis = [
     "let (?, (y, ?)) = (?, (true, ?)) in y",
   ),
   synthesis_case(
+    ~ctx=ctx_var("f", "Bool -> Int"),
+    "bind-tuple-combined-demands",
+    "let (x, y, z) = (1, true, f) in (x, z(?))",
+    "(Int, Int)",
+    "let (x, ?, z) = (1, ?, f) in (x, z(?))",
+  ),
+  synthesis_case(
+    ~ctx=ctx_var("f", "Bool -> Int"),
+    "bind-tuple-annotated-part",
+    "let (x : Int, y, z) = (1, true, f) in (x, z(?))",
+    "(Int, Int)",
+    "let (x : Int, ?, z) = (?, ?, f) in (x, z(?))",
+  ),
+  synthesis_case(
     "bind-ctor-used",
-    "type T = A(Int) in let A(x) = A(1) in x",
+    "type T = +A(Int) in let A(x) = A(1) in x",
     "Int",
-    "type T = A(Int) in let A(x) = A(?) in x",
+    "type T = +A(Int) in let A(x) = ? in x",
+  ),
+  synthesis_case(
+    "bind-ctor-sum-used",
+    "type T = +A(Int) in let A(x) = A(1) in x",
+    "Int",
+    "type T = +A(Int) in let A(x) = ? in x",
   ),
   synthesis_case(
     "bind-ctor-unused",
-    "type T = A(Int) in let A(x) = A(1) in 0",
+    "type T = +A(Int) in let A(x) = A(1) in 0",
     "Int",
     "type ? = ? in let ? = ? in 0",
   ),
+  synthesis_case(
+    "bind-ctor-pat-subtracts",
+    "type T = +A((Int, Bool)) in let A((x, y)) = A((1, true)) in x",
+    "Int",
+    "type T = +A((Int, ?)) in let A((x, ?)) = ? in x",
+  ),
+  synthesis_case(
+    "bind-ann-pat-subtracts",
+    "let (x : Int) = 1 in x",
+    "Int",
+    "let (x : Int) = ? in x",
+  ),
+  synthesis_case(
+    "bind-poly-ctor-pat",
+    "type T = typfun A -> +C(A) in let C(x) = C@<Int>(1) in x",
+    "Int",
+    "type T = typfun A -> +C(A) in let C(x) = C@<Int>(?) in x",
+  ),
+  /* Polymorphic type info can come from the pattern AND the definition:
+       type T = typfun A -> typfun B -> +D(A, B) in
+       let D@<Int, ?>(x,y) = D@<?>@<Bool>(1, true) in (x, y)   @ (Int, Bool)
+     keeping both instantiations and omitting only the arguments `1, true`.
+     Skipped: this form does not yet parse on the polymorphism branch. */
+  Alcotest.test_case("bind-poly-ctor-pat-both", `Quick, () => Alcotest.skip()),
   synthesis_case(
     "bind-joined-uses",
     "let x = (a=1, b=true) in (x.a, x.b)",
@@ -49,7 +93,7 @@ let binding_synthesis = [
     "bind-match-one-branch",
     "type T = A(Int) + B(Bool) in case A(1) | A(x) => x | B(y) => 0 end",
     "Int",
-    "type T = A(Int) + ? in case A(?) | A(x) => x | ? => ? end",
+    "type T = A(Int) + ? in case ? | A(x) => x | ? => ? end",
   ),
   synthesis_case(
     "match-reverse-tuple-pat",
@@ -88,10 +132,10 @@ let binding_synthesis = [
     "theorem ? = ? in 1",
   ),
   synthesis_case(
-    "bind-typfun-option",
-    "type Option = typfun A -> None + Some(A) in Some@<Int>(1)",
+    "bind-param-option",
+    "type Option(A) = None + Some(A) in Some@<Int>(1)",
     "Option(Int)",
-    "type Option = typfun A -> ? + Some(A) in Some@<Int>(?)",
+    "type Option(A) = ? + Some(A) in Some@<Int>(?)",
   ),
   synthesis_case(
     ~focus=e => exp_var(e, "x"),
@@ -136,10 +180,10 @@ let binding_synthesis = [
     "let ? = ? in ?",
   ),
   synthesis_case(
-    "bind-typfun-curried",
-    "type Result = typfun E -> typfun A -> Error(E) + Ok(A) in Ok@<String, Bool>(true)",
-    "Result(?, Bool)",
-    "type Result = typfun ? -> typfun A -> ? + Ok(A) in Ok@<?, Bool>(?)",
+    "bind-param-curried",
+    "type Result(E, A) = Error(E) + Ok(A) in Ok@<String, Bool>(true)",
+    "Error(?) + Ok(Bool)",
+    "type Result(?, A) = ? + Ok(A) in Ok@<?, Bool>(?)",
   ),
 ];
 
@@ -221,9 +265,9 @@ let binding_analysis = [
   analysis_case(
     ~focus=first_int,
     "bind-ana-ctor-ann-def",
-    "type T = A(Int) in let v : T = A(1) in v",
+    "type T = +A(Int) in let v : T = A(1) in v",
     "Int",
-    "type T = A(Int) in let ? : ? = A(?) in ?",
+    "type T = +A(Int) in let ? = A(?) in ?",
   ),
   analysis_case(
     ~focus=first_int,
@@ -273,23 +317,23 @@ let pattern_focus = [
   analysis_case(
     ~focus=e => pat_var(e, "x"),
     "pat-ctor-component",
-    "type T = A(Int) in let A(x) : T = A(1) in 0",
+    "type T = +A(Int) in let A(x) : T = A(1) in 0",
     "Int",
-    "type T = A(Int) in let A(?) : ? = ? in ?",
+    "type T = +A(Int) in let A(?) : ? = ? in ?",
   ),
   analysis_case(
     ~focus=e => pat_var(e, "x"),
     "pat-ctor-shadow-ann",
-    "type T1 = A(Int) in type T2 = A(String) in let A(x) : T1 = A(1) in 0",
+    "type T1 = +A(Int) in type T2 = +A(String) in let A(x) : T1 = A(1) in 0",
     "Int",
-    "type T1 = A(Int) in type T2 = A(String) in let A(?) : T1 = ? in ?",
+    "type T1 = +A(Int) in type T2 = +A(String) in let A(?) : T1 = ? in ?",
   ),
   analysis_case(
     ~focus=e => pat_var(e, "x"),
     "pat-ctor-shadow-unann",
-    "type T1 = A(Int) in type T2 = A(String) in let A(x) = A(\"s\") in 0",
+    "type T1 = +A(Int) in type T2 = +A(String) in let A(x) = A(\"s\") in 0",
     "String",
-    "type ? = ? in type T2 = A(String) in let A(?) = ? in ?",
+    "type ? = ? in type T2 = +A(String) in let A(?) = ? in ?",
   ),
   analysis_case(
     ~focus=pat_wild,

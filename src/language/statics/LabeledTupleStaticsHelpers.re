@@ -5,7 +5,7 @@ module Map = StaticsBase.Map;
 module Info = StaticsBase.Info;
 
 let decompose_label_mode = (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
-  switch (MatchedTyp.label(ctx, ana)) {
+  switch (MatchedTyp.strict2(MatchedTyp.label, ctx, ana)) {
   | Some((labmode, val_mode)) => (labmode, val_mode)
   | _ => (Unknown(SynSwitch) |> Typ.temp, Unknown(Internal) |> Typ.temp)
   };

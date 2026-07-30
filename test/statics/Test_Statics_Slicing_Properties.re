@@ -135,15 +135,8 @@ let short_ids = (ids: Id.Set.t): string =>
      })
   |> String.concat(",");
 
-let slice_ctx = (result: S.result): Ctx.t => {
-  let with_gamma =
-    List.fold_left(
-      (ctx, (name, ty)) => Ctx.extend(ctx, var_entry(name, ty)),
-      base_ctx(),
-      result.gamma,
-    );
-  Ctx.concat(result.context, with_gamma);
-};
+let slice_ctx = (result: S.result): Ctx.t =>
+  Ctx.concat(result.gamma, base_ctx());
 
 let statics_map = (ctx: Ctx.t, e: Exp.t): option(Statics.Map.t) =>
   switch (Statics.mk(CoreSettings.on, ctx, e)) {

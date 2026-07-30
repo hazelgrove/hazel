@@ -370,12 +370,17 @@
 
 .cursor-inspector .type-summary-editor {
   min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .cursor-inspector .type-summary-editor .cell-item.code-editor {
-  display: inline-flex;
-  min-width: 0;
-  width: auto;
+  display: block;
+  flex: 0 0 auto;
+  min-width: max-content;
+  width: max-content;
   padding: 0;
   margin: 0;
   outline: none;
@@ -383,7 +388,12 @@
 }
 
 .cursor-inspector .type-summary-editor .code-container {
-  min-width: 0;
+  min-width: max-content;
+  width: max-content;
+}
+
+.cursor-inspector .type-summary-editor .code {
+  display: inline-block;
 }
 
 .cursor-inspector .type-summary-editor.active .cell-item.code-editor {

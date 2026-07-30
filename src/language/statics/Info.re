@@ -31,17 +31,24 @@ type label_inference('a) =
       introduced_labels: list(LabeledTuple.label),
     });
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slice_child_mode =
-  | SliceKeep
-  | SliceOmit
-  | SliceSource;
+type slice = Slice.t;
+let opaque_slice: slice = Slice.opaque;
+let pp_slice = (fmt: Format.formatter, _: slice) =>
+  Format.pp_print_string(fmt, "<slice>");
+let sexp_of_slice = (_: slice): Sexplib.Sexp.t => Sexplib.Sexp.List([]);
+let slice_of_sexp = (_: Sexplib.Sexp.t): slice => opaque_slice;
+let yojson_of_slice = (_: slice): Yojson.Safe.t => `Null;
+let slice_of_yojson = (_: Yojson.Safe.t): slice => opaque_slice;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slice_child = {
-  mode: slice_child_mode,
-  child: Id.t,
-};
+/* Children recorded by the binding operators, consumed by the next `add`. */
+type slice_scratch = list((Slice.role, Slice.t));
+let pp_slice_scratch = (fmt: Format.formatter, _: slice_scratch) =>
+  Format.pp_print_string(fmt, "<slice scratch>");
+let sexp_of_slice_scratch = (_: slice_scratch): Sexplib.Sexp.t =>
+  Sexplib.Sexp.List([]);
+let slice_scratch_of_sexp = (_: Sexplib.Sexp.t): slice_scratch => [];
+let yojson_of_slice_scratch = (_: slice_scratch): Yojson.Safe.t => `Null;
+let slice_scratch_of_yojson = (_: Yojson.Safe.t): slice_scratch => [];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
@@ -52,7 +59,7 @@ type exp = {
   ana: Typ.t, /* Parental type expectations  */
   elab_syn_ty: Typ.t, /* Synthesized type of the elaborated expression */
   marks: list(Mark.t), /* Error marks from statics */
-  co_ctx: CoCtx.t, /* Locally free variables */
+  co_ctx: CoCtx.t, /* Locally free names */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   message: Message.t, /* DERIVED: non-error inspector payload (Exp only) */
   warnings: list(Warning.list_item),
@@ -61,7 +68,7 @@ type exp = {
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
   label_sort: bool, /* When in the position of a label */
   dot_labels: list(string), /* Available labels when in dot-access position */
-  slice_children: list(slice_child),
+  slice,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -81,7 +88,8 @@ type pat = {
   constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
-  label_sort: bool /* When in the position of a label */
+  label_sort: bool, /* When in the position of a label */
+  slice,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -94,6 +102,7 @@ type typ = {
   marks: list(Mark.t),
   message: option(Message.t), /* Some(TypOk(_)) when marks = [] */
   warnings: list(Warning.list_item),
+  slice,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -156,7 +165,7 @@ type t =
   | InfoMod(mod_)
   | InfoSig(sig_)
   | InfoMPat(mpat)
-  | InfoSliceScratch(list(slice_child))
+  | InfoSliceScratch(slice_scratch)
   | Secondary(secondary);
 
 /* ==================================== Getters ==================================== */
