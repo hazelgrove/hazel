@@ -775,6 +775,18 @@ let mk =
          role == Omit ? Some(node.ids) : None
        )
     |> List.fold_left(Id.Set.union, Id.Set.empty);
+  let uses = query =>
+    co_ctx
+    |> CoCtx.entries_at(id)
+    |> List.map(((name, entry: CoCtx.entry)) =>
+         singleton(
+           ~sort=entry.sort,
+           ~name,
+           ~id=entry.id,
+           entry.demanded |> Option.value(~default=query),
+         )
+       )
+    |> join_all(ctx);
   let dispatch = (env, query) => {
     let query = env.focus == Some(id) ? env.query : query;
     let capped = Typ.overlap(ctx, query, shape);
@@ -794,18 +806,7 @@ let mk =
       };
     } else {
       let slice = assembled(env, query);
-      let used =
-        co_ctx
-        |> CoCtx.entries_at(id)
-        |> List.map(((name, entry: CoCtx.entry)) =>
-             singleton(
-               ~sort=entry.sort,
-               ~name,
-               ~id=entry.id,
-               entry.demanded |> Option.value(~default=query),
-             )
-           )
-        |> join_all(ctx);
+      let used = uses(query);
       {
         omitted: Id.Set.union(slice.omitted, Id.Set.diff(checked, env.path)),
         gamma: join(ctx, slice.gamma, used),
@@ -822,7 +823,11 @@ let mk =
         witness: Ana(env.query),
       };
     } else {
-      analyse_assembled(env);
+      let result = analyse_assembled(env);
+      {
+        ...result,
+        gamma: join(ctx, result.gamma, uses(gap)),
+      };
     };
   let declared =
     declared
