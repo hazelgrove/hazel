@@ -652,19 +652,35 @@ let assemble = (~ctx: Ctx.t, ~former, ~shape: Typ.t, ~sub_terms) => {
       };
       switch (inner.witness, role) {
       | (Ana(query), Source) =>
+        let supplied =
+          sub_terms
+          |> List.filter_map(((role, node: t)) =>
+               role == Binder ? Some(node.supplied) : None
+             )
+          |> Typ.meet_gap_all(ctx);
+        let asked =
+          is_gap(supplied) ? query : residual(ctx, query, supplied);
         sub_terms
         |> List.fold_left(
              (result, (role, node)) =>
-               role == Binder
-                 ? combine_analysis(
-                     ctx,
-                     result,
-                     dispatch_analysis(node, env, query),
-                   )
-                 : result,
-             dispatch_analysis(~project=_ => gap, node, env, query),
+               if (role == Binder) {
+                 let unused = node.demand(env, empty_gamma).omitted;
+                 let bound = dispatch_analysis(node, env, query);
+                 combine_analysis(
+                   ctx,
+                   result,
+                   {
+                     ...bound,
+                     omitted: Id.Set.union(bound.omitted, unused),
+                     retained: Id.Set.diff(bound.retained, unused),
+                   },
+                 );
+               } else {
+                 result;
+               },
+             dispatch_analysis(~project=_ => gap, node, env, asked),
            )
-        |> finish
+        |> finish;
       | (Ana(_), Omit) =>
         {
           ...inner,
