@@ -1803,7 +1803,8 @@ let call_tree_tests = [
     "CallTree: empty probe_map produces empty tree",
     `Quick,
     () => {
-      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[],Id.Map.empty);
+      let tree =
+        Sample.CallTree.of_probe_map(~sightline_rev=[], Id.Map.empty);
       check(int, "empty tree", 0, List.length(tree));
     },
   ),
@@ -1813,7 +1814,7 @@ let call_tree_tests = [
     () => {
       let probe_map =
         Id.Map.singleton(Id.invalid, [mk_sample([frame(id_a)])]);
-      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[],probe_map);
+      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
       check(int, "one root node", 1, List.length(tree));
       let root = List.hd(tree);
       check(
@@ -1840,7 +1841,7 @@ let call_tree_tests = [
             mk_sample([frame(id_c), frame(id_a)]),
           ],
         );
-      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[],probe_map);
+      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
       check(int, "one root (A)", 1, List.length(tree));
       let root = List.hd(tree);
       check(int, "two children (B and C)", 2, List.length(root.children));
@@ -1855,7 +1856,7 @@ let call_tree_tests = [
           Id.invalid,
           [mk_sample([frame(id_b), frame(id_a)])],
         );
-      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[],probe_map);
+      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
       let lines = Sample.CallTree.flatten(tree);
       check(int, "one line", 1, List.length(lines));
       let line = List.hd(lines);
@@ -1877,7 +1878,7 @@ let call_tree_tests = [
             mk_sample([frame(id_c), frame(id_a)]),
           ],
         );
-      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[],probe_map);
+      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
       let lines = Sample.CallTree.flatten(tree);
       check(
         int,
@@ -1904,7 +1905,7 @@ let call_tree_tests = [
           Id.invalid,
           [mk_sample([frame(id_c), frame(id_b), frame(id_a)])],
         );
-      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[],probe_map);
+      let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
       let lines = Sample.CallTree.flatten(tree);
       check(int, "one line (linear chain)", 1, List.length(lines));
       let line = List.hd(lines);

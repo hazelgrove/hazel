@@ -130,7 +130,11 @@ let toggle_anti_pin = (z: Zipper.t, depth: int): Zipper.t =>
 let set_sightline =
     (z: Zipper.t, call_stack: CallStack.t, index: int): Zipper.t =>
   update(z, sample_focus =>
-    {...sample_focus, call_stack, index}
+    {
+      ...sample_focus,
+      call_stack,
+      index,
+    }
   );
 
 let go = (z: Zipper.t, a: Action.sample_focus): Zipper.t =>

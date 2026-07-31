@@ -318,14 +318,13 @@ let compute_dynamic_cap =
 
 /* Navigate to a sibling branch at the focused depth.
  * Replaces the frame at view_index in the (outermost-first) call stack
- * with the new sibling frame and dispatches a Capture to update the sightline. */
+ * with the new sibling frame and dispatches SetSightline. */
 let switch_sibling =
     (
       ~globals: Globals.t,
       ~call_stack_rev: CallStack.t,
       ~view_index: int,
       new_frame: CallStack.frame,
-      evt,
     ) => {
   let n = List.length(call_stack_rev);
   if (view_index < 0 || view_index >= n) {
@@ -336,8 +335,7 @@ let switch_sibling =
       List.mapi((i, f) => i == view_index ? new_frame : f, call_stack_rev);
     /* Truncate the stack at the switch point: keep prefix + new frame,
      * drop everything deeper since the subtree may differ */
-    let truncated_rev =
-      Util.ListUtil.slice(0, view_index + 1, new_stack_rev);
+    let truncated_rev = Util.ListUtil.slice(0, view_index + 1, new_stack_rev);
     /* Convert back to innermost-first for SetSightline */
     let new_stack = List.rev(truncated_rev);
     let new_index = List.length(new_stack) - 1;
@@ -404,10 +402,11 @@ let key_handler =
     } else if (view_mode_ref^ == TreeView) {
       /* At boundary in tree mode: try to extend the sightline */
       let tree =
-        Sample.CallTree.of_probe_map(~sightline_rev=call_stack_rev, probe_map);
-      switch (
-        Sample.CallTree.first_child_at(~path_rev=call_stack_rev, tree)
-      ) {
+        Sample.CallTree.of_probe_map(
+          ~sightline_rev=call_stack_rev,
+          probe_map,
+        );
+      switch (Sample.CallTree.first_child_at(~path_rev=call_stack_rev, tree)) {
       | Some(child_frame) =>
         /* Extend the path and set sightline directly */
         let extended_rev = call_stack_rev @ [child_frame];
@@ -419,9 +418,7 @@ let key_handler =
         Many([
           globals.inject_global(
             ActiveEditor(
-              Project(
-                SampleFocus(SetSightline(new_stack, new_index)),
-              ),
+              Project(SampleFocus(SetSightline(new_stack, new_index))),
             ),
           ),
           jump_effect,
@@ -431,7 +428,7 @@ let key_handler =
       };
     } else {
       Many([Stop_propagation]);
-    };
+    }
   | D("ArrowUp")
   | D("ArrowDown") =>
     /* Navigate between sibling branches at the focused depth. */
@@ -461,14 +458,13 @@ let key_handler =
         if (CallStack.equal_frame(next_frame, current_frame)) {
           Stop_propagation;
         } else {
-          /* switch_sibling does Capture; also jump to the new frame's call site */
+          /* switch_sibling sets the sightline; also jump to the new frame's call site */
           let sibling_effect =
             switch_sibling(
               ~globals,
               ~call_stack_rev,
               ~view_index,
               next_frame,
-              evt,
             );
           let jump_target =
             is_in_user_code(~info_map, next_frame.id)
@@ -546,8 +542,7 @@ let tree_entry =
       "off-path";
     };
   let classes =
-    ["tree-entry", position_class]
-    @ (on_sightline ? ["on-sightline"] : []);
+    ["tree-entry", position_class] @ (on_sightline ? ["on-sightline"] : []);
 
   /* Switch the sightline to this entry's branch via SetSightline.
    * The path is outermost-first; SetSightline wants innermost-first. */

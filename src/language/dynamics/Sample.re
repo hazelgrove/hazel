@@ -668,8 +668,7 @@ module Selection = {
               let sample_rev = List.rev(sample.call_stack);
               let sample_len = List.length(sample_rev);
               if (sample_len > view_index) {
-                let sample_prefix =
-                  ListUtil.slice(0, view_index, sample_rev);
+                let sample_prefix = ListUtil.slice(0, view_index, sample_rev);
                 let sample_prefix_ids = CallStack.ids_of_stack(sample_prefix);
                 if (sample_prefix_ids == prefix_ids) {
                   let frame_at_depth = List.nth(sample_rev, view_index);
@@ -713,7 +712,10 @@ module Selection = {
         switch (current_frame) {
         | Some(cf) =>
           switch (
-            List.find_index(((f, _)) => CallStack.equal_frame(f, cf), sorted)
+            List.find_index(
+              ((f, _)) => CallStack.equal_frame(f, cf),
+              sorted,
+            )
           ) {
           | Some(i) =>
             let before = ListUtil.slice(0, i, sorted);
@@ -772,7 +774,7 @@ module CallTree = {
   type node = {
     frame: CallStack.frame,
     children: list(node),
-    min_seq: int, /* Earliest evaluation order among all samples through this node */
+    min_seq: int /* Earliest evaluation order among all samples through this node */
   };
 
   /* A forest (list of root nodes) representing the top-level call tree */
@@ -803,7 +805,13 @@ module CallTree = {
         forest';
       } else {
         forest
-        @ [{frame, children: insert_path(rest, seq, []), min_seq: seq}];
+        @ [
+          {
+            frame,
+            children: insert_path(rest, seq, []),
+            min_seq: seq,
+          },
+        ];
       };
     };
 
@@ -823,10 +831,11 @@ module CallTree = {
   let sort_children =
       (~sightline_rev: CallStack.t, ~depth: int, children: list(node))
       : list(node) => {
-    let sorted = List.sort(
-      (a: node, b: node) => compare(a.min_seq, b.min_seq),
-      children,
-    );
+    let sorted =
+      List.sort(
+        (a: node, b: node) => compare(a.min_seq, b.min_seq),
+        children,
+      );
     let on_sightline = (n: node): bool =>
       depth < List.length(sightline_rev)
       && CallStack.equal_frame(List.nth(sightline_rev, depth), n.frame);
@@ -834,8 +843,7 @@ module CallTree = {
   };
 
   /* Recursively sort all children in the tree */
-  let rec sort_tree =
-          (~sightline_rev: CallStack.t, ~depth: int, forest: t): t =>
+  let rec sort_tree = (~sightline_rev: CallStack.t, ~depth: int, forest: t): t =>
     List.map(
       (node: node) => {
         let sorted_children =
@@ -843,11 +851,7 @@ module CallTree = {
         {
           ...node,
           children:
-            sort_tree(
-              ~sightline_rev,
-              ~depth=depth + 1,
-              sorted_children,
-            ),
+            sort_tree(~sightline_rev, ~depth=depth + 1, sorted_children),
         };
       },
       sort_children(~sightline_rev, ~depth, forest),
@@ -982,8 +986,7 @@ module CallTree = {
    * path (root to entry) against the sightline prefix up to that depth.
    * This correctly handles recursive functions where the same frame ID
    * appears on multiple branches at the same depth. */
-  let is_on_sightline =
-      (~sightline_rev: CallStack.t, entry: line_entry): bool => {
+  let is_on_sightline = (~sightline_rev: CallStack.t, entry: line_entry): bool => {
     let path_len = List.length(entry.path);
     let sight_len = List.length(sightline_rev);
     path_len <= sight_len
