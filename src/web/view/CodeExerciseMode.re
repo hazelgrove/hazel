@@ -314,20 +314,14 @@ module Update = {
       (~settings: Settings.t, action: instructor, model: Model.t)
       : Updated.t(Model.t) =>
     if (settings.instructor_mode) {
-      instructor_update(action, model);
+      {
+        /* Instructor form edits are not undoable */
+        ...instructor_update(action, model),
+        historic: false,
+      };
     } else {
       Updated.return_quiet(model);
     };
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Editor(_, action) => CellEditor.Update.can_undo(action)
-    | RefreshStatics => false
-    | ResetEditor(_) => true
-    | ResetExercise => true
-    | Instructor(_) => false
-    };
-  };
 
   let update =
       (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)

@@ -178,17 +178,6 @@ module rec StepKind: {
     );
   };
 
-  let can_undo = (a: action): bool => {
-    switch (a) {
-    | SingleStep(action) => SingleStep.can_undo(action)
-    | InductionStep(action) => InductionStep.can_undo(action)
-    | ForallStep(action) => ForallStep.can_undo(action)
-    | MissingStep(action) => MissingStep.Update.can_undo(action)
-    | AxiomStep(action) => AxiomStep.can_undo(action)
-    | AlgebriteStep(action) => AlgebriteStep.can_undo(action)
-    };
-  };
-
   let rec calculate =
           (
             ~settings: Calc.t(CoreSettings.t),
@@ -732,20 +721,6 @@ and Stepper: {
         };
       }
     );
-  };
-
-  let rec can_undo = (a: step_action): bool => {
-    switch (a) {
-    | EditorAction(action) => CodeSelectable.Update.can_undo(action)
-    | NextStep(next) => can_undo(next)
-    | RemoveStep => true
-    | StepForward(_) => true
-    | AddInduction(_) => true
-    | AddForall => true
-    | AddAxiomStep(_) => true
-    | AddAlgebriteStep(_) => true
-    | StepKindAction(action) => StepKind.can_undo(action)
-    };
   };
 
   let rec calculate =

@@ -188,7 +188,11 @@ module Update = {
       (~settings: Settings.t, action: instructor, model: Model.t)
       : Updated.t(Model.t) =>
     if (settings.instructor_mode) {
-      instructor_update(action, model);
+      {
+        /* Instructor form edits are not undoable */
+        ...instructor_update(action, model),
+        historic: false,
+      };
     } else {
       Updated.return_quiet(model);
     };
@@ -279,16 +283,6 @@ module Update = {
     | RefreshStatics =>
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
-    };
-  };
-
-  let can_undo = (action: t): bool => {
-    switch (action) {
-    | Instructor(_) => false
-    | Prelude(action) => CellEditor.Update.can_undo(action)
-    | Lemmas(action) => CellEditor.Update.can_undo(action)
-    | Theorem(action) => CellEditor.Update.can_undo(action)
-    | RefreshStatics => false
     };
   };
 
