@@ -81,12 +81,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (String(_), String)
       | (Nat(_), Nat)
       | (Float(_), Float)
+      | (Decimal(_), Float)
+      | (Real(_), Real)
       | (SInt(_), SInt)
       | (Bool(_), Bool) => Some(e)
       | (Int(_), _)
       | (String(_), _)
       | (Nat(_), _)
       | (Float(_), _)
+      | (Decimal(_), _)
+      | (Real(_), _)
       | (SInt(_), _)
       | (Bool(_), _) => None
       }
@@ -197,8 +201,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp,
             ) =>
         Some(e)
+      | PartialExact(_, _, ty_out, _)
+          when Typ.is_consistent(Ctx.empty, t, Atom(ty_out) |> Typ.temp) =>
+        Some(e)
       | Undefined(_)
       | DefinedPoly(_)
+      | PartialExact(_)
       | Defined(_) => None
       }
     | (UnOp(un_op, _), _) =>

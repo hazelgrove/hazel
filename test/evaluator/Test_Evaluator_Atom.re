@@ -25,6 +25,16 @@ let tests = (
           sint(8),
           elaborate(parse_exp({|use SInt in 8|})),
         );
+        evaluation_test(
+          "Real integer",
+          real(Real.of_bigint(Bigint.of_int(8))),
+          elaborate(parse_exp({|use Real in 8|})),
+        );
+        evaluation_test(
+          "Real exact decimal",
+          real(Real.normalize(Bigint.of_int(15), Bigint.of_int(4), None)),
+          elaborate(parse_exp({|use Real in 1.25 + 2.5|})),
+        );
       },
     ),
     test_case(

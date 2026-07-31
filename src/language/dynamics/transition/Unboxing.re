@@ -213,6 +213,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | Atom(SInt)
       | Atom(Int)
       | Atom(Float)
+      | Atom(Real)
       | Atom(String)
       | Atom(Nat)
       | Label

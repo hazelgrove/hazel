@@ -604,6 +604,9 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), string_of_int(n))
       | Atom(Float(f)) =>
         Invalid(abbreviate_str(available^, string_of_float(f)))
+      | Atom(Decimal(s)) => Invalid(abbreviate_str(available^, s))
+      | Atom(Real(r)) =>
+        Invalid(abbreviate_str(available^, Real.to_literal(r)))
 
       // composite literal cases
       | ListLit(xs) =>
@@ -739,6 +742,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           ~make_term=e' => UnOp(Float(Minus), e'),
           e,
         )
+      | UnOp(Real(Minus), e) =>
+        handle_unary(~cost=2, ~make_term=e' => UnOp(Real(Minus), e'), e)
       | UnOp(Nat(Minus), e) =>
         handle_unary(
           ~cost=2, // "- " (op + space)
@@ -1387,6 +1392,9 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
       | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), string_of_int(n))
       | Atom(Float(f)) =>
         Invalid(abbreviate_str(available^, string_of_float(f)))
+      | Atom(Decimal(s)) => Invalid(abbreviate_str(available^, s))
+      | Atom(Real(r)) =>
+        Invalid(abbreviate_str(available^, Real.to_literal(r)))
       | Atom(String(s)) =>
         available := available^ - 2; // deduct quotes first for honest budget accounting
         if (available^ <= 0) {
@@ -1608,6 +1616,13 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           indet_term_typ;
         } else {
           Atom(Float);
+        }
+      | Atom(Real) =>
+        if (available^ < 4) {
+          available := available^ - 1;
+          indet_term_typ;
+        } else {
+          Atom(Real);
         }
       | Atom(Bool) =>
         if (available^ < 4) {

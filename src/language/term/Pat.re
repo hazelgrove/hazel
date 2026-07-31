@@ -71,6 +71,7 @@ let show_cls: cls => string =
   | ExplicitNonlabel => "Explicitly unlabeled entry"
   | Atom(Int) => "Number literal"
   | Atom(Float) => "Float literal"
+  | Atom(Real) => "Real literal"
   | Atom(Bool) => "Boolean literal"
   | Atom(String) => "String literal"
   | Atom(Nat) => "Natural number literal"

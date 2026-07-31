@@ -663,15 +663,31 @@ and uexp_to_info_map =
       let (syn_v, marks_v) =
         switch (Ctx.lookup_var(ctx, name)) {
         | None => (SynTy.unknown_internal(), [Mark.Free(name)])
+        | Some({custom_statics: Some(NumericConstantOverload(atom)), _})
+            when ctx.use_mode == Some(Real) => (
+            Atom(Atom.cls_of_t(atom)) |> Typ.temp,
+            [],
+          )
+        | Some({custom_statics: Some(NumericOverload), _} as var) =>
+          switch (Typ.normalize(ctx, ana).term) {
+          | Arrow({term: Atom(Real), _}, {term: Atom(Real), _}) => (
+              ana,
+              [],
+            )
+          | _ => (var.typ, [])
+          }
         | Some(var) => (var.typ, [])
         };
-      add(
-        ~elab_term=Var(name) |> rewrap,
-        ~elab_syn_ty=syn_v,
-        ~marks=marks_v,
-        ~co_ctx,
-        m,
-      );
+      let elab_term =
+        switch (Ctx.lookup_var(ctx, name), ctx.use_mode) {
+        | (
+            Some({custom_statics: Some(NumericConstantOverload(atom)), _}),
+            Some(Real),
+          ) =>
+          Atom(atom) |> rewrap
+        | _ => Var(name) |> rewrap
+        };
+      add(~elab_term, ~elab_syn_ty=syn_v, ~marks=marks_v, ~co_ctx, m);
     | DynamicErrorHole(e, err) =>
       let (e, e_elab, m) = go(~ana, e, m);
       add(
@@ -800,6 +816,21 @@ and uexp_to_info_map =
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=ty_out,
+          ~marks=[],
+          ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+          ~probe_targets=
+            SubexpProbeTargets.union_all([
+              e1.probe_targets,
+              e2.probe_targets,
+            ]),
+          m,
+        );
+      | PartialExact(ty1, ty2, ty_out, _) =>
+        let (e1, e1_elab, m) = go(~ana=Atom(ty1) |> Typ.temp, e1, m);
+        let (e2, e2_elab, m) = go(~ana=Atom(ty2) |> Typ.temp, e2, m);
+        add(
+          ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
+          ~elab_syn_ty=Atom(ty_out) |> Typ.temp,
           ~marks=[],
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
           ~probe_targets=
@@ -1643,6 +1674,12 @@ and uexp_to_info_map =
         let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
         switch (custom_statics) {
         | Some(kind) =>
+          let ctx =
+            switch (kind, Typ.normalize(ctx, ana).term) {
+            | (NumericOverload, Atom(Real)) =>
+              Ctx.set_use_mode(ctx, Some(Real))
+            | _ => ctx
+            };
           CustomStatics.custom_statics_ap(
             ~annotation=uexp.annotation,
             ~ctx,
@@ -1658,7 +1695,7 @@ and uexp_to_info_map =
              }),
             m,
             arg,
-          )
+          );
         | None =>
           let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
           let (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
@@ -2565,6 +2602,7 @@ and uexp_to_info_map =
         | Atom(Nat) => Some(Nat)
         | Atom(Int) => Some(Int)
         | Atom(Float) => Some(Float)
+        | Atom(Real) => Some(Real)
         | Atom(SInt) => Some(SInt)
         | _ => None
         };
@@ -2934,6 +2972,25 @@ and upat_to_info_map =
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.Float(float),
+          m,
+        )
+      | L(Decimal(decimal)) =>
+        let float = float_of_string(decimal);
+        add(
+          ~elab_term=Atom(Float(float)) |> rewrap,
+          ~elab_syn_ty=Atom(Float) |> Typ.temp,
+          ~marks=[],
+          ~ctx,
+          ~constraint_=Coverage.Constraint.Float(float),
+          m,
+        );
+      | L(Real(real)) =>
+        add(
+          ~elab_term=Atom(Real(real)) |> rewrap,
+          ~elab_syn_ty=Atom(Real) |> Typ.temp,
+          ~marks=[],
+          ~ctx,
+          ~constraint_=Coverage.Constraint.Hole(None),
           m,
         )
       | L(Bool(bool)) =>

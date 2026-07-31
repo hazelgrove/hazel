@@ -9,7 +9,7 @@ let tests = (
       `Quick,
       () => {
         let fns = Atom.conversions_from(Atom.Int);
-        check(int, "5 conversions", 5, List.length(fns));
+        check(int, "6 conversions", 6, List.length(fns));
         let names = List.map(fst, fns);
         List.iter(
           expected =>
@@ -18,6 +18,7 @@ let tests = (
             "sint_of_int",
             "nat_of_int",
             "float_of_int",
+            "real_of_int",
             "bool_of_int",
             "string_of_int",
           ],
@@ -29,7 +30,7 @@ let tests = (
       `Quick,
       () => {
         let fns = Atom.conversions_from(Atom.Nat);
-        check(int, "5 conversions", 5, List.length(fns));
+        check(int, "6 conversions", 6, List.length(fns));
         let names = List.map(fst, fns);
         check(
           bool,

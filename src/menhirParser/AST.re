@@ -85,6 +85,7 @@ type typ =
   | SIntType
   | StringType
   | FloatType
+  | RealType
   | BoolType
   | NatType
   | VoidType
@@ -1307,6 +1308,7 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | SIntType
         | StringType
         | FloatType
+        | RealType
         | BoolType
         | NatType => return(TupleType([]))
         | VoidType

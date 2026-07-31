@@ -134,6 +134,7 @@ module Ctr = {
     | Atom(Int)
     | Atom(SInt) // technically sint and float are finite, but ya know
     | Atom(Float)
+    | Atom(Real)
     | Atom(Nat)
     | Atom(String)
     | DrvQuoteTy(_)
@@ -401,6 +402,7 @@ module UnseenPatternList: UnseenPatternList = {
         },
         unseen_pattern,
       )
+    | Atom(Real) => cons_pat_t(wild(), unseen_pattern)
     | Atom(Nat) =>
       cons_pat_t(
         try(nat(Bigint.of_string(ctr.ctr))) {
@@ -553,6 +555,7 @@ module UnseenPatternList: UnseenPatternList = {
       };
 
       cons_ctr(first_unused_float(0.), col_type, unseen_pattern);
+    | Atom(Real) => cons_wild(unseen_pattern)
     | Atom(String) =>
       let rec first_unused_str = n => {
         StringSet.mem(n, seen_in_col.seen_strings)
@@ -624,6 +627,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(Nat) => cons_wild(unseen_pattern)
     | Atom(SInt) => cons_wild(unseen_pattern)
     | Atom(Float) => cons_wild(unseen_pattern)
+    | Atom(Real) => cons_wild(unseen_pattern)
     | Atom(String) => cons_wild(unseen_pattern)
     | Arrow(_)
     | Poly(_)

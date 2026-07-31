@@ -7,7 +7,9 @@ type custom_statics =
   | OmitLabels
   | OmitAllLabels
   | GroupByLabel
-  | SelectLabels;
+  | SelectLabels
+  | NumericOverload
+  | NumericConstantOverload(Atom.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =
@@ -286,6 +288,7 @@ let filter_stepper_filter_variables = (ctx: t): t => {
 let is_base_typ = (name: string): bool =>
   name == "Bool"
   || name == "Float"
+  || name == "Real"
   || name == "Int"
   || name == "Nat"
   || name == "SInt"

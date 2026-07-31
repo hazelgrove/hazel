@@ -654,8 +654,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(String(Token.strip_quotes(t))))
       | ([t], []) when Token.is_quoted_label(t) =>
         ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
-      | ([t], []) when Token.is_float(t) =>
-        ret(Atom(Float(float_of_string(t))))
+      | ([t], []) when Token.is_float(t) => ret(Atom(Decimal(t)))
       | ([t], []) when Token.is_livelit(t) =>
         ret(LivelitName(Token.parse_livelit(t)))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
@@ -1137,6 +1136,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Int"], []) => Atom(Int)
         | (["SInt"], []) => Atom(SInt)
         | (["Float"], []) => Atom(Float)
+        | (["Real"], []) => Atom(Real)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
         | (["Void"], []) => Sum([])

@@ -155,6 +155,7 @@ let show_cls: cls => string =
   | Undefined => "Undefined expression"
   | Atom(Int) => "Number literal"
   | Atom(Float) => "Float literal"
+  | Atom(Real) => "Real literal"
   | Atom(Bool) => "Boolean literal"
   | Atom(String) => "String literal"
   | Atom(Nat) => "Natural number literal"

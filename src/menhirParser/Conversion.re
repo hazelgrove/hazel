@@ -52,6 +52,7 @@ module Operators = {
     switch (op) {
     | Nat(op_int)
     | SInt(op_int)
+    | Real(op_int)
     | Int(op_int) =>
       IntOp(
         switch (op_int) {
@@ -109,6 +110,7 @@ module Operators = {
     switch (op) {
     | Nat(i)
     | Float(i)
+    | Real(i)
     | SInt(i)
     | Int(i) =>
       Int(
@@ -452,6 +454,7 @@ and Typ: {
     | IntType => int()
     | SIntType => sint()
     | FloatType => float()
+    | RealType => real()
     | BoolType => bool()
     | StringType => string()
     | NatType => nat()
@@ -520,6 +523,7 @@ and Typ: {
     | Atom(Int) => IntType
     | Atom(SInt) => SIntType
     | Atom(Float) => FloatType
+    | Atom(Real) => RealType
     | Atom(String) => StringType
     | Atom(Bool) => BoolType
     | Atom(Nat) => NatType

@@ -959,6 +959,28 @@ module Transition = (EV: EV_MODE) => {
           kind: BinOp(op),
           is_value: true,
         });
+      | PartialExact(_, _, _, f) =>
+        switch (DHExp.term_of(d1), DHExp.term_of(d2)) {
+        | (Atom(a1), Atom(a2)) =>
+          switch (f(a1, a2)) {
+          | None => Indet
+          | Some(Either.L(value)) =>
+            Step({
+              expr: Atom(value) |> Exp.fresh,
+              side_effects: [],
+              kind: BinOp(op),
+              is_value: true,
+            })
+          | Some(Either.R(error)) =>
+            Step({
+              expr: dynamic_error_hole(BinOp(op, d1, d2) |> rewrap, error),
+              side_effects: [],
+              kind: BinOp(op),
+              is_value: true,
+            })
+          }
+        | _ => Indet
+        }
       };
     | Dot(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
@@ -1327,6 +1349,8 @@ let stepper_justification: step_kind => string =
   | BinOp(Float(Equals | NotEquals))
   | BinOp(Poly(Equals | NotEquals)) => "check equality"
   | BinOp(String(Concat)) => "string manipulation"
+  | BinOp(Real(_))
+  | UnOp(Real(_)) => "exact real arithmetic"
   | UnOp(Bool(Not))
   | BinOp(Bool(_)) => "boolean logic"
   | Conditional(_) => "conditional"

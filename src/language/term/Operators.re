@@ -5,7 +5,8 @@ type mode =
   | Nat
   | Int
   | SInt
-  | Float;
+  | Float
+  | Real;
 
 let default_mode = Int;
 
@@ -82,6 +83,7 @@ type op_un =
   | Nat(op_un_num)
   | SInt(op_un_num)
   | Float(op_un_num)
+  | Real(op_un_num)
   | Bool(op_un_bool);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
@@ -90,6 +92,7 @@ type op_bin =
   | SInt(op_bin_num)
   | Nat(op_bin_num)
   | Float(op_bin_float)
+  | Real(op_bin_num)
   | Bool(op_bin_bool)
   | String(op_bin_string)
   | Poly(op_bin_poly);
@@ -102,6 +105,7 @@ let numeric_bin_op = (cls: Atom.cls, op: op_bin_num): option(op_bin) =>
   | SInt => Some(SInt(op))
   | Nat => Some(Nat(op))
   | Float => Some(Float(op_bin_float_of_num(op)))
+  | Real => Some(Real(op))
   | Bool
   | String => None
   };
@@ -124,6 +128,7 @@ let replace_literal =
   | (Int(n), Some(Int), _) => L(Int(n))
   | (Int(n), Some(Nat), _) => L(Nat(n))
   | (Int(n), Some(Float), _) => L(Float(Bigint.to_float(n)))
+  | (Int(n), Some(Real), _) => L(Real(Real.of_bigint(n)))
   | (Int(n), Some(SInt), _) =>
     switch (Bigint.to_int(n)) {
     | Some(i) => L(SInt(i))
@@ -132,6 +137,7 @@ let replace_literal =
   | (Int(n), _, Some(Int)) => L(Int(n))
   | (Int(n), _, Some(Nat)) => L(Nat(n))
   | (Int(n), _, Some(Float)) => L(Float(Bigint.to_float(n)))
+  | (Int(n), _, Some(Real)) => L(Real(Real.of_bigint(n)))
   | (Int(n), _, Some(SInt)) =>
     switch (Bigint.to_int(n)) {
     | Some(i) => L(SInt(i))
@@ -140,6 +146,10 @@ let replace_literal =
   | (Int(n), Some(Bool | String), None) => L(Int(n))
   | (SInt(n), _, _) => L(SInt(n))
   | (Float(n), _, _) => L(Float(n))
+  | (Decimal(s), Some(Real), _) => L(Real(Real.of_decimal(s)))
+  | (Decimal(s), _, Some(Real)) => L(Real(Real.of_decimal(s)))
+  | (Decimal(s), _, _) => L(Float(float_of_string(s)))
+  | (Real(n), _, _) => L(Real(n))
   | (Bool(b), _, _) => L(Bool(b))
   | (String(s), _, _) => L(String(s))
   | (Nat(n), _, _) => L(Nat(n))
@@ -153,6 +163,9 @@ let replace_un_op = (op: op_un, use_mode: option(mode)): op_un => {
   | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(SInt)) => SInt(op)
   | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(Nat)) => Nat(op)
   | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(Float)) => Float(op)
+  | (Int(op) | Nat(op) | Real(op) | SInt(op), Some(Real)) => Real(op)
+  | (Float(op), Some(Real)) => Float(op)
+  | (Real(op), Some(Int | SInt | Nat | Float)) => Real(op)
   | (Bool(op), _) => Bool(op)
   };
 };
@@ -164,9 +177,11 @@ let replace_bin_op = (op: op_bin, use_mode: option(mode)): op_bin => {
   | (Int(op), Some(Nat)) => Nat(op)
   | (Int(op), Some(Float)) => Float(op_bin_float_of_num(op))
   | (Int(op), Some(SInt)) => SInt(op)
+  | (Int(op), Some(Real)) => Real(op)
   | (SInt(op), _) => SInt(op)
   | (Nat(op), _) => Nat(op)
   | (Float(op), _) => Float(op)
+  | (Real(op), _) => Real(op)
   | (Bool(op), _) => Bool(op)
   | (String(op), _) => String(op)
   | (Poly(op), _) => Poly(op)
@@ -187,6 +202,7 @@ let show_unop: op_un => string =
   fun
   | Bool(op) => show_op_un_bool(op)
   | Float(op)
+  | Real(op)
   | Nat(op)
   | SInt(op)
   | Int(op) => show_op_un_num(op);
@@ -236,6 +252,7 @@ let show_binop: op_bin => string =
   | Int(op)
   | SInt(op)
   | Nat(op) => show_op_bin_num(op)
+  | Real(op) => show_op_bin_num(op)
   | Float(op) => show_op_bin_float(op)
   | Bool(op) => show_op_bin_bool(op)
   | String(op) => show_op_bin_string(op)
@@ -296,6 +313,7 @@ let bin_op_to_string = (op: op_bin): string => {
   | SInt(op)
   | Int(op)
   | Nat(op) => int_op_to_string(op)
+  | Real(op) => int_op_to_string(op)
   | Float(op) => float_op_to_string(op)
   | Bool(op) => bool_op_to_string(op)
   | String(op) => string_op_to_string(op)
@@ -319,6 +337,7 @@ let just = (f, x) => Either.L(f(x));
 let semantics_of_un_op = (op: op_un): un_semantics =>
   switch (op) {
   | Int(Minus) => Defined(Int, Int, just(Bigint.neg))
+  | Real(Minus) => Defined(Real, Real, just(Real.neg))
   | Float(Minus) => Defined(Float, Float, just(x => -. x))
   | SInt(Minus) => Defined(SInt, SInt, just(x => - x))
   | Nat(Minus) => Undefined("Cannot negate a natural number")
@@ -334,6 +353,12 @@ type bin_semantics =
     )
     : bin_semantics
   | DefinedPoly(op_bin_poly)
+  | PartialExact(
+      Atom.cls,
+      Atom.cls,
+      Atom.cls,
+      (Atom.t, Atom.t) => option(Either.t(Atom.t, InvalidOperationError.t)),
+    )
   | Undefined(string);
 
 let just = (f, x, y) => Either.L(f(x, y));
@@ -364,6 +389,136 @@ let sint_divide = (x, y) =>
 
 let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   switch (op) {
+  | Real(Plus) =>
+    PartialExact(
+      Real,
+      Real,
+      Real,
+      (a, b) =>
+        switch (a, b) {
+        | (Atom.Real(a), Atom.Real(b)) =>
+          Real.add(a, b) |> Option.map(x => Either.L(Atom.Real(x)))
+        | _ => None
+        },
+    )
+  | Real(Minus) =>
+    PartialExact(
+      Real,
+      Real,
+      Real,
+      (a, b) =>
+        switch (a, b) {
+        | (Atom.Real(a), Atom.Real(b)) =>
+          Real.sub(a, b) |> Option.map(x => Either.L(Atom.Real(x)))
+        | _ => None
+        },
+    )
+  | Real(Times) =>
+    PartialExact(
+      Real,
+      Real,
+      Real,
+      (a, b) =>
+        switch (a, b) {
+        | (Atom.Real(a), Atom.Real(b)) =>
+          Real.mul(a, b) |> Option.map(x => Either.L(Atom.Real(x)))
+        | _ => None
+        },
+    )
+  | Real(Divide) =>
+    PartialExact(
+      Real,
+      Real,
+      Real,
+      (a, b) =>
+        switch (a, b) {
+        | (Atom.Real(a), Atom.Real(b)) =>
+          switch (Real.div(a, b)) {
+          | None => None
+          | Some(Ok(x)) when Real.is_terminating(x) =>
+            Some(Either.L(Atom.Real(x)))
+          | Some(Ok(_)) => None
+          | Some(Error(error)) => Some(Either.R(error))
+          }
+        | _ => None
+        },
+    )
+  | Real(LessThan) =>
+    PartialExact(
+      Real,
+      Real,
+      Bool,
+      (a, b) =>
+        switch (a, b) {
+        | (
+            Atom.Real(Real.Rational(_) as a),
+            Atom.Real(Real.Rational(_) as b),
+          ) =>
+          Some(Either.L(Atom.Bool(Real.compare(a, b) < 0)))
+        | _ => None
+        },
+    )
+  | Real(LessThanOrEqual) =>
+    PartialExact(
+      Real,
+      Real,
+      Bool,
+      (a, b) =>
+        switch (a, b) {
+        | (
+            Atom.Real(Real.Rational(_) as a),
+            Atom.Real(Real.Rational(_) as b),
+          ) =>
+          Some(Either.L(Atom.Bool(Real.compare(a, b) <= 0)))
+        | _ => None
+        },
+    )
+  | Real(GreaterThan) =>
+    PartialExact(
+      Real,
+      Real,
+      Bool,
+      (a, b) =>
+        switch (a, b) {
+        | (
+            Atom.Real(Real.Rational(_) as a),
+            Atom.Real(Real.Rational(_) as b),
+          ) =>
+          Some(Either.L(Atom.Bool(Real.compare(a, b) > 0)))
+        | _ => None
+        },
+    )
+  | Real(GreaterThanOrEqual) =>
+    PartialExact(
+      Real,
+      Real,
+      Bool,
+      (a, b) =>
+        switch (a, b) {
+        | (
+            Atom.Real(Real.Rational(_) as a),
+            Atom.Real(Real.Rational(_) as b),
+          ) =>
+          Some(Either.L(Atom.Bool(Real.compare(a, b) >= 0)))
+        | _ => None
+        },
+    )
+  | Real(Power) =>
+    PartialExact(
+      Real,
+      Real,
+      Real,
+      (a, b) =>
+        switch (a, b) {
+        | (Atom.Real(a), Atom.Real(b)) =>
+          switch (Real.pow(a, b)) {
+          | None => None
+          | Some(Ok(x)) => Some(Either.L(Atom.Real(x)))
+          | Some(Error(error)) => Some(Either.R(error))
+          }
+        | _ => None
+        },
+    )
   | Int(Plus) => Defined(Int, Int, Int, just(Bigint.(+)))
   | Int(Minus) => Defined(Int, Int, Int, just(Bigint.(-)))
   | Int(Times) => Defined(Int, Int, Int, just(Bigint.( * )))
@@ -422,6 +577,7 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
 
 let op_name = (op: op_bin): string =>
   switch (op) {
+  | Real(op) => "real_" ++ int_op_to_string(op)
   | Int(Plus) => "int_plus"
   | Int(Minus) => "int_minus"
   | Int(Times) => "int_times"
@@ -474,6 +630,7 @@ let builtins = {
          switch (semantics_of_bin_op(op)) {
          | Undefined(_) => None
          | DefinedPoly(_) => None
+         | PartialExact(_) => None
          | Defined(x, y, z, f) => Some((op_name(op), TwoFun(x, y, z, f)))
          }
        )

@@ -12,36 +12,43 @@ let numeric_constants =
       name: "infinity",
       typ: Atom(Float),
       imp: float(Float.infinity),
+      custom_statics: None,
     },
     {
       name: "neg_infinity",
       typ: Atom(Float),
       imp: float(Float.neg_infinity),
+      custom_statics: None,
     },
     {
       name: "nan",
       typ: Atom(Float),
       imp: float(Float.nan),
+      custom_statics: None,
     },
     {
       name: "epsilon_float",
       typ: Atom(Float),
       imp: float(epsilon_float),
+      custom_statics: None,
     },
     {
       name: "pi",
       typ: Atom(Float),
       imp: float(Float.pi),
+      custom_statics: Some(Ctx.NumericConstantOverload(Atom.Real(Real.Pi))),
     },
     {
       name: "max_sint",
       typ: Atom(SInt),
       imp: sint(Int.max_int),
+      custom_statics: None,
     },
     {
       name: "min_sint",
       typ: Atom(SInt),
       imp: sint(Int.min_int),
+      custom_statics: None,
     },
   ];
 
@@ -57,7 +64,7 @@ let misc_fns: list(BuiltinsUtil.fn) = [
   },
 ];
 
-let numeric_fns: list(BuiltinsUtil.fn) = [
+let numeric_fns_raw: list(BuiltinsUtil.fn) = [
   {
     name: "is_finite",
     arg: Atom(Float),
@@ -294,6 +301,31 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
     custom_statics: None,
   },
 ];
+
+let overload_names = [
+  "sin",
+  "cos",
+  "tan",
+  "asin",
+  "acos",
+  "atan",
+  "exp",
+  "log",
+  "log10",
+  "sqrt",
+];
+
+let numeric_fns =
+  List.map(
+    (fn: BuiltinsUtil.fn) =>
+      List.mem(fn.name, overload_names)
+        ? {
+          ...fn,
+          custom_statics: Some(Ctx.NumericOverload),
+        }
+        : fn,
+    numeric_fns_raw,
+  );
 
 let string_fns: list(BuiltinsUtil.fn) = [
   {
