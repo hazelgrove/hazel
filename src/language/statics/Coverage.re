@@ -113,8 +113,11 @@ module Ctr = {
            )
         |> Map.of_list,
       )
-    | Rec({term: Var(w), _}, {term: Var(v), _}) when v == w => Unknown
-    | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
+    | Rec(_) =>
+      switch (Typ.unroll_to_non_rec(ty)) {
+      | None => Unknown
+      | Some(ty') => all_ctrs_of_typ(ty')
+      }
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
     | ProofOf(_) => Infinite

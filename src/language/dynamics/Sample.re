@@ -7,34 +7,6 @@ type capture_spec = {refs: Binding.s};
 
 let empty_capture_spec: capture_spec = {refs: []};
 
-/* A single frame in the call stack: app_id + optional function_name.
- * function_name is extracted at evaluation time from the closure/function.
- * fn_def_id is the definition-site ID of the function, extracted from the
- * Closure at evaluation time. Enables jump-to-definition even when app_id
- * comes from built-in internal code (not in user's info_map).
- * The name and fn_def_id fields are purely informational; equality compares only id. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type stack_frame = {
-  id: Id.t,
-  name: option(string),
-  fn_def_id: option(Id.t),
-};
-
-let equal_stack_frame = (a: stack_frame, b: stack_frame): bool =>
-  a.id == b.id;
-
-/* Call context represented as a list of stack frames.
- * The head is the most recent (innermost) call. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type call_stack = list(stack_frame);
-
-let equal_call_stack = (a: call_stack, b: call_stack): bool =>
-  List.equal(equal_stack_frame, a, b);
-
-/* Extract just the IDs from a call stack, discarding function names. */
-let ids_of_stack = (cs: call_stack): list(Id.t) =>
-  List.map((f: stack_frame) => f.id, cs);
-
 /* Maps expression/pattern IDs to their capture specifications.
  * Presence in this map means "collect a sample when evaluated". */
 type targets = Id.Map.t(capture_spec);
@@ -66,9 +38,7 @@ module Env = {
    * such as closures. Which values are made opaque can be modulated
    * via the below `elide` function */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type elided_value =
-    | Opaque
-    | Val(DHExp.t);
+  type elided_value = CallStack.elided_value;
 
   /* A probe environment entry is a variable binding
    * along with its corresponding elided value */
@@ -88,7 +58,7 @@ module Env = {
   /* Selectively elide dynamic information not currently
    * being used in the live probe UI, for (putative, unbenchmarked)
    * performance purposes for worker de/serialization */
-  let elide = (env: Environment.t(Exp.t), d: DHExp.t) =>
+  let elide = (env: Environment.t(Exp.t), d: DHExp.t): elided_value =>
     switch ((d |> DHExp.strip_ascriptions).term) {
     | Fun(_)
     | FixF(_)
@@ -136,7 +106,7 @@ type t = {
   syntax_id: Id.t, /* Syntax ID of probed expression */
   value: DHExp.t, /* Value of expression */
   env: Env.t, /* (Filtered) Environment Values  */
-  call_stack, /* Call stacks as ap ids */
+  call_stack: CallStack.t, /* Call stacks as ap ids */
   args: option(Env.elided_value), /* Argument value if probe is on an Ap */
   time: float, /* Time of evaluation */
   seq: int, /* Sequence number: a count index of each sample taken */
@@ -156,7 +126,7 @@ let mk =
       syntax_id: Id.t,
       value: DHExp.t,
       env: Environment.t(Exp.t),
-      stack: call_stack,
+      stack: CallStack.t,
       spec: capture_spec,
     )
     : t => {
@@ -300,7 +270,7 @@ module Focus = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type pending_focus = {
     probe_id: Id.t, /* The probe we're stepping into */
-    target_stack: call_stack /* The call stack to match */
+    target_stack: CallStack.t /* The call stack to match */
   };
 
   /* Focus.t fields:
@@ -314,9 +284,9 @@ module Focus = {
    * - pending_focus: After step-into, where to focus when evaluation completes */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
-    call_stack,
+    call_stack: CallStack.t,
     index: int,
-    pinned_stack: option(call_stack),
+    pinned_stack: option(CallStack.t),
     indicated_call: option(Id.t),
     time: option(float),
     seq: int,
@@ -339,23 +309,18 @@ module Focus = {
    * index + 1 elements from the outer end. This is where you ARE —
    * the active position used for tier 1 alignment. The full call_stack
    * extends deeper (below-focus) for tier 2 alignment. */
-  let effective_stack = (cursor: t): call_stack =>
+  let effective_stack = (cursor: t): CallStack.t =>
     ListUtil.slice(0, cursor.index + 1, cursor.call_stack |> List.rev)
     |> List.rev;
 
   /* If the cursor is on a call, and the provided call stack is
    * downstream of that call, return how many aps downstream it is */
   let depth_in_indicated_calls_stack =
-      (cursor: t, call_stack: call_stack): option(int) => {
+      (cursor: t, call_stack: CallStack.t): option(int) => {
     let* cur_ap = cursor.indicated_call;
-    let cur_frame: stack_frame = {
-      id: cur_ap,
-      name: None,
-      fn_def_id: None,
-    };
     ListUtil.suffix_at_depth(
-      ~eq=equal_stack_frame,
-      [cur_frame] @ effective_stack(cursor),
+      ~eq=CallStack.equal_frame,
+      CallStack.extend(cur_ap, effective_stack(cursor)),
       call_stack,
     );
   };
@@ -403,9 +368,9 @@ module Focus = {
     is_below_indicated_call: option(int),
   };
 
-  let is_below = ListUtil.suffix_at_depth(~eq=equal_stack_frame);
+  let is_below = ListUtil.suffix_at_depth(~eq=CallStack.equal_frame);
 
-  let relative_level = (cs1: call_stack, cs2: call_stack): relative_level =>
+  let relative_level = (cs1: CallStack.t, cs2: CallStack.t): relative_level =>
     switch (is_below(cs1, cs2), is_below(cs2, cs1)) {
     | (Some(0), Some(0)) => Same
     | (Some(n), None) => Below(n)
@@ -413,16 +378,9 @@ module Focus = {
     | (_, _) => Unrelated
     };
 
-  let cur_call = (ap_id: option(Id.t), sample: sample): option(call_stack) => {
+  let cur_call = (ap_id: option(Id.t), sample: sample): option(CallStack.t) => {
     let* ap_id = ap_id;
-    Some([
-      {
-        id: ap_id,
-        name: None,
-        fn_def_id: None,
-      },
-      ...sample.call_stack,
-    ]);
+    Some(CallStack.extend(ap_id, sample.call_stack));
   };
 
   /* Returns Some(ap_id) only when cursor is on an application with a variable
@@ -441,7 +399,7 @@ module Focus = {
     let this = sample.call_stack;
     let cursor_stack = trimmed ? effective_stack(cursor) : cursor.call_stack;
     {
-      is_call_cursor: equal_call_stack(cursor_stack, this),
+      is_call_cursor: CallStack.equal(cursor_stack, this),
       is_more_precise_than_cursor:
         List.length(cursor.call_stack) > List.length(sample.call_stack),
       relative_level_to_cursor: relative_level(cursor_stack, this),
@@ -451,17 +409,7 @@ module Focus = {
       },
       is_below_indicated_call: {
         let* cur_ap = cursor.indicated_call;
-        is_below(
-          [
-            {
-              id: cur_ap,
-              name: None,
-              fn_def_id: None,
-            },
-          ]
-          @ cursor_stack,
-          this,
-        );
+        is_below(CallStack.extend(cur_ap, cursor_stack), this);
       },
     };
   };
@@ -490,7 +438,7 @@ module Selection = {
   let is_reachable_pinned =
       (~cursor: Focus.t, target_samples: list(sample)): bool => {
     let effective = Focus.effective_stack(cursor);
-    let fn_of_innermost = (stack: call_stack): option(Id.t) =>
+    let fn_of_innermost = (stack: CallStack.t): option(Id.t) =>
       switch (stack) {
       | [] => None
       | [frame, ..._] => frame.fn_def_id
@@ -503,18 +451,18 @@ module Selection = {
       };
     List.exists(
       (sample: sample) =>
-        if (equal_call_stack(sample.call_stack, effective)) {
+        if (CallStack.equal(sample.call_stack, effective)) {
           true;
               /* rule (a) */
         } else if (target_fn != cursor_fn) {
           /* rule (b) */
           ListUtil.is_suffix_of(
-            ~eq=equal_stack_frame,
+            ~eq=CallStack.equal_frame,
             sample.call_stack,
             effective,
           )
           || ListUtil.is_suffix_of(
-               ~eq=equal_stack_frame,
+               ~eq=CallStack.equal_frame,
                effective,
                sample.call_stack,
              );
@@ -552,20 +500,27 @@ module Selection = {
   /* Filter samples by pinned call stack.
    * Print-origin samples are excluded — they are only for the Printarium. */
   let filter_by_pin =
-      (~ap_id: option(Id.t), ~pinned: option(call_stack), samples: list(t))
+      (
+        ~ap_id: option(Id.t),
+        ~pinned: option(CallStack.t),
+        samples: list(t),
+      )
       : list(t) => {
     let samples = List.filter((s: t) => s.origin != Print, samples);
     switch (pinned) {
     | Some(pinned_stack) =>
       /* Extract just the Id.t from head of pinned_stack for comparison */
       let pinned_head_id =
-        Option.map((f: stack_frame) => f.id, ListUtil.hd_opt(pinned_stack));
+        Option.map(
+          (f: CallStack.frame) => f.id,
+          ListUtil.hd_opt(pinned_stack),
+        );
       /* Compare by ID only - pinned_stack may have None for function names
        * but actual samples have real names from evaluation */
-      let pinned_ids = ids_of_stack(pinned_stack);
+      let pinned_ids = CallStack.ids_of_stack(pinned_stack);
       List.filter(
         (sample: t) => {
-          let sample_ids = ids_of_stack(sample.call_stack);
+          let sample_ids = CallStack.ids_of_stack(sample.call_stack);
           pinned_head_id == ap_id
           /* Sample is at or below pin (current behavior) */
           || ListUtil.is_suffix_of(pinned_ids, sample_ids)
@@ -608,14 +563,14 @@ module Selection = {
   let most_aligned_index =
       (~ap_id: option(Id.t), cursor: Focus.t, samples: list(t))
       : option(int) => {
-    let suffix_scan = (stack: call_stack): option(int) =>
+    let suffix_scan = (stack: CallStack.t): option(int) =>
       List.fold_left(
         (best: option((int, int)), (i, sample: t)) => {
           let slen = List.length(sample.call_stack);
           if (slen > 0
               && slen > (best |> Option.map(snd) |> Option.value(~default=0))
               && ListUtil.is_suffix_of(
-                   ~eq=equal_stack_frame,
+                   ~eq=CallStack.equal_frame,
                    sample.call_stack,
                    stack,
                  )) {
@@ -681,7 +636,7 @@ module Selection = {
     switch (List.rev(s2.call_stack), List.rev(s1.call_stack)) {
     | ([], _)
     | (_, []) => false
-    | ([f1, ..._], [f2, ..._]) => equal_stack_frame(f1, f2)
+    | ([f1, ..._], [f2, ..._]) => CallStack.equal_frame(f1, f2)
     };
 
   /* Group samples by function call, with indices */
@@ -708,7 +663,7 @@ module Selection = {
         ~mode: Window.mode,
         ~offset: int,
         ~ap_id: option(Id.t),
-        ~pinned: option(call_stack),
+        ~pinned: option(CallStack.t),
         ~cursor: Focus.t,
         samples: list(t),
       )
@@ -745,7 +700,7 @@ module Capture = {
   type t = {
     time: float,
     seq: int,
-    call_stack,
+    call_stack: CallStack.t,
     step_start: int,
     step_end: int,
   };

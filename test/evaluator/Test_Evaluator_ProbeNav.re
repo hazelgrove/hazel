@@ -27,14 +27,14 @@ open Language;
  * evaluate-and-check suite can be added later once the fixture
  * format and probe-label mapping is stabilized. */
 
-let frame = (id: Id.t, fn_def_id: option(Id.t)): Sample.stack_frame => {
+let frame = (id: Id.t, fn_def_id: option(Id.t)): CallStack.frame => {
   id,
   name: None,
   fn_def_id,
 };
 
 let mk_sample =
-    (~seq=0, ~step_start=0, ~step_end=0, stack: Sample.call_stack): Sample.t => {
+    (~seq=0, ~step_start=0, ~step_end=0, stack: CallStack.t): Sample.t => {
   id: Hashtbl.hash((stack, Id.invalid)),
   syntax_id: Id.invalid,
   value: IdTagged.FreshGrammar.Exp.empty_hole(),
@@ -48,7 +48,7 @@ let mk_sample =
   step_end,
 };
 
-let mk_focus = (~pinned=None, stack: Sample.call_stack): Sample.Focus.t => {
+let mk_focus = (~pinned=None, stack: CallStack.t): Sample.Focus.t => {
   call_stack: stack,
   index: List.length(stack) - 1,
   pinned_stack: pinned,

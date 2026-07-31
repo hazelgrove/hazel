@@ -71,8 +71,8 @@ module Update = {
       (~measured: Measured.t, a: Action.t, state: Model.state): Model.state => {
     let col_target =
       switch (a) {
-      | Move(Vertical(Up | Down))
-      | Select(Resize(Vertical(Up | Down))) =>
+      | Move(Vertical(Up | Down, _))
+      | Select(Resize(Vertical(Up | Down, _))) =>
         switch (state.col_target) {
         | Some(col) => Some(col)
         | None => Some(Zipper.Caret.point(measured, state.zipper).col)

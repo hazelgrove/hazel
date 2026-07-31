@@ -9,6 +9,7 @@ module FocusEffect = {
    * and we can't dispatch actions from after_display without causing loops. */
   type target =
     | Editor
+    | Cell
     | Probe(Id.t);
 
   let scheduled: ref(option(target)) = ref(None);
@@ -23,6 +24,13 @@ module FocusEffect = {
     scheduled := Some(Editor);
   };
 
+  /* Schedule DOM focus on the active code-editor cell (called after a
+     sidebar jump, which moves the model selection to a different cell
+     without moving DOM focus). */
+  let schedule_cell = (): unit => {
+    scheduled := Some(Cell);
+  };
+
   /* Execute any scheduled focus (called from Main.re after_display).
    * Returns whether focus was executed. */
   let execute = (): bool =>
@@ -31,6 +39,9 @@ module FocusEffect = {
       scheduled := None;
       JsUtil.focus_clipboard_shim();
       true;
+    | Some(Cell) =>
+      scheduled := None;
+      JsUtil.focus_active_cell();
     | Some(Probe(probe_id)) =>
       scheduled := None;
       let elem_id = Id.cls(probe_id);
@@ -723,7 +734,7 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
 let step_into_call_stack =
     (
       ~syntax: CachedSyntax.t,
-      ~call_stack: Sample.call_stack,
+      ~call_stack: CallStack.t,
       ~ap_id: Id.t,
       info_map: Statics.Map.t,
       z: Zipper.t,
@@ -769,14 +780,7 @@ let step_into_call_stack =
     };
 
   /* Set pin and dyn cursor using the call_stack */
-  let new_stack: Sample.call_stack = [
-    {
-      id: ap_id,
-      name: None,
-      fn_def_id: None,
-    },
-    ...call_stack,
-  ];
+  let new_stack = CallStack.extend(ap_id, call_stack);
 
   /* Determine where to jump and where to look for samples.
    * For function literals:
@@ -853,6 +857,45 @@ let toggle_statics =
       add_statics(z)
     };
   };
+
+/** Ensure statics overlays are on for this binding; idempotent if already statics. */
+let place_statics_at =
+    (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
+    : Zipper.t =>
+  if (!can_statics(id, info_map)) {
+    z;
+  } else {
+    let target_ids = target_subterm_ids(id, info_map);
+    let add_statics = z =>
+      List.fold_left(
+        (z, tid) => Zipper.add_manual(tid, Statics, z),
+        z,
+        target_ids,
+      );
+    switch (probe_status(id, info_map, z.refractors)) {
+    | Statics(_) => z
+    | Manual(ids) => rm_manual(ids, z) |> add_statics
+    | Multi => rm_multi(~syntax, ~info_map, id, z) |> add_statics
+    | Ephemeral(_)
+    | Suppressed(_)
+    | Non => add_statics(z)
+    };
+  };
+
+/** Remove only statics manual entries for targets of this path; leaves probes intact. */
+let remove_statics_at =
+    (id: Id.t, info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
+  let target_ids = target_subterm_ids(id, info_map);
+  Zipper.update_manuals(
+    manuals =>
+      List.filter(
+        ((mid, entry: Refractors.entry)) =>
+          !(List.mem(mid, target_ids) && entry.kind == Statics),
+        manuals,
+      ),
+    z,
+  );
+};
 
 let go =
     (

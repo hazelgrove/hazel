@@ -349,3 +349,195 @@ let go =
   | SampleFocus(a) => Ok(SampleFocusPerform.go(z, a))
   };
 };
+
+/* --- Agent tools: path-resolved syntax projectors (after Select.term) ---
+   Placement/removal calls migrate_refractor: wrapping or stripping a projector
+   changes the id at that location, and probe/statics overlays are keyed by id,
+   so they must be re-keyed to survive. */
+
+let with_selection_after_term =
+    (
+      ~term_data: TermData.t,
+      id: Id.t,
+      z: Zipper.t,
+      f: (Direction.t, Zipper.t) => option(Zipper.t),
+    )
+    : option(Zipper.t) => {
+  let* z =
+    Select.term(
+      term_data,
+      ~defs_exclude_bodies=false,
+      ~case_rules=false,
+      id,
+      z,
+    );
+  let* (focus, z) =
+    Selection.is_empty(z.selection) ? None : Some((z.selection.focus, z));
+  f(focus, z);
+};
+
+/** Place [kind] on the term at [id]. If already that kind, leave unchanged. */
+let try_place_syntax_projector =
+    (
+      ~term_data: TermData.t,
+      ~elaborated: Language.Exp.t,
+      id: Id.t,
+      kind: ProjectorCore.Kind.t,
+      z: Zipper.t,
+    )
+    : option(Zipper.t) => {
+  with_selection_after_term(~term_data, id, z, (focus, z) =>
+    switch (z.selection.content) {
+    | [Projector(pr)] when pr.kind == kind => Some(z)
+    | [Projector(pr)] =>
+      let* piece = init(kind, Piece.unparenthesize(pr.syntax), ~elaborated);
+      let z =
+        switch (piece) {
+        | Projector(new_pr) => migrate_refractor(pr.id, new_pr.id, z)
+        | _ => z
+        };
+      Some(replace_selection_and_unselect(piece, focus, z));
+    | seg =>
+      let* piece = init(kind, seg, ~elaborated);
+      let z =
+        switch (seg_root_id(seg), piece) {
+        | (Some(term_id), Projector(new_pr)) =>
+          migrate_refractor(term_id, new_pr.id, z)
+        | _ => z
+        };
+      Some(replace_selection_and_unselect(piece, focus, z));
+    }
+  );
+};
+
+/** Toggle [kind] on the term at [id] (same as editor menu: same kind removes). */
+let try_toggle_syntax_projector =
+    (
+      ~term_data: TermData.t,
+      ~elaborated: Language.Exp.t,
+      id: Id.t,
+      kind: ProjectorCore.Kind.t,
+      z: Zipper.t,
+    )
+    : option(Zipper.t) => {
+  with_selection_after_term(~term_data, id, z, (focus, z) =>
+    switch (z.selection.content) {
+    | [Projector(pr)] when pr.kind == kind =>
+      let underlying_seg = Piece.unparenthesize(pr.syntax);
+      let z =
+        switch (seg_root_id(underlying_seg)) {
+        | Some(term_id) => migrate_refractor(pr.id, term_id, z)
+        | None => z
+        };
+      Some(remove(pr.syntax, focus, z));
+    | [Projector(pr)] =>
+      let* piece = init(kind, Piece.unparenthesize(pr.syntax), ~elaborated);
+      let z =
+        switch (piece) {
+        | Projector(new_pr) => migrate_refractor(pr.id, new_pr.id, z)
+        | _ => z
+        };
+      Some(replace_selection_and_unselect(piece, focus, z));
+    | seg =>
+      let* piece = init(kind, seg, ~elaborated);
+      let z =
+        switch (seg_root_id(seg), piece) {
+        | (Some(term_id), Projector(new_pr)) =>
+          migrate_refractor(term_id, new_pr.id, z)
+        | _ => z
+        };
+      Some(replace_selection_and_unselect(piece, focus, z));
+    }
+  );
+};
+
+/** Remove a syntax projector on the term at [id], if the selection is a projector. */
+let try_remove_syntax_projector =
+    (~term_data: TermData.t, id: Id.t, z: Zipper.t): option(Zipper.t) => {
+  with_selection_after_term(~term_data, id, z, (focus, z) =>
+    switch (z.selection.content) {
+    | [Projector(pr)] =>
+      let underlying_seg = Piece.unparenthesize(pr.syntax);
+      let z =
+        switch (seg_root_id(underlying_seg)) {
+        | Some(term_id) => migrate_refractor(pr.id, term_id, z)
+        | None => z
+        };
+      Some(remove(pr.syntax, focus, z));
+    | _ => None
+    }
+  );
+};
+
+/** Re-validate projectors after an edit: strip any whose underlying syntax no
+    longer parses ([MakeTerm.for_projection]) or whose kind no longer
+    initializes ([ProjectorInit.init]), migrating probe/statics overlays to the
+    exposed term id. */
+let revalidate_projectors_in_segment =
+    (z: Zipper.t, seg: Base.segment): (Zipper.t, Base.segment, bool) => {
+  let rec go_seg =
+          (z: Zipper.t, seg: Base.segment): (Zipper.t, Base.segment, bool) => {
+    List.fold_left(
+      ((z, acc, any_ch), p) => {
+        let (z'', parts, p_ch) = go_piece(z, p);
+        (z'', acc @ parts, any_ch || p_ch);
+      },
+      (z, [], false),
+      seg,
+    );
+  }
+  and go_piece =
+      (z: Zipper.t, piece: Base.piece): (Zipper.t, Base.segment, bool) =>
+    switch (piece) {
+    | Tile(t) =>
+      let (z', children, ch) =
+        List.fold_left(
+          ((z, rev_chs, any_ch), c) => {
+            let (z'', c', c_ch) = go_seg(z, c);
+            (z'', [c', ...rev_chs], any_ch || c_ch);
+          },
+          (z, [], false),
+          t.children,
+        );
+      let children = List.rev(children);
+      (
+        z',
+        [
+          Tile({
+            ...t,
+            children,
+          }),
+        ],
+        ch,
+      );
+    | Grout(_)
+    | Secondary(_) => (z, [piece], false)
+    | Projector(pr) =>
+      let inner0 = Piece.unparenthesize(pr.syntax);
+      let (z1, inner_seg, inner_ch) = go_seg(z, inner0);
+      switch (MakeTerm.for_projection(inner_seg)) {
+      | None =>
+        let z2 =
+          switch (seg_root_id(inner_seg)) {
+          | Some(tid) => migrate_refractor(pr.id, tid, z1)
+          | None => z1
+          };
+        (z2, inner_seg, true);
+      | Some(any) =>
+        switch (
+          ProjectorInit.init(pr.kind, Segment.parenthesize(inner_seg), any)
+        ) {
+        | None =>
+          let z2 =
+            switch (seg_root_id(inner_seg)) {
+            | Some(tid) => migrate_refractor(pr.id, tid, z1)
+            | None => z1
+            };
+          (z2, inner_seg, true);
+        | Some(syn) => inner_ch ? (z1, [syn], true) : (z1, [piece], false)
+        }
+      };
+    };
+
+  go_seg(z, seg);
+};
