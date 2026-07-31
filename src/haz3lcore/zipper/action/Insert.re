@@ -498,7 +498,9 @@ let wrap_quote = (char: string, z: t, ~root): option(t) => {
   if (!is_valid_quote_content(char, text)) {
     None;
   } else {
-    let z = destroy_selection(z);
+    /* An Inner caret left over from the destroyed selection would be
+     * misread against whatever piece ends up on the right. */
+    let z = destroy_selection(z) |> Caret.set(Outer);
     if (Token.is_comment_delim(char)) {
       let comment = "#" ++ text ++ "#";
       let piece = Piece.mk_secondary(Id.mk(), comment);

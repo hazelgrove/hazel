@@ -24,7 +24,7 @@ let qcheck_evaluator_does_not_crash_test =
           exp,
         )
       ) {
-      | Completed(_)
+      | LimitedCompleted(_)
       | StepLimitExceeded => true
       | exception e =>
         switch (e) {
@@ -69,7 +69,10 @@ let qcheck_stepper_confluence =
         ),
         full_small_step_reduction(~step_limit=100, elaborated_exp),
       ) {
-      | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
+      | (
+          LimitedCompleted((bigstep_exp, _)),
+          LimitedCompleted(smallstep_exp),
+        ) =>
         let show_core_exp = exp =>
           exp
           |> ExpToSegment.exp_to_segment(
@@ -88,7 +91,7 @@ let qcheck_stepper_confluence =
             Equality.semantic.exp,
           ), // Output is easier to view through ExpToSegment. This may result in a loss of information
           "Small step reduction and big step reduction are equal",
-          smallstep_exp,
+          smallstep_exp |> fst,
           bigstep_exp,
         );
         true;
@@ -148,7 +151,10 @@ let qcheck_pattern_equivalence_test =
             elaborated_second,
           );
         switch (evaluated_first, evaluated_second) {
-        | (Completed((first_exp, _)), Completed((second_exp, _))) =>
+        | (
+            LimitedCompleted((first_exp, _)),
+            LimitedCompleted((second_exp, _)),
+          ) =>
           print_endline("First expression: " ++ show_core_exp(first));
           print_endline("Second expression: " ++ show_core_exp(second));
           Alcotest.check(
@@ -159,8 +165,8 @@ let qcheck_pattern_equivalence_test =
           );
           true;
         | (StepLimitExceeded, StepLimitExceeded) => true
-        | (Completed(_), StepLimitExceeded)
-        | (StepLimitExceeded, Completed(_)) =>
+        | (LimitedCompleted(_), StepLimitExceeded)
+        | (StepLimitExceeded, LimitedCompleted(_)) =>
           print_endline("One of the evaluations exceeded the step limit");
           false;
         };
@@ -288,11 +294,12 @@ let replace_int_lit_by_id = (~target: Id.t, ~to_: Bigint.t, exp: Exp.t): Exp.t =
 let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
   Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
 
-let eval_limited = (~prev=IncrEval.empty, ~info_map, ~step_limit, elab: Exp.t) =>
+let eval_limited =
+    (~prev=IncrEval.empty, ~eval_info, ~step_limit, elab: Exp.t) =>
   Evaluator.evaluate_and_limit(
     ~step_limit,
     ~prev,
-    ~info_map,
+    ~eval_info,
     ~env=Builtins.env_init,
     elab,
   );
@@ -308,8 +315,8 @@ let qcheck_incremental_matches_fresh_after_edit =
     ((seed, exp)) => {
       /* Only swallow known-benign static/dynamic failures so real
        * incremental-eval disagreements surface as clean PBT failures. */
-      let try_eval = (~prev=?, info_map, elab) =>
-        try(Some(eval_limited(~prev?, ~info_map, ~step_limit=10000, elab))) {
+      let try_eval = (~prev=?, eval_info, elab) =>
+        try(Some(eval_limited(~prev?, ~eval_info, ~step_limit=10000, elab))) {
         | Failure(msg)
             when
               List.exists(
@@ -338,13 +345,15 @@ let qcheck_incremental_matches_fresh_after_edit =
             Some((info_map_edit, elab_edit)),
           ) =>
           let info_slice_orig =
-            EvalInfoMap.of_info_map(
+            EvalInfo.of_info_map(
               ~probe_all=CoreSettings.on.probe_all,
+              ~targets=Id.Map.empty,
               info_map_orig,
             );
           let info_slice_edit =
-            EvalInfoMap.of_info_map(
+            EvalInfo.of_info_map(
               ~probe_all=CoreSettings.on.probe_all,
+              ~targets=Id.Map.empty,
               info_map_edit,
             );
           /* Baseline run (no prev) of the original — its incr_eval becomes
@@ -352,7 +361,7 @@ let qcheck_incremental_matches_fresh_after_edit =
           switch (try_eval(info_slice_orig, elab_orig)) {
           | None
           | Some(StepLimitExceeded) => true
-          | Some(Completed((_, state_before))) =>
+          | Some(LimitedCompleted((_, state_before))) =>
             /* Edited evaluated two ways: incrementally (reusing the baseline's
              * cache) and from scratch (empty prev). These must agree. */
             let fresh = try_eval(info_slice_edit, elab_edit);
@@ -364,8 +373,8 @@ let qcheck_incremental_matches_fresh_after_edit =
               );
             switch (fresh, incr_eval_result) {
             | (
-                Some(Completed((e_fresh, _))),
-                Some(Completed((e_incr, _))),
+                Some(LimitedCompleted((e_fresh, _))),
+                Some(LimitedCompleted((e_incr, _))),
               ) =>
               Equality.semantic.exp(e_fresh, e_incr)
             | _ => true
@@ -386,27 +395,321 @@ let stepper_evaluator_agree_on_filtered_indet_if = () => {
   let (_, elab) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
   switch (
+    /* evaluate_and_limit counts trampoline transitions since evaluator
+       streaming, so its budget is much larger than the small-step one. */
     Evaluator.evaluate_and_limit(
       ~env=Builtins.env_init,
-      ~step_limit=100,
+      ~step_limit=10000,
       elab,
     ),
     full_small_step_reduction(~step_limit=100, elab),
   ) {
-  | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
+  | (
+      LimitedCompleted((bigstep_exp, _)),
+      LimitedCompleted((smallstep_exp, _)),
+    ) =>
     check(
       testable(Fmt.using(Exp.show, Fmt.string), Equality.semantic.exp),
       "Small step reduction and big step reduction are equal",
       smallstep_exp,
       bigstep_exp,
     )
-  | _ => Alcotest.fail("expected both evaluations to complete")
+  | (big, small) =>
+    Alcotest.fail(
+      "expected both evaluations to complete; big="
+      ++ Evaluator.show_limited_result(big)
+      ++ " small="
+      ++ Evaluator.show_limited_result(small),
+    )
   };
 };
+
+let rec finish_yielding = (~remaining_slices: int, evaluation) => {
+  if (remaining_slices <= 0) {
+    fail("Yielding evaluation did not complete");
+  };
+  switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+  | EvaluationCompleted(value) => value
+  | EvaluationYielded(evaluation) =>
+    finish_yielding(~remaining_slices=remaining_slices - 1, evaluation)
+  };
+};
+
+let rec finish_yielding_with_stream =
+        (~remaining_slices: int, ~stream, evaluation) => {
+  if (remaining_slices <= 0) {
+    fail("Yielding evaluation did not complete");
+  };
+  switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+  | EvaluationCompleted(value) =>
+    let stream =
+      IncrEval.add_stream(
+        Evaluator.drain_streaming_outbox(evaluation).completed,
+        stream,
+      );
+    (value, stream);
+  | EvaluationYielded(evaluation) =>
+    let stream =
+      IncrEval.add_stream(
+        Evaluator.drain_streaming_outbox(evaluation).completed,
+        stream,
+      );
+    finish_yielding_with_stream(
+      ~remaining_slices=remaining_slices - 1,
+      ~stream,
+      evaluation,
+    );
+  };
+};
+
+let yielding_evaluation_test =
+  test_case(
+    "Yielding evaluation resumes to the synchronous result",
+    `Quick,
+    () => {
+      let (_, exp) =
+        Statics.mk(
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Int)),
+          parse_exp("let x = 1 in let y = 2 in x + y"),
+        );
+      let (sync_exp, _) = Evaluator.evaluate(~env=Builtins.env_init, exp);
+      let evaluation =
+        Evaluator.start_yielding_evaluation(~env=Builtins.env_init, exp);
+      let evaluation =
+        switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+        | EvaluationYielded(evaluation) => evaluation
+        | EvaluationCompleted(_) =>
+          fail("Expected yielding evaluation to yield with a one-step budget")
+        };
+      let (yielded_exp, _) =
+        finish_yielding(~remaining_slices=1000, evaluation);
+      check(dhexp_typ, "yielding evaluation result", sync_exp, yielded_exp);
+    },
+  );
+
+let yielding_streaming_outbox_test =
+  test_case(
+    "Yielding evaluation streams completed incremental entries",
+    `Quick,
+    () => {
+      let (info_map, exp) =
+        Statics.mk(
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Int)),
+          parse_exp("let x = 1 in let y = x + 2 in y"),
+        );
+      let eval_info =
+        EvalInfo.of_info_map(
+          ~probe_all=CoreSettings.on.probe_all,
+          ~targets=Id.Map.empty,
+          info_map,
+        );
+      let evaluation =
+        Evaluator.start_yielding_evaluation(
+          ~eval_info,
+          ~env=Builtins.env_init,
+          exp,
+        );
+      let ((_, final_state), stream) =
+        finish_yielding_with_stream(
+          ~remaining_slices=1000,
+          ~stream=IncrEval.empty,
+          evaluation,
+        );
+      check(
+        int,
+        "streamed entry count matches final entries",
+        Id.Map.cardinal(final_state.incr_eval.entries),
+        Id.Map.cardinal(stream.entries),
+      );
+      check(
+        bool,
+        "every streamed id appears in final entries",
+        true,
+        Id.Map.for_all(
+          (id, _) => Id.Map.mem(id, final_state.incr_eval.entries),
+          stream.entries,
+        ),
+      );
+    },
+  );
+
+let rec yield_until_current = (~remaining_slices: int, evaluation) => {
+  if (remaining_slices <= 0) {
+    fail("Yielding evaluation did not produce a current outbox state");
+  };
+  switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+  | EvaluationCompleted(_) =>
+    fail("Expected yielding evaluation to yield before completion")
+  | EvaluationYielded(evaluation) =>
+    let outbox = Evaluator.drain_streaming_outbox(evaluation);
+    switch (outbox.current) {
+    | Some(_) => outbox
+    | None =>
+      yield_until_current(~remaining_slices=remaining_slices - 1, evaluation)
+    };
+  };
+};
+
+let yielding_streaming_current_state_test =
+  test_case(
+    "Yielding evaluation streams current partial state",
+    `Quick,
+    () => {
+      let (info_map, exp) =
+        Statics.mk(
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Int)),
+          parse_exp("let x = 1 + 2 in let y = x + 3 in y"),
+        );
+      let eval_info =
+        EvalInfo.of_info_map(
+          ~probe_all=CoreSettings.on.probe_all,
+          ~targets=Id.Map.empty,
+          info_map,
+        );
+      let evaluation =
+        Evaluator.start_yielding_evaluation(
+          ~eval_info,
+          ~env=Builtins.env_init,
+          exp,
+        );
+      let outbox = yield_until_current(~remaining_slices=1000, evaluation);
+      switch (outbox.current) {
+      | Some({state, _}) =>
+        let collected = StreamCollector.collect_stream_state(outbox, exp);
+        check(
+          bool,
+          "current state has dynamic work",
+          true,
+          state.step_count > 0,
+        );
+        check(
+          bool,
+          "collector includes current state",
+          true,
+          collected.step_count >= state.step_count,
+        );
+        check(
+          bool,
+          "current state does not recursively carry incr_eval",
+          true,
+          Id.Map.is_empty(state.incr_eval.entries),
+        );
+      | None => fail("Expected current outbox state")
+      };
+    },
+  );
+
+/* Regression: with probes off, stepped terms share Id.invalid (Exp.temp).
+ * If outbox.current is keyed by that id, StreamCollector matches it against
+ * its own walk temps and truncates — streamed test counts can go backwards
+ * mid-run (e.g. 2 -> 1). current must stay keyed by a real program id. */
+let rec check_streaming_tests_monotonic =
+        (
+          ~remaining_slices: int,
+          ~prev_test_count: int,
+          ~accumulated: IncrEval.outbox(EvaluatorState.t),
+          ~eval_info,
+          ~exp,
+          evaluation,
+        ) =>
+  if (remaining_slices <= 0) {
+    fail("Yielding evaluation did not complete");
+  } else {
+    switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+    | EvaluationCompleted(_) =>
+      let accumulated =
+        IncrEval.merge_outbox(
+          Evaluator.drain_streaming_outbox(evaluation),
+          accumulated,
+        );
+      let collected = StreamCollector.collect_stream_state(accumulated, exp);
+      TestMap.count(collected.tests);
+    | EvaluationYielded(evaluation) =>
+      let update = Evaluator.drain_streaming_outbox(evaluation);
+      switch (update.current) {
+      | Some({id, _}) =>
+        check(
+          bool,
+          "current is never keyed by Id.invalid",
+          false,
+          Id.equal(id, Id.invalid),
+        );
+        check(
+          bool,
+          "current is keyed by a program id",
+          true,
+          Option.is_some(EvalInfo.find_opt(id, eval_info)),
+        );
+      | None => ()
+      };
+      let accumulated = IncrEval.merge_outbox(update, accumulated);
+      let collected = StreamCollector.collect_stream_state(accumulated, exp);
+      let test_count = TestMap.count(collected.tests);
+      check(
+        bool,
+        "streamed test count is monotonic",
+        true,
+        test_count >= prev_test_count,
+      );
+      check_streaming_tests_monotonic(
+        ~remaining_slices=remaining_slices - 1,
+        ~prev_test_count=test_count,
+        ~accumulated,
+        ~eval_info,
+        ~exp,
+        evaluation,
+      );
+    };
+  };
+
+let yielding_streaming_current_id_invalid_race_test =
+  test_case(
+    "Stream collector current is not keyed by Id.invalid (probes off)",
+    `Quick,
+    () => {
+      let (info_map, exp) =
+        Statics.mk(
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Int)),
+          parse_exp(
+            "test 1 == 1 end; test 2 == 2 end; test 3 == 3 end; test 4 == 4 end",
+          ),
+        );
+      let eval_info =
+        EvalInfo.of_info_map(
+          ~probe_all=false,
+          ~targets=Id.Map.empty,
+          info_map,
+        );
+      let evaluation =
+        Evaluator.start_yielding_evaluation(
+          ~eval_info,
+          ~env=Builtins.env_init,
+          exp,
+        );
+      let final_count =
+        check_streaming_tests_monotonic(
+          ~remaining_slices=5000,
+          ~prev_test_count=0,
+          ~accumulated=IncrEval.empty_outbox,
+          ~eval_info,
+          ~exp,
+          evaluation,
+        );
+      check(int, "all tests eventually stream", 4, final_count);
+    },
+  );
 
 let tests = (
   "Evaluator.Properties",
   [
+    yielding_evaluation_test,
+    yielding_streaming_outbox_test,
+    yielding_streaming_current_state_test,
+    yielding_streaming_current_id_invalid_race_test,
     Alcotest.test_case(
       "stepper/evaluator agree on filtered indeterminate if",
       `Quick,

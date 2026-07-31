@@ -153,6 +153,42 @@ let copy = (str: string) => {
   );
 };
 
+/** Copy [str] using the hidden textarea shim + [document.execCommand("copy")]. */
+let copy_via_shim = (str: string): unit => {
+  focus_clipboard_shim();
+  Js.Opt.iter(
+    Dom_html.document##getElementById(Js.string(clipboard_shim_id)),
+    clipboard_shim_el => {
+      let clipboard_shim = Js.Unsafe.coerce(clipboard_shim_el);
+      clipboard_shim##.value := Js.string(str);
+      ignore(clipboard_shim##select);
+      ignore(
+        Dom_html.document##execCommand(
+          Js.string("copy"),
+          Js.bool(false),
+          Js.Opt.empty,
+        ),
+      );
+    },
+  );
+};
+
+let show_copy_toast = (): unit => {
+  Js.Opt.iter(
+    Dom_html.document##getElementById(Js.string("copy-toast")),
+    toast => {
+      toast##.classList##add(Js.string("show"));
+      ignore(
+        Dom_html.window##setTimeout(
+          Js.wrap_callback(() => {
+            toast##.classList##remove(Js.string("show"))
+          }),
+          2000.0,
+        ),
+      );
+    },
+  );
+};
 /* Direct clipboard writes via the async Clipboard API. Used from editor
    key handlers where the focused element is a non-editable div and
    Firefox therefore refuses to dispatch a native `copy` event to the
