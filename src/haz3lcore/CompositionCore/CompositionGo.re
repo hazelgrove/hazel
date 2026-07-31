@@ -568,9 +568,32 @@ module Local = {
     | Update(Body, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Body, initial_node);
-      switch (
-        PerformUtils.overwrite_term(initial_z, target_id, code, false, syntax)
-      ) {
+      let overwritten =
+        switch (
+          PerformUtils.overwrite_term(
+            initial_z,
+            target_id,
+            code,
+            false,
+            syntax,
+          )
+        ) {
+        | Error(Action.Failure.Cant_select) =>
+          /* An empty body is a derived hole — nothing material to
+             select; introduce the code at the binder's right edge */
+          switch (
+            Move.jump_to_side_of_id(
+              Direction.Right,
+              initial_z,
+              path_to_id(initial_node_map, path),
+            )
+          ) {
+          | Some(z') => PerformUtils.introduce(z', code)
+          | None => Error(Action.Failure.Cant_select)
+          }
+        | r => r
+        };
+      switch (overwritten) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);

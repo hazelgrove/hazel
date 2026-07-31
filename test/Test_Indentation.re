@@ -1057,7 +1057,8 @@ let indent_ux_tests = [
       string_to_ltr_actions("let a = \n")
       @ string_to_ltr_actions("    ")
       @ [bsp, bsp],
-    ~expected="let a = \n    ?",
+    /* raw edit state is grout-free (upstream pins a trailing ?) */
+    ~expected="let a = \n    ",
   ),
   ux_case(
     ~name="backspace at line start inverts enter (indent + linebreak)",

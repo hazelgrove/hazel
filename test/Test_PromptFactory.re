@@ -22,6 +22,12 @@ let statics_errors = (z: Zipper.t): list(string) =>
 let squish = (s: string): string =>
   Util.StringUtil.replace(Util.StringUtil.regexp("[\\s]+"), s, "");
 
+/* The print-based expansion check alone misses expansions here: the
+   edit state is grout-free, so an incomplete form prints only its
+   typed shards, textually identical to the identifier reading. */
+let has_incomplete_tiles = (z: Zipper.t): bool =>
+  Segment.incomplete_tiles_deep(Zipper.unselect_and_zip(z)) != [];
+
 /* A program is identifier-safe iff it parses, roundtrips (no token
    expanded into a form), and has no static errors. */
 let diagnose_prog = (prog: string): option(string) =>
@@ -29,7 +35,9 @@ let diagnose_prog = (prog: string): option(string) =>
   | None => Some("parse failure")
   | Some(z) =>
     let printed = Printer.of_zipper(~holes="?", z);
-    if (squish(printed) != squish(prog)) {
+    if (has_incomplete_tiles(z)) {
+      Some("token expands (incomplete form): " ++ String.trim(printed));
+    } else if (squish(printed) != squish(prog)) {
       Some("token expands: " ++ String.trim(printed));
     } else {
       switch (statics_errors(z)) {
@@ -59,7 +67,7 @@ let expands_in_typ = (word: string): bool => {
   | None => true
   | Some(z) =>
     let printed = Printer.of_zipper(~holes="?", z);
-    squish(printed) != squish(prog);
+    has_incomplete_tiles(z) || squish(printed) != squish(prog);
   };
 };
 

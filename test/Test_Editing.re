@@ -1004,10 +1004,10 @@ let destruct_tests = [
         Destruct(Local(Left, ByChar)),
         Destruct(Local(Left, ByChar)),
       ],
-    /* keyword-decay edge: awkward in both models (was `if 1 ~th¦n`
-       with a stray concave grout); per the section note these
-       placements may change */
-    ~goal={|if 1 t¦hn|},
+    /* keyword-decay edge: awkward in both models; the dev inner-caret
+       put_down fix landed the caret at the deletion point (was `t¦hn`,
+       a double-step drift; upstream pins `~th¦n` with stored grout) */
+    ~goal={|if 1 th¦n|},
   ),
   /* DELETING WITHIN/ADJACENT TO POLYTILE DELIMITERS */
   /* Some of the below grout placements feel inconsistent...
@@ -5261,7 +5261,8 @@ let inner_destruct_tests = [
       mk({|"aa" ++ "x"¦|})
       @ mv_l(4)
       @ [Select(Resize(Local(Left, ByChar))), Insert("\"")],
-    ~goal={|"aa" ~"++"~¦ "x"|},
+    /* raw print is grout-free (upstream pins ~"++"~) */
+    ~goal={|"aa" "++"¦ "x"|},
   ),
   test(
     ~name="Delete after wrapping char-level selection in quotes",
@@ -5273,7 +5274,7 @@ let inner_destruct_tests = [
         Insert("\""),
         Destruct(Local(Right, ByChar)),
       ],
-    ~goal={|"aa" ~"++"~¦"x"|},
+    ~goal={|"aa" "++"¦"x"|},
   ),
 ];
 
