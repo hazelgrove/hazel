@@ -3,11 +3,17 @@ open Language;
 open Test_Evaluator_Prelude;
 
 /* Coarse evaluator benchmarks for the observation-trace work
- * (plans/observation-trace.md §8). Alcotest's per-case duration is the
- * metric; compare the same cases across commits (this file uses only the
- * evaluate API, so it compiles on pre-trace commits too). Three regimes:
- * probes off (shadow emission fully gated), a probed recursion (samples +
- * events), and probe-all (every expression targeted — worst case). */
+ * (plans/observation-trace.md §8). Compare the SAME case across commits
+ * (this file uses only the evaluate API, so it compiles on pre-trace
+ * commits too). Three regimes: probes off, a probed recursion, and
+ * probe-all (every expression targeted — worst case).
+ *
+ * NOT comparable across cases: each regime runs a different fib size and
+ * rep count, chosen so wall times land in the same few-hundred-ms range.
+ * Per-CALL cost rises steeply with observation (approx fib call counts:
+ * fib(16)=3193, fib(14)=1219, fib(12)=465): probes-off ≈ 42 µs/call,
+ * one-probe ≈ 71 µs/call, probe-all ≈ 140 µs/call (2026-07-31 numbers).
+ * The per-eval figure printed below is the cross-commit metric. */
 
 let fib = n =>
   Printf.sprintf(
@@ -47,23 +53,33 @@ let eval_n = (~probe_all=false, ~reps: int, code: string): unit => {
   };
 };
 
-let timed = (label: string, f: unit => unit): unit => {
+let timed = (~reps: int, label: string, f: unit => unit): unit => {
   let t0 = Sys.time();
   f();
-  Printf.printf("BENCH %s: %.1f ms\n", label, (Sys.time() -. t0) *. 1000.);
+  let ms = (Sys.time() -. t0) *. 1000.;
+  Printf.printf(
+    "BENCH %s: %.1f ms (%.1f ms/eval; cases are NOT cross-comparable)\n",
+    label,
+    ms,
+    ms /. float_of_int(reps),
+  );
 };
 
 let tests = (
   "ObsBench",
   [
     test_case("bench: fib(16) probes-off x10", `Quick, () =>
-      timed("fib16-off-x10", () => eval_n(~reps=10, fib(16)))
+      timed(~reps=10, "fib16-off-x10", () => eval_n(~reps=10, fib(16)))
     ),
     test_case("bench: fib(14) one-probe x10", `Quick, () =>
-      timed("fib14-probed-x10", () => eval_n(~reps=10, fib_probed(14)))
+      timed(~reps=10, "fib14-probed-x10", () =>
+        eval_n(~reps=10, fib_probed(14))
+      )
     ),
     test_case("bench: fib(12) probe-all x3", `Quick, () =>
-      timed("fib12-all-x3", () => eval_n(~probe_all=true, ~reps=3, fib(12)))
+      timed(~reps=3, "fib12-all-x3", () =>
+        eval_n(~probe_all=true, ~reps=3, fib(12))
+      )
     ),
   ],
 );
