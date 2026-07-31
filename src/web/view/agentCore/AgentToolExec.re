@@ -267,6 +267,34 @@ let execute_one_tool_call =
         );
       }
     }
+  | DocsRequest(topic) =>
+    /* Answered from the DocPacks registry; no editor change */
+    let (success, content) =
+      switch (DocPacks.lookup(topic)) {
+      | Some(pack) => (true, pack.body)
+      | None => (
+          false,
+          "Unknown docs topic \""
+          ++ topic
+          ++ "\". Available topics:\n"
+          ++ DocPacks.topic_lines,
+        )
+      };
+    let tool_result: AgentToolResult.tool_result = {
+      tool_call,
+      success,
+      skipped: false,
+      expanded: false,
+      diff: None,
+      before_segment: None,
+      after_segment: None,
+      content,
+    };
+    (
+      model,
+      cell_editor |> Updated.return_quiet,
+      Message.Utils.mk_tool_result_message(tool_result),
+    );
   | Failure(msg) =>
     let tool_result: AgentToolResult.tool_result = {
       tool_call,
