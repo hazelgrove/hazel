@@ -71,7 +71,12 @@ and piece_equiv_mod_grout = (~mold_sorts, a: Piece.t, b: Piece.t): bool =>
 let empty = [];
 let cons = List.cons;
 let concat = List.concat;
-let fold_right = List.fold_right;
+/* Stack-safe fold_right: segments can be tens of thousands of pieces
+ * (e.g. a large list value in the result view), and under js_of_ocaml
+ * stdlib List.fold_right's per-element recursion overflows the JS stack
+ * (regrout_affix folds over the whole segment). */
+let fold_right = (f, xs, acc) =>
+  List.fold_left((acc, x) => f(x, acc), acc, List.rev(xs));
 let rev = List.rev;
 
 let of_tile = t => [Tile.to_piece(t)];
@@ -83,16 +88,28 @@ let incomplete_tiles =
     | _ => None,
   );
 
+/* Stack-safe accumulator traversal (preserves traversal order): segments can
+ * be tens of thousands of pieces and stdlib concat/concat_map recursion
+ * overflows the JS stack under js_of_ocaml; recursion here only descends
+ * into children, so depth is bounded by term nesting. */
 let rec incomplete_tiles_deep = (seg: t) =>
-  List.map(
-    fun
-    | Piece.Tile(t) =>
-      (!Tile.is_complete(t) ? [t] : [])
-      @ List.concat_map(incomplete_tiles_deep, t.children)
-    | _ => [],
+  List.rev(incomplete_tiles_deep_acc([], seg))
+and incomplete_tiles_deep_acc = (acc, seg: t) =>
+  List.fold_left(
+    (acc, p) =>
+      switch (p) {
+      | Piece.Tile(t) =>
+        let acc = !Tile.is_complete(t) ? [t, ...acc] : acc;
+        List.fold_left(
+          (acc, child) => incomplete_tiles_deep_acc(acc, child),
+          acc,
+          t.children,
+        );
+      | _ => acc
+      },
+    acc,
     seg,
-  )
-  |> List.concat;
+  );
 
 let incomplete_tiles_to_missing_shards = seg =>
   seg |> List.map(Tile.missing_shards) |> List.concat;

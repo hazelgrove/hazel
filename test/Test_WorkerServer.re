@@ -25,18 +25,23 @@ let structured_clone: 'a. 'a => 'a =
  * stays inside the closure so this composes over all encodings uniformly. */
 let rt_of_encoding =
     (encoding: (module WorkerServer.ENCODING))
-    : ((~clone: bool, WorkerServer.Response.t) => WorkerServer.Response.t) => {
+    : (
+        (~clone: bool, WorkerServer.ServerMessage.t) =>
+        WorkerServer.ServerMessage.t
+      ) => {
   module M = (val encoding);
-  (~clone, resp) => {
-    let w = M.encode_response(resp);
+  (~clone, msg) => {
+    let w = M.encode_response(msg);
     let w = clone ? structured_clone(w) : w;
     M.decode_response(w);
   };
 };
 
-let response_of_exp = (e: Exp.t): WorkerServer.Response.t => [
-  ("cell", Ok((e, EvaluatorState.init))),
-];
+let response_of_exp = (e: Exp.t): WorkerServer.ServerMessage.t =>
+  WorkerServer.ServerMessage.Result({
+    request_id: 1,
+    response: [("cell", Ok((e, EvaluatorState.empty)))],
+  });
 
 let parse = (s: string): Exp.t =>
   switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
@@ -78,7 +83,10 @@ let test_isomorphic =
       let rt = rt_of_encoding(encoding);
       let e = parse("let x = [1, 2, 3] in x");
       switch (rt(~clone=true, response_of_exp(e))) {
-      | [("cell", Ok((e', _))), ..._] =>
+      | WorkerServer.ServerMessage.Result({
+          response: [("cell", Ok((e', _))), ..._],
+          _,
+        }) =>
         check(bool, "decoded equals original", true, Exp.fast_equal(e, e'))
       | _ => fail("round-trip did not preserve response shape")
       };
