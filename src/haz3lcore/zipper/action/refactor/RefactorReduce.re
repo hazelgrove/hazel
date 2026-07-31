@@ -228,7 +228,7 @@ let evaluate_in_place_impl: impl = {
           elab,
         )
       ) {
-      | Completed((v, _)) when is_value_literal(v) =>
+      | LimitedCompleted((v, _)) when is_value_literal(v) =>
         let v = space_commas(v);
         Some((v, Exp.rep_id(v)));
       | _ => None
