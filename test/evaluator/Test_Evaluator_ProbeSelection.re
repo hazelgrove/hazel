@@ -8,7 +8,11 @@ open Test_Evaluator_Prelude;
 let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
   let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
-    Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+    Evaluator.evaluate(
+      ~eval_info=EvalInfo.of_targets(targets),
+      ~env=Builtins.env_init,
+      elaborated,
+    );
   EvaluatorState.get_probes(state);
 };
 
@@ -20,8 +24,7 @@ let partition_by_depth =
   List.partition((s: Sample.t) => List.length(s.call_stack) == 0, samples);
 
 let mk_cursor =
-    (~pinned=None, ~indicated_call=None, stack: Sample.call_stack)
-    : Sample.Focus.t => {
+    (~pinned=None, ~indicated_call=None, stack: CallStack.t): Sample.Focus.t => {
   call_stack: stack,
   index: List.length(stack) - 1,
   pinned_stack: pinned,
@@ -115,7 +118,7 @@ in f(5)|};
         /* Simulate step-into: cursor has same stack but with None name */
         let cursor_stack =
           List.map(
-            (f: Sample.stack_frame): Sample.stack_frame =>
+            (f: CallStack.frame): CallStack.frame =>
               {
                 id: f.id,
                 name: None,
@@ -157,7 +160,7 @@ in f(1); f(2)|};
       let first = List.hd(samples);
       let pin_stack =
         List.map(
-          (f: Sample.stack_frame): Sample.stack_frame =>
+          (f: CallStack.frame): CallStack.frame =>
             {
               id: f.id,
               name: None,
@@ -231,7 +234,7 @@ in f(1); f(2)|};
       /* Pin to s1's context, with None names (as step-into would) */
       let pin_stack =
         List.map(
-          (f: Sample.stack_frame): Sample.stack_frame =>
+          (f: CallStack.frame): CallStack.frame =>
             {
               id: f.id,
               name: None,
@@ -253,13 +256,13 @@ in f(1); f(2)|};
         bool,
         "kept sample should match s1's call stack",
         true,
-        Sample.equal_call_stack(kept.call_stack, s1.call_stack),
+        CallStack.equal(kept.call_stack, s1.call_stack),
       );
       check(
         bool,
         "kept sample should NOT match s2's call stack",
         false,
-        Sample.equal_call_stack(kept.call_stack, s2.call_stack),
+        CallStack.equal(kept.call_stack, s2.call_stack),
       );
       let (selected, _) = run_select(~cursor, samples);
       check(int, "select returns 1", 1, List.length(selected));
@@ -408,12 +411,7 @@ in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|};
 ];
 
 let mk_cursor_at_index =
-    (
-      ~pinned=None,
-      ~indicated_call=None,
-      ~index: int,
-      stack: Sample.call_stack,
-    )
+    (~pinned=None, ~indicated_call=None, ~index: int, stack: CallStack.t)
     : Sample.Focus.t => {
   call_stack: stack,
   index,
@@ -709,7 +707,11 @@ in ^^probe(f(42))|};
       /* Evaluate to get samples */
       let elaborated = elaborate(term);
       let (_, state) =
-        Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+        Evaluator.evaluate(
+          ~eval_info=EvalInfo.of_targets(targets),
+          ~env=Builtins.env_init,
+          elaborated,
+        );
       let probes_map = EvaluatorState.get_probes(state);
       /* Find the call probe (wrapping f(42)) and inner probe (on x) */
       let call_probe_id =
@@ -808,7 +810,7 @@ run(0, [1, 2, 3])|};
       /* Pin the middle iteration the way ProbeProj.pin_call does:
        * prepend the probed ap's syntax id to the sample's stack. */
       let target: Sample.t = List.nth(call_samples, 1);
-      let pin_stack: Sample.call_stack = [
+      let pin_stack: CallStack.t = [
         {
           id: call_probe_id,
           name: None,
@@ -868,7 +870,7 @@ run(0, [1, 2, 3])|};
           List.hd(samples),
           samples,
         );
-      let pin_stack: Sample.call_stack = [
+      let pin_stack: CallStack.t = [
         {
           id: sample.syntax_id,
           name: None,
@@ -890,7 +892,7 @@ run(0, [1, 2, 3])|};
       );
       /* Control: a stack rooted at a fresh id matches no sample (the call
        * site is gone) and must still be dropped. */
-      let dead_stack: Sample.call_stack = [
+      let dead_stack: CallStack.t = [
         {
           id: Haz3lcore.Id.mk(),
           name: None,

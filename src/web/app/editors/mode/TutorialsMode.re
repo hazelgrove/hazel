@@ -230,21 +230,23 @@ module Update = {
       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
     switch (action) {
     | Tutorial(TutorialMode.Update.MoveToNextExercise) =>
+      WorkerClient.cancel();
       Model.{
         current:
           (model.current + 1 + List.length(model.exercises))
           mod List.length(model.exercises),
         exercises: model.exercises,
       }
-      |> return
+      |> return;
     | Tutorial(TutorialMode.Update.MoveToPrevExercise) =>
+      WorkerClient.cancel();
       Model.{
         current:
           (model.current - 1 + List.length(model.exercises))
           mod List.length(model.exercises),
         exercises: model.exercises,
       }
-      |> return
+      |> return;
 
     | Tutorial(action) =>
       let current = List.nth(model.exercises, model.current);
@@ -262,11 +264,12 @@ module Update = {
         exercises: new_exercises,
       };
     | SwitchExercise(n) =>
+      WorkerClient.cancel();
       Model.{
         current: n,
         exercises: model.exercises,
       }
-      |> return
+      |> return;
     | ExportModule =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_exercise_module(model);

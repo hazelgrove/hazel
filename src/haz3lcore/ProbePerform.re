@@ -625,8 +625,8 @@ let function_sugar_param_anchor =
 let step_into_call_stack =
     (
       ~syntax: CachedSyntax.t,
-      ~call_stack: Sample.call_stack,
-      ~frame: Sample.stack_frame,
+      ~call_stack: CallStack.t,
+      ~frame: CallStack.frame,
       info_map: Statics.Map.t,
       z: Zipper.t,
     )
@@ -694,7 +694,7 @@ let step_into_call_stack =
     };
 
   /* Use the real captured frame (name + dynamic fn_def_id), not a synthesized id-only one, so the pin/focus is precise. */
-  let new_stack: Sample.call_stack = [frame, ...call_stack];
+  let new_stack: CallStack.t = [frame, ...call_stack];
 
   /* jump_target = params (cursor for UX); samples live under body_id. */
   let (jump_target, _sample_probe_id) =
@@ -1102,14 +1102,14 @@ let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
   SampleFocusPerform.update_pinned_call(z, p =>
     switch (p) {
     | Some(stack) when !Id.Map.is_empty(dynamics) =>
-      let pinned_ids = Sample.ids_of_stack(stack);
+      let pinned_ids = CallStack.ids_of_stack(stack);
       let (head_id, tail_ids) =
         switch (pinned_ids) {
         | [hd, ...tl] => (Some(hd), tl)
         | [] => (None, [])
         };
       let alive = (s: Sample.t) => {
-        let s_ids = Sample.ids_of_stack(s.call_stack);
+        let s_ids = CallStack.ids_of_stack(s.call_stack);
         ListUtil.is_suffix_of(pinned_ids, s_ids)
         || Some(s.syntax_id) == head_id
         && s_ids == tail_ids;

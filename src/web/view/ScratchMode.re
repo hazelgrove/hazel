@@ -848,12 +848,14 @@ module Update = {
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
     | SwitchSlide(i) =>
+      WorkerClient.cancel();
       let* current = i |> Updated.return;
       {
         ...model,
         current,
       };
     | AddSlide =>
+      WorkerClient.cancel();
       Updated.return(
         add_new_slide(
           ~kind=NewCode,
@@ -861,8 +863,9 @@ module Update = {
           model,
           is_documentation,
         ),
-      )
+      );
     | AddDrvSlide =>
+      WorkerClient.cancel();
       Updated.return(
         add_new_slide(
           ~kind=NewDrv,
@@ -870,7 +873,7 @@ module Update = {
           model,
           is_documentation,
         ),
-      )
+      );
     | RenameSlide =>
       let current = List.nth(model.scratchpads, model.current);
       let new_name =
@@ -912,6 +915,7 @@ module Update = {
           "Are you SURE you want to delete this slide? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
+        WorkerClient.cancel();
         let deleted_name = List.nth(model.scratchpads, model.current).name;
         persist_cache := Maps.StringMap.remove(deleted_name, persist_cache^);
         dirty_slides := Sets.StringSet.remove(deleted_name, dirty_slides^);
@@ -1066,39 +1070,17 @@ module Update = {
           ~stitch=x => x,
           editor,
         );
-      switch (worker_request^) {
-      | [] => ()
-      | _ =>
-        WorkerClient.request(
-          worker_request^,
-          ~handler=
-            r => {
-              schedule_action(
-                CellAction(
-                  ResultAction(
-                    UpdateResult(
-                      switch (r |> List.hd |> snd) {
-                      | Ok((r, s)) =>
-                        Language.ProgramResult.ResultOk({
-                          result: r,
-                          state: s,
-                        })
-                      | Error(e) => Language.ProgramResult.ResultFail(e)
-                      },
-                    ),
-                  ),
-                ),
-              )
-            },
-          ~timeout=
-            _ =>
-              schedule_action(
-                CellAction(
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
-                ),
-              ),
-        )
-      };
+      let dispatch = (_key, action) =>
+        schedule_action(CellAction(ResultAction(action)));
+      EvalRequest.request(
+        worker_request^,
+        ~pos_of_key=key => key,
+        ~dispatch,
+        ~on_timeout=
+          List.iter(((key, _)) =>
+            dispatch(key, UpdateResult(ResultFail(Timeout)))
+          ),
+      );
       let new_sp =
         ListUtil.put_nth(
           model.current,

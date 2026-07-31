@@ -13,7 +13,7 @@ let stitched_results =
       fun
       | Some(ProgramResult.ResultOk(r)) => Some(r.result)
       | Some(ResultFail(_))
-      | Some(ResultPending)
+      | Some(ResultPending(_))
       | None => None
     )
   );
@@ -459,38 +459,26 @@ module Update = {
         stitched_elabs,
       );
 
-    WorkerClient.request(
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let pos' = DerivationExercise.pos_of_key(pos);
-          let result': ProgramResult.t(ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          schedule_action(
-            Editor(pos', ResultAction(UpdateResult(result'))),
-          );
-        }),
-      ~timeout=_ => {
-        let _ =
-          DerivationExercise.map_stitched(
-            (pos, _) =>
-              schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+      ~pos_of_key=DerivationExercise.pos_of_key,
+      ~dispatch=
+        (pos, action) =>
+          schedule_action(Editor(pos, ResultAction(action))),
+      ~on_timeout=
+        _ =>
+          ignore(
+            DerivationExercise.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
                 ),
-              ),
-            model.cells,
-          );
-        ();
-      },
+              model.cells,
+            ),
+          ),
     );
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that

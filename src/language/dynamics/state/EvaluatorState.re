@@ -1,24 +1,44 @@
 open Util;
 
-/* arg/frame records; type lives in StateSlice (carried across incr-eval) */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type app_data_t = StateSlice.app_data_t;
+/*
+   _____            _             _               ____  _        _
+  | ____|_   ____ _| |_   _  __ _| |_ ___  _ __  / ___|| |_ __ _| |_ ___
+  |  _| \ \ / / _` | | | | |/ _` | __/ _ \| '__| \___ \| __/ _` | __/ _ \
+  | |___ \ V / (_| | | |_| | (_| | || (_) | |     ___) | || (_| | ||  __/
+  |_____| \_/ \__,_|_|\__,_|\__,_|\__\___/|_|    |____/ \__\__,_|\__\___|
+
+ Hazel is a PURE LANGUAGE, there is NO STATE, NOTHING TO SEE HERE, PLEASE MOVE ALONG.
+
+ Ok so we have some state but it is all WRITE-ONLY** during evaluation, so it's
+ essentially just a log we can use to query what happened during evaluation.
+
+ ** Technically actually is't not write-only, we do read from it, but ONLY to get
+ the current step count in order to record information in this state, not to affect
+ evaluation in any way. You'll notice that this step count thing is what requires
+ most of the work in appending states.
+ */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
+  initial_step_count: int,
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
-  app_data: app_data_t,
+  /* Transient enter-event data for probed applications (args + call
+   * frame, observable only when the Ap steps). Consumed when the probe's
+   * observation span closes in Evaluator.eval_3; carried up through
+   * sub-evaluations by `append`. Cleared by `clear_transient` before the
+   * state leaves the evaluator (postMessage / cache entries). */
+  app_data: CallStack.app_data,
   step_count: int,
-  pending_probe_starts: Id.Map.t(list(int)), /* Stack per probe_id; nested recursive calls push/pop */
-  targets: Sample.targets, /* IDs of expressions/patterns to sample */
-  incr_eval: IncrEval.t /* Per-id cache entries and reuse/recalc bookkeeping for the incremental evaluator */
-};
+  incr_eval,
+}
+
+// Note[Matt]: There are probably memory improvements to be made here by untying this knot.
+and incr_eval = IncrEval.t(t);
 
 type effect =
   | RecordTest(TestMap.instance_report)
-  | RecordExpProbe(Sample.capture_spec)
   | RecordStackFrame(option(string), option(DHExp.t), option(Id.t)) /* (fn_name, arg_value, fn_def_id) */
   /* A pattern was matched against a value during evaluation. Carries the
    * pat and rhs so the incremental evaluator can decide which body-scoped
@@ -31,53 +51,98 @@ type effect =
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
-let mk = (~targets: Sample.targets): t => {
+let empty: t = {
+  initial_step_count: 0,
   tests: TestMap.empty,
   probes: Sample.Map.empty,
   app_data: Id.Map.empty,
   step_count: 0,
-  pending_probe_starts: Id.Map.empty,
-  targets,
   theorems: [],
   incr_eval: IncrEval.empty,
 };
 
-let init: t = mk(~targets=Sample.no_targets);
+let empty_at = (step_count: int): t => {
+  ...empty,
+  initial_step_count: step_count,
+  step_count,
+};
 
 let get_step_count = ({step_count, _}: t): int => step_count;
 
-let record_probe_start = (state: t, probe_id: Id.t): t => {
-  let stack =
-    Id.Map.find_opt(probe_id, state.pending_probe_starts)
-    |> Option.value(~default=[]);
+let shift_sample = (delta: int, s: Sample.t): Sample.t => {
+  ...s,
+  step_start: s.step_start + delta,
+  step_end: s.step_end + delta,
+};
+
+/* Merge `ext` into `base`, shifting probe step bounds when the timelines
+ * don't line up (base.step_count vs ext.initial_step_count). */
+let append = (base: t, ext: t): t => {
+  let delta = base.step_count - ext.initial_step_count;
+  let probes =
+    Id.Map.fold(
+      (id, ext_samples, acc) => {
+        let samples =
+          if (delta == 0) {
+            ext_samples;
+          } else {
+            List.map(shift_sample(delta), ext_samples);
+          };
+        let existing =
+          switch (Id.Map.find_opt(id, acc)) {
+          | Some(l) => l
+          | None => []
+          };
+        Id.Map.add(id, samples @ existing, acc);
+      },
+      ext.probes,
+      base.probes,
+    );
+  let tests =
+    List.fold_left(
+      (acc, (id, reports)) =>
+        List.fold_left(
+          (acc, report) => TestMap.extend((id, report), acc),
+          acc,
+          reports,
+        ),
+      base.tests,
+      ext.tests,
+    );
+  let app_data =
+    if (Id.Map.is_empty(ext.app_data)) {
+      base.app_data;
+    } else {
+      Id.Map.fold(
+        (id, entries, acc) => {
+          let existing =
+            Id.Map.find_opt(id, acc) |> Option.value(~default=[]);
+          Id.Map.add(id, entries @ existing, acc);
+        },
+        ext.app_data,
+        base.app_data,
+      );
+    };
   {
-    ...state,
-    pending_probe_starts:
-      Id.Map.add(
-        probe_id,
-        [state.step_count, ...stack],
-        state.pending_probe_starts,
-      ),
+    ...base,
+    step_count: base.step_count + (ext.step_count - ext.initial_step_count),
+    probes,
+    tests,
+    theorems: ext.theorems @ base.theorems,
+    app_data,
   };
 };
 
-let get_probe_start = (state: t, probe_id: Id.t): option(int) =>
-  switch (Id.Map.find_opt(probe_id, state.pending_probe_starts)) {
-  | Some([head, ..._]) => Some(head)
-  | _ => None
-  };
+/* Restart a state's timeline at step 0, shifting its probe step bounds
+ * accordingly (used when replaying cached/streamed states). */
+let rebase = (ext: t): t => append(empty, ext);
 
-let clear_probe_start = (state: t, probe_id: Id.t): t => {
-  let pending =
-    switch (Id.Map.find_opt(probe_id, state.pending_probe_starts)) {
-    | Some([_, ...rest]) when rest != [] =>
-      Id.Map.add(probe_id, rest, state.pending_probe_starts)
-    | _ => Id.Map.remove(probe_id, state.pending_probe_starts)
-    };
-  {
-    ...state,
-    pending_probe_starts: pending,
-  };
+/* Drop data only needed while evaluation is in flight. Call before the
+ * state leaves the evaluator (postMessage, cache/outbox entries) to avoid
+ * serializing arg values, which can be large. */
+let clear_transient = (state: t): t => {
+  ...state,
+  app_data: Id.Map.empty,
 };
 
 let get_tests = ({tests, _}) => tests;
@@ -86,88 +151,13 @@ let get_probes = ({probes, _}) => probes;
 
 let get_theorems = ({theorems, _}) => theorems;
 
-let get_app_data = ({app_data, _}) => app_data;
-
 let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
 
-let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry): t => {
+let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry(t)): t => {
   ...state,
   incr_eval: IncrEval.add_entry(id, entry, state.incr_eval),
 };
 
-let mark_incr_reused = (state: t, id: Id.t): t => {
-  ...state,
-  incr_eval: IncrEval.mark_reused(id, state.incr_eval),
-};
-
-let mark_incr_recalculated = (state: t, id: Id.t): t => {
-  ...state,
-  incr_eval: IncrEval.mark_recalculated(id, state.incr_eval),
-};
-
-/* Clear transient data that's only needed during evaluation.
- * Call this before sending EvaluatorState over postMessage
- * to avoid serializing massive amounts of unnecessary data.
- * - app_data: only needed to look up args during sample creation
- * - pending_probe_starts: only needed during evaluation
- * - targets: only needed during evaluation */
-let clear_transient = (state: t): t => {
-  ...state,
-  app_data: Id.Map.empty,
-  pending_probe_starts: Id.Map.empty,
-  targets: Id.Map.empty,
-};
-
-let elide_arg =
-    (env: Environment.t(Exp.t), d: DHExp.t): Sample.Env.elided_value =>
-  Sample.Env.elide(env, d);
-
-let add_app_data =
-    (
-      state: t,
-      app_id: Id.t,
-      call_stack: Sample.call_stack,
-      arg: Sample.Env.elided_value,
-      frame: Sample.stack_frame,
-    )
-    : t => {
-  let existing =
-    Id.Map.find_opt(app_id, state.app_data) |> Option.value(~default=[]);
-  {
-    ...state,
-    app_data:
-      Id.Map.add(
-        app_id,
-        [(call_stack, arg, frame), ...existing],
-        state.app_data,
-      ),
-  };
-};
-
-let lookup_app =
-    (state: t, app_id: Id.t, call_stack: Sample.call_stack)
-    : option((Sample.Env.elided_value, Sample.stack_frame)) => {
-  let call_stack_ids = Sample.ids_of_stack(call_stack);
-  switch (Id.Map.find_opt(app_id, state.app_data)) {
-  | None => None
-  | Some(entries) =>
-    List.find_map(
-      ((stored_stack, arg, frame)) =>
-        Sample.ids_of_stack(stored_stack) == call_stack_ids
-          ? Some((arg, frame)) : None,
-      entries,
-    )
-  };
-};
-
-let add_test = (state: t, instance_report: TestMap.instance_report) => {
-  ...state,
-  tests:
-    TestMap.extend(
-      (DHExp.rep_id(instance_report.exp), instance_report),
-      state.tests,
-    ),
-};
 let add_sample = (state: t, sample: Sample.t) => {
   /* Deduplicate: skip recording if an existing sample for this
    * syntax_id makes the new one redundant.
@@ -202,23 +192,37 @@ let add_sample = (state: t, sample: Sample.t) => {
   };
 };
 
-let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
-  {
-    ...es,
-    theorems: theorems |> List.append([(id, name, env, goal)]),
-  };
-};
-
 let update =
     (
+      eval_info: EvalInfo.t,
       state: t,
-      call_stack: Sample.call_stack,
+      call_stack: CallStack.t,
       env: Environment.t(Exp.t),
       init: DHExp.t,
-      next: DHExp.t,
       side_effects: list(effect),
     )
-    : (Sample.call_stack, t) => {
+    : (CallStack.t, t) => {
+  /* Elide arg value for storage (handles closures, etc.) */
+  let elide_arg =
+      (env: Environment.t(Exp.t), d: DHExp.t): Sample.Env.elided_value =>
+    Sample.Env.elide(env, d);
+
+  let add_test = (state: t, instance_report: TestMap.instance_report) => {
+    ...state,
+    tests:
+      TestMap.extend(
+        (DHExp.rep_id(instance_report.exp), instance_report),
+        state.tests,
+      ),
+  };
+
+  let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
+    {
+      ...es,
+      theorems: theorems |> List.append([(id, name, env, goal)]),
+    };
+  };
+
   /* Increment step count for this evaluation step */
   let state = {
     ...state,
@@ -226,11 +230,11 @@ let update =
   };
 
   List.fold_left(
-    ((call_stack: Sample.call_stack, state: t), effect: effect) =>
+    ((call_stack: CallStack.t, state: t), effect: effect) =>
       switch (effect) {
       | RecordStackFrame(fn_name, arg_opt, fn_def_id) =>
         let app_id = DHExp.rep_id(init);
-        let frame: Sample.stack_frame = {
+        let frame: CallStack.frame = {
           id: app_id,
           name: fn_name,
           fn_def_id,
@@ -239,42 +243,27 @@ let update =
          * for programs with many calls but no probes on them. */
         let state =
           switch (arg_opt) {
-          | Some(arg) when Id.Map.mem(app_id, state.targets) =>
+          | Some(arg) when Id.Map.mem(app_id, eval_info.targets) =>
             let elided_arg = elide_arg(env, arg);
-            add_app_data(state, app_id, call_stack, elided_arg, frame);
+            {
+              ...state,
+              app_data:
+                CallStack.add_app_data(
+                  state.app_data,
+                  ~stack=call_stack,
+                  app_id,
+                  elided_arg,
+                  frame,
+                ),
+            };
           | Some(_)
           | None => state
           };
-        ([frame, ...call_stack], state);
+        (CallStack.add_entry(call_stack, frame), state);
       | RecordTest(instance_report) => (
           call_stack,
           add_test(state, instance_report),
         )
-      | RecordExpProbe(pr) =>
-        let probe_id = DHExp.rep_id(init);
-        /* step_start is when we began evaluating the probe (recorded earlier)
-         * step_end is step_count - 1 because this step is the "strip probe" step */
-        let step_start =
-          get_probe_start(state, probe_id) |> Option.value(~default=0);
-        let step_end = state.step_count - 1;
-        /* Look up arg and call frame if this probe is on an Ap expression */
-        let app = lookup_app(state, probe_id, call_stack);
-        let args = Option.map(fst, app);
-        let frame = Option.map(snd, app);
-        let sample =
-          Sample.mk(
-            ~args,
-            ~frame,
-            ~step_start,
-            ~step_end,
-            probe_id,
-            next,
-            env,
-            call_stack,
-            pr,
-          );
-        let state = clear_probe_start(state, probe_id);
-        (call_stack, add_sample(state, sample));
       | RecordPatMatch({samples: sample_closures, _}) =>
         /* Pattern probes are recorded at the current step, then we
          * increment to ensure patterns don't share step boundaries
@@ -283,10 +272,7 @@ let update =
         let step = state.step_count;
         let state =
           List.fold_left(
-            (
-              state: t,
-              sample_closure: (Sample.call_stack, int, int) => Sample.t,
-            ) =>
+            (state: t, sample_closure: (CallStack.t, int, int) => Sample.t) =>
               add_sample(state, sample_closure(call_stack, step, step)),
             state,
             sample_closures,
@@ -320,70 +306,4 @@ let update =
     (call_stack, state),
     side_effects,
   );
-};
-
-/* Capture the delta between `before` and `after` as a StateSlice. */
-let capture_slice = (~before: t, ~after: t): StateSlice.t => {
-  origin: before.step_count,
-  steps: after.step_count - before.step_count,
-  probes: StateSlice.diff_probes(~before=before.probes, ~after=after.probes),
-  tests: StateSlice.diff_tests(~before=before.tests, ~after=after.tests),
-  theorems:
-    StateSlice.diff_theorems(~before=before.theorems, ~after=after.theorems),
-  app_data:
-    StateSlice.diff_app_data(~before=before.app_data, ~after=after.app_data),
-};
-
-/* Replay a slice into `state`: add its sample/test/theorem/app_arg entries,
- * bump step_count by the slice's step delta. Probe step bounds are shifted
- * so they sit within the current step_count window. */
-let replay_slice = (slice: StateSlice.t, state: t): t => {
-  let delta = state.step_count - slice.origin;
-  let probes =
-    Id.Map.fold(
-      (id, new_samples, acc) => {
-        let shifted = List.map(StateSlice.shift_sample(delta), new_samples);
-        let existing =
-          switch (Id.Map.find_opt(id, acc)) {
-          | Some(l) => l
-          | None => []
-          };
-        Id.Map.add(id, shifted @ existing, acc);
-      },
-      slice.probes,
-      state.probes,
-    );
-  let tests =
-    List.fold_left(
-      (acc, (id, new_reports)) =>
-        List.fold_left(
-          (acc, report) => TestMap.extend((id, report), acc),
-          acc,
-          new_reports,
-        ),
-      state.tests,
-      slice.tests,
-    );
-  let theorems = state.theorems @ slice.theorems;
-  let app_data =
-    Id.Map.fold(
-      (id, new_entries, acc) => {
-        let existing =
-          switch (Id.Map.find_opt(id, acc)) {
-          | Some(l) => l
-          | None => []
-          };
-        Id.Map.add(id, new_entries @ existing, acc);
-      },
-      slice.app_data,
-      state.app_data,
-    );
-  {
-    ...state,
-    step_count: state.step_count + slice.steps,
-    probes,
-    tests,
-    theorems,
-    app_data,
-  };
 };

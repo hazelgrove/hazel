@@ -169,17 +169,21 @@ let statics_and_elab_with =
 let eval_incr_with =
     (
       ~settings: Language.CoreSettings.t,
-      ~prev: Language.IncrEval.t=Language.IncrEval.empty,
+      ~prev: Language.EvaluatorState.incr_eval=Language.IncrEval.empty,
       exp: Language.Exp.t,
     )
-    : (Language.Exp.t, Language.IncrEval.t) => {
+    : (Language.Exp.t, Language.EvaluatorState.incr_eval) => {
   let (info_map, elab) = statics_and_elab_with(~settings, exp);
-  let info_map =
-    Language.EvalInfoMap.of_info_map(~probe_all=settings.probe_all, info_map);
+  let eval_info =
+    Language.EvalInfo.of_info_map(
+      ~probe_all=settings.probe_all,
+      ~targets=Id.Map.empty,
+      info_map,
+    );
   let (result, state) =
     Language.Evaluator.evaluate(
       ~prev,
-      ~info_map,
+      ~eval_info,
       ~env=Language.Builtins.env_init,
       elab,
     );
@@ -334,17 +338,25 @@ let check_sample_values = (msg: string, probes: Language.Sample.Map.t) => {
 let eval_incr_probes =
     (
       ~settings: Language.CoreSettings.t,
-      ~prev: Language.IncrEval.t=Language.IncrEval.empty,
+      ~prev: Language.EvaluatorState.incr_eval=Language.IncrEval.empty,
       exp: Language.Exp.t,
     )
-    : (Language.Exp.t, Language.Sample.Map.t, Language.IncrEval.t) => {
+    : (
+        Language.Exp.t,
+        Language.Sample.Map.t,
+        Language.EvaluatorState.incr_eval,
+      ) => {
   let (info_map, elab) = statics_and_elab_with(~settings, exp);
-  let info_map =
-    Language.EvalInfoMap.of_info_map(~probe_all=settings.probe_all, info_map);
+  let eval_info =
+    Language.EvalInfo.of_info_map(
+      ~probe_all=settings.probe_all,
+      ~targets=Id.Map.empty,
+      info_map,
+    );
   let (result, state) =
     Language.Evaluator.evaluate(
       ~prev,
-      ~info_map,
+      ~eval_info,
       ~env=Language.Builtins.env_init,
       elab,
     );
