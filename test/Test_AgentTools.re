@@ -1014,6 +1014,16 @@ let insert_tests = (
         ),
       )
     }),
+    test_case(
+      "update_body over hole keeps trailing comment intact", `Quick, () => {
+      /* regression: the derived-hole body id used to select the
+         neighboring secondary, replacing the comment with the code */
+      check_rendered(
+        "update_body_hole_trailing_comment",
+        "let x = 1 in 2 #note#",
+        apply_and_render("let x = 1 in #note#", Update(Body, "x", "2")),
+      )
+    }),
   ],
 );
 
@@ -1104,6 +1114,16 @@ let delete_tests = (
           "let a = 1 in let b = 2 in let c = 3 in ?",
           result,
         );
+      },
+    ),
+    test_case(
+      "delete_body of already-empty body is a no-op",
+      `Quick,
+      () => {
+        /* derived hole prints flush against `in`: the render is exactly
+           the unchanged program's */
+        let result = apply_and_render("let a = 1 in", Delete(Body, "a"));
+        check_rendered("delete_body_noop", "let a = 1 in?", result);
       },
     ),
     test_case(

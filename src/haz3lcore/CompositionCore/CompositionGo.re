@@ -433,6 +433,10 @@ module Local = {
           z,
         )
       ) {
+      | Some(z') when Selection.is_empty(z'.selection) =>
+        /* target is a derived hole: already empty, deleting is a no-op
+           (Destruct over an empty selection would delete leftward) */
+        Ok(z')
       | Some(z') =>
         switch (Destruct.go(Local(Left, ByChar), z', ~root=Exp)) {
         | None => Error(Action.Failure.Cant_destruct)
@@ -568,32 +572,9 @@ module Local = {
     | Update(Body, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Body, initial_node);
-      let overwritten =
-        switch (
-          PerformUtils.overwrite_term(
-            initial_z,
-            target_id,
-            code,
-            false,
-            syntax,
-          )
-        ) {
-        | Error(Action.Failure.Cant_select) =>
-          /* An empty body is a derived hole — nothing material to
-             select; introduce the code at the binder's right edge */
-          switch (
-            Move.jump_to_side_of_id(
-              Direction.Right,
-              initial_z,
-              path_to_id(initial_node_map, path),
-            )
-          ) {
-          | Some(z') => PerformUtils.introduce(z', code)
-          | None => Error(Action.Failure.Cant_select)
-          }
-        | r => r
-        };
-      switch (overwritten) {
+      switch (
+        PerformUtils.overwrite_term(initial_z, target_id, code, false, syntax)
+      ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
         let new_info_map = mk_statics(new_z);
