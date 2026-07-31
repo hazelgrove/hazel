@@ -291,7 +291,7 @@ select {
   width: 1em;
   height: 1em;
   border-radius: 1em;
-  background: url(../img/noun-pinned-1560993.svg) var(--R1);
+  background: url(img/noun-pinned-1560993.svg) var(--R1);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
