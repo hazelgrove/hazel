@@ -107,6 +107,16 @@ module Model = {
     let spec = spec_of_t(model);
     prefix ++ TheoremExercise.show_spec(spec) ++ "\n";
   };
+
+  /* Editors whose problems should appear in the Problems sidebar. All three
+     cells are always rendered (Prelude read-only, Theorem prove-only) and
+     all are jumpable, so all are listed. */
+  let get_problem_editors =
+      (model: t): list((option(string), list(CodeEditable.Model.t))) => [
+    (Some("Prelude"), [model.cells.prelude.editor]),
+    (Some("Lemmas"), [model.cells.lemmas.editor]),
+    (Some("Theorem"), [model.cells.theorem.editor]),
+  ];
 };
 
 module Update = {
@@ -365,47 +375,23 @@ module Update = {
 
     // Send to worker
 
-    WorkerClient.request(
+    let dispatch = (key, action) =>
+      switch (key) {
+      | "lemmas" =>
+        schedule_action(Prelude(ResultAction(action)));
+        schedule_action(Lemmas(ResultAction(action)));
+      | "theorem" => schedule_action(Theorem(ResultAction(action)))
+      | _ => ()
+      };
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          switch (pos) {
-          | "lemmas" =>
-            schedule_action(Prelude(ResultAction(UpdateResult(result'))));
-            schedule_action(Lemmas(ResultAction(UpdateResult(result'))));
-          | "theorem" =>
-            schedule_action(Theorem(ResultAction(UpdateResult(result'))))
-          | _ => ()
-          };
-        }),
-      ~timeout=_ => {
-      List.iter(
-        fun
-        | "lemmas" => {
-            schedule_action(
-              Prelude(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-            schedule_action(
-              Lemmas(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-          }
-        | "theorem" =>
-          schedule_action(
-            Theorem(ResultAction(UpdateResult(ResultFail(Timeout)))),
-          )
-        | _ => (),
-        List.map(((pos, _)) => pos, worker_request^),
-      )
-    });
+      ~pos_of_key=key => key,
+      ~dispatch,
+      ~on_timeout=
+        List.iter(((key, _)) =>
+          dispatch(key, UpdateResult(ResultFail(Timeout)))
+        ),
+    );
 
     {
       ...model,
@@ -466,7 +452,7 @@ module Selection = {
 
     let.or () = {
       let* _ =
-        TermData.root_tile(
+        TermData.root_piece(
           tile,
           model.cells.prelude.editor.editor.syntax.term_data,
         );
@@ -477,7 +463,7 @@ module Selection = {
     };
     let.or () = {
       let* _ =
-        TermData.root_tile(
+        TermData.root_piece(
           tile,
           model.cells.lemmas.editor.editor.syntax.term_data,
         );
@@ -488,7 +474,7 @@ module Selection = {
     };
 
     let* _ =
-      TermData.root_tile(
+      TermData.root_piece(
         tile,
         model.cells.theorem.editor.editor.syntax.term_data,
       );

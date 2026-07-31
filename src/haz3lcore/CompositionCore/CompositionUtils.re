@@ -1,5 +1,6 @@
 open Util;
 open CompositionActions;
+open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action_wrapper =
@@ -16,7 +17,12 @@ module Local = {
     ProbeTools.place_probe,
     ProbeTools.remove_probe,
     ProbeTools.toggle_probe,
-    EditTools.initialize,
+    StaticsTools.place_statics,
+    StaticsTools.remove_statics,
+    StaticsTools.toggle_statics,
+    SyntaxProjectorTools.place_syntax_projector,
+    SyntaxProjectorTools.remove_syntax_projector,
+    SyntaxProjectorTools.toggle_syntax_projector,
     EditTools.update_definition,
     EditTools.update_body,
     EditTools.update_pattern,
@@ -47,6 +53,12 @@ module Local = {
     WorkbenchTools.mark_active_subtask_incomplete,
     WorkbenchTools.mark_active_subtask_failed,
     WorkbenchTools.mark_active_task_failed,
+    WorkbenchTools.add_new_subtask_to_active_task,
+    WorkbenchTools.reorder_subtasks_in_active_task,
+    WorkbenchTools.update_active_task,
+    WorkbenchTools.update_active_subtask,
+    WorkbenchTools.delete_task,
+    WorkbenchTools.delete_subtask,
   ];
 
   let get_string_arg = (~arg: option(string), ~fail_with: string) => {
@@ -71,6 +83,29 @@ module Local = {
     };
   };
 
+  /** Read an optional string field: None when absent or empty-string, Some otherwise.
+      Empty-string is treated as absent so LLMs that emit `"path": ""` still hit the
+      no-path branch of insert_before/insert_after. */
+  let get_optional_string = (args: API.Json.t, field: string): option(string) => {
+    switch (API.Json.dot(field, args)) {
+    | Some(`String("")) => None
+    | Some(`String(s)) => Some(s)
+    | _ => None
+    };
+  };
+
+  let syntax_projector_kind_of_string = (s: string): ProjectorKind.t => {
+    let k = ProjectorKind.of_name(String.trim(s));
+    if (ProjectorKind.is_refractor(k)) {
+      raise(
+        Failure(
+          "syntax projector kind cannot be probe or statics — use the probe or statics tools",
+        ),
+      );
+    };
+    k;
+  };
+
   let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
     /* Possible arguments */
     /* Parsing here to avoid redundancy */
@@ -92,7 +127,30 @@ module Local = {
               ProbeAction(RemoveProbe(get_string_list(args, "paths")))
             | "toggle_probe" =>
               ProbeAction(ToggleProbe(get_string_list(args, "paths")))
-            | "initialize" => Initialize(get_string(args, "code"))
+            | "place_statics" =>
+              StaticsAction(PlaceStatics(get_string_list(args, "paths")))
+            | "remove_statics" =>
+              StaticsAction(RemoveStatics(get_string_list(args, "paths")))
+            | "toggle_statics" =>
+              StaticsAction(ToggleStatics(get_string_list(args, "paths")))
+            | "place_syntax_projector" =>
+              SyntaxProjectorAction(
+                PlaceSyntaxProjector(
+                  syntax_projector_kind_of_string(get_string(args, "kind")),
+                  get_string_list(args, "paths"),
+                ),
+              )
+            | "remove_syntax_projector" =>
+              SyntaxProjectorAction(
+                RemoveSyntaxProjector(get_string_list(args, "paths")),
+              )
+            | "toggle_syntax_projector" =>
+              SyntaxProjectorAction(
+                ToggleSyntaxProjector(
+                  syntax_projector_kind_of_string(get_string(args, "kind")),
+                  get_string_list(args, "paths"),
+                ),
+              )
             | "update_definition" =>
               EditorAction(
                 Update(
@@ -126,21 +184,19 @@ module Local = {
                 ),
               )
             | "insert_after" =>
-              EditorAction(
-                Insert(
-                  After,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
+              /* Per-line leading-whitespace trim happens at the paste
+                 funnel, [[CompositionGo.PerformUtils.introduce]] */
+              let code = get_string(args, "code");
+              switch (get_optional_string(args, "path")) {
+              | Some(path) => EditorAction(Insert(After, path, code))
+              | None => InsertAtProgramBoundary(After, code)
+              };
             | "insert_before" =>
-              EditorAction(
-                Insert(
-                  Before,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
+              let code = get_string(args, "code");
+              switch (get_optional_string(args, "path")) {
+              | Some(path) => EditorAction(Insert(Before, path, code))
+              | None => InsertAtProgramBoundary(Before, code)
+              };
             | "delete_binding_clause" =>
               EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>
@@ -251,6 +307,24 @@ module Local = {
                   get_string_list(args, "subtasks_ordering"),
                 ),
               )
+            | "update_active_task" =>
+              WorkbenchAction(
+                UpdateActiveTask(
+                  get_optional_string(args, "new_title"),
+                  get_optional_string(args, "new_description"),
+                ),
+              )
+            | "update_active_subtask" =>
+              WorkbenchAction(
+                UpdateActiveSubtask(
+                  get_optional_string(args, "new_title"),
+                  get_optional_string(args, "new_description"),
+                ),
+              )
+            | "delete_task" =>
+              WorkbenchAction(DeleteTask(get_string(args, "title")))
+            | "delete_subtask" =>
+              WorkbenchAction(DeleteSubtask(get_string(args, "title")))
             | _ => raise(Failure("The tool called does not exist."))
             };
           Action(action);
@@ -273,11 +347,34 @@ module Local = {
       "remove_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
     | ProbeAction(ToggleProbe(paths)) =>
       "toggle_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | StaticsAction(PlaceStatics(paths)) =>
+      "place_statics(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | StaticsAction(RemoveStatics(paths)) =>
+      "remove_statics(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | StaticsAction(ToggleStatics(paths)) =>
+      "toggle_statics(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | SyntaxProjectorAction(PlaceSyntaxProjector(kind, paths)) =>
+      "place_syntax_projector(kind="
+      ++ ProjectorKind.name(kind)
+      ++ ", paths=["
+      ++ String.concat(", ", paths)
+      ++ "])"
+    | SyntaxProjectorAction(RemoveSyntaxProjector(paths)) =>
+      "remove_syntax_projector(\"[" ++ String.concat(", ", paths) ++ "]\")"
+    | SyntaxProjectorAction(ToggleSyntaxProjector(kind, paths)) =>
+      "toggle_syntax_projector(kind="
+      ++ ProjectorKind.name(kind)
+      ++ ", paths=["
+      ++ String.concat(", ", paths)
+      ++ "])"
     | LanguageServerAction(ShowUseSites(path)) =>
       "show_use_sites(\"" ++ path ++ "\")"
     | LanguageServerAction(ShowReferences(path)) =>
       "show_references(\"" ++ path ++ "\")"
-    | Initialize(code) => "initialize(\"" ++ code ++ "\")"
+    | InsertAtProgramBoundary(After, code) =>
+      "insert_after(\"" ++ code ++ "\")"
+    | InsertAtProgramBoundary(Before, code) =>
+      "insert_before(\"" ++ code ++ "\")"
     | EditorAction(Update(Definition, path, code)) =>
       "update_definition(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | EditorAction(Update(Body, path, code)) =>
@@ -344,6 +441,32 @@ module Local = {
       "reorder_subtasks_in_active_task( \"["
       ++ String.concat(", ", subtasks_ordering)
       ++ "]\" )"
+    | WorkbenchAction(UpdateActiveTask(new_title, new_description)) =>
+      let fields =
+        List.filter_map(
+          ((k, v)) =>
+            switch (v) {
+            | Some(s) => Some(k ++ "=\"" ++ s ++ "\"")
+            | None => None
+            },
+          [("new_title", new_title), ("new_description", new_description)],
+        );
+      "update_active_task(" ++ String.concat(", ", fields) ++ ")";
+    | WorkbenchAction(UpdateActiveSubtask(new_title, new_description)) =>
+      let fields =
+        List.filter_map(
+          ((k, v)) =>
+            switch (v) {
+            | Some(s) => Some(k ++ "=\"" ++ s ++ "\"")
+            | None => None
+            },
+          [("new_title", new_title), ("new_description", new_description)],
+        );
+      "update_active_subtask(" ++ String.concat(", ", fields) ++ ")";
+    | WorkbenchAction(DeleteTask(title)) =>
+      "delete_task(\"" ++ title ++ "\")"
+    | WorkbenchAction(DeleteSubtask(title)) =>
+      "delete_subtask(\"" ++ title ++ "\")"
     };
   };
 };

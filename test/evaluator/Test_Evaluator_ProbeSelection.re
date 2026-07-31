@@ -21,7 +21,11 @@ open Test_Evaluator_Prelude;
 let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
   let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
-    Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+    Evaluator.evaluate(
+      ~eval_info=EvalInfo.of_targets(targets),
+      ~env=Builtins.env_init,
+      elaborated,
+    );
   EvaluatorState.get_probes(state);
 };
 
@@ -36,8 +40,7 @@ let partition_by_depth =
 
 /* Make a cursor at a given stack, with optional pin */
 let mk_cursor =
-    (~pinned=None, ~indicated_call=None, stack: Sample.call_stack)
-    : Sample.Focus.t => {
+    (~pinned=None, ~indicated_call=None, stack: CallStack.t): Sample.Focus.t => {
   call_stack: stack,
   index: List.length(stack) - 1,
   pinned_stack: pinned,
@@ -137,7 +140,7 @@ in f(5)|};
         /* Simulate step-into: cursor has same stack but with None name */
         let cursor_stack =
           List.map(
-            (f: Sample.stack_frame): Sample.stack_frame =>
+            (f: CallStack.frame): CallStack.frame =>
               {
                 id: f.id,
                 name: None,
@@ -179,7 +182,7 @@ in f(1); f(2)|};
       let first = List.hd(samples);
       let pin_stack =
         List.map(
-          (f: Sample.stack_frame): Sample.stack_frame =>
+          (f: CallStack.frame): CallStack.frame =>
             {
               id: f.id,
               name: None,
@@ -255,7 +258,7 @@ in f(1); f(2)|};
       /* Pin to s1's context, with None names (as step-into would) */
       let pin_stack =
         List.map(
-          (f: Sample.stack_frame): Sample.stack_frame =>
+          (f: CallStack.frame): CallStack.frame =>
             {
               id: f.id,
               name: None,
@@ -278,13 +281,13 @@ in f(1); f(2)|};
         bool,
         "kept sample should match s1's call stack",
         true,
-        Sample.equal_call_stack(kept.call_stack, s1.call_stack),
+        CallStack.equal(kept.call_stack, s1.call_stack),
       );
       check(
         bool,
         "kept sample should NOT match s2's call stack",
         false,
-        Sample.equal_call_stack(kept.call_stack, s2.call_stack),
+        CallStack.equal(kept.call_stack, s2.call_stack),
       );
       /* Full select should also return 1 */
       let (selected, _) = run_select(~cursor, samples);
@@ -441,12 +444,7 @@ in ^^probe(f(1)); ^^probe(f(2)); ^^probe(f(3))|};
 
 /* Helper: mk_cursor with explicit index for intent preservation testing */
 let mk_cursor_at_index =
-    (
-      ~pinned=None,
-      ~indicated_call=None,
-      ~index: int,
-      stack: Sample.call_stack,
-    )
+    (~pinned=None, ~indicated_call=None, ~index: int, stack: CallStack.t)
     : Sample.Focus.t => {
   call_stack: stack,
   index,
@@ -750,7 +748,11 @@ in ^^probe(f(42))|};
       /* Evaluate to get samples */
       let elaborated = elaborate(term);
       let (_, state) =
-        Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+        Evaluator.evaluate(
+          ~eval_info=EvalInfo.of_targets(targets),
+          ~env=Builtins.env_init,
+          elaborated,
+        );
       let probes_map = EvaluatorState.get_probes(state);
       /* Find the call probe (wrapping f(42)) and inner probe (on x) */
       let call_probe_id =
