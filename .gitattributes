@@ -13,6 +13,7 @@ src/web/exercises/**/*.ml linguist-generated
 hazel.opam linguist-generated
 hazel.opam.locked linguist-generated
 package-lock.json linguist-generated
+.changetours/** linguist-generated
 
 *.md linguist-documentation
 docs/** linguist-documentation
