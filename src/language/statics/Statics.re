@@ -697,6 +697,31 @@ and uexp_to_info_map =
       );
     | Projector(data, e) =>
       let (e, e_elab, m) = go(~ana, e, m);
+      /* A probed livelit projector also computes view(model) in this run,
+         sampled at the projector's id for the projector to render */
+      let e_elab =
+        switch (
+          data.kind,
+          Id.Map.mem(Exp.rep_id(uexp), probe_ids),
+          UserLivelit.use_parts(ctx, e.user_term),
+        ) {
+        | (Livelit, true, Some((name, model))) =>
+          /* the view gets the ELABORATED model (located inside the
+             expansion by the surface model's id) — a committed transition's
+             surface form is not evaluable */
+          let model =
+            Option.value(
+              Exp.find_by_id(Exp.rep_id(model), e_elab),
+              ~default=model,
+            );
+          UserLivelit.instrument_view(
+            ~projector_id=Exp.rep_id(uexp),
+            ~name,
+            ~model,
+            e_elab,
+          );
+        | _ => e_elab
+        };
       add(
         ~elab_term=Projector(data, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -1232,6 +1257,46 @@ and uexp_to_info_map =
         m,
       );
 
+    | Dot(
+        {term: LivelitName(ll_name), _} as e1,
+        {term: Label(member), _} as e2,
+      )
+        when UserLivelit.is_user_livelit(ctx, ll_name) =>
+      /* Member access on a user-defined livelit: the name denotes its
+         definition record at runtime, so elaborate through the binding.
+         This is also the form interactions commit (^name.update(m, a)). */
+      let (info_e1, _, m) = go(~ana=syn, e1, m);
+      let (info_e2, elab_e2, m) =
+        add(
+          ~user_term=e2,
+          ~elab_term=e2,
+          ~ancestors=ancestors_inclusive,
+          ~ctx,
+          ~ana=syn,
+          ~elab_syn_ty=Label(member) |> Typ.temp,
+          ~marks=[],
+          ~co_ctx=CoCtx.empty,
+          ~label_inference=None,
+          ~inferred_label=None,
+          ~dot_labels=[],
+          ~label_sort=true,
+          ~warnings=[],
+          m,
+        );
+      let (_, e1_rewrap) = Exp.unwrap(e1);
+      let binding = e1_rewrap(Var("^" ++ ll_name));
+      add(
+        ~elab_term=Dot(binding, elab_e2) |> rewrap,
+        ~elab_syn_ty=UserLivelit.member_ty(ctx, ll_name, member),
+        ~marks=[],
+        ~co_ctx=CoCtx.union([info_e1.co_ctx, info_e2.co_ctx]),
+        ~probe_targets=
+          SubexpProbeTargets.union_all([
+            info_e1.probe_targets,
+            info_e2.probe_targets,
+          ]),
+        m,
+      );
     | Dot(e1, e2) =>
       let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
       let available_labels = {
@@ -1560,12 +1625,19 @@ and uexp_to_info_map =
       | LivelitName(s) =>
         // refer to livelit context to find types
         switch (Ctx.lookup_livelit(ctx, s)) {
-        | Some({expansion_t, model_t, expand, _}) =>
+        | Some({expansion_t, model_t, expand, user_def, _}) =>
           let (fn, fn_elab, m) = go(~ana=expansion_t, fn, m);
           let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
 
+          /* A user-defined livelit's expansion embeds the model, so give it
+             the ELABORATED model — the surface form of e.g. a committed
+             ^name.update(m, a) transition is not evaluable. Builtins match
+             on surface shapes and keep the user term. */
+          let model_for_expand =
+            Option.is_some(user_def) ? arg_elab : arg.user_term;
+
           // try to expand
-          switch (expand(arg.user_term)) {
+          switch (expand(model_for_expand)) {
           | Some(expanded) =>
             let (info, elab, m) =
               add(

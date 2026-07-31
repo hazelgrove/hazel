@@ -340,19 +340,26 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
       Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
 
     /* Get term for evaluation */
-    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
+    let make_term_result =
+      Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp);
+    let term = make_term_result.term;
     open Language;
 
-    /* Run statics to get info_map */
-    let (info_map, _) =
-      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+    /* Probe ids up front — statics needs them too, since instrumentation
+       (e.g. the livelit view fold-in) happens during elaboration */
+    let base_probe_ids =
+      Haz3lcore.CachedStatics.probe_ids_of_zipper(
+        ~projectors=make_term_result.projectors,
+        zipper,
+      );
 
-    /* Get manual probe IDs */
-    let manual_ids =
-      List.fold_left(
-        (map, (id, _)) => Id.Map.add(id, (), map),
-        Id.Map.empty,
-        zipper.refractors.manuals,
+    /* Run statics to get info_map and the (instrumented) elaboration */
+    let (info_map, elaborated) =
+      Statics.mk(
+        ~probe_ids=base_probe_ids,
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Int)),
+        term,
       );
 
     /* If --auto, compute auto-probe IDs */
@@ -392,8 +399,9 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         Id.Map.empty;
       };
 
-    /* Combine manual and auto probes */
-    let probe_ids = Id.Map.union((_, _, _) => Some(), manual_ids, auto_ids);
+    /* Combine base (manual + projector) and auto probes */
+    let probe_ids =
+      Id.Map.union((_, _, _) => Some(), base_probe_ids, auto_ids);
 
     /* Build probe_map - tells evaluator which expressions to record */
     let sample_map =
@@ -403,8 +411,17 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         ~probe_ids,
       );
 
-    /* Evaluate with probe_map to collect probe samples */
-    let (_, sample_map) = Run.evaluate_with_probe_map(~sample_map, term);
+    /* Evaluate the elaboration from the same statics run (it may carry
+       probe instrumentation) to collect probe samples */
+    let sample_map = {
+      let (_, state) =
+        Evaluator.evaluate(
+          ~targets=sample_map,
+          ~env=Builtins.env_init,
+          elaborated,
+        );
+      EvaluatorState.get_probes(state);
+    };
 
     /* Format output with probe values */
     let window: Sample.Window.mode =

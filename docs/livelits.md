@@ -41,9 +41,18 @@ tuple is accepted as the equivalent form.
 
 Each use elaborates to `^name.expand(model)` through the runtime `^name`
 binding, so shadowing and scoping behave like ordinary lets, and each use's
-model lives in its own argument syntax. The definition must be closed —
-`update`/`view` evaluate in the builtin environment at render time — so
-helpers belong among its members.
+model lives in its own argument syntax. `^name.member` is also surface
+syntax: it accesses the definition record (e.g. `^pct.expand(25)`).
+
+A projected use's `view` runs in the main evaluation (sampled at the
+projector, which renders the live HTML), so probes inside `view` and
+`expand` see samples per use. Interactions commit the transition itself as
+the new argument — `^name(^name.update(prev, action))` — normalized by the
+next evaluation, so the last interaction stays in the program where
+`update`'s probes and the stepper can reach it; each commit collapses the
+previous transition to its value first. Actions must therefore be
+first-order data. `update` alone still evaluates in the builtin environment
+(at event time, as a fallback), so helpers belong among the members.
 
 Example programs: `hazel-programs/livelits/` (shipped as the "Livelits" doc
 slides; regenerate with `regen-slides.sh` there after edits). The adapter is

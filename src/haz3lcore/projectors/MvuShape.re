@@ -20,6 +20,19 @@ let rec strip_wrappers = (d: DHExp.t): DHExp.t =>
   | _ => d
   };
 
+/* A value sampled MID-run can be Closure-wrapped with OPEN terms beneath:
+   the evaluator only substitutes environments away when a run completes,
+   and functions constructed inside a closure are not individually wrapped.
+   Stripping such a Closure discards the environment that gives embedded
+   functions (e.g. HTML handlers) their meaning — substitute it instead. */
+let rec close_value = (d: DHExp.t): DHExp.t =>
+  switch (d.term) {
+  | Asc(inner, _)
+  | Parens(inner) => close_value(inner)
+  | Closure(env, inner) => close_value(Substitution.in_exp(env, inner))
+  | _ => d
+  };
+
 // Extract constructor name and body, stripping wrappers from the body too.
 // Nullary constructors get an empty tuple as placeholder body.
 let of_constructor = (d: DHExp.t): option((string, DHExp.t)) => {

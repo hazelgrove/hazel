@@ -314,6 +314,254 @@ let size_field = () => {
   };
 };
 
+/* View fold-in: a projected use also computes view(model) in the main run,
+   so probes inside view fire and the projector's sample stream carries the
+   live HTML. Pipeline mirrors the CLI probe command. */
+let probe_run = (text: string) => {
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, text)) {
+  | None => fail("failed to parse: " ++ text)
+  | Some(z) =>
+    let mtr = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let probe_ids =
+      Haz3lcore.CachedStatics.probe_ids_of_zipper(
+        ~projectors=mtr.projectors,
+        z,
+      );
+    let (info_map, elaborated) =
+      Statics.mk(
+        ~probe_ids,
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Int)),
+        mtr.term,
+      );
+    let targets =
+      Haz3lcore.CachedStatics.compute_targets(
+        ~settings=CoreSettings.on,
+        ~info_map,
+        ~probe_ids,
+      );
+    let (_, state) =
+      Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+    (
+      mtr,
+      List.map(fst, z.refractors.manuals),
+      EvaluatorState.get_probes(state),
+    );
+  };
+};
+
+let view_probe_def = "let ^dbl = {
+let init = 0;
+let update = fun (m, a) -> a;
+let view = fun m -> Text(string_of_int(^^probe(m * 3)));
+let expand = fun m -> m * 2
+} in ";
+
+let view_probes_fire = () => {
+  let (_, _, probes) =
+    probe_run(view_probe_def ++ "^^livelit(^dbl(21)) + ^^livelit(^dbl(4))");
+  /* the manual probe inside view records once per projected use */
+  let view_samples =
+    Sample.Map.fold(
+      (_, samples, acc) =>
+        acc
+        + List.length(
+            List.filter(
+              (s: Sample.t) =>
+                switch (Haz3lcore.MvuShape.strip_wrappers(s.value).term) {
+                | Atom(Int(n)) =>
+                  Bigint.to_int(n) == Some(63)
+                  || Bigint.to_int(n) == Some(12)
+                | _ => false
+                },
+              samples,
+            ),
+          ),
+      probes,
+      0,
+    );
+  check(int, "view probe sampled once per use", 2, view_samples);
+};
+
+let projector_gets_html_sample = () => {
+  let (mtr, _, probes) =
+    probe_run(view_probe_def ++ "^^livelit(^dbl(21)) + 1");
+  let html_samples =
+    Id.Map.fold(
+      (id, _, acc) =>
+        acc
+        + (
+          switch (Sample.Map.lookup(id, probes)) {
+          | Some(samples) =>
+            List.length(
+              List.filter(
+                (s: Sample.t) =>
+                  Haz3lcore.MvuShape.is_html(
+                    Haz3lcore.MvuShape.strip_wrappers(s.value),
+                  ),
+                samples,
+              ),
+            )
+          | None => 0
+          }
+        ),
+      mtr.projectors,
+      0,
+    );
+  check(int, "projector stream carries the live HTML", 1, html_samples);
+};
+
+let unprojected_view_not_run = () => {
+  let (_, _, probes) = probe_run(view_probe_def ++ "^dbl(21)");
+  let total =
+    Sample.Map.fold((_, ss, acc) => acc + List.length(ss), probes, 0);
+  check(int, "no projector, no view run, no samples", 0, total);
+};
+
+let member_access = () =>
+  run_test(
+    "^name.member accesses the definition record",
+    "51",
+    "let ^dbl = " ++ dbl_module ++ " in ^dbl.expand(21) + ^dbl.update((3, 9))",
+  );
+
+let redex_as_model = () =>
+  run_test(
+    "a committed transition normalizes in the main run",
+    "18",
+    "let ^dbl = " ++ dbl_module ++ " in ^dbl(^dbl.update(3, 9))",
+  );
+
+let update_probe_def = "let ^dbl = {
+let init = 0;
+let update = fun (m, a) -> ^^probe(m + a);
+let view = fun m -> Text(string_of_int(m));
+let expand = fun m -> m * 2
+} in ";
+
+let update_probe_fires_once = () => {
+  let (_, manuals, probes) =
+    probe_run(update_probe_def ++ "^^livelit(^dbl(^dbl.update(3, 9)))");
+  let count_12 = ids =>
+    List.fold_left(
+      (acc, id) =>
+        acc
+        + List.length(
+            List.filter(
+              (s: Sample.t) =>
+                switch (Haz3lcore.MvuShape.strip_wrappers(s.value).term) {
+                | Atom(Int(n)) => Bigint.to_int(n) == Some(12)
+                | _ => false
+                },
+              Option.value(Sample.Map.lookup(id, probes), ~default=[]),
+            ),
+          ),
+      0,
+      ids,
+    );
+  check(int, "update probe sampled exactly once", 1, count_12(manuals));
+  /* the model argument is also targeted — the commit path reads its value */
+  let all_ids = Sample.Map.fold((id, _, acc) => [id, ...acc], probes, []);
+  check(
+    int,
+    "transition value also sampled at the model",
+    2,
+    count_12(all_ids),
+  );
+};
+
+/* The commit path's product: the redex term must print to text that
+   reparses and evaluates to the same transition */
+let redex_roundtrip = () => {
+  let redex =
+    UserLivelit.mk_update_redex(
+      ~name="dbl",
+      ~model_value=parse_exp("3"),
+      ~action=parse_exp("9"),
+    );
+  let seg =
+    Haz3lcore.ExpToSegment.any_to_segment(
+      ~settings={
+        ...
+          Haz3lcore.ExpToSegment.Settings.of_core(
+            ~inline=true,
+            CoreSettings.off,
+          ),
+        show_unknown_as_hole: false,
+        fold_fn_bodies: `NoFold,
+        project_tables: false,
+      },
+      Exp(redex),
+    );
+  let text = Haz3lcore.Printer.of_segment(~holes="?", ~indent="", seg);
+  run_test(
+    "committed transition text round-trips: " ++ text,
+    "18",
+    "let ^dbl = " ++ dbl_module ++ " in ^dbl(" ++ text ++ ")",
+  );
+};
+
+/* Regression (color picker): a mid-run HTML sample is Closure-wrapped with
+   OPEN handler funs inside; consuming it must substitute the environment
+   (close_value), not strip it, or handlers lose their definitions */
+let sampled_handlers_are_closed = () => {
+  let (mtr, _, probes) =
+    probe_run(
+      "let ^pk = {
+let bump = fun x -> x + 1;
+let init = 0;
+let update = fun (m, a) -> a;
+let view = fun m -> Div([OnClickAt(fun (x, y) -> bump(x + m))], []);
+let expand = fun m -> m
+} in ^^livelit(^pk(5))",
+    );
+  let html =
+    Id.Map.fold(
+      (id, _, acc) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None =>
+          Option.bind(Sample.Map.lookup(id, probes), samples =>
+            List.find_map(
+              (s: Sample.t) => {
+                let v = Haz3lcore.MvuShape.close_value(s.value);
+                Haz3lcore.MvuShape.is_html(v) ? Some(v) : None;
+              },
+              samples,
+            )
+          )
+        },
+      mtr.projectors,
+      None,
+    );
+  switch (html) {
+  | None => fail("no HTML sample recorded")
+  | Some(html) =>
+    let handler =
+      switch (Haz3lcore.MvuShape.of_constructor_raw(html)) {
+      | Some(("Div", body)) =>
+        switch (Haz3lcore.MvuShape.of_tuple(body)) {
+        | Some([attrs, _children]) =>
+          switch (Haz3lcore.MvuShape.of_list(attrs)) {
+          | Some([attr]) =>
+            switch (Haz3lcore.MvuShape.of_constructor_raw(attr)) {
+            | Some(("OnClickAt", handler)) => handler
+            | _ => fail("expected OnClickAt attr")
+            }
+          | _ => fail("expected one attr")
+          }
+        | _ => fail("expected (attrs, children)")
+        }
+      | _ => fail("expected a Div sample")
+      };
+    let action =
+      evaluate(
+        IdTagged.FreshGrammar.Exp.ap(Forward, handler, parse_exp("(2, 3)")),
+      );
+    check(dhexp_typ, "sampled handler evaluates closed", run("8"), action);
+  };
+};
+
 let tests = [
   (
     "UserLivelits",
@@ -335,6 +583,26 @@ let tests = [
       test_case("good definition unmarked", `Quick, good_def_unmarked),
       test_case("adapter contract", `Quick, adapter),
       test_case("size field", `Quick, size_field),
+      test_case("view probes fire when projected", `Quick, view_probes_fire),
+      test_case(
+        "projector samples the live HTML",
+        `Quick,
+        projector_gets_html_sample,
+      ),
+      test_case(
+        "unprojected uses don't run view",
+        `Quick,
+        unprojected_view_not_run,
+      ),
+      test_case("member access", `Quick, member_access),
+      test_case("redex as model", `Quick, redex_as_model),
+      test_case("update probe fires once", `Quick, update_probe_fires_once),
+      test_case("redex round-trips", `Quick, redex_roundtrip),
+      test_case(
+        "sampled handlers are closed",
+        `Quick,
+        sampled_handlers_are_closed,
+      ),
     ],
   ),
 ];

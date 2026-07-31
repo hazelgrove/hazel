@@ -17,10 +17,12 @@ open Util;
    Since modules are sugar for labeled tuples, a positional 4/5-tuple
    (init, update, view, expand[, size]) is accepted as the equivalent form.
 
-   Only `expand` participates in statics, and it is built syntactically here
-   — no evaluation. The record's `update`/`view` run at render time in
-   LivelitProj via `user_def`, evaluated in the builtin environment: the
-   definition must be closed, with helpers among its members. */
+   Expansion and view instrumentation are built syntactically here — no
+   evaluation during statics. A projected use's view runs in the main
+   evaluation (instrument_view below) and the projector renders the sampled
+   HTML; `update` runs at event time in the builtin environment via
+   `user_def`, so definitions should be closed, with helpers among their
+   members. */
 
 let expand_slot = 3;
 
@@ -233,6 +235,99 @@ let mk_expand_positional =
       Exp.var("^" ++ name),
       Exp.ap(Operators.Forward, Exp.var(hidden), model),
     ),
+  );
+};
+
+let is_user_livelit = (ctx: Ctx.t, name: string): bool =>
+  switch (Ctx.lookup_livelit(ctx, name)) {
+  | Some({user_def: Some(_), _}) => true
+  | _ => false
+  };
+
+/* Surface member access (^name.member) types loosely, from the member
+   shapes the record convention implies */
+let member_ty = (ctx: Ctx.t, name: string, member: string): TermBase.Typ.t =>
+  switch (Ctx.lookup_livelit(ctx, name)) {
+  | Some({model_t, action_t, expansion_t, _}) =>
+    IdTagged.FreshGrammar.(
+      switch (member) {
+      | "update" => Typ.arrow(Typ.prod([model_t, action_t]), model_t)
+      | "expand" => Typ.arrow(model_t, expansion_t)
+      | "init" => model_t
+      | _ => unknown()
+      }
+    )
+  | None => unknown()
+  };
+
+/* The transition an interaction commits as the new model argument:
+   ^name.update(prev_model, action). Living in the text, the last
+   transition stays where probes and the stepper can reach it; the next
+   commit collapses it to its value first, so depth stays constant. */
+let mk_update_redex =
+    (~name: string, ~model_value: TermBase.Exp.t, ~action: TermBase.Exp.t)
+    : TermBase.Exp.t => {
+  let model_value = Exp.replace_all_ids(model_value);
+  let action = Exp.replace_all_ids(action);
+  IdTagged.FreshGrammar.(
+    Exp.ap(
+      Operators.Forward,
+      Exp.dot(Exp.var("^" ++ name), Exp.label("update")),
+      Exp.tuple([model_value, action]),
+    )
+  );
+};
+
+/* A projected use of a user-defined livelit: (bare name, model term) */
+let use_parts =
+    (ctx: Ctx.t, use: TermBase.Exp.t): option((string, TermBase.Exp.t)) =>
+  switch (strip_parens(use).term) {
+  | Ap(_, {term: LivelitName(name), _}, model) =>
+    switch (Ctx.lookup_livelit(ctx, name)) {
+    | Some({user_def: Some(_), _}) => Some((name, model))
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* View fold-in: a projected use also computes view(model) in the main run,
+   discarded by the program but sampled at the projector's id — the same id
+   the projector's dynamics probe watches — so the projector can render the
+   live HTML without evaluating anything itself. The model is bound once
+   (`%model`, not a lexable token) and shared between the view call and the
+   expansion, so a committed ^name.update(m, a) transition runs — and its
+   probes fire — exactly once. The model keeps its surface ids as the
+   binding's definition, so its value samples at the model's own id. */
+let instrument_view =
+    (
+      ~projector_id: Id.t,
+      ~name: string,
+      ~model: TermBase.Exp.t,
+      body: TermBase.Exp.t,
+    )
+    : TermBase.Exp.t => {
+  let model_id = Exp.rep_id(model);
+  let m_var = "%model";
+  let m_ref = () => IdTagged.FreshGrammar.Exp.var(m_var);
+  let body =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => Exp.rep_id(e) == model_id ? m_ref() : continue(e),
+      body,
+    );
+  IdTagged.FreshGrammar.(
+    {
+      let view_ap =
+        IdTagged.mk_internal(
+          [projector_id],
+          Grammar.Ap(
+            Operators.Forward,
+            Exp.dot(Exp.var("^" ++ name), Exp.label("view")),
+            m_ref(),
+          ): TermBase.Exp.term,
+        );
+      Exp.let_(Pat.var(m_var), model, Exp.let_(Pat.wild(), view_ap, body));
+    }
   );
 };
 
