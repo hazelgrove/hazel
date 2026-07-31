@@ -2,11 +2,12 @@ open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
 
-/* Slice 2 of plans/observation-trace.md: the evaluator emits observation
- * events ALONGSIDE inline sample minting; ObsTrace.assemble over the
- * chronological event sequence must reproduce the probe map exactly
+/* Live/batch parity for the observation trace
+ * (plans/observation-trace.md): state.probes is maintained incrementally
+ * by ObsTrace.fold_step as events are recorded, and replaying the same
+ * events through the batch ObsTrace.assemble must reproduce it exactly
  * (modulo mint-time metadata: seq counter and wall-clock time — sample
- * `id` is a content hash and must agree).
+ * `id` is a content hash and must agree). One transition, two drivers.
  *
  * Fresh evaluations only: incremental reuse replays cached SAMPLES via
  * append but not their events (cache entries are cleared transient), so

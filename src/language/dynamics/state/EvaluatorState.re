@@ -30,9 +30,11 @@ type t = {
    * path for expression samples. Balanced within each top-level
    * segment, so `append` keeps the base's opens. */
   obs_opens: list(ObsTrace.open_span),
-  /* Shadow observation trace (plans/observation-trace.md slice 2):
-   * events emitted alongside inline sample minting; ObsTrace.assemble
-   * over the (reversed) list must reproduce `probes` exactly. Transient:
+  /* The observation trace (plans/observation-trace.md): the event
+   * sequence whose fold (ObsTrace.fold_step, driven by record_event)
+   * IS how `probes` gets populated. The retained list exists for
+   * batch replay (ObsTrace.assemble ≡ probes, pinned by
+   * Test_ObsTraceShadow) and future retention-mode queries. Transient:
    * merged by append, cleared by clear_transient. Prepend order
    * (newest first), like every other accumulator here. */
   obs_trace: list(ObsTrace.event),
