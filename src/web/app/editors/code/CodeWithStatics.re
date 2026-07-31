@@ -65,12 +65,14 @@ module Model = {
       |> Option.map(({piece, _}: Indicated.piece) => piece),
     selected_text:
       Some(
-        () =>
-          Printer.of_segment(
+        () => {
+          let z = model.editor.state.zipper;
+          Printer.selected_text(
             ~indent=" ",
-            ~refractors=model.editor.state.zipper.refractors.manuals,
-            model.editor.state.zipper.selection.content,
-          ),
+            ~refractors=z.refractors.manuals,
+            z,
+          );
+        },
       ),
     selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),

@@ -31,73 +31,128 @@ type provenance = {
 type reuse_map = VarMap.t_(provenance);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type entry = {
+type entry('state) = {
   prev_elab: Exp.t,
   prev_reuse_map: reuse_map,
-  prev_probe_targets: option(SubexpProbeTargets.t),
+  prev_probe_targets: EvalInfo.probe_targets,
   value: DHExp.t,
-  state: StateSlice.t,
+  state: 'state,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  entries: Id.Map.t(entry),
-  /* Ids evaluated from scratch on this run (cache miss). UI tint. */
-  recalculated: list(Id.t),
-  /* Ids short-circuited via reuse_check (cache hit). Not the complement of
-   * `recalculated`: a recalculated parent can still contain reused children. */
-  reused: list(Id.t),
+type t('state) = {entries: Id.Map.t(entry('state))};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type current('state) = {
+  id: Id.t,
+  state: 'state,
 };
 
-let empty: t = {
-  entries: Id.Map.empty,
-  recalculated: [],
-  reused: [],
+[@deriving (show({with_path: false}), sexp, yojson)]
+type outbox('state) = {
+  completed: t('state),
+  current: option(current('state)),
 };
 
-let is_empty = (incr: t): bool =>
-  Id.Map.is_empty(incr.entries)
-  && incr.recalculated == []
-  && incr.reused == [];
+let empty: t('state) = {entries: Id.Map.empty};
 
-let add_entry = (id: Id.t, entry: entry, incr: t): t => {
-  ...incr,
+let empty_outbox: outbox('state) = {
+  completed: empty,
+  current: None,
+};
+
+let outbox_of_completed = (completed: t('state)): outbox('state) => {
+  completed,
+  current: None,
+};
+
+let is_empty = (incr: t('state)): bool => Id.Map.is_empty(incr.entries);
+
+let outbox_is_empty = (outbox: outbox('state)): bool =>
+  is_empty(outbox.completed) && Option.is_none(outbox.current);
+
+let add_entry =
+    (id: Id.t, entry: entry('state), incr: t('state)): t('state) => {
   entries: Id.Map.add(id, entry, incr.entries),
 };
 
-let mark_recalculated = (id: Id.t, incr: t): t => {
-  ...incr,
-  recalculated: [id, ...incr.recalculated],
+let add_outbox_entry =
+    (id: Id.t, entry: entry('state), outbox: outbox('state))
+    : outbox('state) => {
+  ...outbox,
+  completed: add_entry(id, entry, outbox.completed),
 };
 
-let mark_reused = (id: Id.t, incr: t): t => {
-  ...incr,
-  reused: [id, ...incr.reused],
+let set_outbox_current =
+    (~id: Id.t, ~state: 'state, outbox: outbox('state)): outbox('state) => {
+  ...outbox,
+  current:
+    Some({
+      id,
+      state,
+    }),
 };
 
-/* The set of ids the UI should paint as "frozen" this run.*/
-let frozen_ids = (incr: t): list(Id.t) => {
+let add_stream = (stream: t('state), incr: t('state)): t('state) => {
+  entries:
+    Id.Map.union(
+      (_, _old, new_) => Some(new_),
+      incr.entries,
+      stream.entries,
+    ),
+};
+
+let merge_outbox =
+    (stream: outbox('state), outbox: outbox('state)): outbox('state) => {
+  completed: add_stream(stream.completed, outbox.completed),
+  /* A slice that only finished completed entries (or only stepped through
+   * non-program ids) may omit current. Keep the prior in-flight publish so
+   * mid-stream UI state does not flicker away between slices. */
+  current:
+    switch (stream.current) {
+    | Some(_) as current => current
+    | None => outbox.current
+    },
+};
+
+let copy_descendant_entries =
+    (~root_id: Id.t, ~root: Exp.t, ~prev: t('state), incr: t('state))
+    : t('state) => {
+  let acc = ref(incr);
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    let sub_id = Exp.rep_id(e);
+    if (!Id.equal(sub_id, root_id)) {
+      switch (Id.Map.find_opt(sub_id, prev.entries)) {
+      | Some(sub_entry) => acc := add_entry(sub_id, sub_entry, acc^)
+      | None => ()
+      };
+    };
+    continue(e);
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, root);
+  acc^;
+};
+
+/* Surface ids covered by cache entries: each entry short-circuits a subtree,
+ * so expand via prev_elab rather than using only the map keys. Used by the
+ * pending-eval worklist (to drop settled ids) and by the frozen debug tint
+ * (to paint a reuse prediction). */
+let visible_ids = (incr: t('state)): list(Id.t) => {
   let acc = ref([]);
   let collect_subtree = (root: Exp.t): unit => {
-    let f_exp = (continue, e: Exp.t) => {
+    let f_exp = (continue, e: Exp.t): Exp.t => {
       acc := [Exp.rep_id(e), ...acc^];
       continue(e);
     };
     let _ = TermBase.Exp.map_term(~f_exp, root);
     ();
   };
-  List.iter(
-    id =>
-      switch (Id.Map.find_opt(id, incr.entries)) {
-      | Some(entry) => collect_subtree(entry.prev_elab)
-      | None => acc := [id, ...acc^]
-      },
-    incr.reused,
-  );
+  Id.Map.iter((_, entry) => collect_subtree(entry.prev_elab), incr.entries);
   acc^;
 };
 
-let empty_reuse_map: reuse_map = VarMap.empty;
+/* Ids the UI should paint as "frozen" for a reuse plan / prediction. */
+let frozen_ids = (~incr: t('state)): list(Id.t) => visible_ids(incr);
 
 let equal_provenance = (a: provenance, b: provenance): bool =>
   Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
@@ -126,12 +181,20 @@ let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
        a,
      );
 
+/* `$hole` is a statics-only sentinel for unused-variable warnings. It is not
+ * a runtime dependency, so it should not participate in reuse provenance. */
+let is_runtime_dependency = (name: string): bool => name != "$hole";
+
 let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
   List.fold_right(
     ((name, _), projected) =>
-      switch (VarMap.lookup(reuse_map, name)) {
-      | Some(prov) => [(name, prov), ...projected]
-      | None => projected
+      if (!is_runtime_dependency(name)) {
+        projected;
+      } else {
+        switch (VarMap.lookup(reuse_map, name)) {
+        | Some(prov) => [(name, prov), ...projected]
+        | None => projected
+        };
       },
     VarMap.to_list(co_ctx),
     [],
@@ -141,17 +204,36 @@ let reuse_map_for_co_ctx =
     (reuse_map: reuse_map, co_ctx: CoCtx.t): option(reuse_map) =>
   List.fold_right(
     ((name, _), acc) =>
-      switch (acc) {
-      | None => None
-      | Some(projected) =>
-        switch (VarMap.lookup(reuse_map, name)) {
-        | Some(prov) => Some([(name, prov), ...projected])
+      if (!is_runtime_dependency(name)) {
+        acc;
+      } else {
+        switch (acc) {
         | None => None
-        }
+        | Some(projected) =>
+          switch (VarMap.lookup(reuse_map, name)) {
+          | Some(prov) => Some([(name, prov), ...projected])
+          | None => None
+          }
+        };
       },
     VarMap.to_list(co_ctx),
     Some([]),
   );
+
+// For builtins
+let clean_reuse_map_of_env = (env: Environment.t(Exp.t)): reuse_map =>
+  env
+  |> Environment.to_list
+  |> List.map(((name, _)) =>
+       (
+         name,
+         {
+           source: Id.invalid,
+           path: [],
+           flag: Clean,
+         },
+       )
+     );
 
 let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map => {
   let bound = Pat.bound_vars(pat);
@@ -216,8 +298,6 @@ let with_pat_provenance =
   pat_provenance(~source_id, ~flag, pat)
   @ remove_pat_bindings(pat, reuse_map);
 
-let was_reused = (id: Id.t, incr: t): bool => List.mem(id, incr.reused);
-
 let update_maps_after_binding =
     (~rhs_reused: bool, ~source_id: Id.t, pat: Pat.t, ~reuse_map: reuse_map)
     : reuse_map => {
@@ -227,18 +307,18 @@ let update_maps_after_binding =
 
 let reuse_check =
     (
-      ~call_stack: Sample.call_stack,
-      ~prev: t,
+      ~call_stack: CallStack.state,
+      ~prev: t('state),
       ~reuse_map: reuse_map,
-      ~info_map: EvalInfoMap.t,
+      ~eval_info: EvalInfo.t,
       ~id: Id.t,
     )
-    : option(entry) => {
+    : option(entry('state)) => {
   open OptUtil.Syntax;
 
-  let* () = OptUtil.some_if(call_stack == [] && !is_empty(prev), ());
+  let* () = OptUtil.some_if(call_stack.stack == [] && !is_empty(prev), ());
   let* entry = Id.Map.find_opt(id, prev.entries);
-  let* info = EvalInfoMap.find_opt(id, info_map);
+  let* info = EvalInfo.find_opt(id, eval_info);
 
   let elab_same = Exp.fast_equal(entry.prev_elab, info.elab_term);
   let* () = OptUtil.some_if(elab_same, ());
@@ -252,8 +332,7 @@ let reuse_check =
 
   let* () =
     OptUtil.some_if(
-      Option.equal(
-        SubexpProbeTargets.equal,
+      EvalInfo.equal_probe_targets(
         entry.prev_probe_targets,
         info.probe_targets,
       ),
