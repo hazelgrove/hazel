@@ -11,7 +11,7 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
 
 /* In Patchwork mode, skip building documentation slides since they aren't
    accessible (only Scratch mode is synced via Automerge). This saves startup time. */
-let documentation_slides =
+let documentation_slides: list((string, PersistentSegment.t)) =
   if (PatchworkComm.is_in_iframe()) {
     [];
   } else {
@@ -27,7 +27,17 @@ let documentation_slides =
       Probes.out,
       Livelits.out,
     ]
-    @ B2t2.Slides.all_slides
+    @ B2t2.Slides.all_slides;
+  };
+
+let startup: PersistentData.t = {
+  scratch: (
+    0,
+    [("Scratchpad 1", empty_cell_editor_persistent(~root=Exp))],
+  ),
+  documentation: (
+    0,
+    documentation_slides
     |> List.map(((name, content: PersistentSegment.t)) =>
          (
            name,
@@ -39,15 +49,8 @@ let documentation_slides =
              result: EvalResult.Model.init |> EvalResult.Model.persist,
            }: CellEditor.Model.persistent,
          )
-       );
-  };
-
-let startup: PersistentData.t = {
-  scratch: (
-    0,
-    [("Scratchpad 1", empty_cell_editor_persistent(~root=Exp))],
+       ),
   ),
-  documentation: (0, documentation_slides),
 };
 
 let find_documentation_slide = (name: string) => {

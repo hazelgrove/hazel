@@ -353,10 +353,14 @@ let bbox_of = (rows: list(row_data)): option(bbox) =>
     );
   };
 
+/* Fraction of a group's width covered by the active-eval sweep bar. */
+let sweep_width_ratio = 0.45;
+
 let svg_of_group =
     (
       ~font_metrics: FontMetrics.t,
       ~clss: list(string),
+      ~sweep: bool=false,
       rows: list(row_data),
     )
     : option(Node.t) =>
@@ -369,6 +373,51 @@ let svg_of_group =
 
     let path_cmds =
       outline_path(~origin_col=bb.min_col, ~origin_row=bb.min_row, rows);
+    /* Clip-path ids must be document-unique; derive one from the group's
+     * bounding box (cols are fractional, so scale to tenths of a column). */
+    let clip_id =
+      Printf.sprintf(
+        "incremental-active-%d-%d-%d-%d",
+        int_of_float(bb.min_col *. 10.0),
+        bb.min_row,
+        int_of_float(bb.max_col *. 10.0),
+        bb.max_row,
+      );
+    let active_sweep =
+      if (sweep) {
+        let sweep_width = max(1.0, width_f *. sweep_width_ratio);
+        [
+          Node.create_svg(
+            "defs",
+            [
+              Node.create_svg(
+                "clipPath",
+                ~attrs=[Attr.create("id", clip_id)],
+                [SvgUtil.Path.view(~attrs=[], path_cmds)],
+              ),
+            ],
+          ),
+          Node.create_svg(
+            "g",
+            ~attrs=[Attr.create("clip-path", "url(#" ++ clip_id ++ ")")],
+            [
+              Node.create_svg(
+                "rect",
+                ~attrs=[
+                  Attr.classes(["incremental-sweep"]),
+                  Attr.create("x", "0"),
+                  Attr.create("y", "0"),
+                  Attr.create("width", Printf.sprintf("%f", sweep_width)),
+                  Attr.create("height", Printf.sprintf("%f", height_f)),
+                ],
+                [],
+              ),
+            ],
+          ),
+        ];
+      } else {
+        [];
+      };
 
     Some(
       Node.create_svg(
@@ -391,10 +440,107 @@ let svg_of_group =
           ),
           Attr.create("preserveAspectRatio", "none"),
         ],
-        [SvgUtil.Path.view(~attrs=[], path_cmds)],
+        [SvgUtil.Path.view(~attrs=[], path_cmds)] @ active_sweep,
       ),
     );
   };
+
+/* Clip partial-token boundaries for char-level selections.
+ * Adjusts the first/last row's left/right columns when the
+ * selection boundary falls mid-token (Inner caret). */
+let clip_char_selection =
+    (~measured: Measured.t, z: Zipper.t, rows: list(row_data))
+    : list(row_data) => {
+  let content = z.selection.content;
+  switch (content, rows) {
+  | ([], _)
+  | (_, []) => rows
+  | _ =>
+    /* Determine left/right inner offsets based on focus direction.
+     * Content is always left-to-right spatially.
+     * focus=Right: anchor at left, focus at right.
+     * focus=Left: focus at left, anchor at right.
+     *
+     * When smart_rounded is set, the anchor end displays at the outer
+     * boundary of its piece (even if anchor_caret is Inner) — the
+     * selection has been rounded up beyond the starting token. */
+    let anchor_inner: option(int) =
+      z.selection.smart_rounded
+        ? None
+        : (
+          switch (z.selection.anchor_caret) {
+          | CaretBase.Inner(n) => Some(n)
+          | CaretBase.Outer => None
+          }
+        );
+    let focus_inner: option(int) =
+      switch (z.caret) {
+      | Inner(n) => Some(n)
+      | Outer => None
+      };
+    let (left_inner, right_inner) =
+      switch (z.selection.focus) {
+      | Right => (anchor_inner, focus_inner)
+      | Left => (focus_inner, anchor_inner)
+      };
+
+    /* Clip left boundary of first row */
+    let rows =
+      switch (left_inner) {
+      | None => rows
+      | Some(n) =>
+        let left_piece = List.hd(content);
+        let shard = List.hd(Piece.disassemble(left_piece));
+        switch (Piece.token_of(shard)) {
+        | Some(tok) =>
+          let offset = Zipper.Caret.inner_offset_for_token(n, tok);
+          switch (rows) {
+          | [] => []
+          | [first, ...rest] => [
+              {
+                ...first,
+                left_col: first.left_col + offset,
+                left_tip: None,
+              },
+              ...rest,
+            ]
+          };
+        | None => rows
+        };
+      };
+
+    /* Clip right boundary of last row */
+    let rows =
+      switch (right_inner) {
+      | None => rows
+      | Some(n) =>
+        let right_piece = ListUtil.last(content);
+        let last_shard = ListUtil.last(Piece.disassemble(right_piece));
+        switch (Piece.token_of(last_shard)) {
+        | Some(tok) =>
+          let offset = Zipper.Caret.inner_offset_for_token(n, tok);
+          let m =
+            Measured.find_p(~msg="clip_char_sel_right", last_shard, measured);
+          let new_right_col = m.origin.col + offset;
+          switch (ListUtil.split_last_opt(rows)) {
+          | None => []
+          | Some((init, last_row)) =>
+            init
+            @ [
+              {
+                ...last_row,
+                right_col: new_right_col,
+                right_tip: None,
+              },
+            ]
+          };
+        | None => rows
+        };
+      };
+
+    rows;
+  };
+};
 
 /* --- Public API --- */
 
@@ -405,6 +551,7 @@ let of_segment =
       ~font_metrics: FontMetrics.t,
       ~shape_init: ShardDec.tip,
       ~clss: list(string),
+      ~sweep: bool=false,
       segment: Segment.t,
     )
     : list(Node.t) => {
@@ -412,7 +559,7 @@ let of_segment =
     rows_of_segment(~measured, ~shape_map, ~shape_init, segment)
     |> List.map(((m, tips)) => row_data_of(m, tips));
   let groups = group_consecutive(rows);
-  List.filter_map(svg_of_group(~font_metrics, ~clss), groups);
+  List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep), groups);
 };
 
 let selection =
@@ -421,18 +568,24 @@ let selection =
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
       z: Zipper.t,
-    ) =>
-  div_c(
-    "selects",
-    of_segment(
+    ) => {
+  let rows =
+    rows_of_segment(
       ~measured,
       ~shape_map,
-      ~font_metrics,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-      ~clss=["selected", Selection.buffer_cls(z.selection)],
       z.selection.content,
-    ),
+    )
+    |> List.map(((m, tips)) => row_data_of(m, tips));
+  /* Clip partial-token boundaries for char-level selections */
+  let rows = clip_char_selection(~measured, z, rows);
+  let clss = ["selected", Selection.buffer_cls(z.selection)];
+  let groups = group_consecutive(rows);
+  div_c(
+    "selects",
+    List.filter_map(svg_of_group(~font_metrics, ~clss), groups),
   );
+};
 
 // Expands selection to make it a subtree of the exp
 let selection_expanded =
@@ -504,6 +657,7 @@ let color =
     (
       ~syntax: CachedSyntax.t,
       ~font_metrics: FontMetrics.t,
+      ~sweep: bool=false,
       clss: list(string),
       id: Id.t,
     ) =>
@@ -515,6 +669,7 @@ let color =
       ~font_metrics,
       ~shape_init=Some(Convex),
       ~clss,
+      ~sweep,
       segment,
     )
   | None => []
@@ -538,22 +693,22 @@ let colors =
     ),
   );
 
+/* `predicted_reuse` is the ReusePass plan (not the accumulating cache). */
 let incr_eval =
     (
       ~font_metrics: FontMetrics.t,
       ~syntax: CachedSyntax.t,
-      incr: Language.IncrEval.t,
+      ~pending_eval_ids: list(Id.t)=[],
+      ~show_active_eval: bool=false,
+      ~show_frozen: bool=true,
+      predicted_reuse: Language.EvaluatorState.incr_eval,
     ) => {
-  /* `frozen_ids` walks each reused subtree's prev_elab and emits every
-   * rep_id encountered. Many of those ids have nested or duplicate
-   * source ranges; painting them each as its own SVG stacks the 0.55
-   * alpha and makes inner regions look darker than the surrounding
-   * tint. Keep one id per maximal (outermost) range so each visible
-   * region gets exactly one decoration. Ids without a measurable range
-   * (elab-internal, no segment) are dropped here — the surviving ids in
-   * the same subtree cover the visible portion. */
-  let ranged_ids =
-    Language.IncrEval.frozen_ids(incr)
+  let range_eq = ((o1, l1), (o2, l2)) =>
+    Point.equals(o1, o2) && Point.equals(l1, l2);
+  let range_contains = ((o1, l1), (o2, l2)) =>
+    Point.compare(o1, o2) <= 0 && Point.compare(l2, l1) <= 0;
+  let ranged_ids_of = ids =>
+    ids
     |> List.sort_uniq(Id.compare)
     |> List.filter_map(id =>
          switch (
@@ -563,11 +718,12 @@ let incr_eval =
          | None => None
          }
        );
-  let range_eq = ((o1, l1), (o2, l2)) =>
-    Point.equals(o1, o2) && Point.equals(l1, l2);
-  let range_contains = ((o1, l1), (o2, l2)) =>
-    Point.compare(o1, o2) <= 0 && Point.compare(l2, l1) <= 0;
-  let outermost =
+  let range_compare = ((_, (o1, l1)), (_, (o2, l2))) =>
+    switch (Point.compare(o1, o2)) {
+    | 0 => Point.compare(l1, l2)
+    | cmp => cmp
+    };
+  let outermost = ranged_ids =>
     List.fold_left(
       (acc, (id, r)) =>
         if (List.exists(
@@ -582,12 +738,48 @@ let incr_eval =
       [],
       ranged_ids,
     );
+  let frozen_ids =
+    show_frozen ? Language.IncrEval.frozen_ids(~incr=predicted_reuse) : [];
+  let pending_eval_ranges =
+    pending_eval_ids |> ranged_ids_of |> List.sort(range_compare);
+  let active_ids =
+    if (show_active_eval) {
+      pending_eval_ranges |> ListUtil.hd_opt |> Option.to_list;
+    } else {
+      [];
+    };
+  let pending_inactive_ranges =
+    pending_eval_ranges
+    |> List.filter(((_, range)) =>
+         !
+           List.exists(
+             ((_, active_range)) => range_eq(active_range, range),
+             active_ids,
+           )
+       );
+  let frozen_outermost = frozen_ids |> ranged_ids_of |> outermost;
   div_c(
     "incremental-highlights",
     List.concat_map(
       ((id, _)) =>
         color(~syntax, ~font_metrics, ["incremental-frozen"], id),
-      outermost,
-    ),
+      frozen_outermost,
+    )
+    @ List.concat_map(
+        ((id, _)) =>
+          color(~syntax, ~font_metrics, ["incremental-pending"], id),
+        pending_inactive_ranges,
+      )
+    @ List.concat_map(
+        ((id, _)) =>
+          color(
+            ~syntax,
+            ~font_metrics,
+            ~sweep=true,
+            ["incremental-pending", "incremental-active"],
+            id,
+          ),
+        active_ids,
+      ),
   );
 };

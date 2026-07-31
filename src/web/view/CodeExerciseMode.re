@@ -86,6 +86,49 @@ module Model = {
       editing_flags: editing_flags_false,
     };
   };
+
+  /* Editors whose problems appear in the Problems sidebar.
+     `test_validation` precedes `user_tests` so first-wins dedup in
+     `ProblemCollection.make` puts shared ids in "Test Validation",
+     matching jump-to-tile routing. */
+  let get_problem_editors =
+      (~instructor_mode: bool, model: t)
+      : list((option(string), list(CodeEditable.Model.t))) => {
+    let c = model.cells;
+    let hidden_bug_labels =
+      List.mapi(
+        (i, b) =>
+          (
+            CodeExercise.HiddenBugs(i),
+            "Mutant " ++ string_of_int(i + 1),
+            b,
+          ),
+        c.hidden_bugs,
+      );
+    let pairs = [
+      (CodeExercise.Prelude, "Prelude", c.prelude),
+      (
+        CodeExercise.YourTestsValidation,
+        "Test Validation",
+        c.test_validation,
+      ),
+      (
+        CodeExercise.YourTestsTesting,
+        "Implementation Validation",
+        c.user_tests,
+      ),
+      (CodeExercise.YourImpl, "Your Implementation", c.user_impl),
+      (CodeExercise.CorrectImpl, "Correct Implementation", c.instructor),
+      (CodeExercise.HiddenTests, "Hidden Tests", c.hidden_tests),
+      ...hidden_bug_labels,
+    ];
+    List.filter_map(
+      ((pos, label, cell: CellEditor.Model.t)) =>
+        CodeExercise.shown_in(pos, ~instructor_mode)
+          ? Some((Some(label), [cell.editor])) : None,
+      pairs,
+    );
+  };
 };
 
 module Update = {
@@ -292,7 +335,7 @@ module Update = {
     let instructor_mode = settings.instructor_mode;
     switch (action) {
     | Editor(pos, MainEditor(action))
-        when CodeExercise.visible_in(pos, ~instructor_mode) =>
+        when CodeExercise.is_editable(pos, ~instructor_mode) =>
       // Redirect to editors
       let editor =
         CodeExercise.main_editor_of_state(~selection=pos, model.editors);
@@ -349,7 +392,7 @@ module Update = {
       }
     | Editor(pos, ResultAction(_) as action)
         when
-          CodeExercise.visible_in(pos, ~instructor_mode)
+          CodeExercise.is_editable(pos, ~instructor_mode)
           || action
           |> (
             fun
@@ -437,38 +480,26 @@ module Update = {
         model.cells,
       );
 
-    WorkerClient.request(
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let pos' = CodeExercise.pos_of_key(pos);
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          schedule_action(
-            Editor(pos', ResultAction(UpdateResult(result'))),
-          );
-        }),
-      ~timeout=_ => {
-        let _ =
-          CodeExercise.map_stitched(
-            (pos, _) =>
-              schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+      ~pos_of_key=CodeExercise.pos_of_key,
+      ~dispatch=
+        (pos, action) =>
+          schedule_action(Editor(pos, ResultAction(action))),
+      ~on_timeout=
+        _ =>
+          ignore(
+            CodeExercise.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
                 ),
-              ),
-            model.cells,
-          );
-        ();
-      },
+              model.cells,
+            ),
+          ),
     );
 
     /* The following section pulls statics back from cells into the editors
@@ -589,8 +620,8 @@ module Selection = {
       : option((Update.t, t)) => {
     CodeExercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TermData.root_tile(id, e.syntax.term_data) != None
-         && CodeExercise.visible_in(
+         TermData.root_piece(id, e.syntax.term_data) != None
+         && CodeExercise.shown_in(
               p,
               ~instructor_mode=settings.instructor_mode,
             )
@@ -614,21 +645,6 @@ module View = {
   /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 
   /* This file follows conventions in [docs/ui-architecture.md] */
-
-  type vis_marked('a) =
-    | InstructorOnly(unit => 'a)
-    | Always('a);
-
-  let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
-    List.filter_map(
-      vis =>
-        switch (vis) {
-        | InstructorOnly(f) => settings.instructor_mode ? Some(f()) : None
-        | Always(node) => Some(node)
-        },
-      v,
-    );
-  };
 
   let view =
       (
@@ -654,53 +670,80 @@ module View = {
       CodeExercise.stitched('a) =
       model.cells;
 
+    /* While a cell is ResultPending, dynamics can reflect a partial stream
+       collector — do not treat those as settled grades (same gate as
+       TutorialMode's ResultPending checkmark). */
+    let settled_test_results =
+        (cell_editor: CellEditor.Model.t): option(Language.TestResults.t) =>
+      EvalResult.Model.eval_is_pending(cell_editor.result)
+        ? None : EvalResult.Model.test_results(cell_editor.result);
+
     let stitched_tests =
       CodeExercise.map_stitched(
-        (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results,
+        (_, cell_editor) => settled_test_results(cell_editor),
         model.cells,
       );
 
     let grading_report = CodeGrading.GradingReport.mk(eds, ~stitched_tests);
 
-    let score_view =
-      CodeGrading.GradingReport.view_overall_score(grading_report);
+    let grading_pending =
+      EvalResult.Model.eval_is_pending(test_validation.result)
+      || EvalResult.Model.eval_is_pending(hidden_tests.result)
+      || List.exists(
+           (cell: CellEditor.Model.t) =>
+             EvalResult.Model.eval_is_pending(cell.result),
+           hidden_bugs,
+         );
 
+    let score_view =
+      grading_pending
+        ? Grading.pending_score_view()
+        : CodeGrading.GradingReport.view_overall_score(grading_report);
+
+    /* Renders a cell only if `shown_in`; returns [] when hidden.
+       `result_kind` is thunked so hidden cells build nothing. */
     let editor_view =
         (
           ~caption: string,
           ~subcaption: option(string)=?,
-          ~result_kind=`NoResults,
+          ~result_kind=() => `NoResults,
           this_pos: CodeExercise.pos,
           cell: CellEditor.Model.t,
-        ) => {
-      CellEditor.View.view(
-        ~globals,
-        ~signal=
-          fun
-          | MakeActive(a) => signal(MakeActive(Cell(this_pos, a))),
-        ~selected=
-          switch (selection) {
-          | Some(Cell(pos, s)) when pos == this_pos => Some(s)
-          | _ => None
-          },
-        ~inject=a => inject(Editor(this_pos, a)),
-        ~result_kind,
-        ~caption=
-          switch (this_pos) {
-          | HiddenBugs(n) =>
-            CellCommon.wrong_impl_caption(
-              ~inject_delete=
-                i => inject(Instructor(DeleteBuggyImplementation(i))),
-              caption,
-              n,
-            )
-          | _ => CellCommon.caption(caption, ~rest=?subcaption)
-          },
-        ~lines=true,
-        cell,
-      );
-    };
+        )
+        : list(Node.t) =>
+      CodeExercise.shown_in(
+        this_pos,
+        ~instructor_mode=globals.settings.instructor_mode,
+      )
+        ? [
+          CellEditor.View.view(
+            ~globals,
+            ~signal=
+              fun
+              | MakeActive(a) => signal(MakeActive(Cell(this_pos, a))),
+            ~selected=
+              switch (selection) {
+              | Some(Cell(pos, s)) when pos == this_pos => Some(s)
+              | _ => None
+              },
+            ~inject=a => inject(Editor(this_pos, a)),
+            ~result_kind=result_kind(),
+            ~caption=
+              switch (this_pos) {
+              | HiddenBugs(n) =>
+                CellCommon.wrong_impl_caption(
+                  ~inject_delete=
+                    i => inject(Instructor(DeleteBuggyImplementation(i))),
+                  caption,
+                  n,
+                )
+              | _ => CellCommon.caption(caption, ~rest=?subcaption)
+              },
+            ~lines=true,
+            cell,
+          ),
+        ]
+        : [];
 
     let on_focus_textbox = _ => signal(MakeActive(TextBox));
 
@@ -737,71 +780,59 @@ module View = {
       );
 
     let prelude_view =
-      Always(
-        editor_view(
-          Prelude,
-          prelude,
-          ~subcaption=globals.settings.instructor_mode ? "" : " (Read-Only)",
-          ~caption="Prelude",
-        ),
+      editor_view(
+        Prelude,
+        prelude,
+        ~subcaption=globals.settings.instructor_mode ? "" : " (Read-Only)",
+        ~caption="Prelude",
       );
 
     let correct_impl_view =
-      InstructorOnly(
-        () =>
-          editor_view(
-            CorrectImpl,
-            instructor,
-            ~caption="Correct Implementation",
-          ),
-      );
+      editor_view(CorrectImpl, instructor, ~caption="Correct Implementation");
 
     // determine trailing hole
     // TODO: module
-    let correct_impl_ctx_view =
-      Always(
-        {
-          let exp_ctx_view = {
-            let correct_impl_trailing_hole_ctx =
-              Haz3lcore.Editor.Model.trailing_hole_ctx(
-                eds.correct_impl,
-                instructor.editor.statics.info_map,
-              );
-            let prelude_trailing_hole_ctx =
-              Haz3lcore.Editor.Model.trailing_hole_ctx(
-                eds.prelude,
-                prelude.editor.statics.info_map,
-              );
-            switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
-            | (None, _) => Node.div([text("No context available (1)")])
-            | (_, None) => Node.div([text("No context available (2)")]) // TODO show exercise configuration error
-            | (
-                Some(correct_impl_trailing_hole_ctx),
-                Some(prelude_trailing_hole_ctx),
-              ) =>
-              let specific_ctx =
-                Language.Ctx.subtract_prefix(
-                  correct_impl_trailing_hole_ctx,
-                  prelude_trailing_hole_ctx,
-                );
-              switch (specific_ctx) {
-              | None => Node.div([text("No context available")]) // TODO show exercise configuration error
-              | Some(specific_ctx) =>
-                ContextInspector.ctx_view(~globals, specific_ctx)
-              };
-            };
+    let correct_impl_ctx_view = {
+      let exp_ctx_view = {
+        let correct_impl_trailing_hole_ctx =
+          Haz3lcore.Editor.Model.trailing_hole_ctx(
+            eds.correct_impl,
+            instructor.editor.statics.info_map,
+          );
+        let prelude_trailing_hole_ctx =
+          Haz3lcore.Editor.Model.trailing_hole_ctx(
+            eds.prelude,
+            prelude.editor.statics.info_map,
+          );
+        switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
+        | (None, _) => Node.div([text("No context available (1)")])
+        | (_, None) => Node.div([text("No context available (2)")]) // TODO show exercise configuration error
+        | (
+            Some(correct_impl_trailing_hole_ctx),
+            Some(prelude_trailing_hole_ctx),
+          ) =>
+          let specific_ctx =
+            Language.Ctx.subtract_prefix(
+              correct_impl_trailing_hole_ctx,
+              prelude_trailing_hole_ctx,
+            );
+          switch (specific_ctx) {
+          | None => Node.div([text("No context available")]) // TODO show exercise configuration error
+          | Some(specific_ctx) =>
+            ContextInspector.ctx_view(~globals, specific_ctx)
           };
-          CellCommon.simple_cell_view([
-            CellCommon.simple_cell_item([
-              CellCommon.caption(
-                "Correct Implementation",
-                ~rest=" (Type Signatures Only)",
-              ),
-              exp_ctx_view,
-            ]),
-          ]);
-        },
-      );
+        };
+      };
+      CellCommon.simple_cell_view([
+        CellCommon.simple_cell_item([
+          CellCommon.caption(
+            "Correct Implementation",
+            ~rest=" (Type Signatures Only)",
+          ),
+          exp_ctx_view,
+        ]),
+      ]);
+    };
 
     let rm_probe_data = (editor: CellEditor.Model.t): CellEditor.Model.t => {
       editor: {
@@ -818,122 +849,77 @@ module View = {
         globals.settings.instructor_mode
           ? ": Student Tests vs. Correct Implementation"
           : ": Your Tests vs. Correct Implementation";
-      Always(
-        editor_view(
-          YourTestsValidation,
-          // Remove probe data from this cell to prevent data leaks from correct implementation
-          rm_probe_data(test_validation),
-          ~caption="Test Validation",
-          ~subcaption,
-          ~result_kind=
-            `Custom(
-              CodeGrading.TestValidationReport.view(
-                ~globals,
-                ~signal_jump=
-                  id =>
-                    inject(
-                      Editor(
-                        YourTestsValidation,
-                        MainEditor(Perform(Move(Goal(TileId(id))))),
-                      ),
-                    ),
-                ~signal_editing_test_val_rep=
-                  inject(Instructor(EditingTestValRep)),
-                ~signal_update_test_val=
-                  (x, y) => inject(Instructor(UpdateTestValRep(x, y))),
-                ~signal_textbox_active=signal(MakeActive(TextBox)),
-                ~editing_test_val_rep=editing_flags.editing_test_val_rep,
-                grading_report.test_validation_report,
-                grading_report.point_distribution.test_validation,
-                eds.your_tests.required,
-              ),
-            ),
-        ),
+      editor_view(
+        YourTestsValidation,
+        // Remove probe data from this cell to prevent data leaks from correct implementation
+        rm_probe_data(test_validation),
+        ~caption="Test Validation",
+        ~subcaption,
+        ~result_kind=() =>
+        `Custom(
+          CodeGrading.TestValidationReport.view(
+            ~globals,
+            ~signal_jump=
+              id =>
+                inject(
+                  Editor(
+                    YourTestsValidation,
+                    MainEditor(Perform(Move(Goal(TileId(id))))),
+                  ),
+                ),
+            ~signal_editing_test_val_rep=
+              inject(Instructor(EditingTestValRep)),
+            ~signal_update_test_val=
+              (x, y) => inject(Instructor(UpdateTestValRep(x, y))),
+            ~signal_textbox_active=signal(MakeActive(TextBox)),
+            ~editing_test_val_rep=editing_flags.editing_test_val_rep,
+            ~eval_pending=
+              EvalResult.Model.eval_is_pending(test_validation.result),
+            grading_report.test_validation_report,
+            grading_report.point_distribution.test_validation,
+            eds.your_tests.required,
+          ),
+        )
       );
     };
 
-    let wrong_impl_views =
-      List.mapi(
-        (i, (_, cell)) => {
-          editor_view(
-            HiddenBugs(i),
-            cell,
-            ~caption="Mutant " ++ string_of_int(i + 1),
-          )
-        },
-        List.combine(eds.hidden_bugs, hidden_bugs),
-      );
-
-    let add_wrong_impl_view =
-      CellCommon.simple_cell_view([
-        CellCommon.simple_cell_item([
-          div(
-            ~attrs=[Attr.class_("wrong-impl-cell-caption")],
-            [
-              div(
-                ~attrs=[
-                  Attr.class_("instructor-edit-icon"),
-                  Attr.id("add-icon"),
-                ],
-                [
-                  Widgets.button(
-                    Icons.add,
-                    _ =>
-                      Ui_effect.Many([
-                        inject(Instructor(AddBuggyImplementation)),
-                        signal(
-                          MakeActive(
-                            Cell(
-                              HiddenBugs(List.length(hidden_bugs)),
-                              MainEditor,
-                            ),
-                          ),
-                        ),
-                      ]),
-                    ~tooltip="Add Buggy Implementation",
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ]),
-      ]);
-
     let mutation_testing_view =
-      Always(
-        CodeGrading.MutationTestingReport.view(
-          ~globals,
-          ~editing_mut_test_rep=editing_flags.editing_mut_test_rep,
-          ~inject_editing_mut_test_rep=inject(Instructor(EditingMutTestRep)),
-          ~inject_update_mut_test_rep=
-            (x, y) => inject(Instructor(UpdateMutTestRep(x, y))),
-          ~select_textbox=signal(MakeActive(TextBox)),
-          grading_report.mutation_testing_report,
-          grading_report.point_distribution.mutation_testing,
-        ),
+      CodeGrading.MutationTestingReport.view(
+        ~globals,
+        ~editing_mut_test_rep=editing_flags.editing_mut_test_rep,
+        ~inject_editing_mut_test_rep=inject(Instructor(EditingMutTestRep)),
+        ~inject_update_mut_test_rep=
+          (x, y) => inject(Instructor(UpdateMutTestRep(x, y))),
+        ~select_textbox=signal(MakeActive(TextBox)),
+        ~eval_pending=
+          EvalResult.Model.eval_is_pending(test_validation.result)
+          || List.exists(
+               (cell: CellEditor.Model.t) =>
+                 EvalResult.Model.eval_is_pending(cell.result),
+               hidden_bugs,
+             ),
+        grading_report.mutation_testing_report,
+        grading_report.point_distribution.mutation_testing,
       );
 
     let your_impl_view = {
       let caption =
         globals.settings.instructor_mode
           ? "Student's Implementation" : "Your Implementation";
-      Always(
-        editor_view(YourImpl, user_impl, ~caption, ~result_kind=`EvalResults),
+      editor_view(YourImpl, user_impl, ~caption, ~result_kind=() =>
+        `EvalResults
       );
     };
 
     let syntax_grading_view =
-      Always(
-        CodeGrading.SyntaxReport.view(
-          ~globals,
-          ~editing_syntax_rep=editing_flags.editing_syntax_rep,
-          ~inject_set_editing_syntax_rep=
-            inject(Instructor(EditingSyntaxRep)),
-          ~inject_update_syntax_rep=
-            hints => inject(Instructor(UpdateSyntaxRep(hints))),
-          ~select_textbox=signal(MakeActive(TextBox)),
-          grading_report.syntax_report,
-        ),
+      CodeGrading.SyntaxReport.view(
+        ~globals,
+        ~editing_syntax_rep=editing_flags.editing_syntax_rep,
+        ~inject_set_editing_syntax_rep=inject(Instructor(EditingSyntaxRep)),
+        ~inject_update_syntax_rep=
+          hints => inject(Instructor(UpdateSyntaxRep(hints))),
+        ~select_textbox=signal(MakeActive(TextBox)),
+        grading_report.syntax_report,
       );
 
     let impl_validation_view = {
@@ -941,76 +927,108 @@ module View = {
         globals.settings.instructor_mode
           ? ": Student's Tests vs. Student's Implementation"
           : ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation";
-      Always(
-        editor_view(
-          YourTestsTesting,
-          user_tests,
-          ~caption="Implementation Validation",
-          ~subcaption,
-          ~result_kind=`TestResults,
-        ),
+      editor_view(
+        YourTestsTesting,
+        user_tests,
+        ~caption="Implementation Validation",
+        ~subcaption,
+        ~result_kind=() =>
+        `TestResults
       );
     };
 
     let hidden_tests_view =
-      InstructorOnly(
-        () => editor_view(HiddenTests, hidden_tests, ~caption="Hidden Tests"),
-      );
+      editor_view(HiddenTests, hidden_tests, ~caption="Hidden Tests");
 
     let impl_grading_view =
-      Always(
-        CodeGrading.ImplGradingReport.view(
-          ~globals,
-          ~signal_jump=
-            id =>
-              inject(
-                Editor(
-                  YourTestsTesting,
-                  MainEditor(Perform(Move(Goal(TileId(id))))),
-                ),
+      CodeGrading.ImplGradingReport.view(
+        ~globals,
+        ~signal_jump=
+          id =>
+            inject(
+              Editor(
+                YourTestsTesting,
+                MainEditor(Perform(Move(Goal(TileId(id))))),
               ),
-          ~inject_set_editing_impl_grd_rep=
-            inject(Instructor(EditingImplGrdRep)),
-          ~inject_update_impl_grd_rep=
-            (x, y) => inject(Instructor(UpdateImplGrdRep(x, y))),
-          ~select_textbox=signal(MakeActive(TextBox)),
-          ~editing_impl_grd_rep=editing_flags.editing_impl_grd_rep,
-          ~report=grading_report.impl_grading_report,
-          ~syntax_report=grading_report.syntax_report,
-          ~max_points=grading_report.point_distribution.impl_grading,
-        ),
+            ),
+        ~inject_set_editing_impl_grd_rep=
+          inject(Instructor(EditingImplGrdRep)),
+        ~inject_update_impl_grd_rep=
+          (x, y) => inject(Instructor(UpdateImplGrdRep(x, y))),
+        ~select_textbox=signal(MakeActive(TextBox)),
+        ~editing_impl_grd_rep=editing_flags.editing_impl_grd_rep,
+        ~eval_pending=EvalResult.Model.eval_is_pending(hidden_tests.result),
+        ~report=grading_report.impl_grading_report,
+        ~syntax_report=grading_report.syntax_report,
+        ~max_points=grading_report.point_distribution.impl_grading,
       );
 
-    let wrong_impl_views =
-      InstructorOnly(
-        () =>
-          CellCommon.simple_cell_view([
-            CellCommon.simple_cell_item(
-              [CellCommon.caption("Mutation Tests")]
-              @ wrong_impl_views
-              @ [add_wrong_impl_view],
+    /* Instructor-only authoring section; thunked so students build none of it. */
+    let wrong_impl_section = () => {
+      let mutant_views =
+        List.combine(eds.hidden_bugs, hidden_bugs)
+        |> List.mapi((i, (_, cell)) =>
+             editor_view(
+               HiddenBugs(i),
+               cell,
+               ~caption="Mutant " ++ string_of_int(i + 1),
+             )
+           )
+        |> List.concat;
+      let add_view =
+        CellCommon.simple_cell_view([
+          CellCommon.simple_cell_item([
+            div(
+              ~attrs=[Attr.class_("wrong-impl-cell-caption")],
+              [
+                div(
+                  ~attrs=[
+                    Attr.class_("instructor-edit-icon"),
+                    Attr.id("add-icon"),
+                  ],
+                  [
+                    Widgets.button(
+                      Icons.add,
+                      _ =>
+                        Ui_effect.Many([
+                          inject(Instructor(AddBuggyImplementation)),
+                          signal(
+                            MakeActive(
+                              Cell(
+                                HiddenBugs(List.length(hidden_bugs)),
+                                MainEditor,
+                              ),
+                            ),
+                          ),
+                        ]),
+                      ~tooltip="Add Buggy Implementation",
+                    ),
+                  ],
+                ),
+              ],
             ),
           ]),
-      );
+        ]);
+      CellCommon.simple_cell_view([
+        CellCommon.simple_cell_item(
+          [CellCommon.caption("Mutation Tests")] @ mutant_views @ [add_view],
+        ),
+      ]);
+    };
 
+    /* Editor cells self-gate (see `editor_view`); non-editor views always
+       show; the mutants section is instructor-only. */
     [score_view, title_view, module_name_view, prompt_view]
-    @ render_cells(
-        globals.settings,
-        [
-          prelude_view,
-          correct_impl_view,
-          correct_impl_ctx_view,
-          your_tests_view,
-          wrong_impl_views,
-        ]
-        @ [
-          mutation_testing_view,
-          your_impl_view,
-          syntax_grading_view,
-          impl_validation_view,
-          hidden_tests_view,
-          impl_grading_view,
-        ],
-      );
+    @ prelude_view
+    @ correct_impl_view
+    @ [correct_impl_ctx_view]
+    @ your_tests_view
+    @ (globals.settings.instructor_mode ? [wrong_impl_section()] : [])
+    @ [mutation_testing_view]
+    @ your_impl_view
+    @ [syntax_grading_view]
+    @ impl_validation_view
+    @ hidden_tests_view
+    @ [impl_grading_view];
   };
 };
