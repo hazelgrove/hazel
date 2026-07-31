@@ -543,9 +543,9 @@ let bench_parse = (iterations: int, paths: list(string)): unit => {
 };
 
 /* Benchmark evaluation performance: parse+statics once, evaluate N times.
- * "Plain" is the non-incremental path (prev/info_map empty, as used by the
+ * "Plain" is the non-incremental path (prev/eval_info empty, as used by the
  * CLI `run` and MVU apps); "Incr" is a cache-seeding incremental run
- * (info_map populated, prev empty, as used by the web editor's first run). */
+ * (eval_info populated, prev empty, as used by the web editor's first run). */
 let bench_eval = (iterations: int, paths: list(string)): unit => {
   let now = () =>
     Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf
@@ -562,7 +562,7 @@ let bench_eval = (iterations: int, paths: list(string)): unit => {
     path => {
       let program = read_input(path);
       let parsed = parse_program(program);
-      let (elab, info_map) = Run.elab_and_eval_info(parsed);
+      let (elab, eval_info) = Run.elab_and_eval_info(parsed);
       ignore(Run.evaluate_elab(elab));
       let t0 = now();
       for (_ in 1 to iterations) {
@@ -570,10 +570,10 @@ let bench_eval = (iterations: int, paths: list(string)): unit => {
       };
       let t1 = now();
       let plain = (t1 -. t0) /. float_of_int(iterations);
-      ignore(Run.evaluate_elab_incr(~info_map, elab));
+      ignore(Run.evaluate_elab_incr(~eval_info, elab));
       let t2 = now();
       for (_ in 1 to iterations) {
-        ignore(Run.evaluate_elab_incr(~info_map, elab));
+        ignore(Run.evaluate_elab_incr(~eval_info, elab));
       };
       let t3 = now();
       let incr = (t3 -. t2) /. float_of_int(iterations);
