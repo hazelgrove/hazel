@@ -827,8 +827,23 @@ let adj_pos = (d: Direction.t, z: t): t =>
     }
   };
 
-let put_down_core = (seg: Segment.t, z: t): t =>
-  z |> replace_selection(Right, seg) |> unselect;
+/* Unselect with the caret Outer: directional_unselect would step an Inner
+ * caret one piece right, and the caller's adj_pos(Right) already does that,
+ * leaving Inner(n) indexing the wrong token. */
+let put_down_core = (seg: Segment.t, z: t): t => {
+  let caret = z.caret;
+  let z =
+    {
+      ...z,
+      caret: Outer,
+    }
+    |> replace_selection(Right, seg)
+    |> unselect;
+  {
+    ...z,
+    caret,
+  };
+};
 
 /* Like put_down_core but skips Relatives.reassemble.
  * Used for Inner-caret edits where the replaced token would
@@ -987,6 +1002,12 @@ module Caret = {
   let inner_offset_for_token = (idx: int, token: Token.t): int =>
     Token.is_string(token) ? string_offset(token, idx) : idx + 1;
 
+  /* Like inner_offset_for_token but counts GRAPHEMES, not display columns: a
+     wide char (e.g. an emoji) in a string literal is one grapheme but two
+     columns. Used for clipboard text slicing, where the column count would
+     over-trim and leave a trailing quote. */
+  let inner_grapheme_offset = (idx: int): int => idx + 1;
+
   /* Grid position of the caret */
   /* Convert a caret to a concrete grid point for rendering and hit testing. */
   let point = (measured: Measured.t, z: t): Point.t =>
@@ -1036,7 +1057,7 @@ let selection_trim_offsets = (z: t): (int, int) => {
       };
     let shard = List.hd(Piece.disassemble(p));
     switch (Piece.token_of(shard)) {
-    | Some(tok) => Caret.inner_offset_for_token(inner_n, tok)
+    | Some(_) => Caret.inner_grapheme_offset(inner_n)
     | None => 0
     };
   };
@@ -1051,7 +1072,7 @@ let selection_trim_offsets = (z: t): (int, int) => {
     switch (Piece.token_of(last_shard)) {
     | Some(tok) =>
       let tok_len = Unicode.length(tok);
-      tok_len - Caret.inner_offset_for_token(inner_n, tok);
+      tok_len - Caret.inner_grapheme_offset(inner_n);
     | None => 0
     };
   };
