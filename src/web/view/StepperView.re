@@ -108,21 +108,21 @@ module View = {
         model: Model.t,
       ) => {
     let settings_modal =
-      globals.settings.core.evaluation.show_settings
+      is_toplevel && globals.settings.core.evaluation.show_settings
         ? SettingsModal.view(
             ~inject=u => globals.inject_global(Set(u)),
             globals.settings.core.evaluation,
           )
         : [];
-    StepperBase.Stepper.view(
-      ~globals,
-      ~take_focus=f => signal(MakeActive(f)),
-      ~hide_stepper=signal(HideStepper),
-      ~inject=u => inject(u),
-      ~is_toplevel,
-      ~focus=selected,
-      model.root,
-    )
-    @ settings_modal;
+    settings_modal
+    @ StepperBase.Stepper.view(
+        ~globals,
+        ~take_focus=f => signal(MakeActive(f)),
+        ~hide_stepper=signal(HideStepper),
+        ~inject=u => inject(u),
+        ~is_toplevel,
+        ~focus=selected,
+        model.root,
+      );
   };
 };
