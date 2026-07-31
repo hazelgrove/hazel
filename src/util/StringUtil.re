@@ -74,8 +74,10 @@ let unescape_linebreaks: string => string =
 
 let trim_leading = (s: string): string => {
   s
-  |> replace(regexp("^[ ]*"), _, "")  // Remove leading spaces at start
-  |> replace(regexp("\n[ ]*"), _, "\n"); // Remove leading spaces after newlines
+  |> replace(regexp("\r\n"), _, "\n")  // Normalize Windows line breaks
+  |> replace(regexp("\r"), _, "\n")  // Normalize old Mac line breaks
+  |> replace(regexp("^[\\t \\r]*"), _, "")  // Leading horizontal WS at start
+  |> replace(regexp("\n[\\t \\r]*"), _, "\n"); // After each newline
 };
 
 let isEmptyOrWhitespace = str => {
@@ -103,17 +105,18 @@ let sanitize_filename = (s: string): string => {
 
 let trim_trailing_whitespace = (str: string): string => {
   let lines = String.split_on_char('\n', str);
+  let is_trailing_ws = (c: char): bool => c == ' ' || c == '\t' || c == '\r';
   let trim_line = (line: string): string => {
     let chars = String.to_seq(line) |> List.of_seq;
-    let rec drop_leading_spaces = (chars: list(char)): list(char) =>
+    let rec drop_trailing_ws = (chars: list(char)): list(char) =>
       switch (chars) {
       | [] => []
-      | [' ', ...rest] => drop_leading_spaces(rest)
+      | [c, ...rest] when is_trailing_ws(c) => drop_trailing_ws(rest)
       | [c, ...rest] => [c, ...rest]
       };
-    // Reverse, drop leading spaces, reverse back = drop trailing spaces
+    // Reverse, drop leading WS from reversed = drop trailing WS on line
     let reversed_chars = List.rev(chars);
-    let trimmed_reversed = drop_leading_spaces(reversed_chars);
+    let trimmed_reversed = drop_trailing_ws(reversed_chars);
     let trimmed_chars = List.rev(trimmed_reversed);
     String.of_seq(List.to_seq(trimmed_chars));
   };
@@ -133,6 +136,106 @@ let prefixes = (s: string): list(string) => {
     [""];
   } else {
     aux(1);
+  };
+};
+
+let levenshtein_distance = (a: string, b: string): int => {
+  let a_len = String.length(a);
+  let b_len = String.length(b);
+  if (a_len == 0) {
+    b_len;
+  } else if (b_len == 0) {
+    a_len;
+  } else {
+    let prev = Array.init(b_len + 1, i => i);
+    let curr = Array.make(b_len + 1, 0);
+    for (i in 1 to a_len) {
+      curr[0] = i;
+      let ai = a.[i - 1];
+      for (j in 1 to b_len) {
+        let bj = b.[j - 1];
+        let cost =
+          if (ai == bj) {
+            0;
+          } else {
+            1;
+          };
+        let deletion = prev[j] + 1;
+        let insertion = curr[j - 1] + 1;
+        let substitution = prev[j - 1] + cost;
+        let m =
+          if (deletion < insertion) {
+            deletion;
+          } else {
+            insertion;
+          };
+        curr[j] = (
+          if (m < substitution) {
+            m;
+          } else {
+            substitution;
+          }
+        );
+      };
+      for (k in 0 to b_len) {
+        prev[k] = curr[k];
+      };
+    };
+    prev[b_len];
+  };
+};
+
+/* Compute edit distance between two lists of strings using the Levenshtein algorithm */
+let levenshtein_list_distance = (a: list(string), b: list(string)): int => {
+  let a_len = List.length(a);
+  let b_len = List.length(b);
+  /* Fast-paths */
+  if (a_len == 0) {
+    b_len;
+  } else if (b_len == 0) {
+    a_len;
+  } else {
+    let a_arr = Array.of_list(a);
+    let b_arr = Array.of_list(b);
+    let prev = Array.init(b_len + 1, i => i);
+    let curr = Array.make(b_len + 1, 0);
+
+    let min3 = (x, y, z) => {
+      let m =
+        if (x < y) {
+          x;
+        } else {
+          y;
+        };
+      if (m < z) {
+        m;
+      } else {
+        z;
+      };
+    };
+
+    for (i in 1 to a_len) {
+      curr[0] = i;
+      let ai = a_arr[i - 1];
+      for (j in 1 to b_len) {
+        let bj = b_arr[j - 1];
+        let cost =
+          if (ai == bj) {
+            0;
+          } else {
+            1;
+          };
+        let deletion = prev[j] + 1;
+        let insertion = curr[j - 1] + 1;
+        let substitution = prev[j - 1] + cost;
+        curr[j] = min3(deletion, insertion, substitution);
+      };
+      /* copy curr into prev for next iteration */
+      for (k in 0 to b_len) {
+        prev[k] = curr[k];
+      };
+    };
+    prev[b_len];
   };
 };
 
@@ -177,15 +280,6 @@ let subseq_search = (s: string, sub: string): bool => {
         sub_idx,
       );
     };
-
-  print_endline(
-    "Subseq search: "
-    ++ sub
-    ++ " in "
-    ++ s
-    ++ "returns"
-    ++ string_of_bool(search(0, 0)),
-  );
 
   search(0, 0);
 };

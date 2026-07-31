@@ -27,17 +27,10 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
-    | (Asc(e, t'), t)
+    | (Asc(e, t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
-        when
-          Typ.is_consistent(
-            Ctx.empty,
-            Typ.unroll(t |> Typ.temp),
-            Typ.unroll(t'),
-          ) =>
-      switch (
-        Typ.meet(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
-      ) {
+        when Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
+      switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
       | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
       | None => None //TODO  This is an impossible case since we checked consistency
       }
@@ -133,26 +126,26 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           |> DHExp.fresh,
         ),
       );
-    | (If(cond, e1, e2), t) =>
+    | (If(cond, e1, e2), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           If(
             recur(cond),
-            recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
-            recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
+            recur(Asc(e1, t) |> DHExp.fresh),
+            recur(Asc(e2, t) |> DHExp.fresh),
           )
           |> DHExp.fresh,
         ),
       )
-    | (Match(scrut, rules), t) =>
+    | (Match(scrut, rules), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           Match(
             scrut,
             List.map(
-              ((p, body)) => (p, Asc(body, t |> Typ.temp) |> DHExp.fresh),
+              ((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
               rules,
             ),
           )
@@ -173,8 +166,11 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       switch (entry) {
       | Some(Some(t')) =>
         Some(
-          Ap(Forward, con, recur(Asc(payload, t') |> DHExp.fresh))
-          |> DHExp.fresh,
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Ap(Forward, con, recur(Asc(payload, t') |> DHExp.fresh))
+            |> DHExp.fresh,
+          ),
         )
       | Some(None)
       | None => None
@@ -183,7 +179,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
-      Some(ProofObject(e1) |> DHExp.fresh)
+      Some(
+        IdTagged.fast_copy(DHExp.rep_id(e), ProofObject(e1) |> DHExp.fresh),
+      )
     | (Test(_), Prod([])) => Some(e)
     // These are non-value cases we're handling to process ascriptions as early as possible
     | (BinOp(bin_op, _, _), _) =>
@@ -218,18 +216,43 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       }
     | (ListConcat(d1, d2), List(_)) =>
       Some(
-        ListConcat(
-          recur(Asc(d1, t) |> DHExp.fresh),
-          recur(Asc(d2, t) |> DHExp.fresh),
-        )
-        |> DHExp.fresh,
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          ListConcat(
+            recur(Asc(d1, t) |> DHExp.fresh),
+            recur(Asc(d2, t) |> DHExp.fresh),
+          )
+          |> DHExp.fresh,
+        ),
       )
     | (Let(p, e1, e2), _) =>
-      Some(Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh)
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
     | (Seq(e1, e2), _) =>
-      Some(Seq(e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh)
-    | (Parens(e), _) =>
-      Some(Parens(Asc(e, t) |> DHExp.fresh) |> DHExp.fresh)
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Seq(e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
+    | (Parens(pe), _) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Parens(Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
+    | (Projector(data, pe), _) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Projector(data, Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
     // We _could_ do this, but it would be a bit weird
     | (Use(_), _) // I'm scaredto do Use because the type-directed literals might make this look weird in the stepper
     | (BuiltinFun(_), _)
@@ -255,10 +278,11 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Deferral(_), _)
     | (LivelitName(_), _)
     | (TupleExtension(_, _), _)
+    | (ListConcat(_), _) => None
     // These are handled above and must have the wrong type
     | (Atom(_), _)
+    | (DrvQuote(_), _)
     | (ListLit(_), _)
-    | (ListConcat(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Fun(_), _)
@@ -267,7 +291,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (HintedTest(_), _)
     | (Cons(_), _)
     | (ProofObject(_), _)
-    | (Constructor(_), _) => None
+    | (Constructor(_), _)
+    | (Module(_), _)
+    | (ModuleExp(_), _) => None
     }
   | _ => None
   };

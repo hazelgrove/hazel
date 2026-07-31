@@ -64,3 +64,10 @@ node_modules
 
 # Claude Code
 .claude/
+
+# Project plans (local only)
+plans/
+
+# Cursor IDE (local)
+.cursor/
+AGENTS.md

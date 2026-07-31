@@ -7,6 +7,7 @@ type cls =
   | Deferral
   | Undefined
   | Atom(Atom.cls)
+  | DrvQuote
   | ListLit
   | Constructor
   | Fun
@@ -35,6 +36,7 @@ type cls =
   | Filter
   | Closure
   | Parens
+  | Projector
   | Cons
   | UnOp(Operators.op_un)
   | BinOp(Operators.op_bin)
@@ -43,7 +45,9 @@ type cls =
   | Asc
   | LivelitName
   | LivelitAp
-  | ListConcat;
+  | ListConcat
+  | Module
+  | ModuleExp;
 
 include TermBase.Exp;
 
@@ -60,9 +64,7 @@ let equal = fast_equal;
 let temp: term => t =
   term => {
     term,
-    annotation: {
-      ids: [Id.invalid],
-    },
+    annotation: IdTagged.IdTag.temp(),
   };
 let fresh: term => t = IdTagged.fresh;
 
@@ -76,7 +78,18 @@ let rep_id: t => Id.t = IdTagged.rep_id;
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
-let cls_of_term: type a. Grammar.exp_term(a) => cls =
+let strip_projectors =
+  map_term(
+    ~f_exp=
+      (continue, exp) =>
+        switch (term_of(exp)) {
+        | Projector(_, e) => continue(e)
+        | _ => continue(exp)
+        },
+    _,
+  );
+
+let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
   | Invalid(_) => Invalid
   | EmptyHole => EmptyHole
@@ -85,6 +98,7 @@ let cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Deferral(_) => Deferral
   | Undefined => Undefined
   | Atom(c) => Atom(Atom.cls_of_t(c))
+  | DrvQuote(_) => DrvQuote
   | ListLit(_) => ListLit
   | Constructor(_) => Constructor
   | Fun(_) => Fun
@@ -116,7 +130,10 @@ let cls_of_term: type a. Grammar.exp_term(a) => cls =
   | HintedTest(_) => HintedTest
   | Filter(_) => Filter
   | Closure(_) => Closure
-  | Parens(_) => Parens
+  | Parens(e) => cls_of_term(e.term)
+  // We're bypassing projectors from cls because they're breaking cursor inspector messages.
+  // Future work could be to specialize projectors in the cursor inspector.
+  | Projector(_, e) => cls_of_term(e.term)
   | Cons(_) => Cons
   | ListConcat(_) => ListConcat
   | UnOp(op, _) => UnOp(op)
@@ -124,7 +141,9 @@ let cls_of_term: type a. Grammar.exp_term(a) => cls =
   | BuiltinFun(_) => BuiltinFun
   | Match(_) => Match
   | LivelitName(_) => LivelitName
-  | Asc(_) => Asc;
+  | Asc(_) => Asc
+  | Module(_) => Module
+  | ModuleExp(_) => ModuleExp;
 
 let show_cls: cls => string =
   fun
@@ -140,6 +159,7 @@ let show_cls: cls => string =
   | Atom(String) => "String literal"
   | Atom(Nat) => "Natural number literal"
   | Atom(SInt) => "System integer literal"
+  | DrvQuote => "Derivation-Mode Quotation"
   | ListLit => "List literal"
   | Constructor => "Constructor"
   | Fun => "Function literal"
@@ -176,7 +196,10 @@ let show_cls: cls => string =
   | Match => "Case expression"
   | LivelitName => "Livelit name"
   | LivelitAp => "Livelit application"
-  | Asc => "Type ascription expression";
+  | Projector => "Projector"
+  | Asc => "Type ascription expression"
+  | Module => "Module expression"
+  | ModuleExp => "Module definition";
 
 let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
   e => {
@@ -201,7 +224,8 @@ let get_label: t => option(LabeledTuple.label) = {
 // determine when to allow for recursive definitions in a let binding.
 let rec is_fun = (e: t) => {
   switch (e.term) {
-  | Parens(e) => is_fun(e)
+  | Parens(e)
+  | Projector(_, e) => is_fun(e)
   | Asc(e, _) => is_fun(e)
   | TypFun(_)
   | Fun(_)
@@ -230,6 +254,7 @@ let rec is_fun = (e: t) => {
   | Deferral(_)
   | Undefined
   | Atom(_)
+  | DrvQuote(_)
   | Label(_)
   | ExplicitNonlabel
   | ListLit(_)
@@ -258,7 +283,9 @@ let rec is_fun = (e: t) => {
   | BinOp(_)
   | Match(_)
   | LivelitName(_)
-  | Constructor(_) => false
+  | Constructor(_)
+  | Module(_)
+  | ModuleExp(_) => false
   };
 };
 
@@ -268,6 +295,7 @@ let rec is_tuple_of_functions = (e: t) =>
     switch (e.term) {
     | Asc(e, _)
     | Parens(e)
+    | Projector(_, e)
     | TupLabel(_, e) => is_tuple_of_functions(e)
     | Tuple(es) => es |> List.for_all(is_fun)
     | Dot(e1, e2) =>
@@ -293,6 +321,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Deferral(_)
     | Undefined
     | Atom(_)
+    | DrvQuote(_)
     | Label(_)
     | ExplicitNonlabel
     | ListLit(_)
@@ -323,7 +352,9 @@ let rec is_tuple_of_functions = (e: t) =>
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
-    | Constructor(_) => false
+    | Constructor(_)
+    | Module(_)
+    | ModuleExp(_) => false
     }
   );
 
@@ -346,6 +377,7 @@ let rec get_num_of_functions = (e: t) =>
   } else {
     switch (e.term) {
     | Parens(e)
+    | Projector(_, e)
     | TupLabel(_, e)
     | Dot(e, _) => get_num_of_functions(e)
     | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
@@ -387,7 +419,10 @@ let rec get_num_of_functions = (e: t) =>
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
-    | Constructor(_) => None
+    | Constructor(_)
+    | Module(_)
+    | ModuleExp(_)
+    | DrvQuote(_) => None
     };
   };
 
@@ -399,9 +434,7 @@ let (replace_all_ids, replace_all_ids_typ) = {
     (continue, exp) =>
       {
         ...exp,
-        annotation: {
-          ids: [Id.mk()],
-        },
+        annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
       }
       |> continue;
   (
@@ -432,4 +465,47 @@ let rec get_fn_name = (e: t) => {
   };
 };
 
+/* Get the definition-site ID of a function expression.
+ * Used to enable jump-to-definition from the closure cursor bar
+ * even when the app_id comes from built-in internal code. */
+let rec get_fn_def_id = (e: t) =>
+  switch (e.term) {
+  | Fun(_)
+  | TypFun(_) => Some(rep_id(e))
+  | FixF(_, e, _)
+  | Parens(e) => get_fn_def_id(e)
+  | _ => None
+  };
+
 let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));
+
+let find_by_id = (id: Id.t, exp: t): option(t) => {
+  module M = {
+    exception Found(t);
+  };
+  switch (
+    map_term(
+      ~f_exp=
+        (cont, exp) =>
+          if (rep_id(exp) == id) {
+            raise(M.Found(exp));
+          } else {
+            cont(exp);
+          },
+      exp,
+    )
+  ) {
+  | exception (M.Found(x)) => Some(x)
+  | _ => None
+  };
+};
+
+/* Inject a function name into a Fun or TypFun expression. */
+let add_name = (name: option(string), exp: t): t => {
+  let (term, rewrap) = unwrap(exp);
+  switch (term) {
+  | Fun(p, e, t, _) => Fun(p, e, t, name) |> rewrap
+  | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
+  | _ => exp
+  };
+};

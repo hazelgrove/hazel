@@ -3,6 +3,7 @@ let tests =
     Test_Evaluator_Labeled_Tuple.tests,
     Test_Evaluator_ProbeSteps.tests,
     Test_Evaluator_ProbeCallStack.tests,
+    Test_Evaluator_ProbeSelection.tests,
   ]
   @ Test_Evaluator_Probes.tests
   @ [
@@ -22,6 +23,9 @@ let tests =
     Test_Evaluator_BuiltinsTupleOperations.tests,
     Test_Evaluator_TypAp.tests,
     Test_Stepper.tests,
+    Test_StepperBase.tests,
     Test_Evaluator_Properties.tests,
     Test_Evaluator_Performance.tests,
+    Test_Evaluator_Modules.tests,
+    Test_Evaluator_Incremental.tests,
   ];

@@ -8,19 +8,25 @@
 (library
  (name workerServer)
  (modules WorkerServer)
+ (wrapped false)
  (instrumentation
   (backend bisect_ppx))
  (libraries language)
  (js_of_ocaml)
  (preprocess
-  (pps ppx_yojson_conv ppx_sexp_conv ppx_deriving.show)))
+  (pps
+   js_of_ocaml-ppx
+   ppx_yojson_conv
+   ppx_sexp_conv
+   ppx_deriving.show
+   ppx_enumerate)))
 
 (library
  (name web)
  (instrumentation
   (backend bisect_ppx))
  (modules
-  (:standard \ Main GradingReport)
+  (:standard \ Main)
   \
   Worker
   WorkerServer)
@@ -46,6 +52,7 @@
    ppx_sexp_conv
    ppx_deriving.show
    ppx_yojson_conv
+   ppx_enumerate
    bonsai.ppx_bonsai)))
 
 (executable
@@ -61,14 +68,6 @@
    ppx_sexp_conv
    ppx_deriving.show
    bonsai.ppx_bonsai)))
-
-(executable
- (name gradingReport)
- (modules GradingReport)
- (libraries ppx_yojson_conv.expander haz3lcore web)
- (modes js)
- (preprocess
-  (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
 
 (executable
  (name worker)

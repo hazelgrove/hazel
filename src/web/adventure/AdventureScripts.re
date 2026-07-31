@@ -25,7 +25,7 @@ let probes_intro: Adventure.script = {
     /* Agent types expression */
     Adventure.agent_action(
       ~narration="Typing: 1 + 2",
-      [Action.Paste(String("1 + 2"))],
+      [Action.Paste("1 + 2")],
     ),
     /* Explain probes */
     Adventure.message(

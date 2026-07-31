@@ -43,12 +43,36 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
    * recency bias in ctx. Revisit this later. I'm sorting before
    * combination because we want backpack candidates to show up first */
   switch (ci) {
+  | InfoExp({dot_labels, _}) when dot_labels != [] =>
+    List.map(
+      label =>
+        TyDiSuggestion.{
+          content: label,
+          strategy: Exp(Common(FromCtx(Label(label) |> Typ.fresh))),
+        },
+      dot_labels,
+    )
+  | InfoTyp({
+      expects: TypExpectation.LabelProjectionExpected(Some(labels)),
+      _,
+    })
+      when labels != [] =>
+    List.map(
+      label =>
+        TyDiSuggestion.{
+          content: label,
+          strategy: Typ(FromCtx),
+        },
+      labels,
+    )
+  | InfoExp({label_sort: true, _})
+  | InfoPat({label_sort: true, _})
   | InfoExp({cls: Exp(Label), _})
   | InfoPat({cls: Pat(Label), _})
   | InfoTyp({cls: Typ(Label), _})
   | InfoExp({cls: Exp(TupLabel), _})
   | InfoPat({cls: Pat(TupLabel), _})
-  | InfoTyp({cls: Typ(TupLabel), _}) => [] // TODO: Autocomplete for labels
+  | InfoTyp({cls: Typ(TupLabel), _}) => []
   | _ =>
     /* When the expected type is unknown (e.g., no type annotation),
      * prioritize keywords/forms over context variables. This prevents
@@ -138,6 +162,16 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
     |> List.filter(({content, _}: TyDiSuggestion.t) =>
          String.starts_with(~prefix=tok_to_left, content)
        );
+  /* If any suggestion is an exact match for the current token, suppress
+   * all suggestions. This check must scan the full list, not just the
+   * top suggestion, because exact-match variables and keyword suggestions
+   * come from different pipelines and may be ordered differently. */
+  let has_exact_match =
+    List.exists(
+      ({content, _}: TyDiSuggestion.t) => content == tok_to_left,
+      suggestions,
+    );
+  let* _ = has_exact_match ? None : Some();
   let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
   let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);
   let content = mk_unparsed_buffer(suggestion_suffix);

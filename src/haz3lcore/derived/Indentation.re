@@ -9,26 +9,24 @@ let trim_non_content: Segment.t => Segment.t =
 
 let prev_pieces = (seg: Segment.t): list(option(Piece.t)) => {
   let rec go =
-          (xs: list(Piece.t), prev: option(Piece.t))
+          (acc, xs: list(Piece.t), prev: option(Piece.t))
           : list(option(Piece.t)) =>
     switch (xs) {
-    | [] => []
-    | [x, ...xs] => [prev, ...go(xs, Some(x))]
+    | [] => List.rev(acc)
+    | [x, ...xs] => go([prev, ...acc], xs, Some(x))
     };
-  go(seg, None);
+  go([], seg, None);
 };
 
 let next_pieces = (seg: Segment.t): list(option(Piece.t)) => {
-  let rec go = (xs: list(Piece.t)): list(option(Piece.t)) =>
+  let rec go = (acc, xs: list(Piece.t)): list(option(Piece.t)) =>
     switch (xs) {
-    | [] => []
-    | [_] => [None]
-    | [_, next, ...rest] => [Some(next), ...go([next, ...rest])]
+    | [] => List.rev(acc)
+    | [_] => List.rev([None, ...acc])
+    | [_, next, ...rest] => go([Some(next), ...acc], [next, ...rest])
     };
-  go(seg);
+  go([], seg);
 };
-/* Memoize for perf */
-let indent_hash = Hashtbl.create(10000);
 
 let union_all =
   List.fold_left(
@@ -37,20 +35,27 @@ let union_all =
   );
 
 /* This does not strictly 'complete' a segment but rather does a
- * rough version of it that suffices for indentation calculation */
-let rec shallow_complete_segment = (seg: Segment.t): Segment.t =>
-  switch (seg) {
-  | [] => []
-  | [Tile(t), ...rest] when !Tile.is_complete(t) => [
-      Tile({
-        ...t,
-        shards: List.init(List.length(t.label), i => i),
-        children: t.children @ [shallow_complete_segment(rest)],
-        /* Note: Potentially wrong number of children */
-      }),
-    ]
-  | [p, ...rest] => [p, ...shallow_complete_segment(rest)]
-  };
+ * rough version of it that suffices for indentation calculation.
+ * Tail-recursive in segment length (recursion depth is bounded by
+ * the number of incomplete tiles, not the number of pieces). */
+let rec shallow_complete_segment = (seg: Segment.t): Segment.t => {
+  let rec go = (acc, seg: Segment.t): Segment.t =>
+    switch (seg) {
+    | [] => List.rev(acc)
+    | [Tile(t), ...rest] when !Tile.is_complete(t) =>
+      List.rev([
+        Piece.Tile({
+          ...t,
+          shards: List.init(List.length(t.label), i => i),
+          children: t.children @ [shallow_complete_segment(rest)],
+          /* Note: Potentially wrong number of children */
+        }),
+        ...acc,
+      ])
+    | [p, ...rest] => go([p, ...acc], rest)
+    };
+  go([], seg);
+};
 
 /* Find the shortest prefix of the segment containing all incomplete tiles
  * followed by two consecutive linebreaks (aka a blank line)  */
@@ -176,22 +181,18 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
       },
       (base, Id.Map.empty),
       complete_trimmed_seg,
-      List.combine(
-        prev_pieces(complete_trimmed_seg),
-        next_pieces(complete_trimmed_seg),
+      /* stack-safe zip (List.combine is not tail-recursive) */
+      List.rev(
+        List.rev_map2(
+          (prev, next) => (prev, next),
+          prev_pieces(complete_trimmed_seg),
+          next_pieces(complete_trimmed_seg),
+        ),
       ),
     );
   map;
 }
-and go = (~not_top, base: int, seg: Segment.t) => {
-  let arg = (not_top, base, seg);
-  try(Hashtbl.find(indent_hash, arg)) {
-  | _ =>
-    let res = go'(arg);
-    Hashtbl.add(indent_hash, arg, res);
-    res;
-  };
-};
+and go = (~not_top, base: int, seg: Segment.t) => go'((not_top, base, seg));
 
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
   go(~not_top=false, 0, seg);

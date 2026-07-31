@@ -1,9 +1,9 @@
 open Util;
 
+include CaretBase;
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type caret =
-  | Outer
-  | Inner(int);
+type caret = CaretBase.t;
 
 /* Refractor state extracted to Refractors.re - see state location docs there */
 module Refractor = Refractors;
@@ -31,19 +31,41 @@ let update_manuals = (f, z: t): t => {
   },
 };
 
-let add_manual = (id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
-  update_manuals(Id.Map.add(id, Refractors.mk_entry(kind)), z);
+let add_manual = (~model=?, id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
+  update_manuals(x => [(id, Refractors.mk_entry(~model?, kind)), ...x], z);
 
 let update_ephemerals = (f, z: t): t => {
   ...z,
   refractors: {
     ...z.refractors,
-    autos: {
-      ...z.refractors.autos,
-      ephemerals: f(z.refractors.autos.ephemerals),
+    multis: {
+      ...z.refractors.multis,
+      ephemerals: f(z.refractors.multis.ephemerals),
     },
   },
 };
+
+let update_suppressed = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    multis: {
+      ...z.refractors.multis,
+      suppressed: f(z.refractors.multis.suppressed),
+    },
+  },
+};
+
+let update_refractor =
+    (
+      id: Id.t,
+      f: option(Refractors.entry) => option(Refractors.entry),
+      z: t,
+    )
+    : t =>
+  z
+  |> update_manuals(map => ListUtil.assoc_update(id, f, map))
+  |> update_ephemerals(map => Id.Map.update(id, f, map));
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
   ...z,

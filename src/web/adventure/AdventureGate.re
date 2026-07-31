@@ -14,7 +14,7 @@ let get_editor_text = (zipper: Zipper.t): string =>
 
 /* Check if the zipper has any manual probes */
 let has_any_probe = (zipper: Zipper.t): bool =>
-  !Id.Map.is_empty(zipper.refractors.manuals);
+  zipper.refractors.manuals != [];
 
 /* Check if there's a probe on the currently indicated term */
 let has_probe_on_indicated =
@@ -25,10 +25,10 @@ let has_probe_on_indicated =
     /* Check if this ID or any of its target subterm IDs have a probe */
     let target_ids = ProbePerform.target_subterm_ids(id, info_map);
     List.exists(
-      target_id => Id.Map.mem(target_id, zipper.refractors.manuals),
+      target_id => List.mem_assoc(target_id, zipper.refractors.manuals),
       target_ids,
     )
-    || Id.Map.mem(id, zipper.refractors.manuals);
+    || List.mem_assoc(id, zipper.refractors.manuals);
   };
 
 /* Main predicate evaluation */

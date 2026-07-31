@@ -335,8 +335,12 @@ let of_segment_inner =
             ~col=new_indent - origin.col,
           );
         // add seg to map and reset seg
-        //TODO: decide if should actually add linebreak here
-        let map = add_piece_row(origin.row, seg, map);
+        let map =
+          add_piece_row(
+            origin.row,
+            seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))], /* NOTE: These linebreaks don't actually occur in the surface syntax */
+            map,
+          );
         let map =
           size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
         ([], new_indent, size, map);
@@ -354,7 +358,11 @@ let of_segment_inner =
         ? {
           let g = DeferredLinebreaks.of_secondary();
           add_n_rows(origin, indent, g, map)
-          |> add_piece_row(origin.row, seg, _)
+          |> add_piece_row(
+               origin.row,
+               seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))], /* NOTE: These linebreaks don't actually occur in the surface syntax */
+               _,
+             )
           |> add_n_empty_piece_rows(g - 1);
         }
         : map;
@@ -388,11 +396,6 @@ let of_segment_inner =
   map;
 };
 
-/* Memoized for perf. We use an inner function with positional args
-   because Core.Memo.general doesn't preserve labeled argument types.
-   The wrapper provides the nice labeled argument interface. */
-let of_segment_memo = Core.Memo.general(of_segment_inner);
-
 let of_segment =
     (
       ~indent_level=Id.Map.empty,
@@ -402,7 +405,7 @@ let of_segment =
       refractor_shape_map: Id.Map.t(int),
     )
     : t =>
-  of_segment_memo(
+  of_segment_inner(
     indent_level,
     is_single_line,
     seg,

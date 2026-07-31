@@ -49,6 +49,7 @@ rule token =
     | projector_invoke as p { PROJECTOR_INVOKE p }
     | "true" { TRUE }
     | "false" { FALSE }
+    | "module" { MODULE }
     | "let" { LET }
     | "in" { IN }
     | "end" { END }
@@ -63,6 +64,8 @@ rule token =
     | ")" { CLOSE_PAREN }
     | "{{{" { OPEN_TRIPLE_CURLY }
     | "}}}" { CLOSE_TRIPLE_CURLY }
+    | "{" { OPEN_CURLY }
+    | "}" { CLOSE_CURLY }
     | "->" { DASH_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
@@ -95,7 +98,6 @@ rule token =
     | "!=." { NOT_EQUAL_FLOAT }
     (* String Ops *)
     | "++" { STRING_CONCAT }
-    | "$==" { STRING_EQUAL }
     (* Bool ops *)
     | "&&" { L_AND }
     | "||" { L_OR }
@@ -108,6 +110,7 @@ rule token =
     | "Float" { FLOAT_TYPE }
     | "Bool" { BOOL_TYPE }
     | "String" { STRING_TYPE }
+    | "Void" { VOID_TYPE }
     | "Unknown" { UNKNOWN }
     | "Internal" { INTERNAL }
     (* DHExp Annotations *)
@@ -128,7 +131,6 @@ rule token =
     | "fix" {FIX}
     | "typfun" {TYP_FUN}
     | "type" {TYP}
-    | "$" {DOLLAR_SIGN}
     | "~" {TILDE}
     | "/~" {SLASH_TILDE}
     | "?t" {T_TYP}

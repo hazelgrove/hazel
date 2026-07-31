@@ -22,6 +22,13 @@ module Model = {
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
+    incr_eval: Calc.saved(EvaluatorState.incr_eval),
+    /* ReusePass prediction for the current/last eval. Feeds the frozen debug
+     * tint; kept after completion so fast evals remain inspectable. */
+    predicted_reuse: EvaluatorState.incr_eval,
+    streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
+    streaming_state: Calc.saved(option(EvaluatorState.t)),
+    pending_eval_ids: list(Id.t),
     display,
     theorems: Theorems.Model.t,
   };
@@ -36,8 +43,13 @@ module Model = {
     cached_settings: Calc.Pending,
     elab: Calc.Pending,
     cached_targets: Calc.Pending,
-    result: Calc.NewValue(ProgramResult.ResultPending),
+    result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
     dynamics: Calc.Pending,
+    incr_eval: Calc.Pending,
+    predicted_reuse: IncrEval.empty,
+    streaming_outbox: Calc.Pending,
+    streaming_state: Calc.Pending,
+    pending_eval_ids: [],
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
@@ -58,8 +70,13 @@ module Model = {
         cached_settings: Calc.Pending,
         elab: Calc.Pending,
         cached_targets: Calc.Pending,
-        result: Calc.NewValue(ProgramResult.ResultPending),
+        result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
         dynamics: Calc.Pending,
+        incr_eval: Calc.Pending,
+        predicted_reuse: IncrEval.empty,
+        streaming_outbox: Calc.Pending,
+        streaming_state: Calc.Pending,
+        pending_eval_ids: [],
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -86,6 +103,22 @@ module Model = {
     | None => Dynamics.Map.mk(Sample.Map.empty)
     };
 
+  let incr_eval = (model: t): EvaluatorState.incr_eval =>
+    model.incr_eval |> Calc.get_saved(IncrEval.empty);
+
+  let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
+    model.predicted_reuse;
+
+  let eval_is_pending = (model: t): bool =>
+    switch (Calc.get_value(model.result)) {
+    | ProgramResult.ResultPending(_) => true
+    | ProgramResult.ResultOk(_)
+    | ProgramResult.ResultFail(_) => false
+    };
+
+  let pending_eval_ids = (model: t): list(Id.t) =>
+    eval_is_pending(model) ? model.pending_eval_ids : [];
+
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
 };
@@ -99,6 +132,8 @@ module Update = {
     | StepperAction(StepperView.Update.t)
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
+    | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
+    | MergeStreamingEval(IncrEval.outbox(EvaluatorState.t))
     | TheoremsAction(Theorems.Update.t);
 
   let can_undo = (action: t) => {
@@ -107,6 +142,8 @@ module Update = {
     | StepperAction(action) => StepperView.Update.can_undo(action)
     | EvalEditorAction(action) => CodeSelectable.Update.can_undo(action)
     | UpdateResult(_) => false
+    | UpdateStreamingEval(_)
+    | MergeStreamingEval(_) => false
     | TheoremsAction(action) => Theorems.Update.can_undo(action)
     };
   };
@@ -132,7 +169,7 @@ module Update = {
         ...model,
         display: Stepper(stepper),
       };
-    | (StepperAction(_), _) => model |> Updated.return_quiet
+    | (StepperAction(_), _) => model |> Updated.raise_invalid_action
     | (
         EvalEditorAction(a),
         {display: Evaluation(Calculated(Some((exp, editor)))), _},
@@ -142,7 +179,7 @@ module Update = {
         ...model,
         display: Evaluation(Calculated(Some((exp, editor)))),
       };
-    | (EvalEditorAction(_), _) => model |> Updated.return_quiet
+    | (EvalEditorAction(_), _) => model |> Updated.raise_invalid_action
     | (TheoremsAction(action), _) =>
       let* theorems =
         Theorems.Update.update(~settings, action, model.theorems);
@@ -154,8 +191,41 @@ module Update = {
       {
         ...model,
         result: Calc.NewValue(result),
+        pending_eval_ids:
+          switch (result) {
+          | ProgramResult.ResultPending(_) => model.pending_eval_ids
+          | ProgramResult.ResultOk(_)
+          | ProgramResult.ResultFail(_) => []
+          },
       }
       |> Updated.return_quiet
+    | (UpdateStreamingEval(stream), _) =>
+      /* Worker ReusePlan arrives here (via on_ack). Snapshot it for the
+       * frozen debug tint; also seed the streaming outbox / pending worklist. */
+      {
+        ...model,
+        result: Calc.NewValue(ProgramResult.evaluating),
+        predicted_reuse: stream.completed,
+        streaming_outbox: Calc.Calculated(Some(stream)),
+        streaming_state: Calc.Pending,
+        pending_eval_ids:
+          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
+      }
+      |> Updated.return_quiet
+    | (MergeStreamingEval(stream), _) =>
+      let current =
+        model.streaming_outbox
+        |> Calc.get_saved(None)
+        |> Option.value(~default=IncrEval.empty_outbox);
+      {
+        ...model,
+        streaming_outbox:
+          Calc.Calculated(Some(IncrEval.merge_outbox(stream, current))),
+        streaming_state: Calc.Pending,
+        pending_eval_ids:
+          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
+      }
+      |> Updated.return_quiet;
     };
 
   let calculate =
@@ -170,6 +240,11 @@ module Update = {
           cached_targets,
           result,
           dynamics,
+          incr_eval,
+          predicted_reuse,
+          streaming_outbox,
+          streaming_state,
+          pending_eval_ids,
           display,
           theorems,
         }: Model.t,
@@ -186,30 +261,44 @@ module Update = {
         cached_targets,
       );
 
-    // Calculate the result
+    /* Previous incremental map, if the last evaluation produced one. Pull
+     * from the saved field so it survives intermediate pending states
+     * (during which `result` itself is ResultPending). */
+    let prev_incr = incr_eval |> Calc.get_saved(IncrEval.empty);
+    /* Project statics to the serializable slice the incremental evaluator
+     * needs. The raw info_map can't cross postMessage because LivelitCtx
+     * entries contain OCaml closures. */
+    let eval_info_map =
+      EvalInfo.of_info_map(
+        ~probe_all=Calc.get_value(settings).probe_all,
+        ~targets=Calc.get_value(targets),
+        statics.info_map,
+      );
     let result =
       result
       |> {
         let.calc_t elab = elab
         // TODO[Matt]: We could make this more fine-grained, we only care about one setting
         and.calc settings = settings
-        and.calc targets = targets;
+        and.calc _ = targets;
         switch (queue_worker) {
         // Dynamics is off:
-        | _ when !settings.dynamics => ProgramResult.ResultPending
+        | _ when !settings.dynamics => ProgramResult.awaiting_worker_ack
         // Using the webworker:
         | Some(queue_worker) =>
           queue_worker({
             expr: elab,
-            targets,
+            eval_info_map,
+            prev: prev_incr,
           });
-          ProgramResult.ResultPending;
+          ProgramResult.awaiting_worker_ack;
         // Using the main thread:
         | None =>
           switch (
-            WorkerServer.work({
+            WorkerServer.evaluate_sync({
               expr: elab,
-              targets,
+              eval_info_map,
+              prev: prev_incr,
             })
           ) {
           | Ok((exp, state)) =>
@@ -224,23 +313,102 @@ module Update = {
         };
       };
 
-    // Turn state into dynamics map
-    let dynamics =
-      dynamics
+    let streaming_outbox =
+      streaming_outbox
       |> {
         let.calc result = result;
         switch (result) {
-        | ProgramResult.ResultPending => dynamics |> Calc.get_saved(None)
-        | ProgramResult.ResultFail(_) => dynamics |> Calc.get_saved(None)
-        | ProgramResult.ResultOk({state, _}) =>
-          Some(
-            Dynamics.{
-              probe_map: state |> EvaluatorState.get_probes,
-              test_results:
-                state |> EvaluatorState.get_tests |> TestResults.mk_results,
-              theorems: state |> EvaluatorState.get_theorems,
-            },
-          )
+        | ProgramResult.ResultPending(Evaluating) =>
+          streaming_outbox |> Calc.get_saved(None)
+        | ProgramResult.ResultPending(AwaitingWorkerAck)
+        | ProgramResult.ResultFail(_)
+        | ProgramResult.ResultOk(_) => None
+        };
+      };
+
+    let pending_eval_ids =
+      switch (result) {
+      | NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)) =>
+        if (Calc.get_value(settings).dynamics) {
+          switch (queue_worker) {
+          | Some(_) => EvalWorklist.pending_ids(statics.info_map)
+          | None => []
+          };
+        } else {
+          [];
+        }
+      | NewValue(ProgramResult.ResultOk(_))
+      | NewValue(ProgramResult.ResultFail(_)) => []
+      | NewValue(ProgramResult.ResultPending(Evaluating))
+      | OldValue(ProgramResult.ResultPending(_)) => pending_eval_ids
+      | OldValue(ProgramResult.ResultOk(_))
+      | OldValue(ProgramResult.ResultFail(_)) => []
+      };
+
+    /* Clear on a fresh eval request; ReusePlan / sync path re-fills it.
+     * Otherwise keep the last prediction so the frozen tint stays useful
+     * after a fast eval completes. */
+    let predicted_reuse =
+      switch (result, queue_worker) {
+      | (NewValue(ProgramResult.ResultPending(AwaitingWorkerAck)), _) => IncrEval.empty
+      | (NewValue(ProgramResult.ResultOk(_)), None) =>
+        ReusePass.reuse_pass(
+          ~prev=prev_incr,
+          ~eval_info=eval_info_map,
+          ~env=Builtins.env_init,
+          Calc.get_value(elab),
+        )
+      | _ => predicted_reuse
+      };
+
+    let streaming_state =
+      streaming_state
+      |> {
+        let.calc elab = elab
+        and.calc streaming_outbox = streaming_outbox;
+        switch (streaming_outbox) {
+        | Some(streaming_outbox) =>
+          Some(StreamCollector.collect_stream_state(streaming_outbox, elab))
+        | None => None
+        };
+      };
+
+    // Turn state into dynamics map
+    let dynamics_of_state = (state: EvaluatorState.t) =>
+      Dynamics.{
+        probe_map: state |> EvaluatorState.get_probes,
+        test_results:
+          state |> EvaluatorState.get_tests |> TestResults.mk_results,
+        theorems: state |> EvaluatorState.get_theorems,
+      };
+    let dynamics =
+      dynamics
+      |> {
+        let.calc result = result
+        and.calc streaming_state = streaming_state;
+        switch (result, streaming_state) {
+        | (ProgramResult.ResultPending(_), Some(state)) =>
+          Some(dynamics_of_state(state))
+        | (ProgramResult.ResultPending(_), None)
+        | (ProgramResult.ResultFail(_), _) =>
+          dynamics |> Calc.get_saved(None)
+        | (ProgramResult.ResultOk({state, _}), _) =>
+          Some(dynamics_of_state(state))
+        };
+      };
+
+    let incr_eval =
+      incr_eval
+      |> {
+        let.calc result = result
+        and.calc streaming_outbox = streaming_outbox;
+        switch (result, streaming_outbox) {
+        | (ProgramResult.ResultPending(_), Some(streaming_outbox)) =>
+          streaming_outbox.completed
+        | (ProgramResult.ResultPending(_), None) =>
+          incr_eval |> Calc.get_saved(IncrEval.empty)
+        | (ProgramResult.ResultFail(_), _) => IncrEval.empty
+        | (ProgramResult.ResultOk({state, _}), _) => state.incr_eval
         };
       };
 
@@ -248,17 +416,27 @@ module Update = {
     let display =
       switch (display) {
       | Evaluation(ev_display) =>
-        ev_display
-        |> {
-          let.calc settings = settings
-          and.calc result = result;
-          switch (result) {
-          | ResultOk({result: exp, _}) =>
-            Some((exp, exp |> CodeSelectable.Model.mk_from_exp(~settings)))
-          | ResultFail(_)
-          | ResultPending => ev_display |> Calc.get_saved_opt |> Option.join
+        let ev_calc =
+          ev_display
+          |> {
+            let.calc settings = settings
+            and.calc result = result;
+            switch (result) {
+            | ResultOk({result: exp, _}) =>
+              /* Evaluation always produces an Exp-sorted value (Drv-sorted
+                 subterms only appear wrapped in DrvQuote, which is itself Exp),
+                 so the result editor is rooted at Exp. */
+              Some((
+                exp,
+                exp |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp),
+              ))
+            | ResultFail(_)
+            | ResultPending(_) =>
+              ev_display |> Calc.get_saved_opt |> Option.join
+            };
           };
-        }
+        let result_changed = Calc.is_new(ev_calc);
+        ev_calc
         |> Calc.make_new  // TODO[Matt]: Could eventually replace this by keeping track of whether the editor selection has changed
         |> Calc.map_if_new(
              Option.map(((exp, editor)) =>
@@ -269,14 +447,14 @@ module Update = {
                    ~is_dynamic_term=true,
                    ~stitch=_ => exp,
                    ~dynamics=Dynamics.Map.empty,
-                   ~is_edited,
+                   ~is_edited=is_edited || result_changed,
                    editor,
                  ),
                )
              ),
            )
         |> Calc.save
-        |> (x => Model.Evaluation(x))
+        |> (x => Model.Evaluation(x));
       | Stepper(stepper) =>
         Model.Stepper(
           StepperView.Update.calculate(
@@ -314,6 +492,11 @@ module Update = {
         cached_targets: targets |> Calc.save,
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
+        incr_eval: incr_eval |> Calc.save,
+        predicted_reuse,
+        streaming_outbox: streaming_outbox |> Calc.save,
+        streaming_state: streaming_state |> Calc.save,
+        pending_eval_ids,
         display,
         theorems,
       }: Model.t
@@ -329,35 +512,35 @@ module Selection = {
     | Stepper(StepperView.Focus.t)
     | Theorems(Theorems.Focus.t);
 
-  let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
+  let get_cursor_info =
+      (~inject, ~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.display) {
     | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
-      let+ ci = CodeSelectable.Selection.get_cursor_info(~selection, editor);
+      let+ ci =
+        CodeSelectable.Selection.get_cursor_info(
+          ~inject=x => inject(Update.EvalEditorAction(x)),
+          ~selection,
+          editor,
+        );
       Update.EvalEditorAction(ci);
     | (Stepper(focus), Stepper(s)) =>
-      let+ ci = StepperView.Focus.get_cursor_info(~focus, s);
+      let+ ci =
+        StepperView.Focus.get_cursor_info(
+          ~inject=x => inject(Update.StepperAction(x)),
+          ~focus,
+          s,
+        );
       Update.StepperAction(ci);
     | (Evaluation(_), _) => Cursor.empty
     | (Stepper(_), _) => Cursor.empty
     | (Theorems(focus), _) =>
-      let+ ci = Theorems.Focus.get_cursor_info(~focus, mr.theorems);
+      let+ ci =
+        Theorems.Focus.get_cursor_info(
+          ~inject=x => inject(Update.TheoremsAction(x)),
+          ~focus,
+          mr.theorems,
+        );
       Update.TheoremsAction(ci);
-    };
-
-  let handle_key_event =
-      (~selection: t, ~event, mr: Model.t): option(Update.t) =>
-    switch (selection, mr.display) {
-    | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
-      CodeSelectable.Selection.handle_key_event(~selection, editor, event)
-      |> Option.map(x => Update.EvalEditorAction(x))
-    | (Stepper(focus), Stepper(s)) =>
-      StepperView.Focus.handle_key_event(~focus, s, ~event)
-      |> Option.map(x => Update.StepperAction(x))
-    | (Evaluation(_), _) => None
-    | (Stepper(_), _) => None
-    | (Theorems(focus), _) =>
-      Theorems.Focus.handle_key_event(~focus, ~event, mr.theorems)
-      |> Option.map(x => Update.TheoremsAction(x))
     };
 };
 
@@ -376,11 +559,18 @@ module View = {
     | Timeout => "Evaluation timed out"
     };
 
-  let status_of: ProgramResult.t('a) => string =
+  let result_status_of: ProgramResult.t('a) => string =
     fun
-    | ResultPending => "pending"
+    | ResultPending(_) => "pending"
     | ResultOk(_) => "ok"
     | ResultFail(_) => "fail";
+
+  let status_classes_of: ProgramResult.t('a) => list(string) =
+    fun
+    | ResultPending(AwaitingWorkerAck) => ["pending", "pending-ack"]
+    | ResultPending(Evaluating) => ["pending", "pending-evaluating"]
+    | ResultOk(_) => ["ok"]
+    | ResultFail(_) => ["fail"];
 
   let live_eval =
       (
@@ -400,9 +590,14 @@ module View = {
             ~signal=
               fun
               | MakeActive => signal(MakeActive(Evaluation())),
-            ~inject=a => inject(EvalEditorAction(a)),
+            ~edit_mode=
+              EditMode.Editable({
+                inject: a => inject(EvalEditorAction(a)),
+                escape: _ => Ui_effect.Ignore,
+                take_focus: _ => Ui_effect.Ignore,
+                focus: selected ? Some() : None,
+              }),
             ~globals,
-            ~selected,
             ~dynamics=editor.dynamics,
             editor,
           ),
@@ -424,14 +619,14 @@ module View = {
         exn_view
         @ [
           div(
-            ~attrs=[Attr.classes(["status", status_of(result)])],
+            ~attrs=[Attr.classes(["status"] @ status_classes_of(result))],
             [
               div(~attrs=[Attr.classes(["spinner"])], []),
               div(~attrs=[Attr.classes(["eq"])], [text("≡")]),
             ],
           ),
           div(
-            ~attrs=[Attr.classes(["result", status_of(result)])],
+            ~attrs=[Attr.classes(["result", result_status_of(result)])],
             Option.to_list(code_view),
           ),
         ]
@@ -587,6 +782,7 @@ module View = {
                    Settings.of_core(~inline=false, globals.settings.core),
                )
              )
+          |> Haz3lcore.PrettySegment.prettify
           |> CodeViewable.view_segment(~globals)
         | None => text("No elaboration found")
         },

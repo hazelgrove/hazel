@@ -43,7 +43,7 @@ module ToLvsOperation = {
           ap(
             ~ann=
               Some(
-                Exp(
+                Marks([
                   BuiltinError(
                     ToLvsMissingLabelsOnTuple(
                       Typ.(
@@ -56,7 +56,7 @@ module ToLvsOperation = {
                       ),
                     ),
                   ),
-                ),
+                ]),
               ),
             Forward,
             var("to_lvs"),
@@ -78,7 +78,7 @@ module ToLvsOperation = {
           ap(
             ~ann=
               Some(
-                Exp(
+                Marks([
                   BuiltinError(
                     ToLvsMissingLabelsOnTuple(
                       Typ.(
@@ -91,7 +91,7 @@ module ToLvsOperation = {
                       ),
                     ),
                   ),
-                ),
+                ]),
               ),
             Forward,
             var("to_lvs"),
@@ -201,11 +201,7 @@ module ProjectLabels = {
                 tup_label(label("c"), int(3)),
               ]),
               label("a"),
-              int(
-                ~ann=
-                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
-                3,
-              ),
+              int(~ann=Some(Marks([BadLabel(Exp(Exp.int(3)))])), 3),
               label("c"),
             ]),
           )
@@ -234,9 +230,10 @@ module ProjectLabels = {
               label(
                 ~ann=
                   Some(
-                    Exp(
-                      Common(NoType(InvalidLabel("d", ["a", "b", "c"]))),
-                    ),
+                    Marks([
+                      UnexpectedLabelSort("d"),
+                      InvalidLabel("d", ["a", "b", "c"]),
+                    ]),
                   ),
                 "d",
               ),
@@ -254,17 +251,12 @@ module ProjectLabels = {
             Forward,
             var("project_labels"),
             tuple([
-              int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
               int(
-                ~ann=
-                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(2))))))),
-                2,
+                ~ann=Some(Marks([BuiltinError(ArgumentMustBeTuple)])),
+                1,
               ),
-              int(
-                ~ann=
-                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
-                3,
-              ),
+              int(~ann=Some(Marks([BadLabel(Exp(Exp.int(2)))])), 2),
+              int(~ann=Some(Marks([BadLabel(Exp(Exp.int(3)))])), 3),
             ]),
           )
         ),
@@ -277,7 +269,7 @@ module ProjectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             Forward,
             var("project_labels"),
             parens(tuple([int(1), int(2), int(3)])),
@@ -291,7 +283,7 @@ module ProjectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             Forward,
             var("project_labels"),
             int(1),
@@ -305,7 +297,7 @@ module ProjectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))), // Has to be on the ap to show up
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])), // Has to be on the ap to show up
             Forward,
             var("project_labels"),
             tuple([]),
@@ -353,7 +345,7 @@ module ProjectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             Forward,
             var("project_labels"),
             tuple([tup_label(label("b"), int(3))]),
@@ -389,12 +381,7 @@ module ProjectLabels = {
               ]),
               label("a"),
               deferral(
-                ~ann=
-                  Some(
-                    Exp(
-                      Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
-                    ),
-                  ),
+                ~ann=Some(Marks([BadLabel(Exp(Exp.deferral(InAp)))])),
                 InAp,
               ),
               label("c"),
@@ -409,7 +396,7 @@ module ProjectLabels = {
         unknown(Internal),
         FIError.Exp.(
           deferred_ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             var("project_labels"),
             [deferral(InAp)],
           )
@@ -490,11 +477,7 @@ module SelectLabels = {
                 tup_label(label("c"), int(3)),
               ]),
               label("a"),
-              int(
-                ~ann=
-                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
-                3,
-              ),
+              int(~ann=Some(Marks([BadLabel(Exp(Exp.int(3)))])), 3),
               label("c"),
             ]),
           )
@@ -544,9 +527,10 @@ module SelectLabels = {
               label(
                 ~ann=
                   Some(
-                    Exp(
-                      Common(NoType(InvalidLabel("d", ["a", "b", "c"]))),
-                    ),
+                    Marks([
+                      UnexpectedLabelSort("d"),
+                      InvalidLabel("d", ["a", "b", "c"]),
+                    ]),
                   ),
                 "d",
               ),
@@ -564,17 +548,12 @@ module SelectLabels = {
             Forward,
             var("select_labels"),
             tuple([
-              int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
               int(
-                ~ann=
-                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(2))))))),
-                2,
+                ~ann=Some(Marks([BuiltinError(ArgumentMustBeTuple)])),
+                1,
               ),
-              int(
-                ~ann=
-                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
-                3,
-              ),
+              int(~ann=Some(Marks([BadLabel(Exp(Exp.int(2)))])), 2),
+              int(~ann=Some(Marks([BadLabel(Exp(Exp.int(3)))])), 3),
             ]),
           )
         ),
@@ -586,7 +565,7 @@ module SelectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             Forward,
             var("select_labels"),
             int(1),
@@ -600,7 +579,7 @@ module SelectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             Forward,
             var("select_labels"),
             tuple([]),
@@ -677,12 +656,7 @@ module SelectLabels = {
               ]),
               label("a"),
               deferral(
-                ~ann=
-                  Some(
-                    Exp(
-                      Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
-                    ),
-                  ),
+                ~ann=Some(Marks([BadLabel(Exp(Exp.deferral(InAp)))])),
                 InAp,
               ),
               label("c"),
@@ -697,7 +671,7 @@ module SelectLabels = {
         unknown(Internal),
         FIError.Exp.(
           deferred_ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             var("select_labels"),
             [deferral(InAp)],
           )
@@ -735,10 +709,7 @@ module GroupByLabel = {
                 ]),
               ]),
               label(
-                ~ann=
-                  Some(
-                    Exp(Common(NoType(InvalidLabel("c", ["a", "b"])))),
-                  ),
+                ~ann=Some(Marks([InvalidLabel("c", ["a", "b"])])),
                 "c",
               ),
             ]),
@@ -764,7 +735,7 @@ module GroupByLabel = {
               label(
                 ~ann=
                   Some(
-                    Exp(BuiltinError(PivotLabelIsNotString(Typ.int()))),
+                    Marks([BuiltinError(PivotLabelIsNotString(Typ.int()))]),
                   ),
                 "a",
               ),
@@ -788,11 +759,7 @@ module GroupByLabel = {
                   tup_label(label("b"), int(3)),
                 ]),
               ]),
-              int(
-                ~ann=
-                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(5))))))),
-                5,
-              ),
+              int(~ann=Some(Marks([BadLabel(Exp(Exp.int(5)))])), 5),
             ]),
           )
         ),
@@ -808,7 +775,8 @@ module GroupByLabel = {
             var("group_by_label"),
             tuple([
               int(
-                ~ann=Some(Exp(BuiltinError(ArgumentMustBeListOfTuples))),
+                ~ann=
+                  Some(Marks([BuiltinError(ArgumentMustBeListOfTuples)])),
                 5,
               ),
               label("a"),
@@ -823,7 +791,7 @@ module GroupByLabel = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(Exactly2Arguments))),
+            ~ann=Some(Marks([BuiltinError(Exactly2Arguments)])),
             Forward,
             var("group_by_label"),
             tuple([
@@ -833,14 +801,8 @@ module GroupByLabel = {
                   tup_label(label("b"), int(3)),
                 ]),
               ]),
-              label(
-                ~ann=Some(Exp(Common(NoType(UnexpectedLabelSort("a"))))),
-                "a",
-              ),
-              label(
-                ~ann=Some(Exp(Common(NoType(UnexpectedLabelSort("b"))))),
-                "b",
-              ),
+              label(~ann=Some(Marks([UnexpectedLabelSort("a")])), "a"),
+              label(~ann=Some(Marks([UnexpectedLabelSort("b")])), "b"),
             ]),
           )
         ),
@@ -929,27 +891,17 @@ module GroupByLabel = {
                 asc(
                   ~ann=
                     Some(
-                      Exp(
-                        Common(
-                          NoType(
-                            BadLabel(
-                              Exp(
-                                FTemp.(
-                                  Exp.(
-                                    asc(label("a"), Typ.unknown(Internal))
-                                  )
-                                ),
-                              ),
+                      Marks([
+                        BadLabel(
+                          Exp(
+                            FTemp.(
+                              Exp.(asc(label("a"), Typ.unknown(Internal)))
                             ),
                           ),
                         ),
-                      ),
+                      ]),
                     ),
-                  label(
-                    ~ann=
-                      Some(Exp(Common(NoType(UnexpectedLabelSort("a"))))),
-                    "a",
-                  ),
+                  label(~ann=Some(Marks([UnexpectedLabelSort("a")])), "a"),
                   Typ.unknown(Internal),
                 ),
               ]),
@@ -964,7 +916,7 @@ module GroupByLabel = {
         unknown(Internal),
         FIError.Exp.(
           deferred_ap(
-            ~ann=Some(Exp(BuiltinError(Exactly2Arguments))),
+            ~ann=Some(Marks([BuiltinError(Exactly2Arguments)])),
             var("group_by_label"),
             [deferral(InAp)],
           )
@@ -977,7 +929,7 @@ module GroupByLabel = {
         unknown(Internal),
         FIError.Exp.(
           deferred_ap(
-            ~ann=Some(Exp(BuiltinError(Exactly2Arguments))),
+            ~ann=Some(Marks([BuiltinError(Exactly2Arguments)])),
             var("group_by_label"),
             [deferral(InAp), deferral(InAp), deferral(InAp)],
           )
@@ -1025,11 +977,7 @@ module OmitLabels = {
                 tup_label(label("c"), int(3)),
               ]),
               label("a"),
-              int(
-                ~ann=
-                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
-                3,
-              ),
+              int(~ann=Some(Marks([BadLabel(Exp(Exp.int(3)))])), 3),
               label("c"),
             ]),
           )
@@ -1079,9 +1027,10 @@ module OmitLabels = {
               label(
                 ~ann=
                   Some(
-                    Exp(
-                      Common(NoType(InvalidLabel("d", ["a", "b", "c"]))),
-                    ),
+                    Marks([
+                      UnexpectedLabelSort("d"),
+                      InvalidLabel("d", ["a", "b", "c"]),
+                    ]),
                   ),
                 "d",
               ),
@@ -1120,17 +1069,12 @@ module OmitLabels = {
             Forward,
             var("omit_labels"),
             tuple([
-              int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
               int(
-                ~ann=
-                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(2))))))),
-                2,
+                ~ann=Some(Marks([BuiltinError(ArgumentMustBeTuple)])),
+                1,
               ),
-              int(
-                ~ann=
-                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
-                3,
-              ),
+              int(~ann=Some(Marks([BadLabel(Exp(Exp.int(2)))])), 2),
+              int(~ann=Some(Marks([BadLabel(Exp(Exp.int(3)))])), 3),
             ]),
           )
         ),
@@ -1142,7 +1086,7 @@ module OmitLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             Forward,
             var("omit_labels"),
             int(1),
@@ -1156,7 +1100,7 @@ module OmitLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             Forward,
             var("omit_labels"),
             tuple([]),
@@ -1226,12 +1170,7 @@ module OmitLabels = {
               ]),
               label("a"),
               deferral(
-                ~ann=
-                  Some(
-                    Exp(
-                      Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
-                    ),
-                  ),
+                ~ann=Some(Marks([BadLabel(Exp(Exp.deferral(InAp)))])),
                 InAp,
               ),
               label("c"),
@@ -1246,7 +1185,7 @@ module OmitLabels = {
         unknown(Internal),
         FIError.Exp.(
           deferred_ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             var("omit_labels"),
             [deferral(InAp)],
           )
@@ -1259,7 +1198,7 @@ module OmitLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             Forward,
             var("omit_labels"),
             tuple([]),
@@ -1305,7 +1244,7 @@ module OmitAllLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))),
+            ~ann=Some(Marks([BuiltinError(ArgumentMustBeTuple)])),
             Forward,
             var("omit_all_labels"),
             int(1),

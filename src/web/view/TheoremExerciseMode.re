@@ -1,6 +1,4 @@
 open Haz3lcore;
-open Virtual_dom.Vdom;
-open Node;
 open Util;
 
 /* The exercises mode interface for a theorem exercise. Composed of multiple editors and results. */
@@ -16,11 +14,27 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type editing_flags = {
+    editing_title: bool,
+    editing_module_name: bool,
+    editing_prompt: bool,
+  };
+
+  let editing_flags_false = {
+    editing_title: false,
+    editing_module_name: false,
+    editing_prompt: false,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     id: Id.t,
     title: string,
+    module_name: string,
     prompt: string,
+    max_points: int,
     cells,
+    editing_flags,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -35,40 +49,53 @@ module Model = {
   };
 
   let unpersist =
-      (~settings, spec: TheoremExerciseSpec.t, persistent: persistent): t => {
+      (~settings, spec: TheoremExercise.spec, persistent: persistent): t => {
     {
       id: spec.id,
       title: spec.title,
+      module_name: spec.module_name,
       prompt: spec.prompt,
+      max_points: spec.max_points,
       cells: {
-        prelude: CellEditor.Model.mk(Editor.Model.mk(spec.prelude)),
+        prelude:
+          CellEditor.Model.mk(Editor.Model.mk(spec.prelude, ~root=Exp)),
         lemmas: persistent.lemmas |> CellEditor.Model.unpersist(~settings),
         theorem: {
-          editor: CellEditor.Model.mk(Editor.Model.mk(spec.theorem)).editor,
+          editor:
+            CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)).
+              editor,
           result: persistent.theorem |> EvalResult.Model.unpersist,
         },
       },
+      editing_flags: editing_flags_false,
     };
   };
 
-  let of_spec = (spec: TheoremExerciseSpec.t): t => {
+  let of_spec = (spec: TheoremExercise.spec): t => {
     {
       id: spec.id,
       title: spec.title,
+      module_name: spec.module_name,
       prompt: spec.prompt,
+      max_points: spec.max_points,
       cells: {
-        prelude: CellEditor.Model.mk(Editor.Model.mk(spec.prelude)),
-        lemmas: CellEditor.Model.mk(Editor.Model.mk(spec.lemmas)),
-        theorem: CellEditor.Model.mk(Editor.Model.mk(spec.theorem)),
+        prelude:
+          CellEditor.Model.mk(Editor.Model.mk(spec.prelude, ~root=Exp)),
+        lemmas: CellEditor.Model.mk(Editor.Model.mk(spec.lemmas, ~root=Exp)),
+        theorem:
+          CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)),
       },
+      editing_flags: editing_flags_false,
     };
   };
 
-  let spec_of_t = (model: t): TheoremExerciseSpec.t => {
+  let spec_of_t = (model: t): TheoremExercise.spec => {
     {
       id: model.id,
       title: model.title,
+      module_name: model.module_name,
       prompt: model.prompt,
+      max_points: model.max_points,
       prelude: model.cells.prelude.editor.editor.state.zipper,
       lemmas: model.cells.lemmas.editor.editor.state.zipper,
       theorem: model.cells.theorem.editor.editor.state.zipper,
@@ -76,42 +103,99 @@ module Model = {
   };
 
   let export_module = (model: t): string => {
-    let prefix = "let exercise : TheoremExerciseSpec.t =
- \n";
+    let prefix = "let exercise : Exercise.t = Theorem\n";
     let spec = spec_of_t(model);
-    prefix ++ TheoremExerciseSpec.show(spec) ++ "\n";
+    prefix ++ TheoremExercise.show_spec(spec) ++ "\n";
   };
+
+  /* Editors whose problems should appear in the Problems sidebar. All three
+     cells are always rendered (Prelude read-only, Theorem prove-only) and
+     all are jumpable, so all are listed. */
+  let get_problem_editors =
+      (model: t): list((option(string), list(CodeEditable.Model.t))) => [
+    (Some("Prelude"), [model.cells.prelude.editor]),
+    (Some("Lemmas"), [model.cells.lemmas.editor]),
+    (Some("Theorem"), [model.cells.theorem.editor]),
+  ];
 };
 
 module Update = {
   open Updated;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
+  type instructor =
+    | EditingTitle
+    | EditingModuleName
+    | EditingPrompt
     | UpdateTitle(string)
-    | UpdatePrompt(string)
+    | UpdateModuleName(string)
+    | UpdatePrompt(string);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Instructor(instructor)
     | Prelude(CellEditor.Update.t)
     | Lemmas(CellEditor.Update.t)
-    | Theorem(CellEditor.Update.t);
+    | Theorem(CellEditor.Update.t)
+    | RefreshStatics;
 
-  let update = (~settings: Settings.t, action: t, model: Model.t) => {
+  let instructor_update =
+      (action: instructor, model: Model.t): Updated.t(Model.t) => {
     switch (action) {
-    | UpdateTitle(new_title) when settings.instructor_mode =>
+    | EditingTitle =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_title: !model.editing_flags.editing_title,
+        },
+      })
+    | EditingModuleName =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_module_name: !model.editing_flags.editing_module_name,
+        },
+      })
+    | EditingPrompt =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_prompt: !model.editing_flags.editing_prompt,
+        },
+      })
+    | UpdateTitle(title) =>
       Updated.return({
         ...model,
-        title: new_title,
+        title,
       })
-    | UpdateTitle(_) =>
-      print_endline("Instructor-only action");
-      Updated.return_quiet(model);
-    | UpdatePrompt(prompt) when settings.instructor_mode =>
+    | UpdateModuleName(module_name) =>
+      Updated.return({
+        ...model,
+        module_name,
+      })
+    | UpdatePrompt(prompt) =>
       Updated.return({
         ...model,
         prompt,
       })
-    | UpdatePrompt(_) =>
-      print_endline("Instructor-only action");
+    };
+  };
+
+  let instructor_update =
+      (~settings: Settings.t, action: instructor, model: Model.t)
+      : Updated.t(Model.t) =>
+    if (settings.instructor_mode) {
+      instructor_update(action, model);
+    } else {
       Updated.return_quiet(model);
+    };
+
+  let update = (~settings: Settings.t, action: t, model: Model.t) => {
+    switch (action) {
+    | Instructor(action) => instructor_update(~settings, action, model)
     | Prelude(action) when settings.instructor_mode =>
       let* new_cell =
         CellEditor.Update.update(~settings, action, model.cells.prelude);
@@ -192,44 +276,60 @@ module Update = {
     | Theorem(MainEditor(_)) =>
       print_endline("Instructor-only action");
       Updated.return_quiet(model);
+    | RefreshStatics =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      model |> Updated.return_quiet(~recalculate=true);
     };
   };
 
   let can_undo = (action: t): bool => {
     switch (action) {
-    | UpdateTitle(_) => true
-    | UpdatePrompt(_) => true
+    | Instructor(_) => false
     | Prelude(action) => CellEditor.Update.can_undo(action)
     | Lemmas(action) => CellEditor.Update.can_undo(action)
     | Theorem(action) => CellEditor.Update.can_undo(action)
+    | RefreshStatics => false
     };
   };
 
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+    let statics_mode =
+      CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
+        schedule_action(RefreshStatics)
+      );
+
     // Work out the terms
     let just_prelude_term =
       MakeTerm.from_zip_for_sem(
         model.cells.prelude.editor.editor.state.zipper,
+        ~root=Exp,
       ).
         term;
     let just_lemmas_term =
-      MakeTerm.from_zip_for_sem(model.cells.lemmas.editor.editor.state.zipper).
+      MakeTerm.from_zip_for_sem(
+        model.cells.lemmas.editor.editor.state.zipper,
+        ~root=Exp,
+      ).
         term;
     let just_theorem_term =
       MakeTerm.from_zip_for_sem(
         model.cells.theorem.editor.editor.state.zipper,
+        ~root=Exp,
       ).
         term;
 
     let stitched_scratch =
-      Exercise.append_exp(just_prelude_term, just_lemmas_term);
+      EditorUtil.append_exp(just_prelude_term, just_lemmas_term);
     let stitched_theorem =
-      Exercise.append_exp(
-        stitched_scratch,
-        Language.Exp.replace_all_ids(just_prelude_term),
-      )
-      |> Exercise.append_exp(_, just_theorem_term);
+      stitched_scratch
+      |> EditorUtil.append_exp(
+           _,
+           just_prelude_term
+           |> Language.ProofHacks.strip_theorems
+           |> Language.Exp.replace_all_ids,
+         )
+      |> EditorUtil.append_exp(_, just_theorem_term);
 
     // Worker Setup
     let worker_request: ref(list((string, WorkerServer.Request.value))) =
@@ -246,6 +346,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
+               ~statics_mode,
                ~queue_worker=Some(queue_worker("prelude")),
                ~stitch=_ =>
                just_prelude_term
@@ -255,6 +356,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
+               ~statics_mode,
                ~queue_worker=Some(queue_worker("lemmas")),
                ~stitch=_ =>
                stitched_scratch
@@ -264,6 +366,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
+               ~statics_mode,
                ~queue_worker=Some(queue_worker("theorem")),
                ~stitch=_ =>
                stitched_theorem
@@ -272,47 +375,23 @@ module Update = {
 
     // Send to worker
 
-    WorkerClient.request(
+    let dispatch = (key, action) =>
+      switch (key) {
+      | "lemmas" =>
+        schedule_action(Prelude(ResultAction(action)));
+        schedule_action(Lemmas(ResultAction(action)));
+      | "theorem" => schedule_action(Theorem(ResultAction(action)))
+      | _ => ()
+      };
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          switch (pos) {
-          | "lemmas" =>
-            schedule_action(Prelude(ResultAction(UpdateResult(result'))));
-            schedule_action(Lemmas(ResultAction(UpdateResult(result'))));
-          | "theorem" =>
-            schedule_action(Theorem(ResultAction(UpdateResult(result'))))
-          | _ => ()
-          };
-        }),
-      ~timeout=_ => {
-      List.iter(
-        fun
-        | "lemmas" => {
-            schedule_action(
-              Prelude(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-            schedule_action(
-              Lemmas(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-          }
-        | "theorem" =>
-          schedule_action(
-            Theorem(ResultAction(UpdateResult(ResultFail(Timeout)))),
-          )
-        | _ => (),
-        List.map(((pos, _)) => pos, worker_request^),
-      )
-    });
+      ~pos_of_key=key => key,
+      ~dispatch,
+      ~on_timeout=
+        List.iter(((key, _)) =>
+          dispatch(key, UpdateResult(ResultFail(Timeout)))
+        ),
+    );
 
     {
       ...model,
@@ -330,12 +409,15 @@ module Selection = {
     | Lemmas(CellEditor.Selection.t)
     | Theorem(CellEditor.Selection.t);
 
-  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
+      : cursor(Update.t) => {
     switch (selection) {
     | TextBox => Cursor.empty
     | Prelude(s) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
+          ~inject=a => inject(Prelude(a)),
           ~selection=s,
           model.cells.prelude,
         );
@@ -343,6 +425,7 @@ module Selection = {
     | Lemmas(s) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
+          ~inject=a => inject(Lemmas(a)),
           ~selection=s,
           model.cells.lemmas,
         );
@@ -350,38 +433,11 @@ module Selection = {
     | Theorem(s) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
+          ~inject=a => inject(Theorem(a)),
           ~selection=s,
           model.cells.theorem,
         );
       Update.Theorem(a);
-    };
-  };
-
-  let handle_key_event =
-      (~selection: t, ~event, model: Model.t): option(Update.t) => {
-    switch (selection) {
-    | TextBox => None
-    | Prelude(s) =>
-      CellEditor.Selection.handle_key_event(
-        ~selection=s,
-        model.cells.prelude,
-        ~event,
-      )
-      |> Option.map(x => Update.Prelude(x))
-    | Lemmas(s) =>
-      CellEditor.Selection.handle_key_event(
-        ~selection=s,
-        model.cells.lemmas,
-        ~event,
-      )
-      |> Option.map(x => Update.Lemmas(x))
-    | Theorem(s) =>
-      CellEditor.Selection.handle_key_event(
-        ~selection=s,
-        model.cells.theorem,
-        ~event,
-      )
-      |> Option.map(x => Update.Theorem(x))
     };
   };
 
@@ -396,7 +452,7 @@ module Selection = {
 
     let.or () = {
       let* _ =
-        TermData.root_tile(
+        TermData.root_piece(
           tile,
           model.cells.prelude.editor.editor.syntax.term_data,
         );
@@ -407,7 +463,7 @@ module Selection = {
     };
     let.or () = {
       let* _ =
-        TermData.root_tile(
+        TermData.root_piece(
           tile,
           model.cells.lemmas.editor.editor.syntax.term_data,
         );
@@ -418,7 +474,7 @@ module Selection = {
     };
 
     let* _ =
-      TermData.root_tile(
+      TermData.root_piece(
         tile,
         model.cells.theorem.editor.editor.syntax.term_data,
       );
@@ -435,52 +491,44 @@ module View = {
         ~globals: Globals.t,
         ~take_focus: Selection.t => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
+        ~inject_explainthis: ExplainThisUpdate.update => Ui_effect.t(unit),
         ~selection: option(Selection.t),
         model: Model.t,
       ) => {
+    let editing_flags = model.editing_flags;
+    let on_focus_textbox = _ => take_focus(TextBox);
+
     let title_view =
-      CellCommon.simple_cell_view([
-        div(
-          ~attrs=[Attr.class_("title-cell")],
-          [
-            globals.settings.instructor_mode
-              ? div(
-                  ~attrs=[Attr.class_("title-edit")],
-                  [
-                    input(
-                      ~attrs=[
-                        Attr.class_("title-input"),
-                        Attr.value(model.title),
-                        Attr.on_change((_, str) =>
-                          inject(UpdateTitle(str))
-                        ),
-                        Attr.on_focus(_ => take_focus(TextBox)),
-                      ],
-                      (),
-                    ),
-                  ],
-                )
-              : div(
-                  ~attrs=[Attr.class_("title-text")],
-                  [text(model.title)],
-                ),
-          ],
-        ),
-      ]);
+      InstructorEditViews.title_view(
+        ~instructor_mode=globals.settings.instructor_mode,
+        ~is_editing=editing_flags.editing_title,
+        ~title=model.title,
+        ~on_focus_textbox,
+        ~toggle_editing=_ => inject(Instructor(EditingTitle)),
+        ~update_title=t => inject(Instructor(UpdateTitle(t))),
+      );
+
+    let module_name_view =
+      InstructorEditViews.module_name_view(
+        ~instructor_mode=globals.settings.instructor_mode,
+        ~is_editing=editing_flags.editing_module_name,
+        ~module_name=model.module_name,
+        ~on_focus_textbox,
+        ~toggle_editing=_ => inject(Instructor(EditingModuleName)),
+        ~update_module_name=m => inject(Instructor(UpdateModuleName(m))),
+      );
 
     let prompt_view =
-      CellCommon.simple_cell_view([
-        globals.settings.instructor_mode
-          ? textarea(
-              ~attrs=[
-                Attr.class_("prompt-input"),
-                Attr.on_change((_, str) => inject(UpdatePrompt(str))),
-                Attr.on_focus(_ => take_focus(TextBox)),
-              ],
-              [text(model.prompt)],
-            )
-          : div(~attrs=[Attr.class_("prompt-text")], [text(model.prompt)]),
-      ]);
+      InstructorEditViews.prompt_view(
+        ~globals,
+        ~inject_explainthis,
+        ~instructor_mode=globals.settings.instructor_mode,
+        ~is_editing=editing_flags.editing_prompt,
+        ~prompt=model.prompt,
+        ~on_focus_textbox,
+        ~toggle_editing=_ => inject(Instructor(EditingPrompt)),
+        ~update_prompt=p => inject(Instructor(UpdatePrompt(p))),
+      );
 
     let prelude_view =
       CellEditor.View.view(
@@ -542,6 +590,7 @@ module View = {
     [
       score_view,
       title_view,
+      module_name_view,
       prompt_view,
       prelude_view,
       lemmas_view,

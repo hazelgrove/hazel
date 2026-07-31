@@ -27,7 +27,15 @@ let exp_to_seg =
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
   let* name = Token.of_projector_invoke(name);
   let kind = ProjectorCore.Kind.of_name(name);
-  ProjectorPerform.init(kind, syntax);
+  /* Statics haven't run yet at trigger time, so we pass the empty
+   * elaborated expression. This means elaborate_syntax projectors
+   * will fall back to the raw syntax path, which is correct —
+   * elaboration happens on the next statics cycle after init. */
+  ProjectorPerform.init(
+    kind,
+    syntax,
+    ~elaborated=CachedStatics.empty.elaborated,
+  );
 };
 
 let expand_projector = (z: t): option(t) => {
@@ -55,9 +63,6 @@ let expand_projector = (z: t): option(t) => {
       ...rest,
     ]
       when Token.is_projector_invoke(name) =>
-    /* Trim only need because of grout/whitespace transmutation when syntax is hole */
-    let syntax =
-      syntax |> Segment.trim_secondary(Right) |> Segment.trim_secondary(Left);
     let+ piece = invoked_projector(name, syntax);
     Zipper.update_siblings(
       ((_, r)) => ([piece, ...rest] |> List.rev, r),
@@ -81,8 +86,22 @@ let refractor_to_invoke =
   Piece.mk_tile(Form.get(ApExp), [seg]),
 ];
 
+/* Text-only version using Unicode brackets for CLI output.
+ * Only wraps probes, not other projector kinds. */
+let refractor_to_invoke_text =
+    (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t =>
+  switch (kind) {
+  | Probe =>
+    [Piece.mk_tile(Form.mk_atom_op(Exp, Token.probe_start), []), ...seg]
+    @ [Piece.mk_tile(Form.mk_atom_op(Exp, Token.probe_end), [])]
+  | _ => refractor_to_invoke(kind, seg)
+  };
+
 let projector_to_invoke = (pr: Base.projector): Segment.t =>
   refractor_to_invoke(pr.kind, Piece.unparenthesize(pr.syntax));
+
+let projector_to_invoke_text = (pr: Base.projector): Segment.t =>
+  refractor_to_invoke_text(pr.kind, Piece.unparenthesize(pr.syntax));
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
@@ -98,7 +117,14 @@ let expand_livelit = (~ctx, z: t): option(t) =>
     let (l, _space) = ListUtil.split_last(fst(z.relatives.siblings));
     let (l, name) = ListUtil.split_last(l);
     let seg = [name, Piece.mk_tile(Form.get(ApExp), [seg])];
-    let+ pr = ProjectorPerform.init(Livelit, seg);
+    /* No statics available at trigger time; empty elaborated is fine
+     * since Livelit has elaborate_syntax=false. */
+    let+ pr =
+      ProjectorPerform.init(
+        Livelit,
+        seg,
+        ~elaborated=CachedStatics.empty.elaborated,
+      );
     Zipper.update_siblings(((_, r)) => (l @ [pr], r), z);
   | _ => None
   };
@@ -133,9 +159,14 @@ let destruct = (z: t): option(t) =>
   | _ => None
   };
 
-let refractor_seg_to_seg =
-    (refractors: Zipper.Refractor.Map.t, seg: Segment.t)
-    : (Zipper.Refractor.Map.t, Segment.t) => {
+/* Parameterized version: takes a wrapper function for customizing output */
+let refractor_seg_to_seg_with =
+    (
+      ~wrapper: (ProjectorCore.Kind.t, Segment.t) => Segment.t,
+      refractors: Zipper.Refractor.RefractorList.t,
+      seg: Segment.t,
+    )
+    : (Zipper.Refractor.RefractorList.t, Segment.t) => {
   /* This function transforms a segment by wrapping terms that have refractors
    * with their invocation syntax (e.g., ^^probe(...)).
    *
@@ -150,8 +181,8 @@ let refractor_seg_to_seg =
   /* Process an Aba root, returning segment from first_a to last_a (inclusive).
    * Recursively processes all child skeletons in the Aba. */
   let rec go_aba =
-          (map: Zipper.Refractor.Map.t, root: Skel.root)
-          : (Zipper.Refractor.Map.t, Segment.t) => {
+          (map: Zipper.Refractor.RefractorList.t, root: Skel.root)
+          : (Zipper.Refractor.RefractorList.t, Segment.t) => {
     let indices = Aba.get_as(root);
     let children = Aba.get_bs(root);
     switch (indices, children) {
@@ -165,12 +196,12 @@ let refractor_seg_to_seg =
        *   slice(i1, c1_start) @ go(c1) @ slice(c1_end+1, i2) @ slice(i2, i2+1) */
       let rec go_interleave =
               (
-                map: Zipper.Refractor.Map.t,
+                map: Zipper.Refractor.RefractorList.t,
                 prev_idx: int,
                 indices: list(int),
                 children: list(Skel.t),
               )
-              : (Zipper.Refractor.Map.t, Segment.t) =>
+              : (Zipper.Refractor.RefractorList.t, Segment.t) =>
         switch (indices, children) {
         | ([], []) =>
           /* After last index: include slice for the final token */
@@ -191,8 +222,8 @@ let refractor_seg_to_seg =
     };
   }
   and go =
-      (map: Zipper.Refractor.Map.t, skel: Skel.t)
-      : (Zipper.Refractor.Map.t, Segment.t) => {
+      (map: Zipper.Refractor.RefractorList.t, skel: Skel.t)
+      : (Zipper.Refractor.RefractorList.t, Segment.t) => {
     let (map, result) =
       switch (skel) {
       | Op(root) =>
@@ -245,16 +276,16 @@ let refractor_seg_to_seg =
 
     /* Check if this term needs to be wrapped with a refractor invocation */
     let root_id = Segment.root_id(skel, seg);
-    switch (Id.Map.find_opt(root_id, map)) {
+    switch (List.assoc_opt(root_id, map)) {
     | Some(entry) => (
-        Id.Map.remove(root_id, map),
-        refractor_to_invoke(entry.kind, result),
+        ListUtil.remove_assoc(root_id, map),
+        wrapper(entry.kind, result),
       )
     | None => (map, result)
     };
   };
 
-  if (Id.Map.is_empty(refractors)) {
+  if (List.is_empty(refractors)) {
     (refractors, seg);
   } else {
     /* Segment.skel throws exceptions for incomplete/malformed segments
@@ -276,3 +307,19 @@ let refractor_seg_to_seg =
     };
   };
 };
+
+/* Standard version using ^^probe(...) syntax */
+let refractor_seg_to_seg =
+    (refractors: Refractor.RefractorList.t, seg: Segment.t)
+    : (Refractor.RefractorList.t, Segment.t) =>
+  refractor_seg_to_seg_with(~wrapper=refractor_to_invoke, refractors, seg);
+
+/* Text-only version using Unicode brackets for CLI output */
+let refractor_seg_to_seg_text =
+    (refractors: Refractor.RefractorList.t, seg: Segment.t)
+    : (Refractor.RefractorList.t, Segment.t) =>
+  refractor_seg_to_seg_with(
+    ~wrapper=refractor_to_invoke_text,
+    refractors,
+    seg,
+  );

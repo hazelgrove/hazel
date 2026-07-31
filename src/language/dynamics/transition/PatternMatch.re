@@ -17,7 +17,7 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
 
 /* Sample closures take call_stack, step_start, and step_end.
  * Collected during pattern matching when patterns are targeted. */
-type sample_closures = list((Sample.call_stack, int, int) => Sample.t);
+type sample_closures = list((CallStack.t, int, int) => Sample.t);
 
 /* Core pattern matching logic - just a switch on pattern structure */
 let match_pattern =
@@ -66,7 +66,8 @@ let match_pattern =
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
     List.map2(recur, ps, ds) |> List.fold_left(combine_result, Matches([]));
-  | Parens(p) => recur(p, d)
+  | Parens(p)
+  | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>
     recur(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
   };
@@ -85,7 +86,7 @@ let record_sample =
   | (Some(spec), Matches(env)) =>
     sample_closures :=
       List.cons(
-        (call_stack: Sample.call_stack, step_start: int, step_end: int) =>
+        (call_stack: CallStack.t, step_start: int, step_end: int) =>
           Sample.mk(
             ~step_start,
             ~step_end,

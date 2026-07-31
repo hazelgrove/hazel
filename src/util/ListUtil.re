@@ -207,6 +207,13 @@ let rec put_nth = (n: int, x: 'x, xs: list('x)): list('x) =>
     [hd, ...tl];
   };
 
+let rec map_nth = (n: int, f: 'a => 'a, xs: list('a)): list('a) =>
+  switch (n, xs) {
+  | (_, []) => failwith("out of bounds")
+  | (0, [hd, ...tl]) => [f(hd), ...tl]
+  | (_, [hd, ...tl]) => [hd, ...map_nth(n - 1, f, tl)]
+  };
+
 let split_last_opt = (xs: list('x)): option((list('x), 'x)) => {
   let rec go = (acc, xs) =>
     switch (xs) {
@@ -304,6 +311,8 @@ let rec zip_defaults =
       ...zip_defaults(xs, ys, default_x, default_y),
     ]
   };
+
+let opt_zip = combine_opt;
 
 let rec update_nth = (n, xs, f) =>
   switch (n, xs) {
@@ -408,29 +417,31 @@ let rec flat_intersperse = (sep, xss) =>
   };
 
 /* Given two lists, return their maximum common suffix */
-let max_common_suffix = (a: list('a), b: list('a)): list('a) => {
+let max_common_suffix =
+    (~eq: ('a, 'a) => bool=(==), a: list('a), b: list('a)): list('a) => {
   let rec loop = (a, b, acc) =>
     switch (a, b) {
     | ([], _)
     | (_, []) => acc
-    | ([ha, ...ta], [hb, ...tb]) when ha == hb =>
+    | ([ha, ...ta], [hb, ...tb]) when eq(ha, hb) =>
       loop(ta, tb, [ha, ...acc])
     | _ => acc
     };
   loop(List.rev(a), List.rev(b), []);
 };
 
-let common_suffix_length = (s1, s2) =>
-  List.length(max_common_suffix(s1, s2));
+let common_suffix_length = (~eq: ('a, 'a) => bool=(==), s1, s2) =>
+  List.length(max_common_suffix(~eq, s1, s2));
 
-let is_suffix_of = (s1, s2) =>
-  common_suffix_length(s1, s2) == List.length(s1);
+let is_suffix_of = (~eq: ('a, 'a) => bool=(==), s1, s2) =>
+  common_suffix_length(~eq, s1, s2) == List.length(s1);
 
 /* Returns Some(depth) if xs is a suffix of ys at depth, None otherwise */
 
-let suffix_at_depth = (xs: list('a), ys: list('a)): option(int) => {
+let suffix_at_depth =
+    (~eq: ('a, 'a) => bool=(==), xs: list('a), ys: list('a)): option(int) => {
   let rec go = (depth: int, xs, ys): option(int) =>
-    if (xs == ys) {
+    if (List.equal(eq, xs, ys)) {
       Some(depth);
     } else {
       switch (ys) {
@@ -482,6 +493,20 @@ let rec is_length = (n: int, xs: list('a)): bool =>
   | [_, ...xs] => is_length(n - 1, xs)
   };
 
+let rec insert = (x, xs, i) =>
+  switch (xs, i) {
+  | (_, 0) => [x, ...xs]
+  | ([hd, ...tl], _) => [hd, ...insert(x, tl, i - 1)]
+  | ([], _) => failwith("ListUtil.insert")
+  };
+
+let rec remove = (xs, i) =>
+  switch (xs, i) {
+  | ([_, ...tl], 0) => tl
+  | ([hd, ...tl], _) => [hd, ...remove(tl, i - 1)]
+  | ([], _) => failwith("ListUtil.remove")
+  };
+
 let rec remove_nth = (n: int, xs: list('a)): option(list('a)) =>
   switch (n, xs) {
   | (_, []) => None
@@ -501,6 +526,9 @@ let rec fold_left_opt =
     }
   };
 };
+
+let intersection_f = (f: 'a => 'b, xs, ys) =>
+  List.filter((x: 'a) => List.exists((y: 'a) => f(x) == f(y), ys), xs);
 
 let map_with_history = (f: (list('y), 'x) => 'y, xs: list('x)): list('y) => {
   let rec aux = (acc: list('y), remaining: list('x)) => {
@@ -562,4 +590,46 @@ let assoc_opt_by = (eq, key, assoc) => {
     | [(k, v), ...rest] => eq(key, k) ? Some(v) : find(rest)
     };
   find(assoc);
+};
+
+let assoc_update = (key, f, assoc) => {
+  let rec go = lst =>
+    switch (lst) {
+    | [] =>
+      switch (f(None)) {
+      | Some(v) => [(key, v)]
+      | None => []
+      }
+    | [(k, v), ...rest] =>
+      if (k == key) {
+        switch (f(Some(v))) {
+        | Some(v') => [(k, v'), ...rest]
+        | None => rest
+        };
+      } else {
+        [(k, v), ...go(rest)];
+      }
+    };
+  go(assoc);
+};
+
+let remove_assoc = (key, assoc) =>
+  List.filter(((k, _)) => k != key, assoc);
+
+let max = (cmp: ('a, 'a) => Direction.t, xs: list('a)): option('a) => {
+  switch (xs) {
+  | [] => None
+  | [x, ...xs] =>
+    Some(
+      List.fold_left(
+        (current_max, candidate) =>
+          switch (cmp(current_max, candidate)) {
+          | Left => current_max
+          | Right => candidate
+          },
+        x,
+        xs,
+      ),
+    )
+  };
 };

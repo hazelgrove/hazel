@@ -14,7 +14,9 @@ type cls =
   | TupLabel
   | Tuple
   | Parens
-  | Ap
+  | Projector
+  | ApFunc
+  | ApCons
   | Asc;
 
 include TermBase.Pat;
@@ -55,7 +57,9 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | TupLabel(_) => TupLabel
   | Tuple(_) => Tuple
   | Parens(_) => Parens
-  | Ap(_) => Ap
+  | Projector(_) => Projector
+  | Ap({term: Constructor(_), _}, _) => ApCons
+  | Ap(_) => ApFunc
   | Asc(_) => Asc;
 
 let show_cls: cls => string =
@@ -79,12 +83,15 @@ let show_cls: cls => string =
   | TupLabel => "Tuple Item"
   | Tuple => "Tuple"
   | Parens => "Parenthesized pattern"
-  | Ap => "Constructor application"
+  | Projector => "Projector"
+  | ApCons => "Constructor application"
+  | ApFunc => "Function definition"
   | Asc => "Annotation";
 
 let rec is_var = (pat: t): option(Var.t) => {
   switch (pat.term) {
   | Parens(pat)
+  | Projector(_, pat)
   | TupLabel(_, pat)
   | Asc(pat, _) => is_var(pat)
   | Var(v) => Some(v)
@@ -108,6 +115,7 @@ let rec is_tuple_of_vars = (pat: t) =>
   || (
     switch (pat.term) {
     | Parens(pat)
+    | Projector(_, pat)
     | Asc(pat, _)
     | TupLabel(_, pat) => is_tuple_of_vars(pat)
     | Tuple(pats) => pats |> List.for_all(x => x |> is_var |> Option.is_some)
@@ -129,6 +137,7 @@ let rec is_tuple_of_vars = (pat: t) =>
 let rec get_var = (pat: t) => {
   switch (pat.term) {
   | Parens(pat)
+  | Projector(_, pat)
   | TupLabel(_, pat) => get_var(pat)
   | Var(x) => Some(x)
   | Asc(x, _) => get_var(x)
@@ -150,6 +159,7 @@ let rec get_var = (pat: t) => {
 let rec get_fun_var = (pat: t) => {
   switch (pat.term) {
   | Parens(pat)
+  | Projector(_, pat)
   | TupLabel(_, pat) => get_fun_var(pat)
   | Asc(pat, t1) =>
     if (Typ.is_arrow(t1) || Typ.is_poly(t1)) {
@@ -179,6 +189,7 @@ let rec get_bindings = (pat: t) =>
   | None =>
     switch (pat.term) {
     | Parens(pat)
+    | Projector(_, pat)
     | Asc(pat, _)
     | TupLabel(_, pat) => get_bindings(pat)
     | Tuple(pats) =>
@@ -209,6 +220,7 @@ let rec get_num_of_vars = (pat: t) =>
   | None =>
     switch (pat.term) {
     | Parens(pat)
+    | Projector(_, pat)
     | Asc(pat, _)
     | TupLabel(_, pat) => get_num_of_vars(pat)
     | Tuple(pats) => is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
@@ -261,6 +273,7 @@ let rec bindings = (dp: t): Binding.s =>
   | Constructor(_) => []
   | Asc(y, _)
   | Parens(y)
+  | Projector(_, y)
   | TupLabel(_, y) => bindings(y)
   | Var(name) => [
       {
@@ -292,3 +305,11 @@ let bound_var_ids = (ctx, pat): list(Binding.t) =>
          }
        }
      );
+
+let get_duplicate_bindings = (pat: t) => {
+  let bindings = bound_vars(pat);
+  List.filter(
+    binding => {List.length(List.filter(x => x == binding, bindings)) > 1},
+    bindings,
+  );
+};

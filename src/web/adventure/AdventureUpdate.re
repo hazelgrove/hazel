@@ -84,7 +84,8 @@ let process_step =
           current_step: model.current_step + 1,
         },
         editor_actions: [
-          Paste(Segment(Siblings.zip(zipper.relatives.siblings))),
+          /* Paste is text-only on dev; load via printed zipper */
+          Paste(Printer.of_zipper(~holes="", ~indent="", zipper)),
         ],
         set_checkpoint: false,
         reset_to_checkpoint: false,

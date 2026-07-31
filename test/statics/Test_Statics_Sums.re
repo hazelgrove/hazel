@@ -334,6 +334,64 @@ end
     let _ : +Yo = Yo("lol") in ?
     |} |> parse_exp,
     ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns",
+      // #err: type incons#
+      {|
+    case (1,2,3) | (x, y, x) => 0 end
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with nested tuples",
+      // #err: type incons#
+      {|
+    case (1,(2,3),4) | (x, (x,y), z) => 0 end
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with labels",
+      // #err: type incons#
+      {|
+    case (1,(2,3),4) | (x=1, (x,y), z) => 0 end
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with let expressions",
+      // #err: type incons#
+      {|
+    let (x,x) = 1,2 in ?
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in functions",
+      // #err: type incons#
+      {|
+    fun x,x -> = 1 in ?
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in labeled tuples",
+      // #err: type incons#
+      {|
+    let (x=a, x=(b, c)) = ? in
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in labeled tuples #2",
+      // #err: type incons#
+      {|
+    let (x, x=(x, y)) = ? in
+    |} |> parse_exp,
+    ),
+    fully_consistent_typecheck(
+      "duplicate variable tests: happy",
+      {|
+      let (x=(x, y)) = ? in
+      let (x, x=?) = ? in
+      let (x, x=(z, y=(x=a))) = ? in
+    |},
+      Some(unknown(Internal)),
+    ),
     Alcotest.test_case(
       "Sum type duplicate constructor",
       `Quick,
@@ -348,8 +406,16 @@ end
                 TPat.var("A2"),
                 Typ.(
                   sum([
-                    Variant("A", [id1], None),
-                    Variant("A", [id2], None),
+                    Variant(
+                      "A",
+                      ConstructorMap.mk_variant_ann(~ids=[id1], ()),
+                      None,
+                    ),
+                    Variant(
+                      "A",
+                      ConstructorMap.mk_variant_ann(~ids=[id2], ()),
+                      None,
+                    ),
                   ])
                 ),
                 Exp.empty_hole(),
@@ -357,12 +423,13 @@ end
             )
           );
 
-        let error = Statics.Map.errors(statics(exp)) |> List.assoc(id2);
+        let error =
+          errors(statics(exp)) |> List.assoc(id2) |> (ms => Marks(ms));
         Alcotest.(
           check(
-            testable_error,
+            testable_issue,
             "duplicate constructor present",
-            Typ(DuplicateConstructor("A")),
+            Marks([Mark.TypDuplicateConstructor("A")]),
             error,
           )
         );

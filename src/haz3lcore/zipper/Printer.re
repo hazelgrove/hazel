@@ -74,8 +74,10 @@ let of_segment =
     (
       ~holes=" ",
       ~concave_holes=" ",
+      ~projector_to_segment=Triggers.projector_to_invoke,
       ~indent="",
-      ~refractors=Id.Map.empty,
+      ~refractors=[],
+      ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
       ~measured=?,
@@ -88,19 +90,26 @@ let of_segment =
        ~holes,
        ~concave_holes,
        ~refractors,
-       ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
-       ~projector_to_segment=Triggers.projector_to_invoke,
+       ~refractor_seg_to_seg,
+       ~projector_to_segment,
      )
   |> String.split_on_char('\n')
   |> (is_single_line ? Fun.id : add_indents(segment, measured, indent))
   |> add_caret(~caret, ~selection_anchor)
   |> String.concat("\n");
 
+let selected_text =
+    (~holes=" ", ~indent="", ~refractors=[], z: Zipper.t): string => {
+  let full = of_segment(~holes, ~indent, ~refractors, z.selection.content);
+  Zipper.trim_selected_text(z, full);
+};
+
 /* Use this to pretty-print zippers. See above comments on holes */
 let of_zipper =
     (
       ~holes=?,
       ~concave_holes=?,
+      ~projector_to_segment=?,
       ~indent=?,
       ~caret=?,
       ~selection_anchor=?,
@@ -122,6 +131,7 @@ let of_zipper =
   of_segment(
     ~holes?,
     ~concave_holes?,
+    ~projector_to_segment?,
     ~indent?,
     ~refractors=z.refractors.manuals,
     ~caret,

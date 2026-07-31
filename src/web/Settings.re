@@ -10,12 +10,19 @@ module Model = {
     context_inspector: bool,
     instructor_mode: bool,
     benchmark: bool,
+    show_log_panel: bool,
+    show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
-    assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
-    /* Auto-probe mode: automatically place an auto-probe on the body
-       of whichever top-level definition the cursor is currently inside */
-    auto_probe_mode: bool,
+    /* Auto probe: automatically place a multi probe on the body of
+       whichever top-level definition the cursor is currently inside */
+    autoprobe_mode: bool,
+    agent_globals: AgentGlobals.Model.t,
+    line_numbers: bool,
+    relative_line_numbers: bool,
+    cap_undo_stack: bool,
+    show_row_lines: bool,
+    show_incremental_deco: bool,
   };
 
   let init = {
@@ -27,40 +34,62 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
+      deep_reassociate: true,
       flip_animations: true,
+      display_warnings: true,
+      selection_chunkiness: false,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
         show_fixpoints: false,
         show_ascription_steps: false,
+        show_ascriptions: false,
+        show_case_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
         stepper_history: false,
         show_settings: false,
         show_hidden_steps: false,
         enable_proof: false,
+        project_tables: false,
       },
     },
     async_evaluation: false,
     context_inspector: false,
     instructor_mode: false,
     benchmark: false,
+    show_log_panel: false,
+    show_debug_panel: false,
     explainThis: {
       show: true,
       show_feedback: false,
       highlight: NoHighlight,
     },
-    assistant: {
-      mode: CodeSuggestion,
-      ongoing_chat: false,
-      show_history: false,
-      show_api_key: false,
-    },
     sidebar: {
       panel: LanguageDocumentation,
       show: true,
+      problems: {
+        collapsed: [],
+        collapsed_editors: [],
+        flat: false,
+        expanded: [],
+      },
+      debug_show_raw: false,
+      /* Start the Worker Messaging benchmark section collapsed so it doesn't
+         run by default (benchmarking is gated on the section being expanded).
+         Must match WorkerMessagingSection.title. */
+      debug_collapsed: ["Worker Messaging"],
+      /* Only the active encoding (Marshal) is benchmarked by default; Direct
+         and Sexp start unchecked. */
+      worker_encodings: [WorkerServer.Marshal],
     },
-    auto_probe_mode: false,
+    autoprobe_mode: false,
+    agent_globals: AgentGlobals.init(),
+    line_numbers: false,
+    relative_line_numbers: false,
+    cap_undo_stack: false,
+    show_row_lines: false,
+    show_incremental_deco: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -76,7 +105,18 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
 
-  let persist = x => x;
+  /* Clear expanded problem IDs before persisting — tile IDs are ephemeral
+     and go stale across sessions. */
+  let persist = settings => {
+    ...settings,
+    sidebar: {
+      ...settings.sidebar,
+      problems: {
+        ...settings.sidebar.problems,
+        expanded: [],
+      },
+    },
+  };
   let unpersist = fix_instructor_mode;
 };
 
@@ -97,11 +137,14 @@ module Update = {
     | ShowCaseClauses
     | ShowFnBodies
     | ShowAscriptionSteps
+    | ShowAscriptions
+    | ShowCaseSteps
     | ShowFixpoints
     | ShowLookups
     | ShowFilters
     | ShowSettings
-    | ShowHiddenSteps;
+    | ShowHiddenSteps
+    | ProjectTables;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -110,17 +153,26 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
+    | DeepReassociate
+    | SelectionChunkiness
     | Assist
     | Elaborate
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | ShowLogPanel
+    | ShowDebugPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
-    | Assistant(AssistantSettings.action)
+    | DisplayWarnings
     | FlipAnimations
-    | AutoProbeMode;
+    | AutoprobeMode
+    | ToggleLineNumbers
+    | ToggleRelativeLineNumbers
+    | CapUndoStack
+    | ShowRowLines
+    | ShowIncrementalDeco;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -167,6 +219,20 @@ module Update = {
             probe_all: !settings.core.probe_all,
           },
         }
+      | DeepReassociate => {
+          ...settings,
+          core: {
+            ...settings.core,
+            deep_reassociate: !settings.core.deep_reassociate,
+          },
+        }
+      | SelectionChunkiness => {
+          ...settings,
+          core: {
+            ...settings.core,
+            selection_chunkiness: !settings.core.selection_chunkiness,
+          },
+        }
       | Assist => {
           ...settings,
           core: {
@@ -180,6 +246,13 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | DisplayWarnings => {
+          ...settings,
+          core: {
+            ...settings.core,
+            display_warnings: !settings.core.display_warnings,
           },
         }
       | Evaluation(u) =>
@@ -198,6 +271,10 @@ module Update = {
               ...evaluation,
               enable_proof: !evaluation.enable_proof,
             }
+          | ProjectTables => {
+              ...evaluation,
+              project_tables: !evaluation.project_tables,
+            }
           | ShowCaseClauses => {
               ...evaluation,
               show_case_clauses: !evaluation.show_case_clauses,
@@ -209,6 +286,14 @@ module Update = {
           | ShowAscriptionSteps => {
               ...evaluation,
               show_ascription_steps: !evaluation.show_ascription_steps,
+            }
+          | ShowAscriptions => {
+              ...evaluation,
+              show_ascriptions: !evaluation.show_ascriptions,
+            }
+          | ShowCaseSteps => {
+              ...evaluation,
+              show_case_steps: !evaluation.show_case_steps,
             }
           | ShowFixpoints => {
               ...evaluation,
@@ -248,12 +333,76 @@ module Update = {
       | Sidebar(SwitchPanel(windowToSwitchTo)) => {
           ...settings,
           sidebar: {
+            ...settings.sidebar,
             show:
               !settings.sidebar.show
                 ? true
                 : settings.sidebar.panel == windowToSwitchTo ? false : true,
             panel: windowToSwitchTo,
           },
+        }
+      | Sidebar(Problems(ToggleCollapsed(label, cat))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_collapsed(
+                label,
+                cat,
+                settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(Problems(ToggleEditorCollapsed(label))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_editor_collapsed(
+                label,
+                settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(Problems(ToggleFlat)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems: {
+              ...settings.sidebar.problems,
+              flat: !settings.sidebar.problems.flat,
+            },
+          },
+        }
+      | Sidebar(Problems(ToggleExpanded(id))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_expanded(
+                id,
+                settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(ToggleDebugRaw) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            debug_show_raw: !settings.sidebar.debug_show_raw,
+          },
+        }
+      | Sidebar(ToggleDebugCollapsed(key)) => {
+          ...settings,
+          sidebar:
+            SidebarModel.Settings.toggle_debug_collapsed(
+              key,
+              settings.sidebar,
+            ),
+        }
+      | Sidebar(ToggleWorkerEncoding(e)) => {
+          ...settings,
+          sidebar: SidebarModel.Settings.toggle_encoding(e, settings.sidebar),
         }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
@@ -280,36 +429,14 @@ module Update = {
           ...settings,
           explainThis,
         };
-      | Assistant(u) =>
-        switch (u) {
-        | UpdateChatStatus => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              ongoing_chat: !settings.assistant.ongoing_chat,
-            },
-          }
-        | SwitchMode(mode) => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              mode,
-            },
-          }
-        | ToggleHistory => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              show_history: !settings.assistant.show_history,
-            },
-          }
-        | ToggleAPIKeyVisibility => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              show_api_key: !settings.assistant.show_api_key,
-            },
-          }
+      | ShowLogPanel => {
+          ...settings,
+          show_log_panel:
+            !settings.show_log_panel && ExerciseSettings.show_instructor,
+        }
+      | ShowDebugPanel => {
+          ...settings,
+          show_debug_panel: !settings.show_debug_panel,
         }
       | Benchmark => {
           ...settings,
@@ -331,9 +458,29 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
-      | AutoProbeMode => {
+      | AutoprobeMode => {
           ...settings,
-          auto_probe_mode: !settings.auto_probe_mode,
+          autoprobe_mode: !settings.autoprobe_mode,
+        }
+      | ToggleLineNumbers => {
+          ...settings,
+          line_numbers: !settings.line_numbers,
+        }
+      | ToggleRelativeLineNumbers => {
+          ...settings,
+          relative_line_numbers: !settings.relative_line_numbers,
+        }
+      | CapUndoStack => {
+          ...settings,
+          cap_undo_stack: !settings.cap_undo_stack,
+        }
+      | ShowRowLines => {
+          ...settings,
+          show_row_lines: !settings.show_row_lines,
+        }
+      | ShowIncrementalDeco => {
+          ...settings,
+          show_incremental_deco: !settings.show_incremental_deco,
         }
       }
     )

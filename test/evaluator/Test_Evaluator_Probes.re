@@ -54,40 +54,21 @@ let format_sample_value = (value: Exp.t): string => {
  * Uses TermData to look up probe positions. */
 let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
   /* Parse to zipper */
-  switch (Parser.to_zipper(code)) {
+  switch (Parser.to_zipper(~root=Exp, code)) {
   | None => IntMap.empty
   | Some(z) =>
-    let MakeTerm.{term, term_data, _} = MakeTerm.from_zip_for_sem(z);
-    /* Extract probe IDs directly from zipper's refractors.
-     * Map values to unit since we only need the IDs as keys. */
-    let probe_ids =
-      Id.Map.union(
-        (_, _, _) => Some(),
-        Id.Map.map(_ => (), z.refractors.manuals),
-        Id.Map.map(_ => (), z.refractors.autos.ephemerals),
-      );
-    let info_map =
+    let MakeTerm.{term, term_data, _} =
+      MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let (info_map, elaborated) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-    let targets: Sample.targets =
-      Id.Map.fold(
-        (id, (), acc) => {
-          let refs =
-            switch (Statics.Map.lookup(id, info_map)) {
-            | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id)
-            | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
-            | _ => []
-            };
-          let spec: Sample.capture_spec = {refs: refs};
-          Id.Map.add(id, spec, acc);
-        },
-        probe_ids,
-        Id.Map.empty,
-      );
+    let targets = Test_Evaluator_Prelude.targets_of_zipper(z, info_map);
 
-    /* Elaborate and evaluate */
-    let elaborated = Elaborator.elaborate(info_map, term) |> fst;
     let (_, state) =
-      Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+      Evaluator.evaluate(
+        ~eval_info=EvalInfo.of_targets(targets),
+        ~env=Builtins.env_init,
+        elaborated,
+      );
     let probes = EvaluatorState.get_probes(state);
 
     /* Get segment and measured for position lookup */
@@ -141,6 +122,33 @@ let probe_line_test =
             Printf.sprintf("Line %d", line),
             expected_values,
             actual_values,
+          );
+        },
+        expected,
+      );
+    },
+  );
+};
+
+/* Test function: check that probes on specified lines have expected sample COUNTS */
+let probe_count_test =
+    (name: string, code: string, expected: list((int, int))) => {
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let actual_by_line = get_samples_by_line(code);
+
+      List.iter(
+        ((line, expected_count)) => {
+          let actual_values =
+            IntMap.find_opt(line, actual_by_line)
+            |> Option.value(~default=[]);
+          check(
+            int,
+            Printf.sprintf("Line %d sample count", line),
+            expected_count,
+            List.length(actual_values),
           );
         },
         expected,
@@ -227,16 +235,6 @@ let operator_tests = [
     "Probe on string concat",
     {|^^probe("hello" ++ " world")|},
     [(0, ["\"hello world\""])],
-  ),
-  probe_line_test(
-    "Probe on string equality",
-    {|^^probe("abc" $== "abc")|},
-    [(0, ["true"])],
-  ),
-  probe_line_test(
-    "Probe on string inequality",
-    {|^^probe("abc" $== "def")|},
-    [(0, ["false"])],
   ),
   probe_line_test(
     "Probe on boolean and",
@@ -799,6 +797,458 @@ in f(1)|},
     {|^^probe(1; 2) : Int|},
     [(0, ["2"])],
   ),
+  /* Ascription distribution through typed function must preserve probe
+   * Projector ID. Without fast_copy, the Projector case in
+   * Ascriptions.transition gives the probe wrapper a fresh ID,
+   * losing the probe target and producing zero samples. */
+  probe_line_test(
+    "Probe on let in typed function body",
+    {|let f: ? -> Bool = fun _ -> ^^probe(let _ = 1 in true)
+in f(4)|},
+    [(0, ["true"])],
+  ),
+  probe_line_test(
+    "Probe on seq in typed function body",
+    {|let f: ? -> Int = fun _ -> ^^probe(1; 2)
+in f(4)|},
+    [(0, ["2"])],
+  ),
+  /* Ascription distribution through ConstructorAp must preserve probe ID.
+   * Without fast_copy, the ConstructorAp case in Ascriptions.transition
+   * creates a fresh Ap ID, losing the probe target. */
+  probe_line_test(
+    "Probe on constructor Ap in typed function body",
+    {|type R = Ok(Int) + Err(String) in
+let f: Int -> R = fun x -> ^^probe(Ok(x))
+in f(42)|},
+    [(1, ["Ok(42)"])],
+  ),
+  probe_line_test(
+    "Probe on constructor Ap with string payload in typed function",
+    {|type R = Ok(Int) + Err(String) in
+let f: Int -> R = fun _ -> ^^probe(Err("bad"))
+in f(0)|},
+    [(1, ["Err(\"bad\")"])],
+  ),
+  /* ListConcat ascription distribution must preserve probe ID.
+   * Without fast_copy, the ListConcat case creates a fresh ID. */
+  probe_line_test(
+    "Probe on list concat in typed function body",
+    {|let f: [Int] -> [Int] = fun xs -> ^^probe(xs @ [0])
+in f([1, 2])|},
+    [(0, ["[1, 2, 0]"])],
+  ),
+];
+
+/* Tests that probe samples are not duplicated when values flow through
+ * typed functions or are projected with dot access. Two independent
+ * mechanisms caused duplicates:
+ * 1. Dot projection with is_value:false re-evaluated already-final values
+ * 2. Ascription distribution through typed functions re-evaluated inner
+ *    compound elements at a deeper call_stack */
+let duplicate_prevention_tests = [
+  /* Dot projection: extracting from a probed tuple must not duplicate.
+   * Without is_value:true on the Dot transition, the projected value
+   * gets re-evaluated, recording a second sample at the same call_stack. */
+  probe_line_test(
+    "Dot on probed labeled tuple field",
+    {|let x = (a = ^^probe(1),
+b = ^^probe(2)) in x.a|},
+    [(0, ["1"]), (1, ["2"])],
+  ),
+  /* Typed identity function with labeled tuple.
+   * Without Asc distribution dedup, each field gets a duplicate sample
+   * at the function's call_stack when the ascription distributes. */
+  probe_line_test(
+    "Probed labeled tuple through typed identity",
+    {|let x = (a = ^^probe(1),
+b = ^^probe(2)) in
+let f: (a = Int, b = Int) -> (a = Int, b = Int) =
+  fun t -> t
+in
+f(x)|},
+    [(0, ["1"]), (1, ["2"])],
+  ),
+  /* User-suggested: unlabeled tuple through typed identity with ? types */
+  probe_line_test(
+    "Probed unlabeled tuple through typed identity with holes",
+    {|let f: ? -> (?, ?) = fun t -> t in
+f((?, ^^probe(1)))|},
+    [(1, ["1"])],
+  ),
+  /* User-suggested: labeled tuple through typed identity with ? types */
+  probe_line_test(
+    "Probed labeled tuple through typed identity with holes",
+    {|let f: ? -> (a = ?, b = ?) = fun t -> t in
+f((a = ?, b = ^^probe(1)))|},
+    [(1, ["1"])],
+  ),
+  /* User-suggested: list through typed identity with ? types */
+  probe_line_test(
+    "Probed list through typed identity with holes",
+    {|let f: ? -> [?] = fun t -> t in
+f([?, ^^probe(1)])|},
+    [(1, ["1"])],
+  ),
+  /* Chained typed functions: value passes through two Asc distributions */
+  probe_line_test(
+    "Probed tuple through two chained typed functions",
+    {|let x = (^^probe(1),
+^^probe(2)) in
+let f: (Int, Int) -> (Int, Int) = fun t -> t in
+let g: (Int, Int) -> (Int, Int) = fun t -> t in
+g(f(x))|},
+    [(0, ["1"]), (1, ["2"])],
+  ),
+  /* Multi-call: legitimate multiple samples must still work */
+  probe_line_test(
+    "Multi-call function probe still produces multiple samples",
+    {|let f: Int -> Int = fun x -> ^^probe(x) in
+[f(1), f(2), f(3)]|},
+    [(0, ["1", "2", "3"])],
+  ),
+  /* Unbound variable: should produce exactly one sample, not two */
+  probe_line_test(
+    "Probe on unbound variable produces single sample",
+    {|^^probe(x)|},
+    [(0, ["x"])],
+  ),
+  /* Function value at top level: wrap_closure_when_done wraps Fun in
+   * Closure, causing re-evaluation of inner expression with same target ID */
+  probe_line_test(
+    "Probe on function value produces single sample",
+    {|^^probe(fun x -> x)|},
+    [(0, ["^^fold(fun x -> x)"])],
+  ),
+  /* Indet case with no rules: wrap_closure_when_done wraps the indet
+   * Match in Closure, causing re-evaluation with same target ID */
+  probe_line_test(
+    "Probe on case with no rules produces single sample",
+    {|^^probe(case 1 end)|},
+    [(0, ["case 1 end"])],
+  ),
+  /* wrap_closure re-evaluation bug: when a recursive function returns an
+   * indeterminate value (e.g. if with hole condition), and the caller's
+   * let-destructuring fails (IndetMatch), wrap_closure_when_done wraps in
+   * Closure and re-evaluates. The re-evaluation traverses into the return
+   * value from the deeper call, re-evaluating probed sub-expressions at
+   * the wrong call stack. This produces spurious samples.
+   *
+   * Minimal case: partition_at([5, 10], 7)
+   * - partition_at([10], 7): let succeeds, evaluates `10 < ?` → 1 sample
+   * - partition_at([5, 10], 7): let fails (IndetMatch), `5 < ?` never
+   *   evaluated → should be 0 samples at this level
+   * Total expected: 1 sample for `hd < ?`. Bug produces 2. */
+  probe_count_test(
+    "Recursive indet: no spurious samples from wrap_closure (depth 2)",
+    {|let f : ([Int], Int) -> ([Int], [Int]) =
+  fun (xs, x) ->
+    case xs
+    | [] => ([], [])
+    | hd::tl =>
+      let (s, b) = f(tl, x) in
+      if ^^probe(hd < ?)
+      then ?
+      else ?
+    end
+in f([5, 10], 7)|},
+    [(6, 1)],
+  ),
+  /* Same bug at depth 4: partition_at called with [3, 9, 5, 10].
+   * Only the deepest non-empty call ([10]) reaches the if condition.
+   * Expected: 1 sample. Bug produces 4 (one per recursion level). */
+  probe_count_test(
+    "Recursive indet: no spurious samples from wrap_closure (depth 4)",
+    {|let f : ([Int], Int) -> ([Int], [Int]) =
+  fun (xs, x) ->
+    case xs
+    | [] => ([], [])
+    | hd::tl =>
+      let (s, b) = f(tl, x) in
+      if ^^probe(hd < ?)
+      then ?
+      else ?
+    end
+in f([3, 9, 5, 10], 7)|},
+    [(6, 1)],
+  ),
+  /* Full quicksort example: two test chains, each with one deepest call
+   * that reaches the if condition. Expected: 2 samples total. */
+  probe_count_test(
+    "Quicksort recursive indet: correct sample count",
+    {|let partition_at : ([Int], Int) -> ([Int], [Int]) =
+  fun (xs, x) ->
+    case xs
+    | [] => ([], [])
+    | hd::tl =>
+      let (s, b) = partition_at(tl, x) in
+      if ^^probe(hd < ?)
+      then ?
+      else ?
+    end
+in
+let quicksort : [Int] -> [Int] =
+  fun xs ->
+    case xs
+    | [] => []
+    | hd::tl =>
+      let (s, b) = partition_at(tl, hd) in
+      ?
+    end
+in
+let _ = quicksort([7, 3, 9, 5, 10])
+in quicksort([5, 0, 9, 3, 1])|},
+    [(6, 2)],
+  ),
+];
+
+let module_tests = [
+  probe_line_test(
+    "Probe inside module body",
+    {|let m = { let x = ^^probe(1 + 2) } in m.x|},
+    [(0, ["3"])],
+  ),
+  /* ^^probe({ let x = 1 }) captures the module's value (x=1). The elaborator
+     places the Module's ID on the labeled tuple so the evaluator records
+     samples under the correct ID. */
+  probe_line_test(
+    "Probe on module value via variable",
+    {|let m = { let x = 5 } in ^^probe(m)|},
+    [(0, ["(x=5)"])],
+  ),
+  probe_line_test(
+    "Probe on module dot access",
+    {|let m = { let x = 5 } in ^^probe(m.x)|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Module keyword with probe in body",
+    {|module m = { let x = ^^probe(2 + 3) } in m.x|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Probe on function defined in module",
+    {|let m = { let f = fun x -> ^^probe(x + 1) }
+in m.f(5)|},
+    [(0, ["6"])],
+  ),
+  probe_line_test(
+    "Probe on module with multiple bindings",
+    {|let m = {
+  let x = ^^probe(1 + 2);
+  let y = ^^probe(3 + 4)
+} in m.x + m.y|},
+    [(1, ["3"]), (2, ["7"])],
+  ),
+  probe_line_test(
+    "Probe on module expression collects sample",
+    {|let m = ^^probe({ let x = 5 }) in m.x|},
+    [(0, ["(x=5)"])],
+  ),
+];
+
+let spread_tests = [
+  /* Spread operator inside function - single call */
+  probe_line_test(
+    "Probe inside spread operator",
+    {|let f = fun m -> m...(a= ^^probe(0))
+in f((a= 1, b= 2))|},
+    [(0, ["0"])],
+  ),
+  /* Spread operator - multiple calls, check sample count */
+  probe_count_test(
+    "Spread probe count matches call count (3 calls)",
+    {|let f = fun m -> m...(a= ^^probe(0))
+in let r1 = f((a= 1, b= 2))
+in let r2 = f(r1)
+in f(r2)|},
+    [(0, 3)],
+  ),
+  /* Spread operator with multiple probed fields */
+  probe_count_test(
+    "Multiple spread probes each get correct count",
+    {|let f = fun m ->
+m...(a= ^^probe(m.a + 1),
+b= ^^probe(0))
+in let r1 = f((a= 1, b= 2))
+in let r2 = f(r1)
+in f(r2)|},
+    [(1, 3), (2, 3)],
+  ),
+  /* Spread operator inside case arm with typed function */
+  probe_count_test(
+    "Spread probe inside case arm (5 calls)",
+    {|type M = (a= Int, b= Int) in
+type Action = + Go + Stop in
+let update : (M, Action) -> M =
+fun (m, action) ->
+case action
+| Go =>
+m...(a= ^^probe(m.a + 1),
+b= ^^probe(0))
+| Stop => m
+end
+in let init : M = (a= 1, b= 2)
+in let r1 = update(init, Go)
+in let r2 = update(r1, Go)
+in let r3 = update(r2, Go)
+in let r4 = update(r3, Go)
+in update(r4, Go)|},
+    [(6, 5), (7, 5)],
+  ),
+  /* Spread with non-tuple e2 (type error) - should still count correctly */
+  probe_count_test(
+    "Spread probe with non-tuple extension (type error case)",
+    {|let f = fun m -> m...^^probe(1)
+in let r1 = f((a= 1, b= 2))
+in let r2 = f(r1)
+in f(r2)|},
+    [(0, 3)],
+  ),
+  /* Spread inside let inside case arm */
+  probe_count_test(
+    "Spread with let inside case arm",
+    {|type M = (a= Int, b= Int) in
+type Action = + Go in
+let update : (M, Action) -> M =
+fun (m, action) ->
+case action
+| Go =>
+let x = m.a + 1 in
+m...(a= ^^probe(x),
+b= ^^probe(0))
+end
+in let init : M = (a= 1, b= 2)
+in let r1 = update(init, Go)
+in let r2 = update(r1, Go)
+in update(r2, Go)|},
+    [(7, 3), (8, 3)],
+  ),
+  /* Nested return type annotations: when g's return type Asc distributes
+   * through f's return value, the inner probed values should NOT be
+   * re-evaluated. Without the fix, the Asc distribution re-evaluates probed
+   * values at a different (shorter) call stack, bypassing dedup. */
+  probe_count_test(
+    "Nested return type annotations: labeled tuple",
+    {|let f : ? -> (a=Int) =
+  fun _ -> (a= ^^probe(1))
+in
+let g : ? -> (a=Int) = fun _ -> f(0)
+in
+g(0)|},
+    [(1, 1)],
+  ),
+  probe_count_test(
+    "Nested return type annotations: list",
+    {|let f : ? -> [Int] =
+  fun _ -> [^^probe(1)]
+in
+let g : ? -> [Int] = fun _ -> f(0)
+in
+g(0)|},
+    [(1, 1)],
+  ),
+  probe_count_test(
+    "Nested return type annotations: constructor payload",
+    {|type T = + A(Int) in
+let f : ? -> T =
+  fun _ -> A(^^probe(1))
+in
+let g : ? -> T = fun _ -> f(0)
+in
+g(0)|},
+    [(2, 1)],
+  ),
+  probe_count_test(
+    "Nested return type annotations: triple nesting",
+    {|let f : ? -> (a=Int) =
+  fun _ -> (a= ^^probe(1))
+in
+let g : ? -> (a=Int) = fun _ -> f(0)
+in
+let h : ? -> (a=Int) = fun _ -> g(0)
+in
+h(0)|},
+    [(1, 1)],
+  ),
+  probe_count_test(
+    "Nested return type annotations: multiple calls",
+    {|let f : ? -> (a=Int) =
+  fun _ -> (a= ^^probe(1))
+in
+let g : ? -> (a=Int) = fun _ -> f(0)
+in
+let _ = g(0) in
+let _ = g(0) in
+g(0)|},
+    [(1, 3)],
+  ),
+  /* Recursive function with return type: each recursive call should
+   * produce exactly one sample, not be doubled by Asc re-distribution. */
+  probe_count_test(
+    "Recursive function with return type annotation",
+    {|let count : Int -> [Int] =
+  fun n ->
+    if n <= 0 then []
+    else ^^probe(n) :: count(n - 1)
+in
+count(3)|},
+    [(3, 3)],
+  ),
+];
+
+/* Regression tests for hazelgrove/hazel#2264: probes on applications of
+   builtin tuple operations (those with custom_statics) used to produce zero
+   samples because mk_builtin_ap_elab built the elab Ap with a fresh id,
+   so the runtime target lookup never matched the user_term id keyed in
+   the info_map. */
+let custom_statics_tuple_op_tests = [
+  /* Full Ap: to_lvs */
+  probe_count_test(
+    "Probe on to_lvs full application",
+    {|let t = (a=1, b=2) in ^^probe(to_lvs(t))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: omit_all_labels */
+  probe_count_test(
+    "Probe on omit_all_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(omit_all_labels(t))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: project_labels (uses handle_tuple_operation) */
+  probe_count_test(
+    "Probe on project_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(project_labels(t, a))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: select_labels (uses handle_tuple_operation) */
+  probe_count_test(
+    "Probe on select_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(select_labels(t, a))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: omit_labels (uses handle_tuple_operation) */
+  probe_count_test(
+    "Probe on omit_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(omit_labels(t, a))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: group_by_label */
+  probe_count_test(
+    "Probe on group_by_label full application",
+    {|let rows = [(k="x", v=1), (k="x", v=2), (k="y", v=3)]
+in ^^probe(group_by_label(rows, k))|},
+    [(1, 1)],
+  ),
+  /* Multi-call: each invocation should record its own sample. */
+  probe_count_test(
+    "Probe on to_lvs in function called multiple times",
+    {|let f = fun t -> ^^probe(to_lvs(t))
+in let _ = f((a=1, b=2))
+in let _ = f((a=3, b=4))
+in f((a=5, b=6))|},
+    [(0, 3)],
+  ),
 ];
 
 let tests = [
@@ -809,4 +1259,8 @@ let tests = [
   ("Evaluator.Probes.Nested", nested_probe_tests),
   ("Evaluator.Probes.Recursion", recursion_tests),
   ("Evaluator.Probes.Ascription", ascription_tests),
+  ("Evaluator.Probes.DuplicatePrevention", duplicate_prevention_tests),
+  ("Evaluator.Probes.Modules", module_tests),
+  ("Evaluator.Probes.Spread", spread_tests),
+  ("Evaluator.Probes.CustomStaticsTupleOps", custom_statics_tuple_op_tests),
 ];

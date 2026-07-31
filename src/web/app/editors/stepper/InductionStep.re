@@ -53,9 +53,11 @@ let init = (~exp: option(Exp.t)=?, ()) => {
               e,
             ),
           ),
+          ~root=Exp,
         ),
       )
-    | None => CodeEditable.Model.mk(Editor.Model.mk(Zipper.init()))
+    | None =>
+      CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp))
     };
   {
     scrut,
@@ -137,7 +139,7 @@ module F =
             ...model,
             cases: ListUtil.put_nth(i, new_case, model.cases),
           };
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         }
       | AddCase =>
         let new_case = InductionCase.init;
@@ -154,7 +156,7 @@ module F =
             cases: new_cases,
           }
           |> return
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         }
       }
     );
@@ -215,29 +217,22 @@ module F =
         let env = SemanticCtx.get_env(sem_ctx);
         Substitution.in_exp(env, raw);
       };
+    let scrut_statics = CodeEditable.Model.get_statics(scrut);
+    let scrut_rep_id = Exp.rep_id(scrut_statics.elaborated);
     let scrut_ty = {
       let self_ty =
-        switch (
-          Id.Map.find_opt(
-            Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
-            CodeEditable.Model.get_statics(scrut).info_map,
-          )
-        ) {
-        | Some(Info.InfoExp({ty, _})) => ty
-        | _ => raise(Elaborator.MissingTypeInfo)
+        switch (Statics.Map.ty_of(scrut_rep_id, scrut_statics.info_map)) {
+        | Some(ty) => ty
+        | None =>
+          raise(Failure("Missing type info for induction step scrutinee"))
         };
       Calc.set(~eq=Typ.fast_equal, self_ty, scrut_ty);
     };
     let scrut_co_ctx = {
       let self_co_ctx =
-        switch (
-          Id.Map.find_opt(
-            Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
-            CodeEditable.Model.get_statics(scrut).info_map,
-          )
-        ) {
-        | Some(Info.InfoExp({co_ctx, _})) => co_ctx
-        | _ => CoCtx.empty
+        switch (Statics.Map.lookup_exp(scrut_rep_id, scrut_statics.info_map)) {
+        | Some({co_ctx, _}) => co_ctx
+        | None => CoCtx.empty
         };
       Calc.set(self_co_ctx, scrut_co_ctx);
     };
@@ -332,37 +327,31 @@ module F =
     ));
   };
 
-  let get_cursor_info = (~focus: focus, model: model) =>
+  let get_cursor_info = (~inject, ~focus: focus, model: model) =>
     Cursor.(
       switch (focus) {
       | Scrut(a) =>
         let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, model.scrut);
+          CodeEditable.Selection.get_cursor_info(
+            ~inject=a => inject(ScrutUpdate(a)),
+            ~selection=a,
+            model.scrut,
+          );
         ScrutUpdate(ci);
       | Case(i, a) =>
         switch (List.nth_opt(model.cases, i)) {
         | Some(case) =>
-          let+ ci = InductionCase.get_cursor_info(~focus=a, case);
+          let+ ci =
+            InductionCase.get_cursor_info(
+              ~inject=x => inject(CaseUpdate(i, x)),
+              ~focus=a,
+              case,
+            );
           CaseUpdate(i, ci);
         | None => Cursor.empty
         }
       }
     );
-
-  let handle_key_event = (~focus: focus, ~event: Key.t, model: model) =>
-    switch (focus) {
-    | Scrut(a) =>
-      let editor = model.scrut;
-      CodeEditable.Selection.handle_key_event(~selection=a, editor, event)
-      |> Option.map(x => ScrutUpdate(x));
-    | Case(i, a) =>
-      switch (List.nth_opt(model.cases, i)) {
-      | Some(case) =>
-        InductionCase.handle_key_event(~focus=a, ~event, case)
-        |> Option.map(x => CaseUpdate(i, x))
-      | None => None
-      }
-    };
 
   let view_justification =
       (
@@ -394,13 +383,18 @@ module F =
         ~signal=
           fun
           | MakeActive => take_focus(Scrut()),
-        ~inject=x => inject(ScrutUpdate(x)),
-        ~selected=
-          switch (focus) {
-          | Some(Scrut(_)) => true
-          | Some(_)
-          | None => false
-          },
+        ~edit_mode=
+          EditMode.Editable({
+            inject: x => inject(ScrutUpdate(x)),
+            escape: _ => Ui_effect.Ignore,
+            take_focus: _ => Ui_effect.Ignore,
+            focus:
+              switch (focus) {
+              | Some(Scrut(_)) => Some()
+              | Some(_)
+              | None => None
+              },
+          }),
         ~dynamics=Dynamics.Map.empty,
         model.scrut,
       );

@@ -17,20 +17,28 @@ open Test_Evaluator_Prelude;
 
 /* Helper to get all samples from evaluated code with probes */
 let get_all_samples = (code: string): list(Sample.t) => {
-  let (term, info_map, targets) = parse_with_probes(code);
-  let elaborated = elaborate_with_info(info_map, term);
+  let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
-    Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+    Evaluator.evaluate(
+      ~eval_info=EvalInfo.of_targets(targets),
+      ~env=Builtins.env_init,
+      elaborated,
+    );
   let probes = EvaluatorState.get_probes(state);
   Id.Map.bindings(probes) |> List.concat_map(snd);
 };
 
 /* Show call stack for debugging */
-let show_call_stack = (cs: Sample.call_stack): string =>
-  "[" ++ String.concat(", ", List.map(Id.str3, cs)) ++ "]";
+let show_call_stack = (cs: CallStack.t): string =>
+  "["
+  ++ String.concat(
+       ", ",
+       List.map((f: CallStack.frame) => Id.str3(f.id), cs),
+     )
+  ++ "]";
 
 let call_stack_testable =
-  testable(Fmt.using(show_call_stack, Fmt.string), (==));
+  testable(Fmt.using(show_call_stack, Fmt.string), CallStack.equal);
 
 /* Test that multiple top-level probed applications have the same (empty) call_stack.
  * This is the bug: if they have different call_stacks (containing their own app_ids),
@@ -218,11 +226,97 @@ in ^^probe(f(5))|});
   ),
 ];
 
+/* Test that functions defined in modules have correct call_stack behavior */
+let module_function_tests = [
+  test_case(
+    "Function from module has app_id in call_stack",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|let m = { let f = fun x -> ^^probe(x + 1) }
+in m.f(5)|},
+        );
+      switch (samples) {
+      | [s] =>
+        check(
+          bool,
+          "Probe inside module function should have non-empty call_stack",
+          true,
+          List.length(s.call_stack) > 0,
+        )
+      | _ =>
+        fail(
+          "Expected exactly 1 sample, got "
+          ++ string_of_int(List.length(samples)),
+        )
+      };
+    },
+  ),
+  test_case(
+    "Module keyword function has app_id in call_stack",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|module m = { let f = fun x -> ^^probe(x * 2) }
+in m.f(3)|},
+        );
+      switch (samples) {
+      | [s] =>
+        check(
+          bool,
+          "Probe inside module keyword function should have non-empty call_stack",
+          true,
+          List.length(s.call_stack) > 0,
+        )
+      | _ =>
+        fail(
+          "Expected exactly 1 sample, got "
+          ++ string_of_int(List.length(samples)),
+        )
+      };
+    },
+  ),
+  test_case(
+    "Multiple calls to module function have different call_stacks",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|let m = { let f = fun x -> ^^probe(x) }
+in m.f(1); m.f(2)|},
+        );
+      switch (samples) {
+      | [s1, s2] =>
+        check(
+          bool,
+          "Both should have non-empty call_stacks",
+          true,
+          List.length(s1.call_stack) > 0 && List.length(s2.call_stack) > 0,
+        );
+        check(
+          bool,
+          "Different calls should have different call_stacks",
+          true,
+          s1.call_stack != s2.call_stack,
+        );
+      | _ =>
+        fail(
+          "Expected exactly 2 samples, got "
+          ++ string_of_int(List.length(samples)),
+        )
+      };
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeCallStack",
   List.concat([
     top_level_apps_tests,
     inside_function_tests,
     app_vs_body_tests,
+    module_function_tests,
   ]),
 );

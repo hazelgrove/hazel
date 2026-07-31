@@ -31,6 +31,7 @@ module M: Projector = {
   let toggle = (info): Base.segment =>
     switch (
       info.utility.lift_syntax(
+        ~inline=true,
         fun
         | Exp({term: Atom(Bool(b)), _} as t) =>
           Exp({
@@ -47,8 +48,10 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
+  let elaborate_syntax = false;
   let placeholder = (_, _) => ProjectorCore.Shape.inline(2);
   let update = (model, _, _) => model;
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let view = ({info, parent, _}: View.args(model, action)) =>
     View.mk(

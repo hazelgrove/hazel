@@ -41,6 +41,7 @@ let of_list = Unicode.of_list;
 /* Token Recognition Predicates */
 
 /* A. Secondary Notation (Comments, Whitespace, etc.)  */
+let empty = ""; /* This is invalid for view */
 let space = " ";
 let linebreak = "\n";
 let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
@@ -130,6 +131,7 @@ let keywords = [
   "then",
   "else",
   "hint",
+  "module",
 ];
 
 let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
@@ -138,18 +140,20 @@ let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
  * the behavior when inserting a character in contact with a token */
 
 let is_potential_operand =
-  match(regexp("^([a-zA-Z0-9_'?\\^]+)$|^([0-9_]+\\.[a-zA-Z0-9_'\\.?]*)$"));
+  match(regexp("^([a-zA-Z0-9_'?\\^$]+)$|^([0-9_]+\\.[a-zA-Z0-9_'\\.?]*)$"));
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
- *  delimiters: ()[]| */
+ *  delimiters: ()[]|, or the implicit-hole marker ¿. ¿ is excluded
+ *  so that decoded slides like `[1, ¿, 3]` don't merge `¿,` into a
+ *  single operator token; see Haz3lcore.TextRoundtrip. */
 
 let is_potential_operator =
   /* Multiline operators not supported */
-  match(regexp("^[^a-zA-Z0-9_'?\\^\"`#\n\\s\\[\\]\\(\\)\\{\\}]+$"));
+  match(regexp("^[^a-zA-Z0-9_'?\\^$\"`#¿\n\\s\\[\\]\\(\\)\\{\\}]+$"));
 
 let begins_with_potential_operator =
-  match(regexp("^[^a-zA-Z0-9_'?\"`#\n\\s\\[\\]\\(\\)\\{\\}]+"));
+  match(regexp("^[^a-zA-Z0-9_'?$\"`#¿\n\\s\\[\\]\\(\\)\\{\\}]+"));
 
 let is_potential_token = t =>
   if (match(regexp("^>"), t)) {
@@ -160,6 +164,8 @@ let is_potential_token = t =>
   } else {
     t == "()"
     || t == "[]"
+    || t == "{}"
+    || t == "¿"  /* implicit-hole marker; see Haz3lcore.TextRoundtrip */
     || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
@@ -198,7 +204,7 @@ let parse_livelit = (str): string =>
 
 let var_regexp =
   regexp(
-    {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
+    {|(^[a-z_][A-Za-z0-9_']*$)|(^\$[A-Za-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
   );
 let is_var = str =>
   !is_bool(str)
@@ -207,12 +213,30 @@ let is_var = str =>
   && !is_wild(str)
   && match(var_regexp, str);
 
-let quote_label_when_necessary = (l: string): string =>
-  is_var(l) ? l : label_quote(l);
-
 let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = match(capitalized_name_regexp);
-let base_typs = ["String", "Int", "Float", "Bool"];
+
+let quote_label_when_necessary = (l: string): string =>
+  is_var(l) || is_ctr(l) ? l : label_quote(l);
+/* Atom type names recognized by MakeTerm as Atom(...) in Typ sort.
+ * Also includes Drv* names recognized as DrvQuoteTy(sort).
+ * Keep in sync with Ctx.is_base_typ. */
+let base_typs = [
+  "Bool",
+  "Float",
+  "Int",
+  "Nat",
+  "SInt",
+  "String",
+  "Void",
+  "DrvJdmt",
+  "DrvCtx",
+  "DrvProp",
+  "ALFAExp",
+  "DrvPat",
+  "ALFATyp",
+  "DrvTPat",
+];
 let is_base_typ = match(regexp("^(" ++ concat("|", base_typs) ++ ")$"));
 let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
 
@@ -230,8 +254,17 @@ let tuple_lbl = [tuple_start, tuple_end];
 let empty_tuple = append(tuple_start, tuple_end);
 let is_empty_tuple = equal(empty_tuple);
 
+/* Modules */
+let mod_start = "{";
+let mod_end = "}";
+let mod_lbl = [mod_start, mod_end];
+let empty_module = append(mod_start, mod_end);
+let is_empty_module = equal(empty_module);
+
 let const_mono_delims =
-  base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
+  base_typs
+  @ bools
+  @ [undefined, wild, empty_list, empty_tuple, empty_module, empty_string];
 
 let bad_token_cls: string => bad_token_cls =
   t =>
@@ -246,6 +279,14 @@ let explicit_hole = "?";
 let llm_hole = "??";
 let llm_advanced_reasoning_hole = "?a";
 let is_explicit_hole = t => t == explicit_hole;
+
+/* Implicit-hole marker: the textual stand-in for a Grout piece used by
+ * Haz3lcore.TextRoundtrip so decode|encode round-trips preserve Grout
+ * positions. A single non-identifier, non-operator character that the
+ * tokeniser treats as its own atomic token (won't glue with adjacent
+ * commas, semicolons, or identifiers). */
+let implicit_hole_marker = "¿";
+let is_implicit_hole_marker = t => t == implicit_hole_marker;
 let is_llm_hole = t => t == llm_hole || t == llm_advanced_reasoning_hole;
 
 /* Projector invocation textual syntax */
@@ -267,3 +308,8 @@ let is_projector_invoke = (str: t): bool =>
 
 let mk_projector_invoke = (kind: ProjectorCore.Kind.t): string =>
   append(projector_invoke_prefix, ProjectorCore.Kind.name(kind));
+
+/* Unicode probe brackets for CLI text output */
+let probe_start = "⟦";
+let probe_end = "⟧";
+let probe_lbl = [probe_start, probe_end];

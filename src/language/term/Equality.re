@@ -33,6 +33,9 @@ type equality = {
   typ: (Typ.t, Typ.t) => bool,
   tpat: (TPat.t, TPat.t) => bool,
   rul: (Rul.t, Rul.t) => bool,
+  mod_: (TermBase.Mod.t, TermBase.Mod.t) => bool,
+  sig_: (TermBase.Sig.t, TermBase.Sig.t) => bool,
+  mpat: (TermBase.MPat.t, TermBase.MPat.t) => bool,
   any: (Any.t, Any.t) => bool,
 };
 
@@ -121,12 +124,15 @@ let equality =
     let typ' = typ(alphas_exp, alphas_typ);
     let filter' = filter(alphas_exp, alphas_typ);
     let any' = any(alphas_exp, alphas_typ);
-    switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
+    let mod' = mod_(alphas_exp, alphas_typ);
+    switch (e1 |> Annotated.term_of, e2 |> Annotated.term_of) {
     // Wrappers when ignored: unwrap. These cases must come first.
     | (DynamicErrorHole(x, _), _) when ignore_dynamic_errors => exp'(x, e2)
     | (_, DynamicErrorHole(x, _)) when ignore_dynamic_errors => exp'(e1, x)
     | (Parens(x), _) when ignore_parens => exp'(x, e2)
     | (_, Parens(x)) when ignore_parens => exp'(e1, x)
+    | (Projector(_, x), _) when ignore_parens => exp'(x, e2)
+    | (_, Projector(_, x)) when ignore_parens => exp'(e1, x)
     | (Asc(x, _), _) when ignore_ascriptions => exp'(x, e2)
     | (_, Asc(x, _)) when ignore_ascriptions => exp'(e1, x)
     | (Filter(_, x), _) when ignore_filters => exp'(x, e2)
@@ -161,11 +167,19 @@ let equality =
           // Both variables are free, so we first check ctxs, and then use the free_var_handler if provided.
           let lookup1 = {
             let* env1 = env1;
-            Environment.lookup(env1, x);
+            let v = Environment.lookup(env1, x);
+            switch (v) {
+            | Some({term: Var(v), _}) when v == x => None
+            | _ => v
+            };
           };
           let lookup2 = {
             let* env2 = env2;
-            Environment.lookup(env2, y);
+            let v = Environment.lookup(env2, y);
+            switch (v) {
+            | Some({term: Var(v), _}) when v == y => None
+            | _ => v
+            };
           };
           switch (lookup1, lookup2) {
           | (Some(v1), Some(v2)) => exp'(v1, v2)
@@ -210,6 +224,8 @@ let equality =
     | (DynamicErrorHole(_), _) => false
     | (Parens(x), Parens(y)) => exp'(x, y)
     | (Parens(_), _) => false
+    | (Projector(d1, x), Projector(d2, y)) => d1 == d2 && exp'(x, y)
+    | (Projector(_), _) => false
     | (Asc(x, t1), Asc(y, t2)) => typ'(t1, t2) && exp'(x, y)
     | (Asc(_), _) => false
     | (Filter(f1, x), Filter(f2, y)) => filter'(f1, f2) && exp'(x, y)
@@ -397,24 +413,111 @@ let equality =
     | (ListConcat(_, _), _) => false
     | (ProofObject(e1), ProofObject(e2)) => exp'(e1, e2)
     | (ProofObject(_), _) => false
+    | (Module(items1), Module(items2)) =>
+      List.length(items1) == List.length(items2)
+      && List.for_all2(mod', items1, items2)
+    | (Module(_), _) => false
+    | (ModuleExp(mp1, def1, body1), ModuleExp(mp2, def2, body2)) =>
+      switch (mpat(alphas_exp, alphas_typ, mp1, mp2)) {
+      | Some(alphas_exp') =>
+        exp'(def1, def2)
+        && exp(
+             Alphas.combine(alphas_exp', alphas_exp),
+             alphas_typ,
+             body1,
+             body2,
+           )
+      | None => false
+      }
+    | (ModuleExp(_, _, _), _) => false
+    | (DrvQuote(d1, s1), DrvQuote(d2, s2)) => s1 == s2 && d1 == d2
+    | (DrvQuote(_, _), _) => false
+    };
+  }
+  /* Compare patterns with literal variable names (no alpha-renaming).
+     Used for ModLet/SigLet where binding names become labels. */
+  and pat_names_equal =
+      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t): bool => {
+    let pne = pat_names_equal(alphas_exp, alphas_typ);
+    let typ' = typ(alphas_exp, alphas_typ);
+    switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
+    | (Parens(x), _) when ignore_parens => pne(x, p2)
+    | (_, Parens(x)) when ignore_parens => pne(p1, x)
+    | (Var(x), Var(y)) => x == y
+    | (Wild, Wild) => true
+    | (EmptyHole, EmptyHole) => true
+    | (Parens(x), Parens(y)) => pne(x, y)
+    | (Asc(p, t1), Asc(q, t2)) => pne(p, q) && typ'(t1, t2)
+    | (Tuple(ps1), Tuple(ps2)) =>
+      List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
+    | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
+    | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
+    | _ => false
+    };
+  }
+  and mod_ =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        m1: TermBase.Mod.t,
+        m2: TermBase.Mod.t,
+      )
+      : bool => {
+    let exp' = exp(alphas_exp, alphas_typ);
+    let typ' = typ(alphas_exp, alphas_typ);
+    let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
+    let any' = any(alphas_exp, alphas_typ);
+    let mpat' = (mp1, mp2) =>
+      Option.is_some(mpat(alphas_exp, alphas_typ, mp1, mp2));
+    switch (m1 |> Annotated.term_of, m2 |> Annotated.term_of) {
+    | (EmptyHole, EmptyHole) => true
+    | (EmptyHole, _) => false
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(_), _) => false
+    | (MultiHole(xs1), MultiHole(xs2)) =>
+      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
+    | (MultiHole(_), _) => false
+    /* ModLet pattern names become labels (like labeled tuples),
+       so compare literally, not with alpha-equiv. */
+    | (ModLet(p1, e1), ModLet(p2, e2)) =>
+      pat_names_equal(alphas_exp, alphas_typ, p1, p2) && exp'(e1, e2)
+    | (ModLet(_, _), _) => false
+    | (ModType(tp1, t1), ModType(tp2, t2)) =>
+      tpat'(tp1, tp2) && typ'(t1, t2)
+    | (ModType(_, _), _) => false
+    | (ModExp(e1), ModExp(e2)) => exp'(e1, e2)
+    | (ModExp(_), _) => false
+    | (ModuleMod(mp1, e1), ModuleMod(mp2, e2)) =>
+      mpat'(mp1, mp2) && exp'(e1, e2)
+    | (ModuleMod(_, _), _) => false
     };
   }
   and pat =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t)
       : option(Alphas.t) => {
     let pat' = pat(alphas_exp, alphas_typ);
+    let typ' = typ(alphas_exp, alphas_typ);
     let any' = any(alphas_exp, alphas_typ);
-    switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
+    switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => pat'(x, p2)
     | (_, Parens(x)) when ignore_parens => pat'(p1, x)
+    | (Projector(_, x), _) when ignore_parens => pat'(x, p2)
+    | (_, Projector(_, x)) when ignore_parens => pat'(p1, x)
     | (Asc(x, _), _) when ignore_ascriptions => pat'(x, p2)
     | (_, Asc(x, _)) when ignore_ascriptions => pat'(p1, x)
 
     // Wrappers otherwise: compare.
     | (Parens(x), Parens(y)) => pat'(x, y)
     | (Parens(_), _) => None
-    | (Asc(x, _), Asc(y, _)) => pat'(x, y)
+    | (Projector(d1, x), Projector(d2, y)) when d1 == d2 => pat'(x, y)
+    | (Projector(_), _) => None
+    | (Asc(x, t1), Asc(y, t2)) =>
+      if (typ'(t1, t2)) {
+        pat'(x, y);
+      } else {
+        None;
+      }
     | (Asc(_), _) => None
 
     // Variables: special case depending on alpha equivalence.
@@ -503,10 +606,12 @@ let equality =
     let exp' = exp(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = tpat;
-    switch (t1 |> Grammar.Annotated.term_of, t2 |> Grammar.Annotated.term_of) {
+    switch (t1 |> Annotated.term_of, t2 |> Annotated.term_of) {
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => typ'(x, t2)
     | (_, Parens(x)) when ignore_parens => typ'(t1, x)
+    | (Projector(_, x), _) when ignore_parens => typ'(x, t2)
+    | (_, Projector(_, x)) when ignore_parens => typ'(t1, x)
     | (TupLabel({term: ExplicitNonlabel, _}, t1), _)
         when ignore_explicit_unlabelling =>
       typ'(t1, t2)
@@ -517,6 +622,8 @@ let equality =
     // Wrappers otherwise: compare.
     | (Parens(x), Parens(y)) => typ'(x, y)
     | (Parens(_), _) => false
+    | (Projector(d1, x), Projector(d2, y)) => d1 == d2 && typ'(x, y)
+    | (Projector(_), _) => false
 
     // Forms with type binders
     | (Rec(tp1, t1), Rec(tp2, t2)) =>
@@ -588,13 +695,75 @@ let equality =
     | (ProdExtension(_), _) => false
     | (ProofOf(e1), ProofOf(e2)) => exp'(e1, e2)
     | (ProofOf(_), _) => false
+    | (Sig(items1), Sig(items2)) =>
+      List.length(items1) == List.length(items2)
+      && List.for_all2(sig_(alphas_exp, alphas_typ), items1, items2)
+    | (Sig(_), _) => false
+    | (DrvQuoteTy(s1), DrvQuoteTy(s2)) => s1 == s2
+    | (DrvQuoteTy(_), _) => false
+    };
+  }
+  and sig_ =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        s1: TermBase.Sig.t,
+        s2: TermBase.Sig.t,
+      )
+      : bool => {
+    let typ' = typ(alphas_exp, alphas_typ);
+    let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
+    let any' = any(alphas_exp, alphas_typ);
+    switch (s1 |> Annotated.term_of, s2 |> Annotated.term_of) {
+    | (EmptyHole, EmptyHole) => true
+    | (EmptyHole, _) => false
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(_), _) => false
+    | (MultiHole(xs1), MultiHole(xs2)) =>
+      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
+    | (MultiHole(_), _) => false
+    /* SigLet names become labels, like ModLet */
+    | (SigLet(p1), SigLet(p2)) =>
+      pat_names_equal(alphas_exp, alphas_typ, p1, p2)
+    | (SigLet(_), _) => false
+    | (SigType(tp1, t1), SigType(tp2, t2)) =>
+      tpat'(tp1, tp2) && typ'(t1, t2)
+    | (SigType(_, _), _) => false
+    };
+  }
+  and mpat =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        mp1: TermBase.MPat.t,
+        mp2: TermBase.MPat.t,
+      )
+      : option(Alphas.t) => {
+    let any' = any(alphas_exp, alphas_typ);
+    switch (mp1 |> Annotated.term_of, mp2 |> Annotated.term_of) {
+    | (EmptyHole, EmptyHole) => Some(Alphas.empty)
+    | (EmptyHole, _) => None
+    | (Invalid(s1), Invalid(s2)) => s1 == s2 ? Some(Alphas.empty) : None
+    | (Invalid(_), _) => None
+    | (MultiHole(xs1), MultiHole(xs2)) =>
+      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
+        ? Some(Alphas.empty) : None
+    | (MultiHole(_), _) => None
+    /* MPat.Var supports alpha-equivalence: module names are binders */
+    | (Var(v1), Var(v2)) when exp_alpha => Some(Alphas.singleton(v1, v2))
+    | (Var(v1), Var(v2)) when v1 == v2 => Some(Alphas.singleton(v1, v1))
+    | (Var(_), _) => None
+    | (Asc(mp1, t1), Asc(mp2, t2)) =>
+      switch (mpat(alphas_exp, alphas_typ, mp1, mp2)) {
+      | Some(alphas) when typ(alphas_exp, alphas_typ, t1, t2) =>
+        Some(alphas)
+      | _ => None
+      }
+    | (Asc(_, _), _) => None
     };
   }
   and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
-    switch (
-      tp1 |> Grammar.Annotated.term_of,
-      tp2 |> Grammar.Annotated.term_of,
-    ) {
+    switch (tp1 |> Annotated.term_of, tp2 |> Annotated.term_of) {
     // Variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) when type_alpha => Some(Alphas.singleton(x, y))
     | (Var(x), Var(y)) when x == y => Some(Alphas.singleton(x, x))
@@ -623,7 +792,7 @@ let equality =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, r1: Rul.t, r2: Rul.t): bool => {
     let pat' = pat(alphas_exp, alphas_typ);
     let exp' = exp(alphas_exp, alphas_typ);
-    switch (r1 |> Grammar.Annotated.term_of, r2 |> Grammar.Annotated.term_of) {
+    switch (r1 |> Annotated.term_of, r2 |> Annotated.term_of) {
     | (Rules(e1, rls1), Rules(e2, rls2))
         when List.length(rls1) == List.length(rls2) =>
       exp'(e1, e2)
@@ -689,8 +858,17 @@ let equality =
     | (Rul(_), _) => false
     | (TPat(tp1), TPat(tp2)) => tpat(tp1, tp2) |> Option.is_some
     | (TPat(_), _) => false
+    | (Mod(m1), Mod(m2)) => mod_(alphas_exp, alphas_typ, m1, m2)
+    | (Mod(_), _) => false
+    | (Sig(s1), Sig(s2)) => sig_(alphas_exp, alphas_typ, s1, s2)
+    | (Sig(_), _) => false
+    | (MPat(mp1), MPat(mp2)) =>
+      mpat(alphas_exp, alphas_typ, mp1, mp2) |> Option.is_some
+    | (MPat(_), _) => false
     | (Any (), Any ()) => true
     | (Any (), _) => false
+    | (Drv(d1), Drv(d2)) => d1 == d2
+    | (Drv(_), _) => false
     };
   };
 
@@ -701,6 +879,10 @@ let equality =
     typ: typ(Alphas.empty, Alphas.empty),
     tpat: (tp1, tp2) => tpat(tp1, tp2) |> Option.is_some,
     rul: rul(Alphas.empty, Alphas.empty),
+    mod_: (m1, m2) => mod_(Alphas.empty, Alphas.empty, m1, m2),
+    sig_: (s1, s2) => sig_(Alphas.empty, Alphas.empty, s1, s2),
+    mpat: (mp1, mp2) =>
+      mpat(Alphas.empty, Alphas.empty, mp1, mp2) |> Option.is_some,
     any: any(Alphas.empty, Alphas.empty),
   };
 };
@@ -750,3 +932,9 @@ let semantic_settings = {
 };
 
 let semantic = equality(semantic_settings);
+
+let ignoring_ascriptions =
+  equality({
+    ...semantic_settings,
+    ignore_ascriptions: true,
+  });

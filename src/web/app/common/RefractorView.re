@@ -33,7 +33,7 @@ let mk_data =
       ~indicated: option(Indicated.piece),
       ~statics: Language.Statics.Map.t,
       ~dynamics: Language.Dynamics.Map.t,
-      ~sample_cursor: Language.Sample.Cursor.t,
+      ~sample_focus: Language.Sample.Focus.t,
       ~editor_active: bool,
     )
     : list(ProjectorView.Model.projector_data) => {
@@ -41,11 +41,32 @@ let mk_data =
   let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
   List.filter_map(
     ((id, entry)) => {
-      /* Construct full Base.projector on demand for rendering */
-      let p = Refractors.to_projector(id, entry);
+      /* Construct full Base.projector on demand for rendering,
+       * passing the actual syntax so projectors can access the
+       * underlying term for syntax rewriting. */
+      let syntax_piece =
+        Option.value(
+          TermData.segment(id, term_data)
+          |> Option.map(Segment.unparenthesize)
+          |> Option.map(Segment.trim_secondary(Left))
+          |> Option.map(Segment.trim_secondary(Right))
+          |> Option.map(Segment.parenthesize),
+          ~default=
+            Base.Secondary({
+              id: Id.invalid,
+              content: Whitespace(""),
+            }),
+        );
+      let p = Refractors.to_projector(syntax_piece, id, entry);
       let+ measurement = measurement_of_term(id, term_data, measured);
       let info =
-        ProjectorInfo.mk_info(p, ~sample_cursor, ~statics, ~dynamics);
+        ProjectorInfo.mk_info(
+          p,
+          ~sample_focus,
+          ~statics,
+          ~dynamics,
+          ~elaborated=None,
+        );
       ProjectorView.Model.{
         p,
         info,
@@ -62,6 +83,10 @@ let mk_data =
             ~info,
             ~id,
           ),
+        statics_map: statics,
+        dynamics_map: dynamics,
+        sample_focus,
+        elaborated: None,
       };
     },
     Id.Map.bindings(refractors),
@@ -76,8 +101,10 @@ let all =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~core_settings: Language.CoreSettings.t,
       ~visible: option(Globals.VisibleRows.t)=?,
       refractor_data: list(ProjectorView.Model.projector_data),
+      refractor_list: list(Id.t),
     ) => {
   let get_row_range = (d: ProjectorView.Model.projector_data) => (
     d.measurement.origin.row,
@@ -92,8 +119,10 @@ let all =
            inject,
            make_active,
            font_metrics,
+           ~core_settings,
            ~skip_inline=true,
            data,
+           refractor_list,
          )
        )
     |> List.split;

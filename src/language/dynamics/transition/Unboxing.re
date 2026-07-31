@@ -84,7 +84,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
     switch (request, DHExp.term_of(expr)) {
     /* $e and $v could have any type, but are indet */
-    | (_, UnOp(Meta(Unquote), _)) => IndetMatch
     | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
       IndetMatch
 
@@ -197,7 +196,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Forms that are the wrong type of value - these cases indicate an error */
     | (
         _,
-        Atom(_) | Label(_) | Constructor(_) | BuiltinFun(_) | Deferral(_) |
+        Atom(_) | DrvQuote(_) | Label(_) | Constructor(_) | BuiltinFun(_) |
+        Deferral(_) |
         DeferredAp(_) |
         ListLit(_) |
         Cons(_) |
@@ -251,13 +251,16 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Filter(_) |
         Closure(_) |
         Parens(_) |
+        Projector(_) |
         ListConcat(_) |
         TupleExtension(_) |
         Dot(_) |
         UnOp(_) |
         BinOp(_) |
         LivelitName(_) |
-        Match(_),
+        Match(_) |
+        Module(_) |
+        ModuleExp(_),
       ) =>
       IndetMatch
     };

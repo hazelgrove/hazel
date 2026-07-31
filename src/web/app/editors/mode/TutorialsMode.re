@@ -161,6 +161,17 @@ module Store = {
       exercise_export.exercise_data,
     );
   };
+
+  let reset = (~settings, ~instructor_mode) => {
+    let _ = StoreTutorialKey.reset();
+    List.iter(
+      spec => {
+        let _ = init_exercise(~settings, spec, ~instructor_mode);
+        ();
+      },
+      TutorialSettings.lessons,
+    );
+  };
 };
 module Update = {
   open Updated;
@@ -219,21 +230,23 @@ module Update = {
       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
     switch (action) {
     | Tutorial(TutorialMode.Update.MoveToNextExercise) =>
+      WorkerClient.cancel();
       Model.{
         current:
           (model.current + 1 + List.length(model.exercises))
           mod List.length(model.exercises),
         exercises: model.exercises,
       }
-      |> return
+      |> return;
     | Tutorial(TutorialMode.Update.MoveToPrevExercise) =>
+      WorkerClient.cancel();
       Model.{
         current:
           (model.current - 1 + List.length(model.exercises))
           mod List.length(model.exercises),
         exercises: model.exercises,
       }
-      |> return
+      |> return;
 
     | Tutorial(action) =>
       let current = List.nth(model.exercises, model.current);
@@ -251,11 +264,12 @@ module Update = {
         exercises: new_exercises,
       };
     | SwitchExercise(n) =>
+      WorkerClient.cancel();
       Model.{
         current: n,
         exercises: model.exercises,
       }
-      |> return
+      |> return;
     | ExportModule =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_exercise_module(model);
@@ -289,21 +303,17 @@ module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = TutorialMode.Selection.t;
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
+      : cursor(Update.t) => {
     let+ ci =
       TutorialMode.Selection.get_cursor_info(
+        ~inject=a => inject(Tutorial(a)),
         ~selection,
         List.nth(model.exercises, model.current),
       );
     Update.Tutorial(ci);
   };
-  let handle_key_event = (~selection, ~event, model: Model.t) =>
-    TutorialMode.Selection.handle_key_event(
-      ~selection,
-      ~event,
-      List.nth(model.exercises, model.current),
-    )
-    |> Option.map(a => Update.Tutorial(a));
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) =>
     TutorialMode.Selection.jump_to_tile(
@@ -382,7 +392,7 @@ module View = {
               "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
             );
           if (confirmed) {
-            JsUtil.clear_localstore();
+            HazelDB.clear_all();
             Dom_html.window##.location##reload;
           };
           Virtual_dom.Vdom.Effect.Ignore;
@@ -471,6 +481,7 @@ module View = {
             model.current,
             titles,
           ),
+        (),
       );
     // };
   };

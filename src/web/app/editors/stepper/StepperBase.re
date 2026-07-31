@@ -173,7 +173,7 @@ module rec StepKind: {
           AlgebriteStep(_),
           _,
         ) =>
-        model |> Updated.return_quiet
+        model |> Updated.raise_invalid_action
       }
     );
   };
@@ -333,27 +333,56 @@ module rec StepKind: {
       (AlgebriteStep(m): model, h, e, v);
     };
 
-  let get_cursor_info = (~focus: focus, model: model) =>
+  let get_cursor_info = (~inject, ~focus: focus, model: model) =>
     Cursor.(
       switch (focus, model) {
       | (SingleStep(focus), SingleStep(model)) =>
-        let+ focus_info = SingleStep.get_cursor_info(~focus, model);
+        let+ focus_info =
+          SingleStep.get_cursor_info(
+            ~inject=x => inject(SingleStep(x): action),
+            ~focus,
+            model,
+          );
         (SingleStep(focus_info): action);
       | (InductionStep(focus), InductionStep(model)) =>
-        let+ focus_info = InductionStep.get_cursor_info(~focus, model);
+        let+ focus_info =
+          InductionStep.get_cursor_info(
+            ~inject=x => inject(InductionStep(x): action),
+            ~focus,
+            model,
+          );
         (InductionStep(focus_info): action);
       | (ForallStep(focus), ForallStep(model)) =>
-        let+ focus_info = ForallStep.get_cursor_info(~focus, model);
+        let+ focus_info =
+          ForallStep.get_cursor_info(
+            ~inject=x => inject(ForallStep(x): action),
+            ~focus,
+            model,
+          );
         (ForallStep(focus_info): action);
       | (MissingStep(selection), MissingStep(model)) =>
         let+ focus_info =
-          MissingStep.Selection.get_cursor_info(~selection, model);
+          MissingStep.Selection.get_cursor_info(
+            ~inject=x => inject(MissingStep(x): action),
+            ~selection,
+            model,
+          );
         (MissingStep(focus_info): action);
       | (AxiomStep(focus), AxiomStep(model)) =>
-        let+ focus_info = AxiomStep.get_cursor_info(~focus, model);
+        let+ focus_info =
+          AxiomStep.get_cursor_info(
+            ~inject=x => inject(AxiomStep(x): action),
+            ~focus,
+            model,
+          );
         (AxiomStep(focus_info): action);
       | (AlgebriteStep(focus), AlgebriteStep(model)) =>
-        let+ focus_info = AlgebriteStep.get_cursor_info(~focus, model);
+        let+ focus_info =
+          AlgebriteStep.get_cursor_info(
+            ~inject=x => inject(AlgebriteStep(x): action),
+            ~focus,
+            model,
+          );
         (AlgebriteStep(focus_info): action);
       | (
           SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
@@ -363,36 +392,6 @@ module rec StepKind: {
         ) => Cursor.empty
       }
     );
-
-  let handle_key_event =
-      (~focus: focus, ~event: Key.t, model: model): option(action) =>
-    switch (focus, model) {
-    | (SingleStep(focus), SingleStep(model)) =>
-      SingleStep.handle_key_event(~focus, ~event, model)
-      |> Option.map((x): action => SingleStep(x))
-    | (InductionStep(focus), InductionStep(model)) =>
-      InductionStep.handle_key_event(~focus, ~event, model)
-      |> Option.map((x): action => InductionStep(x))
-    | (ForallStep(focus), ForallStep(model)) =>
-      ForallStep.handle_key_event(~focus, ~event, model)
-      |> Option.map((x): action => ForallStep(x))
-    | (MissingStep(selection), MissingStep(model)) =>
-      MissingStep.Selection.handle_key_event(~selection, ~event, ~model)
-      |> Option.map((x): action => MissingStep(x))
-    | (AxiomStep(focus), AxiomStep(model)) =>
-      AxiomStep.handle_key_event(~focus, ~event, model)
-      |> Option.map((x): action => AxiomStep(x))
-    | (AlgebriteStep(focus), AlgebriteStep(model)) =>
-      AlgebriteStep.handle_key_event(~focus, ~event, model)
-      |> Option.map((x): action => AlgebriteStep(x))
-    | (
-        SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
-        AxiomStep(_) |
-        AlgebriteStep(_),
-        _,
-      ) =>
-      None
-    };
 
   let view_content =
       (
@@ -632,7 +631,7 @@ and Stepper: {
       switch (action, model.step_kind, model.next_step) {
       | (EditorAction(ea), _, _) =>
         switch (model.editor) {
-        | Calc.Pending => model |> return_quiet
+        | Calc.Pending => model |> raise_invalid_action
         | Calc.Calculated(editor) =>
           let* new_editor =
             CodeSelectable.Update.update(~settings, ea, editor);
@@ -647,7 +646,7 @@ and Stepper: {
           ...model,
           next_step: Some(new_next_step),
         };
-      | (NextStep(_), _, None) => model |> return_quiet
+      | (NextStep(_), _, None) => model |> raise_invalid_action
       | (RemoveStep, _, _) =>
         {
           ...model,
@@ -675,23 +674,23 @@ and Stepper: {
               }),
           }
           |> return
-        | None => model |> return_quiet
+        | None => model |> raise_invalid_action
         };
-      | (StepForward(_), _, _) => model |> return_quiet
+      | (StepForward(_), _, _) => model |> raise_invalid_action
       | (AddInduction(exp), MissingStep(_), _) =>
         {
           ...model,
           step_kind: InductionStep(InductionStep.init(~exp?, ())),
         }
         |> return
-      | (AddInduction(_), _, _) => model |> return_quiet
+      | (AddInduction(_), _, _) => model |> raise_invalid_action
       | (AddForall, MissingStep(_), _) =>
         {
           ...model,
           step_kind: ForallStep(ForallStep.init(init)),
         }
         |> return
-      | (AddForall, _, _) => model |> return_quiet
+      | (AddForall, _, _) => model |> raise_invalid_action
       | (
           AddAxiomStep(name, at_idx, at_exp, direction, equality),
           MissingStep(_),
@@ -710,7 +709,7 @@ and Stepper: {
             }),
         }
         |> return
-      | (AddAxiomStep(_, _, _, _, _), _, _) => model |> return_quiet
+      | (AddAxiomStep(_, _, _, _, _), _, _) => model |> raise_invalid_action
       | (AddAlgebriteStep(at_idx, at_exp, with_exp), MissingStep(_), _) =>
         {
           ...model,
@@ -723,7 +722,7 @@ and Stepper: {
             }),
         }
         |> return
-      | (AddAlgebriteStep(_, _, _), _, _) => model |> return_quiet
+      | (AddAlgebriteStep(_, _, _), _, _) => model |> raise_invalid_action
       | (StepKindAction(sk_action), _, _) =>
         let* new_step_kind =
           StepKind.update(~settings, sk_action, model.step_kind);
@@ -773,7 +772,7 @@ and Stepper: {
         and.calc expr = expr
         and.calc _ctx = ctx
         and.calc _ana = ana;
-        expr |> CodeWithStatics.Model.mk_from_exp(~settings);
+        expr |> CodeWithStatics.Model.mk_from_exp(~settings, ~root=Exp);
       };
     let info_map =
       info_map
@@ -857,47 +856,37 @@ and Stepper: {
   };
 
   let rec get_cursor_info =
-          (~focus: step_focus, model: step_model): Cursor.cursor(step_action) => {
+          (~inject, ~focus: step_focus, model: step_model)
+          : Cursor.cursor(step_action) => {
     Cursor.(
       switch (focus, model.step_kind, model.next_step) {
       | (StepKindFocus(sk), skm, _) =>
-        let+ ci = StepKind.get_cursor_info(~focus=sk, skm);
+        let+ ci =
+          StepKind.get_cursor_info(
+            ~inject=x => inject(StepKindAction(x)),
+            ~focus=sk,
+            skm,
+          );
         StepKindAction(ci);
       | (Here(a), _, _) =>
         let+ ci =
           StepperEditor.Selection.get_cursor_info(
+            ~inject=x => inject(EditorAction(x)),
             ~selection=a,
             model.editor |> Calc.get_saved_exc(~print="Step editor selection"),
           );
         EditorAction(ci);
       | (Next(a), _, Some(next_step)) =>
-        let+ ci = get_cursor_info(~focus=a, next_step);
+        let+ ci =
+          get_cursor_info(
+            ~inject=x => inject(NextStep(x): action),
+            ~focus=a,
+            next_step,
+          );
         NextStep(ci);
       | (Next(_), _, None) => Cursor.empty
       }
     );
-  };
-
-  let rec handle_key_event =
-          (~focus: step_focus, ~event: Key.t, model: step_model)
-          : option(step_action) => {
-    switch (focus, model.step_kind, model.next_step) {
-    | (StepKindFocus(sk), skm, _) =>
-      StepKind.handle_key_event(~focus=sk, ~event, skm)
-      |> Option.map((x): step_action => StepKindAction(x))
-    | (Here(a), _, _) =>
-      StepperEditor.Selection.handle_key_event(
-        ~selection=a,
-        model.editor |> Calc.get_saved_exc(~print="Step editor selection"),
-        event,
-      )
-      |> Option.map((x): step_action => EditorAction(x))
-    | (Next(a), _, Some(next_step)) =>
-      next_step
-      |> handle_key_event(~focus=a, ~event)
-      |> Option.map((x): step_action => NextStep(x))
-    | _ => None
-    };
   };
 
   let rec view_step =

@@ -22,6 +22,21 @@ and tile = {
 }
 and projector = ProjectorCore.t(piece);
 
+let rec map_piece = (~f_piece, x: piece) => {
+  let rec_call = (piece: piece) => {
+    switch (piece) {
+    | Tile(t) =>
+      Tile({
+        ...t,
+        children: t.children |> List.map(List.map(map_piece(~f_piece))),
+      })
+    | Grout(_)
+    | Secondary(_)
+    | Projector(_) => piece
+    };
+  };
+  x |> f_piece(rec_call);
+};
 /* If the piece is parentheses, return the child. Otherwise,
  * return a singleton segment consisting of the piece */
 let unparenthesize = (piece: piece): segment =>
@@ -39,9 +54,9 @@ let rec segment_to_string =
         (
           ~holes=" ",
           ~concave_holes=" ",
-          ~refractors: Id.Map.t(_)=Id.Map.empty,
+          ~refractors: list((Id.t, _))=[],
           ~refractor_seg_to_seg:
-             (Id.Map.t(_), segment) => (Id.Map.t(_), segment),
+             (list((Id.t, _)), segment) => (list((Id.t, _)), segment),
           ~projector_to_segment,
           seg: segment,
         )
@@ -63,7 +78,7 @@ and piece_to_string =
     (
       ~holes: string,
       ~concave_holes: string,
-      ~refractors: Id.Map.t(_),
+      ~refractors: list((Id.t, _)),
       ~refractor_seg_to_seg,
       ~projector_to_segment,
       p: piece,
@@ -96,7 +111,7 @@ and tile_to_string =
     (
       ~holes: string,
       ~concave_holes: string,
-      ~refractors: Id.Map.t(_),
+      ~refractors: list((Id.t, _)),
       ~refractor_seg_to_seg,
       ~projector_to_segment,
       t: tile,
