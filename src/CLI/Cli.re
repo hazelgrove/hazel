@@ -416,7 +416,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
     let sample_map = {
       let (_, state) =
         Evaluator.evaluate(
-          ~targets=sample_map,
+          ~eval_info=EvalInfo.of_targets(sample_map),
           ~env=Builtins.env_init,
           elaborated,
         );

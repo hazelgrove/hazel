@@ -341,7 +341,11 @@ let probe_run = (text: string) => {
         ~probe_ids,
       );
     let (_, state) =
-      Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+      Evaluator.evaluate(
+        ~eval_info=EvalInfo.of_targets(targets),
+        ~env=Builtins.env_init,
+        elaborated,
+      );
     (
       mtr,
       List.map(fst, z.refractors.manuals),
