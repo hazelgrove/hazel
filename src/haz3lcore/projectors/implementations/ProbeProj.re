@@ -4,6 +4,8 @@ open Virtual_dom.Vdom;
 
 open Js_of_ocaml;
 open Language;
+open RichProbe;
+open RichProbeRegistry;
 
 /* Global probe display state. See ZipperBase.re for full probe state documentation.
  * - Settings.s: Global display settings (window mode, cutoffs)
@@ -12,8 +14,28 @@ open Language;
  * These use mutable refs for simplicity since they're UI-only state. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type probe_model = {active_renderer: option(packed_model)};
+
+/* Any deserialization failure resets to closed-modal — the record is
+ * pure transient UI state. Known failure modes are logged for
+ * debuggability; unknown ones still degrade gracefully. */
+let probe_model_of_sexp = sexp =>
+  switch (probe_model_of_sexp(sexp)) {
+  | model => model
+  | exception (RichProbeRegistry.Unknown_renderer(rid)) =>
+    print_endline("probe_model_of_sexp: unknown renderer " ++ rid);
+    {active_renderer: None};
+  | exception (Failure(msg)) =>
+    print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
+    {active_renderer: None};
+  | exception _ => {active_renderer: None}
+  };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
+  | ToggleModal(option(packed_model))
+  | RendererAction(packed_action)
   | ToggleWindowMode
   | ToggleShowEnv
   | ResetSettings;
@@ -118,6 +140,10 @@ type probe_ctx = {
   dynamics: Dynamics.Info.t,
   utility: ProjectorBase.utility,
   parent: external_action => Ui_effect.t(unit),
+  sort: Sort.t,
+  /* Id of the currently-open rich-probe renderer, if any. Drives the
+   * "View as <id>" / "Hide <id>" toggle label in the sample menu. */
+  active_renderer_id: option(string),
 };
 
 /* Stateful window offset management (GUI-specific) */
@@ -128,7 +154,7 @@ module WindowState = {
     | None => 0
     };
 
-  let set_offset = (k: Id.t, v: int) => Hashtbl.add(offset, k, v);
+  let set_offset = (k: Id.t, v: int) => Hashtbl.replace(offset, k, v);
 
   /* Update offset and return (new_offset, max_samples) */
   let reform =
@@ -166,7 +192,8 @@ module SampleLength = {
     Hashtbl.find_opt(lengths, sample.id)
     |> Option.value(~default=window == Single ? 150 : 12);
 
-  let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
+  let set = (id: int, length: int): unit =>
+    Hashtbl.replace(lengths, id, length);
 };
 
 /* Select samples to display, using stateful window offset.
@@ -214,20 +241,8 @@ let select_samples =
   };
 };
 
-let len_seg = (utility: utility, seg: Segment.t): int =>
-  seg |> utility.seg_to_string |> Unicode.Width.columns_of_string;
-
-let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(Exp(exp));
-  (seg, len_seg(utility, seg));
-};
-
-let abbreviated_seg_of =
-    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
-  let (abbr_exp, _length) =
-    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
-  seg_of_exp(utility, abbr_exp);
-};
+let seg_of_exp = ProbeUtil.seg_of_exp;
+let abbreviated_seg_of = ProbeUtil.abbreviated_seg_of;
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   open Float;
@@ -398,6 +413,11 @@ module Debug = {
     ++ Printf.sprintf("%.0f", sample.time);
 };
 
+/* Find first compatible renderer for an expression */
+let find_compatible_renderer =
+    (sort: Sort.t, exp: Exp.t): option(RichProbe.packed_renderer) =>
+  List.find_opt(r => r.can_handle(sort, exp), renderers);
+
 let pin_call = (ctx: probe_ctx) =>
   switch (ctx.ap_id, Dynamics.Info.is_in(ctx.dynamics)) {
   | (Some(ap_id), Some(sample)) =>
@@ -496,7 +516,6 @@ let value_view =
 
   div(
     ~attrs=[
-      // Attr.title(Debug.str(~ap_id, sample)),
       Attr.classes(
         ["value", length_cls(length)]
         @ cursor_clss(
@@ -568,9 +587,18 @@ let pin_view = (ctx: probe_ctx, sample: Sample.t) =>
     [];
   };
 
-/* Generate unique dropdown ID for a sample */
-let dropdown_id = (sample_id: int): string =>
-  "sample-dropdown-" ++ string_of_int(sample_id);
+/* Generate a DOM id that's unique per sample-instance. sample.id is
+ * Hashtbl.hash((stack, syntax_id)) and is intentionally coarse — recursive
+ * invocations frequently collide on it. Combining with step_start/step_end
+ * disambiguates. If Sample.id is ever made truly unique, simplify this back
+ * to just sample.id. See issue #2288. */
+let dropdown_id = (sample: Sample.t): string =>
+  Printf.sprintf(
+    "sample-dropdown-%d-%d-%d",
+    sample.id,
+    sample.step_start,
+    sample.step_end,
+  );
 
 /* Step into handler for sample context menu */
 let step_into_sample =
@@ -581,7 +609,7 @@ let step_into_sample =
  * Requires: Ap of a named variable that isn't a built-in. */
 let can_step_into = (statics: Language.Statics.Info.t): bool =>
   switch (statics) {
-  | InfoExp({term: {term: Ap(_, fn_exp, _), _}, _}) =>
+  | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
     switch (fn_exp.term) {
     | Var(name) => Environment.lookup(Builtins.env_init, name) == None
     | _ => false
@@ -645,31 +673,69 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
     ],
   );
 
-/* Context actions for a sample (Pin/Unpin, Step Into, etc.) */
+/* Rich probe action: open a domain-specific visualization via ToggleModal.
+   One menu item per compatible renderer; r.badge supplies the icon.
+   Label flips to "Hide <id>" when this renderer's modal is already open,
+   since dispatching ToggleModal again closes it. */
+let rich_probe_action =
+    (ctx: probe_ctx, local, sample: Sample.t, r: packed_renderer): Node.t => {
+  let is_active = ctx.active_renderer_id == Some(r.id);
+  let label = (is_active ? "Hide " : "View as ") ++ r.id;
+  div(
+    ~attrs=[
+      Attr.classes(["action-item", "rich-probe-action"]),
+      Attr.on_pointerdown(_ =>
+        local(ToggleModal(r.init_model(ctx.sort, sample.value)))
+      ),
+    ],
+    [r.badge, text(label)],
+  );
+};
+
+let rich_probe_items =
+    (ctx: probe_ctx, local, _sample: Sample.t): list(Node.t) =>
+  switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+  | None => []
+  | Some(indicated) =>
+    renderers
+    |> List.filter_map(r =>
+         r.can_handle(ctx.sort, indicated.value)
+           ? Some(rich_probe_action(ctx, local, indicated, r)) : None
+       )
+  };
+
+/* Context actions for a sample (Pin/Unpin, Step Into, rich-probe views, etc.) */
 let sample_context_actions =
-    (ctx: probe_ctx, ~can_step_into: bool, sample: Sample.t): list(Node.t) =>
+    (ctx: probe_ctx, local, ~can_step_into: bool, sample: Sample.t)
+    : list(Node.t) => {
+  let rich_items = rich_probe_items(ctx, local, sample);
   switch (ctx.ap_id) {
   | Some(ap_id) => [
       div(
         ~attrs=[Attr.classes(["context-actions"])],
         [pin_action(ctx, sample)]
-        @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : []),
+        @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
+        @ rich_items,
       ),
     ]
   | None when sample.call_stack != [] => [
       div(
         ~attrs=[Attr.classes(["context-actions"])],
-        [focus_action(ctx, sample)],
+        [focus_action(ctx, sample)] @ rich_items,
       ),
+    ]
+  | None when rich_items != [] => [
+      div(~attrs=[Attr.classes(["context-actions"])], rich_items),
     ]
   | None => []
   };
+};
 
 /* Get function name from statics info if this is an Ap expression */
 let get_fn_name_from_statics =
     (statics: Language.Statics.Info.t): option(string) =>
   switch (statics) {
-  | InfoExp({term: {term: Ap(_, fn_exp, _), _}, _}) =>
+  | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
     switch (fn_exp.term) {
     | Var(name) => Some(name)
     | Constructor(name, _) => Some(name)
@@ -693,7 +759,7 @@ let get_arg_var_info =
     | _ => None
     };
   switch (statics) {
-  | InfoExp({term: {term: Ap(_, _, arg), _}, _}) =>
+  | InfoExp({user_term: {term: Ap(_, _, arg), _}, _}) =>
     switch (arg.term) {
     | Var(name) => [Some(name)]
     | Parens(inner) => [extract_var(inner)]
@@ -859,7 +925,7 @@ let sample_environment =
 
 /* Sample context menu (dropdown) combining actions and environment */
 let sample_context_menu =
-    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): Node.t => {
+    (~show_env, ctx: probe_ctx, local, view_seg, sample: Sample.t): Node.t => {
   /* Get variable names shown in call display to filter from environment */
   let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
@@ -874,9 +940,10 @@ let sample_context_menu =
           @ (show_env ? ["dropdown-active"] : []),
         ),
       ]
-      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
+      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample)),
     sample_context_actions(
       ctx,
+      local,
       ~can_step_into=can_step_into(ctx.statics),
       sample,
     )
@@ -888,7 +955,7 @@ let sample_context_menu =
 /* Don't redundantly show an env for variable references, patterns */
 let hide_env = (statics: Language.Statics.Info.t): bool =>
   switch (statics) {
-  | InfoExp({term: {term: Var(_), _}, _}) => true
+  | InfoExp({user_term: {term: Var(_), _}, _}) => true
   | InfoPat(_) => true
   | _ => false
   };
@@ -903,22 +970,27 @@ let sample_view =
       sample: Sample.t,
     ) => {
   let hide_env = hide_env(ctx.statics);
+  let has_rich =
+    switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+    | Some(indicated) =>
+      List.exists(r => r.can_handle(ctx.sort, indicated.value), renderers)
+    | None => false
+    };
   let has_dropdown =
-    !(hide_env && ctx.ap_id == None) || sample.call_stack != [];
+    !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
   let show_env = Settings.show_env^ && indicated_sample_id == Some(sample.id);
   div(
     ~attrs=
       [Attr.classes(["sample"])]
       @ (
         has_dropdown
-          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample.id))
-          : []
+          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample)) : []
       ),
     [value_view(ctx, ~num_total, view_seg, local, sample)]
     @ pin_view(ctx, sample)
     @ (
       has_dropdown
-        ? [sample_context_menu(~show_env, ctx, view_seg, sample)] : []
+        ? [sample_context_menu(~show_env, ctx, local, view_seg, sample)] : []
     ),
   );
 };
@@ -1219,7 +1291,7 @@ let key_handler = (ctx: probe_ctx, ~id: Id.t, local, evt) => {
   | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
     switch (indicated_sample(ctx)) {
     | Some(sample) =>
-      let seg = ctx.utility.term_to_seg(Exp(sample.value));
+      let seg = ctx.utility.term_to_seg(~inline=true, Exp(sample.value));
       let str = ctx.utility.seg_to_string(seg);
       let _ =
         Js.Unsafe.global##.navigator##.clipboard##writeText(Js.string(str));
@@ -1253,11 +1325,21 @@ let empty_view = (~id: Id.t, ~settings: settings) =>
   );
 
 let offside_view =
-    (info: info, local, parent, ~settings: settings, view_seg: View.seg) =>
+    (
+      info: info,
+      local,
+      parent,
+      ~settings: settings,
+      ~sort: Sort.t,
+      ~model: probe_model,
+      view_seg: View.seg,
+    ) =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let id = info.id;
     let ap_id = Sample.Focus.cur_var_ap(statics);
+    let active_renderer_id =
+      Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
     let ctx = {
       ap_id,
       statics,
@@ -1265,6 +1347,8 @@ let offside_view =
       dynamics,
       utility: info.utility,
       parent,
+      sort,
+      active_renderer_id,
     };
     /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
@@ -1367,13 +1451,38 @@ let offside_view =
   | _ => empty_view(~id=info.id, ~settings)
   };
 
-let overlay_view = (info: info): Node.t =>
+let get_current = (~settings, info: info) => {
+  switch (info.dynamics, info.statics) {
+  | (Some(di), Some(statics)) =>
+    let ap_id = Sample.Focus.cur_var_ap(statics);
+    /* First try to get the indicated closure */
+    switch (Dynamics.Info.most_aligned_sample(ap_id, di)) {
+    | Some(closure) => Some(closure.value)
+    | None =>
+      /* Fallback: get the first sample */
+      let samples = select_samples(~settings, ~id=info.id, ~ap_id, di);
+      ListUtil.hd_opt(samples) |> Option.map((s: Sample.t) => s.value);
+    };
+  | _ => None
+  };
+};
+
+let overlay_view = (~settings, ~sort, info: info): Node.t =>
   switch (info.dynamics, info.statics) {
   | (Some(dynamics), Some(statics)) =>
     let ap_id = Sample.Focus.cur_var_ap(statics);
+    let has_renderer =
+      switch (get_current(~settings, info)) {
+      | Some(exp) => Option.is_some(find_compatible_renderer(sort, exp))
+      | None => false
+      };
     div(
       ~attrs=[
-        Attr.classes(["overlay"] @ (Option.is_some(ap_id) ? ["ap"] : [])),
+        Attr.classes(
+          ["overlay"]
+          @ (Option.is_some(ap_id) ? ["ap"] : [])
+          @ (has_renderer ? ["has-renderer"] : []),
+        ),
       ],
       [num_samples_view(~ap_id, dynamics)],
     );
@@ -1385,50 +1494,166 @@ type a = action;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
-  let model_of_sexp = _ => ();
+  type model = probe_model;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = (any: Any.t) =>
+  let init = (any: Any.t) => {
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some()
-    | Any(_) => Some() /* Grout don't have sorts */
+    | Pat(_) => Some({active_renderer: None})
+    | Any(_) => Some({active_renderer: None}) /* Grout don't have sorts */
     | _ => None
     };
+  };
 
   let dynamics = true;
+  let elaborate_syntax = false;
 
   let focusable =
     Focusable.{
-      pointer: Some(id => JsUtil.get_elem_by_id(Id.cls(id))##focus),
+      pointer: Some(id => {JsUtil.get_elem_by_id(Id.cls(id))##focus}),
       keyboard: None,
     };
 
   let placeholder = (_, _) => ProjectorCore.Shape.default;
 
-  let update = (_, _, a: action) => {
-    switch (a) {
+  let update = (model: probe_model, _info: info, action: action): probe_model => {
+    switch (action) {
     | ChangeLength(id, len) =>
       SampleLength.set(id, len);
       Settings.version := Settings.version^ + 1;
-    | ToggleWindowMode => Settings.go(ToggleWindow)
+      model;
+    | ToggleWindowMode =>
+      Settings.go(ToggleWindow);
+      model;
     | ToggleShowEnv =>
       Settings.show_env := ! Settings.show_env^;
       Settings.version := Settings.version^ + 1;
+      model;
     | ResetSettings =>
       Settings.reset_mode();
       SampleLength.reset();
+      model;
+    | ToggleModal(pm) =>
+      switch (model.active_renderer) {
+      | None => {active_renderer: pm}
+      | Some(_) => {active_renderer: None}
+      }
+    | RendererAction(pa) =>
+      /* Dispatch through the action's renderer. update_model's internal
+       * Type.Id casts no-op on a model/action mismatch, so an explicit
+       * id check here is redundant. */
+      switch (
+        model.active_renderer,
+        find(RichProbe.renderer_id_of_action(pa)),
+      ) {
+      | (Some(pm), Some(r)) => {
+          active_renderer: Some(r.update_model(pm, pa)),
+        }
+      | _ => model
+      }
     };
   };
 
-  let view = ({info, local, parent, view_seg, _}: View.args(model, action)) => {
+  /* Modal overlay for dynamic renderer display */
+  let modal_overlay =
+      (
+        ~settings,
+        model,
+        info,
+        ~local: action => Ui_effect.t(unit),
+        ~parent,
+        ~view_seg,
+        ~sort,
+      )
+      : list(Node.t) => {
+    switch (model.active_renderer, get_current(~settings, info)) {
+    | (Some(pm), Some(exp)) =>
+      let rid = RichProbe.renderer_id_of_model(pm);
+      /* Find the renderer and check if it can still handle the expression */
+      switch (find(rid)) {
+      | Some(renderer) when renderer.can_handle(sort, exp) =>
+        let rendered =
+          renderer.render_model(
+            pm,
+            ~info,
+            ~exp,
+            ~view_seg,
+            ~local=pa => local(RendererAction(pa)),
+            ~parent,
+            ~sort,
+            (),
+          );
+        switch (rendered) {
+        | None => []
+        | Some(content) => [
+            div(
+              ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
+              [
+                div(
+                  ~attrs=[
+                    Attr.classes(["modal"]),
+                    Attr.on_click(_ => Effect.Stop_propagation),
+                  ],
+                  [
+                    div(
+                      ~attrs=[
+                        Attr.classes(["modal-close-btn"]),
+                        Attr.title("Close"),
+                        Attr.on_click(_ => local(ToggleModal(None))),
+                      ],
+                      [text("×")],
+                    ),
+                    content,
+                  ],
+                ),
+              ],
+            ),
+          ]
+        };
+      | _ => []
+      };
+    | _ => []
+    };
+  };
+  let error = (_, _): option(ProjectorBase.error) => None;
+  let view =
+      (
+        {info, local, parent, view_seg, model, status, _}:
+          View.args(model, action),
+      ) => {
     let settings = Settings.s^;
+    let sort = status.sort;
     View.{
       inline: Node.div([]),
-      overlay: Some(overlay_view(info)),
-      offside: Some(offside_view(~settings, info, local, parent, view_seg)),
+      overlay: Some(overlay_view(~settings, ~sort, info)),
+      offside:
+        Some(
+          div(
+            [
+              offside_view(
+                info,
+                local,
+                parent,
+                ~settings,
+                ~sort,
+                ~model,
+                view_seg,
+              ),
+            ]
+            @ modal_overlay(
+                ~settings,
+                model,
+                info,
+                ~local,
+                ~parent,
+                ~view_seg,
+                ~sort,
+              ),
+          ),
+        ),
+      error: false,
     };
   };
 };

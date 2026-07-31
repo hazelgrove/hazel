@@ -1,130 +1,29 @@
-open Js_of_ocaml;
 open Haz3lcore;
-open Virtual_dom.Vdom;
 open Util;
 open Util.OptUtil.Syntax;
 open WebUtil;
 open Node;
 
-/* Context menu state management - moved here for better encapsulation */
-module Model = {
-  /* Menu state: None = closed, Some(n) = open with item n selected */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = option(int);
+/* Editor right-click context menu.
+ *
+ * State, rendering, and keyboard handling all live in `Util.Menu`. This
+ * file is the editor-specific *contents*: builders for the rows (probe,
+ * statics, goto, introduce, select term, projectors) plus caret-anchored
+ * positioning. Each `*_data` builder returns a `list(Menu.item(Action.t))`
+ * for one menu section; `get_sections` assembles them in order. */
 
-  let is_open = (state: t): bool => state != None;
-
-  /* Actions that can be performed on the context menu */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action =
-    | Toggle
-    | Open
-    | Close
-    | Up
-    | Down
-    | Activate;
-
-  /* Pure update function for context menu state */
-  let update = (action: action, state: t): t =>
-    switch (action) {
-    | Toggle =>
-      switch (state) {
-      | None => Some(0) /* Open with first item selected */
-      | Some(_) => None /* Close */
-      }
-    | Open => Some(0)
-    | Close => None
-    | Up =>
-      switch (state) {
-      | None => None
-      | Some(n) => Some(max(0, n - 1))
-      }
-    | Down =>
-      switch (state) {
-      | None => None
-      | Some(n) => Some(n + 1) /* Clamped by WithContext.update */
-      }
-    | Activate =>
-      /* Activation is handled by the caller which executes the action */
-      state
-    };
-};
+/* Backward-compatible alias so call sites that reference
+ * `ContextMenu.Model.{t, action, Open, Close, Toggle}` keep working. */
+module Model = Menu;
 
 /* Menu dimensions for viewport calculations */
 let menu_height_estimate = 200.0; /* px */
 let menu_width_estimate = 180.0; /* px - based on min-width: 160px + padding */
 
-/* Opening direction types */
-type vertical_dir = [
-  | `Up
-  | `Down
-];
-type horizontal_dir = [
-  | `Left
-  | `Right
-];
-type open_direction = {
-  vertical: vertical_dir,
-  horizontal: horizontal_dir,
-};
-
-/* Available space in each direction from a point */
-type available_space = {
-  above: float,
-  below: float,
-  left: float,
-  right: float,
-};
-
-/* Get available space from a caret point relative to the #main viewport */
-let get_available_space =
-    (
-      point: Point.t,
-      font_metrics: FontMetrics.t,
-      code_container: Js.t(Dom_html.element),
-    )
-    : available_space => {
-  /* Get the #main viewport rect */
-  let main_rect =
-    switch (JsUtil.get_elem_by_id_opt("main")) {
-    | Some(main) => main##getBoundingClientRect
-    | None =>
-      /* Fallback to window dimensions */
-      Js.Unsafe.obj([|
-        ("top", Js.Unsafe.inject(0.0)),
-        ("bottom", Js.Unsafe.inject(Js.Unsafe.global##.innerHeight)),
-        ("left", Js.Unsafe.inject(0.0)),
-        ("right", Js.Unsafe.inject(Js.Unsafe.global##.innerWidth)),
-      |])
-    };
-
-  /* Get code-container rect for coordinate conversion */
-  let container_rect = code_container##getBoundingClientRect;
-
-  /* Calculate pixel position of caret point in viewport coordinates */
-  let caret_left =
-    container_rect##.left +. Float.of_int(point.col) *. font_metrics.col_width;
-  let caret_top =
-    container_rect##.top
-    +. Float.of_int(point.row + 1)
-    *. font_metrics.row_height;
-
-  {
-    above: caret_top -. main_rect##.top,
-    below: main_rect##.bottom -. caret_top,
-    left: caret_left -. main_rect##.left,
-    right: main_rect##.right -. caret_left,
-  };
-};
-
-/* Determine which direction the menu should open based on available space */
-let determine_direction = (space: available_space): open_direction => {
-  vertical: space.below >= menu_height_estimate ? `Down : `Up,
-  horizontal: space.right >= menu_width_estimate ? `Right : `Left,
-};
-
-/* Get CSS class for direction */
-let direction_class = (dir: open_direction): string =>
+/* CSS class for the editor menu's open direction. The column menu has its
+ * own `cm-*` class scheme keyed to th-anchored transforms, so this mapping
+ * stays local to the editor menu. */
+let direction_class = (dir: Menu.open_direction): string =>
   switch (dir) {
   | {vertical: `Down, horizontal: `Right} => "open-down-right"
   | {vertical: `Down, horizontal: `Left} => "open-down-left"
@@ -132,79 +31,35 @@ let direction_class = (dir: open_direction): string =>
   | {vertical: `Up, horizontal: `Left} => "open-up-left"
   };
 
-/* Gap between caret bottom and menu top (in pixels) */
 let caret_menu_gap = 0.0;
 
-/* Calculate the caret's bottom edge offset from row origin.
-   The caret occupies one row height plus a small shadow.
-   Note: shaped carets (chevrons) don't extend beyond the row -
-   the chevron shape stays within the row boundary. */
 let caret_bottom_offset = (font_metrics: FontMetrics.t): float => {
   let row_height = font_metrics.row_height;
-  /* Shadow extends slightly below the caret */
   let shadow = ShardDec.shadow_dy *. row_height;
   row_height +. shadow;
 };
 
-/* Calculate position style based on direction */
 let pos_style =
-    (point: Point.t, font_metrics: FontMetrics.t, direction: open_direction)
+    (
+      point: Point.t,
+      font_metrics: FontMetrics.t,
+      direction: Menu.open_direction,
+    )
     : string => {
   let left = Float.of_int(point.col) *. font_metrics.col_width;
-
-  /* Calculate precise top position based on caret bottom edge */
   let caret_top = Float.of_int(point.row) *. font_metrics.row_height;
   let caret_bottom = caret_top +. caret_bottom_offset(font_metrics);
-
   let top =
     switch (direction.vertical) {
     | `Down => caret_bottom +. caret_menu_gap
-    | `Up => caret_top -. caret_menu_gap /* CSS transform will flip */
+    | `Up => caret_top -. caret_menu_gap
     };
-
   Printf.sprintf("position: absolute; left: %fpx; top: %fpx;", left, top);
 };
 
-/* Menu item data - separates action info from rendering */
-type menu_item_data = {
-  name: string,
-  shortcut: option(string),
-  action: Action.t,
-};
-
-/* Keyboard shortcut display - abstracts the format for easy updates */
-let shortcut_view = (shortcut: string) =>
-  span(~attrs=[clss(["menu-shortcut"])], [text(shortcut)]);
-
-/* Styled colon separator */
-let colon_sep = span(~attrs=[clss(["menu-colon"])], [text(" : ")]);
-
-/* Render a menu item with optional selection highlight */
-let menu_item_view =
-    (
-      ~inject: Action.t => Ui_effect.t(unit),
-      ~is_selected: bool,
-      item: menu_item_data,
-    ) =>
-  div(
-    ~attrs=[
-      Attr.on_pointerdown(_ =>
-        Effect.Many([
-          Effect.Stop_propagation,
-          Effect.Prevent_default,
-          inject(item.action),
-        ])
-      ),
-      clss(["named-menu-item"] @ (is_selected ? ["selected"] : [])),
-    ],
-    [text(item.name)]
-    @ (
-      switch (item.shortcut) {
-      | Some(s) => [shortcut_view(s)]
-      | None => []
-      }
-    ),
-  );
+/* ============================================================
+ * Menu item builders
+ * ============================================================ */
 
 /* Keyboard shortcuts - platform-dependent */
 module Shortcuts = {
@@ -217,8 +72,9 @@ module Shortcuts = {
   let select_current_term = () => Os.is_mac^ ? "⌘D" : "Ctrl+D";
 };
 
-/* Unified probe entry: on definition forms (Let, Test), shows multi probe
-   options; on other terms, shows manual probe options. Both use Cmd+E. */
+let action_item = (~shortcut=?, ~tooltip=?, label, action) =>
+  Menu.action_item(~decoration=?shortcut, ~tooltip?, label, action);
+
 let probe_data =
     (
       ~can_probe: bool,
@@ -226,33 +82,32 @@ let probe_data =
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     )
-    : list(menu_item_data) =>
+    : list(Menu.item(Action.t)) =>
   switch (ci) {
   | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
-      {
-        name:
-          if (is_def) {
-            switch (probe_status) {
-            | Multi => "Remove multi probe"
-            | Manual(_) => "Remove probe"
-            | Statics(_) => "Switch to multi probe"
-            | Ephemeral(_) => "Hide probe"
-            | Suppressed(_) => "Show probe"
-            | Non => "Add multi probe"
-            };
-          } else {
-            switch (probe_status) {
-            | Manual(_) => "Remove probe"
-            | Multi => "Remove probe"
-            | Statics(_) => "Switch to probe"
-            | Ephemeral(_) => "Hide probe"
-            | Suppressed(_) => "Show probe"
-            | Non => "Add probe"
-            };
-          },
-        shortcut: Some(Shortcuts.manual_probe()),
-        action: Probe(ToggleManual),
-      },
+      action_item(
+        ~shortcut=Shortcuts.manual_probe(),
+        if (is_def) {
+          switch (probe_status) {
+          | Multi => "Remove multi probe"
+          | Manual(_) => "Remove probe"
+          | Statics(_) => "Switch to multi probe"
+          | Ephemeral(_) => "Hide probe"
+          | Suppressed(_) => "Show probe"
+          | Non => "Add multi probe"
+          };
+        } else {
+          switch (probe_status) {
+          | Manual(_) => "Remove probe"
+          | Multi => "Remove probe"
+          | Statics(_) => "Switch to probe"
+          | Ephemeral(_) => "Hide probe"
+          | Suppressed(_) => "Show probe"
+          | Non => "Add probe"
+          };
+        },
+        Action.Probe(ToggleManual),
+      ),
     ]
   | _ => []
   };
@@ -263,46 +118,45 @@ let type_annotation_data =
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     )
-    : list(menu_item_data) =>
+    : list(Menu.item(Action.t)) =>
   switch (ci) {
   | Some(InfoExp(_) | InfoPat(_)) when can_type => [
-      {
-        name:
-          switch (probe_status) {
-          | Statics(_) => "Remove statics"
-          | Manual(_)
-          | Multi => "Switch to statics"
-          | Ephemeral(_)
-          | Suppressed(_)
-          | Non => "Add statics"
-          },
-        shortcut: Some(Shortcuts.type_annotation()),
-        action: Probe(ToggleStatics),
-      },
+      action_item(
+        ~shortcut=Shortcuts.type_annotation(),
+        switch (probe_status) {
+        | Statics(_) => "Remove statics"
+        | Manual(_)
+        | Multi => "Switch to statics"
+        | Ephemeral(_)
+        | Suppressed(_)
+        | Non => "Add statics"
+        },
+        Action.Probe(ToggleStatics),
+      ),
     ]
   | _ => []
   };
 
 let jump_to_binding_data =
-    (ci: option(Language.Info.t)): list(menu_item_data) =>
+    (ci: option(Language.Info.t)): list(Menu.item(Action.t)) =>
   switch (OptUtil.and_then(Language.Info.get_binding_site, ci)) {
   | Some(_) => [
-      {
-        name: "Goto definition",
-        shortcut: Some(Shortcuts.goto_definition),
-        action: Move(Goal(BindingSiteOfIndicatedVar)),
-      },
+      action_item(
+        ~shortcut=Shortcuts.goto_definition,
+        "Goto definition",
+        Action.Move(Goal(BindingSiteOfIndicatedVar)),
+      ),
     ]
   | _ => []
   };
 
-/* Check if Introduce is applicable (empty hole with introducable type) */
-let introduce_data = (ci: option(Language.Info.t)): list(menu_item_data) =>
+let introduce_data =
+    (ci: option(Language.Info.t)): list(Menu.item(Action.t)) =>
   switch (ci) {
   | Some(
       Language.Info.InfoExp({
         cls: Exp(EmptyHole),
-        status: NotInHole(Common(Ana(Consistent({ana, _})))),
+        message: Language.Message.Exp(Common(Ana(Consistent({ana, _})))),
         ctx,
         _,
       }),
@@ -311,16 +165,16 @@ let introduce_data = (ci: option(Language.Info.t)): list(menu_item_data) =>
         Introduce.can_introduce_exp_type(
           Language.Typ.weak_head_normalize(ctx, ana),
         ) => [
-      {
-        name: "Introduce",
-        shortcut: Some(Shortcuts.introduce()),
-        action: Introduce,
-      },
+      action_item(
+        ~shortcut=Shortcuts.introduce(),
+        "Introduce",
+        Action.Introduce,
+      ),
     ]
   | Some(
       Language.Info.InfoPat({
         cls: Pat(EmptyHole),
-        status: NotInHole(Ana(Consistent({ana, _}))),
+        message: Language.Message.Pat(Common(Ana(Consistent({ana, _})))),
         ctx,
         _,
       }),
@@ -329,30 +183,24 @@ let introduce_data = (ci: option(Language.Info.t)): list(menu_item_data) =>
         Introduce.can_introduce_pat_type(
           Language.Typ.weak_head_normalize(ctx, ana),
         ) => [
-      {
-        name: "Introduce",
-        shortcut: Some(Shortcuts.introduce()),
-        action: Introduce,
-      },
+      action_item(
+        ~shortcut=Shortcuts.introduce(),
+        "Introduce",
+        Action.Introduce,
+      ),
     ]
   | _ => []
   };
 
-/* Select current term - always available */
-let select_current_term_data = (): list(menu_item_data) => [
-  {
-    name: "Select term",
-    shortcut: Some(Shortcuts.select_current_term()),
-    action: Select(Term(Current)),
-  },
+let select_current_term_data = (): list(Menu.item(Action.t)) => [
+  action_item(
+    ~shortcut=Shortcuts.select_current_term(),
+    "Select term",
+    Action.Select(Term(Current)),
+  ),
 ];
 
-/* Divider element for separating menu sections */
-let divider = div(~attrs=[clss(["menu-divider"])], []);
-
-/* Module for determining applicable projectors */
 module Projectors = {
-  /* Get the term to target for projection from the zipper */
   let target_term = (z: Zipper.t, info_map: Language.Statics.Map.t) =>
     switch (z.selection.content) {
     | [] =>
@@ -368,21 +216,37 @@ module Projectors = {
     | seg => MakeTerm.for_projection(seg)
     };
 
-  /* Check if a projector kind is applicable to the current term */
   let is_applicable =
       (
         z: Zipper.t,
         info_map: Language.Statics.Map.t,
+        ~elaborated: Language.Exp.t,
         kind: ProjectorCore.Kind.t,
       )
       : option(ProjectorCore.Kind.t) => {
     let (module P) = ProjectorInit.to_module(kind);
     let* term = target_term(z, info_map);
-    let+ _ = P.init(term);
-    kind;
+    switch (P.init(term)) {
+    | Some(_) => Some(kind)
+    | None =>
+      if (P.elaborate_syntax) {
+        switch (term) {
+        | Exp(exp) =>
+          let term_id = Language.Exp.rep_id(exp);
+          switch (Language.Exp.find_by_id(term_id, elaborated)) {
+          | Some(elab_exp) =>
+            let+ _ = P.init(Exp(elab_exp));
+            kind;
+          | None => None
+          };
+        | _ => None
+        };
+      } else {
+        None;
+      }
+    };
   };
 
-  /* Get the kind of projector on the indicated piece, if any */
   let indicated_kind = (z: Zipper.t): option(ProjectorCore.Kind.t) => {
     let* {piece, _} = Indicated.for_index(z);
     switch (piece) {
@@ -391,15 +255,19 @@ module Projectors = {
     };
   };
 
-  /* Get keyboard shortcut for a projector kind */
-  let shortcut_of = (kind: ProjectorCore.Kind.t): string =>
+  let shortcut_of =
+      (
+        ~chosen_livelit: option(ProjectorCore.Kind.t),
+        kind: ProjectorCore.Kind.t,
+      )
+      : option(string) =>
     switch (kind) {
-    | Fold => Shortcuts.fold()
-    | Statics => Shortcuts.type_annotation()
-    | _ => Shortcuts.livelit()
+    | Fold => Some(Shortcuts.fold())
+    | Statics => Some(Shortcuts.type_annotation())
+    | _ when chosen_livelit == Some(kind) => Some(Shortcuts.livelit())
+    | _ => None
     };
 
-  /* Get display name for a projector kind */
   let display_name = (kind: ProjectorCore.Kind.t): string =>
     switch (kind) {
     | Fold => "Fold"
@@ -410,57 +278,75 @@ module Projectors = {
     | Card => "Card"
     | TextArea => "Text"
     | Csv => "CSV"
+    | Table => "Table"
     | Livelit => "Livelit"
     | Probe => "Probe" /* shouldn't appear in menu */
     };
 
-  /* Get applicable projector kinds */
   let applicable_kinds =
-      (z: Zipper.t, info_map: Language.Statics.Map.t)
+      (
+        z: Zipper.t,
+        info_map: Language.Statics.Map.t,
+        ~elaborated: Language.Exp.t,
+      )
       : list(ProjectorCore.Kind.t) => {
-    let fold_applicable = is_applicable(z, info_map, Fold);
+    let fold_applicable =
+      is_applicable(z, info_map, ~elaborated, Fold) |> Option.to_list;
     let livelit_applicable =
-      List.find_map(
-        is_applicable(z, info_map),
+      List.filter_map(
+        is_applicable(z, info_map, ~elaborated),
         ProjectorCore.Kind.livelit_projectors,
       );
-    List.filter_map(Fun.id, [fold_applicable, livelit_applicable]);
+    ListUtil.dedup(fold_applicable @ livelit_applicable);
   };
 
-  /* Data-returning version for keyboard navigation */
   let actions_data =
-      (z: Zipper.t, info_map: Language.Statics.Map.t): list(menu_item_data) => {
+      (
+        z: Zipper.t,
+        info_map: Language.Statics.Map.t,
+        ~elaborated: Language.Exp.t,
+      )
+      : list(Menu.item(Action.t)) => {
     let current_kind = indicated_kind(z);
-    let applicable = applicable_kinds(z, info_map);
+    let applicable = applicable_kinds(z, info_map, ~elaborated);
+    let kinds =
+      switch (current_kind) {
+      | Some(k) when !List.mem(k, applicable) => applicable @ [k]
+      | _ => applicable
+      };
+    let chosen_livelit =
+      List.find_opt(
+        kind => List.mem(kind, ProjectorCore.Kind.livelit_projectors),
+        applicable,
+      );
 
-    let make_item_data = (kind: ProjectorCore.Kind.t): menu_item_data => {
+    let make_item = (kind: ProjectorCore.Kind.t): Menu.item(Action.t) => {
       let name = display_name(kind);
-      let shortcut = shortcut_of(kind);
+      let shortcut = shortcut_of(~chosen_livelit, kind);
       let prefix =
         switch (current_kind) {
         | Some(k) when k == kind => "Remove"
         | Some(_) => "Switch to"
         | None => "Add"
         };
-      {
-        name: prefix ++ " " ++ name,
-        shortcut: Some(shortcut),
-        action: Project(SetIndicated(Specific(kind))),
-      };
+      action_item(
+        ~shortcut?,
+        prefix ++ " " ++ name,
+        Action.Project(SetIndicated(Specific(kind))),
+      );
     };
 
-    List.map(make_item_data, applicable);
+    List.map(make_item, kinds);
   };
 };
 
-/* Data-returning version of refractor_actions */
 let refractor_actions_data =
     (
       ~ci: option(Language.Info.t),
       info_map: Language.Statics.Map.t,
       z: Zipper.t,
     )
-    : list(menu_item_data) => {
+    : list(Menu.item(Action.t)) => {
   let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
   let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
   let can_probe = ProbePerform.can_probe(id, info_map);
@@ -470,24 +356,22 @@ let refractor_actions_data =
   @ type_annotation_data(~can_type=can_statics, probe_status, ci);
 };
 
-/*
- * ============================================================================
- * MENU STRUCTURE
- * ============================================================================
+/* ============================================================
+ * Menu assembly
+ * ============================================================
  * To add a new menu item:
- * 1. Create a `*_data` function that returns list(menu_item_data)
+ * 1. Create a `*_data` function returning list(Menu.item(Action.t))
  * 2. Add it to the appropriate section in get_sections below
- * That's it!
- * ============================================================================
- */
+ * ============================================================ */
 
-/* Get menu sections - each section is separated by a divider.
-   This is the single source of truth for menu structure. */
 let get_sections =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t)
-    : list(list(menu_item_data)) => {
+    (
+      ~info_map: Language.Statics.Map.t,
+      ~elaborated: Language.Exp.t,
+      z: Zipper.t,
+    )
+    : list(list(Menu.item(Action.t))) => {
   let ci = Indicated.ci_of(z, info_map);
-
   [
     /* Section 1: Navigation & Selection */
     jump_to_binding_data(ci) @ select_current_term_data(),
@@ -496,152 +380,142 @@ let get_sections =
     /* Section 3: Probes/Statics (refractors) */
     refractor_actions_data(~ci, info_map, z),
     /* Section 4: Projectors (fold, livelits) */
-    Projectors.actions_data(z, info_map),
+    Projectors.actions_data(z, info_map, ~elaborated),
   ]
   |> List.filter(section => section != []);
 };
 
-/* Get all menu items as a flat list */
-let get_all_items =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t): list(menu_item_data) =>
-  List.concat(get_sections(~info_map, z));
-
-/* Get action at index (for Enter key activation) */
-let get_action_at_index =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t, index: int)
-    : option(Action.t) => {
-  let items = get_all_items(~info_map, z);
-  List.nth_opt(items, index) |> Option.map(item => item.action);
-};
-
-/* Operations that need editor context (info_map, zipper).
-   This module consolidates context-menu logic that would otherwise
-   leak into CodeEditable, keeping the coupling explicit. */
-module WithContext = {
-  /* Result of handling a key event */
-  type key_result =
-    | MenuUpdate(Model.action) /* Update menu state */
-    | EditorAction(Action.t) /* Dispatch editor action */
-    | Unhandled; /* Key not handled, fall through */
-
-  /* Update menu state with clamping to valid item range */
-  let update =
-      (~info_map: Language.Statics.Map.t, ~zipper: Zipper.t, action, state)
-      : Model.t => {
-    let new_state = Model.update(action, state);
-    switch (new_state) {
-    | Some(n) =>
-      let item_count = List.length(get_all_items(~info_map, zipper));
-      Some(max(0, min(n, item_count - 1)));
-    | None => None
-    };
-  };
-
-  /* Handle keyboard input when menu is open */
-  let handle_key =
-      (
-        ~info_map: Language.Statics.Map.t,
-        ~zipper: Zipper.t,
-        key: Key.key,
-        state: Model.t,
-      )
-      : key_result =>
-    switch (state) {
-    | None => Unhandled
-    | Some(selected_index) =>
-      switch (key) {
-      | Key.D("Escape") => MenuUpdate(Close)
-      | Key.D("ArrowUp") => MenuUpdate(Up)
-      | Key.D("ArrowDown") => MenuUpdate(Down)
-      | Key.D("Enter") =>
-        switch (get_action_at_index(~info_map, zipper, selected_index)) {
-        | Some(action) => EditorAction(action)
-        | None => MenuUpdate(Close)
-        }
-      | _ => Unhandled
-      }
-    };
-};
-
-let context_menu = menu_items =>
-  NutMenu.submenu(
-    ~tooltip="",
-    ~icon=div([]),
-    [div_c("group", [div_c("contents", menu_items)])],
+/* Flatten sections by interspersing `Menu.Divider` between non-empty ones. */
+let flatten_sections =
+    (sections: list(list(Menu.item(Action.t))))
+    : list(Menu.item(Action.t)) =>
+  List.fold_left(
+    (acc, section) =>
+      switch (acc, section) {
+      | (_, []) => acc
+      | ([], items) => items
+      | (acc, items) => acc @ [Menu.divider] @ items
+      },
+    [],
+    sections,
   );
 
-/* Get direction by querying the DOM for container position */
+let get_all_items =
+    (
+      ~info_map: Language.Statics.Map.t,
+      ~elaborated: Language.Exp.t,
+      z: Zipper.t,
+    )
+    : list(Menu.item(Action.t)) =>
+  flatten_sections(get_sections(~info_map, ~elaborated, z));
+
+/* ============================================================
+ * Update + keyboard
+ * ============================================================ */
+
+module WithContext = {
+  /* Menu.update is pure; render/keyboard clamp internally. The context
+   * params remain in the signature to avoid churning call sites. */
+  let update =
+      (
+        ~info_map as _: Language.Statics.Map.t,
+        ~elaborated as _: Language.Exp.t,
+        ~zipper as _: Zipper.t,
+        action: Menu.action,
+        state: Menu.t,
+      )
+      : Menu.t =>
+    Menu.update(action, state);
+
+  /* Adapter for ContextMenuListener.sync(~handle_key). Returns
+   * `Some(effect)` for handled keys, `None` to let the editor see them. */
+  let handle_listener_key =
+      (
+        ~info_map: Language.Statics.Map.t,
+        ~elaborated: Language.Exp.t,
+        ~zipper: Zipper.t,
+        ~dispatch_menu: Menu.action => Ui_effect.t(unit),
+        ~dispatch_action: Action.t => Ui_effect.t(unit),
+        state: Menu.t,
+        key_str: string,
+      )
+      : option(Ui_effect.t(unit)) => {
+    let items = get_all_items(~info_map, ~elaborated, zipper);
+    Menu.key_dispatcher(
+      ~items,
+      ~dispatch_menu,
+      ~dispatch_action,
+      state,
+      key_str,
+    );
+  };
+};
+
+/* ============================================================
+ * View
+ * ============================================================ */
+
+/* Pick a direction by treating the caret as a zero-size anchor at
+ * (caret_left, caret_bottom) in viewport coordinates, then routing
+ * through the shared `Menu.{space_from, direction_of}` helpers. */
 let get_direction =
-    (point: Point.t, font_metrics: FontMetrics.t): open_direction => {
-  /* Try to find a code-container to calculate viewport position */
+    (point: Point.t, font_metrics: FontMetrics.t): Menu.open_direction => {
   let container_opt =
     try(Some(JsUtil.get_elem_by_selector(".code-container"))) {
     | _ => None
     };
-
   switch (container_opt) {
-  | Some(container) =>
-    let space = get_available_space(point, font_metrics, container);
-    determine_direction(space);
-  | None =>
-    /* Fallback to default direction */
-    {
+  | None => {
       vertical: `Down,
       horizontal: `Right,
     }
+  | Some(container) =>
+    let rect = container##getBoundingClientRect;
+    let caret_left =
+      rect##.left +. Float.of_int(point.col) *. font_metrics.col_width;
+    let caret_top =
+      rect##.top +. Float.of_int(point.row + 1) *. font_metrics.row_height;
+    let space =
+      Menu.space_from(
+        ~anchor_top=caret_top,
+        ~anchor_bot=caret_top,
+        ~anchor_left=caret_left,
+        ~anchor_right=caret_left,
+      );
+    Menu.direction_of(
+      ~menu_height=menu_height_estimate,
+      ~menu_width=menu_width_estimate,
+      space,
+    );
   };
 };
 
 let view =
     (
       ~inject: Action.t => Ui_effect.t(unit),
+      ~inject_menu: Menu.action => Ui_effect.t(unit),
       ~syntax: Haz3lcore.CachedSyntax.t,
       ~info_map: Language.Statics.Map.t,
+      ~elaborated: Language.Exp.t,
       ~font_metrics: FontMetrics.t,
-      ~selected_index: int,
+      ~model: Menu.t,
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
-  let sections = get_sections(~info_map, z);
-
-  /* Clamp selected_index to valid range */
-  let item_count =
-    List.fold_left((acc, s) => acc + List.length(s), 0, sections);
-  let selected_index = max(0, min(selected_index, item_count - 1));
-
-  /* Render all sections with automatic index tracking and dividers */
-  let (menu_items, _) =
-    List.fold_left(
-      ((nodes, idx), section) => {
-        /* Render items in this section with selection highlighting */
-        let section_nodes =
-          List.mapi(
-            (i, item) =>
-              menu_item_view(
-                ~inject,
-                ~is_selected=idx + i == selected_index,
-                item,
-              ),
-            section,
-          );
-        /* Add divider before non-first sections */
-        let with_divider =
-          if (nodes != [] && section_nodes != []) {
-            nodes @ [divider] @ section_nodes;
-          } else {
-            nodes @ section_nodes;
-          };
-        (with_divider, idx + List.length(section));
-      },
-      ([], 0),
-      sections,
+  let items = get_all_items(~info_map, ~elaborated, z);
+  let menu_items =
+    Menu.render(
+      ~inject_action=inject,
+      ~inject_menu,
+      ~item_class="named-menu-item",
+      ~items,
+      model,
     );
 
   if (menu_items == []) {
     div([]);
   } else {
-    /* Calculate opening direction based on viewport space */
     let direction = get_direction(caret_point, font_metrics);
     let dir_class = direction_class(direction);
     let style = pos_style(caret_point, font_metrics, direction);
@@ -651,7 +525,7 @@ let view =
         Attr.classes(["context-menu", "nut-menu", dir_class]),
         Attr.create("style", style),
       ],
-      [context_menu(menu_items)],
+      [div_c("group", [div_c("contents", menu_items)])],
     );
   };
 };

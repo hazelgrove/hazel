@@ -435,7 +435,7 @@ module Focus = {
      applications and applications with non-variable functions (e.g. lambdas). */
   let cur_var_ap = (info: Info.t): option(Id.t) =>
     switch (info) {
-    | InfoExp({term: {term: Ap(_, {term: Var(_), _}, _), _} as ap, _}) =>
+    | InfoExp({user_term: {term: Ap(_, {term: Var(_), _}, _), _} as ap, _}) =>
       Some(Exp.rep_id(ap))
     | _ => None
     };
@@ -528,7 +528,10 @@ module Selection = {
       | Some(pinned_stack) =>
         /* Extract just the Id.t from head of pinned_stack for comparison */
         let pinned_head_id =
-          Option.map((f: stack_frame) => f.id, ListUtil.hd_opt(pinned_stack));
+          Option.map(
+            (f: stack_frame) => f.id,
+            ListUtil.hd_opt(pinned_stack),
+          );
         /* Compare by ID only - pinned_stack may have None for function names
          * but actual samples have real names from evaluation */
         let pinned_ids = ids_of_stack(pinned_stack);
@@ -1073,6 +1076,9 @@ module CallTree = {
     };
   };
 };
+
+/* Backward-compatible alias used by older callsites. */
+module Cursor = Focus;
 
 /* Lightweight capture data for passing through actions.
    In a submodule to avoid type inference issues with Sample.t

@@ -1,5 +1,7 @@
 open StaticsBase;
 
+// TODO[Matt]: I'm not sure I've gotten elaboration right on here.
+
 type tuple_entry =
   | Unlabeled(Typ.t)
   | Labeled(option(string), Typ.t);
@@ -8,6 +10,18 @@ type tuple_type = list(tuple_entry);
 // Constants and helper functions
 let unknown = Unknown(Internal) |> Typ.temp;
 let syn = Unknown(SynSwitch) |> Typ.temp;
+/* Build the elab `Ap` for a builtin call, preserving the source `Ap`'s
+   annotation. The probe pipeline keys targets by the user_term ids stored
+   in info_map, while the evaluator looks up those targets by the elab
+   term's id; a fresh id here would cause the lookup to miss and probes
+   on builtin calls would never fire. */
+let mk_builtin_ap_elab =
+    (~annotation: IdTagged.IdTag.t, fn_info: Info.exp, arg_elab: Exp.t): Exp.t => {
+  term: Ap(Forward, fn_info.elab_term, arg_elab),
+  annotation,
+};
+
+let append_marks_for_term = append_mark_exp;
 
 let typ_entry_to_tuple_entry = (entry: Typ.t) => {
   switch (entry.term) {
@@ -51,13 +65,13 @@ let analyze_argument =
     (
       module S: ExpressionStatics,
       ~ctx,
-      ~error_override,
+      ~error_override: Mark.t,
       ~extract_entries,
       m,
       arg,
     ) => {
   open S;
-  let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
+  let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
   switch (extract_entries(Typ.normalize(ctx, arg_info.ty))) {
   | Success(entries) => (
@@ -67,8 +81,7 @@ let analyze_argument =
     )
   | Unknown => (None, arg_info, m)
   | Failure =>
-    let (_, m) =
-      uexp_to_info_map(~ctx, ~ana=syn, ~override_self=error_override, arg, m);
+    let m = append_mark_exp(m, arg_info.user_term, [error_override]);
     (None, arg_info, m);
   };
 };
@@ -108,19 +121,77 @@ let analyze_table_argument = (module S: ExpressionStatics, ~ctx, m, table) => {
   );
 };
 
+/* Analyze an expression in label position and mark label-sort metadata. */
+let analyze_label_to_info_map =
+    (
+      module S: ExpressionStatics,
+      ~ctx,
+      labmode: Typ.t,
+      label: Exp.t,
+      m: Map.t,
+    ) => {
+  let lab_name =
+    switch (label.term) {
+    | Label(lab) => Some(lab)
+    | EmptyHole
+    | _ => None
+    };
+  let (i, i_elab, m) = S.uexp_to_info_map(~ctx, ~ana=labmode, label, m);
+  let m =
+    switch (label.term) {
+    | Label(name) =>
+      /* `uexp_to_info_map` defaults Label(name) to UnexpectedLabelSort with
+         elab_syn_ty=Unknown(Internal) because most occurrences of a bare label
+         are wrong. In label position, the correct self type is Label(name);
+         clear the mark AND patch the synthesized type so the cursor inspector
+         shows Label(name) rather than Unknown(Internal). */
+      let m = set_marks_exp(m, label, []);
+      let m = patch_elab_syn_ty_exp(m, label, Label(name) |> Typ.temp);
+      set_label_sort_exp(m, label, true);
+    | EmptyHole => set_label_sort_exp(m, label, true)
+    | _ =>
+      append_mark_exp(m, label, [BadLabel(Exp(label))])
+      |> set_label_sort_exp(_, label, true)
+    };
+  (
+    lab_name,
+    {
+      ...i,
+      label_sort: true,
+    },
+    i_elab,
+    m,
+  );
+};
+
 let labels_to_info_map =
     (
       module S: ExpressionStatics,
-      expected_labels: option(list(string)),
+      ~ctx: Ctx.t,
+      ~expected_labels: option(list(string))=?,
       labs: list(Exp.t),
       m: Map.t,
     )
     : (list(option(string)), Map.t) => {
   List.fold_left(
     ((labels: list(option(string)), m: Map.t), label) => {
-      let (label, _, m) =
-        S.label_to_info_map(expected_labels, syn, label, m);
-      (labels @ [label], m);
+      let (lab_name, lab_info, _, m) =
+        analyze_label_to_info_map((module S), ~ctx, syn, label, m);
+      /* If expected_labels provided and this label isn't in the set,
+         patch as InvalidLabel and suppress the label name */
+      let (lab_name, m) =
+        switch (label.term, expected_labels, lab_name) {
+        | (Label(name), Some(expected), _) when !List.mem(name, expected) =>
+          let m =
+            set_marks_exp(
+              m,
+              lab_info.user_term,
+              lab_info.marks @ [InvalidLabel(name, expected)],
+            );
+          (None, m);
+        | _ => (lab_name, m)
+        };
+      (labels @ [lab_name], m);
     },
     ([], m),
     labs,
@@ -129,11 +200,21 @@ let labels_to_info_map =
 
 // Common fallback for invalid arguments
 let invalid_args_fallback =
-    (module S: ExpressionStatics, ~ctx, ~fn_info: Info.exp, ~error, m, arg) => {
+    (
+      module S: ExpressionStatics,
+      ~annotation: IdTagged.IdTag.t,
+      ~ctx,
+      ~fn_info: Info.exp,
+      ~error,
+      m,
+      arg,
+    ) => {
   S.(
-    let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
-    add'(
-      ~self=error,
+    let (arg_info, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
+    add(
+      ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg_elab),
+      ~elab_syn_ty=unknown,
+      ~marks=[error],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
       m,
     );
@@ -144,6 +225,7 @@ let invalid_args_fallback =
 let handle_tuple_operation =
     (
       module S: ExpressionStatics,
+      ~annotation: IdTagged.IdTag.t,
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -154,45 +236,56 @@ let handle_tuple_operation =
   S.(
     switch (arg.term) {
     | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
+      /* Ensure all source tuple nodes get baseline info entries before
+         specialized builtin tuple/label analysis rewrites parts of the arg. */
+      let (_, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
       let (labeled_tup_info: option(tuple_type), tup_info, m: Map.t) =
         analyze_tuple_argument((module S), ~ctx, m, tup);
 
       let expected_labels = Option.map(extract_labels, labeled_tup_info);
       let (labels, m) =
-        labels_to_info_map((module S), expected_labels, labs, m);
+        labels_to_info_map((module S), ~ctx, ~expected_labels?, labs, m);
 
       let args_typ =
         Typ.to_product([tup_info.ty] @ List.map(__ => unknown, labs));
 
       let m =
-        add_info(
+        Map.add_info(
           arg.annotation.ids,
-          InfoExp(
-            Info.derived_exp(
-              ~uexp=arg,
-              ~ctx,
-              ~ana=syn,
-              ~ancestors,
-              ~self=Common(Just(args_typ)),
-              ~co_ctx=CoCtx.empty,
-              ~label_inference=None,
-              ~inferred_label=None,
-              ~dot_labels=[],
-              ~label_sort=false,
-            ),
-          ),
+          InfoExp({
+            cls: Cls.Exp(Exp.cls_of_term(arg.term)),
+            elab_syn_ty: args_typ,
+            marks: [],
+            ty: fixed_typ(ctx, syn, args_typ),
+            ana: syn,
+            message: Message.Exp(Message.Default),
+            warnings: [],
+            ctx,
+            co_ctx: CoCtx.empty,
+            probe_targets: SubexpProbeTargets.empty,
+            ancestors,
+            user_term: arg,
+            elab_term: arg,
+            label_inference: None,
+            inferred_label: None,
+            label_sort: false,
+            dot_labels: [],
+          }),
           m,
         );
 
       let result_type = compute_result_type(labeled_tup_info, labels);
-      add'(
-        ~self=Common(Just(result_type)),
+      add(
+        ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg_elab),
+        ~elab_syn_ty=result_type,
+        ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
         m,
       );
     | _ =>
       invalid_args_fallback(
         (module S),
+        ~annotation,
         ~ctx,
         ~fn_info,
         ~error=BuiltinError(AtLeast2Arguments),
@@ -206,8 +299,7 @@ let handle_tuple_operation =
 let project_labels_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+      ~annotation: IdTagged.IdTag.t,
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -216,6 +308,7 @@ let project_labels_statics =
     ) => {
   handle_tuple_operation(
     (module S),
+    ~annotation,
     ~fn_info,
     ~ancestors,
     ~ctx,
@@ -243,8 +336,7 @@ let project_labels_statics =
 let select_labels_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+      ~annotation: IdTagged.IdTag.t,
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -253,6 +345,7 @@ let select_labels_statics =
     ) => {
   handle_tuple_operation(
     (module S),
+    ~annotation,
     ~fn_info,
     ~ancestors,
     ~ctx,
@@ -282,8 +375,7 @@ let select_labels_statics =
 let omit_labels_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+      ~annotation: IdTagged.IdTag.t,
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -292,6 +384,7 @@ let omit_labels_statics =
     ) => {
   handle_tuple_operation(
     (module S),
+    ~annotation,
     ~fn_info,
     ~ancestors,
     ~ctx,
@@ -329,8 +422,7 @@ let omit_labels_statics =
 let group_by_label_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+      ~annotation: IdTagged.IdTag.t,
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -340,31 +432,47 @@ let group_by_label_statics =
   S.(
     switch (arg.term) {
     | Tuple([table, pivot_label]) =>
+      let (_, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
       let (row_info: option(tuple_type), table_info, m) =
         analyze_table_argument((module S), ~ctx, m, table);
 
       let expected_labels = Option.map(extract_labels, row_info);
-      let (label, _, m) =
-        label_to_info_map(expected_labels, syn, pivot_label, m);
+      let (label, _, _, m) =
+        analyze_label_to_info_map((module S), ~ctx, syn, pivot_label, m);
+      let m =
+        switch (pivot_label.term, expected_labels) {
+        | (Label(name), Some(expected)) when !List.mem(name, expected) =>
+          append_mark_exp(m, pivot_label, [InvalidLabel(name, expected)])
+        | _ => m
+        };
 
       let m =
-        add_info(
+        Map.add_info(
           arg.annotation.ids,
-          InfoExp(
-            Info.derived_exp(
-              ~uexp=arg,
-              ~ctx,
-              ~ana=syn,
-              ~co_ctx=CoCtx.empty,
-              ~ancestors,
-              ~self=
-                Common(Just(Prod([table_info.ty, unknown]) |> Typ.temp)),
-              ~label_inference=None,
-              ~inferred_label=None,
-              ~dot_labels=[],
-              ~label_sort=false,
-            ),
-          ),
+          InfoExp({
+            cls: Cls.Exp(Exp.cls_of_term(arg.term)),
+            elab_syn_ty: Prod([table_info.ty, unknown]) |> Typ.temp,
+            marks: [],
+            ty:
+              fixed_typ(
+                ctx,
+                syn,
+                Prod([table_info.ty, unknown]) |> Typ.temp,
+              ),
+            ana: syn,
+            message: Message.Exp(Message.Default),
+            warnings: [],
+            ctx,
+            co_ctx: CoCtx.empty,
+            probe_targets: SubexpProbeTargets.empty,
+            ancestors,
+            user_term: arg,
+            elab_term: arg,
+            label_inference: None,
+            inferred_label: None,
+            label_sort: false,
+            dot_labels: [],
+          }),
           m,
         );
 
@@ -386,25 +494,25 @@ let group_by_label_statics =
       let m =
         switch (pivot_type) {
         | Some(ty) when !Typ.is_consistent(ctx, ty, Typ.temp(Atom(String))) =>
-          uexp_to_info_map(
-            ~ctx,
-            ~label_sort=true,
-            ~override_self=BuiltinError(PivotLabelIsNotString(ty)),
-            pivot_label,
+          append_marks_for_term(
             m,
+            pivot_label,
+            [BuiltinError(PivotLabelIsNotString(ty))],
           )
-          |> snd
         | _ => m
         };
 
-      add'(
-        ~self=Common(Just(unknown)),
+      add(
+        ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg_elab),
+        ~elab_syn_ty=unknown,
+        ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
         m,
       );
     | _ =>
       invalid_args_fallback(
         (module S),
+        ~annotation,
         ~ctx,
         ~fn_info,
         ~error=BuiltinError(Exactly2Arguments),
@@ -418,8 +526,7 @@ let group_by_label_statics =
 let to_lvs_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+      ~annotation: IdTagged.IdTag.t,
       ~fn_info: Info.exp,
       ~ancestors as _: list(Id.t),
       ~ctx: Ctx.t,
@@ -427,8 +534,8 @@ let to_lvs_statics =
       arg: Exp.t,
     ) => {
   open S;
-  let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_info.ty);
-  let (arg, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
+  let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+  let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
   switch (Typ.normalize(ctx, arg.ty).term) {
   | Prod(entries) =>
@@ -445,39 +552,43 @@ let to_lvs_statics =
         )
         |> Option.value(~default=unknown);
 
-      add'(
-        ~self=
-          Common(
-            Just(
-              IdTagged.FreshGrammar.Typ.(
-                list(
-                  prod([
-                    tup_label(label("label"), string()),
-                    tup_label(label("value"), joined_typ),
-                  ]),
-                )
-              ),
-            ),
+      add(
+        ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
+        ~elab_syn_ty=
+          IdTagged.FreshGrammar.Typ.(
+            list(
+              prod([
+                tup_label(label("label"), string()),
+                tup_label(label("value"), joined_typ),
+              ]),
+            )
           ),
+        ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       );
     | _ =>
-      add'(
-        ~self=BuiltinError(ToLvsMissingLabelsOnTuple(ty_out)),
+      add(
+        ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
+        ~elab_syn_ty=ty_out,
+        ~marks=[BuiltinError(ToLvsMissingLabelsOnTuple(ty_out))],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       )
     };
   | Unknown(_) =>
-    add'(
-      ~self=Common(Just(ty_out)),
+    add(
+      ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
+      ~elab_syn_ty=ty_out,
+      ~marks=[],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
       m,
     )
   | _ =>
-    add'(
-      ~self=BuiltinError(ToLvsMissingLabelsOnTuple(ty_out)),
+    add(
+      ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
+      ~elab_syn_ty=ty_out,
+      ~marks=[BuiltinError(ToLvsMissingLabelsOnTuple(ty_out))],
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
       m,
     )
@@ -487,8 +598,7 @@ let to_lvs_statics =
 let omit_all_labels_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
+      ~annotation: IdTagged.IdTag.t,
       ~fn_info: Info.exp,
       ~ancestors as _: list(Id.t),
       ~ctx: Ctx.t,
@@ -496,8 +606,8 @@ let omit_all_labels_statics =
       arg: Exp.t,
     ) => {
   S.(
-    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_info.ty);
-    let (arg, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
+    let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+    let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
     switch (Typ.normalize(ctx, arg.ty).term) {
     | Prod(entries) =>
@@ -511,20 +621,26 @@ let omit_all_labels_statics =
           entries,
         );
 
-      add'(
-        ~self=Common(Just(Typ.to_product(entries))),
+      add(
+        ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
+        ~elab_syn_ty=Typ.to_product(entries),
+        ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       );
     | Unknown(_) =>
-      add'(
-        ~self=Common(Just(ty_out)),
+      add(
+        ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
+        ~elab_syn_ty=ty_out,
+        ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       )
     | _ =>
-      add'(
-        ~self=BuiltinError(ArgumentMustBeTuple),
+      add(
+        ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
+        ~elab_syn_ty=unknown,
+        ~marks=[BuiltinError(ArgumentMustBeTuple)],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       )
@@ -535,26 +651,27 @@ let omit_all_labels_statics =
 let validate_label_arguments =
     (
       module S: ExpressionStatics,
-      ~ctx as _: Ctx.t,
-      expected_labels: option(list(string)),
+      ~ctx: Ctx.t,
+      ~expected_labels: option(list(string))=?,
       args: list(Exp.t),
       m: Map.t,
     )
     : (list(option(string)), Map.t) => {
-  List.fold_left(
-    ((labels: list(option(string)), m: Map.t), arg) => {
-      let (label, _, m) = S.label_to_info_map(expected_labels, syn, arg, m);
-      (labels @ [label], m);
-    },
-    ([], m),
-    args,
-  );
+  labels_to_info_map((module S), ~ctx, ~expected_labels?, args, m);
 };
+
+let analyze_args_syn =
+    (module S: ExpressionStatics, ~ctx: Ctx.t, args, m: Map.t) =>
+  map_m(
+    (arg, m) =>
+      S.uexp_to_info_map(~ctx, ~ana=syn, arg, m)
+      |> (((info, _, m)) => (info, m)),
+    args,
+    m,
+  );
 
 let custom_statics_deferred_ap =
     (
-      ~inferred_label as _,
-      ~label_sort as _,
       ~ctx: Ctx.t,
       ~ancestors as _,
       ~fn_info: Info.exp,
@@ -567,32 +684,34 @@ let custom_statics_deferred_ap =
     switch (kind, args) {
     | (ProjectLabels | SelectLabels | OmitLabels, [tup, ...labels])
         when List.length(labels) > 0 =>
-      let (tup_info, m) = uexp_to_info_map(~ctx, ~ana=syn, tup, m);
-      let (_, m) =
-        validate_label_arguments((module S), ~ctx, None, labels, m);
+      let (tup_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, tup, m);
+      let (_, m) = validate_label_arguments((module S), ~ctx, labels, m);
 
-      add'(
-        ~self=Common(Just(Arrow(unknown, unknown) |> Typ.temp)),
+      add(
+        ~elab_syn_ty=Arrow(unknown, unknown) |> Typ.temp,
+        ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
         m,
       );
 
     | (GroupByLabel, [table, pivot_label]) =>
-      let (table_info, m) = uexp_to_info_map(~ctx, ~ana=syn, table, m);
+      let (table_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, table, m);
       let (_, m) =
-        validate_label_arguments((module S), ~ctx, None, [pivot_label], m);
+        validate_label_arguments((module S), ~ctx, [pivot_label], m);
 
-      add'(
-        ~self=Common(Just(unknown)),
+      add(
+        ~elab_syn_ty=unknown,
+        ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
         m,
       );
 
     | (ToLvs | OmitAllLabels, [arg]) =>
-      let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
+      let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
-      add'(
-        ~self=Common(Just(unknown)),
+      add(
+        ~elab_syn_ty=unknown,
+        ~marks=[],
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
         m,
       );
@@ -600,16 +719,7 @@ let custom_statics_deferred_ap =
     // Arity error cases
     | (ProjectLabels | SelectLabels | OmitLabels, [])
     | (ProjectLabels | SelectLabels | OmitLabels, [_]) =>
-      let (args_info, m) =
-        List.fold_left(
-          ((acc_info, acc_m), arg) => {
-            let (info, new_m) =
-              S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
-            (acc_info @ [info], new_m);
-          },
-          ([], m),
-          args,
-        );
+      let (args_info, m) = analyze_args_syn((module S), ~ctx, args, m);
       let combined_co_ctx =
         List.fold_left(
           (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
@@ -617,8 +727,9 @@ let custom_statics_deferred_ap =
           args_info,
         );
 
-      add'(
-        ~self=BuiltinError(AtLeast2Arguments),
+      add(
+        ~elab_syn_ty=unknown,
+        ~marks=[BuiltinError(AtLeast2Arguments)],
         ~co_ctx=combined_co_ctx,
         m,
       );
@@ -626,16 +737,7 @@ let custom_statics_deferred_ap =
     | (GroupByLabel, [])
     | (GroupByLabel, [_])
     | (GroupByLabel, [_, _, ..._]) =>
-      let (args_info, m) =
-        List.fold_left(
-          ((acc_info, acc_m), arg) => {
-            let (info, new_m) =
-              S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
-            (acc_info @ [info], new_m);
-          },
-          ([], m),
-          args,
-        );
+      let (args_info, m) = analyze_args_syn((module S), ~ctx, args, m);
       let combined_co_ctx =
         List.fold_left(
           (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
@@ -643,24 +745,16 @@ let custom_statics_deferred_ap =
           args_info,
         );
 
-      add'(
-        ~self=BuiltinError(Exactly2Arguments),
+      add(
+        ~elab_syn_ty=unknown,
+        ~marks=[BuiltinError(Exactly2Arguments)],
         ~co_ctx=combined_co_ctx,
         m,
       );
 
     // Fallback for other cases (including to_lvs/omit_all_labels with wrong arity)
     | _ =>
-      let (args_info, m) =
-        List.fold_left(
-          ((acc_info, acc_m), arg) => {
-            let (info, new_m) =
-              S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
-            (acc_info @ [info], new_m);
-          },
-          ([], m),
-          args,
-        );
+      let (args_info, m) = analyze_args_syn((module S), ~ctx, args, m);
       let combined_co_ctx =
         List.fold_left(
           (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
@@ -673,8 +767,9 @@ let custom_statics_deferred_ap =
         |> List.map(_ => unknown)
         |> Typ.to_product;
 
-      add'(
-        ~self=Common(Just(Arrow(ty_in', unknown) |> Typ.temp)),
+      add(
+        ~elab_syn_ty=Arrow(ty_in', unknown) |> Typ.temp,
+        ~marks=[],
         ~co_ctx=combined_co_ctx,
         m,
       );

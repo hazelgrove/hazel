@@ -7,6 +7,7 @@ type cls =
   | Deferral
   | Undefined
   | Atom(Atom.cls)
+  | DrvQuote
   | ListLit
   | Constructor
   | Fun
@@ -77,6 +78,17 @@ let rep_id: t => Id.t = IdTagged.rep_id;
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
+let strip_projectors =
+  map_term(
+    ~f_exp=
+      (continue, exp) =>
+        switch (term_of(exp)) {
+        | Projector(_, e) => continue(e)
+        | _ => continue(exp)
+        },
+    _,
+  );
+
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
   | Invalid(_) => Invalid
@@ -86,6 +98,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Deferral(_) => Deferral
   | Undefined => Undefined
   | Atom(c) => Atom(Atom.cls_of_t(c))
+  | DrvQuote(_) => DrvQuote
   | ListLit(_) => ListLit
   | Constructor(_) => Constructor
   | Fun(_) => Fun
@@ -146,6 +159,7 @@ let show_cls: cls => string =
   | Atom(String) => "String literal"
   | Atom(Nat) => "Natural number literal"
   | Atom(SInt) => "System integer literal"
+  | DrvQuote => "Derivation-Mode Quotation"
   | ListLit => "List literal"
   | Constructor => "Constructor"
   | Fun => "Function literal"
@@ -240,6 +254,7 @@ let rec is_fun = (e: t) => {
   | Deferral(_)
   | Undefined
   | Atom(_)
+  | DrvQuote(_)
   | Label(_)
   | ExplicitNonlabel
   | ListLit(_)
@@ -306,6 +321,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Deferral(_)
     | Undefined
     | Atom(_)
+    | DrvQuote(_)
     | Label(_)
     | ExplicitNonlabel
     | ListLit(_)
@@ -405,7 +421,8 @@ let rec get_num_of_functions = (e: t) =>
     | LivelitName(_)
     | Constructor(_)
     | Module(_)
-    | ModuleExp(_) => None
+    | ModuleExp(_)
+    | DrvQuote(_) => None
     };
   };
 
@@ -461,3 +478,34 @@ let rec get_fn_def_id = (e: t) =>
   };
 
 let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));
+
+let find_by_id = (id: Id.t, exp: t): option(t) => {
+  module M = {
+    exception Found(t);
+  };
+  switch (
+    map_term(
+      ~f_exp=
+        (cont, exp) =>
+          if (rep_id(exp) == id) {
+            raise(M.Found(exp));
+          } else {
+            cont(exp);
+          },
+      exp,
+    )
+  ) {
+  | exception (M.Found(x)) => Some(x)
+  | _ => None
+  };
+};
+
+/* Inject a function name into a Fun or TypFun expression. */
+let add_name = (name: option(string), exp: t): t => {
+  let (term, rewrap) = unwrap(exp);
+  switch (term) {
+  | Fun(p, e, t, _) => Fun(p, e, t, name) |> rewrap
+  | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
+  | _ => exp
+  };
+};

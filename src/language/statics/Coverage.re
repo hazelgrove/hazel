@@ -133,6 +133,7 @@ module Ctr = {
     | Atom(Float)
     | Atom(Nat)
     | Atom(String)
+    | DrvQuoteTy(_)
     | Arrow(_)
     | Poly(_)
     | ProdProjection(_)
@@ -331,9 +332,9 @@ module UnseenPatternList: UnseenPatternList = {
       let (first_n, tl) = partition_first_n(num_elts, pat_list, []);
 
       cons_pat_t(tuple(List.rev(first_n)), {pat: tl});
-    | TupLabel(body, _) =>
+    | TupLabel(label_pos, _) =>
       // associate the tuple's labels to element in the unseen list
-      switch (IdTagged.term_of(body)) {
+      switch (IdTagged.term_of(label_pos)) {
       | Label(pat_label) =>
         switch (pat_list) {
         | [] =>
@@ -341,7 +342,8 @@ module UnseenPatternList: UnseenPatternList = {
         | [hd, ...tl] =>
           cons_pat_t(tup_label(label(pat_label), hd), {pat: tl})
         }
-      | _ => failwith("TupLabel without a label in unseen pattern list")
+      // No label (e.g. label_pos is EmptyHole) — skip this column.
+      | _ => unseen_pattern
       }
     | List(_) =>
       switch (ctr.ctr) {
@@ -419,6 +421,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Arrow(_)
     | Poly(_)
     | ProofOf(_)
+    | DrvQuoteTy(_)
     | Var(_) => unseen_pattern
     | Parens(_)
     | Projector(_)
@@ -557,6 +560,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Arrow(_)
     | Poly(_)
     | ProofOf(_)
+    | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)
@@ -621,6 +625,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Arrow(_)
     | Poly(_)
     | ProofOf(_)
+    | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)
@@ -1077,14 +1082,16 @@ module CheckMatrix: CheckMatrix = {
     switch (col_tys) {
     | [] => failwith("Empty column types.")
     | [first_col_ty, ...rem_col_tys] =>
-      if (Typ.is_void(first_col_ty)) {
+      switch (Ctr.all_ctrs_of_typ(first_col_ty)) {
+      | Finite(map) when Ctr.Map.is_empty(map) =>
+        /* No constructors (e.g. Void): no value of this type can exist, so
+           every row is unreachable and the match is vacuously exhaustive. */
         {
           is_exhaustive: true,
           unseen_pattern: UnseenPatternList.empty,
           redundant_rows: List.init(List.length(m), i => i),
-        };
-      } else {
-        let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
+        }
+      | all_ctrs =>
         let Submatrices.{
           ctrs,
           first_col_exhaustive,

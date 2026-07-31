@@ -7,15 +7,16 @@ let from_string =
     : option(
         (ProblemCollection.problem_context, list(ProblemCollection.problem)),
       ) =>
-  switch (Haz3lcore.Parser.to_zipper(s)) {
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, s)) {
   | None => None
   | Some(z) =>
-    let editor = Haz3lcore.Editor.Model.mk(z);
+    let editor = Haz3lcore.Editor.Model.mk(z, ~root=Exp);
     let statics =
       Haz3lcore.CachedStatics.init(
         ~settings=Language.CoreSettings.on,
         ~is_dynamic_term=false,
         ~stitch=Fun.id,
+        ~root=Exp,
         editor.state.zipper,
       );
     let ctx =
@@ -48,7 +49,8 @@ let has_structural =
     (p: ProblemCollection.problem) =>
       switch (p.source) {
       | Structural(d) => d == desc
-      | FromInfo(_) => false
+      | FromInfo(_)
+      | FromProjector(_) => false
       },
     problems,
   );
@@ -57,10 +59,15 @@ let has_multihole_error = (problems: list(ProblemCollection.problem)) =>
   List.exists(
     (p: ProblemCollection.problem) =>
       switch (p.source) {
-      | FromInfo(InfoExp({status: InHole(Common(NoType(MultiHole))), _})) =>
-        true
-      | FromInfo(InfoPat({status: InHole(Common(NoType(MultiHole))), _})) =>
-        true
+      | FromInfo(ci) =>
+        List.exists(
+          m =>
+            switch (m) {
+            | Language.Mark.IsMulti => true
+            | _ => false
+            },
+          Language.Info.marks_of(ci),
+        )
       | _ => false
       },
     problems,
@@ -129,6 +136,39 @@ let trailing_var_after_let = () => {
   check(bool, "has multihole error", true, has_multihole_error(problems));
 };
 
+let projector_error_collection = () => {
+  /* Synthesize a projector error in the problem context and verify it
+   * surfaces as a Projector-category problem. */
+  let (ctx, _) = from_string_exn("1");
+  let err: Haz3lcore.ProjectorBase.error = {message: "synthetic error"};
+  let fake_id = Haz3lcore.Id.mk();
+  let ctx_with_err = {
+    ...ctx,
+    projector_errors: [(fake_id, Language.ProjectorKind.Fold, err)],
+  };
+  let problems =
+    Haz3lcore.ProblemCollection.collect_all_problems(ctx_with_err);
+  check(
+    int,
+    "one projector-category problem",
+    1,
+    count_by_category(Projector, problems),
+  );
+  check(
+    bool,
+    "problem source is FromProjector",
+    true,
+    List.exists(
+      (p: Haz3lcore.ProblemCollection.problem) =>
+        switch (p.source) {
+        | FromProjector(_, e) => e.message == "synthetic error"
+        | _ => false
+        },
+      problems,
+    ),
+  );
+};
+
 let tests = (
   "ProblemCollection",
   [
@@ -138,5 +178,10 @@ let tests = (
     test_case("Incomplete tile", `Quick, incomplete_tile),
     test_case("Trailing unbound var", `Quick, trailing_unbound_var),
     test_case("Trailing var after let", `Quick, trailing_var_after_let),
+    test_case(
+      "Projector errors surface as problems",
+      `Quick,
+      projector_error_collection,
+    ),
   ],
 );

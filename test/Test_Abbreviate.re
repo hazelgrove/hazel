@@ -4,10 +4,14 @@ open Language;
 
 let ellipsis = "…";
 
-/* Settings matching what ProbeProj uses for rendering abbreviated terms */
+/* Settings matching what ProbeProj uses for rendering abbreviated terms.
+   project_tables is disabled here to mirror ProjectorInfo.utility.term_to_seg —
+   auto-table-projection is a downstream display concern and would wrap output
+   in `^^table(...)`, defeating Abbreviate's budget bound. */
 let abbrev_settings: ExpToSegment.Settings.t = {
   ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
   show_unknown_as_hole: false,
+  project_tables: false,
 };
 
 let exp_to_seg = ExpToSegment.exp_to_segment(~settings=abbrev_settings);
@@ -20,7 +24,7 @@ let render_exp = (exp: Exp.t): string => {
 
 /* Parse source string, abbreviate at given budget, render to string */
 let abbreviate_and_render = (~available: int, src: string): string => {
-  switch (Parser.to_term(src)) {
+  switch (Parser.to_term(src, ~root=Exp)) {
   | Some(term) =>
     let (abbreviated, _length) = Abbreviate.abbreviate_exp(~available, term);
     render_exp(abbreviated);
@@ -35,7 +39,7 @@ let rendered_length = (~available: int, src: string): int => {
 
 /* Full-length render (no abbreviation) */
 let full_render = (src: string): string => {
-  switch (Parser.to_term(src)) {
+  switch (Parser.to_term(src, ~root=Exp)) {
   | Some(term) => render_exp(term)
   | None => failwith("Failed to parse: " ++ src)
   };

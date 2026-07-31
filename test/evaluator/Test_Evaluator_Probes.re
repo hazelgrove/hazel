@@ -54,10 +54,11 @@ let format_sample_value = (value: Exp.t): string => {
  * Uses TermData to look up probe positions. */
 let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
   /* Parse to zipper */
-  switch (Parser.to_zipper(code)) {
+  switch (Parser.to_zipper(~root=Exp, code)) {
   | None => IntMap.empty
   | Some(z) =>
-    let MakeTerm.{term, term_data, _} = MakeTerm.from_zip_for_sem(z);
+    let MakeTerm.{term, term_data, _} =
+      MakeTerm.from_zip_for_sem(z, ~root=Exp);
     /* Extract probe IDs directly from zipper's refractors.
      * Map values to unit since we only need the IDs as keys. */
     let probe_ids =
@@ -66,16 +67,19 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
         Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
         Id.Map.map(_ => (), z.refractors.multis.ephemerals),
       );
-    let info_map =
+    let (info_map, elaborated) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
     let targets: Sample.targets =
       Id.Map.fold(
         (id, (), acc) => {
           let refs =
-            switch (Statics.Map.lookup(id, info_map)) {
-            | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id)
-            | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
-            | _ => []
+            switch (Statics.Map.lookup_exp(id, info_map)) {
+            | Some(_) => Statics.Map.refs_in(info_map, id)
+            | None =>
+              switch (Statics.Map.lookup_pat(id, info_map)) {
+              | Some(_) => Statics.Map.bound_in(info_map, id)
+              | None => []
+              }
             };
           let spec: Sample.capture_spec = {refs: refs};
           Id.Map.add(id, spec, acc);
@@ -84,8 +88,6 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
         Id.Map.empty,
       );
 
-    /* Elaborate and evaluate */
-    let elaborated = Elaborator.elaborate(info_map, term) |> fst;
     let (_, state) =
       Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
     let probes = EvaluatorState.get_probes(state);
@@ -254,16 +256,6 @@ let operator_tests = [
     "Probe on string concat",
     {|^^probe("hello" ++ " world")|},
     [(0, ["\"hello world\""])],
-  ),
-  probe_line_test(
-    "Probe on string equality",
-    {|^^probe("abc" $== "abc")|},
-    [(0, ["true"])],
-  ),
-  probe_line_test(
-    "Probe on string inequality",
-    {|^^probe("abc" $== "def")|},
-    [(0, ["false"])],
   ),
   probe_line_test(
     "Probe on boolean and",
@@ -956,6 +948,79 @@ g(f(x))|},
     {|^^probe(case 1 end)|},
     [(0, ["case 1 end"])],
   ),
+  /* wrap_closure re-evaluation bug: when a recursive function returns an
+   * indeterminate value (e.g. if with hole condition), and the caller's
+   * let-destructuring fails (IndetMatch), wrap_closure_when_done wraps in
+   * Closure and re-evaluates. The re-evaluation traverses into the return
+   * value from the deeper call, re-evaluating probed sub-expressions at
+   * the wrong call stack. This produces spurious samples.
+   *
+   * Minimal case: partition_at([5, 10], 7)
+   * - partition_at([10], 7): let succeeds, evaluates `10 < ?` → 1 sample
+   * - partition_at([5, 10], 7): let fails (IndetMatch), `5 < ?` never
+   *   evaluated → should be 0 samples at this level
+   * Total expected: 1 sample for `hd < ?`. Bug produces 2. */
+  probe_count_test(
+    "Recursive indet: no spurious samples from wrap_closure (depth 2)",
+    {|let f : ([Int], Int) -> ([Int], [Int]) =
+  fun (xs, x) ->
+    case xs
+    | [] => ([], [])
+    | hd::tl =>
+      let (s, b) = f(tl, x) in
+      if ^^probe(hd < ?)
+      then ?
+      else ?
+    end
+in f([5, 10], 7)|},
+    [(6, 1)],
+  ),
+  /* Same bug at depth 4: partition_at called with [3, 9, 5, 10].
+   * Only the deepest non-empty call ([10]) reaches the if condition.
+   * Expected: 1 sample. Bug produces 4 (one per recursion level). */
+  probe_count_test(
+    "Recursive indet: no spurious samples from wrap_closure (depth 4)",
+    {|let f : ([Int], Int) -> ([Int], [Int]) =
+  fun (xs, x) ->
+    case xs
+    | [] => ([], [])
+    | hd::tl =>
+      let (s, b) = f(tl, x) in
+      if ^^probe(hd < ?)
+      then ?
+      else ?
+    end
+in f([3, 9, 5, 10], 7)|},
+    [(6, 1)],
+  ),
+  /* Full quicksort example: two test chains, each with one deepest call
+   * that reaches the if condition. Expected: 2 samples total. */
+  probe_count_test(
+    "Quicksort recursive indet: correct sample count",
+    {|let partition_at : ([Int], Int) -> ([Int], [Int]) =
+  fun (xs, x) ->
+    case xs
+    | [] => ([], [])
+    | hd::tl =>
+      let (s, b) = partition_at(tl, x) in
+      if ^^probe(hd < ?)
+      then ?
+      else ?
+    end
+in
+let quicksort : [Int] -> [Int] =
+  fun xs ->
+    case xs
+    | [] => []
+    | hd::tl =>
+      let (s, b) = partition_at(tl, hd) in
+      ?
+    end
+in
+let _ = quicksort([7, 3, 9, 5, 10])
+in quicksort([5, 0, 9, 3, 1])|},
+    [(6, 2)],
+  ),
 ];
 
 let module_tests = [
@@ -1153,6 +1218,60 @@ count(3)|},
   ),
 ];
 
+/* Regression tests for hazelgrove/hazel#2264: probes on applications of
+   builtin tuple operations (those with custom_statics) used to produce zero
+   samples because mk_builtin_ap_elab built the elab Ap with a fresh id,
+   so the runtime target lookup never matched the user_term id keyed in
+   the info_map. */
+let custom_statics_tuple_op_tests = [
+  /* Full Ap: to_lvs */
+  probe_count_test(
+    "Probe on to_lvs full application",
+    {|let t = (a=1, b=2) in ^^probe(to_lvs(t))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: omit_all_labels */
+  probe_count_test(
+    "Probe on omit_all_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(omit_all_labels(t))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: project_labels (uses handle_tuple_operation) */
+  probe_count_test(
+    "Probe on project_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(project_labels(t, a))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: select_labels (uses handle_tuple_operation) */
+  probe_count_test(
+    "Probe on select_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(select_labels(t, a))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: omit_labels (uses handle_tuple_operation) */
+  probe_count_test(
+    "Probe on omit_labels full application",
+    {|let t = (a=1, b=2) in ^^probe(omit_labels(t, a))|},
+    [(0, 1)],
+  ),
+  /* Full Ap: group_by_label */
+  probe_count_test(
+    "Probe on group_by_label full application",
+    {|let rows = [(k="x", v=1), (k="x", v=2), (k="y", v=3)]
+in ^^probe(group_by_label(rows, k))|},
+    [(1, 1)],
+  ),
+  /* Multi-call: each invocation should record its own sample. */
+  probe_count_test(
+    "Probe on to_lvs in function called multiple times",
+    {|let f = fun t -> ^^probe(to_lvs(t))
+in let _ = f((a=1, b=2))
+in let _ = f((a=3, b=4))
+in f((a=5, b=6))|},
+    [(0, 3)],
+  ),
+];
+
 let tests = [
   ("Evaluator.Probes.Basic", basic_tests),
   ("Evaluator.Probes.Operators", operator_tests),
@@ -1164,4 +1283,5 @@ let tests = [
   ("Evaluator.Probes.DuplicatePrevention", duplicate_prevention_tests),
   ("Evaluator.Probes.Modules", module_tests),
   ("Evaluator.Probes.Spread", spread_tests),
+  ("Evaluator.Probes.CustomStaticsTupleOps", custom_statics_tuple_op_tests),
 ];

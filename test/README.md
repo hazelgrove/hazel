@@ -44,6 +44,29 @@ group or number:
 
 - For more CLI options, refer to the [Alcotest documentation](https://github.com/mirage/alcotest).
 
+### 3. Scaling QCheck Counts at Runtime
+
+Every QCheck property test declares a `~count` in source, but those counts can
+be multiplied at runtime via environment variables — no source edits needed:
+
+```sh
+QCHECK_LONG=1 QCHECK_LONG_FACTOR=10 ./run_tests test 'Statics.Properties'
+QCHECK_LONG=1 QCHECK_LONG_FACTOR=100 make test
+```
+
+- `QCHECK_LONG=1` enables QCheck's "long" mode in `QCheck_alcotest`.
+- `QCHECK_LONG_FACTOR=N` multiplies every test's `count` by `N` while long
+  mode is active.
+
+Useful when chasing rare counterexamples without bumping the per-test
+defaults (which would slow down regular CI/dev runs).
+
+Other useful QCheck env vars:
+
+- `QCHECK_SEED=<int>` — reproduce a previous run by reusing its random seed
+  (the seed is printed at the start of each run).
+- `QCHECK_VERBOSE=1` — print each generated case.
+
 ## Architecture
 
 - **`test/dune`** defines the test executable and two dune aliases (`@runtest` for all tests, `@test-quick` for quick tests). The `Makefile` targets invoke these aliases.

@@ -42,30 +42,31 @@ let jump_to = (~globals: Globals.t, id: Id.t, _) =>
 
 let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
   switch (ci) {
-  | InfoExp({cls, status, _} as ie) =>
+  | InfoExp({cls, message, _} as ie) =>
     CursorInspector.exp_view(
       ~globals,
       ~show_type_colon=false,
       cls,
-      status,
+      message,
       ie,
     )
-  | InfoPat({cls, status, _} as ip) =>
+  | InfoPat({cls, message, _} as ip) =>
     CursorInspector.pat_view(
       ~globals,
       ~show_type_colon=false,
       cls,
-      status,
+      message,
       ip,
     )
-  | InfoTyp({cls, status, _}) =>
-    CursorInspector.typ_view(~globals, cls, status)
-  | InfoTPat({cls, status, _}) =>
-    CursorInspector.tpat_view(~globals, cls, status)
+  | InfoTyp({cls, marks, message, _}) =>
+    CursorInspector.typ_view(~globals, cls, ~marks, ~message)
+  | InfoTPat({cls, marks, message, _}) =>
+    CursorInspector.tpat_view(~globals, cls, ~marks, ~message)
   | Secondary(_)
   | InfoMod(_)
   | InfoSig(_)
-  | InfoMPat(_) => div([])
+  | InfoMPat(_)
+  | InfoDrv(_) => div([])
   };
 
 let line_num_view =
@@ -198,6 +199,8 @@ let problem_row =
     | Structural(desc) =>
       span(~attrs=[clss(["problem-description"])], [text(desc)])
     | FromInfo(ci) => problem_status_view(~globals, ci)
+    | FromProjector(_, {message}) =>
+      span(~attrs=[clss(["problem-description"])], [text(message)])
     };
   row_view(
     ~globals,
@@ -257,7 +260,7 @@ let view =
           cat,
           collect_category(ctx, cat) |> List.of_seq |> sort_by_pos(ctx),
         ),
-      [Syntax, Hole, Static, Warning],
+      [Syntax, Hole, Static, Warning, Projector],
     );
   let problems_settings = globals.settings.sidebar.problems;
   let has_any_problems =

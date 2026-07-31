@@ -251,33 +251,39 @@
   align-items: center;
   gap: 0.5em;
   position: relative;
-  transition: padding-right 0.07s ease-in-out;
-  transition-delay: 0.02s;
 }
 
-#top-bar #editor-mode #slide-navigation:hover:has(#edit-buttons) {
-  padding-right: 5.5em; /* Increase padding to make room for the buttons */
-  transition-delay: 0s;
-}
-
-/* Container for the navigation buttons that should be hidden by default */
+/* Slide-out container for the edit buttons. Collapsed by default; expands to
+   its natural intrinsic width on hover. Using max-width (rather than absolute
+   positioning with a fixed parent padding) keeps the layout general so the
+   container fits any number/width of buttons without overlapping the slide
+   dropdown to its left. */
 #top-bar #editor-mode #edit-buttons {
   display: flex;
   align-items: center;
   gap: 0.5em;
+  max-width: 0;
+  /* Cancel the parent's `gap: 0.5em` while collapsed so the slide navigation
+     doesn't show an empty gap to the right of the dropdown when not hovered. */
+  margin-left: -0.5em;
+  overflow: hidden;
   opacity: 0;
-  transition: opacity 0.02s ease-in-out;
-  transition-delay: 0s;
-  position: absolute;
-  right: 0em; /* Adjusted to position buttons properly within the expanded area */
   pointer-events: none;
+  transition:
+    max-width 0.12s ease-in-out,
+    margin-left 0.12s ease-in-out,
+    opacity 0.02s ease-in-out;
 }
 
 /* Show navigation buttons on hover */
 #top-bar #editor-mode #slide-navigation:hover > #edit-buttons {
+  /* Any value large enough to accommodate the intrinsic content width; the
+     element will only grow to fit, since this is a max-width. */
+  max-width: 40em;
+  margin-left: 0;
   opacity: 1;
-  transition-delay: 0.07s;
   pointer-events: all;
+  transition-delay: 0.02s;
 }
 
 #top-bar #editor-mode .icon {

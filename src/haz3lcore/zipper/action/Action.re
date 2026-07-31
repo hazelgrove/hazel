@@ -66,7 +66,7 @@ type project =
   | SampleFocus(sample_focus)
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
-  | SetSyntax(int, Base.segment) /* Set underlying syntax */
+  | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
@@ -143,6 +143,7 @@ type t =
   | Put_down
   | Introduce
   | Probe(probe)
+  | PrettyPrint
   | Dump
   | ToggleLineComment
   | Structural(Structural.t);
@@ -182,6 +183,7 @@ let is_edit: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
+  | PrettyPrint
   | Buffer(Accept | Clear | Set(_))
   | Structural(_)
   | Dump
@@ -218,6 +220,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
+  | PrettyPrint
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -248,6 +251,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Insert(_)
   | Put_down
   | Introduce
+  | PrettyPrint
   | Structural(_)
   | Dump
   | ToggleLineComment => true
@@ -291,6 +295,7 @@ let should_animate: t => bool =
   | Move(_)
   | Structural(_)
   | Probe(_)
+  | PrettyPrint
   | Dump
   | ToggleLineComment => true
   | Project(p) =>

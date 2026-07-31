@@ -22,6 +22,7 @@ module Model = {
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
+    incr_eval: Calc.saved(IncrEval.t),
     display,
     theorems: Theorems.Model.t,
   };
@@ -38,6 +39,7 @@ module Model = {
     cached_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.ResultPending),
     dynamics: Calc.Pending,
+    incr_eval: Calc.Pending,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
@@ -60,6 +62,7 @@ module Model = {
         cached_targets: Calc.Pending,
         result: Calc.NewValue(ProgramResult.ResultPending),
         dynamics: Calc.Pending,
+        incr_eval: Calc.Pending,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -85,6 +88,9 @@ module Model = {
     | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
     | None => Dynamics.Map.mk(Sample.Map.empty)
     };
+
+  let incr_eval = (model: t): IncrEval.t =>
+    model.incr_eval |> Calc.get_saved(IncrEval.empty);
 
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
@@ -170,6 +176,7 @@ module Update = {
           cached_targets,
           result,
           dynamics,
+          incr_eval,
           display,
           theorems,
         }: Model.t,
@@ -186,7 +193,18 @@ module Update = {
         cached_targets,
       );
 
-    // Calculate the result
+    /* Previous incremental map, if the last evaluation produced one. Pull
+     * from the saved field so it survives intermediate pending states
+     * (during which `result` itself is ResultPending). */
+    let prev_incr = incr_eval |> Calc.get_saved(IncrEval.empty);
+    /* Project statics to the serializable slice the incremental evaluator
+     * needs. The raw info_map can't cross postMessage because LivelitCtx
+     * entries contain OCaml closures. */
+    let eval_info_map =
+      EvalInfoMap.of_info_map(
+        ~probe_all=Calc.get_value(settings).probe_all,
+        statics.info_map,
+      );
     let result =
       result
       |> {
@@ -202,6 +220,8 @@ module Update = {
           queue_worker({
             expr: elab,
             targets,
+            eval_info_map,
+            prev: prev_incr,
           });
           ProgramResult.ResultPending;
         // Using the main thread:
@@ -210,6 +230,8 @@ module Update = {
             WorkerServer.work({
               expr: elab,
               targets,
+              eval_info_map,
+              prev: prev_incr,
             })
           ) {
           | Ok((exp, state)) =>
@@ -244,6 +266,18 @@ module Update = {
         };
       };
 
+    let incr_eval =
+      incr_eval
+      |> {
+        let.calc result = result;
+        switch (result) {
+        | ProgramResult.ResultPending =>
+          incr_eval |> Calc.get_saved(IncrEval.empty)
+        | ProgramResult.ResultFail(_) => IncrEval.empty
+        | ProgramResult.ResultOk({state, _}) => state.incr_eval
+        };
+      };
+
     // Calculate the display
     let display =
       switch (display) {
@@ -255,7 +289,13 @@ module Update = {
             and.calc result = result;
             switch (result) {
             | ResultOk({result: exp, _}) =>
-              Some((exp, exp |> CodeSelectable.Model.mk_from_exp(~settings)))
+              /* Evaluation always produces an Exp-sorted value (Drv-sorted
+                 subterms only appear wrapped in DrvQuote, which is itself Exp),
+                 so the result editor is rooted at Exp. */
+              Some((
+                exp,
+                exp |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp),
+              ))
             | ResultFail(_)
             | ResultPending => ev_display |> Calc.get_saved_opt |> Option.join
             };
@@ -317,6 +357,7 @@ module Update = {
         cached_targets: targets |> Calc.save,
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
+        incr_eval: incr_eval |> Calc.save,
         display,
         theorems,
       }: Model.t
@@ -332,35 +373,35 @@ module Selection = {
     | Stepper(StepperView.Focus.t)
     | Theorems(Theorems.Focus.t);
 
-  let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
+  let get_cursor_info =
+      (~inject, ~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.display) {
     | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
-      let+ ci = CodeSelectable.Selection.get_cursor_info(~selection, editor);
+      let+ ci =
+        CodeSelectable.Selection.get_cursor_info(
+          ~inject=x => inject(Update.EvalEditorAction(x)),
+          ~selection,
+          editor,
+        );
       Update.EvalEditorAction(ci);
     | (Stepper(focus), Stepper(s)) =>
-      let+ ci = StepperView.Focus.get_cursor_info(~focus, s);
+      let+ ci =
+        StepperView.Focus.get_cursor_info(
+          ~inject=x => inject(Update.StepperAction(x)),
+          ~focus,
+          s,
+        );
       Update.StepperAction(ci);
     | (Evaluation(_), _) => Cursor.empty
     | (Stepper(_), _) => Cursor.empty
     | (Theorems(focus), _) =>
-      let+ ci = Theorems.Focus.get_cursor_info(~focus, mr.theorems);
+      let+ ci =
+        Theorems.Focus.get_cursor_info(
+          ~inject=x => inject(Update.TheoremsAction(x)),
+          ~focus,
+          mr.theorems,
+        );
       Update.TheoremsAction(ci);
-    };
-
-  let handle_key_event =
-      (~selection: t, ~event, mr: Model.t): option(Update.t) =>
-    switch (selection, mr.display) {
-    | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
-      CodeSelectable.Selection.handle_key_event(~selection, editor, event)
-      |> Option.map(x => Update.EvalEditorAction(x))
-    | (Stepper(focus), Stepper(s)) =>
-      StepperView.Focus.handle_key_event(~focus, s, ~event)
-      |> Option.map(x => Update.StepperAction(x))
-    | (Evaluation(_), _) => None
-    | (Stepper(_), _) => None
-    | (Theorems(focus), _) =>
-      Theorems.Focus.handle_key_event(~focus, ~event, mr.theorems)
-      |> Option.map(x => Update.TheoremsAction(x))
     };
 };
 
@@ -403,9 +444,14 @@ module View = {
             ~signal=
               fun
               | MakeActive => signal(MakeActive(Evaluation())),
-            ~inject=a => inject(EvalEditorAction(a)),
+            ~edit_mode=
+              EditMode.Editable({
+                inject: a => inject(EvalEditorAction(a)),
+                escape: _ => Ui_effect.Ignore,
+                take_focus: _ => Ui_effect.Ignore,
+                focus: selected ? Some() : None,
+              }),
             ~globals,
-            ~selected,
             ~dynamics=editor.dynamics,
             editor,
           ),
@@ -590,6 +636,7 @@ module View = {
                    Settings.of_core(~inline=false, globals.settings.core),
                )
              )
+          |> Haz3lcore.PrettySegment.prettify
           |> CodeViewable.view_segment(~globals)
         | None => text("No elaboration found")
         },

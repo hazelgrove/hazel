@@ -26,9 +26,6 @@ let empty: t = {
   targets: Sample.no_targets,
 };
 
-let elaborate =
-  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
-
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
 /* Predicate for whether a term should be probed when ProbeAll is on.
@@ -64,10 +61,13 @@ let compute_targets =
   Id.Map.fold(
     (id, (), acc) => {
       let refs =
-        switch (Statics.Map.lookup(id, info_map)) {
-        | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id) /* Expression target */
-        | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id) /* Pattern target */
-        | _ => [] /* Unknown - no refs */
+        switch (Statics.Map.lookup_exp(id, info_map)) {
+        | Some(_) => Statics.Map.refs_in(info_map, id)
+        | None =>
+          switch (Statics.Map.lookup_pat(id, info_map)) {
+          | Some(_) => Statics.Map.bound_in(info_map, id)
+          | None => []
+          }
         };
       let spec: Sample.capture_spec = {refs: refs};
       Id.Map.add(id, spec, acc);
@@ -76,6 +76,15 @@ let compute_targets =
     Id.Map.empty,
   );
 };
+
+/* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
+ * Map values to unit since we only need the IDs as keys. */
+let probe_ids_of_zipper = (z: Zipper.t): Id.Map.t(unit) =>
+  Id.Map.union(
+    (_, _, _) => Some(),
+    Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
+    Id.Map.map(_ => (), z.refractors.multis.ephemerals),
+  );
 
 let init_from_term =
     (
@@ -92,7 +101,8 @@ let init_from_term =
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
-  let info_map = Statics.mk(~ana?, settings, ctx_init, term);
+  let (info_map, elaborated) =
+    Statics.mk(~ana?, ~probe_ids, settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
   let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =
@@ -100,11 +110,7 @@ let init_from_term =
     | _ when !settings.statics => dh_err("Statics disabled")
     | _ when !settings.dynamics && !settings.elaborate =>
       dh_err("Dynamics & Elaboration disabled")
-    | _ =>
-      switch (elaborate(info_map, term)) {
-      | DoesNotElaborate => dh_err("Elaboration returns None")
-      | Elaborates(d, _) => d
-      }
+    | _ => elaborated
     };
   let targets = compute_targets(~settings, ~info_map, ~probe_ids);
   {
@@ -117,26 +123,33 @@ let init_from_term =
   };
 };
 
+/* Recompute only `targets` from the zipper's current refractors, reusing the
+ * existing info_map. Cheap: O(|probe_ids|) fold. Used at the end of
+ * Editor.Update.calculate to pick up refractor changes made by probe
+ * effects (collision cleanup, auto-probe regen), without redoing statics. */
+let with_targets = (~settings: CoreSettings.t, z: Zipper.t, s: t): t => {
+  let probe_ids = probe_ids_of_zipper(z);
+  let targets = compute_targets(~settings, ~info_map=s.info_map, ~probe_ids);
+  {
+    ...s,
+    targets,
+  };
+};
+
 let init =
     (
       ~settings: CoreSettings.t,
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
+      ~root,
       ~ana=?,
       z: Zipper.t,
     )
     : t => {
-  let make_term_result = MakeTerm.from_zip_for_sem(z);
+  let make_term_result = MakeTerm.from_zip_for_sem(z, ~root);
   let term = make_term_result.term |> stitch;
-  /* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
-   * Map values to unit since we only need the IDs as keys. */
-  let probe_ids =
-    Id.Map.union(
-      (_, _, _) => Some(),
-      Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
-      Id.Map.map(_ => (), z.refractors.multis.ephemerals),
-    );
+  let probe_ids = probe_ids_of_zipper(z);
 
   init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);
 };
@@ -147,8 +160,10 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
+      ~root,
       ~ana=?,
       z: Zipper.t,
     ) =>
   settings.statics
-    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~ana?, z) : empty;
+    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
+    : empty;

@@ -16,6 +16,9 @@ let (suite, _) =
     [
       Test_ListUtil.tests,
       Test_OptUtil.tests,
+      Test_Atom.tests,
+      Test_Operators.tests,
+      Test_BuiltinsADT.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_Abbreviate.tests,
@@ -28,9 +31,9 @@ let (suite, _) =
       Test_Substitution.tests,
     ]
     @ Test_AgentTools.tests
+    @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
-    @ Test_Info.tests
     @ Test_Statics.tests
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
@@ -48,10 +51,19 @@ let (suite, _) =
     @ Test_ReparseDocSlides.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
+    @ [
+      Test_TableCore.tests,
+      Test_TableTransforms.tests,
+      Test_RichProbeRegistry.tests,
+    ]
+    @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
-    @ [Test_VarHighlight.tests],
+    @ [Test_VarHighlight.tests]
+    @ [Test_GradingReport.tests]
+    @ [Test_Derivation.tests]
+    @ Test_DerivationCase.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

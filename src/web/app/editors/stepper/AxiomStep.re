@@ -143,12 +143,7 @@ module F =
     );
   };
 
-  let get_cursor_info = (~focus: focus, _model: model) =>
-    switch (focus) {
-    | _ => .
-    };
-
-  let handle_key_event = (~focus: focus, ~event as _: Key.t, _model: model) =>
+  let get_cursor_info = (~inject as _, ~focus: focus, _model: model) =>
     switch (focus) {
     | _ => .
     };
