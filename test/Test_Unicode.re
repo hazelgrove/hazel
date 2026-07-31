@@ -721,6 +721,135 @@ let keyboard_tests = [
   ),
 ];
 
+let invisible_tests = [
+  test_case(
+    "format and zero-width clusters are invisible",
+    `Quick,
+    () => {
+      let invisible = (name, s) =>
+        check(bool, name, true, Unicode.is_invisible_cluster(s));
+      invisible("ZWSP", "\xe2\x80\x8b");
+      invisible("ZWNJ", "\xe2\x80\x8c");
+      invisible("ZWJ", "\xe2\x80\x8d");
+      invisible("LRM", "\xe2\x80\x8e");
+      invisible("RLO", "\xe2\x80\xae");
+      invisible("LRI", "\xe2\x81\xa6");
+      invisible("PDI", "\xe2\x81\xa9");
+      invisible("word joiner", "\xe2\x81\xa0");
+      invisible("soft hyphen", "\xc2\xad");
+      invisible("NBSP", "\xc2\xa0");
+      invisible("ALM", "\xd8\x9c");
+      invisible("BOM", "\xef\xbb\xbf");
+      invisible("ideographic space", "\xe3\x80\x80");
+      invisible("lone VS16", "\xef\xb8\x8f");
+      invisible("tag char", "\xf3\xa0\x81\xa1");
+      /* GB9 joins ZWSP + ZWJ into one cluster; still all-invisible. */
+      invisible("ZWSP+ZWJ cluster", "\xe2\x80\x8b\xe2\x80\x8d");
+    },
+  ),
+  test_case(
+    "visible and attached forms are not invisible",
+    `Quick,
+    () => {
+      let visible = (name, s) =>
+        check(bool, name, false, Unicode.is_invisible_cluster(s));
+      visible("empty", "");
+      visible("ascii", "a");
+      visible("space", " ");
+      visible("e-acute", "\xc3\xa9");
+      visible("lone combining acute", "\xcc\x81");
+      visible("cjk", "\xe6\x97\xa5");
+      /* VS16 attached to a visible base leaves the cluster visible. */
+      visible("heart + VS16", "\xe2\x9d\xa4\xef\xb8\x8f");
+    },
+  ),
+  test_case(
+    "invisible clusters get their own labeled segment",
+    `Quick,
+    () => {
+      let seg_str = (seg: Web.GraphemeView.segment) =>
+        switch (seg) {
+        | Web.GraphemeView.Text(s) => "T:" ++ s
+        | Web.GraphemeView.Grapheme(s, _) => "G:" ++ s
+        | Web.GraphemeView.Invisible(s, _) => "I:" ++ s
+        };
+      let segs = s =>
+        Web.GraphemeView.segments_for_token(s) |> List.map(seg_str);
+      check(
+        list(string),
+        "ZWSP inside a name",
+        ["T:a", "I:\xe2\x80\x8b", "T:b"],
+        segs("a\xe2\x80\x8bb"),
+      );
+      check(
+        list(string),
+        "emoji cluster keeps its VS16",
+        ["T:x", "G:\xe2\x9d\xa4\xef\xb8\x8f"],
+        segs("x\xe2\x9d\xa4\xef\xb8\x8f"),
+      );
+    },
+  ),
+];
+
+let nfc_tests = [
+  test_case(
+    "normalize_nfc composes decomposed accents",
+    `Quick,
+    () => {
+      check(string, "ascii identity", "abc", Unicode.normalize_nfc("abc"));
+      check(
+        string,
+        "combining acute composes",
+        "caf\xc3\xa9",
+        Unicode.normalize_nfc("cafe\xcc\x81"),
+      );
+      check(
+        string,
+        "already NFC is unchanged",
+        "caf\xc3\xa9",
+        Unicode.normalize_nfc("caf\xc3\xa9"),
+      );
+    },
+  ),
+  test_case(
+    "nfc_outside_strings leaves literal contents intact",
+    `Quick,
+    () => {
+      let go = Unicode.nfc_outside_strings;
+      check(
+        string,
+        "identifier normalizes",
+        "let caf\xc3\xa9 = 1",
+        go("let cafe\xcc\x81 = 1"),
+      );
+      check(
+        string,
+        "string contents preserved",
+        "x = \"e\xcc\x81\"",
+        go("x = \"e\xcc\x81\""),
+      );
+      check(
+        string,
+        "code normalizes around a literal",
+        "\xc3\xa9 ++ \"e\xcc\x81\" ++ \xc3\xa9",
+        go("e\xcc\x81 ++ \"e\xcc\x81\" ++ e\xcc\x81"),
+      );
+      check(
+        string,
+        "unterminated literal runs to end of line",
+        "\"e\xcc\x81\n\xc3\xa9",
+        go("\"e\xcc\x81\ne\xcc\x81"),
+      );
+      check(
+        string,
+        "escaped quote stays inside the literal",
+        {|"a\"e|} ++ "\xcc\x81\" x",
+        go({|"a\"e|} ++ "\xcc\x81\" x"),
+      );
+    },
+  ),
+];
+
 let tests = [
   (
     "Unicode.Segmenter",
@@ -728,6 +857,8 @@ let tests = [
     @ List.map(bounding_box_agrees, corpus),
   ),
   ("Unicode.Width", width_tests),
+  ("Unicode.Invisible", invisible_tests),
+  ("Unicode.NFC", nfc_tests),
   ("Token.Potential", operator_tests),
   ("Token.Names", name_tests),
   ("Keyboard.Insert", keyboard_tests),

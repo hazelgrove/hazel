@@ -38,6 +38,7 @@ let go =
        )
     |> return(CantIntroduce)
   | Paste(clipboard) =>
+    let clipboard = Unicode.nfc_outside_strings(clipboard);
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(maybe_reassoc_thorough(z))
     | None =>
@@ -48,7 +49,7 @@ let go =
       )
       |> Option.map(maybe_reassoc_thorough)
       |> return(CantPaste)
-    }
+    };
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     Destruct.go(Left, z, ~root) |> return(Cant_destruct)

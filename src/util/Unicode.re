@@ -153,6 +153,38 @@ let clusters_are_codepoints = (s: string): bool => {
   ok^;
 };
 
+/* --- Invisible characters -------------------------------------------- */
+
+/* Codepoints that render as nothing, or as blank indistinguishable from a
+   space: zero-width and bidirectional controls, soft hyphen, fill
+   characters, variation selectors, tags, and the non-ASCII space
+   separators. A cluster made only of these is drawn as a labeled
+   placeholder cell (GraphemeView) so it cannot hide in code. The test is
+   whole-cluster so attached forms stay untouched: a VS16 or ZWJ inside an
+   emoji cluster has a visible base. */
+let invisible_ranges =
+  parse_ranges(
+    "00A0,00AD,034F,061C,115F-1160,17B4-17B5,180B-180F,2000-200F,2028-202E,205F-2064,2066-206F,3000,3164,FE00-FE0F,FEFF,FFA0,FFF9-FFFB,1D173-1D17A,E0000-E007F,E0100-E01EF",
+  );
+
+let is_invisible_cluster = (cluster: string): bool => {
+  let n = String.length(cluster);
+  n > 0
+  && !is_simple_ascii(cluster)
+  && {
+    let i = ref(0);
+    let ok = ref(true);
+    while (ok^ && i^ < n) {
+      if (in_ranges(invisible_ranges, codepoint_at(cluster, i^))) {
+        i := next_offset(cluster, i^);
+      } else {
+        ok := false;
+      };
+    };
+    ok^;
+  };
+};
+
 /* --- Segmentation ---------------------------------------------------- */
 
 let segmenter_src =
@@ -306,6 +338,63 @@ let to_array = graphemes;
 let to_list = s => to_array(s) |> Array.to_list;
 
 let of_list = (lst: list(string)): string => String.concat("", lst);
+
+/* --- Normalization --------------------------------------------------- */
+
+let normalize_nfc = (s: string): string =>
+  is_simple_ascii(s)
+    ? s
+    : Js.to_string(
+        Js.Unsafe.meth_call(
+          Js.string(s),
+          "normalize",
+          [|Js.Unsafe.inject(Js.string("NFC"))|],
+        ),
+      );
+
+/* NFC-normalize code text, leaving string literal contents byte-for-byte
+   intact (UTS #55: never silently normalize literals). Some paste sources
+   (notably macOS) emit decomposed accents, which would otherwise mint
+   identifiers that never match their precomposed typed spelling. Literals
+   are single-line; a backslash-escaped quote is honored as an escape (the
+   text lexer's rule, a superset of the editor's) and an unterminated
+   literal runs to the end of its line. */
+let nfc_outside_strings = (s: string): string =>
+  if (is_simple_ascii(s)) {
+    s;
+  } else {
+    let n = String.length(s);
+    let buf = Buffer.create(n);
+    let flush_code = (start, stop) =>
+      if (stop > start) {
+        Buffer.add_string(
+          buf,
+          normalize_nfc(String.sub(s, start, stop - start)),
+        );
+      };
+    let i = ref(0);
+    let code_start = ref(0);
+    while (i^ < n) {
+      if (String.unsafe_get(s, i^) == '"') {
+        flush_code(code_start^, i^);
+        let j = ref(i^ + 1);
+        while (j^ < n
+               && String.unsafe_get(s, j^) != '"'
+               && String.unsafe_get(s, j^) != '\n') {
+          j :=
+            String.unsafe_get(s, j^) == '\\' && j^ + 1 < n ? j^ + 2 : j^ + 1;
+        };
+        let stop = j^ < n && String.unsafe_get(s, j^) == '"' ? j^ + 1 : j^;
+        Buffer.add_string(buf, String.sub(s, i^, stop - i^));
+        i := stop;
+        code_start := stop;
+      } else {
+        incr(i);
+      };
+    };
+    flush_code(code_start^, n);
+    Buffer.contents(buf);
+  };
 
 module Width = {
   /* Column widths for grapheme clusters. Layout stays integer-aligned: a

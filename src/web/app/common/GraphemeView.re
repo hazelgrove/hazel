@@ -7,11 +7,17 @@ open Util;
    that matches the number of columns they occupy. This is currently
    limited to either one or two columns. Widths come from Unicode.Width,
    the same source Measured and the caret arithmetic use, so what is drawn
-   and what is measured cannot drift apart. */
+   and what is measured cannot drift apart.
+
+   Invisible clusters (zero-width and bidi controls, exotic spaces) also
+   get an explicit cell, labeled with their codepoint: they are measured
+   as a column but would otherwise render as nothing, silently shifting
+   the rest of the row off the measured grid. */
 
 type segment =
   | Text(string)
-  | Grapheme(string, Unicode.Width.t);
+  | Grapheme(string, Unicode.Width.t)
+  | Invisible(string, Unicode.Width.t);
 
 let px = (value: float): string => Printf.sprintf("%.3fpx", value);
 
@@ -22,6 +28,11 @@ let segments_for_token = (token: string): list(segment) => {
        (acc, cluster) =>
          if (cluster == "") {
            acc;
+         } else if (Unicode.is_invisible_cluster(cluster)) {
+           [
+             Invisible(cluster, Unicode.Width.classify_cluster(cluster)),
+             ...acc,
+           ];
          } else if (Unicode.Width.is_wide_cluster(cluster)) {
            [
              Grapheme(cluster, Unicode.Width.classify_cluster(cluster)),
@@ -61,6 +72,22 @@ let render = (~font_metrics: FontMetrics.t, token: string): list(Node.t) =>
              Attr.create("style", "width: " ++ px(width_px)),
            ],
            [Node.text(grapheme)],
+         );
+       | Invisible(cluster, width) =>
+         let cols = Unicode.Width.columns_of_width(width);
+         let width_px = font_metrics.col_width *. float_of_int(cols);
+         let hex = Printf.sprintf("%04X", Unicode.codepoint_at(cluster, 0));
+         span(
+           ~attrs=[
+             Attr.classes([
+               "grapheme-cell",
+               "invisible-cell",
+               to_class(width),
+             ]),
+             Attr.create("style", "width: " ++ px(width_px)),
+             Attr.create("title", "Invisible character U+" ++ hex),
+           ],
+           [Node.text(hex)],
          );
        }
      );
