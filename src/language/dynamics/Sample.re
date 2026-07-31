@@ -7,34 +7,6 @@ type capture_spec = {refs: Binding.s};
 
 let empty_capture_spec: capture_spec = {refs: []};
 
-/* A single frame in the call stack: app_id + optional function_name.
- * function_name is extracted at evaluation time from the closure/function.
- * fn_def_id is the definition-site ID of the function, extracted from the
- * Closure at evaluation time. Enables jump-to-definition even when app_id
- * comes from built-in internal code (not in user's info_map).
- * The name and fn_def_id fields are purely informational; equality compares only id. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type stack_frame = {
-  id: Id.t,
-  name: option(string),
-  fn_def_id: option(Id.t),
-};
-
-let equal_stack_frame = (a: stack_frame, b: stack_frame): bool =>
-  a.id == b.id;
-
-/* Call context represented as a list of stack frames.
- * The head is the most recent (innermost) call. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type call_stack = list(stack_frame);
-
-let equal_call_stack = (a: call_stack, b: call_stack): bool =>
-  List.equal(equal_stack_frame, a, b);
-
-/* Extract just the IDs from a call stack, discarding function names. */
-let ids_of_stack = (cs: call_stack): list(Id.t) =>
-  List.map((f: stack_frame) => f.id, cs);
-
 /* Maps expression/pattern IDs to their capture specifications.
  * Presence in this map means "collect a sample when evaluated". */
 type targets = Id.Map.t(capture_spec);
@@ -66,9 +38,7 @@ module Env = {
    * such as closures. Which values are made opaque can be modulated
    * via the below `elide` function */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type elided_value =
-    | Opaque
-    | Val(DHExp.t);
+  type elided_value = CallStack.elided_value;
 
   /* A probe environment entry is a variable binding
    * along with its corresponding elided value */
@@ -88,7 +58,7 @@ module Env = {
   /* Selectively elide dynamic information not currently
    * being used in the live probe UI, for (putative, unbenchmarked)
    * performance purposes for worker de/serialization */
-  let elide = (env: Environment.t(Exp.t), d: DHExp.t) =>
+  let elide = (env: Environment.t(Exp.t), d: DHExp.t): elided_value =>
     switch ((d |> DHExp.strip_ascriptions).term) {
     | Fun(_)
     | FixF(_)
@@ -136,7 +106,7 @@ type t = {
   syntax_id: Id.t, /* Syntax ID of probed expression */
   value: DHExp.t, /* Value of expression */
   env: Env.t, /* (Filtered) Environment Values  */
-  call_stack, /* Call stacks as ap ids */
+  call_stack: CallStack.t, /* Call stacks as ap ids */
   args: option(Env.elided_value), /* Argument value if probe is on an Ap */
   time: float, /* Time of evaluation */
   seq: int, /* Sequence number: a count index of each sample taken */
@@ -156,7 +126,7 @@ let mk =
       syntax_id: Id.t,
       value: DHExp.t,
       env: Environment.t(Exp.t),
-      stack: call_stack,
+      stack: CallStack.t,
       spec: capture_spec,
     )
     : t => {
@@ -300,7 +270,7 @@ module Focus = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type pending_focus = {
     probe_id: Id.t, /* The probe we're stepping into */
-    target_stack: call_stack /* The call stack to match */
+    target_stack: CallStack.t /* The call stack to match */
   };
 
   /* Focus.t fields:
@@ -317,9 +287,9 @@ module Focus = {
    * - pending_focus: After step-into, where to focus when evaluation completes */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
-    call_stack,
+    call_stack: CallStack.t,
     index: int,
-    pinned_stack: option(call_stack),
+    pinned_stack: option(CallStack.t),
     anti_pin: option(int),
     indicated_call: option(Id.t),
     time: option(float),
@@ -340,27 +310,22 @@ module Focus = {
     pending_focus: None,
   };
 
-  /* The above-focus portion of the sightline: call_stack sliced to
+  /* The above-focus portion of the sightline: CallStack.t sliced to
    * index + 1 elements from the outer end. This is where you ARE —
    * the active position used for tier 1 alignment. The full call_stack
    * extends deeper (below-focus) for tier 2 alignment. */
-  let effective_stack = (cursor: t): call_stack =>
+  let effective_stack = (cursor: t): CallStack.t =>
     ListUtil.slice(0, cursor.index + 1, cursor.call_stack |> List.rev)
     |> List.rev;
 
   /* If the cursor is on a call, and the provided call stack is
    * downstream of that call, return how many aps downstream it is */
   let depth_in_indicated_calls_stack =
-      (cursor: t, call_stack: call_stack): option(int) => {
+      (cursor: t, call_stack: CallStack.t): option(int) => {
     let* cur_ap = cursor.indicated_call;
-    let cur_frame: stack_frame = {
-      id: cur_ap,
-      name: None,
-      fn_def_id: None,
-    };
     ListUtil.suffix_at_depth(
-      ~eq=equal_stack_frame,
-      [cur_frame] @ effective_stack(cursor),
+      ~eq=CallStack.equal_frame,
+      CallStack.extend(cur_ap, effective_stack(cursor)),
       call_stack,
     );
   };
@@ -408,9 +373,9 @@ module Focus = {
     is_below_indicated_call: option(int),
   };
 
-  let is_below = ListUtil.suffix_at_depth(~eq=equal_stack_frame);
+  let is_below = ListUtil.suffix_at_depth(~eq=CallStack.equal_frame);
 
-  let relative_level = (cs1: call_stack, cs2: call_stack): relative_level =>
+  let relative_level = (cs1: CallStack.t, cs2: CallStack.t): relative_level =>
     switch (is_below(cs1, cs2), is_below(cs2, cs1)) {
     | (Some(0), Some(0)) => Same
     | (Some(n), None) => Below(n)
@@ -418,16 +383,9 @@ module Focus = {
     | (_, _) => Unrelated
     };
 
-  let cur_call = (ap_id: option(Id.t), sample: sample): option(call_stack) => {
+  let cur_call = (ap_id: option(Id.t), sample: sample): option(CallStack.t) => {
     let* ap_id = ap_id;
-    Some([
-      {
-        id: ap_id,
-        name: None,
-        fn_def_id: None,
-      },
-      ...sample.call_stack,
-    ]);
+    Some(CallStack.extend(ap_id, sample.call_stack));
   };
 
   /* Returns Some(ap_id) only when cursor is on an application with a variable
@@ -446,7 +404,7 @@ module Focus = {
     let this = sample.call_stack;
     let cursor_stack = trimmed ? effective_stack(cursor) : cursor.call_stack;
     {
-      is_call_cursor: equal_call_stack(cursor_stack, this),
+      is_call_cursor: CallStack.equal(cursor_stack, this),
       is_more_precise_than_cursor:
         List.length(cursor.call_stack) > List.length(sample.call_stack),
       relative_level_to_cursor: relative_level(cursor_stack, this),
@@ -456,17 +414,7 @@ module Focus = {
       },
       is_below_indicated_call: {
         let* cur_ap = cursor.indicated_call;
-        is_below(
-          [
-            {
-              id: cur_ap,
-              name: None,
-              fn_def_id: None,
-            },
-          ]
-          @ cursor_stack,
-          this,
-        );
+        is_below(CallStack.extend(cur_ap, cursor_stack), this);
       },
     };
   };
@@ -517,7 +465,7 @@ module Selection = {
   let filter_by_pin =
       (
         ~ap_id: option(Id.t),
-        ~pinned: option(call_stack),
+        ~pinned: option(CallStack.t),
         ~anti_pin: option(int)=None,
         samples: list(t),
       )
@@ -529,15 +477,15 @@ module Selection = {
         /* Extract just the Id.t from head of pinned_stack for comparison */
         let pinned_head_id =
           Option.map(
-            (f: stack_frame) => f.id,
+            (f: CallStack.frame) => f.id,
             ListUtil.hd_opt(pinned_stack),
           );
         /* Compare by ID only - pinned_stack may have None for function names
          * but actual samples have real names from evaluation */
-        let pinned_ids = ids_of_stack(pinned_stack);
+        let pinned_ids = CallStack.ids_of_stack(pinned_stack);
         List.filter(
           (sample: t) => {
-            let sample_ids = ids_of_stack(sample.call_stack);
+            let sample_ids = CallStack.ids_of_stack(sample.call_stack);
             pinned_head_id == ap_id
             /* Sample is at or below pin (current behavior) */
             || ListUtil.is_suffix_of(pinned_ids, sample_ids)
@@ -589,14 +537,14 @@ module Selection = {
   let most_aligned_index =
       (~ap_id: option(Id.t), cursor: Focus.t, samples: list(t))
       : option(int) => {
-    let suffix_scan = (stack: call_stack): option(int) =>
+    let suffix_scan = (stack: CallStack.t): option(int) =>
       List.fold_left(
         (best: option((int, int)), (i, sample: t)) => {
           let slen = List.length(sample.call_stack);
           if (slen > 0
               && slen > (best |> Option.map(snd) |> Option.value(~default=0))
               && ListUtil.is_suffix_of(
-                   ~eq=equal_stack_frame,
+                   ~eq=CallStack.equal_frame,
                    sample.call_stack,
                    stack,
                  )) {
@@ -662,7 +610,7 @@ module Selection = {
     switch (List.rev(s2.call_stack), List.rev(s1.call_stack)) {
     | ([], _)
     | (_, []) => false
-    | ([f1, ..._], [f2, ..._]) => equal_stack_frame(f1, f2)
+    | ([f1, ..._], [f2, ..._]) => CallStack.equal_frame(f1, f2)
     };
 
   /* Group samples by function call, with indices */
@@ -699,20 +647,20 @@ module Selection = {
    * (sightline-first, then by evaluation order / min seq). */
   let find_siblings =
       (
-        ~call_stack_rev: call_stack,
+        ~call_stack_rev: CallStack.t,
         ~view_index: int,
         probe_map: Id.Map.t(list(t)),
       )
-      : list(stack_frame) => {
+      : list(CallStack.frame) => {
     let n = List.length(call_stack_rev);
     if (view_index < 0 || view_index >= n) {
       [];
     } else {
       /* The prefix is everything before view_index in outermost-first order */
       let prefix = ListUtil.slice(0, view_index, call_stack_rev);
-      let prefix_ids = ids_of_stack(prefix);
+      let prefix_ids = CallStack.ids_of_stack(prefix);
       /* Collect distinct frames with their min seq for sorting */
-      let frame_seqs: ref(list((stack_frame, int))) = ref([]);
+      let frame_seqs: ref(list((CallStack.frame, int))) = ref([]);
       Id.Map.iter(
         (_, samples) =>
           List.iter(
@@ -722,12 +670,12 @@ module Selection = {
               if (sample_len > view_index) {
                 let sample_prefix =
                   ListUtil.slice(0, view_index, sample_rev);
-                let sample_prefix_ids = ids_of_stack(sample_prefix);
+                let sample_prefix_ids = CallStack.ids_of_stack(sample_prefix);
                 if (sample_prefix_ids == prefix_ids) {
                   let frame_at_depth = List.nth(sample_rev, view_index);
                   switch (
                     List.find_opt(
-                      ((f, _)) => equal_stack_frame(f, frame_at_depth),
+                      ((f, _)) => CallStack.equal_frame(f, frame_at_depth),
                       frame_seqs^,
                     )
                   ) {
@@ -737,7 +685,7 @@ module Selection = {
                       frame_seqs :=
                         List.map(
                           ((f, s)) =>
-                            equal_stack_frame(f, frame_at_depth)
+                            CallStack.equal_frame(f, frame_at_depth)
                               ? (f, sample.seq) : (f, s),
                           frame_seqs^,
                         );
@@ -765,7 +713,7 @@ module Selection = {
         switch (current_frame) {
         | Some(cf) =>
           switch (
-            List.find_index(((f, _)) => equal_stack_frame(f, cf), sorted)
+            List.find_index(((f, _)) => CallStack.equal_frame(f, cf), sorted)
           ) {
           | Some(i) =>
             let before = ListUtil.slice(0, i, sorted);
@@ -786,7 +734,7 @@ module Selection = {
         ~mode: Window.mode,
         ~offset: int,
         ~ap_id: option(Id.t),
-        ~pinned: option(call_stack),
+        ~pinned: option(CallStack.t),
         ~anti_pin: option(int)=None,
         ~cursor: Focus.t,
         samples: list(t),
@@ -822,7 +770,7 @@ module Selection = {
  * Used by the SampleFocusBar tree view toggle to show all branches. */
 module CallTree = {
   type node = {
-    frame: stack_frame,
+    frame: CallStack.frame,
     children: list(node),
     min_seq: int, /* Earliest evaluation order among all samples through this node */
   };
@@ -831,7 +779,7 @@ module CallTree = {
   type t = list(node);
 
   /* Insert an outermost-first path into the trie, tracking min seq */
-  let rec insert_path = (path: call_stack, seq: int, forest: t): t =>
+  let rec insert_path = (path: CallStack.t, seq: int, forest: t): t =>
     switch (path) {
     | [] => forest
     | [frame, ...rest] =>
@@ -839,7 +787,7 @@ module CallTree = {
       let forest' =
         List.map(
           (node: node) =>
-            if (equal_stack_frame(node.frame, frame)) {
+            if (CallStack.equal_frame(node.frame, frame)) {
               found := true;
               {
                 ...node,
@@ -873,7 +821,7 @@ module CallTree = {
   /* Sort children by evaluation order (min_seq), then rotate so the
    * sightline child is first. Preserves relative cycle order. */
   let sort_children =
-      (~sightline_rev: call_stack, ~depth: int, children: list(node))
+      (~sightline_rev: CallStack.t, ~depth: int, children: list(node))
       : list(node) => {
     let sorted = List.sort(
       (a: node, b: node) => compare(a.min_seq, b.min_seq),
@@ -881,13 +829,13 @@ module CallTree = {
     );
     let on_sightline = (n: node): bool =>
       depth < List.length(sightline_rev)
-      && equal_stack_frame(List.nth(sightline_rev, depth), n.frame);
+      && CallStack.equal_frame(List.nth(sightline_rev, depth), n.frame);
     rotate_to(on_sightline, sorted);
   };
 
   /* Recursively sort all children in the tree */
   let rec sort_tree =
-          (~sightline_rev: call_stack, ~depth: int, forest: t): t =>
+          (~sightline_rev: CallStack.t, ~depth: int, forest: t): t =>
     List.map(
       (node: node) => {
         let sorted_children =
@@ -908,7 +856,7 @@ module CallTree = {
   /* Build a call tree from all samples in a probe_map.
    * Sorted: sightline-first at each level, then by evaluation order. */
   let of_probe_map =
-      (~sightline_rev: call_stack, probe_map: Id.Map.t(list(sample))): t => {
+      (~sightline_rev: CallStack.t, probe_map: Id.Map.t(list(sample))): t => {
     let forest =
       Id.Map.fold(
         (_, samples, forest) =>
@@ -935,10 +883,10 @@ module CallTree = {
    * representing the entries on that line. */
   type line_entry = {
     depth: int,
-    frame: stack_frame,
+    frame: CallStack.frame,
     /* Full path from root to this entry (outermost-first). Used by the
      * tree view to switch the sightline when clicking an entry. */
-    path: call_stack,
+    path: CallStack.t,
     is_last_child: bool,
     has_siblings: bool,
   };
@@ -950,7 +898,7 @@ module CallTree = {
     let rec walk =
             (
               ~depth: int,
-              ~ancestors: call_stack,
+              ~ancestors: CallStack.t,
               ~is_last: bool,
               ~has_siblings: bool,
               node: node,
@@ -1035,12 +983,12 @@ module CallTree = {
    * This correctly handles recursive functions where the same frame ID
    * appears on multiple branches at the same depth. */
   let is_on_sightline =
-      (~sightline_rev: call_stack, entry: line_entry): bool => {
+      (~sightline_rev: CallStack.t, entry: line_entry): bool => {
     let path_len = List.length(entry.path);
     let sight_len = List.length(sightline_rev);
     path_len <= sight_len
     && List.for_all2(
-         equal_stack_frame,
+         CallStack.equal_frame,
          entry.path,
          ListUtil.slice(0, path_len, sightline_rev),
        );
@@ -1050,19 +998,19 @@ module CallTree = {
    * first child frame at the next depth. Used by Right-arrow in tree
    * mode to extend the sightline beyond its current depth. */
   let first_child_at =
-      (~path_rev: call_stack, forest: t): option(stack_frame) => {
-    let rec find_node = (path: call_stack, nodes: list(node)): option(node) =>
+      (~path_rev: CallStack.t, forest: t): option(CallStack.frame) => {
+    let rec find_node = (path: CallStack.t, nodes: list(node)): option(node) =>
       switch (path) {
       | [] => None
       | [frame] =>
         List.find_opt(
-          (n: node) => equal_stack_frame(n.frame, frame),
+          (n: node) => CallStack.equal_frame(n.frame, frame),
           nodes,
         )
       | [frame, ...rest] =>
         switch (
           List.find_opt(
-            (n: node) => equal_stack_frame(n.frame, frame),
+            (n: node) => CallStack.equal_frame(n.frame, frame),
             nodes,
           )
         ) {
@@ -1088,7 +1036,7 @@ module Capture = {
   type t = {
     time: float,
     seq: int,
-    call_stack,
+    call_stack: CallStack.t,
     step_start: int,
     step_end: int,
   };

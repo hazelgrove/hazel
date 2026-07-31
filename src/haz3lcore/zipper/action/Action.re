@@ -3,7 +3,11 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chunkiness =
   | ByChar
-  | ByToken;
+  | ByToken
+  /* Smart-rounded selection: char inside the starting token, whole
+   * pieces once the focus has left that token's span. Only meaningful
+   * for Select(Resize(Local | Vertical)) and Point-based selection. */
+  | BySmart;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type goal =
@@ -23,8 +27,13 @@ type move =
   | End
   | Line(Direction.t)
   | Local(Direction.t, chunkiness)
-  | Vertical(vertical)
-  | Point(Point.t)
+  | Vertical(vertical, chunkiness)
+  /* Point-based move/select. The optional chunkiness overrides the
+   * selection_chunkiness setting for Select(Resize(Point(...))) drag;
+   * `None` falls back to the settings-driven default. Ignored for
+   * Move(Point(...)), which always lands the caret at the closest
+   * grid position. */
+  | Point(Point.t, option(chunkiness))
   | Goal(goal);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -46,10 +55,10 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type sample_focus =
   | Capture(Language.Sample.Capture.t, option(Id.t))
-  | TogglePin(Language.Sample.call_stack)
+  | TogglePin(Language.CallStack.t)
   | ToggleAntiPin(int) /* Toggle anti-pin (inner bound) at a depth index */
   | SetIndex(int) /* Navigate to a specific depth in the call stack */
-  | SetSightline(Language.Sample.call_stack, int) /* Set call_stack + index directly (no suffix preservation) */
+  | SetSightline(Language.CallStack.t, int) /* Set call_stack + index directly (no suffix preservation) */
   | Reset;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -123,8 +132,8 @@ type probe =
   | ToggleManual
   | ToggleAuto
   | ToggleStatics
-  | StepInto(Language.Sample.call_stack, Id.t)
-  | Pin(Language.Sample.call_stack, Id.t)
+  | StepInto(Language.CallStack.t, Id.t)
+  | Pin(Language.CallStack.t, Id.t)
   | RemoveAll;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

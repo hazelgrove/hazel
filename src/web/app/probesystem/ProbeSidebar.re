@@ -60,8 +60,8 @@ let legend_sample =
       ~mode: Sample.Window.mode,
       ~ap_id: option(Id.t),
       ~indicated_call: option(Id.t),
-      ~cursor_stack: Sample.call_stack,
-      ~sample_stack: Sample.call_stack,
+      ~cursor_stack: CallStack.t,
+      ~sample_stack: CallStack.t,
       ~step_range: (int, int),
       ~focus_step_range: option((int, int)),
       ~caption: string,
@@ -146,7 +146,7 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
   let mode = ProbeProj.Settings.s^.window;
   let color_scheme = ProbeProj.Settings.s^.sample_base;
   let focus = Some((10, 20));
-  let f: Sample.stack_frame = {
+  let f: CallStack.frame = {
     id: Id.invalid,
     name: None,
     fn_def_id: None,

@@ -8,7 +8,14 @@ let exercise : DerivationExercise.spec =
     max_points = 10;
     prelude =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings =
@@ -53,7 +60,14 @@ let exercise : DerivationExercise.spec =
       };
     setup =
       {
-        selection = { focus = Left; content = []; mode = Normal };
+        selection =
+          {
+            focus = Left;
+            content = [];
+            mode = Normal;
+            anchor_caret = Outer;
+            smart_rounded = false;
+          };
         relatives =
           {
             siblings =
@@ -338,7 +352,14 @@ let exercise : DerivationExercise.spec =
               {
                 jdmt =
                   {
-                    selection = { focus = Left; content = []; mode = Normal };
+                    selection =
+                      {
+                        focus = Left;
+                        content = [];
+                        mode = Normal;
+                        anchor_caret = Outer;
+                        smart_rounded = false;
+                      };
                     relatives =
                       {
                         siblings =
@@ -505,7 +526,14 @@ let exercise : DerivationExercise.spec =
               {
                 jdmt =
                   {
-                    selection = { focus = Left; content = []; mode = Normal };
+                    selection =
+                      {
+                        focus = Left;
+                        content = [];
+                        mode = Normal;
+                        anchor_caret = Outer;
+                        smart_rounded = false;
+                      };
                     relatives =
                       {
                         siblings =
@@ -858,7 +886,13 @@ let exercise : DerivationExercise.spec =
                       jdmt =
                         {
                           selection =
-                            { focus = Left; content = []; mode = Normal };
+                            {
+                              focus = Left;
+                              content = [];
+                              mode = Normal;
+                              anchor_caret = Outer;
+                              smart_rounded = false;
+                            };
                           relatives =
                             {
                               siblings =
@@ -1054,7 +1088,13 @@ let exercise : DerivationExercise.spec =
                             jdmt =
                               {
                                 selection =
-                                  { focus = Left; content = []; mode = Normal };
+                                  {
+                                    focus = Left;
+                                    content = [];
+                                    mode = Normal;
+                                    anchor_caret = Outer;
+                                    smart_rounded = false;
+                                  };
                                 relatives =
                                   {
                                     siblings =
@@ -1187,7 +1227,13 @@ let exercise : DerivationExercise.spec =
                             jdmt =
                               {
                                 selection =
-                                  { focus = Left; content = []; mode = Normal };
+                                  {
+                                    focus = Left;
+                                    content = [];
+                                    mode = Normal;
+                                    anchor_caret = Outer;
+                                    smart_rounded = false;
+                                  };
                                 relatives =
                                   {
                                     siblings =

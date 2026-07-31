@@ -67,7 +67,7 @@ let set_focus_index = (~globals: Globals.t, i: int, _) =>
   globals.inject_global(ActiveEditor(Project(SampleFocus(SetIndex(i)))));
 
 /* Remove a pin by toggling it off */
-let unpin = (~globals: Globals.t, pinned_stack: Sample.call_stack, _) =>
+let unpin = (~globals: Globals.t, pinned_stack: CallStack.t, _) =>
   globals.inject_global(
     ActiveEditor(Project(SampleFocus(TogglePin(pinned_stack)))),
   );
@@ -95,17 +95,13 @@ let view_mode_ref: ref(view_mode) = ref(SinglePath);
  * whose app_id is in user code. Used as a fallback for separator clicks
  * when the separator's own app_id comes from built-in internal code. */
 let find_nearest_user_app =
-    (
-      ~info_map: Statics.Map.t,
-      ~call_stack: Sample.call_stack,
-      ~from_index: int,
-    )
+    (~info_map: Statics.Map.t, ~call_stack: CallStack.t, ~from_index: int)
     : option(Id.t) => {
   let rec search = (i: int): option(Id.t) =>
     if (i < 0) {
       None;
     } else {
-      let frame: Sample.stack_frame = List.nth(call_stack, i);
+      let frame: CallStack.frame = List.nth(call_stack, i);
       is_in_user_code(~info_map, frame.id) ? Some(frame.id) : search(i - 1);
     };
   search(from_index);
@@ -116,9 +112,9 @@ let find_nearest_user_app =
  * Otherwise, walk up the call stack to find the nearest user-visible
  * call site (e.g., for built-in internal calls). */
 let get_call_site_target =
-    (~info_map: Statics.Map.t, ~call_stack: Sample.call_stack, ~index: int)
+    (~info_map: Statics.Map.t, ~call_stack: CallStack.t, ~index: int)
     : option(Id.t) => {
-  let frame: Sample.stack_frame = List.nth(call_stack, index);
+  let frame: CallStack.frame = List.nth(call_stack, index);
   is_in_user_code(~info_map, frame.id)
     ? Some(frame.id)
     : find_nearest_user_app(~info_map, ~call_stack, ~from_index=index - 1);
@@ -214,7 +210,7 @@ type visible_item =
 
 /* Resolve the display name for a call stack frame */
 let resolve_display_name =
-    (~info_map: Statics.Map.t, frame: Sample.stack_frame): string =>
+    (~info_map: Statics.Map.t, frame: CallStack.frame): string =>
   switch (frame.name) {
   | Some(name) => name
   | None =>
@@ -326,9 +322,9 @@ let compute_dynamic_cap =
 let switch_sibling =
     (
       ~globals: Globals.t,
-      ~call_stack_rev: Sample.call_stack,
+      ~call_stack_rev: CallStack.t,
       ~view_index: int,
-      new_frame: Sample.stack_frame,
+      new_frame: CallStack.frame,
       evt,
     ) => {
   let n = List.length(call_stack_rev);
@@ -362,8 +358,8 @@ let key_handler =
       ~globals: Globals.t,
       ~index: int,
       ~max_index: int,
-      ~call_stack: Sample.call_stack,
-      ~call_stack_rev: Sample.call_stack,
+      ~call_stack: CallStack.t,
+      ~call_stack_rev: CallStack.t,
       ~probe_map: Language.Dynamics.Map.t,
       ~info_map: Statics.Map.t,
       evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.keyboardEvent),
@@ -453,7 +449,7 @@ let key_handler =
       let current_frame = List.nth(call_stack_rev, view_index);
       let current_pos =
         List.find_index(
-          f => Sample.equal_stack_frame(f, current_frame),
+          f => CallStack.equal_frame(f, current_frame),
           siblings,
         );
       let direction = key.key == D("ArrowUp") ? (-1) : 1;
@@ -462,7 +458,7 @@ let key_handler =
         let next_pos =
           (pos + direction + List.length(siblings)) mod List.length(siblings);
         let next_frame = List.nth(siblings, next_pos);
-        if (Sample.equal_stack_frame(next_frame, current_frame)) {
+        if (CallStack.equal_frame(next_frame, current_frame)) {
           Stop_propagation;
         } else {
           /* switch_sibling does Capture; also jump to the new frame's call site */
@@ -525,7 +521,7 @@ let tree_entry =
     (
       ~globals: Globals.t,
       ~info_map: Statics.Map.t,
-      ~sightline_rev: Sample.call_stack,
+      ~sightline_rev: CallStack.t,
       ~index: int,
       entry: Sample.CallTree.line_entry,
     )
@@ -605,7 +601,7 @@ let tree_view =
       ~globals: Globals.t,
       ~info_map: Statics.Map.t,
       ~probe_map: Language.Dynamics.Map.t,
-      ~sightline_rev: Sample.call_stack,
+      ~sightline_rev: CallStack.t,
       ~index: int,
     )
     : Node.t => {
@@ -714,7 +710,7 @@ let view =
     let pinned_head_id =
       Option.bind(pinned_stack, stack =>
         Option.map(
-          (f: Sample.stack_frame) => f.id,
+          (f: CallStack.frame) => f.id,
           Util.ListUtil.hd_opt(stack),
         )
       );
@@ -748,7 +744,7 @@ let view =
 
     /* Build a single breadcrumb entry (separator + entry node) for stack index i */
     let build_single_entry = (i: int): list(Node.t) => {
-      let frame: Sample.stack_frame = List.nth(call_stack, i);
+      let frame: CallStack.frame = List.nth(call_stack, i);
       let app_id = frame.id;
       let display_text = names[i];
       let is_unknown =
