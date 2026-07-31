@@ -92,6 +92,8 @@ let legend_sample =
       seq: 0,
       step_range: focus_step_range,
       pending_focus: None,
+      anchor: None,
+      pinned_span: None,
     },
   };
   let settings = {

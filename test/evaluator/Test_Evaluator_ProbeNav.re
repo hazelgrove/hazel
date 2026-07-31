@@ -58,6 +58,8 @@ let mk_focus = (~pinned=None, stack: CallStack.t): Sample.Focus.t => {
   seq: 0,
   step_range: None,
   pending_focus: None,
+  anchor: None,
+  pinned_span: None,
 };
 
 /* Fixed ids for readable tests */

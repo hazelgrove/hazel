@@ -35,6 +35,13 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
       ...sample_focus,
       time: Some(data.time),
       seq: data.seq,
+      /* D1: the clicked sample's identity, stored directly (the
+       * coordinate fields below are its projections). */
+      anchor:
+        Some({
+          probe_id: data.probe_id,
+          stack: data.call_stack,
+        }),
       indicated_call:
         id != None ? id : z.refractors.sample_focus.indicated_call,
       call_stack:
@@ -84,10 +91,31 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
 };
 
 let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
-  update_pinned_call(z, pinned_call => {
-    switch (pinned_call) {
-    | Some(existing) when CallStack.equal(call_stack, existing) => None
-    | _ => Some(call_stack)
+  update(z, sample_focus => {
+    switch (sample_focus.pinned_stack) {
+    | Some(existing) when CallStack.equal(call_stack, existing) => {
+        ...sample_focus,
+        pinned_stack: None,
+        pinned_span: None,
+      }
+    | _ =>
+      /* The pin stack is [probed_ap_frame, ...sample_stack] (pin_call
+       * prepends the ap), so the pinned sample's identity is
+       * recoverable by decomposition. */
+      let pinned_span: option(Sample.span_ref) =
+        switch (call_stack) {
+        | [head, ...sample_stack] =>
+          Some({
+            probe_id: head.id,
+            stack: sample_stack,
+          })
+        | [] => None
+        };
+      {
+        ...sample_focus,
+        pinned_stack: Some(call_stack),
+        pinned_span,
+      };
     }
   });
 
@@ -112,6 +140,7 @@ let resolve_pending_focus =
         ...sample_focus,
         time: Some(sample.time),
         seq: sample.seq,
+        anchor: Some(Sample.ref_of_sample(sample)),
         indicated_call: None,
         call_stack: sample.call_stack,
         index: List.length(sample.call_stack) - 1,

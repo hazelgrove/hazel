@@ -718,6 +718,8 @@ let step_into_call_stack =
         index: List.length(call_stack),
         pinned_stack: Some(new_stack),
         pending_focus: None,
+        anchor: None,
+        pinned_span: None,
       }
     });
 

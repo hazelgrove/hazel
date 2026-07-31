@@ -33,6 +33,8 @@ let mk_cursor =
   seq: 0,
   step_range: None,
   pending_focus: None,
+  anchor: None,
+  pinned_span: None,
 };
 
 let run_select =
@@ -421,6 +423,8 @@ let mk_cursor_at_index =
   seq: 0,
   step_range: None,
   pending_focus: None,
+  anchor: None,
+  pinned_span: None,
 };
 
 let intent_preservation_tests = [

@@ -278,6 +278,30 @@ module Window = {
  * and suffix matching would otherwise always pick the deepest sample).
  *
  * See plans/sample-focus-sightline.md for the full exegesis. */
+/* A reference to an observation span (equivalently: to a sample — every
+ * sample IS a span close). Identity, not projection: the probed syntax id
+ * plus the call-stack instance it evaluated at. Edit-stable for the same
+ * reason SampleLength's content hash is: built from syntax ids, so it
+ * re-matches automatically across whole-program re-evaluations, and dies
+ * (drops) when no counterpart exists. D1 of the display-layer plan
+ * (plans/observation-trace.md §10): Focus stores these alongside the
+ * legacy coordinate projections, which derive from them and are slated
+ * for deletion once consumers migrate. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type span_ref = {
+  probe_id: Id.t,
+  stack: CallStack.t,
+};
+
+let ref_of_sample = (s: t): span_ref => {
+  probe_id: s.syntax_id,
+  stack: s.call_stack,
+};
+
+let ref_matches = (r: span_ref, s: t): bool =>
+  r.probe_id == s.syntax_id
+  && CallStack.ids_of_stack(r.stack) == CallStack.ids_of_stack(s.call_stack);
+
 module Focus = {
   open OptUtil.Syntax;
 
@@ -309,6 +333,12 @@ module Focus = {
     seq: int,
     step_range: option((int, int)),
     pending_focus: option(pending_focus),
+    /* Span references (D1): the identities the coordinates above are
+     * projections of. anchor = the focused sample; pinned_span = the
+     * pinned sample. Populated wherever the actual sample is in hand;
+     * not yet consumed by selection. */
+    anchor: option(span_ref),
+    pinned_span: option(span_ref),
   };
 
   let init: t = {
@@ -320,6 +350,8 @@ module Focus = {
     seq: 0,
     step_range: None,
     pending_focus: None,
+    anchor: None,
+    pinned_span: None,
   };
 
   /* The above-focus portion of the sightline: call_stack sliced to
@@ -715,6 +747,7 @@ module Cursor = Focus;
 module Capture = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
+    probe_id: Id.t, /* the clicked sample's identity (with call_stack) */
     time: float,
     seq: int,
     call_stack: CallStack.t,
@@ -724,6 +757,7 @@ module Capture = {
 };
 
 let capture_of_sample = (sample: t): Capture.t => {
+  probe_id: sample.syntax_id,
   time: sample.time,
   seq: sample.seq,
   call_stack: sample.call_stack,
