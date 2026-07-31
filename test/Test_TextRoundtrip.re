@@ -142,7 +142,7 @@ let text_reproducer_cases = [
 let render_exp_as_text = (exp: Language.Exp.t): string =>
   exp
   |> ExpToSegment.exp_to_segment(
-       ~settings=ExpToSegment.Settings.editable(~inline=true),
+       ~settings=ExpToSegment.Settings.editable(~inline=Inline),
        _,
      )
   |> Printer.of_segment(~holes="?", _);
