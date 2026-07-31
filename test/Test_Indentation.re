@@ -79,6 +79,9 @@ let indentation_tests = [
     check(
       testable(Fmt.string, String.equal),
       "flush repro 2",
+      /* on this branch level_of derives the let's def hole fresh, so
+         the fresh line reads as the def slot (suggestion 2); the
+         pinned property either way is NON-ADDITIVE */
       "let a =\nlet b =\nlet c =\nlet d =\n  9",
       [Action.Paste("let a =\nlet b =\nlet c =\nlet d =")]
       @ string_to_ltr_actions("\n9")
@@ -96,6 +99,16 @@ let indentation_tests = [
       |> perform(Zipper.init())
       |> Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char),
     )
+  ),
+  /* an incrementor (fun ->) inside a child raises the level for ALL
+     following sibling lines, not just the first (regression: chain
+     lines after the first flattened back to the child opening) */
+  test_indent_after_format(
+    ~name="fun-body let chain indents uniformly",
+    ~init=
+      "let render =\nfun w ->\nlet margin = 4 in\nlet pad = w / margin in\nlet inner = w - pad * 2 in\ninner + pad\nin\nrender(3)",
+    ~goal=
+      "let render =\n  fun w ->\n    let margin = 4 in\n    let pad = w / margin in\n    let inner = w - pad * 2 in\n    inner + pad\nin\nrender(3)",
   ),
   /* Consecutive linebreaks after an indenting form share one level —
      each Enter must not staircase (regression: level+2 compounded per
@@ -1032,6 +1045,20 @@ let ux_case = (~name, ~acts, ~expected) =>
 let bsp = Action.Destruct(Local(Left, ByChar));
 
 let indent_ux_tests = [
+  /* C CAP (ported from artifact-grout 1c2bc75efb, andrew's 2026-07-22
+     live repro): spaces typed BEYOND the line's auto-indent level are
+     real material — backspace deletes them one per press; the 2-space
+     indent unit and the one-keystroke enter-join apply only within
+     the auto-indent width. Before the cap, two backspaces here ate
+     four spaces (6 -> 2). */
+  ux_case(
+    ~name="backspace beyond the indent deletes one space per press",
+    ~acts=
+      string_to_ltr_actions("let a = \n")
+      @ string_to_ltr_actions("    ")
+      @ [bsp, bsp],
+    ~expected="let a = \n    ?",
+  ),
   ux_case(
     ~name="backspace at line start inverts enter (indent + linebreak)",
     ~acts=string_to_ltr_actions("fun q ->\n") @ [bsp],
@@ -1118,13 +1145,13 @@ let grout_indent_tests = [
     /* raw print is grout-free; the guarded property (hole branches
        indent like literal ones, no else/in drift) is the indentation */
     ~goal=
-      "let f =\n  fun x ->\n    let x =\n      if x < 0 then\n      else\n    in\n  f(3)",
+      "let f =\n  fun x ->\n    let x =\n      if x < 0 then\n      else\n    in\n    f(3)",
   ),
   test_indent_after_format(
     ~name="literal branches (mirror of the hole case)",
     ~init="let f =\nfun x ->\nlet x =\nif x < 0 then\n1\nelse 2\nin\nf(3)",
     ~goal=
-      "let f =\n  fun x ->\n    let x =\n      if x < 0 then\n        1\n      else 2\n    in\n  f(3)",
+      "let f =\n  fun x ->\n    let x =\n      if x < 0 then\n        1\n      else 2\n    in\n    f(3)",
   ),
 ];
 

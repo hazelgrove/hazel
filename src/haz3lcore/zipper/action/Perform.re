@@ -557,6 +557,6 @@ let rec go =
     Comment.go(z, ~root)
     |> Option.map(LocalReformat.go(~before))
     |> return(Cant_destruct);
-  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a)
   };
 };

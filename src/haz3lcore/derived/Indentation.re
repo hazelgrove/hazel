@@ -56,10 +56,10 @@ let compute_context =
     };
 
   let rec go =
-          (xs: list(Piece.t), last_contentful: option(Piece.t))
+          (acc, xs: list(Piece.t), last_contentful: option(Piece.t))
           : list((option(Piece.t), option(Piece.t), option(Piece.t))) =>
     switch (xs) {
-    | [] => []
+    | [] => List.rev(acc)
     | [x, ...rest] =>
       let effective_prev = last_contentful;
       let next =
@@ -78,12 +78,13 @@ let compute_context =
         | Grout(_) => last_contentful
         | _ => Some(x) /* Update for contentful pieces */
         };
-      [
-        (effective_prev, next, effective_next),
-        ...go(rest, new_last_contentful),
-      ];
+      go(
+        [(effective_prev, next, effective_next), ...acc],
+        rest,
+        new_last_contentful,
+      );
     };
-  go(seg, None);
+  go([], seg, None);
 };
 
 /* Check if a tile is a case rule (label is ["|", "=>"]) */
@@ -91,25 +92,32 @@ let is_case_rule_tile = (t: Tile.t): bool => t.label == ["|", "=>"];
 
 /* This does not strictly 'complete' a segment but rather does a
  * rough version of it that suffices for indentation calculation.
+ * Tail-recursive in segment length (recursion depth is bounded by
+ * the number of incomplete tiles, not the number of pieces).
  *
  * EXCEPTION: Case rules are NOT completed. Unlike let bindings where
  * swallowing subsequent content as body makes sense, case rules are
  * fundamentally sibling-oriented - they don't nest into each other.
  * Completing an incomplete `|` by swallowing everything after it as
  * body content produces wrong indentation for what should be siblings. */
-let rec shallow_complete_segment = (seg: Segment.t): Segment.t =>
-  switch (seg) {
-  | [] => []
-  | [Tile(t), ...rest] when !Tile.is_complete(t) && !is_case_rule_tile(t) => [
-      Tile({
-        ...t,
-        shards: List.init(List.length(t.label), i => i),
-        children: t.children @ [shallow_complete_segment(rest)],
-        /* Note: Potentially wrong number of children */
-      }),
-    ]
-  | [p, ...rest] => [p, ...shallow_complete_segment(rest)]
-  };
+let rec shallow_complete_segment = (seg: Segment.t): Segment.t => {
+  let rec go = (acc, seg: Segment.t): Segment.t =>
+    switch (seg) {
+    | [] => List.rev(acc)
+    | [Tile(t), ...rest] when !Tile.is_complete(t) && !is_case_rule_tile(t) =>
+      List.rev([
+        Piece.Tile({
+          ...t,
+          shards: List.init(List.length(t.label), i => i),
+          children: t.children @ [shallow_complete_segment(rest)],
+          /* Note: Potentially wrong number of children */
+        }),
+        ...acc,
+      ])
+    | [p, ...rest] => go([p, ...acc], rest)
+    };
+  go([], seg);
+};
 
 /* Find the shortest prefix of the segment containing all incomplete tiles
  * followed by two consecutive linebreaks (aka a blank line) */
@@ -256,15 +264,17 @@ let rec go =
       | _ => false
       };
     /* grout is transparent to the marking, as to the anchor chain */
-    let rec mark = (flag, xs) =>
+    let rec mark = (acc, flag, xs) =>
       switch (xs) {
-      | [] => []
-      | [Piece.Grout(_), ...rest] => [flag, ...mark(flag, rest)]
-      | [x, ...rest] => [flag, ...mark(is_lb(x), rest)]
+      | [] => List.rev(acc)
+      | [Piece.Grout(_), ...rest] => mark([flag, ...acc], flag, rest)
+      | [x, ...rest] => mark([flag, ...acc], is_lb(x), rest)
       };
-    mark(false, complete_trimmed_seg);
+    mark([], false, complete_trimmed_seg);
   };
-  let context = List.combine(context, prev_is_lb);
+  /* stack-safe zip (List.combine is not tail-recursive) */
+  let context =
+    List.rev(List.rev_map2((ctx, lb) => (ctx, lb), context, prev_is_lb));
   let (_, map) =
     List.fold_left2(
       ((level: int, map: Id.Map.t(int)), p: Piece.t, ctx) => {
@@ -313,9 +323,12 @@ let rec go =
              * absorbing later lines, its owed body hole trailing the
              * caret) must not indent the user's fresh line — the user
              * has written nothing there yet (andrew's Enter-indent
-             * repro, 2026-07-22). */
+             * repro, 2026-07-22). For real content, an incrementor
+             * earlier in the child (fun ->) may have RAISED the
+             * running level; sibling lines inherit it — base+2 alone
+             * flattened every let-chain line after the first. */
             | (_, Some(Piece.Grout(_))) when not_top => level
-            | (_, Some(_)) when not_top => base + 2
+            | (_, Some(_)) when not_top => max(level, base + 2)
             | (_, Some(_)) => level
             };
           switch (target_id) {

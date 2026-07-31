@@ -20,14 +20,14 @@ open Language;
 /* --- Helpers --- */
 
 /* Make a stack frame. name defaults to None (as cursor/step-into constructs) */
-let frame = (~name=None, id: Id.t): Sample.stack_frame => {
+let frame = (~name=None, id: Id.t): CallStack.frame => {
   id,
   name,
   fn_def_id: None,
 };
 
 /* Make a named stack frame (as evaluator produces) */
-let named_frame = (id: Id.t, name: string): Sample.stack_frame => {
+let named_frame = (id: Id.t, name: string): CallStack.frame => {
   id,
   name: Some(name),
   fn_def_id: None,
@@ -44,7 +44,7 @@ let id_g = Id.mk();
 
 /* Make a minimal sample with the given call stack */
 let mk_sample =
-    (~seq=0, ~step_start=0, ~step_end=0, stack: Sample.call_stack): Sample.t => {
+    (~seq=0, ~step_start=0, ~step_end=0, stack: CallStack.t): Sample.t => {
   id: Hashtbl.hash((stack, Id.invalid)),
   syntax_id: Id.invalid,
   value: IdTagged.FreshGrammar.Exp.empty_hole(),
@@ -65,7 +65,7 @@ let mk_cursor =
       ~indicated_call=None,
       ~seq=0,
       ~step_range=None,
-      stack: Sample.call_stack,
+      stack: CallStack.t,
     )
     : Sample.Focus.t => {
   call_stack: stack,
@@ -129,7 +129,7 @@ let equality_tests = [
     () => {
       let f1 = frame(id_a);
       let f2 = named_frame(id_a, "foo");
-      check(bool, "should be equal", true, Sample.equal_stack_frame(f1, f2));
+      check(bool, "should be equal", true, CallStack.equal_frame(f1, f2));
     },
   ),
   test_case(
@@ -142,7 +142,7 @@ let equality_tests = [
         bool,
         "should not be equal",
         false,
-        Sample.equal_stack_frame(f1, f2),
+        CallStack.equal_frame(f1, f2),
       );
     },
   ),
@@ -158,7 +158,7 @@ let equality_tests = [
         bool,
         "should be equal (id-only comparison)",
         true,
-        Sample.equal_call_stack(cursor_stack, eval_stack),
+        CallStack.equal(cursor_stack, eval_stack),
       );
     },
   ),
@@ -593,7 +593,7 @@ let mk_cursor_at_index =
       ~seq=0,
       ~step_range=None,
       ~index: int,
-      stack: Sample.call_stack,
+      stack: CallStack.t,
     )
     : Sample.Focus.t => {
   call_stack: stack,
@@ -923,7 +923,7 @@ let three_level_tests = [
       };
       let is_suffix =
         Util.ListUtil.is_suffix_of(
-          ~eq=Sample.equal_stack_frame,
+          ~eq=CallStack.equal_frame,
           mid_data.call_stack,
           cursor_inner.call_stack,
         );
@@ -951,7 +951,7 @@ let three_level_tests = [
       };
       let is_suffix2 =
         Util.ListUtil.is_suffix_of(
-          ~eq=Sample.equal_stack_frame,
+          ~eq=CallStack.equal_frame,
           top_data.call_stack,
           cursor_mid.call_stack,
         );
