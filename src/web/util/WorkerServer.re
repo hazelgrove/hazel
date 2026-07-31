@@ -231,7 +231,10 @@ let evaluate_sync = (req_value: Request.value): Response.value => {
     )
   ) {
   | exception exn => error_response(exn)
-  | (result, state) => Ok((result, state))
+  | (result, state) =>
+    /* Drop transient eval-only data (probe enter-data can hold large arg
+     * values) before serializing over postMessage. */
+    Ok((result, Language.EvaluatorState.clear_transient(state)))
   };
 };
 

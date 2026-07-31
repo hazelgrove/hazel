@@ -24,6 +24,12 @@ type t = {
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
+  /* Transient enter-event data for probed applications (args + call
+   * frame, observable only when the Ap steps). Consumed when the probe's
+   * observation span closes in Evaluator.eval_3; carried up through
+   * sub-evaluations by `append`. Cleared by `clear_transient` before the
+   * state leaves the evaluator (postMessage / cache entries). */
+  app_data: CallStack.app_data,
   step_count: int,
   incr_eval,
 }
@@ -49,6 +55,7 @@ let empty: t = {
   initial_step_count: 0,
   tests: TestMap.empty,
   probes: Sample.Map.empty,
+  app_data: Id.Map.empty,
   step_count: 0,
   theorems: [],
   incr_eval: IncrEval.empty,
@@ -102,18 +109,41 @@ let append = (base: t, ext: t): t => {
       base.tests,
       ext.tests,
     );
+  let app_data =
+    if (Id.Map.is_empty(ext.app_data)) {
+      base.app_data;
+    } else {
+      Id.Map.fold(
+        (id, entries, acc) => {
+          let existing =
+            Id.Map.find_opt(id, acc) |> Option.value(~default=[]);
+          Id.Map.add(id, entries @ existing, acc);
+        },
+        ext.app_data,
+        base.app_data,
+      );
+    };
   {
     ...base,
     step_count: base.step_count + (ext.step_count - ext.initial_step_count),
     probes,
     tests,
     theorems: ext.theorems @ base.theorems,
+    app_data,
   };
 };
 
 /* Restart a state's timeline at step 0, shifting its probe step bounds
  * accordingly (used when replaying cached/streamed states). */
 let rebase = (ext: t): t => append(empty, ext);
+
+/* Drop data only needed while evaluation is in flight. Call before the
+ * state leaves the evaluator (postMessage, cache/outbox entries) to avoid
+ * serializing arg values, which can be large. */
+let clear_transient = (state: t): t => {
+  ...state,
+  app_data: Id.Map.empty,
+};
 
 let get_tests = ({tests, _}) => tests;
 
@@ -166,12 +196,12 @@ let update =
     (
       eval_info: EvalInfo.t,
       state: t,
-      call_stack: CallStack.state,
+      call_stack: CallStack.t,
       env: Environment.t(Exp.t),
       init: DHExp.t,
       side_effects: list(effect),
     )
-    : (CallStack.state, t) => {
+    : (CallStack.t, t) => {
   /* Elide arg value for storage (handles closures, etc.) */
   let elide_arg =
       (env: Environment.t(Exp.t), d: DHExp.t): Sample.Env.elided_value =>
@@ -200,7 +230,7 @@ let update =
   };
 
   List.fold_left(
-    ((call_stack: CallStack.state, state: t), effect: effect) =>
+    ((call_stack: CallStack.t, state: t), effect: effect) =>
       switch (effect) {
       | RecordStackFrame(fn_name, arg_opt, fn_def_id) =>
         let app_id = DHExp.rep_id(init);
@@ -211,13 +241,23 @@ let update =
         };
         /* Only store data for probe-target app_ids, else app_data balloons
          * for programs with many calls but no probes on them. */
-        let call_stack =
+        let state =
           switch (arg_opt) {
           | Some(arg) when Id.Map.mem(app_id, eval_info.targets) =>
             let elided_arg = elide_arg(env, arg);
-            CallStack.add_app_data(call_stack, app_id, elided_arg, frame);
+            {
+              ...state,
+              app_data:
+                CallStack.add_app_data(
+                  state.app_data,
+                  ~stack=call_stack,
+                  app_id,
+                  elided_arg,
+                  frame,
+                ),
+            };
           | Some(_)
-          | None => call_stack
+          | None => state
           };
         (CallStack.add_entry(call_stack, frame), state);
       | RecordTest(instance_report) => (
@@ -233,10 +273,7 @@ let update =
         let state =
           List.fold_left(
             (state: t, sample_closure: (CallStack.t, int, int) => Sample.t) =>
-              add_sample(
-                state,
-                sample_closure(call_stack.stack, step, step),
-              ),
+              add_sample(state, sample_closure(call_stack, step, step)),
             state,
             sample_closures,
           );
@@ -257,7 +294,7 @@ let update =
             DHExp.rep_id(init),
             value,
             env,
-            call_stack.stack,
+            call_stack,
             Sample.empty_capture_spec,
           );
         (call_stack, add_sample(state, sample));

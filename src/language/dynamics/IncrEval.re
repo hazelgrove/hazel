@@ -307,7 +307,7 @@ let update_maps_after_binding =
 
 let reuse_check =
     (
-      ~call_stack: CallStack.state,
+      ~call_stack: CallStack.t,
       ~prev: t('state),
       ~reuse_map: reuse_map,
       ~eval_info: EvalInfo.t,
@@ -316,7 +316,7 @@ let reuse_check =
     : option(entry('state)) => {
   open OptUtil.Syntax;
 
-  let* () = OptUtil.some_if(call_stack.stack == [] && !is_empty(prev), ());
+  let* () = OptUtil.some_if(call_stack == [] && !is_empty(prev), ());
   let* entry = Id.Map.find_opt(id, prev.entries);
   let* info = EvalInfo.find_opt(id, eval_info);
 

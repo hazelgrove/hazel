@@ -71,7 +71,7 @@ let rec evaluate =
           ~eval_info: EvalInfo.t,
           // Call Stack
           ~in_closure=?,
-          ~call_stack: CallStack.state,
+          ~call_stack: CallStack.t,
           ~open_spans: list(open_span),
           // Inputs
           ~reuse_map: IncrEval.reuse_map,
@@ -100,7 +100,7 @@ let rec evaluate =
    * untouched instead (current_top_id = None ⇒ no outbox write) so the last
    * real-id publish remains until the next program node. */
   let current_top_id =
-    if (call_stack.stack == []) {
+    if (call_stack == []) {
       switch (EvalInfo.find_opt(expr_id, eval_info)) {
       | Some(_) => Some(expr_id)
       | None => None
@@ -108,10 +108,11 @@ let rec evaluate =
     } else {
       current_top_id;
     };
-  let replay_state = (state: EvaluatorState.t): EvaluatorState.t => {
-    ...state,
-    incr_eval: IncrEval.empty,
-  };
+  let replay_state = (state: EvaluatorState.t): EvaluatorState.t =>
+    EvaluatorState.clear_transient({
+      ...state,
+      incr_eval: IncrEval.empty,
+    });
   let update_outbox_current = (state: EvaluatorState.t) =>
     switch (outbox, current_top_id) {
     | (Some(outbox), Some(id)) =>
@@ -185,7 +186,7 @@ let rec evaluate =
      * entries while inside a call stack, and reuse_check also refuses reuse
      * there. */
     let body_reuse_map =
-      if (call_stack.stack != []) {
+      if (call_stack != []) {
         reuse_map;
       } else {
         ReusePass.update_reuse_map_after_effects(
@@ -221,30 +222,28 @@ let rec evaluate =
       );
 
     switch (is_finished) {
-    | Final => Trampoline.return((next, call_stack))
+    | Final => Trampoline.return(next)
     | Uneval =>
-      let.trampoline final_value =
-        Trampoline.Next(
-          () =>
-            evaluate(
-              ~reuse_map=body_reuse_map,
-              ~in_closure?,
-              ~call_stack,
-              ~open_spans,
-              ~parent_state=state,
-              ~current_top_id,
-              env,
-              next,
-            ),
-        );
-      Trampoline.return((final_value, call_stack));
+      Trampoline.Next(
+        () =>
+          evaluate(
+            ~reuse_map=body_reuse_map,
+            ~in_closure?,
+            ~call_stack,
+            ~open_spans,
+            ~parent_state=state,
+            ~current_top_id,
+            env,
+            next,
+          ),
+      )
     };
   };
 
   // Do the above but also record probe samples if required
   let eval_3_record_probe_sample =
       (
-        ~call_stack: CallStack.state,
+        ~call_stack: CallStack.t,
         ~open_spans,
         ~state: ref(EvaluatorState.t),
         ~expr_id,
@@ -269,17 +268,27 @@ let rec evaluate =
      * sample. Genuine re-entry (recursion) always differs in call stack,
      * so it opens a fresh span. The single sample is minted by the
      * outermost (span-opening) evaluation: full step range, post-cast
-     * value. (The different-stack flavor of this smear is still handled
+     * value; its enter-data (args + frame, recorded when the Ap inside the
+     * span actually steps) arrives via the state log's append discipline.
+     * (The different-stack flavor of this smear is still handled
      * heuristically by ascription dominance in EvaluatorState.add_sample.) */
     let is_target = Id.Map.find_opt(expr_id, eval_info.targets);
-    let span_key = (expr_id, CallStack.ids_of_stack(call_stack.stack));
-    let continues_open_span =
-      Option.is_some(is_target) && List.mem(span_key, open_spans);
+    let span = {
+      switch (is_target) {
+      | None => `Untargeted
+      | Some(_) =>
+        let span_key = (expr_id, CallStack.ids_of_stack(call_stack));
+        List.mem(span_key, open_spans) ? `Continues : `Opens(span_key);
+      };
+    };
     let open_spans =
-      Option.is_some(is_target) && !continues_open_span
-        ? [span_key, ...open_spans] : open_spans;
+      switch (span) {
+      | `Opens(key) => [key, ...open_spans]
+      | `Continues
+      | `Untargeted => open_spans
+      };
 
-    let.trampoline (final_value, probe_call_stack) =
+    let.trampoline final_value =
       eval_2_until_final(
         ~reuse_map,
         ~in_closure?,
@@ -290,19 +299,14 @@ let rec evaluate =
         exp,
       );
 
-    // Record probe sample if required
-    switch (is_target) {
-    | Some(_) when continues_open_span => ()
-    | Some(probe) =>
+    // Record probe sample when the span this evaluation opened closes
+    switch (is_target, span) {
+    | (Some(probe), `Opens(_)) =>
       let step_start = current_step_count;
       let step_end = state^.step_count - 1;
       /* Look up arg and call frame if this probe is on an Ap expression */
       let app =
-        CallStack.lookup_app(
-          probe_call_stack,
-          expr_id,
-          original_call_stack.stack,
-        );
+        CallStack.lookup_app(state^.app_data, expr_id, original_call_stack);
       let args = Option.map(fst, app);
       let frame = Option.map(snd, app);
       let sample =
@@ -314,12 +318,13 @@ let rec evaluate =
           expr_id,
           final_value,
           env,
-          original_call_stack.stack,
+          original_call_stack,
           probe,
         );
       state := EvaluatorState.add_sample(state^, sample);
       update_outbox_current(state^);
-    | None => ()
+    | (_, `Continues | `Untargeted)
+    | (None, _) => ()
     };
 
     Trampoline.return(final_value);
@@ -328,7 +333,7 @@ let rec evaluate =
   // Do the above but also reuse the previous result if possible
   let eval_4_reuse =
       (
-        ~call_stack: CallStack.state,
+        ~call_stack: CallStack.t,
         ~open_spans,
         ~state: ref(EvaluatorState.t),
         ~expr_id,
@@ -378,7 +383,7 @@ let rec evaluate =
 
       // Record incremental entry if required
       let info_snapshot =
-        if (call_stack.stack != []) {
+        if (call_stack != []) {
           None;
         } else {
           EvalInfo.find_opt(expr_id, eval_info);
@@ -415,8 +420,8 @@ let rec evaluate =
 
   // [PERF] We collect separate states for top-level expressions so we can replay those states.
   let eval_5_state_merge =
-      (~call_stack: CallStack.state, ~open_spans, ~state, ~expr_id, env, exp) =>
-    if (call_stack.stack == []) {
+      (~call_stack: CallStack.t, ~open_spans, ~state, ~expr_id, env, exp) =>
+    if (call_stack == []) {
       let inner_state =
         ref(EvaluatorState.empty_at(parent_state^.step_count));
       let.trampoline final_value =
@@ -474,7 +479,7 @@ let prepare_evaluation =
     evaluate(
       ~prev,
       ~eval_info,
-      ~call_stack=CallStack.empty(),
+      ~call_stack=CallStack.empty,
       ~open_spans=[],
       ~reuse_map,
       ~reused_ids,

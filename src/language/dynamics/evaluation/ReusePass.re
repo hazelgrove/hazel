@@ -9,7 +9,7 @@ let reusable_entry =
     )
     : option(IncrEval.entry(EvaluatorState.t)) =>
   IncrEval.reuse_check(
-    ~call_stack=CallStack.empty(),
+    ~call_stack=CallStack.empty,
     ~prev,
     ~reuse_map,
     ~eval_info,
