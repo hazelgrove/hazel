@@ -1057,29 +1057,35 @@ in fact(4)|};
           pin_stack,
         ),
       );
-      /* BUG (PR #2248 open item, isolated here): the call probe itself
-       * should keep showing the pinned 6 sample (depth 1), but selection
-       * jumps to the depth-2 sample (fact(2), observed INSIDE fact(3)).
-       * Cause: recursion makes the pinned sample's ap-extended stack
-       * [rec,top] id-identical to the next level's raw stack, and the
-       * raw-suffix tier wins before the ap-extension rule is consulted.
-       * A stack of ids cannot distinguish "looking at the fact(3) call
-       * from outside" from "standing inside fact(3)" — they are distinct
-       * trace positions with identical stack coordinates. This check
-       * documents CURRENT behavior; flip expected depth to 1 when fixed. */
+      /* FIXED (was PR #2248's open bug): with the pin stored as a span
+       * REFERENCE (D1.2), the pinned call probe displays the pinned
+       * sample itself — no stack-pattern matching, so the recursion
+       * degeneracy (pinned sample's ap-extended stack id-identical to
+       * the next level's raw stack) can no longer misalign it. The
+       * cursor here mirrors what toggle_pin_call now stores: pinned_span
+       * recovered by decomposing the pin stack. */
+      let pinned_span: option(Sample.span_ref) =
+        Some({
+          probe_id: call_id,
+          stack: six.call_stack,
+        });
+      let cursor = {
+        ...mk_cursor(~pinned=Some(pin_stack), pin_stack),
+        pinned_span,
+      };
       let (selected, _) =
         run_select(
           ~mode=Sample.Window.Single,
           ~ap_id=Some(call_id),
-          ~cursor=mk_cursor(~pinned=Some(pin_stack), pin_stack),
+          ~cursor,
           call_samples,
         );
       switch (selected) {
       | [s] =>
         check(
           int,
-          "call probe display after pin (BUG: should be depth 1)",
-          2,
+          "pinned call probe shows the pinned sample (depth 1)",
+          1,
           List.length(s.call_stack),
         )
       | ss =>
@@ -1087,6 +1093,53 @@ in fact(4)|};
           "call probe: expected 1 selected, got "
           ++ string_of_int(List.length(ss)),
         )
+      };
+      /* Anchor-first: a cursor holding the clicked sample's reference
+       * displays exactly that sample even when its coordinate
+       * projections point elsewhere (deepest body sample here, with
+       * top-level coordinates). */
+      let deep_body = List.nth(body_samples, 2);
+      let anchored = {
+        ...mk_cursor([]),
+        anchor: Some(Sample.ref_of_sample(deep_body)),
+      };
+      switch (
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          anchored,
+          body_samples,
+        )
+      ) {
+      | Some(i) =>
+        check(
+          bool,
+          "anchored cursor selects the anchored sample by reference",
+          true,
+          Sample.ref_matches(
+            Sample.ref_of_sample(deep_body),
+            List.nth(body_samples, i),
+          ),
+        )
+      | None => fail("anchored cursor found no sample")
+      };
+      /* Legacy-coordinate cursors (no ref stored) still take the tier
+       * path; the reference is what fixes the display. */
+      let (legacy_selected, _) =
+        run_select(
+          ~mode=Sample.Window.Single,
+          ~ap_id=Some(call_id),
+          ~cursor=mk_cursor(~pinned=Some(pin_stack), pin_stack),
+          call_samples,
+        );
+      switch (legacy_selected) {
+      | [s] =>
+        check(
+          int,
+          "legacy tier path unchanged (depth 2, the old ambiguity)",
+          2,
+          List.length(s.call_stack),
+        )
+      | _ => fail("legacy: expected 1 selected")
       };
     },
   ),

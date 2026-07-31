@@ -609,7 +609,36 @@ module Selection = {
    *   2.  Direct callee of indicated call (step-into).
    *   3.  Any related sample (Above/Below/Same relative to effective stack).
    */
-  let most_aligned_index =
+  let rec most_aligned_index =
+          (~ap_id: option(Id.t), cursor: Focus.t, samples: list(t))
+          : option(int) => {
+    /* D1.2 reference-first: if the cursor holds the IDENTITY of one of
+     * this probe's samples — the anchored (clicked) sample, or the
+     * pinned sample — display it by reference; no matching. The
+     * stack-pattern tiers below remain the fallback for probes the
+     * cursor holds no reference into (and for refs whose sample no
+     * longer exists after an edit — graceful degradation). Fixes the
+     * fact-pin misalignment: a pinned recursive call's stack PATTERN
+     * matches two distinct spans; its reference names exactly one. */
+    let by_ref = (r: option(span_ref)): option(int) =>
+      switch (r) {
+      | None => None
+      | Some(r) => List.find_index(s => ref_matches(r, s), samples)
+      };
+    let tiers = () => {
+      most_aligned_by_tiers(~ap_id, cursor, samples);
+    };
+    switch (by_ref(cursor.anchor)) {
+    | Some(_) as res => res
+    | None =>
+      switch (by_ref(cursor.pinned_span)) {
+      | Some(_) as res => res
+      | None => tiers()
+      }
+    };
+  }
+
+  and most_aligned_by_tiers =
       (~ap_id: option(Id.t), cursor: Focus.t, samples: list(t))
       : option(int) => {
     let suffix_scan = (stack: CallStack.t): option(int) =>
