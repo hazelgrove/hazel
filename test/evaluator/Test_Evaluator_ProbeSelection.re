@@ -960,6 +960,134 @@ run(0, [1, 2, 3, 4, 5, 6, 7, 8])|};
   ),
 ];
 
+/* Isolated repro attempt for PR #2248's open bug: "in fact example,
+ * pinning the 6 sample of fact(x-1) doesn't align other samples".
+ * Exercises the Selection level only (filter_by_pin + select with the
+ * post-pin cursor built the way capture's perspective-extension does);
+ * the UI capture flow itself is not run here. Recursion makes all rec
+ * frames share one id, so suffix matching degenerates to length — the
+ * suspected wobble. */
+let fact_pin_alignment_tests = [
+  test_case(
+    "Pinning a recursive-call sample aligns the body probe (fact)",
+    `Quick,
+    () => {
+      let code = {|let fact = fun x -> if x < 2 then 1 else ^^probe(x) * ^^probe(fact(x - 1))
+in fact(4)|};
+      let probes = get_probes_map(code) |> Id.Map.bindings;
+      /* The call probe sits on an Ap, so its samples carry args. */
+      let (call_probes, body_probes) =
+        List.partition(
+          ((_, ss)) =>
+            List.exists((s: Sample.t) => Option.is_some(s.args), ss),
+          probes,
+        );
+      let (call_id, call_samples) =
+        switch (call_probes) {
+        | [p] => p
+        | _ => failwith("expected exactly one call probe")
+        };
+      let body_samples =
+        switch (body_probes) {
+        | [(_, ss)] => ss
+        | _ => failwith("expected exactly one body probe")
+        };
+      let by_depth = (ss: list(Sample.t)) =>
+        List.sort(
+          (a: Sample.t, b: Sample.t) =>
+            compare(List.length(a.call_stack), List.length(b.call_stack)),
+          ss,
+        );
+      let call_samples = by_depth(call_samples);
+      let body_samples = by_depth(body_samples);
+      check(int, "call probe: 3 samples", 3, List.length(call_samples));
+      check(int, "body probe: 3 samples", 3, List.length(body_samples));
+      /* The 6 sample (fact(3)'s value) is the shallowest call sample,
+       * observed at the top invocation's stack. */
+      let six = List.hd(call_samples);
+      check(int, "6 sample at depth 1", 1, List.length(six.call_stack));
+      /* Pin it the way ProbeProj.pin_call does. */
+      let pin_stack: CallStack.t = [
+        {
+          id: call_id,
+          name: None,
+          fn_def_id: None,
+        },
+        ...six.call_stack,
+      ];
+      /* Expected: the body probe aligns to x=3 — the unique body sample
+       * whose stack depth equals the pinned depth (inside fact(3)). */
+      let expect_aligned = (label, cursor) => {
+        let (selected, _) =
+          run_select(~mode=Sample.Window.Single, ~cursor, body_samples);
+        switch (selected) {
+        | [s] =>
+          check(
+            int,
+            label ++ ": body probe shows the pinned invocation's sample",
+            List.length(pin_stack),
+            List.length(s.call_stack),
+          )
+        | ss =>
+          fail(
+            label
+            ++ ": expected 1 selected body sample, got "
+            ++ string_of_int(List.length(ss)),
+          )
+        };
+      };
+      /* Cursor as capture leaves it when the user has stepped into the
+       * pinned frame (index at the extended head). */
+      expect_aligned(
+        "focused-in",
+        mk_cursor(~pinned=Some(pin_stack), pin_stack),
+      );
+      /* Cursor as capture's perspective extension leaves it on a fresh
+       * pin-click: extended frame present but ghosted (index at the
+       * clicked sample's original depth). */
+      expect_aligned(
+        "ghosted-extension",
+        mk_cursor_at_index(
+          ~pinned=Some(pin_stack),
+          ~index=List.length(six.call_stack) - 1,
+          pin_stack,
+        ),
+      );
+      /* BUG (PR #2248 open item, isolated here): the call probe itself
+       * should keep showing the pinned 6 sample (depth 1), but selection
+       * jumps to the depth-2 sample (fact(2), observed INSIDE fact(3)).
+       * Cause: recursion makes the pinned sample's ap-extended stack
+       * [rec,top] id-identical to the next level's raw stack, and the
+       * raw-suffix tier wins before the ap-extension rule is consulted.
+       * A stack of ids cannot distinguish "looking at the fact(3) call
+       * from outside" from "standing inside fact(3)" — they are distinct
+       * trace positions with identical stack coordinates. This check
+       * documents CURRENT behavior; flip expected depth to 1 when fixed. */
+      let (selected, _) =
+        run_select(
+          ~mode=Sample.Window.Single,
+          ~ap_id=Some(call_id),
+          ~cursor=mk_cursor(~pinned=Some(pin_stack), pin_stack),
+          call_samples,
+        );
+      switch (selected) {
+      | [s] =>
+        check(
+          int,
+          "call probe display after pin (BUG: should be depth 1)",
+          2,
+          List.length(s.call_stack),
+        )
+      | ss =>
+        fail(
+          "call probe: expected 1 selected, got "
+          ++ string_of_int(List.length(ss)),
+        )
+      };
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeSelection",
   List.concat([
@@ -974,5 +1102,6 @@ let tests = (
     fold_pin_repro_tests,
     dead_pin_tests,
     sample_id_tests,
+    fact_pin_alignment_tests,
   ]),
 );
