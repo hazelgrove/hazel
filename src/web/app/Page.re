@@ -85,6 +85,38 @@ module Update = {
     };
   };
 
+  /* Editors feeding the Problems sidebar, paired with display labels.
+     `None` labels indicate no section header. */
+  let get_problem_editors =
+      (model: Model.t): list((option(string), list(CodeEditable.Model.t))) => {
+    let scratchpad_editors =
+        (m: ScratchMode.Model.t)
+        : list((option(string), list(CodeEditable.Model.t))) => {
+      let sp = List.nth(m.scratchpads, m.current);
+      switch (sp.kind) {
+      | Code({editor, _}) => [(None, [editor.editor])]
+      | Drv(dm) =>
+        /* Scratch/documentation Drv slides don't render the Prelude. */
+        DerivationExerciseMode.Model.get_problem_editors(
+          ~scratch_mode=true,
+          dm,
+        )
+      };
+    };
+    switch (model.editors) {
+    | Scratch(m) => scratchpad_editors(m)
+    | Documentation(m) => scratchpad_editors(m)
+    | Tutorial(m) => [
+        (None, [List.nth(m.exercises, m.current).cells.user_impl.editor]),
+      ]
+    | Exercises(m) =>
+      ExercisesMode.Model.get_problem_editors(
+        ~instructor_mode=model.globals.settings.instructor_mode,
+        m,
+      )
+    };
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
     | Start
@@ -165,6 +197,11 @@ module Update = {
             action,
             model.editors,
           );
+        /* The jump moves the model selection to the target cell but not DOM
+           focus (which stays on the clicked sidebar row). Schedule a focus
+           of the now-active cell after render so the editor receives
+           keystrokes and the caret (gated on :focus) shows there. */
+        Haz3lcore.ProbePerform.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
@@ -369,6 +406,18 @@ module Update = {
 
   let calculate =
       (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
+    /* Sync worker-messaging benchmark gating here (settings aren't reachable at
+       the WorkerClient.request call sites); only run when the panel is open. */
+    WorkerMetrics.sync(
+      ~enabled=
+        model.globals.settings.show_debug_panel
+        && !
+             SidebarModel.Settings.is_debug_collapsed(
+               WorkerMessagingSection.title,
+               model.globals.settings.sidebar,
+             ),
+      ~encodings=model.globals.settings.sidebar.worker_encodings,
+    );
     let editors =
       Editors.Update.calculate(
         ~settings=
@@ -481,8 +530,20 @@ module Selection = {
          mk(
            ~section="Settings",
            ~mdIcon="tune",
+           ~action=inject(Globals(Set(SelectionChunkiness))),
+           "Toggle Character-level Mouse",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
            ~action=inject(Globals(Set(Benchmark))),
            "Toggle Print Benchmarks",
+         ),
+         mk(
+           ~section="Settings",
+           ~mdIcon="tune",
+           ~action=inject(Globals(Set(ShowDebugPanel))),
+           "Toggle Debug Sidebar",
          ),
          mk(
            ~section="Settings",
@@ -569,61 +630,7 @@ module Selection = {
 };
 
 module View = {
-  let is_input_field = (elId: option(string)) => {
-    switch (elId) {
-    | Some("title-input-box")
-    | Some("module-name-input")
-    | Some("prompt-input-box")
-    | Some("test-required-input")
-    | Some("point-max-input")
-    | Some("agent-api-key-input") => true
-    | Some(id) when String.starts_with(~prefix="hint-input", id) => true
-    | Some(id) when String.starts_with(~prefix="syntax-hint-input", id) =>
-      true
-    | Some(id) when String.starts_with(~prefix="impl-hint-input", id) => true
-    | _ => false
-    };
-  };
-
-  let selection_has_refractors =
-      (
-        refractors: Haz3lcore.Zipper.Refractor.t,
-        selection: Haz3lcore.Segment.t,
-      )
-      : bool =>
-    if (List.is_empty(refractors.manuals)) {
-      false;
-    } else {
-      let ids = Haz3lcore.Segment.ids(selection);
-      List.exists(
-        id =>
-          List.exists(((id2, _)) => Id.equal(id, id2), refractors.manuals),
-        ids,
-      );
-    };
-
-  let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
-    let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-    let should_set =
-      switch (cursor.editor, cursor.selection) {
-      | (Some(editor), Some(selection)) =>
-        /* If the selection contains refractors, we forgo the segment cache
-         * for the sake of preserving refractors in the copy via expanding
-         * their text invocation form, i.e. ^^refractor_name(<syntax>) */
-        !selection_has_refractors(editor.state.zipper.refractors, selection)
-      | _ => true
-      };
-    should_set
-      ? Haz3lcore.Parser.set_segment_cache(cursor.selection, str) : ();
-    JsUtil.copy(str);
-  };
-
-  let handlers =
-      (
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~cursor: Cursor.cursor(Editors.Update.t),
-        model: Model.t,
-      ) => {
+  let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
       let meta_down = key.meta == Down;
       let meta_effects =
@@ -729,66 +736,6 @@ module View = {
       Attr.on_focus(_ => {
         JsUtil.focus_clipboard_shim();
         Effect.Ignore;
-      }),
-      Attr.on_copy(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
-            ();
-          } else {
-            let el = Js.Unsafe.coerce(el);
-            if (JsUtil.has_ancestor_class(el, "system-message")
-                || JsUtil.has_ancestor_class(el, "agent-message")) {
-              ();
-            } else {
-              copy(cursor);
-            };
-          };
-        | None => ()
-        };
-        Effect.Ignore;
-      }),
-      Attr.on_cut(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
-            Effect.Ignore;
-          } else {
-            copy(cursor);
-            switch (cursor.editor_action(Destruct(Right))) {
-            | Some(action) => inject(Editors(action))
-            | None => Effect.Ignore
-            };
-          };
-        | None => Effect.Ignore
-        };
-      }),
-    ]
-    @ [
-      Attr.on_paste(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
-            Effect.Ignore;
-          } else {
-            let text =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")));
-            let action =
-              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
-            Dom.preventDefault(evt);
-            switch (cursor.editor_action(action)) {
-            | None => Effect.Ignore
-            | Some(action) => inject(Editors(action))
-            };
-          };
-        | None => Effect.Ignore
-        };
       }),
     ];
   };
@@ -898,6 +845,7 @@ module View = {
         ~editors,
         ~selection=model.selection,
         ~editor=Update.get_editor(model),
+        ~problem_editors=Update.get_problem_editors(model),
         ~signal=
           fun
           | MakeActive(s: Selection.t) => inject(MakeActive(s)),
@@ -995,7 +943,7 @@ module View = {
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
     NinjaKeys.initialize(cursor.contextual_actions);
     div(
-      ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
+      ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );

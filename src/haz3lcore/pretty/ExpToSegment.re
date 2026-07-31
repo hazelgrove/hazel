@@ -1897,6 +1897,18 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
       |> fold_fun_if(settings.fold_fn_bodies, name, _, inner_exp),
     );
+  | Parens({term: FixF(p, e, _), _} as inner_exp) =>
+    let id = inner_exp |> Exp.rep_id;
+    let+ p = pat_to_pretty(~settings: Settings.t, p)
+    and+ e = go(e);
+    let name =
+      "<" ++ (Exp.get_fn_name(exp) |> Option.value(~default="fun")) ++ ">";
+    let fix_form = [mk_form(Fix, id, [p])] @ e;
+    wrap(
+      exp,
+      [mk_form(ParensExp, exp |> Exp.rep_id, [fix_form])]
+      |> fold_fun_if(settings.fold_fn_bodies, name, _, inner_exp),
+    );
   | LivelitName(s) =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s))
   | Fun(p, e, t, _) =>

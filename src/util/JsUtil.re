@@ -106,6 +106,30 @@ let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
 
+/* The id carried by whichever code-editor cell is currently the active
+   (model-selected) one. Used to move DOM focus to a cell after a sidebar
+   jump, so the editor receives keystrokes and the caret (gated on :focus)
+   shows there. */
+let active_cell_id = "active-code-editor";
+
+/* Focus the active cell without scrolling it into view — scroll is handled
+   separately (scroll_cursor_into_view_if_needed), and the browser's default
+   focus scroll would fight it. */
+let focus_active_cell = (): bool =>
+  switch (get_elem_by_id_opt(active_cell_id)) {
+  | Some(elem) =>
+    let _: unit =
+      Js.Unsafe.meth_call(
+        elem,
+        "focus",
+        [|
+          Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
+        |],
+      );
+    true;
+  | None => false
+  };
+
 let clipboard_shim = {
   Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
 };
@@ -128,6 +152,83 @@ let copy = (str: string) => {
     Js.Opt.empty,
   );
 };
+
+/** Copy [str] using the hidden textarea shim + [document.execCommand("copy")]. */
+let copy_via_shim = (str: string): unit => {
+  focus_clipboard_shim();
+  Js.Opt.iter(
+    Dom_html.document##getElementById(Js.string(clipboard_shim_id)),
+    clipboard_shim_el => {
+      let clipboard_shim = Js.Unsafe.coerce(clipboard_shim_el);
+      clipboard_shim##.value := Js.string(str);
+      ignore(clipboard_shim##select);
+      ignore(
+        Dom_html.document##execCommand(
+          Js.string("copy"),
+          Js.bool(false),
+          Js.Opt.empty,
+        ),
+      );
+    },
+  );
+};
+
+let show_copy_toast = (): unit => {
+  Js.Opt.iter(
+    Dom_html.document##getElementById(Js.string("copy-toast")),
+    toast => {
+      toast##.classList##add(Js.string("show"));
+      ignore(
+        Dom_html.window##setTimeout(
+          Js.wrap_callback(() => {
+            toast##.classList##remove(Js.string("show"))
+          }),
+          2000.0,
+        ),
+      );
+    },
+  );
+};
+/* Direct clipboard writes via the async Clipboard API. Used from editor
+   key handlers where the focused element is a non-editable div and
+   Firefox therefore refuses to dispatch a native `copy` event to the
+   page-level handler. Safe under a user gesture (keydown). */
+let has_clipboard_api = (): bool =>
+  Js.to_bool(
+    Js.Unsafe.fun_call(
+      Js.Unsafe.pure_js_expr(
+        "(function(){return typeof navigator.clipboard !== 'undefined';})",
+      ),
+      [||],
+    ),
+  );
+
+let write_clipboard = (str: string): unit =>
+  if (has_clipboard_api()) {
+    Js.Unsafe.fun_call(
+      Js.Unsafe.pure_js_expr(
+        "(function(s){navigator.clipboard.writeText(s);})",
+      ),
+      [|Js.Unsafe.inject(Js.string(str))|],
+    );
+  } else {
+    /* Older browsers: fall through to the shim/execCommand path. */
+    copy(str);
+  };
+
+/* Async clipboard read, used for editor-level Cmd+V. The Promise's
+   text result is delivered to `on_text`, which is expected to schedule
+   the resulting Effect via Bonsai.Effect.Expert.handle. */
+let read_clipboard = (on_text: string => unit): unit =>
+  if (has_clipboard_api()) {
+    let cb = Js.wrap_callback(text => on_text(Js.to_string(text)));
+    Js.Unsafe.fun_call(
+      Js.Unsafe.pure_js_expr(
+        "(function(cb){navigator.clipboard.readText().then(cb);})",
+      ),
+      [|Js.Unsafe.inject(cb)|],
+    );
+  };
 
 let element_to_node = (element: Js.t(Dom_html.element)): Js.t(Dom.node) =>
   Js.Unsafe.coerce(element);
@@ -613,25 +714,4 @@ let navigate_probes =
     };
   | None => None
   };
-};
-
-/* Walk up the DOM (max_depth levels) checking if any ancestor has the given CSS class */
-let has_ancestor_class =
-    (~max_depth=5, el: Js.t(Dom_html.element), class_name: string): bool => {
-  let rec go = (el: Js.t(Dom_html.element), depth: int): bool =>
-    if (depth > max_depth) {
-      false;
-    } else if (Js.to_bool(el##.classList##contains(Js.string(class_name)))) {
-      true;
-    } else {
-      switch (Js.Opt.to_option(el##.parentNode)) {
-      | Some(parent_node) =>
-        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(parent_node))) {
-        | Some(parent) => go(parent, depth + 1)
-        | None => false
-        }
-      | None => false
-      };
-    };
-  go(el, 0);
 };
