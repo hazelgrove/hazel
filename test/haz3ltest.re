@@ -64,7 +64,11 @@ let (suite, _) =
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
     @ Test_Autoprobe.tests
-    @ [Test_VarHighlight.tests, Test_Evaluator_ProbeNav.tests]
+    @ [
+      Test_VarHighlight.tests,
+      Test_Evaluator_ProbeNav.tests,
+      Test_StepProvenance.tests,
+    ]
     @ [Test_GradingReport.tests]
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests

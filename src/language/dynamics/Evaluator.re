@@ -10,15 +10,22 @@ module EvaluatorEVMode: {
     EV_MODE with
       type inner_result = Trampoline.t(DHExp.t) and
       type result =
-        Trampoline.t((status, list(EvaluatorState.effect), DHExp.t));
+        Trampoline.t(
+          (status, list(EvaluatorState.effect), option(step_kind), DHExp.t),
+        );
 } = {
   type status =
     | Final
     | Uneval;
 
   type inner_result = Trampoline.t(DHExp.t);
+  /* The step kind rides the result (None for non-step finals) so the
+     evaluator can read step provenance — inert until the trace slices
+     consume it (plans/observation-trace.md). */
   type result =
-    Trampoline.t((status, list(EvaluatorState.effect), DHExp.t));
+    Trampoline.t(
+      (status, list(EvaluatorState.effect), option(step_kind), DHExp.t),
+    );
   type requirement('a) = Trampoline.t('a);
   type requirements('a, 'b) = Trampoline.t(('a, 'b));
 
@@ -45,13 +52,13 @@ module EvaluatorEVMode: {
   let (let.) = (t1, s) => {
     let.trampoline (x, c) = t1;
     switch (s(x)) {
-    | Step({expr, side_effects, is_value: true, _}) =>
-      Trampoline.return((Final, side_effects, expr))
-    | Step({expr, side_effects, is_value: false, _}) =>
-      Trampoline.return((Uneval, side_effects, expr))
+    | Step({expr, side_effects, kind, is_value: true}) =>
+      Trampoline.return((Final, side_effects, Some(kind), expr))
+    | Step({expr, side_effects, kind, is_value: false}) =>
+      Trampoline.return((Uneval, side_effects, Some(kind), expr))
     | Constructor
     | Value
-    | Indet => Trampoline.return((Final, [], c))
+    | Indet => Trampoline.return((Final, [], None, c))
     };
   };
 };
@@ -165,7 +172,7 @@ let rec evaluate =
         env,
         exp: DHExp.t,
       ) => {
-    let.trampoline (is_finished, effects, next) =
+    let.trampoline (is_finished, effects, _kind, next) =
       eval_0_main(
         ~reuse_map,
         ~in_closure?,
