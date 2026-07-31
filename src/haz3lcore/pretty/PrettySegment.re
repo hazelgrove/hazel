@@ -126,43 +126,46 @@ type output =
   | OSpace
   | ONewline;
 
-/* Greedy layout: process doc, deciding group modes based on fit */
-let rec layout =
-        (width: int, col: int, cmds: list((mode, doc))): list(output) =>
-  switch (cmds) {
-  | [] => []
-  | [(_, Empty), ...rest] => layout(width, col, rest)
-  | [(_, Piece(p, w)), ...rest] => [
-      OPiece(p),
-      ...layout(width, col + w, rest),
-    ]
-  | [(_, Space), ...rest] => [OSpace, ...layout(width, col + 1, rest)]
-  | [(m, Cat(x, y)), ...rest] =>
-    layout(width, col, [(m, x), (m, y), ...rest])
-  | [(Flat, Break), ...rest] => [OSpace, ...layout(width, col + 1, rest)]
-  | [(Breaking, Break), ...rest] => [ONewline, ...layout(width, 0, rest)]
-  | [(Flat, SoftBreak), ...rest] => layout(width, col, rest) /* emit nothing */
-  | [(Breaking, SoftBreak), ...rest] => [
-      ONewline,
-      ...layout(width, 0, rest),
-    ]
-  | [(_, HardBreak), ...rest] => [ONewline, ...layout(width, 0, rest)]
-  | [(_, Group(x)), ...rest] =>
-    if (fits(width - col, [(Flat, x), ...rest])) {
-      layout(width, col, [(Flat, x), ...rest]);
-    } else {
-      layout(width, col, [(Breaking, x), ...rest]);
-    }
-  };
+/* Greedy layout: process doc, deciding group modes based on fit.
+   Tail-recursive (reversed accumulator) so output length doesn't
+   grow the call stack under js_of_ocaml. */
+let layout = (width: int, col: int, cmds: list((mode, doc))): list(output) => {
+  let rec go =
+          (acc: list(output), col: int, cmds: list((mode, doc)))
+          : list(output) =>
+    switch (cmds) {
+    | [] => List.rev(acc)
+    | [(_, Empty), ...rest] => go(acc, col, rest)
+    | [(_, Piece(p, w)), ...rest] =>
+      go([OPiece(p), ...acc], col + w, rest)
+    | [(_, Space), ...rest] => go([OSpace, ...acc], col + 1, rest)
+    | [(m, Cat(x, y)), ...rest] =>
+      go(acc, col, [(m, x), (m, y), ...rest])
+    | [(Flat, Break), ...rest] => go([OSpace, ...acc], col + 1, rest)
+    | [(Breaking, Break), ...rest] => go([ONewline, ...acc], 0, rest)
+    | [(Flat, SoftBreak), ...rest] => go(acc, col, rest) /* emit nothing */
+    | [(Breaking, SoftBreak), ...rest] => go([ONewline, ...acc], 0, rest)
+    | [(_, HardBreak), ...rest] => go([ONewline, ...acc], 0, rest)
+    | [(_, Group(x)), ...rest] =>
+      if (fits(width - col, [(Flat, x), ...rest])) {
+        go(acc, col, [(Flat, x), ...rest]);
+      } else {
+        go(acc, col, [(Breaking, x), ...rest]);
+      }
+    };
+  go([], col, cmds);
+};
 
-/* Convert layout output to segment */
+/* Convert layout output to segment (rev_map/rev to stay stack-safe) */
 let output_to_segment = (outputs: list(output)): Segment.t =>
-  List.map(
-    fun
-    | OPiece(p) => p
-    | OSpace => Piece.secondary(Secondary.mk_space(Id.mk()))
-    | ONewline => Piece.secondary(Secondary.mk_newline(Id.mk())),
-    outputs,
+  List.rev(
+    List.rev_map(
+      fun
+      | OPiece(p) => p
+      | OSpace => Piece.secondary(Secondary.mk_space(Id.mk()))
+      | ONewline => Piece.secondary(Secondary.mk_newline(Id.mk())),
+      outputs,
+    ),
   );
 
 /* === Segment analysis helpers === */
@@ -188,18 +191,18 @@ let strip_whitespace = (seg: Segment.t): list(Piece.t) =>
    (which splits one tile into multiple shard pieces sharing the same ID)
    doesn't cause misalignment. */
 let classify_blank_lines = (seg: Segment.t): Id.Map.t(unit) => {
-  let rec go = (newline_count, seg) =>
-    switch (seg) {
-    | [] => Id.Map.empty
-    | [p, ...rest] =>
-      if (is_whitespace(p)) {
-        go(is_linebreak(p) ? newline_count + 1 : newline_count, rest);
-      } else {
-        let set = go(0, rest);
-        newline_count >= 2 ? Id.Map.add(Piece.id(p), (), set) : set;
-      }
-    };
-  go(0, seg);
+  let (_, set) =
+    List.fold_left(
+      ((newline_count, set), p) =>
+        if (is_whitespace(p)) {
+          (is_linebreak(p) ? newline_count + 1 : newline_count, set);
+        } else {
+          (0, newline_count >= 2 ? Id.Map.add(Piece.id(p), (), set) : set);
+        },
+      (0, Id.Map.empty),
+      seg,
+    );
+  set;
 };
 
 /* Re-insert blank lines into formatted segment based on piece IDs.
@@ -207,28 +210,28 @@ let classify_blank_lines = (seg: Segment.t): Id.Map.t(unit) => {
 let reinsert_blank_lines =
     (blank_ids: Id.Map.t(unit), formatted: Segment.t): Segment.t => {
   let nl = () => Piece.secondary(Secondary.mk_newline(Id.mk()));
-  let rec go = (remaining_ids, formatted) =>
+  let rec go = (acc, remaining_ids, formatted) =>
     switch (formatted) {
-    | [] => []
+    | [] => List.rev(acc)
     | [p, ...rest] =>
       if (is_whitespace(p)) {
-        [p, ...go(remaining_ids, rest)];
+        go([p, ...acc], remaining_ids, rest);
       } else {
         let pid = Piece.id(p);
         if (Id.Map.mem(pid, remaining_ids)) {
-          [
-            /* Insert blank line and remove ID so we don't double-insert
-               for other shards of the same decomposed tile */
-            nl(),
-            p,
-            ...go(Id.Map.remove(pid, remaining_ids), rest),
-          ];
+          /* Insert blank line and remove ID so we don't double-insert
+             for other shards of the same decomposed tile */
+          go(
+            [p, nl(), ...acc],
+            Id.Map.remove(pid, remaining_ids),
+            rest,
+          );
         } else {
-          [p, ...go(remaining_ids, rest)];
+          go([p, ...acc], remaining_ids, rest);
         };
       }
     };
-  go(blank_ids, formatted);
+  go([], blank_ids, formatted);
 };
 
 let is_comment = (p: Piece.t): bool =>
@@ -240,14 +243,15 @@ let is_comment = (p: Piece.t): bool =>
 /* Absorb leading comment pieces from a piece list.
    Returns (comments, remaining) where comments should stay
    on the same line as the preceding code piece. */
-let rec absorb_comments =
-        (pieces: list(Piece.t)): (list(Piece.t), list(Piece.t)) =>
-  switch (pieces) {
-  | [p, ...rest] when is_comment(p) =>
-    let (more, remaining) = absorb_comments(rest);
-    ([p, ...more], remaining);
-  | _ => ([], pieces)
-  };
+let absorb_comments =
+    (pieces: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
+  let rec go = (acc, pieces) =>
+    switch (pieces) {
+    | [p, ...rest] when is_comment(p) => go([p, ...acc], rest)
+    | _ => (List.rev(acc), pieces)
+    };
+  go([], pieces);
+};
 
 let is_semi = (p: Piece.t): bool =>
   switch (p) {
@@ -321,18 +325,25 @@ let find_loosest_prec = (pieces: list(Piece.t)): option(int) =>
 let split_infix_chain =
     (prec: int, pieces: list(Piece.t))
     : (list(list(Piece.t)), list(Piece.t)) => {
-  let rec go = (current_rev, pieces) =>
+  let rec go = (operands_rev, ops_rev, current_rev, pieces) =>
     switch (pieces) {
-    | [] => ([List.rev(current_rev)], [])
+    | [] => (
+        List.rev([List.rev(current_rev), ...operands_rev]),
+        List.rev(ops_rev),
+      )
     | [p, ...rest] =>
       switch (piece_precedence(p)) {
       | Some(p_prec) when p_prec == prec =>
-        let (more_operands, ops) = go([], rest);
-        ([List.rev(current_rev), ...more_operands], [p, ...ops]);
-      | _ => go([p, ...current_rev], rest)
+        go(
+          [List.rev(current_rev), ...operands_rev],
+          [p, ...ops_rev],
+          [],
+          rest,
+        )
+      | _ => go(operands_rev, ops_rev, [p, ...current_rev], rest)
       }
     };
-  go([], pieces);
+  go([], [], [], pieces);
 };
 
 /* Single-token prefix operator (e.g., leading + in sum types) */
@@ -428,32 +439,33 @@ let is_right_convex = (p: Piece.t): bool =>
   };
 
 /* Split pieces at the next case rule tile */
-let rec split_at_next_rule =
-        (pieces: list(Piece.t)): (list(Piece.t), list(Piece.t)) =>
-  switch (pieces) {
-  | [] => ([], [])
-  | [p, ...rest] when is_case_rule_tile(p) => ([], [p, ...rest])
-  | [p, ...rest] =>
-    let (body, remaining) = split_at_next_rule(rest);
-    ([p, ...body], remaining);
-  };
+let split_at_next_rule =
+    (pieces: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
+  let rec go = (body_rev, pieces) =>
+    switch (pieces) {
+    | [] => (List.rev(body_rev), [])
+    | [p, ..._] when is_case_rule_tile(p) => (List.rev(body_rev), pieces)
+    | [p, ...rest] => go([p, ...body_rev], rest)
+    };
+  go([], pieces);
+};
 
 /* Split pieces at the first comma. Returns None if no comma found.
    Commas bind more loosely than compound prefixes (fun, if, let),
    so we scan ahead to ensure commas split the segment before
    compound prefixes absorb past them. */
-let rec split_at_comma =
-        (pieces: list(Piece.t))
-        : option((list(Piece.t), Piece.t, list(Piece.t))) =>
-  switch (pieces) {
-  | [] => None
-  | [p, ...rest] when is_comma(p) => Some(([], p, rest))
-  | [p, ...rest] =>
-    switch (split_at_comma(rest)) {
-    | Some((before, comma, after)) => Some(([p, ...before], comma, after))
-    | None => None
-    }
-  };
+let split_at_comma =
+    (pieces: list(Piece.t))
+    : option((list(Piece.t), Piece.t, list(Piece.t))) => {
+  let rec go = (before_rev, pieces) =>
+    switch (pieces) {
+    | [] => None
+    | [p, ...rest] when is_comma(p) =>
+      Some((List.rev(before_rev), p, rest))
+    | [p, ...rest] => go([p, ...before_rev], rest)
+    };
+  go([], pieces);
+};
 
 /* === Doc construction from segment content === */
 
@@ -820,15 +832,32 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
 
 /* Build a doc from a list of content pieces (whitespace already stripped).
    Uses all-or-nothing for infix/comma chains, waterfall for compound forms.
-   Tiles with children are decomposed on-demand via build_tile_doc. */
+   Tiles with children are decomposed on-demand via build_tile_doc.
+
+   Implemented as a tail-recursive loop (seg_loop): branches whose doc is
+   <prefix> ⧺ <doc of rest> push the prefix onto a reversed accumulator
+   and tail-call, so segment length (e.g. the long comma chains of large
+   list/tuple values) doesn't grow the call stack under js_of_ocaml.
+   seg_finish folds the accumulator back into the right-nested Cat spine
+   the naive recursion would have built. Branches that wrap the remainder
+   in Group (waterfall layout) still recurse, but their depth is bounded
+   by term nesting rather than segment length. */
 and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
+  seg_loop(s, [], pieces)
+
+/* Wrap accumulated prefix docs (reversed) around the terminal doc */
+and seg_finish = (acc_rev: list(doc), last: doc): doc =>
+  List.fold_left((acc, d) => Cat(d, acc), last, acc_rev)
+
+and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
   switch (pieces) {
-  | [] => Empty
+  | [] => seg_finish(acc_rev, Empty)
   | [p] =>
     switch (p) {
     /* Single tile with children: decompose */
-    | Tile(t) when List.length(t.children) > 0 => build_tile_doc(s, t, [])
-    | _ => piece_doc(p)
+    | Tile(t) when List.length(t.children) > 0 =>
+      seg_finish(acc_rev, build_tile_doc(s, t, []))
+    | _ => seg_finish(acc_rev, piece_doc(p))
     }
 
   /* Tile with children followed by semicolon: decompose the tile.
@@ -836,22 +865,19 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
      in rest, so the tile gets proper Group wrapping for layout. */
   | [Tile(t), semi, ...rest]
       when List.length(t.children) > 0 && is_semi(semi) =>
-    build_tile_doc(s, t, [semi, ...rest])
+    seg_finish(acc_rev, build_tile_doc(s, t, [semi, ...rest]))
 
   /* Piece followed by semicolon: keep semi with left operand, hard break */
   | [p, semi, ...rest] when is_semi(semi) =>
-    cats([
-      piece_doc(p),
-      piece_doc(semi),
-      switch (rest) {
-      | [] => Empty
-      | _ => cats([HardBreak, segment_to_doc(s, rest)])
-      },
-    ])
+    let left = cats([piece_doc(p), piece_doc(semi)]);
+    switch (rest) {
+    | [] => seg_finish(acc_rev, left)
+    | _ => seg_loop(s, [Cat(left, HardBreak), ...acc_rev], rest)
+    };
 
   /* Semicolon at start: hard break after */
   | [p, ...rest] when is_semi(p) =>
-    cats([piece_doc(p), HardBreak, segment_to_doc(s, rest)])
+    seg_loop(s, [Cat(piece_doc(p), HardBreak), ...acc_rev], rest)
 
   /* Piece followed by comma: keep comma with left operand, break after.
      Trailing comments after comma stay on the same line.
@@ -864,13 +890,10 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
         cats([piece_doc(p), piece_doc(comma)]),
         comments,
       );
-    cats([
-      left,
-      switch (rest_after) {
-      | [] => Empty
-      | _ => cats([Break, segment_to_doc(s, rest_after)])
-      },
-    ]);
+    switch (rest_after) {
+    | [] => seg_finish(acc_rev, left)
+    | _ => seg_loop(s, [Cat(left, Break), ...acc_rev], rest_after)
+    };
 
   /* Case rule (|...=>): group rule with its body, HardBreak between rules
      so case rules always appear on separate lines */
@@ -883,48 +906,50 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
       };
     let rule_doc = Group(cats([piece_doc(p), body_doc]));
     switch (remaining) {
-    | [] => rule_doc
-    | _ => cats([rule_doc, HardBreak, segment_to_doc(s, remaining)])
+    | [] => seg_finish(acc_rev, rule_doc)
+    | _ => seg_loop(s, [Cat(rule_doc, HardBreak), ...acc_rev], remaining)
     };
 
   /* Dot accessor: keep tight, no space or break */
   | [p, op, ...rest] when is_infix(op) && is_dot(op) =>
-    cats([piece_doc(p), piece_doc(op), segment_to_doc(s, rest)])
+    seg_loop(s, [Cat(piece_doc(p), piece_doc(op)), ...acc_rev], rest)
 
   /* Infix operator: precedence-aware chain splitting.
      Find the loosest operator, split the whole expression there,
      and wrap each operand in a Group so tight sub-expressions stay flat. */
   | [p, op, ...rest] when is_infix(op) =>
     let all = [p, op, ...rest];
-    switch (find_loosest_prec(all)) {
-    | Some(prec) =>
-      let (operands, operators) = split_infix_chain(prec, all);
-      build_infix_chain_doc(s, operands, operators);
-    | None =>
-      cats([
-        piece_doc(p),
-        Break,
-        piece_doc(op),
-        switch (rest) {
-        | [] => Empty
-        | _ => cats([Space, segment_to_doc(s, rest)])
-        },
-      ])
-    };
+    let chain_doc =
+      switch (find_loosest_prec(all)) {
+      | Some(prec) =>
+        let (operands, operators) = split_infix_chain(prec, all);
+        build_infix_chain_doc(s, operands, operators);
+      | None =>
+        cats([
+          piece_doc(p),
+          Break,
+          piece_doc(op),
+          switch (rest) {
+          | [] => Empty
+          | _ => cats([Space, segment_to_doc(s, rest)])
+          },
+        ])
+      };
+    seg_finish(acc_rev, chain_doc);
 
   /* Tile with children: decompose on-demand */
   | [Tile(t), ...rest] when List.length(t.children) > 0 =>
-    build_tile_doc(s, t, rest)
+    seg_finish(acc_rev, build_tile_doc(s, t, rest))
 
   /* Single-token prefix (leading +): keep attached via Space */
   | [p, ...rest] when is_single_prefix(p) =>
-    cats([piece_doc(p), Space, segment_to_doc(s, rest)])
+    seg_loop(s, [Cat(piece_doc(p), Space), ...acc_rev], rest)
 
   /* Infix operator at start of piece list (e.g., + between sum type
      constructors after preceding piece was processed): keep attached
      to the following piece with Space, since there's nothing to its left. */
   | [p, ...rest] when is_infix(p) =>
-    cats([piece_doc(p), Space, segment_to_doc(s, rest)])
+    seg_loop(s, [Cat(piece_doc(p), Space), ...acc_rev], rest)
 
   /* Default: space between pieces, Group for independent breaking.
      Trailing comments stay attached to the preceding piece.
@@ -944,17 +969,18 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
         absorb_comments(rest);
       };
     let p_doc = piece_with_comments(p, comments);
-    cats([
-      p_doc,
-      switch (rest_after) {
-      | [] => Empty
-      | [next, ..._] when is_case_rule_tile(next) =>
-        cats([HardBreak, segment_to_doc(s, rest_after)])
-      | [next, ..._] when is_right_convex(p) && is_paren_or_bracket(next) =>
-        segment_to_doc(s, rest_after)
-      | _ => cats([Break, Group(segment_to_doc(s, rest_after))])
-      },
-    ]);
+    switch (rest_after) {
+    | [] => seg_finish(acc_rev, p_doc)
+    | [next, ..._] when is_case_rule_tile(next) =>
+      seg_loop(s, [Cat(p_doc, HardBreak), ...acc_rev], rest_after)
+    | [next, ..._] when is_right_convex(p) && is_paren_or_bracket(next) =>
+      seg_loop(s, [p_doc, ...acc_rev], rest_after)
+    | _ =>
+      seg_finish(
+        acc_rev,
+        cats([p_doc, Break, Group(segment_to_doc(s, rest_after))]),
+      )
+    };
   }
 
 /* Build doc for an infix chain: operands joined by Break+op+Space.
@@ -1016,32 +1042,29 @@ and build_infix_chain_doc =
 
 /* Remove spaces/newlines between convex-right pieces and following parens/brackets.
    e.g., f (5) → f(5), f\n(5) → f(5), but let x = 5 in (x) stays unchanged.
-   Also remove spaces around dot accessor: g . width → g.width */
-let rec tighten_applications = (outputs: list(output)): list(output) =>
-  switch (outputs) {
-  | [OPiece(prev), OSpace, OPiece(next), ...rest]
-      when is_right_convex(prev) && is_paren_or_bracket(next) => [
-      OPiece(prev),
-      ...tighten_applications([OPiece(next), ...rest]),
-    ]
-  | [OPiece(prev), ONewline, OPiece(next), ...rest]
-      when is_right_convex(prev) && is_paren_or_bracket(next) => [
-      OPiece(prev),
-      ...tighten_applications([OPiece(next), ...rest]),
-    ]
-  /* Remove space before dot */
-  | [OPiece(prev), OSpace, OPiece(dot), ...rest] when is_dot(dot) => [
-      OPiece(prev),
-      ...tighten_applications([OPiece(dot), ...rest]),
-    ]
-  /* Remove space after dot */
-  | [OPiece(dot), OSpace, OPiece(next), ...rest] when is_dot(dot) => [
-      OPiece(dot),
-      ...tighten_applications([OPiece(next), ...rest]),
-    ]
-  | [out, ...rest] => [out, ...tighten_applications(rest)]
-  | [] => []
-  };
+   Also remove spaces around dot accessor: g . width → g.width
+   Tail-recursive (reversed accumulator) so output length doesn't
+   grow the call stack. */
+let tighten_applications = (outputs: list(output)): list(output) => {
+  let rec go = (acc, outputs) =>
+    switch (outputs) {
+    | [OPiece(prev), OSpace, OPiece(next), ...rest]
+        when is_right_convex(prev) && is_paren_or_bracket(next) =>
+      go([OPiece(prev), ...acc], [OPiece(next), ...rest])
+    | [OPiece(prev), ONewline, OPiece(next), ...rest]
+        when is_right_convex(prev) && is_paren_or_bracket(next) =>
+      go([OPiece(prev), ...acc], [OPiece(next), ...rest])
+    /* Remove space before dot */
+    | [OPiece(prev), OSpace, OPiece(dot), ...rest] when is_dot(dot) =>
+      go([OPiece(prev), ...acc], [OPiece(dot), ...rest])
+    /* Remove space after dot */
+    | [OPiece(dot), OSpace, OPiece(next), ...rest] when is_dot(dot) =>
+      go([OPiece(dot), ...acc], [OPiece(next), ...rest])
+    | [out, ...rest] => go([out, ...acc], rest)
+    | [] => List.rev(acc)
+    };
+  go([], outputs);
+};
 
 /* === Main formatting === */
 
