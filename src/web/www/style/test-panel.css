@@ -136,6 +136,11 @@
   color: var(--light-page-color);
 }
 
+.test-percent.pending {
+  color: var(--light-page-color);
+  opacity: 0.7;
+}
+
 .test-bar .segment:first-child {
   border-radius: 0.3em 0 0 0.3em;
 }

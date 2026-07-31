@@ -90,6 +90,23 @@ let tests = (
         ),
       )
     }),
+    test_case(
+      "trim trailing whitespace strips tabs and CR at line end", `Quick, () => {
+      check(
+        string,
+        "tabs and cr trimmed at eol",
+        "x\ny",
+        StringUtil.trim_trailing_whitespace("x\t\r\ny \t"),
+      )
+    }),
+    test_case("trim leading strips tabs after newline", `Quick, () => {
+      check(
+        string,
+        "tabs after nl",
+        "a\nb",
+        StringUtil.trim_leading("a\n\t b"),
+      )
+    }),
     test_case("levenshtein: identical lists", `Quick, () => {
       check(
         int,
