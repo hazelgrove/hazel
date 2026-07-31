@@ -55,7 +55,7 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type sample_focus =
   | Capture(Language.Sample.Capture.t, option(Id.t))
-  | TogglePin(Language.Sample.call_stack)
+  | TogglePin(Language.CallStack.t)
   | SetIndex(int) /* Navigate to a specific depth in the call stack */
   | Reset;
 
@@ -134,8 +134,8 @@ type probe =
   | ToggleManual
   | ToggleAuto
   | ToggleStatics
-  | StepInto(Language.Sample.call_stack, Id.t)
-  | Pin(Language.Sample.call_stack, Id.t)
+  | StepInto(Language.CallStack.t, Id.t)
+  | Pin(Language.CallStack.t, Id.t)
   | RemoveAll;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

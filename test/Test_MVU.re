@@ -1317,7 +1317,11 @@ let projector_dynamics_records_a_sample =
           ~probe_ids,
         );
       let (_, state) =
-        Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+        Evaluator.evaluate(
+          ~eval_info=EvalInfo.of_targets(targets),
+          ~env=Builtins.env_init,
+          elaborated,
+        );
       switch (
         Sample.Map.lookup(id, EvaluatorState.get_probes(state))
         |> Option.value(~default=[])
