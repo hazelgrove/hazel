@@ -21,8 +21,10 @@ let mk_statics = (z: Zipper.t): StaticsBase.Map.t =>
     ),
   );
 
+/* literal text only: indentation is materialized as space pieces, so
+   re-deriving it at print time (~indent) would double-count */
 let render_zipper = (z: Zipper.t): string =>
-  Printer.of_zipper(~holes="?", ~indent=" ", z);
+  Printer.of_zipper(~holes="?", z);
 
 let run_agent_action = (code: string, a: Action.Structural.t) => {
   let z = mk_zipper(code);
@@ -54,6 +56,11 @@ let run_insert_at_program_boundary =
     | Before => Move.to_start(z)
     | After => Move.to_end(z)
     };
+  let before_pieces =
+    LocalReformat.snapshot_pieces(
+      ~enabled=CoreSettings.on.auto_reindent,
+      z_at_boundary,
+    );
   switch (
     CompositionGo.Local.PerformUtils.introduce(
       z_at_boundary,
@@ -72,12 +79,13 @@ let run_insert_at_program_boundary =
         ),
       );
     } else {
-      /* Mirror AgentToolCallHandler: boundary inserts normalize like the
-         dispatch path. */
+      /* Mirror AgentToolCallHandler: boundary inserts normalize and
+         re-indent like the dispatch path. */
       Ok(
         CompositionGo.Local.PerformUtils.normalize_top_level(
           Materialize.all(new_z, ~root=Exp),
-        ),
+        )
+        |> LocalReformat.go_region(~before_pieces),
       );
     };
   };
@@ -943,7 +951,7 @@ let insert_tests = (
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_indented_code",
-            "let a = 1 in let b = 2 in\n\nlet c = 3 in\n  a + b",
+            "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -966,7 +974,7 @@ let insert_tests = (
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_crlf_code",
-            "let a = 1 in let b = 2 in\n\nlet c = 3 in\n\nlet d = 4 in\n  a + b",
+            "let a = 1 in let b = 2 in\n\nlet c = 3 in\n\nlet d = 4 in\na + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -977,7 +985,7 @@ let insert_tests = (
     test_case("insert_after last binding keeps line separator", `Quick, () => {
       check_rendered_exact(
         "insert_after_last_separator",
-        "let a = 1 in let b = 2 in\n\nlet c = 3 in\n  a + b",
+        "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
         apply_and_render(
           "let a = 1 in let b = 2 in a + b",
           Insert(After, "b", "let c = 3 in"),
@@ -4281,10 +4289,10 @@ let paste_funnel_tests = (
   "AgentTools.PasteFunnel",
   [
     test_case(
-      "update_definition strips per-line leading indentation", `Quick, () => {
+      "update_definition strips then re-indents canonically", `Quick, () => {
       check_rendered_exact(
         "update_definition_indented",
-        "let a = fun x ->\nx + 1 in a",
+        "let a = fun x ->\n  x + 1 in a",
         apply_and_render(
           "let a = 1 in a",
           Update(Definition, "a", "fun x ->\n  x + 1"),
@@ -4309,10 +4317,10 @@ let paste_funnel_tests = (
       )
     }),
     test_case(
-      "update_binding_clause strips per-line leading indentation", `Quick, () => {
+      "update_binding_clause strips then re-indents canonically", `Quick, () => {
       check_rendered_exact(
         "update_binding_clause_indented",
-        "let a =\n2 in a",
+        "let a =\n  2 in a",
         apply_and_render(
           "let a = 1 in a",
           Update(BindingClause, "a", "let a =\n  2 in"),
@@ -4324,7 +4332,7 @@ let paste_funnel_tests = (
          the trim must live at the paste funnel, not per tool arm */
       check_rendered_exact(
         "insert_perform_level_indented",
-        "let a = 1 in\n\nlet c = 3 in\n  a",
+        "let a = 1 in\n\nlet c = 3 in\na",
         apply_and_render(
           "let a = 1 in a",
           Insert(After, "a", "  let c = 3 in"),
@@ -4753,7 +4761,7 @@ let whitespace_normalization_tests = (
         );
         check_rendered_exact(
           "chained insert_after spacing",
-          "let a = 1 in\n\nlet b = 2 in\n\nlet c = 3 in\n\nlet d = 4 in\n  ?",
+          "let a = 1 in\n\nlet b = 2 in\n\nlet c = 3 in\n\nlet d = 4 in\n?",
           rendered,
         );
       },
@@ -4772,7 +4780,7 @@ let whitespace_normalization_tests = (
       "one blank line between consecutive top-level bindings", `Quick, () => {
       check_rendered_exact(
         "inter-binding blank line",
-        "let a = 1 in let b = 2 in\n\nlet c = 3 in\n  a + b",
+        "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
         apply_and_render(
           "let a = 1 in let b = 2 in a + b",
           Insert(After, "b", "let c = 3 in"),

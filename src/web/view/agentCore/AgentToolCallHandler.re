@@ -186,6 +186,13 @@ let update =
       | Before => Move.to_start(z)
       | After => Move.to_end(z)
       };
+    /* inserted code arrives indentation-stripped; re-indent its new
+       lines like user Paste */
+    let before_pieces =
+      LocalReformat.snapshot_pieces(
+        ~enabled=settings.core.auto_reindent,
+        z_at_boundary,
+      );
     switch (
       CompositionGo.Local.PerformUtils.introduce(
         z_at_boundary,
@@ -212,7 +219,8 @@ let update =
         let new_z =
           CompositionGo.Local.PerformUtils.normalize_top_level(
             Materialize.all(new_z, ~root=Exp),
-          );
+          )
+          |> LocalReformat.go_region(~before_pieces);
         let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
         let new_code_with_statics =
           CodeWithStatics.Model.mk(new_editor_model);
