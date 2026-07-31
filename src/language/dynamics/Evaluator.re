@@ -278,7 +278,8 @@ let rec evaluate =
      * value; its enter-data (args + frame, recorded when the Ap inside the
      * span actually steps) arrives via the state log's append discipline.
      * (The different-stack flavor of this smear is still handled
-     * heuristically by ascription dominance in EvaluatorState.add_sample.) */
+     * heuristically by ascription dominance in Sample.Map.dominated,
+     * applied by the trace fold.) */
     let is_target = Id.Map.find_opt(expr_id, eval_info.targets);
     let span = {
       switch (is_target) {
@@ -326,25 +327,9 @@ let rec evaluate =
     // Record probe sample when the span this evaluation opened closes
     switch (is_target, span) {
     | (Some(probe), `Opens(_)) =>
-      let step_start = current_step_count;
-      let step_end = state^.step_count - 1;
-      /* Look up arg and call frame if this probe is on an Ap expression */
-      let app =
-        CallStack.lookup_app(state^.app_data, expr_id, original_call_stack);
-      let args = Option.map(fst, app);
-      let frame = Option.map(snd, app);
-      let sample =
-        Sample.mk(
-          ~args,
-          ~frame,
-          ~step_start,
-          ~step_end,
-          expr_id,
-          final_value,
-          env,
-          original_call_stack,
-          probe,
-        );
+      /* Closing the span mints the sample: record_event runs the trace
+       * fold, which pops the open span (start step, stack, enter-data)
+       * and lands the sample in state.probes. */
       state :=
         EvaluatorState.record_event(
           state^,
@@ -353,10 +338,9 @@ let rec evaluate =
             value: final_value,
             env,
             spec: probe,
-            step: step_end,
+            step: state^.step_count - 1,
           }),
         );
-      state := EvaluatorState.add_sample(state^, sample);
       update_outbox_current(state^);
     | (_, `Continues | `Untargeted)
     | (None, _) => ()
