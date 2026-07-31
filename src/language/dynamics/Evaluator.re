@@ -295,6 +295,23 @@ let rec evaluate =
       | `Untargeted => open_spans
       };
 
+    /* Shadow trace (slice 2): span events mirror the inline minting
+     * below; ObsTrace.assemble over them must reproduce the probe map. */
+    switch (span) {
+    | `Opens(_) =>
+      state :=
+        EvaluatorState.record_event(
+          state^,
+          ObsTrace.SpanOpen({
+            syntax_id: expr_id,
+            stack: original_call_stack,
+            step: current_step_count,
+          }),
+        )
+    | `Continues
+    | `Untargeted => ()
+    };
+
     let.trampoline final_value =
       eval_2_until_final(
         ~reuse_map,
@@ -327,6 +344,17 @@ let rec evaluate =
           env,
           original_call_stack,
           probe,
+        );
+      state :=
+        EvaluatorState.record_event(
+          state^,
+          ObsTrace.SpanClose({
+            syntax_id: expr_id,
+            value: final_value,
+            env,
+            spec: probe,
+            step: step_end,
+          }),
         );
       state := EvaluatorState.add_sample(state^, sample);
       update_outbox_current(state^);
