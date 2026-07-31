@@ -29,6 +29,36 @@ in fib(%d)|},
     n,
   );
 
+/* N sequential probed lets with a probed recursion at the bottom:
+ * exercises eval_5 segment nesting — each top-level node's completion
+ * appends (copies) its accumulated obs_trace into the parent, so the
+ * bottom computation's events are re-copied ~N times. fib alone cannot
+ * see this path (single definition = single segment). */
+let let_chain = (n: int): string => {
+  let buf = Buffer.create(1024);
+  Buffer.add_string(buf, "let x1 = ^^probe(1) in\n");
+  for (i in 2 to n) {
+    Buffer.add_string(
+      buf,
+      Printf.sprintf("let x%d = ^^probe(x%d + 1) in\n", i, i - 1),
+    );
+  };
+  Buffer.add_string(
+    buf,
+    Printf.sprintf(
+      "let go = fun m -> if m < 2 then x%d else ^^probe(go(m - 1)) + go(m - 2) in\ngo(12)",
+      n,
+    ),
+  );
+  Buffer.contents(buf);
+};
+
+/* Builtin HOF + tuple patterns + probed closure body: closures, builtin
+ * frames, and list churn that fib lacks. */
+let fold_prog = {|let update = fun (m, a) -> ^^probe(m + a) in
+let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+run(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])|};
+
 let all_exp_targets = (info_map: Statics.Map.t): Sample.targets =>
   Id.Map.filter_map(
     (_id, info) =>
@@ -80,6 +110,12 @@ let tests = (
       timed(~reps=3, "fib12-all-x3", () =>
         eval_n(~probe_all=true, ~reps=3, fib(12))
       )
+    ),
+    test_case("bench: 40-let chain + probed recursion x5", `Quick, () =>
+      timed(~reps=5, "letchain40-x5", () => eval_n(~reps=5, let_chain(40)))
+    ),
+    test_case("bench: fold_left probed x20", `Quick, () =>
+      timed(~reps=20, "fold-probed-x20", () => eval_n(~reps=20, fold_prog))
     ),
   ],
 );
