@@ -519,7 +519,14 @@ let evaluate =
     )
     : (Exp.t, EvaluatorState.t) => {
   let (state, result) =
-    prepare_evaluation(~prev, ~eval_info, ~env, ~reuse_map=None, ~outbox=None, d);
+    prepare_evaluation(
+      ~prev,
+      ~eval_info,
+      ~env,
+      ~reuse_map=None,
+      ~outbox=None,
+      d,
+    );
   /* Must be sequenced before reading `state`: running the trampoline is what
      populates it, and tuple components are evaluated right-to-left. */
   let value = finish(~env, Trampoline.run(result));
