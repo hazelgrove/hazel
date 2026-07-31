@@ -805,7 +805,10 @@ let nodes_at_level = (node_map: t, parent_id: option(Id.t)): list(node) => {
         List.map((id: Id.t) => find(node_map, id), first_node.siblings);
       } else {
         /* Fallback: just return top-level nodes (unordered) */
-        List.map((id: Id.t) => find(node_map, id), top_level_ids);
+        List.map(
+          (id: Id.t) => find(node_map, id),
+          top_level_ids,
+        );
       };
     };
   };

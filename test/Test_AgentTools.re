@@ -1626,7 +1626,9 @@ let high_level_node_map_tests = (
         let all_names =
           Id.Map.bindings(node_map)
           |> List.map(((_, n: HighLevelNodeMap.node)) => n.name)
-          |> List.filter(name => name != "" && name.[0] != '(' && name.[0] != '[')
+          |> List.filter(name =>
+               name != "" && name.[0] != '(' && name.[0] != '['
+             )
           |> List.sort(String.compare);
         check(
           list(string),

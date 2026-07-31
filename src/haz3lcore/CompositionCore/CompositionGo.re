@@ -619,7 +619,6 @@ module Local = {
       |> normalize_top_level_whitespace
       |> Zipper.unzip;
 
-
     /* Every agent-supplied code string funnels through here. Strip
        per-line leading whitespace (models emit indented code; Hazel
        re-indents structurally on render), then parse to a segment and
@@ -1054,128 +1053,136 @@ module Local = {
           )
         };
       } else {
-      let target_id = Utils.get_inner_term_id(Pat, initial_node);
-      let old_pat =
-        StaticsBase.Map.lookup(target_id, initial_info_map)
-        |> OptUtil.get_or_fail(
-             "Failed trying to rename all occurences of the pattern. Could not find the old pattern in the statics map.",
-           );
-      switch (
-        PerformUtils.overwrite_term(initial_z, target_id, code, false, syntax)
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
-        | Some(new_node_map) =>
-          let new_node = node_of_cursor(new_node_map, new_z, new_info_map);
-          switch (
-            PerformUtils.static_error_check(
-              ~edit_action=e,
-              ~initial_info_map,
-              ~initial_node=Some(initial_node),
-              ~new_info_map,
-              ~new_node,
-            )
-          ) {
-          | Some(e) =>
-            Error(
-              Action.Failure.Composition_action_failure(
-                e ++ PerformUtils.reserved_word_note(code),
-              ),
-            )
-          | None =>
-            let new_target_id = Utils.get_inner_term_id(Pat, new_node);
-            let new_pat =
-              StaticsBase.Map.lookup(new_target_id, new_info_map)
-              |> OptUtil.get_or_fail(
-                   "Failed trying to rename all occurences of the pattern. Could not find the new pattern in the statics map.",
-                 );
-            let old_names = GeneralTreeUtils.get_var_names_from_pat(old_pat);
-            let new_names = GeneralTreeUtils.get_var_names_from_pat(new_pat);
-            /* Old pattern binding no names (hole/wild) has no use sites to
-               rewrite; any other bound-name count change makes old→new use
-               site mapping ambiguous, so reject rather than silently leaving
-               stale references. */
-            if (old_names != []
-                && List.length(old_names) != List.length(new_names)) {
+        let target_id = Utils.get_inner_term_id(Pat, initial_node);
+        let old_pat =
+          StaticsBase.Map.lookup(target_id, initial_info_map)
+          |> OptUtil.get_or_fail(
+               "Failed trying to rename all occurences of the pattern. Could not find the old pattern in the statics map.",
+             );
+        switch (
+          PerformUtils.overwrite_term(
+            initial_z,
+            target_id,
+            code,
+            false,
+            syntax,
+          )
+        ) {
+        | Error(e) => Error(e)
+        | Ok(new_z) =>
+          let new_info_map = mk_statics(new_z);
+          switch (build(new_z, new_info_map)) {
+          | None => Error(Action.Failure.Cant_derive_local_AST_information)
+          | Some(new_node_map) =>
+            let new_node = node_of_cursor(new_node_map, new_z, new_info_map);
+            switch (
+              PerformUtils.static_error_check(
+                ~edit_action=e,
+                ~initial_info_map,
+                ~initial_node=Some(initial_node),
+                ~new_info_map,
+                ~new_node,
+              )
+            ) {
+            | Some(e) =>
               Error(
                 Action.Failure.Composition_action_failure(
-                  "Cannot rewrite use sites: the old pattern binds "
-                  ++ string_of_int(List.length(old_names))
-                  ++ " name(s) ("
-                  ++ String.concat(", ", old_names)
-                  ++ ") but the new pattern binds "
-                  ++ string_of_int(List.length(new_names))
-                  ++ " ("
-                  ++ String.concat(", ", new_names)
-                  ++ "). Keep the same number of bound names, or update the definition and body references explicitly.",
+                  e ++ PerformUtils.reserved_word_note(code),
                 ),
-              );
-            } else {
-              /* Capture pre-check: statics won't flag capture (the reference
-                 still resolves), so reject genuinely-new names that already
-                 occur anywhere in this binding's scope. Conservative:
-                 over-rejects some shadow-safe cases. */
-              let added_names =
-                List.filter(n => !List.mem(n, old_names), new_names);
-              let scope_root = id_of(initial_node);
-              let taken_name =
-                List.find_opt(
-                  GeneralTreeUtils.name_occurs_within(
-                    ~root_id=scope_root,
-                    ~info_map=initial_info_map,
-                  ),
-                  added_names,
-                );
-              switch (taken_name) {
-              | Some(name) =>
+              )
+            | None =>
+              let new_target_id = Utils.get_inner_term_id(Pat, new_node);
+              let new_pat =
+                StaticsBase.Map.lookup(new_target_id, new_info_map)
+                |> OptUtil.get_or_fail(
+                     "Failed trying to rename all occurences of the pattern. Could not find the new pattern in the statics map.",
+                   );
+              let old_names =
+                GeneralTreeUtils.get_var_names_from_pat(old_pat);
+              let new_names =
+                GeneralTreeUtils.get_var_names_from_pat(new_pat);
+              /* Old pattern binding no names (hole/wild) has no use sites to
+                 rewrite; any other bound-name count change makes old→new use
+                 site mapping ambiguous, so reject rather than silently leaving
+                 stale references. */
+              if (old_names != []
+                  && List.length(old_names) != List.length(new_names)) {
                 Error(
                   Action.Failure.Composition_action_failure(
-                    "Not renaming to \""
-                    ++ name
-                    ++ "\": that name already occurs as a binder or variable reference within this binding's scope, so the rename could silently change which binding existing references point to. Choose a name that is unused in this scope.",
+                    "Cannot rewrite use sites: the old pattern binds "
+                    ++ string_of_int(List.length(old_names))
+                    ++ " name(s) ("
+                    ++ String.concat(", ", old_names)
+                    ++ ") but the new pattern binds "
+                    ++ string_of_int(List.length(new_names))
+                    ++ " ("
+                    ++ String.concat(", ", new_names)
+                    ++ "). Keep the same number of bound names, or update the definition and body references explicitly.",
                   ),
-                )
-              | None =>
-                /* Hybrid refs: pre-edit [[co_ctx]] for the filter, post-edit
-                   term + [[new_info_map]] for the body, so renames see stale
-                   spellings but paths stay consistent after follow-up edits
-                   (see [[GeneralTreeUtils.get_refs_to_after_pattern_edit]]). */
-                let final_z =
-                  old_names == []
-                    ? new_z
-                    : GeneralTreeUtils.update_use_sites_of_pat(
-                        ~z=new_z,
-                        ~co_ctx=
-                          GeneralTreeUtils.get_refs_to_after_pattern_edit(
-                            ~pre_edit_let_info=initial_node.info,
-                            ~post_edit_let_info=new_node.info,
-                            new_info_map,
-                          ),
-                        ~old_names,
-                        ~new_names,
-                      );
-                /* Belt-and-suspenders: re-validate after the use-site rewrite;
-                   anything the pre-checks missed must not grow the error count. */
-                let initial_errors = ErrorPrint.all(initial_info_map);
-                let final_errors = ErrorPrint.all(mk_statics(final_z));
-                if (List.length(final_errors) > List.length(initial_errors)) {
+                );
+              } else {
+                /* Capture pre-check: statics won't flag capture (the reference
+                   still resolves), so reject genuinely-new names that already
+                   occur anywhere in this binding's scope. Conservative:
+                   over-rejects some shadow-safe cases. */
+                let added_names =
+                  List.filter(n => !List.mem(n, old_names), new_names);
+                let scope_root = id_of(initial_node);
+                let taken_name =
+                  List.find_opt(
+                    GeneralTreeUtils.name_occurs_within(
+                      ~root_id=scope_root,
+                      ~info_map=initial_info_map,
+                    ),
+                    added_names,
+                  );
+                switch (taken_name) {
+                | Some(name) =>
                   Error(
                     Action.Failure.Composition_action_failure(
-                      "Not applying the rename: rewriting the use sites would introduce new static error(s): "
-                      ++ String.concat(", ", final_errors),
+                      "Not renaming to \""
+                      ++ name
+                      ++ "\": that name already occurs as a binder or variable reference within this binding's scope, so the rename could silently change which binding existing references point to. Choose a name that is unused in this scope.",
                     ),
-                  );
-                } else {
-                  Ok((final_z, None));
+                  )
+                | None =>
+                  /* Hybrid refs: pre-edit [[co_ctx]] for the filter, post-edit
+                     term + [[new_info_map]] for the body, so renames see stale
+                     spellings but paths stay consistent after follow-up edits
+                     (see [[GeneralTreeUtils.get_refs_to_after_pattern_edit]]). */
+                  let final_z =
+                    old_names == []
+                      ? new_z
+                      : GeneralTreeUtils.update_use_sites_of_pat(
+                          ~z=new_z,
+                          ~co_ctx=
+                            GeneralTreeUtils.get_refs_to_after_pattern_edit(
+                              ~pre_edit_let_info=initial_node.info,
+                              ~post_edit_let_info=new_node.info,
+                              new_info_map,
+                            ),
+                          ~old_names,
+                          ~new_names,
+                        );
+                  /* Belt-and-suspenders: re-validate after the use-site rewrite;
+                     anything the pre-checks missed must not grow the error count. */
+                  let initial_errors = ErrorPrint.all(initial_info_map);
+                  let final_errors = ErrorPrint.all(mk_statics(final_z));
+                  if (List.length(final_errors) > List.length(initial_errors)) {
+                    Error(
+                      Action.Failure.Composition_action_failure(
+                        "Not applying the rename: rewriting the use sites would introduce new static error(s): "
+                        ++ String.concat(", ", final_errors),
+                      ),
+                    );
+                  } else {
+                    Ok((final_z, None));
+                  };
                 };
               };
             };
           };
         };
-      };
       };
     | Update(BindingClause, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
@@ -1219,7 +1226,13 @@ module Local = {
         };
       } else {
         switch (
-          PerformUtils.overwrite_term(initial_z, target_id, code, true, syntax)
+          PerformUtils.overwrite_term(
+            initial_z,
+            target_id,
+            code,
+            true,
+            syntax,
+          )
         ) {
         | Error(e) => Error(e)
         | Ok(new_z) =>
@@ -1934,7 +1947,9 @@ module Local = {
         switch (composition_dispatch(a, syntax, z, mk_statics)) {
         | Ok((new_z, warning)) =>
           Ok((
-            PerformUtils.normalize_top_level(Dump.to_zipper(new_z, ~root=Exp)),
+            PerformUtils.normalize_top_level(
+              Dump.to_zipper(new_z, ~root=Exp),
+            ),
             warning,
           ))
         | Error(e) => Error(e)

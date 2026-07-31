@@ -156,9 +156,7 @@ let execute_one_tool_call =
         | ReadAction(read_action) =>
           /* Read actions: the result content is the message */
           let z = cell_editor.editor.editor.state.zipper;
-          switch (
-            CompositionGo.Public.read_dispatch(~action=read_action, ~z)
-          ) {
+          switch (CompositionGo.Public.read_dispatch(~action=read_action, ~z)) {
           | Ok(content) => content
           | Error(_) =>
             "The " ++ tool_call.name ++ " tool call encountered an error."
