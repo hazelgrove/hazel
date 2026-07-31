@@ -5,6 +5,7 @@ open Language;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action_wrapper =
   | Action(action)
+  | DocsRequest(string) /* read_docs: answered from DocPacks, no editor change */
   | Failure(string);
 
 module Local = {
@@ -14,6 +15,7 @@ module Local = {
   let tools = [
     ViewTools.expand,
     ViewTools.collapse,
+    DocsTools.read_docs,
     ProbeTools.place_probe,
     ProbeTools.remove_probe,
     ProbeTools.toggle_probe,
@@ -95,7 +97,20 @@ module Local = {
     k;
   };
 
-  let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
+  let rec action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
+    /* read_docs is answered from DocPacks without touching the editor, so
+       it lives at the wrapper level rather than in the action type */
+    if (tool_name == "read_docs") {
+      switch (API.Json.dot("topic", args)) {
+      | Some(`String(topic)) => DocsRequest(topic)
+      | _ => Failure("read_docs requires a `topic` string argument")
+      };
+    } else {
+      action_of_editor(~tool_name, ~args);
+    }
+
+  and action_of_editor =
+      (~tool_name: string, ~args: API.Json.t): action_wrapper => {
     /* Possible arguments */
     /* Parsing here to avoid redundancy */
     /* Argument(s) may or may not be provided depending on the tool called */

@@ -455,11 +455,7 @@ let compaction_prompt_tests = [
     "CompactionPrompt.mk_system_prompt includes dev notes and preamble markers",
     `Quick,
     () => {
-      let s =
-        CompactionPrompt.mk_system_prompt(
-          ~agent_system_prompt="SHORT_AGENT_PROMPT",
-          ~dev_notes="DEV_NOTES_LINE",
-        );
+      let s = CompactionPrompt.mk_system_prompt(~dev_notes="DEV_NOTES_LINE");
       let has = (needle, hay) =>
         StringUtil.plain_search(needle, hay, 0) >= 0;
       check_bool("has preamble tag", true, has("compactionSummarizer", s));
@@ -468,31 +464,32 @@ let compaction_prompt_tests = [
         true,
         has("## Agent system prompt", s),
       );
-      check_bool("embeds agent prompt", true, has("SHORT_AGENT_PROMPT", s));
       check_bool("embeds dev notes", true, has("DEV_NOTES_LINE", s));
     },
   ),
   test_case(
-    "CompactionPrompt: long agent prompt is abbreviated with notice",
+    "CompactionPrompt: excerpt sections are embedded whole, untruncated",
     `Quick,
     () => {
-      let long =
-        String.make(
-          CompactionPrompt.compaction_system_prompt_max_chars + 50,
-          'x',
-        );
-      let s =
-        CompactionPrompt.mk_system_prompt(
-          ~agent_system_prompt=long,
-          ~dev_notes="dn",
-        );
+      let s = CompactionPrompt.mk_system_prompt(~dev_notes="dn");
       let has = (needle, hay) =>
         StringUtil.plain_search(needle, hay, 0) >= 0;
-      check_bool("truncation notice", true, has("truncated for length", s));
+      /* whole sections: both the language guide and the projector catalog
+         (which the old prefix truncation used to cut) must be present */
       check_bool(
-        "long combined prompt (abbreviated agent section)",
+        "language guide included",
         true,
-        String.length(s) > 12_000,
+        has("## Hazel language guide", s),
+      );
+      check_bool(
+        "projector catalog included",
+        true,
+        has("## Projectors and the agent view", s),
+      );
+      check_bool(
+        "no truncation notice",
+        false,
+        has("truncated for length", s),
       );
     },
   ),
