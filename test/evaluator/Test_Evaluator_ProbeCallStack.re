@@ -502,6 +502,46 @@ in apply(add(_, 10), 5)|},
   ),
 ];
 
+/* Delegation law: an administrative same-id re-evaluation (cast
+ * distribution rebuilding the probed Ap via rewrap) continues the open
+ * observation span rather than opening a second one, so one source-level
+ * call mints exactly one sample — with args and a navigable frame. */
+let span_suppression_tests = [
+  test_case(
+    "Cast-distributed call mints a single fully-resolved sample",
+    `Quick,
+    () => {
+      let s =
+        single_sample(
+          "returned-cast-deferred",
+          {|let add = fun (a, b) -> a + b in
+let mk: Int -> (Int -> Int) = fun a -> add(a, _) in
+let apply = fun (f, x) -> ^^probe(f(x)) in
+apply(mk(1), 5)|},
+        );
+      check(bool, "sample has args", true, Option.is_some(s.args));
+      check(
+        bool,
+        "sample frame resolves fn_def_id",
+        true,
+        Option.is_some(frame_fn_def_id(s)),
+      );
+    },
+  ),
+  test_case(
+    "Recursive same-id calls still mint one sample per depth",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|let go = fun n -> if n < 1 then 0 else ^^probe(go(n - 1)) in
+go(3)|},
+        );
+      check(int, "three recursive probe hits", 3, List.length(samples));
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeCallStack",
   List.concat([
@@ -510,5 +550,6 @@ let tests = (
     app_vs_body_tests,
     module_function_tests,
     step_into_frame_tests,
+    span_suppression_tests,
   ]),
 );
