@@ -312,7 +312,10 @@ let mk_bad = (ctr, ids, value) => {
 };
 
 let is_hole_label = (t: string) =>
-  t == " " || Token.is_explicit_hole(t) || Token.is_llm_hole(t);
+  t == " "
+  || Token.is_explicit_hole(t)
+  || Token.is_implicit_hole_marker(t)
+  || Token.is_llm_hole(t);
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
@@ -546,7 +549,8 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
     | "Bool" => ret(Bool)
     | "1"
     | "Unit" => ret(Unit)
-    | _ when Token.is_explicit_hole(t) => ret(TypHole)
+    | _ when Token.is_explicit_hole(t) || Token.is_implicit_hole_marker(t) =>
+      ret(TypHole)
     | _
         when
           Token.is_var(t)

@@ -13,7 +13,7 @@ let stitched_results =
       fun
       | Some(ProgramResult.ResultOk(r)) => Some(r.result)
       | Some(ResultFail(_))
-      | Some(ResultPending)
+      | Some(ResultPending(_))
       | None => None
     )
   );
@@ -156,6 +156,40 @@ module Model = {
      the `_at` version so Prelude/Setup focus isn't misread as a tree cell. */
   let get_derivation_info = (model: t) =>
     get_derivation_info_at(model.pos, model);
+
+  /* Editors whose problems should appear in the Problems sidebar, each
+     paired with a display label. Only cells that are actually rendered are
+     listed: the Prelude is shown in exercise mode but not in scratch /
+     documentation Drv slides, and abbreviation tree nodes carry no editor
+     (`None` in `cells.trees`, dropped below). Read-only cells (e.g. the
+     student-mode Prelude or the goal conclusion) are still shown and
+     jumpable, so they stay. All tree judgement editors are bundled into a
+     single "Derivation" group (multi-source, so per-row line numbers are
+     suppressed since L# would refer to different editors' geometries).
+     Trees are walked in postorder so within-tree order matches the visual
+     top-to-bottom layout (premises above the conclusion); trees themselves
+     are in display order. */
+  let get_problem_editors =
+      (~scratch_mode: bool, model: t)
+      : list((option(string), list(CodeEditable.Model.t))) => {
+    let rec postorder = (Tree.Node(v, c)) =>
+      List.concat_map(postorder, c) @ [v];
+    let tree_editors =
+      model.cells.trees
+      |> List.concat_map(tree =>
+           tree
+           |> postorder
+           |> List.filter_map(cell_opt =>
+                Option.map(
+                  (cell: CellEditor.Model.t) => cell.editor,
+                  cell_opt,
+                )
+              )
+         );
+    (scratch_mode ? [] : [(Some("Prelude"), [model.cells.prelude.editor])])
+    @ [(Some("Setup"), [model.cells.setup.editor])]
+    @ [(Some("Derivation"), tree_editors)];
+  };
 };
 
 module Update = {
@@ -417,38 +451,26 @@ module Update = {
         stitched_elabs,
       );
 
-    WorkerClient.request(
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let pos' = DerivationExercise.pos_of_key(pos);
-          let result': ProgramResult.t(ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          schedule_action(
-            Editor(pos', ResultAction(UpdateResult(result'))),
-          );
-        }),
-      ~timeout=_ => {
-        let _ =
-          DerivationExercise.map_stitched(
-            (pos, _) =>
-              schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+      ~pos_of_key=DerivationExercise.pos_of_key,
+      ~dispatch=
+        (pos, action) =>
+          schedule_action(Editor(pos, ResultAction(action))),
+      ~on_timeout=
+        _ =>
+          ignore(
+            DerivationExercise.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
                 ),
-              ),
-            model.cells,
-          );
-        ();
-      },
+              model.cells,
+            ),
+          ),
     );
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that
@@ -560,7 +582,7 @@ module Selection = {
       : option((Update.t, t)) => {
     DerivationExercise.positioned_editors(model.editors)
     |> List.find_opt(((_, e: Editor.t)) =>
-         TermData.root_tile(id, e.syntax.term_data) != None
+         TermData.root_piece(id, e.syntax.term_data) != None
        )
     |> Option.map(((pos, _)) =>
          (

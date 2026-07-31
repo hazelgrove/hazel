@@ -41,7 +41,7 @@ module Model = {
   let persist = (exercise: t, ~instructor_mode: bool) => {
     Tutorial.positioned_editors(exercise.editors)
     |> List.filter(((pos, _)) =>
-         Tutorial.visible_in(pos, ~instructor_mode)
+         Tutorial.is_editable(pos, ~instructor_mode)
        )
     |> List.map(((pos, editor: Editor.t)) =>
          (pos, editor.state.zipper |> PersistentZipper.persist)
@@ -125,7 +125,7 @@ module Update = {
         },
       })
     | Editor(pos, MainEditor(action))
-        when Tutorial.visible_in(pos, ~instructor_mode) =>
+        when Tutorial.is_editable(pos, ~instructor_mode) =>
       // Redirect to editors
       let editor =
         Tutorial.main_editor_of_state(~selection=pos, model.editors);
@@ -182,7 +182,7 @@ module Update = {
       }
     | Editor(pos, ResultAction(_) as action)
         when
-          Tutorial.visible_in(pos, ~instructor_mode)
+          Tutorial.is_editable(pos, ~instructor_mode)
           || action
           |> (
             fun
@@ -279,38 +279,26 @@ module Update = {
         stitched_elabs,
         model.cells,
       );
-    WorkerClient.request(
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let pos' = Tutorial.pos_of_key(pos);
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          schedule_action(
-            Editor(pos', ResultAction(UpdateResult(result'))),
-          );
-        }),
-      ~timeout=_ => {
-        let _ =
-          Tutorial.map_stitched(
-            (pos, _) =>
-              schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+      ~pos_of_key=Tutorial.pos_of_key,
+      ~dispatch=
+        (pos, action) =>
+          schedule_action(Editor(pos, ResultAction(action))),
+      ~on_timeout=
+        _ =>
+          ignore(
+            Tutorial.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
                 ),
-              ),
-            model.cells,
-          );
-        ();
-      },
+              model.cells,
+            ),
+          ),
     );
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that
@@ -384,8 +372,8 @@ module Selection = {
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Tutorial.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TermData.root_tile(tile, e.syntax.term_data) != None
-         && Tutorial.visible_in(p, ~instructor_mode=settings.instructor_mode)
+         TermData.root_piece(tile, e.syntax.term_data) != None
+         && Tutorial.is_editable(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
          (
@@ -563,7 +551,7 @@ module View = {
             let inner_result = hidden_tests.result.result;
             let result = inner_result |> Util.Calc.get_value;
             switch (result) {
-            | ResultPending =>
+            | ResultPending(_) =>
               div(
                 ~attrs=[Attr.classes(["checkmark-grey", "pending"])],
                 [text("🤔")],

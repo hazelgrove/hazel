@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Haz3lcore;
 open Test_Evaluator_Prelude;
 
 /* Tests for the incremental evaluator. Exercises the three key mechanisms:
@@ -23,9 +24,9 @@ open Test_Evaluator_Prelude;
  *   which walks a parsed Exp.t and replaces an Atom(Int(n)) payload
  *   in-place while keeping the surrounding IdTagged annotations untouched.
  *
- *   Each test that claims to test reuse / dirtying ALSO asserts that
- *   `incr.reused` is non-empty on the second run, so we can't silently
- *   regress into the "disjoint id spaces" failure mode again. */
+ *   Tests that claim to exercise reuse / dirtying also check the explicit
+ *   reuse plan for the second run, so we can't silently regress into the
+ *   "disjoint id spaces" failure mode again. */
 
 /* Statics.mk now returns the info_map AND the elaborated expression
  * together (Elaborator.re was merged into statics on dev), so we always
@@ -40,16 +41,20 @@ let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
 let statics_of = (exp: Exp.t): Statics.Map.t => fst(statics_and_elab(exp));
 
 /* Run the incremental evaluator end-to-end, returning the evaluated Exp.t,
- * final EvaluatorState, and resulting IncrEval.t (for test-readability we
+ * final EvaluatorState, and resulting incr_eval map (for test-readability we
  * surface the incr map separately even though it also lives in state). */
 let eval_incr =
-    (~prev: IncrEval.t=IncrEval.empty, exp: Exp.t)
-    : (Exp.t, EvaluatorState.t, IncrEval.t) => {
+    (~prev: EvaluatorState.incr_eval=IncrEval.empty, exp: Exp.t)
+    : (Exp.t, EvaluatorState.t, EvaluatorState.incr_eval) => {
   let (info_map, elab) = statics_and_elab(exp);
-  let info_map =
-    EvalInfoMap.of_info_map(~probe_all=CoreSettings.on.probe_all, info_map);
+  let eval_info =
+    EvalInfo.of_info_map(
+      ~probe_all=CoreSettings.on.probe_all,
+      ~targets=Id.Map.empty,
+      info_map,
+    );
   let (result, state) =
-    Evaluator.evaluate(~prev, ~info_map, ~env=Builtins.env_init, elab);
+    Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init, elab);
   (result, state, state.incr_eval);
 };
 
@@ -132,6 +137,39 @@ let test_populates_entries = () => {
   );
 };
 
+let eval_info_of_statics = info_map =>
+  EvalInfo.of_info_map(
+    ~probe_all=CoreSettings.on.probe_all,
+    ~targets=Id.Map.empty,
+    info_map,
+  );
+
+let reuse_plan =
+    (~prev: EvaluatorState.incr_eval=IncrEval.empty, exp: Exp.t)
+    : EvaluatorState.incr_eval => {
+  let (info_map, elab) = statics_and_elab(exp);
+  let eval_info = eval_info_of_statics(info_map);
+  ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+};
+
+let has_reuse = (ack_incr: EvaluatorState.incr_eval): bool =>
+  !Id.Map.is_empty(ack_incr.entries);
+
+let directly_reused = (id: Id.t, ack_incr: EvaluatorState.incr_eval): bool =>
+  Id.Map.mem(id, ack_incr.entries);
+
+let frozen_ids_for =
+    (~prev: EvaluatorState.incr_eval, exp: Exp.t): list(Id.t) =>
+  IncrEval.frozen_ids(~incr=reuse_plan(~prev, exp));
+
+/* Run eval_incr AND compute the reuse plan for the same (~prev, exp) pair in
+ * one go, for tests that assert on both the result and the plan. */
+let eval_incr_with_plan = (~prev, exp) => {
+  let plan = reuse_plan(~prev, exp);
+  let (result, state, incr) = eval_incr(~prev, exp);
+  (result, state, incr, plan);
+};
+
 /* Running twice with the SAME Exp.t (so ids are identical): the second run
  * should reuse lots of entries. Without replace_int_lit / id preservation
  * this works for the wrong reason (parse_exp twice on the same string
@@ -141,15 +179,235 @@ let test_reuse_same_program = () => {
   let src = "let x = 1 + 2 in let y = x + 10 in y";
   let exp = parse_exp(src);
   let (r1, _, incr1) = eval_incr(exp);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp);
   check(dhexp_typ, "Reuse preserves the result value", r1, r2);
   check(
     bool,
     "Second run actually reused entries (reused list non-empty)",
     true,
-    incr2.reused != [],
+    has_reuse(plan2),
   );
 };
+
+let test_streaming_plan_reuses_root_without_descending = () => {
+  let src = "let x = 1 + 2 in let y = x + 10 in y";
+  let exp = parse_exp(src);
+  let (_, _, prev) = eval_incr(exp);
+  let (info_map, elab) = statics_and_elab(exp);
+  let eval_info = eval_info_of_statics(info_map);
+  let stream =
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+  let root_id = Exp.rep_id(elab);
+  check(
+    bool,
+    "streaming plan records reusable root",
+    true,
+    Id.Map.mem(root_id, stream.entries),
+  );
+  check(
+    int,
+    "streaming plan does not descend under reusable root",
+    1,
+    Id.Map.cardinal(stream.entries),
+  );
+};
+
+let test_streaming_plan_omits_misses_and_keeps_children = () => {
+  let src = "let x = 1 + 2 in let y = x + 10 in let z = y + 100 in z";
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=100, ~to_=200, exp1);
+  let (_, _, prev) = eval_incr(exp1);
+  let (info_map, elab) = statics_and_elab(exp2);
+  let eval_info = eval_info_of_statics(info_map);
+  let stream =
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+  let root_id = Exp.rep_id(elab);
+  check(
+    bool,
+    "streaming plan omits root cache miss",
+    false,
+    Id.Map.mem(root_id, stream.entries),
+  );
+  check(
+    bool,
+    "streaming plan still records reusable descendants",
+    true,
+    !Id.Map.is_empty(stream.entries),
+  );
+};
+
+let test_materialize_stream_state_marks_reused_entries = () => {
+  let src = "let x = 1 + 2 in let y = x + 10 in y";
+  let exp = parse_exp(src);
+  let (_, _, prev) = eval_incr(exp);
+  let (info_map, elab) = statics_and_elab(exp);
+  let eval_info = eval_info_of_statics(info_map);
+  let stream =
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+  let state =
+    StreamCollector.collect_stream_state(
+      IncrEval.outbox_of_completed(stream),
+      elab,
+    );
+  let root_id = Exp.rep_id(elab);
+  check(
+    bool,
+    "materialized stream preserves root entry",
+    true,
+    Id.Map.mem(root_id, state.incr_eval.entries),
+  );
+  check(
+    int,
+    "materialized stream preserves entry count",
+    Id.Map.cardinal(stream.entries),
+    Id.Map.cardinal(state.incr_eval.entries),
+  );
+};
+
+let eval_with_targets =
+    (~prev: EvaluatorState.incr_eval=IncrEval.empty, ~term, ~targets, ()) => {
+  let (info_map, elab) = statics_and_elab(term);
+  let eval_info =
+    EvalInfo.of_info_map(
+      ~probe_all=CoreSettings.on.probe_all,
+      ~targets,
+      info_map,
+    );
+  Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+};
+
+let replace_first_u_plus_one = (exp: Exp.t): Exp.t => {
+  let changed = ref(false);
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    if (changed^) {
+      continue(e);
+    } else {
+      switch (e.term) {
+      | BinOp(Operators.Int(Operators.Plus), lhs, rhs) =>
+        switch (lhs.term, rhs.term) {
+        | (Var("u"), Atom(Int(n))) when Bigint.to_string(n) == "1" =>
+          changed := true;
+          lhs;
+        | _ => continue(e)
+        }
+      | _ => continue(e)
+      };
+    };
+  TermBase.Exp.map_term(~f_exp, exp);
+};
+
+/* Shared driver for the probe-replay regression tests below. Parses `src`
+ * (which uses ^^probe syntax), evaluates it fresh, applies `edit` (an
+ * id-preserving in-place transform), then evaluates the edited program both
+ * from scratch and incrementally (prev = run 1's cache). The incremental
+ * run's final probe samples must match the fresh run's: same sample count
+ * (`count_msg`) and a sample present for every current target
+ * (`targets_msg`). */
+let check_probe_samples_survive_edit =
+    (
+      ~src: string,
+      ~parse_fail: string,
+      ~edit: Exp.t => Exp.t,
+      ~count_msg: string,
+      ~targets_msg: string,
+      (),
+    ) => {
+  switch (Parser.to_zipper(~root=Exp, src)) {
+  | None => failwith(parse_fail)
+  | Some(z) =>
+    let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let (info_map1, _) = statics_and_elab(term);
+    let targets1 = targets_of_zipper(z, info_map1);
+    let (_, state1) = eval_with_targets(~term, ~targets=targets1, ());
+    let edited = edit(term);
+    let (info_map2, _) = statics_and_elab(edited);
+    let targets2 = targets_of_zipper(z, info_map2);
+    let (_, fresh_state2) =
+      eval_with_targets(~term=edited, ~targets=targets2, ());
+    let (_, incr_state2) =
+      eval_with_targets(
+        ~prev=state1.incr_eval,
+        ~term=edited,
+        ~targets=targets2,
+        (),
+      );
+    check(
+      int,
+      count_msg,
+      Id.Map.cardinal(EvaluatorState.get_probes(fresh_state2)),
+      Id.Map.cardinal(EvaluatorState.get_probes(incr_state2)),
+    );
+    check(
+      bool,
+      targets_msg,
+      true,
+      Id.Map.for_all(
+        (id, _) => Id.Map.mem(id, EvaluatorState.get_probes(incr_state2)),
+        targets2,
+      ),
+    );
+  };
+};
+
+/* Pins: probe samples captured on run 1 (e.g. on the unedited `fib(u)`
+ * probes) must be replayed into the FINAL incremental result after an
+ * id-preserving edit (here: rewriting `fib(u+1)` to `fib(u)`). The magic
+ * number 2582 in `test y == 2582` is just a literal near this program's fib
+ * outputs (with u=15 and fib(0)=fib(1)=1, fib(u+1)=1597, fib(17)=2584);
+ * whether the in-program `test` passes is irrelevant to the regression. */
+let test_reused_probe_samples_survive_final_incremental_result = () =>
+  check_probe_samples_survive_edit(
+    ~src=
+      {|let u = 15 in
+let fib = fun x ->
+  if x < 2 then 1 else fib(x-1) + fib(x-2) in
+let x = ^^probe(fib(u)) in
+print(x);
+let y = ^^probe(fib(u+1)) in
+test y == 2582 end;
+let z = fib(u) in
+print(z);
+let w = ^^probe(fib(u+2)) in
+let u = ^^probe(fib(u+3)) in
+(x,y,z,w)|},
+    ~parse_fail="could not parse probe regression program",
+    ~edit=replace_first_u_plus_one,
+    ~count_msg="incremental final result preserves reused probe samples",
+    ~targets_msg=
+      "each current probe target has a sample after final incremental result",
+    (),
+  );
+
+/* Pins: editing only a `test` expression's literal must not drop reused
+ * probe samples on the probes downstream of it. The magic number 2584 is
+ * this program's fib output (with u=16 and fib(0)=fib(1)=1, y = fib(u+1) =
+ * fib(17) = 2584); the edit bumps it to 2585 so only the test literal's
+ * token changes while every probe's subtree keeps its ids. */
+let test_test_literal_edit_preserves_downstream_reused_probes = () =>
+  check_probe_samples_survive_edit(
+    ~src=
+      {|let u = 16 in
+let fib' = fun x ->
+  if x < 2 then 1 else fib'(x-1) + fib'(x-2) in
+let fib = fun ^^probe(x) -> fib'(x) in
+let x = ^^probe(fib(u)) in
+print(x);
+let y = ^^probe(fib(u+1)) in
+test y == 2584 end;
+let z = fib(u) in
+print(z);
+let w = ^^probe(fib(u-2)) in
+let u = ^^probe(fib(u+1)) in
+(x,y,z,w)|},
+    ~parse_fail="could not parse test-literal probe regression program",
+    /* 2584 occurs exactly once in the source, so the replace-everywhere
+     * helper is equivalent to the old replace-first traversal. */
+    ~edit=exp => replace_int_lit(~from=2584, ~to_=2585, exp),
+    ~count_msg="test literal edit preserves probe sample count",
+    ~targets_msg=
+      "each current probe target has samples after test literal edit",
+    (),
+  );
 
 /* Non-deferred subtrees below the outer let should ALSO get cache entries.
  * Bug this pins: treating every Closure wrapper as a deferred boundary
@@ -186,7 +444,7 @@ let test_partial_reuse_after_edit = () => {
     !Exp.fast_equal(exp1, exp2),
   );
   let (_, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(
     dhexp_typ,
     "Edit to z's rhs produces updated result",
@@ -200,7 +458,7 @@ let test_partial_reuse_after_edit = () => {
     bool,
     "Unchanged subtrees reused from prev map",
     true,
-    incr2.reused != [],
+    has_reuse(plan2),
   );
 };
 
@@ -225,7 +483,7 @@ let test_dirty_propagates_to_downstream_sum = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=77, ~to_=2, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "First run sum = 5 + 77 = 82", parse_exp("82"), r1);
   check(
     dhexp_typ,
@@ -240,7 +498,7 @@ let test_dirty_propagates_to_downstream_sum = () => {
     bool,
     "Second run reuses at least some entries",
     true,
-    incr2.reused != [],
+    has_reuse(plan2),
   );
 };
 
@@ -270,8 +528,8 @@ let test_rhs_edit_after_body_edit_invalidates_body = () => {
   let exp2 = replace_int_lit(~from=88, ~to_=99, exp1);
   let exp3 = replace_int_lit(~from=77, ~to_=2, exp2);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
-  let (r3, _, incr3) = eval_incr(~prev=incr2, exp3);
+  let (r2, _, incr2, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
+  let (r3, _, _, plan3) = eval_incr_with_plan(~prev=incr2, exp3);
   check(dhexp_typ, "Run 1: 5 + 77 + 88 = 170", parse_exp("170"), r1);
   check(dhexp_typ, "Run 2: 5 + 77 + 99 = 181", parse_exp("181"), r2);
   check(
@@ -287,21 +545,21 @@ let test_rhs_edit_after_body_edit_invalidates_body = () => {
     bool,
     "Run 2 reused some entries (not a from-scratch eval)",
     true,
-    incr2.reused != [],
+    has_reuse(plan2),
   );
   check(
     bool,
     "Run 3 reused some entries (not a from-scratch eval)",
     true,
-    incr3.reused != [],
+    has_reuse(plan3),
   );
 };
 
 /* ========================================================================
  * Coverage for more Exp.t forms beyond let + binops. Each test uses
  * replace_int_lit for in-place edits (to preserve ids), checks the final
- * value, and (where reuse should fire) asserts incr.reused != [] so we
- * can't silently degrade into a from-scratch re-evaluation. */
+ * value, and (where reuse should fire) asserts the reuse plan is non-empty
+ * so we can't silently degrade into a from-scratch re-evaluation. */
 
 /* Function application: editing inside a function BODY should invalidate
  * every call site that depends on that function. Function bodies are
@@ -316,7 +574,7 @@ let test_function_body_edit_invalidates_apps = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=9, ~to_=3, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: 45 + 90 = 135", parse_exp("135"), r1);
   check(
     dhexp_typ,
@@ -329,7 +587,7 @@ let test_function_body_edit_invalidates_apps = () => {
     bool,
     "Second run still reuses some entries (call-site args)",
     true,
-    incr2.reused != [],
+    has_reuse(plan2),
   );
 };
 
@@ -342,7 +600,7 @@ let test_function_arg_edit_reuses_other_calls = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=7, ~to_=100, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: 14 + 22 = 36", parse_exp("36"), r1);
   check(
     dhexp_typ,
@@ -350,7 +608,61 @@ let test_function_arg_edit_reuses_other_calls = () => {
     parse_exp("222"),
     r2,
   );
-  check(bool, "Second run reuses some entries", true, incr2.reused != []);
+  check(bool, "Second run reuses some entries", true, has_reuse(plan2));
+};
+
+/* Editing an expression sequenced before a function call should not force
+ * the call to rerun. User repro:
+ *
+ *   let f = fun x ->
+ *     5;
+ *   in
+ *   6; f(20)
+ *
+ * Edit 6 -> 4. The application `f(20)` has the same elab and depends only
+ * on `f`, whose binding is unchanged, so the Ap should be reused. */
+let test_seq_edit_before_function_call_reuses_call = () => {
+  let src = {|let f = fun x ->
+  5;
+in
+6; f(20)|};
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=6, ~to_=4, exp1);
+  check(
+    bool,
+    "replace_int_lit actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  let f20_id = {
+    let found = ref(None);
+    let f_exp = (continue, e: Exp.t): Exp.t => {
+      switch (e.term) {
+      | Ap(_, _, arg) =>
+        switch (arg.term) {
+        | Atom(Int(n)) when Bigint.to_string(n) == "20" =>
+          found := Some(Exp.rep_id(e))
+        | _ => ()
+        }
+      | _ => ()
+      };
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, exp1);
+    switch (found^) {
+    | Some(id) => id
+    | None => failwith("could not locate `f(20)` Ap node")
+    };
+  };
+  let (r1, _, incr1) = eval_incr(exp1);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
+  check(dhexp_typ, "Run 2 result is unchanged after 6 -> 4", r1, r2);
+  check(
+    bool,
+    "f(20) is reused after editing only the preceding sequence expression",
+    true,
+    directly_reused(f20_id, plan2),
+  );
 };
 
 /* If: editing the UNTAKEN branch leaves the result unchanged; reuse should
@@ -362,7 +674,7 @@ let test_if_untaken_branch_edit_reuses = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=77, ~to_=999, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: taken branch = 42", parse_exp("42"), r1);
   check(
     dhexp_typ,
@@ -374,7 +686,7 @@ let test_if_untaken_branch_edit_reuses = () => {
     bool,
     "Untaken-branch edit leaves reusable entries",
     true,
-    incr2.reused != [],
+    has_reuse(plan2),
   );
 };
 
@@ -385,7 +697,7 @@ let test_if_taken_branch_edit_updates = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=42, ~to_=13, exp1);
   let (_, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(
     dhexp_typ,
     "Run 2 after taken-branch edit: 13 (not stale 42)",
@@ -396,7 +708,7 @@ let test_if_taken_branch_edit_updates = () => {
     bool,
     "Second run still reuses some entries",
     true,
-    incr2.reused != [],
+    has_reuse(plan2),
   );
 };
 
@@ -408,7 +720,7 @@ let test_match_untaken_arm_edit_reuses = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=22, ~to_=333, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: matched 0 -> 11", parse_exp("11"), r1);
   check(
     dhexp_typ,
@@ -420,7 +732,7 @@ let test_match_untaken_arm_edit_reuses = () => {
     bool,
     "Untaken-arm edit leaves reusable entries",
     true,
-    incr2.reused != [],
+    has_reuse(plan2),
   );
 };
 
@@ -463,7 +775,7 @@ let test_tuple_destructuring_edit_updates = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=20, ~to_=200, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: 10 + 20 + 30 = 60", parse_exp("60"), r1);
   check(
     dhexp_typ,
@@ -471,7 +783,7 @@ let test_tuple_destructuring_edit_updates = () => {
     parse_exp("240"),
     r2,
   );
-  check(bool, "Second run reuses some entries", true, incr2.reused != []);
+  check(bool, "Second run reuses some entries", true, has_reuse(plan2));
 };
 
 /* List literal: same idea — editing one element shouldn't break the result.
@@ -506,7 +818,7 @@ let test_shadowing_inner_let_edit = () => {
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=7, ~to_=77, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: 10 + 7 = 17", parse_exp("17"), r1);
   check(
     dhexp_typ,
@@ -514,7 +826,7 @@ let test_shadowing_inner_let_edit = () => {
     parse_exp("87"),
     r2,
   );
-  check(bool, "Shadowing still allows reuse", true, incr2.reused != []);
+  check(bool, "Shadowing still allows reuse", true, has_reuse(plan2));
 };
 
 /* Function bodies are a DEFERRED boundary: no incremental entries are
@@ -545,13 +857,17 @@ let test_probe_replay_on_reuse = () => {
   let src = "let x = 1 + 2 in x + 10";
   let exp = parse_exp(src);
   let (info_map, elab) = statics_and_elab(exp);
-  let info_map =
-    EvalInfoMap.of_info_map(~probe_all=CoreSettings.on.probe_all, info_map);
+  let eval_info =
+    EvalInfo.of_info_map(
+      ~probe_all=CoreSettings.on.probe_all,
+      ~targets=Id.Map.empty,
+      info_map,
+    );
   /* First run: no probes targeted. */
   let (_, state1) =
     Evaluator.evaluate(
       ~prev=IncrEval.empty,
-      ~info_map,
+      ~eval_info,
       ~env=Builtins.env_init,
       elab,
     );
@@ -560,7 +876,7 @@ let test_probe_replay_on_reuse = () => {
   let (_, state2) =
     Evaluator.evaluate(
       ~prev=state1.incr_eval,
-      ~info_map,
+      ~eval_info,
       ~env=Builtins.env_init,
       elab,
     );
@@ -622,12 +938,11 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  *   its cached entry, it short-circuits via `Evaluator.re:158-164` and
  *   marks only that one id as reused (`IncrEval.mark_reused`). The
  *   surface-sibling inner ModLets `let x = fib(b)`, `let y = fib(b)`,
- *   `let z = x + y` are never visited and so end up in NEITHER
- *   `incr.reused` NOR `incr.recalculated` — leaving them un-tinted in
- *   the editor even though they're effectively frozen.
+ *   `let z = x + y` are never visited during evaluation, so the UI must
+ *   derive frozen ids by walking the reuse plan rather than visited output.
  *
- *   The fix is to derive a "frozen set" from `incr.reused` by walking
- *   each reused id's `prev_elab` and unioning all rep_ids encountered.
+ *   The fix is to derive a "frozen set" from the ACK reuse plan by walking
+ *   each entry's `prev_elab` and unioning all rep_ids encountered.
  *   That set is what the UI should paint as frozen. This test pins down
  *   the desired contents of that set. */
 let test_module_c_inner_ids_in_frozen_set_after_edit_in_module_a = () => {
@@ -694,13 +1009,11 @@ let c = {
     List.length(c_inner_modlet_ids),
   );
   let (_, _, incr1) = eval_incr(exp1);
-  let (_, _, incr2) = eval_incr(~prev=incr1, exp2);
-  /* The "frozen set" is what the UI should paint as frozen. Currently
-   * `incr.reused` only contains ids that the evaluator actually visited
-   * and short-circuited. The intended fix expands that to the elab-
-   * descendant closure: for every reused id, walk its cached prev_elab
+  /* The "frozen set" is what the UI should paint as frozen. The reuse
+   * plan can contain an ancestor that short-circuits evaluation; frozen ids
+   * expand that to the elab-descendant closure by walking cached prev_elab
    * (in `incr.entries`) and union all rep_ids. */
-  let frozen = IncrEval.frozen_ids(incr2);
+  let frozen = frozen_ids_for(~prev=incr1, exp2);
   let missing = List.filter(id => !List.mem(id, frozen), c_inner_modlet_ids);
   check(
     int,
@@ -773,7 +1086,12 @@ let test_diag_nested_module_rhs_edit_marks_binder_dirty = () => {
     true,
     !Exp.fast_equal(r1, r2),
   );
-  check(bool, "incr2 reused something", true, incr2.reused != []);
+  check(
+    bool,
+    "incr2 populated incremental entries",
+    true,
+    !IncrEval.is_empty(incr2),
+  );
 };
 
 /* Repro: `let x = ({}, 0) in (x, 3)`. Edit `3` → `4`. The let-x rhs
@@ -829,8 +1147,7 @@ let test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen = () => {
     | _ => failwith("rhs inner is not a 2-tuple")
     };
   let (_, _, incr1) = eval_incr(exp1);
-  let (_, _, incr2) = eval_incr(~prev=incr1, exp2);
-  let frozen = IncrEval.frozen_ids(incr2);
+  let frozen = frozen_ids_for(~prev=incr1, exp2);
   check(bool, "Atom 0 is in frozen set", true, List.mem(zero_id, frozen));
   check(
     bool,
@@ -859,8 +1176,8 @@ let test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen = () => {
  *   between the two variants, so the inner body's cache entry from one
  *   run is keyed by an id that's still present in the other run — exactly
  *   the situation that triggers the bug.
- * - Each test also asserts incr2.reused != [] so we can't silently degrade
- *   into a from-scratch eval and accidentally produce the right answer. */
+ * - Each test also checks the reuse plan so we can't silently degrade into
+ *   a from-scratch eval and accidentally produce the right answer. */
 
 /* (1) Deleting an inner Let that was shadowing an outer same-named binding.
  *
@@ -886,7 +1203,7 @@ let test_delete_inner_let_uncovers_outer_binding = () => {
     !Exp.fast_equal(exp_with, exp_without),
   );
   let (r1, _, incr1) = eval_incr(exp_with);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp_without);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp_without);
   check(dhexp_typ, "Run 1: inner x=1 wins, x+x = 2", parse_exp("2"), r1);
   check(
     dhexp_typ,
@@ -898,7 +1215,7 @@ let test_delete_inner_let_uncovers_outer_binding = () => {
     bool,
     "Second run reuses at least some entries (not a from-scratch eval)",
     true,
-    incr2.reused != [],
+    has_reuse(plan2),
   );
 };
 
@@ -919,7 +1236,7 @@ let test_add_inner_let_shadows_outer_binding = () => {
   let exp_with = parse_exp(src);
   let exp_without = strip_let_with_int_rhs(~rhs_val=1, exp_with);
   let (r1, _, incr1) = eval_incr(exp_without);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp_with);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp_with);
   check(dhexp_typ, "Run 1: only outer x=10, x+x = 20", parse_exp("20"), r1);
   check(
     dhexp_typ,
@@ -931,7 +1248,7 @@ let test_add_inner_let_shadows_outer_binding = () => {
     bool,
     "Second run reuses at least some entries (not a from-scratch eval)",
     true,
-    incr2.reused != [],
+    has_reuse(plan2),
   );
 };
 
@@ -997,14 +1314,14 @@ f(8)|};
     };
   };
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: f(8) = 1", parse_exp("1"), r1);
   check(dhexp_typ, "Run 2: f(8) = 1 (unchanged)", parse_exp("1"), r2);
   check(
     bool,
     "Run 2 reuses something (sanity, not a from-scratch run)",
     true,
-    incr2.reused != [],
+    has_reuse(plan2),
   );
   /* The actual bug we're pinning: `f(8)` should be reused — it doesn't
    * reference the `_ = 55` binding and `f`'s rhs is unchanged. With the
@@ -1013,7 +1330,7 @@ f(8)|};
     bool,
     "f(8) is reused on run 2 (it doesn't depend on the edited _-binding)",
     true,
-    List.mem(f8_id, incr2.reused),
+    directly_reused(f8_id, plan2),
   );
 };
 
@@ -1063,7 +1380,7 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
   };
   let (r1, _, incr1) = eval_incr(exp1);
   let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
-  let (r3, _, incr3) = eval_incr(~prev=incr2, exp3);
+  let (r3, _, _, plan3) = eval_incr_with_plan(~prev=incr2, exp3);
   check(dhexp_typ, "Run 1: 1+2+3+4 = 10", parse_exp("10"), r1);
   check(dhexp_typ, "Run 2: 1+2+3+5 = 11", parse_exp("11"), r2);
   check(dhexp_typ, "Run 3: 1+2+4+5 = 12", parse_exp("12"), r3);
@@ -1075,12 +1392,12 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
     bool,
     "Run 2: `1 + 2` is in frozen_ids (subsumed by a reused ancestor)",
     true,
-    List.mem(plus_1_2_id, IncrEval.frozen_ids(incr2)),
+    List.mem(plus_1_2_id, frozen_ids_for(~prev=incr1, exp2)),
   );
   /* The actual bug: on run 3, `(1+2)+3` becomes `(1+2)+4` so its parent
    * (and the parent's parent) must be recalculated. The evaluator descends
    * past them into `1 + 2`, whose subtree hasn't changed at all — so this
-   * id should land in incr3.reused.
+   * id should land directly in run 3's reuse plan.
    *
    * Currently fails because run 2's reuse at the `(1+2)+3` level drops
    * `1+2`'s cache entry from the outgoing incr.entries map (only the
@@ -1090,7 +1407,7 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
     bool,
     "Run 3: `1 + 2` is reused (its subtree is unchanged since run 1)",
     true,
-    List.mem(plus_1_2_id, incr3.reused),
+    directly_reused(plus_1_2_id, plan3),
   );
 };
 
@@ -1133,7 +1450,7 @@ let test_outer_edit_does_not_dirty_inner_shadowed_use = () => {
     };
   };
   let (r1, _, incr1) = eval_incr(exp1);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp2);
+  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
   check(dhexp_typ, "Run 1: inner x=4 wins, x = 4", parse_exp("4"), r1);
   check(
     dhexp_typ,
@@ -1148,9 +1465,9 @@ let test_outer_edit_does_not_dirty_inner_shadowed_use = () => {
    * let's name-based dirty `x` falsely invalidates the inner `x` use. */
   check(
     bool,
-    "Body `x` is NOT recalculated on run 2 (resolves to inner let, not edited outer)",
-    false,
-    List.mem(body_x_id, incr2.recalculated),
+    "Body `x` is frozen on run 2 (resolves to inner let, not edited outer)",
+    true,
+    List.mem(body_x_id, frozen_ids_for(~prev=incr1, exp2)),
   );
 };
 
@@ -1162,7 +1479,7 @@ let test_outer_edit_does_not_dirty_inner_shadowed_use = () => {
  *
  * On run 2 the body `x + 1` shouldn't reuse the cached value 5 — x's
  * binding is now indeterminate. Concretely the body `x + 1` id should not
- * be in incr2.reused, and the final result should differ from run 1's. */
+ * be in run 2's reuse plan, and the final result should differ from run 1's. */
 let test_let_rhs_becomes_hole_invalidates_body = () => {
   let src = "let x = 4 + ? in x + 1";
   let exp_with_hole = parse_exp(src);
@@ -1211,7 +1528,7 @@ let test_let_rhs_becomes_hole_invalidates_body = () => {
     };
   };
   let (r1, _, incr1) = eval_incr(exp_without_hole);
-  let (r2, _, incr2) = eval_incr(~prev=incr1, exp_with_hole);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp_with_hole);
   print_endline("DIAG r1 = " ++ Exp.show(r1));
   print_endline("DIAG r2 = " ++ Exp.show(r2));
   check(dhexp_typ, "Run 1: x = 4, x + 1 = 5", parse_exp("5"), r1);
@@ -1225,7 +1542,7 @@ let test_let_rhs_becomes_hole_invalidates_body = () => {
     bool,
     "Body `x + 1` is NOT reused on run 2 (its binding became indet)",
     false,
-    List.mem(body_id, incr2.reused),
+    directly_reused(body_id, plan2),
   );
 };
 
@@ -1278,6 +1595,72 @@ let test_reuse_provenance_distinguishes_pattern_shapes = () => {
   );
 };
 
+/* Regression test: builtins must participate in reuse.
+ *
+ * A subexpression that references a builtin (e.g. `string_length`) has that
+ * builtin's name in its co_ctx. The builtin is bound in `Builtins.env_init`,
+ * never via a let/pattern, so its name has no provenance entry unless the
+ * reuse_map is seeded from the environment. Before that seeding,
+ * `reuse_map_for_co_ctx` returned None for any co_ctx containing a builtin,
+ * so the subexpression could NEVER be reused — and neither could anything
+ * downstream of it.
+ *
+ *   Run 1: n = string_length("hello"), _ = 55, n   -> 5
+ *   Run 2: edit the unrelated `_ = 55` literal to 77.
+ *
+ * The `string_length("hello")` Ap is unrelated to the edited binding, so it
+ * must be reused on run 2. */
+let test_builtin_call_reuses_after_unrelated_edit = () => {
+  let src = {|let n = string_length("hello") in
+let _ = 55 in
+n|};
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=55, ~to_=77, exp1);
+  check(
+    bool,
+    "replace_int_lit actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  /* Locate the `string_length("hello")` Ap by its string-literal argument. */
+  let builtin_ap_id = {
+    let found = ref(None);
+    let f_exp = (continue, e: Exp.t): Exp.t => {
+      switch (e.term) {
+      | Ap(_, _, arg) =>
+        switch (arg.term) {
+        | Atom(String("hello")) => found := Some(Exp.rep_id(e))
+        | _ => ()
+        }
+      | _ => ()
+      };
+      continue(e);
+    };
+    let _ = TermBase.Exp.map_term(~f_exp, exp1);
+    switch (found^) {
+    | Some(id) => id
+    | None => failwith("could not locate `string_length(\"hello\")` Ap node")
+    };
+  };
+  let (r1, _, incr1) = eval_incr(exp1);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
+  check(
+    dhexp_typ,
+    "Run 1: string_length(\"hello\") = 5",
+    parse_exp("5"),
+    r1,
+  );
+  check(dhexp_typ, "Run 2: result unchanged = 5", parse_exp("5"), r2);
+  /* The bug we're pinning: without seeding the reuse_map from env, the
+   * builtin name in the Ap's co_ctx forces a permanent cache miss here. */
+  check(
+    bool,
+    "string_length(\"hello\") Ap is reused on run 2",
+    true,
+    directly_reused(builtin_ap_id, plan2),
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1317,6 +1700,31 @@ let tests = (
       test_reuse_same_program,
     ),
     test_case(
+      "Streaming plan reuses root without descending",
+      `Quick,
+      test_streaming_plan_reuses_root_without_descending,
+    ),
+    test_case(
+      "Streaming plan omits misses and keeps children",
+      `Quick,
+      test_streaming_plan_omits_misses_and_keeps_children,
+    ),
+    test_case(
+      "Materialize streaming state marks reused entries",
+      `Quick,
+      test_materialize_stream_state_marks_reused_entries,
+    ),
+    test_case(
+      "Reused probe samples survive final incremental result",
+      `Quick,
+      test_reused_probe_samples_survive_final_incremental_result,
+    ),
+    test_case(
+      "Test literal edit preserves downstream reused probes",
+      `Quick,
+      test_test_literal_edit_preserves_downstream_reused_probes,
+    ),
+    test_case(
       "Nested let-bodies below outer let populate cache entries",
       `Quick,
       test_nested_lets_populate_entries,
@@ -1345,6 +1753,11 @@ let tests = (
       "Function: editing one call's arg reuses the other call",
       `Quick,
       test_function_arg_edit_reuses_other_calls,
+    ),
+    test_case(
+      "Function: seq edit before call reuses f(20)",
+      `Quick,
+      test_seq_edit_before_function_call_reuses_call,
     ),
     test_case(
       "If: untaken-branch edit preserves result and reuses",
@@ -1435,6 +1848,11 @@ let tests = (
       "Reuse provenance distinguishes pattern projection shapes",
       `Quick,
       test_reuse_provenance_distinguishes_pattern_shapes,
+    ),
+    test_case(
+      "BUILTIN: string_length(\"hello\") reuses after unrelated _=55 edit",
+      `Quick,
+      test_builtin_call_reuses_after_unrelated_edit,
     ),
   ],
 );
