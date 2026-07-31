@@ -567,6 +567,20 @@ let rec go =
     Comment.go(z, ~root)
     |> Option.map(LocalReformat.go(~before))
     |> return(Cant_destruct);
-  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a)
+  | Structural(a) =>
+    /* agent edits funnel pasted code through introduce with indentation
+       stripped; re-indent new lines like user Paste */
+    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
+    let before_pieces =
+      LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z);
+    switch (CompositionGo.Public.go(~syntax, ~z, ~a)) {
+    | Ok(z) =>
+      Ok(
+        z
+        |> LocalReformat.go(~before)
+        |> LocalReformat.go_region(~before_pieces),
+      )
+    | Error(_) as e => e
+    };
   };
 };
