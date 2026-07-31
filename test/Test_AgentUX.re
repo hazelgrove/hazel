@@ -569,6 +569,45 @@ let prompt_caching_tests = [
     },
   ),
   test_case(
+    "tool result payload content reaches the api message (read_docs)",
+    `Quick,
+    () => {
+      let tc: OpenRouter.Reply.Model.tool_call = {
+        id: "call_docs",
+        name: "read_docs",
+        args: `Assoc([("topic", `String("mvu"))]),
+      };
+      let mk = content_is_payload => {
+        let tr: AgentToolResult.tool_result = {
+          tool_call: tc,
+          success: true,
+          skipped: false,
+          expanded: false,
+          diff: None,
+          before_segment: None,
+          after_segment: None,
+          content: "GUIDE_BODY_MARKER",
+          content_is_payload,
+        };
+        switch (Message.Utils.mk_tool_result_message(tr).api_message) {
+        | Some(m) => or_msg_json(m)
+        | None => Alcotest.fail("no api message")
+        };
+      };
+      check_bool(
+        "payload content delivered verbatim",
+        true,
+        count_substring("GUIDE_BODY_MARKER", mk(true)) == 1,
+      );
+      check_bool(
+        "non-payload success sends the acknowledgment, not the content",
+        true,
+        count_substring("GUIDE_BODY_MARKER", mk(false)) == 0
+        && count_substring("successful", mk(false)) == 1,
+      );
+    },
+  ),
+  test_case(
     "json_of_message: unanchored message has no cache_control (plain string content)",
     `Quick,
     () => {

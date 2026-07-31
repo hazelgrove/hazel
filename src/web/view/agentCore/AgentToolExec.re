@@ -190,6 +190,7 @@ let execute_one_tool_call =
             ),
           after_segment: None,
           content: msg,
+          content_is_payload: false,
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -213,6 +214,7 @@ let execute_one_tool_call =
           before_segment,
           after_segment,
           content: success_message,
+          content_is_payload: false,
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -252,6 +254,7 @@ let execute_one_tool_call =
           before_segment,
           after_segment: None,
           content: msg,
+          content_is_payload: false,
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -289,6 +292,7 @@ let execute_one_tool_call =
       before_segment: None,
       after_segment: None,
       content,
+      content_is_payload: true,
     };
     (
       model,
@@ -305,6 +309,7 @@ let execute_one_tool_call =
       before_segment: None,
       after_segment: None,
       content: msg,
+      content_is_payload: false,
     };
     // Do not add unparseable tool calls to subtask tool results for now
     (
