@@ -52,7 +52,7 @@ let is_whitespace_piece = (p: Piece.t): bool =>
    - All pieces to the left (back to linebreak) are spaces
    - There is an actual linebreak (not just segment start)
    Returns the count of spaces if true, None otherwise */
-let leading_whitespace_context = (z: t): option(int) =>
+let leading_whitespace_context = (z: t): option((int, Id.t)) =>
   if (z.selection.content != [] || z.caret != Outer) {
     None;
   } else {
@@ -62,7 +62,8 @@ let leading_whitespace_context = (z: t): option(int) =>
       switch (sibs) {
       | [] => None /* Start of segment is not a line start */
       | [p, ...rest] when is_space_piece(p) => count_spaces(rest, n + 1)
-      | [p, ..._] when is_linebreak_piece(p) => Some(n) /* Found linebreak */
+      | [Piece.Secondary(w), ..._] when is_linebreak_piece(Secondary(w)) =>
+        Some((n, w.id)) /* Found linebreak */
       | _ => None /* Found non-whitespace content */
       };
     count_spaces(List.rev(left_sibs), 0);
@@ -246,10 +247,15 @@ let go_local =
     /* BySmart is only meaningful for selection; destruct treats it as ByChar */
     | Action.ByChar
     | Action.BySmart =>
-      /* Check for indent-level backspace: if in leading whitespace, delete 2 spaces */
+      /* Indent-level backspace: within the line's AUTO-INDENT width,
+         delete an indent unit (2 spaces) per press; spaces the user
+         typed beyond the indent are real material, one per press
+         (andrew 2026-07-22) */
       switch (d, leading_whitespace_context(z)) {
-      | (Left, Some(n)) when n > 0 =>
-        let to_delete = min(2, n);
+      | (Left, Some((n, lb_id))) when n > 0 =>
+        let level =
+          Indentation.level_of(~target_id=lb_id, Zipper.unselect_and_zip(z));
+        let to_delete = n > level ? 1 : min(2, n);
         let+ z = delete_spaces(to_delete, z);
         let z =
           z

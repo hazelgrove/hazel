@@ -55,7 +55,22 @@ let perform =
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
       switch (perform(a, z, ~root=Exp)) {
-      | Ok(z) => z
+      | Ok(z) =>
+        /* Term construction must be total on every reachable editor state
+         * (statics/display consume it after every action). Checking here
+         * (rather than only on the pre-state of the NEXT action) means the
+         * final state of every test is covered too. */
+        switch (MakeTerm.from_zip_for_sem(z, ~root=Exp)) {
+        | _ => z
+        | exception e =>
+          print_endline("Zipper: " ++ Zipper.show(z));
+          Alcotest.fail(
+            "Malformed state after action "
+            ++ Action.show(a)
+            ++ ": "
+            ++ Printexc.to_string(e),
+          );
+        }
       | Error(err) =>
         print_endline("Zipper: " ++ Zipper.show(z));
         Alcotest.fail("Failed on action: " ++ Action.Failure.show(err));
@@ -1026,22 +1041,26 @@ let destruct_tests = [
     ~acts=mk({|"a😄¦"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|"a¦"|},
   ),
-  /* INDENT-LEVEL BACKSPACE */
+  /* INDENT-LEVEL BACKSPACE — capped at the line's AUTO-INDENT level
+     (andrew 2026-07-22, ported from artifact-grout 1c2bc75efb): this
+     body line's level is 0, so typed spaces are real material, one
+     per press; the 2-space unit dedent applies only within the
+     auto-indent width */
   test(
-    ~name="Indent-level backspace deletes 2 spaces",
+    ~name="Backspace beyond auto-indent deletes 1 space",
     ~acts=mk({|let x = 1 in
     ¦x|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
-  ¦x|},
+   ¦x|},
   ),
   test(
-    ~name="Indent-level backspace deletes 2 of 4 spaces",
+    ~name="Backspace beyond auto-indent deletes 1 of 4 spaces twice",
     ~acts=
       mk({|let x = 1 in
     ¦x|})
       @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
-¦x|},
+  ¦x|},
   ),
   test(
     ~name="Indent-level backspace deletes 1 space when only 1 exists",
@@ -1051,11 +1070,11 @@ let destruct_tests = [
 ¦x|},
   ),
   test(
-    ~name="Indent-level backspace deletes 2 of 3 spaces",
+    ~name="Backspace beyond auto-indent deletes 1 of 3 spaces",
     ~acts=mk({|let x = 1 in
    ¦x|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
- ¦x|},
+  ¦x|},
   ),
   test(
     ~name="Normal backspace when content before cursor",
@@ -5291,6 +5310,176 @@ b|}))
   ),
 ];
 
+/* Backspacing inside a token whose piece has a left sibling: the
+ * replacement must land on the caret's right for Inner(n) to still
+ * refer to it. */
+let inner_destruct_tests = [
+  test(
+    ~name="Backspace inside string with left sibling",
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|1 + "a¦"|},
+  ),
+  test(
+    ~name="Backspace twice inside string with left sibling",
+    ~acts=
+      mk({|1 + "aa"¦|})
+      @ mv_l(1)
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~goal={|1 + "¦"|},
+  ),
+  test(
+    ~name="Backspace inside identifier with left sibling",
+    ~acts=mk({|1 + abc¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|1 + a¦c|},
+  ),
+  test(
+    ~name="Delete forward inside string with left sibling",
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(2) @ [Destruct(Local(Right, ByChar))],
+    ~goal={|1 + "a¦"|},
+  ),
+  /* Quote-wrapping drops the selection; its Inner caret must go too. */
+  test(
+    ~name="Wrap char-level selection in quotes",
+    ~acts=
+      mk({|"aa" ++ "x"¦|})
+      @ mv_l(4)
+      @ [Select(Resize(Local(Left, ByChar))), Insert("\"")],
+    ~goal={|"aa" ~"++"~¦ "x"|},
+  ),
+  test(
+    ~name="Delete after wrapping char-level selection in quotes",
+    ~acts=
+      mk({|"aa" ++ "x"¦|})
+      @ mv_l(4)
+      @ [
+        Select(Resize(Local(Left, ByChar))),
+        Insert("\""),
+        Destruct(Local(Right, ByChar)),
+      ],
+    ~goal={|"aa" ~"++"~¦"x"|},
+  ),
+];
+
+/* A grapheme cluster is one Inner caret position but several bytes, so
+ * editing beside one must stay in grapheme units throughout. */
+let grapheme_tests = [
+  /* Also pins that Intl.Segmenter is present: the code-point fallback in
+     Unicode.graphemes would count 5 and 2 here. */
+  test_case(
+    "Multi-codepoint clusters count as one grapheme",
+    `Quick,
+    () => {
+      check(int, "ZWJ family", 1, Token.length({|👨‍👩‍👧|}));
+      check(int, "e + combining acute", 1, Token.length({|é|}));
+      check(int, "emoji", 1, Token.length({|😀|}));
+    },
+  ),
+  test(
+    ~name="Insert after emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Insert("1")],
+    ~goal={|"😀1¦"|},
+  ),
+  test(
+    ~name="Insert then backspace after emoji in string",
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(1)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~goal={|"😀¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after emoji in string",
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~goal={|"😀¦"|},
+  ),
+  test(
+    ~name="Backspace the emoji itself",
+    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|"¦"|},
+  ),
+  test(
+    ~name="Delete forward over emoji from start of string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Destruct(Local(Right, ByChar))],
+    ~goal={|"¦"|},
+  ),
+  test(
+    ~name="Insert before emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Insert("1")],
+    ~goal={|"1¦😀"|},
+  ),
+  test(
+    ~name="Insert then backspace before emoji in string",
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(2)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~goal={|"¦😀"|},
+  ),
+  test(
+    ~name="Insert then backspace after mid-string emoji",
+    ~acts=
+      mk({|"a😀b"¦|})
+      @ mv_l(2)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~goal={|"a😀¦b"|},
+  ),
+  test(
+    ~name="Backspace mid-string emoji",
+    ~acts=mk({|"a😀b"¦|}) @ mv_l(2) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|"a¦b"|},
+  ),
+  test(
+    ~name="Move by char across emoji round trip",
+    ~acts=mk({|"a😀b"¦|}) @ mv_l(3) @ mv_r(1),
+    ~goal={|"a😀¦b"|},
+  ),
+  test(
+    ~name="Insert then backspace after emoji, string with left sibling",
+    ~acts=
+      mk({|1 + "😀"¦|})
+      @ mv_l(1)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~goal={|1 + "😀¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after emoji, left sibling",
+    ~acts=
+      mk({|1 + "😀"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~goal={|1 + "😀¦"|},
+  ),
+  test(
+    ~name="Backspace the emoji itself, string with left sibling",
+    ~acts=
+      mk({|1 + "a😀"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|1 + "a¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after combining-mark grapheme",
+    ~acts=
+      mk({|"é"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~goal={|"é¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after ZWJ emoji",
+    ~acts=
+      mk({|"👨‍👩‍👧"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~goal={|"👨‍👩‍👧¦"|},
+  ),
+];
+
 let tests = [
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
@@ -5323,4 +5512,6 @@ let tests = [
   ("Editing.MultiDelimSelectionBugs", multi_delim_selection_bug_tests),
   ("Editing.MultiDelimBackpackBugs", multi_delim_backpack_tests),
   ("Editing.CrossBoundary", cross_boundary_tests),
+  ("Editing.InnerDestruct", inner_destruct_tests),
+  ("Editing.Grapheme", grapheme_tests),
 ];

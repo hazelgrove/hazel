@@ -51,6 +51,57 @@ let test_indent_after_format = (~name, ~init, ~goal): test_case(_) => {
 };
 
 let indentation_tests = [
+  /* === PARTITION-AWARE AUTO-INDENT (2026-07-27, andrew) ===
+     The walk consumes the canonical completion's PARTITIONER, so
+     layout is evidence: lines the user wrote FLUSH under an unclosed
+     construct are siblings (each partition restarts at base — no
+     additive staircase, and Format does not resurrect one), while
+     indented lines are absorbed (the typed-through staircase, where
+     each accepted suggestion articulates the nesting, is unchanged —
+     see the typed pins throughout this file). Flush states are built
+     with Paste: typing would accept suggestions and articulate. */
+  test_case(
+    "flush sibling: Enter under a flat-written let chain stays flat",
+    `Quick,
+    () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "flush repro 1",
+      "let a =\nlet b = 1 in\n9",
+      [Action.Paste("let a =\nlet b = 1 in")]
+      @ string_to_ltr_actions("\n9")
+      |> perform(Zipper.init())
+      |> Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char),
+    )
+  ),
+  test_case(
+    "flush stacked lets: suggestion is local, never additive", `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "flush repro 2",
+      /* NOTE vs artifact-grout: there the same gesture suggests 2
+         (level_of derives the let's def hole fresh, so the fresh
+         line reads as the def slot); this branch's stored-grout
+         channel has no hole here, so the suggestion is flat. Both
+         are NON-ADDITIVE, which is the pinned property. */
+      "let a =\nlet b =\nlet c =\nlet d =\n9",
+      [Action.Paste("let a =\nlet b =\nlet c =\nlet d =")]
+      @ string_to_ltr_actions("\n9")
+      |> perform(Zipper.init())
+      |> Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char),
+    )
+  ),
+  test_case("format respects articulated flat layout", `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "flush repro 2 format",
+      "let a =\nlet b =\nlet c =\nlet d =\n9",
+      [Action.Paste("let a =\nlet b =\nlet c =\nlet d =\n9")]
+      @ [Action.Format(Indent)]
+      |> perform(Zipper.init())
+      |> Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char),
+    )
+  ),
   /* an incrementor (fun ->) inside a child raises the level for ALL
      following sibling lines, not just the first (regression: chain
      lines after the first flattened back to the child opening) */
@@ -996,6 +1047,20 @@ let ux_case = (~name, ~acts, ~expected) =>
 let bsp = Action.Destruct(Local(Left, ByChar));
 
 let indent_ux_tests = [
+  /* C CAP (ported from artifact-grout 1c2bc75efb, andrew's 2026-07-22
+     live repro): spaces typed BEYOND the line's auto-indent level are
+     real material — backspace deletes them one per press; the 2-space
+     indent unit and the one-keystroke enter-join apply only within
+     the auto-indent width. Before the cap, two backspaces here ate
+     four spaces (6 -> 2). */
+  ux_case(
+    ~name="backspace beyond the indent deletes one space per press",
+    ~acts=
+      string_to_ltr_actions("let a = \n")
+      @ string_to_ltr_actions("    ")
+      @ [bsp, bsp],
+    ~expected="let a = \n    ?",
+  ),
   ux_case(
     ~name="backspace at line start inverts enter (indent + linebreak)",
     ~acts=string_to_ltr_actions("fun q ->\n") @ [bsp],

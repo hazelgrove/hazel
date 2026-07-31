@@ -1,11 +1,22 @@
 /* Agent Main Menu Styles */
 
+/* Force text selection/copy everywhere inside the agent main menu, overriding
+   any per-element `user-select: none` declarations. */
+.agent-main-menu,
+.agent-main-menu * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
 .agent-main-menu {
   display: flex;
   flex-direction: column;
-  gap: 2em;
-  padding: 1.5em;
+  gap: 1.25em;
+  padding: 1.25em 1.5em;
   height: 100%;
+  box-sizing: border-box;
   overflow-y: auto;
   background-color: var(--ui-bkg);
 }
@@ -98,9 +109,15 @@
   opacity: 0.6;
 }
 
+/* Wrapper for Recommended + All Models blocks */
+.llm-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
 /* LLM list container */
 .llm-list-container {
-  max-height: 20em;
   border-radius: 4px;
   border: 0.6px solid var(--BR2);
   background-color: var(--T1);
@@ -109,10 +126,86 @@
   padding: 0.4em 0.2em;
 }
 
+.llm-list-container-recommended {
+  max-height: 11em;
+}
+
+.llm-list-container-master {
+  max-height: 13em;
+}
+
 .llm-list {
   display: flex;
   flex-direction: column;
   gap: 0.25em;
+}
+
+.llm-section-header {
+  font-size: 0.7em;
+  font-weight: 600;
+  color: var(--BR3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0 0.2em 0.3em;
+}
+
+.llm-controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6em;
+  margin-bottom: 0.4em;
+}
+
+.llm-search-input {
+  flex: 1;
+  padding: 0.4em 0.6em;
+  border-radius: 3px;
+  border: 0.6px solid var(--BR2);
+  background-color: var(--SAND);
+  color: var(--STONE);
+  font-family: var(--code-font);
+  font-size: 0.8em;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.llm-search-input:hover {
+  border-color: var(--BR3);
+}
+
+.llm-search-input:focus {
+  border-color: var(--BR3);
+  outline: 0.6px solid var(--BR3);
+}
+
+.llm-search-input::placeholder {
+  color: var(--BR2);
+  opacity: 0.6;
+}
+
+.llm-item-recommended {
+  border: 0.6px solid var(--BR3);
+}
+
+.llm-only-free-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  white-space: nowrap;
+}
+
+.llm-only-free-label {
+  font-size: 0.75em;
+  color: var(--STONE);
+  letter-spacing: 0.02em;
+}
+
+.llm-tagline {
+  margin-top: 0.2em;
+  font-size: 0.7em;
+  font-style: italic;
+  color: var(--BR3);
 }
 
 .llm-item {
@@ -148,6 +241,18 @@
   font-size: 0.8em;
   color: var(--BR2);
   padding: 0.4em 0.6em;
+}
+
+.llm-free-marker {
+  color: var(--STONE);
+  font-weight: 400;
+}
+
+.llm-free-footnote {
+  margin-top: 0.4em;
+  font-size: 0.7em;
+  color: var(--STONE);
+  line-height: 1.3;
 }
 
 .llm-current {
