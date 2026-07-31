@@ -5221,7 +5221,10 @@ let inner_destruct_tests = [
   ),
   test(
     ~name="Backspace twice inside string with left sibling",
-    ~acts=mk({|1 + "aa"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~acts=
+      mk({|1 + "aa"¦|})
+      @ mv_l(1)
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|1 + "¦"|},
   ),
   test(
@@ -5278,7 +5281,10 @@ let grapheme_tests = [
   ),
   test(
     ~name="Insert then backspace after emoji in string",
-    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(1)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
     ~goal={|"😀¦"|},
   ),
   test(
@@ -5307,12 +5313,18 @@ let grapheme_tests = [
   ),
   test(
     ~name="Insert then backspace before emoji in string",
-    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(2)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
     ~goal={|"¦😀"|},
   ),
   test(
     ~name="Insert then backspace after mid-string emoji",
-    ~acts=mk({|"a😀b"¦|}) @ mv_l(2) @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~acts=
+      mk({|"a😀b"¦|})
+      @ mv_l(2)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
     ~goal={|"a😀¦b"|},
   ),
   test(
@@ -5327,7 +5339,10 @@ let grapheme_tests = [
   ),
   test(
     ~name="Insert then backspace after emoji, string with left sibling",
-    ~acts=mk({|1 + "😀"¦|}) @ mv_l(1) @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~acts=
+      mk({|1 + "😀"¦|})
+      @ mv_l(1)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
     ~goal={|1 + "😀¦"|},
   ),
   test(
@@ -5341,7 +5356,8 @@ let grapheme_tests = [
   ),
   test(
     ~name="Backspace the emoji itself, string with left sibling",
-    ~acts=mk({|1 + "a😀"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
+    ~acts=
+      mk({|1 + "a😀"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
     ~goal={|1 + "a¦"|},
   ),
   test(

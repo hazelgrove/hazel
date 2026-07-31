@@ -152,7 +152,8 @@ let layout =
     switch (cmds) {
     | [] => List.rev(acc)
     | [(_, _, Empty), ...rest] => go(acc, col, rest)
-    | [(_, _, Piece(p, w)), ...rest] => go([OPiece(p), ...acc], col + w, rest)
+    | [(_, _, Piece(p, w)), ...rest] =>
+      go([OPiece(p), ...acc], col + w, rest)
     | [(_, _, Space), ...rest] => go([OSpace, ...acc], col + 1, rest)
     | [(i, m, Cat(x, y)), ...rest] =>
       go(acc, col, [(i, m, x), (i, m, y), ...rest])
@@ -165,8 +166,10 @@ let layout =
     | [(_, Flat, SoftBreak), ...rest] => go(acc, col, rest) /* emit nothing */
     | [(i, Breaking, SoftBreak), ...rest] =>
       go(break_with_indent(i, acc), 0, rest)
-    | [(i, _, HardBreak), ...rest] => go(break_with_indent(i, acc), 0, rest)
-    | [(i, m, Nest(n, x)), ...rest] => go(acc, col, [(i + n, m, x), ...rest])
+    | [(i, _, HardBreak), ...rest] =>
+      go(break_with_indent(i, acc), 0, rest)
+    | [(i, m, Nest(n, x)), ...rest] =>
+      go(acc, col, [(i + n, m, x), ...rest])
     | [(i, _, Group(x)), ...rest] =>
       let fit_cmds =
         List.rev(
@@ -1154,7 +1157,10 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     | _ when List.exists(is_semi, rest) =>
       seg_loop(s, [Cat(left, brk), ...acc_rev], rest)
     | _ =>
-      seg_finish(acc_rev, cats([left, brk, Group(segment_to_doc(s, rest))]))
+      seg_finish(
+        acc_rev,
+        cats([left, brk, Group(segment_to_doc(s, rest))]),
+      )
     };
 
   /* Semicolon at start: hard break after */
