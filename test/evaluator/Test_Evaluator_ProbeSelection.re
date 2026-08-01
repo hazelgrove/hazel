@@ -1122,6 +1122,50 @@ in fact(4)|};
         )
       | None => fail("anchored cursor found no sample")
       };
+      /* Interval pin filtering (D1 tail): with the pinned span's
+       * interval resolved, other probes keep samples observed DURING
+       * the pinned evaluation — total, no stack-id degeneracy. Pinning
+       * the 6 sample (fact(3)'s whole extent) keeps x=3 and x=2
+       * (fact(2) runs within fact(3)), drops x=4 (the caller). */
+      let six_interval = Some((six.step_start, six.step_end));
+      let by_interval =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=Some(pin_stack),
+          ~pinned_interval=six_interval,
+          body_samples,
+        );
+      check(
+        int,
+        "call-pin interval keeps the two inner body samples",
+        2,
+        List.length(by_interval),
+      );
+      /* Pinning a LEAF sample (x=3 — a single instant) keeps only
+       * samples within that instant: none of the call samples qualify.
+       * The legacy id-suffix rule cannot express this (it would keep
+       * everything at-or-below the leaf's call level) — this is the
+       * pin-anything semantics. */
+      let x3 = List.nth(body_samples, 1);
+      check(
+        int,
+        "x3 is the depth-2 body sample",
+        2,
+        List.length(x3.call_stack),
+      );
+      let leaf_filtered =
+        Sample.Selection.filter_by_pin(
+          ~ap_id=None,
+          ~pinned=Some([]),
+          ~pinned_interval=Some((x3.step_start, x3.step_end)),
+          call_samples,
+        );
+      check(
+        int,
+        "leaf-pin keeps no call samples (nothing runs within an instant)",
+        0,
+        List.length(leaf_filtered),
+      );
       /* Legacy-coordinate cursors (no ref stored) still take the tier
        * path; the reference is what fixes the display. */
       let (legacy_selected, _) =

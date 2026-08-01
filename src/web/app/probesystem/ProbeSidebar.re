@@ -95,6 +95,7 @@ let legend_sample =
       anchor: None,
       pinned_span: None,
     },
+    pinned_interval: None,
   };
   let settings = {
     ...ProbeProj.Settings.s^,

@@ -552,11 +552,34 @@ module Selection = {
       (
         ~ap_id: option(Id.t),
         ~pinned: option(CallStack.t),
+        ~pinned_interval: option((int, int))=None,
         samples: list(t),
       )
       : list(t) => {
     let samples = List.filter((s: t) => s.origin != Print, samples);
     switch (pinned) {
+    | Some(_) when pinned_interval != None =>
+      /* D1 interval semantics: keep samples whose span lies WITHIN the
+       * pinned span — "observed during the pinned evaluation". Total
+       * (no stack-id degeneracy) and correct for pinning any span, not
+       * just calls: pinning a call keeps everything in its dynamic
+       * extent; pinning a leaf keeps only that instant. The pinned
+       * probe's own samples keep the legacy breadcrumb behavior via the
+       * ap_id escape below. */
+      let (ps, pe) = Option.get(pinned_interval);
+      let is_pinned_probe =
+        switch (
+          Option.bind(pinned, pinned_stack => ListUtil.hd_opt(pinned_stack)),
+          ap_id,
+        ) {
+        | (Some(head), Some(ap)) => head.id == ap
+        | _ => false
+        };
+      List.filter(
+        (sample: t) =>
+          is_pinned_probe || sample.step_start >= ps && sample.step_end <= pe,
+        samples,
+      );
     | Some(pinned_stack) =>
       /* Extract just the Id.t from head of pinned_stack for comparison */
       let pinned_head_id =
@@ -742,11 +765,12 @@ module Selection = {
         ~offset: int,
         ~ap_id: option(Id.t),
         ~pinned: option(CallStack.t),
+        ~pinned_interval: option((int, int))=None,
         ~cursor: Focus.t,
         samples: list(t),
       )
       : (list(t), int) => {
-    let filtered = filter_by_pin(~ap_id, ~pinned, samples);
+    let filtered = filter_by_pin(~ap_id, ~pinned, ~pinned_interval, samples);
     let first_idx = most_aligned_index(~ap_id, cursor, filtered);
     if (first_idx == None && mode == Single) {
       ([], offset);
