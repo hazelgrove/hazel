@@ -94,10 +94,15 @@ module TestValidationReport = {
         ~signal_update_test_val,
         ~signal_textbox_active,
         ~editing_test_val_rep,
+        ~eval_pending=false,
         report: t,
         max_points: int,
         max_tests: int,
       ) => {
+    let score_node =
+      eval_pending
+        ? pending_score_view()
+        : score_view(score_of_percent(percentage(report), max_points));
     CellCommon.report_footer_view([
       div(
         ~attrs=[Attr.classes(["test-summary"])],
@@ -186,11 +191,7 @@ module TestValidationReport = {
                   )
                 : div(
                     ~attrs=[Attr.class_("test-text")],
-                    [
-                      score_view(
-                        score_of_percent(percentage(report), max_points),
-                      ),
-                    ]
+                    [score_node]
                     @ textual_summary(report)
                     @ [
                       div(
@@ -205,20 +206,22 @@ module TestValidationReport = {
                   )
             : div(
                 ~attrs=[Attr.class_("test-text")],
-                [
-                  score_view(
-                    score_of_percent(percentage(report), max_points),
-                  ),
-                ]
-                @ textual_summary(report),
+                [score_node] @ textual_summary(report),
               ),
         ]
-        @ Option.to_list(
-            report.test_results
-            |> Option.map(test_results =>
-                 TestView.test_bar(~inject_jump=signal_jump, ~test_results)
-               ),
-          ),
+        @ (
+          eval_pending
+            ? []
+            : Option.to_list(
+                report.test_results
+                |> Option.map(test_results =>
+                     TestView.test_bar(
+                       ~inject_jump=signal_jump,
+                       ~test_results,
+                     )
+                   ),
+              )
+        ),
       ),
     ]);
   };
@@ -322,12 +325,14 @@ module MutationTestingReport = {
         ~select_textbox,
         ~inject_editing_mut_test_rep,
         ~inject_update_mut_test_rep,
+        ~eval_pending,
         ~score,
         ~total,
         ~found,
         ~max_points,
       )
-      : Node.t =>
+      : Node.t => {
+    let score_node = eval_pending ? pending_score_view() : score_view(score);
     div(
       ~attrs=[Attr.class_("test-text")],
       globals.settings.instructor_mode
@@ -396,7 +401,7 @@ module MutationTestingReport = {
               ),
             ]
             : [
-              score_view(score),
+              score_node,
               text(summary_str(~total, ~found)),
               div(
                 ~attrs=[Attr.class_("edit-icon")],
@@ -407,8 +412,9 @@ module MutationTestingReport = {
                 ],
               ),
             ]
-        : [score_view(score), text(summary_str(~total, ~found))],
+        : [score_node, text(summary_str(~total, ~found))],
     );
+  };
 
   let bar = (~inject as _, instances) =>
     div(
@@ -433,6 +439,7 @@ module MutationTestingReport = {
         ~inject_editing_mut_test_rep,
         ~inject_update_mut_test_rep,
         ~select_textbox,
+        ~eval_pending,
         ~report,
         ~max_points,
       ) => {
@@ -441,7 +448,8 @@ module MutationTestingReport = {
       List.length(
         List.filter(((x: TestStatus.t, _)) => x == Pass, report.results),
       );
-    let status_class = total == found ? "Pass" : "Fail";
+    let status_class =
+      eval_pending ? "Indet" : total == found ? "Pass" : "Fail";
     div(
       ~attrs=[
         Attr.classes([
@@ -458,13 +466,14 @@ module MutationTestingReport = {
           ~inject_editing_mut_test_rep,
           ~inject_update_mut_test_rep,
           ~select_textbox,
+          ~eval_pending,
           ~score=score_of_percent(percentage(report), max_points),
           ~total,
           ~found,
           ~max_points,
         ),
-        bar(~inject=(), report.results),
-      ],
+      ]
+      @ (eval_pending ? [] : [bar(~inject=(), report.results)]),
     );
   };
 
@@ -630,6 +639,7 @@ module MutationTestingReport = {
         ~inject_editing_mut_test_rep,
         ~inject_update_mut_test_rep,
         ~select_textbox,
+        ~eval_pending=false,
         report: t,
         max_points: int,
       ) => {
@@ -659,6 +669,7 @@ module MutationTestingReport = {
               ~inject_editing_mut_test_rep,
               ~inject_update_mut_test_rep,
               ~select_textbox,
+              ~eval_pending,
               ~report,
               ~max_points,
             ),
@@ -1091,10 +1102,17 @@ module ImplGradingReport = {
         ~inject_set_editing_impl_grd_rep,
         ~inject_update_impl_grd_rep,
         ~select_textbox,
+        ~eval_pending,
         ~report: t,
         ~syntax_report: SyntaxReport.t,
         ~max_points: int,
       ) => {
+    let score_node =
+      eval_pending
+        ? pending_score_view()
+        : score_view(
+            score_of_percent(percentage(report, syntax_report), max_points),
+          );
     let subcaption =
       globals.settings.instructor_mode
         ? ": Hidden Tests vs. Student's Implementation"
@@ -1193,14 +1211,7 @@ module ImplGradingReport = {
                         )
                       : div(
                           ~attrs=[Attr.class_("test-text")],
-                          [
-                            score_view(
-                              score_of_percent(
-                                percentage(report, syntax_report),
-                                max_points,
-                              ),
-                            ),
-                          ]
+                          [score_node]
                           @ textual_summary(report)
                           @ [
                             div(
@@ -1215,26 +1226,22 @@ module ImplGradingReport = {
                         )
                   : div(
                       ~attrs=[Attr.class_("test-text")],
-                      [
-                        score_view(
-                          score_of_percent(
-                            percentage(report, syntax_report),
-                            max_points,
-                          ),
-                        ),
-                      ]
-                      @ textual_summary(report),
+                      [score_node] @ textual_summary(report),
                     ),
               ]
-              @ Option.to_list(
-                  report.test_results
-                  |> Option.map(test_results =>
-                       TestView.test_bar(
-                         ~inject_jump=signal_jump,
-                         ~test_results,
-                       )
-                     ),
-                ),
+              @ (
+                eval_pending
+                  ? []
+                  : Option.to_list(
+                      report.test_results
+                      |> Option.map(test_results =>
+                           TestView.test_bar(
+                             ~inject_jump=signal_jump,
+                             ~test_results,
+                           )
+                         ),
+                    )
+              ),
             ),
           ]),
         ),
