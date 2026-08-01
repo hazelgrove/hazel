@@ -757,11 +757,8 @@ module View = {
                 },
               model.theorems,
             );
-      let has_theorem_views = List.length(theorems) > 0;
       let result =
         result_kind == `JustTheorems
-        || result_kind == `EvalResults
-        && has_theorem_views
           ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
