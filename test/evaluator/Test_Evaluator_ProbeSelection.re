@@ -971,6 +971,72 @@ run(0, [1, 2, 3, 4, 5, 6, 7, 8])|};
  * the UI capture flow itself is not run here. Recursion makes all rec
  * frames share one id, so suffix matching degenerates to length — the
  * suspected wobble. */
+/* Interval pin filtering on a NON-recursive chain (recursion masks the
+ * breadcrumb rule because the chain ap IS the pinned probe there). */
+let interval_breadcrumb_tests = [
+  test_case(
+    "Interval pin keeps ancestor call samples (breadcrumbs), drops non-call ancestors",
+    `Quick,
+    () => {
+      let code = {|let f = fun x -> ^^probe(x + 1) in
+let g = fun y -> ^^probe(f(y)) * 2 in
+^^probe(g(10) + 100)|};
+      let probes = get_probes_map(code) |> Id.Map.bindings;
+      /* Identify probes by their sample values: f-body → 11 (depth 2),
+       * f-call → 11 (depth 1), outer +100 → 122 (depth 0). */
+      let depth_of = ((_, ss)) =>
+        switch (ss) {
+        | [s, ..._] => List.length((s: Sample.t).call_stack)
+        | [] => (-1)
+        };
+      let sorted =
+        List.sort((a, b) => compare(depth_of(a), depth_of(b)), probes);
+      switch (sorted) {
+      | [(_, [outer]), (f_call_id, [f_call]), (_, [f_body])] =>
+        let pin_stack: CallStack.t = [
+          {
+            id: f_call_id,
+            name: None,
+            fn_def_id: None,
+          },
+          ...f_call.call_stack,
+        ];
+        let interval = Some((f_call.step_start, f_call.step_end));
+        let keep = (~ap_id, ss) =>
+          Sample.Selection.filter_by_pin(
+            ~ap_id,
+            ~pinned=Some(pin_stack),
+            ~pinned_interval=interval,
+            ss,
+          )
+          |> List.length;
+        check(
+          int,
+          "f-body sample kept (within pinned span)",
+          1,
+          keep(~ap_id=None, [f_body]),
+        );
+        /* outer probe is on `g(10) + 100`, a non-call expression whose
+         * span contains the pin: call probes keep such breadcrumbs,
+         * non-call probes do not. */
+        check(
+          int,
+          "non-call ancestor dropped",
+          0,
+          keep(~ap_id=None, [outer]),
+        );
+        check(
+          int,
+          "call-probe ancestor kept (breadcrumb)",
+          1,
+          keep(~ap_id=Some(Id.mk()), [outer]),
+        );
+      | _ => fail("expected three single-sample probes")
+      };
+    },
+  ),
+];
+
 let fact_pin_alignment_tests = [
   test_case(
     "Pinning a recursive-call sample aligns the body probe (fact)",
@@ -1236,5 +1302,6 @@ let tests = (
     dead_pin_tests,
     sample_id_tests,
     fact_pin_alignment_tests,
+    interval_breadcrumb_tests,
   ]),
 );

@@ -559,13 +559,21 @@ module Selection = {
     let samples = List.filter((s: t) => s.origin != Print, samples);
     switch (pinned) {
     | Some(_) when pinned_interval != None =>
-      /* D1 interval semantics: keep samples whose span lies WITHIN the
-       * pinned span — "observed during the pinned evaluation". Total
-       * (no stack-id degeneracy) and correct for pinning any span, not
-       * just calls: pinning a call keeps everything in its dynamic
-       * extent; pinning a leaf keeps only that instant. The pinned
-       * probe's own samples keep the legacy breadcrumb behavior via the
-       * ap_id escape below. */
+      /* D1 interval semantics, three rules:
+       * 1. The pinned probe itself shows ALL its samples (escape) —
+       *    other instances of the pinned call stay browsable.
+       * 2. Other probes keep samples whose span lies WITHIN the pinned
+       *    span — "observed during the pinned evaluation". Total (no
+       *    stack-id degeneracy) and correct for pinning any span:
+       *    a call pin keeps its dynamic extent, a leaf pin only its
+       *    instant.
+       * 3. Call probes additionally keep samples whose span CONTAINS
+       *    the pinned span — dynamic ancestors, i.e. the derivation
+       *    spine above the pin. Interval generalization of the legacy
+       *    breadcrumb compromise (calls-only keeps it a spine, not
+       *    every enclosing expression). Whether "above" belongs in
+       *    chips at all or only in the focus bar is an open design
+       *    question — this rule is the one to delete if the latter. */
       let (ps, pe) = Option.get(pinned_interval);
       let is_pinned_probe =
         switch (
@@ -577,7 +585,12 @@ module Selection = {
         };
       List.filter(
         (sample: t) =>
-          is_pinned_probe || sample.step_start >= ps && sample.step_end <= pe,
+          is_pinned_probe
+          || sample.step_start >= ps
+          && sample.step_end <= pe
+          || ap_id != None
+          && sample.step_start <= ps
+          && sample.step_end >= pe,
         samples,
       );
     | Some(pinned_stack) =>
