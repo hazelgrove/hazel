@@ -1166,6 +1166,38 @@ in fact(4)|};
         0,
         List.length(leaf_filtered),
       );
+      /* Pinned alignment is history-free: even with a DEEP retained
+       * sightline (the user clicked around deep recursion levels before
+       * pinning — the live repro on the fact slide), a probe with no
+       * direct ref aligns to the candidate closest to the pin's level,
+       * not the deepest previously-visited one. Body candidates under
+       * the pin are depths {2,3}; deep history must not select 3. */
+      let deep_sightline: CallStack.t = List.nth(body_samples, 2).call_stack;
+      let history_cursor = {
+        ...
+          mk_cursor_at_index(
+            ~pinned=Some(pin_stack),
+            ~index=List.length(six.call_stack) - 1,
+            deep_sightline,
+          ),
+        pinned_span,
+      };
+      let by_interval_cursor =
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          history_cursor,
+          by_interval,
+        );
+      switch (by_interval_cursor) {
+      | Some(i) =>
+        check(
+          int,
+          "pinned view ignores click history (picks pin-level sample)",
+          List.length(pin_stack),
+          List.length(List.nth(by_interval, i).call_stack),
+        )
+      | None => fail("pinned history cursor found no sample")
+      };
       /* Legacy-coordinate cursors (no ref stored) still take the tier
        * path; the reference is what fixes the display. */
       let (legacy_selected, _) =

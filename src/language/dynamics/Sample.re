@@ -687,11 +687,41 @@ module Selection = {
     /* Tier 1a: suffix match against above-focus (where you are) */
     let eff = Focus.effective_stack(cursor);
     let effective_match = suffix_scan(eff);
+    /* Pinned: the pin is a declared context, so alignment must be
+     * deterministic under it — history-free. Pick the candidate closest
+     * to the pin's level (shallowest stack; candidates were already
+     * filtered to the pinned span's extent). Without this, tier 1b's
+     * where-you've-been scan leaks click history into the pinned view:
+     * under recursion's identical frame ids it selects the DEEPEST
+     * previously-visited level (the fact-slide "x shows 1 instead of 3"
+     * misalignment, first observed on the autofocus branch in April —
+     * a side effect of sightline preservation, not a dev behavior).
+     * Explicit focus-bar navigation still reaches deeper levels via
+     * tier 1a above. */
+    let pinned_shallowest = () =>
+      switch (cursor.pinned_stack, cursor.pinned_span) {
+      | (None, None) => None
+      | _ =>
+        List.mapi((i, s: t) => (i, List.length(s.call_stack)), samples)
+        |> List.fold_left(
+             (best, (i, depth)) =>
+               switch (best) {
+               | Some((_, d)) when d <= depth => best
+               | _ => Some((i, depth))
+               },
+             None,
+           )
+        |> Option.map(fst)
+      };
     /* Tier 1b: suffix match against full sightline (where you've been) */
     let full_match =
       switch (effective_match) {
       | Some(_) => effective_match
-      | None => suffix_scan(cursor.call_stack)
+      | None =>
+        switch (pinned_shallowest()) {
+        | Some(_) as res => res
+        | None => suffix_scan(cursor.call_stack)
+        }
       };
     /* Fallback tiers use above-focus stack (depth-relative comparisons) */
     let find = (predicate: Focus.relation => bool): option(int) =>
