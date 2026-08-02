@@ -35,6 +35,18 @@ let cls_view = (ci: Info.t): Node.t => {
       | Typ(EmptyHole)
       | Exp(EmptyHole)
       | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
+      /* The user term's negation op is always the Int kind; statics may
+         have re-kinded it (replace_un_op_cls), so label from the
+         elaborated op. */
+      | Exp(UnOp(_)) =>
+        switch (ci) {
+        | InfoExp({elab_term, _}) =>
+          switch (Exp.term_of(elab_term)) {
+          | UnOp(op, _) => Operators.show_unop(op)
+          | _ => Cls.show(cls)
+          }
+        | _ => Cls.show(cls)
+        }
       | cls => cls |> Cls.show
       }
     };
