@@ -32,6 +32,26 @@ let tests = (
     test_case("Negation of parenthesized float expression", `Quick, () =>
       parse_and_evaluate_test({|true|}, {|atan(0. -. 1.) ==. -(atan(1.))|})
     ),
+    /* Negative literal PATTERNS: MakeTerm folds prefix minus into the
+       literal atom (patterns have no unary ops). */
+    test_case("Negative int pattern matches", `Quick, () =>
+      parse_and_evaluate_test(
+        {|true|},
+        {|case -5 | -5 => true | _ => false end|},
+      )
+    ),
+    test_case("Negative float pattern matches", `Quick, () =>
+      parse_and_evaluate_test({|1|}, {|case -2.5 | -2.5 => 1 | _ => 0 end|})
+    ),
+    test_case("Negative pattern rejects positive value", `Quick, () =>
+      parse_and_evaluate_test({|0|}, {|case 5 | -5 => 1 | _ => 0 end|})
+    ),
+    test_case("Negative float patterns select correct arm", `Quick, () =>
+      parse_and_evaluate_test(
+        {|2|},
+        {|case -1.5 | -2.5 => 1 | -1.5 => 2 | _ => 0 end|},
+      )
+    ),
     test_case("Inconsistent type ascription in subterm", `Quick, () =>
       parse_and_evaluate_test("1 + (4 : String)", {|1 + (4 : String)|})
     ),
