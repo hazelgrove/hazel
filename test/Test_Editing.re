@@ -4723,6 +4723,142 @@ let drag_to_zero_width_tests = [
   ),
 ];
 
+let explore_editing_tests = [
+  test_case(
+    "Typing incomplete explore does not fail result calculation",
+    `Quick,
+    () => {
+      let z = mk({|explore 1+2+3+4¦|}) |> perform(Zipper.init());
+      let statics =
+        CachedStatics.init(
+          ~settings=Language.CoreSettings.on,
+          ~is_dynamic_term=true,
+          ~stitch=x => x,
+          ~root=Exp,
+          z,
+        );
+      let model =
+        Web.EvalResult.Update.calculate(
+          ~settings=Language.CoreSettings.on,
+          ~queue_worker=None,
+          ~is_edited=true,
+          statics,
+          Web.EvalResult.Model.init,
+        );
+      switch (Calc.get_value(model.result)) {
+      | Language.ProgramResult.ResultFail(err) =>
+        Alcotest.fail(
+          "Expected incomplete explore not to fail result calculation: "
+          ++ Language.ProgramResult.show_error(err),
+        )
+      | ResultOk(_)
+      | ResultPending(_) => ()
+      };
+    },
+  ),
+  test_case(
+    "Typing theorem body with incomplete explore does not fail result calculation",
+    `Quick,
+    () => {
+      let z =
+        mk({|theorem matt = 0 == 0 in explore¦|}) |> perform(Zipper.init());
+      let statics =
+        CachedStatics.init(
+          ~settings=Language.CoreSettings.on,
+          ~is_dynamic_term=true,
+          ~stitch=x => x,
+          ~root=Exp,
+          z,
+        );
+      let model =
+        Web.EvalResult.Update.calculate(
+          ~settings=Language.CoreSettings.on,
+          ~queue_worker=None,
+          ~is_edited=true,
+          statics,
+          Web.EvalResult.Model.init,
+        );
+      switch (Calc.get_value(model.result)) {
+      | Language.ProgramResult.ResultFail(err) =>
+        Alcotest.fail(
+          "Expected theorem with incomplete explore not to fail result calculation: "
+          ++ Language.ProgramResult.show_error(err),
+        )
+      | ResultOk(_)
+      | ResultPending(_) => ()
+      };
+    },
+  ),
+  test_case(
+    "Typing explore with infix expression does not crash",
+    `Quick,
+    () => {
+      let z = mk({|explore 2 + 3¦|}) |> perform(Zipper.init());
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (Language.Exp.term_of(term)) {
+      | Language.Grammar.Explore(_) => ()
+      | _ =>
+        Alcotest.fail(
+          "Expected Explore term, got " ++ Language.Exp.show(term),
+        )
+      };
+      let _ =
+        CachedStatics.init_from_term(
+          ~settings=default_settings,
+          ~is_dynamic_term=true,
+          term,
+        );
+      check(testable(Fmt.string, String.equal), "ok", "ok", "ok");
+    },
+  ),
+  test_case(
+    "Typing explore with incomplete infix does not crash",
+    `Quick,
+    () => {
+      let z = mk({|explore 1 +¦|}) |> perform(Zipper.init());
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (Language.Exp.term_of(term)) {
+      | Language.Grammar.Explore(_) => ()
+      | _ =>
+        Alcotest.fail(
+          "Expected Explore term, got " ++ Language.Exp.show(term),
+        )
+      };
+      let _ =
+        CachedStatics.init_from_term(
+          ~settings=default_settings,
+          ~is_dynamic_term=true,
+          term,
+        );
+      check(testable(Fmt.string, String.equal), "ok", "ok", "ok");
+    },
+  ),
+  test_case(
+    "Typing theorem with explore body does not crash",
+    `Quick,
+    () => {
+      let z =
+        mk({|theorem matt = 0 == 0 in explore x end;¦|})
+        |> perform(Zipper.init());
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (Language.Exp.term_of(term)) {
+      | Language.Grammar.Theorem(_, _, _) => ()
+      | _ =>
+        Alcotest.fail(
+          "Expected Theorem term, got " ++ Language.Exp.show(term),
+        )
+      };
+      let _ =
+        CachedStatics.init_from_term(
+          ~settings=default_settings,
+          ~is_dynamic_term=true,
+          term,
+        );
+      check(testable(Fmt.string, String.equal), "ok", "ok", "ok");
+    },
+  ),
+];
+
 /* An incomplete `[1,2` (closing `]` still in the backpack) ending a line before
    `in` must mold as a ListLit, not degrade to a Tuple — the dump must not drop
    the `]` across the end-of-line linebreak. */

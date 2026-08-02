@@ -59,14 +59,17 @@ let eval_incr =
 };
 
 let eval_worker =
-    (~prev: IncrEval.t=IncrEval.empty, exp: Exp.t)
+    (~prev: IncrEval.t(EvaluatorState.t)=IncrEval.empty, exp: Exp.t)
     : WorkerServer.Response.value => {
   let (info_map, elab) = statics_and_elab(exp);
   let eval_info_map =
-    EvalInfoMap.of_info_map(~probe_all=CoreSettings.on.probe_all, info_map);
-  WorkerServer.work({
+    EvalInfo.of_info_map(
+      ~probe_all=CoreSettings.on.probe_all,
+      ~targets=Id.Map.empty,
+      info_map,
+    );
+  WorkerServer.evaluate_sync({
     expr: elab,
-    targets: Sample.no_targets,
     eval_info_map,
     prev,
   });
@@ -117,7 +120,12 @@ let test_incremental_replays_explores = () => {
     EvaluatorState.get_explores(state1) |> List.length,
   );
   let (_, state2, incr2) = eval_incr(~prev=incr1, exp);
-  check(bool, "Second run actually reused entries", true, incr2.reused != []);
+  check(
+    bool,
+    "Second run actually reused entries",
+    true,
+    !Id.Map.is_empty(incr2.entries),
+  );
   check(
     int,
     "Reused run replays one explore",
@@ -145,7 +153,7 @@ let test_explore_replayed_after_trailing_semicolon = () => {
     bool,
     "second run reused the unchanged explore subtree",
     true,
-    incr2.reused != [],
+    !Id.Map.is_empty(incr2.entries),
   );
   check(
     int,

@@ -486,7 +486,7 @@ module Update = {
         | ProgramResult.ResultOk(_) =>
           theorems
           |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
-        | ProgramResult.ResultPending
+        | ProgramResult.ResultPending(_)
         | ProgramResult.ResultFail(_) => Theorems.Model.init
         };
       } else {

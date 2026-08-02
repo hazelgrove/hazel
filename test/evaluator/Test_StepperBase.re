@@ -412,7 +412,7 @@ let tests = (
             ++ ProgramResult.show_error(err),
           )
         | ResultOk(_)
-        | ResultPending => ()
+        | ResultPending(_) => ()
         };
       },
     ),
