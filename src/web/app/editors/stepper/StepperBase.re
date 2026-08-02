@@ -1041,6 +1041,39 @@ and Stepper: {
        )
     |> RewriteChecker.dedup;
 
+  let untrusted_session_rule_ids_for_step = (step: step_model) =>
+    switch (step.step_kind) {
+    | WrittenStep({trace_summary: Some(summary), _}) =>
+      summary.rule_ids |> List.filter(SessionRewrite.is_session_rule_id)
+    | _ => []
+    };
+
+  let untrusted_single_step_export =
+      (ind, step: step_model, forall_str, domain, rule_ids) => {
+    switch (step.next_step) {
+    | Some(next) =>
+      let old_expr =
+        CoqExport.string_of_d_for_domain(
+          ~domain,
+          step.expr |> Calc.get_saved_exc,
+        );
+      let new_expr =
+        CoqExport.string_of_d_for_domain(
+          ~domain,
+          next.expr |> Calc.get_saved_exc,
+        );
+      Printf.sprintf(
+        "(* Session rewrite ids: %s *)\nLemma equiv_exp%d:%s%s = %s.\nProof.\n(* Replace this admission with a proof of the custom rewrite. *)\nAdmitted.",
+        String.concat(", ", rule_ids),
+        ind,
+        forall_str,
+        new_expr,
+        old_expr,
+      );
+    | None => ""
+    };
+  };
+
   let calculus_export_for_steps = steps => {
     let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
     let last_step = List.nth(steps, List.length(steps) - 1);
@@ -1104,13 +1137,6 @@ and Stepper: {
       None;
     } else {
       let untrusted_rule_ids = untrusted_session_rule_ids(steps);
-      if (untrusted_rule_ids != []) {
-        failwith(
-          "proof contains an untrusted session rewrite ("
-          ++ String.concat(", ", untrusted_rule_ids)
-          ++ "). Remove that step or replace it with a reviewed, certificate-backed rewrite before exporting Rocq.",
-        );
-      };
       let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
       let last_step = List.nth(steps, List.length(steps) - 1);
       let completed_derivative_history =
@@ -1135,19 +1161,58 @@ and Stepper: {
           CoqExport.forall_string_for_domain(~domain, [first_exp]);
         let lemmas_and_invocations =
           List.mapi(
-            (ind, step) =>
+            (ind, step) => {
+              let lemma_index = List.length(steps) - ind;
+              let step_untrusted_rule_ids =
+                untrusted_session_rule_ids_for_step(step);
+              let lemma =
+                step_untrusted_rule_ids == []
+                  ? single_step_export(lemma_index, step, forall_str, domain)
+                  : untrusted_single_step_export(
+                      lemma_index,
+                      step,
+                      forall_str,
+                      domain,
+                      step_untrusted_rule_ids,
+                    );
               (
-                single_step_export(
-                  List.length(steps) - ind,
-                  step,
-                  forall_str,
-                  domain,
-                ),
-                CoqProofExport.invocation(List.length(steps) - ind),
-              ),
+                step_untrusted_rule_ids != [],
+                lemma,
+                CoqProofExport.invocation(lemma_index),
+              );
+            },
             steps,
           );
-        let (lemmas, invocations) = List.split(lemmas_and_invocations);
+        let untrusted_lemmas =
+          lemmas_and_invocations
+          |> List.filter_map(
+               fun
+               | (true, lemma, _) => Some(lemma)
+               | (false, _, _) => None,
+             );
+        let trusted_lemmas =
+          lemmas_and_invocations
+          |> List.filter_map(
+               fun
+               | (false, lemma, _) => Some(lemma)
+               | (true, _, _) => None,
+             );
+        let invocations =
+          lemmas_and_invocations
+          |> List.map(((_, _, invocation)) => invocation);
+        let untrusted_section =
+          switch (untrusted_lemmas) {
+          | [] => ""
+          | lemmas =>
+            "\n(* BEGIN UNSOUND CUSTOM REWRITES\n"
+            ++ "   These lemmas came from user-provided session rewrites.\n"
+            ++ "   Replace every Admitted proof before relying on this development.\n"
+            ++ "   Rule ids: "
+            ++ String.concat(", ", untrusted_rule_ids)
+            ++ " *)\n"
+            ++ String.concat("\n", lemmas)
+            ++ "\n(* END UNSOUND CUSTOM REWRITES *)\n"
+          };
         let first_expr = CoqExport.string_of_d_for_domain(~domain, first_exp);
         switch (last_step.next_step) {
         | Some(next) =>
@@ -1163,9 +1228,10 @@ and Stepper: {
             };
           Some(
             Printf.sprintf(
-              "%s%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity.\nQed.",
+              "%s%s%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity.\nQed.",
               prelude,
-              String.concat("\n", lemmas),
+              untrusted_section,
+              String.concat("\n", trusted_lemmas),
               forall_str,
               final_expr,
               first_expr,

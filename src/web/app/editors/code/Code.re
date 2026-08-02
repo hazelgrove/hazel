@@ -39,7 +39,10 @@ let of_delim' =
       let plurality = plurality == 1 ? "mono" : "poly";
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
       let var_class = is_ref(token, sort) ? ["ref"] : [];
-      let keyword_class = Token.is_keyword(token) ? ["keyword"] : [];
+      let keyword_class =
+        Token.is_keyword(token)
+        || Language.DerivativeOperator.is_surface_token(token)
+          ? ["keyword"] : [];
       span(
         ~attrs=[
           Attr.classes(

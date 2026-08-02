@@ -104,6 +104,38 @@ let tests = (
         equivalent_to_make_term("-1");
       },
     ),
+    test_case("Expression derivative operator", `Quick, () => {
+      equivalent_to_make_term("deriv x ** 2 + 3 * x by x")
+    }),
+    test_case("Function derivative operator", `Quick, () => {
+      equivalent_to_make_term("D f")
+    }),
+    test_case(
+      "Legacy function diff renders as the function operator", `Quick, () => {
+      switch (Parser.to_term("diff(f)", ~root=Exp)) {
+      | Some(exp) =>
+        check(
+          string,
+          "canonical derivative spelling",
+          "D f",
+          print_seg(exp_to_segment(exp)),
+        )
+      | None => Alcotest.fail("Failed to parse legacy diff")
+      }
+    }),
+    test_case(
+      "Legacy expression diff renders as the expression operator", `Quick, () => {
+      switch (Parser.to_term("diff(x ** 2, x)", ~root=Exp)) {
+      | Some(exp) =>
+        check(
+          string,
+          "canonical derivative spelling",
+          "deriv x ** 2 by x",
+          print_seg(exp_to_segment(exp)),
+        )
+      | None => Alcotest.fail("Failed to parse legacy expression diff")
+      }
+    }),
     test_case(
       "Empty Ids on ExpToSegment constructor",
       `Quick,

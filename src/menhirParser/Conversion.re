@@ -255,6 +255,18 @@ module rec Exp: {
       ty_alias(TPat.of_menhir_ast(tp), ty, of_menhir_ast(e));
     | Use(t, e) => use(Typ.of_menhir_ast(t), of_menhir_ast(e))
     | BuiltinFun(s) => builtin_fun(s)
+    | ExpressionDerivative(body, variable) =>
+      ap(
+        Language.Operators.Forward,
+        var(Language.DerivativeOperator.expression_internal_name),
+        tuple([of_menhir_ast(variable), of_menhir_ast(body)]),
+      )
+    | FunctionDerivative(function_exp) =>
+      ap(
+        Language.Operators.Forward,
+        var(Language.DerivativeOperator.function_internal_name),
+        of_menhir_ast(function_exp),
+      )
     | Fun(p, e, name_opt) =>
       switch (name_opt) {
       | Some(name_str) =>
@@ -366,6 +378,25 @@ module rec Exp: {
       TyAlias(TPat.of_core(tp), Typ.of_core(ty), of_core(e))
     | Use(ty, e) => Use(Typ.of_core(ty), of_core(e))
     | BuiltinFun(s) => BuiltinFun(s)
+    | Ap(
+        Forward,
+        {term: Var(name) | BuiltinFun(name), _},
+        {term: Tuple([variable, body]), _},
+      )
+        when name == Language.DerivativeOperator.expression_internal_name =>
+      ExpressionDerivative(of_core(body), of_core(variable))
+    | Ap(
+        Forward,
+        {term: Var(name) | BuiltinFun(name), _},
+        {term: Tuple([body, variable]), _},
+      )
+        when name == Language.DerivativeOperator.legacy_name =>
+      ExpressionDerivative(of_core(body), of_core(variable))
+    | Ap(Forward, {term: Var(name) | BuiltinFun(name), _}, function_exp)
+        when
+          name == Language.DerivativeOperator.function_internal_name
+          || name == Language.DerivativeOperator.legacy_name =>
+      FunctionDerivative(of_core(function_exp))
     | Ap(Forward, e1, e2) => ApExp(of_core(e1), TupleExp([of_core(e2)]))
     | BinOp(op, e1, e2) =>
       BinExp(of_core(e1), Operators.of_core_op_bin(op), of_core(e2))

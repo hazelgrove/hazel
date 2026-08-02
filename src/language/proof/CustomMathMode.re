@@ -251,6 +251,35 @@ let install_teacher_rewrite = (profile, definition) =>
     }
   };
 
+/* A teacher-facing custom mode describes the capabilities that remain
+   available, not an invalid intermediate dependency graph.  Removing a
+   prerequisite therefore removes every visible operation that depends on it.
+   Iterate to a fixed point so catalog dependencies can form chains without
+   requiring the builder to know about individual rule IDs. */
+let rec prune_rules_with_disabled_prerequisites =
+        (profile: Axioms.math_profile) => {
+  let visible_rules =
+    profile.step_policy.visible_rules
+    |> List.filter((policy: Axioms.visible_rule_policy) =>
+         switch (Axioms.catalog_rule_by_id(policy.rule_id)) {
+         | Some(rule) => Axioms.rule_prerequisites_satisfied(profile, rule)
+         | None => true
+         }
+       );
+  if (List.length(visible_rules)
+      == List.length(profile.step_policy.visible_rules)) {
+    profile;
+  } else {
+    prune_rules_with_disabled_prerequisites({
+      ...profile,
+      step_policy: {
+        ...profile.step_policy,
+        visible_rules,
+      },
+    });
+  };
+};
+
 let apply_overrides = (profile, definition) => {
   let rules =
     definition.rule_overrides
@@ -305,6 +334,7 @@ let apply_overrides = (profile, definition) => {
              profile.capability_usage_overrides,
            ),
     };
+    let profile = prune_rules_with_disabled_prerequisites(profile);
     switch (Axioms.validate_profile_configuration(profile)) {
     | Some(error) => Error(InvalidProfile(error))
     | None =>

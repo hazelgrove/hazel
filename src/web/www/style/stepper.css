@@ -233,6 +233,35 @@
   gap: 0.35em;
 }
 
+.math-automation-active-profile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65em;
+  padding: 0.4em 0.5em;
+  border: 1px solid var(--menu-outline);
+  border-radius: 0.2em;
+  background-color: var(--menu-bkg);
+  color: var(--BR4);
+}
+
+.math-automation-active-profile.custom {
+  border-left: 0.3em solid var(--BR4);
+}
+
+.math-automation-active-profile-label {
+  color: var(--BR4);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.math-automation-active-profile .proof-button {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 0.15em 0.4em;
+  font-size: 0.78em;
+}
+
 .math-automation-control-label {
   color: var(--BR4);
   font-size: 0.8em;

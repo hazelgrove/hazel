@@ -370,7 +370,9 @@ let is_trig_builtin = name =>
   };
 
 let is_calculus_builtin = name =>
-  name == "diff" || name == "taylor_derivatives";
+  name == DerivativeOperator.expression_internal_name
+  || name == DerivativeOperator.function_internal_name
+  || name == DerivativeOperator.legacy_name;
 
 let require = (construct, required_level, exp) => {
   construct,
@@ -934,11 +936,6 @@ let calculus_rewrite_group = {
   rank: rewrite_level_rank(Calculus),
   rules: [
     {
-      id: "calc.taylor_derivatives",
-      label: "expand derivative sequence",
-      prover_hints: [],
-    },
-    {
       id: "calc.diff_function_value",
       label: "differentiate a function",
       prover_hints: [lean("fun_prop")],
@@ -1141,7 +1138,6 @@ let profile_group_for_rule_id =
   | "trig.sin_neg"
   | "trig.cos_neg"
   | "trig.tan_neg" => Some("Symmetry and cofunction identities")
-  | "calc.taylor_derivatives" => Some("Derivative sequences")
   | "calc.diff_function_value"
   | "calc.diff_function" => Some("Function derivatives")
   | "calc.diff_constant"
@@ -1221,7 +1217,7 @@ let cleanup_capability_metadata =
       ~id=cleanup_capability_label(DerivativeBasics),
       ~name="Simplify basic derivatives",
       ~short_name="Basic diff",
-      ~example="diff(x, x) = 1",
+      ~example="deriv x by x = 1",
     )
   | PowerIdentity =>
     operation_metadata(
@@ -1359,103 +1355,98 @@ let visible_rule_metadata = rule_id =>
       ~short_name="(a-b)^3",
       ~example="(a - b)**3 = a**3 - 3*a**2*b + 3*a*b**2 - b**3",
     )
-  | "calc.taylor_derivatives" =>
-    operation_metadata(
-      ~id=rule_id,
-      ~name="Expand a sequence of function derivatives",
-      ~short_name="Derivative sequence",
-      ~example="taylor_derivatives(f, 3)",
-    )
   | "calc.diff_function_value" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Differentiate a function value",
       ~short_name="Function derivative",
-      ~example="diff(fun x -> x**2) = fun x -> diff(x**2, x)",
+      ~example="D (fun x -> x**2) = fun x -> deriv (x**2) by x",
     )
   | "calc.diff_function" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Differentiate a named function body",
       ~short_name="Function",
-      ~example="diff(fun f(x) -> x**2, x) = diff(x**2, x)",
+      ~example="deriv f(x) by x = deriv (x**2) by x",
     )
   | "calc.diff_constant" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Derivative of a constant",
       ~short_name="Constant",
-      ~example="diff(7, x) = 0",
+      ~example="deriv 7 by x = 0",
     )
   | "calc.diff_variable" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Derivative of the variable",
       ~short_name="Variable",
-      ~example="diff(x, x) = 1",
+      ~example="deriv x by x = 1",
     )
   | "calc.diff_sum" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Apply derivative linearity to a sum",
       ~short_name="Sum",
-      ~example="diff(u + v, x) = diff(u, x) + diff(v, x)",
+      ~example="deriv (u + v) by x = deriv u by x + deriv v by x",
     )
   | "calc.diff_difference" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Apply derivative linearity to a difference",
       ~short_name="Difference",
-      ~example="diff(u - v, x) = diff(u, x) - diff(v, x)",
+      ~example="deriv (u - v) by x = deriv u by x - deriv v by x",
     )
   | "calc.diff_negation" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Apply derivative linearity to negation",
       ~short_name="Negation",
-      ~example="diff(-u, x) = -diff(u, x)",
+      ~example="deriv (-u) by x = -deriv u by x",
     )
   | "calc.diff_product" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Apply the product rule",
       ~short_name="Product",
-      ~example="diff(u*v, x) = diff(u, x)*v + u*diff(v, x)",
+      ~example="deriv (u*v) by x = (deriv u by x)*v + u*(deriv v by x)",
     )
   | "calc.diff_quotient" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Apply the quotient rule (denominator nonzero)",
       ~short_name="Quotient",
-      ~example="v != 0: diff(u/v, x) = (diff(u,x)*v-u*diff(v,x))/v**2",
+      ~example=
+        "v != 0: deriv (u/v) by x = ((deriv u by x)*v-u*(deriv v by x))/v**2",
     )
   | "calc.diff_power" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Apply the power rule",
       ~short_name="Power",
-      ~example="diff(u**n, x) = n*u**(n-1)*diff(u, x)",
+      ~example="deriv (u**n) by x = n*u**(n-1)*(deriv u by x)",
     )
   | "calc.diff_chain" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Apply the chain rule",
       ~short_name="Chain",
-      ~example="diff(f(g(x)), x) = diff(f, g(x))*diff(g(x), x)",
+      ~example=
+        "deriv f(g(x)) by x = (deriv f(g(x)) by g(x))*(deriv g(x) by x)",
     )
   | "calc.diff_chain_sin" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Apply the sine chain rule",
       ~short_name="Sin chain",
-      ~example="diff(sin(u), x) = cos(u)*diff(u, x)",
+      ~example="deriv sin(u) by x = cos(u)*(deriv u by x)",
     )
   | "calc.diff_chain_cos" =>
     operation_metadata(
       ~id=rule_id,
       ~name="Apply the cosine chain rule",
       ~short_name="Cos chain",
-      ~example="diff(cos(u), x) = -sin(u)*diff(u, x)",
+      ~example="deriv cos(u) by x = -sin(u)*(deriv u by x)",
     )
   | "trig.pythagorean_sin_cos"
   | "trig.pythagorean_cos_sin" =>

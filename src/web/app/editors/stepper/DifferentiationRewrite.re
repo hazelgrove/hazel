@@ -26,10 +26,11 @@ let power_exp = (left, right) =>
   Exp.fresh(BinOp(Operators.Int(Operators.Power), left, right));
 let neg_exp = exp => Exp.fresh(UnOp(Operators.Int(Operators.Minus), exp));
 let diff_exp = (expression, variable) =>
-  app_exp("diff", tuple_exp([expression, variable]));
-let function_diff_exp = expression => app_exp("diff", expression);
-let let_exp = (name, definition, body) =>
-  Exp.fresh(Let(Pat.fresh(Var(name)), definition, body));
+  DerivativeOperator.expression(~body=expression, ~variable);
+let legacy_diff_exp = (expression, variable) =>
+  app_exp(DerivativeOperator.legacy_name, tuple_exp([expression, variable]));
+let function_diff_exp = expression =>
+  app_exp(DerivativeOperator.legacy_name, expression);
 
 let function_name = exp => {
   let exp = strip(exp);
@@ -40,127 +41,16 @@ let function_name = exp => {
   };
 };
 
-let diff_parts = exp => {
-  let exp = strip(exp);
-  switch (exp.term) {
-  | Ap(Operators.Forward, fn, arg) =>
-    switch (function_name(fn), strip(arg).term) {
-    | (Some("diff"), Tuple([expression, variable])) =>
-      Some((strip(expression), strip(variable)))
-    | _ => None
-    }
-  | _ => None
-  };
-};
+let diff_parts = DerivativeOperator.expression_parts;
 
-let function_diff_argument = exp => {
-  let exp = strip(exp);
-  switch (exp.term) {
-  | Ap(Operators.Forward, fn, arg) when function_name(fn) == Some("diff") =>
-    switch (strip(arg).term) {
-    | Tuple([_, _]) => None
-    | _ => Some(strip(arg))
-    }
-  | _ => None
-  };
-};
+let function_diff_argument = DerivativeOperator.function_argument;
 
-let derivative_order = exp => {
-  let exp = strip(exp);
-  switch (exp.term) {
-  | Atom(Int(value))
-  | Atom(Nat(value)) => Bigint.to_int(value)
-  | Atom(SInt(value)) => Some(value)
-  | Atom(Float(value)) when value == Float.round(value) =>
-    Some(int_of_float(value))
-  | _ => None
-  };
-};
-
-let taylor_derivatives_parts = exp => {
-  let exp = strip(exp);
-  switch (exp.term) {
-  | Ap(Operators.Forward, fn, arg)
-      when function_name(fn) == Some("taylor_derivatives") =>
-    switch (strip(arg).term) {
-    | Tuple([function_exp, order_exp]) =>
-      switch (derivative_order(order_exp)) {
-      | Some(order) when order >= 0 => Some((strip(function_exp), order))
-      | _ => None
-      }
-    | _ => None
-    }
-  | _ => None
-  };
-};
-
-/* Generated derivative bindings are ordinary Hazel names. Collect every name
- * that can occur in the input function so those bindings cannot capture a
- * closure variable or collide with an existing binder. */
-let rec expression_names = exp => {
-  let exp = strip(exp);
-  switch (exp.term) {
-  | Var(name) => [name]
-  | BinOp(_, left, right)
-  | Ap(_, left, right)
-  | Dot(left, right)
-  | TupLabel(left, right)
-  | TupleExtension(left, right)
-  | Cons(left, right)
-  | ListConcat(left, right)
-  | Seq(left, right) => expression_names(left) @ expression_names(right)
-  | UnOp(_, inner)
-  | Parens(inner)
-  | Asc(inner, _)
-  | Projector(_, inner)
-  | ProofObject(inner)
-  | Test(inner)
-  | Filter(_, inner) => expression_names(inner)
-  | Tuple(entries)
-  | ListLit(entries) => List.concat_map(expression_names, entries)
-  | Fun(pat, body, _, _) =>
-    Binding.variable_names(Pat.bindings(pat)) @ expression_names(body)
-  | Let(pat, definition, body)
-  | Theorem(pat, definition, body) =>
-    Binding.variable_names(Pat.bindings(pat))
-    @ expression_names(definition)
-    @ expression_names(body)
-  | If(condition, then_, else_) =>
-    expression_names(condition)
-    @ expression_names(then_)
-    @ expression_names(else_)
-  | _ => []
-  };
-};
-
-let rec unused_name = (candidate, used, suffix) => {
-  let name =
-    suffix == 0 ? candidate : candidate ++ "_" ++ string_of_int(suffix);
-  List.mem(name, used) ? unused_name(candidate, used, suffix + 1) : name;
-};
-
-let derivative_name_base = function_exp =>
-  switch (strip(function_exp).term) {
-  | Var(name) => name
-  | _ => "f"
-  };
-
-let derivative_chain =
-    (~continuation=Exp.fresh(EmptyHole), function_exp, order) => {
-  let initial_used = expression_names(function_exp);
-  let base = derivative_name_base(function_exp);
-  let rec build = (index, current, used) =>
-    if (index > order) {
-      continuation;
-    } else {
-      let candidate = base ++ "_deriv_" ++ string_of_int(index);
-      let name = unused_name(candidate, used, 0);
-      let definition = function_diff_exp(current);
-      let body = build(index + 1, var_exp(name), [name, ...used]);
-      let_exp(name, definition, body);
-    };
-  build(1, function_exp, initial_used);
-};
+let derivative_builder = source =>
+  Option.is_some(DerivativeOperator.expression_parts(~legacy=false, source))
+  || Option.is_some(
+       DerivativeOperator.function_argument(~legacy=false, source),
+     )
+    ? diff_exp : legacy_diff_exp;
 
 let variable_name = exp =>
   switch (strip(exp).term) {
@@ -249,173 +139,171 @@ let rewrite = (~rule_id, ~label, ~before_exp, ~after_exp) =>
 let enabled = (~rule_enabled, rule_id) => rule_enabled(rule_id);
 
 let rec distribute_diff_over_operator =
-        (~operator, ~combine, expression, variable) => {
+        (~operator, ~combine, ~make_diff, expression, variable) => {
   let expression = strip(expression);
   switch (expression.term) {
   | BinOp(op, left, right) when is_operator(operator, op) =>
     combine(
-      distribute_diff_over_operator(~operator, ~combine, left, variable),
-      distribute_diff_over_operator(~operator, ~combine, right, variable),
+      distribute_diff_over_operator(
+        ~operator,
+        ~combine,
+        ~make_diff,
+        left,
+        variable,
+      ),
+      distribute_diff_over_operator(
+        ~operator,
+        ~combine,
+        ~make_diff,
+        right,
+        variable,
+      ),
     )
-  | _ => diff_exp(expression, variable)
+  | _ => make_diff(expression, variable)
   };
 };
 
 let applicable_at_root = (~rule_enabled, exp) => {
   let before_exp = strip(exp);
+  let make_diff = derivative_builder(before_exp);
   let make = (rule_id, label, after_exp) =>
     enabled(~rule_enabled, rule_id)
       ? [rewrite(~rule_id, ~label, ~before_exp, ~after_exp)] : [];
-  switch (taylor_derivatives_parts(before_exp)) {
-  | Some((function_exp, order)) =>
-    make(
-      "calc.taylor_derivatives",
-      "expand derivative sequence",
-      derivative_chain(function_exp, order),
-    )
-  | None =>
-    switch (function_diff_argument(before_exp)) {
-    | Some(function_exp) =>
-      switch (strip(function_exp).term) {
-      | Fun(pat, body, return_typ, name) =>
-        switch (function_parameter_name(pat)) {
-        | Some(parameter) =>
-          make(
-            "calc.diff_function_value",
-            "differentiate function",
-            Exp.fresh(
-              Fun(
-                pat,
-                diff_exp(strip(body), var_exp(parameter)),
-                return_typ,
-                name,
-              ),
+  switch (function_diff_argument(before_exp)) {
+  | Some(function_exp) =>
+    switch (strip(function_exp).term) {
+    | Fun(pat, body, return_typ, name) =>
+      switch (function_parameter_name(pat)) {
+      | Some(parameter) =>
+        make(
+          "calc.diff_function_value",
+          "differentiate function",
+          Exp.fresh(
+            Fun(
+              pat,
+              make_diff(strip(body), var_exp(parameter)),
+              return_typ,
+              name,
             ),
-          )
-        | None => []
-        }
-      | _ => []
-      }
-    | None =>
-      switch (diff_parts(before_exp)) {
+          ),
+        )
       | None => []
-      | Some((expression, variable)) =>
-        switch (variable_name(variable)) {
-        | None => []
-        | Some(variable_name) =>
-          let expression = strip(expression);
-          switch (expression.term) {
-          | Fun(pat, body, _, _) =>
-            switch (function_parameter_name(pat)) {
-            | Some(bound_name) when bound_name == variable_name =>
-              make(
-                "calc.diff_function",
-                "differentiate function body",
-                diff_exp(strip(body), variable),
-              )
-            | _ => []
-            }
-          | Var(name) when name == variable_name =>
+      }
+    | _ => []
+    }
+  | None =>
+    switch (diff_parts(before_exp)) {
+    | None => []
+    | Some((expression, variable)) =>
+      switch (variable_name(variable)) {
+      | None => []
+      | Some(variable_name) =>
+        let expression = strip(expression);
+        switch (expression.term) {
+        | Fun(pat, body, _, _) =>
+          switch (function_parameter_name(pat)) {
+          | Some(bound_name) when bound_name == variable_name =>
             make(
-              "calc.diff_variable",
-              "derivative of a variable",
-              int_exp(1),
-            )
-          | _ when !depends_on(variable_name, expression) =>
-            make(
-              "calc.diff_constant",
-              "derivative of a constant",
-              int_exp(0),
-            )
-          | Ap(Operators.Forward, fn, inner)
-              when function_name(fn) == Some("sin") =>
-            make(
-              "calc.diff_chain_sin",
-              "sine chain rule",
-              times_exp(app_exp("cos", inner), diff_exp(inner, variable)),
-            )
-          | Ap(Operators.Forward, fn, inner)
-              when function_name(fn) == Some("cos") =>
-            make(
-              "calc.diff_chain_cos",
-              "cosine chain rule",
-              times_exp(
-                neg_exp(app_exp("sin", inner)),
-                diff_exp(inner, variable),
-              ),
-            )
-          | BinOp(op, _, _) when is_operator(Operators.Plus, op) =>
-            make(
-              "calc.diff_sum",
-              "linearity (sum rule)",
-              distribute_diff_over_operator(
-                ~operator=Operators.Plus,
-                ~combine=plus_exp,
-                expression,
-                variable,
-              ),
-            )
-          | BinOp(op, _, _) when is_operator(Operators.Minus, op) =>
-            make(
-              "calc.diff_difference",
-              "linearity (difference rule)",
-              distribute_diff_over_operator(
-                ~operator=Operators.Minus,
-                ~combine=minus_exp,
-                expression,
-                variable,
-              ),
-            )
-          | BinOp(op, left, right) when is_operator(Operators.Times, op) =>
-            make(
-              "calc.diff_product",
-              "product rule",
-              plus_exp(
-                times_exp(diff_exp(left, variable), right),
-                times_exp(left, diff_exp(right, variable)),
-              ),
-            )
-          | BinOp(op, numerator, denominator)
-              when is_operator(Operators.Divide, op) =>
-            make(
-              "calc.diff_quotient",
-              "quotient rule (denominator nonzero)",
-              divide_exp(
-                minus_exp(
-                  times_exp(diff_exp(numerator, variable), denominator),
-                  times_exp(numerator, diff_exp(denominator, variable)),
-                ),
-                power_exp(denominator, int_exp(2)),
-              ),
-            )
-          | BinOp(op, base, exponent) when is_operator(Operators.Power, op) =>
-            switch (integer_constant(exponent)) {
-            | Some(power) when power > 0 =>
-              make(
-                "calc.diff_power",
-                "power rule",
-                times_exp(
-                  times_exp(
-                    int_exp(power),
-                    power_exp(base, int_exp(power - 1)),
-                  ),
-                  diff_exp(base, variable),
-                ),
-              )
-            | _ => []
-            }
-          | UnOp(
-              Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus),
-              inner,
-            ) =>
-            make(
-              "calc.diff_negation",
-              "derivative negation rule",
-              neg_exp(diff_exp(inner, variable)),
+              "calc.diff_function",
+              "differentiate function body",
+              make_diff(strip(body), variable),
             )
           | _ => []
-          };
-        }
+          }
+        | Var(name) when name == variable_name =>
+          make("calc.diff_variable", "derivative of a variable", int_exp(1))
+        | _ when !depends_on(variable_name, expression) =>
+          make("calc.diff_constant", "derivative of a constant", int_exp(0))
+        | Ap(Operators.Forward, fn, inner)
+            when function_name(fn) == Some("sin") =>
+          make(
+            "calc.diff_chain_sin",
+            "sine chain rule",
+            times_exp(app_exp("cos", inner), make_diff(inner, variable)),
+          )
+        | Ap(Operators.Forward, fn, inner)
+            when function_name(fn) == Some("cos") =>
+          make(
+            "calc.diff_chain_cos",
+            "cosine chain rule",
+            times_exp(
+              neg_exp(app_exp("sin", inner)),
+              make_diff(inner, variable),
+            ),
+          )
+        | BinOp(op, _, _) when is_operator(Operators.Plus, op) =>
+          make(
+            "calc.diff_sum",
+            "linearity (sum rule)",
+            distribute_diff_over_operator(
+              ~operator=Operators.Plus,
+              ~combine=plus_exp,
+              ~make_diff,
+              expression,
+              variable,
+            ),
+          )
+        | BinOp(op, _, _) when is_operator(Operators.Minus, op) =>
+          make(
+            "calc.diff_difference",
+            "linearity (difference rule)",
+            distribute_diff_over_operator(
+              ~operator=Operators.Minus,
+              ~combine=minus_exp,
+              ~make_diff,
+              expression,
+              variable,
+            ),
+          )
+        | BinOp(op, left, right) when is_operator(Operators.Times, op) =>
+          make(
+            "calc.diff_product",
+            "product rule",
+            plus_exp(
+              times_exp(make_diff(left, variable), right),
+              times_exp(left, make_diff(right, variable)),
+            ),
+          )
+        | BinOp(op, numerator, denominator)
+            when is_operator(Operators.Divide, op) =>
+          make(
+            "calc.diff_quotient",
+            "quotient rule (denominator nonzero)",
+            divide_exp(
+              minus_exp(
+                times_exp(make_diff(numerator, variable), denominator),
+                times_exp(numerator, make_diff(denominator, variable)),
+              ),
+              power_exp(denominator, int_exp(2)),
+            ),
+          )
+        | BinOp(op, base, exponent) when is_operator(Operators.Power, op) =>
+          switch (integer_constant(exponent)) {
+          | Some(power) when power > 0 =>
+            make(
+              "calc.diff_power",
+              "power rule",
+              times_exp(
+                times_exp(
+                  int_exp(power),
+                  power_exp(base, int_exp(power - 1)),
+                ),
+                make_diff(base, variable),
+              ),
+            )
+          | _ => []
+          }
+        | UnOp(
+            Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus),
+            inner,
+          ) =>
+          make(
+            "calc.diff_negation",
+            "derivative negation rule",
+            neg_exp(make_diff(inner, variable)),
+          )
+        | _ => []
+        };
       }
     }
   };
@@ -507,8 +395,7 @@ let normalize = (~rule_enabled, ~fuel=128, exp) => {
 
 let rec contains_diff = exp =>
   if (Option.is_some(diff_parts(exp))
-      || Option.is_some(function_diff_argument(exp))
-      || Option.is_some(taylor_derivatives_parts(exp))) {
+      || Option.is_some(function_diff_argument(exp))) {
     true;
   } else {
     switch (strip(exp).term) {
@@ -543,6 +430,7 @@ let is_basic_cleanup_rule_id = rule_id =>
 
 let rec cleanup = (~cleanup_enabled, exp) => {
   let exp = strip(exp);
+  let make_diff = derivative_builder(exp);
   let recurse = cleanup(~cleanup_enabled);
   switch (diff_parts(exp)) {
   | Some((expression, variable))
@@ -553,11 +441,11 @@ let rec cleanup = (~cleanup_enabled, exp) => {
     | Some(variable_name) =>
       switch (strip(expression).term) {
       | Var(name) when name == variable_name => int_exp(1)
-      | Fun(_, _, _, _) => diff_exp(expression, variable)
+      | Fun(_, _, _, _) => make_diff(expression, variable)
       | _ when !depends_on(variable_name, expression) => int_exp(0)
-      | _ => diff_exp(expression, variable)
+      | _ => make_diff(expression, variable)
       }
-    | None => diff_exp(expression, variable)
+    | None => make_diff(expression, variable)
     };
   | _ =>
     switch (exp.term) {
@@ -628,6 +516,7 @@ let rec cleanup = (~cleanup_enabled, exp) => {
 
 let rec cleanup_once = (~cleanup_enabled, exp) => {
   let exp = strip(exp);
+  let make_diff = derivative_builder(exp);
   let recurse = cleanup_once(~cleanup_enabled);
   let changed = (capability, next) => Some((next, capability));
   switch (diff_parts(exp)) {
@@ -636,7 +525,7 @@ let rec cleanup_once = (~cleanup_enabled, exp) => {
     let cleanup_expression = () =>
       recurse(expression)
       |> Option.map(((expression, capability)) =>
-           (diff_exp(expression, variable), capability)
+           (make_diff(expression, variable), capability)
          );
     switch (variable_name(variable)) {
     | Some(variable_name) =>

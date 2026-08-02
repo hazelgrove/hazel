@@ -10,7 +10,12 @@ type domain =
 let is_float_pi = value => abs_float(value -. Float.pi) < 0.000001;
 
 let is_real_builtin = name =>
-  name == "sin" || name == "cos" || name == "tan" || name == "diff";
+  name == "sin"
+  || name == "cos"
+  || name == "tan"
+  || name == Language.DerivativeOperator.expression_internal_name
+  || name == Language.DerivativeOperator.function_internal_name
+  || name == Language.DerivativeOperator.legacy_name;
 
 let rec requires_reals = (d: Language.DHExp.t) =>
   switch (Language.Exp.term_of(d |> Language.DHExp.strip_ascriptions)) {
@@ -264,7 +269,7 @@ let string_of_d_reals = (d: Language.DHExp.t) => {
     /* In the math editor a parenthesized scalar may be represented as a
      * singleton tuple.  It is grouping, not a Rocq product.  Multi-element
      * tuples remain unsupported here and are handled separately for syntax
-     * such as diff(expression, variable). */
+     * such as the internal expression-derivative operator. */
     | Tuple([exp]) => loop(exp)
     | BinOp(
         Int(Power) | Nat(Power) | SInt(Power) | Float(Power),

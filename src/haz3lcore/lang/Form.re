@@ -1,5 +1,6 @@
 open Util;
 open Sort;
+open Language;
 module P = Precedence;
 
 /* This module determines the syntactic extent of the language; the
@@ -114,6 +115,7 @@ type atomic_form =
   | ExplicitNonlabel
   | TyVar
   | TyVarP
+  | PrefixCtrPat
   | Ctr
   | MPatName
   | Type
@@ -364,6 +366,8 @@ type compound_form =
   | Not
   | TypSumSingle
   | UnaryMinus
+  | ExpressionDerivative
+  | FunctionDerivative
   // N-ARY OPS (on the semantics level)
   | CommaExp
   | CommaPat
@@ -473,6 +477,20 @@ let get: compound_form => t =
   | Not => mk_prefix("!", Exp, P.not_)
   | TypSumSingle => mk_prefix("+", Typ, P.or_)
   | UnaryMinus => mk_prefix("-", Exp, P.neg)
+  | ExpressionDerivative =>
+    mk_pre_c(
+      L,
+      [
+        DerivativeOperator.expression_surface_prefix,
+        DerivativeOperator.expression_surface_separator,
+      ],
+      /* [by] separates the differentiated expression from its variable. */
+      P.fun_,
+      Exp,
+      [Exp],
+    )
+  | FunctionDerivative =>
+    mk_pre_c(L, [DerivativeOperator.function_surface], P.neg, Exp, [])
   // N-ARY OPS (on the semantics level)
   | CommaExp => mk_infix(",", Exp, P.comma)
   | CommaPat => mk_infix(",", Pat, P.comma)
@@ -602,7 +620,13 @@ let is_ambiguous_polymorph = List.mem(_, amiguous_polymorphs);
 
 let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   fun
-  | Var => (Token.is_var, [op(Exp), op(Pat)])
+  | Var => (
+      (
+        token =>
+          Token.is_var(token) && !DerivativeOperator.is_surface_token(token)
+      ),
+      [op(Exp), op(Pat)],
+    )
   | InfixDelimiterPrefix => (
       is_infix_delimiter_op_prefix,
       [
@@ -646,7 +670,20 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | ExplicitNonlabel => (Token.is_wild, [op(Typ)])
   | TyVar => (Token.is_typ_var, [op(Typ)])
   | TyVarP => (Token.is_typ_var, [op(TPat)])
-  | Ctr => (Token.is_ctr, [op(Exp), op(Pat)])
+  | PrefixCtrPat => (
+      (
+        token =>
+          Token.is_ctr(token) && DerivativeOperator.is_surface_token(token)
+      ),
+      [op(Pat)],
+    )
+  | Ctr => (
+      (
+        token =>
+          Token.is_ctr(token) && !DerivativeOperator.is_surface_token(token)
+      ),
+      [op(Exp), op(Pat)],
+    )
   | MPatName => ((t => Token.is_var(t) || Token.is_ctr(t)), [op(MPat)])
   | Type => (Token.is_base_typ, [op(Typ)])
   | DrvVar => (

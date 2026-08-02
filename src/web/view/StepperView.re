@@ -117,7 +117,9 @@ module Update = {
           root,
         };
       | SelectRewriteLevel(rewrite_level)
-          when Axioms.rewrite_level_enabled(rewrite_level) =>
+          when
+            !model.math_mode_builder.active
+            && Axioms.rewrite_level_enabled(rewrite_level) =>
         {
           ...model,
           rewrite_level,
@@ -266,7 +268,51 @@ module View = {
         ],
       );
 
+    let custom_mode_active = model.math_mode_builder.active;
+    let custom_mode_label = model.math_mode_builder.label;
+    let active_profile_status =
+      custom_mode_active
+        ? Node.div(
+            ~attrs=[Attr.class_("math-automation-active-profile custom")],
+            [
+              Node.div([
+                Node.div(
+                  ~attrs=[
+                    Attr.class_("math-automation-active-profile-label"),
+                  ],
+                  [Node.text("Custom: " ++ custom_mode_label)],
+                ),
+              ]),
+              Widgets.button(
+                ~clss=["proof-button"],
+                Node.text("Turn off"),
+                ~tooltip="return to the selected built-in math level",
+                _ =>
+                inject(
+                  MathModeBuilderAction(
+                    MathModeBuilder.Update.SetActive(false),
+                  ),
+                )
+              ),
+            ],
+          )
+        : Node.div(
+            ~attrs=[Attr.class_("math-automation-active-profile")],
+            [
+              Node.div(
+                ~attrs=[Attr.class_("math-automation-active-profile-label")],
+                [
+                  Node.text(
+                    "Active profile: "
+                    ++ Axioms.rewrite_level_label(model.rewrite_level),
+                  ),
+                ],
+              ),
+            ],
+          );
+
     let automation_choices = [
+      active_profile_status,
       Node.div(
         ~attrs=[Attr.class_("math-automation-control")],
         [
@@ -278,12 +324,24 @@ module View = {
             ~attrs=[Attr.class_("math-automation-options")],
             Axioms.selectable_rewrite_levels
             |> List.map(level => {
-                 let enabled = Axioms.rewrite_level_enabled(level);
+                 let enabled =
+                   !custom_mode_active && Axioms.rewrite_level_enabled(level);
                  control_option(
-                   ~active=model.rewrite_level == level,
+                   ~active=!custom_mode_active && model.rewrite_level == level,
                    ~enabled,
-                   ~label=Axioms.rewrite_level_label(level),
-                   ~detail=Axioms.rewrite_level_detail(level),
+                   ~label=
+                     switch (level) {
+                     | Trigonometry => "Trig"
+                     | _ => Axioms.rewrite_level_label(level)
+                     },
+                   ~detail=
+                     switch (level) {
+                     | Arithmetic => "constants & affine"
+                     | Algebra => "distribution & factoring"
+                     | Trigonometry => "identities & angles"
+                     | Calculus => "derivatives"
+                     | FunctionsAndLists => "functions & lists"
+                     },
                    ~callback=inject(SelectRewriteLevel(level)),
                  );
                }),
@@ -305,7 +363,12 @@ module View = {
                    ~active=model.automation_stage == stage,
                    ~enabled=true,
                    ~label=Axioms.automation_stage_label(stage),
-                   ~detail=Axioms.automation_stage_detail(stage),
+                   ~detail=
+                     switch (stage) {
+                     | Manual => "one visible step"
+                     | MultiStepCheck => "check a result"
+                     | AutoEval => "prefill the target"
+                     },
                    ~callback=inject(SelectAutomationStage(stage)),
                  )
                ),
@@ -315,7 +378,11 @@ module View = {
     ];
 
     let automation_summary =
-      Axioms.rewrite_level_label(model.rewrite_level)
+      (
+        custom_mode_active
+          ? "Custom: " ++ custom_mode_label
+          : Axioms.rewrite_level_label(model.rewrite_level)
+      )
       ++ " / "
       ++ Axioms.automation_stage_label(model.automation_stage);
 

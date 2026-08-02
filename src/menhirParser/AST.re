@@ -153,6 +153,8 @@ and exp =
   | ExplicitNonlabel
   | TupLabel(exp, exp)
   | Dot(exp, exp)
+  | ExpressionDerivative(exp, exp)
+  | FunctionDerivative(exp)
   | ApExp(exp, exp)
   | FixF(pat, exp)
   | Asc(exp, typ)
@@ -1083,6 +1085,22 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_pat(p);
             return(ModuleExp(shrunk, e1, e2));
           }
+        | ExpressionDerivative(body, variable) =>
+          of_list([body, variable])
+          <+> (
+            shrink_exp(body)
+            >|= (body => ExpressionDerivative(body, variable))
+          )
+          <+> (
+            shrink_exp(variable)
+            >|= (variable => ExpressionDerivative(body, variable))
+          )
+        | FunctionDerivative(function_exp) =>
+          return(function_exp)
+          <+> (
+            shrink_exp(function_exp)
+            >|= (function_exp => FunctionDerivative(function_exp))
+          )
         | IndicationExp(_)
         | EmptyHole
         | BuiltinFun(_)

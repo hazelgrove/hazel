@@ -1645,6 +1645,20 @@ else f|});
     ~goal={|§f(x)¦|},
   ),
   test(
+    ~name="Triple-click on derivative prefix selects its full scope",
+    ~acts=
+      mk({|¦deriv x ** 2 + 3 * x by x|})
+      @ [Action.Select(Smart(2)), Action.Select(Smart(3))],
+    ~goal={|§deriv x ** 2 + 3 * x by x¦|},
+  ),
+  test(
+    ~name="Cmd+D on derivative variable escalates to whole derivative",
+    ~acts=
+      mk({|deriv x ** 2 + 3 * x by ¦x|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§deriv x ** 2 + 3 * x by x¦|},
+  ),
+  test(
     ~name="Cmd+D on arg inside app: select arg, then app",
     ~acts=
       mk({|f(¦x)|}) @ [Select(Term(Current)), Select(Term(Current))],

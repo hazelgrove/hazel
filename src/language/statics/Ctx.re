@@ -8,6 +8,8 @@ type custom_statics =
   | OmitAllLabels
   | GroupByLabel
   | SelectLabels
+  | ExpressionDerivative
+  | FunctionDerivative
   | DiffVariable;
 
 [@deriving (show({with_path: false}), sexp, yojson)]

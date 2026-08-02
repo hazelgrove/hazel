@@ -2092,6 +2092,23 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e = go(e);
     let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     wrap(exp, [mk_form(Use, id, [t])] @ e);
+  | Ap(Forward, _, _) when DerivativeOperator.is_expression(exp) =>
+    let id = exp |> Exp.rep_id;
+    switch (DerivativeOperator.expression_parts(exp)) {
+    | Some((body, variable)) =>
+      let+ body = go(body)
+      and+ variable = go(variable);
+      wrap(exp, [mk_form(ExpressionDerivative, id, [body])] @ variable);
+    | None => failwith("ExpToSegment: malformed expression derivative")
+    };
+  | Ap(Forward, _, _) when DerivativeOperator.is_function(exp) =>
+    let id = exp |> Exp.rep_id;
+    switch (DerivativeOperator.function_argument(exp)) {
+    | Some(function_exp) =>
+      let+ function_exp = go(function_exp);
+      wrap(exp, [mk_form(FunctionDerivative, id, [])] @ function_exp);
+    | None => failwith("ExpToSegment: malformed function derivative")
+    };
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)

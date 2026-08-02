@@ -1231,6 +1231,23 @@ let rocq_replay_program = (request, summary) => {
   );
 };
 
+let untrusted_session_rewrite_program = request => {
+  let domain = domain_for_request(request);
+  let source = CoqExport.string_of_d_for_domain(~domain, request.source);
+  let target = CoqExport.string_of_d_for_domain(~domain, request.target);
+  let forall_str = forall_string_for_request(~domain, request);
+  Printf.sprintf(
+    "%s\n(* BEGIN UNSOUND CUSTOM REWRITES\n   This lemma came from a user-provided session rewrite.\n   Replace Admitted with a proof before relying on this development. *)\nLemma hazel_untrusted_session_rewrite:%s%s=%s.\nProof.\nAdmitted.\n(* END UNSOUND CUSTOM REWRITES *)\n\nTheorem hazel_rocq_search:%s%s=%s.\nProof.\nexact hazel_untrusted_session_rewrite.\nQed.",
+    CoqProofExport.exact_replay_prelude(domain),
+    forall_str,
+    source,
+    target,
+    forall_str,
+    source,
+    target,
+  );
+};
+
 let rocq_program_for_authorized_plan =
     (~profile, request, plan: ProfileProofPlan.authorized_plan) =>
   switch (plan.certificate_strategy) {
@@ -1247,8 +1264,7 @@ let rocq_program_for_authorized_plan =
     };
   | EvaluationEvidence when !plan.exportable =>
     failwith("the authorized evaluator transition is not Rocq-exportable")
-  | UntrustedSessionRewrite =>
-    failwith("untrusted session rewrites are not Rocq-exportable")
+  | UntrustedSessionRewrite => untrusted_session_rewrite_program(request)
   | LemmaReplay
   | AffineCertificate
   | PolynomialCertificate

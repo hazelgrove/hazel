@@ -448,7 +448,7 @@ let tests = (
     test_exp(
       ~name="function-comma checker expression matches highlight",
       ~input={|§diff(x ** 2,¦ x) + diff(2 * x, x)|},
-      ~expected={|diff(x ** 2, x)|},
+      ~expected={|deriv x ** 2 by x|},
     ),
     test(
       ~name="application argument-closing delimiter selection selects app",
@@ -458,7 +458,7 @@ let tests = (
     test_exp(
       ~name="application closing delimiter checker matches highlight",
       ~input={|diff(x ** 2, §x)¦ + diff(2 * x, x)|},
-      ~expected={|diff(x ** 2, x)|},
+      ~expected={|deriv x ** 2 by x|},
     ),
     test_override(
       ~name="application closing delimiter falls back to dev selection",

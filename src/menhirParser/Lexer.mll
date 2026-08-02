@@ -17,6 +17,58 @@ let parse_float_string s =
   with
     | Failure _ -> print_endline ("Parse Float String Lexing Error On: " ^ s); 0.0
 
+let named_token fallback name =
+  if name = Language.DerivativeOperator.expression_surface_prefix then
+    EXPRESSION_DERIVATIVE
+  else if name = Language.DerivativeOperator.expression_surface_separator then
+    DERIVATIVE_BY
+  else
+    fallback name
+
+let is_whitespace = function
+  | ' ' | '\t' | '\r' | '\n' -> true
+  | _ -> false
+
+let rec next_non_whitespace lexbuf position =
+  if position >= lexbuf.lex_buffer_len then None
+  else
+    let ch = Bytes.get lexbuf.lex_buffer position in
+    if is_whitespace ch then next_non_whitespace lexbuf (position + 1)
+    else Some (position, ch)
+
+let following_word lexbuf start =
+  let rec finish position =
+    if position >= lexbuf.lex_buffer_len then position
+    else
+      match Bytes.get lexbuf.lex_buffer position with
+      | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> finish (position + 1)
+      | _ -> position
+  in
+  let stop = finish start in
+  Bytes.sub_string lexbuf.lex_buffer start (stop - start)
+
+let function_operand_follows lexbuf =
+  let start = lexbuf.lex_curr_pos in
+  start < lexbuf.lex_buffer_len
+  && is_whitespace (Bytes.get lexbuf.lex_buffer start)
+  &&
+  match next_non_whitespace lexbuf start with
+  | None -> false
+  | Some (position, ('a' .. 'z' | 'A' .. 'Z' | '_')) ->
+      not
+        (List.mem
+           (following_word lexbuf position)
+           ["in"; "then"; "else"; "end"; "by"])
+  | Some (_, ('0' .. '9' | '"' | '(' | '[' | '?' | '{' | '!')) -> true
+  | Some _ -> false
+
+let constructor_token lexbuf name =
+  if name = Language.DerivativeOperator.function_surface
+     && function_operand_follows lexbuf then
+    FUNCTION_DERIVATIVE
+  else
+    CONSTRUCTOR_IDENT name
+
 }
 (* TODO We don't yet support negative floats in MakeTerm *)
 (* Require leading digits before dot *)
@@ -51,7 +103,6 @@ rule token =
     | "false" { FALSE }
     | "module" { MODULE }
     | "let" { LET }
-    | "taylor_derivatives" { TAYLOR_DERIVATIVES }
     | "in" { IN }
     | "end" { END }
     | "fun" { FUN }
@@ -141,7 +192,7 @@ rule token =
     | "named_fun" {NAMED_FUN}
     | "poly" {POLY}
     | "rec" {REC}
-    | identifier as i { IDENT(i) }
-    | constructor_ident as i { CONSTRUCTOR_IDENT(i)}
+    | identifier as i { named_token (fun name -> IDENT name) i }
+    | constructor_ident as i { constructor_token lexbuf i }
     | eof { EOF }
     | _ { raise (Failure ("Lex error: unknown char: '" ^ Lexing.lexeme lexbuf ^ "'")) }

@@ -175,13 +175,23 @@ let recorded_transition_replay_script =
            )
       | [] => false
       };
-    if (domain == CoqExport.Reals
-        && includes_rational_division
-        && (
-          includes_algebra_identity
-          || includes_distribution_family
-          || includes_rational_arithmetic
-        )) {
+    let is_direct_division_distribution =
+      switch (group) {
+      | [step] => step.rule_id == "alg.distribute_div_add"
+      | _ => false
+      };
+    /* Preserve the catalog lemma for a single visible division-distribution
+       operation. Broader polynomial certificates remain appropriate only for
+       composite transitions. */
+    if (is_direct_division_distribution) {
+      None;
+    } else if (domain == CoqExport.Reals
+               && includes_rational_division
+               && (
+                 includes_algebra_identity
+                 || includes_distribution_family
+                 || includes_rational_arithmetic
+               )) {
       /* Real division by numeric scalars is not a polynomial operation to
          `ring`: inverses such as [/ 2] need their field laws. The transition
          has already been authorized from the recorded catalog evidence, so
@@ -449,7 +459,9 @@ let written_trace_comment = (summary: ProofTrace.trace_summary) => {
   ++ (
     summary.exportable
       ? "(* Export policy: replay Hazel prover steps. Coarse normalizer steps are still a TODO for local-fragment replay. *)\n"
-      : "(* Export policy: non-exportable Hazel step. *)\n"
+      : summary.rule_ids |> List.exists(SessionRewrite.is_session_rule_id)
+          ? "(* Export policy: UNSOUND custom rewrite; isolated below and closed with Admitted. *)\n"
+          : "(* Export policy: non-exportable Hazel step. *)\n"
   );
 };
 

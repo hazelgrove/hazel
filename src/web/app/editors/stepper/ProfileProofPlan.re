@@ -232,11 +232,11 @@ let contiguous_legacy_summary =
       let recorded_rule_ids =
         rule_id == "alg.factor_polynomial_normalize"
           ? [rule_id] : RewriteChecker.dedup([rule_id, ...summary.rule_ids]);
-      let evidence_rule_id =
-        rule_id == "alg.expand_polynomial"
-        && !root_product_has_sum_factor(request.source)
-        && List.mem("alg.collect_like_terms", summary.rule_ids)
-          ? "alg.collect_like_terms" : rule_id;
+      /* The compact witness represents the complete polynomial transition,
+         even when collecting terms was the final normalization capability.
+         Recording only that final cleanup incorrectly selects a linear
+         certificate for transitions that expand a power or product. */
+      let evidence_rule_id = rule_id;
       {
         ...summary,
         justification:

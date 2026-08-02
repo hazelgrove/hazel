@@ -495,7 +495,7 @@ module Update = {
             session_rewrites: [definition, ...model.session_rewrites],
             import_status:
               Some(
-                "Added an untrusted rewrite for this session. It is available only in One Step and cannot be exported to Rocq.",
+                "Added an untrusted rewrite for this session. It is available only in One Step; Rocq checks and exports it as a clearly marked Admitted lemma.",
               ),
           }
         };
@@ -1512,7 +1512,7 @@ module View = {
             "profile-board-detail math-mode-builder-untrusted-warning",
             [
               Node.text(
-                "Not used by Check Result, automatic simplification, Rocq validation, or proof export.",
+                "One Step only. Rocq validation and proof export isolate this rewrite in an UNSOUND section using Admitted.",
               ),
             ],
           ),

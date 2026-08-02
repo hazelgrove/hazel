@@ -143,7 +143,7 @@ module F =
         summary.exportable
           ? ""
           : summary.rule_ids |> List.exists(SessionRewrite.is_session_rule_id)
-              ? " (no prover export)" : " (non-exportable)";
+              ? " (UNSOUND: admitted in Rocq)" : " (non-exportable)";
       WebUtil.Node.text(ProofTrace.trace_summary_label(summary) ++ suffix);
     | None => WebUtil.Node.text(m.justification)
     };

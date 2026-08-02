@@ -39,6 +39,16 @@ let tests = (
       Some(float()),
     ),
     fully_consistent_typecheck(
+      "square root syntax",
+      "sqrt(4.0)",
+      Some(float()),
+    ),
+    fully_consistent_typecheck(
+      "symbolic discriminant square root",
+      "fun a : Float, b : Float, c : Float -> sqrt(b *. b -. 4.0 *. a *. c)",
+      Some(arrow(prod([float(), float(), float()]), float())),
+    ),
+    fully_consistent_typecheck(
       "diff accepts a variable as its second argument",
       "let x = 1.0 in diff(x, x)",
       Some(float()),
@@ -62,6 +72,37 @@ let tests = (
       "function sugar can store and apply a derivative function",
       "let f(x) = x ** 2 + 3 * x + 5 in let f_prime = diff(f) in f_prime(5)",
       Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "expression derivative operator preserves the expression type",
+      "let x = 2 in deriv (x ** 2 + 3 * x) by x",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "function derivative operator maps a function to a function",
+      "D (fun x : Float -> x *. x)",
+      Some(arrow(float(), float())),
+    ),
+    fully_consistent_typecheck(
+      "function derivative operator can be stored and applied",
+      "let f(x) = x ** 2 + 3 * x + 5 in let f_prime = D f in f_prime(1)",
+      Some(int()),
+    ),
+    test_case(
+      "expression derivative operator rejects a non-variable index",
+      `Quick,
+      () => {
+        let exp = parse_exp("deriv (2 ** 2) by 2");
+        let static_map = statics(exp);
+        let actual =
+          errors(static_map) |> List.map(((_, marks)) => Marks(marks));
+        Alcotest.check(
+          Alcotest.list(testable_issue),
+          "Static Errors",
+          [Marks([BuiltinError(DiffVariableRequired)])],
+          actual,
+        );
+      },
     ),
     test_case("diff rejects a non-variable second argument", `Quick, () =>
       annotated_tree_test(

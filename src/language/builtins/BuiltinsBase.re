@@ -47,19 +47,25 @@ let numeric_constants =
 
 let misc_fns: list(BuiltinsUtil.fn) = [
   {
+    name: DerivativeOperator.expression_internal_name,
+    arg: Prod([unknown(Internal), unknown(Internal)]),
+    ret: Unknown(Internal),
+    imp: _ => None,
+    custom_statics: Some(Ctx.ExpressionDerivative),
+  },
+  {
+    name: DerivativeOperator.function_internal_name,
+    arg: Arrow(unknown(Internal), unknown(Internal)),
+    ret: Arrow(unknown(Internal), unknown(Internal)),
+    imp: _ => None,
+    custom_statics: Some(Ctx.FunctionDerivative),
+  },
+  {
     name: "diff",
     arg: Prod([unknown(Internal), float()]),
     ret: Atom(Float),
     imp: _ => None,
     custom_statics: Some(Ctx.DiffVariable),
-  },
-  {
-    name: "taylor_derivatives",
-    arg:
-      Prod([Fresh.Typ.arrow(unknown(Internal), unknown(Internal)), int()]),
-    ret: Unknown(Internal),
-    imp: _ => None,
-    custom_statics: None,
   },
   {
     /* Println for probes study */

@@ -88,8 +88,9 @@ let builtin_app = (name, arg) =>
 let diff = (expression, variable) =>
   app("diff", Exp.tuple([expression, variable]));
 let function_diff = expression => app("diff", expression);
-let taylor_derivatives = (function_, order) =>
-  app("taylor_derivatives", Exp.tuple([function_, Exp.int(order)]));
+let expression_derivative = (expression, variable) =>
+  Language.DerivativeOperator.expression(~body=expression, ~variable);
+let function_derivative = Language.DerivativeOperator.function_;
 
 let sin = arg => app("sin", arg);
 let cos = arg => app("cos", arg);
@@ -1488,128 +1489,6 @@ let tests = (
           );
         | None => fail("expected differentiation inside function application")
         };
-      },
-    ),
-    test_case(
-      "Taylor derivative sequence expands to fresh function bindings",
-      `Quick,
-      () => {
-        let source = taylor_derivatives(Exp.var("f"), 3);
-        switch (
-          Web.DifferentiationRewrite.rewrite_first(
-            ~rule_enabled=_ => true,
-            source,
-          )
-        ) {
-        | Some((result, step)) =>
-          check(
-            string,
-            "the teaching expansion has its own reusable calculus rule",
-            "calc.taylor_derivatives",
-            step.rule_id,
-          );
-          let expected =
-            Exp.let_(
-              Pat.var("f_deriv_1"),
-              function_diff(Exp.var("f")),
-              Exp.let_(
-                Pat.var("f_deriv_2"),
-                function_diff(Exp.var("f_deriv_1")),
-                Exp.let_(
-                  Pat.var("f_deriv_3"),
-                  function_diff(Exp.var("f_deriv_2")),
-                  Language.Exp.fresh(EmptyHole),
-                ),
-              ),
-            );
-          check_exp_equal(
-            "three derivatives become three lets",
-            expected,
-            result,
-          );
-        | None => fail("expected Taylor derivative sequence expansion")
-        };
-
-        let captured_name = Exp.var("f_deriv_1");
-        let anonymous =
-          Exp.fn(
-            Pat.var("x"),
-            plus(Exp.var("x"), captured_name),
-            None,
-            None,
-          );
-        let capture_source = taylor_derivatives(anonymous, 1);
-        switch (
-          Web.DifferentiationRewrite.rewrite_first(
-            ~rule_enabled=_ => true,
-            capture_source,
-          )
-        ) {
-        | Some((result, _)) =>
-          let expected =
-            Exp.let_(
-              Pat.var("f_deriv_1_1"),
-              function_diff(anonymous),
-              Language.Exp.fresh(EmptyHole),
-            );
-          check_exp_equal(
-            "an existing closure name forces a fresh derivative name",
-            expected,
-            result,
-          );
-        | None => fail("expected capture-safe Taylor derivative expansion")
-        };
-
-        let zero = taylor_derivatives(Exp.var("f"), 0);
-        switch (
-          Web.DifferentiationRewrite.rewrite_first(
-            ~rule_enabled=_ => true,
-            zero,
-          )
-        ) {
-        | Some((result, _)) =>
-          check_exp_equal(
-            "order zero leaves an editable result hole",
-            Language.Exp.fresh(EmptyHole),
-            result,
-          )
-        | None => fail("expected order-zero Taylor derivative expansion")
-        };
-
-        check(
-          bool,
-          "the derivative-sequence rule can be disabled by the profile",
-          true,
-          Web.DifferentiationRewrite.rewrite_first(
-            ~rule_enabled=rule_id => rule_id != "calc.taylor_derivatives",
-            source,
-          )
-          == None,
-        );
-        check(
-          bool,
-          "the calculus router recognizes a derivative sequence",
-          true,
-          Web.DifferentiationRewrite.contains_diff(source),
-        );
-        check(
-          option(string),
-          "calculus accepts the derivative-sequence builtin",
-          None,
-          Web.AxiomSearch.unsupported_constructs_message(
-            ~level=Calculus,
-            [source],
-          ),
-        );
-        check(
-          option(string),
-          "lower levels still require calculus for derivative sequences",
-          Some("Needs Calculus"),
-          Web.AxiomSearch.unsupported_constructs_message(
-            ~level=Algebra,
-            [source],
-          ),
-        );
       },
     ),
     test_case(
@@ -3585,6 +3464,15 @@ let tests = (
           | Authorized(_) => false
           },
         );
+        check(
+          bool,
+          "resolved mode prunes operations that depend on commutation",
+          false,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(profile, MultiStepCheck),
+            "arith.simplify_scalar_products",
+          ),
+        );
         let left: CustomMathMode.definition = {
           ...matrix_mode,
           id: "left",
@@ -3739,6 +3627,15 @@ let tests = (
             "mul.comm",
           ),
         );
+        check(
+          bool,
+          "builder also prunes dependent scalar simplification",
+          false,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(profile, MultiStepCheck),
+            "arith.simplify_scalar_products",
+          ),
+        );
         let inspected_profile =
           Web.ProfileBoard.apply_model_to_profile(
             Web.ProfileBoard.Model.init,
@@ -3890,7 +3787,7 @@ let tests = (
       },
     ),
     test_case(
-      "untrusted session rewrites are manual-only and non-exportable",
+      "untrusted session rewrites are manual-only and export as admitted",
       `Quick,
       () => {
         let source_pattern = "sin($a)*sin($b)";
@@ -3934,6 +3831,59 @@ let tests = (
             ~fallback=Axioms.math_profile(Trigonometry),
             active_model,
           );
+        let stepper_with_custom_mode = {
+          ...Web.StepperView.Model.init,
+          rewrite_level: Calculus,
+          math_mode_builder: active_model,
+        };
+        let level_change_while_custom =
+          Web.StepperView.Update.update(
+            ~settings=Web.Settings.Model.init,
+            Web.StepperView.Update.SelectRewriteLevel(Algebra),
+            stepper_with_custom_mode,
+          ).
+            model;
+        check(
+          bool,
+          "active custom mode pauses built-in level selection",
+          true,
+          level_change_while_custom.rewrite_level == Calculus,
+        );
+        let automation_change_while_custom =
+          Web.StepperView.Update.update(
+            ~settings=Web.Settings.Model.init,
+            Web.StepperView.Update.SelectAutomationStage(AutoEval),
+            level_change_while_custom,
+          ).
+            model;
+        check(
+          bool,
+          "active custom mode preserves independent automation selection",
+          true,
+          automation_change_while_custom.automation_stage == AutoEval,
+        );
+        let custom_mode_off =
+          Web.StepperView.Update.update(
+            ~settings=Web.Settings.Model.init,
+            Web.StepperView.Update.MathModeBuilderAction(
+              Web.MathModeBuilder.Update.SetActive(false),
+            ),
+            automation_change_while_custom,
+          ).
+            model;
+        let built_in_level_selected =
+          Web.StepperView.Update.update(
+            ~settings=Web.Settings.Model.init,
+            Web.StepperView.Update.SelectRewriteLevel(Algebra),
+            custom_mode_off,
+          ).
+            model;
+        check(
+          bool,
+          "turning custom mode off restores built-in level selection",
+          true,
+          built_in_level_selected.rewrite_level == Algebra,
+        );
         let definition = List.hd(model.session_rewrites);
         check(
           bool,
@@ -4071,16 +4021,46 @@ let tests = (
             source,
             target,
           };
-        check_raises(
-          "Rocq generation rejects the untrusted plan",
-          Failure("untrusted session rewrites are not Rocq-exportable"),
-          () =>
+        let validation_program =
           Web.ProofSearchBackend.rocq_program_for_authorized_plan(
             ~profile,
             request,
             plan,
-          )
-          |> ignore
+          );
+        write_text_file(
+          "/tmp/hazel_untrusted_validation.v",
+          validation_program,
+        );
+        check(
+          bool,
+          "Rocq validation isolates the session rewrite as admitted",
+          true,
+          string_contains("BEGIN UNSOUND CUSTOM REWRITES", validation_program)
+          && string_contains("Admitted.", validation_program)
+          && string_contains("Theorem hazel_rocq_search", validation_program),
+        );
+        let proof_export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_written_step_export_chain(
+                ~source,
+                ~target,
+                ~trace=plan.summary,
+              ),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected an admitted custom-rewrite export")
+          };
+        write_text_file("/tmp/hazel_untrusted_export.v", proof_export);
+        check(
+          bool,
+          "final proof export keeps admissions in a dedicated section",
+          true,
+          string_contains("BEGIN UNSOUND CUSTOM REWRITES", proof_export)
+          && string_contains(definition.id, proof_export)
+          && string_contains("Admitted.", proof_export)
+          && string_contains("Theorem equiv_exp", proof_export),
         );
         check(
           bool,
@@ -8325,9 +8305,9 @@ let tests = (
         );
         check(
           bool,
-          "composite replay uses direct profile-authorized collection",
+          "composite replay uses its profile-authorized polynomial certificate",
           true,
-          string_contains("lra; cbn", coq),
+          string_contains("unfold Rsqr; nra", coq),
         );
         check(
           bool,
@@ -9260,6 +9240,189 @@ let tests = (
       },
     ),
     test_case(
+      "algebra completes numeric and symbolic monic squares",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let c = Exp.var("c");
+        let two = Exp.int(2);
+        let four = Exp.int(4);
+        let square = exp => power(exp, two);
+        let profile = Axioms.math_profile(Algebra);
+        let authorize = (profile, stage, source, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage,
+            candidate_origin: Web.ProfileProofPlan.UserEntered,
+            settings,
+            env,
+            source,
+            target,
+            max_depth: 5,
+            max_states: 160,
+          });
+        let accepted = result =>
+          switch (result) {
+          | Web.ProfileProofPlan.Authorized(_) => true
+          | Rejected(_) => false
+          };
+        let numeric_source =
+          plus(plus(square(x), times(Exp.int(6), x)), Exp.int(5));
+        let numeric_target = minus(square(plus(x, Exp.int(3))), four);
+        let numeric_authorization =
+          authorize(profile, MultiStepCheck, numeric_source, numeric_target);
+        check(
+          bool,
+          "Check Result completes a standard numeric square",
+          true,
+          accepted(numeric_authorization),
+        );
+        switch (numeric_authorization) {
+        | Authorized(plan) =>
+          let request =
+            Web.ProofSearchBackend.{
+              backend: JSCoqTacticSearch,
+              level: Algebra,
+              max_depth: 5,
+              max_states: 160,
+              source: numeric_source,
+              target: numeric_target,
+            };
+          Web.ProofSearchBackend.rocq_program_for_authorized_plan(
+            ~profile,
+            request,
+            plan,
+          )
+          |> write_text_file("/tmp/hazel_complete_square_numeric.v");
+        | Rejected(rejection) =>
+          fail(Web.ProfileProofPlan.rejection_message(rejection))
+        };
+        let equals = (left, right) =>
+          Exp.bin_op(Operators.Poly(Operators.Equals), left, right);
+        check(
+          bool,
+          "equation-level completing-square is not yet profile-authorized",
+          false,
+          accepted(
+            authorize(
+              profile,
+              MultiStepCheck,
+              equals(numeric_source, Exp.int(0)),
+              equals(numeric_target, Exp.int(0)),
+            ),
+          ),
+        );
+        let exact_square_source =
+          plus(plus(square(x), times(Exp.int(6), x)), Exp.int(9));
+        let exact_square_target = square(plus(x, Exp.int(3)));
+        check(
+          bool,
+          "One Step currently rejects reverse perfect-square factoring",
+          false,
+          accepted(
+            authorize(
+              profile,
+              Manual,
+              exact_square_source,
+              exact_square_target,
+            ),
+          ),
+        );
+        let monic_source = plus(plus(square(x), times(b, x)), c);
+        let monic_target =
+          minus(
+            plus(square(plus(x, divide(b, two))), c),
+            divide(square(b), four),
+          );
+        check(
+          bool,
+          "Check Result currently rejects a symbolic monic square",
+          false,
+          accepted(
+            authorize(profile, MultiStepCheck, monic_source, monic_target),
+          ),
+        );
+        let scaled_numeric_source =
+          plus(
+            plus(times(two, square(x)), times(Exp.int(8), x)),
+            Exp.int(3),
+          );
+        let scaled_numeric_target =
+          minus(times(two, square(plus(x, two))), Exp.int(5));
+        let scaled_numeric_authorization =
+          authorize(
+            profile,
+            MultiStepCheck,
+            scaled_numeric_source,
+            scaled_numeric_target,
+          );
+        check(
+          bool,
+          "Check Result completes a scaled numeric square",
+          true,
+          accepted(scaled_numeric_authorization),
+        );
+        switch (scaled_numeric_authorization) {
+        | Authorized(plan) =>
+          let request =
+            Web.ProofSearchBackend.{
+              backend: JSCoqTacticSearch,
+              level: Algebra,
+              max_depth: 5,
+              max_states: 160,
+              source: scaled_numeric_source,
+              target: scaled_numeric_target,
+            };
+          Web.ProofSearchBackend.rocq_program_for_authorized_plan(
+            ~profile,
+            request,
+            plan,
+          )
+          |> write_text_file("/tmp/hazel_complete_square_scaled_numeric.v");
+        | Rejected(rejection) =>
+          fail(Web.ProfileProofPlan.rejection_message(rejection))
+        };
+        let general_source =
+          plus(plus(times(a, square(x)), times(b, x)), c);
+        let general_target =
+          minus(
+            times(a, square(plus(x, divide(b, times(two, a))))),
+            divide(
+              minus(square(b), times(times(four, a), c)),
+              times(four, a),
+            ),
+          );
+        check(
+          bool,
+          "the fully general form is rejected without a != 0 assumptions",
+          false,
+          accepted(
+            authorize(
+              profile,
+              MultiStepCheck,
+              general_source,
+              general_target,
+            ),
+          ),
+        );
+        check(
+          bool,
+          "the Arithmetic profile cannot complete a polynomial square",
+          false,
+          accepted(
+            authorize(
+              Axioms.math_profile(Arithmetic),
+              MultiStepCheck,
+              numeric_source,
+              numeric_target,
+            ),
+          ),
+        );
+      },
+    ),
+    test_case(
       "single algebra step records additive occurrence for distribution",
       `Quick,
       () => {
@@ -9454,7 +9617,7 @@ let tests = (
         check(
           string,
           "field replay",
-          "field.",
+          "try unfold Rsqr; field.",
           Web.CoqProofExport.recorded_transition_replay_script(
             ~domain=Web.CoqExport.Reals,
             [step],
@@ -12820,6 +12983,25 @@ let tests = (
           string_contains("diff", export)
           || string_contains("Tuple literal", export),
         );
+        let operator_source =
+          expression_derivative(Exp.fn(Pat.var("x"), body, None, None), x);
+        let operator_export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_calculus_export_chain(~source=operator_source, ~target),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected new derivative-operator export")
+          };
+        check(
+          bool,
+          "new expression operator emits the same semantic certificate",
+          true,
+          string_contains("Theorem hazel_derivative", operator_export)
+          && string_contains("derivable_pt_lim_Rsqr", operator_export)
+          && !string_contains("$hazel.derivative", operator_export),
+        );
 
         let denominator = plus(x, Exp.int(1));
         let quotient_source = diff(divide(x, denominator), x);
@@ -13663,7 +13845,7 @@ let tests = (
         check(
           string,
           "rational distribution uses an exact field certificate",
-          "field.",
+          "try unfold Rsqr; field.",
           Web.CoqProofExport.recorded_transition_replay_script(
             ~domain=Web.CoqExport.Reals,
             [distribution_step],
@@ -14794,6 +14976,69 @@ let tests = (
           "disabled derivative cleanup blocks basic derivative",
           false,
           trace(without_basics, diff(x, x), Exp.int(1)) |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "new derivative operators use profile-bound calculus search",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let trace = (profile, source, target) =>
+          Web.RewriteChecker.calculus_check_result_trace_for_profile(
+            ~profile,
+            source,
+            target,
+          );
+        let square_source = expression_derivative(power(x, Exp.int(2)), x);
+        let square_target = times(Exp.int(2), x);
+        check(
+          bool,
+          "expression operator reaches the power-rule result",
+          true,
+          trace(profile, square_source, square_target) |> Option.is_some,
+        );
+        let cubic =
+          Exp.fn(Pat.var("x"), power(x, Exp.int(3)), None, Some("f"));
+        let cubic_derivative =
+          Exp.fn(
+            Pat.var("x"),
+            times(Exp.int(3), power(x, Exp.int(2))),
+            None,
+            Some("f"),
+          );
+        check(
+          bool,
+          "function operator reaches a structurally different derivative",
+          true,
+          trace(profile, function_derivative(cubic), cubic_derivative)
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "an incorrect derivative remains rejected",
+          false,
+          trace(profile, square_source, times(Exp.int(3), x))
+          |> Option.is_some,
+        );
+        let without_power =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_power",
+            profile,
+          );
+        check(
+          bool,
+          "disabling the power rule blocks both new operator forms",
+          true,
+          trace(without_power, square_source, square_target)
+          |> Option.is_none
+          && trace(
+               without_power,
+               function_derivative(cubic),
+               cubic_derivative,
+             )
+          |> Option.is_none,
         );
       },
     ),

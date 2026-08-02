@@ -317,102 +317,6 @@ let is_hole_label = (t: string) =>
   || Token.is_implicit_hole_marker(t)
   || Token.is_llm_hole(t);
 
-/* [taylor_derivatives(f, n) in body] is binding syntax, not sequencing.
- * Lower it immediately to ordinary [let] expressions so the existing
- * statics, editor, and evaluator all agree about the scope of the generated
- * derivative names. */
-let rec taylor_expression_names = (exp: Exp.t): list(string) =>
-  switch (exp.term) {
-  | Var(name) => [name]
-  | BinOp(_, left, right)
-  | Ap(_, left, right)
-  | Dot(left, right)
-  | TupLabel(left, right)
-  | TupleExtension(left, right)
-  | Cons(left, right)
-  | ListConcat(left, right)
-  | Seq(left, right) =>
-    taylor_expression_names(left) @ taylor_expression_names(right)
-  | UnOp(_, inner)
-  | Parens(inner)
-  | Asc(inner, _)
-  | Projector(_, inner)
-  | ProofObject(inner)
-  | Test(inner)
-  | Filter(_, inner) => taylor_expression_names(inner)
-  | Tuple(entries)
-  | ListLit(entries) => List.concat_map(taylor_expression_names, entries)
-  | Fun(pat, body, _, _) =>
-    Binding.variable_names(Pat.bindings(pat))
-    @ taylor_expression_names(body)
-  | Let(pat, definition, body)
-  | Theorem(pat, definition, body) =>
-    Binding.variable_names(Pat.bindings(pat))
-    @ taylor_expression_names(definition)
-    @ taylor_expression_names(body)
-  | If(condition, then_, else_) =>
-    taylor_expression_names(condition)
-    @ taylor_expression_names(then_)
-    @ taylor_expression_names(else_)
-  | _ => []
-  };
-
-let rec unused_taylor_name = (candidate, used, suffix) => {
-  let name =
-    suffix == 0 ? candidate : candidate ++ "_" ++ string_of_int(suffix);
-  List.mem(name, used)
-    ? unused_taylor_name(candidate, used, suffix + 1) : name;
-};
-
-let taylor_call_parts = (exp: Exp.t) =>
-  switch (exp.term) {
-  | Ap(
-      Forward,
-      {
-        term: Var("taylor_derivatives") | BuiltinFun("taylor_derivatives"),
-        _,
-      },
-      {term: Tuple([function_exp, {term: Atom(Int(value)), _}]), _},
-    ) =>
-    switch (Bigint.to_int(value)) {
-    | Some(order) when order >= 0 => Some((function_exp, order))
-    | _ => None
-    }
-  | _ => None
-  };
-
-let lower_scoped_taylor_derivatives = (call, continuation) =>
-  switch (taylor_call_parts(call)) {
-  | None => None
-  | Some((function_exp, order)) =>
-    let base =
-      switch (function_exp.term) {
-      | Var(name) => name
-      | _ => "f"
-      };
-    /* Names written in the continuation, such as [f_deriv_1(5)], are
-     * intentional references to these generated binders. Existing names in
-     * the differentiated function are the capture hazards. */
-    let initial_used = taylor_expression_names(function_exp);
-    let rec build = (index, current, used) =>
-      if (index > order) {
-        continuation;
-      } else {
-        let candidate = base ++ "_deriv_" ++ string_of_int(index);
-        let name = unused_taylor_name(candidate, used, 0);
-        let definition =
-          Exp.fresh(Ap(Forward, Exp.fresh(Var("diff")), current));
-        Exp.fresh(
-          Let(
-            Pat.fresh(Var(name)),
-            definition,
-            build(index + 1, Exp.fresh(Var(name)), [name, ...used]),
-          ),
-        );
-      };
-    Some(build(1, function_exp, initial_used));
-  };
-
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
   | Drv(drv) =>
@@ -847,6 +751,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
+        | ([surface], []) when surface == DerivativeOperator.function_surface =>
+          DerivativeOperator.function_(r).term
+        | ([surface_prefix, surface_separator], [Exp(body)])
+            when
+              surface_prefix == DerivativeOperator.expression_surface_prefix
+              && surface_separator
+              == DerivativeOperator.expression_surface_separator =>
+          DerivativeOperator.expression(~body, ~variable=r).term
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
         | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
@@ -1001,11 +913,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["||"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
-          | (["in"], []) =>
-            switch (lower_scoped_taylor_derivatives(l, r)) {
-            | Some(lowered) => lowered.term
-            | None => hole(tm)
-            }
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>

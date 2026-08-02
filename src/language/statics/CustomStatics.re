@@ -704,6 +704,59 @@ let diff_variable_statics =
   );
 };
 
+let expression_derivative_statics =
+    (
+      module S: ExpressionStatics,
+      ~annotation: IdTagged.IdTag.t,
+      ~fn_info: Info.exp,
+      ~ancestors: list(Id.t),
+      ~ctx: Ctx.t,
+      m: Map.t,
+      arg: Exp.t,
+    ) => {
+  S.(
+    switch (arg.term) {
+    | Tuple([variable, body]) =>
+      let (body_info, body_elab, m) =
+        uexp_to_info_map(~ctx, ~ana=syn, body, m);
+      let (variable_info, variable_elab, m) =
+        uexp_to_info_map(~ctx, ~ana=body_info.ty, variable, m);
+      let m =
+        is_variable_argument(variable)
+          ? m
+          : append_mark_exp(
+              m,
+              variable,
+              [BuiltinError(DiffVariableRequired)],
+            );
+      let (_, rewrap_arg) = Exp.unwrap(arg);
+      let arg_elab = rewrap_arg(Tuple([variable_elab, body_elab]));
+      add(
+        ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg_elab),
+        ~elab_syn_ty=body_info.ty,
+        ~marks=[],
+        ~co_ctx=
+          CoCtx.union([
+            fn_info.co_ctx,
+            body_info.co_ctx,
+            variable_info.co_ctx,
+          ]),
+        m,
+      );
+    | _ =>
+      diff_variable_statics(
+        (module S),
+        ~annotation,
+        ~fn_info,
+        ~ancestors,
+        ~ctx,
+        m,
+        arg,
+      )
+    }
+  );
+};
+
 let validate_label_arguments =
     (
       module S: ExpressionStatics,
@@ -738,11 +791,16 @@ let custom_statics_deferred_ap =
     ) => {
   S.(
     switch (kind, args) {
-    | (DiffVariable, args) =>
+    | (
+        (DiffVariable | ExpressionDerivative | FunctionDerivative) as kind,
+        args,
+      ) =>
       let (args_info, m) = analyze_args_syn((module S), ~ctx, args, m);
       let m =
-        switch (args) {
-        | [_, variable] when !is_variable_argument(variable) =>
+        switch (kind, args) {
+        | (DiffVariable, [_, variable])
+        | (ExpressionDerivative, [variable, _])
+            when !is_variable_argument(variable) =>
           append_mark_exp(m, variable, [BuiltinError(DiffVariableRequired)])
         | _ => m
         };
@@ -867,6 +925,8 @@ let custom_statics_ap = (kind: Ctx.custom_statics) => {
   | SelectLabels => select_labels_statics
   | OmitLabels => omit_labels_statics
   | OmitAllLabels => omit_all_labels_statics
-  | DiffVariable => diff_variable_statics
+  | ExpressionDerivative => expression_derivative_statics
+  | DiffVariable
+  | FunctionDerivative => diff_variable_statics
   };
 };
