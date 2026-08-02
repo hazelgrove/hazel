@@ -19,7 +19,7 @@ let evaluate_term = (term: Exp.t): option(Exp.t) => {
        );
   switch (evaluated) {
   | StepLimitExceeded => None
-  | Completed((result, _)) => Some(result)
+  | LimitedCompleted((result, _)) => Some(result)
   };
 };
 
