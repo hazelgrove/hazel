@@ -14,50 +14,15 @@ let setup = (z: Zipper.t) => {
   (term, statics, syntax);
 };
 
-type effective_selection = {
-  segment: Segment.t,
-  exp: option(Language.Exp.t),
-  override: option(SelectionEffective.associative_override),
-  root_id: option(Id.t),
-};
-
 let effective_selection = (z: Zipper.t) => {
   let (term, statics, syntax) = setup(z);
-  let override =
-    SelectionEffective.associative_override(
+  let selection =
+    SelectionEffective.effective_selection(
       ~info_map=statics.info_map,
       ~measured=syntax.measured,
       ~term_data=syntax.term_data,
       z,
     );
-  let standard_root_id =
-    TermData.get_root_id_using_ranges(
-      z.selection.content,
-      syntax.term_data,
-      syntax.measured,
-    );
-  let selection =
-    switch (override) {
-    | Some(override) => {
-        segment: override.segment,
-        exp: Some(override.exp),
-        override: Some(override),
-        root_id: Some(override.container_id),
-      }
-    | None => {
-        segment:
-          SelectionEffective.expanded_segment(
-            ~measured=syntax.measured,
-            ~term_data=syntax.term_data,
-            z,
-          ),
-        exp:
-          standard_root_id
-          |> Option.bind(_, id => Language.ProofHacks.find_exp_id(id, term)),
-        override: None,
-        root_id: standard_root_id,
-      }
-    };
   (term, syntax, selection);
 };
 
@@ -74,32 +39,34 @@ let effective_segment_string_from_zipper = (z: Zipper.t): string => {
   |> Printer.of_segment(~holes="?", ~concave_holes="~", ~indent=" ");
 };
 
+let effective_exp_string_from_zipper = (z: Zipper.t): string => {
+  let (term, _, selection) = effective_selection(z);
+  SelectionEffective.selected_exp(~full_exp=term, selection)
+  |> Option.map(exp_string)
+  |> Option.value(~default="");
+};
+
 let effective_segment_string = (input: string): string =>
   Test_Editing.mk_zipper(input) |> effective_segment_string_from_zipper;
 
 let effective_exp_string = (input: string): string => {
-  let z = Test_Editing.mk_zipper(input);
-  let (_, _, selection) = effective_selection(z);
-  selection.exp |> Option.map(exp_string) |> Option.value(~default="");
+  Test_Editing.mk_zipper(input) |> effective_exp_string_from_zipper;
 };
 
-let replacement_string = (~input: string, ~with_input: string): string => {
-  let z = Test_Editing.mk_zipper(input);
+let replacement_string_from_zipper =
+    (~with_input: string, z: Zipper.t): string => {
   let (full_exp, syntax, selection) = effective_selection(z);
   let with_exp =
     Test_Editing.mk_zipper(with_input)
     |> MakeTerm.from_zip_for_sem(~root=Exp)
     |> (result => result.term);
   switch (
-    selection.override
-    |> Option.bind(_, override =>
-         SelectionEffective.replacement_for_override(
-           ~override,
-           ~with_exp,
-           ~full_exp,
-           ~term_data=syntax.term_data,
-         )
-       )
+    SelectionEffective.replacement(
+      ~selection,
+      ~with_exp,
+      ~full_exp,
+      ~term_data=syntax.term_data,
+    )
   ) {
   | None => ""
   | Some({at_exp, with_exp}) =>
@@ -112,10 +79,14 @@ let replacement_string = (~input: string, ~with_input: string): string => {
   };
 };
 
+let replacement_string = (~input: string, ~with_input: string): string =>
+  Test_Editing.mk_zipper(input)
+  |> replacement_string_from_zipper(~with_input);
+
 let effective_root_string = (input: string): string => {
   let z = Test_Editing.mk_zipper(input);
   let (term, _, selection) = effective_selection(z);
-  selection.root_id
+  SelectionEffective.root_id(selection)
   |> Option.bind(_, id => Language.ProofHacks.find_exp_id(id, term))
   |> Option.map(exp_string)
   |> Option.value(~default="");
@@ -161,7 +132,7 @@ let test_root = (~name, ~input, ~expected) =>
     )
   );
 
-let test_override = (~name, ~input, ~expected) =>
+let test_virtual = (~name, ~input, ~expected) =>
   test_case(
     name,
     `Quick,
@@ -170,9 +141,9 @@ let test_override = (~name, ~input, ~expected) =>
       let (_, _, selection) = effective_selection(z);
       check(
         testable(Fmt.bool, Bool.equal),
-        "override presence",
+        "virtual selection",
         expected,
-        Option.is_some(selection.override),
+        SelectionEffective.is_virtual(selection),
       );
     },
   );
@@ -184,6 +155,9 @@ let effective_segment_after_actions =
   effective_segment_string_from_zipper(z);
 };
 
+let zipper_after_actions = (~input: string, ~actions: list(Action.t)) =>
+  Test_Editing.perform(Zipper.init(), Test_Editing.mk(input) @ actions);
+
 let test_actions = (~name, ~input, ~actions, ~expected) =>
   test_case(name, `Quick, () =>
     check(
@@ -191,6 +165,29 @@ let test_actions = (~name, ~input, ~actions, ~expected) =>
       expected,
       expected,
       effective_segment_after_actions(~input, ~actions),
+    )
+  );
+
+let test_actions_exp = (~name, ~input, ~actions, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      expected,
+      expected,
+      zipper_after_actions(~input, ~actions)
+      |> effective_exp_string_from_zipper,
+    )
+  );
+
+let test_actions_replacement =
+    (~name, ~input, ~actions, ~with_input, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      expected,
+      expected,
+      zipper_after_actions(~input, ~actions)
+      |> replacement_string_from_zipper(~with_input),
     )
   );
 
@@ -277,6 +274,152 @@ let tests = (
       ~expected={|3 + 4|},
     ),
     test_actions(
+      ~name="left-to-right drag discards boundary whitespace",
+      ~input={|¦2 + 1 + 2 + 3 + 4|},
+      ~actions=[
+        Action.Move(
+          Point(
+            {
+              row: 0,
+              col: 3,
+            },
+            None,
+          ),
+        ),
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 13,
+              },
+              None,
+            ),
+          ),
+        ),
+      ],
+      ~expected={|1 + 2 + 3|},
+    ),
+    test_actions(
+      ~name="right-to-left drag discards boundary whitespace",
+      ~input={|¦1 + 2 + 3 + 4|},
+      ~actions=[
+        Action.Move(
+          Point(
+            {
+              row: 0,
+              col: 13,
+            },
+            None,
+          ),
+        ),
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 3,
+              },
+              None,
+            ),
+          ),
+        ),
+      ],
+      ~expected={|2 + 3 + 4|},
+    ),
+    test(
+      ~name="associative selection discards only leading whitespace",
+      ~input={|2 +§ 1 + 2¦ + 3|},
+      ~expected={|1 + 2|},
+    ),
+    test(
+      ~name="associative selection discards only trailing whitespace",
+      ~input={|2 + §1 + 2 ¦+ 3|},
+      ~expected={|1 + 2|},
+    ),
+    test_actions_exp(
+      ~name="checker follows whitespace-boundary associative drag",
+      ~input={|¦2 + 1 + 2 + 3 + 4|},
+      ~actions=[
+        Action.Move(
+          Point(
+            {
+              row: 0,
+              col: 3,
+            },
+            None,
+          ),
+        ),
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 13,
+              },
+              None,
+            ),
+          ),
+        ),
+      ],
+      ~expected={|1 + 2 + 3|},
+    ),
+    test_actions_replacement(
+      ~name="replacement follows whitespace-boundary associative drag",
+      ~input={|¦2 + 1 + 2 + 3 + 4|},
+      ~actions=[
+        Action.Move(
+          Point(
+            {
+              row: 0,
+              col: 3,
+            },
+            None,
+          ),
+        ),
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 13,
+              },
+              None,
+            ),
+          ),
+        ),
+      ],
+      ~with_input={|¦9|},
+      ~expected={|2 + (9) + 4|},
+    ),
+    test_actions(
+      ~name="multiplication drag discards boundary whitespace",
+      ~input={|¦2 * 3 * 4 * 5|},
+      ~actions=[
+        Action.Move(
+          Point(
+            {
+              row: 0,
+              col: 3,
+            },
+            None,
+          ),
+        ),
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 9,
+              },
+              None,
+            ),
+          ),
+        ),
+      ],
+      ~expected={|3 * 4|},
+    ),
+    test_actions(
       ~name="right-to-left full drag stays on the full expression",
       ~input={|¦x ** 2 + 3 * x + 4|},
       ~actions=[
@@ -340,17 +483,17 @@ let tests = (
       ~input={|x ** 2 + 3 * x §-¦ 4|},
       ~expected={|3 * x - 4|},
     ),
-    test_override(
+    test_virtual(
       ~name="subtraction suffix is a virtual associative selection",
       ~input={|x ** 2 + 3 * x §-¦ 4|},
       ~expected=true,
     ),
-    test_override(
+    test_virtual(
       ~name="repeated subtraction falls back to dev selection",
       ~input={|8 - 4 §-¦ 2|},
       ~expected=false,
     ),
-    test_override(
+    test_virtual(
       ~name="division falls back to dev selection",
       ~input={|8 / 4 §/¦ 2|},
       ~expected=false,
@@ -360,7 +503,13 @@ let tests = (
       ~input={|8 / 4 §/¦ 2|},
       ~expected={|8 / 4 / 2|},
     ),
-    test_override(
+    test_replacement(
+      ~name="standard replacement falls through to dev selection",
+      ~input={|§1¦ + 2|},
+      ~with_input={|¦9|},
+      ~expected={|9 + 2|},
+    ),
+    test_virtual(
       ~name="multiplication remains a virtual associative selection",
       ~input={|8 * 4 §*¦ 2|},
       ~expected=true,
@@ -370,8 +519,8 @@ let tests = (
       ~input={|x ** 2 + 3 * x +§ 4¦|},
       ~expected={|4|},
     ),
-    test_override(
-      ~name="space before final atom does not create an override",
+    test_virtual(
+      ~name="space before final atom stays on dev selection",
       ~input={|x ** 2 + 3 * x +§ 4¦|},
       ~expected=false,
     ),
@@ -390,6 +539,12 @@ let tests = (
       ~input={|x ** 2 + §3 * x + 4¦|},
       ~with_input={|¦9|},
       ~expected={|x ** 2 + (9)|},
+    ),
+    test_replacement(
+      ~name="nested associative replacement uses its candidate container",
+      ~input={|sin(1 + §2 + 3¦ + 4)|},
+      ~with_input={|¦9|},
+      ~expected={|sin(1 + (9) + 4)|},
     ),
     test(
       ~name="associative selection inside function argument stays in argument",
@@ -421,7 +576,7 @@ let tests = (
       ~input={|diff(x ** 2, §x)¦ + diff(2 * x, x)|},
       ~expected={|diff(x ** 2, x)|},
     ),
-    test_override(
+    test_virtual(
       ~name="application closing delimiter falls back to dev selection",
       ~input={|diff(x ** 2, §x)¦ + diff(2 * x, x)|},
       ~expected=false,

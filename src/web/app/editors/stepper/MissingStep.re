@@ -54,8 +54,8 @@ module Model = {
   let unpersist = (_: persistent): t => init;
 };
 
-let associative_override_for_editor = (editor: CodeSelectable.Model.t) =>
-  SelectionEffective.associative_override(
+let effective_selection_for_editor = (editor: CodeSelectable.Model.t) =>
+  SelectionEffective.effective_selection(
     ~info_map=CodeEditable.Model.get_statics(editor).info_map,
     ~measured=editor.editor.syntax.measured,
     ~term_data=editor.editor.syntax.term_data,
@@ -169,29 +169,16 @@ module Update = {
         editor,
       )
       : Model.t => {
+    let effective_selection =
+      effective_selection_for_editor(Calc.get_value(editor));
     let selected_id =
-      {
-        let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
-        try(
-          TermData.get_root_id_using_ranges(
-            editor.editor.state.zipper.selection.content,
-            editor.editor.syntax.term_data,
-            editor.editor.syntax.measured,
-          )
-        ) {
-        | _ => None
-        };
-      }
+      SelectionEffective.root_id(effective_selection)
       |> Calc.set(_, selected_id);
     let selected_exp_value =
-      switch (associative_override_for_editor(Calc.get_value(editor))) {
-      | Some(override) => Some(override.exp)
-      | None =>
-        open OptUtil.Syntax;
-        let* id = Calc.get_value(selected_id);
-        let* exp' = ProofHacks.find_exp_id(id, Calc.get_value(exp));
-        Some(exp');
-      };
+      SelectionEffective.selected_exp(
+        ~full_exp=Calc.get_value(exp),
+        effective_selection,
+      );
     let selected_exp_equal = (a, b) =>
       switch (a, b) {
       | (Some(a), Some(b)) => Exp.fast_equal(a, b)
@@ -266,11 +253,12 @@ module Update = {
             CodeEditable.Model.get_statics(editor).elaborated,
             cached_exp,
           );
-        // Reset result if editor changes
+        // Reset the verdict if either checked expression changes
         let cached_result =
           Calc.Calculated(cached_result)
           |> {
-            let.calc _ = cached_exp;
+            let.calc _cached_exp = cached_exp
+            and.calc _selected_exp = selected_exp;
             None;
           };
         Model.RewritesOpen({
@@ -401,7 +389,7 @@ module View = {
           editor.editor.state.zipper.selection.content,
         );
 
-      let selection_override = associative_override_for_editor(editor);
+      let effective_selection = effective_selection_for_editor(editor);
 
       let proof_button = (~callback: Ui_effect.t(unit), label: string) => {
         Node.div(
@@ -666,38 +654,23 @@ module View = {
                                             ~print="env not cached",
                                           ),
                                      );
-                                switch (selection_override) {
-                                | Some(override) =>
-                                  switch (
-                                    SelectionEffective.replacement_for_override(
-                                      ~override,
-                                      ~with_exp=replacement_exp,
-                                      ~full_exp,
-                                      ~term_data=
-                                        editor.editor.syntax.term_data,
-                                    )
-                                  ) {
-                                  | Some({at_exp, with_exp}) =>
-                                    signal(
-                                      AddAlgebriteStep(
-                                        ProofHacks.exp_idx(at_exp, full_exp),
-                                        at_exp,
-                                        with_exp,
-                                      ),
-                                    )
-                                  | None => Ui_effect.Ignore
-                                  }
-                                | None =>
+                                switch (
+                                  SelectionEffective.replacement(
+                                    ~selection=effective_selection,
+                                    ~with_exp=replacement_exp,
+                                    ~full_exp,
+                                    ~term_data=editor.editor.syntax.term_data,
+                                  )
+                                ) {
+                                | Some({at_exp, with_exp}) =>
                                   signal(
                                     AddAlgebriteStep(
-                                      ProofHacks.exp_idx(
-                                        unboxed_selected_exp,
-                                        full_exp,
-                                      ),
-                                      unboxed_selected_exp,
-                                      replacement_exp,
+                                      ProofHacks.exp_idx(at_exp, full_exp),
+                                      at_exp,
+                                      with_exp,
                                     ),
                                   )
+                                | None => Ui_effect.Ignore
                                 };
                               },
                             ),
