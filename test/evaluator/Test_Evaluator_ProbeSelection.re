@@ -886,6 +886,7 @@ run(0, [1, 2, 3])|};
         Haz3lcore.SampleFocusPerform.toggle_pin_call(
           Haz3lcore.Zipper.init(),
           pin_stack,
+          None,
         );
       let z' = Haz3lcore.ProbePerform.drop_dead_pin(~dynamics, z);
       check(
@@ -912,6 +913,7 @@ run(0, [1, 2, 3])|};
         Haz3lcore.SampleFocusPerform.toggle_pin_call(
           Haz3lcore.Zipper.init(),
           dead_stack,
+          None,
         );
       let z' = Haz3lcore.ProbePerform.drop_dead_pin(~dynamics, z);
       check(
@@ -925,6 +927,7 @@ run(0, [1, 2, 3])|};
         Haz3lcore.SampleFocusPerform.toggle_pin_call(
           Haz3lcore.Zipper.init(),
           dead_stack,
+          None,
         );
       let z' =
         Haz3lcore.ProbePerform.drop_dead_pin(~dynamics=Id.Map.empty, z);
@@ -1037,6 +1040,97 @@ let g = fun y -> ^^probe(f(y)) * 2 in
   ),
 ];
 
+/* Iterated calls (fold/map bodies) sample the same site repeatedly at
+ * NON-recursive stacks. This is the study's realignment shape (values
+ * flipping to a different iteration after edits) — recursion is not
+ * involved. The anchor must select the exact clicked instance. */
+let iteration_anchor_tests = [
+  test_case(
+    "Anchor selects the exact iteration, not the first at that stack",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|let go = fun (m, a) -> ^^probe(m + a)
+in fold_left([10, 20, 30], go, 0)|},
+        );
+      check(int, "three iteration samples", 3, List.length(samples));
+      let by_step =
+        List.sort(
+          (a: Sample.t, b: Sample.t) => compare(a.step_start, b.step_start),
+          samples,
+        );
+      let last = List.nth(by_step, 2);
+      let first = List.hd(by_step);
+      /* Reality check (empirical): fold iterations carry FRESH
+       * worker-minted frame ids, so stacks are distinguishable within
+       * a run — but those ids regenerate on re-execution, so they are
+       * NOT stable across runs. That is why the ref also carries
+       * `opened` and why by_ref has a step fallback. */
+      check(
+        bool,
+        "iteration stacks are distinguishable within a run (fresh ids)",
+        false,
+        CallStack.ids_of_stack(first.call_stack)
+        == CallStack.ids_of_stack(last.call_stack),
+      );
+      let anchored = {
+        ...mk_cursor(last.call_stack),
+        anchor: Some(Sample.ref_of_sample(last)),
+      };
+      switch (
+        Sample.Selection.most_aligned_index(~ap_id=None, anchored, by_step)
+      ) {
+      | Some(i) =>
+        check(
+          int,
+          "anchored cursor picks the clicked iteration (last, not first)",
+          last.step_start,
+          List.nth(by_step, i).step_start,
+        )
+      | None => fail("anchored cursor found no sample")
+      };
+      /* Cross-run shape: same program re-executed → same step timeline,
+       * regenerated frame ids. A ref whose stack ids match nothing must
+       * still recover the exact iteration via its start step. */
+      let stale_stack: CallStack.t =
+        List.map(
+          (f: CallStack.frame) =>
+            {
+              ...f,
+              id: Id.mk(),
+            },
+          last.call_stack,
+        );
+      let stale_anchor = {
+        ...mk_cursor(last.call_stack),
+        anchor:
+          Some({
+            probe_id: last.syntax_id,
+            stack: stale_stack,
+            opened: Some(last.step_start),
+          }),
+      };
+      switch (
+        Sample.Selection.most_aligned_index(
+          ~ap_id=None,
+          stale_anchor,
+          by_step,
+        )
+      ) {
+      | Some(i) =>
+        check(
+          int,
+          "stale-stack anchor recovers the iteration by step",
+          last.step_start,
+          List.nth(by_step, i).step_start,
+        )
+      | None => fail("stale-stack anchor found no sample")
+      };
+    },
+  ),
+];
+
 let fact_pin_alignment_tests = [
   test_case(
     "Pinning a recursive-call sample aligns the body probe (fact)",
@@ -1134,6 +1228,7 @@ in fact(4)|};
         Some({
           probe_id: call_id,
           stack: six.call_stack,
+          opened: Some(six.step_start),
         });
       let cursor = {
         ...mk_cursor(~pinned=Some(pin_stack), pin_stack),
@@ -1303,5 +1398,6 @@ let tests = (
     sample_id_tests,
     fact_pin_alignment_tests,
     interval_breadcrumb_tests,
+    iteration_anchor_tests,
   ]),
 );

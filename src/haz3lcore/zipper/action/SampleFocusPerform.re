@@ -41,6 +41,7 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
         Some({
           probe_id: data.probe_id,
           stack: data.call_stack,
+          opened: Some(data.step_start),
         }),
       indicated_call:
         id != None ? id : z.refractors.sample_focus.indicated_call,
@@ -90,7 +91,8 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
   );
 };
 
-let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
+let toggle_pin_call =
+    (z: Zipper.t, call_stack, capture: option(Sample.Capture.t)): Zipper.t =>
   update(z, sample_focus => {
     switch (sample_focus.pinned_stack) {
     | Some(existing) when CallStack.equal(call_stack, existing) => {
@@ -99,17 +101,28 @@ let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
         pinned_span: None,
       }
     | _ =>
-      /* The pin stack is [probed_ap_frame, ...sample_stack] (pin_call
-       * prepends the ap), so the pinned sample's identity is
-       * recoverable by decomposition. */
+      /* Prefer the pinned sample's own identity (carried on the action
+       * by sites that have it in hand); fall back to decomposing the
+       * pin stack [probed_ap_frame, ...sample_stack] — identity without
+       * `opened`, ambiguous across iterations of the same site. */
       let pinned_span: option(Sample.span_ref) =
-        switch (call_stack) {
-        | [head, ...sample_stack] =>
+        switch (capture) {
+        | Some(c) =>
           Some({
-            probe_id: head.id,
-            stack: sample_stack,
+            probe_id: c.probe_id,
+            stack: c.call_stack,
+            opened: Some(c.step_start),
           })
-        | [] => None
+        | None =>
+          switch (call_stack) {
+          | [head, ...sample_stack] =>
+            Some({
+              probe_id: head.id,
+              stack: sample_stack,
+              opened: None,
+            })
+          | [] => None
+          }
         };
       {
         ...sample_focus,
@@ -169,7 +182,7 @@ let set_index = (z: Zipper.t, i: int): Zipper.t =>
 let go = (z: Zipper.t, a: Action.sample_focus): Zipper.t =>
   switch (a) {
   | Capture(sample, id) => capture(z, sample, id)
-  | TogglePin(call_stack) => toggle_pin_call(z, call_stack)
+  | TogglePin(call_stack, capture) => toggle_pin_call(z, call_stack, capture)
   | SetIndex(i) => set_index(z, i)
   | Reset => reset(z)
   };

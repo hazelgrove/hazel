@@ -291,16 +291,29 @@ module Window = {
 type span_ref = {
   probe_id: Id.t,
   stack: CallStack.t,
+  /* Start step of the referenced span. (probe_id, stack) alone is NOT
+   * unique within a run: iterated calls (map/fold bodies) sample the
+   * same site at indistinguishable stacks — only recursion differs by
+   * depth. `opened` pins the exact instance. None only for legacy pin
+   * paths that lack the sample (degrades to first-at-stack). */
+  opened: option(int),
 };
 
 let ref_of_sample = (s: t): span_ref => {
   probe_id: s.syntax_id,
   stack: s.call_stack,
+  opened: Some(s.step_start),
 };
 
 let ref_matches = (r: span_ref, s: t): bool =>
   r.probe_id == s.syntax_id
-  && CallStack.ids_of_stack(r.stack) == CallStack.ids_of_stack(s.call_stack);
+  && CallStack.ids_of_stack(r.stack) == CallStack.ids_of_stack(s.call_stack)
+  && (
+    switch (r.opened) {
+    | None => true
+    | Some(o) => o == s.step_start
+    }
+  );
 
 module Focus = {
   open OptUtil.Syntax;
@@ -659,7 +672,25 @@ module Selection = {
     let by_ref = (r: option(span_ref)): option(int) =>
       switch (r) {
       | None => None
-      | Some(r) => List.find_index(s => ref_matches(r, s), samples)
+      | Some(r) =>
+        switch (List.find_index(s => ref_matches(r, s), samples)) {
+        | Some(_) as hit => hit
+        | None =>
+          /* Stack ids can be worker-minted (builtin/HOF frames) and
+           * regenerate on re-execution, killing the exact match even
+           * when the run is semantically identical. The step timeline
+           * is identical for semantics-preserving edits, so fall back
+           * to the span's start step (unique per probe within a run).
+           * Semantic edits shift steps → this also misses → tiers. */
+          switch (r.opened) {
+          | None => None
+          | Some(o) =>
+            List.find_index(
+              (s: t) => r.probe_id == s.syntax_id && o == s.step_start,
+              samples,
+            )
+          }
+        }
       };
     let tiers = () => {
       most_aligned_by_tiers(~ap_id, cursor, samples);

@@ -55,7 +55,7 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type sample_focus =
   | Capture(Language.Sample.Capture.t, option(Id.t))
-  | TogglePin(Language.CallStack.t)
+  | TogglePin(Language.CallStack.t, option(Language.Sample.Capture.t))
   | SetIndex(int) /* Navigate to a specific depth in the call stack */
   | Reset;
 

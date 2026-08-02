@@ -506,7 +506,14 @@ let pin_call = (ctx: probe_ctx) =>
 let focus_call = (ctx: probe_ctx) =>
   switch (Dynamics.Info.is_in(ctx.dynamics)) {
   | Some(sample) when sample.call_stack != [] =>
-    ctx.parent(SampleFocus(TogglePin(sample.call_stack)))
+    ctx.parent(
+      SampleFocus(
+        TogglePin(
+          sample.call_stack,
+          Some(Sample.capture_of_sample(sample)),
+        ),
+      ),
+    )
   | _ => Effect.Ignore
   };
 

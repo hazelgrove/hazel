@@ -69,7 +69,7 @@ let set_focus_index = (~globals: Globals.t, i: int, _) =>
 /* Remove a pin by toggling it off */
 let unpin = (~globals: Globals.t, pinned_stack: CallStack.t, _) =>
   globals.inject_global(
-    ActiveEditor(Project(SampleFocus(TogglePin(pinned_stack)))),
+    ActiveEditor(Project(SampleFocus(TogglePin(pinned_stack, None)))),
   );
 
 /* Check if any probes exist */
