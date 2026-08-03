@@ -324,8 +324,27 @@ module HTML = {
       ("OnMouseDown", Some(arrow(var("MouseEvent"), unknown(Internal)))),
       ("OnMouseUp", Some(arrow(var("MouseEvent"), unknown(Internal)))),
       ("OnMouseMove", Some(arrow(var("MouseEvent"), unknown(Internal)))),
-      // Click with element-relative position: (x, y) in px -> msg
+      // Mouse events with element-relative position: (x, y) in px -> msg
       ("OnClickAt", Some(arrow(prod([int(), int()]), unknown(Internal)))),
+      (
+        "OnMouseDownAt",
+        Some(arrow(prod([int(), int()]), unknown(Internal))),
+      ),
+      (
+        "OnMouseMoveAt",
+        Some(arrow(prod([int(), int()]), unknown(Internal))),
+      ),
+      (
+        "OnMouseUpAt",
+        Some(arrow(prod([int(), int()]), unknown(Internal))),
+      ),
+      // Wheel with element-relative position: (x, y, dx, dy) -> msg
+      (
+        "OnWheelAt",
+        Some(
+          arrow(prod([int(), int(), float(), float()]), unknown(Internal)),
+        ),
+      ),
       // Events with key data: KeyEvent -> msg
       ("OnKeyDown", Some(arrow(var("KeyEvent"), unknown(Internal)))),
       ("OnKeyUp", Some(arrow(var("KeyEvent"), unknown(Internal)))),
@@ -358,6 +377,12 @@ module Cmd = {
         ("CopyToClipboard", Some(string())),
         // === Time-delayed message dispatch ===
         ("Delay", Some(prod([float(), unknown(Internal)]))), // ms, msg
+        // === Sound ===
+        ("PlayTone", Some(prod([float(), float()]))), // freq Hz, duration ms
+        // === Speech ===
+        ("Say", Some(string())),
+        // === Randomness (Elm-style: drawn at the boundary, not in eval) ===
+        ("Random", Some(arrow(float(), unknown(Internal)))), // [0,1) -> msg
         // === Debugging ===
         ("Log", Some(string())),
       ]),
