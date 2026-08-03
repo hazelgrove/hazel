@@ -670,38 +670,6 @@ let analyze_args_syn =
     m,
   );
 
-let numeric_overload_statics =
-    (
-      module S: ExpressionStatics,
-      ~annotation: IdTagged.IdTag.t,
-      ~fn_info: Info.exp,
-      ~ancestors as _,
-      ~ctx: Ctx.t,
-      m: Map.t,
-      arg: Exp.t,
-    ) => {
-  let expected =
-    switch (ctx.use_mode) {
-    | Some(Real) => Atom(Real) |> Typ.temp
-    | _ => syn
-    };
-  let (arg_info, arg_elab, m) =
-    S.uexp_to_info_map(~ctx, ~ana=expected, arg, m);
-  let result_cls: Atom.cls =
-    switch (Typ.normalize(ctx, arg_info.ty).term, ctx.use_mode) {
-    | (Atom(Real), _)
-    | (_, Some(Real)) => Real
-    | _ => Float
-    };
-  S.add(
-    ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg_elab),
-    ~elab_syn_ty=Atom(result_cls) |> Typ.temp,
-    ~marks=[],
-    ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
-    m,
-  );
-};
-
 let custom_statics_deferred_ap =
     (
       ~ctx: Ctx.t,
@@ -738,10 +706,7 @@ let custom_statics_deferred_ap =
         m,
       );
 
-    | (
-        ToLvs | OmitAllLabels | NumericOverload | NumericConstantOverload(_),
-        [arg],
-      ) =>
+    | (ToLvs | OmitAllLabels, [arg]) =>
       let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
       add(
@@ -820,7 +785,5 @@ let custom_statics_ap = (kind: Ctx.custom_statics) => {
   | SelectLabels => select_labels_statics
   | OmitLabels => omit_labels_statics
   | OmitAllLabels => omit_all_labels_statics
-  | NumericOverload => numeric_overload_statics
-  | NumericConstantOverload(_) => numeric_overload_statics
   };
 };

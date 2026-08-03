@@ -121,6 +121,7 @@ let tests = (
             Real.normalize(Bigint.one, Bigint.of_int(8), None),
           ),
         );
+        check(string, "symbolic pi", "pi_real", Real.to_literal(Real.Pi));
       },
     ),
     test_case(

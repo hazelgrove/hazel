@@ -7,9 +7,7 @@ type custom_statics =
   | OmitLabels
   | OmitAllLabels
   | GroupByLabel
-  | SelectLabels
-  | NumericOverload
-  | NumericConstantOverload(Atom.t);
+  | SelectLabels;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =

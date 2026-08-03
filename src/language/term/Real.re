@@ -185,7 +185,7 @@ let rec factor_out = (n, factor) =>
 
 let to_literal =
   fun
-  | Pi => "pi"
+  | Pi => "pi_real"
   | Rational({spelling: Some(spelling), _}) => spelling
   | Rational({numerator, denominator, spelling: None}) =>
     if (Bigint.equal(denominator, Bigint.one)) {

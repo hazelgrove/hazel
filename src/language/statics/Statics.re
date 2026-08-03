@@ -659,49 +659,18 @@ and uexp_to_info_map =
       )
     | Var(name) =>
       let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
-      let wants_real =
-        ctx.use_mode == Some(Real)
-        || (
-          switch (Typ.normalize(ctx, ana).term) {
-          | Atom(Real) => true
-          | _ => false
-          }
-        );
-
       let (syn_v, marks_v) =
         switch (Ctx.lookup_var(ctx, name)) {
         | None => (SynTy.unknown_internal(), [Mark.Free(name)])
-        | Some({custom_statics: Some(NumericConstantOverload(atom)), _})
-            when wants_real => (
-            Atom(Atom.cls_of_t(atom)) |> Typ.temp,
-            [],
-          )
-        | Some({custom_statics: Some(NumericOverload), _})
-            when ctx.use_mode == Some(Real) => (
-            Arrow(Atom(Real) |> Typ.temp, Atom(Real) |> Typ.temp)
-            |> Typ.temp,
-            [],
-          )
-        | Some({custom_statics: Some(NumericOverload), _} as var) =>
-          switch (Typ.normalize(ctx, ana).term) {
-          | Arrow({term: Atom(Real), _}, {term: Atom(Real), _}) => (
-              ana,
-              [],
-            )
-          | _ => (var.typ, [])
-          }
         | Some(var) => (var.typ, [])
         };
-      let elab_term =
-        switch (Ctx.lookup_var(ctx, name), wants_real) {
-        | (
-            Some({custom_statics: Some(NumericConstantOverload(atom)), _}),
-            true,
-          ) =>
-          Atom(atom) |> rewrap
-        | _ => Var(name) |> rewrap
-        };
-      add(~elab_term, ~elab_syn_ty=syn_v, ~marks=marks_v, ~co_ctx, m);
+      add(
+        ~elab_term=Var(name) |> rewrap,
+        ~elab_syn_ty=syn_v,
+        ~marks=marks_v,
+        ~co_ctx,
+        m,
+      );
     | DynamicErrorHole(e, err) =>
       let (e, e_elab, m) = go(~ana, e, m);
       add(
@@ -1676,14 +1645,7 @@ and uexp_to_info_map =
           switch (fn.term) {
           | Var(v) =>
             Ctx.lookup_var(ctx, v)
-            |> Option.bind(_, (e: Ctx.var_entry) =>
-                 switch (e.custom_statics) {
-                 /* Constants use their custom statics when the variable itself
-                  * is elaborated, but they are not custom function calls. */
-                 | Some(NumericConstantOverload(_)) => None
-                 | custom_statics => custom_statics
-                 }
-               )
+            |> Option.bind(_, (e: Ctx.var_entry) => e.custom_statics)
           | _ => None
           };
 
@@ -1702,18 +1664,12 @@ and uexp_to_info_map =
             }
           | None => Arrow(syn, syn) |> Typ.temp
           };
-        let custom_ctx =
-          switch (custom_statics, Typ.normalize(ctx, ana).term) {
-          | (Some(NumericOverload), Atom(Real)) =>
-            Ctx.set_use_mode(ctx, Some(Real))
-          | _ => ctx
-          };
-        let (fn, fn_elab, m) = go(~ctx=custom_ctx, ~ana=fn_ana, fn, m);
+        let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
         switch (custom_statics) {
         | Some(kind) =>
           CustomStatics.custom_statics_ap(
             ~annotation=uexp.annotation,
-            ~ctx=custom_ctx,
+            ~ctx,
             ~ancestors=ancestors_inclusive,
             ~fn_info=fn,
             kind,

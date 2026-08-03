@@ -5,7 +5,6 @@ type const = {
   name: Var.t,
   typ: Typ.term,
   imp: DHExp.t,
-  custom_statics: option(Ctx.custom_statics),
 };
 
 [@deriving (show({with_path: false}), sexp)]
@@ -43,12 +42,12 @@ let hazel_fn_builtin = x => HazelFn(x);
 
 let ctx_entry_of_builtin: builtin => Ctx.entry =
   fun
-  | Const({name, typ, custom_statics, _}) =>
+  | Const({name, typ, _}) =>
     Ctx.VarEntry({
       name,
       typ: typ |> Typ.fresh,
       id: Id.invalid,
-      custom_statics,
+      custom_statics: None,
     })
   | Fn({name, arg, ret, custom_statics, _}) =>
     Ctx.VarEntry({

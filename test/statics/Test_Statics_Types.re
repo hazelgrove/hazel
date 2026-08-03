@@ -463,27 +463,14 @@ let tests = (
       Some(FTemp.Typ.real()),
     ),
     fully_consistent_typecheck(
-      "Numeric builtin overload synthesizes Real",
-      {|use Real in sqrt(4)|},
+      "Exact pi has a distinct Real builtin",
+      {|pi_real|},
       Some(FTemp.Typ.real()),
     ),
     fully_consistent_typecheck(
-      "Expected Real type selects exact pi",
-      {|pi : Real|},
-      Some(FTemp.Typ.real()),
-    ),
-    test_case(
-      "Exact pi is not treated as a custom function",
-      `Quick,
-      () => {
-        let exp = parse_exp({|use Real in pi(1)|});
-        check(
-          bool,
-          "applying pi reports a static error",
-          true,
-          errors(statics(exp)) != [],
-        );
-      },
+      "Float pi is unchanged by Real mode",
+      {|use Real in pi|},
+      Some(FTemp.Typ.float()),
     ),
     fully_consistent_typecheck(
       "Type alias works for typfun variable",

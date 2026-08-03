@@ -53,12 +53,12 @@ let tests = (
         evaluation_test(
           "Real pi constant",
           real(Real.Pi),
-          elaborate(parse_exp({|use Real in pi|})),
+          elaborate(parse_exp({|pi_real|})),
         );
         evaluation_test(
           "Negated pi remains symbolic",
           un_op(Operators.Real(Minus), real(Real.Pi)),
-          elaborate(parse_exp({|use Real in -pi|})),
+          elaborate(parse_exp({|use Real in -pi_real|})),
         );
         parse_and_evaluate_test(
           "true",
