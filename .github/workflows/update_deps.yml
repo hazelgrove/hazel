@@ -33,7 +33,11 @@ jobs:
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 5.2.0
-          dune-cache: true
+          # Off deliberately: setup-ocaml keys its dune cache on the run id, so
+          # it is never an exact hit, but uploads ~1.7GB every run. That churn
+          # evicts the opam switch cache other workflows depend on (10GB
+          # repo-wide limit).
+          dune-cache: false
 
       - name: Install dune
         run: |
