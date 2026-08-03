@@ -17,10 +17,20 @@ runs:
       shell: bash
       run: npm install
 
+    # Read before setup-ocaml, so the pinned repository commit is available to
+    # its opam-repositories input. See .github/opam-pins.env for why we pin.
+    - name: Load pinned opam repository commits
+      shell: bash
+      run: grep -E '^OPAM_REPOSITORY(_ARCHIVE)?_SHA=' .github/opam-pins.env >> "$GITHUB_ENV"
+
     - name: Set-up OCaml
       uses: ocaml/setup-ocaml@v3
       with:
         ocaml-compiler: 5.2.0
+        # Same URL setup-ocaml defaults to, with the commit appended. opam's
+        # git URL fragment accepts a branch, tag, or commit hash.
+        opam-repositories: |
+          default: git+https://github.com/ocaml/opam-repository.git#${{ env.OPAM_REPOSITORY_SHA }}
         # dune-cache is deliberately off. setup-ocaml keys its dune cache on
         # the run id, so the entry can never be an exact hit on a later run,
         # yet ~1.7GB is uploaded every run. That churn is what evicts the
@@ -48,7 +58,7 @@ runs:
       run: |
         eval $(opam env)
         export OPAMYES=1
-        opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+        opam repo add archive "git+https://github.com/ocaml/opam-repository-archive#${OPAM_REPOSITORY_ARCHIVE_SHA}"
 
     - name: Install dependencies
       shell: bash
