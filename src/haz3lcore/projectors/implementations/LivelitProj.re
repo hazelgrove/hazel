@@ -41,19 +41,32 @@ module M: Projector = {
     | _ => None
     };
 
+  /* Shape analogue of last_good_view: if statics info or the livelit
+     entry is transiently unavailable (mid-commit), falling back to the
+     default inline shape would collapse a Block-sized placeholder and
+     jump the layout. Reuse the last known shape instead. */
+  let last_good_shape: Hashtbl.t(Id.t, ProjectorCore.Shape.t) =
+    Hashtbl.create(16);
+
   let placeholder = (_model, info) => {
-    switch (get_model(info), info.statics) {
-    | (Some((llname, _)), Some(InfoExp(exp))) =>
-      /* Get the livelit size */
-      switch (Ctx.lookup_livelit(exp.ctx, llname)) {
-      | Some(ll) => ll.size
-      | None =>
-        /* Default size */
-        ProjectorCore.Shape.inline(32)
+    let looked_up =
+      switch (get_model(info), info.statics) {
+      | (Some((llname, _)), Some(InfoExp(exp))) =>
+        switch (Ctx.lookup_livelit(exp.ctx, llname)) {
+        | Some(ll) => Some(ll.size)
+        | None => None
+        }
+      | _ => None
+      };
+    switch (looked_up) {
+    | Some(shape) =>
+      Hashtbl.replace(last_good_shape, info.id, shape);
+      shape;
+    | None =>
+      switch (Hashtbl.find_opt(last_good_shape, info.id)) {
+      | Some(shape) => shape
+      | None => ProjectorCore.Shape.inline(32)
       }
-    | _ =>
-      /* Default size */
-      ProjectorCore.Shape.inline(32)
     };
   };
 
@@ -239,8 +252,20 @@ module M: Projector = {
      requires it to be closed. Actions run through update and commit to the
      syntax, so each use's model lives in its own Ap argument, like builtin
      livelits. */
+  /* Last successfully rendered view per projector instance. After a
+     commit, the syntax model is briefly an unevaluated update-transition
+     that the render-time fallback cannot resolve (its ^name reference is
+     free in the builtin env), so until the main evaluation delivers a
+     fresh sample the view would flash an error. Instead, show the last
+     good render, dimmed and inert (its handlers close over the stale
+     model, so letting clicks through could silently drop the in-flight
+     edit). Display-only cache; entries overwrite on every successful
+     render. */
+  let last_good_view: Hashtbl.t(Id.t, Node.t) = Hashtbl.create(16);
+
   let user_view =
       (
+        ~id: Id.t,
         ~ll_name: string,
         ~def_elab: TermBase.Exp.t,
         ~model: TermBase.Exp.t,
@@ -251,10 +276,19 @@ module M: Projector = {
       )
       : Node.t => {
     let err = msg =>
-      Node.div(
-        ~attrs=[Attr.classes(["livelit-user-error"])],
-        [Node.text(msg)],
-      );
+      switch (Hashtbl.find_opt(last_good_view, id)) {
+      | Some(node) =>
+        Node.div(~attrs=[Attr.classes(["livelit-pending"])], [node])
+      | None =>
+        Node.div(
+          ~attrs=[Attr.classes(["livelit-user-error"])],
+          [Node.text(msg)],
+        )
+      };
+    let ok = (node: Node.t): Node.t => {
+      Hashtbl.replace(last_good_view, id, node);
+      node;
+    };
     let seed: HazelDOM.t = {
       inject:
         event_inject(
@@ -268,7 +302,7 @@ module M: Projector = {
       commit: HazelDOM.State,
     };
     switch (live) {
-    | Some(html) => HazelDOM.go(seed, html)
+    | Some(html) => ok(HazelDOM.go(seed, html))
     | None =>
       let ap = IdTagged.FreshGrammar.Exp.ap;
       switch (MvuShape.safe_evaluate(def_elab)) {
@@ -279,7 +313,8 @@ module M: Projector = {
         | Some(view_fn) =>
           switch (MvuShape.safe_evaluate(ap(Forward, view_fn, model))) {
           | Error(e) => err("livelit view error: " ++ e)
-          | Ok(html) when MvuShape.is_html(html) => HazelDOM.go(seed, html)
+          | Ok(html) when MvuShape.is_html(html) =>
+            ok(HazelDOM.go(seed, html))
           | Ok(_) => err("livelit view did not produce HTML")
           }
         }
@@ -330,6 +365,7 @@ module M: Projector = {
             ],
             [
               user_view(
+                ~id=info.id,
                 ~ll_name,
                 ~def_elab,
                 ~model,

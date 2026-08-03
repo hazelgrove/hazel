@@ -690,14 +690,12 @@ module View = {
         model.editor.syntax.projector_list,
       );
     ProjectorView.ViewCache.log_frame();
-    /* The nut-menu setting paints ReusePass predictions (frozen tint). Pending
-     * evaluation highlights are transient progress feedback, so keep them on
-     * while the worker is running. */
+    /* Both the ReusePass predictions (frozen tint) and the pending-eval
+     * progress sweep are gated on the nut-menu setting: with fast statics
+     * the sweep reads as flicker on every short evaluation rather than
+     * as progress feedback. */
     let incr_eval_overlay =
-      switch (
-        predicted_reuse,
-        globals.settings.show_incremental_deco || pending_eval_ids != [],
-      ) {
+      switch (predicted_reuse, globals.settings.show_incremental_deco) {
       | (Some(predicted_reuse), true) => [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
