@@ -52,7 +52,13 @@ let tests = (
       )
     ),
     test_case("string_escaped", `Quick, () =>
-      parse_and_evaluate_test({|"\\hello"|}, {|string_escaped("\hello")|})
+      parse_and_evaluate_test({|"\\\\hello"|}, {|string_escaped("\hello")|})
+    ),
+    test_case("string_escaped_tab", `Quick, () =>
+      parse_and_evaluate_test({|"\\t"|}, {|string_escaped("\t")|})
+    ),
+    test_case("string_unescaped_backslash_n", `Quick, () =>
+      parse_and_evaluate_test({|"\n"|}, {|string_unescaped("\\n")|})
     ),
     test_case("string_uppercase", `Quick, () =>
       parse_and_evaluate_test({|"HELLO"|}, {|string_uppercase("hello")|})

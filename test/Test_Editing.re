@@ -2916,6 +2916,11 @@ let unwrap_quote_tests = [
     ~goal={|hello¦|},
   ),
   test(
+    ~name="Backspace raw string from right unwraps content",
+    ~acts=mk({|r"hello"¦|}) @ [Action.Destruct(Left)],
+    ~goal={|hello¦|},
+  ),
+  test(
     ~name="Delete string from left unwraps content",
     ~acts=mk({|¦"hello"|}) @ [Action.Destruct(Right)],
     ~goal={|hello¦|},
