@@ -12,6 +12,23 @@ let tests = (
     test_case("Negative integer literal", `Quick, () =>
       evaluation_test("-8", int(-8), un_op(Int(Minus), int(8)))
     ),
+    /* Negation re-kinds by operand/analysis class (replace_un_op_cls):
+       `-` on a float is float negation, not an Int type error. */
+    test_case("Negative float literal, syn position", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|-1.5 ==. 0. -. 1.5|})
+    ),
+    test_case("Negation of float variable", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|let x = 2.5 in -x ==. 0. -. 2.5|})
+    ),
+    test_case("Float analysis retypes negated int literal", `Quick, () =>
+      parse_and_evaluate_test(
+        {|true|},
+        {|let x: Float = -5 in x ==. 0. -. 5.|},
+      )
+    ),
+    test_case("Negative int still Int under negation", `Quick, () =>
+      parse_and_evaluate_test({|0|}, {|-5 + 5|})
+    ),
     test_case("Inconsistent type ascription in subterm", `Quick, () =>
       parse_and_evaluate_test("1 + (4 : String)", {|1 + (4 : String)|})
     ),
