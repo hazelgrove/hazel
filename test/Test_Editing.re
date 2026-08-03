@@ -5214,22 +5214,25 @@ b|}))
 let inner_destruct_tests = [
   test(
     ~name="Backspace inside string with left sibling",
-    ~acts=mk({|1 + "aa"¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
     ~goal={|1 + "a¦"|},
   ),
   test(
     ~name="Backspace twice inside string with left sibling",
-    ~acts=mk({|1 + "aa"¦|}) @ mv_l(1) @ [Destruct(Left), Destruct(Left)],
+    ~acts=
+      mk({|1 + "aa"¦|})
+      @ mv_l(1)
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|1 + "¦"|},
   ),
   test(
     ~name="Backspace inside identifier with left sibling",
-    ~acts=mk({|1 + abc¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~acts=mk({|1 + abc¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
     ~goal={|1 + a¦c|},
   ),
   test(
     ~name="Delete forward inside string with left sibling",
-    ~acts=mk({|1 + "aa"¦|}) @ mv_l(2) @ [Destruct(Right)],
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(2) @ [Destruct(Local(Right, ByChar))],
     ~goal={|1 + "a¦"|},
   ),
   /* Quote-wrapping drops the selection; its Inner caret must go too. */
@@ -5249,7 +5252,7 @@ let inner_destruct_tests = [
       @ [
         Select(Resize(Local(Left, ByChar))),
         Insert("\""),
-        Destruct(Right),
+        Destruct(Local(Right, ByChar)),
       ],
     ~goal={|"aa" ~"++"~¦"x"|},
   ),
@@ -5276,7 +5279,10 @@ let grapheme_tests = [
   ),
   test(
     ~name="Insert then backspace after emoji in string",
-    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Insert("1"), Destruct(Left)],
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(1)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
     ~goal={|"😀¦"|},
   ),
   test(
@@ -5285,17 +5291,17 @@ let grapheme_tests = [
       mk({|"😀"¦|})
       @ mv_l(1)
       @ string_to_ltr_actions("11")
-      @ [Destruct(Left), Destruct(Left)],
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|"😀¦"|},
   ),
   test(
     ~name="Backspace the emoji itself",
-    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
     ~goal={|"¦"|},
   ),
   test(
     ~name="Delete forward over emoji from start of string",
-    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Destruct(Right)],
+    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Destruct(Local(Right, ByChar))],
     ~goal={|"¦"|},
   ),
   test(
@@ -5305,17 +5311,23 @@ let grapheme_tests = [
   ),
   test(
     ~name="Insert then backspace before emoji in string",
-    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Insert("1"), Destruct(Left)],
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(2)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
     ~goal={|"¦😀"|},
   ),
   test(
     ~name="Insert then backspace after mid-string emoji",
-    ~acts=mk({|"a😀b"¦|}) @ mv_l(2) @ [Insert("1"), Destruct(Left)],
+    ~acts=
+      mk({|"a😀b"¦|})
+      @ mv_l(2)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
     ~goal={|"a😀¦b"|},
   ),
   test(
     ~name="Backspace mid-string emoji",
-    ~acts=mk({|"a😀b"¦|}) @ mv_l(2) @ [Destruct(Left)],
+    ~acts=mk({|"a😀b"¦|}) @ mv_l(2) @ [Destruct(Local(Left, ByChar))],
     ~goal={|"a¦b"|},
   ),
   test(
@@ -5325,7 +5337,10 @@ let grapheme_tests = [
   ),
   test(
     ~name="Insert then backspace after emoji, string with left sibling",
-    ~acts=mk({|1 + "😀"¦|}) @ mv_l(1) @ [Insert("1"), Destruct(Left)],
+    ~acts=
+      mk({|1 + "😀"¦|})
+      @ mv_l(1)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
     ~goal={|1 + "😀¦"|},
   ),
   test(
@@ -5334,12 +5349,13 @@ let grapheme_tests = [
       mk({|1 + "😀"¦|})
       @ mv_l(1)
       @ string_to_ltr_actions("11")
-      @ [Destruct(Left), Destruct(Left)],
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|1 + "😀¦"|},
   ),
   test(
     ~name="Backspace the emoji itself, string with left sibling",
-    ~acts=mk({|1 + "a😀"¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~acts=
+      mk({|1 + "a😀"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
     ~goal={|1 + "a¦"|},
   ),
   test(
@@ -5348,7 +5364,7 @@ let grapheme_tests = [
       mk({|"é"¦|})
       @ mv_l(1)
       @ string_to_ltr_actions("11")
-      @ [Destruct(Left), Destruct(Left)],
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|"é¦"|},
   ),
   test(
@@ -5357,7 +5373,7 @@ let grapheme_tests = [
       mk({|"👨‍👩‍👧"¦|})
       @ mv_l(1)
       @ string_to_ltr_actions("11")
-      @ [Destruct(Left), Destruct(Left)],
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|"👨‍👩‍👧¦"|},
   ),
 ];

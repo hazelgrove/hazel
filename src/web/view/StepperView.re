@@ -7,7 +7,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     cached_elab_subst: Calc.saved(Exp.t),
-    root: StepperBase.step_model,
+    root: StepperBase.next_step,
   };
 
   let init = {
@@ -37,12 +37,11 @@ module Update = {
         ~ctx: Calc.t(SemanticCtx.t),
         elab: Calc.t(Exp.t),
         ~ana=Calc.OldValue(Typ.fresh(Unknown(SynSwitch))),
-        /* The proof sub-term this stepper is rendering: `Some` when invoked
-         * from the per-theorem proof view in `Theorems.re`, `None` for the
-         * cell-level result stepper (which has no proof context). When
-         * `Some`, proof-aware step kinds source their display from the
-         * proof tree rather than from stepper-local state. */
-        ~proof: Calc.t(option(Proof.t))=Calc.OldValue(None),
+        /* The proof sub-term this stepper is rendering. Theorem views pass
+         * the looked-up proof; the cell-level result stepper uses a sentinel
+         * `EmptyHole` (`EvalResult.Model.stepper_proof`). Proof-aware step
+         * kinds source their display from this tree. */
+        ~proof: Calc.t(Proof.t)=Calc.OldValue(Proof.fresh(EmptyHole)),
         /* Big-step proof-check results for the surrounding theorem; empty
          * for non-proof steppers. */
         ~proof_map: Calc.t(ProofMap.t)=Calc.OldValue(ProofMap.empty),
@@ -60,7 +59,7 @@ module Update = {
         let.calc elab = elab;
         elab |> Substitution.in_exp(Builtins.env_init) |> Exp.replace_all_ids;
       };
-    let (root, _, _) =
+    let root =
       StepperBase.Stepper.calculate(
         ~settings,
         ~ctx,

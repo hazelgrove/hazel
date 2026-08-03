@@ -157,14 +157,14 @@ module F =
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
-        ~hidden: Calc.saved(bool),
+        ~hidden as _: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _,
         ~info_map,
         ~proof_info_map,
         ~ana: Calc.t(Typ.t),
-        ~proof: Calc.t(option(Proof.t)),
+        ~proof: Calc.t(Proof.t),
         ~proof_map: Calc.t(ProofMap.t),
         model: model,
       ) => {
@@ -190,12 +190,12 @@ module F =
      *
      * Case rows below `proof_cases` length keep their existing local
      * model state (pattern editor, inner stepper). Extra rows beyond
-     * `proof_cases` length are dropped. Out of proof scope we leave
-     * `model.cases` untouched, preserving the legacy mutate-the-model
-     * behaviour for cell-level steppers. */
+     * `proof_cases` length are dropped. When the proof isn't Induction
+     * we leave `model.cases` untouched, preserving the legacy
+     * mutate-the-model behaviour for cell-level steppers. */
     let cases =
       switch (Calc.get_value(proof)) {
-      | Some({term: Induction(_, proof_cases), _}) =>
+      | {term: Induction(_, proof_cases), _} =>
         let target = List.length(proof_cases);
         let current = List.length(cases);
         if (target == current) {
@@ -214,7 +214,7 @@ module F =
      * proof scope, so no caret state is lost. */
     let (scrut, scrut_src) =
       switch (Calc.get_value(proof)) {
-      | Some({term: Induction(proof_scrut, _), _}) =>
+      | {term: Induction(proof_scrut, _), _} =>
         let src =
           Calc.set(~eq=Exp.fast_equal_with_lexemes, proof_scrut, scrut_src);
         let scrut =
@@ -282,15 +282,17 @@ module F =
     /* Per-case body proof: when `~proof` is `Induction(_, proof_cases)`,
      * pass each case row its own `body_i` sub-proof so the case's
      * inner stepper operates on (and emits patches against) the
-     * correct sub-tree. Outside induction scope (or when the proof's
-     * case list is shorter than the model's), the row receives `None`
-     * which makes inner step emits fall back to model mutation. */
-    let case_body_proof = (i: int): Calc.t(option(Proof.t)) => {
-      let descend = (p: option(Proof.t)): option(Proof.t) =>
+     * correct sub-tree. */
+    let case_body_proof = (i: int): Calc.t(Proof.t) => {
+      /* Missing body / non-Induction: EmptyHole sentinel (same idea as cell-level EmptyHole). */
+      let descend = (p: Proof.t): Proof.t =>
         switch (p) {
-        | Some({term: Induction(_, proof_cases), _}) =>
-          List.nth_opt(proof_cases, i) |> Option.map(snd)
-        | _ => None
+        | {term: Induction(_, proof_cases), _} =>
+          switch (List.nth_opt(proof_cases, i)) {
+          | Some((_, body)) => body
+          | None => Proof.fresh(EmptyHole)
+          }
+        | _ => Proof.fresh(EmptyHole)
         };
       switch (proof) {
       | OldValue(p) => Calc.OldValue(descend(p))
@@ -300,9 +302,9 @@ module F =
     /* Per-case surface pattern from the proof, for the derived local
      * pattern model (see InductionCase.calculate's ~pat). */
     let case_pat = (i: int): Calc.t(option(Pat.t)) => {
-      let descend = (p: option(Proof.t)): option(Pat.t) =>
+      let descend = (p: Proof.t): option(Pat.t) =>
         switch (p) {
-        | Some({term: Induction(_, proof_cases), _}) =>
+        | {term: Induction(_, proof_cases), _} =>
           List.nth_opt(proof_cases, i) |> Option.map(fst)
         | _ => None
         };
@@ -365,19 +367,15 @@ module F =
       |> {
         let.calc proof = proof
         and.calc proof_info_map = proof_info_map;
-        switch (proof) {
-        | Some(p) =>
-          switch (Statics.Map.lookup(Proof.rep_id(p), proof_info_map)) {
-          | Some(info) =>
-            !
-              List.exists(
-                fun
-                | Mark.InexhaustiveMatch(_) => true
-                | _ => false,
-                Info.marks_of(info),
-              )
-          | None => true
-          }
+        switch (Statics.Map.lookup(Proof.rep_id(proof), proof_info_map)) {
+        | Some(info) =>
+          !
+            List.exists(
+              fun
+              | Mark.InexhaustiveMatch(_) => true
+              | _ => false,
+              Info.marks_of(info),
+            )
         | None => true
         };
       };
@@ -401,24 +399,19 @@ module F =
 
     let result = exp |> Calc.save;
 
-    Some((
-      {
-        scrut,
-        cases,
-        scrut_src,
-        elab_scrut_raw: elab_scrut_raw |> Calc.save,
-        elab_scrut_sub: elab_scrut_sub |> Calc.save,
-        scrut_ty: scrut_ty |> Calc.save,
-        scrut_co_ctx: scrut_co_ctx |> Calc.save,
-        result,
-        join_exp: join_exp |> Calc.save,
-        is_exhaustive: is_exhaustive |> Calc.save,
-        validity: validity |> Calc.save,
-      },
-      hidden |> Calc.set(false),
-      Some(Calc.OldValue(Exp.fresh(Atom(Bool(true))))),
-      validity,
-    ));
+    Some({
+      scrut,
+      cases,
+      scrut_src,
+      elab_scrut_raw: elab_scrut_raw |> Calc.save,
+      elab_scrut_sub: elab_scrut_sub |> Calc.save,
+      scrut_ty: scrut_ty |> Calc.save,
+      scrut_co_ctx: scrut_co_ctx |> Calc.save,
+      result,
+      join_exp: join_exp |> Calc.save,
+      is_exhaustive: is_exhaustive |> Calc.save,
+      validity: validity |> Calc.save,
+    });
   };
 
   let get_cursor_info = (~inject, ~focus: focus, model: model) =>

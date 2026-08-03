@@ -54,14 +54,14 @@ module F =
   let calculate =
       (
         ~settings as _: Calc.t(CoreSettings.t),
-        ~hidden: Calc.saved(bool),
+        ~hidden as _: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx as _: Calc.t(SemanticCtx.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map as _,
         ~proof_info_map as _,
         ~ana as _,
-        ~proof: Calc.t(option(Proof.t)),
+        ~proof: Calc.t(Proof.t),
         ~proof_map as _: Calc.t(ProofMap.t),
         model: model,
       ) => {
@@ -72,10 +72,7 @@ module F =
      * the freshly-patched proof. */
     let (at_idx, at_exp, with_exp) =
       switch (Calc.get_value(proof)) {
-      | Some({
-          term: AlgebriteStep({at_idx: ai, at_exp: ae, with_exp: we}),
-          _,
-        }) =>
+      | {term: AlgebriteStep({at_idx: ai, at_exp: ae, with_exp: we}), _} =>
         let idx = ProofCheck.exp_to_int(ai) |> Option.value(~default=at_idx);
         (idx, ae, we);
       | _ => (at_idx, at_exp, with_exp)
@@ -88,17 +85,12 @@ module F =
         ProofCheck.algebrite_step_outgoing(~at_idx, ~at_exp, ~with_exp, exp);
       }
       |> Calc.to_option;
-    (
-      {
-        at_idx,
-        at_exp,
-        with_exp,
-        next_exp: next_exp |> Calc.save,
-      },
-      hidden |> Calc.set(false),
-      Some(next_exp),
-      Calc.OldValue(Some(true)),
-    );
+    {
+      at_idx,
+      at_exp,
+      with_exp,
+      next_exp: next_exp |> Calc.save,
+    };
   };
 
   let get_cursor_info = (~inject as _, ~focus: focus, _model: model) =>

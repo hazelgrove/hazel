@@ -267,12 +267,23 @@ module Update = {
                      proof,
                    );
 
+                 /* StepperView takes a bare Proof.t; map None → EmptyHole
+                  * sentinel without changing the theorem model's option
+                  * cache (used by proof_mark / UI). */
+                 let stepper_proof =
+                   switch (proof) {
+                   | OldValue(Some(p)) => Calc.OldValue(p)
+                   | NewValue(Some(p)) => Calc.NewValue(p)
+                   | OldValue(None) => Calc.OldValue(Proof.fresh(EmptyHole))
+                   | NewValue(None) => Calc.NewValue(Proof.fresh(EmptyHole))
+                   };
+
                  let stepper_view =
                    StepperView.Update.calculate(
                      ~settings,
                      ~ctx=sem_ctx,
                      ~ana=Calc.OldValue(Typ.fresh(Atom(Bool))),
-                     ~proof,
+                     ~proof=stepper_proof,
                      ~proof_map=proof_map_calc,
                      /* Whole-theorem statics, so the induction stepper's
                       * exhaustiveness label can read the static error on the

@@ -28,10 +28,7 @@ module type STEP = {
        * cell-level stepper. */
       ~proof_info_map: Calc.t(Statics.Map.t),
       ~ana: Calc.t(Typ.t),
-      /* The proof sub-term this step renders (Some when inside a Theorem
-       * proof; None in the cell-level result stepper). Steps that source
-       * their display from syntax read parameters off this term. */
-      ~proof: Calc.t(option(Proof.t)),
+      ~proof: Calc.t(Proof.t),
       /* Big-step proof-check results for the surrounding theorem (incoming /
        * outgoing expressions and marks, keyed by Proof.rep_id). Steps that
        * source their display from syntax read next_exp / validity off this
@@ -39,14 +36,7 @@ module type STEP = {
       ~proof_map: Calc.t(ProofMap.t),
       model
     ) =>
-    option(
-      (
-        model,
-        Calc.t(bool), // Hidden
-        option(Calc.t(Exp.t)), // Next
-        Calc.t(option(bool)) // Truth
-      ),
-    );
+    option(model);
 
   let get_cursor_info:
     (~inject: action => Ui_effect.t(unit), ~focus: focus, model) =>
@@ -117,7 +107,7 @@ module type STEPPER = {
       ~ctx: Calc.t(SemanticCtx.t),
       ~ana: Calc.t(Typ.t),
       /* See note on ~proof in STEP.calculate above. */
-      ~proof: Calc.t(option(Proof.t)),
+      ~proof: Calc.t(Proof.t),
       /* See note on ~proof_map in STEP.calculate above. */
       ~proof_map: Calc.t(ProofMap.t),
       /* See note on ~proof_info_map in STEP.calculate above. Optional;
@@ -125,7 +115,7 @@ module type STEPPER = {
       ~proof_info_map: Calc.t(Statics.Map.t)=?,
       model
     ) =>
-    (model, Calc.t(Exp.t), Calc.t(option(bool)) /* Truth */);
+    model;
 
   let get_cursor_info:
     (~inject: action => Ui_effect.t(unit), ~focus: focus, model) =>

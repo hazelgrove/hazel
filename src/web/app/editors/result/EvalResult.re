@@ -29,6 +29,7 @@ module Model = {
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
+    stepper_proof: Calc.t(Proof.t),
     display,
     theorems: Theorems.Model.t,
   };
@@ -44,6 +45,7 @@ module Model = {
     streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
     pending_eval_ids: [],
+    stepper_proof: Calc.OldValue(Proof.fresh(EmptyHole)),
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
@@ -105,6 +107,7 @@ module Update = {
   type t =
     | ToggleStepper
     | StepperAction(StepperView.Update.t)
+    | StepperProofPatch(Haz3lcore.EditorTransform.patch)
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
     | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
@@ -115,6 +118,7 @@ module Update = {
     switch (action) {
     | ToggleStepper => true
     | StepperAction(action) => StepperView.Update.can_undo(action)
+    | StepperProofPatch(_) => true
     | EvalEditorAction(action) => CodeSelectable.Update.can_undo(action)
     | UpdateResult(_) => false
     | UpdateStreamingEval(_)
@@ -145,6 +149,18 @@ module Update = {
         display: Stepper(stepper),
       };
     | (StepperAction(_), _) => model |> Updated.raise_invalid_action
+    | (StepperProofPatch(patch), _) =>
+      {
+        ...model,
+        stepper_proof:
+          Calc.NewValue(
+            Haz3lcore.EditorTransform.apply_patch_to_proof(
+              Calc.get_value(model.stepper_proof),
+              patch,
+            ),
+          ),
+      }
+      |> Updated.return
     | (
         EvalEditorAction(a),
         {display: Evaluation(Calculated(Some((exp, editor)))), _},
@@ -220,6 +236,7 @@ module Update = {
           streaming_outbox,
           streaming_state,
           pending_eval_ids,
+          stepper_proof,
           display,
           theorems,
         }: Model.t,
@@ -230,6 +247,11 @@ module Update = {
       |> Calc.set(settings, ~eq=CoreSettings.eq_ignoring_stepper_modals);
     let elab =
       Calc.set(~eq=Exp.fast_equal_with_lexemes, statics.elaborated, elab);
+    let stepper_proof =
+      switch (elab) {
+      | NewValue(_) => Calc.NewValue(Proof.fresh(EmptyHole))
+      | OldValue(_) => stepper_proof
+      };
     let targets =
       Calc.set(
         ~eq=Id.Map.equal(Sample.equal_capture_spec),
@@ -445,6 +467,7 @@ module Update = {
                 ),
               ),
             elab,
+            ~proof=stepper_proof,
             stepper,
           ),
         )
@@ -475,6 +498,7 @@ module Update = {
         streaming_outbox: streaming_outbox |> Calc.save,
         streaming_state: streaming_state |> Calc.save,
         pending_eval_ids,
+        stepper_proof: stepper_proof |> Calc.make_old,
         display,
         theorems,
       }: Model.t
@@ -656,6 +680,7 @@ module View = {
           | HideStepper => inject(ToggleStepper)
           | MakeActive(s) => signal(MakeActive(Stepper(s))),
         ~inject=x => inject(StepperAction(x)),
+        ~edit_syntax=patch => inject(StepperProofPatch(patch)),
         s,
       )
     };

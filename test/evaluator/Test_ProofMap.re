@@ -50,6 +50,99 @@ let proof_of = (elab: Exp.t): Proof.t =>
   | None => Alcotest.fail("no theorem found in elaborated expression")
   };
 
+let proof_entry = (state: EvaluatorState.t, elab: Exp.t): ProofMap.entry =>
+  switch (
+    ProofMap.lookup(
+      Proof.rep_id(proof_of(elab)),
+      EvaluatorState.get_proof_map(state),
+    )
+  ) {
+  | Some(entry) => entry
+  | None => Alcotest.fail("no proof-map entry for theorem proof")
+  };
+
+let elaborated_exp = (src: string): Exp.t => {
+  let (_, elab) = statics_and_elab(parse_exp(src));
+  elab;
+};
+
+let check_exp = (msg: string, expected: string, actual: Exp.t) =>
+  Alcotest.check(
+    Alcotest.bool,
+    msg,
+    true,
+    Exp.fast_equal(elaborated_exp(expected), actual),
+  );
+
+let require_exp = (msg: string, exp: option(Exp.t)): Exp.t =>
+  switch (exp) {
+  | Some(exp) => exp
+  | None => Alcotest.fail(msg)
+  };
+
+/* A parenthesized redex has one hidden transition before the visible
+ * arithmetic step. auto_incoming stores (justification, resulting_exp):
+ * the expression is therefore the result of removing parentheses, not
+ * the input that still contains them. */
+let test_leading_auto_step_trace = () => {
+  let src = {|theorem t = (1 + 2) == 3 proof eval (1 + 2) at 0 end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let entry = proof_entry(state, elab);
+  check_exp(
+    "incoming precedes hidden step",
+    "(1 + 2) == 3",
+    require_exp("expected incoming", entry.incoming),
+  );
+  switch (entry.auto_incoming) {
+  | [("remove parentheses", resulting_exp)] =>
+    check_exp(
+      "auto_incoming expression follows hidden step",
+      "1 + 2 == 3",
+      resulting_exp,
+    )
+  | _ => Alcotest.fail("expected one leading remove-parentheses transition")
+  };
+  Alcotest.check(
+    Alcotest.int,
+    "no hidden transitions follow visible arithmetic",
+    0,
+    List.length(entry.auto_outgoing),
+  );
+  check_exp(
+    "outgoing follows visible arithmetic",
+    "3 == 3",
+    require_exp("expected outgoing", entry.outgoing),
+  );
+};
+
+/* Selecting the conditional branch is the visible step; removing the
+ * selected branch's parentheses is hidden afterward. auto_outgoing stores
+ * (input_exp, justification), so it must retain the still-parenthesized
+ * input rather than the result of the hidden transition. */
+let test_trailing_auto_step_trace = () => {
+  let src = {|theorem t = (if true then (3) else 4) == 3 proof eval (if true then (3) else 4) at 0 end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let entry = proof_entry(state, elab);
+  switch (entry.auto_outgoing) {
+  | [(input_exp, "remove parentheses")] =>
+    check_exp(
+      "auto_outgoing expression precedes hidden step",
+      "(3) == 3",
+      input_exp,
+    )
+  | _ =>
+    Alcotest.fail(
+      "expected one trailing remove-parentheses transition: "
+      ++ ProofMap.show_entry(entry),
+    )
+  };
+  check_exp(
+    "outgoing follows trailing lookup",
+    "3 == 3",
+    require_exp("expected outgoing", entry.outgoing),
+  );
+};
+
 /* Reflexivity axiom on a closed equality: outgoing of the top-level
  * proof should be `true`, giving a checkmark. */
 let test_refl_checkmark = () => {
@@ -383,6 +476,16 @@ let test_missing_incoming_mark = () => {
 let tests = (
   "Evaluator.ProofMap",
   [
+    test_case(
+      "eval trace records leading hidden transition",
+      `Quick,
+      test_leading_auto_step_trace,
+    ),
+    test_case(
+      "eval trace records trailing hidden transition",
+      `Quick,
+      test_trailing_auto_step_trace,
+    ),
     test_case("refl produces checkmark", `Quick, test_refl_checkmark),
     test_case(
       "forall refl produces checkmark",

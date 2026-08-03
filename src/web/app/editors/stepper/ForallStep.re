@@ -73,14 +73,14 @@ module F =
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
-        ~hidden: Calc.saved(bool),
+        ~hidden as _: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map as _,
         ~proof_info_map as _,
         ~ana: Calc.t(Typ.t),
-        ~proof: Calc.t(option(Proof.t)),
+        ~proof: Calc.t(Proof.t),
         ~proof_map: Calc.t(ProofMap.t),
         model: model,
       ) => {
@@ -105,17 +105,17 @@ module F =
      * the inner stepper operates on `body` rather than the outer node
      * (otherwise inner stepper actions would target / replace the
      * Forall itself, destroying its structure). */
-    let descend = (p: option(Proof.t)): option(Proof.t) =>
+    let descend = (p: Proof.t): Proof.t =>
       switch (p) {
-      | Some({term: Forall(_, body), _}) => Some(body)
-      | _ => p
+      | {term: Forall(_, body), _} => body
+      | p => p
       };
     let inner_proof =
       switch (proof) {
       | OldValue(p) => Calc.OldValue(descend(p))
       | NewValue(p) => Calc.NewValue(descend(p))
       };
-    let (inner_stepper, last, validity) =
+    let inner_stepper =
       Stepper.calculate(
         ~settings,
         ~ctx=inner_ctx,
@@ -125,35 +125,37 @@ module F =
         ~proof_map,
         inner_stepper,
       );
+    /* Rebuild the wrapping Fun from ProofMap.outgoing of the descended
+     * body proof (old inner-stepper `last`). */
     let result_function =
       result_function
       |> {
-        let.calc last = last
+        let.calc inner_proof = inner_proof
+        and.calc proof_map = proof_map
         and.calc exp = exp;
-        switch (exp |> Exp.term_of) {
-        | Fun(p, _, t, n) => DHExp.fresh(Fun(p, last, t, n))
-        | _ =>
-          DHExp.fresh(
-            Fun(
-              Pat.fresh(EmptyHole),
-              last,
-              Some(Typ.fresh(Unknown(Internal))),
-              None,
-            ),
-          )
+        switch (ProofMap.lookup(Proof.rep_id(inner_proof), proof_map)) {
+        | Some({outgoing: Some(last), _}) =>
+          switch (exp |> Exp.term_of) {
+          | Fun(p, _, t, n) => DHExp.fresh(Fun(p, last, t, n))
+          | _ =>
+            DHExp.fresh(
+              Fun(
+                Pat.fresh(EmptyHole),
+                last,
+                Some(Typ.fresh(Unknown(Internal))),
+                None,
+              ),
+            )
+          }
+        | _ => exp
         };
       };
-    (
-      {
-        inner_exp: inner_exp |> Calc.save,
-        inner_ctx: inner_ctx |> Calc.save,
-        inner_stepper,
-        result_function: result_function |> Calc.save,
-      },
-      hidden |> Calc.set(false),
-      Some(result_function),
-      validity,
-    );
+    {
+      inner_exp: inner_exp |> Calc.save,
+      inner_ctx: inner_ctx |> Calc.save,
+      inner_stepper,
+      result_function: result_function |> Calc.save,
+    };
   };
 
   let get_cursor_info = (~inject, ~focus: focus, model: model) =>

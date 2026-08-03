@@ -56,14 +56,14 @@ module F =
   let calculate =
       (
         ~settings as _: Calc.t(CoreSettings.t),
-        ~hidden: Calc.saved(bool),
+        ~hidden as _: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map,
         ~proof_info_map as _,
         ~ana as _,
-        ~proof: Calc.t(option(Proof.t)),
+        ~proof: Calc.t(Proof.t),
         ~proof_map: Calc.t(ProofMap.t),
         model: model,
       ) => {
@@ -75,11 +75,11 @@ module F =
      * as a fallback while the rest of the kinds are migrated. */
     let (name, at_idx, at_exp, direction, equality) =
       switch (Calc.get_value(proof)) {
-      | Some({
+      | {
           term:
             AxiomStep({at_idx: ai, at_exp: ae, direction: dir, equality: eq}),
           _,
-        }) =>
+        } =>
         let idx = ProofCheck.exp_to_int(ai) |> Option.value(~default=at_idx);
         let eq_name =
           ProofCheck.exp_to_equality_name(eq)
@@ -101,23 +101,9 @@ module F =
          *      we have one (already computed by the evaluator).
          *   2. Otherwise re-run the canonical axiom-step rewrite locally
          *      using the model fields (cell-level stepper / fallback). */
-        switch (proof) {
-        | Some(p) =>
-          switch (ProofMap.lookup(Proof.rep_id(p), proof_map)) {
-          | Some({outgoing: Some(_) as outgoing, _}) => outgoing
-          | _ =>
-            ProofCheck.axiom_step_outgoing(
-              ~info_map,
-              ~env=SemanticCtx.get_env(ctx),
-              ~ctx=SemanticCtx.get_ctx(ctx),
-              ~at_idx,
-              ~at_exp,
-              ~direction,
-              ~equality,
-              exp,
-            )
-          }
-        | None =>
+        switch (ProofMap.lookup(Proof.rep_id(proof), proof_map)) {
+        | Some({outgoing: Some(_) as outgoing, _}) => outgoing
+        | _ =>
           ProofCheck.axiom_step_outgoing(
             ~info_map,
             ~env=SemanticCtx.get_env(ctx),
@@ -131,19 +117,14 @@ module F =
         };
       }
       |> Calc.to_option;
-    (
-      {
-        name,
-        at_idx,
-        at_exp,
-        direction,
-        equality,
-        next_exp: next_exp |> Calc.save,
-      },
-      hidden |> Calc.set(false),
-      Some(next_exp),
-      Calc.OldValue(Some(true)),
-    );
+    {
+      name,
+      at_idx,
+      at_exp,
+      direction,
+      equality,
+      next_exp: next_exp |> Calc.save,
+    };
   };
 
   let get_cursor_info = (~inject as _, ~focus: focus, _model: model) =>

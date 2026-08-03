@@ -20,6 +20,15 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
+    /* The proof sub-term this row stands in for: the hole it would
+     * replace, or None when the row was synthesized past the end of the
+     * chain and can only extend the preceding leaf. */
+    proof: Calc.saved(option(Proof.t)),
+    /* The row's own editor. A missing step is a step in the chain in its
+     * own right, so it owns the editor whose selection drives the
+     * overlay; it is rebuilt only when the expression changes so that
+     * selection survives recalculation. */
+    editor: Calc.saved(CodeSelectable.Model.t),
     next_steps: Calc.saved(EvaluatorStep.status),
     refls: Calc.saved(list(Exp.t)),
     selected_id: Calc.saved(option(Id.t)),
@@ -31,6 +40,8 @@ module Model = {
   };
 
   let init = {
+    proof: Calc.Pending,
+    editor: Calc.Pending,
     next_steps: Calc.Pending,
     refls: Calc.Pending,
     selected_id: Calc.Pending,
@@ -134,26 +145,77 @@ module Update = {
     };
   };
 
+  /* Selection in the row's editor is what the overlay acts on, so the
+   * stepper routes its editor actions here. */
+  let update_editor =
+      (~settings, action: CodeSelectable.Update.t, model: Model.t)
+      : Updated.t(Model.t) =>
+    switch (model.editor) {
+    | Calc.Calculated(editor) =>
+      let* editor = CodeSelectable.Update.update(~settings, action, editor);
+      Model.{
+        ...model,
+        editor: Calc.Calculated(editor),
+      };
+    | Calc.Pending => model |> Updated.raise_invalid_action
+    };
+
+  let map_calc = (f: 'a => 'b, x: Calc.t('a)): Calc.t('b) =>
+    switch (x) {
+    | Calc.OldValue(x) => Calc.OldValue(f(x))
+    | Calc.NewValue(x) => Calc.NewValue(f(x))
+    };
+
   let calculate =
       (
-        ~settings,
-        exp,
-        info_map,
-        ctx: Calc.t(SemanticCtx.t),
-        new_next_steps,
+        ~settings: CoreSettings.t,
+        ~exp: Calc.t(Exp.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         {
-          next_steps: _,
+          proof,
+          editor,
+          next_steps,
           refls,
           assumptions,
           selected_exp,
-          full_exp: _,
+          full_exp,
           selected_id,
           open_box,
           cached_env,
         }: Model.t,
-        editor,
       )
       : Model.t => {
+    /* Rekey the incoming expression against the one this row last
+     * rendered, so callers can hand us a fresh `Calc.t` without forcing
+     * the editor (and the selection it holds) to be rebuilt. */
+    let exp = Calc.set(~eq=Exp.fast_equal, Calc.get_value(exp), full_exp);
+    let editor =
+      editor
+      |> {
+        let.calc exp = exp
+        and.calc ctx = ctx;
+        CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp, exp)
+        |> CodeEditable.Update.calculate(
+             ~settings,
+             ~is_edited=true,
+             ~is_dynamic_term=true,
+             ~dynamics=Dynamics.Map.empty,
+             ~stitch=x => x,
+             ~ctx=SemanticCtx.get_ctx(ctx),
+           );
+      };
+    /* Statics of the row's own editor: the expressions shown here are
+     * elaboration output with freshened ids, so no info map from further
+     * up covers them. */
+    let info_map =
+      editor |> map_calc(e => CodeEditable.Model.get_statics(e).info_map);
+    let new_next_steps =
+      next_steps
+      |> {
+        let.calc exp = exp
+        and.calc ctx = ctx;
+        EvaluatorStep.get_status(~settings, exp, SemanticCtx.get_env(ctx));
+      };
     let selected_id =
       // hacky way to get a currently-selected id
       {
@@ -276,6 +338,8 @@ module Update = {
         SemanticCtx.get_env(ctx);
       };
     {
+      proof,
+      editor: editor |> Calc.save,
       next_steps: new_next_steps |> Calc.save,
       refls: refls |> Calc.save,
       assumptions: assumptions |> Calc.save,
@@ -374,12 +438,13 @@ module View = {
         ~globals: Globals.t,
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
-        ~editor: CodeSelectable.Model.t,
         ~selected: option(Selection.t),
-        ~info_map,
         model: Model.t,
       ) =>
     {
+      let editor =
+        model.editor |> Calc.get_saved_exc(~print="missing step editor");
+      let info_map = CodeEditable.Model.get_statics(editor).info_map;
       let+ (left, right, top, bottom) =
         get_segment_bounds(
           ~measured=CachedSyntax.measured(editor.editor.syntax),

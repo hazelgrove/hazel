@@ -63,7 +63,7 @@ let rewrite_exp =
     (found^ ? rewritten : root_exp, found^);
   };
 
-/* Find and rewrite a proof sub-term reachable from an Exp.t root.
+/* Find and rewrite a proof sub-term inside a Proof.t root.
  *
  * `Proof.map_term`'s `~f_proof` callback only fires for the outer-most
  * Proof node reached from each enclosing Exp (its recursive helper
@@ -74,10 +74,10 @@ let rewrite_exp =
  *
  * The boolean indicates whether the target id was actually located so
  * callers can no-op cleanly when the proof sub-term has disappeared. */
-let rewrite_proof_in_exp =
-    (~target_id: Id.t, f: Proof.t => Proof.t, root_exp: Exp.t): (Exp.t, bool) => {
+let rewrite_proof =
+    (~target_id: Id.t, f: Proof.t => Proof.t, root: Proof.t): (Proof.t, bool) => {
   let found = ref(false);
-  let rec walk_proof = (p: Proof.t): Proof.t =>
+  let rec walk = (p: Proof.t): Proof.t =>
     if (Proof.rep_id(p) == target_id) {
       found := true;
       f(p);
@@ -92,18 +92,34 @@ let rewrite_proof_in_exp =
           | AxiomStep(_)
           | AlgebriteStep(_)
           | EvalStep(_) => p.term
-          | Seq(p1, p2) => Seq(walk_proof(p1), walk_proof(p2))
+          | Seq(p1, p2) => Seq(walk(p1), walk(p2))
           | Induction(e, cases) =>
             Induction(
               e,
-              List.map(((pt, body)) => (pt, walk_proof(body)), cases),
+              List.map(((pt, body)) => (pt, walk(body)), cases),
             )
-          | Forall(x, body) => Forall(x, walk_proof(body))
+          | Forall(x, body) => Forall(x, walk(body))
           },
       };
     };
+  let rewritten = walk(root);
+  (found^ ? rewritten : root, found^);
+};
+
+/* Same rewrite, for proofs nested inside program syntax. */
+let rewrite_proof_in_exp =
+    (~target_id: Id.t, f: Proof.t => Proof.t, root_exp: Exp.t): (Exp.t, bool) => {
+  let found = ref(false);
   let rewritten =
-    Exp.map_term(~f_proof=(_cont, proof) => walk_proof(proof), root_exp);
+    Exp.map_term(
+      ~f_proof=
+        (_cont, proof) => {
+          let (proof, found') = rewrite_proof(~target_id, f, proof);
+          found := found^ || found';
+          proof;
+        },
+      root_exp,
+    );
   (found^ ? rewritten : root_exp, found^);
 };
 
@@ -226,6 +242,20 @@ let apply_proof_transform =
     };
   CaretPreserving.transform(zipper, _ => segment);
 };
+
+/* Apply a patch to a proof that is owned directly as an AST rather than
+ * as a slice of program syntax (the result stepper's document). No
+ * segmentation happens, so `reflow` — which only governs pretty-printing
+ * of the written tiles — has nothing to do here. `ExpPatch` has no
+ * meaning without a program around the proof. */
+let apply_patch_to_proof = (root: Proof.t, patch: patch): Proof.t =>
+  switch (patch) {
+  | ProofPatch({target_id, replacement, reflow: _}) =>
+    let (rewritten, _found) =
+      rewrite_proof(~target_id, _ => replacement, root);
+    rewritten;
+  | ExpPatch(_) => root
+  };
 
 let apply_patch = (zipper: Zipper.t, patch: patch) =>
   switch (patch) {

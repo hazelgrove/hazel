@@ -92,7 +92,7 @@ module F = (Stepper: STEPPER) => {
         ~ctx: Calc.t(SemanticCtx.t),
         ~info_map: Calc.t(Statics.Map.t),
         ~ana: Calc.t(Typ.t),
-        ~proof: Calc.t(option(Proof.t)),
+        ~proof: Calc.t(Proof.t),
         ~proof_map: Calc.t(ProofMap.t),
         /* The case's surface pattern from the surrounding
          * `Induction(_, cases)` proof term (None outside proof scope).
@@ -253,7 +253,7 @@ module F = (Stepper: STEPPER) => {
      * `InductionStep.calculate` from `Induction(_, proof_cases)`).
      * Stepping inside the case therefore reads / patches the right
      * `body_i` sub-tree rather than the outer `Induction` node. */
-    let (stepper, last_exp, validity) =
+    let step =
       Stepper.calculate(
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
@@ -264,13 +264,35 @@ module F = (Stepper: STEPPER) => {
         model.step,
       );
 
+    /* last_exp / validity from ProofMap (old Stepper.calculate triple). */
+    let last_exp =
+      model.last_exp
+      |> {
+        open Calc.Syntax;
+        let.calc proof = proof
+        and.calc proof_map = proof_map
+        and.calc exp = exp;
+        switch (ProofMap.lookup(Proof.rep_id(proof), proof_map)) {
+        | Some({outgoing: Some(e), _}) => e
+        | _ => exp
+        };
+      };
+    let validity =
+      Calc.Pending
+      |> {
+        open Calc.Syntax;
+        let.calc proof = proof
+        and.calc proof_map = proof_map;
+        ProofMap.status_of_proof(proof_map, proof);
+      };
+
     (
       {
         pattern,
         pattern_src,
         elab_pattern: elab_pattern |> Calc.save,
         inner_exp: inner_exp |> Calc.save,
-        step: stepper,
+        step,
         last_exp: last_exp |> Calc.save,
         inner_ctx: inner_ctx |> Calc.save,
         hypotheses: hypotheses |> Calc.save,
