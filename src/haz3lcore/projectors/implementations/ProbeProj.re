@@ -357,9 +357,9 @@ let cursor_clss =
 };
 
 module Debug = {
-  let stack = (stack: Sample.call_stack): string =>
+  let stack = (stack: CallStack.t): string =>
     stack
-    |> List.map((f: Sample.stack_frame) => Id.str3(f.id))
+    |> List.map((f: CallStack.frame) => Id.str3(f.id))
     |> String.concat("\n");
 
   let str = (~ap_id: option(Id.t), sample: Sample.t): string =>
