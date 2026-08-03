@@ -66,7 +66,7 @@ let run =
   switch (
     Language.Evaluator.evaluate_and_limit(
       ~step_limit,
-      ~targets=statics.targets,
+      ~eval_info=Language.EvalInfo.of_targets(statics.targets),
       ~env=Language.Builtins.env_init,
       statics.elaborated,
     )
@@ -82,7 +82,7 @@ let run =
       no_tests,
     )
   | StepLimitExceeded => (TimedOut, Language.Dynamics.Map.empty, no_tests)
-  | Completed((result, state)) =>
+  | LimitedCompleted((result, state)) =>
     /* residual Projector nodes (e.g. in unevaluated closure bodies)
        would print as their ^^table(...)-style triggers */
     let result = Language.Exp.strip_projectors(result);

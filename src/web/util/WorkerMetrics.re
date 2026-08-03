@@ -125,29 +125,30 @@ let measure:
 let push = (r: record): unit =>
   history := [r, ...Util.ListUtil.take(history_limit - 1, history^)];
 
-let record_request = (id: int, req: WorkerServer.Request.t): unit => {
+let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit => {
   let request =
     List.map(
       (e: WorkerServer.encoding) => {
         module M = (val WorkerServer.module_of_encoding(e));
         measure(
           ~encoding=e,
-          ~encode=() => M.encode_request(req),
+          ~encode=() => M.encode_request(msg),
           ~size=M.size_request,
           ~decode=M.decode_request,
         );
       },
       active_encodings(),
     );
+  let WorkerServer.ClientMessage.Evaluate({batch, _}) = msg;
   push({
     id,
-    entries: List.length(req),
+    entries: List.length(batch),
     request,
     response: [],
   });
 };
 
-let record_response = (id: int, resp: WorkerServer.Response.t): unit => {
+let record_response = (id: int, resp: WorkerServer.ServerMessage.t): unit => {
   let response =
     List.map(
       (e: WorkerServer.encoding) => {
