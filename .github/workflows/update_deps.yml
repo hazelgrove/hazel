@@ -29,36 +29,15 @@ jobs:
       - name: Install NPM dependencies
         run: npm install
 
-      # This is the one workflow that must NOT read .github/opam-pins.env:
-      # discovering newer packages is the whole point. It resolves the current
-      # heads instead, pins to them for the duration of the run, and writes them
-      # back below. Resolving once up front rather than letting `opam update`
-      # float means the regenerated lock file and the recorded pin are
-      # guaranteed to describe the same repository state. See issue #2334.
-      - name: Resolve latest opam repository commits
-        id: opam-heads
-        run: |
-          for repo in opam-repository opam-repository-archive; do
-            # Match the ref named exactly HEAD. `ls-remote <url> HEAD` alone is
-            # not enough: opam-repository also publishes a stale
-            # refs/remotes/origin/HEAD, which the pattern matches too. Keying on
-            # HEAD rather than a branch name also avoids caring that
-            # opam-repository defaults to master and the archive to main.
-            sha=$(git ls-remote "https://github.com/ocaml/${repo}" HEAD | awk '$2 == "HEAD" { print $1 }')
-            if ! printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
-              echo "Could not resolve a single HEAD commit for ${repo}; got: '${sha}'" >&2
-              exit 1
-            fi
-            echo "${repo}=${sha}"
-            echo "${repo}=${sha}" >> "$GITHUB_OUTPUT"
-          done
-
+      # No pin here, deliberately: `make change-deps` moves the pins forward to
+      # the current repository heads and repins this switch to them itself, so
+      # the regenerated lock file and .github/opam-pins.env always describe the
+      # same repository state. Discovering newer packages is this workflow's
+      # whole purpose. See issue #2334.
       - name: Set-up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 5.2.0
-          opam-repositories: |
-            default: git+https://github.com/ocaml/opam-repository.git#${{ steps.opam-heads.outputs.opam-repository }}
           # Off deliberately: setup-ocaml keys its dune cache on the run id, so
           # it is never an exact hit, but uploads ~1.7GB every run. That churn
           # evicts the opam switch cache other workflows depend on (10GB
@@ -71,32 +50,21 @@ jobs:
           export OPAMYES=1
           opam install dune
   
-      - name: Add opam repository archive
-        run: |
-          eval $(opam env)
-          export OPAMYES=1
-          opam repo add archive "git+https://github.com/ocaml/opam-repository-archive#${{ steps.opam-heads.outputs.opam-repository-archive }}"
-
       - name: Set up Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      # Moves .github/opam-pins.env to the current repository heads, repins this
+      # switch to them (which is also what adds the archive repository), then
+      # re-locks. The PR below therefore carries the new lock file and the new
+      # pin in one commit.
       - name: Run change-deps
         run: |
            eval $(opam env)
            export OPAMYES=1
            make change-deps
-
-      # Ships in the same commit as the regenerated lock file, so the two can
-      # never disagree about which repository state they were resolved against.
-      - name: Record the repository commits the lock file was resolved against
-        run: |
-          sed -i \
-            -e 's|^OPAM_REPOSITORY_SHA=.*|OPAM_REPOSITORY_SHA=${{ steps.opam-heads.outputs.opam-repository }}|' \
-            -e 's|^OPAM_REPOSITORY_ARCHIVE_SHA=.*|OPAM_REPOSITORY_ARCHIVE_SHA=${{ steps.opam-heads.outputs.opam-repository-archive }}|' \
-            .github/opam-pins.env
-          git diff --stat .github/opam-pins.env
+           git diff --stat hazel.opam.locked .github/opam-pins.env
 
       - name: Create or update PR
         uses: peter-evans/create-pull-request@v7

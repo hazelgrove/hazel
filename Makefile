@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean setup-zarith ci ci-quick
+.PHONY: all deps change-deps pin-opam-repos update-opam-pins setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean setup-zarith ci ci-quick
 
 all: dev
 
@@ -12,14 +12,60 @@ setup-zarith:
 	@echo "Installing native BigInt zarith runtime..."
 	@cp vendor/zarith_native_bigint_runtime.js "$$(opam var lib)/zarith_stubs_js/runtime.js"
 
-deps:
-	opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+OPAM_PINS = .github/opam-pins.env
+
+# Point this switch's opam repositories at the commits recorded in $(OPAM_PINS).
+#
+# hazel.opam.locked pins which package *versions* the solver picks. It cannot pin
+# their *metadata*: opam has no content hashes, and upstream routinely edits
+# already-published versions in place. In June 2026 such an edit made
+# conf-libssl.4 require conf-pkg-config >= 5 while our lock file pinned
+# conf-pkg-config = 4, breaking every build with no change on our side. Pinning
+# the repository commit closes that hole -- see issue #2334.
+#
+# Scoped to the current switch (opam's default for `repo add`), so the shared
+# `default` repository definition is untouched and other OCaml projects on this
+# machine are unaffected. `default` stays below these as a fallback.
+pin-opam-repos:
+	@set -e; . "$(OPAM_PINS)"; \
+	arch="git+https://github.com/ocaml/opam-repository-archive#$$OPAM_REPOSITORY_ARCHIVE_SHA"; \
+	main="git+https://github.com/ocaml/opam-repository.git#$$OPAM_REPOSITORY_SHA"; \
+	opam repo add archive "$$arch" --rank 1 2>/dev/null || opam repo set-url archive "$$arch"; \
+	opam repo add hazel-locked "$$main" --rank 2 2>/dev/null || opam repo set-url hazel-locked "$$main"; \
+	opam repo list
+
+# Move $(OPAM_PINS) forward to each repository's current HEAD.
+# The awk filter is load-bearing: `ls-remote <url> HEAD` also matches the stale
+# refs/remotes/origin/HEAD that opam-repository publishes, so without it you get
+# two SHAs and a malformed URL.
+update-opam-pins:
+	@set -e; \
+	main=$$(git ls-remote https://github.com/ocaml/opam-repository HEAD | awk '$$2 == "HEAD" { print $$1 }'); \
+	arch=$$(git ls-remote https://github.com/ocaml/opam-repository-archive HEAD | awk '$$2 == "HEAD" { print $$1 }'); \
+	for sha in "$$main" "$$arch"; do \
+	  echo "$$sha" | grep -qE '^[0-9a-f]{40}$$' || { echo "Not a single commit sha: '$$sha'" >&2; exit 1; }; \
+	done; \
+	sed -i'.old' \
+	  -e "s|^OPAM_REPOSITORY_SHA=.*|OPAM_REPOSITORY_SHA=$$main|" \
+	  -e "s|^OPAM_REPOSITORY_ARCHIVE_SHA=.*|OPAM_REPOSITORY_ARCHIVE_SHA=$$arch|" \
+	  $(OPAM_PINS); \
+	rm -f $(OPAM_PINS).old; \
+	grep -E '^OPAM_' $(OPAM_PINS)
+
+# Reproduce: pinned repositories + the lock file. Identical to what CI installs.
+deps: pin-opam-repos
 	opam update
 	opam install ./hazel.opam.locked --deps-only --with-test --with-doc
 	npm install
 	$(MAKE) setup-zarith
 
+# Update: move the pins to the current heads, repin, then re-lock against them,
+# so hazel.opam.locked and $(OPAM_PINS) always describe the same repository
+# state. The repin is required -- without it this would resolve against the old
+# pinned commit and silently find nothing new.
 change-deps:
+	$(MAKE) update-opam-pins
+	$(MAKE) pin-opam-repos
 	opam update
 	dune build hazel.opam
 	opam install ./hazel.opam --deps-only --with-test --with-doc
