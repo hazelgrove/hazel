@@ -112,8 +112,8 @@ let proof_search_verdict_label = (~has_candidate, verdict) =>
   | Invalid => "Invalid"
   };
 
-let associative_override_for_editor = (editor: CodeSelectable.Model.t) =>
-  SelectionEffective.associative_override(
+let effective_selection_for_editor = (editor: CodeSelectable.Model.t) =>
+  SelectionEffective.effective_selection(
     ~info_map=CodeEditable.Model.get_statics(editor).info_map,
     ~measured=editor.editor.syntax.measured,
     ~term_data=editor.editor.syntax.term_data,
@@ -732,26 +732,9 @@ module Update = {
     let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
     let full_visible_exp = Calc.NewValue(editor.statics.term);
     let visible_terms = Calc.NewValue(editor.editor.syntax.terms);
-    let selection_override = associative_override_for_editor(editor);
+    let effective_selection = effective_selection_for_editor(editor);
     let selected_id =
-      // hacky way to get a currently-selected id
-      (
-        try(
-          {
-            open OptUtil.Syntax;
-            let zipper = editor.editor.state.zipper;
-            let* id =
-              TermData.get_root_id_using_ranges(
-                zipper.selection.content,
-                editor.editor.syntax.term_data,
-                editor.editor.syntax.measured,
-              );
-            Some(id);
-          }
-        ) {
-        | _ => None
-        }
-      )
+      SelectionEffective.root_id(effective_selection)
       |> Calc.set(_, selected_id);
     let selected_exp =
       selected_exp
@@ -762,8 +745,13 @@ module Update = {
         and.calc visible_terms = visible_terms
         and.calc info_map = info_map;
         OptUtil.Syntax.(
-          switch (selection_override) {
-          | Some(override) => Some(override.exp)
+          switch (
+            SelectionEffective.selected_exp(
+              ~full_exp=full_visible_exp,
+              effective_selection,
+            )
+          ) {
+          | Some(exp') => Some(exp')
           | None =>
             let* id = selected_id;
             switch (ProofHacks.find_exp_id(id, full_visible_exp)) {
@@ -1537,7 +1525,9 @@ module View = {
         };
       cancel_proof_searches_except_in_browser(active_search_id);
       let+ (left, right, top, bottom) = segment_bounds;
-      let selection_override = associative_override_for_editor(editor);
+      let effective_selection = effective_selection_for_editor(editor);
+      let selection_override =
+        SelectionEffective.virtual_target(effective_selection);
       let selection_term_data = editor.editor.syntax.term_data;
 
       let proof_button = (~callback: Ui_effect.t(unit), label: string) => {
@@ -1624,8 +1614,8 @@ module View = {
         let direct_override =
           selection_override
           |> Option.bind(_, override =>
-               SelectionEffective.replacement_for_override(
-                 ~override,
+               SelectionEffective.replacement_for_virtual(
+                 ~virtual_=override,
                  ~with_exp,
                  ~full_exp=full_visible_exp,
                  ~term_data=selection_term_data,
@@ -1685,8 +1675,8 @@ module View = {
           switch (selection_override) {
           | Some(override) =>
             switch (
-              SelectionEffective.reparenthesize_override(
-                ~override,
+              SelectionEffective.reparenthesize_virtual(
+                ~virtual_=override,
                 ~full_exp=full_visible_exp,
               )
             ) {
@@ -1800,8 +1790,8 @@ module View = {
                         switch (selection_override) {
                         | Some(override) =>
                           switch (
-                            SelectionEffective.replacement_for_override(
-                              ~override,
+                            SelectionEffective.replacement_for_virtual(
+                              ~virtual_=override,
                               ~with_exp=substituted_cached_exp,
                               ~full_exp=full_visible_exp,
                               ~term_data=selection_term_data,
@@ -2483,8 +2473,8 @@ module View = {
         option(Language.Reparenthesize.result) =
         selection_override
         |> Option.bind(_, override =>
-             SelectionEffective.reparenthesize_override(
-               ~override,
+             SelectionEffective.reparenthesize_virtual(
+               ~virtual_=override,
                ~full_exp=
                  model.full_visible_exp
                  |> Calc.get_saved_exc(~print="full_visible_exp"),

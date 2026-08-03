@@ -485,7 +485,7 @@ let get: compound_form => t =
         DerivativeOperator.expression_surface_separator,
       ],
       /* [by] separates the differentiated expression from its variable. */
-      P.fun_,
+      P.neg,
       Exp,
       [Exp],
     )

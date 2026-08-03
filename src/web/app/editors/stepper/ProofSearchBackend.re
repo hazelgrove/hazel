@@ -802,11 +802,43 @@ let calculus_cleanup_script = (~capabilities, ~use_affine_finisher) =>
     cleanup ++ "reflexivity.";
   };
 
+let calculus_recorded_finish = (~recorded_rule_ids, source, target) => {
+  let comparable_terms =
+    switch (
+      DifferentiationRewrite.strip(source).term,
+      DifferentiationRewrite.strip(target).term,
+    ) {
+    | (
+        Fun(source_pattern, source_body, _, _),
+        Fun(target_pattern, target_body, _, _),
+      )
+        when
+          DifferentiationRewrite.function_parameter_name(source_pattern)
+          == DifferentiationRewrite.function_parameter_name(target_pattern) =>
+      Some((source_body, target_body))
+    | _ => Some((source, target))
+    };
+  switch (comparable_terms) {
+  | None => None
+  | Some((source, target)) =>
+    AxiomSearch.search(
+      ~level=Axioms.Calculus,
+      ~max_depth=6,
+      ~max_states=300,
+      ~allowed_rule_ids=recorded_rule_ids,
+      ~log=false,
+      source,
+      target,
+    )
+  };
+};
+
 let calculus_search_program =
     (
       ~profile,
       ~theorem_name="hazel_rocq_search",
       ~recorded_cleanup=[],
+      ~recorded_rule_ids=[],
       request,
     ) =>
   switch (calculus_sources_in(request.source)) {
@@ -840,6 +872,27 @@ let calculus_search_program =
       RewriteChecker.rational_affine_normal_forms_equal(
         expected,
         request.target,
+      )
+      || (
+        switch (
+          DifferentiationRewrite.strip(expected).term,
+          DifferentiationRewrite.strip(request.target).term,
+        ) {
+        | (
+            Fun(expected_pattern, expected_body, _, _),
+            Fun(target_pattern, target_body, _, _),
+          )
+            when
+              DifferentiationRewrite.function_parameter_name(expected_pattern)
+              == DifferentiationRewrite.function_parameter_name(
+                   target_pattern,
+                 ) =>
+          RewriteChecker.rational_affine_normal_forms_equal(
+            expected_body,
+            target_body,
+          )
+        | _ => false
+        }
       );
     let profile_affine_target =
       affine_normal_forms_match
@@ -853,6 +906,15 @@ let calculus_search_program =
       && [Axioms.AddAssoc, AddComm, ConstFold, CollectLikeTerms]
       |> List.for_all(capability => List.mem(capability, recorded_cleanup));
     let affine_target = profile_affine_target || recorded_affine_target;
+    let recorded_finish =
+      exact_target || recorded_rule_ids == []
+        ? None
+        : calculus_recorded_finish(
+            ~recorded_rule_ids,
+            expected,
+            request.target,
+          );
+    let recorded_target = recorded_finish |> Option.is_some;
     let source_is_focused =
       TrigRewrite.exp_same(request.source, focused_source);
     let certificate_target =
@@ -868,7 +930,8 @@ let calculus_search_program =
         || DifferentiationRewrite.contains_diff(expected)
         || DifferentiationRewrite.contains_diff(focused_expected)
         || !exact_target
-        && !affine_target) {
+        && !affine_target
+        && !recorded_target) {
       None;
     } else {
       derivative_certificate_for_expression(~variable, expression)
@@ -920,17 +983,68 @@ let calculus_search_program =
                  )
                  @ recorded_cleanup
                  |> RewriteChecker.dedup;
+               let normalized_certificate_target =
+                 source_is_focused
+                   ? function_derivative_target_body(
+                       ~source=request.source,
+                       expected,
+                     )
+                   : focused_expected;
+               let recorded_finish_script =
+                 recorded_finish
+                 |> Option.map((result: AxiomSearch.result) =>
+                      CoqProofExport.recorded_transition_replay_script(
+                        ~domain=CoqExport.Reals,
+                        result.steps,
+                      )
+                    );
+               let normalized_target =
+                 CoqExport.string_of_d_for_domain(
+                   ~domain=CoqExport.Reals,
+                   normalized_certificate_target,
+                 );
                "assert (H_hazel_cleanup : ("
                ++ raw
                ++ ") = ("
                ++ target
                ++ ")).\n"
-               ++ "{ "
-               ++ calculus_cleanup_script(
-                    ~capabilities=cleanup_capabilities,
-                    ~use_affine_finisher=certificate_affine_target,
-                  )
-               ++ " }\n"
+               ++ (
+                 switch (recorded_finish_script) {
+                 | Some(replay) =>
+                   "{ assert (H_hazel_normalized : ("
+                   ++ raw
+                   ++ ") = ("
+                   ++ normalized_target
+                   ++ ")).\n"
+                   ++ "  { "
+                   ++ calculus_cleanup_script(
+                        ~capabilities=cleanup_capabilities,
+                        /* The profile-authorized cleanup produced this exact
+                           intermediate.  Use its terminating arithmetic
+                           certificate here; the separately recorded catalog
+                           path below remains responsible for accepting and
+                           proving the user's final form. */
+                        ~use_affine_finisher=true,
+                      )
+                   ++ " }\n"
+                   ++ "  assert (H_hazel_recorded : ("
+                   ++ normalized_target
+                   ++ ") = ("
+                   ++ target
+                   ++ ")).\n"
+                   ++ "  { "
+                   ++ replay
+                   ++ " }\n"
+                   ++ "  exact (eq_trans H_hazel_normalized H_hazel_recorded). }\n"
+                 | None =>
+                   "{ "
+                   ++ calculus_cleanup_script(
+                        ~capabilities=cleanup_capabilities,
+                        ~use_affine_finisher=certificate_affine_target,
+                      )
+                   ++ " }\n"
+                 }
+               )
                ++ "exact (@eq_ind R ("
                ++ raw
                ++ ") (fun derivative : R => derivable_pt_lim "
@@ -962,7 +1076,14 @@ let calculus_search_program =
   };
 
 let calculus_export_program_for_profile =
-    (~profile, ~recorded_cleanup=[], source, target) => {
+    (
+      ~profile,
+      ~theorem_name="hazel_derivative",
+      ~recorded_cleanup=[],
+      ~recorded_rule_ids=[],
+      source,
+      target,
+    ) => {
   let request = {
     backend: JSCoqTacticSearch,
     level: Axioms.Calculus,
@@ -973,8 +1094,9 @@ let calculus_export_program_for_profile =
   };
   calculus_search_program(
     ~profile,
-    ~theorem_name="hazel_derivative",
+    ~theorem_name,
     ~recorded_cleanup,
+    ~recorded_rule_ids,
     request,
   );
 };

@@ -515,6 +515,383 @@ let sample_calculus_export_chain = (~source, ~target) => {
   sample_written_step_export_chain(~source, ~target, ~trace);
 };
 
+let simple_let_program = (bindings, body) =>
+  List.fold_right(
+    ((name, rhs), body) => Exp.let_(Pat.var(name), rhs, body),
+    bindings,
+    body,
+  );
+
+let written_program_step =
+    (
+      ~program,
+      ~next_program,
+      ~local_source,
+      ~local_target,
+      ~trace,
+      ~next_step,
+    ) =>
+  step_model(
+    ~expr=program,
+    ~step_kind=
+      WrittenStep({
+        at_idx: 0,
+        at_exp: local_source,
+        with_exp: local_target,
+        justification: Web.ProofTrace.trace_summary_label(trace),
+        trace_summary: Some(trace),
+        next_exp: saved(next_program),
+      }),
+    ~next_step=Some(next_step),
+  );
+
+let required_profile_trace = (~profile, source, target) =>
+  switch (
+    Web.RewriteChecker.check_written_step_trace_for_profile(
+      ~profile,
+      ~settings,
+      ~env,
+      source,
+      target,
+    )
+  ) {
+  | Some(trace) => trace
+  | None => fail("expected a profile-authorized fixture trace")
+  };
+
+let sample_linear_let_export_chain = () => {
+  let a_source = plus(Exp.int(1), Exp.int(2));
+  let a_target = Exp.int(3);
+  let b_source = plus(Exp.var("a"), plus(Exp.int(2), Exp.int(3)));
+  let b_target = plus(Exp.var("a"), Exp.int(5));
+  let body_source = plus(Exp.var("b"), plus(Exp.int(4), Exp.int(5)));
+  let body_target = plus(Exp.var("b"), Exp.int(9));
+  let initial =
+    simple_let_program([("a", a_source), ("b", b_source)], body_source);
+  let after_a =
+    simple_let_program([("a", a_target), ("b", b_source)], body_source);
+  let after_b =
+    simple_let_program([("a", a_target), ("b", b_target)], body_source);
+  let after_body =
+    simple_let_program([("a", a_target), ("b", b_target)], body_target);
+  let terminal =
+    step_model(
+      ~expr=after_body,
+      ~step_kind=MissingStep(Web.MissingStep.Model.init),
+      ~next_step=None,
+    );
+  let arithmetic = Axioms.math_profile(Arithmetic);
+  let body_step =
+    written_program_step(
+      ~program=after_b,
+      ~next_program=after_body,
+      ~local_source=body_source,
+      ~local_target=body_target,
+      ~trace=
+        required_profile_trace(~profile=arithmetic, body_source, body_target),
+      ~next_step=terminal,
+    );
+  let b_step =
+    written_program_step(
+      ~program=after_a,
+      ~next_program=after_b,
+      ~local_source=b_source,
+      ~local_target=b_target,
+      ~trace=required_profile_trace(~profile=arithmetic, b_source, b_target),
+      ~next_step=body_step,
+    );
+  written_program_step(
+    ~program=initial,
+    ~next_program=after_a,
+    ~local_source=a_source,
+    ~local_target=a_target,
+    ~trace=required_profile_trace(~profile=arithmetic, a_source, a_target),
+    ~next_step=b_step,
+  );
+};
+
+let sample_derivative_let_export_chain =
+    (
+      ~drop_power_rule=false,
+      ~atomic_f2_finish=false,
+      ~drop_atomic_scalar_rule=false,
+      (),
+    ) => {
+  let x = Exp.var("x");
+  let f =
+    Exp.fn(
+      Pat.var("x"),
+      plus(power(x, Exp.int(3)), times(Exp.int(2), x)),
+      None,
+      None,
+    );
+  let f1 =
+    Exp.fn(
+      Pat.var("x"),
+      plus(times(Exp.int(3), power(x, Exp.int(2))), Exp.int(2)),
+      None,
+      None,
+    );
+  let f2 = Exp.fn(Pat.var("x"), times(Exp.int(6), x), None, None);
+  let f1_source = function_derivative(Exp.var("f"));
+  let f2_source = function_derivative(Exp.var("f1"));
+  let body = Language.Exp.fresh(Ap(Forward, Exp.var("f2"), Exp.int(2)));
+  let initial =
+    simple_let_program(
+      [("f", f), ("f1", f1_source), ("f2", f2_source)],
+      body,
+    );
+  let after_f1 =
+    simple_let_program([("f", f), ("f1", f1), ("f2", f2_source)], body);
+  let after_f2 =
+    simple_let_program([("f", f), ("f1", f1), ("f2", f2)], body);
+  let calculus = Axioms.math_profile(Calculus);
+  let atomic_trace_rule_allowed = rule_id =>
+    rule_id != "arith.affine_normalize"
+    && (
+      switch (Axioms.cleanup_capability_for_id(rule_id)) {
+      | Some(Axioms.AddAssoc | AddComm | ConstFold | CollectLikeTerms) =>
+        false
+      | _ => true
+      }
+    );
+  let f1_trace =
+    Web.RewriteChecker.calculus_check_result_trace_for_profile(
+      ~profile=calculus,
+      function_derivative(f),
+      f1,
+    )
+    |> Option.get;
+  let f1_trace =
+    drop_power_rule
+      ? {
+        ...f1_trace,
+        rule_ids:
+          f1_trace.rule_ids
+          |> List.filter(rule_id => rule_id != "calc.diff_power"),
+        prover_steps:
+          f1_trace.prover_steps
+          |> List.filter((step: Web.ProofTrace.prover_step) =>
+               step.rule_id != "calc.diff_power"
+             ),
+      }
+      : f1_trace;
+  let f1_trace =
+    atomic_f2_finish
+      ? {
+        ...f1_trace,
+        rule_ids: f1_trace.rule_ids |> List.filter(atomic_trace_rule_allowed),
+        prover_steps:
+          f1_trace.prover_steps
+          |> List.filter((step: Web.ProofTrace.prover_step) =>
+               atomic_trace_rule_allowed(step.rule_id)
+             ),
+      }
+      : f1_trace;
+  let f2_trace =
+    Web.RewriteChecker.calculus_check_result_trace_for_profile(
+      ~profile=calculus,
+      function_derivative(f1),
+      f2,
+    )
+    |> Option.get;
+  let f2_trace =
+    if (atomic_f2_finish) {
+      let scalar_source =
+        plus(times(Exp.int(3), times(Exp.int(2), x)), Exp.int(0));
+      let scalar_target = plus(times(Exp.int(6), x), Exp.int(0));
+      let final_target = times(Exp.int(6), x);
+      let atomic_steps = [
+        Web.ProofTrace.prover_step_at(
+          ~origin=Web.ProofTrace.Normalization,
+          ~rule_id="arith.simplify_scalar_products",
+          ~before_full_exp=scalar_source,
+          ~after_full_exp=scalar_target,
+          ~before_exp=scalar_source,
+          ~after_exp=scalar_target,
+          ~occurrence=1,
+          ~detail="scalar/sign normalization",
+        ),
+        Web.ProofTrace.prover_step_at(
+          ~origin=Web.ProofTrace.Normalization,
+          ~rule_id="add.identity",
+          ~before_full_exp=scalar_target,
+          ~after_full_exp=final_target,
+          ~before_exp=scalar_target,
+          ~after_exp=final_target,
+          ~occurrence=1,
+          ~detail="bounded axiom search",
+        ),
+      ];
+      let recorded_atomic_steps =
+        drop_atomic_scalar_rule
+          ? atomic_steps
+            |> List.filter((step: Web.ProofTrace.prover_step) =>
+                 step.rule_id != "arith.simplify_scalar_products"
+               )
+          : atomic_steps;
+      let recorded_atomic_rule_ids =
+        recorded_atomic_steps
+        |> List.map((step: Web.ProofTrace.prover_step) => step.rule_id);
+      {
+        ...f2_trace,
+        rule_ids:
+          f2_trace.rule_ids
+          |> List.filter(atomic_trace_rule_allowed)
+          |> List.filter(rule_id =>
+               !drop_atomic_scalar_rule
+               || rule_id != "arith.simplify_scalar_products"
+             )
+          |> List.append(recorded_atomic_rule_ids)
+          |> Web.RewriteChecker.dedup,
+        prover_steps:
+          f2_trace.prover_steps
+          |> List.filter((step: Web.ProofTrace.prover_step) =>
+               atomic_trace_rule_allowed(step.rule_id)
+             )
+          |> List.append(recorded_atomic_steps),
+      };
+    } else {
+      f2_trace;
+    };
+  let terminal =
+    step_model(
+      ~expr=after_f2,
+      ~step_kind=MissingStep(Web.MissingStep.Model.init),
+      ~next_step=None,
+    );
+  let f2_step =
+    written_program_step(
+      ~program=after_f1,
+      ~next_program=after_f2,
+      ~local_source=f2_source,
+      ~local_target=f2,
+      ~trace=f2_trace,
+      ~next_step=terminal,
+    );
+  written_program_step(
+    ~program=initial,
+    ~next_program=after_f1,
+    ~local_source=f1_source,
+    ~local_target=f1,
+    ~trace=f1_trace,
+    ~next_step=f2_step,
+  );
+};
+
+let sample_evaluated_derivative_let_export_chain = () => {
+  let x = Exp.var("x");
+  let f =
+    Exp.fn(
+      Pat.var("x"),
+      plus(power(x, Exp.int(3)), times(Exp.int(2), x)),
+      None,
+      None,
+    );
+  let f1 =
+    Exp.fn(
+      Pat.var("x"),
+      plus(times(Exp.int(3), power(x, Exp.int(2))), Exp.int(2)),
+      None,
+      None,
+    );
+  let f2 = Exp.fn(Pat.var("x"), times(Exp.int(6), x), None, None);
+  let f1_source = function_derivative(Exp.var("f"));
+  let f2_source = function_derivative(Exp.var("f1"));
+  let body = Language.Exp.fresh(Ap(Forward, Exp.var("f2"), Exp.int(2)));
+  let initial =
+    simple_let_program(
+      [("f", f), ("f1", f1_source), ("f2", f2_source)],
+      body,
+    );
+  let after_f_substitution =
+    simple_let_program(
+      [("f1", function_derivative(f)), ("f2", f2_source)],
+      body,
+    );
+  let after_f1 = simple_let_program([("f1", f1), ("f2", f2_source)], body);
+  let after_f1_substitution =
+    simple_let_program([("f2", function_derivative(f1))], body);
+  let after_f2 = simple_let_program([("f2", f2)], body);
+  let substituted_body = Language.Exp.fresh(Ap(Forward, f2, Exp.int(2)));
+  let applied_body = times(Exp.int(6), Exp.int(2));
+  let final_body = Exp.int(12);
+  let terminal =
+    step_model(
+      ~expr=final_body,
+      ~step_kind=MissingStep(Web.MissingStep.Model.init),
+      ~next_step=None,
+    );
+  let arithmetic_step =
+    written_program_step(
+      ~program=applied_body,
+      ~next_program=final_body,
+      ~local_source=applied_body,
+      ~local_target=final_body,
+      ~trace=
+        required_profile_trace(
+          ~profile=Axioms.math_profile(Arithmetic),
+          applied_body,
+          final_body,
+        ),
+      ~next_step=terminal,
+    );
+  let application_step =
+    step_model(
+      ~expr=substituted_body,
+      ~step_kind=MissingStep(Web.MissingStep.Model.init),
+      ~next_step=Some(arithmetic_step),
+    );
+  let f2_substitution_step =
+    step_model(
+      ~expr=after_f2,
+      ~step_kind=MissingStep(Web.MissingStep.Model.init),
+      ~next_step=Some(application_step),
+    );
+  let calculus = Axioms.math_profile(Calculus);
+  let f2_step =
+    written_program_step(
+      ~program=after_f1_substitution,
+      ~next_program=after_f2,
+      ~local_source=function_derivative(f1),
+      ~local_target=f2,
+      ~trace=
+        Web.RewriteChecker.calculus_check_result_trace_for_profile(
+          ~profile=calculus,
+          function_derivative(f1),
+          f2,
+        )
+        |> Option.get,
+      ~next_step=f2_substitution_step,
+    );
+  let f1_substitution_step =
+    step_model(
+      ~expr=after_f1,
+      ~step_kind=MissingStep(Web.MissingStep.Model.init),
+      ~next_step=Some(f2_step),
+    );
+  let f1_step =
+    written_program_step(
+      ~program=after_f_substitution,
+      ~next_program=after_f1,
+      ~local_source=function_derivative(f),
+      ~local_target=f1,
+      ~trace=
+        Web.RewriteChecker.calculus_check_result_trace_for_profile(
+          ~profile=calculus,
+          function_derivative(f),
+          f1,
+        )
+        |> Option.get,
+      ~next_step=f1_substitution_step,
+    );
+  step_model(
+    ~expr=initial,
+    ~step_kind=MissingStep(Web.MissingStep.Model.init),
+    ~next_step=Some(f1_step),
+  );
+};
+
 let sample_local_algebra_under_trig_export_chain = () => {
   let x = Exp.var("x");
   let local_source = times(Exp.int(2), times(Exp.int(2), x));
@@ -12800,6 +13177,225 @@ let tests = (
           );
         check(int, "no from hints", 0, from_hints |> List.length);
         check(int, "no to hints", 0, to_hints |> List.length);
+      },
+    ),
+    test_case(
+      "Rocq export emits ordered theorems for a linear let development",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_linear_let_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected a linear let-development export")
+          };
+        write_text_file("/tmp/hazel_linear_let_development.v", export);
+        check(
+          bool,
+          "exports definitions in dependency order",
+          true,
+          string_contains("Definition a : R := 3.", export)
+          && string_contains("Definition b : R := (a + 5).", export),
+        );
+        check(
+          bool,
+          "each stepped binding receives a named theorem",
+          true,
+          string_contains("Theorem hazel_a_correct", export)
+          && string_contains("Theorem hazel_b_correct", export)
+          && string_contains("unfold a.", export),
+        );
+        check(
+          bool,
+          "the stepped continuation becomes the final theorem",
+          true,
+          string_contains("Theorem hazel_final_value", export)
+          && string_contains("hazel_final_value_step_1", export),
+        );
+        check(
+          bool,
+          "whole Hazel let syntax never reaches the expression printer",
+          false,
+          string_contains("unsupported Coq real export term", export),
+        );
+      },
+    ),
+    test_case(
+      "Rocq export composes named first and second derivative bindings",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_derivative_let_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected a derivative let-development export")
+          };
+        write_text_file("/tmp/hazel_derivative_let_development.v", export);
+        check(
+          bool,
+          "exports the final function definitions",
+          true,
+          string_contains("Definition f (x : R)", export)
+          && string_contains("Definition f1 (x : R)", export)
+          && string_contains("Definition f2 (x : R)", export),
+        );
+        check(
+          bool,
+          "first derivative theorem refers to the original function",
+          true,
+          string_contains(
+            "Theorem hazel_f1_correct : derivative_of f1 f",
+            export,
+          ),
+        );
+        check(
+          bool,
+          "second derivative theorem refers to the first derivative",
+          true,
+          string_contains(
+            "Theorem hazel_f2_correct : derivative_of f2 f1",
+            export,
+          ),
+        );
+        check(
+          bool,
+          "each derivative has a semantic certificate",
+          true,
+          string_contains("hazel_f1_derivative_certificate", export)
+          && string_contains("hazel_f2_derivative_certificate", export)
+          && string_contains("derivable_pt_lim", export),
+        );
+      },
+    ),
+    test_case(
+      "Rocq export follows bindings after evaluator substitutions",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_evaluated_derivative_let_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected an evaluated let-development export")
+          };
+        write_text_file("/tmp/hazel_evaluated_let_development.v", export);
+        check(
+          bool,
+          "retains dependency theorems after let elimination",
+          true,
+          string_contains(
+            "Theorem hazel_f1_correct : derivative_of f1 f",
+            export,
+          )
+          && string_contains(
+               "Theorem hazel_f2_correct : derivative_of f2 f1",
+               export,
+             ),
+        );
+        check(
+          bool,
+          "exports the computed final value without a function literal",
+          true,
+          string_contains("Theorem hazel_final_value : f2 (2) = 12", export)
+          && !string_contains("Function literal", export),
+        );
+      },
+    ),
+    test_case(
+      "let derivative export replays an atomic recorded cleanup finish",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_derivative_let_export_chain(~atomic_f2_finish=true, ()),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected atomic derivative cleanup export")
+          };
+        write_text_file(
+          "/tmp/hazel_derivative_atomic_cleanup_export.v",
+          export,
+        );
+        check(
+          bool,
+          "certifies f2 without restoring the affine normalization macro",
+          true,
+          string_contains("Theorem hazel_f2_correct", export)
+          && string_contains("H_hazel_recorded", export)
+          && !string_contains("hazel_affine_normalize", export),
+        );
+      },
+    ),
+    test_case(
+      "let derivative export requires its recorded scalar cleanup rule",
+      `Quick,
+      () =>
+      check_raises(
+        "missing recorded scalar normalization rule",
+        Failure(
+          "the recorded calculus profile cannot certify let-bound derivative f2",
+        ),
+        () =>
+        Web.StepperBase.Stepper.export_coq(
+          sample_derivative_let_export_chain(
+            ~atomic_f2_finish=true,
+            ~drop_atomic_scalar_rule=true,
+            (),
+          ),
+        )
+        |> ignore
+      )
+    ),
+    test_case(
+      "let derivative export does not restore a disabled calculus rule",
+      `Quick,
+      () =>
+      check_raises(
+        "missing recorded power rule",
+        Failure(
+          "the recorded calculus profile cannot certify let-bound derivative f1",
+        ),
+        () =>
+        Web.StepperBase.Stepper.export_coq(
+          sample_derivative_let_export_chain(~drop_power_rule=true, ()),
+        )
+        |> ignore
+      )
+    ),
+    test_case(
+      "let proof export rejects destructuring patterns explicitly",
+      `Quick,
+      () => {
+        let unsupported =
+          Exp.let_(
+            Pat.tuple([Pat.var("a"), Pat.var("b")]),
+            Exp.tuple([Exp.int(1), Exp.int(2)]),
+            Exp.var("a"),
+          );
+        let model =
+          step_model(
+            ~expr=unsupported,
+            ~step_kind=MissingStep(Web.MissingStep.Model.init),
+            ~next_step=None,
+          );
+        check_raises(
+          "simple variable lets only",
+          Failure(
+            "Rocq export currently supports only nonrecursive variable let-bindings",
+          ),
+          () =>
+          Web.StepperBase.Stepper.export_coq(model) |> ignore
+        );
       },
     ),
     test_case(

@@ -52,6 +52,20 @@ and step_model = {
   coq_check_status,
 };
 
+type rocq_let_binding = {
+  name: string,
+  initial_rhs: Exp.t,
+  final_rhs: Exp.t,
+  steps: list(step_model),
+};
+
+type rocq_let_plan = {
+  bindings: list(rocq_let_binding),
+  initial_body: Exp.t,
+  final_body: Exp.t,
+  body_steps: list(step_model),
+};
+
 let init_step = {
   expr: Calc.Pending,
   editor: Calc.Pending,
@@ -1030,6 +1044,586 @@ and Stepper: {
       }
     };
 
+  /* Rocq development export intentionally supports only a simple, ordered
+     spine of nonrecursive [let name = rhs in ...] bindings.  Keeping this
+     planner separate from the expression printer lets each stepped right-hand
+     side become its own proof obligation without pretending that arbitrary
+     Hazel programs are mathematical expressions. */
+  let rec simple_let_spine = (exp: Exp.t) =>
+    switch (DifferentiationRewrite.strip(exp).term) {
+    | Let(pat, rhs, body) =>
+      switch (pat.term) {
+      | Var(name) =>
+        let (bindings, final_body) = simple_let_spine(body);
+        ([(name, rhs), ...bindings], final_body);
+      | _ =>
+        failwith(
+          "Rocq export currently supports only nonrecursive variable let-bindings",
+        )
+      }
+    | _ => ([], exp)
+    };
+
+  let update_let_binding_rhs = (bindings, snapshot) =>
+    bindings
+    |> List.map((binding: rocq_let_binding) =>
+         switch (
+           snapshot |> List.find_opt(((name, _)) => name == binding.name)
+         ) {
+         | Some((_, rhs)) => {
+             ...binding,
+             final_rhs: rhs,
+           }
+         | None => binding
+         }
+       );
+
+  let append_binding_step = (bindings, changed_name, step) =>
+    bindings
+    |> List.map((binding: rocq_let_binding) =>
+         binding.name == changed_name
+           ? {
+             ...binding,
+             steps: binding.steps @ [step],
+           }
+           : binding
+       );
+
+  let changed_binding_names = (before_bindings, after_bindings) =>
+    before_bindings
+    |> List.filter_map(((name, before_rhs)) =>
+         switch (
+           after_bindings
+           |> List.find_opt(((after_name, _)) => after_name == name)
+         ) {
+         | Some((_, after_rhs)) =>
+           Exp.fast_equal(before_rhs, after_rhs) ? None : Some(name)
+         | None => None
+         }
+       );
+
+  let same_binding_names = (before_bindings, after_bindings) =>
+    List.map(((name, _)) => name, before_bindings)
+    == List.map(((name, _)) => name, after_bindings);
+
+  let written_step_kind = (step: step_model) =>
+    switch (step.step_kind) {
+    | WrittenStep(_) => true
+    | _ => false
+    };
+
+  let rec collect_let_plan_steps = (step, plan: rocq_let_plan) => {
+    let (before_bindings, before_body) =
+      simple_let_spine(step.expr |> Calc.get_saved_exc);
+    switch (step.next_step) {
+    | None => plan
+    | Some(next) =>
+      let (after_bindings, after_body) =
+        simple_let_spine(next.expr |> Calc.get_saved_exc);
+      let plan = {
+        ...plan,
+        bindings: update_let_binding_rhs(plan.bindings, after_bindings),
+        final_body:
+          after_bindings == []
+          || same_binding_names(before_bindings, after_bindings)
+            ? after_body : plan.final_body,
+      };
+      let changed_names =
+        changed_binding_names(before_bindings, after_bindings);
+      let plan =
+        switch (changed_names) {
+        | [changed_name] => {
+            ...plan,
+            bindings: append_binding_step(plan.bindings, changed_name, step),
+          }
+        | []
+            when
+              same_binding_names(before_bindings, after_bindings)
+              && !Exp.fast_equal(before_body, after_body) => {
+            ...plan,
+            body_steps: plan.body_steps @ [step],
+          }
+        | [] => plan
+        | _ when written_step_kind(step) =>
+          failwith(
+            "a written step changed more than one let-bound proof unit",
+          )
+        | _ => plan
+        };
+      collect_let_plan_steps(next, plan);
+    };
+  };
+
+  let let_export_plan = (first_step: step_model) => {
+    let (initial_bindings, initial_body) =
+      simple_let_spine(first_step.expr |> Calc.get_saved_exc);
+    switch (initial_bindings) {
+    | [] => None
+    | bindings =>
+      let bindings =
+        bindings
+        |> List.map(((name, rhs)) =>
+             {
+               name,
+               initial_rhs: rhs,
+               final_rhs: rhs,
+               steps: [],
+             }
+           );
+      Some(
+        collect_let_plan_steps(
+          first_step,
+          {
+            bindings,
+            initial_body,
+            final_body: initial_body,
+            body_steps: [],
+          },
+        ),
+      );
+    };
+  };
+
+  let simple_function_rhs = (exp: Exp.t) =>
+    switch (DifferentiationRewrite.strip(exp).term) {
+    | Fun({term: Var(parameter), _}, body, _, _) => Some((parameter, body))
+    | Fun(_, _, _, _) =>
+      failwith(
+        "Rocq let export currently supports only single-variable function parameters",
+      )
+    | _ => None
+    };
+
+  let rocq_definition = (binding: rocq_let_binding) =>
+    switch (simple_function_rhs(binding.final_rhs)) {
+    | Some((parameter, body)) =>
+      Printf.sprintf(
+        "Definition %s (%s : R) : R := %s.",
+        binding.name,
+        parameter,
+        CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, body),
+      )
+    | None =>
+      Printf.sprintf(
+        "Definition %s : R := %s.",
+        binding.name,
+        CoqExport.string_of_d_for_domain(
+          ~domain=CoqExport.Reals,
+          binding.final_rhs,
+        ),
+      )
+    };
+
+  let rhs_for_binding = (name, exp) => {
+    let (bindings, _) = simple_let_spine(exp);
+    bindings
+    |> List.find_opt(((binding_name, _)) => binding_name == name)
+    |> Option.map(((_, rhs)) => rhs);
+  };
+
+  let unfold_tactic = names =>
+    switch (names) {
+    | [] => ""
+    | names => "unfold " ++ String.concat(", ", names) ++ ".\n"
+    };
+
+  let equality_statement = (~before_rhs, ~after_rhs) =>
+    switch (simple_function_rhs(before_rhs), simple_function_rhs(after_rhs)) {
+    | (
+        Some((before_parameter, before_body)),
+        Some((after_parameter, after_body)),
+      )
+        when before_parameter == after_parameter => (
+        "forall " ++ before_parameter ++ " : R, ",
+        CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, after_body),
+        CoqExport.string_of_d_for_domain(
+          ~domain=CoqExport.Reals,
+          before_body,
+        ),
+      )
+    | (None, None) => (
+        "",
+        CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, after_rhs),
+        CoqExport.string_of_d_for_domain(~domain=CoqExport.Reals, before_rhs),
+      )
+    | _ =>
+      failwith(
+        "a let-bound proof unit changed between scalar and function shapes",
+      )
+    };
+
+  let binding_step_lemmas = (~earlier_names, binding: rocq_let_binding) =>
+    binding.steps
+    |> List.mapi((index, step: step_model) =>
+         switch (step.next_step) {
+         | Some(next) =>
+           switch (
+             rhs_for_binding(binding.name, step.expr |> Calc.get_saved_exc),
+             rhs_for_binding(binding.name, next.expr |> Calc.get_saved_exc),
+           ) {
+           | (Some(before_rhs), Some(after_rhs)) =>
+             let (forall_str, after_string, before_string) =
+               equality_statement(~before_rhs, ~after_rhs);
+             let lemma_name =
+               "hazel_"
+               ++ binding.name
+               ++ "_step_"
+               ++ string_of_int(index + 1);
+             let lemma =
+               Printf.sprintf(
+                 "%sLemma %s : %s%s = %s.\nProof.\nintros.\n%s%s\nQed.",
+                 coq_trace_comment(step.step_kind),
+                 lemma_name,
+                 forall_str,
+                 after_string,
+                 before_string,
+                 unfold_tactic(earlier_names),
+                 coq_tactic_for_step(
+                   ~forall_str,
+                   ~domain=CoqExport.Reals,
+                   step.step_kind,
+                 ),
+               );
+             (lemma_name, lemma);
+           | _ =>
+             failwith("could not relocate a stepped let-bound expression")
+           }
+         | None => failwith("a recorded let-bound step has no successor")
+         }
+       );
+
+  let body_step_has_exportable_expression = (step: step_model) =>
+    switch (step.step_kind) {
+    | SingleStep({evalobj, _}) =>
+      switch (
+        evalobj
+        |> Calc.get_saved_exc(~print="single step not calculated for export")
+        |> EvaluatorStep.get_step_kind
+      ) {
+      | Transition.BinOp(
+          Int(Plus | Minus | Times | Power | Divide) |
+          SInt(Plus | Minus | Times | Power | Divide) |
+          Nat(Plus | Minus | Times | Power | Divide) |
+          Float(Plus | Minus | Times | Power | Divide),
+        )
+      | Transition.UnOp(
+          Int(Minus) | SInt(Minus) | Nat(Minus) | Float(Minus),
+        ) =>
+        true
+      | _ => false
+      }
+    | MissingStep(_) => false
+    | _ => true
+    };
+
+  let body_step_lemmas = (~earlier_names, steps) =>
+    steps
+    |> List.filter(body_step_has_exportable_expression)
+    |> List.mapi((index, step: step_model) =>
+         switch (step.next_step) {
+         | Some(next) =>
+           let (_, before_body) =
+             simple_let_spine(step.expr |> Calc.get_saved_exc);
+           let (_, after_body) =
+             simple_let_spine(next.expr |> Calc.get_saved_exc);
+           let (forall_str, after_string, before_string) =
+             equality_statement(
+               ~before_rhs=before_body,
+               ~after_rhs=after_body,
+             );
+           let lemma_name =
+             "hazel_final_value_step_" ++ string_of_int(index + 1);
+           let lemma =
+             Printf.sprintf(
+               "%sLemma %s : %s%s = %s.\nProof.\nintros.\n%s%s\nQed.",
+               coq_trace_comment(step.step_kind),
+               lemma_name,
+               forall_str,
+               after_string,
+               before_string,
+               unfold_tactic(earlier_names),
+               coq_tactic_for_step(
+                 ~forall_str,
+                 ~domain=CoqExport.Reals,
+                 step.step_kind,
+               ),
+             );
+           (lemma_name, lemma);
+         | None => failwith("a recorded final-value step has no successor")
+         }
+       );
+
+  let correctness_statement = (binding: rocq_let_binding) =>
+    switch (simple_function_rhs(binding.initial_rhs)) {
+    | Some((parameter, initial_body)) =>
+      Printf.sprintf(
+        "forall %s : R, %s %s = %s",
+        parameter,
+        binding.name,
+        parameter,
+        CoqExport.string_of_d_for_domain(
+          ~domain=CoqExport.Reals,
+          initial_body,
+        ),
+      )
+    | None =>
+      Printf.sprintf(
+        "%s = %s",
+        binding.name,
+        CoqExport.string_of_d_for_domain(
+          ~domain=CoqExport.Reals,
+          binding.initial_rhs,
+        ),
+      )
+    };
+
+  let correctness_proof = (binding: rocq_let_binding, lemma_names) => {
+    let intros_tactic =
+      switch (simple_function_rhs(binding.initial_rhs)) {
+      | Some(_) => "intros.\n"
+      | None => ""
+      };
+    intros_tactic
+    ++ "unfold "
+    ++ binding.name
+    ++ ".\n"
+    ++ (
+      lemma_names
+      |> List.rev
+      |> List.map(name => "rewrite " ++ name ++ ".")
+      |> String.concat("\n")
+    )
+    ++ "\nreflexivity.";
+  };
+
+  let trace_rule_ids_for_steps = steps =>
+    steps
+    |> List.concat_map((step: step_model) =>
+         switch (step.step_kind) {
+         | WrittenStep({trace_summary: Some(summary), _}) =>
+           summary.ProofTrace.prover_steps
+           |> List.map((proof_step: ProofTrace.prover_step) =>
+                proof_step.rule_id
+              )
+         | _ => []
+         }
+       )
+    |> RewriteChecker.dedup;
+
+  let calculus_profile_for_recorded_steps = steps => {
+    let trace_rule_ids = trace_rule_ids_for_steps(steps);
+    let rec close_rule_prerequisites = (closed, pending) =>
+      switch (pending) {
+      | [] => closed
+      | [rule_id, ...rest] when List.mem(rule_id, closed) =>
+        close_rule_prerequisites(closed, rest)
+      | [rule_id, ...rest] =>
+        let required_rule_ids =
+          Axioms.catalog_rule_by_id(rule_id)
+          |> Option.map((rule: Axioms.math_rule) => rule.required_rule_ids)
+          |> Option.value(~default=[]);
+        close_rule_prerequisites(
+          [rule_id, ...closed],
+          required_rule_ids @ rest,
+        );
+      };
+    let authorized_rule_ids = close_rule_prerequisites([], trace_rule_ids);
+    let base_profile = Axioms.math_profile(Calculus);
+    let cleanup_enabled = capability =>
+      authorized_rule_ids
+      |> List.exists(rule_id =>
+           Axioms.cleanup_capability_for_id(rule_id) == Some(capability)
+           || Axioms.catalog_rule_by_id(rule_id)
+           |> Option.map((rule: Axioms.math_rule) =>
+                List.mem(capability, rule.required_cleanup)
+              )
+           |> Option.value(~default=false)
+         );
+    let recorded_cleanup =
+      base_profile.step_policy.default_cleanup |> List.filter(cleanup_enabled);
+    let profile: Axioms.math_profile = {
+      ...base_profile,
+      step_policy: {
+        default_cleanup: recorded_cleanup,
+        visible_rules:
+          base_profile.step_policy.visible_rules
+          |> List.filter((rule: Axioms.visible_rule_policy) =>
+               List.mem(rule.rule_id, authorized_rule_ids)
+             ),
+      },
+    };
+    let profile =
+      List.mem(base_profile.rocq_macro_rule_id, trace_rule_ids)
+        ? base_profile : profile;
+    (profile, recorded_cleanup);
+  };
+
+  let derivative_binding_export =
+      (~earlier_bindings, binding: rocq_let_binding) =>
+    switch (
+      DifferentiationRewrite.function_diff_argument(binding.initial_rhs)
+    ) {
+    | Some(function_exp) =>
+      switch (DifferentiationRewrite.strip(function_exp).term) {
+      | Var(source_name) =>
+        switch (
+          earlier_bindings
+          |> List.find_opt((earlier: rocq_let_binding) =>
+               earlier.name == source_name
+             )
+        ) {
+        | Some(source_binding) =>
+          let expanded_source =
+            DerivativeOperator.function_(source_binding.final_rhs);
+          /* Re-certifying a derivative of an earlier stepped definition may
+             need rules recorded while that definition was established.  The
+             prefix is still session-authorized: it is the union of recorded
+             rules up to this binding, never the unrestricted calculus
+             profile. */
+          let recorded_steps =
+            earlier_bindings
+            |> List.concat_map((earlier: rocq_let_binding) => earlier.steps)
+            |> List.append(binding.steps);
+          let (profile, recorded_cleanup) =
+            calculus_profile_for_recorded_steps(recorded_steps);
+          let certificate_name =
+            "hazel_" ++ binding.name ++ "_derivative_certificate";
+          switch (
+            ProofSearchBackend.calculus_export_program_for_profile(
+              ~profile,
+              ~theorem_name=certificate_name,
+              ~recorded_cleanup,
+              ~recorded_rule_ids=trace_rule_ids_for_steps(recorded_steps),
+              expanded_source,
+              binding.final_rhs,
+            )
+          ) {
+          | Some(certificate) =>
+            Some(
+              certificate
+              ++ "\n\nTheorem hazel_"
+              ++ binding.name
+              ++ "_correct : derivative_of "
+              ++ binding.name
+              ++ " "
+              ++ source_name
+              ++ ".\nProof.\n"
+              ++ "unfold derivative_of.\nintros.\n"
+              ++ "unfold "
+              ++ binding.name
+              ++ ", "
+              ++ source_name
+              ++ ".\n"
+              ++ "apply "
+              ++ certificate_name
+              ++ ".\nQed.",
+            )
+          | None =>
+            failwith(
+              "the recorded calculus profile cannot certify let-bound derivative "
+              ++ binding.name,
+            )
+          };
+        | None =>
+          failwith(
+            "a derivative let-binding may refer only to an earlier function binding",
+          )
+        }
+      | _ => None
+      }
+    | None => None
+    };
+
+  let ordinary_binding_export = (~earlier_names, binding: rocq_let_binding) => {
+    let step_lemmas = binding_step_lemmas(~earlier_names, binding);
+    switch (step_lemmas) {
+    | [] => rocq_definition(binding)
+    | step_lemmas =>
+      let lemma_names = step_lemmas |> List.map(((name, _)) => name);
+      let lemmas = step_lemmas |> List.map(((_, lemma)) => lemma);
+      rocq_definition(binding)
+      ++ "\n\n"
+      ++ String.concat("\n\n", lemmas)
+      ++ "\n\nTheorem hazel_"
+      ++ binding.name
+      ++ "_correct : "
+      ++ correctness_statement(binding)
+      ++ ".\nProof.\n"
+      ++ correctness_proof(binding, lemma_names)
+      ++ "\nQed.";
+    };
+  };
+
+  let body_export = (~binding_names, plan: rocq_let_plan) => {
+    let step_lemmas =
+      body_step_lemmas(~earlier_names=binding_names, plan.body_steps);
+    switch (step_lemmas) {
+    | [] => ""
+    | step_lemmas =>
+      let lemma_names = step_lemmas |> List.map(((name, _)) => name);
+      let lemmas = step_lemmas |> List.map(((_, lemma)) => lemma);
+      "\n\n"
+      ++ String.concat("\n\n", lemmas)
+      ++ "\n\nTheorem hazel_final_value : "
+      ++ CoqExport.string_of_d_for_domain(
+           ~domain=CoqExport.Reals,
+           plan.initial_body,
+         )
+      ++ " = "
+      ++ CoqExport.string_of_d_for_domain(
+           ~domain=CoqExport.Reals,
+           plan.final_body,
+         )
+      ++ ".\nProof.\nsymmetry.\n"
+      ++ unfold_tactic(binding_names)
+      ++ (
+        lemma_names
+        |> List.rev
+        |> List.map(name => "rewrite " ++ name ++ ".")
+        |> String.concat("\n")
+      )
+      ++ "\nreflexivity.\nQed.";
+    };
+  };
+
+  let let_development_export = (plan: rocq_let_plan) => {
+    let has_derivatives =
+      plan.bindings
+      |> List.exists((binding: rocq_let_binding) =>
+           Option.is_some(
+             DifferentiationRewrite.function_diff_argument(
+               binding.initial_rhs,
+             ),
+           )
+         );
+    let rec emit_bindings = (earlier, remaining) =>
+      switch (remaining) {
+      | [] => []
+      | [binding, ...rest] =>
+        let earlier_names =
+          earlier |> List.map((binding: rocq_let_binding) => binding.name);
+        let emitted =
+          switch (
+            derivative_binding_export(~earlier_bindings=earlier, binding)
+          ) {
+          | Some(derivative) =>
+            rocq_definition(binding) ++ "\n\n" ++ derivative
+          | None => ordinary_binding_export(~earlier_names, binding)
+          };
+        [emitted, ...emit_bindings(earlier @ [binding], rest)];
+      };
+    let binding_names =
+      plan.bindings |> List.map((binding: rocq_let_binding) => binding.name);
+    CoqProofExport.real_prelude
+    ++ (
+      has_derivatives
+        ? "\nFrom Stdlib Require Import Ranalysis1 Ranalysis3.\n\nDefinition derivative_of (derived source : R -> R) : Prop :=\n  forall x : R, derivable_pt_lim source x (derived x).\n\n"
+        : "\n"
+    )
+    ++ String.concat("\n\n", emit_bindings([], plan.bindings))
+    ++ body_export(~binding_names, plan);
+  };
+
   let untrusted_session_rule_ids = steps =>
     steps
     |> List.concat_map((step: step_model) =>
@@ -1132,113 +1726,123 @@ and Stepper: {
   };
 
   let export_coq = (first_step: step_model): option(string) => {
-    let steps = coq_export_steps(first_step);
-    if (List.length(steps) == 0) {
-      None;
-    } else {
-      let untrusted_rule_ids = untrusted_session_rule_ids(steps);
-      let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
-      let last_step = List.nth(steps, List.length(steps) - 1);
-      let completed_derivative_history =
-        switch (last_step.next_step) {
-        | Some(next) =>
-          DifferentiationRewrite.contains_diff(first_exp)
-          && !
-               DifferentiationRewrite.contains_diff(
-                 next.expr |> Calc.get_saved_exc,
-               )
-        | None => false
-        };
-      switch (calculus_export_for_steps(steps)) {
-      | Some(export) => Some(export)
-      | None when completed_derivative_history =>
-        failwith(
-          "calculus certificate could not replay the completed derivative history under its recorded profile",
-        )
-      | None =>
-        let domain = coq_domain_for_steps(steps);
-        let forall_str =
-          CoqExport.forall_string_for_domain(~domain, [first_exp]);
-        let lemmas_and_invocations =
-          List.mapi(
-            (ind, step) => {
-              let lemma_index = List.length(steps) - ind;
-              let step_untrusted_rule_ids =
-                untrusted_session_rule_ids_for_step(step);
-              let lemma =
-                step_untrusted_rule_ids == []
-                  ? single_step_export(lemma_index, step, forall_str, domain)
-                  : untrusted_single_step_export(
-                      lemma_index,
-                      step,
-                      forall_str,
-                      domain,
-                      step_untrusted_rule_ids,
-                    );
-              (
-                step_untrusted_rule_ids != [],
-                lemma,
-                CoqProofExport.invocation(lemma_index),
-              );
-            },
-            steps,
-          );
-        let untrusted_lemmas =
-          lemmas_and_invocations
-          |> List.filter_map(
-               fun
-               | (true, lemma, _) => Some(lemma)
-               | (false, _, _) => None,
-             );
-        let trusted_lemmas =
-          lemmas_and_invocations
-          |> List.filter_map(
-               fun
-               | (false, lemma, _) => Some(lemma)
-               | (true, _, _) => None,
-             );
-        let invocations =
-          lemmas_and_invocations
-          |> List.map(((_, _, invocation)) => invocation);
-        let untrusted_section =
-          switch (untrusted_lemmas) {
-          | [] => ""
-          | lemmas =>
-            "\n(* BEGIN UNSOUND CUSTOM REWRITES\n"
-            ++ "   These lemmas came from user-provided session rewrites.\n"
-            ++ "   Replace every Admitted proof before relying on this development.\n"
-            ++ "   Rule ids: "
-            ++ String.concat(", ", untrusted_rule_ids)
-            ++ " *)\n"
-            ++ String.concat("\n", lemmas)
-            ++ "\n(* END UNSOUND CUSTOM REWRITES *)\n"
+    switch (let_export_plan(first_step)) {
+    | Some(plan) => Some(let_development_export(plan))
+    | None =>
+      let steps = coq_export_steps(first_step);
+      if (List.length(steps) == 0) {
+        None;
+      } else {
+        let untrusted_rule_ids = untrusted_session_rule_ids(steps);
+        let first_exp = Calc.get_saved_exc(List.nth(steps, 0).expr);
+        let last_step = List.nth(steps, List.length(steps) - 1);
+        let completed_derivative_history =
+          switch (last_step.next_step) {
+          | Some(next) =>
+            DifferentiationRewrite.contains_diff(first_exp)
+            && !
+                 DifferentiationRewrite.contains_diff(
+                   next.expr |> Calc.get_saved_exc,
+                 )
+          | None => false
           };
-        let first_expr = CoqExport.string_of_d_for_domain(~domain, first_exp);
-        switch (last_step.next_step) {
-        | Some(next) =>
-          let final_expr =
-            CoqExport.string_of_d_for_domain(
-              ~domain,
-              next.expr |> Calc.get_saved_exc,
+        switch (calculus_export_for_steps(steps)) {
+        | Some(export) => Some(export)
+        | None when completed_derivative_history =>
+          failwith(
+            "calculus certificate could not replay the completed derivative history under its recorded profile",
+          )
+        | None =>
+          let domain = coq_domain_for_steps(steps);
+          let forall_str =
+            CoqExport.forall_string_for_domain(~domain, [first_exp]);
+          let lemmas_and_invocations =
+            List.mapi(
+              (ind, step) => {
+                let lemma_index = List.length(steps) - ind;
+                let step_untrusted_rule_ids =
+                  untrusted_session_rule_ids_for_step(step);
+                let lemma =
+                  step_untrusted_rule_ids == []
+                    ? single_step_export(
+                        lemma_index,
+                        step,
+                        forall_str,
+                        domain,
+                      )
+                    : untrusted_single_step_export(
+                        lemma_index,
+                        step,
+                        forall_str,
+                        domain,
+                        step_untrusted_rule_ids,
+                      );
+                (
+                  step_untrusted_rule_ids != [],
+                  lemma,
+                  CoqProofExport.invocation(lemma_index),
+                );
+              },
+              steps,
             );
-          let prelude =
-            switch (domain) {
-            | CoqExport.Reals => CoqProofExport.real_prelude
-            | CoqExport.Integers => CoqProofExport.prelude
+          let untrusted_lemmas =
+            lemmas_and_invocations
+            |> List.filter_map(
+                 fun
+                 | (true, lemma, _) => Some(lemma)
+                 | (false, _, _) => None,
+               );
+          let trusted_lemmas =
+            lemmas_and_invocations
+            |> List.filter_map(
+                 fun
+                 | (false, lemma, _) => Some(lemma)
+                 | (true, _, _) => None,
+               );
+          let invocations =
+            lemmas_and_invocations
+            |> List.map(((_, _, invocation)) => invocation);
+          let untrusted_section =
+            switch (untrusted_lemmas) {
+            | [] => ""
+            | lemmas =>
+              "\n(* BEGIN UNSOUND CUSTOM REWRITES\n"
+              ++ "   These lemmas came from user-provided session rewrites.\n"
+              ++ "   Replace every Admitted proof before relying on this development.\n"
+              ++ "   Rule ids: "
+              ++ String.concat(", ", untrusted_rule_ids)
+              ++ " *)\n"
+              ++ String.concat("\n", lemmas)
+              ++ "\n(* END UNSOUND CUSTOM REWRITES *)\n"
             };
-          Some(
-            Printf.sprintf(
-              "%s%s%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity.\nQed.",
-              prelude,
-              untrusted_section,
-              String.concat("\n", trusted_lemmas),
-              forall_str,
-              final_expr,
-              first_expr,
-              String.concat("\n", invocations),
-            ),
-          );
-        | None => None
+          let first_expr =
+            CoqExport.string_of_d_for_domain(~domain, first_exp);
+          switch (last_step.next_step) {
+          | Some(next) =>
+            let final_expr =
+              CoqExport.string_of_d_for_domain(
+                ~domain,
+                next.expr |> Calc.get_saved_exc,
+              );
+            let prelude =
+              switch (domain) {
+              | CoqExport.Reals => CoqProofExport.real_prelude
+              | CoqExport.Integers => CoqProofExport.prelude
+              };
+            Some(
+              Printf.sprintf(
+                "%s%s%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity.\nQed.",
+                prelude,
+                untrusted_section,
+                String.concat("\n", trusted_lemmas),
+                forall_str,
+                final_expr,
+                first_expr,
+                String.concat("\n", invocations),
+              ),
+            );
+          | None => None
+          };
         };
       };
     };
