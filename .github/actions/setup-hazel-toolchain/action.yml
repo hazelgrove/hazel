@@ -1,0 +1,83 @@
+name: Setup Hazel Toolchain
+description: >
+  Installs Node, OCaml 5.2.0, and Hazel's opam dependencies, and runs
+  setup-zarith so the native BigInt runtime is in place. Restores the _opam
+  switch from cache, and saves it only from dev or bot-update-deps so branch
+  runs cannot evict the entry they depend on.
+
+runs:
+  using: composite
+  steps:
+    - name: Install node/npm
+      uses: actions/setup-node@v4
+      with:
+        node-version: "latest"
+
+    - name: Install NPM dependencies
+      shell: bash
+      run: npm install
+
+    - name: Set-up OCaml
+      uses: ocaml/setup-ocaml@v3
+      with:
+        ocaml-compiler: 5.2.0
+        # dune-cache is deliberately off. setup-ocaml keys its dune cache on
+        # the run id, so the entry can never be an exact hit on a later run,
+        # yet ~1.7GB is uploaded every run. That churn is what evicts the
+        # _opam switch cache below (10GB repo-wide limit), turning a 5s
+        # dependency install into a 7min one. In-run caching is unaffected:
+        # DUNE_CACHE=enabled and DUNE_CACHE_ROOT still apply.
+        dune-cache: false
+
+    # Single-writer, many-reader. Only dev and the dependency-bump branch save
+    # the ~1GB switch; every other branch reads. Before this, all ~50 daily
+    # branch runs wrote the same key, blowing the 10GB repo cache limit and
+    # evicting the entry they were about to need.
+    - name: Retrieve the switch environment if cached
+      id: opam-cache-switch
+      uses: actions/cache/restore@v4
+      with:
+        path: "_opam"
+        key: ${{ runner.os }}-opam-${{ hashFiles('hazel.opam.locked') }}
+        # Warm start from any previous switch when the lockfile changed:
+        # opam install is incremental against a near-complete switch.
+        restore-keys: ${{ runner.os }}-opam-
+
+    - name: Add opam repository archive
+      shell: bash
+      run: |
+        eval $(opam env)
+        export OPAMYES=1
+        opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        eval $(opam env)
+        export OPAMYES=1
+        export DUNE_CACHE=enabled
+        opam install . --deps-only --with-test --locked
+
+    - name: Clean opam switch
+      shell: bash
+      run: |
+        eval $(opam env)
+        export OPAMYES=1
+        opam clean --all-switches --download-cache --logs --repo-cache --unused-repositories
+
+    # Explicit save rather than actions/cache's post hook, so it only runs once
+    # the switch is known good. cache-hit is only 'true' on an exact key match,
+    # so a restore-keys warm start still saves under the new lockfile hash --
+    # which is what makes a dependency bump self-healing.
+    - name: Save the switch environment to cache
+      if: >-
+        steps.opam-cache-switch.outputs.cache-hit != 'true' &&
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/bot-update-deps')
+      uses: actions/cache/save@v4
+      with:
+        path: "_opam"
+        key: ${{ runner.os }}-opam-${{ hashFiles('hazel.opam.locked') }}
+
+    - name: Setup zarith native BigInt runtime
+      shell: bash
+      run: opam exec -- make setup-zarith

@@ -1,18 +1,36 @@
 # General notes on github actions: Note that both the working directory
 # and environment variables generally are not shared between steps.
 name: Build and Deploy Hazel
-on: [push]
+on:
+  push:
+    # Merge-queue temp branches (gh-readonly-queue/<base>/pr-<n>-<sha>) must
+    # not deploy -- they would publish speculative merges to
+    # hazel.org/build/gh-readonly-queue/... This is what blocked a previous
+    # merge-queue rollout. See issue #2203.
+    branches-ignore:
+      - "gh-readonly-queue/**"
+
+# There is deliberately no pull_request trigger. A push to a branch with an
+# open PR emits both events, and since the quick suite is a strict subset of
+# the full one, the extra run would add no signal while paying for a second
+# toolchain setup. One push produces one run; the Test job picks which suite
+# to run based on whether the branch has an open PR.
 concurrency:
-  # Per-branch group so cross-branch deploys don't evict each other from
-  # the queue (a global group has queue depth 1, so a third concurrent
-  # run cancels whichever was queued). The push-retry loop in the deploy
-  # step handles the cross-branch race on hazelgrove/build's main ref.
-  # cancel-in-progress: true so a newer commit on the same branch
-  # supersedes an older in-flight build rather than deploying stale output.
-  group: deploy-to-build-repo-${{ github.ref }}
+  # Per-branch group so cross-branch runs don't evict each other from the queue
+  # (a global group has queue depth 1, so a third concurrent run cancels
+  # whichever was queued). The push-retry loop in the deploy step handles the
+  # cross-branch race on hazelgrove/build's main ref.
+  # cancel-in-progress: true so a newer commit on the same branch supersedes an
+  # older in-flight run rather than deploying stale output.
+  group: hazel-ci-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
+  # Branch previews are deliberately not gated on tests: a red suite should
+  # not stop you from looking at your branch. Tests run in parallel in Test.
   Deploy:
+    name: Deploy branch preview
+    if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
     runs-on: ubuntu-latest
     steps:
       # NOTE: position the below lines in the code between two steps
@@ -20,92 +38,30 @@ jobs:
       #- name: Debugging with ssh
       #  uses: lhotari/action-upterm@v1
       - name: Checkout the hazel repo on the current branch
-        uses: actions/checkout@v2
-        with:
-          path: source
+        uses: actions/checkout@v4
       - name: Add the name of the current branch to the environment as BRANCH_NAME
         uses: nelonoel/branch-name@v1.0.1
-      - name: Install node/npm
-        uses: actions/setup-node@v4
-        with:
-          node-version: "latest"
-      - name: Install NPM dependencies
-        run: npm install
-        working-directory: ./source
-      - name: Set-up OCaml
-        uses: ocaml/setup-ocaml@v3
-        with:
-          ocaml-compiler: 5.2.0
-          # dune-cache is deliberately off. setup-ocaml keys its dune cache on
-          # the run id, so the entry can never be an exact hit on a later run,
-          # yet ~1.7GB is uploaded every run. That churn is what evicts the
-          # _opam switch cache below (10GB repo-wide limit), turning a 5s
-          # dependency install into a 7min one. In-run caching is unaffected:
-          # DUNE_CACHE=enabled and DUNE_CACHE_ROOT still apply.
-          dune-cache: false
-      # Single-writer, many-reader. Only dev and the dependency-bump branch
-      # save the ~1GB switch; every other branch reads. Before this, all ~50
-      # daily branch runs wrote the same key, blowing the 10GB repo cache
-      # limit and evicting the entry they were about to need.
-      - name: Retrieve the switch environment if cached
-        id: opam-cache-switch
-        uses: actions/cache/restore@v4
-        with:
-          path: "_opam"
-          key: ${{ runner.os }}-opam-${{ hashFiles('./source/hazel.opam.locked') }}
-          # Warm start from any previous switch when the lockfile changed:
-          # opam install is incremental against a near-complete switch.
-          restore-keys: ${{ runner.os }}-opam-
-      - name: Add opam repository archive
-        run: |
-          eval $(opam env)
-          export OPAMYES=1
-          opam repo add archive git+https://github.com/ocaml/opam-repository-archive
-      - name: Install dependencies
-        run: |
-          eval $(opam env)
-          export OPAMYES=1
-          export DUNE_CACHE=enabled
-          opam install . --deps-only --with-test --locked
-        working-directory: ./source
-      - name: Clean opam switch
-        run: |
-          eval $(opam env)
-          export OPAMYES=1
-          opam clean --all-switches --download-cache --logs --repo-cache --unused-repositories
-      # Explicit save rather than actions/cache's post hook, so it only runs
-      # once the switch is known good. cache-hit is only 'true' on an exact key
-      # match, so a restore-keys warm start still saves under the new lockfile
-      # hash -- which is what makes a dependency bump self-healing.
-      - name: Save the switch environment to cache
-        if: >-
-          steps.opam-cache-switch.outputs.cache-hit != 'true' &&
-          (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/bot-update-deps')
-        uses: actions/cache/save@v4
-        with:
-          path: "_opam"
-          key: ${{ runner.os }}-opam-${{ hashFiles('./source/hazel.opam.locked') }}
-      - name: Setup zarith native BigInt runtime
-        run: opam exec -- make setup-zarith
-        working-directory: ./source
+      - uses: ./.github/actions/setup-hazel-toolchain
+      # No @src/fmt here: it used to be built with --auto-promote, so the
+      # reformatting was written into a throwaway checkout and discarded. The
+      # Test job now checks formatting for real.
       - name: Build Release
         run: |
           export DUNE_CACHE=enabled
-          opam exec -- dune build @src/fmt --auto-promote src --profile release
-        working-directory: ./source
+          opam exec -- dune build src --profile release
       - name: Checkout the website build artifacts repo
         uses: actions/checkout@v4
         with:
           repository: hazelgrove/build
           token: ${{ secrets.ACCESS_TOKEN }}
-          path: server
+          path: build-target
           sparse-checkout: |
             ${{ env.BRANCH_NAME }}
       - name: Clear any old build of this branch
         run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi
-        working-directory: ./server
+        working-directory: ./build-target
       - name: Copy in the newly built source
-        run: mkdir -p "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/web/www"/* "./server/${BRANCH_NAME}"
+        run: mkdir -p "./build-target/${BRANCH_NAME}" && cp -r "./_build/default/src/web/www"/* "./build-target/${BRANCH_NAME}"
       - name: Commit to the website aka deploy
         run: |
           git config user.name github-deploy-action
@@ -126,15 +82,54 @@ jobs:
           done
           echo "Push failed after 10 attempts"
           exit 1
-        working-directory: ./server
-      - name: Run Tests
-        id: test
+        working-directory: ./build-target
+
+  Test:
+    name: Test
+    runs-on: ubuntu-latest
+    permissions:
+      # For the open-PR lookup below.
+      pull-requests: read
+    steps:
+      - name: Checkout the hazel repo on the current branch
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-hazel-toolchain
+      # The full suite is ~14min, most of it Slow-tagged QCheck property tests.
+      # Worth paying on dev and on anything under review; not worth paying on
+      # every push to a scratch branch nobody is reading yet. The PR number is
+      # captured here too so Codecov can attribute coverage to the PR -- on a
+      # push event github.event.number is empty.
+      - name: Is the full suite warranted?
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          eval $(opam env)
-          make ci
-        working-directory: ./source
+          pr=$(gh pr list --head "$GITHUB_REF_NAME" --state open --json number --jq 'first.number // empty')
+          echo "pr=${pr}" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then
+            echo "Ref is dev; running the full suite."
+            echo "full=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$pr" ]; then
+            echo "Branch has open PR #${pr}; running the full suite."
+            echo "full=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No open PR for this branch; running the quick suite only."
+            echo "full=false" >> "$GITHUB_OUTPUT"
+          fi
+      # Fails on violation rather than auto-promoting, so a misformatted commit
+      # is reported instead of silently rewritten in a throwaway checkout.
+      - name: Check formatting
+        run: opam exec -- dune build @src/fmt @test/fmt --profile dev
+      - name: Run quick tests
+        if: steps.scope.outputs.full != 'true'
+        run: opam exec -- make ci-quick
+        timeout-minutes: 20
+      - name: Run full tests
+        if: steps.scope.outputs.full == 'true'
+        run: opam exec -- make ci
         timeout-minutes: 20
       - name: Test Report
+        if: always() && steps.scope.outputs.full == 'true'
         uses: dorny/test-reporter@v1
         with:
           name: Test Report
@@ -142,10 +137,9 @@ jobs:
           reporter: java-junit
           fail-on-error: true
           fail-on-empty: true # Use an empty test report to detect when something failed with the test runner
-          working-directory: ./source
       - name: Send coverage report to Codecov
+        if: steps.scope.outputs.full == 'true'
         run: opam exec -- bisect-ppx-report send-to Codecov --verbose
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-          PULL_REQUEST_NUMBER: ${{ github.event.number }}
-        working-directory: ./source
+          PULL_REQUEST_NUMBER: ${{ steps.scope.outputs.pr }}

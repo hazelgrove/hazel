@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean setup-zarith ci ci-quick
 
 all: dev
 
@@ -87,10 +87,22 @@ coverage:
 	dune runtest --instrument-with bisect_ppx --force
 	bisect-ppx-report summary
 
+# The CI entry points. Unlike `test` / `test-quick` these never --auto-promote:
+# in CI a formatting or expect-test violation should be reported, not silently
+# rewritten into a checkout that gets thrown away.
+#
+# There is deliberately no `dune build --profile dev` here. It used to precede
+# the instrumented runtest, but dev is the *lax* profile (`-warn-error -A`, see
+# the (env) stanzas in src/*/dune) while release is strict, so it caught nothing
+# the release build misses, and `dune runtest` builds its own dependencies.
 ci: setup-zarith
-	dune build --profile dev
 	dune runtest --instrument-with bisect_ppx --force
-	
+
+# @test-quick runs the suite under alcotest's -q filter, skipping the
+# Slow-tagged QCheck property tests that dominate the full suite's runtime.
+ci-quick: setup-zarith
+	dune build @test-quick --profile dev
+
 generate-coverage-html:
 	bisect-ppx-report html
 
