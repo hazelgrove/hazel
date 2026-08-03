@@ -745,18 +745,22 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 
-let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+/* ~expand restricts which alias names get expanded (default: all). Used
+   by module lowering to expand only module-LOCAL aliases when a member
+   type escapes its scope, keeping global/builtin aliases compact. */
+let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t => {
   if (rec_counter > 1000) {
     failwith("normalize exceeded 1000 recursive calls");
   };
-  let normalize = normalize(~rec_counter=rec_counter + 1);
+  let normalize = normalize(~rec_counter=rec_counter + 1, ~expand);
   let (term, rewrap) = unwrap(ty);
   switch (term) {
-  | Var(x) =>
+  | Var(x) when expand(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => normalize(ctx, ty)
     | None => ty
     }
+  | Var(_) => ty
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)
@@ -834,6 +838,15 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 
+/* Structural canonicalization WITHOUT alias expansion: desugars Sig,
+   computes tuple projections/extensions, dedups labels, strips wrapper
+   noise — but leaves every alias compact. This is the right form for
+   types EMBEDDED into elaborations (ascriptions, recorded elab_syn_ty):
+   they only need to be resolvable in ctx, and expanding them is what
+   made HTML-typed programs quadratically slow downstream. */
+let canonicalize = (ctx: Ctx.t, ty: t): t =>
+  normalize(~expand=_ => false, ctx, ty);
+
 /* Targeted Sig desugaring: Only converts Sig nodes to Prod (labeled tuples),
    preserving Parens and everything else. Use this instead of normalize when
    you need to desugar Sig types without stripping Parens wrappers. */
@@ -884,6 +897,110 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
 /* Lattice meet on types. This was called 'join' in the 2019 Hazelnut live paper,
    but we're now calling it 'meet' to clarify that Unknown represents the top
    (least precise) element in the precision ordering: specific types dominate Unknown. */
+
+/* [has_fun] with lazy alias resolution: resolves Var heads on demand
+   instead of pre-normalizing the whole type. Rec binders shadow their
+   name, so bound occurrences don't re-expand through the outer context. */
+let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
+  let rec go = (~depth, ctx: Ctx.t, ty: t): bool =>
+    depth > 256
+      ? false
+      : (
+        switch (term_of(ty)) {
+        | Parens(t)
+        | Projector(_, t)
+        | TupLabel(_, t)
+        | ProdProjection(t, _) => go(~depth=depth + 1, ctx, t)
+        | Arrow(_)
+        | Poly(_)
+        | ProofOf(_) => true
+        | Var(x) =>
+          switch (Ctx.lookup_alias(ctx, x)) {
+          | Some(t) => go(~depth=depth + 1, ctx, t)
+          | None => false
+          }
+        | Unknown(_)
+        | Atom(_)
+        | DrvQuoteTy(_)
+        | Label(_)
+        | Sig(_)
+        | ExplicitNonlabel => false
+        | List(t) => go(~depth=depth + 1, ctx, t)
+        | Rec(tp, t) =>
+          go(~depth=depth + 1, Ctx.extend_dummy_tvar(ctx, tp), t)
+        | Sum(sm) =>
+          List.exists(
+            fun
+            | ConstructorMap.Variant(_, _, Some(t)) =>
+              go(~depth=depth + 1, ctx, t)
+            | _ => false,
+            sm,
+          )
+        | Prod(tys) => List.exists(go(~depth=depth + 1, ctx), tys)
+        | ProdExtension(t1, t2) =>
+          go(~depth=depth + 1, ctx, t1) || go(~depth=depth + 1, ctx, t2)
+        }
+      );
+  go(~depth=0, ctx, ty);
+};
+
+/* Equality up to alias expansion, WITHOUT deep normalization: the decision
+   procedure for `fast_equal(normalize(ctx, a), normalize(ctx, b))` that
+   expands alias heads lazily, only where the comparison actually reaches
+   them (the OCaml/GHC discipline: peel one layer on demand; a compact
+   `Var("HTML")` meeting itself or its own expansion never unrolls the sum).
+   Heads are resolved with weak_head_normalize; Rec/Poly binders shadow
+   their name via a dummy tvar exactly as normalize does, so bound
+   occurrences don't re-expand through the outer context.
+   Two conservative divergences from the normalize-then-compare original,
+   both returning false where it might have said true (callers use the
+   result to decide ascription-wrapping/marks, where a false negative is
+   safe): alpha-differing binders are not renamed, and comparisons deeper
+   than the recursion cap report unequal rather than failing. */
+let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
+  let rec go = (~depth, ctx: Ctx.t, a: t, b: t): bool =>
+    if (depth > 256) {
+      false;
+    } else if (a === b || fast_equal(a, b)) {
+      true;
+    } else {
+      let go = go(~depth=depth + 1);
+      let head = ty => {
+        let ty = weak_head_normalize(ctx, ty);
+        switch (term_of(ty)) {
+        | Sig(_) => desugar_sig(ctx, ty)
+        | _ => ty
+        };
+      };
+      let a = head(a);
+      let b = head(b);
+      switch (term_of(a), term_of(b)) {
+      | (Var(n1), Var(n2)) => n1 == n2 /* both unresolvable in ctx */
+      | (List(x), List(y)) => go(ctx, x, y)
+      | (Arrow(x1, y1), Arrow(x2, y2)) =>
+        go(ctx, x1, x2) && go(ctx, y1, y2)
+      | (Prod(xs), Prod(ys)) =>
+        List.length(xs) == List.length(ys)
+        && List.for_all2(go(ctx), xs, ys)
+      | (TupLabel(l1, x), TupLabel(l2, y)) =>
+        fast_equal(l1, l2) && go(ctx, x, y)
+      | (Sum(xs), Sum(ys)) => ConstructorMap.equal(go(ctx), xs, ys)
+      | (Rec(tp1, x), Rec(tp2, y))
+      | (Poly(tp1, x), Poly(tp2, y)) =>
+        switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
+        | (Some(n1), Some(n2)) when n1 == n2 =>
+          go(Ctx.extend_dummy_tvar(ctx, tp1), x, y)
+        | _ => fast_equal(a, b)
+        }
+      /* Atoms, Unknowns, Labels, and anything alias-free: fast_equal
+         already said false above, and heads are now alias-resolved, so
+         differing constructors are genuinely unequal. */
+      | _ => false
+      };
+    };
+  go(~depth=0, ctx, a, b);
+};
+
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
   if (ty1 === ty2) {
     Some(ty1);

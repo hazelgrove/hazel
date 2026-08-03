@@ -413,9 +413,7 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
        Equal types normalize equally, and in practice the two sides are the
        same type — 85-100% of calls across the example programs. */
     | Some(ty) when Typ.fast_equal(ty, t) => d
-    | Some(ty)
-        when !Typ.fast_equal(Typ.normalize(ctx, ty), Typ.normalize(ctx, t)) =>
-      asc(d, ty)
+    | Some(ty) when !Typ.equal_up_to_aliases(ctx, ty, t) => asc(d, ty)
     | _ => d
     }
   );
