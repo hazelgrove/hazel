@@ -38,7 +38,12 @@ let delete = (d: Direction.t, z: t): option(t) => {
  * its content character-by-character, as if the user had typed it.
  * This is the inverse of selection wrapping for quote delimiters. */
 let unwrap_quote = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
-  let content = String.sub(t, 1, String.length(t) - 2);
+  let content =
+    if (Token.is_raw_string(t)) {
+      Token.strip_raw_quotes(t);
+    } else {
+      String.sub(t, 1, String.length(t) - 2);
+    };
   let+ z = delete(d, z);
   if (String.length(content) == 0) {
     z;

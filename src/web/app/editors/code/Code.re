@@ -14,61 +14,78 @@ let is_ref = (token: string, sort: Sort.t) =>
   && Token.is_typ_var(token);
 
 let render_string_with_escapes =
-    (~font_metrics: FontMetrics.t, token: string): list(t) => {
-  let body = Token.strip_quotes(token);
+    (~font_metrics: FontMetrics.t, ~is_raw: bool=false, token: string)
+    : list(t) => {
+  let body =
+    if (is_raw) {
+      Token.strip_raw_quotes(token);
+    } else {
+      Token.strip_quotes(token);
+    };
   let len = String.length(body);
 
-  let rec split =
-          (i: int, acc: list((bool, string))): list((bool, string)) =>
-    if (i >= len) {
-      List.rev(acc);
-    } else if (body.[i] != '\\') {
-      let j = ref(i);
-      while (j.contents < len && body.[j.contents] != '\\') {
-        j := j.contents + 1;
-      };
-      let piece = String.sub(body, i, j.contents - i);
-      split(j.contents, [(false, piece), ...acc]);
-    } else if
-      /* body.[i] == '\\' */
-      (i + 1 >= len) {
-      split(i + 1, [(true, "\\"), ...acc]);
-    } else if (body.[i + 1] == 'u' && i + 2 < len && body.[i + 2] == '{') {
-      let k = ref(i + 3);
-      while (k.contents < len && body.[k.contents] != '}') {
-        k := k.contents + 1;
-      };
-      let esc =
-        if (k.contents < len) {
-          String.sub(body, i, k.contents - i + 1);
-        } else {
-          String.sub(body, i, len - i);
+  /* For raw strings, don't parse escape sequences */
+  if (is_raw) {
+    let open_q = text("r\"");
+    let close_q = text("\"");
+    let inner_nodes = GraphemeView.render(~font_metrics, body);
+    [open_q, ...inner_nodes] @ [close_q];
+  } else {
+    let rec split =
+            (i: int, acc: list((bool, string))): list((bool, string)) =>
+      if (i >= len) {
+        List.rev(acc);
+      } else if (body.[i] != '\\') {
+        let j = ref(i);
+        while (j.contents < len && body.[j.contents] != '\\') {
+          j := j.contents + 1;
         };
-      split(k.contents < len ? k.contents + 1 : len, [(true, esc), ...acc]);
-    } else if (body.[i + 1] == 'x' && i + 3 < len) {
-      let esc = String.sub(body, i, 4); /* \xNN */
-      split(i + 4, [(true, esc), ...acc]);
-    } else {
-      let esc = String.sub(body, i, 2); /* backslash + next char */
-      split(i + 2, [(true, esc), ...acc]);
-    };
+        let piece = String.sub(body, i, j.contents - i);
+        split(j.contents, [(false, piece), ...acc]);
+      } else if
+        /* body.[i] == '\\' */
+        (i + 1 >= len) {
+        split(i + 1, [(true, "\\"), ...acc]);
+      } else if (body.[i + 1] == 'u' && i + 2 < len && body.[i + 2] == '{') {
+        let k = ref(i + 3);
+        while (k.contents < len && body.[k.contents] != '}') {
+          k := k.contents + 1;
+        };
+        let esc =
+          if (k.contents < len) {
+            String.sub(body, i, k.contents - i + 1);
+          } else {
+            String.sub(body, i, len - i);
+          };
+        split(
+          k.contents < len ? k.contents + 1 : len,
+          [(true, esc), ...acc],
+        );
+      } else if (body.[i + 1] == 'x' && i + 3 < len) {
+        let esc = String.sub(body, i, 4); /* \xNN */
+        split(i + 4, [(true, esc), ...acc]);
+      } else {
+        let esc = String.sub(body, i, 2); /* backslash + next char */
+        split(i + 2, [(true, esc), ...acc]);
+      };
 
-  let pieces = split(0, []);
+    let pieces = split(0, []);
 
-  let open_q = text("\"");
-  let close_q = text("\"");
+    let open_q = text("\"");
+    let close_q = text("\"");
 
-  let inner_nodes =
-    pieces
-    |> List.concat_map(((is_esc, s)) =>
-         if (is_esc) {
-           [span(~attrs=[Attr.classes(["escape"])], [text(s)])];
-         } else {
-           GraphemeView.render(~font_metrics, s);
-         }
-       );
+    let inner_nodes =
+      pieces
+      |> List.concat_map(((is_esc, s)) =>
+           if (is_esc) {
+             [span(~attrs=[Attr.classes(["escape"])], [text(s)])];
+           } else {
+             GraphemeView.render(~font_metrics, s);
+           }
+         );
 
-  [open_q, ...inner_nodes] @ [close_q];
+    [open_q, ...inner_nodes] @ [close_q];
+  };
 };
 
 let of_delim' =
@@ -114,7 +131,12 @@ let of_delim' =
         base_cls == "string-lit"
           ? render_string_with_escapes(~font_metrics, token)
           : base_cls == "raw-string-lit"
-              ? GraphemeView.render(~font_metrics, token) : [text(token)],
+              ? render_string_with_escapes(
+                  ~font_metrics,
+                  ~is_raw=true,
+                  token,
+                )
+              : [text(token)],
       );
     },
   );
