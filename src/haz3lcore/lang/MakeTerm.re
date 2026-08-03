@@ -989,8 +989,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | ([t], []) when Token.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Token.is_bool(t) =>
         ret(Atom(Bool(bool_of_string(t))))
-      | ([t], []) when Token.is_float(t) =>
-        ret(Atom(Float(float_of_string(t))))
+      | ([t], []) when Token.is_float(t) => ret(Atom(Decimal(t)))
       | ([t], []) when Token.is_int(t) =>
         ret(Atom(Int(Bigint.of_string(t))))
       | ([t], []) when Token.is_string(t) =>

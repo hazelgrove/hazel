@@ -296,7 +296,8 @@ let compare_of_cls: cls => option(compare_entry) =
   | SInt => Some(Cmp(SInt, Int.compare))
   | Nat => Some(Cmp(Nat, Bigint.compare))
   | Float => Some(Cmp(Float, Float.compare))
-  | Real => Some(Cmp(Real, Real.compare))
+  /* Symbolic reals such as pi do not yet have a sound total comparator. */
+  | Real => None
   | String => Some(Cmp(String, String.compare))
   | Bool => None;
 

@@ -659,13 +659,27 @@ and uexp_to_info_map =
       )
     | Var(name) =>
       let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
+      let wants_real =
+        ctx.use_mode == Some(Real)
+        || (
+          switch (Typ.normalize(ctx, ana).term) {
+          | Atom(Real) => true
+          | _ => false
+          }
+        );
 
       let (syn_v, marks_v) =
         switch (Ctx.lookup_var(ctx, name)) {
         | None => (SynTy.unknown_internal(), [Mark.Free(name)])
         | Some({custom_statics: Some(NumericConstantOverload(atom)), _})
-            when ctx.use_mode == Some(Real) => (
+            when wants_real => (
             Atom(Atom.cls_of_t(atom)) |> Typ.temp,
+            [],
+          )
+        | Some({custom_statics: Some(NumericOverload), _})
+            when ctx.use_mode == Some(Real) => (
+            Arrow(Atom(Real) |> Typ.temp, Atom(Real) |> Typ.temp)
+            |> Typ.temp,
             [],
           )
         | Some({custom_statics: Some(NumericOverload), _} as var) =>
@@ -679,10 +693,10 @@ and uexp_to_info_map =
         | Some(var) => (var.typ, [])
         };
       let elab_term =
-        switch (Ctx.lookup_var(ctx, name), ctx.use_mode) {
+        switch (Ctx.lookup_var(ctx, name), wants_real) {
         | (
             Some({custom_statics: Some(NumericConstantOverload(atom)), _}),
-            Some(Real),
+            true,
           ) =>
           Atom(atom) |> rewrap
         | _ => Var(name) |> rewrap
@@ -739,6 +753,16 @@ and uexp_to_info_map =
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
           ~elab_syn_ty=ty_out,
+          ~marks=[],
+          ~co_ctx=e.co_ctx,
+          ~probe_targets=e.probe_targets,
+          m,
+        );
+      | PartialExactUn(ty_in, ty_out, _) =>
+        let (e, e_elab, m) = go(~ana=Atom(ty_in) |> Typ.temp, e, m);
+        add(
+          ~elab_term=UnOp(op, e_elab) |> rewrap,
+          ~elab_syn_ty=Atom(ty_out) |> Typ.temp,
           ~marks=[],
           ~co_ctx=e.co_ctx,
           ~probe_targets=e.probe_targets,
@@ -1652,7 +1676,14 @@ and uexp_to_info_map =
           switch (fn.term) {
           | Var(v) =>
             Ctx.lookup_var(ctx, v)
-            |> Option.bind(_, (e: Ctx.var_entry) => e.custom_statics)
+            |> Option.bind(_, (e: Ctx.var_entry) =>
+                 switch (e.custom_statics) {
+                 /* Constants use their custom statics when the variable itself
+                  * is elaborated, but they are not custom function calls. */
+                 | Some(NumericConstantOverload(_)) => None
+                 | custom_statics => custom_statics
+                 }
+               )
           | _ => None
           };
 
@@ -1671,18 +1702,18 @@ and uexp_to_info_map =
             }
           | None => Arrow(syn, syn) |> Typ.temp
           };
-        let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
+        let custom_ctx =
+          switch (custom_statics, Typ.normalize(ctx, ana).term) {
+          | (Some(NumericOverload), Atom(Real)) =>
+            Ctx.set_use_mode(ctx, Some(Real))
+          | _ => ctx
+          };
+        let (fn, fn_elab, m) = go(~ctx=custom_ctx, ~ana=fn_ana, fn, m);
         switch (custom_statics) {
         | Some(kind) =>
-          let ctx =
-            switch (kind, Typ.normalize(ctx, ana).term) {
-            | (NumericOverload, Atom(Real)) =>
-              Ctx.set_use_mode(ctx, Some(Real))
-            | _ => ctx
-            };
           CustomStatics.custom_statics_ap(
             ~annotation=uexp.annotation,
-            ~ctx,
+            ~ctx=custom_ctx,
             ~ancestors=ancestors_inclusive,
             ~fn_info=fn,
             kind,
@@ -1695,7 +1726,7 @@ and uexp_to_info_map =
              }),
             m,
             arg,
-          );
+          )
         | None =>
           let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
           let (arg, arg_elab, m) = go(~ana=ty_in, arg, m);

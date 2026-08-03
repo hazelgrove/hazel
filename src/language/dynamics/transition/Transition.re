@@ -860,6 +860,28 @@ module Transition = (EV: EV_MODE) => {
       and. d1' = req_final(req(env), d1 => UnOp(op, d1) |> wrap_ctx, d1);
       switch (Operators.semantics_of_un_op(op)) {
       | Undefined(_) => Indet
+      | PartialExactUn(_, _, f) =>
+        switch (DHExp.term_of(d1')) {
+        | Atom(atom) =>
+          switch (f(atom)) {
+          | None => Indet
+          | Some(Either.L(value)) =>
+            Step({
+              expr: generated(Atom(value)),
+              side_effects: [],
+              kind: UnOp(op),
+              is_value: true,
+            })
+          | Some(Either.R(error)) =>
+            Step({
+              expr: dynamic_error_hole(UnOp(op, d1) |> rewrap, error),
+              side_effects: [],
+              kind: UnOp(op),
+              is_value: true,
+            })
+          }
+        | _ => Indet
+        }
       | Defined(in_ty, out_ty, f) =>
         let-unbox n = (Atom(in_ty), d1');
         let expr =

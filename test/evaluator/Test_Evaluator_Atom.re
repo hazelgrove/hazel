@@ -35,6 +35,35 @@ let tests = (
           real(Real.normalize(Bigint.of_int(15), Bigint.of_int(4), None)),
           elaborate(parse_exp({|use Real in 1.25 + 2.5|})),
         );
+        evaluation_test(
+          "Real decimal arithmetic does not round through Float",
+          real(Real.normalize(Bigint.of_int(3), Bigint.of_int(10), None)),
+          elaborate(parse_exp({|use Real in 0.1 + 0.2|})),
+        );
+        evaluation_test(
+          "Real non-terminating division",
+          real(Real.normalize(Bigint.one, Bigint.of_int(3), None)),
+          elaborate(parse_exp({|use Real in 1 / 3|})),
+        );
+        evaluation_test(
+          "Real negative exponent",
+          real(Real.normalize(Bigint.one, Bigint.of_int(8), None)),
+          elaborate(parse_exp({|use Real in 2 ** -3|})),
+        );
+        evaluation_test(
+          "Real pi constant",
+          real(Real.Pi),
+          elaborate(parse_exp({|use Real in pi|})),
+        );
+        evaluation_test(
+          "Negated pi remains symbolic",
+          un_op(Operators.Real(Minus), real(Real.Pi)),
+          elaborate(parse_exp({|use Real in -pi|})),
+        );
+        parse_and_evaluate_test(
+          "true",
+          {|use Real in case 1.25 | 1.25 => true | _ => false end|},
+        );
       },
     ),
     test_case(

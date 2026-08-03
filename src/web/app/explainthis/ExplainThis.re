@@ -815,8 +815,7 @@ let get_doc =
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
       | Atom(Float(f)) => get_message(TerminalExp.float_exps(f))
-      | Atom(Decimal(s)) =>
-        get_message(TerminalExp.float_exps(float_of_string(s)))
+      | Atom(Decimal(s)) => get_message(TerminalExp.decimal_exps(s))
       | Atom(Real(r)) => simple("Exact real number " ++ Real.to_literal(r))
       | Atom(String(s)) => get_message(TerminalExp.string_exps(s))
       | Atom(Nat(i)) => get_message(TerminalExp.nat_exps(i))

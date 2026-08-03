@@ -69,16 +69,20 @@ let equal = (a, b) =>
   | _ => false
   };
 
-let compare = (a, b) =>
+/* Pi is intentionally symbolic, so comparisons involving it are not currently
+ * decidable by this representation. Keep comparison partial rather than
+ * inventing an ordering that disagrees with the mathematical reals. */
+let compare_rationals = (a, b) =>
   switch (a, b) {
   | (Rational(a), Rational(b)) =>
-    Bigint.compare(
-      Bigint.(a.numerator * b.denominator),
-      Bigint.(b.numerator * a.denominator),
+    Some(
+      Bigint.compare(
+        Bigint.(a.numerator * b.denominator),
+        Bigint.(b.numerator * a.denominator),
+      ),
     )
-  | (Pi, Pi) => 0
-  | (Rational(_), Pi) => (-1)
-  | (Pi, Rational(_)) => 1
+  | (Pi, _)
+  | (_, Pi) => None
   };
 
 let add = (a, b) =>
@@ -166,23 +170,18 @@ let div = (a, b) =>
 let neg =
   fun
   | Rational(r) =>
-    Rational({
-      ...r,
-      numerator: Bigint.neg(r.numerator),
-      spelling: None,
-    })
-  | Pi => Pi;
+    Some(
+      Rational({
+        ...r,
+        numerator: Bigint.neg(r.numerator),
+        spelling: None,
+      }),
+    )
+  | Pi => None;
 
 let rec factor_out = (n, factor) =>
   Bigint.equal(Bigint.rem(n, factor), Bigint.zero)
     ? factor_out(Bigint.(/)(n, factor), factor) : n;
-
-let is_terminating =
-  fun
-  | Pi => false
-  | Rational({denominator, _}) =>
-    factor_out(factor_out(denominator, Bigint.of_int(2)), Bigint.of_int(5))
-    |> Bigint.equal(Bigint.one);
 
 let to_literal =
   fun

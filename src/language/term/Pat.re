@@ -70,7 +70,7 @@ let show_cls: cls => string =
   | Wild => "Wildcard"
   | ExplicitNonlabel => "Explicitly unlabeled entry"
   | Atom(Int) => "Number literal"
-  | Atom(Float) => "Float literal"
+  | Atom(Float) => "Decimal literal"
   | Atom(Real) => "Real literal"
   | Atom(Bool) => "Boolean literal"
   | Atom(String) => "String literal"

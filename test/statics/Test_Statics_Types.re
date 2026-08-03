@@ -458,6 +458,34 @@ let tests = (
   "Statics.Types",
   [
     fully_consistent_typecheck(
+      "Real arithmetic synthesizes Real",
+      {|use Real in 0.1 + 0.2|},
+      Some(FTemp.Typ.real()),
+    ),
+    fully_consistent_typecheck(
+      "Numeric builtin overload synthesizes Real",
+      {|use Real in sqrt(4)|},
+      Some(FTemp.Typ.real()),
+    ),
+    fully_consistent_typecheck(
+      "Expected Real type selects exact pi",
+      {|pi : Real|},
+      Some(FTemp.Typ.real()),
+    ),
+    test_case(
+      "Exact pi is not treated as a custom function",
+      `Quick,
+      () => {
+        let exp = parse_exp({|use Real in pi(1)|});
+        check(
+          bool,
+          "applying pi reports a static error",
+          true,
+          errors(statics(exp)) != [],
+        );
+      },
+    ),
+    fully_consistent_typecheck(
       "Type alias works for typfun variable",
       {|typfun a -> fun y ->
   let x :a =  ? in

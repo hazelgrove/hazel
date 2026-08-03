@@ -283,7 +283,7 @@ nonAscriptingPat:
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
     | p = IDENT { VarPat(p) }
     | i = INT { AtomPat (Int (Bigint.of_int i)) }
-    | f = FLOAT { AtomPat (Float (float_of_string f)) }
+    | f = FLOAT { AtomPat (Decimal f) }
     | s = STRING { AtomPat (String s)}
     | TRUE {AtomPat (Bool true)}
     | FALSE {AtomPat (Bool false)}

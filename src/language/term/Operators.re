@@ -330,6 +330,11 @@ type un_semantics =
       'a => Either.t('b, InvalidOperationError.t),
     )
     : un_semantics
+  | PartialExactUn(
+      Atom.cls,
+      Atom.cls,
+      Atom.t => option(Either.t(Atom.t, InvalidOperationError.t)),
+    )
   | Undefined(string);
 
 let just = (f, x) => Either.L(f(x));
@@ -337,7 +342,17 @@ let just = (f, x) => Either.L(f(x));
 let semantics_of_un_op = (op: op_un): un_semantics =>
   switch (op) {
   | Int(Minus) => Defined(Int, Int, just(Bigint.neg))
-  | Real(Minus) => Defined(Real, Real, just(Real.neg))
+  | Real(Minus) =>
+    PartialExactUn(
+      Real,
+      Real,
+      atom =>
+        switch (atom) {
+        | Atom.Real(real) =>
+          Real.neg(real) |> Option.map(real => Either.L(Atom.Real(real)))
+        | _ => None
+        },
+    )
   | Float(Minus) => Defined(Float, Float, just(x => -. x))
   | SInt(Minus) => Defined(SInt, SInt, just(x => - x))
   | Nat(Minus) => Undefined("Cannot negate a natural number")
@@ -435,9 +450,7 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
         | (Atom.Real(a), Atom.Real(b)) =>
           switch (Real.div(a, b)) {
           | None => None
-          | Some(Ok(x)) when Real.is_terminating(x) =>
-            Some(Either.L(Atom.Real(x)))
-          | Some(Ok(_)) => None
+          | Some(Ok(x)) => Some(Either.L(Atom.Real(x)))
           | Some(Error(error)) => Some(Either.R(error))
           }
         | _ => None
@@ -454,7 +467,8 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
             Atom.Real(Real.Rational(_) as a),
             Atom.Real(Real.Rational(_) as b),
           ) =>
-          Some(Either.L(Atom.Bool(Real.compare(a, b) < 0)))
+          Real.compare_rationals(a, b)
+          |> Option.map(order => Either.L(Atom.Bool(order < 0)))
         | _ => None
         },
     )
@@ -469,7 +483,8 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
             Atom.Real(Real.Rational(_) as a),
             Atom.Real(Real.Rational(_) as b),
           ) =>
-          Some(Either.L(Atom.Bool(Real.compare(a, b) <= 0)))
+          Real.compare_rationals(a, b)
+          |> Option.map(order => Either.L(Atom.Bool(order <= 0)))
         | _ => None
         },
     )
@@ -484,7 +499,8 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
             Atom.Real(Real.Rational(_) as a),
             Atom.Real(Real.Rational(_) as b),
           ) =>
-          Some(Either.L(Atom.Bool(Real.compare(a, b) > 0)))
+          Real.compare_rationals(a, b)
+          |> Option.map(order => Either.L(Atom.Bool(order > 0)))
         | _ => None
         },
     )
@@ -499,7 +515,8 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
             Atom.Real(Real.Rational(_) as a),
             Atom.Real(Real.Rational(_) as b),
           ) =>
-          Some(Either.L(Atom.Bool(Real.compare(a, b) >= 0)))
+          Real.compare_rationals(a, b)
+          |> Option.map(order => Either.L(Atom.Bool(order >= 0)))
         | _ => None
         },
     )

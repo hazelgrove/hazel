@@ -211,6 +211,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       }
     | (UnOp(un_op, _), _) =>
       switch (Operators.semantics_of_un_op(un_op)) {
+      | PartialExactUn(_, ty_out, _)
+          when Typ.is_consistent(Ctx.empty, t, Atom(ty_out) |> Typ.temp) =>
+        Some(e)
       | Defined(_, ty_out, _)
           when
             Typ.is_consistent(
@@ -220,6 +223,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
             ) =>
         Some(e)
       | Undefined(_)
+      | PartialExactUn(_)
       | Defined(_) => None
       }
     | (ListConcat(d1, d2), List(_)) =>

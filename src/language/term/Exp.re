@@ -154,7 +154,7 @@ let show_cls: cls => string =
   | Deferral => "Deferral"
   | Undefined => "Undefined expression"
   | Atom(Int) => "Number literal"
-  | Atom(Float) => "Float literal"
+  | Atom(Float) => "Decimal literal"
   | Atom(Real) => "Real literal"
   | Atom(Bool) => "Boolean literal"
   | Atom(String) => "String literal"
