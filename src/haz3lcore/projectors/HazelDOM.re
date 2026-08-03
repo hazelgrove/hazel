@@ -94,12 +94,49 @@ let on_mouse = (mvu: t, handler, evt) => {
   on_payload(mvu, "mouse", handler, mouse_event);
 };
 
-/* Click position relative to the element, as an (x, y) int pair — what a
-   widget needs to interpret a click on its own surface (clientX/clientY in
-   MouseEvent can't be, since Hazel code can't learn the element's origin). */
-let on_click_at = (mvu: t, handler, evt) => {
-  let pos = Exp.tuple([Exp.int(evt##.offsetX), Exp.int(evt##.offsetY)]);
-  on_payload(mvu, "click-at", handler, pos);
+/* Pointer position relative to the element the handler is attached to, as
+   an (x, y) int pair — what a widget needs to interpret events on its own
+   surface (clientX/clientY in MouseEvent can't be, since Hazel code can't
+   learn the element's origin). Measured against currentTarget's rect, not
+   offsetX/offsetY: offset coords are target-relative, so they jump when the
+   pointer passes over a child element mid-gesture. */
+let relative_xy = evt =>
+  switch (Js_of_ocaml.Js.Opt.to_option(evt##.currentTarget)) {
+  | Some(el) =>
+    let rect = el##getBoundingClientRect;
+    (
+      float_of_int(evt##.clientX) -. rect##.left,
+      float_of_int(evt##.clientY) -. rect##.top,
+    );
+  | None => (float_of_int(evt##.offsetX), float_of_int(evt##.offsetY))
+  };
+
+let px = (f: float): DHExp.t => Exp.int(int_of_float(Float.round(f)));
+
+let relative_pos = (evt): DHExp.t => {
+  let (x, y) = relative_xy(evt);
+  Exp.tuple([px(x), px(y)]);
+};
+
+let on_mouse_at = (mvu: t, what: string, handler, evt) =>
+  on_payload(mvu, what, handler, relative_pos(evt));
+
+/* Wheel payload: (x, y, dx, dy) — element-relative position plus scroll
+   deltas. Default is prevented so a zoom/pan surface doesn't also scroll
+   the page. */
+let on_wheel_at = (mvu: t, handler, evt) => {
+  let (x, y) = relative_xy(evt);
+  let payload =
+    Exp.tuple([
+      px(x),
+      px(y),
+      Exp.float(evt##.deltaX),
+      Exp.float(evt##.deltaY),
+    ]);
+  Effect.Many([
+    Effect.Prevent_default,
+    on_payload(mvu, "wheel-at", handler, payload),
+  ]);
 };
 
 let on_key = (mvu: t, handler, evt) =>
@@ -302,7 +339,17 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
     | ("OnMouseDown", handler) => Attr.on_mousedown(on_mouse(mvu, handler))
     | ("OnMouseUp", handler) => Attr.on_mouseup(on_mouse(mvu, handler))
     | ("OnMouseMove", handler) => Attr.on_mousemove(on_mouse(mvu, handler))
-    | ("OnClickAt", handler) => Attr.on_click(on_click_at(mvu, handler))
+
+    // === Element-relative mouse handlers (payload: (x, y) px int pair) ===
+    | ("OnClickAt", handler) =>
+      Attr.on_click(on_mouse_at(mvu, "click-at", handler))
+    | ("OnMouseDownAt", handler) =>
+      Attr.on_mousedown(on_mouse_at(mvu, "mousedown-at", handler))
+    | ("OnMouseMoveAt", handler) =>
+      Attr.on_mousemove(on_mouse_at(mvu, "mousemove-at", handler))
+    | ("OnMouseUpAt", handler) =>
+      Attr.on_mouseup(on_mouse_at(mvu, "mouseup-at", handler))
+    | ("OnWheelAt", handler) => Attr.on_wheel(on_wheel_at(mvu, handler))
 
     // === Keyboard event handlers (payload: KeyEvent) ===
     | ("OnKeyDown", handler) => Attr.on_keydown(on_key(mvu, handler))
@@ -336,6 +383,56 @@ let of_error = (elide_errors: bool, mvu: t, d: DHExp.t): Node.t => {
   let d = !elide_errors ? d : Exp.empty_hole();
   mvu.view_term(d);
 };
+
+/* Tags a generic Node(tag, attrs, children) creates in the SVG namespace.
+   createElement on these yields an inert HTMLUnknownElement that renders
+   nothing; createElementNS is required. Ambiguous names shared with HTML
+   (a, script, style) are deliberately absent and stay HTML. */
+let svg_tags = [
+  "svg",
+  "g",
+  "defs",
+  "symbol",
+  "use",
+  "circle",
+  "ellipse",
+  "rect",
+  "line",
+  "polyline",
+  "polygon",
+  "path",
+  "text",
+  "tspan",
+  "textPath",
+  "image",
+  "marker",
+  "pattern",
+  "mask",
+  "clipPath",
+  "linearGradient",
+  "radialGradient",
+  "stop",
+  "filter",
+  "feBlend",
+  "feColorMatrix",
+  "feComposite",
+  "feDropShadow",
+  "feFlood",
+  "feGaussianBlur",
+  "feMerge",
+  "feMergeNode",
+  "feMorphology",
+  "feOffset",
+  "feTurbulence",
+  "foreignObject",
+  "desc",
+  "title",
+  "animate",
+  "animateMotion",
+  "animateTransform",
+];
+
+let is_svg_tag = (tag: string): bool => List.mem(tag, svg_tags);
 
 let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
   switch (of_constructor(d)) {
@@ -400,7 +497,10 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
     // === Node: custom element (tagName, attrs, children) ===
     | ("Node", body) =>
       switch (node_body(mvu, body)) {
-      | Some((tag, attrs, children)) => Node.create(tag, ~attrs, children)
+      | Some((tag, attrs, children)) =>
+        is_svg_tag(tag)
+          ? Node.create_svg(tag, ~attrs, children)
+          : Node.create(tag, ~attrs, children)
       | None => of_error(elide_errors, mvu, d)
       }
 

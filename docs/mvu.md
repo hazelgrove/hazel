@@ -58,7 +58,10 @@ routing is by constructor name at runtime.
 - **`Html`** (~47 constructors) — `Text`/`Bool`/`Int`/`Float` renderers; the usual
   structural, heading, list, form, link, table and semantic elements, each taking
   `(List(Attr), List(Html))`; `Br`/`Hr`; plus the escape hatch
-  `Node(tag, attrs, children)`.
+  `Node(tag, attrs, children)`. `Node` also covers SVG: tags in
+  `HazelDOM.svg_tags` (svg, circle, rect, line, path, g, text, ...) are created
+  in the SVG namespace, with SVG attributes via `Create` (`createElement` on
+  these would yield an inert `HTMLUnknownElement`).
 - **`Attr`** (~45) — identity (`Id`/`Class`/`Classes`), properties
   (`Disabled`/`Value`/`Checked`/`Placeholder`/...), link/media, input specifics,
   layout, `Style(List((String, String)))`, `Data(name, value)`, the event handlers
@@ -79,12 +82,16 @@ Handlers produce **actions**, which route through `update`.
 | `OnInput`, `OnChange` | `String -> Action` |
 | `OnKeyDown`, `OnKeyUp`, `OnKeyPress` | `KeyEvent -> Action` |
 | `OnMouseDown`, `OnMouseUp`, `OnMouseMove` | `MouseEvent -> Action` |
-| `OnClickAt` | `(Int, Int) -> Action` — click position relative to the element, in px |
+| `OnClickAt`, `OnMouseDownAt`, `OnMouseMoveAt`, `OnMouseUpAt` | `(Int, Int) -> Action` — pointer position relative to the element, in px |
+| `OnWheelAt` | `(Int, Int, Float, Float) -> Action` — element-relative position plus wheel deltas; prevents default scrolling |
 
 `OnSubmit` also prevents the browser's default form submission.
-`OnClickAt` is what a widget needs to interpret a click on its own surface;
-the `MouseEvent` coordinates are viewport-relative, which Hazel code cannot
-convert (it has no access to the element's position).
+The `...At` handlers are what a widget needs to interpret pointer events on
+its own surface; the `MouseEvent` coordinates are viewport-relative, which
+Hazel code cannot convert (it has no access to the element's position). They
+measure against the handler's own element (`currentTarget`), not the event
+target, so coordinates stay stable when the pointer is over a child —
+attach them to an svg root and drag its shapes.
 
 ### Commands
 
@@ -99,6 +106,9 @@ Side effects returned from `update` alongside the new model.
 | `ScrollTo("element-id", x, y)` | Scroll to position |
 | `CopyToClipboard("text")` | Copy text to clipboard |
 | `Delay(500.0, MyAction)` | Dispatch an action after a delay (ms) |
+| `PlayTone(440.0, 200.0)` | Play a sine beep (freq Hz, duration ms) via Web Audio; the shared AudioContext stays suspended until the first user gesture, so tones fired before any click are dropped |
+| `Say("text")` | Speak a string aloud (speech synthesis) |
+| `Random(handler)` | `Float -> Action` — dispatch the handler applied to a uniform draw in [0,1). Randomness lives at the command boundary (Elm's `Random.generate`): evaluation itself stays deterministic, which probes/stepper re-runs rely on |
 | `Log("debug info")` | Print to the browser console |
 
 ### Subscriptions

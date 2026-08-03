@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Util;
 open Language;
+open IdTagged.FreshGrammar;
 open MvuShape;
 
 // CmdRunner: Interprets Hazel Cmd values as Ui_effect.t
@@ -14,11 +15,16 @@ open MvuShape;
 //   | ScrollTo(String, Float, Float)
 //   | CopyToClipboard(String)
 //   | Delay(Float, Msg)
+//   | PlayTone(Float, Float)
+//   | Say(String)
+//   | Random(Float -> Msg)
 //   | Log(String)
 //
 // Delay's payload is always a msg, dispatched via ctx.inject when the timer
 // fires (in syntax-commit mode a msg is an Html -> Html transform, so Delay
-// works there uniformly).
+// works there uniformly). Random draws here at the boundary and applies its
+// handler to the draw, so evaluation itself stays deterministic; the
+// handler's result is a msg, dispatched like Delay's.
 
 type context = {inject: DHExp.t => Ui_effect.t(unit)};
 
@@ -132,6 +138,36 @@ let rec run = (ctx: context, cmd: DHExp.t): Ui_effect.t(unit) => {
       }
     | _ => Effect.Ignore
     }
+
+  | Some(("PlayTone", body)) =>
+    switch (of_tuple(body)) {
+    | Some([freq_exp, ms_exp]) =>
+      switch (of_float(freq_exp), of_float(ms_exp)) {
+      | (Some(freq), Some(ms)) =>
+        Effect.of_sync_fun(() => JsUtil.play_tone(~freq, ~ms), ())
+      | _ => Effect.Ignore
+      }
+    | _ => Effect.Ignore
+    }
+
+  | Some(("Say", body)) =>
+    switch (of_string(body)) {
+    | Some(text) => Effect.of_sync_fun(() => JsUtil.say(text), ())
+    | None => Effect.Ignore
+    }
+
+  | Some(("Random", handler)) =>
+    Effect.of_sync_fun(
+      () => {
+        let draw = Js_of_ocaml.Js.math##random;
+        switch (safe_evaluate(Exp.ap(Forward, handler, Exp.float(draw)))) {
+        | Ok(msg) => Bonsai.Effect.Expert.handle(ctx.inject(msg))
+        | Error(err) =>
+          prerr_endline("CmdRunner: Random handler error: " ++ err)
+        };
+      },
+      (),
+    )
 
   | Some(("Log", body)) =>
     switch (of_string(body)) {

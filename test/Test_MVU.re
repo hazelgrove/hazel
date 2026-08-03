@@ -272,6 +272,23 @@ let counter_update_decrement =
     },
   );
 
+let svg_tag_routing =
+  test_case(
+    "Node tag routing: SVG tags recognized, HTML tags not",
+    `Quick,
+    () => {
+      let is_svg = Haz3lcore.HazelDOM.is_svg_tag;
+      List.iter(
+        t => check(bool, t ++ " routes to SVG namespace", true, is_svg(t)),
+        ["svg", "circle", "path", "text", "g", "linearGradient"],
+      );
+      List.iter(
+        t => check(bool, t ++ " stays HTML", false, is_svg(t)),
+        ["div", "span", "a", "script", "style", "canvas"],
+      );
+    },
+  );
+
 let counter_view_after_update =
   test_case(
     "Counter view(update(1, 0)) produces valid HTML",
@@ -1730,6 +1747,7 @@ let tests = (
     sub_counter_returns_subnone,
     sub_is_valid_sub_check,
     // HTML element coverage
+    svg_tag_routing,
     html_table_tr_td,
     html_table_thead_tbody,
     html_select_option,
