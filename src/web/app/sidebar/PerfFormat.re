@@ -2,10 +2,10 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
 
-/* Shared formatting + table helpers for the profiling debug sections
-   (Evaluation, Statics, Editor & Memory, Frame Timing). Mirrors the display
-   idiom of WorkerMessagingSection: an em dash for a metric that didn't run,
-   durations via Core.Time_ns.Span, sizes via Core.Byte_units. */
+/* Shared formatting + table helpers for the instrumented debug sections
+   (Worker Messaging, Evaluation, Statics, Editor & Memory, Frame Timing): an em
+   dash for a metric that didn't run, durations via Core.Time_ns.Span, sizes via
+   Core.Byte_units, tooltipped column headers, and the heat-map tint. */
 
 let opt_str = (to_string: 'a => string, x: option('a)): string =>
   switch (x) {

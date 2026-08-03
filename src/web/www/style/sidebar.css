@@ -692,88 +692,38 @@
   background: var(--T3);
 }
 
-/* All requests share one benchmark table so columns align; requests are
-   separated by styled group rows. */
-#debug-sidebar .wm-scroll {
-  overflow-x: auto; /* wide numbers scroll rather than clip the status column */
-  margin-top: 0.3em;
-}
-
-#debug-sidebar .wire-metrics-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-}
-
-#debug-sidebar .wire-metrics-table td {
-  padding: 0.1em 0.25em;
-  text-align: right;
-  white-space: nowrap;
-}
-
-#debug-sidebar .wire-metrics-table .wm-head {
-  font-weight: 600;
-  color: var(--BR3);
-  border-bottom: 1px solid var(--BR1);
-}
-
-#debug-sidebar .wire-metrics-table .wm-wire {
+/* Worker Messaging renders in the shared .perf-table below; all requests share
+   one benchmark table so columns align, separated by styled group rows. Only
+   the encoding column and those group rows are specific to it. */
+#debug-sidebar .perf-table .wm-wire {
   text-align: left;
   padding-left: 0.6em;
 }
 
-#debug-sidebar .wire-metrics-table .wm-total {
-  font-weight: 600;
-}
-
 /* Group separators. `wm-req` starts a new request (strong top rule + tint);
    `wm-resp` is the lighter response sub-header within the same request. */
-#debug-sidebar .wire-metrics-table .wm-group {
+#debug-sidebar .perf-table .wm-group {
   text-align: left;
   padding: 0.25em 0.3em 0.15em;
 }
 
-#debug-sidebar .wire-metrics-table .wm-req {
+#debug-sidebar .perf-table .wm-req {
   font-weight: 600;
   color: var(--BR4);
   background: var(--T3);
   border-top: 2px solid var(--BR2);
 }
 
-#debug-sidebar .wire-metrics-table .wm-resp,
-#debug-sidebar .wire-metrics-table .wm-note {
+#debug-sidebar .perf-table .wm-resp,
+#debug-sidebar .perf-table .wm-note {
   font-style: italic;
   color: var(--BR3);
   opacity: 0.8;
 }
 
-#debug-sidebar .wire-metrics-table .wm-ok {
-  color: var(--G0);
-}
-
-#debug-sidebar .wire-metrics-table .wm-fail {
-  color: var(--R2);
-  text-align: left;
-  max-width: 8em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-#debug-sidebar .wm-empty {
-  opacity: 0.6;
-  font-style: italic;
-  margin: 0.3em 0;
-}
-
-/* Units legend above the shared table. */
-#debug-sidebar .wm-legend {
-  opacity: 0.6;
-  font-style: italic;
-  margin: 0.2em 0;
-}
-
-/* Profiling sections (Evaluation / Statics / Editor & Memory / Frame Timing):
-   shared kv- and metric-table styling, mirroring the Worker Messaging table. */
+/* Metric-table styling shared by every instrumented section: Worker Messaging
+   and the profiling ones (Evaluation / Statics / Editor & Memory / Frame
+   Timing). */
 #debug-sidebar .perf-scroll {
   overflow-x: auto; /* wide numbers scroll rather than clip */
   margin-top: 0.3em;

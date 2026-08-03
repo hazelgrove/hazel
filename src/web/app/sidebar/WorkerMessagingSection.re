@@ -7,24 +7,53 @@ open Util.WebUtil;
    (WorkerMetrics) that pack payloads crossing the boundary, populated only
    while the panel is open. All requests share one table so columns line up;
    each request is a bold `#N` group row plus a lighter `response` sub-row, one
-   row per encoding under each. Implements DebugSection.S. */
+   row per encoding under each. Shares PerfFormat's table, formatting, and
+   heat-map with the profiling sections. Implements DebugSection.S. */
 
 let title = "Worker Messaging";
 
-/* Format an optional metric, showing an em dash for a stage that didn't
-   complete rather than a misleading 0. Durations are Core.Time_ns.Span and
-   sizes Core.Byte_units, each carrying its own unit via to_string_hum. */
-let opt_str = (to_string: 'a => string, x: option('a)): string =>
-  switch (x) {
-  | None => {|—|}
-  | Some(x) => to_string(x)
+/* encode + clone + decode, and only once every stage completed: a partial sum
+   would read as artificially fast next to the complete ones. */
+let total_of = (m: WorkerMetrics.dir_metric): option(Core.Time_ns.Span.t) =>
+  switch (m.encode, m.clone, m.decode) {
+  | (Some(a), Some(b), Some(c)) => Some(Core.Time_ns.Span.(a + b + c))
+  | _ => None
   };
 
-let span_str = opt_str(s => Core.Time_ns.Span.to_string_hum(~decimals=2, s));
-let bytes_str = opt_str(b => Core.Byte_units.to_string_hum(b));
+/* One scale for the whole table: the peak per-encoding total across every
+   request and response row. A stage as red as its own total dominates that
+   encoding's cost, and the slower encodings read redder than the rest. */
+let max_total = (records: list(WorkerMetrics.record)): Core.Time_ns.Span.t =>
+  PerfFormat.max_span(
+    List.concat_map(
+      (r: WorkerMetrics.record) =>
+        List.map(total_of, r.request @ r.response),
+      records,
+    ),
+  );
 
-let wm_head = (label: string): Node.t =>
-  Node.td(~attrs=[clss(["wm-head"])], [text(label)]);
+let head_row: Node.t =
+  PerfFormat.head_row([
+    (
+      "encoding",
+      "Candidate wire encoding benchmarked for this payload. Only enabled encodings (chips above) are measured.",
+    ),
+    ("enc", "Time to pack the payload into this encoding."),
+    (
+      "clone",
+      "Time for the structuredClone the browser performs when the payload crosses the worker boundary.",
+    ),
+    ("dec", "Time to unpack the payload back into OCaml values."),
+    (
+      "total",
+      "encode + structuredClone + decode for this encoding — the cost of using it for this payload.",
+    ),
+    ("size", "Encoded payload size (approximate)."),
+    (
+      "ok?",
+      "Whether the round trip succeeded; hover a ✕ for the failure message.",
+    ),
+  ]);
 
 /* A full-width label row separating request groups within the shared table. */
 let wm_group_row = (~cls: string, label: string): Node.t =>
@@ -35,29 +64,25 @@ let wm_group_row = (~cls: string, label: string): Node.t =>
     ),
   ]);
 
-let wm_metric_row = (m: WorkerMetrics.dir_metric): Node.t => {
-  let total =
-    switch (m.encode, m.clone, m.decode) {
-    | (Some(a), Some(b), Some(c)) => Some(Core.Time_ns.Span.(a + b + c))
-    | _ => None
-    };
+let wm_metric_row =
+    (~max: Core.Time_ns.Span.t, m: WorkerMetrics.dir_metric): Node.t => {
   /* Compact glyph keeps the column narrow; any failure message is on the
      cell's tooltip. */
   let (glyph, cls, tooltip) =
     switch (m.error) {
-    | None => ({|✓|}, "wm-ok", "ok")
-    | Some(e) => ({|✕|}, "wm-fail", e)
+    | None => ({|✓|}, "perf-ok", "ok")
+    | Some(e) => ({|✕|}, "perf-fail", e)
     };
   Node.tr([
     Node.td(
       ~attrs=[clss(["wm-wire"])],
       [text(WorkerServer.show_encoding(m.encoding))],
     ),
-    Node.td([text(span_str(m.encode))]),
-    Node.td([text(span_str(m.clone))]),
-    Node.td([text(span_str(m.decode))]),
-    Node.td(~attrs=[clss(["wm-total"])], [text(span_str(total))]),
-    Node.td([text(bytes_str(m.size))]),
+    PerfFormat.heat_cell(~max, m.encode),
+    PerfFormat.heat_cell(~max, m.clone),
+    PerfFormat.heat_cell(~max, m.decode),
+    PerfFormat.heat_cell(~max, ~cls=["perf-total"], total_of(m)),
+    Node.td([text(PerfFormat.bytes_str(m.size))]),
     Node.td(~attrs=[clss([cls]), Attr.title(tooltip)], [text(glyph)]),
   ]);
 };
@@ -65,7 +90,8 @@ let wm_metric_row = (m: WorkerMetrics.dir_metric): Node.t => {
 /* The rows contributed by one request: a request group header (which also
    starts the visual separation from the previous request), its encoding rows,
    then a lighter response sub-header and its rows. */
-let wm_record_rows = (r: WorkerMetrics.record): list(Node.t) => {
+let wm_record_rows =
+    (~max: Core.Time_ns.Span.t, r: WorkerMetrics.record): list(Node.t) => {
   let req_label =
     Printf.sprintf(
       "#%d · %d %s · request",
@@ -78,12 +104,12 @@ let wm_record_rows = (r: WorkerMetrics.record): list(Node.t) => {
     | [] => [wm_group_row(~cls="wm-note", "response pending / timed out")]
     | rows => [
         wm_group_row(~cls="wm-resp", "response"),
-        ...List.map(wm_metric_row, rows),
+        ...List.map(wm_metric_row(~max), rows),
       ]
     };
   [
     wm_group_row(~cls="wm-req", req_label),
-    ...List.map(wm_metric_row, r.request),
+    ...List.map(wm_metric_row(~max), r.request),
   ]
   @ response_rows;
 };
@@ -117,46 +143,25 @@ let encoding_toggles = (~globals): Node.t =>
     List.map(encoding_toggle(~globals), WorkerServer.all_of_encoding),
   );
 
-/* Column legend: expand the abbreviations. The durations and size carry their
-   own units via Span / Byte_units formatting. */
-let wm_legend: Node.t =
-  div(
-    ~attrs=[clss(["wm-legend"])],
-    [text("encode / structuredClone / decode / total; size approximate.")],
-  );
-
 let view = (~globals: Globals.t): list(Node.t) =>
   [encoding_toggles(~globals)]
   @ (
     switch (WorkerMetrics.history^) {
     | [] => [
-        div(
-          ~attrs=[clss(["wm-empty"])],
-          [text("No requests recorded yet — evaluate a program.")],
-        ),
+        PerfFormat.empty("No requests recorded yet — evaluate a program."),
       ]
-    | records => [
-        wm_legend,
-        div(
-          ~attrs=[clss(["wm-scroll"])],
-          [
-            Node.table(
-              ~attrs=[clss(["wire-metrics-table"])],
-              [
-                Node.tr([
-                  wm_head("encoding"),
-                  wm_head("enc"),
-                  wm_head("clone"),
-                  wm_head("dec"),
-                  wm_head("total"),
-                  wm_head("size"),
-                  wm_head("ok?"),
-                ]),
-                ...List.concat_map(wm_record_rows, records),
-              ],
-            ),
-          ],
+    | records =>
+      let max = max_total(records);
+      [
+        /* Column meanings live on the header tooltips; this just anchors the
+           heat scale the way the other profiling sections do. */
+        PerfFormat.note(
+          "max total: " ++ PerfFormat.span(max) ++ " · redder = slower",
         ),
-      ]
+        PerfFormat.table([
+          head_row,
+          ...List.concat_map(wm_record_rows(~max), records),
+        ]),
+      ];
     }
   );
