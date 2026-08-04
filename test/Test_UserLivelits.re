@@ -166,7 +166,7 @@ let size = (30, 5)
       ll.size
       == {
            horizontal: 30,
-           vertical: Block(5),
+           vertical: Block(4), /* 5 lines = 4 linebreaks */
          },
     );
   | Error(_) => fail("adapter rejected a well-formed module definition")
@@ -307,7 +307,7 @@ let size_field = () => {
       ll.size
       == {
            horizontal: 30,
-           vertical: Block(5),
+           vertical: Block(4), /* 5 lines = 4 linebreaks */
          },
     )
   | Error(_) => fail("adapter rejected a 5-field definition")

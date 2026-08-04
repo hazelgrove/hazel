@@ -158,8 +158,9 @@ let expand = fun m : Model -> m
   definition self-contained (helpers inside the module).
 - Optional member `let size = (w, h)` reserves the widget's footprint in
   the program text: w columns wide, h lines tall (h of 1 = inline;
-  default 24x1). Set it whenever the view is taller than one line —
-  e.g. `let size = (32, 12)` for a 200x150 svg.
+  default 24x1). Set it whenever the view is taller than one line, and
+  count EVERY row the view renders — an editor line is ~25px, so a
+  200x150 svg plus a button row needs about `let size = (32, 8)`.
 - Models and Actions must be first-order data (ints, strings, tuples,
   constructors) — they live in the program text.
 - Member access is ordinary syntax: `^pct.expand(25)` works anywhere.

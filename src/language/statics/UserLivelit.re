@@ -190,9 +190,11 @@ let size_of = (e: TermBase.Exp.t): option(ProjectorShape.t) =>
     | (Atom(Int(w)), Atom(Int(h))) =>
       switch (Bigint.to_int(w), Bigint.to_int(h)) {
       | (Some(w), Some(h)) =>
+        /* h counts LINES; Block() counts linebreaks (row extent), so a
+           widget h lines tall spans h - 1 breaks. */
         Some({
           ProjectorShape.horizontal: w,
-          vertical: h <= 1 ? Inline : Block(h),
+          vertical: h <= 1 ? Inline : Block(h - 1),
         })
       | _ => None
       }
