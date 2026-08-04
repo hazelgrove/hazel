@@ -388,7 +388,30 @@ module Update = {
         and.calc streaming_state = streaming_state;
         switch (result, streaming_state) {
         | (ProgramResult.ResultPending(_), Some(state)) =>
-          Some(dynamics_of_state(state))
+          let fresh = dynamics_of_state(state);
+          /* Streaming restarts with empty test results on every eval, so
+             for short evaluations the test marks blink out. Keep the
+             previous run's mark for any test the stream hasn't reached
+             yet — fresh results win per id, and marks for deleted tests
+             self-clean via the measured-position lookup at render. */
+          switch (dynamics |> Calc.get_saved(None)) {
+          | Some(old) =>
+            let fresh_ids =
+              List.map(fst, fresh.Dynamics.test_results.test_map);
+            let carried =
+              List.filter(
+                ((id, _)) => !List.mem(id, fresh_ids),
+                old.Dynamics.test_results.test_map,
+              );
+            Some({
+              ...fresh,
+              test_results:
+                TestResults.mk_results(
+                  fresh.Dynamics.test_results.test_map @ carried,
+                ),
+            });
+          | None => Some(fresh)
+          };
         | (ProgramResult.ResultPending(_), None)
         | (ProgramResult.ResultFail(_), _) =>
           dynamics |> Calc.get_saved(None)
