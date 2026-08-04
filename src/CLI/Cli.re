@@ -791,6 +791,34 @@ let bench_parse_cmd = {
 };
 
 /* Default to help if no subcommand is given */
+let agent_eval_cmd = {
+  let doc =
+    "Run the prompt-caching eval against live OpenRouter by driving the real "
+    ++ "agent update loop with scripted user inputs. Spends real credits; "
+    ++ "requires OPENROUTER_API_KEY. See agent-docs/caching-eval/.";
+  let models_arg = {
+    let doc = "Comma-separated OpenRouter model ids (default: full known matrix).";
+    Arg.(value & opt(some(string), None) & info(["models"], ~doc));
+  };
+  let turns_arg = {
+    let doc = "User turns per model (default 3, max 3 scripted inputs).";
+    Arg.(value & opt(int, 3) & info(["turns"], ~doc));
+  };
+  let out_dir_arg = {
+    let doc = "Directory for JSONL outputs.";
+    Arg.(
+      value
+      & opt(string, "agent-docs/caching-eval/outputs")
+      & info(["out-dir"], ~doc)
+    );
+  };
+  let info = Cmd.info("agent-eval", ~doc);
+  Cmd.v(
+    info,
+    Term.(const(AgentEval.run) $ models_arg $ turns_arg $ out_dir_arg),
+  );
+};
+
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
   let info = Cmd.info("hazel", ~doc);
@@ -798,6 +826,7 @@ let default_cmd = {
     info,
     [
       run_cmd,
+      agent_eval_cmd,
       format_cmd,
       analyze_cmd,
       probe_cmd,

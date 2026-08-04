@@ -1,0 +1,13 @@
+run_id,model,turn,prompt_tokens,completion_tokens,cache_read_tokens,cache_write_tokens,cost_credits,cache_discount,prefix_est_tokens,anchor_history,latency_ms
+2026-08-04T16-00-06-897Z,anthropic/claude-haiku-4.5,1,5999,6,0,5669,0.00744625,,6017,false,1076
+2026-08-04T16-00-06-897Z,anthropic/claude-haiku-4.5,2,6015,6,5669,0,0.0009429,,6017,false,1100
+2026-08-04T16-00-06-897Z,anthropic/claude-haiku-4.5,3,6031,6,5669,0,0.0009589,,6017,false,1340
+2026-08-04T16-00-06-897Z,anthropic/claude-sonnet-4.6,1,6000,6,0,5670,0.0223425,,6017,false,2734
+2026-08-04T16-00-06-897Z,anthropic/claude-sonnet-4.6,2,6016,6,5670,0,0.002829,,6017,false,1519
+2026-08-04T16-00-06-897Z,anthropic/claude-sonnet-4.6,3,6032,6,5670,0,0.002877,,6017,false,1275
+2026-08-04T16-00-06-897Z,google/gemini-3-flash-preview,1,5098,3,5090,5090,0.0006916666666666667,,6017,false,17948
+2026-08-04T16-00-06-897Z,google/gemini-3-flash-preview,2,5110,3,5090,0,0.0002735,,6017,false,992
+2026-08-04T16-00-06-897Z,google/gemini-3-flash-preview,3,5122,3,5090,0,0.0002795,,6017,false,896
+2026-08-04T16-00-06-897Z,qwen/qwen3-coder,1,5196,3,0,0,0.005080725,,6017,false,1378
+2026-08-04T16-00-06-897Z,qwen/qwen3-coder,2,5216,3,0,0,0.005100225,,6017,false,1235
+2026-08-04T16-00-06-897Z,qwen/qwen3-coder,3,5236,3,0,0,0.005119725,,6017,false,1090
