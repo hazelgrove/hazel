@@ -29,19 +29,13 @@ jobs:
       - name: Install NPM dependencies
         run: npm install
 
-      # No pin here, deliberately: `make change-deps` moves the pins forward to
-      # the current repository heads and repins this switch to them itself, so
-      # the regenerated lock file and .github/opam-pins.env always describe the
-      # same repository state. Discovering newer packages is this workflow's
-      # whole purpose. See issue #2334.
+      # Intentionally unpinned: `make change-deps` below repins this switch to the
+      # current repository heads itself. Finding newer packages is the point here.
       - name: Set-up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 5.2.0
-          # Off deliberately: setup-ocaml keys its dune cache on the run id, so
-          # it is never an exact hit, but uploads ~1.7GB every run. That churn
-          # evicts the opam switch cache other workflows depend on (10GB
-          # repo-wide limit).
+          # Off; see .github/actions/setup-hazel-toolchain for why.
           dune-cache: false
 
       - name: Install dune
@@ -55,10 +49,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      # Moves .github/opam-pins.env to the current repository heads, repins this
-      # switch to them (which is also what adds the archive repository), then
-      # re-locks. The PR below therefore carries the new lock file and the new
-      # pin in one commit.
+      # Also updates .github/opam-pins.env, so the PR below carries the new lock
+      # file and the new pin in one commit.
       - name: Run change-deps
         run: |
            eval $(opam env)

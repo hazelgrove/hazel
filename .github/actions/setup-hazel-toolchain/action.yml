@@ -1,9 +1,7 @@
 name: Setup Hazel Toolchain
 description: >
-  Installs Node, OCaml 5.2.0, and Hazel's opam dependencies, and runs
-  setup-zarith so the native BigInt runtime is in place. Restores the _opam
-  switch from cache, and saves it only from dev or bot-update-deps so branch
-  runs cannot evict the entry they depend on.
+  Installs Node, OCaml 5.2.0 and Hazel's opam dependencies from the pinned
+  repository commits, then runs setup-zarith for the native BigInt runtime.
 
 runs:
   using: composite
@@ -17,8 +15,8 @@ runs:
       shell: bash
       run: npm install
 
-    # Read before setup-ocaml, so the pinned repository commit is available to
-    # its opam-repositories input. See .github/opam-pins.env for why we pin.
+    # Must precede setup-ocaml, whose opam-repositories input reads these.
+    # See .github/opam-pins.env for why the repositories are pinned.
     - name: Load pinned opam repository commits
       shell: bash
       run: grep -E '^OPAM_REPOSITORY(_ARCHIVE)?_SHA=' .github/opam-pins.env >> "$GITHUB_ENV"
@@ -27,30 +25,24 @@ runs:
       uses: ocaml/setup-ocaml@v3
       with:
         ocaml-compiler: 5.2.0
-        # Same URL setup-ocaml defaults to, with the commit appended. opam's
-        # git URL fragment accepts a branch, tag, or commit hash.
+        # setup-ocaml's default URL with the pinned commit appended.
         opam-repositories: |
           default: git+https://github.com/ocaml/opam-repository.git#${{ env.OPAM_REPOSITORY_SHA }}
-        # dune-cache is deliberately off. setup-ocaml keys its dune cache on
-        # the run id, so the entry can never be an exact hit on a later run,
-        # yet ~1.7GB is uploaded every run. That churn is what evicts the
-        # _opam switch cache below (10GB repo-wide limit), turning a 5s
-        # dependency install into a 7min one. In-run caching is unaffected:
-        # DUNE_CACHE=enabled and DUNE_CACHE_ROOT still apply.
+        # Off: setup-ocaml keys this cache on the run id, so it can never be an
+        # exact hit, yet uploads ~1.7GB per run. That churn evicts the _opam
+        # entry below, which shares a 10GB repository-wide budget. In-run caching
+        # is unaffected (DUNE_CACHE / DUNE_CACHE_ROOT).
         dune-cache: false
 
-    # Single-writer, many-reader. Only dev and the dependency-bump branch save
-    # the ~1GB switch; every other branch reads. Before this, all ~50 daily
-    # branch runs wrote the same key, blowing the 10GB repo cache limit and
-    # evicting the entry they were about to need.
+    # Single-writer: only dev and bot-update-deps save the ~1GB switch, so the
+    # ~50 daily branch runs cannot evict the entry they all depend on.
     - name: Retrieve the switch environment if cached
       id: opam-cache-switch
       uses: actions/cache/restore@v4
       with:
         path: "_opam"
         key: ${{ runner.os }}-opam-${{ hashFiles('hazel.opam.locked') }}
-        # Warm start from any previous switch when the lockfile changed:
-        # opam install is incremental against a near-complete switch.
+        # Warm start when the lockfile changed: opam install is incremental.
         restore-keys: ${{ runner.os }}-opam-
 
     - name: Add opam repository archive
@@ -75,10 +67,10 @@ runs:
         export OPAMYES=1
         opam clean --all-switches --download-cache --logs --repo-cache --unused-repositories
 
-    # Explicit save rather than actions/cache's post hook, so it only runs once
-    # the switch is known good. cache-hit is only 'true' on an exact key match,
-    # so a restore-keys warm start still saves under the new lockfile hash --
-    # which is what makes a dependency bump self-healing.
+    # Explicit rather than actions/cache's post hook, so only a switch that
+    # installed cleanly is saved. cache-hit is 'true' only on an exact match, so
+    # a restore-keys warm start still saves under the new lockfile hash -- which
+    # is what lets a dependency bump populate the cache for everyone else.
     - name: Save the switch environment to cache
       if: >-
         steps.opam-cache-switch.outputs.cache-hit != 'true' &&

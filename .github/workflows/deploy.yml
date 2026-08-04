@@ -1,26 +1,19 @@
-# Branch previews, plus a fast quick-test signal on every push.
-#
-# Deliberately NOT the authoritative test workflow -- that is ci.yml, which runs
-# on pull_request so it also covers forks. Previews are not gated on tests: a red
-# suite should not stop you from looking at your branch.
+# Branch previews on every push, plus a fast test signal. Previews are
+# deliberately not gated on tests: a red suite should not stop you looking at
+# your branch. Authoritative CI is ci.yml.
 name: Deploy
 
 on:
   push:
-    # Merge-queue temp branches (gh-readonly-queue/<base>/pr-<n>-<sha>) must not
-    # deploy -- they would publish speculative merges to
-    # hazel.org/build/gh-readonly-queue/... This is what blocked a previous
-    # merge-queue rollout. Their CI comes from ci.yml's merge_group trigger.
+    # Queue temp branches must not publish speculative merges as previews. Their
+    # CI comes from ci.yml's merge_group trigger instead.
     branches-ignore:
       - "gh-readonly-queue/**"
 
 concurrency:
-  # Per-branch group so cross-branch runs don't evict each other from the queue
-  # (a global group has queue depth 1, so a third concurrent run cancels
-  # whichever was queued). The push-retry loop below handles the cross-branch
-  # race on hazelgrove/build's main ref. cancel-in-progress so a newer commit on
-  # the same branch supersedes an older in-flight run rather than deploying
-  # stale output.
+  # Per-branch: a global group has queue depth 1, so a third concurrent run would
+  # cancel a queued one. cancel-in-progress so a newer commit supersedes an older
+  # in-flight run rather than deploying stale output.
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
@@ -63,6 +56,8 @@ jobs:
       - name: Copy in the newly built source
         run: mkdir -p "./build-target/${BRANCH_NAME}" && cp -r "./_build/default/src/web/www"/* "./build-target/${BRANCH_NAME}"
 
+      # All branches push to this one repo's main ref, so concurrent deploys
+      # collide; retry with rebase until we win.
       - name: Commit to the website aka deploy
         run: |
           git config user.name github-deploy-action
@@ -85,13 +80,11 @@ jobs:
           exit 1
         working-directory: ./build-target
 
-  # Fast feedback for long-lived branches that have no PR open yet, where ci.yml
-  # does not fire. `make ci-quick` runs the suite under alcotest's -q filter:
-  # 3218 of 3296 tests, because the 78 Slow-tagged QCheck property tests are
-  # ~95% of the full suite's runtime. On a branch that *does* have a PR this
-  # overlaps ci.yml's authoritative run, which is accepted -- it is non-blocking,
-  # gives a signal minutes earlier, and avoiding it would mean reintroducing the
-  # PR lookup this pipeline was restructured to remove.
+  # Test signal for branches with no PR open, where ci.yml does not fire, and the
+  # only annotated test UI there. `make ci-quick` uses alcotest's -q filter: 3218
+  # of 3296 tests, since the 78 Slow-tagged QCheck tests are ~95% of the full
+  # suite's runtime. Overlaps ci.yml on branches that do have a PR, accepted for
+  # the earlier signal.
   Quick:
     name: Quick tests
     runs-on: ubuntu-latest
@@ -111,9 +104,8 @@ jobs:
         run: opam exec -- make ci-quick
         timeout-minutes: 20
 
-      # Annotations, not the gate -- `Run quick tests` above exits non-zero by
-      # itself. fail-on-error stays on as a cheap regression guard in case the
-      # runner ever stops propagating its status again.
+      # Annotated results UI, not the gate -- `Run quick tests` exits non-zero on
+      # failure by itself.
       - name: Quick Test Report
         if: always()
         uses: dorny/test-reporter@v1
@@ -122,4 +114,4 @@ jobs:
           path: ./_build/default/test/junit_tests*.xml
           reporter: java-junit
           fail-on-error: true
-          fail-on-empty: true # An empty report means the runner itself failed
+          fail-on-empty: true

@@ -1,20 +1,11 @@
-# Authoritative CI. This is the workflow whose status should gate review and,
-# once the merge queue lands (issue #2203 phase 4), gate merging.
-#
-# Routing is by trigger, not by asking the API what kind of ref this is. An
-# earlier version of this pipeline ran on `push` only and called `gh pr list` to
-# decide how much to test. That could not see fork PRs at all (they never push
-# to this repo, so nothing ran), raced with PR creation, and could not serve as a
-# meaningful required status check. `pull_request` already means "under review".
+# Authoritative CI: the status to require on dev, and what the merge queue will
+# gate on (issue #2203). Branch previews are deploy.yml's job, not this one.
 name: CI
 
 on:
-  # All default activity types, including synchronize, and it fires for forks.
-  pull_request:
-  # Post-merge validation of dev itself.
+  pull_request: # also covers forks, which never fire deploy.yml
   push:
-    branches: [dev]
-  # Speculative merge commits, once a merge queue is enabled.
+    branches: [dev] # post-merge validation
   merge_group:
 
 concurrency:
@@ -34,15 +25,13 @@ jobs:
 
       - uses: ./.github/actions/setup-hazel-toolchain
 
-      # Fails on violation rather than auto-promoting, so a misformatted commit
-      # is reported instead of silently rewritten in a throwaway checkout.
+      # No --auto-promote: a misformatted commit should fail, not be rewritten.
       - name: Check formatting
         run: opam exec -- dune build @src/fmt @test/fmt --profile dev
 
-      # The strict-warning gate: release sets `-warn-error +A-58` while dev sets
-      # `-warn-error -A` (see the (env) stanzas in src/*/dune). It lives here
-      # rather than only in deploy.yml so that fork PRs -- which never trigger
-      # deploy.yml -- cannot land a warning that only breaks dev after merge.
+      # Strict-warning gate: release sets `-warn-error +A-58` while dev sets
+      # `-warn-error -A` (the (env) stanzas in src/*/dune). Needed here and not
+      # only in deploy.yml, which fork PRs never trigger.
       - name: Build release
         run: |
           export DUNE_CACHE=enabled
@@ -52,14 +41,9 @@ jobs:
         run: opam exec -- make ci
         timeout-minutes: 20
 
-      # Annotations, not the gate -- `Run tests` above exits non-zero by itself.
-      # fail-on-error stays on as a cheap regression guard in case the runner
-      # ever stops propagating its status again.
-      #
-      # Skipped on forks: GitHub caps their token to read-only regardless of the
-      # permissions block above, so publishing a check run would fail and turn
-      # every fork PR red. They still gate on the exit status like everything
-      # else, they just get no annotated report.
+      # Annotated results UI, not the gate -- `Run tests` exits non-zero on
+      # failure by itself. Skipped on forks, whose token is read-only, so
+      # publishing a check run would fail and mark the whole PR red.
       - name: Test Report
         if: ${{ always() && github.event.pull_request.head.repo.fork != true }}
         uses: dorny/test-reporter@v1
@@ -68,10 +52,9 @@ jobs:
           path: ./_build/default/test/junit_tests*.xml
           reporter: java-junit
           fail-on-error: true
-          fail-on-empty: true # Use an empty test report to detect when something failed with the test runner
+          fail-on-empty: true
 
-      # Fork PRs get a read-only token with no access to secrets, so the upload
-      # would fail rather than add anything. Tests still run and still gate.
+      # Forks get no secrets, so the upload would fail rather than add anything.
       - name: Send coverage report to Codecov
         if: ${{ github.event.pull_request.head.repo.fork != true }}
         run: opam exec -- bisect-ppx-report send-to Codecov --verbose

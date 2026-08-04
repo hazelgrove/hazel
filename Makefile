@@ -14,18 +14,10 @@ setup-zarith:
 
 OPAM_PINS = .github/opam-pins.env
 
-# Point this switch's opam repositories at the commits recorded in $(OPAM_PINS).
-#
-# hazel.opam.locked pins which package *versions* the solver picks. It cannot pin
-# their *metadata*: opam has no content hashes, and upstream routinely edits
-# already-published versions in place. In June 2026 such an edit made
-# conf-libssl.4 require conf-pkg-config >= 5 while our lock file pinned
-# conf-pkg-config = 4, breaking every build with no change on our side. Pinning
-# the repository commit closes that hole -- see issue #2334.
-#
-# Scoped to the current switch (opam's default for `repo add`), so the shared
-# `default` repository definition is untouched and other OCaml projects on this
-# machine are unaffected. `default` stays below these as a fallback.
+# Point this switch's opam repositories at the commits in $(OPAM_PINS), which is
+# where the reasoning lives. Scoped to the current switch (opam's default for
+# `repo add`), so the shared `default` definition is untouched and other OCaml
+# projects on this machine are unaffected; `default` stays below as a fallback.
 pin-opam-repos:
 	@set -e; . "$(OPAM_PINS)"; \
 	arch="git+https://github.com/ocaml/opam-repository-archive#$$OPAM_REPOSITORY_ARCHIVE_SHA"; \
@@ -34,10 +26,9 @@ pin-opam-repos:
 	opam repo add hazel-locked "$$main" --rank 2 2>/dev/null || opam repo set-url hazel-locked "$$main"; \
 	opam repo list
 
-# Move $(OPAM_PINS) forward to each repository's current HEAD.
-# The awk filter is load-bearing: `ls-remote <url> HEAD` also matches the stale
-# refs/remotes/origin/HEAD that opam-repository publishes, so without it you get
-# two SHAs and a malformed URL.
+# Move $(OPAM_PINS) forward to each repository's current HEAD. The awk filter
+# matters: `ls-remote <url> HEAD` also matches the stale refs/remotes/origin/HEAD
+# that opam-repository publishes, which would yield two shas.
 update-opam-pins:
 	@set -e; \
 	main=$$(git ls-remote https://github.com/ocaml/opam-repository HEAD | awk '$$2 == "HEAD" { print $$1 }'); \
@@ -59,10 +50,9 @@ deps: pin-opam-repos
 	npm install
 	$(MAKE) setup-zarith
 
-# Update: move the pins to the current heads, repin, then re-lock against them,
-# so hazel.opam.locked and $(OPAM_PINS) always describe the same repository
-# state. The repin is required -- without it this would resolve against the old
-# pinned commit and silently find nothing new.
+# Update: move the pins to the current heads, repin, then re-lock, so the lock
+# file and $(OPAM_PINS) describe the same repository state. The repin is required
+# -- resolving without it would consult the old commit and find nothing new.
 change-deps:
 	$(MAKE) update-opam-pins
 	$(MAKE) pin-opam-repos

@@ -8,14 +8,10 @@ Printexc.register_printer(exn => {
   }
 });
 
-/* `run_and_report` never exits on its own: it always calls `Alcotest.run` with
-   `and_exit=false` internally so that a report can be produced afterwards, and
-   returns an `exit` function that emulates the real behaviour. Calling it is the
-   only thing that turns a failing test into a non-zero exit status, so it must
-   be invoked once the report and the coverage data have been written -- see the
-   end of this file. Without it every runner (`dune runtest`,
-   `dune build @test-quick`, `make test`, `./run_tests`) reports success no
-   matter how many tests failed. */
+/* `run_and_report` runs Alcotest with and_exit=false so it can produce a report,
+   and returns a function that applies the exit status afterwards. Calling that
+   function is the only thing that makes a failing test a non-zero exit status,
+   so it has to happen last -- see the end of this file. */
 let (suite, exit_with_test_status) =
   run_and_report(
     ~and_exit=true,
