@@ -330,11 +330,7 @@ type un_semantics =
       'a => Either.t('b, InvalidOperationError.t),
     )
     : un_semantics
-  | PartialExactUn(
-      Atom.cls,
-      Atom.cls,
-      Atom.t => option(Either.t(Atom.t, InvalidOperationError.t)),
-    )
+  | StuckUn(Atom.cls, Atom.cls)
   | Undefined(string);
 
 let just = (f, x) => Either.L(f(x));
@@ -342,17 +338,7 @@ let just = (f, x) => Either.L(f(x));
 let semantics_of_un_op = (op: op_un): un_semantics =>
   switch (op) {
   | Int(Minus) => Defined(Int, Int, just(Bigint.neg))
-  | Real(Minus) =>
-    PartialExactUn(
-      Real,
-      Real,
-      atom =>
-        switch (atom) {
-        | Atom.Real(real) =>
-          Real.neg(real) |> Option.map(real => Either.L(Atom.Real(real)))
-        | _ => None
-        },
-    )
+  | Real(Minus) => StuckUn(Real, Real)
   | Float(Minus) => Defined(Float, Float, just(x => -. x))
   | SInt(Minus) => Defined(SInt, SInt, just(x => - x))
   | Nat(Minus) => Undefined("Cannot negate a natural number")
@@ -368,12 +354,7 @@ type bin_semantics =
     )
     : bin_semantics
   | DefinedPoly(op_bin_poly)
-  | PartialExact(
-      Atom.cls,
-      Atom.cls,
-      Atom.cls,
-      (Atom.t, Atom.t) => option(Either.t(Atom.t, InvalidOperationError.t)),
-    )
+  | Stuck(Atom.cls, Atom.cls, Atom.cls)
   | Undefined(string);
 
 let just = (f, x, y) => Either.L(f(x, y));
@@ -404,138 +385,9 @@ let sint_divide = (x, y) =>
 
 let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   switch (op) {
-  | Real(Plus) =>
-    PartialExact(
-      Real,
-      Real,
-      Real,
-      (a, b) =>
-        switch (a, b) {
-        | (Atom.Real(a), Atom.Real(b)) =>
-          Real.add(a, b) |> Option.map(x => Either.L(Atom.Real(x)))
-        | _ => None
-        },
-    )
-  | Real(Minus) =>
-    PartialExact(
-      Real,
-      Real,
-      Real,
-      (a, b) =>
-        switch (a, b) {
-        | (Atom.Real(a), Atom.Real(b)) =>
-          Real.sub(a, b) |> Option.map(x => Either.L(Atom.Real(x)))
-        | _ => None
-        },
-    )
-  | Real(Times) =>
-    PartialExact(
-      Real,
-      Real,
-      Real,
-      (a, b) =>
-        switch (a, b) {
-        | (Atom.Real(a), Atom.Real(b)) =>
-          Real.mul(a, b) |> Option.map(x => Either.L(Atom.Real(x)))
-        | _ => None
-        },
-    )
-  | Real(Divide) =>
-    PartialExact(
-      Real,
-      Real,
-      Real,
-      (a, b) =>
-        switch (a, b) {
-        | (Atom.Real(a), Atom.Real(b)) =>
-          switch (Real.div(a, b)) {
-          | None => None
-          | Some(Ok(x)) => Some(Either.L(Atom.Real(x)))
-          | Some(Error(error)) => Some(Either.R(error))
-          }
-        | _ => None
-        },
-    )
-  | Real(LessThan) =>
-    PartialExact(
-      Real,
-      Real,
-      Bool,
-      (a, b) =>
-        switch (a, b) {
-        | (
-            Atom.Real(Real.Rational(_) as a),
-            Atom.Real(Real.Rational(_) as b),
-          ) =>
-          Real.compare_rationals(a, b)
-          |> Option.map(order => Either.L(Atom.Bool(order < 0)))
-        | _ => None
-        },
-    )
-  | Real(LessThanOrEqual) =>
-    PartialExact(
-      Real,
-      Real,
-      Bool,
-      (a, b) =>
-        switch (a, b) {
-        | (
-            Atom.Real(Real.Rational(_) as a),
-            Atom.Real(Real.Rational(_) as b),
-          ) =>
-          Real.compare_rationals(a, b)
-          |> Option.map(order => Either.L(Atom.Bool(order <= 0)))
-        | _ => None
-        },
-    )
-  | Real(GreaterThan) =>
-    PartialExact(
-      Real,
-      Real,
-      Bool,
-      (a, b) =>
-        switch (a, b) {
-        | (
-            Atom.Real(Real.Rational(_) as a),
-            Atom.Real(Real.Rational(_) as b),
-          ) =>
-          Real.compare_rationals(a, b)
-          |> Option.map(order => Either.L(Atom.Bool(order > 0)))
-        | _ => None
-        },
-    )
-  | Real(GreaterThanOrEqual) =>
-    PartialExact(
-      Real,
-      Real,
-      Bool,
-      (a, b) =>
-        switch (a, b) {
-        | (
-            Atom.Real(Real.Rational(_) as a),
-            Atom.Real(Real.Rational(_) as b),
-          ) =>
-          Real.compare_rationals(a, b)
-          |> Option.map(order => Either.L(Atom.Bool(order >= 0)))
-        | _ => None
-        },
-    )
-  | Real(Power) =>
-    PartialExact(
-      Real,
-      Real,
-      Real,
-      (a, b) =>
-        switch (a, b) {
-        | (Atom.Real(a), Atom.Real(b)) =>
-          switch (Real.pow(a, b)) {
-          | None => None
-          | Some(Ok(x)) => Some(Either.L(Atom.Real(x)))
-          | Some(Error(error)) => Some(Either.R(error))
-          }
-        | _ => None
-        },
-    )
+  | Real(Plus | Minus | Times | Divide | Power) => Stuck(Real, Real, Real)
+  | Real(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual) =>
+    Stuck(Real, Real, Bool)
   | Int(Plus) => Defined(Int, Int, Int, just(Bigint.(+)))
   | Int(Minus) => Defined(Int, Int, Int, just(Bigint.(-)))
   | Int(Times) => Defined(Int, Int, Int, just(Bigint.( * )))
@@ -647,7 +499,7 @@ let builtins = {
          switch (semantics_of_bin_op(op)) {
          | Undefined(_) => None
          | DefinedPoly(_) => None
-         | PartialExact(_) => None
+         | Stuck(_) => None
          | Defined(x, y, z, f) => Some((op_name(op), TwoFun(x, y, z, f)))
          }
        )

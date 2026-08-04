@@ -727,7 +727,7 @@ and uexp_to_info_map =
           ~probe_targets=e.probe_targets,
           m,
         );
-      | PartialExactUn(ty_in, ty_out, _) =>
+      | StuckUn(ty_in, ty_out) =>
         let (e, e_elab, m) = go(~ana=Atom(ty_in) |> Typ.temp, e, m);
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
@@ -818,7 +818,7 @@ and uexp_to_info_map =
             ]),
           m,
         );
-      | PartialExact(ty1, ty2, ty_out, _) =>
+      | Stuck(ty1, ty2, ty_out) =>
         let (e1, e1_elab, m) = go(~ana=Atom(ty1) |> Typ.temp, e1, m);
         let (e2, e2_elab, m) = go(~ana=Atom(ty2) |> Typ.temp, e2, m);
         add(

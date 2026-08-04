@@ -31,24 +31,45 @@ let tests = (
           elaborate(parse_exp({|use Real in 8|})),
         );
         evaluation_test(
-          "Real exact decimal",
-          real(Real.normalize(Bigint.of_int(15), Bigint.of_int(4), None)),
+          "Real decimal arithmetic stays symbolic",
+          bin_op(
+            Operators.Real(Plus),
+            real(Real.of_decimal("1.25")),
+            real(Real.of_decimal("2.5")),
+          ),
           elaborate(parse_exp({|use Real in 1.25 + 2.5|})),
         );
         evaluation_test(
-          "Real decimal arithmetic does not round through Float",
-          real(Real.normalize(Bigint.of_int(3), Bigint.of_int(10), None)),
-          elaborate(parse_exp({|use Real in 0.1 + 0.2|})),
-        );
-        evaluation_test(
-          "Real non-terminating division",
-          real(Real.normalize(Bigint.one, Bigint.of_int(3), None)),
+          "Real division stays symbolic",
+          bin_op(
+            Operators.Real(Divide),
+            real(Real.of_bigint(Bigint.one)),
+            real(Real.of_bigint(Bigint.of_int(3))),
+          ),
           elaborate(parse_exp({|use Real in 1 / 3|})),
         );
         evaluation_test(
-          "Real negative exponent",
-          real(Real.normalize(Bigint.one, Bigint.of_int(8), None)),
-          elaborate(parse_exp({|use Real in 2 ** -3|})),
+          "Real division by zero stays symbolic",
+          bin_op(
+            Operators.Real(Divide),
+            real(Real.of_bigint(Bigint.one)),
+            real(Real.of_bigint(Bigint.zero)),
+          ),
+          elaborate(parse_exp({|use Real in 1 / 0|})),
+        );
+        evaluation_test(
+          "Real comparison stays symbolic",
+          bin_op(
+            Operators.Real(LessThan),
+            real(Real.of_bigint(Bigint.one)),
+            real(Real.of_bigint(Bigint.of_int(2))),
+          ),
+          elaborate(parse_exp({|use Real in 1 < 2|})),
+        );
+        evaluation_test(
+          "Real negation stays symbolic",
+          un_op(Operators.Real(Minus), real(Real.of_decimal("1.25"))),
+          elaborate(parse_exp({|use Real in -1.25|})),
         );
         evaluation_test(
           "Real pi constant",
