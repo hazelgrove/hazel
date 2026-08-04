@@ -208,22 +208,33 @@ module M: Projector = {
      the same view on the same model — and is dropped whenever the syntax
      model stops matching what we committed (external edit, undo). */
   type optimistic_entry = {
-    opt_model: TermBase.Exp.t, /* the next model, already a value */
+    opt_model: TermBase.Exp.t, /* the newest local model, already a value */
     opt_html: TermBase.Exp.t, /* view(opt_model), evaluated at event time */
-    opt_committed: TermBase.Exp.t, /* the term we spliced into the syntax */
-    opt_base: TermBase.Exp.t, /* the syntax model when the event fired */
-    /* Renders can interleave between the event and the SetSyntax landing
-       (caret movement, indication), during which the syntax still shows
-       opt_base; the entry must survive those. Once the commit has been
-       seen in the syntax, only opt_committed counts as ours — so undo
-       (which restores opt_base) correctly drops the entry. */
-    mutable opt_landed: bool,
+    /* Squished prints of every syntax state that is legitimately "ours"
+       while commits are in flight: the pre-burst base, then each commit,
+       oldest first. During a rapid burst the syntax lags the local model
+       by several commits, so renders may see ANY of these. Printed text
+       is the identity: the syntax literally came from printing the
+       committed terms, and structural comparison trips over
+       print/reparse asymmetries (LivelitName vs Var, evaluated negative
+       atoms vs unary minus). */
+    opt_outstanding: list(string),
+    /* Highest outstanding index observed in the syntax; a later render
+       matching an EARLIER index means the syntax rewound (undo), which
+       drops the entry. */
+    mutable opt_matched: int,
   };
   let optimistic: Hashtbl.t(Id.t, optimistic_entry) = Hashtbl.create(16);
+
+  let squish = str =>
+    String.to_seq(str)
+    |> Seq.filter(c => c != ' ' && c != '\n' && c != '\t')
+    |> String.of_seq;
 
   let event_inject =
       (
         ~id: Id.t,
+        ~print_term: TermBase.Exp.t => string,
         ~ll_name: string,
         ~def_elab: TermBase.Exp.t,
         ~model: TermBase.Exp.t,
@@ -237,11 +248,21 @@ module M: Projector = {
       Ui_effect.Ignore;
     };
     let ap = IdTagged.FreshGrammar.Exp.ap;
+    /* Base model for this action. The optimistic entry wins over the
+       handler's captured model: a rapid successor event fires from a DOM
+       still showing the PREVIOUS render, whose handlers close over the
+       pre-commit model — composing from there would silently stomp the
+       in-flight action. The optimistic table is the newest local truth. */
+    let base_value =
+      switch (Hashtbl.find_opt(optimistic, id)) {
+      | Some(e) => Some(e.opt_model)
+      | None => model_value
+      };
     /* What goes in the syntax: the update redex when the base model is a
        committable value (keeps the interaction visible to probes and the
        stepper), independent of whether the optimistic path succeeds. */
     let redex =
-      switch (model_value) {
+      switch (base_value) {
       | Some(mv)
           when
             MvuShape.is_checkpointable(mv)
@@ -264,7 +285,7 @@ module M: Projector = {
         switch (record_field(record, "update", 1)) {
         | None => Error("definition is missing update")
         | Some(update_fn) =>
-          let base = Option.value(model_value, ~default=model);
+          let base = Option.value(base_value, ~default=model);
           let applied =
             ap(
               Forward,
@@ -289,17 +310,38 @@ module M: Projector = {
                 MvuShape.safe_evaluate(ap(Forward, view_fn, new_model))
               ) {
               | Ok(html) when MvuShape.is_html(html) =>
+                let prior = Hashtbl.find_opt(optimistic, id);
+                let outstanding =
+                  switch (prior) {
+                  | Some(e) =>
+                    e.opt_outstanding @ [squish(print_term(committed))]
+                  | None => [
+                      squish(print_term(model)),
+                      squish(print_term(committed)),
+                    ]
+                  };
+                /* cap the ring; a burst outrunning this many in-flight
+                   commits falls back to the authoritative path */
+                let outstanding = {
+                  let n = List.length(outstanding);
+                  n > 64
+                    ? List.filteri((i, _) => i >= n - 64, outstanding)
+                    : outstanding;
+                };
                 Hashtbl.replace(
                   optimistic,
                   id,
                   {
                     opt_model: new_model,
                     opt_html: html,
-                    opt_committed: committed,
-                    opt_base: model,
-                    opt_landed: false,
+                    opt_outstanding: outstanding,
+                    opt_matched:
+                      switch (prior) {
+                      | Some(e) => e.opt_matched
+                      | None => 0
+                      },
                   },
-                )
+                );
               | _ => Hashtbl.remove(optimistic, id)
               }
             | None => ()
@@ -368,6 +410,7 @@ module M: Projector = {
       inject:
         event_inject(
           ~id,
+          ~print_term,
           ~ll_name,
           ~def_elab,
           ~model,
@@ -380,18 +423,6 @@ module M: Projector = {
     /* Optimistic entry: render it (interactive, full brightness) until
        the authoritative sample content-converges with it or the syntax
        model stops matching what we committed (external edit / undo). */
-    /* Term identity via PRINTED text: the syntax model literally came
-       from printing the committed term, and structural comparison trips
-       over print/reparse asymmetries (LivelitName vs Var("^name"),
-       evaluated negative atoms vs unary-minus applications, ...).
-       Whitespace is squished since the syntax side carries the user's
-       secondary spacing. */
-    let squish = str =>
-      String.to_seq(str)
-      |> Seq.filter(c => c != ' ' && c != '\n' && c != '\t')
-      |> String.of_seq;
-    let same_model = (a: TermBase.Exp.t, b: TermBase.Exp.t): bool =>
-      squish(print_term(a)) == squish(print_term(b));
     let opt =
       switch (Hashtbl.find_opt(optimistic, id)) {
       | None => None
@@ -401,18 +432,30 @@ module M: Projector = {
           | Some(l) => Exp.fast_equal(l, entry.opt_html)
           | None => false
           };
-        let matches_committed = same_model(model, entry.opt_committed);
-        if (matches_committed && !entry.opt_landed) {
-          entry.opt_landed = true;
+        let model_print = squish(print_term(model));
+        let idx = {
+          let rec find = (i, xs) =>
+            switch (xs) {
+            | [] => None
+            | [x, ..._] when x == model_print => Some(i)
+            | [_, ...rest] => find(i + 1, rest)
+            };
+          find(0, entry.opt_outstanding);
         };
-        let ours =
-          matches_committed
-          || !entry.opt_landed
-          && same_model(model, entry.opt_base);
-        if (converged || !ours) {
+        switch (idx) {
+        | _ when converged =>
           Hashtbl.remove(optimistic, id);
           None;
-        } else {
+        | None =>
+          /* syntax shows something we never committed: external edit */
+          Hashtbl.remove(optimistic, id);
+          None;
+        | Some(i) when i < entry.opt_matched =>
+          /* syntax rewound to an earlier state: undo */
+          Hashtbl.remove(optimistic, id);
+          None;
+        | Some(i) =>
+          entry.opt_matched = i;
           Some(entry);
         };
       };
