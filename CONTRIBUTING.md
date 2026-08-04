@@ -104,7 +104,16 @@ This can be combined with using `make hot` rather than `make serve` to add hot r
   opam switch remove 5.2.0
   ```
   
-  Then recreate the switch following the steps in this guide (see "Install OCaml" and "Install Library Dependencies"), run `eval $(opam env)`, `make deps`, and rebuild.
+  Then recreate the switch following the steps in this guide (see "Install OCaml" and "Install Library Dependencies"), run `eval $(opam env)`, `make deps`, and rebuild. `make deps` reconfigures the pinned opam repositories in the new switch for you, so there is nothing extra to set up.
+
+- If a dependency fails to resolve with a version conflict you did not introduce, check whether your switch's repositories match [`.github/opam-pins.env`](.github/opam-pins.env):
+
+  ```sh
+  opam repo list        # hazel-locked and archive should be at the pinned commits
+  make deps             # reconfigures them if they have drifted
+  ```
+
+  Upstream can edit already-published package metadata in place, so an unpinned repository can start disagreeing with `hazel.opam.locked` without anything changing on our side. See [Changing OCaml Dependencies](docs/Change-OCaml-Dependencies.md).
 
 
 ### Printing
