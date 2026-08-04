@@ -52,15 +52,14 @@ jobs:
         run: opam exec -- make ci
         timeout-minutes: 20
 
-      # This is what gates, not `Run tests` above. test/haz3ltest.re calls
-      # run_and_report and discards the `exit` function it returns, which is the
-      # only thing that propagates failure -- Alcotest.run is always invoked
-      # internally with and_exit=false so a report can be produced. So the test
-      # binary exits 0 even when tests fail.
+      # Annotations, not the gate -- `Run tests` above exits non-zero by itself.
+      # fail-on-error stays on as a cheap regression guard in case the runner
+      # ever stops propagating its status again.
       #
       # Skipped on forks: GitHub caps their token to read-only regardless of the
       # permissions block above, so publishing a check run would fail and turn
-      # every fork PR red. The plain assertion below covers that case.
+      # every fork PR red. They still gate on the exit status like everything
+      # else, they just get no annotated report.
       - name: Test Report
         if: ${{ always() && github.event.pull_request.head.repo.fork != true }}
         uses: dorny/test-reporter@v1
@@ -71,31 +70,8 @@ jobs:
           fail-on-error: true
           fail-on-empty: true # Use an empty test report to detect when something failed with the test runner
 
-      # Forks cannot publish a check run, so they get a plain assertion on the
-      # same report instead. Without it a fork PR would go green with failing
-      # tests, since the runner exits 0 either way. Deletable once
-      # test/haz3ltest.re propagates a real exit code.
-      - name: Fail on test failures (forks)
-        if: ${{ always() && github.event.pull_request.head.repo.fork == true }}
-        run: |
-          shopt -s nullglob
-          files=(./_build/default/test/junit_tests*.xml)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No junit report found -- the test runner did not complete" >&2
-            exit 1
-          fi
-          for f in "${files[@]}"; do
-            if ! grep -q 'failures="0" errors="0"' "$f"; then
-              echo "Test failures reported in $f:" >&2
-              grep -oE 'tests="[0-9]+" failures="[0-9]+" errors="[0-9]+" skipped="[0-9]+"' "$f" | head -1 >&2
-              exit 1
-            fi
-          done
-          echo "No test failures in ${#files[@]} report(s)."
-
       # Fork PRs get a read-only token with no access to secrets, so the upload
-      # would fail rather than add anything. Tests still run and still gate, via
-      # the assertion above.
+      # would fail rather than add anything. Tests still run and still gate.
       - name: Send coverage report to Codecov
         if: ${{ github.event.pull_request.head.repo.fork != true }}
         run: opam exec -- bisect-ppx-report send-to Codecov --verbose

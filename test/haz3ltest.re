@@ -8,9 +8,17 @@ Printexc.register_printer(exn => {
   }
 });
 
-let (suite, _) =
+/* `run_and_report` never exits on its own: it always calls `Alcotest.run` with
+   `and_exit=false` internally so that a report can be produced afterwards, and
+   returns an `exit` function that emulates the real behaviour. Calling it is the
+   only thing that turns a failing test into a non-zero exit status, so it must
+   be invoked once the report and the coverage data have been written -- see the
+   end of this file. Without it every runner (`dune runtest`,
+   `dune build @test-quick`, `make test`, `./run_tests`) reports success no
+   matter how many tests failed. */
+let (suite, exit_with_test_status) =
   run_and_report(
-    ~and_exit=false,
+    ~and_exit=true,
     ~argv=Sys.argv,
     "HazelTests",
     [
@@ -72,3 +80,6 @@ let (suite, _) =
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
+
+/* Must be last: exits 0 when everything passed and 1 otherwise. */
+exit_with_test_status();

@@ -111,12 +111,9 @@ jobs:
         run: opam exec -- make ci-quick
         timeout-minutes: 20
 
-      # Load-bearing, not decorative. test/haz3ltest.re calls run_and_report and
-      # discards the `exit` function it returns, which is the only thing that
-      # propagates failure -- Alcotest.run is always invoked internally with
-      # and_exit=false so a report can be produced. So the test binary exits 0
-      # even when tests fail, and `Run quick tests` above cannot go red on its
-      # own. This step is what turns a failure into a failed job.
+      # Annotations, not the gate -- `Run quick tests` above exits non-zero by
+      # itself. fail-on-error stays on as a cheap regression guard in case the
+      # runner ever stops propagating its status again.
       - name: Quick Test Report
         if: always()
         uses: dorny/test-reporter@v1
