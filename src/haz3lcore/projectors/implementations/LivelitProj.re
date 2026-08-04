@@ -195,8 +195,35 @@ module M: Projector = {
      next commit collapses it to its value again. Without a sampled model
      value (dynamics off), fall back to evaluating update here, at event
      time, in the builtin environment, and committing the result. */
+  /* Optimistic rendering for discrete actions. The authoritative
+     pipeline (SetSyntax -> statics -> worker eval -> fresh sample) takes
+     on the order of a second; the next model and its view are computable
+     at event time in milliseconds, since update/view evaluate in the
+     builtin env. Each action commits to the syntax immediately (every
+     discrete action is its own history step) while the widget renders
+     the optimistic view NOW, with handlers bound to the optimistic model
+     so rapid successive actions chain correctly. The entry yields to the
+     authoritative sample when the sample's content converges with it —
+     guaranteed while definitions are closed, because both sides evaluate
+     the same view on the same model — and is dropped whenever the syntax
+     model stops matching what we committed (external edit, undo). */
+  type optimistic_entry = {
+    opt_model: TermBase.Exp.t, /* the next model, already a value */
+    opt_html: TermBase.Exp.t, /* view(opt_model), evaluated at event time */
+    opt_committed: TermBase.Exp.t, /* the term we spliced into the syntax */
+    opt_base: TermBase.Exp.t, /* the syntax model when the event fired */
+    /* Renders can interleave between the event and the SetSyntax landing
+       (caret movement, indication), during which the syntax still shows
+       opt_base; the entry must survive those. Once the commit has been
+       seen in the syntax, only opt_committed counts as ours — so undo
+       (which restores opt_base) correctly drops the entry. */
+    mutable opt_landed: bool,
+  };
+  let optimistic: Hashtbl.t(Id.t, optimistic_entry) = Hashtbl.create(16);
+
   let event_inject =
       (
+        ~id: Id.t,
         ~ll_name: string,
         ~def_elab: TermBase.Exp.t,
         ~model: TermBase.Exp.t,
@@ -209,39 +236,86 @@ module M: Projector = {
       print_endline("LivelitProj: " ++ msg);
       Ui_effect.Ignore;
     };
-    switch (model_value) {
-    | Some(mv)
-        when
-          MvuShape.is_checkpointable(mv)
-          && MvuShape.is_checkpointable(action) =>
-      commit_model(
-        UserLivelit.mk_update_redex(~name=ll_name, ~model_value=mv, ~action),
-      )
-    | _ =>
-      let ap = IdTagged.FreshGrammar.Exp.ap;
+    let ap = IdTagged.FreshGrammar.Exp.ap;
+    /* What goes in the syntax: the update redex when the base model is a
+       committable value (keeps the interaction visible to probes and the
+       stepper), independent of whether the optimistic path succeeds. */
+    let redex =
+      switch (model_value) {
+      | Some(mv)
+          when
+            MvuShape.is_checkpointable(mv)
+            && MvuShape.is_checkpointable(action) =>
+        Some(
+          UserLivelit.mk_update_redex(
+            ~name=ll_name,
+            ~model_value=mv,
+            ~action,
+          ),
+        )
+      | _ => None
+      };
+    /* Event-time evaluation of the next model (and, best-effort, its
+       view for the optimistic entry). */
+    let next_model =
       switch (MvuShape.safe_evaluate(def_elab)) {
-      | Error(e) => fail("definition error: " ++ e)
+      | Error(e) => Error("definition error: " ++ e)
       | Ok(record) =>
         switch (record_field(record, "update", 1)) {
-        | None => fail("definition is missing update")
+        | None => Error("definition is missing update")
         | Some(update_fn) =>
+          let base = Option.value(model_value, ~default=model);
           let applied =
             ap(
               Forward,
               update_fn,
-              IdTagged.FreshGrammar.Exp.tuple([model, action]),
+              IdTagged.FreshGrammar.Exp.tuple([base, action]),
             );
           switch (MvuShape.safe_evaluate(applied)) {
-          | Error(e) => fail("update error: " ++ e)
-          | Ok(new_model) =>
+          | Error(e) => Error("update error: " ++ e)
+          | Ok(new_model) when !MvuShape.is_checkpointable(new_model) =>
             /* the model persists in the syntax tree, so it must be
                closure-free */
-            MvuShape.is_checkpointable(new_model)
-              ? commit_model(new_model)
-              : fail("update produced an uncommittable model")
+            Error("update produced an uncommittable model")
+          | Ok(new_model) =>
+            let committed =
+              switch (redex) {
+              | Some(r) => r
+              | None => new_model
+              };
+            switch (record_field(record, "view", 2)) {
+            | Some(view_fn) =>
+              switch (
+                MvuShape.safe_evaluate(ap(Forward, view_fn, new_model))
+              ) {
+              | Ok(html) when MvuShape.is_html(html) =>
+                Hashtbl.replace(
+                  optimistic,
+                  id,
+                  {
+                    opt_model: new_model,
+                    opt_html: html,
+                    opt_committed: committed,
+                    opt_base: model,
+                    opt_landed: false,
+                  },
+                )
+              | _ => Hashtbl.remove(optimistic, id)
+              }
+            | None => ()
+            };
+            Ok(committed);
           };
         }
       };
+    switch (next_model, redex) {
+    | (Ok(committed), _) => commit_model(committed)
+    | (Error(_), Some(r)) =>
+      /* The redex commit does not need the event-time evaluation to have
+         succeeded (e.g. a definition that is not closed still works via
+         the program's own evaluation). */
+      commit_model(r)
+    | (Error(e), None) => fail(e)
     };
   };
 
@@ -266,6 +340,7 @@ module M: Projector = {
   let user_view =
       (
         ~id: Id.t,
+        ~print_term: TermBase.Exp.t => string,
         ~ll_name: string,
         ~def_elab: TermBase.Exp.t,
         ~model: TermBase.Exp.t,
@@ -289,9 +364,10 @@ module M: Projector = {
       Hashtbl.replace(last_good_view, id, node);
       node;
     };
-    let seed: HazelDOM.t = {
+    let seed = (~model, ~model_value): HazelDOM.t => {
       inject:
         event_inject(
+          ~id,
           ~ll_name,
           ~def_elab,
           ~model,
@@ -301,9 +377,56 @@ module M: Projector = {
       view_term,
       commit: HazelDOM.State,
     };
-    switch (live) {
-    | Some(html) => ok(HazelDOM.go(seed, html))
-    | None =>
+    /* Optimistic entry: render it (interactive, full brightness) until
+       the authoritative sample content-converges with it or the syntax
+       model stops matching what we committed (external edit / undo). */
+    /* Term identity via PRINTED text: the syntax model literally came
+       from printing the committed term, and structural comparison trips
+       over print/reparse asymmetries (LivelitName vs Var("^name"),
+       evaluated negative atoms vs unary-minus applications, ...).
+       Whitespace is squished since the syntax side carries the user's
+       secondary spacing. */
+    let squish = str =>
+      String.to_seq(str)
+      |> Seq.filter(c => c != ' ' && c != '\n' && c != '\t')
+      |> String.of_seq;
+    let same_model = (a: TermBase.Exp.t, b: TermBase.Exp.t): bool =>
+      squish(print_term(a)) == squish(print_term(b));
+    let opt =
+      switch (Hashtbl.find_opt(optimistic, id)) {
+      | None => None
+      | Some(entry) =>
+        let converged =
+          switch (live) {
+          | Some(l) => Exp.fast_equal(l, entry.opt_html)
+          | None => false
+          };
+        let matches_committed = same_model(model, entry.opt_committed);
+        if (matches_committed && !entry.opt_landed) {
+          entry.opt_landed = true;
+        };
+        let ours =
+          matches_committed
+          || !entry.opt_landed
+          && same_model(model, entry.opt_base);
+        if (converged || !ours) {
+          Hashtbl.remove(optimistic, id);
+          None;
+        } else {
+          Some(entry);
+        };
+      };
+    switch (opt, live) {
+    | (Some(entry), _) =>
+      ok(
+        HazelDOM.go(
+          seed(~model=entry.opt_model, ~model_value=Some(entry.opt_model)),
+          entry.opt_html,
+        ),
+      )
+    | (None, Some(html)) =>
+      ok(HazelDOM.go(seed(~model, ~model_value), html))
+    | (None, None) =>
       let ap = IdTagged.FreshGrammar.Exp.ap;
       switch (MvuShape.safe_evaluate(def_elab)) {
       | Error(e) => err("livelit definition error: " ++ e)
@@ -314,7 +437,7 @@ module M: Projector = {
           switch (MvuShape.safe_evaluate(ap(Forward, view_fn, model))) {
           | Error(e) => err("livelit view error: " ++ e)
           | Ok(html) when MvuShape.is_html(html) =>
-            ok(HazelDOM.go(seed, html))
+            ok(HazelDOM.go(seed(~model, ~model_value), html))
           | Ok(_) => err("livelit view did not produce HTML")
           }
         }
@@ -366,6 +489,16 @@ module M: Projector = {
             [
               user_view(
                 ~id=info.id,
+                ~print_term=
+                  term =>
+                    /* Model terms contain no projectors or refractors, so
+                       trivial handlers suffice (the real ones live above
+                       this module in the dependency order). */
+                    Segment.to_string(
+                      ~refractor_seg_to_seg=(rs, seg) => (rs, seg),
+                      ~projector_to_segment=_ => [],
+                      info.utility.term_to_seg(~inline=true, Exp(term)),
+                    ),
                 ~ll_name,
                 ~def_elab,
                 ~model,
