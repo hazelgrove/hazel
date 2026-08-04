@@ -37,3 +37,11 @@
   pointer-events: none;
   transition: opacity 0.15s ease-in;
 }
+
+/* User livelits anchor to the top-left: oversized content hangs down
+   past the backing instead of centering (centered overflow shifts
+   whenever content and placeholder heights disagree — the "pop"). */
+.livelit > .user-livelit {
+    justify-content: flex-start;
+    align-items: flex-start;
+}
