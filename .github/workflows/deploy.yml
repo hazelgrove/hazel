@@ -1,4 +1,4 @@
-# Branch previews, plus a fast smoke signal on every push.
+# Branch previews, plus a fast quick-test signal on every push.
 #
 # Deliberately NOT the authoritative test workflow -- that is ci.yml, which runs
 # on pull_request so it also covers forks. Previews are not gated on tests: a red
@@ -92,9 +92,12 @@ jobs:
   # overlaps ci.yml's authoritative run, which is accepted -- it is non-blocking,
   # gives a signal minutes earlier, and avoiding it would mean reintroducing the
   # PR lookup this pipeline was restructured to remove.
-  Smoke:
-    name: Smoke tests
+  Quick:
+    name: Quick tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write # dorny/test-reporter publishes a check run
     steps:
       - name: Checkout the hazel repo on the current branch
         uses: actions/checkout@v4
@@ -107,3 +110,19 @@ jobs:
       - name: Run quick tests
         run: opam exec -- make ci-quick
         timeout-minutes: 20
+
+      # Load-bearing, not decorative. test/haz3ltest.re calls run_and_report and
+      # discards the `exit` function it returns, which is the only thing that
+      # propagates failure -- Alcotest.run is always invoked internally with
+      # and_exit=false so a report can be produced. So the test binary exits 0
+      # even when tests fail, and `Run quick tests` above cannot go red on its
+      # own. This step is what turns a failure into a failed job.
+      - name: Quick Test Report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Quick Test Report
+          path: ./_build/default/test/junit_tests*.xml
+          reporter: java-junit
+          fail-on-error: true
+          fail-on-empty: true # An empty report means the runner itself failed
