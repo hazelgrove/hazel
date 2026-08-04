@@ -210,12 +210,7 @@ let to_literal = (e: t): string =>
   | SInt(i) => i |> string_of_int
   | Float(f) => Printf.sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
-  | String(s) =>
-    if (String.contains(s, '\\') && is_valid_raw_string_body(s)) {
-      "r\"" ++ s ++ "\"";
-    } else {
-      "\"" ++ s ++ "\"";
-    }
+  | String(s) => "\"" ++ s ++ "\""
   };
 
 /* ========== BUILTINS ========== */

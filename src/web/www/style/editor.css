@@ -131,6 +131,11 @@
   color: var(--token-string-lit);
 }
 
+.cell-result .code .token.string-lit .escape,
+#side-bar .code .token.string-lit .escape {
+  color: var(--token-string-lit);
+}
+
 /* code completion tokens */
 .code .in-unparsed-buffer {
   color: var(--token-buffer);
