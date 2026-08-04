@@ -271,11 +271,15 @@ let grout_for_suppressed_space = (z: t, ~root): option(Grout.t) =>
 /* This is special-case logic for advancing the caret to between
  * the quotes in newly-created stringlits. This should be done
  * before regrouting to avoid annoying edge cases. */
-let move_into_string_or_comment = (char: string, z: t): t =>
+let move_into_string_or_comment =
+    (char: string, resulting_token: Token.t, z: t): t =>
   Token.is_string_or_comment_delim(char)
     ? switch (move(Left, z)) {
       | None => z
-      | Some(z) => z |> Caret.set(Inner(0))
+      | Some(z) =>
+        /* Standard strings need 0, raw strings need 1 */
+        let offset = Token.is_raw_string_start(resulting_token) ? 1 : 0;
+        z |> Caret.set(Inner(offset));
       }
     : z;
 
@@ -306,7 +310,7 @@ let split = (z: t, char: string, idx: int, t: Token.t, ~root): option(t) => {
     | None =>
       z
       |> insert_shard(~id=Id.mk(), ~d=Left, char)
-      |> move_into_string_or_comment(char)
+      |> move_into_string_or_comment(char, char)
     };
   remold_regrout(Right, z, ~root);
 };
@@ -371,6 +375,11 @@ let insert_or_append = (char: string, z: t, ~root): option(t) =>
     |> replace_shard_inplace(Right, t, ~root)
     |> Option.map(remold_regrout(Right, ~root))
   | appendability =>
+    let resulting_token =
+      switch (appendability) {
+      | Some((_, t)) => t
+      | None => char
+      };
     let z =
       Caret.set(
         switch (appendability) {
@@ -394,7 +403,7 @@ let insert_or_append = (char: string, z: t, ~root): option(t) =>
       };
     let z_final =
       z_init
-      |> move_into_string_or_comment(char)
+      |> move_into_string_or_comment(char, resulting_token)
       |> remold_regrout(Left, ~root)
       |> merge_or_noop(~root);
     adjust_caret_pos(~z_final, ~z_init);
