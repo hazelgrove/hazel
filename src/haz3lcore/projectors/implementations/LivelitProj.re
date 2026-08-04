@@ -3,6 +3,14 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
 
+/* Bumped on every optimistic-table change. ProjectorView's ViewCache keys
+   livelit entries on this (like AppBridge.version for apps): the underlying
+   syntax only reaches the cache key via statics_map identity, which the
+   statics debounce holds stale on the commit frame — without this bump the
+   event-time optimistic view would sit invisible until the deferred statics
+   refresh. */
+let optimistic_version: ref(int) = ref(0);
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -328,6 +336,7 @@ module M: Projector = {
                     ? List.filteri((i, _) => i >= n - 64, outstanding)
                     : outstanding;
                 };
+                incr(optimistic_version);
                 Hashtbl.replace(
                   optimistic,
                   id,
@@ -342,7 +351,11 @@ module M: Projector = {
                       },
                   },
                 );
-              | _ => Hashtbl.remove(optimistic, id)
+              | _ =>
+                if (Hashtbl.mem(optimistic, id)) {
+                  incr(optimistic_version);
+                  Hashtbl.remove(optimistic, id);
+                }
               }
             | None => ()
             };
@@ -442,18 +455,19 @@ module M: Projector = {
             };
           find(0, entry.opt_outstanding);
         };
-        switch (idx) {
-        | _ when converged =>
+        let drop = () => {
+          incr(optimistic_version);
           Hashtbl.remove(optimistic, id);
           None;
+        };
+        switch (idx) {
+        | _ when converged => drop()
         | None =>
           /* syntax shows something we never committed: external edit */
-          Hashtbl.remove(optimistic, id);
-          None;
+          drop()
         | Some(i) when i < entry.opt_matched =>
           /* syntax rewound to an earlier state: undo */
-          Hashtbl.remove(optimistic, id);
-          None;
+          drop()
         | Some(i) =>
           entry.opt_matched = i;
           Some(entry);

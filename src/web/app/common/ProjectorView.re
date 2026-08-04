@@ -473,9 +473,15 @@ let mk_view =
       projector_list: list(Id.t),
     )
     : View.t => {
-  /* Only the app projector reads the AppStore, so only its cache entry
-     has to expire when the store changes. */
-  let app_version = p.kind == ProjectorCore.Kind.HTML ? AppBridge.version^ : 0;
+  /* Kinds with out-of-band state get a version counter in the key: apps
+     read the AppStore; livelits read the optimistic table, whose updates
+     must repaint before the debounced statics refresh. */
+  let app_version =
+    switch (p.kind) {
+    | ProjectorCore.Kind.HTML => AppBridge.version^
+    | ProjectorCore.Kind.Livelit => LivelitProj.optimistic_version^
+    | _ => 0
+    };
   switch (
     ViewCache.lookup(
       p.id,
