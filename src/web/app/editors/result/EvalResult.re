@@ -209,7 +209,15 @@ module Update = {
         streaming_outbox: Calc.Calculated(Some(stream)),
         streaming_state: Calc.Pending,
         pending_eval_ids:
-          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
+          /* The pending sweep feeds only the (default-off) incremental
+             deco, and clearing it walks every reused elaboration subtree
+             — skip the walk when nothing will read it. */
+          settings.show_incremental_deco
+            ? EvalWorklist.remove_streamed_ids(
+                stream,
+                model.pending_eval_ids,
+              )
+            : [],
       }
       |> Updated.return_quiet
     | (MergeStreamingEval(stream), _) =>
@@ -223,7 +231,12 @@ module Update = {
           Calc.Calculated(Some(IncrEval.merge_outbox(stream, current))),
         streaming_state: Calc.Pending,
         pending_eval_ids:
-          EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
+          settings.show_incremental_deco
+            ? EvalWorklist.remove_streamed_ids(
+                stream,
+                model.pending_eval_ids,
+              )
+            : [],
       }
       |> Updated.return_quiet;
     };
