@@ -90,6 +90,7 @@ let string_quote_is_escaped = (s: t, idx: int): bool => {
 let raw_string_regexp = regexp("^r\"[^\n]*\"$"); /* Multiline raw strings not supported */
 let is_raw_string = t =>
   match(raw_string_regexp, t) && List.length(split_on_char('"', t)) < 4;
+let empty_raw_string = "r\"\"";
 
 let is_raw_string_start = (==)("r\"");
 
@@ -300,7 +301,15 @@ let is_empty_module = equal(empty_module);
 let const_mono_delims =
   base_typs
   @ bools
-  @ [undefined, wild, empty_list, empty_tuple, empty_module, empty_string];
+  @ [
+    undefined,
+    wild,
+    empty_list,
+    empty_tuple,
+    empty_module,
+    empty_string,
+    empty_raw_string,
+  ];
 
 let bad_token_cls: string => bad_token_cls =
   t =>

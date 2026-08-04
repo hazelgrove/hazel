@@ -77,12 +77,16 @@ let outer = (d: Direction.t, z: t, ~root): option(t) =>
 let rm_nth_right = (idx, t, z, ~root) =>
   Insert.replace_shard(Right, Token.rm_nth(t, idx), z, ~root);
 
+let is_first_inner_pos = (t, idx) =>
+  idx == 0 || Token.is_raw_string(t) && idx == 1;
+
 let inner_left = (idx: int, z: t, ~root): option(t) =>
   switch (Zipper.neighbor_token(Right, z)) {
-  | Some(t) when Token.is_string_or_comment(t) && idx == 0 =>
+  | Some(t) when Token.is_string_or_comment(t) && is_first_inner_pos(t, idx) =>
     unwrap_quote(Right, t, z |> Caret.set(Outer), ~root)
   | Some(t) =>
-    let z = Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
+    let z =
+      Caret.set(is_first_inner_pos(t, idx) ? Outer : Inner(idx - 1), z);
     let+ z_init = rm_nth_right(idx, t, z, ~root);
     let z_final = Zipper.remold_regrout(Left, z_init, ~root);
     Insert.adjust_caret_pos(~z_final, ~z_init);

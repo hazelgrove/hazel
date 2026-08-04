@@ -796,6 +796,21 @@ let destruct_tests = [
     ~goal={|¦?|},
   ),
   test(
+    ~name="Deleting raw string starting r deletes raw string",
+    ~acts=mk({|r¦""|}) @ [Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Deleting raw string starting quote deletes raw string",
+    ~acts=mk({|r"¦"|}) @ [Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Deleting raw string ending quote deletes raw string",
+    ~acts=mk({|r""¦|}) @ [Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
     ~name="Delete char from token by backspacing",
     ~acts=mk({|f¦oo|}) @ [Destruct(Left)],
     ~goal={|¦oo|},

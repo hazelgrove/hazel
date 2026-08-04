@@ -24,6 +24,10 @@ let render_string_with_escapes =
     };
   let len = String.length(body);
 
+  /* Helper to check for valid hex digits */
+  let is_hex = (c: char): bool =>
+    c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F';
+
   /* For raw strings, don't parse escape sequences */
   if (is_raw) {
     let open_q = text("r\"");
@@ -42,31 +46,58 @@ let render_string_with_escapes =
         };
         let piece = String.sub(body, i, j.contents - i);
         split(j.contents, [(false, piece), ...acc]);
-      } else if
-        /* body.[i] == '\\' */
-        (i + 1 >= len) {
-        split(i + 1, [(true, "\\"), ...acc]);
+      } else if (i + 1 >= len) {
+        /* Trailing backslash - invalid escape */
+        split(
+          i + 1,
+          [(false, "\\"), ...acc],
+        );
       } else if (body.[i + 1] == 'u' && i + 2 < len && body.[i + 2] == '{') {
         let k = ref(i + 3);
+        let valid = ref(true);
         while (k.contents < len && body.[k.contents] != '}') {
+          if (!is_hex(body.[k.contents])) {
+            valid := false;
+          };
           k := k.contents + 1;
         };
-        let esc =
-          if (k.contents < len) {
-            String.sub(body, i, k.contents - i + 1);
-          } else {
-            String.sub(body, i, len - i);
-          };
-        split(
-          k.contents < len ? k.contents + 1 : len,
-          [(true, esc), ...acc],
-        );
-      } else if (body.[i + 1] == 'x' && i + 3 < len) {
-        let esc = String.sub(body, i, 4); /* \xNN */
+        /* Must be properly closed with '}' and contain at least one valid hex digit */
+        if (k.contents < len && valid.contents && k.contents > i + 3) {
+          let esc = String.sub(body, i, k.contents - i + 1);
+          split(k.contents + 1, [(true, esc), ...acc]);
+        } else {
+          /* Invalid \u sequence. Treat just the \ as normal text */
+          split(
+            i + 1,
+            [(false, "\\"), ...acc],
+          );
+        };
+      } else if (body.[i + 1] == 'x'
+                 && i
+                 + 3 < len
+                 && is_hex(body.[i + 2])
+                 && is_hex(body.[i + 3])) {
+        let esc = String.sub(body, i, 4); /* Valid \xNN */
         split(i + 4, [(true, esc), ...acc]);
       } else {
-        let esc = String.sub(body, i, 2); /* backslash + next char */
-        split(i + 2, [(true, esc), ...acc]);
+        /* Check against a whitelist of valid single-character escapes */
+        switch (body.[i + 1]) {
+        | '\\'
+        | '"'
+        | '\''
+        | 'n'
+        | 't'
+        | 'b'
+        | 'r'
+        | ' ' =>
+          let esc = String.sub(body, i, 2); /* backslash + next char */
+          split(i + 2, [(true, esc), ...acc]);
+        | _ =>
+          /* Invalid simple escape (e.g., \q or an incomplete \x).
+           * Push the backslash as normal text. The loop will process the next character
+           * (like the 'x' or 'q') as standard text on the next iteration. */
+          split(i + 1, [(false, "\\"), ...acc])
+        };
       };
 
     let pieces = split(0, []);
