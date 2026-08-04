@@ -601,5 +601,16 @@ let tests = (
       ~input={|§deriv x ** 3 by¦ x + deriv 2 * x by x|},
       ~expected=false,
     ),
+    test(
+      ~name=
+        "associative suffix beginning with derivative stays on selected terms",
+      ~input={|deriv x ** 3 by x + §deriv 2 * x by x + 3¦ + 4|},
+      ~expected={|deriv 2 * x by x + 3|},
+    ),
+    test_exp(
+      ~name="derivative-led associative suffix checker matches highlight",
+      ~input={|deriv x ** 3 by x + §deriv 2 * x by x + 3¦ + 4|},
+      ~expected={|deriv 2 * x by x + 3|},
+    ),
   ],
 );

@@ -1,7 +1,12 @@
 open Util;
 
+let is_surface_derivative = exp =>
+  DerivativeOperator.is_expression(exp)
+  || DerivativeOperator.is_function(exp);
+
 let rec left_edge_id = (exp: Exp.t): Id.t =>
   switch (Exp.term_of(exp)) {
+  | _ when is_surface_derivative(exp) => Exp.rep_id(exp)
   | BinOp(_, left, _)
   | Ap(_, left, _)
   | Dot(left, _)
@@ -14,6 +19,7 @@ let rec left_edge_id = (exp: Exp.t): Id.t =>
 
 let rec right_edge_id = (exp: Exp.t): Id.t =>
   switch (Exp.term_of(exp)) {
+  | _ when is_surface_derivative(exp) => Exp.rep_id(exp)
   | BinOp(_, _, right)
   | Ap(_, _, right)
   | Dot(_, right)

@@ -175,7 +175,7 @@ let virtual_selection =
     Language.AssocSelection.find_assoc_for_ids(selected_ids, info_map);
   let current_level = current_level_segment(z);
   let current_segment = contiguous_range(~ids=snapped_ids, current_level);
-  let candidate =
+  let fallback_candidate =
     if (current_segment != []
         && segment_contains_all_ids(~ids=snapped_ids, current_segment)
         && segment_contains_all_ids(~ids=selected_ids, current_segment)) {
@@ -192,6 +192,35 @@ let virtual_selection =
         ~info_map,
         ~term_data,
       );
+    };
+  /* Prefer a complete associative operation the user selected directly.
+   * Ancestor-derived candidates remain the fallback for partial drags. */
+  let direct_candidate =
+    selected_ids
+    |> List.filter_map(id =>
+         Language.AssocSelection.find_assoc_root_for_id(id, info_map)
+       )
+    |> ListUtil.dedup
+    |> List.find_map(root_id =>
+         switch (TermData.segment(root_id, term_data)) {
+         | Some(root_segment) =>
+           let direct_snapped_ids =
+             Language.AssocSelection.find_assoc_for_id(root_id, info_map);
+           let root_range =
+             contiguous_range(~ids=direct_snapped_ids, root_segment);
+           segment_contains_all_ids(~ids=selected_ids, root_range)
+             ? Some({
+                 segment: root_range,
+                 container_id: root_id,
+               })
+             : None;
+         | None => None
+         }
+       );
+  let candidate =
+    switch (direct_candidate) {
+    | Some(_) as candidate => candidate
+    | None => fallback_candidate
     };
   let* {segment, container_id} = candidate;
   if (has_exact_root(~segment, ~info_map, ~measured, ~term_data)) {
