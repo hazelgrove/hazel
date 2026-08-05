@@ -168,6 +168,13 @@ let expand = fun m : Model -> m
   transition `^name.update(prev, action)` — this is expected; it
   normalizes on the next evaluation and keeps the last interaction
   visible to probes and the stepper.
+- Gestures: mouse-down and mouse-move actions preview the next model
+  live WITHOUT rewriting the program; the gesture-ending event (mouse
+  up, click, ...) commits once. So a drag is smooth and lands as a
+  single undo step — but a model changed only by down/move never
+  commits until some committing event fires: give every gesture a
+  mouse-up handler. Updates that return the model unchanged commit
+  nothing, so a stray click can't pollute history.
 
 ## When to reach for one
 

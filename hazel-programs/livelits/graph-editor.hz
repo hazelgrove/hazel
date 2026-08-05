@@ -1,0 +1,85 @@
+type Graph = ([(Int, Int)], [(Int, Int)]) in
+let ^graph = {
+  type Model = ([(Int, Int)], [(Int, Int)], Int, Int, Bool);
+  type Action = + Down(Int, Int) + MoveTo(Int, Int) + Up + Clear;
+  let init : Model = ([(40, 40), (150, 40), (95, 115)], [(0, 1), (1, 2)], -1, -1, false);
+  let len : [(Int, Int)] -> Int = fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;
+  let near : ([(Int, Int)], Int, Int, Int) -> Int =
+    fun nodes, x, y, i ->
+      case nodes
+      | [] => -1
+      | (nx, ny) :: tl =>
+        let dx = nx - x in let dy = ny - y in
+        if dx * dx + dy * dy <= 256 then i else near(tl, x, y, i + 1)
+      end;
+  let pick : ([(Int, Int)], Int) -> (Int, Int) =
+    fun xs, i -> case xs | [] => (0, 0) | hd :: tl => if i <= 0 then hd else pick(tl, i - 1) end;
+  let set_at : ([(Int, Int)], Int, (Int, Int)) -> [(Int, Int)] =
+    fun xs, i, p ->
+      case xs
+      | [] => []
+      | hd :: tl => if i <= 0 then p :: tl else hd :: set_at(tl, i - 1, p)
+      end;
+  let has_edge : ([(Int, Int)], (Int, Int)) -> Bool =
+    fun edges, e -> case edges | [] => false | hd :: tl => hd == e || has_edge(tl, e) end;
+  let update = fun (m, a) : (Model, Action) ->
+    let (nodes, edges, sel, drag, moved) = m in
+    case a
+    | Clear => ([], [], -1, -1, false)
+    | Down(x, y) =>
+      let hit = near(nodes, x, y, 0) in
+      if hit == -1 then (nodes @ [(x, y)], edges, sel, len(nodes), true)
+      else (nodes, edges, sel, hit, false)
+    | MoveTo(x, y) =>
+      if drag == -1 then m
+      else if moved then (set_at(nodes, drag, (x, y)), edges, sel, drag, true)
+      else
+        let (nx, ny) = pick(nodes, drag) in
+        let dx = nx - x in let dy = ny - y in
+        if dx * dx + dy * dy > 16
+        then (set_at(nodes, drag, (x, y)), edges, sel, drag, true)
+        else m
+    | Up =>
+      if drag == -1 then m
+      else if moved then (nodes, edges, sel, -1, false)
+      else if sel == -1 then (nodes, edges, drag, -1, false)
+      else if sel == drag then (nodes, edges, -1, -1, false)
+      else
+        let e = if sel < drag then (sel, drag) else (drag, sel) in
+        if has_edge(edges, e) then (nodes, edges, -1, -1, false)
+        else (nodes, edges @ [e], -1, -1, false)
+    end;
+  let dot = fun (p, i, sel) ->
+    let (x, y) = p in
+    Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "10"), Create("fill", if i == sel then "coral" else "teal")], []);
+  let line_of = fun (nodes, e) ->
+    let (a, b) = e in
+    let (x1, y1) = pick(nodes, a) in
+    let (x2, y2) = pick(nodes, b) in
+    Node("line", [Create("x1", string_of_int(x1)), Create("y1", string_of_int(y1)), Create("x2", string_of_int(x2)), Create("y2", string_of_int(y2)), Create("stroke", "#888"), Create("stroke-width", "2")], []);
+  let dots : ([(Int, Int)], Int, Int) -> [HTML] =
+    fun nodes, i, sel -> case nodes | [] => [] | hd :: tl => dot((hd, i, sel)) :: dots(tl, i + 1, sel) end;
+  let lines : ([(Int, Int)], [(Int, Int)]) -> [HTML] =
+    fun nodes, edges -> case edges | [] => [] | hd :: tl => line_of((nodes, hd)) :: lines(nodes, tl) end;
+  let view = fun m : Model ->
+    let (nodes, edges, sel, _, _) = m in
+    Div([], [
+      Node("svg", [Create("viewBox", "0 0 200 150"), Width("200"), Height("150"), Style([("border", "1px solid #ccc"), ("background", "#fafafa")]), OnMouseDownAt(fun (x, y) -> Down(x, y)), OnMouseMoveAt(fun (x, y) -> MoveTo(x, y)), OnMouseUpAt(fun _ -> Up)], lines(nodes, edges) @ dots(nodes, 0, sel)),
+      Div([], [Button([OnClick(Clear)], [Text("clear")]), Text(string_of_int(len(nodes)) ++ " nodes, " ++ string_of_int(len(edges)) ++ " edges")])
+    ]);
+  let size = (32, 8);
+  let expand = fun m : Model ->
+    let (nodes, edges, _, _, _) = m in
+    (nodes, edges) : Graph
+} in
+let counts : Graph -> (Int, Int) =
+  fun g ->
+    let (nodes, edges) = g in
+    let len : [(Int, Int)] -> Int = fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end in
+    (len(nodes), len(edges))
+in
+let path3 : Graph = ^^livelit(^graph(([(30, 30), (100, 90), (170, 30)], [(0, 1), (1, 2)], -1, -1, false))) in
+let blank : Graph = ^^livelit(^graph(([], [], -1, -1, false))) in
+test counts(path3) == (3, 2) end;
+test counts(blank) == (0, 0) end;
+[counts(path3), counts(blank)]
