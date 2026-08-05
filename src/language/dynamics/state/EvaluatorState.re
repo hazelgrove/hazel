@@ -21,6 +21,7 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   initial_step_count: int,
+  /* Reverse chronological log: evaluation prepends, consumers reverse once. */
   stepper_items: list(Dynamics.stepper_item),
   tests: TestMap.t,
   probes: Sample.Map.t,
@@ -166,7 +167,7 @@ let add_sample = (state: t, sample: Sample.t) => {
 let add_stepper_item = ({stepper_items, _} as es, item) => {
   {
     ...es,
-    stepper_items: stepper_items |> List.append([item]),
+    stepper_items: [item, ...stepper_items],
   };
 };
 

@@ -44,7 +44,7 @@ let proof_calc_settings = (settings: Calc.t(CoreSettings.t)) => {
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type theorem = {
+  type stepper = {
     name: string,
     ctx: Calc.saved(Ctx.t),
     env: Calc.saved(Environment.t(Exp.t)),
@@ -61,7 +61,7 @@ module Model = {
     | TheoremItem(Id.t)
     | ExploreItem(Id.t);
 
-  let theorem_init = name => {
+  let stepper_init = name => {
     name,
     ctx: Calc.Pending,
     env: Calc.Pending,
@@ -72,8 +72,8 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    thm_map: Id.Map.t(theorem),
-    explore_map: Id.Map.t(theorem),
+    thm_map: Id.Map.t(stepper),
+    explore_map: Id.Map.t(stepper),
     items: Calc.saved(list(item)),
   };
 
@@ -89,7 +89,7 @@ module Model = {
   let persist = (model: t): persistent => {
     thm_map:
       Id.Map.map(
-        (thm: theorem): persistent_theorem =>
+        (thm: stepper): persistent_theorem =>
           {stepper_view: StepperView.Model.persist(thm.stepper_view)},
         model.thm_map,
       ),
@@ -98,7 +98,7 @@ module Model = {
   let unpersist = (p: persistent): t => {
     thm_map:
       Id.Map.map(
-        (p_thm: persistent_theorem): theorem =>
+        (p_thm: persistent_theorem): stepper =>
           {
             name: "?",
             ctx: Calc.Pending,
@@ -153,17 +153,17 @@ module Update = {
 
   let can_undo = (action: t) => {
     switch (action) {
-    | TheoremUpdate(_, action) => StepperView.Update.can_undo(action)
+    | TheoremUpdate(_, action)
     | ExploreUpdate(_, action) => StepperView.Update.can_undo(action)
     };
   };
 
   let update_stepper =
-      (~settings, ~action, theorem: Model.theorem): Updated.t(Model.theorem) => {
+      (~settings, ~action, stepper: Model.stepper): Updated.t(Model.stepper) => {
     let* stepper_view =
-      StepperView.Update.update(~settings, action, theorem.stepper_view);
+      StepperView.Update.update(~settings, action, stepper.stepper_view);
     {
-      ...theorem,
+      ...stepper,
       stepper_view,
     };
   };
@@ -172,28 +172,18 @@ module Update = {
       (
         ~settings,
         ~sem_ctx,
-        ~ana: option(Calc.t(Typ.t)),
+        ~ana: option(Calc.t(Typ.t))=?,
         ~goal_exp,
         stepper_view,
       )
       : StepperView.Model.t =>
-    switch (ana) {
-    | Some(ana) =>
-      StepperView.Update.calculate(
-        ~settings,
-        ~ctx=sem_ctx,
-        ~ana,
-        goal_exp,
-        stepper_view,
-      )
-    | None =>
-      StepperView.Update.calculate(
-        ~settings,
-        ~ctx=sem_ctx,
-        goal_exp,
-        stepper_view,
-      )
-    };
+    StepperView.Update.calculate(
+      ~settings,
+      ~ctx=sem_ctx,
+      ~ana?,
+      goal_exp,
+      stepper_view,
+    );
 
   let has_changed_goal = (previous: Calc.saved(Exp.t), current: Exp.t): bool =>
     switch (previous |> Calc.get_saved_opt) {
@@ -299,7 +289,7 @@ module Update = {
            (acc, (id, name, env', rule: ProofRule.t)) =>
              Id.Map.update(
                id,
-               (opt: option(Model.theorem)) => {
+               (opt: option(Model.stepper)) => {
                  let conclusion_exp = rule |> ProofRule.conclusion_exp;
                  let Model.{
                    name: _,
@@ -309,7 +299,7 @@ module Update = {
                    goal_exp,
                    stepper_view,
                  } =
-                   Option.value(~default=Model.theorem_init("?"), opt);
+                   Option.value(~default=Model.stepper_init("?"), opt);
 
                  let goal_changed =
                    has_changed_goal(goal_exp, conclusion_exp);
@@ -348,7 +338,7 @@ module Update = {
                    calculate_stepper(
                      ~settings=stepper_settings,
                      ~sem_ctx,
-                     ~ana=Some(Calc.OldValue(Typ.fresh(Atom(Bool)))),
+                     ~ana=Calc.OldValue(Typ.fresh(Atom(Bool))),
                      ~goal_exp,
                      stepper_view,
                    );
@@ -378,7 +368,7 @@ module Update = {
            (acc, (id, env', exp)) => {
              Id.Map.update(
                id,
-               (opt: option(Model.theorem)) => {
+               (opt: option(Model.stepper)) => {
                  let Model.{
                    name: _,
                    ctx,
@@ -387,7 +377,7 @@ module Update = {
                    goal_exp,
                    stepper_view,
                  } =
-                   Option.value(~default=Model.theorem_init("explore"), opt);
+                   Option.value(~default=Model.stepper_init("explore"), opt);
 
                  let goal_changed = has_changed_goal(goal_exp, exp);
 
@@ -416,15 +406,13 @@ module Update = {
                  let stepper_view =
                    goal_changed ? StepperView.Model.init : stepper_view;
 
-                 let stepper_view = {
+                 let stepper_view =
                    calculate_stepper(
                      ~settings=stepper_settings,
                      ~sem_ctx,
-                     ~ana=None,
                      ~goal_exp,
                      stepper_view,
                    );
-                 };
 
                  Some({
                    name: "explore",
@@ -574,7 +562,7 @@ module View = {
          | Model.ExploreItem(id) =>
            switch (Id.Map.find_opt(id, model.explore_map)) {
            | None => None
-           | Some(explore: Model.theorem) =>
+           | Some(explore: Model.stepper) =>
              let stepper_view = explore.stepper_view;
              let header =
                WebUtil.div_c(
