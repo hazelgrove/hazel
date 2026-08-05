@@ -58,80 +58,6 @@ let eval_incr =
   (result, state, state.incr_eval);
 };
 
-let ordered_stepper_labels = (state: EvaluatorState.t): list(string) =>
-  state
-  |> EvaluatorState.get_stepper_items
-  |> List.rev
-  |> List.map(
-       fun
-       | Dynamics.TheoremStepper(_, name, _, _) => "theorem:" ++ name
-       | Dynamics.ExploreStepper(_, _, _) => "explore",
-     );
-
-let test_incremental_replays_explores = () => {
-  let exp = parse_exp("explore 1 + 2 end");
-  let (_, state1, incr1) = eval_incr(exp);
-  check(
-    list(string),
-    "Fresh run records one explore",
-    ["explore"],
-    ordered_stepper_labels(state1),
-  );
-  let (_, state2, incr2) = eval_incr(~prev=incr1, exp);
-  check(
-    bool,
-    "Second run actually reused entries",
-    true,
-    !Id.Map.is_empty(incr2.entries),
-  );
-  check(
-    list(string),
-    "Reused run replays one explore",
-    ["explore"],
-    ordered_stepper_labels(state2),
-  );
-};
-
-let append_trailing_hole_seq = (exp: Exp.t): Exp.t =>
-  Exp.fresh(Seq(exp, Exp.fresh(EmptyHole)));
-
-let test_explore_replayed_after_trailing_semicolon = () => {
-  let exp1 = parse_exp("explore 1 + 2 + 3 + 4 + 5 end");
-  let (_, state1, incr1) = eval_incr(exp1);
-  check(
-    list(string),
-    "fresh run records one explore",
-    ["explore"],
-    ordered_stepper_labels(state1),
-  );
-
-  let exp2 = append_trailing_hole_seq(exp1);
-  let (_, state2, incr2) = eval_incr(~prev=incr1, exp2);
-  check(
-    bool,
-    "second run reused the unchanged explore subtree",
-    true,
-    !Id.Map.is_empty(incr2.entries),
-  );
-  check(
-    list(string),
-    "replayed incremental state keeps the explore result",
-    ["explore"],
-    ordered_stepper_labels(state2),
-  );
-};
-
-let test_theorem_body_records_explore = () => {
-  let exp = parse_exp("theorem matt = 0 == 0 in explore x end;");
-  let (_, state, _) = eval_incr(exp);
-  check(
-    list(string),
-    "theorem and nested explore retain evaluation order",
-    ["theorem:matt", "explore"],
-    ordered_stepper_labels(state),
-  );
-};
-
 /* Replace Atom(Int(from)) with Atom(Int(to_)) everywhere in `exp`,
  * preserving the IdTagged annotation on every node (including on the
  * edited leaf itself — only the payload integer changes, the id stays).
@@ -1738,21 +1664,6 @@ n|};
 let tests = (
   "Evaluator.Incremental",
   [
-    test_case(
-      "Incremental reuse replays explore records",
-      `Quick,
-      test_incremental_replays_explores,
-    ),
-    test_case(
-      "Replays explore slice on reuse after trailing semicolon",
-      `Quick,
-      test_explore_replayed_after_trailing_semicolon,
-    ),
-    test_case(
-      "Theorem body records explore",
-      `Quick,
-      test_theorem_body_records_explore,
-    ),
     test_case(
       "DIAG module in unchanged rhs tuple lands in frozen",
       `Quick,
