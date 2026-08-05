@@ -402,11 +402,13 @@ module Update = {
         switch (result, streaming_state) {
         | (ProgramResult.ResultPending(_), Some(state)) =>
           let fresh = dynamics_of_state(state);
-          /* Streaming restarts with empty test results on every eval, so
-             for short evaluations the test marks blink out. Keep the
-             previous run's mark for any test the stream hasn't reached
-             yet — fresh results win per id, and marks for deleted tests
-             self-clean via the measured-position lookup at render. */
+          /* Streaming restarts with empty results on every eval, so for
+             short evaluations test marks blink out and probe/livelit
+             samples drop to nothing (livelits then dim to their
+             last-good view). Keep the previous run's entries for
+             anything the stream hasn't reached yet — fresh results win
+             per id, and entries for deleted ids are harmless (nothing
+             looks them up) and are replaced wholesale at ResultOk. */
           switch (dynamics |> Calc.get_saved(None)) {
           | Some(old) =>
             let fresh_ids =
@@ -421,6 +423,12 @@ module Update = {
               test_results:
                 TestResults.mk_results(
                   fresh.Dynamics.test_results.test_map @ carried,
+                ),
+              probe_map:
+                Id.Map.union(
+                  (_, fresh_samples, _old) => Some(fresh_samples),
+                  fresh.Dynamics.probe_map,
+                  old.Dynamics.probe_map,
                 ),
             });
           | None => Some(fresh)
