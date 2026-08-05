@@ -175,6 +175,11 @@ let expand = fun m : Model -> m
   commits until some committing event fires: give every gesture a
   mouse-up handler. Updates that return the model unchanged commit
   nothing, so a stray click can't pollute history.
+- Editing a definition: tool paths descend into the module — update
+  ONE member via update_definition on "^name/member" (types too:
+  "^name/Model"), add members with insert_after/insert_before at a
+  member path, remove with delete_binding_clause. Don't re-emit the
+  whole module to change one member.
 
 ## When to reach for one
 
