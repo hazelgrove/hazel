@@ -379,8 +379,7 @@ module Update = {
         probe_map: state |> EvaluatorState.get_probes,
         test_results:
           state |> EvaluatorState.get_tests |> TestResults.mk_results,
-        theorems: state |> EvaluatorState.get_theorems,
-        explores: state |> EvaluatorState.get_explores,
+        stepper_items: state |> EvaluatorState.get_stepper_items,
       };
     let dynamics =
       dynamics

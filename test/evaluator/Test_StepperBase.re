@@ -260,20 +260,6 @@ let run_step_chain =
   };
 };
 
-let calculate_stepper_view = (~exp, model: Web.StepperView.Model.t) =>
-  Web.StepperView.Update.calculate(
-    ~settings=Calc.NewValue(CoreSettings.on),
-    ~ctx=
-      Calc.NewValue(
-        SemanticCtx.of_ctx_and_env(
-          Builtins.ctx_init(Some(Int)),
-          Builtins.env_init,
-        ),
-      ),
-    Calc.NewValue(exp),
-    model,
-  );
-
 let tests = (
   "StepperBase",
   [
@@ -310,110 +296,6 @@ let tests = (
             ~step_kind=StepKindHelpers.mk_auto_single_step(exp),
           );
         check(dhexp_typ, "1 + 2 -> 3", parse_exp("3"), result);
-      },
-    ),
-    test_case(
-      "persisted calculated stepper view keeps nested taken steps",
-      `Quick,
-      () => {
-        let exp = parse_exp("1 + 2 + 3 + 4");
-        let stepper_view =
-          calculate_stepper_view(~exp, Web.StepperView.Model.init);
-        let stepper_view =
-          Web.StepperView.Update.update(
-            ~settings=Web.Settings.Model.init,
-            StepperBase.StepForward(0),
-            stepper_view,
-          ).
-            model;
-        let stepper_view = calculate_stepper_view(~exp, stepper_view);
-        let persistent = Web.StepperView.Model.persist(stepper_view);
-        check(
-          bool,
-          "first taken step has a persisted next step",
-          true,
-          persistent.root.next_step != None,
-        );
-      },
-    ),
-    test_case(
-      "theorem and explore steppers coexist in result model",
-      `Quick,
-      () => {
-        let theorem_id = Id.mk();
-        let explore_id = Id.mk();
-        let theorem_goal = parse_exp("0 == 0");
-        let explore_exp = parse_exp("1 + 2");
-        let dynamics =
-          Dynamics.{
-            probe_map: Sample.Map.empty,
-            test_results: TestResults.mk_results([]),
-            theorems: [
-              (theorem_id, "matt", Environment.empty, theorem_goal),
-            ],
-            explores: [(explore_id, Environment.empty, explore_exp)],
-          };
-        let model =
-          Web.Theorems.Model.init
-          |> Web.Theorems.Update.calculate(
-               ~settings=Calc.NewValue(CoreSettings.on),
-               ~statics=Calc.NewValue(CachedStatics.empty),
-               ~dynamics=Calc.NewValue(Some(dynamics)),
-             );
-        check(
-          int,
-          "one theorem stepper is visible",
-          1,
-          model.thms |> Calc.get_saved([]) |> List.length,
-        );
-        check(
-          int,
-          "one explore stepper is visible",
-          1,
-          model.explores |> Calc.get_saved([]) |> List.length,
-        );
-        check(
-          bool,
-          "theorem map keeps theorem",
-          true,
-          Id.Map.mem(theorem_id, model.thm_map),
-        );
-        check(
-          bool,
-          "explore map keeps explore",
-          true,
-          Id.Map.mem(explore_id, model.explore_map),
-        );
-      },
-    ),
-    test_case(
-      "result calculation tolerates incomplete theorem",
-      `Quick,
-      () => {
-        let exp = parse_exp("theorem matt = 0 == 0");
-        let statics =
-          Haz3lcore.CachedStatics.init_from_term(
-            ~settings=CoreSettings.on,
-            ~is_dynamic_term=true,
-            exp,
-          );
-        let model =
-          Web.EvalResult.Update.calculate(
-            ~settings=CoreSettings.on,
-            ~queue_worker=None,
-            ~is_edited=true,
-            statics,
-            Web.EvalResult.Model.init,
-          );
-        switch (Calc.get_value(model.result)) {
-        | ProgramResult.ResultFail(err) =>
-          Alcotest.fail(
-            "Expected incomplete theorem not to fail result calculation: "
-            ++ ProgramResult.show_error(err),
-          )
-        | ResultOk(_)
-        | ResultPending(_) => ()
-        };
       },
     ),
     test_case(

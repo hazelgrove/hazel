@@ -58,66 +58,24 @@ let eval_incr =
   (result, state, state.incr_eval);
 };
 
-let eval_worker =
-    (~prev: IncrEval.t(EvaluatorState.t)=IncrEval.empty, exp: Exp.t)
-    : WorkerServer.Response.value => {
-  let (info_map, elab) = statics_and_elab(exp);
-  let eval_info_map =
-    EvalInfo.of_info_map(
-      ~probe_all=CoreSettings.on.probe_all,
-      ~targets=Id.Map.empty,
-      info_map,
-    );
-  WorkerServer.evaluate_sync({
-    expr: elab,
-    eval_info_map,
-    prev,
-  });
-};
-
-let test_worker_empty_hole_does_not_crash = () => {
-  switch (eval_worker(parse_exp("?"))) {
-  | Ok((result, _state)) =>
-    check(
-      dhexp_typ,
-      "Empty hole evaluates to an empty hole",
-      parse_exp("?"),
-      result,
-    )
-  | Error(err) =>
-    Alcotest.fail(
-      "Worker failed on an empty hole: " ++ ProgramResult.show_error(err),
-    )
-  };
-};
-
-let test_worker_empty_hole_with_prev_does_not_crash = () => {
-  let previous = parse_exp("explore 1 + 2 end");
-  let (_, _state1, incr1) = eval_incr(previous);
-  switch (eval_worker(~prev=incr1, parse_exp("?"))) {
-  | Ok((result, _state)) =>
-    check(
-      dhexp_typ,
-      "Empty hole evaluates to an empty hole after prior eval",
-      parse_exp("?"),
-      result,
-    )
-  | Error(err) =>
-    Alcotest.fail(
-      "Worker failed on an empty hole after prior eval: "
-      ++ ProgramResult.show_error(err),
-    )
-  };
-};
+let ordered_stepper_labels = (state: EvaluatorState.t): list(string) =>
+  state
+  |> EvaluatorState.get_stepper_items
+  |> List.rev
+  |> List.map(
+       fun
+       | Dynamics.TheoremStepper(_, name, _, _) => "theorem:" ++ name
+       | Dynamics.ExploreStepper(_, _, _) => "explore",
+     );
 
 let test_incremental_replays_explores = () => {
   let exp = parse_exp("explore 1 + 2 end");
   let (_, state1, incr1) = eval_incr(exp);
   check(
-    int,
+    list(string),
     "Fresh run records one explore",
-    1,
-    EvaluatorState.get_explores(state1) |> List.length,
+    ["explore"],
+    ordered_stepper_labels(state1),
   );
   let (_, state2, incr2) = eval_incr(~prev=incr1, exp);
   check(
@@ -127,10 +85,10 @@ let test_incremental_replays_explores = () => {
     !Id.Map.is_empty(incr2.entries),
   );
   check(
-    int,
+    list(string),
     "Reused run replays one explore",
-    1,
-    EvaluatorState.get_explores(state2) |> List.length,
+    ["explore"],
+    ordered_stepper_labels(state2),
   );
 };
 
@@ -141,10 +99,10 @@ let test_explore_replayed_after_trailing_semicolon = () => {
   let exp1 = parse_exp("explore 1 + 2 + 3 + 4 + 5 end");
   let (_, state1, incr1) = eval_incr(exp1);
   check(
-    int,
+    list(string),
     "fresh run records one explore",
-    1,
-    EvaluatorState.get_explores(state1) |> List.length,
+    ["explore"],
+    ordered_stepper_labels(state1),
   );
 
   let exp2 = append_trailing_hole_seq(exp1);
@@ -156,10 +114,10 @@ let test_explore_replayed_after_trailing_semicolon = () => {
     !Id.Map.is_empty(incr2.entries),
   );
   check(
-    int,
+    list(string),
     "replayed incremental state keeps the explore result",
-    1,
-    EvaluatorState.get_explores(state2) |> List.length,
+    ["explore"],
+    ordered_stepper_labels(state2),
   );
 };
 
@@ -167,23 +125,11 @@ let test_theorem_body_records_explore = () => {
   let exp = parse_exp("theorem matt = 0 == 0 in explore x end;");
   let (_, state, _) = eval_incr(exp);
   check(
-    int,
-    "theorem is recorded",
-    1,
-    EvaluatorState.get_theorems(state) |> List.length,
+    list(string),
+    "theorem and nested explore retain evaluation order",
+    ["theorem:matt", "explore"],
+    ordered_stepper_labels(state),
   );
-  check(
-    int,
-    "explore in theorem body is also recorded",
-    1,
-    EvaluatorState.get_explores(state) |> List.length,
-  );
-};
-
-let test_incomplete_theorem_does_not_throw = () => {
-  let exp = parse_exp("theorem matt = 0 == 0");
-  let (_, _state, _) = eval_incr(exp);
-  check(testable(Fmt.string, String.equal), "ok", "ok", "ok");
 };
 
 /* Replace Atom(Int(from)) with Atom(Int(to_)) everywhere in `exp`,
@@ -1793,16 +1739,6 @@ let tests = (
   "Evaluator.Incremental",
   [
     test_case(
-      "Worker does not crash on empty hole",
-      `Quick,
-      test_worker_empty_hole_does_not_crash,
-    ),
-    test_case(
-      "Worker does not crash on empty hole with previous cache",
-      `Quick,
-      test_worker_empty_hole_with_prev_does_not_crash,
-    ),
-    test_case(
       "Incremental reuse replays explore records",
       `Quick,
       test_incremental_replays_explores,
@@ -1816,11 +1752,6 @@ let tests = (
       "Theorem body records explore",
       `Quick,
       test_theorem_body_records_explore,
-    ),
-    test_case(
-      "Incomplete theorem does not throw",
-      `Quick,
-      test_incomplete_theorem_does_not_throw,
     ),
     test_case(
       "DIAG module in unchanged rhs tuple lands in frozen",

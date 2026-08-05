@@ -21,8 +21,7 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   initial_step_count: int,
-  theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
-  explores: list((Id.t, Environment.t(Exp.t), Exp.t)),
+  stepper_items: list(Dynamics.stepper_item),
   tests: TestMap.t,
   probes: Sample.Map.t,
   step_count: int,
@@ -52,9 +51,8 @@ let empty: t = {
   tests: TestMap.empty,
   probes: Sample.Map.empty,
   step_count: 0,
-  theorems: [],
+  stepper_items: [],
   incr_eval: IncrEval.empty,
-  explores: [],
 };
 
 let empty_at = (step_count: int): t => {
@@ -110,8 +108,7 @@ let append = (base: t, ext: t): t => {
     step_count: base.step_count + (ext.step_count - ext.initial_step_count),
     probes,
     tests,
-    theorems: ext.theorems @ base.theorems,
-    explores: ext.explores @ base.explores,
+    stepper_items: ext.stepper_items @ base.stepper_items,
   };
 };
 
@@ -123,9 +120,7 @@ let get_tests = ({tests, _}) => tests;
 
 let get_probes = ({probes, _}) => probes;
 
-let get_theorems = ({theorems, _}) => theorems;
-
-let get_explores = ({explores, _}) => explores;
+let get_stepper_items = ({stepper_items, _}) => stepper_items;
 
 let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
 
@@ -168,10 +163,10 @@ let add_sample = (state: t, sample: Sample.t) => {
   };
 };
 
-let add_explore = ({explores, _} as es, id, env, exp) => {
+let add_stepper_item = ({stepper_items, _} as es, item) => {
   {
     ...es,
-    explores: explores |> List.append([(id, env, exp)]),
+    stepper_items: stepper_items |> List.append([item]),
   };
 };
 
@@ -197,13 +192,6 @@ let update =
         (DHExp.rep_id(instance_report.exp), instance_report),
         state.tests,
       ),
-  };
-
-  let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
-    {
-      ...es,
-      theorems: theorems |> List.append([(id, name, env, goal)]),
-    };
   };
 
   /* Increment step count for this evaluation step */
@@ -282,11 +270,14 @@ let update =
         (call_stack, add_sample(state, sample));
       | RecordTheorem(id, name, env, goal) => (
           call_stack,
-          add_theorem(state, id, name, env, goal),
+          add_stepper_item(
+            state,
+            Dynamics.TheoremStepper(id, name, env, goal),
+          ),
         )
       | RecordExplore(id, env, exp) => (
           call_stack,
-          add_explore(state, id, env, exp),
+          add_stepper_item(state, Dynamics.ExploreStepper(id, env, exp)),
         )
       },
     (call_stack, state),

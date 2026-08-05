@@ -47,9 +47,13 @@ module Map = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type stepper_item =
+  | TheoremStepper(Id.t, string, Environment.t(Exp.t), Exp.t)
+  | ExploreStepper(Id.t, Environment.t(Exp.t), Exp.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   probe_map: Sample.Map.t,
   test_results: TestResults.t,
-  theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
-  explores: list((Id.t, Environment.t(Exp.t), Exp.t)),
+  stepper_items: list(stepper_item),
 };
