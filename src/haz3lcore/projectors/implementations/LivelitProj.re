@@ -231,6 +231,10 @@ module M: Projector = {
        matching an EARLIER index means the syntax rewound (undo), which
        drops the entry. */
     mutable opt_matched: int,
+    /* Transient (gesture) updates have changed the model since the last
+       commit; the next committing event must flush even if its own
+       update is a no-op. */
+    opt_dirty: bool,
   };
   let optimistic: Hashtbl.t(Id.t, optimistic_entry) = Hashtbl.create(16);
 
@@ -248,6 +252,8 @@ module M: Projector = {
         ~model: TermBase.Exp.t,
         ~model_value: option(TermBase.Exp.t),
         ~commit_model: TermBase.Exp.t => Ui_effect.t(unit),
+        ~repaint: unit => Ui_effect.t(unit),
+        gesture: HazelDOM.gesture,
         action: TermBase.Exp.t,
       )
       : Ui_effect.t(unit) => {
@@ -266,6 +272,7 @@ module M: Projector = {
       | Some(e) => Some(e.opt_model)
       | None => model_value
       };
+    let base = Option.value(base_value, ~default=model);
     /* What goes in the syntax: the update redex when the base model is a
        committable value (keeps the interaction visible to probes and the
        stepper), independent of whether the optimistic path succeeds. */
@@ -284,16 +291,71 @@ module M: Projector = {
         )
       | _ => None
       };
+    let store_entry = (new_model, record, committed) =>
+      switch (record_field(record, "view", 2)) {
+      | Some(view_fn) =>
+        switch (MvuShape.safe_evaluate(ap(Forward, view_fn, new_model))) {
+        | Ok(html) when MvuShape.is_html(html) =>
+          let prior = Hashtbl.find_opt(optimistic, id);
+          /* Transient events change nothing in the syntax, so the set of
+             syntax states that count as "ours" is unchanged; only
+             committing events append their commit. */
+          let outstanding =
+            switch (gesture, prior) {
+            | (HazelDOM.Transient, Some(e)) => e.opt_outstanding
+            | (HazelDOM.Transient, None) => [squish(print_term(model))]
+            | (HazelDOM.Commit, Some(e)) =>
+              e.opt_outstanding @ [squish(print_term(committed))]
+            | (HazelDOM.Commit, None) => [
+                squish(print_term(model)),
+                squish(print_term(committed)),
+              ]
+            };
+          /* cap the ring; a burst outrunning this many in-flight
+             commits falls back to the authoritative path */
+          let outstanding = {
+            let n = List.length(outstanding);
+            n > 64
+              ? List.filteri((i, _) => i >= n - 64, outstanding)
+              : outstanding;
+          };
+          incr(optimistic_version);
+          Hashtbl.replace(
+            optimistic,
+            id,
+            {
+              opt_model: new_model,
+              opt_html: html,
+              opt_outstanding: outstanding,
+              opt_matched:
+                switch (prior) {
+                | Some(e) => e.opt_matched
+                | None => 0
+                },
+              opt_dirty: gesture == HazelDOM.Transient,
+            },
+          );
+        | _ =>
+          if (Hashtbl.mem(optimistic, id)) {
+            incr(optimistic_version);
+            Hashtbl.remove(optimistic, id);
+          }
+        }
+      | None => ()
+      };
     /* Event-time evaluation of the next model (and, best-effort, its
-       view for the optimistic entry). */
+       view for the optimistic entry). `Skip: the update was a no-op, so
+       neither commit nor store — without this, the click the browser
+       fires after every drag (and any handler returning the model
+       unchanged) would pollute history with identity steps. A committing
+       no-op still flushes when transient updates left the entry dirty. */
     let next_model =
       switch (MvuShape.safe_evaluate(def_elab)) {
-      | Error(e) => Error("definition error: " ++ e)
+      | Error(e) => `Error("definition error: " ++ e)
       | Ok(record) =>
         switch (record_field(record, "update", 1)) {
-        | None => Error("definition is missing update")
+        | None => `Error("definition is missing update")
         | Some(update_fn) =>
-          let base = Option.value(base_value, ~default=model);
           let applied =
             ap(
               Forward,
@@ -301,76 +363,47 @@ module M: Projector = {
               IdTagged.FreshGrammar.Exp.tuple([base, action]),
             );
           switch (MvuShape.safe_evaluate(applied)) {
-          | Error(e) => Error("update error: " ++ e)
+          | Error(e) => `Error("update error: " ++ e)
           | Ok(new_model) when !MvuShape.is_checkpointable(new_model) =>
             /* the model persists in the syntax tree, so it must be
                closure-free */
-            Error("update produced an uncommittable model")
+            `Error("update produced an uncommittable model")
           | Ok(new_model) =>
-            let committed =
-              switch (redex) {
-              | Some(r) => r
-              | None => new_model
+            let unchanged =
+              squish(print_term(new_model)) == squish(print_term(base));
+            let dirty_prior =
+              switch (Hashtbl.find_opt(optimistic, id)) {
+              | Some(e) => e.opt_dirty
+              | None => false
               };
-            switch (record_field(record, "view", 2)) {
-            | Some(view_fn) =>
-              switch (
-                MvuShape.safe_evaluate(ap(Forward, view_fn, new_model))
-              ) {
-              | Ok(html) when MvuShape.is_html(html) =>
-                let prior = Hashtbl.find_opt(optimistic, id);
-                let outstanding =
-                  switch (prior) {
-                  | Some(e) =>
-                    e.opt_outstanding @ [squish(print_term(committed))]
-                  | None => [
-                      squish(print_term(model)),
-                      squish(print_term(committed)),
-                    ]
-                  };
-                /* cap the ring; a burst outrunning this many in-flight
-                   commits falls back to the authoritative path */
-                let outstanding = {
-                  let n = List.length(outstanding);
-                  n > 64
-                    ? List.filteri((i, _) => i >= n - 64, outstanding)
-                    : outstanding;
+            if (unchanged && (gesture == HazelDOM.Transient || !dirty_prior)) {
+              `Skip;
+            } else {
+              let committed =
+                switch (redex) {
+                | Some(r) => r
+                | None => new_model
                 };
-                incr(optimistic_version);
-                Hashtbl.replace(
-                  optimistic,
-                  id,
-                  {
-                    opt_model: new_model,
-                    opt_html: html,
-                    opt_outstanding: outstanding,
-                    opt_matched:
-                      switch (prior) {
-                      | Some(e) => e.opt_matched
-                      | None => 0
-                      },
-                  },
-                );
-              | _ =>
-                if (Hashtbl.mem(optimistic, id)) {
-                  incr(optimistic_version);
-                  Hashtbl.remove(optimistic, id);
-                }
-              }
-            | None => ()
+              store_entry(new_model, record, committed);
+              `Ok(committed);
             };
-            Ok(committed);
           };
         }
       };
-    switch (next_model, redex) {
-    | (Ok(committed), _) => commit_model(committed)
-    | (Error(_), Some(r)) =>
+    switch (gesture, next_model) {
+    | (_, `Skip) => Ui_effect.Ignore
+    | (Transient, `Ok(_)) =>
+      /* Live preview only: the optimistic entry above is the whole
+         effect; a quiet non-historic action makes the frame repaint. */
+      repaint()
+    | (Transient, `Error(e)) => fail(e)
+    | (Commit, `Ok(committed)) => commit_model(committed)
+    | (Commit, `Error(_)) when Option.is_some(redex) =>
       /* The redex commit does not need the event-time evaluation to have
          succeeded (e.g. a definition that is not closed still works via
          the program's own evaluation). */
-      commit_model(r)
-    | (Error(e), None) => fail(e)
+      commit_model(Option.get(redex))
+    | (Commit, `Error(e)) => fail(e)
     };
   };
 
@@ -401,6 +434,7 @@ module M: Projector = {
         ~model: TermBase.Exp.t,
         ~model_value: option(TermBase.Exp.t),
         ~commit_model: TermBase.Exp.t => Ui_effect.t(unit),
+        ~repaint: unit => Ui_effect.t(unit),
         ~view_term: TermBase.Exp.t => Node.t,
         ~live: option(TermBase.Exp.t),
       )
@@ -429,6 +463,7 @@ module M: Projector = {
           ~model,
           ~model_value,
           ~commit_model,
+          ~repaint,
         ),
       view_term,
       commit: HazelDOM.State,
@@ -502,7 +537,8 @@ module M: Projector = {
     };
   };
 
-  let view = ({info, parent, view_seg, _}: View.args(model, action)) => {
+  let view =
+      ({info, parent, local_quiet, view_seg, _}: View.args(model, action)) => {
     let ctx =
       switch (info.statics) {
       | Some(InfoExp(exp)) => exp.ctx
@@ -561,6 +597,9 @@ module M: Projector = {
                 ~model,
                 ~model_value,
                 ~commit_model,
+                /* Non-historic Layout-level no-op: repaints the frame so a
+                   transient (drag) update becomes visible without an edit. */
+                ~repaint=() => local_quiet(),
                 ~view_term,
                 ~live=live_html(info),
               ),

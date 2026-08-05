@@ -15,9 +15,19 @@ type commit =
   | State
   | Syntax;
 
+/* How an event's msg relates to the commit target. Mouse down/move are
+   Transient: they preview the next model locally (the livelit renders it
+   optimistically) without committing, so a drag is one commit — issued by
+   the gesture-ending event (mouse up, click, ...), which is Commit like
+   every other event. State-commit targets (apps) treat both alike. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type gesture =
+  | Transient
+  | Commit;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  inject: DHExp.t => Ui_effect.t(unit),
+  inject: (gesture, DHExp.t) => Ui_effect.t(unit),
   view_term: DHExp.t => Node.t,
   commit,
 };
@@ -40,8 +50,8 @@ let render_styles = styles =>
 // handed to mvu.inject; the commit target decides what committing means
 // (see `commit` above).
 
-let dispatch = (mvu: t, msg: DHExp.t): Ui_effect.t(unit) =>
-  Effect.Many([Effect.Stop_propagation, mvu.inject(msg)]);
+let dispatch = (mvu: t, ~gesture=Commit, msg: DHExp.t): Ui_effect.t(unit) =>
+  Effect.Many([Effect.Stop_propagation, mvu.inject(gesture, msg)]);
 
 // Syntax-commit msg for a payload event: fun m -> handler((m, payload)).
 // The already-evaluated handler closure and payload value are embedded
@@ -64,12 +74,13 @@ let on_ = (mvu: t, handler, _evt) => dispatch(mvu, handler);
 //   nothing (never commit garbage).
 // Syntax: handler is (Html, payload) -> Html; the msg is the transform
 //   fun m -> handler((m, payload)), applied at commit time.
-let on_payload = (mvu: t, what: string, handler, payload: DHExp.t) =>
+let on_payload =
+    (mvu: t, ~gesture=Commit, what: string, handler, payload: DHExp.t) =>
   switch (mvu.commit) {
-  | Syntax => dispatch(mvu, payload_transform(handler, payload))
+  | Syntax => dispatch(mvu, ~gesture, payload_transform(handler, payload))
   | State =>
     switch (safe_evaluate(Exp.ap(Forward, handler, payload))) {
-    | Ok(msg) => dispatch(mvu, msg)
+    | Ok(msg) => dispatch(mvu, ~gesture, msg)
     | Error(err) =>
       prerr_endline("HazelDOM: " ++ what ++ " handler error: " ++ err);
       Effect.Ignore;
@@ -79,7 +90,7 @@ let on_payload = (mvu: t, what: string, handler, payload: DHExp.t) =>
 let on_input = (mvu: t, handler, _evt, arg) =>
   on_payload(mvu, "input", handler, Exp.string(arg));
 
-let on_mouse = (mvu: t, handler, evt) => {
+let on_mouse = (mvu: t, ~gesture=Commit, handler, evt) => {
   /* MouseEvent value (labeled tuple, see BuiltinsADT.Event.mouse) */
   let mouse_event =
     Exp.tuple([
@@ -91,7 +102,7 @@ let on_mouse = (mvu: t, handler, evt) => {
       field("alt", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.altKey))),
       field("meta", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.metaKey))),
     ]);
-  on_payload(mvu, "mouse", handler, mouse_event);
+  on_payload(mvu, ~gesture, "mouse", handler, mouse_event);
 };
 
 /* Pointer position relative to the element the handler is attached to, as
@@ -118,8 +129,21 @@ let relative_pos = (evt): DHExp.t => {
   Exp.tuple([px(x), px(y)]);
 };
 
-let on_mouse_at = (mvu: t, what: string, handler, evt) =>
-  on_payload(mvu, what, handler, relative_pos(evt));
+let on_mouse_at = (mvu: t, ~gesture=Commit, what: string, handler, evt) =>
+  on_payload(mvu, ~gesture, what, handler, relative_pos(evt));
+
+/* Capturing on pointerdown keeps move/up events flowing to this element
+   when a drag leaves it mid-gesture (Chrome retargets the compatibility
+   mouse events with the captured pointer; same pattern as ProbeProj).
+   Effect.Ignore — a re-render here would lose the capture. */
+let capture_on_pointerdown =
+  Attr.on_pointerdown(evt => {
+    switch (Js_of_ocaml.Js.Opt.to_option(evt##.currentTarget)) {
+    | Some(el) => JsUtil.setPointerCapture(el, evt##.pointerId)
+    | None => ()
+    };
+    Effect.Ignore;
+  });
 
 /* Wheel payload: (x, y, dx, dy) — element-relative position plus scroll
    deltas. Default is prevented so a zoom/pan surface doesn't also scroll
@@ -336,17 +360,30 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
       )
 
     // === Mouse event handlers (payload: MouseEvent) ===
-    | ("OnMouseDown", handler) => Attr.on_mousedown(on_mouse(mvu, handler))
+    // Down/move are Transient (live preview, no commit); up commits.
+    | ("OnMouseDown", handler) =>
+      Attr.many([
+        capture_on_pointerdown,
+        Attr.on_mousedown(on_mouse(mvu, ~gesture=Transient, handler)),
+      ])
     | ("OnMouseUp", handler) => Attr.on_mouseup(on_mouse(mvu, handler))
-    | ("OnMouseMove", handler) => Attr.on_mousemove(on_mouse(mvu, handler))
+    | ("OnMouseMove", handler) =>
+      Attr.on_mousemove(on_mouse(mvu, ~gesture=Transient, handler))
 
     // === Element-relative mouse handlers (payload: (x, y) px int pair) ===
     | ("OnClickAt", handler) =>
       Attr.on_click(on_mouse_at(mvu, "click-at", handler))
     | ("OnMouseDownAt", handler) =>
-      Attr.on_mousedown(on_mouse_at(mvu, "mousedown-at", handler))
+      Attr.many([
+        capture_on_pointerdown,
+        Attr.on_mousedown(
+          on_mouse_at(mvu, ~gesture=Transient, "mousedown-at", handler),
+        ),
+      ])
     | ("OnMouseMoveAt", handler) =>
-      Attr.on_mousemove(on_mouse_at(mvu, "mousemove-at", handler))
+      Attr.on_mousemove(
+        on_mouse_at(mvu, ~gesture=Transient, "mousemove-at", handler),
+      )
     | ("OnMouseUpAt", handler) =>
       Attr.on_mouseup(on_mouse_at(mvu, "mouseup-at", handler))
     | ("OnWheelAt", handler) => Attr.on_wheel(on_wheel_at(mvu, handler))
