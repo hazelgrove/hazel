@@ -28,15 +28,18 @@ let funapp_exp_coloring_ids =
   (Piece.id(exp_fun), x_id),
   (Piece.id(exp_arg), arg_id),
 ];
-let funapp_exp: form = {
-  let explanation = "Applies the [*function*](%s) to the [*argument*](%s).";
-  {
-    id: FunApExp,
-    syntactic_form: [exp_fun, mk_ap_exp([[exp_arg]])],
-    expandable_id: None,
-    explanation,
-    examples: [funapp_exp_ex],
-  };
+let funapp_exp_form = [exp_fun, mk_ap_exp([[exp_arg]])];
+let funapp_exp = (~x_id: Id.t, ~arg_id: Id.t): form => {
+  id: FunApExp,
+  syntactic_form: funapp_exp_form,
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Applies the [*function*](%s) to the [*argument*](%s).",
+      Id.to_string(x_id),
+      Id.to_string(arg_id),
+    ),
+  examples: [funapp_exp_ex],
 };
 let exp_con = exp("e_con");
 let exp_arg = exp("e_arg");
@@ -45,15 +48,19 @@ let conapp_exp_coloring_ids =
   (Piece.id(exp_con), x_id),
   (Piece.id(exp_arg), arg_id),
 ];
-let conapp_exp: form = {
-  let explanation = "Applies the [*`%s` constructor*](%s) to the [*argument*](%s).";
-  {
-    id: ConApExp,
-    syntactic_form: [exp_con, mk_ap_exp([[exp_arg]])],
-    expandable_id: None,
-    explanation,
-    examples: [conapp_exp_ex],
-  };
+let conapp_exp_form = [exp_con, mk_ap_exp([[exp_arg]])];
+let conapp_exp = (~name: string, ~x_id: Id.t, ~arg_id: Id.t): form => {
+  id: ConApExp,
+  syntactic_form: conapp_exp_form,
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Applies the [*`%s` constructor*](%s) to the [*argument*](%s).",
+      name,
+      Id.to_string(x_id),
+      Id.to_string(arg_id),
+    ),
+  examples: [conapp_exp_ex],
 };
 let exp_fun = exp("e_fun");
 let exp_deferral = deferral();
@@ -62,44 +69,49 @@ let deferred_funapp_exp_coloring_ids =
   (Piece.id(exp_fun), x_id),
   (Piece.id(exp_deferral), deferred_id),
 ];
-let deferred_funapp_exp: form = {
-  let explanation = "Applies the [*function*](%s) to the [*supplied arguments*](%s). The [*deferred arguments*](%s) can be applied in future applications.";
-  let comma = comma_exp();
-  {
-    id: DeferredApExp,
-    syntactic_form: [
-      exp_fun,
-      mk_ap_exp([
-        [
-          exp("..."),
-          comma,
-          space(),
-          exp_deferral,
-          comma,
-          space(),
-          exp("..."),
-        ],
-      ]),
+let deferred_funapp_exp_comma = comma_exp();
+let deferred_funapp_exp_form = [
+  exp_fun,
+  mk_ap_exp([
+    [
+      exp("..."),
+      deferred_funapp_exp_comma,
+      space(),
+      exp_deferral,
+      deferred_funapp_exp_comma,
+      space(),
+      exp("..."),
     ],
-    expandable_id: None,
-    explanation,
-    examples: [deferred_funapp_exp_ex],
-  };
-};
-
-let funaps: group = {
-  id: FunApExp,
-  forms: [funapp_exp],
-};
-
-let conaps: group = {
-  id: ConApExp,
-  forms: [conapp_exp],
-};
-
-let deferredaps: group = {
+  ]),
+];
+let deferred_funapp_exp =
+    (~x_id: Id.t, ~supplied_id: Id.t, ~deferred_id: Id.t): form => {
   id: DeferredApExp,
-  forms: [deferred_funapp_exp],
+  syntactic_form: deferred_funapp_exp_form,
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Applies the [*function*](%s) to the [*supplied arguments*](%s). The [*deferred arguments*](%s) can be applied in future applications.",
+      Id.to_string(x_id),
+      Id.to_string(supplied_id),
+      Id.to_string(deferred_id),
+    ),
+  examples: [deferred_funapp_exp_ex],
+};
+
+let funaps = (~x_id: Id.t, ~arg_id: Id.t): group => {
+  id: FunApExp,
+  forms: [funapp_exp(~x_id, ~arg_id)],
+};
+
+let conaps = (~name: string, ~x_id: Id.t, ~arg_id: Id.t): group => {
+  id: ConApExp,
+  forms: [conapp_exp(~name, ~x_id, ~arg_id)],
+};
+
+let deferredaps = (~x_id: Id.t, ~supplied_id: Id.t, ~deferred_id: Id.t): group => {
+  id: DeferredApExp,
+  forms: [deferred_funapp_exp(~x_id, ~supplied_id, ~deferred_id)],
 };
 
 let livelitapp_exp_ex = {
@@ -116,18 +128,20 @@ let livelitapp_exp_coloring_ids =
   (Piece.id(exp_arg), arg_id),
 ];
 
-let livelitapp_exp: form = {
-  let explanation = "Expands the [*livelit*](%s) to some value based on its [*model*](%s). When projected, creates a GUI widget.";
-  {
-    id: LivelitApExp,
-    syntactic_form: [exp_livelit, mk_ap_exp([[exp_arg]])],
-    expandable_id: None,
-    explanation,
-    examples: [livelitapp_exp_ex],
-  };
+let livelitapp_exp = (~x_id: Id.t, ~arg_id: Id.t): form => {
+  id: LivelitApExp,
+  syntactic_form: [exp_livelit, mk_ap_exp([[exp_arg]])],
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Expands the [*livelit*](%s) to some value based on its [*model*](%s). When projected, creates a GUI widget.",
+      Id.to_string(x_id),
+      Id.to_string(arg_id),
+    ),
+  examples: [livelitapp_exp_ex],
 };
 
-let livelitaps: group = {
+let livelitaps = (~x_id: Id.t, ~arg_id: Id.t): group => {
   id: LivelitApExp,
-  forms: [livelitapp_exp],
+  forms: [livelitapp_exp(~x_id, ~arg_id)],
 };

@@ -13,28 +13,26 @@ let poly_id_ex = {
 
 let tp = tpat("a");
 let e = exp("e");
-let typfun_var: form = {
-  let explanation = "When applied to a type that which is bound to the [*type variable*](%s), evaluates to the type function [*body*](%s).";
-  let form = [mk_typfun([[space(), tp, space()]]), space(), e];
-  {
-    id: TypFunctionExp,
-    syntactic_form: form,
-    expandable_id:
-      Some((
-        Piece.id(tp),
-        [
-          Grout({
-            id: Id.mk(),
-            shape: Convex,
-          }),
-        ],
-      )),
-    explanation,
-    examples: [poly_id_ex],
-  };
+let typfun_var_form = [mk_typfun([[space(), tp, space()]]), space(), e];
+let typfun_var_expandable =
+  Piece.Grout({
+    id: Id.mk(),
+    shape: Convex,
+  });
+let typfun_var = (~tpat_id: Id.t, ~body_id: Id.t): form => {
+  id: TypFunctionExp,
+  syntactic_form: typfun_var_form,
+  expandable_id: Some((Piece.id(tp), [typfun_var_expandable])),
+  explanation:
+    Printf.sprintf(
+      "When applied to a type that which is bound to the [*type variable*](%s), evaluates to the type function [*body*](%s).",
+      Id.to_string(tpat_id),
+      Id.to_string(body_id),
+    ),
+  examples: [poly_id_ex],
 };
 
-let type_functions_basic = {
+let type_functions_basic = (~tpat_id: Id.t, ~body_id: Id.t): group => {
   id: TypFunctionExp,
-  forms: [typfun_var],
+  forms: [typfun_var(~tpat_id, ~body_id)],
 };

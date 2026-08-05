@@ -23,25 +23,28 @@ let dot_coloring_ids = (~tup_id: Id.t, ~lab_id: Id.t): list((Id.t, Id.t)) => {
 };
 let syntactic_form: Exp.t = Dot(tup, lab) |> Exp.fresh;
 
-let dot_exp: form = {
-  let explanation = "The [*label*](%s) is being projected from the [*tuple*](%s).";
+let dot_exp_segment =
+  ExpToSegment.(
+    exp_to_segment(
+      ~settings=Settings.of_core(~inline=true, CoreSettings.on),
+      syntactic_form,
+    )
+  );
 
-  {
-    id: DotExp,
-    syntactic_form:
-      ExpToSegment.(
-        exp_to_segment(
-          ~settings=Settings.of_core(~inline=true, CoreSettings.on),
-          syntactic_form,
-        )
-      ),
-    expandable_id: None,
-    explanation,
-    examples: [dot_example_1, dot_example_2],
-  };
+let dot_exp_form = (~lab_id: Id.t, ~tup_id: Id.t): form => {
+  id: DotExp,
+  syntactic_form: dot_exp_segment,
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "The [*label*](%s) is being projected from the [*tuple*](%s).",
+      Id.to_string(lab_id),
+      Id.to_string(tup_id),
+    ),
+  examples: [dot_example_1, dot_example_2],
 };
 
-let dot_exp: group = {
+let dot_exp = (~lab_id: Id.t, ~tup_id: Id.t): group => {
   id: DotExp,
-  forms: [dot_exp],
+  forms: [dot_exp_form(~lab_id, ~tup_id)],
 };

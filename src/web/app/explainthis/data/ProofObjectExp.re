@@ -6,18 +6,20 @@ let typ = typ("t");
 let proof_of_exp_coloring_ids = (~typ_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(typ), typ_id),
 ];
-let proof_of_exp: form = {
-  let explanation = "A placeholder for a proof of [*goal*](%s).";
-  {
-    id: ProofObjectExp,
-    syntactic_form: [mk_proof_of([[space(), typ, space()]])],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+let proof_of_exp_form = [mk_proof_of([[space(), typ, space()]])];
+let proof_of_exp = (~typ_id: Id.t): form => {
+  id: ProofObjectExp,
+  syntactic_form: proof_of_exp_form,
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "A placeholder for a proof of [*goal*](%s).",
+      Id.to_string(typ_id),
+    ),
+  examples: [],
 };
 
-let proof_of_exps: group = {
+let proof_of_exps = (~typ_id: Id.t): group => {
   id: ProofObjectExp,
-  forms: [proof_of_exp],
+  forms: [proof_of_exp(~typ_id)],
 };

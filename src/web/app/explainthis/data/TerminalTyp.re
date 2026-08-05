@@ -88,14 +88,11 @@ let void_typ: form = {
 };
 
 let var_typ = (name: string): form => {
-  let explanation = "`%s` is a type variable.";
-  {
-    id: VarTyp,
-    syntactic_form: [name |> abbreviate |> typ],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: VarTyp,
+  syntactic_form: [name |> abbreviate |> typ],
+  expandable_id: None,
+  explanation: Printf.sprintf("`%s` is a type variable.", name),
+  examples: [],
 };
 
 let int: group = {

@@ -26,8 +26,13 @@ let ascription_coloring_ids =
   (Piece.id(e), exp_id),
   (Piece.id(typ), typ_id),
 ];
-let ascription: form = {
-  let explanation = "Represents a syntactic type ascription where an [*expression*](%s) is explicitly ascribed with a [*type*](%s). This is used to clarify or enforce the type of an expression.";
+let ascription = (~exp_id: Id.t, ~typ_id: Id.t): form => {
+  let explanation =
+    Printf.sprintf(
+      "Represents a syntactic type ascription where an [*expression*](%s) is explicitly ascribed with a [*type*](%s). This is used to clarify or enforce the type of an expression.",
+      Id.to_string(exp_id),
+      Id.to_string(typ_id),
+    );
   {
     id: AscExp,
     syntactic_form: [e, space(), ascription_exp(), space(), typ],
@@ -40,7 +45,7 @@ let ascription: form = {
     ],
   };
 };
-let ascriptions: group = {
+let ascriptions = (~exp_id: Id.t, ~typ_id: Id.t): group => {
   id: AscExp,
-  forms: [ascription],
+  forms: [ascription(~exp_id, ~typ_id)],
 };

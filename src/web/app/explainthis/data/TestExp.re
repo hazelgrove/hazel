@@ -17,18 +17,20 @@ let exp_body = exp("e");
 let test_exp_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(exp_body), body_id),
 ];
-let test_exp: form = {
-  let explanation = "If the [*body*](%s) of the test evaluates to `true`, the test passes. Otherwise, the test fails.";
-  {
-    id: TestExp,
-    syntactic_form: [mk_test([[space(), exp_body, space()]])],
-    expandable_id: None,
-    explanation,
-    examples: [test_true_ex, test_false_ex],
-  };
+let test_exp_form = [mk_test([[space(), exp_body, space()]])];
+let test_exp = (~body_id: Id.t): form => {
+  id: TestExp,
+  syntactic_form: test_exp_form,
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "If the [*body*](%s) of the test evaluates to `true`, the test passes. Otherwise, the test fails.",
+      Id.to_string(body_id),
+    ),
+  examples: [test_true_ex, test_false_ex],
 };
 
-let tests: group = {
+let tests = (~body_id: Id.t): group => {
   id: TestExp,
-  forms: [test_exp],
+  forms: [test_exp(~body_id)],
 };

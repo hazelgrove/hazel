@@ -11,22 +11,25 @@ let test_exp_coloring_ids =
   (Piece.id(exp_thm), thm_id),
   (Piece.id(exp_body), body_id),
 ];
-let theorem_exp: form = {
-  let explanation = "Asserts that the [*goal*](%s) is true in the following expression, and [*names*](%s) the theorem for later reuse.";
-  {
-    id: TheoremExp,
-    syntactic_form: [
-      mk_theorem([[space(), p, space()], [space(), exp_thm, space()]]),
-      linebreak(),
-      exp_body,
-    ],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+let theorem_exp_form = [
+  mk_theorem([[space(), p, space()], [space(), exp_thm, space()]]),
+  linebreak(),
+  exp_body,
+];
+let theorem_exp = (~pat_id: Id.t, ~thm_id: Id.t): form => {
+  id: TheoremExp,
+  syntactic_form: theorem_exp_form,
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Asserts that the [*goal*](%s) is true in the following expression, and [*names*](%s) the theorem for later reuse.",
+      Id.to_string(pat_id),
+      Id.to_string(thm_id),
+    ),
+  examples: [],
 };
 
-let tests: group = {
+let tests = (~pat_id: Id.t, ~thm_id: Id.t): group => {
   id: TheoremExp,
-  forms: [theorem_exp],
+  forms: [theorem_exp(~pat_id, ~thm_id)],
 };

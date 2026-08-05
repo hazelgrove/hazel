@@ -133,7 +133,8 @@ let ctr_exp = (c: string): form => {
   id: CtrExp,
   syntactic_form: [c |> abbreviate |> exp],
   expandable_id: None,
-  explanation: "`%s` is a constructor for a sum type variant.",
+  explanation:
+    Printf.sprintf("`%s` is a constructor for a sum type variant.", c),
   examples: [],
 };
 let ctr = (c: string): group => {

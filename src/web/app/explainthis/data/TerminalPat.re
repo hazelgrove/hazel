@@ -12,58 +12,68 @@ let wild_pat: form = {
 };
 
 let sintlit_pat = (i: int): form => {
-  let explanation = "Only expressions with value `%i` match the *`%i` pattern*.";
-  {
-    id: IntPat,
-    syntactic_form: [i |> string_of_int |> abbreviate |> pat],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: IntPat,
+  syntactic_form: [i |> string_of_int |> abbreviate |> pat],
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Only expressions with value `%i` match the *`%i` pattern*.",
+      i,
+      i,
+    ),
+  examples: [],
 };
 
 let intlit_pat = (i: string): form => {
-  let explanation = "Only expressions with value `%s` match the *`%s` pattern*.";
-  {
-    id: IntPat,
-    syntactic_form: [i |> abbreviate |> pat],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: IntPat,
+  syntactic_form: [i |> abbreviate |> pat],
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Only expressions with value `%s` match the *`%s` pattern*.",
+      i,
+      i,
+    ),
+  examples: [],
 };
 
 let floatlit_pat = (f: float): form => {
-  let explanation = "Only expressions with value `%f` match the *`%f` pattern*.";
-  {
-    id: FloatPat,
-    syntactic_form: [f |> string_of_float |> abbreviate |> pat],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: FloatPat,
+  syntactic_form: [f |> string_of_float |> abbreviate |> pat],
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Only expressions with value `%f` match the *`%f` pattern*.",
+      f,
+      f,
+    ),
+  examples: [],
 };
 
 let boollit_pat = (b: bool): form => {
-  let explanation = "Only expressions with value `%b` match the *`%b` pattern*.";
-  {
-    id: BoolPat,
-    syntactic_form: [b |> string_of_bool |> abbreviate |> pat],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: BoolPat,
+  syntactic_form: [b |> string_of_bool |> abbreviate |> pat],
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Only expressions with value `%b` match the *`%b` pattern*.",
+      b,
+      b,
+    ),
+  examples: [],
 };
 
 let strlit_pat = (s: string): form => {
-  let explanation = "Only expressions with value `%s` match the *`%s` pattern*.";
-  {
-    id: StrPat,
-    syntactic_form: [s |> abbreviate |> Haz3lcore.Token.string_quote |> pat],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: StrPat,
+  syntactic_form: [s |> abbreviate |> Haz3lcore.Token.string_quote |> pat],
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Only expressions with value `%s` match the *`%s` pattern*.",
+      s,
+      s,
+    ),
+  examples: [],
 };
 
 let triv_pat: form = {
@@ -78,25 +88,27 @@ let triv_pat: form = {
 };
 
 let var_pat = (name: string): form => {
-  let explanation = "This *pattern variable* matches any expression, binding its value to variable `%s`.";
-  {
-    id: VarPat,
-    syntactic_form: [name |> abbreviate |> pat],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: VarPat,
+  syntactic_form: [name |> abbreviate |> pat],
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "This *pattern variable* matches any expression, binding its value to variable `%s`.",
+      name,
+    ),
+  examples: [],
 };
 
 let ctr_pat = (name: string): form => {
-  let explanation = "Only expressions that match the *`%s` constructor* match this constructor pattern.";
-  {
-    id: CtrPat,
-    syntactic_form: [name |> abbreviate |> pat],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+  id: CtrPat,
+  syntactic_form: [name |> abbreviate |> pat],
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Only expressions that match the *`%s` constructor* match this constructor pattern.",
+      name,
+    ),
+  examples: [],
 };
 
 let wild: group = {
