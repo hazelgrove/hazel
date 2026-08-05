@@ -58,6 +58,25 @@ module Local = {
         )
       };
     };
+
+    /* Module members are nodes whose info is the statics expansion's
+       Let/TyAlias wrapper, reclassified to a Mod cls. Their pat/def ids are
+       real syntax; their "body" is the expansion continuation (the REST of
+       the members), which must never be an edit target. */
+    let is_module_member = (node: node): bool =>
+      switch (node.info) {
+      | InfoExp({cls: Mod(_), _}) => true
+      | _ => false
+      };
+
+    let member_body_error = (what: string) =>
+      Error(
+        Action.Failure.Composition_action_failure(
+          "Cannot "
+          ++ what
+          ++ " of a module member: members end at their `;` and have no body. Target the member's definition (update_definition), the whole member (update_binding_clause / delete_binding_clause), or the enclosing module binding.",
+        ),
+      );
   };
 
   let segment_of_term =
@@ -329,6 +348,151 @@ module Local = {
       go(None, items);
     };
 
+    /* Module-body hygiene, applied recursively wherever a module literal
+       appears. Two passes over a ModBody child segment:
+       - separators: drop dangling member `;` (leading after `{`, trailing
+         before `}`, or doubled after a member delete);
+       - vertical whitespace: linebreak runs that FOLLOW a member `;`
+         normalize to one blank line (mirroring the top-level policy);
+         every other run to a single linebreak. Runs-only, like the
+         top-level pass: single-line modules are never exploded. */
+    let is_semi = (p: Piece.t): bool =>
+      switch (p) {
+      | Tile(t) => t.label == [";"]
+      | _ => false
+      };
+    let is_space = (p: Piece.t): bool =>
+      switch (p) {
+      | Secondary({content: Whitespace(w), _}) => w != Token.linebreak
+      | _ => false
+      };
+    let is_mod_body = (t: Tile.t): bool =>
+      t.label == ["{", "}"] && t.mold.in_ == [Sort.Mod];
+    let clean_member_separators = (seg: Segment.t): Segment.t => {
+      let rec next_tok = ps =>
+        switch (ps) {
+        | [] => None
+        | [Piece.Secondary(_), ...rest] => next_tok(rest)
+        | [p, ..._] => Some(p)
+        };
+      /* Deleting a member leaves a convex grout in its slot (destruct
+         replaces, it does not remove); a hole standing alone between
+         separators/edges is that leftover, and goes together with the
+         separator collapse below. Holes INSIDE a member (e.g. `let x = ?`)
+         have a non-separator neighbor and are kept. */
+      let is_member_boundary = (tok: option(Piece.t)): bool =>
+        switch (tok) {
+        | None => true
+        | Some(t) => is_semi(t)
+        };
+      let rec drop_hole_members = (prev_tok: option(Piece.t), ps) =>
+        switch (ps) {
+        | [] => []
+        | [Piece.Grout(_) as g, ...rest] =>
+          is_member_boundary(prev_tok) && is_member_boundary(next_tok(rest))
+            ? drop_hole_members(prev_tok, rest)
+            : [g, ...drop_hole_members(Some(g), rest)]
+        | [Piece.Secondary(_) as p, ...rest] => [
+            p,
+            ...drop_hole_members(prev_tok, rest),
+          ]
+        | [p, ...rest] => [p, ...drop_hole_members(Some(p), rest)]
+        };
+      let rec go = (prev_tok: option(Piece.t), ps: list(Piece.t)) =>
+        switch (ps) {
+        | [] => []
+        | [p, ...rest] when is_semi(p) =>
+          let dangling =
+            switch (prev_tok, next_tok(rest)) {
+            | (None, _) => true /* leading */
+            | (_, None) => true /* trailing */
+            | (_, Some(r)) => is_semi(r) /* doubled */
+            };
+          dangling ? go(prev_tok, rest) : [p, ...go(Some(p), rest)];
+        | [Piece.Secondary(_) as p, ...rest] => [p, ...go(prev_tok, rest)]
+        | [p, ...rest] => [p, ...go(Some(p), rest)]
+        };
+      /* Canonical `x;` — drop space runs that sit directly before a
+         member separator (deletes leave one behind). */
+      let rec trim_space_before_semi = (ps: list(Piece.t)) =>
+        switch (ps) {
+        | [] => []
+        | [p, ...rest] when is_space(p) =>
+          let rec upcoming = qs =>
+            switch (qs) {
+            | [q, ...more] when is_space(q) => upcoming(more)
+            | [q, ..._] when is_semi(q) => true
+            | _ => false
+            };
+          upcoming(rest)
+            ? trim_space_before_semi(rest)
+            : [p, ...trim_space_before_semi(rest)];
+        | [p, ...rest] => [p, ...trim_space_before_semi(rest)]
+        };
+      seg
+      |> drop_hole_members(None, _)
+      |> go(None, _)
+      |> trim_space_before_semi;
+    };
+    let normalize_member_whitespace = (seg: Segment.t): Segment.t => {
+      let items =
+        List.fold_right(
+          (p, acc) =>
+            switch (is_linebreak(p), acc) {
+            | (true, [`Run(n), ...rest]) => [`Run(n + 1), ...rest]
+            | (true, _) => [`Run(1), ...acc]
+            | (false, _) => [`Tok(p), ...acc]
+            },
+          seg,
+          [],
+        );
+      /* Stored per-line indentation would double up with the display's
+         nesting indent, so a normalized run also consumes the spaces that
+         followed it. */
+      let rec drop_leading_spaces = items =>
+        switch (items) {
+        | [`Tok(p), ...rest] when is_space(p) => drop_leading_spaces(rest)
+        | _ => items
+        };
+      let rec go = (prev_tok: option(Piece.t), items) =>
+        switch (items) {
+        | [] => []
+        | [`Tok(p), ...rest] => [p, ...go(Some(p), rest)]
+        | [`Run(_), ...rest] =>
+          let replacement =
+            switch (prev_tok) {
+            | Some(p) when is_semi(p) => [linebreak(), linebreak()]
+            | _ => [linebreak()]
+            };
+          replacement @ go(prev_tok, drop_leading_spaces(rest));
+        };
+      go(None, items);
+    };
+    let rec normalize_module_bodies = (seg: Segment.t): Segment.t =>
+      List.map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
+            let children = List.map(normalize_module_bodies, t.children);
+            let children =
+              is_mod_body(t)
+                ? List.map(
+                    c =>
+                      normalize_member_whitespace(
+                        clean_member_separators(c),
+                      ),
+                    children,
+                  )
+                : children;
+            Piece.Tile({
+              ...t,
+              children,
+            });
+          | p => p
+          },
+        seg,
+      );
+
     /* Zip to the top-level segment, normalize its whitespace, and rebuild a
        zipper. Idempotent. The agent edit path rebuilds the editor from this
        zipper, so resetting the caret to the segment start is harmless. */
@@ -336,6 +500,7 @@ module Local = {
       z
       |> Zipper.unselect_and_zip
       |> normalize_top_level_whitespace
+      |> normalize_module_bodies
       |> Zipper.unzip;
 
     /* Form delimiters that lex like identifiers; using one as a variable
@@ -401,13 +566,12 @@ module Local = {
        paste it. Safe: Hazel strings and comments are single-line, so
        no token can span a linebreak. */
     let introduce =
-        (z: Zipper.t, code: string): result(Zipper.t, Action.Failure.t) => {
+        (~root=Sort.Exp, z: Zipper.t, code: string)
+        : result(Zipper.t, Action.Failure.t) => {
       let code = StringUtil.trim_leading(code);
-      switch (Parser.to_segment(code, ~root=Exp)) {
+      switch (Parser.to_segment(code, ~root)) {
       | Some(segment) =>
-        Ok(
-          Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root=Exp),
-        )
+        Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root))
       | None =>
         Error(
           Action.Failure.Composition_action_failure(
@@ -444,6 +608,7 @@ module Local = {
 
     let overwrite_term =
         (
+          ~root=Sort.Exp,
           z: Zipper.t,
           target_id: Id.t,
           code: string,
@@ -462,10 +627,44 @@ module Local = {
       ) {
       | Some(z') =>
         // Paste the code over the selected tile
-        introduce(z', code)
+        introduce(~root, z', code)
       | None => Error(Action.Failure.Cant_select)
       };
     };
+    /* Insert a new module member adjacent to an existing one. Collapse the
+       member's span to the near edge, then let the separator anchor the
+       splice: after → ";\n" ++ code (the member's original following `;` —
+       or `}` for the last member — ends the new code), before → code ++
+       ";\n". `introduce` trims leading whitespace, so the `;` must lead. */
+    let insert_member =
+        (
+          z: Zipper.t,
+          target_id: Id.t,
+          code: string,
+          d: Direction.t,
+          syntax: CachedSyntax.t,
+        ) => {
+      switch (
+        Select.term(
+          ~defs_exclude_bodies=true,
+          ~case_rules=false,
+          syntax.term_data,
+          target_id,
+          z,
+        )
+      ) {
+      | None => Error(Action.Failure.Cant_select)
+      | Some(z_sel) =>
+        let z_caret = Zipper.directional_unselect(d, z_sel);
+        /* Mod root so the member `;` molds as the member separator, not
+           the Exp sequence operator. */
+        switch (d) {
+        | Left => introduce(~root=Sort.Mod, z_caret, code ++ ";\n")
+        | Right => introduce(~root=Sort.Mod, z_caret, ";\n" ++ code)
+        };
+      };
+    };
+
     let insert_term =
         (
           z: Zipper.t,
@@ -565,6 +764,10 @@ module Local = {
           }
         };
       };
+    | Update(Body, path, code)
+        when Utils.is_module_member(path_to_node(initial_node_map, path)) =>
+      ignore(code);
+      Utils.member_body_error("update the body");
     | Update(Body, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Body, initial_node);
@@ -723,8 +926,16 @@ module Local = {
     | Update(BindingClause, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = path_to_id(initial_node_map, path);
+      let root = Utils.is_module_member(initial_node) ? Sort.Mod : Sort.Exp;
       switch (
-        PerformUtils.overwrite_term(initial_z, target_id, code, true, syntax)
+        PerformUtils.overwrite_term(
+          ~root,
+          initial_z,
+          target_id,
+          code,
+          true,
+          syntax,
+        )
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
@@ -754,14 +965,24 @@ module Local = {
     | Insert(Before, path, code) =>
       // todo: figure out a better method than magic space
       let target_id = path_to_id(initial_node_map, path);
+      let is_member =
+        Utils.is_module_member(path_to_node(initial_node_map, path));
       switch (
-        PerformUtils.insert_term(
-          initial_z,
-          target_id,
-          "\n" ++ code ++ "\n",
-          Direction.Left,
-          syntax,
-        )
+        is_member
+          ? PerformUtils.insert_member(
+              initial_z,
+              target_id,
+              code,
+              Direction.Left,
+              syntax,
+            )
+          : PerformUtils.insert_term(
+              initial_z,
+              target_id,
+              "\n" ++ code ++ "\n",
+              Direction.Left,
+              syntax,
+            )
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
@@ -783,14 +1004,24 @@ module Local = {
     | Insert(After, path, code) =>
       // todo: figure out a better method than magic space
       let target_id = path_to_id(initial_node_map, path);
+      let is_member =
+        Utils.is_module_member(path_to_node(initial_node_map, path));
       switch (
-        PerformUtils.insert_term(
-          initial_z,
-          target_id,
-          "\n" ++ code ++ "\n",
-          Direction.Right,
-          syntax,
-        )
+        is_member
+          ? PerformUtils.insert_member(
+              initial_z,
+              target_id,
+              code,
+              Direction.Right,
+              syntax,
+            )
+          : PerformUtils.insert_term(
+              initial_z,
+              target_id,
+              "\n" ++ code ++ "\n",
+              Direction.Right,
+              syntax,
+            )
       ) {
       | Error(e) => Error(e)
       | Ok(new_z) =>
@@ -817,6 +1048,9 @@ module Local = {
         target_id,
         syntax,
       );
+    | Delete(Body, path)
+        when Utils.is_module_member(path_to_node(initial_node_map, path)) =>
+      Utils.member_body_error("delete the body")
     | Delete(Body, path) =>
       let node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Body, node);
