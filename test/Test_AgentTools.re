@@ -5097,6 +5097,27 @@ let module_member_tests = (
       },
     ),
     test_case(
+      "renaming an exported member used outside is rejected", `Quick, () => {
+      switch (
+        run_agent_action(
+          "module M = { let x = 1; let y = 2 } in M.x",
+          Update(Pattern, "M/x", "z"),
+        )
+      ) {
+      | Ok(_) =>
+        Alcotest.fail("expected rename breaking external M.x to be rejected")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "member_rename_external_rejected",
+          true,
+          StringUtil.match(StringUtil.regexp("static error"), msg),
+        )
+      | Error(e) =>
+        Alcotest.fail("unexpected failure kind: " ++ Action.Failure.show(e))
+      }
+    }),
+    test_case(
       "member paths disambiguate with #k",
       `Quick,
       () => {

@@ -153,6 +153,7 @@ let update_body: API.Json.t =
 let update_pattern_description = {|
 Renames or changes the pattern (left-hand side of `=`) of the binding at the given path.
 Automatically updates all use sites of the variable throughout the program.
+Works at module MEMBER paths ("M/helper", "^graph/init") — use sites inside the module are rewritten; a rename that would break references OUTSIDE the module (`M.member`) is rejected instead of applied.
 
 Parameters:
 path: string — slash-delimited path to the binding to rename. Nested defs: use outer/inner. Duplicate sibling names are ambiguous — disambiguate with "name#k" (k-th occurrence in program order, 1-based).
@@ -231,6 +232,7 @@ let update_pattern: API.Json.t =
 
 let update_binding_clause_description = {|
 Replaces the entire binding clause (from `let`/`type`/`module` through `in`, inclusive) at the given path.
+At a module MEMBER path, replaces the whole member — write it without a trailing `;` (e.g. code="let w = 8").
 This changes the pattern, definition, and delimiters — but NOT the body after the final `in`.
 The code you provide should end with `in` (not include a final body expression).
 You can introduce multiple bindings in one call (e.g., `let x = 1 in let y = 2 in`).
@@ -374,6 +376,7 @@ let delete_binding_clause: API.Json.t =
 
 let delete_body_description = {|
 Clears the body (everything after `in`) of the binding at the given path, replacing it with a hole (`?`).
+Module MEMBERS (paths like "M/helper") have no body and are rejected.
 
 Parameters:
 path: string — slash-delimited path to the binding whose body to clear

@@ -54,8 +54,10 @@ Node("text", [Create("x", "80"), Create("y", "55")], [Text("a node")])
 
 Keep width/height equal to the viewBox size so `...At` handler coordinates
 equal viewBox coordinates. For direct manipulation (drag, draw), attach the
-`...At` handlers to the svg root — they only fire while the pointer is over
-it. The drag idiom, a held flag in the model:
+`...At` handlers to the svg root. Hover moves fire only while the pointer
+is over it, but a press on it captures the pointer: once a drag starts,
+move/up keep firing even when the pointer leaves the element, so gestures
+don't drop at the edge. The drag idiom, a held flag in the model:
 
 ```
 type DragAction = Press + MoveTo(Int, Int) + Release in
