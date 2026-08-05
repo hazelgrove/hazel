@@ -286,6 +286,7 @@ let filter_stepper_filter_variables = (ctx: t): t => {
 let is_base_typ = (name: string): bool =>
   name == "Bool"
   || name == "Float"
+  || name == "Real"
   || name == "Int"
   || name == "Nat"
   || name == "SInt"

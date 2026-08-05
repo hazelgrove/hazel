@@ -107,6 +107,10 @@ let rec match_exp =
   | (Atom(Int(_)), _) => None
   | (Atom(Float(f1)), Atom(Float(f2))) when f1 == f2 => Some(ctx)
   | (Atom(Float(_)), _) => None
+  | (Atom(Decimal(s1)), Atom(Decimal(s2))) when s1 == s2 => Some(ctx)
+  | (Atom(Decimal(_)), _) => None
+  | (Atom(Real(r1)), Atom(Real(r2))) when Real.equal(r1, r2) => Some(ctx)
+  | (Atom(Real(_)), _) => None
   | (Atom(String(s1)), Atom(String(s2))) when s1 == s2 => Some(ctx)
   | (Atom(String(_)), _) => None
   | (Atom(SInt(i1)), Atom(SInt(i2))) when i1 == i2 => Some(ctx)
@@ -293,6 +297,10 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (Atom(Int(_)), _) => None
   | (Atom(Float(f1)), Atom(Float(f2))) when f1 == f2 => Some([])
   | (Atom(Float(_)), _) => None
+  | (Atom(Decimal(s1)), Atom(Decimal(s2))) when s1 == s2 => Some([])
+  | (Atom(Decimal(_)), _) => None
+  | (Atom(Real(r1)), Atom(Real(r2))) when Real.equal(r1, r2) => Some([])
+  | (Atom(Real(_)), _) => None
   | (Atom(Bool(b1)), Atom(Bool(b2))) when b1 == b2 => Some([])
   | (Atom(Bool(_)), _) => None
   | (Atom(String(s1)), Atom(String(s2))) when s1 == s2 => Some([])

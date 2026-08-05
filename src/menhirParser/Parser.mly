@@ -34,7 +34,7 @@ open AST
 %token TRUE 
 %token FALSE
 %token <int> INT
-%token <float> FLOAT
+%token <string> FLOAT
 %token LET
 %token MODULE
 %token FUN
@@ -98,6 +98,7 @@ open AST
 (* type tokens *)
 %token INT_TYPE
 %token FLOAT_TYPE
+%token REAL_TYPE
 %token BOOL_TYPE
 %token STRING_TYPE
 %token VOID_TYPE
@@ -245,6 +246,7 @@ typ:
     | PROJECTOR_INVOKE; OPEN_PAREN; t = typ; CLOSE_PAREN; { t }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }
+    | REAL_TYPE { RealType }
     | BOOL_TYPE { BoolType }
     | STRING_TYPE { StringType }
     | VOID_TYPE { VoidType }
@@ -281,7 +283,7 @@ nonAscriptingPat:
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
     | p = IDENT { VarPat(p) }
     | i = INT { AtomPat (Int (Bigint.of_int i)) }
-    | f = FLOAT { AtomPat (Float f) }
+    | f = FLOAT { AtomPat (Decimal f) }
     | s = STRING { AtomPat (String s)}
     | TRUE {AtomPat (Bool true)}
     | FALSE {AtomPat (Bool false)}
@@ -339,7 +341,7 @@ tupExpEntry:
 exp:
     | b = binExp { b }
     | i = INT { Atom (Int (Bigint.of_int i)) }
-    | f = FLOAT { Atom (Float f) }
+    | f = FLOAT { Atom (Decimal f) }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
     | l = QUOTED_LABEL { Label(l) }
@@ -404,4 +406,3 @@ modItem:
 sigItem:
     | LET; p = pat { SigItemLet(p) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { SigItemType(tp, ty) }
-

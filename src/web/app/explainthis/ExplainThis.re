@@ -815,6 +815,8 @@ let get_doc =
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
       | Atom(Float(f)) => get_message(TerminalExp.float_exps(f))
+      | Atom(Decimal(s)) => get_message(TerminalExp.decimal_exps(s))
+      | Atom(Real(r)) => simple("Exact real number " ++ Real.to_literal(r))
       | Atom(String(s)) => get_message(TerminalExp.string_exps(s))
       | Atom(Nat(i)) => get_message(TerminalExp.nat_exps(i))
       | ListLit(terms) =>
@@ -1017,6 +1019,8 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_float);
           }
+        | Atom(Real(_)) => default
+        | Atom(Decimal(_)) => default
         | Atom(Bool(b)) =>
           if (FunctionExp.function_boollit_exp.id
               == get_specificity_level(FunctionExp.functions_bool)) {
@@ -1644,6 +1648,8 @@ let get_doc =
               LetExp.lets_float,
             );
           }
+        | Atom(Real(_)) => default
+        | Atom(Decimal(_)) => default
         | Atom(Bool(b)) =>
           if (LetExp.let_bool_exp.id
               == get_specificity_level(LetExp.lets_bool)) {
@@ -2299,6 +2305,7 @@ let get_doc =
             OpExp.bool_un_not,
           );
         | Float(Minus) // TODO[Matt]: finish
+        | Real(Minus)
         | SInt(Minus)
         | Nat(Minus)
         | Int(Minus) =>
@@ -2322,33 +2329,42 @@ let get_doc =
           switch (op) {
           | Nat(Plus)
           | SInt(Plus)
+          | Real(Plus)
           | Int(Plus) => (int_plus, int_plus_exp_coloring_ids)
           | Nat(Minus)
           | SInt(Minus)
+          | Real(Minus)
           | Int(Minus) => (int_minus, int_minus_exp_coloring_ids)
           | Nat(Times)
           | SInt(Times)
+          | Real(Times)
           | Int(Times) => (int_times, int_times_exp_coloring_ids)
           | Nat(Power)
           | SInt(Power)
+          | Real(Power)
           | Int(Power) => (int_power, int_power_exp_coloring_ids)
           | Nat(Divide)
           | SInt(Divide)
+          | Real(Divide)
           | Int(Divide) => (int_divide, int_divide_exp_coloring_ids)
           | Nat(LessThan)
           | SInt(LessThan)
+          | Real(LessThan)
           | Int(LessThan) => (int_less_than, int_lt_exp_coloring_ids)
           | Nat(LessThanOrEqual)
           | SInt(LessThanOrEqual)
+          | Real(LessThanOrEqual)
           | Int(LessThanOrEqual) => (
               int_less_than_equal,
               int_lte_exp_coloring_ids,
             )
           | Nat(GreaterThan)
           | SInt(GreaterThan)
+          | Real(GreaterThan)
           | Int(GreaterThan) => (int_greater_than, int_gt_exp_coloring_ids)
           | Nat(GreaterThanOrEqual)
           | SInt(GreaterThanOrEqual)
+          | Real(GreaterThanOrEqual)
           | Int(GreaterThanOrEqual) => (
               int_greater_than_equal,
               int_gte_exp_coloring_ids,
@@ -2457,6 +2473,8 @@ let get_doc =
           ),
         TerminalPat.floatlit(f),
       )
+    | Atom(Real(_)) => default
+    | Atom(Decimal(_)) => default
     | Atom(Bool(b)) =>
       get_message(
         ~format=
@@ -2715,6 +2733,7 @@ let get_doc =
     | Atom(Int) => get_message(TerminalTyp.int)
     | Atom(SInt) => get_message(TerminalTyp.sint)
     | Atom(Float) => get_message(TerminalTyp.float)
+    | Atom(Real) => simple("Exact real number type")
     | Atom(Bool) => get_message(TerminalTyp.bool)
     | Atom(String) => get_message(TerminalTyp.str)
     | Atom(Nat) => get_message(TerminalTyp.nat)

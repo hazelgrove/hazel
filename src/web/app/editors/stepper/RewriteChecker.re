@@ -20,14 +20,48 @@ let name_other = (): (Exp.t => string) => {
   );
 };
 
+let print_real_for_algebrite =
+  fun
+  | Real.Pi => "pi"
+  | Real.Rational({numerator, denominator, _}) =>
+    if (Bigint.equal(denominator, Bigint.one)) {
+      Bigint.to_string(numerator);
+    } else {
+      "("
+      ++ Bigint.to_string(numerator)
+      ++ "/"
+      ++ Bigint.to_string(denominator)
+      ++ ")";
+    };
+
+let algebrite_function_name = (exp: Exp.t): option(string) => {
+  let name =
+    switch (exp.term) {
+    | BuiltinFun(name) => Some(name)
+    | _ => None
+    };
+  switch (name) {
+  | Some(("exp" | "log" | "sqrt" | "sin" | "cos" | "tan") as name) =>
+    Some(name)
+  | _ => None
+  };
+};
+
 let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
   switch (exp.term) {
   | Atom(Int(value)) => Bigint.to_string(value)
   | Atom(Nat(value)) => Bigint.to_string(value)
   | Atom(Float(value)) => string_of_float(value)
+  | Atom(Real(value)) => print_real_for_algebrite(value)
   | Atom(Bool(value)) => string_of_bool(value)
+  | Ap(Forward, fn, arg) =>
+    switch (algebrite_function_name(fn)) {
+    | Some(name) =>
+      name ++ "(" ++ print_exp_for_algebrite(~name_other, arg) ++ ")"
+    | None => name_other(exp)
+    }
   // We have to manually map ** (power) to ^ in Algebrite.
-  | BinOp(Int(Power), exp_left, exp_right) =>
+  | BinOp(Int(Power) | Real(Power), exp_left, exp_right) =>
     "("
     ++ print_exp_for_algebrite(~name_other, exp_left)
     ++ " ^ "
@@ -42,7 +76,7 @@ let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
     ++ " "
     ++ print_exp_for_algebrite(~name_other, exp_right)
     ++ ")"
-  | UnOp(Int(Minus), exp) =>
+  | UnOp(Int(Minus) | Real(Minus), exp) =>
     "(" ++ "-" ++ print_exp_for_algebrite(~name_other, exp) ++ ")"
   | Parens(exp) => "(" ++ print_exp_for_algebrite(~name_other, exp) ++ ")"
   | Var(value) => value

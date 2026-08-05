@@ -337,21 +337,21 @@ let tests =
         ),
         "-1 + 2 - 3 / 4 * 5 ** 6 >= 8",
       ),
-      full_parser_test("Float", float(1.), "1."),
+      full_parser_test("Float", decimal("1."), "1."),
       full_parser_test(
         "Float Ops",
         bin_op(
           Float(LessThan),
           bin_op(
             Float(Minus),
-            float(2.),
+            decimal("2."),
             bin_op(
               Float(Times),
-              bin_op(Float(Divide), float(3.), float(4.)),
-              bin_op(Float(Power), float(5.), float(6.)),
+              bin_op(Float(Divide), decimal("3."), decimal("4.")),
+              bin_op(Float(Power), decimal("5."), decimal("6.")),
             ),
           ),
-          float(8.),
+          decimal("8."),
         ),
         "2. -. 3. /. 4. *. 5. **. 6. <. 8.",
       ),

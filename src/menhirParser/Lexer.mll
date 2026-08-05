@@ -10,13 +10,6 @@ let advance_line lexbuf =
   } in
   lexbuf.lex_curr_p <- pos'
 
-let parse_float_string s = 
-  try
-    let f = float_of_string s in
-    f
-  with
-    | Failure _ -> print_endline ("Parse Float String Lexing Error On: " ^ s); 0.0
-
 }
 (* TODO We don't yet support negative floats in MakeTerm *)
 (* Require leading digits before dot *)
@@ -43,7 +36,7 @@ rule token =
     | whitespace {token lexbuf }
     | newline { advance_line lexbuf; token lexbuf}
     | ints as i { INT (int_of_string i) }
-    | float as f { FLOAT (parse_float_string f )}
+    | float as f { FLOAT f }
     | string as s { STRING (String.sub s 1 (String.length s - 2)) }
     | quoted_label as l { QUOTED_LABEL (String.sub l 1 (String.length l - 2)) }
     | projector_invoke as p { PROJECTOR_INVOKE p }
@@ -108,6 +101,7 @@ rule token =
     (* Types *)
     | "Int" { INT_TYPE }
     | "Float" { FLOAT_TYPE }
+    | "Real" { REAL_TYPE }
     | "Bool" { BOOL_TYPE }
     | "String" { STRING_TYPE }
     | "Void" { VOID_TYPE }

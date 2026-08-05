@@ -9,7 +9,7 @@ let tests = (
       `Quick,
       () => {
         let fns = Atom.conversions_from(Atom.Int);
-        check(int, "5 conversions", 5, List.length(fns));
+        check(int, "6 conversions", 6, List.length(fns));
         let names = List.map(fst, fns);
         List.iter(
           expected =>
@@ -18,6 +18,7 @@ let tests = (
             "sint_of_int",
             "nat_of_int",
             "float_of_int",
+            "real_of_int",
             "bool_of_int",
             "string_of_int",
           ],
@@ -29,7 +30,7 @@ let tests = (
       `Quick,
       () => {
         let fns = Atom.conversions_from(Atom.Nat);
-        check(int, "5 conversions", 5, List.length(fns));
+        check(int, "6 conversions", 6, List.length(fns));
         let names = List.map(fst, fns);
         check(
           bool,
@@ -75,8 +76,53 @@ let tests = (
         );
       },
     ),
-    test_case("compare_builtin: Bool has no builtin compare", `Quick, () =>
-      check(option(string), "Bool", None, Atom.compare_builtin(Atom.Bool))
+    test_case(
+      "compare_builtin: Bool and symbolic Real have no total compare",
+      `Quick,
+      () => {
+        check(
+          option(string),
+          "Bool",
+          None,
+          Atom.compare_builtin(Atom.Bool),
+        );
+        check(
+          option(string),
+          "Real",
+          None,
+          Atom.compare_builtin(Atom.Real),
+        );
+      },
+    ),
+    test_case(
+      "Real rationals normalize and print exactly",
+      `Quick,
+      () => {
+        let one_third = Real.normalize(Bigint.one, Bigint.of_int(3), None);
+        let two_sixths =
+          Real.normalize(Bigint.of_int(2), Bigint.of_int(6), None);
+        check(
+          bool,
+          "normalized equality",
+          true,
+          Real.equal(one_third, two_sixths),
+        );
+        check(
+          string,
+          "non-terminating rational",
+          "1/3",
+          Real.to_literal(one_third),
+        );
+        check(
+          string,
+          "terminating rational",
+          "0.125",
+          Real.to_literal(
+            Real.normalize(Bigint.one, Bigint.of_int(8), None),
+          ),
+        );
+        check(string, "symbolic pi", "pi_real", Real.to_literal(Real.Pi));
+      },
     ),
     test_case(
       "conversions_from: uses <target>_of_<source> scheme",

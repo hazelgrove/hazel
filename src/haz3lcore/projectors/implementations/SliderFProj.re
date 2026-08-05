@@ -11,6 +11,8 @@ module M: Projector = {
   let float_of = (any: Language.Any.t): option(float) =>
     switch (any) {
     | Exp({term: Atom(Float(f)), _}) => Some(f)
+    | Exp({term: Atom(Decimal(spelling)), _}) =>
+      float_of_string_opt(spelling)
     | _ => None
     };
 
@@ -33,7 +35,12 @@ module M: Projector = {
       info.utility.lift_syntax(
         ~inline=true,
         fun
-        | Exp(t) =>
+        | Exp({term: Atom(Decimal(_)), _} as t) =>
+          Exp({
+            ...t,
+            term: Atom(Decimal(v)),
+          })
+        | Exp({term: Atom(Float(_)), _} as t) =>
           Exp({
             ...t,
             term: Atom(Float(float_of_string(v))),

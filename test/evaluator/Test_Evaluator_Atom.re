@@ -25,6 +25,66 @@ let tests = (
           sint(8),
           elaborate(parse_exp({|use SInt in 8|})),
         );
+        evaluation_test(
+          "Real integer",
+          real(Real.of_bigint(Bigint.of_int(8))),
+          elaborate(parse_exp({|use Real in 8|})),
+        );
+        evaluation_test(
+          "Real decimal arithmetic stays symbolic",
+          bin_op(
+            Operators.Real(Plus),
+            real(Real.of_decimal("1.25")),
+            real(Real.of_decimal("2.5")),
+          ),
+          elaborate(parse_exp({|use Real in 1.25 + 2.5|})),
+        );
+        evaluation_test(
+          "Real division stays symbolic",
+          bin_op(
+            Operators.Real(Divide),
+            real(Real.of_bigint(Bigint.one)),
+            real(Real.of_bigint(Bigint.of_int(3))),
+          ),
+          elaborate(parse_exp({|use Real in 1 / 3|})),
+        );
+        evaluation_test(
+          "Real division by zero stays symbolic",
+          bin_op(
+            Operators.Real(Divide),
+            real(Real.of_bigint(Bigint.one)),
+            real(Real.of_bigint(Bigint.zero)),
+          ),
+          elaborate(parse_exp({|use Real in 1 / 0|})),
+        );
+        evaluation_test(
+          "Real comparison stays symbolic",
+          bin_op(
+            Operators.Real(LessThan),
+            real(Real.of_bigint(Bigint.one)),
+            real(Real.of_bigint(Bigint.of_int(2))),
+          ),
+          elaborate(parse_exp({|use Real in 1 < 2|})),
+        );
+        evaluation_test(
+          "Real negation stays symbolic",
+          un_op(Operators.Real(Minus), real(Real.of_decimal("1.25"))),
+          elaborate(parse_exp({|use Real in -1.25|})),
+        );
+        evaluation_test(
+          "Real pi constant",
+          real(Real.Pi),
+          elaborate(parse_exp({|pi_real|})),
+        );
+        evaluation_test(
+          "Negated pi remains symbolic",
+          un_op(Operators.Real(Minus), real(Real.Pi)),
+          elaborate(parse_exp({|use Real in -pi_real|})),
+        );
+        parse_and_evaluate_test(
+          "true",
+          {|use Real in case 1.25 | 1.25 => true | _ => false end|},
+        );
       },
     ),
     test_case(

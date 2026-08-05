@@ -133,6 +133,7 @@ let of_bin_op: Language.Operators.op_bin => t =
   fun
   | Nat(op)
   | SInt(op)
+  | Real(op)
   | Int(op) =>
     switch (op) {
     | Plus => plus

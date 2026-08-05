@@ -458,6 +458,21 @@ let tests = (
   "Statics.Types",
   [
     fully_consistent_typecheck(
+      "Real arithmetic synthesizes Real",
+      {|use Real in 0.1 + 0.2|},
+      Some(FTemp.Typ.real()),
+    ),
+    fully_consistent_typecheck(
+      "Exact pi has a distinct Real builtin",
+      {|pi_real|},
+      Some(FTemp.Typ.real()),
+    ),
+    fully_consistent_typecheck(
+      "Float pi is unchanged by Real mode",
+      {|use Real in pi|},
+      Some(FTemp.Typ.float()),
+    ),
+    fully_consistent_typecheck(
       "Type alias works for typfun variable",
       {|typfun a -> fun y ->
   let x :a =  ? in

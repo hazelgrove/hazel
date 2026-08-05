@@ -340,7 +340,7 @@ let equality =
     | (Undefined, _) => false
     | (Deferral(pos1), Deferral(pos2)) => pos1 == pos2
     | (Deferral(_), _) => false
-    | (Atom(c1), Atom(c2)) => c1 == c2
+    | (Atom(c1), Atom(c2)) => Atom.equal(c1, c2)
     | (Atom(_), _) => false
     | (Label(l1), Label(l2)) => l1 == l2
     | (Label(_), _) => false
@@ -557,7 +557,7 @@ let equality =
     // Other forms
     | (Wild, Wild) => Some(Alphas.empty)
     | (Wild, _) => None
-    | (Atom(c1), Atom(c2)) when c1 == c2 => Some(Alphas.empty)
+    | (Atom(c1), Atom(c2)) when Atom.equal(c1, c2) => Some(Alphas.empty)
     | (Atom(_), _) => None
     | (Label(l1), Label(l2)) when l1 == l2 => Some(Alphas.empty)
     | (Label(_), _) => None

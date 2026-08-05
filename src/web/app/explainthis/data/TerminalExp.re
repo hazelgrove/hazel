@@ -93,6 +93,18 @@ let float_exps = (f: float): group => {
   forms: [float_exp(f)],
 };
 
+let decimal_exp = (spelling: string): form => {
+  id: DecimalExp,
+  syntactic_form: [exp(spelling)],
+  expandable_id: None,
+  explanation: "A decimal literal. Its numeric type is determined by its context.",
+  examples: [],
+};
+let decimal_exps = (spelling: string): group => {
+  id: DecimalExp,
+  forms: [decimal_exp(spelling)],
+};
+
 let string_exp = (s: string): form => {
   id: StringExp,
   syntactic_form: [s |> abbreviate |> Haz3lcore.Token.string_quote |> exp],

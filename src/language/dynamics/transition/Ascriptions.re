@@ -81,12 +81,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (String(_), String)
       | (Nat(_), Nat)
       | (Float(_), Float)
+      | (Decimal(_), Float)
+      | (Real(_), Real)
       | (SInt(_), SInt)
       | (Bool(_), Bool) => Some(e)
       | (Int(_), _)
       | (String(_), _)
       | (Nat(_), _)
       | (Float(_), _)
+      | (Decimal(_), _)
+      | (Real(_), _)
       | (SInt(_), _)
       | (Bool(_), _) => None
       }
@@ -197,12 +201,19 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp,
             ) =>
         Some(e)
+      | Stuck(_, _, ty_out)
+          when Typ.is_consistent(Ctx.empty, t, Atom(ty_out) |> Typ.temp) =>
+        Some(e)
       | Undefined(_)
       | DefinedPoly(_)
+      | Stuck(_)
       | Defined(_) => None
       }
     | (UnOp(un_op, _), _) =>
       switch (Operators.semantics_of_un_op(un_op)) {
+      | StuckUn(_, ty_out)
+          when Typ.is_consistent(Ctx.empty, t, Atom(ty_out) |> Typ.temp) =>
+        Some(e)
       | Defined(_, ty_out, _)
           when
             Typ.is_consistent(
@@ -212,6 +223,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
             ) =>
         Some(e)
       | Undefined(_)
+      | StuckUn(_)
       | Defined(_) => None
       }
     | (ListConcat(d1, d2), List(_)) =>

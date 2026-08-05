@@ -1172,6 +1172,7 @@ let rec pretty_print = (ty: t): string =>
   | Unknown(_) => "?"
   | Atom(Int) => "Int"
   | Atom(Float) => "Float"
+  | Atom(Real) => "Real"
   | Atom(Bool) => "Bool"
   | Atom(String) => "String"
   | DrvQuoteTy(d) => DrvSort.to_string(d)
