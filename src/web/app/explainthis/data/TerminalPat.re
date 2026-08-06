@@ -12,7 +12,7 @@ let wild_pat: form = {
 };
 
 let sintlit_pat = (i: int): form => {
-  id: IntPat,
+  id: SIntPat,
   syntactic_form: [i |> string_of_int |> abbreviate |> pat],
   expandable_id: None,
   explanation:

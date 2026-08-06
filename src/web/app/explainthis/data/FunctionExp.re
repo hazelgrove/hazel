@@ -330,7 +330,7 @@ let function_triv_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
   expandable_id: Some((Piece.id(p), [pat("()")])),
   explanation:
     Printf.sprintf(
-      "The only value that matches the [*argument pattern*](%s) is the trivial value `()`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s). This if functionally equivalent to a zero argument function.",
+      "The only value that matches the [*argument pattern*](%s) is the trivial value `()`. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s). This is functionally equivalent to a zero argument function.",
       Id.to_string(pat_id),
       Id.to_string(pat_id),
       Id.to_string(body_id),

@@ -28,7 +28,7 @@ let hinted_test_exp = (~hint_id: Id.t, ~body_id: Id.t): form => {
   expandable_id: None,
   explanation:
     Printf.sprintf(
-      "The [*hint*](%s) is displayed in the \"Implementation Grading\" section. If the [*body*](%s) of the test evalutes to `true`, the test passes. Otherwise, the test fails.",
+      "The [*hint*](%s) is displayed in the \"Implementation Grading\" section. If the [*body*](%s) of the test evaluates to `true`, the test passes. Otherwise, the test fails.",
       Id.to_string(hint_id),
       Id.to_string(body_id),
     ),

@@ -239,6 +239,7 @@ type form_id =
   | MultiHolePat
   | WildPat
   | IntPat
+  | SIntPat
   | FloatPat
   | BoolPat
   | StrPat

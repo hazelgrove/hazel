@@ -420,8 +420,6 @@ x => VarExp colorings=[]
 x => VarPat colorings=[]
 x:(Int) => TypAnnPat colorings=[Int,x]|},
   ),
-  /* `f(x) => ApConsPat` is wrong: this is a *function* application pattern, so
-     its group is ApFuncPat. The form's id disagrees with its group. */
   (
     "ap-pat",
     {|2 => IntExp colorings=[]
@@ -429,7 +427,7 @@ x:(Int) => TypAnnPat colorings=[Int,x]|},
 f => VarExp colorings=[]
 f => VarPat colorings=[]
 f(3) => FunApExp colorings=[3,f]
-f(x) => ApConsPat colorings=[f,x]
+f(x) => ApFuncPat colorings=[f,x]
 fun x -> x * 2 => (FunctionExp Base) colorings=[x,x * 2]
 fun x -> x * 2 => (FunctionExp Var) colorings=[x,x * 2]
 let f(x) = x * 2 in f(3) => (LetExp ApFunc) colorings=[f,x,x * 2]

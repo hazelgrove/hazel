@@ -333,7 +333,7 @@ let int_power_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
     binop_explanation(
       ~left_id,
       ~right_id,
-      "Gives the result of raising [*left*](%s) ro the [*right*](%s).",
+      "Gives the result of raising [*left*](%s) to the [*right*](%s).",
     ),
   examples: [int_power_ex],
 };

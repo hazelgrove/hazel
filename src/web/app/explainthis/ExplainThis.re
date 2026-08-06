@@ -622,7 +622,11 @@ let get_color_map_deduction =
       info_deduction: info_deduction,
     ) =>
   switch (globals.settings.explainThis.highlight) {
-  | All when globals.settings.explainThis.show =>
+  /* `sidebar.show`, matching `get_color_map` below. This used to read
+     `explainThis.show`, which nothing toggles and which defaults to true, so
+     collapsing the sidebar stopped code highlighting for ordinary terms but not
+     for derivation ones. */
+  | All when globals.settings.sidebar.show =>
     let (_, (_, (color_map, _)), _) =
       get_doc_deduction(
         ~globals,
@@ -631,7 +635,7 @@ let get_color_map_deduction =
         Colorings,
       );
     Some(color_map);
-  | One(id) when globals.settings.explainThis.show =>
+  | One(id) when globals.settings.sidebar.show =>
     let (_, (_, (color_map, _)), _) =
       get_doc_deduction(
         ~globals,

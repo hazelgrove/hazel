@@ -32,7 +32,7 @@ let funapp_pat_coloring_ids =
 ];
 let funapp_pat_form = [pat_fun, mk_ap_pat([[pat_arg]])];
 let funapp_pat = (~x_id: Id.t, ~arg_id: Id.t): form => {
-  id: ApConsPat,
+  id: ApFuncPat,
   syntactic_form: funapp_pat_form,
   expandable_id: None,
   explanation:
