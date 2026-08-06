@@ -1,4 +1,3 @@
-open Sexplib;
 open Haz3lcore;
 open ExplainThisForm;
 open Util;
@@ -80,21 +79,12 @@ let get_explanation_feedback =
       (form: form_model) => form.group == group_id && form.form == form_id,
       model.forms,
     );
+  /* A (group, form) pair should appear at most once, but this reads persisted
+     state that a previous version wrote, so tolerate a duplicate rather than
+     taking down the sidebar over a stale thumbs-up. */
   switch (forms) {
   | [] => None
-  | [form] => form.explanation_feedback
-  | _ =>
-    raise(
-      Invalid_argument(
-        "Each form, group pair should only appear once, but "
-        ++ Sexp.to_string(sexp_of_form_id(form_id))
-        ++ ", "
-        ++ Sexp.to_string(sexp_of_group_id(group_id))
-        ++ " appears "
-        ++ string_of_int(List.length(forms))
-        ++ " times",
-      ),
-    )
+  | [form, ..._] => form.explanation_feedback
   };
 };
 
@@ -109,7 +99,7 @@ let get_example_feedback =
 
   switch (forms) {
   | [] => None
-  | [form] =>
+  | [form, ..._] =>
     let examples =
       List.filter(
         (example: example_model) => example.sub_id == example_id,
@@ -117,100 +107,59 @@ let get_example_feedback =
       );
     switch (examples) {
     | [] => None
-    | [example] => Some(example.feedback)
-    | _ =>
-      raise(
-        Invalid_argument(
-          "Each group, form, example triple should only appear once, but "
-          ++ Sexp.to_string(sexp_of_group_id(group_id))
-          ++ ", "
-          ++ Sexp.to_string(sexp_of_form_id(form_id))
-          ++ ", "
-          ++ Sexp.to_string(sexp_of_example_id(example_id))
-          ++ " appears "
-          ++ string_of_int(List.length(examples))
-          ++ " times",
-        ),
-      )
+    | [example, ..._] => Some(example.feedback)
     };
-  | _ =>
-    raise(
-      Invalid_argument(
-        "Each group, form pair should only appear once, but "
-        ++ Sexp.to_string(sexp_of_group_id(group_id))
-        ++ ", "
-        ++ Sexp.to_string(sexp_of_form_id(form_id))
-        ++ " appears "
-        ++ string_of_int(List.length(forms))
-        ++ " times",
-      ),
-    )
   };
 };
 
-let get_form_in_group = (form_id: form_id, group: group): form => {
-  OptUtil.get_or_raise(
-    Invalid_argument(
-      "Form "
-      ++ Sexp.to_string(sexp_of_form_id(form_id))
-      ++ " is not in group "
-      ++ Sexp.to_string(sexp_of_group_id(group.id)),
-    ),
-    List.find_opt((form: form) => form.id == form_id, group.forms),
-  );
-};
+/* Falls back to the most specific form rather than raising: `form_id` can come
+   from persisted state naming a form that has since been renamed or removed. */
+let get_form_in_group = (form_id: form_id, group: group): option(form) =>
+  switch (List.find_opt((form: form) => form.id == form_id, group.forms)) {
+  | Some(form) => Some(form)
+  | None => List.nth_opt(group.forms, 0)
+  };
 
-let get_selected_option = (group: group, model: t): form => {
+let get_selected_option = (group: group, model: t): option(form) => {
   let selected =
     List.filter(
       (group': group_model) => group'.group == group.id,
       model.groups,
     );
-  switch (selected, group.forms) {
-  | ([], [form, ..._fs]) => form
-  | ([selected], _) => get_form_in_group(selected.selected, group)
-  | ([_f1, _f2, ..._fs], _) =>
-    raise(
-      Invalid_argument(
-        "Each group should have only one selection, but group "
-        ++ Sexp.to_string(sexp_of_group_id(group.id))
-        ++ " has "
-        ++ string_of_int(List.length(selected))
-        ++ "forms selected",
-      ),
-    )
-  | (_, []) =>
-    raise(Invalid_argument("Each group must have at least one form"))
+  switch (selected) {
+  /* No recorded selection means the most specific form. A group should have at
+     most one selection; if stale state carries more, honour the first. */
+  | [] => List.nth_opt(group.forms, 0)
+  | [selected, ..._] => get_form_in_group(selected.selected, group)
   };
 };
 
+/* Only forms that name an anchor can appear in the specificity menu, since the
+   menu is drawn at that anchor. Such a form used to raise here; there is none in
+   any reachable multi-form group today, but skipping is the honest total answer
+   and stops a future one from crashing the sidebar. */
 let get_options = (group: group): list((form_id, Segment.t)) =>
-  if (List.length(group.forms) < 2) {
-    [];
-  } else {
-    List.rev(
-      List.map(
-        (form: form) =>
-          (
-            form.id,
-            snd(
-              OptUtil.get_or_raise(
-                Invalid_argument(
-                  "Forms used for group options must specify expandable",
-                ),
-                form.expandable_id,
-              ),
+  List.length(group.forms) < 2
+    ? []
+    : List.rev(
+        List.filter_map(
+          (form: form) =>
+            Option.map(
+              ((_anchor, segment)) => (form.id, segment),
+              form.expandable_id,
             ),
-          ),
-        group.forms,
-      ),
-    );
-  };
+          group.forms,
+        ),
+      );
 
+/* `None` means the group has no forms at all, which no group constructor can
+   produce — but saying so in the type is what lets this module be free of
+   raises. */
 let get_form_and_options =
-    (group: group, model: t): (form, list((form_id, Segment.t))) => {
-  (get_selected_option(group, model), get_options(group));
-};
+    (group: group, model: t): (option(form), list((form_id, Segment.t))) => (
+  get_selected_option(group, model),
+  get_options(group),
+);
 
 // To prevent OCaml thinking t is a recursive type lower down
 [@deriving (show({with_path: false}), yojson, sexp)]

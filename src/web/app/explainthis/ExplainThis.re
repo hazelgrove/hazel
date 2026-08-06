@@ -465,11 +465,17 @@ let get_doc_deduction =
       // Examples can be leaved blank.
       : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
     let (doc, _) = ExplainThisModel.get_form_and_options(group, docs);
-
+    /* group_id and form_id are one type, and this path's group is a one-form
+       stub, so the group's own id is the right stand-in if there is no form. */
+    let (doc_id, doc_explanation) =
+      switch (doc) {
+      | Some(doc) => (doc.id, doc.explanation)
+      | None => (group.id, "")
+      };
     let explanation_msg =
       switch (explanation) {
       | Some(msg) => msg
-      | None => doc.explanation
+      | None => doc_explanation
       };
     switch (mode) {
     | MessageContent(inject, globals) =>
@@ -481,7 +487,7 @@ let get_doc_deduction =
               ~globals,
               ~inject,
               group.id,
-              doc.id,
+              doc_id,
               explanation_msg,
               docs,
             ),
@@ -508,7 +514,7 @@ let get_doc_deduction =
       /* The deduction path threads no colorings. */
       report({
         group: group.id,
-        form: doc.id,
+        form: doc_id,
         forms: List.map((f: ExplainThisForm.form) => f.id, group.forms),
         explanation: explanation_msg,
         colorings: [],
@@ -654,7 +660,10 @@ let get_doc =
   let simple = msg => ([], ([text(msg)], (Id.Map.empty, 0)), []);
   let default = simple("No docs available");
   let get_specificity_level = group_id =>
-    fst(ExplainThisModel.get_form_and_options(group_id, docs)).id;
+    Option.map(
+      (form: ExplainThisForm.form) => form.id,
+      fst(ExplainThisModel.get_form_and_options(group_id, docs)),
+    );
   let get_message =
       (
         ~colorings=[],
@@ -662,97 +671,103 @@ let get_doc =
         group: ExplainThisForm.group,
       )
       : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-    let (doc, options) = ExplainThisModel.get_form_and_options(group, docs);
-
-    /* Each form's explanation is already filled in by its data module, where
-       the format literal and its arguments sit together. `~explanation`
-       overrides it for the few callers that describe a different term. */
-    let explanation_msg =
-      switch (explanation) {
-      | Some(msg) => msg
-      | None => doc.explanation
-      };
-    /* A form carries its own colorings; `~colorings` overrides them for the
-       least specific form of a group, which is shared across a family of
-       groups and so is not built for this particular call site. */
-    let colorings = colorings == [] ? doc.colorings : colorings;
-    switch (mode) {
-    | MessageContent(inject, globals) =>
-      let (explanation, color_map) =
-        mk_explanation(
-          ~globals,
-          ~inject,
-          group.id,
-          doc.id,
-          explanation_msg,
-          docs,
-        );
-      let root =
-        switch (info) {
-        | None => Sort.Any
-        | Some(ci) => Info.sort_of(ci)
+    let (selected, options) =
+      ExplainThisModel.get_form_and_options(group, docs);
+    switch (selected) {
+    /* Unreachable: no group constructor produces a group with no forms. */
+    | None => default
+    | Some(doc) =>
+      /* Each form's explanation is already filled in by its data module, where
+         the format literal and its arguments sit together. `~explanation`
+         overrides it for the few callers that describe a different term. */
+      let explanation_msg =
+        switch (explanation) {
+        | Some(msg) => msg
+        | None => doc.explanation
         };
-      let highlights =
-        colorings
-        |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
-             let (color, _) = ColorSteps.get_color(code_id, color_map);
-             (syntactic_form_id, color);
-           })
-        |> List.to_seq
-        |> Id.Map.of_seq
-        |> Option.some;
-      let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip, ~root);
-      let expander_deco =
-        expander_deco(
-          ~globals,
-          ~docs,
-          ~inject,
-          ~options,
-          ~group,
-          ~doc,
-          editor,
-        );
-      let highlight_deco = [
-        Highlight.colors(
-          ~font_metrics=globals.font_metrics,
-          ~syntax=editor.syntax,
-          highlights,
-        ),
-      ];
-      let syntactic_form_view =
-        CodeWithStatics.View.view(
-          ~globals,
-          ~overlays=highlight_deco @ [expander_deco],
-          {
+      /* A form carries its own colorings; `~colorings` overrides them for the
+         least specific form of a group, which is shared across a family of
+         groups and so is not built for this particular call site. */
+      let colorings = colorings == [] ? doc.colorings : colorings;
+      switch (mode) {
+      | MessageContent(inject, globals) =>
+        let (explanation, color_map) =
+          mk_explanation(
+            ~globals,
+            ~inject,
+            group.id,
+            doc.id,
+            explanation_msg,
+            docs,
+          );
+        let root =
+          switch (info) {
+          | None => Sort.Any
+          | Some(ci) => Info.sort_of(ci)
+          };
+        let highlights =
+          colorings
+          |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
+               let (color, _) = ColorSteps.get_color(code_id, color_map);
+               (syntactic_form_id, color);
+             })
+          |> List.to_seq
+          |> Id.Map.of_seq
+          |> Option.some;
+        let editor =
+          Editor.Model.mk(doc.syntactic_form |> Zipper.unzip, ~root);
+        let expander_deco =
+          expander_deco(
+            ~globals,
+            ~docs,
+            ~inject,
+            ~options,
+            ~group,
+            ~doc,
             editor,
-            statics: CachedStatics.empty,
-            dynamics: Dynamics.Map.empty,
-            context_menu: None,
-          },
-        );
-      let example_view =
-        example_view(
-          ~globals,
-          ~inject,
-          ~group_id=group.id,
-          ~form_id=doc.id,
-          ~examples=doc.examples,
-          ~model=docs,
-        );
-      ([syntactic_form_view], ([explanation], color_map), example_view);
-    | Colorings =>
-      let (_, color_map) =
-        mk_translation(~globals, ~inject=_ => (), explanation_msg);
-      ([], ([], color_map), []);
-    | Probe(report) =>
-      report({
-        group: group.id,
-        form: doc.id,
-        forms: List.map((f: ExplainThisForm.form) => f.id, group.forms),
-        explanation: explanation_msg,
-        colorings,
-      });
-      ([], ([], ColorSteps.empty), []);
+          );
+        let highlight_deco = [
+          Highlight.colors(
+            ~font_metrics=globals.font_metrics,
+            ~syntax=editor.syntax,
+            highlights,
+          ),
+        ];
+        let syntactic_form_view =
+          CodeWithStatics.View.view(
+            ~globals,
+            ~overlays=highlight_deco @ [expander_deco],
+            {
+              editor,
+              statics: CachedStatics.empty,
+              dynamics: Dynamics.Map.empty,
+              context_menu: None,
+            },
+          );
+        let example_view =
+          example_view(
+            ~globals,
+            ~inject,
+            ~group_id=group.id,
+            ~form_id=doc.id,
+            ~examples=doc.examples,
+            ~model=docs,
+          );
+        ([syntactic_form_view], ([explanation], color_map), example_view);
+      | Colorings =>
+        let (_, color_map) =
+          mk_translation(~globals, ~inject=_ => (), explanation_msg);
+        ([], ([], color_map), []);
+      | Probe(report) =>
+        report({
+          group: group.id,
+          form: doc.id,
+          forms: List.map((f: ExplainThisForm.form) => f.id, group.forms),
+          explanation: explanation_msg,
+          colorings,
+        });
+        ([], ([], ColorSteps.empty), []);
+      };
     };
   };
 
@@ -766,7 +781,7 @@ let get_doc =
      comparing an explicitly named form id at each of ~40 call sites. */
   let at_specific_level = (group: ExplainThisForm.group) =>
     switch (group.forms) {
-    | [specific, ..._] => get_specificity_level(group) == specific.id
+    | [specific, ..._] => get_specificity_level(group) == Some(specific.id)
     | [] => true
     };
 
@@ -778,7 +793,7 @@ let get_doc =
   let leveled = (~fallback, group: ExplainThisForm.group) => {
     let selected = get_specificity_level(group);
     switch (List.rev(group.forms)) {
-    | [least, _, ..._] when selected == least.id => fallback(group)
+    | [least, _, ..._] when selected == Some(least.id) => fallback(group)
     | _ => get_message(group)
     };
   };
