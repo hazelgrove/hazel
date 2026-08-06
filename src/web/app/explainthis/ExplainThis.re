@@ -825,10 +825,7 @@ let get_doc =
       | Asc(e, t) =>
         let exp_id = IdTagged.rep_id(e);
         let typ_id = IdTagged.rep_id(t);
-        get_message(
-          ~colorings=AscExp.ascription_coloring_ids(~exp_id, ~typ_id),
-          AscExp.ascriptions(~exp_id, ~typ_id),
-        );
+        get_message(AscExp.ascriptions(~exp_id, ~typ_id));
       | Use(t, e) =>
         message_single(
           UseExp.single(~typ_id=Typ.rep_id(t), ~body_id=Exp.rep_id(e)),
@@ -972,9 +969,6 @@ let get_doc =
           leveled(~fallback=basic, group);
         | Tuple(elements) =>
           let n = List.length(elements);
-          let tuple_colorings =
-            FunctionExp.function_tuple_exp_coloring_ids(~pat_id, ~body_id);
-
           switch (n) {
           | 2 =>
             let pat1_id = nth_rep_id(elements, 0);
@@ -1233,17 +1227,11 @@ let get_doc =
         );
       | ProofObject(exp) =>
         let typ_id = IdTagged.rep_id(exp);
-        get_message(
-          ~colorings=ProofObjectExp.proof_of_exp_coloring_ids(~typ_id),
-          ProofObjectExp.proof_of_exps(~typ_id),
-        );
+        get_message(ProofObjectExp.proof_of_exps(~typ_id));
       | Forall(pat, typ) =>
         let pat_id = IdTagged.rep_id(pat);
         let body_id = IdTagged.rep_id(typ);
-        get_message(
-          ~colorings=ForallExp.forall_exp_coloring_ids(~pat_id, ~body_id),
-          ForallExp.forall(~pat_id, ~body_id),
-        );
+        get_message(ForallExp.forall(~pat_id, ~body_id));
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(
@@ -1261,16 +1249,12 @@ let get_doc =
       | TypAp(f, typ) =>
         let f_id = IdTagged.rep_id(f);
         let typ_id = IdTagged.rep_id(typ);
-        get_message(
-          ~colorings=TypAppExp.typfunapp_exp_coloring_ids(~f_id, ~typ_id),
-          TypAppExp.typfunaps(~f_id, ~typ_id),
-        );
+        get_message(TypAppExp.typfunaps(~f_id, ~typ_id));
 
       | Ap(Forward, x, arg) =>
         let x_id = IdTagged.rep_id(x);
         let arg_id = IdTagged.rep_id(arg);
-        let basic = (group, coloring_ids) =>
-          get_message(~colorings=coloring_ids(~x_id, ~arg_id), group);
+        let basic = (group, coloring_ids) => get_message(group);
         switch (x.term) {
         | Constructor(v, _) =>
           basic(
@@ -1301,11 +1285,7 @@ let get_doc =
            it up front is behavior-preserving and lets Probe observe the
            decision here too. */
         let doc =
-          get_message(
-            ~colorings=
-              AppExp.deferred_funapp_exp_coloring_ids(~x_id, ~deferred_id),
-            AppExp.deferredaps(~x_id, ~supplied_id, ~deferred_id),
-          );
+          get_message(AppExp.deferredaps(~x_id, ~supplied_id, ~deferred_id));
         switch (mode) {
         | MessageContent(_)
         | Probe(_) => doc
@@ -1330,17 +1310,11 @@ let get_doc =
         let cond_id = IdTagged.rep_id(cond);
         let then_id = IdTagged.rep_id(then_);
         let else_id = IdTagged.rep_id(else_);
-        get_message(
-          ~colorings=IfExp.if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
-          IfExp.ifs(~cond_id, ~then_id, ~else_id),
-        );
+        get_message(IfExp.ifs(~cond_id, ~then_id, ~else_id));
       | Seq(left, right) =>
         let exp1_id = IdTagged.rep_id(left);
         let exp2_id = IdTagged.rep_id(right);
-        get_message(
-          ~colorings=SeqExp.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
-          SeqExp.seqs(~exp1_id, ~exp2_id),
-        );
+        get_message(SeqExp.seqs(~exp1_id, ~exp2_id));
       | Filter(Filter({act: (Step, One), pat}), body) =>
         message_single(
           FilterExp.filter_pause(
@@ -1372,33 +1346,20 @@ let get_doc =
       | Filter(_) => simple("Internal expression")
       | Test(body) =>
         let body_id = IdTagged.rep_id(body);
-        get_message(
-          ~colorings=TestExp.test_exp_coloring_ids(~body_id),
-          TestExp.tests(~body_id),
-        );
+        get_message(TestExp.tests(~body_id));
       | Parens(term) => get_message_exp(term.term) // No Special message?
       | HintedTest(body, hint) =>
         let hint_id = IdTagged.rep_id(hint);
         let body_id = IdTagged.rep_id(body);
-        get_message(
-          ~colorings=
-            HintedTestExp.hinted_test_exp_coloring_ids(~body_id, ~hint_id),
-          HintedTestExp.tests(~hint_id, ~body_id),
-        );
+        get_message(HintedTestExp.tests(~hint_id, ~body_id));
       | Cons(hd, tl) =>
         let hd_id = IdTagged.rep_id(hd);
         let tl_id = IdTagged.rep_id(tl);
-        get_message(
-          ~colorings=ListExp.cons_exp_coloring_ids(~hd_id, ~tl_id),
-          ListExp.listcons(~hd_id, ~tl_id),
-        );
+        get_message(ListExp.listcons(~hd_id, ~tl_id));
       | TupleExtension(x, y) =>
         let x_id = IdTagged.rep_id(x);
         let y_id = IdTagged.rep_id(y);
-        get_message(
-          ~colorings=TupleExp.tuple_extension_exp_coloring_ids(~x_id, ~y_id),
-          TupleExp.tuple_extensions(~x_id, ~y_id),
-        );
+        get_message(TupleExp.tuple_extensions(~x_id, ~y_id));
       | ListConcat(xs, ys) =>
         let xs_id = IdTagged.rep_id(xs);
         let ys_id = IdTagged.rep_id(ys);
@@ -1410,19 +1371,13 @@ let get_doc =
         switch (op) {
         | Bool(Not) =>
           let exp_id = IdTagged.rep_id(exp);
-          get_message(
-            ~colorings=OpExp.bool_unary_not_exp_coloring_ids(~exp_id),
-            OpExp.bool_un_not(~exp_id),
-          );
+          get_message(OpExp.bool_un_not(~exp_id));
         | Float(Minus) // TODO[Matt]: finish
         | SInt(Minus)
         | Nat(Minus)
         | Int(Minus) =>
           let exp_id = IdTagged.rep_id(exp);
-          get_message(
-            ~colorings=OpExp.int_unary_minus_exp_coloring_ids(~exp_id),
-            OpExp.int_un_minus(~exp_id),
-          );
+          get_message(OpExp.int_un_minus(~exp_id));
         }
       | BinOp(op, left, right) =>
         open OpExp;
@@ -1489,16 +1444,10 @@ let get_doc =
           };
         let left_id = IdTagged.rep_id(left);
         let right_id = IdTagged.rep_id(right);
-        get_message(
-          ~colorings=coloring_ids(~left_id, ~right_id),
-          group(~left_id, ~right_id),
-        );
+        get_message(group(~left_id, ~right_id));
       | Match(scrut, _rules) =>
         let scrut_id = IdTagged.rep_id(scrut);
-        get_message(
-          ~colorings=CaseExp.case_exp_coloring_ids(~scrut_id),
-          CaseExp.case(~scrut_id),
-        );
+        get_message(CaseExp.case(~scrut_id));
       | Constructor(v, _) => get_message(TerminalExp.ctr(v))
       | Module(_) => message_single(ModuleExp.single)
       | ModuleExp(_) => message_single(ModuleKeywordExp.single)
@@ -1578,8 +1527,7 @@ let get_doc =
     | Ap(x, arg) =>
       let x_id = IdTagged.rep_id(x);
       let arg_id = IdTagged.rep_id(arg);
-      let basic = (group, coloring_ids) =>
-        get_message(~colorings=coloring_ids(~x_id, ~arg_id), group);
+      let basic = (group, coloring_ids) => get_message(group);
 
       switch (x.term) {
       | Constructor(_, _) =>
@@ -1591,10 +1539,7 @@ let get_doc =
     | Asc(pat, typ) =>
       let pat_id = IdTagged.rep_id(pat);
       let typ_id = IdTagged.rep_id(typ);
-      get_message(
-        ~colorings=TypAnnPat.typann_pat_coloring_ids(~pat_id, ~typ_id),
-        TypAnnPat.typann(~pat_id, ~typ_id),
-      );
+      get_message(TypAnnPat.typann(~pat_id, ~typ_id));
     | Invalid(_) => simple("Not a valid pattern")
     | Parens(_)
     | Projector(_) =>
@@ -1617,36 +1562,23 @@ let get_doc =
     | Atom(Nat) => get_message(TerminalTyp.nat)
     | List(elem) =>
       let elem_id = IdTagged.rep_id(elem);
-      get_message(
-        ~colorings=ListTyp.list_typ_coloring_ids(~elem_id),
-        ListTyp.list(~elem_id),
-      );
+      get_message(ListTyp.list(~elem_id));
     | Poly(tpat, typ) =>
       let tpat_id = IdTagged.rep_id(tpat);
       let tbody_id = IdTagged.rep_id(typ);
-      get_message(
-        ~colorings=PolyTyp.poly_typ_coloring_ids(~tpat_id, ~tbody_id),
-        PolyTyp.poly(~tpat_id, ~tbody_id),
-      );
+      get_message(PolyTyp.poly(~tpat_id, ~tbody_id));
     | Rec(tpat, typ) =>
       let tpat_id = IdTagged.rep_id(tpat);
       let tbody_id = IdTagged.rep_id(typ);
-      get_message(
-        ~colorings=RecTyp.rec_typ_coloring_ids(~tpat_id, ~tbody_id),
-        RecTyp.rec_(~tpat_id, ~tbody_id),
-      );
+      get_message(RecTyp.rec_(~tpat_id, ~tbody_id));
     | ProofOf(exp) =>
       let body_id = IdTagged.rep_id(exp);
-      get_message(
-        ~colorings=ProofOfTyp.proof_of_typ_coloring_ids(~body_id),
-        ProofOfTyp.proof_of(~body_id),
-      );
+      get_message(ProofOfTyp.proof_of(~body_id));
     | Arrow(arg, result) =>
       let arg_id = IdTagged.rep_id(arg);
       let result_id = IdTagged.rep_id(result);
       let basic = doc =>
         get_message(
-          ~colorings=ArrowTyp.arrow_typ_coloring_ids(~arg_id, ~result_id),
           ~explanation=ArrowTyp.arrow_typ_explanation(~arg_id, ~result_id),
           doc,
         );

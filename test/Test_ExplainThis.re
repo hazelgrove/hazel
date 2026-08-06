@@ -222,6 +222,12 @@ let corpus = [
   /* Partial application — its doc links a synthesized id that is not a real
      term, which shows up as <unmapped>. */
   ("deferred-ap", "let plus = fun (x, y) -> x + y in plus(1, _)"),
+  /* These reach forms whose coloring function is named differently from the
+     form itself. Without them, dropping a ~colorings argument for one of these
+     regresses silently — which is exactly what happened before they existed. */
+  ("tuplabel-exp", "(x=1)"),
+  ("dot", "(x=1, y=2).x"),
+  ("tyalias", "type T = Int in 1"),
 ];
 
 /* Captured from the current implementation. A refactor of the coloring or
@@ -513,6 +519,32 @@ x => VarExp colorings=[]
 x => VarPat colorings=[]
 y => VarExp colorings=[]
 y => VarPat colorings=[]|},
+  ),
+  (
+    "tuplabel-exp",
+    {|(x=1) => TupleExp colorings=[]
+1 => IntExp colorings=[]
+`x` => Label colorings=[]
+x=1 => LabeledExp colorings=[1,`x`]|},
+  ),
+  (
+    "dot",
+    {|(x=1, y=2) => Tuple2Exp colorings=[x=1,y=2]
+(x=1, y=2) => TupleExp colorings=[]
+(x=1, y=2).x => DotExp colorings=[(x=1, y=2),`x`]
+1 => IntExp colorings=[]
+2 => IntExp colorings=[]
+`x` => Label colorings=[]
+`y` => Label colorings=[]
+x=1 => LabeledExp colorings=[1,`x`]
+y=2 => LabeledExp colorings=[2,`y`]|},
+  ),
+  (
+    "tyalias",
+    {|1 => IntExp colorings=[]
+Int => IntTyp colorings=[]
+T => VarTPat colorings=[]
+type T = Int in 1 => TyAliasExp colorings=[Int,T]|},
   ),
 ];
 
