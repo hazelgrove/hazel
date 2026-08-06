@@ -13,6 +13,14 @@ let poly_id_ex = {
 
 let tp = tpat("a");
 let e = exp("e");
+/* These must be *this* form's pieces. get_doc used to hand this group
+   FunctionExp's coloring function, whose piece ids do not occur in the segment
+   below, so nothing was ever highlighted. */
+let typfun_var_coloring_ids =
+    (~tpat_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(tp), tpat_id),
+  (Piece.id(e), body_id),
+];
 let typfun_var_form = [mk_typfun([[space(), tp, space()]]), space(), e];
 let typfun_var_expandable =
   Piece.Grout({
@@ -22,7 +30,7 @@ let typfun_var_expandable =
 let typfun_var = (~tpat_id: Id.t, ~body_id: Id.t): form => {
   id: TypFunctionExp,
   syntactic_form: typfun_var_form,
-  colorings: [],
+  colorings: typfun_var_coloring_ids(~tpat_id, ~body_id),
   expandable_id: Some((Piece.id(tp), [typfun_var_expandable])),
   explanation:
     Printf.sprintf(

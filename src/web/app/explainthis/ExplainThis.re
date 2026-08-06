@@ -857,11 +857,7 @@ let get_doc =
         let tpat_id = IdTagged.rep_id(tpat);
         let body_id = IdTagged.rep_id(body);
         /* TODO: More could be done here probably for different patterns. */
-        get_message(
-          ~colorings=
-            FunctionExp.function_exp_coloring_ids(~pat_id=tpat_id, ~body_id),
-          TypFunctionExp.type_functions_basic(~tpat_id, ~body_id),
-        );
+        get_message(TypFunctionExp.type_functions_basic(~tpat_id, ~body_id));
       | Fun(pat, body, _, _) =>
         /* The generic fallback form describes the *unbypassed* pattern, while
            the specific forms below describe the pattern with parens and
