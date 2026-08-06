@@ -41,13 +41,34 @@ let go =
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(maybe_reassoc_thorough(z))
     | None =>
+      let fast_ctx = Parser.can_fast_paste(clipboard, z, ~root);
+      /* Linear Menhir zip first when the caret context allows a segment
+         splice: a failed attempt costs ~1ms, a hit turns the worst paste
+         case (a whole external program, quadratic via typing simulation)
+         into milliseconds with formatting kept verbatim. */
+      let menhir_pasted =
+        fast_ctx
+          ? Option.map(
+              seg =>
+                Zipper.rescan_reassemble(
+                  Left,
+                  Zipper.insert_segment(z, seg, ~root),
+                  ~root,
+                ),
+              FastParse.of_text(~root, String.trim(clipboard)),
+            )
+          : None;
       (
-        Parser.can_fast_paste(clipboard, z, ~root)
-          ? Parser.fast_paste(clipboard, z, ~root)
-          : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
+        switch (menhir_pasted) {
+        | Some(z) => Some(z)
+        | None =>
+          fast_ctx
+            ? Parser.fast_paste(clipboard, z, ~root)
+            : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
+        }
       )
       |> Option.map(maybe_reassoc_thorough)
-      |> return(CantPaste)
+      |> return(CantPaste);
     }
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
