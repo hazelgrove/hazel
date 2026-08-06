@@ -21,8 +21,15 @@ let unpersist = (persisted: t, ~root) =>
     print_endline(
       "Warning: using backup text! Serialization may be for an older version of Hazel.",
     );
-    switch (Parser.to_zipper(persisted.backup_text, ~root)) {
-    | None => Zipper.init()
-    | Some(z) => z
+    /* Persisted programs are complete, so the linear Menhir zip usually
+       takes this; the simulated-typing parser is quadratic in program
+       size and can hang startup on big stale-sexp slides. */
+    switch (FastParse.of_text(~root, String.trim(persisted.backup_text))) {
+    | Some(segment) => Zipper.unzip(segment)
+    | None =>
+      switch (Parser.to_zipper(persisted.backup_text, ~root)) {
+      | None => Zipper.init()
+      | Some(z) => z
+      }
     };
   };
