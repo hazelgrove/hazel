@@ -33,7 +33,5 @@ let typfun_var = (~tpat_id: Id.t, ~body_id: Id.t): form => {
   examples: [poly_id_ex],
 };
 
-let type_functions_basic = (~tpat_id: Id.t, ~body_id: Id.t): group => {
-  id: TypFunctionExp,
-  forms: [typfun_var(~tpat_id, ~body_id)],
-};
+let type_functions_basic = (~tpat_id: Id.t, ~body_id: Id.t): group =>
+  singleton(typfun_var(~tpat_id, ~body_id));

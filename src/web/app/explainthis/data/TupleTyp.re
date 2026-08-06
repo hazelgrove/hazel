@@ -101,10 +101,7 @@ let tuple3_typ = (~elem1_id: Id.t, ~elem2_id: Id.t, ~elem3_id: Id.t): form => {
   examples: [],
 };
 
-let tuple = (~n: int): group => {
-  id: TupleTyp,
-  forms: [tuple_typ(~n)],
-};
+let tuple = (~n: int): group => singleton(tuple_typ(~n));
 
 let tuple0: group = {
   id: Tuple0Typ,

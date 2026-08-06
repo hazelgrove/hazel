@@ -44,7 +44,5 @@ let if_exp = (~cond_id: Id.t, ~then_id: Id.t, ~else_id: Id.t): form => {
   examples: [if_basic1_exp_ex, if_basic2_exp_ex],
 };
 
-let ifs = (~cond_id: Id.t, ~then_id: Id.t, ~else_id: Id.t): group => {
-  id: IfExp,
-  forms: [if_exp(~cond_id, ~then_id, ~else_id)],
-};
+let ifs = (~cond_id: Id.t, ~then_id: Id.t, ~else_id: Id.t): group =>
+  singleton(if_exp(~cond_id, ~then_id, ~else_id));

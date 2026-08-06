@@ -125,41 +125,21 @@ let wild: group = {
   forms: [wild_pat],
 };
 
-let intlit = (i: Bigint.t): group => {
-  id: IntPat,
-  forms: [intlit_pat(i |> Bigint.to_string)],
-};
-let sintlit = (i: int): group => {
-  id: SIntPat,
-  forms: [sintlit_pat(i)],
-};
+let intlit = (i: Bigint.t): group =>
+  singleton(intlit_pat(i |> Bigint.to_string));
+let sintlit = (i: int): group => singleton(sintlit_pat(i));
 
-let floatlit = (f: float): group => {
-  id: FloatPat,
-  forms: [floatlit_pat(f)],
-};
+let floatlit = (f: float): group => singleton(floatlit_pat(f));
 
-let boollit = (b: bool): group => {
-  id: BoolPat,
-  forms: [boollit_pat(b)],
-};
+let boollit = (b: bool): group => singleton(boollit_pat(b));
 
-let strlit = (s: string): group => {
-  id: StrPat,
-  forms: [strlit_pat(s)],
-};
+let strlit = (s: string): group => singleton(strlit_pat(s));
 
 let triv: group = {
   id: TrivPat,
   forms: [triv_pat],
 };
 
-let var = (name: string): group => {
-  id: VarPat,
-  forms: [var_pat(name)],
-};
+let var = (name: string): group => singleton(var_pat(name));
 
-let ctr = (name: string): group => {
-  id: CtrPat,
-  forms: [ctr_pat(name)],
-};
+let ctr = (name: string): group => singleton(ctr_pat(name));

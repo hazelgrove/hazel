@@ -13,7 +13,4 @@ let label = (n: string): form => {
     ),
   examples: [],
 };
-let labels = (n: string): group => {
-  id: Label,
-  forms: [label(n)],
-};
+let labels = (n: string): group => singleton(label(n));

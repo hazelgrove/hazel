@@ -45,7 +45,5 @@ let dot_exp_form = (~lab_id: Id.t, ~tup_id: Id.t): form => {
   examples: [dot_example_1, dot_example_2],
 };
 
-let dot_exp = (~lab_id: Id.t, ~tup_id: Id.t): group => {
-  id: DotExp,
-  forms: [dot_exp_form(~lab_id, ~tup_id)],
-};
+let dot_exp = (~lab_id: Id.t, ~tup_id: Id.t): group =>
+  singleton(dot_exp_form(~lab_id, ~tup_id));

@@ -46,12 +46,8 @@ let funapp_pat = (~x_id: Id.t, ~arg_id: Id.t): form => {
   examples: [],
 };
 
-let conaps = (~x_id: Id.t, ~arg_id: Id.t): group => {
-  id: ApConsPat,
-  forms: [conapp_pat(~x_id, ~arg_id)],
-};
+let conaps = (~x_id: Id.t, ~arg_id: Id.t): group =>
+  singleton(conapp_pat(~x_id, ~arg_id));
 
-let funaps = (~x_id: Id.t, ~arg_id: Id.t): group => {
-  id: ApFuncPat,
-  forms: [funapp_pat(~x_id, ~arg_id)],
-};
+let funaps = (~x_id: Id.t, ~arg_id: Id.t): group =>
+  singleton(funapp_pat(~x_id, ~arg_id));

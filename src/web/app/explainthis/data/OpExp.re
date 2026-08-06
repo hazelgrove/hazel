@@ -826,137 +826,83 @@ let str_concat_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   examples: [],
 };
 
-let bool_un_not = (~exp_id: Id.t): group => {
-  id: UnOpExp(Bool(Not)),
-  forms: [bool_unary_not_exp(~exp_id)],
-};
+let bool_un_not = (~exp_id: Id.t): group =>
+  singleton(bool_unary_not_exp(~exp_id));
 
-let int_un_minus = (~exp_id: Id.t): group => {
-  id: UnOpExp(Int(Minus)),
-  forms: [int_unary_minus_exp(~exp_id)],
-};
+let int_un_minus = (~exp_id: Id.t): group =>
+  singleton(int_unary_minus_exp(~exp_id));
 
-let int_plus = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Int(Plus)),
-  forms: [int_plus_exp(~left_id, ~right_id)],
-};
+let int_plus = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(int_plus_exp(~left_id, ~right_id));
 
-let int_minus = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Int(Minus)),
-  forms: [int_minus_exp(~left_id, ~right_id)],
-};
+let int_minus = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(int_minus_exp(~left_id, ~right_id));
 
-let int_times = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Int(Times)),
-  forms: [int_times_exp(~left_id, ~right_id)],
-};
+let int_times = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(int_times_exp(~left_id, ~right_id));
 
-let int_power = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Int(Power)),
-  forms: [int_power_exp(~left_id, ~right_id)],
-};
+let int_power = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(int_power_exp(~left_id, ~right_id));
 
-let int_divide = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Int(Divide)),
-  forms: [int_divide_exp(~left_id, ~right_id)],
-};
+let int_divide = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(int_divide_exp(~left_id, ~right_id));
 
-let int_less_than = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Int(LessThan)),
-  forms: [int_lt_exp(~left_id, ~right_id)],
-};
+let int_less_than = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(int_lt_exp(~left_id, ~right_id));
 
-let int_less_than_equal = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Int(LessThanOrEqual)),
-  forms: [int_lte_exp(~left_id, ~right_id)],
-};
+let int_less_than_equal = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(int_lte_exp(~left_id, ~right_id));
 
-let int_greater_than = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Int(GreaterThan)),
-  forms: [int_gt_exp(~left_id, ~right_id)],
-};
+let int_greater_than = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(int_gt_exp(~left_id, ~right_id));
 
-let int_greater_than_equal = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Int(GreaterThanOrEqual)),
-  forms: [int_gte_exp(~left_id, ~right_id)],
-};
+let int_greater_than_equal = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(int_gte_exp(~left_id, ~right_id));
 
-let float_plus = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Float(Plus)),
-  forms: [float_plus_exp(~left_id, ~right_id)],
-};
+let float_plus = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(float_plus_exp(~left_id, ~right_id));
 
-let float_minus = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Float(Minus)),
-  forms: [float_minus_exp(~left_id, ~right_id)],
-};
+let float_minus = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(float_minus_exp(~left_id, ~right_id));
 
-let float_times = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Float(Times)),
-  forms: [float_times_exp(~left_id, ~right_id)],
-};
+let float_times = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(float_times_exp(~left_id, ~right_id));
 
-let float_power = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Float(Power)),
-  forms: [float_power_exp(~left_id, ~right_id)],
-};
+let float_power = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(float_power_exp(~left_id, ~right_id));
 
-let float_divide = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Float(Divide)),
-  forms: [float_divide_exp(~left_id, ~right_id)],
-};
+let float_divide = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(float_divide_exp(~left_id, ~right_id));
 
-let float_less_than = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Float(LessThan)),
-  forms: [float_lt_exp(~left_id, ~right_id)],
-};
+let float_less_than = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(float_lt_exp(~left_id, ~right_id));
 
-let float_less_than_equal = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Float(LessThanOrEqual)),
-  forms: [float_lte_exp(~left_id, ~right_id)],
-};
+let float_less_than_equal = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(float_lte_exp(~left_id, ~right_id));
 
-let float_greater_than = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Float(GreaterThan)),
-  forms: [float_gt_exp(~left_id, ~right_id)],
-};
+let float_greater_than = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(float_gt_exp(~left_id, ~right_id));
 
-let float_greater_than_equal = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Float(GreaterThanOrEqual)),
-  forms: [float_gte_exp(~left_id, ~right_id)],
-};
+let float_greater_than_equal = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(float_gte_exp(~left_id, ~right_id));
 
-let float_equal = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Float(Equals)),
-  forms: [float_eq_exp(~left_id, ~right_id)],
-};
+let float_equal = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(float_eq_exp(~left_id, ~right_id));
 
-let float_not_equal = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Float(NotEquals)),
-  forms: [float_neq_exp(~left_id, ~right_id)],
-};
+let float_not_equal = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(float_neq_exp(~left_id, ~right_id));
 
-let bool_and = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Bool(And)),
-  forms: [bool_and_exp(~left_id, ~right_id)],
-};
+let bool_and = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(bool_and_exp(~left_id, ~right_id));
 
-let bool_or = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Bool(Or)),
-  forms: [bool_or_exp(~left_id, ~right_id)],
-};
+let bool_or = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(bool_or_exp(~left_id, ~right_id));
 
-let string_concat = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(String(Concat)),
-  forms: [str_concat_exp(~left_id, ~right_id)],
-};
+let string_concat = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(str_concat_exp(~left_id, ~right_id));
 
-let poly_equal = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Poly(Equals)),
-  forms: [poly_eq_exp(~left_id, ~right_id)],
-};
+let poly_equal = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(poly_eq_exp(~left_id, ~right_id));
 
-let poly_not_equal = (~left_id: Id.t, ~right_id: Id.t): group => {
-  id: BinOpExp(Poly(NotEquals)),
-  forms: [poly_neq_exp(~left_id, ~right_id)],
-};
+let poly_not_equal = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(poly_neq_exp(~left_id, ~right_id));

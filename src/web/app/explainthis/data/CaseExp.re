@@ -65,7 +65,4 @@ let case_exp = (~scrut_id: Id.t): form => {
   ],
 };
 
-let case = (~scrut_id: Id.t): group => {
-  id: CaseExp,
-  forms: [case_exp(~scrut_id)],
-};
+let case = (~scrut_id: Id.t): group => singleton(case_exp(~scrut_id));

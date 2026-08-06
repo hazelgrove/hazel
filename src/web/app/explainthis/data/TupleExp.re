@@ -167,15 +167,10 @@ let tuple_extension_exp = (~x_id: Id.t, ~y_id: Id.t): form => {
   ],
 };
 
-let tuple_extensions = (~x_id: Id.t, ~y_id: Id.t): group => {
-  id: TupleExtensionExp,
-  forms: [tuple_extension_exp(~x_id, ~y_id)],
-};
+let tuple_extensions = (~x_id: Id.t, ~y_id: Id.t): group =>
+  singleton(tuple_extension_exp(~x_id, ~y_id));
 
-let tuples = (~n: int): group => {
-  id: TupleExp,
-  forms: [tuple_exp(~n)],
-};
+let tuples = (~n: int): group => singleton(tuple_exp(~n));
 
 let tuples2 = (~exp1_id: Id.t, ~exp2_id: Id.t, ~n: int): group => {
   id: Tuple2Exp,

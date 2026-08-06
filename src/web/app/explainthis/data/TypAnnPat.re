@@ -23,7 +23,5 @@ let typann_pat = (~pat_id: Id.t, ~typ_id: Id.t): form => {
   examples: [],
 };
 
-let typann = (~pat_id: Id.t, ~typ_id: Id.t): group => {
-  id: TypAnnPat,
-  forms: [typann_pat(~pat_id, ~typ_id)],
-};
+let typann = (~pat_id: Id.t, ~typ_id: Id.t): group =>
+  singleton(typann_pat(~pat_id, ~typ_id));

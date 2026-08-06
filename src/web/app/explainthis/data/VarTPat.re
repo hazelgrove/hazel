@@ -10,7 +10,4 @@ let var_typ_pat = (n: string): form => {
   examples: [],
 };
 
-let var_typ_pats = (n: string): group => {
-  id: VarTPat,
-  forms: [var_typ_pat(n)],
-};
+let var_typ_pats = (n: string): group => singleton(var_typ_pat(n));

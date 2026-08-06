@@ -20,7 +20,4 @@ let proof_of_typ = (~body_id: Id.t): form => {
   examples: [],
 };
 
-let proof_of = (~body_id: Id.t): group => {
-  id: ProofOfTyp,
-  forms: [proof_of_typ(~body_id)],
-};
+let proof_of = (~body_id: Id.t): group => singleton(proof_of_typ(~body_id));

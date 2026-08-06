@@ -24,7 +24,5 @@ let poly_typ = (~tpat_id: Id.t, ~tbody_id: Id.t): form => {
   examples: [],
 };
 
-let poly = (~tpat_id: Id.t, ~tbody_id: Id.t): group => {
-  id: PolyTyp,
-  forms: [poly_typ(~tpat_id, ~tbody_id)],
-};
+let poly = (~tpat_id: Id.t, ~tbody_id: Id.t): group =>
+  singleton(poly_typ(~tpat_id, ~tbody_id));

@@ -29,7 +29,5 @@ let rec_typ = (~tpat_id: Id.t, ~tbody_id: Id.t): form => {
   examples: [peano_ex],
 };
 
-let rec_ = (~tpat_id: Id.t, ~tbody_id: Id.t): group => {
-  id: RecTyp,
-  forms: [rec_typ(~tpat_id, ~tbody_id)],
-};
+let rec_ = (~tpat_id: Id.t, ~tbody_id: Id.t): group =>
+  singleton(rec_typ(~tpat_id, ~tbody_id));

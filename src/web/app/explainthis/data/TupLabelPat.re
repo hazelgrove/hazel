@@ -35,7 +35,5 @@ let labeled_pat = (~label_id: Id.t, ~pat_id: Id.t): form => {
     ),
   examples: [labeled_example_1, labeled_example_2],
 };
-let labeled_pats = (~label_id: Id.t, ~pat_id: Id.t): group => {
-  id: LabeledPat,
-  forms: [labeled_pat(~label_id, ~pat_id)],
-};
+let labeled_pats = (~label_id: Id.t, ~pat_id: Id.t): group =>
+  singleton(labeled_pat(~label_id, ~pat_id));

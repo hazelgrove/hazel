@@ -66,10 +66,8 @@ let arrow3_typ = (~arg1_id: Id.t, ~arg2_id: Id.t, ~result_id: Id.t): form => {
   examples: [],
 };
 
-let arrow = (~arg_id: Id.t, ~result_id: Id.t): group => {
-  id: ArrowTyp,
-  forms: [arrow_typ(~arg_id, ~result_id)],
-};
+let arrow = (~arg_id: Id.t, ~result_id: Id.t): group =>
+  singleton(arrow_typ(~arg_id, ~result_id));
 
 let arrow3 =
     (

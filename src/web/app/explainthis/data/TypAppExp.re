@@ -32,7 +32,5 @@ let typfunapp_exp = (~f_id: Id.t, ~typ_id: Id.t): form => {
   examples: [typfunapp_exp_ex],
 };
 
-let typfunaps = (~f_id: Id.t, ~typ_id: Id.t): group => {
-  id: TypFunApExp,
-  forms: [typfunapp_exp(~f_id, ~typ_id)],
-};
+let typfunaps = (~f_id: Id.t, ~typ_id: Id.t): group =>
+  singleton(typfunapp_exp(~f_id, ~typ_id));

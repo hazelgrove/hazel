@@ -1,5 +1,3 @@
-open Util;
-
 open Haz3lcore;
 
 // TODO Make unified way of using consistent metavariables for syntactic forms
@@ -320,125 +318,25 @@ type form = {
   examples: list(example),
 };
 
-// HANNAH - TODO: Not sure this should be different from form_id - maybe just one id
-// MAYBE don't even need an id at all for the group - just use the most specific (1st) form id in forms
+/* Resolves the TODO that stood here: group_id and form_id listed the same 111
+   constructors, so a group's id is just the id of its most specific form and the
+   two types are one. Kept as an alias so signatures still say which they mean.
+   Persisted state is unaffected: ppx_sexp_conv writes variants by constructor
+   name, and the names are unchanged. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type group_id =
-  | Derivation
-  | EmptyHoleExp
-  | MultiHoleExp
-  | TrivExp
-  | UndefinedExp
-  | DeferralExp
-  | BoolExp
-  | IntExp
-  | SIntExp
-  | NatExp
-  | FloatExp
-  | StringExp
-  | VarExp
-  | CtrExp
-  | ListExp
-  | ConsExp
-  | ListConcatExp
-  | TypFunctionExp
-  | AscExp
-  | FunctionExp(pat_sub_form_id)
-  | LabeledExp
-  | DotExp
-  | TupleExp
-  | Tuple2Exp
-  | Tuple3Exp
-  | LetExp(pat_sub_form_id)
-  | TheoremExp
-  | ProofObjectExp
-  | TypFunApExp
-  | FixExp(pat_sub_form_id)
-  | FunApExp
-  | ConApExp
-  | DeferredApExp
-  | LivelitName
-  | LivelitApExp
-  | IfExp
-  | SeqExp
-  | TestExp
-  | HintedTestExp
-  | UnOpExp(Language.Operators.op_un)
-  | BinOpExp(Language.Operators.op_bin)
-  | CaseExp
-  | TyAliasExp
-  | PipelineExp
-  | TupleExtensionExp
-  | UseExp
-  | EmptyHolePat
-  | MultiHolePat
-  | WildPat
-  | IntPat
-  | SIntPat
-  | FloatPat
-  | BoolPat
-  | StrPat
-  | TrivPat
-  | VarPat
-  | CtrPat
-  | ListLitPat
-  | ListNilPat
-  | ConsPat
-  | Cons2Pat
-  | LabeledPat
-  | TuplePat
-  | Tuple2Pat
-  | Tuple3Pat
-  | ApFuncPat
-  | ApConsPat
-  | TypAnnPat
-  | EmptyHoleTyp
-  | MultiHoleTyp
-  | IntTyp
-  | SIntTyp
-  | NatTyp
-  | FloatTyp
-  | BoolTyp
-  | StrTyp
-  | VoidTyp
-  | VarTyp
-  | ListTyp
-  | PolyTyp
-  | RecTyp
-  | ForallExp
-  | ProofOfTyp
-  | ArrowTyp
-  | Arrow3Typ
-  | LabeledTyp
-  | Label
-  | TupleTyp
-  | Tuple0Typ
-  | Tuple2Typ
-  | Tuple3Typ
-  | DotTyp
-  | LabelledSumTyp
-  | SumTypUnaryConstructorDef
-  | SumTypNullaryConstructorDef
-  | EmptyHoleTPat
-  | MultiHoleTPat
-  | VarTPat
-  | FilterPause
-  | FilterEval
-  | FilterDebug
-  | FilterHide
-  | FilterSelector
-  | ModuleExp
-  | ModLetDecl
-  | ModTypeDecl
-  | SigTyp
-  | SigLetDecl
-  | SigTypeDecl
-  | ModuleKeywordExp
-  | ModuleKeywordDecl;
+type group_id = form_id;
 
 type group = {
   id: group_id,
   forms: list(form) // Ordered - more specific to less specific
+};
+
+/* A group offering a single form. Its id comes from the form, so the two cannot
+   disagree — which they did in two places before being fixed, and which
+   ExplainThisModel.get_form_in_group raises on. */
+let singleton = (form: form): group => {
+  id: form.id,
+  forms: [form],
 };
 
 module Simple = {

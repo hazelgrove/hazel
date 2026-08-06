@@ -89,10 +89,7 @@ let tuple_pat_size3 =
   examples: [],
 };
 
-let tuple = (~n: int): group => {
-  id: TuplePat,
-  forms: [tuple_pat(~n)],
-};
+let tuple = (~n: int): group => singleton(tuple_pat(~n));
 let tuple2 = (~elem1_id: Id.t, ~elem2_id: Id.t, ~n: int): group => {
   id: Tuple2Pat,
   forms: [tuple_pat_size2(~elem1_id, ~elem2_id), tuple_pat(~n)],

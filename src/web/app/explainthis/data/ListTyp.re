@@ -21,7 +21,4 @@ let list_typ = (~elem_id: Id.t): form => {
   examples: [],
 };
 
-let list = (~elem_id: Id.t): group => {
-  id: ListTyp,
-  forms: [list_typ(~elem_id)],
-};
+let list = (~elem_id: Id.t): group => singleton(list_typ(~elem_id));

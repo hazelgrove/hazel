@@ -35,7 +35,5 @@ let hinted_test_exp = (~hint_id: Id.t, ~body_id: Id.t): form => {
     ),
   examples: [hinted_test_true_ex, hinted_test_false_ex],
 };
-let tests = (~hint_id: Id.t, ~body_id: Id.t): group => {
-  id: HintedTestExp,
-  forms: [hinted_test_exp(~hint_id, ~body_id)],
-};
+let tests = (~hint_id: Id.t, ~body_id: Id.t): group =>
+  singleton(hinted_test_exp(~hint_id, ~body_id));

@@ -28,7 +28,5 @@ let forall_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
   examples: [],
 };
 
-let forall = (~pat_id: Id.t, ~body_id: Id.t): group => {
-  id: ForallExp,
-  forms: [forall_exp(~pat_id, ~body_id)],
-};
+let forall = (~pat_id: Id.t, ~body_id: Id.t): group =>
+  singleton(forall_exp(~pat_id, ~body_id));

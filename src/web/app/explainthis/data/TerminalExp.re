@@ -34,10 +34,7 @@ let bool_exp = (b: bool): form => {
   explanation: "A boolean literal, either `true` or `false`.",
   examples: [],
 };
-let bool_exps = (b: bool): group => {
-  id: BoolExp,
-  forms: [bool_exp(b)],
-};
+let bool_exps = (b: bool): group => singleton(bool_exp(b));
 
 let int_exp = (n: Bigint.t): form => {
   id: IntExp,
@@ -47,10 +44,7 @@ let int_exp = (n: Bigint.t): form => {
   explanation: "A number literal.",
   examples: [],
 };
-let int_exps = (i: Bigint.t): group => {
-  id: IntExp,
-  forms: [int_exp(i)],
-};
+let int_exps = (i: Bigint.t): group => singleton(int_exp(i));
 
 let sint_exp = (n: int): form => {
   id: SIntExp,
@@ -60,10 +54,7 @@ let sint_exp = (n: int): form => {
   explanation: "A system integer literal.",
   examples: [],
 };
-let sint_exps = (i: int): group => {
-  id: SIntExp,
-  forms: [sint_exp(i)],
-};
+let sint_exps = (i: int): group => singleton(sint_exp(i));
 
 let nat_exp = (n: Bigint.t): form => {
   id: NatExp,
@@ -73,10 +64,7 @@ let nat_exp = (n: Bigint.t): form => {
   explanation: "A natural number literal.",
   examples: [],
 };
-let nat_exps = (i: Bigint.t): group => {
-  id: NatExp,
-  forms: [nat_exp(i)],
-};
+let nat_exps = (i: Bigint.t): group => singleton(nat_exp(i));
 
 let float_exp = (f: float): form => {
   id: FloatExp,
@@ -86,10 +74,7 @@ let float_exp = (f: float): form => {
   explanation: "A floating-point literal.",
   examples: [],
 };
-let float_exps = (f: float): group => {
-  id: FloatExp,
-  forms: [float_exp(f)],
-};
+let float_exps = (f: float): group => singleton(float_exp(f));
 
 let string_exp = (s: string): form => {
   id: StringExp,
@@ -99,10 +84,7 @@ let string_exp = (s: string): form => {
   explanation: "A string literal. Any character besides double quotes (`\"`) can be used.",
   examples: [],
 };
-let string_exps = (s: string): group => {
-  id: StringExp,
-  forms: [string_exp(s)],
-};
+let string_exps = (s: string): group => singleton(string_exp(s));
 
 let var_exp = (n: string): form => {
   id: VarExp,
@@ -112,10 +94,7 @@ let var_exp = (n: string): form => {
   explanation: "Takes the value of the expression that it was bound to.",
   examples: [],
 };
-let var_exps = (x: string): group => {
-  id: VarExp,
-  forms: [var_exp(x)],
-};
+let var_exps = (x: string): group => singleton(var_exp(x));
 
 let livelit_name_exp = (n: string): form => {
   id: LivelitName,
@@ -125,10 +104,8 @@ let livelit_name_exp = (n: string): form => {
   explanation: "Expands to some value, and when projected, creates an interactable GUI widget.",
   examples: [],
 };
-let livelit_name_exps = (x: string): group => {
-  id: LivelitName,
-  forms: [livelit_name_exp(x)],
-};
+let livelit_name_exps = (x: string): group =>
+  singleton(livelit_name_exp(x));
 
 let ctr_exp = (c: string): form => {
   id: CtrExp,
@@ -139,7 +116,4 @@ let ctr_exp = (c: string): form => {
     Printf.sprintf("`%s` is a constructor for a sum type variant.", c),
   examples: [],
 };
-let ctr = (c: string): group => {
-  id: CtrExp,
-  forms: [ctr_exp(c)],
-};
+let ctr = (c: string): group => singleton(ctr_exp(c));

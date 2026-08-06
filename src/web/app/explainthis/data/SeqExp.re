@@ -35,7 +35,5 @@ let seq_exp = (~exp1_id: Id.t, ~exp2_id: Id.t): form => {
   examples: [seq_basic_exp_ex, seq_test_exp_ex],
 };
 
-let seqs = (~exp1_id: Id.t, ~exp2_id: Id.t): group => {
-  id: SeqExp,
-  forms: [seq_exp(~exp1_id, ~exp2_id)],
-};
+let seqs = (~exp1_id: Id.t, ~exp2_id: Id.t): group =>
+  singleton(seq_exp(~exp1_id, ~exp2_id));

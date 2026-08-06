@@ -136,7 +136,4 @@ let void: group = {
   forms: [void_typ],
 };
 
-let var = (name: string): group => {
-  id: VarTyp,
-  forms: [var_typ(name)],
-};
+let var = (name: string): group => singleton(var_typ(name));

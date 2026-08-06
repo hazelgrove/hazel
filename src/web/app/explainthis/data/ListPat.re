@@ -83,20 +83,15 @@ let cons2_pat = (~fst_id: Id.t, ~snd_id: Id.t, ~tl_id: Id.t): form => {
   examples: [],
 };
 
-let listlit = (~n: int): group => {
-  id: ListLitPat,
-  forms: [listlit_pat(~n)],
-};
+let listlit = (~n: int): group => singleton(listlit_pat(~n));
 
 let listnil: group = {
   id: ListNilPat,
   forms: [listnil_pat],
 };
 
-let cons = (~hd_id: Id.t, ~tl_id: Id.t): group => {
-  id: ConsPat,
-  forms: [cons_base_pat(~hd_id, ~tl_id)],
-};
+let cons = (~hd_id: Id.t, ~tl_id: Id.t): group =>
+  singleton(cons_base_pat(~hd_id, ~tl_id));
 
 let cons2 = (~fst_id: Id.t, ~snd_id: Id.t, ~tl_id: Id.t, ~hd_id: Id.t): group => {
   id: Cons2Pat,

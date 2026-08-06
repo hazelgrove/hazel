@@ -83,17 +83,10 @@ let list_concat_exp = (~xs_id: Id.t, ~ys_id: Id.t): form => {
   };
 };
 
-let listlits = (~n: int): group => {
-  id: ListExp,
-  forms: [list_exp(~n)],
-};
+let listlits = (~n: int): group => singleton(list_exp(~n));
 
-let listcons = (~hd_id: Id.t, ~tl_id: Id.t): group => {
-  id: ConsExp,
-  forms: [cons_exp(~hd_id, ~tl_id)],
-};
+let listcons = (~hd_id: Id.t, ~tl_id: Id.t): group =>
+  singleton(cons_exp(~hd_id, ~tl_id));
 
-let listconcats = (~xs_id: Id.t, ~ys_id: Id.t): group => {
-  id: ListConcatExp,
-  forms: [list_concat_exp(~xs_id, ~ys_id)],
-};
+let listconcats = (~xs_id: Id.t, ~ys_id: Id.t): group =>
+  singleton(list_concat_exp(~xs_id, ~ys_id));

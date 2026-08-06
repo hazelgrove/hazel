@@ -46,7 +46,5 @@ let ascription = (~exp_id: Id.t, ~typ_id: Id.t): form => {
     ],
   };
 };
-let ascriptions = (~exp_id: Id.t, ~typ_id: Id.t): group => {
-  id: AscExp,
-  forms: [ascription(~exp_id, ~typ_id)],
-};
+let ascriptions = (~exp_id: Id.t, ~typ_id: Id.t): group =>
+  singleton(ascription(~exp_id, ~typ_id));

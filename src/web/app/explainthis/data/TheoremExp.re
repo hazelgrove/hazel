@@ -30,7 +30,5 @@ let theorem_exp = (~pat_id: Id.t, ~thm_id: Id.t): form => {
   examples: [],
 };
 
-let tests = (~pat_id: Id.t, ~thm_id: Id.t): group => {
-  id: TheoremExp,
-  forms: [theorem_exp(~pat_id, ~thm_id)],
-};
+let tests = (~pat_id: Id.t, ~thm_id: Id.t): group =>
+  singleton(theorem_exp(~pat_id, ~thm_id));

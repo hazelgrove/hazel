@@ -41,7 +41,5 @@ let labeled_typ = (~label_id: Id.t, ~typ_id: Id.t): form => {
     ),
   examples: [labeled_example_1, unlabeled_example, labeled_example_2],
 };
-let labeled_typs = (~label_id: Id.t, ~typ_id: Id.t): group => {
-  id: LabeledTyp,
-  forms: [labeled_typ(~label_id, ~typ_id)],
-};
+let labeled_typs = (~label_id: Id.t, ~typ_id: Id.t): group =>
+  singleton(labeled_typ(~label_id, ~typ_id));

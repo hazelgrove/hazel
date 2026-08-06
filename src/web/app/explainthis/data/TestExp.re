@@ -31,7 +31,4 @@ let test_exp = (~body_id: Id.t): form => {
   examples: [test_true_ex, test_false_ex],
 };
 
-let tests = (~body_id: Id.t): group => {
-  id: TestExp,
-  forms: [test_exp(~body_id)],
-};
+let tests = (~body_id: Id.t): group => singleton(test_exp(~body_id));

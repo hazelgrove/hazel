@@ -30,7 +30,5 @@ let tyalias_exp = (~tpat_id: Id.t, ~def_id: Id.t): form => {
   };
 };
 
-let tyalias_exps = (~tpat_id: Id.t, ~def_id: Id.t): group => {
-  id: TyAliasExp,
-  forms: [tyalias_exp(~tpat_id, ~def_id)],
-};
+let tyalias_exps = (~tpat_id: Id.t, ~def_id: Id.t): group =>
+  singleton(tyalias_exp(~tpat_id, ~def_id));

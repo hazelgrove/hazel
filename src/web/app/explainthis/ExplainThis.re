@@ -1191,16 +1191,11 @@ let get_doc =
         | Ap(x, arg) =>
           let x_id = IdTagged.rep_id(x);
           let arg_id = IdTagged.rep_id(arg);
-          let (lets_ap, let_ap_exp_coloring_ids) =
+          let lets_ap =
             switch (x.term) {
-            | Constructor(_, _) => (
-                LetExp.lets_conap(~def_id, ~x_id, ~arg_id, ~pat_id),
-                LetExp.let_conap_exp_coloring_ids,
-              )
-            | _ => (
-                LetExp.lets_funap(~def_id, ~x_id, ~arg_id, ~pat_id),
-                LetExp.let_funap_exp_coloring_ids,
-              )
+            | Constructor(_, _) =>
+              LetExp.lets_conap(~def_id, ~x_id, ~arg_id, ~pat_id)
+            | _ => LetExp.lets_funap(~def_id, ~x_id, ~arg_id, ~pat_id)
             };
           leveled(~fallback=basic, lets_ap);
         | Constructor(v, _) =>
@@ -1254,23 +1249,11 @@ let get_doc =
       | Ap(Forward, x, arg) =>
         let x_id = IdTagged.rep_id(x);
         let arg_id = IdTagged.rep_id(arg);
-        let basic = (group, coloring_ids) => get_message(group);
+        let basic = group => get_message(group);
         switch (x.term) {
-        | Constructor(v, _) =>
-          basic(
-            AppExp.conaps(~name=v, ~x_id, ~arg_id),
-            AppExp.conapp_exp_coloring_ids,
-          )
-        | LivelitName(_) =>
-          basic(
-            AppExp.livelitaps(~x_id, ~arg_id),
-            AppExp.livelitapp_exp_coloring_ids,
-          )
-        | _ =>
-          basic(
-            AppExp.funaps(~x_id, ~arg_id),
-            AppExp.funapp_exp_coloring_ids,
-          )
+        | Constructor(v, _) => basic(AppExp.conaps(~name=v, ~x_id, ~arg_id))
+        | LivelitName(_) => basic(AppExp.livelitaps(~x_id, ~arg_id))
+        | _ => basic(AppExp.funaps(~x_id, ~arg_id))
         };
       | DeferredAp(x, args) =>
         let x_id = IdTagged.rep_id(x);
@@ -1381,66 +1364,51 @@ let get_doc =
         }
       | BinOp(op, left, right) =>
         open OpExp;
-        let (group, coloring_ids) =
+        let group =
           switch (op) {
           | Nat(Plus)
           | SInt(Plus)
-          | Int(Plus) => (int_plus, int_plus_exp_coloring_ids)
+          | Int(Plus) => int_plus
           | Nat(Minus)
           | SInt(Minus)
-          | Int(Minus) => (int_minus, int_minus_exp_coloring_ids)
+          | Int(Minus) => int_minus
           | Nat(Times)
           | SInt(Times)
-          | Int(Times) => (int_times, int_times_exp_coloring_ids)
+          | Int(Times) => int_times
           | Nat(Power)
           | SInt(Power)
-          | Int(Power) => (int_power, int_power_exp_coloring_ids)
+          | Int(Power) => int_power
           | Nat(Divide)
           | SInt(Divide)
-          | Int(Divide) => (int_divide, int_divide_exp_coloring_ids)
+          | Int(Divide) => int_divide
           | Nat(LessThan)
           | SInt(LessThan)
-          | Int(LessThan) => (int_less_than, int_lt_exp_coloring_ids)
+          | Int(LessThan) => int_less_than
           | Nat(LessThanOrEqual)
           | SInt(LessThanOrEqual)
-          | Int(LessThanOrEqual) => (
-              int_less_than_equal,
-              int_lte_exp_coloring_ids,
-            )
+          | Int(LessThanOrEqual) => int_less_than_equal
           | Nat(GreaterThan)
           | SInt(GreaterThan)
-          | Int(GreaterThan) => (int_greater_than, int_gt_exp_coloring_ids)
+          | Int(GreaterThan) => int_greater_than
           | Nat(GreaterThanOrEqual)
           | SInt(GreaterThanOrEqual)
-          | Int(GreaterThanOrEqual) => (
-              int_greater_than_equal,
-              int_gte_exp_coloring_ids,
-            )
-          | Float(Plus) => (float_plus, float_plus_exp_coloring_ids)
-          | Float(Minus) => (float_minus, float_minus_exp_coloring_ids)
-          | Float(Times) => (float_times, float_times_exp_coloring_ids)
-          | Float(Power) => (float_power, float_power_exp_coloring_ids)
-          | Float(Divide) => (float_divide, float_divide_exp_coloring_ids)
-          | Float(LessThan) => (float_less_than, float_lt_exp_coloring_ids)
-          | Float(LessThanOrEqual) => (
-              float_less_than_equal,
-              float_lte_exp_coloring_ids,
-            )
-          | Float(GreaterThan) => (
-              float_greater_than,
-              float_gt_exp_coloring_ids,
-            )
-          | Float(GreaterThanOrEqual) => (
-              float_greater_than_equal,
-              float_gte_exp_coloring_ids,
-            )
-          | Float(Equals) => (float_equal, float_eq_exp_coloring_ids)
-          | Float(NotEquals) => (float_not_equal, float_neq_exp_coloring_ids)
-          | Bool(And) => (bool_and, bool_and_exp_coloring_ids)
-          | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
-          | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
-          | Poly(Equals) => (poly_equal, poly_eq_exp_coloring_ids)
-          | Poly(NotEquals) => (poly_not_equal, poly_neq_exp_coloring_ids)
+          | Int(GreaterThanOrEqual) => int_greater_than_equal
+          | Float(Plus) => float_plus
+          | Float(Minus) => float_minus
+          | Float(Times) => float_times
+          | Float(Power) => float_power
+          | Float(Divide) => float_divide
+          | Float(LessThan) => float_less_than
+          | Float(LessThanOrEqual) => float_less_than_equal
+          | Float(GreaterThan) => float_greater_than
+          | Float(GreaterThanOrEqual) => float_greater_than_equal
+          | Float(Equals) => float_equal
+          | Float(NotEquals) => float_not_equal
+          | Bool(And) => bool_and
+          | Bool(Or) => bool_or
+          | String(Concat) => string_concat
+          | Poly(Equals) => poly_equal
+          | Poly(NotEquals) => poly_not_equal
           };
         let left_id = IdTagged.rep_id(left);
         let right_id = IdTagged.rep_id(right);
@@ -1527,13 +1495,9 @@ let get_doc =
     | Ap(x, arg) =>
       let x_id = IdTagged.rep_id(x);
       let arg_id = IdTagged.rep_id(arg);
-      let basic = (group, coloring_ids) => get_message(group);
-
       switch (x.term) {
-      | Constructor(_, _) =>
-        basic(AppPat.conaps(~x_id, ~arg_id), AppPat.conapp_pat_coloring_ids)
-      | _ =>
-        basic(AppPat.funaps(~x_id, ~arg_id), AppPat.funapp_pat_coloring_ids)
+      | Constructor(_, _) => get_message(AppPat.conaps(~x_id, ~arg_id))
+      | _ => get_message(AppPat.funaps(~x_id, ~arg_id))
       };
     | Constructor(con, _) => get_message(TerminalPat.ctr(con))
     | Asc(pat, typ) =>

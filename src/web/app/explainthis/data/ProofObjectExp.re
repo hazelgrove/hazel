@@ -20,7 +20,5 @@ let proof_of_exp = (~typ_id: Id.t): form => {
   examples: [],
 };
 
-let proof_of_exps = (~typ_id: Id.t): group => {
-  id: ProofObjectExp,
-  forms: [proof_of_exp(~typ_id)],
-};
+let proof_of_exps = (~typ_id: Id.t): group =>
+  singleton(proof_of_exp(~typ_id));

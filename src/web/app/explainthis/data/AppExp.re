@@ -102,20 +102,14 @@ let deferred_funapp_exp =
   examples: [deferred_funapp_exp_ex],
 };
 
-let funaps = (~x_id: Id.t, ~arg_id: Id.t): group => {
-  id: FunApExp,
-  forms: [funapp_exp(~x_id, ~arg_id)],
-};
+let funaps = (~x_id: Id.t, ~arg_id: Id.t): group =>
+  singleton(funapp_exp(~x_id, ~arg_id));
 
-let conaps = (~name: string, ~x_id: Id.t, ~arg_id: Id.t): group => {
-  id: ConApExp,
-  forms: [conapp_exp(~name, ~x_id, ~arg_id)],
-};
+let conaps = (~name: string, ~x_id: Id.t, ~arg_id: Id.t): group =>
+  singleton(conapp_exp(~name, ~x_id, ~arg_id));
 
-let deferredaps = (~x_id: Id.t, ~supplied_id: Id.t, ~deferred_id: Id.t): group => {
-  id: DeferredApExp,
-  forms: [deferred_funapp_exp(~x_id, ~supplied_id, ~deferred_id)],
-};
+let deferredaps = (~x_id: Id.t, ~supplied_id: Id.t, ~deferred_id: Id.t): group =>
+  singleton(deferred_funapp_exp(~x_id, ~supplied_id, ~deferred_id));
 
 let livelitapp_exp_ex = {
   sub_id: LivelitAp,
@@ -145,7 +139,5 @@ let livelitapp_exp = (~x_id: Id.t, ~arg_id: Id.t): form => {
   examples: [livelitapp_exp_ex],
 };
 
-let livelitaps = (~x_id: Id.t, ~arg_id: Id.t): group => {
-  id: LivelitApExp,
-  forms: [livelitapp_exp(~x_id, ~arg_id)],
-};
+let livelitaps = (~x_id: Id.t, ~arg_id: Id.t): group =>
+  singleton(livelitapp_exp(~x_id, ~arg_id));

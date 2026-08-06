@@ -667,10 +667,8 @@ let function_ap_exp = (~con_id: Id.t, ~arg_id: Id.t, ~body_id: Id.t): form => {
   examples: [ap_fun_ex],
 };
 
-let functions = (~pat_id: Id.t, ~body_id: Id.t): group => {
-  id: FunctionExp(Base),
-  forms: [function_exp(~pat_id, ~body_id)],
-};
+let functions = (~pat_id: Id.t, ~body_id: Id.t): group =>
+  singleton(function_exp(~pat_id, ~body_id));
 let functions_empty_hole = (~pat_id: Id.t, ~body_id: Id.t): group => {
   id: FunctionExp(EmptyHole),
   forms: [
