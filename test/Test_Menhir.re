@@ -100,7 +100,7 @@ let menhir_maketerm_equivalent_test =
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
-    ~count=100,
+    ~count=1000,
     QCheck_Util.arb_exp(~minimal_idents=false, 7),
     core_exp => {
       let segment =

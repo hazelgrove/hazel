@@ -464,6 +464,7 @@ and Typ: {
       | EmptyHole => unknown(Hole(EmptyHole))
       }
     | TypVar(s) => var(s)
+    | ParenTyp(t) => parens(of_menhir_ast(t))
     | TupleType([t]) => parens(of_menhir_ast(t))
     | TupleType(ts) => parens(prod(List.map(of_menhir_ast, ts)))
     | LabelType(s) => label(s)
@@ -492,7 +493,9 @@ and Typ: {
             },
           sumterms,
         );
-      parens(sum(converted_terms));
+      /* Source parens arrive as ParenTyp; a bare sum stays bare
+         (MakeTerm parity). */
+      sum(converted_terms);
     | PolyType(tp, t) =>
       parens(poly(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | RecType(tp, t) =>
@@ -533,7 +536,7 @@ and Typ: {
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | ProofOf(e) => ProofOfType(Exp.of_core(e))
-    | Parens(t) => of_core(t)
+    | Parens(t) => ParenTyp(of_core(t))
     | Label(s) => LabelType(s)
     | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))

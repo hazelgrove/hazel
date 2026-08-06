@@ -219,7 +219,13 @@ let external_precedence_typ = (tp: Typ.t) =>
   // Other forms
   | Prod(_) => Precedence.comma
   | Arrow(_, _) => Precedence.type_arrow
-  | Sum(_) => Precedence.type_plus
+  /* Empty sum prints as the atomic token Void. */
+  | Sum([]) => Precedence.max
+  /* Loosest, deliberately: a bare sum reparses differently in most
+     operator slots (Arrow(Sum(..), t) printed bare comes back as the
+     sum swallowing the arrow — caught by the Menhir fuzz property), so
+     Defensive mode always parenthesizes sums in operand position. */
+  | Sum(_) => Precedence.min
   | Rec(_, _) => Precedence.let_
   | Poly(_, _) => Precedence.let_
 

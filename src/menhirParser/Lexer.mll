@@ -2,6 +2,20 @@
 open Lexing
 open Parser
 
+(* Innermost-open-delimiter stack: Hazel disambiguates `;` by sort —
+   directly inside module/signature braces it is the item separator,
+   anywhere else (incl. inside parens/brackets nested in braces) it is
+   the Seq operator. Track it here so the parser sees two tokens.
+   NB stateful across lexbufs is fine: each parse starts fresh via
+   reset_delims from Interface. *)
+let delim_stack : char list ref = ref []
+let reset_delims () = delim_stack := []
+let push_delim c = delim_stack := c :: !delim_stack
+let pop_delim () =
+  match !delim_stack with [] -> () | _ :: tl -> delim_stack := tl
+let semi_token () =
+  match !delim_stack with '{' :: _ -> MOD_SEMI | _ -> SEMI_COLON
+
 let advance_line lexbuf =
   let pos = lexbuf.lex_curr_p in
   let pos' = { pos with
@@ -37,11 +51,13 @@ let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
 let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
 let livelit_ident = '^' ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+let comment = '#' [^ '#' '\n']* '#'
 
 rule token = 
     parse 
     | "undef" { UNDEF}
     | whitespace {token lexbuf }
+    | comment { token lexbuf }
     | newline { advance_line lexbuf; token lexbuf}
     | ints as i { INT (int_of_string i) }
     | float as f { FLOAT (parse_float_string f )}
@@ -60,14 +76,14 @@ rule token =
     | "if" { IF }
     | "then" { THEN }
     | "else" { ELSE }
-    | "[" { OPEN_SQUARE_BRACKET }
-    | "]" { CLOSE_SQUARE_BRACKET }
-    | "(" { OPEN_PAREN }
-    | ")" { CLOSE_PAREN }
-    | "{{{" { OPEN_TRIPLE_CURLY }
-    | "}}}" { CLOSE_TRIPLE_CURLY }
-    | "{" { OPEN_CURLY }
-    | "}" { CLOSE_CURLY }
+    | "[" { push_delim '['; OPEN_SQUARE_BRACKET }
+    | "]" { pop_delim (); CLOSE_SQUARE_BRACKET }
+    | "(" { push_delim '('; OPEN_PAREN }
+    | ")" { pop_delim (); CLOSE_PAREN }
+    | "{{{" { push_delim 't'; OPEN_TRIPLE_CURLY }
+    | "}}}" { pop_delim (); CLOSE_TRIPLE_CURLY }
+    | "{" { push_delim '{'; OPEN_CURLY }
+    | "}" { pop_delim (); CLOSE_CURLY }
     | "->" { DASH_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
@@ -123,8 +139,9 @@ rule token =
     | "hide" {HIDE}
     | "eval" {EVAL}
     (* Other *)
-    | ";" {SEMI_COLON}
+    | ";" { semi_token () }
     | "test" {TEST}
+    | "hint" {HINT}
     | "::" { CONS }
     | "@<" {TYP_AP_SYMBOL}
     | "@" {AT_SYMBOL}

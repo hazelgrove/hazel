@@ -81,6 +81,7 @@ type tpat =
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type typ =
+  | ParenTyp(typ)
   | IntType
   | SIntType
   | StringType
@@ -494,6 +495,46 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             let* t = gen_typ_sized((n - 1) / 2);
             let+ e = self((n - 1) / 2);
             TyAlias(tp, t, e);
+          },
+          {
+            /* Module literal bound by a let — plain or livelit (^name)
+               binder. Members are value and type items. */
+
+            let* is_livelit = bool;
+            let* name = gen_ident;
+            let* sizes = gen_sized_array((n - 1) / 2);
+            let* items =
+              flatten_a(
+                Array.map(
+                  (size: int) =>
+                    oneof([
+                      {
+                        let* p = gen_pat_sized(size / 2);
+                        let+ e = self(size / 2);
+                        ModItemLet(p, e);
+                      },
+                      {
+                        let* tp = gen_tpat;
+                        let+ t = gen_typ_sized(size / 2);
+                        ModItemType(tp, t);
+                      },
+                    ]),
+                  sizes,
+                ),
+              );
+            let+ body = self((n - 1) / 2);
+            Let(
+              VarPat(is_livelit ? "^" ++ name : name),
+              Module(Array.to_list(items)),
+              body,
+            );
+          },
+          {
+            /* Livelit name in expression position: ^name — combines with
+               the existing Ap/Dot generators for uses and member access. */
+
+            let+ name = gen_ident;
+            LivelitName("^" ++ name);
           },
         ])
       }
@@ -1221,6 +1262,7 @@ and shrink_typ: QCheck.Shrink.t(typ) =
     (typ: typ) =>
       Iter.(
         switch (typ) {
+        | ParenTyp(t) => return(t)
         | SumTyp(l) =>
           let payloads =
             List.filter_map(

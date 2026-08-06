@@ -15,6 +15,7 @@ open AST
 %token UNDEF
 %token <string> PROJECTOR_INVOKE
 %token <string> LIVELIT_IDENT
+%token MOD_SEMI
 %token TYP
 %token TYP_FUN
 %token FIX
@@ -24,6 +25,7 @@ open AST
 %token TYP_AP_SYMBOL
 %token CONS
 %token TEST
+%token HINT
 %token PAUSE
 %token DEBUG
 %token HIDE
@@ -259,11 +261,11 @@ typ:
     | s = sumTyp; { SumTyp(s) }
     | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
     | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
-    | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
+    | OPEN_PAREN; t = typ; CLOSE_PAREN { ParenTyp(t) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; t = typ; CLOSE_PAREN { TupleType([TupLabelType(LabelType(l), t)]) }
     | t1 = typ; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) } %prec TYP_AP_SYMBOL
     | t1 = typ; DOT; t2 = typ { ProdProjection(t1, t2) }
-    | OPEN_CURLY; items = separated_list(SEMI_COLON, sigItem); CLOSE_CURLY { Sig(items) }
+    | OPEN_CURLY; items = separated_list(MOD_SEMI, sigItem); CLOSE_CURLY { Sig(items) }
 
 tupPatEntry:
     | p = pat {p}
@@ -338,15 +340,15 @@ ascTyp:
     | QUESTION { UnknownType(EmptyHole) }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
-    | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
+    | OPEN_PAREN; t = typ; CLOSE_PAREN { ParenTyp(t) }
 
-(* %prec MOD_ITEM_EXP (just above SEMI_COLON, below every operator): the
-   body swallows operators but stops at `;`, matching MakeTerm both for
-   module members (fun m -> m; next member) and top level
-   (fun m -> m; 2 is Seq(Fun, 2) in Hazel). *)
+(* NB fun bodies DO swallow `;` (Hazel: fun x -> 1; 2 is
+   Fun(x, Seq(1, 2))). Module member boundaries are safe regardless:
+   the lexer emits MOD_SEMI for member separators, which no exp
+   production consumes. *)
 funExp: 
-    | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) } %prec MOD_ITEM_EXP
-    | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) } %prec MOD_ITEM_EXP
+    | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
+    | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
 
 
 %inline ifExp:
@@ -380,6 +382,12 @@ exp:
     | f = FLOAT { Atom (Float f) }
     | v = IDENT { Var v }
     | l = LIVELIT_IDENT { LivelitName l }
+    (* Base-type keywords are ordinary constructors in exp position
+       (HTML's Int/Float/Bool/String nodes) — MakeTerm parity. *)
+    | INT_TYPE { Constructor("Int", None) }
+    | FLOAT_TYPE { Constructor("Float", None) }
+    | BOOL_TYPE { Constructor("Bool", None) }
+    | STRING_TYPE { Constructor("String", None) }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
     | l = QUOTED_LABEL { Label(l) }
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) }
@@ -410,6 +418,7 @@ exp:
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
     | TEST; e = exp; END { Test(e) }
+    | HINT; h = STRING; TEST; e = exp; END { HintedTest(e, Atom(Language.Atom.String(h))) }
     | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
     | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }
@@ -422,7 +431,7 @@ exp:
     | u = unExp { u }
     | e1 = exp; TUPLE_EXTENSION; e2 = exp { TupleExtension(e1, e2) } %prec PLUS
     | e1 = exp; DOT; e2 = exp { Dot(e1, e2) }
-    | OPEN_CURLY; items = separated_list(SEMI_COLON, modItem); CLOSE_CURLY { Module(items) }
+    | OPEN_CURLY; items = separated_list(MOD_SEMI, modItem); CLOSE_CURLY { Module(items) }
 
 /* Inside module bodies, semicolons are item separators, not Seq operators.
    MOD_ITEM_EXP precedence is higher than SEMI_COLON, so when the parser
