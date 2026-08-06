@@ -131,36 +131,38 @@ let render_probe = (info_map, p: Web.ExplainThis.probe): string => {
    harness built only on `init` never reaches a single fallback form, which is
    exactly what the specificity ladders select. So for each documented sub-term
    we sweep every form its group offers by planting a selection for it. */
+let swept_probes = (info: Info.t): list(Web.ExplainThis.probe) =>
+  probes_of(~docs, info)
+  |> List.concat_map((p: Web.ExplainThis.probe) =>
+       p.forms
+       |> List.concat_map(form_id => {
+            let docs': Web.ExplainThisModel.t = {
+              ...Web.ExplainThisModel.init,
+              groups: [
+                {
+                  group: p.group,
+                  selected: form_id,
+                },
+              ],
+            };
+            probes_of(~docs=docs', info);
+          })
+     );
+
 let fingerprint_of_info = (info_map, info: Info.t): list(string) =>
-  switch (probes_of(~docs, info)) {
+  switch (swept_probes(info)) {
   | [] => ["(no group doc)"]
-  | ps =>
-    ps
-    |> List.concat_map((p: Web.ExplainThis.probe) =>
-         p.forms
-         |> List.concat_map(form_id => {
-              let docs': Web.ExplainThisModel.t = {
-                ...Web.ExplainThisModel.init,
-                groups: [
-                  {
-                    group: p.group,
-                    selected: form_id,
-                  },
-                ],
-              };
-              probes_of(~docs=docs', info)
-              |> List.map(q => render_probe(info_map, q));
-            })
-       )
+  | ps => List.map(render_probe(info_map), ps)
+  };
+
+let info_map_of = (src: string) =>
+  switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
+  | Some(e) => statics(e)
+  | None => failwith("corpus entry failed to parse: " ++ src)
   };
 
 let doc_fingerprint = (src: string): string => {
-  let term =
-    switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
-    | Some(e) => e
-    | None => failwith("corpus entry failed to parse: " ++ src)
-    };
-  let info_map = statics(term);
+  let info_map = info_map_of(src);
   Id.Map.fold(
     (_id, info: Info.t, acc) =>
       switch (Info.any_of(info)) {
@@ -228,6 +230,11 @@ let corpus = [
   ("tuplabel-exp", "(x=1)"),
   ("dot", "(x=1, y=2).x"),
   ("tyalias", "type T = Int in 1"),
+  /* The list *expression* forms. Without these the pattern-side cons docs are
+     covered but the expression-side ones are not, so a coloring pointing at the
+     wrong piece in either would go unnoticed. */
+  ("cons-exp", "1::[]"),
+  ("concat-exp", "[1] @ [2]"),
 ];
 
 /* Captured from the current implementation. A refactor of the coloring or
@@ -540,6 +547,20 @@ x=1 => LabeledExp colorings=[1,`x`]
 y=2 => LabeledExp colorings=[2,`y`]|},
   ),
   (
+    "cons-exp",
+    {|1 => IntExp colorings=[]
+1:: [] => ConsExp colorings=[1,[]]
+[] => ListExp colorings=[]|},
+  ),
+  (
+    "concat-exp",
+    {|1 => IntExp colorings=[]
+2 => IntExp colorings=[]
+[1] => ListExp colorings=[]
+[1] @ [2] => ListConcatExp colorings=[[1],[2]]
+[2] => ListExp colorings=[]|},
+  ),
+  (
     "tyalias",
     {|1 => IntExp colorings=[]
 Int => IntTyp colorings=[]
@@ -554,35 +575,26 @@ type T = Int in 1 => TyAliasExp colorings=[Int,T]|},
    put a cursor on a labeled tuple element, a projection or a type alias. This
    asserts the reached set exactly, so losing coverage fails rather than going
    quiet, and it separates "not covered" from "not reachable at all". */
-let reached_groups = () => {
-  let seen = ref([]);
-  List.iter(
-    ((_name, src)) => {
-      let term =
-        switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
-        | Some(e) => e
-        | None => failwith("corpus entry failed to parse: " ++ src)
-        };
-      let info_map = statics(term);
-      Id.Map.iter(
-        (_id, info: Info.t) =>
-          List.iter(
-            (p: Web.ExplainThis.probe) =>
-              if (!List.mem(p.group, seen^)) {
-                seen := [p.group, ...seen^];
-              },
-            probes_of(~docs, info),
-          ),
-        info_map,
-      );
-    },
-    corpus,
-  );
-  List.sort_uniq(
-    String.compare,
-    List.map(Web.ExplainThisForm.show_group_id, seen^),
-  );
-};
+/* Folds `f` over every probe the corpus produces, with every form of every
+   reached group selected in turn. */
+let over_corpus_probes =
+    (f: (Id.Map.t(Info.t), Web.ExplainThis.probe) => list('a)): list('a) =>
+  corpus
+  |> List.concat_map(((_name, src)) => {
+       let info_map = info_map_of(src);
+       Id.Map.fold(
+         (_id, info: Info.t, acc) =>
+           List.concat_map(f(info_map), swept_probes(info)) @ acc,
+         info_map,
+         [],
+       );
+     });
+
+let reached_groups = () =>
+  over_corpus_probes((_info_map, p) =>
+    [Web.ExplainThisForm.show_group_id(p.group)]
+  )
+  |> List.sort_uniq(String.compare);
 
 /* Recorded from the corpus above. Add to this when a new corpus entry reaches a
    new doc; a drop means a doc silently stopped being exercised.
@@ -615,6 +627,7 @@ let expected_groups = [
   "BoolTyp",
   "CaseExp",
   "Cons2Pat",
+  "ConsExp",
   "ConsPat",
   "DeferralExp",
   "DeferredApExp",
@@ -627,6 +640,7 @@ let expected_groups = [
   "Label",
   "LabeledExp",
   "LabeledPat",
+  "ListConcatExp",
   "ListExp",
   "PipelineExp",
   "SeqExp",
@@ -687,6 +701,38 @@ let coverage_case =
     },
   );
 
+/* A coloring pairs a piece of the form's *own* syntactic form with a term in the
+   user's code. Naming a piece that the form does not contain is always a bug, and
+   a silent one: the pair simply never matches anything while the map is built, so
+   the explanation renders with that link unhighlighted and nothing complains.
+
+   This is the invariant a builder that created each placeholder and recorded its
+   pairing in one step would give for free (issue #1170). Checking it here gets the
+   same guarantee over every form the corpus reaches without rewriting all 154 of
+   them, and it is what makes the *_coloring_ids functions safe to leave in place:
+   they can no longer drift from the form they belong to undetected.
+
+   Run against the TypFunctionExp defect fixed earlier on this branch, this fails. */
+let stray_colorings = (info_map, p: Web.ExplainThis.probe): list(string) =>
+  p.colorings
+  |> List.filter(((sf_id, _)) => !List.mem(sf_id, p.sf_ids))
+  |> List.map(((_sf_id, code_id)) =>
+       Web.ExplainThisForm.show_form_id(p.form)
+       ++ " links "
+       ++ canonical_id(info_map, code_id)
+       ++ " to a piece it does not contain"
+     );
+
+let pairing_case =
+  Alcotest.test_case("colorings name the form's own pieces", `Quick, () =>
+    Alcotest.check(
+      Alcotest.list(Alcotest.string),
+      "colorings referring to a piece outside the form",
+      [],
+      over_corpus_probes(stray_colorings) |> List.sort_uniq(String.compare),
+    )
+  );
+
 let golden_case = ((name, src)) =>
   Alcotest.test_case(
     name,
@@ -706,6 +752,7 @@ let tests = (
   [
     QCheck_alcotest.to_alcotest(qcheck_explainthis_does_not_crash),
     coverage_case,
+    pairing_case,
     ...List.map(golden_case, corpus),
   ],
 );

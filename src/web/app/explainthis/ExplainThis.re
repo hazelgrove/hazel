@@ -439,6 +439,10 @@ type probe = {
   forms: list(ExplainThisForm.form_id),
   explanation: string,
   colorings: list((Id.t, Id.t)),
+  /* Piece ids occurring in the selected form's own syntactic_form. A coloring
+     whose first component is absent from this list names a piece of some *other*
+     form, so it can never highlight anything. */
+  sf_ids: list(Id.t),
 };
 
 type message_mode =
@@ -518,6 +522,7 @@ let get_doc_deduction =
         forms: List.map((f: ExplainThisForm.form) => f.id, group.forms),
         explanation: explanation_msg,
         colorings: [],
+        sf_ids: [],
       });
       ([], ([], ColorSteps.empty), []);
     };
@@ -770,6 +775,7 @@ let get_doc =
           forms: List.map((f: ExplainThisForm.form) => f.id, group.forms),
           explanation: explanation_msg,
           colorings,
+          sf_ids: Segment.ids(doc.syntactic_form),
         });
         ([], ([], ColorSteps.empty), []);
       };
