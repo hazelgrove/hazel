@@ -112,6 +112,7 @@ and sumterm =
 and sumtype = list(sumterm)
 
 and pat =
+  | ParenPat(pat)
   | AscPat(pat, typ)
   | EmptyHolePat
   | WildPat
@@ -137,6 +138,7 @@ and deferral_pos =
   | OutsideAp
 
 and exp =
+  | ParenExp(exp)
   | Atom(Language.Atom.t)
   | Var(string)
   | LivelitName(string) /* lexeme with the leading caret */
@@ -753,6 +755,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
     (exp: exp) =>
       Iter.(
         switch (exp) {
+        | ParenExp(e) => return(e)
         | Atom(a) =>
           return(TupleExp([]))
           <+> (
@@ -1158,6 +1161,7 @@ and shrink_pat: QCheck.Shrink.t(pat) =
     (pat: pat) =>
       Iter.(
         switch (pat) {
+        | ParenPat(p) => return(p)
         | AtomPat(a) =>
           return(WildPat)
           <+> (

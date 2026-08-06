@@ -195,8 +195,42 @@ let qcheck_menhir_serialized_equivalent_test =
          normalize both sides through of_core(of_menhir_ast(...)) which
          canonicalizes these forms. This only affects this test (not the
          78 other named tests, which use hand-written expected ASTs). */
+      /* Also strip Paren nodes in all sorts: Defensive printing adds
+         parens, and of_core now faithfully preserves them as
+         ParenPat/ParenTyp instead of silently dropping them. */
+      /* Fixpoint unwrap: conversion can nest Parens (ParenPat over the
+         paren-carrying TuplePat, e.g. source `(())`), and map_term's
+         cont replaces a node with its mapped argument WITHOUT re-running
+         the callback on it — single-layer unwrapping leaves the inner
+         Parens behind. */
+      let rec unwrap_exp = (e: TermBase.exp_t) =>
+        switch (e.term) {
+        | Parens(inner) => unwrap_exp(inner)
+        | _ => e
+        };
+      let rec unwrap_pat = (p: TermBase.pat_t) =>
+        switch (p.term) {
+        | Parens(inner) => unwrap_pat(inner)
+        | _ => p
+        };
+      let rec unwrap_typ = (t: TermBase.typ_t) =>
+        switch (t.term) {
+        | Parens(inner) => unwrap_typ(inner)
+        | _ => t
+        };
+      let strip_parens =
+        Exp.map_term(
+          ~f_exp=(cont, e) => cont(unwrap_exp(e)),
+          ~f_pat=(cont, p) => cont(unwrap_pat(p)),
+          ~f_typ=(cont, t) => cont(unwrap_typ(t)),
+          _,
+        );
       let normalize = exp =>
-        Conversion.Exp.of_core(Conversion.Exp.of_menhir_ast(exp));
+        Conversion.Exp.of_menhir_ast(exp)
+        |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.temp)
+        |> strip_parens
+        |> Grammar.map_exp_annotation(_ => false)
+        |> Conversion.Exp.of_core;
       AST.equal_exp(normalize(menhir_parsed), normalize(exp));
     },
   );

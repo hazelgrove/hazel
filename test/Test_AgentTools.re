@@ -5118,15 +5118,37 @@ let module_member_tests = (
       }
     }),
     test_case(
-      "oversized code chunk is rejected with guidance",
+      "oversized chunk on the fast path succeeds",
       `Quick,
       () => {
+        /* The size cap guards only the quadratic fallback; Menhir-
+           parseable chunks of any size take the linear fast path. */
         let big =
           String.concat(" + ", List.init(400, i => string_of_int(i)));
         switch (
           run_agent_action("let a = 1 in ?", Update(Definition, "a", big))
         ) {
-        | Ok(_) => Alcotest.fail("expected oversized chunk to be rejected")
+        | Ok(_) => ()
+        | Error(e) =>
+          Alcotest.fail(
+            "fast path should take oversized parseable chunks: "
+            ++ Action.Failure.show(e),
+          )
+        };
+      },
+    ),
+    test_case(
+      "oversized fallback chunk is rejected with guidance",
+      `Quick,
+      () => {
+        /* Trailing operator: the editor parser accepts it (grout), the
+           Menhir parser does not, so this exercises the capped fallback. */
+        let big =
+          String.concat(" + ", List.init(400, i => string_of_int(i))) ++ " +";
+        switch (
+          run_agent_action("let a = 1 in ?", Update(Definition, "a", big))
+        ) {
+        | Ok(_) => Alcotest.fail("expected oversized fallback to be rejected")
         | Error(Action.Failure.Composition_action_failure(msg)) =>
           check(
             bool,

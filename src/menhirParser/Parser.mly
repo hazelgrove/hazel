@@ -226,7 +226,7 @@ tupTypeEntry:
     | l = label; SINGLE_EQUAL; t = typ { TupLabelType(LabelType(l), t) }
 
 %inline tupleType:
-    | OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN { TupleType(hd :: types) }
+    | OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN { ParenTyp(TupleType(hd :: types)) }
 
 
 %inline sumTerm:
@@ -273,9 +273,9 @@ tupPatEntry:
 
 nonAscriptingPat:
     | OPEN_TRIPLE_CURLY; p = pat; CLOSE_TRIPLE_CURLY { IndicationPat(p) }
-    | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
-    | OPEN_PAREN; l = label; SINGLE_EQUAL; p = pat; CLOSE_PAREN { TuplePat([TupLabelPat(LabelPat(l), p)]) }
-    | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { TuplePat(p :: pats) }
+    | OPEN_PAREN; p = pat; CLOSE_PAREN { ParenPat(p) }
+    | OPEN_PAREN; l = label; SINGLE_EQUAL; p = pat; CLOSE_PAREN { ParenPat(TuplePat([TupLabelPat(LabelPat(l), p)])) }
+    | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { ParenPat(TuplePat(p :: pats)) }
     |  P_PAT; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
@@ -295,13 +295,19 @@ nonAscriptingPat:
     | f = pat; OPEN_PAREN; a = pat; COMMA; tl = separated_nonempty_list(COMMA, pat); CLOSE_PAREN { ApPat(f, TuplePat(a :: tl)) }
 
 (* One fun parameter, optionally ascribed. The ascription binds to the
-   ELEMENT (MakeTerm parity: fun a, b : T -> e ascribes only b). *)
+   ELEMENT (MakeTerm parity: fun a, b : T -> e ascribes only b). Bare
+   cons chains are legal params in Hazel (fun x :: y -> ...). *)
 funAscElem:
+    | p = funConsPat; { p }
+    | p = funConsPat; COLON; t = ascTyp; { AscPat(p, t) }
+
+funConsPat:
     | p = nonAscriptingPat; { p }
-    | p = nonAscriptingPat; COLON; t = ascTyp; { AscPat(p, t) }
+    | p = nonAscriptingPat; CONS; rest = funConsPat; { ConsPat(p, rest) }
 
 funPat:
-    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { AscPat(p1, t1) }
+    | UNIT { TuplePat([]) }
+    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { ParenPat(AscPat(p1, t1)) }
     | p = funAscElem; { p }
     (* Multi-parameter sugar: fun a, b -> e binds a tuple pattern *)
     | p = funAscElem; COMMA; ps = separated_nonempty_list(COMMA, funAscElem);
@@ -396,14 +402,15 @@ exp:
     | PROJECTOR_INVOKE; OPEN_PAREN; e = exp; CLOSE_PAREN; { e }
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
-    | OPEN_PAREN; e = exp; CLOSE_PAREN { e }
-    | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { TupleExp(e :: l) }
-    | OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { TupleExp([TupLabel(Label(l), e)]) }
+    | OPEN_PAREN; e = exp; CLOSE_PAREN { ParenExp(e) }
+    | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { ParenExp(TupleExp(e :: l)) }
+    | OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ParenExp(TupleExp([TupLabel(Label(l), e)])) }
     | UNIT { TupleExp([]) }
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
-    | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) }
+    | f = exp; OPEN_PAREN; a = tupExpEntry; COMMA; tl = separated_nonempty_list(COMMA, tupExpEntry); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) }
+    | f = exp; OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ApExp(f, TupleExp([TupLabel(Label(l), e)])) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
     | MODULE; i = IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(i), e1, e2) } %prec LET_EXP
     | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(c), e1, e2) } %prec LET_EXP

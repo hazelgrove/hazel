@@ -572,10 +572,21 @@ module Local = {
        chunk reads as a hung editor. Cap agent chunks and teach the model
        to split; the limit sits near the ~1.5s knee. */
     let max_chunk_chars = 1500;
-    let introduce =
-        (~root=Sort.Exp, z: Zipper.t, code: string)
-        : result(Zipper.t, Action.Failure.t) => {
+    let rec introduce =
+            (~root=Sort.Exp, z: Zipper.t, code: string)
+            : result(Zipper.t, Action.Failure.t) => {
       let code = StringUtil.trim_leading(code);
+      switch (FastParse.of_text(~root, code)) {
+      | Some(segment) =>
+        /* Linear Menhir path: source tokens + formatting verbatim, molds
+           from ExpToSegment + splice-time remold. No size cap needed. */
+        Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root))
+      | None => introduce_slow(~root, z, code)
+      };
+    }
+    and introduce_slow =
+        (~root, z: Zipper.t, code: string)
+        : result(Zipper.t, Action.Failure.t) =>
       if (String.length(code) > max_chunk_chars) {
         Error(
           Action.Failure.Composition_action_failure(
@@ -598,7 +609,6 @@ module Local = {
           )
         };
       };
-    };
 
     let destruct =
         (

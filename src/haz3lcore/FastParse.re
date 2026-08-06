@@ -1,0 +1,230 @@
+open Util;
+
+/* Linear-time text→segment for agent chunk inserts.
+
+   The simulated-typing parser (Parser.to_segment) is quadratic in chunk
+   size — each char pays a remold/regrout over the chunk-so-far — which
+   reads as a hung editor on multi-KB chunks. This fast path:
+
+     1. lexes the source once, keeping every token's text and the gap
+        (whitespace/comments) before it;
+     2. parses with the Menhir batch parser (linear);
+     3. renders the term through ExpToSegment in PreserveExact +
+        Structural mode, which with empty annotations yields a segment
+        whose leaves are EXACTLY the program's tokens, no synthesized
+        whitespace or parens;
+     4. ZIPS that segment against the source token stream: token texts
+        must match 1:1, and the source gaps are re-inserted as Secondary
+        pieces at the position where the next token is emitted.
+
+   The zip is the safety argument: Menhir never defines meaning — any
+   token mismatch (unsupported form, printer divergence, exotic lexeme)
+   returns None and the caller falls back to the typing parser. On
+   success the spliced tokens are the source's own, molds come from
+   ExpToSegment and the splice-time remold, and the next MakeTerm pass
+   re-reads the segment as usual — so an accept can not corrupt meaning,
+   only preserve it. Source formatting survives verbatim. */
+
+exception Mismatch;
+
+/* Why the last of_text call bailed — fallback telemetry and debugging. */
+let bail_note: ref(option(string)) = ref(None);
+let note = msg => bail_note := Some(msg);
+
+type tok = {
+  gap: string, /* whitespace/comments between previous token and this */
+  text: string,
+};
+
+/* Tokenize with the SAME lexer the Menhir parse uses, so tokenization
+   can not disagree with the parse. */
+let lex_with_gaps = (src: string): option((list(tok), string)) => {
+  MenhirParser.Lexer.reset_delims();
+  let lexbuf = Lexing.from_string(src);
+  let toks = ref([]);
+  let prev_end = ref(0);
+  let rec go = () => {
+    switch (MenhirParser.Lexer.token(lexbuf)) {
+    | MenhirParser.Parser.EOF =>
+      Some((
+        List.rev(toks^),
+        String.sub(src, prev_end^, String.length(src) - prev_end^),
+      ))
+    | _ =>
+      let start = Lexing.lexeme_start(lexbuf);
+      let stop = Lexing.lexeme_end(lexbuf);
+      let gap = String.sub(src, prev_end^, start - prev_end^);
+      toks :=
+        [
+          {
+            gap,
+            text: Lexing.lexeme(lexbuf),
+          },
+          ...toks^,
+        ];
+      prev_end := stop;
+      go();
+    | exception _ => None
+    };
+  };
+  go();
+};
+
+/* A gap string becomes Secondary pieces: comments whole, whitespace
+   char-by-char (matching what typing produces). */
+let gap_pieces = (gap: string): list(Piece.t) => {
+  let n = String.length(gap);
+  let rec go = (i: int, acc: list(Piece.t)) =>
+    if (i >= n) {
+      List.rev(acc);
+    } else {
+      switch (gap.[i]) {
+      | ' '
+      | '\t' =>
+        go(i + 1, [Piece.Secondary(Secondary.mk_space(Id.mk())), ...acc])
+      | '\n' =>
+        go(i + 1, [Piece.Secondary(Secondary.mk_newline(Id.mk())), ...acc])
+      | '\r' => go(i + 1, acc)
+      | '#' =>
+        /* single-line comment: consume through the closing # */
+        let j = ref(i + 1);
+        while (j^ < n && gap.[j^] != '#' && gap.[j^] != '\n') {
+          incr(j);
+        };
+        if (j^ < n && gap.[j^] == '#') {
+          let comment = String.sub(gap, i, j^ - i + 1);
+          go(
+            j^ + 1,
+            [Piece.Secondary(Secondary.mk(Id.mk(), comment)), ...acc],
+          );
+        } else {
+          raise(Mismatch);
+        };
+      | _ => raise(Mismatch)
+      };
+    };
+  go(0, []);
+};
+
+let zip = (tokens: list(tok), seg: Segment.t): Segment.t => {
+  let toks = Array.of_list(tokens);
+  let idx = ref(0);
+  let expect = (text: string): string => {
+    if (idx^ >= Array.length(toks)) {
+      note(
+        "segment expects '" ++ text ++ "' but source tokens are exhausted",
+      );
+      raise(Mismatch);
+    };
+    let t = toks[idx^];
+    if (t.text == text) {
+      incr(idx);
+      t.gap;
+    } else if (idx^
+               + 1 < Array.length(toks)
+               && toks[idx^ + 1].gap == ""
+               && t.text
+               ++ toks[idx^ + 1].text == text) {
+      /* the segment fuses adjacent source tokens into one (e.g. the
+         empty list "[]" vs lexed "[", "]") — accept when gapless */
+      idx := idx^ + 2;
+      t.gap;
+    } else {
+      note(
+        "token "
+        ++ string_of_int(idx^)
+        ++ ": segment has '"
+        ++ text
+        ++ "', source has '"
+        ++ t.text
+        ++ "'",
+      );
+      raise(Mismatch);
+    };
+  };
+  let rec zip_seg = (seg: Segment.t): Segment.t =>
+    List.concat_map(zip_piece, seg)
+  and zip_piece = (p: Piece.t): list(Piece.t) =>
+    switch (p) {
+    /* PreserveExact with empty annotations emits no secondaries; drop
+       defensively if any appear. */
+    | Secondary(_) => []
+    | Grout(g) =>
+      let gap = expect("?");
+      gap_pieces(gap) @ [Piece.Grout(g)];
+    | Projector(_) => raise(Mismatch)
+    | Tile(t) =>
+      if (List.length(t.shards) != List.length(t.label)) {
+        raise(Mismatch);
+      };
+      let gap0 = expect(List.hd(t.label));
+      let (children, _) =
+        List.fold_left(
+          ((children_acc, shard_i), label_tok) => {
+            /* child shard_i-1 sits between shard_i-1 and shard_i; the
+               gap before the closing token belongs inside the child */
+            let child = zip_seg(List.nth(t.children, shard_i - 1));
+            let gap = expect(label_tok);
+            (children_acc @ [child @ gap_pieces(gap)], shard_i + 1);
+          },
+          ([], 1),
+          List.tl(t.label),
+        );
+      gap_pieces(gap0)
+      @ [
+        Piece.Tile({
+          ...t,
+          children,
+        }),
+      ];
+    };
+  let zipped = zip_seg(seg);
+  if (idx^ != Array.length(toks)) {
+    note(
+      "segment ended with "
+      ++ string_of_int(Array.length(toks) - idx^)
+      ++ " source tokens unconsumed (next: '"
+      ++ toks[idx^].text
+      ++ "')",
+    );
+    raise(Mismatch);
+  };
+  zipped;
+};
+
+let of_text = (~root: Sort.t, text: string): option(Segment.t) => {
+  bail_note := None;
+  if (root != Sort.Exp) {
+    None;
+  } else {
+    switch (lex_with_gaps(text)) {
+    | None => None
+    | Some((tokens, trailing_gap)) =>
+      switch (MenhirParser.Interface.parse_program(text)) {
+      | exception e =>
+        note("menhir: " ++ Printexc.to_string(e));
+        None;
+      | ast =>
+        let term =
+          Language.Grammar.map_exp_annotation(
+            _ => Language.IdTagged.IdTag.fresh(),
+            MenhirParser.Conversion.Exp.of_menhir_ast(ast),
+          );
+        let settings =
+          ExpToSegment.Settings.{
+            ...ExpToSegment.Settings.editable(~inline=true),
+            secondary: PreserveExact,
+            parenthesization: Structural,
+          };
+        switch (ExpToSegment.exp_to_segment(~settings, term)) {
+        | exception _ => None
+        | seg =>
+          switch (zip(tokens, seg)) {
+          | exception _ => None
+          | zipped => Some(zipped @ gap_pieces(trailing_gap))
+          }
+        };
+      }
+    };
+  };
+};

@@ -221,9 +221,13 @@ module rec Exp: {
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
     | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
-    | TupleExp([TupLabel(_) as tl]) => parens(tuple([of_menhir_ast(tl)]))
-    | TupleExp([e]) => parens(of_menhir_ast(e))
-    | TupleExp(e) => parens(tuple(List.map(of_menhir_ast, e)))
+    | ParenExp(TupleExp([TupLabel(_) as tl])) =>
+      parens(tuple([of_menhir_ast(tl)]))
+    | ParenExp(e) => parens(of_menhir_ast(e))
+    | TupleExp([]) => tuple([])
+    | TupleExp([TupLabel(_) as tl]) => tuple([of_menhir_ast(tl)])
+    | TupleExp([e]) => of_menhir_ast(e)
+    | TupleExp(e) => tuple(List.map(of_menhir_ast, e))
     | TupleExtension(e1, e2) =>
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
@@ -271,6 +275,9 @@ module rec Exp: {
           : ap(
               Language.Operators.Forward,
               of_menhir_ast(e1),
+              /* Source parens are explicit (ParenExp), so plain
+                 recursion is faithful: f(a, b) has a bare arg tuple,
+                 f((a, b)) a ParenExp one. */
               of_menhir_ast(args),
             )
       | Deferral => deferred_ap(of_menhir_ast(e1), [args |> of_menhir_ast])
@@ -398,7 +405,7 @@ module rec Exp: {
     | MultiHole([Exp(e)]) => of_core(e) // unwrap single exp multi-holes. just used for label parse failure
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
-    | Parens(e) => of_core(e)
+    | Parens(e) => ParenExp(of_core(e))
     | Constructor(s, typ) =>
       Constructor(s, Option.map(Option.map(Typ.of_core), typ))
     | DeferredAp(e, es) =>
@@ -465,8 +472,11 @@ and Typ: {
       }
     | TypVar(s) => var(s)
     | ParenTyp(t) => parens(of_menhir_ast(t))
-    | TupleType([t]) => parens(of_menhir_ast(t))
-    | TupleType(ts) => parens(prod(List.map(of_menhir_ast, ts)))
+    /* Source parens are explicit (ParenTyp); a bare TupleType is a
+       form-supplied tuple (variant payload, fun-call style). */
+    | TupleType([]) => prod([])
+    | TupleType([t]) => of_menhir_ast(t)
+    | TupleType(ts) => prod(List.map(of_menhir_ast, ts))
     | LabelType(s) => label(s)
     | ExplicitNonlabel => explicit_non_label()
     | TupLabelType(t1, t2) =>
@@ -594,14 +604,14 @@ and Pat: {
     switch (pat) {
     | InvalidPat(s) => invalid(s)
     | AtomPat(c) => basic(c)
-    | AscPat(p, t) => parens(asc(of_menhir_ast(p), Typ.of_menhir_ast(t)))
+    | AscPat(p, t) => asc(of_menhir_ast(p), Typ.of_menhir_ast(t))
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
-    | TuplePat(pats) => parens(tuple(List.map(of_menhir_ast, pats)))
+    | TuplePat(pats) => tuple(List.map(of_menhir_ast, pats))
+    | ParenPat(p) => parens(of_menhir_ast(p))
     | ApPat(pat1, pat2) => ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
-    | ConsPat(p1, p2) =>
-      parens(cons(of_menhir_ast(p1), of_menhir_ast(p2)))
+    | ConsPat(p1, p2) => cons(of_menhir_ast(p1), of_menhir_ast(p2))
     | EmptyHolePat => empty_hole()
     | WildPat => wild()
     | LabelPat(s) => label(s)
@@ -630,7 +640,7 @@ and Pat: {
     | Wild => WildPat
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
-    | Parens(p) => of_core(p)
+    | Parens(p) => ParenPat(of_core(p))
     | Label(s) => LabelPat(s)
     | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))

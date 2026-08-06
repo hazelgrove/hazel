@@ -1,0 +1,150 @@
+open Alcotest;
+open Haz3lcore;
+
+/* The fast path's contract: on success, the zipped segment IS the source —
+   same tokens, same whitespace, same comments — with molds from
+   ExpToSegment. Printing it back must reproduce the input verbatim, and
+   the editor's own reader (MakeTerm) must see the same term it would have
+   seen through the typing parser. */
+
+let print_seg = seg => Printer.of_segment(~holes="?", ~refractors=[], seg);
+
+let graph_module = {
+  let src =
+    switch (
+      List.find_opt(
+        Sys.file_exists,
+        [
+          "hazel-programs/livelits/graph-editor.hz",
+          "../hazel-programs/livelits/graph-editor.hz",
+        ],
+      )
+    ) {
+    | Some(p) =>
+      let ic = open_in_bin(p);
+      let n = in_channel_length(ic);
+      let s = really_input_string(ic, n);
+      close_in(ic);
+      Some(s);
+    | None => None
+    };
+  src;
+};
+
+let verbatim = (name, txt) =>
+  test_case(name, `Quick, () => {
+    switch (FastParse.of_text(~root=Exp, txt)) {
+    | None => fail("fast path rejected: " ++ name)
+    | Some(seg) =>
+      check(
+        testable(Fmt.string, String.equal),
+        "verbatim roundtrip: " ++ name,
+        txt,
+        print_seg(seg),
+      )
+    }
+  });
+
+let semantic = (name, txt) =>
+  test_case(
+    name ++ " (term parity)",
+    `Quick,
+    () => {
+      let fast_term =
+        switch (FastParse.of_text(~root=Exp, txt)) {
+        | Some(seg) => Some(MakeTerm.go(seg).term)
+        | None => None
+        };
+      let slow_term =
+        switch (Parser.to_segment(txt, ~root=Exp)) {
+        | Some(seg) => Some(MakeTerm.go(seg).term)
+        | None => None
+        };
+      switch (fast_term, slow_term) {
+      | (Some(f), Some(s)) =>
+        check(
+          bool,
+          "MakeTerm reads both segments identically: " ++ name,
+          true,
+          Language.Equality.(
+            equality({
+              ...syntactic_settings,
+              ignore_parens: false,
+            }).
+              exp
+          )(
+            f,
+            s,
+          ),
+        )
+      | _ => fail("a parser rejected: " ++ name)
+      };
+    },
+  );
+
+let rejected = (name, txt) =>
+  test_case(name ++ " (falls back)", `Quick, () => {
+    check(
+      bool,
+      "fast path bails: " ++ name,
+      true,
+      FastParse.of_text(~root=Exp, txt) == None,
+    )
+  });
+
+let tests = (
+  "FastParse",
+  [
+    verbatim("simple binding", "let x = 1 in x + 1"),
+    verbatim(
+      "multiline with comment",
+      "let x = 1 in # a comment #\nlet y = 2 in\n\nx + y",
+    ),
+    verbatim(
+      "module with members",
+      "let m = {\n  let a = 1;\n\n  let b = fun x, y -> x + y\n} in m",
+    ),
+    verbatim(
+      "livelit module",
+      "let ^p = { let init = 50; let update = fun (m, a) : (Int, Int) -> a } in ^p.update((^p.init, 3))",
+    ),
+    verbatim("hole", "let x = ? in x"),
+    verbatim("string with tricky content", {|let s = "a # b { c" in s|}),
+    semantic("simple binding", "let x = 1 in x + 1"),
+    semantic("module with members", "let m = { let a = 1; let b = 2 } in m"),
+    semantic("case with ctor pats", "case a | Down(x, y) => x | Up => 0 end"),
+    rejected("unbalanced brace", "let m = { let a = 1 in m"),
+    /* Projector triggers become Projector pieces in the typing parser;
+       the fast path does not synthesize them yet, so such chunks fall
+       back (they are typically small uses, not big modules). */
+    rejected("projector trigger", "let x = ^^livelit(^p(3)) in x"),
+    rejected("mod root", ""),
+    test_case("graph module chunk: verbatim + fast", `Quick, () => {
+      switch (graph_module) {
+      | None => () /* corpus unreachable (sandboxed) */
+      | Some(src) =>
+        /* the module chunk (the realistic agent insert), without the
+           ^^livelit uses that trail it */
+        let start =
+          Str.search_forward(Str.regexp_string("let ^graph"), src, 0);
+        let stop =
+          Str.search_forward(Str.regexp_string("} in"), src, start) + 4;
+        let src = String.sub(src, start, stop - start) ++ " ?";
+        let t0 = Sys.time();
+        switch (FastParse.of_text(~root=Exp, src)) {
+        | None => fail("fast path rejected the graph program")
+        | Some(seg) =>
+          let ms = (Sys.time() -. t0) *. 1000.;
+          Printf.printf("FASTPARSE-PERF: graph program in %.1fms\n", ms);
+          check(
+            testable(Fmt.string, String.equal),
+            "graph module chunk verbatim",
+            src,
+            print_seg(seg),
+          );
+          check(bool, "under 250ms", true, ms < 250.);
+        };
+      }
+    }),
+  ],
+);
