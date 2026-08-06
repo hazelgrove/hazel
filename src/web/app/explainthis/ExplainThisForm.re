@@ -167,7 +167,7 @@ type example = {
   message: string,
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type pat_sub_form_id =
   | Base
   | EmptyHole
@@ -191,7 +191,10 @@ type pat_sub_form_id =
   | ApFunc
   | ApCons;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+/* `enumerate` gives all_of_form_id, which the characterization test uses to
+   tell "this doc is not covered by the corpus" apart from "this doc cannot be
+   reached at all". */
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type form_id =
   | Derivation
   | EmptyHoleExp
@@ -323,7 +326,7 @@ type form = {
    two types are one. Kept as an alias so signatures still say which they mean.
    Persisted state is unaffected: ppx_sexp_conv writes variants by constructor
    name, and the names are unchanged. */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type group_id = form_id;
 
 type group = {

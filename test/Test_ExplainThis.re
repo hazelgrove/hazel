@@ -548,6 +548,145 @@ type T = Int in 1 => TyAliasExp colorings=[Int,T]|},
   ),
 ];
 
+/* Which doc groups the corpus actually reaches. A golden fingerprint only
+   guards the docs it visits, and a first attempt at removing coloring
+   arguments regressed seven forms while only one test failed — because nothing
+   put a cursor on a labeled tuple element, a projection or a type alias. This
+   asserts the reached set exactly, so losing coverage fails rather than going
+   quiet, and it separates "not covered" from "not reachable at all". */
+let reached_groups = () => {
+  let seen = ref([]);
+  List.iter(
+    ((_name, src)) => {
+      let term =
+        switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
+        | Some(e) => e
+        | None => failwith("corpus entry failed to parse: " ++ src)
+        };
+      let info_map = statics(term);
+      Id.Map.iter(
+        (_id, info: Info.t) =>
+          List.iter(
+            (p: Web.ExplainThis.probe) =>
+              if (!List.mem(p.group, seen^)) {
+                seen := [p.group, ...seen^];
+              },
+            probes_of(~docs, info),
+          ),
+        info_map,
+      );
+    },
+    corpus,
+  );
+  List.sort_uniq(
+    String.compare,
+    List.map(Web.ExplainThisForm.show_group_id, seen^),
+  );
+};
+
+/* Recorded from the corpus above. Add to this when a new corpus entry reaches a
+   new doc; a drop means a doc silently stopped being exercised.
+
+   Note what is absent. `FunctionExp(Base)` and `LetExp(Base)` never appear as a
+   *group*: they name the shared least-specific form, and get_doc always
+   dispatches to a more specific group that contains it. `FunctionExp(Tuple)` and
+   `LetExp(Tuple)` are only dispatched for tuples of size other than 2 or 3. */
+let expected_groups = [
+  "(BinOpExp (Int Plus))",
+  "(BinOpExp (Int Power))",
+  "(BinOpExp (Int Times))",
+  "(FunctionExp Int)",
+  "(FunctionExp ListCons)",
+  "(FunctionExp TupLabel)",
+  "(FunctionExp Tuple2)",
+  "(FunctionExp Tuple3)",
+  "(FunctionExp Var)",
+  "(FunctionExp Wild)",
+  "(LetExp ApFunc)",
+  "(LetExp ListCons)",
+  "(LetExp Tuple2)",
+  "(LetExp Var)",
+  "(UnOpExp (Bool Not))",
+  "ApFuncPat",
+  "Arrow3Typ",
+  "ArrowTyp",
+  "AscExp",
+  "BoolExp",
+  "BoolTyp",
+  "CaseExp",
+  "Cons2Pat",
+  "ConsPat",
+  "DeferralExp",
+  "DeferredApExp",
+  "DotExp",
+  "FunApExp",
+  "IfExp",
+  "IntExp",
+  "IntPat",
+  "IntTyp",
+  "Label",
+  "LabeledExp",
+  "LabeledPat",
+  "ListExp",
+  "PipelineExp",
+  "SeqExp",
+  "TestExp",
+  "Tuple2Exp",
+  "Tuple2Pat",
+  "Tuple3Exp",
+  "Tuple3Pat",
+  "TupleExp",
+  "TuplePat",
+  "TyAliasExp",
+  "TypAnnPat",
+  "TypFunctionExp",
+  "VarExp",
+  "VarPat",
+  "VarTPat",
+  "VarTyp",
+  "WildPat",
+];
+
+/* Groups that no corpus entry can reach because nothing in the surface language
+   dispatches to them. Asserted unreached so that if one ever becomes reachable
+   the test says so rather than staying silent.
+
+   - SInt/Nat binary operators: Operators.op_bin has these arms and form_id
+     admits the groups, but OpExp defines no docs for them, so they fall through
+     to "No docs available".
+   - SIntPat: MakeTerm only ever builds Atom(Int) literal patterns from surface
+     syntax, so the SInt pattern doc appears unreachable from the editor. */
+let known_unreachable = [
+  "(BinOpExp (SInt Plus))",
+  "(BinOpExp (Nat Plus))",
+  "SIntPat",
+];
+
+let coverage_case =
+  Alcotest.test_case(
+    "group coverage",
+    `Quick,
+    () => {
+      let reached = reached_groups();
+      Alcotest.check(
+        Alcotest.list(Alcotest.string),
+        "doc groups reached by the corpus",
+        expected_groups,
+        reached,
+      );
+      List.iter(
+        g =>
+          Alcotest.check(
+            Alcotest.bool,
+            "expected to be unreachable: " ++ g,
+            false,
+            List.mem(g, reached),
+          ),
+        known_unreachable,
+      );
+    },
+  );
+
 let golden_case = ((name, src)) =>
   Alcotest.test_case(
     name,
@@ -566,6 +705,7 @@ let tests = (
   "ExplainThis",
   [
     QCheck_alcotest.to_alcotest(qcheck_explainthis_does_not_crash),
+    coverage_case,
     ...List.map(golden_case, corpus),
   ],
 );
