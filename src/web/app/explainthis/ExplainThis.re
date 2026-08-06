@@ -416,12 +416,8 @@ let rec bypass_parens_pat = (pat: Pat.t) => {
   };
 };
 
-let rec bypass_parens_exp = (exp: Exp.t) => {
-  switch (exp.term) {
-  | Parens(e) => bypass_parens_exp(e)
-  | _ => exp
-  };
-};
+/* Representative id of the nth element of a tuple/list child sequence. */
+let nth_rep_id = (elements, n) => IdTagged.rep_id(List.nth(elements, n));
 
 let rec bypass_parens_typ = (typ: Typ.t) => {
   switch (typ.term) {
@@ -802,8 +798,8 @@ let get_doc =
       | DynamicErrorHole(_)
       | Closure(_) => simple("Internal expression")
       | Asc(e, t) =>
-        let exp_id = List.nth(IdTagged.ids(e), 0);
-        let typ_id = List.nth(IdTagged.ids(t), 0);
+        let exp_id = IdTagged.rep_id(e);
+        let typ_id = IdTagged.rep_id(t);
         get_message(
           ~colorings=AscExp.ascription_coloring_ids(~exp_id, ~typ_id),
           AscExp.ascriptions(~exp_id, ~typ_id),
@@ -817,8 +813,8 @@ let get_doc =
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
-        let tpat_id = List.nth(IdTagged.ids(ty_pat), 0);
-        let def_id = List.nth(IdTagged.ids(ty_def), 0);
+        let tpat_id = IdTagged.rep_id(ty_pat);
+        let def_id = IdTagged.rep_id(ty_def);
         get_message(
           ~colorings=
             TyAliasExp.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
@@ -836,8 +832,8 @@ let get_doc =
       | ListLit(terms) =>
         get_message(ListExp.listlits(~n=List.length(terms)))
       | TypFun(tpat, body, _) =>
-        let tpat_id = List.nth(IdTagged.ids(tpat), 0);
-        let body_id = List.nth(IdTagged.ids(body), 0);
+        let tpat_id = IdTagged.rep_id(tpat);
+        let body_id = IdTagged.rep_id(body);
         /* TODO: More could be done here probably for different patterns. */
         get_message(
           ~colorings=
@@ -848,9 +844,9 @@ let get_doc =
         /* The generic fallback form describes the *unbypassed* pattern, while
            the specific forms below describe the pattern with parens and
            annotations stripped. These ids differ for e.g. `fun (x) -> x`. */
-        let unbypassed_pat_id = List.nth(IdTagged.ids(pat), 0);
+        let unbypassed_pat_id = IdTagged.rep_id(pat);
         let basic = group => {
-          let body_id = List.nth(IdTagged.ids(body), 0);
+          let body_id = IdTagged.rep_id(body);
           get_message(
             ~colorings=
               FunctionExp.function_exp_coloring_ids(
@@ -866,8 +862,8 @@ let get_doc =
           );
         };
         let pat = bypass_parens_and_annot_pat(pat);
-        let pat_id = List.nth(IdTagged.ids(pat), 0);
-        let body_id = List.nth(IdTagged.ids(body), 0);
+        let pat_id = IdTagged.rep_id(pat);
+        let body_id = IdTagged.rep_id(body);
         switch (pat.term) {
         | EmptyHole =>
           let group = FunctionExp.functions_empty_hole(~pat_id, ~body_id);
@@ -1033,8 +1029,8 @@ let get_doc =
             };
           }
         | Cons(hd, tl) =>
-          let hd_id = List.nth(IdTagged.ids(hd), 0);
-          let tl_id = List.nth(IdTagged.ids(tl), 0);
+          let hd_id = IdTagged.rep_id(hd);
+          let tl_id = IdTagged.rep_id(tl);
           let group =
             FunctionExp.functions_cons(~hd_id, ~tl_id, ~pat_id, ~body_id);
           if (FunctionExp.function_cons_exp_id == get_specificity_level(group)) {
@@ -1097,8 +1093,8 @@ let get_doc =
 
           switch (n) {
           | 2 =>
-            let pat1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-            let pat2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
+            let pat1_id = nth_rep_id(elements, 0);
+            let pat2_id = nth_rep_id(elements, 1);
             let group =
               FunctionExp.functions_tuple2(
                 ~pat1_id,
@@ -1124,9 +1120,9 @@ let get_doc =
               basic(group);
             };
           | 3 =>
-            let pat1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-            let pat2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-            let pat3_id = List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
+            let pat1_id = nth_rep_id(elements, 0);
+            let pat2_id = nth_rep_id(elements, 1);
+            let pat3_id = nth_rep_id(elements, 2);
             let group =
               FunctionExp.functions_tuple3(
                 ~pat1_id,
@@ -1163,8 +1159,8 @@ let get_doc =
             };
           };
         | Ap(con, arg) =>
-          let con_id = List.nth(IdTagged.ids(con), 0);
-          let arg_id = List.nth(IdTagged.ids(arg), 0);
+          let con_id = IdTagged.rep_id(con);
+          let arg_id = IdTagged.rep_id(arg);
           let group =
             FunctionExp.functions_ap(~con_id, ~arg_id, ~pat_id, ~body_id);
           if (FunctionExp.function_ap_exp_id == get_specificity_level(group)) {
@@ -1230,8 +1226,8 @@ let get_doc =
           );
         switch (n) {
         | 2 =>
-          let exp1_id = List.nth(IdTagged.ids(List.nth(terms, 0)), 0);
-          let exp2_id = List.nth(IdTagged.ids(List.nth(terms, 1)), 0);
+          let exp1_id = nth_rep_id(terms, 0);
+          let exp2_id = nth_rep_id(terms, 1);
           let group = TupleExp.tuples2(~exp1_id, ~exp2_id, ~n);
           if (TupleExp.tuple_exp_size2_id == get_specificity_level(group)) {
             get_message(
@@ -1243,9 +1239,9 @@ let get_doc =
             basic(group);
           };
         | 3 =>
-          let exp1_id = List.nth(IdTagged.ids(List.nth(terms, 0)), 0);
-          let exp2_id = List.nth(IdTagged.ids(List.nth(terms, 1)), 0);
-          let exp3_id = List.nth(IdTagged.ids(List.nth(terms, 2)), 0);
+          let exp1_id = nth_rep_id(terms, 0);
+          let exp2_id = nth_rep_id(terms, 1);
+          let exp3_id = nth_rep_id(terms, 2);
           let group = TupleExp.tuples3(~exp1_id, ~exp2_id, ~exp3_id, ~n);
           if (TupleExp.tuple_exp_size3_id == get_specificity_level(group)) {
             get_message(
@@ -1265,9 +1261,9 @@ let get_doc =
       | Var(n) => get_message(TerminalExp.var_exps(n))
       | Let(pat, def, body) =>
         let pat = bypass_parens_and_annot_pat(pat);
-        let pat_id = List.nth(IdTagged.ids(pat), 0);
-        let def_id = List.nth(IdTagged.ids(def), 0);
-        let body_id = List.nth(IdTagged.ids(body), 0);
+        let pat_id = IdTagged.rep_id(pat);
+        let def_id = IdTagged.rep_id(def);
+        let body_id = IdTagged.rep_id(body);
         let basic = group =>
           get_message(
             ~colorings=LetExp.let_base_exp_coloring_ids(~pat_id, ~def_id),
@@ -1426,8 +1422,8 @@ let get_doc =
             };
           }
         | Cons(hd, tl) =>
-          let hd_id = List.nth(IdTagged.ids(hd), 0);
-          let tl_id = List.nth(IdTagged.ids(tl), 0);
+          let hd_id = IdTagged.rep_id(hd);
+          let tl_id = IdTagged.rep_id(tl);
           let group = LetExp.lets_cons(~def_id, ~hd_id, ~tl_id, ~pat_id);
           if (LetExp.let_cons_exp_id == get_specificity_level(group)) {
             get_message(
@@ -1461,8 +1457,8 @@ let get_doc =
 
           switch (n) {
           | 2 =>
-            let pat1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-            let pat2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
+            let pat1_id = nth_rep_id(elements, 0);
+            let pat2_id = nth_rep_id(elements, 1);
             let group =
               LetExp.lets_tuple2(~def_id, ~pat1_id, ~pat2_id, ~pat_id, ~n);
             let doc_id = get_specificity_level(group);
@@ -1482,9 +1478,9 @@ let get_doc =
               basic(group);
             };
           | 3 =>
-            let pat1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-            let pat2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-            let pat3_id = List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
+            let pat1_id = nth_rep_id(elements, 0);
+            let pat2_id = nth_rep_id(elements, 1);
+            let pat3_id = nth_rep_id(elements, 2);
             let group =
               LetExp.lets_tuple3(
                 ~def_id,
@@ -1521,8 +1517,8 @@ let get_doc =
             };
           };
         | Ap(x, arg) =>
-          let x_id = List.nth(IdTagged.ids(x), 0);
-          let arg_id = List.nth(IdTagged.ids(arg), 0);
+          let x_id = IdTagged.rep_id(x);
+          let arg_id = IdTagged.rep_id(arg);
           let (lets_ap, let_ap_exp_coloring_ids, let_ap_exp_id) =
             switch (x.term) {
             | Constructor(_, _) => (
@@ -1564,23 +1560,23 @@ let get_doc =
         | Asc(_) => default // Shouldn't get hit?
         };
       | Theorem(pat, thm, body) =>
-        let pat_id = List.nth(IdTagged.ids(pat), 0);
-        let thm_id = List.nth(IdTagged.ids(thm), 0);
-        let body_id = List.nth(IdTagged.ids(body), 0);
+        let pat_id = IdTagged.rep_id(pat);
+        let thm_id = IdTagged.rep_id(thm);
+        let body_id = IdTagged.rep_id(body);
         get_message(
           ~colorings=
             TheoremExp.test_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
           TheoremExp.tests(~pat_id, ~thm_id),
         );
       | ProofObject(exp) =>
-        let typ_id = List.nth(IdTagged.ids(exp), 0);
+        let typ_id = IdTagged.rep_id(exp);
         get_message(
           ~colorings=ProofObjectExp.proof_of_exp_coloring_ids(~typ_id),
           ProofObjectExp.proof_of_exps(~typ_id),
         );
       | Forall(pat, typ) =>
-        let pat_id = List.nth(IdTagged.ids(pat), 0);
-        let body_id = List.nth(IdTagged.ids(typ), 0);
+        let pat_id = IdTagged.rep_id(pat);
+        let body_id = IdTagged.rep_id(typ);
         get_message(
           ~colorings=ForallExp.forall_exp_coloring_ids(~pat_id, ~body_id),
           ForallExp.forall(~pat_id, ~body_id),
@@ -1600,16 +1596,16 @@ let get_doc =
           ),
         )
       | TypAp(f, typ) =>
-        let f_id = List.nth(IdTagged.ids(f), 0);
-        let typ_id = List.nth(IdTagged.ids(typ), 0);
+        let f_id = IdTagged.rep_id(f);
+        let typ_id = IdTagged.rep_id(typ);
         get_message(
           ~colorings=TypAppExp.typfunapp_exp_coloring_ids(~f_id, ~typ_id),
           TypAppExp.typfunaps(~f_id, ~typ_id),
         );
 
       | Ap(Forward, x, arg) =>
-        let x_id = List.nth(IdTagged.ids(x), 0);
-        let arg_id = List.nth(IdTagged.ids(arg), 0);
+        let x_id = IdTagged.rep_id(x);
+        let arg_id = IdTagged.rep_id(arg);
         let basic = (group, coloring_ids) =>
           get_message(~colorings=coloring_ids(~x_id, ~arg_id), group);
         switch (x.term) {
@@ -1630,11 +1626,11 @@ let get_doc =
           )
         };
       | DeferredAp(x, args) =>
-        let x_id = List.nth(IdTagged.ids(x), 0);
+        let x_id = IdTagged.rep_id(x);
         let supplied_id = Id.mk();
         let deferred_id = {
           let deferral = List.find(Exp.is_deferral, args);
-          List.nth(IdTagged.ids(deferral), 0);
+          IdTagged.rep_id(deferral);
         };
         /* Unlike every other branch, this one hand-builds its color map rather
            than deriving it from the explanation's links, so the doc is only
@@ -1655,7 +1651,7 @@ let get_doc =
           let color_supplied = List.nth(ColorSteps.child_colors, 1);
           let color_deferred = List.nth(ColorSteps.child_colors, 2);
           let add = (mapping, arg: Exp.t) => {
-            let arg_id = List.nth(IdTagged.ids(arg), 0);
+            let arg_id = IdTagged.rep_id(arg);
             Haz3lcore.Id.Map.add(
               arg_id,
               Exp.is_deferral(arg) ? color_deferred : color_supplied,
@@ -1668,16 +1664,16 @@ let get_doc =
           ([], ([], color_map), []);
         };
       | If(cond, then_, else_) =>
-        let cond_id = List.nth(IdTagged.ids(cond), 0);
-        let then_id = List.nth(IdTagged.ids(then_), 0);
-        let else_id = List.nth(IdTagged.ids(else_), 0);
+        let cond_id = IdTagged.rep_id(cond);
+        let then_id = IdTagged.rep_id(then_);
+        let else_id = IdTagged.rep_id(else_);
         get_message(
           ~colorings=IfExp.if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
           IfExp.ifs(~cond_id, ~then_id, ~else_id),
         );
       | Seq(left, right) =>
-        let exp1_id = List.nth(IdTagged.ids(left), 0);
-        let exp2_id = List.nth(IdTagged.ids(right), 0);
+        let exp1_id = IdTagged.rep_id(left);
+        let exp2_id = IdTagged.rep_id(right);
         get_message(
           ~colorings=SeqExp.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
           SeqExp.seqs(~exp1_id, ~exp2_id),
@@ -1712,37 +1708,37 @@ let get_doc =
         )
       | Filter(_) => simple("Internal expression")
       | Test(body) =>
-        let body_id = List.nth(IdTagged.ids(body), 0);
+        let body_id = IdTagged.rep_id(body);
         get_message(
           ~colorings=TestExp.test_exp_coloring_ids(~body_id),
           TestExp.tests(~body_id),
         );
       | Parens(term) => get_message_exp(term.term) // No Special message?
       | HintedTest(body, hint) =>
-        let hint_id = List.nth(IdTagged.ids(hint), 0);
-        let body_id = List.nth(IdTagged.ids(body), 0);
+        let hint_id = IdTagged.rep_id(hint);
+        let body_id = IdTagged.rep_id(body);
         get_message(
           ~colorings=
             HintedTestExp.hinted_test_exp_coloring_ids(~body_id, ~hint_id),
           HintedTestExp.tests(~hint_id, ~body_id),
         );
       | Cons(hd, tl) =>
-        let hd_id = List.nth(IdTagged.ids(hd), 0);
-        let tl_id = List.nth(IdTagged.ids(tl), 0);
+        let hd_id = IdTagged.rep_id(hd);
+        let tl_id = IdTagged.rep_id(tl);
         get_message(
           ~colorings=ListExp.cons_exp_coloring_ids(~hd_id, ~tl_id),
           ListExp.listcons(~hd_id, ~tl_id),
         );
       | TupleExtension(x, y) =>
-        let x_id = List.nth(IdTagged.ids(x), 0);
-        let y_id = List.nth(IdTagged.ids(y), 0);
+        let x_id = IdTagged.rep_id(x);
+        let y_id = IdTagged.rep_id(y);
         get_message(
           ~colorings=TupleExp.tuple_extension_exp_coloring_ids(~x_id, ~y_id),
           TupleExp.tuple_extensions(~x_id, ~y_id),
         );
       | ListConcat(xs, ys) =>
-        let xs_id = List.nth(IdTagged.ids(xs), 0);
-        let ys_id = List.nth(IdTagged.ids(ys), 0);
+        let xs_id = IdTagged.rep_id(xs);
+        let ys_id = IdTagged.rep_id(ys);
         get_message(
           ~colorings=ListExp.concat_exp_coloring_ids(~xs_id, ~ys_id),
           ListExp.listconcats(~xs_id, ~ys_id),
@@ -1750,7 +1746,7 @@ let get_doc =
       | UnOp(op, exp) =>
         switch (op) {
         | Bool(Not) =>
-          let exp_id = List.nth(IdTagged.ids(exp), 0);
+          let exp_id = IdTagged.rep_id(exp);
           get_message(
             ~colorings=OpExp.bool_unary_not_exp_coloring_ids(~exp_id),
             OpExp.bool_un_not(~exp_id),
@@ -1759,7 +1755,7 @@ let get_doc =
         | SInt(Minus)
         | Nat(Minus)
         | Int(Minus) =>
-          let exp_id = List.nth(IdTagged.ids(exp), 0);
+          let exp_id = IdTagged.rep_id(exp);
           get_message(
             ~colorings=OpExp.int_unary_minus_exp_coloring_ids(~exp_id),
             OpExp.int_un_minus(~exp_id),
@@ -1828,14 +1824,14 @@ let get_doc =
           | Poly(Equals) => (poly_equal, poly_eq_exp_coloring_ids)
           | Poly(NotEquals) => (poly_not_equal, poly_neq_exp_coloring_ids)
           };
-        let left_id = List.nth(IdTagged.ids(left), 0);
-        let right_id = List.nth(IdTagged.ids(right), 0);
+        let left_id = IdTagged.rep_id(left);
+        let right_id = IdTagged.rep_id(right);
         get_message(
           ~colorings=coloring_ids(~left_id, ~right_id),
           group(~left_id, ~right_id),
         );
       | Match(scrut, _rules) =>
-        let scrut_id = List.nth(IdTagged.ids(scrut), 0);
+        let scrut_id = IdTagged.rep_id(scrut);
         get_message(
           ~colorings=CaseExp.case_exp_coloring_ids(~scrut_id),
           CaseExp.case(~scrut_id),
@@ -1864,8 +1860,8 @@ let get_doc =
         get_message(ListPat.listlit(~n=List.length(elements)));
       }
     | Cons(hd, tl) =>
-      let hd_id = List.nth(IdTagged.ids(hd), 0);
-      let tl_id = List.nth(IdTagged.ids(tl), 0);
+      let hd_id = IdTagged.rep_id(hd);
+      let tl_id = IdTagged.rep_id(tl);
       let basic = doc =>
         get_message(
           ~colorings=ListPat.cons_base_pat_coloring_ids(~hd_id, ~tl_id),
@@ -1874,8 +1870,8 @@ let get_doc =
         );
       switch (tl.term) {
       | Cons(hd2, tl2) =>
-        let hd2_id = List.nth(IdTagged.ids(hd2), 0);
-        let tl2_id = List.nth(IdTagged.ids(tl2), 0);
+        let hd2_id = IdTagged.rep_id(hd2);
+        let tl2_id = IdTagged.rep_id(tl2);
         let group =
           ListPat.cons2(~fst_id=hd_id, ~snd_id=hd2_id, ~tl_id=tl2_id, ~hd_id);
         if (ListPat.cons2_pat_id == get_specificity_level(group)) {
@@ -1914,8 +1910,8 @@ let get_doc =
         get_message(~explanation=TuplePat.tuple_pat_explanation(~n), group);
       switch (n) {
       | 2 =>
-        let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-        let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
+        let elem1_id = nth_rep_id(elements, 0);
+        let elem2_id = nth_rep_id(elements, 1);
         let group = TuplePat.tuple2(~elem1_id, ~elem2_id, ~n);
         if (TuplePat.tuple_pat_size2_id == get_specificity_level(group)) {
           get_message(
@@ -1927,9 +1923,9 @@ let get_doc =
           basic(group);
         };
       | 3 =>
-        let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-        let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-        let elem3_id = List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
+        let elem1_id = nth_rep_id(elements, 0);
+        let elem2_id = nth_rep_id(elements, 1);
+        let elem3_id = nth_rep_id(elements, 2);
         let group = TuplePat.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n);
         if (TuplePat.tuple_pat_size3_id == get_specificity_level(group)) {
           get_message(
@@ -1947,8 +1943,8 @@ let get_doc =
       | _ => basic(TuplePat.tuple(~n))
       };
     | Ap(x, arg) =>
-      let x_id = List.nth(IdTagged.ids(x), 0);
-      let arg_id = List.nth(IdTagged.ids(arg), 0);
+      let x_id = IdTagged.rep_id(x);
+      let arg_id = IdTagged.rep_id(arg);
       let basic = (group, coloring_ids) =>
         get_message(~colorings=coloring_ids(~x_id, ~arg_id), group);
 
@@ -1960,8 +1956,8 @@ let get_doc =
       };
     | Constructor(con, _) => get_message(TerminalPat.ctr(con))
     | Asc(pat, typ) =>
-      let pat_id = List.nth(IdTagged.ids(pat), 0);
-      let typ_id = List.nth(IdTagged.ids(typ), 0);
+      let pat_id = IdTagged.rep_id(pat);
+      let typ_id = IdTagged.rep_id(typ);
       get_message(
         ~colorings=TypAnnPat.typann_pat_coloring_ids(~pat_id, ~typ_id),
         TypAnnPat.typann(~pat_id, ~typ_id),
@@ -1987,34 +1983,34 @@ let get_doc =
     | Atom(String) => get_message(TerminalTyp.str)
     | Atom(Nat) => get_message(TerminalTyp.nat)
     | List(elem) =>
-      let elem_id = List.nth(IdTagged.ids(elem), 0);
+      let elem_id = IdTagged.rep_id(elem);
       get_message(
         ~colorings=ListTyp.list_typ_coloring_ids(~elem_id),
         ListTyp.list(~elem_id),
       );
     | Poly(tpat, typ) =>
-      let tpat_id = List.nth(IdTagged.ids(tpat), 0);
-      let tbody_id = List.nth(IdTagged.ids(typ), 0);
+      let tpat_id = IdTagged.rep_id(tpat);
+      let tbody_id = IdTagged.rep_id(typ);
       get_message(
         ~colorings=PolyTyp.poly_typ_coloring_ids(~tpat_id, ~tbody_id),
         PolyTyp.poly(~tpat_id, ~tbody_id),
       );
     | Rec(tpat, typ) =>
-      let tpat_id = List.nth(IdTagged.ids(tpat), 0);
-      let tbody_id = List.nth(IdTagged.ids(typ), 0);
+      let tpat_id = IdTagged.rep_id(tpat);
+      let tbody_id = IdTagged.rep_id(typ);
       get_message(
         ~colorings=RecTyp.rec_typ_coloring_ids(~tpat_id, ~tbody_id),
         RecTyp.rec_(~tpat_id, ~tbody_id),
       );
     | ProofOf(exp) =>
-      let body_id = List.nth(IdTagged.ids(exp), 0);
+      let body_id = IdTagged.rep_id(exp);
       get_message(
         ~colorings=ProofOfTyp.proof_of_typ_coloring_ids(~body_id),
         ProofOfTyp.proof_of(~body_id),
       );
     | Arrow(arg, result) =>
-      let arg_id = List.nth(IdTagged.ids(arg), 0);
-      let result_id = List.nth(IdTagged.ids(result), 0);
+      let arg_id = IdTagged.rep_id(arg);
+      let result_id = IdTagged.rep_id(result);
       let basic = doc =>
         get_message(
           ~colorings=ArrowTyp.arrow_typ_coloring_ids(~arg_id, ~result_id),
@@ -2023,8 +2019,8 @@ let get_doc =
         );
       switch (result.term) {
       | Arrow(arg2, result2) =>
-        let arg2_id = List.nth(IdTagged.ids(arg2), 0);
-        let result2_id = List.nth(IdTagged.ids(result2), 0);
+        let arg2_id = IdTagged.rep_id(arg2);
+        let result2_id = IdTagged.rep_id(result2);
         let group =
           ArrowTyp.arrow3(
             ~arg1_id=arg_id,
@@ -2077,8 +2073,8 @@ let get_doc =
           );
         }
       | 2 =>
-        let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-        let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
+        let elem1_id = nth_rep_id(elements, 0);
+        let elem2_id = nth_rep_id(elements, 1);
         let group = TupleTyp.tuple2(~elem1_id, ~elem2_id, ~n);
         if (TupleTyp.tuple2_typ_id == get_specificity_level(group)) {
           get_message(
@@ -2089,9 +2085,9 @@ let get_doc =
           basic(group);
         };
       | 3 =>
-        let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-        let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-        let elem3_id = List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
+        let elem1_id = nth_rep_id(elements, 0);
+        let elem2_id = nth_rep_id(elements, 1);
+        let elem3_id = nth_rep_id(elements, 2);
         let group = TupleTyp.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n);
         if (TupleTyp.tuple3_typ_id == get_specificity_level(group)) {
           get_message(
