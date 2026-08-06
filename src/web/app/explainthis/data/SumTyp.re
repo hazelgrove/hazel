@@ -16,6 +16,7 @@ let labelled_sum_typ: form = {
       typ("..."),
       space(),
     ],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -26,6 +27,7 @@ let sum_typ_unary_constructor_def = (c: string): form => {
   {
     id: SumTypUnaryConstructorDef,
     syntactic_form: [c ++ "(Type)" |> abbreviate |> typ],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -37,6 +39,7 @@ let sum_typ_nullary_constructor_def = (c: string): form => {
   {
     id: SumTypNullaryConstructorDef,
     syntactic_form: [c |> abbreviate |> typ],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],

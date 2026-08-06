@@ -8,6 +8,7 @@ let listlit_pat_form = [
 let listlit_pat = (~n: int): form => {
   id: ListLitPat,
   syntactic_form: listlit_pat_form,
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -21,6 +22,7 @@ let listnil_pat: form = {
   {
     id: ListNilPat,
     syntactic_form: [pat("[]")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -45,6 +47,7 @@ let cons_base_pat_explanation = (~hd_id: Id.t, ~tl_id: Id.t): string =>
 let cons_base_pat = (~hd_id: Id.t, ~tl_id: Id.t): form => {
   id: cons_base_pat_id,
   syntactic_form: cons_base_pat_form,
+  colorings: [],
   expandable_id: Some((Piece.id(pat_tl), [pat("p_tl")])),
   explanation: cons_base_pat_explanation(~hd_id, ~tl_id),
   examples: [],
@@ -64,6 +67,7 @@ let cons2_pat_form = [pat_fst, cons_pat(), pat_snd, cons2_pat_c, pat_tl];
 let cons2_pat = (~fst_id: Id.t, ~snd_id: Id.t, ~tl_id: Id.t): form => {
   id: cons2_pat_id,
   syntactic_form: cons2_pat_form,
+  colorings: [],
   expandable_id:
     Some((
       Piece.id(cons2_pat_c),

@@ -22,6 +22,7 @@ let typfun_var_expandable =
 let typfun_var = (~tpat_id: Id.t, ~body_id: Id.t): form => {
   id: TypFunctionExp,
   syntactic_form: typfun_var_form,
+  colorings: [],
   expandable_id: Some((Piece.id(tp), [typfun_var_expandable])),
   explanation:
     Printf.sprintf(

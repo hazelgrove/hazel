@@ -21,6 +21,7 @@ let typfunapp_exp_form = [exp_tfun, mk_ap_exp_typ([[typ]])];
 let typfunapp_exp = (~f_id: Id.t, ~typ_id: Id.t): form => {
   id: TypFunApExp,
   syntactic_form: typfunapp_exp_form,
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(

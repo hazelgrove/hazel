@@ -25,6 +25,7 @@ let hinted_test_exp_form = [
 let hinted_test_exp = (~hint_id: Id.t, ~body_id: Id.t): form => {
   id: HintedTestExp,
   syntactic_form: hinted_test_exp_form,
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(

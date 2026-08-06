@@ -11,6 +11,7 @@ let list_typ_form = [mk_list_typ([[typ_elem]])];
 let list_typ = (~elem_id: Id.t): form => {
   id: ListTyp,
   syntactic_form: list_typ_form,
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(

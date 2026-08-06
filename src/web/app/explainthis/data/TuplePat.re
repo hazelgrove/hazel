@@ -13,6 +13,7 @@ let tuple_pat_explanation = (~n: int): string =>
 let tuple_pat = (~n: int): form => {
   id: tuple_pat_id,
   syntactic_form: tuple_pat_form,
+  colorings: [],
   expandable_id:
     Some((
       Piece.id(tuple_pat_comma),
@@ -34,6 +35,7 @@ let tuple_pat_size2_form = [pat1, tuple_pat_size2_comma, space(), pat2];
 let tuple_pat_size2 = (~elem1_id: Id.t, ~elem2_id: Id.t): form => {
   id: tuple_pat_size2_id,
   syntactic_form: tuple_pat_size2_form,
+  colorings: [],
   expandable_id:
     Some((
       Piece.id(tuple_pat_size2_comma),
@@ -71,6 +73,7 @@ let tuple_pat_size3 =
     (~elem1_id: Id.t, ~elem2_id: Id.t, ~elem3_id: Id.t): form => {
   id: tuple_pat_size3_id,
   syntactic_form: tuple_pat_size3_form,
+  colorings: [],
   expandable_id:
     Some((
       Piece.id(tuple_pat_size3_comma),

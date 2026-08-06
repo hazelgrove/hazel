@@ -36,6 +36,7 @@ let ascription = (~exp_id: Id.t, ~typ_id: Id.t): form => {
   {
     id: AscExp,
     syntactic_form: [e, space(), ascription_exp(), space(), typ],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [

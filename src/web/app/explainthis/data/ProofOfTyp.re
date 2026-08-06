@@ -10,6 +10,7 @@ let proof_of_typ_form = [mk_proof_of([[space(), e, space()]])];
 let proof_of_typ = (~body_id: Id.t): form => {
   id: ProofOfTyp,
   syntactic_form: proof_of_typ_form,
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(

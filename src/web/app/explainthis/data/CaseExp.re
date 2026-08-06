@@ -50,6 +50,7 @@ let case_exp_case =
 let case_exp = (~scrut_id: Id.t): form => {
   id: CaseExp,
   syntactic_form: [case_exp_case],
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(

@@ -5,6 +5,7 @@ let wild_pat: form = {
   {
     id: WildPat,
     syntactic_form: [pat("_")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -14,6 +15,7 @@ let wild_pat: form = {
 let sintlit_pat = (i: int): form => {
   id: SIntPat,
   syntactic_form: [i |> string_of_int |> abbreviate |> pat],
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -27,6 +29,7 @@ let sintlit_pat = (i: int): form => {
 let intlit_pat = (i: string): form => {
   id: IntPat,
   syntactic_form: [i |> abbreviate |> pat],
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -40,6 +43,7 @@ let intlit_pat = (i: string): form => {
 let floatlit_pat = (f: float): form => {
   id: FloatPat,
   syntactic_form: [f |> string_of_float |> abbreviate |> pat],
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -53,6 +57,7 @@ let floatlit_pat = (f: float): form => {
 let boollit_pat = (b: bool): form => {
   id: BoolPat,
   syntactic_form: [b |> string_of_bool |> abbreviate |> pat],
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -66,6 +71,7 @@ let boollit_pat = (b: bool): form => {
 let strlit_pat = (s: string): form => {
   id: StrPat,
   syntactic_form: [s |> abbreviate |> Haz3lcore.Token.string_quote |> pat],
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -81,6 +87,7 @@ let triv_pat: form = {
   {
     id: TrivPat,
     syntactic_form: [pat("()")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -90,6 +97,7 @@ let triv_pat: form = {
 let var_pat = (name: string): form => {
   id: VarPat,
   syntactic_form: [name |> abbreviate |> pat],
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -102,6 +110,7 @@ let var_pat = (name: string): form => {
 let ctr_pat = (name: string): form => {
   id: CtrPat,
   syntactic_form: [name |> abbreviate |> pat],
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(

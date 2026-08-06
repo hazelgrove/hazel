@@ -16,6 +16,7 @@ let deferral_exp_ex = {
 let deferral_exp: form = {
   id: DeferralExp,
   syntactic_form: [exp("_")],
+  colorings: [],
   expandable_id: None,
   explanation: "Marks an argument that has not yet been applied in a partial application.",
   examples: [deferral_exp_ex],
@@ -28,6 +29,7 @@ let deferral_exps: group = {
 let bool_exp = (b: bool): form => {
   id: BoolExp,
   syntactic_form: [exp(b |> string_of_bool)],
+  colorings: [],
   expandable_id: None,
   explanation: "A boolean literal, either `true` or `false`.",
   examples: [],
@@ -40,6 +42,7 @@ let bool_exps = (b: bool): group => {
 let int_exp = (n: Bigint.t): form => {
   id: IntExp,
   syntactic_form: [n |> Bigint.to_string |> exp],
+  colorings: [],
   expandable_id: None,
   explanation: "A number literal.",
   examples: [],
@@ -52,6 +55,7 @@ let int_exps = (i: Bigint.t): group => {
 let sint_exp = (n: int): form => {
   id: SIntExp,
   syntactic_form: [n |> string_of_int |> exp],
+  colorings: [],
   expandable_id: None,
   explanation: "A system integer literal.",
   examples: [],
@@ -64,6 +68,7 @@ let sint_exps = (i: int): group => {
 let nat_exp = (n: Bigint.t): form => {
   id: NatExp,
   syntactic_form: [n |> Bigint.to_string |> exp],
+  colorings: [],
   expandable_id: None,
   explanation: "A natural number literal.",
   examples: [],
@@ -76,6 +81,7 @@ let nat_exps = (i: Bigint.t): group => {
 let float_exp = (f: float): form => {
   id: FloatExp,
   syntactic_form: [f |> string_of_float |> exp],
+  colorings: [],
   expandable_id: None,
   explanation: "A floating-point literal.",
   examples: [],
@@ -88,6 +94,7 @@ let float_exps = (f: float): group => {
 let string_exp = (s: string): form => {
   id: StringExp,
   syntactic_form: [s |> abbreviate |> Haz3lcore.Token.string_quote |> exp],
+  colorings: [],
   expandable_id: None,
   explanation: "A string literal. Any character besides double quotes (`\"`) can be used.",
   examples: [],
@@ -100,6 +107,7 @@ let string_exps = (s: string): group => {
 let var_exp = (n: string): form => {
   id: VarExp,
   syntactic_form: [n |> abbreviate |> exp],
+  colorings: [],
   expandable_id: None,
   explanation: "Takes the value of the expression that it was bound to.",
   examples: [],
@@ -112,6 +120,7 @@ let var_exps = (x: string): group => {
 let livelit_name_exp = (n: string): form => {
   id: LivelitName,
   syntactic_form: ["^" ++ n |> abbreviate |> exp],
+  colorings: [],
   expandable_id: None,
   explanation: "Expands to some value, and when projected, creates an interactable GUI widget.",
   examples: [],
@@ -124,6 +133,7 @@ let livelit_name_exps = (x: string): group => {
 let ctr_exp = (c: string): form => {
   id: CtrExp,
   syntactic_form: [c |> abbreviate |> exp],
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf("`%s` is a constructor for a sum type variant.", c),

@@ -13,6 +13,7 @@ let poly_typ_form = [mk_poly([[space(), tpat, space()]]), typ_arg];
 let poly_typ = (~tpat_id: Id.t, ~tbody_id: Id.t): form => {
   id: PolyTyp,
   syntactic_form: poly_typ_form,
+  colorings: [],
   expandable_id: Some((Piece.id(tpat), [typ_arg])),
   explanation:
     Printf.sprintf(

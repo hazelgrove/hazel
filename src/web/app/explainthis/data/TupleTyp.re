@@ -13,6 +13,7 @@ let tuple_typ_explanation = (~n: int): string =>
 let tuple_typ = (~n: int): form => {
   id: tuple_typ_id,
   syntactic_form: tuple_typ_form,
+  colorings: [],
   expandable_id:
     Some((
       Piece.id(tuple_typ_comma),
@@ -27,6 +28,7 @@ let tuple0_typ: form = {
   {
     id: Tuple0Typ,
     syntactic_form: [typ("()")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -46,6 +48,7 @@ let tuple2_typ_form = [typ_elem1, tuple2_typ_comma, space(), typ_elem2];
 let tuple2_typ = (~elem1_id: Id.t, ~elem2_id: Id.t): form => {
   id: tuple2_typ_id,
   syntactic_form: tuple2_typ_form,
+  colorings: [],
   expandable_id:
     Some((
       Piece.id(tuple2_typ_comma),
@@ -82,6 +85,7 @@ let tuple3_typ_form = [
 let tuple3_typ = (~elem1_id: Id.t, ~elem2_id: Id.t, ~elem3_id: Id.t): form => {
   id: tuple3_typ_id,
   syntactic_form: tuple3_typ_form,
+  colorings: [],
   expandable_id:
     Some((
       Piece.id(tuple3_typ_comma),

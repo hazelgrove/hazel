@@ -672,6 +672,9 @@ let get_doc =
       | Some(msg) => msg
       | None => doc.explanation
       };
+    /* Forms are being migrated to carry their own colorings; until every
+       caller has stopped passing them, an explicit `~colorings` wins. */
+    let colorings = colorings == [] ? doc.colorings : colorings;
     switch (mode) {
     | MessageContent(inject, globals) =>
       let (explanation, color_map) =
@@ -753,10 +756,8 @@ let get_doc =
   };
 
   /* Use this when adding new entries */
-  let message_single = (e: ExplainThisForm.Simple.t) => {
-    let (explanation, colorings, group) = ExplainThisForm.Simple.to_group(e);
-    get_message(~colorings, ~explanation, group);
-  };
+  let message_single = (e: ExplainThisForm.Simple.t) =>
+    get_message(ExplainThisForm.Simple.to_group(e));
 
   /* Is the user looking at the group's most specific form, or has it been
      expanded down to a more general one? `forms` is ordered

@@ -310,6 +310,11 @@ type form_id =
 type form = {
   id: form_id,
   syntactic_form: Segment.t,
+  /* Pairs a placeholder piece of `syntactic_form` with the user-code term it
+     stands for, so the two can be highlighted in the same colour. Belongs to
+     the form rather than to the caller: which mapping applies depends on which
+     form of a group is being shown, and only the form knows its own pieces. */
+  colorings: list((Id.t, Id.t)),
   expandable_id: option((Id.t, Segment.t)),
   explanation: string,
   examples: list(example),
@@ -445,6 +450,8 @@ module Simple = {
     examples: list(example),
   };
 
+  /* The form carries its own explanation and colorings, so this is a plain
+     group — callers no longer have to thread either alongside it. */
   let to_group =
       (
         {
@@ -454,22 +461,20 @@ module Simple = {
           form_id,
           examples,
         }: t,
-      ) => (
-    explanation,
-    colorings,
-    {
-      id: group_id,
-      forms: [
-        {
-          id: form_id,
-          syntactic_form,
-          expandable_id: None,
-          explanation: "",
-          examples,
-        },
-      ],
-    },
-  );
+      )
+      : group => {
+    id: group_id,
+    forms: [
+      {
+        id: form_id,
+        syntactic_form,
+        colorings,
+        expandable_id: None,
+        explanation,
+        examples,
+      },
+    ],
+  };
 
   let mk_2 =
       (

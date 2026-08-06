@@ -18,6 +18,7 @@ let rec_typ_form = [mk_rec([[space(), tpat, space()]]), typ_arg];
 let rec_typ = (~tpat_id: Id.t, ~tbody_id: Id.t): form => {
   id: RecTyp,
   syntactic_form: rec_typ_form,
+  colorings: [],
   expandable_id: Some((Piece.id(tpat), [typ_arg])),
   explanation:
     Printf.sprintf(

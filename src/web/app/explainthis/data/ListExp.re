@@ -19,6 +19,7 @@ let list_exp = (~n: int): form => {
     syntactic_form: [
       mk_list_exp([[exp("e1"), comma_exp(), space(), exp("...")]]),
     ],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [int_list, tuple_list],
@@ -51,6 +52,7 @@ let cons_exp = (~hd_id: Id.t, ~tl_id: Id.t): form => {
   {
     id: ConsExp,
     syntactic_form: [exp_hd, cons_exp(), exp_tl],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [cons1_ex, cons2_ex],
@@ -74,6 +76,7 @@ let list_concat_exp = (~xs_id: Id.t, ~ys_id: Id.t): form => {
   {
     id: ListConcatExp,
     syntactic_form: [exp_xs, space(), list_concat_exp(), space(), exp_ys],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],

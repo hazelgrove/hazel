@@ -4,6 +4,7 @@ open Example;
 let label = (n: string): form => {
   id: Label,
   syntactic_form: [n |> abbreviate |> exp],
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(

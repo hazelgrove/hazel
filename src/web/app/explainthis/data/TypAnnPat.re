@@ -12,6 +12,7 @@ let typann_pat_form = [p, space(), typeann(), space(), typ];
 let typann_pat = (~pat_id: Id.t, ~typ_id: Id.t): form => {
   id: TypAnnPat,
   syntactic_form: typann_pat_form,
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(

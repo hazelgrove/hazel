@@ -19,6 +19,7 @@ let theorem_exp_form = [
 let theorem_exp = (~pat_id: Id.t, ~thm_id: Id.t): form => {
   id: TheoremExp,
   syntactic_form: theorem_exp_form,
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(

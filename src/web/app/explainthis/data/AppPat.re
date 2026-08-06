@@ -13,6 +13,7 @@ let conapp_pat_form = [pat_con, mk_ap_pat([[pat_arg]])];
 let conapp_pat = (~x_id: Id.t, ~arg_id: Id.t): form => {
   id: ApConsPat,
   syntactic_form: conapp_pat_form,
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -34,6 +35,7 @@ let funapp_pat_form = [pat_fun, mk_ap_pat([[pat_arg]])];
 let funapp_pat = (~x_id: Id.t, ~arg_id: Id.t): form => {
   id: ApFuncPat,
   syntactic_form: funapp_pat_form,
+  colorings: [],
   expandable_id: None,
   explanation:
     Printf.sprintf(

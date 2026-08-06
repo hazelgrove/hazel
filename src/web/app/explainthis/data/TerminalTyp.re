@@ -6,6 +6,7 @@ let int_typ: form = {
   {
     id: IntTyp,
     syntactic_form: [typ("Int")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -17,6 +18,7 @@ let sint_typ: form = {
   {
     id: SIntTyp,
     syntactic_form: [typ("SInt")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -28,6 +30,7 @@ let nat_typ: form = {
   {
     id: NatTyp,
     syntactic_form: [typ("Nat")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -39,6 +42,7 @@ let float_typ: form = {
   {
     id: FloatTyp,
     syntactic_form: [typ("Float")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -50,6 +54,7 @@ let bool_typ: form = {
   {
     id: BoolTyp,
     syntactic_form: [typ("Bool")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -61,6 +66,7 @@ let str_typ: form = {
   {
     id: StrTyp,
     syntactic_form: [typ("String")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -81,6 +87,7 @@ let void_typ: form = {
   {
     id: VoidTyp,
     syntactic_form: [typ("Void")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [void_absurd_ex],
@@ -90,6 +97,7 @@ let void_typ: form = {
 let var_typ = (name: string): form => {
   id: VarTyp,
   syntactic_form: [name |> abbreviate |> typ],
+  colorings: [],
   expandable_id: None,
   explanation: Printf.sprintf("`%s` is a type variable.", name),
   examples: [],
