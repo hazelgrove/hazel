@@ -204,6 +204,24 @@ let corpus = [
   ("pipeline", "1 |> fun x -> x"),
   ("test", "test true end"),
   ("seq", "1; 2"),
+  /* Bypass shapes: an annotated pattern diverges between the specific and
+     fallback forms the same way a parenthesized one does. */
+  ("fun-annot-pat", "fun x : Int -> x"),
+  ("let-annot-pat", "let x : Int = 1 in x"),
+  /* Application patterns — reaches AppPat.funaps/conaps. */
+  ("ap-pat", "let f(x) = x * 2 in f(3)"),
+  /* Type functions — reaches TypFunctionExp. */
+  ("typfun", "typfun a -> fun x : a -> x"),
+  /* Labeled tuple pattern — reaches FunctionExp.functions_tuplabel. */
+  ("fun-tuplabel", "fun (x=y) -> y"),
+  /* Two-level cons pattern — reaches ListPat.cons2. */
+  ("cons2-pat", "let a::b::c = [1, 2] in a"),
+  ("tuple3", "(1, 2, 3)"),
+  ("unop-not", "!true"),
+  ("power", "2 ** 4"),
+  /* Partial application — its doc links a synthesized id that is not a real
+     term, which shows up as <unmapped>. */
+  ("deferred-ap", "let plus = fun (x, y) -> x + y in plus(1, _)"),
 ];
 
 /* Captured from the current implementation. A refactor of the coloring or
@@ -382,6 +400,121 @@ true => BoolExp colorings=[]|},
     {|1 => IntExp colorings=[]
 1; 2 => SeqExp colorings=[1,2]
 2 => IntExp colorings=[]|},
+  ),
+  (
+    "fun-annot-pat",
+    {|Int => IntTyp colorings=[]
+fun x:(Int) -> x => (FunctionExp Base) colorings=[x,x:(Int)]
+fun x:(Int) -> x => (FunctionExp Var) colorings=[x,x]
+x => VarExp colorings=[]
+x => VarPat colorings=[]
+x:(Int) => TypAnnPat colorings=[Int,x]|},
+  ),
+  (
+    "let-annot-pat",
+    {|1 => IntExp colorings=[]
+Int => IntTyp colorings=[]
+let x:(Int) = 1 in x => (LetExp Base) colorings=[1,x]
+let x:(Int) = 1 in x => (LetExp Var) colorings=[1,x,x]
+x => VarExp colorings=[]
+x => VarPat colorings=[]
+x:(Int) => TypAnnPat colorings=[Int,x]|},
+  ),
+  /* `f(x) => ApConsPat` is wrong: this is a *function* application pattern, so
+     its group is ApFuncPat. The form's id disagrees with its group. */
+  (
+    "ap-pat",
+    {|2 => IntExp colorings=[]
+3 => IntExp colorings=[]
+f => VarExp colorings=[]
+f => VarPat colorings=[]
+f(3) => FunApExp colorings=[3,f]
+f(x) => ApConsPat colorings=[f,x]
+fun x -> x * 2 => (FunctionExp Base) colorings=[x,x * 2]
+fun x -> x * 2 => (FunctionExp Var) colorings=[x,x * 2]
+let f(x) = x * 2 in f(3) => (LetExp ApFunc) colorings=[f,x,x * 2]
+let f(x) = x * 2 in f(3) => (LetExp Base) colorings=[f(x),x * 2]
+x * 2 => (BinOpExp (Int Times)) colorings=[2,x]
+x => VarExp colorings=[]
+x => VarPat colorings=[]|},
+  ),
+  (
+    "typfun",
+    {|a => VarTPat colorings=[]
+a => VarTyp colorings=[]
+fun x:(a) -> x => (FunctionExp Base) colorings=[x,x:(a)]
+fun x:(a) -> x => (FunctionExp Var) colorings=[x,x]
+typfun a -> fun x:(a) -> x => TypFunctionExp colorings=[a,fun x:(a) -> x]
+x => VarExp colorings=[]
+x => VarPat colorings=[]
+x:(a) => TypAnnPat colorings=[a,x]|},
+  ),
+  (
+    "fun-tuplabel",
+    {|(x=y) => TuplePat colorings=[]
+`x` => Label colorings=[]
+fun (x=y) -> y => (FunctionExp Base) colorings=[(x=y),y]
+fun (x=y) -> y => (FunctionExp TupLabel) colorings=[`x`,y,y]
+x=y => LabeledPat colorings=[`x`,y]
+y => VarExp colorings=[]
+y => VarPat colorings=[]|},
+  ),
+  /* The ConsPat fallback shows the *outer* tail `b:: c`, supplied by `get_doc`'s
+     override — the form itself was built with the inner tail. Moving colorings
+     onto the form must preserve the outer reading. */
+  (
+    "cons2-pat",
+    {|1 => IntExp colorings=[]
+2 => IntExp colorings=[]
+[1, 2] => ListExp colorings=[]
+a => VarExp colorings=[]
+a => VarPat colorings=[]
+a:: b:: c => Cons2Pat colorings=[a,b,c]
+a:: b:: c => ConsPat colorings=[a,b:: c]
+b => VarPat colorings=[]
+b:: c => ConsPat colorings=[b,c]
+c => VarPat colorings=[]
+let a:: b:: c = [1, 2] in a => (LetExp Base) colorings=[[1, 2],a:: b:: c]
+let a:: b:: c = [1, 2] in a => (LetExp ListCons) colorings=[[1, 2],a,b:: c]|},
+  ),
+  (
+    "tuple3",
+    {|(1, 2, 3) => Tuple3Exp colorings=[1,2,3]
+(1, 2, 3) => TupleExp colorings=[]
+1 => IntExp colorings=[]
+2 => IntExp colorings=[]
+3 => IntExp colorings=[]|},
+  ),
+  (
+    "unop-not",
+    {|! true => (UnOpExp (Bool Not)) colorings=[true]
+true => BoolExp colorings=[]|},
+  ),
+  (
+    "power",
+    {|2 ** 4 => (BinOpExp (Int Power)) colorings=[2,4]
+2 => IntExp colorings=[]
+4 => IntExp colorings=[]|},
+  ),
+  (
+    "deferred-ap",
+    {|(x, y) => Tuple2Pat colorings=[x,y]
+(x, y) => TuplePat colorings=[]
+1 => IntExp colorings=[]
+_ => DeferralExp colorings=[]
+fun (x, y) -> x + y => (FunctionExp Base) colorings=[(x, y),x + y]
+fun (x, y) -> x + y => (FunctionExp Tuple) colorings=[(x, y),x + y]
+fun (x, y) -> x + y => (FunctionExp Tuple2) colorings=[x,x + y,y]
+let plus = fun (x, y) -> x + y in plus(1, _) => (LetExp Base) colorings=[fun (x, y) -> x + y,plus]
+let plus = fun (x, y) -> x + y in plus(1, _) => (LetExp Var) colorings=[fun (x, y) -> x + y,plus,plus(1, _)]
+plus => VarExp colorings=[]
+plus => VarPat colorings=[]
+plus(1, _) => DeferredApExp colorings=[_,plus]
+x + y => (BinOpExp (Int Plus)) colorings=[x,y]
+x => VarExp colorings=[]
+x => VarPat colorings=[]
+y => VarExp colorings=[]
+y => VarPat colorings=[]|},
   ),
 ];
 
