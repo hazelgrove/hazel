@@ -586,7 +586,18 @@ module Local = {
         /* Source tokens + formatting verbatim, molds from ExpToSegment +
            splice-time remold. No size cap needed on this path. */
         Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root))
-      | None => introduce_slow(~root, z, code)
+      | None =>
+        if (fast) {
+          /* console-visible fallback telemetry (dev): which construct
+             pushed us onto the quadratic path, and roughly how bad */
+          print_endline(
+            "FastParse fallback ("
+            ++ string_of_int(String.length(code))
+            ++ " chars): "
+            ++ Option.value(FastParse.bail_note^, ~default="no note"),
+          );
+        };
+        introduce_slow(~root, z, code);
       };
     }
     and introduce_slow =
