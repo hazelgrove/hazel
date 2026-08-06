@@ -617,37 +617,42 @@ let get_doc_deduction =
   };
 };
 
+/* Both color-map entry points ask the same question of a different doc source:
+   run it for its color map, then narrow to one id if the highlight setting says
+   so. `harvest` is passed as a thunk so nothing is computed when highlighting is
+   off or the sidebar is collapsed. */
+let narrow_color_map =
+    (~globals: Globals.t, harvest: unit => ColorSteps.colorMap) =>
+  switch (globals.settings.explainThis.highlight) {
+  | All when globals.settings.sidebar.show => Some(harvest())
+  | One(id) when globals.settings.sidebar.show =>
+    Some(Id.Map.filter((id', _) => id == id', harvest()))
+  | _ => None
+  };
+
+/* `sidebar.show` above, matching get_color_map. This used to read
+   `explainThis.show`, which nothing toggles and which defaults to true, so
+   collapsing the sidebar stopped code highlighting for ordinary terms but not
+   for derivation ones. */
 let get_color_map_deduction =
     (
       ~globals: Globals.t,
       ~explainThisModel: ExplainThisModel.t,
       info_deduction: info_deduction,
     ) =>
-  switch (globals.settings.explainThis.highlight) {
-  /* `sidebar.show`, matching `get_color_map` below. This used to read
-     `explainThis.show`, which nothing toggles and which defaults to true, so
-     collapsing the sidebar stopped code highlighting for ordinary terms but not
-     for derivation ones. */
-  | All when globals.settings.sidebar.show =>
-    let (_, (_, (color_map, _)), _) =
-      get_doc_deduction(
-        ~globals,
-        ~docs=explainThisModel,
-        info_deduction,
-        Colorings,
-      );
-    Some(color_map);
-  | One(id) when globals.settings.sidebar.show =>
-    let (_, (_, (color_map, _)), _) =
-      get_doc_deduction(
-        ~globals,
-        ~docs=explainThisModel,
-        info_deduction,
-        Colorings,
-      );
-    Some(Id.Map.filter((id', _) => id == id', color_map));
-  | _ => None
-  };
+  narrow_color_map(
+    ~globals,
+    () => {
+      let (_, (_, (color_map, _)), _) =
+        get_doc_deduction(
+          ~globals,
+          ~docs=explainThisModel,
+          info_deduction,
+          Colorings,
+        );
+      color_map;
+    },
+  );
 
 let get_doc =
     (
@@ -1664,17 +1669,14 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
 
 let get_color_map =
     (~globals: Globals.t, ~explainThisModel: ExplainThisModel.t, info) =>
-  switch (globals.settings.explainThis.highlight) {
-  | All when globals.settings.sidebar.show =>
-    let (_, (_, (color_map, _)), _) =
-      get_doc(~globals, ~docs=explainThisModel, info, Colorings);
-    Some(color_map);
-  | One(id) when globals.settings.sidebar.show =>
-    let (_, (_, (color_map, _)), _) =
-      get_doc(~globals, ~docs=explainThisModel, info, Colorings);
-    Some(Id.Map.filter((id', _) => id == id', color_map));
-  | _ => None
-  };
+  narrow_color_map(
+    ~globals,
+    () => {
+      let (_, (_, (color_map, _)), _) =
+        get_doc(~globals, ~docs=explainThisModel, info, Colorings);
+      color_map;
+    },
+  );
 
 type info = {
   cursor: option(Statics.Info.t),
