@@ -747,7 +747,7 @@ let lets_emptyhole = (~def_id: Id.t, ~pat_id: Id.t): group => {
   ],
 };
 
-let lets_mutlihole = (~def_id: Id.t, ~pat_id: Id.t): group => {
+let lets_multihole = (~def_id: Id.t, ~pat_id: Id.t): group => {
   id: LetExp(MultiHole),
   forms: [
     let_multi_hole_exp(~pat_id, ~def_id),

@@ -159,7 +159,10 @@ type example_id =
   | ModuleKeyword1
   | ModuleKeywordDecl1;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+/* No deriving: nothing serializes an `example`, `form` or `group`. Only the id
+   enums need serializers, because `ExplainThisModel.t` is what `Store`
+   persists and it holds ids alone. Deriving these additionally forced
+   `Segment.t` through sexp/yojson for no consumer. */
 type example = {
   sub_id: example_id,
   term: Segment.t,
@@ -304,7 +307,6 @@ type form_id =
   | ModuleKeywordExp
   | ModuleKeywordDecl;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
   id: form_id,
   syntactic_form: Segment.t,
@@ -429,14 +431,12 @@ type group_id =
   | ModuleKeywordExp
   | ModuleKeywordDecl;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
 type group = {
   id: group_id,
   forms: list(form) // Ordered - more specific to less specific
 };
 
 module Simple = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     group_id,
     form_id,
@@ -471,13 +471,6 @@ module Simple = {
     },
   );
 
-  let mk_1 =
-      ((n: string, id: Id.t), mk_form: Piece.t => Segment.t)
-      : (Segment.t, list((Id.t, Id.t))) => {
-    let p = Example.exp(n);
-    (mk_form(p), [(Piece.id(p), id)]);
-  };
-
   let mk_2 =
       (
         (n1: string, id_1: Id.t),
@@ -487,28 +480,5 @@ module Simple = {
       : (Segment.t, list((Id.t, Id.t))) => {
     let (p1, p2) = (Example.exp(n1), Example.exp(n2));
     (mk_form(p1, p2), [(Piece.id(p1), id_1), (Piece.id(p2), id_2)]);
-  };
-
-  let mk_3 =
-      (
-        (n1: string, id_1: Id.t),
-        (n2: string, id_2: Id.t),
-        (n3: string, id_3: Id.t),
-        mk_form: (Piece.t, Piece.t, Piece.t) => Segment.t,
-      )
-      : (Segment.t, list((Id.t, Id.t))) => {
-    let (p1, p2, p3) = (
-      Example.exp(n1),
-      Example.exp(n2),
-      Example.exp(n3),
-    );
-    (
-      mk_form(p1, p2, p3),
-      [
-        (Piece.id(p1), id_1),
-        (Piece.id(p2), id_2),
-        (Piece.id(p3), id_3),
-      ],
-    );
   };
 };

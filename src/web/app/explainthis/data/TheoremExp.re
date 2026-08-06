@@ -5,7 +5,7 @@ open ExplainThisForm;
 let p = pat("p");
 let exp_thm = exp("h");
 let exp_body = exp("e");
-let test_exp_coloring_ids =
+let theorem_exp_coloring_ids =
     (~body_id: Id.t, ~pat_id: Id.t, ~thm_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(p), pat_id),
   (Piece.id(exp_thm), thm_id),

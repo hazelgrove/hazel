@@ -1283,7 +1283,7 @@ let get_doc =
             basic(group);
           };
         | MultiHole(_) =>
-          let group = LetExp.lets_mutlihole(~def_id, ~pat_id);
+          let group = LetExp.lets_multihole(~def_id, ~pat_id);
           if (LetExp.let_multi_hole_exp_id == get_specificity_level(group)) {
             get_message(
               ~colorings=
@@ -1565,7 +1565,7 @@ let get_doc =
         let body_id = IdTagged.rep_id(body);
         get_message(
           ~colorings=
-            TheoremExp.test_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
+            TheoremExp.theorem_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
           TheoremExp.tests(~pat_id, ~thm_id),
         );
       | ProofObject(exp) =>
@@ -1895,7 +1895,7 @@ let get_doc =
     | TupLabel(l, p) =>
       get_message(
         ~colorings=
-          TupLabelPat.labeled_exps_coloring_ids(
+          TupLabelPat.labeled_pats_coloring_ids(
             ~label_id=Pat.rep_id(l),
             ~pat_id=Pat.rep_id(p),
           ),
@@ -2048,7 +2048,7 @@ let get_doc =
     | TupLabel(l, t) =>
       get_message(
         ~colorings=
-          TupLabelTyp.labeled_exps_coloring_ids(
+          TupLabelTyp.labeled_typs_coloring_ids(
             ~label_id=Typ.rep_id(l),
             ~typ_id=Typ.rep_id(t),
           ),

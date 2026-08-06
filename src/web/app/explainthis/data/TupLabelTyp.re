@@ -22,7 +22,7 @@ let labeled_example_2: example = {
 let lab = typ("x");
 let p = typ("p");
 
-let labeled_exps_coloring_ids =
+let labeled_typs_coloring_ids =
     (~label_id: Id.t, ~typ_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(lab), label_id),
   (Piece.id(p), typ_id),

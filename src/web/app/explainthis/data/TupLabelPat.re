@@ -16,7 +16,7 @@ let labeled_example_2: example = {
 let lab = pat("x");
 let p = pat("p");
 
-let labeled_exps_coloring_ids =
+let labeled_pats_coloring_ids =
     (~label_id: Id.t, ~pat_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(lab), label_id),
   (Piece.id(p), pat_id),

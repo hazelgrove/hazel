@@ -1,17 +1,9 @@
 open ExplainThisForm;
 open Example;
 
-let triv_exp: form = {
-  id: TrivExp,
-  syntactic_form: [exp("()")],
-  expandable_id: None,
-  explanation: "The unique value of type `()`.",
-  examples: [],
-};
-let triv_exps: group = {
-  id: TrivExp,
-  forms: [triv_exp],
-};
+/* No triv_exp doc: `get_doc` routes Tuple([]) in expression position to the
+   function/let pattern cases, and in pattern position to TerminalPat.triv, so
+   an exp-side trivial-value group was never reachable. */
 
 let deferral_exp_ex = {
   sub_id: Deferral,
