@@ -32,7 +32,7 @@ let if_exp_form = [
 let if_exp = (~cond_id: Id.t, ~then_id: Id.t, ~else_id: Id.t): form => {
   id: IfExp,
   syntactic_form: if_exp_form,
-  colorings: [],
+  colorings: if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(

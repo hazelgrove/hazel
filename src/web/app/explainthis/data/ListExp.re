@@ -52,7 +52,7 @@ let cons_exp = (~hd_id: Id.t, ~tl_id: Id.t): form => {
   {
     id: ConsExp,
     syntactic_form: [exp_hd, cons_exp(), exp_tl],
-    colorings: [],
+    colorings: cons_exp_coloring_ids(~hd_id, ~tl_id),
     expandable_id: None,
     explanation,
     examples: [cons1_ex, cons2_ex],

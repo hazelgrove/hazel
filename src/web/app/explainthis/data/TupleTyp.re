@@ -48,7 +48,7 @@ let tuple2_typ_form = [typ_elem1, tuple2_typ_comma, space(), typ_elem2];
 let tuple2_typ = (~elem1_id: Id.t, ~elem2_id: Id.t): form => {
   id: tuple2_typ_id,
   syntactic_form: tuple2_typ_form,
-  colorings: [],
+  colorings: tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
   expandable_id:
     Some((
       Piece.id(tuple2_typ_comma),
@@ -85,7 +85,7 @@ let tuple3_typ_form = [
 let tuple3_typ = (~elem1_id: Id.t, ~elem2_id: Id.t, ~elem3_id: Id.t): form => {
   id: tuple3_typ_id,
   syntactic_form: tuple3_typ_form,
-  colorings: [],
+  colorings: tuple3_typ_coloring_ids(~elem1_id, ~elem2_id, ~elem3_id),
   expandable_id:
     Some((
       Piece.id(tuple3_typ_comma),

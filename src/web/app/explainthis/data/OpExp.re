@@ -221,7 +221,7 @@ let bool_unary_not_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) =>
 let bool_unary_not_exp = (~exp_id: Id.t): form => {
   id: UnOpExp(Bool(Not)),
   syntactic_form: [unary_not(), e],
-  colorings: [],
+  colorings: bool_unary_not_exp_coloring_ids(~exp_id),
   expandable_id: None,
   explanation:
     unop_explanation(
@@ -236,7 +236,7 @@ let int_unary_minus_exp_coloring_ids = (~exp_id: Id.t): list((Id.t, Id.t)) =>
 let int_unary_minus_exp = (~exp_id: Id.t): form => {
   id: UnOpExp(Int(Minus)),
   syntactic_form: [unary_minus(), e],
-  colorings: [],
+  colorings: int_unary_minus_exp_coloring_ids(~exp_id),
   expandable_id: None,
   explanation:
     unop_explanation(
@@ -266,7 +266,7 @@ let int_plus_exp_coloring_ids =
 let int_plus_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Int(Plus)),
   syntactic_form: [exp1, space(), plus(), space(), exp2],
-  colorings: [],
+  colorings: int_plus_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -289,7 +289,7 @@ let int_minus_exp_coloring_ids =
 let int_minus_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Int(Minus)),
   syntactic_form: [exp1, space(), minus(), space(), exp2],
-  colorings: [],
+  colorings: int_minus_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -312,7 +312,7 @@ let int_times_exp_coloring_ids =
 let int_times_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Int(Times)),
   syntactic_form: [exp1, space(), times(), space(), exp2],
-  colorings: [],
+  colorings: int_times_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -333,7 +333,7 @@ let int_power_exp_coloring_ids =
 let int_power_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Int(Power)),
   syntactic_form: [exp1, space(), power(), space(), exp2],
-  colorings: [],
+  colorings: int_power_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -356,7 +356,7 @@ let int_divide_exp_coloring_ids =
 let int_divide_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Int(Divide)),
   syntactic_form: [exp1, space(), divide(), space(), exp2],
-  colorings: [],
+  colorings: int_divide_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -379,7 +379,7 @@ let int_lt_exp_coloring_ids =
 let int_lt_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Int(LessThan)),
   syntactic_form: [exp1, space(), lt(), space(), exp2],
-  colorings: [],
+  colorings: int_lt_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -402,7 +402,7 @@ let int_lte_exp_coloring_ids =
 let int_lte_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Int(LessThanOrEqual)),
   syntactic_form: [exp1, space(), lte(), space(), exp2],
-  colorings: [],
+  colorings: int_lte_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -425,7 +425,7 @@ let int_gt_exp_coloring_ids =
 let int_gt_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Int(GreaterThan)),
   syntactic_form: [exp1, space(), gt(), space(), exp2],
-  colorings: [],
+  colorings: int_gt_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -448,7 +448,7 @@ let int_gte_exp_coloring_ids =
 let int_gte_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Int(GreaterThanOrEqual)),
   syntactic_form: [exp1, space(), gte(), space(), exp2],
-  colorings: [],
+  colorings: int_gte_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -471,7 +471,7 @@ let poly_eq_exp_coloring_ids =
 let poly_eq_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Poly(Equals)),
   syntactic_form: [exp1, space(), equals(), space(), exp2],
-  colorings: [],
+  colorings: poly_eq_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -494,7 +494,7 @@ let poly_neq_exp_coloring_ids =
 let poly_neq_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Poly(NotEquals)),
   syntactic_form: [exp1, space(), not_equals(), space(), exp2],
-  colorings: [],
+  colorings: poly_neq_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -517,7 +517,7 @@ let float_plus_exp_coloring_ids =
 let float_plus_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Float(Plus)),
   syntactic_form: [exp1, space(), fplus(), space(), exp2],
-  colorings: [],
+  colorings: float_plus_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -540,7 +540,7 @@ let float_minus_exp_coloring_ids =
 let float_minus_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Float(Minus)),
   syntactic_form: [exp1, space(), fminus(), space(), exp2],
-  colorings: [],
+  colorings: float_minus_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -563,7 +563,7 @@ let float_times_exp_coloring_ids =
 let float_times_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Float(Times)),
   syntactic_form: [exp1, space(), ftimes(), space(), exp2],
-  colorings: [],
+  colorings: float_times_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -584,7 +584,7 @@ let float_power_exp_coloring_ids =
 let float_power_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Float(Power)),
   syntactic_form: [exp1, space(), fpower(), space(), exp2],
-  colorings: [],
+  colorings: float_power_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -607,7 +607,7 @@ let float_divide_exp_coloring_ids =
 let float_divide_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Float(Divide)),
   syntactic_form: [exp1, space(), fdivide(), space(), exp2],
-  colorings: [],
+  colorings: float_divide_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -630,7 +630,7 @@ let float_lt_exp_coloring_ids =
 let float_lt_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Float(LessThan)),
   syntactic_form: [exp1, space(), flt(), space(), exp2],
-  colorings: [],
+  colorings: float_lt_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -653,7 +653,7 @@ let float_lte_exp_coloring_ids =
 let float_lte_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Float(LessThanOrEqual)),
   syntactic_form: [exp1, space(), flte(), space(), exp2],
-  colorings: [],
+  colorings: float_lte_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -676,7 +676,7 @@ let float_gt_exp_coloring_ids =
 let float_gt_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Float(GreaterThan)),
   syntactic_form: [exp1, space(), fgt(), space(), exp2],
-  colorings: [],
+  colorings: float_gt_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -699,7 +699,7 @@ let float_gte_exp_coloring_ids =
 let float_gte_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Float(GreaterThanOrEqual)),
   syntactic_form: [exp1, space(), fgte(), space(), exp2],
-  colorings: [],
+  colorings: float_gte_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -722,7 +722,7 @@ let float_eq_exp_coloring_ids =
 let float_eq_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Float(Equals)),
   syntactic_form: [exp1, space(), fequals(), space(), exp2],
-  colorings: [],
+  colorings: float_eq_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -745,7 +745,7 @@ let float_neq_exp_coloring_ids =
 let float_neq_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Float(NotEquals)),
   syntactic_form: [exp1, space(), fnot_equals(), space(), exp2],
-  colorings: [],
+  colorings: float_neq_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -768,7 +768,7 @@ let bool_and_exp_coloring_ids =
 let bool_and_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Bool(And)),
   syntactic_form: [exp1, space(), logical_and(), space(), exp2],
-  colorings: [],
+  colorings: bool_and_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -792,7 +792,7 @@ let bool_or_exp_coloring_ids =
 let bool_or_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Bool(Or)),
   syntactic_form: [exp1, space(), logical_or(), space(), exp2],
-  colorings: [],
+  colorings: bool_or_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(
@@ -815,7 +815,7 @@ let str_concat_exp_coloring_ids =
 let str_concat_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(String(Concat)),
   syntactic_form: [exp1, space(), sconcat(), space(), exp2],
-  colorings: [],
+  colorings: str_concat_exp_coloring_ids(~left_id, ~right_id),
   expandable_id: None,
   explanation:
     binop_explanation(

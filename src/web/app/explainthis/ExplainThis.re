@@ -672,8 +672,9 @@ let get_doc =
       | Some(msg) => msg
       | None => doc.explanation
       };
-    /* Forms are being migrated to carry their own colorings; until every
-       caller has stopped passing them, an explicit `~colorings` wins. */
+    /* A form carries its own colorings; `~colorings` overrides them for the
+       least specific form of a group, which is shared across a family of
+       groups and so is not built for this particular call site. */
     let colorings = colorings == [] ? doc.colorings : colorings;
     switch (mode) {
     | MessageContent(inject, globals) =>
@@ -769,31 +770,16 @@ let get_doc =
     | [] => true
     };
 
-  /* A group whose forms describe different sub-terms needs different colorings
-     per level, so which mapping applies depends on the selected form.
-     `fallback` renders the less specific levels (it also substitutes their
-     explanation where those describe a different term). */
-  let leveled = (~specific: list((Id.t, Id.t)), ~fallback, group) =>
-    at_specific_level(group)
-      ? get_message(~colorings=specific, group) : fallback(group);
-
-  /* Three-level variant, for the tuple groups whose middle form describes the
-     tuple generically (n-tuple) between the size-specific form and the base. */
-  let leveled3 =
-      (
-        ~specific: list((Id.t, Id.t)),
-        ~middle: list((Id.t, Id.t)),
-        ~fallback,
-        group: ExplainThisForm.group,
-      ) => {
+  /* Every form but the least specific one is built for this exact term, so it
+     supplies its own colorings and explanation. The least specific form is
+     shared across a whole family of groups — one `function_exp` backs all 19
+     FunctionExp groups — so it is built with ids that suit the family rather
+     than this call site, and `fallback` re-describes it. */
+  let leveled = (~fallback, group: ExplainThisForm.group) => {
     let selected = get_specificity_level(group);
-    switch (group.forms) {
-    | [s, m, ..._] when selected == s.id =>
-      ignore(m);
-      get_message(~colorings=specific, group);
-    | [_, m, ..._] when selected == m.id =>
-      get_message(~colorings=middle, group)
-    | _ => fallback(group)
+    switch (List.rev(group.forms)) {
+    | [least, _, ..._] when selected == least.id => fallback(group)
+    | _ => get_message(group)
     };
   };
 
@@ -906,98 +892,56 @@ let get_doc =
         switch (pat.term) {
         | EmptyHole =>
           leveled(
-            ~specific=
-              FunctionExp.function_empty_hole_exp_coloring_ids(
-                ~pat_id,
-                ~body_id,
-              ),
             ~fallback=basic,
             FunctionExp.functions_empty_hole(~pat_id, ~body_id),
           )
         | MultiHole(_) =>
           leveled(
-            ~specific=
-              FunctionExp.function_multi_hole_exp_coloring_ids(
-                ~pat_id,
-                ~body_id,
-              ),
             ~fallback=basic,
             FunctionExp.functions_multi_hole(~pat_id, ~body_id),
           )
         | Wild =>
           leveled(
-            ~specific=FunctionExp.function_wild_exp_coloring_ids(~body_id),
             ~fallback=basic,
             FunctionExp.functions_wild(~pat_id, ~body_id),
           )
         | Atom(SInt(i)) =>
           leveled(
-            ~specific=
-              FunctionExp.function_sintlit_exp_coloring_ids(
-                ~pat_id,
-                ~body_id,
-              ),
             ~fallback=basic,
             FunctionExp.functions_sint(~pat_id, ~body_id, ~i),
           )
         | Atom(Int(i) | Nat(i)) =>
           leveled(
-            ~specific=
-              FunctionExp.function_intlit_exp_coloring_ids(~pat_id, ~body_id),
             ~fallback=basic,
             FunctionExp.functions_int(~pat_id, ~body_id, ~i),
           )
         | Atom(Float(f)) =>
           leveled(
-            ~specific=
-              FunctionExp.function_floatlit_exp_coloring_ids(
-                ~pat_id,
-                ~body_id,
-              ),
             ~fallback=basic,
             FunctionExp.functions_float(~pat_id, ~body_id, ~f),
           )
         | Atom(Bool(b)) =>
           leveled(
-            ~specific=
-              FunctionExp.function_boollit_exp_coloring_ids(
-                ~pat_id,
-                ~body_id,
-              ),
             ~fallback=basic,
             FunctionExp.functions_bool(~pat_id, ~body_id, ~b),
           )
         | Atom(String(s)) =>
           leveled(
-            ~specific=
-              FunctionExp.function_strlit_exp_coloring_ids(~pat_id, ~body_id),
             ~fallback=basic,
             FunctionExp.functions_str(~pat_id, ~body_id, ~s),
           )
         | Tuple([]) =>
           leveled(
-            ~specific=
-              FunctionExp.function_triv_exp_coloring_ids(~pat_id, ~body_id),
             ~fallback=basic,
             FunctionExp.functions_triv(~pat_id, ~body_id),
           )
         | ListLit(elements) =>
           List.length(elements) == 0
             ? leveled(
-                ~specific=
-                  FunctionExp.function_listnil_exp_coloring_ids(
-                    ~pat_id,
-                    ~body_id,
-                  ),
                 ~fallback=basic,
                 FunctionExp.functions_listnil(~pat_id, ~body_id),
               )
             : leveled(
-                ~specific=
-                  FunctionExp.function_listlit_exp_coloring_ids(
-                    ~pat_id,
-                    ~body_id,
-                  ),
                 ~fallback=basic,
                 FunctionExp.functions_listlit(
                   ~pat_id,
@@ -1009,19 +953,11 @@ let get_doc =
           let hd_id = IdTagged.rep_id(hd);
           let tl_id = IdTagged.rep_id(tl);
           leveled(
-            ~specific=
-              FunctionExp.function_cons_exp_coloring_ids(
-                ~hd_id,
-                ~tl_id,
-                ~body_id,
-              ),
             ~fallback=basic,
             FunctionExp.functions_cons(~hd_id, ~tl_id, ~pat_id, ~body_id),
           );
         | Var(var) =>
           leveled(
-            ~specific=
-              FunctionExp.function_var_exp_coloring_ids(~pat_id, ~body_id),
             ~fallback=basic,
             FunctionExp.functions_var(~pat_id, ~body_id, ~name=var),
           )
@@ -1033,16 +969,7 @@ let get_doc =
               ~pat_id,
               ~body_id,
             );
-          leveled(
-            ~specific=
-              FunctionExp.function_labeled_exp_coloring_ids(
-                ~label_id=Pat.rep_id(l),
-                ~pat_id=Pat.rep_id(p),
-                ~body_id=Exp.rep_id(body),
-              ),
-            ~fallback=basic,
-            group,
-          );
+          leveled(~fallback=basic, group);
         | Tuple(elements) =>
           let n = List.length(elements);
           let tuple_colorings =
@@ -1060,17 +987,7 @@ let get_doc =
                 ~body_id,
                 ~n,
               );
-            leveled3(
-              ~specific=
-                FunctionExp.function_tuple2_exp_coloring_ids(
-                  ~pat1_id,
-                  ~pat2_id,
-                  ~body_id,
-                ),
-              ~middle=tuple_colorings,
-              ~fallback=basic,
-              group,
-            );
+            leveled(~fallback=basic, group);
           | 3 =>
             let pat1_id = nth_rep_id(elements, 0);
             let pat2_id = nth_rep_id(elements, 1);
@@ -1084,21 +1001,9 @@ let get_doc =
                 ~body_id,
                 ~n,
               );
-            leveled3(
-              ~specific=
-                FunctionExp.function_tuple3_exp_coloring_ids(
-                  ~pat1_id,
-                  ~pat2_id,
-                  ~pat3_id,
-                  ~body_id,
-                ),
-              ~middle=tuple_colorings,
-              ~fallback=basic,
-              group,
-            );
+            leveled(~fallback=basic, group);
           | _ =>
             leveled(
-              ~specific=tuple_colorings,
               ~fallback=basic,
               FunctionExp.functions_tuple(~pat_id, ~body_id, ~n),
             )
@@ -1107,19 +1012,11 @@ let get_doc =
           let con_id = IdTagged.rep_id(con);
           let arg_id = IdTagged.rep_id(arg);
           leveled(
-            ~specific=
-              FunctionExp.function_ap_exp_coloring_ids(
-                ~con_id,
-                ~arg_id,
-                ~body_id,
-              ),
             ~fallback=basic,
             FunctionExp.functions_ap(~con_id, ~arg_id, ~pat_id, ~body_id),
           );
         | Constructor(v, _) =>
           leveled(
-            ~specific=
-              FunctionExp.function_ctr_exp_coloring_ids(~pat_id, ~body_id),
             ~fallback=basic,
             FunctionExp.functions_ctr(~pat_id, ~body_id, ~name=v),
           )
@@ -1164,23 +1061,12 @@ let get_doc =
         | 2 =>
           let exp1_id = nth_rep_id(terms, 0);
           let exp2_id = nth_rep_id(terms, 1);
-          leveled(
-            ~specific=
-              TupleExp.tuple_exp_size2_coloring_ids(~exp1_id, ~exp2_id),
-            ~fallback=basic,
-            TupleExp.tuples2(~exp1_id, ~exp2_id, ~n),
-          );
+          leveled(~fallback=basic, TupleExp.tuples2(~exp1_id, ~exp2_id, ~n));
         | 3 =>
           let exp1_id = nth_rep_id(terms, 0);
           let exp2_id = nth_rep_id(terms, 1);
           let exp3_id = nth_rep_id(terms, 2);
           leveled(
-            ~specific=
-              TupleExp.tuple_exp_size3_coloring_ids(
-                ~exp1_id,
-                ~exp2_id,
-                ~exp3_id,
-              ),
             ~fallback=basic,
             TupleExp.tuples3(~exp1_id, ~exp2_id, ~exp3_id, ~n),
           );
@@ -1203,83 +1089,52 @@ let get_doc =
            switching between forms and specificity levels... maybe a Safari
            issue... */
         | EmptyHole =>
-          leveled(
-            ~specific=
-              LetExp.let_empty_hole_exp_coloring_ids(~pat_id, ~def_id),
-            ~fallback=basic,
-            LetExp.lets_emptyhole(~def_id, ~pat_id),
-          )
+          leveled(~fallback=basic, LetExp.lets_emptyhole(~def_id, ~pat_id))
         | MultiHole(_) =>
-          leveled(
-            ~specific=
-              LetExp.let_multi_hole_exp_coloring_ids(~pat_id, ~def_id),
-            ~fallback=basic,
-            LetExp.lets_multihole(~def_id, ~pat_id),
-          )
+          leveled(~fallback=basic, LetExp.lets_multihole(~def_id, ~pat_id))
         | Wild =>
           leveled(
-            ~specific=LetExp.let_wild_exp_coloring_ids(~def_id, ~body_id),
             ~fallback=basic,
             LetExp.lets_wild(~def_id, ~pat_id, ~body_id),
           )
         | Atom(Int(i) | Nat(i)) =>
           leveled(
-            ~specific=
-              LetExp.let_int_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
             ~fallback=basic,
             LetExp.lets_int(~def_id, ~pat_id, ~i, ~body_id),
           )
         | Atom(SInt(i)) =>
           leveled(
-            ~specific=
-              LetExp.let_sint_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
             ~fallback=basic,
             LetExp.lets_sint(~def_id, ~pat_id, ~i, ~body_id),
           )
         // TODO Make sure everywhere printing the float literal print it prettier
         | Atom(Float(f)) =>
           leveled(
-            ~specific=
-              LetExp.let_float_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
             ~fallback=basic,
             LetExp.lets_float(~def_id, ~pat_id, ~f, ~body_id),
           )
         | Atom(Bool(b)) =>
           leveled(
-            ~specific=
-              LetExp.let_bool_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
             ~fallback=basic,
             LetExp.lets_bool(~def_id, ~pat_id, ~b, ~body_id),
           )
         | Atom(String(s)) =>
           leveled(
-            ~specific=
-              LetExp.let_str_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
             ~fallback=basic,
             LetExp.lets_str(~def_id, ~pat_id, ~s, ~body_id),
           )
         | Tuple([]) =>
           leveled(
-            ~specific=
-              LetExp.let_triv_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
             ~fallback=basic,
             LetExp.lets_triv(~def_id, ~pat_id, ~body_id),
           )
         | ListLit(elements) =>
           List.length(elements) == 0
             ? leveled(
-                ~specific=
-                  LetExp.let_listnil_exp_coloring_ids(
-                    ~pat_id,
-                    ~def_id,
-                    ~body_id,
-                  ),
                 ~fallback=basic,
                 LetExp.lets_listnil(~def_id, ~pat_id, ~body_id),
               )
             : leveled(
-                ~specific=
-                  LetExp.let_listlit_exp_coloring_ids(~pat_id, ~def_id),
                 ~fallback=basic,
                 LetExp.lets_listlit(
                   ~def_id,
@@ -1291,15 +1146,11 @@ let get_doc =
           let hd_id = IdTagged.rep_id(hd);
           let tl_id = IdTagged.rep_id(tl);
           leveled(
-            ~specific=
-              LetExp.let_cons_exp_coloring_ids(~hd_id, ~tl_id, ~def_id),
             ~fallback=basic,
             LetExp.lets_cons(~def_id, ~hd_id, ~tl_id, ~pat_id),
           );
         | Var(var) =>
           leveled(
-            ~specific=
-              LetExp.let_var_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
             ~fallback=basic,
             LetExp.lets_var(~def_id, ~pat_id, ~name=var, ~body_id),
           )
@@ -1319,14 +1170,7 @@ let get_doc =
           | 2 =>
             let pat1_id = nth_rep_id(elements, 0);
             let pat2_id = nth_rep_id(elements, 1);
-            leveled3(
-              ~specific=
-                LetExp.let_tuple2_exp_coloring_ids(
-                  ~pat1_id,
-                  ~pat2_id,
-                  ~def_id,
-                ),
-              ~middle=LetExp.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
+            leveled(
               ~fallback=basic,
               LetExp.lets_tuple2(~def_id, ~pat1_id, ~pat2_id, ~pat_id, ~n),
             );
@@ -1335,15 +1179,7 @@ let get_doc =
             let pat2_id = nth_rep_id(elements, 1);
             let pat3_id = nth_rep_id(elements, 2);
             // TODO Syntactic form can go off page - so can examples - but can scroll, just can't see bottom scroll bar
-            leveled3(
-              ~specific=
-                LetExp.let_tuple3_exp_coloring_ids(
-                  ~pat1_id,
-                  ~pat2_id,
-                  ~pat3_id,
-                  ~def_id,
-                ),
-              ~middle=LetExp.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
+            leveled(
               ~fallback=basic,
               LetExp.lets_tuple3(
                 ~def_id,
@@ -1372,15 +1208,9 @@ let get_doc =
                 LetExp.let_funap_exp_coloring_ids,
               )
             };
-          leveled(
-            ~specific=let_ap_exp_coloring_ids(~x_id, ~arg_id, ~def_id),
-            ~fallback=basic,
-            lets_ap,
-          );
+          leveled(~fallback=basic, lets_ap);
         | Constructor(v, _) =>
           leveled(
-            ~specific=
-              LetExp.let_ctr_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
             ~fallback=basic,
             LetExp.lets_ctr(~def_id, ~pat_id, ~name=v, ~body_id),
           )
@@ -1706,12 +1536,6 @@ let get_doc =
         let hd2_id = IdTagged.rep_id(hd2);
         let tl2_id = IdTagged.rep_id(tl2);
         leveled(
-          ~specific=
-            ListPat.cons2_pat_coloring_ids(
-              ~fst_id=hd_id,
-              ~snd_id=hd2_id,
-              ~tl_id=tl2_id,
-            ),
           ~fallback=basic,
           ListPat.cons2(~fst_id=hd_id, ~snd_id=hd2_id, ~tl_id=tl2_id, ~hd_id),
         );
@@ -1740,23 +1564,12 @@ let get_doc =
       | 2 =>
         let elem1_id = nth_rep_id(elements, 0);
         let elem2_id = nth_rep_id(elements, 1);
-        leveled(
-          ~specific=
-            TuplePat.tuple_pat_size2_coloring_ids(~elem1_id, ~elem2_id),
-          ~fallback=basic,
-          TuplePat.tuple2(~elem1_id, ~elem2_id, ~n),
-        );
+        leveled(~fallback=basic, TuplePat.tuple2(~elem1_id, ~elem2_id, ~n));
       | 3 =>
         let elem1_id = nth_rep_id(elements, 0);
         let elem2_id = nth_rep_id(elements, 1);
         let elem3_id = nth_rep_id(elements, 2);
         leveled(
-          ~specific=
-            TuplePat.tuple_pat_size3_coloring_ids(
-              ~elem1_id,
-              ~elem2_id,
-              ~elem3_id,
-            ),
           ~fallback=basic,
           TuplePat.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n),
         );
@@ -1842,12 +1655,6 @@ let get_doc =
         let arg2_id = IdTagged.rep_id(arg2);
         let result2_id = IdTagged.rep_id(result2);
         leveled(
-          ~specific=
-            ArrowTyp.arrow3_typ_coloring_ids(
-              ~arg1_id=arg_id,
-              ~arg2_id,
-              ~result_id=result2_id,
-            ),
           ~fallback=basic,
           ArrowTyp.arrow3(
             ~arg1_id=arg_id,
@@ -1883,18 +1690,12 @@ let get_doc =
       | 2 =>
         let elem1_id = nth_rep_id(elements, 0);
         let elem2_id = nth_rep_id(elements, 1);
-        leveled(
-          ~specific=TupleTyp.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
-          ~fallback=basic,
-          TupleTyp.tuple2(~elem1_id, ~elem2_id, ~n),
-        );
+        leveled(~fallback=basic, TupleTyp.tuple2(~elem1_id, ~elem2_id, ~n));
       | 3 =>
         let elem1_id = nth_rep_id(elements, 0);
         let elem2_id = nth_rep_id(elements, 1);
         let elem3_id = nth_rep_id(elements, 2);
         leveled(
-          ~specific=
-            TupleTyp.tuple3_typ_coloring_ids(~elem1_id, ~elem2_id, ~elem3_id),
           ~fallback=basic,
           TupleTyp.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n),
         );

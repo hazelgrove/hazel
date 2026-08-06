@@ -24,7 +24,7 @@ let seq_exp_form = [exp1, seq(), space(), exp2];
 let seq_exp = (~exp1_id: Id.t, ~exp2_id: Id.t): form => {
   id: SeqExp,
   syntactic_form: seq_exp_form,
-  colorings: [],
+  colorings: seq_exp_coloring_ids(~exp1_id, ~exp2_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(

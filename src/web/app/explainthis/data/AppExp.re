@@ -32,7 +32,7 @@ let funapp_exp_form = [exp_fun, mk_ap_exp([[exp_arg]])];
 let funapp_exp = (~x_id: Id.t, ~arg_id: Id.t): form => {
   id: FunApExp,
   syntactic_form: funapp_exp_form,
-  colorings: [],
+  colorings: funapp_exp_coloring_ids(~x_id, ~arg_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -53,7 +53,7 @@ let conapp_exp_form = [exp_con, mk_ap_exp([[exp_arg]])];
 let conapp_exp = (~name: string, ~x_id: Id.t, ~arg_id: Id.t): form => {
   id: ConApExp,
   syntactic_form: conapp_exp_form,
-  colorings: [],
+  colorings: conapp_exp_coloring_ids(~x_id, ~arg_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -90,7 +90,7 @@ let deferred_funapp_exp =
     (~x_id: Id.t, ~supplied_id: Id.t, ~deferred_id: Id.t): form => {
   id: DeferredApExp,
   syntactic_form: deferred_funapp_exp_form,
-  colorings: [],
+  colorings: deferred_funapp_exp_coloring_ids(~x_id, ~deferred_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -134,7 +134,7 @@ let livelitapp_exp_coloring_ids =
 let livelitapp_exp = (~x_id: Id.t, ~arg_id: Id.t): form => {
   id: LivelitApExp,
   syntactic_form: [exp_livelit, mk_ap_exp([[exp_arg]])],
-  colorings: [],
+  colorings: livelitapp_exp_coloring_ids(~x_id, ~arg_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(

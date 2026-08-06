@@ -20,7 +20,7 @@ let arrow_typ_explanation = (~arg_id: Id.t, ~result_id: Id.t): string =>
 let arrow_typ = (~arg_id: Id.t, ~result_id: Id.t): form => {
   id: arrow_typ_id,
   syntactic_form: arrow_typ_form,
-  colorings: [],
+  colorings: arrow_typ_coloring_ids(~arg_id, ~result_id),
   expandable_id: Some((Piece.id(typ_out), [typ("ty_out")])),
   explanation: arrow_typ_explanation(~arg_id, ~result_id),
   examples: [],
@@ -50,7 +50,7 @@ let arrow3_typ_form = [
 let arrow3_typ = (~arg1_id: Id.t, ~arg2_id: Id.t, ~result_id: Id.t): form => {
   id: arrow3_typ_id,
   syntactic_form: arrow3_typ_form,
-  colorings: [],
+  colorings: arrow3_typ_coloring_ids(~arg1_id, ~arg2_id, ~result_id),
   expandable_id:
     Some((
       Piece.id(arrow3_typ_arrow2),

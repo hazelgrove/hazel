@@ -63,7 +63,7 @@ let tuple_exp_size2_form = [exp1, tuple_exp_size2_comma, space(), exp2];
 let tuple_exp_size2 = (~exp1_id: Id.t, ~exp2_id: Id.t): form => {
   id: tuple_exp_size2_id,
   syntactic_form: tuple_exp_size2_form,
-  colorings: [],
+  colorings: tuple_exp_size2_coloring_ids(~exp1_id, ~exp2_id),
   expandable_id:
     Some((
       Piece.id(tuple_exp_size2_comma),
@@ -102,7 +102,7 @@ let tuple_exp_size3_form = [
 let tuple_exp_size3 = (~exp1_id: Id.t, ~exp2_id: Id.t, ~exp3_id: Id.t): form => {
   id: tuple_exp_size3_id,
   syntactic_form: tuple_exp_size3_form,
-  colorings: [],
+  colorings: tuple_exp_size3_coloring_ids(~exp1_id, ~exp2_id, ~exp3_id),
   expandable_id:
     Some((
       Piece.id(tuple_exp_size3_comma),
@@ -135,7 +135,7 @@ let tuple_extension_exp_form = [
 let tuple_extension_exp = (~x_id: Id.t, ~y_id: Id.t): form => {
   id: TupleExtensionExp,
   syntactic_form: tuple_extension_exp_form,
-  colorings: [],
+  colorings: tuple_extension_exp_coloring_ids(~x_id, ~y_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(

@@ -21,7 +21,7 @@ let test_exp_form = [mk_test([[space(), exp_body, space()]])];
 let test_exp = (~body_id: Id.t): form => {
   id: TestExp,
   syntactic_form: test_exp_form,
-  colorings: [],
+  colorings: test_exp_coloring_ids(~body_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(

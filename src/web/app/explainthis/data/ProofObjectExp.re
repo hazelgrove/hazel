@@ -10,7 +10,7 @@ let proof_of_exp_form = [mk_proof_of([[space(), typ, space()]])];
 let proof_of_exp = (~typ_id: Id.t): form => {
   id: ProofObjectExp,
   syntactic_form: proof_of_exp_form,
-  colorings: [],
+  colorings: proof_of_exp_coloring_ids(~typ_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(

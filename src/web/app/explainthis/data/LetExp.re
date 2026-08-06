@@ -129,7 +129,7 @@ let let_base_exp_explanation = (~def_id: Id.t, ~pat_id: Id.t): string =>
 let let_base_exp = (~def_id: Id.t, ~pat_id: Id.t): form => {
   id: let_base_exp_id,
   syntactic_form: let_base_exp_form,
-  colorings: [],
+  colorings: let_base_exp_coloring_ids(~pat_id, ~def_id),
   expandable_id: Some((Piece.id(p), [pat("p")])),
   explanation: let_base_exp_explanation(~def_id, ~pat_id),
   examples: [let_base_ex],
@@ -156,7 +156,7 @@ let let_empty_hole_exp_expandable =
 let let_empty_hole_exp = (~pat_id: Id.t, ~def_id: Id.t): form => {
   id: let_empty_hole_exp_id,
   syntactic_form: let_empty_hole_exp_form,
-  colorings: [],
+  colorings: let_empty_hole_exp_coloring_ids(~pat_id, ~def_id),
   expandable_id: Some((Piece.id(p), [let_empty_hole_exp_expandable])),
   explanation:
     Printf.sprintf(
@@ -180,7 +180,7 @@ let let_multi_hole_exp_form = [
 let let_multi_hole_exp = (~pat_id: Id.t, ~def_id: Id.t): form => {
   id: let_multi_hole_exp_id,
   syntactic_form: let_multi_hole_exp_form,
-  colorings: [],
+  colorings: let_multi_hole_exp_coloring_ids(~pat_id, ~def_id),
   expandable_id: Some((Piece.id(p), [pat("INVALID")])),
   explanation:
     Printf.sprintf(
@@ -211,7 +211,7 @@ let let_wild_exp_form = [
 let let_wild_exp = (~def_id: Id.t, ~body_id: Id.t): form => {
   id: let_wild_exp_id,
   syntactic_form: let_wild_exp_form,
-  colorings: [],
+  colorings: let_wild_exp_coloring_ids(~def_id, ~body_id),
   expandable_id: Some((Piece.id(let_wild_exp_pat), [pat("_")])),
   explanation:
     Printf.sprintf(
@@ -241,7 +241,7 @@ let let_int_exp =
     (~def_id: Id.t, ~pat_id: Id.t, ~i: Bigint.t, ~body_id: Id.t): form => {
   id: let_int_exp_id,
   syntactic_form: let_int_exp_form,
-  colorings: [],
+  colorings: let_int_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("IntLit")])),
   explanation:
     Printf.sprintf(
@@ -274,7 +274,7 @@ let let_sint_exp =
     (~def_id: Id.t, ~pat_id: Id.t, ~i: int, ~body_id: Id.t): form => {
   id: let_sint_exp_id,
   syntactic_form: let_sint_exp_form,
-  colorings: [],
+  colorings: let_sint_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("IntLit")])),
   explanation:
     Printf.sprintf(
@@ -307,7 +307,7 @@ let let_float_exp =
     (~def_id: Id.t, ~pat_id: Id.t, ~f: float, ~body_id: Id.t): form => {
   id: let_float_exp_id,
   syntactic_form: let_float_exp_form,
-  colorings: [],
+  colorings: let_float_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("FloatLit")])),
   explanation:
     Printf.sprintf(
@@ -339,7 +339,7 @@ let let_bool_exp =
     (~def_id: Id.t, ~pat_id: Id.t, ~b: bool, ~body_id: Id.t): form => {
   id: let_bool_exp_id,
   syntactic_form: let_bool_exp_form,
-  colorings: [],
+  colorings: let_bool_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("BoolLit")])),
   explanation:
     Printf.sprintf(
@@ -371,7 +371,7 @@ let let_str_exp =
     (~def_id: Id.t, ~pat_id: Id.t, ~s: string, ~body_id: Id.t): form => {
   id: let_str_exp_id,
   syntactic_form: let_str_exp_form,
-  colorings: [],
+  colorings: let_str_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("StringLit")])),
   explanation:
     Printf.sprintf(
@@ -402,7 +402,7 @@ let let_triv_exp_form = [
 let let_triv_exp = (~def_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
   id: let_triv_exp_id,
   syntactic_form: let_triv_exp_form,
-  colorings: [],
+  colorings: let_triv_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("()")])),
   explanation:
     Printf.sprintf(
@@ -427,7 +427,7 @@ let let_listlit_exp_form = [
 let let_listlit_exp = (~def_id: Id.t, ~pat_id: Id.t, ~n: int): form => {
   id: let_listlit_exp_id,
   syntactic_form: let_listlit_exp_form,
-  colorings: [],
+  colorings: let_listlit_exp_coloring_ids(~pat_id, ~def_id),
   expandable_id:
     Some((Piece.id(p), [pat("p1"), comma_pat(), pat("...")])),
   explanation:
@@ -457,7 +457,7 @@ let let_listnil_exp_form = [
 let let_listnil_exp = (~def_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): form => {
   id: let_listnil_exp_id,
   syntactic_form: let_listnil_exp_form,
-  colorings: [],
+  colorings: let_listnil_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("[]")])),
   explanation:
     Printf.sprintf(
@@ -491,7 +491,7 @@ let let_cons_exp_form = [
 let let_cons_exp = (~def_id: Id.t, ~hd_id: Id.t, ~tl_id: Id.t): form => {
   id: let_cons_exp_id,
   syntactic_form: let_cons_exp_form,
-  colorings: [],
+  colorings: let_cons_exp_coloring_ids(~hd_id, ~tl_id, ~def_id),
   expandable_id:
     Some((
       Piece.id(let_cons_exp_cons),
@@ -525,7 +525,7 @@ let let_var_exp =
     (~def_id: Id.t, ~pat_id: Id.t, ~name: string, ~body_id: Id.t): form => {
   id: let_var_exp_id,
   syntactic_form: let_var_exp_form,
-  colorings: [],
+  colorings: let_var_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("x")])),
   explanation:
     Printf.sprintf(
@@ -562,7 +562,7 @@ let let_tuple_exp_explanation =
 let let_tuple_exp = (~def_id: Id.t, ~pat_id: Id.t, ~n: int): form => {
   id: let_tuple_exp_id,
   syntactic_form: let_tuple_exp_form,
-  colorings: [],
+  colorings: let_tuple_exp_coloring_ids(~pat_id, ~def_id),
   expandable_id:
     Some((Piece.id(comma), [pat("p1"), comma_pat(), pat("...")])),
   explanation: let_tuple_exp_explanation(~def_id, ~pat_id, ~n),
@@ -590,7 +590,7 @@ let let_tuple2_exp_form = [
 let let_tuple2_exp = (~def_id: Id.t, ~pat1_id: Id.t, ~pat2_id: Id.t): form => {
   id: let_tuple2_exp_id,
   syntactic_form: let_tuple2_exp_form,
-  colorings: [],
+  colorings: let_tuple2_exp_coloring_ids(~pat1_id, ~pat2_id, ~def_id),
   expandable_id:
     Some((
       Piece.id(let_tuple2_exp_comma),
@@ -641,7 +641,8 @@ let let_tuple3_exp =
     (~def_id: Id.t, ~pat1_id: Id.t, ~pat2_id: Id.t, ~pat3_id: Id.t): form => {
   id: let_tuple3_exp_id,
   syntactic_form: let_tuple3_exp_form,
-  colorings: [],
+  colorings:
+    let_tuple3_exp_coloring_ids(~pat1_id, ~pat2_id, ~pat3_id, ~def_id),
   expandable_id:
     Some((
       Piece.id(let_tuple3_exp_comma),
@@ -676,7 +677,7 @@ let let_ctr_exp =
     (~def_id: Id.t, ~pat_id: Id.t, ~name: string, ~body_id: Id.t): form => {
   id: let_ctr_exp_id,
   syntactic_form: let_ctr_exp_form,
-  colorings: [],
+  colorings: let_ctr_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
   expandable_id: Some((Piece.id(p), [pat("C")])),
   explanation:
     Printf.sprintf(
@@ -711,7 +712,7 @@ let let_conap_exp_form = [
 let let_conap_exp = (~def_id: Id.t, ~x_id: Id.t, ~arg_id: Id.t): form => {
   id: let_conap_exp_id,
   syntactic_form: let_conap_exp_form,
-  colorings: [],
+  colorings: let_conap_exp_coloring_ids(~x_id, ~arg_id, ~def_id),
   expandable_id:
     Some((Piece.id(let_conap_exp_ap), [pat_con, mk_ap_pat([[pat_arg]])])),
   explanation:
@@ -746,7 +747,7 @@ let let_funap_exp_form = [
 let let_funap_exp = (~def_id: Id.t, ~x_id: Id.t, ~arg_id: Id.t): form => {
   id: let_funap_exp_id,
   syntactic_form: let_funap_exp_form,
-  colorings: [],
+  colorings: let_funap_exp_coloring_ids(~x_id, ~arg_id, ~def_id),
   expandable_id:
     Some((Piece.id(let_funap_exp_ap), [pat_fun, mk_ap_pat([[pat_arg]])])),
   explanation:

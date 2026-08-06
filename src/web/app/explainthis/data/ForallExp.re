@@ -17,7 +17,7 @@ let forall_exp_form = [
 let forall_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
   id: ForallExp,
   syntactic_form: forall_exp_form,
-  colorings: [],
+  colorings: forall_exp_coloring_ids(~pat_id, ~body_id),
   expandable_id: Some((Piece.id(tpat), [exp_arg])),
   explanation:
     Printf.sprintf(
