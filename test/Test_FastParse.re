@@ -109,6 +109,11 @@ let tests = (
       "let ^p = { let init = 50; let update = fun (m, a) : (Int, Int) -> a } in ^p.update((^p.init, 3))",
     ),
     verbatim("hole", "let x = ? in x"),
+    verbatim("binding-chain fragment", "let helper = fun x -> x * 2 in"),
+    verbatim(
+      "multiline fragment",
+      "let a = 1 in\nlet b = fun x, y ->\n  x + y\nin",
+    ),
     verbatim("string with tricky content", {|let s = "a # b { c" in s|}),
     semantic("simple binding", "let x = 1 in x + 1"),
     semantic("module with members", "let m = { let a = 1; let b = 2 } in m"),
@@ -118,7 +123,14 @@ let tests = (
        the fast path does not synthesize them yet, so such chunks fall
        back (they are typically small uses, not big modules). */
     rejected("projector trigger", "let x = ^^livelit(^p(3)) in x"),
-    rejected("mod root", ""),
+    test_case("mod root falls back", `Quick, () => {
+      check(
+        bool,
+        "non-Exp roots bail",
+        true,
+        FastParse.of_text(~root=Mod, "let x = 1") == None,
+      )
+    }),
     test_case("graph module chunk: verbatim + fast", `Quick, () => {
       switch (graph_module) {
       | None => () /* corpus unreachable (sandboxed) */

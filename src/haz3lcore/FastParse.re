@@ -192,39 +192,65 @@ let zip = (tokens: list(tok), seg: Segment.t): Segment.t => {
   zipped;
 };
 
+let attempt = (text: string): option(Segment.t) =>
+  switch (lex_with_gaps(text)) {
+  | None => None
+  | Some((tokens, trailing_gap)) =>
+    switch (MenhirParser.Interface.parse_program(text)) {
+    | exception e =>
+      note("menhir: " ++ Printexc.to_string(e));
+      None;
+    | ast =>
+      let term =
+        Language.Grammar.map_exp_annotation(
+          _ => Language.IdTagged.IdTag.fresh(),
+          MenhirParser.Conversion.Exp.of_menhir_ast(ast),
+        );
+      let settings =
+        ExpToSegment.Settings.{
+          ...ExpToSegment.Settings.editable(~inline=true),
+          secondary: PreserveExact,
+          parenthesization: Structural,
+        };
+      switch (ExpToSegment.exp_to_segment(~settings, term)) {
+      | exception _ => None
+      | seg =>
+        switch (zip(tokens, seg)) {
+        | exception _ => None
+        | zipped => Some(zipped @ gap_pieces(trailing_gap))
+        }
+      };
+    }
+  };
+
+/* Binding-chain fragments (agent insert convention: "let y = 2 in") are
+   not complete programs; complete with a hole, then strip exactly the
+   space+grout we appended. */
+let strip_appended_hole = (seg: Segment.t): option(Segment.t) =>
+  switch (List.rev(seg)) {
+  | [Piece.Grout({shape: Convex, _}), Piece.Secondary(sp), ...rest]
+      when Secondary.is_space(sp) =>
+    Some(List.rev(rest))
+  | _ => None
+  };
+
 let of_text = (~root: Sort.t, text: string): option(Segment.t) => {
   bail_note := None;
   if (root != Sort.Exp) {
     None;
   } else {
-    switch (lex_with_gaps(text)) {
-    | None => None
-    | Some((tokens, trailing_gap)) =>
-      switch (MenhirParser.Interface.parse_program(text)) {
-      | exception e =>
-        note("menhir: " ++ Printexc.to_string(e));
+    switch (attempt(text)) {
+    | Some(seg) => Some(seg)
+    | None =>
+      /* keep the first attempt's bail note: the retry's failure mode
+         (usually "menhir: parse error on text + ?") is less telling */
+      let first_note = bail_note^;
+      switch (attempt(text ++ " ?")) {
+      | Some(seg) => strip_appended_hole(seg)
+      | None =>
+        bail_note := first_note;
         None;
-      | ast =>
-        let term =
-          Language.Grammar.map_exp_annotation(
-            _ => Language.IdTagged.IdTag.fresh(),
-            MenhirParser.Conversion.Exp.of_menhir_ast(ast),
-          );
-        let settings =
-          ExpToSegment.Settings.{
-            ...ExpToSegment.Settings.editable(~inline=true),
-            secondary: PreserveExact,
-            parenthesization: Structural,
-          };
-        switch (ExpToSegment.exp_to_segment(~settings, term)) {
-        | exception _ => None
-        | seg =>
-          switch (zip(tokens, seg)) {
-          | exception _ => None
-          | zipped => Some(zipped @ gap_pieces(trailing_gap))
-          }
-        };
-      }
+      };
     };
   };
 };

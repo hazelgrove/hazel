@@ -572,14 +572,19 @@ module Local = {
        chunk reads as a hung editor. Cap agent chunks and teach the model
        to split; the limit sits near the ~1.5s knee. */
     let max_chunk_chars = 1500;
+    /* ~fast: try the linear Menhir zip first (FastParse) — used by the
+       big-chunk overwrite path (update_definition / update_binding_clause),
+       where the quadratic typing parse froze the editor. The small insert
+       paths keep the typing parser so their whitespace conventions (magic
+       spaces, boundary newlines) are untouched. */
     let rec introduce =
-            (~root=Sort.Exp, z: Zipper.t, code: string)
+            (~root=Sort.Exp, ~fast=false, z: Zipper.t, code: string)
             : result(Zipper.t, Action.Failure.t) => {
       let code = StringUtil.trim_leading(code);
-      switch (FastParse.of_text(~root, code)) {
+      switch (fast ? FastParse.of_text(~root, String.trim(code)) : None) {
       | Some(segment) =>
-        /* Linear Menhir path: source tokens + formatting verbatim, molds
-           from ExpToSegment + splice-time remold. No size cap needed. */
+        /* Source tokens + formatting verbatim, molds from ExpToSegment +
+           splice-time remold. No size cap needed on this path. */
         Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root))
       | None => introduce_slow(~root, z, code)
       };
@@ -656,7 +661,7 @@ module Local = {
       ) {
       | Some(z') =>
         // Paste the code over the selected tile
-        introduce(~root, z', code)
+        introduce(~root, ~fast=true, z', code)
       | None => Error(Action.Failure.Cant_select)
       };
     };
