@@ -430,12 +430,29 @@ let rec bypass_parens_typ = (typ: Typ.t) => {
   };
 };
 
+/* The doc decision for one term, with no rendering: which group was dispatched
+   to, which of its forms is selected, that form's filled explanation, and the
+   syntactic-form-piece -> user-term-id pairs used to highlight. This is the
+   whole observable behaviour of `get_doc` apart from view construction, so it
+   is what a characterization test should pin down. */
+type probe = {
+  group: ExplainThisForm.group_id,
+  /* The form currently selected, and every form the group offers, so a test can
+     sweep specificity levels instead of only ever seeing the most specific. */
+  form: ExplainThisForm.form_id,
+  forms: list(ExplainThisForm.form_id),
+  explanation: string,
+  colorings: list((Id.t, Id.t)),
+};
+
 type message_mode =
   | MessageContent(
       ExplainThisUpdate.update => Virtual_dom.Vdom.Effect.t(unit),
       Globals.t,
     )
-  | Colorings;
+  | Colorings
+  /* Report the decision and render nothing. */
+  | Probe(probe => unit);
 
 type info_deduction = option(DrvGrading.VerifiedTree.info);
 
@@ -491,6 +508,16 @@ let get_doc_deduction =
       let (_, color_map) =
         mk_translation(~globals, ~inject=_ => (), explanation_msg);
       ([], ([], color_map), []);
+    | Probe(report) =>
+      /* The deduction path threads no colorings. */
+      report({
+        group: group.id,
+        form: doc.id,
+        forms: List.map((f: ExplainThisForm.form) => f.id, group.forms),
+        explanation: explanation_msg,
+        colorings: [],
+      });
+      ([], ([], ColorSteps.empty), []);
     };
   };
 
@@ -713,6 +740,15 @@ let get_doc =
       let (_, color_map) =
         mk_translation(~globals, ~inject=_ => (), explanation_msg);
       ([], ([], color_map), []);
+    | Probe(report) =>
+      report({
+        group: group.id,
+        form: doc.id,
+        forms: List.map((f: ExplainThisForm.form) => f.id, group.forms),
+        explanation: explanation_msg,
+        colorings,
+      });
+      ([], ([], ColorSteps.empty), []);
     };
   };
 
@@ -1596,13 +1632,20 @@ let get_doc =
           let deferral = List.find(Exp.is_deferral, args);
           List.nth(IdTagged.ids(deferral), 0);
         };
-        switch (mode) {
-        | MessageContent(_) =>
+        /* Unlike every other branch, this one hand-builds its color map rather
+           than deriving it from the explanation's links, so the doc is only
+           needed for the rendering modes. `get_message` is pure, so computing
+           it up front is behavior-preserving and lets Probe observe the
+           decision here too. */
+        let doc =
           get_message(
             ~colorings=
               AppExp.deferred_funapp_exp_coloring_ids(~x_id, ~deferred_id),
             AppExp.deferredaps(~x_id, ~supplied_id, ~deferred_id),
-          )
+          );
+        switch (mode) {
+        | MessageContent(_)
+        | Probe(_) => doc
         | Colorings =>
           let color_fn = List.nth(ColorSteps.child_colors, 0);
           let color_supplied = List.nth(ColorSteps.child_colors, 1);

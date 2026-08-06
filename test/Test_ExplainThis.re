@@ -63,7 +63,346 @@ let qcheck_explainthis_does_not_crash =
     }
   });
 
+/* ===================== Characterization (golden) test =====================
+
+   The property test above only asserts that `get_doc` doesn't raise. Nothing
+   pinned down *which* sub-term each explanation actually links to, which is
+   exactly what a refactor of the coloring/specificity plumbing moves around.
+
+   `Colorings` mode is not usable for this: it only re-derives a color map from
+   the explanation's markdown links and never reads `colorings` at all, so it
+   is blind to the very mapping being moved. `get_doc`'s `Probe` mode reports
+   the decision itself — group, selected form, and colorings — without
+   rendering.
+
+   `Id.t` is a UUID, freshly generated per parse, so raw ids can't appear in a
+   golden. Each id is canonicalized to the printed text of the sub-term it
+   belongs to, looked up in the statics info map. */
+
+let print_any = (any: Any.t): string =>
+  switch (
+    any
+    |> ExpToSegment.any_to_segment(
+         ~settings=ExpToSegment.Settings.editable(~inline=true),
+       )
+    |> Printer.of_segment(~holes="?", _)
+  ) {
+  | s => s
+  | exception _ => "<unprintable>"
+  };
+
+let canonical_id = (info_map, id: Id.t): string =>
+  switch (Id.Map.find_opt(id, info_map)) {
+  | Some(info) =>
+    switch (Info.any_of(info)) {
+    | Some(any) => print_any(any)
+    | None => "<secondary>"
+    }
+  | None => "<unmapped>"
+  };
+
+/* `get_doc` reports its decision without rendering. */
+let probes_of = (~docs, info: Info.t): list(Web.ExplainThis.probe) => {
+  let acc = ref([]);
+  let _ =
+    Web.ExplainThis.get_doc(
+      ~globals,
+      ~docs,
+      Some(info),
+      Web.ExplainThis.Probe(p => acc := [p, ...acc^]),
+    );
+  List.rev(acc^);
+};
+
+let render_probe = (info_map, p: Web.ExplainThis.probe): string => {
+  let colorings =
+    p.colorings
+    |> List.map(((_sf_id, code_id)) => canonical_id(info_map, code_id))
+    |> List.sort(String.compare)
+    |> String.concat(",");
+  Web.ExplainThisForm.show_form_id(p.form)
+  ++ " colorings=["
+  ++ colorings
+  ++ "]";
+};
+
+/* `ExplainThisModel.init` records no group selections, so
+   `get_selected_option` always returns the *most specific* form — meaning a
+   harness built only on `init` never reaches a single fallback form, which is
+   exactly what the specificity ladders select. So for each documented sub-term
+   we sweep every form its group offers by planting a selection for it. */
+let fingerprint_of_info = (info_map, info: Info.t): list(string) =>
+  switch (probes_of(~docs, info)) {
+  | [] => ["(no group doc)"]
+  | ps =>
+    ps
+    |> List.concat_map((p: Web.ExplainThis.probe) =>
+         p.forms
+         |> List.concat_map(form_id => {
+              let docs': Web.ExplainThisModel.t = {
+                ...Web.ExplainThisModel.init,
+                groups: [
+                  {
+                    group: p.group,
+                    selected: form_id,
+                  },
+                ],
+              };
+              probes_of(~docs=docs', info)
+              |> List.map(q => render_probe(info_map, q));
+            })
+       )
+  };
+
+let doc_fingerprint = (src: string): string => {
+  let term =
+    switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
+    | Some(e) => e
+    | None => failwith("corpus entry failed to parse: " ++ src)
+    };
+  let info_map = statics(term);
+  Id.Map.fold(
+    (_id, info: Info.t, acc) =>
+      switch (Info.any_of(info)) {
+      | None => acc /* Secondary — no doc */
+      | Some(any) =>
+        let cursor = print_any(any);
+        List.map(
+          l => cursor ++ " => " ++ l,
+          fingerprint_of_info(info_map, info),
+        )
+        @ acc;
+      },
+    info_map,
+    [],
+  )
+  |> List.sort_uniq(String.compare)
+  |> String.concat("\n");
+};
+
+/* Each entry is chosen so that its root, plus the sub-terms it contains,
+   exercise a doc form the refactor touches. Hand-written because
+   AST.gen_exp_sized cannot produce Asc, SInt/Nat, module forms or pipelines. */
+let corpus = [
+  ("fun-var", "fun x -> x"),
+  ("fun-parens-var", "fun (x) -> x"),
+  ("fun-tuple2", "fun (a, b) -> a"),
+  ("fun-tuple3", "fun (a, b, c) -> a"),
+  ("fun-cons", "fun h::t -> h"),
+  ("fun-intlit", "fun 1 -> 2"),
+  ("fun-wild", "fun _ -> 3"),
+  ("let-var", "let x = 1 in x"),
+  ("let-tuple2", "let (a, b) = (1, 2) in a"),
+  ("let-cons", "let h::t = [1] in h"),
+  ("binop-plus", "1 + 2"),
+  ("ascription", "1 : Int"),
+  ("if", "if true then 1 else 2"),
+  ("case", "case 1 | 1 => 2 | _ => 3 end"),
+  ("listlit", "[1, 2]"),
+  ("tuple2", "(1, 2)"),
+  ("arrow3", "let f : Int -> Bool -> Int = f in f"),
+  ("pipeline", "1 |> fun x -> x"),
+  ("test", "test true end"),
+  ("seq", "1; 2"),
+];
+
+/* Captured from the current implementation. A refactor of the coloring or
+   specificity plumbing must leave every line byte-identical; a diff here is
+   either a regression or a deliberate, reviewed behavior change.
+
+   Note `fun (x) -> x`: the Base (fallback) form links the *parenthesized*
+   pattern while the Var form links the inner `x`. That asymmetry is real and
+   easy to erase by accident, so it is pinned here. */
+let golden = [
+  (
+    "fun-var",
+    {|fun x -> x => (FunctionExp Base) colorings=[x,x]
+fun x -> x => (FunctionExp Var) colorings=[x,x]
+x => VarExp colorings=[]
+x => VarPat colorings=[]|},
+  ),
+  (
+    "fun-parens-var",
+    {|(x) => VarPat colorings=[]
+fun (x) -> x => (FunctionExp Base) colorings=[(x),x]
+fun (x) -> x => (FunctionExp Var) colorings=[x,x]
+x => VarExp colorings=[]
+x => VarPat colorings=[]|},
+  ),
+  (
+    "fun-tuple2",
+    {|(a, b) => Tuple2Pat colorings=[a,b]
+(a, b) => TuplePat colorings=[]
+a => VarExp colorings=[]
+a => VarPat colorings=[]
+b => VarPat colorings=[]
+fun (a, b) -> a => (FunctionExp Base) colorings=[(a, b),a]
+fun (a, b) -> a => (FunctionExp Tuple) colorings=[(a, b),a]
+fun (a, b) -> a => (FunctionExp Tuple2) colorings=[a,a,b]|},
+  ),
+  (
+    "fun-tuple3",
+    {|(a, b, c) => Tuple3Pat colorings=[a,b,c]
+(a, b, c) => TuplePat colorings=[]
+a => VarExp colorings=[]
+a => VarPat colorings=[]
+b => VarPat colorings=[]
+c => VarPat colorings=[]
+fun (a, b, c) -> a => (FunctionExp Base) colorings=[(a, b, c),a]
+fun (a, b, c) -> a => (FunctionExp Tuple) colorings=[(a, b, c),a]
+fun (a, b, c) -> a => (FunctionExp Tuple3) colorings=[a,a,b,c]|},
+  ),
+  (
+    "fun-cons",
+    {|fun h:: t -> h => (FunctionExp Base) colorings=[h,h:: t]
+fun h:: t -> h => (FunctionExp ListCons) colorings=[h,h,t]
+h => VarExp colorings=[]
+h => VarPat colorings=[]
+h:: t => ConsPat colorings=[h,t]
+t => VarPat colorings=[]|},
+  ),
+  (
+    "fun-intlit",
+    {|1 => IntPat colorings=[]
+2 => IntExp colorings=[]
+fun 1 -> 2 => (FunctionExp Base) colorings=[1,2]
+fun 1 -> 2 => (FunctionExp Int) colorings=[1,2]|},
+  ),
+  (
+    "fun-wild",
+    {|3 => IntExp colorings=[]
+_ => WildPat colorings=[]
+fun _ -> 3 => (FunctionExp Base) colorings=[3,_]
+fun _ -> 3 => (FunctionExp Wild) colorings=[3]|},
+  ),
+  (
+    "let-var",
+    {|1 => IntExp colorings=[]
+let x = 1 in x => (LetExp Base) colorings=[1,x]
+let x = 1 in x => (LetExp Var) colorings=[1,x,x]
+x => VarExp colorings=[]
+x => VarPat colorings=[]|},
+  ),
+  (
+    "let-tuple2",
+    {|(1, 2) => Tuple2Exp colorings=[1,2]
+(1, 2) => TupleExp colorings=[]
+(a, b) => Tuple2Pat colorings=[a,b]
+(a, b) => TuplePat colorings=[]
+1 => IntExp colorings=[]
+2 => IntExp colorings=[]
+a => VarExp colorings=[]
+a => VarPat colorings=[]
+b => VarPat colorings=[]
+let (a, b) = (1, 2) in a => (LetExp Base) colorings=[(1, 2),(a, b)]
+let (a, b) = (1, 2) in a => (LetExp Tuple) colorings=[(1, 2),(a, b)]
+let (a, b) = (1, 2) in a => (LetExp Tuple2) colorings=[(1, 2),a,b]|},
+  ),
+  (
+    "let-cons",
+    {|1 => IntExp colorings=[]
+[1] => ListExp colorings=[]
+h => VarExp colorings=[]
+h => VarPat colorings=[]
+h:: t => ConsPat colorings=[h,t]
+let h:: t = [1] in h => (LetExp Base) colorings=[[1],h:: t]
+let h:: t = [1] in h => (LetExp ListCons) colorings=[[1],h,t]
+t => VarPat colorings=[]|},
+  ),
+  (
+    "binop-plus",
+    {|1 + 2 => (BinOpExp (Int Plus)) colorings=[1,2]
+1 => IntExp colorings=[]
+2 => IntExp colorings=[]|},
+  ),
+  (
+    "ascription",
+    {|1 => IntExp colorings=[]
+1:Int => AscExp colorings=[1,Int]
+Int => IntTyp colorings=[]|},
+  ),
+  (
+    "if",
+    {|1 => IntExp colorings=[]
+2 => IntExp colorings=[]
+if true then 1 else 2 => IfExp colorings=[1,2,true]
+true => BoolExp colorings=[]|},
+  ),
+  (
+    "case",
+    {|1 => IntExp colorings=[]
+1 => IntPat colorings=[]
+2 => IntExp colorings=[]
+3 => IntExp colorings=[]
+_ => WildPat colorings=[]
+case 1 | 1 => 2| _ => 3 end => CaseExp colorings=[1]|},
+  ),
+  (
+    "listlit",
+    {|1 => IntExp colorings=[]
+2 => IntExp colorings=[]
+[1, 2] => ListExp colorings=[]|},
+  ),
+  (
+    "tuple2",
+    {|(1, 2) => Tuple2Exp colorings=[1,2]
+(1, 2) => TupleExp colorings=[]
+1 => IntExp colorings=[]
+2 => IntExp colorings=[]|},
+  ),
+  (
+    "arrow3",
+    {|Bool -> Int => ArrowTyp colorings=[Bool,Int]
+Bool => BoolTyp colorings=[]
+Int -> Bool -> Int => Arrow3Typ colorings=[Bool,Int,Int]
+Int -> Bool -> Int => ArrowTyp colorings=[Bool -> Int,Int]
+Int => IntTyp colorings=[]
+f => VarExp colorings=[]
+f => VarPat colorings=[]
+f:(Int -> Bool -> Int) => TypAnnPat colorings=[Int -> Bool -> Int,f]
+let f:(Int -> Bool -> Int) = f in f => (LetExp Base) colorings=[f,f]
+let f:(Int -> Bool -> Int) = f in f => (LetExp Var) colorings=[f,f,f]|},
+  ),
+  (
+    "pipeline",
+    {|1 => IntExp colorings=[]
+1 |> (fun x -> x) => PipelineExp colorings=[1,fun x -> x]
+fun x -> x => (FunctionExp Base) colorings=[x,x]
+fun x -> x => (FunctionExp Var) colorings=[x,x]
+x => VarExp colorings=[]
+x => VarPat colorings=[]|},
+  ),
+  (
+    "test",
+    {|test true end => TestExp colorings=[true]
+true => BoolExp colorings=[]|},
+  ),
+  (
+    "seq",
+    {|1 => IntExp colorings=[]
+1; 2 => SeqExp colorings=[1,2]
+2 => IntExp colorings=[]|},
+  ),
+];
+
+let golden_case = ((name, src)) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let expected =
+        switch (List.assoc_opt(name, golden)) {
+        | Some(g) => g
+        | None => "<no golden recorded for " ++ name ++ ">"
+        };
+      Alcotest.check(Alcotest.string, name, expected, doc_fingerprint(src));
+    },
+  );
+
 let tests = (
   "ExplainThis",
-  [QCheck_alcotest.to_alcotest(qcheck_explainthis_does_not_crash)],
+  [
+    QCheck_alcotest.to_alcotest(qcheck_explainthis_does_not_crash),
+    ...List.map(golden_case, corpus),
+  ],
 );
