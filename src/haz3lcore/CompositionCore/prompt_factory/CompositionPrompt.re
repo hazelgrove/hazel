@@ -23,6 +23,7 @@ let guidelines = [
   "",
   "Keep explanations concise. For small edits, act directly without narration.",
   "CRITICAL — **incremental edits**: Prefer **many small** structure-editor steps (`insert_after`, `insert_before`, `update_definition`, `update_body`, …) across one or more turns. **Do not** seed an empty program with one giant `insert_after`/`insert_before` call that pastes the entire solution — that is brittle and hard to validate. On an empty scratchpad, start with a **minimal** first binding (via `insert_after` or `insert_before` with no `path`) and grow with more `insert_*` / `update_*` calls.",
+  "**Hard limit: `code` over 1500 characters is rejected** (text parsing cost grows quadratically and stalls the editor). For a large definition, insert a skeleton whose complex parts are holes (`?`) or trivial placeholders, then fill each part with its own `update_definition` — nested paths (`\"f/helper\"`) and module member paths (`\"^name/view\"`) address the parts directly. This is faster for you too: each small edit type-checks independently.",
   "After a tool call, continue from where you left off — do not repeat or summarize what just happened.",
   "Avoid mentioning tools by name to the user. Describe what is happening to the code naturally.",
   "Never use first-person pronouns (I, me, my). Describe actions directly: \"Adding the function...\" not \"I am adding...\".",

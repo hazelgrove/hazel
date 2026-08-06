@@ -565,19 +565,38 @@ module Local = {
        re-indents structurally on render), then parse to a segment and
        paste it. Safe: Hazel strings and comments are single-line, so
        no token can span a linebreak. */
+    /* Text-to-segment parsing simulates typing (Insert.go per char with a
+       full remold/regrout each), so cost is quadratic in chunk size:
+       ~0.3s at 500 chars, ~0.8s at 1000, ~8s at 3700 (measured on the
+       graph-livelit module). It runs on the UI thread, so an oversized
+       chunk reads as a hung editor. Cap agent chunks and teach the model
+       to split; the limit sits near the ~1.5s knee. */
+    let max_chunk_chars = 1500;
     let introduce =
         (~root=Sort.Exp, z: Zipper.t, code: string)
         : result(Zipper.t, Action.Failure.t) => {
       let code = StringUtil.trim_leading(code);
-      switch (Parser.to_segment(code, ~root)) {
-      | Some(segment) =>
-        Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root))
-      | None =>
+      if (String.length(code) > max_chunk_chars) {
         Error(
           Action.Failure.Composition_action_failure(
-            "Inserted code failed to parse." ++ reserved_word_note(code),
+            "Code chunk too large ("
+            ++ string_of_int(String.length(code))
+            ++ " chars; limit "
+            ++ string_of_int(max_chunk_chars)
+            ++ "). Large chunks parse slowly enough to stall the editor. Split the edit: first insert a skeleton whose complex parts are holes (?), then fill each part with its own update_definition call — nested paths (\"f/helper\") and module member paths (\"^name/view\") address the parts directly.",
           ),
-        )
+        );
+      } else {
+        switch (Parser.to_segment(code, ~root)) {
+        | Some(segment) =>
+          Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root))
+        | None =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Inserted code failed to parse." ++ reserved_word_note(code),
+            ),
+          )
+        };
       };
     };
 

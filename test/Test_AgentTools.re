@@ -5118,6 +5118,30 @@ let module_member_tests = (
       }
     }),
     test_case(
+      "oversized code chunk is rejected with guidance",
+      `Quick,
+      () => {
+        let big =
+          String.concat(" + ", List.init(400, i => string_of_int(i)));
+        switch (
+          run_agent_action("let a = 1 in ?", Update(Definition, "a", big))
+        ) {
+        | Ok(_) => Alcotest.fail("expected oversized chunk to be rejected")
+        | Error(Action.Failure.Composition_action_failure(msg)) =>
+          check(
+            bool,
+            "chunk_cap_mentions_split",
+            true,
+            StringUtil.match(StringUtil.regexp("too large"), msg),
+          )
+        | Error(e) =>
+          Alcotest.fail(
+            "unexpected failure kind: " ++ Action.Failure.show(e),
+          )
+        };
+      },
+    ),
+    test_case(
       "member paths disambiguate with #k",
       `Quick,
       () => {
