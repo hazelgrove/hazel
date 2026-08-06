@@ -25,7 +25,7 @@ let labeled_pat_form = [lab, labeled_pat(), p];
 let labeled_pat = (~label_id: Id.t, ~pat_id: Id.t): form => {
   id: LabeledPat,
   syntactic_form: labeled_pat_form,
-  colorings: [],
+  colorings: labeled_pats_coloring_ids(~label_id, ~pat_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(

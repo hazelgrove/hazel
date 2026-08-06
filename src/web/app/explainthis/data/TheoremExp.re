@@ -16,10 +16,12 @@ let theorem_exp_form = [
   linebreak(),
   exp_body,
 ];
-let theorem_exp = (~pat_id: Id.t, ~thm_id: Id.t): form => {
+/* `body_id` is not mentioned in the explanation, but the abstract form has an
+   `e` placeholder for the body, so it is needed to colour it. */
+let theorem_exp = (~pat_id: Id.t, ~thm_id: Id.t, ~body_id: Id.t): form => {
   id: TheoremExp,
   syntactic_form: theorem_exp_form,
-  colorings: [],
+  colorings: theorem_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(
@@ -30,5 +32,5 @@ let theorem_exp = (~pat_id: Id.t, ~thm_id: Id.t): form => {
   examples: [],
 };
 
-let tests = (~pat_id: Id.t, ~thm_id: Id.t): group =>
-  singleton(theorem_exp(~pat_id, ~thm_id));
+let tests = (~pat_id: Id.t, ~thm_id: Id.t, ~body_id: Id.t): group =>
+  singleton(theorem_exp(~pat_id, ~thm_id, ~body_id));

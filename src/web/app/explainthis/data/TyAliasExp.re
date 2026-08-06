@@ -23,7 +23,7 @@ let tyalias_exp = (~tpat_id: Id.t, ~def_id: Id.t): form => {
   {
     id: TyAliasExp,
     syntactic_form: form,
-    colorings: [],
+    colorings: tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
     expandable_id: None,
     explanation,
     examples: [],

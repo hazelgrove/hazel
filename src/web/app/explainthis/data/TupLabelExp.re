@@ -25,7 +25,7 @@ let labeled_exp_form = [lab, labeled_exp(), e];
 let labeled_exp = (~label_id: Id.t, ~exp_id: Id.t): form => {
   id: LabeledExp,
   syntactic_form: labeled_exp_form,
-  colorings: [],
+  colorings: labeled_exps_coloring_ids(~label_id, ~exp_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(

@@ -76,7 +76,7 @@ let list_concat_exp = (~xs_id: Id.t, ~ys_id: Id.t): form => {
   {
     id: ListConcatExp,
     syntactic_form: [exp_xs, space(), list_concat_exp(), space(), exp_ys],
-    colorings: [],
+    colorings: concat_exp_coloring_ids(~xs_id, ~ys_id),
     expandable_id: None,
     explanation,
     examples: [],

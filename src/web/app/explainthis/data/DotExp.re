@@ -34,7 +34,7 @@ let dot_exp_segment =
 let dot_exp_form = (~lab_id: Id.t, ~tup_id: Id.t): form => {
   id: DotExp,
   syntactic_form: dot_exp_segment,
-  colorings: [],
+  colorings: dot_coloring_ids(~tup_id, ~lab_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(

@@ -31,7 +31,7 @@ let labeled_typ_form = [lab, labeled_typ(), p];
 let labeled_typ = (~label_id: Id.t, ~typ_id: Id.t): form => {
   id: LabeledTyp,
   syntactic_form: labeled_typ_form,
-  colorings: [],
+  colorings: labeled_typs_coloring_ids(~label_id, ~typ_id),
   expandable_id: None,
   explanation:
     Printf.sprintf(

@@ -837,11 +837,7 @@ let get_doc =
       | TyAlias(ty_pat, ty_def, _body) =>
         let tpat_id = IdTagged.rep_id(ty_pat);
         let def_id = IdTagged.rep_id(ty_def);
-        get_message(
-          ~colorings=
-            TyAliasExp.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
-          TyAliasExp.tyalias_exps(~tpat_id, ~def_id),
-        );
+        get_message(TyAliasExp.tyalias_exps(~tpat_id, ~def_id));
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | ExplicitNonlabel => simple("Explicitly unlabeled entry")
@@ -1021,11 +1017,6 @@ let get_doc =
       | Label(name) => get_message(LabelTerm.labels(name))
       | TupLabel(l, e) =>
         get_message(
-          ~colorings=
-            TupLabelExp.labeled_exps_coloring_ids(
-              ~label_id=Exp.rep_id(l),
-              ~exp_id=Exp.rep_id(e),
-            ),
           TupLabelExp.labeled_exps(
             ~label_id=Exp.rep_id(l),
             ~exp_id=Exp.rep_id(e),
@@ -1033,11 +1024,6 @@ let get_doc =
         )
       | Dot(tup, lab) =>
         get_message(
-          ~colorings=
-            DotExp.dot_coloring_ids(
-              ~tup_id=Exp.rep_id(tup),
-              ~lab_id=Exp.rep_id(lab),
-            ),
           DotExp.dot_exp(~lab_id=Exp.rep_id(lab), ~tup_id=Exp.rep_id(tup)),
         )
       | Tuple(terms) =>
@@ -1211,11 +1197,7 @@ let get_doc =
         let pat_id = IdTagged.rep_id(pat);
         let thm_id = IdTagged.rep_id(thm);
         let body_id = IdTagged.rep_id(body);
-        get_message(
-          ~colorings=
-            TheoremExp.theorem_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
-          TheoremExp.tests(~pat_id, ~thm_id),
-        );
+        get_message(TheoremExp.tests(~pat_id, ~thm_id, ~body_id));
       | ProofObject(exp) =>
         let typ_id = IdTagged.rep_id(exp);
         get_message(ProofObjectExp.proof_of_exps(~typ_id));
@@ -1342,10 +1324,7 @@ let get_doc =
       | ListConcat(xs, ys) =>
         let xs_id = IdTagged.rep_id(xs);
         let ys_id = IdTagged.rep_id(ys);
-        get_message(
-          ~colorings=ListExp.concat_exp_coloring_ids(~xs_id, ~ys_id),
-          ListExp.listconcats(~xs_id, ~ys_id),
-        );
+        get_message(ListExp.listconcats(~xs_id, ~ys_id));
       | UnOp(op, exp) =>
         switch (op) {
         | Bool(Not) =>
@@ -1459,11 +1438,6 @@ let get_doc =
     | Label(name) => get_message(LabelTerm.labels(name))
     | TupLabel(l, p) =>
       get_message(
-        ~colorings=
-          TupLabelPat.labeled_pats_coloring_ids(
-            ~label_id=Pat.rep_id(l),
-            ~pat_id=Pat.rep_id(p),
-          ),
         TupLabelPat.labeled_pats(
           ~label_id=Pat.rep_id(l),
           ~pat_id=Pat.rep_id(p),
@@ -1561,11 +1535,6 @@ let get_doc =
     | Label(name) => get_message(LabelTerm.labels(name))
     | TupLabel(l, t) =>
       get_message(
-        ~colorings=
-          TupLabelTyp.labeled_typs_coloring_ids(
-            ~label_id=Typ.rep_id(l),
-            ~typ_id=Typ.rep_id(t),
-          ),
         TupLabelTyp.labeled_typs(
           ~label_id=Typ.rep_id(l),
           ~typ_id=Typ.rep_id(t),
