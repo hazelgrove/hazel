@@ -138,6 +138,7 @@ and deferral_pos =
 and exp =
   | Atom(Language.Atom.t)
   | Var(string)
+  | LivelitName(string) /* lexeme with the leading caret */
   | Constructor(string, option(option(typ)))
   | ListExp(list(exp))
   | TupleExp(list(exp))
@@ -1106,6 +1107,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
         | BuiltinFun(_)
         | Undefined
         | InvalidExp(_)
+        | LivelitName(_)
         | Module(_) => Iter.empty
         }
       )

@@ -215,6 +215,8 @@ module rec Exp: {
     | InvalidExp(s) => invalid(s)
     | Atom(c) => basic(c)
     | Var(x) => var(x)
+    /* Grammar stores the name caret-less (MakeTerm parity) */
+    | LivelitName(l) => livelit_name(String.sub(l, 1, String.length(l) - 1))
     | Constructor(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
@@ -349,7 +351,7 @@ module rec Exp: {
     | Invalid(_) => InvalidExp("Invalid")
     | Atom(c) => Atom(c)
     | Var(x) => Var(x)
-    | LivelitName(_) => InvalidExp("Not supported")
+    | LivelitName(s) => LivelitName("^" ++ s)
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
     | Tuple(l) => TupleExp(List.map(of_core, l))

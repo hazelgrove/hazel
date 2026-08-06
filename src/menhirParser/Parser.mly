@@ -14,6 +14,7 @@ open AST
 %token REC
 %token UNDEF
 %token <string> PROJECTOR_INVOKE
+%token <string> LIVELIT_IDENT
 %token TYP
 %token TYP_FUN
 %token FIX
@@ -280,16 +281,29 @@ nonAscriptingPat:
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
     | p = IDENT { VarPat(p) }
+    | l = LIVELIT_IDENT { VarPat(l) }
     | i = INT { AtomPat (Int (Bigint.of_int i)) }
     | f = FLOAT { AtomPat (Float f) }
     | s = STRING { AtomPat (String s)}
     | TRUE {AtomPat (Bool true)}
     | FALSE {AtomPat (Bool false)}
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
+    (* Multi-argument constructor patterns: Down(x, y) — mirror of the
+       exp-side application rule. *)
+    | f = pat; OPEN_PAREN; a = pat; COMMA; tl = separated_nonempty_list(COMMA, pat); CLOSE_PAREN { ApPat(f, TuplePat(a :: tl)) }
+
+(* One fun parameter, optionally ascribed. The ascription binds to the
+   ELEMENT (MakeTerm parity: fun a, b : T -> e ascribes only b). *)
+funAscElem:
+    | p = nonAscriptingPat; { p }
+    | p = nonAscriptingPat; COLON; t = ascTyp; { AscPat(p, t) }
 
 funPat:
     | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { AscPat(p1, t1) }
-    | p = nonAscriptingPat; { p }
+    | p = funAscElem; { p }
+    (* Multi-parameter sugar: fun a, b -> e binds a tuple pattern *)
+    | p = funAscElem; COMMA; ps = separated_nonempty_list(COMMA, funAscElem);
+      { TuplePat(p :: ps) }
 
 pat:
     | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
@@ -306,9 +320,33 @@ rul:
 case:
     | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
 
+(* Types legal in a fun-parameter ascription without parentheses: no
+   top-level arrow, so the -> after the ascription always closes the fun.
+   Arrow-typed ascriptions need parens: fun f : (A -> B) -> ...
+   NB the fun-ascription rules create two benign reduce/reduce conflicts
+   (fun-level AscPat vs pat-level AscPat — identical semantics); menhir's
+   arbitrary resolution picks the fun-level reduction, pinned by the
+   grammar-gap tests in Test_Menhir. *)
+ascTyp:
+    | c = CONSTRUCTOR_IDENT { TypVar(c) }
+    | c = IDENT { TypVar(c) }
+    | INT_TYPE { IntType }
+    | FLOAT_TYPE { FloatType }
+    | BOOL_TYPE { BoolType }
+    | STRING_TYPE { StringType }
+    | UNIT { TupleType([]) }
+    | QUESTION { UnknownType(EmptyHole) }
+    | t = tupleType { t }
+    | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
+    | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
+
+(* %prec MOD_ITEM_EXP (just above SEMI_COLON, below every operator): the
+   body swallows operators but stops at `;`, matching MakeTerm both for
+   module members (fun m -> m; next member) and top level
+   (fun m -> m; 2 is Seq(Fun, 2) in Hazel). *)
 funExp: 
-    | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
-    | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
+    | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) } %prec MOD_ITEM_EXP
+    | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) } %prec MOD_ITEM_EXP
 
 
 %inline ifExp:
@@ -341,6 +379,7 @@ exp:
     | i = INT { Atom (Int (Bigint.of_int i)) }
     | f = FLOAT { Atom (Float f) }
     | v = IDENT { Var v }
+    | l = LIVELIT_IDENT { LivelitName l }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
     | l = QUOTED_LABEL { Label(l) }
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) }
