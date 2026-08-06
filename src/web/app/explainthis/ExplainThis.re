@@ -758,6 +758,44 @@ let get_doc =
     get_message(~colorings, ~explanation, group);
   };
 
+  /* Is the user looking at the group's most specific form, or has it been
+     expanded down to a more general one? `forms` is ordered
+     most-specific-first, so this is one question — it was previously asked by
+     comparing an explicitly named form id at each of ~40 call sites. */
+  let at_specific_level = (group: ExplainThisForm.group) =>
+    switch (group.forms) {
+    | [specific, ..._] => get_specificity_level(group) == specific.id
+    | [] => true
+    };
+
+  /* A group whose forms describe different sub-terms needs different colorings
+     per level, so which mapping applies depends on the selected form.
+     `fallback` renders the less specific levels (it also substitutes their
+     explanation where those describe a different term). */
+  let leveled = (~specific: list((Id.t, Id.t)), ~fallback, group) =>
+    at_specific_level(group)
+      ? get_message(~colorings=specific, group) : fallback(group);
+
+  /* Three-level variant, for the tuple groups whose middle form describes the
+     tuple generically (n-tuple) between the size-specific form and the base. */
+  let leveled3 =
+      (
+        ~specific: list((Id.t, Id.t)),
+        ~middle: list((Id.t, Id.t)),
+        ~fallback,
+        group: ExplainThisForm.group,
+      ) => {
+    let selected = get_specificity_level(group);
+    switch (group.forms) {
+    | [s, m, ..._] when selected == s.id =>
+      ignore(m);
+      get_message(~colorings=specific, group);
+    | [_, m, ..._] when selected == m.id =>
+      get_message(~colorings=middle, group)
+    | _ => fallback(group)
+    };
+  };
+
   switch (info) {
   | Some(InfoMod({cls, _})) =>
     switch (cls) {
@@ -866,197 +904,126 @@ let get_doc =
         let body_id = IdTagged.rep_id(body);
         switch (pat.term) {
         | EmptyHole =>
-          let group = FunctionExp.functions_empty_hole(~pat_id, ~body_id);
-          if (FunctionExp.function_empty_hole_exp_id
-              == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_empty_hole_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_empty_hole_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
+            ~fallback=basic,
+            FunctionExp.functions_empty_hole(~pat_id, ~body_id),
+          )
         | MultiHole(_) =>
-          let group = FunctionExp.functions_multi_hole(~pat_id, ~body_id);
-          if (FunctionExp.function_multi_hole_exp_id
-              == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_multi_hole_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_multi_hole_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
+            ~fallback=basic,
+            FunctionExp.functions_multi_hole(~pat_id, ~body_id),
+          )
         | Wild =>
-          let group = FunctionExp.functions_wild(~pat_id, ~body_id);
-          if (FunctionExp.function_wild_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=FunctionExp.function_wild_exp_coloring_ids(~body_id),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=FunctionExp.function_wild_exp_coloring_ids(~body_id),
+            ~fallback=basic,
+            FunctionExp.functions_wild(~pat_id, ~body_id),
+          )
         | Atom(SInt(i)) =>
-          let group = FunctionExp.functions_sint(~pat_id, ~body_id, ~i);
-          if (FunctionExp.function_sintlit_exp_id
-              == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_sintlit_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_sintlit_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
+            ~fallback=basic,
+            FunctionExp.functions_sint(~pat_id, ~body_id, ~i),
+          )
         | Atom(Int(i) | Nat(i)) =>
-          let group = FunctionExp.functions_int(~pat_id, ~body_id, ~i);
-          if (FunctionExp.function_intlit_exp_id
-              == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_intlit_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_intlit_exp_coloring_ids(~pat_id, ~body_id),
+            ~fallback=basic,
+            FunctionExp.functions_int(~pat_id, ~body_id, ~i),
+          )
         | Atom(Float(f)) =>
-          let group = FunctionExp.functions_float(~pat_id, ~body_id, ~f);
-          if (FunctionExp.function_floatlit_exp_id
-              == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_floatlit_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_floatlit_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
+            ~fallback=basic,
+            FunctionExp.functions_float(~pat_id, ~body_id, ~f),
+          )
         | Atom(Bool(b)) =>
-          let group = FunctionExp.functions_bool(~pat_id, ~body_id, ~b);
-          if (FunctionExp.function_boollit_exp_id
-              == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_boollit_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_boollit_exp_coloring_ids(
+                ~pat_id,
+                ~body_id,
+              ),
+            ~fallback=basic,
+            FunctionExp.functions_bool(~pat_id, ~body_id, ~b),
+          )
         | Atom(String(s)) =>
-          let group = FunctionExp.functions_str(~pat_id, ~body_id, ~s);
-          if (FunctionExp.function_strlit_exp_id
-              == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_strlit_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_strlit_exp_coloring_ids(~pat_id, ~body_id),
+            ~fallback=basic,
+            FunctionExp.functions_str(~pat_id, ~body_id, ~s),
+          )
         | Tuple([]) =>
-          let group = FunctionExp.functions_triv(~pat_id, ~body_id);
-          if (FunctionExp.function_triv_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_triv_exp_coloring_ids(~pat_id, ~body_id),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_triv_exp_coloring_ids(~pat_id, ~body_id),
+            ~fallback=basic,
+            FunctionExp.functions_triv(~pat_id, ~body_id),
+          )
         | ListLit(elements) =>
-          if (List.length(elements) == 0) {
-            let group = FunctionExp.functions_listnil(~pat_id, ~body_id);
-            if (FunctionExp.function_listnil_exp_id
-                == get_specificity_level(group)) {
-              get_message(
-                ~colorings=
+          List.length(elements) == 0
+            ? leveled(
+                ~specific=
                   FunctionExp.function_listnil_exp_coloring_ids(
                     ~pat_id,
                     ~body_id,
                   ),
-                group,
-              );
-            } else {
-              basic(group);
-            };
-          } else {
-            let group =
-              FunctionExp.functions_listlit(
-                ~pat_id,
-                ~body_id,
-                ~n=List.length(elements),
-              );
-            if (FunctionExp.function_listlit_exp_id
-                == get_specificity_level(group)) {
-              get_message(
-                ~colorings=
+                ~fallback=basic,
+                FunctionExp.functions_listnil(~pat_id, ~body_id),
+              )
+            : leveled(
+                ~specific=
                   FunctionExp.function_listlit_exp_coloring_ids(
                     ~pat_id,
                     ~body_id,
                   ),
-                group,
-              );
-            } else {
-              basic(group);
-            };
-          }
+                ~fallback=basic,
+                FunctionExp.functions_listlit(
+                  ~pat_id,
+                  ~body_id,
+                  ~n=List.length(elements),
+                ),
+              )
         | Cons(hd, tl) =>
           let hd_id = IdTagged.rep_id(hd);
           let tl_id = IdTagged.rep_id(tl);
-          let group =
-            FunctionExp.functions_cons(~hd_id, ~tl_id, ~pat_id, ~body_id);
-          if (FunctionExp.function_cons_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_cons_exp_coloring_ids(
-                  ~hd_id,
-                  ~tl_id,
-                  ~body_id,
-                ),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_cons_exp_coloring_ids(
+                ~hd_id,
+                ~tl_id,
+                ~body_id,
+              ),
+            ~fallback=basic,
+            FunctionExp.functions_cons(~hd_id, ~tl_id, ~pat_id, ~body_id),
+          );
         | Var(var) =>
-          let group = FunctionExp.functions_var(~pat_id, ~body_id, ~name=var);
-          if (FunctionExp.function_var_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_var_exp_coloring_ids(~pat_id, ~body_id),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_var_exp_coloring_ids(~pat_id, ~body_id),
+            ~fallback=basic,
+            FunctionExp.functions_var(~pat_id, ~body_id, ~name=var),
+          )
         | Tuple([{term: TupLabel(l, p), _}]) =>
           let group =
             FunctionExp.functions_tuplabel(
@@ -1065,31 +1032,20 @@ let get_doc =
               ~pat_id,
               ~body_id,
             );
-          if (FunctionExp.function_labeled_exp_id
-              == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_labeled_exp_coloring_ids(
-                  ~label_id=Pat.rep_id(l),
-                  ~pat_id=Pat.rep_id(p),
-                  ~body_id=Exp.rep_id(body),
-                ),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_labeled_exp_coloring_ids(
+                ~label_id=Pat.rep_id(l),
+                ~pat_id=Pat.rep_id(p),
+                ~body_id=Exp.rep_id(body),
+              ),
+            ~fallback=basic,
+            group,
+          );
         | Tuple(elements) =>
           let n = List.length(elements);
-          let basic_tuple = group =>
-            get_message(
-              ~colorings=
-                FunctionExp.function_tuple_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              group,
-            );
+          let tuple_colorings =
+            FunctionExp.function_tuple_exp_coloring_ids(~pat_id, ~body_id);
 
           switch (n) {
           | 2 =>
@@ -1103,22 +1059,17 @@ let get_doc =
                 ~body_id,
                 ~n,
               );
-            let doc_id = get_specificity_level(group);
-            if (FunctionExp.function_tuple2_exp_id == doc_id) {
-              get_message(
-                ~colorings=
-                  FunctionExp.function_tuple2_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~body_id,
-                  ),
-                group,
-              );
-            } else if (FunctionExp.function_tuple_exp_id == doc_id) {
-              basic_tuple(group);
-            } else {
-              basic(group);
-            };
+            leveled3(
+              ~specific=
+                FunctionExp.function_tuple2_exp_coloring_ids(
+                  ~pat1_id,
+                  ~pat2_id,
+                  ~body_id,
+                ),
+              ~middle=tuple_colorings,
+              ~fallback=basic,
+              group,
+            );
           | 3 =>
             let pat1_id = nth_rep_id(elements, 0);
             let pat2_id = nth_rep_id(elements, 1);
@@ -1132,61 +1083,45 @@ let get_doc =
                 ~body_id,
                 ~n,
               );
-            let doc_id = get_specificity_level(group);
-            if (FunctionExp.function_tuple3_exp_id == doc_id) {
-              get_message(
-                ~colorings=
-                  FunctionExp.function_tuple3_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~pat3_id,
-                    ~body_id,
-                  ),
-                group,
-              );
-            } else if (FunctionExp.function_tuple_exp_id == doc_id) {
-              basic_tuple(group);
-            } else {
-              basic(group);
-            };
+            leveled3(
+              ~specific=
+                FunctionExp.function_tuple3_exp_coloring_ids(
+                  ~pat1_id,
+                  ~pat2_id,
+                  ~pat3_id,
+                  ~body_id,
+                ),
+              ~middle=tuple_colorings,
+              ~fallback=basic,
+              group,
+            );
           | _ =>
-            let group = FunctionExp.functions_tuple(~pat_id, ~body_id, ~n);
-            if (FunctionExp.function_tuple_exp_id
-                == get_specificity_level(group)) {
-              basic_tuple(group);
-            } else {
-              basic(group);
-            };
+            leveled(
+              ~specific=tuple_colorings,
+              ~fallback=basic,
+              FunctionExp.functions_tuple(~pat_id, ~body_id, ~n),
+            )
           };
         | Ap(con, arg) =>
           let con_id = IdTagged.rep_id(con);
           let arg_id = IdTagged.rep_id(arg);
-          let group =
-            FunctionExp.functions_ap(~con_id, ~arg_id, ~pat_id, ~body_id);
-          if (FunctionExp.function_ap_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_ap_exp_coloring_ids(
-                  ~con_id,
-                  ~arg_id,
-                  ~body_id,
-                ),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_ap_exp_coloring_ids(
+                ~con_id,
+                ~arg_id,
+                ~body_id,
+              ),
+            ~fallback=basic,
+            FunctionExp.functions_ap(~con_id, ~arg_id, ~pat_id, ~body_id),
+          );
         | Constructor(v, _) =>
-          let group = FunctionExp.functions_ctr(~pat_id, ~body_id, ~name=v);
-          if (FunctionExp.function_ctr_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_ctr_exp_coloring_ids(~pat_id, ~body_id),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              FunctionExp.function_ctr_exp_coloring_ids(~pat_id, ~body_id),
+            ~fallback=basic,
+            FunctionExp.functions_ctr(~pat_id, ~body_id, ~name=v),
+          )
         | TupLabel(_)
         | Invalid(_)
         | Parens(_)
@@ -1228,34 +1163,26 @@ let get_doc =
         | 2 =>
           let exp1_id = nth_rep_id(terms, 0);
           let exp2_id = nth_rep_id(terms, 1);
-          let group = TupleExp.tuples2(~exp1_id, ~exp2_id, ~n);
-          if (TupleExp.tuple_exp_size2_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                TupleExp.tuple_exp_size2_coloring_ids(~exp1_id, ~exp2_id),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              TupleExp.tuple_exp_size2_coloring_ids(~exp1_id, ~exp2_id),
+            ~fallback=basic,
+            TupleExp.tuples2(~exp1_id, ~exp2_id, ~n),
+          );
         | 3 =>
           let exp1_id = nth_rep_id(terms, 0);
           let exp2_id = nth_rep_id(terms, 1);
           let exp3_id = nth_rep_id(terms, 2);
-          let group = TupleExp.tuples3(~exp1_id, ~exp2_id, ~exp3_id, ~n);
-          if (TupleExp.tuple_exp_size3_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                TupleExp.tuple_exp_size3_coloring_ids(
-                  ~exp1_id,
-                  ~exp2_id,
-                  ~exp3_id,
-                ),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              TupleExp.tuple_exp_size3_coloring_ids(
+                ~exp1_id,
+                ~exp2_id,
+                ~exp3_id,
+              ),
+            ~fallback=basic,
+            TupleExp.tuples3(~exp1_id, ~exp2_id, ~exp3_id, ~n),
+          );
         | _ => basic(TupleExp.tuples(~n))
         };
       | Var(n) => get_message(TerminalExp.var_exps(n))
@@ -1271,183 +1198,115 @@ let get_doc =
             group,
           );
         switch (pat.term) {
+        /* TODO The coloring for the syntactic form is sometimes wrong when
+           switching between forms and specificity levels... maybe a Safari
+           issue... */
         | EmptyHole =>
-          let group = LetExp.lets_emptyhole(~def_id, ~pat_id);
-          if (LetExp.let_empty_hole_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_empty_hole_exp_coloring_ids(~pat_id, ~def_id),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              LetExp.let_empty_hole_exp_coloring_ids(~pat_id, ~def_id),
+            ~fallback=basic,
+            LetExp.lets_emptyhole(~def_id, ~pat_id),
+          )
         | MultiHole(_) =>
-          let group = LetExp.lets_multihole(~def_id, ~pat_id);
-          if (LetExp.let_multi_hole_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_multi_hole_exp_coloring_ids(~pat_id, ~def_id),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              LetExp.let_multi_hole_exp_coloring_ids(~pat_id, ~def_id),
+            ~fallback=basic,
+            LetExp.lets_multihole(~def_id, ~pat_id),
+          )
         | Wild =>
-          let group = LetExp.lets_wild(~def_id, ~pat_id, ~body_id);
-          if (LetExp.let_wild_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=LetExp.let_wild_exp_coloring_ids(~def_id, ~body_id),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=LetExp.let_wild_exp_coloring_ids(~def_id, ~body_id),
+            ~fallback=basic,
+            LetExp.lets_wild(~def_id, ~pat_id, ~body_id),
+          )
         | Atom(Int(i) | Nat(i)) =>
-          let group = LetExp.lets_int(~def_id, ~pat_id, ~i, ~body_id);
-          if (LetExp.let_int_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_int_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              group,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here and some other places when switching between forms and specificity levels... maybe a Safari issue... */
-            basic(
-              group,
-            );
-          };
+          leveled(
+            ~specific=
+              LetExp.let_int_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+            ~fallback=basic,
+            LetExp.lets_int(~def_id, ~pat_id, ~i, ~body_id),
+          )
         | Atom(SInt(i)) =>
-          let group = LetExp.lets_sint(~def_id, ~pat_id, ~i, ~body_id);
-          if (LetExp.let_sint_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_sint_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              group,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              group,
-            );
-          };
+          leveled(
+            ~specific=
+              LetExp.let_sint_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+            ~fallback=basic,
+            LetExp.lets_sint(~def_id, ~pat_id, ~i, ~body_id),
+          )
+        // TODO Make sure everywhere printing the float literal print it prettier
         | Atom(Float(f)) =>
-          let group = LetExp.lets_float(~def_id, ~pat_id, ~f, ~body_id);
-          // TODO Make sure everywhere printing the float literal print it prettier
-          if (LetExp.let_float_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_float_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              group,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              group,
-            );
-          };
+          leveled(
+            ~specific=
+              LetExp.let_float_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+            ~fallback=basic,
+            LetExp.lets_float(~def_id, ~pat_id, ~f, ~body_id),
+          )
         | Atom(Bool(b)) =>
-          let group = LetExp.lets_bool(~def_id, ~pat_id, ~b, ~body_id);
-          if (LetExp.let_bool_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_bool_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              group,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              group,
-            );
-          };
+          leveled(
+            ~specific=
+              LetExp.let_bool_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+            ~fallback=basic,
+            LetExp.lets_bool(~def_id, ~pat_id, ~b, ~body_id),
+          )
         | Atom(String(s)) =>
-          let group = LetExp.lets_str(~def_id, ~pat_id, ~s, ~body_id);
-          if (LetExp.let_str_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_str_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              group,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              group,
-            );
-          };
+          leveled(
+            ~specific=
+              LetExp.let_str_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+            ~fallback=basic,
+            LetExp.lets_str(~def_id, ~pat_id, ~s, ~body_id),
+          )
         | Tuple([]) =>
-          let group = LetExp.lets_triv(~def_id, ~pat_id, ~body_id);
-          if (LetExp.let_triv_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_triv_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              group,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... seems like might be Safari issue... */
-            basic(
-              group,
-            );
-          };
+          leveled(
+            ~specific=
+              LetExp.let_triv_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+            ~fallback=basic,
+            LetExp.lets_triv(~def_id, ~pat_id, ~body_id),
+          )
         | ListLit(elements) =>
-          if (List.length(elements) == 0) {
-            let group = LetExp.lets_listnil(~def_id, ~pat_id, ~body_id);
-            if (LetExp.let_listnil_exp_id == get_specificity_level(group)) {
-              get_message(
-                ~colorings=
+          List.length(elements) == 0
+            ? leveled(
+                ~specific=
                   LetExp.let_listnil_exp_coloring_ids(
                     ~pat_id,
                     ~def_id,
                     ~body_id,
                   ),
-                group,
-              );
-            } else {
-              basic(group);
-            };
-          } else {
-            let group =
-              LetExp.lets_listlit(
-                ~def_id,
-                ~pat_id,
-                ~n=List.length(elements),
-              );
-            if (LetExp.let_listlit_exp_id == get_specificity_level(group)) {
-              get_message(
-                ~colorings=
+                ~fallback=basic,
+                LetExp.lets_listnil(~def_id, ~pat_id, ~body_id),
+              )
+            : leveled(
+                ~specific=
                   LetExp.let_listlit_exp_coloring_ids(~pat_id, ~def_id),
-                group,
-              );
-            } else {
-              basic(group);
-            };
-          }
+                ~fallback=basic,
+                LetExp.lets_listlit(
+                  ~def_id,
+                  ~pat_id,
+                  ~n=List.length(elements),
+                ),
+              )
         | Cons(hd, tl) =>
           let hd_id = IdTagged.rep_id(hd);
           let tl_id = IdTagged.rep_id(tl);
-          let group = LetExp.lets_cons(~def_id, ~hd_id, ~tl_id, ~pat_id);
-          if (LetExp.let_cons_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_cons_exp_coloring_ids(~hd_id, ~tl_id, ~def_id),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              LetExp.let_cons_exp_coloring_ids(~hd_id, ~tl_id, ~def_id),
+            ~fallback=basic,
+            LetExp.lets_cons(~def_id, ~hd_id, ~tl_id, ~pat_id),
+          );
         | Var(var) =>
-          let group = LetExp.lets_var(~def_id, ~pat_id, ~name=var, ~body_id);
-          if (LetExp.let_var_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_var_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              LetExp.let_var_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+            ~fallback=basic,
+            LetExp.lets_var(~def_id, ~pat_id, ~name=var, ~body_id),
+          )
         | Tuple(elements) =>
           let n = List.length(elements);
-          let basic_tuple = group =>
+          /* The middle level describes the tuple generically, so unlike the
+             other fallbacks it substitutes its own explanation. */
+          let tuple_level = group =>
             get_message(
               ~colorings=LetExp.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
               ~explanation=
@@ -1459,29 +1318,32 @@ let get_doc =
           | 2 =>
             let pat1_id = nth_rep_id(elements, 0);
             let pat2_id = nth_rep_id(elements, 1);
-            let group =
-              LetExp.lets_tuple2(~def_id, ~pat1_id, ~pat2_id, ~pat_id, ~n);
-            let doc_id = get_specificity_level(group);
-            if (LetExp.let_tuple2_exp_id == doc_id) {
-              get_message(
-                ~colorings=
-                  LetExp.let_tuple2_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~def_id,
-                  ),
-                group,
-              );
-            } else if (LetExp.let_tuple_exp_id == doc_id) {
-              basic_tuple(group);
-            } else {
-              basic(group);
-            };
+            leveled3(
+              ~specific=
+                LetExp.let_tuple2_exp_coloring_ids(
+                  ~pat1_id,
+                  ~pat2_id,
+                  ~def_id,
+                ),
+              ~middle=LetExp.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
+              ~fallback=basic,
+              LetExp.lets_tuple2(~def_id, ~pat1_id, ~pat2_id, ~pat_id, ~n),
+            );
           | 3 =>
             let pat1_id = nth_rep_id(elements, 0);
             let pat2_id = nth_rep_id(elements, 1);
             let pat3_id = nth_rep_id(elements, 2);
-            let group =
+            // TODO Syntactic form can go off page - so can examples - but can scroll, just can't see bottom scroll bar
+            leveled3(
+              ~specific=
+                LetExp.let_tuple3_exp_coloring_ids(
+                  ~pat1_id,
+                  ~pat2_id,
+                  ~pat3_id,
+                  ~def_id,
+                ),
+              ~middle=LetExp.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
+              ~fallback=basic,
               LetExp.lets_tuple3(
                 ~def_id,
                 ~pat1_id,
@@ -1489,68 +1351,38 @@ let get_doc =
                 ~pat3_id,
                 ~pat_id,
                 ~n,
-              );
-            let doc_id = get_specificity_level(group);
-            // TODO Syntactic form can go off page - so can examples - but can scroll, just can't see bottom scroll bar
-            if (LetExp.let_tuple3_exp_id == doc_id) {
-              get_message(
-                ~colorings=
-                  LetExp.let_tuple3_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~pat3_id,
-                    ~def_id,
-                  ),
-                group,
-              );
-            } else if (LetExp.let_tuple_exp_id == doc_id) {
-              basic_tuple(group);
-            } else {
-              basic(group);
-            };
+              ),
+            );
           | _ =>
             let group = LetExp.lets_tuple(~def_id, ~pat_id, ~n);
-            if (LetExp.let_tuple_exp_id == get_specificity_level(group)) {
-              basic_tuple(group);
-            } else {
-              basic(group);
-            };
+            at_specific_level(group) ? tuple_level(group) : basic(group);
           };
         | Ap(x, arg) =>
           let x_id = IdTagged.rep_id(x);
           let arg_id = IdTagged.rep_id(arg);
-          let (lets_ap, let_ap_exp_coloring_ids, let_ap_exp_id) =
+          let (lets_ap, let_ap_exp_coloring_ids) =
             switch (x.term) {
             | Constructor(_, _) => (
                 LetExp.lets_conap(~def_id, ~x_id, ~arg_id, ~pat_id),
                 LetExp.let_conap_exp_coloring_ids,
-                LetExp.let_conap_exp_id,
               )
             | _ => (
                 LetExp.lets_funap(~def_id, ~x_id, ~arg_id, ~pat_id),
                 LetExp.let_funap_exp_coloring_ids,
-                LetExp.let_funap_exp_id,
               )
             };
-          if (let_ap_exp_id == get_specificity_level(lets_ap)) {
-            get_message(
-              ~colorings=let_ap_exp_coloring_ids(~x_id, ~arg_id, ~def_id),
-              lets_ap,
-            );
-          } else {
-            basic(lets_ap);
-          };
+          leveled(
+            ~specific=let_ap_exp_coloring_ids(~x_id, ~arg_id, ~def_id),
+            ~fallback=basic,
+            lets_ap,
+          );
         | Constructor(v, _) =>
-          let group = LetExp.lets_ctr(~def_id, ~pat_id, ~name=v, ~body_id);
-          if (LetExp.let_ctr_exp_id == get_specificity_level(group)) {
-            get_message(
-              ~colorings=
-                LetExp.let_ctr_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              group,
-            );
-          } else {
-            basic(group);
-          };
+          leveled(
+            ~specific=
+              LetExp.let_ctr_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+            ~fallback=basic,
+            LetExp.lets_ctr(~def_id, ~pat_id, ~name=v, ~body_id),
+          )
         | TupLabel(_)
         | ExplicitNonlabel
         | Label(_)
@@ -1872,21 +1704,16 @@ let get_doc =
       | Cons(hd2, tl2) =>
         let hd2_id = IdTagged.rep_id(hd2);
         let tl2_id = IdTagged.rep_id(tl2);
-        let group =
-          ListPat.cons2(~fst_id=hd_id, ~snd_id=hd2_id, ~tl_id=tl2_id, ~hd_id);
-        if (ListPat.cons2_pat_id == get_specificity_level(group)) {
-          get_message(
-            ~colorings=
-              ListPat.cons2_pat_coloring_ids(
-                ~fst_id=hd_id,
-                ~snd_id=hd2_id,
-                ~tl_id=tl2_id,
-              ),
-            group,
-          );
-        } else {
-          basic(group);
-        };
+        leveled(
+          ~specific=
+            ListPat.cons2_pat_coloring_ids(
+              ~fst_id=hd_id,
+              ~snd_id=hd2_id,
+              ~tl_id=tl2_id,
+            ),
+          ~fallback=basic,
+          ListPat.cons2(~fst_id=hd_id, ~snd_id=hd2_id, ~tl_id=tl2_id, ~hd_id),
+        );
       | _ => basic(ListPat.cons(~hd_id, ~tl_id))
       };
     | Var(v) => get_message(TerminalPat.var(v))
@@ -1912,34 +1739,26 @@ let get_doc =
       | 2 =>
         let elem1_id = nth_rep_id(elements, 0);
         let elem2_id = nth_rep_id(elements, 1);
-        let group = TuplePat.tuple2(~elem1_id, ~elem2_id, ~n);
-        if (TuplePat.tuple_pat_size2_id == get_specificity_level(group)) {
-          get_message(
-            ~colorings=
-              TuplePat.tuple_pat_size2_coloring_ids(~elem1_id, ~elem2_id),
-            group,
-          );
-        } else {
-          basic(group);
-        };
+        leveled(
+          ~specific=
+            TuplePat.tuple_pat_size2_coloring_ids(~elem1_id, ~elem2_id),
+          ~fallback=basic,
+          TuplePat.tuple2(~elem1_id, ~elem2_id, ~n),
+        );
       | 3 =>
         let elem1_id = nth_rep_id(elements, 0);
         let elem2_id = nth_rep_id(elements, 1);
         let elem3_id = nth_rep_id(elements, 2);
-        let group = TuplePat.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n);
-        if (TuplePat.tuple_pat_size3_id == get_specificity_level(group)) {
-          get_message(
-            ~colorings=
-              TuplePat.tuple_pat_size3_coloring_ids(
-                ~elem1_id,
-                ~elem2_id,
-                ~elem3_id,
-              ),
-            group,
-          );
-        } else {
-          basic(group);
-        };
+        leveled(
+          ~specific=
+            TuplePat.tuple_pat_size3_coloring_ids(
+              ~elem1_id,
+              ~elem2_id,
+              ~elem3_id,
+            ),
+          ~fallback=basic,
+          TuplePat.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n),
+        );
       | _ => basic(TuplePat.tuple(~n))
       };
     | Ap(x, arg) =>
@@ -2021,27 +1840,22 @@ let get_doc =
       | Arrow(arg2, result2) =>
         let arg2_id = IdTagged.rep_id(arg2);
         let result2_id = IdTagged.rep_id(result2);
-        let group =
+        leveled(
+          ~specific=
+            ArrowTyp.arrow3_typ_coloring_ids(
+              ~arg1_id=arg_id,
+              ~arg2_id,
+              ~result_id=result2_id,
+            ),
+          ~fallback=basic,
           ArrowTyp.arrow3(
             ~arg1_id=arg_id,
             ~arg2_id,
             ~result_id=result2_id,
             ~arg_id,
             ~arrow_result_id=result_id,
-          );
-        if (ArrowTyp.arrow3_typ_id == get_specificity_level(group)) {
-          get_message(
-            ~colorings=
-              ArrowTyp.arrow3_typ_coloring_ids(
-                ~arg1_id=arg_id,
-                ~arg2_id,
-                ~result_id=result2_id,
-              ),
-            group,
-          );
-        } else {
-          basic(group);
-        };
+          ),
+        );
       | _ => basic(ArrowTyp.arrow(~arg_id, ~result_id))
       };
     | Label(name) => get_message(LabelTerm.labels(name))
@@ -2062,46 +1876,27 @@ let get_doc =
       let basic = group =>
         get_message(~explanation=TupleTyp.tuple_typ_explanation(~n), group);
       switch (n) {
-      | 0 =>
-        if (TupleTyp.tuple0_typ.id == get_specificity_level(TupleTyp.tuple0)) {
-          get_message(~colorings=[], TupleTyp.tuple0);
-        } else {
-          /* Unreachable: `tuple0` has a single form, so the selected form is
-             always `tuple0_typ`. */
-          basic(
-            TupleTyp.tuple(~n),
-          );
-        }
+      /* `tuple0` has a single form, so the selected form is always
+         `tuple0_typ` — there is no other level to fall back to. */
+      | 0 => get_message(TupleTyp.tuple0)
       | 2 =>
         let elem1_id = nth_rep_id(elements, 0);
         let elem2_id = nth_rep_id(elements, 1);
-        let group = TupleTyp.tuple2(~elem1_id, ~elem2_id, ~n);
-        if (TupleTyp.tuple2_typ_id == get_specificity_level(group)) {
-          get_message(
-            ~colorings=TupleTyp.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
-            group,
-          );
-        } else {
-          basic(group);
-        };
+        leveled(
+          ~specific=TupleTyp.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
+          ~fallback=basic,
+          TupleTyp.tuple2(~elem1_id, ~elem2_id, ~n),
+        );
       | 3 =>
         let elem1_id = nth_rep_id(elements, 0);
         let elem2_id = nth_rep_id(elements, 1);
         let elem3_id = nth_rep_id(elements, 2);
-        let group = TupleTyp.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n);
-        if (TupleTyp.tuple3_typ_id == get_specificity_level(group)) {
-          get_message(
-            ~colorings=
-              TupleTyp.tuple3_typ_coloring_ids(
-                ~elem1_id,
-                ~elem2_id,
-                ~elem3_id,
-              ),
-            group,
-          );
-        } else {
-          basic(group);
-        };
+        leveled(
+          ~specific=
+            TupleTyp.tuple3_typ_coloring_ids(~elem1_id, ~elem2_id, ~elem3_id),
+          ~fallback=basic,
+          TupleTyp.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n),
+        );
       | _ => basic(TupleTyp.tuple(~n))
       };
     | Var(c) when Info.typ_is_constructor_expected(typ_info) =>
