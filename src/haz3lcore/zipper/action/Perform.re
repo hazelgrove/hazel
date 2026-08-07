@@ -41,7 +41,8 @@ let go =
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(maybe_reassoc_thorough(z))
     | None =>
-      let fast_ctx = Parser.can_fast_paste(clipboard, z, ~root);
+      let blocker = Parser.fast_paste_blocker(clipboard, z, ~root);
+      let fast_ctx = blocker == None;
       /* Linear Menhir zip first when the caret context allows a segment
          splice: a failed attempt costs ~1ms, a hit turns the worst paste
          case (a whole external program, quadratic via typing simulation)
@@ -62,6 +63,26 @@ let go =
               ),
             )
           : None;
+      {
+        /* console-visible paste telemetry (dev): which parser ran and why */
+
+        let n = string_of_int(String.length(clipboard)) ++ " chars";
+        switch (blocker, menhir_pasted) {
+        | (Some(why), _) =>
+          print_endline(
+            "FastParse paste (" ++ n ++ "): gate refused — " ++ why,
+          )
+        | (None, None) =>
+          print_endline(
+            "FastParse paste fallback ("
+            ++ n
+            ++ "): "
+            ++ Option.value(FastParse.bail_note^, ~default="no note"),
+          )
+        | (None, Some(_)) =>
+          print_endline("FastParse paste (" ++ n ++ "): linear path")
+        };
+      };
       (
         switch (menhir_pasted) {
         | Some(z) => Some(z)

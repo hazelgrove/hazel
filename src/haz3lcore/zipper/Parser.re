@@ -177,32 +177,47 @@ let has_balanced_delimiters = (s: string): bool => {
 /* Check if we can use the fast segment-splice paste path instead of
    char-by-char insertion. Requires: caret between tokens, top level,
    no incomplete tiles, Exp sort, no token merging at boundaries,
-   and balanced delimiters in clipboard. */
-let can_fast_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
-  let len = String.length(clipboard);
-  len > 0
-  && z.caret == Outer
-  && z.relatives.ancestors == []
-  && Zipper.local_backpack(z) == []
-  && Relatives.sort(~root, z.relatives) == Sort.Exp
-  && has_balanced_delimiters(clipboard)
-  && {
+   and balanced delimiters in clipboard. Returns the first failing
+   condition (for console telemetry), or None when the splice is safe. */
+let fast_paste_blocker =
+    (clipboard: string, z: Zipper.t, ~root): option(string) =>
+  if (String.length(clipboard) == 0) {
+    Some("empty clipboard");
+  } else if (z.caret != Outer) {
+    Some("caret is inside a token");
+  } else if (z.relatives.ancestors != []) {
+    Some("caret is nested inside a tile (splice is top-level only)");
+  } else if (Zipper.local_backpack(z) != []) {
+    Some("backpack is nonempty");
+  } else if (Relatives.sort(~root, z.relatives) != Sort.Exp) {
+    Some("caret sort is not Exp");
+  } else if (!has_balanced_delimiters(clipboard)) {
+    Some("clipboard delimiters unbalanced");
+  } else {
     let chars = Token.to_list(clipboard);
     let first_char = List.hd(chars);
     let last_char = Util.ListUtil.last(chars);
-    let no_left_merge =
+    let left_merge =
       switch (Zipper.neighbor_token(Left, z)) {
-      | None => true
-      | Some(t) => !Token.is_potential_token(Token.append(t, first_char))
+      | None => false
+      | Some(t) => Token.is_potential_token(Token.append(t, first_char))
       };
-    let no_right_merge =
+    let right_merge =
       switch (Zipper.neighbor_token(Right, z)) {
-      | None => true
-      | Some(t) => !Token.is_potential_token(Token.append(last_char, t))
+      | None => false
+      | Some(t) => Token.is_potential_token(Token.append(last_char, t))
       };
-    no_left_merge && no_right_merge;
+    if (left_merge) {
+      Some("clipboard would merge with the token left of the caret");
+    } else if (right_merge) {
+      Some("clipboard would merge with the token right of the caret");
+    } else {
+      None;
+    };
   };
-};
+
+let can_fast_paste = (clipboard: string, z: Zipper.t, ~root): bool =>
+  fast_paste_blocker(clipboard, z, ~root) == None;
 
 /* Fast paste: parse clipboard in isolation using segmented parser,
    then splice the resulting segment into the zipper and regrout. */

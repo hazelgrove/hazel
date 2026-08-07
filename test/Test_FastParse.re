@@ -115,7 +115,16 @@ let tests = (
       "let a = 1 in\nlet b = fun x, y ->\n  x + y\nin",
     ),
     verbatim("string with tricky content", {|let s = "a # b { c" in s|}),
+    verbatim("paren tuple in exp position", "let x = (1, 2) in x"),
+    verbatim(
+      "type alias keeps aliased-type parens",
+      "type Model = ([Int], [(Int, Int)]) in 1",
+    ),
     semantic("simple binding", "let x = 1 in x + 1"),
+    semantic(
+      "type alias with paren tuple type",
+      "type T = (Int, Bool) in let x : T = (1, true) in x",
+    ),
     semantic("module with members", "let m = { let a = 1; let b = 2 } in m"),
     semantic("case with ctor pats", "case a | Down(x, y) => x | Up => 0 end"),
     rejected("unbalanced brace", "let m = { let a = 1 in m"),

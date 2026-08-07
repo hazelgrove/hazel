@@ -252,13 +252,13 @@ module rec Exp: {
       typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
     | Undefined => undefined()
     | TyAlias(tp, ty, e) =>
-      let ty = Typ.of_menhir_ast(ty);
-      let ty =
-        switch (ty) {
-        | {term: Parens(ty), _} => ty
-        | _ => ty
-        };
-      ty_alias(TPat.of_menhir_ast(tp), ty, of_menhir_ast(e));
+      /* keep source parens: ParenTyp is explicit, and MakeTerm keeps
+         the parens tile in `type T = (A, B) in` */
+      ty_alias(
+        TPat.of_menhir_ast(tp),
+        Typ.of_menhir_ast(ty),
+        of_menhir_ast(e),
+      )
     | Use(t, e) => use(Typ.of_menhir_ast(t), of_menhir_ast(e))
     | BuiltinFun(s) => builtin_fun(s)
     | Fun(p, e, name_opt) =>
