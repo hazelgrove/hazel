@@ -100,6 +100,9 @@ let builtin_cos = arg => builtin_app("cos", arg);
 
 let float = value => Exp.float(value);
 
+let float_plus = (left, right) =>
+  Exp.bin_op(Operators.Float(Operators.Plus), left, right);
+
 let float_minus = (left, right) =>
   Exp.bin_op(Operators.Float(Operators.Minus), left, right);
 
@@ -424,6 +427,181 @@ let sample_written_step_export_chain = (~source, ~target, ~trace) => {
       }),
     ~next_step=Some(final_step),
   );
+};
+
+let sample_written_steps_export_chain = transitions => {
+  let (_, final_exp, _) = ListUtil.last(transitions);
+  let terminal =
+    step_model(
+      ~expr=final_exp,
+      ~step_kind=MissingStep(Web.MissingStep.Model.init),
+      ~next_step=None,
+    );
+  transitions
+  |> List.rev
+  |> List.fold_left(
+       (next_step, (source, target, trace)) =>
+         step_model(
+           ~expr=source,
+           ~step_kind=
+             WrittenStep({
+               at_idx: 0,
+               at_exp: source,
+               with_exp: target,
+               justification: Web.ProofTrace.trace_summary_label(trace),
+               trace_summary: Some(trace),
+               next_exp: saved(target),
+             }),
+           ~next_step=Some(next_step),
+         ),
+       terminal,
+     );
+};
+
+let sample_foil_cleanup_export_chain = () => {
+  let x = Exp.var("x");
+  let two_x = times(Exp.int(2), x);
+  let x_plus_four = plus(x, Exp.int(4));
+  let source = times(minus(two_x, Exp.int(3)), x_plus_four);
+  let distributed_once =
+    minus(times(two_x, x_plus_four), times(Exp.int(3), x_plus_four));
+  let distributed_twice =
+    minus(
+      plus(
+        times(Exp.int(2), power(x, Exp.int(2))),
+        times(two_x, Exp.int(4)),
+      ),
+      times(Exp.int(3), x_plus_four),
+    );
+  let fully_distributed =
+    minus(
+      plus(
+        times(Exp.int(2), power(x, Exp.int(2))),
+        times(two_x, Exp.int(4)),
+      ),
+      plus(times(Exp.int(3), x), times(Exp.int(3), Exp.int(4))),
+    );
+  let first_product_folded =
+    minus(
+      plus(
+        times(Exp.int(2), power(x, Exp.int(2))),
+        times(Exp.int(8), x),
+      ),
+      plus(times(Exp.int(3), x), times(Exp.int(3), Exp.int(4))),
+    );
+  let products_folded =
+    minus(
+      plus(
+        times(Exp.int(2), power(x, Exp.int(2))),
+        times(Exp.int(8), x),
+      ),
+      plus(times(Exp.int(3), x), Exp.int(12)),
+    );
+  let target =
+    minus(
+      plus(
+        times(Exp.int(2), power(x, Exp.int(2))),
+        times(Exp.int(5), x),
+      ),
+      Exp.int(12),
+    );
+  let trace = (index, source, target, local_source, local_target) =>
+    switch (
+      Web.RewriteChecker.check_single_step_trace_at_level(
+        ~level=Axioms.Algebra,
+        ~settings,
+        ~env,
+        local_source,
+        local_target,
+      )
+    ) {
+    | Some(trace) => {
+        ...trace,
+        from_normal_exp: target,
+        to_normal_exp: target,
+        prover_steps:
+          trace.prover_steps
+          |> List.map((step: Web.ProofTrace.prover_step) =>
+               {
+                 ...step,
+                 before_full_exp: source,
+                 after_full_exp: target,
+               }
+             ),
+      }
+    | None =>
+      fail("expected FOIL cleanup transition " ++ string_of_int(index))
+    };
+  let second_distribution_local = times(two_x, x_plus_four);
+  let second_distribution_target =
+    plus(
+      times(Exp.int(2), power(x, Exp.int(2))),
+      times(two_x, Exp.int(4)),
+    );
+  let third_distribution_local = times(Exp.int(3), x_plus_four);
+  let third_distribution_target =
+    plus(times(Exp.int(3), x), times(Exp.int(3), Exp.int(4)));
+  let first_product_local = times(two_x, Exp.int(4));
+  let first_product_target = times(Exp.int(8), x);
+  let second_product_local = times(Exp.int(3), Exp.int(4));
+  let second_product_target = Exp.int(12);
+  let transitions = [
+    (
+      source,
+      distributed_once,
+      trace(1, source, distributed_once, source, distributed_once),
+    ),
+    (
+      distributed_once,
+      distributed_twice,
+      trace(
+        2,
+        distributed_once,
+        distributed_twice,
+        second_distribution_local,
+        second_distribution_target,
+      ),
+    ),
+    (
+      distributed_twice,
+      fully_distributed,
+      trace(
+        3,
+        distributed_twice,
+        fully_distributed,
+        third_distribution_local,
+        third_distribution_target,
+      ),
+    ),
+    (
+      fully_distributed,
+      first_product_folded,
+      trace(
+        4,
+        fully_distributed,
+        first_product_folded,
+        first_product_local,
+        first_product_target,
+      ),
+    ),
+    (
+      first_product_folded,
+      products_folded,
+      trace(
+        5,
+        first_product_folded,
+        products_folded,
+        second_product_local,
+        second_product_target,
+      ),
+    ),
+    (
+      products_folded,
+      target,
+      trace(6, products_folded, target, products_folded, target),
+    ),
+  ];
+  sample_written_steps_export_chain(transitions);
 };
 
 let sample_reparenthesized_written_step_export_chain =
@@ -892,6 +1070,208 @@ let sample_evaluated_derivative_let_export_chain = () => {
   );
 };
 
+let sample_anonymous_derivative_let_export_chain =
+    (~drop_power_rule=false, ()) => {
+  let x = Exp.var("x");
+  let f =
+    Exp.fn(
+      Pat.var("x"),
+      plus(
+        plus(power(x, Exp.int(2)), times(Exp.int(3), x)),
+        Exp.int(2),
+      ),
+      None,
+      None,
+    );
+  let f1 =
+    Exp.fn(
+      Pat.var("x"),
+      plus(times(Exp.int(2), x), Exp.int(3)),
+      None,
+      None,
+    );
+  let f1_source = function_derivative(f);
+  let applied_f = Language.Exp.fresh(Ap(Forward, f, Exp.int(0)));
+  let body_source = plus(applied_f, Exp.int(1));
+  let body_applied =
+    plus(
+      plus(
+        plus(
+          power(Exp.int(0), Exp.int(2)),
+          times(Exp.int(3), Exp.int(0)),
+        ),
+        Exp.int(2),
+      ),
+      Exp.int(1),
+    );
+  let body_target = Exp.int(3);
+  let initial = simple_let_program([("f1", f1_source)], body_source);
+  let after_f1 = simple_let_program([("f1", f1)], body_source);
+  let after_application = simple_let_program([("f1", f1)], body_applied);
+  let after_body = simple_let_program([("f1", f1)], body_target);
+  let terminal =
+    step_model(
+      ~expr=after_body,
+      ~step_kind=MissingStep(Web.MissingStep.Model.init),
+      ~next_step=None,
+    );
+  let arithmetic_trace =
+    collapsed_macro_summary(
+      Web.ProofSearchBackend.{
+        backend: JSCoqTacticSearch,
+        level: Arithmetic,
+        max_depth: 4,
+        max_states: 80,
+        source: body_applied,
+        target: body_target,
+      },
+    );
+  let body_step =
+    written_program_step(
+      ~program=after_application,
+      ~next_program=after_body,
+      ~local_source=body_applied,
+      ~local_target=body_target,
+      ~trace=arithmetic_trace,
+      ~next_step=terminal,
+    );
+  let application_step =
+    step_model(
+      ~expr=after_f1,
+      ~step_kind=MissingStep(Web.MissingStep.Model.init),
+      ~next_step=Some(body_step),
+    );
+  let f1_trace =
+    Web.RewriteChecker.calculus_check_result_trace_for_profile(
+      ~profile=Axioms.math_profile(Calculus),
+      f1_source,
+      f1,
+    )
+    |> Option.get;
+  let f1_trace =
+    drop_power_rule
+      ? {
+        ...f1_trace,
+        rule_ids:
+          f1_trace.rule_ids
+          |> List.filter(rule_id => rule_id != "calc.diff_power"),
+        prover_steps:
+          f1_trace.prover_steps
+          |> List.filter((step: Web.ProofTrace.prover_step) =>
+               step.rule_id != "calc.diff_power"
+             ),
+      }
+      : f1_trace;
+  written_program_step(
+    ~program=initial,
+    ~next_program=after_f1,
+    ~local_source=f1_source,
+    ~local_target=f1,
+    ~trace=f1_trace,
+    ~next_step=application_step,
+  );
+};
+
+let sample_trig_taylor_derivative_let_export_chain = () => {
+  let t = Exp.var("t");
+  let fn = body => Exp.fn(Pat.var("t"), body, None, None);
+  let f =
+    fn(
+      float_plus(
+        float_minus(
+          float_divide(float(7.0), float(4.0)),
+          builtin_cos(float_times(float(2.0), t)),
+        ),
+        float_times(
+          float_divide(float(1.0), float(4.0)),
+          builtin_cos(float_times(float(4.0), t)),
+        ),
+      ),
+    );
+  let f1 =
+    fn(
+      float_minus(
+        float_times(float(2.0), builtin_sin(float_times(float(2.0), t))),
+        builtin_sin(float_times(float(4.0), t)),
+      ),
+    );
+  let f2 =
+    fn(
+      float_minus(
+        float_times(float(4.0), builtin_cos(float_times(float(2.0), t))),
+        float_times(float(4.0), builtin_cos(float_times(float(4.0), t))),
+      ),
+    );
+  let f3 =
+    fn(
+      float_plus(
+        float_times(
+          float_minus(float(0.0), float(8.0)),
+          builtin_sin(float_times(float(2.0), t)),
+        ),
+        float_times(float(16.0), builtin_sin(float_times(float(4.0), t))),
+      ),
+    );
+  let f1_source = function_derivative(f);
+  let f2_source = function_derivative(Exp.var("f1"));
+  let f3_source = function_derivative(Exp.var("f2"));
+  let body = Language.Exp.fresh(Ap(Forward, Exp.var("f3"), float(0.3)));
+  let initial =
+    simple_let_program(
+      [("f1", f1_source), ("f2", f2_source), ("f3", f3_source)],
+      body,
+    );
+  let after_f1 =
+    simple_let_program(
+      [("f1", f1), ("f2", f2_source), ("f3", f3_source)],
+      body,
+    );
+  let after_f2 =
+    simple_let_program([("f1", f1), ("f2", f2), ("f3", f3_source)], body);
+  let after_f3 =
+    simple_let_program([("f1", f1), ("f2", f2), ("f3", f3)], body);
+  let terminal =
+    step_model(
+      ~expr=after_f3,
+      ~step_kind=MissingStep(Web.MissingStep.Model.init),
+      ~next_step=None,
+    );
+  let calculus = Axioms.math_profile(Calculus);
+  let trace = (source, target) =>
+    Web.RewriteChecker.calculus_check_result_trace_for_profile(
+      ~profile=calculus,
+      source,
+      target,
+    )
+    |> Option.get;
+  let f3_step =
+    written_program_step(
+      ~program=after_f2,
+      ~next_program=after_f3,
+      ~local_source=f3_source,
+      ~local_target=f3,
+      ~trace=trace(function_derivative(f2), f3),
+      ~next_step=terminal,
+    );
+  let f2_step =
+    written_program_step(
+      ~program=after_f1,
+      ~next_program=after_f2,
+      ~local_source=f2_source,
+      ~local_target=f2,
+      ~trace=trace(function_derivative(f1), f2),
+      ~next_step=f3_step,
+    );
+  written_program_step(
+    ~program=initial,
+    ~next_program=after_f1,
+    ~local_source=f1_source,
+    ~local_target=f1,
+    ~trace=trace(f1_source, f1),
+    ~next_step=f2_step,
+  );
+};
+
 let sample_local_algebra_under_trig_export_chain = () => {
   let x = Exp.var("x");
   let local_source = times(Exp.int(2), times(Exp.int(2), x));
@@ -1326,6 +1706,39 @@ let sample_scalar_product_simplification_export_chain = () => {
       exportable: true,
     };
   sample_written_step_export_chain(~source, ~target, ~trace);
+};
+
+let sample_function_argument_scalar_export_chain = () => {
+  let x = Exp.var("x");
+  let source =
+    plus(
+      divide(Exp.int(1), Exp.int(2)),
+      app("f", times(Exp.int(3), times(Exp.int(2), x))),
+    );
+  let target =
+    plus(
+      divide(Exp.int(1), Exp.int(2)),
+      app("f", times(Exp.int(6), x)),
+    );
+  let result =
+    switch (
+      Web.AxiomSearch.search(
+        ~level=Axioms.Trigonometry,
+        ~max_depth=1,
+        ~allowed_rule_ids=["arith.simplify_scalar_products"],
+        ~log=false,
+        source,
+        target,
+      )
+    ) {
+    | Some(result) => result
+    | None => fail("expected opaque-function argument normalization proof")
+    };
+  sample_written_step_export_chain(
+    ~source,
+    ~target,
+    ~trace=Web.AxiomSearch.trace_summary(result),
+  );
 };
 
 let sample_single_algebra_export_chain = (~source, ~target) => {
@@ -1922,10 +2335,26 @@ let tests = (
           );
         check(
           bool,
-          "disabled basic derivative cleanup rejects diff(x, x) removal",
+          "disabled automatic derivative cleanup preserves visible rules",
           true,
           Web.RewriteChecker.calculus_check_result_trace_for_profile(
             ~profile=without_cleanup(Axioms.DerivativeBasics),
+            source,
+            target,
+          )
+          |> Option.is_some,
+        );
+        let without_variable =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_variable",
+            without_cleanup(Axioms.DerivativeBasics),
+          );
+        check(
+          bool,
+          "disabled visible variable rule rejects the finished derivative",
+          true,
+          Web.RewriteChecker.calculus_check_result_trace_for_profile(
+            ~profile=without_variable,
             source,
             target,
           )
@@ -3242,6 +3671,7 @@ let tests = (
             "alg.distribute_div_add",
             "alg.factor_common",
             "alg.cancel_common_add",
+            "alg.collect_like_terms",
             "alg.expand_polynomial",
             "alg.difference_of_squares",
             "alg.square_of_sum",
@@ -5472,6 +5902,7 @@ let tests = (
             "alg.distribute_div_add",
             "alg.factor_common",
             "alg.cancel_common_add",
+            "alg.collect_like_terms",
             "alg.expand_polynomial",
             "alg.difference_of_squares",
             "alg.square_of_sum",
@@ -5969,6 +6400,89 @@ let tests = (
             commuted_target,
           )
           |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "one step absorbs all profile-enabled association cleanup",
+      `Quick,
+      () => {
+        let a = Exp.var("a");
+        let b = Exp.var("b");
+        let c = Exp.var("c");
+        let d = Exp.var("d");
+        let association_only =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=[Axioms.AddAssoc, Axioms.MulAssoc],
+            Axioms.math_profile(Algebra),
+          );
+        let addition_source = plus(a, plus(b, plus(c, d)));
+        let addition_target = plus(plus(plus(a, b), c), d);
+        let multiplication_source = times(times(a, b), times(c, d));
+        let multiplication_target = times(a, times(b, times(c, d)));
+        let accepted = (profile, source, target) =>
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          );
+        let addition_result =
+          accepted(association_only, addition_source, addition_target);
+        check(
+          bool,
+          "all nested addition parentheses are one cleanup step",
+          true,
+          addition_result |> Option.is_some,
+        );
+        check(
+          bool,
+          "the one learner step retains multiple primitive proof steps",
+          true,
+          addition_result
+          |> Option.map((result: Web.RewriteChecker.check_result) =>
+               List.length(result.prover_steps) >= 2
+             )
+          |> Option.value(~default=false),
+        );
+        check(
+          bool,
+          "nested multiplication parentheses are also cleanup",
+          true,
+          accepted(
+            association_only,
+            multiplication_source,
+            multiplication_target,
+          )
+          |> Option.is_some,
+        );
+        check(
+          bool,
+          "association cleanup does not reorder terms",
+          true,
+          Web.RewriteChecker.association_cleanup_result_for_profile(
+            ~profile=association_only,
+            addition_source,
+            plus(b, plus(a, plus(c, d))),
+          )
+          |> Option.is_none,
+        );
+        let association_disabled =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=[],
+            Axioms.math_profile(Algebra),
+          );
+        check(
+          bool,
+          "disabled association remains unavailable",
+          true,
+          Web.RewriteChecker.association_cleanup_result_for_profile(
+            ~profile=association_disabled,
+            addition_source,
+            addition_target,
+          )
+          |> Option.is_none,
         );
       },
     ),
@@ -7094,6 +7608,158 @@ let tests = (
       },
     ),
     test_case(
+      "calculus Check Result preserves Float arithmetic",
+      `Quick,
+      () => {
+        let t = Exp.var("t");
+        let profile = Axioms.math_profile(Calculus);
+        let authorize = (~profile=profile, source, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage: MultiStepCheck,
+            candidate_origin: UserEntered,
+            settings,
+            env,
+            source,
+            target,
+            max_depth: 6,
+            max_states: 300,
+          });
+        let trig_body =
+          float_plus(
+            float_minus(
+              float_divide(float(7.0), float(4.0)),
+              builtin_cos(float_times(float(2.0), t)),
+            ),
+            float_times(
+              float_divide(float(1.0), float(4.0)),
+              builtin_cos(float_times(float(4.0), t)),
+            ),
+          );
+        let trig_source =
+          function_derivative(Exp.fn(Pat.var("t"), trig_body, None, None));
+        let trig_target =
+          Exp.fn(
+            Pat.var("t"),
+            float_minus(
+              float_times(
+                float(2.0),
+                builtin_sin(float_times(float(2.0), t)),
+              ),
+              builtin_sin(float_times(float(4.0), t)),
+            ),
+            None,
+            None,
+          );
+        switch (authorize(trig_source, trig_target)) {
+        | Authorized(_) => ()
+        | Rejected(rejection) =>
+          let normalized =
+            Web.DifferentiationRewrite.normalize(
+              ~rule_enabled=
+                rule_id =>
+                  Axioms.visible_rule_enabled(profile.step_policy, rule_id),
+              trig_source,
+            );
+          let cleaned =
+            Web.DifferentiationRewrite.cleanup(
+              ~cleanup_enabled=
+                capability =>
+                  List.mem(capability, profile.step_policy.default_cleanup),
+              normalized.exp,
+            );
+          fail(
+            Web.ProfileProofPlan.rejection_message(rejection)
+            ++ "; normalized to "
+            ++ Language.Exp.show(cleaned),
+          );
+        };
+        let polynomial_source =
+          expression_derivative(
+            float_plus(
+              float_power(t, float(3.0)),
+              float_times(float(2.0), t),
+            ),
+            t,
+          );
+        let polynomial_target =
+          float_plus(
+            float_times(float(3.0), float_power(t, float(2.0))),
+            float(2.0),
+          );
+        switch (authorize(polynomial_source, polynomial_target)) {
+        | Authorized(_) => ()
+        | Rejected(rejection) =>
+          fail(Web.ProfileProofPlan.rejection_message(rejection))
+        };
+        let third_source =
+          function_derivative(
+            Exp.fn(
+              Pat.var("t"),
+              float_minus(
+                float_times(
+                  float(4.0),
+                  builtin_cos(float_times(float(2.0), t)),
+                ),
+                float_times(
+                  float(4.0),
+                  builtin_cos(float_times(float(4.0), t)),
+                ),
+              ),
+              None,
+              None,
+            ),
+          );
+        let third_target =
+          Exp.fn(
+            Pat.var("t"),
+            float_plus(
+              float_times(
+                float_minus(float(0.0), float(8.0)),
+                builtin_sin(float_times(float(2.0), t)),
+              ),
+              float_times(
+                float(16.0),
+                builtin_sin(float_times(float(4.0), t)),
+              ),
+            ),
+            None,
+            None,
+          );
+        switch (authorize(third_source, third_target)) {
+        | Authorized(_) => ()
+        | Rejected(rejection) =>
+          fail(Web.ProfileProofPlan.rejection_message(rejection))
+        };
+        let wrong_target = Exp.fn(Pat.var("t"), float(0.0), None, None);
+        check(
+          bool,
+          "wrong Float derivative rejected",
+          true,
+          switch (authorize(trig_source, wrong_target)) {
+          | Rejected(_) => true
+          | Authorized(_) => false
+          },
+        );
+        let without_cos_chain =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_chain_cos",
+            profile,
+          );
+        check(
+          bool,
+          "disabled Float derivative rule rejected",
+          true,
+          switch (
+            authorize(~profile=without_cos_chain, trig_source, trig_target)
+          ) {
+          | Rejected(_) => true
+          | Authorized(_) => false
+          },
+        );
+      },
+    ),
+    test_case(
       "calculus Search prioritizes structured constants and rejects invalid generic chain output",
       `Quick,
       () => {
@@ -7724,6 +8390,62 @@ let tests = (
             "(x-1)*(x+4)",
           )
           |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "algebrite factor control follows level inheritance and profile overrides",
+      `Quick,
+      () => {
+        let enabled = level =>
+          Web.AlgebriteSuggestion.factor_suggestion_enabled_for_profile(
+            Axioms.math_profile(level),
+          );
+        check(bool, "enabled in Algebra", true, enabled(Algebra));
+        check(bool, "hidden in Arithmetic", false, enabled(Arithmetic));
+        check(
+          bool,
+          "inherited by Trigonometry",
+          true,
+          enabled(Trigonometry),
+        );
+        check(
+          bool,
+          "inherited by Functions/lists",
+          true,
+          enabled(FunctionsAndLists),
+        );
+        check(bool, "inherited by Calculus", true, enabled(Calculus));
+        let inherited_exercise_profile =
+          Web.ExerciseMathPolicy.make(
+            ~id="factor-inheritance-test",
+            ~label="Factor inheritance test",
+            ~detail="Exercise profile inheriting Calculus",
+            ~parent_level=Calculus,
+            ~automation_stage=MultiStepCheck,
+            (),
+          )
+          |> Web.ExerciseMathPolicy.resolved_profile;
+        check(
+          bool,
+          "inherited by a Calculus exercise profile",
+          true,
+          Web.AlgebriteSuggestion.factor_suggestion_enabled_for_profile(
+            inherited_exercise_profile,
+          ),
+        );
+        let disabled_profile =
+          Axioms.profile_with_capability_disabled(
+            Axioms.math_profile(Algebra),
+            "alg.factor_polynomial_normalize",
+          );
+        check(
+          bool,
+          "profile can disable factor control",
+          false,
+          Web.AlgebriteSuggestion.factor_suggestion_enabled_for_profile(
+            disabled_profile,
+          ),
         );
       },
     ),
@@ -11893,6 +12615,110 @@ let tests = (
       },
     ),
     test_case(
+      "axiom search preserves Float operators in literal power splits",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let base = builtin_sin(x);
+        let check_split = (exponent, inner, outer) => {
+          let from_ = float_power(base, float(exponent));
+          let to_ =
+            float_power(float_power(base, float(inner)), float(outer));
+          switch (
+            Web.AxiomSearch.search(
+              ~level=Trigonometry,
+              ~max_depth=1,
+              ~allowed_rule_ids=["alg.power_mul"],
+              ~log=false,
+              from_,
+              to_,
+            )
+          ) {
+          | Some(result) =>
+            switch (result.steps) {
+            | [step] => check_exp_equal("Float split", to_, step.after_exp)
+            | _ => fail("expected one Float power split step")
+            }
+          | None => fail("expected Float literal exponent split proof")
+          };
+        };
+        check_split(4.0, 2.0, 2.0);
+        check_split(6.0, 3.0, 2.0);
+        check(
+          bool,
+          "non-factorization rejected",
+          true,
+          Web.AxiomSearch.search(
+            ~level=Trigonometry,
+            ~max_depth=1,
+            ~allowed_rule_ids=["alg.power_mul"],
+            ~log=false,
+            float_power(base, float(5.0)),
+            float_power(float_power(base, float(2.0)), float(2.0)),
+          )
+          |> Option.is_none,
+        );
+        check(
+          bool,
+          "disabled rule cannot split Float power",
+          true,
+          Web.AxiomSearch.search(
+            ~level=Trigonometry,
+            ~max_depth=1,
+            ~allowed_rule_ids=["alg.add_comm"],
+            ~log=false,
+            float_power(base, float(4.0)),
+            float_power(float_power(base, float(2.0)), float(2.0)),
+          )
+          |> Option.is_none,
+        );
+      },
+    ),
+    test_case(
+      "trig rewrites preserve Float operators and literals",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let sin_squared = float_power(builtin_sin(x), float(2.0));
+        let reduced =
+          float_divide(
+            float_minus(float(1.0), cos(float_times(float(2.0), x))),
+            float(2.0),
+          );
+        let rewrites =
+          Web.TrigRewrite.apply_rule_at_root(
+            "trig.sin_squared_double",
+            sin_squared,
+          );
+        switch (rewrites) {
+        | [rewrite] =>
+          check_exp_equal("Float trig result", reduced, rewrite.after_exp)
+        | _ => fail("expected one Float power-reduction rewrite")
+        };
+        check(
+          bool,
+          "unrelated rule does not rewrite",
+          true,
+          Web.TrigRewrite.apply_rule_at_root("trig.sin_sum", sin_squared)
+          == [],
+        );
+        check(
+          bool,
+          "disabled trig rule cannot search",
+          true,
+          Web.AxiomSearch.search(
+            ~level=Trigonometry,
+            ~max_depth=1,
+            ~allowed_rule_ids=["alg.add_comm"],
+            ~log=false,
+            sin_squared,
+            reduced,
+          )
+          |> Option.is_none,
+        );
+      },
+    ),
+    test_case(
       "axiom search splits literal powers with UI multiplication association",
       `Quick,
       () => {
@@ -13310,6 +14136,99 @@ let tests = (
       },
     ),
     test_case(
+      "Rocq export names an anonymous derivative source and beta-reduces its uses",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_anonymous_derivative_let_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected an anonymous derivative export")
+          };
+        write_text_file(
+          "/tmp/hazel_anonymous_derivative_let_development.v",
+          export,
+        );
+        check(
+          bool,
+          "introduces a stable Rocq name for the anonymous source",
+          true,
+          string_contains("Definition hazel_source_for_f1", export)
+          && string_contains(
+               "Theorem hazel_f1_correct : derivative_of f1 hazel_source_for_f1",
+               export,
+             ),
+        );
+        check(
+          bool,
+          "prints the beta-redex in the final theorem",
+          true,
+          string_contains("(fun x : R =>", export)
+          && string_contains("Theorem hazel_final_value", export)
+          && string_contains(
+               "etransitivity; [apply hazel_final_value_step_1 |].",
+               export,
+             )
+          && !string_contains("rewrite hazel_final_value_step_1.", export),
+        );
+      },
+    ),
+    test_case(
+      "Rocq export composes the full trig Taylor derivative chain",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_trig_taylor_derivative_let_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected a trig Taylor derivative export")
+          };
+        write_text_file("/tmp/hazel_trig_taylor_derivative_chain.v", export);
+        check(
+          bool,
+          "exports all three derivative dependencies",
+          true,
+          string_contains("Theorem hazel_f1_correct", export)
+          && string_contains("Theorem hazel_f2_correct", export)
+          && string_contains("Theorem hazel_f3_correct", export),
+        );
+        check(
+          bool,
+          "exports anonymous trig source and transcendental certificates",
+          true,
+          string_contains("Definition hazel_source_for_f1", export)
+          && string_contains("derivable_pt_lim_sin", export)
+          && string_contains("derivable_pt_lim_cos", export)
+          && !string_contains("forall sin cos", export),
+        );
+      },
+    ),
+    test_case(
+      "anonymous derivative export preserves recorded profile boundaries",
+      `Quick,
+      () =>
+      check_raises(
+        "missing recorded power rule",
+        Failure(
+          "the recorded calculus profile cannot certify let-bound derivative f1",
+        ),
+        () =>
+        Web.StepperBase.Stepper.export_coq(
+          sample_anonymous_derivative_let_export_chain(
+            ~drop_power_rule=true,
+            (),
+          ),
+        )
+        |> ignore
+      )
+    ),
+    test_case(
       "let derivative export replays an atomic recorded cleanup finish",
       `Quick,
       () => {
@@ -13430,6 +14349,59 @@ let tests = (
           "does not emit ERROR",
           false,
           printed |> String.contains(_, 'E'),
+        );
+      },
+    ),
+    test_case(
+      "coq real export prints unary function literals with lexical binders",
+      `Quick,
+      () => {
+        let body = times(Exp.var("a"), Exp.var("x"));
+        let function_ = Exp.fn(Pat.var("x"), body, None, None);
+        let applied =
+          Language.Exp.fresh(Ap(Forward, function_, Exp.int(2)));
+        check(
+          string,
+          "printed application",
+          "(fun x : R => (a * x)) (2)",
+          Web.CoqExport.string_of_d_for_domain(
+            ~domain=Web.CoqExport.Reals,
+            applied,
+          ),
+        );
+        check(
+          string,
+          "only the closure variable is quantified",
+          "forall a : R,",
+          Web.CoqExport.forall_string_for_domain(
+            ~domain=Web.CoqExport.Reals,
+            [applied],
+          ),
+        );
+      },
+    ),
+    test_case(
+      "coq real export rejects non-unary function patterns explicitly",
+      `Quick,
+      () => {
+        let unsupported =
+          Exp.fn(
+            Pat.tuple([Pat.var("x"), Pat.var("y")]),
+            plus(Exp.var("x"), Exp.var("y")),
+            None,
+            None,
+          );
+        check_raises(
+          "tuple parameter",
+          Failure(
+            "unsupported Coq real function pattern: expected one variable parameter",
+          ),
+          () =>
+          Web.CoqExport.string_of_d_for_domain(
+            ~domain=Web.CoqExport.Reals,
+            unsupported,
+          )
+          |> ignore
         );
       },
     ),
@@ -14326,6 +15298,41 @@ let tests = (
       },
     ),
     test_case(
+      "stepper coq export replays the full cleanup FOIL route",
+      `Quick,
+      () => {
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_foil_cleanup_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected cleanup FOIL export")
+          };
+        write_text_file("/tmp/hazel_stepper_foil_cleanup.v", export);
+        check(
+          bool,
+          "exports all six visible transitions",
+          true,
+          string_contains("Lemma equiv_exp6", export),
+        );
+        check(
+          bool,
+          "exports distribution and collection evidence",
+          true,
+          string_contains("alg.distribute_mul_add", export)
+          && string_contains("alg.collect_like_terms", export),
+        );
+        check(
+          bool,
+          "contains no export error",
+          false,
+          string_contains("ERROR", export),
+        );
+      },
+    ),
+    test_case(
       "stepper coq export replays subtraction distribution written with a negative",
       `Quick,
       () => {
@@ -14412,15 +15419,36 @@ let tests = (
           );
         check(
           bool,
-          "scalar cleanup tries the trig-argument congruence certificate",
+          "scalar cleanup tries the general argument congruence certificate",
           true,
           Web.CoqProofExport.tactic_for_prover_step(
             ~domain=Web.CoqExport.Reals,
             scalar_step,
           )
-          |> string_contains("hazel_trig_argument_algebra"),
+          |> string_contains("hazel_function_argument_algebra"),
         );
         let half = divide(Exp.int(1), Exp.int(2));
+        let contextual_source = plus(half, nested_cos);
+        let contextual_target = plus(half, cos_4x);
+        let contextual_step =
+          Web.ProofTrace.prover_step(
+            ~origin=Web.ProofTrace.Normalization,
+            ~rule_id="arith.simplify_scalar_products",
+            ~before_full_exp=contextual_source,
+            ~after_full_exp=contextual_target,
+            ~before_exp=contextual_source,
+            ~after_exp=contextual_target,
+            ~detail="normalize an argument beneath a rational context",
+          );
+        check(
+          string,
+          "argument congruence precedes rational field closure",
+          "repeat progress hazel_function_argument_algebra; try unfold Rsqr; field.",
+          Web.CoqProofExport.recorded_transition_replay_script(
+            ~domain=Web.CoqExport.Reals,
+            [contextual_step],
+          ),
+        );
         let distribution_source =
           times(half, divide(plus(Exp.int(1), cos_4x), Exp.int(2)));
         let distribution_target =
@@ -14446,6 +15474,93 @@ let tests = (
             ~domain=Web.CoqExport.Reals,
             [distribution_step],
           ),
+        );
+      },
+    ),
+    test_case(
+      "real export normalizes arguments beneath opaque functions within profile boundaries",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source =
+          plus(
+            divide(Exp.int(1), Exp.int(2)),
+            app("f", times(Exp.int(3), times(Exp.int(2), x))),
+          );
+        let target =
+          plus(
+            divide(Exp.int(1), Exp.int(2)),
+            app("f", times(Exp.int(6), x)),
+          );
+        let export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_function_argument_scalar_export_chain(),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected opaque-function scalar export")
+          };
+        write_text_file(
+          "/tmp/hazel_stepper_function_argument_scalar.v",
+          export,
+        );
+        check(
+          bool,
+          "export quantifies the opaque function",
+          true,
+          string_contains("(f : R -> R)", export),
+        );
+        check(
+          bool,
+          "export proves application congruence before field closure",
+          true,
+          string_contains(
+            "repeat progress hazel_function_argument_algebra; try unfold Rsqr; field.",
+            export,
+          ),
+        );
+        let profile = Axioms.math_profile(Trigonometry);
+        let request =
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Trigonometry,
+            max_depth: 2,
+            max_states: 40,
+            source,
+            target,
+          };
+        check(
+          bool,
+          "enabled scalar capability authorizes the opaque argument rewrite",
+          true,
+          local_profile_trace(~profile, ~settings, ~env, request)
+          |> Option.is_some,
+        );
+        let disabled_profile =
+          Axioms.profile_with_capability_disabled(
+            profile,
+            "arith.simplify_scalar_products",
+          )
+          |> (
+            profile =>
+              Axioms.profile_with_capability_disabled(
+                profile,
+                "arith.affine_normalize",
+              )
+          )
+          |> Web.ProfileBoard.profile_with_cleanup(~cleanup=[]);
+        check(
+          bool,
+          "disabled scalar operation and cleanup reject the same argument rewrite",
+          false,
+          local_profile_trace(
+            ~profile=disabled_profile,
+            ~settings,
+            ~env,
+            request,
+          )
+          |> Option.is_some,
         );
       },
     ),
@@ -15540,14 +16655,14 @@ let tests = (
         check(bool, "constant derivative", true, Option.is_some(constant));
         check(
           bool,
-          "cleanup is an explicit derivative semantic step",
+          "visible variable rule is recorded explicitly",
           true,
           switch (variable) {
           | Some(summary) =>
-            List.mem("derivative.basics", summary.rule_ids)
+            List.mem("calc.diff_variable", summary.rule_ids)
             && summary.prover_steps
             |> List.exists((step: Web.ProofTrace.prover_step) =>
-                 step.rule_id == "derivative.basics"
+                 step.rule_id == "calc.diff_variable"
                )
           | None => false
           },
@@ -15569,9 +16684,20 @@ let tests = (
           );
         check(
           bool,
-          "disabled derivative cleanup blocks basic derivative",
-          false,
+          "disabled automatic cleanup preserves visible basic derivative",
+          true,
           trace(without_basics, diff(x, x), Exp.int(1)) |> Option.is_some,
+        );
+        let without_variable =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_variable",
+            without_basics,
+          );
+        check(
+          bool,
+          "disabled visible variable rule blocks basic derivative",
+          false,
+          trace(without_variable, diff(x, x), Exp.int(1)) |> Option.is_some,
         );
       },
     ),

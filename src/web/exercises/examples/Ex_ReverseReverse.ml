@@ -11,6 +11,7 @@ let exercise : Exercise.t =
          (i.e. that `rev` is *involutive*).";
       max_points = 10;
       write_out_steps = true;
+      math_policy = None;
       prelude =
         {
           selection =

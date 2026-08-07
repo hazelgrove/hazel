@@ -135,6 +135,7 @@ type hazel_rule_backend =
   | AlgebraDistributeDivAdd
   | AlgebraFactorCommon
   | AlgebraCancelCommonAdd
+  | AlgebraCollectLikeTerms
   | TrigIdentity
   | CalculusDerivative;
 
@@ -1798,7 +1799,7 @@ let rocq_backend_for_rule_id =
       rocq_rule_backend(
         ~tactic="hazel_algebra",
         ~integers=["ring"],
-        ~reals=["unfold Rsqr; ring"],
+        ~reals=["hazel_function_argument_algebra", "unfold Rsqr; ring"],
       ),
     )
   | rule_id when List.mem(rule_id, algebra_identity_rule_ids) =>
@@ -1819,13 +1820,16 @@ let rocq_backend_for_rule_id =
     Some(
       rocq_rule_backend_with_replay(
         ~tactic="hazel_rewrite_step",
-        ~integers=["rewrite Z.mul_add_distr_l", "rewrite Z.mul_add_distr_r"],
-        ~reals=["rewrite Rmult_plus_distr_l", "rewrite Rmult_plus_distr_r"],
+        /* In Check Result search this named macro may close the complete
+           polynomial identity, including exact rational coefficients.  It is
+           present only when the active profile enables the macro. */
+        ~integers=["ring"],
+        ~reals=["try unfold Rsqr; field"],
         /* This macro is available only when CollectLikeTerms is enabled.
            Its exact replay may therefore use the corresponding deterministic
            polynomial certificate instead of recursive rewrite search. */
         ~replay_integers=["ring"],
-        ~replay_reals=["unfold Rsqr; ring"],
+        ~replay_reals=["try unfold Rsqr; field"],
       ),
     )
   | "alg.factor_common" =>
@@ -2500,6 +2504,13 @@ let math_rule_catalog = {
         ~allowed_cleanup=[AddAssoc, AddComm],
       ),
       catalog_rule(
+        ~id="alg.collect_like_terms",
+        ~direction=BothDirections,
+        ~hazel_backend=Some(AlgebraCollectLikeTerms),
+        ~introduced_levels=[Algebra],
+        ~allowed_cleanup=[AddAssoc, AddComm],
+      ),
+      catalog_rule(
         ~id="alg.expand_polynomial",
         ~direction=BothDirections,
         ~hazel_backend=Some(AlgebraDistributeMulAdd),
@@ -2531,7 +2542,6 @@ let math_rule_catalog = {
       "arith.reorder_mul_factors",
       "alg.power_add",
       "alg.power_mul",
-      "alg.collect_like_terms",
     ]
     |> List.map(id => {
          let is_power_normalizer =
@@ -2716,7 +2726,11 @@ let planned_visible_rules = (policy: step_policy) =>
             {
               rule,
               direction: rule.direction,
-              allowed_cleanup: rule_policy.allowed_cleanup,
+              allowed_cleanup:
+                rule_policy.allowed_cleanup
+                |> List.filter(capability =>
+                     List.mem(capability, policy.default_cleanup)
+                   ),
             }
           )
      );
@@ -2734,8 +2748,11 @@ let cleanup_for_visible_rule = (policy: step_policy, rule_id) =>
   visible_rule_policy_for_rule(policy, rule_id)
   |> Option.map((rule_policy: visible_rule_policy) =>
        rule_policy.allowed_cleanup
+       |> List.filter(capability =>
+            List.mem(capability, policy.default_cleanup)
+          )
      )
-  |> Option.value(~default=policy.default_cleanup);
+  |> Option.value(~default=[]);
 
 let one_step_policy = _level => {
   distribution_step_policy: StrictDistributedForm,
@@ -3322,15 +3339,29 @@ let rule_prerequisites_satisfied = (profile: math_profile, rule: math_rule) =>
        visible_rule_enabled(profile.step_policy, rule_id)
      );
 
+let capability_usage_override_for_stage = (profile, stage, capability_id) =>
+  profile.capability_usage_overrides
+  |> List.rev
+  |> List.find_opt((override: capability_usage_override) =>
+       override.capability_id == capability_id && override.stage == stage
+     )
+  |> Option.map((override: capability_usage_override) => override.usage);
+
+let capability_executable_for_profile = (profile, stage, capability_id) =>
+  capability_usage_override_for_stage(profile, stage, capability_id)
+  != Some(Disabled);
+
+let visible_rule_executable_for_profile =
+    (profile: math_profile, stage, rule: math_rule) =>
+  visible_rule_enabled(profile.step_policy, rule.id)
+  && List.mem(stage, rule.supported_stages)
+  && rule_prerequisites_satisfied(profile, rule)
+  && capability_executable_for_profile(profile, stage, rule.id);
+
 let normalization_rule_enabled_for_profile =
     (profile: math_profile, stage, rule: math_rule) => {
   let usage =
-    profile.capability_usage_overrides
-    |> List.rev
-    |> List.find_opt((override: capability_usage_override) =>
-         override.capability_id == rule.id && override.stage == stage
-       )
-    |> Option.map((override: capability_usage_override) => override.usage)
+    capability_usage_override_for_stage(profile, stage, rule.id)
     |> Option.value(~default=AtMostOne);
   (rule.kind == NormalizationRule || rule.kind == GuardedNormalizationRule)
   && List.mem(stage, rule.supported_stages)
@@ -3376,24 +3407,38 @@ let guarded_normalization_backend_for_profile =
   | None => None
   };
 
-let profile_allows_rocq_rule_id = (profile: math_profile, rule_id) =>
-  visible_rule_enabled(profile.step_policy, rule_id)
+let profile_allows_rocq_rule_id = (profile: math_profile, stage, rule_id) =>
+  (
+    switch (catalog_rule_by_id(rule_id)) {
+    | Some(rule) => visible_rule_executable_for_profile(profile, stage, rule)
+    | None => false
+    }
+  )
   || (
     switch (catalog_rule_by_id(rule_id)) {
     | Some(rule) =>
-      normalization_rule_enabled_for_profile(profile, MultiStepCheck, rule)
+      normalization_rule_enabled_for_profile(profile, stage, rule)
     | None => false
     }
   )
   || (
     switch (cleanup_capability_for_id(rule_id)) {
-    | Some(capability) => cleanup_enabled_for_profile(profile, capability)
+    | Some(capability) =>
+      cleanup_enabled_for_profile(profile, capability)
+      && capability_executable_for_profile(profile, stage, rule_id)
     | None => false
     }
   );
 
 let active_rocq_tactic_plan_for_profile = (profile, purpose) => {
   let plan = rocq_tactic_plan_for_profile(profile, purpose);
+  let stage =
+    switch (purpose) {
+    | ValidatePrimitiveStep => Manual
+    | ValidateMacroStep
+    | CheckResult => MultiStepCheck
+    | AutoSimplify => AutoEval
+    };
   {
     ...plan,
     steps:
@@ -3401,7 +3446,7 @@ let active_rocq_tactic_plan_for_profile = (profile, purpose) => {
       |> List.filter((step: rocq_tactic_step) =>
            step.rule_ids != []
            && step.rule_ids
-           |> List.for_all(profile_allows_rocq_rule_id(profile))
+           |> List.for_all(profile_allows_rocq_rule_id(profile, stage))
          ),
   };
 };
@@ -3412,7 +3457,15 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
   | [rule_id, ..._] =>
     invalid_arg("Unknown math rule in profile stage plan: " ++ rule_id)
   | [] =>
-    let cleanup = profile.step_policy.default_cleanup;
+    let cleanup =
+      profile.step_policy.default_cleanup
+      |> List.filter(cleanup =>
+           capability_executable_for_profile(
+             profile,
+             stage,
+             cleanup_capability_label(cleanup),
+           )
+         );
     let direction_for_rule = (rule: math_rule) =>
       profile.capability_direction_overrides
       |> List.rev
@@ -3431,6 +3484,8 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
              direction: direction_for_rule(planned.rule),
            }
          );
+    let planned_rule_executable = (planned: planned_visible_rule) =>
+      visible_rule_executable_for_profile(profile, stage, planned.rule);
     let cleanup_atoms =
       cleanup
       |> List.map(capability =>
@@ -3444,10 +3499,7 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
          );
     let visible_atoms =
       planned_rules
-      |> List.filter((planned: planned_visible_rule) =>
-           List.mem(stage, planned.rule.supported_stages)
-           && rule_prerequisites_satisfied(profile, planned.rule)
-         )
+      |> List.filter(planned_rule_executable)
       |> List.map((planned: planned_visible_rule) =>
            {
              id: planned.rule.id,
@@ -3552,12 +3604,7 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
       atoms: cleanup_atoms @ visible_atoms @ normalizer_atoms,
       capabilities,
       pre_cleanup: cleanup,
-      visible_rules:
-        planned_rules
-        |> List.filter((planned: planned_visible_rule) =>
-             List.mem(stage, planned.rule.supported_stages)
-             && rule_prerequisites_satisfied(profile, planned.rule)
-           ),
+      visible_rules: planned_rules |> List.filter(planned_rule_executable),
       post_cleanup: cleanup,
       normalization_backends: normalization_backends_for_profile(profile),
       rocq_plan:

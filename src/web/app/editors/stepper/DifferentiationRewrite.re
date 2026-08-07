@@ -25,6 +25,17 @@ let divide_exp = (left, right) =>
 let power_exp = (left, right) =>
   Exp.fresh(BinOp(Operators.Int(Operators.Power), left, right));
 let neg_exp = exp => Exp.fresh(UnOp(Operators.Int(Operators.Minus), exp));
+let neg_exp_for_operator = (op, exp) =>
+  Exp.fresh(
+    UnOp(
+      switch (op) {
+      | Operators.Float(Operators.Minus) => Operators.Float(Operators.Minus)
+      | SInt(Minus) => SInt(Minus)
+      | _ => Operators.Int(Operators.Minus)
+      },
+      exp,
+    ),
+  );
 let diff_exp = (expression, variable) =>
   DerivativeOperator.expression(~body=expression, ~variable);
 let legacy_diff_exp = (expression, variable) =>
@@ -163,7 +174,7 @@ let rec distribute_diff_over_operator =
   };
 };
 
-let applicable_at_root = (~rule_enabled, exp) => {
+let applicable_at_root_with_context = (~rule_enabled, ~float_context, exp) => {
   let before_exp = strip(exp);
   let make_diff = derivative_builder(before_exp);
   let make = (rule_id, label, after_exp) =>
@@ -199,6 +210,70 @@ let applicable_at_root = (~rule_enabled, exp) => {
       | None => []
       | Some(variable_name) =>
         let expression = strip(expression);
+        let float_math =
+          float_context || TrigRewrite.uses_float_math(expression);
+        let literal = value =>
+          float_math
+            ? TrigRewrite.float_exp(float_of_int(value)) : int_exp(value);
+        let plus = (left, right) =>
+          Exp.fresh(
+            BinOp(
+              float_math
+                ? Operators.Float(Operators.Plus)
+                : Operators.Int(Operators.Plus),
+              left,
+              right,
+            ),
+          );
+        let minus = (left, right) =>
+          Exp.fresh(
+            BinOp(
+              float_math
+                ? Operators.Float(Operators.Minus)
+                : Operators.Int(Operators.Minus),
+              left,
+              right,
+            ),
+          );
+        let times = (left, right) =>
+          Exp.fresh(
+            BinOp(
+              float_math
+                ? Operators.Float(Operators.Times)
+                : Operators.Int(Operators.Times),
+              left,
+              right,
+            ),
+          );
+        let divide = (left, right) =>
+          Exp.fresh(
+            BinOp(
+              float_math
+                ? Operators.Float(Operators.Divide)
+                : Operators.Int(Operators.Divide),
+              left,
+              right,
+            ),
+          );
+        let power = (left, right) =>
+          Exp.fresh(
+            BinOp(
+              float_math
+                ? Operators.Float(Operators.Power)
+                : Operators.Int(Operators.Power),
+              left,
+              right,
+            ),
+          );
+        let negate = inner =>
+          Exp.fresh(
+            UnOp(
+              float_math
+                ? Operators.Float(Operators.Minus)
+                : Operators.Int(Operators.Minus),
+              inner,
+            ),
+          );
         switch (expression.term) {
         | Fun(pat, body, _, _) =>
           switch (function_parameter_name(pat)) {
@@ -211,23 +286,23 @@ let applicable_at_root = (~rule_enabled, exp) => {
           | _ => []
           }
         | Var(name) when name == variable_name =>
-          make("calc.diff_variable", "derivative of a variable", int_exp(1))
+          make("calc.diff_variable", "derivative of a variable", literal(1))
         | _ when !depends_on(variable_name, expression) =>
-          make("calc.diff_constant", "derivative of a constant", int_exp(0))
+          make("calc.diff_constant", "derivative of a constant", literal(0))
         | Ap(Operators.Forward, fn, inner)
             when function_name(fn) == Some("sin") =>
           make(
             "calc.diff_chain_sin",
             "sine chain rule",
-            times_exp(app_exp("cos", inner), make_diff(inner, variable)),
+            times(app_exp("cos", inner), make_diff(inner, variable)),
           )
         | Ap(Operators.Forward, fn, inner)
             when function_name(fn) == Some("cos") =>
           make(
             "calc.diff_chain_cos",
             "cosine chain rule",
-            times_exp(
-              neg_exp(app_exp("sin", inner)),
+            times(
+              negate(app_exp("sin", inner)),
               make_diff(inner, variable),
             ),
           )
@@ -237,7 +312,7 @@ let applicable_at_root = (~rule_enabled, exp) => {
             "linearity (sum rule)",
             distribute_diff_over_operator(
               ~operator=Operators.Plus,
-              ~combine=plus_exp,
+              ~combine=plus,
               ~make_diff,
               expression,
               variable,
@@ -249,7 +324,7 @@ let applicable_at_root = (~rule_enabled, exp) => {
             "linearity (difference rule)",
             distribute_diff_over_operator(
               ~operator=Operators.Minus,
-              ~combine=minus_exp,
+              ~combine=minus,
               ~make_diff,
               expression,
               variable,
@@ -259,9 +334,9 @@ let applicable_at_root = (~rule_enabled, exp) => {
           make(
             "calc.diff_product",
             "product rule",
-            plus_exp(
-              times_exp(make_diff(left, variable), right),
-              times_exp(left, make_diff(right, variable)),
+            plus(
+              times(make_diff(left, variable), right),
+              times(left, make_diff(right, variable)),
             ),
           )
         | BinOp(op, numerator, denominator)
@@ -269,24 +344,24 @@ let applicable_at_root = (~rule_enabled, exp) => {
           make(
             "calc.diff_quotient",
             "quotient rule (denominator nonzero)",
-            divide_exp(
-              minus_exp(
-                times_exp(make_diff(numerator, variable), denominator),
-                times_exp(numerator, make_diff(denominator, variable)),
+            divide(
+              minus(
+                times(make_diff(numerator, variable), denominator),
+                times(numerator, make_diff(denominator, variable)),
               ),
-              power_exp(denominator, int_exp(2)),
+              power(denominator, literal(2)),
             ),
           )
         | BinOp(op, base, exponent) when is_operator(Operators.Power, op) =>
           switch (integer_constant(exponent)) {
-          | Some(power) when power > 0 =>
+          | Some(exponent_value) when exponent_value > 0 =>
             make(
               "calc.diff_power",
               "power rule",
-              times_exp(
-                times_exp(
-                  int_exp(power),
-                  power_exp(base, int_exp(power - 1)),
+              times(
+                times(
+                  literal(exponent_value),
+                  power(base, literal(exponent_value - 1)),
                 ),
                 make_diff(base, variable),
               ),
@@ -300,7 +375,7 @@ let applicable_at_root = (~rule_enabled, exp) => {
           make(
             "calc.diff_negation",
             "derivative negation rule",
-            neg_exp(make_diff(inner, variable)),
+            negate(make_diff(inner, variable)),
           )
         | _ => []
         };
@@ -309,32 +384,40 @@ let applicable_at_root = (~rule_enabled, exp) => {
   };
 };
 
+let applicable_at_root = (~rule_enabled, exp) =>
+  applicable_at_root_with_context(
+    ~rule_enabled,
+    ~float_context=TrigRewrite.uses_float_math(exp),
+    exp,
+  );
+
 let rebuild_unary = (op, inner) => Exp.fresh(UnOp(op, inner));
 let rebuild_binary = (op, left, right) => Exp.fresh(BinOp(op, left, right));
 
-let rec rewrite_first = (~rule_enabled, exp) => {
-  switch (applicable_at_root(~rule_enabled, exp)) {
+let rec rewrite_first_with_context = (~rule_enabled, ~float_context, exp) => {
+  let float_context = float_context || TrigRewrite.uses_float_math(exp);
+  switch (applicable_at_root_with_context(~rule_enabled, ~float_context, exp)) {
   | [root, ..._] => Some((root.after_exp, root))
   | [] =>
     let exp = strip(exp);
     switch (exp.term) {
     | BinOp(op, left, right) =>
-      switch (rewrite_first(~rule_enabled, left)) {
+      switch (rewrite_first_with_context(~rule_enabled, ~float_context, left)) {
       | Some((left, step)) => Some((rebuild_binary(op, left, right), step))
       | None =>
-        rewrite_first(~rule_enabled, right)
+        rewrite_first_with_context(~rule_enabled, ~float_context, right)
         |> Option.map(((right, step)) =>
              (rebuild_binary(op, left, right), step)
            )
       }
     | UnOp(op, inner) =>
-      rewrite_first(~rule_enabled, inner)
+      rewrite_first_with_context(~rule_enabled, ~float_context, inner)
       |> Option.map(((inner, step)) => (rebuild_unary(op, inner), step))
     | Ap(direction, fn, arg) =>
-      switch (rewrite_first(~rule_enabled, fn)) {
+      switch (rewrite_first_with_context(~rule_enabled, ~float_context, fn)) {
       | Some((fn, step)) => Some((Exp.fresh(Ap(direction, fn, arg)), step))
       | None =>
-        rewrite_first(~rule_enabled, arg)
+        rewrite_first_with_context(~rule_enabled, ~float_context, arg)
         |> Option.map(((arg, step)) =>
              (Exp.fresh(Ap(direction, fn, arg)), step)
            )
@@ -344,7 +427,9 @@ let rec rewrite_first = (~rule_enabled, exp) => {
         switch (remaining) {
         | [] => None
         | [entry, ...rest] =>
-          switch (rewrite_first(~rule_enabled, entry)) {
+          switch (
+            rewrite_first_with_context(~rule_enabled, ~float_context, entry)
+          ) {
           | Some((entry, step)) =>
             Some((tuple_exp(List.rev(before) @ [entry, ...rest]), step))
           | None => rewrite_entry([entry, ...before], rest)
@@ -352,18 +437,18 @@ let rec rewrite_first = (~rule_enabled, exp) => {
         };
       rewrite_entry([], entries);
     | Parens(inner) =>
-      rewrite_first(~rule_enabled, inner)
+      rewrite_first_with_context(~rule_enabled, ~float_context, inner)
       |> Option.map(((inner, step)) => (Exp.fresh(Parens(inner)), step))
     | Asc(inner, typ) =>
-      rewrite_first(~rule_enabled, inner)
+      rewrite_first_with_context(~rule_enabled, ~float_context, inner)
       |> Option.map(((inner, step)) => (Exp.fresh(Asc(inner, typ)), step))
     | Projector(label, inner) =>
-      rewrite_first(~rule_enabled, inner)
+      rewrite_first_with_context(~rule_enabled, ~float_context, inner)
       |> Option.map(((inner, step)) =>
            (Exp.fresh(Projector(label, inner)), step)
          )
     | Fun(pat, body, return_typ, name) =>
-      rewrite_first(~rule_enabled, body)
+      rewrite_first_with_context(~rule_enabled, ~float_context, body)
       |> Option.map(((body, step)) =>
            (Exp.fresh(Fun(pat, body, return_typ, name)), step)
          )
@@ -371,6 +456,9 @@ let rec rewrite_first = (~rule_enabled, exp) => {
     };
   };
 };
+
+let rewrite_first = (~rule_enabled, exp) =>
+  rewrite_first_with_context(~rule_enabled, ~float_context=false, exp);
 
 let normalize = (~rule_enabled, ~fuel=128, exp) => {
   let rec loop = (fuel, exp, steps) =>
@@ -472,7 +560,7 @@ let rec cleanup = (~cleanup_enabled, exp) => {
         if (cleanup_enabled(Axioms.AddIdentity) && is_zero(right)) {
           left;
         } else if (cleanup_enabled(Axioms.AddIdentity) && is_zero(left)) {
-          neg_exp(right);
+          neg_exp_for_operator(op, right);
         } else {
           rebuild_binary(op, left, right);
         };
@@ -570,7 +658,7 @@ let rec cleanup_once = (~cleanup_enabled, exp) => {
             if (cleanup_enabled(Axioms.AddIdentity) && is_zero(right)) {
               changed(Axioms.AddIdentity, left);
             } else if (cleanup_enabled(Axioms.AddIdentity) && is_zero(left)) {
-              changed(Axioms.AddIdentity, neg_exp(right));
+              changed(Axioms.AddIdentity, neg_exp_for_operator(op, right));
             } else {
               None;
             };

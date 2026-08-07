@@ -894,6 +894,10 @@ let rec rational_affine_of_exp_with_distribution =
     rational_affine_constant(
       rational_coeff(Bigint.of_int(value), Bigint.one),
     )
+  | Atom(Float(value)) when value == Float.round(value) =>
+    rational_affine_constant(
+      rational_coeff(Bigint.of_int(int_of_float(value)), Bigint.one),
+    )
   | Parens(inner)
   | Asc(inner, _) =>
     rational_affine_of_exp_with_distribution(allow_distribution, inner)
@@ -2894,6 +2898,106 @@ let polynomial_equivalent_exps = (left, right) =>
   | _ => false
   };
 
+let rec has_explicit_like_terms = exp => {
+  let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
+  let operands_have_like_terms = (left, right, ~negate_right) =>
+    switch (polynomial_of_exp(left), polynomial_of_exp(right)) {
+    | (Some(left_normalized), Some(right_normalized)) =>
+      let right_polynomial =
+        negate_right
+          ? polynomial_negate(right_normalized.polynomial)
+          : right_normalized.polynomial;
+      polynomial_has_like_terms(left_normalized.polynomial, right_polynomial)
+      || has_explicit_like_terms(left)
+      || has_explicit_like_terms(right);
+    | _ => false
+    };
+  switch (exp.term) {
+  | BinOp(plus_op, left, right) when is_plus_op(plus_op) =>
+    operands_have_like_terms(left, right, ~negate_right=false)
+  | BinOp(Int(Minus) | SInt(Minus), left, right) =>
+    operands_have_like_terms(left, right, ~negate_right=true)
+  | Parens(inner)
+  | Asc(inner, _) => has_explicit_like_terms(inner)
+  | _ => false
+  };
+};
+
+let rec has_distributive_expansion_shape = exp => {
+  let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
+  switch (exp.term) {
+  | BinOp(times_op, left, right) when is_times_op(times_op) =>
+    polynomial_exp_has_multiple_terms(left)
+    || polynomial_exp_has_multiple_terms(right)
+    || has_distributive_expansion_shape(left)
+    || has_distributive_expansion_shape(right)
+  | BinOp(power_op, base, exponent) when is_power_op(power_op) =>
+    power_has_sum_base(exp)
+    || has_distributive_expansion_shape(base)
+    || has_distributive_expansion_shape(exponent)
+  | BinOp(_, left, right) =>
+    has_distributive_expansion_shape(left)
+    || has_distributive_expansion_shape(right)
+  | UnOp(_, inner)
+  | Parens(inner)
+  | Asc(inner, _) => has_distributive_expansion_shape(inner)
+  | _ => false
+  };
+};
+
+let polynomial_collection_signature = exp =>
+  polynomial_of_exp(exp)
+  |> Option.map(normalized =>
+       (
+         normalized.polynomial,
+         has_explicit_like_terms(exp),
+         has_distributive_expansion_shape(exp),
+       )
+     );
+
+/* Collection is a visible algebra operation, not an unrestricted polynomial
+ * normalizer.  Accept equivalent polynomials only when one displayed shape
+ * actually contains like terms and neither side requires distribution. */
+let check_single_collect_like_terms = (group, from_, to_) => {
+  switch (
+    polynomial_collection_signature(from_),
+    polynomial_collection_signature(to_),
+  ) {
+  | (
+      Some((from_polynomial, from_collects, from_expands)),
+      Some((to_polynomial, to_collects, to_expands)),
+    )
+      when
+        polynomial_equal(from_polynomial, to_polynomial)
+        && from_collects != to_collects
+        && !from_expands
+        && !to_expands =>
+    let trace = trace_rules(group, ["alg.collect_like_terms"]);
+    Some({
+      justification: "collect like terms",
+      group: Some(group),
+      from_normal_exp: to_,
+      to_normal_exp: to_,
+      from_trace: trace,
+      to_trace: [],
+      trace,
+      prover_steps: [
+        prover_step(
+          ~origin=ManualRewrite,
+          ~rule_id="alg.collect_like_terms",
+          ~before_full_exp=from_,
+          ~after_full_exp=to_,
+          ~before_exp=from_,
+          ~after_exp=to_,
+          ~detail="collect polynomial like terms",
+        ),
+      ],
+      exportable: true,
+    });
+  | _ => None
+  };
+};
+
 let polynomial_cleanup_requirements_allowed = (profile, exp) =>
   switch (polynomial_of_exp(exp)) {
   | None => false
@@ -3097,8 +3201,7 @@ let simplify_for_profile =
   switch (profile.level) {
   | Axioms.Calculus =>
     let rule_enabled = rule_id =>
-      !DifferentiationRewrite.is_basic_cleanup_rule_id(rule_id)
-      && Axioms.visible_rule_enabled(profile.step_policy, rule_id);
+      Axioms.visible_rule_enabled(profile.step_policy, rule_id);
     let normalized =
       DifferentiationRewrite.normalize(~rule_enabled, ~fuel=128, exp);
     let cleanup_enabled = capability =>
@@ -4076,9 +4179,12 @@ let calculus_check_result_trace_for_profile =
     switch (calculus_group_at_level(profile.level)) {
     | None => None
     | Some(group) =>
+      /* Check Result may compose every visible calculus rule. Automatic
+         cleanup is controlled independently below by default_cleanup, so
+         hiding derivative.basics there must not disable the visible constant
+         and variable derivative rules. */
       let rule_enabled = rule_id =>
-        !DifferentiationRewrite.is_basic_cleanup_rule_id(rule_id)
-        && Axioms.visible_rule_enabled(profile.step_policy, rule_id);
+        Axioms.visible_rule_enabled(profile.step_policy, rule_id);
       let rec differentiate = (fuel, current, rules, steps) =>
         if (fuel <= 0) {
           None;
@@ -4399,17 +4505,38 @@ let check_single_catalog_rule =
       } else {
         None;
       };
-    | Some(AlgebraDistributeMulAdd)
-    | Some(AlgebraDistributeDivAdd)
-    | Some(AlgebraFactorCommon)
+    | Some(AlgebraDistributeMulAdd) =>
+      switch (algebra_group_at_level(profile.level)) {
+      | Some(group) =>
+        check_single_distribution_or_expansion(
+          group,
+          rule_profile,
+          from_,
+          to_,
+        )
+      | None => None
+      }
+    | Some(AlgebraDistributeDivAdd) =>
+      switch (algebra_group_at_level(profile.level)) {
+      | Some(group) =>
+        check_single_division_distribution(group, rule_profile, from_, to_)
+      | None => None
+      }
+    | Some(AlgebraFactorCommon) =>
+      switch (algebra_group_at_level(profile.level)) {
+      | Some(group) => check_single_factor_common(group, from_, to_)
+      | None => None
+      }
     | Some(AlgebraCancelCommonAdd) =>
-      check_single_algebra_rule_result_for_profile(
-        ~profile=rule_profile,
-        ~settings,
-        ~env,
-        from_,
-        to_,
-      )
+      switch (algebra_group_at_level(profile.level)) {
+      | Some(group) => check_single_cancel_common_add(group, from_, to_)
+      | None => None
+      }
+    | Some(AlgebraCollectLikeTerms) =>
+      switch (algebra_group_at_level(profile.level)) {
+      | Some(group) => check_single_collect_like_terms(group, from_, to_)
+      | None => None
+      }
     | Some(AlgebraIdentity) =>
       check_single_algebra_rule_result_for_profile(
         ~profile=rule_profile,
@@ -4495,6 +4622,72 @@ let check_single_session_rewrite_result =
           })
      );
 
+/* Associativity is profile cleanup, so a learner may flatten or regroup an
+ * entire ordered sum/product in one written step.  AxiomSearch still records
+ * each primitive rotation, keeping the result replayable without treating
+ * commutation or collection as implicit. */
+let association_cleanup_result_for_profile =
+    (~profile: Axioms.math_profile, from_: Exp.t, to_: Exp.t) => {
+  let cleanup = profile.step_policy.default_cleanup;
+  let association_capabilities =
+    [Axioms.AddAssoc, Axioms.MulAssoc]
+    |> List.filter(capability => List.mem(capability, cleanup));
+  let allowed_rule_ids =
+    association_capabilities |> List.map(Axioms.primitive_rule_id_for_cleanup);
+  let rec operator_count = exp =>
+    switch (strip_math_wrappers(exp).term) {
+    | BinOp(op, left, right) =>
+      (is_plus_op(op) || is_times_op(op) ? 1 : 0)
+      + operator_count(left)
+      + operator_count(right)
+    | UnOp(_, inner)
+    | Parens(inner) => operator_count(inner)
+    | Ap(_, fn, arg) => operator_count(fn) + operator_count(arg)
+    | _ => 0
+    };
+  if (allowed_rule_ids == []
+      || same_math_exp(from_, to_)
+      || !exp_same_up_to_cleanup(association_capabilities, from_, to_)) {
+    None;
+  } else {
+    let max_depth = max(1, operator_count(from_) + operator_count(to_));
+    AxiomSearch.search(
+      ~level=profile.level,
+      ~max_depth,
+      ~max_states=max(250, max_depth * 100),
+      ~allowed_rule_ids,
+      ~log=false,
+      from_,
+      to_,
+    )
+    |> Option.map((result: AxiomSearch.result) => {
+         let trace =
+           result.applications
+           |> List.map((app: AxiomSearch.application) => app.rule)
+           |> List.fold_left(
+                (rules, rule: Axioms.rewrite_rule) =>
+                  rules
+                  |> List.exists((candidate: Axioms.rewrite_rule) =>
+                       candidate.id == rule.id
+                     )
+                    ? rules : rules @ [rule],
+                [],
+              );
+         {
+           justification: "association cleanup",
+           group: arithmetic_group_at_level(profile.level),
+           from_normal_exp: to_,
+           to_normal_exp: to_,
+           from_trace: trace,
+           to_trace: [],
+           trace,
+           prover_steps: result.steps,
+           exportable: result.steps != [],
+         };
+       });
+  };
+};
+
 let check_single_step_result_for_profile =
     (~profile: Axioms.math_profile, ~settings, ~env, from_: Exp.t, to_: Exp.t) => {
   let plan = Axioms.stage_plan_for_profile(profile, Manual);
@@ -4510,9 +4703,13 @@ let check_single_step_result_for_profile =
   ) {
   | Some(result) => Some(result)
   | None =>
-    switch (check_single_session_rewrite_result(~profile, from_, to_)) {
+    switch (association_cleanup_result_for_profile(~profile, from_, to_)) {
     | Some(result) => Some(result)
-    | None => check_single_eval_step_result(~settings, ~env, from_, to_)
+    | None =>
+      switch (check_single_session_rewrite_result(~profile, from_, to_)) {
+      | Some(result) => Some(result)
+      | None => check_single_eval_step_result(~settings, ~env, from_, to_)
+      }
     }
   };
 };
@@ -4691,26 +4888,30 @@ let direct_cleanup_trace_for_profile =
     };
   switch (rewrite_cleanup(64, from_, [], [])) {
   | Some(summary) => Some(summary)
-  | None
-      when
-        enabled(Axioms.PowerNotation)
-        && exp_same_up_to_cleanup([Axioms.PowerNotation], from_, to_) =>
-    let rule_id = Axioms.cleanup_capability_label(Axioms.PowerNotation);
-    summary(
-      [rule_id],
-      [
-        prover_step(
-          ~origin=Normalization,
-          ~rule_id,
-          ~before_full_exp=from_,
-          ~after_full_exp=to_,
-          ~before_exp=from_,
-          ~after_exp=to_,
-          ~detail="profile-enabled power notation cleanup",
-        ),
-      ],
-    );
-  | None => None
+  | None =>
+    switch (association_cleanup_result_for_profile(~profile, from_, to_)) {
+    | Some(result) => Some(trace_summary_of_result(result))
+    | None
+        when
+          enabled(Axioms.PowerNotation)
+          && exp_same_up_to_cleanup([Axioms.PowerNotation], from_, to_) =>
+      let rule_id = Axioms.cleanup_capability_label(Axioms.PowerNotation);
+      summary(
+        [rule_id],
+        [
+          prover_step(
+            ~origin=Normalization,
+            ~rule_id,
+            ~before_full_exp=from_,
+            ~after_full_exp=to_,
+            ~before_exp=from_,
+            ~after_exp=to_,
+            ~detail="profile-enabled power notation cleanup",
+          ),
+        ],
+      );
+    | None => None
+    }
   };
 };
 

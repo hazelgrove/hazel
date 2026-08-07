@@ -225,7 +225,7 @@ let profile_allows_affine_constant_reordering = profile =>
        List.mem(capability, profile.Axioms.step_policy.default_cleanup)
      );
 
-let goal_directed_finishers = (~domain, ~profile, request) =>
+let goal_directed_finishers = (~domain, ~profile, request) => {
   RewriteChecker.rational_affine_equivalent_with_capabilities(
     ~allow_left_distribution=
       Axioms.visible_rule_enabled(
@@ -249,6 +249,7 @@ let goal_directed_finishers = (~domain, ~profile, request) =>
       |> Option.map(rocq_backend_tactics(~domain))
       |> Option.value(~default=[])
     : [];
+};
 
 let direct_certificate_prelude = domain =>
   switch (domain) {
@@ -685,6 +686,89 @@ let rec derivative_certificate_for_expression = (~variable, expression) => {
   };
 };
 
+type derivative_semantics = {
+  exp: Exp.t,
+  nonzero_denominators: list(Exp.t),
+};
+
+/* Interpret derivative subexpressions as their certified raw derivative values
+   while retaining every side condition introduced by those certificates. This
+   is used only after ProfileProofPlan has authorized the learner's exact
+   transition; it is semantic lowering for Rocq, not an extra rewrite path. */
+let rec derivative_semantics_for_certificate = exp => {
+  let exp = DifferentiationRewrite.strip(exp);
+  switch (DifferentiationRewrite.diff_parts(exp)) {
+  | Some((expression, variable)) =>
+    switch (DifferentiationRewrite.variable_name(variable)) {
+    | Some(variable) =>
+      derivative_certificate_for_expression(~variable, expression)
+      |> Option.map(certificate =>
+           {
+             exp: certificate.raw_derivative,
+             nonzero_denominators: certificate.nonzero_denominators,
+           }
+         )
+    | None => None
+    }
+  | None =>
+    let unary = (inner, rebuild) =>
+      derivative_semantics_for_certificate(inner)
+      |> Option.map(interpreted =>
+           {
+             ...interpreted,
+             exp: rebuild(interpreted.exp),
+           }
+         );
+    let binary = (left, right, rebuild) =>
+      switch (
+        derivative_semantics_for_certificate(left),
+        derivative_semantics_for_certificate(right),
+      ) {
+      | (Some(left), Some(right)) =>
+        Some({
+          exp: rebuild(left.exp, right.exp),
+          nonzero_denominators:
+            left.nonzero_denominators @ right.nonzero_denominators,
+        })
+      | _ => None
+      };
+    let entries = (entries, rebuild) =>
+      entries
+      |> List.map(derivative_semantics_for_certificate)
+      |> OptUtil.sequence
+      |> Option.map(entries =>
+           {
+             exp: rebuild(entries |> List.map(entry => entry.exp)),
+             nonzero_denominators:
+               entries |> List.concat_map(entry => entry.nonzero_denominators),
+           }
+         );
+    switch (exp.term) {
+    | BinOp(op, left, right) =>
+      binary(left, right, (left, right) =>
+        Exp.fresh(BinOp(op, left, right))
+      )
+    | Ap(direction, fn, arg) =>
+      binary(fn, arg, (fn, arg) => Exp.fresh(Ap(direction, fn, arg)))
+    | UnOp(op, inner) => unary(inner, inner => Exp.fresh(UnOp(op, inner)))
+    | Parens(inner) => unary(inner, inner => Exp.fresh(Parens(inner)))
+    | Asc(inner, typ) => unary(inner, inner => Exp.fresh(Asc(inner, typ)))
+    | Projector(label, inner) =>
+      unary(inner, inner => Exp.fresh(Projector(label, inner)))
+    | Tuple(values) => entries(values, values => Exp.fresh(Tuple(values)))
+    | ListLit(values) =>
+      entries(values, values => Exp.fresh(ListLit(values)))
+    | Fun(pattern, body, return_typ, name) =>
+      unary(body, body => Exp.fresh(Fun(pattern, body, return_typ, name)))
+    | _ =>
+      Some({
+        exp,
+        nonzero_denominators: [],
+      })
+    };
+  };
+};
+
 let calculus_source = source =>
   switch (DifferentiationRewrite.function_diff_argument(source)) {
   | Some(function_exp) =>
@@ -839,13 +923,16 @@ let calculus_search_program =
       ~theorem_name="hazel_rocq_search",
       ~recorded_cleanup=[],
       ~recorded_rule_ids=[],
+      ~interpret_authorized_target=false,
       request,
     ) =>
   switch (calculus_sources_in(request.source)) {
   | [(expression, variable, focused_source)] =>
+    /* Visible elementary derivative rules and automatic derivative cleanup
+       are separate profile controls. Certificate normalization may replay the
+       former even when [derivative.basics] is absent from default_cleanup. */
     let rule_enabled = rule_id =>
-      !DifferentiationRewrite.is_basic_cleanup_rule_id(rule_id)
-      && Axioms.visible_rule_enabled(profile.Axioms.step_policy, rule_id);
+      Axioms.visible_rule_enabled(profile.Axioms.step_policy, rule_id);
     let cleanup_enabled = capability =>
       List.mem(capability, profile.step_policy.default_cleanup);
     let normalized =
@@ -856,6 +943,43 @@ let calculus_search_program =
       );
     let expected =
       DifferentiationRewrite.cleanup(~cleanup_enabled, normalized.exp);
+    let source_certificate =
+      derivative_certificate_for_expression(~variable, expression);
+    /* Hazel's derivative operator has no direct Rocq term representation.
+       Once a profile-authorized plan has established the learner's exact
+       transition, interpret any derivative subterms that remain in the target
+       as their independently certified raw values.  This lets a semantic
+       certificate cover intermediate teaching steps such as
+       D(f + g) = D(f) + D(g), without using this interpretation as an
+       authorization path or silently enabling profile-disabled cleanup. */
+    let interpreted_target_result =
+      if (interpret_authorized_target
+          && DifferentiationRewrite.contains_diff(request.target)) {
+        derivative_semantics_for_certificate(request.target);
+      } else {
+        Some({
+          exp: request.target,
+          nonzero_denominators: [],
+        });
+      };
+    let interpreted_source_result =
+      if (interpret_authorized_target) {
+        derivative_semantics_for_certificate(request.source);
+      } else {
+        Some({
+          exp: expected,
+          nonzero_denominators: [],
+        });
+      };
+    let interpreted_source =
+      interpreted_source_result
+      |> Option.value(
+           ~default={
+             exp: expected,
+             nonzero_denominators: [],
+           },
+         );
+    let semantic_expected = interpreted_source.exp;
     let focused_normalized =
       DifferentiationRewrite.normalize(
         ~rule_enabled,
@@ -867,16 +991,29 @@ let calculus_search_program =
         ~cleanup_enabled,
         focused_normalized.exp,
       );
-    let exact_target = TrigRewrite.exp_same(expected, request.target);
+    let exact_target =
+      switch (interpreted_target_result) {
+      | Some(target) => TrigRewrite.exp_same(semantic_expected, target.exp)
+      | None => false
+      };
+    let interpreted_target =
+      interpreted_target_result
+      |> Option.value(
+           ~default={
+             exp: request.target,
+             nonzero_denominators: [],
+           },
+         );
+    let semantic_target = interpreted_target.exp;
     let affine_normal_forms_match =
       RewriteChecker.rational_affine_normal_forms_equal(
-        expected,
-        request.target,
+        semantic_expected,
+        semantic_target,
       )
       || (
         switch (
-          DifferentiationRewrite.strip(expected).term,
-          DifferentiationRewrite.strip(request.target).term,
+          DifferentiationRewrite.strip(semantic_expected).term,
+          DifferentiationRewrite.strip(semantic_target).term,
         ) {
         | (
             Fun(expected_pattern, expected_body, _, _),
@@ -911,8 +1048,8 @@ let calculus_search_program =
         ? None
         : calculus_recorded_finish(
             ~recorded_rule_ids,
-            expected,
-            request.target,
+            semantic_expected,
+            semantic_target,
           );
     let recorded_target = recorded_finish |> Option.is_some;
     let source_is_focused =
@@ -921,20 +1058,29 @@ let calculus_search_program =
       source_is_focused
         ? function_derivative_target_body(
             ~source=request.source,
-            request.target,
+            semantic_target,
           )
-        : focused_expected;
+        : interpret_authorized_target
+            ? source_certificate
+              |> Option.map(certificate => certificate.raw_derivative)
+              |> Option.value(~default=focused_expected)
+            : focused_expected;
     let certificate_affine_target = source_is_focused && affine_target;
-    if (!normalized.complete
+    if (interpreted_source_result == None
+        || interpreted_target_result == None
+        || !normalized.complete
         || !focused_normalized.complete
-        || DifferentiationRewrite.contains_diff(expected)
-        || DifferentiationRewrite.contains_diff(focused_expected)
+        || !interpret_authorized_target
+        && (
+          DifferentiationRewrite.contains_diff(expected)
+          || DifferentiationRewrite.contains_diff(focused_expected)
+        )
         || !exact_target
         && !affine_target
         && !recorded_target) {
       None;
     } else {
-      derivative_certificate_for_expression(~variable, expression)
+      source_certificate
       |> Option.map(certificate => {
            let body =
              CoqExport.string_of_d_for_domain(
@@ -958,6 +1104,8 @@ let calculus_search_program =
              |> RewriteChecker.dedup;
            let hypotheses =
              certificate.nonzero_denominators
+             @ interpreted_source.nonzero_denominators
+             @ interpreted_target.nonzero_denominators
              |> List.map(denominator =>
                   CoqExport.string_of_d_for_domain(
                     ~domain=CoqExport.Reals,
@@ -983,13 +1131,6 @@ let calculus_search_program =
                  )
                  @ recorded_cleanup
                  |> RewriteChecker.dedup;
-               let normalized_certificate_target =
-                 source_is_focused
-                   ? function_derivative_target_body(
-                       ~source=request.source,
-                       expected,
-                     )
-                   : focused_expected;
                let recorded_finish_script =
                  recorded_finish
                  |> Option.map((result: AxiomSearch.result) =>
@@ -998,11 +1139,6 @@ let calculus_search_program =
                         result.steps,
                       )
                     );
-               let normalized_target =
-                 CoqExport.string_of_d_for_domain(
-                   ~domain=CoqExport.Reals,
-                   normalized_certificate_target,
-                 );
                "assert (H_hazel_cleanup : ("
                ++ raw
                ++ ") = ("
@@ -1010,7 +1146,21 @@ let calculus_search_program =
                ++ ")).\n"
                ++ (
                  switch (recorded_finish_script) {
+                 | Some(replay) when interpret_authorized_target =>
+                   "{ " ++ replay ++ " }\n"
                  | Some(replay) =>
+                   let normalized_certificate_target =
+                     source_is_focused
+                       ? function_derivative_target_body(
+                           ~source=request.source,
+                           expected,
+                         )
+                       : focused_expected;
+                   let normalized_target =
+                     CoqExport.string_of_d_for_domain(
+                       ~domain=CoqExport.Reals,
+                       normalized_certificate_target,
+                     );
                    "{ assert (H_hazel_normalized : ("
                    ++ raw
                    ++ ") = ("
@@ -1035,12 +1185,18 @@ let calculus_search_program =
                    ++ "  { "
                    ++ replay
                    ++ " }\n"
-                   ++ "  exact (eq_trans H_hazel_normalized H_hazel_recorded). }\n"
+                   ++ "  exact (eq_trans H_hazel_normalized H_hazel_recorded). }\n";
                  | None =>
                    "{ "
                    ++ calculus_cleanup_script(
                         ~capabilities=cleanup_capabilities,
-                        ~use_affine_finisher=certificate_affine_target,
+                        /* An authorized Check Result plan has already named
+                           every cleanup capability it may use. Replay those
+                           catalog tactics directly instead of replacing them
+                           with a broader affine certificate. */
+                        ~use_affine_finisher=
+                          certificate_affine_target
+                          && !interpret_authorized_target,
                       )
                    ++ " }\n"
                  }
@@ -1377,7 +1533,15 @@ let rocq_program_for_authorized_plan =
     let recorded_cleanup =
       plan.summary.rule_ids
       |> List.filter_map(Axioms.cleanup_capability_for_id);
-    switch (calculus_search_program(~profile, ~recorded_cleanup, request)) {
+    switch (
+      calculus_search_program(
+        ~profile,
+        ~recorded_cleanup,
+        ~recorded_rule_ids=plan.summary.rule_ids,
+        ~interpret_authorized_target=true,
+        request,
+      )
+    ) {
     | Some(program) => program
     | None =>
       failwith(

@@ -84,20 +84,50 @@ let integer_op_to_string = (op: Language.Operators.op_bin_num) =>
   | op => Language.Operators.int_op_to_string(op)
   };
 
+let rec function_parameter_name = (pattern: Language.Pat.t) =>
+  switch (pattern.term) {
+  | Tuple([parameter]) => function_parameter_name(parameter)
+  | Ap({term: Var(_), _}, parameter) => function_parameter_name(parameter)
+  | _ => Language.Pat.get_var(pattern)
+  };
+
 let rec unique_vars_in_ast_helper =
-        (d: Language.DHExp.t, unique_vars: Hashtbl.t(string, unit)) => {
+        (
+          d: Language.DHExp.t,
+          unique_vars: Hashtbl.t(string, unit),
+          bound_vars,
+        ) => {
+  let recurse = exp =>
+    unique_vars_in_ast_helper(exp, unique_vars, bound_vars);
   switch (Language.Exp.term_of(d)) {
   | Parens(exp)
-  | Asc(exp, _) => unique_vars_in_ast_helper(exp, unique_vars)
-  | Tuple(exps) =>
-    exps |> List.iter(exp => unique_vars_in_ast_helper(exp, unique_vars))
+  | Asc(exp, _) => recurse(exp)
+  | Tuple(exps) => exps |> List.iter(recurse)
   | BinOp(_, arg1, arg2) =>
-    unique_vars_in_ast_helper(arg1, unique_vars);
-    unique_vars_in_ast_helper(arg2, unique_vars);
-  | UnOp(_, exp)
-  | Ap(_, _, exp) => unique_vars_in_ast_helper(exp, unique_vars)
+    recurse(arg1);
+    recurse(arg2);
+  | UnOp(_, exp) => recurse(exp)
+  | Ap(_, fn, arg) =>
+    switch (Language.Exp.term_of(fn |> Language.DHExp.strip_ascriptions)) {
+    /* A variable in function position is collected by the companion
+       function-variable pass, or is a built-in such as [sin]/[cos].  In
+       neither case is it a scalar variable. */
+    | Var(_) => ()
+    | _ => recurse(fn)
+    };
+    recurse(arg);
+  | Fun(pattern, body, _, _) =>
+    switch (function_parameter_name(pattern)) {
+    | Some(parameter) =>
+      unique_vars_in_ast_helper(
+        body,
+        unique_vars,
+        [parameter, ...bound_vars],
+      )
+    | None => ()
+    }
   | Var(x) =>
-    if (x != "pi" && !Hashtbl.mem(unique_vars, x)) {
+    if (x != "pi" && !List.mem(x, bound_vars) && !Hashtbl.mem(unique_vars, x)) {
       Hashtbl.add(unique_vars, x, ());
     } else {
       ();
@@ -108,7 +138,7 @@ let rec unique_vars_in_ast_helper =
 
 let unique_vars_in_ast = (d: Language.DHExp.t) => {
   let unique_vars = Hashtbl.create(1);
-  unique_vars_in_ast_helper(d, unique_vars);
+  unique_vars_in_ast_helper(d, unique_vars, []);
   List.of_seq(Hashtbl.to_seq_keys(unique_vars));
 };
 
@@ -116,9 +146,13 @@ let unique_vars_in_ast = (d: Language.DHExp.t) => {
    variables remain scalar. Keep this separate from [unique_vars_in_ast] so an
    application such as [f(t)] cannot accidentally quantify [f] as a real. */
 let rec unique_unary_function_vars_in_ast_helper =
-        (d: Language.DHExp.t, unique_vars: Hashtbl.t(string, unit)) => {
+        (
+          d: Language.DHExp.t,
+          unique_vars: Hashtbl.t(string, unit),
+          bound_vars,
+        ) => {
   let recurse = exp =>
-    unique_unary_function_vars_in_ast_helper(exp, unique_vars);
+    unique_unary_function_vars_in_ast_helper(exp, unique_vars, bound_vars);
   switch (Language.Exp.term_of(d)) {
   | Parens(exp)
   | Asc(exp, _)
@@ -129,20 +163,30 @@ let rec unique_unary_function_vars_in_ast_helper =
     recurse(right);
   | Ap(_, fn, arg) =>
     switch (Language.Exp.term_of(fn |> Language.DHExp.strip_ascriptions)) {
-    | Var(name) when !is_real_builtin(name) =>
+    | Var(name) when !is_real_builtin(name) && !List.mem(name, bound_vars) =>
       if (!Hashtbl.mem(unique_vars, name)) {
         Hashtbl.add(unique_vars, name, ());
       }
     | _ => recurse(fn)
     };
     recurse(arg);
+  | Fun(pattern, body, _, _) =>
+    switch (function_parameter_name(pattern)) {
+    | Some(parameter) =>
+      unique_unary_function_vars_in_ast_helper(
+        body,
+        unique_vars,
+        [parameter, ...bound_vars],
+      )
+    | None => ()
+    }
   | _ => ()
   };
 };
 
 let unique_unary_function_vars_in_ast = (d: Language.DHExp.t) => {
   let unique_vars = Hashtbl.create(1);
-  unique_unary_function_vars_in_ast_helper(d, unique_vars);
+  unique_unary_function_vars_in_ast_helper(d, unique_vars, []);
   List.of_seq(Hashtbl.to_seq_keys(unique_vars));
 };
 
@@ -306,6 +350,15 @@ let string_of_d_reals = (d: Language.DHExp.t) => {
     | Var("pi") => "PI"
     | Var(x) => x
     | BuiltinFun(name) => name
+    | Fun(pattern, body, _, _) =>
+      switch (function_parameter_name(pattern)) {
+      | Some(parameter) =>
+        "(fun " ++ parameter ++ " : R => " ++ loop(body) ++ ")"
+      | None =>
+        failwith(
+          "unsupported Coq real function pattern: expected one variable parameter",
+        )
+      }
     | Ap(Language.Operators.Forward, fn, arg) =>
       loop(fn) ++ " (" ++ loop(arg) ++ ")"
     | _ =>

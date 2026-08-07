@@ -925,6 +925,7 @@ and Stepper: {
       ~rewrite_level: Axioms.rewrite_level,
       ~automation_stage: Axioms.automation_stage,
       ~active_profile: Axioms.math_profile,
+      ~show_next_step_hints: bool,
       ~is_toplevel: bool,
       step_model
     ) =>
@@ -1390,7 +1391,7 @@ and Stepper: {
     ++ (
       lemma_names
       |> List.rev
-      |> List.map(name => "rewrite " ++ name ++ ".")
+      |> List.map(name => "etransitivity; [apply " ++ name ++ " |].")
       |> String.concat("\n")
     )
     ++ "\nreflexivity.";
@@ -1464,73 +1465,88 @@ and Stepper: {
       DifferentiationRewrite.function_diff_argument(binding.initial_rhs)
     ) {
     | Some(function_exp) =>
-      switch (DifferentiationRewrite.strip(function_exp).term) {
-      | Var(source_name) =>
-        switch (
-          earlier_bindings
-          |> List.find_opt((earlier: rocq_let_binding) =>
-               earlier.name == source_name
-             )
-        ) {
-        | Some(source_binding) =>
-          let expanded_source =
-            DerivativeOperator.function_(source_binding.final_rhs);
-          /* Re-certifying a derivative of an earlier stepped definition may
-             need rules recorded while that definition was established.  The
-             prefix is still session-authorized: it is the union of recorded
-             rules up to this binding, never the unrestricted calculus
-             profile. */
-          let recorded_steps =
-            earlier_bindings
-            |> List.concat_map((earlier: rocq_let_binding) => earlier.steps)
-            |> List.append(binding.steps);
-          let (profile, recorded_cleanup) =
-            calculus_profile_for_recorded_steps(recorded_steps);
-          let certificate_name =
-            "hazel_" ++ binding.name ++ "_derivative_certificate";
+      let source =
+        switch (DifferentiationRewrite.strip(function_exp).term) {
+        | Var(source_name) =>
           switch (
-            ProofSearchBackend.calculus_export_program_for_profile(
-              ~profile,
-              ~theorem_name=certificate_name,
-              ~recorded_cleanup,
-              ~recorded_rule_ids=trace_rule_ids_for_steps(recorded_steps),
-              expanded_source,
-              binding.final_rhs,
-            )
+            earlier_bindings
+            |> List.find_opt((earlier: rocq_let_binding) =>
+                 earlier.name == source_name
+               )
           ) {
-          | Some(certificate) =>
-            Some(
-              certificate
-              ++ "\n\nTheorem hazel_"
-              ++ binding.name
-              ++ "_correct : derivative_of "
-              ++ binding.name
-              ++ " "
-              ++ source_name
-              ++ ".\nProof.\n"
-              ++ "unfold derivative_of.\nintros.\n"
-              ++ "unfold "
-              ++ binding.name
-              ++ ", "
-              ++ source_name
-              ++ ".\n"
-              ++ "apply "
-              ++ certificate_name
-              ++ ".\nQed.",
-            )
+          | Some(source_binding) => (source_name, source_binding, "")
           | None =>
             failwith(
-              "the recorded calculus profile cannot certify let-bound derivative "
-              ++ binding.name,
+              "a derivative let-binding may refer only to an earlier function binding",
             )
+          }
+        | Fun(_, _, _, _) =>
+          let source_name = "hazel_source_for_" ++ binding.name;
+          let source_binding: rocq_let_binding = {
+            name: source_name,
+            initial_rhs: function_exp,
+            final_rhs: function_exp,
+            steps: [],
           };
-        | None =>
+          (source_name, source_binding, rocq_definition(source_binding));
+        | _ =>
           failwith(
-            "a derivative let-binding may refer only to an earlier function binding",
+            "a derivative let-binding source must be an earlier function or a unary function literal",
           )
-        }
-      | _ => None
-      }
+        };
+      let (source_name, source_binding, source_definition) = source;
+      let expanded_source =
+        DerivativeOperator.function_(source_binding.final_rhs);
+      /* Re-certifying a derivative of an earlier stepped definition may
+         need rules recorded while that definition was established.  The
+         prefix is still session-authorized: it is the union of recorded
+         rules up to this binding, never the unrestricted calculus
+         profile. */
+      let recorded_steps =
+        earlier_bindings
+        |> List.concat_map((earlier: rocq_let_binding) => earlier.steps)
+        |> List.append(binding.steps);
+      let (profile, recorded_cleanup) =
+        calculus_profile_for_recorded_steps(recorded_steps);
+      let certificate_name =
+        "hazel_" ++ binding.name ++ "_derivative_certificate";
+      switch (
+        ProofSearchBackend.calculus_export_program_for_profile(
+          ~profile,
+          ~theorem_name=certificate_name,
+          ~recorded_cleanup,
+          ~recorded_rule_ids=trace_rule_ids_for_steps(recorded_steps),
+          expanded_source,
+          binding.final_rhs,
+        )
+      ) {
+      | Some(certificate) =>
+        Some(
+          (source_definition == "" ? "" : source_definition ++ "\n\n")
+          ++ certificate
+          ++ "\n\nTheorem hazel_"
+          ++ binding.name
+          ++ "_correct : derivative_of "
+          ++ binding.name
+          ++ " "
+          ++ source_name
+          ++ ".\nProof.\n"
+          ++ "unfold derivative_of.\nintros.\n"
+          ++ "unfold "
+          ++ binding.name
+          ++ ", "
+          ++ source_name
+          ++ ".\n"
+          ++ "apply "
+          ++ certificate_name
+          ++ ".\nQed.",
+        )
+      | None =>
+        failwith(
+          "the recorded calculus profile cannot certify let-bound derivative "
+          ++ binding.name,
+        )
+      };
     | None => None
     };
 
@@ -1579,7 +1595,7 @@ and Stepper: {
       ++ (
         lemma_names
         |> List.rev
-        |> List.map(name => "rewrite " ++ name ++ ".")
+        |> List.map(name => "etransitivity; [apply " ++ name ++ " |].")
         |> String.concat("\n")
       )
       ++ "\nreflexivity.\nQed.";
@@ -2578,6 +2594,7 @@ and Stepper: {
             ~rewrite_level: Axioms.rewrite_level,
             ~automation_stage: Axioms.automation_stage,
             ~active_profile: Axioms.math_profile,
+            ~show_next_step_hints: bool,
             ~is_toplevel: bool=false,
             ~undo: option(Ui_effect.t(unit)),
             model: step_model,
@@ -2611,17 +2628,21 @@ and Stepper: {
           EvaluatorStep.get_step_id_in(step, rendered_expr)
           |> Option.value(~default=EvaluatorStep.get_step_id(step));
         let next_steps =
-          switch (model.step_kind) {
-          | MissingStep(m) =>
-            m.next_steps
-            |> Calc.get_saved_exc(~print="next_steps")
-            |> (
-              fun
-              | AutoStep(_) => []
-              | AvailableSteps(steps) => steps
-            )
-            |> List.map(step_id_in_expr)
-          | _ => []
+          if (!show_next_step_hints) {
+            [];
+          } else {
+            switch (model.step_kind) {
+            | MissingStep(m) =>
+              m.next_steps
+              |> Calc.get_saved_exc(~print="next_steps")
+              |> (
+                fun
+                | AutoStep(_) => []
+                | AvailableSteps(steps) => steps
+              )
+              |> List.map(step_id_in_expr)
+            | _ => []
+            };
           };
         let selected_exp =
           switch (model.step_kind) {
@@ -2834,6 +2855,7 @@ and Stepper: {
           ~rewrite_level,
           ~automation_stage,
           ~active_profile,
+          ~show_next_step_hints,
           ~undo=
             if (model.hidden |> Calc.get_saved_exc(~print="hidden")) {
               undo;
@@ -2857,6 +2879,7 @@ and Stepper: {
         ~rewrite_level: Axioms.rewrite_level,
         ~automation_stage: Axioms.automation_stage,
         ~active_profile: Axioms.math_profile,
+        ~show_next_step_hints: bool,
         ~is_toplevel: bool,
         root_step,
       ) => {
@@ -2895,6 +2918,7 @@ and Stepper: {
           ~rewrite_level,
           ~automation_stage,
           ~active_profile,
+          ~show_next_step_hints,
           ~is_toplevel,
           ~undo=None,
           root_step,
@@ -2923,6 +2947,7 @@ and Stepper: {
       ~rewrite_level=Axioms.Arithmetic,
       ~automation_stage=Axioms.MultiStepCheck,
       ~active_profile=Axioms.math_profile(Axioms.Arithmetic),
+      ~show_next_step_hints=true,
       ~is_toplevel,
       root_step,
     );

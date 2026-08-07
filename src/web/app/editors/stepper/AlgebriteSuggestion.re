@@ -208,6 +208,16 @@ let is_factor_candidate_shape = exp => {
   && is_polynomial(exp);
 };
 
+/* Algebrite only proposes a candidate; Hazel still owns which mathematical
+   capabilities an exercise exposes. Level inheritance and profile overrides
+   are both resolved by the shared capability query. */
+let factor_suggestion_enabled_for_profile = (profile: Axioms.math_profile) =>
+  Axioms.normalization_rule_id_enabled_for_profile(
+    profile,
+    MultiStepCheck,
+    "alg.factor_polynomial_normalize",
+  );
+
 let replace_all = (needle, replacement, input) =>
   Str.global_replace(Str.regexp_string(needle), replacement, input);
 

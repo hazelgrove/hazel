@@ -159,7 +159,21 @@ let small_multiplication_permutations = exp => {
     : [];
 };
 
-let positive_literal_splits = exponent =>
+let power_literal = (power_op, value) =>
+  switch (power_op) {
+  | Operators.Float(Operators.Power) =>
+    Exp.fresh(Atom(Float(float_of_int(value))))
+  | _ => int_exp(Bigint.of_int(value))
+  };
+
+let times_exp_for_power_op = (power_op, left, right) =>
+  switch (power_op) {
+  | Operators.Float(Operators.Power) =>
+    Exp.fresh(BinOp(Operators.Float(Operators.Times), left, right))
+  | _ => times_exp(left, right)
+  };
+
+let positive_literal_splits = (power_op, exponent) =>
   switch (int_constant(exponent)) {
   | Some(value) =>
     switch (Bigint.to_int(value)) {
@@ -169,7 +183,7 @@ let positive_literal_splits = exponent =>
         index => {
           let left = index + 1;
           let right = value - left;
-          (int_exp(Bigint.of_int(left)), int_exp(Bigint.of_int(right)));
+          (power_literal(power_op, left), power_literal(power_op, right));
         },
       )
     | _ => []
@@ -177,7 +191,7 @@ let positive_literal_splits = exponent =>
   | _ => []
   };
 
-let positive_literal_factor_splits = exponent =>
+let positive_literal_factor_splits = (power_op, exponent) =>
   switch (int_constant(exponent)) {
   | Some(value) =>
     switch (Bigint.to_int(value)) {
@@ -189,8 +203,8 @@ let positive_literal_factor_splits = exponent =>
                let right = value / left;
                right > 1
                  ? Some((
-                     int_exp(Bigint.of_int(left)),
-                     int_exp(Bigint.of_int(right)),
+                     power_literal(power_op, left),
+                     power_literal(power_op, right),
                    ))
                  : None;
              }
@@ -338,16 +352,17 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
       | _ => []
       };
     syntactic_splits
-    @ positive_literal_splits(exponent)
+    @ positive_literal_splits(power_op, exponent)
     |> List.map(((left_exp, right_exp)) =>
-         times_exp(
+         times_exp_for_power_op(
+           power_op,
            power_exp_with_op(power_op, base, left_exp),
            power_exp_with_op(power_op, base, right_exp),
          )
        );
   | ("alg.power_mul", BinOp(power_op, base, exponent))
       when is_power_op(power_op) =>
-    positive_literal_factor_splits(exponent)
+    positive_literal_factor_splits(power_op, exponent)
     |> List.map(((left_exp, right_exp)) =>
          power_exp_with_op(
            power_op,

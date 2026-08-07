@@ -1,4 +1,36 @@
 module Axioms = Language.Axioms;
+open Language;
+
+/* One Rocq distributivity rewrite expands only the immediate binary sum.
+   Hazel's pedagogical distribution rule may flatten a longer sum or perform
+   authorized cleanup, so distinguish genuinely atomic transitions before
+   choosing the single-lemma certificate. */
+let direct_distribution_candidates = exp => {
+  let exp = DifferentiationRewrite.strip(exp);
+  let distribute = (times_op, factor, additive, factor_on_left) => {
+    let additive = DifferentiationRewrite.strip(additive);
+    switch (additive.term) {
+    | BinOp(add_op, left, right)
+        when
+          RewriteChecker.is_plus_op(add_op)
+          || RewriteChecker.is_minus_op(add_op) =>
+      let product = (left, right) =>
+        Exp.fresh(BinOp(times_op, left, right));
+      let left_product =
+        factor_on_left ? product(factor, left) : product(left, factor);
+      let right_product =
+        factor_on_left ? product(factor, right) : product(right, factor);
+      [Exp.fresh(BinOp(add_op, left_product, right_product))];
+    | _ => []
+    };
+  };
+  switch (exp.term) {
+  | BinOp(times_op, left, right) when RewriteChecker.is_times_op(times_op) =>
+    distribute(times_op, left, right, true)
+    @ distribute(times_op, right, left, false)
+  | _ => []
+  };
+};
 
 let tactic_for_axiom = (~domain, name) => {
   let lemma =
@@ -94,9 +126,21 @@ let tactic_for_prover_step = (~domain, step: ProofTrace.prover_step) => {
     | "arith.simplify_scalar_products" =>
       tactic_script([
         domain == CoqExport.Reals
-          ? "first [lra | field | hazel_trig_argument_algebra; first [lra | field]]"
+          ? "first [lra | hazel_function_argument_algebra; first [lra | field] | field]"
           : "hazel_algebra",
       ])
+    | "arith.const_fold" =>
+      tactic_script([
+        domain == CoqExport.Reals
+          ? "first [lra | try unfold Rsqr; field | ring]"
+          : "first [lia | cbn; reflexivity]",
+      ])
+    | "arith.reorder_add_terms" =>
+      /* The trace has already authorized additive AC reordering.  Replaying a
+         fixed-depth chain of associativity/commutativity rewrites is brittle
+         in the number of terms, whereas the domain arithmetic decision
+         procedure is an exact certificate for that same transition. */
+      tactic_script([domain == CoqExport.Reals ? "lra" : "lia"])
     | _ =>
       rewrite_tactics_for_rule_id(~domain, step.rule_id)
       @ ["cbn", "reflexivity"]
@@ -162,14 +206,19 @@ let recorded_transition_replay_script =
            step.rule_id == "arith.const_fold"
            || step.rule_id == "arith.simplify_scalar_products"
          );
+    let includes_scalar_argument_normalization =
+      group
+      |> List.exists((step: ProofTrace.prover_step) =>
+           step.rule_id == "arith.simplify_scalar_products"
+         );
     let is_direct_distribution_transition =
       switch (group) {
       | [step, ..._] =>
-        RewriteChecker.distribute_mul_over_add_candidates(step.before_exp)
+        direct_distribution_candidates(step.before_exp)
         |> List.exists(candidate =>
              Language.Exp.fast_equal(candidate, step.after_exp)
            )
-        || RewriteChecker.distribute_mul_over_add_candidates(step.after_exp)
+        || direct_distribution_candidates(step.after_exp)
         |> List.exists(candidate =>
              Language.Exp.fast_equal(candidate, step.before_exp)
            )
@@ -195,10 +244,15 @@ let recorded_transition_replay_script =
       /* Real division by numeric scalars is not a polynomial operation to
          `ring`: inverses such as [/ 2] need their field laws. The transition
          has already been authorized from the recorded catalog evidence, so
-         `field` is only its exact certificate. It treats arbitrary function
-         applications as opaque real atoms. */
+         argument congruence first replays any authorized scalar normalization
+         beneath applications; `field` then closes only the surrounding exact
+         rational algebra while treating applications as opaque real atoms. */
       Some(
-        "try unfold Rsqr; field.",
+        (
+          includes_scalar_argument_normalization
+            ? "repeat progress hazel_function_argument_algebra; " : ""
+        )
+        ++ "try unfold Rsqr; field.",
       );
     } else if (includes_algebra_identity) {
       /* Named polynomial identities have already been authorized by the
@@ -234,15 +288,33 @@ let recorded_transition_replay_script =
             "rewrite Rmult_plus_distr_r",
             "rewrite <- Rmult_plus_distr_l",
             "rewrite <- Rmult_plus_distr_r",
+            "rewrite Rmult_minus_distr_l",
+            "rewrite Rmult_minus_distr_r",
+            "rewrite <- Rmult_minus_distr_l",
+            "rewrite <- Rmult_minus_distr_r",
           ]
         | Integers => [
             "rewrite Z.mul_add_distr_l",
             "rewrite Z.mul_add_distr_r",
             "rewrite <- Z.mul_add_distr_l",
             "rewrite <- Z.mul_add_distr_r",
+            "rewrite Z.mul_sub_distr_l",
+            "rewrite Z.mul_sub_distr_r",
+            "rewrite <- Z.mul_sub_distr_l",
+            "rewrite <- Z.mul_sub_distr_r",
           ]
         };
-      Some("first [" ++ String.concat(" | ", rewrites) ++ "]; reflexivity.");
+      /* A rewrite can succeed at an unrelated nested sum while failing to
+         produce the recorded endpoint. Keep reflexivity inside each branch
+         so `first` backtracks to the rewrite whose full result is exact. */
+      Some(
+        "first ["
+        ++ String.concat(
+             " | ",
+             List.map(rewrite => rewrite ++ "; reflexivity", rewrites),
+           )
+        ++ "].",
+      );
     };
   };
   let tactic_for_transition_group = group =>
@@ -574,6 +646,17 @@ let real_prelude =
   ++ "    replace (Rsqr (cos x)) with ((1 + cos (2 * x)) / 2) by hazel_cos_squared_double\n"
   ++ "  | |- context [(1 + cos (2 * ?x)) / 2] =>\n"
   ++ "    replace ((1 + cos (2 * x)) / 2) with (Rsqr (cos x)) by hazel_cos_squared_double\n"
+  ++ "  end.\n\n"
+  ++ "Ltac hazel_function_argument_algebra :=\n"
+  ++ "  match goal with\n"
+  ++ "  | |- ?lhs = ?rhs =>\n"
+  ++ "    multimatch lhs with\n"
+  ++ "    | context [?f ?a] =>\n"
+  ++ "      multimatch rhs with\n"
+  ++ "      | context [?f ?b] =>\n"
+  ++ "        progress replace (f a) with (f b) by (f_equal; ring)\n"
+  ++ "      end\n"
+  ++ "    end\n"
   ++ "  end.\n\n"
   ++ "Ltac hazel_trig_argument_algebra :=\n"
   ++ "  first [\n"

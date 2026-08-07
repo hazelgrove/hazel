@@ -1,6 +1,8 @@
 open Haz3lcore;
 open Util;
 
+module Axioms = Language.Axioms;
+
 /* The exercises mode interface for a theorem exercise. Composed of multiple editors and results. */
 
 /* This file follows conventions in [docs/ui-architecture.md] */
@@ -26,6 +28,30 @@ module Model = {
     editing_prompt: false,
   };
 
+  let instructor_policy = (~level, ~automation_stage) =>
+    ExerciseMathPolicy.make(
+      ~id="instructor-selected-exercise-profile",
+      ~label="Instructor-selected exercise profile",
+      ~detail="A reproducible exercise profile selected in instructor mode.",
+      ~parent_level=level,
+      ~automation_stage,
+      (),
+    );
+
+  let policy_with_level = (level, policy: ExerciseMathPolicy.t) => {
+    ...policy,
+    profile: {
+      ...policy.profile,
+      parents: [Language.CustomMathMode.BuiltInParent(level)],
+    },
+  };
+
+  let policy_with_automation_stage =
+      (automation_stage, policy: ExerciseMathPolicy.t) => {
+    ...policy,
+    automation_stage,
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     id: Id.t,
@@ -36,6 +62,20 @@ module Model = {
     cells,
     editing_flags,
     write_out_steps: bool,
+    math_policy: option(ExerciseMathPolicy.t),
+  };
+
+  let with_math_policy = (math_policy, model: t): t => {
+    ...model,
+    cells: {
+      prelude:
+        model.cells.prelude |> CellEditor.Model.with_math_policy(math_policy),
+      lemmas:
+        model.cells.lemmas |> CellEditor.Model.with_math_policy(math_policy),
+      theorem:
+        model.cells.theorem |> CellEditor.Model.with_math_policy(math_policy),
+    },
+    math_policy,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -59,17 +99,24 @@ module Model = {
       max_points: spec.max_points,
       cells: {
         prelude:
-          CellEditor.Model.mk(Editor.Model.mk(spec.prelude, ~root=Exp)),
-        lemmas: persistent.lemmas |> CellEditor.Model.unpersist(~settings),
-        theorem: {
-          editor:
-            CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)).
-              editor,
-          result: persistent.theorem |> EvalResult.Model.unpersist,
-        },
+          CellEditor.Model.mk(Editor.Model.mk(spec.prelude, ~root=Exp))
+          |> CellEditor.Model.with_math_policy(spec.math_policy),
+        lemmas:
+          persistent.lemmas
+          |> CellEditor.Model.unpersist(~settings)
+          |> CellEditor.Model.with_math_policy(spec.math_policy),
+        theorem:
+          {
+            editor:
+              CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)).
+                editor,
+            result: persistent.theorem |> EvalResult.Model.unpersist,
+          }
+          |> CellEditor.Model.with_math_policy(spec.math_policy),
       },
       editing_flags: editing_flags_false,
       write_out_steps: spec.write_out_steps,
+      math_policy: spec.math_policy,
     };
   };
 
@@ -82,13 +129,18 @@ module Model = {
       max_points: spec.max_points,
       cells: {
         prelude:
-          CellEditor.Model.mk(Editor.Model.mk(spec.prelude, ~root=Exp)),
-        lemmas: CellEditor.Model.mk(Editor.Model.mk(spec.lemmas, ~root=Exp)),
+          CellEditor.Model.mk(Editor.Model.mk(spec.prelude, ~root=Exp))
+          |> CellEditor.Model.with_math_policy(spec.math_policy),
+        lemmas:
+          CellEditor.Model.mk(Editor.Model.mk(spec.lemmas, ~root=Exp))
+          |> CellEditor.Model.with_math_policy(spec.math_policy),
         theorem:
-          CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)),
+          CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp))
+          |> CellEditor.Model.with_math_policy(spec.math_policy),
       },
       editing_flags: editing_flags_false,
       write_out_steps: spec.write_out_steps,
+      math_policy: spec.math_policy,
     };
   };
 
@@ -103,6 +155,7 @@ module Model = {
       lemmas: model.cells.lemmas.editor.editor.state.zipper,
       theorem: model.cells.theorem.editor.editor.state.zipper,
       write_out_steps: model.write_out_steps,
+      math_policy: model.math_policy,
     };
   };
 
@@ -159,7 +212,9 @@ module Update = {
     | EditingPrompt
     | UpdateTitle(string)
     | UpdateModuleName(string)
-    | UpdatePrompt(string);
+    | UpdatePrompt(string)
+    | UpdateMathLevel(Axioms.rewrite_level)
+    | UpdateAutomationStage(Axioms.automation_stage);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -212,6 +267,30 @@ module Update = {
         ...model,
         prompt,
       })
+    | UpdateMathLevel(level) =>
+      let math_policy =
+        switch (model.math_policy) {
+        | Some(policy) => Some(Model.policy_with_level(level, policy))
+        | None =>
+          Some(
+            Model.instructor_policy(
+              ~level,
+              ~automation_stage=Axioms.MultiStepCheck,
+            ),
+          )
+        };
+      model |> Model.with_math_policy(math_policy) |> Updated.return;
+    | UpdateAutomationStage(automation_stage) =>
+      let math_policy =
+        switch (model.math_policy) {
+        | Some(policy) =>
+          Some(Model.policy_with_automation_stage(automation_stage, policy))
+        | None =>
+          Some(
+            Model.instructor_policy(~level=Axioms.Algebra, ~automation_stage),
+          )
+        };
+      model |> Model.with_math_policy(math_policy) |> Updated.return;
     };
   };
 
@@ -551,6 +630,8 @@ module Selection = {
 };
 
 module View = {
+  open Virtual_dom.Vdom;
+
   let view =
       (
         ~globals: Globals.t,
@@ -593,6 +674,129 @@ module View = {
       ]);
     let write_out_steps_view =
       globals.settings.instructor_mode ? [write_out_steps_view] : [];
+
+    let instructor_math_mode_view =
+      if (globals.settings.instructor_mode) {
+        let (level, automation_stage, profile_label) =
+          switch (model.math_policy) {
+          | Some(policy) => (
+              ExerciseMathPolicy.resolved_profile(policy).level,
+              policy.automation_stage,
+              policy.profile.label,
+            )
+          | None => (
+              Axioms.Algebra,
+              Axioms.MultiStepCheck,
+              "No exercise-specific profile",
+            )
+          };
+        let select_option = (~selected, ~value, label) =>
+          Node.option(
+            ~attrs=[
+              Attr.value(value),
+              ...selected ? [Attr.create("selected", "selected")] : [],
+            ],
+            [Node.text(label)],
+          );
+        let math_level_select =
+          Node.select(
+            ~attrs=[
+              Attr.class_("proof-select"),
+              Attr.title("Choose the exercise math level"),
+              Attr.on_change((_, value) =>
+                Axioms.selectable_rewrite_levels
+                |> List.find_opt(level =>
+                     Axioms.rewrite_level_label(level) == value
+                   )
+                |> Option.map(level =>
+                     inject(Instructor(UpdateMathLevel(level)))
+                   )
+                |> Option.value(~default=Ui_effect.Ignore)
+              ),
+            ],
+            Axioms.selectable_rewrite_levels
+            |> List.map(candidate =>
+                 select_option(
+                   ~selected=candidate == level,
+                   ~value=Axioms.rewrite_level_label(candidate),
+                   Axioms.rewrite_level_label(candidate),
+                 )
+               ),
+          );
+        let automation_stage_select =
+          Node.select(
+            ~attrs=[
+              Attr.class_("proof-select"),
+              Attr.title("Choose the exercise proof interaction"),
+              Attr.on_change((_, value) =>
+                Axioms.automation_stages
+                |> List.find_opt(stage =>
+                     Axioms.automation_stage_label(stage) == value
+                   )
+                |> Option.map(stage =>
+                     inject(Instructor(UpdateAutomationStage(stage)))
+                   )
+                |> Option.value(~default=Ui_effect.Ignore)
+              ),
+            ],
+            Axioms.automation_stages
+            |> List.map(candidate =>
+                 select_option(
+                   ~selected=candidate == automation_stage,
+                   ~value=Axioms.automation_stage_label(candidate),
+                   Axioms.automation_stage_label(candidate),
+                 )
+               ),
+          );
+        [
+          CellCommon.simple_cell_view([
+            CellCommon.simple_cell_item([
+              Node.div(
+                ~attrs=[Attr.class_("math-automation-active-profile")],
+                [
+                  Node.div(
+                    ~attrs=[
+                      Attr.class_("math-automation-active-profile-label"),
+                    ],
+                    [Node.text("Exercise math mode: " ++ profile_label)],
+                  ),
+                ],
+              ),
+              Node.div(
+                ~attrs=[Attr.class_("math-automation-options")],
+                [
+                  Node.div(
+                    ~attrs=[Attr.class_("math-automation-control")],
+                    [
+                      Node.div(
+                        ~attrs=[
+                          Attr.class_("math-automation-control-label"),
+                        ],
+                        [Node.text("Math level")],
+                      ),
+                      math_level_select,
+                    ],
+                  ),
+                  Node.div(
+                    ~attrs=[Attr.class_("math-automation-control")],
+                    [
+                      Node.div(
+                        ~attrs=[
+                          Attr.class_("math-automation-control-label"),
+                        ],
+                        [Node.text("Proof interaction")],
+                      ),
+                      automation_stage_select,
+                    ],
+                  ),
+                ],
+              ),
+            ]),
+          ]),
+        ];
+      } else {
+        [];
+      };
 
     let prompt_view =
       InstructorEditViews.prompt_view(
@@ -665,6 +869,7 @@ module View = {
 
     [score_view, title_view, module_name_view]
     @ write_out_steps_view
+    @ instructor_math_mode_view
     @ [prompt_view, prelude_view, lemmas_view, theorem_view];
   };
 };

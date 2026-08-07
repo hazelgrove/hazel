@@ -16,19 +16,22 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_theorem = {stepper_view: StepperView.Model.persistent};
 
-  let theorem_init = name => {
+  let theorem_init = (~math_policy, name) => {
     name,
     ctx: Calc.Pending,
     env: Calc.Pending,
     sem_ctx: Calc.Pending,
     goal_exp: Calc.Pending,
-    stepper_view: StepperView.Model.init,
+    stepper_view:
+      StepperView.Model.init
+      |> StepperView.Model.with_math_policy(math_policy),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     thm_map: Id.Map.t(theorem),
     thms: Calc.saved(list(Id.t)),
+    math_policy: option(ExerciseMathPolicy.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -37,6 +40,22 @@ module Model = {
   let init = {
     thm_map: Id.Map.empty,
     thms: Calc.Pending,
+    math_policy: None,
+  };
+
+  let with_math_policy = (math_policy, model: t): t => {
+    ...model,
+    math_policy,
+    thm_map:
+      model.thm_map
+      |> Id.Map.map((theorem: theorem) =>
+           {
+             ...theorem,
+             stepper_view:
+               theorem.stepper_view
+               |> StepperView.Model.with_math_policy(math_policy),
+           }
+         ),
   };
 
   let persist = (model: t): persistent => {
@@ -63,6 +82,7 @@ module Model = {
         p.thm_map,
       ),
     thms: Calc.Pending,
+    math_policy: None,
   };
 
   let get_score = (model: t): option((float, float)) => {
@@ -149,7 +169,7 @@ module Update = {
         ~settings: Calc.t(CoreSettings.t),
         ~statics: Calc.t(Haz3lcore.CachedStatics.t),
         ~dynamics: Calc.t(option(Dynamics.t)),
-        {thm_map, thms}: Model.t,
+        {thm_map, thms, math_policy}: Model.t,
       ) => {
     let settings' = {
       ...Calc.get_value(settings),
@@ -214,7 +234,10 @@ module Update = {
                    goal_exp,
                    stepper_view,
                  } =
-                   Option.value(~default=Model.theorem_init("?"), opt);
+                   Option.value(
+                     ~default=Model.theorem_init(~math_policy, "?"),
+                     opt,
+                   );
 
                  let goal_exp =
                    Calc.set(
@@ -273,6 +296,7 @@ module Update = {
     Model.{
       thm_map,
       thms: thms |> Calc.save,
+      math_policy,
     };
   };
 };

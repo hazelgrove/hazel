@@ -1512,18 +1512,10 @@ module View = {
           ~measured=editor.editor.syntax.measured,
           editor.editor.state.zipper.selection.content,
         );
-      let active_search_id =
-        switch (model.open_box) {
-        | WrittenStepOpen({
-            check_mode: ProofSearch,
-            proof_search_requested: true,
-            proof_search_check_id: Some(check_id),
-            _,
-          }) =>
-          Some(check_id)
-        | _ => None
-        };
-      cancel_proof_searches_except_in_browser(active_search_id);
+      /* Proof-search ownership is changed only by explicit lifecycle events.
+       * Cancelling from here is unsafe: every theorem on an exercise page
+       * renders its own overlay, so an idle theorem would cancel another
+       * theorem's active Rocq request. */
       let+ (left, right, top, bottom) = segment_bounds;
       let effective_selection = effective_selection_for_editor(editor);
       let selection_override =
@@ -1986,6 +1978,10 @@ module View = {
                 : "run JSCoq/Rocq tactic search",
             _ => {
               let check_id = JsUtil.date_now()##getTime |> int_of_float;
+              /* Starting a request is the ownership handoff point.  Retain
+               * this request while cancelling only genuinely older local and
+               * Rocq work. */
+              cancel_proof_searches_except_in_browser(Some(check_id));
               let request =
                 ProofSearchBackend.{
                   backend: JSCoqTacticSearch,
@@ -2190,7 +2186,12 @@ module View = {
             ~source="Algebrite factor candidate",
           );
         let factor_suggestion_available =
-          AlgebriteSuggestion.is_factor_candidate_shape(unboxed_selected_exp)
+          AlgebriteSuggestion.factor_suggestion_enabled_for_profile(
+            active_profile_for_model(model, rewrite_level),
+          )
+          && AlgebriteSuggestion.is_factor_candidate_shape(
+               unboxed_selected_exp,
+             )
           && (
             switch (
               AlgebriteSuggestion.serialize_for_algebrite(
@@ -2220,25 +2221,26 @@ module View = {
         let algebrite_suggestion_controls =
           switch (check_mode) {
           | Model.ProofSearch =>
-            switch (rewrite_level) {
-            | Algebra
-            | Trigonometry =>
-              [simplify_with_algebrite_button]
-              @ (
-                factor_suggestion_available
-                  ? [factor_with_algebrite_button] : []
-              )
-            | Arithmetic
-            | FunctionsAndLists => [simplify_with_algebrite_button]
-            | Calculus => [
-                auto_simplify_uses_profile(
-                  rewrite_level,
-                  unboxed_selected_exp,
-                )
-                  ? simplify_with_profile_button
-                  : simplify_with_algebrite_button,
-              ]
-            }
+            let simplify_controls =
+              switch (rewrite_level) {
+              | Arithmetic
+              | Algebra
+              | Trigonometry
+              | FunctionsAndLists => [simplify_with_algebrite_button]
+              | Calculus => [
+                  auto_simplify_uses_profile(
+                    rewrite_level,
+                    unboxed_selected_exp,
+                  )
+                    ? simplify_with_profile_button
+                    : simplify_with_algebrite_button,
+                ]
+              };
+            simplify_controls
+            @ (
+              factor_suggestion_available
+                ? [factor_with_algebrite_button] : []
+            );
           | _ => []
           };
         let mode_issue =
@@ -2919,9 +2921,6 @@ module View = {
                         selected_exp_for_rewrite,
                       )
                     || reparenthesized_source_changed;
-                  if (source_selection_changed) {
-                    cancel_proof_searches_except_in_browser(None);
-                  };
                   let suggestions =
                     switch (
                       check_mode,

@@ -25,6 +25,7 @@ module Model = {
     incr_eval: Calc.saved(IncrEval.t),
     display,
     theorems: Theorems.Model.t,
+    math_policy: option(ExerciseMathPolicy.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -42,6 +43,19 @@ module Model = {
     incr_eval: Calc.Pending,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
+    math_policy: None,
+  };
+
+  let with_math_policy = (math_policy, model: t): t => {
+    ...model,
+    theorems: model.theorems |> Theorems.Model.with_math_policy(math_policy),
+    display:
+      switch (model.display) {
+      | Stepper(stepper) =>
+        Stepper(stepper |> StepperView.Model.with_math_policy(math_policy))
+      | Evaluation(_) as display => display
+      },
+    math_policy,
   };
 
   let persist = (model: t): persistent => {
@@ -65,6 +79,7 @@ module Model = {
         incr_eval: Calc.Pending,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
+        math_policy: None,
       }
     | None => {
         ...init,
@@ -129,7 +144,11 @@ module Update = {
     | (ToggleStepper, {display: Evaluation(_), _}) =>
       {
         ...model,
-        display: Stepper(StepperView.Model.init),
+        display:
+          Stepper(
+            StepperView.Model.init
+            |> StepperView.Model.with_math_policy(model.math_policy),
+          ),
       }
       |> Updated.return
     | (StepperAction(a), {display: Stepper(stepper), _}) =>
@@ -179,6 +198,7 @@ module Update = {
           incr_eval,
           display,
           theorems,
+          math_policy,
         }: Model.t,
       ) => {
     // Check whether settings / elab / targets have changed
@@ -360,6 +380,7 @@ module Update = {
         incr_eval: incr_eval |> Calc.save,
         display,
         theorems,
+        math_policy,
       }: Model.t
     );
   };

@@ -1,0 +1,1260 @@
+open Alcotest;
+open Language;
+open IdTagged.FreshGrammar;
+
+let write_text_file = (path, contents) => {
+  let channel = open_out(path);
+  output_string(channel, contents);
+  close_out(channel);
+};
+
+let string_contains = (needle, haystack) => {
+  let needle_len = String.length(needle);
+  let haystack_len = String.length(haystack);
+  let rec loop = offset =>
+    offset
+    + needle_len <= haystack_len
+    && (
+      String.sub(haystack, offset, needle_len) == needle || loop(offset + 1)
+    );
+  needle_len == 0 || loop(0);
+};
+
+let theorem_spec = exercise =>
+  switch (exercise) {
+  | Web.Exercise.Theorem(spec) => spec
+  | _ => fail("expected a theorem exercise")
+  };
+
+let require_policy = exercise =>
+  switch (theorem_spec(exercise).math_policy) {
+  | Some(policy) => policy
+  | None => fail("expected an exercise math policy")
+  };
+
+let check_policy = (label, exercise, expected_level, expected_stage) => {
+  let policy = require_policy(exercise);
+  let profile = Web.ExerciseMathPolicy.resolved_profile(policy);
+  check(bool, label ++ " level", true, profile.level == expected_level);
+  check(
+    bool,
+    label ++ " automation stage",
+    true,
+    policy.automation_stage == expected_stage,
+  );
+};
+
+let tests = (
+  "ExerciseMathPolicy",
+  [
+    test_case(
+      "initial case-study exercises have reproducible locked policies",
+      `Quick,
+      () => {
+        let exercises = [
+          Web.Ex_OrderOfOperations.exercise,
+          Web.Ex_FoilVerbose.exercise,
+          Web.Ex_FoilAutomated.exercise,
+          Web.Ex_CompletingTheSquare.exercise,
+          Web.Ex_TrigPowerReduction.exercise,
+          Web.Ex_PolynomialDerivative.exercise,
+          Web.Ex_QuadraticTaylorApproximation.exercise,
+          Web.Ex_TrigTaylorApproximation.exercise,
+        ];
+        check(int, "exercise count", 8, List.length(exercises));
+        exercises
+        |> List.iter(exercise => {
+             let policy = require_policy(exercise);
+             check(bool, "profile locked", true, policy.lock_profile);
+             check(
+               bool,
+               "automation locked",
+               true,
+               policy.lock_automation_stage,
+             );
+             Web.ExerciseMathPolicy.resolve(policy)
+             |> (
+               fun
+               | Ok(_) => ()
+               | Error(error) =>
+                 fail(CustomMathMode.resolution_error_message(error))
+             );
+           });
+        check(
+          bool,
+          "order of operations hides available-step highlights",
+          false,
+          require_policy(Web.Ex_OrderOfOperations.exercise).
+            show_next_step_hints,
+        );
+        exercises
+        |> List.tl
+        |> List.iter(exercise =>
+             check(
+               bool,
+               "other case studies retain available-step highlights",
+               true,
+               require_policy(exercise).show_next_step_hints,
+             )
+           );
+      },
+    ),
+    test_case(
+      "case-study verbosity matches each teaching goal",
+      `Quick,
+      () => {
+        check_policy(
+          "order of operations",
+          Web.Ex_OrderOfOperations.exercise,
+          Axioms.Arithmetic,
+          Axioms.Manual,
+        );
+        check_policy(
+          "written-out FOIL",
+          Web.Ex_FoilVerbose.exercise,
+          Axioms.Algebra,
+          Axioms.Manual,
+        );
+        check_policy(
+          "cleanup FOIL",
+          Web.Ex_FoilAutomated.exercise,
+          Axioms.Algebra,
+          Axioms.Manual,
+        );
+        check_policy(
+          "completing the square",
+          Web.Ex_CompletingTheSquare.exercise,
+          Axioms.Algebra,
+          Axioms.MultiStepCheck,
+        );
+        check_policy(
+          "trig power reduction",
+          Web.Ex_TrigPowerReduction.exercise,
+          Axioms.Trigonometry,
+          Axioms.MultiStepCheck,
+        );
+        check_policy(
+          "polynomial derivative",
+          Web.Ex_PolynomialDerivative.exercise,
+          Axioms.Calculus,
+          Axioms.MultiStepCheck,
+        );
+        check_policy(
+          "introductory Taylor approximation",
+          Web.Ex_QuadraticTaylorApproximation.exercise,
+          Axioms.Calculus,
+          Axioms.MultiStepCheck,
+        );
+        check_policy(
+          "advanced Taylor approximation",
+          Web.Ex_TrigTaylorApproximation.exercise,
+          Axioms.Calculus,
+          Axioms.MultiStepCheck,
+        );
+      },
+    ),
+    test_case(
+      "compiled case-study rules never inherit disabled cleanup",
+      `Quick,
+      () => {
+        let exercises = [
+          Web.Ex_OrderOfOperations.exercise,
+          Web.Ex_FoilVerbose.exercise,
+          Web.Ex_FoilAutomated.exercise,
+          Web.Ex_CompletingTheSquare.exercise,
+          Web.Ex_TrigPowerReduction.exercise,
+          Web.Ex_PolynomialDerivative.exercise,
+          Web.Ex_QuadraticTaylorApproximation.exercise,
+          Web.Ex_TrigTaylorApproximation.exercise,
+        ];
+        exercises
+        |> List.iter(exercise => {
+             let profile =
+               exercise
+               |> require_policy
+               |> Web.ExerciseMathPolicy.resolved_profile;
+             [Axioms.Manual, Axioms.MultiStepCheck, Axioms.AutoEval]
+             |> List.iter(stage =>
+                  Axioms.stage_plan_for_profile(profile, stage).visible_rules
+                  |> List.iter((planned: Axioms.planned_visible_rule) =>
+                       planned.allowed_cleanup
+                       |> List.iter(cleanup =>
+                            check(
+                              bool,
+                              "compiled cleanup remains globally enabled",
+                              true,
+                              List.mem(
+                                cleanup,
+                                profile.step_policy.default_cleanup,
+                              ),
+                            )
+                          )
+                     )
+                );
+             check(
+               list(bool),
+               "hidden rule receives no cleanup authority",
+               [],
+               Axioms.cleanup_for_visible_rule(
+                 profile.step_policy,
+                 "test.rule.not.visible",
+               )
+               |> List.map(_ => true),
+             );
+           });
+        let derivative_profile =
+          Web.Ex_PolynomialDerivative.exercise
+          |> require_policy
+          |> Web.ExerciseMathPolicy.resolved_profile;
+        let power_rule =
+          Axioms.stage_plan_for_profile(
+            derivative_profile,
+            Axioms.MultiStepCheck,
+          ).
+            visible_rules
+          |> List.find((planned: Axioms.planned_visible_rule) =>
+               planned.rule.id == "calc.diff_power"
+             );
+        check(
+          bool,
+          "disabled derivative cleanup absent from compiled power rule",
+          false,
+          List.mem(Axioms.DerivativeBasics, power_rule.allowed_cleanup),
+        );
+        let power_disabled_manually =
+          Axioms.profile_with_capability_usage_overrides(
+            derivative_profile,
+            derivative_profile.capability_usage_overrides
+            @ [
+              Axioms.{
+                capability_id: "calc.diff_power",
+                stage: Manual,
+                usage: Disabled,
+              },
+            ],
+          );
+        let stage_exposes_power = stage =>
+          Axioms.stage_plan_for_profile(power_disabled_manually, stage).
+            visible_rules
+          |> List.exists((planned: Axioms.planned_visible_rule) =>
+               planned.rule.id == "calc.diff_power"
+             );
+        check(
+          bool,
+          "manual-disabled rule is absent from executable rules",
+          false,
+          stage_exposes_power(Manual),
+        );
+        check(
+          bool,
+          "stage-specific disable does not leak into Check Result",
+          true,
+          stage_exposes_power(MultiStepCheck),
+        );
+        check(
+          bool,
+          "manual Rocq search rejects the disabled rule",
+          false,
+          Axioms.profile_allows_rocq_rule_id(
+            power_disabled_manually,
+            Manual,
+            "calc.diff_power",
+          ),
+        );
+        check(
+          bool,
+          "Check Result Rocq search retains the enabled rule",
+          true,
+          Axioms.profile_allows_rocq_rule_id(
+            power_disabled_manually,
+            MultiStepCheck,
+            "calc.diff_power",
+          ),
+        );
+        let identity_disabled_for_check =
+          Axioms.profile_with_capability_usage_overrides(
+            derivative_profile,
+            derivative_profile.capability_usage_overrides
+            @ [
+              Axioms.{
+                capability_id: "mul.identity",
+                stage: MultiStepCheck,
+                usage: Disabled,
+              },
+            ],
+          );
+        let stage_cleanup = stage =>
+          Axioms.stage_plan_for_profile(identity_disabled_for_check, stage).
+            pre_cleanup;
+        check(
+          bool,
+          "stage-disabled cleanup is absent from Check Result",
+          false,
+          List.mem(Axioms.MulIdentity, stage_cleanup(MultiStepCheck)),
+        );
+        check(
+          bool,
+          "stage-disabled cleanup remains available in Manual",
+          true,
+          List.mem(Axioms.MulIdentity, stage_cleanup(Manual)),
+        );
+        check(
+          bool,
+          "Check Result Rocq search rejects stage-disabled cleanup",
+          false,
+          Axioms.profile_allows_rocq_rule_id(
+            identity_disabled_for_check,
+            MultiStepCheck,
+            "mul.identity",
+          ),
+        );
+        check(
+          bool,
+          "manual Rocq search retains stage-enabled cleanup",
+          true,
+          Axioms.profile_allows_rocq_rule_id(
+            identity_disabled_for_check,
+            Manual,
+            "mul.identity",
+          ),
+        );
+      },
+    ),
+    test_case(
+      "verbose FOIL allows factor commutation but not collection",
+      `Quick,
+      () => {
+        let policy = require_policy(Web.Ex_FoilVerbose.exercise);
+        let profile = Web.ExerciseMathPolicy.resolved_profile(policy);
+        check(
+          bool,
+          "square identity hidden",
+          false,
+          Axioms.visible_rule_enabled(
+            profile.step_policy,
+            "alg.square_of_sum",
+          ),
+        );
+        check(
+          bool,
+          "multiplication commutation enabled",
+          true,
+          List.mem(Axioms.MulComm, profile.step_policy.default_cleanup),
+        );
+        check(
+          bool,
+          "collection disabled",
+          false,
+          List.mem(
+            Axioms.CollectLikeTerms,
+            profile.step_policy.default_cleanup,
+          ),
+        );
+        check(
+          bool,
+          "manual polynomial expansion disabled",
+          false,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(profile, Axioms.Manual),
+            "alg.expand_polynomial",
+          ),
+        );
+        check(
+          bool,
+          "primitive distribution remains enabled",
+          true,
+          Axioms.visible_rule_enabled(
+            profile.step_policy,
+            "alg.distribute_mul_add",
+          ),
+        );
+      },
+    ),
+    test_case(
+      "cleanup FOIL keeps distribution visible in One Step mode",
+      `Quick,
+      () => {
+        let policy = require_policy(Web.Ex_FoilAutomated.exercise);
+        let profile = Web.ExerciseMathPolicy.resolved_profile(policy);
+        check(
+          bool,
+          "uses One Step interaction",
+          true,
+          policy.automation_stage == Axioms.Manual,
+        );
+        check(
+          bool,
+          "whole polynomial expansion is disabled",
+          false,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(profile, Axioms.Manual),
+            "alg.expand_polynomial",
+          ),
+        );
+        check(
+          bool,
+          "primitive distribution remains enabled",
+          true,
+          Axioms.visible_rule_enabled(
+            profile.step_policy,
+            "alg.distribute_mul_add",
+          ),
+        );
+        check(
+          bool,
+          "collection cleanup remains enabled",
+          true,
+          List.mem(
+            Axioms.CollectLikeTerms,
+            profile.step_policy.default_cleanup,
+          ),
+        );
+        check(
+          bool,
+          "collect-like-terms remains a visible algebra rule",
+          true,
+          Axioms.visible_rule_enabled(
+            profile.step_policy,
+            "alg.collect_like_terms",
+          ),
+        );
+        let x = Exp.var("x");
+        let int = Exp.int;
+        let plus = (left, right) =>
+          Exp.bin_op(Operators.Int(Operators.Plus), left, right);
+        let minus = (left, right) =>
+          Exp.bin_op(Operators.Int(Operators.Minus), left, right);
+        let times = (left, right) =>
+          Exp.bin_op(Operators.Int(Operators.Times), left, right);
+        let power = (left, right) =>
+          Exp.bin_op(Operators.Int(Operators.Power), left, right);
+        let source =
+          times(minus(times(int(2), x), int(3)), plus(x, int(4)));
+        let first_distribution =
+          minus(
+            times(times(int(2), x), plus(x, int(4))),
+            times(int(3), plus(x, int(4))),
+          );
+        let target =
+          minus(
+            plus(times(int(2), power(x, int(2))), times(int(5), x)),
+            int(12),
+          );
+        let accepts = (from_, to_) =>
+          switch (
+            Web.ProfileProofPlan.authorize({
+              profile,
+              stage: Axioms.Manual,
+              candidate_origin: Web.ProfileProofPlan.UserEntered,
+              settings: CoreSettings.on,
+              env: Environment.empty,
+              source: from_,
+              target: to_,
+              max_depth: 1,
+              max_states: 80,
+            })
+          ) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          };
+        check(
+          bool,
+          "cannot skip directly to the collected answer",
+          false,
+          accepts(source, target),
+        );
+        check(
+          bool,
+          "first distribution is accepted",
+          true,
+          accepts(source, first_distribution),
+        );
+        check(
+          bool,
+          "second distribution is accepted",
+          true,
+          accepts(
+            times(times(int(2), x), plus(x, int(4))),
+            plus(
+              times(int(2), power(x, int(2))),
+              times(times(int(2), x), int(4)),
+            ),
+          ),
+        );
+        check(
+          bool,
+          "third distribution is accepted",
+          true,
+          accepts(
+            times(int(3), plus(x, int(4))),
+            plus(times(int(3), x), times(int(3), int(4))),
+          ),
+        );
+        check(
+          bool,
+          "numeric coefficient product is simplified",
+          true,
+          accepts(times(times(int(2), x), int(4)), times(int(8), x)),
+        );
+        check(
+          bool,
+          "constant product is simplified",
+          true,
+          accepts(times(int(3), int(4)), int(12)),
+        );
+        let products_folded =
+          minus(
+            plus(times(int(2), power(x, int(2))), times(int(8), x)),
+            plus(times(int(3), x), int(12)),
+          );
+        switch (
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage: Axioms.Manual,
+            candidate_origin: Web.ProfileProofPlan.UserEntered,
+            settings: CoreSettings.on,
+            env: Environment.empty,
+            source: products_folded,
+            target,
+            max_depth: 1,
+            max_states: 80,
+          })
+        ) {
+        | Authorized(_) => ()
+        | Rejected(rejection) =>
+          fail(
+            "final FOIL collection: "
+            ++ Web.ProfileProofPlan.rejection_message(rejection),
+          )
+        };
+        let collect_source = plus(times(int(8), x), times(int(3), x));
+        let collect_target = times(int(11), x);
+        switch (
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile,
+            ~settings=CoreSettings.on,
+            ~env=Environment.empty,
+            collect_source,
+            collect_target,
+          )
+        ) {
+        | Some(result) =>
+          if (List.length(result.prover_steps) != 1) {
+            fail(
+              "unexpected collection replay: "
+              ++ (
+                result.prover_steps
+                |> List.map((step: Web.ProofTrace.prover_step) =>
+                     step.rule_id
+                   )
+                |> String.concat(" -> ")
+              ),
+            );
+          };
+          check(
+            bool,
+            "collection trace names the enabled rule",
+            true,
+            result.trace
+            |> List.exists((rule: Axioms.rewrite_rule) =>
+                 rule.id == "alg.collect_like_terms"
+               ),
+          );
+        | None => fail("collect-like-terms backend rejected equivalent sums")
+        };
+        switch (
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage: Axioms.Manual,
+            candidate_origin: Web.ProfileProofPlan.UserEntered,
+            settings: CoreSettings.on,
+            env: Environment.empty,
+            source: collect_source,
+            target: collect_target,
+            max_depth: 1,
+            max_states: 80,
+          })
+        ) {
+        | Authorized(_) => ()
+        | Rejected(rejection) =>
+          fail(Web.ProfileProofPlan.rejection_message(rejection))
+        };
+        check(
+          bool,
+          "signed linear terms are collected",
+          true,
+          accepts(
+            minus(times(int(8), x), times(int(3), x)),
+            times(int(5), x),
+          ),
+        );
+        check(
+          bool,
+          "quadratic like terms are collected",
+          true,
+          accepts(
+            plus(times(x, x), times(int(2), times(x, x))),
+            times(int(3), times(x, x)),
+          ),
+        );
+        check(
+          bool,
+          "unlike variables are not collected",
+          false,
+          accepts(
+            plus(times(int(8), x), times(int(3), Exp.var("y"))),
+            times(int(11), x),
+          ),
+        );
+        check(
+          bool,
+          "collection cannot change a power",
+          false,
+          accepts(
+            plus(power(x, int(3)), power(x, int(3))),
+            times(int(2), power(x, int(2))),
+          ),
+        );
+        let collection_disabled_profile = {
+          ...profile,
+          capability_usage_overrides: [
+            {
+              Axioms.capability_id: "alg.collect_like_terms",
+              stage: Axioms.Manual,
+              usage: Axioms.Disabled,
+            },
+            ...profile.capability_usage_overrides,
+          ],
+        };
+        let accepts_with_profile = (profile, from_, to_) =>
+          switch (
+            Web.ProfileProofPlan.authorize({
+              profile,
+              stage: Axioms.Manual,
+              candidate_origin: Web.ProfileProofPlan.UserEntered,
+              settings: CoreSettings.on,
+              env: Environment.empty,
+              source: from_,
+              target: to_,
+              max_depth: 1,
+              max_states: 80,
+            })
+          ) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          };
+        check(
+          bool,
+          "disabled collection rule stays disabled",
+          false,
+          accepts_with_profile(
+            collection_disabled_profile,
+            collect_source,
+            collect_target,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "completing the square rejects unrelated polynomial factoring",
+      `Quick,
+      () => {
+        let policy = require_policy(Web.Ex_CompletingTheSquare.exercise);
+        let profile = Web.ExerciseMathPolicy.resolved_profile(policy);
+        check(
+          bool,
+          "arbitrary polynomial factor normalization disabled",
+          false,
+          Axioms.compiled_capability_enabled(
+            Axioms.stage_plan_for_profile(profile, Axioms.MultiStepCheck),
+            "alg.factor_polynomial_normalize",
+          ),
+        );
+        check(
+          bool,
+          "general common/perfect-square factoring remains enabled",
+          true,
+          Axioms.visible_rule_enabled(
+            profile.step_policy,
+            "alg.factor_common",
+          ),
+        );
+      },
+    ),
+    test_case(
+      "trig power reduction exposes only lesson-relevant identities",
+      `Quick,
+      () => {
+        let policy = require_policy(Web.Ex_TrigPowerReduction.exercise);
+        let profile = Web.ExerciseMathPolicy.resolved_profile(policy);
+        check(
+          bool,
+          "power-reduction identity enabled",
+          true,
+          Axioms.visible_rule_enabled(
+            profile.step_policy,
+            "trig.sin_squared_double",
+          ),
+        );
+        check(
+          bool,
+          "alternative double-angle route enabled",
+          true,
+          Axioms.visible_rule_enabled(
+            profile.step_policy,
+            "trig.cos_double_sin",
+          ),
+        );
+        check(
+          bool,
+          "unrelated angle-sum identity disabled",
+          false,
+          Axioms.visible_rule_enabled(profile.step_policy, "trig.sin_sum"),
+        );
+        check(
+          bool,
+          "unrelated reflection identity disabled",
+          false,
+          Axioms.visible_rule_enabled(profile.step_policy, "trig.cos_pi_sub"),
+        );
+      },
+    ),
+    test_case(
+      "polynomial derivative Check Result certifies intermediate calculus rules",
+      `Quick,
+      () => {
+        let policy = require_policy(Web.Ex_PolynomialDerivative.exercise);
+        let profile = Web.ExerciseMathPolicy.resolved_profile(policy);
+        let x = Language.Exp.fresh(Var("x"));
+        let int = value =>
+          Language.Exp.fresh(Atom(Int(Bigint.of_int(value))));
+        let plus = (left, right) =>
+          Language.Exp.fresh(
+            BinOp(Operators.Int(Operators.Plus), left, right),
+          );
+        let times = (left, right) =>
+          Language.Exp.fresh(
+            BinOp(Operators.Int(Operators.Times), left, right),
+          );
+        let minus = (left, right) =>
+          Language.Exp.fresh(
+            BinOp(Operators.Int(Operators.Minus), left, right),
+          );
+        let divide = (left, right) =>
+          Language.Exp.fresh(
+            BinOp(Operators.Int(Operators.Divide), left, right),
+          );
+        let power = (left, right) =>
+          Language.Exp.fresh(
+            BinOp(Operators.Int(Operators.Power), left, right),
+          );
+        let deriv = (body, variable) =>
+          DerivativeOperator.expression(~body, ~variable);
+        let cubic = power(x, int(3));
+        let linear = times(int(2), x);
+        let source = deriv(plus(cubic, linear), x);
+        let target = plus(deriv(cubic, x), deriv(linear, x));
+        let authorize =
+            (~profile=profile, ~stage=Axioms.MultiStepCheck, source, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage,
+            candidate_origin: Web.ProfileProofPlan.UserEntered,
+            settings: CoreSettings.on,
+            env: Environment.empty,
+            source,
+            target,
+            max_depth: 6,
+            max_states: 300,
+          });
+        let request = (source, target) =>
+          Web.ProofSearchBackend.{
+            backend: JSCoqTacticSearch,
+            level: Axioms.Calculus,
+            max_depth: 6,
+            max_states: 300,
+            source,
+            target,
+          };
+        let expect_authorized_certificate =
+            (~rocq_path=None, label, source, target) =>
+          switch (authorize(source, target)) {
+          | Authorized(plan) =>
+            let program =
+              Web.ProofSearchBackend.rocq_program_for_authorized_plan(
+                ~profile,
+                request(source, target),
+                plan,
+              );
+            check(
+              bool,
+              label ++ " has a Rocq certificate",
+              true,
+              String.length(program) > 0,
+            );
+            switch (rocq_path) {
+            | Some(path) => write_text_file(path, program)
+            | None => ()
+            };
+            (plan, program);
+          | Rejected(rejection) =>
+            fail(Web.ProfileProofPlan.rejection_message(rejection))
+          };
+        let (linearity_plan, _) =
+          expect_authorized_certificate(
+            ~rocq_path=Some("/tmp/hazel_polynomial_derivative_linearity.v"),
+            "sum linearity",
+            source,
+            target,
+          );
+        check(
+          bool,
+          "linearity route recorded",
+          true,
+          List.mem("calc.diff_sum", linearity_plan.summary.rule_ids),
+        );
+        let power_source = deriv(cubic, x);
+        let power_target = times(int(3), power(x, int(2)));
+        let expect_displayed_action = (label, source, rule_id, target) => {
+          let actions =
+            Web.AxiomsBox.calculus_actions_for_profile(~profile, source);
+          check(
+            Alcotest.int,
+            label ++ " suggestion count",
+            1,
+            List.length(actions),
+          );
+          let action = List.hd(actions);
+          check(string, label ++ " suggestion id", rule_id, action.rule_id);
+          check(
+            bool,
+            label ++ " keeps disabled cleanup visible",
+            true,
+            Web.RewriteChecker.exp_same(target, action.after_exp),
+          );
+          switch (
+            Web.ProfileProofPlan.authorize({
+              profile,
+              stage: Axioms.Manual,
+              candidate_origin: Web.ProfileProofPlan.DisplayedSuggestion,
+              settings: CoreSettings.on,
+              env: Environment.empty,
+              source,
+              target: action.after_exp,
+              max_depth: 1,
+              max_states: 80,
+            })
+          ) {
+          | Authorized(_) => ()
+          | Rejected(rejection) =>
+            fail(
+              label
+              ++ " displayed suggestion rejected: "
+              ++ Web.ProfileProofPlan.rejection_message(rejection),
+            )
+          };
+        };
+        expect_displayed_action(
+          "power rule",
+          power_source,
+          "calc.diff_power",
+          times(power_target, deriv(x, x)),
+        );
+        let linear_derivative = deriv(linear, x);
+        expect_displayed_action(
+          "product rule",
+          linear_derivative,
+          "calc.diff_product",
+          plus(times(deriv(int(2), x), x), times(int(2), deriv(x, x))),
+        );
+        let suggest = (~profile=profile, source) =>
+          Web.RewriteChecker.simplify_for_profile(
+            ~profile,
+            ~settings=CoreSettings.on,
+            ~env=Environment.empty,
+            source,
+          );
+        let expect_suggestion = (~profile=profile, label, source, target) =>
+          switch (suggest(~profile, source)) {
+          | Some(result) =>
+            check(
+              bool,
+              label,
+              true,
+              Web.RewriteChecker.exp_same(target, result),
+            )
+          | None => fail(label ++ " should produce a profile suggestion")
+          };
+        expect_suggestion(
+          "power Check Result suggestion",
+          power_source,
+          power_target,
+        );
+        expect_suggestion(
+          "constant-times-variable Check Result suggestion",
+          linear_derivative,
+          int(2),
+        );
+        expect_suggestion(
+          "variable-times-constant Check Result suggestion",
+          deriv(times(x, int(5)), x),
+          int(5),
+        );
+        expect_suggestion(
+          "complete polynomial Check Result suggestion",
+          source,
+          plus(power_target, int(2)),
+        );
+        let (power_plan, power_program) =
+          expect_authorized_certificate(
+            ~rocq_path=Some("/tmp/hazel_derivative_power_result.v"),
+            "completed power-rule result",
+            power_source,
+            power_target,
+          );
+        ["calc.diff_power", "calc.diff_variable", "mul.identity"]
+        |> List.iter(rule_id =>
+             check(
+               bool,
+               rule_id ++ " route recorded",
+               true,
+               List.mem(rule_id, power_plan.summary.rule_ids),
+             )
+           );
+        check(
+          bool,
+          "power cleanup replays the authorized identity lemma",
+          true,
+          string_contains("rewrite Rmult_1_r", power_program)
+          && !string_contains("{ lra. }", power_program),
+        );
+        check(
+          bool,
+          "variable derivative remains an explicit One Step rule",
+          true,
+          switch (authorize(~stage=Axioms.Manual, deriv(x, x), int(1))) {
+          | Authorized(_) => true
+          | Rejected(_) => false
+          },
+        );
+        check(
+          bool,
+          "completed power result is not collapsed into One Step",
+          true,
+          switch (authorize(~stage=Axioms.Manual, power_source, power_target)) {
+          | Rejected(_) => true
+          | Authorized(_) => false
+          },
+        );
+        let product_source = deriv(times(cubic, linear), x);
+        let product_target =
+          plus(
+            times(deriv(cubic, x), linear),
+            times(cubic, deriv(linear, x)),
+          );
+        expect_authorized_certificate(
+          "product rule intermediate",
+          product_source,
+          product_target,
+        )
+        |> ignore;
+        let denominator = plus(x, int(1));
+        let quotient_source = deriv(divide(cubic, denominator), x);
+        let quotient_target =
+          divide(
+            minus(
+              times(deriv(cubic, x), denominator),
+              times(cubic, deriv(denominator, x)),
+            ),
+            power(denominator, int(2)),
+          );
+        expect_authorized_certificate(
+          ~rocq_path=Some("/tmp/hazel_derivative_quotient_intermediate.v"),
+          "quotient rule intermediate",
+          quotient_source,
+          quotient_target,
+        )
+        |> ignore;
+        let typo_target =
+          plus(deriv(power(x, int(2)), x), deriv(linear, x));
+        check(
+          bool,
+          "changing the cubic exponent is rejected",
+          true,
+          switch (authorize(source, typo_target)) {
+          | Rejected(_) => true
+          | Authorized(_) => false
+          },
+        );
+        let without_sum =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_sum",
+            profile,
+          );
+        check(
+          bool,
+          "disabled sum rule cannot reach the certificate layer",
+          true,
+          switch (authorize(~profile=without_sum, source, target)) {
+          | Rejected(_) => true
+          | Authorized(_) => false
+          },
+        );
+        ["calc.diff_power", "calc.diff_variable"]
+        |> List.iter(rule_id => {
+             let disabled =
+               Web.ProfileBoard.profile_without_visible_rule(
+                 ~rule_id,
+                 profile,
+               );
+             check(
+               bool,
+               "disabled " ++ rule_id ++ " blocks the completed power result",
+               true,
+               switch (
+                 authorize(~profile=disabled, power_source, power_target)
+               ) {
+               | Rejected(_) => true
+               | Authorized(_) => false
+               },
+             );
+             check(
+               bool,
+               "disabled " ++ rule_id ++ " is not used by suggestions",
+               true,
+               switch (suggest(~profile=disabled, power_source)) {
+               | Some(result) =>
+                 Web.DifferentiationRewrite.contains_diff(result)
+               | None => true
+               },
+             );
+           });
+        let without_mul_identity =
+          Web.ProfileBoard.profile_with_cleanup(
+            ~cleanup=
+              profile.step_policy.default_cleanup
+              |> List.filter(capability => capability != Axioms.MulIdentity),
+            profile,
+          );
+        check(
+          bool,
+          "disabled mul.identity blocks the completed power result",
+          true,
+          switch (
+            authorize(
+              ~profile=without_mul_identity,
+              power_source,
+              power_target,
+            )
+          ) {
+          | Rejected(_) => true
+          | Authorized(_) => false
+          },
+        );
+      },
+    ),
+    test_case(
+      "locked stepper ignores profile and automation mutations",
+      `Quick,
+      () => {
+        let policy = require_policy(Web.Ex_FoilVerbose.exercise);
+        let model =
+          Web.StepperView.Model.init
+          |> Web.StepperView.Model.with_math_policy(Some(policy));
+        let level_changed =
+          Web.StepperView.Update.update(
+            ~settings=Web.Settings.Model.init,
+            Web.StepperView.Update.SelectRewriteLevel(Axioms.Calculus),
+            model,
+          ).
+            model;
+        let automation_changed =
+          Web.StepperView.Update.update(
+            ~settings=Web.Settings.Model.init,
+            Web.StepperView.Update.SelectAutomationStage(Axioms.AutoEval),
+            level_changed,
+          ).
+            model;
+        check(
+          bool,
+          "level unchanged",
+          true,
+          automation_changed.rewrite_level == Axioms.Algebra,
+        );
+        check(
+          bool,
+          "automation unchanged",
+          true,
+          automation_changed.automation_stage == Axioms.Manual,
+        );
+        check(
+          bool,
+          "policy retained",
+          true,
+          automation_changed.math_policy == Some(policy),
+        );
+        check(
+          bool,
+          "fully locked policy hides redundant math automation controls",
+          false,
+          Web.StepperView.Model.shows_math_automation_controls(
+            automation_changed,
+          ),
+        );
+        check(
+          bool,
+          "ordinary stepper keeps math automation controls",
+          true,
+          Web.StepperView.Model.shows_math_automation_controls(
+            Web.StepperView.Model.init,
+          ),
+        );
+        let locked_result =
+          Web.EvalResult.Model.init
+          |> Web.EvalResult.Model.with_math_policy(Some(policy));
+        check(
+          bool,
+          "result model retains its exercise policy",
+          true,
+          locked_result.math_policy == Some(policy),
+        );
+        let opened_lemma_result =
+          Web.EvalResult.Update.update(
+            ~settings=Web.Settings.Model.init,
+            Web.EvalResult.Update.ToggleStepper,
+            locked_result,
+          ).
+            model;
+        switch (opened_lemma_result.display) {
+        | Stepper(stepper) =>
+          check(
+            bool,
+            "locked scratch stepper hides math-mode controls",
+            false,
+            Web.StepperView.Model.shows_math_automation_controls(stepper),
+          )
+        | Evaluation(_) => fail("expected the scratch stepper to open")
+        };
+      },
+    ),
+    test_case(
+      "instructor can change an exercise math level and proof interaction",
+      `Quick,
+      () => {
+        let model =
+          Web.Ex_FoilVerbose.exercise
+          |> theorem_spec
+          |> Web.TheoremExerciseMode.Model.of_spec;
+        let instructor_settings = {
+          ...Web.Settings.Model.init,
+          instructor_mode: true,
+        };
+        let changed_level =
+          Web.TheoremExerciseMode.Update.update(
+            ~settings=instructor_settings,
+            Web.TheoremExerciseMode.Update.Instructor(
+              Web.TheoremExerciseMode.Update.UpdateMathLevel(Axioms.Calculus),
+            ),
+            model,
+          ).
+            model;
+        let changed =
+          Web.TheoremExerciseMode.Update.update(
+            ~settings=instructor_settings,
+            Web.TheoremExerciseMode.Update.Instructor(
+              Web.TheoremExerciseMode.Update.UpdateAutomationStage(
+                Axioms.MultiStepCheck,
+              ),
+            ),
+            changed_level,
+          ).
+            model;
+        let policy =
+          switch (changed.math_policy) {
+          | Some(policy) => policy
+          | None => fail("expected instructor-selected exercise policy")
+          };
+        check(
+          bool,
+          "changes the exercise profile parent",
+          true,
+          Web.ExerciseMathPolicy.resolved_profile(policy).level
+          == Axioms.Calculus,
+        );
+        check(
+          bool,
+          "changes the exercise proof interaction",
+          true,
+          policy.automation_stage == Axioms.MultiStepCheck,
+        );
+        [changed.cells.prelude, changed.cells.lemmas, changed.cells.theorem]
+        |> List.iter((cell: Web.CellEditor.Model.t) =>
+             check(
+               bool,
+               "propagates the policy to every exercise cell",
+               true,
+               cell.result.math_policy == Some(policy),
+             )
+           );
+        let student_attempt =
+          Web.TheoremExerciseMode.Update.update(
+            ~settings=Web.Settings.Model.init,
+            Web.TheoremExerciseMode.Update.Instructor(
+              Web.TheoremExerciseMode.Update.UpdateMathLevel(
+                Axioms.Arithmetic,
+              ),
+            ),
+            changed,
+          ).
+            model;
+        check(
+          bool,
+          "student mode cannot change the instructor-selected policy",
+          true,
+          student_attempt.math_policy == Some(policy),
+        );
+        check(
+          bool,
+          "the changed policy is included in instructor module export",
+          true,
+          Web.TheoremExerciseMode.Model.spec_of_t(changed).math_policy
+          == Some(policy),
+        );
+      },
+    ),
+    test_case(
+      "Taylor case studies are Calculus exercises rather than new math levels",
+      `Quick,
+      () => {
+      [
+        Web.Ex_QuadraticTaylorApproximation.exercise,
+        Web.Ex_TrigTaylorApproximation.exercise,
+      ]
+      |> List.iter(exercise => {
+           let policy = require_policy(exercise);
+           let profile = Web.ExerciseMathPolicy.resolved_profile(policy);
+           check(
+             bool,
+             "uses Calculus",
+             true,
+             profile.level == Axioms.Calculus,
+           );
+           check(
+             bool,
+             "uses Check Result",
+             true,
+             policy.automation_stage == Axioms.MultiStepCheck,
+           );
+           check(
+             bool,
+             "derivative rules enabled",
+             true,
+             Axioms.visible_rule_enabled(
+               profile.step_policy,
+               "calc.diff_function_value",
+             ),
+           );
+         })
+    }),
+  ],
+);

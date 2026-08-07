@@ -20,6 +20,7 @@ module Model = {
     profile_board: ProfileBoard.Model.t,
     math_mode_builder: MathModeBuilder.Model.t,
     math_mode_panel,
+    math_policy: option(ExerciseMathPolicy.t),
   };
 
   let default_rewrite_level = Axioms.Calculus;
@@ -34,6 +35,7 @@ module Model = {
     profile_board: ProfileBoard.Model.init,
     math_mode_builder: MathModeBuilder.Model.init,
     math_mode_panel: MathModePanelClosed,
+    math_policy: None,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -53,8 +55,50 @@ module Model = {
       profile_board: ProfileBoard.Model.init,
       math_mode_builder: MathModeBuilder.Model.init,
       math_mode_panel: MathModePanelClosed,
+      math_policy: None,
     };
   };
+
+  let with_math_policy = (math_policy, model: t): t =>
+    switch (math_policy) {
+    | None => {
+        ...model,
+        math_policy: None,
+      }
+    | Some(policy) =>
+      let profile = ExerciseMathPolicy.resolved_profile(policy);
+      {
+        ...model,
+        rewrite_level: profile.level,
+        automation_stage: policy.automation_stage,
+        automation_settings_open: false,
+        profile_board: ProfileBoard.Model.init,
+        math_mode_builder: MathModeBuilder.Model.init,
+        math_mode_panel: MathModePanelClosed,
+        math_policy: Some(policy),
+      };
+    };
+
+  let active_profile = (model: t): Axioms.math_profile =>
+    switch (model.math_policy) {
+    | Some(policy) => ExerciseMathPolicy.resolved_profile(policy)
+    | None =>
+      Axioms.math_profile(model.rewrite_level)
+      |> (
+        fallback =>
+          MathModeBuilder.effective_profile(
+            ~fallback,
+            model.math_mode_builder,
+          )
+      )
+      |> ProfileBoard.apply_model_to_profile(model.profile_board)
+    };
+
+  let shows_math_automation_controls = (model: t) =>
+    switch (model.math_policy) {
+    | Some({lock_profile: true, lock_automation_stage: true, _}) => false
+    | _ => true
+    };
 
   let get_validity = (m: t) => StepperBase.Stepper.get_validity(m.root);
 };
@@ -81,35 +125,51 @@ module Update = {
         }
         |> Updated.return_quiet(~logged=true)
       | ToggleProfilePanel =>
-        {
-          ...model,
-          math_mode_panel:
-            model.math_mode_panel == Model.ProfilePanelOpen
-              ? MathModePanelClosed : ProfilePanelOpen,
+        switch (model.math_policy) {
+        | Some({lock_profile: true, _}) => model |> Updated.return_quiet
+        | _ =>
+          {
+            ...model,
+            math_mode_panel:
+              model.math_mode_panel == Model.ProfilePanelOpen
+                ? MathModePanelClosed : ProfilePanelOpen,
+          }
+          |> Updated.return_quiet(~logged=true)
         }
-        |> Updated.return_quiet(~logged=true)
       | ProfileBoardAction(action) =>
-        {
-          ...model,
-          profile_board:
-            ProfileBoard.Update.update(action, model.profile_board),
+        switch (model.math_policy) {
+        | Some({lock_profile: true, _}) => model |> Updated.return_quiet
+        | _ =>
+          {
+            ...model,
+            profile_board:
+              ProfileBoard.Update.update(action, model.profile_board),
+          }
+          |> Updated.return_quiet(~recalculate=true, ~logged=true)
         }
-        |> Updated.return_quiet(~recalculate=true, ~logged=true)
       | ToggleMathModeBuilderPanel =>
-        {
-          ...model,
-          math_mode_panel:
-            model.math_mode_panel == Model.MathModeBuilderPanelOpen
-              ? MathModePanelClosed : MathModeBuilderPanelOpen,
+        switch (model.math_policy) {
+        | Some({lock_profile: true, _}) => model |> Updated.return_quiet
+        | _ =>
+          {
+            ...model,
+            math_mode_panel:
+              model.math_mode_panel == Model.MathModeBuilderPanelOpen
+                ? MathModePanelClosed : MathModeBuilderPanelOpen,
+          }
+          |> Updated.return_quiet(~logged=true)
         }
-        |> Updated.return_quiet(~logged=true)
       | MathModeBuilderAction(action) =>
-        {
-          ...model,
-          math_mode_builder:
-            MathModeBuilder.Update.update(action, model.math_mode_builder),
+        switch (model.math_policy) {
+        | Some({lock_profile: true, _}) => model |> Updated.return_quiet
+        | _ =>
+          {
+            ...model,
+            math_mode_builder:
+              MathModeBuilder.Update.update(action, model.math_mode_builder),
+          }
+          |> Updated.return_quiet(~recalculate=true, ~logged=true)
         }
-        |> Updated.return_quiet(~recalculate=true, ~logged=true)
       | StepperAction(action) =>
         let* root = StepperBase.Stepper.update(~settings, action, model.root);
         {
@@ -118,7 +178,8 @@ module Update = {
         };
       | SelectRewriteLevel(rewrite_level)
           when
-            !model.math_mode_builder.active
+            model.math_policy == None
+            && !model.math_mode_builder.active
             && Axioms.rewrite_level_enabled(rewrite_level) =>
         {
           ...model,
@@ -127,11 +188,16 @@ module Update = {
         |> Updated.return_quiet(~logged=true)
       | SelectRewriteLevel(_) => model |> Updated.return_quiet
       | SelectAutomationStage(automation_stage) =>
-        {
-          ...model,
-          automation_stage,
+        switch (model.math_policy) {
+        | Some({lock_automation_stage: true, _}) =>
+          model |> Updated.return_quiet
+        | _ =>
+          {
+            ...model,
+            automation_stage,
+          }
+          |> Updated.return_quiet(~logged=true)
         }
-        |> Updated.return_quiet(~logged=true)
       }
     );
   };
@@ -151,6 +217,7 @@ module Update = {
           profile_board,
           math_mode_builder,
           math_mode_panel,
+          math_policy,
         }: Model.t,
       )
       : Model.t => {
@@ -162,12 +229,17 @@ module Update = {
         elab |> Substitution.in_exp(Builtins.env_init) |> Exp.replace_all_ids;
       };
     let active_profile =
-      Axioms.math_profile(rewrite_level)
-      |> (
-        fallback =>
-          MathModeBuilder.effective_profile(~fallback, math_mode_builder)
-      )
-      |> ProfileBoard.apply_model_to_profile(profile_board);
+      Model.active_profile({
+        cached_elab_subst,
+        root,
+        rewrite_level,
+        automation_stage,
+        automation_settings_open,
+        profile_board,
+        math_mode_builder,
+        math_mode_panel,
+        math_policy,
+      });
     let (root, _, _) =
       StepperBase.Stepper.calculate_with_level(
         ~rewrite_level,
@@ -188,6 +260,7 @@ module Update = {
       profile_board,
       math_mode_builder,
       math_mode_panel,
+      math_policy,
     };
   };
 
@@ -268,49 +341,74 @@ module View = {
         ],
       );
 
-    let custom_mode_active = model.math_mode_builder.active;
-    let custom_mode_label = model.math_mode_builder.label;
+    let profile_locked =
+      switch (model.math_policy) {
+      | Some({lock_profile, _}) => lock_profile
+      | None => false
+      };
+    let automation_locked =
+      switch (model.math_policy) {
+      | Some({lock_automation_stage, _}) => lock_automation_stage
+      | None => false
+      };
+    let custom_mode_active =
+      model.math_policy == None && model.math_mode_builder.active;
+    let custom_mode_label =
+      switch (model.math_policy) {
+      | Some(policy) => policy.profile.label
+      | None => model.math_mode_builder.label
+      };
     let active_profile_status =
-      custom_mode_active
-        ? Node.div(
-            ~attrs=[Attr.class_("math-automation-active-profile custom")],
-            [
-              Node.div([
-                Node.div(
-                  ~attrs=[
-                    Attr.class_("math-automation-active-profile-label"),
-                  ],
-                  [Node.text("Custom: " ++ custom_mode_label)],
-                ),
-              ]),
-              Widgets.button(
-                ~clss=["proof-button"],
-                Node.text("Turn off"),
-                ~tooltip="return to the selected built-in math level",
-                _ =>
-                inject(
-                  MathModeBuilderAction(
-                    MathModeBuilder.Update.SetActive(false),
-                  ),
-                )
-              ),
-            ],
-          )
-        : Node.div(
-            ~attrs=[Attr.class_("math-automation-active-profile")],
-            [
+      switch (model.math_policy) {
+      | Some(policy) =>
+        Node.div(
+          ~attrs=[Attr.class_("math-automation-active-profile custom")],
+          [
+            Node.div(
+              ~attrs=[Attr.class_("math-automation-active-profile-label")],
+              [Node.text("Exercise profile: " ++ policy.profile.label)],
+            ),
+          ],
+        )
+      | None when custom_mode_active =>
+        Node.div(
+          ~attrs=[Attr.class_("math-automation-active-profile custom")],
+          [
+            Node.div([
               Node.div(
                 ~attrs=[Attr.class_("math-automation-active-profile-label")],
-                [
-                  Node.text(
-                    "Active profile: "
-                    ++ Axioms.rewrite_level_label(model.rewrite_level),
-                  ),
-                ],
+                [Node.text("Custom: " ++ custom_mode_label)],
               ),
-            ],
-          );
-
+            ]),
+            Widgets.button(
+              ~clss=["proof-button"],
+              Node.text("Turn off"),
+              ~tooltip="return to the selected built-in math level",
+              _ =>
+              inject(
+                MathModeBuilderAction(
+                  MathModeBuilder.Update.SetActive(false),
+                ),
+              )
+            ),
+          ],
+        )
+      | None =>
+        Node.div(
+          ~attrs=[Attr.class_("math-automation-active-profile")],
+          [
+            Node.div(
+              ~attrs=[Attr.class_("math-automation-active-profile-label")],
+              [
+                Node.text(
+                  "Active profile: "
+                  ++ Axioms.rewrite_level_label(model.rewrite_level),
+                ),
+              ],
+            ),
+          ],
+        )
+      };
     let automation_choices = [
       active_profile_status,
       Node.div(
@@ -325,7 +423,9 @@ module View = {
             Axioms.selectable_rewrite_levels
             |> List.map(level => {
                  let enabled =
-                   !custom_mode_active && Axioms.rewrite_level_enabled(level);
+                   !profile_locked
+                   && !custom_mode_active
+                   && Axioms.rewrite_level_enabled(level);
                  control_option(
                    ~active=!custom_mode_active && model.rewrite_level == level,
                    ~enabled,
@@ -361,7 +461,7 @@ module View = {
             |> List.map(stage =>
                  control_option(
                    ~active=model.automation_stage == stage,
-                   ~enabled=true,
+                   ~enabled=!automation_locked,
                    ~label=Axioms.automation_stage_label(stage),
                    ~detail=
                      switch (stage) {
@@ -379,7 +479,7 @@ module View = {
 
     let automation_summary =
       (
-        custom_mode_active
+        model.math_policy != None || custom_mode_active
           ? "Custom: " ++ custom_mode_label
           : Axioms.rewrite_level_label(model.rewrite_level)
       )
@@ -445,101 +545,110 @@ module View = {
       );
 
     let derivation_math_mode_toolbar =
-      Node.div(
-        ~attrs=[Attr.class_("derivation-math-mode-toolbar")],
-        [
-          math_mode_button(
-            ~callback=inject(ToggleMathModeBuilderPanel),
-            "Math Mode Builder "
-            ++ (
-              model.math_mode_panel == MathModeBuilderPanelOpen ? "▲" : "▼"
-            ),
+      profile_locked
+        ? []
+        : [
+          Node.div(
+            ~attrs=[Attr.class_("derivation-math-mode-toolbar")],
+            [
+              math_mode_button(
+                ~callback=inject(ToggleMathModeBuilderPanel),
+                "Math Mode Builder "
+                ++ (
+                  model.math_mode_panel == MathModeBuilderPanelOpen
+                    ? "▲" : "▼"
+                ),
+              ),
+              math_mode_button(
+                ~callback=inject(ToggleProfilePanel),
+                "Profile "
+                ++ (model.math_mode_panel == ProfilePanelOpen ? "▲" : "▼"),
+              ),
+            ],
           ),
-          math_mode_button(
-            ~callback=inject(ToggleProfilePanel),
-            "Profile "
-            ++ (model.math_mode_panel == ProfilePanelOpen ? "▲" : "▼"),
-          ),
-        ],
-      );
+        ];
 
-    let active_profile =
-      Axioms.math_profile(model.rewrite_level)
-      |> (
-        fallback =>
-          MathModeBuilder.effective_profile(
-            ~fallback,
-            model.math_mode_builder,
-          )
-      )
-      |> ProfileBoard.apply_model_to_profile(model.profile_board);
+    let active_profile = Model.active_profile(model);
+    let show_next_step_hints =
+      switch (model.math_policy) {
+      | Some(policy) => policy.show_next_step_hints
+      | None => true
+      };
     let math_mode_panel =
-      switch (
-        model.math_mode_panel,
-        StepperBase.Stepper.terminal_missing_step(model.root),
-      ) {
-      | (MathModePanelClosed, _) => []
-      | (_, None) => []
-      | (ProfilePanelOpen, Some(missing_step)) =>
-        switch (missing_step.cached_env |> Calc.saved_to_option) {
-        | None => []
-        | Some(env) =>
-          let base_profile =
-            MathModeBuilder.effective_profile(
-              ~fallback=Axioms.math_profile(model.rewrite_level),
-              model.math_mode_builder,
-            );
-          let summary = ProfileBoard.profile_summary(active_profile);
-          let results =
-            ProfileBoard.default_examples
-            |> List.filter((example: ProfileBoard.example) =>
-                 example.level == model.rewrite_level
-               )
-            |> List.map(example =>
-                 ProfileBoard.run_example_with_profile(
-                   ~settings=globals.settings.core,
-                   ~env,
-                   ~profile=active_profile,
-                   example,
+      if (profile_locked) {
+        [];
+      } else {
+        switch (
+          model.math_mode_panel,
+          StepperBase.Stepper.terminal_missing_step(model.root),
+        ) {
+        | (MathModePanelClosed, _) => []
+        | (_, None) => []
+        | (ProfilePanelOpen, Some(missing_step)) =>
+          switch (missing_step.cached_env |> Calc.saved_to_option) {
+          | None => []
+          | Some(env) =>
+            let base_profile =
+              MathModeBuilder.effective_profile(
+                ~fallback=Axioms.math_profile(model.rewrite_level),
+                model.math_mode_builder,
+              );
+            let summary = ProfileBoard.profile_summary(active_profile);
+            let results =
+              ProfileBoard.default_examples
+              |> List.filter((example: ProfileBoard.example) =>
+                   example.level == model.rewrite_level
                  )
-               );
-          [
-            ProfileBoard.View.editable(
-              ~model=model.profile_board,
-              ~inject=action => inject(ProfileBoardAction(action)),
-              ~on_close=inject(ToggleProfilePanel),
-              ~base_profile,
-              ~effective_profile=active_profile,
-              ~summary,
-              ~results,
-            ),
-          ];
-        }
-      | (MathModeBuilderPanelOpen, Some(missing_step)) =>
-        switch (missing_step.cached_env |> Calc.saved_to_option) {
-        | None => []
-        | Some(env) => [
-            MathModeBuilder.View.editable(
-              ~model=model.math_mode_builder,
-              ~inject=action => inject(MathModeBuilderAction(action)),
-              ~on_close=inject(ToggleMathModeBuilderPanel),
-              ~settings=globals.settings.core,
-              ~env,
-            ),
-          ]
-        }
+              |> List.map(example =>
+                   ProfileBoard.run_example_with_profile(
+                     ~settings=globals.settings.core,
+                     ~env,
+                     ~profile=active_profile,
+                     example,
+                   )
+                 );
+            [
+              ProfileBoard.View.editable(
+                ~model=model.profile_board,
+                ~inject=action => inject(ProfileBoardAction(action)),
+                ~on_close=inject(ToggleProfilePanel),
+                ~base_profile,
+                ~effective_profile=active_profile,
+                ~summary,
+                ~results,
+              ),
+            ];
+          }
+        | (MathModeBuilderPanelOpen, Some(missing_step)) =>
+          switch (missing_step.cached_env |> Calc.saved_to_option) {
+          | None => []
+          | Some(env) => [
+              MathModeBuilder.View.editable(
+                ~model=model.math_mode_builder,
+                ~inject=action => inject(MathModeBuilderAction(action)),
+                ~on_close=inject(ToggleMathModeBuilderPanel),
+                ~settings=globals.settings.core,
+                ~env,
+              ),
+            ]
+          }
+        };
       };
 
+    let show_math_automation_controls =
+      Model.shows_math_automation_controls(model);
     let settings_modal =
       globals.settings.core.evaluation.show_settings
         ? SettingsModal.view(
             ~inject=u => globals.inject_global(Set(u)),
-            ~extra=[automation_controls],
+            ~extra=show_math_automation_controls ? [automation_controls] : [],
             globals.settings.core.evaluation,
           )
         : [];
-    let inline_automation_controls = is_toplevel ? [] : [automation_controls];
-    [derivation_math_mode_toolbar]
+    let inline_automation_controls =
+      is_toplevel || !show_math_automation_controls
+        ? [] : [automation_controls];
+    derivation_math_mode_toolbar
     @ inline_automation_controls
     @ StepperBase.Stepper.view_with_automation(
         ~globals,
@@ -549,6 +658,7 @@ module View = {
         ~rewrite_level=model.rewrite_level,
         ~automation_stage=model.automation_stage,
         ~active_profile,
+        ~show_next_step_hints,
         ~is_toplevel,
         ~focus=selected,
         model.root,

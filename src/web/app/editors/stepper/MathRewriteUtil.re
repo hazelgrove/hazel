@@ -73,6 +73,8 @@ let int_constant = exp => {
   | Atom(Int(value))
   | Atom(Nat(value)) => Some(value)
   | Atom(SInt(value)) => Some(Bigint.of_int(value))
+  | Atom(Float(value)) when value == Float.round(value) =>
+    Some(Bigint.of_int(int_of_float(value)))
   | _ => None
   };
 };

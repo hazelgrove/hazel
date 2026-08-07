@@ -191,7 +191,7 @@ let function_name = exp => {
 };
 
 let rec match_pat = (pat, exp, env) => {
-  let exp = canonical(exp);
+  let exp = strip(exp);
   switch (pat, exp.term) {
   | (Meta(name), _) => bind_meta(name, exp, env)
   | (VarName(name), Var(actual)) when name == actual => Some(env)
@@ -225,26 +225,76 @@ let rec match_pat = (pat, exp, env) => {
   };
 };
 
-let rec instantiate = (pat, env) =>
+let rec uses_float_math = exp => {
+  let exp = strip(exp);
+  switch (exp.term) {
+  | Atom(Float(_))
+  | BinOp(Operators.Float(_), _, _)
+  | UnOp(Operators.Float(_), _) => true
+  | BinOp(_, left, right)
+  | Ap(_, left, right) => uses_float_math(left) || uses_float_math(right)
+  | UnOp(_, inner)
+  | Parens(inner)
+  | Asc(inner, _)
+  | Projector(_, inner) => uses_float_math(inner)
+  | Tuple(entries)
+  | ListLit(entries) => List.exists(uses_float_math, entries)
+  | Fun(_, body, _, _) => uses_float_math(body)
+  | _ => false
+  };
+};
+
+let numeric_literal = (~float_math, value) =>
+  float_math ? float_exp(float_of_int(value)) : int_exp(value);
+
+let numeric_bin_op = (~float_math, kind) =>
+  if (float_math) {
+    switch (kind) {
+    | Add => Operators.Float(Operators.Plus)
+    | Sub => Operators.Float(Operators.Minus)
+    | Mul => Operators.Float(Operators.Times)
+    | Div => Operators.Float(Operators.Divide)
+    | Pow => Operators.Float(Operators.Power)
+    };
+  } else {
+    switch (kind) {
+    | Add => Operators.Int(Operators.Plus)
+    | Sub => Operators.Int(Operators.Minus)
+    | Mul => Operators.Int(Operators.Times)
+    | Div => Operators.Int(Operators.Divide)
+    | Pow => Operators.Int(Operators.Power)
+    };
+  };
+
+let rec instantiate_with_style = (~float_math, pat, env) =>
   switch (pat) {
   | Meta(name) =>
     lookup_meta(name, env) |> Option.value(~default=var_exp(name))
   | VarName(name) => var_exp(name)
-  | IntLit(value) => int_exp(value)
+  | IntLit(value) => numeric_literal(~float_math, value)
   | Pi => var_exp("pi")
-  | App(name, arg) => app_exp(name, instantiate(arg, env))
-  | Bin(Add, left, right) =>
-    plus_exp(instantiate(left, env), instantiate(right, env))
-  | Bin(Sub, left, right) =>
-    minus_exp(instantiate(left, env), instantiate(right, env))
-  | Bin(Mul, left, right) =>
-    times_exp(instantiate(left, env), instantiate(right, env))
-  | Bin(Div, left, right) =>
-    divide_exp(instantiate(left, env), instantiate(right, env))
-  | Bin(Pow, left, right) =>
-    power_exp(instantiate(left, env), instantiate(right, env))
-  | Neg(inner) => neg_exp(instantiate(inner, env))
+  | App(name, arg) =>
+    app_exp(name, instantiate_with_style(~float_math, arg, env))
+  | Bin(kind, left, right) =>
+    Exp.fresh(
+      BinOp(
+        numeric_bin_op(~float_math, kind),
+        instantiate_with_style(~float_math, left, env),
+        instantiate_with_style(~float_math, right, env),
+      ),
+    )
+  | Neg(inner) =>
+    Exp.fresh(
+      UnOp(
+        float_math
+          ? Operators.Float(Operators.Minus) : Operators.Int(Operators.Minus),
+        instantiate_with_style(~float_math, inner, env),
+      ),
+    )
   };
+
+let instantiate = (pat, env) =>
+  instantiate_with_style(~float_math=false, pat, env);
 
 let m = name => Meta(name);
 let i = value => IntLit(value);
@@ -433,7 +483,12 @@ let apply_spec_direction = (spec: spec, before_pat, after_pat, exp) =>
         rule_id: spec.rule_id,
         label: spec.label,
         before_exp: strip(exp),
-        after_exp: instantiate(after_pat, env),
+        after_exp:
+          instantiate_with_style(
+            ~float_math=uses_float_math(exp),
+            after_pat,
+            env,
+          ),
       },
     ]
   | None => []

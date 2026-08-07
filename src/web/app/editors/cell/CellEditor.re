@@ -21,6 +21,11 @@ module Model = {
     },
     result: EvalResult.Model.init,
   };
+
+  let with_math_policy = (math_policy, model: t): t => {
+    ...model,
+    result: model.result |> EvalResult.Model.with_math_policy(math_policy),
+  };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
     editor: CodeEditable.Model.persistent,
