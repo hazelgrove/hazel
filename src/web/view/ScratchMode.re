@@ -338,6 +338,12 @@ module Persist = {
     | None => None
     };
 
+  /* Change-gate for agent saves: serializing a long conversation on
+     every editor autosave is the expensive part, so skip when the agent
+     model is physically unchanged (edits rebuild the scratchpad record
+     but reuse the agent field). */
+  let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
+
   let save_current = (prefix: string, model: Model.t): unit => {
     let names = Model.scratchpad_names(model);
     save_meta(
@@ -348,23 +354,37 @@ module Persist = {
       },
     );
     let sp = List.nth(model.scratchpads, model.current);
-    let p = Scratchpad.persist(sp);
-    switch (p.kind) {
-    | CodePersist({editor, agent}) =>
-      switch (editor) {
-      | Some(e) =>
+    switch (sp.kind) {
+    | Code({editor, agent}) =>
+      switch (CellEditor.Model.persist(editor)) {
+      | e =>
+        /* The slide blob carries the editor only; the conversation
+           lives solely under the :agent key (it used to be embedded
+           here TOO, doubling every write and boot deserialization). */
         save_slide_kind(
           prefix,
           sp.name,
           CodePersist({
             editor: Some(e),
-            agent,
+            agent: Agent.Persistent.persist(Agent.Utils.init()),
           }),
         )
-      | None => ()
       };
-      save_agent(prefix, sp.name, agent);
-    | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
+      let agent_key_str = prefix ++ ":" ++ sp.name;
+      let unchanged =
+        switch (Hashtbl.find_opt(last_saved_agent, agent_key_str)) {
+        | Some(prev) => prev === agent
+        | None => false
+        };
+      if (!unchanged) {
+        save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
+        Hashtbl.replace(last_saved_agent, agent_key_str, agent);
+      };
+    | Drv(_) =>
+      switch (Scratchpad.persist(sp).kind) {
+      | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
+      | CodePersist(_) => ()
+      }
     };
   };
 

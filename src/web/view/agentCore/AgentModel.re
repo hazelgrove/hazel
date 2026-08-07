@@ -83,7 +83,9 @@ module Persistent = {
       ...Model.reset_transients(model),
       prompting: {
         ...model.prompting,
-        tools: CompositionUtils.Public.tools,
+        /* Never persist the tool registry: unpersist restamps it from
+           code, and the JSON runs to ~100KB per slide of dead weight. */
+        tools: [],
       },
     };
   };
