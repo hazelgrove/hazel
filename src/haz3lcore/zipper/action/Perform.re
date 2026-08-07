@@ -55,7 +55,11 @@ let go =
                   Zipper.insert_segment(z, seg, ~root),
                   ~root,
                 ),
-              FastParse.of_text(~root, String.trim(clipboard)),
+              FastParse.of_text(
+                ~materialize=Triggers.invoked_projector,
+                ~root,
+                String.trim(clipboard),
+              ),
             )
           : None;
       (

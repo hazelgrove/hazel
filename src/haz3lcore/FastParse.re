@@ -106,7 +106,14 @@ let gap_pieces = (gap: string): list(Piece.t) => {
   go(0, []);
 };
 
-let zip = (tokens: list(tok), seg: Segment.t): Segment.t => {
+/* Materializes a projector trigger: gets the full trigger token
+   ("^^livelit") and the zipped syntax it wraps, returns the projector
+   piece — or None to bail. Passed in by callers (Triggers.invoked_projector)
+   to keep FastParse below the action layer. */
+type materialize = (string, Segment.t) => option(Piece.t);
+
+let zip =
+    (~materialize: materialize, tokens: list(tok), seg: Segment.t): Segment.t => {
   let toks = Array.of_list(tokens);
   let idx = ref(0);
   let expect = (text: string): string => {
@@ -142,8 +149,78 @@ let zip = (tokens: list(tok), seg: Segment.t): Segment.t => {
       raise(Mismatch);
     };
   };
-  let rec zip_seg = (seg: Segment.t): Segment.t =>
-    List.concat_map(zip_piece, seg)
+  let peek = (k: int): option(string) =>
+    idx^ + k < Array.length(toks) ? Some(toks[idx^ + k].text) : None;
+  /* Projector trigger in the source (^^kind( ... )): the menhir parse
+     dropped it, so the segment holds the bare wrapped term. Consume the
+     trigger tokens around the corresponding pieces and materialize the
+     projector piece. The first unmatched `)` closes the trigger: inner
+     parens are consumed symmetrically by the wrapped pieces. */
+  let is_trigger_next = (): bool =>
+    switch (peek(0), peek(1)) {
+    | (Some(t), Some("(")) =>
+      String.length(t) > 2 && String.sub(t, 0, 2) == "^^"
+    | _ => false
+    };
+  /* Refractor triggers (^^probe / ^^statics) are decorations added
+     through the zipper's refractor path, not projector pieces — bail so
+     the typing parser's trigger machinery handles them. Unknown kinds
+     bail too (of_name raises). */
+  let trigger_is_projector = (trigger: string): bool =>
+    switch (
+      {
+        let name = String.sub(trigger, 2, String.length(trigger) - 2);
+        let name =
+          switch (String.index_opt(name, '@')) {
+          | Some(i) => String.sub(name, 0, i)
+          | None => name
+          };
+        Language.ProjectorKind.of_name(name);
+      }
+    ) {
+    | kind => !Language.ProjectorKind.is_refractor(kind)
+    | exception _ => false
+    };
+  let rec zip_seg = (seg: Segment.t): Segment.t => {
+    switch (seg) {
+    | [] => []
+    | [p, ...rest]
+        when is_trigger_next() && trigger_is_projector(toks[idx^].text) =>
+      let trigger = toks[idx^].text;
+      let trig_gap = expect(trigger);
+      let paren_gap = expect("(");
+      if (paren_gap != "") {
+        raise(
+          Mismatch /* triggers are written ^^kind( adjacent */
+        );
+      };
+      let rec grab = (ps: Segment.t, acc: Segment.t) =>
+        if (peek(0) == Some(")")) {
+          (List.rev(acc), ps);
+        } else {
+          switch (ps) {
+          | [] => raise(Mismatch)
+          | [q, ...qs] => grab(qs, List.rev(zip_piece(q)) @ acc)
+          };
+        };
+      let (wrapped, rest') = grab([p, ...rest], []);
+      let close_gap = expect(")");
+      let inner = wrapped @ gap_pieces(close_gap);
+      switch (materialize(trigger, inner)) {
+      | Some(proj) =>
+        /* bind before recursing: @ and cons evaluate right-to-left, and
+           token consumption must follow piece order */
+        let tail = zip_seg(rest');
+        gap_pieces(trig_gap) @ [proj, ...tail];
+      | None =>
+        note("trigger '" ++ trigger ++ "' could not materialize");
+        raise(Mismatch);
+      };
+    | [p, ...rest] =>
+      let head = zip_piece(p);
+      head @ zip_seg(rest);
+    };
+  }
   and zip_piece = (p: Piece.t): list(Piece.t) =>
     switch (p) {
     /* PreserveExact with empty annotations emits no secondaries; drop
@@ -192,7 +269,7 @@ let zip = (tokens: list(tok), seg: Segment.t): Segment.t => {
   zipped;
 };
 
-let attempt = (text: string): option(Segment.t) =>
+let attempt = (~materialize: materialize, text: string): option(Segment.t) =>
   switch (lex_with_gaps(text)) {
   | None => None
   | Some((tokens, trailing_gap)) =>
@@ -215,7 +292,7 @@ let attempt = (text: string): option(Segment.t) =>
       switch (ExpToSegment.exp_to_segment(~settings, term)) {
       | exception _ => None
       | seg =>
-        switch (zip(tokens, seg)) {
+        switch (zip(~materialize, tokens, seg)) {
         | exception _ => None
         | zipped => Some(zipped @ gap_pieces(trailing_gap))
         }
@@ -234,18 +311,32 @@ let strip_appended_hole = (seg: Segment.t): option(Segment.t) =>
   | _ => None
   };
 
-let of_text = (~root: Sort.t, text: string): option(Segment.t) => {
+let of_text =
+    (~materialize: materialize=(_, _) => None, ~root: Sort.t, text: string)
+    : option(Segment.t) => {
   bail_note := None;
-  if (root != Sort.Exp) {
+  if (root == Sort.Mod) {
+    /* Module-member chunks (update_binding_clause on a member): parse
+       as a braced module body, then unwrap the brace tile. Chunks with
+       spliced separators (leading/trailing ;) fail the wrap parse and
+       fall back — they are small. */
+    switch (attempt(~materialize, "{" ++ String.trim(text) ++ "}")) {
+    | Some([Tile({label: ["{", "}"], children: [inner], _})]) =>
+      Some(inner)
+    | _ =>
+      note("mod-root wrap did not yield a single module body");
+      None;
+    };
+  } else if (root != Sort.Exp) {
     None;
   } else {
-    switch (attempt(text)) {
+    switch (attempt(~materialize, text)) {
     | Some(seg) => Some(seg)
     | None =>
       /* keep the first attempt's bail note: the retry's failure mode
          (usually "menhir: parse error on text + ?") is less telling */
       let first_note = bail_note^;
-      switch (attempt(text ++ " ?")) {
+      switch (attempt(~materialize, text ++ " ?")) {
       | Some(seg) => strip_appended_hole(seg)
       | None =>
         bail_note := first_note;

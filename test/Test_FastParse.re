@@ -119,16 +119,61 @@ let tests = (
     semantic("module with members", "let m = { let a = 1; let b = 2 } in m"),
     semantic("case with ctor pats", "case a | Down(x, y) => x | Up => 0 end"),
     rejected("unbalanced brace", "let m = { let a = 1 in m"),
-    /* Projector triggers become Projector pieces in the typing parser;
-       the fast path does not synthesize them yet, so such chunks fall
-       back (they are typically small uses, not big modules). */
-    rejected("projector trigger", "let x = ^^livelit(^p(3)) in x"),
-    test_case("mod root falls back", `Quick, () => {
+    test_case("projector trigger materializes", `Quick, () => {
+      switch (
+        FastParse.of_text(
+          ~materialize=Triggers.invoked_projector,
+          ~root=Exp,
+          "let x = ^^slider(50) in x",
+        )
+      ) {
+      | None =>
+        fail(
+          "trigger should fast-path: "
+          ++ Option.value(FastParse.bail_note^, ~default=""),
+        )
+      | Some(seg) =>
+        let has_projector =
+          List.exists(
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile({children, _}) =>
+                List.exists(
+                  List.exists(q =>
+                    switch ((q: Piece.t)) {
+                    | Projector(_) => true
+                    | _ => false
+                    }
+                  ),
+                  children,
+                )
+              | Projector(_) => true
+              | _ => false
+              },
+            seg,
+          );
+        check(bool, "projector piece present", true, has_projector);
+      }
+    }),
+    test_case("refractor trigger still bails", `Quick, () => {
       check(
         bool,
-        "non-Exp roots bail",
+        "probe trigger bails",
         true,
-        FastParse.of_text(~root=Mod, "let x = 1") == None,
+        FastParse.of_text(
+          ~materialize=Triggers.invoked_projector,
+          ~root=Exp,
+          "let x = ^^probe(1 + 2) in x",
+        )
+        == None,
+      )
+    }),
+    test_case("mod root wraps and unwraps", `Quick, () => {
+      check(
+        bool,
+        "member chunk fast-paths at Mod root",
+        true,
+        FastParse.of_text(~root=Mod, "let x = 1") != None,
       )
     }),
     test_case("graph module chunk: verbatim + fast", `Quick, () => {

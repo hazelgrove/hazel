@@ -572,6 +572,18 @@ module Local = {
        chunk reads as a hung editor. Cap agent chunks and teach the model
        to split; the limit sits near the ~1.5s knee. */
     let max_chunk_chars = 1500;
+    /* When the batch parser rejected the chunk, its position-bearing
+       message is far more useful than term-level static-error soup;
+       attach it to rejections. */
+    let parse_hint = (): string =>
+      switch (FastParse.bail_note^) {
+      | Some(n)
+          when String.length(n) >= 7 && String.sub(n, 0, 7) == "menhir:" =>
+        "\nSyntax hint (batch parser): "
+        ++ n
+        ++ " — if the code was meant to be complete, start there."
+      | _ => ""
+      };
     /* ~fast: try the linear Menhir zip first (FastParse) — used by the
        big-chunk overwrite path (update_definition / update_binding_clause),
        where the quadratic typing parse froze the editor. The small insert
@@ -581,7 +593,15 @@ module Local = {
             (~root=Sort.Exp, ~fast=false, z: Zipper.t, code: string)
             : result(Zipper.t, Action.Failure.t) => {
       let code = StringUtil.trim_leading(code);
-      switch (fast ? FastParse.of_text(~root, String.trim(code)) : None) {
+      switch (
+        fast
+          ? FastParse.of_text(
+              ~materialize=Triggers.invoked_projector,
+              ~root,
+              String.trim(code),
+            )
+          : None
+      ) {
       | Some(segment) =>
         /* Source tokens + formatting verbatim, molds from ExpToSegment +
            splice-time remold. No size cap needed on this path. */
@@ -620,7 +640,9 @@ module Local = {
         | None =>
           Error(
             Action.Failure.Composition_action_failure(
-              "Inserted code failed to parse." ++ reserved_word_note(code),
+              "Inserted code failed to parse."
+              ++ reserved_word_note(code)
+              ++ parse_hint(),
             ),
           )
         };
@@ -772,7 +794,9 @@ module Local = {
           | Some(e) =>
             Error(
               Action.Failure.Composition_action_failure(
-                e ++ PerformUtils.reserved_word_note(code),
+                e
+                ++ PerformUtils.reserved_word_note(code)
+                ++ PerformUtils.parse_hint(),
               ),
             )
           | None =>
@@ -837,7 +861,9 @@ module Local = {
           | Some(e) =>
             Error(
               Action.Failure.Composition_action_failure(
-                e ++ PerformUtils.reserved_word_note(code),
+                e
+                ++ PerformUtils.reserved_word_note(code)
+                ++ PerformUtils.parse_hint(),
               ),
             )
           | None => Ok(new_z)
@@ -874,7 +900,9 @@ module Local = {
           | Some(e) =>
             Error(
               Action.Failure.Composition_action_failure(
-                e ++ PerformUtils.reserved_word_note(code),
+                e
+                ++ PerformUtils.reserved_word_note(code)
+                ++ PerformUtils.parse_hint(),
               ),
             )
           | None =>
@@ -1000,7 +1028,9 @@ module Local = {
           | Some(e) =>
             Error(
               Action.Failure.Composition_action_failure(
-                e ++ PerformUtils.reserved_word_note(code),
+                e
+                ++ PerformUtils.reserved_word_note(code)
+                ++ PerformUtils.parse_hint(),
               ),
             )
           | None => Ok(new_z)
