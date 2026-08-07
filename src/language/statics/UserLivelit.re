@@ -49,6 +49,9 @@ let rec pat_name = (p: TermBase.Pat.t): option(string) =>
   switch (p.term) {
   | Parens(p)
   | Asc(p, _) => pat_name(p)
+  /* funlet member (`let view(m) = ...`): the head var names the member;
+     constructor heads fall through to None */
+  | Ap(fn, _) => pat_name(fn)
   | Var(name) => Some(name)
   | _ => None
   };

@@ -671,6 +671,40 @@ let update_pattern_tests = (
       },
     ),
     test_case(
+      "update_pattern renames a funlet head, call sites follow",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let f(x: Int): Int = x + 1 in f(2) + f(3)",
+            Update(Pattern, "f", "g(x: Int): Int"),
+          );
+        check_rendered(
+          "update_pat_funlet_rename",
+          "let g(x: Int): Int = x + 1 in g(2) + g(3)",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_pattern renames a funlet member helper (internal uses follow)",
+      `Quick,
+      () => {
+        /* externally-referenced members (m.g) are rejected by design;
+           internal helpers rename with their in-module use sites */
+        let result =
+          apply_and_render(
+            "let m = {\n  let helper(x) = x + 1;\n  let g(y) = helper(y)\n} in m.g(2)",
+            Update(Pattern, "m/helper", "aux(x)"),
+          );
+        check_rendered(
+          "update_pat_funlet_member_rename",
+          "let m = {\n  let aux(x) = x + 1;\n  let g(y) = aux(y)\n} in m.g(2)",
+          result,
+        );
+      },
+    ),
+    test_case(
       "update_pattern renames across multiple use sites",
       `Quick,
       () => {

@@ -62,14 +62,14 @@ don't drop at the edge. The drag idiom, a held flag in the model:
 ```
 type DragAction = Press + MoveTo(Int, Int) + Release in
 let init = (100, 50, false) in
-let update = fun (m, a) ->
+let update(m, a) =
 let (x, y, held) = m in
 case a
 | Press => (x, y, true)
 | MoveTo(nx, ny) => if held then (nx, ny, true) else m
 | Release => (x, y, false)
 end in
-let view = fun m ->
+let view(m) =
 let (x, y, held) = m in
 Node("svg",
 [Create("viewBox", "0 0 200 100"), Width("200"), Height("100"),
@@ -80,8 +80,8 @@ OnMouseUpAt(fun p -> Release)],
 Create("r", "12"), Create("fill", if held then "coral" else "teal"),
 OnMouseDownAt(fun p -> Press)],
 [])]) in
-let subs = fun m -> SubNone in
-let noCmd = fun f -> fun (m, a) -> (f((m, a)), CmdNone) in
+let subs(m) = SubNone in
+let noCmd(f) = fun (m, a) -> (f((m, a)), CmdNone) in
 ^^html((init, noCmd(update), view, subs))
 ```
 
@@ -91,15 +91,15 @@ let noCmd = fun f -> fun (m, a) -> (f((m, a)), CmdNone) in
 type Model = Int in
 type Action = Int in
 let init : Model = 0 in
-let update = fun (m, a) : (Model, Action) -> m + a in
-let view = fun m : Model ->
+let update(m: Model, a: Action) = m + a in
+let view(m: Model) =
 Div([], [
 Button([OnClick(-1)], [Text("-")]),
 Int(m),
 Button([OnClick(1)], [Text("+")])
 ]) in
-let subs = fun m : Model -> SubNone in
-let noCmd = fun f -> fun (m, a) -> (f((m, a)), CmdNone) in
+let subs(m: Model) = SubNone in
+let noCmd(f) = fun (m, a) -> (f((m, a)), CmdNone) in
 ^^html((init, noCmd(update), view, subs))
 ```
 
@@ -132,14 +132,14 @@ let ^pct = {
 type Model = Int;
 type Action = Int;
 let init : Model = 50;
-let update = fun (m, a) : (Model, Action) -> a;
-let view = fun m : Model ->
+let update(m: Model, a: Action) = a;
+let view(m: Model) =
 Div([], [
 Input([Type("range"), Min("0"), Max("100"), Value(string_of_int(m)),
 OnInput(fun s -> int_of_string(s))]),
 Text(string_of_int(m))
 ]);
-let expand = fun m : Model -> m
+let expand(m: Model) = m
 } in
 ^^livelit(^pct(25)) + ^^livelit(^pct(75))
 ```
@@ -210,7 +210,7 @@ A four-note loop (`Every` drives ticks only while running):
 ```
 type SeqAction = Tick + Toggle in
 let notes = [262., 330., 392., 523.] in
-let update = fun (m, a) ->
+let update(m, a) =
 let (i, on) = m in
 case a
 | Toggle => ((i, if on then false else true), CmdNone)
@@ -219,11 +219,11 @@ if on
 then ((int_mod(i + 1, 4), on), PlayTone(nth(notes, i), 120.))
 else (m, CmdNone)
 end in
-let view = fun (i, on) ->
+let view(i, on) =
 Div([], [
 Button([OnClick(Toggle)], [Text(if on then "stop" else "play")]),
 Int(i)]) in
-let subs = fun (i, on) ->
+let subs(i, on) =
 if on then Every(250., fun t -> Tick) else SubNone in
 ^^html(((0, false), update, view, subs))
 ```
@@ -240,8 +240,8 @@ Evaluation is deterministic — there is no random() function. Two idioms:
 - For reproducible generative art, thread a seed through the model:
 
 ```
-let next = fun s -> int_mod(s * 1103515245 + 12345, 2147483648) in
-let unit_float = fun s -> float_of_int(s) /. 2147483648. in
+let next(s) = int_mod(s * 1103515245 + 12345, 2147483648) in
+let unit_float(s) = float_of_int(s) /. 2147483648. in
 unit_float(next(42))
 ```
 

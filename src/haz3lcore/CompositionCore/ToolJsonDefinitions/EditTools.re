@@ -53,7 +53,7 @@ let update_definition: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path (e.g. \"b\", \"utils/helper\"). Duplicate names are ambiguous — disambiguate with name#k (1-based, program order); nested defs use outer/inner.",
+                        "Slash-delimited path (e.g. \"b\", \"M/helper\", \"^graph/update\"). Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -126,7 +126,7 @@ let update_body: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path; outer/inner for nested defs. Duplicate chain names are ambiguous — use name#k (1-based, program order).",
+                        "Slash-delimited path. Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -206,7 +206,7 @@ let update_pattern: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node whose pattern should change.",
+                        "Slash-delimited path to the node whose pattern should change. Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -288,7 +288,7 @@ let update_binding_clause: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node whose binding clause should change.",
+                        "Slash-delimited path to the node whose binding clause should change. Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -360,7 +360,7 @@ let delete_binding_clause: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the binding clause that should be deleted.",
+                        "Slash-delimited path to the binding clause that should be deleted. Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -420,7 +420,7 @@ let delete_body: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node whose body should be deleted.",
+                        "Slash-delimited path to the node whose body should be deleted. Nested defs use outer/inner; duplicates use name#k (1-based, program order). Module members have no body.",
                       ),
                     ),
                   ]),
@@ -492,7 +492,7 @@ let insert_after: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node after which the code should be inserted. Omit to insert after the entire program (initializes an empty program).",
+                        "Slash-delimited path to the node after which the code should be inserted. Omit to insert after the entire program (initializes an empty program). Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -574,7 +574,7 @@ let insert_before: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node before which the code should be inserted. Omit to insert before the entire program (initializes an empty program).",
+                        "Slash-delimited path to the node before which the code should be inserted. Omit to insert before the entire program (initializes an empty program). Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),

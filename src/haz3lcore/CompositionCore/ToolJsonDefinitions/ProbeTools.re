@@ -13,7 +13,7 @@ paths: list(string) — paths to the bindings to probe
 Example:
 Given the program:
 ```
-let double = fun x -> x * 2 in
+let double(x) = x * 2 in
 let result = double(5) in
 result
 ```

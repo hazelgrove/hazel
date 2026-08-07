@@ -115,6 +115,18 @@ let expand = fun m -> bump(m)
 } in ^inc(4) + ^inc(9)",
   );
 
+let module_funlet_members = () =>
+  run_test(
+    "funlet-form members are recognized by name",
+    "8",
+    "let ^dbl = {
+let init = 0;
+let update(m, a) = a;
+let view(m) = 0;
+let expand(m) = m * 2
+} in ^dbl(4)",
+  );
+
 let module_missing_members = () => {
   let (m, _) =
     statics("let ^x = {let init = 0; let view = fun m -> 0} in 1");
@@ -574,6 +586,7 @@ let tests = [
       test_case("expansion evaluates", `Quick, evaluates),
       test_case("module definition", `Quick, module_evaluates),
       test_case("module helpers", `Quick, module_helpers),
+      test_case("module funlet members", `Quick, module_funlet_members),
       test_case("module missing members", `Quick, module_missing_members),
       test_case("module adapter", `Quick, module_adapter),
       test_case("multiple uses", `Quick, multiple_uses),

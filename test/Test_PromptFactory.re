@@ -217,7 +217,7 @@ let fn_sugar_evaluates = () => {
 let drag_idiom_evaluates = () => {
   let drag = (result: string) =>
     "type DragAction = Press + MoveTo(Int, Int) + Release in\n"
-    ++ "let update = fun (m, a) ->\n"
+    ++ "let update(m, a) =\n"
     ++ "let (x, y, held) = m in\n"
     ++ "case a\n"
     ++ "| Press => (x, y, true)\n"
@@ -242,12 +242,12 @@ let drag_idiom_evaluates = () => {
 let creative_idioms_evaluate = () => {
   Test_Evaluator_Prelude.parse_and_evaluate_test(
     "1250496027",
-    "let next = fun s -> int_mod(s * 1103515245 + 12345, 2147483648) in next(42)",
+    "let next(s) = int_mod(s * 1103515245 + 12345, 2147483648) in next(42)",
   );
   let seq = (result: string) =>
     "type SeqAction = Tick + Toggle in\n"
     ++ "let notes = [262., 330., 392., 523.] in\n"
-    ++ "let update = fun (m, a) ->\n"
+    ++ "let update(m, a) =\n"
     ++ "let (i, on) = m in\n"
     ++ "case a\n"
     ++ "| Toggle => ((i, if on then false else true), CmdNone)\n"

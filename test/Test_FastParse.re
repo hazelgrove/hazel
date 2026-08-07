@@ -117,6 +117,15 @@ let tests = (
     verbatim("string with tricky content", {|let s = "a # b { c" in s|}),
     verbatim("paren tuple in exp position", "let x = (1, 2) in x"),
     verbatim(
+      "funlet named-function form",
+      "let f(x: Int, y: Int): Int = x + y in f(1, 2)",
+    ),
+    verbatim(
+      "funlet module member",
+      "let m = {\n  let g(x: Int): Int = x + 1\n} in m.g(2)",
+    ),
+    semantic("funlet named-function form", "let f(x, y) = x + y in f(1, 2)"),
+    verbatim(
       "type alias keeps aliased-type parens",
       "type Model = ([Int], [(Int, Int)]) in 1",
     ),
