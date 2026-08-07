@@ -452,7 +452,7 @@ module Update = {
        get misclassified as focus on the derivation.
 
        Only the winning map is computed. Each of these runs the whole of
-       ExplainThis.get_doc, so computing the generic one unconditionally and then
+       ExplainThis.decide, so computing the generic one unconditionally and then
        discarding it cost a full pass on every frame with a derivation focused. */
     let derivation_info =
       Editors.Selection.get_derivation_info(

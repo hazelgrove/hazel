@@ -426,118 +426,77 @@ let rec bypass_parens_typ = (typ: Typ.t) => {
   };
 };
 
-/* The doc decision for one term, with no rendering: which group was dispatched
-   to, which of its forms is selected, that form's filled explanation, and the
-   syntactic-form-piece -> user-term-id pairs used to highlight. This is the
-   whole observable behaviour of `get_doc` apart from view construction, so it
-   is what a characterization test should pin down. */
-type probe = {
-  group: ExplainThisForm.group_id,
-  /* The form currently selected, and every form the group offers, so a test can
-     sweep specificity levels instead of only ever seeing the most specific. */
-  form: ExplainThisForm.form_id,
-  forms: list(ExplainThisForm.form_id),
+/* The doc decision for one term: which group the cursor dispatched to, which of
+   its forms is selected, that form's filled explanation, and the
+   syntactic-form-piece -> user-term-id pairs used to highlight.
+
+   Deciding and rendering are separate because there are three consumers and
+   only one of them wants Vdom: the sidebar renders it, the code editor harvests
+   a color map from it, and the characterization test reads it directly. They
+   used to be arms of a `message_mode` tag threaded through the whole dispatch,
+   which meant the sidebar and the highlighter each ran the dispatch from
+   scratch, and a test could only observe it by adding a fourth arm. */
+type doc = {
+  group: ExplainThisForm.group,
+  /* The selected form. `group.forms` is every form the group offers, ordered
+     most-specific-first, so a test can sweep specificity levels instead of only
+     ever seeing the most specific. */
+  form: ExplainThisForm.form,
+  options: list((ExplainThisForm.form_id, Segment.t)),
   explanation: string,
   colorings: list((Id.t, Id.t)),
-  /* Piece ids occurring in the selected form's own syntactic_form. A coloring
-     whose first component is absent from this list names a piece of some *other*
-     form, so it can never highlight anything. */
-  sf_ids: list(Id.t),
+  /* DeferredAp alone hand-builds its color map instead of deriving it from the
+     explanation's links; every other branch leaves this None. The view ignores
+     it — only the code highlighter reads it — which is what the old
+     `Colorings`-only branch amounted to. */
+  color_map: option(ColorSteps.t),
 };
 
-type message_mode =
-  | MessageContent(
-      ExplainThisUpdate.update => Virtual_dom.Vdom.Effect.t(unit),
-      Globals.t,
-    )
-  | Colorings
-  /* Report the decision and render nothing. */
-  | Probe(probe => unit);
+type decision =
+  | NoDoc
+  /* Prose with no syntactic form behind it, shown verbatim. */
+  | Prose(string)
+  /* Prose run through the markdown translator, so code spans and lists render.
+     Distinct from `Prose` because that is the shape the other ~30 one-off
+     messages have always had, and rendering them as markdown would be a
+     behaviour change. */
+  | Markdown(string)
+  /* Derivation terms document themselves: DrvDoc supplies both the abstract
+     syntax to show and the markdown describing it. */
+  | DrvSyntax(Segment.t, string)
+  | Doc(doc);
+
+/* The deduction sidebar picks a message rather than a form; its one group is a
+   stub whose explanation is always overridden. */
+type decision_deduction = {
+  group: ExplainThisForm.group,
+  form: ExplainThisForm.form_id,
+  explanation: string,
+};
 
 type info_deduction = option(DrvGrading.VerifiedTree.info);
 
-let get_doc_deduction =
+let decide_deduction =
     (
       ~globals: Globals.t,
       ~docs: ExplainThisModel.t,
       info_deduction: info_deduction,
-      mode: message_mode,
     )
-    : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-  let get_message =
-      (~explanation: option(string)=?, group: ExplainThisForm.group)
-      // Examples can be leaved blank.
-      : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-    let (doc, _) = ExplainThisModel.get_form_and_options(group, docs);
-    /* group_id and form_id are one type, and this path's group is a one-form
-       stub, so the group's own id is the right stand-in if there is no form. */
-    let (doc_id, doc_explanation) =
-      switch (doc) {
-      | Some(doc) => (doc.id, doc.explanation)
-      | None => (group.id, "")
-      };
-    let explanation_msg =
-      switch (explanation) {
-      | Some(msg) => msg
-      | None => doc_explanation
-      };
-    switch (mode) {
-    | MessageContent(inject, globals) =>
-      let (explanation_title, (explanation, color_map)) =
-        if (globals.settings.core.dynamics) {
-          (
-            DrvExplainThis.mk_explanation_title(),
-            mk_explanation(
-              ~globals,
-              ~inject,
-              group.id,
-              doc_id,
-              explanation_msg,
-              docs,
-            ),
-          );
-        } else {
-          (none, (none, ColorSteps.empty));
-        };
-      let rule_example_view =
-        DrvExplainThis.rule_example_view(
-          ~info=info_deduction,
-          ~color_map,
-          ~globals,
-        );
-      (
-        [rule_example_view],
-        ([explanation_title, explanation], color_map),
-        [],
-      );
-    | Colorings =>
-      let (_, color_map) =
-        mk_translation(~globals, ~inject=_ => (), explanation_msg);
-      ([], ([], color_map), []);
-    | Probe(report) =>
-      /* The deduction path threads no colorings. */
-      report({
-        group: group.id,
-        form: doc_id,
-        forms: List.map((f: ExplainThisForm.form) => f.id, group.forms),
-        explanation: explanation_msg,
-        colorings: [],
-        sf_ids: [],
-      });
-      ([], ([], ColorSteps.empty), []);
+    : decision_deduction => {
+  let group = DrvExplainThis.premise_mismatch;
+  /* group_id and form_id are one type, and this path's group is a one-form
+     stub, so the group's own id is the right stand-in if there is no form. */
+  let form =
+    switch (fst(ExplainThisModel.get_form_and_options(group, docs))) {
+    | Some(form) => form.id
+    | None => group.id
     };
-  };
-
-  let fake_get_message = msg =>
-    get_message(~explanation=msg, DrvExplainThis.premise_mismatch);
-
-  switch (info_deduction) {
-  | None => fake_get_message("Deduction Not Available")
-  | Some({res: Correct, _}) => fake_get_message("✅ Correct")
-  | Some({res: Pending(p), _}) =>
-    fake_get_message(DrvGrading.ExternalError.show(p))
-  | Some({res: PartialCorrect(specced), _}) =>
-    fake_get_message(
+  let explanation =
+    switch (info_deduction) {
+    | None => "Deduction Not Available"
+    | Some({res: Correct, _}) => "✅ Correct"
+    | Some({res: Pending(p), _}) => DrvGrading.ExternalError.show(p)
+    | Some({res: PartialCorrect(specced), _}) =>
       if (globals.settings.explainThis.highlight == All) {
         Printf.sprintf(
           "❓ Correct until stop at a hole %s)",
@@ -545,10 +504,8 @@ let get_doc_deduction =
         );
       } else {
         "❓ Correct until stop at a hole";
-      },
-    )
-  | Some({res: Incorrect(failure), _}) =>
-    fake_get_message(
+      }
+    | Some({res: Incorrect(failure), _}) =>
       (
         switch (failure) {
         | Mismatch(expected, actual) =>
@@ -617,10 +574,47 @@ let get_doc_deduction =
           )
         }
       )
-      |> Printf.sprintf("❌ %s"),
-    )
+      |> Printf.sprintf("❌ %s")
+    };
+  {
+    group,
+    form,
+    explanation,
   };
 };
+
+let view_deduction =
+    (
+      ~globals: Globals.t,
+      ~inject,
+      ~docs: ExplainThisModel.t,
+      ~info: info_deduction,
+      d: decision_deduction,
+    )
+    : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
+  let (explanation_title, (explanation, color_map)) =
+    if (globals.settings.core.dynamics) {
+      (
+        DrvExplainThis.mk_explanation_title(),
+        mk_explanation(
+          ~globals,
+          ~inject,
+          d.group.id,
+          d.form,
+          d.explanation,
+          docs,
+        ),
+      );
+    } else {
+      (none, (none, ColorSteps.empty));
+    };
+  let rule_example_view =
+    DrvExplainThis.rule_example_view(~info, ~color_map, ~globals);
+  ([rule_example_view], ([explanation_title, explanation], color_map), []);
+};
+
+let color_map_deduction = (~globals: Globals.t, d: decision_deduction) =>
+  snd(mk_translation(~globals, ~inject=_ => (), d.explanation));
 
 /* Both color-map entry points ask the same question of a different doc source:
    run it for its color map, then narrow to one id if the highlight setting says
@@ -645,30 +639,17 @@ let get_color_map_deduction =
       ~explainThisModel: ExplainThisModel.t,
       info_deduction: info_deduction,
     ) =>
-  narrow_color_map(
-    ~globals,
-    () => {
-      let (_, (_, (color_map, _)), _) =
-        get_doc_deduction(
-          ~globals,
-          ~docs=explainThisModel,
-          info_deduction,
-          Colorings,
-        );
-      color_map;
-    },
+  narrow_color_map(~globals, () =>
+    fst(
+      color_map_deduction(
+        ~globals,
+        decide_deduction(~globals, ~docs=explainThisModel, info_deduction),
+      ),
+    )
   );
 
-let get_doc =
-    (
-      ~globals: Globals.t,
-      ~docs: ExplainThisModel.t,
-      info: option(Statics.Info.t),
-      mode: message_mode,
-    )
-    : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-  let simple = msg => ([], ([text(msg)], (Id.Map.empty, 0)), []);
-  let default = simple("No docs available");
+let decide =
+    (~docs: ExplainThisModel.t, info: option(Statics.Info.t)): decision => {
   let get_specificity_level = group_id =>
     Option.map(
       (form: ExplainThisForm.form) => form.id,
@@ -680,12 +661,12 @@ let get_doc =
         ~explanation: option(string)=?,
         group: ExplainThisForm.group,
       )
-      : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
+      : decision => {
     let (selected, options) =
       ExplainThisModel.get_form_and_options(group, docs);
     switch (selected) {
     /* Unreachable: no group constructor produces a group with no forms. */
-    | None => default
+    | None => NoDoc
     | Some(doc) =>
       /* Each form's explanation is already filled in by its data module, where
          the format literal and its arguments sit together. `~explanation`
@@ -699,86 +680,14 @@ let get_doc =
          least specific form of a group, which is shared across a family of
          groups and so is not built for this particular call site. */
       let colorings = colorings == [] ? doc.colorings : colorings;
-      switch (mode) {
-      | MessageContent(inject, globals) =>
-        let (explanation, color_map) =
-          mk_explanation(
-            ~globals,
-            ~inject,
-            group.id,
-            doc.id,
-            explanation_msg,
-            docs,
-          );
-        let root =
-          switch (info) {
-          | None => Sort.Any
-          | Some(ci) => Info.sort_of(ci)
-          };
-        let highlights =
-          colorings
-          |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
-               let (color, _) = ColorSteps.get_color(code_id, color_map);
-               (syntactic_form_id, color);
-             })
-          |> List.to_seq
-          |> Id.Map.of_seq
-          |> Option.some;
-        let editor =
-          Editor.Model.mk(doc.syntactic_form |> Zipper.unzip, ~root);
-        let expander_deco =
-          expander_deco(
-            ~globals,
-            ~docs,
-            ~inject,
-            ~options,
-            ~group,
-            ~doc,
-            editor,
-          );
-        let highlight_deco = [
-          Highlight.colors(
-            ~font_metrics=globals.font_metrics,
-            ~syntax=editor.syntax,
-            highlights,
-          ),
-        ];
-        let syntactic_form_view =
-          CodeWithStatics.View.view(
-            ~globals,
-            ~overlays=highlight_deco @ [expander_deco],
-            {
-              editor,
-              statics: CachedStatics.empty,
-              dynamics: Dynamics.Map.empty,
-              context_menu: None,
-            },
-          );
-        let example_view =
-          example_view(
-            ~globals,
-            ~inject,
-            ~group_id=group.id,
-            ~form_id=doc.id,
-            ~examples=doc.examples,
-            ~model=docs,
-          );
-        ([syntactic_form_view], ([explanation], color_map), example_view);
-      | Colorings =>
-        let (_, color_map) =
-          mk_translation(~globals, ~inject=_ => (), explanation_msg);
-        ([], ([], color_map), []);
-      | Probe(report) =>
-        report({
-          group: group.id,
-          form: doc.id,
-          forms: List.map((f: ExplainThisForm.form) => f.id, group.forms),
-          explanation: explanation_msg,
-          colorings,
-          sf_ids: Segment.ids(doc.syntactic_form),
-        });
-        ([], ([], ColorSteps.empty), []);
-      };
+      Doc({
+        group,
+        form: doc,
+        options,
+        explanation: explanation_msg,
+        colorings,
+        color_map: None,
+      });
     };
   };
 
@@ -815,39 +724,32 @@ let get_doc =
     | Mod(ModLet) => message_single(ModLetDecl.single)
     | Mod(ModType) => message_single(ModTypeDecl.single)
     | Mod(ModuleMod) => message_single(ModuleKeywordDecl.single)
-    | _ => simple("Module item")
+    | _ => Prose("Module item")
     }
   | Some(InfoSig({cls, _})) =>
     switch (cls) {
     | Sig(SigLet) => message_single(SigLetDecl.single)
     | Sig(SigType) => message_single(SigTypeDecl.single)
-    | _ => simple("Signature item")
+    | _ => Prose("Signature item")
     }
-  | Some(InfoMPat(_)) => simple("Module name")
+  | Some(InfoMPat(_)) => Prose("Module name")
   | Some(InfoExp({cls: Mod(ModLet), _})) =>
     message_single(ModLetDecl.single)
   | Some(InfoExp({cls: Mod(ModType), _})) =>
     message_single(ModTypeDecl.single)
   | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
     message_single(ModuleKeywordDecl.single)
-  | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
+  | Some(InfoExp({cls: Mod(_), _})) => Prose("Module item")
   | Some(InfoExp({user_term: term, _})) =>
-    let rec get_message_exp =
-            (term)
-            : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
+    let rec get_message_exp = (term): decision =>
       switch ((term: Exp.term)) {
-      | DrvQuote(_) => (
-          [],
-          mk_translation(
-            ~globals,
-            ~inject=_ => (),
-            "A derivation-mode quotation embeds a derivation-mode term into a regular expression. There are 5 forms of quotation:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
-          ),
-          [],
+      | DrvQuote(_) =>
+        Markdown(
+          "A derivation-mode quotation embeds a derivation-mode term into a regular expression. There are 5 forms of quotation:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
         )
-      | Invalid(_) => simple("Not a valid expression")
+      | Invalid(_) => Prose("Not a valid expression")
       | DynamicErrorHole(_)
-      | Closure(_) => simple("Internal expression")
+      | Closure(_) => Prose("Internal expression")
       | Asc(e, t) =>
         let exp_id = IdTagged.rep_id(e);
         let typ_id = IdTagged.rep_id(t);
@@ -856,7 +758,7 @@ let get_doc =
         message_single(
           UseExp.single(~typ_id=Typ.rep_id(t), ~body_id=Exp.rep_id(e)),
         )
-      | BuiltinFun(_) => simple("Internal expression")
+      | BuiltinFun(_) => Prose("Internal expression")
       | LivelitName(n) => get_message(TerminalExp.livelit_name_exps(n))
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
@@ -866,7 +768,7 @@ let get_doc =
         get_message(TyAliasExp.tyalias_exps(~tpat_id, ~def_id));
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
-      | ExplicitNonlabel => simple("Explicitly unlabeled entry")
+      | ExplicitNonlabel => Prose("Explicitly unlabeled entry")
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
@@ -1038,7 +940,7 @@ let get_doc =
         | Label(_)
         | ExplicitNonlabel
         | Projector(_)
-        | Asc(_) => default // Shouldn't get hit?
+        | Asc(_) => NoDoc // Shouldn't get hit?
         };
       | Label(name) => get_message(LabelTerm.labels(name))
       | TupLabel(l, e) =>
@@ -1214,10 +1116,10 @@ let get_doc =
         | TupLabel(_)
         | ExplicitNonlabel
         | Label(_)
-        | Invalid(_) => default // Shouldn't get hit
+        | Invalid(_) => NoDoc // Shouldn't get hit
         | Parens(_)
         | Projector(_)
-        | Asc(_) => default // Shouldn't get hit?
+        | Asc(_) => NoDoc // Shouldn't get hit?
         };
       | Theorem(pat, thm, body) =>
         let pat_id = IdTagged.rep_id(pat);
@@ -1267,16 +1169,10 @@ let get_doc =
           IdTagged.rep_id(deferral);
         };
         /* Unlike every other branch, this one hand-builds its color map rather
-           than deriving it from the explanation's links, so the doc is only
-           needed for the rendering modes. `get_message` is pure, so computing
-           it up front is behavior-preserving and lets Probe observe the
-           decision here too. */
-        let doc =
-          get_message(AppExp.deferredaps(~x_id, ~supplied_id, ~deferred_id));
-        switch (mode) {
-        | MessageContent(_)
-        | Probe(_) => doc
-        | Colorings =>
+           than deriving it from the explanation's links, so it rides along on
+           the decision. Only the code highlighter reads it; the sidebar renders
+           this doc exactly like any other. */
+        let color_map = {
           let color_fn = List.nth(ColorSteps.child_colors, 0);
           let color_supplied = List.nth(ColorSteps.child_colors, 1);
           let color_deferred = List.nth(ColorSteps.child_colors, 2);
@@ -1290,8 +1186,17 @@ let get_doc =
           };
           let mapping = Haz3lcore.Id.Map.singleton(x_id, color_fn);
           let mapping = List.fold_left(add, mapping, args);
-          let color_map = (mapping, List.length(args) + 1);
-          ([], ([], color_map), []);
+          (mapping, List.length(args) + 1);
+        };
+        switch (
+          get_message(AppExp.deferredaps(~x_id, ~supplied_id, ~deferred_id))
+        ) {
+        | Doc(doc) =>
+          Doc({
+            ...doc,
+            color_map: Some(color_map),
+          })
+        | other => other
         };
       | If(cond, then_, else_) =>
         let cond_id = IdTagged.rep_id(cond);
@@ -1330,7 +1235,7 @@ let get_doc =
             ~body_id=Exp.rep_id(body),
           ),
         )
-      | Filter(_) => simple("Internal expression")
+      | Filter(_) => Prose("Internal expression")
       | Test(body) =>
         let body_id = IdTagged.rep_id(body);
         get_message(TestExp.tests(~body_id));
@@ -1460,7 +1365,7 @@ let get_doc =
       | _ => basic(ListPat.cons(~hd_id, ~tl_id))
       };
     | Var(v) => get_message(TerminalPat.var(v))
-    | ExplicitNonlabel => simple("Explicitly unlabeled entry")
+    | ExplicitNonlabel => Prose("Explicitly unlabeled entry")
     | Label(name) => get_message(LabelTerm.labels(name))
     | TupLabel(l, p) =>
       get_message(
@@ -1500,11 +1405,11 @@ let get_doc =
       let pat_id = IdTagged.rep_id(pat);
       let typ_id = IdTagged.rep_id(typ);
       get_message(TypAnnPat.typann(~pat_id, ~typ_id));
-    | Invalid(_) => simple("Not a valid pattern")
+    | Invalid(_) => Prose("Not a valid pattern")
     | Parens(_)
     | Projector(_) =>
       // Shouldn't be hit?
-      default
+      NoDoc
     }
   | Some(InfoTyp({user_term: term, _} as typ_info)) =>
     let typ = bypass_parens_typ(term);
@@ -1592,45 +1497,45 @@ let get_doc =
       get_message(SumTyp.sum_typ_nullary_constructor_defs(c))
     | Var(v) => get_message(TerminalTyp.var(v))
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
+    | Unknown(Hole(Invalid(_))) => Prose("Not a type or type operator")
     | ProdProjection(_) => get_message(DotTyp.dot)
     | ExplicitNonlabel
     | ProdExtension(_)
     | Parens(_)
     | Sig(_) => message_single(SigTyp.single)
-    | Projector(_) => default
+    | Projector(_) => NoDoc
     | DrvQuoteTy(Jdmt) =>
-      simple(
+      Prose(
         "`DrvJdmt` is the type of derivation-mode judgements. Quote a judgement with `of_jdmt` to embed it as an expression.",
       )
     | DrvQuoteTy(Ctx) =>
-      simple(
+      Prose(
         "`DrvCtx` is the type of derivation-mode typing contexts, mapping ALFA variables to ALFA types. Quote a context with `of_ctx`.",
       )
     | DrvQuoteTy(Prop) =>
-      simple(
+      Prose(
         "`DrvProp` is the type of derivation-mode propositions (e.g., equalities between ALFA terms or types). Quote a proposition with `of_prop`.",
       )
     | DrvQuoteTy(Exp) =>
-      simple(
+      Prose(
         "`ALFAExp` is the type of ALFA expressions: terms in the object language of the derivation. Quote an ALFA expression with `of_alfa_exp`.",
       )
     | DrvQuoteTy(Pat) =>
-      simple(
+      Prose(
         "`DrvPat` is the type of ALFA patterns, used in binding positions within ALFA expressions.",
       )
     | DrvQuoteTy(Typ) =>
-      simple(
+      Prose(
         "`ALFATyp` is the type of ALFA types: the types of the object language of the derivation. Quote an ALFA type with `of_alfa_typ`.",
       )
     | DrvQuoteTy(TPat) =>
-      simple(
+      Prose(
         "`DrvTPat` is the type of ALFA type patterns, used in binding positions within ALFA type abstractions.",
       )
     };
   | Some(InfoTPat(info)) =>
     switch (info.user_term.term) {
-    | Invalid(_) => simple("Type names must begin with a capital letter")
+    | Invalid(_) => Prose("Type names must begin with a capital letter")
     | EmptyHole => get_message(HoleTPat.empty_hole_tpats)
     | MultiHole(_) => get_message(HoleTPat.multi_hole_tpats)
     | Var(v) => get_message(VarTPat.var_typ_pats(v))
@@ -1643,7 +1548,32 @@ let get_doc =
       | Pat(pat) => DrvDoc.pat_form(pat)
       | TPat(tpat) => DrvDoc.tpat_form(tpat)
       };
+    DrvSyntax(syntax, msg);
+  | Some(Secondary(s)) =>
+    switch (s.cls) {
+    | Secondary(Whitespace) => Prose("A semantic void, pervading but inert")
+    | Secondary(Comment) =>
+      Prose("Comments are ignored by systems but treasured by readers")
+    | _ => Prose("No documentation available")
+    }
+  | None => NoDoc
+  };
+};
+
+let view_doc =
     (
+      ~globals: Globals.t,
+      ~inject,
+      ~docs: ExplainThisModel.t,
+      ~info: option(Statics.Info.t),
+      decision: decision,
+    )
+    : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
+  switch (decision) {
+  | NoDoc => ([], ([text("No docs available")], ColorSteps.empty), [])
+  | Prose(msg) => ([], ([text(msg)], ColorSteps.empty), [])
+  | Markdown(msg) => ([], mk_translation(~globals, ~inject=_ => (), msg), [])
+  | DrvSyntax(syntax, msg) => (
       [syntax |> CodeViewable.view_segment(~globals)],
       (
         [
@@ -1652,20 +1582,81 @@ let get_doc =
             msg |> mk_translation(~globals, ~inject=_ => ()) |> fst,
           ),
         ],
-        (Id.Map.empty, 0),
+        ColorSteps.empty,
       ),
       [],
-    );
-  | Some(Secondary(s)) =>
-    switch (s.cls) {
-    | Secondary(Whitespace) => simple("A semantic void, pervading but inert")
-    | Secondary(Comment) =>
-      simple("Comments are ignored by systems but treasured by readers")
-    | _ => simple("No documentation available")
-    }
-  | None => default
+    )
+  | Doc({group, form, options, explanation, colorings, _}) =>
+    let (explanation, color_map) =
+      mk_explanation(~globals, ~inject, group.id, form.id, explanation, docs);
+    let root =
+      switch (info) {
+      | None => Sort.Any
+      | Some(ci) => Info.sort_of(ci)
+      };
+    let highlights =
+      colorings
+      |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
+           let (color, _) = ColorSteps.get_color(code_id, color_map);
+           (syntactic_form_id, color);
+         })
+      |> List.to_seq
+      |> Id.Map.of_seq
+      |> Option.some;
+    let editor = Editor.Model.mk(form.syntactic_form |> Zipper.unzip, ~root);
+    let expander_deco =
+      expander_deco(
+        ~globals,
+        ~docs,
+        ~inject,
+        ~options,
+        ~group,
+        ~doc=form,
+        editor,
+      );
+    let highlight_deco = [
+      Highlight.colors(
+        ~font_metrics=globals.font_metrics,
+        ~syntax=editor.syntax,
+        highlights,
+      ),
+    ];
+    let syntactic_form_view =
+      CodeWithStatics.View.view(
+        ~globals,
+        ~overlays=highlight_deco @ [expander_deco],
+        {
+          editor,
+          statics: CachedStatics.empty,
+          dynamics: Dynamics.Map.empty,
+          context_menu: None,
+        },
+      );
+    let example_view =
+      example_view(
+        ~globals,
+        ~inject,
+        ~group_id=group.id,
+        ~form_id=form.id,
+        ~examples=form.examples,
+        ~model=docs,
+      );
+    ([syntactic_form_view], ([explanation], color_map), example_view);
   };
-};
+
+/* The code editor highlights user terms with the colors the sidebar's
+   explanation assigns them, so it needs the color map without any of the view.
+   `Prose`/`NoDoc`/`DrvSyntax` carry no links, hence no colors. */
+let color_map_of = (~globals: Globals.t, decision: decision): ColorSteps.t =>
+  switch (decision) {
+  | NoDoc
+  | Prose(_)
+  | DrvSyntax(_) => ColorSteps.empty
+  | Markdown(msg) => snd(mk_translation(~globals, ~inject=_ => (), msg))
+  | Doc({color_map: Some(color_map), _}) => color_map
+  | Doc({explanation, _}) =>
+    snd(mk_translation(~globals, ~inject=_ => (), explanation))
+  };
 
 let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   div(
@@ -1675,13 +1666,8 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
 
 let get_color_map =
     (~globals: Globals.t, ~explainThisModel: ExplainThisModel.t, info) =>
-  narrow_color_map(
-    ~globals,
-    () => {
-      let (_, (_, (color_map, _)), _) =
-        get_doc(~globals, ~docs=explainThisModel, info, Colorings);
-      color_map;
-    },
+  narrow_color_map(~globals, () =>
+    fst(color_map_of(~globals, decide(~docs=explainThisModel, info)))
   );
 
 type info = {
@@ -1699,18 +1685,20 @@ let view =
   // This gets the info from the infomap before singleton autolabelling
   let info_cursor = Option.map(Info.pre_labeled_info, info.cursor);
   let (syn_form, (explanation, _), example) =
-    get_doc(
+    view_doc(
       ~globals,
+      ~inject,
       ~docs=explainThisModel,
-      info_cursor,
-      MessageContent(inject, globals),
+      ~info=info_cursor,
+      decide(~docs=explainThisModel, info_cursor),
     );
   let (syn_form_Drv, (explanation_Drv, _), _) =
-    get_doc_deduction(
+    view_deduction(
       ~globals,
+      ~inject,
       ~docs=explainThisModel,
-      info.deduction,
-      MessageContent(inject, globals),
+      ~info=info.deduction,
+      decide_deduction(~globals, ~docs=explainThisModel, info.deduction),
     );
   div(
     ~attrs=[Attr.id("explain-this")],

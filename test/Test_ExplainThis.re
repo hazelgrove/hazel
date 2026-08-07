@@ -1,6 +1,8 @@
 open Haz3lcore;
 open Language;
 
+module ET = Web.ExplainThis;
+
 /* Property-based test ensuring ExplainThis never raises while producing
    documentation for any sub-term of an expression. The documentation for
    each form substitutes term ids into its explanation string via a format,
@@ -21,24 +23,20 @@ let statics = term =>
 
 let qcheck_explainthis_does_not_crash =
   QCheck.Test.make(
-    ~name="ExplainThis.get_doc does not crash",
+    ~name="ExplainThis.decide does not crash",
     ~count=1000,
     QCheck_Util.arb_exp(~minimal_idents=true, 12),
     exp => {
     /* Statics failures are out of scope; we only assert that ExplainThis
-       itself does not raise for any sub-term it is asked to document. */
+       itself does not raise for any sub-term it is asked to document. The
+       color map is harvested too, since that is where the explanation's
+       markdown is parsed. */
     switch (statics(exp)) {
     | exception _ => true
     | info_map =>
       Id.Map.iter(
         (_id, info: Info.t) => {
-          let _ =
-            Web.ExplainThis.get_doc(
-              ~globals,
-              ~docs,
-              Some(info),
-              Web.ExplainThis.Colorings,
-            );
+          let _ = ET.color_map_of(~globals, ET.decide(~docs, Some(info)));
           ();
         },
         info_map,
@@ -49,15 +47,14 @@ let qcheck_explainthis_does_not_crash =
 
 /* ===================== Characterization (golden) test =====================
 
-   The property test above only asserts that `get_doc` doesn't raise. Nothing
+   The property test above only asserts that `decide` doesn't raise. Nothing
    pinned down *which* sub-term each explanation actually links to, which is
    exactly what a refactor of the coloring/specificity plumbing moves around.
 
-   `Colorings` mode is not usable for this: it only re-derives a color map from
-   the explanation's markdown links and never reads `colorings` at all, so it
-   is blind to the very mapping being moved. `get_doc`'s `Probe` mode reports
-   the decision itself — group, selected form, and colorings — without
-   rendering.
+   The color map is no use as a fingerprint: it is re-derived from the
+   explanation's markdown links and never reads `colorings` at all, so it is
+   blind to the very mapping being moved. `decide` returns the decision itself —
+   group, selected form, and colorings — with no rendering in the way.
 
    `Id.t` is a UUID, freshly generated per parse, so raw ids can't appear in a
    golden. Each id is canonicalized to the printed text of the sub-term it
@@ -85,26 +82,24 @@ let canonical_id = (info_map, id: Id.t): string =>
   | None => "<unmapped>"
   };
 
-/* `get_doc` reports its decision without rendering. */
-let probes_of = (~docs, info: Info.t): list(Web.ExplainThis.probe) => {
-  let acc = ref([]);
-  let _ =
-    Web.ExplainThis.get_doc(
-      ~globals,
-      ~docs,
-      Some(info),
-      Web.ExplainThis.Probe(p => acc := [p, ...acc^]),
-    );
-  List.rev(acc^);
-};
+/* Only a `Doc` decision names a group and a form; prose and derivation terms
+   carry no colorings to characterize. */
+let doc_of = (~docs, info: Info.t): option(ET.doc) =>
+  switch (ET.decide(~docs, Some(info))) {
+  | ET.Doc(d) => Some(d)
+  | ET.NoDoc
+  | ET.Prose(_)
+  | ET.Markdown(_)
+  | ET.DrvSyntax(_) => None
+  };
 
-let render_probe = (info_map, p: Web.ExplainThis.probe): string => {
+let render_doc = (info_map, d: ET.doc): string => {
   let colorings =
-    p.colorings
+    d.colorings
     |> List.map(((_sf_id, code_id)) => canonical_id(info_map, code_id))
     |> List.sort(String.compare)
     |> String.concat(",");
-  Web.ExplainThisForm.show_form_id(p.form)
+  Web.ExplainThisForm.show_form_id(d.form.id)
   ++ " colorings=["
   ++ colorings
   ++ "]";
@@ -115,28 +110,29 @@ let render_probe = (info_map, p: Web.ExplainThis.probe): string => {
    harness built only on `init` never reaches a single fallback form, which is
    exactly what the specificity ladders select. So for each documented sub-term
    we sweep every form its group offers by planting a selection for it. */
-let swept_probes = (info: Info.t): list(Web.ExplainThis.probe) =>
-  probes_of(~docs, info)
-  |> List.concat_map((p: Web.ExplainThis.probe) =>
-       p.forms
-       |> List.concat_map(form_id => {
-            let docs': Web.ExplainThisModel.t = {
-              ...Web.ExplainThisModel.init,
-              groups: [
-                {
-                  group: p.group,
-                  selected: form_id,
-                },
-              ],
-            };
-            probes_of(~docs=docs', info);
-          })
-     );
+let swept_docs = (info: Info.t): list(ET.doc) =>
+  switch (doc_of(~docs, info)) {
+  | None => []
+  | Some(d) =>
+    d.group.forms
+    |> List.filter_map((form: Web.ExplainThisForm.form) => {
+         let docs': Web.ExplainThisModel.t = {
+           ...Web.ExplainThisModel.init,
+           groups: [
+             {
+               group: d.group.id,
+               selected: form.id,
+             },
+           ],
+         };
+         doc_of(~docs=docs', info);
+       })
+  };
 
 let fingerprint_of_info = (info_map, info: Info.t): list(string) =>
-  switch (swept_probes(info)) {
+  switch (swept_docs(info)) {
   | [] => ["(no group doc)"]
-  | ps => List.map(render_probe(info_map), ps)
+  | ds => List.map(render_doc(info_map), ds)
   };
 
 let info_map_of = (src: string) =>
@@ -454,7 +450,7 @@ x=y => LabeledPat colorings=[`x`,y]
 y => VarExp colorings=[]
 y => VarPat colorings=[]|},
   ),
-  /* The ConsPat fallback shows the *outer* tail `b:: c`, supplied by `get_doc`'s
+  /* The ConsPat fallback shows the *outer* tail `b:: c`, supplied by `decide`'s
      override — the form itself was built with the inner tail. Moving colorings
      onto the form must preserve the outer reading. */
   (
@@ -559,24 +555,24 @@ type T = Int in 1 => TyAliasExp colorings=[Int,T]|},
    put a cursor on a labeled tuple element, a projection or a type alias. This
    asserts the reached set exactly, so losing coverage fails rather than going
    quiet, and it separates "not covered" from "not reachable at all". */
-/* Folds `f` over every probe the corpus produces, with every form of every
-   reached group selected in turn. */
-let over_corpus_probes =
-    (f: (Id.Map.t(Info.t), Web.ExplainThis.probe) => list('a)): list('a) =>
+/* Folds `f` over every doc decision the corpus produces, with every form of
+   every reached group selected in turn. */
+let over_corpus_docs =
+    (f: (Id.Map.t(Info.t), ET.doc) => list('a)): list('a) =>
   corpus
   |> List.concat_map(((_name, src)) => {
        let info_map = info_map_of(src);
        Id.Map.fold(
          (_id, info: Info.t, acc) =>
-           List.concat_map(f(info_map), swept_probes(info)) @ acc,
+           List.concat_map(f(info_map), swept_docs(info)) @ acc,
          info_map,
          [],
        );
      });
 
 let reached_groups = () =>
-  over_corpus_probes((_info_map, p) =>
-    [Web.ExplainThisForm.show_group_id(p.group)]
+  over_corpus_docs((_info_map, d: ET.doc) =>
+    [Web.ExplainThisForm.show_group_id(d.group.id)]
   )
   |> List.sort_uniq(String.compare);
 
@@ -584,7 +580,7 @@ let reached_groups = () =>
    new doc; a drop means a doc silently stopped being exercised.
 
    Note what is absent. `FunctionExp(Base)` and `LetExp(Base)` never appear as a
-   *group*: they name the shared least-specific form, and get_doc always
+   *group*: they name the shared least-specific form, and `decide` always
    dispatches to a more specific group that contains it. `FunctionExp(Tuple)` and
    `LetExp(Tuple)` are only dispatched for tuples of size other than 2 or 3. */
 let expected_groups = [
@@ -697,15 +693,18 @@ let coverage_case =
    they can no longer drift from the form they belong to undetected.
 
    Run against the TypFunctionExp defect fixed earlier on this branch, this fails. */
-let stray_colorings = (info_map, p: Web.ExplainThis.probe): list(string) =>
-  p.colorings
-  |> List.filter(((sf_id, _)) => !List.mem(sf_id, p.sf_ids))
+let stray_colorings = (info_map, d: ET.doc): list(string) => {
+  /* Segment.ids recurses into tile children, so template-built forms count. */
+  let sf_ids = Segment.ids(d.form.syntactic_form);
+  d.colorings
+  |> List.filter(((sf_id, _)) => !List.mem(sf_id, sf_ids))
   |> List.map(((_sf_id, code_id)) =>
-       Web.ExplainThisForm.show_form_id(p.form)
+       Web.ExplainThisForm.show_form_id(d.form.id)
        ++ " links "
        ++ canonical_id(info_map, code_id)
        ++ " to a piece it does not contain"
      );
+};
 
 let pairing_case =
   Alcotest.test_case("colorings name the form's own pieces", `Quick, () =>
@@ -713,7 +712,7 @@ let pairing_case =
       Alcotest.list(Alcotest.string),
       "colorings referring to a piece outside the form",
       [],
-      over_corpus_probes(stray_colorings) |> List.sort_uniq(String.compare),
+      over_corpus_docs(stray_colorings) |> List.sort_uniq(String.compare),
     )
   );
 
