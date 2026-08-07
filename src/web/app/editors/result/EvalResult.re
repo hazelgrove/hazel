@@ -32,6 +32,22 @@ module Model = {
     stepper_proof: Calc.t(Proof.t),
     display,
     theorems: Theorems.Model.t,
+    /* Some(gen) from the worker's ack until either the result arrives or
+     * the hold times out (ReleaseStepperHold). While held, the theorem
+     * steppers keep showing the dynamics they last saw instead of the
+     * ack's partial streaming state, so they don't flash / lose focus.
+     * The generation guards against a stale timeout releasing a newer
+     * hold. */
+    stepper_hold: option(int),
+    /* A dynamics update was withheld from the theorem steppers while
+     * held; forces one propagation once the hold is released. */
+    stepper_hold_stale: bool,
+    /* The dynamics the theorem steppers last consumed. Served to them
+     * (as OldValue) while a hold is active, so their steppers keep
+     * running calculate against unchanged inputs — editors stay live —
+     * instead of being skipped because the partial streaming state has
+     * no theorems yet. */
+    theorems_dynamics: Calc.saved(option(Dynamics.t)),
   };
 
   let init = {
@@ -48,6 +64,9 @@ module Model = {
     stepper_proof: Calc.OldValue(Proof.fresh(EmptyHole)),
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
+    stepper_hold: None,
+    stepper_hold_stale: false,
+    theorems_dynamics: Calc.Pending,
   };
 
   let probe_results = (model: t): option(Sample.Map.t) =>
@@ -110,8 +129,9 @@ module Update = {
     | StepperProofPatch(Haz3lcore.EditorTransform.patch)
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
-    | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
+    | UpdateStreamingEval(int, IncrEval.outbox(EvaluatorState.t))
     | MergeStreamingEval(IncrEval.outbox(EvaluatorState.t))
+    | ReleaseStepperHold(int)
     | TheoremsAction(Theorems.Update.t);
 
   let can_undo = (action: t) => {
@@ -121,8 +141,9 @@ module Update = {
     | StepperProofPatch(_) => true
     | EvalEditorAction(action) => CodeSelectable.Update.can_undo(action)
     | UpdateResult(_) => false
-    | UpdateStreamingEval(_)
-    | MergeStreamingEval(_) => false
+    | UpdateStreamingEval(_, _)
+    | MergeStreamingEval(_)
+    | ReleaseStepperHold(_) => false
     | TheoremsAction(action) => Theorems.Update.can_undo(action)
     };
   };
@@ -188,11 +209,14 @@ module Update = {
           | ProgramResult.ResultOk(_)
           | ProgramResult.ResultFail(_) => []
           },
+        stepper_hold: None,
       }
       |> Updated.return_quiet
-    | (UpdateStreamingEval(stream), _) =>
+    | (UpdateStreamingEval(hold_gen, stream), _) =>
       /* Worker ReusePlan arrives here (via on_ack). Snapshot it for the
-       * frozen debug tint; also seed the streaming outbox / pending worklist. */
+       * frozen debug tint; also seed the streaming outbox / pending worklist.
+       * Hold the theorem steppers on the dynamics they last saw until the
+       * result arrives or the hold times out. */
       {
         ...model,
         result: Calc.NewValue(ProgramResult.evaluating),
@@ -201,7 +225,20 @@ module Update = {
         streaming_state: Calc.Pending,
         pending_eval_ids:
           EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
+        stepper_hold: Some(hold_gen),
       }
+      |> Updated.return_quiet
+    | (ReleaseStepperHold(hold_gen), _) =>
+      /* Ignore timeouts for holds that were already released by the result
+       * arriving or superseded by a newer ack. */
+      (
+        model.stepper_hold == Some(hold_gen)
+          ? {
+            ...model,
+            stepper_hold: None,
+          }
+          : model
+      )
       |> Updated.return_quiet
     | (MergeStreamingEval(stream), _) =>
       let current =
@@ -239,6 +276,9 @@ module Update = {
           stepper_proof,
           display,
           theorems,
+          stepper_hold,
+          stepper_hold_stale,
+          theorems_dynamics,
         }: Model.t,
       ) => {
     // Check whether settings / elab / targets have changed
@@ -473,9 +513,34 @@ module Update = {
         )
       };
 
+    /* Debounce the theorem steppers: while a hold is active (the worker
+     * acked a new eval but the result hasn't come back yet), keep feeding
+     * them the dynamics they last consumed so they don't flash / lose
+     * focus on the partial streaming state — while still letting their
+     * steppers run calculate, so the step editors stay live. Once the
+     * hold is released — result arrived or timeout — propagate the last
+     * withheld update. */
+    let (theorems_dynamics, stepper_hold_stale) =
+      switch (stepper_hold, dynamics) {
+      | (Some(_), NewValue(_)) => (
+          Calc.OldValue(theorems_dynamics |> Calc.get_saved(None)),
+          true,
+        )
+      | (Some(_), OldValue(_)) => (
+          Calc.OldValue(theorems_dynamics |> Calc.get_saved(None)),
+          stepper_hold_stale,
+        )
+      | (None, NewValue(d)) => (Calc.NewValue(d), false)
+      | (None, OldValue(d)) when stepper_hold_stale => (
+          Calc.NewValue(d),
+          false,
+        )
+      | (None, OldValue(d)) => (Calc.OldValue(d), false)
+      };
+
     // HACK[Matt]: say that statics is updated iff dynamics is updated
     let statics: Calc.t('a) =
-      switch (dynamics) {
+      switch (theorems_dynamics) {
       | NewValue(_) => NewValue(statics)
       | OldValue(_) => OldValue(statics)
       };
@@ -483,7 +548,11 @@ module Update = {
     let theorems =
       Calc.get_value(settings).dynamics
         ? theorems
-          |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
+          |> Theorems.Update.calculate(
+               ~settings,
+               ~statics,
+               ~dynamics=theorems_dynamics,
+             )
         : theorems;
 
     (
@@ -501,6 +570,9 @@ module Update = {
         stepper_proof: stepper_proof |> Calc.make_old,
         display,
         theorems,
+        stepper_hold,
+        stepper_hold_stale,
+        theorems_dynamics: theorems_dynamics |> Calc.save,
       }: Model.t
     );
   };
