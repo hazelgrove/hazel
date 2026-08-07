@@ -6,6 +6,7 @@ Places probes on the bindings at the given paths to observe their runtime values
 When a probe is active, the agent view shows evaluated values inline (e.g., `expr ≡ value`).
 This is a powerful debugging and verification tool — use it to check whether code behaves as expected.
 If the probed definition is collapsed (⋱), it will be auto-expanded so results are visible.
+Values come from the evaluator; the next context refresh waits for evaluation to finish, so probe values are normally present immediately. A `∅` means the probed expression was never reached during evaluation (e.g. a branch not taken or a function never called) — that itself is useful evidence.
 
 Parameters:
 paths: list(string) — paths to the bindings to probe
