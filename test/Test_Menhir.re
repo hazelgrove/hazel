@@ -918,19 +918,17 @@ let ex5 = list_of_mylist(x) in
         "Nested module keyword",
         {|module Outer = { module Inner = { let x = 10 } } in Outer.Inner.x|},
       ),
-      /* H.1 fix: singleton labeled tuple type now parses in Menhir */
-      /* Menhir wraps `(x : (a=Int))` as parens(asc(x, parens(tup_label)))
-         via AscPat rule at line 294 + conversion at line 599 */
+      /* Singleton labeled tuple type: source parens are explicit
+         (ParenTyp) and a lone labeled entry is still a product —
+         asc(x, parens(prod([a=Int]))), MakeTerm parity. */
       menhir_only_test(
         "Singleton labeled tuple type",
         Fresh.Exp.(
           let_(
             Fresh.Pat.(
-              parens(
-                asc(
-                  var("x"),
-                  Fresh.Typ.(parens(tup_label(label("a"), int()))),
-                ),
+              asc(
+                var("x"),
+                Fresh.Typ.(parens(prod([tup_label(label("a"), int())]))),
               )
             ),
             int(1),

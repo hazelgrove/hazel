@@ -49,7 +49,7 @@ let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '\'']*
 let constructor_ident = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
-let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_' '@']+
+let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
 let livelit_ident = '^' ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let comment = '#' [^ '#' '\n']* '#'
 
@@ -59,7 +59,7 @@ rule token =
     | whitespace {token lexbuf }
     | comment { token lexbuf }
     | newline { advance_line lexbuf; token lexbuf}
-    | ints as i { INT (int_of_string i) }
+    | ints as i { INT (Bigint.of_string i) }
     | float as f { FLOAT (parse_float_string f )}
     | string as s { STRING (String.sub s 1 (String.length s - 2)) }
     | quoted_label as l { QUOTED_LABEL (String.sub l 1 (String.length l - 2)) }
@@ -124,6 +124,8 @@ rule token =
     | "," { COMMA }
     | ":" { COLON }
     (* Types *)
+    | "SInt" { SINT_TYPE }
+    | "Nat" { NAT_TYPE }
     | "Int" { INT_TYPE }
     | "Float" { FLOAT_TYPE }
     | "Bool" { BOOL_TYPE }
@@ -142,12 +144,14 @@ rule token =
     | ";" { semi_token () }
     | "test" {TEST}
     | "hint" {HINT}
+    | "|>" { PIPELINE }
     | "::" { CONS }
     | "@<" {TYP_AP_SYMBOL}
     | "@" {AT_SYMBOL}
     | "?" {QUESTION}
     | "\xc2\xbf" {QUESTION} (* ¿ implicit-hole marker (TextRoundtrip) *)
     | "_" {WILD}
+    | "use" {USE}
     | "fix" {FIX}
     | "typfun" {TYP_FUN}
     | "type" {TYP}

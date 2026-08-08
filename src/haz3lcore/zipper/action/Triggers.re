@@ -4,15 +4,14 @@ open OptUtil.Syntax;
 
 /* Syntax replacement operations to automatically run after insertion */
 
-/* `^^kind@opt` — refractor trigger options: the base name identifies
+/* `^^kind_opt` — refractor trigger options: the base name identifies
    the kind; the option selects a non-default model. Currently the only
-   option is a probe renderer id (`^^probe@table`). */
+   option is a probe renderer id (`^^probe_table`). Underscore, not @:
+   the editor tokenizer merges `_` into one trigger token (the
+   `_sidebar` precedent); `@` splits at the char-class boundary. */
 let split_trigger_opt = (s: string): (string, option(string)) =>
-  switch (String.index_opt(s, '@')) {
-  | Some(i) => (
-      String.sub(s, 0, i),
-      Some(String.sub(s, i + 1, String.length(s) - i - 1)),
-    )
+  switch (Token.of_projector_invoke_parts(s)) {
+  | Some((name, _)) => ("^^" ++ name, Token.of_projector_invoke_opt(s))
   | None => (s, None)
   };
 
@@ -138,7 +137,7 @@ let refractor_to_invoke =
     : Segment.t => {
   let opt_suffix =
     switch (refractor_opt_of_model(kind, model)) {
-    | Some(opt) => "@" ++ opt
+    | Some(opt) => "_" ++ opt
     | None => ""
     };
   [

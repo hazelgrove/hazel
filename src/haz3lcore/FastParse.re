@@ -13,17 +13,16 @@ open Util;
         Structural mode, which with empty annotations yields a segment
         whose leaves are EXACTLY the program's tokens, no synthesized
         whitespace or parens;
-     4. ZIPS that segment against the source token stream: token texts
-        must match 1:1, and the source gaps are re-inserted as Secondary
+     4. WEAVES the source back into that scaffold: token texts must
+        match 1:1, and the source gaps are re-inserted as Secondary
         pieces at the position where the next token is emitted.
 
-   The zip is the safety argument: Menhir never defines meaning — any
-   token mismatch (unsupported form, printer divergence, exotic lexeme)
-   returns None and the caller falls back to the typing parser. On
-   success the spliced tokens are the source's own, molds come from
-   ExpToSegment and the splice-time remold, and the next MakeTerm pass
-   re-reads the segment as usual — so an accept can not corrupt meaning,
-   only preserve it. Source formatting survives verbatim. */
+   The weave is the safety argument: any token mismatch (unsupported
+   form, printer divergence, exotic lexeme) returns None and the caller
+   falls back to the typing parser. On success the landed tokens are
+   the source's own; MakeTerm re-reads the segment as usual, and the
+   differential suites (corpus, fuzz, roundtrip) pin menhir-parse ≡
+   editor-parse. Source formatting survives verbatim. */
 
 exception Mismatch;
 
@@ -122,7 +121,14 @@ let gap_pieces = (gap: string): list(Piece.t) => {
    to keep FastParse below the action layer. */
 type materialize = (string, Segment.t) => option(Piece.t);
 
-let zip =
+/* Weave the source's tokens and gaps into the printed scaffold.
+   Whitespace is deliberately NEVER attached to terms on this path:
+   gaps land positionally (before the next token; inside the child when
+   that token is a closing shard), so MakeTerm's secondary-attachment
+   policy remains the codebase's single implementation of "which term
+   owns which whitespace" — a term-side copy here would have to be kept
+   in agreement with it forever. (Not the zipper's zip/unzip.) */
+let weave =
     (
       ~materialize: materialize,
       ~collect_refractors: bool,
@@ -145,6 +151,17 @@ let zip =
     float_syntax(a)
     && float_syntax(b)
     && float_of_string(a) == float_of_string(b);
+  /* The printer quotes labels only when necessary; a source label may
+     carry backticks the reprint drops. Source spelling lands. */
+  let unquote = (s: string): option(string) =>
+    String.length(s) >= 2 && s.[0] == '`' && s.[String.length(s) - 1] == '`'
+      ? Some(String.sub(s, 1, String.length(s) - 2)) : None;
+  let label_equal_toks = (src: string, printed: string): bool =>
+    switch (unquote(src), unquote(printed)) {
+    | (Some(s), None) => s == printed
+    | (None, Some(p)) => src == p
+    | _ => false
+    };
   /* Returns (gap before the token, the SOURCE spelling that matched).
      The source spelling is what must land in the zipped piece: it equals
      the segment's token except through the float-equivalence accept. */
@@ -156,7 +173,9 @@ let zip =
       raise(Mismatch);
     };
     let t = toks[idx^];
-    if (t.text == text || float_equal_toks(t.text, text)) {
+    if (t.text == text
+        || float_equal_toks(t.text, text)
+        || label_equal_toks(t.text, text)) {
       incr(idx);
       (t.gap, t.text);
     } else if (idx^
@@ -227,11 +246,6 @@ let zip =
           | Some(parts) => parts
           | None => raise(Mismatch)
           };
-        let name =
-          switch (String.index_opt(name, '@')) {
-          | Some(i) => String.sub(name, 0, i)
-          | None => name
-          };
         Language.ProjectorKind.of_name(name);
       }
     ) {
@@ -253,18 +267,13 @@ let zip =
           | Some(parts) => parts
           | None => raise(Mismatch)
           };
-        let name =
-          switch (String.index_opt(name, '@')) {
-          | Some(i) => String.sub(name, 0, i)
-          | None => name
-          };
         Language.ProjectorKind.of_name(name);
       }
     ) {
     | kind => !Language.ProjectorKind.is_refractor(kind)
     | exception _ => false
     };
-  let rec zip_seg = (seg: Segment.t): Segment.t => {
+  let rec weave_seg = (seg: Segment.t): Segment.t => {
     switch (seg) {
     | [] => []
     | [p, ...rest]
@@ -286,7 +295,7 @@ let zip =
         } else {
           switch (ps) {
           | [] => raise(Mismatch)
-          | [q, ...qs] => grab(qs, List.rev(zip_piece(q)) @ acc)
+          | [q, ...qs] => grab(qs, List.rev(weave_piece(q)) @ acc)
           };
         };
       let (wrapped, rest') = grab([p, ...rest], []);
@@ -298,7 +307,7 @@ let zip =
           ...collected_refractors^,
         ];
       /* bind before recursing: token consumption must follow order */
-      let tail = zip_seg(rest');
+      let tail = weave_seg(rest');
       gap_pieces(trig_gap) @ inner @ tail;
     | [p, ...rest]
         when is_trigger_next() && trigger_is_projector(toks[idx^].text) =>
@@ -316,7 +325,7 @@ let zip =
         } else {
           switch (ps) {
           | [] => raise(Mismatch)
-          | [q, ...qs] => grab(qs, List.rev(zip_piece(q)) @ acc)
+          | [q, ...qs] => grab(qs, List.rev(weave_piece(q)) @ acc)
           };
         };
       let (wrapped, rest') = grab([p, ...rest], []);
@@ -326,18 +335,43 @@ let zip =
       | Some(proj) =>
         /* bind before recursing: @ and cons evaluate right-to-left, and
            token consumption must follow piece order */
-        let tail = zip_seg(rest');
+        let tail = weave_seg(rest');
         gap_pieces(trig_gap) @ [proj, ...tail];
       | None =>
         note("trigger '" ++ trigger ++ "' could not materialize");
         raise(Mismatch);
       };
+    | [Tile({label: ["+"], mold, _}), ...rest]
+        when mold.out == Sort.Typ && peek(0) != Some("+") =>
+      /* the printer emits a leading + on sums; the source may not have
+         one (both spellings read as the same Sum) — skip the piece */
+      weave_seg(rest)
+    | [
+        Tile({
+          label: ["(", ")"],
+          children: [[Tile({label: ["()"], _}) as unit_tile]],
+          _,
+        }),
+        ...rest,
+      ]
+        when peek(0) == Some("()") =>
+      /* nullary ap: the term prints f(()) (the nullary flag id is lost
+         to fresh annotations); the source spells f() — land the POSTFIX
+         empty-ap tile (operand-molded unit would read as juxtaposition) */
+      let (gap, _) = expect("()");
+      let form =
+        switch (unit_tile) {
+        | Tile({mold, _}) when mold.out == Sort.Pat => Form.get(ApPatEmpty)
+        | _ => Form.get(ApExpEmpty)
+        };
+      let tail = weave_seg(rest);
+      gap_pieces(gap) @ [Piece.mk_tile(form, []), ...tail];
     | [p, ...rest] =>
-      let head = zip_piece(p);
-      head @ zip_seg(rest);
+      let head = weave_piece(p);
+      head @ weave_seg(rest);
     };
   }
-  and zip_piece = (p: Piece.t): list(Piece.t) =>
+  and weave_piece = (p: Piece.t): list(Piece.t) =>
     switch (p) {
     /* PreserveExact with empty annotations emits no secondaries; drop
        defensively if any appear. */
@@ -369,7 +403,7 @@ let zip =
           ((children_acc, label_acc, shard_i), label_tok) => {
             /* child shard_i-1 sits between shard_i-1 and shard_i; the
                gap before the closing token belongs inside the child */
-            let child = zip_seg(List.nth(t.children, shard_i - 1));
+            let child = weave_seg(List.nth(t.children, shard_i - 1));
             let (gap, tok) = expect(label_tok);
             (
               children_acc @ [child @ gap_pieces(gap)],
@@ -389,7 +423,7 @@ let zip =
         }),
       ];
     };
-  let zipped = zip_seg(seg);
+  let woven = weave_seg(seg);
   if (idx^ != Array.length(toks)) {
     note(
       "segment ended with "
@@ -400,7 +434,7 @@ let zip =
     );
     raise(Mismatch);
   };
-  zipped;
+  woven;
 };
 
 let attempt =
@@ -431,9 +465,9 @@ let attempt =
       switch (ExpToSegment.exp_to_segment(~settings, term)) {
       | exception _ => None
       | seg =>
-        switch (zip(~materialize, ~collect_refractors, tokens, seg)) {
+        switch (weave(~materialize, ~collect_refractors, tokens, seg)) {
         | exception _ => None
-        | zipped => Some(zipped @ gap_pieces(trailing_gap))
+        | woven => Some(woven @ gap_pieces(trailing_gap))
         }
       };
     }

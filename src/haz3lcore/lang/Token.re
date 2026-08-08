@@ -309,26 +309,45 @@ let of_projector_invoke = (input: t): option(t) =>
 /* Kind name and placement, split apart. An `@opt` suffix (trigger
    options, e.g. the probe renderer in `^^probe@table`) is stripped
    before the placement check — Triggers parses it separately. */
+/* After the `_sidebar` placement suffix, a remaining `_opt` suffix is a
+   trigger OPTION (e.g. the probe renderer in `^^probe_table`). `_` is
+   safe: no kind name contains one, and unlike `@` it merges into a
+   single editor token. */
+let strip_sidebar = (body: t): (t, ProjectorCore.Placement.t) =>
+  String.ends_with(~suffix=projector_invoke_sidebar, body)
+    ? (
+      String.sub(
+        body,
+        0,
+        String.length(body) - String.length(projector_invoke_sidebar),
+      ),
+      ProjectorCore.Placement.Sidebar,
+    )
+    : (body, ProjectorCore.Placement.Inline);
+
+let of_projector_invoke_opt = (input: t): option(t) =>
+  switch (of_projector_invoke(input)) {
+  | None => None
+  | Some(body) =>
+    let (body, _) = strip_sidebar(body);
+    switch (String.index_opt(body, '_')) {
+    | Some(i) => Some(String.sub(body, i + 1, String.length(body) - i - 1))
+    | None => None
+    };
+  };
+
 let of_projector_invoke_parts =
     (input: t): option((t, ProjectorCore.Placement.t)) =>
   switch (of_projector_invoke(input)) {
   | None => None
   | Some(body) =>
+    let (body, placement) = strip_sidebar(body);
     let body =
-      switch (String.index_opt(body, '@')) {
+      switch (String.index_opt(body, '_')) {
       | Some(i) => String.sub(body, 0, i)
       | None => body
       };
-    String.ends_with(~suffix=projector_invoke_sidebar, body)
-      ? Some((
-          String.sub(
-            body,
-            0,
-            String.length(body) - String.length(projector_invoke_sidebar),
-          ),
-          ProjectorCore.Placement.Sidebar,
-        ))
-      : Some((body, ProjectorCore.Placement.Inline));
+    Some((body, placement));
   };
 
 let is_projector_invoke = (str: t): bool =>

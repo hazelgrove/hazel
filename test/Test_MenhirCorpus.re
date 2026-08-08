@@ -17,10 +17,20 @@ open Language;
    load via the typing-parser fallback; fidelity is pinned by
    DocSlides.ReparseBackuptext). */
 let known_gaps: list((string, string)) =
-  List.map(
-    name => (name, "menhir grammar gap (Test_FastParseCorpus ledger)"),
-    Test_FastParseCorpus.known_gaps,
-  );
+  [
+    (
+      "tuples.hz",
+      "deliberate error exhibit (1=\"hello\"): MakeTerm reads a MultiHole, menhir a labeled tuple",
+    ),
+    (
+      "table-api-properties.hz",
+      "editor tokenizer quirk: [()] reads as [] via MakeTerm (file as editor bug)",
+    ),
+  ]
+  @ List.map(
+      name => (name, "menhir grammar gap (Test_FastParseCorpus ledger)"),
+      Test_FastParseCorpus.known_gaps,
+    );
 
 let corpus_roots = [
   "hazel-programs",

@@ -30,55 +30,11 @@ let read_file = (path: string): string => {
    agents/users write falls back to the quadratic typing parser — fix
    FastParse or the printer rather than tolerating it. Skips silently
    when the corpus is unreachable (sandboxed dune runtest). */
-/* Slides whose .hz needs menhir grammar the batch parser lacks yet —
-   they load correctly via the MarkerParse fallback (fidelity is pinned
-   by DocSlides.ReparseBackuptext); shrink this list by filling gaps.
-   Classes: labeled fun patterns / labeled tuple types, unit fun
-   params, paren sums, statement `;` sequences, big-int literals,
-   conversion paren drops in module/forall positions. */
-let known_gaps: list(string) = [
-  "basic-reference.hz",
-  "projectors.hz",
-  "adts.hz",
-  "tuples.hz",
-  "modules.hz",
-  "tables.hz",
-  "polymorphism.hz",
-  "cards.hz",
-  "probes.hz",
-  "example-tables.hz",
-  "table-api-constructors-addrows.hz",
-  "table-api-constructors-addcolumn.hz",
-  "table-api-constructors-buildcolumn.hz",
-  "table-api-constructors-hcat.hz",
-  "table-api-constructors-values.hz",
-  "table-api-constructors-leftjoin.hz",
-  "table-api-properties.hz",
-  "table-api-access-subcomponents.hz",
-  "table-api-subtable.hz",
-  "table-api-ordering.hz",
-  "table-api-aggregate.hz",
-  "table-api-data-cleaning.hz",
-  "table-api-utilities-flatten.hz",
-  "table-api-utilities-transformcolumn.hz",
-  "table-api-utilities-renamecolumns.hz",
-  "table-api-utilities-find.hz",
-  "table-api-utilities-groupbyretentive.hz",
-  "table-api-utilities-groupbysubtractive.hz",
-  "table-api-utilities-selectmany.hz",
-  "table-api-utilities-groupjoin.hz",
-  "table-api-utilities-join.hz",
-  "example-programs-phackinghomogeneous.hz",
-  "example-programs-phackingheterogeneous.hz",
-  "example-programs-quizscorefilter.hz",
-  "example-programs-quizscoreselect.hz",
-  "example-programs-groupbyretentive.hz",
-  "example-programs-groupbysubtractive.hz",
-  "errors-malformed-tables.hz",
-  "errors-using-tables-part-1.hz",
-  "errors-using-tables-part-2.hz",
-  "errors-using-tables-part-3.hz",
-];
+/* Empty as of 2026-08-08: every .hz in the repo takes the fast path.
+   A new entry here means a construct regressed off it — fix the
+   grammar/printer rather than ledgering, unless the file is a
+   deliberately-invalid or delimiter-incomplete exhibit. */
+let known_gaps: list(string) = [];
 
 let tests = (
   "FastParseCorpus",

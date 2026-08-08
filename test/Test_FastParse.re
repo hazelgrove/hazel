@@ -283,10 +283,10 @@ let tests = (
       },
     ),
     test_case(
-      "probe@table renderer option round-trips",
+      "probe_table renderer option round-trips",
       `Quick,
       () => {
-        let text = "let a = 1 in\n^^probe@table(a + 1)";
+        let text = "let a = 1 in\n^^probe_table(a + 1)";
         let z = PersistentZipper.from_backup_text(text, ~root=Exp);
         let (_, entry: ZipperBase.Refractor.entry) =
           List.hd(z.refractors.manuals);
@@ -298,7 +298,7 @@ let tests = (
         );
         check(
           string,
-          "@table reprints",
+          "_table reprints",
           text,
           String.trim(PersistentSegment.persist(z).backup_text),
         );

@@ -158,6 +158,7 @@ and exp =
   | TupLabel(exp, exp)
   | Dot(exp, exp)
   | ApExp(exp, exp)
+  | PipelineExp(exp, exp) /* e1 |> e2 == Ap(Reverse, e2, e1) */
   | FixF(pat, exp)
   | Asc(exp, typ)
   | EmptyHole
@@ -966,6 +967,18 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_exp(e2);
             return(ApExp(e1, shrunk));
+          }
+        | PipelineExp(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(PipelineExp(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(PipelineExp(e1, shrunk));
           }
         | TypAp(e, t) =>
           {

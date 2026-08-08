@@ -220,7 +220,7 @@ let inventory = ^^table([
 (item="Donut",  qty=12, price=1.10),
 (item="Eggs",   qty= 6, price=3.40)
 ]) in
-^^probe@table(inventory)
+^^probe_table(inventory)
 
 
 

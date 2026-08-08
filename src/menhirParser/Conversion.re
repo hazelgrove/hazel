@@ -267,6 +267,9 @@ module rec Exp: {
         fn(Pat.of_menhir_ast(p), of_menhir_ast(e), None, Some(name_str))
       | None => fn(Pat.of_menhir_ast(p), of_menhir_ast(e), None, None)
       }
+    | PipelineExp(e1, e2) =>
+      /* e1 |> e2 reads as applying e2 to e1 (MakeTerm: Ap(Reverse, r, l)) */
+      ap(Language.Operators.Reverse, of_menhir_ast(e2), of_menhir_ast(e1))
     | ApExp(e1, args) =>
       switch (args) {
       | TupleExp(l) =>
@@ -415,7 +418,7 @@ module rec Exp: {
     | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
-    | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
+    | Ap(Reverse, f, arg) => PipelineExp(of_core(arg), of_core(f))
     /* The menhir parser grammar has no syntax for derivation terms, so
        converting core DrvQuote values back to the menhir AST is not
        meaningful. */
@@ -464,7 +467,8 @@ and Typ: {
     | BoolType => bool()
     | StringType => string()
     | NatType => nat()
-    | VoidType => parens(sum([]))
+    /* Void = Sum([]) prints as the atomic token; no invented parens */
+    | VoidType => sum([])
     | UnknownType(p) =>
       switch (p) {
       | Internal => unknown(Internal)
@@ -475,6 +479,8 @@ and Typ: {
     /* Source parens are explicit (ParenTyp); a bare TupleType is a
        form-supplied tuple (variant payload, fun-call style). */
     | TupleType([]) => prod([])
+    /* a lone labeled entry is still a product: (name = String) */
+    | TupleType([TupLabelType(_) as tl]) => prod([of_menhir_ast(tl)])
     | TupleType([t]) => of_menhir_ast(t)
     | TupleType(ts) => prod(List.map(of_menhir_ast, ts))
     | LabelType(s) => label(s)
@@ -484,7 +490,13 @@ and Typ: {
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | ProdProjection(t1, t2) =>
-      prod_projection(of_menhir_ast(t1), of_menhir_ast(t2))
+      let t2 =
+        switch (t2) {
+        | TypVar(s) => label(s)
+        | LabelType(s) => label(s)
+        | _ => of_menhir_ast(t2)
+        };
+      prod_projection(of_menhir_ast(t1), t2);
     | ProdExtension(t1, t2) =>
       prod_extension(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
@@ -506,10 +518,10 @@ and Typ: {
       /* Source parens arrive as ParenTyp; a bare sum stays bare
          (MakeTerm parity). */
       sum(converted_terms);
-    | PolyType(tp, t) =>
-      parens(poly(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
-    | RecType(tp, t) =>
-      parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
+    /* Source parens are explicit (ParenTyp): a bare `poly r -> t`
+       stays bare, matching the editor's own parse. */
+    | PolyType(tp, t) => poly(TPat.of_menhir_ast(tp), of_menhir_ast(t))
+    | RecType(tp, t) => rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t))
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
     | Sig(items) => {
         annotation: false,

@@ -36,9 +36,10 @@ open AST
 %token <string> QUOTED_LABEL
 %token TRUE 
 %token FALSE
-%token <int> INT
+%token <Bigint.t> INT
 %token <float> FLOAT
 %token LET
+%token USE
 %token MODULE
 %token FUN
 %token CASE
@@ -71,6 +72,7 @@ open AST
 %token TIMES
 %token DIVIDE
 %token LESS_THAN
+%token PIPELINE
 %token LESS_THAN_EQUAL
 %token GREATER_THAN
 %token GREATER_THAN_EQUAL
@@ -100,6 +102,8 @@ open AST
 
 (* type tokens *)
 %token INT_TYPE
+%token SINT_TYPE
+%token NAT_TYPE
 %token FLOAT_TYPE
 %token BOOL_TYPE
 %token STRING_TYPE
@@ -137,7 +141,7 @@ open AST
 %right L_AND
 
 
-%left GREATER_THAN LESS_THAN DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT DOUBLE_EQUAL_FLOAT
+%left GREATER_THAN LESS_THAN DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT DOUBLE_EQUAL_FLOAT PIPELINE
 %right STRING_CONCAT AT_SYMBOL
 %right  CONS
 
@@ -220,10 +224,13 @@ binExp:
 label:
     | l = IDENT { l }
     | l = QUOTED_LABEL { l }
+    (* Ill-sorted labels appear in error-demo slides: (1="hello") *)
+    | i = INT { Bigint.to_string(i) }
 
 tupTypeEntry:
     | t = typ {t}
     | l = label; SINGLE_EQUAL; t = typ { TupLabelType(LabelType(l), t) }
+    | WILD; SINGLE_EQUAL; t = typ { TupLabelType(ExplicitNonlabel, t) }
 
 %inline tupleType:
     | OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN { ParenTyp(TupleType(hd :: types)) }
@@ -247,6 +254,8 @@ typ:
     | T_TYP; s = STRING { InvalidTyp(s) }
     | PROJECTOR_INVOKE; OPEN_PAREN; t = typ; CLOSE_PAREN; { t }
     | INT_TYPE { IntType }
+    | SINT_TYPE { SIntType }
+    | NAT_TYPE { NatType }
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
     | STRING_TYPE { StringType }
@@ -259,10 +268,18 @@ typ:
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
     | s = sumTyp; { SumTyp(s) }
+    (* Sums WITHOUT the leading plus: `Nil + Cons(Int, T)`. The bare-
+       constructor head is spelled out so LR can distinguish it from
+       TypVar by the PLUS lookahead. *)
+    | c = CONSTRUCTOR_IDENT; PLUS; rest = separated_nonempty_list(PLUS, sumTerm) { SumTyp([Variant(c, None)] @ rest) }
+    (* General no-lead head (covers Ctor(args) + … ; the bare-ctor head
+       above stays explicit so LR distinguishes it from TypVar). *)
+    | s1 = sumTerm; PLUS; rest = separated_nonempty_list(PLUS, sumTerm) { SumTyp([s1] @ rest) }
     | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
     | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { ParenTyp(t) }
-    | OPEN_PAREN; l = label; SINGLE_EQUAL; t = typ; CLOSE_PAREN { TupleType([TupLabelType(LabelType(l), t)]) }
+    | OPEN_PAREN; l = label; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(LabelType(l), t)])) }
+    | OPEN_PAREN; WILD; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(ExplicitNonlabel, t)])) }
     | t1 = typ; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) } %prec TYP_AP_SYMBOL
     | t1 = typ; DOT; t2 = typ { ProdProjection(t1, t2) }
     | OPEN_CURLY; items = separated_list(MOD_SEMI, sigItem); CLOSE_CURLY { Sig(items) }
@@ -273,8 +290,12 @@ tupPatEntry:
 
 nonAscriptingPat:
     | OPEN_TRIPLE_CURLY; p = pat; CLOSE_TRIPLE_CURLY { IndicationPat(p) }
+    (* Trigger unwrap lives HERE (single home): every pat route,
+       including fun params and ap heads/args, passes through. *)
+    | PROJECTOR_INVOKE; OPEN_PAREN; p = pat; CLOSE_PAREN; { p }
     | OPEN_PAREN; p = pat; CLOSE_PAREN { ParenPat(p) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; p = pat; CLOSE_PAREN { ParenPat(TuplePat([TupLabelPat(LabelPat(l), p)])) }
+    | OPEN_PAREN; WILD; SINGLE_EQUAL; p = pat; CLOSE_PAREN { ParenPat(TuplePat([TupLabelPat(ExplicitNonlabel, p)])) }
     | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { ParenPat(TuplePat(p :: pats)) }
     |  P_PAT; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
@@ -284,15 +305,16 @@ nonAscriptingPat:
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
     | p = IDENT { VarPat(p) }
     | l = LIVELIT_IDENT { VarPat(l) }
-    | i = INT { AtomPat (Int (Bigint.of_int i)) }
+    | i = INT { AtomPat (Int i) }
     | f = FLOAT { AtomPat (Float f) }
     | s = STRING { AtomPat (String s)}
     | TRUE {AtomPat (Bool true)}
     | FALSE {AtomPat (Bool false)}
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
-    (* Multi-argument constructor patterns: Down(x, y) — mirror of the
-       exp-side application rule. *)
-    | f = pat; OPEN_PAREN; a = pat; COMMA; tl = separated_nonempty_list(COMMA, pat); CLOSE_PAREN { ApPat(f, TuplePat(a :: tl)) }
+    | f = pat; UNIT { ApPat(f, TuplePat([])) }
+    (* Multi-argument constructor patterns, labels allowed:
+       Down(x, y), Some(value=v, count=c) — mirror of the exp side. *)
+    | f = pat; OPEN_PAREN; a = tupPatEntry; COMMA; tl = separated_nonempty_list(COMMA, tupPatEntry); CLOSE_PAREN { ApPat(f, TuplePat(a :: tl)) }
 
 (* One fun parameter, optionally ascribed. The ascription binds to the
    ELEMENT (MakeTerm parity: fun a, b : T -> e ascribes only b). Bare
@@ -300,7 +322,23 @@ nonAscriptingPat:
 funAscElem:
     | p = funConsPat; { p }
     | p = funConsPat; COLON; t = ascTyp; { AscPat(p, t) }
+    (* Labeled parameter: fun label=l, value=v -> ... *)
+    | l = label; SINGLE_EQUAL; p = funAscElem; { TupLabelPat(LabelPat(l), p) }
 
+(* KNOWN CONFLICT FAMILIES (menhir default resolutions, all pinned by
+   the MenhirParser/MenhirFuzz/MenhirCorpus differential suites):
+   1. fun-parameter CONS/COLON (below) — shift keeps them parameter-level.
+   2. ~53 s/r states after `<form> ... exp` with COMMA/UNIT lookahead,
+      introduced by the bare-tuple-at-let and nullary-ap productions —
+      shift continues the inner exp, which is MakeTerm parity.
+   3. One r/r between the two no-leading-plus sum productions (bare-ctor
+      head vs general head) — identical semantic actions, either wins.
+   Adding grammar rules? Rerun the three suites; do not trust silence. *)
+(* KNOWN CONFLICT (one s/r + one r/r state, resolved by default): after
+   `FUN nonAscriptingPat`, CONS/COLON could continue at the parameter
+   level (funConsPat/funAscElem) or inside a generic `pat`. The default
+   shift keeps them at the parameter level, which is MakeTerm parity —
+   pinned by the MenhirParser equivalence tests. *)
 funConsPat:
     | p = nonAscriptingPat; { p }
     | p = nonAscriptingPat; CONS; rest = funConsPat; { ConsPat(p, rest) }
@@ -319,11 +357,12 @@ pat:
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
     | UNIT { TuplePat([]) }
     | p = nonAscriptingPat; { p }
-    | PROJECTOR_INVOKE; OPEN_PAREN; p = pat; CLOSE_PAREN; { p }
 
 
 rul:
     | TURNSTILE; p = pat; EQUAL_ARROW; e = exp; { (p, e) }
+    (* Bare tuple rule pattern: | Var(x), Var(y) => ... *)
+    | TURNSTILE; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); EQUAL_ARROW; e = exp; { (TuplePat(p1 :: ps), e) }
 
 case:
     | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
@@ -336,9 +375,16 @@ case:
    arbitrary resolution picks the fun-level reduction, pinned by the
    grammar-gap tests in Test_Menhir. *)
 ascTyp:
+    | PROJECTOR_INVOKE; OPEN_PAREN; t = ascTyp; CLOSE_PAREN; { t }
+    (* Binder types in ascription position: fun f : poly c -> (c -> c) -> …
+       — the poly body is an ascTyp so the NEXT arrow stays the fun's. *)
+    | POLY; a = tpat; DASH_ARROW; t = ascTyp { PolyType(a, t) }
+    | REC; c = tpat; DASH_ARROW; t = ascTyp { RecType(c, t) }
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
     | c = IDENT { TypVar(c) }
     | INT_TYPE { IntType }
+    | SINT_TYPE { SIntType }
+    | NAT_TYPE { NatType }
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
     | STRING_TYPE { StringType }
@@ -384,13 +430,15 @@ tupExpEntry:
 
 exp:
     | b = binExp { b }
-    | i = INT { Atom (Int (Bigint.of_int i)) }
+    | i = INT { Atom (Int i) }
     | f = FLOAT { Atom (Float f) }
     | v = IDENT { Var v }
     | l = LIVELIT_IDENT { LivelitName l }
     (* Base-type keywords are ordinary constructors in exp position
        (HTML's Int/Float/Bool/String nodes) — MakeTerm parity. *)
     | INT_TYPE { Constructor("Int", None) }
+    | SINT_TYPE { Constructor("SInt", None) }
+    | NAT_TYPE { Constructor("Nat", None) }
     | FLOAT_TYPE { Constructor("Float", None) }
     | BOOL_TYPE { Constructor("Bool", None) }
     | STRING_TYPE { Constructor("String", None) }
@@ -405,13 +453,21 @@ exp:
     | OPEN_PAREN; e = exp; CLOSE_PAREN { ParenExp(e) }
     | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { ParenExp(TupleExp(e :: l)) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ParenExp(TupleExp([TupLabel(Label(l), e)])) }
+    | OPEN_PAREN; WILD; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ParenExp(TupleExp([TupLabel(ExplicitNonlabel, e)])) }
     | UNIT { TupleExp([]) }
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
     | f = exp; OPEN_PAREN; a = tupExpEntry; COMMA; tl = separated_nonempty_list(COMMA, tupExpEntry); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) }
+    | e1 = exp; PIPELINE; e2 = exp { PipelineExp(e1, e2) }
+    | f = exp; UNIT { ApExp(f, TupleExp([])) }
     | f = exp; OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ApExp(f, TupleExp([TupLabel(Label(l), e)])) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
+    | USE; t = typ; IN; e = exp { Use(t, e) } %prec LET_EXP
+    (* Bare tuples at a let: `let a, b = e in` / `let x = e1, e2 in` *)
+    | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (TuplePat(p1 :: ps), e1, e2) } %prec LET_EXP
+    | LET; i = pat; SINGLE_EQUAL; e1 = exp; COMMA; es = separated_nonempty_list(COMMA, exp); IN; e2 = exp { Let (i, TupleExp(e1 :: es), e2) } %prec LET_EXP
+    | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e1 = exp; COMMA; es = separated_nonempty_list(COMMA, exp); IN; e2 = exp { Let (TuplePat(p1 :: ps), TupleExp(e1 :: es), e2) } %prec LET_EXP
     | MODULE; i = IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(i), e1, e2) } %prec LET_EXP
     | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(c), e1, e2) } %prec LET_EXP
     | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(i), t), e1, e2) } %prec LET_EXP

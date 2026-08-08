@@ -2,7 +2,7 @@
  * hazel-programs/docs/reference ARE the slides — embedded at compile
  * time, parsed at load (FastParse, MarkerParse fallback). Holes:
  * ? = explicit hole tile, ¿ = implicit (Grout). Probe/statics pins
- * are ^^probe/^^statics triggers in the text (^^probe@table selects
+ * are ^^probe/^^statics triggers in the text (^^probe_table selects
  * the table renderer). */
 let all_slides: list((string, Haz3lcore.PersistentSegment.t)) =
   [
