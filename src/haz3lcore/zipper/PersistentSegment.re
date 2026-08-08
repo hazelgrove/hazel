@@ -48,15 +48,6 @@ let restore = (persisted: t): Zipper.t =>
   |> Zipper.unzip(~direction=Left)
   |> Zipper.update_refractors(_, restore_refractors(persisted.refractors));
 
-let restore_from_backup_text = (backup_text: string, ~root): Zipper.t =>
-  (
-    switch (Parser.to_segment(backup_text, ~root)) {
-    | None => Segment.empty
-    | Some(z) => z
-    }
-  )
-  |> Zipper.unzip(~direction=Left);
-
 /* Committed .hz slide text keeps human indentation, but Hazel computes
    indentation at layout time and renders literal leading spaces ON TOP
    of it (doubled, drifting) — so text slides are flattened at load.
@@ -84,23 +75,14 @@ let of_text = (text: string): t => {
   refractors: refractors_init_str,
 };
 
-let unpersist_serialized = (persisted: t, ~root): PersistentZipper.t => {
-  zipper:
-    (
-      try(restore(persisted)) {
-      | _ =>
-        print_endline(
-          "Warning: using backup text! Serialization may be for an older version of Hazel.",
-        );
-        restore_from_backup_text(persisted.backup_text, ~root);
-      }
-    )
-    |> Zipper.sexp_of_t
-    |> Sexplib.Sexp.to_string,
+let unpersist_serialized = (persisted: t): PersistentZipper.t => {
+  /* Only test/debug data reaches this arm now: every shipped slide is
+     text-backed, and user idb data lives in PersistentZipper. */
+  zipper: restore(persisted) |> Zipper.sexp_of_t |> Sexplib.Sexp.to_string,
   backup_text: persisted.backup_text,
 };
 
-let unpersist = (persisted: t, ~root): PersistentZipper.t =>
+let unpersist = (persisted: t): PersistentZipper.t =>
   persisted.segment == ""
     ? PersistentZipper.of_text(persisted.backup_text)
-    : unpersist_serialized(persisted, ~root);
+    : unpersist_serialized(persisted);

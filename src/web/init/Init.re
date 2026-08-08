@@ -33,7 +33,7 @@ let startup: Lazy.t(PersistentData.t) =
              {
                editor:
                  content
-                 |> PersistentSegment.unpersist(~root=Exp)
+                 |> PersistentSegment.unpersist
                  |> Editor.Model.mk_persistent(~root=Exp),
                result: EvalResult.Model.init |> EvalResult.Model.persist,
              }: CellEditor.Model.persistent,

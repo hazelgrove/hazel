@@ -150,4 +150,10 @@ let text_slides: list((string, Haz3lcore.PersistentSegment.t)) =
        (name, Haz3lcore.PersistentSegment.of_text(text))
      );
 
-let all_slides = [Datasheet.slide, ...text_slides];
+let all_slides = [
+  (
+    "B2T2 / Datasheet",
+    Haz3lcore.PersistentSegment.of_text(Datasheet.slide_text),
+  ),
+  ...text_slides,
+];
