@@ -1,0 +1,186 @@
+# MODULES #
+
+# Modules use curly-brace syntax with semicolon-separated items. #
+# The `module` keyword supports capitalized module names. #
+# Modules are syntactic sugar for labeled tuples. #
+
+
+# A. MODULE CONSTRUCTION AND ACCESS #
+
+# 1. Defining and accessing a module #
+module Geometry = {
+type Point = (Int, Int);
+type Distance = Int;
+let origin : Point = (0, 0);
+let manhattan =
+fun (x, y) : Point -> x + y
+} in
+
+let pt : Geometry.Point = (3, 4) in
+let dist : Geometry.Distance = Geometry.manhattan(pt) in
+
+# 2. Empty module #
+module Empty = {} in
+
+# 3. Lowercase `let` works too #
+let colors = {
+let red = 1;
+let green = 2;
+let blue = 3
+} in
+let r = colors.red in
+
+# 4. Later bindings can reference earlier ones #
+module Counter = {
+let start = 0;
+let next = start + 1;
+let after = next + 1
+} in
+
+# 5. Shadowing: last binding wins #
+module M = {
+let x = 1;
+let x = "hello"
+} in
+
+# 6. Test assertion inside a module #
+module M = {
+test 1 + 1 == 2 end;
+let result = 99
+} in
+
+
+# B. QUALIFIED TYPE ACCESS #
+
+# 7. Type aliases are accessible via dot notation in types #
+module Units = {
+type Meters = Int;
+type Seconds = Int
+} in
+let height : Units.Meters = 170 in
+let duration : Units.Seconds = 60 in
+
+# 8. Nested modules and nested type access #
+module Outer = {
+module Inner = {
+type T = Bool;
+let value = true
+}
+} in
+let b : Outer.Inner.T = Outer.Inner.value in
+
+# 9. Module aliasing propagates type exports #
+module Base = {
+type Id = Int
+} in
+module App = {
+module Db = Base;
+type UserId = Db.Id
+} in
+let uid : App.Db.Id = 42 in
+let uid2 : App.UserId = uid in
+
+# 10. Variable aliasing propagates type exports too #
+module M = {
+type T = Int
+} in
+let n = M in
+let x : n.T = 5 in
+
+# 11. Error: nonexistent type member #
+module M = {
+type Real = Int
+} in
+let bad : M.Fake = 1 in
+
+
+# C. MODULE SIGNATURES #
+
+# Signatures use curly-brace syntax in type position: #
+# { let name : Type; ... } #
+
+# 12. Module matching its signature #
+module M : {let x : Int} = {let x = 42} in
+
+# 13. Empty signature #
+module M : {} = {} in
+
+# 14. Error: member type doesn't match signature #
+module M : {let x : Int} = {let x = true} in
+
+# 15. Error: one matching, one non-matching member #
+module M : {
+let x : Int;
+let y : Bool
+} = {
+let x = 1;
+let y = 2
+} in
+
+# 16. Error: module is missing a required member #
+module M : {
+let x : Int;
+let y : Bool;
+let z : String
+} = {
+let x = 1;
+let y = true
+} in
+
+# 17. Error: empty module missing all members #
+module M : {
+let x : Int;
+let y : Bool
+} = {} in
+
+# Module sig as alias #
+type MT = {let x: Int} in
+let _ : MT = {let x = 4} in
+
+# D. SUGAR & LIMITATIONS #
+
+# Modules are syntactic sugar for labeled tuples. #
+# Module signatures are sugar for labeled tuple types. #
+
+# 18. Module values are labeled tuples #
+test () == {} end;
+test (x=1) == {let x = 1} end;
+test (x=1, y=true) == {let x = 1; let y = true} end;
+
+# 19. Signatures and tuple types are interchangeable #
+module Mm : {let x : Int} = {let x = 1} in
+let mt : {let x : Int} = (x=1) in
+let tm : (x=Int) = {let x = 1} in
+let tt : (x=Int) = (x=1) in
+
+# 20. Type errors work regardless of which sugar is used #
+module Mm : {let x : Int} = {let x = true} in
+let mt : {let x : Int} = (x=true) in
+let tm : (x=Int) = {let x = true} in
+let tt : (x=Int) = (x=true) in
+
+# No width subtyping yet: signatures must be precise. #
+
+# 21. Error: extra member not allowed by signature #
+module M : {let x : Int} = {
+let x = 1;
+let y = 2
+} in
+
+# 22. Error: extra member not allowed by empty signature #
+module M : {} = {let x = 1} in
+
+# 23. Limitation: type declarations in signatures are ignored #
+module M : {
+type T = Int;
+let x : T;
+let y : T
+} = {
+let x = 4;
+let y = true
+} in
+
+# 24. Limitation: mismatched labels not caught in some cases #
+let m : {let x : ?} = {let y = 1} in
+let m : (x=?) = (y=1) in 
+¿

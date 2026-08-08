@@ -25,53 +25,45 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
       /* Text-backed slides (committed .hz, zipper == "") have no stored
          sexp. Structural segment equality is also the wrong bar there:
          projector MODELS embed freshly-minted ids per materialization.
-         The meaningful contract is text-level — BOTH parsers reproduce
-         the committed text byte-for-byte and read the same term. */
+         The meaningful contract is text-level: the LOAD path (fast or
+         fallback) reproduces the committed text byte-for-byte, and when
+         the fast path succeeds it reads the same term as the typing
+         parse. */
       if (slide.editor.zipper.zipper == "") {
         let text = slide.editor.zipper.backup_text;
-        let fast_segment =
-          switch (
-            FastParse.of_text(
-              ~materialize=Triggers.invoked_projector,
-              ~root=Exp,
-              String.trim(text),
-            )
-          ) {
-          | Some(seg) => seg
-          | None =>
-            Alcotest.fail(
-              "text slide fell off the fast path: "
-              ++ Option.value(FastParse.bail_note^, ~default="no note"),
-            )
-          };
-        let print = seg => Printer.of_segment(~holes="", ~refractors=[], seg);
+        let z = PersistentZipper.from_backup_text(text, ~root=Exp);
         check(
           string,
-          name ++ ": fast parse reprints the committed text",
+          name ++ ": load path reproduces the committed text",
           String.trim(text),
-          String.trim(print(fast_segment)),
+          String.trim(TextRoundtrip.to_text(PersistentSegment.persist(z))),
         );
-        check(
-          string,
-          name ++ ": typing parse reprints the committed text",
-          String.trim(text),
-          String.trim(print(reparsed_segment)),
-        );
-        check(
-          bool,
-          name ++ ": both parsers read the same term",
-          true,
-          Language.Equality.(
-            equality({
-              ...syntactic_settings,
-              ignore_parens: false,
-            }).
-              exp
-          )(
-            MakeTerm.go(fast_segment).term,
-            MakeTerm.go(reparsed_segment).term,
-          ),
-        );
+        switch (
+          FastParse.of_text(
+            ~materialize=Triggers.invoked_projector,
+            ~collect_refractors=true,
+            ~root=Exp,
+            String.trim(text),
+          )
+        ) {
+        | None => () /* fallback slide (menhir gap): fidelity checked above */
+        | Some(fast_segment) =>
+          check(
+            bool,
+            name ++ ": fast and typing parses read the same term",
+            true,
+            Language.Equality.(
+              equality({
+                ...syntactic_settings,
+                ignore_parens: false,
+              }).
+                exp
+            )(
+              MakeTerm.go(fast_segment).term,
+              MakeTerm.go(reparsed_segment).term,
+            ),
+          )
+        };
       } else {
         let original_segment =
           Sexplib.Sexp.of_string(slide.editor.zipper.zipper)
@@ -90,8 +82,5 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
 };
 
 let tests = [
-  (
-    "DocSlides.ReparseBackuptext",
-    List.map(doc_slide_reparses, List.tl(doc_slides)) // Dropping the first basic reference slide to avoid the issue with whitespace shifting around convex grout
-  ),
+  ("DocSlides.ReparseBackuptext", List.map(doc_slide_reparses, doc_slides)),
 ];

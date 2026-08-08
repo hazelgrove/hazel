@@ -10,18 +10,7 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
 };
 
 let documentation_slides: list((string, PersistentSegment.t)) =
-  [
-    BasicReference.out,
-    Projectors.out,
-    ADTs.out,
-    Tuples.out,
-    Modules.out,
-    Tables.out,
-    Polymorphism.out,
-    Cards.out,
-    Probes.out,
-    Livelits.out,
-  ]
+  Docslides.Slides.all_slides
   @ Livelitdemos.Slides.all_slides
   @ Mvu.Slides.all_slides
   @ B2t2.Slides.all_slides;

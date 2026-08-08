@@ -72,7 +72,9 @@ let lex_with_gaps = (src: string): option((list(tok), string)) => {
         ];
       prev_end := stop;
       go();
-    | exception _ => None
+    | exception e =>
+      note("lex: " ++ Printexc.to_string(e));
+      None;
     };
   };
   go();

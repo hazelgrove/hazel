@@ -1,9 +1,9 @@
 (include_subdirs unqualified)
 
-(copy_files ../../hazel-programs/docs/b2t2/*.hz)
+(copy_files ../../hazel-programs/docs/reference/*.hz)
 
 (library
- (name b2t2)
+ (name docslides)
  (libraries haz3lcore)
  (js_of_ocaml)
  (instrumentation
@@ -19,7 +19,6 @@
    ppx_deriving.show
    ppx_deriving.eq))
  (preprocessor_deps
-  (file Datasheet.md)
   (glob_files *.hz)))
 
 (env

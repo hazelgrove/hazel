@@ -44,6 +44,7 @@
   b2t2
   mvu
   livelitdemos
+  docslides
   pretty
   omd)
  (js_of_ocaml)

@@ -38,14 +38,14 @@ let float = ['0'-'9']+ '.' ['0'-'9']*
 (* negative ints are done through unop *)
 let int = ['0'-'9'] ['0'-'9']*
 
-let string = '"' ([^ '"' '\\'] | '\\' ['"' '\\'])* '"'
+let string = '"' ([^ '"' '\\'] | '\\' _)* '"'
 let quoted_label = '`' ([^ '`' '\\'] | '\\' [''' '\\'])* '`'
 
 let newline = '\r' | '\n' | "\r\n"
 
 let whitespace = [' ' '\t']+
 
-let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '\'']*
 let constructor_ident = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+

@@ -58,7 +58,14 @@ let from_backup_text = (backup_text: string, ~root): Zipper.t =>
        bails land here). */
     switch (MarkerParse.of_text(~root, backup_text)) {
     | None => Zipper.init()
-    | Some(z) => Zipper.unzip(~direction=Left, Zipper.unselect_and_zip(z))
+    | Some(z) =>
+      /* reposition the caret to the start WITHOUT dropping refractors:
+         unselect_and_zip yields a bare segment, and unzip would mint a
+         fresh (empty) refractor state — losing pins built from trigger
+         text during the parse */
+      let refractors = z.refractors;
+      Zipper.unzip(~direction=Left, Zipper.unselect_and_zip(z))
+      |> ZipperBase.update_refractors(_, _ => refractors);
     }
   };
 
