@@ -785,22 +785,28 @@ module Update = {
       |> {
         let.calc _exp = selected_exp
         and.calc ctx = ctx;
-        let proof_ctx =
-          ctx
-          |> SemanticCtx.get_env
-          |> Environment.to_list
-          |> List.filter_map(((name, exp)) =>
-               switch (Exp.term_of(exp)) {
-               | Grammar.ProofObject(e) => Some((name, e))
-               | _ => None
-               }
-             )
-          |> List.fold_left(
-               (acc, (name, exp)) => ProofCtx.add_exp(name, exp, acc),
-               Axioms.v,
-             )
-          |> List.map(ctx_entry => AssumptionBox.Model.{ctx_entry: ctx_entry});
-        Some(proof_ctx);
+        if (!settings.evaluation.enable_proof) {
+          None;
+        } else {
+          let proof_ctx =
+            ctx
+            |> SemanticCtx.get_env
+            |> Environment.to_list
+            |> List.filter_map(((name, exp)) =>
+                 switch (Exp.term_of(exp)) {
+                 | Grammar.ProofObject(e) => Some((name, e))
+                 | _ => None
+                 }
+               )
+            |> List.fold_left(
+                 (acc, (name, exp)) => ProofCtx.add_exp(name, exp, acc),
+                 Axioms.v,
+               )
+            |> List.map(ctx_entry =>
+                 AssumptionBox.Model.{ctx_entry: ctx_entry}
+               );
+          Some(proof_ctx);
+        };
       };
     let selected_ctx =
       Calc.Pending
@@ -839,30 +845,38 @@ module Update = {
         and.calc ctx = ctx
         and.calc new_next_steps = new_next_steps
         and.calc info_map = info_map;
-        let next_steps =
-          new_next_steps
-          |> (
-            fun
-            | EvaluatorStep.AutoStep(_) => []
-            | EvaluatorStep.AvailableSteps(steps) => steps
-          );
-        ProofHacks.find_refls(~info_map, ~env=SemanticCtx.get_env(ctx), exp)
-        |> List.filter(e =>
-             !
-               List.exists(
-                 s =>
-                   e
-                   |> Exp.rep_id
-                   == (
-                        EvaluatorStep.get_step_id_in(s, exp)
-                        |> Option.value(
-                             ~default=EvaluatorStep.get_step_id(s),
-                           )
-                      ),
-                 next_steps,
-               )
-             || settings.evaluation.write_out_steps
-           );
+        if (!settings.evaluation.enable_proof) {
+          [];
+        } else {
+          let next_steps =
+            new_next_steps
+            |> (
+              fun
+              | EvaluatorStep.AutoStep(_) => []
+              | EvaluatorStep.AvailableSteps(steps) => steps
+            );
+          ProofHacks.find_refls(
+            ~info_map,
+            ~env=SemanticCtx.get_env(ctx),
+            exp,
+          )
+          |> List.filter(e =>
+               !
+                 List.exists(
+                   s =>
+                     e
+                     |> Exp.rep_id
+                     == (
+                          EvaluatorStep.get_step_id_in(s, exp)
+                          |> Option.value(
+                               ~default=EvaluatorStep.get_step_id(s),
+                             )
+                        ),
+                   next_steps,
+                 )
+               || settings.evaluation.write_out_steps
+             );
+        };
       };
     let open_box = {
       let current_full_visible_exp = editor.statics.term;

@@ -932,6 +932,13 @@ let y = 2 in
 x + y|},
     (),
   ),
+  test_format(
+    ~name="Explore with arithmetic body",
+    ~input="explore 1 + 2 + 3 end",
+    ~expected={|explore
+    1 + 2 + 3 end|},
+    (),
+  ),
   /* Let chain with implicit trailing hole ends on its own line */
   test_format(
     ~name="Let chain implicit trailing hole",

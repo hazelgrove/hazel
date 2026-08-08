@@ -378,6 +378,9 @@ let equality =
       | None => false
       }
     | (Theorem(_, _, _), _) => false
+    | (Explore(e1), Explore(e2)) =>
+      exp(alphas_exp, alphas_typ, seen_fixpoints, e1, e2)
+    | (Explore(_), _) => false
 
     // Forms with type binders
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>

@@ -88,6 +88,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Theorem(p, e1, e2) =>
           let (env', p') = in_pat(env, env, p);
           Theorem(p', in_exp(env', e1), in_exp(env', e2)) |> rewrap;
+        | Explore(e) => Explore(in_exp(env, e)) |> rewrap
         | Forall(pat, e) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;

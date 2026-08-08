@@ -39,6 +39,7 @@ open AST
 %token EXPRESSION_DERIVATIVE
 %token DERIVATIVE_BY
 %token FUNCTION_DERIVATIVE
+%token EXPLORE
 %token MODULE
 %token FUN
 %token CASE
@@ -369,6 +370,7 @@ exp:
         FunctionDerivative(function_exp)
       } %prec UMINUS
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
+    | EXPLORE; e = exp; END { Explore(e) }
     | MODULE; i = IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(i), e1, e2) } %prec LET_EXP
     | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(c), e1, e2) } %prec LET_EXP
     | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(i), t), e1, e2) } %prec LET_EXP

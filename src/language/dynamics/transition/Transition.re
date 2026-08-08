@@ -104,6 +104,7 @@ type step_kind =
   | LetBind(string)
   | TheoremBind
   | RecordTheorem
+  | RecordExplore
   | WrapClosure
   | FixUnwrap
   | FixClosure
@@ -522,6 +523,15 @@ module Transition = (EV: EV_MODE) => {
     | Theorem(_) =>
       let. _ = otherwise(env, d);
       Indet;
+    | Explore(explore) =>
+      let. _ = otherwise(env, d);
+      let explore' = Substitution.in_exp(env, explore);
+      Step({
+        expr: tuple([]),
+        side_effects: [RecordExplore(DHExp.rep_id(d), env, explore')],
+        kind: RecordExplore,
+        is_value: false,
+      });
     | ProofObject(e) =>
       let. _ = otherwise(env, d);
       let e' = Substitution.in_exp(env, e);
@@ -1298,6 +1308,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | FixClosure
   | MarkIncomparable
   | RecordTheorem
+  | RecordExplore
   | RemoveParens => true;
 
 let stepper_justification: step_kind => string =
@@ -1305,6 +1316,7 @@ let stepper_justification: step_kind => string =
   | LetBind(s) => String.cat("substitution for ", s)
   | TheoremBind => "theorem substitution"
   | RecordTheorem => "record theorem"
+  | RecordExplore => "record explore"
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"

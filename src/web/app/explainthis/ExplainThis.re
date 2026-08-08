@@ -1993,6 +1993,20 @@ let get_doc =
             ),
           TheoremExp.tests,
         );
+      | Explore(exp) =>
+        let exp_id = List.nth(IdTagged.ids(exp), 0);
+        get_message(
+          ~colorings=ExploreExp.explore_exp_coloring_ids(~exp_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(exp_id),
+                ),
+            ),
+          ExploreExp.explores,
+        );
       | ProofObject(exp) =>
         let typ_id = List.nth(IdTagged.ids(exp), 0);
         get_message(

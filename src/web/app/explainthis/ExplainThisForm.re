@@ -220,6 +220,7 @@ type form_id =
   | LetExp(pat_sub_form_id)
   | FixExp(pat_sub_form_id)
   | TheoremExp
+  | ExploreExp
   | ProofObjectExp
   | TypFunApExp
   | FunApExp
@@ -345,6 +346,7 @@ type group_id =
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
   | TheoremExp
+  | ExploreExp
   | ProofObjectExp
   | TypFunApExp
   | FixExp(pat_sub_form_id)

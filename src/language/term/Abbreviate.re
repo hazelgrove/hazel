@@ -942,6 +942,29 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Theorem(p', e1', e2');
         }
 
+      | Explore(e) =>
+        if (available^ < 3) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else if (available^ < 8) {
+          available := available^ - 7;
+          Invalid("explore");
+        } else if (available^ < 11) {
+          available := available^ - 8;
+          Invalid("explore…");
+        } else if (available^ < 13) {
+          available := available^ - 11;
+          Invalid("explore…end");
+        } else {
+          /* Full: "explore " (8) + e + " end" (4) */
+          available := available^ - 12;
+          let (e', _) =
+            AbbrevBudget.with_budget(~budget=available^, ~run=() =>
+              abbreviate_exp(e)
+            );
+          Explore(e');
+        }
+
       | ProofObject(t) =>
         if (available^ < 8) {
           available := available^ - ellipsis_cost;
