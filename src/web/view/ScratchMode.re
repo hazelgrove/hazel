@@ -6,6 +6,15 @@ open Util;
 /* Dirty tracking for autosave: only re-persist slides that changed since
    last save. Eliminates expensive Zipper.zip + Base.equal_segment checks. */
 let dirty_slides: ref(Sets.StringSet.t) = ref(Sets.StringSet.empty);
+
+/* Lazy hydration: boot builds a full editor (parse + statics cache +
+   agent state) for the CURRENT slide only; every other slide sits in
+   the model as a cheap blank placeholder and is registered here
+   ("prefix:name"). Hydration replaces the placeholder on first switch
+   (Persist.hydrate_current). Dormant slides are never persisted over:
+   their persist_cache entries are seeded from storage at load. */
+let dormant_slides: Hashtbl.t(string, unit) = Hashtbl.create(64);
+let dormant_key = (prefix: string, name: string) => prefix ++ ":" ++ name;
 let persist_cache:
   ref(Maps.StringMap.t(option(CellEditor.Model.persistent))) =
   ref(Maps.StringMap.empty);
@@ -488,10 +497,48 @@ module Persist = {
       | Some(meta) => (meta.current, meta.names)
       | None => (default_current, default_names)
       };
+    Hashtbl.reset(dormant_slides);
     Model.{
       current,
       scratchpads:
-        List.map(name => load_scratchpad(~settings, prefix, name), names),
+        List.mapi(
+          (i, name) =>
+            if (i == current) {
+              load_scratchpad(~settings, prefix, name);
+            } else {
+              Hashtbl.replace(dormant_slides, dormant_key(prefix, name), ());
+              /* Seed the persist cache from storage so Model.persist
+                 never writes the blank placeholder over a real slide. */
+              switch (load_slide_kind(prefix, name)) {
+              | Some(CodePersist({editor, _})) =>
+                persist_cache :=
+                  Maps.StringMap.add(name, editor, persist_cache^)
+              | _ => ()
+              };
+              Scratchpad.blank_code(name);
+            },
+          names,
+        ),
+    };
+  };
+
+  /* Swap the placeholder at [current] for the real slide, if dormant. */
+  let hydrate_current = (~settings, prefix: string, model: Model.t): Model.t => {
+    let sp = List.nth(model.scratchpads, model.current);
+    let key = dormant_key(prefix, sp.name);
+    if (Hashtbl.mem(dormant_slides, key)) {
+      Hashtbl.remove(dormant_slides, key);
+      {
+        ...model,
+        scratchpads:
+          Util.ListUtil.put_nth(
+            model.current,
+            load_scratchpad(~settings, prefix, sp.name),
+            model.scratchpads,
+          ),
+      };
+    } else {
+      model;
     };
   };
 
@@ -882,10 +929,14 @@ module Update = {
     | SwitchSlide(i) =>
       WorkerClient.cancel();
       let* current = i |> Updated.return;
-      {
-        ...model,
-        current,
-      };
+      Persist.hydrate_current(
+        ~settings=settings.core,
+        is_documentation ? "doc" : "scratch",
+        {
+          ...model,
+          current,
+        },
+      );
     | AddSlide =>
       WorkerClient.cancel();
       Updated.return(
@@ -966,10 +1017,14 @@ module Update = {
                 },
                 is_documentation,
               )
-            : {
-              scratchpads: new_sp,
-              current: max(model.current - 1, 0),
-            };
+            : Persist.hydrate_current(
+                ~settings=settings.core,
+                is_documentation ? "doc" : "scratch",
+                {
+                  scratchpads: new_sp,
+                  current: max(model.current - 1, 0),
+                },
+              );
         Updated.return(m);
       } else {
         model |> return_quiet;
