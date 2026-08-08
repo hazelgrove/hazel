@@ -1,26 +1,31 @@
 /* HTML/MVU example apps, shipped as documentation slides.
  *
- * Each is a working Elm-style app: the program ends in a
- * `(init, update, view, subs)` tuple carrying an HTML projector, so the
- * slide opens with the app already running.
+ * Each is a working Elm-style app ending in ^^html_sidebar((init,
+ * update, view, subs)), so the slide opens with the app already
+ * running and docked.
  *
- * Generated from the .hz files in hazel-programs/mvu via
- * `hazel slide-encode`. Those files are the editable source — edit one
- * WITHOUT re-encoding and the slide silently keeps the old program.
+ * The committed .hz files in hazel-programs/docs/mvu ARE the slides:
+ * their text is embedded here at compile time and parsed at load
+ * (FastParse, typing-parser fallback), so there is no encode step to
+ * go stale. Human indentation in the .hz is flattened at load
+ * (PersistentSegment.of_text) because Hazel computes indentation at
+ * layout time. Test_FastParseCorpus keeps every .hz on the fast path.
  *
  * The "MVU / " prefix collapses these into a nested dropdown, matching
- * how the "B2T2 / ..." and "Derivations / ..." slides are grouped. */
+ * how the "B2T2 / ..." slides are grouped. */
 let all_slides: list((string, Haz3lcore.PersistentSegment.t)) =
   [
-    MvuCounter.out,
-    MvuTimer.out,
-    MvuTodoList.out,
-    MvuFirefly.out,
-    MvuCropPlotter.out,
-    MvuTicTacToe.out,
-    MvuGameOfLife.out,
-    MvuSeedCatalog.out,
-    MvuHarvestStreak.out,
-    MvuNutrientRotation.out,
+    ("Counter", [%blob "mvu-counter.hz"]),
+    ("Watering Timer", [%blob "timer.hz"]),
+    ("Planting List", [%blob "todo-list.hz"]),
+    ("Firefly", [%blob "keyboard-game.hz"]),
+    ("Crop Plotter", [%blob "crop-plotter.hz"]),
+    ("Sprouts and Shrooms", [%blob "tictactoe.hz"]),
+    ("Garden of Life", [%blob "gameoflife.hz"]),
+    ("Seed Catalog", [%blob "seed-catalog.hz"]),
+    ("Harvest Ledger", [%blob "harvest-streak.hz"]),
+    ("Nutrient Tracker", [%blob "nutrient-rotation.hz"]),
   ]
-  |> List.map(((name, seg)) => ("MVU / " ++ name, seg));
+  |> List.map(((name, text)) =>
+       ("MVU / " ++ name, Haz3lcore.PersistentSegment.of_text(text))
+     );

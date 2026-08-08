@@ -15,8 +15,8 @@ let graph_module = {
       List.find_opt(
         Sys.file_exists,
         [
-          "hazel-programs/livelits/graph-editor.hz",
-          "../hazel-programs/livelits/graph-editor.hz",
+          "hazel-programs/docs/livelits/graph-editor.hz",
+          "../hazel-programs/docs/livelits/graph-editor.hz",
         ],
       )
     ) {

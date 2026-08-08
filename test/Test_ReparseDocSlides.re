@@ -22,34 +22,69 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
           Alcotest.fail("Failed to parse segment from slide backup text")
         };
 
-      let original_segment =
-        Sexplib.Sexp.of_string(slide.editor.zipper.zipper)
-        |> Zipper.t_of_sexp
-        |> Zipper.unselect_and_zip(~erase_buffer=true);
+      /* Text-backed slides (committed .hz, zipper == "") have no stored
+         sexp. Structural segment equality is also the wrong bar there:
+         projector MODELS embed freshly-minted ids per materialization.
+         The meaningful contract is text-level — BOTH parsers reproduce
+         the committed text byte-for-byte and read the same term. */
+      if (slide.editor.zipper.zipper == "") {
+        let text = slide.editor.zipper.backup_text;
+        let fast_segment =
+          switch (
+            FastParse.of_text(
+              ~materialize=Triggers.invoked_projector,
+              ~root=Exp,
+              String.trim(text),
+            )
+          ) {
+          | Some(seg) => seg
+          | None =>
+            Alcotest.fail(
+              "text slide fell off the fast path: "
+              ++ Option.value(FastParse.bail_note^, ~default="no note"),
+            )
+          };
+        let print = seg => Printer.of_segment(~holes="", ~refractors=[], seg);
+        check(
+          string,
+          name ++ ": fast parse reprints the committed text",
+          String.trim(text),
+          String.trim(print(fast_segment)),
+        );
+        check(
+          string,
+          name ++ ": typing parse reprints the committed text",
+          String.trim(text),
+          String.trim(print(reparsed_segment)),
+        );
+        check(
+          bool,
+          name ++ ": both parsers read the same term",
+          true,
+          Language.Equality.(
+            equality({
+              ...syntactic_settings,
+              ignore_parens: false,
+            }).
+              exp
+          )(
+            MakeTerm.go(fast_segment).term,
+            MakeTerm.go(reparsed_segment).term,
+          ),
+        );
+      } else {
+        let original_segment =
+          Sexplib.Sexp.of_string(slide.editor.zipper.zipper)
+          |> Zipper.t_of_sexp
+          |> Zipper.unselect_and_zip(~erase_buffer=true);
 
-      print_endline(
-        "Original segment: "
-        ++ Segment.to_string(
-             original_segment,
-             ~projector_to_segment=_ => [],
-             ~refractor_seg_to_seg=(r, s) => (r, s),
-           ),
-      );
-      print_endline(
-        "Reparsed segment: "
-        ++ Segment.to_string(
-             reparsed_segment,
-             ~projector_to_segment=_ => [],
-             ~refractor_seg_to_seg=(r, s) => (r, s),
-           ),
-      );
-
-      check(
-        segment,
-        "Reparsing " ++ name ++ " backup_text produces equivalent segment",
-        original_segment,
-        reparsed_segment,
-      );
+        check(
+          segment,
+          "Reparsing " ++ name ++ " backup_text produces equivalent segment",
+          original_segment,
+          reparsed_segment,
+        );
+      };
     },
   );
 };

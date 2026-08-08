@@ -66,9 +66,23 @@ let slide_roundtrip_case =
 let is_b2t2 = ((name, _)) =>
   String.length(name) >= 4 && String.sub(name, 0, 4) == "B2T2";
 
+/* Text-backed slides (committed .hz) carry no segment sexp; materialize
+   one via the load path so the usual fixed-point check applies. */
+let materialize_text_slide =
+    ((name, p): (string, PersistentSegment.t))
+    : (string, PersistentSegment.t) =>
+  p.segment == ""
+    ? (
+      name,
+      PersistentZipper.from_backup_text(p.backup_text, ~root=Exp)
+      |> PersistentSegment.persist,
+    )
+    : (name, p);
+
 let doc_slide_cases =
   Web.Init.documentation_slides
   |> List.filter(s => !is_b2t2(s))
+  |> List.map(materialize_text_slide)
   |> List.map(slide_roundtrip_case);
 
 let text_fixed_point_case = (~name, text) =>

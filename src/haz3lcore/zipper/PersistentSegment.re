@@ -50,7 +50,34 @@ let restore_from_backup_text = (backup_text: string, ~root): Zipper.t =>
   )
   |> Zipper.unzip(~direction=Left);
 
-let unpersist = (persisted: t, ~root): PersistentZipper.t => {
+/* Committed .hz slide text keeps human indentation, but Hazel computes
+   indentation at layout time and renders literal leading spaces ON TOP
+   of it (doubled, drifting) — so text slides are flattened at load.
+   The strip is blind per-line (matching the old regen-slides.sh encode
+   step); a multi-line string literal would be altered, so slide sources
+   must not contain them. */
+let flatten_indentation = (text: string): string =>
+  text
+  |> String.split_on_char('\n')
+  |> List.map(line => {
+       let n = String.length(line);
+       let rec first_content = i =>
+         i < n && (line.[i] == ' ' || line.[i] == '\t')
+           ? first_content(i + 1) : i;
+       let i = first_content(0);
+       String.sub(line, i, n - i);
+     })
+  |> String.concat("\n");
+
+/* A text-backed slide: parsing is deferred to PersistentZipper's text
+   path (FastParse first), so boot does no sexp round-trip for it. */
+let of_text = (text: string): t => {
+  segment: "",
+  backup_text: flatten_indentation(text),
+  refractors: refractors_init_str,
+};
+
+let unpersist_serialized = (persisted: t, ~root): PersistentZipper.t => {
   zipper:
     (
       try(restore(persisted)) {
@@ -65,3 +92,8 @@ let unpersist = (persisted: t, ~root): PersistentZipper.t => {
     |> Sexplib.Sexp.to_string,
   backup_text: persisted.backup_text,
 };
+
+let unpersist = (persisted: t, ~root): PersistentZipper.t =>
+  persisted.segment == ""
+    ? PersistentZipper.of_text(persisted.backup_text)
+    : unpersist_serialized(persisted, ~root);

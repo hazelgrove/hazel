@@ -33,12 +33,6 @@ The definition must be closed — its functions evaluate in the builtin
 environment — so helpers belong among the members. Each use's model is
 stored in its own argument syntax, so state survives in the program text.
 
-After editing a source, regenerate the slide encodings:
-
-```
-./hazel-programs/livelits/regen-slides.sh          # all
-./hazel-programs/livelits/regen-slides.sh slider   # by substring
-```
-
-Nothing checks encodings are current — an un-regenerated edit silently ships
-the old program.
+These files ARE the shipped `Livelits / ...` slides: they are embedded
+at compile time (`src/livelitdemos/Slides.re`, ppx_blob) and parsed at
+load, so an edit here ships on the next build — no encode step.

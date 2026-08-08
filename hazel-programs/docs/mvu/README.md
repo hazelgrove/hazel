@@ -19,19 +19,16 @@ To work from the file instead:
 From the command line: `./hazel run <file>.hz` evaluates the app, and
 `./hazel test <file>.hz` runs its inline test suite.
 
-## Regenerating the slides
+## These files ARE the slides
 
-The slides in `src/mvu` are generated from these files. **Nothing detects a
-stale encoding** — edit a `.hz` without regenerating and the slide keeps
-shipping the old program. After any edit here:
-
-```
-./hazel-programs/mvu/regen-slides.sh
-```
-
-That strips indentation (Hazel computes it at layout time, so baked-in
-indentation renders doubled), wraps the trailing tuple in `^^html(...)`, and
-docks the projector. See the comment at the top of the script.
+The `MVU / ...` documentation slides embed these files at compile time
+(`src/mvu/Slides.re`, ppx_blob) and parse them at load — there is no
+encode step, so an edit here ships on the next build. Human indentation
+is flattened at load (Hazel computes indentation at layout time), and
+the `^^html_sidebar(...)` wrapper on the final tuple is written in the
+text itself. `Test_FastParseCorpus` keeps every file on the fast parse
+path; `DocSlides.ReparseBackuptext` checks both parsers reproduce the
+text exactly.
 
 ## Architecture
 

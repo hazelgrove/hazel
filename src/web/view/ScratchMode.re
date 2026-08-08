@@ -56,23 +56,35 @@ module Scratchpad = {
   let persist = (s: t): persistent => {
     switch (s.kind) {
     | Code({editor, agent}) =>
-      let current_segment = Zipper.zip(editor.editor.editor.state.zipper);
+      let current_zipper = editor.editor.editor.state.zipper;
+      let current_segment = Zipper.zip(current_zipper);
       let original = Init.find_documentation_slide(s.name);
-      let original_segment =
-        original
-        |> Option.map((pce: CellEditor.Model.persistent) =>
-             PersistentZipper.unpersist(
-               pce.editor.zipper,
-               ~root=pce.editor.root,
-             )
-           )
-        |> Option.map(Zipper.zip);
+      /* Text-backed originals (committed .hz, zipper == "") mint fresh
+         ids on every parse, so id-sensitive segment equality can never
+         match; compare by the text projection instead — FastParse loads
+         the text verbatim, so an unedited slide prints byte-identically. */
+      let unchanged =
+        switch (original) {
+        | None => false
+        | Some(pce) when pce.editor.zipper.zipper == "" =>
+          PersistentSegment.to_string(
+            current_segment,
+            ~refractors=current_zipper.refractors.manuals,
+          )
+          == pce.editor.zipper.backup_text
+        | Some(pce) =>
+          Base.equal_segment(
+            Zipper.zip(
+              PersistentZipper.unpersist(
+                pce.editor.zipper,
+                ~root=pce.editor.root,
+              ),
+            ),
+            current_segment,
+          )
+        };
       let editor_persist =
-        if (Option.equal(
-              Base.equal_segment,
-              original_segment,
-              Some(current_segment),
-            )) {
+        if (unchanged) {
           None;
         } else {
           Some(CellEditor.Model.persist(editor));

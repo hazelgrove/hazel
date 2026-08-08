@@ -1,5 +1,7 @@
 (include_subdirs unqualified)
 
+(copy_files ../../hazel-programs/docs/livelits/*.hz)
+
 (library
  (name livelitdemos)
  (libraries haz3lcore)
@@ -11,10 +13,13 @@
    ppx_yojson_conv
    js_of_ocaml-ppx
    ppx_let
+   ppx_blob
    ppx_sexp_conv
    ppx_enumerate
    ppx_deriving.show
-   ppx_deriving.eq)))
+   ppx_deriving.eq))
+ (preprocessor_deps
+  (glob_files *.hz)))
 
 (env
  (dev

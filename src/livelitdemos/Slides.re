@@ -1,8 +1,12 @@
 /* User-defined-livelit example slides, shipped as documentation.
-   Sources are the .hz files in hazel-programs/livelits. Regenerate the
-   encodings with regen-slides.sh there after editing a source — nothing
-   checks that they are current. */
-
+ * The committed .hz files in hazel-programs/docs/livelits ARE the
+ * slides (embedded at compile time, parsed at load) — the ^^livelit
+ * triggers are written in the text itself. */
 let all_slides: list((string, Haz3lcore.PersistentSegment.t)) =
-  [LivelitSlider.out, LivelitColor.out]
-  |> List.map(((name, seg)) => ("Livelits / " ++ name, seg));
+  [
+    ("Define a Slider", [%blob "defined-slider.hz"]),
+    ("Color Picker", [%blob "color-picker.hz"]),
+  ]
+  |> List.map(((name, text)) =>
+       ("Livelits / " ++ name, Haz3lcore.PersistentSegment.of_text(text))
+     );
