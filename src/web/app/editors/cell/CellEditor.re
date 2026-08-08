@@ -285,7 +285,9 @@ module View = {
           ~overlays=overlays(model.editor.editor),
           ~lines,
           ~dynamics=EvalResult.Model.dynamics(model.result),
-          ~incr_eval=EvalResult.Model.incr_eval(model.result),
+          ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
+          ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
+          ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),
           model.editor,
         ),
       ]

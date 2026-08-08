@@ -638,7 +638,7 @@ module View = {
     let show_math_automation_controls =
       Model.shows_math_automation_controls(model);
     let settings_modal =
-      globals.settings.core.evaluation.show_settings
+      is_toplevel && globals.settings.core.evaluation.show_settings
         ? SettingsModal.view(
             ~inject=u => globals.inject_global(Set(u)),
             ~extra=show_math_automation_controls ? [automation_controls] : [],

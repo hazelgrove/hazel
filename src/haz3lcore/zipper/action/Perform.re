@@ -20,6 +20,11 @@ let go =
     )
     : Action.Result.t(Zipper.t) => {
   let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fun.id;
+  /* Paste is a rare bulk edit that can leave incomplete delimiter forms
+     anywhere in the pasted region, so it gets the thorough (full-relatives)
+     reassociation guard rather than the cheap caret-local one. */
+  let maybe_reassoc_thorough =
+    settings.deep_reassociate ? Reassociate.go_thorough : Fun.id;
   switch (a) {
   | Introduce =>
     Select.current_term(
@@ -34,14 +39,14 @@ let go =
     |> return(CantIntroduce)
   | Paste(clipboard) =>
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
-    | Some(z) => Ok(maybe_reassoc(z))
+    | Some(z) => Ok(maybe_reassoc_thorough(z))
     | None =>
       (
         Parser.can_fast_paste(clipboard, z, ~root)
           ? Parser.fast_paste(clipboard, z, ~root)
           : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
       )
-      |> Option.map(maybe_reassoc)
+      |> Option.map(maybe_reassoc_thorough)
       |> return(CantPaste)
     }
   | Cut =>
@@ -221,6 +226,6 @@ let go =
   | ToggleLineComment =>
     Comment.go(~deep_reassociate=settings.deep_reassociate, z, ~root)
     |> return(Cant_destruct)
-  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a, ~return)
+  | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a)
   };
 };

@@ -64,7 +64,7 @@ let assistant_tab = (~globals: Globals.t): Node.t =>
     ~panel=HelpfulAssistant,
     ~cls=["assistant-button"],
     ~icon=Icons.hazelnut_agent,
-    ~tooltip="Switch to Helpful Assistant",
+    ~tooltip="Open Hazel Coding Agent",
     ~globals,
   );
 
@@ -83,6 +83,15 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~cls=["log-control-button"],
     ~icon=Icons.gear,
     ~tooltip="Switch to Log Control Panel",
+    ~globals,
+  );
+
+let debug_info_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=DebugInfo,
+    ~cls=["debug-info-button"],
+    ~icon=Icons.info,
+    ~tooltip="Switch to Debug Info Panel",
     ~globals,
   );
 
@@ -176,6 +185,9 @@ let persistent_view =
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
+        )
+        @ (
+          globals.settings.show_debug_panel ? [debug_info_tab(~globals)] : []
         ),
       ),
     ],
@@ -346,6 +358,7 @@ let view =
                 ~cursor,
                 ~collection=problem_collection,
               )
+            | DebugInfo => DebugSidebar.view(~globals, ~cursor)
             },
           ],
         )

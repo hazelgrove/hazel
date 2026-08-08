@@ -3496,7 +3496,7 @@ let check_single_algebra_identity = (group, profile, from_, to_) =>
 let normalize_by_evaluation =
     (~settings as _: CoreSettings.t, ~env, exp: Exp.t): option(normalized) => {
   switch (Evaluator.evaluate_and_limit(~env, ~step_limit=1000, exp)) {
-  | Completed((value, _)) =>
+  | LimitedCompleted((value, _)) =>
     let normal_exp = value |> DHExp.strip_ascriptions;
     Some({
       normal_form: Evaluated(normal_exp),

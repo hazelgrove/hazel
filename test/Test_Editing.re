@@ -55,7 +55,22 @@ let perform =
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
       switch (perform(a, z, ~root=Exp)) {
-      | Ok(z) => z
+      | Ok(z) =>
+        /* Term construction must be total on every reachable editor state
+         * (statics/display consume it after every action). Checking here
+         * (rather than only on the pre-state of the NEXT action) means the
+         * final state of every test is covered too. */
+        switch (MakeTerm.from_zip_for_sem(z, ~root=Exp)) {
+        | _ => z
+        | exception e =>
+          print_endline("Zipper: " ++ Zipper.show(z));
+          Alcotest.fail(
+            "Malformed state after action "
+            ++ Action.show(a)
+            ++ ": "
+            ++ Printexc.to_string(e),
+          );
+        }
       | Error(err) =>
         print_endline("Zipper: " ++ Zipper.show(z));
         Alcotest.fail("Failed on action: " ++ Action.Failure.show(err));
@@ -220,13 +235,7 @@ let test_copy = (~name, ~z: Zipper.t, ~expected: string): test_case(_) =>
     name,
     `Quick,
     () => {
-      let full =
-        Printer.of_segment(
-          ~holes=convex_char,
-          ~indent="",
-          z.selection.content,
-        );
-      let actual = Zipper.trim_selected_text(z, full);
+      let actual = Printer.selected_text(~holes=convex_char, ~indent="", z);
       check(testable(Fmt.string, String.equal), name, expected, actual);
     },
   );
@@ -275,7 +284,8 @@ let basic_tests = [
   test(
     ~name="Paste splitting text into token at Inner caret",
     ~acts=mk("hel¦lo") @ [Paste("a b")],
-    ~goal="hela~¦blo",
+    /* Caret lands after the pasted text (at the end of "b"), not before it */
+    ~goal="hela~b¦lo",
   ),
   test(
     ~name="Paste into token inside let expression",
@@ -374,6 +384,16 @@ let insertion_tests = [
     ~name="Insert char at start of token",
     ~acts=mk({|¦oo|}) @ [Insert("f")],
     ~goal={|f¦oo|},
+  ),
+  test(
+    ~name="Insert char at start of token inside function application",
+    ~acts=mk({|length(¦oo)|}) @ [Insert("f")],
+    ~goal={|length(f¦oo)|},
+  ),
+  test(
+    ~name="Insert char at start of token in let body",
+    ~acts=mk({|let x = 1 in ¦oo|}) @ [Insert("f")],
+    ~goal={|let x = 1 in f¦oo|},
   ),
   test(
     ~name="Insert char inside token",
@@ -3630,6 +3650,36 @@ let char_selection_tests = [
     ~z=mk_zipper({|§apple¦|}),
     ~expected="apple",
   ),
+  test_copy(
+    ~name="Copy middle of string literal: ll from \"hello\"",
+    ~z=mk_zipper({|"he§ll¦o"|}),
+    ~expected="ll",
+  ),
+  test_copy(
+    ~name="Copy inside int literal: 45 from 123456",
+    ~z=mk_zipper({|123§45¦6|}),
+    ~expected="45",
+  ),
+  test_copy(
+    ~name="Copy cross-token, both ends inside: t x = tr",
+    ~z=mk_zipper({|le§t x = tr¦ue|}),
+    ~expected="t x = tr",
+  ),
+  test_copy(
+    ~name="Copy cross-token ending inside string: x ++ \"wo",
+    ~z=mk_zipper({|§x ++ "wo¦rld"|}),
+    ~expected={|x ++ "wo|},
+  ),
+  test_copy(
+    ~name="Copy emoji inside string literal (multi-codepoint char)",
+    ~z=mk_zipper({|"§😀¦"|}),
+    ~expected={|😀|},
+  ),
+  test_copy(
+    ~name="Copy ascii char before emoji in string",
+    ~z=mk_zipper({|"§a¦😀"|}),
+    ~expected="a",
+  ),
   /* P. Cut and paste with char-level selections */
   test_case(
     "Cut and paste partial keyword (via Cut)",
@@ -4687,6 +4737,203 @@ let drag_to_zero_width_tests = [
   ),
 ];
 
+/* An incomplete `[1,2` (closing `]` still in the backpack) ending a line before
+   `in` must mold as a ListLit, not degrade to a Tuple — the dump must not drop
+   the `]` across the end-of-line linebreak. */
+let def_kind = (src: string): string => {
+  let z = mk(src) |> perform(Zipper.init());
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (Language.IdTagged.term_of(term)) {
+  | Let(_, def, _) =>
+    switch (Language.IdTagged.term_of(def)) {
+    | ListLit(_) => "ListLit"
+    | Tuple(_) => "Tuple"
+    | _ => "other"
+    }
+  | _ => "not-a-let"
+  };
+};
+
+let incomplete_list_dump_tests = [
+  test_case(
+    "Incomplete list before `in`+linebreak molds ListLit not Tuple", `Quick, () =>
+    check(string, "def kind", "ListLit", def_kind({|let a = [1,2¦ in
+b|}))
+  ),
+  test_case(
+    "Type-annotated incomplete list molds ListLit (as in reported program)",
+    `Quick,
+    () =>
+    check(
+      string,
+      "def kind",
+      "ListLit",
+      def_kind({|let a:[Int] = [1,2¦   in
+a|}),
+    )
+  ),
+  test_case(
+    "Already-multiline incomplete list still closes before `in`", `Quick, () =>
+    check(string, "def kind", "ListLit", def_kind({|let a = [1,
+2¦ in
+b|}))
+  ),
+];
+
+/* Backspacing inside a token whose piece has a left sibling: the
+ * replacement must land on the caret's right for Inner(n) to still
+ * refer to it. */
+let inner_destruct_tests = [
+  test(
+    ~name="Backspace inside string with left sibling",
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~goal={|1 + "a¦"|},
+  ),
+  test(
+    ~name="Backspace twice inside string with left sibling",
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(1) @ [Destruct(Left), Destruct(Left)],
+    ~goal={|1 + "¦"|},
+  ),
+  test(
+    ~name="Backspace inside identifier with left sibling",
+    ~acts=mk({|1 + abc¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~goal={|1 + a¦c|},
+  ),
+  test(
+    ~name="Delete forward inside string with left sibling",
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(2) @ [Destruct(Right)],
+    ~goal={|1 + "a¦"|},
+  ),
+  /* Quote-wrapping drops the selection; its Inner caret must go too. */
+  test(
+    ~name="Wrap char-level selection in quotes",
+    ~acts=
+      mk({|"aa" ++ "x"¦|})
+      @ mv_l(4)
+      @ [Select(Resize(Local(Left, ByChar))), Insert("\"")],
+    ~goal={|"aa" ~"++"~¦ "x"|},
+  ),
+  test(
+    ~name="Delete after wrapping char-level selection in quotes",
+    ~acts=
+      mk({|"aa" ++ "x"¦|})
+      @ mv_l(4)
+      @ [
+        Select(Resize(Local(Left, ByChar))),
+        Insert("\""),
+        Destruct(Right),
+      ],
+    ~goal={|"aa" ~"++"~¦"x"|},
+  ),
+];
+
+/* A grapheme cluster is one Inner caret position but several bytes, so
+ * editing beside one must stay in grapheme units throughout. */
+let grapheme_tests = [
+  /* Also pins that Intl.Segmenter is present: the code-point fallback in
+     Unicode.graphemes would count 5 and 2 here. */
+  test_case(
+    "Multi-codepoint clusters count as one grapheme",
+    `Quick,
+    () => {
+      check(int, "ZWJ family", 1, Token.length({|👨‍👩‍👧|}));
+      check(int, "e + combining acute", 1, Token.length({|é|}));
+      check(int, "emoji", 1, Token.length({|😀|}));
+    },
+  ),
+  test(
+    ~name="Insert after emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Insert("1")],
+    ~goal={|"😀1¦"|},
+  ),
+  test(
+    ~name="Insert then backspace after emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Insert("1"), Destruct(Left)],
+    ~goal={|"😀¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after emoji in string",
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Left), Destruct(Left)],
+    ~goal={|"😀¦"|},
+  ),
+  test(
+    ~name="Backspace the emoji itself",
+    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~goal={|"¦"|},
+  ),
+  test(
+    ~name="Delete forward over emoji from start of string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Destruct(Right)],
+    ~goal={|"¦"|},
+  ),
+  test(
+    ~name="Insert before emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Insert("1")],
+    ~goal={|"1¦😀"|},
+  ),
+  test(
+    ~name="Insert then backspace before emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Insert("1"), Destruct(Left)],
+    ~goal={|"¦😀"|},
+  ),
+  test(
+    ~name="Insert then backspace after mid-string emoji",
+    ~acts=mk({|"a😀b"¦|}) @ mv_l(2) @ [Insert("1"), Destruct(Left)],
+    ~goal={|"a😀¦b"|},
+  ),
+  test(
+    ~name="Backspace mid-string emoji",
+    ~acts=mk({|"a😀b"¦|}) @ mv_l(2) @ [Destruct(Left)],
+    ~goal={|"a¦b"|},
+  ),
+  test(
+    ~name="Move by char across emoji round trip",
+    ~acts=mk({|"a😀b"¦|}) @ mv_l(3) @ mv_r(1),
+    ~goal={|"a😀¦b"|},
+  ),
+  test(
+    ~name="Insert then backspace after emoji, string with left sibling",
+    ~acts=mk({|1 + "😀"¦|}) @ mv_l(1) @ [Insert("1"), Destruct(Left)],
+    ~goal={|1 + "😀¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after emoji, left sibling",
+    ~acts=
+      mk({|1 + "😀"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Left), Destruct(Left)],
+    ~goal={|1 + "😀¦"|},
+  ),
+  test(
+    ~name="Backspace the emoji itself, string with left sibling",
+    ~acts=mk({|1 + "a😀"¦|}) @ mv_l(1) @ [Destruct(Left)],
+    ~goal={|1 + "a¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after combining-mark grapheme",
+    ~acts=
+      mk({|"é"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Left), Destruct(Left)],
+    ~goal={|"é¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after ZWJ emoji",
+    ~acts=
+      mk({|"👨‍👩‍👧"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Left), Destruct(Left)],
+    ~goal={|"👨‍👩‍👧¦"|},
+  ),
+];
+
 let tests = [
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
@@ -4709,8 +4956,11 @@ let tests = [
   ("Editing.CommentRemold", comment_remold_tests),
   ("Editing.CommentToggleExtra", comment_toggle_extra_tests),
   ("Editing.AncestorSort", ancestor_sort_tests),
+  ("Editing.IncompleteListDump", incomplete_list_dump_tests),
   ("Editing.CharSelection", char_selection_tests),
   ("Editing.MultiDelimSelectionBugs", multi_delim_selection_bug_tests),
   ("Editing.MultiDelimBackpackBugs", multi_delim_backpack_tests),
   ("Editing.CrossBoundary", cross_boundary_tests),
+  ("Editing.InnerDestruct", inner_destruct_tests),
+  ("Editing.Grapheme", grapheme_tests),
 ];

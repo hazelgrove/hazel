@@ -215,35 +215,147 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
   };
 };
 
-let get_var_names_from_pat = (curr: Info.t): list(string) => {
-  let rec go = (pat: Pat.t, vars: list(string)): list(string) => {
-    switch (pat.term) {
-    | Var(name) => vars @ [name]
-    | Ap(pat1, pat2)
-    | TupLabel(pat1, pat2)
-    | Cons(pat1, pat2) => go(pat1, vars) @ go(pat2, vars)
-    | Parens(pat)
-    | Asc(pat, _) => go(pat, vars)
-    | ListLit(pats)
-    | Tuple(pats) =>
-      List.fold_left((vars, pat) => go(pat, vars), vars, pats)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Atom(_)
-    | Constructor(_, _)
-    | Label(_)
-    | Projector(_, _)
-    | ExplicitNonlabel => vars
-    };
+let rec var_names_of_pat = (pat: Pat.t): list(string) => {
+  switch (pat.term) {
+  | Var(name) => [name]
+  | Ap(pat1, pat2)
+  | TupLabel(pat1, pat2)
+  | Cons(pat1, pat2) => var_names_of_pat(pat1) @ var_names_of_pat(pat2)
+  | Parens(pat)
+  | Asc(pat, _) => var_names_of_pat(pat)
+  | ListLit(pats)
+  | Tuple(pats) => List.concat_map(var_names_of_pat, pats)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | Atom(_)
+  | Constructor(_, _)
+  | Label(_)
+  | Projector(_, _)
+  | ExplicitNonlabel => []
   };
-  let pat =
-    switch (curr) {
-    | InfoPat({user_term: term, _}) => term
-    | _ => raise(Failure("Pat is not a pattern"))
+};
+
+/** After a pattern edit, the post-edit [[Let]]'s [[co_ctx]] can already treat
+    stale body spellings (old pattern name) as outer/free, so they wrongly
+    survive the [[entire_coctx]] filter in [[get_refs_to]]. Use the pre-edit
+    [[Let]]'s [[co_ctx]] for that filter, while still taking the body from the
+    post-edit term and resolving it in the current [[info_map]]. */
+let get_refs_to_after_pattern_edit =
+    (
+      ~pre_edit_let_info: Info.t,
+      ~post_edit_let_info: Info.t,
+      info_map: Id.Map.t(Info.t),
+    )
+    : CoCtx.t => {
+  let exp_to_info = (term: Exp.t): Info.t => exp_to_info(term, info_map);
+  switch (pre_edit_let_info, post_edit_let_info) {
+  | (InfoExp(pre_let), InfoExp(term_after)) =>
+    let entire_coctx = pre_let.co_ctx;
+    let body_coctx =
+      switch (Exp.term_of(term_after.user_term)) {
+      | Let(_, _, body)
+      | TyAlias(_, _, body)
+      | ModuleExp(_, _, body) =>
+        switch (exp_to_info(body)) {
+        | InfoExp({co_ctx, _}) => co_ctx
+        | _ =>
+          raise(
+            Failure("Body of let/type alias/module is not an expression"),
+          )
+        }
+      | _ =>
+        raise(
+          Failure(
+            "Current node is not a let, type alias, or module expression",
+          ),
+        )
+      };
+    /* Fn-sugar (`let f(x) = def`) scopes f AND the params over the def (it
+       desugars to a recursive `let f = fun x -> def`), so recursive calls
+       and param uses live in the def's co_ctx; over the body only f is
+       bound. Applied only when old and new patterns are both sugar — for
+       plain lets the pattern does not scope over the def. Note the
+       whole-let co_ctx unions in the def's co_ctx unfiltered, so for
+       recursive bindings the entire_coctx filter below would wrongly drop
+       the body's refs to f. */
+    let sugar_head_name = (p: Pat.t): option(string) =>
+      switch (FunctionSugar.detect(p)) {
+      | Some((f_name, _, _)) =>
+        switch (Pat.term_of(f_name)) {
+        | Var(n) => Some(n)
+        | _ => None
+        }
+      | None => None
+      };
+    switch (
+      Exp.term_of(pre_let.user_term),
+      Exp.term_of(term_after.user_term),
+    ) {
+    | (Let(p_old, _, _), Let(p_new, def, _))
+        when
+          Option.is_some(sugar_head_name(p_old))
+          && Option.is_some(FunctionSugar.detect(p_new)) =>
+      let old_names = var_names_of_pat(p_old);
+      let head_name = Option.get(sugar_head_name(p_old));
+      let def_refs =
+        switch (exp_to_info(def)) {
+        | InfoExp({co_ctx, _}) =>
+          VarMap.filter(((n, _)) => List.mem(n, old_names), co_ctx)
+        | _ => []
+        };
+      let body_refs =
+        VarMap.filter(((n, _)) => String.equal(n, head_name), body_coctx);
+      def_refs @ body_refs;
+    | _ =>
+      VarMap.filter(
+        ((var_name, _)) => !VarMap.contains(entire_coctx, var_name),
+        body_coctx,
+      )
     };
-  go(pat, []);
+  | _ =>
+    raise(
+      Failure(
+        "get_refs_to_after_pattern_edit: expected expression infos for both arguments",
+      ),
+    )
+  };
+};
+
+let get_var_names_from_pat = (curr: Info.t): list(string) => {
+  switch (curr) {
+  | InfoPat({user_term: term, _}) => var_names_of_pat(term)
+  | _ => raise(Failure("Pat is not a pattern"))
+  };
+};
+
+/** True iff [name] occurs as an expression variable or a pattern binder
+    within the subtree rooted at the term with [root_id] (per statics ancestor
+    lists). Conservative capture check for renames: any occurrence in scope —
+    even one already shadowed locally — counts. */
+let name_occurs_within =
+    (~root_id: Id.t, ~info_map: Id.Map.t(Info.t), name: string): bool => {
+  Id.Map.exists(
+    (_id, info: Info.t) =>
+      List.mem(root_id, Info.ancestors_of(info))
+      && (
+        switch (info) {
+        | InfoExp({user_term, _}) =>
+          switch (Exp.term_of(user_term)) {
+          | Var(n) => String.equal(n, name)
+          | _ => false
+          }
+        | InfoPat({user_term, _}) =>
+          switch (Pat.term_of(user_term)) {
+          | Var(n) => String.equal(n, name)
+          | _ => false
+          }
+        | _ => false
+        }
+      ),
+    info_map,
+  );
 };
 
 let update_use_sites_of_var =
@@ -292,13 +404,22 @@ let update_use_sites_of_pat =
   /*
    Updates the use sites of the given variables in the co-context.
 
-   Should be noted that there are special cases:
-   - Consider updating the pattern (x, y, z) to (a, b)
-     we are unable to determine which new var maps to which old var.
-     For now, we will only consider the case where the number of old and new vars are the same.
+   When old/new bind different numbers of names (e.g. (x, y, z) -> (a, b)) we
+   cannot determine which new var maps to which old var; callers must reject
+   that case up front (see the Update(Pattern) arm in [[CompositionGo]]), so
+   hitting it here is a hard error rather than a silent no-op.
    */
   switch (ListUtil.opt_zip(old_names, new_names)) {
-  | None => z
+  | None =>
+    raise(
+      Failure(
+        "Cannot rewrite use sites: the old pattern binds "
+        ++ string_of_int(List.length(old_names))
+        ++ " name(s), the new pattern binds "
+        ++ string_of_int(List.length(new_names))
+        ++ ".",
+      ),
+    )
   | Some(pairs) =>
     List.fold_left(
       (acc_z, (old_name, new_name)) =>
