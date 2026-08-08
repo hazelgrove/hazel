@@ -138,6 +138,13 @@ let weave =
     : Segment.t => {
   let toks = Array.of_list(tokens);
   let idx = ref(0);
+  /* PROVENANCE RETIREMENT LIST — these token equivalences (and the
+     hole_tiles printer setting) exist only because the menhir AST loses
+     concrete syntax: atom spellings, optional tokens, display-flag ids.
+     When completion-provenance (lexeme/shard retention) lands, each one
+     deletes; if this list grows past a handful, flip priorities and
+     land provenance first. Members: float spellings, label quoting,
+     optional leading sum +, nullary f() vs f(()). */
   /* Float literals lose their source spelling through the menhir AST
      (the printer emits e.g. "400.000000" for source "400.0"). Accept
      value-equal float spellings — the SOURCE token is what lands, so

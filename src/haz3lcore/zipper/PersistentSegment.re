@@ -7,7 +7,14 @@ type t = {
   refractors: string,
 };
 
-let to_string = Printer.of_segment(~holes="", ~indent="");
+/* Lossless: holes print as the ¿ marker (readers destruct via
+   MarkerParse / the FastParse weave). */
+let to_string =
+  Printer.of_segment(
+    ~holes="\xc2\xbf",
+    ~concave_holes="\xc2\xbf",
+    ~indent="",
+  );
 
 let refractors_init_str =
   ZipperBase.Refractor.persist(ZipperBase.Refractor.init);
