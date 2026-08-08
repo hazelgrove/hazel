@@ -306,12 +306,19 @@ let of_projector_invoke = (input: t): option(t) =>
     None;
   };
 
-/* Kind name and placement, split apart. */
+/* Kind name and placement, split apart. An `@opt` suffix (trigger
+   options, e.g. the probe renderer in `^^probe@table`) is stripped
+   before the placement check — Triggers parses it separately. */
 let of_projector_invoke_parts =
     (input: t): option((t, ProjectorCore.Placement.t)) =>
   switch (of_projector_invoke(input)) {
   | None => None
   | Some(body) =>
+    let body =
+      switch (String.index_opt(body, '@')) {
+      | Some(i) => String.sub(body, 0, i)
+      | None => body
+      };
     String.ends_with(~suffix=projector_invoke_sidebar, body)
       ? Some((
           String.sub(
@@ -321,7 +328,7 @@ let of_projector_invoke_parts =
           ),
           ProjectorCore.Placement.Sidebar,
         ))
-      : Some((body, ProjectorCore.Placement.Inline))
+      : Some((body, ProjectorCore.Placement.Inline));
   };
 
 let is_projector_invoke = (str: t): bool =>

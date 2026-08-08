@@ -49,7 +49,7 @@ let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let constructor_ident = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
-let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
+let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_' '@']+
 let livelit_ident = '^' ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let comment = '#' [^ '#' '\n']* '#'
 
@@ -146,6 +146,7 @@ rule token =
     | "@<" {TYP_AP_SYMBOL}
     | "@" {AT_SYMBOL}
     | "?" {QUESTION}
+    | "\xc2\xbf" {QUESTION} (* ¿ implicit-hole marker (TextRoundtrip) *)
     | "_" {WILD}
     | "fix" {FIX}
     | "typfun" {TYP_FUN}

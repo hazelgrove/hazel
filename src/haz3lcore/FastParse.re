@@ -31,6 +31,14 @@ exception Mismatch;
 let bail_note: ref(option(string)) = ref(None);
 let note = msg => bail_note := Some(msg);
 
+/* Refractor triggers (^^probe/^^statics, optionally ^^kind@opt)
+   consumed by the last of_text call when ~collect_refractors was set:
+   (target term id, verbatim trigger token). The caller re-applies them
+   as manual refractor entries on the unzipped zipper (the token is
+   parsed by Triggers.refractor_of_invoke_token — FastParse stays below
+   the action layer). */
+let collected_refractors: ref(list((Id.t, string))) = ref([]);
+
 type tok = {
   gap: string, /* whitespace/comments between previous token and this */
   text: string,
@@ -113,7 +121,13 @@ let gap_pieces = (gap: string): list(Piece.t) => {
 type materialize = (string, Segment.t) => option(Piece.t);
 
 let zip =
-    (~materialize: materialize, tokens: list(tok), seg: Segment.t): Segment.t => {
+    (
+      ~materialize: materialize,
+      ~collect_refractors: bool,
+      tokens: list(tok),
+      seg: Segment.t,
+    )
+    : Segment.t => {
   let toks = Array.of_list(tokens);
   let idx = ref(0);
   /* Float literals lose their source spelling through the menhir AST
@@ -165,6 +179,27 @@ let zip =
       raise(Mismatch);
     };
   };
+  let implicit_hole = "\xc2\xbf"; /* TextRoundtrip's Grout marker */
+  let expect_hole = (): (string, string) => {
+    if (idx^ >= Array.length(toks)) {
+      note("segment expects a hole but source tokens are exhausted");
+      raise(Mismatch);
+    };
+    let t = toks[idx^];
+    if (t.text == "?" || t.text == implicit_hole) {
+      incr(idx);
+      (t.gap, t.text);
+    } else {
+      note(
+        "token "
+        ++ string_of_int(idx^)
+        ++ ": segment has a hole, source has '"
+        ++ t.text
+        ++ "'",
+      );
+      raise(Mismatch);
+    };
+  };
   let peek = (k: int): option(string) =>
     idx^ + k < Array.length(toks) ? Some(toks[idx^ + k].text) : None;
   /* Projector trigger in the source (^^kind( ... )): the menhir parse
@@ -182,6 +217,30 @@ let zip =
      through the zipper's refractor path, not projector pieces — bail so
      the typing parser's trigger machinery handles them. Unknown kinds
      bail too (of_name raises). */
+  let trigger_kind = (trigger: string): option(Language.ProjectorKind.t) =>
+    switch (
+      {
+        let (name, _placement) =
+          switch (Token.of_projector_invoke_parts(trigger)) {
+          | Some(parts) => parts
+          | None => raise(Mismatch)
+          };
+        let name =
+          switch (String.index_opt(name, '@')) {
+          | Some(i) => String.sub(name, 0, i)
+          | None => name
+          };
+        Language.ProjectorKind.of_name(name);
+      }
+    ) {
+    | kind => Some(kind)
+    | exception _ => None
+    };
+  let trigger_is_refractor = (trigger: string): bool =>
+    switch (trigger_kind(trigger)) {
+    | Some(kind) => Language.ProjectorKind.is_refractor(kind)
+    | None => false
+    };
   let trigger_is_projector = (trigger: string): bool =>
     /* Token splits the ^^ prefix and the _sidebar placement suffix;
        any @-suffix (argument syntax) comes off the remaining name. */
@@ -206,6 +265,39 @@ let zip =
   let rec zip_seg = (seg: Segment.t): Segment.t => {
     switch (seg) {
     | [] => []
+    | [p, ...rest]
+        when
+          collect_refractors
+          && is_trigger_next()
+          && trigger_is_refractor(toks[idx^].text) =>
+      /* refractor decoration: consume the trigger, splice the wrapped
+         pieces bare, and record the target for the caller to re-pin */
+      let trigger = toks[idx^].text;
+      let (trig_gap, _) = expect(trigger);
+      let (paren_gap, _) = expect("(");
+      if (paren_gap != "") {
+        raise(Mismatch);
+      };
+      let rec grab = (ps: Segment.t, acc: Segment.t) =>
+        if (peek(0) == Some(")")) {
+          (List.rev(acc), ps);
+        } else {
+          switch (ps) {
+          | [] => raise(Mismatch)
+          | [q, ...qs] => grab(qs, List.rev(zip_piece(q)) @ acc)
+          };
+        };
+      let (wrapped, rest') = grab([p, ...rest], []);
+      let (close_gap, _) = expect(")");
+      let inner = wrapped @ gap_pieces(close_gap);
+      collected_refractors :=
+        [
+          (Segment.root_id(Segment.skel(inner), inner), trigger),
+          ...collected_refractors^,
+        ];
+      /* bind before recursing: token consumption must follow order */
+      let tail = zip_seg(rest');
+      gap_pieces(trig_gap) @ inner @ tail;
     | [p, ...rest]
         when is_trigger_next() && trigger_is_projector(toks[idx^].text) =>
       let trigger = toks[idx^].text;
@@ -249,8 +341,21 @@ let zip =
        defensively if any appear. */
     | Secondary(_) => []
     | Grout(g) =>
-      let (gap, _) = expect("?");
+      /* residual structural grout: either hole spelling is acceptable */
+      let (gap, _) = expect_hole();
       gap_pieces(gap) @ [Piece.Grout(g)];
+    | Tile({label: ["?"], _} as t) =>
+      /* source `?` keeps the explicit tile; `¿` means implicit Grout */
+      let (gap, tok) = expect_hole();
+      gap_pieces(gap)
+      @ [
+        tok == implicit_hole
+          ? Piece.Grout({
+              id: t.id,
+              shape: Convex,
+            })
+          : Piece.Tile(t),
+      ];
     | Projector(_) => raise(Mismatch)
     | Tile(t) =>
       if (List.length(t.shards) != List.length(t.label)) {
@@ -296,7 +401,9 @@ let zip =
   zipped;
 };
 
-let attempt = (~materialize: materialize, text: string): option(Segment.t) =>
+let attempt =
+    (~materialize: materialize, ~collect_refractors: bool, text: string)
+    : option(Segment.t) =>
   switch (lex_with_gaps(text)) {
   | None => None
   | Some((tokens, trailing_gap)) =>
@@ -315,11 +422,14 @@ let attempt = (~materialize: materialize, text: string): option(Segment.t) =>
           ...ExpToSegment.Settings.editable(~inline=true),
           secondary: PreserveExact,
           parenthesization: Structural,
+          /* a source `?` lands as the explicit hole TILE; `¿` (the
+             TextRoundtrip marker, lexed like ?) becomes Grout in zip */
+          hole_tiles: true,
         };
       switch (ExpToSegment.exp_to_segment(~settings, term)) {
       | exception _ => None
       | seg =>
-        switch (zip(~materialize, tokens, seg)) {
+        switch (zip(~materialize, ~collect_refractors, tokens, seg)) {
         | exception _ => None
         | zipped => Some(zipped @ gap_pieces(trailing_gap))
         }
@@ -332,16 +442,23 @@ let attempt = (~materialize: materialize, text: string): option(Segment.t) =>
    space+grout we appended. */
 let strip_appended_hole = (seg: Segment.t): option(Segment.t) =>
   switch (List.rev(seg)) {
-  | [Piece.Grout({shape: Convex, _}), Piece.Secondary(sp), ...rest]
+  | [Piece.Tile({label: ["?"], _}), Piece.Secondary(sp), ...rest]
       when Secondary.is_space(sp) =>
     Some(List.rev(rest))
   | _ => None
   };
 
 let of_text =
-    (~materialize: materialize=(_, _) => None, ~root: Sort.t, text: string)
+    (
+      ~materialize: materialize=(_, _) => None,
+      ~collect_refractors: bool=false,
+      ~root: Sort.t,
+      text: string,
+    )
     : option(Segment.t) => {
   bail_note := None;
+  collected_refractors := [];
+  let attempt = attempt(~collect_refractors);
   if (root == Sort.Mod) {
     /* Module-member chunks (update_binding_clause on a member): parse
        as a braced module body, then unwrap the brace tile. Chunks with

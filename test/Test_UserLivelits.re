@@ -504,6 +504,7 @@ let redex_roundtrip = () => {
             CoreSettings.off,
           ),
         show_unknown_as_hole: false,
+        hole_tiles: false,
         fold_fn_bodies: `NoFold,
         project_tables: false,
       },

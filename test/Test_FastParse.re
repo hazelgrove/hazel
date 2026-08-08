@@ -115,6 +115,50 @@ let tests = (
       "let ^p = { let init = 50; let update = fun (m, a) : (Int, Int) -> a } in ^p.update((^p.init, 3))",
     ),
     verbatim("hole", "let x = ? in x"),
+    test_case(
+      "? lands as explicit tile, \xc2\xbf as Grout",
+      `Quick,
+      () => {
+        let has = (pred, seg) => {
+          let rec go = s =>
+            List.exists(
+              (p: Piece.t) =>
+                pred(p)
+                || (
+                  switch (p) {
+                  | Tile({children, _}) => List.exists(go, children)
+                  | _ => false
+                  }
+                ),
+              s,
+            );
+          go(seg);
+        };
+        let is_grout = (p: Piece.t) =>
+          switch (p) {
+          | Grout(_) => true
+          | _ => false
+          };
+        let is_hole_tile = (p: Piece.t) =>
+          switch (p) {
+          | Tile({label: ["?"], _}) => true
+          | _ => false
+          };
+        let explicit =
+          FastParse.of_text(~root=Exp, "let x = ? in x") |> Option.get;
+        check(bool, "? gives a tile", true, has(is_hole_tile, explicit));
+        check(bool, "? gives no Grout", false, has(is_grout, explicit));
+        let implicit =
+          FastParse.of_text(~root=Exp, "let x = \xc2\xbf in x") |> Option.get;
+        check(bool, "\xc2\xbf gives Grout", true, has(is_grout, implicit));
+        check(
+          bool,
+          "\xc2\xbf gives no hole tile",
+          false,
+          has(is_hole_tile, implicit),
+        );
+      },
+    ),
     verbatim("binding-chain fragment", "let helper = fun x -> x * 2 in"),
     verbatim(
       "multiline fragment",
@@ -215,6 +259,51 @@ let tests = (
         check(bool, "projector piece present", true, has_projector);
       }
     }),
+    test_case(
+      "refractor pins collected and reprinted",
+      `Quick,
+      () => {
+        let text = "let a = 1 in\n^^probe(a + 1)";
+        let z = PersistentZipper.from_backup_text(text, ~root=Exp);
+        check(int, "one manual pin", 1, List.length(z.refractors.manuals));
+        let (_, entry: ZipperBase.Refractor.entry) =
+          List.hd(z.refractors.manuals);
+        check(
+          bool,
+          "pin is a Probe",
+          true,
+          entry.kind == Language.ProjectorKind.Probe,
+        );
+        check(
+          string,
+          "pin reprints as its trigger",
+          text,
+          String.trim(PersistentSegment.persist(z).backup_text),
+        );
+      },
+    ),
+    test_case(
+      "probe@table renderer option round-trips",
+      `Quick,
+      () => {
+        let text = "let a = 1 in\n^^probe@table(a + 1)";
+        let z = PersistentZipper.from_backup_text(text, ~root=Exp);
+        let (_, entry: ZipperBase.Refractor.entry) =
+          List.hd(z.refractors.manuals);
+        check(
+          bool,
+          "model selects the table renderer",
+          true,
+          Util.StringUtil.plain_search("table", entry.model, 0) >= 0,
+        );
+        check(
+          string,
+          "@table reprints",
+          text,
+          String.trim(PersistentSegment.persist(z).backup_text),
+        );
+      },
+    ),
     test_case("refractor trigger still bails", `Quick, () => {
       check(
         bool,

@@ -55,9 +55,11 @@ let go =
                   Left,
                   Zipper.insert_segment(z, seg, ~root),
                   ~root,
-                ),
+                )
+                |> PersistentZipper.apply_collected_refractors,
               FastParse.of_text(
                 ~materialize=Triggers.invoked_projector,
+                ~collect_refractors=true,
                 ~root,
                 String.trim(clipboard),
               ),
