@@ -33,9 +33,12 @@ let defer_dispatch_send: ref((unit => unit) => unit) =
    probe (or edited code) would otherwise compose its context before any
    sample lands — the model reads `∅` and learns that probes are useless.
    DispatchSend re-defers until the cell's evaluation settles or the
-   attempt budget (~3s) runs out; the LLM round-trip dwarfs the wait. */
+   attempt budget (~10s) runs out; the LLM round-trip dwarfs the wait.
+   Heavy probe/sample programs can stream for several seconds; the
+   worker's own eval_timeout_ms (20s) settles divergent programs as
+   ResultFail(Timeout), so the budget only needs to cover honest work. */
 let eval_wait_interval_ms = 150.0;
-let max_eval_wait_attempts: ref(int) = ref(20);
+let max_eval_wait_attempts: ref(int) = ref(67);
 let eval_wait_attempts: ref(int) = ref(0);
 /* Tests override to run the thunk synchronously. */
 let defer_eval_wait: ref((float, unit => unit) => unit) =

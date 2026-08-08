@@ -116,7 +116,23 @@ let zip =
     (~materialize: materialize, tokens: list(tok), seg: Segment.t): Segment.t => {
   let toks = Array.of_list(tokens);
   let idx = ref(0);
-  let expect = (text: string): string => {
+  /* Float literals lose their source spelling through the menhir AST
+     (the printer emits e.g. "400.000000" for source "400.0"). Accept
+     value-equal float spellings — the SOURCE token is what lands, so
+     MakeTerm re-reads the source spelling and meaning is preserved.
+     Both sides must be float-syntax (dot/exponent): an int/float pair
+     is a genuine sort difference and must still mismatch. */
+  let float_syntax = (s: string): bool =>
+    String.exists(c => c == '.' || c == 'e' || c == 'E', s)
+    && Option.is_some(float_of_string_opt(s));
+  let float_equal_toks = (a: string, b: string): bool =>
+    float_syntax(a)
+    && float_syntax(b)
+    && float_of_string(a) == float_of_string(b);
+  /* Returns (gap before the token, the SOURCE spelling that matched).
+     The source spelling is what must land in the zipped piece: it equals
+     the segment's token except through the float-equivalence accept. */
+  let expect = (text: string): (string, string) => {
     if (idx^ >= Array.length(toks)) {
       note(
         "segment expects '" ++ text ++ "' but source tokens are exhausted",
@@ -124,9 +140,9 @@ let zip =
       raise(Mismatch);
     };
     let t = toks[idx^];
-    if (t.text == text) {
+    if (t.text == text || float_equal_toks(t.text, text)) {
       incr(idx);
-      t.gap;
+      (t.gap, t.text);
     } else if (idx^
                + 1 < Array.length(toks)
                && toks[idx^ + 1].gap == ""
@@ -135,7 +151,7 @@ let zip =
       /* the segment fuses adjacent source tokens into one (e.g. the
          empty list "[]" vs lexed "[", "]") — accept when gapless */
       idx := idx^ + 2;
-      t.gap;
+      (t.gap, text);
     } else {
       note(
         "token "
@@ -167,9 +183,15 @@ let zip =
      the typing parser's trigger machinery handles them. Unknown kinds
      bail too (of_name raises). */
   let trigger_is_projector = (trigger: string): bool =>
+    /* Token splits the ^^ prefix and the _sidebar placement suffix;
+       any @-suffix (argument syntax) comes off the remaining name. */
     switch (
       {
-        let name = String.sub(trigger, 2, String.length(trigger) - 2);
+        let (name, _placement) =
+          switch (Token.of_projector_invoke_parts(trigger)) {
+          | Some(parts) => parts
+          | None => raise(Mismatch)
+          };
         let name =
           switch (String.index_opt(name, '@')) {
           | Some(i) => String.sub(name, 0, i)
@@ -187,8 +209,8 @@ let zip =
     | [p, ...rest]
         when is_trigger_next() && trigger_is_projector(toks[idx^].text) =>
       let trigger = toks[idx^].text;
-      let trig_gap = expect(trigger);
-      let paren_gap = expect("(");
+      let (trig_gap, _) = expect(trigger);
+      let (paren_gap, _) = expect("(");
       if (paren_gap != "") {
         raise(
           Mismatch /* triggers are written ^^kind( adjacent */
@@ -204,7 +226,7 @@ let zip =
           };
         };
       let (wrapped, rest') = grab([p, ...rest], []);
-      let close_gap = expect(")");
+      let (close_gap, _) = expect(")");
       let inner = wrapped @ gap_pieces(close_gap);
       switch (materialize(trigger, inner)) {
       | Some(proj) =>
@@ -227,30 +249,35 @@ let zip =
        defensively if any appear. */
     | Secondary(_) => []
     | Grout(g) =>
-      let gap = expect("?");
+      let (gap, _) = expect("?");
       gap_pieces(gap) @ [Piece.Grout(g)];
     | Projector(_) => raise(Mismatch)
     | Tile(t) =>
       if (List.length(t.shards) != List.length(t.label)) {
         raise(Mismatch);
       };
-      let gap0 = expect(List.hd(t.label));
-      let (children, _) =
+      let (gap0, tok0) = expect(List.hd(t.label));
+      let (children, label_rev, _) =
         List.fold_left(
-          ((children_acc, shard_i), label_tok) => {
+          ((children_acc, label_acc, shard_i), label_tok) => {
             /* child shard_i-1 sits between shard_i-1 and shard_i; the
                gap before the closing token belongs inside the child */
             let child = zip_seg(List.nth(t.children, shard_i - 1));
-            let gap = expect(label_tok);
-            (children_acc @ [child @ gap_pieces(gap)], shard_i + 1);
+            let (gap, tok) = expect(label_tok);
+            (
+              children_acc @ [child @ gap_pieces(gap)],
+              [tok, ...label_acc],
+              shard_i + 1,
+            );
           },
-          ([], 1),
+          ([], [tok0], 1),
           List.tl(t.label),
         );
       gap_pieces(gap0)
       @ [
         Piece.Tile({
           ...t,
+          label: List.rev(label_rev),
           children,
         }),
       ];

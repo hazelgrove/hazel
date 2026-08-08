@@ -15,6 +15,7 @@ let (suite, _) =
     "HazelTests",
     [
       Test_AgentPersist.tests,
+      Test_FastParseCorpus.tests,
       Test_FastParse.tests,
       Test_MenhirFuzz.tests,
       Test_MenhirCorpus.tests,
