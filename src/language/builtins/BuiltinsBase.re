@@ -52,6 +52,27 @@ let numeric_constants =
 
 let misc_fns: list(BuiltinsUtil.fn) = [
   {
+    name: "sin_real",
+    arg: Atom(Real),
+    ret: Atom(Real),
+    imp: _ => None,
+    custom_statics: None,
+  },
+  {
+    name: "cos_real",
+    arg: Atom(Real),
+    ret: Atom(Real),
+    imp: _ => None,
+    custom_statics: None,
+  },
+  {
+    name: "tan_real",
+    arg: Atom(Real),
+    ret: Atom(Real),
+    imp: _ => None,
+    custom_statics: None,
+  },
+  {
     name: DerivativeOperator.expression_internal_name,
     arg: Prod([unknown(Internal), unknown(Internal)]),
     ret: Unknown(Internal),

@@ -88,6 +88,12 @@ let rec terminal_missing_step = (step: step_model) =>
     }
   };
 
+let rec terminal_exp = (step: step_model): option(Exp.t) =>
+  switch (step.next_step) {
+  | Some(next_step) => terminal_exp(next_step)
+  | None => step.expr |> Calc.get_saved_opt
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_step_kind =
   | SingleStep(SingleStep.persistent'(persistent_step))
@@ -931,6 +937,7 @@ and Stepper: {
     ) =>
     list(WebUtil.Node.t);
   let terminal_missing_step: step_model => option(MissingStep.Model.t);
+  let terminal_exp: step_model => option(Exp.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_model;
@@ -942,6 +949,7 @@ and Stepper: {
   type focus = step_focus;
 
   let terminal_missing_step = terminal_missing_step;
+  let terminal_exp = terminal_exp;
 
   let init = {
     expr: Calc.Pending,

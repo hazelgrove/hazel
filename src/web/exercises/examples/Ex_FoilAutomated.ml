@@ -1,8 +1,8 @@
 open Haz3lcore
 
 let source =
-  "theorem foil_with_cleanup = (2 * x - 3) * (x + 4) == 2 * x ** 2 + 5 * x - \
-   12 in ?"
+  "theorem foil_with_cleanup = use Real in ((2 * x - 3) * (x + 4) == 2 * x ** \
+   2 + 5 * x - 12) in ?"
 
 let zipper_of_source source =
   match Parser.to_zipper ~root:Exp source with
@@ -40,4 +40,5 @@ let exercise : Exercise.t =
       prelude = Zipper.init ();
       lemmas = Zipper.init ();
       theorem = zipper_of_source source;
+      expected_explore_result = None;
     }

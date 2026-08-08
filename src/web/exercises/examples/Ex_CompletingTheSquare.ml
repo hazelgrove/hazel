@@ -1,7 +1,8 @@
 open Haz3lcore
 
 let source =
-  "theorem completing_the_square = x ** 2 + 6 * x + 5 == (x + 3) ** 2 - 4 in ?"
+  "theorem completing_the_square = use Real in (x ** 2 + 6 * x + 5 == (x + 3) \
+   ** 2 - 4) in ?"
 
 let zipper_of_source source =
   match Parser.to_zipper ~root:Exp source with
@@ -47,4 +48,5 @@ let exercise : Exercise.t =
       prelude = Zipper.init ();
       lemmas = Zipper.init ();
       theorem = zipper_of_source source;
+      expected_explore_result = None;
     }

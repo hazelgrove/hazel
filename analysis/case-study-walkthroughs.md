@@ -18,9 +18,11 @@ they show the expected amount of work.
    can construct and certify a route to it.
 4. Use Hazel operators, not textbook shorthand:
 
-   - Integer power: `**`
-   - Float power: `**.`
-   - Float arithmetic: `+.`, `-.`, `*.`, and `/.`
+   - Power is `**`, not `^`.
+   - The symbolic exercises establish exact Real arithmetic with `use Real`.
+     Their ordinary `+`, `-`, `*`, `/`, and `**` operators are therefore exact;
+     do not add Float dots.
+   - Real trigonometric functions are `sin_real`, `cos_real`, and `tan_real`.
 
 5. The current red `x not found` decorations are a separate binding issue. They
    are intentionally deferred and are not part of these walkthroughs.
@@ -33,10 +35,11 @@ they show the expected amount of work.
 
 **Locked mode:** Arithmetic / One Step
 
-**Goal:**
+This is an **Explore** item rather than a theorem. Its hidden completion target
+is `17`; only the expression appears in the editor:
 
 ```text
-3 + 4 * 2 ** 2 - 6 / 3 == 17
+3 + 4 * 2 ** 2 - 6 / 3
 ```
 
 Evaluate one local arithmetic operation at a time:
@@ -47,7 +50,7 @@ Evaluate one local arithmetic operation at a time:
 4. Select `3 + 16` and enter `19`.
 5. Select `19 - 2` and enter `17`.
 
-The completed left side should now be exactly `17`. Do not select the complete
+The completed expression should now be exactly `17`. Do not select the complete
 initial expression and jump directly to `17`; that skips the teaching goal of
 the exercise.
 
@@ -201,8 +204,8 @@ intended route.
 **Goal:**
 
 ```text
-1. +. 2. *. sin(x) **. 4.
-== 7. /. 4. -. cos(2. *. x) +. (1. /. 4.) *. cos(4. *. x)
+1 + 2 * sin_real(x) ** 4
+== 7 / 4 - cos_real(2 * x) + (1 / 4) * cos_real(4 * x)
 ```
 
 The useful mathematical route is:
@@ -221,37 +224,38 @@ cos(2x)^2 = (1 + cos(4x)) / 2.
 
 Concrete Hazel steps:
 
-1. Select `sin(x) **. 4.` and enter:
+1. Select `sin_real(x) ** 4` and enter:
 
    ```text
-   (sin(x) **. 2.) **. 2.
+   (sin_real(x) ** 2) ** 2
    ```
 
-2. Select the inner `sin(x) **. 2.` and enter:
+2. Select the inner `sin_real(x) ** 2` and enter:
 
    ```text
-   (1. -. cos(2. *. x)) /. 2.
+   (1 - cos_real(2 * x)) / 2
    ```
 
-3. Expand the resulting square, retaining `cos(2. *. x) **. 2.` as a visible
+3. Expand the resulting square, retaining `cos_real(2 * x) ** 2` as a visible
    term. The Check Result profile may perform the routine scalar cleanup.
-4. Select `cos(2. *. x) **. 2.` and enter:
+4. Select `cos_real(2 * x) ** 2` and enter:
 
    ```text
-   (1. +. cos(4. *. x)) /. 2.
+   (1 + cos_real(4 * x)) / 2
    ```
 
 5. Select the complete left side and enter the target:
 
    ```text
-   7. /. 4. -. cos(2. *. x) +. (1. /. 4.) *. cos(4. *. x)
+   7 / 4 - cos_real(2 * x) + (1 / 4) * cos_real(4 * x)
    ```
 
 6. Run the profile/Rocq check and replace the expression after it reports
    **Valid**.
 
-The Float dots are required. Writing `^`, `+`, `*`, or `/` here changes the
-numeric family and can produce cascading static errors.
+The surrounding `use Real` makes the fractions exact Real numbers. Use the
+ordinary operators shown above; Float-dotted syntax is neither needed nor
+intended in this exercise.
 
 ## 6. Polynomial Derivative, Check Each Result
 
@@ -324,7 +328,7 @@ is still underneath `deriv` is not a derivative rule and must remain invalid.
 The read-only prelude defines the deliberately simple function:
 
 ```text
-f(t : Int) = t ** 2 + 3 * t + 2
+f(t : Real) = t ** 2 + 3 * t + 2
 ```
 
 The theorem asks for its second-order Taylor polynomial about `0`:
@@ -363,8 +367,8 @@ polynomial:
    ```
 
 This introductory version exposes the Taylor pattern—evaluate `f`, `f1`, and
-`f2` at the center and divide the quadratic coefficient by `2`—using only
-integer polynomial syntax. It avoids Float operators, trigonometric chain
+`f2` at the center and divide the quadratic coefficient by `2`—using exact
+Real polynomial syntax. It avoids Float operators, trigonometric chain
 rules, mixed coefficients, and a third derivative.
 
 ## 8. Taylor Approximation from a Derivative Chain
@@ -374,8 +378,8 @@ rules, mixed coefficients, and a third derivative.
 The read-only prelude defines:
 
 ```text
-a = 3. /. 10.
-f = fun t -> 7. /. 4. -. cos(2. *. t) +. (1. /. 4.) *. cos(4. *. t)
+a : Real = 3 / 10
+f = fun (t : Real) -> 7 / 4 - cos_real(2 * t) + (1 / 4) * cos_real(4 * t)
 ```
 
 The theorem then binds `f1 = D f`, `f2 = D f1`, and `f3 = D f2`. This keeps
@@ -391,7 +395,7 @@ Hazel reports **Valid**.
 Replace the first derivative with:
 
 ```text
-fun t -> 2. *. sin(2. *. t) -. sin(4. *. t)
+fun (t : Real) -> 2 * sin_real(2 * t) - sin_real(4 * t)
 ```
 
 ### Second derivative (`f2`)
@@ -399,7 +403,7 @@ fun t -> 2. *. sin(2. *. t) -. sin(4. *. t)
 Replace the second derivative with:
 
 ```text
-fun t -> 4. *. cos(2. *. t) -. 4. *. cos(4. *. t)
+fun (t : Real) -> 4 * cos_real(2 * t) - 4 * cos_real(4 * t)
 ```
 
 ### Third derivative (`f3`)
@@ -407,19 +411,19 @@ fun t -> 4. *. cos(2. *. t) -. 4. *. cos(4. *. t)
 Replace the third derivative with the cleaned coefficient form:
 
 ```text
-fun t -> (0. -. 8.) *. sin(2. *. t) +. 16. *. sin(4. *. t)
+fun (t : Real) -> (0 - 8) * sin_real(2 * t) + 16 * sin_real(4 * t)
 ```
 
-Use `0. -. 8.` rather than an integer-style unary negative so the expression
-stays in Hazel's Float arithmetic family.
+Writing the negative coefficient as `0 - 8` keeps that elementary arithmetic
+step explicit while remaining in the surrounding exact Real context.
 
 After all three replacements, the named functions supply the coefficients in
 
 ```text
 f(a)
-+. f1(a) *. (x -. a)
-+. (f2(a) /. 2.) *. (x -. a) **. 2.
-+. (f3(a) /. 6.) *. (x -. a) **. 3.
++ f1(a) * (x - a)
++ (f2(a) / 2) * (x - a) ** 2
++ (f3(a) / 6) * (x - a) ** 3
 ```
 
 The prelude supplies both `a` and `f`. The theorem already contains the Taylor
@@ -432,7 +436,7 @@ responsible for identifying the three cleaned derivative functions.
 
 | Case study | Math level | Validation mode | Main teaching goal |
 | --- | --- | --- | --- |
-| Order of Operations | Arithmetic | One Step | Local evaluation order |
+| Order of Operations | Arithmetic | Explore / One Step | Local evaluation order |
 | FOIL, Written Out | Algebra | One Step | Every distribution is visible |
 | FOIL with Cleanup | Algebra | One Step | Visible distribution plus collection cleanup |
 | Completing the Square | Algebra | Check Result | Add/subtract a square and factor it |

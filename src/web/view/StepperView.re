@@ -101,6 +101,8 @@ module Model = {
     };
 
   let get_validity = (m: t) => StepperBase.Stepper.get_validity(m.root);
+
+  let terminal_exp = (m: t) => StepperBase.Stepper.terminal_exp(m.root);
 };
 
 module Update = {

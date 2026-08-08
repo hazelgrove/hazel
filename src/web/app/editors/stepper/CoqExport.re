@@ -11,8 +11,11 @@ let is_float_pi = value => abs_float(value -. Float.pi) < 0.000001;
 
 let is_real_builtin = name =>
   name == "sin"
+  || name == "sin_real"
   || name == "cos"
+  || name == "cos_real"
   || name == "tan"
+  || name == "tan_real"
   || name == Language.DerivativeOperator.expression_internal_name
   || name == Language.DerivativeOperator.function_internal_name
   || name == Language.DerivativeOperator.legacy_name;
@@ -22,13 +25,15 @@ let rec requires_reals = (d: Language.DHExp.t) =>
   | Parens(exp)
   | Asc(exp, _) => requires_reals(exp)
   | Tuple([exp]) => requires_reals(exp)
-  | Atom(Float(_)) => true
+  | Atom(Float(_) | Real(_)) => true
   | Var("pi") => true
   | Var(name) when is_real_builtin(name) => true
   | BuiltinFun(name) => is_real_builtin(name)
   | BinOp(Language.Operators.Float(_), _, _) => true
+  | BinOp(Language.Operators.Real(_), _, _) => true
   | BinOp(_, arg1, arg2) => requires_reals(arg1) || requires_reals(arg2)
   | UnOp(Language.Operators.Float(_), _) => true
+  | UnOp(Language.Operators.Real(_), _) => true
   | UnOp(_, exp) => requires_reals(exp)
   | Ap(_, fn, arg) => requires_reals(fn) || requires_reals(arg)
   | _ => false
@@ -44,6 +49,11 @@ let rec real_nat_exponent = (d: Language.DHExp.t) =>
   | Atom(SInt(n)) when n >= 0 => Some(n)
   | Atom(Float(value)) when value >= 0.0 && value == Float.round(value) =>
     Some(int_of_float(value))
+  | Atom(Real(Language.Real.Rational({numerator, denominator, _})))
+      when
+        Bigint.equal(denominator, Bigint.one)
+        && Bigint.(>=)(numerator, Bigint.zero) =>
+    Bigint.to_int(numerator)
   | _ => None
   };
 
@@ -73,6 +83,8 @@ let string_of_op = (~domain, op) =>
   | (Reals, Language.Operators.Int(op) | Nat(op) | SInt(op)) =>
     Language.Operators.int_op_to_string(op)
   | (Reals, Language.Operators.Float(op)) => real_float_op_to_string(op)
+  | (Reals, Language.Operators.Real(op)) =>
+    Language.Operators.int_op_to_string(op)
   | (_, Language.Operators.Float(op)) =>
     Language.Operators.float_op_to_string(op)
   | _ => Language.Operators.bin_op_to_string(op)
@@ -306,6 +318,23 @@ let string_of_d = (d: Language.DHExp.t) => {
 };
 
 let string_of_d_reals = (d: Language.DHExp.t) => {
+  let real_literal =
+    fun
+    | Language.Real.Pi => "PI"
+    | Rational({numerator, denominator, _}) =>
+      Bigint.equal(denominator, Bigint.one)
+        ? Bigint.to_string(numerator)
+        : "("
+          ++ Bigint.to_string(numerator)
+          ++ " / "
+          ++ Bigint.to_string(denominator)
+          ++ ")";
+  let builtin_name =
+    fun
+    | "sin_real" => "sin"
+    | "cos_real" => "cos"
+    | "tan_real" => "tan"
+    | name => name;
   let rec loop = d =>
     switch (Language.Exp.term_of(d)) {
     | Parens(exp) => loop(exp)
@@ -316,7 +345,7 @@ let string_of_d_reals = (d: Language.DHExp.t) => {
      * such as the internal expression-derivative operator. */
     | Tuple([exp]) => loop(exp)
     | BinOp(
-        Int(Power) | Nat(Power) | SInt(Power) | Float(Power),
+        Int(Power) | Nat(Power) | SInt(Power) | Float(Power) | Real(Power),
         arg1,
         arg2,
       ) =>
@@ -334,7 +363,7 @@ let string_of_d_reals = (d: Language.DHExp.t) => {
       ++ " "
       ++ loop(arg2)
       ++ ")"
-    | UnOp(Int(Minus) | SInt(Minus) | Float(Minus), exp) =>
+    | UnOp(Int(Minus) | SInt(Minus) | Float(Minus) | Real(Minus), exp) =>
       "(-" ++ loop(exp) ++ ")"
     | Atom(Int(n))
     | Atom(Nat(n)) => Bigint.to_string(n)
@@ -347,9 +376,10 @@ let string_of_d_reals = (d: Language.DHExp.t) => {
         "unsupported non-symbolic float in Coq real export: "
         ++ string_of_float(value),
       )
+    | Atom(Real(value)) => real_literal(value)
     | Var("pi") => "PI"
     | Var(x) => x
-    | BuiltinFun(name) => name
+    | BuiltinFun(name) => builtin_name(name)
     | Fun(pattern, body, _, _) =>
       switch (function_parameter_name(pattern)) {
       | Some(parameter) =>

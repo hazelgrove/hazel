@@ -1,8 +1,8 @@
 open Haz3lcore
 
 let source =
-  "theorem polynomial_derivative = deriv (x ** 3 + 2 * x) by x == 3 * x ** 2 + \
-   2 in ?"
+  "theorem polynomial_derivative = use Real in (deriv (x ** 3 + 2 * x) by x == \
+   3 * x ** 2 + 2) in ?"
 
 let zipper_of_source source =
   match Parser.to_zipper ~root:Exp source with
@@ -40,4 +40,5 @@ let exercise : Exercise.t =
       prelude = Zipper.init ();
       lemmas = Zipper.init ();
       theorem = zipper_of_source source;
+      expected_explore_result = None;
     }

@@ -63,6 +63,7 @@ module Model = {
     editing_flags,
     write_out_steps: bool,
     math_policy: option(ExerciseMathPolicy.t),
+    expected_explore_result: option(Zipper.t),
   };
 
   let with_math_policy = (math_policy, model: t): t => {
@@ -117,6 +118,7 @@ module Model = {
       editing_flags: editing_flags_false,
       write_out_steps: spec.write_out_steps,
       math_policy: spec.math_policy,
+      expected_explore_result: spec.expected_explore_result,
     };
   };
 
@@ -141,6 +143,7 @@ module Model = {
       editing_flags: editing_flags_false,
       write_out_steps: spec.write_out_steps,
       math_policy: spec.math_policy,
+      expected_explore_result: spec.expected_explore_result,
     };
   };
 
@@ -156,6 +159,7 @@ module Model = {
       theorem: model.cells.theorem.editor.editor.state.zipper,
       write_out_steps: model.write_out_steps,
       math_policy: model.math_policy,
+      expected_explore_result: model.expected_explore_result,
     };
   };
 
@@ -172,7 +176,12 @@ module Model = {
       (model: t): list((option(string), list(CodeEditable.Model.t))) => [
     (Some("Prelude"), [model.cells.prelude.editor]),
     (Some("Lemmas"), [model.cells.lemmas.editor]),
-    (Some("Theorem"), [model.cells.theorem.editor]),
+    (
+      Some(
+        Option.is_some(model.expected_explore_result) ? "Explore" : "Theorem",
+      ),
+      [model.cells.theorem.editor],
+    ),
   ];
 };
 
@@ -820,6 +829,7 @@ module View = {
         model.cells.lemmas,
       );
 
+    let is_explore = Option.is_some(model.expected_explore_result);
     let theorem_view =
       CellEditor.View.view(
         ~globals,
@@ -833,14 +843,26 @@ module View = {
           },
         ~inject=a => inject(Theorem(a)),
         ~result_kind=`JustTheorems,
-        ~caption=CellCommon.caption("Theorem (Prove-Only)"),
+        ~caption=
+          CellCommon.caption(
+            is_explore ? "Explore (Step-Through)" : "Theorem (Prove-Only)",
+          ),
         model.cells.theorem,
       );
 
+    let score =
+      switch (model.expected_explore_result) {
+      | Some(target) =>
+        Theorems.Model.get_explore_score(
+          ~settings=globals.settings.core,
+          ~target=MakeTerm.from_zip_for_sem(target, ~root=Exp).term,
+          model.cells.theorem.result.theorems,
+        )
+      | None => Theorems.Model.get_score(model.cells.theorem.result.theorems)
+      };
     let score_view =
       Grading.score_view(
-        Theorems.Model.get_score(model.cells.theorem.result.theorems)
-        |> Option.value(~default=(Float.nan, Float.nan)),
+        score |> Option.value(~default=(Float.nan, Float.nan)),
       );
 
     [score_view, title_view, module_name_view]

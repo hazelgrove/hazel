@@ -35,6 +35,7 @@ let is_plus_op =
   | Operators.Int(Operators.Plus)
   | Nat(Plus)
   | SInt(Plus)
+  | Real(Plus)
   | Float(Plus) => true
   | _ => false;
 
@@ -42,6 +43,7 @@ let is_minus_op =
   fun
   | Operators.Int(Operators.Minus)
   | SInt(Minus)
+  | Real(Minus)
   | Float(Minus) => true
   | _ => false;
 
@@ -50,6 +52,7 @@ let is_times_op =
   | Operators.Int(Operators.Times)
   | Nat(Times)
   | SInt(Times)
+  | Real(Times)
   | Float(Times) => true
   | _ => false;
 
@@ -58,6 +61,7 @@ let is_divide_op =
   | Operators.Int(Operators.Divide)
   | Nat(Divide)
   | SInt(Divide)
+  | Real(Divide)
   | Float(Divide) => true
   | _ => false;
 

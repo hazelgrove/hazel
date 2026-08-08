@@ -1,6 +1,6 @@
 open Haz3lcore
 
-let source = "theorem order_of_operations = 3 + 4 * 2 ** 2 - 6 / 3 == 17 in ?"
+let source = "explore 3 + 4 * 2 ** 2 - 6 / 3 end"
 
 let zipper_of_source source =
   match Parser.to_zipper ~root:Exp source with
@@ -33,4 +33,5 @@ let exercise : Exercise.t =
       prelude = Zipper.init ();
       lemmas = Zipper.init ();
       theorem = zipper_of_source source;
+      expected_explore_result = Some (zipper_of_source "17");
     }

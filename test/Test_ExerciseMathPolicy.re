@@ -100,6 +100,40 @@ let tests = (
       },
     ),
     test_case(
+      "order of operations is an Explore exercise with a hidden target",
+      `Quick,
+      () => {
+        let spec = theorem_spec(Web.Ex_OrderOfOperations.exercise);
+        check(
+          bool,
+          "hidden completion target is configured",
+          true,
+          Option.is_some(spec.expected_explore_result),
+        );
+        let model = Web.TheoremExerciseMode.Model.of_spec(spec);
+        check(
+          bool,
+          "Explore target survives the exercise model round trip",
+          true,
+          Web.TheoremExerciseMode.Model.spec_of_t(model).
+            expected_explore_result
+          == spec.expected_explore_result,
+        );
+        Web.TheoremExerciseMode.Model.get_problem_editors(model)
+        |> List.rev
+        |> List.hd
+        |> (
+          ((label, _)) =>
+            check(
+              option(string),
+              "problem sidebar label",
+              Some("Explore"),
+              label,
+            )
+        );
+      },
+    ),
+    test_case(
       "case-study verbosity matches each teaching goal",
       `Quick,
       () => {

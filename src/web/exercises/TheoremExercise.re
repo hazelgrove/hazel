@@ -10,6 +10,7 @@ type spec = {
   prelude: Haz3lcore.Zipper.t,
   lemmas: Haz3lcore.Zipper.t,
   theorem: Haz3lcore.Zipper.t,
+  expected_explore_result: option(Haz3lcore.Zipper.t),
   write_out_steps: bool,
   math_policy: option(ExerciseMathPolicy.t),
 };
@@ -23,6 +24,7 @@ let blank_spec = (~title, ~module_name): spec => {
   prelude: Haz3lcore.Zipper.init(),
   lemmas: Haz3lcore.Zipper.init(),
   theorem: Haz3lcore.Zipper.init(),
+  expected_explore_result: None,
   write_out_steps: true,
   math_policy: None,
 };

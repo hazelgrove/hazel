@@ -118,6 +118,17 @@ let float_times = (left, right) =>
 let float_power = (left, right) =>
   Exp.bin_op(Operators.Float(Operators.Power), left, right);
 
+let real = value => Exp.real(Real.of_bigint(Bigint.of_int(value)));
+
+let real_plus = (left, right) =>
+  Exp.bin_op(Operators.Real(Operators.Plus), left, right);
+
+let real_times = (left, right) =>
+  Exp.bin_op(Operators.Real(Operators.Times), left, right);
+
+let real_power = (left, right) =>
+  Exp.bin_op(Operators.Real(Operators.Power), left, right);
+
 let check_written = (name, left, right, expected) =>
   check(
     option(string),
@@ -16375,6 +16386,82 @@ let tests = (
       },
     ),
     test_case(
+      "exact Real polynomial normalization is general and profile-bound",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Algebra);
+        let accepts = (profile, source, target) =>
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          )
+          |> Option.is_some;
+        let first_source =
+          real_times(real_plus(x, real(1)), real_plus(x, real(2)));
+        let first_target =
+          real_plus(
+            real_plus(real_power(x, real(2)), real_times(real(3), x)),
+            real(2),
+          );
+        check(
+          bool,
+          "expands a Real binomial product",
+          true,
+          accepts(profile, first_source, first_target),
+        );
+        let second_source =
+          real_times(
+            real_plus(real_times(real(2), x), real(3)),
+            real_plus(x, real(4)),
+          );
+        let second_target =
+          real_plus(
+            real_plus(
+              real_times(real(2), real_power(x, real(2))),
+              real_times(real(11), x),
+            ),
+            real(12),
+          );
+        check(
+          bool,
+          "expands a structurally different Real polynomial",
+          true,
+          accepts(profile, second_source, second_target),
+        );
+        check(
+          bool,
+          "rejects an inequivalent Real polynomial",
+          false,
+          accepts(
+            profile,
+            first_source,
+            real_plus(
+              real_plus(real_power(x, real(2)), real_times(real(4), x)),
+              real(2),
+            ),
+          ),
+        );
+        let without_expansion =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="alg.expand_polynomial",
+            profile,
+          )
+          |> Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="alg.distribute_mul_add",
+             );
+        check(
+          bool,
+          "disabled expansion routes reject the same Real transformation",
+          false,
+          accepts(without_expansion, first_source, first_target),
+        );
+      },
+    ),
+    test_case(
       "rational scalar and sign normalization is general and profile-bound",
       `Quick,
       () => {
@@ -16701,6 +16788,58 @@ let tests = (
           "disabled visible variable rule blocks basic derivative",
           false,
           trace(without_variable, diff(x, x), Exp.int(1)) |> Option.is_some,
+        );
+      },
+    ),
+    test_case(
+      "exact Real derivatives preserve profile boundaries",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let profile = Axioms.math_profile(Calculus);
+        let trace = (profile, source, target) =>
+          Web.RewriteChecker.check_written_step_trace_for_profile(
+            ~profile,
+            ~settings,
+            ~env,
+            source,
+            target,
+          );
+        let cubic = real_power(x, real(3));
+        let cubic_result = real_times(real(3), real_power(x, real(2)));
+        check(
+          bool,
+          "certifies a Real power derivative",
+          true,
+          trace(profile, diff(cubic, x), cubic_result) |> Option.is_some,
+        );
+        let sum_source = diff(real_plus(cubic, real_times(real(2), x)), x);
+        let sum_target =
+          real_plus(diff(cubic, x), diff(real_times(real(2), x), x));
+        check(
+          bool,
+          "certifies Real derivative linearity without cleanup",
+          true,
+          trace(profile, sum_source, sum_target) |> Option.is_some,
+        );
+        check(
+          bool,
+          "rejects changing a power beneath deriv",
+          false,
+          trace(profile, diff(cubic, x), diff(real_power(x, real(2)), x))
+          |> Option.is_some,
+        );
+        let without_power =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="calc.diff_power",
+            profile,
+          );
+        check(
+          bool,
+          "disabled power rule blocks the Real derivative",
+          false,
+          trace(without_power, diff(cubic, x), cubic_result)
+          |> Option.is_some,
         );
       },
     ),

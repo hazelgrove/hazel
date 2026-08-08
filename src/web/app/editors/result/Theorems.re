@@ -193,6 +193,36 @@ module Model = {
       );
     Some((correct, total));
   };
+
+  let get_explore_score =
+      (~settings, ~target, model: t): option((float, float)) => {
+    open OptUtil.Syntax;
+    let* items = model.items |> Calc.get_saved_opt;
+    let* id =
+      items
+      |> List.find_map(
+           fun
+           | ExploreItem(id) => Some(id)
+           | TheoremItem(_) => None,
+         );
+    let* explore = Id.Map.find_opt(id, model.explore_map);
+    let* terminal = StepperView.Model.terminal_exp(explore.stepper_view);
+    let* sem_ctx = explore.sem_ctx |> Calc.get_saved_opt;
+    let exact = Equality.ignoring_ascriptions.exp(terminal, target);
+    let certified =
+      exact
+      || Option.is_some(
+           RewriteChecker.check_written_step_trace_for_profile(
+             ~stage=explore.stepper_view.automation_stage,
+             ~profile=StepperView.Model.active_profile(explore.stepper_view),
+             ~settings,
+             ~env=SemanticCtx.get_env(sem_ctx),
+             terminal,
+             target,
+           ),
+         );
+    Some((certified ? 1.0 : 0.0, 1.0));
+  };
 };
 
 module Update = {

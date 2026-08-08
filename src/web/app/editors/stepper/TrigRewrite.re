@@ -64,22 +64,27 @@ let standard_bin_op = op =>
   | Operators.Int(Plus)
   | Nat(Plus)
   | SInt(Plus)
+  | Real(Plus)
   | Float(Plus) => Some(Operators.Int(Operators.Plus))
   | Operators.Int(Minus)
   | Nat(Minus)
   | SInt(Minus)
+  | Real(Minus)
   | Float(Minus) => Some(Operators.Int(Operators.Minus))
   | Operators.Int(Times)
   | Nat(Times)
   | SInt(Times)
+  | Real(Times)
   | Float(Times) => Some(Operators.Int(Operators.Times))
   | Operators.Int(Divide)
   | Nat(Divide)
   | SInt(Divide)
+  | Real(Divide)
   | Float(Divide) => Some(Operators.Int(Operators.Divide))
   | Operators.Int(Power)
   | Nat(Power)
   | SInt(Power)
+  | Real(Power)
   | Float(Power) => Some(Operators.Int(Operators.Power))
   | _ => None
   };
@@ -90,6 +95,10 @@ let rec canonical = exp => {
   | Atom(Float(value)) when is_float_pi(value) => var_exp("pi")
   | Atom(Float(value)) when value == Float.round(value) =>
     int_exp(int_of_float(value))
+  | Atom(Real(Real.Pi)) => var_exp("pi")
+  | Atom(Real(Real.Rational({numerator, denominator, _})))
+      when Bigint.equal(denominator, Bigint.one) =>
+    Exp.fresh(Atom(Int(numerator)))
   | BuiltinFun("sin")
   | BuiltinFun("cos")
   | BuiltinFun("tan") =>
@@ -99,6 +108,9 @@ let rec canonical = exp => {
       | _ => ""
       },
     )
+  | BuiltinFun("sin_real") => var_exp("sin")
+  | BuiltinFun("cos_real") => var_exp("cos")
+  | BuiltinFun("tan_real") => var_exp("tan")
   | BinOp(op, left, right) =>
     switch (standard_bin_op(op)) {
     | Some(op) => Exp.fresh(BinOp(op, canonical(left), canonical(right)))
@@ -138,6 +150,9 @@ let int_constant = exp => {
   | Atom(SInt(value)) => Some(value)
   | Atom(Float(value)) when value == Float.round(value) =>
     Some(int_of_float(value))
+  | Atom(Real(Real.Rational({numerator, denominator, _})))
+      when Bigint.equal(denominator, Bigint.one) =>
+    Bigint.to_int(numerator)
   | _ => None
   };
 };
@@ -147,6 +162,7 @@ let is_pi_exp = exp => {
   switch (exp.term) {
   | Var("pi") => true
   | Atom(Float(value)) when is_float_pi(value) => true
+  | Atom(Real(Real.Pi)) => true
   | _ => false
   };
 };
@@ -155,26 +171,34 @@ let op_matches = (kind, op) =>
   switch (kind, op) {
   | (
       Add,
-      Operators.Int(Operators.Plus) | Nat(Plus) | SInt(Plus) | Float(Plus),
+      Operators.Int(Operators.Plus) | Nat(Plus) | SInt(Plus) | Real(Plus) |
+      Float(Plus),
     ) =>
     true
-  | (Sub, Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus)) =>
+  | (
+      Sub,
+      Operators.Int(Operators.Minus) | SInt(Minus) | Real(Minus) |
+      Float(Minus),
+    ) =>
     true
   | (
       Mul,
       Operators.Int(Operators.Times) | Nat(Times) | SInt(Times) |
+      Real(Times) |
       Float(Times),
     ) =>
     true
   | (
       Div,
       Operators.Int(Operators.Divide) | Nat(Divide) | SInt(Divide) |
+      Real(Divide) |
       Float(Divide),
     ) =>
     true
   | (
       Pow,
       Operators.Int(Operators.Power) | Nat(Power) | SInt(Power) |
+      Real(Power) |
       Float(Power),
     ) =>
     true
@@ -185,7 +209,13 @@ let function_name = exp => {
   let exp = strip(exp);
   switch (exp.term) {
   | Var(name)
-  | BuiltinFun(name) => Some(name)
+  | BuiltinFun(name) =>
+    switch (name) {
+    | "sin_real" => Some("sin")
+    | "cos_real" => Some("cos")
+    | "tan_real" => Some("tan")
+    | name => Some(name)
+    }
   | _ => None
   };
 };
@@ -216,6 +246,7 @@ let rec match_pat = (pat, exp, env) => {
       Neg(inner_pat),
       UnOp(
         Operators.Int(Operators.Minus) | SInt(Minus) |
+        Operators.Real(Operators.Minus) |
         Operators.Float(Operators.Minus),
         inner,
       ),
@@ -240,6 +271,26 @@ let rec uses_float_math = exp => {
   | Tuple(entries)
   | ListLit(entries) => List.exists(uses_float_math, entries)
   | Fun(_, body, _, _) => uses_float_math(body)
+  | _ => false
+  };
+};
+
+let rec uses_real_math = exp => {
+  let exp = strip(exp);
+  switch (exp.term) {
+  | Atom(Real(_))
+  | BinOp(Operators.Real(_), _, _)
+  | UnOp(Operators.Real(_), _)
+  | BuiltinFun("sin_real" | "cos_real" | "tan_real") => true
+  | BinOp(_, left, right)
+  | Ap(_, left, right) => uses_real_math(left) || uses_real_math(right)
+  | UnOp(_, inner)
+  | Parens(inner)
+  | Asc(inner, _)
+  | Projector(_, inner) => uses_real_math(inner)
+  | Tuple(entries)
+  | ListLit(entries) => List.exists(uses_real_math, entries)
+  | Fun(_, body, _, _) => uses_real_math(body)
   | _ => false
   };
 };

@@ -12,6 +12,7 @@ let exercise : Exercise.t =
       max_points = 10;
       write_out_steps = true;
       math_policy = None;
+      expected_explore_result = None;
       prelude =
         {
           selection =

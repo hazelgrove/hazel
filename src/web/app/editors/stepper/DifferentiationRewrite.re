@@ -47,7 +47,13 @@ let function_name = exp => {
   let exp = strip(exp);
   switch (exp.term) {
   | Var(name)
-  | BuiltinFun(name) => Some(name)
+  | BuiltinFun(name) =>
+    switch (name) {
+    | "sin_real" => Some("sin")
+    | "cos_real" => Some("cos")
+    | "tan_real" => Some("tan")
+    | name => Some(name)
+    }
   | _ => None
   };
 };
@@ -80,20 +86,27 @@ let is_operator = (expected, actual) =>
   switch (expected, actual) {
   | (
       Operators.Plus,
-      Operators.Int(Plus) | Nat(Plus) | SInt(Plus) | Float(Plus),
+      Operators.Int(Plus) | Nat(Plus) | SInt(Plus) | Real(Plus) |
+      Float(Plus),
     )
-  | (Operators.Minus, Operators.Int(Minus) | SInt(Minus) | Float(Minus))
+  | (
+      Operators.Minus,
+      Operators.Int(Minus) | SInt(Minus) | Real(Minus) | Float(Minus),
+    )
   | (
       Operators.Times,
-      Operators.Int(Times) | Nat(Times) | SInt(Times) | Float(Times),
+      Operators.Int(Times) | Nat(Times) | SInt(Times) | Real(Times) |
+      Float(Times),
     )
   | (
       Operators.Divide,
-      Operators.Int(Divide) | Nat(Divide) | SInt(Divide) | Float(Divide),
+      Operators.Int(Divide) | Nat(Divide) | SInt(Divide) | Real(Divide) |
+      Float(Divide),
     )
   | (
       Operators.Power,
-      Operators.Int(Power) | Nat(Power) | SInt(Power) | Float(Power),
+      Operators.Int(Power) | Nat(Power) | SInt(Power) | Real(Power) |
+      Float(Power),
     ) =>
     true
   | _ => false
@@ -135,6 +148,9 @@ let integer_constant = exp => {
   | Atom(SInt(value)) => Some(value)
   | Atom(Float(value)) when value == Float.round(value) =>
     Some(int_of_float(value))
+  | Atom(Real(Real.Rational({numerator, denominator, _})))
+      when Bigint.equal(denominator, Bigint.one) =>
+    Bigint.to_int(numerator)
   | _ => None
   };
 };
@@ -174,7 +190,8 @@ let rec distribute_diff_over_operator =
   };
 };
 
-let applicable_at_root_with_context = (~rule_enabled, ~float_context, exp) => {
+let applicable_at_root_with_context =
+    (~rule_enabled, ~float_context, ~real_context, exp) => {
   let before_exp = strip(exp);
   let make_diff = derivative_builder(before_exp);
   let make = (rule_id, label, after_exp) =>
@@ -212,15 +229,35 @@ let applicable_at_root_with_context = (~rule_enabled, ~float_context, exp) => {
         let expression = strip(expression);
         let float_math =
           float_context || TrigRewrite.uses_float_math(expression);
+        let real_math =
+          !float_math
+          && (real_context || TrigRewrite.uses_real_math(expression));
         let literal = value =>
           float_math
-            ? TrigRewrite.float_exp(float_of_int(value)) : int_exp(value);
+            ? TrigRewrite.float_exp(float_of_int(value))
+            : real_math
+                ? Exp.fresh(
+                    Atom(Real(Real.of_bigint(Bigint.of_int(value)))),
+                  )
+                : int_exp(value);
+        let numeric_bin_op = (int_op, real_op, float_op) =>
+          float_math ? float_op : real_math ? real_op : int_op;
+        let numeric_un_op =
+            (
+              int_op: Operators.op_un,
+              real_op: Operators.op_un,
+              float_op: Operators.op_un,
+            )
+            : Operators.op_un =>
+          float_math ? float_op : real_math ? real_op : int_op;
         let plus = (left, right) =>
           Exp.fresh(
             BinOp(
-              float_math
-                ? Operators.Float(Operators.Plus)
-                : Operators.Int(Operators.Plus),
+              numeric_bin_op(
+                Operators.Int(Operators.Plus),
+                Operators.Real(Operators.Plus),
+                Operators.Float(Operators.Plus),
+              ),
               left,
               right,
             ),
@@ -228,9 +265,11 @@ let applicable_at_root_with_context = (~rule_enabled, ~float_context, exp) => {
         let minus = (left, right) =>
           Exp.fresh(
             BinOp(
-              float_math
-                ? Operators.Float(Operators.Minus)
-                : Operators.Int(Operators.Minus),
+              numeric_bin_op(
+                Operators.Int(Operators.Minus),
+                Operators.Real(Operators.Minus),
+                Operators.Float(Operators.Minus),
+              ),
               left,
               right,
             ),
@@ -238,9 +277,11 @@ let applicable_at_root_with_context = (~rule_enabled, ~float_context, exp) => {
         let times = (left, right) =>
           Exp.fresh(
             BinOp(
-              float_math
-                ? Operators.Float(Operators.Times)
-                : Operators.Int(Operators.Times),
+              numeric_bin_op(
+                Operators.Int(Operators.Times),
+                Operators.Real(Operators.Times),
+                Operators.Float(Operators.Times),
+              ),
               left,
               right,
             ),
@@ -248,9 +289,11 @@ let applicable_at_root_with_context = (~rule_enabled, ~float_context, exp) => {
         let divide = (left, right) =>
           Exp.fresh(
             BinOp(
-              float_math
-                ? Operators.Float(Operators.Divide)
-                : Operators.Int(Operators.Divide),
+              numeric_bin_op(
+                Operators.Int(Operators.Divide),
+                Operators.Real(Operators.Divide),
+                Operators.Float(Operators.Divide),
+              ),
               left,
               right,
             ),
@@ -258,9 +301,11 @@ let applicable_at_root_with_context = (~rule_enabled, ~float_context, exp) => {
         let power = (left, right) =>
           Exp.fresh(
             BinOp(
-              float_math
-                ? Operators.Float(Operators.Power)
-                : Operators.Int(Operators.Power),
+              numeric_bin_op(
+                Operators.Int(Operators.Power),
+                Operators.Real(Operators.Power),
+                Operators.Float(Operators.Power),
+              ),
               left,
               right,
             ),
@@ -268,9 +313,11 @@ let applicable_at_root_with_context = (~rule_enabled, ~float_context, exp) => {
         let negate = inner =>
           Exp.fresh(
             UnOp(
-              float_math
-                ? Operators.Float(Operators.Minus)
-                : Operators.Int(Operators.Minus),
+              numeric_un_op(
+                Operators.Int(Operators.Minus),
+                Operators.Real(Operators.Minus),
+                Operators.Float(Operators.Minus),
+              ),
               inner,
             ),
           );
@@ -369,7 +416,8 @@ let applicable_at_root_with_context = (~rule_enabled, ~float_context, exp) => {
           | _ => []
           }
         | UnOp(
-            Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus),
+            Operators.Int(Operators.Minus) | SInt(Minus) | Real(Minus) |
+            Float(Minus),
             inner,
           ) =>
           make(
@@ -388,36 +436,76 @@ let applicable_at_root = (~rule_enabled, exp) =>
   applicable_at_root_with_context(
     ~rule_enabled,
     ~float_context=TrigRewrite.uses_float_math(exp),
+    ~real_context=TrigRewrite.uses_real_math(exp),
     exp,
   );
 
 let rebuild_unary = (op, inner) => Exp.fresh(UnOp(op, inner));
 let rebuild_binary = (op, left, right) => Exp.fresh(BinOp(op, left, right));
 
-let rec rewrite_first_with_context = (~rule_enabled, ~float_context, exp) => {
+let rec rewrite_first_with_context =
+        (~rule_enabled, ~float_context, ~real_context, exp) => {
   let float_context = float_context || TrigRewrite.uses_float_math(exp);
-  switch (applicable_at_root_with_context(~rule_enabled, ~float_context, exp)) {
+  let real_context =
+    real_context || !float_context && TrigRewrite.uses_real_math(exp);
+  switch (
+    applicable_at_root_with_context(
+      ~rule_enabled,
+      ~float_context,
+      ~real_context,
+      exp,
+    )
+  ) {
   | [root, ..._] => Some((root.after_exp, root))
   | [] =>
     let exp = strip(exp);
     switch (exp.term) {
     | BinOp(op, left, right) =>
-      switch (rewrite_first_with_context(~rule_enabled, ~float_context, left)) {
+      switch (
+        rewrite_first_with_context(
+          ~rule_enabled,
+          ~float_context,
+          ~real_context,
+          left,
+        )
+      ) {
       | Some((left, step)) => Some((rebuild_binary(op, left, right), step))
       | None =>
-        rewrite_first_with_context(~rule_enabled, ~float_context, right)
+        rewrite_first_with_context(
+          ~rule_enabled,
+          ~float_context,
+          ~real_context,
+          right,
+        )
         |> Option.map(((right, step)) =>
              (rebuild_binary(op, left, right), step)
            )
       }
     | UnOp(op, inner) =>
-      rewrite_first_with_context(~rule_enabled, ~float_context, inner)
+      rewrite_first_with_context(
+        ~rule_enabled,
+        ~float_context,
+        ~real_context,
+        inner,
+      )
       |> Option.map(((inner, step)) => (rebuild_unary(op, inner), step))
     | Ap(direction, fn, arg) =>
-      switch (rewrite_first_with_context(~rule_enabled, ~float_context, fn)) {
+      switch (
+        rewrite_first_with_context(
+          ~rule_enabled,
+          ~float_context,
+          ~real_context,
+          fn,
+        )
+      ) {
       | Some((fn, step)) => Some((Exp.fresh(Ap(direction, fn, arg)), step))
       | None =>
-        rewrite_first_with_context(~rule_enabled, ~float_context, arg)
+        rewrite_first_with_context(
+          ~rule_enabled,
+          ~float_context,
+          ~real_context,
+          arg,
+        )
         |> Option.map(((arg, step)) =>
              (Exp.fresh(Ap(direction, fn, arg)), step)
            )
@@ -428,7 +516,12 @@ let rec rewrite_first_with_context = (~rule_enabled, ~float_context, exp) => {
         | [] => None
         | [entry, ...rest] =>
           switch (
-            rewrite_first_with_context(~rule_enabled, ~float_context, entry)
+            rewrite_first_with_context(
+              ~rule_enabled,
+              ~float_context,
+              ~real_context,
+              entry,
+            )
           ) {
           | Some((entry, step)) =>
             Some((tuple_exp(List.rev(before) @ [entry, ...rest]), step))
@@ -437,18 +530,38 @@ let rec rewrite_first_with_context = (~rule_enabled, ~float_context, exp) => {
         };
       rewrite_entry([], entries);
     | Parens(inner) =>
-      rewrite_first_with_context(~rule_enabled, ~float_context, inner)
+      rewrite_first_with_context(
+        ~rule_enabled,
+        ~float_context,
+        ~real_context,
+        inner,
+      )
       |> Option.map(((inner, step)) => (Exp.fresh(Parens(inner)), step))
     | Asc(inner, typ) =>
-      rewrite_first_with_context(~rule_enabled, ~float_context, inner)
+      rewrite_first_with_context(
+        ~rule_enabled,
+        ~float_context,
+        ~real_context,
+        inner,
+      )
       |> Option.map(((inner, step)) => (Exp.fresh(Asc(inner, typ)), step))
     | Projector(label, inner) =>
-      rewrite_first_with_context(~rule_enabled, ~float_context, inner)
+      rewrite_first_with_context(
+        ~rule_enabled,
+        ~float_context,
+        ~real_context,
+        inner,
+      )
       |> Option.map(((inner, step)) =>
            (Exp.fresh(Projector(label, inner)), step)
          )
     | Fun(pat, body, return_typ, name) =>
-      rewrite_first_with_context(~rule_enabled, ~float_context, body)
+      rewrite_first_with_context(
+        ~rule_enabled,
+        ~float_context,
+        ~real_context,
+        body,
+      )
       |> Option.map(((body, step)) =>
            (Exp.fresh(Fun(pat, body, return_typ, name)), step)
          )
@@ -458,7 +571,12 @@ let rec rewrite_first_with_context = (~rule_enabled, ~float_context, exp) => {
 };
 
 let rewrite_first = (~rule_enabled, exp) =>
-  rewrite_first_with_context(~rule_enabled, ~float_context=false, exp);
+  rewrite_first_with_context(
+    ~rule_enabled,
+    ~float_context=false,
+    ~real_context=false,
+    exp,
+  );
 
 let normalize = (~rule_enabled, ~fuel=128, exp) => {
   let rec loop = (fuel, exp, steps) =>
@@ -506,7 +624,8 @@ let is_one = exp => integer_constant(exp) == Some(1);
 let negative_operand = exp =>
   switch (strip(exp).term) {
   | UnOp(
-      Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus),
+      Operators.Int(Operators.Minus) | SInt(Minus) | Real(Minus) |
+      Float(Minus),
       inner,
     ) =>
     Some(inner)

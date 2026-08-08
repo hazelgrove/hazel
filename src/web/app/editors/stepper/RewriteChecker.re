@@ -325,10 +325,13 @@ let rec affine_of_exp = (exp: Exp.t): option(affine_normalization) =>
     Some(affine_normalization(affine_const(value), []))
   | Atom(SInt(value)) =>
     Some(affine_normalization(affine_const(Bigint.of_int(value)), []))
+  | Atom(Real(Real.Rational({numerator, denominator, _})))
+      when Bigint.equal(denominator, Bigint.one) =>
+    Some(affine_normalization(affine_const(numerator), []))
   | Var(name) => Some(affine_normalization(affine_var(name), []))
   | Parens(exp)
   | Asc(exp, _) => affine_of_exp(exp)
-  | UnOp(Int(Minus) | SInt(Minus), exp) =>
+  | UnOp(Int(Minus) | SInt(Minus) | Real(Minus), exp) =>
     affine_of_exp(exp)
     |> Option.map(normalized =>
          affine_normalization(
@@ -336,7 +339,7 @@ let rec affine_of_exp = (exp: Exp.t): option(affine_normalization) =>
            ["arith.add_neg", ...normalized.rule_ids],
          )
        )
-  | BinOp(Int(Plus) | Nat(Plus) | SInt(Plus), left, right) =>
+  | BinOp(Int(Plus) | Nat(Plus) | SInt(Plus) | Real(Plus), left, right) =>
     switch (affine_of_exp(left), affine_of_exp(right)) {
     | (Some(left), Some(right)) =>
       Some(
@@ -353,7 +356,7 @@ let rec affine_of_exp = (exp: Exp.t): option(affine_normalization) =>
       )
     | _ => None
     }
-  | BinOp(Int(Minus) | SInt(Minus), left, right) =>
+  | BinOp(Int(Minus) | SInt(Minus) | Real(Minus), left, right) =>
     switch (affine_of_exp(left), affine_of_exp(right)) {
     | (Some(left), Some(right)) =>
       Some(
@@ -370,7 +373,11 @@ let rec affine_of_exp = (exp: Exp.t): option(affine_normalization) =>
       )
     | _ => None
     }
-  | BinOp(Int(Times) | Nat(Times) | SInt(Times), left, right) =>
+  | BinOp(
+      Int(Times) | Nat(Times) | SInt(Times) | Real(Times),
+      left,
+      right,
+    ) =>
     switch (affine_of_exp(left), affine_of_exp(right)) {
     | (Some(left), Some(right)) =>
       switch (affine_constant(left.affine), affine_constant(right.affine)) {
@@ -403,7 +410,7 @@ let rec affine_of_exp = (exp: Exp.t): option(affine_normalization) =>
     | _ => None
     }
   | Atom(Float(_) | Decimal(_) | Real(_) | Bool(_) | String(_))
-  | UnOp(Nat(Minus) | Float(Minus) | Real(_) | Bool(_), _)
+  | UnOp(Nat(Minus) | Float(Minus) | Bool(_), _)
   | BinOp(
       Int(
         Power | Divide | LessThan | LessThanOrEqual | GreaterThan |
@@ -531,6 +538,7 @@ let is_divide_op =
   | Operators.Int(Operators.Divide)
   | Nat(Divide)
   | SInt(Divide)
+  | Real(Divide)
   | Float(Divide) => true
   | _ => false;
 
@@ -538,7 +546,8 @@ let is_power_op =
   fun
   | Operators.Int(Operators.Power)
   | Nat(Power)
-  | SInt(Power) => true
+  | SInt(Power)
+  | Real(Power) => true
   | _ => false;
 
 let strip_math_wrappers = MathRewriteUtil.strip_math_wrappers;
@@ -725,9 +734,11 @@ let distributed_additive_exp = (add_op, left, right) =>
   switch (add_op) {
   | Operators.Int(Operators.Plus)
   | Nat(Plus)
-  | SInt(Plus) => normalized_sum(add_op, left, right)
+  | SInt(Plus)
+  | Real(Plus) => normalized_sum(add_op, left, right)
   | Operators.Int(Operators.Minus)
-  | SInt(Minus) => plus_exp_with_op(add_op, left, right)
+  | SInt(Minus)
+  | Real(Minus) => plus_exp_with_op(add_op, left, right)
   | _ => normalized_sum(add_op, left, right)
   };
 
@@ -735,6 +746,7 @@ let is_minus_op =
   fun
   | Operators.Int(Operators.Minus)
   | SInt(Minus)
+  | Real(Minus)
   | Float(Minus) => true
   | _ => false;
 
@@ -743,6 +755,9 @@ let is_int_two = exp =>
   | Atom(Int(value))
   | Atom(Nat(value)) => Bigint.equal(value, Bigint.of_int(2))
   | Atom(SInt(value)) => value == 2
+  | Atom(Real(Real.Rational({numerator, denominator, _}))) =>
+    Bigint.equal(denominator, Bigint.one)
+    && Bigint.equal(numerator, Bigint.of_int(2))
   | _ => false
   };
 
@@ -769,6 +784,7 @@ let is_numeric_minus = (op: Operators.op_un) =>
   | Operators.Int(Operators.Minus)
   | Nat(Minus)
   | SInt(Minus)
+  | Real(Minus)
   | Float(Minus) => true
   | _ => false
   };
@@ -777,7 +793,10 @@ let is_real_math_builtin =
   fun
   | "sin"
   | "cos"
-  | "tan" => true
+  | "tan"
+  | "sin_real"
+  | "cos_real"
+  | "tan_real" => true
   | _ => false;
 
 let rec same_math_exp = (left, right) => {
@@ -808,6 +827,22 @@ let rec same_math_exp = (left, right) => {
     | (Atom(SInt(left)), Atom(Int(right)))
     | (Atom(SInt(left)), Atom(Nat(right))) =>
       Bigint.equal(Bigint.of_int(left), right)
+    | (
+        Atom(Real(Real.Rational(left))),
+        Atom(Real(Real.Rational(right))),
+      ) =>
+      Bigint.equal(left.numerator, right.numerator)
+      && Bigint.equal(left.denominator, right.denominator)
+    | (
+        Atom(Real(Real.Rational(real))),
+        Atom(Int(integer) | Nat(integer)),
+      )
+    | (
+        Atom(Int(integer) | Nat(integer)),
+        Atom(Real(Real.Rational(real))),
+      ) =>
+      Bigint.equal(real.denominator, Bigint.one)
+      && Bigint.equal(real.numerator, integer)
     | (BuiltinFun(left), Var(right))
     | (Var(left), BuiltinFun(right)) =>
       left == right && is_real_math_builtin(left)
@@ -961,6 +996,8 @@ let rec rational_affine_of_exp_with_distribution =
     rational_affine_constant(
       rational_coeff(Bigint.of_int(value), Bigint.one),
     )
+  | Atom(Real(Real.Rational({numerator, denominator, _}))) =>
+    rational_affine_constant(rational_coeff(numerator, denominator))
   | Atom(Float(value)) when value == Float.round(value) =>
     rational_affine_constant(
       rational_coeff(Bigint.of_int(int_of_float(value)), Bigint.one),
@@ -968,7 +1005,7 @@ let rec rational_affine_of_exp_with_distribution =
   | Parens(inner)
   | Asc(inner, _) =>
     rational_affine_of_exp_with_distribution(allow_distribution, inner)
-  | UnOp(Int(Minus) | SInt(Minus) | Float(Minus), inner) =>
+  | UnOp(Int(Minus) | SInt(Minus) | Real(Minus) | Float(Minus), inner) =>
     rational_affine_of_exp_with_distribution(allow_distribution, inner)
     |> rational_affine_negate
   | BinOp(op, left, right) when is_plus_op(op) =>
@@ -1111,10 +1148,16 @@ let rec rational_affine_pieces_of_exp_with_distribution =
         coeff: rational_coeff(Bigint.of_int(value), Bigint.one),
       },
     ]
+  | Atom(Real(Real.Rational({numerator, denominator, _}))) => [
+      {
+        atom: None,
+        coeff: rational_coeff(numerator, denominator),
+      },
+    ]
   | Parens(inner)
   | Asc(inner, _) =>
     rational_affine_pieces_of_exp_with_distribution(allow_distribution, inner)
-  | UnOp(Int(Minus) | SInt(Minus) | Float(Minus), inner) =>
+  | UnOp(Int(Minus) | SInt(Minus) | Real(Minus) | Float(Minus), inner) =>
     rational_affine_scale_pieces(
       rational_coeff(Bigint.neg(Bigint.one), Bigint.one),
       rational_affine_pieces_of_exp_with_distribution(
@@ -2606,6 +2649,9 @@ let polynomial_int_constant = exp => {
   | Atom(Int(value))
   | Atom(Nat(value)) => Some(value)
   | Atom(SInt(value)) => Some(Bigint.of_int(value))
+  | Atom(Real(Real.Rational({numerator, denominator, _})))
+      when Bigint.equal(denominator, Bigint.one) =>
+    Some(numerator)
   | _ => None
   };
 };
@@ -2620,10 +2666,13 @@ let rec polynomial_of_exp = (exp: Exp.t): option(polynomial_normalization) => {
     Some(
       polynomial_normalization(polynomial_const(Bigint.of_int(value)), []),
     )
+  | Atom(Real(Real.Rational({numerator, denominator, _})))
+      when Bigint.equal(denominator, Bigint.one) =>
+    Some(polynomial_normalization(polynomial_const(numerator), []))
   | Var(name) => Some(polynomial_normalization(polynomial_var(name), []))
   | Parens(exp)
   | Asc(exp, _) => polynomial_of_exp(exp)
-  | UnOp(Int(Minus) | SInt(Minus), exp) =>
+  | UnOp(Int(Minus) | SInt(Minus) | Real(Minus), exp) =>
     polynomial_of_exp(exp)
     |> Option.map(normalized =>
          polynomial_normalization(
@@ -2631,7 +2680,7 @@ let rec polynomial_of_exp = (exp: Exp.t): option(polynomial_normalization) => {
            ["alg.collect_like_terms", ...normalized.rule_ids],
          )
        )
-  | BinOp(Int(Plus) | Nat(Plus) | SInt(Plus), left, right) =>
+  | BinOp(Int(Plus) | Nat(Plus) | SInt(Plus) | Real(Plus), left, right) =>
     switch (polynomial_of_exp(left), polynomial_of_exp(right)) {
     | (Some(left), Some(right)) =>
       let rule_ids =
@@ -2646,7 +2695,7 @@ let rec polynomial_of_exp = (exp: Exp.t): option(polynomial_normalization) => {
       );
     | _ => None
     }
-  | BinOp(Int(Minus) | SInt(Minus), left, right) =>
+  | BinOp(Int(Minus) | SInt(Minus) | Real(Minus), left, right) =>
     switch (polynomial_of_exp(left), polynomial_of_exp(right)) {
     | (Some(left), Some(right)) =>
       let negated_right = polynomial_negate(right.polynomial);
@@ -2662,7 +2711,11 @@ let rec polynomial_of_exp = (exp: Exp.t): option(polynomial_normalization) => {
       );
     | _ => None
     }
-  | BinOp(Int(Times) | Nat(Times) | SInt(Times), left, right) =>
+  | BinOp(
+      Int(Times) | Nat(Times) | SInt(Times) | Real(Times),
+      left,
+      right,
+    ) =>
     switch (polynomial_of_exp(left), polynomial_of_exp(right)) {
     | (Some(left), Some(right)) =>
       let rule_ids =
@@ -2692,7 +2745,11 @@ let rec polynomial_of_exp = (exp: Exp.t): option(polynomial_normalization) => {
       );
     | _ => None
     }
-  | BinOp(Int(Power) | Nat(Power) | SInt(Power), base, exponent) =>
+  | BinOp(
+      Int(Power) | Nat(Power) | SInt(Power) | Real(Power),
+      base,
+      exponent,
+    ) =>
     switch (polynomial_of_exp(base), polynomial_int_constant(exponent)) {
     | (Some(base), Some(exponent)) =>
       switch (Bigint.to_int(exponent)) {
@@ -2715,7 +2772,7 @@ let rec polynomial_of_exp = (exp: Exp.t): option(polynomial_normalization) => {
     | _ => None
     }
   | Atom(Float(_) | Decimal(_) | Real(_) | Bool(_) | String(_))
-  | UnOp(Nat(Minus) | Float(Minus) | Real(_) | Bool(_), _)
+  | UnOp(Nat(Minus) | Float(Minus) | Bool(_), _)
   | BinOp(
       Int(
         Divide | LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual,

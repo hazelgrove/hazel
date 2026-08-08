@@ -1,8 +1,8 @@
 open Haz3lcore
 
 let theorem_source =
-  "theorem trig_power_reduction = 1. +. 2. *. sin(x) **. 4. == 7. /. 4. -. \
-   cos(2. *. x) +. (1. /. 4.) *. cos(4. *. x) in ?"
+  "theorem trig_power_reduction = use Real in (1 + 2 * sin_real(x) ** 4 == 7 / \
+   4 - cos_real(2 * x) + (1 / 4) * cos_real(4 * x)) in ?"
 
 let zipper_of_source source =
   match Parser.to_zipper ~root:Exp source with
@@ -78,4 +78,5 @@ let exercise : Exercise.t =
       prelude = Zipper.init ();
       lemmas = Zipper.init ();
       theorem = zipper_of_source theorem_source;
+      expected_explore_result = None;
     }

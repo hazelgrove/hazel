@@ -16,21 +16,26 @@ let op_to_algebrite =
   | Operators.Int(Operators.Plus)
   | Nat(Plus)
   | SInt(Plus)
+  | Real(Plus)
   | Float(Plus) => Some("+")
   | Operators.Int(Operators.Minus)
   | SInt(Minus)
+  | Real(Minus)
   | Float(Minus) => Some("-")
   | Operators.Int(Operators.Times)
   | Nat(Times)
   | SInt(Times)
+  | Real(Times)
   | Float(Times) => Some("*")
   | Operators.Int(Operators.Divide)
   | Nat(Divide)
   | SInt(Divide)
+  | Real(Divide)
   | Float(Divide) => Some("/")
   | Operators.Int(Operators.Power)
   | Nat(Power)
   | SInt(Power)
+  | Real(Power)
   | Float(Power) => Some("^")
   | _ => None;
 
@@ -39,6 +44,12 @@ let function_name = exp => {
   switch (exp.term) {
   | Var(("sin" | "cos" | "tan") as name)
   | BuiltinFun(("sin" | "cos" | "tan") as name) => Some(name)
+  | Var("sin_real")
+  | BuiltinFun("sin_real") => Some("sin")
+  | Var("cos_real")
+  | BuiltinFun("cos_real") => Some("cos")
+  | Var("tan_real")
+  | BuiltinFun("tan_real") => Some("tan")
   | _ => None
   };
 };
@@ -53,9 +64,21 @@ let rec serialize_for_algebrite = (exp: Exp.t): option(string) => {
   | Atom(SInt(value)) => Some(string_of_int(value))
   | Atom(Float(value)) when is_float_pi(value) => Some("pi")
   | Atom(Float(value)) => Some(string_of_float_literal(value))
+  | Atom(Real(Real.Pi)) => Some("pi")
+  | Atom(Real(Real.Rational({numerator, denominator, _}))) =>
+    Some(
+      Bigint.equal(denominator, Bigint.one)
+        ? Bigint.to_string(numerator)
+        : parens(
+            Bigint.to_string(numerator)
+            ++ "/"
+            ++ Bigint.to_string(denominator),
+          ),
+    )
   | Var(name) => Some(name)
   | UnOp(
-      Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus),
+      Operators.Int(Operators.Minus) | SInt(Minus) | Real(Minus) |
+      Float(Minus),
       inner,
     ) =>
     serialize_for_algebrite(inner)
@@ -86,6 +109,9 @@ let is_nonnegative_integer_literal = exp => {
   | Atom(Nat(value)) => Bigint.(>=)(value, Bigint.zero)
   | Atom(SInt(value)) => value >= 0
   | Atom(Float(value)) => value >= 0.0 && is_integer_float(value)
+  | Atom(Real(Real.Rational({numerator, denominator, _}))) =>
+    Bigint.equal(denominator, Bigint.one)
+    && Bigint.(>=)(numerator, Bigint.zero)
   | _ => false
   };
 };
@@ -99,9 +125,11 @@ let rec is_polynomial = exp => {
   | Atom(Nat(_))
   | Atom(SInt(_))
   | Atom(Float(_))
+  | Atom(Real(Real.Rational(_)))
   | Var(_) => true
   | UnOp(
-      Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus),
+      Operators.Int(Operators.Minus) | SInt(Minus) | Real(Minus) |
+      Float(Minus),
       inner,
     ) =>
     is_polynomial(inner)
