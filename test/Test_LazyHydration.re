@@ -20,7 +20,8 @@ let tests = (
       `Quick,
       () => {
         let settings = Language.CoreSettings.on;
-        let names = List.map(fst, snd(Init.startup.documentation));
+        let names =
+          List.map(fst, snd(Lazy.force(Init.startup).documentation));
         let m =
           ScratchMode.Persist.load_all(
             "doc",

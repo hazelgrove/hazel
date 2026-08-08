@@ -589,14 +589,61 @@ module Local = {
        where the quadratic typing parse froze the editor. The small insert
        paths keep the typing parser so their whitespace conventions (magic
        spaces, boundary newlines) are untouched. */
+    /* Edge whitespace (the insert flow's baked-in separator newlines)
+       must survive the fast path's trim: re-attach it as Secondary. */
+    let ws_secondaries = (ws: string): Segment.t =>
+      ws
+      |> String.to_seq
+      |> Seq.filter_map(c =>
+           switch (c) {
+           | ' '
+           | '\t' =>
+             Some(
+               Piece.Secondary({
+                 id: Id.mk(),
+                 content: Secondary.Whitespace(Token.space),
+               }),
+             )
+           | '\n' =>
+             Some(
+               Piece.Secondary({
+                 id: Id.mk(),
+                 content: Secondary.Whitespace(Token.linebreak),
+               }),
+             )
+           | _ => None
+           }
+         )
+      |> List.of_seq;
+    let edge_ws = (code: string): (string, string) => {
+      let trimmed = String.trim(code);
+      switch (Util.StringUtil.plain_search(trimmed, code, 0)) {
+      | i when i >= 0 => (
+          String.sub(code, 0, i),
+          String.sub(
+            code,
+            i + String.length(trimmed),
+            String.length(code) - i - String.length(trimmed),
+          ),
+        )
+      | _ => ("", "")
+      };
+    };
     let rec introduce =
-            (~root=Sort.Exp, ~fast=false, z: Zipper.t, code: string)
+            (
+              ~root=Sort.Exp,
+              ~fast=false,
+              ~keep_edge_ws=false,
+              z: Zipper.t,
+              code: string,
+            )
             : result(Zipper.t, Action.Failure.t) => {
       let code = StringUtil.trim_leading(code);
       switch (
         fast
           ? FastParse.of_text(
               ~materialize=Triggers.invoked_projector,
+              ~collect_refractors=false,
               ~root,
               String.trim(code),
             )
@@ -605,7 +652,14 @@ module Local = {
       | Some(segment) =>
         /* Source tokens + formatting verbatim, molds from ExpToSegment +
            splice-time remold. No size cap needed on this path. */
-        Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root))
+        let segment =
+          if (keep_edge_ws) {
+            let (lead, trail) = edge_ws(code);
+            ws_secondaries(lead) @ segment @ ws_secondaries(trail);
+          } else {
+            segment;
+          };
+        Ok(Zipper.insert_segment(z, pad_fusing_edges(z, segment), ~root));
       | None =>
         if (fast) {
           /* console-visible fallback telemetry (dev): which construct
@@ -726,8 +780,22 @@ module Local = {
         /* Mod root so the member `;` molds as the member separator, not
            the Exp sequence operator. */
         switch (d) {
-        | Left => introduce(~root=Sort.Mod, z_caret, code ++ ";\n")
-        | Right => introduce(~root=Sort.Mod, z_caret, ";\n" ++ code)
+        | Left =>
+          introduce(
+            ~root=Sort.Mod,
+            ~fast=true,
+            ~keep_edge_ws=true,
+            z_caret,
+            code ++ ";\n",
+          )
+        | Right =>
+          introduce(
+            ~root=Sort.Mod,
+            ~fast=true,
+            ~keep_edge_ws=true,
+            z_caret,
+            ";\n" ++ code,
+          )
         };
       };
     };
@@ -752,7 +820,7 @@ module Local = {
       ) {
       | Some(z') =>
         switch (Move.by_token(d, z')) {
-        | Some(z'') => introduce(z'', code)
+        | Some(z'') => introduce(~fast=true, ~keep_edge_ws=true, z'', code)
         | None => Error(Action.Failure.Cant_move)
         }
       | None => Error(Action.Failure.Cant_select)

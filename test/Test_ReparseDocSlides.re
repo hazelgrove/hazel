@@ -8,7 +8,7 @@ open Haz3lcore;
 open EditingPrelude;
 
 let doc_slides: list((string, CellEditor.Model.persistent)) =
-  snd(Init.startup.documentation);
+  snd(Lazy.force(Init.startup).documentation);
 
 let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
   test_case(

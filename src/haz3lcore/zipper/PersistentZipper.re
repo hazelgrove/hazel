@@ -55,7 +55,15 @@ let from_backup_text = (backup_text: string, ~root): Zipper.t =>
   | None =>
     /* MarkerParse subsumes the plain typing parse and also destructs
        `¿` markers back into Grout (concave grout and other fast-path
-       bails land here). */
+       bails land here). Console-visible: every slow parse names itself. */
+    print_endline(
+      "SLOW PARSE (persistence load, "
+      ++ string_of_int(String.length(backup_text))
+      ++ " chars): "
+      ++ Option.value(FastParse.bail_note^, ~default="no note")
+      ++ " | head: "
+      ++ String.sub(backup_text, 0, min(60, String.length(backup_text))),
+    );
     switch (MarkerParse.of_text(~root, backup_text)) {
     | None => Zipper.init()
     | Some(z) =>
@@ -66,7 +74,7 @@ let from_backup_text = (backup_text: string, ~root): Zipper.t =>
       let refractors = z.refractors;
       Zipper.unzip(~direction=Left, Zipper.unselect_and_zip(z))
       |> ZipperBase.update_refractors(_, _ => refractors);
-    }
+    };
   };
 
 let unpersist = (persisted: t, ~root) =>

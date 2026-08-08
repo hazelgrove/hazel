@@ -52,6 +52,7 @@ let go =
           ? Option.map(
               seg =>
                 Zipper.rescan_reassemble(
+                  ~with_parent=true,
                   Left,
                   Zipper.insert_segment(z, seg, ~root),
                   ~root,
@@ -88,10 +89,7 @@ let go =
       (
         switch (menhir_pasted) {
         | Some(z) => Some(z)
-        | None =>
-          fast_ctx
-            ? Parser.fast_paste(clipboard, z, ~root)
-            : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
+        | None => Parser.to_zipper(~root, ~zipper_init=z, clipboard)
         }
       )
       |> Option.map(maybe_reassoc_thorough)

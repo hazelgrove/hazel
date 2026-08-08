@@ -42,11 +42,3 @@ let to_text =
    PersistentZipper, so slide loading can use it); delegated here. */
 let of_text = (~implicit_hole=default_implicit_hole, ~root, text: string) =>
   MarkerParse.of_text(~implicit_hole, ~root, text);
-
-let persist_from_text =
-    (~implicit_hole=default_implicit_hole, ~root, text: string)
-    : option(PersistentSegment.t) =>
-  Option.map(
-    PersistentSegment.persist,
-    of_text(~implicit_hole, ~root, text),
-  );
