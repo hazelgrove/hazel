@@ -7,6 +7,9 @@ open Util;
 let settings = CoreSettings.on;
 let env = Environment.empty;
 
+let print_for_algebrite = exp =>
+  Web.RewriteChecker.print_exp_for_algebrite(~name_other=_ => "unknown", exp);
+
 /* Legacy macro fixtures remain test-local so production proof search cannot
    manufacture a collapsed authorization trace. */
 let collapsed_macro_summary_for_purpose = (~purpose, request) => {
@@ -17009,6 +17012,90 @@ let tests = (
           true,
           !string_contains("assert (H_hazel_step_", coq)
           && string_contains("ring", coq),
+        );
+      },
+    ),
+    test_case(
+      "Print exact Reals for Algebrite",
+      `Quick,
+      () => {
+        check(string, "pi", "pi", print_for_algebrite(Exp.real(Real.Pi)));
+        check(
+          string,
+          "rational",
+          "(1/3)",
+          print_for_algebrite(
+            Exp.real(Real.normalize(Bigint.one, Bigint.of_int(3), None)),
+          ),
+        );
+        check(
+          string,
+          "negative integer",
+          "-2",
+          print_for_algebrite(Exp.real(Real.of_bigint(Bigint.of_int(-2)))),
+        );
+      },
+    ),
+    test_case(
+      "Print recognized functions for Algebrite",
+      `Quick,
+      () => {
+        check(
+          string,
+          "elaborated built-in function",
+          "sin(pi)",
+          print_for_algebrite(
+            Exp.ap(Forward, Exp.builtin_fun("sin"), Exp.real(Real.Pi)),
+          ),
+        );
+        check(
+          string,
+          "exact rational argument",
+          "cos((1/3))",
+          print_for_algebrite(
+            Exp.ap(
+              Forward,
+              Exp.builtin_fun("cos"),
+              Exp.real(Real.normalize(Bigint.one, Bigint.of_int(3), None)),
+            ),
+          ),
+        );
+        check(
+          string,
+          "shadowed function is not treated as a built-in",
+          "unknown",
+          print_for_algebrite(
+            Exp.ap(Forward, Exp.var("sin"), Exp.real(Real.Pi)),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "Print exact Real operators for Algebrite",
+      `Quick,
+      () => {
+        check(
+          string,
+          "power",
+          "(2 ^ 3)",
+          print_for_algebrite(
+            Exp.bin_op(
+              Operators.Real(Power),
+              Exp.real(Real.of_bigint(Bigint.of_int(2))),
+              Exp.real(Real.of_bigint(Bigint.of_int(3))),
+            ),
+          ),
+        );
+        check(
+          string,
+          "negation",
+          "(-2)",
+          print_for_algebrite(
+            Exp.un_op(
+              Operators.Real(Minus),
+              Exp.real(Real.of_bigint(Bigint.of_int(2))),
+            ),
+          ),
         );
       },
     ),

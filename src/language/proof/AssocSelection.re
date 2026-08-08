@@ -39,19 +39,22 @@ let supports_virtual_slice: Operators.op_bin => bool =
   fun
   | Int(Plus | Times)
   | SInt(Plus | Times)
-  | Nat(Plus | Times) => true
+  | Nat(Plus | Times)
+  | Real(Plus | Times) => true
   | Float(_)
   | Bool(_)
   | String(_)
   | Poly(_)
   | Int(_)
   | SInt(_)
-  | Nat(_) => false;
+  | Nat(_)
+  | Real(_) => false;
 
 let is_additive_pair = (op: Operators.op_bin, left_op: Operators.op_bin): bool =>
   switch (op, left_op) {
   | (Int(Minus), Int(Plus))
-  | (SInt(Minus), SInt(Plus)) => true
+  | (SInt(Minus), SInt(Plus))
+  | (Real(Minus), Real(Plus)) => true
   | _ => false
   };
 

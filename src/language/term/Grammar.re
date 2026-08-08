@@ -600,6 +600,14 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Float(f)),
       annotation: default_annotation(ann),
     };
+    let decimal = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
+      term: Atom(Decimal(s)),
+      annotation: default_annotation(ann),
+    };
+    let real = (~ann=?, r): exp_t(DefaultAnnotation.t) => {
+      term: Atom(Real(r)),
+      annotation: default_annotation(ann),
+    };
     let string = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
       term: Atom(String(s)),
       annotation: default_annotation(ann),
@@ -808,6 +816,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Float(f)),
       annotation: default_annotation(ann),
     };
+    let real = (~ann=?, r): pat_t(DefaultAnnotation.t) => {
+      term: Atom(Real(r)),
+      annotation: default_annotation(ann),
+    };
     let bool = (~ann=?, b): pat_t(DefaultAnnotation.t) => {
       term: Atom(Bool(b)),
       annotation: default_annotation(ann),
@@ -886,6 +898,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let float = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
       term: Atom(Float),
+      annotation: default_annotation(ann),
+    };
+    let real = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Atom(Real),
       annotation: default_annotation(ann),
     };
     let bool = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {

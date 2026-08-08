@@ -34,6 +34,11 @@ let numeric_constants =
       imp: float(Float.pi),
     },
     {
+      name: "pi_real",
+      typ: Atom(Real),
+      imp: real(Real.Pi),
+    },
+    {
       name: "max_sint",
       typ: Atom(SInt),
       imp: sint(Int.max_int),

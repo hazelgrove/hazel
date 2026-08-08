@@ -224,6 +224,7 @@ let quote_label_when_necessary = (l: string): string =>
 let base_typs = [
   "Bool",
   "Float",
+  "Real",
   "Int",
   "Nat",
   "SInt",

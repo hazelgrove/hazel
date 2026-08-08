@@ -860,6 +860,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' = req_final(req(env), d1 => UnOp(op, d1) |> wrap_ctx, d1);
       switch (Operators.semantics_of_un_op(op)) {
       | Undefined(_) => Indet
+      | StuckUn(_, _) => Indet
       | Defined(in_ty, out_ty, f) =>
         let-unbox n = (Atom(in_ty), d1');
         let expr =
@@ -959,6 +960,7 @@ module Transition = (EV: EV_MODE) => {
           kind: BinOp(op),
           is_value: true,
         });
+      | Stuck(_, _, _) => Indet
       };
     | Dot(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
@@ -1327,6 +1329,8 @@ let stepper_justification: step_kind => string =
   | BinOp(Float(Equals | NotEquals))
   | BinOp(Poly(Equals | NotEquals)) => "check equality"
   | BinOp(String(Concat)) => "string manipulation"
+  | BinOp(Real(_))
+  | UnOp(Real(_)) => "exact real arithmetic"
   | UnOp(Bool(Not))
   | BinOp(Bool(_)) => "boolean logic"
   | Conditional(_) => "conditional"

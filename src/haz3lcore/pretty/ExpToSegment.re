@@ -113,7 +113,10 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Indivisible forms never need parentheses around them
   | Var(_)
   | Invalid(_)
-  | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
+  | Atom(
+      Bool(_) | Int(_) | SInt(_) | Float(_) | Decimal(_) | Real(_) | String(_) |
+      Nat(_),
+    )
   | DrvQuote(_)
   | EmptyHole
   | Deferral(_)
@@ -139,7 +142,10 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | DeferredAp(_)
   | TypAp(_) => Precedence.ap
   | UnOp(Bool(Not), _) => Precedence.not_
-  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), _) => Precedence.neg
+  | UnOp(
+      Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus) | Real(Minus),
+      _,
+    ) => Precedence.neg
   | Cons(_) => Precedence.cons
   | Ap(Reverse, _, _) => Precedence.eqs
   | ListConcat(_) => Precedence.concat
@@ -175,7 +181,10 @@ let external_precedence_pat = (dp: Pat.t) =>
   | ExplicitNonlabel
   | Invalid(_)
   | Var(_)
-  | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
+  | Atom(
+      Bool(_) | Int(_) | SInt(_) | Float(_) | Decimal(_) | Real(_) | String(_) |
+      Nat(_),
+    )
   | Constructor(_)
   | Label(_)
   | TupLabel(_) => Precedence.max
@@ -551,7 +560,7 @@ let rec parenthesize =
       parenthesize(e) |> paren_at(Precedence.plus),
     )
     |> rewrap;
-  | UnOp((Int(Minus) | Nat(Minus) | SInt(Minus)) as op, e) =>
+  | UnOp((Int(Minus) | Nat(Minus) | SInt(Minus) | Real(Minus)) as op, e) =>
     UnOp(op, parenthesize(e) |> paren_at(Precedence.neg)) |> rewrap
   | BinOp(op, e1, e2) =>
     (
@@ -2226,7 +2235,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(Not, id, [])] @ e);
-  | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus), e) =>
+  | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus) | Real(Minus), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(UnaryMinus, id, [])] @ e);
@@ -2684,6 +2693,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "SInt"))
   | Atom(Float) =>
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float"))
+  | Atom(Real) =>
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Real"))
   | Atom(Bool) =>
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool"))
   | Atom(String) =>

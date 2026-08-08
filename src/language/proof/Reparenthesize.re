@@ -21,6 +21,8 @@ let is_associative_op = (op: Operators.op_bin): bool =>
   | SInt(Times)
   | Nat(Plus)
   | Nat(Times)
+  | Real(Plus)
+  | Real(Times)
   | Float(Plus)
   | Float(Times)
   | Bool(And)

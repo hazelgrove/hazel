@@ -8,6 +8,7 @@ type cls =
   | SInt
   | Nat
   | Float
+  | Real
   | Bool
   | String;
 
@@ -18,10 +19,11 @@ type kind('a) =
   | SInt: kind(int)
   | Nat: kind(Bigint.t)
   | Float: kind(float)
+  | Real: kind(Real.t)
   | Bool: kind(bool)
   | String: kind(string);
 
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Int(Bigint.t)
   | SInt(int)
@@ -31,8 +33,34 @@ type t =
       (
         [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
       )
+  | Decimal(string)
+  | Real([@equal Real.equal] Real.t)
   | Bool(bool)
   | String(string);
+
+let equal = (a, b) =>
+  switch (a, b) {
+  | (Int(a), Int(b))
+  | (Nat(a), Nat(b)) => Bigint.equal(a, b)
+  | (SInt(a), SInt(b)) => a == b
+  | (Float(a), Float(b)) =>
+    Printf.sprintf("%f", a) == Printf.sprintf("%f", b)
+  | (Decimal(a), Decimal(b)) => a == b
+  | (Decimal(a), Float(b))
+  | (Float(b), Decimal(a)) =>
+    Printf.sprintf("%f", float_of_string(a)) == Printf.sprintf("%f", b)
+  | (Real(a), Real(b)) => Real.equal(a, b)
+  | (Bool(a), Bool(b)) => a == b
+  | (String(a), String(b)) => a == b
+  | (Int(_), _)
+  | (SInt(_), _)
+  | (Nat(_), _)
+  | (Float(_), _)
+  | (Decimal(_), _)
+  | (Real(_), _)
+  | (Bool(_), _)
+  | (String(_), _) => false
+  };
 
 let cls_of_kind = (type a, kind: kind(a)): cls =>
   switch (kind) {
@@ -40,6 +68,7 @@ let cls_of_kind = (type a, kind: kind(a)): cls =>
   | SInt => SInt
   | Nat => Nat
   | Float => Float
+  | Real => Real
   | Bool => Bool
   | String => String
   };
@@ -50,6 +79,8 @@ let cls_of_t: t => cls =
   | SInt(_) => SInt
   | Nat(_) => Nat
   | Float(_) => Float
+  | Decimal(_) => Float
+  | Real(_) => Real
   | Bool(_) => Bool
   | String(_) => String;
 
@@ -59,6 +90,7 @@ let cls_string_lower: cls => string =
   | SInt => "sint"
   | Nat => "nat"
   | Float => "float"
+  | Real => "real"
   | Bool => "bool"
   | String => "string";
 
@@ -74,6 +106,8 @@ let unbox = (type a, request: kind(a), e: t): option(a) =>
   | (Nat, _) => None
   | (Float, Float(f)) => Some(f)
   | (Float, _) => None
+  | (Real, Real(r)) => Some(r)
+  | (Real, _) => None
   | (Bool, Bool(b)) => Some(b)
   | (Bool, _) => None
   | (String, String(s)) => Some(s)
@@ -90,6 +124,8 @@ let unpack = (e: t): wrapper =>
   | SInt(i) => V(i, SInt)
   | Nat(i) => V(i, Nat)
   | Float(f) => V(f, Float)
+  | Decimal(s) => V(float_of_string(s), Float)
+  | Real(r) => V(r, Real)
   | Bool(b) => V(b, Bool)
   | String(s) => V(s, String)
   };
@@ -100,6 +136,7 @@ let repack = (type a, kind: kind(a), x: a): t =>
   | SInt => SInt(x)
   | Nat => Nat(x)
   | Float => Float(x)
+  | Real => Real(x)
   | Bool => Bool(x)
   | String => String(x)
   };
@@ -114,6 +151,7 @@ let (let.cls) = (type b, cls: cls, f: cls_wrapper => b): b =>
   | SInt => f(W(SInt))
   | Nat => f(W(Nat))
   | Float => f(W(Float))
+  | Real => f(W(Real))
   | Bool => f(W(Bool))
   | String => f(W(String))
   };
@@ -133,6 +171,7 @@ let convert =
   | (Int, Nat) =>
     v < Bigint.zero ? R(InvalidOperationError.NegativeNat) : L(v)
   | (Int, Float) => L(Bigint.to_float(v))
+  | (Int, Real) => L(Real.of_bigint(v))
   | (Int, Bool) => L(v != Bigint.zero)
   | (Int, String) => L(Bigint.to_string(v))
 
@@ -142,6 +181,7 @@ let convert =
     v < 0 ? R(InvalidOperationError.NegativeNat) : L(Bigint.of_int(v))
   | (SInt, Bool) => L(v != 0)
   | (SInt, Float) => L(float_of_int(v))
+  | (SInt, Real) => L(Real.of_bigint(Bigint.of_int(v)))
   | (SInt, String) => L(string_of_int(v))
 
   | (Nat, Nat) => L(v)
@@ -153,6 +193,7 @@ let convert =
   | (Nat, Int) => L(v)
   | (Nat, Bool) => L(v != Bigint.zero)
   | (Nat, Float) => L(Bigint.to_float(v))
+  | (Nat, Real) => L(Real.of_bigint(v))
   | (Nat, String) => L(Bigint.to_string(v))
 
   | (Float, Float) => L(v)
@@ -162,12 +203,24 @@ let convert =
     v < 0.0 ? R(InvalidOperationError.NegativeNat) : L(Bigint.of_float(v))
   | (Float, Bool) => L(v != 0.0)
   | (Float, String) => L(string_of_float(v))
+  | (Float, Real) => R(InvalidOperationError.InvalidOfString)
+
+  | (Real, Real) => L(v)
+  | (Real, String) => L(Real.to_literal(v))
+  | (Real, Bool) =>
+    switch (v) {
+    | Rational({numerator, _}) => L(!Bigint.equal(numerator, Bigint.zero))
+    | Pi => L(true)
+    }
+  | (Real, Int | Nat | SInt | Float) =>
+    R(InvalidOperationError.InvalidOfString)
 
   | (Bool, Bool) => L(v)
   | (Bool, SInt) => L(v ? 1 : 0)
   | (Bool, Nat) => L(v ? Bigint.one : Bigint.zero)
   | (Bool, Int) => L(v ? Bigint.one : Bigint.zero)
   | (Bool, Float) => L(v ? 1.0 : 0.0)
+  | (Bool, Real) => L(Real.of_bigint(v ? Bigint.one : Bigint.zero))
   | (Bool, String) => L(string_of_bool(v))
 
   | (String, String) => L(v)
@@ -192,6 +245,10 @@ let convert =
     | Some(f) => L(f)
     | None => R(InvalidOperationError.InvalidOfString)
     }
+  | (String, Real) =>
+    try(L(Real.of_decimal(v))) {
+    | Invalid_argument(_) => R(InvalidOperationError.InvalidOfString)
+    }
   | (String, Bool) =>
     switch (bool_of_string_opt(v)) {
     | Some(b) => L(b)
@@ -206,6 +263,8 @@ let to_literal = (e: t): string =>
   | Nat(i) => i |> Bigint.to_string
   | SInt(i) => i |> string_of_int
   | Float(f) => Printf.sprintf("%f", f)
+  | Decimal(s) => s
+  | Real(r) => Real.to_literal(r)
   | Bool(b) => b |> string_of_bool
   | String(s) => "\"" ++ s ++ "\""
   };
@@ -237,6 +296,8 @@ let compare_of_cls: cls => option(compare_entry) =
   | SInt => Some(Cmp(SInt, Int.compare))
   | Nat => Some(Cmp(Nat, Bigint.compare))
   | Float => Some(Cmp(Float, Float.compare))
+  /* Symbolic reals such as pi do not yet have a sound total comparator. */
+  | Real => None
   | String => Some(Cmp(String, String.compare))
   | Bool => None;
 

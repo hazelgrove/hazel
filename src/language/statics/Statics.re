@@ -659,7 +659,6 @@ and uexp_to_info_map =
       )
     | Var(name) =>
       let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
-
       let (syn_v, marks_v) =
         switch (Ctx.lookup_var(ctx, name)) {
         | None => (SynTy.unknown_internal(), [Mark.Free(name)])
@@ -723,6 +722,16 @@ and uexp_to_info_map =
         add(
           ~elab_term=UnOp(op, e_elab) |> rewrap,
           ~elab_syn_ty=ty_out,
+          ~marks=[],
+          ~co_ctx=e.co_ctx,
+          ~probe_targets=e.probe_targets,
+          m,
+        );
+      | StuckUn(ty_in, ty_out) =>
+        let (e, e_elab, m) = go(~ana=Atom(ty_in) |> Typ.temp, e, m);
+        add(
+          ~elab_term=UnOp(op, e_elab) |> rewrap,
+          ~elab_syn_ty=Atom(ty_out) |> Typ.temp,
           ~marks=[],
           ~co_ctx=e.co_ctx,
           ~probe_targets=e.probe_targets,
@@ -800,6 +809,21 @@ and uexp_to_info_map =
         add(
           ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
           ~elab_syn_ty=ty_out,
+          ~marks=[],
+          ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+          ~probe_targets=
+            SubexpProbeTargets.union_all([
+              e1.probe_targets,
+              e2.probe_targets,
+            ]),
+          m,
+        );
+      | Stuck(ty1, ty2, ty_out) =>
+        let (e1, e1_elab, m) = go(~ana=Atom(ty1) |> Typ.temp, e1, m);
+        let (e2, e2_elab, m) = go(~ana=Atom(ty2) |> Typ.temp, e2, m);
+        add(
+          ~elab_term=BinOp(op, e1_elab, e2_elab) |> rewrap,
+          ~elab_syn_ty=Atom(ty_out) |> Typ.temp,
           ~marks=[],
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
           ~probe_targets=
@@ -2565,6 +2589,7 @@ and uexp_to_info_map =
         | Atom(Nat) => Some(Nat)
         | Atom(Int) => Some(Int)
         | Atom(Float) => Some(Float)
+        | Atom(Real) => Some(Real)
         | Atom(SInt) => Some(SInt)
         | _ => None
         };
@@ -2934,6 +2959,25 @@ and upat_to_info_map =
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.Float(float),
+          m,
+        )
+      | L(Decimal(decimal)) =>
+        let float = float_of_string(decimal);
+        add(
+          ~elab_term=Atom(Float(float)) |> rewrap,
+          ~elab_syn_ty=Atom(Float) |> Typ.temp,
+          ~marks=[],
+          ~ctx,
+          ~constraint_=Coverage.Constraint.Float(float),
+          m,
+        );
+      | L(Real(real)) =>
+        add(
+          ~elab_term=Atom(Real(real)) |> rewrap,
+          ~elab_syn_ty=Atom(Real) |> Typ.temp,
+          ~marks=[],
+          ~ctx,
+          ~constraint_=Coverage.Constraint.Hole(None),
           m,
         )
       | L(Bool(bool)) =>

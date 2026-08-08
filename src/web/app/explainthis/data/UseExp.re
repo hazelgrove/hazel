@@ -11,7 +11,7 @@ let single = (~typ_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
   explanation:
     Printf.sprintf(
-      "Within the [*body*](%s), number literals and operations use type [*type*](%s) by default. The type provided must be one of Int, SInt, Nat, or Float.",
+      "Within the [*body*](%s), number literals and operations use type [*type*](%s) by default. The type provided must be one of Int, SInt, Nat, Float, or Real.",
       body_id |> Id.to_string,
       typ_id |> Id.to_string,
     ),

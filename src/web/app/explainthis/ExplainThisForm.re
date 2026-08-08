@@ -203,6 +203,7 @@ type form_id =
   | SIntExp
   | NatExp
   | FloatExp
+  | DecimalExp
   | StringExp
   | VarExp
   | CtrExp
@@ -327,6 +328,7 @@ type group_id =
   | SIntExp
   | NatExp
   | FloatExp
+  | DecimalExp
   | StringExp
   | VarExp
   | CtrExp
