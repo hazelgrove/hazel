@@ -261,6 +261,11 @@ module View = {
         ~locked,
         model.result,
       );
+    /* `NoResults` cells intentionally hide evaluation output. Keep that
+       contract for in-editor runtime decorations too: otherwise evaluated
+       subexpressions can be painted over even though the cell is presented as
+       static code (most visibly in exercise preludes). */
+    let show_runtime_decorations = result_kind != Some(`NoResults);
     div(
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
@@ -284,10 +289,20 @@ module View = {
                 }),
           ~overlays=overlays(model.editor.editor),
           ~lines,
-          ~dynamics=EvalResult.Model.dynamics(model.result),
-          ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
-          ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
-          ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),
+          ~dynamics=
+            show_runtime_decorations
+              ? EvalResult.Model.dynamics(model.result)
+              : Language.Dynamics.Map.empty,
+          ~predicted_reuse=
+            show_runtime_decorations
+              ? EvalResult.Model.predicted_reuse(model.result)
+              : Language.IncrEval.empty,
+          ~pending_eval_ids=
+            show_runtime_decorations
+              ? EvalResult.Model.pending_eval_ids(model.result) : [],
+          ~show_active_eval=
+            show_runtime_decorations
+            && EvalResult.Model.eval_is_pending(model.result),
           model.editor,
         ),
       ]
