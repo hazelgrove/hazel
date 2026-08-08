@@ -12,7 +12,15 @@ open Language;
    `bash test/run_node.sh test MenhirCorpus`); skips silently otherwise
    (sandboxed dune runtest). */
 
-let known_gaps: list((string, string)) = [];
+/* The docs/B2T2 slide corpus shares Test_FastParseCorpus's ledger:
+   those .hz files exercise grammar the menhir parser lacks yet (they
+   load via the typing-parser fallback; fidelity is pinned by
+   DocSlides.ReparseBackuptext). */
+let known_gaps: list((string, string)) =
+  List.map(
+    name => (name, "menhir grammar gap (Test_FastParseCorpus ledger)"),
+    Test_FastParseCorpus.known_gaps,
+  );
 
 let corpus_roots = [
   "hazel-programs",
