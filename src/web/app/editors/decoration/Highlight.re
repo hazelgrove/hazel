@@ -562,7 +562,7 @@ let of_segment =
   List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep), groups);
 };
 
-let selection =
+let selection_svgs =
     (
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
@@ -577,14 +577,21 @@ let selection =
       z.selection.content,
     )
     |> List.map(((m, tips)) => row_data_of(m, tips));
+  /* Clip partial-token boundaries for char-level selections */
   let rows = clip_char_selection(~measured, z, rows);
   let clss = ["selected", Selection.buffer_cls(z.selection)];
   let groups = group_consecutive(rows);
-  div_c(
-    "selects",
-    List.filter_map(svg_of_group(~font_metrics, ~clss), groups),
-  );
+  List.filter_map(svg_of_group(~font_metrics, ~clss), groups);
 };
+
+let selection =
+    (
+      ~measured: Measured.t,
+      ~shape_map: ProjectorCore.Shape.Map.t,
+      ~font_metrics: FontMetrics.t,
+      z: Zipper.t,
+    ) =>
+  div_c("selects", selection_svgs(~measured, ~shape_map, ~font_metrics, z));
 
 // Expands selection to make it a subtree of the exp
 let selection_expanded =
@@ -619,14 +626,7 @@ let selection_expanded =
         ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
         seg,
       )
-      @ of_segment(
-          ~measured,
-          ~shape_map,
-          ~font_metrics,
-          ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-          ~clss=["selected", Selection.buffer_cls(z.selection)],
-          z.selection.content,
-        )
+      @ selection_svgs(~measured, ~shape_map, ~font_metrics, z)
     },
   );
 
