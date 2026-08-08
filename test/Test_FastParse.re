@@ -228,6 +228,19 @@ let tests = (
         == None,
       )
     }),
+    test_case(
+      "text slide loads with caret at the top",
+      `Quick,
+      () => {
+        let z =
+          PersistentZipper.unpersist(
+            PersistentZipper.of_text("let x = 1 in\nlet y = 2 in\nx + y"),
+            ~root=Exp,
+          );
+        let (before_caret, _) = z.relatives.siblings;
+        check(bool, "nothing precedes the caret", true, before_caret == []);
+      },
+    ),
     test_case("mod root wraps and unwraps", `Quick, () => {
       check(
         bool,

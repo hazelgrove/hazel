@@ -27,6 +27,9 @@ let of_text = (text: string): t => {
 /* Persisted programs are complete, so the linear Menhir zip usually
    takes this; the simulated-typing parser is quadratic in program
    size and can hang startup on big stale-sexp slides. */
+/* Caret starts at the TOP: unzip's default direction (Right) leaves the
+   caret after the whole program, and the editor scrolls the caret into
+   view on display — a freshly loaded slide would open at the bottom. */
 let from_backup_text = (backup_text: string, ~root): Zipper.t =>
   switch (
     FastParse.of_text(
@@ -35,11 +38,11 @@ let from_backup_text = (backup_text: string, ~root): Zipper.t =>
       String.trim(backup_text),
     )
   ) {
-  | Some(segment) => Zipper.unzip(segment)
+  | Some(segment) => Zipper.unzip(~direction=Left, segment)
   | None =>
     switch (Parser.to_zipper(backup_text, ~root)) {
     | None => Zipper.init()
-    | Some(z) => z
+    | Some(z) => Zipper.unzip(~direction=Left, Zipper.unselect_and_zip(z))
     }
   };
 
