@@ -14,7 +14,7 @@
  * the parser's `?` empty-hole token, so explicit user-typed `?` tiles
  * round-trip distinct from implicit Grout. */
 
-let default_implicit_hole = "\xc2\xbf";
+let default_implicit_hole = Token.implicit_hole_marker;
 
 let to_text =
     (~implicit_hole=default_implicit_hole, persisted: PersistentSegment.t)

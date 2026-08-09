@@ -9,7 +9,11 @@ type t = {
 /* Lossless: holes print as the ¿ marker (MarkerParse destructs them on
    read), so crash-recovery text and share links keep hole positions. */
 let to_string =
-  Printer.of_zipper(~holes="\xc2\xbf", ~concave_holes="\xc2\xbf", ~indent="");
+  Printer.of_zipper(
+    ~holes=Token.implicit_hole_marker,
+    ~concave_holes=Token.implicit_hole_marker,
+    ~indent="",
+  );
 
 let persist = (zipper: Zipper.t) => {
   {

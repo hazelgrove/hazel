@@ -1,12 +1,16 @@
-/* Parse text that may contain `¿` implicit-hole markers (the
-   TextRoundtrip printing convention for Grout): typing-parse, then
-   destruct every marker tile so remold_regrout re-inserts Grout where
-   shape requires it. Lives below PersistentZipper so slide loading can
-   fall back to it; TextRoundtrip delegates here. */
+/* Turns printed hole markers back into real Grout. Grout (the editor's
+   implicit holes) has no textual form, so the lossless printers
+   (PersistentZipper/PersistentSegment/TextRoundtrip) render it as `¿`.
+   Reparsing that text yields literal `¿` TILES, which the original
+   program never had. [of_text] parses, then Destructs each marker tile;
+   the remold/regrout pass that runs on every edit re-inserts Grout
+   wherever shape requires it, reconstructing the original zipper. Sits
+   below PersistentZipper so persistence loading can fall back to it;
+   TextRoundtrip delegates here. */
 open Util;
 open Base;
 
-let default_implicit_hole = "\xc2\xbf";
+let default_implicit_hole = Token.implicit_hole_marker;
 
 let is_marker = (~implicit_hole: string, p: piece): bool =>
   switch (p) {
