@@ -51,10 +51,16 @@ let go =
         fast_ctx
           ? Option.map(
               seg =>
+                /* Like Zipper.insert_segment, but regrout with Left so the
+                   caret lands BEFORE any grout a body-less fragment opens
+                   (matching the typing path), not after it. */
                 Zipper.rescan_reassemble(
                   ~with_parent=true,
                   Left,
-                  Zipper.insert_segment(z, seg, ~root),
+                  z
+                  |> Zipper.replace_selection(Right, seg)
+                  |> Zipper.unselect
+                  |> Zipper.remold_regrout(Left, ~root),
                   ~root,
                 )
                 |> PersistentZipper.apply_collected_refractors,

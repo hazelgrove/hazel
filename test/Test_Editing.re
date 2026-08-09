@@ -266,10 +266,11 @@ let basic_tests = [
     ~acts=mk("1¦1") @ [Paste({|"foo"|})],
     ~goal={|1~"foo"¦~1|},
   ),
-  /* Nested fast-path pastes: the gate no longer requires a top-level
-     caret, so complete terms splice via FastParse at depth. */
+  /* `(¦)` is a caret INSIDE the `()` duo-token, so these two take the
+     slow token-splitting path (the fast gate requires an Outer caret);
+     the Outer-caret-at-depth cases below take the fast path. */
   test(
-    ~name="Paste complete term inside parens (nested fast path)",
+    ~name="Paste complete term inside empty parens (token split)",
     ~acts=mk("(¦)") @ [Paste("1 + 2")],
     ~goal="(1 + 2¦)",
   ),
@@ -277,6 +278,39 @@ let basic_tests = [
     ~name="Paste binding chain inside let-def parens",
     ~acts=mk("let x = (¦) in x") @ [Paste("let y = 2 in y")],
     ~goal="let x = (let y = 2 in y¦) in x",
+  ),
+  test(
+    ~name="Paste complete term at Outer caret at depth (nested fast path)",
+    ~acts=mk("let x = ¦ in x") @ [Paste("1 + 2")],
+    ~goal="let x = 1 + 2¦ in x",
+  ),
+  /* Body-less fragments (the common copy: definitions ending in `in`)
+     take the fast path via its append-a-hole completion rung; goals are
+     the typed-out (slow-path) states, trailing convex grout included. */
+  test(
+    ~name="Paste body-less binding at Outer caret at depth",
+    ~acts=mk("let x = ¦ in x") @ [Paste("let y = 2 in")],
+    ~goal="let x = let y = 2 in¦? in x",
+  ),
+  test(
+    ~name="Paste body-less binding chain at top level",
+    ~acts=mk("¦") @ [Paste("let a = 1 in let b = 2 in")],
+    ~goal="let a = 1 in let b = 2 in¦?",
+  ),
+  test(
+    ~name="Paste body-less binding inside empty parens (token split)",
+    ~acts=mk("(¦)") @ [Paste("let y = 2 in")],
+    ~goal="(let y = 2 in¦?)",
+  ),
+  test(
+    ~name="Paste trailing-operator fragment",
+    ~acts=mk("¦") @ [Paste("1 +")],
+    ~goal="1 +¦?",
+  ),
+  test(
+    ~name="Paste multiline body-less chain keeps layout",
+    ~acts=mk("¦") @ [Paste("let a = 1 in\nlet b = 2 in")],
+    ~goal="let a = 1 in\nlet b = 2 in¦?",
   ),
   test(
     ~name="Paste plaintext into token at Inner caret",
