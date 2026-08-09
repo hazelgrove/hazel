@@ -78,28 +78,40 @@ let known_models: list(OpenRouter.AvailableLLMs.Model.llm_info) =
     {
       id: "anthropic/claude-haiku-4.5",
       name: "Anthropic: Claude Haiku 4.5",
-      pricing: {prompt: "0.000001", completion: "0.000005"},
+      pricing: {
+        prompt: "0.000001",
+        completion: "0.000005",
+      },
       context_length: Some(200000),
       supports_reasoning: true,
     },
     {
       id: "anthropic/claude-sonnet-4.6",
       name: "Anthropic: Claude Sonnet 4.6",
-      pricing: {prompt: "0.000003", completion: "0.000015"},
+      pricing: {
+        prompt: "0.000003",
+        completion: "0.000015",
+      },
       context_length: Some(1000000),
       supports_reasoning: true,
     },
     {
       id: "google/gemini-3-flash-preview",
       name: "Google: Gemini 3 Flash Preview",
-      pricing: {prompt: "0.0000005", completion: "0.000003"},
+      pricing: {
+        prompt: "0.0000005",
+        completion: "0.000003",
+      },
       context_length: Some(1000000),
       supports_reasoning: true,
     },
     {
       id: "qwen/qwen3-coder",
       name: "Qwen: Qwen3 Coder",
-      pricing: {prompt: "0.00000022", completion: "0.0000018"},
+      pricing: {
+        prompt: "0.00000022",
+        completion: "0.0000018",
+      },
       context_length: Some(262144),
       supports_reasoning: false,
     },
@@ -114,36 +126,32 @@ let scripted_inputs: list(string) = [
 ];
 
 let jsonl_append = (path: string, json: Json.t): unit => {
-  let oc =
-    open_out_gen([Open_append, Open_creat, Open_text], 0o644, path);
+  let oc = open_out_gen([Open_append, Open_creat, Open_text], 0o644, path);
   output_string(oc, Yojson.Safe.to_string(json) ++ "\n");
   close_out(oc);
 };
 
 let fetch_credits = (~key: string): option((float, float)) => {
   let result = ref(None);
-  OpenRouter.Credits.Utils.get_credits(
-    ~key,
-    ~handler=
-      response =>
-        switch (response) {
-        | Some(json) =>
-          switch (Json.dot("data", json)) {
-          | Some(data) =>
-            let num = f =>
-              switch (Json.dot(f, data)) {
-              | Some(`Float(x)) => Some(x)
-              | Some(`Int(n)) => Some(float_of_int(n))
-              | _ => None
-              };
-            switch (num("total_credits"), num("total_usage")) {
-            | (Some(c), Some(u)) => result := Some((c, u))
-            | _ => ()
-            };
-          | None => ()
-          }
-        | None => ()
-        },
+  OpenRouter.Credits.Utils.get_credits(~key, ~handler=response =>
+    switch (response) {
+    | Some(json) =>
+      switch (Json.dot("data", json)) {
+      | Some(data) =>
+        let num = f =>
+          switch (Json.dot(f, data)) {
+          | Some(`Float(x)) => Some(x)
+          | Some(`Int(n)) => Some(float_of_int(n))
+          | _ => None
+          };
+        switch (num("total_credits"), num("total_usage")) {
+        | (Some(c), Some(u)) => result := Some((c, u))
+        | _ => ()
+        };
+      | None => ()
+      }
+    | None => ()
+    }
   );
   result^; /* sync XHR: handler has already run */
 };
@@ -162,10 +170,7 @@ let usage_rows =
                 ("run_id", `String(run_id)),
                 ("model", `String(model_id)),
                 ("turn", `Int(turn)),
-                (
-                  "usage",
-                  OpenRouter.Reply.Model.yojson_of_usage(usage),
-                ),
+                ("usage", OpenRouter.Reply.Model.yojson_of_usage(usage)),
               ]),
               ...acc,
             ],
@@ -260,8 +265,7 @@ let run_model =
     jsonl_append(Filename.concat(out_dir, "summary/results.jsonl")),
     usage_rows(~run_id, ~model_id=info.id, chat),
   );
-  let cost =
-    AgentSlashFormat.cost_payload(~chat, ~active_llm=Some(info));
+  let cost = AgentSlashFormat.cost_payload(~chat, ~active_llm=Some(info));
   let (verdict, reason) = cache_verdict(chat);
   jsonl_append(
     Filename.concat(out_dir, "summary/verdicts.jsonl"),
@@ -277,8 +281,7 @@ let run_model =
   Printf.printf("  verdict: %s (%s)\n%!", verdict, reason);
 };
 
-let run =
-    (models_csv: option(string), turns: int, out_dir: string): unit => {
+let run = (models_csv: option(string), turns: int, out_dir: string): unit => {
   install_sync_dispatch();
   let key =
     switch (Sys.getenv_opt("OPENROUTER_API_KEY")) {
@@ -293,8 +296,7 @@ let run =
     | Some(csv) =>
       let ids = String.split_on_char(',', csv) |> List.map(String.trim);
       List.filter(
-        (m: OpenRouter.AvailableLLMs.Model.llm_info) =>
-          List.mem(m.id, ids),
+        (m: OpenRouter.AvailableLLMs.Model.llm_info) => List.mem(m.id, ids),
         known_models,
       );
     };
@@ -319,10 +321,7 @@ let run =
     | None => Printf.eprintf("warning: /credits fetch failed (%s)\n", phase)
     };
   note_credits("before");
-  List.iter(
-    run_model(~run_id, ~key, ~out_dir, ~turns),
-    selected,
-  );
+  List.iter(run_model(~run_id, ~key, ~out_dir, ~turns), selected);
   note_credits("after");
   Printf.printf("done. run_id=%s outputs=%s\n", run_id, out_dir);
 };
