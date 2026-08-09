@@ -97,12 +97,12 @@ module StoreMode = {
 
 module Store = {
   let scratch_defaults = () => {
-    let (current, slides) = Init.startup.scratch;
+    let (current, slides) = Lazy.force(Init.startup).scratch;
     (current, List.map(fst, slides));
   };
 
   let doc_defaults = () => {
-    let (current, slides) = Init.startup.documentation;
+    let (current, slides) = Lazy.force(Init.startup).documentation;
     (current, List.map(fst, slides) @ Init.documentation_drv_slide_names());
   };
 

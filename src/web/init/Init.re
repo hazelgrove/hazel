@@ -10,45 +10,37 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
 };
 
 let documentation_slides: list((string, PersistentSegment.t)) =
-  [
-    BasicReference.out,
-    Projectors.out,
-    ADTs.out,
-    Tuples.out,
-    Modules.out,
-    Tables.out,
-    Polymorphism.out,
-    Cards.out,
-    Probes.out,
-    Livelits.out,
-  ]
-  @ B2t2.Slides.all_slides;
+  Docslides.Slides.all_slides @ B2t2.Slides.all_slides;
 
-let startup: PersistentData.t = {
-  scratch: (
-    0,
-    [("Scratchpad 1", empty_cell_editor_persistent(~root=Exp))],
-  ),
-  documentation: (
-    0,
-    documentation_slides
-    |> List.map(((name, content: PersistentSegment.t)) =>
-         (
-           name,
-           {
-             editor:
-               content
-               |> PersistentSegment.unpersist(~root=Exp)
-               |> Editor.Model.mk_persistent(~root=Exp),
-             result: EvalResult.Model.init |> EvalResult.Model.persist,
-           }: CellEditor.Model.persistent,
-         )
-       ),
-  ),
-};
+/* LAZY: the CLI links this module (--linkall) and must not pay the
+   all-slides unpersist at module init; the browser forces it on first
+   store access. */
+let startup: Lazy.t(PersistentData.t) =
+  lazy({
+    scratch: (
+      0,
+      [("Scratchpad 1", empty_cell_editor_persistent(~root=Exp))],
+    ),
+    documentation: (
+      0,
+      documentation_slides
+      |> List.map(((name, content: PersistentSegment.t)) =>
+           (
+             name,
+             {
+               editor:
+                 content
+                 |> PersistentSegment.unpersist
+                 |> Editor.Model.mk_persistent(~root=Exp),
+               result: EvalResult.Model.init |> EvalResult.Model.persist,
+             }: CellEditor.Model.persistent,
+           )
+         ),
+    ),
+  });
 
 let find_documentation_slide = (name: string) => {
-  startup.documentation
+  Lazy.force(startup).documentation
   |> snd
   |> List.find_opt(((n, _)) => n == name)
   |> Option.map(snd);
@@ -75,7 +67,7 @@ let get_original_doc_segment = (name: string): option(Segment.t) => {
     | Some(c) => c
     | None =>
       let c =
-        startup.documentation
+        Lazy.force(startup).documentation
         |> snd
         |> List.map(((n, pce: CellEditor.Model.persistent)) =>
              (

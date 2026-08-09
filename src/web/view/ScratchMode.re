@@ -6,6 +6,15 @@ open Util;
 /* Dirty tracking for autosave: only re-persist slides that changed since
    last save. Eliminates expensive Zipper.zip + Base.equal_segment checks. */
 let dirty_slides: ref(Sets.StringSet.t) = ref(Sets.StringSet.empty);
+
+/* Lazy hydration: boot builds a full editor (parse + statics cache +
+   agent state) for the CURRENT slide only; every other slide sits in
+   the model as a cheap blank placeholder and is registered here
+   ("prefix:name"). Hydration replaces the placeholder on first switch
+   (Persist.hydrate_current). Dormant slides are never persisted over:
+   their persist_cache entries are seeded from storage at load. */
+let dormant_slides: Hashtbl.t(string, unit) = Hashtbl.create(64);
+let dormant_key = (prefix: string, name: string) => prefix ++ ":" ++ name;
 let persist_cache:
   ref(Maps.StringMap.t(option(CellEditor.Model.persistent))) =
   ref(Maps.StringMap.empty);
@@ -56,23 +65,35 @@ module Scratchpad = {
   let persist = (s: t): persistent => {
     switch (s.kind) {
     | Code({editor, agent}) =>
-      let current_segment = Zipper.zip(editor.editor.editor.state.zipper);
+      let current_zipper = editor.editor.editor.state.zipper;
+      let current_segment = Zipper.zip(current_zipper);
       let original = Init.find_documentation_slide(s.name);
-      let original_segment =
-        original
-        |> Option.map((pce: CellEditor.Model.persistent) =>
-             PersistentZipper.unpersist(
-               pce.editor.zipper,
-               ~root=pce.editor.root,
-             )
-           )
-        |> Option.map(Zipper.zip);
+      /* Text-backed originals (committed .hz, zipper == "") mint fresh
+         ids on every parse, so id-sensitive segment equality can never
+         match; compare by the text projection instead — FastParse loads
+         the text verbatim, so an unedited slide prints byte-identically. */
+      let unchanged =
+        switch (original) {
+        | None => false
+        | Some(pce) when pce.editor.zipper.zipper == "" =>
+          PersistentSegment.to_string(
+            current_segment,
+            ~refractors=current_zipper.refractors.manuals,
+          )
+          == pce.editor.zipper.backup_text
+        | Some(pce) =>
+          Base.equal_segment(
+            Zipper.zip(
+              PersistentZipper.unpersist(
+                pce.editor.zipper,
+                ~root=pce.editor.root,
+              ),
+            ),
+            current_segment,
+          )
+        };
       let editor_persist =
-        if (Option.equal(
-              Base.equal_segment,
-              original_segment,
-              Some(current_segment),
-            )) {
+        if (unchanged) {
           None;
         } else {
           Some(CellEditor.Model.persist(editor));
@@ -338,6 +359,12 @@ module Persist = {
     | None => None
     };
 
+  /* Change-gate for agent saves: serializing a long conversation on
+     every editor autosave is the expensive part, so skip when the agent
+     model is physically unchanged (edits rebuild the scratchpad record
+     but reuse the agent field). */
+  let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
+
   let save_current = (prefix: string, model: Model.t): unit => {
     let names = Model.scratchpad_names(model);
     save_meta(
@@ -348,23 +375,37 @@ module Persist = {
       },
     );
     let sp = List.nth(model.scratchpads, model.current);
-    let p = Scratchpad.persist(sp);
-    switch (p.kind) {
-    | CodePersist({editor, agent}) =>
-      switch (editor) {
-      | Some(e) =>
+    switch (sp.kind) {
+    | Code({editor, agent}) =>
+      switch (CellEditor.Model.persist(editor)) {
+      | e =>
+        /* The slide blob carries the editor only; the conversation
+           lives solely under the :agent key (it used to be embedded
+           here TOO, doubling every write and boot deserialization). */
         save_slide_kind(
           prefix,
           sp.name,
           CodePersist({
             editor: Some(e),
-            agent,
+            agent: Agent.Persistent.persist(Agent.Utils.init()),
           }),
         )
-      | None => ()
       };
-      save_agent(prefix, sp.name, agent);
-    | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
+      let agent_key_str = prefix ++ ":" ++ sp.name;
+      let unchanged =
+        switch (Hashtbl.find_opt(last_saved_agent, agent_key_str)) {
+        | Some(prev) => prev === agent
+        | None => false
+        };
+      if (!unchanged) {
+        save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
+        Hashtbl.replace(last_saved_agent, agent_key_str, agent);
+      };
+    | Drv(_) =>
+      switch (Scratchpad.persist(sp).kind) {
+      | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
+      | CodePersist(_) => ()
+      }
     };
   };
 
@@ -456,10 +497,48 @@ module Persist = {
       | Some(meta) => (meta.current, meta.names)
       | None => (default_current, default_names)
       };
+    Hashtbl.reset(dormant_slides);
     Model.{
       current,
       scratchpads:
-        List.map(name => load_scratchpad(~settings, prefix, name), names),
+        List.mapi(
+          (i, name) =>
+            if (i == current) {
+              load_scratchpad(~settings, prefix, name);
+            } else {
+              Hashtbl.replace(dormant_slides, dormant_key(prefix, name), ());
+              /* Seed the persist cache from storage so Model.persist
+                 never writes the blank placeholder over a real slide. */
+              switch (load_slide_kind(prefix, name)) {
+              | Some(CodePersist({editor, _})) =>
+                persist_cache :=
+                  Maps.StringMap.add(name, editor, persist_cache^)
+              | _ => ()
+              };
+              Scratchpad.blank_code(name);
+            },
+          names,
+        ),
+    };
+  };
+
+  /* Swap the placeholder at [current] for the real slide, if dormant. */
+  let hydrate_current = (~settings, prefix: string, model: Model.t): Model.t => {
+    let sp = List.nth(model.scratchpads, model.current);
+    let key = dormant_key(prefix, sp.name);
+    if (Hashtbl.mem(dormant_slides, key)) {
+      Hashtbl.remove(dormant_slides, key);
+      {
+        ...model,
+        scratchpads:
+          Util.ListUtil.put_nth(
+            model.current,
+            load_scratchpad(~settings, prefix, sp.name),
+            model.scratchpads,
+          ),
+      };
+    } else {
+      model;
     };
   };
 
@@ -850,10 +929,14 @@ module Update = {
     | SwitchSlide(i) =>
       WorkerClient.cancel();
       let* current = i |> Updated.return;
-      {
-        ...model,
-        current,
-      };
+      Persist.hydrate_current(
+        ~settings=settings.core,
+        is_documentation ? "doc" : "scratch",
+        {
+          ...model,
+          current,
+        },
+      );
     | AddSlide =>
       WorkerClient.cancel();
       Updated.return(
@@ -934,10 +1017,14 @@ module Update = {
                 },
                 is_documentation,
               )
-            : {
-              scratchpads: new_sp,
-              current: max(model.current - 1, 0),
-            };
+            : Persist.hydrate_current(
+                ~settings=settings.core,
+                is_documentation ? "doc" : "scratch",
+                {
+                  scratchpads: new_sp,
+                  current: max(model.current - 1, 0),
+                },
+              );
         Updated.return(m);
       } else {
         model |> return_quiet;
