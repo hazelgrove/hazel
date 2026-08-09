@@ -266,6 +266,18 @@ let basic_tests = [
     ~acts=mk("1¦1") @ [Paste({|"foo"|})],
     ~goal={|1~"foo"¦~1|},
   ),
+  /* Nested fast-path pastes: the gate no longer requires a top-level
+     caret, so complete terms splice via FastParse at depth. */
+  test(
+    ~name="Paste complete term inside parens (nested fast path)",
+    ~acts=mk("(¦)") @ [Paste("1 + 2")],
+    ~goal="(1 + 2¦)",
+  ),
+  test(
+    ~name="Paste binding chain inside let-def parens",
+    ~acts=mk("let x = (¦) in x") @ [Paste("let y = 2 in y")],
+    ~goal="let x = (let y = 2 in y¦) in x",
+  ),
   test(
     ~name="Paste plaintext into token at Inner caret",
     ~acts=mk("hel¦lo") @ [Paste("abc")],

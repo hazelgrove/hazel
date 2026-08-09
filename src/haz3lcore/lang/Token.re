@@ -300,6 +300,30 @@ let of_projector_invoke = (input: t): option(t) =>
     None;
   };
 
+/* A `_opt` suffix on the invoke body is a trigger OPTION (e.g. the
+   probe renderer in `^^probe_table`) — stripped for validity; Triggers
+   parses the option itself. `_` is safe: no kind name contains one,
+   and it merges into a single editor token. */
+let split_invoke_opt = (body: t): (t, option(t)) =>
+  switch (String.index_opt(body, '_')) {
+  | Some(i) => (
+      String.sub(body, 0, i),
+      Some(String.sub(body, i + 1, String.length(body) - i - 1)),
+    )
+  | None => (body, None)
+  };
+
+let of_projector_invoke_opt = (input: t): option(t) =>
+  switch (of_projector_invoke(input)) {
+  | None => None
+  | Some(body) => snd(split_invoke_opt(body))
+  };
+
+let of_projector_invoke_base = (input: t): option(t) =>
+  switch (of_projector_invoke(input)) {
+  | None => None
+  | Some(body) => Some(fst(split_invoke_opt(body)))
+  };
 let is_projector_invoke = (str: t): bool =>
   switch (of_projector_invoke(str)) {
   | Some(name) => ProjectorCore.Kind.is_name(name)

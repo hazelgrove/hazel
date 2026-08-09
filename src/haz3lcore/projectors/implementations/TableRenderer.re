@@ -40,6 +40,7 @@ let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
 
 /* Initialize table model from parsed value */
 let init = (_: v) => {menu_state: None};
+let empty = {menu_state: None};
 
 /* Local builders that wrap Menu.item constructors with the column menu's
  * conventions: hover updates selection, tooltips on every leaf row. */

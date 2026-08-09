@@ -14,9 +14,6 @@
  * the parser's `?` empty-hole token, so explicit user-typed `?` tiles
  * round-trip distinct from implicit Grout. */
 
-open Util;
-open Base;
-
 let default_implicit_hole = "\xc2\xbf";
 
 let to_text =
@@ -41,83 +38,7 @@ let to_text =
   );
 };
 
-/* A marker piece is whatever the parser produced from inserting
- * `implicit_hole`. In practice that is a Tile with label `[implicit_hole]`
- * (the token round-trips through `Insert.go` unchanged). */
-let is_marker = (~implicit_hole: string, p: piece): bool =>
-  switch (p) {
-  | Tile(t) => t.label == [implicit_hole]
-  | _ => false
-  };
-
-/* Depth-first scan for the id of the next marker piece, anywhere in the
- * segment tree. We delete every marker — `remold_regrout` after each
- * destruct will insert Grout where shape requires it. */
-let rec find_marker = (~implicit_hole: string, seg: Segment.t): option(Id.t) => {
-  let rec scan = (rest: list(piece)): option(Id.t) =>
-    switch (rest) {
-    | [] => None
-    | [p, ...tail] =>
-      if (is_marker(~implicit_hole, p)) {
-        Some(Piece.id(p));
-      } else {
-        switch (descend(p)) {
-        | Some(id) => Some(id)
-        | None => scan(tail)
-        };
-      }
-    }
-  and descend = (p: piece): option(Id.t) =>
-    switch (p) {
-    | Tile(t) =>
-      List.fold_left(
-        (acc, child) =>
-          switch (acc) {
-          | Some(_) => acc
-          | None => find_marker(~implicit_hole, child)
-          },
-        None,
-        t.children,
-      )
-    | _ => None
-    };
-  scan(seg);
-};
-
-let rec strip_implicit_holes =
-        (~implicit_hole: string, ~root, z: Zipper.t): Zipper.t => {
-  let segment = Zipper.zip(z);
-  switch (find_marker(~implicit_hole, segment)) {
-  | None => z
-  | Some(id) =>
-    /* Select the whole marker tile first, otherwise Destruct nibbles one
-     * char at a time via Token.rm_edge and never removes the full tile. */
-    switch (Select.tile(id, z)) {
-    | None => z
-    | Some(z) =>
-      switch (Destruct.go(Left, z, ~root)) {
-      | None => z
-      | Some(z) => strip_implicit_holes(~implicit_hole, ~root, z)
-      }
-    }
-  };
-};
-
-let of_text =
-    (~implicit_hole=default_implicit_hole, ~root, text: string)
-    : option(Zipper.t) =>
-  switch (Parser.to_zipper(~root, text)) {
-  | None => None
-  | Some(z) =>
-    let refractors = z.refractors;
-    let z = strip_implicit_holes(~implicit_hole, ~root, z);
-    Some(ZipperBase.update_refractors(z, _ => refractors));
-  };
-
-let persist_from_text =
-    (~implicit_hole=default_implicit_hole, ~root, text: string)
-    : option(PersistentSegment.t) =>
-  Option.map(
-    PersistentSegment.persist,
-    of_text(~implicit_hole, ~root, text),
-  );
+/* Marker detection/stripping lives in MarkerParse (below
+   PersistentZipper, so slide loading can use it); delegated here. */
+let of_text = (~implicit_hole=default_implicit_hole, ~root, text: string) =>
+  MarkerParse.of_text(~implicit_hole, ~root, text);
