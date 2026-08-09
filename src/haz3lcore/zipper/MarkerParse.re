@@ -4,9 +4,13 @@
    Reparsing that text yields literal `¿` TILES, which the original
    program never had. [of_text] parses, then Destructs each marker tile;
    the remold/regrout pass that runs on every edit re-inserts Grout
-   wherever shape requires it, reconstructing the original zipper. Sits
-   below PersistentZipper so persistence loading can fall back to it;
-   TextRoundtrip delegates here. */
+   wherever shape requires it, reconstructing the original zipper.
+   This is the RECOVERING-PARSER half of the `¿` convention: the fast
+   path reads the same markers structurally during its weave (see
+   FastParse), but the recovering parser has no notion of `¿`, and
+   incomplete programs — the grout-heavy ones — are exactly what falls
+   back to it. Sits below PersistentZipper so persistence loading can
+   fall back to it; TextRoundtrip delegates here. */
 open Util;
 open Base;
 
