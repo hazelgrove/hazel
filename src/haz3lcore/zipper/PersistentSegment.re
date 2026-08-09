@@ -11,8 +11,8 @@ type t = {
    MarkerParse / the FastParse weave). */
 let to_string =
   Printer.of_segment(
-    ~holes="\xc2\xbf",
-    ~concave_holes="\xc2\xbf",
+    ~holes=Token.implicit_hole_marker,
+    ~concave_holes=Token.implicit_hole_marker,
     ~indent="",
   );
 

@@ -4,11 +4,11 @@ open OptUtil.Syntax;
 
 /* Syntax replacement operations to automatically run after insertion */
 
-/* `^^kind_opt` — refractor trigger options: the base name identifies
-   the kind; the option selects a non-default model. Currently the only
-   option is a probe renderer id (`^^probe_table`). Underscore, not @:
-   the editor tokenizer merges `_` into one trigger token (the
-   `_sidebar` precedent); `@` splits at the char-class boundary. */
+/* `^^kind_opt` — a trigger may carry `_` suffixes: `_sidebar` selects
+   docked placement (stripped first, Token.strip_sidebar) and a trailing
+   option selects a non-default model (`^^probe_table` places a probe
+   with the table renderer active). `_` is an identifier char, so the
+   whole trigger lexes as one editor token. */
 let split_trigger_opt = (s: string): (string, option(string)) =>
   switch (Token.of_projector_invoke_parts(s)) {
   | Some((name, _)) => ("^^" ++ name, Token.of_projector_invoke_opt(s))

@@ -1,5 +1,10 @@
 include Sexplib.Std;
 
+/* Parens exist in the menhir AST only as explicit ParenExp/ParenPat/
+   ParenTyp nodes, and conversion neither invents nor drops them —
+   MakeTerm parity depends on it (a bare tuple/sum/poly stays bare;
+   f(a, b) has a bare arg tuple, f((a, b)) a parenthesized one). */
+
 module IndicatedG =
   Language.Grammar.Factory({
     type t = bool;
@@ -252,8 +257,6 @@ module rec Exp: {
       typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
     | Undefined => undefined()
     | TyAlias(tp, ty, e) =>
-      /* keep source parens: ParenTyp is explicit, and MakeTerm keeps
-         the parens tile in `type T = (A, B) in` */
       ty_alias(
         TPat.of_menhir_ast(tp),
         Typ.of_menhir_ast(ty),
@@ -278,9 +281,6 @@ module rec Exp: {
           : ap(
               Language.Operators.Forward,
               of_menhir_ast(e1),
-              /* Source parens are explicit (ParenExp), so plain
-                 recursion is faithful: f(a, b) has a bare arg tuple,
-                 f((a, b)) a ParenExp one. */
               of_menhir_ast(args),
             )
       | Deferral => deferred_ap(of_menhir_ast(e1), [args |> of_menhir_ast])
@@ -467,7 +467,6 @@ and Typ: {
     | BoolType => bool()
     | StringType => string()
     | NatType => nat()
-    /* Void = Sum([]) prints as the atomic token; no invented parens */
     | VoidType => sum([])
     | UnknownType(p) =>
       switch (p) {
@@ -476,10 +475,7 @@ and Typ: {
       }
     | TypVar(s) => var(s)
     | ParenTyp(t) => parens(of_menhir_ast(t))
-    /* Source parens are explicit (ParenTyp); a bare TupleType is a
-       form-supplied tuple (variant payload, fun-call style). */
     | TupleType([]) => prod([])
-    /* a lone labeled entry is still a product: (name = String) */
     | TupleType([TupLabelType(_) as tl]) => prod([of_menhir_ast(tl)])
     | TupleType([t]) => of_menhir_ast(t)
     | TupleType(ts) => prod(List.map(of_menhir_ast, ts))
@@ -515,11 +511,7 @@ and Typ: {
             },
           sumterms,
         );
-      /* Source parens arrive as ParenTyp; a bare sum stays bare
-         (MakeTerm parity). */
       sum(converted_terms);
-    /* Source parens are explicit (ParenTyp): a bare `poly r -> t`
-       stays bare, matching the editor's own parse. */
     | PolyType(tp, t) => poly(TPat.of_menhir_ast(tp), of_menhir_ast(t))
     | RecType(tp, t) => rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t))
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
