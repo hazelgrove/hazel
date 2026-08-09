@@ -28,7 +28,7 @@ Note: Only the definition changes. The pattern, body, and surrounding bindings a
 
 Syntax projectors (livelits): to keep a widget when overwriting the definition, include projector concrete syntax in `code`: `^^kind(expression)`. Examples: `^^slider(60)`, `^^sliderf(3.14)`, `^^check(true)`, `^^text("hello")`, `^^csv([])` (empty list only; import CSV in the UI), `^^card((Hearts, Ace))` (playing-card tuple or list of tuples—not records). Without `^^`, the term is usually a plain literal and the projector is not preserved—then use `place_syntax_projector` if needed (same term-shape rules as the editor menu).
 
-Module members: paths descend into module literals — `M/helper`, `^graph/update` (including type members: `^graph/Model`). Edit ONE member this way instead of re-emitting the whole module. Members end at their `;`, so they have no body: update_definition / update_pattern / update_binding_clause / delete_binding_clause / insert_before / insert_after all work at member paths, but update_body / delete_body error.
+Module members: paths descend into module literals — `M/helper` (including type members: `M/Model`). Edit ONE member this way instead of re-emitting the whole module. Members end at their `;`, so they have no body: update_definition / update_pattern / update_binding_clause / delete_binding_clause / insert_before / insert_after all work at member paths, but update_body / delete_body error.
 |};
 
 let update_definition: API.Json.t =
@@ -53,7 +53,7 @@ let update_definition: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path (e.g. \"b\", \"M/helper\", \"^graph/update\"). Nested defs use outer/inner; module members use owner/member; duplicates use name#k (1-based, program order).",
+                        "Slash-delimited path (e.g. \"b\", \"M/helper\"). Nested defs use outer/inner; module members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -153,7 +153,7 @@ let update_body: API.Json.t =
 let update_pattern_description = {|
 Renames or changes the pattern (left-hand side of `=`) of the binding at the given path.
 Automatically updates all use sites of the variable throughout the program.
-Works at module MEMBER paths ("M/helper", "^graph/init") — use sites inside the module are rewritten; a rename that would break references OUTSIDE the module (`M.member`) is rejected instead of applied.
+Works at module MEMBER paths ("M/helper") — use sites inside the module are rewritten; a rename that would break references OUTSIDE the module (`M.member`) is rejected instead of applied.
 
 Parameters:
 path: string — slash-delimited path to the binding to rename. Nested defs: use outer/inner. Duplicate sibling names are ambiguous — disambiguate with "name#k" (k-th occurrence in program order, 1-based).
@@ -316,7 +316,7 @@ let delete_binding_clause_description = {|
 Removes the entire binding (let...=...in, type...=...in, or module...=...in) at the given path.
 The body that followed the binding is preserved and moves up.
 Works for let, type, and module bindings (e.g. path "M" for module M = { ... }).
-Also removes a single module MEMBER at a member path (e.g. "M/helper", "^graph/init"), separator included.
+Also removes a single module MEMBER at a member path (e.g. "M/helper"), separator included.
 
 Parameters:
 path: string — slash-delimited path to the binding to remove
