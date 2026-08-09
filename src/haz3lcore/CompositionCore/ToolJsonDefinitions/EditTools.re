@@ -27,6 +27,8 @@ let c : Int = ⋱ in
 Note: Only the definition changes. The pattern, body, and surrounding bindings are untouched.
 
 Syntax projectors (livelits): to keep a widget when overwriting the definition, include projector concrete syntax in `code`: `^^kind(expression)`. Examples: `^^slider(60)`, `^^sliderf(3.14)`, `^^check(true)`, `^^text("hello")`, `^^csv([])` (empty list only; import CSV in the UI), `^^card((Hearts, Ace))` (playing-card tuple or list of tuples—not records). Without `^^`, the term is usually a plain literal and the projector is not preserved—then use `place_syntax_projector` if needed (same term-shape rules as the editor menu).
+
+Module members: paths descend into module literals — `M/helper`, `^graph/update` (including type members: `^graph/Model`). Edit ONE member this way instead of re-emitting the whole module. Members end at their `;`, so they have no body: update_definition / update_pattern / update_binding_clause / delete_binding_clause / insert_before / insert_after all work at member paths, but update_body / delete_body error.
 |};
 
 let update_definition: API.Json.t =
@@ -51,7 +53,7 @@ let update_definition: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path (e.g. \"b\", \"utils/helper\"). Duplicate names are ambiguous — disambiguate with name#k (1-based, program order); nested defs use outer/inner.",
+                        "Slash-delimited path (e.g. \"b\", \"M/helper\", \"^graph/update\"). Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -79,6 +81,7 @@ let update_body_description = {|
 Replaces the body (everything after `in`) of the binding at the given path.
 The body is the rest of the program that follows this binding.
 Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
+Module MEMBERS (paths like "M/helper") have no body and are rejected — target the member's definition instead.
 
 Parameters:
 path: string — slash-delimited path to the binding whose body to replace. Nested defs need ancestors (e.g. "wrap/is_odd"). Duplicate sibling names are ambiguous — disambiguate with "name#k" (k-th occurrence in program order, 1-based).
@@ -123,7 +126,7 @@ let update_body: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path; outer/inner for nested defs. Duplicate chain names are ambiguous — use name#k (1-based, program order).",
+                        "Slash-delimited path. Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -150,6 +153,7 @@ let update_body: API.Json.t =
 let update_pattern_description = {|
 Renames or changes the pattern (left-hand side of `=`) of the binding at the given path.
 Automatically updates all use sites of the variable throughout the program.
+Works at module MEMBER paths ("M/helper", "^graph/init") — use sites inside the module are rewritten; a rename that would break references OUTSIDE the module (`M.member`) is rejected instead of applied.
 
 Parameters:
 path: string — slash-delimited path to the binding to rename. Nested defs: use outer/inner. Duplicate sibling names are ambiguous — disambiguate with "name#k" (k-th occurrence in program order, 1-based).
@@ -202,7 +206,7 @@ let update_pattern: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node whose pattern should change.",
+                        "Slash-delimited path to the node whose pattern should change. Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -228,6 +232,7 @@ let update_pattern: API.Json.t =
 
 let update_binding_clause_description = {|
 Replaces the entire binding clause (from `let`/`type`/`module` through `in`, inclusive) at the given path.
+At a module MEMBER path, replaces the whole member — write it without a trailing `;` (e.g. code="let w = 8").
 This changes the pattern, definition, and delimiters — but NOT the body after the final `in`.
 The code you provide should end with `in` (not include a final body expression).
 You can introduce multiple bindings in one call (e.g., `let x = 1 in let y = 2 in`).
@@ -283,7 +288,7 @@ let update_binding_clause: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node whose binding clause should change.",
+                        "Slash-delimited path to the node whose binding clause should change. Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -311,6 +316,7 @@ let delete_binding_clause_description = {|
 Removes the entire binding (let...=...in, type...=...in, or module...=...in) at the given path.
 The body that followed the binding is preserved and moves up.
 Works for let, type, and module bindings (e.g. path "M" for module M = { ... }).
+Also removes a single module MEMBER at a member path (e.g. "M/helper", "^graph/init"), separator included.
 
 Parameters:
 path: string — slash-delimited path to the binding to remove
@@ -354,7 +360,7 @@ let delete_binding_clause: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the binding clause that should be deleted.",
+                        "Slash-delimited path to the binding clause that should be deleted. Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -370,6 +376,7 @@ let delete_binding_clause: API.Json.t =
 
 let delete_body_description = {|
 Clears the body (everything after `in`) of the binding at the given path, replacing it with a hole (`?`).
+Module MEMBERS (paths like "M/helper") have no body and are rejected.
 
 Parameters:
 path: string — slash-delimited path to the binding whose body to clear
@@ -413,7 +420,7 @@ let delete_body: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node whose body should be deleted.",
+                        "Slash-delimited path to the node whose body should be deleted. Nested defs use outer/inner; duplicates use name#k (1-based, program order). Module members have no body.",
                       ),
                     ),
                   ]),
@@ -430,6 +437,7 @@ let delete_body: API.Json.t =
 let insert_after_description = {|
 Inserts a new binding immediately after the binding at the given path.
 The inserted code becomes part of the program between the target binding and its original body.
+At a module MEMBER path (e.g. "M/helper"), inserts a new member after that member — write the member without a trailing `;` (e.g. code="let helper2 = 5"); the separator is added automatically.
 
 If `path` is omitted, the code is inserted after the entire program (at the end). This is how you initialize an empty program: with the program at just `?`, call `insert_after(code="let x = 1 in")` (no path) to write the first binding.
 
@@ -484,7 +492,7 @@ let insert_after: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node after which the code should be inserted. Omit to insert after the entire program (initializes an empty program).",
+                        "Slash-delimited path to the node after which the code should be inserted. Omit to insert after the entire program (initializes an empty program). Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
@@ -511,7 +519,7 @@ let insert_after: API.Json.t =
   ]);
 
 let insert_before_description = {|
-Inserts a new binding immediately before the binding at the given path.
+Inserts a new binding immediately before the binding at the given path. At a module MEMBER path, inserts a new member before it (write the member without a trailing `;`).
 
 If `path` is omitted, the code is inserted before the entire program (at the beginning). This is how you initialize an empty program: with the program at just `?`, call `insert_before(code="let x = 1 in")` (no path) to write the first binding.
 
@@ -566,7 +574,7 @@ let insert_before: API.Json.t =
                     (
                       "description",
                       `String(
-                        "Slash-delimited path to the node before which the code should be inserted. Omit to insert before the entire program (initializes an empty program).",
+                        "Slash-delimited path to the node before which the code should be inserted. Omit to insert before the entire program (initializes an empty program). Nested defs use outer/inner; module/livelit members use owner/member; duplicates use name#k (1-based, program order).",
                       ),
                     ),
                   ]),
