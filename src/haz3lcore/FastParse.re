@@ -207,7 +207,9 @@ let weave =
       raise(Mismatch);
     };
   };
-  let implicit_hole = "\xc2\xbf"; /* TextRoundtrip's Grout marker */
+  /* Fast-path half of the `¿` convention (MarkerParse is the
+     recovering-parser half): markers become Grout directly in the weave. */
+  let implicit_hole = Token.implicit_hole_marker;
   let expect_hole = (): (string, string) => {
     if (idx^ >= Array.length(toks)) {
       note("segment expects a hole but source tokens are exhausted");
