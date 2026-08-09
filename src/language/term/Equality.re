@@ -452,6 +452,15 @@ let equality =
       List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
     | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
     | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
+    /* Non-name-binding pattern forms still need structural equality —
+       without these, identical literal/list/cons member patterns
+       compared unequal (reflexivity bug caught by the Menhir/MakeTerm
+       equivalence property). */
+    | (Atom(c1), Atom(c2)) => c1 == c2
+    | (Cons(h1, t1), Cons(h2, t2)) => pne(h1, h2) && pne(t1, t2)
+    | (ListLit(ps1), ListLit(ps2)) =>
+      List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
+    | (Ap(f1, a1), Ap(f2, a2)) => pne(f1, f2) && pne(a1, a2)
     | _ => false
     };
   }
