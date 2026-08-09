@@ -680,11 +680,13 @@ module Local = {
       if (String.length(code) > max_chunk_chars) {
         Error(
           Action.Failure.Composition_action_failure(
-            "Code chunk too large ("
+            "Code chunk too large for error recovery ("
             ++ string_of_int(String.length(code))
             ++ " chars; limit "
             ++ string_of_int(max_chunk_chars)
-            ++ "). Large chunks parse slowly enough to stall the editor. Split the edit: first insert a skeleton whose complex parts are holes (?), then fill each part with its own update_definition call — nested paths (\"f/helper\") and module member paths (\"^name/view\") address the parts directly.",
+            ++ "): it failed the batch parse, and chunks this size stall the editor in the recovering parser."
+            ++ parse_hint()
+            ++ " Fix the syntax if the code was meant to be complete, or split the edit: insert a skeleton whose complex parts are holes (?), then fill each part with its own update_definition call — nested paths (\"f/helper\") and module member paths (\"^name/view\") address the parts directly.",
           ),
         );
       } else {
