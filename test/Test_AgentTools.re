@@ -3180,7 +3180,8 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        check(int, "tool count", 37, List.length(tools));
+        /* 36 while DocPacks is empty (read_docs is not offered) */
+        check(int, "tool count", 36, List.length(tools));
       },
     ),
     test_case(
@@ -4895,7 +4896,7 @@ let whitespace_normalization_tests = (
    ============================================================ */
 
 /* Module MEMBER operations: paths descend into module literals
-   ("m/x", "^w/init"). The node map chains through the statics expansion
+   ("m/x"). The node map chains through the statics expansion
    (wrapper Let/TyAlias keyed by Mod item ids), so the same eight tools
    work at member granularity. */
 let module_member_tests = (
@@ -4913,22 +4914,6 @@ let module_member_tests = (
         check_rendered(
           "member_update_def",
           "let m = { let x = 5; let y = 2 } in m",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "update_definition on a livelit member",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let ^w = { let x = 1; let y = 2 } in 3",
-            Update(Definition, "^w/y", "9"),
-          );
-        check_rendered(
-          "livelit_member_update_def",
-          "let ^w = { let x = 1; let y = 9 } in 3",
           result,
         );
       },

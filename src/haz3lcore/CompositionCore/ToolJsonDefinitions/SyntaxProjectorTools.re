@@ -1,7 +1,7 @@
 open Util;
 
 let allowed_kinds_line =
-  "kind must be one of: fold, slider, sliderf, check, text, card, table, csv, livelit, html (same as the editor projector menu). "
+  "kind must be one of: fold, slider, sliderf, check, text, card, table, csv, livelit (same as the editor projector menu). "
   ++ "Do not use probe or statics here — use place_probe / place_statics instead.";
 
 let catalog_crossref =

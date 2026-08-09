@@ -89,7 +89,7 @@ let apply_overlay_action =
           tool_label
           ++ " tool did not update the program: no path produced a change."
           ++ unresolved_sfx
-          ++ " Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"outer/inner\" for nested lets, \"M/helper\" or \"^graph/update\" for module/livelit members, \"name#k\" for duplicates).",
+          ++ " Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"outer/inner\" for nested lets, \"M/helper\" for module members, \"name#k\" for duplicates).",
         ),
       );
     } else {

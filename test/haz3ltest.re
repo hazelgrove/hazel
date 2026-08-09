@@ -37,6 +37,7 @@ let (suite, _) =
       Test_Substitution.tests,
     ]
     @ Test_WorkerServer.tests
+    @ [Test_AgentPersist.tests]
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
