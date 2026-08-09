@@ -569,9 +569,11 @@ module Local = {
        full remold/regrout each), so cost is quadratic in chunk size:
        ~0.3s at 500 chars, ~0.8s at 1000, ~8s at 3700 (measured on the
        graph-livelit module). It runs on the UI thread, so an oversized
-       chunk reads as a hung editor. Cap agent chunks and teach the model
-       to split; the limit sits near the ~1.5s knee. */
-    let max_chunk_chars = 1500;
+       chunk reads as a hung editor. Only menhir-refused chunks land here
+       (the fast path is uncapped), so the cap trades a rare multi-second
+       stall against refusing the edit outright; 3000 chars is a ~5s
+       worst case. */
+    let max_chunk_chars = 3000;
     /* When the batch parser rejected the chunk, its position-bearing
        message is far more useful than term-level static-error soup;
        attach it to rejections. */

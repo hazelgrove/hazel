@@ -5178,7 +5178,7 @@ let module_member_tests = (
         /* Bare comma tuple: editor-parseable, Menhir-rejected even with
            hole completion, so this reliably exercises the capped
            fallback. */
-        let big = String.concat(", ", List.init(400, i => string_of_int(i)));
+        let big = String.concat(", ", List.init(900, i => string_of_int(i)));
         switch (
           run_agent_action("let a = 1 in ?", Update(Definition, "a", big))
         ) {
