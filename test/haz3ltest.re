@@ -75,7 +75,8 @@ let (suite, _) =
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
-    @ Test_PromptFactory.tests,
+    @ Test_PromptFactory.tests
+    @ [Test_ExplainThis.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
