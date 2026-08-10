@@ -183,7 +183,75 @@ module M: Projector = {
     | Some(_) => None
     | None => Some(ProjectorBase.{message: error_message})
     };
-  let context_actions = (_, _, ~splice as _) => [];
+
+  /* A fresh column label colliding with neither the syntactic labels
+   * nor the (possibly type-derived) rendered headers. */
+  let fresh_column_label = (info: info): string => {
+    let taken =
+      List.filter_map(Fun.id, TableCore.row_labels(info.syntax, 0))
+      @ (
+        switch (get(info)) {
+        | Some((headers, _)) => headers
+        | None => []
+        }
+      );
+    let rec go = n => {
+      let candidate = "col" ++ string_of_int(n);
+      List.mem(candidate, taken) ? go(n + 1) : candidate;
+    };
+    go(1);
+  };
+
+  /* Row/column operations offered in the context menu inside a cell
+   * splice. Each precomputes the resulting syntax; operations that
+   * don't apply (single row/column, unexpected shape) are omitted. */
+  let context_actions = ((), info: info, ~splice: Id.t) =>
+    switch (TableCore.find_cell(info.syntax, splice)) {
+    | None => []
+    | Some({row, col, n_rows, n_cols}) =>
+      let mk = (label, result: option(Base.segment)) =>
+        switch (result) {
+        | Some(seg) => [
+            ProjectorBase.{
+              label,
+              action: SetSyntax(seg),
+            },
+          ]
+        | None => []
+        };
+      /* New columns are labeled only when the clicked row's cells are:
+       * auto-labeled tables get their headers from the type, and a
+       * mixed labeled/unlabeled row would change the elaborated order. */
+      let labeled =
+        TableCore.row_labels(info.syntax, row)
+        |> List.for_all(Option.is_some);
+      let col_label = () => labeled ? Some(fresh_column_label(info)) : None;
+      let syntax = info.syntax;
+      mk(
+        "Insert row above",
+        TableCore.insert_row(syntax, ~at=row, ~template=row),
+      )
+      @ mk(
+          "Insert row below",
+          TableCore.insert_row(syntax, ~at=row + 1, ~template=row),
+        )
+      @ (
+        n_rows > 1
+          ? mk("Delete row", TableCore.remove_row(syntax, ~at=row)) : []
+      )
+      @ mk(
+          "Insert column left",
+          TableCore.insert_col(syntax, ~at=col, ~label=col_label()),
+        )
+      @ mk(
+          "Insert column right",
+          TableCore.insert_col(syntax, ~at=col + 1, ~label=col_label()),
+        )
+      @ (
+        n_cols > 1
+          ? mk("Delete column", TableCore.remove_col(syntax, ~at=col)) : []
+      );
+    };
 
   let view =
       (
