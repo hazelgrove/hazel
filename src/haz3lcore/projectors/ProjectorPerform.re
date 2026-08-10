@@ -351,7 +351,13 @@ let go =
       |> Segment.unparenthesize
       |> Segment.trim_secondary(Right)
       |> Segment.trim_secondary(Left);
-    let parenthesized_piece = Segment.parenthesize(trimmed_seg);
+    /* A single convex piece needs no parenthesization; wrapping it
+     * anyway would leave a visible paren layer behind on unprojection. */
+    let parenthesized_piece =
+      switch (trimmed_seg) {
+      | [piece] when Piece.is_convex(piece) => piece
+      | _ => Segment.parenthesize(trimmed_seg)
+      };
     if (ProjectorCore.Kind.is_refractor(kind)) {
       let parenthesized_seg = [parenthesized_piece];
       let manual_model =
@@ -385,17 +391,21 @@ let go =
         };
       };
     } else {
-      Ok(
-        update(
-          p =>
-            {
-              ...p,
-              syntax: [parenthesized_piece],
-            },
-          id,
-          z,
-        ),
-      );
+      let f = (p: Base.projector) => {
+        ...p,
+        syntax: [parenthesized_piece],
+      };
+      if (inside_projector(id, z)) {
+        /* The caret is inside the projector (e.g. in one of its
+         * splices — SetSyntax may be dispatched from a context-menu
+         * action contributed there). The new syntax may not contain
+         * the caret's splice, so rebuild from the root (which resets
+         * the caret) and park the caret at the projector's edge. */
+        let z = update_from_root(f, id, z);
+        Ok(Option.value(~default=z, Move.jump_to_side_of_id(Right, z, id)));
+      } else {
+        Ok(update(f, id, z));
+      };
     };
   | SetTerm(idx, term, preserve_splices) =>
     let id = projector_idx_to_id(idx);
