@@ -90,6 +90,7 @@ module M: Projector = {
 
   let placeholder = (_, _, _) => ProjectorCore.Shape.default;
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
 
   let view = ({model, info, local, view_seg, _}: View.args(model, action)) =>
     View.{

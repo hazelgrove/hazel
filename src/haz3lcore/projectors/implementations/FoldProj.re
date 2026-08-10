@@ -44,6 +44,7 @@ module M: Projector = {
     expanded: !m.expanded,
   };
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
 
   let hover_view = (view_seg: View.seg, m, info: info) => {
     let seg = Segment.unparenthesize(info.syntax);

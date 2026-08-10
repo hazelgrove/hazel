@@ -108,6 +108,16 @@ type info = {
 /* A projector-reported error, e.g. "can't render as table" */
 type error = {message: string};
 
+/* A context-menu item a projector contributes when the editor's
+ * context menu is opened with the caret inside one of the projector's
+ * own splices (e.g. table row/column operations). Only the innermost
+ * projector owning the splice is consulted, so for a table nested in a
+ * table cell the menu shows the inner table's actions. */
+type context_action = {
+  label: string,
+  action: external_action,
+};
+
 /* A replacement for the projector's underlying syntax, returned by
  * [init]. Projectors that transform their syntax at projection time
  * should prefer [Term]: provide the desired term (e.g. list items
@@ -289,6 +299,10 @@ module type Projector = {
   let update: (model, info, action) => model;
   /* Report an error if the projector can't render properly */
   let error: (model, info) => option(error);
+  /* Context-menu items contributed when the menu is opened with the
+   * caret inside the projector's splice [splice] (see context_action).
+   * Return [] if the projector has no splice-local actions. */
+  let context_actions: (model, info, ~splice: Id.t) => list(context_action);
 };
 
 /* A cooked projector is the same as the base module
@@ -334,4 +348,6 @@ module Cook = (C: Projector) : Cooked => {
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
   let error = (m, i) => C.error(m |> deserialize_m, i);
+  let context_actions = (m, i, ~splice) =>
+    C.context_actions(m |> deserialize_m, i, ~splice);
 };

@@ -80,6 +80,7 @@ module M: Projector = {
   let dynamics = false;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
 
   let view = ({info, parent, _}: View.args(model, action)) => {
     let ctx =

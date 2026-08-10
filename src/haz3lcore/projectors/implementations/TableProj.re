@@ -120,6 +120,7 @@ module M: Projector = {
     | Some(_) => None
     | None => Some(ProjectorBase.{message: error_message})
     };
+  let context_actions = (_, _, ~splice as _) => [];
 
   let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
     switch (get(info)) {
