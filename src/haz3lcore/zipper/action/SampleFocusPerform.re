@@ -35,22 +35,55 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
       ...sample_focus,
       time: Some(data.time),
       seq: data.seq,
+      /* D1: the clicked sample's identity, stored directly (the
+       * coordinate fields below are its projections). */
+      anchor:
+        Some({
+          probe_id: data.probe_id,
+          stack: data.call_stack,
+          opened: Some(data.step_start),
+        }),
       indicated_call:
         id != None ? id : z.refractors.sample_focus.indicated_call,
       call_stack:
         switch (id) {
         | Some(ap_id) =>
           /* Perspective extension: see CallStack.extend. Index stays at
-             the original depth, so this frame appears "below" (ghosted). */
-          CallStack.extend(ap_id, data.call_stack)
+             the original depth, so this frame appears "below" (ghosted).
+             When the extended view is a suffix of the current sightline
+             (we're stepping up an existing chain), preserve the full
+             sightline so below-focus frames aren't lost — symmetric
+             with the None branch below. */
+          let extended = CallStack.extend(ap_id, data.call_stack);
+          ListUtil.is_suffix_of(
+            ~eq=CallStack.equal_frame,
+            extended,
+            sample_focus.call_stack,
+          )
+            ? sample_focus.call_stack : extended;
         | None =>
-          !
-            ListUtil.is_suffix_of(
-              ~eq=CallStack.equal_frame,
-              data.call_stack,
-              sample_focus.call_stack,
-            )
-            ? data.call_stack : sample_focus.call_stack
+          /* When data.call_stack is a suffix of the current sightline,
+             preserve below-focus frames from the old call_stack but
+             refresh the overlapping suffix with data's frames. Samples
+             always carry real fn_def_ids (from RecordStackFrame via
+             the closure), whereas the Some(ap_id) branch above can
+             seed synthetic frames with fn_def_id=None. This refresh
+             ensures consumers reading fn_def_id off sample_focus.call_stack
+             see accurate values the moment the user walks into a sample
+             that would overlap a previously-seeded synthetic frame. */
+          if (ListUtil.is_suffix_of(
+                ~eq=CallStack.equal_frame,
+                data.call_stack,
+                sample_focus.call_stack,
+              )) {
+            let prefix_len =
+              List.length(sample_focus.call_stack)
+              - List.length(data.call_stack);
+            ListUtil.take(prefix_len, sample_focus.call_stack)
+            @ data.call_stack;
+          } else {
+            data.call_stack;
+          }
         },
       index: List.length(data.call_stack) - 1,
       step_range: Some((data.step_start, data.step_end)),
@@ -58,11 +91,44 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
   );
 };
 
-let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
-  update_pinned_call(z, pinned_call => {
-    switch (pinned_call) {
-    | Some(existing) when CallStack.equal(call_stack, existing) => None
-    | _ => Some(call_stack)
+let toggle_pin_call =
+    (z: Zipper.t, call_stack, capture: option(Sample.Capture.t)): Zipper.t =>
+  update(z, sample_focus => {
+    switch (sample_focus.pinned_stack) {
+    | Some(existing) when CallStack.equal(call_stack, existing) => {
+        ...sample_focus,
+        pinned_stack: None,
+        pinned_span: None,
+      }
+    | _ =>
+      /* Prefer the pinned sample's own identity (carried on the action
+       * by sites that have it in hand); fall back to decomposing the
+       * pin stack [probed_ap_frame, ...sample_stack] — identity without
+       * `opened`, ambiguous across iterations of the same site. */
+      let pinned_span: option(Sample.span_ref) =
+        switch (capture) {
+        | Some(c) =>
+          Some({
+            probe_id: c.probe_id,
+            stack: c.call_stack,
+            opened: Some(c.step_start),
+          })
+        | None =>
+          switch (call_stack) {
+          | [head, ...sample_stack] =>
+            Some({
+              probe_id: head.id,
+              stack: sample_stack,
+              opened: None,
+            })
+          | [] => None
+          }
+        };
+      {
+        ...sample_focus,
+        pinned_stack: Some(call_stack),
+        pinned_span,
+      };
     }
   });
 
@@ -87,6 +153,7 @@ let resolve_pending_focus =
         ...sample_focus,
         time: Some(sample.time),
         seq: sample.seq,
+        anchor: Some(Sample.ref_of_sample(sample)),
         indicated_call: None,
         call_stack: sample.call_stack,
         index: List.length(sample.call_stack) - 1,
@@ -115,7 +182,7 @@ let set_index = (z: Zipper.t, i: int): Zipper.t =>
 let go = (z: Zipper.t, a: Action.sample_focus): Zipper.t =>
   switch (a) {
   | Capture(sample, id) => capture(z, sample, id)
-  | TogglePin(call_stack) => toggle_pin_call(z, call_stack)
+  | TogglePin(call_stack, capture) => toggle_pin_call(z, call_stack, capture)
   | SetIndex(i) => set_index(z, i)
   | Reset => reset(z)
   };

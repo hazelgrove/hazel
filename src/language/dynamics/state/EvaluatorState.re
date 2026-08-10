@@ -24,12 +24,20 @@ type t = {
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
-  /* Transient enter-event data for probed applications (args + call
-   * frame, observable only when the Ap steps). Consumed when the probe's
-   * observation span closes in Evaluator.eval_3; carried up through
-   * sub-evaluations by `append`. Cleared by `clear_transient` before the
-   * state leaves the evaluator (postMessage / cache entries). */
-  app_data: CallStack.app_data,
+  /* In-flight observation spans (the trace fold's bracket stack).
+   * Pushed at SpanOpen, enriched by CallEnter, popped+minted into
+   * `probes` at SpanClose — see ObsTrace.fold_step, the only minting
+   * path for expression samples. Balanced within each top-level
+   * segment, so `append` keeps the base's opens. */
+  obs_opens: list(ObsTrace.open_span),
+  /* The observation trace (plans/observation-trace.md): the event
+   * sequence whose fold (ObsTrace.fold_step, driven by record_event)
+   * IS how `probes` gets populated. The retained list exists for
+   * batch replay (ObsTrace.assemble ≡ probes, pinned by
+   * Test_ObsTraceShadow) and future retention-mode queries. Transient:
+   * merged by append, cleared by clear_transient. Prepend order
+   * (newest first), like every other accumulator here. */
+  obs_trace: list(ObsTrace.event),
   step_count: int,
   incr_eval,
 }
@@ -55,7 +63,8 @@ let empty: t = {
   initial_step_count: 0,
   tests: TestMap.empty,
   probes: Sample.Map.empty,
-  app_data: Id.Map.empty,
+  obs_opens: [],
+  obs_trace: [],
   step_count: 0,
   theorems: [],
   incr_eval: IncrEval.empty,
@@ -109,19 +118,10 @@ let append = (base: t, ext: t): t => {
       base.tests,
       ext.tests,
     );
-  let app_data =
-    if (Id.Map.is_empty(ext.app_data)) {
-      base.app_data;
-    } else {
-      Id.Map.fold(
-        (id, entries, acc) => {
-          let existing =
-            Id.Map.find_opt(id, acc) |> Option.value(~default=[]);
-          Id.Map.add(id, entries @ existing, acc);
-        },
-        ext.app_data,
-        base.app_data,
-      );
+  let obs_trace =
+    switch (ext.obs_trace) {
+    | [] => base.obs_trace
+    | ext_events => ext_events @ base.obs_trace
     };
   {
     ...base,
@@ -129,7 +129,11 @@ let append = (base: t, ext: t): t => {
     probes,
     tests,
     theorems: ext.theorems @ base.theorems,
-    app_data,
+    /* ext's spans are balanced by the time it is appended (spans never
+     * cross top-level segment boundaries); the base's in-flight opens
+     * carry through. */
+    obs_opens: base.obs_opens,
+    obs_trace,
   };
 };
 
@@ -142,7 +146,29 @@ let rebase = (ext: t): t => append(empty, ext);
  * serializing arg values, which can be large. */
 let clear_transient = (state: t): t => {
   ...state,
-  app_data: Id.Map.empty,
+  obs_opens: [],
+  obs_trace: [],
+};
+
+/* Record an observation event AND advance the trace fold: this is the
+ * minting path — SpanClose/Minted events land samples in `probes` via
+ * ObsTrace.fold_step (shared with the batch `assemble`, pinned equal by
+ * Test_ObsTraceShadow). */
+let record_event = (state: t, ev: ObsTrace.event): t => {
+  let folded =
+    ObsTrace.fold_step(
+      {
+        probes: state.probes,
+        opens: state.obs_opens,
+      },
+      ev,
+    );
+  {
+    ...state,
+    obs_trace: [ev, ...state.obs_trace],
+    probes: folded.probes,
+    obs_opens: folded.opens,
+  };
 };
 
 let get_tests = ({tests, _}) => tests;
@@ -156,40 +182,6 @@ let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
 let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry(t)): t => {
   ...state,
   incr_eval: IncrEval.add_entry(id, entry, state.incr_eval),
-};
-
-let add_sample = (state: t, sample: Sample.t) => {
-  /* Deduplicate: skip recording if an existing sample for this
-   * syntax_id makes the new one redundant.
-   *
-   * Ascription dominance: a non-empty call_stack sample is
-   * dominated by an existing empty call_stack sample. This
-   * prevents duplicates from Asc distribution through typed
-   * functions, where inner values get re-evaluated at deeper
-   * call stacks.
-   *
-   * Note: previously had a same-context (equal call_stack) dedup rule
-   * to handle wrap_closure_when_done re-evaluation duplicates. That rule
-   * was removed because the root cause was fixed: wrap_closure_when_done
-   * now uses is_value=true, so the Closure-wrapped expression is returned
-   * as Final immediately without triggering re-evaluation. */
-  let dominated =
-    switch (Id.Map.find_opt(sample.syntax_id, state.probes)) {
-    | Some(existing) =>
-      List.exists(
-        (s: Sample.t) => sample.call_stack != [] && s.call_stack == [],
-        existing,
-      )
-    | None => false
-    };
-  if (dominated) {
-    state;
-  } else {
-    {
-      ...state,
-      probes: Sample.Map.extend(sample.syntax_id, sample, state.probes),
-    };
-  };
 };
 
 let update =
@@ -244,18 +236,14 @@ let update =
         let state =
           switch (arg_opt) {
           | Some(arg) when Id.Map.mem(app_id, eval_info.targets) =>
-            let elided_arg = elide_arg(env, arg);
-            {
-              ...state,
-              app_data:
-                CallStack.add_app_data(
-                  state.app_data,
-                  ~stack=call_stack,
-                  app_id,
-                  elided_arg,
-                  frame,
-                ),
-            };
+            record_event(
+              state,
+              ObsTrace.CallEnter({
+                frame,
+                arg: elide_arg(env, arg),
+                stack: call_stack,
+              }),
+            )
           | Some(_)
           | None => state
           };
@@ -273,7 +261,10 @@ let update =
         let state =
           List.fold_left(
             (state: t, sample_closure: (CallStack.t, int, int) => Sample.t) =>
-              add_sample(state, sample_closure(call_stack, step, step)),
+              record_event(
+                state,
+                ObsTrace.Minted(sample_closure(call_stack, step, step)),
+              ),
             state,
             sample_closures,
           );
@@ -297,7 +288,7 @@ let update =
             call_stack,
             Sample.empty_capture_spec,
           );
-        (call_stack, add_sample(state, sample));
+        (call_stack, record_event(state, ObsTrace.Minted(sample)));
       | RecordTheorem(id, name, env, goal) => (
           call_stack,
           add_theorem(state, id, name, env, goal),

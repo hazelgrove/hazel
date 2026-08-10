@@ -718,6 +718,8 @@ let step_into_call_stack =
         index: List.length(call_stack),
         pinned_stack: Some(new_stack),
         pending_focus: None,
+        anchor: None,
+        pinned_span: None,
       }
     });
 
@@ -849,7 +851,9 @@ let go =
       | Suppressed(_)
       | Non => promote_to_manual(ap_id, z)
       };
-    SampleFocusPerform.toggle_pin_call(z, call_stack);
+    /* Pin actions carry no sample (the pinned CALL may not itself be
+     * probed); the span ref comes from stack decomposition, opened=None. */
+    SampleFocusPerform.toggle_pin_call(z, call_stack, None);
   | RemoveAll =>
     z
     |> Zipper.update_manuals(_ => [])

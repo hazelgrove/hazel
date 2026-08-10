@@ -40,50 +40,11 @@ let extend = (app_id: Id.t, stack: t): t => [
 ];
 
 /* Conceptually belongs to Sample.re, but lives here because Sample
- * depends on CallStack and this type is needed for app_data below.
- * (app_data itself is carried on EvaluatorState; the types live here to
- * keep them beside the stack machinery they describe.) */
+ * depends on CallStack and observation events need it here. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type elided_value =
   | Opaque
   | Val(DHExp.t);
-
-/* Enter-event data for function applications, keyed by app_id.
- * Each entry is (call_stack_before_entering, elided_arg_value, call_frame).
- * The call_stack is the stack BEFORE entering the function, so we can match
- * samples taken inside the function with their calling arguments. The frame
- * carries the invoked fn's resolved fn_def_id, which is only observable at
- * the moment the Ap steps — this is the channel to the probe Sample minted
- * when the observation span closes. Recorded only for probe targets.
- * Stored transiently on EvaluatorState (the evaluator's write-only log),
- * so recordings made in sub-evaluation reach the enclosing span via the
- * state's append discipline. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type app_data = Id.Map.t(list((t, elided_value, frame)));
-
-/* Record an argument value + call frame for an application entered at
- * `stack`. */
-let add_app_data =
-    (map: app_data, ~stack: t, app_id: Id.t, arg: elided_value, frame: frame)
-    : app_data => {
-  let existing = Id.Map.find_opt(app_id, map) |> Option.value(~default=[]);
-  Id.Map.add(app_id, [(stack, arg, frame), ...existing], map);
-};
-
-/* Look up argument value + call frame for an application at a specific
- * call_stack. Used when creating samples for probes on Ap expressions. */
-let lookup_app =
-    (map: app_data, app_id: Id.t, call_stack: t)
-    : option((elided_value, frame)) =>
-  switch (Id.Map.find_opt(app_id, map)) {
-  | None => None
-  | Some(entries) =>
-    List.find_map(
-      ((stored_stack, arg, frame)) =>
-        equal(stored_stack, call_stack) ? Some((arg, frame)) : None,
-      entries,
-    )
-  };
 
 let add_entry = (stack: t, frame: frame): t => [frame, ...stack];
 
