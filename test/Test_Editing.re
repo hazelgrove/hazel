@@ -5477,8 +5477,103 @@ let splice_tests = [
   ),
 ];
 
+/* ---------- Table projector splices ----------
+ *
+ * The table projector wraps each cell value in a splice at projection
+ * time (piece-level, so labels/formatting stay outside the splices),
+ * hosting an editable sub-editor per cell. */
+
+let table_splice_tests = [
+  test_case(
+    "projecting a labeled table literal wraps cell values in splices",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      Alcotest.check(
+        Alcotest.int,
+        "splice count",
+        4,
+        List.length(splices_of(z)),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "first cell value",
+        "1",
+        splice_text(z, 0),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "last cell value",
+        "4",
+        splice_text(z, 3),
+      );
+    },
+  ),
+  test_case(
+    "editing a table cell splice and unprojecting preserves the edit",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let splice_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("2"),
+            Project(RemoveIndicated),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.string,
+        "unprojected edited table",
+        "[(a=1, b=22), (a=3, b=4)]¦",
+        printer(z),
+      );
+    },
+  ),
+  test_case(
+    "unprojecting a table restores the original text",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z =
+        perform(
+          z,
+          [
+            Project(SetIndicated(Specific(Table))),
+            Project(RemoveIndicated),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "no splices remain",
+        0,
+        List.length(splices_of(z)),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "unprojected table",
+        "[(a=1, b=2), (a=3, b=4)]¦",
+        printer(z),
+      );
+    },
+  ),
+];
+
 let tests = [
   ("Editing.Splice", splice_tests),
+  ("Editing.TableSplice", table_splice_tests),
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
   ("Editing.SmartSelection", smart_selection_tests),

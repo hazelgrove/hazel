@@ -28,17 +28,39 @@ let get =
     }
   };
 
+/* Map a cell expression to the splice hosting it in the projector's
+ * syntax, if any. [splices] are this projector's own splice children;
+ * checking membership guards against stale elaborated forms and
+ * against splices belonging to a projector nested inside a cell. */
+let cell_splice_id = (splices: list(Base.splice), e: Exp.t): option(Id.t) =>
+  switch (first_splice_id(e)) {
+  | Some(id) when List.exists((s: Base.splice) => s.id == id, splices) =>
+    Some(id)
+  | _ => None
+  };
+
 let table =
     (
       info,
       ~parent as _: external_action => Ui_effect.t(unit),
       (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
       ~view_seg: (Sort.t, Segment.t) => Node.t,
-    ) =>
+      ~splice_view: View.splice_view,
+      ~splices: list(Base.splice),
+    ) => {
+  let splice_cell = (e: Exp.t) =>
+    cell_splice_id(splices, e)
+    |> Option.map(id =>
+         Node.div(
+           ~attrs=[Attr.classes(["cell-splice"])],
+           [splice_view(id)],
+         )
+       );
   table_view(
     ~header_cells=List.map(h => Node.th([Node.text(h)]), headers),
-    ~rows=List.map(row_cells(info.utility, view_seg), rows),
+    ~rows=List.map(row_cells(info.utility, view_seg, ~splice_cell), rows),
   );
+};
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -46,10 +68,18 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = (any: Any.t, _) =>
+  let init = (any: Any.t, seg: Base.segment) =>
     switch (table_of(any)) {
-    | Some(_) => Some(((), None))
     | None => None
+    | Some(_) =>
+      /* Editable cells: wrap each cell value of the (raw) selected
+       * syntax in a splice. Splices are transparent to statics, so
+       * headers can still be inferred from the elaborated form. If the
+       * syntax isn't literally a list of tuples, keep it unchanged and
+       * render read-only as before. */
+      let override =
+        splice_table_cells(seg) |> Option.map(seg => Syntax(seg));
+      Some(((), override));
     };
 
   let focusable =
@@ -59,7 +89,7 @@ module M: Projector = {
     };
   let dynamics = false;
   let elaborate_syntax = true;
-  let placeholder = (_, info, _splice_size) =>
+  let placeholder = (_, info, splice_size: View.splice_size) =>
     switch (get(info)) {
     | None =>
       let s = info.utility.seg_to_string(info.syntax);
@@ -88,25 +118,58 @@ module M: Projector = {
        * selector. Must stay in sync with that threshold. */
       let scroll_threshold_rows = 10;
 
+      let splices = Segment.direct_splices(info.syntax);
+      /* Intrinsic size of one cell, in character-grid units: splice
+       * cells size around their sub-editor content, other cells around
+       * their abbreviated value text. */
+      let cell_size = (e: Exp.t): Point.t =>
+        switch (cell_splice_id(splices, e)) {
+        | Some(id) =>
+          let size = splice_size(id);
+          Point.{
+            row: max(1, size.row + 1),
+            /* Room for the sub-editor's horizontal cell margin. */
+            col: size.col + 2,
+          };
+        | None =>
+          Point.{
+            row: 1,
+            col:
+              Abbreviate.abbreviate_exp(~available=max_column_length, e)
+              |> snd,
+          }
+        };
+      let sizes = List.map(List.map(cell_size), rows);
+
       let header_row_chars =
         header |> List.map(String.length) |> List.fold_left((+), 0);
       let widest_row_chars =
-        rows
+        sizes
         |> List.map(row =>
-             row
-             |> List.map(e =>
-                  Abbreviate.abbreviate_exp(~available=max_column_length, e)
-                  |> snd
-                )
-             |> List.fold_left((+), 0, _)
+             row |> List.map((p: Point.t) => p.col) |> List.fold_left((+), 0)
            )
         |> List.fold_left(max, 0, _);
       let content_chars = max(header_row_chars, widest_row_chars);
 
+      let row_heights =
+        List.map(
+          row =>
+            row
+            |> List.map((p: Point.t) => p.row)
+            |> List.fold_left(max, 1, _),
+          sizes,
+        );
+      let total_rows = List.fold_left((+), 0, row_heights);
       let num_rows = List.length(rows);
       let num_cols = List.length(header);
       ProjectorCore.Shape.{
-        vertical: Block(min(num_rows, scroll_threshold_rows)),
+        vertical:
+          /* Single-line rows scroll past the threshold (matching the
+           * CSS); multi-line splice content just makes the table taller. */
+          Block(
+            total_rows == num_rows
+              ? min(num_rows, scroll_threshold_rows) : total_rows,
+          ),
         horizontal:
           outer_padding_chars
           + content_chars
@@ -122,7 +185,12 @@ module M: Projector = {
     };
   let context_actions = (_, _, ~splice as _) => [];
 
-  let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
+  let view =
+      (
+        {info, parent, view_seg, splice_view, splices, _}:
+          View.args(model, action),
+      )
+      : View.t =>
     switch (get(info)) {
     | None =>
       let seg = Segment.unparenthesize(info.syntax);
@@ -143,7 +211,7 @@ module M: Projector = {
       View.mk(
         Node.div(
           ~attrs=[Attr.classes(["table-inner"])],
-          [table(info, ~view_seg, ~parent, data)],
+          [table(info, ~view_seg, ~splice_view, ~splices, ~parent, data)],
         ),
       )
     };
