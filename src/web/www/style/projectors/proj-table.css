@@ -120,8 +120,32 @@ div.projector.table:has(tbody tr:nth-child(10)) .table th {
     font-size: var(--base-font-size);
 }
 
+/* Whole-cell click focus: stretch the sub-editor across the td so a
+ * click anywhere in the cell reaches the editor's pointer handlers.
+ * Pointer goals are computed relative to .code-container and clamped
+ * into the splice, and all decorations live inside .code-container,
+ * so the container can sit centered without desyncing anything. */
 .table td .cell-splice {
+    display: block;
+}
+
+.table td .cell-splice .splice-editor {
+    display: block;
+    width: 100%;
+}
+
+.table td .cell-splice .splice-editor .code-editor.sub-editor {
+    display: flex;
+    width: 100%;
+    justify-content: center;
     padding: 0 0.4em;
+    box-sizing: border-box;
+    /* The table's text-align: center must not reach the code lines:
+     * decorations (highlights, caret) are positioned on a left-aligned
+     * measured grid, so centering each line would desync them on
+     * multi-line cells. The flex centering above centers the code
+     * block as a whole instead. */
+    text-align: left;
 }
 
 /* Keep splice rows exactly one text line tall, like the read-only
@@ -129,6 +153,5 @@ div.projector.table:has(tbody tr:nth-child(10)) .table th {
  * otherwise make each row overflow the Block(rows) placeholder
  * space reserved by TableProj.placeholder. */
 .table td .cell-splice .splice-editor.inline-editor-wrapper {
-    padding-top: 0;
-    padding-bottom: 0;
+    padding: 0;
 }
