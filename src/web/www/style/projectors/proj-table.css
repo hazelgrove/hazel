@@ -155,3 +155,32 @@ div.projector.table:has(tbody tr:nth-child(10)) .table th {
 .table td .cell-splice .splice-editor.inline-editor-wrapper {
     padding: 0;
 }
+
+/* Editable column labels
+ *
+ * Renameable headers render as text inputs styled like the static
+ * label text; committing (Enter/blur) rewrites the label in every
+ * row. Sizing tracks the title via the size attribute-less width so
+ * keep it modest and centered. */
+.table th input.column-label-input {
+    font-weight: 600;
+    color: var(--BR4);
+    font-family: var(--code-font);
+    font-size: inherit;
+    background: transparent;
+    border: none;
+    outline: none;
+    text-align: center;
+    width: 100%;
+    min-width: 3em;
+    padding: 0;
+}
+
+.table th input.column-label-input:hover {
+    background: var(--df-hover-bg);
+}
+
+.table th input.column-label-input:focus {
+    background: var(--light-page-color);
+    box-shadow: inset 0 -1px 0 var(--BR4);
+}

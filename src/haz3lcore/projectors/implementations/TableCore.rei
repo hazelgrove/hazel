@@ -56,6 +56,13 @@ let insert_col:
   (Base.segment, ~at: int, ~label: option(string)) => option(Base.segment);
 let remove_col: (Base.segment, ~at: int) => option(Base.segment);
 
+/* Labels carried syntactically by every row (renameable columns). */
+let renameable_labels: Base.segment => list(string);
+
+/* Rename a label in every row's `label =` prefix. */
+let rename_label:
+  (Base.segment, ~from: string, ~to_: string) => option(Base.segment);
+
 /* --- Table Parsing --- */
 
 type table_data = (list(option(string)), list(list(Exp.t)));

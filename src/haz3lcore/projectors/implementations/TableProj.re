@@ -39,10 +39,52 @@ let cell_splice_id = (splices: list(Base.splice), e: Exp.t): option(Id.t) =>
   | _ => None
   };
 
+/* An editable column header: commits a whole-table label rename on
+ * change (Enter/blur). Rewriting happens by label string, so it is
+ * immune to elaboration reordering the columns. Invalid names make
+ * rename_label decline and the rename is dropped. */
+let header_input =
+    (info: info, ~parent: external_action => Ui_effect.t(unit), h: string)
+    : Node.t =>
+  Node.input(
+    ~attrs=[
+      Attr.classes(["column-label", "column-label-input"]),
+      Attr.value(h),
+      /* Keys typed here belong to the input, not the editor. */
+      Attr.on_keydown(_ => Effect.Stop_propagation),
+      Attr.on_keyup(_ => Effect.Stop_propagation),
+      Attr.on_pointerdown(_ => Effect.Stop_propagation),
+      Attr.on_change((evt, new_label) =>
+        if (new_label == h) {
+          Effect.Ignore;
+        } else {
+          switch (rename_label(info.syntax, ~from=h, ~to_=new_label)) {
+          | Some(seg) => parent(SetSyntax(seg))
+          | None =>
+            /* Declined rename: put the current name back in the DOM —
+             * the vdom's value can't reset it (its diff key, [h], is
+             * unchanged). */
+            Js_of_ocaml.(
+              {
+                Js.Opt.iter(evt##.target, target =>
+                  Js.Opt.iter(Dom_html.CoerceTo.input(target), input =>
+                    input##.value := Js.string(h)
+                  )
+                );
+                Effect.Ignore;
+              }
+            )
+          };
+        }
+      ),
+    ],
+    (),
+  );
+
 let table =
     (
       info,
-      ~parent as _: external_action => Ui_effect.t(unit),
+      ~parent: external_action => Ui_effect.t(unit),
       (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
       ~view_seg: (Sort.t, Segment.t) => Node.t,
       ~splice_view: View.splice_view,
@@ -56,8 +98,12 @@ let table =
            [splice_view(id)],
          )
        );
+  let renameable = renameable_labels(info.syntax);
+  let header_cell = (h: string): Node.t =>
+    List.mem(h, renameable)
+      ? Node.th([header_input(info, ~parent, h)]) : Node.th([Node.text(h)]);
   table_view(
-    ~header_cells=List.map(h => Node.th([Node.text(h)]), headers),
+    ~header_cells=List.map(header_cell, headers),
     ~rows=List.map(row_cells(info.utility, view_seg, ~splice_cell), rows),
   );
 };
