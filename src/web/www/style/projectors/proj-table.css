@@ -100,3 +100,35 @@ div.projector.table:has(tbody tr:nth-child(10)) .table th {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+/* Splice cells
+ *
+ * Editable cells host a .splice-editor sub-editor (see proj-base.css)
+ * inside a .cell-splice wrapper. The td must not clip: the sub-editor's
+ * caret/selection decorations and overlays (context menu, completions)
+ * overflow the cell box. */
+.table td:has(.cell-splice) {
+    overflow: visible;
+}
+
+/* Splice sub-editors must share the main editor's font metrics: the
+ * caret/selection/highlight overlays are positioned on the global
+ * (row_height, col_width) grid, so the table's 0.9x code shrink above
+ * would accumulate per-line and per-char drift between the text and
+ * its decorations. Read-only value cells keep the shrink — they have
+ * no overlays. */
+.projector.table .cell-splice .code {
+    font-size: var(--base-font-size);
+}
+
+.table td .cell-splice {
+    padding: 0 0.4em;
+}
+
+/* Keep splice rows exactly one text line tall, like the read-only
+ * value cells: .inline-editor-wrapper's vertical padding would
+ * otherwise make each row overflow the Block(rows) placeholder
+ * space reserved by TableProj.placeholder. */
+.table td .cell-splice .splice-editor.inline-editor-wrapper {
+    padding-top: 0;
+    padding-bottom: 0;
+}
