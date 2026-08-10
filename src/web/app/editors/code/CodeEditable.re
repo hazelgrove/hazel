@@ -653,6 +653,8 @@ module View = {
             ContextMenu.WithContext.handle_listener_key(
               ~info_map=model.statics.info_map,
               ~elaborated=model.statics.elaborated,
+              ~syntax=model.editor.syntax,
+              ~dynamics,
               ~zipper=model.editor.state.zipper,
               ~dispatch_menu=a => inject(ContextMenu(a)),
               ~dispatch_action=a => inject(Perform(a)),
@@ -748,6 +750,7 @@ module View = {
                     ~syntax=model.editor.syntax,
                     ~info_map=model.statics.info_map,
                     ~elaborated=model.statics.elaborated,
+                    ~dynamics,
                     ~font_metrics=globals.font_metrics,
                     ~model=model.context_menu,
                     model.editor.state.zipper,

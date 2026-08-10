@@ -1591,6 +1591,7 @@ module M: Projector = {
     };
   };
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
   let view =
       (
         {info, local, parent, view_seg, model, status, _}:
