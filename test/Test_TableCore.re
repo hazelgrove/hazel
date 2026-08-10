@@ -193,6 +193,65 @@ let splice_tests = [
     },
   ),
   test_case(
+    "rename_label rewrites every row and only label prefixes",
+    `Quick,
+    () => {
+      let seg =
+        parse_segment_exn({|[(name="Alice", age=12), (name="Bob", age=17)]|})
+        |> splice_of_segment_exn;
+      Alcotest.(
+        check(
+          list(string),
+          "renameable labels",
+          ["name", "age"],
+          TableCore.renameable_labels(seg),
+        )
+      );
+      let renamed =
+        switch (TableCore.rename_label(seg, ~from="age", ~to_="years")) {
+        | Some(seg) => seg
+        | None => Alcotest.fail("rename_label declined")
+        };
+      Alcotest.(
+        check(
+          string,
+          "text after rename",
+          {|[(name="Alice", years=12), (name="Bob", years=17)]|},
+          seg_text(renamed),
+        )
+      );
+      Alcotest.(
+        check(
+          bool,
+          "keyword rejected",
+          true,
+          TableCore.rename_label(seg, ~from="age", ~to_="let") == None,
+        )
+      );
+      Alcotest.(
+        check(
+          bool,
+          "invalid token rejected",
+          true,
+          TableCore.rename_label(seg, ~from="age", ~to_="not a name") == None,
+        )
+      );
+      /* Auto-labeled tables (no syntactic labels) have no renameable
+       * columns — their headers come from the type. */
+      let unlabeled =
+        parse_segment_exn({|[("Alice", 12), ("Bob", 17)]|})
+        |> splice_of_segment_exn;
+      Alcotest.(
+        check(
+          list(string),
+          "unlabeled table has no renameable columns",
+          [],
+          TableCore.renameable_labels(unlabeled),
+        )
+      );
+    },
+  ),
+  test_case(
     "splice_table_cells is idempotent",
     `Quick,
     () => {

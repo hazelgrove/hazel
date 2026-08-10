@@ -509,6 +509,89 @@ let remove_col = (seg: Base.segment, ~at: int): option(Base.segment) =>
     seg,
   );
 
+/* Labels the table carries syntactically in every row (exactly once
+ * per row), i.e. the columns that can be renamed by rewriting row
+ * syntax. Auto-labeled tables (labels from the type) yield []. */
+let renameable_labels = (seg: Base.segment): list(string) => {
+  switch (list_items(seg)) {
+  | None => []
+  | Some(items) =>
+    let rows = Segment.split_at_commas(items) |> Aba.get_as;
+    let row_label_lists =
+      rows
+      |> List.map(row =>
+           row_cell_segs(row) |> Option.map(List.map(cell_label))
+         );
+    switch (row_label_lists) {
+    | [] => []
+    | [first, ..._] =>
+      let count = (l, labels) =>
+        labels |> List.filter(x => x == Some(l)) |> List.length;
+      first
+      |> Option.value(~default=[])
+      |> List.filter_map(Fun.id)
+      |> List.filter(l =>
+           row_label_lists
+           |> List.for_all(
+                fun
+                | Some(labels) => count(l, labels) == 1
+                | None => false,
+              )
+         );
+    };
+  };
+};
+
+/* Rename the label [from] to [to_] in every row. Declines unless
+ * every row carries [from] exactly once (so the rename is total) and
+ * [to_] is a valid, non-keyword label token. Only the `label =`
+ * prefix of each matching cell is rewritten — values are splices, so
+ * occurrences of [from] inside them are out of reach by construction. */
+let rename_label =
+    (seg: Base.segment, ~from: string, ~to_: string): option(Base.segment) =>
+  if (!Token.is_var(to_) || Token.is_keyword(to_)) {
+    None;
+  } else {
+    map_list_items(
+      items => {
+        open Util.OptUtil.Syntax;
+        let (rows, commas) = Segment.split_at_commas(items);
+        let rename_cell = (cell: Base.segment): Base.segment =>
+          switch (split_at_label_sep(cell)) {
+          | Some((prefix, value)) when cell_label(cell) == Some(from) =>
+            let prefix =
+              prefix
+              |> List.map((p: Base.piece) =>
+                   switch (p) {
+                   | Tile({label: [tok], children: [], _} as t)
+                       when tok == from =>
+                     Base.Tile({
+                       ...t,
+                       label: [to_],
+                     })
+                   | p => p
+                   }
+                 );
+            prefix @ value;
+          | _ => cell
+          };
+        let+ rows =
+          rows
+          |> Util.OptUtil.traverse(row => {
+               let* cells = row_cell_segs(row);
+               let hits =
+                 cells
+                 |> List.filter(c => cell_label(c) == Some(from))
+                 |> List.length;
+               hits == 1
+                 ? rebuild_row(row, List.map(rename_cell, cells)) : None;
+             });
+        Aba.mk(rows, commas) |> Aba.join(Fun.id, p => [p]) |> List.concat;
+      },
+      seg,
+    );
+  };
+
 /* The id of the outermost splice term in a cell expression, if any.
  * Elaboration preserves splice wrappers (and their ids), so this maps
  * an elaborated cell back to the splice piece in the projector's
