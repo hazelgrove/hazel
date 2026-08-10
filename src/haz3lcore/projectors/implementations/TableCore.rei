@@ -30,6 +30,32 @@ let splice_table_cells: Base.segment => option(Base.segment);
 /* The id of the outermost splice term in a cell expression, if any. */
 let first_splice_id: Exp.t => option(Id.t);
 
+/* --- Row/Column Editing ---
+ * Piece-level edits over a spliced table literal; None when the
+ * syntax doesn't have the expected list-of-tuples shape (or the edit
+ * would leave the table without any row/column). */
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type cell_pos = {
+  row: int,
+  col: int,
+  n_rows: int,
+  n_cols: int,
+};
+
+/* Locate the cell hosting a given splice. */
+let find_cell: (Base.segment, Id.t) => option(cell_pos);
+
+/* Per-cell label tokens of the row at the given index. */
+let row_labels: (Base.segment, int) => list(option(string));
+
+let insert_row:
+  (Base.segment, ~at: int, ~template: int) => option(Base.segment);
+let remove_row: (Base.segment, ~at: int) => option(Base.segment);
+let insert_col:
+  (Base.segment, ~at: int, ~label: option(string)) => option(Base.segment);
+let remove_col: (Base.segment, ~at: int) => option(Base.segment);
+
 /* --- Table Parsing --- */
 
 type table_data = (list(option(string)), list(list(Exp.t)));

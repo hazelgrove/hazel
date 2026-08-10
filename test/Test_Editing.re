@@ -5543,6 +5543,74 @@ let table_splice_tests = [
     },
   ),
   test_case(
+    "context-menu row insert applies from inside a cell splice",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let splice_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      /* Compute the transformed syntax the way TableProj.context_actions
+       * does, then dispatch it as the menu item would. */
+      let pr =
+        switch (
+          Zipper.unselect_and_zip(z)
+          |> List.find_map((p: Base.piece) =>
+               switch (p) {
+               | Projector(pr) => Some(pr)
+               | _ => None
+               }
+             )
+        ) {
+        | Some(pr) => pr
+        | None => Alcotest.fail("projector not found")
+        };
+      let seg' =
+        switch (TableCore.insert_row(pr.syntax, ~at=1, ~template=0)) {
+        | Some(seg) => seg
+        | None => Alcotest.fail("insert_row declined")
+        };
+      let z =
+        perform(
+          z,
+          [Project(SetSyntax(0, ProjectorCore.Kind.Table, seg'))],
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "splice count after row insert",
+        6,
+        List.length(splices_of(z)),
+      );
+      Alcotest.check(
+        Alcotest.bool,
+        "caret parked outside the splices",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+      let z = perform(z, [Project(RemoveIndicated)]);
+      Alcotest.check(
+        Alcotest.string,
+        "unprojected table with new row",
+        "[(a=1, b=2), (a=?, b=?), (a=3, b=4)]¦",
+        printer(z),
+      );
+    },
+  ),
+  test_case(
     "unprojecting a table restores the original text",
     `Quick,
     () => {
