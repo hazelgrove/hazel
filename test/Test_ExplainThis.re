@@ -196,8 +196,9 @@ let doc_fingerprint = (src: string): string => {
 };
 
 /* Each entry is chosen so that its root, plus the sub-terms it contains,
-   exercise a doc form the refactor touches. Hand-written because
-   AST.gen_exp_sized cannot produce Asc, SInt/Nat, module forms or pipelines. */
+   exercise a doc form the refactor touches. Hand-written so the golden output
+   stays deterministic; the full-syntax generator drives the crash-freedom
+   property above instead. */
 let corpus = [
   ("fun-var", "fun x -> x"),
   ("fun-parens-var", "fun (x) -> x"),

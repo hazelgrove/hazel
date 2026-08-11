@@ -470,7 +470,7 @@ let qcheck_incremental_matches_fresh_for_values =
     ~count=2000,
     QCheck.pair(
       QCheck.small_nat,
-      QCheck_Util.arb_exp(~minimal_idents=true, 30),
+      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     ),
     ((seed, exp)) => {
       check_incremental_against_fresh_after_edit(
