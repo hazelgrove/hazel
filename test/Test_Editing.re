@@ -5637,6 +5637,287 @@ let table_splice_tests = [
       );
     },
   ),
+  /* In-splice probes render their offside sample view in the root
+   * editor, on the document row the cell's contents are laid out on:
+   * the projector's origin row, plus one for the table header, plus
+   * the heights of the data rows above (see TableProj.splice_rows,
+   * CachedSyntax.doc_row_of_splice). */
+  test_case(
+    "cell splices report their table row in document coordinates",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let syntax = CachedSyntax.init(z);
+      let rows =
+        splices_of(z)
+        |> List.map((s: Base.splice) =>
+             CachedSyntax.doc_row_of_splice(s.id, syntax)
+           );
+      Alcotest.(check(list(option(int))))(
+        "row-major cells: one row per data row, below the header",
+        [Some(1), Some(1), Some(2), Some(2)],
+        rows,
+      );
+    },
+  ),
+  test_case(
+    "nested table cell splices climb through the outer frame",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=[(c=1), (c=2)], b=3)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let outer_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      /* Project the inner list (cell a's contents) as a table too. */
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(outer_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 99,
+                },
+              ),
+            ),
+            Project(SetIndicated(Specific(Table))),
+          ],
+        );
+      let syntax = CachedSyntax.init(z);
+      let doc_row = id =>
+        switch (CachedSyntax.doc_row_of_splice(id, syntax)) {
+        | Some(row) => row
+        | None => Alcotest.fail("no document row for splice")
+        };
+      let inner_ids =
+        splices_of(z)
+        |> List.map((s: Base.splice) => s.id)
+        |> List.filter(id => !List.mem(id, outer_ids));
+      Alcotest.check(
+        Alcotest.int,
+        "two inner cell splices",
+        2,
+        List.length(inner_ids),
+      );
+      let outer_row = doc_row(List.nth(outer_ids, 0));
+      /* Each inner data row sits its own header below the outer cell. */
+      Alcotest.(check(list(int)))(
+        "inner cells sit below the outer cell's row",
+        [outer_row + 1, outer_row + 2],
+        List.map(doc_row, inner_ids),
+      );
+    },
+  ),
+  test_case(
+    "cells of one table row can each carry a manual probe",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      let a = List.nth(ids, 0)
+      and b = List.nth(ids, 1);
+      /* Cell a becomes "1⏎" and cell b "⏎2": the probed terms sit on
+       * different lines of the same table row. */
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                a,
+                Point.{
+                  row: 0,
+                  col: 99,
+                },
+              ),
+            ),
+            Insert(Token.linebreak),
+            Move(
+              SplicePoint(
+                b,
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+              ),
+            ),
+            Insert(Token.linebreak),
+          ],
+        );
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                b,
+                Point.{
+                  row: 1,
+                  col: 99,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+            Move(
+              SplicePoint(
+                a,
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "both cells probed",
+        2,
+        List.length(z.refractors.manuals),
+      );
+      /* The app also runs post-calculation probe effects after every
+       * action (Editor.calculate); the collision cleanup there must
+       * not confuse splice-local rows with document rows. */
+      let syntax = CachedSyntax.init(z);
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let statics =
+        CachedStatics.init_from_term(
+          ~settings=default_settings,
+          ~is_dynamic_term=true,
+          term,
+        );
+      let z =
+        ProbePerform.editor_effects(
+          ~is_edited=false,
+          ~syntax,
+          ~info_map=statics.info_map,
+          ~dynamics=Id.Map.empty,
+          z,
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "both probes survive post-calculation cleanup",
+        2,
+        List.length(z.refractors.manuals),
+      );
+    },
+  ),
+  test_case(
+    "probes on cells of different table rows coexist",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      /* Single-line cells all end on splice-local row 0; their chips
+       * render on their own table rows, so probing one must not
+       * evict the other. */
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+            Move(
+              SplicePoint(
+                List.nth(ids, 3),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+          ],
+        );
+      let syntax = CachedSyntax.init(z);
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let statics =
+        CachedStatics.init_from_term(
+          ~settings=default_settings,
+          ~is_dynamic_term=true,
+          term,
+        );
+      let z =
+        ProbePerform.editor_effects(
+          ~is_edited=false,
+          ~syntax,
+          ~info_map=statics.info_map,
+          ~dynamics=Id.Map.empty,
+          z,
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "probes on distinct table rows coexist",
+        2,
+        List.length(z.refractors.manuals),
+      );
+    },
+  ),
+  test_case(
+    "splice sizes are bounding boxes, not end points",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      /* Cell a becomes "12345⏎7": the widest line is not the last, so
+       * an end-point-based size would understate the width (and the
+       * table column would shrink when a long row gains a linebreak). */
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("2"),
+            Insert("3"),
+            Insert("4"),
+            Insert("5"),
+            Insert(Token.linebreak),
+            Insert("7"),
+          ],
+        );
+      let s = List.nth(splices_of(z), 0);
+      let bbox = Measured.segment_bbox(s.content);
+      Alcotest.(check(pair(int, int)))(
+        "segment_bbox spans the widest line",
+        (1, 5),
+        (bbox.row, bbox.col),
+      );
+      let syntax = CachedSyntax.init(z);
+      switch (
+        Measured.find_splice_info_opt(s, CachedSyntax.measured(syntax))
+      ) {
+      | None => Alcotest.fail("cell splice not measured in the root map")
+      | Some({size}) =>
+        Alcotest.(check(pair(int, int)))(
+          "merged splice info spans the widest line",
+          (1, 5),
+          (size.row, size.col),
+        )
+      };
+    },
+  ),
 ];
 
 /* Render the decoration entry points that raise find_shards when a

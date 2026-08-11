@@ -625,6 +625,7 @@ module M: Projector = {
     vertical: Tab(1),
   };
 
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (_model, _, action) =>
     switch (action) {
     | SetMode(mode) => {mode: mode}

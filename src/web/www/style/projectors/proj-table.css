@@ -34,9 +34,17 @@ table.table {
     font-family: var(--code-font);
 }
 
-.table th,
-.table td {
+.table th {
     vertical-align: middle;
+    padding: 0px;
+}
+
+/* Top-align cell contents: rows are sized by their tallest cell, and
+ * offside decorations (probe sample chips) are placed on the grid row
+ * computed from the top of the table row (TableProj.splice_rows), so
+ * vertically-centered contents would drift away from their chips. */
+.table td {
+    vertical-align: top;
     padding: 0px;
 }
 

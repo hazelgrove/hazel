@@ -206,6 +206,10 @@ let find_splice_info = (~msg="", s: Base.splice, map): splice_info =>
 let find_splice_info_opt = (s: Base.splice, map): option(splice_info) =>
   Id.Map.find_opt(s.id, map.splices);
 
+/* Whether the splice [sid] was measured anywhere within this map's
+ * segment (including recursively inside other splices). */
+let has_splice_info = (sid: Id.t, map): bool => Id.Map.mem(sid, map.splices);
+
 /* A splice consumes zero width in its parent's coordinate frame; its
  * intrinsic size is recorded separately in [map.splices] and the splice's
  * actual on-screen placement is decided by its parent projector's view. */
@@ -235,7 +239,9 @@ let find_p = (~msg="", p: Piece.t, map): measurement =>
   | _ => failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
   };
 
-let find_by_id = (id: Id.t, map: t): option(measurement) => {
+/* Like [find_by_id] but without the warning: for membership tests
+ * where absence is an expected answer, not an anomaly. */
+let find_by_id_quiet = (id: Id.t, map: t): option(measurement) => {
   switch (Id.Map.find_opt(id, map.secondary)) {
   | Some(m) => Some(m)
   | None =>
@@ -256,18 +262,18 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
           origin: first.origin,
           last: last.last,
         });
-      | None =>
-        switch (Id.Map.find_opt(id, map.projectors)) {
-        | Some(m) => Some(m)
-        | None =>
-          Printf.printf(
-            "Measured.WARNING: id %s not found",
-            Id.to_string(id),
-          );
-          None;
-        }
+      | None => Id.Map.find_opt(id, map.projectors)
       }
     }
+  };
+};
+
+let find_by_id = (id: Id.t, map: t): option(measurement) => {
+  switch (find_by_id_quiet(id, map)) {
+  | Some(m) => Some(m)
+  | None =>
+    Printf.printf("Measured.WARNING: id %s not found", Id.to_string(id));
+    None;
   };
 };
 

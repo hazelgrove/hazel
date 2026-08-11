@@ -1491,6 +1491,7 @@ module M: Projector = {
 
   let placeholder = (_, _, _) => ProjectorCore.Shape.default;
 
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (model: probe_model, _info: info, action: action): probe_model => {
     switch (action) {
     | ChangeLength(id, len) =>

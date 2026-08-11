@@ -120,11 +120,24 @@ let filter_by_visibility =
 module Model = {
   type status = ProjectorBase.View.status;
 
+  /* Which layers of a view to render in the current frame. Projectors
+   * render all layers in their own frame. Probes on terms inside a
+   * splice render in two frames: the owning splice's sub-editor draws
+   * the term-anchored layers (highlight, indicator) but never the
+   * offside sample view — chips don't go into splices — while the root
+   * editor draws only the offside view, repositioned beside the host
+   * projector (see RefractorView.mk_data). */
+  type layers =
+    | All
+    | OffsideOnly
+    | NoOffside;
+
   type projector_data = {
     p: Piece.projector,
     info: ProjectorBase.info,
     measurement: Measured.measurement,
     offside_base: int,
+    render_layers: layers,
     status,
     /* Map refs for view cache identity comparison. `elaborated` is the whole-
      * editor elaborated Exp.t that P.view() may consume via info.elaborated;
@@ -246,6 +259,7 @@ module Model = {
           measurement,
           offside_base:
             offside_base(~offset=offside_offset, measurement, measured),
+          render_layers: All,
           status:
             mk_status(
               p,
@@ -616,7 +630,7 @@ let split_views =
       ~skip_inline: bool,
       ~render_splice:
          (~projector_idx: int, ~splice_idx: int, Base.splice) => Node.t,
-      {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
+      {p, offside_base, measurement, status, render_layers, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
     )
     : (Node.t, option(Node.t)) => {
@@ -643,16 +657,23 @@ let split_views =
     );
   let line_view = {
     let offside_view =
-      views.offside
-      |> Option.map(offside_wrapper(font_metrics, offside_base))
-      |> Option.to_list;
-    wrapper(
-      (skip_inline ? [] : [views.inline])
-      @ [backing_deco(~font_metrics, ~measurement, p)]
-      @ offside_view,
-    );
+      render_layers == Model.NoOffside
+        ? []
+        : views.offside
+          |> Option.map(offside_wrapper(font_metrics, offside_base))
+          |> Option.to_list;
+    let term_views =
+      render_layers == Model.OffsideOnly
+        ? []
+        : (skip_inline ? [] : [views.inline])
+          @ [backing_deco(~font_metrics, ~measurement, p)];
+    wrapper(term_views @ offside_view);
   };
-  let overlay_view = Option.map(v => wrapper([v]), views.overlay);
+  let overlay_view =
+    Option.map(
+      v => wrapper([v]),
+      render_layers == Model.OffsideOnly ? Option.none : views.overlay,
+    );
   (line_view, overlay_view);
 };
 

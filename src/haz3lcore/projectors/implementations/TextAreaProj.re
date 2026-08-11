@@ -135,6 +135,7 @@ module M: Projector = {
       horizontal: 2 + StringUtil.max_line_width(str),
     };
   };
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (model, _, _) => model;
   let error = (_, _): option(ProjectorBase.error) => None;
   let context_actions = (_, _, ~splice as _) => [];

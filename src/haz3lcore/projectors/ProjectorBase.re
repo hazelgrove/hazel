@@ -295,6 +295,14 @@ module type Projector = {
    * children; splice sizes are intrinsic (independent of the layout of
    * the parent projector) and may be looked up by splice id. */
   let placeholder: (model, info, View.splice_size) => ProjectorCore.Shape.t;
+  /* The vertical position (row offset from the top of the placeholder
+   * block) at which each of the projector's direct splices is laid out
+   * on screen. Lets frame-level decorations (e.g. a probe's offside
+   * sample view) line up with a splice's contents without knowing the
+   * projector's internal layout. Return the empty map if the projector
+   * has no splices or lays them out unpredictably (offsets then
+   * default to the top of the block). */
+  let splice_rows: (model, info, View.splice_size) => Id.Map.t(int);
   /* Update the local projector model given an action */
   let update: (model, info, action) => model;
   /* Report an error if the projector can't render properly */
@@ -345,6 +353,8 @@ module Cook = (C: Projector) : Cooked => {
       info,
       splice_size,
     );
+  let splice_rows = (m, info, splice_size) =>
+    C.splice_rows(m |> deserialize_m, info, splice_size);
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
   let error = (m, i) => C.error(m |> deserialize_m, i);

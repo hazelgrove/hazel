@@ -39,6 +39,7 @@ module M: Projector = {
 
   let placeholder = (m, _, _) =>
     ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (m, _, _) => {
     ...m,
     expanded: !m.expanded,

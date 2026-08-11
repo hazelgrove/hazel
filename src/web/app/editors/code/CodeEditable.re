@@ -588,6 +588,15 @@ module View = {
       | Some(sub) => SubEditor.is_splice_frame(sub)
       | None => false
       };
+    /* The frame this view renders: None for the root editor (and for
+     * region sub-editors, which share the host's coordinate frame),
+     * Some(sid) for splice sid's sub-editor. Decorations anchored on
+     * ids positioned in another frame are skipped. */
+    let frame =
+      switch (sub_editor) {
+      | Some(sub) when is_splice_sub => Some(sub.target.anchor)
+      | _ => None
+      };
     let syntax =
       switch (sub_editor) {
       | Some(sub) => {
@@ -727,6 +736,7 @@ module View = {
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
                 ~dynamics,
+                ~frame,
                 model.editor.state.zipper,
               ),
             ]
@@ -765,12 +775,15 @@ module View = {
     let zipper = model.editor.state.zipper;
     /* Use visible row range from model (updated by scroll handler) */
     let visible = globals.visible_rows;
-    /* Refractor / projector overlays are main-editor-level features whose
-     * positions come from measured lookups over the whole buffer; the
-     * splice-local measured map can't serve them, so sub-editors render
-     * without them. */
+    /* Refractor (probe) views split across frames: a splice sub-editor
+     * draws the term-anchored layers of its own probes (only its local
+     * measured map knows their positions), while offside sample views
+     * always render in the root editor — chips never go into splices
+     * (see RefractorView.mk_data). Region (non-splice) sub-editors
+     * share the host's frame and skip refractors as before. */
+    let render_refractors = is_splice_sub || !is_sub;
     let refractors_model =
-      if (is_sub) {
+      if (!render_refractors) {
         [];
       } else {
         let refractor_data =
@@ -787,13 +800,14 @@ module View = {
             ~dynamics,
             ~sample_focus=zipper.refractors.sample_focus,
             ~editor_active=selected,
+            ~frame,
           );
         RefractorView.all(
           x => inject(Perform(x)),
           signal(MakeActive),
           globals.font_metrics,
           ~core_settings=globals.settings.core,
-          ~visible?,
+          ~visible=?is_sub ? None : visible,
           refractor_data,
           List.map(fst, zipper.refractors.manuals)
           @ List.map(
@@ -909,7 +923,8 @@ module View = {
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors
       @ refractors_model;
-    let code_view = CodeWithStatics.View.view(~globals, ~overlays, model);
+    let code_view =
+      CodeWithStatics.View.view(~globals, ~overlays, ~frame, model);
 
     let loc = (e: Pointer.Event.t) => {
       let raw =
