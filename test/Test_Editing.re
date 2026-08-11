@@ -5639,7 +5639,191 @@ let table_splice_tests = [
   ),
 ];
 
+/* Render the decoration entry points that raise find_shards when a
+ * term's tiles are only partially present in a frame's measured map:
+ * error arms and indicated-term arms, in both the main frame and the
+ * splice-swapped sub-editor frame that hosts the caret. */
+let render_decorations =
+    (~settings=default_settings, ~tag: string, z: Zipper.t): unit => {
+  let syntax = CachedSyntax.init(z);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let statics =
+    CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+  let fm = Web.FontMetrics.init;
+  let check = (frame, f) =>
+    switch (f()) {
+    | _ => ()
+    | exception exn =>
+      Alcotest.fail(tag ++ " / " ++ frame ++ ": " ++ Printexc.to_string(exn))
+    };
+  check("main errors", () =>
+    Web.Arms.Errors.of_ids(~font_metrics=fm, ~syntax, statics.error_ids)
+  );
+  check("main indicated", () =>
+    Web.Arms.Indicated.term(~font_metrics=fm, ~syntax, z)
+  );
+  /* Sub-frame: swap main_splice to the caret's splice, as
+   * CodeEditable.view does for splice sub-editors. */
+  switch (Zipper.splice_context(z)) {
+  | None => ()
+  | Some(splice_id) =>
+    switch (CachedSyntax.splice_opt(splice_id, syntax)) {
+    | None => Alcotest.fail(tag ++ ": caret splice missing from cache")
+    | Some(sub) =>
+      let sub_syntax = {
+        ...syntax,
+        main_splice: sub,
+      };
+      check("sub errors", () =>
+        Web.Arms.Errors.of_ids(
+          ~font_metrics=fm,
+          ~syntax=sub_syntax,
+          statics.error_ids,
+        )
+      );
+      check("sub indicated", () =>
+        Web.Arms.Indicated.term(~font_metrics=fm, ~syntax=sub_syntax, z)
+      );
+    }
+  };
+};
+
+let bracket_in_cell = (~tag: string, program: string): unit => {
+  let z = mk_zipper(program);
+  let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+  let splice_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+  splice_ids
+  |> List.iteri((i, id) => {
+       let z =
+         perform(
+           z,
+           [
+             Move(
+               SplicePoint(
+                 id,
+                 Point.{
+                   row: 0,
+                   col: 99,
+                 },
+               ),
+             ),
+             Insert("["),
+           ],
+         );
+       render_decorations(~tag=tag ++ " cell " ++ string_of_int(i), z);
+     });
+};
+
+/* Whether the (single) projector in the zipper reports a hidden-syntax
+ * error via its chrome, per ProjectorView.Model.has_hidden_error. */
+let projector_has_hidden_error =
+    (~settings=default_settings, z: Zipper.t): bool => {
+  let rec find_pr = (seg: Segment.t): option(Base.projector) =>
+    List.find_map(
+      (p: Base.piece) =>
+        switch (p) {
+        | Projector(pr) => Some(pr)
+        | Tile(t) => List.find_map(find_pr, t.children)
+        | Splice(s) => find_pr(s.content)
+        | _ => None
+        },
+      seg,
+    );
+  let pr =
+    switch (find_pr(Zipper.unselect_and_zip(z))) {
+    | Some(pr) => pr
+    | None => Alcotest.fail("projector not found")
+    };
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let statics =
+    CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+  Web.ProjectorView.Model.has_hidden_error(pr, statics.info_map);
+};
+
+let table_decoration_tests = [
+  test_case(
+    "decorations survive incomplete tile typed in table cells", `Quick, () => {
+    bracket_in_cell(~tag="untyped", "[(a=1, b=2), (a=3, b=4)]¦")
+  }),
+  test_case(
+    "typed table: hidden row error draws no arms, flags the chrome",
+    `Quick,
+    () => {
+      /* User-reported crash state:
+         let x : [(a=Int, bc=Int)] = ^^table([(1256121, [ )]) in x */
+      let settings = Language.CoreSettings.on;
+      let z =
+        mk_zipper(
+          ~settings,
+          "let x : [(a=Int, bc=Int)] = [(1256121, 2)]¦ in x",
+        );
+      let z =
+        perform(~settings, z, [Project(SetIndicated(Specific(Table)))]);
+      let splice_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      let z =
+        perform(
+          ~settings,
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Destruct(Left),
+            Insert("["),
+          ],
+        );
+      render_decorations(~settings, ~tag="typed auto-labeled", z);
+      /* The error is anchored on the row tuple's comma — hidden table
+       * syntax — so the projector chrome must report it. */
+      Alcotest.check(
+        Alcotest.bool,
+        "projector chrome reports the hidden row error",
+        true,
+        projector_has_hidden_error(~settings, z),
+      );
+    },
+  ),
+  test_case(
+    "untyped table: cell-local errors don't flag the chrome",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let splice_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("["),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "in-splice errors are reported in the cell, not on the chrome",
+        false,
+        projector_has_hidden_error(z),
+      );
+    },
+  ),
+];
+
 let tests = [
+  ("Editing.TableDecorations", table_decoration_tests),
   ("Editing.Splice", splice_tests),
   ("Editing.TableSplice", table_splice_tests),
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
