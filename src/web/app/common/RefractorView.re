@@ -35,6 +35,11 @@ let mk_data =
       ~dynamics: Language.Dynamics.Map.t,
       ~sample_focus: Language.Sample.Focus.t,
       ~editor_active: bool,
+      /* Anchor the offside view at the term itself rather than at the
+       * end of its line: used in splice sub-editors, where the view
+       * drops to the row below its term and end-of-line placement
+       * would push it over the neighboring table cell. */
+      ~offside_at_term: bool,
     )
     : list(ProjectorView.Model.projector_data) => {
   open Util.OptUtil.Syntax;
@@ -73,7 +78,13 @@ let mk_data =
         info,
         measurement,
         offside_base:
-          ProjectorView.Model.offside_base(~offset=4, measurement, measured),
+          offside_at_term
+            ? 0
+            : ProjectorView.Model.offside_base(
+                ~offset=4,
+                measurement,
+                measured,
+              ),
         status:
           ProjectorView.Model.mk_status(
             p,
@@ -105,6 +116,7 @@ let all =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(Globals.VisibleRows.t)=?,
+      ~offside_row_offset: int=0,
       refractor_data: list(ProjectorView.Model.projector_data),
       refractor_list: list(Id.t),
     ) => {
@@ -123,6 +135,7 @@ let all =
            font_metrics,
            ~core_settings,
            ~skip_inline=true,
+           ~offside_row_offset,
            ~render_splice=ProjectorView.default_render_splice(font_metrics),
            data,
            refractor_list,

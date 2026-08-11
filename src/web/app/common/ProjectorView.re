@@ -350,14 +350,20 @@ let handle = (idx, kind, action: external_action): Action.t =>
   };
 
 let offside_wrapper =
-    (font_metrics: FontMetrics.t, offside_base: int, v: Node.t) =>
+    (
+      ~row_offset: int=0,
+      font_metrics: FontMetrics.t,
+      offside_base: int,
+      v: Node.t,
+    ) =>
   div(
     ~attrs=[
       Attr.create(
         "style",
         Printf.sprintf(
-          "position: absolute; left: %fpx;",
+          "position: absolute; left: %fpx; top: %fpx;",
           font_metrics.col_width *. float_of_int(offside_base),
+          font_metrics.row_height *. float_of_int(row_offset),
         ),
       ),
     ],
@@ -614,6 +620,7 @@ let split_views =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~skip_inline: bool,
+      ~offside_row_offset: int=0,
       ~render_splice:
          (~projector_idx: int, ~splice_idx: int, Base.splice) => Node.t,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
@@ -644,7 +651,13 @@ let split_views =
   let line_view = {
     let offside_view =
       views.offside
-      |> Option.map(offside_wrapper(font_metrics, offside_base))
+      |> Option.map(
+           offside_wrapper(
+             ~row_offset=offside_row_offset,
+             font_metrics,
+             offside_base,
+           ),
+         )
       |> Option.to_list;
     wrapper(
       (skip_inline ? [] : [views.inline])

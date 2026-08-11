@@ -235,7 +235,9 @@ let find_p = (~msg="", p: Piece.t, map): measurement =>
   | _ => failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
   };
 
-let find_by_id = (id: Id.t, map: t): option(measurement) => {
+/* Like [find_by_id] but without the warning: for membership tests
+ * where absence is an expected answer, not an anomaly. */
+let find_by_id_quiet = (id: Id.t, map: t): option(measurement) => {
   switch (Id.Map.find_opt(id, map.secondary)) {
   | Some(m) => Some(m)
   | None =>
@@ -256,18 +258,18 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
           origin: first.origin,
           last: last.last,
         });
-      | None =>
-        switch (Id.Map.find_opt(id, map.projectors)) {
-        | Some(m) => Some(m)
-        | None =>
-          Printf.printf(
-            "Measured.WARNING: id %s not found",
-            Id.to_string(id),
-          );
-          None;
-        }
+      | None => Id.Map.find_opt(id, map.projectors)
       }
     }
+  };
+};
+
+let find_by_id = (id: Id.t, map: t): option(measurement) => {
+  switch (find_by_id_quiet(id, map)) {
+  | Some(m) => Some(m)
+  | None =>
+    Printf.printf("Measured.WARNING: id %s not found", Id.to_string(id));
+    None;
   };
 };
 

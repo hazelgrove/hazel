@@ -202,3 +202,14 @@ let measured = (syntax: t) => syntax.main_splice.measured;
 let segment = (syntax: t) => syntax.main_splice.segment;
 let splice_opt = (id: Id.t, syntax: t): option(splice) =>
   Id.Map.find_opt(id, syntax.splices);
+
+/* Whether the piece/term [id] lives inside some splice's content.
+ * Splice interiors are merged into the main measured map in their own
+ * (splice-local) coordinate frame, so main-frame decorations must not
+ * position themselves from such ids — the owning splice's sub-editor
+ * is the frame that can. */
+let id_in_splice = (id: Id.t, syntax: t): bool =>
+  Id.Map.exists(
+    (_, s: splice) => Measured.find_by_id_quiet(id, s.measured) != None,
+    syntax.splices,
+  );
