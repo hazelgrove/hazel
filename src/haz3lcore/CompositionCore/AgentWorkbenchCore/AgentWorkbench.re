@@ -23,14 +23,6 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type tool_usage_info = {
-    tool: string,
-    sketch_before: string,
-    sketch_after: string,
-    timestamp: float,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type completion_status =
     | Completed
     | Failed;

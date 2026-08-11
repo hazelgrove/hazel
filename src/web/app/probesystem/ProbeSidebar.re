@@ -554,20 +554,7 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
     div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)]),
     div(
       ~attrs=[clss(["eval-controls"])],
-      [
-        run_button(~explain_this_inject, ~editor),
-        // Widgets.toggle_named(
-        //   ~tooltip="Auto-eval",
-        //   eval_mode_ref^ == Auto ? "A" : "M",
-        //   eval_mode_ref^ == Auto,
-        //   _ => {
-        //     eval_mode_ref := eval_mode_ref^ == Auto ? Manual : Auto;
-        //     explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
-        //   },
-        // ),
-        // ...eval_mode_ref^ == Manual
-        //      ? [run_button(~explain_this_inject, ~editor)] : [],
-      ],
+      [run_button(~explain_this_inject, ~editor)],
     ),
     div(
       ~attrs=[clss(["panel", "prints"])],

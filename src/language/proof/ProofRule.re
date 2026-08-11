@@ -19,10 +19,9 @@ let rec exp_to_rule = (exp: Exp.t): t =>
       ProofHacks.dhpat_extend_ctx(p, Typ.temp(Unknown(Internal)), Ctx.empty)
       |> Option.map((x: Ctx.t) => x.entries)
       |> OptUtil.get(() => []);
-    let {bindings, /* assumptions, */ conclusion} = exp_to_rule(e);
+    let {bindings, conclusion} = exp_to_rule(e);
     {
       bindings: bindings' @ bindings,
-      // assumptions,
       conclusion,
     };
   // | BinOp(Bool(Or), {term: UnOp(Bool(Not), e1), _}, e2) =>
@@ -35,12 +34,10 @@ let rec exp_to_rule = (exp: Exp.t): t =>
   //   };
   | BinOp(Poly(Equals), e1, e2) => {
       bindings: [],
-      // assumptions: [],
       conclusion: Equality(e1, e2),
     }
   | _ => {
       bindings: [],
-      // assumptions: [],
       conclusion: Other(exp),
     }
   };

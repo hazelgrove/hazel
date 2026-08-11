@@ -167,8 +167,6 @@ module Failure = {
     | CantPaste
     | CantReparse
     | CantAccept
-    | Cant_undo
-    | Cant_redo
     | CantIntroduce
     | Composition_action_failure(string)
     | Cant_derive_local_AST_information;

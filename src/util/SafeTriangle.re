@@ -86,12 +86,8 @@ type rect = {
 
 /* State for an active hover menu */
 type active_state = {
-  /* Point where mouse exited the trigger */
-  exit_point: point,
   /* Bounding rect of the dropdown menu */
   menu_rect: rect,
-  /* Direction menu opens relative to trigger */
-  menu_direction: direction,
   /* Computed triangle vertices (cached for performance and debug) */
   triangle: (point, point, point),
 };
@@ -365,9 +361,7 @@ let activate =
 
   current :=
     Some({
-      exit_point,
       menu_rect,
-      menu_direction,
       triangle,
     });
 
