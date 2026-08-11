@@ -71,3 +71,6 @@ plans/
 # Cursor IDE (local)
 .cursor/
 AGENTS.md
+
+# Scratch build/test logs
+*.log
