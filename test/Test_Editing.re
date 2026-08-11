@@ -939,6 +939,79 @@ let insertion_tests = [
     ~acts=string_to_ltr_actions("(le=)") @ mv_l(3) @ [Insert("t")],
     ~goal={|(let¦?=?)|},
   ),
+  /* Retyping a deleted leading delimiter reconnects it to the shards it
+     left behind, even with another incomplete form around them: only `|`
+     and leading expanders such as `test` are matched at the top of the
+     missing-shard stack alone. */
+  test(
+    ~name="Retype a deleted ( under a let missing its in",
+    ~acts=
+      mk("let a = f(x) in¦ a")
+      @ [Destruct(Local(Left, ByToken))]
+      @ mv_l(3)
+      @ [Destruct(Local(Left, ByChar)), Insert("(")],
+    ~goal="let a = f(¦x) ~ a",
+  ),
+  test(
+    ~name="Retype a deleted ( under a case missing its end",
+    ~acts=
+      mk("case 1 | _ => f(x) end¦")
+      @ [Destruct(Local(Left, ByToken))]
+      @ mv_l(3)
+      @ [Destruct(Local(Left, ByChar)), Insert("(")],
+    ~goal="case 1 | _ => f(¦x) ",
+  ),
+  test(
+    ~name="Retype a deleted inner ( under an orphaned outer )",
+    ~acts=
+      mk("(¦1 + f(x))")
+      @ [Destruct(Local(Left, ByChar))]
+      @ mv_r(6)
+      @ [Destruct(Local(Left, ByChar)), Insert("(")],
+    ~goal="1 + f(¦x))",
+  ),
+  test(
+    ~name="Retype a deleted let under a case missing its end",
+    ~acts=
+      mk("case 1 | _ => let a = 1 in a end¦")
+      @ [Destruct(Local(Left, ByToken))]
+      @ mv_l(12)
+      @ [
+        Destruct(Local(Left, ByToken)),
+        Insert("l"),
+        Insert("e"),
+        Insert("t"),
+      ],
+    ~goal="case 1 | _ => let¦ a = 1 in a ",
+  ),
+  test(
+    ~name="Retype a deleted let whose in is gone",
+    ~acts=
+      mk("let a = f(x) in a¦")
+      @ mv_l(2)
+      @ [Destruct(Local(Left, ByToken))]
+      @ mv_l(10)
+      @ [
+        Destruct(Local(Left, ByToken)),
+        Insert("l"),
+        Insert("e"),
+        Insert("t"),
+      ],
+    ~goal="let¦ a = f(x) ~ a",
+  ),
+  test(
+    ~name="Retype a deleted test inside parens",
+    ~acts=
+      mk("let a = (1 + test¦ 2 end) in a")
+      @ [
+        Destruct(Local(Left, ByToken)),
+        Insert("t"),
+        Insert("e"),
+        Insert("s"),
+        Insert("t"),
+      ],
+    ~goal="let a = (1 + test¦ 2 end) in a",
+  ),
 ];
 
 let destruct_tests = [

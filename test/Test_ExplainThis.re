@@ -474,11 +474,11 @@ x:(a) => TypAnnPat colorings=[a,x]|},
   ),
   (
     "fun-tuplabel",
-    {|(x=y) => TuplePat colorings=[]
+    {|(x=y) => LabeledPat colorings=[`x`,y]
+(x=y) => TuplePat colorings=[]
 `x` => Label colorings=[]
 fun (x=y) -> y => (FunctionExp Base) colorings=[(x=y),y]
 fun (x=y) -> y => (FunctionExp TupLabel) colorings=[`x`,y,y]
-x=y => LabeledPat colorings=[`x`,y]
 y => VarExp colorings=[]
 y => VarPat colorings=[]|},
   ),
@@ -540,22 +540,22 @@ y => VarPat colorings=[]|},
   ),
   (
     "tuplabel-exp",
-    {|(x=1) => TupleExp colorings=[]
+    {|(x=1) => LabeledExp colorings=[1,`x`]
+(x=1) => TupleExp colorings=[]
 1 => IntExp colorings=[]
-`x` => Label colorings=[]
-x=1 => LabeledExp colorings=[1,`x`]|},
+`x` => Label colorings=[]|},
   ),
   (
     "dot",
-    {|(x=1, y=2) => Tuple2Exp colorings=[x=1,y=2]
+    {|(x=1) => LabeledExp colorings=[1,`x`]
+(x=1, y=2) => Tuple2Exp colorings=[(x=1),(y=2)]
 (x=1, y=2) => TupleExp colorings=[]
 (x=1, y=2).x => DotExp colorings=[(x=1, y=2),`x`]
+(y=2) => LabeledExp colorings=[2,`y`]
 1 => IntExp colorings=[]
 2 => IntExp colorings=[]
 `x` => Label colorings=[]
-`y` => Label colorings=[]
-x=1 => LabeledExp colorings=[1,`x`]
-y=2 => LabeledExp colorings=[2,`y`]|},
+`y` => Label colorings=[]|},
   ),
   (
     "cons-exp",
