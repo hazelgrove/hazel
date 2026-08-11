@@ -60,6 +60,40 @@ let tests = (
         check(exp, "x -> 1, y -> 2 in let x = 3 in (x, y)", expected, result);
       },
     ),
+    /* Freshening a shadowing binder must not rewrite free refs on the RHS. */
+    test_case(
+      "shadowing let RHS keeps outer var",
+      `Quick,
+      () => {
+        let env = Environment.of_list([("y", Exp.var("y"))]);
+        let expr = Exp.let_(Pat.var("y"), Exp.var("y"), Exp.var("y"));
+        let result = Substitution.in_exp(env, expr);
+        let expected =
+          Exp.let_(Pat.var("y'"), Exp.var("y"), Exp.var("y'"));
+        check(exp, "let y = y in y  =>  let y' = y in y'", expected, result);
+      },
+    ),
+    /* A `Sig` type carries patterns, so substituting through a function's
+       annotation must reach under it. Statics desugars `Sig` away, so build
+       it directly. */
+    test_case(
+      "substitute through a Sig-annotated function",
+      `Quick,
+      () => {
+        let sig_ty = Language.Typ.fresh(Sig([Sig.sig_let(Pat.var("y"))]));
+        let env = Environment.of_list([("x", Exp.int(1))]);
+        let expr = Exp.fn(Pat.var("p"), Exp.var("x"), Some(sig_ty), None);
+        let result = Substitution.in_exp(env, expr);
+        let expected =
+          Exp.fn(Pat.var("p"), Exp.int(1), Some(sig_ty), None);
+        check(
+          exp,
+          "substitution reaches under a Sig annotation",
+          expected,
+          result,
+        );
+      },
+    ),
     // Fixpoints
     test_case(
       "substitute in fixpoint",

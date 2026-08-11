@@ -60,6 +60,9 @@ module Alphas = {
       | [(_, _), ...rest] => are_alpha_equiv(x, y, rest)
       };
 
+  /* Concatenate; `are_alpha_equiv` is first-match, so the left list wins on
+     conflict. Call sites walking patterns left-to-right pass the later
+     binders on the left, so later binders shadow earlier ones. */
   let combine: (t, t) => t = (@);
 };
 
@@ -77,7 +80,7 @@ type settings = {
   ignore_function_types: bool,
   ignore_constructor_types: bool,
   ignore_function_names: bool,
-  ignore_explicit_unlabelling: bool,
+  ignore_explicit_unlabelling: bool, // TupLabel(ExplicitNonlabel, e) ≈ e
   closures_by_id: bool, /* Currently "false" option is not implemented.
                            compares closures by their IDs to save time
                            traversing through massive closures */
@@ -446,14 +449,29 @@ let equality =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t): bool => {
     let pne = pat_names_equal(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
+    let any' = any(alphas_exp, alphas_typ);
     switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
     | (Parens(x), _) when ignore_parens => pne(x, p2)
     | (_, Parens(x)) when ignore_parens => pne(p1, x)
+    | (Projector(_, x), _) when ignore_projectors => pne(x, p2)
+    | (_, Projector(_, x)) when ignore_projectors => pne(p1, x)
     | (Var(x), Var(y)) => x == y
     | (Wild, Wild) => true
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
     | (EmptyHole, EmptyHole) => true
+    | (
+        EmptyHole | MultiHole(_) | Invalid(_),
+        EmptyHole | MultiHole(_) | Invalid(_),
+      )
+        when ignore_unknown_provenance =>
+      true
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (MultiHole(xs1), MultiHole(xs2)) =>
+      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
     | (Parens(x), Parens(y)) => pne(x, y)
+    | (Projector(d1, x), Projector(d2, y)) when d1 == d2 => pne(x, y)
     | (Asc(p, t1), Asc(q, t2)) => pne(p, q) && typ'(t1, t2)
+    | (Label(l1), Label(l2)) => l1 == l2
     | (Tuple(ps1), Tuple(ps2)) =>
       List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
     | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
@@ -596,13 +614,14 @@ let equality =
       open OptUtil.Syntax;
       let* alphas1 = pat'(p1, p3);
       let* alphas2 = pat'(p2, p4);
-      Some(Alphas.combine(alphas1, alphas2));
+      /* Later sub-pattern binders shadow earlier ones. */
+      Some(Alphas.combine(alphas2, alphas1));
     | (Cons(_, _), _) => None
     | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
       open OptUtil.Syntax;
       let* alphas1 = pat'(label1, label2);
       let* alphas2 = pat'(d1', d2');
-      Some(Alphas.combine(alphas1, alphas2));
+      Some(Alphas.combine(alphas2, alphas1));
     | (TupLabel(_, _), _) => None
     | (ExplicitNonlabel, ExplicitNonlabel) => Some(Alphas.empty)
     | (ExplicitNonlabel, _) => None
@@ -610,7 +629,8 @@ let equality =
       open OptUtil.Syntax;
       let* alphas1 = pat'(p1, p3);
       let* alphas2 = pat'(p2, p4);
-      Some(Alphas.combine(alphas1, alphas2));
+      /* Arg binders shadow head binders, so `x(x)` ≈ `x(x')` in the body. */
+      Some(Alphas.combine(alphas2, alphas1));
     | (Ap(_, _), _) => None
     };
   }
