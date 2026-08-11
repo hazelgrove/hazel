@@ -483,7 +483,7 @@ and Typ: {
     | TupleType([t]) => of_menhir_ast(t)
     | TupleType(ts) => prod(List.map(of_menhir_ast, ts))
     | LabelType(s) => label(s)
-    | ExplicitNonlabel => explicit_non_label()
+    | ExplicitNonlabelType => explicit_non_label()
     | TupLabelType(t1, t2) =>
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
@@ -529,14 +529,9 @@ and Typ: {
     };
   };
 
-  let of_core_type_provenance =
-      (p: IndicatedG.typ_provenance): AST.typ_provenance => {
-    switch (p) {
-    | Internal => Internal
-    | Hole(EmptyHole) => EmptyHole
-    | _ => raise(Failure("Unknown type_provenance"))
-    };
-  };
+  /* Menhir AST only distinguishes Internal vs EmptyHole for `?`, plus
+     InvalidTyp for face/invalid tokens. Map every core provenance into one
+     of those printable forms so QCheck `~rev` / of_core shrink never raises. */
   let rec of_core = (typ: IndicatedG.typ): AST.typ => {
     switch (typ.term) {
     | Atom(Int) => IntType
@@ -549,13 +544,16 @@ and Typ: {
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
-    | Unknown(p) => UnknownType(of_core_type_provenance(p))
+    | Unknown(Hole(Invalid(s))) => InvalidTyp(s)
+    | Unknown(Internal) => UnknownType(Internal)
+    | Unknown(Hole(EmptyHole) | Hole(MultiHole(_)) | SynSwitch) =>
+      UnknownType(EmptyHole)
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => ParenTyp(of_core(t))
     | Label(s) => LabelType(s)
-    | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)
+    | ExplicitNonlabel => (ExplicitNonlabelType: AST.typ)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
     | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
     | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))
@@ -629,7 +627,7 @@ and Pat: {
         annotation: true,
         term: of_menhir_ast(p).term,
       }
-    | ExplicitNonlabel => explicit_non_label()
+    | ExplicitNonlabelPat => explicit_non_label()
     };
   };
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {
@@ -649,7 +647,7 @@ and Pat: {
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
     | Parens(p) => ParenPat(of_core(p))
     | Label(s) => LabelPat(s)
-    | ExplicitNonlabel => ExplicitNonlabel
+    | ExplicitNonlabel => ExplicitNonlabelPat
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
     | Projector(_, p) => of_core(p)
     };

@@ -17,4 +17,4 @@ if [ -z "$IDB_STUB" ] || [ -z "$TEST_JS" ]; then
   : "${TEST_JS:=$BUILD_DIR/haz3ltest.bc.js}"
 fi
 
-exec node --stack-size=8192 --require "$IDB_STUB" "$TEST_JS" "$@"
+exec node --stack-size=8192 --max-old-space-size=8192 --require "$IDB_STUB" "$TEST_JS" "$@"

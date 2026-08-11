@@ -73,126 +73,6 @@ type typ_provenance =
   | Internal
   | EmptyHole;
 
-[@deriving (show({with_path: false}), sexp, eq)]
-type tpat =
-  | InvalidTPat(string)
-  | EmptyHoleTPat
-  | VarTPat(string);
-
-[@deriving (show({with_path: false}), sexp, eq)]
-type typ =
-  | ParenTyp(typ)
-  | IntType
-  | SIntType
-  | StringType
-  | FloatType
-  | BoolType
-  | NatType
-  | VoidType
-  | SumTyp(sumtype)
-  | UnknownType(typ_provenance)
-  | TupleType(list(typ))
-  | ArrayType(typ)
-  | ArrowType(typ, typ)
-  | TypVar(string)
-  | InvalidTyp(string)
-  | PolyType(tpat, typ)
-  | RecType(tpat, typ)
-  | ProofOfType(exp)
-  | LabelType(string)
-  | ExplicitNonlabel
-  | TupLabelType(typ, typ)
-  | IndicationTyp(typ)
-  | ProdProjection(typ, typ)
-  | ProdExtension(typ, typ)
-  | Sig(list(sig_item))
-and sumterm =
-  | Variant(string, option(typ))
-  | BadEntry(typ)
-and sumtype = list(sumterm)
-
-and pat =
-  | ParenPat(pat)
-  | AscPat(pat, typ)
-  | EmptyHolePat
-  | WildPat
-  | AtomPat(Language.Atom.t)
-  | VarPat(string)
-  | ConstructorPat(string, option(option(typ)))
-  | TuplePat(list(pat))
-  | ConsPat(pat, pat)
-  | ListPat(list(pat))
-  | ApPat(pat, pat)
-  | InvalidPat(string) // Menhir parser doesn't actually support invalid pats
-  | TupLabelPat(pat, pat)
-  | LabelPat(string)
-  | IndicationPat(pat)
-  | ExplicitNonlabel
-
-and if_consistency =
-  | Consistent
-  | Inconsistent
-
-and deferral_pos =
-  | InAp
-  | OutsideAp
-
-and exp =
-  | ParenExp(exp)
-  | Atom(Language.Atom.t)
-  | Var(string)
-  | LivelitName(string) /* lexeme with the leading caret */
-  | Constructor(string, option(option(typ)))
-  | ListExp(list(exp))
-  | TupleExp(list(exp))
-  | BinExp(exp, bin_op, exp)
-  | UnOp(op_un, exp)
-  | Let(pat, exp, exp)
-  | Theorem(pat, exp, exp)
-  | ProofObject(exp)
-  | Fun(pat, exp, option(string))
-  | ForallExp(pat, exp)
-  | CaseExp(exp, list((pat, exp)))
-  | Label(string)
-  | ExplicitNonlabel
-  | TupLabel(exp, exp)
-  | Dot(exp, exp)
-  | ApExp(exp, exp)
-  | PipelineExp(exp, exp) /* e1 |> e2 == Ap(Reverse, e2, e1) */
-  | FixF(pat, exp)
-  | Asc(exp, typ)
-  | EmptyHole
-  | Filter(filter_action, exp, exp)
-  | BuiltinFun(string)
-  | Undefined
-  | Seq(exp, exp)
-  | Test(exp)
-  | HintedTest(exp, exp)
-  | Deferral
-  | TypFun(tpat, exp)
-  | Cons(exp, exp)
-  | ListConcat(exp, exp)
-  | If(exp, exp, exp)
-  | InvalidExp(string)
-  | TypAp(exp, typ)
-  | DynamicErrorHole(exp, string)
-  | TyAlias(tpat, typ, exp)
-  | Use(typ, exp)
-  | IndicationExp(exp)
-  | TupleExtension(exp, exp)
-  | Module(list(mod_item))
-  | ModuleExp(pat, exp, exp)
-
-and mod_item =
-  | ModItemLet(pat, exp)
-  | ModItemType(tpat, typ)
-  | ModItemExp(exp)
-  | ModItemModule(pat, exp)
-
-and sig_item =
-  | SigItemLet(pat)
-  | SigItemType(tpat, typ);
-
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
  *
@@ -237,6 +117,356 @@ let gen_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         string_size(~gen=char_range('a', 'z'), int_range(1, 1));
       }
     );
+
+/**
+ * Generates a string literal for use in the program.
+ * This generator produces strings that match the `string` pattern in the lexer.
+ */
+let gen_string_literal: QCheck.Gen.t(string) =
+  // TODO This should be anything printable other than `"`
+  QCheck.Gen.(string_small_of(char_range('a', 'z')));
+
+/* Payload generators for the [@deriving qcheck] annotations below, which
+ * derive generators covering every constructor of the grammar.
+ *
+ * String payloads stay lexically valid via [@gen ...]. List payloads are
+ * overridden because the ppx default can reach ~10k elements and explode
+ * recursive terms. */
+
+/* Consulted at generation time so suites can request x/y (true) vs single
+ * random letters (false). Safe because Gen.t is Random.State.t -> 'a. */
+let ppx_minimal_idents: ref(bool) = ref(false);
+
+let gen_ppx_ident: QCheck.Gen.t(string) =
+  st => gen_ident(~minimal_idents=ppx_minimal_idents^, st);
+
+/* Constructor names are always minimal ("A"/"B"); ppx_minimal_idents only
+ * controls value identifiers. */
+let gen_ppx_constructor_ident: QCheck.Gen.t(string) =
+  gen_constructor_ident(~minimal_idents=true);
+
+/* LivelitName stores the lexeme including its leading caret, so the generated
+ * name must match Lexer.livelit_ident: '^' ['a'-'z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*. */
+let gen_ppx_livelit_ident: QCheck.Gen.t(string) =
+  QCheck.Gen.map(name => "^" ++ name, gen_ppx_ident);
+
+/* Round-trip tests canonicalize Nat/SInt → Int (same digits, no distinct
+ * literal syntax). Crash PBTs should still see every atom kind. */
+let gen_ppx_atom: QCheck.Gen.t(Language.Atom.t) =
+  QCheck.Gen.(
+    oneof([
+      map(x => Language.Atom.Int(Bigint.of_int(x)), small_nat),
+      map(x => Language.Atom.SInt(x), small_nat),
+      map(x => Language.Atom.Nat(Bigint.of_int(x)), small_nat),
+      map(x => Language.Atom.Float(x), QCheck.pos_float.gen),
+      map(x => Language.Atom.Bool(x), bool),
+      map(x => Language.Atom.String(x), gen_string_literal),
+    ])
+  );
+
+/* DynamicErrorHole's payload must parse as an InvalidOperationError sexp:
+ * Conversion.Exp.of_menhir_ast feeds it to t_of_sexp. */
+let gen_ppx_error: QCheck.Gen.t(string) = QCheck.Gen.pure("DivideByZero");
+
+/* Junk tokens MakeTerm classifies as Invalid: single operand-shaped tiles
+ * that aren't a real form. Operator-shaped junk (`!!!`) molds as an infix
+ * with holes instead. Lexer.invalid_face recognizes exactly this set, so
+ * print→parse round-trips. */
+let invalid_token_examples: list(string) = [
+  "^o^",
+  "^_^",
+  "^w^",
+  "o^o",
+  "?_?",
+  "$_$",
+];
+
+let gen_invalid_token: QCheck.Gen.t(string) =
+  QCheck.Gen.oneof(List.map(QCheck.Gen.pure, invalid_token_examples));
+
+let gen_ppx_small_list = (gen: QCheck.Gen.t('a)): QCheck.Gen.t(list('a)) =>
+  QCheck.Gen.(list_size(int_range(0, 3), gen));
+
+let gen_ppx_small_list1 = (gen: QCheck.Gen.t('a)): QCheck.Gen.t(list('a)) =>
+  QCheck.Gen.(list_size(int_range(1, 3), gen));
+
+/* Tuple fields: mostly plain, sometimes `lab=e` or `_=e`. */
+let gen_tuple_fields =
+    (
+      ~labeled: (string, 'a) => 'a,
+      ~unlabeled: 'a => 'a,
+      gen: QCheck.Gen.t('a),
+    )
+    : QCheck.Gen.t(list('a)) =>
+  QCheck.Gen.(
+    gen_ppx_small_list(
+      frequency([
+        (3, gen),
+        (
+          1,
+          {
+            let* l = gen_ppx_ident
+            and* x = gen;
+            return(labeled(l, x));
+          },
+        ),
+        (1, map(unlabeled, gen)),
+      ]),
+    )
+  );
+
+/* A TupLabel's left side must be a Label or ExplicitNonlabel — the only forms
+ * that print and parse as `lab=…` / `_=…`. */
+let gen_tup_label_lhs =
+    (~label: string => 'a, ~nonlabel: 'a): QCheck.Gen.t('a) =>
+  QCheck.Gen.(
+    frequency([(3, map(label, gen_ppx_ident)), (1, pure(nonlabel))])
+  );
+
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
+type tpat =
+  | InvalidTPat([@gen gen_invalid_token] string)
+  | EmptyHoleTPat
+  | VarTPat([@gen gen_ppx_ident] string);
+
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
+type typ =
+  | ParenTyp(typ)
+  | IntType
+  | SIntType
+  | StringType
+  | FloatType
+  | BoolType
+  | NatType
+  | VoidType
+  | SumTyp([@gen gen_ppx_small_list1(gen_sumterm_sized(n / 2))] sumtype)
+  /* Internal/EmptyHole both print as `?`; only generate the printable form. */
+  | UnknownType(
+      [@gen QCheck.Gen.pure(EmptyHole: typ_provenance)] typ_provenance,
+    )
+  | TupleType(
+      [@gen
+        gen_tuple_fields(
+          ~labeled=(l, t) => TupLabelType(LabelType(l), t),
+          ~unlabeled=t => TupLabelType(ExplicitNonlabelType, t),
+          gen_typ_sized(n / 2),
+        )
+      ]
+      list(typ),
+    )
+  | ArrayType(typ)
+  | ArrowType(typ, typ)
+  | TypVar([@gen gen_ppx_ident] string)
+  | InvalidTyp([@gen gen_invalid_token] string)
+  | PolyType(tpat, typ)
+  | RecType(tpat, typ)
+  | ProofOfType(exp)
+  /* Also injected as tuple fields via TupleType above. */
+  | LabelType([@gen gen_ppx_ident] string)
+  | ExplicitNonlabelType
+  | TupLabelType(
+      [@gen
+        gen_tup_label_lhs(
+          ~label=l => LabelType(l),
+          ~nonlabel=ExplicitNonlabelType,
+        )
+      ] typ,
+      typ,
+    )
+  | IndicationTyp(typ)
+  | ProdProjection(typ, typ)
+  | ProdExtension(typ, typ)
+  | Sig(
+      [@gen gen_ppx_small_list(gen_sig_item_sized(n / 2))] list(sig_item),
+    )
+and sumterm =
+  | Variant([@gen gen_ppx_constructor_ident] string, option(typ))
+  /* No distinct surface syntax — prints as the inner typ. Menhir classifies
+     like MakeTerm: TypVar → Variant, anything else → BadEntry. */
+  | BadEntry(typ)
+and sumtype = list(sumterm)
+
+and pat =
+  | ParenPat(pat)
+  | AscPat(pat, typ)
+  | EmptyHolePat
+  | WildPat
+  | AtomPat([@gen gen_ppx_atom] Language.Atom.t)
+  | VarPat([@gen gen_ppx_ident] string)
+  /* Constructor type payloads are not printed; Canonicalize strips them. */
+  | ConstructorPat(
+      [@gen gen_ppx_constructor_ident] string,
+      option(option(typ)),
+    )
+  | TuplePat(
+      [@gen
+        gen_tuple_fields(
+          ~labeled=(l, p) => TupLabelPat(LabelPat(l), p),
+          ~unlabeled=p => TupLabelPat(ExplicitNonlabelPat, p),
+          gen_pat_sized(n / 2),
+        )
+      ]
+      list(pat),
+    )
+  | ConsPat(pat, pat)
+  | ListPat([@gen gen_ppx_small_list(gen_pat_sized(n / 2))] list(pat))
+  | ApPat(pat, pat)
+  | InvalidPat([@gen gen_invalid_token] string)
+  /* Also injected as tuple fields via TuplePat above. */
+  | TupLabelPat(
+      [@gen
+        gen_tup_label_lhs(
+          ~label=l => LabelPat(l),
+          ~nonlabel=ExplicitNonlabelPat,
+        )
+      ] pat,
+      pat,
+    )
+  | LabelPat([@gen gen_ppx_ident] string)
+  | IndicationPat(pat)
+  | ExplicitNonlabelPat
+
+and if_consistency =
+  | Consistent
+  | Inconsistent
+
+and deferral_pos =
+  | InAp
+  | OutsideAp
+
+and exp =
+  | ParenExp(exp)
+  | Atom([@gen gen_ppx_atom] Language.Atom.t)
+  | Var([@gen gen_ppx_ident] string)
+  | LivelitName([@gen gen_ppx_livelit_ident] string) /* lexeme with the leading caret */
+  /* Constructor type payloads are not printed; Canonicalize strips them. */
+  | Constructor(
+      [@gen gen_ppx_constructor_ident] string,
+      option(option(typ)),
+    )
+  | ListExp([@gen gen_ppx_small_list(gen_exp_sized(n / 2))] list(exp))
+  | TupleExp(
+      [@gen
+        gen_tuple_fields(
+          ~labeled=(l, e) => TupLabel(Label(l), e),
+          ~unlabeled=e => TupLabel(ExplicitNonlabel, e),
+          gen_exp_sized(n / 2),
+        )
+      ]
+      list(exp),
+    )
+  | BinExp(exp, bin_op, exp)
+  | UnOp(op_un, exp)
+  | Let(pat, exp, exp)
+  | Theorem(pat, exp, exp)
+  | ProofObject(exp)
+  /* Named funs print as plain `fun`; Canonicalize drops the name. */
+  | Fun(pat, exp, [@gen QCheck.Gen.option(gen_ppx_ident)] option(string))
+  | ForallExp(pat, exp)
+  | CaseExp(
+      exp,
+      [@gen
+        gen_ppx_small_list1(
+          QCheck.Gen.pair(gen_pat_sized(n / 2), gen_exp_sized(n / 2)),
+        )
+      ]
+      list((pat, exp)),
+    )
+  | Label([@gen gen_ppx_ident] string)
+  /* Prints as `_`; Canonicalize rewrites a bare exp `_` to Deferral. */
+  | ExplicitNonlabel
+  /* Also injected as tuple fields via TupleExp above. */
+  | TupLabel(
+      [@gen
+        gen_tup_label_lhs(~label=l => Label(l), ~nonlabel=ExplicitNonlabel)
+      ] exp,
+      exp,
+    )
+  | Dot(exp, exp)
+  | ApExp(exp, exp)
+  | PipelineExp(exp, exp) /* e1 |> e2 == Ap(Reverse, e2, e1) */
+  | FixF(pat, exp)
+  | Asc(exp, typ)
+  | EmptyHole
+  | Filter(filter_action, exp, exp)
+  /* Prints as a bare name; Canonicalize rewrites to Var. */
+  | BuiltinFun([@gen gen_ppx_ident] string)
+  | Undefined
+  | Seq(exp, exp)
+  | Test(exp)
+  | HintedTest(exp, exp)
+  | Deferral
+  | TypFun(tpat, exp)
+  | Cons(exp, exp)
+  | ListConcat(exp, exp)
+  | If(exp, exp, exp)
+  | InvalidExp([@gen gen_invalid_token] string)
+  | TypAp(exp, typ)
+  /* Stripped on print; Canonicalize unwraps to the inner expression. */
+  | DynamicErrorHole(exp, [@gen gen_ppx_error] string)
+  | TyAlias(tpat, typ, exp)
+  | Use(typ, exp)
+  | IndicationExp(exp)
+  | TupleExtension(exp, exp)
+  | Module(
+      [@gen gen_ppx_small_list(gen_mod_item_sized(n / 2))] list(mod_item),
+    )
+  /* Menhir binders are IDENT/CTR (as VarPat), wild, or hole — keep to vars. */
+  | ModuleExp(
+      [@gen
+        QCheck.Gen.(
+          map(
+            name => VarPat(name),
+            oneof([gen_ppx_ident, gen_ppx_constructor_ident]),
+          )
+        )
+      ] pat,
+      exp,
+      exp,
+    )
+
+and mod_item =
+  | ModItemLet(pat, exp)
+  | ModItemType(tpat, typ)
+  | ModItemExp(exp)
+  /* Menhir only accepts `module name [=|: typ =] …` with IDENT/CTR binders. */
+  | ModItemModule(
+      [@gen
+        QCheck.Gen.(
+          map(
+            name => VarPat(name),
+            oneof([gen_ppx_ident, gen_ppx_constructor_ident]),
+          )
+        )
+      ] pat,
+      exp,
+    )
+
+and sig_item =
+  | SigItemLet(pat)
+  | SigItemType(tpat, typ);
+
+/* Memoize by fuel: constructing gen_*_sized(n) eagerly expands the frequency
+ * tree to ~positions^log2(n) closures, so rebuilding it per suite OOMs Node.
+ * Applied here so the wrappers capture the derived generators, before the
+ * curated ones below shadow those names. */
+let memo_by_fuel =
+    (derived: int => QCheck.Gen.t('a)): (int => QCheck.Gen.t('a)) => {
+  let cache: Hashtbl.t(int, QCheck.Gen.t('a)) = Hashtbl.create(8);
+  n =>
+    switch (Hashtbl.find_opt(cache, n)) {
+    | Some(g) => g
+    | None =>
+      let g = derived(n);
+      Hashtbl.add(cache, n, g);
+      g;
+    };
+};
+
+let gen_typ_full_sized: int => QCheck.Gen.t(typ) =
+  memo_by_fuel(gen_typ_sized);
+let gen_exp_full_sized: int => QCheck.Gen.t(exp) =
+  memo_by_fuel(gen_exp_sized);
 
 /**
  * Generates an array of natural numbers of a given size.
@@ -309,14 +539,6 @@ let gen_tpat: (~minimal_idents: bool) => QCheck.Gen.t(tpat) =
       // let gen_invalid = map(x => InvalidTPat(x), gen_ident); // Menhir parser doesn't actually support invalid tpat
       oneof([gen_var, gen_empty])
     );
-
-/**
- * Generates a string literal for use in the program.
- * This generator produces strings that match the `string` pattern in the lexer.
- */
-let gen_string_literal: QCheck.Gen.t(string) =
-  // TODO This should be anything printable other than `"`
-  QCheck.Gen.(string_small_of(char_range('a', 'z')));
 
 let gen_label: QCheck.Gen.t(string) = gen_ident(~minimal_idents=false);
 
@@ -1243,7 +1465,7 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           }
         | LabelPat(l) =>
           shrink_non_empty_string(l) >|= ((l: string) => LabelPat(l))
-        | ExplicitNonlabel
+        | ExplicitNonlabelPat
         | InvalidPat(_)
         | IndicationPat(_)
         | WildPat
@@ -1310,7 +1532,8 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             let* shrunk2 = shrink_typ(t2);
             return(ArrowType(t1, shrunk2));
           }
-        | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
+        | TypVar(x) =>
+          shrink_non_empty_string(x) >|= ((x: string) => TypVar(x))
         | PolyType(tpat, t) =>
           return(t)
           <+> {
@@ -1323,7 +1546,7 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             let* shrunk = shrink_typ(t);
             return(RecType(tpat, shrunk));
           }
-        | ExplicitNonlabel => Iter.empty
+        | ExplicitNonlabelType => Iter.empty
         | ProofOfType(e) =>
           let* shrunk = shrink_exp(e);
           return(ProofOfType(shrunk));
@@ -1385,3 +1608,11 @@ let arb_exp = (~minimal_idents=false, size) =>
     ~shrink=shrink_exp,
     gen_exp_sized(~minimal_idents, size),
   );
+
+/* Every constructor of the grammar can be generated, including ones the
+ * curated arb_exp/arb_typ above skip. `size` is depth fuel, halved at each
+ * recursive step — not a node budget like arb_exp's. */
+let arb_typ_full = size =>
+  QCheck.make(~print=show_typ, ~shrink=shrink_typ, gen_typ_full_sized(size));
+let arb_exp_full = size =>
+  QCheck.make(~print=show_exp, ~shrink=shrink_exp, gen_exp_full_sized(size));
