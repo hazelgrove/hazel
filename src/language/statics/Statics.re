@@ -1905,7 +1905,11 @@ and uexp_to_info_map =
             ]
           };
         };
-      let elab_term = Fun(p_elab, e_elab, Some(p.ty), n) |> rewrap;
+      /* Normalize like every other elaborated type position: `p.ty` is a meet
+         with the analyzed type, so it can still carry surface-only sugar —
+         `Parens`, aliases, or a `Sig` whose `SigLet` items hold patterns. */
+      let elab_term =
+        Fun(p_elab, e_elab, Some(Typ.normalize(ctx, p.ty)), n) |> rewrap;
       add(
         ~elab_term,
         ~elab_syn_ty=syn_ty_fun,

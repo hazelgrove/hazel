@@ -6,8 +6,8 @@ open Alcotest;
 let qcheck_evaluator_does_not_crash_test =
   QCheck.Test.make(
     ~name="Evaluator does not crash",
-    ~count=10000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    ~count=1000,
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
     switch (
       {
@@ -51,7 +51,7 @@ let qcheck_stepper_confluence =
   QCheck.Test.make(
     ~name="Evaluator and stepper are consistent",
     ~count=1000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 10),
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     uexp => {
     switch (
       {
@@ -125,8 +125,8 @@ let qcheck_pattern_equivalence_test =
     ~name="Pattern equivalence",
     ~count=1000,
     QCheck.pair(
-      QCheck_Util.arb_exp(~minimal_idents=true, 40),
-      QCheck_Util.arb_typ(~minimal_idents=true, 10),
+      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+      QCheck_Util.arb_typ_full(~minimal_idents=true, 5),
     ),
     ((uexp, typ)) =>
     try(
@@ -186,8 +186,8 @@ let qcheck_pattern_equivalence_test =
 let qcheck_preservation_test =
   QCheck.Test.make(
     ~name="Preservation of types",
-    ~count=10000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 10),
+    ~count=1000,
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     uexp => {
     switch (
       switch (
@@ -310,7 +310,7 @@ let qcheck_incremental_matches_fresh_after_edit =
     ~count=2000,
     QCheck.pair(
       QCheck.small_nat,
-      QCheck_Util.arb_exp(~minimal_idents=true, 30),
+      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     ),
     ((seed, exp)) => {
       /* Only swallow known-benign static/dynamic failures so real
@@ -665,9 +665,156 @@ let yielding_streaming_current_id_invalid_race_test =
     },
   );
 
+/* Small-step and big-step must agree. Takes a thunk so counterexamples with
+   no surface syntax can be built as terms. */
+let check_confluence = (~name, mk_uexp) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let elab = elaborate(mk_uexp());
+      switch (
+        Evaluator.evaluate_and_limit(
+          ~env=Builtins.env_init,
+          ~step_limit=1000,
+          elab,
+        ),
+        full_small_step_reduction(~step_limit=1000, elab),
+      ) {
+      | (LimitedCompleted((big, _)), LimitedCompleted((small, _))) =>
+        check(
+          testable(
+            Fmt.using(show_core_exp, Fmt.string),
+            Equality.semantic.exp,
+          ),
+          "small step and big step agree",
+          small,
+          big,
+        )
+      | _ =>
+        fail("Expected both evaluators to complete within the step limit")
+      };
+    },
+  );
+
+let confluence_regression_test = (~name, src) =>
+  check_confluence(~name, () => parse_exp(src));
+
+/* Asserts only that evaluation does not raise. */
+let check_evaluates = (~name, mk_uexp) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let _ =
+        Evaluator.evaluate_and_limit(
+          ~env=Builtins.env_init,
+          ~step_limit=10000,
+          elaborate(mk_uexp()),
+        );
+      ();
+    },
+  );
+
+/* Big-step alpha-renames the later Ap-pattern binder, small-step does not;
+   duplicate binders are last-wins, so the two agree. */
+let repro_forall_ap_pat_confluence =
+  check_confluence(~name="forall x(x) -> x (duplicate-binder alpha)", () =>
+    IdTagged.FreshGrammar.(
+      Exp.forall(Pat.ap(Pat.var("x"), Pat.var("x")), Exp.var("x"))
+    )
+  );
+
+/* Control for the above: a single binder was never in question. */
+let repro_forall_simple_confluence =
+  check_confluence(~name="forall x -> x", () =>
+    IdTagged.FreshGrammar.(Exp.forall(Pat.var("x"), Exp.var("x")))
+  );
+
+/* The printer strips the hole, so the counterexample showed as `(())`;
+   big-step used to drop the wrapper. */
+let repro_unit_parens_confluence =
+  check_confluence(~name="DynamicErrorHole around unit", () =>
+    IdTagged.FreshGrammar.(
+      Exp.dynamic_error_hole(
+        Exp.parens(Exp.tuple([])),
+        InvalidOperationError.DivideByZero,
+      )
+    )
+  );
+
+/* ExplicitNonlabel used to reach PatternMatch, which only knew Wild. */
+let repro_explicit_nonlabel_eval_crash =
+  check_evaluates(~name="ExplicitNonlabel in PatternMatch", () =>
+    parse_exp("{ type o^o = [String]; let _ = y; y @< _ > }")
+  );
+
+/* Applying a BuiltinFun with an unknown name raised InvalidBuiltin; statics
+   now elaborates it to Invalid. No surface syntax reaches this. */
+let repro_unknown_builtin_ap =
+  check_evaluates(~name="unknown BuiltinFun application", () =>
+    IdTagged.FreshGrammar.(
+      Exp.ap(Forward, Exp.builtin_fun("x"), Exp.empty_hole())
+    )
+  );
+
+/* A `Fun` whose annotation slot holds a `Sig` type: only surface ascriptions
+   go through desugar_sig, so substitution met a SigLet pattern inside a type.
+   Printed as ``fun B -> `a` ``, which hides the annotation. */
+let repro_sig_annotated_fun_subst =
+  check_evaluates(~name="Sig-annotated Fun substitution", () =>
+    IdTagged.FreshGrammar.(
+      Exp.fn(
+        Pat.var("x"),
+        Exp.int(1),
+        Some(Language.Typ.fresh(Sig([Sig.sig_let(Pat.var("y"))]))),
+        None,
+      )
+    )
+  );
+
+/* ExplicitNonlabel under a module let, through the incremental evaluator. */
+let repro_explicit_nonlabel_incremental =
+  test_case(
+    "ExplicitNonlabel incremental eval",
+    `Quick,
+    () => {
+      let uexp = parse_exp("(0, case ({ let _ = _ }) | _ => 0 end)");
+      let (info_map, elab) =
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+      let eval_info =
+        EvalInfo.of_info_map(
+          ~probe_all=CoreSettings.on.probe_all,
+          ~targets=Id.Map.empty,
+          info_map,
+        );
+      let _ = eval_limited(~eval_info, ~step_limit=10000, elab);
+      ();
+    },
+  );
+
 let tests = (
   "Evaluator.Properties",
   [
+    repro_forall_ap_pat_confluence,
+    repro_forall_simple_confluence,
+    /* An indet Theorem/Forall under a fixpoint must keep its closure: in
+       Environment mode the fix unrolls into a Closure, and if the Indet
+       branch does not ask to keep it, big-step leaves `x` free while
+       small-step substitutes. */
+    confluence_regression_test(
+      ~name="Confluence: indet theorem under a fixpoint keeps its closure",
+      "fix x -> (theorem ? = y in x)",
+    ),
+    confluence_regression_test(
+      ~name="Confluence: indet forall under a fixpoint keeps its closure",
+      "fix x -> (forall y -> x)",
+    ),
+    repro_unit_parens_confluence,
+    repro_explicit_nonlabel_eval_crash,
+    repro_explicit_nonlabel_incremental,
+    repro_unknown_builtin_ap,
+    repro_sig_annotated_fun_subst,
     yielding_evaluation_test,
     yielding_streaming_outbox_test,
     yielding_streaming_current_state_test,

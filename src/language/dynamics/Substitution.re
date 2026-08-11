@@ -46,9 +46,13 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
           FixF(p', in_exp(env', e), None) |> rewrap;
 
         // Cases with binders: remove binder from env
+        /* The RHS is not under the binder, so substitute it with the outer
+           env: freshening a shadowing binder must leave `let y = y`'s RHS
+           alone. */
         | Let(p, e1, e2) =>
+          let e1' = in_exp(env, e1);
           let (env', p') = in_pat(env, env, p);
-          Let(p', in_exp(env', e1), in_exp(env', e2)) |> rewrap;
+          Let(p', e1', in_exp(env', e2)) |> rewrap;
         | Match(e, cases) =>
           Match(
             in_exp(env, e),
@@ -63,8 +67,9 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
           let (env', p') = in_pat(env, env, p);
           FixF(p', in_exp(env', e), None) |> rewrap;
         | Theorem(p, e1, e2) =>
+          let e1' = in_exp(env, e1);
           let (env', p') = in_pat(env, env, p);
-          Theorem(p', in_exp(env', e1), in_exp(env', e2)) |> rewrap;
+          Theorem(p', e1', in_exp(env', e2)) |> rewrap;
         | Forall(pat, e) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
@@ -198,9 +203,10 @@ and in_pat =
 and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
   Typ.map_term(
     ~f_exp=_ => in_exp(env),
-    ~f_pat=
-      (_, _) =>
-        failwith("patterns should be handled separately in substitution"),
+    /* Types can contain patterns: `Sig`'s `SigLet` items and `MultiHole`
+       children. None bind expression variables — signature names are field
+       labels — so recurse for their nested types and leave binders alone. */
+    ~f_pat=(cont, p) => cont(p),
     ~f_typ=
       (cont, t) => {
         let (term, _rewrap) = Typ.unwrap(t);
