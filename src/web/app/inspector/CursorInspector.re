@@ -171,6 +171,7 @@ let core_mark_err_view =
     };
   (
     switch (m) {
+    | DynamicError(err) => [text(InvalidOperationError.err_msg(err))]
     | BadToken(token) =>
       switch (Haz3lcore.Token.bad_token_cls(token)) {
       | BadInt => [text("Integer is too large or too small")]
@@ -604,6 +605,7 @@ let exp_mark_err_view =
       ),
     );
   switch (m) {
+  | DynamicError(err) => div_err([text(InvalidOperationError.err_msg(err))])
   | Free(name) => div_err([code(name), text("not found")])
   | InexhaustiveMatch(_, inner_marks, example) =>
     let cls_str = Cls.show(cls);

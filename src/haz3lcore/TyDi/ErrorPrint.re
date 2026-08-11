@@ -55,6 +55,7 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       Print.typ(syn),
     );
   switch (m) {
+  | DynamicError(err) => InvalidOperationError.err_msg(err)
   | BadLabel(_)
   | InvalidLabel(_, _) => "Invalid label"
   | DuplicateLabel(_, _) => "Duplicate label"
@@ -109,6 +110,7 @@ let drv_error: DrvInfo.error => string =
 let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let common_from_core = () => core_mark_string(ctx, ana, m);
   switch (m) {
+  | DynamicError(_) => common_from_core()
   | Free(name) => "Variable " ++ name ++ " is not bound"
   | InexhaustiveMatch(_) => "Match is not exhaustive"
   | IsDeferral(InAp) => "(internal)"
