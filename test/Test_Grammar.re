@@ -4,7 +4,7 @@ let qcheck_map_annotation_test =
   QCheck.Test.make(
     ~name="Map annotation to something and back",
     ~count=100,
-    MenhirParser.AST.arb_exp(7),
+    MenhirParser.AST.arb_exp_full(5),
     exp => {
       let indicated_exp = MenhirParser.Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
