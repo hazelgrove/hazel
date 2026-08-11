@@ -257,18 +257,6 @@ select {
   color: var(--BR1);
 }
 
-#sample-focus-bar .more-indicator {
-  color: var(--BR2);
-  margin-left: 0.25em;
-  opacity: 0.5;
-}
-
-#sample-focus-bar .stack-icon {
-  color: var(--BR4);
-  margin-right: 0.5em;
-  font-size: 0.9em;
-}
-
 #sample-focus-bar .breadcrumb-entry.unknown {
   color: var(--BR1);
 }
