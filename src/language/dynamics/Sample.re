@@ -315,16 +315,6 @@ module Focus = {
 
   /* If the cursor is on a call, and the provided call stack is
    * downstream of that call, return how many aps downstream it is */
-  let depth_in_indicated_calls_stack =
-      (cursor: t, call_stack: CallStack.t): option(int) => {
-    let* cur_ap = cursor.indicated_call;
-    ListUtil.suffix_at_depth(
-      ~eq=CallStack.equal_frame,
-      CallStack.extend(cur_ap, effective_stack(cursor)),
-      call_stack,
-    );
-  };
-
   type relative_level =
     | Above(int)
     | Below(int)

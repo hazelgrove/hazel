@@ -416,13 +416,6 @@ let rec bypass_parens_pat = (pat: Pat.t) => {
   };
 };
 
-let rec bypass_parens_exp = (exp: Exp.t) => {
-  switch (exp.term) {
-  | Parens(e) => bypass_parens_exp(e)
-  | _ => exp
-  };
-};
-
 let rec bypass_parens_typ = (typ: Typ.t) => {
   switch (typ.term) {
   | Parens(t) => bypass_parens_typ(t)

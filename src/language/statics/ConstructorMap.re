@@ -222,20 +222,3 @@ let get_entry = (ctr, m) =>
     | BadEntry(_) => None,
     m,
   );
-
-let get_constructors =
-  List.filter_map(
-    fun
-    | Variant(ctr, _, _) => Some(ctr)
-    | BadEntry(_) => None,
-    _,
-  );
-
-let nth = (map: t('a), ctr: Constructor.t): option(int) => {
-  // TODO: use List.find_index instead, which is available for OCaml 5.1
-  let ctrs_sorted = map |> get_constructors |> List.sort(String.compare);
-  List.find_opt(
-    nth => List.nth(ctrs_sorted, nth) == ctr,
-    List.init(List.length(ctrs_sorted), Fun.id),
-  );
-};

@@ -8,8 +8,6 @@ exception Empty_tile;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = tile;
 
-let id = (t: t) => t.id;
-
 let is_complete = (t: t) => List.length(t.label) == List.length(t.shards);
 
 let l_shard = t =>
@@ -35,15 +33,6 @@ let shapes = (t: t) => {
 };
 
 let to_piece = t => Tile(t);
-
-let sorted_children = ({mold, shards, children, _}: t) =>
-  Aba.mk(shards, children)
-  |> Aba.aba_triples
-  |> List.map(((l, child, r)) => {
-       let (_, l) = Mold.nibs(~index=l, mold);
-       let (r, _) = Mold.nibs(~index=r, mold);
-       (l.sort == r.sort ? l.sort : Any, child);
-     });
 
 let contained_children = (t: t): list((t, Base.segment, t)) =>
   Aba.mk(t.shards, t.children)

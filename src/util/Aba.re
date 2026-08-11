@@ -27,13 +27,6 @@ let cons = (a: 'a, b: 'b, (as_, bs): t('a, 'b)): t('a, 'b) => (
   [a, ...as_],
   [b, ...bs],
 );
-let snoc = ((as_, bs): t('a, 'b), b: 'b, a: 'a): t('a, 'b) => (
-  as_ @ [a],
-  bs @ [b],
-);
-
-let singleton = (a: 'a): t('a, _) => ([a], []);
-
 let get_as: t('a, _) => list('a) = fst;
 let get_bs: t(_, 'b) => list('b) = snd;
 
@@ -47,39 +40,15 @@ let rec aba_triples = (aba: t('a, 'b)): list(('a, 'b, 'a)) =>
     ]
   | _ => []
   };
-let rec bab_triples' =
-        (b1: option('b), aba: t('a, 'b))
-        : list((option('b), 'a, option('b))) =>
-  switch (aba) {
-  | ([a, ...as_], [b2, ...bs]) => [
-      (b1, a, Some(b2)),
-      ...bab_triples'(Some(b2), (as_, bs)),
-    ]
-  | ([a], []) => [(b1, a, None)]
-  | _ => []
-  };
-
 let map_a = (f_a: 'a => 'c, (as_, bs): t('a, 'b)): t('c, 'b) => (
   List.map(f_a, as_),
   bs,
-);
-let map_b = (f_b: 'b => 'c, (as_, bs): t('a, 'b)): t('a, 'c) => (
-  as_,
-  List.map(f_b, bs),
 );
 let map_abas =
     (f_aba: (('a, 'b, 'a)) => 'c, (as_, _) as aba: t('a, 'b)): t('a, 'c) => (
   as_,
   List.map(f_aba, aba_triples(aba)),
 );
-
-let pop = ((as_, bs): t('a, 'b)): option(('a, 'b, t('a, 'b))) =>
-  switch (bs) {
-  | [] => None
-  | [b, ...bs] =>
-    let (a, as_) = ListUtil.split_first(as_);
-    Some((a, b, mk(as_, bs)));
-  };
 
 let trim = ((as_, bs): t('a, 'b)): option(('a, t('b, 'a), 'a)) =>
   switch (bs) {
@@ -125,25 +94,6 @@ let fold_left =
   let (a, as_) = ListUtil.split_first(as_);
   List.fold_left2(f_ba, f_a(a), bs, as_);
 };
-let fold_left_map =
-    (
-      f_a: 'a => ('acc, 'c),
-      f_ba: ('acc, 'b, 'a) => ('acc, 'd, 'c),
-      aba: t('a, 'b),
-    )
-    : ('acc, t('c, 'd)) =>
-  aba
-  |> fold_left(
-       a => {
-         let (acc, c) = f_a(a);
-         (acc, singleton(c));
-       },
-       ((acc, mapped), b, a) => {
-         let (acc, d, c) = f_ba(acc, b, a);
-         (acc, snoc(mapped, d, c));
-       },
-     );
-
 let fold_right =
     (f_ab: ('a, 'b, 'c) => 'c, f_a: 'a => 'c, (as_, bs): t('a, 'b)) => {
   let (as_, a) = ListUtil.split_last(as_);

@@ -184,35 +184,6 @@ let for_decoration = indicated(~no_ws=true, ~ign=Piece.is_secondary);
    whitespace. Ignores secondary but returns them as fallback. */
 let for_index = indicated(~no_ws=false, ~ign=Piece.is_secondary);
 
-let shard_index = (z: ZipperBase.t): option(int) =>
-  switch (for_decoration(z)) {
-  | None => None
-  | Some({piece: p, side, relation}) =>
-    switch (relation) {
-    | Parent =>
-      switch (Ancestors.parent(z.relatives.ancestors)) {
-      | None => failwith("indicated_shard_index impossible")
-      | Some({children: (before, _), _}) =>
-        let before = List.length(before);
-        switch (Siblings.neighbors(z.relatives.siblings)) {
-        | (_, None) => Some(before + 1)
-        | _ => Some(before)
-        };
-      }
-    | Sibling =>
-      switch (p) {
-      | Secondary(_)
-      | Grout(_)
-      | Projector(_) => Some(0)
-      | Tile(t) =>
-        switch (side) {
-        | Left => Some(List.length(t.children))
-        | Right => Some(0)
-        }
-      }
-    }
-  };
-
 let direction = (z: ZipperBase.t): option(Direction.t) =>
   switch (for_index(z)) {
   | None => None

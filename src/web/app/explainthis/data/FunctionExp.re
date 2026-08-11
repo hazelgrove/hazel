@@ -512,10 +512,6 @@ let function_ap_exp: form = {
   };
 };
 
-let functions: group = {
-  id: FunctionExp(Base),
-  forms: [function_exp],
-};
 let functions_empty_hole = {
   id: FunctionExp(EmptyHole),
   forms: [function_empty_hole_exp, function_exp],

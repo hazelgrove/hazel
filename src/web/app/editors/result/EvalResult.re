@@ -103,9 +103,6 @@ module Model = {
     | None => Dynamics.Map.mk(Sample.Map.empty)
     };
 
-  let incr_eval = (model: t): EvaluatorState.incr_eval =>
-    model.incr_eval |> Calc.get_saved(IncrEval.empty);
-
   let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
     model.predicted_reuse;
 
@@ -839,5 +836,3 @@ module View = {
       );
     };
 };
-
-let view = View.view;

@@ -95,40 +95,6 @@ module Scratchpad = {
     };
   };
 
-  /* Used only for migration fallback from old monolithic format */
-  let unpersist = (~settings, p: persistent): t => {
-    switch (p.kind) {
-    | CodePersist({editor, agent}) => {
-        name: p.name,
-        kind:
-          Code({
-            editor:
-              OptUtil.get(
-                () => Init.default_documentation_slide_name(p.name),
-                editor,
-              )
-              |> CellEditor.Model.unpersist(~settings),
-            agent: Agent.Persistent.unpersist(agent),
-          }),
-      }
-    | DrvPersist(dp) => {
-        name: p.name,
-        kind:
-          Drv(
-            DerivationExerciseMode.Model.unpersist(
-              ~settings,
-              ~instructor_mode=false,
-              dp,
-              DerivationExercise.blank_spec(
-                ~title=p.name,
-                ~module_name=p.name,
-              ),
-            ),
-          ),
-      }
-    };
-  };
-
   let mk_code = (~name, ~editor, ()): t => {
     name,
     kind:
@@ -156,10 +122,8 @@ module Scratchpad = {
         ),
       ),
   };
-
   /* Backward-compat constructor (Code-only). Kept for call sites that
      pre-date the kind split. */
-  let mk = mk_code;
 };
 
 module Model = {
@@ -172,80 +136,8 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = (int, list(Scratchpad.persistent));
 
-  let persist = (model: t): persistent => {
-    let persisted_slides =
-      List.map(
-        (s: Scratchpad.t) => {
-          switch (s.kind) {
-          | Code({editor, agent}) =>
-            let is_dirty = Sets.StringSet.mem(s.name, dirty_slides^);
-            let has_cache = Maps.StringMap.mem(s.name, persist_cache^);
-            let editor_persist =
-              if (is_dirty || !has_cache) {
-                let persisted = Some(CellEditor.Model.persist(editor));
-                persist_cache :=
-                  Maps.StringMap.add(s.name, persisted, persist_cache^);
-                persisted;
-              } else {
-                Maps.StringMap.find(s.name, persist_cache^);
-              };
-            Scratchpad.{
-              name: s.name,
-              kind:
-                CodePersist({
-                  editor: editor_persist,
-                  agent: Agent.Persistent.persist(agent),
-                }),
-            };
-          | Drv(m) =>
-            Scratchpad.{
-              name: s.name,
-              kind:
-                DrvPersist(
-                  DerivationExerciseMode.Model.persist(
-                    m,
-                    ~instructor_mode=false,
-                  ),
-                ),
-            }
-          }
-        },
-        model.scratchpads,
-      );
-    dirty_slides := Sets.StringSet.empty;
-    (model.current, persisted_slides);
-  };
-
-  let unpersist = (~settings, (current, scratchpads): persistent): t => {
-    /* Seed persist cache with loaded values so unchanged slides
-       (stored as None) aren't needlessly re-persisted on first save */
-    reset_persist_state();
-    List.iter(
-      (sp: Scratchpad.persistent) =>
-        switch (sp.kind) {
-        | CodePersist({editor, _}) =>
-          persist_cache := Maps.StringMap.add(sp.name, editor, persist_cache^)
-        | DrvPersist(_) => ()
-        },
-      scratchpads,
-    );
-    {
-      current,
-      scratchpads:
-        List.map(sp => Scratchpad.unpersist(~settings, sp), scratchpads),
-    };
-  };
-
   let scratchpad_names = (model: t): list(string) =>
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
-
-  let get_derivation_info = (model: t) => {
-    let current = List.nth(model.scratchpads, model.current);
-    switch (current.kind) {
-    | Code(_) => None
-    | Drv(m) => DerivationExerciseMode.Model.get_derivation_info(m)
-    };
-  };
 };
 
 /* Per-slide IndexedDB persistence. Each scratchpad's editor and agent
@@ -315,11 +207,6 @@ module Persist = {
         }
       };
     };
-
-  let delete_slide = (prefix: string, name: string): unit => {
-    HazelDB.kv_delete(slide_key(prefix, name));
-    HazelDB.kv_delete(agent_key(prefix, name));
-  };
 
   let save_agent =
       (prefix: string, name: string, agent: Agent.Persistent.t): unit => {

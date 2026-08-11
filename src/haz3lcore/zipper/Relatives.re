@@ -6,11 +6,6 @@ type t = {
   ancestors: Ancestors.t,
 };
 
-let empty = {
-  siblings: Siblings.empty,
-  ancestors: Ancestors.empty,
-};
-
 let push = (d: Direction.t, p: Piece.t, rs: t): t => {
   ...rs,
   siblings: Siblings.push(d, p, rs.siblings),
@@ -66,19 +61,6 @@ let parent =
   ancestors
   |> Ancestors.parent
   |> Option.map(p => Base.Tile(Ancestor.zip(l_sibs @ sel @ r_sibs, p)));
-
-let delete_parent = ({siblings, ancestors}: t): t => {
-  switch (ancestors) {
-  | [] => {
-      siblings,
-      ancestors,
-    }
-  | [(_, p_sibs), ...ancestors] => {
-      siblings: Siblings.concat([siblings, p_sibs]),
-      ancestors,
-    }
-  };
-};
 
 /* The sort at the current insertion point, accounting for
  * infix operators with heterogeneous child sorts (e.g. type

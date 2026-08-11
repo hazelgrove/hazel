@@ -160,10 +160,6 @@ let make_problem_context =
 
 /* ---------- Sorting helper (exposed for consumers) ---------- */
 
-let sort_by_pos =
-    (ctx: problem_context, problems: list(problem)): list(problem) =>
-  List.sort((a, b) => compare(ctx.pos(a.id), ctx.pos(b.id)), problems);
-
 /* ---------- Per-category collection (lazy) ---------- */
 
 let collect_category =

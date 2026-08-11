@@ -91,10 +91,6 @@ let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
 };
 
-let log = data => {
-  Firebug.console##log(data);
-};
-
 let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
@@ -316,16 +312,6 @@ let scroll_cursor_into_view_if_needed = () =>
   };
 
 module Fragment = {
-  let set_current = frag => {
-    let frag =
-      switch (frag) {
-      | "" => ""
-      | frag => "#" ++ frag
-      };
-    let history = Js_of_ocaml.Dom_html.window##.history;
-    history##pushState(Js.null, Js.string(""), Js.some(Js.string(frag)));
-  };
-
   let get_current = () => {
     let fragment_of_url = (url: Url.url): string =>
       switch (url) {
@@ -539,22 +525,6 @@ module QueryParams = {
          );
        });
   };
-
-  let remove_param = (name: string) =>
-    Url.Current.get()
-    |> Option.iter(url => {
-         let args =
-           get_arguments(url) |> List.filter(((k, _)) => k != name);
-
-         let new_url = set_arguments(url, args);
-         let href = Url.string_of_url(new_url);
-
-         Dom_html.window##.history##pushState(
-           Js.null,
-           Js.string(""),
-           Js.some(Js.string(href)),
-         );
-       });
 };
 
 /* Navigate between probe elements in document order.

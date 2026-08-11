@@ -29,8 +29,6 @@ let tokens =
 type tile = (Id.t, Aba.t(Token.t, Any.t));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tiles = Aba.t(tile, Any.t);
-let single = (id, subst) => ([(id, subst)], []);
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type unsorted =
   | Op(tiles)
@@ -106,9 +104,6 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
   | EmptyHole
   | Invalid(_) => [s]
   };
-
-let is_grout = tiles =>
-  Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
 let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
   open OptUtil.Syntax;

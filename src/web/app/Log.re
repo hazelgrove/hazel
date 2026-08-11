@@ -8,8 +8,6 @@ module DB = {
     HazelDB.log_add(key, value);
   };
 
-  let get = HazelDB.log_get;
-
   let get_all = HazelDB.log_get_all;
 
   let clear_and = (callback): unit => {
@@ -56,12 +54,6 @@ module Entry = {
 let get_and = (f: string => unit): unit =>
   DB.get_all(entries => f("(" ++ String.concat(" ", entries) ++ ")"));
 
-let get_count = (f: int => unit): unit =>
-  DB.get_all(entries => f(List.length(entries)));
-
-// Synchronously get the cached count (may be stale until sync_count is called)
-let get_count_sync = (): int => LogCount.get();
-
 // Sync the cached count with the database
 let sync_count = (): unit =>
   DB.get_all(entries => LogCount.set(List.length(entries)));
@@ -85,29 +77,6 @@ let update = (action: Page.Update.t, result: Updated.t('a)): unit =>
   if (result.logged) {
     Entry.save(Entry.mk(action));
   };
-
-let to_actions = () => {
-  print_endline("HELLO??");
-  let actions = ref([]);
-  DB.get_all(entries => {
-    print_endline(
-      "num of entries: " ++ string_of_int(List.length(entries)),
-    );
-    entries
-    |> List.iter(entry_str =>
-         try({
-           let (_ts, action) =
-             entry_str |> Sexplib.Sexp.of_string |> Entry.t_of_sexp;
-           actions := [action, ...actions^];
-         }) {
-         | _ => print_endline("Log.to_actions: Deserialization error")
-         }
-       );
-    actions := List.rev(actions^);
-  });
-  print_endline("num of actions: " ++ string_of_int(List.length(actions^)));
-  actions^;
-};
 
 // If the user switched browsers or devices, they may have imported a save state from another device, this includes the log from the previous device in a complete stitched log.
 let flatten_imports =

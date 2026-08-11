@@ -38,8 +38,6 @@ let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
     exp,
   );
 
-let statics_of = (exp: Exp.t): Statics.Map.t => fst(statics_and_elab(exp));
-
 /* Run the incremental evaluator end-to-end, returning the evaluated Exp.t,
  * final EvaluatorState, and resulting incr_eval map (for test-readability we
  * surface the incr map separately even though it also lives in state). */
@@ -111,19 +109,6 @@ let strip_let_with_int_rhs = (~rhs_val: int, exp: Exp.t): Exp.t => {
 /* Walk an Exp.t and collect ids of every Ap(_, _, _) node. Used by the
  * sibling-module test to assert that a specific function-application
  * subexpression's cache entry survives an edit to an unrelated binding. */
-let collect_ap_ids = (exp: Exp.t): list(Id.t) => {
-  let ids = ref([]);
-  let f_exp = (continue, e: Exp.t): Exp.t => {
-    switch (e.term) {
-    | Ap(_, _, _) => ids := [Exp.rep_id(e), ...ids^]
-    | _ => ()
-    };
-    continue(e);
-  };
-  let _ = TermBase.Exp.map_term(~f_exp, exp);
-  ids^;
-};
-
 /* A non-empty incremental map after a run of a non-trivial program. */
 let test_populates_entries = () => {
   let src = "let x = 1 + 2 in let y = x + 10 in y";

@@ -72,11 +72,6 @@ let unpin = (~globals: Globals.t, pinned_stack: CallStack.t, _) =>
     ActiveEditor(Project(SampleFocus(TogglePin(pinned_stack)))),
   );
 
-/* Check if any probes exist */
-let has_probes = (refractors: Zipper.Refractor.t): bool =>
-  !List.is_empty(refractors.manuals)
-  || !Id.Map.is_empty(refractors.multis.ids);
-
 /* Walk up the call stack from a given index to find the nearest frame
  * whose app_id is in user code. Used as a fallback for separator clicks
  * when the separator's own app_id comes from built-in internal code. */

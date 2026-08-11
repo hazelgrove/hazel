@@ -39,15 +39,6 @@ module Model = {
     | Exercises(_) => []
     };
   };
-
-  let get_derivation_info = (model: t) => {
-    switch (model) {
-    | Exercises(eds) => ExercisesMode.Model.get_derivation_info(eds)
-    | Scratch(m)
-    | Documentation(m) => ScratchMode.Model.get_derivation_info(m)
-    | Tutorial(_) => None
-    };
-  };
 };
 
 /* Legacy-friendly wrapper for the Store.Mode key. Old persisted values
@@ -56,7 +47,6 @@ module Model = {
 module StoreMode = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Model.mode;
-  let key = Store.Mode;
   let key_string = Store.key_to_string(Store.Mode);
   let default = (): Model.mode => Scratch;
 

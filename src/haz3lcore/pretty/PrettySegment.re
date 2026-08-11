@@ -1111,11 +1111,7 @@ let prettify =
 
 type pretty = Segment.t;
 
-let p_concat = (pretty2: pretty, pretty1: pretty) => pretty1 @ pretty2;
 let p_just = (segment: Segment.t): pretty => segment;
-
-let p_concat = (pretties: list(pretty)) =>
-  List.fold_left(p_concat, [], pretties);
 
 let (let+) = (pretty, f) => f(pretty);
 let (and+) = (pretty1, pretty2) => (pretty1, pretty2);
