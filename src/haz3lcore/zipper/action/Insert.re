@@ -105,9 +105,16 @@ let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t, ~root): t =>
     insert_shard_core(~put_down=Zipper.put_down_seg(d), ~id, t, z, ~root);
   };
 
-/* Replace `d`-neighbor shard with a new one based on token `t` */
-let replace_shard = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
-  let id = Zipper.adjacent_monotile_or_new_id(d, z);
+/* Replace `d`-neighbor shard with a new one based on token `t`.
+ * `~id` overrides the default id choice (adjacent monotile or fresh);
+ * used by merge_or_noop to keep a tile's id through a shard merge. */
+let replace_shard =
+    (~id=?, d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
+  let id =
+    switch (id) {
+    | Some(id) => id
+    | None => Zipper.adjacent_monotile_or_new_id(d, z)
+    };
   let+ z = delete(d, z);
   insert_shard(~id, ~d, t, z, ~root);
 };
@@ -328,9 +335,22 @@ let will_merge = (z: t): option((Token.t, Token.t)) =>
 let merge_or_noop = (z: t, ~root): t =>
   switch (will_merge(z)) {
   | Some((l, r)) =>
+    /* When the merged tokens are two shards of the same tile (e.g. the
+     * `(` and `)` of an ap collapsing into the nullary-ap token `()`
+     * when its argument is deleted), keep that tile's id so state keyed
+     * on the enclosing term's id (e.g. probes) survives the merge.
+     * Otherwise replace_shard picks the id (right monotile or fresh). */
+    let id =
+      switch (Zipper.generalized_neighbors(z)) {
+      | (Some(Tile(lt)), Some(Tile(rt)))
+          when lt.id == rt.id && List.length(lt.label) > 1 =>
+        Some(lt.id)
+      | _ => None
+      };
     /* We remove the left manually, and then replace the right */
     let z = Zipper.delete(Left, z) |> Option.get;
-    let z = replace_shard(Right, Token.append(l, r), z, ~root) |> Option.get;
+    let z =
+      replace_shard(~id?, Right, Token.append(l, r), z, ~root) |> Option.get;
     let z = Caret.set(Inner(Token.length(l) - 1), z);
     /* Regrouting direction needed to merge prefixs into infix eg ! */
     remold_regrout(Right, z, ~root);

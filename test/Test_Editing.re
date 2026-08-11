@@ -4920,6 +4920,43 @@ let grapheme_tests = [
   ),
 ];
 
+/* Deleting the sole argument of an ap merges the `(` and `)` shards into
+ * the nullary-ap token `()`. The merged tile must KEEP the original tile's
+ * id: the ap term's rep id is that tile id, so editor state keyed on it
+ * (e.g. probes) would otherwise be orphaned by the edit (#2410). */
+let first_ap_rep_id = (z: Zipper.t): option(Id.t) =>
+  MakeTerm.from_zip_for_sem(z, ~root=Exp).terms
+  |> Id.Map.bindings
+  |> List.find_map(((_, any: Language.Any.t)) =>
+       switch (any) {
+       | Language.Grammar.Exp({term: Ap(_, _, _), _} as e) =>
+         Some(Language.IdTagged.rep_id(e))
+       | _ => None
+       }
+     );
+
+let nullary_merge_id_tests = [
+  test_case(
+    "Ap keeps its id when deleting the argument merges `()` (#2410)",
+    `Quick,
+    () => {
+      let z = mk("f(x)¦") @ mv_l(1) |> perform(Zipper.init());
+      let before = first_ap_rep_id(z);
+      let z = perform(z, [Action.Destruct(Left)]);
+      let after = first_ap_rep_id(z);
+      check(
+        testable(Fmt.string, String.equal),
+        "textual result",
+        "f(¦)",
+        printer(z),
+      );
+      check(bool, "ap term found before edit", true, before != None);
+      check(bool, "ap term found after edit", true, after != None);
+      check(bool, "ap id preserved across merge", true, before == after);
+    },
+  ),
+];
+
 let tests = [
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
@@ -4949,4 +4986,5 @@ let tests = [
   ("Editing.CrossBoundary", cross_boundary_tests),
   ("Editing.InnerDestruct", inner_destruct_tests),
   ("Editing.Grapheme", grapheme_tests),
+  ("Editing.NullaryMergeId", nullary_merge_id_tests),
 ];
