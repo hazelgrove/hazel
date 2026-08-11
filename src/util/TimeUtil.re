@@ -1,17 +1,3 @@
-let print_time_prefix =
-    (name: string, start_time: float, end_time: float): unit => {
-  Printf.printf(
-    "%-32s%4.0fms",
-    name ++ ":",
-    1000.0 *. (end_time -. start_time),
-  );
-};
-
-let print_time = (name: string, start_time: float, end_time: float): unit => {
-  print_time_prefix(name, start_time, end_time);
-  Printf.printf("\n%!");
-};
-
 let format_time_diff = (prior: float): string => {
   let now = JsUtil.timestamp();
   let diff_seconds = (now -. prior) /. 1000.0;

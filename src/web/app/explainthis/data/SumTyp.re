@@ -22,17 +22,6 @@ let labelled_sum_typ: form = {
     examples: [],
   };
 };
-let sum_typ_unary_constructor_def = (c: string): form => {
-  let explanation = "This specifies one possible way of constructing the parent sum type, when applied to a parameter of the specified parameter type.";
-  {
-    id: SumTypUnaryConstructorDef,
-    syntactic_form: [c ++ "(Type)" |> abbreviate |> typ],
-    colorings: [],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
-};
 
 let sum_typ_nullary_constructor_def = (c: string): form => {
   let explanation = "This specifies one possible way of constructing the parent sum type.";
