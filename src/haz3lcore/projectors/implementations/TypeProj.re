@@ -35,7 +35,7 @@ module M: Projector = {
     | ToggleDisplay;
 
   let init = (any: Any.t, _) => {
-    let none_seg: option(Base.segment) = None;
+    let none_seg: option(ProjectorBase.init_override) = None;
     switch (any) {
     | Exp(_)
     | Pat(_) => Some((Expected, none_seg))
