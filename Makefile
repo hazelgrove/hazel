@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci dead-code dead-code-json dead-code-summary clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt rei watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci dead-code dead-code-json dead-code-summary clean setup-zarith
 
 all: dev
 
@@ -44,6 +44,14 @@ dev-student: setup-student dev-helper
 
 fmt:
 	dune fmt --auto-promote
+
+# Generate a starter interface for a module, from the signature the compiler
+# already inferred: make rei FILE=src/util/Tree.re
+# A .rei is what makes warning 32 (unused value) work for that module -- see
+# scripts/gen_rei.sh for what to trim by hand afterwards.
+rei:
+	@test -n "$(FILE)" || (echo "usage: make rei FILE=src/util/Tree.re" && exit 1)
+	@scripts/gen_rei.sh $(FILE)
 
 watch: setup-instructor setup-zarith
 	dune build @ocaml-index @src/fmt --auto-promote src --profile dev --watch
