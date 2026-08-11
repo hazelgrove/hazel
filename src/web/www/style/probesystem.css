@@ -303,10 +303,6 @@ body:not(:has(.live-offside:focus))
   /* z-index: 2; */
 }
 
-#probe-sidebar .indicated-call.not-in-stack {
-  padding-bottom: 0.25em;
-}
-
 .probe-entry > .code {
   background-color: var(--T2);
   padding: 0 0.4em;
@@ -506,30 +502,6 @@ body:not(:has(.live-offside:focus))
   align-items: center;
 }
 
-/* Click-then-key pill: pointer icon (outline) joined to kbd badge (filled) */
-#probe-sidebar .click-kbd-pill {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-  font-size: 0.78em;
-  line-height: 1.4;
-}
-
-#probe-sidebar .click-kbd-pill .click-part {
-  padding: 1px 3px;
-  outline: 1px solid var(--BR1);
-  border-radius: 3px 0 0 3px;
-  color: var(--BR2);
-  font-size: 0.85em;
-}
-
-#probe-sidebar .click-kbd-pill .kbd-part {
-  padding: 1px 4px;
-  background: var(--BR1);
-  color: var(--BR3);
-  border-radius: 0 3px 3px 0;
-}
-
 #probe-sidebar .panel.prints .body {
   user-select: text;
   cursor: text;
@@ -601,13 +573,6 @@ body:not(:has(.live-offside:focus))
 
 #probe-sidebar .run-button:active {
   background-color: var(--Y3);
-}
-
-#probe-sidebar .panel.window-toggle {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5em;
 }
 
 /* Log Sidebar Styles */
