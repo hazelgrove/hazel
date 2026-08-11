@@ -25,7 +25,7 @@ let qcheck_explainthis_does_not_crash =
   QCheck.Test.make(
     ~name="ExplainThis.decide does not crash",
     ~count=1000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 12),
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
     /* Statics failures are out of scope; we only assert that ExplainThis
        itself does not raise for any sub-term it is asked to document. The
@@ -757,10 +757,38 @@ let golden_case = ((name, src)) =>
     },
   );
 
+/* PBT ExplainThis 0: `let 0 = _ in []`. The let/fun SInt-literal-pattern doc
+   templates used `%s` for the value while the doc formats it with `%d`, so
+   Scanf.format_from_string raised at runtime. */
+let get_all_docs = uexp => {
+  let info_map = statics(uexp);
+  Id.Map.iter(
+    (_id, info: Info.t) => {
+      let _ = ET.decide(~docs, Some(info));
+      ();
+    },
+    info_map,
+  );
+};
+
+let repro_sint_pattern_docs =
+  Alcotest.test_case(
+    "REPRO SInt literal pattern docs do not crash",
+    `Quick,
+    () => {
+      open IdTagged.FreshGrammar;
+      get_all_docs(
+        Exp.let_(Pat.sint(0), Exp.empty_hole(), Exp.list_lit([])),
+      );
+      get_all_docs(Exp.fn(Pat.sint(0), Exp.list_lit([]), None, None));
+    },
+  );
+
 let tests = (
   "ExplainThis",
   [
     QCheck_alcotest.to_alcotest(qcheck_explainthis_does_not_crash),
+    repro_sint_pattern_docs,
     Alcotest.test_case("negation labels re-kind by class", `Quick, () =>
       negation_labels()
     ),
