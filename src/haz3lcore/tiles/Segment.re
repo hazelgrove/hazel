@@ -1262,6 +1262,26 @@ let sameline_secondary =
     | _ => false,
   );
 
+/* Split a segment at top-level comma tiles: the groups between commas
+ * alternating with the comma pieces themselves (a segment with no
+ * commas yields a single group; an empty segment yields one empty
+ * group). Comma pieces are preserved so callers can reassemble the
+ * segment without disturbing piece ids. */
+let split_at_commas = (seg: t): Aba.t(t, Base.piece) =>
+  List.fold_right(
+    (p: Base.piece, acc) =>
+      switch (p) {
+      | Tile({label: [","], _}) => Aba.cons([], p, acc)
+      | _ => Aba.map_hd(g => [p, ...g], acc)
+      },
+    seg,
+    Aba.singleton([]),
+  );
+
+/* Drop leading and trailing secondary (whitespace/comment) pieces. */
+let trim_outer_secondary = (seg: t): t =>
+  seg |> trim_secondary(Left) |> trim_secondary(Right);
+
 let rec holes = (segment: t): list(Grout.t) =>
   List.concat_map(
     fun

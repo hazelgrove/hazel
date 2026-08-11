@@ -4941,10 +4941,10 @@ let parse_segment_exn = (s: string): Segment.t =>
   | None => Alcotest.fail("Failed to parse segment: " ++ s)
   };
 
-let mk_splice_projector_zipper =
-    (items: list(string)): (Zipper.t, list(Id.t)) => {
-  let splice_pieces =
-    List.map(item => Piece.mk_splice(parse_segment_exn(item)), items);
+let mk_splice_projector_piece =
+    (~kind=ProjectorCore.Kind.Fold, ~model=?, item_segs: list(Segment.t))
+    : (Piece.t, list(Id.t)) => {
+  let splice_pieces = List.map(seg => Piece.mk_splice(seg), item_segs);
   let splice_ids =
     List.map(
       fun
@@ -4962,20 +4962,30 @@ let mk_splice_projector_zipper =
   let list_piece =
     Piece.mk_tile(Form.get(ListLitExp), [interleave(splice_pieces)]);
   let model =
-    FoldProj.sexp_of_t({
-      text: "test",
-      expanded: false,
-      always_render: true,
-    })
-    |> Sexplib.Sexp.to_string;
-  let projector =
-    ProjectorCore.mk(
-      ~id=Id.mk(),
-      ProjectorCore.Kind.Fold,
-      [list_piece],
-      model,
+    switch (model) {
+    | Some(m) => m
+    | None =>
+      FoldProj.sexp_of_t({
+        text: "test",
+        expanded: false,
+        always_render: true,
+      })
+      |> Sexplib.Sexp.to_string
+    };
+  let projector = ProjectorCore.mk(~id=Id.mk(), kind, [list_piece], model);
+  (Piece.Projector(projector), splice_ids);
+};
+
+let mk_splice_projector_zipper =
+    (~kind=ProjectorCore.Kind.Fold, ~model=?, items: list(string))
+    : (Zipper.t, list(Id.t)) => {
+  let (piece, splice_ids) =
+    mk_splice_projector_piece(
+      ~kind,
+      ~model?,
+      List.map(parse_segment_exn, items),
     );
-  (Zipper.unzip([Piece.Projector(projector)]), splice_ids);
+  (Zipper.unzip([piece]), splice_ids);
 };
 
 let splices_of = (z: Zipper.t): list(Base.splice) =>
@@ -5168,6 +5178,260 @@ let splice_tests = [
         "1023",
         splice_text(z, 0),
       );
+    },
+  ),
+  test_case(
+    "arrow right enters a projector's first splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z = perform(z, [Move(Start), Move(Local(Right, ByChar))]);
+      check_in_splice(
+        ~name="caret in first splice",
+        List.nth(splice_ids, 0),
+        z,
+      );
+    },
+  ),
+  test_case(
+    "arrow left enters a projector's last splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z = perform(z, [Move(End), Move(Local(Left, ByChar))]);
+      check_in_splice(
+        ~name="caret in last splice",
+        List.nth(splice_ids, 2),
+        z,
+      );
+    },
+  ),
+  test_case(
+    "arrow down moves through splice rows and exits below",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Move(Vertical(Down, ByChar)),
+          ],
+        );
+      check_in_splice(
+        ~name="caret in second splice",
+        List.nth(splice_ids, 1),
+        z,
+      );
+      let z = perform(z, [Move(Vertical(Down, ByChar))]);
+      check_in_splice(
+        ~name="caret in third splice",
+        List.nth(splice_ids, 2),
+        z,
+      );
+      let z = perform(z, [Move(Vertical(Down, ByChar))]);
+      Alcotest.check(
+        Alcotest.bool,
+        "caret exited below the projector",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+    },
+  ),
+  test_case(
+    "arrow up moves to the row above and exits at the top",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Move(Vertical(Up, ByChar)),
+          ],
+        );
+      check_in_splice(
+        ~name="caret in first splice",
+        List.nth(splice_ids, 0),
+        z,
+      );
+      let z = perform(z, [Move(Vertical(Up, ByChar))]);
+      Alcotest.check(
+        Alcotest.bool,
+        "caret exited above the projector",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+    },
+  ),
+  test_case(
+    "arrow right at a splice edge moves to the next splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Move(Local(Right, ByChar)),
+          ],
+        );
+      check_in_splice(
+        ~name="caret in second splice",
+        List.nth(splice_ids, 1),
+        z,
+      );
+    },
+  ),
+  test_case(
+    "arrow right at the last splice edge exits the projector",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 2),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Move(Local(Right, ByChar)),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "caret left the projector",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+    },
+  ),
+  test_case(
+    "arrow left at the first splice edge exits the projector",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+              ),
+            ),
+            Move(Local(Left, ByChar)),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "caret left the projector",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+    },
+  ),
+  test_case(
+    "a main-frame point click exits the splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Move(
+              Point(
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+                None,
+              ),
+            ),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "caret left the splice",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+    },
+  ),
+  test_case(
+    "main measured covers splice interiors",
+    `Quick,
+    () => {
+      /* The app consults the main editor's measured with the caret
+       * inside a splice (col targets, probe placement, etc.) — splice
+       * interiors inside tile children must be merged into it, or
+       * Caret.point raises find_p. */
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      let syntax = CachedSyntax.init(z);
+      let _: Point.t = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
+      ();
     },
   ),
   test_case(

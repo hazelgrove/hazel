@@ -49,7 +49,7 @@ let init =
     let* elab_exp =
       Language.Exp.find_by_id(Language.Exp.rep_id(exp), elaborated);
     let+ (model_str, override) = P.init(Exp(elab_exp), seg);
-    let syntax = Option.value(override, ~default=seg);
+    let syntax = ProjectorInit.resolve_override(seg, override);
     Base.Projector(ProjectorCore.mk(kind, syntax, model_str));
   | (None, _) => None
   };
@@ -113,6 +113,21 @@ let term_to_segment =
     ~original_syntax,
     ~preserve_splices,
     term,
+  );
+
+/* Wire up the cyclic-dependency injection points (see the comments at
+ * the registries for why they exist). This module sits above both
+ * ExpToSegment and ProjectorInit, so it can hand each the pieces of
+ * the other it needs. Runs as a module-initialization side effect at
+ * program startup. */
+ExpToSegment.ProjectorHooks.register({
+  init_or_noop: ProjectorInit.init_or_noop,
+  init_or_noop_from_str: ProjectorInit.init_or_noop_from_str,
+});
+ProjectorInit.term_printer :=
+  (
+    (~original_syntax, term) =>
+      term_to_segment(~original_syntax, ~preserve_splices=true, term)
   );
 
 let update_piece =

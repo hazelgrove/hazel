@@ -321,7 +321,27 @@ let of_segment_inner =
 
   let indent_level =
     Id.Map.is_empty(indent_level) && !is_single_line
-      ? Indentation.level_map(seg) : indent_level;
+      ? {
+        /* Indentation is per-frame: a splice's content renders in its
+         * own sub-editor starting at column 0, so each splice in the
+         * segment (including ones nested in projector syntax)
+         * contributes the level map of its own content — without
+         * this, [measure_splice] would treat interior linebreaks as
+         * plain-width secondaries and measure multi-line splice
+         * contents single-line. Ids are globally unique, so a plain
+         * union is safe. */
+        Segment.splices(seg)
+        |> List.fold_left(
+             (map, s: Base.splice) =>
+               Id.Map.union(
+                 (_, a, _) => Some(a),
+                 map,
+                 Indentation.level_map(s.content),
+               ),
+             Indentation.level_map(seg),
+           );
+      }
+      : indent_level;
 
   let indent_of_linebreak = (w: Secondary.t): option(int) =>
     Secondary.is_linebreak(w) ? Id.Map.find_opt(w.id, indent_level) : None;
@@ -469,7 +489,22 @@ let of_segment_inner =
     let (_, _, last, inner) =
       go(~top_level=false, ([], 0, Point.zero, empty), s.content);
     let outer = merge_inner(inner, outer);
-    add_splice_info(s, {size: last}, outer);
+    /* The intrinsic size is the content's bounding box: [last] alone
+     * would report the END POINT (the last line's width), understating
+     * multi-line content whose longest line is not its last. The inner
+     * rows map has each linebreak-terminated line's end column; the
+     * final line has no linebreak, so [last.col] covers it. */
+    let size =
+      Point.{
+        row: last.row,
+        col:
+          List.fold_left(
+            (acc, (_, shape: Rows.shape)) => max(acc, shape.max_col),
+            last.col,
+            Rows.bindings(inner.rows),
+          ),
+      };
+    add_splice_info(s, {size: size}, outer);
   }
   /* Scan a projector's syntax for Splice children and measure each.
    * Splices may sit inside tile children (e.g. a list literal whose
@@ -540,12 +575,16 @@ let segment_bbox =
   switch (rows) {
   | [] => Point.zero
   | _ =>
+    /* Bounding box: the widest of ALL rows, not the last row's width —
+     * a multi-line segment ending in a short line is still as wide as
+     * its longest line. */
     let max_row = List.fold_left((r, (k, _)) => max(r, k), 0, rows);
     let col =
-      switch (Rows.find_opt(max_row, m.rows)) {
-      | Some(shape) => shape.max_col
-      | None => 0
-      };
+      List.fold_left(
+        (acc, (_, shape: Rows.shape)) => max(acc, shape.max_col),
+        0,
+        rows,
+      );
     {
       row: max_row,
       col,

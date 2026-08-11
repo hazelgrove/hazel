@@ -108,6 +108,17 @@ type info = {
 /* A projector-reported error, e.g. "can't render as table" */
 type error = {message: string};
 
+/* A replacement for the projector's underlying syntax, returned by
+ * [init]. Projectors that transform their syntax at projection time
+ * should prefer [Term]: provide the desired term (e.g. list items
+ * wrapped in splices) and the framework prints it to a segment,
+ * exactly as SetTerm does for later edits. [Syntax] is the escape
+ * hatch for projectors that need piece-level control. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type init_override =
+  | Term(Any.t)
+  | Syntax(Base.segment);
+
 module View = {
   /* A projector has an inline view, which replaces the underlying
    * syntax. Optionally, it may have an overlay view, which is shown
@@ -215,15 +226,16 @@ module type Projector = {
   /* Init should return None if the projector doesn't want
    * to handle the provided term. Otherwise, it should
    * return the desired initial state of the model, along with
-   * an optional replacement syntax. [init] receives the original
-   * [Base.segment] the user selected (in addition to the parsed
-   * term); when [Some(seg)] is returned as the second component,
-   * the projector's stored syntax is set to [seg] instead of the
-   * selected segment. This lets projectors transform their
-   * underlying syntax at init time (e.g. to wrap list items in
-   * splices). Return [None] for the second component to keep the
-   * selected syntax unchanged. */
-  let init: (Any.t, Base.segment) => option((model, option(Base.segment)));
+   * an optional replacement for the underlying syntax. [init]
+   * receives the original [Base.segment] the user selected (in
+   * addition to the parsed term). When the second component is
+   * [Some(Term(t))], the framework prints [t] and stores the result
+   * as the projector's syntax (the same path SetTerm uses); this is
+   * the preferred way to transform the underlying syntax at init
+   * time (e.g. to wrap list items in splices). [Some(Syntax(seg))]
+   * installs [seg] directly for projectors that need piece-level
+   * control. Return [None] to keep the selected syntax unchanged. */
+  let init: (Any.t, Base.segment) => option((model, option(init_override)));
   /* Does this projector have some notion of internal
    * positions, whose handling should override the editor
    * caret & keyboard handlers? If so, provide handlers

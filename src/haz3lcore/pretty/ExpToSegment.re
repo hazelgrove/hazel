@@ -1160,13 +1160,39 @@ let concat_segment =
 let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
   concat_segment(~secondary=AutoFormat, seg1, seg2);
 
+/* Projector-construction hooks, injected by ProjectorInit at module
+ * initialization. ExpToSegment needs to construct projectors (folds,
+ * tables) while printing, but ProjectorInit needs ExpToSegment to print
+ * term-level init overrides, so ExpToSegment cannot depend on
+ * ProjectorInit directly. If the hooks are unregistered, projector
+ * construction degrades to a no-op (the plain syntax is used). */
+module ProjectorHooks = {
+  type t = {
+    init_or_noop: (ProjectorCore.Kind.t, Base.segment, Any.t) => Base.segment,
+    init_or_noop_from_str:
+      (ProjectorCore.Kind.t, Base.segment, Any.t, string) => Base.segment,
+  };
+  let registered: ref(option(t)) = ref(None);
+  let register = (hooks: t): unit => registered := Some(hooks);
+  let init_or_noop = (kind, seg, any) =>
+    switch (registered^) {
+    | Some(hooks) => hooks.init_or_noop(kind, seg, any)
+    | None => seg
+    };
+  let init_or_noop_from_str = (kind, seg, any, str) =>
+    switch (registered^) {
+    | Some(hooks) => hooks.init_or_noop_from_str(kind, seg, any, str)
+    | None => seg
+    };
+};
+
 let fold_if = (condition, pieces) =>
   if (condition) {
     let wrapped =
       mk_form(~secondary=AutoFormat, ParensExp, Id.mk(), [pieces]);
     switch (MakeTerm.for_projection([wrapped])) {
     | None => failwith("ExpToSegment.fold_if")
-    | Some(any) => ProjectorInit.init_or_noop(Fold, pieces, any)
+    | Some(any) => ProjectorHooks.init_or_noop(Fold, pieces, any)
     };
   } else {
     pieces;
@@ -1182,7 +1208,7 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
         always_render: true,
       })
       |> Sexplib.Sexp.to_string;
-    ProjectorInit.init_or_noop_from_str(Fold, pieces, Exp(exp), str);
+    ProjectorHooks.init_or_noop_from_str(Fold, pieces, Exp(exp), str);
   | `Text =>
     let name =
       if (String.length(f_name) >= 2) {
@@ -1205,7 +1231,7 @@ let project_table_if = (should_project, pieces) =>
   if (should_project) {
     switch (MakeTerm.for_projection([pieces])) {
     | None => [pieces]
-    | Some(any) => ProjectorInit.init_or_noop(Table, [pieces], any)
+    | Some(any) => ProjectorHooks.init_or_noop(Table, [pieces], any)
     };
   } else {
     [pieces];

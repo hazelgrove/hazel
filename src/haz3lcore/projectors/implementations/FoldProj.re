@@ -30,7 +30,8 @@ module M: Projector = {
   type action =
     | Toggle;
 
-  let init = (_, _) => Some((default, None: option(Base.segment)));
+  let init = (_, _) =>
+    Some((default, None: option(ProjectorBase.init_override)));
 
   let focusable = Focusable.non;
   let dynamics = false;
