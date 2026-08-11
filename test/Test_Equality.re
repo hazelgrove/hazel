@@ -21,6 +21,45 @@ let tests = (
       },
     ),
     test_case(
+      "duplicate binder alpha (Ap pat)",
+      `Quick,
+      () => {
+        /* forall x(x) -> x  ≈  forall x(x') -> x'  (later binder wins) */
+        let e1 =
+          Exp.forall(Pat.ap(Pat.var("x"), Pat.var("x")), Exp.var("x"));
+        let e2 =
+          Exp.forall(Pat.ap(Pat.var("x"), Pat.var("x'")), Exp.var("x'"));
+        check(
+          bool,
+          "forall x(x) -> x === forall x(x') -> x'",
+          true,
+          Equality.semantic.exp(e1, e2),
+        );
+      },
+    ),
+    test_case(
+      "duplicate binder alpha (tuple pat)",
+      `Quick,
+      () => {
+        let e1 =
+          Exp.forall(
+            Pat.tuple([Pat.var("x"), Pat.var("x")]),
+            Exp.var("x"),
+          );
+        let e2 =
+          Exp.forall(
+            Pat.tuple([Pat.var("x"), Pat.var("x'")]),
+            Exp.var("x'"),
+          );
+        check(
+          bool,
+          "forall (x, x) -> x === forall (x, x') -> x'",
+          true,
+          Equality.semantic.exp(e1, e2),
+        );
+      },
+    ),
+    test_case(
       "forall type inequality",
       `Quick,
       () => {
