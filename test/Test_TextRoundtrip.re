@@ -147,7 +147,7 @@ let arb_exp_roundtrip =
   QCheck.Test.make(
     ~name="TextRoundtrip: parser-canonical exp text round-trips",
     ~count=50,
-    QCheck_Util.arb_exp(~minimal_idents=true, 5),
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
       let text = render_exp_as_text(exp);
       switch (MarkerParse.of_text(~root=Exp, text)) {
