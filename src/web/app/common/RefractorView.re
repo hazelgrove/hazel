@@ -82,6 +82,7 @@ let mk_data =
             ~indicated,
             ~selection_ids,
             ~info,
+            ~statics,
             ~id,
           ),
         statics_map: statics,

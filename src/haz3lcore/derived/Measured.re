@@ -168,6 +168,7 @@ let find_shards = (~msg="", t: Tile.t, map) =>
   try(Id.Map.find(t.id, map.tiles)) {
   | _ => failwith("find_shards: " ++ msg)
   };
+let find_shards_opt = (t: Tile.t, map) => Id.Map.find_opt(t.id, map.tiles);
 let find_w = (~msg="", w: Secondary.t, map): measurement =>
   try(Id.Map.find(w.id, map.secondary)) {
   | _ => failwith("find_w: " ++ msg)

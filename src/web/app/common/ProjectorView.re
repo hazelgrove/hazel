@@ -154,6 +154,38 @@ module Model = {
     + offset
     - measurement.origin.col;
 
+  /* Whether a statics error is anchored in the projector's own hidden
+   * syntax — pieces between its splices, like a table row's comma —
+   * which is rendered as projector chrome rather than laid-out text.
+   * Such errors get no arms anywhere (see Arms.tiles_data), so the
+   * projector chrome reports them. Splice contents report errors in
+   * their own sub-editors, and nested projectors on their own chrome. */
+  let has_hidden_error =
+      (p: Base.projector, statics: Language.Statics.Map.t): bool => {
+    let rec hidden_tile_ids = (seg: Base.segment): list(Id.t) =>
+      List.concat_map(
+        (piece: Base.piece) =>
+          switch (piece) {
+          | Tile(t) => [
+              t.id,
+              ...List.concat_map(hidden_tile_ids, t.children),
+            ]
+          | Splice(_)
+          | Projector(_)
+          | Grout(_)
+          | Secondary(_) => []
+          },
+        seg,
+      );
+    hidden_tile_ids(p.syntax)
+    |> List.exists(id =>
+         switch (Language.Statics.Map.lookup(id, statics)) {
+         | Some(info) => Language.Info.is_error(info)
+         | None => false
+         }
+       );
+  };
+
   let mk_status =
       (
         p: Base.projector,
@@ -161,6 +193,7 @@ module Model = {
         ~indicated: option(Indicated.piece),
         ~selection_ids: list(Id.t),
         ~info: ProjectorBase.info,
+        ~statics: Language.Statics.Map.t,
         ~id: Id.t,
         ~sort: Sort.t,
       )
@@ -168,7 +201,8 @@ module Model = {
     sort,
     error:
       Option.map(Language.Info.is_error, info.statics)
-      |> Option.value(~default=false),
+      |> Option.value(~default=false)
+      || has_hidden_error(p, statics),
     warning:
       Option.map(Language.Info.is_warning, info.statics)
       |> Option.value(~default=false),
@@ -220,6 +254,7 @@ module Model = {
               ~indicated,
               ~selection_ids,
               ~info,
+              ~statics,
               ~id,
             ),
           statics_map: statics,
