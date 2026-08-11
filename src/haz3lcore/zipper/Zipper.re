@@ -796,12 +796,12 @@ let backpack_hd = (z: t): option(Tile.t) =>
   z |> local_backpack |> ListUtil.hd_opt;
 
 let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
-  if (Form.is_ambiguous_polymorph(tok)) {
-    /* Special case for ambiguous polymorphs. These tokens
-       occur both on their own as infix ops and as delimiters of
-       multi-delimiter forms. To give the singleton form a chance, we
-       only match these to incomplete tiles to form their multi forms
-       when they're on the top of the stack */
+  if (Form.is_ambiguous_polymorph(tok) || Form.Expansion.is_leading(tok)) {
+    /* Ambiguous polymorphs (`|`) and leading expanders (`test`) also appear
+       as non-leading shards of other incomplete forms, and a deep backpack
+       match steals them during LTR insert — nested `test…end` inside
+       `hint _ test _ end` would complete HintedTest instead of expanding
+       Test. Only match at the top of the stack. */
     backpack_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
       ? backpack_hd(z) : None;
   } else {

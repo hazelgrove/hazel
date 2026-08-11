@@ -246,6 +246,9 @@ let tests =
       test_case("Dot projection with Quoted label", `Quick, () =>
         exp_check(dot(empty_hole(), label("a")), "? . `a`")
       ),
+      test_case("Dot projection peels parens around label", `Quick, () =>
+        exp_check(dot(undefined(), label("l")), "undefined . ((`l`))")
+      ),
       test_case("Scientific notation floating point", `Quick, () =>
         exp_check(float(1.2e30), "1.2e30")
       ),
@@ -391,5 +394,28 @@ let tests =
       test_case("Module with bare expression", `Quick, () =>
         exp_check(module_([Mod.mod_exp(int(42))]), {|{ 42 }|})
       ),
+      /* Invalid tokens: fixed junk examples (not a full invalid-string grammar).
+         Print Invalid(s) as bare `s`; MakeTerm rebuilds Invalid(s). */
+      ...List.map(
+           (tok: string) =>
+             test_case(
+               "Invalid token: " ++ tok,
+               `Quick,
+               () => {
+                 exp_check(invalid(tok), tok);
+                 /* Term → text → term keeps the same invalid payload. */
+                 let printed =
+                   Haz3lcore.(
+                     ExpToSegment.exp_to_segment(
+                       ~settings=ExpToSegment.Settings.editable(~inline=true),
+                       invalid(tok),
+                     )
+                     |> Printer.of_segment(~holes="?", _)
+                   );
+                 exp_check(invalid(tok), printed);
+               },
+             ),
+           MenhirParser.AST.invalid_token_examples,
+         ),
     ],
   );

@@ -224,7 +224,8 @@ module rec Exp: {
     | LivelitName(l) => livelit_name(String.sub(l, 1, String.length(l) - 1))
     | Constructor(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
-    | Deferral => deferral(InAp)
+    /* Bare `_` is OutsideAp in MakeTerm; InAp is only for kids of DeferredAp. */
+    | Deferral => deferral(OutsideAp)
     | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
     | ParenExp(TupleExp([TupLabel(_) as tl])) =>
       parens(tuple([of_menhir_ast(tl)]))
@@ -242,13 +243,24 @@ module rec Exp: {
     | ExplicitNonlabel => explicit_non_label()
     | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
     | Dot(e1, e2) =>
-      switch (e2) {
+      /* Peel parens and singleton tuples before classifying the field tip,
+         as MakeTerm's exp_unparens does: otherwise `x.(y)` falls through to
+         MultiHole where MakeTerm reads a field access. */
+      let rec peel_dot_rhs = (e: AST.exp): AST.exp =>
+        switch (e) {
+        | ParenExp(inner)
+        | TupleExp([inner])
+        | IndicationExp(inner) => peel_dot_rhs(inner)
+        | _ => e
+        };
+      switch (peel_dot_rhs(e2)) {
       | Var(s)
       | Label(s)
       | Constructor(s, None) => dot(of_menhir_ast(e1), label(s))
       | EmptyHole => dot(of_menhir_ast(e1), empty_hole())
-      | _ => dot(of_menhir_ast(e1), multi_hole([Exp(of_menhir_ast(e2))]))
-      }
+      | e2' =>
+        dot(of_menhir_ast(e1), multi_hole([Exp(of_menhir_ast(e2'))]))
+      };
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | Theorem(p, e1, e2) =>
@@ -277,24 +289,30 @@ module rec Exp: {
       /* e1 |> e2 reads as applying e2 to e1 (MakeTerm: Ap(Reverse, r, l)) */
       ap(Language.Operators.Reverse, of_menhir_ast(e2), of_menhir_ast(e1))
     | ApExp(e1, args) =>
+      /* A bare `_` argument, or `_` as a tuple field, is a DeferredAp.
+         `f((_))` is not: MakeTerm does not peel parens in Exp.is_deferral. */
+      let of_ap_arg = (a: AST.exp): IndicatedG.exp =>
+        switch (a) {
+        | Deferral => deferral(InAp)
+        | _ => of_menhir_ast(a)
+        };
       switch (args) {
-      | TupleExp(l) =>
-        List.mem(AST.Deferral, l)
-          ? deferred_ap(of_menhir_ast(e1), List.map(of_menhir_ast, l))
-          : ap(
-              Language.Operators.Forward,
-              of_menhir_ast(e1),
-              of_menhir_ast(args),
-            )
-      | Deferral => deferred_ap(of_menhir_ast(e1), [args |> of_menhir_ast])
-
+      | Deferral => deferred_ap(of_menhir_ast(e1), [deferral(InAp)])
+      | TupleExp([Deferral]) =>
+        ap(
+          Language.Operators.Forward,
+          of_menhir_ast(e1),
+          of_menhir_ast(args),
+        )
+      | TupleExp(l) when List.mem(AST.Deferral, l) =>
+        deferred_ap(of_menhir_ast(e1), List.map(of_ap_arg, l))
       | _ =>
         ap(
           Language.Operators.Forward,
           of_menhir_ast(e1),
           of_menhir_ast(args),
         )
-      }
+      };
     | BinExp(e1, op, e2) =>
       bin_op(
         Operators.of_menhir_ast(op),
@@ -361,7 +379,10 @@ module rec Exp: {
 
   let rec of_core = (exp: IndicatedG.exp): AST.exp => {
     switch (exp.term) {
-    | Invalid(_) => InvalidExp("Invalid")
+    /* Keep the payload — the printer emits it verbatim. A fixed string here
+       silently rewrote the term, so shrinking (which reaches this via `~rev`)
+       turned counterexamples into different programs. */
+    | Invalid(s) => InvalidExp(s)
     | Atom(c) => Atom(c)
     | Var(x) => Var(x)
     | LivelitName(s) => LivelitName("^" ++ s)
@@ -488,14 +509,23 @@ and Typ: {
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
+    /* MakeTerm turns `.ident` into Label; Menhir parses ident as TypVar. Peel
+       parens so `.(i)` becomes Label too. */
     | ProdProjection(t1, t2) =>
-      let t2 =
-        switch (t2) {
-        | TypVar(s) => label(s)
-        | LabelType(s) => label(s)
-        | _ => of_menhir_ast(t2)
+      let rec proj_field = (t: AST.typ): option(string) =>
+        switch (t) {
+        | TypVar(name)
+        | LabelType(name) => Some(name)
+        /* ParenTyp for the same reason as ParenExp on the `.` tip above. */
+        | ParenTyp(inner)
+        | TupleType([inner])
+        | IndicationTyp(inner) => proj_field(inner)
+        | _ => None
         };
-      prod_projection(of_menhir_ast(t1), t2);
+      switch (proj_field(t2)) {
+      | Some(name) => prod_projection(of_menhir_ast(t1), label(name))
+      | None => prod_projection(of_menhir_ast(t1), of_menhir_ast(t2))
+      };
     | ProdExtension(t1, t2) =>
       prod_extension(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
@@ -632,7 +662,8 @@ and Pat: {
   };
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {
     switch (pat.term) {
-    | Invalid(_) => InvalidPat("Invalid")
+    /* Keep the payload — see Exp.of_core's Invalid case. */
+    | Invalid(s) => InvalidPat(s)
     | Atom(c) => AtomPat(c)
     | Var(x) => VarPat(x)
     | Constructor(x, ty) =>
@@ -664,6 +695,11 @@ and ModItem: {
       mod_let(Pat.of_menhir_ast(p), Exp.of_menhir_ast(e))
     | ModItemType(tp, t) =>
       mod_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
+    /* MakeTerm parses a bare `?` module item as Mod.EmptyHole, not ModExp(?). */
+    | ModItemExp(EmptyHole) => empty_hole()
+    /* Face/invalid tiles in mod position: keep as Mod.Invalid (not ModExp),
+       matching MakeTerm after it stopped collapsing them to EmptyHole. */
+    | ModItemExp(InvalidExp(s)) => invalid(s)
     | ModItemExp(e) => mod_exp(Exp.of_menhir_ast(e))
     | ModItemModule(p, e) =>
       let mp = mpat_of_pat(Pat.of_menhir_ast(p));
@@ -678,7 +714,7 @@ and ModItem: {
     | ModExp(e) => ModItemExp(Exp.of_core(e))
     | ModuleMod(mp, e) =>
       ModItemModule(Exp.pat_of_mpat(mp), Exp.of_core(e))
-    | Invalid(_)
+    | Invalid(s) => ModItemExp(InvalidExp(s))
     | EmptyHole
     | MultiHole(_) => ModItemExp(EmptyHole)
     };

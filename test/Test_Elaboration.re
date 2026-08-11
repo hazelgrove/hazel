@@ -1045,7 +1045,7 @@ module MenhirElaborationTests = {
       dynamic_error_hole_uexp,
     );
 
-  let undef_str = "undef";
+  let undef_str = "undefined";
   let undef_uexp: Exp.t = Exp.undefined();
   let undef_menhir = () =>
     alco_check_menhir("Undef test (menhir)", undef_str, undef_uexp);
@@ -1068,7 +1068,7 @@ module MenhirElaborationTests = {
     alco_check_menhir("Filter test (menhir)", filter_str, filter_uexp);
 
   let undefined_str = "
-undef
+undefined
 ";
   let undefined_uexp: Exp.t = Exp.undefined();
   let undefined_menhir = () =>

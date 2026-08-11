@@ -35,6 +35,7 @@ let (suite, _) =
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
+      Test_Canonicalize.tests,
       Test_Substitution.tests,
     ]
     @ Test_WorkerServer.tests

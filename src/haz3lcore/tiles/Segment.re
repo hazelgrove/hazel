@@ -539,7 +539,11 @@ and remold_rul = (shape, seg: t): t =>
         let (remolded, shape, rest) =
           remold_exp_uni(shape, [hd, ...tl], []);
         switch (remolded) {
-        | [] => [Piece.Tile(t), ...remold_rul(shape, tl)]
+        | [] =>
+          /* Keep the unremoldable tile and continue from its right nib:
+             the incoming shape made `()` after an operand mold as Parens
+             rather than Ap. */
+          [Piece.Tile(t), ...remold_rul(snd(Tile.shapes(t)), tl)]
         | [_, ..._] => remolded @ remold_rul(shape, rest)
         };
       }

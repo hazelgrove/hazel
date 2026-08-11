@@ -1,5 +1,26 @@
 %{
 open AST
+
+(* Match MakeTerm.parse_sum_term: a bare type variable in sum position is a
+   Variant, every other typ a BadEntry. (Header must be OCaml.) *)
+let sumterm_of_typ (t : typ) : sumterm =
+  match t with
+  | TypVar name -> Variant (name, None)
+  | t -> BadEntry t
+
+(* `+ A + B`: since sumTerm derives typ, the tail can reduce to a whole SumTyp
+   that sumterm_of_typ wraps as one BadEntry, giving Sum([BadEntry(Sum …)])
+   where MakeTerm has a flat Sum. A genuine parenthesized inner sum is a
+   ParenTyp, so it is left alone. *)
+let splice_sumterm (s : sumterm) : sumtype =
+  match s with
+  | BadEntry (SumTyp inner) -> inner
+  | s -> [s]
+
+(* Entries anywhere in a sum list can carry a nested SumTyp, not just the
+   heads: in `+A +B +C(Int)` the tail reduces to one sumTerm. *)
+let flatten_sumterms (l : sumterm list) : sumtype =
+  List.concat_map splice_sumterm l
 %}
 
 
@@ -13,6 +34,10 @@ open AST
 %token POLY
 %token REC
 %token UNDEF
+%token THEOREM
+%token FORALL
+%token PROOF_OBJECT
+%token PROOF_OF
 %token <string> PROJECTOR_INVOKE
 %token <string> LIVELIT_IDENT
 %token MOD_SEMI
@@ -34,6 +59,8 @@ open AST
 %token <string> CONSTRUCTOR_IDENT
 %token <string> STRING
 %token <string> QUOTED_LABEL
+/* Face-shaped invalid tiles from Lexer.invalid_face / AST.invalid_token_examples */
+%token <string> INVALID
 %token TRUE 
 %token FALSE
 %token <Bigint.t> INT
@@ -126,6 +153,13 @@ open AST
 /* Structural mixfix forms - loosest binding (bodies include flat sequences) */
 %nonassoc LET_EXP
 %right SUM_TYP
+/* AscPat uses ASC_PREC so type-level `->` / `...` shift instead of closing
+   the ascription early. The COLON *token* is declared later, tighter than
+   binops, so `a ++ b:T` still attaches to `b`. */
+%nonassoc ASC_PREC
+/* Type-level `...` is stratified above typ_inner so it stays looser than `->`
+   (Precedence: ProdExtension=ap, Arrow=type_arrow). %prec cannot express it:
+   TUPLE_EXTENSION also carries exp-level PLUS precedence. */
 %right DASH_ARROW
 %nonassoc IF_EXP
 
@@ -150,10 +184,8 @@ open AST
 
 %right POWER POWER_FLOAT
 %nonassoc UMINUS   /* Unary minus (prefix) */
+/* COLON token: tighter than binops so `a ++ b:T` ⇒ `a ++ (b:T)`. */
 %left COLON
-
-
-
 %nonassoc TYP_AP_SYMBOL
 
 %left OPEN_PAREN CLOSE_PAREN
@@ -237,21 +269,35 @@ tupTypeEntry:
 
 
 %inline sumTerm:
+    /* Applied constructors must stay explicit — `A(T)` is not a Menhir typ. */
     | i = CONSTRUCTOR_IDENT; OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN  { Variant(i, Some(TupleType(hd :: types))) }
     | i = CONSTRUCTOR_IDENT; OPEN_PAREN; t = typ; CLOSE_PAREN;  { Variant(i, Some(t)) }
-    | i = CONSTRUCTOR_IDENT { Variant(i, None) }
-    | QUESTION { BadEntry(UnknownType(EmptyHole)) }
+    /* Bare typ: TypVar → Variant (incl. CONSTRUCTOR_IDENT / IDENT); else BadEntry.
+       Covers `+?`, `+(())`, `+Int`, etc. the way MakeTerm does. */
+    | t = typ { sumterm_of_typ t }
 
+
+(* Head of a no-lead sum: only constructor forms, applied or not. *)
+noLeadSumHead:
+    | c = CONSTRUCTOR_IDENT { Variant(c, None) }
+    | c = CONSTRUCTOR_IDENT; OPEN_PAREN; t = typ; CLOSE_PAREN { Variant(c, Some(t)) }
+    | c = CONSTRUCTOR_IDENT; OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN { Variant(c, Some(TupleType(hd :: types))) }
 
 // We don't support sum types without the leading plus in the parser syntax
 sumTyp:
-    | PLUS; s = sumTerm; { [s] } %prec SUM_TYP
-    | PLUS; s = sumTerm; t = sumTyp { [s] @ t } 
+    | PLUS; s = sumTerm; { splice_sumterm s } %prec SUM_TYP
+    | PLUS; s = sumTerm; t = sumTyp { splice_sumterm s @ flatten_sumterms t } 
     
+/* Outer typ: ProdExtension (`...`) looser than arrow/projection/sum. */
 typ:
+    | t1 = typ_inner; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) }
+    | t = typ_inner { t }
+
+typ_inner:
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
     | c = IDENT { TypVar(c) }
     | T_TYP; s = STRING { InvalidTyp(s) }
+    | s = INVALID { InvalidTyp(s) }
     | PROJECTOR_INVOKE; OPEN_PAREN; t = typ; CLOSE_PAREN; { t }
     | INT_TYPE { IntType }
     | SINT_TYPE { SIntType }
@@ -262,31 +308,33 @@ typ:
     | VOID_TYPE { VoidType }
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | QUESTION { UnknownType(EmptyHole) }
+    | WILD { ExplicitNonlabelType }
+    | l = QUOTED_LABEL { LabelType(l) }
+    | PROOF_OF; e = exp; END { ProofOfType(e) }
     | UNIT { TupleType([]) }
-    | POLY; a = tpat; DASH_ARROW; t = typ { PolyType(a, t) }
+    | POLY; a = tpat; DASH_ARROW; t = typ_inner { PolyType(a, t) }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
-    | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
+    | t1 = typ_inner; DASH_ARROW; t2 = typ_inner { ArrowType(t1, t2) }
     | s = sumTyp; { SumTyp(s) }
-    (* Sums WITHOUT the leading plus: `Nil + Cons(Int, T)`. The bare-
-       constructor head is spelled out so LR can distinguish it from
-       TypVar by the PLUS lookahead. *)
-    | c = CONSTRUCTOR_IDENT; PLUS; rest = separated_nonempty_list(PLUS, sumTerm) { SumTyp([Variant(c, None)] @ rest) }
-    (* General no-lead head (covers Ctor(args) + … ; the bare-ctor head
-       above stays explicit so LR distinguishes it from TypVar). *)
-    | s1 = sumTerm; PLUS; rest = separated_nonempty_list(PLUS, sumTerm) { SumTyp([s1] @ rest) }
-    | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
+    (* Sums WITHOUT the leading plus: `Nil + Cons(Int, T)`. The head is its own
+       nonterminal, restricted to constructor forms, so LR tells it from a plain
+       typ on the PLUS lookahead. A general `sumTerm PLUS …` head would not work:
+       sumTerm derives `typ`, hence also a leading-plus sum, which the sumTyp
+       rules would then swallow whole. *)
+    | h = noLeadSumHead; PLUS; rest = separated_nonempty_list(PLUS, sumTerm) { SumTyp(h :: flatten_sumterms rest) }
+    | REC; c=tpat; DASH_ARROW; t = typ_inner { RecType(c, t) }
     | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { ParenTyp(t) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(LabelType(l), t)])) }
     | OPEN_PAREN; WILD; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(ExplicitNonlabelType, t)])) }
-    | t1 = typ; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) } %prec TYP_AP_SYMBOL
-    | t1 = typ; DOT; t2 = typ { ProdProjection(t1, t2) }
+    | t1 = typ_inner; DOT; t2 = typ_inner { ProdProjection(t1, t2) }
     | OPEN_CURLY; items = separated_list(MOD_SEMI, sigItem); CLOSE_CURLY { Sig(items) }
 
 tupPatEntry:
     | p = pat {p}
     | l = label; SINGLE_EQUAL; p = pat { TupLabelPat(LabelPat(l), p) }
+    | WILD; SINGLE_EQUAL; p = pat { TupLabelPat(ExplicitNonlabelPat, p) }
 
 nonAscriptingPat:
     | OPEN_TRIPLE_CURLY; p = pat; CLOSE_TRIPLE_CURLY { IndicationPat(p) }
@@ -298,8 +346,11 @@ nonAscriptingPat:
     | OPEN_PAREN; WILD; SINGLE_EQUAL; p = pat; CLOSE_PAREN { ParenPat(TuplePat([TupLabelPat(ExplicitNonlabelPat, p)])) }
     | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { ParenPat(TuplePat(p :: pats)) }
     |  P_PAT; s = STRING { InvalidPat(s) }
+    | s = INVALID { InvalidPat(s) }
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
+    /* Standalone quoted label — MakeTerm accepts `a` as Label in pat sort. */
+    | l = QUOTED_LABEL { LabelPat(l) }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
@@ -320,7 +371,6 @@ nonAscriptingPat:
    cons chains are legal params in Hazel (fun x :: y -> ...). *)
 funAscElem:
     | p = funConsPat; { p }
-    | p = funConsPat; COLON; t = ascTyp; { AscPat(p, t) }
     (* Labeled parameter: fun label=l, value=v -> ... *)
     | l = label; SINGLE_EQUAL; p = funAscElem; { TupLabelPat(LabelPat(l), p) }
 
@@ -330,33 +380,45 @@ funAscElem:
    2. ~53 s/r states after `<form> ... exp` with COMMA/UNIT lookahead,
       introduced by the bare-tuple-at-let and nullary-ap productions —
       shift continues the inner exp, which is MakeTerm parity.
-   3. One r/r between the two no-leading-plus sum productions (bare-ctor
-      head vs general head) — identical semantic actions, either wins.
+   3. A few r/r around no-leading-plus sums and ap-patterns as fun
+      parameters — the competing productions have identical actions.
    Adding grammar rules? Rerun the three suites; do not trust silence. *)
 (* KNOWN CONFLICT (one s/r + one r/r state, resolved by default): after
    `FUN nonAscriptingPat`, CONS/COLON could continue at the parameter
    level (funConsPat/funAscElem) or inside a generic `pat`. The default
    shift keeps them at the parameter level, which is MakeTerm parity —
    pinned by the MenhirParser equivalence tests. *)
-funConsPat:
+(* Ascription binds tighter than cons, so it attaches to the cons element:
+   `fun p : T :: q ->` is ConsPat(AscPat(p,T), q), as MakeTerm reads it.
+   Left-recursive because asc is left-associative. *)
+funConsElem:
     | p = nonAscriptingPat; { p }
-    | p = nonAscriptingPat; CONS; rest = funConsPat; { ConsPat(p, rest) }
+    | p = funConsElem; COLON; t = ascTyp; { AscPat(p, t) }
+    (* Ap-patterns as parameters: `fun (_:(`z`))([]) -> e`. Spelled out here
+       because a parameter reduces to funConsElem, never back to `pat`. *)
+    (* `fun (x : a -> b) ->`: the parenthesized ascription lives here rather
+       than in funPat so an ap-pattern can still be applied to it. *)
+    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN { ParenPat(AscPat(p1, t1)) }
+    | f = funConsElem; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
+    | f = funConsElem; UNIT { ApPat(f, TuplePat([])) }
+
+funConsPat:
+    | p = funConsElem; { p }
+    | p = funConsElem; CONS; rest = funConsPat; { ConsPat(p, rest) }
 
 funPat:
     | UNIT { TuplePat([]) }
-    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { ParenPat(AscPat(p1, t1)) }
     | p = funAscElem; { p }
     (* Multi-parameter sugar: fun a, b -> e binds a tuple pattern *)
     | p = funAscElem; COMMA; ps = separated_nonempty_list(COMMA, funAscElem);
       { TuplePat(p :: ps) }
 
 pat:
-    | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
+    | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) } %prec ASC_PREC
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
     | UNIT { TuplePat([]) }
     | p = nonAscriptingPat; { p }
-
 
 rul:
     | TURNSTILE; p = pat; EQUAL_ARROW; e = exp; { (p, e) }
@@ -398,8 +460,10 @@ ascTyp:
    the lexer emits MOD_SEMI for member separators, which no exp
    production consumes. *)
 funExp: 
+    /* funPat preserves `fun (x : a -> b) ->` while still allowing ApPat params via `pat`. */
     | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
     | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
+    | FORALL; p = funPat; DASH_ARROW; e1 = exp; { ForallExp(p, e1) }
 
 
 %inline ifExp:
@@ -414,6 +478,7 @@ filterAction:
 tpat:
     | TP_TPAT; s = STRING {InvalidTPat(s)}
     | p = PROJECTOR_INVOKE {InvalidTPat(p)}
+    | s = INVALID {InvalidTPat(s)}
     | QUESTION {EmptyHoleTPat}
     | v = IDENT {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
@@ -461,7 +526,9 @@ exp:
     | e1 = exp; PIPELINE; e2 = exp { PipelineExp(e1, e2) }
     | f = exp; UNIT { ApExp(f, TupleExp([])) }
     | f = exp; OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ApExp(f, TupleExp([TupLabel(Label(l), e)])) }
+    | f = exp; OPEN_PAREN; WILD; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ApExp(f, TupleExp([TupLabel(ExplicitNonlabel, e)])) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
+    | THEOREM; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Theorem(i, e1, e2) } %prec LET_EXP
     | USE; t = typ; IN; e = exp { Use(t, e) } %prec LET_EXP
     (* Bare tuples at a let: `let a, b = e in` / `let x = e1, e2 in` *)
     | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (TuplePat(p1 :: ps), e1, e2) } %prec LET_EXP
@@ -471,6 +538,8 @@ exp:
     | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(c), e1, e2) } %prec LET_EXP
     | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(i), t), e1, e2) } %prec LET_EXP
     | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(c), t), e1, e2) } %prec LET_EXP
+    | MODULE; WILD; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(WildPat, e1, e2) } %prec LET_EXP
+    | MODULE; QUESTION; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(EmptyHolePat, e1, e2) } %prec LET_EXP
     | i = ifExp { i }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
@@ -480,11 +549,13 @@ exp:
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
     | TEST; e = exp; END { Test(e) }
-    | HINT; h = STRING; TEST; e = exp; END { HintedTest(e, Atom(Language.Atom.String(h))) }
+    | HINT; hint = exp; TEST; e = exp; END { HintedTest(e, hint) }
+    | PROOF_OBJECT; e = exp; END { ProofObject(e) }
     | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
     | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }
     |  E_EXP; s = STRING; { InvalidExp(s) }
+    | s = INVALID { InvalidExp(s) }
     |  WILD {Deferral}
     | e = exp; TYP_AP_SYMBOL; ty = typ; GREATER_THAN; {TypAp(e, ty)}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)} %prec LET_EXP
@@ -495,10 +566,8 @@ exp:
     | e1 = exp; DOT; e2 = exp { Dot(e1, e2) }
     | OPEN_CURLY; items = separated_list(MOD_SEMI, modItem); CLOSE_CURLY { Module(items) }
 
-/* Inside module bodies, semicolons are item separators, not Seq operators.
-   MOD_ITEM_EXP precedence is higher than SEMI_COLON, so when the parser
-   has a complete exp and sees ';', it reduces (treating ';' as a separator)
-   rather than shifting (which would try to parse Seq). */
+/* Module item RHS: a complete exp reduces here, so ';' stays an item
+   separator rather than becoming Seq. */
 modItemExp:
     | e = exp { e } %prec MOD_ITEM_EXP
 
