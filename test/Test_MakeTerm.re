@@ -406,5 +406,28 @@ let tests =
           ();
         },
       ),
+      /* Invalid tokens: fixed junk examples (not a full invalid-string grammar).
+         Print Invalid(s) as bare `s`; MakeTerm rebuilds Invalid(s). */
+      ...List.map(
+           (tok: string) =>
+             test_case(
+               "Invalid token: " ++ tok,
+               `Quick,
+               () => {
+                 exp_check(invalid(tok), tok);
+                 /* Term → text → term keeps the same invalid payload. */
+                 let printed =
+                   Haz3lcore.(
+                     ExpToSegment.exp_to_segment(
+                       ~settings=ExpToSegment.Settings.editable(~inline=true),
+                       invalid(tok),
+                     )
+                     |> Printer.of_segment(~holes="?", _)
+                   );
+                 exp_check(invalid(tok), printed);
+               },
+             ),
+           MenhirParser.AST.invalid_token_examples,
+         ),
     ],
   );
