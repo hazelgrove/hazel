@@ -135,9 +135,9 @@ let get_selected_option = (group: group, model: t): option(form) => {
 };
 
 /* Only forms that name an anchor can appear in the specificity menu, since the
-   menu is drawn at that anchor. Such a form used to raise here; there is none in
-   any reachable multi-form group today, but skipping is the honest total answer
-   and stops a future one from crashing the sidebar. */
+   menu is drawn at that anchor. No reachable multi-form group has an anchorless
+   form today; skipping rather than raising over one keeps a future addition from
+   taking down the sidebar. */
 let get_options = (group: group): list((form_id, Segment.t)) =>
   List.length(group.forms) < 2
     ? []

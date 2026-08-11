@@ -432,10 +432,7 @@ let rec bypass_parens_typ = (typ: Typ.t) => {
 
    Deciding and rendering are separate because there are three consumers and
    only one of them wants Vdom: the sidebar renders it, the code editor harvests
-   a color map from it, and the characterization test reads it directly. They
-   used to be arms of a `message_mode` tag threaded through the whole dispatch,
-   which meant the sidebar and the highlighter each ran the dispatch from
-   scratch, and a test could only observe it by adding a fourth arm. */
+   a color map from it, and the characterization test reads it directly. */
 type doc = {
   group: ExplainThisForm.group,
   /* The selected form. `group.forms` is every form the group offers, ordered
@@ -447,8 +444,7 @@ type doc = {
   colorings: list((Id.t, Id.t)),
   /* DeferredAp alone hand-builds its color map instead of deriving it from the
      explanation's links; every other branch leaves this None. The view ignores
-     it — only the code highlighter reads it — which is what the old
-     `Colorings`-only branch amounted to. */
+     it — only the code highlighter reads it. */
   color_map: option(ColorSteps.t),
 };
 
@@ -457,9 +453,8 @@ type decision =
   /* Prose with no syntactic form behind it, shown verbatim. */
   | Prose(string)
   /* Prose run through the markdown translator, so code spans and lists render.
-     Distinct from `Prose` because that is the shape the other ~30 one-off
-     messages have always had, and rendering them as markdown would be a
-     behaviour change. */
+     Distinct from `Prose`, whose ~30 one-off messages are shown verbatim;
+     routing those through markdown would change what they display. */
   | Markdown(string)
   /* Derivation terms document themselves: DrvDoc supplies both the abstract
      syntax to show and the markdown describing it. */
@@ -629,10 +624,10 @@ let narrow_color_map =
   | _ => None
   };
 
-/* `sidebar.show` above, matching get_color_map. This used to read
-   `explainThis.show`, which nothing toggles and which defaults to true, so
-   collapsing the sidebar stopped code highlighting for ordinary terms but not
-   for derivation ones. */
+/* Keys on `sidebar.show` via `narrow_color_map`, the same setting `get_color_map`
+   uses, so collapsing the sidebar stops highlighting for derivation terms and
+   ordinary ones alike. Not `explainThis.show`: nothing toggles it and it defaults
+   to true, so keying on it would leave derivation highlighting on. */
 let get_color_map_deduction =
     (
       ~globals: Globals.t,
@@ -696,9 +691,8 @@ let decide =
     get_message(ExplainThisForm.Simple.to_group(e));
 
   /* Is the user looking at the group's most specific form, or has it been
-     expanded down to a more general one? `forms` is ordered
-     most-specific-first, so this is one question — it was previously asked by
-     comparing an explicitly named form id at each of ~40 call sites. */
+     expanded down to a more general one? `forms` is ordered most-specific-first,
+     so no call site has to name the specific form's id to ask. */
   let at_specific_level = (group: ExplainThisForm.group) =>
     switch (group.forms) {
     | [specific, ..._] => get_specificity_level(group) == Some(specific.id)

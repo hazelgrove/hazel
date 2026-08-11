@@ -1,9 +1,9 @@
 open ExplainThisForm;
 open Example;
 
-/* No triv_exp doc: `get_doc` routes Tuple([]) in expression position to the
+/* No triv_exp doc: `decide` routes Tuple([]) in expression position to the
    function/let pattern cases, and in pattern position to TerminalPat.triv, so
-   an exp-side trivial-value group was never reachable. */
+   an exp-side trivial-value group is unreachable. */
 
 let deferral_exp_ex = {
   sub_id: Deferral,

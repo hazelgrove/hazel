@@ -13,9 +13,8 @@ let poly_id_ex = {
 
 let tp = tpat("a");
 let e = exp("e");
-/* These must be *this* form's pieces. get_doc used to hand this group
-   FunctionExp's coloring function, whose piece ids do not occur in the segment
-   below, so nothing was ever highlighted. */
+/* These must be *this* form's pieces: a piece id absent from the segment below
+   never matches, so the link renders unhighlighted and nothing complains. */
 let typfun_var_coloring_ids =
     (~tpat_id: Id.t, ~body_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(tp), tpat_id),

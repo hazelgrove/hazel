@@ -159,8 +159,8 @@ type example_id =
 
 /* No deriving: nothing serializes an `example`, `form` or `group`. Only the id
    enums need serializers, because `ExplainThisModel.t` is what `Store`
-   persists and it holds ids alone. Deriving these additionally forced
-   `Segment.t` through sexp/yojson for no consumer. */
+   persists and it holds ids alone. Deriving these too would force `Segment.t`
+   through sexp/yojson for no consumer. */
 type example = {
   sub_id: example_id,
   term: Segment.t,
@@ -321,11 +321,8 @@ type form = {
   examples: list(example),
 };
 
-/* Resolves the TODO that stood here: group_id and form_id listed the same 111
-   constructors, so a group's id is just the id of its most specific form and the
-   two types are one. Kept as an alias so signatures still say which they mean.
-   Persisted state is unaffected: ppx_sexp_conv writes variants by constructor
-   name, and the names are unchanged. */
+/* A group's id is the id of its most specific form, so one enum serves both.
+   Kept as a named alias so signatures still say which of the two they mean. */
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type group_id = form_id;
 
@@ -335,8 +332,7 @@ type group = {
 };
 
 /* A group offering a single form. Its id comes from the form, so the two cannot
-   disagree — which they did in two places before being fixed, and which
-   ExplainThisModel.get_form_in_group raises on. */
+   disagree. */
 let singleton = (form: form): group => {
   id: form.id,
   forms: [form],
@@ -352,7 +348,7 @@ module Simple = {
   };
 
   /* The form carries its own explanation and colorings, so this is a plain
-     group — callers no longer have to thread either alongside it. */
+     group with nothing for callers to thread alongside it. */
   let to_group =
       (
         {

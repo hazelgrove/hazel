@@ -205,8 +205,7 @@ let corpus = [
      term, which shows up as <unmapped>. */
   ("deferred-ap", "let plus = fun (x, y) -> x + y in plus(1, _)"),
   /* These reach forms whose coloring function is named differently from the
-     form itself. Without them, dropping a ~colorings argument for one of these
-     regresses silently — which is exactly what happened before they existed. */
+     form itself, where a dropped ~colorings argument regresses silently. */
   ("tuplabel-exp", "(x=1)"),
   ("dot", "(x=1, y=2).x"),
   ("tyalias", "type T = Int in 1"),
@@ -451,8 +450,7 @@ y => VarExp colorings=[]
 y => VarPat colorings=[]|},
   ),
   /* The ConsPat fallback shows the *outer* tail `b:: c`, supplied by `decide`'s
-     override — the form itself was built with the inner tail. Moving colorings
-     onto the form must preserve the outer reading. */
+     override rather than by the form, which carries the inner tail. */
   (
     "cons2-pat",
     {|1 => IntExp colorings=[]
@@ -550,11 +548,9 @@ type T = Int in 1 => TyAliasExp colorings=[Int,T]|},
 ];
 
 /* Which doc groups the corpus actually reaches. A golden fingerprint only
-   guards the docs it visits, and a first attempt at removing coloring
-   arguments regressed seven forms while only one test failed — because nothing
-   put a cursor on a labeled tuple element, a projection or a type alias. This
-   asserts the reached set exactly, so losing coverage fails rather than going
-   quiet, and it separates "not covered" from "not reachable at all". */
+   guards the docs it visits, so the reached set is asserted exactly: losing
+   coverage fails rather than going quiet, and "not covered" stays
+   distinguishable from "not reachable at all". */
 /* Folds `f` over every doc decision the corpus produces, with every form of
    every reached group selected in turn. */
 let over_corpus_docs =
@@ -690,9 +686,7 @@ let coverage_case =
    pairing in one step would give for free (issue #1170). Checking it here gets the
    same guarantee over every form the corpus reaches without rewriting all 154 of
    them, and it is what makes the *_coloring_ids functions safe to leave in place:
-   they can no longer drift from the form they belong to undetected.
-
-   Run against the TypFunctionExp defect fixed earlier on this branch, this fails. */
+   they cannot drift from the form they belong to undetected. */
 let stray_colorings = (info_map, d: ET.doc): list(string) => {
   /* Segment.ids recurses into tile children, so template-built forms count. */
   let sf_ids = Segment.ids(d.form.syntactic_form);
