@@ -470,7 +470,8 @@ let equality =
       true
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (MultiHole(xs1), MultiHole(xs2)) =>
-      List.length(xs1) == List.length(xs2) && List.for_all2_exn(~f=any', xs1, xs2)
+      List.length(xs1) == List.length(xs2)
+      && List.for_all2_exn(~f=any', xs1, xs2)
     | (Parens(x), Parens(y)) => pne(x, y)
     | (Projector(d1, x), Projector(d2, y)) when d1 == d2 => pne(x, y)
     | (Asc(p, t1), Asc(q, t2)) => pne(p, q) && typ'(t1, t2)

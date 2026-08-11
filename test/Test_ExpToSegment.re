@@ -1053,6 +1053,288 @@ let roundtrip_defensive_paren_tests = (
        The type-level construct is `poly` (type poly tpat -> typ). */
     /* Nested rec/poly types */
     roundtrip_test({|Nested rec types|}, {|1 : rec t -> rec u -> (t, u)|}),
+    /* A bare labeled argument of a partial application is an argument,
+       not a one-field record: `f(a=1, _)` prints back as written. */
+    test_case({|Labeled argument to a partial application|}, `Quick, () =>
+      switch (Parser.to_term({|f(a=1, _)|}, ~root=Exp)) {
+      | Some(term) =>
+        check(
+          string,
+          {|Defensive print|},
+          {|f(a=1, _)|},
+          ExpToSegment.exp_to_segment(
+            ~settings=ExpToSegment.Settings.editable(~inline=true),
+            term,
+          )
+          |> Printer.of_segment(~holes="?"),
+        )
+      | None => Alcotest.fail({|Failed to parse|})
+      }
+    ),
+    /* A hint is always parenthesized, so printing must not add a layer to
+       a hint that already has one. */
+    test_case(
+      {|Hint stays put through print-parse cycles|},
+      `Quick,
+      () => {
+        let print = s =>
+          switch (Parser.to_term(s, ~root=Exp)) {
+          | Some(term) =>
+            ExpToSegment.exp_to_segment(
+              ~settings=ExpToSegment.Settings.editable(~inline=true),
+              term,
+            )
+            |> Printer.of_segment(~holes="?")
+          | None => Alcotest.fail("Failed to parse " ++ s)
+          };
+        let once = print({|hint "x" test true end|});
+        check(string, {|First print|}, {|hint "x" test true end|}, once);
+        check(string, {|Second print|}, once, print(once));
+        let nested = print({|hint (test 1 end) test true end|});
+        check(
+          string,
+          {|Hint starting with test|},
+          {|hint (test 1 end) test true end|},
+          nested,
+        );
+        check(string, {|Its second print|}, nested, print(nested));
+      },
+    ),
+    /* With ascriptions hidden, a labeled field under a cast prints as the
+       field itself: inside a tuple it needs no parens of its own, and alone
+       it is a one-field tuple, not `(_=(a=1))`. */
+    test_case(
+      {|Hidden cast on a labeled field|},
+      `Quick,
+      () => {
+        let print = (any: Any.t) =>
+          ExpToSegment.any_to_segment(
+            ~settings={
+              ...ExpToSegment.Settings.editable(~inline=true),
+              show_ascriptions: false,
+            },
+            any,
+          )
+          |> Printer.of_segment(~holes="?");
+        module F = IdTagged.FreshGrammar;
+        check(
+          string,
+          {|Expression|},
+          {|(x=1, b=2)|},
+          print(
+            Exp(
+              F.Exp.tuple([
+                F.Exp.asc(
+                  F.Exp.tup_label(F.Exp.label("x"), F.Exp.int(1)),
+                  F.Typ.prod([
+                    F.Typ.tup_label(F.Typ.label("y"), F.Typ.int()),
+                  ]),
+                ),
+                F.Exp.tup_label(F.Exp.label("b"), F.Exp.int(2)),
+              ]),
+            ),
+          ),
+        );
+        check(
+          string,
+          {|Pattern|},
+          {|(x=a, b=c)|},
+          print(
+            Pat(
+              F.Pat.tuple([
+                F.Pat.asc(
+                  F.Pat.tup_label(F.Pat.label("x"), F.Pat.var("a")),
+                  F.Typ.int(),
+                ),
+                F.Pat.tup_label(F.Pat.label("b"), F.Pat.var("c")),
+              ]),
+            ),
+          ),
+        );
+        check(
+          string,
+          {|One-field expression|},
+          {|(a=1)|},
+          print(
+            Exp(
+              F.Exp.tuple([
+                F.Exp.asc(
+                  F.Exp.tup_label(F.Exp.label("a"), F.Exp.int(1)),
+                  F.Typ.prod([
+                    F.Typ.tup_label(F.Typ.label("a"), F.Typ.int()),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+        );
+        check(
+          string,
+          {|One-field pattern|},
+          {|(a=x)|},
+          print(
+            Pat(
+              F.Pat.tuple([
+                F.Pat.asc(
+                  F.Pat.tup_label(F.Pat.label("a"), F.Pat.var("x")),
+                  F.Typ.int(),
+                ),
+              ]),
+            ),
+          ),
+        );
+      },
+    ),
+    /* A module item's pattern goes through the pattern parenthesizer twice
+       (once for the module, once when it is printed), which must not add a
+       layer each time. */
+    test_case(
+      {|Module item ascription stays put through print-parse cycles|},
+      `Quick,
+      () => {
+        let print = s =>
+          switch (Parser.to_term(s, ~root=Exp)) {
+          | Some(term) =>
+            ExpToSegment.exp_to_segment(
+              ~settings=ExpToSegment.Settings.editable(~inline=true),
+              term,
+            )
+            |> Printer.of_segment(~holes="?")
+          | None => Alcotest.fail("Failed to parse " ++ s)
+          };
+        let once = print({|{ let x : Int = 1 }|});
+        check(string, {|First print|}, {|{ let x:(Int) = 1 }|}, once);
+        check(string, {|Second print|}, once, print(once));
+      },
+    ),
+    /* A module item printed on its own (an error message's term) gets the
+       same parens as inside its module. */
+    test_case(
+      {|A bare module item keeps its expression's parens|},
+      `Quick,
+      () => {
+        module F = IdTagged.FreshGrammar;
+        let item =
+          F.Mod.mod_let(
+            F.Pat.var("x"),
+            F.Exp.bin_op(
+              Int(Times),
+              F.Exp.bin_op(Int(Plus), F.Exp.int(1), F.Exp.int(2)),
+              F.Exp.int(3),
+            ),
+          );
+        let printed =
+          ExpToSegment.any_to_segment(
+            ~settings=ExpToSegment.Settings.editable(~inline=true),
+            Mod(item),
+          )
+          |> Printer.of_segment(~holes="?");
+        check(string, {|Printed|}, {|let x = (1 + 2) * 3|}, printed);
+        switch (Parser.to_term("{ " ++ printed ++ " }", ~root=Exp)) {
+        | Some(parsed) =>
+          check(
+            bool,
+            {|Parses back to the item|},
+            true,
+            Exp.fast_equal(parsed, F.Exp.module_([item])),
+          )
+        | None => Alcotest.fail("Failed to parse " ++ printed)
+        };
+      },
+    ),
+    /* A constructor's argument is already inside the constructor's parens,
+       so a labeled one isn't wrapped again. */
+    test_case(
+      {|Labeled constructor argument|},
+      `Quick,
+      () => {
+        let print = s =>
+          switch (Parser.to_term(s, ~root=Exp)) {
+          | Some(term) =>
+            ExpToSegment.exp_to_segment(
+              ~settings=ExpToSegment.Settings.editable(~inline=true),
+              term,
+            )
+            |> Printer.of_segment(~holes="?")
+          | None => Alcotest.fail("Failed to parse " ++ s)
+          };
+        let once = print({|type T = + A(a=Int) + B(a=Int, b=Bool) in 1|});
+        check(
+          bool,
+          {|Arguments printed as written: |} ++ once,
+          true,
+          Str.string_match(
+            Str.regexp(".*A(a=Int) \\+ B(a=Int, b=Bool)"),
+            once,
+            0,
+          ),
+        );
+      },
+    ),
+    /* A field that is itself a one-field tuple keeps its own parens:
+       `((a=Int), Int)` and `(a=Int, Int)` are different types. */
+    test_case(
+      {|Nested one-field tuples keep their parens|},
+      `Quick,
+      () => {
+        let print = (any: Any.t) =>
+          ExpToSegment.any_to_segment(
+            ~settings=ExpToSegment.Settings.editable(~inline=true),
+            any,
+          )
+          |> Printer.of_segment(~holes="?");
+        module F = IdTagged.FreshGrammar;
+        check(
+          string,
+          {|Expression|},
+          {|((_=1), 2)|},
+          print(
+            Exp(F.Exp.tuple([F.Exp.tuple([F.Exp.int(1)]), F.Exp.int(2)])),
+          ),
+        );
+        check(
+          string,
+          {|Singleton expression|},
+          {|(_=(1, 2))|},
+          print(
+            Exp(F.Exp.tuple([F.Exp.tuple([F.Exp.int(1), F.Exp.int(2)])])),
+          ),
+        );
+        check(
+          string,
+          {|Type|},
+          {|((a=Int), Int)|},
+          print(
+            Typ(
+              F.Typ.prod([
+                F.Typ.prod([
+                  F.Typ.tup_label(F.Typ.label("a"), F.Typ.int()),
+                ]),
+                F.Typ.int(),
+              ]),
+            ),
+          ),
+        );
+        check(
+          string,
+          {|Pattern|},
+          {|((_=x), y)|},
+          print(
+            Pat(
+              F.Pat.tuple([
+                F.Pat.tuple([
+                  F.Pat.tup_label(
+                    F.Pat.explicit_non_label(),
+                    F.Pat.var("x"),
+                  ),
+                ]),
+                F.Pat.var("y"),
+              ]),
+            ),
+          ),
+        );
+      },
+    ),
   ],
 );
 

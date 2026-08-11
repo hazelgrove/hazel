@@ -151,5 +151,13 @@ let tests = (
     test_nested_module_keyword,
     test_module_keyword_annotated,
     test_module_keyword_sig_annotated,
+    /* A hole holding a module item is a run of items with junk in it: the
+       items still bind. One holding only expressions is one item. */
+    test_case("Junk after a module item", `Quick, () => {
+      parse_and_evaluate_test("(x=?)", {|{ module x = ? x + x }|})
+    }),
+    test_case("Junk between two bindings", `Quick, () => {
+      parse_and_evaluate_test("(a=1)", {|{ let a = 1 x let b = 2 }|})
+    }),
   ],
 );

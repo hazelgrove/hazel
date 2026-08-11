@@ -406,5 +406,58 @@ let tests =
           ();
         },
       ),
+      /* Invalid tokens: fixed junk examples (not a full invalid-string grammar).
+         Print Invalid(s) as bare `s`; MakeTerm rebuilds Invalid(s). */
+      /* An unknown operator joining a module item's operands stays one
+         item, an expression holding the operator, so it prints. */
+      test_case(
+        "Unknown operator in a module item",
+        `Quick,
+        () => {
+          let one_item = (e: Language.Exp.t) =>
+            switch (e.term) {
+            | Module([{term: ModExp(_), _}]) => ()
+            | _ =>
+              Alcotest.fail(
+                "expected one expression item: " ++ Language.Exp.show(e),
+              )
+            };
+          let e = parse_exp("{ x !!! y }");
+          one_item(e);
+          let printed =
+            Haz3lcore.(
+              ExpToSegment.exp_to_segment(
+                ~settings=ExpToSegment.Settings.editable(~inline=true),
+                e,
+              )
+              |> Printer.of_segment(~holes="?", _)
+            );
+          check(Alcotest.string, "printed", "{ x !!! y }", printed);
+          one_item(parse_exp(printed));
+        },
+      ),
+      ...List.map(
+           ~f=
+             (tok: string) =>
+               test_case(
+                 "Invalid token: " ++ tok,
+                 `Quick,
+                 () => {
+                   exp_check(invalid(tok), tok);
+                   /* Term → text → term keeps the same invalid payload. */
+                   let printed =
+                     Haz3lcore.(
+                       ExpToSegment.exp_to_segment(
+                         ~settings=
+                           ExpToSegment.Settings.editable(~inline=true),
+                         invalid(tok),
+                       )
+                       |> Printer.of_segment(~holes="?", _)
+                     );
+                   exp_check(invalid(tok), printed);
+                 },
+               ),
+           MenhirParser.AST.invalid_token_examples,
+         ),
     ],
   );

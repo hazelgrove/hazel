@@ -1615,6 +1615,32 @@ and mod_ = unsorted => {
 and mod_term: unsorted => TermBase.Mod.term = {
   let ret = (term: TermBase.Mod.term) => term;
   let hole = unsorted => Mod.hole(kids_of_unsorted(unsorted));
+  let as_mod_exp = (tm: unsorted): TermBase.Mod.term => {
+    let e = exp(tm);
+    switch (e.term) {
+    | EmptyHole => hole(tm)
+    /* A hole holding a module item is a run of items with junk in it
+       (`{ module x = ? x + x }`): flatten_mod splits it, so the items still
+       bind. One holding only expressions (`x !!! y`) is one item, its
+       expression a MultiHole that keeps the operator and its error. */
+    | MultiHole(_) =>
+      let holds_item =
+        List.exists(kids_of_unsorted(tm), ~f=kid =>
+          Option.is_some(Any.is_mod(kid))
+        );
+      switch (tm) {
+      | Bin(_)
+      | Pre(_)
+      | Post(_) when !holds_item => ModExp(e)
+      | _ => hole(tm)
+      };
+    /* Keep face/invalid tiles: kids_of_unsorted is empty for a leaf
+       invalid, so Mod.hole would erase the token and `{ o^o }` would
+       disagree with Menhir. */
+    | Invalid(s) => Invalid(s)
+    | _ => ModExp(e)
+    };
+  };
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -1623,15 +1649,7 @@ and mod_term: unsorted => TermBase.Mod.term = {
       | (F(Tok(t)), []) when is_hole_label(t) =>
         set_lexeme(t);
         ret(hole(tm));
-      | _ =>
-        /* Try parsing as expression and wrap as ModExp */
-        let e = exp(Op(tiles));
-        switch (e.term) {
-        | EmptyHole
-        | MultiHole(_)
-        | Invalid(_) => ret(hole(tm))
-        | _ => ret(ModExp(e))
-        };
+      | _ => ret(as_mod_exp(tm))
       }
     | _ => ret(hole(tm))
     }
@@ -1656,11 +1674,10 @@ and mod_term: unsorted => TermBase.Mod.term = {
   /* ModType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (F(Compound(ModType)), [TPat(tp)]))], []), Typ(ty)) =>
     ret(ModType(tp, ty))
-  /* Expression-level structures (binary ops, prefix, postfix) - wrap as ModExp */
-  | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
-  | Pre(_, Exp(_)) as tm => ret(ModExp(exp(tm)))
-  | Post(Exp(_), _) as tm => ret(ModExp(exp(tm)))
-  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+  /* Wrap as ModExp whenever `exp` can form a real term (including
+     `e:T` = Bin(Exp, Typ)); only true leftovers become a hole, which
+     flatten_mod would split into separate items. */
+  | (Bin(_) | Pre(_) | Post(_)) as tm => ret(as_mod_exp(tm));
 }
 and sig_ = unsorted => {
   let term = sig_term(unsorted);
