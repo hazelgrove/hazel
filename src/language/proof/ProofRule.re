@@ -45,12 +45,6 @@ let rec exp_to_rule = (exp: Exp.t): t =>
     }
   };
 
-let typ_to_rule = (typ: Typ.t): option(t) =>
-  switch (typ |> Typ.term_of) {
-  | ProofOf(e) => Some(exp_to_rule(e))
-  | _ => None
-  };
-
 let rule_to_exp = (rule: t): Exp.t => {
   let rec _wrap_assumptions = (assumptions: list(Exp.t), body: Exp.t): Exp.t =>
     switch (assumptions) {

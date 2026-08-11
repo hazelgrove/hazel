@@ -103,13 +103,6 @@ module Utils = {
       };
     };
 
-    let is_successfully_completed = (subtask: subtask): bool => {
-      switch (subtask.completion_info) {
-      | Some({status: Completed, _}) => true
-      | _ => false
-      };
-    };
-
     let find_subtask = (task: task, subtask_name: string): option(subtask) => {
       // Finds the todo item with the given name
       Maps.StringMap.find_opt(
@@ -124,9 +117,6 @@ module Utils = {
       | None => false
       };
     };
-
-    let subtask_to_json_string = (subtask: subtask): string =>
-      yojson_of_subtask(subtask) |> Yojson.Safe.pretty_to_string;
 
     let subtask_to_pretty_string = (task: task, subtask: subtask): string => {
       "=== Subtask ===\n"
@@ -226,9 +216,6 @@ module Utils = {
       | None => false
       };
     };
-
-    let task_to_json_string = (task: task): string =>
-      yojson_of_task(task) |> Yojson.Safe.pretty_to_string;
 
     let task_to_pretty_string = (model: t, task: task): string => {
       "=== Task ===\n"
@@ -356,16 +343,6 @@ module Utils = {
            int_of_float(
              b.metadata.last_updated_at -. a.metadata.last_updated_at,
            )
-         );
-    };
-
-    let task_dict_to_string = (task_dict: task_dict): string => {
-      let header = "=== Task Archive (Sorted by Last Updated, Most Recent First) ===";
-      header
-      ++ List.fold_left(
-           (acc: string, task: task) => acc ++ task_to_json_string(task),
-           header,
-           sorted_task_dict(task_dict),
          );
     };
   };

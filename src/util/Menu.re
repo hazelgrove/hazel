@@ -44,7 +44,6 @@ type action =
   | BackSubmenu /* pop one level */
   | SetSelected(int);
 
-let closed: t = None;
 let opened: t =
   Some({
     selected_idx: 0,

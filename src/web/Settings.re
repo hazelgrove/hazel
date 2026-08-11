@@ -92,32 +92,10 @@ module Model = {
     show_incremental_deco: false,
   };
 
-  let fix_instructor_mode = settings =>
-    if (settings.instructor_mode && !ExerciseSettings.show_instructor) {
-      {
-        ...settings,
-        instructor_mode: false,
-      };
-    } else {
-      settings;
-    };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
-
   /* Clear expanded problem IDs before persisting — tile IDs are ephemeral
      and go stale across sessions. */
-  let persist = settings => {
-    ...settings,
-    sidebar: {
-      ...settings.sidebar,
-      problems: {
-        ...settings.sidebar.problems,
-        expanded: [],
-      },
-    },
-  };
-  let unpersist = fix_instructor_mode;
 };
 
 module Store =

@@ -70,26 +70,6 @@ module AbbrevBudget = {
             );
       distribute(parts - 1, []);
     };
-
-  let label_cap = (~label: Exp.t, ~available: int): int => {
-    let estimated_label_len: int = label_estimated_length(~label);
-    let desired: int = estimated_label_len + 1;
-    let half: int = available / 2;
-    let proposed: int = half < desired ? desired : half;
-    let capped: int = proposed < 1 ? 1 : proposed;
-    capped > available ? available : capped;
-  };
-
-  let label_min_budget = (~label: Exp.t): int => {
-    let est: int = label_estimated_length(~label);
-    if (est >= 3) {
-      3;
-    } else if (est == 2) {
-      2;
-    } else {
-      1;
-    };
-  };
 };
 
 module AbbrevSequence = {
@@ -1829,16 +1809,5 @@ let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, int) => {
     (flat_ellipses_term(), ellipsis_cost);
   } else {
     (exp, length_exp);
-  };
-};
-
-let abbreviate_pat = (~available as a=12, pat: Pat.t): (Pat.t, int) => {
-  available := a;
-  let pat = abbreviate_pat(pat);
-  let length_pat = a - available^;
-  if (a < 0) {
-    (flat_ellipses_term_pat(), ellipsis_cost);
-  } else {
-    (pat, length_pat);
   };
 };

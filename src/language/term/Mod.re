@@ -42,9 +42,3 @@ let show_cls: cls => string =
   | ModType => "Type declaration"
   | ModExp => "Module expression"
   | ModuleMod => "Module declaration";
-
-let temp: term => t =
-  term => {
-    term,
-    annotation: IdTagged.IdTag.temp(),
-  };

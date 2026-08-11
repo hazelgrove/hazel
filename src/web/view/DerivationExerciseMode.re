@@ -154,9 +154,6 @@ module Model = {
   /* Backwards-compatible: uses the last-edited cell (`model.pos`). Callers
      that can provide the currently focused cell via selection should prefer
      the `_at` version so Prelude/Setup focus isn't misread as a tree cell. */
-  let get_derivation_info = (model: t) =>
-    get_derivation_info_at(model.pos, model);
-
   /* Editors whose problems should appear in the Problems sidebar, each
      paired with a display label. Only cells that are actually rendered are
      listed: the Prelude is shown in exercise mode but not in scratch /
@@ -274,32 +271,6 @@ module Update = {
     } else {
       Updated.return_quiet(model);
     };
-
-  let update_editor_action =
-      (
-        action: CodeEditable.Update.t,
-        pos: DerivationExercise.pos,
-        model: Model.t,
-        settings,
-      ) => {
-    let editor =
-      DerivationExercise.main_editor_of_state(~selection=pos, model.editors);
-    let* new_editor =
-      // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
-      editor
-      |> CodeEditable.Model.mk
-      |> CodeEditable.Update.update(~settings, action);
-    {
-      ...model,
-      pos,
-      editors:
-        DerivationExercise.put_main_editor(
-          ~selection=pos,
-          model.editors,
-          new_editor.editor,
-        ),
-    };
-  };
 
   let update =
       (

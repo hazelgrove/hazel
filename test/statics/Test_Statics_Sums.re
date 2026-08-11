@@ -3,9 +3,6 @@ open FTemp;
 open Typ;
 open Util;
 
-let testable_id =
-  Alcotest.(testable(Fmt.using(Id.show, Fmt.string), Id.equal));
-
 let tests = (
   "Statics.Sums",
   [

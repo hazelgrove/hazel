@@ -229,37 +229,6 @@ let typ_mark_string: Mark.t => string =
     prn("Expected a tuple type, found type %s", Print.typ(ty))
   | _ => "(static error)";
 
-let underdetermined_typ: Message.underdetermined_typ => string =
-  fun
-  | ProdExtensionUnderdetermined(tys) =>
-    prn(
-      "Cannot determine type of tuple extension with argument types: %s",
-      List.map(Print.typ, tys) |> String.concat(", "),
-    )
-  | ProdProjectionMissingLabel(label, labels) =>
-    prn(
-      "Cannot project label %s. Valid labels are: %s",
-      label,
-      String.concat(", ", labels),
-    )
-  | ProdProjectionBadArgs({product, label}) =>
-    prn(
-      "Cannot determine projection type because %s",
-      String.concat(
-        " and ",
-        [
-          switch (product) {
-          | Some(ty) => "Type is not a tuple type: " ++ Print.typ(ty)
-          | None => ""
-          },
-          switch (label) {
-          | Some(ty) => "Label is not a valid label: " ++ Print.typ(ty)
-          | None => ""
-          },
-        ],
-      ),
-    );
-
 let tpat_mark_string: Mark.t => string =
   fun
   | TPatNotAVar(_) => "Not a valid type name" //TODO: elaborate

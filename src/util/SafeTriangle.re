@@ -384,12 +384,6 @@ let deactivate = (): unit => {
   };
 };
 
-/* Check if tracking is currently active */
-let is_active = (): bool => Option.is_some(current^);
-
-/* Get current state (useful for debugging) */
-let get_state = (): option(active_state) => current^;
-
 /* ============================================================================
  * DOM Helpers
  * ============================================================================ */

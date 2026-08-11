@@ -1,5 +1,3 @@
-let cat = String.concat("");
-
 /* NOTE: there are deliberately no byte-indexed nth/split/to_list helpers
    here. Text in the editor is indexed by grapheme cluster (see Unicode);
    a byte-indexed `to_list` in particular is indistinguishable at the call

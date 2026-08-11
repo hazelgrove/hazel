@@ -1,8 +1,3 @@
-let modulo = (x, y) => {
-  let result = x mod y;
-  result >= 0 ? result : result + y;
-};
-
 let ipow = (base: int, exponent: int): int => {
   let rec ipow_iter = (b: int, e: int, r: int): int =>
     if (e === 0) {

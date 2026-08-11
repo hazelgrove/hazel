@@ -403,31 +403,6 @@ let cursor_clss =
   @ depth_clss(~settings, ~ap_id, dynamics, sample);
 };
 
-module Debug = {
-  let stack = (stack: CallStack.t): string =>
-    stack
-    |> List.map((f: CallStack.frame) => Id.str3(f.id))
-    |> String.concat("\n");
-
-  let str = (~ap_id: option(Id.t), sample: Sample.t): string =>
-    "sample id: "
-    ++ string_of_int(sample.id)
-    ++ "\n"
-    ++ "ap:"
-    ++ (
-      switch (Sample.Focus.cur_call(ap_id, sample)) {
-      | Some([{id: ap_id, _}, ..._]) => Id.str3(ap_id)
-      | _ => "None"
-      }
-    )
-    ++ "\nstack:\n"
-    ++ stack(sample.call_stack)
-    ++ "\nstep-range:\n"
-    ++ Printf.sprintf("[%d, %d]", sample.step_start, sample.step_end)
-    ++ "\ntime: "
-    ++ Printf.sprintf("%.0f", sample.time);
-};
-
 /* Find first compatible renderer for an expression */
 let find_compatible_renderer =
     (sort: Sort.t, exp: Exp.t): option(RichProbe.packed_renderer) =>

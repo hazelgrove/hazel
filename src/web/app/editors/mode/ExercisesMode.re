@@ -57,22 +57,6 @@ module Model = {
     | Theorem(s) => s.id
     };
 
-  let persist = (~instructor_mode, model): persistent => {
-    {
-      cur_exercise:
-        List.nth(model.exercises, model.current) |> get_exercise_id,
-      exercise_data:
-        List.map(
-          (exercise: exercise) =>
-            (
-              get_exercise_id(exercise),
-              persist_exercise(~instructor_mode, exercise),
-            ),
-          model.exercises,
-        ),
-    };
-  };
-
   let unpersist_exercise =
       (
         ~settings,
@@ -138,13 +122,6 @@ module Model = {
 
   let get_current = (m: t) => List.nth(m.exercises, m.current);
 
-  let get_exercise_name = (e: exercise): string =>
-    switch (e) {
-    | Code(e) => e.editors.title
-    | Derivation(e) => e.spec.title
-    | Theorem(e) => e.title
-    };
-
   let get_exercise_module_name = (e: exercise): string =>
     switch (e) {
     | Code(e) => e.editors.module_name
@@ -174,21 +151,6 @@ module Model = {
     | Theorem(_) => "(* Theorem exercises do not have an exportable transitionary module *)\n"
     };
 
-  let export_grading_module = (e: exercise): string =>
-    switch (e) {
-    | Code(e) =>
-      CodeExercise.export_grading_module(
-        e.editors.module_name,
-        {eds: e.editors},
-      )
-    | Derivation(e) =>
-      DerivationExercise.export_grading_module(
-        e.spec.module_name,
-        {eds: e.editors},
-      )
-    | Theorem(_) => "(* Theorem exercises do not have an exportable grading module *)\n"
-    };
-
   // Used for the assistant or something
   let get_editor = (model: t): CodeEditable.Model.t => {
     let current = List.nth(model.exercises, model.current);
@@ -206,14 +168,6 @@ module Model = {
 
   /* Only used within ExercisesMode.re; exposed via the Model module signature
      for the derivation-specific UI bindings below. */
-  let get_derivation_info = (eds: t) => {
-    let model = get_current(eds);
-    switch (model) {
-    | Derivation(e) => DerivationExerciseMode.Model.get_derivation_info(e)
-    | _ => None
-    };
-  };
-
   /* Editors whose problems should appear in the Problems sidebar, each
      paired with a display label shown as a section header when multiple
      groups are present. */
@@ -241,10 +195,6 @@ module StoreExerciseKey =
   });
 
 module Store = {
-  let keystring_of_key = key => {
-    key |> Haz3lcore.Id.to_string;
-  };
-
   let save_exercise = (exercise: Model.exercise, ~instructor_mode) => {
     let key = Model.get_exercise_id(exercise);
     let value = Model.persist_exercise(exercise, ~instructor_mode);
