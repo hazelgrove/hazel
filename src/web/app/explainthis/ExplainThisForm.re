@@ -92,7 +92,6 @@ type example_id =
   | Dot1
   | Dot2
   | DotTyp
-  | Fix1
   | Fix2
   | Tuple1
   | Tuple2

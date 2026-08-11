@@ -1,13 +1,6 @@
-open Util;
 open Language;
 
 /* Print static errors to a string */
-
-[@deriving (show({with_path: false}), yojson, sexp)]
-type t =
-  | ParseError(string)
-  | StaticErrors(list(string))
-  | NoErrors;
 
 let remove_projectors = (segment: Segment.t) =>
   //TODO: Remove this when splices is merged

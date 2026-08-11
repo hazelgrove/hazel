@@ -127,14 +127,6 @@ and pat =
   | IndicationPat(pat)
   | ExplicitNonlabel
 
-and if_consistency =
-  | Consistent
-  | Inconsistent
-
-and deferral_pos =
-  | InAp
-  | OutsideAp
-
 and exp =
   | Atom(Language.Atom.t)
   | Var(string)
