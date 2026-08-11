@@ -58,8 +58,6 @@ let rec bab_triples' =
   | ([a], []) => [(b1, a, None)]
   | _ => []
   };
-let bab_triples: t('a, 'b) => list((option('b), 'a, option('b))) =
-  aba => bab_triples'(None, aba);
 
 let map_a = (f_a: 'a => 'c, (as_, bs): t('a, 'b)): t('c, 'b) => (
   List.map(f_a, as_),
@@ -73,10 +71,6 @@ let map_abas =
     (f_aba: (('a, 'b, 'a)) => 'c, (as_, _) as aba: t('a, 'b)): t('a, 'c) => (
   as_,
   List.map(f_aba, aba_triples(aba)),
-);
-let map_hd = (f_a: 'a => 'a, (as_, bs): t('a, 'b)): t('a, 'b) => (
-  [as_ |> List.hd |> f_a, ...as_ |> List.tl],
-  bs,
 );
 
 let pop = ((as_, bs): t('a, 'b)): option(('a, 'b, t('a, 'b))) =>

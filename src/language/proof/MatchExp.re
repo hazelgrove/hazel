@@ -378,8 +378,6 @@ let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
     exp,
   );
 
-let match_exp' = match_exp;
-
 /* TODO[Matt]: we can probably make this faster by avoiding substituting
    if we know it doesn't match */
 let match_exp =

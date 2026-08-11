@@ -244,38 +244,6 @@ let is_historic: t => bool =
     }
   | Probe(_) => true;
 
-let prevent_in_read_only_editor = (a: t) =>
-  switch (a) {
-  | Copy
-  | Move(_)
-  | Unselect(_)
-  | Select(_) => false
-  | Buffer(Set(_) | Accept | Clear)
-  | Cut
-  | Paste(_)
-  | Reparse
-  | Destruct(_)
-  | Insert(_)
-  | Put_down
-  | Introduce
-  | PrettyPrint
-  | Structural(_)
-  | Dump
-  | ToggleLineComment => true
-  | Project(p) =>
-    switch (p) {
-    | SetSyntax(_) => true
-    | SetModel(_)
-    | SetIndicated(_)
-    | RemoveIndicated
-    | Focus(_)
-    | SampleFocus(_)
-    | Escape(_)
-    | EscapeToLineEnd(_) => false
-    }
-  | Probe(_) => false
-  };
-
 let should_animate: t => bool =
   fun
   | Select(s) =>

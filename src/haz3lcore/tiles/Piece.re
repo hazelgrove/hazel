@@ -127,11 +127,6 @@ let is_tile: t => option(Tile.t) =
   | Tile(t) => Some(t)
   | _ => None;
 
-let is_projector: t => option(projector) =
-  fun
-  | Projector(p) => Some(p)
-  | _ => None;
-
 let label: t => option(Label.t) =
   fun
   | Tile({label, _}) => Some(label)
@@ -141,30 +136,6 @@ let is_complete: t => bool =
   fun
   | Tile(t) => Tile.is_complete(t)
   | _ => true;
-
-let replace_id = (id: Id.t, p: t): t =>
-  switch (p) {
-  | Tile(t) =>
-    Tile({
-      ...t,
-      id,
-    })
-  | Grout(g) =>
-    Grout({
-      ...g,
-      id,
-    })
-  | Secondary(w) =>
-    Secondary({
-      ...w,
-      id,
-    })
-  | Projector(p) =>
-    Projector({
-      ...p,
-      id,
-    })
-  };
 
 let mk_secondary = (id, content) => Secondary(Secondary.mk(id, content));
 

@@ -1112,9 +1112,6 @@ let prettify =
 type pretty = Segment.t;
 
 let p_concat = (pretty2: pretty, pretty1: pretty) => pretty1 @ pretty2;
-let p_or = (_pretty2: pretty, pretty1: pretty) => pretty1;
-let p_orif = (cond, pretty2: pretty, pretty1: pretty) =>
-  if (cond) {pretty1} else {pretty2};
 let p_just = (segment: Segment.t): pretty => segment;
 
 let p_concat = (pretties: list(pretty)) =>

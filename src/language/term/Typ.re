@@ -154,29 +154,6 @@ let rec is_arrow = (typ: t) => {
   };
 };
 
-let is_atom = (ty: t): bool =>
-  switch (ty.term) {
-  | Atom(_) => true
-  | DrvQuoteTy(_)
-  | ProofOf(_)
-  | Parens(_)
-  | Projector(_)
-  | TupLabel(_)
-  | Arrow(_)
-  | Unknown(_)
-  | List(_)
-  | Label(_)
-  | ExplicitNonlabel
-  | Prod(_)
-  | Var(_)
-  | Sum(_)
-  | Poly(_)
-  | Rec(_)
-  | ProdProjection(_)
-  | ProdExtension(_)
-  | Sig(_) => false
-  };
-
 let rec has_fun = (typ: t) =>
   switch (typ.term) {
   | Parens(typ)

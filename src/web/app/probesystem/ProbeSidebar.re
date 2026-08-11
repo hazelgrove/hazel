@@ -129,16 +129,6 @@ let legend_item = (~tooltip: string, sample_view: Node.t) =>
 let kbd = (shortcut: string) =>
   span(~attrs=[clss(["kbd-badge"])], [text(shortcut)]);
 
-/* A joined pill: pointer icon (outline) + kbd badge (filled).
- * Reads as "click, then press key". */
-let _click_kbd = (shortcut: string) =>
-  span(
-    ~attrs=[clss(["click-kbd-pill"])],
-    [
-      span(~attrs=[clss(["click-part"])], [text({js|➤|js})]),
-      span(~attrs=[clss(["kbd-part"])], [text(shortcut)]),
-    ],
-  );
 let click_kbd = kbd;
 
 let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {

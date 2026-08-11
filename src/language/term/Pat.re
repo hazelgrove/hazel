@@ -290,22 +290,6 @@ let rec bindings = (dp: t): Binding.s =>
 let bound_vars = (dp: t): list(Var.t) =>
   dp |> bindings |> List.map((b: Binding.t) => b.name);
 
-let bound_var_ids = (ctx, pat): list(Binding.t) =>
-  bound_vars(pat)
-  |> List.map(name =>
-       switch (Ctx.lookup_var(ctx, name)) {
-       | Some({id, _}) =>
-         Binding.{
-           id,
-           name,
-         }
-       | None => {
-           id: Id.invalid,
-           name,
-         }
-       }
-     );
-
 let get_duplicate_bindings = (pat: t) => {
   let bindings = bound_vars(pat);
   List.filter(

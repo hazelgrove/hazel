@@ -275,11 +275,6 @@ let reassemble_siblings = (rs: t) => {
   siblings: Siblings.reassemble(rs.siblings),
 };
 
-let rescan_siblings = (rs: t) => {
-  ...rs,
-  siblings: Siblings.rescan(rs.siblings),
-};
-
 let reassemble = (rs: t): t => {
   let rec go = (rs: t): t =>
     switch (Segment.incomplete_tiles(snd(rs.siblings))) {

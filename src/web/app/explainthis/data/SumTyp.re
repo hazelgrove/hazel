@@ -51,8 +51,5 @@ let labelled_sum_typs: group = {
   forms: [labelled_sum_typ],
 };
 
-let sum_typ_unary_constructor_defs = (c: string): group =>
-  singleton(sum_typ_unary_constructor_def(c));
-
 let sum_typ_nullary_constructor_defs = (c: string): group =>
   singleton(sum_typ_nullary_constructor_def(c));

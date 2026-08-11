@@ -73,7 +73,6 @@ let sequence = (l: list(unboxed('a))): unboxed(list('a)) =>
     Matches([]),
     l,
   );
-let fixup_ascriptions = Ascriptions.transition_multiple;
 
 /* This function has a different return type depending on what kind of request
    it is given. This unfortunately uses a crazy OCaml feature called GADTS, but

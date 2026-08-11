@@ -181,10 +181,6 @@ let get_param_target =
   };
 };
 
-/* Stack icon at the beginning of the bar */
-let stack_icon = () =>
-  span(~attrs=[Attr.class_("stack-icon")], [text({js|≡|js})]);
-
 /* Windowed breadcrumb display: when the call stack has more entries than
  * fit in the available space, we show entry 0 (outermost call), a sliding
  * window around the focused entry, and ellipsis markers for collapsed ranges.
