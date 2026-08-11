@@ -1,14 +1,6 @@
 open ExplainThisForm;
 open Example;
 
-let triv_exp: form = {
-  id: TrivExp,
-  syntactic_form: [exp("()")],
-  expandable_id: None,
-  explanation: "The unique value of type `()`.",
-  examples: [],
-};
-
 let deferral_exp_ex = {
   sub_id: Deferral,
   term:

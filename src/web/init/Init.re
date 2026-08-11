@@ -66,8 +66,6 @@ let find_documentation_slide = (name: string) => {
    unnecessary if we instead tracked dirty state per-slide, or if we moved
    to per-slide localStorage keys instead of one big blob. See the save
    system discussion in the codebase for future cleanup opportunities. */
-let original_doc_segments: ref(option(Maps.StringMap.t(Segment.t))) =
-  ref(None);
 
 let default_documentation_slide_name =
     (name: string): CellEditor.Model.persistent => {

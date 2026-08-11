@@ -166,11 +166,6 @@ let rec split_n = (f, Node(v, c)) =>
 // Add a new child to the node at the given position
 let add = v' => map_nth_node((Node(v, c)) => Node(v, [empty(v'), ...c]));
 
-// Remove a child from the node at the given position
-// @raise `Failure` if children is empty
-let del = pos =>
-  pos |> split_n((Node(v, c)) => (List.hd(c), Node(v, List.tl(c))));
-
 // Insert a new child at the given position
 let insert = (v', i) =>
   map_nth_node((Node(v, c)) => Node(v, ListUtil.insert(empty(v'), c, i)));

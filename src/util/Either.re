@@ -5,8 +5,3 @@ type t('l, 'r) =
 
 let l = x => L(x);
 let r = x => R(x);
-
-let is_L =
-  fun
-  | L(_) => true
-  | R(_) => false;
