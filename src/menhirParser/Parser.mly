@@ -230,7 +230,7 @@ label:
 tupTypeEntry:
     | t = typ {t}
     | l = label; SINGLE_EQUAL; t = typ { TupLabelType(LabelType(l), t) }
-    | WILD; SINGLE_EQUAL; t = typ { TupLabelType(ExplicitNonlabel, t) }
+    | WILD; SINGLE_EQUAL; t = typ { TupLabelType(ExplicitNonlabelType, t) }
 
 %inline tupleType:
     | OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN { ParenTyp(TupleType(hd :: types)) }
@@ -279,7 +279,7 @@ typ:
     | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { ParenTyp(t) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(LabelType(l), t)])) }
-    | OPEN_PAREN; WILD; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(ExplicitNonlabel, t)])) }
+    | OPEN_PAREN; WILD; SINGLE_EQUAL; t = typ; CLOSE_PAREN { ParenTyp(TupleType([TupLabelType(ExplicitNonlabelType, t)])) }
     | t1 = typ; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) } %prec TYP_AP_SYMBOL
     | t1 = typ; DOT; t2 = typ { ProdProjection(t1, t2) }
     | OPEN_CURLY; items = separated_list(MOD_SEMI, sigItem); CLOSE_CURLY { Sig(items) }
@@ -295,7 +295,7 @@ nonAscriptingPat:
     | PROJECTOR_INVOKE; OPEN_PAREN; p = pat; CLOSE_PAREN; { p }
     | OPEN_PAREN; p = pat; CLOSE_PAREN { ParenPat(p) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; p = pat; CLOSE_PAREN { ParenPat(TuplePat([TupLabelPat(LabelPat(l), p)])) }
-    | OPEN_PAREN; WILD; SINGLE_EQUAL; p = pat; CLOSE_PAREN { ParenPat(TuplePat([TupLabelPat(ExplicitNonlabel, p)])) }
+    | OPEN_PAREN; WILD; SINGLE_EQUAL; p = pat; CLOSE_PAREN { ParenPat(TuplePat([TupLabelPat(ExplicitNonlabelPat, p)])) }
     | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { ParenPat(TuplePat(p :: pats)) }
     |  P_PAT; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
