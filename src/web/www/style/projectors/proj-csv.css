@@ -1,7 +1,3 @@
-.projector.csv .cancel-button {
-    cursor: pointer;
-    color: var(--R1);
-}
 
 .projector.csv .csv-loaded-container .reset-button {
     cursor: pointer;
