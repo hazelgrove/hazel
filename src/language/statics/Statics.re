@@ -3177,7 +3177,10 @@ and upat_to_info_map =
         );
       (p, p_elab, add_info(ids, InfoPat(p), m));
     | ExplicitNonlabel =>
+      /* Bare `_` in pat sort is ExplicitNonlabel at the MakeTerm tip, but
+         PatternMatch expects Wild. Elaborate like Wild; keep the mark. */
       add(
+        ~elab_term=Wild |> rewrap,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[ExplicitNonlabel],
         ~ctx,

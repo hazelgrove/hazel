@@ -149,11 +149,15 @@ module Ctr = {
     | Poly(_)
     | ProdProjection(_)
     | ProdExtension(_)
-    | Var(_) => Infinite
+    | Var(_)
+    /* Quoted-label binders synthesize type Label(name); treat like other
+       non-sum forms — not a constructor-exhaustion problem. Likewise a bare
+       ExplicitNonlabel (e.g. from a pattern ascribed `(_)`) survives
+       normalization. */
+    | Label(_)
+    | ExplicitNonlabel => Infinite
     | Parens(_)
     | Projector(_)
-    | ExplicitNonlabel
-    | Label(_)
     | Sig(_) =>
       failwith(
         "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
@@ -433,13 +437,13 @@ module UnseenPatternList: UnseenPatternList = {
     | Poly(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
-    | Var(_) => unseen_pattern
+    | Var(_)
+    | Label(_)
+    | ExplicitNonlabel => unseen_pattern
     | Parens(_)
     | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
-    | ExplicitNonlabel
-    | Label(_)
     | Sig(_) =>
       failwith(
         "prepend_ctr called with a non-normalized type: "
@@ -572,13 +576,13 @@ module UnseenPatternList: UnseenPatternList = {
     | Poly(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
-    | Var(_) => cons_wild(unseen_pattern)
+    | Var(_)
+    | Label(_)
+    | ExplicitNonlabel => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
-    | ExplicitNonlabel
-    | Label(_)
     | Sig(_) =>
       failwith(
         "cons_from_type called with a non-normalized type: "
@@ -637,13 +641,13 @@ module UnseenPatternList: UnseenPatternList = {
     | Poly(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
-    | Var(_) => cons_wild(unseen_pattern)
+    | Var(_)
+    | Label(_)
+    | ExplicitNonlabel => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
-    | ExplicitNonlabel
-    | Label(_)
     | Sig(_) =>
       failwith(
         "prepend_from_type called with a non-normalized type: "
