@@ -9,6 +9,9 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-dune build test --profile dev
+# Build the JS and the idb stub by explicit path: `dune build test` only builds
+# the @default alias, and idb_stub.js reaches _build solely as a dep of the
+# @runtest/@test-quick alias rules, so it would otherwise be missing here.
+dune build test/haz3ltest.bc.js test/idb_stub.js --profile dev
 
 "$SCRIPT_DIR/test/run_node.sh" "$@"

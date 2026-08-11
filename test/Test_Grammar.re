@@ -209,6 +209,47 @@ let tests = (
   "Grammar",
   [
     test_case(
+      "Shrinking a string literal keeps whole characters",
+      `Quick,
+      () => {
+        let shrunk = ref([]);
+        MenhirParser.AST.shrink_exp(Atom(String("a日b")), e =>
+          switch (e) {
+          | Atom(String(s)) => shrunk := [s, ...shrunk^]
+          | _ => ()
+          }
+        );
+        MenhirParser.AST.shrink_pat(AtomPat(String("a日b")), p =>
+          switch (p) {
+          | AtomPat(String(s)) => shrunk := [s, ...shrunk^]
+          | _ => ()
+          }
+        );
+        check(
+          list(string),
+          "shrunk strings that aren't UTF-8",
+          [],
+          List.filter(s => !String.is_valid_utf_8(s), shrunk^),
+        );
+      },
+    ),
+    test_case(
+      "Shrinking a name keeps whole characters",
+      `Quick,
+      () => {
+        let shrunk = ref([]);
+        MenhirParser.AST.shrink_non_empty_string("a日b", s =>
+          shrunk := [s, ...shrunk^]
+        );
+        check(
+          list(string),
+          "shrunk names that aren't UTF-8",
+          [],
+          List.filter(s => !String.is_valid_utf_8(s), shrunk^),
+        );
+      },
+    ),
+    test_case(
       "Expression classes are correct",
       `Quick,
       () => {
