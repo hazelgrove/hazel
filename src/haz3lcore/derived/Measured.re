@@ -449,6 +449,26 @@ let of_segment_inner =
       | Block(_) => origin.col
       };
     let (measure, map) = calc(indent, origin, map, size);
+    /* [calc] records the spanned rows' max_col as origin.col — right
+     * for linebreaks, whose origin is the line's end, but a block
+     * projector extends [size.col] further. Re-record its rows with
+     * the block's right edge so end-of-line consumers (offside
+     * probe/projector views, end-of-row arms) clear the block instead
+     * of anchoring at its left edge. */
+    let map =
+      List.init(size.row, i => i)
+      |> List.fold_left(
+           (map, i) =>
+             add_row(
+               origin.row + i,
+               {
+                 indent,
+                 max_col: origin.col + size.col,
+               },
+               map,
+             ),
+           map,
+         );
     let map =
       size.row == 0
         ? map
