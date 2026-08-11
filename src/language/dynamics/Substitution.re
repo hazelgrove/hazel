@@ -207,9 +207,10 @@ and in_pat =
 and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
   Typ.map_term(
     ~f_exp=_ => in_exp(env),
-    ~f_pat=
-      (_, _) =>
-        failwith("patterns should be handled separately in substitution"),
+    /* Types can contain patterns: `Sig`'s `SigLet` items and `MultiHole`
+       children. None bind expression variables — signature names are field
+       labels — so recurse for their nested types and leave binders alone. */
+    ~f_pat=(cont, p) => cont(p),
     ~f_typ=
       (cont, t) => {
         let (term, _rewrap) = Typ.unwrap(t);
