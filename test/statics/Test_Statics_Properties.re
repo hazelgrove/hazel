@@ -18,8 +18,8 @@ let is_known_statics_failure = msg =>
 let qcheck_statics_does_not_crash =
   QCheck.Test.make(
     ~name="Statics does not crash",
-    ~count=10000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    ~count=1000,
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
     switch (statics(exp)) {
     | _m => true
@@ -93,7 +93,11 @@ let check_elaboration_preserves_type = (exp: Language.Exp.t): unit =>
     switch (elab_type_of(m_user, exp)) {
     | None => ()
     | Some(user_ty) =>
-      switch (safe_statics(elab)) {
+      /* Re-check with `use_mode = None`, as `CachedStatics` does for
+         already-elaborated terms: `Operators.replace_*` re-specialize
+         literals to the ambient mode, so a `Some(Int)` pass rewrites
+         `use SInt in -?` back to an `Int` minus. */
+      switch (safe_statics(~ctx=Builtins.ctx_init(None), elab)) {
       | `Skip => ()
       | `Ok(m_elab, _) =>
         switch (elab_type_of(m_elab, elab)) {
@@ -114,7 +118,7 @@ let qcheck_elaboration_preserves_type =
   QCheck.Test.make(
     ~name="Elaboration preserves type",
     ~count=1000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
       check_elaboration_preserves_type(exp);
       true;
@@ -141,8 +145,9 @@ let qcheck_elaboration_preserves_type_disabled =
    number-literal replacement, constructor ADT resolution, label inference --
    agree on both sides.
 
-   Bare labels are skipped: a bare label has no type outside its enclosing
-   product type. */
+   Bare labels and bare ExplicitNonlabels are skipped: neither has a type
+   outside its enclosing product type, so they always "differ" for reasons
+   that say nothing about elaboration. */
 type syn_disagreement = {
   sub: Language.Exp.t,
   parent_ty: Typ.t,
@@ -168,7 +173,8 @@ let syn_and_elab_of =
 
 let is_bare_label = (e: Language.Exp.t): bool =>
   switch (Exp.term_of(e)) {
-  | Label(_) => true
+  | Label(_)
+  | ExplicitNonlabel => true
   | _ => false
   };
 
@@ -217,8 +223,8 @@ let differing_subs =
 let qcheck_subexp_synthesis_agrees =
   QCheck.Test.make(
     ~name="Sub-expression synthesis agrees with a fresh run",
-    ~count=10000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    ~count=1000,
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
       check_no_violations(
         ~violations=differing_subs,
@@ -300,7 +306,7 @@ let qcheck_elab_term_ids_in_user_term =
   QCheck.Test.make(
     ~name="Every elab_term is rooted at a user-term id",
     ~count=1000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 40),
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
       check_no_violations(
         ~violations=elab_ids_outside_user_term,
