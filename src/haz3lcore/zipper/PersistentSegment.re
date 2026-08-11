@@ -9,9 +9,6 @@ type t = {
 
 let to_string = Printer.of_segment(~holes="", ~indent="");
 
-let refractors_init_str =
-  ZipperBase.Refractor.persist(ZipperBase.Refractor.init);
-
 let persist = (zipper: Zipper.t) => {
   let segment = zipper |> Zipper.zip;
   {

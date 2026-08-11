@@ -310,7 +310,6 @@ let pat_probe_targets: pat => SubexpProbeTargets.t =
   ({probe_targets, _}) => probe_targets;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
-let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;
 

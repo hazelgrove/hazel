@@ -7,15 +7,7 @@ let equal = String.equal;
 
 let length = String.length;
 
-let is_true = equal("true");
-
-let is_false = equal("false");
-
-let is_let = equal("let");
-
 let is_fun = equal("fun");
-
-let is_case = equal("case");
 
 let is_wild = equal("_");
 

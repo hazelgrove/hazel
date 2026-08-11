@@ -69,30 +69,6 @@ let find_documentation_slide = (name: string) => {
 let original_doc_segments: ref(option(Maps.StringMap.t(Segment.t))) =
   ref(None);
 
-let get_original_doc_segment = (name: string): option(Segment.t) => {
-  let cache =
-    switch (original_doc_segments^) {
-    | Some(c) => c
-    | None =>
-      let c =
-        startup.documentation
-        |> snd
-        |> List.map(((n, pce: CellEditor.Model.persistent)) =>
-             (
-               n,
-               pce.editor.zipper
-               |> PersistentZipper.unpersist(~root=pce.editor.root)
-               |> Zipper.zip,
-             )
-           )
-        |> List.to_seq
-        |> Maps.StringMap.of_seq;
-      original_doc_segments := Some(c);
-      c;
-    };
-  Maps.StringMap.find_opt(name, cache);
-};
-
 let default_documentation_slide_name =
     (name: string): CellEditor.Model.persistent => {
   OptUtil.get(

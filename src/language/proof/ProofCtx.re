@@ -1,5 +1,4 @@
 open Util;
-open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
@@ -14,36 +13,6 @@ type entry = {
 type t = list(entry);
 
 let empty = [];
-
-let add_rule = (name: string, rule: ProofRule.t, ctx: t): t => {
-  let typ = ProofRule.rule_to_typ(rule);
-  let exp = ProofRule.rule_to_exp(rule);
-  [
-    {
-      name,
-      rule,
-      typ,
-      exp,
-      is_captured: false,
-    },
-    ...ctx,
-  ];
-};
-
-let add_typ = (name: string, typ: Typ.t, ctx: t): option(t) => {
-  let* rule = ProofRule.typ_to_rule(typ);
-  let exp = ProofRule.rule_to_exp(rule);
-  Some([
-    {
-      name,
-      typ,
-      rule,
-      exp,
-      is_captured: false,
-    },
-    ...ctx,
-  ]);
-};
 
 let add_exp = (name: string, exp: Exp.t, ctx: t) => {
   let rule = ProofRule.exp_to_rule(exp);

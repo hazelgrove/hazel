@@ -133,16 +133,6 @@ let rec items_at =
     };
   };
 
-/* Selectable = Action(enabled) or Submenu. Dividers don't take an index;
- * an auto-synthesised Back row is selectable separately (handled by
- * `selectable_items_with_back`). */
-let is_selectable = (item: item('a)): bool =>
-  switch (item) {
-  | Action({enabled, _}) => enabled
-  | Submenu(_) => true
-  | Divider => false
-  };
-
 /* Visible item shape used internally for rendering + indexing: includes
  * a `Back` marker when path != []. Not exposed publicly so callers can't
  * confuse themselves about who owns Back. */

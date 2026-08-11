@@ -8,10 +8,6 @@ let triv_exp: form = {
   explanation: "The unique value of type `()`.",
   examples: [],
 };
-let triv_exps: group = {
-  id: TrivExp,
-  forms: [triv_exp],
-};
 
 let deferral_exp_ex = {
   sub_id: Deferral,

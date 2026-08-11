@@ -68,20 +68,6 @@ let convex_grout =
     | _ => None,
   );
 
-let contains_matching = (t: Tile.t) =>
-  List.exists(
-    fun
-    | Piece.Tile(t') => t'.id == t.id
-    | _ => false,
-  );
-
-let remove_matching = (t: Tile.t) =>
-  List.filter_map(
-    fun
-    | Piece.Tile(t') when t'.id == t.id => None
-    | p => Some(p),
-  );
-
 let snoc = (tiles, tile) => tiles @ [tile];
 
 let shape_affix =
@@ -1123,8 +1109,6 @@ let rescan = (seg: t): t => {
   };
 };
 
-let rescan_and_reassemble = (seg: t): t => seg |> rescan |> reassemble;
-
 let trim_f: (list(Base.piece) => list(Base.piece), Direction.t, t) => t =
   (trim_l, d, ps) => {
     switch (d) {
@@ -1145,21 +1129,6 @@ let trim_secondary: (Direction.t, t) => t =
     trim_f(trim_l, d, ps);
   };
 
-let trim_grout_around_secondary: (Direction.t, t) => t =
-  (d, ps) => {
-    /* Trims leading/trailing grout, skipping over secondary,
-       but not skipping over other pieces. */
-    let rec trim_l: list(Base.piece) => list(Base.piece) =
-      xs =>
-        switch (xs) {
-        | [] => []
-        | [Secondary(w), ...xs] => [Secondary(w), ...trim_l(xs)]
-        | [Grout(_), ...xs] => trim_l(xs)
-        | [_, ..._] => xs
-        };
-    trim_f(trim_l, d, ps);
-  };
-
 let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
   let trimmed = trim_secondary(d, ps);
   switch (d, ListUtil.hd_opt(trimmed), ListUtil.last_opt(trimmed)) {
@@ -1171,13 +1140,6 @@ let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
 
 let edge_direction_of = (d: Direction.t, ps: t): option(Direction.t) =>
   Option.map(Nib.Shape.absolute(d), edge_shape_of(d, ps));
-
-let sameline_secondary =
-  List.for_all(
-    fun
-    | Piece.Secondary(w) => !Secondary.is_linebreak(w)
-    | _ => false,
-  );
 
 let rec holes = (segment: t): list(Grout.t) =>
   List.concat_map(
@@ -1206,9 +1168,6 @@ let rec get_incomplete_ids = (seg: t): list(Id.t) =>
     | _ => [],
     seg,
   );
-
-let ids_of_incomplete_tiles_in_bidelimiteds = (seg: t): list(Id.t) =>
-  get_childrens(seg) |> List.concat |> get_incomplete_ids;
 
 let rec ids = (s: t): list(Id.t) => List.concat_map(ids_of_piece, s)
 and ids_of_piece = (p: Piece.t): list(Id.t) =>

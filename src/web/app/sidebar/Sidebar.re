@@ -157,16 +157,6 @@ let problems_tab =
     ~globals,
   );
 
-let collapse_tab = (~globals: Globals.t): Node.t => {
-  let tooltip =
-    globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
-  let icon = globals.settings.sidebar.show ? Icons.collapse : Icons.expand;
-  div(
-    ~attrs=[clss(["collapse-button"])],
-    [tab(icon, ~tooltip, switch_assistant(~globals), false)],
-  );
-};
-
 let persistent_view =
     (
       ~globals: Globals.t,

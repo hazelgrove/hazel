@@ -10,13 +10,3 @@ let is_L =
   fun
   | L(_) => true
   | R(_) => false;
-let is_R = e => !is_L(e);
-
-let get_L =
-  fun
-  | L(l) => Some(l)
-  | R(_) => None;
-let get_R =
-  fun
-  | R(r) => Some(r)
-  | L(_) => None;

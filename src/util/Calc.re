@@ -60,12 +60,6 @@ let is_new = (x: t('a)): bool =>
   | NewValue(_) => true
   };
 
-let old_if_same = (~eq: ('a, 'a) => bool=(==), x: 'a, y: t('a)): t('a) =>
-  switch (y) {
-  | NewValue(y) when eq(x, y) => OldValue(x)
-  | _ => NewValue(x)
-  };
-
 // ================================================================================
 // saved('a) is used to store a value that has been calculated in the model
 [@deriving (show({with_path: false}), sexp, yojson)]

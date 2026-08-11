@@ -4,11 +4,6 @@ open Language.Secondary;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = Language.Secondary.t;
 
-let mk_empty = id => {
-  content: Whitespace(Token.empty),
-  id,
-};
-
 let mk_space = id => {
   content: Whitespace(Token.space),
   id,
@@ -44,13 +39,6 @@ let is_linebreak: t => bool =
   w =>
     switch (w.content) {
     | Whitespace(s) => s == Token.linebreak
-    | _ => false
-    };
-
-let content_is_comment: secondary_content => bool =
-  content =>
-    switch (content) {
-    | Comment(_) => true
     | _ => false
     };
 

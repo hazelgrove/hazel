@@ -48,13 +48,6 @@ let timestamp = () => date_now()##valueOf;
 
 let precise_timestamp = () => Js.Unsafe.global##.performance##now()##valueOf;
 
-let print_timestamp = (ts: float): string => {
-  let date =
-    Js.Unsafe.new_obj(Js.date_fromTimeValue, [|Js.Unsafe.inject(ts)|]);
-  let date_str = date##toLocaleString(Js.undefined, Js.undefined);
-  date_str;
-};
-
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {
   let blob = File.blob_from_string(~contentType=content_type, contents);
@@ -434,14 +427,6 @@ let setup_focus_bar_scroll_compensation = () =>
     | _ => ()
     };
   };
-
-let set_select_value = (select_id, value) => {
-  Js_of_ocaml.Js.Unsafe.set(
-    get_elem_by_id(select_id),
-    "value",
-    Js_of_ocaml.Js.string(value),
-  );
-};
 
 let prompt = (message: string, default: string): option(string) => {
   Js.Opt.to_option(

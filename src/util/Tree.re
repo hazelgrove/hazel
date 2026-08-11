@@ -72,33 +72,11 @@ let value = (Node(v, _)) => v;
 
 let children = (Node(_, c)) => c;
 
-// @raise `Failure` if children is empty
-let hd_children = t => t |> children |> List.hd;
-
-let hd_children_opt = t => t |> children |> ListUtil.hd_opt;
-
-// @raise `Failure` if children is empty
-let tl_children = t => t |> children |> List.tl;
-
-let tl_children_opt = t =>
-  t
-  |> children
-  |> (
-    fun
-    | [] => None
-    | [_, ...tl] => Some(tl)
-  );
-
 // @raise `Failure` if pos not exists in the tree
 let rec nth_node = (Node(v, c)) =>
   fun
   | Value => Node(v, c)
   | Children(i, pos) => pos |> nth_node(List.nth(c, i));
-
-let nth_node_opt = (t, pos) =>
-  try(Some(nth_node(t, pos))) {
-  | Failure(_) => None
-  };
 
 // @raise `Failure` if pos not exists in the tree
 let nth = (t, pos) => nth_node(t, pos) |> value;
@@ -162,13 +140,6 @@ let rec for_all = (f, Node(v, c)) =>
 
 /* Position */
 
-let flatten_pos = t => t |> mapi((pos, _) => pos) |> flatten;
-
-let exists_pos = (t, pos) =>
-  try(nth_node(t, pos) |> Fun.const(true)) {
-  | Failure(_) => false
-  };
-
 // For all functions below:
 // @failwith("out of bounds") if pos not exists in the tree 😱
 
@@ -199,11 +170,6 @@ let add = v' => map_nth_node((Node(v, c)) => Node(v, [empty(v'), ...c]));
 // @raise `Failure` if children is empty
 let del = pos =>
   pos |> split_n((Node(v, c)) => (List.hd(c), Node(v, List.tl(c))));
-
-let del_opt = (t, pos) =>
-  try(Some(del(t, pos))) {
-  | Failure(_) => None
-  };
 
 // Insert a new child at the given position
 let insert = (v', i) =>

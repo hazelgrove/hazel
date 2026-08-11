@@ -33,13 +33,6 @@ let evaluate_incremental =
   (result, state.incr_eval);
 };
 
-/* Evaluate and return both the result and the probe sample map */
-let evaluate_with_probes = (exp: Exp.t): (Exp.t, Sample.Map.t) => {
-  let (result, state) =
-    Evaluator.evaluate(~env=Builtins.env_init, elaborate(exp));
-  (result, state.probes);
-};
-
 /* Evaluate with a probe_map to collect probe samples.
  * The probe_map tells the evaluator which expressions to record. */
 let evaluate_with_probe_map =

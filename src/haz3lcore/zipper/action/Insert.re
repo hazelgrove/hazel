@@ -573,9 +573,6 @@ let go = (~deep_reassociate=false, char: string, z: t, ~root): option(t) => {
   };
 };
 
-/* Expose the inner go for profiling */
-let go_inner = go;
-
 /* This is a wrapper intended to effectuate after-insertion conditional
  * operations. See Triggers.re for more details */
 let go =

@@ -455,20 +455,6 @@ let delete_buggy_impl = (state: state, index: int) => {
   };
 };
 
-let edit_buggy_impl = (state: state, idx: int, impl: Editor.t, new_hint: hint) => {
-  let buggy_impl: wrong_impl(Editor.t) = {
-    impl,
-    hint: new_hint,
-  };
-  {
-    eds: {
-      ...state.eds,
-      hidden_bugs:
-        Util.ListUtil.put_nth(idx, buggy_impl, state.eds.hidden_bugs),
-    },
-  };
-};
-
 let update_exercise_prompt = ({eds}: state, new_prompt: string) => {
   eds: {
     ...eds,
@@ -556,16 +542,6 @@ let update_module_name = ({eds}: state, new_module_name: string) => {
   eds: {
     ...eds,
     module_name: new_module_name,
-  },
-};
-
-let update_prov_tests = ({eds}: state, new_prov_tests: int) => {
-  eds: {
-    ...eds,
-    your_tests: {
-      ...eds.your_tests,
-      provided: new_prov_tests,
-    },
   },
 };
 

@@ -300,17 +300,6 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
     )
   | t => BadEntry(t);
 
-let mk_bad = (ctr, ids, value) => {
-  let t: Typ.t = {
-    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
-    term: Var(ctr),
-  };
-  switch (value) {
-  | None => t
-  | Some(u) => Unknown(Hole(MultiHole([Typ(t), Typ(u)]))) |> Typ.fresh
-  };
-};
-
 let is_hole_label = (t: string) =>
   t == " "
   || Token.is_explicit_hole(t)
