@@ -40,6 +40,13 @@ WHAT THIS WILL NOT CATCH
   - Anything suppressed below, notably values reached through a
     signature-ascribed module (`module M: Sig = {...}` -- every *Proj.re looks
     like this) or passed to a functor.
+  - Modules that have a .rei. Those are deferred to the compiler, which reports
+    them correctly via warning 32 (a hard error in the release profile). Note
+    the converse when deleting by hand: a .rei declaration does NOT keep an
+    implementation alive as far as this tool is concerned, so removing a
+    reported definition from such a module means removing its declaration too.
+  - Dead modules. This works at definition granularity; a module every one of
+    whose members is used only by its siblings is invisible here.
 
 SUPPRESSION
 
@@ -86,6 +93,7 @@ BINDER = re.compile(r"^\s*(let|and)\s+(rec\s+)?$")
 # module types, e.g. `module Exp: { let pat_of_mpat: ... => AST.pat; }`.
 BINDS = re.compile(r"(?<![=<>!:+\-*/&|^])=(?![=>])")
 CHAIN = re.compile(r"^(let|type|module|exception|external|and|class)\b")
+CLOSER = re.compile(r"^[}\])>;]")
 
 MOD_PLAIN = re.compile(r"^\s*(?:module\s+(?:rec\s+)?|and\s+)([A-Z]\w*)\s*=\s*\{\s*$")
 MOD_SIG = re.compile(r"^\s*(?:module\s+(?:rec\s+)?|and\s+)([A-Z]\w*)\s*:")
@@ -262,11 +270,45 @@ def build_module_map():
     return by_mod
 
 
+# A module packed as a first-class value, or aliased under another name, has a
+# contract this tool cannot see: the signature it is checked against lives at
+# the use site. `(module WorkerMessagingSection)` makes every member of that
+# FILE required by DebugSection.S; `module Input = Input;` inside an
+# `Attr.Hooks.Make({...})` argument makes every member of Input required by the
+# hook's module type. Both produced build breaks before this rule existed.
+# The alias form must be INDENTED to count: a nested `module Input = Input;`
+# is a functor/structure argument, whereas a column-0 one is an ordinary
+# re-export. Util.re alone has 42 of the latter, and counting those would
+# suppress every definition in src/util.
+FIRST_CLASS = re.compile(r"\(module\s+([A-Z]\w*)")
+MOD_ALIAS = re.compile(r"^\s+module\s+[A-Z]\w*\s*=\s*([A-Z]\w*)\s*;")
+
+
 class Analyzer:
     def __init__(self, occ, by_mod):
         self.occ = occ
         self.by_mod = by_mod
         self._src = {}
+        self._contracted = None
+        self._literals = {}
+
+    def contracted_modules(self):
+        """Module names whose members are required by an off-site signature."""
+        if self._contracted is None:
+            names = set()
+            for top in ("src", "test"):
+                for root, _dirs, files in os.walk(os.path.join(REPO, top)):
+                    for fn in files:
+                        if not fn.endswith((".re", ".rei", ".ml", ".mli")):
+                            continue
+                        with open(os.path.join(root, fn), encoding="latin-1") as f:
+                            for ln in f:
+                                names.update(FIRST_CLASS.findall(ln))
+                                m = MOD_ALIAS.match(ln)
+                                if m:
+                                    names.add(m.group(1))
+            self._contracted = names
+        return self._contracted
 
     def src(self, path):
         """Source lines, read as latin-1.
@@ -284,6 +326,47 @@ class Analyzer:
                         self._src[path] = f.read().split("\n")
                     break
         return self._src[path]
+
+    def literal_lines(self, path):
+        """Line numbers (1-based) whose content sits inside a multi-line
+        `{|...|}` / `{id|...|id}` string literal, excluding the opening line.
+
+        Indentation means nothing inside a quoted-string extension, and this
+        repo's tests embed whole Hazel programs at column 0. Treating those as
+        dedented terminators truncated a definition mid-literal and produced a
+        syntax error in Test_Coverage.re.
+        """
+        if path not in self._literals:
+            lines = self.src(path)
+            inside = set()
+            delim = None
+            for n, line in enumerate(lines or [], start=1):
+                if delim is None:
+                    m = re.search(r"\{([a-z_]*)\|", line)
+                    if m and ("|" + m.group(1) + "}") not in line[m.end():]:
+                        delim = "|" + m.group(1) + "}"
+                else:
+                    inside.add(n)
+                    if delim in line:
+                        delim = None
+            self._literals[path] = inside
+        return self._literals[path]
+
+    def has_interface(self, path):
+        """Does this module have a sibling .rei/.mli?
+
+        If so, defer to the compiler: warning 32 already reports unused values
+        in an interfaced module, and it is right where this tool is not. A
+        declaration in the interface is a use the index does not connect to the
+        implementation, and the interface may require values indirectly via
+        `include SOME_MODULE_TYPE` -- TableRenderer.rei does exactly that, which
+        made its 164-line `render` look like the single biggest finding in the
+        repo when it is required by RichProbe.RichProbe.
+        """
+        stem = path.rsplit(".", 1)[0]
+        return any(
+            os.path.isfile(os.path.join(REPO, stem + ext)) for ext in (".rei", ".mli")
+        )
 
     def deffile(self, uid):
         parts = uid.split(".")[0].split("__")
@@ -322,13 +405,25 @@ class Analyzer:
 
     def span(self, path, defline):
         """Indentation-delimited. Exact for refmt output, which every build
-        target enforces via `@src/fmt --auto-promote`."""
+        target enforces via `@src/fmt --auto-promote`.
+
+        A dedented line that opens with a closing delimiter still belongs to
+        the definition: Reason puts the `};` of a braced body back at the
+        binding's own indent, so a naive indent<=k rule stops one line short
+        and would leave a dangling closer behind. Require indent == k for that
+        exemption -- a closer at a *lower* indent belongs to an enclosing
+        module, and following it would swallow everything after it.
+        """
         lines = self.src(path)
+        literals = self.literal_lines(path)
         k = self.indent(lines[defline - 1])
         for i in range(defline, len(lines)):
-            if not lines[i].strip():
+            if not lines[i].strip() or (i + 1) in literals:
                 continue
-            if self.indent(lines[i]) <= k:
+            ind = self.indent(lines[i])
+            if ind <= k:
+                if ind == k and CLOSER.match(lines[i].lstrip()):
+                    continue
                 return (defline, i)
         return (defline, len(lines))
 
@@ -435,6 +530,12 @@ class Analyzer:
             sup = []
             if path in ENTRY_FILES or ENTRY_GLOB.match(path):
                 sup.append("entry-point")
+            if self.has_interface(path):
+                sup.append("has-interface")
+            filemod = os.path.basename(path).rsplit(".", 1)[0]
+            filemod = filemod[0].upper() + filemod[1:]
+            if self.contracted_modules() & set(mods + [filemod]):
+                sup.append("contracted-module")
             if PPX_NAME.search(name):
                 sup.append("ppx-name")
             if GENSYM.search(name) or name.startswith("_"):
