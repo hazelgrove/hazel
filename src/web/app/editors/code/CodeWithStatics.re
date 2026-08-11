@@ -82,6 +82,7 @@ module Model = {
     redo_action: None,
     error_ids: model.statics.error_ids,
     contextual_actions: [],
+    proof_map: Language.ProofMap.empty,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -105,11 +106,22 @@ module StaticsDebounce = {
   let force_on_next: ref(bool) = ref(false);
 
   /* Call from calculate to get the statics_mode for this cycle.
-     schedule_refresh should dispatch the mode's RefreshStatics action. */
+     schedule_refresh should dispatch the mode's RefreshStatics action.
+     `force_on_next` takes precedence over `is_edited` so callers
+     (e.g. `CellEditor`'s `PatchMainEditor`) can bypass the
+     typing-debounce when they need statics — and therefore the
+     derived proof tree, info_map, etc. — to refresh immediately. */
   let consume = (~is_edited, ~schedule_refresh: unit => unit): statics_mode => {
     let force_now = force_on_next^;
     force_on_next := false;
-    if (is_edited && debounce_ms > 0.0) {
+    if (force_now) {
+      switch (timer_id^) {
+      | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
+      | None => ()
+      };
+      timer_id := None;
+      StaticsForce;
+    } else if (is_edited && debounce_ms > 0.0) {
       switch (timer_id^) {
       | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
       | None => ()
@@ -125,8 +137,6 @@ module StaticsDebounce = {
           ),
         );
       StaticsDefer;
-    } else if (force_now) {
-      StaticsForce;
     } else {
       StaticsNormal;
     };
@@ -196,16 +206,24 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
+  let view =
+      (
+        ~globals,
+        ~overlays: list(Node.t)=[],
+        ~proof_map: Language.ProofMap.t=Language.ProofMap.empty,
+        model: Model.t,
+      ) => {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
+          syntax: {selection_ids, shape_map, term_data, _} as syntax,
           state: {zipper: z, _},
           _,
         },
       _,
     }: Model.t = model;
+    let measured = CachedSyntax.measured(syntax);
+    let segment = CachedSyntax.segment(syntax);
     let info_map = model.statics.info_map;
     let refine_sort = (id, mold_out) =>
       Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
@@ -220,12 +238,17 @@ module View = {
         ~refine_sort,
         segment,
       );
+    /* Union proof-mark ids into the red-shard overlay. Proof-check marks
+     * are produced at evaluation time (see src/language/proof/ProofCheck.re
+     * and ProofMark.t) and flow in here via CodeEditable → CellEditor,
+     * which reads them from the EvalResult's proof_map. */
+    let proof_error_ids = Language.ProofMap.error_ids(proof_map);
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
-        model.statics.error_ids,
+        model.statics.error_ids @ proof_error_ids,
       );
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];

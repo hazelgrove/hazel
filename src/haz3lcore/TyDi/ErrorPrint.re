@@ -21,18 +21,7 @@ let remove_projectors = (segment: Segment.t) =>
 module Print = {
   let seg = (~holes, segment: Segment.t): string => {
     let segment = remove_projectors(segment);
-    Printer.of_segment(
-      ~holes,
-      ~measured=
-        Measured.of_segment(
-          segment,
-          ProjectorCore.Shape.Map.empty,
-          Id.Map.empty,
-        ),
-      ~caret=None,
-      ~indent=" ",
-      segment,
-    );
+    Printer.of_segment(~holes, ~caret=None, segment);
   };
 
   let term = (term: Any.t): string => {
@@ -110,6 +99,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let common_from_core = () => core_mark_string(ctx, ana, m);
   switch (m) {
   | Free(name) => "Variable " ++ name ++ " is not bound"
+  | FreeHypothesis(name) => "Hypothesis " ++ name ++ " is not in scope"
+  | AxiomSlotNotHypothesis(_) => "Axiom slot must reference a hypothesis by name"
   | InexhaustiveMatch(_) => "Match is not exhaustive"
   | IsDeferral(InAp) => "(internal)"
   | IsDeferral(_) => "Unused deferral"
@@ -313,6 +304,7 @@ let term_string_of: Info.t => string =
   | InfoMod({user_term, _}) => Print.term(Mod(user_term))
   | InfoSig({user_term, _}) => Print.term(Sig(user_term))
   | InfoMPat({user_term, _}) => Print.term(MPat(user_term))
+  | InfoProof({user_term, _}) => Print.term(Proof(user_term))
   | Secondary(_) => failwith("ChatLSP: term_string_of: Secondary");
 
 let all = (info_map: Statics.Map.t): list(string) => {

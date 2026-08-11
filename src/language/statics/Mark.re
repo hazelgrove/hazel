@@ -101,7 +101,9 @@ type t =
   | ExpectedConstructor
   | IsMulti
   | DuplicateLabel(LabeledTuple.label, Typ.t)
-  | DuplicateVar(string, Typ.t);
+  | DuplicateVar(string, Typ.t)
+  | FreeHypothesis(Var.t)
+  | AxiomSlotNotHypothesis(Grammar.any_t(IdTagged.IdTag.t));
 
 /* Declaration-order tag index, derived by ppx_variants_conv. */
 let compare = (a: t, b: t): int =>

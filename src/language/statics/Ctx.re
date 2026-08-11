@@ -34,11 +34,22 @@ type node_or_list =
   | List(list(Virtual_dom.Vdom.Node.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type hypothesis_entry = {
+  name: Var.t,
+  id: Id.t,
+  /* The proposition this hypothesis proves.
+     `None` when unknown at statics time (e.g. from `intro`);
+     `Some(_)` for theorem/axiom hypotheses where the proposition is known. */
+  prop: option(TermBase.exp_t),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry(var_entry)
   | ConstructorEntry(var_entry)
   | TVarEntry(tvar_entry)
-  | LivelitEntry(LivelitCtx.raw_livelit);
+  | LivelitEntry(LivelitCtx.raw_livelit)
+  | HypothesisEntry(hypothesis_entry);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -58,6 +69,9 @@ let extend = (ctx: t, entry): t => {
 
 let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
+
+let extend_hypothesis = (ctx: t, hyp_entry: hypothesis_entry): t =>
+  extend(ctx, HypothesisEntry(hyp_entry));
 
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
   extend_tvar(
@@ -107,11 +121,28 @@ let lookup_livelit = (ctx: t, name: string): option(LivelitCtx.raw_livelit) =>
     ctx.entries,
   );
 
+let lookup_hypothesis = (ctx: t, name: Var.t): option(hypothesis_entry) =>
+  List.find_map(
+    fun
+    | HypothesisEntry(h) when h.name == name => Some(h)
+    | _ => None,
+    ctx.entries,
+  );
+
+let get_hypothesis_entries = (ctx: t): list(hypothesis_entry) =>
+  List.filter_map(
+    fun
+    | HypothesisEntry(h) => Some(h)
+    | _ => None,
+    ctx.entries,
+  );
+
 let get_id: entry => Id.t =
   fun
   | VarEntry({id, _})
   | ConstructorEntry({id, _})
   | TVarEntry({id, _}) => id
+  | HypothesisEntry({id, _}) => id
   | LivelitEntry({name, _}) => Id.mk_str(name);
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
@@ -252,6 +283,12 @@ let filter_shadowed = (ctx: t): t => {
              VarSet.mem(name, term_set)
                ? (ctx, term_set, typ_set)
                : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
+           | HypothesisEntry(_) =>
+             /* Hypotheses live in a separate namespace, so they don't
+                shadow variables of the same name and vice-versa. Always
+                retain them here; later shadowing is handled by the
+                namespace-specific `lookup_hypothesis`. */
+             ([entry, ...ctx], term_set, typ_set)
            }
          },
          ([], VarSet.empty, VarSet.empty),
@@ -269,6 +306,7 @@ let filter_stepper_filter_variables = (ctx: t): t => {
            | VarEntry({name, _})
            | ConstructorEntry({name, _})
            | LivelitEntry({name, _})
+           | HypothesisEntry({name, _})
            | TVarEntry({name, _}) =>
              if (String.starts_with(~prefix="$", name)) {
                ctx;

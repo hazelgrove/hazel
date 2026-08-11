@@ -24,6 +24,7 @@ type ip = (int, Piece.t);
 // Chainable label constants (TODO: unhardcode)
 let comma_label = [","];
 let case_label = ["case", "end"];
+let induction_label = ["induction", "end"];
 let rule_label = ["|", "=>"];
 let plus_label = ["+"];
 let semi_label = [";"];
@@ -37,6 +38,8 @@ let is_chainable = (p1: Piece.t, p2: Piece.t): bool =>
     let lbl1 = (==)(t1.label);
     let lbl2 = (==)(t2.label);
     lbl1(case_label)
+    && lbl2(rule_label)
+    || lbl1(induction_label)
     && lbl2(rule_label)
     || lbl1(rule_label)
     && lbl2(rule_label)

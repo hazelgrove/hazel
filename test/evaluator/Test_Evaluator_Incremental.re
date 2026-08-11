@@ -1661,9 +1661,51 @@ n|};
   );
 };
 
+/* Lexeme-only edits (e.g. an unknown operator @@ -> @@@) leave term
+ * structure and ids intact, so reuse_check must compare lexeme traces —
+ * otherwise the cached result displays the stale operator. */
+let lexeme_edit_test =
+  test_case(
+    "lexeme-only edit invalidates reuse",
+    `Quick,
+    () => {
+      let replace_lexeme = (from: string, to_: string, e: Exp.t): Exp.t =>
+        Exp.map_term(
+          ~f_exp=
+            (continue, t: Exp.t) =>
+              continue(
+                t.annotation.lexeme == Some(from)
+                  ? {
+                    ...t,
+                    annotation: {
+                      ...t.annotation,
+                      lexeme: Some(to_),
+                    },
+                  }
+                  : t,
+              ),
+          e,
+        );
+      let exp1 =
+        switch (Haz3lcore.Parser.to_segment("let y = 1 @@ 2 in y", ~root=Exp)) {
+        | Some(seg) => Haz3lcore.MakeTerm.go(seg).term
+        | None => Alcotest.fail("parse failed")
+        };
+      let (r1, _, incr1) = eval_incr(exp1);
+      let exp2 = replace_lexeme("@@", "@@@", exp1);
+      let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+      let has_lex = (l, e: Exp.t) =>
+        Exp.lexeme_trace(e) |> List.mem(Some(l));
+      check(bool, "first result carries @@", true, has_lex("@@", r1));
+      check(bool, "second result carries @@@", true, has_lex("@@@", r2));
+      check(bool, "second result not stale @@", false, has_lex("@@", r2));
+    },
+  );
+
 let tests = (
   "Evaluator.Incremental",
   [
+    lexeme_edit_test,
     test_case(
       "DIAG module in unchanged rhs tuple lands in frozen",
       `Quick,

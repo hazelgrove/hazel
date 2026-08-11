@@ -18,15 +18,6 @@ type model'('stepper) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent'('stepper) = {
-  name: string,
-  at_idx: int,
-  at_exp: Exp.t,
-  direction: Direction.t,
-  equality: string,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type action'('step) =
   |;
 
@@ -45,39 +36,15 @@ module F =
          : (
            STEP with
              type model = model'(Stepper.model) and
-             type persistent = persistent'(Stepper.persistent) and
              type action = action'(Stepper.action) and
              type focus = focus'(Stepper.focus)
        ) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = model'(Stepper.model);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = persistent'(Stepper.persistent);
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type action = action'(Stepper.action);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = focus'(Stepper.focus);
-
-  let persist = (model: model): persistent => {
-    {
-      name: model.name,
-      at_idx: model.at_idx,
-      at_exp: model.at_exp,
-      direction: model.direction,
-      equality: model.equality,
-    };
-  };
-
-  let unpersist = (p: persistent): model => {
-    {
-      name: p.name,
-      at_idx: p.at_idx,
-      at_exp: p.at_exp,
-      direction: p.direction,
-      equality: p.equality,
-      next_exp: Calc.Pending,
-    };
-  };
 
   let update = (~settings as _: Settings.t, action: action, _model: model) =>
     switch (action) {
@@ -94,38 +61,74 @@ module F =
         ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map,
+        ~proof_info_map as _,
         ~ana as _,
+        ~proof: Calc.t(option(Proof.t)),
+        ~proof_map: Calc.t(ProofMap.t),
         model: model,
       ) => {
     let {name, at_idx, at_exp, direction, equality, next_exp} = model;
+    /* When a Proof.t sub-term is in scope (theorem-proof stepper),
+     * derive the structural fields (name / at_idx / at_exp / direction /
+     * equality) from syntax instead of stepper-local state. The
+     * stepper-local copies stay populated for the cell-level stepper and
+     * as a fallback while the rest of the kinds are migrated. */
+    let (name, at_idx, at_exp, direction, equality) =
+      switch (Calc.get_value(proof)) {
+      | Some({
+          term:
+            AxiomStep({at_idx: ai, at_exp: ae, direction: dir, equality: eq}),
+          _,
+        }) =>
+        let idx = ProofCheck.exp_to_int(ai) |> Option.value(~default=at_idx);
+        let eq_name =
+          ProofCheck.exp_to_equality_name(eq)
+          |> Option.value(~default=equality);
+        (eq_name, idx, ae, dir, eq_name);
+      | _ => (name, at_idx, at_exp, direction, equality)
+      };
     let+ next_exp =
       next_exp
       |> Calc.map_saved(Option.some)
       |> {
         let.calc exp = exp
         and.calc ctx = ctx
-        and.calc info_map = info_map;
-        let* e = ProofHacks.nth_exp(at_exp, at_idx, exp);
-        let proof_ctx =
-          ProofCtx.of_env(
-            ~builtins=Axioms.v,
-            ~ctx=SemanticCtx.get_ctx(ctx),
-            SemanticCtx.get_env(ctx),
-          );
-        let* proofrule = ProofCtx.lookup_rule(equality, proof_ctx);
-        let (l, r) =
-          ProofRule.can_eq(
+        and.calc info_map = info_map
+        and.calc proof = proof
+        and.calc proof_map = proof_map;
+        /* Source of truth for the rewritten expression:
+         *   1. The big-step ProofMap entry for this proof sub-term, when
+         *      we have one (already computed by the evaluator).
+         *   2. Otherwise re-run the canonical axiom-step rewrite locally
+         *      using the model fields (cell-level stepper / fallback). */
+        switch (proof) {
+        | Some(p) =>
+          switch (ProofMap.lookup(Proof.rep_id(p), proof_map)) {
+          | Some({outgoing: Some(_) as outgoing, _}) => outgoing
+          | _ =>
+            ProofCheck.axiom_step_outgoing(
+              ~info_map,
+              ~env=SemanticCtx.get_env(ctx),
+              ~ctx=SemanticCtx.get_ctx(ctx),
+              ~at_idx,
+              ~at_exp,
+              ~direction,
+              ~equality,
+              exp,
+            )
+          }
+        | None =>
+          ProofCheck.axiom_step_outgoing(
             ~info_map,
             ~env=SemanticCtx.get_env(ctx),
-            proofrule,
-            e,
-          );
-        let* with_exp =
-          switch (direction) {
-          | Left => l
-          | Right => r
-          };
-        Some(ProofHacks.replace_exp_id(e |> DHExp.rep_id, exp, with_exp));
+            ~ctx=SemanticCtx.get_ctx(ctx),
+            ~at_idx,
+            ~at_exp,
+            ~direction,
+            ~equality,
+            exp,
+          )
+        };
       }
       |> Calc.to_option;
     (
@@ -157,6 +160,9 @@ module F =
         ~hide_stepper as _: Ui_effect.t(unit),
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
+        ~proof as _: option(Proof.t),
+        ~edit_syntax as
+          _: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
         m: model,
       ) =>
     WebUtil.Node.text(m.name);
@@ -170,6 +176,10 @@ module F =
         ~hide_stepper as _: Ui_effect.t(unit),
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
+        ~proof as _: option(Proof.t),
+        ~edit_syntax as
+          _: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        ~main_editor as _: option(CodeEditable.Channel.t),
         _model: model,
       ) =>
     [];

@@ -36,7 +36,7 @@ let shapes = (t: t) => {
 
 let to_piece = t => Tile(t);
 
-let sorted_children = ({mold, shards, children, _}: t) =>
+let sorted_children = ({mold, shards, children, _}: t) => {
   Aba.mk(shards, children)
   |> Aba.aba_triples
   |> List.map(((l, child, r)) => {
@@ -44,8 +44,9 @@ let sorted_children = ({mold, shards, children, _}: t) =>
        let (r, _) = Mold.nibs(~index=r, mold);
        (l.sort == r.sort ? l.sort : Any, child);
      });
+};
 
-let contained_children = (t: t): list((t, Base.segment, t)) =>
+let contained_children = (t: t): list((t, Base.segment, t)) => {
   Aba.mk(t.shards, t.children)
   |> Aba.aba_triples
   |> List.map(((l, child, r)) => {
@@ -61,6 +62,7 @@ let contained_children = (t: t): list((t, Base.segment, t)) =>
        };
        (l, child, r);
      });
+};
 
 let shard_of = (t: t, i: int): t => {
   ...t,
@@ -118,7 +120,6 @@ let reassemble = (match: Aba.t(t, segment)): t => {
            (t.shards @ shards, t.children @ [child, ...children]),
          t => (t.shards, t.children),
        );
-  // check lengths
   let _ = Aba.mk(shards, children);
   assert(List.sort(Int.compare, shards) == shards);
   {

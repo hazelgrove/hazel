@@ -48,10 +48,12 @@ let rec any_to_info_map =
     let m = drv_to_info_map(drv, m, ~ctx, ~ancestors, ~sort=Jdmt);
     (CoCtx.empty, Drv(drv), m);
   | Rul(r) => rul_to_info_map(~ctx, ~ancestors, ~probe_ids, r, m)
+  | PRul(r) => prul_to_info_map(~ctx, ~ancestors, r, m)
   | Mod(m_term) => mod_to_info_map(~ctx, ~ancestors, ~probe_ids, m_term, m)
   | Sig(s_term) => sig_to_info_map(~ctx, ~ancestors, ~probe_ids, s_term, m)
   | MPat(mp_term) =>
     mpat_to_info_map(~ctx, ~ancestors, ~probe_ids, mp_term, m)
+  | Proof(p_term) => proof_to_info_map(~ctx, ~ancestors, p_term, m)
   | Any () => (CoCtx.empty, Any(), m)
   }
 and multi =
@@ -303,6 +305,27 @@ and uexp_to_info_map =
   let go_pat =
     upat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive);
+  /* Context in which a theorem's proof is checked: the surrounding ctx
+     extended with the variables bound by the goal's outer `forall`s, so a
+     proof of `forall x -> P` reasons about an arbitrary `x`. Walks the
+     same binders the `Forall` rule does, threading the map so the binder
+     patterns keep their info entries. */
+  let rec proof_ctx_of_goal = (ctx, goal: Exp.t, m): (Ctx.t, Map.t) =>
+    switch (goal |> Exp.term_of) {
+    | Forall(fp, fbody) =>
+      let (fp', _, m) =
+        upat_to_info_map(
+          ~is_synswitch=false,
+          ~ctx,
+          ~co_ctx=CoCtx.empty,
+          ~ancestors=ancestors_inclusive,
+          ~probe_ids,
+          fp,
+          m,
+        );
+      proof_ctx_of_goal(fp'.ctx, fbody, m);
+    | _ => (ctx, m)
+    };
   /* Analyze an expression in label position. Adds info for the label
      directly (like TupLabel does for its children) and returns
      the label name if valid. Used by CustomStatics for builtin label args. */
@@ -385,26 +408,50 @@ and uexp_to_info_map =
         ~probe_targets=e.probe_targets,
         m,
       );
-    | MultiHole([Exp(e1), Exp(e2)]) =>
-      let (e1, e1_elab, m) = go(~ana=syn, e1, m);
-      let (e2, e2_elab, m) = go(~ana=syn, e2, m);
-      add(
-        ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-        ~marks=[IsMulti],
-        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-        ~probe_targets=
-          SubexpProbeTargets.union_all([e1.probe_targets, e2.probe_targets]),
-        m,
-      );
     | MultiHole(tms) =>
-      let (co_ctxs, tms_elab, m) =
-        multi(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids, m, tms);
+      /* Elaborate MultiHole as right-associative Seq through all Exp children;
+       * non-Exp children still get info-mapped but are dropped from elaboration. */
+      let (exp_co_ctxs, exp_probe_targets, exp_elabs, m) =
+        List.fold_left(
+          ((co_ctxs, probe_targets, elabs, m), any: Any.t) =>
+            switch (any) {
+            | Exp(e) =>
+              let (e_info, e_elab, m) = go(~ana=syn, e, m);
+              (
+                co_ctxs @ [e_info.co_ctx],
+                probe_targets @ [e_info.probe_targets],
+                elabs @ [e_elab],
+                m,
+              );
+            | _ =>
+              let (co_ctx, _any_elab, m) =
+                any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, any, m);
+              (co_ctxs @ [co_ctx], probe_targets, elabs, m);
+            },
+          ([], [], [], m),
+          tms,
+        );
+      let rec nest_seqs = (exps: list(Exp.t)): Exp.t =>
+        switch (exps) {
+        | [] => EmptyHole |> rewrap
+        | [e] => e
+        | [e, ...rest] => Seq(e, nest_seqs(rest)) |> rewrap
+        };
+      /* An unknown-infix multihole (operator token recorded as the
+         lexeme, two exp kids) is a stuck application, not transient
+         juxtaposition: elaborate it to a MultiHole, which the dynamics
+         treats as Indet, instead of evaluating to the last kid. */
+      let elab_term =
+        switch (uexp.annotation.lexeme, exp_elabs) {
+        | (Some(_), [e1, e2]) => MultiHole([Exp(e1), Exp(e2)]) |> rewrap
+        | _ => nest_seqs(exp_elabs)
+        };
       add(
-        ~elab_term=MultiHole(tms_elab) |> rewrap,
+        ~elab_term,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[IsMulti],
-        ~co_ctx=CoCtx.union(co_ctxs),
+        ~co_ctx=CoCtx.union(exp_co_ctxs),
+        ~probe_targets=SubexpProbeTargets.union_all(exp_probe_targets),
         m,
       );
     | Asc(e, t2) =>
@@ -2157,7 +2204,7 @@ and uexp_to_info_map =
           ]),
         m,
       );
-    | Theorem({term: Var(_), _} as p, e1, e2) =>
+    | Theorem({term: Var(x), _} as p, e1, pf, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
@@ -2168,12 +2215,39 @@ and uexp_to_info_map =
           p,
           m,
         );
-      let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
+      /* Proof `pf` does not see the theorem's own name `x` (body_only
+         self-reference rule), but does see the goal's outer `forall`-bound
+         variables, which the theorem introduces automatically. */
+      let (proof_ctx, m) = proof_ctx_of_goal(ctx, e1, m);
+      let (_, pf_any, m) =
+        any_to_info_map(
+          ~ctx=proof_ctx,
+          ~ancestors=ancestors_inclusive,
+          Proof(pf),
+          m,
+        );
+      let pf_elab =
+        switch (pf_any) {
+        | Proof(p) => p
+        | _ => pf
+        };
+      /* Body `e2` sees the theorem's name both as the usual VarEntry
+         (via [p'.ctx]) and as a HypothesisEntry bound to the proposition. */
+      let body_ctx =
+        Ctx.extend_hypothesis(
+          p'.ctx,
+          {
+            name: x,
+            id: IdTagged.rep_id(p),
+            prop: Some(e1),
+          },
+        );
+      let (e2, e2_elab, m) = go(~ctx=body_ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
-        ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
+        ~elab_term=Theorem(p_elab, e1_elab, pf_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
         ~marks=[],
         ~co_ctx=
@@ -2191,17 +2265,32 @@ and uexp_to_info_map =
           ]),
         m,
       );
-    | Theorem(p, e1, e2) =>
+    | Theorem(p, e1, pf, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+      /* Proof `pf` does not see anything bound by `p` (body_only rule), but
+         does see the goal's outer `forall`-bound variables. */
+      let (proof_ctx, m) = proof_ctx_of_goal(ctx, e1, m);
+      let (_, pf_any, m) =
+        any_to_info_map(
+          ~ctx=proof_ctx,
+          ~ancestors=ancestors_inclusive,
+          Proof(pf),
+          m,
+        );
+      let pf_elab =
+        switch (pf_any) {
+        | Proof(p) => p
+        | _ => pf
+        };
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
-        ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
+        ~elab_term=Theorem(p_elab, e1_elab, pf_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
         ~marks=[BadTheorem(e2.ty)],
         ~co_ctx=
@@ -4113,6 +4202,30 @@ and rul_to_info_map =
     (CoCtx.union(co_ctxs), Rul(r), m);
   | Invalid(_) => (CoCtx.empty, Rul(r), m)
   }
+and prul_to_info_map =
+    (~ctx, ~ancestors, r: PRul.t, m: Map.t): (CoCtx.t, Any.t, Map.t) =>
+  /* Fallback handler for proof-rule tiles not absorbed into an induction;
+     treat the contents as a multihole for purposes of info collection. */
+  switch (r.term) {
+  | ProofRules(scrut, cases) =>
+    let tms =
+      cases
+      |> List.map(((p, body)) => [Grammar.Pat(p), Grammar.Proof(body)])
+      |> List.concat;
+    any_to_info_map(
+      ~ctx,
+      ~ancestors,
+      Exp({
+        term: MultiHole([Exp(scrut), ...tms]),
+        annotation: r.annotation,
+      }),
+      m,
+    );
+  | MultiHole(tms) =>
+    let (co_ctxs, _, m) = multi(~ctx, ~ancestors, m, tms);
+    (CoCtx.union(co_ctxs), PRul(r), m);
+  | Invalid(_) => (CoCtx.empty, PRul(r), m)
+  }
 and mod_to_info_map =
     (
       ~ctx,
@@ -4260,12 +4373,345 @@ and mpat_to_info_map =
     let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Typ(typ), m);
     (CoCtx.empty, MPat(mp_term), add_mpat_info(m));
   };
+}
+and proof_to_info_map =
+    (~ctx, ~ancestors, p_term: Proof.t, m: Map.t): (CoCtx.t, Any.t, Map.t) => {
+  let ids = IdTagged.ids(p_term);
+  let cls = Cls.Proof(Proof.cls_of_term(p_term.term));
+  let add_proof_info = (~marks=[], m) =>
+    add_info(
+      ids,
+      InfoProof({
+        id: IdTagged.rep_id(p_term),
+        user_term: p_term,
+        cls,
+        sort: Proof,
+        ctx,
+        ancestors,
+        marks,
+      }),
+      m,
+    );
+  let ancestors_inclusive = [IdTagged.rep_id(p_term), ...ancestors];
+  /* Peel off parens/projector wrappers to find a head Var, if any. */
+  let rec unwrap_head = (e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Parens(inner) => unwrap_head(inner)
+    | Projector(_, inner) => unwrap_head(inner)
+    | _ => e
+    };
+  /* Update the InfoExp entry at [id] by prepending [mark]. */
+  let add_mark_to_exp = (id: Id.t, mark: Mark.t, m: Map.t): Map.t =>
+    switch (Id.Map.find_opt(id, m)) {
+    | Some(Info.InfoExp(info)) =>
+      let info = {
+        ...info,
+        marks: [mark, ...info.marks],
+      };
+      add_info([id], InfoExp(info), m);
+    | _ => m
+    };
+  /* Replace any Free(name) mark at [id] with [replacement]. */
+  let replace_free_mark = (id: Id.t, replacement: Mark.t, m: Map.t): Map.t =>
+    switch (Id.Map.find_opt(id, m)) {
+    | Some(Info.InfoExp(info)) =>
+      let marks =
+        List.map(
+          fun
+          | Mark.Free(_) => replacement
+          | other => other,
+          info.marks,
+        );
+      let info = {
+        ...info,
+        marks,
+      };
+      add_info([id], InfoExp(info), m);
+    | _ => m
+    };
+  /* Rebuild this proof node with an elaborated term, preserving ids and
+     annotation so the proof map (keyed by id) and the big-step checker
+     stay in sync. */
+  let rewrap = (term): Proof.t => {
+    ...p_term,
+    term,
+  };
+  /* Extract the elaborated proof produced by [any_to_info_map]. Proof
+     terms always round-trip as [Proof], so the fallback is unreachable. */
+  let proof_of_any = (a: Any.t): Proof.t =>
+    switch (a) {
+    | Proof(p) => p
+    | _ => p_term
+    };
+  switch (p_term.term) {
+  | Invalid(_)
+  | EmptyHole => (CoCtx.empty, Proof(p_term), add_proof_info(m))
+  | MultiHole(tms) =>
+    let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
+    (CoCtx.empty, Proof(p_term), add_proof_info(m));
+  | Seq(p1, p2) =>
+    let (_, p1_elab, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(p1), m);
+    let (_, p2_elab, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(p2), m);
+    let elab = rewrap(Seq(proof_of_any(p1_elab), proof_of_any(p2_elab)));
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | AxiomStep({at_idx, at_exp, direction, equality}) =>
+    /* Check the index against Int and the at-expression by synthesis. */
+    let (_, at_idx_elab, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ana=Atom(Int) |> Typ.temp,
+        ~ancestors=ancestors_inclusive,
+        at_idx,
+        m,
+      );
+    let (_, at_exp_elab, m) =
+      uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, at_exp, m);
+    /* The equality slot must refer to a hypothesis by name, not an
+       arbitrary expression. */
+    let head = unwrap_head(equality);
+    let (equality_elab, m) =
+      switch (head.term) {
+      | Var(name) =>
+        /* Suppress the usual `Free` by extending the ctx with a dummy
+           VarEntry for this name while walking the slot, then repair marks
+           based on hypothesis lookup. */
+        let hypothesis_ok = Option.is_some(Ctx.lookup_hypothesis(ctx, name));
+        let scratch_ctx =
+          Ctx.extend(
+            ctx,
+            VarEntry({
+              name,
+              id: Id.invalid,
+              typ: Unknown(Internal) |> Typ.temp,
+              custom_statics: None,
+            }),
+          );
+        let ctx_for_equality = hypothesis_ok ? scratch_ctx : ctx;
+        let (_, equality_elab, m) =
+          uexp_to_info_map(
+            ~ctx=ctx_for_equality,
+            ~ancestors=ancestors_inclusive,
+            equality,
+            m,
+          );
+        let m =
+          if (!hypothesis_ok) {
+            replace_free_mark(
+              IdTagged.rep_id(head),
+              Mark.FreeHypothesis(name),
+              m,
+            );
+          } else {
+            m;
+          };
+        (equality_elab, m);
+      | _ =>
+        let (_, equality_elab, m) =
+          uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, equality, m);
+        let m =
+          add_mark_to_exp(
+            IdTagged.rep_id(equality),
+            Mark.AxiomSlotNotHypothesis(Exp(equality)),
+            m,
+          );
+        (equality_elab, m);
+      };
+    let elab =
+      rewrap(
+        AxiomStep({
+          at_idx: at_idx_elab,
+          at_exp: at_exp_elab,
+          direction,
+          equality: equality_elab,
+        }),
+      );
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | AlgebriteStep({at_idx, at_exp, with_exp}) =>
+    let (_, at_idx_elab, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ana=Atom(Int) |> Typ.temp,
+        ~ancestors=ancestors_inclusive,
+        at_idx,
+        m,
+      );
+    let (_, at_exp_elab, m) =
+      uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, at_exp, m);
+    let (_, with_exp_elab, m) =
+      uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, with_exp, m);
+    let elab =
+      rewrap(
+        AlgebriteStep({
+          at_idx: at_idx_elab,
+          at_exp: at_exp_elab,
+          with_exp: with_exp_elab,
+        }),
+      );
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | EvalStep({at_idx, at_exp}) =>
+    let (_, at_idx_elab, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ana=Atom(Int) |> Typ.temp,
+        ~ancestors=ancestors_inclusive,
+        at_idx,
+        m,
+      );
+    let (_, at_exp_elab, m) =
+      uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, at_exp, m);
+    let elab =
+      rewrap(
+        EvalStep({
+          at_idx: at_idx_elab,
+          at_exp: at_exp_elab,
+        }),
+      );
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | Induction(scrut, cases) =>
+    /* Synthesize scrutinee type, analyze each pattern against it, then
+       typecheck each case body with the pattern bindings in scope. Run
+       pattern-coverage analysis to flag non-exhaustive / redundant cases;
+       we do NOT check that each proof body is complete. */
+    let (scrut_info, scrut_elab, m) =
+      uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, scrut, m);
+    let (ps, bodies) = List.split(cases);
+    /* First pass: gather pat infos with empty co_ctx so we can walk bodies. */
+    let (pat_infos, pat_elabs, m) =
+      List.fold_left(
+        ((infos, elabs, m), p) => {
+          let (info, p_elab, m) =
+            upat_to_info_map(
+              ~is_synswitch=false,
+              ~ctx,
+              ~co_ctx=CoCtx.empty,
+              ~ancestors=ancestors_inclusive,
+              ~ana=scrut_info.ty,
+              p,
+              m,
+            );
+          (infos @ [info], elabs @ [p_elab], m);
+        },
+        ([], [], m),
+        ps,
+      );
+    let (body_elabs, m) =
+      List.fold_left2(
+        ((elabs, m), pat_info: Info.pat, body) => {
+          let (_, body_elab, m) =
+            any_to_info_map(
+              ~ctx=pat_info.ctx,
+              ~ancestors=ancestors_inclusive,
+              Proof(body),
+              m,
+            );
+          (elabs @ [proof_of_any(body_elab)], m);
+        },
+        ([], m),
+        pat_infos,
+        bodies,
+      );
+    let elab =
+      rewrap(Induction(scrut_elab, List.combine(pat_elabs, body_elabs)));
+    /* Coverage check: exhaustiveness + redundancy.
+     *
+     * Unlike an expression `case`, a proof by induction must be exhaustive to
+     * be valid, so inexhaustiveness is an error here. The scrutinee is often a
+     * bare `forall`-bound variable with no annotation (type `Unknown`), against
+     * which coverage is vacuously exhaustive; refine the coverage type from the
+     * case patterns (e.g. `[]` reveals `List`) so the check is meaningful. A
+     * zero-case induction proves nothing and is always inexhaustive. */
+    let constraints =
+      List.map((pi: Info.pat) => Info.pat_constraint(pi), pat_infos);
+    let normalized_scrut_ty = Typ.normalize(ctx, scrut_info.ty);
+    let coverage_ty =
+      switch (Typ.term_of(normalized_scrut_ty)) {
+      | Unknown(_) =>
+        pat_infos
+        |> List.map((pi: Info.pat) => Typ.normalize(ctx, pi.ty))
+        |> List.find_opt(t =>
+             switch (Typ.term_of(t)) {
+             | Unknown(_) => false
+             | _ => true
+             }
+           )
+        |> Option.value(~default=normalized_scrut_ty)
+      | _ => normalized_scrut_ty
+      };
+    let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
+      Coverage.check(constraints, coverage_ty);
+    let exhaustiveness: Coverage.CheckMatrix.exhaustiveness =
+      switch (cases, exhaustiveness) {
+      | ([], Exhaustive) => Inexhaustive(Grammar.Pat(Pat.fresh(Wild)))
+      | _ => exhaustiveness
+      };
+    /* Mark inexhaustiveness on the induction proof node itself (so the
+       `induction`/`end` form is flagged), not on the scrutinee. */
+    let induction_marks =
+      switch (exhaustiveness) {
+      | Exhaustive => []
+      | Inexhaustive(unseen_pattern) => [
+          Mark.InexhaustiveMatch(scrut_info.ty, [], unseen_pattern),
+        ]
+      };
+    let m =
+      List.fold_left(
+        (m, row) => {
+          let p = List.nth(ps, row);
+          switch (Id.Map.find_opt(IdTagged.rep_id(p), m)) {
+          | Some(Info.InfoPat(info)) =>
+            let info =
+              prepend_pat_mark(info, Mark.Redundant, ~warnings=[], ());
+            add_info(IdTagged.ids(p), InfoPat(info), m);
+          | _ => m
+          };
+        },
+        m,
+        redundant_rows,
+      );
+    (CoCtx.empty, Proof(elab), add_proof_info(~marks=induction_marks, m));
+  | Forall(pat, body) =>
+    /* Pattern binders enter the variable namespace. */
+    let (pat_info, pat_elab, m) =
+      upat_to_info_map(
+        ~is_synswitch=false,
+        ~ctx,
+        ~co_ctx=CoCtx.empty,
+        ~ancestors=ancestors_inclusive,
+        pat,
+        m,
+      );
+    let (_, body_elab, m) =
+      any_to_info_map(
+        ~ctx=pat_info.ctx,
+        ~ancestors=ancestors_inclusive,
+        Proof(body),
+        m,
+      );
+    let elab = rewrap(Forall(pat_elab, proof_of_any(body_elab)));
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
+  };
 };
+
+/* Seed the initial context with built-in hypothesis entries (axioms) that
+   every program has access to. Keep this in sync with [Axioms.re]. */
+let initial_hypotheses: list(Ctx.hypothesis_entry) = [
+  {
+    name: "refl_eq",
+    id: Id.mk_str("refl_eq"),
+    prop: None,
+  },
+];
+
+let with_initial_hypotheses = (ctx: Ctx.t): Ctx.t =>
+  List.fold_left(Ctx.extend_hypothesis, ctx, initial_hypotheses);
 
 let mk =
   Core.Memo.general(
     ~cache_size_bound=1000,
     ((ana, ctx, e, probe_ids)) => {
+      let ctx = with_initial_hypotheses(ctx);
       let (_, elab, m) =
         uexp_to_info_map(
           ~ana,

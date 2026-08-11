@@ -5,22 +5,23 @@ open StepInterface;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model'('stepper) = {
-  // Updated
+  /* In proof scope the case's surface pattern lives in the main
+   * editor's syntax (the `Induction(_, cases)` term); the sub-editor
+   * view renders and edits that segment directly (see SubEditor.re).
+   * This local model is DERIVED from the proof's pattern (rebuilt in
+   * `calculate` whenever `pattern_src` changes) and is used only for
+   * statics — elaboration, inductive hypotheses — plus as the editable
+   * model for legacy cell-level steppers with no backing syntax. */
   pattern: CodeEditable.Model.t,
   // Calculated
+  /* Last proof-side pattern the local model was rebuilt from. */
+  pattern_src: Calc.saved(Pat.t),
   elab_pattern: Calc.saved(Pat.t),
   inner_exp: Calc.saved(Exp.t),
   step: 'stepper,
   last_exp: Calc.saved(Exp.t),
   inner_ctx: Calc.saved(SemanticCtx.t),
   hypotheses: Calc.saved(list((Binding.t, Exp.t))),
-  constraint_: Calc.saved(option(Coverage.Constraint.t)),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent'('stepper) = {
-  pattern: CodeEditable.Model.persistent,
-  stepper: 'stepper,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -33,43 +34,27 @@ type focus'('stepper) =
   | Pattern(CodeSelectable.Selection.t)
   | Stepper('stepper);
 
+/* A `model'('stepper)` with empty pattern/proof fields, parameterised
+ * on the inner stepper model so callers outside the F functor (e.g.
+ * `StepperBase.adapt_step_kind`) can synthesise a default case
+ * without re-applying the functor. */
+let init_with = (step: 'stepper): model'('stepper) => {
+  pattern: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp)),
+  pattern_src: Calc.Pending,
+  elab_pattern: Calc.Pending,
+  inner_exp: Calc.Pending,
+  step,
+  last_exp: Calc.Pending,
+  inner_ctx: Calc.Pending,
+  hypotheses: Calc.Pending,
+};
+
 module F = (Stepper: STEPPER) => {
   type model = model'(Stepper.model);
-  type persistent = persistent'(Stepper.persistent);
   type action = action'(Stepper.action);
   type focus = focus'(Stepper.focus);
 
-  let init = {
-    pattern:
-      CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp)),
-    elab_pattern: Calc.Pending,
-    inner_exp: Calc.Pending,
-    step: Stepper.init,
-    last_exp: Calc.Pending,
-    inner_ctx: Calc.Pending,
-    hypotheses: Calc.Pending,
-    constraint_: Calc.Pending,
-  };
-
-  let persist = (model: model) => {
-    {
-      pattern: CodeEditable.Model.persist(model.pattern),
-      stepper: Stepper.persist(model.step),
-    };
-  };
-
-  let unpersist = (p: persistent) => {
-    {
-      pattern: CodeEditable.Model.unpersist(p.pattern),
-      elab_pattern: Calc.Pending,
-      inner_exp: Calc.Pending,
-      step: Stepper.unpersist(p.stepper),
-      last_exp: Calc.Pending,
-      inner_ctx: Calc.Pending,
-      hypotheses: Calc.Pending,
-      constraint_: Calc.Pending,
-    };
-  };
+  let init = init_with(Stepper.init);
 
   let update = (~settings: Settings.t, action: action, model: model) => {
     Updated.(
@@ -107,8 +92,40 @@ module F = (Stepper: STEPPER) => {
         ~ctx: Calc.t(SemanticCtx.t),
         ~info_map: Calc.t(Statics.Map.t),
         ~ana: Calc.t(Typ.t),
+        ~proof: Calc.t(option(Proof.t)),
+        ~proof_map: Calc.t(ProofMap.t),
+        /* The case's surface pattern from the surrounding
+         * `Induction(_, cases)` proof term (None outside proof scope).
+         * The local `pattern` model is rebuilt from it on change: in
+         * proof scope the syntax is the source of truth and the local
+         * model is only a statics vehicle, never focused, so there is
+         * no caret state to preserve. */
+        ~pat: Calc.t(option(Pat.t)),
         model: model,
       ) => {
+    let (pattern, pattern_src) =
+      switch (Calc.get_value(pat)) {
+      | Some(p) =>
+        let src = Calc.set(~eq=Pat.fast_equal, p, model.pattern_src);
+        let pattern =
+          switch (src) {
+          | NewValue(p) =>
+            CodeEditable.Model.mk(
+              Editor.Model.mk(
+                Zipper.unzip(
+                  ExpToSegment.exp_to_segment(
+                    ~settings=ExpToSegment.Settings.editable(~inline=true),
+                    ProofHacks.pat_to_exp(p),
+                  ),
+                ),
+                ~root=Exp,
+              ),
+            )
+          | OldValue(_) => model.pattern
+          };
+        (pattern, src |> Calc.save);
+      | None => (model.pattern, model.pattern_src)
+      };
     let pattern =
       CodeEditable.Update.calculate(
         ~settings=Calc.get_value(settings),
@@ -122,7 +139,7 @@ module F = (Stepper: STEPPER) => {
                  ~typ=scrut_ty |> Calc.get_value,
                ),
         ~is_dynamic_term=true,
-        model.pattern,
+        pattern,
       );
 
     let elab_pattern =
@@ -232,40 +249,32 @@ module F = (Stepper: STEPPER) => {
       }
       |> Calc.to_3;
 
+    /* `~proof` here is the body proof for *this* case (extracted by
+     * `InductionStep.calculate` from `Induction(_, proof_cases)`).
+     * Stepping inside the case therefore reads / patches the right
+     * `body_i` sub-tree rather than the outer `Induction` node. */
     let (stepper, last_exp, validity) =
       Stepper.calculate(
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
         ~exp=inner_exp,
         ~ana,
+        ~proof,
+        ~proof_map,
         model.step,
       );
-
-    let constraint_ =
-      {
-        open OptUtil.Syntax;
-        let statics = CodeWithStatics.Model.get_statics(pattern);
-        let* info_pat =
-          Statics.Map.lookup_pat(
-            elab_pattern |> Calc.get_value |> Pat.rep_id,
-            statics.info_map,
-          );
-        Some(Info.pat_constraint(info_pat));
-      }
-      |> Calc.set(_, model.constraint_);
 
     (
       {
         pattern,
+        pattern_src,
         elab_pattern: elab_pattern |> Calc.save,
         inner_exp: inner_exp |> Calc.save,
         step: stepper,
         last_exp: last_exp |> Calc.save,
         inner_ctx: inner_ctx |> Calc.save,
         hypotheses: hypotheses |> Calc.save,
-        constraint_: constraint_ |> Calc.save,
       },
-      constraint_,
       validity,
     );
   };
@@ -301,6 +310,16 @@ module F = (Stepper: STEPPER) => {
         ~take_focus: focus => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
         ~remove_case: Ui_effect.t(unit),
+        /* Syntax-edit channel, forwarded into this case's inner stepper
+         * so step creation inside the case patches the proof syntax. */
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        /* Main-editor capability handle + a structural reference to
+         * this case's pattern slot (see SubEditor.Target): when both
+         * resolve to a backing segment, the pattern is rendered as a
+         * sub-editor over the main editor (single source of truth —
+         * edits in either view are the same edit). */
+        ~main_editor: option(CodeEditable.Channel.t),
+        ~slot: option(SubEditor.Target.t),
         model: model,
       ) => {
     let remove_case_button =
@@ -310,26 +329,65 @@ module F = (Stepper: STEPPER) => {
         ~tooltip="Remove case",
         ~clss=["subtle-button"],
       );
-    let pattern_editor =
+    let pattern_focus: option(unit) =
+      switch (focus) {
+      | Some(Pattern ()) => Some()
+      | _ => None
+      };
+    /* Local-model rendering, used outside proof scope (editable; the
+     * legacy cell-level stepper has no backing syntax) and as a
+     * read-only stand-in while the backing segment is momentarily
+     * unresolvable (statics lagging a structural rewrite). */
+    let local_pattern_editor = (~read_only: bool) =>
       CodeEditable.View.view(
         ~globals,
         ~signal=
           fun
           | MakeActive => take_focus(Pattern()),
         ~edit_mode=
-          EditMode.Editable({
-            inject: x => inject(PatternUpdate(x)),
-            escape: _ => Ui_effect.Ignore,
-            take_focus: _ => Ui_effect.Ignore,
-            focus:
-              switch (focus) {
-              | Some(Pattern ()) => Some()
-              | _ => None
-              },
-          }),
+          read_only
+            ? EditMode.ReadOnly
+            : EditMode.Editable({
+                inject: x => inject(PatternUpdate(x)),
+                escape: _ => Ui_effect.Ignore,
+                take_focus: _ => Ui_effect.Ignore,
+                focus: pattern_focus,
+              }),
         ~dynamics=Dynamics.Map.empty,
         model.pattern,
       );
+    let pattern_editor =
+      switch (main_editor) {
+      | Some(channel) =>
+        switch (
+          Option.bind(slot, target =>
+            SubEditor.mk(channel.model.editor, ~target)
+          )
+        ) {
+        | Some(sub) =>
+          CodeEditable.View.view(
+            ~globals,
+            ~signal=
+              fun
+              | MakeActive => take_focus(Pattern()),
+            ~edit_mode=
+              EditMode.Editable({
+                /* Perform actions are rewritten to PerformConfined (and
+                 * TAB swallowed) inside CodeEditable.View.view when a
+                 * sub-editor is given. */
+                inject: channel.inject,
+                escape: _ => Ui_effect.Ignore,
+                take_focus: _ => Ui_effect.Ignore,
+                focus: pattern_focus,
+              }),
+            ~dynamics=Dynamics.Map.empty,
+            ~sub_editor=Some(sub),
+            channel.model,
+          )
+        | None => local_pattern_editor(~read_only=true)
+        }
+      | None => local_pattern_editor(~read_only=false)
+      };
     let pattern_editor =
       WebUtil.div_c("inline-editor-wrapper", [pattern_editor]);
     module StepperTargetBox = StepperTargetBox.F(Stepper);
@@ -345,6 +403,8 @@ module F = (Stepper: STEPPER) => {
           | _ => None
           },
         ~is_toplevel=false,
+        ~edit_syntax,
+        ~main_editor,
         model.step,
         Exp.fresh(Atom(Bool(true))),
         model.last_exp |> Calc.get_saved_exc(~print="last_exp not calculated"),

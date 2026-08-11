@@ -238,7 +238,12 @@ module rec Exp: {
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | Theorem(p, e1, e2) =>
-      theorem(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
+      theorem(
+        Pat.of_menhir_ast(p),
+        of_menhir_ast(e1),
+        IndicatedG.Proof.empty_hole(),
+        of_menhir_ast(e2),
+      )
     | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
     | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
@@ -355,7 +360,7 @@ module rec Exp: {
     | Tuple(l) => TupleExp(List.map(of_core, l))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
-    | Theorem(p, e1, e2) =>
+    | Theorem(p, e1, _pf, e2) =>
       Theorem(Pat.of_core(p), of_core(e1), of_core(e2))
     | ProofObject(t) => ProofObject(Exp.of_core(t))
     | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
@@ -433,6 +438,8 @@ module rec Exp: {
           {
             ids: [id],
             secondary: IdTagged.IdTag.empty_secondary,
+            incomplete: [],
+            lexeme: None,
           };
         },
         indicated_exp,

@@ -33,12 +33,6 @@ module Model = {
     theorems: Theorems.Model.t,
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {
-    stepper: option(StepperView.Model.persistent),
-    theorems: Theorems.Model.persistent,
-  };
-
   let init = {
     cached_settings: Calc.Pending,
     elab: Calc.Pending,
@@ -52,39 +46,6 @@ module Model = {
     pending_eval_ids: [],
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
-  };
-
-  let persist = (model: t): persistent => {
-    stepper:
-      switch (model.display) {
-      | Stepper(stepper) => Some(StepperView.Model.persist(stepper))
-      | _ => None
-      },
-    theorems: Theorems.Model.persist(model.theorems),
-  };
-
-  let unpersist = (p: persistent): t => {
-    let theorems = Theorems.Model.unpersist(p.theorems);
-    switch (p.stepper) {
-    | Some(stepper) => {
-        cached_settings: Calc.Pending,
-        elab: Calc.Pending,
-        cached_targets: Calc.Pending,
-        result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
-        dynamics: Calc.Pending,
-        incr_eval: Calc.Pending,
-        predicted_reuse: IncrEval.empty,
-        streaming_outbox: Calc.Pending,
-        streaming_state: Calc.Pending,
-        pending_eval_ids: [],
-        display: Stepper(StepperView.Model.unpersist(stepper)),
-        theorems,
-      }
-    | None => {
-        ...init,
-        theorems,
-      }
-    };
   };
 
   let probe_results = (model: t): option(Sample.Map.t) =>
@@ -103,6 +64,20 @@ module Model = {
     | None => Dynamics.Map.mk(Sample.Map.empty)
     };
 
+  /* Proof-check results produced by the big-step evaluator for this cell
+   * (empty if evaluation hasn't completed or the cell contains no
+   * theorems). Consumed by the cursor inspector to show incoming/outgoing
+   * expressions on proof sub-terms. */
+  let proof_map = (model: t): ProofMap.t =>
+    model.dynamics
+    |> Calc.get_saved(None)
+    |> Option.map((d: Dynamics.t) => d.proof_map)
+    |> Option.value(~default=ProofMap.empty);
+
+  /* The incremental cache produced by the most recently completed evaluation.
+   * Exposed so the code editor can tint the background behind ids that the
+   * evaluator reused (cache hit) on this run. Reads the saved field so the
+   * tint survives across pending states. */
   let incr_eval = (model: t): EvaluatorState.incr_eval =>
     model.incr_eval |> Calc.get_saved(IncrEval.empty);
 
@@ -253,7 +228,8 @@ module Update = {
     let settings =
       cached_settings
       |> Calc.set(settings, ~eq=CoreSettings.eq_ignoring_stepper_modals);
-    let elab = Calc.set(~eq=Exp.fast_equal, statics.elaborated, elab);
+    let elab =
+      Calc.set(~eq=Exp.fast_equal_with_lexemes, statics.elaborated, elab);
     let targets =
       Calc.set(
         ~eq=Id.Map.equal(Sample.equal_capture_spec),
@@ -380,6 +356,7 @@ module Update = {
         test_results:
           state |> EvaluatorState.get_tests |> TestResults.mk_results,
         theorems: state |> EvaluatorState.get_theorems,
+        proof_map: state |> EvaluatorState.get_proof_map,
       };
     let dynamics =
       dynamics
@@ -389,7 +366,8 @@ module Update = {
         switch (result, streaming_state) {
         | (ProgramResult.ResultPending(_), Some(state)) =>
           Some(dynamics_of_state(state))
-        | (ProgramResult.ResultPending(_), None)
+        | (ProgramResult.ResultPending(_), None) =>
+          dynamics |> Calc.get_saved(None)
         | (ProgramResult.ResultFail(_), _) =>
           dynamics |> Calc.get_saved(None)
         | (ProgramResult.ResultOk({state, _}), _) =>
@@ -728,6 +706,9 @@ module View = {
            | `Custom(Node.t)
          ]=`EvalResults,
         ~locked: bool,
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit)=_ =>
+                                                                    Ui_effect.Ignore,
+        ~main_editor: option(CodeEditable.Channel.t)=None,
         model: Model.t,
       ) =>
     switch (result_kind) {
@@ -743,7 +724,7 @@ module View = {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor.syntax.measured,
+              ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
               result,
             ),
           ]
@@ -761,6 +742,8 @@ module View = {
                 | Some(Theorems(f)) => Some(f)
                 | _ => None
                 },
+              ~edit_syntax,
+              ~main_editor,
               model.theorems,
             );
       let theorems =
@@ -803,7 +786,7 @@ module View = {
             | Some(result) => [
                 test_result_layer(
                   ~font_metrics=globals.font_metrics,
-                  ~measured=editor.syntax.measured,
+                  ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
                   result,
                 ),
               ]
@@ -820,7 +803,7 @@ module View = {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor.syntax.measured,
+              ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
               result,
             ),
           ]

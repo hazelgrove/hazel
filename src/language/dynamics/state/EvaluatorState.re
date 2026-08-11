@@ -26,6 +26,7 @@ type t = {
   probes: Sample.Map.t,
   step_count: int,
   incr_eval,
+  proof_map: ProofMap.t /* Incoming/outgoing expressions per proof sub-term id */
 }
 
 // Note[Matt]: There are probably memory improvements to be made here by untying this knot.
@@ -43,6 +44,7 @@ type effect =
       samples: PatternMatch.sample_closures,
     })
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
+  | RecordProofMap(ProofMap.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
 let empty: t = {
@@ -52,6 +54,7 @@ let empty: t = {
   step_count: 0,
   theorems: [],
   incr_eval: IncrEval.empty,
+  proof_map: ProofMap.empty,
 };
 
 let empty_at = (step_count: int): t => {
@@ -108,6 +111,7 @@ let append = (base: t, ext: t): t => {
     probes,
     tests,
     theorems: ext.theorems @ base.theorems,
+    proof_map: ProofMap.union(base.proof_map, ext.proof_map),
   };
 };
 
@@ -120,6 +124,8 @@ let get_tests = ({tests, _}) => tests;
 let get_probes = ({probes, _}) => probes;
 
 let get_theorems = ({theorems, _}) => theorems;
+
+let get_proof_map = ({proof_map, _}) => proof_map;
 
 let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
 
@@ -159,6 +165,13 @@ let add_sample = (state: t, sample: Sample.t) => {
       ...state,
       probes: Sample.Map.extend(sample.syntax_id, sample, state.probes),
     };
+  };
+};
+
+let merge_proof_map = ({proof_map, _} as es, pm) => {
+  {
+    ...es,
+    proof_map: ProofMap.union(proof_map, pm),
   };
 };
 
@@ -271,6 +284,7 @@ let update =
           call_stack,
           add_theorem(state, id, name, env, goal),
         )
+      | RecordProofMap(pm) => (call_stack, merge_proof_map(state, pm))
       },
     (call_stack, state),
     side_effects,

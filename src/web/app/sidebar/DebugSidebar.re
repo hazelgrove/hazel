@@ -21,6 +21,7 @@ let code_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  use_literal_lexemes: false,
   project_tables: false,
 };
 
@@ -240,6 +241,7 @@ let ctx_entry_node = (~globals, entry: Ctx.entry): Node.t =>
   | TVarEntry({name, kind: Abstract, _}) =>
     ctx_row(text("type " ++ name), None)
   | LivelitEntry(_) => ctx_row(text("livelit"), None)
+  | HypothesisEntry({name, _}) => ctx_row(text("hyp " ++ name), None)
   };
 
 let ctx_view_rendered = (~globals, ctx: Ctx.t): Node.t =>
@@ -294,6 +296,7 @@ let ctx_entry_text = (entry: Ctx.entry): string =>
     "type " ++ name ++ " = " ++ typ_to_text(~settings=code_settings, ty)
   | TVarEntry({name, kind: Abstract, _}) => "type " ++ name
   | LivelitEntry(_) => "livelit"
+  | HypothesisEntry({name, _}) => "hyp " ++ name
   };
 
 let ctx_to_text = (ctx: Ctx.t): string =>
@@ -544,6 +547,8 @@ let info_view = (~globals, ~raw, ci: Info.t): list(Node.t) =>
   | InfoMPat(m) => mpat_view(~globals, ~raw, m)
   | Secondary(s) => secondary_view(~globals, s)
   | InfoDrv(d) => drv_view(~globals, d)
+  | InfoProof(_) =>
+    section(~globals, "InfoProof", () => [field_str("(proof)", "—")])
   };
 
 /* ---- Syntax sections: the syntactic/zipper layer under the cursor, ----
@@ -611,10 +616,10 @@ let indicated_piece_fields = (p: Haz3lcore.Piece.t): list(Node.t) =>
       p,
     );
 
-/* Caret, selection, and backpack from the editor's zipper. */
+/* Caret, selection, and missing shards from the editor's zipper. */
 let zipper_fields = (z: Haz3lcore.Zipper.t): list(Node.t) => {
   let sel = z.selection;
-  let backpack = Haz3lcore.Zipper.local_backpack(z);
+  let missing = Haz3lcore.Zipper.local_missing_shards(z);
   [
     field_str("caret", Haz3lcore.CaretBase.show(z.caret)),
     field_str("selection.focus", Util.Direction.show(sel.focus)),
@@ -624,8 +629,8 @@ let zipper_fields = (z: Haz3lcore.Zipper.t): list(Node.t) => {
       string_of_bool(Haz3lcore.Selection.is_empty(sel)),
     ),
     field_str(
-      "backpack",
-      string_of_int(List.length(backpack)) ++ " tile(s)",
+      "missing shards (local)",
+      string_of_int(List.length(missing)) ++ " tile(s)",
     ),
   ];
 };
@@ -653,14 +658,17 @@ let editor_fields = (editor: Haz3lcore.Editor.t): list(Node.t) => {
   [
     field_str("root sort", sort_str(editor.root)),
     field_str("syntax stale", string_of_bool(syntax.old)),
-    field_str("segment pieces", string_of_int(List.length(syntax.segment))),
+    field_str(
+      "segment pieces",
+      string_of_int(List.length(Haz3lcore.CachedSyntax.segment(syntax))),
+    ),
     field_str(
       "projectors",
       string_of_int(List.length(syntax.projector_list)),
     ),
     field_str(
-      "backpack (cached)",
-      string_of_int(List.length(syntax.cached_backpack)) ++ " tile(s)",
+      "missing shards (global)",
+      string_of_int(List.length(syntax.missing_shards)) ++ " tile(s)",
     ),
   ];
 };
@@ -685,7 +693,10 @@ let syntax_view = (~globals, ~cursor: Cursor.cursor(_)): list(Node.t) => {
         | None => []
         | Some(p) =>
           section(~globals, "Measured", () =>
-            measured_fields(p, editor.syntax.measured)
+            measured_fields(
+              p,
+              Haz3lcore.CachedSyntax.measured(editor.syntax),
+            )
           )
         };
       let editor_sec =
@@ -747,8 +758,7 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
             | _ => info_sections @ syntax_sections
             };
           /* Metrics render regardless of cursor state. */
-          cursor_sections
-          @ render_section((module WorkerMessagingSection), ~globals);
+          cursor_sections;
         },
       ),
     ],

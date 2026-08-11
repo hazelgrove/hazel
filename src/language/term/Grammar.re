@@ -23,6 +23,8 @@ type any_t('a) =
   | Mod(mod_t('a))
   | Sig(sig_t('a))
   | MPat(mpat_t('a))
+  | Proof(proof_t('a))
+  | PRul(prul_t('a))
   | Any(unit)
 and exp_term('a) =
   | Invalid(string)
@@ -49,7 +51,7 @@ and exp_term('a) =
   | LivelitName(string)
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
-  | Theorem(pat_t('a), exp_t('a), exp_t('a))
+  | Theorem(pat_t('a), exp_t('a), proof_t('a), exp_t('a))
   | ProofObject(exp_t('a))
   | Forall(pat_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
@@ -128,6 +130,12 @@ and rul_term('a) =
   | MultiHole(list(any_t('a)))
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
+and prul_term('a) =
+  | Invalid(string)
+  | MultiHole(list(any_t('a)))
+  // Scrutinee + (pattern, proof-body) cases, as the child of `induction`.
+  | ProofRules(exp_t('a), list((pat_t('a), proof_t('a))))
+and prul_t('a) = Annotated.t(prul_term('a), 'a)
 and mod_term('a) =
   | Invalid(string)
   | EmptyHole
@@ -151,6 +159,35 @@ and mpat_term('a) =
   | Var(Var.t)
   | Asc(mpat_t('a), typ_t('a))
 and mpat_t('a) = Annotated.t(mpat_term('a), 'a)
+and proof_term('a) =
+  | Invalid(string)
+  | EmptyHole
+  | MultiHole(list(any_t('a)))
+  | Seq(proof_t('a), proof_t('a))
+  | AxiomStep({
+      at_idx: exp_t('a),
+      at_exp: exp_t('a),
+      direction: Direction.t,
+      equality: exp_t('a),
+    })
+  | AlgebriteStep({
+      at_idx: exp_t('a),
+      at_exp: exp_t('a),
+      with_exp: exp_t('a),
+    })
+  /* Take a single dynamic evaluation step on the `at_idx`-th occurrence of
+   * `at_exp` inside the incoming goal, substituting the result back in.
+   * Think of this as `rewrite ... with <step(scrut)> at ...`, where the
+   * replacement is computed rather than user-specified. The big-step
+   * checker wires the actual single-step function in through its
+   * injected step_fn callback. */
+  | EvalStep({
+      at_idx: exp_t('a),
+      at_exp: exp_t('a),
+    })
+  | Induction(exp_t('a), list((pat_t('a), proof_t('a))))
+  | Forall(pat_t('a), proof_t('a))
+and proof_t('a) = Annotated.t(proof_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
@@ -212,10 +249,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e1),
             map_exp_annotation(f, e2),
           )
-        | Theorem(p, e1, e2) =>
+        | Theorem(p, e1, pf, e2) =>
           Theorem(
             map_pat_annotation(f, p),
             map_exp_annotation(f, e1),
+            map_proof_annotation(f, pf),
             map_exp_annotation(f, e2),
           )
         | ProofObject(t) => ProofObject(map_exp_annotation(f, t))
@@ -315,7 +353,55 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | Mod(m) => Mod(map_mod_annotation(f, m))
     | Sig(s) => Sig(map_sig_annotation(f, s))
     | MPat(mp) => MPat(map_mpat_annotation(f, mp))
+    | Proof(p) => Proof(map_proof_annotation(f, p))
+    | PRul(r) => PRul(map_prul_annotation(f, r))
     | Any(_) => Any()
+    };
+  }
+and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term:
+        switch (term) {
+        | Invalid(s) => Invalid(s)
+        | EmptyHole => EmptyHole
+        | MultiHole(l) =>
+          MultiHole(List.map(x => map_any_annotation(f, x), l))
+        | Seq(p1, p2) =>
+          Seq(map_proof_annotation(f, p1), map_proof_annotation(f, p2))
+        | AxiomStep({at_idx, at_exp, direction, equality}) =>
+          AxiomStep({
+            at_idx: map_exp_annotation(f, at_idx),
+            at_exp: map_exp_annotation(f, at_exp),
+            direction,
+            equality: map_exp_annotation(f, equality),
+          })
+        | AlgebriteStep({at_idx, at_exp, with_exp}) =>
+          AlgebriteStep({
+            at_idx: map_exp_annotation(f, at_idx),
+            at_exp: map_exp_annotation(f, at_exp),
+            with_exp: map_exp_annotation(f, with_exp),
+          })
+        | EvalStep({at_idx, at_exp}) =>
+          EvalStep({
+            at_idx: map_exp_annotation(f, at_idx),
+            at_exp: map_exp_annotation(f, at_exp),
+          })
+        | Induction(e, cases) =>
+          Induction(
+            map_exp_annotation(f, e),
+            List.map(
+              ((p, body)) =>
+                (map_pat_annotation(f, p), map_proof_annotation(f, body)),
+              cases,
+            ),
+          )
+        | Forall(x, body) =>
+          Forall(map_pat_annotation(f, x), map_proof_annotation(f, body))
+        },
+      annotation: new_annotation,
     };
   }
 and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
@@ -427,6 +513,29 @@ and map_rul_annotation: 'a 'b. ('a => 'b, rul_t('a)) => rul_t('b) =
             List.map(
               ((p, e)) =>
                 (map_pat_annotation(f, p), map_exp_annotation(f, e)),
+              l,
+            ),
+          )
+        },
+      annotation: new_annotation,
+    };
+  }
+and map_prul_annotation: 'a 'b. ('a => 'b, prul_t('a)) => prul_t('b) =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term:
+        switch (term) {
+        | Invalid(s) => Invalid(s)
+        | MultiHole(l) =>
+          MultiHole(List.map(x => map_any_annotation(f, x), l))
+        | ProofRules(e, l) =>
+          ProofRules(
+            map_exp_annotation(f, e),
+            List.map(
+              ((p, pr)) =>
+                (map_pat_annotation(f, p), map_proof_annotation(f, pr)),
               l,
             ),
           )
@@ -668,8 +777,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Let(p, e1, e2),
       annotation: default_annotation(ann),
     };
-    let theorem = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
-      term: Theorem(p, e1, e2),
+    let theorem = (~ann=?, p, e1, pf, e2): exp_t(DefaultAnnotation.t) => {
+      term: Theorem(p, e1, pf, e2),
       annotation: default_annotation(ann),
     };
     let proof_object = (~ann=?, t): exp_t(DefaultAnnotation.t) => {
@@ -1004,6 +1113,21 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
   };
 
+  module PRul = {
+    let prul_invalid = (~ann=?, s): prul_t(DefaultAnnotation.t) => {
+      term: Invalid(s),
+      annotation: default_annotation(ann),
+    };
+    let prul_hole = (~ann=?, l): prul_t(DefaultAnnotation.t) => {
+      term: MultiHole(l),
+      annotation: default_annotation(ann),
+    };
+    let prul_proof_rules = (~ann=?, e, l): prul_t(DefaultAnnotation.t) => {
+      term: ProofRules(e, l),
+      annotation: default_annotation(ann),
+    };
+  };
+
   module Mod = {
     let invalid = (~ann=?, s): mod_t(DefaultAnnotation.t) => {
       term: Invalid(s),
@@ -1077,6 +1201,65 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let asc = (~ann=?, mp, t): mpat_t(DefaultAnnotation.t) => {
       term: Asc(mp, t),
+      annotation: default_annotation(ann),
+    };
+  };
+
+  module Proof = {
+    let invalid = (~ann=?, s): proof_t(DefaultAnnotation.t) => {
+      term: Invalid(s),
+      annotation: default_annotation(ann),
+    };
+    let empty_hole = (~ann=?, ()): proof_t(DefaultAnnotation.t) => {
+      term: EmptyHole,
+      annotation: default_annotation(ann),
+    };
+    let multi_hole = (~ann=?, l): proof_t(DefaultAnnotation.t) => {
+      term: MultiHole(l),
+      annotation: default_annotation(ann),
+    };
+    let seq = (~ann=?, p1, p2): proof_t(DefaultAnnotation.t) => {
+      term: Seq(p1, p2),
+      annotation: default_annotation(ann),
+    };
+    let axiom_step =
+        (~ann=?, ~at_idx, ~at_exp, ~direction, ~equality, ())
+        : proof_t(DefaultAnnotation.t) => {
+      term:
+        AxiomStep({
+          at_idx,
+          at_exp,
+          direction,
+          equality,
+        }),
+      annotation: default_annotation(ann),
+    };
+    let algebrite_step =
+        (~ann=?, ~at_idx, ~at_exp, ~with_exp, ())
+        : proof_t(DefaultAnnotation.t) => {
+      term:
+        AlgebriteStep({
+          at_idx,
+          at_exp,
+          with_exp,
+        }),
+      annotation: default_annotation(ann),
+    };
+    let eval_step =
+        (~ann=?, ~at_idx, ~at_exp, ()): proof_t(DefaultAnnotation.t) => {
+      term:
+        EvalStep({
+          at_idx,
+          at_exp,
+        }),
+      annotation: default_annotation(ann),
+    };
+    let induction = (~ann=?, e, cases): proof_t(DefaultAnnotation.t) => {
+      term: Induction(e, cases),
+      annotation: default_annotation(ann),
+    };
+    let forall = (~ann=?, x, body): proof_t(DefaultAnnotation.t) => {
+      term: Forall(x, body),
       annotation: default_annotation(ann),
     };
   };

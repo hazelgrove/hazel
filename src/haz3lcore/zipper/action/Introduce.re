@@ -251,6 +251,7 @@ module Make =
           hide_fixpoints: false,
           show_filters: true,
           show_unknown_as_hole: true,
+          use_literal_lexemes: true,
         },
         term,
         already_parenthesized(z),

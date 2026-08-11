@@ -1,7 +1,7 @@
 let v: ProofCtx.t =
   []
   |> ProofCtx.add_exp(
-       "Reflexive(==)",
+       "refl_eq",
        Forall(
          Var("x") |> Pat.fresh,
          BinOp(

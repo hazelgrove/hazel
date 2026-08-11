@@ -22,6 +22,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         show_ascriptions: true,
         show_filters: false,
         show_unknown_as_hole: true,
+        use_literal_lexemes: false,
         project_tables: false,
       },
     );
@@ -62,6 +63,21 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         div_name([text("^" ++ name)]),
         div(~attrs=[clss(["seperator"])], [text(":")]),
         view_type(expansion_t),
+      ],
+    )
+  | HypothesisEntry({name, prop, _}) =>
+    div(
+      ~attrs=[
+        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        clss(["context-entry", "code", "hypothesis-entry"]),
+      ],
+      [
+        div_name([text(name)]),
+        div(~attrs=[clss(["seperator"])], [text(":")]),
+        switch (prop) {
+        | Some(_) => div(~attrs=[clss(["prop"])], [text("hypothesis")])
+        | None => div(~attrs=[clss(["prop"])], [text("hypothesis")])
+        },
       ],
     )
   };

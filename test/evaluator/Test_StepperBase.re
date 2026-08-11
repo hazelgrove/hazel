@@ -35,7 +35,7 @@ module StepKindHelpers = {
         ~name="reflexivity",
         ~at_idx=0,
         ~direction=Direction.Right,
-        ~equality="Reflexive(==)",
+        ~equality="refl_eq",
         at_exp,
       ) // Required parameter at the end
       : StepperBase.step_kind_model => {
@@ -74,6 +74,7 @@ let mk_test_step =
   hidden: Calc.Pending,
   proof_validity: Calc.Pending,
   editor_info_map: Calc.Pending,
+  proof: Calc.Pending,
 };
 
 // Helper constructors for InductionCase
@@ -105,6 +106,7 @@ module InductionCaseHelpers = {
       : Web.InductionCase.model'(StepperBase.step_model) => {
     {
       pattern: mk_pattern_editor(pattern_str),
+      pattern_src: Calc.Pending,
       elab_pattern: Calc.Pending,
       inner_exp:
         inner_exp
@@ -117,7 +119,6 @@ module InductionCaseHelpers = {
         |> Option.value(~default=Calc.Pending),
       inner_ctx: Calc.Pending,
       hypotheses: Calc.Pending,
-      constraint_: Calc.Pending,
     };
   };
 
@@ -125,8 +126,8 @@ module InductionCaseHelpers = {
   let mk_reflexivity_step = (goal_exp: Exp.t): StepperBase.step_model => {
     let axiom_kind =
       StepKindHelpers.mk_axiom_step(
-        ~name="Reflexive(==)",
-        ~equality="Reflexive(==)",
+        ~name="refl_eq",
+        ~equality="refl_eq",
         goal_exp,
       );
     mk_test_step(~step_kind=axiom_kind, ());
@@ -188,6 +189,7 @@ module InductionCaseHelpers = {
     let ind_model: Web.InductionStep.model'(StepperBase.step_model) = {
       scrut: scrut_editor,
       cases,
+      scrut_src: Calc.Pending,
       elab_scrut_raw: Calc.Pending,
       elab_scrut_sub: Calc.Pending,
       scrut_ty: Calc.Pending,
@@ -222,6 +224,8 @@ let test_calculate =
     ~exp=exp_calc,
     ~ctx=ctx_calc,
     ~ana=ana_calc,
+    ~proof=Calc.OldValue(None),
+    ~proof_map=Calc.OldValue(Language.ProofMap.empty),
     step,
   );
 };
@@ -509,58 +513,13 @@ let tests = (
         check(bool, "induction step created", true, true);
       },
     ),
-    test_case(
-      "induction step: exhaustiveness check empty",
-      `Quick,
-      () => {
-        // An InductionStep with no cases should not be exhaustive
-        let scrut_exp = parse_exp("true");
-        let elab = elaborate(scrut_exp);
-        let step_kind = StepKindHelpers.mk_induction_step(~exp=elab, ());
-        let step = mk_test_step(~step_kind, ());
-
-        let (model, _, _) = test_calculate(~exp=parse_exp("true"), step);
-
-        // Extract the InductionStep from the model to check exhaustiveness
-        switch (model.step_kind) {
-        | StepperBase.InductionStep(ind_model) =>
-          let is_exhaustive =
-            ind_model.is_exhaustive
-            |> Calc.get_saved_exc(~print="is_exhaustive not calculated");
-          check(bool, "empty induction not exhaustive", false, is_exhaustive);
-        | _ => failwith("Expected InductionStep")
-        };
-      },
-    ),
-    test_case(
-      "induction step: validity with no cases on concrete type",
-      `Quick,
-      () => {
-        // An InductionStep with no cases on a concrete type (like Int) should be None (not valid)
-        // because it's not exhaustive
-        let scrut_exp = parse_exp("42"); // Int type - concrete
-        let elab = elaborate(scrut_exp);
-        let step_kind = StepKindHelpers.mk_induction_step(~exp=elab, ());
-        let step = mk_test_step(~step_kind, ());
-
-        let (model, _, _) = test_calculate(~exp=parse_exp("true"), step);
-
-        // Check that validity is None - concrete type with no cases is not valid
-        switch (model.step_kind) {
-        | StepperBase.InductionStep(ind_model) =>
-          let ind_validity =
-            ind_model.validity
-            |> Calc.get_saved_exc(~print="validity not calculated");
-          check(
-            option(bool),
-            "no cases on concrete type is not valid",
-            None,
-            ind_validity,
-          );
-        | _ => failwith("Expected InductionStep")
-        };
-      },
-    ),
+    /* Note: induction exhaustiveness is no longer recomputed in the stepper;
+       the label now reflects the static `InexhaustiveMatch` mark produced by
+       the theorem's statics (threaded in via `~proof_info_map`). The empty /
+       inexhaustive cases are covered by `Test_Statics_Proof`, so the former
+       stepper-level "exhaustiveness check empty" and "validity with no cases"
+       unit tests (which relied on the removed local Coverage.check and an
+       absent proof context) have been removed. */
     test_case(
       "induction step: calculate result expression",
       `Quick,
@@ -611,8 +570,8 @@ let tests = (
                     ~goal_str="[] == []",
                     [
                       StepKindHelpers.mk_axiom_step(
-                        ~name="Reflexive(==)",
-                        ~equality="Reflexive(==)",
+                        ~name="refl_eq",
+                        ~equality="refl_eq",
                         parse_exp("[] == []"),
                       ),
                     ],
@@ -627,8 +586,8 @@ let tests = (
                         parse_exp("tl"),
                       ),
                       StepKindHelpers.mk_axiom_step(
-                        ~name="Reflexive(==)",
-                        ~equality="Reflexive(==)",
+                        ~name="refl_eq",
+                        ~equality="refl_eq",
                         parse_exp("hd::tl == hd::tl"),
                       ),
                     ],

@@ -93,7 +93,7 @@ let apply_overlay_action =
         ),
       );
     } else {
-      let new_z = Dump.to_zipper(new_z, ~root=Exp);
+      let new_z = Materialize.all(new_z, ~root=Exp);
       let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
       let new_cws =
         CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
@@ -211,7 +211,7 @@ let update =
       } else {
         let new_z =
           CompositionGo.Local.PerformUtils.normalize_top_level(
-            Dump.to_zipper(new_z, ~root=Exp),
+            Materialize.all(new_z, ~root=Exp),
           );
         let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
         let new_code_with_statics =

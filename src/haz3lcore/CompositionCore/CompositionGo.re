@@ -434,7 +434,7 @@ module Local = {
         )
       ) {
       | Some(z') =>
-        switch (Destruct.go(Left, z', ~root=Exp)) {
+        switch (Destruct.go(Local(Left, ByChar), z', ~root=Exp)) {
         | None => Error(Action.Failure.Cant_destruct)
         | Some(z'') => Ok(z'')
         }
@@ -871,7 +871,7 @@ module Local = {
         | Ok(new_z) =>
           Ok(
             PerformUtils.normalize_top_level(
-              Dump.to_zipper(new_z, ~root=Exp),
+              Materialize.all(new_z, ~root=Exp),
             ),
           )
         | Error(e) => Error(e)

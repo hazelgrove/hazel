@@ -69,7 +69,7 @@ let adt_node_ids = exp => {
       go(body);
     | Let(_, def, body)
     | Seq(def, body)
-    | Theorem(_, def, body) =>
+    | Theorem(_, def, _, body) =>
       go(def);
       go(body);
     | If(c, t, f) =>

@@ -348,10 +348,10 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
       annotation:
         Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
-  | Theorem(p, edef, ebody) =>
+  | Theorem(p, edef, pf, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
-      term: Theorem(p, edef, ebody'),
+      term: Theorem(p, edef, pf, ebody'),
       annotation:
         Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };

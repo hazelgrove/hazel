@@ -50,11 +50,13 @@ module Update = {
         Project(_) |
         Structural(_) |
         Probe(_) |
-        PrettyPrint |
-        Dump |
+        Format(_) |
+        AdjustIndent(_, _) |
+        ApplyCompletion(_) |
         Introduce |
         ToggleLineComment,
       )
+    | PerformConfined(_, _)
     | DebugConsole(_)
     | ContextMenu(_)
     | TAB => None;

@@ -9,7 +9,9 @@ type t =
   | Exp
   | Mod
   | Sig
-  | MPat;
+  | MPat
+  | Proof
+  | PRul;
 
 let to_string =
   fun
@@ -44,4 +46,6 @@ let to_string_verbose =
   | Exp => "expression"
   | Mod => "module"
   | Sig => "signature"
-  | MPat => "module pattern";
+  | MPat => "module pattern"
+  | Proof => "proof"
+  | PRul => "proof rule";

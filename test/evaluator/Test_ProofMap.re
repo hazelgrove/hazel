@@ -1,0 +1,431 @@
+open Alcotest;
+open Language;
+open Test_Evaluator_Prelude;
+
+/* Tests for the big-step proof checking phase. Each test parses a
+ * program containing a theorem, evaluates it through the big-step
+ * evaluator, and inspects the resulting EvaluatorState.proof_map for
+ * the mark we expect on the proof term just inside the theorem. */
+
+let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
+  Statics.mk(
+    CoreSettings.on,
+    Builtins.ctx_init(Some(Operators.default_mode)),
+    exp,
+  );
+
+let eval_with_proof = (exp: Exp.t): (EvaluatorState.t, Statics.Map.t, Exp.t) => {
+  let (statics, elab) = statics_and_elab(exp);
+  let (_, state) =
+    Evaluator.evaluate(~statics, ~env=Builtins.env_init, elab);
+  (state, statics, elab);
+};
+
+/* Find a Theorem's proof sub-term in the elaborated expression. We use
+ * map_term's stash side-channel to capture the first Theorem proof we
+ * encounter; test programs only contain one. */
+let find_theorem_proof = (e: Exp.t): option(Proof.t) => {
+  let found = ref(None);
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    switch (e.term) {
+    | Theorem(_, _, proof, _) when found^ == None =>
+      found := Some(proof);
+      e;
+    | _ => continue(e)
+    };
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, e);
+  found^;
+};
+
+let proof_id_of = (elab: Exp.t): Id.t =>
+  switch (find_theorem_proof(elab)) {
+  | Some(p) => Proof.rep_id(p)
+  | None => Alcotest.fail("no theorem found in elaborated expression")
+  };
+
+let proof_of = (elab: Exp.t): Proof.t =>
+  switch (find_theorem_proof(elab)) {
+  | Some(p) => p
+  | None => Alcotest.fail("no theorem found in elaborated expression")
+  };
+
+/* Reflexivity axiom on a closed equality: outgoing of the top-level
+ * proof should be `true`, giving a checkmark. */
+let test_refl_checkmark = () => {
+  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  Alcotest.check(
+    Alcotest.option(bool),
+    "refl proof should be checkmark",
+    Some(true),
+    ProofMap.status_of_proof(pm, proof_of(elab)),
+  );
+};
+
+/* A theorem with outer universal quantifiers: the foralls are
+ * auto-introduced, so a bare reflexivity proof on the conclusion proves
+ * the theorem (outgoing `true`) without needing an explicit `forall`
+ * proof step. */
+let test_refl_forall_checkmark = () => {
+  let src = {|theorem t = forall x -> x == x proof axiom refl_eq at 0 on x == x end in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  Alcotest.check(
+    Alcotest.option(bool),
+    "forall reflexivity proof should be checkmark",
+    Some(true),
+    ProofMap.status_of_proof(pm, proof_of(elab)),
+  );
+};
+
+/* An empty-hole proof: outgoing should be None AND has_hole should
+ * be true, giving a "nothing" mark. */
+let test_empty_hole_nothing = () => {
+  let src = {|theorem t = true proof ? in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  Alcotest.check(
+    Alcotest.option(bool),
+    "empty-hole proof should be nothing",
+    None,
+    ProofMap.status_of_proof(pm, proof_of(elab)),
+  );
+};
+
+/* A hole-free but unsuccessful proof of a false statement: the axiom
+ * doesn't apply, so outgoing is None. That is not a disproof
+ * (`Some(false)` requires outgoing `false`), and it must not be marked
+ * proven either — status stays `None`. */
+let test_false_goal_not_checkmark = () => {
+  let src = {|theorem t = 1 == 2 proof axiom refl_eq at 0 on 1 == 2 end in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.bool,
+    "proof has no EmptyHole/Invalid/MultiHole",
+    false,
+    Proof.has_hole(proof),
+  );
+  Alcotest.check(
+    Alcotest.option(bool),
+    "failed proof is neither proven nor disproven",
+    None,
+    ProofMap.status_of_proof(pm, proof),
+  );
+};
+
+/* A state-merge round-trip: append a freshly-evaluated state (carrying a
+ * proof-map entry) onto an empty base and check the entry survives the
+ * merge. */
+let test_append_proof_map = () => {
+  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pid = proof_id_of(elab);
+  let pm = EvaluatorState.get_proof_map(state);
+  /* Merge the evaluated state onto a fresh empty base; the proof_map
+   * should be carried through the append. */
+  let merged = EvaluatorState.append(EvaluatorState.empty, state);
+  let pm_merged = EvaluatorState.get_proof_map(merged);
+  Alcotest.check(
+    Alcotest.bool,
+    "merged proof map has entry for proof id",
+    ProofMap.lookup(pid, pm_merged) != None,
+    ProofMap.lookup(pid, pm) != None,
+  );
+};
+
+/* --- Proof-mark tests ---------------------------------------------
+ *
+ * Each test exercises a specific `ProofMark.t` variant by constructing
+ * a theorem whose inner proof step should fail in the expected way,
+ * then asserts that the proof-map marks at the inner step's id include
+ * the right mark kind. `proof-mark error_ids` must also surface that id. */
+
+/* Walk the inner proof recursively and collect the first proof sub-term
+ * whose mark list is non-empty. Used to locate whichever sub-step the
+ * checker reported a mark against. */
+let rec find_marked_sub =
+        (pm: ProofMap.t, proof: Proof.t): option((Id.t, list(ProofMark.t))) => {
+  let id = Proof.rep_id(proof);
+  let marks = ProofMap.marks_of(id, pm);
+  if (marks != []) {
+    Some((id, marks));
+  } else {
+    switch (proof.term) {
+    | Seq(p1, p2) =>
+      switch (find_marked_sub(pm, p1)) {
+      | Some(_) as s => s
+      | None => find_marked_sub(pm, p2)
+      }
+    | Forall(_, body) => find_marked_sub(pm, body)
+    | Induction(_, cases) =>
+      let rec scan = (
+        fun
+        | [] => None
+        | [(_p, body), ...rest] =>
+          switch (find_marked_sub(pm, body)) {
+          | Some(_) as s => s
+          | None => scan(rest)
+          }
+      );
+      scan(cases);
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | AxiomStep(_)
+    | AlgebriteStep(_)
+    | EvalStep(_) => None
+    };
+  };
+};
+
+let has_mark_kind =
+    (pm: ProofMap.t, proof: Proof.t, pred: ProofMark.t => bool): bool =>
+  switch (find_marked_sub(pm, proof)) {
+  | Some((_, marks)) => List.exists(pred, marks)
+  | None => false
+  };
+
+/* The proof-map error_ids list must include the id of any marked sub-term
+ * — this drives the red shard overlay in the code view. */
+let marked_id_is_surfaced = (pm: ProofMap.t, proof: Proof.t): bool =>
+  switch (find_marked_sub(pm, proof)) {
+  | Some((id, _)) => List.mem(id, ProofMap.error_ids(pm))
+  | None => false
+  };
+
+/* UnknownEquality: an axiom that names a rule not in scope. */
+let test_unknown_equality_mark = () => {
+  let src = {|theorem t = 1 == 1 proof axiom bogus at 0 on 1 == 1 end in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.bool,
+    "UnknownEquality mark is emitted",
+    true,
+    has_mark_kind(
+      pm,
+      proof,
+      fun
+      | ProofMark.UnknownEquality(_) => true
+      | _ => false,
+    ),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "marked id appears in ProofMap.error_ids",
+    true,
+    marked_id_is_surfaced(pm, proof),
+  );
+};
+
+/* PatternNotFound: axiom's at_exp pattern isn't present at the
+ * requested occurrence in the incoming goal. */
+let test_pattern_not_found_mark = () => {
+  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on 5 == 5 end in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.bool,
+    "PatternNotFound mark is emitted",
+    true,
+    has_mark_kind(
+      pm,
+      proof,
+      fun
+      | ProofMark.PatternNotFound(_) => true
+      | _ => false,
+    ),
+  );
+};
+
+/* Rewrite (AlgebriteStep) should locate the `at_exp` pattern in the
+ * incoming goal. Here `x + x` is literally the left-hand side of the
+ * goal `x + x == 2 * x`, so occurrence 0 must be found and NO
+ * PatternNotFound mark should be emitted. */
+let test_rewrite_finds_pattern = () => {
+  let src = {|theorem t = forall x -> x + x == 2 * x proof rewrite x + x with 2 * x at 0 end in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.bool,
+    "rewrite must find `x + x` (no PatternNotFound mark)",
+    false,
+    has_mark_kind(
+      pm,
+      proof,
+      fun
+      | ProofMark.PatternNotFound(_) => true
+      | _ => false,
+    ),
+  );
+};
+
+/* Same as above but under `use Nat`, mirroring the user's program. The
+ * `use Nat` sets the numeric operator mode to Nat, so both the goal's
+ * `x + x` and the rewrite's `at_exp` must elaborate to Nat(Plus) and
+ * still match. Regression test: previously the proof term's expressions
+ * were never elaborated, so `at_exp` stayed Int(Plus) and failed to
+ * match the goal's Nat(Plus), spuriously reporting PatternNotFound. */
+let test_rewrite_finds_pattern_nat = () => {
+  let src = {|use Nat in theorem t = forall x -> x + x == 2 * x proof rewrite x + x with 2 * x at 0 end in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.bool,
+    "rewrite under `use Nat` must find `x + x` (no PatternNotFound mark)",
+    false,
+    has_mark_kind(
+      pm,
+      proof,
+      fun
+      | ProofMark.PatternNotFound(_) => true
+      | _ => false,
+    ),
+  );
+};
+
+/* NothingToStep: an eval step on a fully-normalised subterm. The literal
+ * `1` has no reducible step under the evaluator. */
+let test_nothing_to_step_mark = () => {
+  let src = {|theorem t = 1 == 1 proof eval 1 at 0 end in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.bool,
+    "NothingToStep mark is emitted",
+    true,
+    has_mark_kind(
+      pm,
+      proof,
+      fun
+      | ProofMark.NothingToStep(_) => true
+      | _ => false,
+    ),
+  );
+};
+
+/* ExpectedForallGoal: a `forall` proof when the goal isn't a forall. */
+let test_expected_forall_goal_mark = () => {
+  let src = {|theorem t = 1 == 1 proof forall x => axiom refl_eq at 0 on 1 == 1 end in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.bool,
+    "ExpectedForallGoal mark is emitted",
+    true,
+    has_mark_kind(
+      pm,
+      proof,
+      fun
+      | ProofMark.ExpectedForallGoal => true
+      | _ => false,
+    ),
+  );
+};
+
+/* MissingIncoming: once a step breaks propagation, the next step in a
+ * sequence should record MissingIncoming against its own id. */
+let test_missing_incoming_mark = () => {
+  /* First axiom is bogus → its outgoing is None → second axiom sees
+   * incoming=None and should mark MissingIncoming. */
+  let src = {|theorem t = 1 == 1 proof axiom bogus at 0 on 1 == 1 end; axiom refl_eq at 0 on 1 == 1 end in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  /* The Seq itself doesn't carry a mark, but one of its children should
+   * carry MissingIncoming. Walk both sides. */
+  let rec scan = (p: Proof.t): bool => {
+    let here =
+      List.exists(
+        fun
+        | ProofMark.MissingIncoming => true
+        | _ => false,
+        ProofMap.marks_of(Proof.rep_id(p), pm),
+      );
+    here
+    || (
+      switch (p.term) {
+      | Seq(a, b) => scan(a) || scan(b)
+      | _ => false
+      }
+    );
+  };
+  Alcotest.check(
+    Alcotest.bool,
+    "MissingIncoming mark reached the second step",
+    true,
+    scan(proof),
+  );
+};
+
+let tests = (
+  "Evaluator.ProofMap",
+  [
+    test_case("refl produces checkmark", `Quick, test_refl_checkmark),
+    test_case(
+      "forall refl produces checkmark",
+      `Quick,
+      test_refl_forall_checkmark,
+    ),
+    test_case("empty hole produces nothing", `Quick, test_empty_hole_nothing),
+    test_case(
+      "false goal is not marked as proven",
+      `Quick,
+      test_false_goal_not_checkmark,
+    ),
+    test_case("append carries proof_map", `Quick, test_append_proof_map),
+    test_case(
+      "unknown equality emits mark",
+      `Quick,
+      test_unknown_equality_mark,
+    ),
+    test_case(
+      "pattern-not-found emits mark",
+      `Quick,
+      test_pattern_not_found_mark,
+    ),
+    test_case("rewrite finds pattern", `Quick, test_rewrite_finds_pattern),
+    test_case(
+      "rewrite finds pattern under use Nat",
+      `Quick,
+      test_rewrite_finds_pattern_nat,
+    ),
+    test_case(
+      "nothing-to-step emits mark",
+      `Quick,
+      test_nothing_to_step_mark,
+    ),
+    test_case(
+      "expected forall goal emits mark",
+      `Quick,
+      test_expected_forall_goal_mark,
+    ),
+    test_case(
+      "missing-incoming propagates to later step",
+      `Quick,
+      test_missing_incoming_mark,
+    ),
+  ],
+);

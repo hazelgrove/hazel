@@ -60,7 +60,7 @@ let make_problem_context =
       ~syntax: CachedSyntax.t,
     )
     : problem_context => {
-  let measured = syntax.measured;
+  let measured = syntax.main_splice.measured;
   /* Build row→display-line mapping: skip empty rows added by projectors */
   let row_to_line = {
     let reversed = List.rev(measured.piece_rows);
@@ -128,7 +128,7 @@ let make_problem_context =
       [];
     };
   /* Collect holes once and partition into convex (empty holes) and concave (missing operators) */
-  let all_holes = Segment.holes(syntax.segment);
+  let all_holes = Segment.holes(syntax.main_splice.segment);
   let (hole_ids, concave_holes) =
     List.partition((g: Grout.t) => g.shape == Convex, all_holes);
   /* Collect projector errors with their kinds */
@@ -150,7 +150,7 @@ let make_problem_context =
     static_error_ids,
     warning_ids,
     projector_errors,
-    segment: syntax.segment,
+    segment: syntax.main_splice.segment,
     measured,
     row_to_line,
     pos,

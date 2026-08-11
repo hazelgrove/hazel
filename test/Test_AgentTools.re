@@ -76,7 +76,7 @@ let run_insert_at_program_boundary =
          dispatch path. */
       Ok(
         CompositionGo.Local.PerformUtils.normalize_top_level(
-          Dump.to_zipper(new_z, ~root=Exp),
+          Materialize.all(new_z, ~root=Exp),
         ),
       );
     };

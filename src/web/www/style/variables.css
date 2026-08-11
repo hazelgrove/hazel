@@ -48,6 +48,7 @@
   --MOD: var(--STONE); /* Module sort oklch(0.65 0.05 165)  */
   --SIG: var(--TYP); /* Signature sort oklch(0.65 0.1 320); */
   --MPAT: var(--PAT); /* Module pattern sort oklch(60% 0.2 60)  */
+  --PROOF: oklch(55% 0.17 150); /* Proof sort - green */
   --LABEL: oklch(60% 0.2 180);
 
   /* AURA - docs highlighting */
@@ -116,6 +117,7 @@
   --token-mod: var(--MOD);
   --token-sig: var(--SIG);
   --token-mpat: var(--MPAT);
+  --token-proof: var(--PROOF);
   --token-label: var(--LABEL);
   --token-string-lit: var(--Y3);
   --token-comment: var(--G2);
@@ -126,6 +128,7 @@
   --token-explicit-hole-shadow: var(--BLACK);
   --token-secondary: var(--shard-exp);
   --token-rul: var(--token-exp);
+  --token-prul: var(--token-proof);
   --token-any: var(--R2);
 
   /* CODE SHARDS */
@@ -140,6 +143,7 @@
   --shard-caret-mod: oklch(from var(--token-mod) 95% calc(c/4) h);
   --shard-caret-sig: oklch(from var(--token-sig) 95% calc(c/4) h);
   --shard-caret-mpat: oklch(from var(--token-mpat) 95% calc(c/4) h);
+  --shard-caret-proof: oklch(from var(--token-proof) 95% calc(c/4) h);
   --shard-pat: var(--shard-caret-pat);
   --shard-typ: var(--shard-caret-typ);
   --shard-drv: var(--shard-caret-drv);
@@ -147,12 +151,17 @@
   --shard-mod: var(--shard-caret-mod);
   --shard-sig: var(--shard-caret-sig);
   --shard-mpat: var(--shard-caret-mpat);
+  --shard-proof: var(--shard-caret-proof);
+  --shard-lines-proof: oklch(from var(--token-proof) 80% calc(c/2) h);
   --shard-selected: var(--Y1);
   --shard-selected-expanded: var(--Y0);
   --shard-buffer: var(--T1);
   --shard_projector: var(--T2);
   --shard-rul: var(--shard-exp);
   --shard-lines-rul: var(--shard-lines-exp);
+  --shard-prul: var(--shard-proof);
+  --shard-caret-prul: var(--shard-caret-proof);
+  --shard-lines-prul: var(--shard-lines-proof);
   --shadow-selected: var(--R0);
   --shard-any: var(--shard-exp);
   --shadow-any: var(--R0);
@@ -175,13 +184,29 @@
   --hole-fill: oklch(92% 0.04 250);
   --hole-active: oklch(50% 0.2 250);
 
-  /* BACKPACK DECO */
 
-  --backpack-selection: var(--shard-selected);
-  --backpack-joiner: var(--backpack-selection);
-  --backpack-genie: var(--backpack-selection);
-  --backpack-selection-outline: var(--light-page-color);
   --backback-targets: var(--Y3);
+
+  /* QUIVER DECO (completion visualization) */
+
+  /* matches the quiver box token color (= incomplete delimiters) so
+     arrow, preview, and incomplete tokens read as one system */
+  --quiver-chip: var(--token-incomplete);
+  --quiver-chip-text: var(--light-page-color);
+  --quiver-chip-text-faded: color-mix(
+    in srgb,
+    var(--light-page-color) 78%,
+    var(--token-incomplete)
+  );
+  /* on the subdued dim background the live fade disappears; dim
+     chips fade DARKER instead (toward the token color) */
+  /* at-caret colorway: gold text on the shard-selected backing;
+     its fade mixes toward that backing */
+  --quiver-chip-text-faded-atcaret: color-mix(
+    in srgb,
+    var(--token-incomplete) 45%,
+    var(--shard-selected)
+  );
 
   /* PROJECTORS */
   --textarea-indicated: var(--SAND);
@@ -267,7 +292,6 @@
   --projector-z: 10;
 
   /* ABOVE CODE LEVEL */
-  --backpack-targets-z: 11;
   --projector-indicated-z: 11;
   --projector-hover-z: 12;
   --caret-z: 20;
@@ -280,7 +304,6 @@
   --bottom-bar-z: 31;
   --top-bar-z: 31;
   --explainthis-expander-z: 31;
-  --backpack-z: 32;
   --top-bar-hover-z: 33;
 
   /* HACKS */

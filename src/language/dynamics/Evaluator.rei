@@ -11,10 +11,25 @@ type limited_result =
   | LimitedCompleted((Exp.t, EvaluatorState.t))
   | StepLimitExceeded;
 
+/* Incremental evaluator. Reuses entries from `prev` for non-deferred
+ * sub-expressions whose elaboration (per `eval_info`) and co-ctx
+ * dependencies are unchanged. Pass `prev=IncrEval.empty` and
+ * `eval_info=EvalInfoMap.empty` (the defaults) to opt out of reuse.
+ *
+ * `eval_info` is a serializable projection of the statics info_map — the
+ * full StaticsBase.Map.t embeds LivelitCtx closures and can't cross
+ * postMessage. Callers with statics should project via
+ * EvalInfoMap.of_info_map first.
+ *
+ * `statics` is the full statics map, only consulted by big-step proof
+ * checking (which needs typing context that EvalInfoMap deliberately omits).
+ * Defaults to empty; callers without statics or in postMessage paths should
+ * leave it empty (proof-checking becomes a no-op there). */
 let evaluate:
   (
     ~prev: EvaluatorState.incr_eval=?,
     ~eval_info: EvalInfo.t=?,
+    ~statics: Statics.Map.t=?,
     ~env: Environment.t(Exp.t),
     Exp.t
   ) =>
@@ -25,6 +40,7 @@ let evaluate_and_limit:
     ~step_limit: int,
     ~prev: EvaluatorState.incr_eval=?,
     ~eval_info: EvalInfo.t=?,
+    ~statics: Statics.Map.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,
     ~outbox: ref(IncrEval.outbox(EvaluatorState.t))=?,

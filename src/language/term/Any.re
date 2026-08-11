@@ -43,6 +43,11 @@ let is_sig: t => option(TermBase.Sig.t) =
   | Sig(s) => Some(s)
   | _ => None;
 
+let is_proof: t => option(TermBase.Proof.t) =
+  fun
+  | Proof(p) => Some(p)
+  | _ => None;
+
 let rec ids: TermBase.any_t => list(Id.t) =
   fun
   | Exp(tm) => IdTagged.ids(tm)
@@ -51,9 +56,11 @@ let rec ids: TermBase.any_t => list(Id.t) =
   | TPat(tm) => IdTagged.ids(tm)
   | Rul(tm) => Rul.ids(~any_ids=ids, tm)
   | Drv(tm) => Drv.Any.ids(tm)
+  | PRul(tm) => PRul.ids(~any_ids=ids, tm)
   | Mod(tm) => IdTagged.ids(tm)
   | Sig(tm) => IdTagged.ids(tm)
   | MPat(tm) => IdTagged.ids(tm)
+  | Proof(tm) => IdTagged.ids(tm)
   | Any () => [];
 
 // Terms may consist of multiple tiles, eg the commas in an n-tuple,
@@ -75,7 +82,9 @@ let rep_id =
   | TPat(tm) => TPat.rep_id(tm)
   | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
   | Drv(tm) => Drv.Any.rep_id(tm)
+  | PRul(tm) => PRul.rep_id(~any_ids=ids, tm)
   | Mod(tm) => IdTagged.rep_id(tm)
   | Sig(tm) => IdTagged.rep_id(tm)
   | MPat(tm) => IdTagged.rep_id(tm)
+  | Proof(tm) => IdTagged.rep_id(tm)
   | Any () => raise(Invalid_argument("Term.rep_id"));

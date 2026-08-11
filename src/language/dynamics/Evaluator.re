@@ -64,6 +64,7 @@ let rec evaluate =
           ~prev: EvaluatorState.incr_eval=IncrEval.empty,
           ~reused_ids: Id.Map.t(unit),
           ~eval_info: EvalInfo.t,
+          ~statics: Statics.Map.t=Id.Map.empty,
           // Call Stack
           ~in_closure=?,
           ~call_stack: CallStack.state,
@@ -81,8 +82,114 @@ let rec evaluate =
    * it also mutates the parent_state and outbox references while it's
    * running. */
 
-  let evaluate = evaluate(~prev, ~reused_ids, ~eval_info, ~outbox);
+  let evaluate = evaluate(~prev, ~reused_ids, ~eval_info, ~statics, ~outbox);
   let expr_id = DHExp.rep_id(exp);
+  /* Big-step proof checking hook. When we first see a Theorem, walk its
+   * proof term through ProofCheck and merge the resulting proof map into
+   * state. The small-step `Transition` logic (also reachable through
+   * Decompose / TakeStep / ValueChecker) deliberately ignores proofs,
+   * keeping proof-checking a strictly big-step concern. `statics` defaults
+   * to empty on postMessage/streaming paths, where this becomes a no-op. */
+  switch (exp.term) {
+  | Theorem(_, goal, proof, _) =>
+    let ctx =
+      switch (Statics.Map.lookup_exp(expr_id, statics)) {
+      | Some({ctx, _}) => ctx
+      | None => Ctx.empty
+      };
+    /* Auto-introduce the theorem's outer universal quantifiers: their
+     * bound variables become hypotheses in the proof context, and the
+     * proof is checked against the rule's conclusion rather than the full
+     * proposition. This mirrors the per-theorem stepper (Theorems.re),
+     * which seeds its goal from `conclusion_exp` and extends ctx with the
+     * same bindings, so the big-step proof_map agrees with the stepper. */
+    let rule = ProofRule.exp_to_rule(goal);
+    let ctx =
+      List.fold_left(Ctx.extend, ctx, rule.ProofRule.bindings |> List.rev);
+    let sem_ctx = SemanticCtx.of_ctx_and_env(ctx, env);
+    /* Single-step callback injected into ProofCheck.
+     *
+     * For proof-level `eval <exp> at <idx> end` the user's mental model
+     * of "one step" differs slightly from the UI stepper: they want to
+     * see meaningful β/δ-reductions only. In addition to the usual
+     * auto-hidden steps (RemoveParens, FixUnwrap, CaseApply with
+     * default settings, ...) we also silently advance through
+     * `VarLookup` steps, which are cosmetic (binding a name to its
+     * definition). We then take one user-visible transition and again
+     * skip any trailing silent steps. */
+    let is_proof_silent = (s: EvaluatorStep.step) =>
+      switch (EvaluatorStep.get_step_kind(s)) {
+      | VarLookup => true
+      | _ => false
+      };
+    /* Collect each hidden transition as input / justification / output,
+     * then let the caller project the side that fits its position around
+     * the visible step. */
+    let rec advance_hidden =
+            (~env, e): (list((Exp.t, string, Exp.t)), Exp.t) =>
+      switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
+      | AutoStep(s) =>
+        switch (EvaluatorStep.take_step(s)) {
+        | Some(next) =>
+          let (rest, outgoing) = advance_hidden(~env, next);
+          let justification =
+            s |> EvaluatorStep.get_step_kind |> stepper_justification;
+          ([(e, justification, next), ...rest], outgoing);
+        | None => ([], e)
+        }
+      | AvailableSteps([s, ..._]) when is_proof_silent(s) =>
+        switch (EvaluatorStep.take_step(s)) {
+        | Some(next) =>
+          let (rest, outgoing) = advance_hidden(~env, next);
+          let justification =
+            s |> EvaluatorStep.get_step_kind |> stepper_justification;
+          ([(e, justification, next), ...rest], outgoing);
+        | None => ([], e)
+        }
+      | AvailableSteps(_) => ([], e)
+      };
+    let step: ProofCheck.step_fn = (
+      (~env, e) => {
+        let (leading_auto_steps, e) = advance_hidden(~env, e);
+        switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
+        | AvailableSteps([s, ..._]) =>
+          switch (EvaluatorStep.take_step(s)) {
+          | Some(next) =>
+            let (trailing_auto_steps, outgoing) = advance_hidden(~env, next);
+            Some(
+              ProofCheck.{
+                auto_incoming:
+                  List.map(
+                    ((_, justification, output)) => (justification, output),
+                    leading_auto_steps,
+                  ),
+                auto_outgoing:
+                  List.map(
+                    ((input, justification, _)) => (input, justification),
+                    trailing_auto_steps,
+                  ),
+                outgoing,
+              },
+            );
+          | None => None
+          }
+        | AutoStep(_)
+        | AvailableSteps([]) => None
+        };
+      }
+    );
+    let conclusion = ProofRule.conclusion_exp(rule);
+    let (_out, pm) =
+      ProofCheck.check(
+        ~step,
+        ~info_map=statics,
+        ~ctx=sem_ctx,
+        Some(conclusion),
+        proof,
+      );
+    parent_state := EvaluatorState.merge_proof_map(parent_state^, pm);
+  | _ => ()
+  };
   /* Only key outbox.current by ids from the elaborated program.
    * Stepped intermediates use Id.invalid (targets empty / probes off) or
    * fresh UUIDs (probes on). Publishing under those ids either collides with
@@ -367,7 +474,15 @@ let finish = (~env, e: DHExp.t): Exp.t =>
 /* Shared setup for all evaluation entry points: run the reuse pass to find
  * reusable cache entries, then build the (unstarted) evaluation trampoline. */
 let prepare_evaluation =
-    (~prev, ~eval_info: EvalInfo.t, ~env, ~reuse_map, ~outbox, d: DHExp.t)
+    (
+      ~prev,
+      ~eval_info: EvalInfo.t,
+      ~statics: Statics.Map.t=Id.Map.empty,
+      ~env,
+      ~reuse_map,
+      ~outbox,
+      d: DHExp.t,
+    )
     : (ref(EvaluatorState.t), Trampoline.t(DHExp.t)) => {
   let state = ref(EvaluatorState.empty);
   let reused_ids =
@@ -379,6 +494,7 @@ let prepare_evaluation =
     evaluate(
       ~prev,
       ~eval_info,
+      ~statics,
       ~call_stack=CallStack.empty,
       ~reuse_map,
       ~reused_ids,
@@ -396,6 +512,7 @@ let evaluate_and_limit =
       ~step_limit: int,
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
+      ~statics: Statics.Map.t=Id.Map.empty,
       ~env,
       ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
       ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t)))=?,
@@ -403,7 +520,15 @@ let evaluate_and_limit =
     )
     : limited_result => {
   let (state, result) =
-    prepare_evaluation(~prev, ~eval_info, ~env, ~reuse_map, ~outbox, d);
+    prepare_evaluation(
+      ~prev,
+      ~eval_info,
+      ~statics,
+      ~env,
+      ~reuse_map,
+      ~outbox,
+      d,
+    );
   switch (
     Trampoline.Yielding.run_slice(
       ~step_budget=step_limit,
@@ -484,6 +609,7 @@ let evaluate =
     (
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
+      ~statics: Statics.Map.t=Id.Map.empty,
       ~env,
       d: DHExp.t,
     )
@@ -492,6 +618,7 @@ let evaluate =
     prepare_evaluation(
       ~prev,
       ~eval_info,
+      ~statics,
       ~env,
       ~reuse_map=IncrEval.clean_reuse_map_of_env(env),
       ~outbox=None,

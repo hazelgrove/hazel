@@ -109,6 +109,12 @@
 .code .token.MPat {
   color: var(--token-mpat);
 }
+.code .token.Proof {
+  color: var(--token-proof);
+}
+.code .token.PRul {
+  color: var(--token-prul);
+}
 
 .code .token.poly,
 .code .token.keyword {
@@ -246,6 +252,16 @@ svg.shard.indicated.Sig {
 svg.shard.indicated.MPat {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-mpat));
 }
+svg.shard.indicated.Proof {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-proof)
+  );
+}
+svg.shard.indicated.PRul {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-prul)
+  );
+}
 
 svg.shard.indicated.Any > path {
   fill: var(--shard-any);
@@ -277,6 +293,12 @@ svg.shard.indicated.Sig > path {
 svg.shard.indicated.MPat > path {
   fill: var(--shard-mpat);
 }
+svg.shard.indicated.Proof > path {
+  fill: var(--shard-proof);
+}
+svg.shard.indicated.PRul > path {
+  fill: var(--shard-prul);
+}
 
 svg.shard.indicated.caret.Exp > path {
   fill: var(--shard-caret-exp);
@@ -298,6 +320,12 @@ svg.shard.indicated.caret.Sig > path {
 }
 svg.shard.indicated.caret.MPat > path {
   fill: var(--shard-caret-mpat);
+}
+svg.shard.indicated.caret.Proof > path {
+  fill: var(--shard-caret-proof);
+}
+svg.shard.indicated.caret.PRul > path {
+  fill: var(--shard-caret-prul);
 }
 
 svg.shard.selected {
@@ -492,44 +520,137 @@ svg:has(.child-line) {
 .child-line.MPat {
   stroke: var(--token-mpat);
 }
-
-/* BACKPACK DECO */
-
-.backpack {
-  z-index: var(--backpack-z);
+.child-line.Proof {
+  stroke: var(--shard-lines-proof);
+}
+.child-line.PRul {
+  stroke: var(--shard-lines-prul);
 }
 
-.backpack.cant-put-down > * {
-  opacity: 40%;
+/* QUIVER DECO (completion visualization) */
+
+.quiver-decorations {
+  pointer-events: none;
 }
 
-.backpack-joiner {
-  z-index: var(--backpack-z);
-  width: 2px;
-  background-color: var(--backpack-joiner);
+.quiver-chip {
+  pointer-events: none;
+  --quiver-chip: var(--token-incomplete);
 }
 
-.backpack-selection {
-  white-space: nowrap;
-  border-radius: 0.2em 0.2em 0.2em 0em;
-  padding: 0 0.2em 0 0.2em;
-  line-height: var(--line-height);
-  width: fit-content;
-  background-color: var(--backpack-selection);
-  outline: 1px solid var(--backpack-selection-outline);
+/* wedge at the canonical spot while its chip is elsewhere */
+.quiver-rest-marker {
+  position: absolute;
+  z-index: 14;
+  width: 0;
+  height: 0;
+  margin-left: -4px;
+  margin-top: -5px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--token-incomplete);
+  pointer-events: none;
+}
+
+/* bubble centered on the line boundary, overlapping the pole's top */
+.quiver-chip-anchor {
+  position: absolute;
+  z-index: 15; /* above code text, below the caret */
+}
+
+.quiver-chip-body {
+  position: absolute;
+  transform: translateY(-50%);
+  /* pointer events only to test the modifier; unmodified clicks
+     bubble through to the editor */
+  pointer-events: auto;
+  padding: 0px 4px 1px 4px;
+  border-radius: 4px;
+  background: var(--quiver-chip);
+  color: var(--quiver-chip-text);
+  font-family: var(--code-font);
+  font-size: 0.72em;
+  line-height: 1.25;
   font-weight: bold;
-  color: var(--token-incomplete) !important;
+  white-space: nowrap;
 }
 
-.backpack-genie {
-  stroke-width: 0;
-  fill: var(--backpack-genie);
-  vector-effect: non-scaling-stroke;
+/* pointer cursor only while meta is held (the ref-underline state) */
+.code-container.meta-down .quiver-chip-body .chip-seg {
+  cursor: pointer;
 }
 
-.restructuring-genie {
-  z-index: var(--backpack-z);
+/* the pole is a ghost caret (SVG, true shape at its position) */
+.quiver-chip-pole {
+  z-index: 14;
 }
+
+/* per-bend corner control: if the round bottom-left artifacts
+   against a particular chevron, square it selectively, e.g.
+   .quiver-chip.chip-bend-left .quiver-chip-body {
+     border-bottom-left-radius: 0;
+   } */
+
+.quiver-chip-pole-path {
+  fill: var(--quiver-chip);
+  stroke: none;
+}
+
+.quiver-chip.chip-live .quiver-chip-pole-path {
+  fill: var(--shard-selected);
+}
+
+/* colorways: DEFAULT (other segment, loud) = solid gold/knockout;
+   LIVE (caret where this shard pairs) = pale backing, gold text */
+.quiver-chip.chip-live .quiver-chip-body {
+  background: var(--shard-selected);
+  color: var(--token-incomplete);
+}
+
+
+
+/* typed prefix cut-out white on every scheme; remainder takes the
+   scheme's opposite pole */
+.quiver-chip .chip-frac-typed {
+  color: white;
+}
+
+.quiver-chip:not(.chip-live) .chip-frac-rest {
+  color: var(--shard-selected);
+}
+
+.quiver-chip .chip-seg-later {
+  color: var(--quiver-chip-text-faded);
+}
+
+.quiver-chip.chip-live .chip-seg-later {
+  color: var(--quiver-chip-text-faded-atcaret);
+}
+
+.quiver-chip.chip-at-caret .quiver-chip-pole {
+  display: none;
+}
+
+/* at-caret the real caret is authoritative; the chip's pole steps
+   aside and the flag docks above it */
+
+
+
+
+
+.quiver-chip .empty-hole {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* the hole's hairline stroke reads as blur at chip scale */
+.quiver-chip .empty-hole > path {
+  stroke: none;
+}
+
+
+
+
 
 /* Invisible backdrop to capture clicks outside context menu */
 .context-menu-backdrop {
@@ -655,3 +776,7 @@ svg:has(.child-line) {
   background: var(--menu-outline);
   margin: 6px 0.5em;
 }
+
+/* Prefix-witness completion: typed prefix vs completed remainder */
+
+

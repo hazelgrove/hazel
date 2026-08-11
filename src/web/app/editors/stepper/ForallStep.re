@@ -16,9 +16,6 @@ type model'('stepper) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent'('stepper) = {inner_stepper: 'stepper};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type action'('step) =
   | InnerExp('step);
 
@@ -44,31 +41,15 @@ module F =
          : (
            STEP with
              type model = model'(Stepper.model) and
-             type persistent = persistent'(Stepper.persistent) and
              type action = action'(Stepper.action) and
              type focus = focus'(Stepper.focus)
        ) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = model'(Stepper.model);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = persistent'(Stepper.persistent);
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type action = action'(Stepper.action);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = focus'(Stepper.focus);
-
-  let persist = (model: model) => {
-    {inner_stepper: Stepper.persist(model.inner_stepper)};
-  };
-
-  let unpersist = (p: persistent) => {
-    {
-      inner_exp: Calc.Pending,
-      inner_ctx: Calc.Pending,
-      inner_stepper: Stepper.unpersist(p.inner_stepper),
-      result_function: Calc.Pending,
-    };
-  };
 
   let update = (~settings: Settings.t, action: action, model: model) => {
     Updated.(
@@ -97,7 +78,10 @@ module F =
         ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map as _,
+        ~proof_info_map as _,
         ~ana: Calc.t(Typ.t),
+        ~proof: Calc.t(option(Proof.t)),
+        ~proof_map: Calc.t(ProofMap.t),
         model: model,
       ) => {
     let {inner_exp, inner_ctx, inner_stepper, result_function} = model;
@@ -117,12 +101,28 @@ module F =
       }
       |> Calc.to_option
       |> Option.map(Calc.to_pair);
+    /* Descend into the body proof: if a `Forall(_, body)` is in scope,
+     * the inner stepper operates on `body` rather than the outer node
+     * (otherwise inner stepper actions would target / replace the
+     * Forall itself, destroying its structure). */
+    let descend = (p: option(Proof.t)): option(Proof.t) =>
+      switch (p) {
+      | Some({term: Forall(_, body), _}) => Some(body)
+      | _ => p
+      };
+    let inner_proof =
+      switch (proof) {
+      | OldValue(p) => Calc.OldValue(descend(p))
+      | NewValue(p) => Calc.NewValue(descend(p))
+      };
     let (inner_stepper, last, validity) =
       Stepper.calculate(
         ~settings,
         ~ctx=inner_ctx,
         ~exp=inner_exp,
         ~ana,
+        ~proof=inner_proof,
+        ~proof_map,
         inner_stepper,
       );
     let result_function =
@@ -179,6 +179,9 @@ module F =
         ~hide_stepper as _: Ui_effect.t(unit),
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
+        ~proof as _: option(Proof.t),
+        ~edit_syntax as
+          _: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
         _: model,
       ) =>
     WebUtil.Node.text("Forall Step");
@@ -192,6 +195,9 @@ module F =
         ~hide_stepper: Ui_effect.t(unit),
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel: bool,
+        ~proof as _: option(Proof.t),
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        ~main_editor: option(CodeEditable.Channel.t),
         model: model,
       ) => {
     let inner_stepper =
@@ -206,6 +212,8 @@ module F =
         ~take_focus=x => take_focus(InnerExp(x)),
         ~hide_stepper,
         ~is_toplevel,
+        ~edit_syntax,
+        ~main_editor,
         model.inner_stepper,
       );
 

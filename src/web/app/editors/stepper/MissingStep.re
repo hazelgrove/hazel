@@ -45,13 +45,6 @@ module Model = {
     |> Calc.saved_to_option
     |> Option.join
     |> OptUtil.get(() => EmptyHole |> Exp.fresh);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = unit;
-
-  let persist = (_: t): persistent => ();
-
-  let unpersist = (_: persistent): t => init;
 };
 
 module Update = {
@@ -173,7 +166,7 @@ module Update = {
               TermData.get_root_id_using_ranges(
                 zipper.selection.content,
                 editor.editor.syntax.term_data,
-                editor.editor.syntax.measured,
+                CachedSyntax.measured(editor.editor.syntax),
               );
             Some(id);
           }
@@ -254,7 +247,7 @@ module Update = {
         // Extract an exp from the editor
         let cached_exp =
           Calc.set(
-            ~eq=Exp.fast_equal,
+            ~eq=Exp.fast_equal_with_lexemes,
             CodeEditable.Model.get_statics(editor).elaborated,
             cached_exp,
           );
@@ -352,7 +345,7 @@ module View = {
         get_left(
           Int.min(
             current_left,
-            Measured.Rows.find(row, measured.rows).indent,
+            Measured.Rows.find(row, measured.rows).content_start,
           ),
           row + 1,
           final_row,
@@ -389,7 +382,7 @@ module View = {
     {
       let+ (left, right, top, bottom) =
         get_segment_bounds(
-          ~measured=editor.editor.syntax.measured,
+          ~measured=CachedSyntax.measured(editor.editor.syntax),
           editor.editor.state.zipper.selection.content,
         );
 

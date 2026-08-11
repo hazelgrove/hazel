@@ -185,7 +185,7 @@ let ids_from_term =
     id,
     syntax.term_data,
     syntax.terms,
-    syntax.measured,
+    CachedSyntax.measured(syntax),
     info_map,
   )
   |> Option.to_list
@@ -200,7 +200,11 @@ let sort_ids_lexically =
     List.filter_map(
       id =>
         switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          TermData.extreme_measures(
+            id,
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          )
         ) {
         | Some((start_pt, _)) => Some((id, start_pt.row, start_pt.col))
         | None => None
@@ -363,7 +367,7 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
           TermData.extreme_measures(
             probe_id,
             syntax.term_data,
-            syntax.measured,
+            CachedSyntax.measured(syntax),
           )
         ) {
         | Some((_, end_pt)) =>
@@ -411,7 +415,11 @@ let add_manual =
   let target_end_rows =
     target_ids
     |> List.filter_map(id =>
-         TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+         TermData.extreme_measures(
+           id,
+           syntax.term_data,
+           CachedSyntax.measured(syntax),
+         )
          |> Option.map(((_, end_pt: Point.t)) => end_pt.row)
        );
 
@@ -423,7 +431,7 @@ let add_manual =
           TermData.extreme_measures(
             probe_id,
             syntax.term_data,
-            syntax.measured,
+            CachedSyntax.measured(syntax),
           )
         ) {
         | Some((_, end_pt)) when List.mem(end_pt.row, target_end_rows) => [
@@ -505,7 +513,11 @@ let add_ids_from_multi_term =
     List.filter_map(
       ((id, _)) =>
         switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          TermData.extreme_measures(
+            id,
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          )
         ) {
         | Some((_, end_loc)) => Some(end_loc.row)
         | None => None
@@ -516,7 +528,11 @@ let add_ids_from_multi_term =
     List.filter(
       id =>
         switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          TermData.extreme_measures(
+            id,
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          )
         ) {
         | Some((_, end_loc)) => !List.mem(end_loc.row, manual_end_rows)
         | None => true
@@ -918,7 +934,7 @@ let go =
         TermData.get_root_id_using_ranges(
           z.selection.content,
           syntax.term_data,
-          syntax.measured,
+          CachedSyntax.measured(syntax),
         )
       ) {
       | Some(id) =>
@@ -1044,11 +1060,15 @@ let caret_nearest_ephemeral =
   | Some(piece_id) when Id.Map.mem(piece_id, z.refractors.multis.ephemerals) =>
     Some(piece_id)
   | _ =>
-    let caret_pt = Zipper.Caret.point(syntax.measured, z);
+    let caret_pt = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
     Id.Map.bindings(z.refractors.multis.ephemerals)
     |> List.find_map(((id, _)) =>
          switch (
-           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+           TermData.extreme_measures(
+             id,
+             syntax.term_data,
+             CachedSyntax.measured(syntax),
+           )
          ) {
          | Some((start_pt, end_pt))
              when
@@ -1207,12 +1227,16 @@ let align_to_indicated_probe =
     /* Strategy 2: Spatial proximity — find ephemeral probe on same row
      * whose measured range contains the caret position */
     let spatial_match = () => {
-      let caret_pt = Zipper.Caret.point(syntax.measured, z);
+      let caret_pt = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
       let ephemerals = Id.Map.bindings(z.refractors.multis.ephemerals);
       List.find_map(
         ((id, _)) =>
           switch (
-            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+            TermData.extreme_measures(
+              id,
+              syntax.term_data,
+              CachedSyntax.measured(syntax),
+            )
           ) {
           | Some((start_pt, end_pt))
               when

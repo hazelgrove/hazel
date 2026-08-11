@@ -151,7 +151,7 @@ let rec match_exp =
     let* ctx = match_exp(alphas, ctx, d1, d2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Let(_, _, _), _) => None
-  | (Theorem(p1, e3, e1), Theorem(p2, e4, e2)) =>
+  | (Theorem(p1, e3, _pf1, e1), Theorem(p2, e4, _pf2, e2)) =>
     let* alphas' = match_pat(p1, p2);
     let* ctx = match_exp(alphas, ctx, e3, e4);
     match_exp(alphas' @ alphas, ctx, e1, e2);

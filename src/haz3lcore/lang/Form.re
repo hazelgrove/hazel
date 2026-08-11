@@ -422,7 +422,15 @@ type compound_form =
   | SigBody
   | SigSeq
   | SigLet
-  | SigType;
+  | SigType
+  // PROOF FORMS
+  | ProofSeq
+  | ProofForall
+  | ProofAxiom
+  | ProofAlgebrite
+  | ProofEval
+  | ProofInduction
+  | ProofRule;
 
 let get: compound_form => t =
   fun
@@ -513,7 +521,14 @@ let get: compound_form => t =
   // Drv
   | Drv(drv_compound_form) => drv_get(drv_compound_form)
   // Theorem Capture
-  | Theorem => mk_pre_c(L, ["theorem", "=", "in"], P.let_, Exp, [Pat, Exp])
+  | Theorem =>
+    mk_pre_c(
+      L,
+      ["theorem", "=", "proof", "in"],
+      P.let_,
+      Exp,
+      [Pat, Exp, Proof],
+    )
   | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
   // TRIPLE DELIMITERS
   | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
@@ -534,7 +549,18 @@ let get: compound_form => t =
   | SigBody => mk_op_c(LT, ["{", "}"], Typ, [Sig])
   | SigSeq => mk_infix(";", Sig, P.mod_seq)
   | SigLet => mk_pre_c'(L, ["let"], P.let_, Sig, [], Pat)
-  | SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ);
+  | SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ)
+  // PROOF FORMS
+  | ProofSeq => mk_infix(";", Proof, P.semi)
+  | ProofForall => mk_pre_c(L, ["forall", "=>"], P.fun_, Proof, [Pat])
+  | ProofAxiom =>
+    mk_op_c(L, ["axiom", "at", "on", "end"], Proof, [Exp, Exp, Exp])
+  | ProofAlgebrite =>
+    mk_op_c(L, ["rewrite", "with", "at", "end"], Proof, [Exp, Exp, Exp])
+  | ProofEval => mk_op_c(L, ["eval", "at", "end"], Proof, [Exp, Exp])
+  | ProofInduction => mk_op_c(L, ["induction", "end"], Proof, [PRul])
+  | ProofRule =>
+    mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, PRul, Exp, [Pat], Proof));
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);
@@ -560,8 +586,14 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   |> List.filter_map(((form: compound_form, _)) => {
        let form = get(form);
        switch ((form.mold.nibs |> snd).shape) {
-       /* Could be pickier here, e.g. just trailing delimiters */
-       | _ when List.length(form.label) >= 2 => Some(form.label)
+       /* NON-LEADING tokens only (matching the comment above):
+          leading-delimiter prefixes live in operand position where
+          the bin mold can never serve their entry path, and
+          including them made any short variable prefixing a keyword
+          (`c` for case, `l` for let) mold as an operator in broken
+          buffers. Leading prefixes are recognized by the completion
+          side instead (expectation-gated leading witnesses). */
+       | _ when List.length(form.label) >= 2 => Some(List.tl(form.label))
        | _ => None
        };
      })
@@ -614,13 +646,16 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
     )
   | ExplicitHole => (
       Token.is_explicit_hole,
-      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ)), op(Proof)],
     )
   | ImplicitHoleMarker => (
       Token.is_implicit_hole_marker,
-      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ)), op(Proof)],
     )
-  | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
+  | LLMHole => (
+      Token.is_llm_hole,
+      [op(Exp), op(Pat), op(Typ), op(TPat), op(Proof)],
+    )
   | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])
   | String => (Token.is_string, [op(Exp), op(Pat)])
   | QuotedLabel => (Token.is_quoted_label, [op(Exp), op(Pat), op(Typ)])
@@ -788,9 +823,11 @@ module Expansion = {
     | Some((_, _, lbl, dir)) => (lbl, dir)
     | None =>
       switch (sort) {
-      | Rul =>
-        /* Rul context: fall back to any expansion since rules contain
-           Exp/Pat operands but have no direct operand forms. */
+      | Rul
+      | PRul =>
+        /* Rul/PRul context: fall back to any expansion since rules contain
+           operands (Exp/Pat for Rul, Exp/Pat/Proof for PRul) but have no
+           direct operand forms. */
         let any_match =
           sorted_expansions |> List.find_opt(((tok, _, _, _)) => tok == t);
         switch (any_match) {
