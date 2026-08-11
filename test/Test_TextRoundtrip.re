@@ -186,7 +186,7 @@ let sole_hole_cases = [
 ];
 
 /* Render an arbitrary `Exp.t` to source text (same path
- * `QCheck_Util.arb_exp` uses for `show`), then parse it. Going through
+ * `QCheck_Util.arb_exp_full` uses for `show`), then parse it. Going through
  * the parser canonicalizes the segment so the fixed-point check is
  * apples-to-apples. */
 let render_exp_as_text = (exp: Language.Exp.t): string =>
