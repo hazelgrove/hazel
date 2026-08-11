@@ -2,8 +2,7 @@ open Alcotest;
 open Web;
 
 /* Boot builds a full editor only for the CURRENT slide; the rest are
-   blank placeholders registered in ScratchMode.dormant_slides and get
-   hydrated on first switch. */
+   dormant placeholders hydrated on first switch. */
 
 let zip_len = (sp: ScratchMode.Scratchpad.t): int =>
   switch (sp.kind) {
@@ -11,6 +10,11 @@ let zip_len = (sp: ScratchMode.Scratchpad.t): int =>
     List.length(Haz3lcore.Zipper.zip(editor.editor.editor.state.zipper))
   | Drv(_) => (-1)
   };
+
+let dormant_count = (m: ScratchMode.Model.t): int =>
+  m.scratchpads
+  |> List.filter((sp: ScratchMode.Scratchpad.t) => sp.dormant)
+  |> List.length;
 
 let tests = (
   "LazyHydration",
@@ -33,7 +37,7 @@ let tests = (
           int,
           "all but current are dormant",
           List.length(names) - 1,
-          Hashtbl.length(ScratchMode.dormant_slides),
+          dormant_count(m),
         );
         check(
           bool,
@@ -60,7 +64,7 @@ let tests = (
           int,
           "hydration consumes the dormant entry",
           List.length(names) - 2,
-          Hashtbl.length(ScratchMode.dormant_slides),
+          dormant_count(m2),
         );
         check(
           bool,

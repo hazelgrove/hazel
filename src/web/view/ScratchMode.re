@@ -3,30 +3,6 @@ open Util;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
-/* Dirty tracking for autosave: only re-persist slides that changed since
-   last save. Eliminates expensive Zipper.zip + Base.equal_segment checks. */
-let dirty_slides: ref(Sets.StringSet.t) = ref(Sets.StringSet.empty);
-
-/* Lazy hydration: boot builds a full editor (parse + statics cache +
-   agent state) for the CURRENT slide only; every other slide sits in
-   the model as a cheap blank placeholder and is registered here
-   ("prefix:name"). Hydration replaces the placeholder on first switch
-   (Persist.hydrate_current). Dormant slides are never persisted over:
-   their persist_cache entries are seeded from storage at load. */
-let dormant_slides: Hashtbl.t(string, unit) = Hashtbl.create(64);
-let dormant_key = (prefix: string, name: string) => prefix ++ ":" ++ name;
-let persist_cache:
-  ref(Maps.StringMap.t(option(CellEditor.Model.persistent))) =
-  ref(Maps.StringMap.empty);
-
-let mark_dirty = (name: string): unit =>
-  dirty_slides := Sets.StringSet.add(name, dirty_slides^);
-
-let reset_persist_state = (): unit => {
-  dirty_slides := Sets.StringSet.empty;
-  persist_cache := Maps.StringMap.empty;
-};
-
 module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type code = {
@@ -39,10 +15,16 @@ module Scratchpad = {
     | Code(code)
     | Drv(DerivationExerciseMode.Model.t);
 
+  /* Lazy hydration: boot builds a full editor (parse + statics cache +
+     agent state) for the CURRENT slide only; every other slide is a
+     blank placeholder with [dormant] set, swapped for the real slide on
+     first switch (Persist.hydrate_current). save_current refuses to
+     write a dormant placeholder over the stored slide. */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     name: string,
     kind,
+    dormant: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -116,40 +98,6 @@ module Scratchpad = {
     };
   };
 
-  /* Used only for migration fallback from old monolithic format */
-  let unpersist = (~settings, p: persistent): t => {
-    switch (p.kind) {
-    | CodePersist({editor, agent}) => {
-        name: p.name,
-        kind:
-          Code({
-            editor:
-              OptUtil.get(
-                () => Init.default_documentation_slide_name(p.name),
-                editor,
-              )
-              |> CellEditor.Model.unpersist(~settings),
-            agent: Agent.Persistent.unpersist(agent),
-          }),
-      }
-    | DrvPersist(dp) => {
-        name: p.name,
-        kind:
-          Drv(
-            DerivationExerciseMode.Model.unpersist(
-              ~settings,
-              ~instructor_mode=false,
-              dp,
-              DerivationExercise.blank_spec(
-                ~title=p.name,
-                ~module_name=p.name,
-              ),
-            ),
-          ),
-      }
-    };
-  };
-
   let mk_code = (~name, ~editor, ()): t => {
     name,
     kind:
@@ -157,6 +105,7 @@ module Scratchpad = {
         editor,
         agent: Agent.Utils.init(),
       }),
+    dormant: false,
   };
 
   let blank_code = (name: string): t =>
@@ -165,6 +114,11 @@ module Scratchpad = {
       ~editor=CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp)),
       (),
     );
+
+  let dormant_code = (name: string): t => {
+    ...blank_code(name),
+    dormant: true,
+  };
 
   let blank_drv = (~settings, name: string): t => {
     name,
@@ -176,11 +130,8 @@ module Scratchpad = {
           DerivationExercise.blank_spec(~title=name, ~module_name=name),
         ),
       ),
+    dormant: false,
   };
-
-  /* Backward-compat constructor (Code-only). Kept for call sites that
-     pre-date the kind split. */
-  let mk = mk_code;
 };
 
 module Model = {
@@ -190,72 +141,10 @@ module Model = {
     scratchpads: list(Scratchpad.t),
   };
 
+  /* The monolithic export/import format (per-slide keys are the live
+     storage; see Persist below). */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = (int, list(Scratchpad.persistent));
-
-  let persist = (model: t): persistent => {
-    let persisted_slides =
-      List.map(
-        (s: Scratchpad.t) => {
-          switch (s.kind) {
-          | Code({editor, agent}) =>
-            let is_dirty = Sets.StringSet.mem(s.name, dirty_slides^);
-            let has_cache = Maps.StringMap.mem(s.name, persist_cache^);
-            let editor_persist =
-              if (is_dirty || !has_cache) {
-                let persisted = Some(CellEditor.Model.persist(editor));
-                persist_cache :=
-                  Maps.StringMap.add(s.name, persisted, persist_cache^);
-                persisted;
-              } else {
-                Maps.StringMap.find(s.name, persist_cache^);
-              };
-            Scratchpad.{
-              name: s.name,
-              kind:
-                CodePersist({
-                  editor: editor_persist,
-                  agent: Agent.Persistent.persist(agent),
-                }),
-            };
-          | Drv(m) =>
-            Scratchpad.{
-              name: s.name,
-              kind:
-                DrvPersist(
-                  DerivationExerciseMode.Model.persist(
-                    m,
-                    ~instructor_mode=false,
-                  ),
-                ),
-            }
-          }
-        },
-        model.scratchpads,
-      );
-    dirty_slides := Sets.StringSet.empty;
-    (model.current, persisted_slides);
-  };
-
-  let unpersist = (~settings, (current, scratchpads): persistent): t => {
-    /* Seed persist cache with loaded values so unchanged slides
-       (stored as None) aren't needlessly re-persisted on first save */
-    reset_persist_state();
-    List.iter(
-      (sp: Scratchpad.persistent) =>
-        switch (sp.kind) {
-        | CodePersist({editor, _}) =>
-          persist_cache := Maps.StringMap.add(sp.name, editor, persist_cache^)
-        | DrvPersist(_) => ()
-        },
-      scratchpads,
-    );
-    {
-      current,
-      scratchpads:
-        List.map(sp => Scratchpad.unpersist(~settings, sp), scratchpads),
-    };
-  };
 
   let scratchpad_names = (model: t): list(string) =>
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
@@ -375,8 +264,9 @@ module Persist = {
       },
     );
     let sp = List.nth(model.scratchpads, model.current);
-    switch (sp.kind) {
-    | Code({editor, agent}) =>
+    switch (sp.dormant, sp.kind) {
+    | (true, _) => () /* never write a placeholder over the stored slide */
+    | (false, Code({editor, agent})) =>
       switch (CellEditor.Model.persist(editor)) {
       | e =>
         /* The slide blob carries the editor only; the conversation
@@ -401,7 +291,7 @@ module Persist = {
         save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
         Hashtbl.replace(last_saved_agent, agent_key_str, agent);
       };
-    | Drv(_) =>
+    | (false, Drv(_)) =>
       switch (Scratchpad.persist(sp).kind) {
       | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
       | CodePersist(_) => ()
@@ -432,6 +322,7 @@ module Persist = {
               |> CellEditor.Model.unpersist(~settings),
             agent: Agent.Persistent.unpersist(agent),
           }),
+        dormant: false,
       };
     | Some(DrvPersist(p)) =>
       Scratchpad.{
@@ -445,6 +336,7 @@ module Persist = {
               DerivationExercise.blank_spec(~title=name, ~module_name=name),
             ),
           ),
+        dormant: false,
       }
     | None =>
       /* No persisted data for this slide. If the name matches a Drv
@@ -463,6 +355,7 @@ module Persist = {
                 spec,
               ),
             ),
+          dormant: false,
         }
       | None =>
         let agent =
@@ -479,6 +372,7 @@ module Persist = {
                 |> CellEditor.Model.unpersist(~settings),
               agent,
             }),
+          dormant: false,
         };
       }
     };
@@ -497,26 +391,14 @@ module Persist = {
       | Some(meta) => (meta.current, meta.names)
       | None => (default_current, default_names)
       };
-    Hashtbl.reset(dormant_slides);
     Model.{
       current,
       scratchpads:
         List.mapi(
           (i, name) =>
-            if (i == current) {
-              load_scratchpad(~settings, prefix, name);
-            } else {
-              Hashtbl.replace(dormant_slides, dormant_key(prefix, name), ());
-              /* Seed the persist cache from storage so Model.persist
-                 never writes the blank placeholder over a real slide. */
-              switch (load_slide_kind(prefix, name)) {
-              | Some(CodePersist({editor, _})) =>
-                persist_cache :=
-                  Maps.StringMap.add(name, editor, persist_cache^)
-              | _ => ()
-              };
-              Scratchpad.blank_code(name);
-            },
+            i == current
+              ? load_scratchpad(~settings, prefix, name)
+              : Scratchpad.dormant_code(name),
           names,
         ),
     };
@@ -525,9 +407,7 @@ module Persist = {
   /* Swap the placeholder at [current] for the real slide, if dormant. */
   let hydrate_current = (~settings, prefix: string, model: Model.t): Model.t => {
     let sp = List.nth(model.scratchpads, model.current);
-    let key = dormant_key(prefix, sp.name);
-    if (Hashtbl.mem(dormant_slides, key)) {
-      Hashtbl.remove(dormant_slides, key);
+    if (sp.dormant) {
       {
         ...model,
         scratchpads:
@@ -873,7 +753,6 @@ module Update = {
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
       | Code({editor, agent}) =>
-        mark_dirty(scratchpad.name);
         let* new_ed = CellEditor.Update.update(~settings, a, editor);
         let new_sp =
           ListUtil.put_nth(
@@ -899,7 +778,6 @@ module Update = {
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
       | Drv(m) =>
-        mark_dirty(scratchpad.name);
         let* new_m =
           DerivationExerciseMode.Update.update(
             ~settings,
@@ -974,10 +852,6 @@ module Update = {
       switch (new_name) {
       | None => model |> return_quiet
       | Some(new_name) =>
-        let old_name = current.name;
-        persist_cache := Maps.StringMap.remove(old_name, persist_cache^);
-        dirty_slides := Sets.StringSet.remove(old_name, dirty_slides^);
-        mark_dirty(new_name);
         let new_sp =
           ListUtil.put_nth(
             model.current,
@@ -999,9 +873,6 @@ module Update = {
         );
       if (confirmed) {
         WorkerClient.cancel();
-        let deleted_name = List.nth(model.scratchpads, model.current).name;
-        persist_cache := Maps.StringMap.remove(deleted_name, persist_cache^);
-        dirty_slides := Sets.StringSet.remove(deleted_name, dirty_slides^);
         let new_sp =
           ListUtil.remove_nth(model.current, model.scratchpads)
           |> Option.value(~default=model.scratchpads);
@@ -1032,8 +903,6 @@ module Update = {
 
     | ResetCurrent =>
       let scratchpad = List.nth(model.scratchpads, model.current);
-      mark_dirty(scratchpad.name);
-      persist_cache := Maps.StringMap.remove(scratchpad.name, persist_cache^);
       switch (scratchpad.kind) {
       | Code({agent, _}) =>
         let source =
@@ -1084,9 +953,6 @@ module Update = {
         let scratchpad = List.nth(model.scratchpads, model.current);
         switch (scratchpad.kind) {
         | Code({agent, _}) =>
-          mark_dirty(scratchpad.name);
-          persist_cache :=
-            Maps.StringMap.remove(scratchpad.name, persist_cache^);
           let new_data =
             data
             |> Sexplib.Sexp.of_string
