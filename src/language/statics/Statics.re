@@ -1238,18 +1238,29 @@ and uexp_to_info_map =
         m,
       )
     | BuiltinFun(string) =>
-      let (syn_b, marks_b) =
-        switch (Ctx.lookup_var(Builtins.ctx_init(None), string)) {
-        | None => (SynTy.unknown_internal(), [Mark.Free(string)])
-        | Some(var) => (var.typ, [])
-        };
-      add(
-        ~elab_term=BuiltinFun(string) |> rewrap,
-        ~elab_syn_ty=syn_b,
-        ~marks=marks_b,
-        ~co_ctx=CoCtx.empty,
-        m,
-      );
+      switch (Ctx.lookup_var(Builtins.ctx_init(None), string)) {
+      | Some(var) =>
+        add(
+          ~elab_term=BuiltinFun(string) |> rewrap,
+          ~elab_syn_ty=var.typ,
+          ~marks=[],
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      | None =>
+        /* Dynamics raises InvalidBuiltin for any name outside
+           Builtins.forms_init, so an unknown one must not stay a BuiltinFun.
+           Invalid is Indet under Transition and synthesizes the same
+           Unknown(Internal). Not Var, which would resolve against an
+           enclosing binding of the same name. */
+        add(
+          ~elab_term=Invalid(string) |> rewrap,
+          ~elab_syn_ty=SynTy.unknown_internal(),
+          ~marks=[Mark.Free(string)],
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      }
 
     | Dot(e1, e2) =>
       let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
@@ -2216,7 +2227,9 @@ and uexp_to_info_map =
         go_pat(
           ~is_synswitch=false,
           ~co_ctx=CoCtx.empty,
-          ~ana=Typ.fresh(ProofOf(e1)),
+          /* Quote the elaborated proposition, matching what ProofObject
+             synthesizes. */
+          ~ana=Typ.fresh(ProofOf(e1_elab)),
           p,
           m,
         );
@@ -2270,7 +2283,12 @@ and uexp_to_info_map =
       let (_, e_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=ProofObject(e_elab) |> rewrap,
-        ~elab_syn_ty=Typ.temp(ProofOf(e)),
+        /* Quote the elaborated body, matching `elab_term`: statics on an
+           elaborated program yields `proof_of e_elab`, so quoting the user
+           term left `proof_of` types unstable under re-elaboration and broke
+           the `fast_equal` side condition on the (ProofObject, ProofOf)
+           ascription rule. */
+        ~elab_syn_ty=Typ.temp(ProofOf(e_elab)),
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
@@ -2282,8 +2300,14 @@ and uexp_to_info_map =
       let (p'', p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, p, m);
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let elab_term =
-        FixF(p_elab, Asc(e_elab, p'.ty) |> Exp.fresh, env) |> rewrap;
+      /* Ascribe only when it would change the body's type; wrapping
+         unconditionally added an `Asc` layer per elaboration pass.
+         `fast_equal` drops identity casts only, never a consistency cast
+         such as `?` => Int. */
+      let body_elab =
+        Typ.fast_equal(e'.elab_syn_ty, p'.ty)
+          ? e_elab : Asc(e_elab, p'.ty) |> Exp.fresh;
+      let elab_term = FixF(p_elab, body_elab, env) |> rewrap;
       add(
         ~elab_term,
         ~elab_syn_ty=p'.elab_syn_ty,
@@ -3568,15 +3592,24 @@ and upat_to_info_map =
     | Constructor(ctr, ty) =>
       let (syn_ctr, cms_ctr) =
         ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
+      /* A resolved annotation wins, mirroring syn_marks_ctr's precedence, so
+         the type we record and the one we bake into elab_term agree.
+         Some(None) falls through: it is an unresolved slot that `ana` may
+         still fill, not a resolution to nothing. */
       let elab_ty =
-        switch (
-          ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr),
-          Ctx.lookup_ctr(ctx, ctr),
-        ) {
-        | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
-        | (_, Some({typ: elab_syn_ty, _})) =>
-          Some(Typ.normalize(ctx, elab_syn_ty))
-        | _ => None
+        switch (ty) {
+        | Some(Some(ann_ty)) => Some(Typ.normalize(ctx, ann_ty))
+        | Some(None)
+        | None =>
+          switch (
+            ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr),
+            Ctx.lookup_ctr(ctx, ctr),
+          ) {
+          | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
+          | (_, Some({typ: elab_syn_ty, _})) =>
+            Some(Typ.normalize(ctx, elab_syn_ty))
+          | _ => None
+          }
         };
       add(
         ~elab_term=Constructor(ctr, Some(elab_ty)) |> rewrap,
