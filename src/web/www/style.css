@@ -411,18 +411,6 @@ select {
   color: var(--text-faint);
 }
 
-#sample-focus-bar .more-indicator {
-  color: var(--text-muted);
-  margin-left: 0.25em;
-  opacity: 0.5;
-}
-
-#sample-focus-bar .stack-icon {
-  color: var(--text-strong);
-  margin-right: 0.5em;
-  font-size: 0.9em;
-}
-
 #sample-focus-bar .breadcrumb-entry.unknown {
   color: var(--text-faint);
 }
