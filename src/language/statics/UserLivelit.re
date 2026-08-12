@@ -186,25 +186,56 @@ let ty_member =
   };
 };
 
-let size_of = (e: TermBase.Exp.t): option(ProjectorShape.t) =>
-  switch (strip_parens(field_payload(e)).term) {
-  | Tuple([w, h]) =>
-    switch (strip_parens(w).term, strip_parens(h).term) {
-    | (Atom(Int(w)), Atom(Int(h))) =>
-      switch (Bigint.to_int(w), Bigint.to_int(h)) {
-      | (Some(w), Some(h)) =>
-        /* h counts LINES; Block() counts linebreaks (row extent), so a
-           widget h lines tall spans h - 1 breaks. */
-        Some({
-          ProjectorShape.horizontal: w,
-          vertical: h <= 1 ? Inline : Block(h - 1),
-        })
+/* The `shape` member: a LivelitShape constructor. Inline(w) is one
+   line; Block(w, h) / Tab(w, h) are h LINES tall (the internal
+   vertical counts linebreaks, hence h - 1). */
+let shape_of = (e: TermBase.Exp.t): option(ProjectorShape.t) => {
+  let int_of = w =>
+    switch (strip_parens(w).term) {
+    | Atom(Int(n)) => Bigint.to_int(n)
+    | _ => None
+    };
+  let pair_of = arg =>
+    switch (strip_parens(arg).term) {
+    | Tuple([w, h]) =>
+      switch (int_of(w), int_of(h)) {
+      | (Some(w), Some(h)) => Some((w, h))
       | _ => None
       }
+    | _ => None
+    };
+  switch (strip_parens(field_payload(e)).term) {
+  | Ap(_, ctr, arg) =>
+    switch (strip_parens(ctr).term) {
+    | Constructor("Inline", _) =>
+      int_of(arg)
+      |> Option.map(w =>
+           {
+             ProjectorShape.horizontal: w,
+             vertical: Inline,
+           }
+         )
+    | Constructor("Block", _) =>
+      pair_of(arg)
+      |> Option.map(((w, h)) =>
+           {
+             ProjectorShape.horizontal: w,
+             vertical: h <= 1 ? Inline : Block(h - 1),
+           }
+         )
+    | Constructor("Tab", _) =>
+      pair_of(arg)
+      |> Option.map(((w, h)) =>
+           {
+             ProjectorShape.horizontal: w,
+             vertical: h <= 1 ? Inline : Tab(h - 1),
+           }
+         )
     | _ => None
     }
   | _ => None
   };
+};
 
 let default_size: ProjectorShape.t = {
   horizontal: 24,
@@ -359,7 +390,7 @@ let mk =
       view: (_model, _send) =>
         Virtual_dom.Vdom.Node.text("user-defined livelit"),
       size:
-        switch (Option.bind(size, size_of)) {
+        switch (Option.bind(size, shape_of)) {
         | Some(size) => size
         | None => default_size
         },
@@ -372,7 +403,7 @@ let mk =
     Ok(
       build(
         ~init=List.assoc("init", members),
-        ~size=List.assoc_opt("size", members),
+        ~size=List.assoc_opt("shape", members),
         ~expand=mk_expand_dot(~name),
         ~update_ty=ty_member(def_ty, ~label="update", ~index=None),
         ~expand_ty=ty_member(def_ty, ~label="expand", ~index=None),
@@ -390,7 +421,7 @@ let mk =
         ~init=slot(fs, ~label="init", ~index=0),
         ~size=
           List.length(fs) == 5
-            ? Some(slot(fs, ~label="size", ~index=4)) : None,
+            ? Some(slot(fs, ~label="shape", ~index=4)) : None,
         ~expand,
         ~update_ty=ty_member(def_ty, ~label="update", ~index=Some(update_i)),
         ~expand_ty=ty_member(def_ty, ~label="expand", ~index=Some(expand_i)),

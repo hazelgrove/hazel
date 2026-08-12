@@ -150,7 +150,7 @@ let init = 50;
 let update = fun (m, a) -> a;
 let view = fun m -> Text(\"hi\");
 let expand = fun m -> m;
-let size = (30, 5)
+let shape = Tab(30, 5)
 }";
   let def_user = parse_exp(def_text);
   let (_, def_elab) =
@@ -173,12 +173,12 @@ let size = (30, 5)
     );
     check(
       bool,
-      "size member sets the projector size",
+      "shape member sets the projector shape",
       true,
       ll.size
       == {
            horizontal: 30,
-           vertical: Block(4) /* 5 lines = 4 linebreaks */
+           vertical: Tab(4) /* 5 lines = 4 linebreaks */
          },
     );
   | Error(_) => fail("adapter rejected a well-formed module definition")
@@ -299,7 +299,7 @@ let adapter = () => {
 
 let size_field = () => {
   let def_user =
-    parse_exp("(0, fun (m, a) -> a, fun m -> 0, fun m -> m, (30, 5))");
+    parse_exp("(0, fun (m, a) -> a, fun m -> 0, fun m -> m, Block(30, 5))");
   let (_, def_elab) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), def_user);
   switch (
@@ -314,7 +314,7 @@ let size_field = () => {
   | Ok(ll) =>
     check(
       bool,
-      "fifth field sets the projector size",
+      "fifth field sets the projector shape",
       true,
       ll.size
       == {
