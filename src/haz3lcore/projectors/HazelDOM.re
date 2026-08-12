@@ -163,6 +163,51 @@ let on_wheel_at = (mvu: t, handler, evt) => {
   ]);
 };
 
+/* Pointer position relative to the element the handler is attached to, as
+   an (x, y) int pair — what a widget needs to interpret events on its own
+   surface (clientX/clientY in MouseEvent can't be, since Hazel code can't
+   learn the element's origin). Measured against currentTarget's rect, not
+   offsetX/offsetY: offset coords are target-relative, so they jump when the
+   pointer passes over a child element mid-gesture. */
+let relative_xy = evt =>
+  switch (Js_of_ocaml.Js.Opt.to_option(evt##.currentTarget)) {
+  | Some(el) =>
+    let rect = el##getBoundingClientRect;
+    (
+      float_of_int(evt##.clientX) -. rect##.left,
+      float_of_int(evt##.clientY) -. rect##.top,
+    );
+  | None => (float_of_int(evt##.offsetX), float_of_int(evt##.offsetY))
+  };
+
+let px = (f: float): DHExp.t => Exp.int(int_of_float(Float.round(f)));
+
+let relative_pos = (evt): DHExp.t => {
+  let (x, y) = relative_xy(evt);
+  Exp.tuple([px(x), px(y)]);
+};
+
+let on_mouse_at = (mvu: t, what: string, handler, evt) =>
+  on_payload(mvu, what, handler, relative_pos(evt));
+
+/* Wheel payload: (x, y, dx, dy) — element-relative position plus scroll
+   deltas. Default is prevented so a zoom/pan surface doesn't also scroll
+   the page. */
+let on_wheel_at = (mvu: t, handler, evt) => {
+  let (x, y) = relative_xy(evt);
+  let payload =
+    Exp.tuple([
+      px(x),
+      px(y),
+      Exp.float(evt##.deltaX),
+      Exp.float(evt##.deltaY),
+    ]);
+  Effect.Many([
+    Effect.Prevent_default,
+    on_payload(mvu, "wheel-at", handler, payload),
+  ]);
+};
+
 let on_key = (mvu: t, handler, evt) =>
   on_payload(mvu, "keyboard", handler, SubManager.key_event_of_js(evt));
 
@@ -385,6 +430,17 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
       Attr.on_mousemove(
         on_mouse_at(mvu, ~gesture=Transient, "mousemove-at", handler),
       )
+    | ("OnMouseUpAt", handler) =>
+      Attr.on_mouseup(on_mouse_at(mvu, "mouseup-at", handler))
+    | ("OnWheelAt", handler) => Attr.on_wheel(on_wheel_at(mvu, handler))
+
+    // === Element-relative mouse handlers (payload: (x, y) px int pair) ===
+    | ("OnClickAt", handler) =>
+      Attr.on_click(on_mouse_at(mvu, "click-at", handler))
+    | ("OnMouseDownAt", handler) =>
+      Attr.on_mousedown(on_mouse_at(mvu, "mousedown-at", handler))
+    | ("OnMouseMoveAt", handler) =>
+      Attr.on_mousemove(on_mouse_at(mvu, "mousemove-at", handler))
     | ("OnMouseUpAt", handler) =>
       Attr.on_mouseup(on_mouse_at(mvu, "mouseup-at", handler))
     | ("OnWheelAt", handler) => Attr.on_wheel(on_wheel_at(mvu, handler))
