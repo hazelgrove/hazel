@@ -70,6 +70,7 @@ let rec evaluate =
         // Constants
         (
           ~prev: EvaluatorState.incr_eval=IncrEval.empty,
+          ~track_reuse: bool,
           ~reused_ids: Id.Map.t(unit),
           ~eval_info: EvalInfo.t,
           // Call Stack
@@ -89,7 +90,8 @@ let rec evaluate =
    * it also mutates the parent_state and outbox references while it's
    * running. */
 
-  let evaluate = evaluate(~prev, ~reused_ids, ~eval_info, ~outbox);
+  let evaluate =
+    evaluate(~prev, ~track_reuse, ~reused_ids, ~eval_info, ~outbox);
   let expr_id = DHExp.rep_id(exp);
   /* Only key outbox.current by ids from the elaborated program.
    * Stepped intermediates use Id.invalid (targets empty / probes off) or
@@ -160,9 +162,9 @@ let rec evaluate =
 
     /* Function bodies are not incremental-cache boundaries: we do not record
      * entries while inside a call stack, and reuse_check also refuses reuse
-     * there. */
+     * there. Skip entirely when nothing downstream can consume the map. */
     let body_reuse_map =
-      if (call_stack.stack != []) {
+      if (!track_reuse || call_stack.stack != []) {
         reuse_map;
       } else {
         ReusePass.update_reuse_map_after_effects(
@@ -375,17 +377,45 @@ let finish = (~env, e: DHExp.t): Exp.t =>
 /* Shared setup for all evaluation entry points: run the reuse pass to find
  * reusable cache entries, then build the (unstarted) evaluation trampoline. */
 let prepare_evaluation =
-    (~prev, ~eval_info: EvalInfo.t, ~env, ~reuse_map, ~outbox, d: DHExp.t)
+    (
+      ~prev,
+      ~eval_info: EvalInfo.t,
+      ~env,
+      ~reuse_map: option(IncrEval.reuse_map),
+      ~outbox,
+      d: DHExp.t,
+    )
     : (ref(EvaluatorState.t), Trampoline.t(DHExp.t)) => {
+  /* The reuse map is only ever consumed by reuse_check or by incr-entry
+   * snapshots, both of which need statics in eval_info (reuse_check also
+   * needs a non-empty prev). When neither can fire — e.g. `hazel run`,
+   * MVU app dispatch — skip maintaining it: the per-binder
+   * remove_pat_bindings walk dominates evaluation otherwise. */
+  let track_reuse =
+    !IncrEval.is_empty(prev) || EvalInfo.has_statics(eval_info);
+  let reuse_map =
+    switch (reuse_map) {
+    | Some(m) => m
+    | None =>
+      track_reuse
+        ? IncrEval.clean_reuse_map_of_env(env) : IncrEval.empty_reuse_map
+    };
   let state = ref(EvaluatorState.empty);
+  /* The pre-pass only yields entries via reuse_check, which needs both a
+   * non-empty prev and statics; otherwise it is a full walk of the program
+   * for a guaranteed-empty result. */
   let reused_ids =
-    Id.Map.map(
-      _ => (),
-      ReusePass.reuse_pass(~prev, ~eval_info, ~env, ~reuse_map, d).entries,
-    );
+    IncrEval.is_empty(prev) || !EvalInfo.has_statics(eval_info)
+      ? Id.Map.empty
+      : Id.Map.map(
+          _ => (),
+          ReusePass.reuse_pass(~prev, ~eval_info, ~env, ~reuse_map, d).
+            entries,
+        );
   let result =
     evaluate(
       ~prev,
+      ~track_reuse,
       ~eval_info,
       ~call_stack=CallStack.empty,
       ~reuse_map,
@@ -405,7 +435,7 @@ let evaluate_and_limit =
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
       ~env,
-      ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
+      ~reuse_map: option(IncrEval.reuse_map)=?,
       ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t)))=?,
       d: DHExp.t,
     )
@@ -439,7 +469,7 @@ let start_yielding_evaluation =
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
       ~env,
-      ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
+      ~reuse_map: option(IncrEval.reuse_map)=?,
       d: DHExp.t,
     )
     : yielding_evaluation => {
@@ -501,7 +531,7 @@ let evaluate =
       ~prev,
       ~eval_info,
       ~env,
-      ~reuse_map=IncrEval.clean_reuse_map_of_env(env),
+      ~reuse_map=None,
       ~outbox=None,
       d,
     );
