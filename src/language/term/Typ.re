@@ -898,9 +898,11 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       switch (term_of(a), term_of(b)) {
       | (Var(n1), Var(n2)) => n1 == n2 /* both unresolvable in ctx */
       | (List(x), List(y)) => go(ctx, x, y)
-      | (Arrow(x1, y1), Arrow(x2, y2)) => go(ctx, x1, x2) && go(ctx, y1, y2)
+      | (Arrow(x1, y1), Arrow(x2, y2)) =>
+        go(ctx, x1, x2) && go(ctx, y1, y2)
       | (Prod(xs), Prod(ys)) =>
-        List.length(xs) == List.length(ys) && List.for_all2(go(ctx), xs, ys)
+        List.length(xs) == List.length(ys)
+        && List.for_all2(go(ctx), xs, ys)
       | (TupLabel(l1, x), TupLabel(l2, y)) =>
         fast_equal(l1, l2) && go(ctx, x, y)
       | (Sum(xs), Sum(ys)) => ConstructorMap.equal(go(ctx), xs, ys)
