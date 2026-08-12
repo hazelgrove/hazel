@@ -328,7 +328,27 @@ let of_segment_inner =
 
   let indent_level =
     Id.Map.is_empty(indent_level) && !is_single_line
-      ? Indentation.level_map(seg) : indent_level;
+      ? {
+        /* Indentation is per-frame: a splice's content renders in its
+         * own sub-editor starting at column 0, so each splice in the
+         * segment (including ones nested in projector syntax)
+         * contributes the level map of its own content — without
+         * this, [measure_splice] would treat interior linebreaks as
+         * plain-width secondaries and measure multi-line splice
+         * contents single-line. Ids are globally unique, so a plain
+         * union is safe. */
+        Segment.splices(seg)
+        |> List.fold_left(
+             (map, s: Base.splice) =>
+               Id.Map.union(
+                 (_, a, _) => Some(a),
+                 map,
+                 Indentation.level_map(s.content),
+               ),
+             Indentation.level_map(seg),
+           );
+      }
+      : indent_level;
 
   let indent_of_linebreak = (w: Secondary.t): option(int) =>
     Secondary.is_linebreak(w) ? Id.Map.find_opt(w.id, indent_level) : None;
