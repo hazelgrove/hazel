@@ -25,6 +25,14 @@ module Constraint = {
 
   let true_ = Ap(Token.true_, None);
   let false_ = Ap(Token.false_, None);
+
+  /* A constraint that matches any value of its type: coverage checking
+     (and the type normalization it requires) is skippable. */
+  let rec is_irrefutable =
+    fun
+    | Truth => true
+    | Tuple(cs) => List.for_all(is_irrefutable, cs)
+    | _ => false;
 };
 
 module Ctr = {

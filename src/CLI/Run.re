@@ -33,6 +33,25 @@ let evaluate_incremental =
   (result, state.incr_eval);
 };
 
+/* Eval-only entry points for `hazel bench-eval`: parse/statics excluded. */
+let elab_and_eval_info = (exp: Exp.t): (Exp.t, EvalInfo.t) => {
+  let (info_map, elab) = statics_and_elab(exp);
+  (
+    elab,
+    EvalInfo.of_info_map(
+      ~probe_all=CoreSettings.on.probe_all,
+      ~targets=Id.Map.empty,
+      info_map,
+    ),
+  );
+};
+
+let evaluate_elab = (elab: Exp.t): Exp.t =>
+  fst(Evaluator.evaluate(~env=Builtins.env_init, elab));
+
+let evaluate_elab_incr = (~eval_info: EvalInfo.t, elab: Exp.t): Exp.t =>
+  fst(Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, elab));
+
 /* Evaluate and return both the result and the probe sample map */
 let evaluate_with_probes = (exp: Exp.t): (Exp.t, Sample.Map.t) => {
   let (result, state) =
