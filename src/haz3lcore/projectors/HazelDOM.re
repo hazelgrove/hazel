@@ -395,14 +395,21 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
     | ("OnKeyPress", handler) => Attr.on_keypress(on_key(mvu, handler))
 
     // === Input event handlers (payload: String) ===
-    /* Input streams are gestures: each input event previews (Transient)
-       and the browser's once-on-release change event commits the
-       composed value (the dirty-flush path accepts the no-op update). */
+    /* For livelits (State commit), input streams are gestures: each
+       input event previews (Transient) and the browser's once-on-release
+       change event commits the composed value (the dirty-flush path
+       accepts the no-op update). Apps (Syntax commit) have no transient
+       tier — they keep plain per-event dispatch, and no change handler
+       is added (it would double-fire the final action). */
     | ("OnInput", handler) =>
-      Attr.many([
-        Attr.on_input(on_input(mvu, ~gesture=Transient, handler)),
-        Attr.on_change(on_input(mvu, handler)),
-      ])
+      switch (mvu.commit) {
+      | State =>
+        Attr.many([
+          Attr.on_input(on_input(mvu, ~gesture=Transient, handler)),
+          Attr.on_change(on_input(mvu, handler)),
+        ])
+      | Syntax => Attr.on_input(on_input(mvu, handler))
+      }
     | ("OnChange", handler) => Attr.on_change(on_input(mvu, handler))
 
     // === Generic attributes (escape hatches) ===

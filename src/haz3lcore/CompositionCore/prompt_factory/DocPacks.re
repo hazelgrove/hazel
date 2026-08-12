@@ -182,8 +182,10 @@ let expand(m: Model) = m
   up, click, ...) commits once. So a drag is smooth and lands as a
   single undo step — but a model changed only by down/move never
   commits until some committing event fires: give every gesture a
-  mouse-up handler. Updates that return the model unchanged commit
-  nothing, so a stray click can't pollute history.
+  mouse-up handler. OnInput streams work the same way: each input
+  event previews and the release/blur commits once, so a slider scrub
+  is also a single edit. Updates that return the model unchanged
+  commit nothing, so a stray click can't pollute history.
 - Editing a definition: tool paths descend into the module — update
   ONE member via update_definition on "^name/member" (types too:
   "^name/Model"), add members with insert_after/insert_before at a
