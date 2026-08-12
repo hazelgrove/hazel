@@ -9,22 +9,22 @@ let ex1 = id@<Int>(1) in # 1 #
 
 # We can annotate the type of a type function with a poly. #
 let const : poly A -> poly B -> A -> B -> A = 
-typfun A -> typfun B -> fun x -> fun y -> x in
+  typfun A -> typfun B -> fun x -> fun y -> x in
 let ex2 = const@<Int>@<String>(2)("Hello World") in # 2 #
 
 # We can go beyond rank 1 polymorphism: #
 let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> (A , B) =
-typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in  
+  typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in  
 let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in # (3, "Hello World") # 
 
 # Finally, here is a more in-depth, yet applicable example: polymorphic map #
 let emptylist : poly A -> [A] = typfun A -> [] in # polymorphic constant #
 let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) = 
-typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] -> 
-case l
-| h :: t => f(h) :: map@<A>@<B>(f)(t)
-| _ => emptylist@<B>   
-end in
+  typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] -> 
+    case l
+    | h :: t => f(h) :: map@<A>@<B>(f)(t)
+    | _ => emptylist@<B>   
+    end in
 let ex4 = map@<Int>@<String>(string_of_int)([1,2,3]) in # ["1", "2", "3"] #
 
 
@@ -46,10 +46,10 @@ type Broken = Int -> (HasInt(Int) + HasMore(Int, Broken)) in
 
 
 let list_of_mylist : (MyList -> [Int]) = fun myl : MyList -> 
-case myl 
-| Nil => []
-| Cons(h, t) => h :: list_of_mylist(t)    
-end in
+  case myl 
+  | Nil => []
+  | Cons(h, t) => h :: list_of_mylist(t)    
+  end in
 let ex5 = list_of_mylist(x) in # [1, 2, 3] #
 
 
