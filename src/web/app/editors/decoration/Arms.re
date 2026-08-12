@@ -612,11 +612,18 @@ module Refractors = {
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         ~dynamics: Language.Dynamics.Map.t,
+        /* The frame being rendered (None = root editor, Some(sid) =
+         * splice sid's sub-editor): a probe's arms are drawn only in
+         * the frame that owns its term's coordinates. */
+        ~frame: option(Id.t),
         z: Zipper.t,
       )
-      : list(Node.t) =>
+      : list(Node.t) => {
+    let in_frame = ((id, _)) =>
+      CachedSyntax.frame_owns_id(frame, id, syntax);
     (
       z.refractors.manuals
+      |> List.filter(in_frame)
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
@@ -631,6 +638,7 @@ module Refractors = {
     @ (
       z.refractors.multis.ephemerals
       |> Id.Map.to_list
+      |> List.filter(in_frame)
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
@@ -658,13 +666,18 @@ module Refractors = {
            )
          )
     );
+  };
 
   let all =
       (
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         ~dynamics: Language.Dynamics.Map.t,
+        ~frame: option(Id.t),
         z: Zipper.t,
       ) =>
-    div_c("refractors", of_zipper(~font_metrics, ~syntax, ~dynamics, z));
+    div_c(
+      "refractors",
+      of_zipper(~font_metrics, ~syntax, ~dynamics, ~frame, z),
+    );
 };

@@ -588,6 +588,15 @@ module View = {
       | Some(sub) => SubEditor.is_splice_frame(sub)
       | None => false
       };
+    /* The frame this view renders: None for the root editor (and for
+     * region sub-editors, which share the host's coordinate frame),
+     * Some(sid) for splice sid's sub-editor. Decorations anchored on
+     * ids positioned in another frame are skipped. */
+    let frame =
+      switch (sub_editor) {
+      | Some(sub) when is_splice_sub => Some(sub.target.anchor)
+      | _ => None
+      };
     let syntax =
       switch (sub_editor) {
       | Some(sub) => {
@@ -727,6 +736,7 @@ module View = {
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
                 ~dynamics,
+                ~frame,
                 model.editor.state.zipper,
               ),
             ]
@@ -776,12 +786,6 @@ module View = {
       if (!render_refractors) {
         [];
       } else {
-        let frame =
-          switch (sub_editor) {
-          | Some(sub) when is_splice_sub =>
-            RefractorView.SpliceFrame(sub.target.anchor)
-          | _ => RefractorView.Root
-          };
         let refractor_data =
           RefractorView.mk_data(
             ~refractors=
@@ -919,7 +923,8 @@ module View = {
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors
       @ refractors_model;
-    let code_view = CodeWithStatics.View.view(~globals, ~overlays, model);
+    let code_view =
+      CodeWithStatics.View.view(~globals, ~overlays, ~frame, model);
 
     let loc = (e: Pointer.Event.t) => {
       let raw =

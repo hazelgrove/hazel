@@ -235,6 +235,18 @@ let splice_containing_id = (id: Id.t, syntax: t): option((Id.t, splice)) => {
   );
 };
 
+/* Whether the frame identified by [frame] (None = the root editor,
+ * Some(sid) = splice sid's sub-editor) owns the on-screen position of
+ * [id]: an id inside a splice is positioned only in that splice's own
+ * frame, so other frames must not draw decorations anchored on it. */
+let frame_owns_id = (frame: option(Id.t), id: Id.t, syntax: t): bool =>
+  switch (frame, splice_containing_id(id, syntax)) {
+  | (None, None) => true
+  | (Some(frame_sid), Some((sid, _))) => Id.equal(frame_sid, sid)
+  | (None, Some(_))
+  | (Some(_), None) => false
+  };
+
 /* The document row on which the splice's contents begin: the host
  * projector's origin row, plus the splice's row offset within the
  * host's block (splice_layout), climbing recursively when the host

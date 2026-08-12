@@ -196,7 +196,16 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
+  let view =
+      (
+        ~globals,
+        ~overlays: list(Node.t)=[],
+        /* The frame being rendered (None = root editor, Some(sid) =
+         * splice sid's sub-editor): error/warning arms are drawn only
+         * in the frame that owns their anchor's coordinates. */
+        ~frame: option(Id.t)=None,
+        model: Model.t,
+      ) => {
     let {
       editor:
         {
@@ -222,12 +231,14 @@ module View = {
         ~refine_sort,
         segment,
       );
+    let in_frame = id =>
+      CachedSyntax.frame_owns_id(frame, id, model.editor.syntax);
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
-        model.statics.error_ids,
+        List.filter(in_frame, model.statics.error_ids),
       );
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
@@ -237,7 +248,7 @@ module View = {
         ~is_warning=true,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
-        warning_ids,
+        List.filter(in_frame, warning_ids),
       );
     let container_classes =
       ["code-container"]

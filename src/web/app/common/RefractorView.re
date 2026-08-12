@@ -23,12 +23,6 @@ let measurement_of_term =
     )
   };
 
-/* The frame mk_data is building views for: the root editor, or the
- * sub-editor of the splice with the given id. */
-type frame =
-  | Root
-  | SpliceFrame(Id.t);
-
 /* Build refractor data from editor state.
  * This is analogous to ProjectorView.Model.mk but specialized for
  * refractors, with one twist for terms inside splices: the owning
@@ -46,7 +40,9 @@ let mk_data =
       ~dynamics: Language.Dynamics.Map.t,
       ~sample_focus: Language.Sample.Focus.t,
       ~editor_active: bool,
-      ~frame: frame,
+      /* The frame being rendered: None for the root editor, Some(sid)
+       * for splice sid's sub-editor. */
+      ~frame: option(Id.t),
     )
     : list(ProjectorView.Model.projector_data) => {
   open Util.OptUtil.Syntax;
@@ -54,17 +50,16 @@ let mk_data =
   let measured = CachedSyntax.measured(syntax);
   let placement = (id: Id.t) =>
     switch (frame, CachedSyntax.splice_containing_id(id, syntax)) {
-    | (SpliceFrame(frame_sid), Some((sid, _)))
-        when Id.equal(sid, frame_sid) =>
+    | (Some(frame_sid), Some((sid, _))) when Id.equal(sid, frame_sid) =>
       /* This frame's own probe: term-anchored layers at local coords. */
       let+ measurement = measurement_of_term(id, term_data, measured);
       (measurement, 0, ProjectorView.Model.NoOffside);
-    | (SpliceFrame(_), _) =>
+    | (Some(_), _) =>
       /* Another frame's probe (the root's, another splice's, or a
        * nested splice's — interiors are measured recursively, so the
        * local lookup would "succeed" for nested ids too). */
       None
-    | (Root, None) =>
+    | (None, None) =>
       let+ measurement = measurement_of_term(id, term_data, measured);
       (
         measurement,
@@ -75,7 +70,7 @@ let mk_data =
         ),
         ProjectorView.Model.All,
       );
-    | (Root, Some((sid, s))) =>
+    | (None, Some((sid, s))) =>
       /* Offside view only, beside the host projector on the splice
        * contents' document row. */
       let* local = measurement_of_term(id, term_data, s.measured);

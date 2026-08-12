@@ -5710,6 +5710,162 @@ let table_splice_tests = [
       );
     },
   ),
+  test_case(
+    "cells of one table row can each carry a manual probe",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      let a = List.nth(ids, 0)
+      and b = List.nth(ids, 1);
+      /* Cell a becomes "1⏎" and cell b "⏎2": the probed terms sit on
+       * different lines of the same table row. */
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                a,
+                Point.{
+                  row: 0,
+                  col: 99,
+                },
+              ),
+            ),
+            Insert(Token.linebreak),
+            Move(
+              SplicePoint(
+                b,
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+              ),
+            ),
+            Insert(Token.linebreak),
+          ],
+        );
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                b,
+                Point.{
+                  row: 1,
+                  col: 99,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+            Move(
+              SplicePoint(
+                a,
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "both cells probed",
+        2,
+        List.length(z.refractors.manuals),
+      );
+      /* The app also runs post-calculation probe effects after every
+       * action (Editor.calculate); the collision cleanup there must
+       * not confuse splice-local rows with document rows. */
+      let syntax = CachedSyntax.init(z);
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let statics =
+        CachedStatics.init_from_term(
+          ~settings=default_settings,
+          ~is_dynamic_term=true,
+          term,
+        );
+      let z =
+        ProbePerform.editor_effects(
+          ~is_edited=false,
+          ~syntax,
+          ~info_map=statics.info_map,
+          ~dynamics=Id.Map.empty,
+          z,
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "both probes survive post-calculation cleanup",
+        2,
+        List.length(z.refractors.manuals),
+      );
+    },
+  ),
+  test_case(
+    "probes on cells of different table rows coexist",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      /* Single-line cells all end on splice-local row 0; their chips
+       * render on their own table rows, so probing one must not
+       * evict the other. */
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+            Move(
+              SplicePoint(
+                List.nth(ids, 3),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+          ],
+        );
+      let syntax = CachedSyntax.init(z);
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let statics =
+        CachedStatics.init_from_term(
+          ~settings=default_settings,
+          ~is_dynamic_term=true,
+          term,
+        );
+      let z =
+        ProbePerform.editor_effects(
+          ~is_edited=false,
+          ~syntax,
+          ~info_map=statics.info_map,
+          ~dynamics=Id.Map.empty,
+          z,
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "probes on distinct table rows coexist",
+        2,
+        List.length(z.refractors.manuals),
+      );
+    },
+  ),
 ];
 
 /* Render the decoration entry points that raise find_shards when a
