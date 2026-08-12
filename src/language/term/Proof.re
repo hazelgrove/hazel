@@ -117,3 +117,75 @@ let rec has_hole = (p: t): bool =>
   | Forall(_, body) => has_hole(body)
   | EvalStep(_) => false
   };
+
+exception Found_hole;
+
+let exp_has_hole = (e: Exp.t): bool => {
+  let raise_on_hole = (is_hole, cont, tm) =>
+    is_hole(tm) ? raise(Found_hole) : cont(tm);
+  let is_exp_hole = (e: Exp.t) =>
+    switch (Exp.term_of(e)) {
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_) => true
+    | _ => false
+    };
+  let is_pat_hole = (p: Pat.t) =>
+    switch (Pat.term_of(p)) {
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_) => true
+    | _ => false
+    };
+  switch (
+    Exp.map_term(
+      ~f_exp=raise_on_hole(is_exp_hole),
+      ~f_pat=raise_on_hole(is_pat_hole),
+      e,
+    )
+  ) {
+  | _ => false
+  | exception Found_hole => true
+  };
+};
+
+let pat_has_hole = (p: Pat.t): bool =>
+  switch (
+    Pat.map_term(
+      ~f_pat=
+        (cont, p) =>
+          switch (Pat.term_of(p)) {
+          | EmptyHole
+          | Invalid(_)
+          | MultiHole(_) => raise(Found_hole)
+          | _ => cont(p)
+          },
+      p,
+    )
+  ) {
+  | _ => false
+  | exception Found_hole => true
+  };
+
+/* Do the step's OWN arguments contain a hole? Unlike `has_hole`, nested
+ * sub-proofs are NOT inspected: a hole in a case body renders its own
+ * "…" continuation row in the stepper, while a hole in an argument
+ * position (an induction case pattern or scrutinee, a forall binder, an
+ * axiom's target) has no other visible indicator. */
+let args_have_hole = (p: t): bool =>
+  switch (p.term) {
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_)
+  | Seq(_, _) => false
+  | AxiomStep({at_idx, at_exp, equality, direction: _}) =>
+    exp_has_hole(at_idx) || exp_has_hole(at_exp) || exp_has_hole(equality)
+  | AlgebriteStep({at_idx, at_exp, with_exp}) =>
+    exp_has_hole(at_idx) || exp_has_hole(at_exp) || exp_has_hole(with_exp)
+  | EvalStep({at_idx, at_exp}) =>
+    exp_has_hole(at_idx) || exp_has_hole(at_exp)
+  | Induction(scrut, cases) =>
+    exp_has_hole(scrut)
+    || List.exists(((pat, _)) => pat_has_hole(pat), cases)
+  | Forall(pat, _) => pat_has_hole(pat)
+  };

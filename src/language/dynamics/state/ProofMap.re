@@ -86,13 +86,35 @@ let diff = (~before: t, ~after: t): t =>
     after,
   );
 
+/* No entry in the proof's subtree carries a mark. The checker recovers
+ * from failed steps by passing the goal through unchanged (see
+ * `ProofCheck.result_to_outgoing`), so a `true`/`false` outgoing can
+ * ride through a broken step — outgoing alone no longer implies the
+ * proof holds. */
+let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
+  marks_of(Proof.rep_id(proof), pm) == []
+  && (
+    switch (proof.term) {
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | AxiomStep(_)
+    | AlgebriteStep(_)
+    | EvalStep(_) => true
+    | Seq(p1, p2) => proof_is_clean(pm, p1) && proof_is_clean(pm, p2)
+    | Forall(_, body) => proof_is_clean(pm, body)
+    | Induction(_, cases) =>
+      List.for_all(((_, body)) => proof_is_clean(pm, body), cases)
+    }
+  );
+
 /* UI status derived from a proof map for a given proof term:
  * - `Some(true)` (proven) iff the proof's outgoing expression is the
- *   literal `true`.
+ *   literal `true` and no step in the proof is broken.
  * - `Some(false)` (disproven) iff the proof's outgoing expression is the
- *   literal `false`.
- * - `None` otherwise — incomplete proofs (holes), failed/non-applicable
- *   steps (outgoing is None), or any other non-boolean outgoing. A
+ *   literal `false` and no step in the proof is broken.
+ * - `None` otherwise — incomplete proofs (holes), broken steps (marks in
+ *   the subtree), or any other non-boolean outgoing. A
  *   concrete-but-incorrect proof is not a disproof.
  *
  * Mirrors the stepper's expression-validity convention
@@ -100,10 +122,14 @@ let diff = (~before: t, ~after: t): t =>
 let status_of_proof = (pm: t, proof: Proof.t): option(bool) =>
   switch (lookup(Proof.rep_id(proof), pm)) {
   | Some({outgoing: Some(e), _})
-      when Exp.fast_equal(e, Exp.temp(Atom(Bool(true)))) =>
+      when
+        Exp.fast_equal(e, Exp.temp(Atom(Bool(true))))
+        && proof_is_clean(pm, proof) =>
     Some(true)
   | Some({outgoing: Some(e), _})
-      when Exp.fast_equal(e, Exp.temp(Atom(Bool(false)))) =>
+      when
+        Exp.fast_equal(e, Exp.temp(Atom(Bool(false))))
+        && proof_is_clean(pm, proof) =>
     Some(false)
   | _ => None
   };

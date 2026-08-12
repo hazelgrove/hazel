@@ -175,18 +175,31 @@ let test_refl_forall_checkmark = () => {
   );
 };
 
-/* An empty-hole proof: outgoing should be None AND has_hole should
- * be true, giving a "nothing" mark. */
+/* An empty-hole proof acts as the identity (recovery): the goal passes
+ * through unchanged, so an unreduced goal stays unproven. */
 let test_empty_hole_nothing = () => {
-  let src = {|theorem t = true proof ? in t|};
+  let src = {|theorem t = 1 + 1 == 2 proof ? in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
   Alcotest.check(
     Alcotest.option(bool),
     "empty-hole proof should be nothing",
     None,
-    ProofMap.status_of_proof(pm, proof_of(elab)),
+    ProofMap.status_of_proof(pm, proof),
+  );
+  /* The hole passes the goal through rather than going dark. */
+  let outgoing =
+    switch (ProofMap.lookup(Proof.rep_id(proof), pm)) {
+    | Some({outgoing, _}) => outgoing
+    | None => None
+    };
+  Alcotest.check(
+    Alcotest.bool,
+    "empty-hole proof passes the goal through",
+    true,
+    outgoing != None,
   );
 };
 
@@ -440,15 +453,16 @@ let test_expected_forall_goal_mark = () => {
 /* MissingIncoming: once a step breaks propagation, the next step in a
  * sequence should record MissingIncoming against its own id. */
 let test_missing_incoming_mark = () => {
-  /* First axiom is bogus → its outgoing is None → second axiom sees
-   * incoming=None and should mark MissingIncoming. */
+  /* First axiom is bogus → it records a mark but passes the goal
+   * through (error recovery), so the second axiom still acts on
+   * `1 == 1` and succeeds. The proof reaches `true`, but the broken
+   * step keeps it from counting as proven. */
   let src = {|theorem t = 1 == 1 proof axiom bogus at 0 on 1 == 1 end; axiom refl_eq at 0 on 1 == 1 end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
-  /* The Seq itself doesn't carry a mark, but one of its children should
-   * carry MissingIncoming. Walk both sides. */
+  /* No step goes dark: nothing carries MissingIncoming any more. */
   let rec scan = (p: Proof.t): bool => {
     let here =
       List.exists(
@@ -467,9 +481,32 @@ let test_missing_incoming_mark = () => {
   };
   Alcotest.check(
     Alcotest.bool,
-    "MissingIncoming mark reached the second step",
-    true,
+    "broken step recovers instead of blocking the second step",
+    false,
     scan(proof),
+  );
+  /* The second step ran against the passed-through goal and reduced it
+   * to `true`... */
+  let outgoing =
+    switch (ProofMap.lookup(Proof.rep_id(proof), pm)) {
+    | Some({outgoing: Some(e), _}) => Some(e)
+    | _ => None
+    };
+  Alcotest.check(
+    Alcotest.bool,
+    "later step still ran on the recovered goal",
+    true,
+    switch (outgoing) {
+    | Some(e) => Exp.fast_equal(e, Exp.temp(Atom(Bool(true))))
+    | None => false
+    },
+  );
+  /* ...but a proof with a broken step in it is not proven. */
+  Alcotest.check(
+    Alcotest.option(bool),
+    "broken-but-recovered proof is not marked proven",
+    None,
+    ProofMap.status_of_proof(pm, proof),
   );
 };
 

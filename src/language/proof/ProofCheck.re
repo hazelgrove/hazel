@@ -342,12 +342,20 @@ let peel_binder = (incoming: option(Exp.t)): option((Pat.t, Typ.t, Exp.t)) => {
 };
 
 /* Translate an Ok/Error result from one of the *_ast helpers into an
- * (outgoing, marks) pair suitable for `record`. */
+ * (outgoing, marks) pair suitable for `record`.
+ *
+ * Error recovery: a failed step records its mark but passes the incoming
+ * expression through unchanged, so later steps still get checked against
+ * the last good expression instead of going dark. The pass-through can
+ * carry `true`/`false` past a broken step, so proven/disproven status
+ * additionally requires a mark-free proof subtree (see
+ * `ProofMap.status_of_proof`). */
 let result_to_outgoing =
-    (r: result(Exp.t, ProofMark.t)): (option(Exp.t), list(ProofMark.t)) =>
+    (~incoming: Exp.t, r: result(Exp.t, ProofMark.t))
+    : (option(Exp.t), list(ProofMark.t)) =>
   switch (r) {
   | Ok(e) => (Some(e), [])
-  | Error(m) => (None, [m])
+  | Error(m) => (Some(incoming), [m])
   };
 
 /* Core walk: threads `incoming` through the proof tree, producing
@@ -365,18 +373,22 @@ let rec check =
   let id = Proof.rep_id(proof);
   switch (proof.term) {
   | EmptyHole =>
-    /* Leaf: incoming is known but outgoing is broken. No mark: holes
-     * reflect an intentionally-incomplete proof, not an error. */
-    (None, record(id, incoming, None, ProofMap.empty))
+    /* Leaf: a hole stands for "the proof continues here", so it acts as
+     * the identity — the incoming goal passes through untouched and
+     * later steps keep working. No mark: holes reflect an
+     * intentionally-incomplete proof, not an error. */
+    (incoming, record(id, incoming, incoming, ProofMap.empty))
   | Invalid(_) =>
-    /* Unparseable proof text is an error, unlike an EmptyHole. */
+    /* Unparseable proof text is an error, unlike an EmptyHole; like any
+     * other broken step it passes the goal through (see
+     * `result_to_outgoing`). */
     (
-      None,
+      incoming,
       record(
         ~marks=[ProofMark.MalformedProofTerm],
         id,
         incoming,
-        None,
+        incoming,
         ProofMap.empty,
       ),
     )
@@ -384,12 +396,12 @@ let rec check =
     /* We don't recurse into the any-kind children here since they are
      * not proof terms; treat the whole multi-hole as opaquely broken. */
     (
-      None,
+      incoming,
       record(
         ~marks=[ProofMark.MalformedProofTerm],
         id,
         incoming,
-        None,
+        incoming,
         ProofMap.empty,
       ),
     )
@@ -403,6 +415,7 @@ let rec check =
       | None => (None, [ProofMark.MissingIncoming])
       | Some(inc) =>
         result_to_outgoing(
+          ~incoming=inc,
           axiom_step_outgoing_ast(
             ~info_map,
             ~env=SemanticCtx.get_env(ctx),
@@ -422,6 +435,7 @@ let rec check =
       | None => (None, [ProofMark.MissingIncoming])
       | Some(inc) =>
         result_to_outgoing(
+          ~incoming=inc,
           algebrite_step_outgoing_ast(~at_idx, ~at_exp, ~with_exp, inc),
         )
       };
@@ -446,7 +460,7 @@ let rec check =
             Some(outgoing),
             [],
           )
-        | Error(mark) => ([], [], None, [mark])
+        | Error(mark) => ([], [], Some(inc), [mark])
         }
       };
     (
@@ -474,14 +488,23 @@ let rec check =
             SemanticCtx.add_from_pattern(ctx, p, t),
             [],
           )
-        | None => (None, ctx, [ProofMark.ExpectedForallGoal])
+        /* Recovery: no binder to peel — mark it, but let the body keep
+         * working on the goal as-is. */
+        | None => (incoming, ctx, [ProofMark.ExpectedForallGoal])
         }
       };
     let (out_body, m) =
       check(~step, ~info_map, ~ctx=ctx', body_incoming, body);
-    /* Outgoing mirrors the body's outgoing (the forall is discharged when
-     * the body reduces the goal to `true`). */
-    let outgoing = out_body;
+    /* The forall is discharged when the body reduces the goal to `true`;
+     * otherwise it passes the (outer, unpeeled) goal through — the
+     * body's partial outgoing lives under the binder, so propagating it
+     * to steps after the forall would be wrong. */
+    let true_exp = Exp.temp(Atom(Bool(true)));
+    let outgoing =
+      switch (out_body) {
+      | Some(e) when Exp.fast_equal(e, true_exp) => out_body
+      | _ => incoming
+      };
     (outgoing, record(~marks=binder_marks, id, incoming, outgoing, m));
   | Induction(scrut, cases) =>
     let (out, marks, m) =
@@ -592,9 +615,13 @@ and check_induction =
             ctx',
             ihs,
           );
-        /* 3. Recurse on body. */
+        /* 3. Recurse on body. A case only counts as discharged if its
+         * subtree is also mark-free: with error recovery, `true` can be
+         * passed through a broken step, so the outgoing alone no longer
+         * proves the case. */
         let (out_body, m_body) =
           check(~step, ~info_map, ~ctx=ctx', case_incoming, body);
+        let case_clean = ProofMap.error_ids(m_body) == [];
         /* Collect the pattern constraint for later coverage check. */
         let constraint_ =
           switch (Statics.Map.lookup_pat(Pat.rep_id(pat), info_map)) {
@@ -602,7 +629,7 @@ and check_induction =
           | None => None
           };
         (
-          outs @ [out_body],
+          outs @ [(out_body, case_clean)],
           constraints @ [constraint_],
           ProofMap.union(m, m_body),
         );
@@ -625,8 +652,8 @@ and check_induction =
     outgoings
     |> List.for_all(
          fun
-         | Some(e) => Exp.fast_equal(e, true_exp)
-         | None => false,
+         | (Some(e), clean) => clean && Exp.fast_equal(e, true_exp)
+         | (None, _) => false,
        );
   /* Structural marks on the induction node itself. Per-case failures
    * already surface as marks on their own sub-term ids. */
@@ -636,8 +663,10 @@ and check_induction =
       !is_exhaustive && List.length(cases) > 0
         ? [ProofMark.InductionNotExhaustive] : []
     );
+  /* Discharged inductions produce `true`; anything else passes the
+   * outer goal through (recovery — see `result_to_outgoing`). */
   let outgoing =
     is_exhaustive && all_true && List.length(cases) > 0
-      ? Some(true_exp) : None;
+      ? Some(true_exp) : incoming;
   (outgoing, marks, m_acc);
 };

@@ -26,7 +26,13 @@ type patch =
       target_id: Id.t,
       replacement: Proof.t,
       reflow: bool,
-    });
+    })
+  /* Remove a proof step outright: splice it out of its enclosing `Seq`
+   * (the `;` goes with it), or collapse to an EmptyHole when it is the
+   * whole proof. Unlike replacing the step with a hole, this leaves no
+   * residue in the text — the proof reads exactly as if the step were
+   * never written. */
+  | ProofRemovePatch({target_id: Id.t});
 
 let mk_patch = (~target_id=?, ~reflow=true, replacement: Exp.t): patch =>
   ExpPatch({
@@ -42,6 +48,9 @@ let mk_proof_patch =
     replacement,
     reflow,
   });
+
+let mk_proof_remove_patch = (~target_id: Id.t): patch =>
+  ProofRemovePatch({target_id: target_id});
 
 let rewrite_exp =
     (~target_id=?, f: Exp.t => Exp.t, root_exp: Exp.t): (Exp.t, bool) =>
@@ -122,6 +131,53 @@ let rewrite_proof_in_exp =
       root_exp,
     );
   (found^ ? rewritten : root_exp, found^);
+};
+
+/* Locate the `Seq` whose immediate child is `target_id`, returning the
+ * Seq's id and the sibling that survives the removal (see
+ * `ProofRemovePatch`). Walks every proof position. */
+let rec find_seq_parent =
+        (~target_id: Id.t, p: Proof.t): option((Id.t, Proof.t)) =>
+  switch (p.term) {
+  | Seq(p1, p2) =>
+    if (Proof.rep_id(p1) == target_id) {
+      Some((Proof.rep_id(p), p2));
+    } else if (Proof.rep_id(p2) == target_id) {
+      Some((Proof.rep_id(p), p1));
+    } else {
+      switch (find_seq_parent(~target_id, p1)) {
+      | Some(_) as r => r
+      | None => find_seq_parent(~target_id, p2)
+      };
+    }
+  | Forall(_, body) => find_seq_parent(~target_id, body)
+  | Induction(_, cases) =>
+    List.find_map(((_, body)) => find_seq_parent(~target_id, body), cases)
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_)
+  | AxiomStep(_)
+  | AlgebriteStep(_)
+  | EvalStep(_) => None
+  };
+
+/* Same search, over every proof nested in program syntax. */
+let find_seq_parent_in_exp =
+    (~target_id: Id.t, root_exp: Exp.t): option((Id.t, Proof.t)) => {
+  let result = ref(None);
+  let _: Exp.t =
+    Exp.map_term(
+      ~f_proof=
+        (_cont, proof) => {
+          switch (result^) {
+          | None => result := find_seq_parent(~target_id, proof)
+          | Some(_) => ()
+          };
+          proof;
+        },
+      root_exp,
+    );
+  result^;
 };
 
 /* Fallback writer for when a patch can't be spliced locally (see
@@ -513,6 +569,15 @@ let apply_patch_to_proof = (root: Proof.t, patch: patch): Proof.t =>
     let (rewritten, _found) =
       rewrite_proof(~target_id, _ => replacement, root);
     rewritten;
+  | ProofRemovePatch({target_id}) =>
+    switch (find_seq_parent(~target_id, root)) {
+    | Some((seq_id, remaining)) =>
+      rewrite_proof(~target_id=seq_id, _ => remaining, root) |> fst
+    | None =>
+      /* Not inside a Seq: the sole step of a proof. Removing it leaves
+       * an empty proof, i.e. a hole. */
+      rewrite_proof(~target_id, _ => Proof.fresh(EmptyHole), root) |> fst
+    }
   | ExpPatch(_) => root
   };
 
@@ -524,4 +589,21 @@ let apply_patch = (zipper: Zipper.t, patch: patch) =>
   | ProofPatch({target_id, replacement, reflow}) =>
     let reflow_id = reflow ? Some(Proof.rep_id(replacement)) : None;
     apply_proof_transform(~target_id, ~reflow_id?, zipper, _ => replacement);
+  | ProofRemovePatch({target_id}) =>
+    let root_exp = MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
+    switch (find_seq_parent_in_exp(~target_id, root_exp)) {
+    | Some((seq_id, remaining)) =>
+      /* Rewrite the enclosing Seq down to the surviving sibling — the
+       * removed step and its `;` disappear from the text together. */
+      apply_proof_transform(
+        ~target_id=seq_id, ~reflow_id=Proof.rep_id(remaining), zipper, _ =>
+        remaining
+      )
+    | None =>
+      let hole = Proof.fresh(EmptyHole);
+      apply_proof_transform(
+        ~target_id, ~reflow_id=Proof.rep_id(hole), zipper, _ =>
+        hole
+      );
+    };
   };

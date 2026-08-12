@@ -14,7 +14,12 @@ type cached_proof_map_entry =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type next_step =
-  | MissingStep(MissingStep.Model.t)
+  /* A hole-shaped proof term rendered as a step-picker row. Carries the
+   * rest of the chain: a hole is the identity (the goal passes through,
+   * see ProofCheck), so steps written after it still check and render —
+   * every piece of proof syntax gets a row, junk included. Terminal
+   * (trailing picker) missing steps carry `Finished`. */
+  | MissingStep(MissingStep.Model.t, next_step)
   | NextStep(step_model)
   | Finished
 
@@ -31,7 +36,11 @@ and step_model = {
   cached_proof_map_entry: Calc.saved(cached_proof_map_entry),
   // Editors
   pre_editors: Calc.saved(list(CodeSelectable.Model.t)), // only if auto steps are shown
-  current_editor: Calc.saved(option(CodeSelectable.Model.t)),
+  /* The row's expression display and step-picking machinery: every step
+   * row is editable just like a missing-step row — selecting a sub-term
+   * offers steps, and taking one INSERTS a new step before this one
+   * (see `insert_step_patch`). Owns the row's editor. */
+  insert: MissingStep.Model.t,
   post_editors: Calc.saved(list(CodeSelectable.Model.t)), // only if auto steps are shown
   // Updated
   step_kind: step_kind_model,
@@ -40,11 +49,11 @@ and step_model = {
   proof: Calc.saved(Proof.t),
 };
 
-let init_step = MissingStep(MissingStep.Model.init);
+let init_step = MissingStep(MissingStep.Model.init, Finished);
 
 let is_missing_step = (ns: next_step): bool =>
   switch (ns) {
-  | MissingStep(_) => true
+  | MissingStep(_, _) => true
   | NextStep(_)
   | Finished => false
   };
@@ -92,7 +101,11 @@ type step_status =
   /* Checked; no marks. (Says nothing about whether the goal is proven —
    * that's `status_of_entry`.) */
   | StepOk
-  /* An intentionally-incomplete proof: the hole a MissingStep stands for. */
+  /* Checked and not at fault, but the step's own arguments contain a
+   * hole (Proof.args_have_hole): an induction case pattern or
+   * scrutinee, a forall binder, an axiom target. Deliberately narrow —
+   * holes in nested sub-proofs and undischarged chains are NOT marked,
+   * since every such case renders its own "…" continuation row. */
   | StepIncomplete
   /* This row is at fault; the payload is the highest-priority mark. */
   | StepBroken(ProofMark.t)
@@ -123,13 +136,15 @@ let status_of_step_entry = (entry: cached_proof_map_entry): step_status =>
   };
 
 /* MissingStep rows stand in for hole-shaped proof terms; garbage syntax
- * (Invalid/MultiHole) is broken, a genuine EmptyHole is not. */
+ * (Invalid/MultiHole) is broken. A genuine EmptyHole — including the
+ * trailing step-picker row — carries no indicator: the picker itself
+ * already says the proof continues here. */
 let status_of_missing_step_proof = (proof: option(Proof.t)): step_status =>
   switch (proof) {
   | Some({term: Invalid(_) | MultiHole(_), _}) =>
     StepBroken(ProofMark.MalformedProofTerm)
   | Some(_)
-  | None => StepIncomplete
+  | None => StepOk
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -562,7 +577,7 @@ and Stepper: {
       |> Calc.get_saved_opt
       |> Option.map(status_of_entry)
       |> Option.join
-    | MissingStep(_)
+    | MissingStep(_, _)
     | Finished => None
     };
 
@@ -572,17 +587,12 @@ and Stepper: {
     Updated.(
       switch (action) {
       | EditorAction(ea) =>
-        switch (model.current_editor) {
-        | Calc.Calculated(Some(editor)) =>
-          let* new_editor =
-            CodeSelectable.Update.update(~settings, ea, editor);
-          {
-            ...model,
-            current_editor: Calc.Calculated(Some(new_editor)),
-          };
-        | Calc.Pending
-        | Calc.Calculated(None) => model |> raise_invalid_action
-        }
+        let* insert =
+          MissingStep.Update.update_editor(~settings, ea, model.insert);
+        {
+          ...model,
+          insert,
+        };
       | NextStep(a) =>
         let* next_step = update(~settings, a, model.next_step);
         {
@@ -596,9 +606,14 @@ and Stepper: {
           ...model,
           step_kind,
         };
-      /* Missing-step actions belong to a MissingStep row, which is only
-         ever reached through `next_step`. */
-      | MissingStepAction(_) => model |> raise_invalid_action
+      /* Step rows carry missing-step machinery of their own (the
+         insert-a-step-here overlay), so these actions land on it. */
+      | MissingStepAction(a) =>
+        let* insert = MissingStep.Update.update(~settings, a, model.insert);
+        {
+          ...model,
+          insert,
+        };
       }
     );
   }
@@ -608,13 +623,16 @@ and Stepper: {
     Updated.(
       switch (model, action) {
       | (Finished, _) => Finished |> raise_invalid_action
-      | (MissingStep(m), MissingStepAction(a)) =>
+      | (MissingStep(m, ns), MissingStepAction(a)) =>
         let* s = MissingStep.Update.update(~settings, a, m);
-        (MissingStep(s): next_step);
-      | (MissingStep(m), EditorAction(a)) =>
+        (MissingStep(s, ns): next_step);
+      | (MissingStep(m, ns), EditorAction(a)) =>
         let* s = MissingStep.Update.update_editor(~settings, a, m);
-        (MissingStep(s): next_step);
-      | (MissingStep(_), _) => model |> raise_invalid_action
+        (MissingStep(s, ns): next_step);
+      | (MissingStep(m, ns), NextStep(a)) =>
+        let* ns' = update(~settings, a, ns);
+        (MissingStep(m, ns'): next_step);
+      | (MissingStep(_, _), _) => model |> raise_invalid_action
       | (NextStep(sm), a) =>
         let* sm' = update_full_step(~settings, a, sm);
         (NextStep(sm'): next_step);
@@ -639,39 +657,30 @@ and Stepper: {
          ~root=Exp,
        );
 
-  /* Like `make_editor`, but with the editor's own statics computed, so
-   * error decorations (shards) render inside the row. The expressions
-   * shown in rows are elaboration output with freshened ids, so no info
-   * map from further up covers them (cf. MissingStep.Update.calculate).
-   * Only used for the row's displayed editor — pre/post (auto-step)
-   * editors aren't rendered, so their statics would be wasted work. */
-  let make_editor_with_statics =
-      (
-        ~settings: Calc.t(CoreSettings.t),
-        ~ctx: Calc.t(SemanticCtx.t),
-        exp: Exp.t,
-      )
-      : CodeSelectable.Model.t => {
-    let settings = Calc.get_value(settings);
-    exp
-    |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp)
-    |> CodeEditable.Update.calculate(
-         ~settings,
-         ~is_edited=true,
-         ~is_dynamic_term=true,
-         ~dynamics=Dynamics.Map.empty,
-         ~stitch=x => x,
-         ~ctx=SemanticCtx.get_ctx(Calc.get_value(ctx)),
-       );
-  };
-
   /* Decompose the proof sub-term passed to a step. A `Seq(head, tail)`
    * represents "step then more steps", so the head describes the current
    * step kind and the tail is recursed into `next_step`. A leaf-shaped
    * term (AxiomStep, EvalStep, Forall, Induction, …) describes the
    * current step and has no further chain. */
-  let split_proof = (p: Proof.t): (Proof.t, option(Proof.t)) =>
+  let rec split_proof = (p: Proof.t): (Proof.t, option(Proof.t)) =>
     switch (p) {
+    /* Re-associate a left-nested Seq (an inserted step lands as
+     * `Seq(Seq(new, old), tail)` on the AST-owned path, where no reparse
+     * flattens the `;` chain) so the head is always a leaf step. The
+     * rebuilt right-nested node reuses the inner Seq's ids; Seq-node ids
+     * aren't row-relevant (rows key off leaf heads). */
+    | {term: Seq({term: Seq(a, b), _} as inner, tail), _} =>
+      split_proof({
+        ...p,
+        term:
+          Seq(
+            a,
+            {
+              ...inner,
+              term: Seq(b, tail),
+            },
+          ),
+      })
     | {term: Seq(head, tail), _} => (head, Some(tail))
     | _ => (p, None)
     };
@@ -753,7 +762,7 @@ and Stepper: {
   let empty_step_model = (step_kind: step_kind_model): step_model => {
     cached_proof_map_entry: Calc.Pending,
     pre_editors: Calc.Pending,
-    current_editor: Calc.Pending,
+    insert: MissingStep.Model.init,
     post_editors: Calc.Pending,
     step_kind,
     next_step: init_step,
@@ -802,7 +811,7 @@ and Stepper: {
         switch (editor_exps_of_entry(entry)) {
         | Some((pre, current, post)) => (
             List.map(make_editor, pre),
-            Some(make_editor_with_statics(~settings, ~ctx, current)),
+            Some(current),
             List.map(make_editor, post),
           )
         | None => ([], None, [])
@@ -833,15 +842,35 @@ and Stepper: {
       Calc.is_new(settings)
       || Calc.is_new(proof)
       || Calc.is_new(proof_map)
-      || model.current_editor == Calc.Pending;
-    let (pre_editors, current_editor, post_editors) =
+      || model.pre_editors == Calc.Pending;
+    let (pre_editors, current_exp, post_editors) =
       editors_stale
         ? editor_groups(cached_proof_map_entry)
         : (
           model.pre_editors |> Calc.get_saved([]),
-          model.current_editor |> Calc.get_saved(None),
+          model.insert.full_exp |> Calc.saved_to_option,
           model.post_editors |> Calc.get_saved([]),
         );
+    /* The row's expression display, selection, and step-picking overlay
+     * are the same machinery a MissingStep row uses; the difference is
+     * only what a picked step does (insert before this step rather than
+     * replace a hole). `MissingStep.Update.calculate` rekeys the
+     * expression internally, so its editor (and the caret/selection it
+     * holds) survives passes where the expression didn't change. */
+    let insert =
+      calculate_missing_step(
+        ~settings,
+        ~exp=
+          Calc.NewValue(
+            switch (current_exp) {
+            | Some(e) => e
+            | None => Calc.get_value(exp)
+            },
+          ),
+        ~ctx,
+        ~proof=None,
+        model.insert,
+      );
     let step_kind = {
       let adapted =
         adapt_step_kind(model.step_kind, Calc.get_value(proof_head));
@@ -854,7 +883,7 @@ and Stepper: {
         ~ctx,
         ~editor=
           Calc.NewValue(
-            switch (current_editor) {
+            switch (insert.editor |> Calc.saved_to_option) {
             | Some(editor) => editor
             | None => make_editor(Calc.get_value(exp))
             },
@@ -913,7 +942,7 @@ and Stepper: {
          * when it was already a missing row. */
         let prev_missing =
           switch (model.next_step) {
-          | MissingStep(m) => m
+          | MissingStep(m, _) => m
           | NextStep(_)
           | Finished => MissingStep.Model.init
           };
@@ -925,13 +954,14 @@ and Stepper: {
             ~proof=None,
             prev_missing,
           ),
+          Finished,
         );
       | None => Finished
       };
     {
       cached_proof_map_entry: Calc.Calculated(cached_proof_map_entry),
       pre_editors: Calc.Calculated(pre_editors),
-      current_editor: Calc.Calculated(current_editor),
+      insert,
       post_editors: Calc.Calculated(post_editors),
       step_kind,
       next_step,
@@ -963,33 +993,65 @@ and Stepper: {
           model,
         ),
       );
+    let (proof_head, proof_tail) = split_proof(Calc.get_value(proof));
     let missing_step =
-        (~proof_head: Proof.t, m: MissingStep.Model.t): next_step =>
-      MissingStep(
+        (~proof_head: Proof.t, ~prev_tail: next_step, m: MissingStep.Model.t)
+        : next_step => {
+      let m =
         calculate_missing_step(
           ~settings,
           ~exp,
           ~ctx,
           ~proof=Some(proof_head),
           m,
-        ),
-      );
-    let (proof_head, _) = split_proof(Calc.get_value(proof));
+        );
+      /* Steps written after the hole still render: a hole is the
+       * identity, so the tail sees the same expression. */
+      let tail =
+        switch (proof_tail) {
+        | Some(tail_proof) =>
+          let tail_proof =
+            Calc.is_new(proof)
+              ? Calc.NewValue(tail_proof) : Calc.OldValue(tail_proof);
+          let prev =
+            switch (prev_tail) {
+            | Finished => init_step
+            | ns => ns
+            };
+          calculate(
+            ~settings,
+            ~exp,
+            ~ctx,
+            ~ana,
+            ~proof_info_map,
+            ~proof=tail_proof,
+            ~proof_map,
+            prev,
+          );
+        | None => Finished
+        };
+      MissingStep(m, tail);
+    };
     switch (model) {
     | Finished => Finished
     /* Promote-or-stay: once the proof here describes a real step, this row
      * becomes that step; while it is still a hole, it stays the row that
      * offers the step-picking UI. */
-    | MissingStep(m) when is_hole_proof(proof_head) =>
-      missing_step(~proof_head, m)
-    | MissingStep(m) =>
+    | MissingStep(m, prev_tail) when is_hole_proof(proof_head) =>
+      missing_step(~proof_head, ~prev_tail, m)
+    | MissingStep(m, prev_tail) =>
       switch (kind_of_proof(proof_head)) {
       | Some(step_kind) => full_step(empty_step_model(step_kind))
-      | None => missing_step(~proof_head, m)
+      | None => missing_step(~proof_head, ~prev_tail, m)
       }
-    /* The step this row rendered has been deleted back to a hole. */
-    | NextStep(_) when is_hole_proof(proof_head) =>
-      missing_step(~proof_head, MissingStep.Model.init)
+    /* The step this row rendered has been deleted back to a hole; keep
+     * the rows after it alive through the swap. */
+    | NextStep(sm) when is_hole_proof(proof_head) =>
+      missing_step(
+        ~proof_head,
+        ~prev_tail=sm.next_step,
+        MissingStep.Model.init,
+      )
     | NextStep(sm) => full_step(sm)
     };
   };
@@ -1008,8 +1070,8 @@ and Stepper: {
           );
         StepKindAction(ci);
       | Here(a) =>
-        switch (model.current_editor) {
-        | Calc.Calculated(Some(editor)) =>
+        switch (model.insert.editor) {
+        | Calc.Calculated(editor) =>
           let+ ci =
             StepperEditor.Selection.get_cursor_info(
               ~inject=x => inject(EditorAction(x)),
@@ -1017,8 +1079,7 @@ and Stepper: {
               editor,
             );
           EditorAction(ci);
-        | Calc.Pending
-        | Calc.Calculated(None) => Cursor.empty
+        | Calc.Pending => Cursor.empty
         }
       | Next(a) =>
         let+ ci =
@@ -1028,8 +1089,15 @@ and Stepper: {
             model.next_step,
           );
         NextStep(ci);
-      /* A step row has no missing-step controls of its own. */
-      | MissingStepFocus(_) => Cursor.empty
+      /* Step rows carry the insert-a-step-here overlay. */
+      | MissingStepFocus(selection) =>
+        let+ focus_info =
+          MissingStep.Selection.get_cursor_info(
+            ~inject=x => inject(MissingStepAction(x): step_action),
+            ~selection,
+            model.insert,
+          );
+        MissingStepAction(focus_info);
       }
     );
   }
@@ -1039,7 +1107,7 @@ and Stepper: {
     Cursor.(
       switch (model, focus) {
       | (Finished, _) => Cursor.empty
-      | (MissingStep(m), MissingStepFocus(selection)) =>
+      | (MissingStep(m, _), MissingStepFocus(selection)) =>
         let+ focus_info =
           MissingStep.Selection.get_cursor_info(
             ~inject=x => inject(MissingStepAction(x): action),
@@ -1047,7 +1115,7 @@ and Stepper: {
             m,
           );
         MissingStepAction(focus_info);
-      | (MissingStep(m), Here(selection)) =>
+      | (MissingStep(m, _), Here(selection)) =>
         switch (m.editor) {
         | Calc.Calculated(editor) =>
           let+ ci =
@@ -1059,7 +1127,15 @@ and Stepper: {
           EditorAction(ci);
         | Calc.Pending => Cursor.empty
         }
-      | (MissingStep(_), _) => Cursor.empty
+      | (MissingStep(_, ns), Next(a)) =>
+        let+ ci =
+          get_cursor_info(
+            ~inject=x => inject(NextStep(x): action),
+            ~focus=a,
+            ns,
+          );
+        NextStep(ci);
+      | (MissingStep(_, _), _) => Cursor.empty
       | (NextStep(sm), focus) =>
         get_cursor_info_full_step(~inject, ~focus, sm)
       }
@@ -1157,11 +1233,27 @@ and Stepper: {
     };
   };
 
-  /* Removing a row rewrites its proof subtree back to a hole. */
-  let remove_step_patch = (p: Proof.t): Haz3lcore.EditorTransform.patch =>
+  /* Patch that inserts a new step BEFORE an existing one: acting on a
+   * step row's expression means "step this expression here", so the new
+   * step consumes this row's incoming goal and the existing chain shifts
+   * down. `Seq(new, before)` nests left inside the enclosing `Seq`, but
+   * the patch reflows through ExpToSegment, where `;` prints flat, so
+   * the reparse renormalises the chain. */
+  let insert_step_patch =
+      (~before: Proof.t, proof_term: TermBase.Proof.term)
+      : Haz3lcore.EditorTransform.patch =>
     Haz3lcore.EditorTransform.mk_proof_patch(
+      ~target_id=Proof.rep_id(before),
+      Proof.fresh(Seq(Proof.fresh(proof_term), before)),
+    );
+
+  /* Removing a row splices its proof subtree out of the enclosing Seq
+   * (the `;` goes with it), or collapses to a hole when it is the whole
+   * proof — the text ends up as if the step were never written, keeping
+   * the source clean iff the stepper is clean. */
+  let remove_step_patch = (p: Proof.t): Haz3lcore.EditorTransform.patch =>
+    Haz3lcore.EditorTransform.mk_proof_remove_patch(
       ~target_id=Proof.rep_id(p),
-      Proof.fresh(EmptyHole),
     );
 
   /* Repair for a RuleDoesNotApply axiom step: same step, other
@@ -1187,6 +1279,69 @@ and Stepper: {
       )
     | _ => None
     };
+
+  /* Shared handler for the step-picking overlay events
+   * (MissingStep.View.event): missing-step rows and step rows offer the
+   * same picking UI; they differ only in what `emit` does with the
+   * picked step (replace/extend a hole vs. insert before an existing
+   * step). */
+  let missing_step_signal =
+      (
+        ~take_focus: step_focus => Ui_effect.t(unit),
+        ~hide_stepper: Ui_effect.t(unit),
+        ~emit: TermBase.Proof.term => Ui_effect.t(unit),
+        m: MissingStep.Model.t,
+        event: MissingStep.View.event,
+      )
+      : Ui_effect.t(unit) => {
+    let available_steps =
+      switch (m.next_steps |> Calc.get_saved_opt) {
+      | Some(AvailableSteps(steps)) => steps
+      | Some(AutoStep(_))
+      | None => []
+      };
+    let refls = Calc.get_saved([], m.refls);
+    switch (event) {
+    | MakeActive(selection) => take_focus(MissingStepFocus(selection))
+    | HideStepper => hide_stepper
+    | AddForall => emit(forall_term())
+    | AddInduction(scrut) => emit(induction_term(~scrut))
+    | AddAxiomStep(_name, at_idx, at_exp, direction, equality) =>
+      emit(axiom_step_term(~at_idx, ~at_exp, ~direction, ~equality))
+    | AddAlgebriteStep(at_idx, at_exp, with_exp) =>
+      emit(algebrite_step_term(~at_idx, ~at_exp, ~with_exp))
+    | TakeStep(idx) =>
+      switch (List.nth_opt(available_steps, idx)) {
+      | Some(step) =>
+        emit(
+          eval_step_term(
+            ~at_idx=EvaluatorStep.get_exp_idx(step),
+            ~at_exp=EvaluatorStep.get_at_exp(step),
+          ),
+        )
+      | None => Ui_effect.Ignore
+      }
+    /* Reflexivity is the refl_eq axiom applied to the picked equality. */
+    | Refl(idx) =>
+      switch (List.nth_opt(refls, idx), m.full_exp |> Calc.get_saved_opt) {
+      | (Some(at_exp), Some(full_exp)) =>
+        switch (ProofHacks.exp_idx(at_exp, full_exp)) {
+        | Some(at_idx) =>
+          emit(
+            axiom_step_term(
+              ~at_idx,
+              ~at_exp,
+              ~direction=Direction.Right,
+              ~equality="refl_eq",
+            ),
+          )
+        | None => Ui_effect.Ignore
+        }
+      | (None, _)
+      | (_, None) => Ui_effect.Ignore
+      }
+    };
+  };
 
   /* Every row in the chain — step or missing step — renders the same way:
    * the expression it starts from, then its justification.
@@ -1283,6 +1438,11 @@ and Stepper: {
              * sub-editors (see SubEditor.re / CodeEditable.Channel). */
             ~main_editor: option(CodeEditable.Channel.t)=None,
             ~proof_target: proof_target,
+            /* When the step ABOVE this row is broken, its error mark: the
+             * checker recovered by passing the goal through unchanged, so
+             * instead of re-printing the duplicate expression this row's
+             * expression slot prints the error. */
+            ~prev_broken: option(ProofMark.t),
             model: step_model,
           ) => {
     let current_proof: option(Proof.t) = model.proof |> Calc.get_saved_opt;
@@ -1292,23 +1452,41 @@ and Stepper: {
       | Some(p) => edit_syntax(remove_step_patch(p))
       | None => Ui_effect.Ignore
       };
+    let entry_status =
+      status_of_step_entry(
+        Calc.get_saved(EntryNotFound, model.cached_proof_map_entry),
+      );
+    /* What the row below shows in its expression slot hinges on whether
+     * this step broke (see ~prev_broken). */
+    let broken_here =
+      switch (entry_status) {
+      | StepBroken(mark) => Some(mark)
+      | _ => None
+      };
     /* Step rows are history: the row the user acts on is the trailing
      * MissingStep, so with history off only that row is shown. */
     let current_step =
       if (!globals.settings.core.evaluation.stepper_history) {
         [];
       } else {
+        let status = entry_status;
+        /* A hole in the step's OWN arguments (an induction case pattern
+         * or scrutinee, a forall binder, an axiom target) marks the row
+         * incomplete: nothing else indicates it. A hole in a nested
+         * sub-proof deliberately does NOT — every unfinished case chain
+         * renders its own "…" continuation row, so an indicator here
+         * would only restate what is already visible (and paint a line
+         * down the entire induction block). */
         let status =
-          status_of_step_entry(
-            Calc.get_saved(EntryNotFound, model.cached_proof_map_entry),
-          );
+          switch (status, current_proof) {
+          | (StepOk, Some(p)) when Proof.args_have_hole(p) => StepIncomplete
+          | _ => status
+          };
         let taken_steps =
           switch (model.step_kind) {
           | AxiomStep(m) => [m.at_exp |> Exp.rep_id]
           | _ => []
           };
-        let editor_opt =
-          model.current_editor |> Calc.get_saved_exc(~print="current_editor");
         let step_kind_focus =
           switch (focus) {
           | Some(StepKindFocus(sk)) => Some(sk)
@@ -1342,36 +1520,80 @@ and Stepper: {
             ~main_editor,
             model.step_kind,
           );
-        /* A row whose incoming goal is missing has no editor, but it must
-         * still render: dropping the row hides both the breakage and the
-         * step's own UI (justification, induction cases, …). The chip and
-         * message rendered by `step_row` say why the goal is absent. */
+        /* The expression slot: the error message when the step above
+         * broke (its result is just the passed-through goal — printing
+         * it again would be noise); otherwise the row's editable
+         * expression with the full step-picking overlay. Picking a step
+         * on a step row INSERTS it before this one, so it acts on
+         * exactly the expression shown here. */
         let editor_view =
-          switch (editor_opt) {
-          | Some(editor) =>
+          switch (prev_broken, model.insert.editor |> Calc.saved_to_option) {
+          | (Some(mark), _) =>
+            WebUtil.(
+              div_c(
+                "step-error-inline",
+                ProofMarkView.message(~globals, mark),
+              )
+            )
+          | (None, None) =>
+            WebUtil.(div_c("step-placeholder", [Node.text("—")]))
+          | (None, Some(editor)) =>
+            let emit = term =>
+              switch (current_proof) {
+              | Some(p) => edit_syntax(insert_step_patch(~before=p, term))
+              | None => Ui_effect.Ignore
+              };
+            let signal =
+              missing_step_signal(
+                ~take_focus,
+                ~hide_stepper,
+                ~emit,
+                model.insert,
+              );
+            let available_steps =
+              switch (model.insert.next_steps |> Calc.get_saved_opt) {
+              | Some(AvailableSteps(steps)) => steps
+              | Some(AutoStep(_))
+              | None => []
+              };
+            let refls = Calc.get_saved([], model.insert.refls);
             StepperEditor.View.view(
               ~globals,
               ~signal=
                 fun
                 | MakeActive => take_focus(Here())
-                | TakeStep(_) => Ui_effect.Ignore
-                | Refl(_) => Ui_effect.Ignore,
+                | TakeStep(idx) => signal(TakeStep(idx))
+                | Refl(idx) => signal(Refl(idx)),
               ~inject=x => inject(EditorAction(x)),
               ~selected=
                 switch (focus) {
                 | Some(Here(_)) => true
                 | _ => false
                 },
-              ~selected_id=None,
-              ~overlays=[],
+              ~selected_id=Calc.get_saved(None, model.insert.selected_id),
+              /* The action buttons are positioned over the selection they
+               * act on, so they render as an overlay of this row's
+               * editor. */
+              ~overlays=
+                MissingStep.View.view_overlay(
+                  ~globals,
+                  ~signal,
+                  ~inject=x => inject(MissingStepAction(x)),
+                  ~selected=
+                    switch (focus) {
+                    | Some(MissingStepFocus(s)) => Some(s)
+                    | _ => None
+                    },
+                  model.insert,
+                ),
               StepperEditor.Model.{
                 editor,
                 taken_steps,
-                next_steps: [],
-                refls: [],
+                next_steps:
+                  List.map(EvaluatorStep.get_step_id, available_steps),
+                refls: List.map(Exp.rep_id, refls),
               },
-            )
-          | None => WebUtil.(div_c("step-placeholder", [Node.text("—")]))
+            );
           };
         /* Repair affordances for a broken row, alongside its message:
          * removing the step is always possible; RuleDoesNotApply also
@@ -1434,61 +1656,95 @@ and Stepper: {
         );
       };
     let next_step_view =
-      switch (model.next_step) {
-      | Finished => []
-      | MissingStep(m) =>
-        view_missing_step(
-          ~globals,
-          ~is_toplevel,
-          ~take_focus=f => take_focus(Next(f)),
-          ~hide_stepper,
-          ~inject=x => inject(NextStep(x)),
-          ~focus=
-            switch (focus) {
-            | Some(Next(s)) => Some(s)
-            | _ => None
-            },
-          ~undo=Some(emit_remove_step()),
-          ~edit_syntax,
-          ~proof_target=
-            switch (m.proof |> Calc.get_saved_opt |> Option.join) {
-            | Some(p) => ReplaceProof(p)
-            | None =>
-              switch (proof_target) {
-              | ReplaceProof(leaf)
-              | ExtendProof(leaf) => ExtendProof(leaf)
-              }
-            },
-          m,
-        )
-      | NextStep(next_model) =>
-        let next_target =
-          switch (next_model.proof |> Calc.get_saved_opt) {
+      view_tail(
+        ~globals,
+        ~is_toplevel,
+        ~take_focus,
+        ~hide_stepper,
+        ~inject,
+        ~focus,
+        ~undo=Some(emit_remove_step()),
+        ~edit_syntax,
+        ~main_editor,
+        ~fallback_target=proof_target,
+        ~prev_broken=broken_here,
+        model.next_step,
+      );
+    current_step @ next_step_view;
+  }
+  /* The rows below a given row: shared by step rows and missing-step
+   * rows (both carry a chain tail now). ~take_focus/~inject/~focus are
+   * the CALLER's — the Next wrapping happens here. */
+  and view_tail =
+      (
+        ~globals: Globals.t,
+        ~take_focus: step_focus => Ui_effect.t(unit),
+        ~inject: step_action => Ui_effect.t(unit),
+        ~hide_stepper: Ui_effect.t(unit),
+        ~focus: option(step_focus),
+        ~is_toplevel: bool,
+        /* Back arrow on the first tail row: removes the row above. */
+        ~undo: option(Ui_effect.t(unit)),
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        ~main_editor: option(CodeEditable.Channel.t),
+        /* Where a synthesized (proof-less) missing row lands its step. */
+        ~fallback_target: proof_target,
+        ~prev_broken: option(ProofMark.t),
+        ns: next_step,
+      ) => {
+    let next_focus =
+      switch (focus) {
+      | Some(Next(s)) => Some(s)
+      | _ => None
+      };
+    switch (ns) {
+    | Finished => []
+    | MissingStep(m, tail) =>
+      view_missing_step(
+        ~globals,
+        ~is_toplevel,
+        ~take_focus=f => take_focus(Next(f)),
+        ~hide_stepper,
+        ~inject=x => inject(NextStep(x)),
+        ~focus=next_focus,
+        ~undo,
+        ~edit_syntax,
+        ~main_editor,
+        ~proof_target=
+          switch (m.proof |> Calc.get_saved_opt |> Option.join) {
           | Some(p) => ReplaceProof(p)
           | None =>
-            failwith(
-              "next_model.proof Pending after calculate — unreachable",
-            )
-          };
-        view_step(
-          ~globals,
-          ~is_toplevel,
-          ~take_focus=f => take_focus(Next(f)),
-          ~hide_stepper,
-          ~inject=x => inject(NextStep(x)),
-          ~focus=
-            switch (focus) {
-            | Some(Next(s)) => Some(s)
-            | _ => None
-            },
-          ~undo=Some(emit_remove_step()),
-          ~edit_syntax,
-          ~main_editor,
-          ~proof_target=next_target,
-          next_model,
-        );
-      };
-    current_step @ next_step_view;
+            switch (fallback_target) {
+            | ReplaceProof(leaf)
+            | ExtendProof(leaf) => ExtendProof(leaf)
+            }
+          },
+        ~prev_broken,
+        m,
+        tail,
+      )
+    | NextStep(next_model) =>
+      let next_target =
+        switch (next_model.proof |> Calc.get_saved_opt) {
+        | Some(p) => ReplaceProof(p)
+        | None =>
+          failwith("next_model.proof Pending after calculate — unreachable")
+        };
+      view_step(
+        ~globals,
+        ~is_toplevel,
+        ~take_focus=f => take_focus(Next(f)),
+        ~hide_stepper,
+        ~inject=x => inject(NextStep(x)),
+        ~focus=next_focus,
+        ~undo,
+        ~edit_syntax,
+        ~main_editor,
+        ~proof_target=next_target,
+        ~prev_broken,
+        next_model,
+      );
+    };
   }
   and view_missing_step =
       (
@@ -1500,9 +1756,43 @@ and Stepper: {
         ~is_toplevel: bool,
         ~undo: option(Ui_effect.t(unit)),
         ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        ~main_editor: option(CodeEditable.Channel.t),
         ~proof_target: proof_target,
+        /* See `view_step`: the error mark of a broken step above, shown
+         * in place of the (passed-through, duplicate) expression. */
+        ~prev_broken: option(ProofMark.t),
         m: MissingStep.Model.t,
+        tail: next_step,
       ) => {
+    let status =
+      status_of_missing_step_proof(
+        m.proof |> Calc.get_saved_opt |> Option.join,
+      );
+    /* Rows after the hole: the hole is the identity, so they continue on
+     * the same goal. Their back arrow deletes the hole above them. */
+    let tail_view =
+      view_tail(
+        ~globals,
+        ~is_toplevel,
+        ~take_focus,
+        ~hide_stepper,
+        ~inject,
+        ~focus,
+        ~undo=
+          switch (m.proof |> Calc.get_saved_opt |> Option.join) {
+          | Some(p) => Some(edit_syntax(remove_step_patch(p)))
+          | None => None
+          },
+        ~edit_syntax,
+        ~main_editor,
+        ~fallback_target=proof_target,
+        ~prev_broken=
+          switch (status) {
+          | StepBroken(mark) => Some(mark)
+          | _ => None
+          },
+        tail,
+      );
     let justification =
       MissingStep.View.view_justification(
         ~globals,
@@ -1521,101 +1811,80 @@ and Stepper: {
     /* Everything the overlay offers is a step written into the proof
      * syntax; `calculate` picks the new step up on the next pass. */
     let emit = term => edit_syntax(add_step_patch(~proof_target, term));
-    let signal = (event: MissingStep.View.event) =>
-      switch (event) {
-      | MakeActive(selection) => take_focus(MissingStepFocus(selection))
-      | HideStepper => hide_stepper
-      | AddForall => emit(forall_term())
-      | AddInduction(scrut) => emit(induction_term(~scrut))
-      | AddAxiomStep(_name, at_idx, at_exp, direction, equality) =>
-        emit(axiom_step_term(~at_idx, ~at_exp, ~direction, ~equality))
-      | AddAlgebriteStep(at_idx, at_exp, with_exp) =>
-        emit(algebrite_step_term(~at_idx, ~at_exp, ~with_exp))
-      | TakeStep(idx) =>
-        switch (List.nth_opt(available_steps, idx)) {
-        | Some(step) =>
-          emit(
-            eval_step_term(
-              ~at_idx=EvaluatorStep.get_exp_idx(step),
-              ~at_exp=EvaluatorStep.get_at_exp(step),
-            ),
-          )
-        | None => Ui_effect.Ignore
-        }
-      /* Reflexivity is the refl_eq axiom applied to the picked equality. */
-      | Refl(idx) =>
-        switch (List.nth_opt(refls, idx), m.full_exp |> Calc.get_saved_opt) {
-        | (Some(at_exp), Some(full_exp)) =>
-          switch (ProofHacks.exp_idx(at_exp, full_exp)) {
-          | Some(at_idx) =>
-            emit(
-              axiom_step_term(
-                ~at_idx,
-                ~at_exp,
-                ~direction=Direction.Right,
-                ~equality="refl_eq",
-              ),
-            )
-          | None => Ui_effect.Ignore
-          }
-        | (None, _)
-        | (_, None) => Ui_effect.Ignore
-        }
-      };
-    switch (m.editor |> Calc.get_saved_opt) {
-    | None => [justification]
-    | Some(editor) =>
-      let editor_view =
-        StepperEditor.View.view(
+    let signal = missing_step_signal(~take_focus, ~hide_stepper, ~emit, m);
+    let row =
+      switch (prev_broken, m.editor |> Calc.get_saved_opt) {
+      | (Some(mark), _) =>
+        /* The step above broke; this row shows its error instead of the
+         * recovered goal. The justification (with its back arrow) still
+         * renders, so the broken step is easy to delete. */
+        step_row(
           ~globals,
-          ~signal=
-            fun
-            | MakeActive => take_focus(Here())
-            | TakeStep(idx) => signal(TakeStep(idx))
-            | Refl(idx) => signal(Refl(idx)),
-          ~inject=x => inject(EditorAction(x)),
-          ~selected=
-            switch (focus) {
-            | Some(Here(_)) => true
-            | _ => false
-            },
-          ~selected_id=Calc.get_saved(None, m.selected_id),
-          /* The action buttons are positioned over the selection they act
-           * on, so they render as an overlay of this row's editor. */
-          ~overlays=
-            MissingStep.View.view_overlay(
-              ~globals,
-              ~signal,
-              ~inject=x => inject(MissingStepAction(x)),
-              ~selected=
-                switch (focus) {
-                | Some(MissingStepFocus(s)) => Some(s)
-                | _ => None
-                },
-              m,
+          ~status,
+          ~popup_extra=[],
+          ~repair=[],
+          ~editor_view=
+            WebUtil.(
+              div_c(
+                "step-error-inline",
+                ProofMarkView.message(~globals, mark),
+              )
             ),
-          StepperEditor.Model.{
-            editor,
-            taken_steps: [],
-            next_steps: List.map(EvaluatorStep.get_step_id, available_steps),
-            refls: List.map(Exp.rep_id, refls),
-          },
+          ~justification,
+          ~content=[],
+        )
+      | (None, None) => [justification]
+      | (None, Some(editor)) =>
+        let editor_view =
+          StepperEditor.View.view(
+            ~globals,
+            ~signal=
+              fun
+              | MakeActive => take_focus(Here())
+              | TakeStep(idx) => signal(TakeStep(idx))
+              | Refl(idx) => signal(Refl(idx)),
+            ~inject=x => inject(EditorAction(x)),
+            ~selected=
+              switch (focus) {
+              | Some(Here(_)) => true
+              | _ => false
+              },
+            ~selected_id=Calc.get_saved(None, m.selected_id),
+            /* The action buttons are positioned over the selection they act
+             * on, so they render as an overlay of this row's editor. */
+            ~overlays=
+              MissingStep.View.view_overlay(
+                ~globals,
+                ~signal,
+                ~inject=x => inject(MissingStepAction(x)),
+                ~selected=
+                  switch (focus) {
+                  | Some(MissingStepFocus(s)) => Some(s)
+                  | _ => None
+                  },
+                m,
+              ),
+            StepperEditor.Model.{
+              editor,
+              taken_steps: [],
+              next_steps:
+                List.map(EvaluatorStep.get_step_id, available_steps),
+              refls: List.map(Exp.rep_id, refls),
+            },
+          );
+        step_row(
+          ~globals,
+          ~status,
+          ~popup_extra=[],
+          /* The picker already replaces the malformed sub-term when a step
+           * is chosen, so no extra repair affordance is needed here. */
+          ~repair=[],
+          ~editor_view,
+          ~justification,
+          ~content=[],
         );
-      step_row(
-        ~globals,
-        ~status=
-          status_of_missing_step_proof(
-            m.proof |> Calc.get_saved_opt |> Option.join,
-          ),
-        ~popup_extra=[],
-        /* The picker already replaces the malformed sub-term when a step
-         * is chosen, so no extra repair affordance is needed here. */
-        ~repair=[],
-        ~editor_view,
-        ~justification,
-        ~content=[],
-      );
-    };
+      };
+    row @ tail_view;
   };
 
   let view =
@@ -1634,7 +1903,7 @@ and Stepper: {
     let body =
       switch (root) {
       | Finished => []
-      | MissingStep(m) =>
+      | MissingStep(m, tail) =>
         switch (m.proof |> Calc.get_saved_opt |> Option.join) {
         | Some(p) =>
           view_missing_step(
@@ -1646,8 +1915,11 @@ and Stepper: {
             ~is_toplevel,
             ~undo=None,
             ~edit_syntax,
+            ~main_editor,
             ~proof_target=ReplaceProof(p),
+            ~prev_broken=None,
             m,
+            tail,
           )
         | None =>
           /* Root MissingStep with no backing leaf — cannot ExtendProof. */
@@ -1675,6 +1947,7 @@ and Stepper: {
           ~edit_syntax,
           ~main_editor,
           ~proof_target,
+          ~prev_broken=None,
           sm,
         );
       };

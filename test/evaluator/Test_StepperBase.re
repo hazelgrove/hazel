@@ -54,7 +54,7 @@ let mk_test_step_model =
     : StepperBase.step_model => {
   cached_proof_map_entry: Calc.Pending,
   pre_editors: Calc.Pending,
-  current_editor: Calc.Pending,
+  insert: Web.MissingStep.Model.init,
   post_editors: Calc.Pending,
   step_kind,
   next_step,
@@ -72,7 +72,7 @@ let mk_test_step =
   StepperBase.NextStep(mk_test_step_model(~step_kind, ~next_step, ()));
 
 let mk_missing_step = (): StepperBase.next_step =>
-  StepperBase.MissingStep(Web.MissingStep.Model.init);
+  StepperBase.MissingStep(Web.MissingStep.Model.init, StepperBase.Finished);
 
 // Helper constructors for InductionCase
 module InductionCaseHelpers = {
@@ -271,7 +271,7 @@ let tests = (
         switch (result) {
         | StepperBase.NextStep({step_kind: EvalStep(_), next_step, _}) =>
           switch (next_step) {
-          | StepperBase.MissingStep(m) =>
+          | StepperBase.MissingStep(m, _) =>
             switch (m.next_steps |> Calc.get_saved_opt) {
             | Some(EvaluatorStep.AvailableSteps([_])) => ()
             | Some(EvaluatorStep.AvailableSteps(steps)) =>
@@ -345,8 +345,8 @@ let tests = (
           );
         let editor_of = (ns: StepperBase.next_step) =>
           switch (ns) {
-          | StepperBase.NextStep({current_editor, _}) =>
-            current_editor |> Calc.get_saved(None)
+          | StepperBase.NextStep({insert, _}) =>
+            insert.editor |> Calc.saved_to_option
           | _ => None
           };
         switch (editor_of(moved), editor_of(recalc)) {
@@ -362,7 +362,7 @@ let tests = (
         /* The synthesized trailing row must also keep its model. */
         let missing_of = (ns: StepperBase.next_step) =>
           switch (ns) {
-          | StepperBase.NextStep({next_step: MissingStep(m), _}) => Some(m)
+          | StepperBase.NextStep({next_step: MissingStep(m, _), _}) => Some(m)
           | _ => None
           };
         switch (missing_of(moved), missing_of(recalc)) {

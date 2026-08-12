@@ -487,3 +487,16 @@
 .step-justification-wrap.has-popup:focus-within > .step-error-popup {
   display: flex;
 }
+
+/* Inline error text in a row's expression slot: when the step above is
+ * broken the checker passes the goal through unchanged, so rather than
+ * reprint the identical expression the row says what went wrong. */
+.step-error-inline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3em;
+  color: var(--step-indicator-broken);
+  font-size: 0.85em;
+}

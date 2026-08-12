@@ -600,5 +600,91 @@ let tests = (
         check_contains(~msg="patch landed", out, "eval 1 at 0 end");
       },
     ),
+    test_case(
+      "remove patch splices a mid-chain step and its semicolon",
+      `Quick,
+      () => {
+        let src = "theorem t = 1 + 4 == 5 proof eval 1 + 4 at 0 end; eval 1 + 3 at 0 end; eval 5 == 5 at 0 end in t";
+        let z = parse_zipper(src);
+        let target_id =
+          switch (find_theorem_proof(zipper_term(z))) {
+          | Some(p) =>
+            switch (find_proofs(is_eval_step, p)) {
+            | [_, second, _] => Proof.rep_id(second)
+            | _ => Alcotest.fail("expected three eval steps")
+            }
+          | None => Alcotest.fail("no proof")
+          };
+        let out =
+          Haz3lcore.EditorTransform.apply_patch(
+            z,
+            Haz3lcore.EditorTransform.mk_proof_remove_patch(~target_id),
+          )
+          |> serialize;
+        check(
+          bool,
+          "removed step is gone — got:\n" ++ out,
+          false,
+          contains_substring(out, "1 + 3"),
+        );
+        check_contains(~msg="first step kept", out, "eval 1 + 4 at 0 end");
+        check_contains(~msg="third step kept", out, "eval 5 == 5 at 0 end");
+        /* The `;` went with the step: the result reparses to a two-step
+         * chain with no hole where the step was. */
+        let reparsed =
+          switch (find_theorem_proof(parse_exp(out))) {
+          | Some(p) => p
+          | None => Alcotest.fail("no proof after removal: " ++ out)
+          };
+        check(
+          int,
+          "two steps remain",
+          2,
+          List.length(find_proofs(is_eval_step, reparsed)),
+        );
+        check(
+          bool,
+          "no hole left behind — got:\n" ++ out,
+          false,
+          Proof.has_hole(reparsed),
+        );
+      },
+    ),
+    test_case(
+      "remove patch on the sole step leaves a hole proof",
+      `Quick,
+      () => {
+        let src = "theorem t = 1 + 4 == 5 proof eval 1 + 4 at 0 end in t";
+        let z = parse_zipper(src);
+        let target_id =
+          switch (find_theorem_proof(zipper_term(z))) {
+          | Some(p) => Proof.rep_id(p)
+          | None => Alcotest.fail("no proof")
+          };
+        let out =
+          Haz3lcore.EditorTransform.apply_patch(
+            z,
+            Haz3lcore.EditorTransform.mk_proof_remove_patch(~target_id),
+          )
+          |> serialize;
+        check(
+          bool,
+          "step is gone — got:\n" ++ out,
+          false,
+          contains_substring(out, "eval"),
+        );
+        let reparsed =
+          switch (find_theorem_proof(parse_exp(out))) {
+          | Some(p) => p
+          | None => Alcotest.fail("no proof after removal: " ++ out)
+          };
+        check(
+          bool,
+          "an empty proof (hole) remains",
+          true,
+          Proof.has_hole(reparsed),
+        );
+      },
+    ),
   ],
 );
