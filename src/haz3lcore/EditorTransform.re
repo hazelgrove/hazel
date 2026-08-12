@@ -1,6 +1,7 @@
 /* Capture the haz3lcore `Secondary` before `open Language` shadows it with
  * the term-level `Language.Secondary` (which has no `mk_newline`). */
 let mk_newline = Secondary.mk_newline;
+let secondary_is_linebreak = Secondary.is_linebreak;
 
 open Language;
 open Util;
@@ -123,13 +124,13 @@ let rewrite_proof_in_exp =
   (found^ ? rewritten : root_exp, found^);
 };
 
-/* Patches re-serialize the whole program around the rewritten proof,
- * so this MUST be the faithful editable writer: literal lexemes keep
- * the user's original tokens, and nothing display-related (folded
- * function bodies, hidden ascriptions, ...) may leak into the written
- * syntax — `of_core` folds `fun` bodies into projector chips when
- * show_fn_bodies is off, silently destroying user code on every
- * proof-side patch. */
+/* Fallback writer for when a patch can't be spliced locally (see
+ * `try_local_splice`): re-serializes the whole program around the
+ * rewritten sub-term, so this MUST be the faithful editable writer —
+ * nothing display-related (folded function bodies, hidden ascriptions,
+ * ...) may leak into the written syntax. `of_core` folds `fun` bodies
+ * into projector chips when show_fn_bodies is off, silently destroying
+ * user code on every proof-side patch. */
 let exp_to_segment = (exp: Exp.t): Segment.t =>
   ExpToSegment.exp_to_segment(
     exp,
@@ -214,33 +215,291 @@ let reflow_subtree =
   found ? out : PrettySegment.prettify(seg);
 };
 
+/* ---------- Local splice ----------
+ *
+ * Re-serializing the whole program around a rewritten sub-term reformats
+ * every line of the user's code (AutoFormat secondary, canonicalized
+ * lexemes, re-derived parens). Instead, locate the pieces the old
+ * sub-term came from in the current segment and replace just that range
+ * with a freshly serialized sub-segment — text anywhere else in the
+ * program is preserved byte-for-byte.
+ *
+ * The extent is found by id: term ids are minted from the pieces they
+ * were parsed from, and the serializer stamps term ids back onto the
+ * pieces it emits, so serializing the OLD sub-term and collecting the
+ * segment's ids yields exactly the piece ids the sub-term occupies in
+ * the current zipper segment (plus fresh secondary ids, which are
+ * harmless — they match nothing).
+ *
+ * Falls back to the whole-program writer (`None`) when the extent can't
+ * be located or the splice wouldn't reparse faithfully. */
+
+let any_to_segment_editable = (a: Any.t): Segment.t =>
+  ExpToSegment.any_to_segment(
+    ~settings={
+      ...ExpToSegment.Settings.editable(~inline=false),
+      use_literal_lexemes: false,
+    },
+    a,
+  );
+
+let piece_is_secondary: Piece.t => bool =
+  fun
+  | Secondary(_) => true
+  | _ => false;
+
+let piece_is_linebreak: Piece.t => bool =
+  fun
+  | Secondary(w) => secondary_is_linebreak(w)
+  | _ => false;
+
+/* Bracket `seg` with linebreaks, but only where the splice context
+ * doesn't already provide one — checking the (all-secondary) margin of
+ * the surrounding pieces. Unconditional brackets (like the fallback's
+ * `wrap_block`) would accumulate a blank line per patch here, since the
+ * surrounding text survives the splice. */
+let ensure_boundary_linebreaks =
+    (~pre: Segment.t, ~post: Segment.t, seg: Segment.t): Segment.t => {
+  let margin_has_linebreak = (pieces: list(Piece.t)): bool => {
+    let rec go = (ps: list(Piece.t)) =>
+      switch (ps) {
+      | [p, ...rest] when piece_is_secondary(p) =>
+        piece_is_linebreak(p) || go(rest)
+      | _ => false
+      };
+    go(pieces);
+  };
+  let nl = (): Piece.t => Piece.secondary(mk_newline(Id.mk()));
+  let lead = margin_has_linebreak(List.rev(pre)) ? [] : [nl()];
+  let trail = margin_has_linebreak(post) ? [] : [nl()];
+  lead @ seg @ trail;
+};
+
+type splice_outcome =
+  | NotFound /* extent not in this subtree */
+  | Spliced /* replaced and reflowed in place */
+  | NeedsParentPrettify /* replaced raw in a direct child of an induction
+                           tile; that tile lays out as a unit, so the
+                           parent must prettify the whole tile */
+  | Failed; /* extent found but can't be spliced safely — use fallback */
+
+let try_local_splice =
+    (
+      ~old_node: Any.t,
+      ~replacement: Any.t,
+      ~reflow: bool,
+      ~wrap_block: bool,
+      seg: Segment.t,
+    )
+    : option(Segment.t) => {
+  let old_ids =
+    old_node
+    |> any_to_segment_editable
+    |> Segment.ids
+    |> List.to_seq
+    |> Seq.map(id => (id, ()))
+    |> Id.Map.of_seq;
+  let raw = any_to_segment_editable(replacement);
+  let raw_atomic =
+    List.length(List.filter(p => !piece_is_secondary(p), raw)) <= 1;
+  let is_match = (p: Piece.t) => Id.Map.mem(Piece.id(p), old_ids);
+  let rec go =
+          (~parent_is_induction: bool, seg: Segment.t)
+          : (Segment.t, splice_outcome) => {
+    let matched_idxs =
+      seg
+      |> List.mapi((i, p) => is_match(p) ? Some(i) : None)
+      |> List.filter_map(Fun.id);
+    switch (matched_idxs) {
+    | [] => descend(seg)
+    | [first, ...rest] =>
+      let lo = first; /* mapi indices are ascending */
+      let hi = List.fold_left(max, first, rest);
+      /* every non-secondary piece inside the range must belong to the
+       * old sub-term; a foreign tile wedged in means the id mapping is
+       * broken and splicing would eat unrelated syntax */
+      let range_ok =
+        seg
+        |> List.mapi((i, p) => (i, p))
+        |> List.for_all(((i, p)) =>
+             i < lo || i > hi || is_match(p) || piece_is_secondary(p)
+           );
+      if (!range_ok) {
+        (seg, Failed);
+      } else {
+        let pre = List.filteri((i, _) => i < lo, seg);
+        let post = List.filteri((i, _) => i > hi, seg);
+        /* If the old sub-term shares this level with sibling pieces
+         * (operators, other steps), a multi-piece replacement could
+         * re-associate on reparse. Expressions get a defensive Parens;
+         * proofs have no parens form, so bail to the fallback. */
+        let partial = List.exists(p => !piece_is_secondary(p), pre @ post);
+        let new_seg =
+          if (!partial || raw_atomic) {
+            Some(raw);
+          } else {
+            switch (replacement) {
+            | Exp(e) =>
+              Some(any_to_segment_editable(Exp(Exp.fresh(Parens(e)))))
+            | _ => None
+            };
+          };
+        switch (new_seg) {
+        | None => (seg, Failed)
+        | Some(new_seg) =>
+          if (reflow && parent_is_induction) {
+            (pre @ new_seg @ post, NeedsParentPrettify);
+          } else {
+            let formatted =
+              reflow ? PrettySegment.prettify(new_seg) : new_seg;
+            let formatted =
+              reflow && wrap_block
+                ? ensure_boundary_linebreaks(~pre, ~post, formatted)
+                : formatted;
+            (pre @ formatted @ post, Spliced);
+          }
+        };
+      };
+    };
+  }
+  and descend = (seg: Segment.t): (Segment.t, splice_outcome) => {
+    let (rev_pieces, outcome) =
+      List.fold_left(
+        ((acc, outcome), p: Piece.t) =>
+          switch (outcome, p) {
+          | (NotFound, Tile(t)) =>
+            let (rev_children, outcome) =
+              List.fold_left(
+                ((cs, oc), child) =>
+                  switch (oc) {
+                  | NotFound =>
+                    let (child', oc') =
+                      go(
+                        ~parent_is_induction=t.label == ["induction", "end"],
+                        child,
+                      );
+                    ([child', ...cs], oc');
+                  | _ => ([child, ...cs], oc)
+                  },
+                ([], NotFound),
+                t.children,
+              );
+            let tile: Piece.t =
+              Tile({
+                ...t,
+                children: List.rev(rev_children),
+              });
+            switch (outcome) {
+            | NeedsParentPrettify => (
+                List.rev(PrettySegment.prettify([tile])) @ acc,
+                Spliced,
+              )
+            | Spliced => ([tile, ...acc], Spliced)
+            | NotFound
+            | Failed => ([p, ...acc], outcome)
+            };
+          | _ => ([p, ...acc], outcome)
+          },
+        ([], NotFound),
+        seg,
+      );
+    (List.rev(rev_pieces), outcome);
+  };
+  switch (go(~parent_is_induction=false, seg)) {
+  | (seg', Spliced) => Some(seg')
+  | (_, NotFound | Failed | NeedsParentPrettify) => None
+  };
+};
+
 let apply_exp_transform =
     (~target_id=?, ~reflow_id=?, zipper: Zipper.t, f: Exp.t => Exp.t)
     : Zipper.t => {
   let root_exp = MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
-  let (rewritten_exp, _found) = rewrite_exp(~target_id?, f, root_exp);
-  let segment = exp_to_segment(rewritten_exp);
-  let segment =
-    switch (reflow_id) {
-    | Some(id) => reflow_subtree(~root_id=id, ~wrap_block=false, segment)
-    | None => segment
-    };
-  CaretPreserving.transform(zipper, _ => segment);
+  let old_node = ref(None);
+  let new_node = ref(None);
+  let f = e => {
+    old_node := Some(e);
+    let e' = f(e);
+    new_node := Some(e');
+    e';
+  };
+  let (rewritten_exp, found) = rewrite_exp(~target_id?, f, root_exp);
+  if (!found) {
+    zipper;
+  } else {
+    CaretPreserving.transform(
+      zipper,
+      seg => {
+        let local =
+          switch (old_node^, new_node^) {
+          | (Some(o), Some(n)) =>
+            try_local_splice(
+              ~old_node=Exp(o),
+              ~replacement=Exp(n),
+              ~reflow=Option.is_some(reflow_id),
+              ~wrap_block=false,
+              seg,
+            )
+          | _ => None
+          };
+        switch (local) {
+        | Some(seg) => seg
+        | None =>
+          let segment = exp_to_segment(rewritten_exp);
+          switch (reflow_id) {
+          | Some(id) =>
+            reflow_subtree(~root_id=id, ~wrap_block=false, segment)
+          | None => segment
+          };
+        };
+      },
+    );
+  };
 };
 
 let apply_proof_transform =
     (~target_id: Id.t, ~reflow_id=?, zipper: Zipper.t, f: Proof.t => Proof.t)
     : Zipper.t => {
   let root_exp = MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
-  let (rewritten_exp, _found) =
-    rewrite_proof_in_exp(~target_id, f, root_exp);
-  let segment = exp_to_segment(rewritten_exp);
-  let segment =
-    switch (reflow_id) {
-    | Some(id) => reflow_subtree(~root_id=id, ~wrap_block=true, segment)
-    | None => segment
-    };
-  CaretPreserving.transform(zipper, _ => segment);
+  let old_node = ref(None);
+  let new_node = ref(None);
+  let f = p => {
+    old_node := Some(p);
+    let p' = f(p);
+    new_node := Some(p');
+    p';
+  };
+  let (rewritten_exp, found) = rewrite_proof_in_exp(~target_id, f, root_exp);
+  if (!found) {
+    zipper;
+  } else {
+    CaretPreserving.transform(
+      zipper,
+      seg => {
+        let local =
+          switch (old_node^, new_node^) {
+          | (Some(o), Some(n)) =>
+            try_local_splice(
+              ~old_node=Proof(o),
+              ~replacement=Proof(n),
+              ~reflow=Option.is_some(reflow_id),
+              ~wrap_block=true,
+              seg,
+            )
+          | _ => None
+          };
+        switch (local) {
+        | Some(seg) => seg
+        | None =>
+          let segment = exp_to_segment(rewritten_exp);
+          switch (reflow_id) {
+          | Some(id) => reflow_subtree(~root_id=id, ~wrap_block=true, segment)
+          | None => segment
+          };
+        };
+      },
+    );
+  };
 };
 
 /* Apply a patch to a proof that is owned directly as an AST rather than
