@@ -52,10 +52,15 @@ let apply_collected_refractors = (z: Zipper.t): Zipper.t =>
     FastParse.collected_refractors^,
   );
 
-let from_backup_text = (backup_text: string, ~root): Zipper.t => {
-  /* Strip only the writer's final newline (see persist); all other edge
-     whitespace is content — leading/trailing blank lines round-trip. */
-  let text = StringUtil.strip_final_newline(backup_text);
+/* Fast-first text→zipper, shared by persistence load and the CLI:
+   FastParse (linear, complete terms) with pin collection, then the
+   ¿-aware recovering parser. Returns None only when both parsers fail;
+   the failure POLICY lives at the call sites (the CLI reports an
+   error, persistence loads an empty buffer). Only the writer's final
+   newline is stripped (see persist); all other edge whitespace is
+   content — leading/trailing blank lines round-trip. */
+let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
+  let text = StringUtil.strip_final_newline(text);
   switch (
     FastParse.of_text(
       ~materialize=Triggers.invoked_projector,
@@ -65,13 +70,17 @@ let from_backup_text = (backup_text: string, ~root): Zipper.t => {
     )
   ) {
   | Some(segment) =>
-    Zipper.unzip(~direction=Left, segment) |> apply_collected_refractors
+    Some(
+      Zipper.unzip(~direction=Left, segment) |> apply_collected_refractors,
+    )
   | None =>
     /* MarkerParse subsumes the plain typing parse and also destructs
        `¿` markers back into Grout (concave grout and other fast-path
        bails land here). Console-visible: every slow parse names itself. */
     print_endline(
-      "SLOW PARSE (persistence load, "
+      "SLOW PARSE ("
+      ++ source
+      ++ ", "
       ++ string_of_int(String.length(text))
       ++ " chars): "
       ++ Option.value(FastParse.bail_note^, ~default="no note")
@@ -79,18 +88,32 @@ let from_backup_text = (backup_text: string, ~root): Zipper.t => {
       ++ String.sub(text, 0, min(60, String.length(text))),
     );
     switch (MarkerParse.of_text(~root, text)) {
-    | None => Zipper.init()
+    | None => None
     | Some(z) =>
       /* reposition the caret to the start WITHOUT dropping refractors:
          unselect_and_zip yields a bare segment, and unzip would mint a
          fresh (empty) refractor state — losing pins built from trigger
          text during the parse */
       let refractors = z.refractors;
-      Zipper.unzip(~direction=Left, Zipper.unselect_and_zip(z))
-      |> ZipperBase.update_refractors(_, _ => refractors);
+      Some(
+        Zipper.unzip(~direction=Left, Zipper.unselect_and_zip(z))
+        |> ZipperBase.update_refractors(_, _ => refractors),
+      );
     };
   };
 };
+
+/* Persistence never hard-fails: boot has no error channel, and one
+   unreadable blob must not brick the app — load an empty buffer
+   instead. Should be near-unreachable (MarkerParse is recovering by
+   construction), so it announces itself when it does fire. */
+let from_backup_text = (backup_text: string, ~root): Zipper.t =>
+  switch (parse_text(~source="persistence load", ~root, backup_text)) {
+  | Some(z) => z
+  | None =>
+    print_endline("PARSE FAILED (persistence load): loading empty buffer");
+    Zipper.init();
+  };
 
 let unpersist = (persisted: t, ~root) =>
   if (persisted.zipper == "") {

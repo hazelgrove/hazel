@@ -10,41 +10,12 @@ let read_input = path => {
   );
 };
 
-/* Fast-first CLI parsing: FastParse (linear) with pin collection, then
-   the ¿-aware typing parser; the fallback names itself on stderr-ish
-   console so slow passes are visible. Same fast-first shape as
-   PersistentZipper.from_backup_text, but hard-fails (None) where that
-   degrades to an empty zipper — a CLI caller wants an error, not a
-   silently blank program. Input files share the persistence convention:
-   one final newline is the writer's artifact, everything else is
-   content (StringUtil.strip_final_newline). */
-let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) => {
-  let s = Util.StringUtil.strip_final_newline(s);
-  Haz3lcore.(
-    switch (
-      FastParse.of_text(
-        ~materialize=Triggers.invoked_projector,
-        ~collect_refractors=true,
-        ~root=Exp,
-        s,
-      )
-    ) {
-    | Some(seg) =>
-      Some(
-        Zipper.unzip(~direction=Left, seg)
-        |> PersistentZipper.apply_collected_refractors,
-      )
-    | None =>
-      print_endline(
-        "SLOW PARSE (cli, "
-        ++ string_of_int(String.length(s))
-        ++ " chars): "
-        ++ Option.value(FastParse.bail_note^, ~default="no note"),
-      );
-      MarkerParse.of_text(~root=Exp, s);
-    }
-  );
-};
+/* Fast-first parsing shared with persistence load
+   (PersistentZipper.parse_text); the difference is failure policy —
+   a CLI caller wants a reported error (None → failwith below), where
+   persistence loads an empty buffer rather than brick boot. */
+let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
+  Haz3lcore.(PersistentZipper.parse_text(~source="cli", ~root=Exp, s));
 
 let parse_program = (s: string) =>
   switch (parse_to_zipper(s)) {
