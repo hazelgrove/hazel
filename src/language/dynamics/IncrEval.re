@@ -27,8 +27,13 @@ type provenance = {
   flag,
 };
 
+/* StringMap rather than VarMap: remove_pat_bindings runs at every binder
+ * over a map seeded with the whole builtins env, so lookups/removals must
+ * not walk an assoc list. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type reuse_map = VarMap.t_(provenance);
+type reuse_map = Maps.StringMap.t(provenance);
+
+let empty_reuse_map: reuse_map = Maps.StringMap.empty;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry('state) = {
@@ -158,87 +163,81 @@ let equal_provenance = (a: provenance, b: provenance): bool =>
   Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
 
 let make_clean = (reuse_map: reuse_map): reuse_map =>
-  List.map(
-    ((name, prov: provenance)) =>
-      (
-        name,
-        {
-          ...prov,
-          flag: Clean,
-        },
-      ),
+  Maps.StringMap.map(
+    (prov: provenance) =>
+      {
+        ...prov,
+        flag: Clean,
+      },
     reuse_map,
   );
 
 let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
-  List.length(a) == List.length(b)
-  && List.for_all(
-       ((name, prov)) =>
-         switch (VarMap.lookup(b, name)) {
-         | Some(prov') => equal_provenance(prov, prov')
-         | None => false
-         },
-       a,
-     );
+  Maps.StringMap.equal(equal_provenance, a, b);
 
 /* `$hole` is a statics-only sentinel for unused-variable warnings. It is not
  * a runtime dependency, so it should not participate in reuse provenance. */
 let is_runtime_dependency = (name: string): bool => name != "$hole";
 
 let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
-  List.fold_right(
-    ((name, _), projected) =>
+  List.fold_left(
+    (projected, (name, _)) =>
       if (!is_runtime_dependency(name)) {
         projected;
       } else {
-        switch (VarMap.lookup(reuse_map, name)) {
-        | Some(prov) => [(name, prov), ...projected]
+        switch (Maps.StringMap.find_opt(name, reuse_map)) {
+        | Some(prov) => Maps.StringMap.add(name, prov, projected)
         | None => projected
         };
       },
+    empty_reuse_map,
     VarMap.to_list(co_ctx),
-    [],
   );
 
 let reuse_map_for_co_ctx =
     (reuse_map: reuse_map, co_ctx: CoCtx.t): option(reuse_map) =>
-  List.fold_right(
-    ((name, _), acc) =>
+  List.fold_left(
+    (acc, (name, _)) =>
       if (!is_runtime_dependency(name)) {
         acc;
       } else {
         switch (acc) {
         | None => None
         | Some(projected) =>
-          switch (VarMap.lookup(reuse_map, name)) {
-          | Some(prov) => Some([(name, prov), ...projected])
+          switch (Maps.StringMap.find_opt(name, reuse_map)) {
+          | Some(prov) => Some(Maps.StringMap.add(name, prov, projected))
           | None => None
           }
         };
       },
+    Some(empty_reuse_map),
     VarMap.to_list(co_ctx),
-    Some([]),
   );
 
 // For builtins
 let clean_reuse_map_of_env = (env: Environment.t(Exp.t)): reuse_map =>
   env
   |> Environment.to_list
-  |> List.map(((name, _)) =>
-       (
-         name,
-         {
-           source: Id.invalid,
-           path: [],
-           flag: Clean,
-         },
-       )
+  |> List.fold_left(
+       (acc, (name, _)) =>
+         Maps.StringMap.add(
+           name,
+           {
+             source: Id.invalid,
+             path: [],
+             flag: Clean,
+           },
+           acc,
+         ),
+       empty_reuse_map,
      );
 
-let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map => {
-  let bound = Pat.bound_vars(pat);
-  List.filter(((name, _)) => !List.mem(name, bound), reuse_map);
-};
+let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map =>
+  List.fold_left(
+    (acc, name) => Maps.StringMap.remove(name, acc),
+    reuse_map,
+    Pat.bound_vars(pat),
+  );
 
 let pat_label = (pat: Pat.t): option(string) =>
   switch (pat.term) {
@@ -247,7 +246,8 @@ let pat_label = (pat: Pat.t): option(string) =>
   };
 
 let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
-  let rec go = (path: list(projection), pat: Pat.t): reuse_map =>
+  let rec go =
+          (path: list(projection), pat: Pat.t): list((string, provenance)) =>
     switch (pat.term) {
     | EmptyHole
     | MultiHole(_)
@@ -289,14 +289,19 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Cons(hd, tl) =>
       go([ConsHead, ...path], hd) @ go([ConsTail, ...path], tl)
     };
-  go([], pat);
+  go([], pat) |> List.to_seq |> Maps.StringMap.of_seq;
 };
 
 let with_pat_provenance =
     (~source_id: Id.t, ~flag: flag, pat: Pat.t, reuse_map: reuse_map)
     : reuse_map =>
-  pat_provenance(~source_id, ~flag, pat)
-  @ remove_pat_bindings(pat, reuse_map);
+  /* Domains are disjoint: remove_pat_bindings removes exactly the names
+   * pat_provenance produces. Prefer the pattern's entry regardless. */
+  Maps.StringMap.union(
+    (_name, from_pat, _outer) => Some(from_pat),
+    pat_provenance(~source_id, ~flag, pat),
+    remove_pat_bindings(pat, reuse_map),
+  );
 
 let update_maps_after_binding =
     (~rhs_reused: bool, ~source_id: Id.t, pat: Pat.t, ~reuse_map: reuse_map)

@@ -44,6 +44,10 @@ let find_opt = (id: Id.t, map: t): option(entry) =>
 let is_program_node = (id: Id.t, map: t): bool =>
   Id.Map.mem(id, map.statics);
 
+/* Statics presence (not targets) is what enables incr-entry snapshots
+ * and reuse_check hits. */
+let has_statics = (map: t): bool => !Id.Map.is_empty(map.statics);
+
 /* For callers (CLI, tests) that evaluate without statics. */
 let of_targets = (targets: Sample.targets): t => {
   ...empty,
