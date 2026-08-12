@@ -1200,21 +1200,16 @@ let tests = (
               |> List.filter(capability => capability != Axioms.MulIdentity),
             profile,
           );
-        check(
-          bool,
-          "disabled mul.identity blocks the completed power result",
-          true,
-          switch (
-            authorize(
-              ~profile=without_mul_identity,
-              power_source,
-              power_target,
-            )
-          ) {
-          | Rejected(_) => true
-          | Authorized(_) => false
-          },
-        );
+        switch (
+          authorize(~profile=without_mul_identity, power_source, power_target)
+        ) {
+        | Rejected(_) => ()
+        | Authorized(plan) =>
+          fail(
+            "disabled mul.identity admitted route: "
+            ++ String.concat(", ", plan.summary.rule_ids),
+          )
+        };
       },
     ),
     test_case(

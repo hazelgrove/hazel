@@ -361,6 +361,9 @@ let validate_summary = (request: request, summary) => {
   let (session_counts, trusted_counts) =
     counts
     |> List.partition(((id, _count)) => session_rewrite_for_id(id) != None);
+  let foreground_rule_ids =
+    summary.ProofTrace.prover_steps
+    |> List.map((step: ProofTrace.prover_step) => step.rule_id);
   if (summary.ProofTrace.prover_steps == []) {
     Error(InvalidEvidence("an authorized plan must contain evidence steps"));
   } else if (!endpoints_match(request, summary)) {
@@ -409,9 +412,13 @@ let validate_summary = (request: request, summary) => {
           ),
         );
   } else {
-    switch (Axioms.validate_capability_use_counts(stage_plan, counts)) {
-    | Some(message) => Error(DisabledCapability(message))
-    | None =>
+    switch (
+      Axioms.validate_foreground_rule_uses(stage_plan, foreground_rule_ids),
+      Axioms.validate_capability_use_counts(stage_plan, counts),
+    ) {
+    | (Some(message), _) => Error(DisabledCapability(message))
+    | (None, Some(message)) => Error(DisabledCapability(message))
+    | (None, None) =>
       Ok({
         stage,
         source: request.source,
@@ -483,26 +490,81 @@ let authorize_summary = (request, summary) =>
 let axiom_search_progress = (request: request) => {
   let stage = authorization_stage(request.stage);
   let stage_plan = Axioms.stage_plan_for_profile(request.profile, stage);
+  let search_rule_id = capability_id =>
+    switch (Axioms.cleanup_capability_for_id(capability_id)) {
+    | Some(cleanup)
+        when capability_id == Axioms.cleanup_capability_label(cleanup) =>
+      Axioms.cleanup_capability_label(cleanup)
+    | Some(_)
+    | None => capability_id
+    };
+  /* A cleanup-backed visible rule remains available as an explicit student
+     step when automatic cleanup is disabled.  It must not, however, re-enter
+     through background search and silently restore the disabled cleanup. */
+  let capability_available_to_search =
+      (capability: Axioms.compiled_capability) => {
+    let cleanup_enabled =
+      switch (Axioms.cleanup_capability_for_id(capability.id)) {
+      | Some(cleanup)
+          when capability.id != Axioms.cleanup_capability_label(cleanup) =>
+        List.mem(cleanup, stage_plan.pre_cleanup)
+      | Some(_)
+      | None => true
+      };
+    cleanup_enabled
+    && capability.usage != Axioms.Disabled
+    && Axioms.compiled_capability_requirements_satisfied(
+         stage_plan,
+         capability,
+       );
+  };
   let allowed_rule_ids =
     stage_plan.capabilities
-    |> List.filter((capability: Axioms.compiled_capability) =>
-         capability.usage != Axioms.Disabled
-       )
+    |> List.filter(capability_available_to_search)
     |> List.map((capability: Axioms.compiled_capability) =>
-         switch (Axioms.cleanup_capability_for_id(capability.id)) {
-         | Some(cleanup) => Axioms.primitive_rule_id_for_cleanup(cleanup)
-         | None => capability.id
+         search_rule_id(capability.id)
+       );
+  let rule_use_limits =
+    stage_plan.capabilities
+    |> List.filter_map((capability: Axioms.compiled_capability) =>
+         if (!capability_available_to_search(capability)) {
+           None;
+         } else {
+           switch (capability.usage) {
+           | Axioms.Disabled => None
+           | AtMostOne => Some((search_rule_id(capability.id), 1))
+           | BoundedClosure({max_uses, _}) =>
+             let max_uses =
+               switch (
+                 Axioms.repeated_rule_composite_capability(capability.id)
+               ) {
+               | Some(composite_id)
+                   when
+                     !
+                       Axioms.compiled_capability_enabled(
+                         stage_plan,
+                         composite_id,
+                       ) =>
+                 min(1, max_uses)
+               | Some(_)
+               | None => max_uses
+               };
+             Some((search_rule_id(capability.id), max_uses));
+           };
          }
        );
   AxiomSearch.start_search(
     ~level=request.profile.level,
-    ~max_depth=stage == Axioms.Manual ? 1 : request.max_depth,
+    ~max_depth=request.max_depth,
     ~max_states=
       Axioms.compiled_search_state_limit(
         ~requested=request.max_states,
         stage_plan,
       ),
     ~allowed_rule_ids,
+    ~rule_use_limits,
+    ~foreground_rule_ids=stage_plan.foreground_rule_ids,
+    ~max_foreground_uses=stage == Axioms.Manual ? 1 : (-1),
     request.source,
     request.target,
   );

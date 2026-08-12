@@ -40,6 +40,17 @@ let allowed_rules = level =>
   Axioms.allowed_groups(level)
   |> List.concat_map((group: Axioms.rewrite_group) => group.rules);
 
+let cleanup_rules = level =>
+  Axioms.profile_default_cleanup_for_level(level)
+  |> List.map(capability => {
+       let metadata = Axioms.cleanup_capability_metadata(capability);
+       {
+         Axioms.id: Axioms.cleanup_capability_label(capability),
+         label: metadata.name,
+         prover_hints: [],
+       };
+     });
+
 let allowed_rule_ids = level =>
   allowed_rules(level) |> List.map((rule: Axioms.rewrite_rule) => rule.id);
 
@@ -215,7 +226,30 @@ let positive_literal_factor_splits = (power_op, exponent) =>
   | _ => []
   };
 
-let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
+let rec contains_addition = exp =>
+  switch (strip(exp).term) {
+  | BinOp(op, _, _) when MathRewriteUtil.is_plus_op(op) => true
+  | BinOp(_, left, right)
+  | Ap(_, left, right) =>
+    contains_addition(left) || contains_addition(right)
+  | UnOp(_, inner)
+  | Parens(inner)
+  | Asc(inner, _)
+  | Projector(_, inner) => contains_addition(inner)
+  | Tuple(entries)
+  | ListLit(entries) => List.exists(contains_addition, entries)
+  | Fun(_, body, _, _) => contains_addition(body)
+  | _ => false
+  };
+
+let scalar_product_spans_addition = exp =>
+  switch (strip(exp).term) {
+  | BinOp(op, left, right) when MathRewriteUtil.is_times_op(op) =>
+    contains_addition(left) || contains_addition(right)
+  | _ => false
+  };
+
+let rec apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
   let exp = strip(exp);
   switch (rule_id, exp.term) {
   | ("arith.add_comm", BinOp(op, left, right))
@@ -278,17 +312,42 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
     | _ => []
     }
   | ("arith.const_fold", _) =>
-    switch (ArithmeticNormalization.fold_rational_constant(exp)) {
-    | Some(folded) when !exp_same(exp, folded) => [folded]
-    | Some(_)
-    | None => []
-    }
+    let is_value = (expected, candidate) =>
+      int_constant(candidate)
+      |> Option.map(value => Bigint.equal(value, expected))
+      |> Option.value(~default=false);
+    let is_identity_operation =
+      switch (exp.term) {
+      | BinOp(op, left, right) when MathRewriteUtil.is_plus_op(op) =>
+        is_value(Bigint.zero, left) || is_value(Bigint.zero, right)
+      | BinOp(op, left, right) when MathRewriteUtil.is_times_op(op) =>
+        is_value(Bigint.zero, left)
+        || is_value(Bigint.zero, right)
+        || is_value(Bigint.one, left)
+        || is_value(Bigint.one, right)
+      | BinOp(op, _, exponent) when is_power_op(op) =>
+        is_value(Bigint.zero, exponent) || is_value(Bigint.one, exponent)
+      | _ => false
+      };
+    if (is_identity_operation) {
+      [];
+    } else {
+      switch (ArithmeticNormalization.fold_rational_constant(exp)) {
+      | Some(folded) when !exp_same(exp, folded) => [folded]
+      | Some(_)
+      | None => []
+      };
+    };
   | ("arith.reorder_add_terms", _) => small_addition_permutations(exp)
   | ("arith.reorder_mul_factors", _) =>
     small_multiplication_permutations(exp)
   | ("arith.simplify_scalar_products", _) =>
-    let simplified = ArithmeticNormalization.simplify_scalar_products(exp);
-    exp_same(exp, simplified) ? [] : [simplified];
+    if (scalar_product_spans_addition(exp)) {
+      [];
+    } else {
+      let simplified = ArithmeticNormalization.simplify_scalar_products(exp);
+      exp_same(exp, simplified) ? [] : [simplified];
+    }
   | (
       "alg.distribute_mul_add",
       BinOp(op, left, {term: BinOp(plus_op, add_left, add_right), _}),
@@ -371,9 +430,35 @@ let apply_rule_at_root = (rule_id, exp: Exp.t): list(Exp.t) => {
          )
        )
   | _ =>
+    let cleanup_rewrites =
+      switch (Axioms.cleanup_capability_for_id(rule_id)) {
+      | Some(capability)
+          when rule_id == Axioms.cleanup_capability_label(capability) =>
+        let primitive_rule_id =
+          Axioms.primitive_rule_id_for_cleanup(capability);
+        let primitive_rewrites =
+          primitive_rule_id == rule_id
+            ? [] : apply_rule_at_root(primitive_rule_id, exp);
+        switch (
+          DifferentiationRewrite.cleanup_once(
+            ~cleanup_enabled=candidate => candidate == capability,
+            exp,
+          )
+        ) {
+        | Some((after_exp, _)) => [after_exp, ...primitive_rewrites]
+        | None => primitive_rewrites
+        };
+      | Some(_)
+      | None => []
+      };
     AlgebraIdentityRewrite.apply_rule_at_root(rule_id, exp)
     @ TrigRewrite.apply_rule_at_root(rule_id, exp)
+    @ DifferentiationRewrite.applicable_at_root(
+        ~rule_enabled=candidate_rule_id => candidate_rule_id == rule_id,
+        exp,
+      )
     |> List.map((rewrite: TrigRewrite.rewrite) => rewrite.after_exp)
+    |> List.append(cleanup_rewrites);
   };
 };
 
@@ -384,6 +469,8 @@ let rebuild_un_op = (op, exp) => Exp.fresh(UnOp(op, exp));
 let rebuild_parens = exp => Exp.fresh(Parens(exp));
 
 let rebuild_ap = (dir, fn, arg) => Exp.fresh(Ap(dir, fn, arg));
+
+let rebuild_tuple = entries => Exp.fresh(Tuple(entries));
 
 let apply_rule_everywhere = (rule, exp): list(application) => {
   let occurrence = ref(0);
@@ -463,6 +550,27 @@ let apply_rule_everywhere = (rule, exp): list(application) => {
                }
              );
         fn_apps @ arg_apps;
+      | Tuple(entries) =>
+        let rec walk_entries = (before, remaining) =>
+          switch (remaining) {
+          | [] => []
+          | [entry, ...rest] =>
+            (
+              walk(entry)
+              |> List.map(app =>
+                   {
+                     ...app,
+                     before_full_exp: exp,
+                     after_full_exp:
+                       rebuild_tuple(
+                         List.rev(before) @ [app.after_full_exp, ...rest],
+                       ),
+                   }
+                 )
+            )
+            @ walk_entries([entry, ...before], rest)
+          };
+        walk_entries([], entries);
       | _ => []
       };
     root_apps @ child_apps;
@@ -722,6 +830,9 @@ type search_session = {
   max_depth: int,
   max_states: int,
   allowed_rule_ids: list(string),
+  rule_use_limits: list((string, int)),
+  foreground_rule_ids: list(string),
+  max_foreground_uses: int,
   rules: list(Axioms.rewrite_rule),
   depth: int,
   seen: list(string),
@@ -733,6 +844,34 @@ type search_session = {
 type search_progress =
   | SearchPending(search_session)
   | SearchComplete(option(result));
+
+let applications_within_limits =
+    (
+      ~rule_use_limits,
+      ~foreground_rule_ids,
+      ~max_foreground_uses,
+      applications,
+    ) => {
+  let count = rule_id =>
+    applications
+    |> List.fold_left(
+         (count, app: application) =>
+           app.rule.id == rule_id ? count + 1 : count,
+         0,
+       );
+  let individual_limits_hold =
+    rule_use_limits
+    |> List.for_all(((rule_id, max_uses)) => count(rule_id) <= max_uses);
+  let foreground_uses =
+    applications
+    |> List.fold_left(
+         (count, app: application) =>
+           List.mem(app.rule.id, foreground_rule_ids) ? count + 1 : count,
+         0,
+       );
+  individual_limits_hold
+  && (max_foreground_uses < 0 || foreground_uses <= max_foreground_uses);
+};
 
 let targeted_finish_from = (~level, ~allowed_rule_ids, ~target, exp) => {
   let has_targeted_rule = rule_id =>
@@ -786,11 +925,15 @@ let start_search =
       ~max_depth=4,
       ~max_states=250,
       ~allowed_rule_ids=[],
+      ~rule_use_limits=[],
+      ~foreground_rule_ids=[],
+      ~max_foreground_uses=(-1),
       source,
       target,
     ) => {
   let rules =
     allowed_rules(level)
+    @ cleanup_rules(level)
     |> List.filter((rule: Axioms.rewrite_rule) =>
          rule.id != "arith.reorder_add_terms"
        )
@@ -812,7 +955,16 @@ let start_search =
         ? targeted_finish_from(~level, ~allowed_rule_ids, ~target, source)
         : None
     ) {
-    | Some(result) => SearchComplete(Some(result))
+    | Some(result)
+        when
+          applications_within_limits(
+            ~rule_use_limits,
+            ~foreground_rule_ids,
+            ~max_foreground_uses,
+            result.applications,
+          ) =>
+      SearchComplete(Some(result))
+    | Some(_)
     | None =>
       SearchPending({
         source,
@@ -821,6 +973,9 @@ let start_search =
         max_depth,
         max_states,
         allowed_rule_ids,
+        rule_use_limits,
+        foreground_rule_ids,
+        max_foreground_uses,
         rules,
         depth: 0,
         seen: [state_key(source)],
@@ -852,12 +1007,20 @@ let finish_node = (session, (exp, steps, applications): search_node) =>
         : None
     ) {
     | Some(reorder_result) =>
-      Some({
-        source: session.source,
-        target: session.target,
-        steps: List.rev(reorder_result.steps @ steps),
-        applications: List.rev(reorder_result.applications @ applications),
-      })
+      let combined_applications = reorder_result.applications @ applications;
+      applications_within_limits(
+        ~rule_use_limits=session.rule_use_limits,
+        ~foreground_rule_ids=session.foreground_rule_ids,
+        ~max_foreground_uses=session.max_foreground_uses,
+        combined_applications,
+      )
+        ? Some({
+            source: session.source,
+            target: session.target,
+            steps: List.rev(reorder_result.steps @ steps),
+            applications: List.rev(combined_applications),
+          })
+        : None;
     | None => None
     };
   };
@@ -876,6 +1039,14 @@ let expand_node = (session, (exp, steps, applications): search_node) => {
       session.rules
       |> List.concat_map(rule =>
            apply_rule_everywhere(rule, exp)
+           |> List.filter(app =>
+                applications_within_limits(
+                  ~rule_use_limits=session.rule_use_limits,
+                  ~foreground_rule_ids=session.foreground_rule_ids,
+                  ~max_foreground_uses=session.max_foreground_uses,
+                  [app, ...applications],
+                )
+              )
            |> List.map(app =>
                 (
                   strip(app.after_full_exp),
@@ -965,6 +1136,9 @@ let search =
       ~max_depth=4,
       ~max_states=250,
       ~allowed_rule_ids=[],
+      ~rule_use_limits=[],
+      ~foreground_rule_ids=[],
+      ~max_foreground_uses=(-1),
       ~log=true,
       source,
       target,
@@ -980,6 +1154,9 @@ let search =
       ~max_depth,
       ~max_states,
       ~allowed_rule_ids,
+      ~rule_use_limits,
+      ~foreground_rule_ids,
+      ~max_foreground_uses,
       source,
       target,
     )

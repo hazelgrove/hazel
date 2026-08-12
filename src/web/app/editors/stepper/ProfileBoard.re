@@ -373,7 +373,7 @@ let default_examples = {
       level: Axioms.Algebra,
       source: times(x, plus(int(1), x)),
       target: plus(x, power(x, int(2))),
-      expected_valid: false,
+      expected_valid: true,
     },
     {
       id: "alg.distribute.ac",
@@ -390,7 +390,7 @@ let default_examples = {
       level: Axioms.Algebra,
       source: times(x, plus(plus(int(1), int(2)), x)),
       target: plus(times(x, int(3)), times(x, x)),
-      expected_valid: false,
+      expected_valid: true,
     },
     {
       id: "trig.pythagorean",
@@ -405,27 +405,29 @@ let default_examples = {
 
 let run_example_with_profile = (~settings, ~env, ~profile, example) => {
   let result =
-    RewriteChecker.check_single_step_result_for_profile(
-      ~profile,
-      ~settings,
-      ~env,
-      example.source,
-      example.target,
-    );
+    ProfileProofPlan.authorize({
+      profile,
+      stage: Axioms.Manual,
+      candidate_origin: ProfileProofPlan.UserEntered,
+      settings,
+      env,
+      source: example.source,
+      target: example.target,
+      max_depth: 4,
+      max_states: 80,
+    });
   switch (result) {
-  | Some(result) =>
-    let rule_ids =
-      result.RewriteChecker.trace
-      |> List.map((rule: Axioms.rewrite_rule) => rule.id);
+  | ProfileProofPlan.Authorized(plan) =>
+    let rule_ids = plan.summary.rule_ids;
     {
       example,
       accepted: true,
-      justification: Some(result.justification),
+      justification: Some(plan.summary.justification),
       rule_ids,
       cleanup_labels: cleanup_labels_for_rules(profile, rule_ids),
-      exportable: result.exportable,
+      exportable: plan.exportable,
     };
-  | None => {
+  | Rejected(_) => {
       example,
       accepted: false,
       justification: None,

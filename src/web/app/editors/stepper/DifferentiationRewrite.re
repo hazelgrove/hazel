@@ -621,6 +621,25 @@ let rec contains_diff = exp =>
 let is_zero = exp => integer_constant(exp) == Some(0);
 let is_one = exp => integer_constant(exp) == Some(1);
 
+let square_power = (times_op, base) => {
+  let (power_op, exponent) =
+    switch (times_op) {
+    | Operators.Int(Operators.Times) => (
+        Operators.Int(Operators.Power),
+        int_exp(2),
+      )
+    | Nat(Times) => (Nat(Power), Exp.fresh(Atom(Nat(Bigint.of_int(2)))))
+    | SInt(Times) => (SInt(Power), Exp.fresh(Atom(SInt(2))))
+    | Float(Times) => (Float(Power), Exp.fresh(Atom(Float(2.0))))
+    | Real(Times) => (
+        Real(Power),
+        Exp.fresh(Atom(Real(Real.of_bigint(Bigint.of_int(2))))),
+      )
+    | _ => (Operators.Int(Operators.Power), int_exp(2))
+    };
+  Exp.fresh(BinOp(power_op, base, exponent));
+};
+
 let negative_operand = exp =>
   switch (strip(exp).term) {
   | UnOp(
@@ -691,6 +710,9 @@ let rec cleanup = (~cleanup_enabled, exp) => {
           right;
         } else if (cleanup_enabled(Axioms.MulIdentity) && is_one(right)) {
           left;
+        } else if (cleanup_enabled(Axioms.PowerNotation)
+                   && exp_same(left, right)) {
+          square_power(op, left);
         } else {
           rebuild_binary(op, left, right);
         };
@@ -789,6 +811,9 @@ let rec cleanup_once = (~cleanup_enabled, exp) => {
               changed(Axioms.MulIdentity, right);
             } else if (cleanup_enabled(Axioms.MulIdentity) && is_one(right)) {
               changed(Axioms.MulIdentity, left);
+            } else if (cleanup_enabled(Axioms.PowerNotation)
+                       && exp_same(left, right)) {
+              changed(Axioms.PowerNotation, square_power(op, left));
             } else {
               None;
             };

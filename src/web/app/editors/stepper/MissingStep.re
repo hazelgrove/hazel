@@ -1137,7 +1137,7 @@ module Update = {
                   env,
                   source: from_exp,
                   target: to_exp,
-                  max_depth: 1,
+                  max_depth: 4,
                   max_states: 80,
                 })
                 |> ProfileProofPlan.authorized_plan;

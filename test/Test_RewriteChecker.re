@@ -3794,6 +3794,243 @@ let tests = (
       },
     ),
     test_case(
+      "One Step budgets only the active math level",
+      `Quick,
+      () => {
+        let usage = (plan, capability_id) =>
+          Axioms.compiled_capability_for_id(plan, capability_id)
+          |> Option.map((capability: Axioms.compiled_capability) =>
+               capability.usage
+             );
+        let trig =
+          Axioms.stage_plan_for_profile(
+            Axioms.math_profile(Trigonometry),
+            Manual,
+          );
+        check(
+          bool,
+          "inherited arithmetic is bounded automatic work",
+          true,
+          switch (usage(trig, "arith.const_fold")) {
+          | Some(Axioms.BoundedClosure(_)) => true
+          | _ => false
+          },
+        );
+        check(
+          bool,
+          "inherited algebra is bounded automatic work",
+          true,
+          switch (usage(trig, "alg.distribute_mul_add")) {
+          | Some(Axioms.BoundedClosure(_)) => true
+          | _ => false
+          },
+        );
+        check(
+          bool,
+          "active trig remains a single step",
+          true,
+          usage(trig, "trig.pythagorean_sin_cos") == Some(Axioms.AtMostOne),
+        );
+        check(
+          option(string),
+          "multiple inherited rules fit one Trig step",
+          None,
+          Axioms.validate_capability_use_counts(
+            trig,
+            [("arith.const_fold", 3), ("alg.distribute_mul_add", 2)],
+          ),
+        );
+        check(
+          bool,
+          "two distinct Trig rules exceed the shared foreground budget",
+          true,
+          Axioms.validate_foreground_rule_uses(
+            trig,
+            ["trig.pythagorean_sin_cos", "trig.sin_double"],
+          )
+          |> Option.is_some,
+        );
+        let two_folds_source =
+          plus(plus(Exp.int(1), Exp.int(2)), Exp.int(3));
+        check(
+          bool,
+          "search prunes a second foreground Arithmetic rule",
+          true,
+          Web.AxiomSearch.search(
+            ~level=Arithmetic,
+            ~max_depth=2,
+            ~allowed_rule_ids=["arith.const_fold"],
+            ~rule_use_limits=[("arith.const_fold", 1)],
+            ~foreground_rule_ids=["arith.const_fold"],
+            ~max_foreground_uses=1,
+            ~log=false,
+            two_folds_source,
+            Exp.int(6),
+          )
+          |> Option.is_none,
+        );
+        check(
+          bool,
+          "the same two folds are searchable as inherited Algebra work",
+          true,
+          Web.AxiomSearch.search(
+            ~level=Algebra,
+            ~max_depth=2,
+            ~allowed_rule_ids=["arith.const_fold"],
+            ~rule_use_limits=[("arith.const_fold", 12)],
+            ~foreground_rule_ids=[],
+            ~max_foreground_uses=1,
+            ~log=false,
+            two_folds_source,
+            Exp.int(6),
+          )
+          |> Option.is_some,
+        );
+        let calculus =
+          Axioms.stage_plan_for_profile(
+            Axioms.math_profile(Calculus),
+            Manual,
+          );
+        check(
+          bool,
+          "Trig becomes inherited automatic work in Calculus",
+          true,
+          switch (usage(calculus, "trig.pythagorean_sin_cos")) {
+          | Some(Axioms.BoundedClosure(_)) => true
+          | _ => false
+          },
+        );
+        check(
+          bool,
+          "Calculus still budgets one derivative rule",
+          true,
+          usage(calculus, "calc.diff_sum") == Some(Axioms.AtMostOne),
+        );
+        let disabled =
+          Axioms.profile_with_capability_disabled(
+            Axioms.math_profile(Trigonometry),
+            "alg.distribute_mul_add",
+          )
+          |> Axioms.stage_plan_for_profile(_, Manual);
+        check(
+          bool,
+          "inheritance preserves explicit disabled overrides",
+          true,
+          usage(disabled, "alg.distribute_mul_add") == Some(Axioms.Disabled),
+        );
+      },
+    ),
+    test_case(
+      "One Step inherits lower math levels as automatic background work",
+      `Quick,
+      () => {
+        let authorize = (profile, source, target) =>
+          Web.ProfileProofPlan.authorize({
+            profile,
+            stage: Axioms.Manual,
+            candidate_origin: Web.ProfileProofPlan.UserEntered,
+            settings,
+            env,
+            source,
+            target,
+            max_depth: 4,
+            max_states: 80,
+          });
+        let accepts = (profile, source, target) =>
+          switch (authorize(profile, source, target)) {
+          | Web.ProfileProofPlan.Authorized(_) => true
+          | Rejected(_) => false
+          };
+        let x = Exp.var("x");
+        let y = Exp.var("y");
+        let square = exp => power(exp, Exp.int(2));
+        let identity = argument =>
+          plus(
+            square(builtin_sin(argument)),
+            square(builtin_cos(argument)),
+          );
+        let trig = Axioms.math_profile(Trigonometry);
+        let arithmetic_source =
+          plus(
+            plus(plus(Exp.int(1), Exp.int(2)), Exp.int(3)),
+            square(builtin_sin(x)),
+          );
+        let arithmetic_target = plus(Exp.int(6), square(builtin_sin(x)));
+        check(
+          bool,
+          "Trig accepts inherited multi-fold arithmetic with no trig rule",
+          true,
+          accepts(trig, arithmetic_source, arithmetic_target),
+        );
+        check(
+          bool,
+          "Trig accepts inherited arithmetic around one trig identity",
+          true,
+          accepts(trig, times(Exp.int(2), identity(x)), Exp.int(2)),
+        );
+        check(
+          bool,
+          "Trig still rejects two trig identities",
+          false,
+          accepts(trig, plus(identity(x), identity(y)), Exp.int(2)),
+        );
+        let without_distribution =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="alg.distribute_mul_add",
+            trig,
+          );
+        check(
+          bool,
+          "a disabled inherited algebra rule stays disabled",
+          false,
+          accepts(
+            without_distribution,
+            times(x, plus(y, Exp.int(2))),
+            plus(times(x, y), times(x, Exp.int(2))),
+          ),
+        );
+        let calculus = Axioms.math_profile(Calculus);
+        check(
+          bool,
+          "Calculus accepts multiple inherited trig identities",
+          true,
+          accepts(calculus, plus(identity(x), identity(y)), Exp.int(2)),
+        );
+        check(
+          bool,
+          "Calculus can simplify inherited trig inside a derivative",
+          true,
+          accepts(calculus, diff(identity(x), x), diff(Exp.int(1), x)),
+        );
+        check(
+          bool,
+          "Calculus composes inherited trig with one derivative rule",
+          true,
+          accepts(calculus, diff(identity(x), x), Exp.int(0)),
+        );
+        check(
+          bool,
+          "Calculus permits repeated inherited arithmetic before one derivative rule",
+          true,
+          accepts(
+            calculus,
+            diff(plus(plus(Exp.int(1), Exp.int(2)), x), x),
+            plus(diff(Exp.int(3), x), diff(x, x)),
+          ),
+        );
+        check(
+          bool,
+          "Calculus still rejects two derivative rules",
+          false,
+          accepts(
+            calculus,
+            plus(diff(builtin_sin(x), x), diff(builtin_cos(x), x)),
+            plus(builtin_cos(x), negate(builtin_sin(x))),
+          ),
+        );
+      },
+    ),
+    test_case(
       "stage plan rejects unknown profile rule ids",
       `Quick,
       () => {
@@ -5770,15 +6007,14 @@ let tests = (
             profile,
             "alg.expand_polynomial",
           );
-        check(
-          bool,
-          "disabled polynomial expansion is not recovered by scalar cleanup",
-          false,
-          switch (authorize(~profile=without_expansion, source, target)) {
-          | Authorized(_) => true
-          | Rejected(_) => false
-          },
-        );
+        switch (authorize(~profile=without_expansion, source, target)) {
+        | Rejected(_) => ()
+        | Authorized(plan) =>
+          fail(
+            "disabled polynomial expansion admitted route: "
+            ++ String.concat(", ", plan.summary.rule_ids),
+          )
+        };
         let without_scalar_cleanup =
           Axioms.profile_with_capability_disabled(
             profile,
@@ -5864,7 +6100,7 @@ let tests = (
         check(
           list(bool),
           "example statuses",
-          [true, false, true, false, true, false, true],
+          [true, false, true, true, true, true, true],
           results |> List.map(profile_board_result_status),
         );
         switch (

@@ -239,6 +239,7 @@ type stage_plan = {
   stage: automation_stage,
   atoms: list(semantic_proof_atom),
   capabilities: list(compiled_capability),
+  foreground_rule_ids: list(string),
   pre_cleanup: list(cleanup_capability),
   visible_rules: list(planned_visible_rule),
   post_cleanup: list(cleanup_capability),
@@ -1096,6 +1097,14 @@ let primitive_rule_id_for_cleanup =
   | PowerIdentity => "power.identity"
   | PowerNotation => "power.notation"
   | CollectLikeTerms => "alg.collect_like_terms";
+
+/* Repeating a primitive rule can implement a separately controlled macro.
+   Search may still use the primitive once when the macro is disabled, but it
+   must not reconstruct the disabled composite operation. */
+let repeated_rule_composite_capability =
+  fun
+  | "alg.distribute_mul_add" => Some("alg.expand_polynomial")
+  | _ => None;
 
 let profile_group_for_rule_id =
   fun
@@ -3532,7 +3541,21 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
         : [];
     let default_usage_for_atom = (atom: semantic_proof_atom) =>
       switch (stage, atom.kind) {
-      | (Manual, VisibleAtom) => AtMostOne
+      | (Manual, VisibleAtom) =>
+        planned_rules
+        |> List.find_opt((planned: planned_visible_rule) =>
+             planned.rule.id == atom.id
+           )
+        |> Option.map((planned: planned_visible_rule) =>
+             List.mem(profile.level, planned.rule.introduced_levels)
+               ? AtMostOne
+               : BoundedClosure({
+                   max_uses: 12,
+                   max_states: 256,
+                   cost: 1,
+                 })
+           )
+        |> Option.value(~default=AtMostOne)
       | (Manual, CleanupAtom) =>
         BoundedClosure({
           max_uses: 64,
@@ -3603,6 +3626,31 @@ let stage_plan_for_profile = (profile: math_profile, stage) => {
       stage,
       atoms: cleanup_atoms @ visible_atoms @ normalizer_atoms,
       capabilities,
+      foreground_rule_ids:
+        stage == Manual
+          ? (
+              planned_rules
+              |> List.filter((planned: planned_visible_rule) =>
+                   List.mem(profile.level, planned.rule.introduced_levels)
+                 )
+              |> List.map((planned: planned_visible_rule) => planned.rule.id)
+            )
+            @ (
+              cleanup
+              |> List.filter(capability =>
+                   switch (
+                     catalog_rule_by_id(
+                       primitive_rule_id_for_cleanup(capability),
+                     )
+                   ) {
+                   | Some(rule) =>
+                     List.mem(profile.level, rule.introduced_levels)
+                   | None => false
+                   }
+                 )
+              |> List.map(cleanup_capability_label)
+            )
+          : [],
       pre_cleanup: cleanup,
       visible_rules: planned_rules |> List.filter(planned_rule_executable),
       post_cleanup: cleanup,
@@ -3657,7 +3705,7 @@ let compiled_capability_requirements_satisfied =
   && capability.required_rule_ids
   |> List.for_all(compiled_capability_enabled(plan));
 
-let validate_capability_use_counts = (plan: stage_plan, uses) =>
+let validate_capability_use_counts = (plan: stage_plan, uses) => {
   uses
   |> List.find_map(((capability_id, count)) =>
        switch (compiled_capability_for_id(plan, capability_id)) {
@@ -3677,6 +3725,22 @@ let validate_capability_use_counts = (plan: stage_plan, uses) =>
        | Some(_) => None
        }
      );
+};
+
+let validate_foreground_rule_uses = (plan: stage_plan, rule_ids) => {
+  let foreground_uses =
+    rule_ids
+    |> List.fold_left(
+         (total, rule_id) =>
+           List.mem(rule_id, plan.foreground_rule_ids) ? total + 1 : total,
+         0,
+       );
+  if (plan.stage == Manual && foreground_uses > 1) {
+    Some("One Step permits at most one rule from the active math level");
+  } else {
+    None;
+  };
+};
 
 let stage_plan_for_level = (level, stage) =>
   stage_plan_for_profile(math_profile(level), stage);
