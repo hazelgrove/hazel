@@ -82,6 +82,7 @@ module M: Projector = {
     );
   };
 
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (model, _, a: action) =>
     switch (a, model) {
     | (ToggleDisplay, Expected) => Self

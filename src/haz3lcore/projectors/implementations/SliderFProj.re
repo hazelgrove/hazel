@@ -49,6 +49,7 @@ module M: Projector = {
   let dynamics = false;
   let elaborate_syntax = false;
   let placeholder = (_, _, _) => ProjectorCore.Shape.inline(10);
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (model, _, _) => model;
   let error = (_, _): option(ProjectorBase.error) => None;
   let context_actions = (_, _, ~splice as _) => [];

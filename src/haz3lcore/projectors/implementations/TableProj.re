@@ -135,6 +135,45 @@ module M: Projector = {
     };
   let dynamics = false;
   let elaborate_syntax = true;
+  /* Intrinsic size of one cell, in character-grid units: splice cells
+   * size around their sub-editor content, other cells around their
+   * abbreviated value text. Shared by [placeholder] and [splice_rows]
+   * so reserved space and reported splice positions agree. */
+  let cell_size = (splices, splice_size: View.splice_size, e: Exp.t): Point.t =>
+    switch (cell_splice_id(splices, e)) {
+    | Some(id) =>
+      let size = splice_size(id);
+      Point.{
+        row: max(1, size.row + 1),
+        /* Room for the sub-editor's horizontal cell margin. */
+        col: size.col + 2,
+      };
+    | None =>
+      Point.{
+        row: 1,
+        col:
+          Abbreviate.abbreviate_exp(~available=max_column_length, e) |> snd,
+      }
+    };
+  let row_heights_of = (sizes: list(list(Point.t))): list(int) =>
+    List.map(
+      row =>
+        row |> List.map((p: Point.t) => p.row) |> List.fold_left(max, 1),
+      sizes,
+    );
+  /* Beyond this row count the table switches to scrolled mode with
+   * sticky headers — see proj-table.css's `:has(tbody tr:nth-child(10))`
+   * selector. Must stay in sync with that threshold. */
+  let scroll_threshold_rows = 10;
+  /* Vertical space the block reserves for the data rows: single-line
+   * rows scroll past the threshold (matching the CSS); multi-line
+   * splice content just makes the table taller. */
+  let block_height = (row_heights: list(int)): int => {
+    let total_rows = List.fold_left((+), 0, row_heights);
+    let num_rows = List.length(row_heights);
+    total_rows == num_rows
+      ? min(num_rows, scroll_threshold_rows) : total_rows;
+  };
   let placeholder = (_, info, splice_size: View.splice_size) =>
     switch (get(info)) {
     | None =>
@@ -159,33 +198,8 @@ module M: Projector = {
       let outer_padding_chars = 4;
       /* Approximate per-column cell padding, in characters. */
       let per_column_padding_chars = 2;
-      /* Beyond this row count the table switches to scrolled mode with
-       * sticky headers — see proj-table.css's `:has(tbody tr:nth-child(10))`
-       * selector. Must stay in sync with that threshold. */
-      let scroll_threshold_rows = 10;
-
       let splices = Segment.direct_splices(info.syntax);
-      /* Intrinsic size of one cell, in character-grid units: splice
-       * cells size around their sub-editor content, other cells around
-       * their abbreviated value text. */
-      let cell_size = (e: Exp.t): Point.t =>
-        switch (cell_splice_id(splices, e)) {
-        | Some(id) =>
-          let size = splice_size(id);
-          Point.{
-            row: max(1, size.row + 1),
-            /* Room for the sub-editor's horizontal cell margin. */
-            col: size.col + 2,
-          };
-        | None =>
-          Point.{
-            row: 1,
-            col:
-              Abbreviate.abbreviate_exp(~available=max_column_length, e)
-              |> snd,
-          }
-        };
-      let sizes = List.map(List.map(cell_size), rows);
+      let sizes = List.map(List.map(cell_size(splices, splice_size)), rows);
 
       let header_row_chars =
         header |> List.map(String.length) |> List.fold_left((+), 0);
@@ -197,31 +211,54 @@ module M: Projector = {
         |> List.fold_left(max, 0, _);
       let content_chars = max(header_row_chars, widest_row_chars);
 
-      let row_heights =
-        List.map(
-          row =>
-            row
-            |> List.map((p: Point.t) => p.row)
-            |> List.fold_left(max, 1, _),
-          sizes,
-        );
-      let total_rows = List.fold_left((+), 0, row_heights);
-      let num_rows = List.length(rows);
+      let row_heights = row_heights_of(sizes);
       let num_cols = List.length(header);
       ProjectorCore.Shape.{
-        vertical:
-          /* Single-line rows scroll past the threshold (matching the
-           * CSS); multi-line splice content just makes the table taller. */
-          Block(
-            total_rows == num_rows
-              ? min(num_rows, scroll_threshold_rows) : total_rows,
-          ),
+        vertical: Block(block_height(row_heights)),
         horizontal:
           outer_padding_chars
           + content_chars
           + num_cols
           * per_column_padding_chars,
       };
+    };
+  /* Row offset of each cell splice within the block: one row for the
+   * header, plus the cumulative height of the data rows above it. The
+   * header is not counted in the block's height (see placeholder), so
+   * the last row's offset lands one row past the block — matching the
+   * rendered table, which is one header taller than its block. In
+   * scrolled mode a cell's on-screen position depends on the scroll
+   * state, so offsets are clamped to the block as a best effort. */
+  let splice_rows = (_, info, splice_size: View.splice_size) =>
+    switch (get(info)) {
+    | None => Id.Map.empty
+    | Some((_header, rows)) =>
+      let splices = Segment.direct_splices(info.syntax);
+      let sizes = List.map(List.map(cell_size(splices, splice_size)), rows);
+      let heights = row_heights_of(sizes);
+      let scrolled = block_height(heights) < List.fold_left((+), 0, heights);
+      let clamp = offset =>
+        scrolled ? min(offset, max(0, block_height(heights) - 1)) : offset;
+      let (_, map) =
+        List.fold_left2(
+          ((offset, map), row, height) => {
+            let map =
+              List.fold_left(
+                (map, e: Exp.t) =>
+                  switch (cell_splice_id(splices, e)) {
+                  | Some(id) => Id.Map.add(id, clamp(offset), map)
+                  | None => map
+                  },
+                map,
+                row,
+              );
+            (offset + height, map);
+          },
+          (1, Id.Map.empty),
+          rows,
+          heights,
+        );
+      map;
     };
   let update = (model, _, _) => model;
   let error = (_, info) =>

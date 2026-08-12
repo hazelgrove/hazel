@@ -23,9 +23,20 @@ let measurement_of_term =
     )
   };
 
+/* The frame mk_data is building views for: the root editor, or the
+ * sub-editor of the splice with the given id. */
+type frame =
+  | Root
+  | SpliceFrame(Id.t);
+
 /* Build refractor data from editor state.
- * This is analogous to ProjectorView.Model.mk but specialized for refractors.
- */
+ * This is analogous to ProjectorView.Model.mk but specialized for
+ * refractors, with one twist for terms inside splices: the owning
+ * splice's sub-editor draws the term-anchored layers (only its local
+ * measured map knows the term's position), while the offside sample
+ * view never goes into a splice — the root editor draws it beside the
+ * host projector, on the document row the splice's contents are laid
+ * out on (CachedSyntax.doc_row_of_splice). */
 let mk_data =
     (
       ~refractors: Zipper.Refractor.Map.t,
@@ -35,16 +46,60 @@ let mk_data =
       ~dynamics: Language.Dynamics.Map.t,
       ~sample_focus: Language.Sample.Focus.t,
       ~editor_active: bool,
-      /* Anchor the offside view at the term itself rather than at the
-       * end of its line: used in splice sub-editors, where the view
-       * drops to the row below its term and end-of-line placement
-       * would push it over the neighboring table cell. */
-      ~offside_at_term: bool,
+      ~frame: frame,
     )
     : list(ProjectorView.Model.projector_data) => {
   open Util.OptUtil.Syntax;
   let {term_data, selection_ids, _}: CachedSyntax.t = syntax;
   let measured = CachedSyntax.measured(syntax);
+  let placement = (id: Id.t) =>
+    switch (frame, CachedSyntax.splice_containing_id(id, syntax)) {
+    | (SpliceFrame(frame_sid), Some((sid, _)))
+        when Id.equal(sid, frame_sid) =>
+      /* This frame's own probe: term-anchored layers at local coords. */
+      let+ measurement = measurement_of_term(id, term_data, measured);
+      (measurement, 0, ProjectorView.Model.NoOffside);
+    | (SpliceFrame(_), _) =>
+      /* Another frame's probe (the root's, another splice's, or a
+       * nested splice's — interiors are measured recursively, so the
+       * local lookup would "succeed" for nested ids too). */
+      None
+    | (Root, None) =>
+      let+ measurement = measurement_of_term(id, term_data, measured);
+      (
+        measurement,
+        ProjectorView.Model.offside_base(
+          ~offset=ProjectorView.offside_offset,
+          measurement,
+          measured,
+        ),
+        ProjectorView.Model.All,
+      );
+    | (Root, Some((sid, s))) =>
+      /* Offside view only, beside the host projector on the splice
+       * contents' document row. */
+      let* local = measurement_of_term(id, term_data, s.measured);
+      let+ splice_row = CachedSyntax.doc_row_of_splice(sid, syntax);
+      let point =
+        Util.Point.{
+          row: splice_row + local.origin.row,
+          col: 0,
+        };
+      let measurement =
+        Measured.{
+          origin: point,
+          last: point,
+        };
+      (
+        measurement,
+        ProjectorView.Model.offside_base(
+          ~offset=ProjectorView.offside_offset,
+          measurement,
+          measured,
+        ),
+        ProjectorView.Model.OffsideOnly,
+      );
+    };
   List.filter_map(
     ((id, entry)) => {
       /* Construct full Base.projector on demand for rendering,
@@ -64,7 +119,7 @@ let mk_data =
             }),
         );
       let p = Refractors.to_projector(syntax_piece, id, entry);
-      let+ measurement = measurement_of_term(id, term_data, measured);
+      let+ (measurement, offside, layers) = placement(id);
       let info =
         ProjectorInfo.mk_info(
           p,
@@ -77,14 +132,8 @@ let mk_data =
         p,
         info,
         measurement,
-        offside_base:
-          offside_at_term
-            ? 0
-            : ProjectorView.Model.offside_base(
-                ~offset=4,
-                measurement,
-                measured,
-              ),
+        offside_base: offside,
+        render_layers: layers,
         status:
           ProjectorView.Model.mk_status(
             p,
@@ -116,7 +165,6 @@ let all =
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(Globals.VisibleRows.t)=?,
-      ~offside_row_offset: int=0,
       refractor_data: list(ProjectorView.Model.projector_data),
       refractor_list: list(Id.t),
     ) => {
@@ -135,7 +183,6 @@ let all =
            font_metrics,
            ~core_settings,
            ~skip_inline=true,
-           ~offside_row_offset,
            ~render_splice=ProjectorView.default_render_splice(font_metrics),
            data,
            refractor_list,

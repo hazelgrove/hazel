@@ -62,6 +62,7 @@ module M: Projector = {
       print_endline("Warning - LivelitProj.replace_model_term: not an Ap");
       start_term;
     };
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (_model, _info, action) =>
     switch (action) {
     | _ => print_endline("Warning - LivelitProj.update: No action")

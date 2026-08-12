@@ -103,10 +103,14 @@ module ShapeMapSemantics = {
         splice_size: ProjectorBase.View.splice_size,
         p: Base.projector,
       )
-      : (ProjectorCore.Shape.t, option(ProjectorBase.error)) => {
+      : (ProjectorCore.Shape.t, Id.Map.t(int), option(ProjectorBase.error)) => {
     let (module P) = ProjectorInit.to_module(p.kind);
     let info = mk_info(p, ~sample_focus, ~statics, ~dynamics, ~elaborated);
-    (P.placeholder(p.model, info, splice_size), P.error(p.model, info));
+    (
+      P.placeholder(p.model, info, splice_size),
+      P.splice_rows(p.model, info, splice_size),
+      P.error(p.model, info),
+    );
   };
 
   /* All projector ids occurring anywhere within a segment, including
@@ -136,13 +140,19 @@ module ShapeMapSemantics = {
         dynamics: Dynamics.Map.t,
         ~elaborated: option(Exp.t),
       )
-      : (Id.Map.t(ProjectorCore.Shape.t), Id.Map.t(ProjectorBase.error)) => {
+      : (
+          Id.Map.t(ProjectorCore.Shape.t),
+          /* splice id → (host projector id, row offset of the splice
+           * within the host's placeholder block); see P.splice_rows */
+          Id.Map.t((Id.t, int)),
+          Id.Map.t(ProjectorBase.error),
+        ) => {
     let contained =
       Id.Map.map(
         (p: Base.projector) => projector_ids_in(p.syntax),
         proj_map,
       );
-    let process_one = (id, p: Base.projector, (shapes, errors)) => {
+    let process_one = (id, p: Base.projector, (shapes, layouts, errors)) => {
       let splice_size = (sid: Id.t): Util.Point.t =>
         switch (
           List.find_opt(
@@ -153,7 +163,7 @@ module ShapeMapSemantics = {
         | Some(s) => Measured.segment_bbox(~shape_map=shapes, s.content)
         | None => Util.Point.zero
         };
-      let (shape, err) =
+      let (shape, splice_rows, err) =
         from_semantics(
           refractors.sample_focus,
           statics,
@@ -164,6 +174,23 @@ module ShapeMapSemantics = {
         );
       (
         Id.Map.add(id, shape, shapes),
+        {
+          /* Every direct splice gets a layout entry (defaulting to the
+           * top of the block) so the host is always discoverable, with
+           * the projector's own splice_rows offsets layered on top. */
+
+          let layouts =
+            List.fold_left(
+              (acc, s: Base.splice) => Id.Map.add(s.id, (id, 0), acc),
+              layouts,
+              Segment.direct_splices(p.syntax),
+            );
+          Id.Map.fold(
+            (sid, row, acc) => Id.Map.add(sid, (id, row), acc),
+            splice_rows,
+            layouts,
+          );
+        },
         switch (err) {
         | Some(err) => Id.Map.add(id, err, errors)
         | None => errors
@@ -190,6 +217,6 @@ module ShapeMapSemantics = {
             ? (blocked, Id.Map.empty) : (ready, blocked);
         process(blocked, Id.Map.fold(process_one, ready, acc));
       };
-    process(proj_map, (Id.Map.empty, Id.Map.empty));
+    process(proj_map, (Id.Map.empty, Id.Map.empty, Id.Map.empty));
   };
 };

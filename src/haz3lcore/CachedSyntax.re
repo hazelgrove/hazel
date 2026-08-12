@@ -41,6 +41,11 @@ type t = {
   shape_map: ProjectorCore.Shape.Map.t,
   /* Errors reported by projectors (e.g. "can't render as table") */
   projector_errors: Id.Map.t(ProjectorBase.error),
+  /* splice id → (host projector id, row offset of the splice within
+   * the host's placeholder block). Computed alongside shape_map from
+   * each projector's splice_rows; lets main-frame decorations find the
+   * document row a splice's contents are laid out on. */
+  splice_layout: Id.Map.t((Id.t, int)),
   cached_backpack: list(Tile.t),
   /* Inputs last used to compute shape_map/projector_errors/measured.
    * Kept so `calculate` can detect when statics changed and refresh
@@ -84,7 +89,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
     MakeTerm.go(segment);
-  let (projector_shapes, projector_errors) =
+  let (projector_shapes, splice_layout, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
       z.refractors,
@@ -115,6 +120,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     projector_list,
     shape_map: projector_shapes,
     projector_errors,
+    splice_layout,
     cached_backpack: Segment.global_missing_shards(segment),
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
@@ -138,7 +144,7 @@ let mark_old: t => t =
  * elaborated expression (e.g. TableProj placeholder size). */
 let refresh_shapes =
     (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
-  let (shape_map, projector_errors) =
+  let (shape_map, splice_layout, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       old.projectors,
       z.refractors,
@@ -162,6 +168,7 @@ let refresh_shapes =
     splices: mk_splice_map(old.main_splice.segment, shape_map),
     shape_map,
     projector_errors,
+    splice_layout,
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
@@ -203,13 +210,51 @@ let segment = (syntax: t) => syntax.main_splice.segment;
 let splice_opt = (id: Id.t, syntax: t): option(splice) =>
   Id.Map.find_opt(id, syntax.splices);
 
-/* Whether the piece/term [id] lives inside some splice's content.
+/* The splice whose content contains the piece/term [id], if any.
  * Splice interiors are merged into the main measured map in their own
  * (splice-local) coordinate frame, so main-frame decorations must not
- * position themselves from such ids — the owning splice's sub-editor
- * is the frame that can. */
-let id_in_splice = (id: Id.t, syntax: t): bool =>
-  Id.Map.exists(
-    (_, s: splice) => Measured.find_by_id_quiet(id, s.measured) != None,
-    syntax.splices,
+ * position themselves directly from such ids — see doc_row_of_splice
+ * for the vertical remap. */
+let splice_containing_id = (id: Id.t, syntax: t): option((Id.t, splice)) => {
+  let candidates =
+    Id.Map.bindings(syntax.splices)
+    |> List.filter(((_, s: splice)) =>
+         Measured.find_by_id_quiet(id, s.measured) != None
+       );
+  /* Splice contents are measured recursively, so an id inside a nested
+   * splice is found in every enclosing splice's map too; the id's own
+   * frame is the innermost candidate — the one containing no other. */
+  List.find_opt(
+    ((_, s: splice)) =>
+      !
+        List.exists(
+          ((sid, _)) => Measured.has_splice_info(sid, s.measured),
+          candidates,
+        ),
+    candidates,
   );
+};
+
+/* The document row on which the splice's contents begin: the host
+ * projector's origin row, plus the splice's row offset within the
+ * host's block (splice_layout), climbing recursively when the host
+ * itself sits inside another splice. This is a grid-level estimate of
+ * the projector's DOM layout — exact horizontal positions inside the
+ * projector remain unknowable at this level. */
+let rec doc_row_of_splice = (sid: Id.t, syntax: t): option(int) => {
+  open Util.OptUtil.Syntax;
+  let* (host, offset) = Id.Map.find_opt(sid, syntax.splice_layout);
+  let+ host_row =
+    switch (splice_containing_id(host, syntax)) {
+    | Some((outer_sid, outer)) =>
+      let* m = Measured.find_by_id_quiet(host, outer.measured);
+      let+ outer_row = doc_row_of_splice(outer_sid, syntax);
+      outer_row + m.origin.row;
+    | None =>
+      Option.map(
+        (m: Measured.measurement) => m.origin.row,
+        Measured.find_by_id_quiet(host, syntax.main_splice.measured),
+      )
+    };
+  host_row + offset;
+};

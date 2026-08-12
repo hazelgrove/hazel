@@ -102,6 +102,7 @@ module M: Projector = {
       ProjectorCore.Shape.inline(String.length(filename) + 6) // Account for reset button and toggle
     | NoFile => ProjectorCore.Shape.inline(13)
     };
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (m: model, _, action: action) => {
     switch (action) {
     | SetFile({filename, content}) =>

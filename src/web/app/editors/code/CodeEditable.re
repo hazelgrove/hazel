@@ -765,20 +765,23 @@ module View = {
     let zipper = model.editor.state.zipper;
     /* Use visible row range from model (updated by scroll handler) */
     let visible = globals.visible_rows;
-    /* Refractor (probe) views render in the frame that owns their
-     * term's coordinates. A term inside a splice is measured in the
-     * splice's own frame (its interior is merged into the main map at
-     * splice-local coordinates), so only the owning cell's sub-editor
-     * can place its probe correctly — the main frame skips it, and
-     * each splice sub-editor renders the refractors its local measured
-     * map can serve (mk_data's measurement lookup filters the rest).
-     * Region (non-splice) sub-editors share the host's frame and skip
-     * refractors as before. */
+    /* Refractor (probe) views split across frames: a splice sub-editor
+     * draws the term-anchored layers of its own probes (only its local
+     * measured map knows their positions), while offside sample views
+     * always render in the root editor — chips never go into splices
+     * (see RefractorView.mk_data). Region (non-splice) sub-editors
+     * share the host's frame and skip refractors as before. */
     let render_refractors = is_splice_sub || !is_sub;
     let refractors_model =
       if (!render_refractors) {
         [];
       } else {
+        let frame =
+          switch (sub_editor) {
+          | Some(sub) when is_splice_sub =>
+            RefractorView.SpliceFrame(sub.target.anchor)
+          | _ => RefractorView.Root
+          };
         let refractor_data =
           RefractorView.mk_data(
             ~refractors=
@@ -793,25 +796,14 @@ module View = {
             ~dynamics,
             ~sample_focus=zipper.refractors.sample_focus,
             ~editor_active=selected,
-            ~offside_at_term=is_sub,
+            ~frame,
           );
-        let refractor_data =
-          is_sub
-            ? refractor_data
-            : List.filter(
-                (d: ProjectorView.Model.projector_data) =>
-                  !CachedSyntax.id_in_splice(d.p.id, model.editor.syntax),
-                refractor_data,
-              );
         RefractorView.all(
           x => inject(Perform(x)),
           signal(MakeActive),
           globals.font_metrics,
           ~core_settings=globals.settings.core,
           ~visible=?is_sub ? None : visible,
-          /* Inside a cell splice there is no free end-of-line space, so
-           * the probe's offside view drops to the row below its term. */
-          ~offside_row_offset=is_sub ? 1 : 0,
           refractor_data,
           List.map(fst, zipper.refractors.manuals)
           @ List.map(

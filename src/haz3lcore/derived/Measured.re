@@ -206,6 +206,10 @@ let find_splice_info = (~msg="", s: Base.splice, map): splice_info =>
 let find_splice_info_opt = (s: Base.splice, map): option(splice_info) =>
   Id.Map.find_opt(s.id, map.splices);
 
+/* Whether the splice [sid] was measured anywhere within this map's
+ * segment (including recursively inside other splices). */
+let has_splice_info = (sid: Id.t, map): bool => Id.Map.mem(sid, map.splices);
+
 /* A splice consumes zero width in its parent's coordinate frame; its
  * intrinsic size is recorded separately in [map.splices] and the splice's
  * actual on-screen placement is decided by its parent projector's view. */
