@@ -32,7 +32,9 @@ let ^pct = {
       ]
     );
 
-  let expand = fun m : Model -> m
+  let expand = fun m : Model -> m;
+
+  let shape = Inline(20)
 } in
 
 # Each use below carries its own model, stored right here in the #

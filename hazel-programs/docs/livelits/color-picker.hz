@@ -14,12 +14,15 @@ let ^hwb = {
     ++ string_of_int(w) ++ "% "
     ++ string_of_int(b) ++ "%)";
 
-  # square geometry: 150 x 100 px, so y is blackness directly #
+  # field geometry: 150 x 92 px; y scales to blackness #
   let pick = fun (h, x, y) ->
-    (h, (150 - x) * (100 - y) / 150, y);
+    let b = y * 100 / 92 in
+    (h, (150 - x) * (100 - b) / 150, b);
 
   let dot_x = fun (w, b) ->
     if b == 100 then 0 else 150 - 150 * w / (100 - b);
+
+  let dot_y = fun b -> b * 92 / 100;
 
   let init : Model = (160, 25, 10);
 
@@ -27,52 +30,52 @@ let ^hwb = {
 
   let view = fun (h, w, b) : Model ->
     Div(
-      [Style([("display", "flex"), ("gap", "0.8em"),
-              ("align-items", "flex-start"),
+      [Style([("display", "flex"), ("flex-direction", "column"),
+              ("gap", "0.35em"),
               ("font-family", "var(--code-font)"),
               ("font-size", "0.75em"), ("padding", "2px")])],
       [
         Div(
-          [Style([("width", "2.6em"), ("height", "2.6em"),
-                  ("border-radius", "0.4em"),
-                  ("border", "1px solid var(--BR1)"),
-                  ("background", css((h, w, b)))])],
-          []
-        ),
-        Div(
-          [Style([("display", "flex"), ("flex-direction", "column"),
-                  ("gap", "0.4em")])],
+          [Style([("width", "150px"), ("height", "92px"),
+                  ("position", "relative"),
+                  ("cursor", "crosshair"),
+                  ("border-radius", "3px"),
+                  ("background",
+                   "linear-gradient(to top, #000, transparent), "
+                   ++ "linear-gradient(to right, #fff, hsl("
+                   ++ string_of_int(h) ++ " 100% 50%))")]),
+           OnClickAt(fun (x, y) -> pick((h, x, y)))],
           [
             Div(
-              [Style([("width", "150px"), ("height", "100px"),
-                      ("position", "relative"),
-                      ("cursor", "crosshair"),
-                      ("border-radius", "3px"),
-                      ("background",
-                       "linear-gradient(to top, #000, transparent), "
-                       ++ "linear-gradient(to right, #fff, hsl("
-                       ++ string_of_int(h) ++ " 100% 50%))")]),
-               OnClickAt(fun (x, y) -> pick((h, x, y)))],
-              [
-                Div(
-                  [Style([("position", "absolute"),
-                          ("left",
-                           string_of_int(dot_x((w, b)) - 4) ++ "px"),
-                          ("top", string_of_int(b - 4) ++ "px"),
-                          ("width", "8px"), ("height", "8px"),
-                          ("border-radius", "50%"),
-                          ("border", "2px solid #fff"),
-                          ("box-shadow", "0 0 2px #000"),
-                          ("pointer-events", "none")])],
-                  []
-                )
-              ]
+              [Style([("position", "absolute"),
+                      ("left",
+                       string_of_int(dot_x((w, b)) - 4) ++ "px"),
+                      ("top", string_of_int(dot_y(b) - 4) ++ "px"),
+                      ("width", "8px"), ("height", "8px"),
+                      ("border-radius", "50%"),
+                      ("border", "2px solid #fff"),
+                      ("box-shadow", "0 0 2px #000"),
+                      ("pointer-events", "none")])],
+              []
+            )
+          ]
+        ),
+        Div(
+          [Style([("display", "flex"), ("gap", "0.5em"),
+                  ("align-items", "center")])],
+          [
+            Div(
+              [Style([("width", "26px"), ("height", "14px"),
+                      ("border-radius", "7px"),
+                      ("border", "1px solid var(--BR1)"),
+                      ("background", css((h, w, b)))])],
+              []
             ),
             Input([
               Type("range"), Min("0"), Max("359"),
               Value(string_of_int(h)),
               OnInput(fun s -> (int_of_string(s), w, b)),
-              Style([("width", "150px"), ("margin", "0"),
+              Style([("width", "118px"), ("margin", "0"),
                      ("background",
                       "linear-gradient(to right, #f00, #ff0, #0f0, "
                       ++ "#0ff, #00f, #f0f, #f00)")])
@@ -84,7 +87,7 @@ let ^hwb = {
 
   let expand = fun m : Model -> css(m);
 
-  let size = (28, 7)
+  let shape = Tab(16, 5)
 } in
 
 # Two picks, each with its own color stored in its argument: #

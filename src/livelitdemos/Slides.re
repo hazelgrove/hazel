@@ -5,6 +5,7 @@
 let all_slides: list((string, Haz3lcore.PersistentSegment.t)) =
   [
     ("Define a Slider", [%blob "defined-slider.hz"]),
+    ("Emotion", [%blob "emotion.hz"]),
     ("Color Picker", [%blob "color-picker.hz"]),
   ]
   |> List.map(((name, text)) =>

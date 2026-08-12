@@ -158,18 +158,25 @@ let expand(m: Model) = m
   is still a valid expression, just without the widget.
 - Helpers and type members are ordinary module members; keep the
   definition self-contained (helpers inside the module).
-- Optional member `let size = (w, h)` reserves the widget's footprint in
-  the program text: w columns wide, h lines tall (h of 1 = inline;
-  default 24x1). Set it whenever the view is taller than one line, and
-  count EVERY row the view renders — an editor line is ~25px, so a
-  200x150 svg plus a button row needs about `let size = (32, 8)`.
+- Optional member `let shape = ...` sets the widget's TEXT footprint
+  (a LivelitShape): `Inline(w)` is one line, w columns; `Block(w, h)`
+  is h lines with code flowing below; `Tab(w, h)` is h lines with code
+  continuing on the TOP line beside the widget (good for compact
+  square-ish widgets used inline). Default Inline(24). The view mounts
+  centered in a content box just inside the chevron end-caps and is
+  CLIPPED to it. Prefer views that FILL the box — Width/Height "100%",
+  svg scaled via viewBox — so any reasonable footprint looks right.
+  Views needing exact pixels (coordinate click math) should size
+  snugly (a line is ~25px); overshoot clips, it never overlaps code.
 - Models and Actions must be first-order data (ints, strings, tuples,
   constructors) — they live in the program text.
 - Member access is ordinary syntax: `^pct.expand(25)` works anywhere.
+- `Create("data-hint", "drag me")` on a view element shows an instant
+  tooltip on hover — advertise non-obvious gestures this way.
 - When the user operates the widget, the argument is rewritten to the
   transition `^name.update(prev, action)` — this is expected; it
-  normalizes on the next evaluation and keeps the last interaction
-  visible to probes and the stepper.
+  evaluates in the program (probes inside update fire) and stays
+  visible as the last interaction.
 - Gestures: mouse-down and mouse-move actions preview the next model
   live WITHOUT rewriting the program; the gesture-ending event (mouse
   up, click, ...) commits once. So a drag is smooth and lands as a
