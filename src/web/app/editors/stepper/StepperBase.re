@@ -84,6 +84,54 @@ let status_of_entry = (entry: cached_proof_map_entry): option(bool) => {
   };
 };
 
+/* The unified per-row error status, derived from the proof-check marks
+ * the checker recorded for this row (already cached on every step).
+ * Rendered as a status chip + message by `step_row`. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type step_status =
+  /* Checked; no marks. (Says nothing about whether the goal is proven —
+   * that's `status_of_entry`.) */
+  | StepOk
+  /* An intentionally-incomplete proof: the hole a MissingStep stands for. */
+  | StepIncomplete
+  /* This row is at fault; the payload is the highest-priority mark. */
+  | StepBroken(ProofMark.t)
+  /* An earlier row is at fault, so this row has no incoming goal. */
+  | StepBlocked
+  /* No proof-map entry yet (evaluation pending or unavailable). */
+  | StepPending;
+
+let status_of_step_entry = (entry: cached_proof_map_entry): step_status =>
+  switch (entry) {
+  | EntryNotFound => StepPending
+  | EntryFound({marks, _}) =>
+    let blocked =
+      List.exists(
+        fun
+        | ProofMark.MissingIncoming => true
+        | _ => false,
+        marks,
+      );
+    if (blocked) {
+      StepBlocked;
+    } else {
+      switch (ProofMark.highest(marks)) {
+      | Some(m) => StepBroken(m)
+      | None => StepOk
+      };
+    };
+  };
+
+/* MissingStep rows stand in for hole-shaped proof terms; garbage syntax
+ * (Invalid/MultiHole) is broken, a genuine EmptyHole is not. */
+let status_of_missing_step_proof = (proof: option(Proof.t)): step_status =>
+  switch (proof) {
+  | Some({term: Invalid(_) | MultiHole(_), _}) =>
+    StepBroken(ProofMark.MalformedProofTerm)
+  | Some(_)
+  | None => StepIncomplete
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_action =
   | InductionStep(InductionStep.action'(step_action))
@@ -591,6 +639,32 @@ and Stepper: {
          ~root=Exp,
        );
 
+  /* Like `make_editor`, but with the editor's own statics computed, so
+   * error decorations (shards) render inside the row. The expressions
+   * shown in rows are elaboration output with freshened ids, so no info
+   * map from further up covers them (cf. MissingStep.Update.calculate).
+   * Only used for the row's displayed editor — pre/post (auto-step)
+   * editors aren't rendered, so their statics would be wasted work. */
+  let make_editor_with_statics =
+      (
+        ~settings: Calc.t(CoreSettings.t),
+        ~ctx: Calc.t(SemanticCtx.t),
+        exp: Exp.t,
+      )
+      : CodeSelectable.Model.t => {
+    let settings = Calc.get_value(settings);
+    exp
+    |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp)
+    |> CodeEditable.Update.calculate(
+         ~settings,
+         ~is_edited=true,
+         ~is_dynamic_term=true,
+         ~dynamics=Dynamics.Map.empty,
+         ~stitch=x => x,
+         ~ctx=SemanticCtx.get_ctx(Calc.get_value(ctx)),
+       );
+  };
+
   /* Decompose the proof sub-term passed to a step. A `Seq(head, tail)`
    * represents "step then more steps", so the head describes the current
    * step kind and the tail is recursed into `next_step`. A leaf-shaped
@@ -621,13 +695,13 @@ and Stepper: {
    * pass (see `AxiomStep.calculate`). */
   let kind_of_proof = (proof_head: Proof.t): option(step_kind_model) =>
     switch (proof_head.term) {
-    | AxiomStep(_) =>
+    | AxiomStep({direction, _}) =>
       Some(
         AxiomStep({
           name: "",
           at_idx: 0,
           at_exp: Exp.fresh(EmptyHole),
-          direction: Direction.Right,
+          direction,
           equality: "",
           next_exp: Calc.Pending,
         }),
@@ -728,7 +802,7 @@ and Stepper: {
         switch (editor_exps_of_entry(entry)) {
         | Some((pre, current, post)) => (
             List.map(make_editor, pre),
-            Some(make_editor(current)),
+            Some(make_editor_with_statics(~settings, ~ctx, current)),
             List.map(make_editor, post),
           )
         | None => ([], None, [])
@@ -1090,17 +1164,92 @@ and Stepper: {
       Proof.fresh(EmptyHole),
     );
 
+  /* Repair for a RuleDoesNotApply axiom step: same step, other
+   * direction. Rewrites the step's own proof subtree in place. */
+  let flip_direction_patch =
+      (p: Proof.t): option(Haz3lcore.EditorTransform.patch) =>
+    switch (p.term) {
+    | AxiomStep({at_idx, at_exp, direction, equality}) =>
+      Some(
+        Haz3lcore.EditorTransform.mk_proof_patch(
+          ~target_id=Proof.rep_id(p),
+          {
+            ...p,
+            term:
+              AxiomStep({
+                at_idx,
+                at_exp,
+                direction: Direction.toggle(direction),
+                equality,
+              }),
+          },
+        ),
+      )
+    | _ => None
+    };
+
   /* Every row in the chain — step or missing step — renders the same way:
-   * the expression it starts from, then its justification. */
+   * the expression it starts from, then its justification.
+   *
+   * Design principle: the same syntax always takes up the same space —
+   * status must never change the proof's layout (no scroll jumps). So
+   * status renders only as (a) a class on the row driving an
+   * absolutely-positioned indicator line along the row's right edge
+   * (red = broken, tan = incomplete, dotted light red = blocked), and
+   * (b) a popup anchored above the justification, hidden until the
+   * justification (button-styled when there is something to show) is
+   * clicked, holding the error message, any extra detail, and the
+   * repair actions. Both are out of the document flow. */
   let step_row =
       (
+        ~globals: Globals.t,
+        ~status: step_status,
+        /* Extra detail appended to the popup body (e.g. an induction
+         * row's missing-pattern witness). */
+        ~popup_extra: list(WebUtil.Node.t),
+        /* Repair affordances rendered at the end of the popup
+         * (e.g. "remove step", "try other direction"). */
+        ~repair: list(WebUtil.Node.t),
         ~editor_view: WebUtil.Node.t,
         ~justification: WebUtil.Node.t,
         ~content: list(WebUtil.Node.t),
-      ) =>
+      ) => {
+    let (row_classes, popup_body) =
+      switch (status) {
+      | StepOk => (["ok"], [])
+      | StepPending => (["pending"], [])
+      | StepIncomplete => (["incomplete"], [])
+      | StepBroken(mark) => (
+          ["broken"],
+          ProofMarkView.message(~globals, mark) @ popup_extra @ repair,
+        )
+      | StepBlocked => (
+          ["blocked"],
+          [WebUtil.Node.text("Waiting on the step above.")]
+          @ popup_extra
+          @ repair,
+        )
+      };
+    /* The popup lives inside the focusable wrapper so clicking a repair
+     * button moves focus within the wrapper (`:focus-within` holds) and
+     * the click lands before the popup hides. */
+    let justification =
+      WebUtil.(
+        switch (popup_body) {
+        | [] => div_c("step-justification-wrap", [justification])
+        | _ =>
+          Node.div(
+            ~attrs=[
+              Attr.classes(["step-justification-wrap", "has-popup"]),
+              Attr.create("tabindex", "0"),
+            ],
+            [div_c("step-error-popup", popup_body), justification],
+          )
+        }
+      );
     WebUtil.[
       Node.div(
-        ~attrs=[Attr.class_("step-border")],
+        ~attrs=[Attr.classes(["step-border"] @ row_classes)],
         [
           div_c(
             "step-display",
@@ -1114,6 +1263,7 @@ and Stepper: {
         @ content,
       ),
     ];
+  };
 
   let rec view_step =
           (
@@ -1148,6 +1298,10 @@ and Stepper: {
       if (!globals.settings.core.evaluation.stepper_history) {
         [];
       } else {
+        let status =
+          status_of_step_entry(
+            Calc.get_saved(EntryNotFound, model.cached_proof_map_entry),
+          );
         let taken_steps =
           switch (model.step_kind) {
           | AxiomStep(m) => [m.at_exp |> Exp.rep_id]
@@ -1155,10 +1309,46 @@ and Stepper: {
           };
         let editor_opt =
           model.current_editor |> Calc.get_saved_exc(~print="current_editor");
-        switch (editor_opt) {
-        | None => []
-        | Some(editor) =>
-          let editor_view =
+        let step_kind_focus =
+          switch (focus) {
+          | Some(StepKindFocus(sk)) => Some(sk)
+          | Some(_)
+          | None => None
+          };
+        let justification =
+          StepKind.view_justification(
+            ~globals,
+            ~take_focus=f => take_focus(StepKindFocus(f)),
+            ~hide_stepper,
+            ~inject=a => inject(StepKindAction(a)),
+            ~is_toplevel,
+            ~focus=step_kind_focus,
+            ~undo,
+            ~proof=current_proof,
+            ~edit_syntax,
+            model.step_kind,
+          );
+        let content =
+          StepKind.view_content(
+            ~globals,
+            ~take_focus=f => take_focus(StepKindFocus(f)),
+            ~hide_stepper,
+            ~inject=a => inject(StepKindAction(a)),
+            ~focus=step_kind_focus,
+            ~is_toplevel,
+            ~undo,
+            ~proof=current_proof,
+            ~edit_syntax,
+            ~main_editor,
+            model.step_kind,
+          );
+        /* A row whose incoming goal is missing has no editor, but it must
+         * still render: dropping the row hides both the breakage and the
+         * step's own UI (justification, induction cases, …). The chip and
+         * message rendered by `step_row` say why the goal is absent. */
+        let editor_view =
+          switch (editor_opt) {
+          | Some(editor) =>
             StepperEditor.View.view(
               ~globals,
               ~signal=
@@ -1180,42 +1370,68 @@ and Stepper: {
                 next_steps: [],
                 refls: [],
               },
-            );
-          let step_kind_focus =
-            switch (focus) {
-            | Some(StepKindFocus(sk)) => Some(sk)
-            | Some(_)
-            | None => None
-            };
-          let justification =
-            StepKind.view_justification(
-              ~globals,
-              ~take_focus=f => take_focus(StepKindFocus(f)),
-              ~hide_stepper,
-              ~inject=a => inject(StepKindAction(a)),
-              ~is_toplevel,
-              ~focus=step_kind_focus,
-              ~undo,
-              ~proof=current_proof,
-              ~edit_syntax,
-              model.step_kind,
-            );
-          let content =
-            StepKind.view_content(
-              ~globals,
-              ~take_focus=f => take_focus(StepKindFocus(f)),
-              ~hide_stepper,
-              ~inject=a => inject(StepKindAction(a)),
-              ~focus=step_kind_focus,
-              ~is_toplevel,
-              ~undo,
-              ~proof=current_proof,
-              ~edit_syntax,
-              ~main_editor,
-              model.step_kind,
-            );
-          step_row(~editor_view, ~justification, ~content);
-        };
+            )
+          | None => WebUtil.(div_c("step-placeholder", [Node.text("—")]))
+          };
+        /* Repair affordances for a broken row, alongside its message:
+         * removing the step is always possible; RuleDoesNotApply also
+         * offers retrying the axiom in the other direction. */
+        let repair =
+          switch (status) {
+          | StepBroken(mark) =>
+            let flip =
+              switch (mark, current_proof) {
+              | (RuleDoesNotApply(_), Some(p)) =>
+                switch (flip_direction_patch(p)) {
+                | Some(patch) => [
+                    Widgets.button(
+                      ~clss=["proof-button"],
+                      ~tooltip="Apply the equality in the other direction",
+                      WebUtil.Node.text("Try other direction"),
+                      _ =>
+                      edit_syntax(patch)
+                    ),
+                  ]
+                | None => []
+                }
+              | _ => []
+              };
+            flip
+            @ [
+              Widgets.button(
+                ~clss=["proof-button"],
+                ~tooltip="Replace this step with a hole",
+                WebUtil.Node.text("Remove step"),
+                _ =>
+                emit_remove_step()
+              ),
+            ];
+          | StepOk
+          | StepIncomplete
+          | StepBlocked
+          | StepPending => []
+          };
+        /* Kind-specific detail for the popup: an inexhaustive induction
+         * includes the statics checker's missing-pattern witness. */
+        let popup_extra =
+          switch (model.step_kind) {
+          | InductionStep(m) =>
+            switch (m.inexhaustive |> Calc.get_saved_opt |> Option.join) {
+            | Some(example) =>
+              ProofMarkView.inexhaustive_message(~globals, example)
+            | None => []
+            }
+          | _ => []
+          };
+        step_row(
+          ~globals,
+          ~status,
+          ~popup_extra,
+          ~repair,
+          ~editor_view,
+          ~justification,
+          ~content,
+        );
       };
     let next_step_view =
       switch (model.next_step) {
@@ -1330,14 +1546,18 @@ and Stepper: {
       | Refl(idx) =>
         switch (List.nth_opt(refls, idx), m.full_exp |> Calc.get_saved_opt) {
         | (Some(at_exp), Some(full_exp)) =>
-          emit(
-            axiom_step_term(
-              ~at_idx=ProofHacks.exp_idx(at_exp, full_exp),
-              ~at_exp,
-              ~direction=Direction.Right,
-              ~equality="refl_eq",
-            ),
-          )
+          switch (ProofHacks.exp_idx(at_exp, full_exp)) {
+          | Some(at_idx) =>
+            emit(
+              axiom_step_term(
+                ~at_idx,
+                ~at_exp,
+                ~direction=Direction.Right,
+                ~equality="refl_eq",
+              ),
+            )
+          | None => Ui_effect.Ignore
+          }
         | (None, _)
         | (_, None) => Ui_effect.Ignore
         }
@@ -1381,7 +1601,20 @@ and Stepper: {
             refls: List.map(Exp.rep_id, refls),
           },
         );
-      step_row(~editor_view, ~justification, ~content=[]);
+      step_row(
+        ~globals,
+        ~status=
+          status_of_missing_step_proof(
+            m.proof |> Calc.get_saved_opt |> Option.join,
+          ),
+        ~popup_extra=[],
+        /* The picker already replaces the malformed sub-term when a step
+         * is chosen, so no extra repair affordance is needed here. */
+        ~repair=[],
+        ~editor_view,
+        ~justification,
+        ~content=[],
+      );
     };
   };
 

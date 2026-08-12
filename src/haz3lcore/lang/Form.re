@@ -427,6 +427,7 @@ type compound_form =
   | ProofSeq
   | ProofForall
   | ProofAxiom
+  | ProofAxiomRev
   | ProofAlgebrite
   | ProofEval
   | ProofInduction
@@ -555,6 +556,10 @@ let get: compound_form => t =
   | ProofForall => mk_pre_c(L, ["forall", "=>"], P.fun_, Proof, [Pat])
   | ProofAxiom =>
     mk_op_c(L, ["axiom", "at", "on", "end"], Proof, [Exp, Exp, Exp])
+  /* An axiom step applying the equality right-to-left (Direction.Left);
+   * `axiom` alone applies it left-to-right (Direction.Right). */
+  | ProofAxiomRev =>
+    mk_op_c(L, ["axiomrev", "at", "on", "end"], Proof, [Exp, Exp, Exp])
   | ProofAlgebrite =>
     mk_op_c(L, ["rewrite", "with", "at", "end"], Proof, [Exp, Exp, Exp])
   | ProofEval => mk_op_c(L, ["eval", "at", "end"], Proof, [Exp, Exp])

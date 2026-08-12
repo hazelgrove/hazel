@@ -189,7 +189,7 @@ module InductionCaseHelpers = {
       scrut_co_ctx: Calc.Pending,
       result: Calc.Pending,
       join_exp: Calc.Pending,
-      is_exhaustive: Calc.Pending,
+      inexhaustive: Calc.Pending,
       validity: Calc.Pending,
     };
 

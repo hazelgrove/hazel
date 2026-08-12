@@ -360,3 +360,130 @@
 .step-placeholder {
   background-color: var(--test-panel-bkg)
 }
+/* Per-row status (see StepperBase.step_row). Design principle: the same
+ * syntax always takes up the same space — status must never change the
+ * proof's layout, so both indicators live outside the document flow:
+ *
+ *  1. An indicator line along the row's right edge, drawn by an
+ *     absolutely-positioned ::after: solid red = broken, tan =
+ *     incomplete, dotted lighter red = blocked (waiting on the step
+ *     above). Ok/pending rows draw nothing.
+ *  2. A popup anchored above the justification, hidden until the
+ *     justification is clicked, carrying the error message and repair
+ *     actions. */
+.step-border {
+  position: relative;
+  /* Reserved gutter for the status indicator line. Always present —
+   * whether or not an indicator is drawn — so a row gaining or losing
+   * status never shifts layout. Because it's margin (not padding), the
+   * gutter sits outside the dotted separators between steps: the
+   * indicator floats in clear space to the right of the row. */
+  margin-right: 14px;
+}
+
+/* Lozenge-shaped line: inset from the row's top/bottom, rounded caps,
+ * centered in the gutter. */
+.step-border.broken::after,
+.step-border.incomplete::after,
+.step-border.blocked::after {
+  content: "";
+  position: absolute;
+  top: 0.5em;
+  bottom: 0.5em;
+  right: -9px;
+  width: 3px;
+  border-radius: 1.5px;
+  pointer-events: none;
+}
+
+.step-border.broken::after {
+  background-color: var(--step-indicator-broken);
+}
+
+.step-border.incomplete::after {
+  background-color: var(--step-indicator-incomplete);
+}
+
+.step-border.blocked::after {
+  /* Round dots via a repeating radial gradient (border dots render
+   * square in some engines), keeping the dotted variant in the same
+   * rounded language as the solid lozenges. */
+  background-image: radial-gradient(
+    circle at 50% 2px,
+    var(--step-indicator-blocked) 1.5px,
+    transparent 1.9px
+  );
+  background-size: 3px 7px;
+  background-repeat: repeat-y;
+}
+
+/* Blocked rows keep rendering (never dropped); grey the body so the
+ * chain visibly reads as "on hold" below the break. Opacity does not
+ * affect layout. */
+.step-border.blocked > .step-display {
+  opacity: 0.5;
+}
+
+/* The justification wrapper anchors the popup. When the row has
+ * something to explain, it reads as a button and toggles the popup via
+ * :focus-within (the popup is inside the wrapper, so clicking a repair
+ * button keeps focus within it and the click lands). */
+.step-justification-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.step-justification-wrap.has-popup {
+  cursor: pointer;
+  border: 1px solid var(--step-indicator-broken);
+  border-radius: 0.3em;
+  padding: 0 0.4em;
+  background-color: color-mix(
+    in srgb,
+    var(--step-indicator-broken) 12%,
+    transparent
+  );
+}
+
+.step-border.blocked .step-justification-wrap.has-popup {
+  border-color: var(--step-indicator-blocked);
+  background-color: color-mix(
+    in srgb,
+    var(--step-indicator-blocked) 12%,
+    transparent
+  );
+}
+
+.step-justification-wrap.has-popup:focus {
+  outline: none;
+}
+
+.step-error-popup {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 0.4em);
+  right: 0;
+  z-index: var(--stepper-interactive-z);
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3em;
+  width: max-content;
+  max-width: 26em;
+  padding: 0.5em 0.75em;
+  border: 1px solid var(--step-indicator-broken);
+  border-radius: 0.3em;
+  background-color: var(--test-panel-bkg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  font-size: 0.85em;
+  cursor: default;
+}
+
+.step-border.blocked .step-error-popup {
+  border-color: var(--step-indicator-blocked);
+}
+
+.step-justification-wrap.has-popup:focus-within > .step-error-popup {
+  display: flex;
+}

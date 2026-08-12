@@ -125,6 +125,19 @@
   color: var(--BLACK);
 }
 
+/* Evaluation-failure banner shown above an open stepper: the stepper
+ * renders the last successful proof map, so mark it stale. */
+.cell-item.cell-result.stepper-stale {
+  background-color: var(--eval-exception);
+}
+
+.cell-item.cell-result.stepper-stale .stale-note {
+  padding: 0 0.25em 0.25em 0.25em;
+  font-style: italic;
+  font-size: 0.85em;
+  color: var(--BLACK);
+}
+
 .cell-result .icon:hover svg {
   animation: wobble 0.6s ease 0s 1 normal forwards;
   transform: scale(130%);

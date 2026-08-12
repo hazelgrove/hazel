@@ -509,6 +509,91 @@ let test_empty_body_still_checked = () => {
   );
 };
 
+/* MalformedProofTerm: unparseable text in proof position is an error,
+ * unlike an EmptyHole (an intentionally-incomplete proof, unmarked). */
+let test_malformed_proof_term_mark = () => {
+  let src = {|theorem t = 1 == 1 proof 1 + 1 in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.bool,
+    "MalformedProofTerm mark is emitted",
+    true,
+    has_mark_kind(
+      pm,
+      proof,
+      fun
+      | ProofMark.MalformedProofTerm => true
+      | _ => false,
+    ),
+  );
+};
+
+let test_empty_hole_proof_unmarked = () => {
+  let src = {|theorem t = 1 == 1 proof ? in t|};
+  let uexp = parse_exp(src);
+  let (state, _, elab) = eval_with_proof(uexp);
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.bool,
+    "an empty-hole proof carries no mark",
+    true,
+    find_marked_sub(pm, proof) == None,
+  );
+};
+
+/* Direction survives the axiom surface syntax: `axiomrev` parses to a
+ * Left-direction step, and printing + reparsing preserves it. (Before
+ * the `axiomrev` form, direction was silently dropped on every
+ * serialization round trip and reset to Right.) */
+let axiom_direction_of = (p: Proof.t): option(Util.Direction.t) => {
+  let rec go = (p: Proof.t): option(Util.Direction.t) =>
+    switch (p.term) {
+    | AxiomStep({direction, _}) => Some(direction)
+    | Seq(p1, p2) =>
+      switch (go(p1)) {
+      | Some(_) as d => d
+      | None => go(p2)
+      }
+    | Forall(_, body) => go(body)
+    | _ => None
+    };
+  go(p);
+};
+
+let print_exp = (e: Exp.t): string =>
+  e
+  |> Haz3lcore.ExpToSegment.exp_to_segment(
+       ~settings=Haz3lcore.ExpToSegment.Settings.editable(~inline=true),
+     )
+  |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[]);
+
+let test_axiom_direction_roundtrip = () => {
+  let src = {|theorem t = 1 == 1 proof axiomrev refl_eq at 0 on 1 end in t|};
+  let direction_of = (e: Exp.t): option(Util.Direction.t) =>
+    switch (find_theorem_proof(e)) {
+    | Some(p) => axiom_direction_of(p)
+    | None => None
+    };
+  let uexp = parse_exp(src);
+  Alcotest.check(
+    Alcotest.bool,
+    "axiomrev parses to a Left-direction step",
+    true,
+    direction_of(uexp) == Some(Util.Direction.Left),
+  );
+  let reparsed = parse_exp(print_exp(uexp));
+  Alcotest.check(
+    Alcotest.bool,
+    "direction survives print + reparse",
+    true,
+    direction_of(reparsed) == Some(Util.Direction.Left),
+  );
+};
+
 let tests = (
   "Evaluator.ProofMap",
   [
@@ -580,6 +665,21 @@ let tests = (
       "missing-incoming propagates to later step",
       `Quick,
       test_missing_incoming_mark,
+    ),
+    test_case(
+      "malformed proof term emits mark",
+      `Quick,
+      test_malformed_proof_term_mark,
+    ),
+    test_case(
+      "empty-hole proof stays unmarked",
+      `Quick,
+      test_empty_hole_proof_unmarked,
+    ),
+    test_case(
+      "axiom direction survives round trip",
+      `Quick,
+      test_axiom_direction_roundtrip,
     ),
   ],
 );

@@ -197,6 +197,7 @@ let core_mark_err_view =
     };
   (
     switch (m) {
+    | DynamicError(err) => [text(InvalidOperationError.err_msg(err))]
     | BadToken(token) =>
       switch (Haz3lcore.Token.bad_token_cls(token)) {
       | BadInt => [text("Integer is too large or too small")]
@@ -637,6 +638,7 @@ let exp_mark_err_view =
       ),
     );
   switch (m) {
+  | DynamicError(err) => div_err([text(InvalidOperationError.err_msg(err))])
   | Free(name) => div_err([code(name), text("not found")])
   | InexhaustiveMatch(_, inner_marks, example) =>
     let cls_str = Cls.show(cls);
@@ -1080,51 +1082,10 @@ let tpat_view =
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
-/* Render a single proof-check mark as a human-readable message. These
- * are emitted by ProofCheck at evaluation time (see ProofMark.t) and
- * describe ways a specific proof step went wrong. */
-let proof_mark_err_view = (~globals, m: ProofMark.t): list(Node.t) => {
-  let view_exp_box = view_exp(~globals);
-  switch (m) {
-  | MissingIncoming => [
-      text("No incoming goal to act on (an earlier step failed)."),
-    ]
-  | MalformedEqualityName => [
-      text("Expected an equality name (a variable referring to an axiom)."),
-    ]
-  | UnknownEquality(name) => [text("Unknown equality \"" ++ name ++ "\".")]
-  | RuleDoesNotApply({equality, direction}) => [
-      text(
-        "Equality \""
-        ++ equality
-        ++ "\" doesn't apply in the "
-        ++ (
-          switch ((direction: Direction.t)) {
-          | Left => "left"
-          | Right => "right"
-          }
-        )
-        ++ " direction here.",
-      ),
-    ]
-  | MalformedIndex => [text("Expected a numeric index literal.")]
-  | PatternNotFound({at_exp, at_idx}) => [
-      text("Could not find occurrence #" ++ string_of_int(at_idx) ++ " of "),
-      view_exp_box(at_exp),
-      text(" in the goal."),
-    ]
-  | NothingToStep({at_exp}) => [
-      text("Nothing to evaluate in "),
-      view_exp_box(at_exp),
-      text("."),
-    ]
-  | ExpectedForallGoal => [text("Expected a `forall` goal here.")]
-  | InductionNotExhaustive => [
-      text("Induction cases don't cover the scrutinee's type."),
-    ]
-  | InductionEmptyCases => [text("Induction requires at least one case.")]
-  };
-};
+/* Render a single proof-check mark as a human-readable message.
+ * Shared with the stepper — see ProofMarkView.re. */
+let proof_mark_err_view = (~globals, m: ProofMark.t): list(Node.t) =>
+  ProofMarkView.message(~globals, m);
 
 /* Render the cursor-inspector status for a proof sub-term. Shows the
  * incoming and outgoing expressions recorded by the big-step proof

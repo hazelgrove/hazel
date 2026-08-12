@@ -153,9 +153,8 @@ module View = {
                 | AssumptionBox.EqualityLeft(e) => {
                     add_axiom_step(
                       am.ctx_entry.name,
-                      try(ProofHacks.exp_idx(selected_exp, full_exp)) {
-                      | _ => 0
-                      },
+                      ProofHacks.exp_idx(selected_exp, full_exp)
+                      |> Option.value(~default=0),
                       selected_exp,
                       Left,
                       e,
@@ -164,9 +163,8 @@ module View = {
                 | AssumptionBox.EqualityRight(e) =>
                   add_axiom_step(
                     am.ctx_entry.name,
-                    try(ProofHacks.exp_idx(selected_exp, full_exp)) {
-                    | _ => 0
-                    },
+                    ProofHacks.exp_idx(selected_exp, full_exp)
+                    |> Option.value(~default=0),
                     selected_exp,
                     Right,
                     e,

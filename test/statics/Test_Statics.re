@@ -16,4 +16,5 @@ let tests =
     Test_Statics_Properties.tests,
     Test_Statics_Parens.tests,
     Test_Statics_Proof.tests,
+    Test_Statics_DynamicError.tests,
   ];

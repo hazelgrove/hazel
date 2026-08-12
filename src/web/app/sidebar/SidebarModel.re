@@ -13,7 +13,7 @@ module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type problem_category =
     Haz3lcore.ProblemCollection.problem_category =
-      | Syntax | Hole | Static | Warning | Projector;
+      | Syntax | Hole | Static | Runtime | Warning | Projector;
 
   /* Base CSS class for a category */
   let category_cls = cat =>
@@ -21,6 +21,7 @@ module Settings = {
     | Syntax => "syntax"
     | Hole => "hole"
     | Static => "static"
+    | Runtime => "runtime"
     | Warning => "warning"
     | Projector => "projector-error"
     };
@@ -31,6 +32,7 @@ module Settings = {
     | Syntax => "Syntax Errors"
     | Hole => "Holes"
     | Static => "Static Errors"
+    | Runtime => "Runtime Errors"
     | Warning => "Warnings"
     | Projector => "Projector Errors"
     };
@@ -41,6 +43,7 @@ module Settings = {
     | Syntax => "Syntax"
     | Hole => "Hole"
     | Static => "Static"
+    | Runtime => "Runtime"
     | Warning => "Warning"
     | Projector => "Projector"
     };
@@ -50,7 +53,8 @@ module Settings = {
   let category_badge_severity = cat =>
     switch (cat) {
     | Syntax
-    | Static => 2
+    | Static
+    | Runtime => 2
     | Projector
     | Warning => 1
     | Hole => 0
@@ -60,7 +64,8 @@ module Settings = {
   let category_badge_cls = cat =>
     switch (cat) {
     | Syntax
-    | Static => "has-errors"
+    | Static
+    | Runtime => "has-errors"
     | Projector
     | Warning => "has-warnings"
     | Hole => "has-holes"
@@ -70,7 +75,8 @@ module Settings = {
   let category_badge_label = cat =>
     switch (cat) {
     | Syntax
-    | Static => "error"
+    | Static
+    | Runtime => "error"
     | Projector
     | Warning => "warning"
     | Hole => "hole"

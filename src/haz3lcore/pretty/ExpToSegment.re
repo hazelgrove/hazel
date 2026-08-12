@@ -3391,11 +3391,16 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     let+ x = pat_to_pretty(~settings, x)
     and+ b = proof_to_pretty(~settings, body);
     wrap(p, [mk_form(ProofForall, id, [x])] @ b);
-  | AxiomStep({at_idx, at_exp, direction: _, equality}) =>
+  | AxiomStep({at_idx, at_exp, direction, equality}) =>
     let+ eq = exp_to_pretty(~settings, equality)
     and+ i = exp_to_pretty(~settings, at_idx)
     and+ ae = exp_to_pretty(~settings, at_exp);
-    wrap(p, [mk_form(ProofAxiom, id, [eq, i, ae])]);
+    let form =
+      switch (direction) {
+      | Direction.Right => Form.ProofAxiom
+      | Direction.Left => Form.ProofAxiomRev
+      };
+    wrap(p, [mk_form(form, id, [eq, i, ae])]);
   | AlgebriteStep({at_idx, at_exp, with_exp}) =>
     let+ ae = exp_to_pretty(~settings, at_exp)
     and+ we = exp_to_pretty(~settings, with_exp)

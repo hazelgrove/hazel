@@ -1850,6 +1850,18 @@ and proof_term: unsorted => TermBase.Proof.term = {
           }),
         )
       | (
+          ["axiomrev", "at", "on", "end"],
+          [Exp(equality), Exp(at_idx), Exp(at_exp)],
+        ) =>
+        ret(
+          AxiomStep({
+            equality,
+            at_idx,
+            at_exp,
+            direction: Direction.Left,
+          }),
+        )
+      | (
           ["rewrite", "with", "at", "end"],
           [Exp(at_exp), Exp(with_exp), Exp(at_idx)],
         ) =>

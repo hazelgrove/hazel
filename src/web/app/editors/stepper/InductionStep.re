@@ -27,7 +27,9 @@ type model'('stepper) = {
   scrut_co_ctx: Calc.saved(CoCtx.t),
   result: Calc.saved(Exp.t),
   join_exp: Calc.saved(Exp.t),
-  is_exhaustive: Calc.saved(bool),
+  /* None = exhaustive; Some(example) = inexhaustive, with the statics
+   * checker's witness for a missing pattern. */
+  inexhaustive: Calc.saved(option(Any.t)),
   validity: Calc.saved(option(bool)),
 };
 
@@ -71,7 +73,7 @@ let init = (~exp: option(Exp.t)=?, ()) => {
     scrut_co_ctx: Calc.Pending,
     result: Calc.Pending,
     join_exp: Calc.Pending,
-    is_exhaustive: Calc.Pending,
+    inexhaustive: Calc.Pending,
     validity: Calc.Pending,
   };
 };
@@ -178,7 +180,7 @@ module F =
       scrut_co_ctx,
       result: _,
       join_exp,
-      is_exhaustive,
+      inexhaustive,
       validity,
     }: model = model;
     /* Sync the UI model's case list to match the surrounding
@@ -356,27 +358,27 @@ module F =
         join_exp,
       );
 
-    /* Exhaustiveness label reads the *static* result rather than recomputing:
+    /* Exhaustiveness reads the *static* result rather than recomputing:
      * the theorem's statics flags an inexhaustive induction with an
      * `InexhaustiveMatch` mark on the induction proof node (see
      * proof_to_info_map). We look that mark up in `proof_info_map` (the
-     * whole-theorem info map) by the proof node's id, so the label stays in
+     * whole-theorem info map) by the proof node's id, keeping the
+     * missing-pattern witness for the view, so the message stays in
      * sync with the editor error. */
-    let is_exhaustive =
-      is_exhaustive
+    let inexhaustive =
+      inexhaustive
       |> {
         let.calc proof = proof
         and.calc proof_info_map = proof_info_map;
         switch (Statics.Map.lookup(Proof.rep_id(proof), proof_info_map)) {
         | Some(info) =>
-          !
-            List.exists(
-              fun
-              | Mark.InexhaustiveMatch(_) => true
-              | _ => false,
-              Info.marks_of(info),
-            )
-        | None => true
+          List.find_map(
+            fun
+            | Mark.InexhaustiveMatch(_, _, example) => Some(example)
+            | _ => None,
+            Info.marks_of(info),
+          )
+        | None => None
         };
       };
 
@@ -384,7 +386,7 @@ module F =
       validity
       |> {
         let.calc validities = Calc.combine_list(validities)
-        and.calc is_exhaustive = is_exhaustive;
+        and.calc inexhaustive = inexhaustive;
         List.fold_left(
           (v1, v2) =>
             switch (v1, v2) {
@@ -392,7 +394,7 @@ module F =
             | (Some(false), Some(false)) => Some(false)
             | (_, _) => None
             },
-          is_exhaustive ? Some(true) : None,
+          Option.is_none(inexhaustive) ? Some(true) : None,
           validities,
         );
       };
@@ -409,7 +411,7 @@ module F =
       scrut_co_ctx: scrut_co_ctx |> Calc.save,
       result,
       join_exp: join_exp |> Calc.save,
-      is_exhaustive: is_exhaustive |> Calc.save,
+      inexhaustive: inexhaustive |> Calc.save,
       validity: validity |> Calc.save,
     });
   };
@@ -642,10 +644,10 @@ module F =
       ),
     ]
     @ cases
-    @ [add_case_button]
-    @ [
-      model.is_exhaustive |> Calc.get_saved_exc(~print="exhaustive")
-        ? WebUtil.Node.text("exhaustive") : WebUtil.Node.text("inexhaustive"),
-    ];
+    /* Inexhaustiveness renders out of flow — the row's right-edge
+     * indicator plus the justification popup (with the missing-pattern
+     * witness, see StepperBase.step_row) — so an error never changes
+     * the proof's spacing. */
+    @ [add_case_button];
   };
 };

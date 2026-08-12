@@ -8,6 +8,7 @@ type problem_category =
   | Syntax
   | Hole
   | Static
+  | Runtime
   | Warning
   | Projector;
 
@@ -32,6 +33,7 @@ type problem_context = {
   hole_ids: list(Grout.t),
   concave_holes: list(Grout.t),
   static_error_ids: list((Id.t, Info.t)),
+  runtime_error_ids: list((Id.t, Info.t)),
   warning_ids: list((Id.t, Info.t)),
   projector_errors: list((Id.t, ProjectorKind.t, ProjectorBase.error)),
   segment: Segment.t,
@@ -96,21 +98,32 @@ let make_problem_context =
      own term so problems don't leak across groups. */
   let id_in_this_editor = id =>
     TermData.root_piece(id, syntax.term_data) != None;
-  /* Partition error_ids into syntax and static in a single pass */
-  let (syntax_error_ids, static_error_ids) =
+  /* Runtime problems are info entries carrying a DynamicError mark
+     (attached by statics to the expression inside a DynamicErrorHole). */
+  let is_runtime_error = (ci: Info.t): bool =>
+    List.exists(
+      fun
+      | Mark.DynamicError(_) => true
+      | _ => false,
+      Info.marks_of(ci),
+    );
+  /* Partition error_ids into runtime, syntax, and static in a single pass */
+  let (runtime_error_ids, syntax_error_ids, static_error_ids) =
     List.fold_right(
-      (id, (syn, stat)) =>
+      (id, (rt, syn, stat)) =>
         switch (Statics.Map.lookup(id, info_map)) {
         | Some(ci) when Info.is_error(ci) && id_in_this_editor(id) =>
-          if (Info.is_syntax_error(ci)) {
-            ([(id, ci), ...syn], stat);
+          if (is_runtime_error(ci)) {
+            ([(id, ci), ...rt], syn, stat);
+          } else if (Info.is_syntax_error(ci)) {
+            (rt, [(id, ci), ...syn], stat);
           } else {
-            (syn, [(id, ci), ...stat]);
+            (rt, syn, [(id, ci), ...stat]);
           }
-        | _ => (syn, stat)
+        | _ => (rt, syn, stat)
         },
       statics.error_ids,
-      ([], []),
+      ([], [], []),
     );
   /* Collect warning ids with their info */
   let warning_ids =
@@ -148,6 +161,7 @@ let make_problem_context =
     hole_ids,
     concave_holes,
     static_error_ids,
+    runtime_error_ids,
     warning_ids,
     projector_errors,
     segment: syntax.main_splice.segment,
@@ -227,6 +241,16 @@ let collect_category =
            source: FromInfo(ci),
          }
        )
+  | Runtime =>
+    ctx.runtime_error_ids
+    |> List.to_seq
+    |> Seq.map(((id, ci)) =>
+         {
+           id,
+           category: Runtime,
+           source: FromInfo(ci),
+         }
+       )
   | Warning =>
     ctx.warning_ids
     |> List.to_seq
@@ -252,7 +276,7 @@ let collect_category =
 /* ---------- Convenience: all problems ---------- */
 
 let collect_all_problems = (ctx: problem_context): list(problem) => {
-  [Syntax, Hole, Static, Warning, Projector]
+  [Syntax, Hole, Static, Runtime, Warning, Projector]
   |> List.concat_map(cat => collect_category(ctx, cat) |> List.of_seq);
 };
 

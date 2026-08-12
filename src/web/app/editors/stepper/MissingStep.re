@@ -699,23 +699,29 @@ module View = {
                               Node.text("Replace"),
                               ~tooltip="replace",
                               _ =>
-                              signal(
-                                AddAlgebriteStep(
-                                  ProofHacks.exp_idx(
-                                    unboxed_selected_exp,
-                                    model.full_exp
-                                    |> Calc.get_saved_exc(~print="full_exp"),
-                                  ),
+                              switch (
+                                ProofHacks.exp_idx(
                                   unboxed_selected_exp,
-                                  unboxed_cached_exp
-                                  |> Substitution.in_exp(
-                                       model.cached_env
-                                       |> Calc.get_saved_exc(
-                                            ~print="env not cached",
-                                          ),
-                                     ),
-                                ),
-                              )
+                                  model.full_exp
+                                  |> Calc.get_saved_exc(~print="full_exp"),
+                                )
+                              ) {
+                              | Some(at_idx) =>
+                                signal(
+                                  AddAlgebriteStep(
+                                    at_idx,
+                                    unboxed_selected_exp,
+                                    unboxed_cached_exp
+                                    |> Substitution.in_exp(
+                                         model.cached_env
+                                         |> Calc.get_saved_exc(
+                                              ~print="env not cached",
+                                            ),
+                                       ),
+                                  ),
+                                )
+                              | None => Ui_effect.Ignore
+                              }
                             ),
                           ]
                         | Some(false) => [Node.text("Invalid")]

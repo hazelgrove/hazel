@@ -19,6 +19,10 @@ type t =
    * missing (an earlier step failed, or we're inside an unprovable
    * forall). */
   | MissingIncoming
+  /* The proof term itself is malformed syntax (Invalid/MultiHole) —
+   * distinct from an EmptyHole, which is an intentionally-incomplete
+   * proof and carries no mark. */
+  | MalformedProofTerm
   /* Axiom: equality argument isn't a resolvable name. */
   | MalformedEqualityName
   /* Axiom: the named equality rule is not in scope. */

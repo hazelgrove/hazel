@@ -364,15 +364,35 @@ let rec check =
         : (option(Exp.t), ProofMap.t) => {
   let id = Proof.rep_id(proof);
   switch (proof.term) {
-  | EmptyHole
-  | Invalid(_) =>
+  | EmptyHole =>
     /* Leaf: incoming is known but outgoing is broken. No mark: holes
      * reflect an intentionally-incomplete proof, not an error. */
     (None, record(id, incoming, None, ProofMap.empty))
+  | Invalid(_) =>
+    /* Unparseable proof text is an error, unlike an EmptyHole. */
+    (
+      None,
+      record(
+        ~marks=[ProofMark.MalformedProofTerm],
+        id,
+        incoming,
+        None,
+        ProofMap.empty,
+      ),
+    )
   | MultiHole(_) =>
     /* We don't recurse into the any-kind children here since they are
      * not proof terms; treat the whole multi-hole as opaquely broken. */
-    (None, record(id, incoming, None, ProofMap.empty))
+    (
+      None,
+      record(
+        ~marks=[ProofMark.MalformedProofTerm],
+        id,
+        incoming,
+        None,
+        ProofMap.empty,
+      ),
+    )
   | Seq(p1, p2) =>
     let (out1, m1) = check(~step, ~info_map, ~ctx, incoming, p1);
     let (out2, m2) = check(~step, ~info_map, ~ctx, out1, p2);

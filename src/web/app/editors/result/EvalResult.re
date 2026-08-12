@@ -740,21 +740,46 @@ module View = {
         ),
       ]
     | Stepper(s) =>
-      StepperView.View.view(
-        ~globals,
-        ~selected=
-          switch (selected) {
-          | Some(Stepper(s)) => Some(s)
-          | _ => None
-          },
-        ~signal=
-          fun
-          | HideStepper => inject(ToggleStepper)
-          | MakeActive(s) => signal(MakeActive(Stepper(s))),
-        ~inject=x => inject(StepperAction(x)),
-        ~edit_syntax=patch => inject(StepperProofPatch(patch)),
-        s,
-      )
+      let stepper_view =
+        StepperView.View.view(
+          ~globals,
+          ~selected=
+            switch (selected) {
+            | Some(Stepper(s)) => Some(s)
+            | _ => None
+            },
+          ~signal=
+            fun
+            | HideStepper => inject(ToggleStepper)
+            | MakeActive(s) => signal(MakeActive(Stepper(s))),
+          ~inject=x => inject(StepperAction(x)),
+          ~edit_syntax=patch => inject(StepperProofPatch(patch)),
+          s,
+        );
+      /* The stepper renders from the last proof map / elaboration it saw,
+       * so on evaluation failure it silently shows stale rows; surface the
+       * failure above them. */
+      switch (model.result |> Calc.get_value) {
+      | ResultFail(err) => [
+          div(
+            ~attrs=[
+              Attr.classes(["cell-item", "cell-result", "stepper-stale"]),
+            ],
+            [
+              div(
+                ~attrs=[Attr.classes(["error-msg"])],
+                [text(error_msg(err))],
+              ),
+              div(
+                ~attrs=[Attr.classes(["stale-note"])],
+                [text("Steps below show the last successful evaluation.")],
+              ),
+            ],
+          ),
+          ...stepper_view,
+        ]
+      | _ => stepper_view
+      };
     };
 
   let test_status_icon_view =

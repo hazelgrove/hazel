@@ -721,6 +721,15 @@ and uexp_to_info_map =
       );
     | DynamicErrorHole(e, err) =>
       let (e, e_elab, m) = go(~ana, e, m);
+      /* Attach the error mark to the inner expression's info entry:
+         printing strips the DynamicErrorHole wrapper, so only inner ids
+         appear in the rendered syntax and can carry the error
+         decoration. */
+      let e = {
+        ...e,
+        marks: [Mark.DynamicError(err), ...e.marks],
+      };
+      let m = add_info(IdTagged.ids(e.user_term), InfoExp(e), m);
       add(
         ~elab_term=DynamicErrorHole(e_elab, err) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,

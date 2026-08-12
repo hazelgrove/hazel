@@ -48,6 +48,11 @@ type tpat_var_err =
    Do not reorder without understanding the impact on error selection. */
 [@deriving (show({with_path: false}), sexp, yojson, variants)]
 type t =
+  /* A runtime error (from a DynamicErrorHole in a result expression),
+   * attached by statics to the expression *inside* the hole: printing
+   * strips the DynamicErrorHole wrapper, so only inner ids appear in
+   * rendered syntax and can carry the error decoration. */
+  | DynamicError(InvalidOperationError.t)
   | BuiltinError(error_builtin)
   | Free(Var.t)
   | IsBadPartialAp(error_partial_ap)

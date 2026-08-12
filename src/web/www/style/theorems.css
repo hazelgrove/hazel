@@ -36,6 +36,10 @@
   animation: jello 1s ease 0s 1 normal none;
 }
 
+.theorem-status.false {
+  background-color: var(--test-fail-active);
+}
+
 .theorem-status.unknown {
   color: var(--light-page-color);
 }

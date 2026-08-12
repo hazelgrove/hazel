@@ -8,7 +8,8 @@ let find_exp_id = Exp.find_by_id;
 
 // Given an expression e1 that appears in e2, count how many
 // times e1 appears with a different id before e1 in e2.
-let exp_idx = (e1: Exp.t, e2: Exp.t) => {
+// None if e1's id does not occur in e2 at all.
+let exp_idx = (e1: Exp.t, e2: Exp.t): option(int) => {
   let n = ref(0);
   switch (
     Exp.map_term(
@@ -25,15 +26,18 @@ let exp_idx = (e1: Exp.t, e2: Exp.t) => {
       e2,
     )
   ) {
-  | exception (Found(_)) => n^
-  | _ =>
-    failwith(
-      "exp_idx: e1 not found in e2 (found "
-      ++ string_of_int(n^)
-      ++ " matches)",
-    )
+  | exception (Found(_)) => Some(n^)
+  | _ => None
   };
 };
+
+/* For call sites where e1 occurring in e2 is an invariant (e.g. the
+ * evaluator locating a step target it just produced). */
+let exp_idx_exn = (e1: Exp.t, e2: Exp.t): int =>
+  switch (exp_idx(e1, e2)) {
+  | Some(n) => n
+  | None => failwith("exp_idx: e1 not found in e2")
+  };
 
 // Find the (n+1)th occurence of e1 in e2
 let nth_exp = (e1: Exp.t, n: int, e2: Exp.t) => {

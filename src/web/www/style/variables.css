@@ -39,6 +39,13 @@
   --R1: oklch(60% 0.3 30); /* caret, error stroke */
   --R2: oklch(40% 0.3 30); /* error text, broken shard text */
   --O1: oklch(60% 0.3 90); /* warning stroke */
+  --RT0: oklch(90% 0.06 350); /* runtime problem row fill */
+  --RT1: oklch(60% 0.25 350); /* runtime problem stroke */
+  --RT2: oklch(40% 0.25 350); /* runtime problem active stroke */
+  /* Stepper per-row status indicator lines (right edge of a step row) */
+  --step-indicator-broken: var(--R1);
+  --step-indicator-incomplete: oklch(75% 0.09 80); /* tan */
+  --step-indicator-blocked: oklch(75% 0.16 30); /* lighter red, dotted */
 
   /* GLASS - sorts */
   --TYP: oklch(60% 0.2 300);

@@ -303,6 +303,21 @@
   box-shadow: inset 0 0 0 1px var(--hole-stroke);
 }
 
+.problem-row.runtime {
+  border-left: 3px solid color-mix(in srgb, var(--RT1) 60%, transparent);
+  background-color: color-mix(in srgb, var(--RT0) 50%, transparent);
+}
+
+.problem-row.runtime:hover {
+  background-color: var(--RT0);
+}
+
+.problem-row.runtime.active {
+  border-left: 5px solid var(--RT2);
+  background-color: color-mix(in srgb, var(--RT0) 80%, transparent);
+  box-shadow: inset 0 0 0 1px var(--RT1);
+}
+
 .problem-row.warning {
   border-left: 3px solid
     color-mix(in srgb, var(--warning-hole-stroke) 60%, transparent);
@@ -362,6 +377,10 @@
 
 .legend-swatch.static {
   background-color: var(--R1);
+}
+
+.legend-swatch.runtime {
+  background-color: var(--RT1);
 }
 
 .legend-swatch.warning {

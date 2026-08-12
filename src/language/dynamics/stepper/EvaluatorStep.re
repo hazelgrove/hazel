@@ -31,7 +31,7 @@ module EvalObj = {
   let persist = (obj: t): persistent => {
     let full_exp = EvalCtx.compose(obj.ctx, obj.d_loc);
     {
-      exp_idx: ProofHacks.exp_idx(obj.d_loc, full_exp),
+      exp_idx: ProofHacks.exp_idx_exn(obj.d_loc, full_exp),
       at_exp: obj.d_loc,
     };
   };
@@ -425,7 +425,7 @@ let get_step_kind = (step: step): step_kind => step.knd;
 let get_at_exp = (step: step): Exp.t => step.d_loc;
 let get_exp_idx = (step: step): int => {
   let full_exp = EvalCtx.compose(step.ctx, step.d_loc);
-  ProofHacks.exp_idx(step.d_loc, full_exp);
+  ProofHacks.exp_idx_exn(step.d_loc, full_exp);
 };
 
 let take_step = (step: EvalObj.t) => {
