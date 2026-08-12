@@ -189,5 +189,15 @@ let view =
       seg,
     );
 
-  of_segment(segment);
+  let body = of_segment(segment);
+  /* A tab projector on the last line defers linebreaks that no
+     following (real) linebreak ever consumes; materialize them so the
+     text flow reserves the hang-below rows instead of letting the
+     projector protrude past the editor bottom. */
+  switch (DeferredLinebreaks.consume()) {
+  | 0 => body
+  /* the trailing space matters: a text node's final newline does not
+     create a last line box, so bare \n's come up one row short */
+  | n => body @ [text(String.make(n, '\n') ++ " ")]
+  };
 };

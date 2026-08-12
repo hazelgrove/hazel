@@ -249,12 +249,32 @@ module Model = {
  * to token decorations. This can be made transparent
  * in the CSS if no backing is wanted */
 let backing_deco =
-    (~font_metrics: FontMetrics.t, ~measurement: Measured.measurement, p) =>
-  ShardDec.relative({
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measurement: Measured.measurement,
+      ~shape: ProjectorCore.Shape.t,
+      p,
+    ) => {
+  let dims: ShardDec.shard_dims = {
     font_metrics,
     measurement,
     tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
-  });
+  };
+  switch (shape.vertical) {
+  | Tab(rows) when rows > 0 => ShardDec.relative_tab(dims, ~rows)
+  | _ => ShardDec.relative(dims)
+  };
+};
+
+/* The backing needs the projector shape (a Tab draws differently);
+   mirrors ShapeMapSemantics placement switch. */
+let shape_of = (p: Base.projector, info: ProjectorBase.info) => {
+  let (module P) = ProjectorInit.to_module(p.kind);
+  switch (p.placement) {
+  | Sidebar => ProjectorChip.shape(p)
+  | Inline => P.placeholder(p.model, info)
+  };
+};
 
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
@@ -597,19 +617,42 @@ let split_views =
       ~idx,
       ~kind=p.kind,
     );
+  let shape = shape_of(p, projector_data.info);
   let line_view = {
     let offside_view =
       views.offside
       |> Option.map(offside_wrapper(font_metrics, offside_base))
       |> Option.to_list;
+    /* A Tab projector's wrapper div spans only its top row (that is all
+       the measurement covers), so mount the GUI in an extent layer sized
+       to the full hang-below region; per-kind CSS positions within it. */
+    let tab_extent = (view: Node.t): Node.t =>
+      switch (shape.vertical) {
+      | Tab(rows) when rows > 0 =>
+        div(
+          ~attrs=[
+            Attr.class_("tab-extent"),
+            Attr.create(
+              "style",
+              Printf.sprintf(
+                "top: 1px; bottom: auto; height: %fpx;",
+                float_of_int(rows + 1) *. font_metrics.row_height -. 2.,
+              ),
+            ),
+          ],
+          [view],
+        )
+      | _ => view
+      };
     /* A docked projector shows a chip here; its primary UI is rendered by
      * ProjectorPanel instead. Overlay and offside layers are unaffected by
      * placement. Refractors (skip_inline) never occupy the inline slot. */
     let inline_view =
-      skip_inline ? [] : chipped ? [chip(~open_panel)] : [views.inline];
+      skip_inline
+        ? [] : chipped ? [chip(~open_panel)] : [tab_extent(views.inline)];
     wrapper(
       inline_view
-      @ [backing_deco(~font_metrics, ~measurement, p)]
+      @ [backing_deco(~font_metrics, ~measurement, ~shape, p)]
       @ offside_view,
     );
   };

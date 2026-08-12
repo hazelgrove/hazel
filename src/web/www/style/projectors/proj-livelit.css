@@ -1,11 +1,15 @@
-.livelit > * {
+/* Content box: a livelit GUI's canvas is the region just inside the
+   chevron end-caps (0.4ch clears the nib slope), with a hair of
+   vertical padding. Oversized content CLIPS here instead of
+   overlapping neighboring code — undersized content centers. */
+.livelit > *:not(svg) {
     display: flex;
     justify-content: center;
     align-items: center;
     position: absolute;
     z-index: var(--projector-z);
-    width: 100%;
-    height: 100%;
+    inset: 1px 0.4ch;
+    overflow: hidden;
 }
 
 .livelit > .slider > input {
@@ -38,10 +42,27 @@
   transition: opacity 0.15s ease-in;
 }
 
-/* User livelits anchor to the top-left: oversized content hangs down
-   past the backing instead of centering (centered overflow shifts
-   whenever content and placeholder heights disagree — the "pop"). */
-.livelit > .user-livelit {
-    justify-content: flex-start;
-    align-items: flex-start;
+/* Centered like builtins: the content box clips overflow, so the old
+   hang-down-past-the-backing anchoring is no longer needed. */
+
+/* Instant hover hint: any livelit GUI element carrying data-hint shows
+   it as an immediate tooltip bubble (native title has a long delay). */
+.livelit [data-hint] {
+    position: relative;
+}
+.livelit [data-hint]:hover::after {
+    content: attr(data-hint);
+    position: absolute;
+    left: 50%;
+    bottom: 3px;
+    transform: translateX(-50%);
+    background: #333c;
+    color: #fff;
+    padding: 0px 6px;
+    border-radius: 4px;
+    font-size: 0.65em;
+    font-family: var(--code-font);
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10;
 }
