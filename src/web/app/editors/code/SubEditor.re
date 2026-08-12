@@ -72,8 +72,9 @@ module Target = {
     | Before(selector)
     | /* Like Before, but the segment end when no piece matches — for
        * ranges bounded by a tile that may legitimately be absent (e.g.
-       * an induction scrutinee when there are no case rules yet). */
-      BeforeOrEnd(selector)
+       * an induction scrutinee when there are no case rules yet). */ BeforeOrEnd(
+        selector,
+      )
     | After(selector);
 
   [@deriving (show({with_path: false}), sexp, yojson)]

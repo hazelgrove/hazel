@@ -1045,6 +1045,69 @@ let roundtrip_defensive_paren_tests = (
   ],
 );
 
+/* Defensive printing must be idempotent: parse → print → parse → print
+   reaches a fixed point after the first print. Otherwise every editor
+   round-trip (e.g. EditorTransform patches on proof edits) rewrites the
+   program with one more layer of parens — the ascription-type force-wrap
+   used to stack Parens onto types that were already Parens (#forall
+   x:(([Int])) after two induction-case edits). Settings mirror
+   EditorTransform.exp_to_segment. */
+let editable_print = (exp: Exp.t): string =>
+  print_seg(
+    ExpToSegment.exp_to_segment(
+      exp,
+      ~settings={
+        ...ExpToSegment.Settings.editable(~inline=true),
+        use_literal_lexemes: false,
+      },
+    ),
+  );
+
+let defensive_idempotence_test = (name: string, input: string) =>
+  test_case(name, `Quick, () => {
+    switch (Parser.to_term(input, ~root=Exp)) {
+    | Some(term) =>
+      let once = editable_print(term);
+      switch (Parser.to_term(once, ~root=Exp)) {
+      | Some(term') =>
+        let twice = editable_print(term');
+        check(string, {|Defensive print fixed point|}, once, twice);
+      | None => Alcotest.fail({|Failed to re-parse printed text: |} ++ once)
+      };
+    | None => Alcotest.fail({|Failed to parse|})
+    }
+  });
+
+let defensive_idempotence_tests = (
+  "Defensive Print Idempotence",
+  [
+    defensive_idempotence_test(
+      {|Forall with list-type ascription|},
+      {|forall x:[Int] -> x == x|},
+    ),
+    defensive_idempotence_test(
+      {|Forall with atomic-type ascription|},
+      {|forall x:Int -> x == x|},
+    ),
+    defensive_idempotence_test(
+      {|Forall with pre-parenthesized ascription|},
+      {|forall x:([Int]) -> x == x|},
+    ),
+    defensive_idempotence_test(
+      {|Forall with arrow-type ascription|},
+      {|forall f:(Int -> Int) -> f == f|},
+    ),
+    defensive_idempotence_test(
+      {|Fun with ascribed pattern|},
+      {|fun (x : Int) -> x|},
+    ),
+    defensive_idempotence_test(
+      {|Let with ascribed pattern|},
+      {|let x : [Int] = [1] in x|},
+    ),
+  ],
+);
+
 /* Larger program round-trip tests with comments, formatting, and multi-line structure.
    These verify that secondary-in-terms handles complex nested expressions correctly. */
 let roundtrip_larger_programs = (
@@ -1746,6 +1809,7 @@ let all = [
   roundtrip_tests,
   roundtrip_incomplete_tests,
   roundtrip_defensive_paren_tests,
+  defensive_idempotence_tests,
   roundtrip_larger_programs,
   roundtrip_grout_string_tests,
   roundtrip_projector_tests,

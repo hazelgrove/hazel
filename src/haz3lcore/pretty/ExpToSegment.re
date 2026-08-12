@@ -355,7 +355,28 @@ let external_precedence_typ = (tp: Typ.t) =>
 
 /* Conditional parenthesization helpers.
    With Defensive: add parens based on precedence comparison (original behavior).
-   With Structural: never add parens here; only explicit Parens nodes in the term are emitted. */
+   With Structural: never add parens here; only explicit Parens nodes in the term are emitted.
+   A term that is already Parens is never wrapped again, even when the
+   requested internal precedence is Precedence.max — otherwise every
+   parse/print round-trip stacks another layer onto the written syntax. */
+let is_parens = (exp: Exp.t): bool =>
+  switch (Exp.term_of(exp)) {
+  | Parens(_) => true
+  | _ => false
+  };
+
+let is_parens_pat = (pat: Pat.t): bool =>
+  switch (DHPat.term_of(pat)) {
+  | Parens(_) => true
+  | _ => false
+  };
+
+let is_parens_typ = (typ: Typ.t): bool =>
+  switch (Typ.term_of(typ)) {
+  | Parens(_) => true
+  | _ => false
+  };
+
 let paren_at =
     (
       ~parenthesization: Settings.parenthesization,
@@ -366,7 +387,7 @@ let paren_at =
   switch (parenthesization) {
   | Structural => exp
   | Defensive =>
-    external_precedence(exp) >= internal_precedence
+    !is_parens(exp) && external_precedence(exp) >= internal_precedence
       ? Exp.fresh(Parens(exp)) : exp
   };
 
@@ -380,7 +401,7 @@ let paren_assoc_at =
   switch (parenthesization) {
   | Structural => exp
   | Defensive =>
-    external_precedence(exp) > internal_precedence
+    !is_parens(exp) && external_precedence(exp) > internal_precedence
       ? Exp.fresh(Parens(exp)) : exp
   };
 
@@ -394,7 +415,8 @@ let paren_pat_at =
   switch (parenthesization) {
   | Structural => pat
   | Defensive =>
-    external_precedence_pat(pat) >= internal_precedence
+    !is_parens_pat(pat)
+    && external_precedence_pat(pat) >= internal_precedence
       ? Pat.fresh(Parens(pat)) : pat
   };
 
@@ -408,7 +430,7 @@ let paren_pat_assoc_at =
   switch (parenthesization) {
   | Structural => pat
   | Defensive =>
-    external_precedence_pat(pat) > internal_precedence
+    !is_parens_pat(pat) && external_precedence_pat(pat) > internal_precedence
       ? Pat.fresh(Parens(pat)) : pat
   };
 
@@ -422,7 +444,8 @@ let paren_typ_at =
   switch (parenthesization) {
   | Structural => typ
   | Defensive =>
-    external_precedence_typ(typ) >= internal_precedence
+    !is_parens_typ(typ)
+    && external_precedence_typ(typ) >= internal_precedence
       ? Typ.fresh(Parens(typ)) : typ
   };
 
@@ -436,7 +459,7 @@ let paren_typ_assoc_at =
   switch (parenthesization) {
   | Structural => typ
   | Defensive =>
-    external_precedence_typ(typ) > internal_precedence
+    !is_parens_typ(typ) && external_precedence_typ(typ) > internal_precedence
       ? Typ.fresh(Parens(typ)) : typ
   };
 

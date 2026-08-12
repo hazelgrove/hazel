@@ -291,7 +291,12 @@ let tests = (
           );
         switch (result) {
         | StepperBase.NextStep({step_kind: AxiomStep(m), _}) =>
-          check(string, "equality read from the proof", "refl_eq", m.equality);
+          check(
+            string,
+            "equality read from the proof",
+            "refl_eq",
+            m.equality,
+          );
           check(
             bool,
             "rewritten expression calculated",
