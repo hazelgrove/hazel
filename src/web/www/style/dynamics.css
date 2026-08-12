@@ -111,10 +111,6 @@
   width: 100%;
 }
 
-.cell.deselected + .cell-item {
-  border-left: 1px solid var(--BR2);
-}
-
 .cell-item.cell-result:has(.fail),
 .cell-item.cell-result:has(.exception) {
   background-color: var(--eval-exception);
