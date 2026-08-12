@@ -80,6 +80,18 @@ let trim_leading = (s: string): string => {
   |> replace(regexp("\n[\\t \\r]*"), _, "\n"); // After each newline
 };
 
+/* Split at the first occurrence of a character. OCaml 5.5's
+   String.split_first; drop this when the compiler pin reaches 5.5. */
+let split_first = (~on: char, s: string): option((string, string)) =>
+  switch (String.index_opt(s, on)) {
+  | Some(i) =>
+    Some((
+      String.sub(s, 0, i),
+      String.sub(s, i + 1, String.length(s) - i - 1),
+    ))
+  | None => None
+  };
+
 /* Strip exactly one final newline: the artifact a writer appends (POSIX
    final newline in files; PersistentZipper.persist). All other edge
    whitespace is content and round-trips. */

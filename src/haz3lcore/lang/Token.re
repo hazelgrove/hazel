@@ -305,11 +305,8 @@ let of_projector_invoke = (input: t): option(t) =>
    parses the option itself. `_` is safe: no kind name contains one,
    and it merges into a single editor token. */
 let split_invoke_opt = (body: t): (t, option(t)) =>
-  switch (String.index_opt(body, '_')) {
-  | Some(i) => (
-      String.sub(body, 0, i),
-      Some(String.sub(body, i + 1, String.length(body) - i - 1)),
-    )
+  switch (StringUtil.split_first(~on='_', body)) {
+  | Some((base, opt)) => (base, Some(opt))
   | None => (body, None)
   };
 
