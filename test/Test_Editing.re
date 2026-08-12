@@ -5866,6 +5866,58 @@ let table_splice_tests = [
       );
     },
   ),
+  test_case(
+    "splice sizes are bounding boxes, not end points",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      /* Cell a becomes "12345⏎7": the widest line is not the last, so
+       * an end-point-based size would understate the width (and the
+       * table column would shrink when a long row gains a linebreak). */
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("2"),
+            Insert("3"),
+            Insert("4"),
+            Insert("5"),
+            Insert(Token.linebreak),
+            Insert("7"),
+          ],
+        );
+      let s = List.nth(splices_of(z), 0);
+      let bbox = Measured.segment_bbox(s.content);
+      Alcotest.(check(pair(int, int)))(
+        "segment_bbox spans the widest line",
+        (1, 5),
+        (bbox.row, bbox.col),
+      );
+      let syntax = CachedSyntax.init(z);
+      switch (
+        Measured.find_splice_info_opt(s, CachedSyntax.measured(syntax))
+      ) {
+      | None => Alcotest.fail("cell splice not measured in the root map")
+      | Some({size}) =>
+        Alcotest.(check(pair(int, int)))(
+          "merged splice info spans the widest line",
+          (1, 5),
+          (size.row, size.col),
+        )
+      };
+    },
+  ),
 ];
 
 /* Render the decoration entry points that raise find_shards when a

@@ -516,7 +516,22 @@ let of_segment_inner =
     let (_, _, last, inner) =
       go(~top_level=false, ([], 0, Point.zero, empty), s.content);
     let outer = merge_inner(inner, outer);
-    add_splice_info(s, {size: last}, outer);
+    /* The intrinsic size is the content's bounding box: [last] alone
+     * would report the END POINT (the last line's width), understating
+     * multi-line content whose longest line is not its last. The inner
+     * rows map has each linebreak-terminated line's end column; the
+     * final line has no linebreak, so [last.col] covers it. */
+    let size =
+      Point.{
+        row: last.row,
+        col:
+          List.fold_left(
+            (acc, (_, shape: Rows.shape)) => max(acc, shape.max_col),
+            last.col,
+            Rows.bindings(inner.rows),
+          ),
+      };
+    add_splice_info(s, {size: size}, outer);
   }
   /* Scan a projector's syntax for Splice children and measure each.
    * Splices may sit inside tile children (e.g. a list literal whose
@@ -587,12 +602,16 @@ let segment_bbox =
   switch (rows) {
   | [] => Point.zero
   | _ =>
+    /* Bounding box: the widest of ALL rows, not the last row's width —
+     * a multi-line segment ending in a short line is still as wide as
+     * its longest line. */
     let max_row = List.fold_left((r, (k, _)) => max(r, k), 0, rows);
     let col =
-      switch (Rows.find_opt(max_row, m.rows)) {
-      | Some(shape) => shape.max_col
-      | None => 0
-      };
+      List.fold_left(
+        (acc, (_, shape: Rows.shape)) => max(acc, shape.max_col),
+        0,
+        rows,
+      );
     {
       row: max_row,
       col,
