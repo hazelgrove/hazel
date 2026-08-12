@@ -30,14 +30,6 @@ exception Mismatch;
 let bail_note: ref(option(string)) = ref(None);
 let note = msg => bail_note := Some(msg);
 
-/* Refractor triggers (^^probe/^^statics, optionally ^^kind@opt)
-   consumed by the last of_text call when ~collect_refractors was set:
-   (target term id, verbatim trigger token). The caller re-applies them
-   as manual refractor entries on the unzipped zipper (the token is
-   parsed by Triggers.refractor_of_invoke_token — FastParse stays below
-   the action layer). */
-let collected_refractors: ref(list((Id.t, string))) = ref([]);
-
 type tok = {
   gap: string, /* whitespace/comments between previous token and this */
   text: string,
@@ -135,9 +127,16 @@ let weave =
       tokens: list(tok),
       seg: Segment.t,
     )
-    : Segment.t => {
+    : (Segment.t, list((Id.t, string))) => {
   let toks = Array.of_list(tokens);
   let idx = ref(0);
+  /* Refractor triggers (^^probe/^^statics, optionally ^^kind_opt) consumed
+     from the source: (target term id, verbatim trigger token). Accumulated
+     alongside idx because both are written deep in weave_seg's recursion,
+     and returned so callers never read parser state after the fact — the
+     token is parsed back into a kind by Triggers.refractor_of_invoke_token,
+     keeping FastParse below the action layer. */
+  let refractors = ref([]);
   /* PROVENANCE RETIREMENT LIST — these token equivalences (and the
      hole_tiles printer setting) exist only because the menhir AST loses
      concrete syntax: atom spellings, optional tokens, display-flag ids.
@@ -310,10 +309,10 @@ let weave =
       let (wrapped, rest') = grab([p, ...rest], []);
       let (close_gap, _) = expect(")");
       let inner = wrapped @ gap_pieces(close_gap);
-      collected_refractors :=
+      refractors :=
         [
           (Segment.root_id(Segment.skel(inner), inner), trigger),
-          ...collected_refractors^,
+          ...refractors^,
         ];
       /* bind before recursing: token consumption must follow order */
       let tail = weave_seg(rest');
@@ -443,12 +442,20 @@ let weave =
     );
     raise(Mismatch);
   };
-  woven;
+  (woven, refractors^);
+};
+
+/* A successful fast parse: the woven segment plus the refractor triggers
+   the weave consumed from the source. Each attempt builds its own, so a
+   bailed attempt leaves nothing behind for the next one to inherit. */
+type parsed = {
+  segment: Segment.t,
+  refractors: list((Id.t, string)),
 };
 
 let attempt =
     (~materialize: materialize, ~collect_refractors: bool, text: string)
-    : option(Segment.t) =>
+    : option(parsed) =>
   switch (lex_with_gaps(text)) {
   | None => None
   | Some((tokens, trailing_gap)) =>
@@ -476,7 +483,11 @@ let attempt =
       | seg =>
         switch (weave(~materialize, ~collect_refractors, tokens, seg)) {
         | exception _ => None
-        | woven => Some(woven @ gap_pieces(trailing_gap))
+        | (woven, refractors) =>
+          Some({
+            segment: woven @ gap_pieces(trailing_gap),
+            refractors,
+          })
         }
       };
     }
@@ -493,16 +504,18 @@ let strip_appended_hole = (seg: Segment.t): option(Segment.t) =>
   | _ => None
   };
 
-let of_text =
+/* Full result: the segment plus the refractor triggers the weave consumed.
+   Only callers that re-pin those triggers (text-slide loading, paste) need
+   this; everything else takes of_text below. */
+let parsed_of_text =
     (
       ~materialize: materialize=(_, _) => None,
       ~collect_refractors: bool=false,
       ~root: Sort.t,
       text: string,
     )
-    : option(Segment.t) => {
+    : option(parsed) => {
   bail_note := None;
-  collected_refractors := [];
   let attempt = attempt(~collect_refractors);
   if (root == Sort.Mod) {
     /* Module-member chunks (update_binding_clause on a member): parse
@@ -510,8 +523,14 @@ let of_text =
        spliced separators (leading/trailing ;) fail the wrap parse and
        fall back — they are small. */
     switch (attempt(~materialize, "{" ++ String.trim(text) ++ "}")) {
-    | Some([Tile({label: ["{", "}"], children: [inner], _})]) =>
-      Some(inner)
+    | Some({
+        segment: [Tile({label: ["{", "}"], children: [inner], _})],
+        refractors,
+      }) =>
+      Some({
+        segment: inner,
+        refractors,
+      })
     | _ =>
       note("mod-root wrap did not yield a single module body");
       None;
@@ -520,13 +539,21 @@ let of_text =
     None;
   } else {
     switch (attempt(~materialize, text)) {
-    | Some(seg) => Some(seg)
+    | Some(p) => Some(p)
     | None =>
       /* keep the first attempt's bail note: the retry's failure mode
          (usually "menhir: parse error on text + ?") is less telling */
       let first_note = bail_note^;
       switch (attempt(~materialize, text ++ " ?")) {
-      | Some(seg) => strip_appended_hole(seg)
+      | Some(p) =>
+        Option.map(
+          segment =>
+            {
+              ...p,
+              segment,
+            },
+          strip_appended_hole(p.segment),
+        )
       | None =>
         bail_note := first_note;
         None;
@@ -534,3 +561,16 @@ let of_text =
     };
   };
 };
+
+let of_text =
+    (
+      ~materialize: materialize=(_, _) => None,
+      ~collect_refractors: bool=false,
+      ~root: Sort.t,
+      text: string,
+    )
+    : option(Segment.t) =>
+  Option.map(
+    p => p.segment,
+    parsed_of_text(~materialize, ~collect_refractors, ~root, text),
+  );

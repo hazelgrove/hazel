@@ -78,6 +78,21 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
   );
 };
 
+/* Re-pin the refractor triggers a ~collect_refractors parse consumed from
+   the source. FastParse reports (id, verbatim token) but stays below the
+   action layer, so the token is parsed back into a kind here. Shared by
+   every fast-first parse: text-slide loading and paste. */
+let apply_refractors = (refractors: list((Id.t, string)), z: t): t =>
+  List.fold_left(
+    (z, (id, trigger)) =>
+      switch (refractor_of_invoke_token(trigger)) {
+      | Some((kind, model)) => ZipperBase.add_manual(~model?, id, kind, z)
+      | None => z
+      },
+    z,
+    refractors,
+  );
+
 let expand_projector = (z: t): option(t) => {
   switch (z.relatives.siblings |> fst |> List.rev) {
   | [

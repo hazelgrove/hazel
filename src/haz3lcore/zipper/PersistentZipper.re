@@ -35,43 +35,33 @@ let of_text = (text: string): t => {
   backup_text: text,
 };
 
-/* Persisted programs are complete, so the linear Menhir zip usually
-   takes this; the simulated-typing parser is quadratic in program
-   size and can hang startup on big stale-sexp slides. */
-/* Caret starts at the TOP: unzip's default direction (Right) leaves the
-   caret after the whole program, and the editor scrolls the caret into
-   view on display — a freshly loaded slide would open at the bottom. */
-let apply_collected_refractors = (z: Zipper.t): Zipper.t =>
-  List.fold_left(
-    (z, (id, trigger)) =>
-      switch (Triggers.refractor_of_invoke_token(trigger)) {
-      | Some((kind, model)) => ZipperBase.add_manual(~model?, id, kind, z)
-      | None => z
-      },
-    z,
-    FastParse.collected_refractors^,
-  );
-
 /* Fast-first text→zipper, shared by persistence load and the CLI:
    FastParse (linear, complete terms) with pin collection, then the
-   ¿-aware recovering parser. Returns None only when both parsers fail;
-   the failure POLICY lives at the call sites (the CLI reports an
-   error, persistence loads an empty buffer). Only the writer's final
-   newline is stripped (see persist); all other edge whitespace is
-   content — leading/trailing blank lines round-trip. */
+   ¿-aware recovering parser. Persisted programs are complete, so the
+   linear zip usually takes it — the simulated-typing parser is quadratic
+   in program size and can hang startup on big stale-sexp slides. Returns
+   None only when both parsers fail; the failure POLICY lives at the call
+   sites (the CLI reports an error, persistence loads an empty buffer).
+   Only the writer's final newline is stripped (see persist); all other
+   edge whitespace is content — leading/trailing blank lines round-trip. */
 let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
   let text = StringUtil.strip_final_newline(text);
   switch (
-    FastParse.of_text(
+    FastParse.parsed_of_text(
       ~materialize=Triggers.invoked_projector,
       ~collect_refractors=true,
       ~root,
       text,
     )
   ) {
-  | Some(segment) =>
+  | Some({segment, refractors}) =>
+    /* Caret starts at the TOP: unzip's default direction (Right) leaves
+       the caret after the whole program, and the editor scrolls the caret
+       into view on display — a freshly loaded slide would open at the
+       bottom. */
     Some(
-      Zipper.unzip(~direction=Left, segment) |> apply_collected_refractors,
+      Zipper.unzip(~direction=Left, segment)
+      |> Triggers.apply_refractors(refractors),
     )
   | None =>
     /* MarkerParse subsumes the plain typing parse and also destructs
