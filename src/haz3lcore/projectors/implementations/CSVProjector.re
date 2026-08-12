@@ -101,7 +101,7 @@ module M: Projector = {
     switch (m) {
     | FileLoaded({filename, _}) =>
       ProjectorCore.Shape.inline(String.length(filename) + 6) // Account for reset button and toggle
-    | NoFile => ProjectorCore.Shape.inline(13)
+    | NoFile => ProjectorCore.Shape.inline(11)
     };
   let update = (m: model, _, action: action) => {
     switch (action) {
@@ -128,7 +128,7 @@ module M: Projector = {
   let file_select_button =
       (
         ~tooltip="",
-        _,
+        input_id: string,
         icon,
         on_input:
           option(Js_of_ocaml.Js.t(Js_of_ocaml.File.file)) =>
@@ -136,20 +136,31 @@ module M: Projector = {
       ) => {
     Node.(
       Util.WebUtil.(
-        /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */
-        label([
-          // ~attrs=[Attr.for_(id)],
+        /* Programmatic click, not label activation: Firefox refuses to
+           open the picker for a label wrapping a hidden file input. */
+        span([
           File_select.single(
             ~extra_attrs=[
               Attr.class_("file-select-button"),
-              // Attr.id(id),
+              Attr.id(input_id),
             ],
             ~accept=[`Extension("csv")],
             ~on_input,
             (),
           ),
           span(
-            ~attrs=[clss(["icon"]), Attr.title(tooltip)],
+            ~attrs=[
+              clss(["icon"]),
+              Attr.title(tooltip),
+              Attr.on_click(_ => {
+                switch (JsUtil.get_elem_by_id_opt(input_id)) {
+                | Some(el) =>
+                  Js_of_ocaml.Js.Unsafe.meth_call(el, "click", [||]) |> ignore
+                | None => ()
+                };
+                Virtual_dom.Vdom.Effect.Stop_propagation;
+              }),
+            ],
             [text(icon)],
           ),
         ])
@@ -165,7 +176,7 @@ module M: Projector = {
         | NoFile => [
             file_select_button(
               ~tooltip="Load CSV",
-              "import-csv",
+              "csv-file-" ++ Id.cls(info.id),
               "Load CSV",
               (file: option(Js_of_ocaml.Js.t(Js_of_ocaml.File.file))) => {
               switch (file) {
