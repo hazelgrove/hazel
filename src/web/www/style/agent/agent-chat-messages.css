@@ -2501,33 +2501,13 @@
 }
 
 /* Prompt and Developer Notes Display */
-.prompt-display,
-.developer-notes-display {
+.prompt-display {
   margin-bottom: 0.5em;
 }
 
 .editor-view-display,
 .static-errors-display {
   margin-top: 0.5em;
-}
-
-.view-icon-button svg {
-  fill: var(--menu-icon);
-  width: 18px;
-  height: 18px;
-  transition: transform 0.15s ease-in-out, filter 0.15s ease-in-out;
-}
-
-.view-icon-button:hover svg {
-  transform: scale(1.15);
-  filter: brightness(1.2);
-  animation: jello 0.6s ease 0s 1 normal forwards;
-}
-
-.view-icon-button.disabled:hover svg {
-  transform: scale(1);
-  filter: none;
-  animation: none;
 }
 
 /* Full Screen Views */
