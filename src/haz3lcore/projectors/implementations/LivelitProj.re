@@ -109,10 +109,31 @@ module M: Projector = {
 
   /* Absent when the projector isn't drawn at the code site (docked to the
      sidebar, or culled from the viewport) */
+  /* Focus the container — but never steal focus from a control INSIDE
+     the livelit's own GUI (a text input keeps focus across the click). */
   let focus_pointer = (id: Id.t) =>
     switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
     | None => ()
-    | Some(el) => el##focus
+    | Some(el) =>
+      let inside =
+        switch (
+          Js_of_ocaml.Js.Opt.to_option(
+            Js_of_ocaml.Dom_html.document##.activeElement,
+          )
+        ) {
+        | Some(active) =>
+          Js_of_ocaml.Js.to_bool(
+            Js_of_ocaml.Js.Unsafe.meth_call(
+              el,
+              "contains",
+              [|Js_of_ocaml.Js.Unsafe.inject(active)|],
+            ),
+          )
+        | None => false
+        };
+      if (!inside) {
+        el##focus;
+      };
     };
 
   let focusable =
@@ -582,6 +603,7 @@ module M: Projector = {
             [
               user_view(
                 ~id=info.id,
+                ~ll_name,
                 ~print_term=
                   term =>
                     /* Model terms contain no projectors or refractors, so
@@ -592,7 +614,6 @@ module M: Projector = {
                       ~projector_to_segment=_ => [],
                       info.utility.term_to_seg(~inline=true, Exp(term)),
                     ),
-                ~ll_name,
                 ~def_elab,
                 ~model,
                 ~model_value,
