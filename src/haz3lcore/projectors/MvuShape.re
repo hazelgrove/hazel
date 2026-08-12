@@ -56,6 +56,32 @@ let of_constructor = (d: DHExp.t): option((string, DHExp.t)) => {
   };
 };
 
+/* Like of_constructor, but SUBSTITUTES environments instead of stripping
+   them (close_value on the spine and the body). Handler-bearing attrs
+   must decompose this way: a handler fun sampled mid-run sits under
+   Closure wrappers that carry its view-scope bindings (helpers, view
+   parameters) — strip_wrappers discards them and the fired action
+   arrives with free variables. */
+let of_constructor_closed = (d: DHExp.t): option((string, DHExp.t)) => {
+  let d = close_value(d);
+  switch (d.term) {
+  | Ap(Forward, fn, body) =>
+    switch (close_value(fn).term) {
+    | Constructor(name, _) => Some((name, close_value(body)))
+    | _ => None
+    }
+  | Constructor(name, _) =>
+    Some((
+      name,
+      {
+        ...d,
+        term: Tuple([]),
+      },
+    ))
+  | _ => None
+  };
+};
+
 // Like of_constructor, but leaves the body untouched so handler bodies keep
 // their Closure wrappers (the Cmd/Sub interpreters apply them later).
 let rec of_constructor_raw = (d: DHExp.t): option((string, DHExp.t)) =>

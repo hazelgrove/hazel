@@ -178,7 +178,8 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
     prerr_endline("HazelDOM: unrecognized attribute: " ++ name);
     Attr.empty;
   };
-  switch (of_constructor(d)) {
+  /* closed, not stripped: handler funs keep their captured bindings */
+  switch (of_constructor_closed(d)) {
   | Some(x) =>
     switch (x) {
     // === Identity ===
