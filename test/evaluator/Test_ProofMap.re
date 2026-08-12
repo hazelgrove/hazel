@@ -473,9 +473,60 @@ let test_missing_incoming_mark = () => {
   );
 };
 
+/* Chained eval steps: each step's outgoing feeds the next. */
+let test_one_eval_step_outgoing = () => {
+  let src = {|theorem thm = 1 + 4 == 5 proof eval 1 + 4 at 0 end in thm|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let entry = proof_entry(state, elab);
+  check_exp(
+    "one-step outgoing",
+    "5 == 5",
+    require_exp("expected outgoing", entry.outgoing),
+  );
+};
+
+let test_two_eval_steps_outgoing = () => {
+  let src = {|theorem thm = 1 + 4 == 5 proof eval 1 + 4 at 0 end; eval 5 == 5 at 0 end in thm|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let entry = proof_entry(state, elab);
+  check_exp(
+    "two-step outgoing",
+    "true",
+    require_exp("expected outgoing", entry.outgoing),
+  );
+};
+
+/* A theorem mid-edit (body after `in` still empty) must still get its
+   proof checked into the proof map. */
+let test_empty_body_still_checked = () => {
+  let src = "theorem thm = 1 + 4 == 5 proof \neval 1 + 4 at 0 end\n  in";
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let entry = proof_entry(state, elab);
+  check_exp(
+    "empty-body one-step outgoing",
+    "5 == 5",
+    require_exp("expected outgoing (empty body)", entry.outgoing),
+  );
+};
+
 let tests = (
   "Evaluator.ProofMap",
   [
+    test_case(
+      "one eval step's outgoing feeds the goal",
+      `Quick,
+      test_one_eval_step_outgoing,
+    ),
+    test_case(
+      "two chained eval steps discharge the goal",
+      `Quick,
+      test_two_eval_steps_outgoing,
+    ),
+    test_case(
+      "empty theorem body still checks the proof",
+      `Quick,
+      test_empty_body_still_checked,
+    ),
     test_case(
       "eval trace records leading hidden transition",
       `Quick,

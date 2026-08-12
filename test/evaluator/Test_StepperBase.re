@@ -245,6 +245,145 @@ let axiom_step_proof = (~equality="refl_eq", at_exp: Exp.t): Calc.t(Proof.t) =>
 let tests = (
   "StepperBase",
   [
+    test_case(
+      "after an eval step the trailing row offers the next redex",
+      `Quick,
+      () => {
+        /* One written eval step on `1 + 4 == 5`: the stepper must
+           synthesize a trailing MissingStep row for the `5 == 5` goal
+           and offer its `==` redex as a clickable eval step. */
+        let src = "theorem thm = 1 + 4 == 5 proof eval 1 + 4 at 0 end in thm";
+        let (state, _, elab) =
+          Test_ProofMap.eval_with_proof(parse_exp(src));
+        let proof =
+          switch (Test_ProofMap.find_theorem_proof(elab)) {
+          | Some(p) => p
+          | None => Alcotest.fail("no proof")
+          };
+        let pm = EvaluatorState.get_proof_map(state);
+        let result =
+          test_calculate(
+            ~exp=parse_exp("1 + 4 == 5"),
+            ~proof=Calc.NewValue(proof),
+            ~proof_map=Calc.NewValue(pm),
+            mk_missing_step(),
+          );
+        switch (result) {
+        | StepperBase.NextStep({step_kind: EvalStep(_), next_step, _}) =>
+          switch (next_step) {
+          | StepperBase.MissingStep(m) =>
+            switch (m.next_steps |> Calc.get_saved_opt) {
+            | Some(EvaluatorStep.AvailableSteps([_])) => ()
+            | Some(EvaluatorStep.AvailableSteps(steps)) =>
+              Alcotest.fail(
+                "expected one available step, got "
+                ++ string_of_int(List.length(steps)),
+              )
+            | Some(EvaluatorStep.AutoStep(_)) =>
+              Alcotest.fail("next redex unexpectedly auto-stepped")
+            | None => Alcotest.fail("next steps not calculated")
+            }
+          | StepperBase.Finished =>
+            Alcotest.fail("row is Finished; goal not yet discharged")
+          | StepperBase.NextStep(_) =>
+            Alcotest.fail("unexpected synthesized NextStep")
+          }
+        | _ => Alcotest.fail("expected NextStep(EvalStep) row")
+        };
+      },
+    ),
+    test_case(
+      "recalculate with old inputs preserves step editor state",
+      `Quick,
+      () => {
+        /* Editors in step rows carry live UI state (caret, selection).
+           A calculate pass whose inputs are all old must NOT rebuild
+           them — rebuilding snaps the caret to a fresh editor's end
+           and makes selection in step rows impossible. */
+        let src = "theorem thm = 1 + 4 == 5 proof eval 1 + 4 at 0 end in thm";
+        let (state, _, elab) =
+          Test_ProofMap.eval_with_proof(parse_exp(src));
+        let proof =
+          switch (Test_ProofMap.find_theorem_proof(elab)) {
+          | Some(p) => p
+          | None => Alcotest.fail("no proof")
+          };
+        let pm = EvaluatorState.get_proof_map(state);
+        let goal = parse_exp("1 + 4 == 5");
+        let calculated =
+          test_calculate(
+            ~exp=goal,
+            ~proof=Calc.NewValue(proof),
+            ~proof_map=Calc.NewValue(pm),
+            mk_missing_step(),
+          );
+        /* Move the caret in the full step row's editor (fresh editors
+           sit at the end, so Start is an observable change). */
+        let moved =
+          StepperBase.Stepper.update(
+            ~settings=Web.Settings.Model.init,
+            StepperBase.EditorAction(Web.CodeSelectable.Update.Move(Start)),
+            calculated,
+          ).
+            model;
+        /* Recalculate with everything marked old (a pure-UI pass). */
+        let recalc =
+          StepperBase.Stepper.calculate(
+            ~settings=Calc.OldValue(CoreSettings.on),
+            ~exp=Calc.OldValue(goal),
+            ~ctx=
+              Calc.OldValue(
+                SemanticCtx.of_ctx_and_env(
+                  Builtins.ctx_init(Some(Operators.default_mode)),
+                  Builtins.env_init,
+                ),
+              ),
+            ~ana=Calc.OldValue(IdTagged.FreshGrammar.Typ.int()),
+            ~proof=Calc.OldValue(proof),
+            ~proof_map=Calc.OldValue(pm),
+            moved,
+          );
+        let editor_of = (ns: StepperBase.next_step) =>
+          switch (ns) {
+          | StepperBase.NextStep({current_editor, _}) =>
+            current_editor |> Calc.get_saved(None)
+          | _ => None
+          };
+        switch (editor_of(moved), editor_of(recalc)) {
+        | (Some(before), Some(after)) =>
+          check(
+            bool,
+            "step editor survives an old-input recalculate",
+            true,
+            before === after,
+          )
+        | _ => Alcotest.fail("expected a step editor before and after")
+        };
+        /* The synthesized trailing row must also keep its model. */
+        let missing_of = (ns: StepperBase.next_step) =>
+          switch (ns) {
+          | StepperBase.NextStep({next_step: MissingStep(m), _}) => Some(m)
+          | _ => None
+          };
+        switch (missing_of(moved), missing_of(recalc)) {
+        | (Some(m1), Some(m2)) =>
+          switch (
+            m1.editor |> Calc.get_saved_opt,
+            m2.editor |> Calc.get_saved_opt,
+          ) {
+          | (Some(e1), Some(e2)) =>
+            check(
+              bool,
+              "trailing row editor state survives an old-input recalculate",
+              true,
+              e1.editor.state.zipper == e2.editor.state.zipper,
+            )
+          | _ => Alcotest.fail("expected trailing row editors")
+          }
+        | _ => Alcotest.fail("expected a trailing MissingStep row")
+        };
+      },
+    ),
     // ============================================================
     // Basic calculation tests
     // ============================================================

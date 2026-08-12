@@ -749,8 +749,25 @@ and Stepper: {
       | Some(entry) => EntryFound(entry)
       | None => EntryNotFound
       };
+    /* Row editors carry live UI state (caret, selection), so rebuild
+     * them only when what they display could have changed — the proof,
+     * the checker's output, or settings. Rebuilding unconditionally
+     * would replace the editor after every dispatch (any action
+     * triggers a calculate pass), snapping the caret to a fresh
+     * editor's end position and making selection impossible. */
+    let editors_stale =
+      Calc.is_new(settings)
+      || Calc.is_new(proof)
+      || Calc.is_new(proof_map)
+      || model.current_editor == Calc.Pending;
     let (pre_editors, current_editor, post_editors) =
-      editor_groups(cached_proof_map_entry);
+      editors_stale
+        ? editor_groups(cached_proof_map_entry)
+        : (
+          model.pre_editors |> Calc.get_saved([]),
+          model.current_editor |> Calc.get_saved(None),
+          model.post_editors |> Calc.get_saved([]),
+        );
     let step_kind = {
       let adapted =
         adapt_step_kind(model.step_kind, Calc.get_value(proof_head));
@@ -796,6 +813,16 @@ and Stepper: {
       | Some(tail) =>
         let tail =
           Calc.is_new(proof) ? Calc.NewValue(tail) : Calc.OldValue(tail);
+        /* Thread the existing sub-model through so nested rows keep
+         * their UI state across calculate passes; `calculate`'s
+         * promote-or-stay / adapt logic reconciles it with the proof.
+         * A stale `Finished` can't be threaded — `calculate` treats it
+         * as terminal — so restart from a missing row in that case. */
+        let prev_next =
+          switch (model.next_step) {
+          | Finished => init_step
+          | ns => ns
+          };
         calculate(
           ~settings,
           ~exp=next_exp,
@@ -804,19 +831,27 @@ and Stepper: {
           ~proof_info_map,
           ~proof=tail,
           ~proof_map,
-          init_step,
+          prev_next,
         );
       | None when status_of_entry(cached_proof_map_entry) != Some(true) =>
-        /* Synthesized trailing row — no backing proof leaf. */
+        /* Synthesized trailing row — no backing proof leaf. Keep the
+         * previous row model (and with it the editor's caret/selection)
+         * when it was already a missing row. */
+        let prev_missing =
+          switch (model.next_step) {
+          | MissingStep(m) => m
+          | NextStep(_)
+          | Finished => MissingStep.Model.init
+          };
         MissingStep(
           calculate_missing_step(
             ~settings,
             ~exp=next_exp,
             ~ctx,
             ~proof=None,
-            MissingStep.Model.init,
+            prev_missing,
           ),
-        )
+        );
       | None => Finished
       };
     {

@@ -69,6 +69,12 @@ let is_axiom_step = (p: Proof.t): bool =>
   | _ => false
   };
 
+let is_eval_step = (p: Proof.t): bool =>
+  switch (p.term) {
+  | EvalStep(_) => true
+  | _ => false
+  };
+
 let serialize = (z: Haz3lcore.Zipper.t): string =>
   Haz3lcore.Printer.of_zipper(~holes="?", z);
 
@@ -537,6 +543,45 @@ let tests = (
             ),
           );
         check(string, "no-op patch changes nothing", before, serialize(out));
+      },
+    ),
+    test_case(
+      "extending an eval-step chain splices the second step",
+      `Quick,
+      () => {
+        /* Mirrors the stepper UI's ExtendProof patch: taking a second
+           step replaces the previous step's leaf with Seq(leaf, new). */
+        let target = "theorem thm = 1 + 4 == 5 proof \neval 1 + 4 at 0 end\n  in";
+        let z = parse_zipper(target);
+        let prev =
+          switch (find_theorem_proof(zipper_term(z))) {
+          | Some(p) =>
+            switch (find_proofs(is_eval_step, p)) {
+            | [step, ..._] => step
+            | [] => Alcotest.fail("no eval step found")
+            }
+          | None => Alcotest.fail("no theorem proof")
+          };
+        let head =
+          theorem_proof("theorem u = 1 == 1 proof eval 5 == 5 at 0 end in u");
+        let replacement = Proof.fresh(Seq(prev, head));
+        let out =
+          Haz3lcore.EditorTransform.apply_patch(
+            z,
+            Haz3lcore.EditorTransform.mk_proof_patch(
+              ~target_id=Proof.rep_id(prev),
+              replacement,
+            ),
+          );
+        check(
+          string,
+          "second step chains onto the first",
+          "theorem thm = 1 + 4 == 5 proof \n"
+          ++ "eval 1 + 4 at 0 end;\n"
+          ++ "eval 5 == 5 at 0 end\n"
+          ++ "  in?",
+          serialize(out),
+        );
       },
     ),
     test_case(
