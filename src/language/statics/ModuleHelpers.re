@@ -223,7 +223,11 @@ let rec collect_type_exports =
                  let ty_rec = Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
                  (ty_rec, ty_rec);
                } else {
-                 (Typ.normalize(ctx, typ), typ);
+                 let locals = List.map(fst, acc);
+                 (
+                   Typ.normalize(~expand=n => List.mem(n, locals), ctx, typ),
+                   typ,
+                 );
                };
              let ctx =
                Ctx.extend_alias(ctx, name, TPat.rep_id(tpat), alias_ty);
@@ -396,13 +400,26 @@ let reclassify_expanded_module_items =
 
 /* Construct module export product type from lowered value exports. */
 let module_actual_type =
-    (value_exports: list(value_export), m: StaticsBase.Map.t): Typ.t => {
+    (
+      ~local_names: list(string),
+      value_exports: list(value_export),
+      m: StaticsBase.Map.t,
+    )
+    : Typ.t => {
   let fields =
     value_exports
     |> List.map(({name, pat}) => {
          let ty =
            switch (StaticsBase.Map.lookup_pat(Pat.rep_id(pat), m)) {
-           | Some({ty, ctx: pat_ctx, _}) => Typ.normalize(pat_ctx, ty)
+           | Some({ty, ctx: pat_ctx, _}) =>
+             /* Scope escape: only module-LOCAL aliases must be inlined
+                (they are unbound outside the braces); globals/builtins
+                stay compact per the type-normalization invariant. */
+             Typ.normalize(
+               ~expand=n => List.mem(n, local_names),
+               pat_ctx,
+               ty,
+             )
            | None => Typ.temp(Unknown(Internal))
            };
          TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
