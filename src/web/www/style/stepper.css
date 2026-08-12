@@ -180,11 +180,6 @@
   width: 260px;
 }
 
-.step-expand:hover span,
-.step-back:hover span {
-  display: none;
-}
-
 .substituted {
   text-decoration: line-through;
   color: var(--STONE);
