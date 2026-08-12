@@ -87,8 +87,8 @@ let on_payload =
     }
   };
 
-let on_input = (mvu: t, handler, _evt, arg) =>
-  on_payload(mvu, "input", handler, Exp.string(arg));
+let on_input = (mvu: t, ~gesture=Commit, handler, _evt, arg) =>
+  on_payload(mvu, ~gesture, "input", handler, Exp.string(arg));
 
 let on_mouse = (mvu: t, ~gesture=Commit, handler, evt) => {
   /* MouseEvent value (labeled tuple, see BuiltinsADT.Event.mouse) */
@@ -395,7 +395,14 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
     | ("OnKeyPress", handler) => Attr.on_keypress(on_key(mvu, handler))
 
     // === Input event handlers (payload: String) ===
-    | ("OnInput", handler) => Attr.on_input(on_input(mvu, handler))
+    /* Input streams are gestures: each input event previews (Transient)
+       and the browser's once-on-release change event commits the
+       composed value (the dirty-flush path accepts the no-op update). */
+    | ("OnInput", handler) =>
+      Attr.many([
+        Attr.on_input(on_input(mvu, ~gesture=Transient, handler)),
+        Attr.on_change(on_input(mvu, handler)),
+      ])
     | ("OnChange", handler) => Attr.on_change(on_input(mvu, handler))
 
     // === Generic attributes (escape hatches) ===
