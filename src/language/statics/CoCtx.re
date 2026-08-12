@@ -84,12 +84,15 @@ let singleton = (name, id, expected_ty): t => [
   ),
 ];
 
-let meet: (Ctx.t, list(entry)) => Typ.t =
+let meet_opt: (Ctx.t, list(entry)) => option(Typ.t) =
   (ctx, entries) => {
     let expected_tys = List.map(entry => entry.expected_ty, entries);
-    switch (
-      Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, expected_tys)
-    ) {
+    Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, expected_tys);
+  };
+
+let meet: (Ctx.t, list(entry)) => Typ.t =
+  (ctx, entries) => {
+    switch (meet_opt(ctx, entries)) {
     | None => Unknown(Internal) |> Typ.fresh
     | Some(ty) => ty
     };

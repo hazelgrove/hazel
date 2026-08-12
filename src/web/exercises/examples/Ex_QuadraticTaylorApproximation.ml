@@ -1,6 +1,6 @@
 open Haz3lcore
 
-let prelude_source = "let f(t : Real) = t ** 2 + 3 * t + 2 in ?"
+let prelude_source = "use Real in (let f(t : Real) = t ** 2 + 3 * t + 2 in ?)"
 
 let theorem_source =
   "theorem quadratic_taylor_approximation = use Real in (let f1 = D f in let \

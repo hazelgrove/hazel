@@ -1,6 +1,7 @@
 open Alcotest;
 open Language;
 open IdTagged.FreshGrammar;
+open Util;
 
 let write_text_file = (path, contents) => {
   let channel = open_out(path);
@@ -30,6 +31,13 @@ let require_policy = exercise =>
   switch (theorem_spec(exercise).math_policy) {
   | Some(policy) => policy
   | None => fail("expected an exercise math policy")
+  };
+
+let exp_of_source = source =>
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, source)) {
+  | Some(zipper) =>
+    Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term
+  | None => fail("expected expression source to parse")
   };
 
 let check_policy = (label, exercise, expected_level, expected_stage) => {
@@ -130,6 +138,77 @@ let tests = (
               Some("Explore"),
               label,
             )
+        );
+      },
+    ),
+    test_case(
+      "Explore score requires reaching the configured terminal result",
+      `Quick,
+      () => {
+        let target = exp_of_source("17");
+        let (initial_earned, initial_max) =
+          Web.Theorems.Model.explore_completion_score(
+            ~target,
+            exp_of_source("3 + 4 * 2 ** 2 - 6 / 3"),
+          );
+        let (equivalent_earned, _) =
+          Web.Theorems.Model.explore_completion_score(
+            ~target,
+            exp_of_source("14 + 3"),
+          );
+        let (finished_earned, finished_max) =
+          Web.Theorems.Model.explore_completion_score(
+            ~target,
+            exp_of_source("17"),
+          );
+        check(
+          bool,
+          "initial expression is incomplete",
+          true,
+          initial_earned == 0.0,
+        );
+        check(
+          bool,
+          "unfinished equivalent form is incomplete",
+          true,
+          equivalent_earned == 0.0,
+        );
+        check(
+          bool,
+          "exact terminal result earns credit",
+          true,
+          finished_earned == 1.0,
+        );
+        check(
+          bool,
+          "score maximum is stable",
+          true,
+          initial_max == 1.0 && finished_max == 1.0,
+        );
+      },
+    ),
+    test_case(
+      "long theorem exercise statements are structurally line-wrapped",
+      `Quick,
+      () => {
+        let model =
+          Web.Ex_FoilAutomated.exercise
+          |> theorem_spec
+          |> Web.TheoremExerciseMode.Model.of_spec;
+        let formatted =
+          model.cells.theorem.editor.editor.state.zipper
+          |> Haz3lcore.Printer.of_zipper(~holes="", ~indent="");
+        check(
+          bool,
+          "pretty-printed theorem contains a line break",
+          true,
+          String.contains(formatted, '\n'),
+        );
+        check(
+          bool,
+          "pretty-printing preserves theorem identity",
+          true,
+          string_contains("theorem foil_with_cleanup", formatted),
         );
       },
     ),
@@ -405,7 +484,7 @@ let tests = (
       },
     ),
     test_case(
-      "cleanup FOIL keeps distribution visible in One Step mode",
+      "cleanup FOIL permits whole-product expansion in One Step mode",
       `Quick,
       () => {
         let policy = require_policy(Web.Ex_FoilAutomated.exercise);
@@ -418,8 +497,8 @@ let tests = (
         );
         check(
           bool,
-          "whole polynomial expansion is disabled",
-          false,
+          "whole polynomial expansion is enabled",
+          true,
           Axioms.compiled_capability_enabled(
             Axioms.stage_plan_for_profile(profile, Axioms.Manual),
             "alg.expand_polynomial",
@@ -436,8 +515,8 @@ let tests = (
         );
         check(
           bool,
-          "collection cleanup remains enabled",
-          true,
+          "automatic collection is disabled",
+          false,
           List.mem(
             Axioms.CollectLikeTerms,
             profile.step_policy.default_cleanup,
@@ -491,9 +570,24 @@ let tests = (
           | Authorized(_) => true
           | Rejected(_) => false
           };
+        let expanded = exp_of_source("2 * x ** 2 - 3 * x + 8 * x - 12");
+        let expanded_with_repeated_factor =
+          exp_of_source("2 * x * x - 3 * x + 8 * x - 12");
         check(
           bool,
-          "cannot skip directly to the collected answer",
+          "whole product can expand to four visible products",
+          true,
+          accepts(source, expanded),
+        );
+        check(
+          bool,
+          "whole product accepts repeated factors before power notation cleanup",
+          true,
+          accepts(source, expanded_with_repeated_factor),
+        );
+        check(
+          bool,
+          "whole expansion cannot absorb the separate collection step",
           false,
           accepts(source, target),
         );
@@ -557,7 +651,7 @@ let tests = (
         | Authorized(_) => ()
         | Rejected(rejection) =>
           fail(
-            "final FOIL collection: "
+            "explicit collection after expansion: "
             ++ Web.ProfileProofPlan.rejection_message(rejection),
           )
         };
@@ -612,6 +706,42 @@ let tests = (
         | Authorized(_) => ()
         | Rejected(rejection) =>
           fail(Web.ProfileProofPlan.rejection_message(rejection))
+        };
+        let profile_without_automatic_commute: Axioms.math_profile = {
+          ...profile,
+          step_policy: {
+            ...profile.step_policy,
+            default_cleanup:
+              profile.step_policy.default_cleanup
+              |> List.filter(capability => capability != Axioms.AddComm),
+          },
+        };
+        switch (
+          Web.ProfileProofPlan.authorize({
+            profile: profile_without_automatic_commute,
+            stage: Axioms.Manual,
+            candidate_origin: Web.ProfileProofPlan.UserEntered,
+            settings: CoreSettings.on,
+            env: Environment.empty,
+            source: plus(x, int(1)),
+            target: plus(int(1), x),
+            max_depth: 1,
+            max_states: 80,
+          })
+        ) {
+        | Authorized(plan) =>
+          check(
+            bool,
+            "explicit commutation retains its visible-rule identity",
+            true,
+            List.mem("arith.add_comm", plan.capability_ids)
+            && !List.mem("add.comm", plan.capability_ids),
+          )
+        | Rejected(rejection) =>
+          fail(
+            "explicit commutation should not require automatic commutation: "
+            ++ Web.ProfileProofPlan.rejection_message(rejection),
+          )
         };
         check(
           bool,
@@ -1169,6 +1299,201 @@ let tests = (
           )
         | Evaluation(_) => fail("expected the scratch stepper to open")
         };
+      },
+    ),
+    test_case(
+      "theorem and Explore calculation refreshes the exercise policy",
+      `Quick,
+      () => {
+        let policy = require_policy(Web.Ex_OrderOfOperations.exercise);
+        let refreshed =
+          Web.Theorems.Update.calculate_stepper(
+            ~settings=Calc.NewValue(CoreSettings.on),
+            ~math_policy=Some(policy),
+            ~sem_ctx=
+              Calc.NewValue(
+                SemanticCtx.of_ctx_and_env(
+                  Builtins.ctx_init(Some(Int)),
+                  Builtins.env_init,
+                ),
+              ),
+            ~goal_exp=
+              Calc.NewValue(
+                Language.Exp.fresh(Atom(Int(Bigint.of_int(3)))),
+              ),
+            Web.StepperView.Model.init,
+          );
+        check(
+          bool,
+          "locked controls remain hidden during calculation",
+          false,
+          Web.StepperView.Model.shows_math_automation_controls(refreshed),
+        );
+        check(
+          bool,
+          "calculation restores One Step",
+          true,
+          refreshed.automation_stage == Axioms.Manual,
+        );
+        check(
+          bool,
+          "calculation restores suppressed next-step hints",
+          false,
+          Option.get(refreshed.math_policy).show_next_step_hints,
+        );
+      },
+    ),
+    test_case(
+      "theorem stepper uses elaborated numeric operators",
+      `Quick,
+      () => {
+        let source = exp_of_source("use Real in (x ** 2 + 1)");
+        let (info_map, _) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), source);
+        let elaborated =
+          Web.Theorems.elaborated_exp_for_stepper(info_map, source);
+        let rec has_real_operators = (exp: Language.Exp.t) =>
+          switch (exp.term) {
+          | Parens(inner) => has_real_operators(inner)
+          | BinOp(
+              Operators.Real(Operators.Plus),
+              {term: BinOp(Operators.Real(Operators.Power), _, _), _},
+              _,
+            ) =>
+            true
+          | _ => false
+          };
+        check(
+          bool,
+          "Real mode reaches the stepper expression",
+          true,
+          has_real_operators(elaborated),
+        );
+      },
+    ),
+    test_case(
+      "Taylor preludes elaborate their annotated functions in Real mode",
+      `Quick,
+      () => {
+      [
+        (
+          "quadratic Taylor prelude",
+          Web.Ex_QuadraticTaylorApproximation.exercise,
+        ),
+        (
+          "trigonometric Taylor prelude",
+          Web.Ex_TrigTaylorApproximation.exercise,
+        ),
+      ]
+      |> List.iter(((label, exercise)) => {
+           let spec = theorem_spec(exercise);
+           let term_of_zipper = zipper =>
+             Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
+           let prelude = term_of_zipper(spec.prelude);
+           let lemmas = term_of_zipper(spec.lemmas);
+           let theorem = term_of_zipper(spec.theorem);
+           let stitched_scratch = Web.EditorUtil.append_exp(prelude, lemmas);
+           let stitched_theorem =
+             stitched_scratch
+             |> Web.EditorUtil.append_exp(
+                  _,
+                  prelude
+                  |> Language.ProofHacks.strip_theorems
+                  |> Language.Exp.replace_all_ids,
+                )
+             |> Web.EditorUtil.append_exp(_, theorem);
+           let prelude_statics =
+             Haz3lcore.CachedStatics.init_from_term(
+               ~settings=CoreSettings.on,
+               ~is_dynamic_term=false,
+               prelude,
+             );
+           let theorem_statics =
+             Haz3lcore.CachedStatics.init_from_term(
+               ~settings=CoreSettings.on,
+               ~is_dynamic_term=false,
+               stitched_theorem,
+             );
+           check(
+             list(string),
+             label ++ " has no Real/Int consistency errors",
+             [],
+             prelude_statics.error_ids
+             @ theorem_statics.error_ids
+             |> List.map(Id.show),
+           );
+         })
+    }),
+    test_case(
+      "rewrite mini-editor preserves the selected Real numeric mode",
+      `Quick,
+      () => {
+        let real_typ = Language.Typ.temp(Atom(Real));
+        let base_ctx =
+          Ctx.extend(
+            Builtins.ctx_init(Some(Int)),
+            Ctx.VarEntry({
+              name: "x",
+              id: Id.invalid,
+              typ: real_typ,
+              custom_statics: None,
+            }),
+          );
+        let ctx =
+          Web.MissingStep.rewrite_editor_ctx(
+            ~ctx=base_ctx,
+            ~ana=Some(real_typ),
+          );
+        let target = exp_of_source("x ** 2 + 6 * x");
+        let (info_map, elaborated) =
+          Statics.mk(~ana=real_typ, CoreSettings.on, ctx, target);
+        let rec has_real_operators = (exp: Language.Exp.t) =>
+          switch (exp.term) {
+          | BinOp(
+              Operators.Real(Operators.Plus),
+              {term: BinOp(Operators.Real(Operators.Power), _, _), _},
+              {term: BinOp(Operators.Real(Operators.Times), _, _), _},
+            ) =>
+            true
+          | Parens(inner) => has_real_operators(inner)
+          | _ => false
+          };
+        check(
+          list(string),
+          "target has no Real/Int consistency errors",
+          [],
+          Statics.Map.error_ids(info_map) |> List.map(Id.show),
+        );
+        check(
+          bool,
+          "fresh target operators elaborate as Real",
+          true,
+          has_real_operators(elaborated),
+        );
+      },
+    ),
+    test_case(
+      "pending exercise evaluation retains its math policy",
+      `Quick,
+      () => {
+        let policy = require_policy(Web.Ex_OrderOfOperations.exercise);
+        let locked_result =
+          Web.EvalResult.Model.init
+          |> Web.EvalResult.Model.with_math_policy(Some(policy));
+        let calculated =
+          Web.EvalResult.Update.calculate(
+            ~settings=CoreSettings.on,
+            ~queue_worker=None,
+            ~is_edited=false,
+            Haz3lcore.CachedStatics.empty,
+            locked_result,
+          );
+        check(
+          bool,
+          "result reset preserves the exercise policy",
+          true,
+          calculated.theorems.math_policy == Some(policy),
+        );
       },
     ),
     test_case(

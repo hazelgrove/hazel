@@ -49,6 +49,10 @@ let effective_exp_string_from_zipper = (z: Zipper.t): string => {
 let effective_segment_string = (input: string): string =>
   Test_Editing.mk_zipper(input) |> effective_segment_string_from_zipper;
 
+let raw_selection_string = (input: string): string =>
+  Test_Editing.mk_zipper(input).selection.content
+  |> Printer.of_segment(~holes="?", ~concave_holes="~", ~indent=" ");
+
 let effective_exp_string = (input: string): string => {
   Test_Editing.mk_zipper(input) |> effective_exp_string_from_zipper;
 };
@@ -487,6 +491,195 @@ let tests = (
       ~name="subtraction suffix is a virtual associative selection",
       ~input={|x ** 2 + 3 * x §-¦ 4|},
       ~expected=true,
+    ),
+    test_exp(
+      ~name="plus after subtraction selects the signed additive suffix",
+      ~input={|x ** 2 §- 9 + 5¦|},
+      ~expected={|- 9 + 5|},
+    ),
+    test_exp(
+      ~name="clicking plus after subtraction selects its signed operands",
+      ~input={|x ** 2 - 9 §+¦ 5|},
+      ~expected={|- 9 + 5|},
+    ),
+    test(
+      ~name="clicking plus highlights only the signed additive suffix",
+      ~input={|x ** 2 - 9 §+¦ 5|},
+      ~expected={|- 9 + 5|},
+    ),
+    test_virtual(
+      ~name="plus after subtraction is a virtual signed additive selection",
+      ~input={|x ** 2 §- 9 + 5¦|},
+      ~expected=true,
+    ),
+    test_exp(
+      ~name="operand-first drag absorbs its implicit leading subtraction",
+      ~input={|x ** 2 - §9 + 5¦|},
+      ~expected={|- 9 + 5|},
+    ),
+    test(
+      ~name="operand-first drag highlights the completed signed suffix",
+      ~input={|x ** 2 - §9 + 5¦|},
+      ~expected={|- 9 + 5|},
+    ),
+    test_exp(
+      ~name="single subtraction operand does not absorb an implicit sign",
+      ~input={|x ** 2 - §9¦ + 5|},
+      ~expected={|9|},
+    ),
+    test_exp(
+      ~name="whole mixed additive chain stays whole",
+      ~input={|§x ** 2 - 9 + 5¦|},
+      ~expected={|x ** 2 - 9 + 5|},
+    ),
+    test_virtual(
+      ~name="whole mixed additive chain is not narrowed to a suffix",
+      ~input={|§x ** 2 - 9 + 5¦|},
+      ~expected=false,
+    ),
+    test_exp(
+      ~name="mixed signed suffix preserves every later sign",
+      ~input={|x ** 2 §- 9 + 5 - 4¦|},
+      ~expected={|- 9 + 5 - 4|},
+    ),
+    test_virtual(
+      ~name="long mixed signed suffix is a virtual selection",
+      ~input={|x ** 2 §- 9 + 5 - 4¦|},
+      ~expected=true,
+    ),
+    test_virtual(
+      ~name="Real signed suffix uses the same structural selection",
+      ~input={|use Real in x ** 2 §- 9 + 5¦|},
+      ~expected=true,
+    ),
+    test_exp(
+      ~name="Real signed suffix remains local inside an equality",
+      ~input=
+        {|use Real in (x ** 2 + 6 * x + 9 §- 9 + 5¦ == (x + 3) ** 2 - 4)|},
+      ~expected={|- 9 + 5|},
+    ),
+    test_exp(
+      ~name="Real equality operand-first drag completes its signed suffix",
+      ~input=
+        {|use Real in (x ** 2 + 6 * x + 9 - §9 + 5¦ == (x + 3) ** 2 - 4)|},
+      ~expected={|- 9 + 5|},
+    ),
+    test_actions_exp(
+      ~name="mouse drag from negative operand completes Real signed suffix",
+      ~input=
+        {|¦use Real in (x ** 2 + 6 * x + 9 - 9 + 5 == (x + 3) ** 2 - 4)|},
+      ~actions=[
+        Action.Move(
+          Point(
+            {
+              row: 0,
+              col: 34,
+            },
+            None,
+          ),
+        ),
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 39,
+              },
+              None,
+            ),
+          ),
+        ),
+      ],
+      ~expected={|- 9 + 5|},
+    ),
+    test_actions_exp(
+      ~name="reverse mouse drag completes the same Real signed suffix",
+      ~input=
+        {|¦use Real in (x ** 2 + 6 * x + 9 - 9 + 5 == (x + 3) ** 2 - 4)|},
+      ~actions=[
+        Action.Move(
+          Point(
+            {
+              row: 0,
+              col: 39,
+            },
+            None,
+          ),
+        ),
+        Action.Select(
+          Resize(
+            Point(
+              {
+                row: 0,
+                col: 34,
+              },
+              None,
+            ),
+          ),
+        ),
+      ],
+      ~expected={|- 9 + 5|},
+    ),
+    test_virtual(
+      ~name="Real equality signed suffix is a virtual selection",
+      ~input=
+        {|use Real in (x ** 2 + 6 * x + 9 §- 9 + 5¦ == (x + 3) ** 2 - 4)|},
+      ~expected=true,
+    ),
+    test_replacement(
+      ~name="Real equality signed suffix replacement preserves its equation",
+      ~input=
+        {|use Real in (x ** 2 + 6 * x + 9 §- 9 + 5¦ == (x + 3) ** 2 - 4)|},
+      ~with_input={|¦-4|},
+      ~expected=
+        {|use Real in (x ** 2 + 6 * x + 9 + (- 4) == (x + 3) ** 2 - 4)|},
+    ),
+    test_replacement(
+      ~name="long mixed signed suffix replaces without losing its prefix",
+      ~input={|x ** 2 §- 9 + 5 - 4¦|},
+      ~with_input={|¦- 8|},
+      ~expected={|x ** 2 + (- 8)|},
+    ),
+    test_virtual(
+      ~name="float signed suffix stays on ordinary selection",
+      ~input={|1. §-. 2. +. 5.¦|},
+      ~expected=false,
+    ),
+    test_case(
+      "mixed additive drag retains its signed source range", `Quick, () =>
+      check(
+        string,
+        "raw selection",
+        "- 9 + 5",
+        raw_selection_string("x ** 2 §- 9 + 5¦"),
+      )
+    ),
+    test_case(
+      "mixed additive drag finds its signed container",
+      `Quick,
+      () => {
+        let z = Test_Editing.mk_zipper("x ** 2 §- 9 + 5¦");
+        let (_, statics, _) = setup(z);
+        let selected_ids =
+          SelectionEffective.selection_ids_without_whitespace(
+            z.selection.content,
+          );
+        check(
+          bool,
+          "signed container",
+          true,
+          Language.AssocSelection.find_assoc_roots_for_ids(
+            selected_ids,
+            statics.info_map,
+          )
+          |> List.exists(root_id =>
+               Language.AssocSelection.is_signed_additive_suffix_for_id(
+                 root_id,
+                 statics.info_map,
+               )
+             ),
+        );
+      },
     ),
     test_virtual(
       ~name="repeated subtraction falls back to dev selection",

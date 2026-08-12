@@ -380,6 +380,129 @@ let test_subtraction_suffix_replaces_only_selected_chunk = () => {
   };
 };
 
+let test_mixed_additive_suffix_replaces_only_selected_chunk = () => {
+  let exp = parse_exp("(x + 1) ** 2 - 9 + 5");
+  let selected_ids =
+    switch (exp.term) {
+    | BinOp(
+        Operators.Int(Operators.Plus),
+        {
+          term:
+            BinOp(
+              Operators.Int(Operators.Minus),
+              _,
+              {term: Atom(Int(_)), _} as nine,
+            ),
+          _,
+        } as inner,
+        {term: Atom(Int(_)), _} as five,
+      ) => [
+        Exp.rep_id(inner),
+        Exp.rep_id(nine),
+        Exp.rep_id(exp),
+        Exp.rep_id(five),
+      ]
+    | _ => Alcotest.fail("Unexpected mixed additive suffix parse tree")
+    };
+  switch (Reparenthesize.reparenthesize_selection(~selected_ids, exp)) {
+  | Some(result) =>
+    switch (Reparenthesize.selected_exp(result)) {
+    | Some(selected_exp) =>
+      check(
+        bool,
+        "selected source retains the leading negative sign",
+        true,
+        Equality.ignoring_ascriptions.exp(selected_exp, parse_exp("-9 + 5")),
+      );
+      let replaced =
+        Reparenthesize.replace_selected(result, parse_exp("-4"));
+      check(
+        bool,
+        "replacement preserves the unselected prefix",
+        true,
+        Equality.ignoring_ascriptions.exp(
+          replaced,
+          parse_exp("(x + 1) ** 2 + (-4)"),
+        ),
+      );
+    | None => Alcotest.fail("Expected selected mixed additive suffix")
+    }
+  | None => Alcotest.fail("Expected mixed additive suffix to reparenthesize")
+  };
+};
+
+let test_mixed_additive_suffix_infers_unselected_leading_sign = () => {
+  let exp = parse_exp("(x + 1) ** 2 - 9 + 5");
+  let selected_ids =
+    switch (exp.term) {
+    | BinOp(
+        Operators.Int(Operators.Plus),
+        {
+          term:
+            BinOp(
+              Operators.Int(Operators.Minus),
+              _,
+              {term: Atom(Int(_)), _} as nine,
+            ),
+          _,
+        },
+        {term: Atom(Int(_)), _} as five,
+      ) => [
+        Exp.rep_id(nine),
+        Exp.rep_id(exp),
+        Exp.rep_id(five),
+      ]
+    | _ => Alcotest.fail("Unexpected implicit-sign suffix parse tree")
+    };
+  switch (Reparenthesize.reparenthesize_selection(~selected_ids, exp)) {
+  | Some(result) =>
+    switch (Reparenthesize.selected_exp(result)) {
+    | Some(selected_exp) =>
+      check(
+        bool,
+        "implicit sign is retained structurally",
+        true,
+        Equality.ignoring_ascriptions.exp(selected_exp, parse_exp("-9 + 5")),
+      )
+    | None => Alcotest.fail("Expected an inferred signed selection")
+    }
+  | None => Alcotest.fail("Expected operand-first suffix to reparenthesize")
+  };
+};
+
+let test_real_mixed_additive_suffix_reparenthesizes = () => {
+  let a = IdTagged.FreshGrammar.Exp.var("a");
+  let b = IdTagged.FreshGrammar.Exp.var("b");
+  let c = IdTagged.FreshGrammar.Exp.var("c");
+  let minus = Exp.fresh(BinOp(Operators.Real(Operators.Minus), a, b));
+  let exp = Exp.fresh(BinOp(Operators.Real(Operators.Plus), minus, c));
+  let selected_ids = [
+    Exp.rep_id(minus),
+    Exp.rep_id(b),
+    Exp.rep_id(exp),
+    Exp.rep_id(c),
+  ];
+  switch (Reparenthesize.reparenthesize_selection(~selected_ids, exp)) {
+  | Some(result) =>
+    switch (Reparenthesize.selected_exp(result)) {
+    | Some({
+        term:
+          BinOp(
+            Operators.Real(Operators.Plus),
+            {term: UnOp(Operators.Real(Operators.Minus), _), _},
+            _,
+          ),
+        _,
+      }) =>
+      ()
+    | Some(_) =>
+      Alcotest.fail("Expected Real signed suffix to preserve negation")
+    | None => Alcotest.fail("Expected selected Real signed suffix")
+    }
+  | None => Alcotest.fail("Expected Real signed suffix to reparenthesize")
+  };
+};
+
 let test_unparenthesize_selected_parens = () => {
   let exp = parse_exp("1 + (2 + 3) + 4");
   let parens_id =
@@ -509,6 +632,21 @@ let tests = (
       "Subtraction suffix replacement preserves its prefix",
       `Quick,
       test_subtraction_suffix_replaces_only_selected_chunk,
+    ),
+    test_case(
+      "Mixed additive suffix replacement preserves its prefix",
+      `Quick,
+      test_mixed_additive_suffix_replaces_only_selected_chunk,
+    ),
+    test_case(
+      "Mixed additive suffix infers an omitted leading sign",
+      `Quick,
+      test_mixed_additive_suffix_infers_unselected_leading_sign,
+    ),
+    test_case(
+      "Real mixed additive suffix preserves its sign",
+      `Quick,
+      test_real_mixed_additive_suffix_reparenthesizes,
     ),
     test_case(
       "Unparenthesize removes selected parens",

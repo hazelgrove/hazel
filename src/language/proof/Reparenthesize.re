@@ -255,7 +255,170 @@ let plus_and_neg_for_minus:
       Operators.Float(Operators.Plus),
       Operators.Float(Operators.Minus),
     ))
+  | Operators.Real(Operators.Minus) =>
+    Some((Operators.Real(Operators.Plus), Operators.Real(Operators.Minus)))
   | _ => None;
+
+let is_signed_additive_op: Operators.op_bin => bool =
+  fun
+  | Operators.Int(Operators.Plus | Operators.Minus)
+  | Operators.SInt(Operators.Plus | Operators.Minus)
+  | Operators.Real(Operators.Plus | Operators.Minus) => true
+  | _ => false;
+
+type additive_operand = {
+  operator_id: Id.t,
+  op: Operators.op_bin,
+  exp: Exp.t,
+};
+
+/* Preserve each displayed sign while exposing a suffix of an additive chain.
+ * This covers both [a - b - c] and [a - b + c] without treating [minus] as
+ * associative. */
+let rec split_additive_chain = (exp: Exp.t): (Exp.t, list(additive_operand)) =>
+  switch (exp.term) {
+  | BinOp(op, left, right) when is_signed_additive_op(op) =>
+    let (base, operands) = split_additive_chain(left);
+    (
+      base,
+      operands
+      @ [
+        {
+          operator_id: Exp.rep_id(exp),
+          op,
+          exp: right,
+        },
+      ],
+    );
+  | _ => (exp, [])
+  };
+
+let combine_additive_operands =
+    (base: Exp.t, operands: list(additive_operand)): Exp.t =>
+  operands
+  |> List.fold_left(
+       (acc, operand) => Exp.fresh(BinOp(operand.op, acc, operand.exp)),
+       base,
+     );
+
+let additive_operand_is_selected =
+    (selected_ids: list(Id.t), operand: additive_operand): bool =>
+  IdTagged.ids(operand.exp) |> List.exists(id => List.mem(id, selected_ids));
+
+/* A mouse drag commonly begins on the first operand rather than on its
+ * preceding infix sign.  Complete that boundary only when the drag also
+ * contains a following additive operand.  Thus [b + c] in [a - b + c]
+ * denotes the signed chunk [-b + c], while selecting [b] alone remains the
+ * ordinary subexpression [b]. */
+let complete_implicit_signed_additive_prefix =
+    (selected_ids: list(Id.t), exp: Exp.t): option(list(Id.t)) => {
+  let (base, operands) = split_additive_chain(exp);
+  switch (
+    operands
+    |> List.mapi((index, operand) =>
+         additive_operand_is_selected(selected_ids, operand)
+           ? Some((index, operand)) : None
+       )
+    |> List.filter_map(Fun.id)
+  ) {
+  | [(first, first_operand), ..._]
+      when
+        !List.mem(first_operand.operator_id, selected_ids)
+        && plus_and_neg_for_minus(first_operand.op) != None
+        && !List.mem(Exp.rep_id(base), selected_ids) =>
+    let selected_operands =
+      ListUtil.sublist((first, List.length(operands)), operands);
+    switch (selected_operands) {
+    | [_, ...[_, ..._] as following]
+        when
+          following
+          |> List.for_all(operand =>
+               List.mem(operand.operator_id, selected_ids)
+               && additive_operand_is_selected(selected_ids, operand)
+             ) =>
+      Some([first_operand.operator_id, ...selected_ids])
+    | _ => None
+    };
+  | _ => None
+  };
+};
+
+let rec complete_signed_additive_selection_ids =
+        (selected_ids: list(Id.t), exp: Exp.t): option(list(Id.t)) =>
+  switch (complete_implicit_signed_additive_prefix(selected_ids, exp)) {
+  | Some(_) as completed => completed
+  | None =>
+    switch (exp.term) {
+    | BinOp(_, left, right)
+    | Ap(_, left, right) =>
+      switch (complete_signed_additive_selection_ids(selected_ids, left)) {
+      | Some(_) as completed => completed
+      | None => complete_signed_additive_selection_ids(selected_ids, right)
+      }
+    | Parens(inner)
+    | Asc(inner, _)
+    | Projector(_, inner) =>
+      complete_signed_additive_selection_ids(selected_ids, inner)
+    | _ => None
+    }
+  };
+
+let replace_selected_additive_suffix =
+    (selected_ids: list(Id.t), exp: Exp.t): option(result) => {
+  let selected_ids =
+    complete_implicit_signed_additive_prefix(selected_ids, exp)
+    |> Option.value(~default=selected_ids);
+  let (base, operands) = split_additive_chain(exp);
+  let selected_indices =
+    operands
+    |> List.mapi((index, operand) =>
+         List.mem(operand.operator_id, selected_ids)
+         && additive_operand_is_selected(selected_ids, operand)
+           ? Some(index) : None
+       )
+    |> List.filter_map(Fun.id);
+  switch (selected_indices) {
+  | [first, ..._] =>
+    /* The base is the unselected prefix of a signed suffix. If it is itself
+     * selected, this is a whole-chain selection and must retain the normal
+     * term-selection behavior rather than being narrowed to a virtual slice. */
+    if (List.mem(Exp.rep_id(base), selected_ids)) {
+      None;
+    } else {
+      let prefix_operands = ListUtil.take(first, operands);
+      let selected_operands =
+        ListUtil.sublist((first, List.length(operands)), operands);
+      let suffix_is_fully_selected =
+        selected_operands
+        |> List.for_all(operand =>
+             List.mem(operand.operator_id, selected_ids)
+             && additive_operand_is_selected(selected_ids, operand)
+           );
+      if (!suffix_is_fully_selected) {
+        None;
+      } else {
+        switch (selected_operands) {
+        | [{op, exp: first_exp, _}, ...rest] =>
+          switch (plus_and_neg_for_minus(op)) {
+          | None => None
+          | Some((plus_op, neg_op)) =>
+            let selected_base = Exp.fresh(UnOp(neg_op, first_exp));
+            let selected = combine_additive_operands(selected_base, rest);
+            let prefix = combine_additive_operands(base, prefix_operands);
+            let selected_parens = Exp.fresh(Parens(selected));
+            Some({
+              exp: Exp.fresh(BinOp(plus_op, prefix, selected_parens)),
+              selected_id: Exp.rep_id(selected),
+              selected_is_single_binop: binop_count(selected) == 1,
+            });
+          }
+        | [] => None
+        };
+      };
+    }
+  | [] => None
+  };
+};
 
 let operand_is_selected =
     (selected_ids: list(Id.t), operand: subtraction_operand): bool =>
@@ -266,7 +429,8 @@ let combine_subtraction_operands =
     : Exp.t =>
   operands
   |> List.fold_left(
-       (acc, operand) => Exp.fresh(BinOp(op, acc, operand.exp)),
+       (acc, operand: subtraction_operand) =>
+         Exp.fresh(BinOp(op, acc, operand.exp)),
        base,
      );
 
@@ -278,7 +442,7 @@ let replace_selected_subtraction_suffix =
     let (base, operands) = split_subtraction_chain(op, exp);
     let selected_indices =
       operands
-      |> List.mapi((index, operand) =>
+      |> List.mapi((index, operand: subtraction_operand) =>
            List.mem(operand.operator_id, selected_ids)
            && operand_is_selected(selected_ids, operand)
              ? Some(index) : None
@@ -291,7 +455,7 @@ let replace_selected_subtraction_suffix =
         ListUtil.sublist((first, List.length(operands)), operands);
       let suffix_is_fully_selected =
         selected_operands
-        |> List.for_all(operand =>
+        |> List.for_all((operand: subtraction_operand) =>
              List.mem(operand.operator_id, selected_ids)
              && operand_is_selected(selected_ids, operand)
            );
@@ -330,42 +494,50 @@ let rec reparenthesize_selection =
   if (List.mem(Exp.rep_id(exp), whole_selected_ids)) {
     None;
   } else {
-    switch (replace_selected_subtraction_suffix(selected_ids, exp)) {
+    switch (replace_selected_additive_suffix(selected_ids, exp)) {
     | Some(_) as result => result
     | None =>
-      switch (replace_selected_chain(selected_ids, exp)) {
+      switch (replace_selected_subtraction_suffix(selected_ids, exp)) {
       | Some(_) as result => result
       | None =>
-        switch (exp.term) {
-        | BinOp(op, l, r) =>
-          switch (
-            reparenthesize_selection(~whole_selected_ids, ~selected_ids, l)
-          ) {
-          | Some({exp: l', _} as result) =>
-            Some({
-              ...result,
-              exp: Exp.fresh(BinOp(op, l', r)),
-            })
-          | None =>
+        switch (replace_selected_chain(selected_ids, exp)) {
+        | Some(_) as result => result
+        | None =>
+          switch (exp.term) {
+          | BinOp(op, l, r) =>
             switch (
-              reparenthesize_selection(~whole_selected_ids, ~selected_ids, r)
+              reparenthesize_selection(~whole_selected_ids, ~selected_ids, l)
             ) {
-            | Some({exp: r', _} as result) =>
+            | Some({exp: l', _} as result) =>
               Some({
                 ...result,
-                exp: Exp.fresh(BinOp(op, l, r')),
+                exp: Exp.fresh(BinOp(op, l', r)),
               })
-            | None => None
+            | None =>
+              switch (
+                reparenthesize_selection(
+                  ~whole_selected_ids,
+                  ~selected_ids,
+                  r,
+                )
+              ) {
+              | Some({exp: r', _} as result) =>
+                Some({
+                  ...result,
+                  exp: Exp.fresh(BinOp(op, l, r')),
+                })
+              | None => None
+              }
             }
+          | Parens(e) =>
+            let* {exp: e', _} as result =
+              reparenthesize_selection(~whole_selected_ids, ~selected_ids, e);
+            Some({
+              ...result,
+              exp: Exp.fresh(Parens(e')),
+            });
+          | _ => None
           }
-        | Parens(e) =>
-          let* {exp: e', _} as result =
-            reparenthesize_selection(~whole_selected_ids, ~selected_ids, e);
-          Some({
-            ...result,
-            exp: Exp.fresh(Parens(e')),
-          });
-        | _ => None
         }
       }
     };

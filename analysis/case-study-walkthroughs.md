@@ -136,22 +136,27 @@ similar.
 (2 * x - 3) * (x + 4) == 2 * x ** 2 + 5 * x - 12
 ```
 
-This exercise allows more cleanup than verbose FOIL, while keeping each
-distribution visible:
+This exercise contrasts with verbose FOIL by allowing the whole product to be
+expanded as one named algebra step:
 
 1. Select the entire product `(2 * x - 3) * (x + 4)`.
-2. Open **One Step** and distribute one side of the product.
-3. Continue distributing until all four products are visible.
-4. Use the enabled algebra cleanup to combine the two linear terms and simplify
-   the constants, reaching:
+2. Open **One Step** and expand it to the four-product form:
+
+   ```text
+   2 * x ** 2 - 3 * x + 8 * x - 12
+   ```
+
+3. Select the expanded polynomial and use the visible **collect like terms**
+   rule to combine the two linear terms, reaching:
 
    ```text
    2 * x ** 2 + 5 * x - 12
    ```
 
-Whole-product polynomial expansion is disabled here. The distinction from the
-first FOIL exercise is that multiplication, reordering, and collection may be
-absorbed as cleanup around each visible distribution step.
+Whole-product polynomial expansion is enabled here, but automatic collection is
+disabled so expansion and collection remain two distinct visible steps. The
+preceding FOIL exercise is the one that requires each primitive distribution to
+remain visible.
 
 ## 4. Completing the Square
 

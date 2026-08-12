@@ -141,24 +141,37 @@ let increment_count = (counts, id) => {
   [(id, previous + 1), ...counts |> List.remove_assoc(id)];
 };
 
-let canonical_capability_id = id =>
-  switch (Axioms.cleanup_capability_for_id(id)) {
-  | Some(capability) => Axioms.cleanup_capability_label(capability)
-  | None => id
+/* Some visible catalog rules also have cleanup aliases (for example,
+ * [alg.collect_like_terms] versus [collect.like_terms]).  Preserve the
+ * catalog identity when the evidence records an explicit visible rule; only
+ * canonicalize actual cleanup aliases.  Otherwise disabling automatic cleanup
+ * would incorrectly disable the corresponding student-visible One Step rule. */
+let canonical_capability_id = (~visible_rule_ids, id) =>
+  if (List.mem(id, visible_rule_ids)) {
+    id;
+  } else {
+    switch (Axioms.cleanup_capability_for_id(id)) {
+    | Some(capability) => Axioms.cleanup_capability_label(capability)
+    | None => id
+    };
   };
 
-let capability_use_counts = (summary: ProofTrace.trace_summary) => {
+let capability_use_counts =
+    (~visible_rule_ids, summary: ProofTrace.trace_summary) => {
   let from_steps =
     summary.prover_steps
     |> List.fold_left(
          (counts, step: ProofTrace.prover_step) =>
-           increment_count(counts, canonical_capability_id(step.rule_id)),
+           increment_count(
+             counts,
+             canonical_capability_id(~visible_rule_ids, step.rule_id),
+           ),
          [],
        );
   summary.rule_ids
   |> List.fold_left(
        (counts, raw_id) => {
-         let id = canonical_capability_id(raw_id);
+         let id = canonical_capability_id(~visible_rule_ids, raw_id);
          List.mem_assoc(id, counts) ? counts : [(id, 1), ...counts];
        },
        from_steps,
@@ -289,7 +302,10 @@ let validate_summary = (request: request, summary) => {
   let summary = contiguous_legacy_summary(request, summary);
   let stage = authorization_stage(request.stage);
   let stage_plan = Axioms.stage_plan_for_profile(request.profile, stage);
-  let counts = capability_use_counts(summary);
+  let visible_rule_ids =
+    stage_plan.visible_rules
+    |> List.map((planned: Axioms.planned_visible_rule) => planned.rule.id);
+  let counts = capability_use_counts(~visible_rule_ids, summary);
   let direction_allows = (allowed, actual) =>
     allowed == Axioms.BothDirections || allowed == actual;
   let invalid_direction =

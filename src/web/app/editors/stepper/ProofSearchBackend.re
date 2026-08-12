@@ -61,6 +61,18 @@ type local_planning_outcome =
 
 let active_local_planning_id: ref(option(int)) = ref(None);
 
+/* Proof-search ownership must not depend on wall-clock timestamps.  In the
+ * JavaScript build, converting Date.getTime() to an OCaml int truncates it to
+ * 32 bits; independently started searches can therefore reuse an identifier,
+ * and a cancellation callback for the old request can cancel the new one.
+ * A process-local sequence gives every planner/Rocq handoff a distinct owner. */
+let next_search_id = ref(0);
+
+let fresh_search_id = () => {
+  next_search_id := next_search_id^ + 1;
+  next_search_id^;
+};
+
 let cancel_local_profile_plans_except = check_id =>
   active_local_planning_id := check_id;
 

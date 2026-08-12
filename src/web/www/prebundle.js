@@ -117,6 +117,7 @@ window.HazelJSCoq = {
   managerGenerationCounter: 0,
   recycleCounter: 0,
   recyclePromise: null,
+  warmupTimeoutMs: 120000,
   maxPersistentStateId: 80,
   maxPersistentUserChecks: 12,
   warmupLibraryCode:
@@ -128,6 +129,15 @@ window.HazelJSCoq = {
       jscoqPkgPath: new URL('/jscoq/coq-pkgs/', window.location.href).href,
       nodeModulesPath: new URL('/node_modules/', window.location.href).href,
     };
+  },
+
+  withTimeout(promise, timeoutMs, message) {
+    let timeoutId;
+    const timeout = new Promise((_, reject) => {
+      timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    });
+    return Promise.race([promise, timeout])
+      .finally(() => window.clearTimeout(timeoutId));
   },
 
   settleCancellationFutures(manager, sid) {
@@ -738,7 +748,7 @@ window.HazelJSCoq = {
 
     if (!this.warmupPromise) {
       console.log('[Hazel JSCoq] initializing persistent Rocq worker');
-      this.warmupPromise = this.start({code: '', show: false})
+      const warmup = this.start({code: '', show: false})
         .then(async manager => {
           await manager.when_ready.promise;
           console.log('[Hazel JSCoq] preloading Hazel Rocq libraries');
@@ -762,7 +772,12 @@ window.HazelJSCoq = {
             {durationMs: result.durationMs, steps: result.steps},
           );
           return result;
-        })
+        });
+      this.warmupPromise = this.withTimeout(
+        warmup,
+        this.warmupTimeoutMs,
+        `Persistent Rocq worker did not become ready within ${this.warmupTimeoutMs}ms.`,
+      )
         .catch(error => {
           this.reset();
           console.warn('[Hazel JSCoq] Rocq tactic search warmup failed to run', error);

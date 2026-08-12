@@ -11,7 +11,13 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
-let extend_ctx_with_explore_assumptions = (ctx: Ctx.t, co_ctx: CoCtx.t): Ctx.t => {
+/* Mathematical statements use free identifiers as locally implicit
+ * variables. A preliminary pass records every use and its expected type;
+ * meeting those demands gives one binding for the checked statement. The
+ * caller must remove these bindings from its resulting co-context so they do
+ * not escape the statement. */
+let extend_ctx_with_implicit_assumptions =
+    (ctx: Ctx.t, co_ctx: CoCtx.t): Ctx.t => {
   VarMap.to_list(co_ctx)
   |> List.fold_left(
        (ctx, (name, entries: list(CoCtx.entry))) =>
@@ -19,15 +25,19 @@ let extend_ctx_with_explore_assumptions = (ctx: Ctx.t, co_ctx: CoCtx.t): Ctx.t =
          | (Some(_), _)
          | (_, []) => ctx
          | (None, [first_entry, ..._]) =>
-           Ctx.extend(
-             ctx,
-             Ctx.VarEntry({
-               name,
-               id: Id.next(first_entry.id),
-               typ: CoCtx.meet(ctx, entries),
-               custom_statics: None,
-             }),
-           )
+           switch (CoCtx.meet_opt(ctx, entries)) {
+           | Some(typ) =>
+             Ctx.extend(
+               ctx,
+               Ctx.VarEntry({
+                 name,
+                 id: Id.next(first_entry.id),
+                 typ,
+                 custom_statics: None,
+               }),
+             )
+           | None => ctx
+           }
          },
        ctx,
      );
@@ -2205,7 +2215,11 @@ and uexp_to_info_map =
       );
     | Theorem({term: Var(_), _} as p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (e1_pre, _, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let theorem_ctx =
+        extend_ctx_with_implicit_assumptions(ctx, e1_pre.co_ctx);
+      let (e1', e1_elab, m) =
+        go(~ctx=theorem_ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(
           ~is_synswitch=false,
@@ -2219,13 +2233,14 @@ and uexp_to_info_map =
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
+        ~ctx=theorem_ctx,
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
         ~marks=[],
         ~co_ctx=
           CoCtx.union([
             p'.co_ctx,
-            e1'.co_ctx,
+            CoCtx.mk(ctx, theorem_ctx, e1'.co_ctx),
             CoCtx.mk(ctx, p.ctx, e2.co_ctx),
             pat_typ_refs,
           ]),
@@ -2239,7 +2254,11 @@ and uexp_to_info_map =
       );
     | Theorem(p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (e1_pre, _, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let theorem_ctx =
+        extend_ctx_with_implicit_assumptions(ctx, e1_pre.co_ctx);
+      let (e1', e1_elab, m) =
+        go(~ctx=theorem_ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
@@ -2247,12 +2266,14 @@ and uexp_to_info_map =
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
+        ~ctx=theorem_ctx,
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
         ~marks=[BadTheorem(e2.ty)],
         ~co_ctx=
           CoCtx.union([
             p'.co_ctx,
+            CoCtx.mk(ctx, theorem_ctx, e1'.co_ctx),
             CoCtx.mk(ctx, p.ctx, e2.co_ctx),
             pat_typ_refs,
           ]),
@@ -2264,7 +2285,7 @@ and uexp_to_info_map =
       let (e_pre, _, m) =
         go(~ctx, ~ana=Unknown(Internal) |> Typ.temp, e, m);
       let explore_ctx =
-        extend_ctx_with_explore_assumptions(ctx, e_pre.co_ctx);
+        extend_ctx_with_implicit_assumptions(ctx, e_pre.co_ctx);
       let (e, e_elab, m) =
         go(~ctx=explore_ctx, ~ana=Unknown(Internal) |> Typ.temp, e, m);
       add(

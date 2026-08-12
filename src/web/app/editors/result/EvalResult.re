@@ -506,7 +506,8 @@ module Update = {
           theorems
           |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
         | ProgramResult.ResultPending(_)
-        | ProgramResult.ResultFail(_) => Theorems.Model.init
+        | ProgramResult.ResultFail(_) =>
+          Theorems.Model.empty_with_math_policy(math_policy)
         };
       } else {
         theorems;
@@ -748,6 +749,7 @@ module View = {
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Selection.t),
+        ~explore_target: option(Exp.t)=None,
         ~result_kind: [
            | `NoResults
            | `TestResults
@@ -776,6 +778,7 @@ module View = {
                 | Some(Theorems(f)) => Some(f)
                 | _ => None
                 },
+              ~explore_target,
               model.theorems,
             );
       let result =

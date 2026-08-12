@@ -9,6 +9,7 @@ type virtual_selection = {
 type associative_candidate = {
   segment: Segment.t,
   container_id: Id.t,
+  semantic_exp: option(Language.Exp.t),
 };
 
 type target =
@@ -92,6 +93,7 @@ let assoc_candidate_in_roots =
            ? Some({
                segment: root_range,
                container_id: root_id,
+               semantic_exp: None,
              })
            : None;
        | None => None
@@ -122,6 +124,7 @@ let candidate_with_container =
            ? Some({
                segment,
                container_id: root_id,
+               semantic_exp: None,
              })
            : None
        | None => None
@@ -157,6 +160,18 @@ let exp_of_segment = (segment: Segment.t): option(Language.Exp.t) =>
   | None => None
   };
 
+/* Reparenthesize can make any associative range into a subterm. For the
+ * special source range that starts at an infix subtraction, accept only the
+ * result whose leftmost operand is its explicitly preserved unary negative.
+ * Ordinary additive selections retain the established range-based path. */
+let rec begins_with_signed_additive_operand = (exp: Language.Exp.t): bool =>
+  switch (exp.term) {
+  | UnOp(_, _) => true
+  | BinOp(_, left, _)
+  | Parens(left) => begins_with_signed_additive_operand(left)
+  | _ => false
+  };
+
 /* Dev's range-based selection remains authoritative unless an associative
  * operator identifies a contiguous expression slice that has no AST node of
  * its own (for example [3 + 4] in [1 + 2 + 3 + 4]). */
@@ -170,7 +185,24 @@ let virtual_selection =
     : option(virtual_selection) => {
   open OptUtil.Syntax;
   let selection = z.selection.content;
-  let selected_ids = selection_ids_without_whitespace(selection);
+  let raw_selected_ids = selection_ids_without_whitespace(selection);
+  let selected_ids =
+    Language.AssocSelection.find_assoc_roots_for_ids(
+      raw_selected_ids,
+      info_map,
+    )
+    |> List.find_map(root_id =>
+         switch (Language.Statics.Map.lookup(root_id, info_map)) {
+         | Some(InfoExp({user_term, _})) =>
+           Language.Reparenthesize.complete_signed_additive_selection_ids(
+             raw_selected_ids,
+             user_term,
+           )
+         | Some(_)
+         | None => None
+         }
+       )
+    |> Option.value(~default=raw_selected_ids);
   let snapped_ids =
     Language.AssocSelection.find_assoc_for_ids(selected_ids, info_map);
   let current_level = current_level_segment(z);
@@ -212,21 +244,89 @@ let virtual_selection =
              ? Some({
                  segment: root_range,
                  container_id: root_id,
+                 semantic_exp: None,
                })
              : None;
          | None => None
          }
        );
+  /* A suffix beginning with subtraction carries its leading sign in the
+   * source selection itself.  The containing [plus] node is merely the
+   * replacement container, so do not widen the selected range back across
+   * the unselected prefix. */
+  let direct_signed_candidate =
+    Language.AssocSelection.find_assoc_roots_for_ids(selected_ids, info_map)
+    |> List.find_map(root_id => {
+         let signed_selected_ids =
+           selected_ids @ snapped_ids |> ListUtil.dedup;
+         switch (TermData.segment(root_id, term_data)) {
+         | Some(root_segment)
+             when
+               selected_ids
+               |> List.exists(id =>
+                    Language.AssocSelection.is_signed_additive_suffix_for_id(
+                      id,
+                      info_map,
+                    )
+                  )
+               && segment_contains_all_ids(
+                    ~ids=signed_selected_ids,
+                    root_segment,
+                  ) =>
+           switch (Language.Statics.Map.lookup(root_id, info_map)) {
+           | Some(InfoExp({user_term, _})) =>
+             /* Reparenthesize owns the signed-chain algebra. It accepts only a
+              * complete suffix beginning at subtraction, preserves every sign,
+              * and rejects whole-chain selections. Reusing it here keeps the
+              * visual and semantic selection policies identical. */
+             switch (
+               Language.Reparenthesize.reparenthesize_selection(
+                 ~selected_ids=signed_selected_ids,
+                 user_term,
+               )
+             ) {
+             | Some(result) =>
+               switch (Language.Reparenthesize.selected_exp(result)) {
+               | Some(semantic_exp)
+                   when begins_with_signed_additive_operand(semantic_exp) =>
+                 Some({
+                   segment:
+                     contiguous_range(~ids=signed_selected_ids, root_segment),
+                   container_id: root_id,
+                   semantic_exp: Some(semantic_exp),
+                 })
+               | Some(_) => None
+               | None => None
+               }
+             | None => None
+             }
+           | Some(_) => None
+           | None => None
+           }
+         | Some(_) => None
+         | None => None
+         };
+       });
+  let is_direct_signed_selection = direct_signed_candidate != None;
   let candidate =
-    switch (direct_candidate) {
+    switch (direct_signed_candidate) {
     | Some(_) as candidate => candidate
-    | None => fallback_candidate
+    | None =>
+      switch (direct_candidate) {
+      | Some(_) as candidate => candidate
+      | None => fallback_candidate
+      }
     };
-  let* {segment, container_id} = candidate;
-  if (has_exact_root(~segment, ~info_map, ~measured, ~term_data)) {
+  let* {segment, container_id, semantic_exp} = candidate;
+  if (!is_direct_signed_selection
+      && has_exact_root(~segment, ~info_map, ~measured, ~term_data)) {
     None;
   } else {
-    let+ exp = exp_of_segment(segment);
+    let+ exp =
+      switch (semantic_exp) {
+      | Some(exp) => Some(exp)
+      | None => exp_of_segment(segment)
+      };
     {
       segment,
       exp,
@@ -366,26 +466,47 @@ let replacement_for_virtual =
       ~term_data: TermData.t,
     )
     : option(replacement_result) => {
-  open OptUtil.Syntax;
-  let* at_exp =
-    Language.ProofHacks.find_exp_id(virtual_.container_id, full_exp);
-  let* container_segment = TermData.segment(virtual_.container_id, term_data);
-  let with_segment =
-    ExpToSegment.exp_to_segment(
-      ~settings=ExpToSegment.Settings.editable(~inline=true),
-      with_exp,
-    );
-  let* replaced_segment =
-    replace_range(
-      ~selected=virtual_.segment,
-      ~replacement=[Segment.parenthesize(with_segment)],
-      container_segment,
-    );
-  let+ with_exp = exp_of_segment(replaced_segment);
-  {
-    at_exp,
-    with_exp,
-  };
+  OptUtil.Syntax.(
+    /* The selected source may begin at an infix sign, which is not itself a
+     * parseable expression range. Prefer the structural reparenthesization that
+     * created the virtual selection; it is independent of rendering layout and
+     * applies the replacement to an actual subterm. Retain range replacement
+     * only for older virtual selections that cannot be reparenthesized. */
+
+    let* at_exp =
+      Language.ProofHacks.find_exp_id(virtual_.container_id, full_exp);
+    switch (
+      Language.Reparenthesize.reparenthesize_selection(
+        ~selected_ids=Segment.ids(virtual_.segment),
+        at_exp,
+      )
+    ) {
+    | Some(result) =>
+      Some({
+        at_exp,
+        with_exp: Language.Reparenthesize.replace_selected(result, with_exp),
+      })
+    | None =>
+      let* container_segment =
+        TermData.segment(virtual_.container_id, term_data);
+      let with_segment =
+        ExpToSegment.exp_to_segment(
+          ~settings=ExpToSegment.Settings.editable(~inline=true),
+          with_exp,
+        );
+      let* replaced_segment =
+        replace_range(
+          ~selected=virtual_.segment,
+          ~replacement=[Segment.parenthesize(with_segment)],
+          container_segment,
+        );
+      let+ with_exp = exp_of_segment(replaced_segment);
+      {
+        at_exp,
+        with_exp,
+      };
+    };
+  );
 };
 
 let replacement =

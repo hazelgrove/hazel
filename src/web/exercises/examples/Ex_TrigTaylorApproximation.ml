@@ -1,8 +1,8 @@
 open Haz3lcore
 
 let prelude_source =
-  "let a : Real = 3 / 10 in let f = fun (t : Real) -> 7 / 4 - cos_real(2 * t) \
-   + (1 / 4) * cos_real(4 * t) in ?"
+  "use Real in (let a : Real = 3 / 10 in let f = fun (t : Real) -> 7 / 4 - \
+   cos_real(2 * t) + (1 / 4) * cos_real(4 * t) in ?)"
 
 let theorem_source =
   "theorem trig_taylor_approximation = use Real in (let f1 = D f in let f2 = D \

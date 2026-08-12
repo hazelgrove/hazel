@@ -53,8 +53,35 @@ let supports_virtual_slice: Operators.op_bin => bool =
 let is_additive_pair = (op: Operators.op_bin, left_op: Operators.op_bin): bool =>
   switch (op, left_op) {
   | (Int(Minus), Int(Plus))
+  | (Int(Plus), Int(Minus))
   | (SInt(Minus), SInt(Plus))
+  | (SInt(Plus), SInt(Minus))
   | (Real(Minus), Real(Plus)) => true
+  | (Real(Plus), Real(Minus)) => true
+  | _ => false
+  };
+
+/* In [(a - b) + c], the selectable suffix begins at the subtraction
+ * operator, rather than at [b]: the latter would silently drop its sign.
+ * This is a signed additive slice, not an assertion that subtraction itself
+ * is associative.  Reparenthesization turns it into [a + ((-b) + c)]. */
+let is_signed_additive_suffix =
+    (op: Operators.op_bin, left_op: Operators.op_bin): bool =>
+  switch (op, left_op) {
+  | (Int(Plus), Int(Minus))
+  | (SInt(Plus), SInt(Minus))
+  | (Real(Plus), Real(Minus)) => true
+  | _ => false
+  };
+
+let is_signed_additive_suffix_for_id =
+    (id: Id.t, info_map: Statics.Map.t): bool =>
+  switch (Statics.Map.lookup(id, info_map)) {
+  | Some(InfoExp({user_term: {term: BinOp(op, left, _), _}, _})) =>
+    switch (Exp.term_of(left)) {
+    | BinOp(left_op, _, _) => is_signed_additive_suffix(op, left_op)
+    | _ => false
+    }
   | _ => false
   };
 
@@ -66,6 +93,8 @@ let is_additive_suffix = (op: Operators.op_bin, left: Exp.t): bool =>
 
 let left_boundary_id = (op, left: Exp.t): Id.t =>
   switch (Exp.term_of(left)) {
+  | BinOp(left_op, _, _) when is_signed_additive_suffix(op, left_op) =>
+    Exp.rep_id(left)
   | BinOp(left_op, _, left_right)
       when left_op == op || is_additive_pair(op, left_op) =>
     left_edge_id(left_right)
@@ -96,6 +125,17 @@ let find_assoc_for_id = (id: Id.t, info_map: Statics.Map.t): list(Id.t) =>
   switch (Statics.Map.lookup(id, info_map)) {
   | Some(InfoExp({user_term, _})) =>
     switch (user_term.term) {
+    | BinOp(op, {term: BinOp(left_op, _, left_right), _} as left, right)
+        when is_signed_additive_suffix(op, left_op) => [
+        /* The source range begins at the infix subtraction, but its semantic
+         * operand begins immediately after that sign. Keep both boundaries so
+         * a direct click on the following plus can construct [-b + c] without
+         * widening to the unselected prefix [a]. */
+        Exp.rep_id(left),
+        right_edge_id(left_right),
+        id,
+        right_boundary_id(op, right),
+      ]
     | BinOp(op, left, right)
         when supports_virtual_slice(op) || is_additive_suffix(op, left) => [
         left_boundary_id(op, left),

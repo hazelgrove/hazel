@@ -14,7 +14,7 @@
 
 (rule
  (targets bundled.js)
- (deps prebundle.js)
+ (deps prebundle.js jscoq)
  (action
   (run
    %{project_root}/node_modules/esbuild/bin/esbuild

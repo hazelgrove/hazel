@@ -90,6 +90,27 @@ module Model = {
     theorem: model.cells.theorem.result |> EvalResult.Model.persist,
   };
 
+  /* Exercise specs are commonly authored as compact source strings. Format
+     the theorem/explore editor once when constructing its model so long
+     statements use Hazel's normal structural line breaking instead of
+     overflowing horizontally. PrettySegment only rearranges whitespace and
+     preserves tile IDs. */
+  let prettify_theorem = (zipper: Zipper.t): Zipper.t => {
+    let refractors = zipper.refractors;
+    let segment = zipper |> Zipper.unselect_and_zip |> PrettySegment.prettify;
+    {
+      ...Zipper.unzip(segment),
+      refractors,
+    };
+  };
+
+  let theorem_cell = (~math_policy, zipper) =>
+    zipper
+    |> prettify_theorem
+    |> Editor.Model.mk(~root=Exp)
+    |> CellEditor.Model.mk
+    |> CellEditor.Model.with_math_policy(math_policy);
+
   let unpersist =
       (~settings, spec: TheoremExercise.spec, persistent: persistent): t => {
     {
@@ -109,7 +130,7 @@ module Model = {
         theorem:
           {
             editor:
-              CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)).
+              theorem_cell(~math_policy=spec.math_policy, spec.theorem).
                 editor,
             result: persistent.theorem |> EvalResult.Model.unpersist,
           }
@@ -136,9 +157,7 @@ module Model = {
         lemmas:
           CellEditor.Model.mk(Editor.Model.mk(spec.lemmas, ~root=Exp))
           |> CellEditor.Model.with_math_policy(spec.math_policy),
-        theorem:
-          CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp))
-          |> CellEditor.Model.with_math_policy(spec.math_policy),
+        theorem: theorem_cell(~math_policy=spec.math_policy, spec.theorem),
       },
       editing_flags: editing_flags_false,
       write_out_steps: spec.write_out_steps,
@@ -830,6 +849,11 @@ module View = {
       );
 
     let is_explore = Option.is_some(model.expected_explore_result);
+    let explore_target =
+      model.expected_explore_result
+      |> Option.map(target =>
+           MakeTerm.from_zip_for_sem(target, ~root=Exp).term
+         );
     let theorem_view =
       CellEditor.View.view(
         ~globals,
@@ -842,6 +866,7 @@ module View = {
           | _ => None
           },
         ~inject=a => inject(Theorem(a)),
+        ~explore_target,
         ~result_kind=`JustTheorems,
         ~caption=
           CellCommon.caption(
@@ -851,11 +876,10 @@ module View = {
       );
 
     let score =
-      switch (model.expected_explore_result) {
+      switch (explore_target) {
       | Some(target) =>
         Theorems.Model.get_explore_score(
-          ~settings=globals.settings.core,
-          ~target=MakeTerm.from_zip_for_sem(target, ~root=Exp).term,
+          ~target,
           model.cells.theorem.result.theorems,
         )
       | None => Theorems.Model.get_score(model.cells.theorem.result.theorems)

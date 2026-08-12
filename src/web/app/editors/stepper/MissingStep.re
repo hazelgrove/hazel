@@ -120,6 +120,48 @@ let effective_selection_for_editor = (editor: CodeSelectable.Model.t) =>
     editor.editor.state.zipper,
   );
 
+let option_exp_equal = (a, b) =>
+  switch (a, b) {
+  | (None, None) => true
+  | (Some(a), Some(b)) => Equality.ignoring_ascriptions.exp(a, b)
+  | _ => false
+  };
+
+/* The main expression keeps its structural selection while a rewrite box is
+   open.  Refresh the source captured by that box when the student makes a new
+   selection; a temporarily absent live selection means focus moved into the
+   mini-editor, so retain the captured source in that case. */
+let refresh_captured_source = (~captured, ~live) =>
+  switch (live) {
+  | None => (captured, false)
+  | Some(_) when option_exp_equal(captured, live) => (captured, false)
+  | Some(_) => (live, true)
+  };
+
+/* A theorem stepper operates on elaborated expressions, so an enclosing
+ * [use Real] has already become explicit Real operators and is no longer in
+ * the syntax tree. Restore that numeric mode for the rewrite mini-editor from
+ * the selected expression's analyzed type; otherwise freshly typed operators
+ * fall back to Int even when variables in the selected context are Real. */
+let rewrite_editor_ctx = (~ctx: Ctx.t, ~ana: option(Typ.t)): Ctx.t => {
+  let numeric_mode: option(Operators.mode) =
+    ana
+    |> Option.bind(_, ana =>
+         switch (Typ.weak_head_normalize(ctx, ana) |> Typ.term_of) {
+         | Atom(Nat) => Some(Operators.Nat: Operators.mode)
+         | Atom(Int) => Some(Operators.Int: Operators.mode)
+         | Atom(SInt) => Some(Operators.SInt: Operators.mode)
+         | Atom(Float) => Some(Operators.Float: Operators.mode)
+         | Atom(Real) => Some(Operators.Real: Operators.mode)
+         | _ => None
+         }
+       );
+  switch (numeric_mode) {
+  | Some(mode) => Ctx.set_use_mode(ctx, Some(mode))
+  | None => ctx
+  };
+};
+
 let proof_search_can_replace =
   fun
   | Model.ProfileValid => true
@@ -733,6 +775,15 @@ module Update = {
     let full_visible_exp = Calc.NewValue(editor.statics.term);
     let visible_terms = Calc.NewValue(editor.editor.syntax.terms);
     let effective_selection = effective_selection_for_editor(editor);
+    let live_rewrite_reparenthesized_exp =
+      SelectionEffective.virtual_target(effective_selection)
+      |> Option.bind(_, virtual_ =>
+           SelectionEffective.reparenthesize_virtual(
+             ~virtual_,
+             ~full_exp=Calc.get_value(full_visible_exp),
+           )
+         )
+      |> Option.map((result: Language.Reparenthesize.result) => result.exp);
     let selected_id =
       SelectionEffective.root_id(effective_selection)
       |> Calc.set(_, selected_id);
@@ -900,8 +951,18 @@ module Update = {
           cached_exp,
           cached_result,
         }) =>
+        let (rewrite_selected_exp, source_selection_changed) =
+          refresh_captured_source(
+            ~captured=rewrite_selected_exp,
+            ~live=Calc.get_value(selected_exp),
+          );
+        let rewrite_reparenthesized_exp =
+          source_selection_changed
+            ? live_rewrite_reparenthesized_exp : rewrite_reparenthesized_exp;
         // Calculate syntax, holes, types, etc for the editor
         let ana = Calc.get_value(selected_ana);
+        let editor_ctx =
+          rewrite_editor_ctx(~ctx=Calc.get_value(selected_ctx), ~ana);
         let editor =
           CodeEditable.Update.calculate(
             ~settings,
@@ -909,7 +970,7 @@ module Update = {
             ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
-            ~ctx=Calc.get_value(selected_ctx),
+            ~ctx=editor_ctx,
             ~ana?,
             editor,
           );
@@ -922,7 +983,7 @@ module Update = {
           );
         // Reset result if editor changes
         let cached_result =
-          cached_result
+          (source_selection_changed ? Calc.Pending : cached_result)
           |> {
             let.calc sctx = ctx
             and.calc to_exp = cached_exp
@@ -979,6 +1040,14 @@ module Update = {
           cached_exp,
           cached_result,
         }) =>
+        let (rewrite_selected_exp, source_selection_changed) =
+          refresh_captured_source(
+            ~captured=rewrite_selected_exp,
+            ~live=Calc.get_value(selected_exp),
+          );
+        let rewrite_reparenthesized_exp =
+          source_selection_changed
+            ? live_rewrite_reparenthesized_exp : rewrite_reparenthesized_exp;
         let automation_stage_changed =
           calculated_automation_stage != Some(automation_stage);
         let check_mode =
@@ -986,6 +1055,8 @@ module Update = {
             ? check_mode_for_automation_stage(automation_stage) : check_mode;
         // Calculate syntax, holes, types, etc for the editor
         let ana = Calc.get_value(selected_ana);
+        let editor_ctx =
+          rewrite_editor_ctx(~ctx=Calc.get_value(selected_ctx), ~ana);
         let editor =
           CodeEditable.Update.calculate(
             ~settings,
@@ -993,7 +1064,7 @@ module Update = {
             ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
-            ~ctx=Calc.get_value(selected_ctx),
+            ~ctx=editor_ctx,
             ~ana?,
             editor,
           );
@@ -1018,16 +1089,18 @@ module Update = {
         let rewrite_level_changed =
           calculated_rewrite_level != Some(rewrite_level);
         let reset_proof_search =
-          proof_search_state_is_stale(
-            ~calculated_rewrite_level,
-            ~rewrite_level,
-            ~calculated_automation_stage,
-            ~automation_stage,
-            ~target_exp_changed,
-            ~proof_search_source,
-          );
+          source_selection_changed
+          || proof_search_state_is_stale(
+               ~calculated_rewrite_level,
+               ~rewrite_level,
+               ~calculated_automation_stage,
+               ~automation_stage,
+               ~target_exp_changed,
+               ~proof_search_source,
+             );
         let cached_result =
-          rewrite_level_changed ? Calc.Pending : cached_result;
+          rewrite_level_changed || source_selection_changed
+            ? Calc.Pending : cached_result;
         // Reset result if editor changes
         let cached_result =
           switch (check_mode) {
@@ -1128,6 +1201,14 @@ module Update = {
           rewrite_reparenthesized_exp,
           source_full_visible_exp: _,
         }) =>
+        let (rewrite_selected_exp, source_selection_changed) =
+          refresh_captured_source(
+            ~captured=rewrite_selected_exp,
+            ~live=Calc.get_value(selected_exp),
+          );
+        let rewrite_reparenthesized_exp =
+          source_selection_changed
+            ? live_rewrite_reparenthesized_exp : rewrite_reparenthesized_exp;
         let selected_exp_for_axioms =
           switch (rewrite_selected_exp) {
           | Some(_) => Calc.NewValue(rewrite_selected_exp)
@@ -1991,7 +2072,7 @@ module View = {
                 ? "validate candidate against the active profile"
                 : "run JSCoq/Rocq tactic search",
             _ => {
-              let check_id = JsUtil.date_now()##getTime |> int_of_float;
+              let check_id = ProofSearchBackend.fresh_search_id();
               /* Starting a request is the ownership handoff point.  Retain
                * this request while cancelling only genuinely older local and
                * Rocq work. */
@@ -2910,13 +2991,6 @@ module View = {
                     | Some(result) => Some(result.exp)
                     | None => None
                     };
-                  let option_exp_equal = (a, b) =>
-                    switch (a, b) {
-                    | (None, None) => true
-                    | (Some(a), Some(b)) =>
-                      Equality.ignoring_ascriptions.exp(a, b)
-                    | _ => false
-                    };
                   let reparenthesized_source_changed =
                     switch (
                       rewrite_reparenthesized_exp,
@@ -2929,11 +3003,17 @@ module View = {
                     | (stored, live) => !option_exp_equal(stored, live)
                     };
                   let source_selection_changed =
-                    !
-                      option_exp_equal(
-                        rewrite_selected_exp,
-                        selected_exp_for_rewrite,
-                      )
+                    (
+                      switch (selected_exp_for_rewrite) {
+                      | None => false
+                      | Some(_) =>
+                        !
+                          option_exp_equal(
+                            rewrite_selected_exp,
+                            selected_exp_for_rewrite,
+                          )
+                      }
+                    )
                     || reparenthesized_source_changed;
                   let suggestions =
                     switch (

@@ -8086,6 +8086,46 @@ let tests = (
       },
     ),
     test_case(
+      "open rewrite boxes refresh a changed source selection",
+      `Quick,
+      () => {
+        let original = times(Exp.int(4), Exp.int(4));
+        let replacement_source = plus(Exp.int(3), Exp.int(16));
+        let (refreshed, changed) =
+          Web.MissingStep.refresh_captured_source(
+            ~captured=Some(original),
+            ~live=Some(replacement_source),
+          );
+        let (retained, focus_only) =
+          Web.MissingStep.refresh_captured_source(
+            ~captured=Some(original),
+            ~live=None,
+          );
+        check(bool, "new structural selection is detected", true, changed);
+        check(
+          bool,
+          "captured source follows the new selection",
+          true,
+          Web.MissingStep.option_exp_equal(
+            refreshed,
+            Some(replacement_source),
+          ),
+        );
+        check(
+          bool,
+          "mini-editor focus is not a source change",
+          false,
+          focus_only,
+        );
+        check(
+          bool,
+          "mini-editor focus retains the captured source",
+          true,
+          Web.MissingStep.option_exp_equal(retained, Some(original)),
+        );
+      },
+    ),
+    test_case(
       "proof-search cancellation resets only the active check",
       `Quick,
       () => {
@@ -8160,6 +8200,15 @@ let tests = (
           true,
           state(cancelled_result) == (false, Cancelled, None),
         );
+      },
+    ),
+    test_case(
+      "proof-search request IDs are unique without relying on wall-clock time",
+      `Quick,
+      () => {
+        let first = Web.ProofSearchBackend.fresh_search_id();
+        let second = Web.ProofSearchBackend.fresh_search_id();
+        check(bool, "successive IDs differ", true, first != second);
       },
     ),
     test_case(

@@ -225,6 +225,7 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Selection.t),
         ~caption: option(Node.t)=?,
+        ~explore_target: option(Language.Exp.t)=None,
         ~result_kind=?,
         ~locked=false,
         ~lines=false,
@@ -257,6 +258,7 @@ module View = {
           | _ => None
           };
         },
+        ~explore_target,
         ~result_kind?,
         ~locked,
         model.result,

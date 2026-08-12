@@ -19,6 +19,16 @@ let env_with_symbolic_ctx_vars =
        env,
      );
 
+/* Dynamics retains the source expression so the editor can preserve its
+ * concrete syntax.  Proof steppers, however, must operate on the statically
+ * elaborated expression: this is where a surrounding [use Real] has been
+ * propagated to every numeric operator and literal. */
+let elaborated_exp_for_stepper = (info_map: Statics.Map.t, exp: Exp.t): Exp.t =>
+  switch (Statics.Map.lookup_exp(Exp.rep_id(exp), info_map)) {
+  | Some({elab_term, _}) => elab_term
+  | None => exp
+  };
+
 let proof_core_settings = (settings: CoreSettings.t): CoreSettings.t => {
   ...settings,
   evaluation: {
@@ -119,6 +129,9 @@ module Model = {
          ),
   };
 
+  let empty_with_math_policy = math_policy =>
+    init |> with_math_policy(math_policy);
+
   let persist = (model: t): persistent => {
     thm_map:
       Id.Map.map(
@@ -194,8 +207,21 @@ module Model = {
     Some((correct, total));
   };
 
-  let get_explore_score =
-      (~settings, ~target, model: t): option((float, float)) => {
+  let explore_is_complete = (~target, terminal) =>
+    Equality.ignoring_ascriptions.exp(terminal, target);
+
+  let explore_completion_score = (~target, terminal): (float, float) => (
+    explore_is_complete(~target, terminal) ? 1.0 : 0.0,
+    1.0,
+  );
+
+  let explore_stepper_is_complete = (~target, stepper_view) =>
+    switch (StepperView.Model.terminal_exp(stepper_view)) {
+    | Some(terminal) => explore_is_complete(~target, terminal)
+    | None => false
+    };
+
+  let get_explore_score = (~target, model: t): option((float, float)) => {
     open OptUtil.Syntax;
     let* items = model.items |> Calc.get_saved_opt;
     let* id =
@@ -207,21 +233,7 @@ module Model = {
          );
     let* explore = Id.Map.find_opt(id, model.explore_map);
     let* terminal = StepperView.Model.terminal_exp(explore.stepper_view);
-    let* sem_ctx = explore.sem_ctx |> Calc.get_saved_opt;
-    let exact = Equality.ignoring_ascriptions.exp(terminal, target);
-    let certified =
-      exact
-      || Option.is_some(
-           RewriteChecker.check_written_step_trace_for_profile(
-             ~stage=explore.stepper_view.automation_stage,
-             ~profile=StepperView.Model.active_profile(explore.stepper_view),
-             ~settings,
-             ~env=SemanticCtx.get_env(sem_ctx),
-             terminal,
-             target,
-           ),
-         );
-    Some((certified ? 1.0 : 0.0, 1.0));
+    Some(explore_completion_score(~target, terminal));
   };
 };
 
@@ -253,19 +265,16 @@ module Update = {
   let calculate_stepper =
       (
         ~settings,
+        ~math_policy,
         ~sem_ctx,
         ~ana: option(Calc.t(Typ.t))=?,
         ~goal_exp,
         stepper_view,
       )
       : StepperView.Model.t =>
-    StepperView.Update.calculate(
-      ~settings,
-      ~ctx=sem_ctx,
-      ~ana?,
-      goal_exp,
-      stepper_view,
-    );
+    stepper_view
+    |> StepperView.Model.with_math_policy(math_policy)
+    |> StepperView.Update.calculate(~settings, ~ctx=sem_ctx, ~ana?, goal_exp);
 
   let has_changed_goal = (previous: Calc.saved(Exp.t), current: Exp.t): bool =>
     switch (previous |> Calc.get_saved_opt) {
@@ -356,15 +365,21 @@ module Update = {
       stepper_items
       |> List.filter_map(
            fun
-           | Dynamics.TheoremStepper(id, name, env, exp) =>
-             Some((
-               id,
-               name,
-               env,
-               exp
-               |> Substitution.in_exp(Environment.empty)
-               |> ProofRule.exp_to_rule,
-             ))
+           | Dynamics.TheoremStepper(id, name, env, exp) => {
+               let exp =
+                 elaborated_exp_for_stepper(
+                   Calc.get_value(statics).info_map,
+                   exp,
+                 );
+               Some((
+                 id,
+                 name,
+                 env,
+                 exp
+                 |> Substitution.in_exp(Environment.empty)
+                 |> ProofRule.exp_to_rule,
+               ));
+             }
            | Dynamics.ExploreStepper(_, _, _) => None,
          )
       |> List.fold_left(
@@ -424,6 +439,7 @@ module Update = {
                  let stepper_view =
                    calculate_stepper(
                      ~settings=stepper_settings,
+                     ~math_policy,
                      ~sem_ctx,
                      ~ana=Calc.OldValue(Typ.fresh(Atom(Bool))),
                      ~goal_exp,
@@ -449,7 +465,15 @@ module Update = {
       |> List.filter_map(
            fun
            | Dynamics.TheoremStepper(_, _, _, _) => None
-           | Dynamics.ExploreStepper(id, env, exp) => Some((id, env, exp)),
+           | Dynamics.ExploreStepper(id, env, exp) =>
+             Some((
+               id,
+               env,
+               elaborated_exp_for_stepper(
+                 Calc.get_value(statics).info_map,
+                 exp,
+               ),
+             )),
          )
       |> List.fold_left(
            (acc, (id, env', exp)) => {
@@ -502,6 +526,7 @@ module Update = {
                  let stepper_view =
                    calculate_stepper(
                      ~settings=stepper_settings,
+                     ~math_policy,
                      ~sem_ctx,
                      ~goal_exp,
                      stepper_view,
@@ -571,6 +596,14 @@ module Focus = {
 module View = {
   open WebUtil;
 
+  let completion_status = (~complete, ~complete_label) =>
+    Node.div(
+      ~attrs=[
+        Attr.classes(["theorem-status", complete ? "true" : "unknown"]),
+      ],
+      [Node.text(complete ? complete_label : "incomplete")],
+    );
+
   let view_stepper =
       (
         ~globals,
@@ -599,6 +632,7 @@ module View = {
         ~take_focus: Focus.t => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Focus.t),
+        ~explore_target: option(Exp.t)=None,
         model: Model.t,
       ) => {
     let stepper_globals = {
@@ -614,19 +648,11 @@ module View = {
            | None => None
            | Some(Model.{stepper_view, name, _}) =>
              let status =
-               switch (StepperView.Model.get_validity(stepper_view)) {
-               | Some(true) =>
-                 Node.div(
-                   ~attrs=[Attr.classes(["theorem-status", "true"])],
-                   [Node.text("proven true")],
-                 )
-               | Some(false)
-               | None =>
-                 Node.div(
-                   ~attrs=[Attr.classes(["theorem-status", "unknown"])],
-                   [Node.text("incomplete")],
-                 )
-               };
+               completion_status(
+                 ~complete=
+                   StepperView.Model.get_validity(stepper_view) == Some(true),
+                 ~complete_label="proven true",
+               );
              let header =
                WebUtil.div_c(
                  "theorem-header",
@@ -658,10 +684,25 @@ module View = {
            | None => None
            | Some(explore: Model.stepper) =>
              let stepper_view = explore.stepper_view;
+             let status =
+               explore_target
+               |> Option.map(target =>
+                    completion_status(
+                      ~complete=
+                        Model.explore_stepper_is_complete(
+                          ~target,
+                          stepper_view,
+                        ),
+                      ~complete_label="complete",
+                    )
+                  );
              let header =
                WebUtil.div_c(
                  "theorem-header",
-                 [Node.strong([Node.text("Explore expression")])],
+                 [
+                   Node.strong([Node.text("Explore expression")]),
+                   ...Option.to_list(status),
+                 ],
                );
              let stepper =
                view_stepper(

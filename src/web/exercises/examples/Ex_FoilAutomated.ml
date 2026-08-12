@@ -9,10 +9,6 @@ let zipper_of_source source =
   | Some zipper -> zipper
   | None -> failwith ("Failed to parse theorem exercise source: " ^ source)
 
-let disabled_usage capability_id stage :
-    Language.Axioms.capability_usage_override =
-  { capability_id; stage; usage = Language.Axioms.Disabled }
-
 let exercise : Exercise.t =
   Theorem
     {
@@ -21,8 +17,8 @@ let exercise : Exercise.t =
       module_name = "Ex_FoilAutomated";
       prompt =
         "Target level: Grades 8-9 (Algebra I). Expand the two binomials. This \
-         exercise allows the algebra profile to combine like terms, simplify \
-         scalar products, and clean up each visible algebra step.";
+         exercise allows one whole-product expansion, then asks you to combine \
+         like terms as a separate visible algebra step.";
       max_points = 10;
       write_out_steps = true;
       math_policy =
@@ -30,12 +26,15 @@ let exercise : Exercise.t =
           (ExerciseMathPolicy.make ~id:"case-study-foil-automated"
              ~label:"FOIL with collection"
              ~detail:
-               "Use algebraic expansion with collection and scalar cleanup \
-                enabled."
+               "Use whole-polynomial expansion followed by explicit \
+                collection; automatic collection is disabled."
              ~parent_level:Language.Axioms.Algebra
              ~automation_stage:Language.Axioms.Manual
-             ~usage_overrides:
-               [ disabled_usage "alg.expand_polynomial" Language.Axioms.Manual ]
+             ~cleanup_overrides:
+               [
+                 Language.CustomMathMode.
+                   { capability_id = "collect.like_terms"; enabled = false };
+               ]
              ());
       prelude = Zipper.init ();
       lemmas = Zipper.init ();
