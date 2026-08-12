@@ -53,7 +53,9 @@ module Scratchpad = {
       /* Text-backed originals (committed .hz, zipper == "") mint fresh
          ids on every parse, so id-sensitive segment equality can never
          match; compare by the text projection instead — FastParse loads
-         the text verbatim, so an unedited slide prints byte-identically. */
+         the text verbatim, so an unedited slide prints byte-identically
+         modulo the stored final newline (the writer's artifact, which
+         the print never carries). */
       let unchanged =
         switch (original) {
         | None => false
@@ -62,7 +64,9 @@ module Scratchpad = {
             current_segment,
             ~refractors=current_zipper.refractors.manuals,
           )
-          == pce.editor.zipper.backup_text
+          == Util.StringUtil.strip_final_newline(
+               pce.editor.zipper.backup_text,
+             )
         | Some(pce) =>
           Base.equal_segment(
             Zipper.zip(

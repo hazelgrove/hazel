@@ -80,6 +80,20 @@ let trim_leading = (s: string): string => {
   |> replace(regexp("\n[\\t \\r]*"), _, "\n"); // After each newline
 };
 
+/* Strip exactly one final newline: the artifact a writer appends (POSIX
+   final newline in files; PersistentZipper.persist). All other edge
+   whitespace is content and round-trips. */
+let strip_final_newline = (s: string): string => {
+  let n = String.length(s);
+  if (n >= 2 && s.[n - 2] == '\r' && s.[n - 1] == '\n') {
+    String.sub(s, 0, n - 2);
+  } else if (n >= 1 && s.[n - 1] == '\n') {
+    String.sub(s, 0, n - 1);
+  } else {
+    s;
+  };
+};
+
 let isEmptyOrWhitespace = str => {
   let trimmed = String.trim(str);
   String.length(trimmed) == 0;

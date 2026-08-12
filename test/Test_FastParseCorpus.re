@@ -51,7 +51,10 @@ let tests = (
         let (ok, bail, worst) =
           List.fold_left(
             ((ok, bail, worst), path) => {
-              let src = read_file(path) |> String.trim;
+              /* mirror the production load path: only the file's final
+                 newline is a storage artifact, edge whitespace is content */
+              let src =
+                read_file(path) |> Util.StringUtil.strip_final_newline;
               let f0 = Sys.time();
               let known_gap = List.mem(Filename.basename(path), known_gaps);
               let r =

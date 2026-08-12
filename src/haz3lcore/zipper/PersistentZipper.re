@@ -15,10 +15,14 @@ let to_string =
     ~indent="",
   );
 
+/* Stored text = printed content + one final newline; readers strip
+   exactly that one (strip_final_newline in from_backup_text). Matches
+   the POSIX final newline in committed .hz files, and keeps buffers
+   that genuinely end in blank lines lossless across a round-trip. */
 let persist = (zipper: Zipper.t) => {
   {
     zipper: Zipper.sexp_of_t(zipper) |> Sexplib.Sexp.to_string,
-    backup_text: to_string(zipper),
+    backup_text: to_string(zipper) ++ "\n",
   };
 };
 
@@ -48,13 +52,16 @@ let apply_collected_refractors = (z: Zipper.t): Zipper.t =>
     FastParse.collected_refractors^,
   );
 
-let from_backup_text = (backup_text: string, ~root): Zipper.t =>
+let from_backup_text = (backup_text: string, ~root): Zipper.t => {
+  /* Strip only the writer's final newline (see persist); all other edge
+     whitespace is content — leading/trailing blank lines round-trip. */
+  let text = StringUtil.strip_final_newline(backup_text);
   switch (
     FastParse.of_text(
       ~materialize=Triggers.invoked_projector,
       ~collect_refractors=true,
       ~root,
-      String.trim(backup_text),
+      text,
     )
   ) {
   | Some(segment) =>
@@ -65,13 +72,13 @@ let from_backup_text = (backup_text: string, ~root): Zipper.t =>
        bails land here). Console-visible: every slow parse names itself. */
     print_endline(
       "SLOW PARSE (persistence load, "
-      ++ string_of_int(String.length(backup_text))
+      ++ string_of_int(String.length(text))
       ++ " chars): "
       ++ Option.value(FastParse.bail_note^, ~default="no note")
       ++ " | head: "
-      ++ String.sub(backup_text, 0, min(60, String.length(backup_text))),
+      ++ String.sub(text, 0, min(60, String.length(text))),
     );
-    switch (MarkerParse.of_text(~root, backup_text)) {
+    switch (MarkerParse.of_text(~root, text)) {
     | None => Zipper.init()
     | Some(z) =>
       /* reposition the caret to the start WITHOUT dropping refractors:
@@ -83,6 +90,7 @@ let from_backup_text = (backup_text: string, ~root): Zipper.t =>
       |> ZipperBase.update_refractors(_, _ => refractors);
     };
   };
+};
 
 let unpersist = (persisted: t, ~root) =>
   if (persisted.zipper == "") {

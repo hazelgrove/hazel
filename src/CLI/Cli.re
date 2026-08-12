@@ -12,15 +12,21 @@ let read_input = path => {
 
 /* Fast-first CLI parsing: FastParse (linear) with pin collection, then
    the ¿-aware typing parser; the fallback names itself on stderr-ish
-   console so slow passes are visible. */
+   console so slow passes are visible. Same fast-first shape as
+   PersistentZipper.from_backup_text, but hard-fails (None) where that
+   degrades to an empty zipper — a CLI caller wants an error, not a
+   silently blank program. Input files share the persistence convention:
+   one final newline is the writer's artifact, everything else is
+   content (StringUtil.strip_final_newline). */
 let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) => {
+  let s = Util.StringUtil.strip_final_newline(s);
   Haz3lcore.(
     switch (
       FastParse.of_text(
         ~materialize=Triggers.invoked_projector,
         ~collect_refractors=true,
         ~root=Exp,
-        String.trim(s),
+        s,
       )
     ) {
     | Some(seg) =>
@@ -114,7 +120,11 @@ let analyze_hazel =
 
     /* Run static analysis */
     let (static_map, _) =
-      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+      Statics.mk(
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Operators.default_mode)),
+        term,
+      );
 
     /* Get errors with their infos for line numbers */
     let formatted_errors =
@@ -380,7 +390,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
       Statics.mk(
         ~probe_ids=base_probe_ids,
         CoreSettings.on,
-        Builtins.ctx_init(Some(Int)),
+        Builtins.ctx_init(Some(Operators.default_mode)),
         term,
       );
 
