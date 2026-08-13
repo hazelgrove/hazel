@@ -41,6 +41,10 @@ let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
 /* Initialize table model from parsed value */
 let init = (_: v) => {menu_state: None};
 
+/* Header + data rows; each table row is one line-height tall (proj-table.css
+ * zeroes cell padding and cells hold single-line abbreviated values). */
+let drawer_rows = ((_, rows): v): int => List.length(rows) + 1;
+
 /* Local builders that wrap Menu.item constructors with the column menu's
  * conventions: hover updates selection, tooltips on every leaf row. */
 let leaf = (~tooltip, label, action) =>

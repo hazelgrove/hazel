@@ -770,6 +770,61 @@
   /* cap at 15 lines (matches DrawerHeight.max_rows) */
   max-height: calc(15 * var(--line-height) * 1em);
   overflow: hidden auto;
+  /* Overlay scrollbars (macOS default) give no hint that a tall drawer
+   * scrolls; styling the scrollbar forces one that's visible whenever
+   * content overflows (scrollbar-*: Firefox/Chromium; ::-webkit-*: Safari) */
+  scrollbar-width: thin;
+  scrollbar-color: var(--BR2) transparent;
+}
+
+.below-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+
+.below-wrapper::-webkit-scrollbar-thumb {
+  background-color: var(--BR2);
+  border-radius: 4px;
+}
+
+/* --- Rich (table) view replacing the drawer's sample view --- */
+
+.below-wrapper .rich-drawer {
+  position: relative;
+}
+
+/* Reserved rows match content exactly when the rich view fits, so nothing
+ * scrolls; release the clip so the table's column menus can escape the
+ * stripe. `.overflowing` (content taller than the cap) keeps the clip to
+ * stay scrollable — menus there have room within the 15-row stripe. */
+.below-wrapper:has(.rich-drawer:not(.overflowing)) {
+  overflow: visible;
+}
+
+/* Keep headers in view while a tall rich drawer scrolls (sticks to the
+ * scroll container, .below-wrapper). */
+.below-wrapper .rich-drawer.overflowing .table th {
+  position: sticky;
+  top: 0;
+}
+
+.below-wrapper .rich-drawer .rich-drawer-close {
+  position: absolute;
+  top: 0;
+  right: -18px;
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--BR2);
+  cursor: pointer;
+  user-select: none;
+  z-index: calc(var(--projector-z) + 10);
+}
+
+.below-wrapper .rich-drawer .rich-drawer-close:hover {
+  color: var(--R1);
 }
 
 /* line-numbers zero .code-editor padding-left, so keep the stripe at col 0 */
