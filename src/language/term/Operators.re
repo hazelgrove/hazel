@@ -159,10 +159,12 @@ let replace_un_op = (op: op_un, use_mode: option(mode)): op_un => {
 
 /* Re-kind a numeric unary op the way replace_literal re-kinds literals:
    the analyzed class wins (so `let x: Float = -5` is float negation and
-   the literal beneath retypes); with no atom analysis, an operand that is
-   itself Float or SInt decides (bare `-1.5`, `-x`). Nat operands do NOT
-   re-kind — negation stays the Int op so today's nat-mode behavior is
-   unchanged; an explicit Nat analysis does re-kind, surfacing the
+   the literal beneath retypes); with no atom analysis, an operand of
+   definite class decides (bare `-1.5`, `-x`; the Int arm matters under
+   a `use` mode, where `use Float in -(3 : Int)` is Int negation rather
+   than a float op stuck on an Int operand). Nat operands do NOT
+   re-kind — negation keeps the ambient op so today's nat-mode behavior
+   is unchanged; an explicit Nat analysis does re-kind, surfacing the
    "cannot negate a natural number" operator error. */
 let replace_un_op_cls =
     (op: op_un, ana: option(Atom.cls), operand: option(Atom.cls)): op_un =>
@@ -179,6 +181,7 @@ let replace_un_op_cls =
     | (Some(SInt), _) => SInt(o)
     | (_, Some(Float)) => Float(o)
     | (_, Some(SInt)) => SInt(o)
+    | (_, Some(Int)) => Int(o)
     | _ => op
     }
   };
