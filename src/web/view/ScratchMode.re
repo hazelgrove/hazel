@@ -521,8 +521,11 @@ let integrate_share =
   | None => model
   | Some(data) =>
     let shared_text = data |> StringUtil.decompress;
+    /* zipper: "" = the intentional text path (share links carry only
+       text); a non-empty sentinel would take the sexp arm and print the
+       stale-serialization warning on every share-link load */
     let shared: PersistentZipper.t = {
-      zipper: "invalid",
+      zipper: "",
       backup_text: shared_text,
     };
     let shared: CellEditor.Model.persistent = {
