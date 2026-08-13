@@ -4,33 +4,33 @@ open OptUtil.Syntax;
 
 /* Syntax replacement operations to automatically run after insertion */
 
-/* `^^kind_opt` — a trigger may carry an option after `_`: the base name
-   picks the kind, the option a non-default model (`^^probe_table` places
-   a probe with the table renderer active). `_` is an identifier char, so
-   the whole trigger lexes as one editor token. */
-let split_trigger_opt = (s: string): (string, option(string)) =>
-  switch (Token.of_projector_invoke_base(s)) {
-  | Some(name) => ("^^" ++ name, Token.of_projector_invoke_opt(s))
-  | None => (s, None)
-  };
+/* A trigger is written `^^kind` or `^^kind_opt`: the base name picks the
+   projector kind, the option after `_` a non-default model (`^^probe_table`
+   = a probe with the table renderer active). Token owns the `^^` prefix and
+   the `_` split, so this takes a BARE kind name. Refractors are the
+   additive-decoration kinds (probe, statics); other kinds answer None.
+     "probe"                ==> Some(Probe)
+     "slider"               ==> None  (a projector kind, not a refractor)
+     "probe_table" / "nope" ==> None  (not a kind name) */
+let refractor_kind_of_name = (name: string): option(ProjectorCore.Kind.t) =>
+  ProjectorCore.Kind.of_name_opt(name)
+  |> OptUtil.filter(ProjectorCore.Kind.is_refractor);
 
-/* Check if a string is a refractor trigger name (e.g., "^^type", "^^probe") */
-let is_refractor_trigger = (s: string): bool => {
-  let (s, _) = split_trigger_opt(s);
-  String.length(s) > 2
-  && String.sub(s, 0, 2) == "^^"
-  && {
-    let kind_name = String.sub(s, 2, String.length(s) - 2);
-    ProjectorCore.Kind.is_name(kind_name)
-    && ProjectorCore.Kind.is_refractor(ProjectorCore.Kind.of_name(kind_name));
-  };
-};
+/* Same, for a whole trigger token; None when it is not a trigger at all. */
+let refractor_kind_of_token = (s: string): option(ProjectorCore.Kind.t) =>
+  Option.bind(Token.of_projector_invoke_base(s), refractor_kind_of_name);
 
-/* Parse a refractor trigger name to get the kind */
-let of_refractor_trigger = (s: string): ProjectorCore.Kind.t => {
-  let (s, _) = split_trigger_opt(s);
-  ProjectorCore.Kind.of_name(String.sub(s, 2, String.length(s) - 2));
-};
+/* Is this whole token a refractor trigger (e.g. "^^type", "^^probe")?
+   "^^probe" / "^^probe_table" ==> true
+   "^^slider" / "let" / "^^"   ==> false */
+let is_refractor_trigger = (s: string): bool =>
+  Option.is_some(refractor_kind_of_token(s));
+
+/* Parse a refractor trigger name to get the kind. Partial: only valid on
+   strings is_refractor_trigger accepts.
+     "^^probe" / "^^probe_table" ==> Probe */
+let of_refractor_trigger = (s: string): ProjectorCore.Kind.t =>
+  Option.get(refractor_kind_of_token(s));
 
 let refractor_model_of_opt =
     (kind: ProjectorCore.Kind.t, opt: string): option(string) =>
@@ -47,16 +47,19 @@ let refractor_opt_of_model =
   };
 
 /* Full-token parse: kind plus the model its option selects (if any).
-   Used by trigger expansion and by text-slide loading. */
+   Used by trigger expansion and by text-slide loading. The model is the
+   serialized projector model, not the option name that picked it.
+     "^^probe"       ==> Some((Probe, None))
+     "^^probe_table" ==> Some((Probe, Some("((active_renderer(...)))"))) */
 let refractor_of_invoke_token =
-    (token: string): option((ProjectorCore.Kind.t, option(string))) =>
-  if (is_refractor_trigger(token)) {
-    let kind = of_refractor_trigger(token);
-    let (_, opt) = split_trigger_opt(token);
-    Some((kind, Option.bind(opt, refractor_model_of_opt(kind))));
-  } else {
-    None;
-  };
+    (token: string): option((ProjectorCore.Kind.t, option(string))) => {
+  /* one strip-and-split for both halves, rather than re-parsing the
+     token once for the kind and again for the option */
+  let* body = Token.of_projector_invoke(token);
+  let (name, opt) = Token.split_invoke_opt(body);
+  let+ kind = refractor_kind_of_name(name);
+  (kind, Option.bind(opt, refractor_model_of_opt(kind)));
+};
 
 let exp_to_seg =
   ExpToSegment.exp_to_segment(
