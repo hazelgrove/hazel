@@ -62,11 +62,16 @@ let read_file = (path: string): string => {
   s;
 };
 
+/* Strict on parens: the two parsers agree on Parens placement (verified
+   corpus-wide — every previous loose-mode reliance was actually the
+   Projector-unwrap half of the old bundled flag). ignore_projectors
+   because the menhir grammar erases ^^triggers, so its terms never carry
+   the Projector wrappers MakeTerm produces for them. */
 let equal_terms =
   Equality.(
     equality({
       ...syntactic_settings,
-      ignore_parens: true,
+      ignore_projectors: true,
     }).
       exp
   );
