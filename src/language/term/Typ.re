@@ -838,15 +838,6 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   };
 };
 
-/* Structural canonicalization WITHOUT alias expansion: desugars Sig,
-   computes tuple projections/extensions, dedups labels, strips wrapper
-   noise — but leaves every alias compact. This is the right form for
-   types EMBEDDED into elaborations (ascriptions, recorded elab_syn_ty):
-   they only need to be resolvable in ctx, and expanding them is what
-   made HTML-typed programs quadratically slow downstream. */
-let canonicalize = (ctx: Ctx.t, ty: t): t =>
-  normalize(~expand=_ => false, ctx, ty);
-
 /* Targeted Sig desugaring: Only converts Sig nodes to Prod (labeled tuples),
    preserving Parens and everything else. Use this instead of normalize when
    you need to desugar Sig types without stripping Parens wrappers. */
@@ -948,10 +939,9 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
    procedure for `fast_equal(normalize(ctx, a), normalize(ctx, b))` that
    expands alias heads lazily, only where the comparison actually reaches
    them (the OCaml/GHC discipline: peel one layer on demand; a compact
-   `Var("HTML")` meeting itself or its own expansion never unrolls the sum).
+   alias meeting itself or its own expansion never unrolls the body).
    Heads are resolved with weak_head_normalize; Rec/Poly binders shadow
-   their name via a dummy tvar exactly as normalize does, so bound
-   occurrences don't re-expand through the outer context.
+   their name via a dummy tvar exactly as normalize does.
    Two conservative divergences from the normalize-then-compare original,
    both returning false where it might have said true (callers use the
    result to decide ascription-wrapping/marks, where a false negative is
@@ -1001,6 +991,14 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
   go(~depth=0, ctx, a, b);
 };
 
+/* Structural canonicalization WITHOUT alias expansion: desugars Sig,
+   computes tuple projections/extensions, dedups labels, strips wrapper
+   noise — but leaves every alias compact. This is the right form for
+   types EMBEDDED into elaborations (ascriptions, recorded elab_syn_ty):
+   they only need to be resolvable in ctx, and expanding them is what
+   made large-sum programs quadratically slow downstream. */
+let canonicalize = (ctx: Ctx.t, ty: t): t =>
+  normalize(~expand=_ => false, ctx, ty);
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
   if (ty1 === ty2) {
     Some(ty1);
