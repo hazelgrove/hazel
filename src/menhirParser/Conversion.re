@@ -412,6 +412,7 @@ module rec Exp: {
        meaningful. */
     | DrvQuote(_) => raise(Failure("DrvQuote not supported"))
     | Projector(_, e) => of_core(e)
+    | Splice(e) => of_core(e)
     | Module(items) => Module(List.map(ModItem.of_core, items))
     | ModuleExp(mp, def, body) =>
       ModuleExp(pat_of_mpat(mp), of_core(def), of_core(body))
@@ -554,6 +555,7 @@ and Typ: {
     /* Same as DrvQuote in the Exp case: no menhir syntax for Drv types. */
     | DrvQuoteTy(_) => raise(Failure("DrvQuoteTy not supported"))
     | Projector(_, t) => of_core(t)
+    | Splice(t) => of_core(t)
     | Sig(items) => Sig(List.map(SigItem.of_core, items))
     };
   };
@@ -630,6 +632,7 @@ and Pat: {
     | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
     | Projector(_, p) => of_core(p)
+    | Splice(p) => of_core(p)
     };
   };
 }

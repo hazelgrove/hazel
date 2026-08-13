@@ -98,10 +98,10 @@ let refractor_to_invoke_text =
   };
 
 let projector_to_invoke = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke(pr.kind, Piece.unparenthesize(pr.syntax));
+  refractor_to_invoke(pr.kind, pr.syntax);
 
 let projector_to_invoke_text = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke_text(pr.kind, Piece.unparenthesize(pr.syntax));
+  refractor_to_invoke_text(pr.kind, Segment.unparenthesize(pr.syntax));
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
@@ -152,8 +152,11 @@ let destruct = (z: t): option(t) =>
     let (l, _) = ListUtil.split_last(fst(z.relatives.siblings));
     let last =
       switch (kind, syntax) {
-      | (Livelit, Tile({children: [[name, ..._]], _})) => [name]
-      | _ => Piece.unparenthesize(syntax)
+      | (Livelit, [Tile({children: [[name, ..._]], _}), ..._]) => [name]
+      /* Dissolve splices back into their contents (as the right-click
+       * remove path does): bare Splice pieces must not leak into the
+       * main editor, where they render zero-width. */
+      | _ => ProjectorPerform.unsplice_segment(syntax)
       };
     Some(Zipper.update_siblings(((_, r)) => (l @ last, r), z));
   | _ => None

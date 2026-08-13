@@ -27,13 +27,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          11e060e5-cbca-47b2-9c38-068bec91f172)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         eefb5209-0d7b-4105-a4be-255a159583a6)(kind Checkbox)(syntax(Tile((id \
-         0d48231c-2247-4315-b2a9-f08637408837)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         eefb5209-0d7b-4105-a4be-255a159583a6)(kind Checkbox)(syntax((Tile((id \
          9b1f34f1-053e-4377-b721-fd0296db478a)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          642a219c-0830-4055-85ce-8fab0d61494f)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -60,13 +57,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          735e2436-7dfc-48b9-a085-42fb575afa45)(content(Whitespace\" \
          \"))))(Projector((id 6e92b18a-f642-4177-ade1-0afd694b583b)(kind \
-         Checkbox)(syntax(Tile((id \
-         3793f7be-52e5-43bf-beec-f2cd7fbcd74b)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         Checkbox)(syntax((Tile((id \
          6f36da65-6e32-412b-8204-721a9d60ac2b)(label(true))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          24084707-0050-42fc-b490-de082335512c)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -102,13 +96,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          658451bf-7ab8-4e2d-8983-42dccd401bcc)(label(=))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Projector((id \
-         13da05a8-9f2b-46eb-b30b-72206d2aaec2)(kind Checkbox)(syntax(Tile((id \
-         e32a214c-6fba-4df1-91fb-03649f25e1ae)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         13da05a8-9f2b-46eb-b30b-72206d2aaec2)(kind Checkbox)(syntax((Tile((id \
          e1be9ccc-2a37-4225-afd4-9b3b1fcd9365)(label(true))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          143c8308-87e9-443e-aaf5-e4f08276e58a)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -136,13 +127,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          9430afc2-301c-42cf-9093-c562a3fa2d36)(content(Whitespace\" \
          \"))))(Projector((id f1c53646-dc07-46e8-82a3-60aebaf08b21)(kind \
-         Checkbox)(syntax(Tile((id \
-         d4aae91e-32e7-4ae1-a1bc-4078539363af)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         Checkbox)(syntax((Tile((id \
          5f25c2d0-1417-484f-8bdf-c4be5591dbb9)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))))(model\"()\")))(Tile((id \
          26e25b07-5fb4-44de-8430-3b3de2c77e6b)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 44))(sort Exp))((shape(Concave \
          44))(sort Exp))))))(shards(0))(children())))(Secondary((id \

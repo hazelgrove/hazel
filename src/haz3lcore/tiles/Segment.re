@@ -106,6 +106,7 @@ let shape_affix =
         (([[w, ...ws], ...wss], gs), shape, tl);
       | Grout(g) => (Aba.cons([], g, wgw), shape, tl)
       | Projector(_) => (empty_wgw, shape, tl)
+      | Splice(_) => (empty_wgw, shape, tl)
       | Tile(_) => (empty_wgw, shape, tl)
       };
     };
@@ -192,6 +193,7 @@ and remold_template = (sort: Sort.t, shape, seg: t): t => {
     | Secondary(_)
     | Grout(_)
     | Projector(_) => [hd, ...remold(shape, tl)]
+    | Splice(s) => [remold_splice(sort, s), ...remold(shape, tl)]
     | Tile(t) =>
       switch (remold_tile(sort, shape, t)) {
       | None => [Tile(t), ...remold(snd(Tile.shapes(t)), tl)]
@@ -218,6 +220,9 @@ and remold_template_uni = (sort: Sort.t, shape, seg: t): (t, Nib.Shape.t, t) => 
     | Projector(_) =>
       let (remolded, shape, rest) = remold_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
+    | Splice(s) =>
+      let (remolded, shape, rest) = remold_uni(shape, tl);
+      ([remold_splice(sort, s), ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(sort, shape, t)) {
       | None => ([], shape, seg)
@@ -241,6 +246,8 @@ and remold_template_uni = (sort: Sort.t, shape, seg: t): (t, Nib.Shape.t, t) => 
     }
   };
 }
+and remold_splice = (s: Sort.t, sp: Base.splice): Piece.t =>
+  Piece.mk_splice(~id=sp.id, remold(sp.content, s))
 and remold_typ = (shape, seg: t): t =>
   switch (seg) {
   | [] => []
@@ -249,6 +256,10 @@ and remold_typ = (shape, seg: t): t =>
     | Secondary(_)
     | Grout(_) => [hd, ...remold_typ(shape, tl)]
     | Projector(p) => [hd, ...remold_typ(snd(ProjectorCore.shapes(p)), tl)]
+    | Splice(s) => [
+        remold_splice(Typ, s),
+        ...remold_typ(Nib.Shape.Convex, tl),
+      ]
     | Tile(t) =>
       switch (remold_tile(Typ, shape, t)) {
       | None => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
@@ -273,6 +284,10 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       let (remolded, shape, rest) =
         remold_typ_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
+    | Splice(s) =>
+      let (remolded, shape, rest) =
+        remold_typ_uni(Nib.Shape.Convex, tl, parent_sorts);
+      ([remold_splice(Typ, s), ...remolded], shape, rest);
     | Tile(t) =>
       /* If we encounter ; and Mod or Sig is a parent sort, return to let the parent
          handle it as ModSeq/SigSeq. This handles cases like `type T = Int;` where ;
@@ -327,6 +342,10 @@ and remold_pat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       let (remolded, shape, rest) =
         remold_pat_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
+    | Splice(s) =>
+      let (remolded, shape, rest) =
+        remold_pat_uni(Nib.Shape.Convex, tl, parent_sorts);
+      ([remold_splice(Pat, s), ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
       | None => ([], shape, seg)
@@ -359,6 +378,10 @@ and remold_pat = (shape, seg: t): t =>
     | Secondary(_)
     | Grout(_) => [hd, ...remold_pat(shape, tl)]
     | Projector(p) => [hd, ...remold_pat(snd(ProjectorCore.shapes(p)), tl)]
+    | Splice(s) => [
+        remold_splice(Pat, s),
+        ...remold_pat(Nib.Shape.Convex, tl),
+      ]
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
       | None => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
@@ -390,6 +413,10 @@ and remold_tpat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       let (remolded, shape, rest) =
         remold_tpat_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
+    | Splice(s) =>
+      let (remolded, shape, rest) =
+        remold_tpat_uni(Nib.Shape.Convex, tl, parent_sorts);
+      ([remold_splice(TPat, s), ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(TPat, shape, t)) {
       | None => ([], shape, seg)
@@ -418,6 +445,10 @@ and remold_tpat = (shape, seg: t): t =>
     | Projector(p) => [
         hd,
         ...remold_tpat(snd(ProjectorCore.shapes(p)), tl),
+      ]
+    | Splice(s) => [
+        remold_splice(TPat, s),
+        ...remold_tpat(Nib.Shape.Convex, tl),
       ]
     | Tile(t) =>
       switch (remold_tile(TPat, shape, t)) {
@@ -450,6 +481,10 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       let (remolded, shape, rest) =
         remold_exp_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
+    | Splice(s) =>
+      let (remolded, shape, rest) =
+        remold_exp_uni(Nib.Shape.Convex, tl, parent_sorts);
+      ([remold_splice(Exp, s), ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
       | None => ([], shape, seg)
@@ -515,6 +550,10 @@ and remold_rul = (shape, seg: t): t =>
     | Secondary(_)
     | Grout(_) => [hd, ...remold_rul(shape, tl)]
     | Projector(p) => [hd, ...remold_rul(snd(ProjectorCore.shapes(p)), tl)]
+    | Splice(s) => [
+        remold_splice(Rul, s),
+        ...remold_rul(Nib.Shape.Convex, tl),
+      ]
     | Tile(t) =>
       switch (remold_tile(Rul, shape, t)) {
       | Some(t) when !Tile.has_end(Right, t) =>
@@ -553,6 +592,10 @@ and remold_exp = (shape, seg: t): t =>
     | Secondary(_)
     | Grout(_) => [hd, ...remold_exp(shape, tl)]
     | Projector(p) => [hd, ...remold_exp(snd(ProjectorCore.shapes(p)), tl)]
+    | Splice(s) => [
+        remold_splice(Exp, s),
+        ...remold_exp(Nib.Shape.Convex, tl),
+      ]
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
       | None => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
@@ -597,6 +640,10 @@ and remold_mod_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       let (remolded, shape, rest) =
         remold_mod_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
+    | Splice(s) =>
+      let (remolded, shape, rest) =
+        remold_mod_uni(Nib.Shape.Convex, tl, parent_sorts);
+      ([remold_splice(Mod, s), ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Mod, shape, t)) {
       | None => ([], shape, seg)
@@ -647,6 +694,10 @@ and remold_mod = (shape, seg: t): t =>
     | Secondary(_)
     | Grout(_) => [hd, ...remold_mod(shape, tl)]
     | Projector(p) => [hd, ...remold_mod(snd(ProjectorCore.shapes(p)), tl)]
+    | Splice(s) => [
+        remold_splice(Mod, s),
+        ...remold_mod(Nib.Shape.Convex, tl),
+      ]
     | Tile(t) =>
       switch (remold_tile(Mod, shape, t)) {
       | None =>
@@ -694,6 +745,10 @@ and remold_sig_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       let (remolded, shape, rest) =
         remold_sig_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
+    | Splice(s) =>
+      let (remolded, shape, rest) =
+        remold_sig_uni(Nib.Shape.Convex, tl, parent_sorts);
+      ([remold_splice(Sig, s), ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Sig, shape, t)) {
       | None => ([], shape, seg)
@@ -738,6 +793,10 @@ and remold_sig = (shape, seg: t): t =>
     | Secondary(_)
     | Grout(_) => [hd, ...remold_sig(shape, tl)]
     | Projector(p) => [hd, ...remold_sig(snd(ProjectorCore.shapes(p)), tl)]
+    | Splice(s) => [
+        remold_splice(Sig, s),
+        ...remold_sig(Nib.Shape.Convex, tl),
+      ]
     | Tile(t) =>
       switch (remold_tile(Sig, shape, t)) {
       | None => [Tile(t), ...remold_sig(snd(Tile.shapes(t)), tl)]
@@ -774,6 +833,10 @@ and remold_mpat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       let (remolded, shape, rest) =
         remold_mpat_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
+    | Splice(s) =>
+      let (remolded, shape, rest) =
+        remold_mpat_uni(Nib.Shape.Convex, tl, parent_sorts);
+      ([remold_splice(MPat, s), ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(MPat, shape, t)) {
       | None => ([], shape, seg)
@@ -808,6 +871,10 @@ and remold_mpat = (shape, seg: t): t =>
     | Projector(p) => [
         hd,
         ...remold_mpat(snd(ProjectorCore.shapes(p)), tl),
+      ]
+    | Splice(s) => [
+        remold_splice(MPat, s),
+        ...remold_mpat(Nib.Shape.Convex, tl),
       ]
     | Tile(t) =>
       switch (remold_tile(MPat, shape, t)) {
@@ -905,6 +972,8 @@ module Trim = {
     |> List.concat;
 };
 
+let convex_wrapper_inner_shapes = Nib.Shape.(concave(), concave());
+
 let rec regrout = ((l, r), seg) => {
   let (trim, r, tl) = regrout_affix(Direction.Right, seg, r);
   let trim = Trim.regrout((l, r), trim);
@@ -923,12 +992,22 @@ and regrout_affix =
             ProjectorCore.shapes(pr) |> (d == Left ? TupleUtil.swap : Fun.id);
           let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
+        | Splice(s) =>
+          /* Splice nibs are Convex/Convex from the outside; from the inside
+           * the content occupies an environment whose left/right boundaries
+           * face Concave (mirror of the splice's outer Convex shape). Pass
+           * (concave, concave) so [regrout] adds grouts to make the content's
+           * ends Convex (matching the splice piece's outer shape). */
+          let content = regrout(convex_wrapper_inner_shapes, s.content);
+          let p = Piece.mk_splice(~id=s.id, content);
+          let trim = Trim.regrout((Convex, r), trim);
+          (Trim.empty, Convex, [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
           let children =
             List.fold_right(
               (hd, tl) => {
                 let tl = tl;
-                let hd = regrout(Nib.Shape.(concave(), concave()), hd);
+                let hd = regrout(convex_wrapper_inner_shapes, hd);
                 [hd, ...tl];
               },
               t.children,
@@ -959,7 +1038,7 @@ let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
   );
 
 let inner_regrout = (children: list(t)): list(t) =>
-  List.map(regrout((Nib.Shape.concave(), Nib.Shape.concave())), children);
+  List.map(regrout(convex_wrapper_inner_shapes), children);
 
 let rec reassemble = (seg: t): t =>
   switch (incomplete_tiles(seg)) {
@@ -1078,6 +1157,10 @@ let rescan = (seg: t): t => {
         | Secondary(_)
         | Grout(_)
         | Projector(_) => [hd, ...go(~frame, ~stack, tl)]
+        | Splice(s) => [
+            Piece.mk_splice(~id=s.id, go(s.content)),
+            ...go(~frame, ~stack, tl),
+          ]
         | Tile(t) =>
           let (entries, max_idx) = frame;
           if (List.length(t.shards) == 1) {
@@ -1179,13 +1262,75 @@ let sameline_secondary =
     | _ => false,
   );
 
+/* Split a segment at top-level comma tiles: the groups between commas
+ * alternating with the comma pieces themselves (a segment with no
+ * commas yields a single group; an empty segment yields one empty
+ * group). Comma pieces are preserved so callers can reassemble the
+ * segment without disturbing piece ids. */
+let split_at_commas = (seg: t): Aba.t(t, Base.piece) =>
+  List.fold_right(
+    (p: Base.piece, acc) =>
+      switch (p) {
+      | Tile({label: [","], _}) => Aba.cons([], p, acc)
+      | _ => Aba.map_hd(g => [p, ...g], acc)
+      },
+    seg,
+    Aba.singleton([]),
+  );
+
+/* Drop leading and trailing secondary (whitespace/comment) pieces. */
+let trim_outer_secondary = (seg: t): t =>
+  seg |> trim_secondary(Left) |> trim_secondary(Right);
+
 let rec holes = (segment: t): list(Grout.t) =>
   List.concat_map(
     fun
     | Piece.Secondary(_)
     | Projector(_) => []
+    | Splice(s) => holes(s.content)
     | Tile(t) => List.concat_map(holes, t.children)
     | Grout(g) => [g],
+    segment,
+  );
+
+/* All splices in the segment, including those nested inside tile
+ * children, projector syntax, and other splices' content. */
+let rec splices = (segment: t): list(Base.splice) =>
+  List.concat_map(
+    fun
+    | Piece.Secondary(_)
+    | Grout(_) => []
+    | Splice(s) => [s, ...splices(s.content)]
+    | Projector(pr) => splices(pr.syntax)
+    | Tile(t) => List.concat_map(splices, t.children),
+    segment,
+  );
+
+/* Splices belonging to this segment's own frame: recurses into tile
+ * children and splice contents, but not across projector boundaries —
+ * splices inside a nested projector's syntax belong to that projector. */
+let rec direct_splices = (segment: t): list(Base.splice) =>
+  List.concat_map(
+    fun
+    | Piece.Secondary(_)
+    | Grout(_)
+    | Projector(_) => []
+    | Splice(s) => [s, ...direct_splices(s.content)]
+    | Tile(t) => List.concat_map(direct_splices, t.children),
+    segment,
+  );
+
+/* Projectors visible in this segment's own frame: those in the segment
+ * or inside tile children, but not across splice or projector
+ * boundaries (those belong to other frames). */
+let rec frame_projector_ids = (segment: t): list(Id.t) =>
+  List.concat_map(
+    fun
+    | Piece.Projector(pr) => [pr.id]
+    | Tile(t) => List.concat_map(frame_projector_ids, t.children)
+    | Splice(_)
+    | Grout(_)
+    | Secondary(_) => [],
     segment,
   );
 
@@ -1214,6 +1359,7 @@ let rec ids = (s: t): list(Id.t) => List.concat_map(ids_of_piece, s)
 and ids_of_piece = (p: Piece.t): list(Id.t) =>
   switch (p) {
   | Tile(t) => [Piece.id(p), ...ids(List.concat(t.children))]
+  | Splice(s) => [Piece.id(p), ...ids(s.content)]
   | Grout(_)
   | Secondary(_)
   | Projector(_) => [Piece.id(p)]
@@ -1224,6 +1370,7 @@ let first_string =
   | [] => "EMPTY"
   | [Piece.Secondary(w), ..._] => Secondary.get_string(w.content)
   | [Piece.Projector(_), ..._] => "PROJECTOR"
+  | [Piece.Splice(_), ..._] => "SPLICE"
   | [Piece.Grout(_), ..._] => "?"
   | [Piece.Tile(t), ..._] => t.label |> List.hd;
 
@@ -1235,6 +1382,7 @@ let last_string =
     | Piece.Secondary(w) => Secondary.get_string(w.content)
     | Piece.Grout(_) => "?"
     | Piece.Projector(_) => "PROJECTOR"
+    | Piece.Splice(_) => "SPLICE"
     | Piece.Tile(t) => t.label |> ListUtil.last
     };
 
@@ -1310,14 +1458,17 @@ module IDs = {
         id,
       })
     | Projector(p) =>
-      /* Need to keep projector and contained piece id in-sync */
-      let id = Id.mk();
-      let syntax = replace_piece(~id, p.syntax);
+      let syntax = replace(p.syntax);
       Projector({
         ...p,
         syntax,
         id,
       });
+    | Splice(s) =>
+      Splice({
+        id,
+        content: replace(s.content),
+      })
     };
   };
 
@@ -1329,7 +1480,8 @@ module IDs = {
     | Tile(t) => [id, ...List.concat_map(all, t.children)]
     | Grout(_)
     | Secondary(_) => [id]
-    | Projector(p) => [id, ...all_piece(p.syntax)]
+    | Projector(p) => [id, ...all(p.syntax)]
+    | Splice(s) => [id, ...all(s.content)]
     };
   };
 };
@@ -1415,8 +1567,10 @@ module SecondaryCollection = {
         | Piece.Projector({id, syntax, _}) =>
           /* Add secondary for projector and recurse into its content */
           let acc = Id.Map.add(id, (before, after), acc);
-          let inner_seg = Piece.unparenthesize(syntax);
-          collect_from_seg(inner_seg, acc);
+          collect_from_seg(syntax, acc);
+        | Piece.Splice({id, content}) =>
+          let acc = Id.Map.add(id, (before, after), acc);
+          collect_from_seg(content, acc);
         | Piece.Grout({id, _}) => Id.Map.add(id, (before, after), acc)
         | _ => acc
         };
@@ -1494,10 +1648,10 @@ module SecondaryCollection = {
               children,
             )
           | Some(Piece.Projector({syntax, _})) =>
-            /* Projectors wrap their content in parentheses. Extract the inner
-               segment and recursively collect secondary from it. */
-            let inner_seg = Piece.unparenthesize(syntax);
-            collect_from_seg(inner_seg, acc);
+            /* Recursively collect secondary from the projector's syntax segment. */
+            collect_from_seg(syntax, acc)
+          | Some(Piece.Splice({content, _})) =>
+            collect_from_seg(content, acc)
           | _ => acc
           },
         acc,

@@ -34,6 +34,12 @@ type move =
    * Move(Point(...)), which always lands the caret at the closest
    * grid position. */
   | Point(Point.t, option(chunkiness))
+  /* Point in a splice's own coordinate frame. Moves the caret into the
+   * splice (descending through the containing projector) if it isn't
+   * already there, then resolves the point against the splice's own
+   * measured. Emitted by sub-editor views, whose pointer coordinates
+   * are container-relative and hence already splice-local. */
+  | SplicePoint([@equal (_, _) => true] Id.t, Point.t)
   | Goal(goal);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -74,6 +80,7 @@ type project =
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
+  | SetTerm(int, Language.Any.t, bool) /* Set underlying term, optionally preserving original splices */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
@@ -203,6 +210,7 @@ let is_edit: t => bool =
     switch (p) {
     | SetModel(_) => false
     | SetSyntax(_)
+    | SetTerm(_)
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
@@ -234,6 +242,7 @@ let is_historic: t => bool =
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
+    | SetTerm(_)
     | SetModel(_)
     | SetIndicated(_)
     | RemoveIndicated => true
@@ -264,7 +273,8 @@ let prevent_in_read_only_editor = (a: t) =>
   | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
-    | SetSyntax(_) => true
+    | SetSyntax(_)
+    | SetTerm(_) => true
     | SetModel(_)
     | SetIndicated(_)
     | RemoveIndicated
@@ -308,6 +318,7 @@ let should_animate: t => bool =
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
+    | SetTerm(_)
     | SetModel(_)
     | SetIndicated(_)
     | RemoveIndicated

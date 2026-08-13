@@ -25,6 +25,7 @@ let shard_svg =
       None,
     )
   | Projector(p) => p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes
+  | Splice(_) => (Some(Nib.Shape.Convex), Some(Nib.Shape.Convex))
   },
 );
 
@@ -84,6 +85,7 @@ let rows_of_segment =
       switch (p) {
       | Tile(t) => of_tile(~start_shape, t)
       | Projector(p) => of_projector(~start_shape, p)
+      | Splice(_) => [None]
       | Grout(g) => [Some(shard_svg(~start_shape, find_g(g), p))]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
       | Secondary(w) => [
@@ -664,7 +666,7 @@ let color =
   switch (TermData.segment(id, syntax.term_data)) {
   | Some(segment) =>
     of_segment(
-      ~measured=syntax.measured,
+      ~measured=CachedSyntax.measured(syntax),
       ~shape_map=syntax.shape_map,
       ~font_metrics,
       ~shape_init=Some(Convex),
@@ -712,7 +714,11 @@ let incr_eval =
     |> List.sort_uniq(Id.compare)
     |> List.filter_map(id =>
          switch (
-           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+           TermData.extreme_measures(
+             id,
+             syntax.term_data,
+             CachedSyntax.measured(syntax),
+           )
          ) {
          | Some(range) => Some((id, range))
          | None => None

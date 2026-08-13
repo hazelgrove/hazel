@@ -105,6 +105,7 @@ module SyntaxTerm = {
       | Tuple(_) => p
       | _ => strip_wraps_pat(inner)
       }
+    | Splice(inner) => strip_wraps_pat(inner)
     | _ => p
     };
   };
@@ -115,6 +116,7 @@ module SyntaxTerm = {
       | Tuple(_) => e
       | _ => strip_wraps_exp(inner)
       }
+    | Splice(inner) => strip_wraps_exp(inner)
     | _ => e
     };
   };
@@ -239,12 +241,8 @@ module SyntaxTerm = {
     };
   };
 
-  let put = (info, syntax): option(Base.segment) =>
-    info.utility.lift_syntax(
-      ~inline=true,
-      _ => syntax_to_any(syntax),
-      info.syntax,
-    );
+  let put = (info, syntax): option(Any.t) =>
+    info.utility.lift_term(_ => syntax_to_any(syntax), info.syntax);
 
   let get_opt = (any: Any.t): option(state) =>
     switch (any |> any_to_syntax) {
@@ -408,7 +406,7 @@ module Chooser = {
       };
     switch (action |> update(SyntaxTerm.get(info)) |> SyntaxTerm.put(info)) {
     | None => Effect.Ignore
-    | Some(seg) => parent(SetSyntax(seg))
+    | Some(term) => parent(SetTerm(term, false))
     };
   };
 
@@ -619,20 +617,22 @@ module M: Projector = {
   let dynamics = false;
   let elaborate_syntax = false;
 
-  let init = (info: TermBase.Any.t): option(model) =>
-    SyntaxTerm.get_opt(info) != None ? Some({mode: Show}) : None;
+  let init = (info: TermBase.Any.t, _) =>
+    SyntaxTerm.get_opt(info) != None ? Some(({mode: Show}, None)) : None;
 
-  let placeholder = (_, info): ProjectorCore.Shape.t => {
+  let placeholder = (_, info, _splice_size): ProjectorCore.Shape.t => {
     horizontal: SyntaxTerm.width_of_any(info),
     vertical: Tab(1),
   };
 
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (_model, _, action) =>
     switch (action) {
     | SetMode(mode) => {mode: mode}
     };
 
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
 
   let view =
       ({model, info, local, parent, _}: View.args(model, action)): View.t => {

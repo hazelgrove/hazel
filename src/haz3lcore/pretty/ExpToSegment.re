@@ -128,6 +128,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Same goes for forms which are already surrounded
   | Parens(_)
   | Projector(_)
+  | Splice(_)
   | ListLit(_)
   | Test(_)
   | HintedTest(_)
@@ -183,7 +184,8 @@ let external_precedence_pat = (dp: Pat.t) =>
   // Same goes for forms which are already surrounded
   | ListLit(_)
   | Parens(_)
-  | Projector(_) => Precedence.max
+  | Projector(_)
+  | Splice(_) => Precedence.max
 
   // Other forms
   | Cons(_) => Precedence.cons
@@ -213,6 +215,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   // Same goes for forms which are already surrounded
   | Parens(_)
   | Projector(_)
+  | Splice(_)
   | ProofOf(_)
   | List(_) => Precedence.max
 
@@ -527,6 +530,8 @@ let rec parenthesize =
     |> rewrap
   | Projector(data, e) =>
     Projector(data, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  | Splice(e) =>
+    Splice(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | Cons(e1, e2) =>
     Cons(
       parenthesize(e1) |> paren_at(Precedence.cons),
@@ -635,6 +640,8 @@ and parenthesize_pat =
   | Projector(data, p) =>
     Projector(data, parenthesize_pat(p) |> paren_pat_at(Precedence.min))
     |> rewrap
+  | Splice(p) =>
+    Splice(parenthesize_pat(p) |> paren_pat_at(Precedence.min)) |> rewrap
   | Cons(p1, p2) =>
     Cons(
       parenthesize_pat(p1) |> paren_pat_at(Precedence.cons),
@@ -722,6 +729,8 @@ and parenthesize_typ =
   | Projector(data, t) =>
     Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
+  | Splice(t) =>
+    Splice(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | Prod([]) => typ
@@ -1151,13 +1160,39 @@ let concat_segment =
 let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
   concat_segment(~secondary=AutoFormat, seg1, seg2);
 
+/* Projector-construction hooks, injected by ProjectorInit at module
+ * initialization. ExpToSegment needs to construct projectors (folds,
+ * tables) while printing, but ProjectorInit needs ExpToSegment to print
+ * term-level init overrides, so ExpToSegment cannot depend on
+ * ProjectorInit directly. If the hooks are unregistered, projector
+ * construction degrades to a no-op (the plain syntax is used). */
+module ProjectorHooks = {
+  type t = {
+    init_or_noop: (ProjectorCore.Kind.t, Base.segment, Any.t) => Base.segment,
+    init_or_noop_from_str:
+      (ProjectorCore.Kind.t, Base.segment, Any.t, string) => Base.segment,
+  };
+  let registered: ref(option(t)) = ref(None);
+  let register = (hooks: t): unit => registered := Some(hooks);
+  let init_or_noop = (kind, seg, any) =>
+    switch (registered^) {
+    | Some(hooks) => hooks.init_or_noop(kind, seg, any)
+    | None => seg
+    };
+  let init_or_noop_from_str = (kind, seg, any, str) =>
+    switch (registered^) {
+    | Some(hooks) => hooks.init_or_noop_from_str(kind, seg, any, str)
+    | None => seg
+    };
+};
+
 let fold_if = (condition, pieces) =>
   if (condition) {
-    let syntax =
+    let wrapped =
       mk_form(~secondary=AutoFormat, ParensExp, Id.mk(), [pieces]);
-    switch (MakeTerm.for_projection([syntax])) {
+    switch (MakeTerm.for_projection([wrapped])) {
     | None => failwith("ExpToSegment.fold_if")
-    | Some(any) => [ProjectorInit.init_or_noop(Fold, syntax, any)]
+    | Some(any) => ProjectorHooks.init_or_noop(Fold, pieces, any)
     };
   } else {
     pieces;
@@ -1166,8 +1201,6 @@ let fold_if = (condition, pieces) =>
 let fold_fun_if = (condition, f_name: string, pieces, exp) =>
   switch (condition) {
   | `Fold =>
-    let syntax =
-      mk_form(~secondary=AutoFormat, ParensExp, Id.mk(), [pieces]);
     let str =
       FoldProj.sexp_of_t({
         text: f_name,
@@ -1175,7 +1208,7 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
         always_render: true,
       })
       |> Sexplib.Sexp.to_string;
-    [ProjectorInit.init_or_noop_from_str(Fold, syntax, Exp(exp), str)];
+    ProjectorHooks.init_or_noop_from_str(Fold, pieces, Exp(exp), str);
   | `Text =>
     let name =
       if (String.length(f_name) >= 2) {
@@ -1198,7 +1231,7 @@ let project_table_if = (should_project, pieces) =>
   if (should_project) {
     switch (MakeTerm.for_projection([pieces])) {
     | None => [pieces]
-    | Some(any) => [ProjectorInit.init_or_noop(Table, pieces, any)]
+    | Some(any) => ProjectorHooks.init_or_noop(Table, [pieces], any)
     };
   } else {
     [pieces];
@@ -2188,11 +2221,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Projector({kind, model}, e) =>
     let id = exp |> Exp.rep_id;
     let+ inner_seg = go(e);
-    let syntax = Segment.parenthesize(inner_seg);
+    let syntax = inner_seg;
     wrap(
       exp,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
+  | Splice(e) =>
+    let id = exp |> Exp.rep_id;
+    let+ inner_seg = go(e);
+    wrap(exp, [Piece.mk_splice(~id, inner_seg)]);
   | Cons(e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -2525,11 +2562,15 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Projector({kind, model}, p) =>
     let id = pat |> Pat.rep_id;
     let+ inner_seg = go(p);
-    let syntax = Segment.parenthesize(inner_seg);
+    let syntax = inner_seg;
     wrap(
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
+  | Splice(p) =>
+    let id = pat |> Pat.rep_id;
+    let+ inner_seg = go(p);
+    wrap(pat, [Piece.mk_splice(~id, inner_seg)]);
   | MultiHole(es) =>
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
@@ -2777,11 +2818,15 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Projector({kind, model}, t) =>
     let id = typ |> Typ.rep_id;
     let+ inner_seg = go(t);
-    let syntax = Segment.parenthesize(inner_seg);
+    let syntax = inner_seg;
     wrap(
       typ,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
+  | Splice(t) =>
+    let id = typ |> Typ.rep_id;
+    let+ inner_seg = go(t);
+    wrap(typ, [Piece.mk_splice(~id, inner_seg)]);
   | Rec(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
@@ -3094,4 +3139,65 @@ let any_to_segment =
        );
   let p = any_to_pretty(~settings, any);
   p |> PrettySegment.select;
+};
+
+let rec collect_splices = (acc: Id.Map.t(Piece.t), seg: Segment.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (p) {
+      | Splice(s) => collect_splices(Id.Map.add(s.id, p, acc), s.content)
+      | Tile(t) => List.fold_left(collect_splices, acc, t.children)
+      | Projector(pr) => collect_splices(acc, pr.syntax)
+      | Grout(_)
+      | Secondary(_) => acc
+      },
+    acc,
+    seg,
+  );
+
+let rec reuse_splices =
+        (splices: Id.Map.t(Piece.t), seg: Segment.t): Segment.t =>
+  List.map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Splice(s) =>
+        switch (Id.Map.find_opt(s.id, splices)) {
+        | Some(original) => original
+        | None =>
+          Splice({
+            ...s,
+            content: reuse_splices(splices, s.content),
+          })
+        }
+      | Tile(t) =>
+        Tile({
+          ...t,
+          children: List.map(reuse_splices(splices), t.children),
+        })
+      | Projector(pr) =>
+        Projector({
+          ...pr,
+          syntax: reuse_splices(splices, pr.syntax),
+        })
+      | Grout(_)
+      | Secondary(_) => p
+      },
+    seg,
+  );
+
+let any_to_projector_segment =
+    (
+      ~already_paren=false,
+      ~settings: Settings.t,
+      ~original_syntax: Segment.t,
+      ~preserve_splices: bool,
+      any: Any.t,
+    )
+    : Segment.t => {
+  let seg = any_to_segment(~already_paren, ~settings, any);
+  if (preserve_splices) {
+    reuse_splices(collect_splices(Id.Map.empty, original_syntax), seg);
+  } else {
+    seg;
+  };
 };

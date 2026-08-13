@@ -13,7 +13,7 @@ let remove_projectors = (segment: Segment.t) =>
   //TODO: Remove this when splices is merged
   ZipperBase.MapPiece.of_segment(
     fun
-    | Projector(pr) => [pr.syntax]
+    | Projector(pr) => pr.syntax
     | x => [x],
     segment,
   );

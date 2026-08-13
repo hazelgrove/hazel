@@ -19,6 +19,26 @@ let go =
       {zipper: z, col_target}: state,
     )
     : Action.Result.t(Zipper.t) => {
+  /* Splice switcheroo: when the caret is inside a splice, swap that
+   * splice's cached data into main_splice so geometry-dependent actions
+   * (point/vertical movement, drag selection, hole goals) resolve in
+   * the splice's own coordinate frame. The term_data/projectors/splices
+   * fields on [syntax] are global and unaffected by the swap.
+   * [syntax_main] keeps the unswapped main frame for the Point cases
+   * below, which arrive from the main editor in main coordinates. */
+  let syntax_main = syntax;
+  let syntax =
+    switch (Zipper.splice_context(z)) {
+    | Some(id) =>
+      switch (CachedSyntax.splice_opt(id, syntax)) {
+      | Some(splice) => {
+          ...syntax,
+          main_splice: splice,
+        }
+      | None => syntax
+      }
+    | None => syntax
+    };
   let maybe_reassoc = settings.deep_reassociate ? Reassociate.go : Fun.id;
   /* Paste is a rare bulk edit that can leave incomplete delimiter forms
      anywhere in the pasted region, so it gets the thorough (full-relatives)
@@ -101,6 +121,88 @@ let go =
       ~elaborated=statics.elaborated,
       ~root,
     );
+  | Move(SplicePoint(splice_id, goal)) =>
+    switch (CachedSyntax.splice_opt(splice_id, syntax)) {
+    | None => Error(Cant_move)
+    | Some(splice) =>
+      Move.to_splice_point(
+        ~measured=splice.measured,
+        ~projectors=syntax.projectors,
+        ~splice_id,
+        ~goal,
+        z,
+      )
+      |> return(Cant_move)
+    }
+  | Move(Vertical(d, _)) when Zipper.splice_context(z) != None =>
+    /* Vertical movement inside a splice: within the splice's own rows
+     * it behaves normally (against the swapped, splice-local measured).
+     * At the top/bottom row it moves to the previous/next splice of the
+     * same projector — for a vlist, the row above/below — landing on
+     * that splice's nearest row at the current column target; with no
+     * neighboring splice it exits the projector and continues in the
+     * enclosing frame. */
+    let measured = CachedSyntax.measured(syntax);
+    let cur = Zipper.Caret.point(measured, z);
+    let col = Option.value(col_target, ~default=cur.col);
+    let leaving =
+      switch (d) {
+      | Up => cur.row <= 0
+      | Down => cur.row >= Measured.last_row(measured)
+      };
+    if (!leaving) {
+      Move.vertical(~measured, ~col_target=col, d, z) |> return(Cant_move);
+    } else {
+      let exit_d: Util.Direction.t = d == Up ? Left : Right;
+      switch (Move.exit_current_splice(exit_d, z)) {
+      | None => Error(Cant_move)
+      | Some(z) =>
+        switch (Zipper.splice_context(z)) {
+        | Some(next_id) =>
+          switch (CachedSyntax.splice_opt(next_id, syntax)) {
+          | None => Ok(z)
+          | Some(next) =>
+            let row = d == Down ? 0 : Measured.last_row(next.measured);
+            Move.to_point(
+              ~measured=next.measured,
+              ~goal=
+                Point.{
+                  row,
+                  col,
+                },
+              z,
+            )
+            |> return(Cant_move);
+          }
+        | None =>
+          /* Exited the projector: continue vertically in the main
+           * frame (the caret sits at the projector's edge, whose
+           * measurement spans its full placeholder). If there is no
+           * line beyond the projector, the exit position itself is
+           * the landing spot. */
+          Ok(
+            Move.vertical(
+              ~measured=CachedSyntax.measured(syntax_main),
+              ~col_target=col,
+              d,
+              z,
+            )
+            |> Option.value(~default=z),
+          )
+        }
+      };
+    };
+  | Move(Point(goal, _)) when Zipper.splice_context(z) != None =>
+    /* Point actions arrive from the main editor in main-frame
+     * coordinates (sub-editors emit SplicePoint instead): a click
+     * outside the splice exits it, then resolves the point against
+     * the main measured. */
+    Move.to_point(
+      ~measured=CachedSyntax.measured(syntax_main),
+      ~goal,
+      Move.to_top(z),
+    )
+    |> return(Cant_move)
   | Move(d) =>
     Move.go(
       ~statics=statics.info_map,
@@ -111,12 +213,12 @@ let go =
             List.to_seq(statics.warning_ids),
             Seq.filter_map(
               (g: Grout.t) => g.shape == Convex ? Some(g.id) : None,
-              List.to_seq(Segment.holes(syntax.segment)),
+              List.to_seq(Segment.holes(CachedSyntax.segment(syntax))),
             ),
           ),
         ),
       ~col_target=Option.value(col_target, ~default=0),
-      ~measured=syntax.measured,
+      ~measured=CachedSyntax.measured(syntax),
       d,
       z,
     )
@@ -132,7 +234,7 @@ let go =
   | Select(Resize(Vertical(d, chunkiness))) =>
     Select.vertical(
       ~col_target=Option.value(col_target, ~default=0),
-      ~measured=syntax.measured,
+      ~measured=CachedSyntax.measured(syntax),
       ~chunkiness,
       d,
       z,
@@ -142,6 +244,16 @@ let go =
   | Select(Resize(End)) => Ok(Select.to_end(z))
   | Select(Resize(Line(d))) =>
     Select.to_linebreak(d, z) |> return(Cant_select)
+  | Select(Resize(Point(goal, _))) when Zipper.splice_context(z) != None =>
+    /* Shift-click/drag from inside a splice to the main editor:
+     * selections across the splice boundary are not supported, so exit
+     * the splice and land the caret at the point instead. */
+    Move.to_point(
+      ~measured=CachedSyntax.measured(syntax_main),
+      ~goal,
+      Move.to_top(z),
+    )
+    |> return(Cant_select)
   | Select(Resize(Point(goal, override))) =>
     /* Mouse drag obeys the "Character-level mouse" setting by default
      * (off → smart, on → char). The drag handler may pass an explicit
@@ -152,8 +264,35 @@ let go =
       | Some(c) => c
       | None => settings.selection_chunkiness ? ByChar : BySmart
       };
-    Select.to_point(~chunkiness, ~measured=syntax.measured, ~goal, z)
+    Select.to_point(
+      ~chunkiness,
+      ~measured=CachedSyntax.measured(syntax),
+      ~goal,
+      z,
+    )
     |> return(Cant_select);
+  | Select(Resize(SplicePoint(splice_id, goal))) =>
+    switch (CachedSyntax.splice_opt(splice_id, syntax)) {
+    | None => Error(Cant_select)
+    | Some(splice) when Zipper.splice_context(z) == Some(splice_id) =>
+      /* Drag within the splice the caret is already in: resolve against
+       * the splice's own frame. Char-level; smart rounding would need
+       * splice-aware token spans. */
+      Select.to_point(~chunkiness=ByChar, ~measured=splice.measured, ~goal, z)
+      |> return(Cant_select)
+    | Some(splice) =>
+      /* Drag/shift-click that starts outside this splice: land the caret
+       * at the point instead. Selections across splice boundaries are
+       * not yet supported. */
+      Move.to_splice_point(
+        ~measured=splice.measured,
+        ~projectors=syntax.projectors,
+        ~splice_id,
+        ~goal,
+        z,
+      )
+      |> return(Cant_select)
+    }
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
   | Select(All) => Ok(Select.all(z))
   | Select(PointToPoint((p1, p2))) =>
@@ -161,11 +300,11 @@ let go =
      * regardless of the smart-selection setting. Smart rounding would
      * overshoot the intended endpoints. */
     z
-    |> Move.to_point(~measured=syntax.measured, ~goal=p1)
+    |> Move.to_point(~measured=CachedSyntax.measured(syntax), ~goal=p1)
     |> OptUtil.and_then(z =>
          Select.to_point(
            ~chunkiness=ByChar,
-           ~measured=syntax.measured,
+           ~measured=CachedSyntax.measured(syntax),
            ~goal=p2,
            z,
          )
@@ -174,7 +313,7 @@ let go =
   | Select(Term(Current)) =>
     Select.select_enclosing_term(
       syntax.term_data,
-      syntax.measured,
+      CachedSyntax.measured(syntax),
       statics.info_map,
       z,
     )

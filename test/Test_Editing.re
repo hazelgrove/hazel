@@ -194,8 +194,10 @@ let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
     let z_a = mk(version_a) |> perform(~settings, Zipper.init());
     let z_b = mk(version_b) |> perform(~settings, Zipper.init());
     /* Get caret Points from each */
-    let measured_a = CachedSyntax.init(z_a).measured;
-    let measured_b = CachedSyntax.init(z_b).measured;
+    let measured_a =
+      Haz3lcore.CachedSyntax.measured(Haz3lcore.CachedSyntax.init(z_a));
+    let measured_b =
+      Haz3lcore.CachedSyntax.measured(Haz3lcore.CachedSyntax.init(z_b));
     let anchor_pt = Zipper.Caret.point(measured_a, z_a);
     let focus_pt = Zipper.Caret.point(measured_b, z_b);
     /* Apply PointToPoint: moves to anchor, selects to focus */
@@ -2434,6 +2436,7 @@ let shard_theft_tests = [
             },
           )
         | Projector(_) => "Proj"
+        | Splice(_) => "Splice"
         };
       let (l0, r0) = z0.relatives.siblings;
       Printf.printf(
@@ -2473,11 +2476,16 @@ let shard_theft_tests = [
               switch (z'.relatives.ancestors) {
               | [] => "no ancestor"
               | [(a, _), ..._] =>
-                let label = String.concat(",", a.label);
-                let (sl, sr) = a.shards;
-                let shards =
-                  sl @ sr |> List.map(string_of_int) |> String.concat(",");
-                Printf.sprintf("ancestor: %s shards=[%s]", label, shards);
+                switch (a) {
+                | Ancestor.Tile(a) =>
+                  let label = String.concat(",", a.label);
+                  let (sl, sr) = a.shards;
+                  let shards =
+                    sl @ sr |> List.map(string_of_int) |> String.concat(",");
+                  Printf.sprintf("ancestor: %s shards=[%s]", label, shards);
+                | Ancestor.Projector(_) => "ancestor: projector"
+                | Ancestor.Splice(_) => "ancestor: splice"
+                }
               };
             let (ls, rs) = z'.relatives.siblings;
             let l_summary =
@@ -3128,7 +3136,8 @@ and tile_sorts_of_piece = (p: Piece.t): list((string, Sort.t)) =>
     let label_sorts = List.map(tok => (tok, t.mold.out), t.label);
     let child_sorts = List.concat_map(tile_sorts_of_seg, t.children);
     label_sorts @ child_sorts;
-  | Projector({syntax, _}) => tile_sorts_of_piece(syntax)
+  | Projector({syntax, _}) => tile_sorts_of_seg(syntax)
+  | Splice({content, _}) => tile_sorts_of_seg(content)
   | Grout(_)
   | Secondary(_) => []
   };
@@ -4920,7 +4929,1184 @@ let grapheme_tests = [
   ),
 ];
 
+/* ---------- Splice sub-editors ----------
+ *
+ * Fixture: a Fold projector whose syntax is a list literal with each
+ * item wrapped in a splice — ^^fold([⟨1⟩, ⟨2⟩, ⟨3⟩]). Fold is used
+ * only as a neutral host; nothing here depends on fold behavior. */
+
+let parse_segment_exn = (s: string): Segment.t =>
+  switch (Parser.to_segment(s, ~root=Exp)) {
+  | Some(seg) => seg
+  | None => Alcotest.fail("Failed to parse segment: " ++ s)
+  };
+
+let mk_splice_projector_piece =
+    (~kind=ProjectorCore.Kind.Fold, ~model=?, item_segs: list(Segment.t))
+    : (Piece.t, list(Id.t)) => {
+  let splice_pieces = List.map(seg => Piece.mk_splice(seg), item_segs);
+  let splice_ids =
+    List.map(
+      fun
+      | Base.Splice(s) => s.id
+      | _ => Id.invalid,
+      splice_pieces,
+    );
+  let comma = () => Piece.mk_tile(Form.get(CommaExp), []);
+  let rec interleave = (ps: list(Piece.t)) =>
+    switch (ps) {
+    | [] => []
+    | [p] => [p]
+    | [p, ...rest] => [p, comma(), ...interleave(rest)]
+    };
+  let list_piece =
+    Piece.mk_tile(Form.get(ListLitExp), [interleave(splice_pieces)]);
+  let model =
+    switch (model) {
+    | Some(m) => m
+    | None =>
+      FoldProj.sexp_of_t({
+        text: "test",
+        expanded: false,
+        always_render: true,
+      })
+      |> Sexplib.Sexp.to_string
+    };
+  let projector = ProjectorCore.mk(~id=Id.mk(), kind, [list_piece], model);
+  (Piece.Projector(projector), splice_ids);
+};
+
+let mk_splice_projector_zipper =
+    (~kind=ProjectorCore.Kind.Fold, ~model=?, items: list(string))
+    : (Zipper.t, list(Id.t)) => {
+  let (piece, splice_ids) =
+    mk_splice_projector_piece(
+      ~kind,
+      ~model?,
+      List.map(parse_segment_exn, items),
+    );
+  (Zipper.unzip([piece]), splice_ids);
+};
+
+let splices_of = (z: Zipper.t): list(Base.splice) =>
+  Segment.splices(Zipper.unselect_and_zip(z));
+
+let splice_text = (z: Zipper.t, idx: int): string =>
+  switch (List.nth_opt(splices_of(z), idx)) {
+  | Some(s) =>
+    Printer.of_segment(
+      ~holes=convex_char,
+      ~concave_holes=concave_char,
+      s.content,
+    )
+  | None => Alcotest.fail("Missing splice at index " ++ string_of_int(idx))
+  };
+
+let check_in_splice = (~name: string, id: Id.t, z: Zipper.t) =>
+  Alcotest.check(
+    Alcotest.bool,
+    name,
+    true,
+    Zipper.splice_context(z) == Some(id),
+  );
+
+let splice_tests = [
+  test_case(
+    "CachedSyntax caches every splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "22", "333"]);
+      let syntax = CachedSyntax.init(z);
+      List.iteri(
+        (i, id) =>
+          Alcotest.check(
+            Alcotest.bool,
+            "splice " ++ string_of_int(i) ++ " cached",
+            true,
+            CachedSyntax.splice_opt(id, syntax) != None,
+          ),
+        splice_ids,
+      );
+    },
+  ),
+  test_case(
+    "SplicePoint enters a splice from outside",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let id = List.nth(splice_ids, 2);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                id,
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      check_in_splice(~name="caret in third splice", id, z);
+    },
+  ),
+  test_case(
+    "SplicePoint 3 -> 33 edit inside splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 2),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("3"),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.string,
+        "third splice text",
+        "33",
+        splice_text(z, 2),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "first splice untouched",
+        "1",
+        splice_text(z, 0),
+      );
+      Alcotest.check(
+        Alcotest.bool,
+        "projector survives the edit",
+        true,
+        List.exists(
+          fun
+          | Base.Projector(_) => true
+          | _ => false,
+          Zipper.unselect_and_zip(z),
+        ),
+      );
+    },
+  ),
+  test_case(
+    "SplicePoint moves between splices",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let first = List.nth(splice_ids, 0);
+      let third = List.nth(splice_ids, 2);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                first,
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      check_in_splice(~name="caret in first splice", first, z);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                third,
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+              ),
+            ),
+            Insert("4"),
+          ],
+        );
+      check_in_splice(~name="caret in third splice", third, z);
+      Alcotest.check(
+        Alcotest.string,
+        "third splice text",
+        "43",
+        splice_text(z, 2),
+      );
+    },
+  ),
+  test_case(
+    "char movement inside a splice uses the splice frame",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["123"]);
+      let id = List.nth(splice_ids, 0);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                id,
+                Point.{
+                  row: 0,
+                  col: 3,
+                },
+              ),
+            ),
+            Move(Local(Left, ByChar)),
+            Move(Local(Left, ByChar)),
+            Insert("0"),
+          ],
+        );
+      check_in_splice(~name="still in splice", id, z);
+      Alcotest.check(
+        Alcotest.string,
+        "splice text",
+        "1023",
+        splice_text(z, 0),
+      );
+    },
+  ),
+  test_case(
+    "arrow right enters a projector's first splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z = perform(z, [Move(Start), Move(Local(Right, ByChar))]);
+      check_in_splice(
+        ~name="caret in first splice",
+        List.nth(splice_ids, 0),
+        z,
+      );
+    },
+  ),
+  test_case(
+    "arrow left enters a projector's last splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z = perform(z, [Move(End), Move(Local(Left, ByChar))]);
+      check_in_splice(
+        ~name="caret in last splice",
+        List.nth(splice_ids, 2),
+        z,
+      );
+    },
+  ),
+  test_case(
+    "arrow down moves through splice rows and exits below",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Move(Vertical(Down, ByChar)),
+          ],
+        );
+      check_in_splice(
+        ~name="caret in second splice",
+        List.nth(splice_ids, 1),
+        z,
+      );
+      let z = perform(z, [Move(Vertical(Down, ByChar))]);
+      check_in_splice(
+        ~name="caret in third splice",
+        List.nth(splice_ids, 2),
+        z,
+      );
+      let z = perform(z, [Move(Vertical(Down, ByChar))]);
+      Alcotest.check(
+        Alcotest.bool,
+        "caret exited below the projector",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+    },
+  ),
+  test_case(
+    "arrow up moves to the row above and exits at the top",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Move(Vertical(Up, ByChar)),
+          ],
+        );
+      check_in_splice(
+        ~name="caret in first splice",
+        List.nth(splice_ids, 0),
+        z,
+      );
+      let z = perform(z, [Move(Vertical(Up, ByChar))]);
+      Alcotest.check(
+        Alcotest.bool,
+        "caret exited above the projector",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+    },
+  ),
+  test_case(
+    "arrow right at a splice edge moves to the next splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Move(Local(Right, ByChar)),
+          ],
+        );
+      check_in_splice(
+        ~name="caret in second splice",
+        List.nth(splice_ids, 1),
+        z,
+      );
+    },
+  ),
+  test_case(
+    "arrow right at the last splice edge exits the projector",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 2),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Move(Local(Right, ByChar)),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "caret left the projector",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+    },
+  ),
+  test_case(
+    "arrow left at the first splice edge exits the projector",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+              ),
+            ),
+            Move(Local(Left, ByChar)),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "caret left the projector",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+    },
+  ),
+  test_case(
+    "a main-frame point click exits the splice",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Move(
+              Point(
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+                None,
+              ),
+            ),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "caret left the splice",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+    },
+  ),
+  test_case(
+    "main measured covers splice interiors",
+    `Quick,
+    () => {
+      /* The app consults the main editor's measured with the caret
+       * inside a splice (col targets, probe placement, etc.) — splice
+       * interiors inside tile children must be merged into it, or
+       * Caret.point raises find_p. */
+      let (z, splice_ids) = mk_splice_projector_zipper(["1", "2", "3"]);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      let syntax = CachedSyntax.init(z);
+      let _: Point.t = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
+      ();
+    },
+  ),
+  test_case(
+    "drag resize creates a splice-local selection",
+    `Quick,
+    () => {
+      let (z, splice_ids) = mk_splice_projector_zipper(["123"]);
+      let id = List.nth(splice_ids, 0);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                id,
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+              ),
+            ),
+            Select(
+              Resize(
+                SplicePoint(
+                  id,
+                  Point.{
+                    row: 0,
+                    col: 2,
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "selection exists",
+        true,
+        z.selection.content != [],
+      );
+      check_in_splice(~name="still in splice", id, z);
+    },
+  ),
+];
+
+/* ---------- Table projector splices ----------
+ *
+ * The table projector wraps each cell value in a splice at projection
+ * time (piece-level, so labels/formatting stay outside the splices),
+ * hosting an editable sub-editor per cell. */
+
+let table_splice_tests = [
+  test_case(
+    "projecting a labeled table literal wraps cell values in splices",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      Alcotest.check(
+        Alcotest.int,
+        "splice count",
+        4,
+        List.length(splices_of(z)),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "first cell value",
+        "1",
+        splice_text(z, 0),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "last cell value",
+        "4",
+        splice_text(z, 3),
+      );
+    },
+  ),
+  test_case(
+    "editing a table cell splice and unprojecting preserves the edit",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let splice_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("2"),
+            Project(RemoveIndicated),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.string,
+        "unprojected edited table",
+        "[(a=1, b=22), (a=3, b=4)]¦",
+        printer(z),
+      );
+    },
+  ),
+  test_case(
+    "context-menu row insert applies from inside a cell splice",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let splice_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+          ],
+        );
+      /* Compute the transformed syntax the way TableProj.context_actions
+       * does, then dispatch it as the menu item would. */
+      let pr =
+        switch (
+          Zipper.unselect_and_zip(z)
+          |> List.find_map((p: Base.piece) =>
+               switch (p) {
+               | Projector(pr) => Some(pr)
+               | _ => None
+               }
+             )
+        ) {
+        | Some(pr) => pr
+        | None => Alcotest.fail("projector not found")
+        };
+      let seg' =
+        switch (TableCore.insert_row(pr.syntax, ~at=1, ~template=0)) {
+        | Some(seg) => seg
+        | None => Alcotest.fail("insert_row declined")
+        };
+      let z =
+        perform(
+          z,
+          [Project(SetSyntax(0, ProjectorCore.Kind.Table, seg'))],
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "splice count after row insert",
+        6,
+        List.length(splices_of(z)),
+      );
+      Alcotest.check(
+        Alcotest.bool,
+        "caret parked outside the splices",
+        true,
+        Zipper.splice_context(z) == None,
+      );
+      let z = perform(z, [Project(RemoveIndicated)]);
+      Alcotest.check(
+        Alcotest.string,
+        "unprojected table with new row",
+        "[(a=1, b=2), (a=?, b=?), (a=3, b=4)]¦",
+        printer(z),
+      );
+    },
+  ),
+  test_case(
+    "unprojecting a table restores the original text",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z =
+        perform(
+          z,
+          [
+            Project(SetIndicated(Specific(Table))),
+            Project(RemoveIndicated),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "no splices remain",
+        0,
+        List.length(splices_of(z)),
+      );
+      Alcotest.check(
+        Alcotest.string,
+        "unprojected table",
+        "[(a=1, b=2), (a=3, b=4)]¦",
+        printer(z),
+      );
+    },
+  ),
+  /* In-splice probes render their offside sample view in the root
+   * editor, on the document row the cell's contents are laid out on:
+   * the projector's origin row, plus one for the table header, plus
+   * the heights of the data rows above (see TableProj.splice_rows,
+   * CachedSyntax.doc_row_of_splice). */
+  test_case(
+    "cell splices report their table row in document coordinates",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let syntax = CachedSyntax.init(z);
+      let rows =
+        splices_of(z)
+        |> List.map((s: Base.splice) =>
+             CachedSyntax.doc_row_of_splice(s.id, syntax)
+           );
+      Alcotest.(check(list(option(int))))(
+        "row-major cells: one row per data row, below the header",
+        [Some(1), Some(1), Some(2), Some(2)],
+        rows,
+      );
+    },
+  ),
+  test_case(
+    "nested table cell splices climb through the outer frame",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=[(c=1), (c=2)], b=3)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let outer_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      /* Project the inner list (cell a's contents) as a table too. */
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(outer_ids, 0),
+                Point.{
+                  row: 0,
+                  col: 99,
+                },
+              ),
+            ),
+            Project(SetIndicated(Specific(Table))),
+          ],
+        );
+      let syntax = CachedSyntax.init(z);
+      let doc_row = id =>
+        switch (CachedSyntax.doc_row_of_splice(id, syntax)) {
+        | Some(row) => row
+        | None => Alcotest.fail("no document row for splice")
+        };
+      let inner_ids =
+        splices_of(z)
+        |> List.map((s: Base.splice) => s.id)
+        |> List.filter(id => !List.mem(id, outer_ids));
+      Alcotest.check(
+        Alcotest.int,
+        "two inner cell splices",
+        2,
+        List.length(inner_ids),
+      );
+      let outer_row = doc_row(List.nth(outer_ids, 0));
+      /* Each inner data row sits its own header below the outer cell. */
+      Alcotest.(check(list(int)))(
+        "inner cells sit below the outer cell's row",
+        [outer_row + 1, outer_row + 2],
+        List.map(doc_row, inner_ids),
+      );
+    },
+  ),
+  test_case(
+    "cells of one table row can each carry a manual probe",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      let a = List.nth(ids, 0)
+      and b = List.nth(ids, 1);
+      /* Cell a becomes "1⏎" and cell b "⏎2": the probed terms sit on
+       * different lines of the same table row. */
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                a,
+                Point.{
+                  row: 0,
+                  col: 99,
+                },
+              ),
+            ),
+            Insert(Token.linebreak),
+            Move(
+              SplicePoint(
+                b,
+                Point.{
+                  row: 0,
+                  col: 0,
+                },
+              ),
+            ),
+            Insert(Token.linebreak),
+          ],
+        );
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                b,
+                Point.{
+                  row: 1,
+                  col: 99,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+            Move(
+              SplicePoint(
+                a,
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "both cells probed",
+        2,
+        List.length(z.refractors.manuals),
+      );
+      /* The app also runs post-calculation probe effects after every
+       * action (Editor.calculate); the collision cleanup there must
+       * not confuse splice-local rows with document rows. */
+      let syntax = CachedSyntax.init(z);
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let statics =
+        CachedStatics.init_from_term(
+          ~settings=default_settings,
+          ~is_dynamic_term=true,
+          term,
+        );
+      let z =
+        ProbePerform.editor_effects(
+          ~is_edited=false,
+          ~syntax,
+          ~info_map=statics.info_map,
+          ~dynamics=Id.Map.empty,
+          z,
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "both probes survive post-calculation cleanup",
+        2,
+        List.length(z.refractors.manuals),
+      );
+    },
+  ),
+  test_case(
+    "probes on cells of different table rows coexist",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      /* Single-line cells all end on splice-local row 0; their chips
+       * render on their own table rows, so probing one must not
+       * evict the other. */
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+            Move(
+              SplicePoint(
+                List.nth(ids, 3),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Probe(ToggleManual),
+          ],
+        );
+      let syntax = CachedSyntax.init(z);
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let statics =
+        CachedStatics.init_from_term(
+          ~settings=default_settings,
+          ~is_dynamic_term=true,
+          term,
+        );
+      let z =
+        ProbePerform.editor_effects(
+          ~is_edited=false,
+          ~syntax,
+          ~info_map=statics.info_map,
+          ~dynamics=Id.Map.empty,
+          z,
+        );
+      Alcotest.check(
+        Alcotest.int,
+        "probes on distinct table rows coexist",
+        2,
+        List.length(z.refractors.manuals),
+      );
+    },
+  ),
+  test_case(
+    "splice sizes are bounding boxes, not end points",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      /* Cell a becomes "12345⏎7": the widest line is not the last, so
+       * an end-point-based size would understate the width (and the
+       * table column would shrink when a long row gains a linebreak). */
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(ids, 0),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("2"),
+            Insert("3"),
+            Insert("4"),
+            Insert("5"),
+            Insert(Token.linebreak),
+            Insert("7"),
+          ],
+        );
+      let s = List.nth(splices_of(z), 0);
+      let bbox = Measured.segment_bbox(s.content);
+      Alcotest.(check(pair(int, int)))(
+        "segment_bbox spans the widest line",
+        (1, 5),
+        (bbox.row, bbox.col),
+      );
+      let syntax = CachedSyntax.init(z);
+      switch (
+        Measured.find_splice_info_opt(s, CachedSyntax.measured(syntax))
+      ) {
+      | None => Alcotest.fail("cell splice not measured in the root map")
+      | Some({size}) =>
+        Alcotest.(check(pair(int, int)))(
+          "merged splice info spans the widest line",
+          (1, 5),
+          (size.row, size.col),
+        )
+      };
+    },
+  ),
+];
+
+/* Render the decoration entry points that raise find_shards when a
+ * term's tiles are only partially present in a frame's measured map:
+ * error arms and indicated-term arms, in both the main frame and the
+ * splice-swapped sub-editor frame that hosts the caret. */
+let render_decorations =
+    (~settings=default_settings, ~tag: string, z: Zipper.t): unit => {
+  let syntax = CachedSyntax.init(z);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let statics =
+    CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+  let fm = Web.FontMetrics.init;
+  let check = (frame, f) =>
+    switch (f()) {
+    | _ => ()
+    | exception exn =>
+      Alcotest.fail(tag ++ " / " ++ frame ++ ": " ++ Printexc.to_string(exn))
+    };
+  check("main errors", () =>
+    Web.Arms.Errors.of_ids(~font_metrics=fm, ~syntax, statics.error_ids)
+  );
+  check("main indicated", () =>
+    Web.Arms.Indicated.term(~font_metrics=fm, ~syntax, z)
+  );
+  /* Sub-frame: swap main_splice to the caret's splice, as
+   * CodeEditable.view does for splice sub-editors. */
+  switch (Zipper.splice_context(z)) {
+  | None => ()
+  | Some(splice_id) =>
+    switch (CachedSyntax.splice_opt(splice_id, syntax)) {
+    | None => Alcotest.fail(tag ++ ": caret splice missing from cache")
+    | Some(sub) =>
+      let sub_syntax = {
+        ...syntax,
+        main_splice: sub,
+      };
+      check("sub errors", () =>
+        Web.Arms.Errors.of_ids(
+          ~font_metrics=fm,
+          ~syntax=sub_syntax,
+          statics.error_ids,
+        )
+      );
+      check("sub indicated", () =>
+        Web.Arms.Indicated.term(~font_metrics=fm, ~syntax=sub_syntax, z)
+      );
+    }
+  };
+};
+
+let bracket_in_cell = (~tag: string, program: string): unit => {
+  let z = mk_zipper(program);
+  let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+  let splice_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+  splice_ids
+  |> List.iteri((i, id) => {
+       let z =
+         perform(
+           z,
+           [
+             Move(
+               SplicePoint(
+                 id,
+                 Point.{
+                   row: 0,
+                   col: 99,
+                 },
+               ),
+             ),
+             Insert("["),
+           ],
+         );
+       render_decorations(~tag=tag ++ " cell " ++ string_of_int(i), z);
+     });
+};
+
+/* Whether the (single) projector in the zipper reports a hidden-syntax
+ * error via its chrome, per ProjectorView.Model.has_hidden_error. */
+let projector_has_hidden_error =
+    (~settings=default_settings, z: Zipper.t): bool => {
+  let rec find_pr = (seg: Segment.t): option(Base.projector) =>
+    List.find_map(
+      (p: Base.piece) =>
+        switch (p) {
+        | Projector(pr) => Some(pr)
+        | Tile(t) => List.find_map(find_pr, t.children)
+        | Splice(s) => find_pr(s.content)
+        | _ => None
+        },
+      seg,
+    );
+  let pr =
+    switch (find_pr(Zipper.unselect_and_zip(z))) {
+    | Some(pr) => pr
+    | None => Alcotest.fail("projector not found")
+    };
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let statics =
+    CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+  Web.ProjectorView.Model.has_hidden_error(pr, statics.info_map);
+};
+
+let table_decoration_tests = [
+  test_case(
+    "decorations survive incomplete tile typed in table cells", `Quick, () => {
+    bracket_in_cell(~tag="untyped", "[(a=1, b=2), (a=3, b=4)]¦")
+  }),
+  test_case(
+    "typed table: hidden row error draws no arms, flags the chrome",
+    `Quick,
+    () => {
+      /* User-reported crash state:
+         let x : [(a=Int, bc=Int)] = ^^table([(1256121, [ )]) in x */
+      let settings = Language.CoreSettings.on;
+      let z =
+        mk_zipper(
+          ~settings,
+          "let x : [(a=Int, bc=Int)] = [(1256121, 2)]¦ in x",
+        );
+      let z =
+        perform(~settings, z, [Project(SetIndicated(Specific(Table)))]);
+      let splice_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      let z =
+        perform(
+          ~settings,
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Destruct(Left),
+            Insert("["),
+          ],
+        );
+      render_decorations(~settings, ~tag="typed auto-labeled", z);
+      /* The error is anchored on the row tuple's comma — hidden table
+       * syntax — so the projector chrome must report it. */
+      Alcotest.check(
+        Alcotest.bool,
+        "projector chrome reports the hidden row error",
+        true,
+        projector_has_hidden_error(~settings, z),
+      );
+    },
+  ),
+  test_case(
+    "untyped table: cell-local errors don't flag the chrome",
+    `Quick,
+    () => {
+      let z = mk_zipper("[(a=1, b=2), (a=3, b=4)]¦");
+      let z = perform(z, [Project(SetIndicated(Specific(Table)))]);
+      let splice_ids = splices_of(z) |> List.map((s: Base.splice) => s.id);
+      let z =
+        perform(
+          z,
+          [
+            Move(
+              SplicePoint(
+                List.nth(splice_ids, 1),
+                Point.{
+                  row: 0,
+                  col: 1,
+                },
+              ),
+            ),
+            Insert("["),
+          ],
+        );
+      Alcotest.check(
+        Alcotest.bool,
+        "in-splice errors are reported in the cell, not on the chrome",
+        false,
+        projector_has_hidden_error(z),
+      );
+    },
+  ),
+];
+
 let tests = [
+  ("Editing.TableDecorations", table_decoration_tests),
+  ("Editing.Splice", splice_tests),
+  ("Editing.TableSplice", table_splice_tests),
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
   ("Editing.SmartSelection", smart_selection_tests),

@@ -218,7 +218,8 @@ module Local = {
         switch (p) {
         | Secondary({content: Whitespace(s) | Comment(s), _}) => Some(s)
         | Grout(_)
-        | Projector(_) => None
+        | Projector(_)
+        | Splice(_) => None
         | Tile(t) =>
           let* shard =
             d == Left
@@ -233,6 +234,9 @@ module Local = {
         | Some(p) => edge_token(Direction.toggle(d), p)
         | None =>
           let* a = Ancestors.parent(z.relatives.ancestors);
+          /* Projector/Splice ancestors have virtual boundaries: no
+             fusable token */
+          let* a = Ancestor.is_tile(a);
           let* shard =
             d == Left
               ? ListUtil.last_opt(fst(a.shards))

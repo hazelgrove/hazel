@@ -22,18 +22,18 @@ module M: Projector = {
     | _ => None
     };
 
-  let init = (any: Language.Any.t) =>
+  let init = (any: Language.Any.t, _) =>
     switch (any) {
     | Exp({term: Ap(_dir, {term: LivelitName(_), _}, _), _})
     | Exp({
         term: Parens({term: Ap(_dir, {term: LivelitName(_), _}, _), _}),
         _,
       }) =>
-      Some()
+      Some(((), None))
     | _ => None
     };
 
-  let placeholder = (_model, info) => {
+  let placeholder = (_model, info, _splice_size) => {
     switch (get_model(info), info.statics) {
     | (Some((llname, _)), Some(InfoExp(exp))) =>
       /* Get the livelit size */
@@ -62,6 +62,7 @@ module M: Projector = {
       print_endline("Warning - LivelitProj.replace_model_term: not an Ap");
       start_term;
     };
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (_model, _info, action) =>
     switch (action) {
     | _ => print_endline("Warning - LivelitProj.update: No action")
@@ -80,6 +81,7 @@ module M: Projector = {
   let dynamics = false;
   let elaborate_syntax = false;
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
 
   let view = ({info, parent, _}: View.args(model, action)) => {
     let ctx =
@@ -98,17 +100,16 @@ module M: Projector = {
           let action_callback = (action: LivelitCtx.action_exp) => {
             let new_model = ll.update(action, model);
 
-            let updated_segment =
-              info.utility.lift_syntax(
-                ~inline=true,
+            let updated_term =
+              info.utility.lift_term(
                 replace_model_term(new_model),
                 info.syntax,
               );
 
-            switch (updated_segment) {
-            | Some(s) => parent(SetSyntax(s))
+            switch (updated_term) {
+            | Some(s) => parent(SetTerm(s, false))
             | None =>
-              print_endline("Warning - LivelitProj.view: lift_syntax failed");
+              print_endline("Warning - LivelitProj.view: lift_term failed");
               Ui_effect.Ignore;
             };
           };

@@ -1470,11 +1470,12 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = (any: Any.t) => {
+  let init = (any: Any.t, _) => {
+    let none_seg: option(ProjectorBase.init_override) = None;
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some({active_renderer: None})
-    | Any(_) => Some({active_renderer: None}) /* Grout don't have sorts */
+    | Pat(_) => Some(({active_renderer: None}, none_seg))
+    | Any(_) => Some(({active_renderer: None}, none_seg)) /* Grout don't have sorts */
     | _ => None
     };
   };
@@ -1488,8 +1489,9 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (_, _) => ProjectorCore.Shape.default;
+  let placeholder = (_, _, _) => ProjectorCore.Shape.default;
 
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (model: probe_model, _info: info, action: action): probe_model => {
     switch (action) {
     | ChangeLength(id, len) =>
@@ -1590,6 +1592,7 @@ module M: Projector = {
     };
   };
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
   let view =
       (
         {info, local, parent, view_seg, model, status, _}:

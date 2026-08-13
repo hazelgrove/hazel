@@ -270,21 +270,34 @@ let term =
   shards(~refine_sort, ~attr?, ~font_metrics, ~base_clss, tiles)
   @ paths(~refine_sort, tiles, line_clss, font_metrics, rows, range);
 
+/* The shard measurements anchoring a term's arms. Returns None when
+ * any anchor tile exists in the syntax but has no position in this
+ * frame's measured map — a term anchored inside a projector's hidden
+ * syntax (e.g. a table row's comma, which sits between the cell
+ * splices and is rendered as projector chrome, not text). Such terms
+ * get no arms at all; the projector chrome reports their errors. */
 let tiles_data =
     (
       ~term_data: TermData.t,
       ~terms: TermMap.t,
       ~measured: Measured.t,
       tile: Tile.t,
-    ) => {
-  let msg = "Arms.tiles_data";
+    )
+    : option(tile_data) => {
   let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
-  let of_tile = (id: Id.t) => {
-    open OptUtil.Syntax;
-    let+ tile = TermData.root_tile(id, term_data);
-    (id, tile.mold, Measured.find_shards(~msg, tile, measured));
-  };
-  Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
+  let of_tile = (id: Id.t): option(option((Id.t, Mold.t, _))) =>
+    switch (TermData.root_tile(id, term_data)) {
+    | None => Some(None) /* not a tile-anchored id: skip it */
+    | Some(tile) =>
+      switch (Measured.find_shards_opt(tile, measured)) {
+      | None => None /* hidden anchor: no arms for this term */
+      | Some(shards) => Some(Some((id, tile.mold, shards)))
+      }
+    };
+  Id.Map.find(id, terms)
+  |> Language.Any.ids
+  |> OptUtil.traverse(of_tile)
+  |> Option.map(List.filter_map(Fun.id));
 };
 
 let term =
@@ -317,22 +330,27 @@ let term =
     };
 
   if (is_module && is_semi) {
-    let msg = "Arms.term";
     switch (TermData.root_tile(tile.id, term_data)) {
     | Some(t) =>
-      shards(
-        ~refine_sort,
-        ~attr?,
-        ~font_metrics,
-        ~base_clss=None,
-        [(tile.id, t.mold, Measured.find_shards(~msg, t, measured))],
-      )
+      switch (Measured.find_shards_opt(t, measured)) {
+      | Some(shard_ms) =>
+        shards(
+          ~refine_sort,
+          ~attr?,
+          ~font_metrics,
+          ~base_clss=None,
+          [(tile.id, t.mold, shard_ms)],
+        )
+      | None => []
+      }
     | None => []
     };
   } else {
-    switch (TermData.extreme_measures(id, term_data, measured)) {
-    | Some((l, r)) =>
-      let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
+    switch (
+      TermData.extreme_measures(id, term_data, measured),
+      tiles_data(~term_data, ~terms, ~measured, tile),
+    ) {
+    | (Some((l, r)), Some(tiles)) =>
       let tiles = is_module ? List.filter(is_not_semi_tile, tiles) : tiles;
       term(
         ~refine_sort,
@@ -357,18 +375,23 @@ let term =
     ~refine_sort,
     ~term_data=syntax.term_data,
     ~terms=syntax.terms,
-    ~measured=syntax.measured,
+    ~measured=CachedSyntax.measured(syntax),
     ~font_metrics,
   );
 
 let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   switch (p) {
-  | Secondary(_) => None
+  | Secondary(_)
+  | Splice(_) => None
   | Grout(_)
   | Projector(_)
   | Tile(_) =>
     let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
-    TermData.extreme_measures(id, syntax.term_data, syntax.measured);
+    TermData.extreme_measures(
+      id,
+      syntax.term_data,
+      CachedSyntax.measured(syntax),
+    );
   };
 };
 
@@ -388,7 +411,9 @@ module Errors = {
       switch (Id.Map.find_opt(id, syntax.projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        switch (Id.Map.find_opt(id, syntax.measured.projectors)) {
+        switch (
+          Id.Map.find_opt(id, CachedSyntax.measured(syntax).projectors)
+        ) {
         | Some(measurement) => [
             ShardDec.simple(
               {
@@ -442,9 +467,10 @@ module Indicated = {
       : list(Node.t) => {
     switch (p) {
     | Grout(_)
-    | Secondary(_) => []
+    | Secondary(_)
+    | Splice(_) => []
     | Projector(p) =>
-      switch (Measured.find_pr_opt(p, syntax.measured)) {
+      switch (Measured.find_pr_opt(p, CachedSyntax.measured(syntax))) {
       | Some(measurement) => [
           ShardDec.simple(
             {
@@ -453,7 +479,13 @@ module Indicated = {
               tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
             },
             [
-              p.syntax |> Piece.sort |> fst |> Sort.to_string,
+              (
+                switch (p.syntax) {
+                | [] => Sort.Any
+                | [head, ..._] => Piece.sort(head) |> fst
+                }
+              )
+              |> Sort.to_string,
               "caret",
               "indicated",
             ],
@@ -567,7 +599,7 @@ module Refractors = {
           ~cls=cls ++ " " ++ kind_cls,
           sort,
           font_metrics,
-          syntax.measured.rows,
+          CachedSyntax.measured(syntax).rows,
           range,
         );
       | _ => []
@@ -580,11 +612,18 @@ module Refractors = {
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         ~dynamics: Language.Dynamics.Map.t,
+        /* The frame being rendered (None = root editor, Some(sid) =
+         * splice sid's sub-editor): a probe's arms are drawn only in
+         * the frame that owns its term's coordinates. */
+        ~frame: option(Id.t),
         z: Zipper.t,
       )
-      : list(Node.t) =>
+      : list(Node.t) => {
+    let in_frame = ((id, _)) =>
+      CachedSyntax.frame_owns_id(frame, id, syntax);
     (
       z.refractors.manuals
+      |> List.filter(in_frame)
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
@@ -599,6 +638,7 @@ module Refractors = {
     @ (
       z.refractors.multis.ephemerals
       |> Id.Map.to_list
+      |> List.filter(in_frame)
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
@@ -614,7 +654,7 @@ module Refractors = {
              Haz3lcore.Indicated.index(z) == Some(id)
                ? [
                  Highlight.indicated_refractor(
-                   ~measured=syntax.measured,
+                   ~measured=CachedSyntax.measured(syntax),
                    ~shape_map=syntax.shape_map,
                    ~font_metrics,
                    ~kind=entry.kind,
@@ -626,13 +666,18 @@ module Refractors = {
            )
          )
     );
+  };
 
   let all =
       (
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
         ~dynamics: Language.Dynamics.Map.t,
+        ~frame: option(Id.t),
         z: Zipper.t,
       ) =>
-    div_c("refractors", of_zipper(~font_metrics, ~syntax, ~dynamics, z));
+    div_c(
+      "refractors",
+      of_zipper(~font_metrics, ~syntax, ~dynamics, ~frame, z),
+    );
 };

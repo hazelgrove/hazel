@@ -206,13 +206,12 @@ module Projectors = {
     | [] =>
       switch (Indicated.for_index(z)) {
       | Some({piece: Projector({syntax, _}), _}) =>
-        MakeTerm.for_projection(Piece.unparenthesize(syntax))
+        MakeTerm.for_projection(syntax)
       | _ =>
         let* info = Indicated.ci_of(z, info_map);
         Language.Info.any_of(info);
       }
-    | [Projector({syntax, _})] =>
-      MakeTerm.for_projection(Piece.unparenthesize(syntax))
+    | [Projector({syntax, _})] => MakeTerm.for_projection(syntax)
     | seg => MakeTerm.for_projection(seg)
     };
 
@@ -226,7 +225,7 @@ module Projectors = {
       : option(ProjectorCore.Kind.t) => {
     let (module P) = ProjectorInit.to_module(kind);
     let* term = target_term(z, info_map);
-    switch (P.init(term)) {
+    switch (P.init(term, [])) {
     | Some(_) => Some(kind)
     | None =>
       if (P.elaborate_syntax) {
@@ -235,7 +234,7 @@ module Projectors = {
           let term_id = Language.Exp.rep_id(exp);
           switch (Language.Exp.find_by_id(term_id, elaborated)) {
           | Some(elab_exp) =>
-            let+ _ = P.init(Exp(elab_exp));
+            let+ _ = P.init(Exp(elab_exp), []);
             kind;
           | None => None
           };
@@ -356,6 +355,62 @@ let refractor_actions_data =
   @ type_annotation_data(~can_type=can_statics, probe_status, ci);
 };
 
+/* Actions contributed by the projector whose splice hosts the caret.
+ * Only the innermost host is consulted: for a table nested inside a
+ * table cell, the menu shows the inner table's actions. */
+module SpliceHost = {
+  let rec find_host =
+          (splice_id: Id.t, seg: Segment.t): option(Base.projector) =>
+    List.find_map(
+      (p: Base.piece) =>
+        switch (p) {
+        | Projector(pr) =>
+          List.exists(
+            (s: Base.splice) => s.id == splice_id,
+            Segment.direct_splices(pr.syntax),
+          )
+            ? Some(pr) : find_host(splice_id, pr.syntax)
+        | Splice(s) => find_host(splice_id, s.content)
+        | Tile(t) => List.find_map(find_host(splice_id), t.children)
+        | Grout(_)
+        | Secondary(_) => None
+        },
+      seg,
+    );
+
+  let data =
+      (
+        ~syntax: CachedSyntax.t,
+        ~info_map: Language.Statics.Map.t,
+        ~dynamics: Language.Dynamics.Map.t,
+        ~elaborated: Language.Exp.t,
+        z: Zipper.t,
+      )
+      : list(Menu.item(Action.t)) =>
+    {
+      let* splice_id = Zipper.splice_context(z);
+      /* Search the full document segment from the zipper: in a splice
+       * sub-editor, [syntax]'s main_splice is swapped to the splice's
+       * own frame, whose segment doesn't contain the host projector. */
+      let* pr = find_host(splice_id, Zipper.unselect_and_zip(z));
+      let+ idx = List.find_index(id => id == pr.id, syntax.projector_list);
+      let (module P) = ProjectorInit.to_module(pr.kind);
+      let info =
+        ProjectorInfo.mk_info(
+          pr,
+          ~sample_focus=z.refractors.sample_focus,
+          ~statics=info_map,
+          ~dynamics,
+          ~elaborated=Some(elaborated),
+        );
+      P.context_actions(pr.model, info, ~splice=splice_id)
+      |> List.map(({label, action}: ProjectorBase.context_action) =>
+           action_item(label, ProjectorView.handle(idx, pr.kind, action))
+         );
+    }
+    |> Option.value(~default=[]);
+};
+
 /* ============================================================
  * Menu assembly
  * ============================================================
@@ -368,11 +423,15 @@ let get_sections =
     (
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
+      ~syntax: CachedSyntax.t,
+      ~dynamics: Language.Dynamics.Map.t,
       z: Zipper.t,
     )
     : list(list(Menu.item(Action.t))) => {
   let ci = Indicated.ci_of(z, info_map);
   [
+    /* Section 0: Actions from the projector hosting the caret's splice */
+    SpliceHost.data(~syntax, ~info_map, ~dynamics, ~elaborated, z),
     /* Section 1: Navigation & Selection */
     jump_to_binding_data(ci) @ select_current_term_data(),
     /* Section 2: Refactoring */
@@ -404,10 +463,14 @@ let get_all_items =
     (
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
+      ~syntax: CachedSyntax.t,
+      ~dynamics: Language.Dynamics.Map.t,
       z: Zipper.t,
     )
     : list(Menu.item(Action.t)) =>
-  flatten_sections(get_sections(~info_map, ~elaborated, z));
+  flatten_sections(
+    get_sections(~info_map, ~elaborated, ~syntax, ~dynamics, z),
+  );
 
 /* ============================================================
  * Update + keyboard
@@ -433,6 +496,8 @@ module WithContext = {
       (
         ~info_map: Language.Statics.Map.t,
         ~elaborated: Language.Exp.t,
+        ~syntax: CachedSyntax.t,
+        ~dynamics: Language.Dynamics.Map.t,
         ~zipper: Zipper.t,
         ~dispatch_menu: Menu.action => Ui_effect.t(unit),
         ~dispatch_action: Action.t => Ui_effect.t(unit),
@@ -440,7 +505,8 @@ module WithContext = {
         key_str: string,
       )
       : option(Ui_effect.t(unit)) => {
-    let items = get_all_items(~info_map, ~elaborated, zipper);
+    let items =
+      get_all_items(~info_map, ~elaborated, ~syntax, ~dynamics, zipper);
     Menu.key_dispatcher(
       ~items,
       ~dispatch_menu,
@@ -497,13 +563,14 @@ let view =
       ~syntax: Haz3lcore.CachedSyntax.t,
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
+      ~dynamics: Language.Dynamics.Map.t,
       ~font_metrics: FontMetrics.t,
       ~model: Menu.t,
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
-  let caret_point = Zipper.Caret.point(syntax.measured, z);
-  let items = get_all_items(~info_map, ~elaborated, z);
+  let caret_point = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
+  let items = get_all_items(~info_map, ~elaborated, ~syntax, ~dynamics, z);
   let menu_items =
     Menu.render(
       ~inject_action=inject,

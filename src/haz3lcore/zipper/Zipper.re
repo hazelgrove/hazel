@@ -23,6 +23,20 @@ let init: unit => t =
 
 let next_blank = _ => Id.mk();
 
+/* Id of the innermost Splice ancestor of the caret, if any.
+ * Returns [None] when the caret is not inside any splice. Used by
+ * rendering code to decide which viewport should draw the caret and
+ * splice-local decorations. */
+let splice_context = (z: t): option(Id.t) =>
+  List.find_map(
+    ((a, _): Ancestors.generation) =>
+      switch (a) {
+      | Ancestor.Splice({id, _}) => Some(id)
+      | _ => None
+      },
+    z.relatives.ancestors,
+  );
+
 let delete_parent = (z: t): t => {
   ...z,
   relatives: Relatives.delete_parent(z.relatives),
@@ -73,26 +87,34 @@ let remold_regrout = (d: Direction.t, z: t, ~root): t =>
 let rescan_parent_shards = (z: t): t => {
   /* For each ancestor, compute its missing shards as (token, index) pairs */
   let ancestor_missing = (a: Ancestor.t): list((string, int)) => {
-    let all_shards = fst(a.shards) @ snd(a.shards);
-    List.init(List.length(a.label), Fun.id)
-    |> List.filter(i => !List.mem(i, all_shards))
-    |> List.map(i => (List.nth(a.label, i), i));
+    switch (Ancestor.is_tile(a)) {
+    | None => []
+    | Some(a) =>
+      let all_shards = fst(a.shards) @ snd(a.shards);
+      List.init(List.length(a.label), Fun.id)
+      |> List.filter(i => !List.mem(i, all_shards))
+      |> List.map(i => (List.nth(a.label, i), i));
+    };
   };
 
   let convert_piece =
       (a: Ancestor.t, missing: list((string, int)), p: Piece.t): Piece.t =>
     switch (p) {
-    | Tile(t) when List.length(t.shards) == 1 && t.id != a.Ancestor.id =>
+    | Tile(t) when List.length(t.shards) == 1 && t.id != Ancestor.id(a) =>
       let tok = List.hd(Tile.effective_label(t));
       switch (List.assoc_opt(tok, missing)) {
       | Some(idx) =>
-        Tile({
-          ...t,
-          id: a.Ancestor.id,
-          label: a.Ancestor.label,
-          mold: a.Ancestor.mold,
-          shards: [idx],
-        })
+        switch (Ancestor.is_tile(a)) {
+        | Some(a) =>
+          Tile({
+            ...t,
+            id: a.id,
+            label: a.label,
+            mold: a.mold,
+            shards: [idx],
+          })
+        | None => p
+        }
       | None => p
       };
     | _ => p
@@ -124,8 +146,9 @@ let rescan_parent_shards = (z: t): t => {
           );
         let (l_match, r_match) =
           new_sibs
-          |> Siblings.split_by_matching(target.Ancestor.id)
+          |> Siblings.split_by_matching(Ancestor.id(target))
           |> TupleUtil.map2(Aba.trim);
+        let target = Ancestor.is_tile(target) |> Option.get;
         let (target, new_l) =
           switch (l_match) {
           | None => (target, fst(new_sibs))
@@ -158,7 +181,7 @@ let rescan_parent_shards = (z: t): t => {
             };
             (target, inner_r);
           };
-        Some(((new_l, new_r), target));
+        Some(((new_l, new_r), Ancestor.Tile(target)));
       };
     };
   };
@@ -977,7 +1000,8 @@ module Caret = {
    * For non-tiles and monotiles this is always zero */
   let delim_idx = (z: t) =>
     switch (snd(z.relatives.siblings), z.relatives.ancestors) {
-    | ([], [({shards: (l, _), _}, _), ..._]) => List.length(l)
+    | ([], [(Ancestor.Tile({shards: (l, _), _}), _), ..._]) =>
+      List.length(l)
     | _ => 0
     };
 

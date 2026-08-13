@@ -169,7 +169,8 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
           (level, Id.Map.add(w.id, level, map));
         | Secondary(_)
         | Grout(_)
-        | Projector(_) => (level, map)
+        | Projector(_)
+        | Splice(_) => (level, map)
         | Tile(t) =>
           let map =
             union_all([

@@ -479,8 +479,8 @@ let table_proj_error_tests = {
   module G = IdTagged.FreshGrammar.Exp;
   let good_table = mk_table([[("x", G.int(1))], [("x", G.int(2))]]);
   let model =
-    switch (TableProj.M.init(Exp(good_table))) {
-    | Some(m) => m
+    switch (TableProj.M.init(Exp(good_table), [])) {
+    | Some((m, _)) => m
     | None => fail("TableProj.init should succeed on a valid table")
     };
   [

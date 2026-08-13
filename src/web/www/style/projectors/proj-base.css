@@ -40,6 +40,14 @@
   z-index: var(--projector-indicated-z);
 }
 
+/* A projector wrapper is a stacking context (absolute + z-index), so a
+ * context menu opened inside one of its splices is capped at the
+ * projector's own level. Elevate the host so the menu clears
+ * neighboring projectors and decorations. */
+.projectors .projector:has(.context-menu) {
+  z-index: var(--context-menu-z);
+}
+
 .projector.error:not(.selected) > svg path {
   stroke-dasharray: 1, 1;
   stroke: var(--R1);
@@ -80,4 +88,43 @@
 .cell-item.selected .projector.selected > svg,
 .cell-item.selected .projector.selected.indicated > svg {
   fill: var(--shard-selected);
+}
+
+/* Splice editor viewport (shared by splice-bearing projectors)
+ *
+ * A splice hosts a .splice-editor wrapper containing a recursive
+ * CodeEditable instance (.code-editor.sub-editor). The wrapper is the
+ * positioning context for the sub-editor's caret/selection/error
+ * decorations, which are absolutely positioned in splice-local text
+ * grid coordinates. Projector-specific decoration (e.g. the vlist hex
+ * background) is layered on by the projector's own stylesheet. */
+
+.splice-editor {
+  position: relative;
+  z-index: 0; /* stacking context so decoration ::before layers sit below */
+  display: inline-block;
+  min-width: 2em;
+  min-height: 1em;
+  cursor: text;
+}
+
+/* Each splice host is a stacking context, so a context menu opened in
+ * one would otherwise paint under later sibling splices. */
+.splice-editor:has(.context-menu) {
+  z-index: var(--context-menu-z);
+}
+
+/* Padding comes from .inline-editor-wrapper (shared with the induction
+ * scrutinee/case editors, see stepper.css), but its hex background is
+ * not clipped here: overlays inside the splice (context menu,
+ * completions) must be able to overflow the wrapper's shape. */
+.splice-editor.inline-editor-wrapper {
+  clip-path: none;
+  background-color: transparent;
+  border: none;
+}
+
+.splice-editor .code-editor.sub-editor {
+  position: relative;
+  display: inline-block;
 }

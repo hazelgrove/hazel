@@ -14,9 +14,9 @@ module M: Projector = {
     | _ => None
     };
 
-  let init = (any: Language.Any.t) =>
+  let init = (any: Language.Any.t, _) =>
     switch (float_of(any)) {
-    | Some(_) => Some()
+    | Some(_) => Some(((), None))
     | None => None
     };
 
@@ -28,10 +28,9 @@ module M: Projector = {
     | None => failwith("SliderF: Get: not float literal")
     };
 
-  let put = (info: info, v: string): Base.segment =>
+  let put = (info: info, v: string): Language.Any.t =>
     switch (
-      info.utility.lift_syntax(
-        ~inline=true,
+      info.utility.lift_term(
         fun
         | Exp(t) =>
           Exp({
@@ -49,14 +48,18 @@ module M: Projector = {
   let focusable = Focusable.non;
   let dynamics = false;
   let elaborate_syntax = false;
-  let placeholder = (_, _) => ProjectorCore.Shape.inline(10);
+  let placeholder = (_, _, _) => ProjectorCore.Shape.inline(10);
+  let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (model, _, _) => model;
   let error = (_, _): option(ProjectorBase.error) => None;
+  let context_actions = (_, _, ~splice as _) => [];
 
   let view = ({info, parent, _}: View.args(model, action)) =>
     View.mk(
       Util.WebUtil.range(
-        ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
+        ~attrs=[
+          Attr.on_input((_, v) => parent(SetTerm(put(info, v), false))),
+        ],
         info |> get |> Printf.sprintf("%.2f"),
       ),
     );

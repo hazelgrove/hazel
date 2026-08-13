@@ -185,7 +185,7 @@ let ids_from_term =
     id,
     syntax.term_data,
     syntax.terms,
-    syntax.measured,
+    CachedSyntax.measured(syntax),
     info_map,
   )
   |> Option.to_list
@@ -200,7 +200,11 @@ let sort_ids_lexically =
     List.filter_map(
       id =>
         switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          TermData.extreme_measures(
+            id,
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          )
         ) {
         | Some((start_pt, _)) => Some((id, start_pt.row, start_pt.col))
         | None => None
@@ -217,6 +221,28 @@ let sort_ids_lexically =
       with_positions,
     );
   List.map(((id, _, _)) => id, sorted);
+};
+
+/* The document row a manual probe's offside sample view renders on:
+ * the end row of its term, remapped through the owning splice's
+ * document row for in-splice terms — splice interiors are measured in
+ * splice-local coordinates, so their raw rows are meaningless in (and
+ * collide spuriously with) the outer frame. Mirrors RefractorView's
+ * chip placement; the one-probe-per-line policy below is about chips
+ * sharing a line, so rows must be compared in document coordinates. */
+let chip_row = (~syntax: CachedSyntax.t, id: Id.t): option(int) => {
+  let* (_, end_pt) =
+    TermData.extreme_measures(
+      id,
+      syntax.term_data,
+      CachedSyntax.measured(syntax),
+    );
+  switch (CachedSyntax.splice_containing_id(id, syntax)) {
+  | None => Some(end_pt.row)
+  | Some((sid, _)) =>
+    let+ base = CachedSyntax.doc_row_of_splice(sid, syntax);
+    base + end_pt.row;
+  };
 };
 
 /* Set pending_probe_cursor so sample focus aligns when dynamics arrive. */
@@ -355,26 +381,23 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
  * This is called after code edits to clean up probes that were pushed
  * onto the same line due to text reflow. Keeps the rightmost probe. */
 let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t => {
-  /* 1. Build a map: end_row -> list of (probe_id, col) */
+  /* 1. Build a map: chip document row -> list of (probe_id, col) */
   let row_to_probes =
     List.fold_right(
       ((probe_id, _), acc) =>
         switch (
+          chip_row(~syntax, probe_id),
           TermData.extreme_measures(
             probe_id,
             syntax.term_data,
-            syntax.measured,
-          )
+            CachedSyntax.measured(syntax),
+          ),
         ) {
-        | Some((_, end_pt)) =>
+        | (Some(row), Some((_, end_pt))) =>
           let existing =
-            IntMap.find_opt(end_pt.row, acc) |> Option.value(~default=[]);
-          IntMap.add(
-            end_pt.row,
-            [(probe_id, end_pt.col), ...existing],
-            acc,
-          );
-        | None => acc
+            IntMap.find_opt(row, acc) |> Option.value(~default=[]);
+          IntMap.add(row, [(probe_id, end_pt.col), ...existing], acc);
+        | _ => acc
         },
       z.refractors.manuals,
       IntMap.empty,
@@ -407,29 +430,16 @@ let add_manual =
     : Zipper.t => {
   let target_ids = target_subterm_ids(id, info_map);
 
-  /* Get ending rows for all new probe targets */
+  /* Get chip rows for all new probe targets */
   let target_end_rows =
-    target_ids
-    |> List.filter_map(id =>
-         TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-         |> Option.map(((_, end_pt: Point.t)) => end_pt.row)
-       );
+    target_ids |> List.filter_map(id => chip_row(~syntax, id));
 
-  /* Find existing manual probes ending on those rows */
+  /* Find existing manual probes whose chips render on those rows */
   let conflicting_ids =
     List.fold_right(
       ((probe_id, _), acc) =>
-        switch (
-          TermData.extreme_measures(
-            probe_id,
-            syntax.term_data,
-            syntax.measured,
-          )
-        ) {
-        | Some((_, end_pt)) when List.mem(end_pt.row, target_end_rows) => [
-            probe_id,
-            ...acc,
-          ]
+        switch (chip_row(~syntax, probe_id)) {
+        | Some(row) when List.mem(row, target_end_rows) => [probe_id, ...acc]
         | _ => acc
         },
       z.refractors.manuals,
@@ -505,7 +515,11 @@ let add_ids_from_multi_term =
     List.filter_map(
       ((id, _)) =>
         switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          TermData.extreme_measures(
+            id,
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          )
         ) {
         | Some((_, end_loc)) => Some(end_loc.row)
         | None => None
@@ -516,7 +530,11 @@ let add_ids_from_multi_term =
     List.filter(
       id =>
         switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          TermData.extreme_measures(
+            id,
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          )
         ) {
         | Some((_, end_loc)) => !List.mem(end_loc.row, manual_end_rows)
         | None => true
@@ -918,7 +936,7 @@ let go =
         TermData.get_root_id_using_ranges(
           z.selection.content,
           syntax.term_data,
-          syntax.measured,
+          CachedSyntax.measured(syntax),
         )
       ) {
       | Some(id) =>
@@ -1044,11 +1062,15 @@ let caret_nearest_ephemeral =
   | Some(piece_id) when Id.Map.mem(piece_id, z.refractors.multis.ephemerals) =>
     Some(piece_id)
   | _ =>
-    let caret_pt = Zipper.Caret.point(syntax.measured, z);
+    let caret_pt = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
     Id.Map.bindings(z.refractors.multis.ephemerals)
     |> List.find_map(((id, _)) =>
          switch (
-           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+           TermData.extreme_measures(
+             id,
+             syntax.term_data,
+             CachedSyntax.measured(syntax),
+           )
          ) {
          | Some((start_pt, end_pt))
              when
@@ -1207,12 +1229,16 @@ let align_to_indicated_probe =
     /* Strategy 2: Spatial proximity — find ephemeral probe on same row
      * whose measured range contains the caret position */
     let spatial_match = () => {
-      let caret_pt = Zipper.Caret.point(syntax.measured, z);
+      let caret_pt = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
       let ephemerals = Id.Map.bindings(z.refractors.multis.ephemerals);
       List.find_map(
         ((id, _)) =>
           switch (
-            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+            TermData.extreme_measures(
+              id,
+              syntax.term_data,
+              CachedSyntax.measured(syntax),
+            )
           ) {
           | Some((start_pt, end_pt))
               when
@@ -1394,7 +1420,7 @@ let current_toplevel_def =
   | None =>
     switch (z.relatives.ancestors) {
     | [] => None
-    | [(ancestor, _), ..._] => try_id(ancestor.id)
+    | [(ancestor, _), ..._] => try_id(Ancestor.id(ancestor))
     }
   };
 };

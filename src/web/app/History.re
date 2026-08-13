@@ -94,7 +94,12 @@ module Update = {
           action,
           model.current,
         );
-      if (Page.Update.can_undo(action)) {
+      /* Push an undo point only when the action kind is undoable AND
+       * this particular update reported itself historic — updates that
+       * come back via `Updated.return_quiet` (e.g. a sub-editor action
+       * rejected by `PerformConfined` confinement) are no-ops and would
+       * otherwise bury real undo points under identical snapshots. */
+      if (Page.Update.can_undo(action) && current.historic) {
         let new_stack = [
           {
             ...current,

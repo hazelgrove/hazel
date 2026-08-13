@@ -23,6 +23,7 @@ let tokens =
       /* Hack: These act as temporary wrappers for projectors,
        * given that they in-effect act as a convex wrapping form */
       ["PROJ_WRAP", "PROJ_WRAP"],
+    _ => ["SPLICE_WRAP", "SPLICE_WRAP"],
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -677,6 +678,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
+      | (["SPLICE_WRAP", "SPLICE_WRAP"], [Exp(body)]) => ret(body.term)
       | (["[", "]"], [Exp(body)]) =>
         /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
@@ -1003,6 +1005,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Pat(body)]) => ret(Parens(body))
       | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => ret(body.term)
+      | (["SPLICE_WRAP", "SPLICE_WRAP"], [Pat(body)]) => ret(body.term)
       | (["[", "]"], [Pat(body)]) =>
         /* ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
@@ -1129,37 +1132,41 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       | _ => ret(Sig(flatten_sig(body)))
       }
     | ([(_id, tile)], []) =>
-      ret(
-        switch (tile) {
-        | ([t], []) when Token.is_empty_tuple(t) => Prod([])
-        | ([t], []) when Token.is_empty_module(t) => Sig([])
-        | (["Bool"], []) => Atom(Bool)
-        | (["Int"], []) => Atom(Int)
-        | (["SInt"], []) => Atom(SInt)
-        | (["Float"], []) => Atom(Float)
-        | (["String"], []) => Atom(String)
-        | (["Nat"], []) => Atom(Nat)
-        | (["Void"], []) => Sum([])
-        | (["DrvJdmt"], []) => DrvQuoteTy(Jdmt)
-        | (["DrvCtx"], []) => DrvQuoteTy(Ctx)
-        | (["DrvProp"], []) => DrvQuoteTy(Prop)
-        | (["ALFAExp"], []) => DrvQuoteTy(Exp)
-        | (["DrvPat"], []) => DrvQuoteTy(Pat)
-        | (["ALFATyp"], []) => DrvQuoteTy(Typ)
-        | (["DrvTPat"], []) => DrvQuoteTy(TPat)
-        | (["_"], []) => ExplicitNonlabel
-        | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
-        | ([t], []) when Token.is_typ_var(t) => Var(t)
-        | ([t], []) when Token.is_quoted_label(t) =>
-          Label(Token.sub(t, 1, Token.length(t) - 2))
-        | (["(", ")"], [Typ(body)]) => Parens(body)
-        | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
-        | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when is_hole_label(t) => hole(tm)
-        | ([t], []) => Unknown(Hole(Invalid(t)))
-        | _ => hole(tm)
-        },
-      )
+      switch (tile) {
+      | (["SPLICE_WRAP", "SPLICE_WRAP"], [Typ(body)]) => ret(body.term)
+      | _ =>
+        ret(
+          switch (tile) {
+          | ([t], []) when Token.is_empty_tuple(t) => Prod([])
+          | ([t], []) when Token.is_empty_module(t) => Sig([])
+          | (["Bool"], []) => Atom(Bool)
+          | (["Int"], []) => Atom(Int)
+          | (["SInt"], []) => Atom(SInt)
+          | (["Float"], []) => Atom(Float)
+          | (["String"], []) => Atom(String)
+          | (["Nat"], []) => Atom(Nat)
+          | (["Void"], []) => Sum([])
+          | (["DrvJdmt"], []) => DrvQuoteTy(Jdmt)
+          | (["DrvCtx"], []) => DrvQuoteTy(Ctx)
+          | (["DrvProp"], []) => DrvQuoteTy(Prop)
+          | (["ALFAExp"], []) => DrvQuoteTy(Exp)
+          | (["DrvPat"], []) => DrvQuoteTy(Pat)
+          | (["ALFATyp"], []) => DrvQuoteTy(Typ)
+          | (["DrvTPat"], []) => DrvQuoteTy(TPat)
+          | (["_"], []) => ExplicitNonlabel
+          | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
+          | ([t], []) when Token.is_typ_var(t) => Var(t)
+          | ([t], []) when Token.is_quoted_label(t) =>
+            Label(Token.sub(t, 1, Token.length(t) - 2))
+          | (["(", ")"], [Typ(body)]) => Parens(body)
+          | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
+          | (["[", "]"], [Typ(body)]) => List(body)
+          | ([t], []) when is_hole_label(t) => hole(tm)
+          | ([t], []) => Unknown(Hole(Invalid(t)))
+          | _ => hole(tm)
+          },
+        )
+      }
     | _ => ret(hole(tm))
     }
   | Post(Typ(_t), tiles) as tm =>
@@ -1262,7 +1269,8 @@ and tpat_term: unsorted => TPat.term = {
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Invalid(t)
-        | (["PROJ_WRAP", "PROJ_WRAP"], [TPat(body)]) => body.term
+        | (["PROJ_WRAP", "PROJ_WRAP"], [TPat(body)])
+        | (["SPLICE_WRAP", "SPLICE_WRAP"], [TPat(body)]) => body.term
         | _ => hole(tm)
         },
       )
@@ -1420,11 +1428,38 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({id, kind, model, syntax, _} as pr) =>
+    | Splice({content, id, _}) =>
+      /* Splices are transparent wrappers: their content becomes the
+       * single kid of the SPLICE_WRAP tile. The SPLICE_WRAP case at
+       * term-construction time unwraps `body.term` straight through. */
+      let sk = Segment.skel(content);
+      let sort = Segment.sort_of(sk, content);
+      let inner = go_s(sort, sk, content);
+      let wrapped =
+        switch (inner) {
+        | Grammar.Exp(e) =>
+          Grammar.Exp({
+            term: Splice(e),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | Grammar.Pat(p) =>
+          Grammar.Pat({
+            term: Splice(p),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | Grammar.Typ(t) =>
+          Grammar.Typ({
+            term: Splice(t),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | _ => inner
+        };
+      [wrapped];
+    | Projector({id, kind, model, syntax} as pr) =>
       let _ = log_projector(pr);
-      let sort = Piece.sort(syntax) |> fst;
-      let seg = Piece.unparenthesize(syntax);
-      let inner = go_s(sort, Segment.skel(seg), seg);
+      let sk = Segment.skel(syntax);
+      let sort = Segment.sort_of(sk, syntax);
+      let inner = go_s(sort, sk, syntax);
       /* Construct Projector term with proper annotation, preserving
        * projector metadata (kind, model) in the term for round-tripping */
       let projector_data: Grammar.projector_data = {
@@ -1550,7 +1585,8 @@ let go =
       projector_list := [];
       adopted_ids := [];
       secondary_map := Segment.SecondaryCollection.collect(seg);
-      let term = exp(unsorted(Exp, Segment.skel(seg), seg));
+      let skel = Segment.skel(seg);
+      let term = exp(unsorted(Exp, skel, seg));
       consolidate_adopted();
       {
         term,
