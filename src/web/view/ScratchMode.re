@@ -60,9 +60,9 @@ module Scratchpad = {
         switch (original) {
         | None => false
         | Some(pce) =>
-          PersistentSegment.to_string(
-            current_segment,
+          MarkerParse.seg_to_text(
             ~refractors=current_zipper.refractors.manuals,
+            current_segment,
           )
           == Util.StringUtil.strip_final_newline(
                pce.editor.zipper.backup_text,

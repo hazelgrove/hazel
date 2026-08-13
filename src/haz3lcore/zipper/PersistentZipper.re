@@ -8,12 +8,7 @@ type t = {
 
 /* Lossless: holes print as the ¿ marker (MarkerParse destructs them on
    read), so crash-recovery text and share links keep hole positions. */
-let to_string =
-  Printer.of_zipper(
-    ~holes=Token.implicit_hole_marker,
-    ~concave_holes=Token.implicit_hole_marker,
-    ~indent="",
-  );
+let to_string = z => MarkerParse.to_text(z);
 
 /* Stored text = printed content + one final newline; readers strip
    exactly that one (strip_final_newline in from_backup_text). Matches
@@ -34,6 +29,14 @@ let of_text = (text: string): t => {
   zipper: "",
   backup_text: text,
 };
+
+/* Slide-source ingestion: committed .hz text keeps human indentation,
+   but Hazel computes indentation at layout time and renders literal
+   leading spaces ON TOP of it (doubled, drifting) — so slide text is
+   flattened here. The strip is blind per-line; slide sources must not
+   contain multi-line string literals. */
+let of_slide_text = (text: string): t =>
+  of_text(StringUtil.trim_leading(text));
 
 /* Fast-first text→zipper, shared by persistence load and the CLI:
    FastParse (linear, complete terms) with pin collection, then the

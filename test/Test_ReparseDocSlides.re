@@ -27,7 +27,7 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
         string,
         name ++ ": load path reproduces the committed text",
         String.trim(text),
-        String.trim(TextRoundtrip.to_text(PersistentSegment.persist(z))),
+        String.trim(MarkerParse.to_text(z)),
       );
       switch (
         FastParse.of_text(

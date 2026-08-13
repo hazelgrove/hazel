@@ -242,7 +242,7 @@ let tests = (
           string,
           "pin reprints as its trigger",
           text,
-          String.trim(PersistentSegment.persist(z).backup_text),
+          String.trim(MarkerParse.to_text(z)),
         );
       },
     ),
@@ -264,7 +264,7 @@ let tests = (
           string,
           "_table reprints",
           text,
-          String.trim(PersistentSegment.persist(z).backup_text),
+          String.trim(MarkerParse.to_text(z)),
         );
       },
     ),
@@ -289,7 +289,7 @@ let tests = (
           string,
           "print equals stored text minus final newline",
           Util.StringUtil.strip_final_newline(text),
-          PersistentSegment.to_string(seg, ~refractors=z.refractors.manuals),
+          MarkerParse.seg_to_text(~refractors=z.refractors.manuals, seg),
         );
       },
     ),

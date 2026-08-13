@@ -526,7 +526,7 @@ let implicit_hole_arg = {
     ++ "`slide-encode` so Grout positions are recovered on re-parse.";
   Arg.(
     value
-    & opt(string, Haz3lcore.TextRoundtrip.default_implicit_hole)
+    & opt(string, Haz3lcore.MarkerParse.default_implicit_hole)
     & info(["implicit-hole"], ~docv="CHAR", ~doc)
   );
 };

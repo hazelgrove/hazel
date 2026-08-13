@@ -455,7 +455,7 @@ let attempt =
           secondary: PreserveExact,
           parenthesization: Structural,
           /* a source `?` lands as the explicit hole TILE; `¿` (the
-             TextRoundtrip marker, lexed like ?) becomes Grout in zip */
+             MarkerParse marker, lexed like ?) becomes Grout in zip */
           hole_tiles: true,
         };
       switch (ExpToSegment.exp_to_segment(~settings, term)) {

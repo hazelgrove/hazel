@@ -9,7 +9,7 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
-let documentation_slides: list((string, PersistentSegment.t)) =
+let documentation_slides: list((string, PersistentZipper.t)) =
   Docslides.Slides.all_slides @ B2t2.Slides.all_slides;
 
 /* LAZY: the CLI links this module (--linkall) and must not pay the
@@ -24,14 +24,11 @@ let startup: Lazy.t(PersistentData.t) =
     documentation: (
       0,
       documentation_slides
-      |> List.map(((name, content: PersistentSegment.t)) =>
+      |> List.map(((name, content: PersistentZipper.t)) =>
            (
              name,
              {
-               editor:
-                 content
-                 |> PersistentSegment.unpersist
-                 |> Editor.Model.mk_persistent(~root=Exp),
+               editor: content |> Editor.Model.mk_persistent(~root=Exp),
                result: EvalResult.Model.init |> EvalResult.Model.persist,
              }: CellEditor.Model.persistent,
            )

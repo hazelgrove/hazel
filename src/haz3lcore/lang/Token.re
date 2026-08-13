@@ -146,7 +146,7 @@ let is_potential_operand =
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]|, or the implicit-hole marker ¿. ¿ is excluded
  *  so that decoded slides like `[1, ¿, 3]` don't merge `¿,` into a
- *  single operator token; see Haz3lcore.TextRoundtrip. */
+ *  single operator token; see Haz3lcore.MarkerParse. */
 
 let is_potential_operator =
   /* Multiline operators not supported */
@@ -165,7 +165,7 @@ let is_potential_token = t =>
     t == "()"
     || t == "[]"
     || t == "{}"
-    || t == "¿"  /* implicit-hole marker; see Haz3lcore.TextRoundtrip */
+    || t == "¿"  /* implicit-hole marker; see Haz3lcore.MarkerParse */
     || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
@@ -281,7 +281,7 @@ let llm_advanced_reasoning_hole = "?a";
 let is_explicit_hole = t => t == explicit_hole;
 
 /* Implicit-hole marker: the textual stand-in for a Grout piece used by
- * Haz3lcore.TextRoundtrip so decode|encode round-trips preserve Grout
+ * Haz3lcore.MarkerParse so decode|encode round-trips preserve Grout
  * positions. A single non-identifier, non-operator character that the
  * tokeniser treats as its own atomic token (won't glue with adjacent
  * commas, semicolons, or identifiers). */
