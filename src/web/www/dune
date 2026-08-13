@@ -10,7 +10,17 @@
  (deps
   (source_tree %{project_root}/node_modules/jscoq))
  (action
-  (run cp -R %{project_root}/node_modules/jscoq jscoq)))
+  (progn
+   (run cp -R %{project_root}/node_modules/jscoq jscoq)
+   ; Hazel does not enable jsCoq's optional collaboration/Gist addon. The
+   ; published npm package includes a credential-shaped example in these
+   ; files, which GitHub push protection correctly refuses to deploy.
+   (run
+    rm
+    -f
+    jscoq/dist-webpack/addon/collab.browser.js
+    jscoq/dist-webpack/addon/collab.browser.js.map
+    jscoq/frontend/classic/js/addon/collab/gist.js))))
 
 (rule
  (targets bundled.js)
