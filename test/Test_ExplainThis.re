@@ -46,7 +46,45 @@ let qcheck_explainthis_does_not_crash =
     }
   });
 
+/* The ExplainThis section title and the cursor inspector label both come
+   from Info.cls_label, which must reflect the statics-re-kinded negation
+   op rather than the user term's (always-Int) op. */
+let unop_label = (program: string): option(string) => {
+  let exp =
+    switch (Haz3lcore.Parser.to_term(program, ~root=Exp)) {
+    | Some(e) => e
+    | None => Alcotest.fail("Failed to parse expression: " ++ program)
+    };
+  Id.Map.fold(
+    (_id, info: Info.t, acc) =>
+      switch (acc, Info.cls_of(info)) {
+      | (None, Exp(UnOp(_))) => Some(Info.cls_label(info))
+      | _ => acc
+      },
+    statics(exp),
+    None,
+  );
+};
+
+let negation_labels = () => {
+  Alcotest.(check(option(string)))(
+    "float negation label",
+    Some("Float Negation"),
+    unop_label("-1.5"),
+  );
+  Alcotest.(check(option(string)))(
+    "integer negation label",
+    Some("Integer Negation"),
+    unop_label("-5"),
+  );
+};
+
 let tests = (
   "ExplainThis",
-  [QCheck_alcotest.to_alcotest(qcheck_explainthis_does_not_crash)],
+  [
+    QCheck_alcotest.to_alcotest(qcheck_explainthis_does_not_crash),
+    Alcotest.test_case("negation labels re-kind by class", `Quick, () =>
+      negation_labels()
+    ),
+  ],
 );
