@@ -108,7 +108,9 @@ jobs:
           eval $(opam env)
           make ci
         working-directory: ./source
-        timeout-minutes: 20
+        # The full browser-targeted suite is rebuilt with bisect_ppx here.
+        # Keep headroom above the uninstrumented runtime as the suite grows.
+        timeout-minutes: 40
       - name: Test Report
         uses: dorny/test-reporter@v1
         with:
