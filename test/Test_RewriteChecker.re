@@ -4031,6 +4031,48 @@ let tests = (
       },
     ),
     test_case(
+      "incomplete live One Step targets stop before proof planning",
+      `Quick,
+      () => {
+        let source = plus(Exp.int(1), Exp.int(2));
+        let nested_hole =
+          Exp.tuple([
+            Exp.int(3),
+            Exp.ap(Forward, Exp.var("f"), Exp.empty_hole()),
+          ]);
+        check(
+          bool,
+          "hole detection traverses nested expression forms",
+          true,
+          Web.AxiomSearch.has_hole(nested_hole),
+        );
+        let request: Web.ProfileProofPlan.request = {
+          profile: Axioms.math_profile(Trigonometry),
+          stage: Axioms.Manual,
+          candidate_origin: Web.ProfileProofPlan.UserEntered,
+          settings,
+          env,
+          source,
+          target: plus(Exp.int(3), nested_hole),
+          max_depth: 4,
+          max_states: 80,
+        };
+        check(
+          bool,
+          "an incomplete target returns synchronously without a search state",
+          true,
+          switch (Web.ProfileProofPlan.start_authorize(request)) {
+          | Web.ProfileProofPlan.PlanningComplete(
+              Rejected(Web.ProfileProofPlan.NoSemanticRoute),
+            ) =>
+            true
+          | PlanningComplete(_)
+          | PlanningSearch(_) => false
+          },
+        );
+      },
+    ),
+    test_case(
       "stage plan rejects unknown profile rule ids",
       `Quick,
       () => {

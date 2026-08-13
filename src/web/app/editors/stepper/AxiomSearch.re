@@ -68,10 +68,15 @@ let rec has_hole = exp =>
   switch (strip(exp).term) {
   | EmptyHole
   | DynamicErrorHole(_) => true
-  | BinOp(_, left, right) => has_hole(left) || has_hole(right)
+  | BinOp(_, left, right)
+  | Ap(_, left, right) => has_hole(left) || has_hole(right)
   | UnOp(_, inner)
-  | Parens(inner) => has_hole(inner)
-  | Ap(_, fn, arg) => has_hole(fn) || has_hole(arg)
+  | Parens(inner)
+  | Asc(inner, _)
+  | Projector(_, inner) => has_hole(inner)
+  | Tuple(entries)
+  | ListLit(entries) => List.exists(has_hole, entries)
+  | Fun(_, body, _, _) => has_hole(body)
   | _ => false
   };
 

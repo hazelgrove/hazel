@@ -33,6 +33,7 @@ let local_axiom_search = request =>
 let local_profile_plan =
     (
       ~candidate_origin=ProfileProofPlan.UserEntered,
+      ~stage=Axioms.MultiStepCheck,
       ~profile,
       ~settings,
       ~env,
@@ -41,7 +42,7 @@ let local_profile_plan =
     : option(ProfileProofPlan.authorized_plan) => {
   ProfileProofPlan.authorize({
     profile,
-    stage: Axioms.MultiStepCheck,
+    stage,
     candidate_origin,
     settings,
     env,
@@ -83,6 +84,8 @@ let local_profile_plan_incremental =
     (
       ~check_id,
       ~candidate_origin=ProfileProofPlan.UserEntered,
+      ~stage=Axioms.MultiStepCheck,
+      ~planning_owner=active_local_planning_id,
       ~profile,
       ~settings,
       ~env,
@@ -90,12 +93,12 @@ let local_profile_plan_incremental =
       ~on_finish,
       request: request,
     ) => {
-  active_local_planning_id := Some(check_id);
+  planning_owner := Some(check_id);
   let started_at = JsUtil.date_now()##getTime;
   let authorization_request =
     ProfileProofPlan.{
       profile,
-      stage: Axioms.MultiStepCheck,
+      stage,
       candidate_origin,
       settings,
       env,
@@ -105,14 +108,14 @@ let local_profile_plan_incremental =
       max_states: request.max_states,
     };
   let finish = outcome =>
-    if (active_local_planning_id^ == Some(check_id)) {
-      active_local_planning_id := None;
+    if (planning_owner^ == Some(check_id)) {
+      planning_owner := None;
       on_finish(outcome);
     };
   let rec schedule = progress =>
     Js_of_ocaml.Dom_html.window##setTimeout(
       Js_of_ocaml.Js.wrap_callback(() =>
-        if (active_local_planning_id^ != Some(check_id)) {
+        if (planning_owner^ != Some(check_id)) {
           on_finish(LocalPlanningCancelled);
         } else if (JsUtil.date_now()##getTime -. started_at >= timeout_ms) {
           finish(LocalPlanningTimedOut);

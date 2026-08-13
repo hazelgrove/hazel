@@ -585,17 +585,22 @@ let finish_axiom_progress = (request, progress) =>
   };
 
 let start_authorize = (request: request) =>
-  switch (Axioms.validate_profile_configuration(request.profile)) {
-  | Some(error) =>
-    PlanningComplete(Rejected(InvalidProfileConfiguration(error)))
-  | None =>
-    switch (direct_candidate_trace(request)) {
-    | Error(rejection) => PlanningComplete(Rejected(rejection))
-    | Ok(Some(summary)) =>
-      PlanningComplete(authorize_summary(request, summary))
-    | Ok(None) =>
-      finish_axiom_progress(request, axiom_search_progress(request))
-    }
+  if (AxiomSearch.has_hole(request.source)
+      || AxiomSearch.has_hole(request.target)) {
+    PlanningComplete(Rejected(NoSemanticRoute));
+  } else {
+    switch (Axioms.validate_profile_configuration(request.profile)) {
+    | Some(error) =>
+      PlanningComplete(Rejected(InvalidProfileConfiguration(error)))
+    | None =>
+      switch (direct_candidate_trace(request)) {
+      | Error(rejection) => PlanningComplete(Rejected(rejection))
+      | Ok(Some(summary)) =>
+        PlanningComplete(authorize_summary(request, summary))
+      | Ok(None) =>
+        finish_axiom_progress(request, axiom_search_progress(request))
+      }
+    };
   };
 
 let continue_authorize = (~work_budget=1, progress) =>

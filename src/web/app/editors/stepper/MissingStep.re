@@ -258,6 +258,7 @@ module Update = {
         option(Exp.t),
       )
     | RunProofSearch(int, int, int, option(Exp.t), option(Exp.t))
+    | LiveOneStepPlanningFinished(option(ProfileProofPlan.authorized_plan))
     | RocqProofSearchStarted(int)
     | RocqProofSearchFinished(
         int,
@@ -400,6 +401,20 @@ module Update = {
       }
       |> Updated.return_quiet(~recalculate=true, ~logged=true)
     | (RunProofSearch(_, _, _, _, _), _) => model |> Updated.return_quiet
+    | (
+        LiveOneStepPlanningFinished(plan),
+        WrittenStepOpen({check_mode: SingleEvalStep, _} as r),
+      ) =>
+      Model.{
+        ...model,
+        open_box:
+          Model.WrittenStepOpen({
+            ...r,
+            cached_result: Calc.Calculated(plan),
+          }),
+      }
+      |> Updated.return_quiet(~logged=false)
+    | (LiveOneStepPlanningFinished(_), _) => model |> Updated.return_quiet
     | (
         RocqProofSearchStarted(check_id),
         WrittenStepOpen(
@@ -687,6 +702,7 @@ module Update = {
             proof_search_source: target_changed ? None : r.proof_search_source,
             cached_result:
               switch (r.check_mode) {
+              | SingleEvalStep
               | ProofSearch when target_changed => Calc.Pending
               | _ => r.cached_result
               },
@@ -733,6 +749,7 @@ module Update = {
     | ProposeRewrite(_, _)
     | ProposeWrittenStep(_, _, _)
     | RunProofSearch(_, _, _, _, _)
+    | LiveOneStepPlanningFinished(_)
     | RocqProofSearchStarted(_)
     | RocqProofSearchFinished(_, _, _, _)
     | RocqProofSearchCancelled(_)
@@ -1105,7 +1122,8 @@ module Update = {
         let cached_result =
           switch (check_mode) {
           | ProofSearch => reset_proof_search ? Calc.Pending : cached_result
-          | _ =>
+          | SingleEvalStep => cached_result
+          | CheckResult =>
             cached_result
             |> {
               let.calc sctx = ctx
@@ -1127,20 +1145,6 @@ module Update = {
                 );
               let to_exp = Substitution.in_exp(env, to_exp);
               switch (check_mode) {
-              | SingleEvalStep =>
-                let profile = effective_profile(rewrite_level);
-                ProfileProofPlan.authorize({
-                  profile,
-                  stage: Axioms.Manual,
-                  candidate_origin: ProfileProofPlan.UserEntered,
-                  settings,
-                  env,
-                  source: from_exp,
-                  target: to_exp,
-                  max_depth: 4,
-                  max_states: 80,
-                })
-                |> ProfileProofPlan.authorized_plan;
               | CheckResult =>
                 let profile = effective_profile(rewrite_level);
                 ProfileProofPlan.authorize({
@@ -1155,6 +1159,7 @@ module Update = {
                   max_states: 80,
                 })
                 |> ProfileProofPlan.authorized_plan;
+              | SingleEvalStep
               | ProofSearch => None
               };
             }
@@ -1334,6 +1339,48 @@ module AutoSimplifyDebounce = {
       scheduled_key := None;
     };
   };
+
+  let schedule = (~key: string, ~run: unit => unit) =>
+    if (scheduled_key^ != Some(key)) {
+      cancel();
+      scheduled_key := Some(key);
+      let this_generation = generation^;
+      timer_id :=
+        Some(
+          Js_of_ocaml.Dom_html.window##setTimeout(
+            Js_of_ocaml.Js.wrap_callback(() => {
+              timer_id := None;
+              if (generation^ == this_generation) {
+                run();
+              };
+            }),
+            debounce_ms,
+          ),
+        );
+    };
+};
+
+module LiveOneStepPlanning = {
+  let debounce_ms = 250.0;
+  let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
+  let scheduled_key: ref(option(string)) = ref(None);
+  let planning_owner: ref(option(int)) = ref(None);
+  let generation = ref(0);
+
+  let cancel = (~reset_key=false, ()) => {
+    switch (timer_id^) {
+    | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
+    | None => ()
+    };
+    timer_id := None;
+    planning_owner := None;
+    generation := generation^ + 1;
+    if (reset_key) {
+      scheduled_key := None;
+    };
+  };
+
+  let is_current = key => scheduled_key^ == Some(key);
 
   let schedule = (~key: string, ~run: unit => unit) =>
     if (scheduled_key^ != Some(key)) {
@@ -1983,7 +2030,7 @@ module View = {
         };
         let cached_result =
           switch (check_mode, cached_result) {
-          | (Model.ProofSearch, Some(Some(plan)))
+          | (Model.ProofSearch | Model.SingleEvalStep, Some(Some(plan)))
               when !proof_plan_matches_current(plan) =>
             None
           | _ => cached_result
@@ -2017,6 +2064,68 @@ module View = {
             |> Option.map(plan => Some(plan));
           | _ => cached_result
           };
+        if (check_mode == Model.SingleEvalStep) {
+          if (AxiomSearch.has_hole(unboxed_selected_exp)
+              || AxiomSearch.has_hole(unboxed_cached_exp)) {
+            LiveOneStepPlanning.cancel(~reset_key=true, ());
+          } else {
+            let active_profile =
+              active_profile_for_model(model, rewrite_level);
+            let planning_key =
+              ProfileProofPlan.profile_fingerprint(
+                active_profile,
+                Axioms.Manual,
+              )
+              ++ "|"
+              ++ Exp.show(unboxed_selected_exp)
+              ++ "|"
+              ++ Exp.show(unboxed_cached_exp);
+            LiveOneStepPlanning.schedule(
+              ~key=planning_key,
+              ~run=() => {
+                let check_id = ProofSearchBackend.fresh_search_id();
+                let env =
+                  model.cached_env
+                  |> Calc.get_saved_exc(~print="env not cached");
+                let request =
+                  ProofSearchBackend.{
+                    backend: LocalAxiomSearch,
+                    level: rewrite_level,
+                    max_depth: 4,
+                    max_states: 80,
+                    source: unboxed_selected_exp,
+                    target: unboxed_cached_exp,
+                  };
+                ProofSearchBackend.local_profile_plan_incremental(
+                  ~check_id,
+                  ~stage=Axioms.Manual,
+                  ~planning_owner=LiveOneStepPlanning.planning_owner,
+                  ~profile=active_profile,
+                  ~settings=globals.settings.core,
+                  ~env,
+                  ~timeout_ms=8000.0,
+                  ~on_finish=
+                    outcome =>
+                      if (LiveOneStepPlanning.is_current(planning_key)) {
+                        let plan =
+                          switch (outcome) {
+                          | ProofSearchBackend.LocalPlanningFinished(plan) => plan
+                          | LocalPlanningCancelled
+                          | LocalPlanningTimedOut
+                          | LocalPlanningFailed(_) => None
+                          };
+                        Ui_effect.Expert.handle(
+                          inject(LiveOneStepPlanningFinished(plan)),
+                        );
+                      },
+                  request,
+                );
+              },
+            );
+          };
+        } else {
+          LiveOneStepPlanning.cancel(~reset_key=true, ());
+        };
         let replace_button = (plan: ProfileProofPlan.authorized_plan) =>
           Widgets.button(
             ~clss=["proof-button"],
