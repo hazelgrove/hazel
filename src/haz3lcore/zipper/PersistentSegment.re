@@ -51,21 +51,10 @@ let restore = (persisted: t): Zipper.t =>
 /* Committed .hz slide text keeps human indentation, but Hazel computes
    indentation at layout time and renders literal leading spaces ON TOP
    of it (doubled, drifting) — so text slides are flattened at load.
-   The strip is blind per-line (matching the old regen-slides.sh encode
-   step); a multi-line string literal would be altered, so slide sources
-   must not contain them. */
-let flatten_indentation = (text: string): string =>
-  text
-  |> String.split_on_char('\n')
-  |> List.map(line => {
-       let n = String.length(line);
-       let rec first_content = i =>
-         i < n && (line.[i] == ' ' || line.[i] == '\t')
-           ? first_content(i + 1) : i;
-       let i = first_content(0);
-       String.sub(line, i, n - i);
-     })
-  |> String.concat("\n");
+   The strip is blind per-line (StringUtil.trim_leading); a multi-line
+   string literal would be altered, so slide sources must not contain
+   them. */
+let flatten_indentation = StringUtil.trim_leading;
 
 /* A text-backed slide: parsing is deferred to PersistentZipper's text
    path (FastParse first), so boot does no sexp round-trip for it. */

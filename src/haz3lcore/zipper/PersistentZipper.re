@@ -54,7 +54,7 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
       text,
     )
   ) {
-  | Some({segment, refractors}) =>
+  | Ok({segment, refractors}) =>
     /* Caret starts at the TOP: unzip's default direction (Right) leaves
        the caret after the whole program, and the editor scrolls the caret
        into view on display — a freshly loaded slide would open at the
@@ -63,7 +63,7 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
       Zipper.unzip(~direction=Left, segment)
       |> Triggers.apply_refractors(refractors),
     )
-  | None =>
+  | Error(why) =>
     /* MarkerParse subsumes the plain typing parse and also destructs
        `¿` markers back into Grout (concave grout and other fast-path
        bails land here). Console-visible: every slow parse names itself. */
@@ -73,7 +73,7 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
       ++ ", "
       ++ string_of_int(String.length(text))
       ++ " chars): "
-      ++ Option.value(FastParse.bail_note^, ~default="no note")
+      ++ why
       ++ " | head: "
       ++ String.sub(text, 0, min(60, String.length(text))),
     );

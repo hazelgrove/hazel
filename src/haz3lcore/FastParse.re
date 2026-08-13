@@ -137,28 +137,34 @@ let weave =
      token is parsed back into a kind by Triggers.refractor_of_invoke_token,
      keeping FastParse below the action layer. */
   let refractors = ref([]);
-  /* PROVENANCE RETIREMENT LIST — these token equivalences (and the
-     hole_tiles printer setting) exist only because the menhir AST loses
-     concrete syntax: atom spellings, optional tokens, display-flag ids.
-     When completion-provenance (lexeme/shard retention) lands, each one
-     deletes; if this list grows past a handful, flip priorities and
-     land provenance first. Members: float spellings, label quoting,
-     optional leading sum +, nullary f() vs f(()). */
+  /* RETIREMENT LIST for the planned completion-provenance work (tiles
+     retaining their source lexemes/shards, making print∘parse the
+     identity on tokens). These token equivalences (and the hole_tiles
+     printer setting) exist only because the menhir AST loses concrete
+     syntax: atom spellings, optional tokens, display-flag ids. When
+     provenance lands, each one deletes; if this list grows past a
+     handful, flip priorities and land provenance first. Members: float
+     spellings, label quoting, optional leading sum +, nullary f() vs
+     f(()). */
   /* Float literals lose their source spelling through the menhir AST
      (the printer emits e.g. "400.000000" for source "400.0"). Accept
      value-equal float spellings — the SOURCE token is what lands, so
      MakeTerm re-reads the source spelling and meaning is preserved.
      Both sides must be float-syntax (dot/exponent): an int/float pair
      is a genuine sort difference and must still mismatch. */
-  let float_syntax = (s: string): bool =>
+  let float_value = (s: string): option(float) =>
     String.exists(c => c == '.' || c == 'e' || c == 'E', s)
-    && Option.is_some(float_of_string_opt(s));
+      ? float_of_string_opt(s) : None;
   let float_equal_toks = (a: string, b: string): bool =>
-    float_syntax(a)
-    && float_syntax(b)
-    && float_of_string(a) == float_of_string(b);
+    switch (float_value(a), float_value(b)) {
+    | (Some(x), Some(y)) => x == y
+    | _ => false
+    };
   /* The printer quotes labels only when necessary; a source label may
-     carry backticks the reprint drops. Source spelling lands. */
+     carry backticks the reprint drops. Source spelling lands. (The
+     both-plain and both-quoted arms only see unequal spellings — equal
+     tokens hit expect's primary equality — but comparing keeps this
+     helper total on its own terms.) */
   let unquote = (s: string): option(string) =>
     String.length(s) >= 2 && s.[0] == '`' && s.[String.length(s) - 1] == '`'
       ? Some(String.sub(s, 1, String.length(s) - 2)) : None;
@@ -166,7 +172,8 @@ let weave =
     switch (unquote(src), unquote(printed)) {
     | (Some(s), None) => s == printed
     | (None, Some(p)) => src == p
-    | _ => false
+    | (None, None)
+    | (Some(_), Some(_)) => src == printed
     };
   /* Returns (gap before the token, the SOURCE spelling that matched).
      The source spelling is what must land in the zipped piece: it equals
@@ -238,48 +245,28 @@ let weave =
      parens are consumed symmetrically by the wrapped pieces. */
   let is_trigger_next = (): bool =>
     switch (peek(0), peek(1)) {
-    | (Some(t), Some("(")) =>
-      String.length(t) > 2 && String.sub(t, 0, 2) == "^^"
+    | (Some(t), Some("(")) => Option.is_some(Token.of_projector_invoke(t))
     | _ => false
     };
   /* Refractor triggers (^^probe / ^^statics) are decorations added
      through the zipper's refractor path, not projector pieces — bail so
      the typing parser's trigger machinery handles them. Unknown kinds
-     bail too (of_name raises). */
+     answer None on both predicates. Token splits the ^^ prefix and the
+     _opt suffix. */
   let trigger_kind = (trigger: string): option(Language.ProjectorKind.t) =>
-    switch (
-      {
-        let name =
-          switch (Token.of_projector_invoke_base(trigger)) {
-          | Some(name) => name
-          | None => raise(Mismatch)
-          };
-        Language.ProjectorKind.of_name(name);
-      }
-    ) {
-    | kind => Some(kind)
-    | exception _ => None
-    };
+    Option.bind(
+      Token.of_projector_invoke_base(trigger),
+      Language.ProjectorKind.of_name_opt,
+    );
   let trigger_is_refractor = (trigger: string): bool =>
     switch (trigger_kind(trigger)) {
     | Some(kind) => Language.ProjectorKind.is_refractor(kind)
     | None => false
     };
   let trigger_is_projector = (trigger: string): bool =>
-    /* Token splits the ^^ prefix and the _sidebar placement suffix;
-       any @-suffix (argument syntax) comes off the remaining name. */
-    switch (
-      {
-        let name =
-          switch (Token.of_projector_invoke_base(trigger)) {
-          | Some(name) => name
-          | None => raise(Mismatch)
-          };
-        Language.ProjectorKind.of_name(name);
-      }
-    ) {
-    | kind => !Language.ProjectorKind.is_refractor(kind)
-    | exception _ => false
+    switch (trigger_kind(trigger)) {
+    | Some(kind) => !Language.ProjectorKind.is_refractor(kind)
+    | None => false
     };
   let rec weave_seg = (seg: Segment.t): Segment.t => {
     switch (seg) {
@@ -291,24 +278,7 @@ let weave =
           && trigger_is_refractor(toks[idx^].text) =>
       /* refractor decoration: consume the trigger, splice the wrapped
          pieces bare, and record the target for the caller to re-pin */
-      let trigger = toks[idx^].text;
-      let (trig_gap, _) = expect(trigger);
-      let (paren_gap, _) = expect("(");
-      if (paren_gap != "") {
-        raise(Mismatch);
-      };
-      let rec grab = (ps: Segment.t, acc: Segment.t) =>
-        if (peek(0) == Some(")")) {
-          (List.rev(acc), ps);
-        } else {
-          switch (ps) {
-          | [] => raise(Mismatch)
-          | [q, ...qs] => grab(qs, List.rev(weave_piece(q)) @ acc)
-          };
-        };
-      let (wrapped, rest') = grab([p, ...rest], []);
-      let (close_gap, _) = expect(")");
-      let inner = wrapped @ gap_pieces(close_gap);
+      let (trigger, trig_gap, inner, rest') = consume_trigger([p, ...rest]);
       refractors :=
         [
           (Segment.root_id(Segment.skel(inner), inner), trigger),
@@ -319,26 +289,7 @@ let weave =
       gap_pieces(trig_gap) @ inner @ tail;
     | [p, ...rest]
         when is_trigger_next() && trigger_is_projector(toks[idx^].text) =>
-      let trigger = toks[idx^].text;
-      let (trig_gap, _) = expect(trigger);
-      let (paren_gap, _) = expect("(");
-      if (paren_gap != "") {
-        raise(
-          Mismatch /* triggers are written ^^kind( adjacent */
-        );
-      };
-      let rec grab = (ps: Segment.t, acc: Segment.t) =>
-        if (peek(0) == Some(")")) {
-          (List.rev(acc), ps);
-        } else {
-          switch (ps) {
-          | [] => raise(Mismatch)
-          | [q, ...qs] => grab(qs, List.rev(weave_piece(q)) @ acc)
-          };
-        };
-      let (wrapped, rest') = grab([p, ...rest], []);
-      let (close_gap, _) = expect(")");
-      let inner = wrapped @ gap_pieces(close_gap);
+      let (trigger, trig_gap, inner, rest') = consume_trigger([p, ...rest]);
       switch (materialize(trigger, inner)) {
       | Some(proj) =>
         /* bind before recursing: @ and cons evaluate right-to-left, and
@@ -406,21 +357,21 @@ let weave =
         raise(Mismatch);
       };
       let (gap0, tok0) = expect(List.hd(t.label));
-      let (children, label_rev, _) =
-        List.fold_left(
-          ((children_acc, label_acc, shard_i), label_tok) => {
-            /* child shard_i-1 sits between shard_i-1 and shard_i; the
-               gap before the closing token belongs inside the child */
-            let child = weave_seg(List.nth(t.children, shard_i - 1));
+      let (children, label_rev) =
+        List.fold_left2(
+          ((children_acc, label_acc), label_tok, child_seg) => {
+            /* each child sits between consecutive shards; the gap
+               before the closing token belongs inside the child */
+            let child = weave_seg(child_seg);
             let (gap, tok) = expect(label_tok);
             (
               children_acc @ [child @ gap_pieces(gap)],
               [tok, ...label_acc],
-              shard_i + 1,
             );
           },
-          ([], [tok0], 1),
+          ([], [tok0]),
           List.tl(t.label),
+          t.children,
         );
       gap_pieces(gap0)
       @ [
@@ -430,7 +381,36 @@ let weave =
           children,
         }),
       ];
+    }
+  /* Trigger syntax ^^kind( ... ): consume the trigger token and its
+     parens around the woven wrapped pieces. Shared by the refractor and
+     projector arms of weave_seg; returns (trigger, gap before it, the
+     woven pieces inside the parens incl. the closing gap, remaining
+     segment). The first unmatched `)` closes the trigger: inner parens
+     are consumed symmetrically by the wrapped pieces. */
+  and consume_trigger =
+      (seg: Segment.t): (string, string, Segment.t, Segment.t) => {
+    let trigger = toks[idx^].text;
+    let (trig_gap, _) = expect(trigger);
+    let (paren_gap, _) = expect("(");
+    if (paren_gap != "") {
+      raise(
+        Mismatch /* triggers are written ^^kind( adjacent */
+      );
     };
+    let rec grab = (ps: Segment.t, acc: Segment.t) =>
+      if (peek(0) == Some(")")) {
+        (List.rev(acc), ps);
+      } else {
+        switch (ps) {
+        | [] => raise(Mismatch)
+        | [q, ...qs] => grab(qs, List.rev(weave_piece(q)) @ acc)
+        };
+      };
+    let (wrapped, rest) = grab(seg, []);
+    let (close_gap, _) = expect(")");
+    (trigger, trig_gap, wrapped @ gap_pieces(close_gap), rest);
+  };
   let woven = weave_seg(seg);
   if (idx^ != Array.length(toks)) {
     note(
@@ -506,7 +486,9 @@ let strip_appended_hole = (seg: Segment.t): option(Segment.t) =>
 
 /* Full result: the segment plus the refractor triggers the weave consumed.
    Only callers that re-pin those triggers (text-slide loading, paste) need
-   this; everything else takes of_text below. */
+   this; everything else takes of_text below. Error carries the bail
+   reason (the most specific note the attempt recorded), so result-based
+   callers never read the bail_note ref. */
 let parsed_of_text =
     (
       ~materialize: materialize=(_, _) => None,
@@ -514,9 +496,11 @@ let parsed_of_text =
       ~root: Sort.t,
       text: string,
     )
-    : option(parsed) => {
+    : result(parsed, string) => {
   bail_note := None;
   let attempt = attempt(~collect_refractors);
+  let fail = (): result(parsed, string) =>
+    Error(Option.value(bail_note^, ~default="no note"));
   if (root == Sort.Mod) {
     /* Module-member chunks (update_binding_clause on a member): parse
        as a braced module body, then unwrap the brace tile. Chunks with
@@ -527,36 +511,43 @@ let parsed_of_text =
         segment: [Tile({label: ["{", "}"], children: [inner], _})],
         refractors,
       }) =>
-      Some({
+      Ok({
         segment: inner,
         refractors,
       })
     | _ =>
-      note("mod-root wrap did not yield a single module body");
-      None;
+      /* keep the attempt's own note when it bailed; the generic wrap
+         message only describes a successful parse of the wrong shape */
+      if (bail_note^ == None) {
+        note("mod-root wrap did not yield a single module body");
+      };
+      fail();
     };
   } else if (root != Sort.Exp) {
-    None;
+    note("root sort is not fast-parseable (Exp and Mod only)");
+    fail();
   } else {
     switch (attempt(~materialize, text)) {
-    | Some(p) => Some(p)
+    | Some(p) => Ok(p)
     | None =>
       /* keep the first attempt's bail note: the retry's failure mode
          (usually "menhir: parse error on text + ?") is less telling */
       let first_note = bail_note^;
       switch (attempt(~materialize, text ++ " ?")) {
       | Some(p) =>
-        Option.map(
-          segment =>
-            {
-              ...p,
-              segment,
-            },
-          strip_appended_hole(p.segment),
-        )
+        switch (strip_appended_hole(p.segment)) {
+        | Some(segment) =>
+          Ok({
+            ...p,
+            segment,
+          })
+        | None =>
+          bail_note := first_note;
+          fail();
+        }
       | None =>
         bail_note := first_note;
-        None;
+        fail();
       };
     };
   };
@@ -570,7 +561,7 @@ let of_text =
       text: string,
     )
     : option(Segment.t) =>
-  Option.map(
-    p => p.segment,
-    parsed_of_text(~materialize, ~collect_refractors, ~root, text),
-  );
+  switch (parsed_of_text(~materialize, ~collect_refractors, ~root, text)) {
+  | Ok(p) => Some(p.segment)
+  | Error(_) => None
+  };

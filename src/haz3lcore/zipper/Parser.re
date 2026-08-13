@@ -13,9 +13,6 @@ let set_segment_cache = (seg: option(Segment.t), str: string): unit =>
   | _ => ()
   };
 
-/* Try pasting from segment cache. Returns Some if cache hits and
-   guards pass (caret Outer, no token merging at boundaries).
-   The segment gets fresh IDs to support multiple pastes. */
 /* Would splicing [text] at the caret merge with a neighboring token
    (e.g. pasting `+2` right after `x1`)? Shared by the segment-cache
    paste and the FastParse paste gate. */
@@ -40,6 +37,9 @@ let boundary_merges = (text: string, z: Zipper.t): bool => {
   };
 };
 
+/* Try pasting from segment cache. Returns Some if cache hits and
+   guards pass (caret Outer, no token merging at boundaries).
+   The segment gets fresh IDs to support multiple pastes. */
 let try_segment_paste =
     (clipboard: string, z: Zipper.t, ~root): option(Zipper.t) => {
   let trim = Util.StringUtil.trim_leading;
@@ -222,12 +222,8 @@ let fast_paste =
         String.trim(clipboard),
       )
     ) {
-    | None =>
-      Error(
-        "parse bailed — "
-        ++ Option.value(FastParse.bail_note^, ~default="no note"),
-      )
-    | Some({segment, refractors}) =>
+    | Error(why) => Error("parse bailed — " ++ why)
+    | Ok({segment, refractors}) =>
       /* Like Zipper.insert_segment, but regrout with Left so the caret
          lands BEFORE any grout a body-less fragment opens (matching the
          typing path), not after it. */

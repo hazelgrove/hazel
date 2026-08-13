@@ -230,6 +230,9 @@ module rec Exp: {
       parens(tuple([of_menhir_ast(tl)]))
     | ParenExp(e) => parens(of_menhir_ast(e))
     | TupleExp([]) => tuple([])
+    /* singleton labeled tuple `(a=1,)`: MakeTerm reads Tuple([TupLabel]),
+       so pre-empt the singleton unwrap below (which would yield a bare
+       TupLabel and diverge — MenhirParser cases 53/87 pin this) */
     | TupleExp([TupLabel(_) as tl]) => tuple([of_menhir_ast(tl)])
     | TupleExp([e]) => of_menhir_ast(e)
     | TupleExp(e) => tuple(List.map(of_menhir_ast, e))
@@ -378,7 +381,7 @@ module rec Exp: {
       TyAlias(TPat.of_core(tp), Typ.of_core(ty), of_core(e))
     | Use(ty, e) => Use(Typ.of_core(ty), of_core(e))
     | BuiltinFun(s) => BuiltinFun(s)
-    | Ap(Forward, e1, e2) => ApExp(of_core(e1), TupleExp([of_core(e2)]))
+    | Ap(Forward, e1, e2) => ApExp(of_core(e1), of_core(e2))
     | BinOp(op, e1, e2) =>
       BinExp(of_core(e1), Operators.of_core_op_bin(op), of_core(e2))
     | If(e1, e2, e3) => If(of_core(e1), of_core(e2), of_core(e3))

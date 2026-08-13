@@ -50,16 +50,16 @@ module Scratchpad = {
       let current_zipper = editor.editor.editor.state.zipper;
       let current_segment = Zipper.zip(current_zipper);
       let original = Init.find_documentation_slide(s.name);
-      /* Text-backed originals (committed .hz, zipper == "") mint fresh
-         ids on every parse, so id-sensitive segment equality can never
-         match; compare by the text projection instead — FastParse loads
-         the text verbatim, so an unedited slide prints byte-identically
+      /* Originals are text-backed (committed .hz) and mint fresh ids on
+         every parse, so id-sensitive segment equality can never match;
+         compare by the text projection instead — FastParse loads the
+         text verbatim, so an unedited slide prints byte-identically
          modulo the stored final newline (the writer's artifact, which
          the print never carries). */
       let unchanged =
         switch (original) {
         | None => false
-        | Some(pce) when pce.editor.zipper.zipper == "" =>
+        | Some(pce) =>
           PersistentSegment.to_string(
             current_segment,
             ~refractors=current_zipper.refractors.manuals,
@@ -67,16 +67,6 @@ module Scratchpad = {
           == Util.StringUtil.strip_final_newline(
                pce.editor.zipper.backup_text,
              )
-        | Some(pce) =>
-          Base.equal_segment(
-            Zipper.zip(
-              PersistentZipper.unpersist(
-                pce.editor.zipper,
-                ~root=pce.editor.root,
-              ),
-            ),
-            current_segment,
-          )
         };
       let editor_persist =
         if (unchanged) {

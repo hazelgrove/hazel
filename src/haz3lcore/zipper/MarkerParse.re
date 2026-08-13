@@ -48,6 +48,13 @@ let rec find_marker = (~implicit_hole: string, seg: Segment.t): option(Id.t) => 
         None,
         t.children,
       )
+    | Projector(_) =>
+      /* KNOWN GAP: markers inside projector syntax (`^^fold(¿)`) are not
+         found — and the strip below couldn't destruct inside a projector
+         anyway. The fast path handles these (its weave maps ¿ to Grout
+         before materializing the projector), so only a slow-path load of
+         a projector-wrapped hole leaves a literal ¿ tile inside. */
+      None
     | _ => None
     };
   scan(seg);

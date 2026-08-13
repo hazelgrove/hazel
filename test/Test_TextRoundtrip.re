@@ -60,14 +60,10 @@ let slide_roundtrip_case =
     },
   );
 
-/* B2T2 slides are excluded: each one takes ~2s to parse, blowing the CI
- * test step past its 20-minute budget. The non-B2T2 slides give enough
- * coverage of the round-trip on real-world programs. */
-let is_b2t2 = ((name, _)) =>
-  String.length(name) >= 4 && String.sub(name, 0, 4) == "B2T2";
-
 /* Text-backed slides (committed .hz) carry no segment sexp; materialize
-   one via the load path so the usual fixed-point check applies. */
+   one via the load path so the usual fixed-point check applies. (This
+   includes the B2T2 slides: they were excluded when each cost ~2s via
+   the typing parser, but the fast path loads them in milliseconds.) */
 let materialize_text_slide =
     ((name, p): (string, PersistentSegment.t))
     : (string, PersistentSegment.t) =>
@@ -81,7 +77,6 @@ let materialize_text_slide =
 
 let doc_slide_cases =
   Web.Init.documentation_slides
-  |> List.filter(s => !is_b2t2(s))
   |> List.map(materialize_text_slide)
   |> List.map(slide_roundtrip_case);
 
