@@ -29,10 +29,12 @@ open Util;
  * When the full Base.projector is needed (for rendering), use to_projector */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type entry = {
-  kind: ProjectorCore.Kind.t,
-  model: string,
-};
+type entry = {model: ProjectorCore.Model.t};
+
+/* Legacy entries carried a `kind` alongside an opaque model string, the
+ * same shape as projector pieces; see ProjectorCore.Legacy. */
+let entry_of_sexp = (sexp: Sexplib.Sexp.t): entry =>
+  entry_of_sexp(ProjectorCore.Legacy.migrate(sexp));
 
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -97,24 +99,23 @@ let for_serialization = (refractors: t): t => {
 };
 
 /* Refractors store a simplified `entry` type in Zipper.Refractor.Map
- * (just kind + model), avoiding redundant id/syntax in serialization.
+ * (just the model), avoiding redundant id/syntax in serialization.
  * When the full Base.projector is needed for rendering, use `to_projector`. */
 let mk_entry = (~model=?, kind: ProjectorCore.Kind.t): entry => {
-  let (module P) = ProjectorInit.to_module(kind);
   let model =
     model
     |> OptUtil.get(
          () => {
-           /* Create dummy syntax just to get the initial model string */
-           P.init(Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])))
+           /* Create dummy syntax just to get the initial model */
+           ProjectorInit.init_model(
+             kind,
+             Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])),
+           )
            |> OptUtil.get_or_fail("Refractor.mk_entry")
          },
          _,
        );
-  {
-    kind,
-    model,
-  };
+  {model: model};
 };
 
 /* Construct full Base.projector from entry and id, for rendering.
@@ -122,4 +123,4 @@ let mk_entry = (~model=?, kind: ProjectorCore.Kind.t): entry => {
  * underlying term (needed for syntax rewriting in rich probes). */
 let to_projector =
     (syntax: Base.piece, id: Id.t, entry: entry): Base.projector =>
-  ProjectorCore.mk(~id, entry.kind, syntax, entry.model);
+  ProjectorCore.mk(~id, syntax, entry.model);

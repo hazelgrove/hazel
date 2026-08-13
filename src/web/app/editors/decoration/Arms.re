@@ -588,7 +588,7 @@ module Refractors = {
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
-             ~kind=entry.kind,
+             ~kind=ProjectorCore.Model.kind(entry.model),
              ~syntax,
              ~font_metrics,
              ~cls="manual",
@@ -602,7 +602,7 @@ module Refractors = {
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
-             ~kind=entry.kind,
+             ~kind=ProjectorCore.Model.kind(entry.model),
              ~syntax,
              ~font_metrics,
              ~cls=
@@ -617,7 +617,7 @@ module Refractors = {
                    ~measured=syntax.measured,
                    ~shape_map=syntax.shape_map,
                    ~font_metrics,
-                   ~kind=entry.kind,
+                   ~kind=ProjectorCore.Model.kind(entry.model),
                    TermData.segment(id, syntax.term_data)
                    |> Option.value(~default=[Piece.mk_grout(Convex)]),
                  ),

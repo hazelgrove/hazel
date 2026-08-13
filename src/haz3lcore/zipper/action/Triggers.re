@@ -98,10 +98,16 @@ let refractor_to_invoke_text =
   };
 
 let projector_to_invoke = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke(pr.kind, Piece.unparenthesize(pr.syntax));
+  refractor_to_invoke(
+    ProjectorCore.kind(pr),
+    Piece.unparenthesize(pr.syntax),
+  );
 
 let projector_to_invoke_text = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke_text(pr.kind, Piece.unparenthesize(pr.syntax));
+  refractor_to_invoke_text(
+    ProjectorCore.kind(pr),
+    Piece.unparenthesize(pr.syntax),
+  );
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
@@ -148,10 +154,10 @@ let insert = (~ci: option(Language.Info.t), z: t): t => {
 /* These are just alternate conditional deletion logic. */
 let destruct = (z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> ListUtil.last_opt) {
-  | Some(Projector({syntax, kind, _})) =>
+  | Some(Projector({syntax, model, _})) =>
     let (l, _) = ListUtil.split_last(fst(z.relatives.siblings));
     let last =
-      switch (kind, syntax) {
+      switch (ProjectorCore.Model.kind(model), syntax) {
       | (Livelit, Tile({children: [[name, ..._]], _})) => [name]
       | _ => Piece.unparenthesize(syntax)
       };
@@ -277,9 +283,9 @@ let refractor_seg_to_seg_with =
     /* Check if this term needs to be wrapped with a refractor invocation */
     let root_id = Segment.root_id(skel, seg);
     switch (List.assoc_opt(root_id, map)) {
-    | Some(entry) => (
+    | Some(entry: Refractors.entry) => (
         ListUtil.remove_assoc(root_id, map),
-        wrapper(entry.kind, result),
+        wrapper(ProjectorCore.Model.kind(entry.model), result),
       )
     | None => (map, result)
     };

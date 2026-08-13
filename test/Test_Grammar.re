@@ -92,13 +92,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Asc => asc(empty_hole(), Typ.string())
       | ListConcat => list_concat(empty_hole(), empty_hole())
       | Projector =>
-        projector(
-          {
-            kind: Fold,
-            model: "",
-          },
-          empty_hole(),
-        )
+        projector({model: Fold(ProjectorModel.Fold.default)}, empty_hole())
       | Module => module_([Mod.empty_hole()])
       | ModuleExp => module_exp(MPat.var("M"), empty_hole(), empty_hole())
       }
@@ -133,13 +127,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Wild => wild()
       | ExplicitNonlabel => explicit_non_label()
       | Projector =>
-        projector(
-          {
-            kind: Fold,
-            model: "",
-          },
-          empty_hole(),
-        )
+        projector({model: Fold(ProjectorModel.Fold.default)}, empty_hole())
       }
     )
   );
@@ -184,10 +172,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Constructor => assert(false) // Excluded because there is no Typ constructor
       | Projector =>
         projector(
-          {
-            kind: Fold,
-            model: "",
-          },
+          {model: Fold(ProjectorModel.Fold.default)},
           unknown(Hole(EmptyHole)),
         )
       | Sig => assert(false) /* Excluded: Sig is surface syntax only */

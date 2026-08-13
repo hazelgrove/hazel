@@ -26,7 +26,7 @@ let get_probes_by_line =
     : IntMap.t(list(Id.t)) =>
   List.fold_right(
     ((tile_id, entry: Zipper.Refractor.entry), acc) =>
-      if (entry.kind != Probe) {
+      if (ProjectorCore.Model.kind(entry.model) != Probe) {
         acc;
       } else {
         switch (Measured.find_by_id(tile_id, measured)) {

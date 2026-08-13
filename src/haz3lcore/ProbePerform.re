@@ -146,7 +146,8 @@ let probe_status =
       List.for_all(
         id =>
           switch (List.assoc_opt(id, refractors.manuals)) {
-          | Some(entry: Refractors.entry) => entry.kind == Statics
+          | Some(entry: Refractors.entry) =>
+            ProjectorCore.Model.kind(entry.model) == Statics
           | None => false
           },
         target_ids,
@@ -975,11 +976,13 @@ let go =
 
 /* Get the kind of refractor at the given id, if any */
 let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
+  let kind = (entry: Refractors.entry) =>
+    Some(ProjectorCore.Model.kind(entry.model));
   switch (List.assoc_opt(id, z.refractors.manuals)) {
-  | Some(entry: Refractors.entry) => Some(entry.kind)
+  | Some(entry) => kind(entry)
   | None =>
     switch (Id.Map.find_opt(id, z.refractors.multis.ephemerals)) {
-    | Some(entry: Refractors.entry) => Some(entry.kind)
+    | Some(entry) => kind(entry)
     | None => None
     }
   };

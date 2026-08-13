@@ -40,7 +40,7 @@ let init =
       ~elaborated: Language.Exp.t,
     )
     : option(syntax) => {
-  let (module P) = ProjectorInit.to_module(kind);
+  let (module P) = ProjectorInit.statics(kind);
   let orig_piece = Segment.parenthesize(seg);
   let any = MakeTerm.for_projection(seg);
 
@@ -51,8 +51,8 @@ let init =
   | (None, Some(Exp(exp))) when P.elaborate_syntax =>
     let* elab_exp =
       Language.Exp.find_by_id(Language.Exp.rep_id(exp), elaborated);
-    let+ model_str = P.init(Exp(elab_exp));
-    Base.Projector(ProjectorCore.mk(kind, orig_piece, model_str));
+    let+ model = ProjectorInit.init_model(kind, Exp(elab_exp));
+    Base.Projector(ProjectorCore.mk(orig_piece, model));
   | (None, _) => None
   };
 };
@@ -138,7 +138,7 @@ let go =
      * Also migrate any refractor on the term to/from the projector. */
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] when pr.kind == kind =>
+    | [Projector(pr)] when ProjectorCore.kind(pr) == kind =>
       /* Remove projector: restore original syntax */
       let restore_syntax = pr.syntax;
       let underlying_seg = Piece.unparenthesize(restore_syntax);
@@ -266,20 +266,17 @@ let go =
         ),
       );
     };
-  | SetModel(idx, kind, new_model) =>
+  | SetModel(idx, new_model) =>
+    /* The kind comes from the model, so a SetModel can't disagree with the
+     * projector it targets the way the old (kind, model) pair could. */
+    let kind = ProjectorCore.Model.kind(new_model);
     let id = idx_to_id(kind, idx);
     Ok(
       if (ProjectorCore.Kind.is_refractor(kind)) {
         Zipper.update_refractor(
           id,
           fun
-          | Some(entry: Refractors.entry) =>
-            Some(
-              Refractors.{
-                kind: entry.kind,
-                model: new_model,
-              },
-            )
+          | Some(_) => Some(Refractors.{model: new_model})
           | None => None,
           z,
         );
@@ -300,7 +297,7 @@ let go =
     switch (d) {
     | None =>
       /* Focus by pointer click or probe-to-probe navigation */
-      let (module P) = ProjectorInit.to_module(kind);
+      let (module P) = ProjectorInit.statics(kind);
       switch (P.focusable.pointer) {
       | Some(focus) => focus(id)
       | None => ()
@@ -321,7 +318,7 @@ let go =
       Ok(z);
     | Some(Right) =>
       /* Focus by arrow key hand-off */
-      let (module P) = ProjectorInit.to_module(kind);
+      let (module P) = ProjectorInit.statics(kind);
       switch (P.focusable.keyboard) {
       | Some(focus) => focus(id, Right)
       | None => ()
@@ -329,7 +326,7 @@ let go =
       Ok(z);
     | Some(Left) =>
       /* Focus by arrow key hand-off */
-      let (module P) = ProjectorInit.to_module(kind);
+      let (module P) = ProjectorInit.statics(kind);
       switch (P.focusable.keyboard) {
       | Some(focus) => focus(id, Left)
       | None => ()

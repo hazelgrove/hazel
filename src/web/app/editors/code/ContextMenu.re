@@ -224,9 +224,9 @@ module Projectors = {
         kind: ProjectorCore.Kind.t,
       )
       : option(ProjectorCore.Kind.t) => {
-    let (module P) = ProjectorInit.to_module(kind);
+    let (module P) = ProjectorInit.statics(kind);
     let* term = target_term(z, info_map);
-    switch (P.init(term)) {
+    switch (ProjectorInit.init_model(kind, term)) {
     | Some(_) => Some(kind)
     | None =>
       if (P.elaborate_syntax) {
@@ -235,7 +235,7 @@ module Projectors = {
           let term_id = Language.Exp.rep_id(exp);
           switch (Language.Exp.find_by_id(term_id, elaborated)) {
           | Some(elab_exp) =>
-            let+ _ = P.init(Exp(elab_exp));
+            let+ _ = ProjectorInit.init_model(kind, Exp(elab_exp));
             kind;
           | None => None
           };
@@ -250,7 +250,7 @@ module Projectors = {
   let indicated_kind = (z: Zipper.t): option(ProjectorCore.Kind.t) => {
     let* {piece, _} = Indicated.for_index(z);
     switch (piece) {
-    | Projector({kind, _}) => Some(kind)
+    | Projector(pr) => Some(ProjectorCore.kind(pr))
     | _ => None
     };
   };

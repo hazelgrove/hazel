@@ -1102,9 +1102,9 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   /* Look up projector error for the indicated piece */
   let projector_err =
     switch (cursor.indicated_piece, cursor.editor) {
-    | (Some(Projector({id, kind, _})), Some(editor)) =>
+    | (Some(Projector({id, model, _})), Some(editor)) =>
       switch (Id.Map.find_opt(id, editor.syntax.projector_errors)) {
-      | Some(err) => Some((kind, err))
+      | Some(err) => Some((ProjectorModel.kind(model), err))
       | None => None
       }
     | _ => None

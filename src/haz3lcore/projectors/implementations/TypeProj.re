@@ -24,11 +24,12 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   | None => Typ.fresh(Unknown(Internal))
   };
 
-module M: Projector = {
+module Model = ProjectorCore.Model.Statics;
+open Model;
+
+module M: Projector with type model = Model.t = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model =
-    | Expected
-    | Self;
+  type model = Model.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =

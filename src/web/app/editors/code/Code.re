@@ -153,7 +153,7 @@ let view =
   let of_projector = (pr: Base.projector) => {
     /* Read-only viewers (e.g. agent context) pass an empty shape map; folds
        would render as invisible whitespace. Show the standard fold glyph. */
-    switch (pr.kind) {
+    switch (ProjectorCore.kind(pr)) {
     | ProjectorCore.Kind.Fold when Id.Map.is_empty(shape_map) =>
       span(
         ~attrs=[Attr.classes(["token", "fold-projector", "mono"])],

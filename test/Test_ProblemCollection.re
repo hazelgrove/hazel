@@ -275,7 +275,7 @@ let nearest_measured_id_inside_fold = () => {
     "resolved exp is a Fold projector",
     true,
     switch (Language.Exp.term_of(resolved_exp)) {
-    | Projector({kind: Fold, _}, _) => true
+    | Projector({model: Fold(_)}, _) => true
     | _ => false
     },
   );

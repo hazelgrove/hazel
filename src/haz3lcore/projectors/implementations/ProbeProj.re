@@ -1464,7 +1464,7 @@ let overlay_view = (~settings, ~sort, info: info): Node.t =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
 
-module M: Projector = {
+module M: Projector with type model = probe_model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = probe_model;
   [@deriving (show({with_path: false}), sexp, yojson)]

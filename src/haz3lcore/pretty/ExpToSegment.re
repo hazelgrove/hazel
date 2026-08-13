@@ -1168,14 +1168,13 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
   | `Fold =>
     let syntax =
       mk_form(~secondary=AutoFormat, ParensExp, Id.mk(), [pieces]);
-    let str =
-      FoldProj.sexp_of_t({
+    let model =
+      ProjectorCore.Model.Fold({
         text: f_name,
         expanded: false,
         always_render: true,
-      })
-      |> Sexplib.Sexp.to_string;
-    [ProjectorInit.init_or_noop_from_str(Fold, syntax, Exp(exp), str)];
+      });
+    [ProjectorInit.init_or_noop_with_model(syntax, Exp(exp), model)];
   | `Text =>
     let name =
       if (String.length(f_name) >= 2) {
@@ -2185,14 +2184,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(ParensExp, id, [e])]);
-  | Projector({kind, model}, e) =>
+  | Projector({model}, e) =>
     let id = exp |> Exp.rep_id;
     let+ inner_seg = go(e);
     let syntax = Segment.parenthesize(inner_seg);
-    wrap(
-      exp,
-      [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
-    );
+    wrap(exp, [Piece.Projector(ProjectorCore.mk(~id, syntax, model))]);
   | Cons(e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -2522,14 +2518,11 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
     wrap(pat, [mk_form(ParensPat, id, [p])]);
-  | Projector({kind, model}, p) =>
+  | Projector({model}, p) =>
     let id = pat |> Pat.rep_id;
     let+ inner_seg = go(p);
     let syntax = Segment.parenthesize(inner_seg);
-    wrap(
-      pat,
-      [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
-    );
+    wrap(pat, [Piece.Projector(ProjectorCore.mk(~id, syntax, model))]);
   | MultiHole(es) =>
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
@@ -2774,14 +2767,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
     wrap(typ, [mk_form(ParensTyp, id, [t])]);
-  | Projector({kind, model}, t) =>
+  | Projector({model}, t) =>
     let id = typ |> Typ.rep_id;
     let+ inner_seg = go(t);
     let syntax = Segment.parenthesize(inner_seg);
-    wrap(
-      typ,
-      [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
-    );
+    wrap(typ, [Piece.Projector(ProjectorCore.mk(~id, syntax, model))]);
   | Rec(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)

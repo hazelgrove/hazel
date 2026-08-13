@@ -136,7 +136,7 @@ let make_problem_context =
     Id.Map.fold(
       (id, err: ProjectorBase.error, acc) =>
         switch (Id.Map.find_opt(id, syntax.projectors)) {
-        | Some(p) => [(id, p.kind, err), ...acc]
+        | Some(p) => [(id, ProjectorCore.kind(p), err), ...acc]
         | None => acc
         },
       syntax.projector_errors,
