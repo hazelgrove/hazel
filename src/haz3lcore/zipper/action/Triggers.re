@@ -144,10 +144,10 @@ let expand_projector = (z: t): option(t) => {
 };
 
 let refractor_to_invoke =
-    (~model: string="()", kind: ProjectorCore.Kind.t, seg: Segment.t)
+    (~model: option(string)=?, kind: ProjectorCore.Kind.t, seg: Segment.t)
     : Segment.t => {
   let opt_suffix =
-    switch (refractor_opt_of_model(kind, model)) {
+    switch (Option.bind(model, refractor_opt_of_model(kind))) {
     | Some(opt) => "_" ++ opt
     | None => ""
     };
