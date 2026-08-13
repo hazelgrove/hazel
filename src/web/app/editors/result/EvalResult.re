@@ -379,7 +379,7 @@ module Update = {
         probe_map: state |> EvaluatorState.get_probes,
         test_results:
           state |> EvaluatorState.get_tests |> TestResults.mk_results,
-        theorems: state |> EvaluatorState.get_theorems,
+        stepper_items: state |> EvaluatorState.get_stepper_items,
       };
     let dynamics =
       dynamics
@@ -480,10 +480,17 @@ module Update = {
       };
 
     let theorems =
-      Calc.get_value(settings).dynamics
-        ? theorems
+      if (Calc.get_value(settings).dynamics) {
+        switch (Calc.get_value(result)) {
+        | ProgramResult.ResultOk(_) =>
+          theorems
           |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
-        : theorems;
+        | ProgramResult.ResultPending(_)
+        | ProgramResult.ResultFail(_) => Theorems.Model.init
+        };
+      } else {
+        theorems;
+      };
 
     (
       {
@@ -735,6 +742,20 @@ module View = {
     | `EvalResults
     | `NoTheorems
     | `JustTheorems when globals.settings.core.dynamics =>
+      let theorems =
+        result_kind == `NoTheorems
+          ? []
+          : Theorems.View.view(
+              ~globals,
+              ~take_focus=f => signal(MakeActive(Theorems(f))),
+              ~inject=action => inject(TheoremsAction(action)),
+              ~selected=
+                switch (selected) {
+                | Some(Theorems(f)) => Some(f)
+                | _ => None
+                },
+              model.theorems,
+            );
       let result =
         result_kind == `JustTheorems
           ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
@@ -749,20 +770,6 @@ module View = {
           ]
         | None => []
         };
-      let theorems =
-        result_kind == `NoTheorems
-          ? []
-          : Theorems.View.view(
-              ~globals,
-              ~take_focus=f => signal(MakeActive(Theorems(f))),
-              ~inject=a => inject(TheoremsAction(a)),
-              ~selected=
-                switch (selected) {
-                | Some(Theorems(f)) => Some(f)
-                | _ => None
-                },
-              model.theorems,
-            );
       let theorems =
         List.length(theorems) == 0
           ? [] : [WebUtil.div_c("theorems", theorems)];

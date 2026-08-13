@@ -396,6 +396,7 @@ let is_block_form = (p: Piece.t): bool =>
     | Tile(t) when Tile.is_complete(t) =>
       switch (t.label) {
       | ["case", "end"]
+      | ["explore", "end"]
       | ["test", "end"]
       | ["hint", "test", "end"] => true
       | [_, "end"] => true
@@ -725,7 +726,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => fallback()
     }
 
-  /* test/end: always break after "test", "end" trails the last body line */
+  /* unary end forms: always break after opener, end trails the last body line */
+  | ["explore", "end"]
   | ["test", "end"] =>
     switch (triples) {
     | [(_, body_child, _)] =>

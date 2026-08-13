@@ -91,6 +91,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
     l |> find_in_let(name, up, def) |> find_fn(name, body)
   | Theorem(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
+  | Explore(explore) => l |> find_fn(name, explore)
   | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
@@ -251,6 +252,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Theorem(p, thm, body) =>
     (var_mention_upat(name, p) ? false : var_mention(name, body))
     || var_mention(name, thm)
+  | Explore(explore) => var_mention(name, explore)
   | ProofObject(e) => var_mention(name, e)
   | TypFun(_, u, _)
   | TypAp(u, _)
@@ -344,6 +346,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Theorem(p, thm, body) =>
     (var_mention_upat(name, p) ? false : var_applied(name, body))
     || var_applied(name, thm)
+  | Explore(explore) => var_applied(name, explore)
   | ProofObject(e) => var_applied(name, e)
   | TypFun(_, u, _)
   | Test(u)
@@ -463,6 +466,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Theorem(p, thm, body) =>
     var_mention_upat(name, p) || var_mention(name, thm)
       ? false : tail_check(name, body)
+  | Explore(explore) => tail_check(name, explore)
   | ProofObject(_) => false
   | ListLit(l)
   | Tuple(l) =>

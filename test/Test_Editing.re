@@ -4920,6 +4920,41 @@ let grapheme_tests = [
   ),
 ];
 
+let explore_editing_tests = [
+  test_case(
+    "Explore term supports an infix expression",
+    `Quick,
+    () => {
+      let z = mk({|explore 2 + 3 end¦|}) |> perform(Zipper.init());
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (Language.Exp.term_of(term)) {
+      | Language.Grammar.Explore(_) => ()
+      | _ =>
+        Alcotest.fail(
+          "Expected Explore term, got " ++ Language.Exp.show(term),
+        )
+      };
+    },
+  ),
+  test_case(
+    "Theorem body may contain explore",
+    `Quick,
+    () => {
+      let z =
+        mk({|theorem matt = 0 == 0 in explore x end;¦|})
+        |> perform(Zipper.init());
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      switch (Language.Exp.term_of(term)) {
+      | Language.Grammar.Theorem(_, _, _) => ()
+      | _ =>
+        Alcotest.fail(
+          "Expected Theorem term, got " ++ Language.Exp.show(term),
+        )
+      };
+    },
+  ),
+];
+
 let tests = [
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
   ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
@@ -4949,4 +4984,5 @@ let tests = [
   ("Editing.CrossBoundary", cross_boundary_tests),
   ("Editing.InnerDestruct", inner_destruct_tests),
   ("Editing.Grapheme", grapheme_tests),
+  ("Editing.Explore", explore_editing_tests),
 ];

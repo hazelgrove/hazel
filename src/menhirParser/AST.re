@@ -145,6 +145,7 @@ and exp =
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
   | Theorem(pat, exp, exp)
+  | Explore(exp)
   | ProofObject(exp)
   | Fun(pat, exp, option(string))
   | ForallExp(pat, exp)
@@ -797,6 +798,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_pat(p);
             return(Theorem(shrunk, e1, e2));
+          }
+        | Explore(e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(Explore(shrunk));
           }
         | ProofObject(t) =>
           let* shrunk = shrink_exp(t);

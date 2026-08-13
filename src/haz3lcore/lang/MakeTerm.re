@@ -705,6 +705,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (["explore", "end"], [Exp(exp)]) => ret(Explore(exp))
       | (["proof_object", "end"], [Exp(proof)]) =>
         ret(ProofObject(proof))
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
