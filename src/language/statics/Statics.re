@@ -563,8 +563,15 @@ and uexp_to_info_map =
          so `hd.ty` already incorporates ana info at the element level.
          Using it directly as the element type means fresh re-synthesis of
          the elab_term (which will ana-wrap hd via fresh_ascription below)
-         agrees with the recorded type. */
-      let inner_elab_syn_ty = hd.ty |> Typ.normalize(ctx) |> Typ.all_ids_temp;
+         agrees with the recorded type. normalize_ctr_type, not full
+         normalize: a compact builtin alias (Var("HTML")) must stay compact
+         here — full normalization expanded the whole recursive sum PER CONS
+         CELL and embedded it in the ascriptions, making every list of
+         HTML/Attr elements quadratically expensive downstream (the
+         large-sum-types contract: consumers weak_head_normalize on
+         demand). */
+      let inner_elab_syn_ty =
+        hd.ty |> Typ.canonicalize(ctx) |> Typ.all_ids_temp;
       let elab_term =
         Cons(
           hd_elab
@@ -772,7 +779,7 @@ and uexp_to_info_map =
             ~probe_targets=probe_targets_poly,
             m,
           )
-        | Some(ty) when Typ.normalize(ctx, ty) |> Typ.has_fun =>
+        | Some(ty) when Typ.has_fun_up_to_aliases(ctx, ty) =>
           add(
             ~elab_term=elab_poly,
             ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
@@ -813,14 +820,14 @@ and uexp_to_info_map =
     | TupleExtension(e1, e2) =>
       let (t1, e1_elab, m) = go(e1, m);
       let m =
-        switch (Typ.normalize(ctx, t1.ty).term) {
+        switch (Typ.weak_head_normalize(ctx, t1.ty).term) {
         | Prod(_)
         | Unknown(_) => m
         | _ => append_mark_exp(m, e1, [TupleExtensionRequiresTuples])
         };
       let (t2, e2_elab, m) = go(e2, m);
       let m =
-        switch (Typ.normalize(ctx, t2.ty).term) {
+        switch (Typ.weak_head_normalize(ctx, t2.ty).term) {
         | Prod(_)
         | Unknown(_) => m
         | _ => append_mark_exp(m, e2, [TupleExtensionRequiresTuples])
@@ -832,8 +839,8 @@ and uexp_to_info_map =
       let elab_term = TupleExtension(e1_elab, e2_elab) |> rewrap;
 
       switch (
-        Typ.normalize(ctx, t1.ty).term,
-        Typ.normalize(ctx, t2.ty).term,
+        Typ.weak_head_normalize(ctx, t1.ty).term,
+        Typ.weak_head_normalize(ctx, t2.ty).term,
       ) {
       | (Prod(ts1), Prod(ts2)) =>
         let extract_entry: Typ.t => (option(string), Typ.t) = (
@@ -1231,8 +1238,24 @@ and uexp_to_info_map =
 
     | Dot(e1, e2) =>
       let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
+      /* Dot looks through one List level (column projection over a list
+         of labeled tuples), so the element head must be resolved too. */
+      let whnf_dot = ty => {
+        let ty = Typ.weak_head_normalize(ctx, ty);
+        switch (Typ.term_of(ty)) {
+        | List(inner) =>
+          let inner' = Typ.weak_head_normalize(ctx, inner);
+          inner' === inner
+            ? ty
+            : {
+              ...ty,
+              term: List(inner'),
+            };
+        | _ => ty
+        };
+      };
       let available_labels = {
-        let ty = Typ.normalize(ctx, info_e1.ty);
+        let ty = whnf_dot(info_e1.ty);
         switch (ty.term) {
         | Prod(ts) =>
           List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
@@ -1300,7 +1323,7 @@ and uexp_to_info_map =
             |> Typ.temp;
           let (_, _, m) = go(~ana=ty, e1, m);
           (ty, m);
-        | _ => (Typ.normalize(ctx, info_e1.ty), m)
+        | _ => (whnf_dot(info_e1.ty), m)
         };
       };
       switch (ty.term) {
@@ -1840,14 +1863,21 @@ and uexp_to_info_map =
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
       let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
-      let Coverage.CheckMatrix.{exhaustiveness, _} =
-        Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
+      /* Irrefutable patterns exhaust any type: skip the coverage check
+         and, more importantly, the deep normalize it requires. */
+      let p_constraint = Info.pat_constraint(p);
       let marks_fun =
-        switch (exhaustiveness) {
-        | Exhaustive => []
-        | Inexhaustive(unseen_pattern) => [
-            Mark.InexhaustiveMatch(syn_ty_fun, [], unseen_pattern),
-          ]
+        if (Coverage.Constraint.is_irrefutable(p_constraint)) {
+          [];
+        } else {
+          let Coverage.CheckMatrix.{exhaustiveness, _} =
+            Coverage.check([p_constraint], Typ.normalize(ctx, p.ty));
+          switch (exhaustiveness) {
+          | Exhaustive => []
+          | Inexhaustive(unseen_pattern) => [
+              Mark.InexhaustiveMatch(syn_ty_fun, [], unseen_pattern),
+            ]
+          };
         };
       let elab_term = Fun(p_elab, e_elab, Some(p.ty), n) |> rewrap;
       add(
@@ -1943,11 +1973,13 @@ and uexp_to_info_map =
         switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
         | (Some(num_vars), Some(num_fns))
             when num_vars != 0 && num_vars == num_fns =>
-          let norm = Typ.normalize(ctx, syn);
+          let norm = Typ.weak_head_normalize(ctx, syn);
+          let arrow_like = t =>
+            Typ.is_arrow_like(Typ.weak_head_normalize(ctx, t));
           switch (norm |> Typ.term_of) {
           | Prod(syns) when List.length(syns) == num_vars =>
-            syns |> List.for_all(Typ.is_arrow_like)
-          | _ when Typ.is_arrow_like(norm) => num_vars == 1
+            syns |> List.for_all(arrow_like)
+          | _ when arrow_like(norm) => num_vars == 1
           | _ => false
           };
         | _ => false
@@ -1969,7 +2001,10 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (def_term, def_rewrap) = Exp.unwrap(def);
       let def =
-        switch (def_term, Typ.term_of(Typ.normalize(ctx, p_syn.ty))) {
+        switch (
+          def_term,
+          Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty)),
+        ) {
         | (Tuple(ds), Prod(tys)) =>
           Tuple(
             LabeledTuple.rearrange(
@@ -1982,7 +2017,7 @@ and uexp_to_info_map =
         };
       let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
       let rec_check_ty =
-        switch (Typ.term_of(Typ.normalize(ctx, p_syn.ty))) {
+        switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
         | Unknown(SynSwitch) => def_rec_probe.ty
         | _ => p_syn.ty
         };
@@ -2067,17 +2102,19 @@ and uexp_to_info_map =
       let (p_ana, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
       let syn_ty_let = body.elab_syn_ty;
-      let Coverage.CheckMatrix.{exhaustiveness, _} =
-        Coverage.check(
-          [Info.pat_constraint(p_ana)],
-          Typ.normalize(ctx, p_ana.ty),
-        );
+      let p_constraint = Info.pat_constraint(p_ana);
       let marks_let =
-        switch (exhaustiveness) {
-        | Exhaustive => []
-        | Inexhaustive(unseen_pattern) => [
-            Mark.InexhaustiveMatch(syn_ty_let, [], unseen_pattern),
-          ]
+        if (Coverage.Constraint.is_irrefutable(p_constraint)) {
+          [];
+        } else {
+          let Coverage.CheckMatrix.{exhaustiveness, _} =
+            Coverage.check([p_constraint], Typ.normalize(ctx, p_ana.ty));
+          switch (exhaustiveness) {
+          | Exhaustive => []
+          | Inexhaustive(unseen_pattern) => [
+              Mark.InexhaustiveMatch(syn_ty_let, [], unseen_pattern),
+            ]
+          };
         };
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let requires_fixf =
@@ -2254,7 +2291,9 @@ and uexp_to_info_map =
           branch_ids,
         );
       let result_ty =
-        fixed_typ(ctx, ana, syn_if) |> Typ.normalize(ctx) |> Typ.all_ids_temp;
+        fixed_typ(ctx, ana, syn_if)
+        |> Typ.canonicalize(ctx)
+        |> Typ.all_ids_temp;
       let elab =
         If(
           cond_elab,
@@ -2273,12 +2312,7 @@ and uexp_to_info_map =
         let wrapped =
           switch (result_ty.term) {
           | Unknown(Internal) => false
-          | _ =>
-            !
-              Typ.fast_equal(
-                Typ.normalize(ctx, result_ty),
-                Typ.normalize(ctx, branch_info.ty),
-              )
+          | _ => !Typ.equal_up_to_aliases(ctx, result_ty, branch_info.ty)
           };
         wrapped ? result_ty : branch_info.elab_syn_ty;
       };
@@ -2401,7 +2435,7 @@ and uexp_to_info_map =
       /* Build elaboration with ascriptions on branch bodies */
       let result_ty =
         fixed_typ(ctx, ana, syn_ty_match)
-        |> Typ.normalize(ctx)
+        |> Typ.canonicalize(ctx)
         |> Typ.all_ids_temp;
       let e_tys = List.map(Info.exp_ty, es);
       let es_elabs =
@@ -2419,12 +2453,7 @@ and uexp_to_info_map =
         let wrapped =
           switch (result_ty.term) {
           | Unknown(Internal) => false
-          | _ =>
-            !
-              Typ.fast_equal(
-                Typ.normalize(ctx, result_ty),
-                Typ.normalize(ctx, e.ty),
-              )
+          | _ => !Typ.equal_up_to_aliases(ctx, result_ty, e.ty)
           };
         wrapped ? result_ty : e.elab_syn_ty;
       };
@@ -2623,7 +2652,11 @@ and uexp_to_info_map =
       /* Build actual Prod type from module's exported bindings, rather than
          using expanded_info.ty which masks width errors via fixed_typ. */
       let actual_ty =
-        ModuleHelpers.module_actual_type(lowered.value_exports, m);
+        ModuleHelpers.module_actual_type(
+          ~local_names=List.map(fst, lowered.type_exports),
+          lowered.value_exports,
+          m,
+        );
       let module_elab =
         ModuleHelpers.module_elab(
           ~module_exp_id=Exp.rep_id(uexp),
@@ -3832,7 +3865,7 @@ and utyp_to_info_map =
     add(m);
   | ProdProjection(t, label) =>
     let labels =
-      switch (Typ.normalize(ctx, t).term) {
+      switch (Typ.weak_head_normalize(ctx, t).term) {
       | Prod(ts) =>
         Some(
           List.filter_map(
