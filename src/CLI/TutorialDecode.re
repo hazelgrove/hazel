@@ -2,7 +2,7 @@
  * TutorialDecode: the inverse of GenTutorial. Reads the in-memory
  * Tutorial.spec list (Web.TutorialSettings.lessons) and emits the
  * @prompt/@code/@test/... text format that gen-tutorial consumes, using
- * slide-cli's TextRoundtrip to render the editor zippers as text.
+ * MarkerParse to render the editor zippers as text.
  *
  *   ./hazel tutorial-decode            # write all hand-written lessons to
  *                                      #   hazel-programs/tutorial/imported/
@@ -21,11 +21,11 @@ open Haz3lcore;
 
 /* (text, text-after-one-roundtrip); equal => the content is round-trip stable */
 let roundtrip = (z: Zipper.t): (string, string) => {
-  let t1 = TextRoundtrip.to_text(PersistentSegment.persist(z));
+  let t1 = MarkerParse.to_text(z);
   let t2 =
-    switch (TextRoundtrip.of_text(~root=Exp, t1)) {
+    switch (MarkerParse.of_text(~root=Exp, t1)) {
     | None => "<<PARSE FAILED>>"
-    | Some(z2) => TextRoundtrip.to_text(PersistentSegment.persist(z2))
+    | Some(z2) => MarkerParse.to_text(z2)
     };
   (t1, t2);
 };
@@ -35,12 +35,8 @@ let kv = (name: string, body: string): string =>
 
 let decode_spec = (spec: Web.Tutorial.spec): string =>
   Web.Tutorial.(
-    let code =
-      TextRoundtrip.to_text(PersistentSegment.persist(spec.your_impl));
-    let test =
-      TextRoundtrip.to_text(
-        PersistentSegment.persist(spec.hidden_tests.tests),
-      );
+    let code = MarkerParse.to_text(spec.your_impl);
+    let test = MarkerParse.to_text(spec.hidden_tests.tests);
     let flags =
       (spec.wrapper ? ["wrapper"] : [])
       @ (spec.show_report ? ["show_report"] : [])

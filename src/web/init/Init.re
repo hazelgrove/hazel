@@ -9,101 +9,65 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
-let documentation_slides: list((string, PersistentSegment.t)) =
-  [
-    BasicReference.out,
-    Projectors.out,
-    ADTs.out,
-    Tuples.out,
-    Modules.out,
-    Tables.out,
-    Polymorphism.out,
-    Cards.out,
-    Probes.out,
-    Livelits.out,
-  ]
-  @ B2t2.Slides.all_slides;
+let documentation_slides: list((string, PersistentZipper.t)) =
+  Docslides.Slides.all_slides @ B2t2.Slides.all_slides;
 
-let startup: PersistentData.t = {
-  scratch: (
-    0,
-    [("Scratchpad 1", empty_cell_editor_persistent(~root=Exp))],
-  ),
-  documentation: (
-    0,
-    [
-      // BasicReference.out,
-      // Projectors.out,
-      ADTs.out,
-      // Tuples.out,
-      // Modules.out,
-      // Tables.out,
-      // Polymorphism.out,
-      // Cards.out,
-      Probes.out,
-      // Livelits.out,
-    ]
-    //@ B2t2.Slides.all_slides
-    @ Study.AllStudy.all
-    |> List.map(((name, content: PersistentSegment.t)) =>
-         (
-           name,
-           {
-             editor:
-               content
-               |> PersistentSegment.unpersist(~root=Exp)
-               |> Editor.Model.mk_persistent(~root=Exp),
-             result: EvalResult.Model.init |> EvalResult.Model.persist,
-           }: CellEditor.Model.persistent,
-         )
-       ),
-  ),
+/* Study build: only these reference slides appear in Documentation mode
+   (the rest would crowd the study slide list). */
+let study_reference_slide_names = ["ADTs", "Probes"];
+
+let study_reference_slides: list((string, PersistentZipper.t)) =
+  documentation_slides
+  |> List.filter(((name, _)) => List.mem(name, study_reference_slide_names));
+
+let persistent_of_zipper =
+    (content: PersistentZipper.t): CellEditor.Model.persistent => {
+  editor: content |> Editor.Model.mk_persistent(~root=Exp),
+  result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
+/* Study slides are still generated as PersistentSegment sexps by
+   `./hazel gen-slides` (dev's text-slide pipeline covers doc/b2t2 only). */
+let persistent_of_segment =
+    (content: PersistentSegment.t): CellEditor.Model.persistent => {
+  editor:
+    content
+    |> PersistentSegment.unpersist(~root=Exp)
+    |> Editor.Model.mk_persistent(~root=Exp),
+  result: EvalResult.Model.init |> EvalResult.Model.persist,
+};
+
+/* LAZY: the CLI links this module (--linkall) and must not pay the
+   all-slides unpersist at module init; the browser forces it on first
+   store access. */
+let startup: Lazy.t(PersistentData.t) =
+  lazy({
+    scratch: (
+      0,
+      [("Scratchpad 1", empty_cell_editor_persistent(~root=Exp))],
+    ),
+    documentation: (
+      0,
+      (
+        study_reference_slides
+        |> List.map(((name, content)) =>
+             (name, persistent_of_zipper(content))
+           )
+      )
+      @ (
+        Study.AllStudy.all
+        |> List.map(((name, content)) =>
+             (name, persistent_of_segment(content))
+           )
+      ),
+    ),
+  });
+
 let find_documentation_slide = (name: string) => {
-  startup.documentation
+  Lazy.force(startup).documentation
   |> snd
   |> List.find_opt(((n, _)) => n == name)
   |> Option.map(snd);
-};
-
-/* Cache of original documentation slide segments for fast comparison.
-   Computed lazily on first access to avoid startup cost.
-
-   This cache exists to optimize the "don't save unchanged slides" check
-   in ScratchMode.persist. That check compares current segments to originals,
-   and without caching, it was re-parsing (unpersisting) every original slide
-   on every autosave.
-
-   This whole mechanism (comparing to originals to avoid saving) might be
-   unnecessary if we instead tracked dirty state per-slide, or if we moved
-   to per-slide localStorage keys instead of one big blob. See the save
-   system discussion in the codebase for future cleanup opportunities. */
-let original_doc_segments: ref(option(Maps.StringMap.t(Segment.t))) =
-  ref(None);
-
-let get_original_doc_segment = (name: string): option(Segment.t) => {
-  let cache =
-    switch (original_doc_segments^) {
-    | Some(c) => c
-    | None =>
-      let c =
-        startup.documentation
-        |> snd
-        |> List.map(((n, pce: CellEditor.Model.persistent)) =>
-             (
-               n,
-               pce.editor.zipper
-               |> PersistentZipper.unpersist(~root=pce.editor.root)
-               |> Zipper.zip,
-             )
-           )
-        |> List.to_seq
-        |> Maps.StringMap.of_seq;
-      original_doc_segments := Some(c);
-      c;
-    };
-  Maps.StringMap.find_opt(name, cache);
 };
 
 let default_documentation_slide_name =

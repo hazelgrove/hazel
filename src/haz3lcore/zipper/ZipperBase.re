@@ -93,14 +93,6 @@ let update_siblings: (Siblings.t => Siblings.t, t) => t =
 
 let put_siblings = (siblings, z: t): t => update_siblings(_ => siblings, z);
 
-let put_selection_content = (content: Segment.t, z): t => {
-  ...z,
-  selection: {
-    ...z.selection,
-    content,
-  },
-};
-
 let parent = (z: t): option(Piece.t) =>
   Relatives.parent(~sel=z.selection.content, z.relatives);
 

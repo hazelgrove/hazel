@@ -1,0 +1,189 @@
+open Alcotest;
+open Haz3lcore;
+open Language;
+
+/* Corpus differential ratchet: every .hz program in the repo must parse
+   identically through the Menhir parser and the char-by-char editor
+   parser. A divergence is NOT a flake — either fix it or add the file to
+   known_gaps with a reason; the goal is an empty list. Cases are `Slow
+   because the editor parser is quadratic on large files.
+
+   Runs when the corpus is reachable (repo root or test dir cwd, as with
+   `bash test/run_node.sh test MenhirCorpus`); skips silently otherwise
+   (sandboxed dune runtest). */
+
+/* The docs/B2T2 slide corpus shares Test_FastParseCorpus's ledger:
+   those .hz files exercise grammar the menhir parser lacks yet (they
+   load via the typing-parser fallback; fidelity is pinned by
+   DocSlides.ReparseBackuptext). */
+let known_gaps: list((string, string)) =
+  [
+    (
+      "tuples.hz",
+      "deliberate error exhibit (1=\"hello\"): MakeTerm reads a MultiHole, menhir a labeled tuple",
+    ),
+    (
+      "table-api-properties.hz",
+      "editor tokenizer quirk: [()] reads as [] via MakeTerm (file as editor bug)",
+    ),
+    (
+      "10-colors-and-alignment.hz",
+      "deliberately delimiter-incomplete study slide (trailing `;`); loads via the typing-parser fallback",
+    ),
+  ]
+  /* This branch also carries the pre-text-slide copies of the doc/B2T2
+     slides (hazel-programs/{docs,b2t2}) and the study-old sources. They
+     are superseded by the hazel-programs/docs/{reference,b2t2} files dev
+     ships, and are kept only until their duplication is resolved; the
+     menhir gaps below are in that dead text, not in shipped slides. */
+  @ [
+    ("B2T2ExampleTables.hz", "superseded by docs/b2t2/example-tables.hz"),
+    (
+      "B2T2TableAPIAggregate.hz",
+      "superseded by docs/b2t2/table-api-aggregate.hz",
+    ),
+    (
+      "B2T2TableAPIConstructorsbuildColumn.hz",
+      "superseded by docs/b2t2/table-api-constructors-buildcolumn.hz",
+    ),
+    (
+      "B2T2TableAPIConstructorshcat.hz",
+      "superseded by docs/b2t2/table-api-constructors-hcat.hz",
+    ),
+    (
+      "B2T2TableAPIMissingValues.hz",
+      "superseded by docs/b2t2/table-api-missing-values.hz",
+    ),
+    (
+      "B2T2TableAPIOrdering.hz",
+      "superseded by docs/b2t2/table-api-ordering.hz",
+    ),
+    (
+      "B2T2TableAPIProperties.hz",
+      "superseded by docs/b2t2/table-api-properties.hz (same [()] quirk)",
+    ),
+    (
+      "B2T2TableAPIUtilitiesgroupByRetentive.hz",
+      "superseded by docs/b2t2/table-api-utilities-groupbyretentive.hz",
+    ),
+    ("Livelits.hz", "superseded by docs/reference/livelits-builtins.hz"),
+    ("Probes.hz", "superseded by docs/reference/probes.hz"),
+    (
+      "gameoflife.hz",
+      "study-old slide: menhir/MakeTerm term divergence in dead text",
+    ),
+    (
+      "gameoflife-bug-neighbor.hz",
+      "study-old slide: menhir/MakeTerm term divergence in dead text",
+    ),
+    (
+      "gameoflife-bug-sequential.hz",
+      "study-old slide: menhir/MakeTerm term divergence in dead text",
+    ),
+    (
+      "gameoflife-bug-survival.hz",
+      "study-old slide: menhir/MakeTerm term divergence in dead text",
+    ),
+  ]
+  @ Test_FastParseCorpus.known_gaps;
+
+let corpus_roots = [
+  "hazel-programs",
+  "../hazel-programs",
+  "../../hazel-programs",
+];
+
+let rec find_hz = (dir: string): list(string) =>
+  switch (Sys.readdir(dir)) {
+  | entries =>
+    entries
+    |> Array.to_list
+    |> List.concat_map(entry => {
+         let path = Filename.concat(dir, entry);
+         switch (Sys.is_directory(path)) {
+         | true => find_hz(path)
+         | false => Filename.check_suffix(entry, ".hz") ? [path] : []
+         | exception _ => []
+         };
+       })
+  | exception _ => []
+  };
+
+let read_file = (path: string): string => {
+  let ic = open_in_bin(path);
+  let n = in_channel_length(ic);
+  let s = really_input_string(ic, n);
+  close_in(ic);
+  s;
+};
+
+/* Strict on parens: the two parsers agree on Parens placement (verified
+   corpus-wide — every previous loose-mode reliance was actually the
+   Projector-unwrap half of the old bundled flag). ignore_projectors
+   because the menhir grammar erases ^^triggers, so its terms never carry
+   the Projector wrappers MakeTerm produces for them. */
+let equal_terms =
+  Equality.(
+    equality({
+      ...syntactic_settings,
+      ignore_projectors: true,
+    }).
+      exp
+  );
+
+let check_program = (path: string, txt: string): unit => {
+  let mk =
+    switch (Parser.to_zipper(txt, ~root=Exp)) {
+    | Some(z) => Some(MakeTerm.from_zip_for_sem(z, ~root=Exp).term)
+    | None => None
+    };
+  let mh =
+    switch (MenhirParser.Interface.parse_program(txt)) {
+    | ast =>
+      Ok(
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          MenhirParser.Conversion.Exp.of_menhir_ast(ast),
+        ),
+      )
+    | exception e => Error(Printexc.to_string(e))
+    };
+  let gap = List.assoc_opt(path |> Filename.basename, known_gaps);
+  switch (mk, mh, gap) {
+  | (_, _, Some(_reason)) => () /* known gap: tolerated, tracked above */
+  | (Some(mk), Ok(mh), None) =>
+    check(bool, "menhir == maketerm: " ++ path, true, equal_terms(mk, mh))
+  | (Some(_), Error(err), None) =>
+    fail("menhir rejects " ++ path ++ ": " ++ err)
+  | (None, _, None) => () /* editor parser rejects it too; out of scope */
+  };
+};
+
+/* Tutorial-mode sources are lesson text (markdown prose in
+   @prompt/@code/... sections), not programs — see
+   Test_FastParseCorpus.is_tutorial_source and
+   hazel-programs/tutorial/README.md. */
+let check_file = (path: string): unit => {
+  let txt = read_file(path) |> String.trim;
+  Test_FastParseCorpus.is_tutorial_source(txt)
+    ? () : check_program(path, txt);
+};
+
+let tests = (
+  "MenhirCorpus",
+  {
+    let files =
+      corpus_roots |> List.concat_map(find_hz) |> List.sort_uniq(compare);
+    switch (files) {
+    | [] => [
+        test_case("corpus unavailable (sandboxed run)", `Quick, () => ()),
+      ]
+    | files =>
+      List.map(
+        path =>
+          test_case("differential: " ++ path, `Slow, () => check_file(path)),
+        files,
+      )
+    };
+  },
+);

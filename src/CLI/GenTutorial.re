@@ -43,7 +43,7 @@
  *   Task slides use this to reference a canonical program (e.g. under
  *   hazel-programs/study/tasks-draft) instead of embedding a drifting copy.
  *
- *   Code/test are parsed with TextRoundtrip.of_text, so the `¿` implicit-hole
+ *   Code/test are parsed with MarkerParse.of_text, so the `¿` implicit-hole
  *   marker and `^^probe(...)` projector syntax produced by `tutorial-decode`
  *   round-trip correctly.
  *
@@ -333,7 +333,7 @@ let rec find_hz_files = (base: string, rel: string): list(string) => {
    warning, matching the old behavior of deferring the problem to runtime. */
 let persisted_zipper_ml = (rel_path: string, label: string, text: string) => {
   let persisted =
-    switch (Haz3lcore.TextRoundtrip.of_text(~root=Exp, text)) {
+    switch (Haz3lcore.MarkerParse.of_text(~root=Exp, text)) {
     | Some(z) => Haz3lcore.PersistentZipper.persist(z)
     | None =>
       prerr_endline(
