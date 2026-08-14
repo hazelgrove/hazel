@@ -39,7 +39,8 @@ type menu_data = list(Menu.item(unit => Ui_effect.t(unit)));
 let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
 
 /* Initialize table model from parsed value */
-let init = (_: v) => {menu_state: None};
+let empty = {menu_state: None};
+let init = (_: v) => empty;
 
 /* Header + data rows; each table row is one line-height tall (proj-table.css
  * zeroes cell padding and cells hold single-line abbreviated values). */

@@ -40,6 +40,7 @@ let display_settings: ExpToSegment.Settings.t = {
   show_ascriptions: false,
   show_filters: true,
   show_unknown_as_hole: true,
+  hole_tiles: false,
   project_tables: false,
 };
 

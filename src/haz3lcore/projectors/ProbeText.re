@@ -52,6 +52,7 @@ let format_value = (~max_length: int=50, value: Exp.t): string => {
       ~settings={
         ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
+        hole_tiles: false,
       },
       value |> DHExp.strip_ascriptions,
     );

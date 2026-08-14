@@ -24,14 +24,14 @@ type all_public = {
 let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let settings = Settings.Store.export();
   let explainThisModel = ExplainThisModel.Store.export();
-  let (scratch_current, scratch_slides) = Init.startup.scratch;
+  let (scratch_current, scratch_slides) = Lazy.force(Init.startup).scratch;
   let scratch =
     ScratchMode.Persist.export_all(
       "scratch",
       ~default_names=List.map(fst, scratch_slides),
       ~default_current=scratch_current,
     );
-  let (doc_current, doc_slides) = Init.startup.documentation;
+  let (doc_current, doc_slides) = Lazy.force(Init.startup).documentation;
   let documentation =
     ScratchMode.Persist.export_all(
       "doc",

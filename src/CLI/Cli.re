@@ -10,9 +10,16 @@ let read_input = path => {
   );
 };
 
+/* Fast-first parsing shared with persistence load
+   (PersistentZipper.parse_text); the difference is failure policy —
+   a CLI caller wants a reported error (None → failwith below), where
+   persistence loads an empty buffer rather than brick boot. */
+let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
+  Haz3lcore.(PersistentZipper.parse_text(~source="cli", ~root=Exp, s));
+
 let parse_program = (s: string) =>
-  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
-  | Some(e) => e
+  switch (parse_to_zipper(s)) {
+  | Some(z) => Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term
   | None => failwith("Failed to parse expression: " ++ s)
   };
 
@@ -36,7 +43,7 @@ let format_hazel = (implicit_hole: string, width, path) => {
      The refractors are then passed to Printer.of_segment so they round-trip
      back to their trigger syntax. Both convex and concave Grout are rendered
      with `implicit_hole` so the marker survives a decode|format|encode pipe. */
-  switch (Haz3lcore.Parser.to_zipper(~root=Exp, program)) {
+  switch (parse_to_zipper(program)) {
   | None => failwith("Failed to parse: " ++ path)
   | Some(zipper) =>
     let segment =
@@ -53,10 +60,6 @@ let format_hazel = (implicit_hole: string, width, path) => {
     print_endline(output);
   };
 };
-
-/* Parse program and return zipper (preserving projectors like probes) */
-let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
-  Haz3lcore.Parser.to_zipper(~root=Exp, s);
 
 let analyze_hazel =
     (show_warnings: bool, path: string)
@@ -88,7 +91,11 @@ let analyze_hazel =
 
     /* Run static analysis */
     let (static_map, _) =
-      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+      Statics.mk(
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Operators.default_mode)),
+        term,
+      );
 
     /* Get errors with their infos for line numbers */
     let formatted_errors =
@@ -340,19 +347,22 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
       Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
 
     /* Get term for evaluation */
-    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
+    let make_term_result =
+      Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp);
+    let term = make_term_result.term;
     open Language;
 
-    /* Run statics to get info_map */
-    let (info_map, _) =
-      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+    /* Probe ids up front — statics needs them too, since instrumentation
+       (e.g. the livelit view fold-in) happens during elaboration */
+    let base_probe_ids = Haz3lcore.CachedStatics.probe_ids_of_zipper(zipper);
 
-    /* Get manual probe IDs */
-    let manual_ids =
-      List.fold_left(
-        (map, (id, _)) => Id.Map.add(id, (), map),
-        Id.Map.empty,
-        zipper.refractors.manuals,
+    /* Run statics to get info_map and the (instrumented) elaboration */
+    let (info_map, elaborated) =
+      Statics.mk(
+        ~probe_ids=base_probe_ids,
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Operators.default_mode)),
+        term,
       );
 
     /* If --auto, compute auto-probe IDs */
@@ -392,8 +402,9 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         Id.Map.empty;
       };
 
-    /* Combine manual and auto probes */
-    let probe_ids = Id.Map.union((_, _, _) => Some(), manual_ids, auto_ids);
+    /* Combine base (manual + projector) and auto probes */
+    let probe_ids =
+      Id.Map.union((_, _, _) => Some(), base_probe_ids, auto_ids);
 
     /* Build probe_map - tells evaluator which expressions to record */
     let sample_map =
@@ -403,8 +414,17 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         ~probe_ids,
       );
 
-    /* Evaluate with probe_map to collect probe samples */
-    let (_, sample_map) = Run.evaluate_with_probe_map(~sample_map, term);
+    /* Evaluate the elaboration from the same statics run (it may carry
+       probe instrumentation) to collect probe samples */
+    let sample_map = {
+      let (_, state) =
+        Evaluator.evaluate(
+          ~eval_info=EvalInfo.of_targets(sample_map),
+          ~env=Builtins.env_init,
+          elaborated,
+        );
+      EvaluatorState.get_probes(state);
+    };
 
     /* Format output with probe values */
     let window: Sample.Window.mode =
@@ -435,111 +455,6 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
       );
     print_endline(output);
   };
-};
-
-/* Benchmark parsing performance */
-let bench_parse = (iterations: int, paths: list(string)): unit => {
-  let now = () =>
-    Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf
-    |> Js_of_ocaml.Js.float_of_number;
-
-  /* Measure baseline (empty string parse) */
-  let baseline = {
-    let t0 = now();
-    for (_ in 1 to iterations) {
-      ignore(Haz3lcore.Parser.to_zipper(~root=Exp, ""));
-    };
-    let t1 = now();
-    (t1 -. t0) /. float_of_int(iterations);
-  };
-
-  Printf.printf(
-    "Baseline (empty parse): %.3fms per iteration (%d iterations)\n\n",
-    baseline,
-    iterations,
-  );
-  Printf.printf(
-    "%-50s %8s %8s %10s %10s %10s %10s %10s %10s\n",
-    "File",
-    "Chars",
-    "Lines",
-    "Orig(ms)",
-    "Seg(ms)",
-    "Speedup",
-    "Paste(ms)",
-    "Fast(ms)",
-    "Speedup",
-  );
-  Printf.printf("%s\n", String.make(140, '-'));
-
-  List.iter(
-    path => {
-      let program = read_input(path);
-      let chars = String.length(program);
-      let lines = List.length(String.split_on_char('\n', program));
-
-      /* Warmup both */
-      ignore(Haz3lcore.Parser.to_zipper(~root=Exp, program));
-      ignore(Haz3lcore.Parser.to_segment(program, ~root=Exp));
-
-      /* Time unsegmented (to_zipper) */
-      let t0 = now();
-      for (_ in 1 to iterations) {
-        ignore(Haz3lcore.Parser.to_zipper(~root=Exp, program));
-      };
-      let t1 = now();
-      let orig_avg = (t1 -. t0) /. float_of_int(iterations);
-
-      /* Time segmented (to_segment) */
-      let t2 = now();
-      for (_ in 1 to iterations) {
-        ignore(Haz3lcore.Parser.to_segment(program, ~root=Exp));
-      };
-      let t3 = now();
-      let seg_avg = (t3 -. t2) /. float_of_int(iterations);
-
-      /* Time paste: slow (char-by-char into empty zipper) */
-      let t4 = now();
-      for (_ in 1 to iterations) {
-        ignore(
-          Haz3lcore.Parser.to_zipper(
-            ~root=Exp,
-            ~zipper_init=Haz3lcore.Zipper.init(),
-            program,
-          ),
-        );
-      };
-      let t5 = now();
-      let paste_slow = (t5 -. t4) /. float_of_int(iterations);
-
-      /* Time paste: fast (segment splice) */
-      let z_init = Haz3lcore.Zipper.init();
-      let t6 = now();
-      for (_ in 1 to iterations) {
-        ignore(Haz3lcore.Parser.fast_paste(program, z_init, ~root=Exp));
-      };
-      let t7 = now();
-      let paste_fast = (t7 -. t6) /. float_of_int(iterations);
-
-      let speedup = orig_avg /. seg_avg;
-      let paste_speedup = paste_slow /. paste_fast;
-      Printf.printf(
-        "%-50s %8d %8d %10.1f %10.1f %9.2fx %10.1f %10.1f %9.2fx\n",
-        path,
-        chars,
-        lines,
-        orig_avg,
-        seg_avg,
-        speedup,
-        paste_slow,
-        paste_fast,
-        paste_speedup,
-      );
-    },
-    paths,
-  );
-
-  Printf.printf("\n");
 };
 
 /* Benchmark evaluation performance: parse+statics once, evaluate N times.
@@ -611,7 +526,7 @@ let implicit_hole_arg = {
     ++ "`slide-encode` so Grout positions are recovered on re-parse.";
   Arg.(
     value
-    & opt(string, Haz3lcore.TextRoundtrip.default_implicit_hole)
+    & opt(string, Haz3lcore.MarkerParse.default_implicit_hole)
     & info(["implicit-hole"], ~docv="CHAR", ~doc)
   );
 };
@@ -705,138 +620,6 @@ let grade_report_cmd = {
   );
 };
 
-/* ---------------- Slide commands ---------------- */
-
-/* Slides are addressed by name (their first-tuple-element title). The list
-   of slides is the one statically linked into the binary by Web.Init, so
-   no on-disk .ml parsing is needed.
-     * slide-list   - print every available slide name
-     * slide-decode - print one slide's plaintext (Grout rendered as the
-                      `--implicit-hole` marker, default `¿`; refractors
-                      and projectors as their `^^…(...)` trigger syntax)
-     * slide-encode - rebuild a slide .ml from a title + plaintext;
-                      `--implicit-hole` markers are stripped via Destruct
-                      and Grout is reinserted by remold/regrout
-   Every other transformation (prettify, suppress warnings, analyze) is done
-   generically on plaintext via `hazel format` / `hazel analyze` / etc. */
-
-let slide_name_arg = {
-  let doc = "Slide name (run `hazel slide-list` to see available names).";
-  Arg.(
-    required & pos(0, some(string), None) & info([], ~docv="NAME", ~doc)
-  );
-};
-
-let lookup_slide_or_die = (name: string): Slide.slide =>
-  switch (Slide.find(name)) {
-  | Some(s) => s
-  | None =>
-    prerr_endline("slide: no slide named \"" ++ name ++ "\"");
-    prerr_endline("Available names:");
-    List.iter(n => prerr_endline("  " ++ n), Slide.list_names);
-    exit(2);
-  };
-
-let slide_list = (): unit => List.iter(print_endline, Slide.list_names);
-
-let slide_list_cmd = {
-  let doc = "List the names of every slide linked into the binary.";
-  let info = Cmd.info("slide-list", ~doc);
-  Cmd.v(info, Term.(const(slide_list) $ const()));
-};
-
-let slide_decode = (implicit_hole: string, name: string): unit => {
-  let slide = lookup_slide_or_die(name);
-  /* `print_string`, not `print_endline`: the slide text already preserves
-   * its trailing newlines; an extra `\n` would re-enter on re-parse as a
-   * Secondary whitespace piece, breaking the CLI round-trip fixed-point
-   * even though the core TextRoundtrip is fixed-point. */
-  print_string(Slide.slide_to_text(~implicit_hole, slide));
-};
-
-let slide_decode_cmd = {
-  let doc =
-    "Print a named slide's program as plaintext. Manual refractors are "
-    ++ "rendered with `^^probe(...)` / `^^statics(...)` trigger syntax so the "
-    ++ "output is reparseable. Implicit holes (Grout) are rendered with "
-    ++ "`--implicit-hole` (default `¿`) so `slide-encode` can identify and "
-    ++ "strip them when round-tripping.";
-  let info = Cmd.info("slide-decode", ~doc);
-  Cmd.v(
-    info,
-    Term.(const(slide_decode) $ implicit_hole_arg $ slide_name_arg),
-  );
-};
-
-let slide_encode =
-    (
-      implicit_hole: string,
-      title: string,
-      text_path: string,
-      output: option(string),
-    )
-    : unit => {
-  let text = read_input(text_path);
-  let slide = Slide.text_to_slide(~implicit_hole, ~title, text);
-  let rendered = Slide.render_slide_file(slide);
-  switch (output) {
-  | None => print_string(rendered)
-  | Some(path) =>
-    let oc = open_out(path);
-    output_string(oc, rendered);
-    close_out(oc);
-  };
-};
-
-let slide_encode_cmd = {
-  let doc =
-    "Build a slide .ml file from a title and a Hazel plaintext program. "
-    ++ "Refractors written as `^^probe(...)` / `^^statics(...)` in the input "
-    ++ "are rebuilt by the parser's trigger module on insertion. "
-    ++ "Markers matching `--implicit-hole` (default `¿`) are removed via "
-    ++ "Destruct, letting the parser's remold/regrout pass reinsert Grout "
-    ++ "in the canonical position.";
-  let title_arg = {
-    let doc = "Slide title (the first element of the persisted tuple).";
-    Arg.(
-      required
-      & opt(some(string), None)
-      & info(["title"], ~docv="TITLE", ~doc)
-    );
-  };
-  let text_arg = {
-    let doc = "Path to the program text, or '-' for stdin.";
-    Arg.(
-      required & pos(0, some(string), None) & info([], ~docv="TEXT", ~doc)
-    );
-  };
-  let info = Cmd.info("slide-encode", ~doc);
-  Cmd.v(
-    info,
-    Term.(
-      const(slide_encode)
-      $ implicit_hole_arg
-      $ title_arg
-      $ text_arg
-      $ output_arg
-    ),
-  );
-};
-
-let bench_parse_cmd = {
-  let doc = "Benchmark parsing performance on one or more .hz files.";
-  let iterations_arg = {
-    let doc = "Number of iterations per file (default: 5).";
-    Arg.(value & opt(int, 5) & info(["n", "iterations"], ~doc));
-  };
-  let files_arg = {
-    let doc = "Hazel source files to benchmark.";
-    Arg.(non_empty & pos_all(string, []) & info([], ~docv="FILES", ~doc));
-  };
-  let info = Cmd.info("bench-parse", ~doc);
-  Cmd.v(info, Term.(const(bench_parse) $ iterations_arg $ files_arg));
-};
-
 let bench_eval_cmd = {
   let doc = "Benchmark evaluation performance on one or more .hz files.";
   let iterations_arg = {
@@ -865,11 +648,7 @@ let default_cmd = {
       test_cmd,
       grade_json_cmd,
       grade_report_cmd,
-      bench_parse_cmd,
       bench_eval_cmd,
-      slide_list_cmd,
-      slide_decode_cmd,
-      slide_encode_cmd,
     ],
   );
 };

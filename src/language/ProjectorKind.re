@@ -56,23 +56,18 @@ let name = (p: t): string =>
   | Csv => "csv"
   };
 
-/* This must be updated and kept 1-to-1 with the above
- * name function in order to be able to select the
- * projector in the projector panel menu */
+/* Inverse of `name`, derived from it and the enumerated `all` (built once)
+ * so the two cannot drift — a new kind needs only a case in `name` above,
+ * which the compiler already requires since that match is exhaustive. */
+let by_name: list((string, t)) = List.map(k => (name(k), k), all);
+
+let of_name_opt = (p: string): option(t) => List.assoc_opt(p, by_name);
+
+/* Partial: callers must already know the name is a kind. */
 let of_name = (p: string): t =>
-  switch (p) {
-  | "fold" => Fold
-  | "probe" => Probe
-  | "statics" => Statics
-  | "check" => Checkbox
-  | "slider" => Slider
-  | "sliderf" => SliderF
-  | "text" => TextArea
-  | "livelit" => Livelit
-  | "card" => Card
-  | "table" => Table
-  | "csv" => Csv
-  | _ => failwith("Unknown projector kind")
+  switch (of_name_opt(p)) {
+  | Some(k) => k
+  | None => failwith("Unknown projector kind")
   };
 
-let is_name = str => List.mem(str, List.map(name, all));
+let is_name = str => Option.is_some(of_name_opt(str));
