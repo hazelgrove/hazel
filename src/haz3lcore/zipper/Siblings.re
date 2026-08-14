@@ -5,8 +5,6 @@ type t = (Segment.t, Segment.t);
 
 let empty = Segment.(empty, empty);
 
-let no_siblings: t => bool = s => s == empty;
-
 let unzip: (int, Segment.t) => t = ListUtil.split_n;
 let zip = (~sel=Segment.empty, (pre, suf): t) =>
   Segment.concat([pre, sel, suf]);
@@ -108,10 +106,4 @@ let direction_between = ((l, r): t): option(Direction.t) =>
   switch (Segment.edge_direction_of(Left, r)) {
   | None => Segment.edge_direction_of(Right, l)
   | d => d
-  };
-
-let mold_fitting_between = (sort: Sort.t, p: Precedence.t, sibs: t): Mold.t =>
-  switch (direction_between(sibs)) {
-  | Some(d) => Mold.chevron(sort, p, d)
-  | None => Mold.mk_op(sort, [])
   };
