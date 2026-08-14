@@ -10,7 +10,13 @@ let globals = Web.Globals.Model.init(~settings=Web.Settings.Model.init, ());
 let docs = Web.ExplainThisModel.init;
 
 let statics = term =>
-  fst(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Operators.default_mode)), term));
+  fst(
+    Statics.mk(
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      term,
+    ),
+  );
 
 let qcheck_explainthis_does_not_crash =
   QCheck.Test.make(
