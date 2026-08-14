@@ -81,6 +81,7 @@ type tpat =
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type typ =
+  | ParenTyp(typ)
   | IntType
   | SIntType
   | StringType
@@ -111,6 +112,7 @@ and sumterm =
 and sumtype = list(sumterm)
 
 and pat =
+  | ParenPat(pat)
   | AscPat(pat, typ)
   | EmptyHolePat
   | WildPat
@@ -136,8 +138,10 @@ and deferral_pos =
   | OutsideAp
 
 and exp =
+  | ParenExp(exp)
   | Atom(Language.Atom.t)
   | Var(string)
+  | LivelitName(string) /* lexeme with the leading caret */
   | Constructor(string, option(option(typ)))
   | ListExp(list(exp))
   | TupleExp(list(exp))
@@ -154,6 +158,7 @@ and exp =
   | TupLabel(exp, exp)
   | Dot(exp, exp)
   | ApExp(exp, exp)
+  | PipelineExp(exp, exp) /* e1 |> e2 == Ap(Reverse, e2, e1) */
   | FixF(pat, exp)
   | Asc(exp, typ)
   | EmptyHole
@@ -494,6 +499,41 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             let+ e = self((n - 1) / 2);
             TyAlias(tp, t, e);
           },
+          {
+            /* Module literal bound by a let. Members are value and type
+               items. */
+
+            let* name = gen_ident;
+            let* sizes = gen_sized_array((n - 1) / 2);
+            let* items =
+              flatten_a(
+                Array.map(
+                  (size: int) =>
+                    oneof([
+                      {
+                        let* p = gen_pat_sized(size / 2);
+                        let+ e = self(size / 2);
+                        ModItemLet(p, e);
+                      },
+                      {
+                        let* tp = gen_tpat;
+                        let+ t = gen_typ_sized(size / 2);
+                        ModItemType(tp, t);
+                      },
+                    ]),
+                  sizes,
+                ),
+              );
+            let+ body = self((n - 1) / 2);
+            Let(VarPat(name), Module(Array.to_list(items)), body);
+          },
+          {
+            /* Builtin-livelit name in expression position: ^name —
+               combines with the existing Ap/Dot generators for uses. */
+
+            let+ name = gen_ident;
+            LivelitName("^" ++ name);
+          },
         ])
       }
     },
@@ -711,6 +751,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
     (exp: exp) =>
       Iter.(
         switch (exp) {
+        | ParenExp(e) => return(e)
         | Atom(a) =>
           return(TupleExp([]))
           <+> (
@@ -922,6 +963,18 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_exp(e2);
             return(ApExp(e1, shrunk));
           }
+        | PipelineExp(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(PipelineExp(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(PipelineExp(e1, shrunk));
+          }
         | TypAp(e, t) =>
           {
             return(e);
@@ -1106,6 +1159,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
         | BuiltinFun(_)
         | Undefined
         | InvalidExp(_)
+        | LivelitName(_)
         | Module(_) => Iter.empty
         }
       )
@@ -1115,6 +1169,7 @@ and shrink_pat: QCheck.Shrink.t(pat) =
     (pat: pat) =>
       Iter.(
         switch (pat) {
+        | ParenPat(p) => return(p)
         | AtomPat(a) =>
           return(WildPat)
           <+> (
@@ -1219,6 +1274,7 @@ and shrink_typ: QCheck.Shrink.t(typ) =
     (typ: typ) =>
       Iter.(
         switch (typ) {
+        | ParenTyp(t) => return(t)
         | SumTyp(l) =>
           let payloads =
             List.filter_map(

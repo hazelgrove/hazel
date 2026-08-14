@@ -19,19 +19,24 @@ To work from the file instead:
 From the command line: `./hazel run <file>.hz` evaluates the app, and
 `./hazel test <file>.hz` runs its inline test suite.
 
-## Regenerating the slides
+## Editing the slides
 
-The slides in `src/mvu` are generated from these files. **Nothing detects a
-stale encoding** — edit a `.hz` without regenerating and the slide keeps
-shipping the old program. After any edit here:
+These files ARE the slides: `src/mvu/Slides.re` embeds them at compile time
+and the load path parses them, so an edit here changes the slide on the next
+build. There is no encoding step.
 
-```
-./hazel-programs/mvu/regen-slides.sh
-```
+Two conventions the slides rely on:
 
-That strips indentation (Hazel computes it at layout time, so baked-in
-indentation renders doubled), wraps the trailing tuple in `^^html(...)`, and
-docks the projector. See the comment at the top of the script.
+- The trailing app tuple is wrapped in `^^html_sidebar(...)`, so the slide
+  opens with the app running and docked in the projector panel. The
+  `_sidebar` suffix is part of the invoke token, so the placement lives in
+  the text — which is what makes it survive a reparse.
+- Indentation here is for humans; the loader flattens it (Hazel computes
+  indentation at layout time, so literal leading spaces would render
+  doubled).
+
+`./check-comments.py *.hz` catches unterminated comments, which otherwise
+surface as a pile of unrelated static errors.
 
 ## Architecture
 

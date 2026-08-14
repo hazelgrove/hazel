@@ -14,6 +14,11 @@ let (suite, _) =
     ~argv=Sys.argv,
     "HazelTests",
     [
+      Test_LazyHydration.tests,
+      Test_FastParseCorpus.tests,
+      Test_FastParse.tests,
+      Test_MenhirFuzz.tests,
+      Test_MenhirCorpus.tests,
       Test_ListUtil.tests,
       Test_OptUtil.tests,
       Test_Atom.tests,

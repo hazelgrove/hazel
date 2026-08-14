@@ -454,4 +454,4 @@ test
     && wide.windowWidth == 1024
 end;
 
-(init, update, view, subs)
+^^html_sidebar((init, update, view, subs))

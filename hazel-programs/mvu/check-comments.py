@@ -6,8 +6,8 @@ error at the delimiter — it silently reparses the following text as code, whic
 surfaces later as a pile of unrelated static errors. A lone `#` on its own line
 is the same trap: it opens a comment that closes on the next line's `#`.
 
-Run this before ./hazel analyze while editing; regen-slides.sh also runs it so
-a bad comment can never reach an encoded slide.
+Run this before ./hazel analyze while editing: these files ship as slides
+as-is, so a bad comment here reaches the slide.
 
     ./check-comments.py *.hz
 """

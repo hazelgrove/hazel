@@ -140,4 +140,4 @@ let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
   fun (model, action) -> (f(model, action), CmdNone)
 in
 
-(init, noCmd(update), view, subs)
+^^html_sidebar((init, noCmd(update), view, subs))
