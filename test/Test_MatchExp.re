@@ -58,6 +58,21 @@ let tests = [
     "MatchExp",
     [
       test_case(
+        "Filter selector matches same selector",
+        `Quick,
+        match_check("$e", "$e", Some([])),
+      ),
+      test_case(
+        "Filter selector matches same val selector",
+        `Quick,
+        match_check("$v", "$v", Some([])),
+      ),
+      test_case(
+        "Filter selector does not match different selector",
+        `Quick,
+        match_check("$e", "$v", None),
+      ),
+      test_case(
         "Match a variable",
         `Quick,
         match_check(

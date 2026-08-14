@@ -138,6 +138,45 @@ let tests = (
       },
     ),
     test_case(
+      "Folded FixF hides recursive marker",
+      `Quick,
+      () => {
+        open IdTagged.FreshGrammar;
+        let settings = {
+          ...exp_to_segment_settings,
+          fold_fn_bodies: `Fold,
+          hide_fixpoints: true,
+        };
+        let exp =
+          Exp.(
+            fix_f(
+              Pat.var("fac"),
+              fn(Pat.var("n"), var("n"), None, Some("fac+")),
+              None,
+            )
+          );
+        let expected_model =
+          FoldProj.sexp_of_t({
+            text: "<fac>",
+            expanded: false,
+            always_render: true,
+          })
+          |> Sexplib.Sexp.to_string;
+        let seg = ExpToSegment.exp_to_segment(~settings, exp);
+        switch (seg) {
+        | [Projector({kind: Fold, model, _})] =>
+          check(string, "fold label", expected_model, model)
+        | _ => Alcotest.fail("expected folded FixF projector")
+        };
+        let seg = ExpToSegment.exp_to_segment(~settings, Exp.parens(exp));
+        switch (seg) {
+        | [Projector({kind: Fold, model, _})] =>
+          check(string, "parenthesized fold label", expected_model, model)
+        | _ => Alcotest.fail("expected folded Parens(FixF) projector")
+        };
+      },
+    ),
+    test_case(
       "Tuple",
       `Quick,
       () => {
@@ -260,18 +299,12 @@ let tests = (
         let segment =
           exp_to_segment(
             IdTagged.FreshGrammar.Exp.(
-              filter(
-                Filter({
-                  pat: int(1),
-                  act: (Step, One),
-                }),
-                int(2),
-              )
+              filter(~pat=int(1), ~act=(Step, One), int(2))
             ),
           );
         let serialized = print_seg(segment);
 
-        check(string, "Pause", serialized, {|pause 1 in 2|});
+        check(string, "Pause", serialized, {|debug stop(1) in 2|});
       },
     ),
     test_case(
@@ -515,6 +548,110 @@ let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
 let exp_to_segment_roundtrip =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_roundtrip_settings);
 
+let rec tile_ids = (seg: Segment.t): list(Id.t) =>
+  seg
+  |> List.concat_map(
+       fun
+       | Tile(t) => [t.id, ...List.concat_map(tile_ids, t.children)]
+       | _ => [],
+     );
+
+let rec find_tile_id = (~label: Label.t, seg: Segment.t): option(Id.t) => {
+  let rec find_in_children = (children: list(Segment.t)): option(Id.t) =>
+    switch (children) {
+    | [] => None
+    | [child, ...rest] =>
+      switch (find_tile_id(~label, child)) {
+      | Some(_) as found => found
+      | None => find_in_children(rest)
+      }
+    };
+
+  switch (seg) {
+  | [] => None
+  | [Tile({id, label: tile_label, children, _}), ...rest] =>
+    if (tile_label == label) {
+      Some(id);
+    } else {
+      switch (find_in_children(children)) {
+      | Some(_) as found => found
+      | None => find_tile_id(~label, rest)
+      };
+    }
+  | [_, ...rest] => find_tile_id(~label, rest)
+  };
+};
+
+let unresolved_filter_ids_test =
+  test_case({|Filter: unresolved uses outer id|}, `Quick, () => {
+    switch (Parser.to_term({|debug unknown($e) in x|}, ~root=Exp)) {
+    | Some(term) =>
+      switch (Exp.term_of(term)) {
+      | Filter(Unresolved(filt_exp), _) =>
+        let seg = exp_to_segment_roundtrip(term);
+        switch (find_tile_id(~label=["debug", "in"], seg)) {
+        | Some(debug_id) =>
+          check(
+            bool,
+            "debug tile uses the outer filter id",
+            true,
+            Id.equal(debug_id, Exp.rep_id(term)),
+          );
+          check(
+            bool,
+            "debug tile does not reuse the child filter id",
+            false,
+            Id.equal(debug_id, Exp.rep_id(filt_exp)),
+          );
+        | None => Alcotest.fail("Missing debug/in tile")
+        };
+
+        let ids = tile_ids(seg);
+        let unique_ids = List.sort_uniq(Id.compare, ids);
+        check(
+          int,
+          "pretty-printed filter tile ids are unique",
+          List.length(ids),
+          List.length(unique_ids),
+        );
+      | _ => Alcotest.fail("Expected unresolved filter term")
+      }
+    | None => Alcotest.fail("Failed to parse unresolved filter")
+    }
+  });
+
+/* Property version of the test above: whatever the filter condition is —
+   canonical `act(pat)` applications, filter selectors, or arbitrary
+   unresolved expressions — pretty-printing must give the debug tile the
+   outer filter's id and never reuse an id between tiles. */
+let qcheck_filter_tile_ids_test =
+  QCheck_alcotest.to_alcotest(
+    QCheck.Test.make(
+      ~name="Filter: tile ids are unique and debug tile uses outer id",
+      ~count=500,
+      MenhirParser.AST.arb_exp(5),
+      cond_ast => {
+        let ast =
+          MenhirParser.AST.Filter(cond_ast, Atom(Int(Bigint.of_int(1))));
+        let term =
+          Grammar.map_exp_annotation(
+            _ => IdTagged.IdTag.fresh(),
+            MenhirParser.Conversion.Exp.of_menhir_ast(ast),
+          );
+        let seg = exp_to_segment_roundtrip(term);
+        let ids = tile_ids(seg);
+        let unique_ids = List.sort_uniq(Id.compare, ids);
+        let ids_unique = List.length(ids) == List.length(unique_ids);
+        let debug_id_ok =
+          switch (find_tile_id(~label=["debug", "in"], seg)) {
+          | Some(debug_id) => Id.equal(debug_id, Exp.rep_id(term))
+          | None => false
+          };
+        ids_unique && debug_id_ok;
+      },
+    ),
+  );
+
 /* Test that a string round-trips through segment → term → segment */
 let roundtrip_test = (name: string, input: string) =>
   test_case(name, `Quick, () => {
@@ -721,15 +858,25 @@ in f(42)|},
         };
       },
     ),
-    /* Filter expressions (hide/eval/pause/debug ... in) and unquote ($) */
-    roundtrip_test({|Filter: hide|}, {|hide 1 in 2|}),
-    roundtrip_test({|Filter: hide spaced|}, {|hide 1  in  2|}),
-    roundtrip_test({|Filter: eval|}, {|eval 1 in 2|}),
-    roundtrip_test({|Filter: eval spaced|}, {|eval 1  in  2|}),
-    roundtrip_test({|Filter: pause|}, {|pause 1 in 2|}),
-    roundtrip_test({|Filter: pause spaced|}, {|pause 1  in  2|}),
-    roundtrip_test({|Filter: debug|}, {|debug 1 in 2|}),
-    roundtrip_test({|Filter: debug spaced|}, {|debug 1  in  2|}),
+    /* Filter expressions: debug <action>(<pat>) in <body> */
+    roundtrip_test({|Filter: hide|}, {|debug hide(1) in 2|}),
+    roundtrip_test({|Filter: hide spaced|}, {|debug hide(1)  in  2|}),
+    roundtrip_test({|Filter: eval|}, {|debug eval(1) in 2|}),
+    roundtrip_test({|Filter: eval spaced|}, {|debug eval(1)  in  2|}),
+    roundtrip_test({|Filter: stop|}, {|debug stop(1) in 2|}),
+    roundtrip_test({|Filter: stop spaced|}, {|debug stop(1)  in  2|}),
+    roundtrip_test({|Filter: step|}, {|debug step(1) in 2|}),
+    roundtrip_test({|Filter: step spaced|}, {|debug step(1)  in  2|}),
+    /* Filter selector ($e, $v) within filter expressions */
+    roundtrip_test({|FilterSelector: $e in eval|}, {|debug eval($e) in x|}),
+    roundtrip_test(
+      {|FilterSelector: $e preserves spacing|},
+      {|debug eval( $e ) in x|},
+    ),
+    roundtrip_test({|FilterSelector: $v in hide|}, {|debug hide($v) in 2|}),
+    roundtrip_test({|FilterSelector: in step|}, {|debug step($v) in 2|}),
+    unresolved_filter_ids_test,
+    qcheck_filter_tile_ids_test,
     roundtrip_test(
       {|QuotedLabel: label needing quotes (has dash)|},
       {|(`the-answer`=42)|},

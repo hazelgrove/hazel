@@ -273,6 +273,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Label(_), _)
     | (ExplicitNonlabel, _)
     | (Var(_), _)
+    | (FilterAction(_), _)
+    | (FilterSelector(_), _)
     | (Ap(_), _)
     | (DeferredAp(_), _)
     | (Deferral(_), _)

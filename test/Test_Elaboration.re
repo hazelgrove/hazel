@@ -475,6 +475,21 @@ module PlainTests = {
         ();
       }
     });
+  let filter_detection = (act, ()) => {
+    let filter_detection_program: Exp.t =
+      Exp.filter_unresolved(
+        Exp.ap(Forward, Exp.filter_action(act), Exp.int(1)),
+        Exp.int(0),
+      );
+    alco_check(
+      "Filter detection (" ++ FilterAction.string_of_t(act) ++ ")",
+      {
+        Exp.filter(~act, ~pat=Exp.int(1), Exp.int(0));
+      },
+      dhexp_of_uexp(filter_detection_program),
+    );
+  };
+
   let tests = [
     test_case("Single integer", `Quick, single_integer),
     test_case("Empty hole", `Quick, empty_hole),
@@ -881,6 +896,26 @@ in 1|},
         }
       }),
     ),
+    test_case(
+      "Filter detection (eval)",
+      `Quick,
+      filter_detection((Eval, All)),
+    ),
+    test_case(
+      "Filter detection (hide)",
+      `Quick,
+      filter_detection((Eval, One)),
+    ),
+    test_case(
+      "Filter detection (step)",
+      `Quick,
+      filter_detection((Step, All)),
+    ),
+    test_case(
+      "Filter detection (stop)",
+      `Quick,
+      filter_detection((Step, One)),
+    ),
   ];
 };
 module MenhirElaborationTests = {
@@ -1035,18 +1070,6 @@ module MenhirElaborationTests = {
   let test_menhir = () =>
     alco_check_menhir("Test failed (menhir)", test_str, test_uexp);
 
-  let filter_str = "eval 1 in 0";
-  let stepper_filter_kind: TermBase.stepper_filter_kind_t =
-    StepperFilter.(
-      filter({
-        pat: Exp.int(1),
-        act: (FilterAction.Eval, FilterAction.All),
-      })
-    );
-  let filter_uexp: Exp.t = Exp.(filter(stepper_filter_kind, int(0)));
-  let filter_menhir = () =>
-    alco_check_menhir("Filter test (menhir)", filter_str, filter_uexp);
-
   let undefined_str = "
 undef
 ";
@@ -1113,7 +1136,6 @@ x
     alco_check_menhir("FixF test (menhir)", fixf_str, fixf_uexp);
 
   let tests = [
-    test_case("Filter test (menhir)", `Quick, filter_menhir),
     test_case("Test failed (menhir)", `Quick, test_menhir),
     test_case(
       "Dynamic error hole (menhir)",

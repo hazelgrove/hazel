@@ -96,6 +96,8 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Test(_)
         | HintedTest(_)
         | Filter(_)
+        | FilterAction(_)
+        | FilterSelector(_)
         | Parens(_)
         | Projector(_)
         | Cons(_)

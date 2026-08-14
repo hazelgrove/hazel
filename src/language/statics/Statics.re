@@ -654,16 +654,6 @@ and uexp_to_info_map =
           m,
         )
       };
-    | Var(("$e" | "$v") as name) when is_in_filter =>
-      /* Inside a filter, the meta-variables `$e` and `$v` stand for any
-         expression/value, so we synthesize to `?` without consulting the ctx. */
-      add(
-        ~elab_term=Var(name) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-        ~marks=[],
-        ~co_ctx=CoCtx.empty,
-        m,
-      )
     | Var(name) =>
       let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
 
@@ -679,6 +669,22 @@ and uexp_to_info_map =
         ~co_ctx,
         m,
       );
+    | FilterSelector(sel) =>
+      add(
+        ~elab_term=FilterSelector(sel) |> rewrap,
+        ~elab_syn_ty=SynTy.unknown_internal(),
+        ~marks=[],
+        ~co_ctx=CoCtx.empty,
+        m,
+      )
+    | FilterAction(act) =>
+      add(
+        ~elab_term=FilterAction(act) |> rewrap,
+        ~elab_syn_ty=SynTy.unknown_internal(),
+        ~marks=[],
+        ~co_ctx=CoCtx.empty,
+        m,
+      )
     | DynamicErrorHole(e, err) =>
       let (e, e_elab, m) = go(~ana, e, m);
       add(
@@ -1474,7 +1480,44 @@ and uexp_to_info_map =
           SubexpProbeTargets.union_all([e.probe_targets, hint.probe_targets]),
         m,
       );
-    | Filter(Filter({pat: cond, act}), body) =>
+    | Filter(Unresolved(fexp), body) =>
+      /* Recognize the parsed Ap form `act(pat)` as a resolved filter; lift
+         it into Filter(Filter({...})). Anything else stays Unresolved
+         (typed as syn for display) and we still descend into body. */
+      switch (fexp.term) {
+      | Ap(Forward, {term: FilterAction(act), annotation: act_ann}, pat) =>
+        let (_, _, m) = go(~ana=syn, fexp, m, ~is_in_filter=true);
+        let (cond, cond_elab, m) = go(~ana=syn, pat, m, ~is_in_filter=true);
+        let (body, body_elab, m) = go(~ana, body, m);
+        add(
+          ~elab_term=
+            Filter(
+              Filter({
+                act,
+                pat: cond_elab,
+                ids: act_ann,
+              }),
+              body_elab,
+            )
+            |> rewrap,
+          ~elab_syn_ty=body.elab_syn_ty,
+          ~marks=[],
+          ~co_ctx=CoCtx.union([cond.co_ctx, body.co_ctx]),
+          m,
+        );
+      | _ =>
+        let (fexp_info, fexp_elab, m) =
+          go(~ana=syn, fexp, m, ~is_in_filter=true);
+        let (body, body_elab, m) = go(~ana, body, m);
+        add(
+          ~elab_term=Filter(Unresolved(fexp_elab), body_elab) |> rewrap,
+          ~elab_syn_ty=body.elab_syn_ty,
+          ~marks=[],
+          ~co_ctx=CoCtx.union([fexp_info.co_ctx, body.co_ctx]),
+          m,
+        );
+      }
+    | Filter(Filter({pat: cond, act, ids: filter_ids}), body) =>
       let (cond, cond_elab, m) = go(~ana=syn, cond, m, ~is_in_filter=true);
       let (body, body_elab, m) = go(~ana, body, m);
       add(
@@ -1483,6 +1526,7 @@ and uexp_to_info_map =
             Filter({
               act,
               pat: cond_elab,
+              ids: filter_ids,
             }),
             body_elab,
           )

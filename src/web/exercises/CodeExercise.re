@@ -658,13 +658,10 @@ let wrap_filter =
       Filter({
         act: Language.FilterAction.(act, One),
         pat: {
-          term:
-            Constructor(
-              "$e",
-              Some(Some(Unknown(Internal) |> Language.Typ.fresh)),
-            ),
+          term: FilterSelector(Exp),
           annotation: Language.IdTagged.IdTag.fresh(),
         },
+        ids: Language.IdTagged.IdTag.fresh(),
       }),
       term,
     ),
@@ -689,6 +686,8 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Deferral(_)
   | Atom(_)
   | DrvQuote(_)
+  | FilterAction(_)
+  | FilterSelector(_)
   | ListLit(_)
   | TupleExtension(_)
   | Constructor(_)

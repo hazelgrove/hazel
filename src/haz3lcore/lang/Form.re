@@ -397,10 +397,7 @@ type compound_form =
   | Rule
   | Pipeline
   // DOUBLE DELIMITERS
-  | FilterHide
-  | FilterEval
-  | FilterPause
-  | FilterDebug
+  | Filter
   | Use
   // Drv
   | Drv(drv_compound_form)
@@ -505,10 +502,7 @@ let get: compound_form => t =
     mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
   | Pipeline => mk_infix("|>", Exp, P.eqs) // in OCaml, pipeline precedence is in same class as '=', '<', etc.
   // DOUBLE DELIMITERS
-  | FilterHide => mk_pre_c(L, ["hide", "in"], P.let_, Exp, [Exp])
-  | FilterEval => mk_pre_c(L, ["eval", "in"], P.let_, Exp, [Exp])
-  | FilterPause => mk_pre_c(L, ["pause", "in"], P.let_, Exp, [Exp])
-  | FilterDebug => mk_pre_c(L, ["debug", "in"], P.let_, Exp, [Exp])
+  | Filter => mk_pre_c(L, ["debug", "in"], P.let_, Exp, [Exp])
   | Use => mk_pre_c(L, ["use", "in"], P.let_, Exp, [Typ])
   // Drv
   | Drv(drv_compound_form) => drv_get(drv_compound_form)

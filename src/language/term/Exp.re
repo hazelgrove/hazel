@@ -143,7 +143,9 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | LivelitName(_) => LivelitName
   | Asc(_) => Asc
   | Module(_) => Module
-  | ModuleExp(_) => ModuleExp;
+  | ModuleExp(_) => ModuleExp
+  | FilterAction(_) => Filter
+  | FilterSelector(_) => Filter;
 
 let show_cls: cls => string =
   fun
@@ -285,7 +287,9 @@ let rec is_fun = (e: t) => {
   | LivelitName(_)
   | Constructor(_)
   | Module(_)
-  | ModuleExp(_) => false
+  | ModuleExp(_)
+  | FilterAction(_)
+  | FilterSelector(_) => false
   };
 };
 
@@ -354,7 +358,9 @@ let rec is_tuple_of_functions = (e: t) =>
     | LivelitName(_)
     | Constructor(_)
     | Module(_)
-    | ModuleExp(_) => false
+    | ModuleExp(_)
+    | FilterAction(_)
+    | FilterSelector(_) => false
     }
   );
 
@@ -422,7 +428,9 @@ let rec get_num_of_functions = (e: t) =>
     | Constructor(_)
     | Module(_)
     | ModuleExp(_)
-    | DrvQuote(_) => None
+    | DrvQuote(_)
+    | FilterAction(_)
+    | FilterSelector(_) => None
     };
   };
 

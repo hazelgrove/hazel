@@ -78,7 +78,7 @@ type settings = {
                            traversing through massive closures */
   ignore_filters: bool,
   ignore_unknown_provenance: bool, // Treats all holes as equal, including multiholes, emptyholes, invalid and synswitch
-  use_expr_wildcards: option((Environment.t(Exp.t), Exp.t) => bool), // In order to turn this setting on, you must provide a function that decides whether something is a value (i.e. whether it matches $v)
+  is_filter_selector_value: option((Environment.t(Exp.t), Exp.t) => bool), // In order to turn this setting on, you must provide a function that decides whether something is a value (i.e. whether it matches $v)
   ignore_fixpoints: bool, // Hideously unsound, used to hide function steps in the stepper
   free_var_handler: option((Alphas.t, string, Exp.t) => bool), // Note[Matt]: to be used in MatchExp
   /* The following two options shouldn't really be `settings' but they're
@@ -103,7 +103,7 @@ let equality =
         closures_by_id,
         ignore_filters,
         ignore_unknown_provenance,
-        use_expr_wildcards,
+        is_filter_selector_value,
         ignore_fixpoints,
         free_var_handler,
         env1,
@@ -145,11 +145,11 @@ let equality =
       exp'(e1, e2)
 
     // Expression Wildcards:
-    | (Constructor("$v", _), _) when Option.is_some(use_expr_wildcards) =>
-      let check_value = Option.get(use_expr_wildcards);
+    | (FilterSelector(Val), _) when Option.is_some(is_filter_selector_value) =>
+      let check_value = Option.get(is_filter_selector_value);
       check_value(Option.value(env2, ~default=Environment.empty), e2);
-    | (EmptyHole, _) when Option.is_some(use_expr_wildcards) => true
-    | (Constructor("$e", _), _) when Option.is_some(use_expr_wildcards) =>
+    | (EmptyHole, _) when Option.is_some(is_filter_selector_value) => true
+    | (FilterSelector(Exp), _) when Option.is_some(is_filter_selector_value) =>
       true
 
     /* These variable cases are quite complicated because they account for a lot of concerns.
@@ -432,6 +432,12 @@ let equality =
     | (ModuleExp(_, _, _), _) => false
     | (DrvQuote(d1, s1), DrvQuote(d2, s2)) => s1 == s2 && d1 == d2
     | (DrvQuote(_, _), _) => false
+    | (FilterAction(act1), FilterAction(act2)) =>
+      FilterAction.equal(act1, act2)
+    | (FilterAction(_), _) => false
+    | (FilterSelector(sel1), FilterSelector(sel2)) =>
+      FilterSelector.equal(sel1, sel2)
+    | (FilterSelector(_), _) => false
     };
   }
   /* Compare patterns with literal variable names (no alpha-renaming).
@@ -837,10 +843,18 @@ let equality =
       : bool => {
     let exp' = exp(alphas_exp, alphas_typ);
     switch (f1, f2) {
-    | (Filter({pat: pat1, act: act1}), Filter({pat: pat2, act: act2})) =>
-      exp'(pat1, pat2) && act1 == act2
+    | (Unresolved(e1), Unresolved(e2)) => exp'(e1, e2)
+    | (Unresolved(_), _) => false
+    /* `ids` is the annotation slot of the filter record; annotations are
+       excluded from equality throughout this module. */
+    | (
+        Filter({pat: pat1, act: act1, ids: _}),
+        Filter({pat: pat2, act: act2, ids: _}),
+      ) =>
+      exp'(pat1, pat2) && FilterAction.equal(act1, act2)
     | (Filter(_), _) => false
-    | (Residue(_), Residue(_)) => f1 == f2
+    | (Residue(idx1, act1), Residue(idx2, act2)) =>
+      idx1 == idx2 && FilterAction.equal(act1, act2)
     | (Residue(_), _) => false
     };
   }
@@ -902,7 +916,7 @@ let syntactic_settings = {
   closures_by_id: true,
   ignore_filters: false,
   ignore_unknown_provenance: false,
-  use_expr_wildcards: None,
+  is_filter_selector_value: None,
   ignore_fixpoints: false,
   free_var_handler: None,
   env1: None,
@@ -924,7 +938,7 @@ let semantic_settings = {
   closures_by_id: true, // Ideally substitute all closures before using semantic equality
   ignore_filters: true,
   ignore_unknown_provenance: true,
-  use_expr_wildcards: None,
+  is_filter_selector_value: None,
   ignore_fixpoints: false,
   free_var_handler: None,
   env1: None,

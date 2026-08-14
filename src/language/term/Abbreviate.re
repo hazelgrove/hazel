@@ -563,6 +563,16 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Atom(String(str));
         };
       | DrvQuote(_, _) => Invalid("<drv term>")
+      /* Atomic filter tokens cannot be shortened, but their display width
+         still has to come out of the budget: `eval`/`hide`/`stop`/`step`
+         cost their name, `$e`/`$v` cost two columns. */
+      | FilterAction(act) =>
+        available :=
+          available^ - String.length(FilterAction.string_of_t(act));
+        FilterAction(act);
+      | FilterSelector(sel) =>
+        available := available^ - 2;
+        FilterSelector(sel);
       | Var(v) => Var(abbreviate_str(available^, v))
       | Label(v) =>
         switch (abbreviate_label(v)) {

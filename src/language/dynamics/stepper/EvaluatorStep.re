@@ -72,6 +72,9 @@ let rec matches =
       | Closure(env, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Closure(env, ctx) |> rewrap;
+      | Filter(Unresolved(fexp), ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Filter(Unresolved(fexp), ctx) |> rewrap;
       | Filter(Filter(flt'), ctx) =>
         let flt = flt |> FilterEnvironment.extends(flt');
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
@@ -213,29 +216,34 @@ let rec matches =
 };
 
 let should_hide_eval_obj =
-    (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) =>
-  if (should_hide_step_kind(~settings, x.knd)) {
-    (Eval, x);
-  } else {
-    let (act, _, ctx) =
+    (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) => {
+  switch (x.knd) {
+  | CompleteFilter =>
+    /* CompleteFilter removes internal filter bookkeeping. Running filter
+       matching on this step can re-introduce a Residue wrapper around the
+       expression it just unwrapped, causing an infinite sequence of hidden
+       CompleteFilter steps. */
+    (Eval, x)
+  | _ =>
+    let (act, idx, ctx) =
       matches(Environment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
+    let x = {
+      ...x,
+      ctx,
+    };
     switch (act) {
-    | (Eval, _) => (
+    | (Eval, _) => (Eval, x)
+    // Skip over Ascription
+    | (Step, _) when step_kind_is_unrenderable(~settings, x.knd) => (
         Eval,
-        {
-          ...x,
-          ctx,
-        },
+        x,
       )
-    | (Step, _) => (
-        Step,
-        {
-          ...x,
-          ctx,
-        },
-      )
+    | (Step, _) when idx > 0 => (Step, x)
+    | (Step, _) when should_hide_step_kind(~settings, x.knd) => (Eval, x)
+    | (Step, _) => (Step, x)
     };
   };
+};
 
 module Decompose = {
   module Result = {
@@ -449,13 +457,10 @@ let refresh_step =
   let eos =
     decompose(exp, env)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
-  let* desired_id =
-    ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp)
-    |> Option.map(IdTagged.ids);
-  let* (h, x) =
-    List.find_opt(
-      ((_, step': step)) => IdTagged.ids(step'.d_loc) == desired_id,
-      eos,
-    );
-  Some((h, x));
+  let* found = ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp);
+  let desired_id = IdTagged.ids(found);
+  List.find_opt(
+    ((_, step': step)) => IdTagged.ids(step'.d_loc) == desired_id,
+    eos,
+  );
 };
