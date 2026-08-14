@@ -328,8 +328,8 @@ let split_invoke_placement = (body: t): (t, ProjectorCore.Placement.t) =>
     : (body, ProjectorCore.Placement.Inline);
 
 /* Invoke body and placement, split apart. The body keeps any option suffix.
-     "^^slider_sidebar" ==> Some(("slider", Sidebar))
-     "^^probe_table"    ==> Some(("probe_table", Inline)) */
+   "^^slider_sidebar" ==> Some(("slider", Sidebar))
+   "^^probe_table"    ==> Some(("probe_table", Inline)) */
 let of_projector_invoke_parts =
     (input: t): option((t, ProjectorCore.Placement.t)) =>
   Option.map(split_invoke_placement, of_projector_invoke(input));

@@ -269,13 +269,15 @@ let weave =
   let trigger_is_refractor = (trigger: string): bool =>
     switch (trigger_kind(trigger)) {
     | Some(kind) =>
-      Language.ProjectorKind.is_refractor(kind) && !trigger_is_docked(trigger)
+      Language.ProjectorKind.is_refractor(kind)
+      && !trigger_is_docked(trigger)
     | None => false
     };
   let trigger_is_projector = (trigger: string): bool =>
     switch (trigger_kind(trigger)) {
     | Some(kind) =>
-      !Language.ProjectorKind.is_refractor(kind) || trigger_is_docked(trigger)
+      !Language.ProjectorKind.is_refractor(kind)
+      || trigger_is_docked(trigger)
     | None => false
     };
   let rec weave_seg = (seg: Segment.t): Segment.t => {
