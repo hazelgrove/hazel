@@ -264,23 +264,24 @@ module Update = {
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
-          let filename =
-            (current.name |> StringUtil.sanitize_filename) ++ ".ml";
-          let contents =
+          let (ext, contents) =
             switch (current.kind) {
             | Code({editor, _}) =>
-              let serialized =
-                Haz3lcore.(
-                  [%derive.show: (string, PersistentSegment.t)]((
-                    current.name,
-                    editor.editor.editor.state.zipper
-                    |> PersistentSegment.persist,
-                  ))
-                );
-              "let out : string * Haz3lcore.PersistentSegment.t = "
-              ++ serialized;
-            | Drv(m) => DerivationExercise.export_doc_slide_module(m.editors)
+              /* Slides are text-backed: export the committed-.hz form
+                 (marker-printed content + one final newline). */
+              (
+                ".hz",
+                Haz3lcore.PersistentZipper.persist(
+                  editor.editor.editor.state.zipper,
+                ).
+                  backup_text,
+              )
+            | Drv(m) => (
+                ".ml",
+                DerivationExercise.export_doc_slide_module(m.editors),
+              )
             };
+          let filename = (current.name |> StringUtil.sanitize_filename) ++ ext;
           (filename, contents);
         | Tutorial(model) =>
           let current = TutorialsMode.Model.get_current(model);

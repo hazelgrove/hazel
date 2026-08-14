@@ -97,12 +97,12 @@ module StoreMode = {
 
 module Store = {
   let scratch_defaults = () => {
-    let (current, slides) = Init.startup.scratch;
+    let (current, slides) = Lazy.force(Init.startup).scratch;
     (current, List.map(fst, slides));
   };
 
   let doc_defaults = () => {
-    let (current, slides) = Init.startup.documentation;
+    let (current, slides) = Lazy.force(Init.startup).documentation;
     (current, List.map(fst, slides) @ Init.documentation_drv_slide_names());
   };
 
@@ -130,11 +130,11 @@ module Store = {
   /* Load default editor state without touching IndexedDB.
      Used in Patchwork mode where Automerge provides the content. */
   let load_default = (~settings) => {
-    let (current, slides) = Init.startup.scratch;
+    let (current, slides) = Lazy.force(Init.startup).scratch;
     let scratchpads =
       List.map(
         ((name, persistent)) =>
-          ScratchMode.Scratchpad.mk(
+          ScratchMode.Scratchpad.mk_code(
             ~name,
             ~editor=CellEditor.Model.unpersist(~settings, persistent),
             (),
@@ -280,15 +280,13 @@ module Update = {
     | (SwitchMode(Documentation), Documentation(_))
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
-      ScratchMode.reset_persist_state();
       Model.Scratch(Store.load_scratch(~settings=globals.settings.core))
-      |> return;
+      |> return
     | (SwitchMode(Documentation), _) =>
-      ScratchMode.reset_persist_state();
       Model.Documentation(
         Store.load_documentation(~settings=globals.settings.core),
       )
-      |> return;
+      |> return
     | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action
     | (SwitchMode(Tutorial), _) =>
       Model.Tutorial(
