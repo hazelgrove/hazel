@@ -89,9 +89,6 @@ plans/                  # Project plans and documentation
 │   ├── hazel-primer.md # Hazel syntax reference
 │   └── experience-log.md # AI model experience reports
 └── [other plans]/      # Other in-progress plans
-
-scripts/
-└── extract-docs.py     # Extract .hz programs from ML backup_text fields
 ```
 
 ## Hazel CLI

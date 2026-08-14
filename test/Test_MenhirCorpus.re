@@ -12,10 +12,9 @@ open Language;
    `bash test/run_node.sh test MenhirCorpus`); skips silently otherwise
    (sandboxed dune runtest). */
 
-/* The docs/B2T2 slide corpus shares Test_FastParseCorpus's ledger:
-   those .hz files exercise grammar the menhir parser lacks yet (they
-   load via the typing-parser fallback; fidelity is pinned by
-   DocSlides.ReparseBackuptext). */
+/* Shares Test_FastParseCorpus's ledger: files that miss the fast path
+   are menhir gaps by construction (they load via the typing-parser
+   fallback; slide fidelity is pinned by DocSlides.ReparseBackuptext). */
 let known_gaps: list((string, string)) =
   [
     (
@@ -29,60 +28,6 @@ let known_gaps: list((string, string)) =
     (
       "10-colors-and-alignment.hz",
       "deliberately delimiter-incomplete study slide (trailing `;`); loads via the typing-parser fallback",
-    ),
-  ]
-  /* This branch also carries the pre-text-slide copies of the doc/B2T2
-     slides (hazel-programs/{docs,b2t2}) and the study-old sources. They
-     are superseded by the hazel-programs/docs/{reference,b2t2} files dev
-     ships, and are kept only until their duplication is resolved; the
-     menhir gaps below are in that dead text, not in shipped slides. */
-  @ [
-    ("B2T2ExampleTables.hz", "superseded by docs/b2t2/example-tables.hz"),
-    (
-      "B2T2TableAPIAggregate.hz",
-      "superseded by docs/b2t2/table-api-aggregate.hz",
-    ),
-    (
-      "B2T2TableAPIConstructorsbuildColumn.hz",
-      "superseded by docs/b2t2/table-api-constructors-buildcolumn.hz",
-    ),
-    (
-      "B2T2TableAPIConstructorshcat.hz",
-      "superseded by docs/b2t2/table-api-constructors-hcat.hz",
-    ),
-    (
-      "B2T2TableAPIMissingValues.hz",
-      "superseded by docs/b2t2/table-api-missing-values.hz",
-    ),
-    (
-      "B2T2TableAPIOrdering.hz",
-      "superseded by docs/b2t2/table-api-ordering.hz",
-    ),
-    (
-      "B2T2TableAPIProperties.hz",
-      "superseded by docs/b2t2/table-api-properties.hz (same [()] quirk)",
-    ),
-    (
-      "B2T2TableAPIUtilitiesgroupByRetentive.hz",
-      "superseded by docs/b2t2/table-api-utilities-groupbyretentive.hz",
-    ),
-    ("Livelits.hz", "superseded by docs/reference/livelits-builtins.hz"),
-    ("Probes.hz", "superseded by docs/reference/probes.hz"),
-    (
-      "gameoflife.hz",
-      "study-old slide: menhir/MakeTerm term divergence in dead text",
-    ),
-    (
-      "gameoflife-bug-neighbor.hz",
-      "study-old slide: menhir/MakeTerm term divergence in dead text",
-    ),
-    (
-      "gameoflife-bug-sequential.hz",
-      "study-old slide: menhir/MakeTerm term divergence in dead text",
-    ),
-    (
-      "gameoflife-bug-survival.hz",
-      "study-old slide: menhir/MakeTerm term divergence in dead text",
     ),
   ]
   @ Test_FastParseCorpus.known_gaps;

@@ -33,36 +33,9 @@ let read_file = (path: string): string => {
 /* A new entry here means a construct regressed off the fast path — fix
    the grammar/printer rather than ledgering, unless the file is a
    deliberately-invalid, stale, or delimiter-incomplete exhibit. The
-   entries below are all of that kind: superseded copies of slides that
-   dev now ships as hazel-programs/docs/{reference,b2t2}, plus study-old
-   sources written against a removed operator. */
+   study-old sources below are of that kind: they were written against a
+   string-equality operator the language no longer has. */
 let known_gaps: list((string, string)) = [
-  (
-    "BasicReference.hz",
-    "superseded by docs/reference/basic-reference.hz; uses removed `$` operators",
-  ),
-  ("Projectors.hz", "superseded by docs/reference/projectors.hz"),
-  (
-    "Tables.hz",
-    "superseded by docs/reference/tables.hz; `let ^^type(x) =` (refractor pin on a let pattern) mismatches the fast-path weave",
-  ),
-  ("Tuples.hz", "superseded by docs/reference/tuples.hz"),
-  (
-    "B2T2ErrorsUsingTablesPart2.hz",
-    "superseded by docs/b2t2/errors-using-tables-part-2.hz",
-  ),
-  (
-    "B2T2ErrorsUsingTablesPart3.hz",
-    "superseded by docs/b2t2/errors-using-tables-part-3.hz",
-  ),
-  (
-    "B2T2TableAPIAccessSubcomponents.hz",
-    "superseded by docs/b2t2/table-api-access-subcomponents.hz",
-  ),
-  (
-    "B2T2TableAPIConstructorsaddColumn.hz",
-    "superseded by docs/b2t2/table-api-constructors-addcolumn.hz",
-  ),
   (
     "calculator.hz",
     "study-old slide: uses the removed `$==` string-equality operator",

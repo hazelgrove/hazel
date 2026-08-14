@@ -6,14 +6,15 @@ This directory contains Hazel programs in plain text (`.hz` files) for various p
 
 ```
 hazel-programs/
-├── docs/       # Programs from Hazel documentation slides (9 files)
-├── b2t2/       # Programs from B2T2 table API slides (39 files)
-│   ├── errors/
-│   ├── example_programs/
-│   └── table_api/
-└── study/      # Programs and docs for user studies (probe mechanism evaluation)
-    ├── debugging/   # Programs with intentional bugs for debugging tasks
-    └── writing/     # Sketch/solution pairs for program writing tasks
+├── docs/
+│   ├── reference/   # THE documentation-mode slides (compiled into src/docslides)
+│   └── b2t2/        # THE B2T2 table-API slides (compiled into src/b2t2)
+├── study/           # Programs for user studies (probe mechanism evaluation)
+│   ├── debugging/   # Programs with intentional bugs for debugging tasks
+│   ├── writing/     # Sketch/solution pairs for program writing tasks
+│   └── tutorial/    # Study tutorial slides
+├── study-old/       # Earlier study programs, kept for reference (not shipped)
+└── tutorial/        # Tutorial-mode lesson sources (see tutorial/README.md)
 ```
 
 ## File Format
@@ -40,33 +41,17 @@ in length([1, 2, 3])
 ./hazel run hazel-programs/study/basic-functions.hz
 
 # Or from stdin:
-cat hazel-programs/docs/BasicReference.hz | ./hazel run -
+cat hazel-programs/docs/reference/basic-reference.hz | ./hazel run -
 
 # Check for type errors:
-./hazel analyze hazel-programs/docs/BasicReference.hz
+./hazel analyze hazel-programs/docs/reference/basic-reference.hz
 ```
-
-## Regenerating Extracted Programs
-
-Programs in `docs/` and `b2t2/` are extracted from ML source files. To regenerate after source changes:
-
-```bash
-python3 scripts/extract-docs.py
-```
-
-See `scripts/README.md` for details.
 
 ## Directory Details
 
 ### `docs/`
-Programs from the main Hazel documentation slides (`src/web/init/docs/`). Includes:
-- BasicReference.hz - Language quick reference
-- ADTs.hz - Algebraic data types example
-- Probes.hz - Probe projector documentation
-- And more...
-
-### `b2t2/`
-Programs from B2T2 (Bootstrap to Table Types) slides (`src/b2t2/slides/`). Examples of table processing in Hazel.
+The committed text of the shipped slides: `reference/` is embedded by
+`src/docslides`, `b2t2/` by `src/b2t2`. Editing a file here changes the slide.
 
 ### `study/`
 Programs and documentation for user studies evaluating Hazel's probe debugging mechanism.
