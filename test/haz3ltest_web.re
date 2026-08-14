@@ -28,6 +28,7 @@ let (suite, _) =
       Test_GradingReport.tests,
       Test_Derivation.tests,
       Test_StepperBase.tests,
+      Test_ExplainThis.tests,
     ],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests_web.xml");
