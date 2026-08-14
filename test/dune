@@ -17,6 +17,7 @@
    Test_AgentTools
    Test_AgentUX
    Test_Derivation
+   Test_ExplainThis
    Test_GradingReport
    Test_PromptFactory
    Test_ReparseDocSlides
@@ -47,6 +48,7 @@
   Test_AgentTools
   Test_AgentUX
   Test_Derivation
+  Test_ExplainThis
   Test_GradingReport
   Test_PromptFactory
   Test_ReparseDocSlides
