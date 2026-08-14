@@ -267,14 +267,10 @@ let pos_of_idx = (p: p('code), idx: int) =>
     }
   };
 
-let zipper_of_code = (code, ~root) => {
-  switch (Parser.to_zipper(code, ~root)) {
-  | None => failwith("Transition failed.")
-  | Some(zipper) => zipper
-  };
-};
-
-let zipper_of_code = zipper_of_code(~root=Exp);
+/* Fast-first: FastParse with pin collection; the fallback inside
+   from_backup_text logs itself (SLOW PARSE ...). */
+let zipper_of_code = code =>
+  PersistentZipper.from_backup_text(code, ~root=Exp);
 
 let transition: transitionary_spec => spec =
   (

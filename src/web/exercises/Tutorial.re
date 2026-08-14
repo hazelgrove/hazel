@@ -152,12 +152,10 @@ let pos_of_idx = (idx: int) =>
     }
   };
 
-let zipper_of_code = code => {
-  switch (Parser.to_zipper(code, ~root=Exp)) {
-  | None => failwith("Transition failed.")
-  | Some(zipper) => zipper
-  };
-};
+/* Fast-first: FastParse with pin collection; the fallback inside
+   from_backup_text logs itself (SLOW PARSE ...). */
+let zipper_of_code = code =>
+  PersistentZipper.from_backup_text(code, ~root=Exp);
 
 /* Counterpart to [export_transitionary_module] below: rebuild a spec from
  * a transitionary (string-based) module at load time. */
