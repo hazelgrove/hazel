@@ -1,6 +1,6 @@
 # Tutorial-mode slides (authored from text)
 
-These `.hz` text files compile into **Tutorial-mode** lessons (the gated,
+These `.hzt` text files compile into **Tutorial-mode** lessons (the gated,
 prompt-panel UI — same machinery as the hand-written `Tu_*.ml` lessons) via
 `./hazel gen-tutorial`. There is also an inverse (`tutorial-decode`) that turns
 existing hand-written `Tutorial.spec` lessons back into this text format, and a
@@ -9,14 +9,14 @@ verifier (`tutorial-verify`).
 ## The iteration loop
 
 ```bash
-# 1. Edit / add / reorder .hz files in this directory (subdirs allowed).
+# 1. Edit / add / reorder .hzt files in this directory (subdirs allowed).
 # 2. Regenerate the Tutorial.spec .ml files:
 ./hazel gen-tutorial
 # 3. Rebuild and run the app:
 make dev
 ```
 
-`gen-tutorial` reads `.hz` files **recursively** (ordered by relative path),
+`gen-tutorial` reads `.hzt` files **recursively** (ordered by relative path),
 writes one `TuGen_<Name>.ml` per file into `src/web/exercises/examples/`, plus
 an aggregation `TutorialGenerated.ml` (`let all : Tutorial.spec list`). That
 `all` is appended to `lessons` in
@@ -25,12 +25,17 @@ gen-tutorial-clean` wipes the generated files.
 
 ## File format
 
-A plain Hazel program, optionally split by marker lines that are *exactly*:
+The `.hzt` extension marks this format: prose plus marker sections, NOT a
+Hazel program (a `.hz` file anywhere in the repo must parse, and these do
+not). A lesson that IS just a program can be a plain `.hz` file —
+`gen-tutorial` reads both.
+
+Marker lines are *exactly*:
 
 | marker | maps to | notes |
 |---|---|---|
 | `@prompt` | `prompt` | markdown for the instructions panel |
-| `@code` | `your_impl` | editor contents (parsed with `TextRoundtrip.of_text`) |
+| `@code` | `your_impl` | editor contents (parsed with `MarkerParse.of_text`) |
 | `@test` | `hidden_tests.tests` | defaults to `test true end` |
 | `@hint` | `display_hint` | short one-liner |
 | `@reference` | `task_reference` | markdown for the Task Reference sidebar |

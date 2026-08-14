@@ -12,7 +12,7 @@
  *   ./hazel gen-tutorial-clean   # Remove generated files, restore empty stub
  *   dune build
  *
- * INPUT FORMAT (hazel-programs/tutorial/<NN-name>.hz):
+ * INPUT FORMAT (hazel-programs/tutorial/<NN-name>.hzt):
  *   Plain text split by marker lines that are *exactly*:
  *     @prompt     -> markdown shown in the instructions panel
  *     @code       -> editor contents (your_impl)  [REQUIRED in practice]
@@ -230,8 +230,15 @@ let expand_includes = (body: string): string => {
   |> String.concat("\n");
 };
 
+/* Lesson sources are `.hzt` (marker format: @prompt/@code/... sections
+   with prose, NOT a Hazel program) or plain `.hz` when the whole file is
+   the program. Titles and module names drop either extension. */
+let chop_lesson_ext = (rel: string): string =>
+  Filename.check_suffix(rel, ".hzt")
+    ? Filename.chop_suffix(rel, ".hzt") : Filename.chop_suffix(rel, ".hz");
+
 let module_name_of = (rel: string): string => {
-  let base = Filename.chop_suffix(rel, ".hz");
+  let base = chop_lesson_ext(rel);
   let camel =
     String.split_on_char('/', base)
     |> List.concat_map(String.split_on_char('-'))
@@ -271,7 +278,7 @@ let cap_join = (words: list(string)): string =>
   |> List.map(String.capitalize_ascii)
   |> String.concat(" ");
 let title_of = (rel: string): string => {
-  let segs = String.split_on_char('/', Filename.chop_suffix(rel, ".hz"));
+  let segs = String.split_on_char('/', chop_lesson_ext(rel));
   switch (List.rev(segs)) {
   | [] => ""
   | [last, ...rev_dirs] =>
@@ -310,7 +317,8 @@ let rec find_hz_files = (base: string, rel: string): list(string) => {
          let entry_rel = rel == "" ? entry : rel ++ "/" ++ entry;
          if (Sys.is_directory(full ++ "/" ++ entry)) {
            find_hz_files(base, entry_rel);
-         } else if (Filename.check_suffix(entry, ".hz")) {
+         } else if (Filename.check_suffix(entry, ".hzt")
+                    || Filename.check_suffix(entry, ".hz")) {
            [entry_rel];
          } else {
            [];
@@ -446,7 +454,7 @@ let generate = (): unit => {
   print_endline("Generating tutorial slides from: " ++ input_dir);
   let files = find_hz_files(input_dir, "") |> List.sort(String.compare);
   print_endline(
-    "Found " ++ string_of_int(List.length(files)) ++ " .hz files\n",
+    "Found " ++ string_of_int(List.length(files)) ++ " lesson files\n",
   );
   let modules =
     List.mapi((i, f) => generate_ml_file(i, f), files)

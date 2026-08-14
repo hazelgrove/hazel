@@ -25,13 +25,13 @@ tasks feel natural.
 ## The one-track finding (build mechanics)
 There are **not** two slide systems to merge. Alexander's basics and the probe
 slides already compile from the same Tutorial track
-(`hazel-programs/tutorial/**.hz` → `./hazel gen-tutorial` → one flat `lessons`
+(`hazel-programs/tutorial/**.hzt` → `./hazel gen-tutorial` → one flat `lessons`
 list). **Slide order is the alphabetical sort of filenames.** So reordering and
 interleaving is renaming files plus regenerating. There is no hard gate either:
 the Next button is always enabled; hidden tests only flip a cosmetic checkmark.
 
 **Chosen layout.** Build the conjoined sequence as a flat numbered set under
-`hazel-programs/tutorial/conjoined/NN-name.hz`, and point `gen-tutorial`'s
+`hazel-programs/tutorial/conjoined/NN-name.hzt`, and point `gen-tutorial`'s
 `input_dir` at that subdir. The original `basics/`, `probes/`, `archive/` dirs
 stay in place as **reference sources** (no longer generated). Reversible: revert
 one line in `src/CLI/GenTutorial.re`. Titles come out flat ("01 - Holes").
@@ -159,7 +159,7 @@ deep mapi-on-2D-grid practice (only referenced), compound booleans `&& || !`.
 
 ## Status (2026-05-31)
 Built and served (vite, port 8744). The ordered sequence is **20 slides** in
-`hazel-programs/tutorial/conjoined/` (those `.hz` files are the source of truth;
+`hazel-programs/tutorial/conjoined/` (those `.hzt` files are the source of truth;
 the per-slide prose in `conjoined-tutorial-overview.md` predates this revision
 and is stale for Acts 0-1).
 

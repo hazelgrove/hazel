@@ -99,7 +99,8 @@ let write_all = (dir: string): unit => {
     Web.TutorialSettings.lessons |> List.filter(s => !is_generated(s));
   List.iteri(
     (i, spec) => {
-      let name = Printf.sprintf("%02d-%s.hz", i + 1, kebab(title_of(spec)));
+      let name =
+        Printf.sprintf("%02d-%s.hzt", i + 1, kebab(title_of(spec)));
       Core.Out_channel.write_all(
         dir ++ "/" ++ name,
         ~data=decode_spec(spec),

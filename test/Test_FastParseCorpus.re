@@ -50,26 +50,6 @@ let known_gaps: list((string, string)) = [
   ),
 ];
 
-/* Tutorial-mode sources (hazel-programs/tutorial/, see its README) are
-   not Hazel programs: they are @prompt/@code/@test/@hint/@hints/
-   @reference/@flags sections carrying markdown prose, compiled into
-   lessons by `./hazel gen-tutorial`. Both corpus walks skip them. A
-   marker line is exactly one of those tokens (b2t2 programs contain
-   `@<Type>` application lines, which must not match). */
-let tutorial_markers = [
-  "@prompt",
-  "@code",
-  "@test",
-  "@hint",
-  "@hints",
-  "@reference",
-  "@flags",
-];
-
-let is_tutorial_source = (text: string): bool =>
-  String.split_on_char('\n', text)
-  |> List.exists(line => List.mem(String.trim(line), tutorial_markers));
-
 let tests = (
   "FastParseCorpus",
   [
@@ -80,8 +60,7 @@ let tests = (
         let files =
           ["hazel-programs", "../hazel-programs"]
           |> List.concat_map(find_hz)
-          |> List.sort_uniq(compare)
-          |> List.filter(path => !is_tutorial_source(read_file(path)));
+          |> List.sort_uniq(compare);
         let t0 = Sys.time();
         let (ok, bail, worst) =
           List.fold_left(

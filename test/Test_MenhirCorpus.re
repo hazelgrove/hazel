@@ -76,7 +76,8 @@ let equal_terms =
       exp
   );
 
-let check_program = (path: string, txt: string): unit => {
+let check_file = (path: string): unit => {
+  let txt = read_file(path) |> String.trim;
   let mk =
     switch (Parser.to_zipper(txt, ~root=Exp)) {
     | Some(z) => Some(MakeTerm.from_zip_for_sem(z, ~root=Exp).term)
@@ -102,16 +103,6 @@ let check_program = (path: string, txt: string): unit => {
     fail("menhir rejects " ++ path ++ ": " ++ err)
   | (None, _, None) => () /* editor parser rejects it too; out of scope */
   };
-};
-
-/* Tutorial-mode sources are lesson text (markdown prose in
-   @prompt/@code/... sections), not programs — see
-   Test_FastParseCorpus.is_tutorial_source and
-   hazel-programs/tutorial/README.md. */
-let check_file = (path: string): unit => {
-  let txt = read_file(path) |> String.trim;
-  Test_FastParseCorpus.is_tutorial_source(txt)
-    ? () : check_program(path, txt);
 };
 
 let tests = (

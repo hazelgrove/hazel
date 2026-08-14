@@ -14,12 +14,14 @@ hazel-programs/
 │   ├── writing/     # Sketch/solution pairs for program writing tasks
 │   └── tutorial/    # Study tutorial slides
 ├── study-old/       # Earlier study programs, kept for reference (not shipped)
-└── tutorial/        # Tutorial-mode lesson sources (see tutorial/README.md)
+└── tutorial/        # Tutorial-mode lesson sources, .hzt (see tutorial/README.md)
 ```
 
 ## File Format
 
 Hazel programs use the `.hz` extension and contain plain text Hazel syntax.
+Every `.hz` file here must parse (the corpus tests check that). Tutorial
+lesson sources, which mix prose with `@`-marker sections, use `.hzt`.
 
 ```hazel
 # Example: recursive function (requires arrow type annotation)
