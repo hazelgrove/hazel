@@ -150,7 +150,7 @@ let operator_chars = ascii_operator_chars ++ unicode_operator_chars;
 
 /* Neither class: delimiters, whitespace, control characters, and the
  * implicit-hole marker. ¿ is excluded so a decoded slide like `[1, ¿, 3]`
- * doesn't merge `¿,` into one token; see Haz3lcore.TextRoundtrip. */
+ * doesn't merge `¿,` into one token; see Haz3lcore.MarkerParse. */
 let excluded_chars = {|"`#¿\s\x00-\x1F\x7F\[\]\(\)\{\}|};
 
 /* Names are the complement, so `é 日 😀 © ✓ λ` all behave alike and a
@@ -192,7 +192,7 @@ let is_potential_token = t =>
     t == "()"
     || t == "[]"
     || t == "{}"
-    || t == "¿"  /* implicit-hole marker; see Haz3lcore.TextRoundtrip */
+    || t == "¿"  /* implicit-hole marker; see Haz3lcore.MarkerParse */
     || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
@@ -344,7 +344,7 @@ let llm_advanced_reasoning_hole = "?a";
 let is_explicit_hole = t => t == explicit_hole;
 
 /* Implicit-hole marker: the textual stand-in for a Grout piece used by
- * Haz3lcore.TextRoundtrip so decode|encode round-trips preserve Grout
+ * Haz3lcore.MarkerParse so decode|encode round-trips preserve Grout
  * positions. A single non-identifier, non-operator character that the
  * tokeniser treats as its own atomic token (won't glue with adjacent
  * commas, semicolons, or identifiers). */
@@ -355,6 +355,12 @@ let is_llm_hole = t => t == llm_hole || t == llm_advanced_reasoning_hole;
 /* Projector invocation textual syntax */
 let projector_invoke_prefix = "^^";
 
+/* Strip the `^^` prefix, yielding the invoke body — option suffix and all,
+   unlike of_projector_invoke_base below. No validation; that is
+   is_projector_invoke's job.
+     "^^probe_table" ==> Some("probe_table")   (base gives Some("probe"))
+     "^^p"           ==> Some("p")   (no such kind; still stripped)
+     "let" / "^^"    ==> None */
 let of_projector_invoke = (input: t): option(t) =>
   if (starts_with(~prefix=projector_invoke_prefix, input)
       && length(input) > 2) {
@@ -363,12 +369,55 @@ let of_projector_invoke = (input: t): option(t) =>
     None;
   };
 
+/* A `_opt` suffix on the invoke body is a trigger OPTION (e.g. the
+   probe renderer in `^^probe_table`) — stripped for validity; Triggers
+   parses the option itself. `_` is safe: no kind name contains one,
+   and it merges into a single editor token. Splits on the FIRST `_`;
+   whatever follows is the option verbatim.
+     "probe"       ==> ("probe", None)
+     "probe_table" ==> ("probe", Some("table"))
+     "probe_a_b"   ==> ("probe", Some("a_b")) */
+let split_invoke_opt = (body: t): (t, option(t)) =>
+  switch (StringUtil.split_first(~on='_', body)) {
+  | Some((base, opt)) => (base, Some(opt))
+  | None => (body, None)
+  };
+
+/* The option a trigger token selects, if it carries one.
+   "^^probe_table" ==> Some("table")
+   "^^probe"       ==> None
+   "let"           ==> None   (not a trigger at all) */
+let of_projector_invoke_opt = (input: t): option(t) =>
+  Option.bind(of_projector_invoke(input), body =>
+    snd(split_invoke_opt(body))
+  );
+
+/* The kind name a trigger token names, with any option stripped.
+   "^^probe_table" ==> Some("probe")
+   "^^probe"       ==> Some("probe")
+   "let"           ==> None   (not a trigger at all) */
+let of_projector_invoke_base = (input: t): option(t) =>
+  Option.map(
+    body => fst(split_invoke_opt(body)),
+    of_projector_invoke(input),
+  );
+
+/* Does this token name a known projector kind? Checks the WHOLE body, so a
+   trigger carrying an option fails here even though its base names a kind
+   — Triggers.is_refractor_trigger is the option-aware counterpart, which
+   is why Triggers.expand_projector tries the refractor arm first.
+     "^^probe" / "^^slider" ==> true
+     "^^probe_table"        ==> false  (no kind is named "probe_table")
+     "^^p" / "let" / "^^"   ==> false */
 let is_projector_invoke = (str: t): bool =>
   switch (of_projector_invoke(str)) {
   | Some(name) => ProjectorCore.Kind.is_name(name)
   | None => false
   };
 
+/* The trigger token naming a kind. Never carries an option suffix; callers
+   that want one (Triggers.refractor_to_invoke) append `_opt` themselves.
+     Probe ==> "^^probe" */
 let mk_projector_invoke = (kind: ProjectorCore.Kind.t): string =>
   append(projector_invoke_prefix, ProjectorCore.Kind.name(kind));
 

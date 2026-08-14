@@ -2,6 +2,20 @@
 open Lexing
 open Parser
 
+(* Innermost-open-delimiter stack: Hazel disambiguates `;` by sort —
+   directly inside module/signature braces it is the item separator,
+   anywhere else (incl. inside parens/brackets nested in braces) it is
+   the Seq operator. Track it here so the parser sees two tokens.
+   NB stateful across lexbufs is fine: each parse starts fresh via
+   reset_delims from Interface. *)
+let delim_stack : char list ref = ref []
+let reset_delims () = delim_stack := []
+let push_delim c = delim_stack := c :: !delim_stack
+let pop_delim () =
+  match !delim_stack with [] -> () | _ :: tl -> delim_stack := tl
+let semi_token () =
+  match !delim_stack with '{' :: _ -> MOD_SEMI | _ -> SEMI_COLON
+
 let advance_line lexbuf =
   let pos = lexbuf.lex_curr_p in
   let pos' = { pos with
@@ -24,7 +38,7 @@ let float = ['0'-'9']+ '.' ['0'-'9']*
 (* negative ints are done through unop *)
 let int = ['0'-'9'] ['0'-'9']*
 
-let string = '"' ([^ '"' '\\'] | '\\' ['"' '\\'])* '"'
+let string = '"' ([^ '"' '\\'] | '\\' _)* '"'
 let quoted_label = '`' ([^ '`' '\\'] | '\\' [''' '\\'])* '`'
 
 let newline = '\r' | '\n' | "\r\n"
@@ -52,16 +66,21 @@ let whitespace = [' ' '\t']+
    of lexing as a name. The editor's regexes work on decoded codepoints, so
    malformed bytes were never a name there either.
 
-   Known divergences, both pre-existing and both in the safe direction (this
-   lexer accepts a superset of the editor's names, so every name the editor
-   accepts round-trips): a name starting with a non-ASCII UPPERCASE letter
-   (`Ćtr`) is a constructor in the editor but lexes as an identifier here,
-   because `constructor_ident` cannot test the case of a multi-byte character;
-   and the characters the editor puts in NEITHER class -- Unicode whitespace
-   like U+00A0, and the implicit-hole marker `¿` -- lex as name characters
-   here. *)
+   The implicit-hole marker `¿` (c2 bf) is subtracted for the same reason:
+   the editor puts it in neither class, so it is always its own token there,
+   and the QUESTION rule below must win over `identifier` even when the
+   marker abuts a name (`x¿`). Without the subtraction the fast path would
+   lex that as one IDENT and silently disagree with the editor.
+
+   Known divergences, all rooted in the same limitation: ocamllex cannot
+   test the case of a multi-byte character, so a name starting with a
+   non-ASCII UPPERCASE letter is a constructor in the editor but lexes as an
+   identifier here (`Ćtr`), and `^Ć` lexes as a livelit here though the
+   editor requires a non-uppercase start. Unicode whitespace like U+00A0
+   likewise lexes as a name character here, where the editor puts it in
+   neither class. *)
 let cont = ['\128'-'\191']
-let utf8_2 = ['\194'-'\223'] cont
+let utf8_2 = ['\195'-'\223'] cont | '\194' (cont # ['\191'])
 let utf8_4 = ['\240'-'\244'] cont cont cont
 let utf8_3 =
     (['\224'-'\239'] # ['\226']) cont cont
@@ -72,22 +91,30 @@ let utf8_3 =
 let nonascii = utf8_2 | utf8_3 | utf8_4
 let name_start = ['a'-'z' '_'] | nonascii
 let name_rest = ['a'-'z' 'A'-'Z' '0'-'9' '_'] | nonascii
-let identifier = name_start name_rest*
+(* `'` continues a variable but not a constructor, as in the editor. *)
+let var_rest = name_rest | '\''
+let identifier = name_start var_rest*
 let constructor_ident = ['A'-'Z'] name_rest*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
 let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
+(* Same name alphabet as `identifier`, minus `'`, matching Token.is_livelit:
+   `^é` is a livelit in the editor, so it must be one token here too. *)
+let livelit_ident = '^' name_start name_rest*
+let comment = '#' [^ '#' '\n']* '#'
 
 rule token = 
     parse 
     | "undef" { UNDEF}
     | whitespace {token lexbuf }
+    | comment { token lexbuf }
     | newline { advance_line lexbuf; token lexbuf}
-    | ints as i { INT (int_of_string i) }
+    | ints as i { INT (Bigint.of_string i) }
     | float as f { FLOAT (parse_float_string f )}
     | string as s { STRING (String.sub s 1 (String.length s - 2)) }
     | quoted_label as l { QUOTED_LABEL (String.sub l 1 (String.length l - 2)) }
     | projector_invoke as p { PROJECTOR_INVOKE p }
+    | livelit_ident as l { LIVELIT_IDENT l }
     | "true" { TRUE }
     | "false" { FALSE }
     | "module" { MODULE }
@@ -99,14 +126,14 @@ rule token =
     | "if" { IF }
     | "then" { THEN }
     | "else" { ELSE }
-    | "[" { OPEN_SQUARE_BRACKET }
-    | "]" { CLOSE_SQUARE_BRACKET }
-    | "(" { OPEN_PAREN }
-    | ")" { CLOSE_PAREN }
-    | "{{{" { OPEN_TRIPLE_CURLY }
-    | "}}}" { CLOSE_TRIPLE_CURLY }
-    | "{" { OPEN_CURLY }
-    | "}" { CLOSE_CURLY }
+    | "[" { push_delim '['; OPEN_SQUARE_BRACKET }
+    | "]" { pop_delim (); CLOSE_SQUARE_BRACKET }
+    | "(" { push_delim '('; OPEN_PAREN }
+    | ")" { pop_delim (); CLOSE_PAREN }
+    | "{{{" { push_delim 't'; OPEN_TRIPLE_CURLY }
+    | "}}}" { pop_delim (); CLOSE_TRIPLE_CURLY }
+    | "{" { push_delim '{'; OPEN_CURLY }
+    | "}" { pop_delim (); CLOSE_CURLY }
     | "->" { DASH_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
@@ -147,6 +174,8 @@ rule token =
     | "," { COMMA }
     | ":" { COLON }
     (* Types *)
+    | "SInt" { SINT_TYPE }
+    | "Nat" { NAT_TYPE }
     | "Int" { INT_TYPE }
     | "Float" { FLOAT_TYPE }
     | "Bool" { BOOL_TYPE }
@@ -162,13 +191,17 @@ rule token =
     | "hide" {HIDE}
     | "eval" {EVAL}
     (* Other *)
-    | ";" {SEMI_COLON}
+    | ";" { semi_token () }
     | "test" {TEST}
+    | "hint" {HINT}
+    | "|>" { PIPELINE }
     | "::" { CONS }
     | "@<" {TYP_AP_SYMBOL}
     | "@" {AT_SYMBOL}
     | "?" {QUESTION}
+    | "\xc2\xbf" {QUESTION} (* ¿ implicit-hole marker (TextRoundtrip) *)
     | "_" {WILD}
+    | "use" {USE}
     | "fix" {FIX}
     | "typfun" {TYP_FUN}
     | "type" {TYP}
