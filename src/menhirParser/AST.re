@@ -904,7 +904,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | Label(l) =>
           shrink_non_empty_string(l) >|= ((l: string) => Label(l))
-        | ExplicitNonlabel => return(ExplicitNonlabel: exp)
+        | ExplicitNonlabel => Iter.empty
         | TupLabel(e1, e2) =>
           {
             return(
@@ -1243,7 +1243,7 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           }
         | LabelPat(l) =>
           shrink_non_empty_string(l) >|= ((l: string) => LabelPat(l))
-        | ExplicitNonlabel => return(ExplicitNonlabel: pat)
+        | ExplicitNonlabel
         | InvalidPat(_)
         | IndicationPat(_)
         | WildPat
@@ -1323,7 +1323,7 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             let* shrunk = shrink_typ(t);
             return(RecType(tpat, shrunk));
           }
-        | ExplicitNonlabel => return(ExplicitNonlabel: typ)
+        | ExplicitNonlabel => Iter.empty
         | ProofOfType(e) =>
           let* shrunk = shrink_exp(e);
           return(ProofOfType(shrunk));
