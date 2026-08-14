@@ -11,6 +11,7 @@ let dhexp_typ =
       equality({
         ...syntactic_settings,
         ignore_parens: true,
+        ignore_projectors: true,
         ignore_unknown_provenance: true,
       })
     ).
