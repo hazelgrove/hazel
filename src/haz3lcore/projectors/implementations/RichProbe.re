@@ -31,6 +31,10 @@ module type RichProbe = {
   /* Initialize the probe's state from a parsed value. Assumes value is valid. */
   let init: value => model;
 
+  /* Height in editor rows when the rendering replaces the sample view in
+     the drawer, so the framework can reserve the right number of lines. */
+  let drawer_rows: value => int;
+
   let badge: Node.t;
 
   let render:
@@ -70,6 +74,7 @@ type packed_renderer = {
   can_handle: (Sort.t, Exp.t) => bool,
   init_model: (Sort.t, Exp.t) => option(packed_model),
   update_model: (packed_model, packed_action) => packed_model,
+  drawer_rows: (Sort.t, Exp.t) => option(int),
   render_model:
     (
       packed_model,
@@ -138,6 +143,8 @@ let pack_renderer =
     can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
     init_model: (sort, exp) =>
       R.parse(sort, exp) |> Option.map(v => PModel(id, model_id, R.init(v))),
+    drawer_rows: (sort, exp) =>
+      R.parse(sort, exp) |> Option.map(R.drawer_rows),
     update_model: (pm, pa) =>
       switch (cast_model(pm), cast_action(pa)) {
       | (Some(m), Some(a)) => PModel(id, model_id, R.update(m, a))

@@ -303,7 +303,8 @@ module DrawerHeight = {
     row_count(pretty_seg_of_value(utility, ~width, sample.value));
   };
 
-  let compute = (info: info): int =>
+  /* Uncapped content height in rows. */
+  let content_rows = (info: info): int =>
     switch (info.dynamics, info.statics) {
     | (Some(dynamics), Some(statics)) =>
       let settings = Settings.s^;
@@ -313,10 +314,12 @@ module DrawerHeight = {
       | [] => 1
       | _ =>
         let heights = List.map(sample_rows(info.utility), samples);
-        min(max_rows, List.fold_left(max, 1, heights));
+        List.fold_left(max, 1, heights);
       };
     | _ => 1
     };
+
+  let compute = (info: info): int => min(max_rows, content_rows(info));
 };
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
@@ -1811,6 +1814,12 @@ let live_offside_view =
       ~display: sample_display,
       ~include_nav_bar: bool,
       ~drawer_mode_active: bool,
+      /* When set (drawer mode, rich renderer active), replaces the sample
+       * views entirely — the drawer shows the rich rendering instead. */
+      ~rich_content: option(Node.t)=None,
+      /* Content taller than the drawer cap; gates the wrapper's
+       * scroll-affordance fade via the drawer-overflow class. */
+      ~scrollable: bool=false,
       data: offside_data,
       local,
       view_seg: View.seg,
@@ -1820,7 +1829,8 @@ let live_offside_view =
   let {ctx, id, num_total, num_shown, groups, is_cursor_aligned, empty_status} = data;
   let base_classes =
     ["live-offside", settings.window |> Sample.Window.show_mode]
-    @ (Settings.sticky^ ? ["sticky"] : []);
+    @ (Settings.sticky^ ? ["sticky"] : [])
+    @ (scrollable ? ["drawer-overflow"] : []);
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
     ~menu_open=Settings.open_dropdown^ != None,
@@ -1841,9 +1851,10 @@ let live_offside_view =
         base_classes @ (drawer_mode_active ? ["drawer-mode"] : []),
       ),
     ],
-    switch (empty_status) {
-    | Some(status) => [empty_status_view(ctx, ~status, local)]
-    | None =>
+    switch (empty_status, rich_content) {
+    | (Some(status), _) => [empty_status_view(ctx, ~status, local)]
+    | (None, Some(content)) => [content]
+    | (None, None) =>
       /* single_line follows the display mode (Block has real linebreaks). */
       let single_line =
         switch (display) {
@@ -1913,6 +1924,86 @@ let get_current = (~settings, info: info) => {
   };
 };
 
+/* The active rich renderer's rendering of the indicated sample's value,
+ * if that renderer still applies to it. */
+let rich_content =
+    (
+      ~settings,
+      model: probe_model,
+      info: info,
+      ~local: action => Ui_effect.t(unit),
+      ~parent,
+      ~view_seg,
+      ~sort,
+    )
+    : option(Node.t) =>
+  switch (model.active_renderer, get_current(~settings, info)) {
+  | (Some(pm), Some(exp)) =>
+    switch (find(RichProbe.renderer_id_of_model(pm))) {
+    | Some(renderer) when renderer.can_handle(sort, exp) =>
+      renderer.render_model(
+        pm,
+        ~info,
+        ~exp,
+        ~view_seg,
+        ~local=pa => local(RendererAction(pa)),
+        ~parent,
+        ~sort,
+        (),
+      )
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* Chrome around a rich rendering replacing the drawer's sample view.
+ * `overflowing` marks content taller than the reserved rows, letting CSS
+ * keep `.below-wrapper`'s overflow clip (for scrolling) only when needed —
+ * otherwise the clip would cut off the table's column menus. */
+let rich_drawer_view =
+    (
+      ~local: action => Ui_effect.t(unit),
+      ~overflowing: bool,
+      content: Node.t,
+    )
+    : Node.t =>
+  div(
+    ~attrs=[
+      Attr.classes(["rich-drawer"] @ (overflowing ? ["overflowing"] : [])),
+    ],
+    [
+      div(
+        ~attrs=[
+          Attr.classes(["rich-drawer-close"]),
+          Attr.title("Close"),
+          Attr.on_click(_ => local(ToggleModal(None))),
+        ],
+        [text("×")],
+      ),
+      content,
+    ],
+  );
+
+/* Rows the active rich renderer wants in the drawer, when it applies to
+ * the indicated value. */
+let rich_drawer_rows = (model: probe_model, info: info): option(int) =>
+  switch (model.active_renderer) {
+  | None => None
+  | Some(pm) =>
+    let sort =
+      switch (info.statics) {
+      | Some(statics) => Language.Statics.Info.sort_of(statics)
+      | None => Sort.Exp
+      };
+    switch (
+      find(RichProbe.renderer_id_of_model(pm)),
+      get_current(~settings=Settings.s^, info),
+    ) {
+    | (Some(r), Some(exp)) => r.drawer_rows(sort, exp)
+    | _ => None
+    };
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
 
@@ -1957,9 +2048,14 @@ module M: Projector = {
 
   let placeholder = (model: model, info) =>
     if (model.drawer_mode) {
+      let rows =
+        switch (rich_drawer_rows(model, info)) {
+        | Some(n) => min(DrawerHeight.max_rows, n)
+        | None => DrawerHeight.compute(info)
+        };
       ProjectorCore.Shape.{
         horizontal: 0,
-        vertical: Tab(DrawerHeight.compute(info)),
+        vertical: Tab(rows),
       };
     } else {
       ProjectorCore.Shape.default;
@@ -2044,52 +2140,34 @@ module M: Projector = {
         ~sort,
       )
       : list(Node.t) => {
-    switch (model.active_renderer, get_current(~settings, info)) {
-    | (Some(pm), Some(exp)) =>
-      let rid = RichProbe.renderer_id_of_model(pm);
-      switch (find(rid)) {
-      | Some(renderer) when renderer.can_handle(sort, exp) =>
-        let rendered =
-          renderer.render_model(
-            pm,
-            ~info,
-            ~exp,
-            ~view_seg,
-            ~local=pa => local(RendererAction(pa)),
-            ~parent,
-            ~sort,
-            (),
-          );
-        switch (rendered) {
-        | None => []
-        | Some(content) => [
+    switch (
+      rich_content(~settings, model, info, ~local, ~parent, ~view_seg, ~sort)
+    ) {
+    | None => []
+    | Some(content) => [
+        div(
+          ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
+          [
             div(
-              ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
+              ~attrs=[
+                Attr.classes(["modal"]),
+                Attr.on_click(_ => Effect.Stop_propagation),
+              ],
               [
                 div(
                   ~attrs=[
-                    Attr.classes(["modal"]),
-                    Attr.on_click(_ => Effect.Stop_propagation),
+                    Attr.classes(["modal-close-btn"]),
+                    Attr.title("Close"),
+                    Attr.on_click(_ => local(ToggleModal(None))),
                   ],
-                  [
-                    div(
-                      ~attrs=[
-                        Attr.classes(["modal-close-btn"]),
-                        Attr.title("Close"),
-                        Attr.on_click(_ => local(ToggleModal(None))),
-                      ],
-                      [text("×")],
-                    ),
-                    content,
-                  ],
+                  [text("×")],
                 ),
+                content,
               ],
             ),
-          ]
-        };
-      | _ => []
-      };
-    | _ => []
+          ],
+        ),
+      ]
     };
   };
 
@@ -2123,16 +2201,46 @@ module M: Projector = {
         )
       | (Some(data), true) => nav_bar_wrapper_view(data, ~settings)
       };
-    let modal_nodes =
-      modal_overlay(
-        ~settings,
-        model,
-        info,
-        ~local,
-        ~parent,
-        ~view_seg,
-        ~sort,
+    /* Content taller than the drawer cap → the drawer scrolls; gates the
+     * wrapper's scroll-affordance fade and the rich view's overflow clip. */
+    let drawer_overflow =
+      drawer
+      && (
+        switch (rich_drawer_rows(model, info)) {
+        | Some(n) => n > DrawerHeight.max_rows
+        | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
+        }
       );
+    /* In drawer mode an active rich renderer replaces the sample view in
+     * the drawer itself; the anchored modal overlay is inline-mode only
+     * (anchored to the nav-bar stub, it renders detached/clipped). */
+    let rich_drawer =
+      drawer
+        ? rich_content(
+            ~settings,
+            model,
+            info,
+            ~local,
+            ~parent,
+            ~view_seg,
+            ~sort,
+          )
+          |> Option.map(content =>
+               rich_drawer_view(~local, ~overflowing=drawer_overflow, content)
+             )
+        : None;
+    let modal_nodes =
+      drawer
+        ? []
+        : modal_overlay(
+            ~settings,
+            model,
+            info,
+            ~local,
+            ~parent,
+            ~view_seg,
+            ~sort,
+          );
     /* Wrap in a div only when the modal is open, to avoid an extra DOM level
      * around the positioned .live-offside otherwise. */
     let offside_node =
@@ -2152,6 +2260,8 @@ module M: Projector = {
               ~display=Block,
               ~include_nav_bar=false,
               ~drawer_mode_active=true,
+              ~rich_content=rich_drawer,
+              ~scrollable=drawer_overflow,
               data,
               local,
               view_seg,

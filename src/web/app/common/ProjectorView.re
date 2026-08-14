@@ -328,6 +328,11 @@ let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
   div(
     ~attrs=[
       Attr.classes(["below-wrapper"]),
+      /* Gates the scroll-affordance fade (proj-probe.css .at-bottom). */
+      Attr.on_scroll(evt => {
+        JsUtil.sync_at_bottom_class(evt);
+        Effect.Ignore;
+      }),
       Attr.create(
         "style",
         Printf.sprintf(

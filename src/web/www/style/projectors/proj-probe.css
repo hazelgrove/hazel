@@ -772,6 +772,100 @@
   overflow: hidden auto;
 }
 
+/* Persistent-when-overflowing scrollbar (Chromium/Safari). NB: setting
+ * scrollbar-width/color here would make Chromium ignore these rules and
+ * auto-hide the bar entirely. */
+.below-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+
+.below-wrapper::-webkit-scrollbar-thumb {
+  background-color: var(--BR2);
+  border-radius: 4px;
+}
+
+/* Firefox has no ::-webkit-* support; color its (overlay) scrollbar. */
+@supports (-moz-appearance: none) {
+  .below-wrapper {
+    scrollbar-width: thin;
+    scrollbar-color: var(--BR2) transparent;
+  }
+}
+
+/* Scroll affordance. The stripe spans the pane's full scroll width, so
+ * the native scrollbar at its right edge is usually off-screen. Instead,
+ * pin a fade to the scrollport bottom (sticky both axes: `bottom` against
+ * the wrapper's own vertical scroll, `left` against the pane's horizontal
+ * scroll) while more content is below. The wrapper's scroll listener
+ * (JsUtil.sync_at_bottom_class) maintains .at-bottom; `drawer-overflow`
+ * is set by ProbeProj when content exceeds the drawer cap. */
+.below-wrapper:has(.drawer-overflow)::after {
+  content: "";
+  display: block;
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  width: 100vw;
+  height: 22px;
+  margin-top: -22px;
+  background: linear-gradient(transparent, oklch(45% 0.06 89.74 / 0.4));
+  pointer-events: none;
+  z-index: calc(var(--projector-z) + 5);
+}
+
+.below-wrapper.at-bottom::after {
+  display: none;
+}
+
+/* --- Rich (table) view replacing the drawer's sample view --- */
+
+.below-wrapper .rich-drawer {
+  position: relative;
+}
+
+/* Zebra rows alternate with the code background color; the inline modal's
+ * drop shadow keeps a background-colored last row from blending into the
+ * page, but the drawer has no shadow — close the table with a
+ * zebra-colored bottom edge instead. */
+.below-wrapper .rich-drawer table.table {
+  border-bottom: 1px solid var(--df-zebra-bg);
+}
+
+/* Reserved rows match content exactly when the rich view fits, so nothing
+ * scrolls; release the clip so the table's column menus can escape the
+ * stripe. `.overflowing` (content taller than the cap) keeps the clip to
+ * stay scrollable — menus there have room within the 15-row stripe. */
+.below-wrapper:has(.rich-drawer:not(.overflowing)) {
+  overflow: visible;
+}
+
+/* Keep headers in view while a tall rich drawer scrolls (sticks to the
+ * scroll container, .below-wrapper). */
+.below-wrapper .rich-drawer.overflowing .table th {
+  position: sticky;
+  top: 0;
+}
+
+.below-wrapper .rich-drawer .rich-drawer-close {
+  position: absolute;
+  top: 0;
+  right: -18px;
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--BR2);
+  cursor: pointer;
+  user-select: none;
+  z-index: calc(var(--projector-z) + 10);
+}
+
+.below-wrapper .rich-drawer .rich-drawer-close:hover {
+  color: var(--R1);
+}
+
 /* line-numbers zero .code-editor padding-left, so keep the stripe at col 0 */
 .has-line-numbers .below-wrapper {
   margin-left: 0;
