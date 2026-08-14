@@ -248,6 +248,23 @@ let read_clipboard = (on_text: string => unit): unit =>
     );
   };
 
+/* Maintains an `at-bottom` class on a scroll container from its scroll
+ * events. Direct classList mutation, no vdom round-trip; used by the probe
+ * drawer's scroll-affordance fade (proj-probe.css). */
+let sync_at_bottom_class = (evt: Js.t(Dom_html.event)): unit =>
+  switch (Js.Opt.to_option(evt##.currentTarget)) {
+  | None => ()
+  | Some(el) =>
+    /* Tolerance: scrollTop is truncated from a sub-pixel position. */
+    let at_bottom =
+      el##.scrollTop + el##.clientHeight >= el##.scrollHeight - 2;
+    if (at_bottom) {
+      el##.classList##add(Js.string("at-bottom"));
+    } else {
+      el##.classList##remove(Js.string("at-bottom"));
+    };
+  };
+
 let element_to_node = (element: Js.t(Dom_html.element)): Js.t(Dom.node) =>
   Js.Unsafe.coerce(element);
 
