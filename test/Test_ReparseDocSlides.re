@@ -1,6 +1,8 @@
-/* Structural reparse check: parse(slide.backup_text) ≡ original segment.
- * Complements Test_TextRoundtrip's text fixed-point — segment equality
- * catches shape divergences that the text projection would hide. */
+/* Load-path fidelity for every SHIPPED slide, through the real slide
+ * registry (Init.startup — Datasheet, persistence wrappers and all,
+ * which the raw-file corpus scans can't see): the load path reproduces
+ * the committed text byte-for-byte, and when the fast path succeeds it
+ * reads the same term as the typing parse. */
 
 open Web;
 open Alcotest;
@@ -8,55 +10,58 @@ open Haz3lcore;
 open EditingPrelude;
 
 let doc_slides: list((string, CellEditor.Model.persistent)) =
-  snd(Init.startup.documentation);
+  snd(Lazy.force(Init.startup).documentation);
 
 let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
   test_case(
     name,
     `Slow,
     () => {
-      let reparsed_segment =
-        switch (Parser.to_segment(slide.editor.zipper.backup_text, ~root=Exp)) {
-        | Some(seg) => seg
-        | None =>
-          Alcotest.fail("Failed to parse segment from slide backup text")
-        };
-
-      let original_segment =
-        Sexplib.Sexp.of_string(slide.editor.zipper.zipper)
-        |> Zipper.t_of_sexp
-        |> Zipper.unselect_and_zip(~erase_buffer=true);
-
-      print_endline(
-        "Original segment: "
-        ++ Segment.to_string(
-             original_segment,
-             ~projector_to_segment=_ => [],
-             ~refractor_seg_to_seg=(r, s) => (r, s),
-           ),
-      );
-      print_endline(
-        "Reparsed segment: "
-        ++ Segment.to_string(
-             reparsed_segment,
-             ~projector_to_segment=_ => [],
-             ~refractor_seg_to_seg=(r, s) => (r, s),
-           ),
-      );
-
+      /* All shipped slides are text-backed (committed .hz): no stored
+         sexp, and structural segment equality would be the wrong bar
+         anyway — projector MODELS embed freshly-minted ids per
+         materialization. The meaningful contract is text-level. */
+      let text = slide.editor.zipper.backup_text;
+      let z = PersistentZipper.from_backup_text(text, ~root=Exp);
       check(
-        segment,
-        "Reparsing " ++ name ++ " backup_text produces equivalent segment",
-        original_segment,
-        reparsed_segment,
+        string,
+        name ++ ": load path reproduces the committed text",
+        String.trim(text),
+        String.trim(MarkerParse.to_text(z)),
       );
+      switch (
+        FastParse.of_text(
+          ~materialize=Triggers.invoked_projector,
+          ~collect_refractors=true,
+          ~root=Exp,
+          String.trim(text),
+        ),
+        Parser.to_segment(text, ~root=Exp),
+      ) {
+      | (None, _) => () /* fallback slide (menhir gap): fidelity checked above */
+      | (Some(_), None) =>
+        Alcotest.fail("Failed to parse segment from slide backup text")
+      | (Some(fast_segment), Some(reparsed_segment)) =>
+        check(
+          bool,
+          name ++ ": fast and typing parses read the same term",
+          true,
+          Language.Equality.(
+            equality({
+              ...syntactic_settings,
+              ignore_parens: false,
+            }).
+              exp
+          )(
+            MakeTerm.go(fast_segment).term,
+            MakeTerm.go(reparsed_segment).term,
+          ),
+        )
+      };
     },
   );
 };
 
 let tests = [
-  (
-    "DocSlides.ReparseBackuptext",
-    List.map(doc_slide_reparses, List.tl(doc_slides)) // Dropping the first basic reference slide to avoid the issue with whitespace shifting around convex grout
-  ),
+  ("DocSlides.ReparseBackuptext", List.map(doc_slide_reparses, doc_slides)),
 ];
