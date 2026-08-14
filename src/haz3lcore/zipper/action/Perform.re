@@ -256,7 +256,7 @@ let rec go =
         |> Option.map(finish)
         |> return(CantPaste);
       };
-    }
+    };
   | Cut =>
     /* System clipboard handling is done in Page.view handlers.
        Deletion can COMPLETE a tile (removing junk between split
