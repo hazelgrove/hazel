@@ -13,6 +13,7 @@ let utility: ProjectorBase.utility = {
         //TODO(andrew): ExpandElements
         ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
         show_unknown_as_hole: false,
+        hole_tiles: false,
         fold_fn_bodies: `NoFold,
         project_tables: false,
       },

@@ -1,0 +1,5 @@
+let i, j =
+^^ExoSlider(66), ^^ExoSlider(72) in
+let value =
+^^ExoBuilder((objects=0, morphisms=0)) in
+(value, (i, j))
