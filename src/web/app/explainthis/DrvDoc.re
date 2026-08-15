@@ -28,6 +28,7 @@ let settings =
     show_ascriptions: false,
     show_unknown_as_hole: false,
     use_literal_lexemes: false,
+    hole_tiles: false,
     project_tables: false,
   };
 

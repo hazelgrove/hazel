@@ -252,6 +252,7 @@ module Make =
           show_filters: true,
           show_unknown_as_hole: true,
           use_literal_lexemes: true,
+          hole_tiles: false,
         },
         term,
         already_parenthesized(z),

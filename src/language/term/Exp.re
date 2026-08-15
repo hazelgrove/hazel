@@ -56,6 +56,7 @@ let fast_equal =
     equality({
       ...syntactic_settings,
       ignore_parens: true,
+      ignore_projectors: true,
     })
   ).
     exp;

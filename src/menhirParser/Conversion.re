@@ -1,5 +1,10 @@
 include Sexplib.Std;
 
+/* Parens exist in the menhir AST only as explicit ParenExp/ParenPat/
+   ParenTyp nodes, and conversion neither invents nor drops them —
+   MakeTerm parity depends on it (a bare tuple/sum/poly stays bare;
+   f(a, b) has a bare arg tuple, f((a, b)) a parenthesized one). */
+
 module IndicatedG =
   Language.Grammar.Factory({
     type t = bool;
@@ -215,13 +220,22 @@ module rec Exp: {
     | InvalidExp(s) => invalid(s)
     | Atom(c) => basic(c)
     | Var(x) => var(x)
+    /* Grammar stores the name caret-less (MakeTerm parity) */
+    | LivelitName(l) => livelit_name(String.sub(l, 1, String.length(l) - 1))
     | Constructor(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
     | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
-    | TupleExp([TupLabel(_) as tl]) => parens(tuple([of_menhir_ast(tl)]))
-    | TupleExp([e]) => parens(of_menhir_ast(e))
-    | TupleExp(e) => parens(tuple(List.map(of_menhir_ast, e)))
+    | ParenExp(TupleExp([TupLabel(_) as tl])) =>
+      parens(tuple([of_menhir_ast(tl)]))
+    | ParenExp(e) => parens(of_menhir_ast(e))
+    | TupleExp([]) => tuple([])
+    /* singleton labeled tuple `(a=1,)`: MakeTerm reads Tuple([TupLabel]),
+       so pre-empt the singleton unwrap below (which would yield a bare
+       TupLabel and diverge — MenhirParser cases 53/87 pin this) */
+    | TupleExp([TupLabel(_) as tl]) => tuple([of_menhir_ast(tl)])
+    | TupleExp([e]) => of_menhir_ast(e)
+    | TupleExp(e) => tuple(List.map(of_menhir_ast, e))
     | TupleExtension(e1, e2) =>
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
@@ -246,13 +260,11 @@ module rec Exp: {
       typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
     | Undefined => undefined()
     | TyAlias(tp, ty, e) =>
-      let ty = Typ.of_menhir_ast(ty);
-      let ty =
-        switch (ty) {
-        | {term: Parens(ty), _} => ty
-        | _ => ty
-        };
-      ty_alias(TPat.of_menhir_ast(tp), ty, of_menhir_ast(e));
+      ty_alias(
+        TPat.of_menhir_ast(tp),
+        Typ.of_menhir_ast(ty),
+        of_menhir_ast(e),
+      )
     | Use(t, e) => use(Typ.of_menhir_ast(t), of_menhir_ast(e))
     | BuiltinFun(s) => builtin_fun(s)
     | Fun(p, e, name_opt) =>
@@ -261,6 +273,9 @@ module rec Exp: {
         fn(Pat.of_menhir_ast(p), of_menhir_ast(e), None, Some(name_str))
       | None => fn(Pat.of_menhir_ast(p), of_menhir_ast(e), None, None)
       }
+    | PipelineExp(e1, e2) =>
+      /* e1 |> e2 reads as applying e2 to e1 (MakeTerm: Ap(Reverse, r, l)) */
+      ap(Language.Operators.Reverse, of_menhir_ast(e2), of_menhir_ast(e1))
     | ApExp(e1, args) =>
       switch (args) {
       | TupleExp(l) =>
@@ -349,7 +364,7 @@ module rec Exp: {
     | Invalid(_) => InvalidExp("Invalid")
     | Atom(c) => Atom(c)
     | Var(x) => Var(x)
-    | LivelitName(_) => InvalidExp("Not supported")
+    | LivelitName(s) => LivelitName("^" ++ s)
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
     | Tuple(l) => TupleExp(List.map(of_core, l))
@@ -366,7 +381,7 @@ module rec Exp: {
       TyAlias(TPat.of_core(tp), Typ.of_core(ty), of_core(e))
     | Use(ty, e) => Use(Typ.of_core(ty), of_core(e))
     | BuiltinFun(s) => BuiltinFun(s)
-    | Ap(Forward, e1, e2) => ApExp(of_core(e1), TupleExp([of_core(e2)]))
+    | Ap(Forward, e1, e2) => ApExp(of_core(e1), of_core(e2))
     | BinOp(op, e1, e2) =>
       BinExp(of_core(e1), Operators.of_core_op_bin(op), of_core(e2))
     | If(e1, e2, e3) => If(of_core(e1), of_core(e2), of_core(e3))
@@ -396,7 +411,7 @@ module rec Exp: {
     | MultiHole([Exp(e)]) => of_core(e) // unwrap single exp multi-holes. just used for label parse failure
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
-    | Parens(e) => of_core(e)
+    | Parens(e) => ParenExp(of_core(e))
     | Constructor(s, typ) =>
       Constructor(s, Option.map(Option.map(Typ.of_core), typ))
     | DeferredAp(e, es) =>
@@ -406,7 +421,7 @@ module rec Exp: {
     | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
-    | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
+    | Ap(Reverse, f, arg) => PipelineExp(of_core(arg), of_core(f))
     /* The menhir parser grammar has no syntax for derivation terms, so
        converting core DrvQuote values back to the menhir AST is not
        meaningful. */
@@ -457,15 +472,18 @@ and Typ: {
     | BoolType => bool()
     | StringType => string()
     | NatType => nat()
-    | VoidType => parens(sum([]))
+    | VoidType => sum([])
     | UnknownType(p) =>
       switch (p) {
       | Internal => unknown(Internal)
       | EmptyHole => unknown(Hole(EmptyHole))
       }
     | TypVar(s) => var(s)
-    | TupleType([t]) => parens(of_menhir_ast(t))
-    | TupleType(ts) => parens(prod(List.map(of_menhir_ast, ts)))
+    | ParenTyp(t) => parens(of_menhir_ast(t))
+    | TupleType([]) => prod([])
+    | TupleType([TupLabelType(_) as tl]) => prod([of_menhir_ast(tl)])
+    | TupleType([t]) => of_menhir_ast(t)
+    | TupleType(ts) => prod(List.map(of_menhir_ast, ts))
     | LabelType(s) => label(s)
     | ExplicitNonlabel => explicit_non_label()
     | TupLabelType(t1, t2) =>
@@ -473,7 +491,13 @@ and Typ: {
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | ProdProjection(t1, t2) =>
-      prod_projection(of_menhir_ast(t1), of_menhir_ast(t2))
+      let t2 =
+        switch (t2) {
+        | TypVar(s) => label(s)
+        | LabelType(s) => label(s)
+        | _ => of_menhir_ast(t2)
+        };
+      prod_projection(of_menhir_ast(t1), t2);
     | ProdExtension(t1, t2) =>
       prod_extension(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
@@ -492,11 +516,9 @@ and Typ: {
             },
           sumterms,
         );
-      parens(sum(converted_terms));
-    | PolyType(tp, t) =>
-      parens(poly(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
-    | RecType(tp, t) =>
-      parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
+      sum(converted_terms);
+    | PolyType(tp, t) => poly(TPat.of_menhir_ast(tp), of_menhir_ast(t))
+    | RecType(tp, t) => rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t))
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
     | Sig(items) => {
         annotation: false,
@@ -533,7 +555,7 @@ and Typ: {
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | ProofOf(e) => ProofOfType(Exp.of_core(e))
-    | Parens(t) => of_core(t)
+    | Parens(t) => ParenTyp(of_core(t))
     | Label(s) => LabelType(s)
     | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
@@ -591,14 +613,14 @@ and Pat: {
     switch (pat) {
     | InvalidPat(s) => invalid(s)
     | AtomPat(c) => basic(c)
-    | AscPat(p, t) => parens(asc(of_menhir_ast(p), Typ.of_menhir_ast(t)))
+    | AscPat(p, t) => asc(of_menhir_ast(p), Typ.of_menhir_ast(t))
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
-    | TuplePat(pats) => parens(tuple(List.map(of_menhir_ast, pats)))
+    | TuplePat(pats) => tuple(List.map(of_menhir_ast, pats))
+    | ParenPat(p) => parens(of_menhir_ast(p))
     | ApPat(pat1, pat2) => ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
-    | ConsPat(p1, p2) =>
-      parens(cons(of_menhir_ast(p1), of_menhir_ast(p2)))
+    | ConsPat(p1, p2) => cons(of_menhir_ast(p1), of_menhir_ast(p2))
     | EmptyHolePat => empty_hole()
     | WildPat => wild()
     | LabelPat(s) => label(s)
@@ -627,7 +649,7 @@ and Pat: {
     | Wild => WildPat
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
-    | Parens(p) => of_core(p)
+    | Parens(p) => ParenPat(of_core(p))
     | Label(s) => LabelPat(s)
     | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
