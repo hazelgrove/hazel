@@ -24,11 +24,12 @@ let ^name = {
 - `view: Model => HTML` — handlers emit Actions (same HTML API as the MVU
   apps, see ../mvu/README.md)
 - `expand: Model => Expansion` — what a use means to the program
-- optional member `size = (width, height)`: projector size in character cells
+- optional member `shape`: `Inline(width)`, `Block(width, height)`, or
+  `Tab(width, height)` — the widget's footprint in character cells
 
 Type members are accepted but not yet load-bearing; helpers (like the color
 picker's `css` and `pick`) are ordinary members. A positional
-`(init, update, view, expand[, size])` tuple is the desugared equivalent.
+`(init, update, view, expand[, shape])` tuple is the desugared equivalent.
 The definition must be closed — its functions evaluate in the builtin
 environment — so helpers belong among the members. Each use's model is
 stored in its own argument syntax, so state survives in the program text.

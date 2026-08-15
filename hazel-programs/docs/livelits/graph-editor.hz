@@ -67,7 +67,7 @@ let ^graph = {
       Node("svg", [Create("viewBox", "0 0 200 150"), Width("200"), Height("150"), Style([("border", "1px solid #ccc"), ("background", "#fafafa")]), OnMouseDownAt(fun (x, y) -> Down(x, y)), OnMouseMoveAt(fun (x, y) -> MoveTo(x, y)), OnMouseUpAt(fun _ -> Up)], lines(nodes, edges) @ dots(nodes, 0, sel)),
       Div([], [Button([OnClick(Clear)], [Text("clear")]), Text(string_of_int(len(nodes)) ++ " nodes, " ++ string_of_int(len(edges)) ++ " edges")])
     ]);
-  let size = (32, 8);
+  let shape = Block(32, 8);
   let expand = fun m : Model ->
     let (nodes, edges, _, _, _) = m in
     (nodes, edges) : Graph

@@ -11,11 +11,12 @@ open Util;
        let expand = fun m -> ...        Model => Expansion
      } in ...
 
-   Optional member `size = (width, height)` sets the projector size in
-   character cells. Type members are accepted (and encouraged) but not yet
-   semantically load-bearing. Helpers are ordinary additional members.
+   Optional member `shape = Inline(w) | Block(w, h) | Tab(w, h)` (a
+   LivelitShape) sets the projector's footprint in character cells. Type
+   members are accepted (and encouraged) but not yet semantically
+   load-bearing. Helpers are ordinary additional members.
    Since modules are sugar for labeled tuples, a positional 4/5-tuple
-   (init, update, view, expand[, size]) is accepted as the equivalent form.
+   (init, update, view, expand[, shape]) is accepted as the equivalent form.
 
    Expansion and view instrumentation are built syntactically here — no
    evaluation during statics. A projected use's view runs in the main
@@ -237,7 +238,7 @@ let shape_of = (e: TermBase.Exp.t): option(ProjectorShape.t) => {
   };
 };
 
-let default_size: ProjectorShape.t = {
+let default_shape: ProjectorShape.t = {
   horizontal: 24,
   vertical: Inline,
 };
@@ -376,7 +377,7 @@ let mk =
       ~def_ty: TermBase.Typ.t,
     )
     : result(LivelitCtx.raw_livelit, Mark.livelit_def_error) => {
-  let build = (~init, ~size, ~expand, ~update_ty, ~expand_ty) => {
+  let build = (~init, ~shape, ~expand, ~update_ty, ~expand_ty) => {
     let (model_t, expansion_t, action_t) = types_of(~update_ty, ~expand_ty);
     {
       LivelitCtx.name,
@@ -389,10 +390,10 @@ let mk =
       update: (_action, model) => model,
       view: (_model, _send) =>
         Virtual_dom.Vdom.Node.text("user-defined livelit"),
-      size:
-        switch (Option.bind(size, shape_of)) {
-        | Some(size) => size
-        | None => default_size
+      shape:
+        switch (Option.bind(shape, shape_of)) {
+        | Some(shape) => shape
+        | None => default_shape
         },
       user_def: Some(def_elab),
     };
@@ -403,7 +404,7 @@ let mk =
     Ok(
       build(
         ~init=List.assoc("init", members),
-        ~size=List.assoc_opt("shape", members),
+        ~shape=List.assoc_opt("shape", members),
         ~expand=mk_expand_dot(~name),
         ~update_ty=ty_member(def_ty, ~label="update", ~index=None),
         ~expand_ty=ty_member(def_ty, ~label="expand", ~index=None),
@@ -419,7 +420,7 @@ let mk =
     Ok(
       build(
         ~init=slot(fs, ~label="init", ~index=0),
-        ~size=
+        ~shape=
           List.length(fs) == 5
             ? Some(slot(fs, ~label="shape", ~index=4)) : None,
         ~expand,

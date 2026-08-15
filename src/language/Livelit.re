@@ -196,7 +196,7 @@ module Js: BuiltinLivelit = {
   };
 
   /* Input row + button + result row. */
-  let size: Util.ProjectorShape.t = {
+  let shape: Util.ProjectorShape.t = {
     vertical: Block(2),
     horizontal: 40,
   };

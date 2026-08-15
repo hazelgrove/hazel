@@ -175,7 +175,7 @@ let shape = Tab(30, 5)
       bool,
       "shape member sets the projector shape",
       true,
-      ll.size
+      ll.shape
       == {
            horizontal: 30,
            vertical: Tab(4) /* 5 lines = 4 linebreaks */
@@ -297,7 +297,7 @@ let adapter = () => {
   };
 };
 
-let size_field = () => {
+let shape_field = () => {
   let def_user =
     parse_exp("(0, fun (m, a) -> a, fun m -> 0, fun m -> m, Block(30, 5))");
   let (_, def_elab) =
@@ -316,7 +316,7 @@ let size_field = () => {
       bool,
       "fifth field sets the projector shape",
       true,
-      ll.size
+      ll.shape
       == {
            horizontal: 30,
            vertical: Block(4) /* 5 lines = 4 linebreaks */
@@ -600,7 +600,7 @@ let tests = [
       test_case("unbound use marked", `Quick, unbound_use_marked),
       test_case("good definition unmarked", `Quick, good_def_unmarked),
       test_case("adapter contract", `Quick, adapter),
-      test_case("size field", `Quick, size_field),
+      test_case("positional shape field", `Quick, shape_field),
       test_case("view probes fire when projected", `Quick, view_probes_fire),
       test_case(
         "projector samples the live HTML",

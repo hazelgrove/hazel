@@ -61,7 +61,7 @@ module M: Projector = {
       switch (get_model(info), info.statics) {
       | (Some((llname, _)), Some(InfoExp(exp))) =>
         switch (Ctx.lookup_livelit(exp.ctx, llname)) {
-        | Some(ll) => Some(ll.size)
+        | Some(ll) => Some(ll.shape)
         | None => None
         }
       | _ => None

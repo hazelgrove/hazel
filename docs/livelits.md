@@ -33,10 +33,11 @@ let ^pct = {
 
 with `update: (Model, Action) => Model`, `view: Model => HTML` (handlers emit
 Actions, as in the MVU apps — see mvu.md), and `expand: Model => Expansion`.
-An optional member `size = (width, height)` sets the projector size in
+An optional member `shape = Inline(width) | Block(width, height) |
+Tab(width, height)` (a `LivelitShape`) sets the projector's footprint in
 character cells. Type members are accepted but not yet semantically
 load-bearing. Helpers are ordinary additional members. Since modules are
-sugar for labeled tuples, a positional `(init, update, view, expand[, size])`
+sugar for labeled tuples, a positional `(init, update, view, expand[, shape])`
 tuple is accepted as the equivalent form.
 
 Each use elaborates to `^name.expand(model)` through the runtime `^name`
@@ -97,8 +98,8 @@ module type BuiltinLivelit = {
   // View/rendering function
   let view: (model_t, action_t => Ui_effect.t(unit)) => node_or_list;
 
-  // Size specification
-  let size: ProjectorCore.Shape.t;
+  // Shape (footprint) specification
+  let shape: ProjectorShape.t;
 };
 ```
 
