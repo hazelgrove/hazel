@@ -2198,6 +2198,25 @@ let rescan_tests = [
       @ [Destruct(Left)], /* delete old ) */
     ~goal={|fun (a, b) -> a¦|},
   ),
+  /* #2446: completing `use _ in` remolds the following `-` from infix
+   * back to prefix; the convex grout inserted for the infix reading must
+   * not survive (it left a malformed grout-prefix junction whose tiles
+   * MakeTerm dropped from the terms map, crashing the view). */
+  test_complete(
+    ~name="Regrout: use-in typed before -5 leaves no stale grout",
+    ~acts=mk({|¦-5|}) @ string_to_ltr_actions("use Float in "),
+    ~goal={|use Float in ¦-5|},
+  ),
+  test_complete(
+    ~name="Regrout: use-in typed before prefix-only op",
+    ~acts=mk({|¦!true|}) @ string_to_ltr_actions("use Float in "),
+    ~goal={|use Float in ¦!true|},
+  ),
+  test_complete(
+    ~name="Regrout: let-in typed before -5",
+    ~acts=mk({|¦-5|}) @ string_to_ltr_actions("let x = 1 in "),
+    ~goal={|let x = 1 in ¦-5|},
+  ),
 ];
 
 /* ===== PASTE CORRECTNESS TESTS =====
