@@ -362,31 +362,34 @@ let basic_tests = [
   ),
   /* Body-less fragments (the common copy: definitions ending in `in`)
      take the fast path via its append-a-hole completion rung; goals are
-     the typed-out (slow-path) states, trailing convex grout included. */
+     the typed-out (slow-path) states. Upstream spells them with the
+     trailing convex grout (`?`); the edit state here stores no grout,
+     so the same states print without it — the pinned property (where
+     the caret lands after the paste) is identical. */
   test(
     ~name="Paste body-less binding at Outer caret at depth",
     ~acts=mk("let x = ¦ in x") @ [Paste("let y = 2 in")],
-    ~goal="let x = let y = 2 in¦? in x",
+    ~goal="let x = let y = 2 in¦ in x",
   ),
   test(
     ~name="Paste body-less binding chain at top level",
     ~acts=mk("¦") @ [Paste("let a = 1 in let b = 2 in")],
-    ~goal="let a = 1 in let b = 2 in¦?",
+    ~goal="let a = 1 in let b = 2 in¦",
   ),
   test(
     ~name="Paste body-less binding inside empty parens (token split)",
     ~acts=mk("(¦)") @ [Paste("let y = 2 in")],
-    ~goal="(let y = 2 in¦?)",
+    ~goal="(let y = 2 in¦)",
   ),
   test(
     ~name="Paste trailing-operator fragment",
     ~acts=mk("¦") @ [Paste("1 +")],
-    ~goal="1 +¦?",
+    ~goal="1 +¦",
   ),
   test(
     ~name="Paste multiline body-less chain keeps layout",
     ~acts=mk("¦") @ [Paste("let a = 1 in\nlet b = 2 in")],
-    ~goal="let a = 1 in\nlet b = 2 in¦?",
+    ~goal="let a = 1 in\nlet b = 2 in¦",
   ),
   test(
     ~name="Paste plaintext into token at Inner caret",
