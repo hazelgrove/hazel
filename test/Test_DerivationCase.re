@@ -253,6 +253,7 @@ let prettyprint_settings: ExpToSegment.Settings.t = {
   show_filters: true,
   show_unknown_as_hole: true,
   use_literal_lexemes: true,
+  hole_tiles: false,
   project_tables: false,
 };
 
