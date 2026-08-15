@@ -252,7 +252,11 @@ let rec go =
         Ok(finish(z));
       | Error(why) =>
         print_endline("FastParse paste fallback (" ++ n ++ "): " ++ why);
-        Parser.to_zipper(~root, ~zipper_init=z, clipboard)
+        (
+          Parser.can_splice_paste(clipboard, z, ~root)
+            ? Parser.splice_paste(clipboard, z, ~root)
+            : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
+        )
         |> Option.map(finish)
         |> return(CantPaste);
       };
