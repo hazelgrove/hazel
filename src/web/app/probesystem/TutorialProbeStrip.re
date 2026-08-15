@@ -66,7 +66,7 @@ let s20 = s17 @ [Console];
 /* Legend shows only on the colors slide: color schemes are otherwise
  * Simple, so the legend would spend sidebar space explaining colors
  * that are not in use. */
-let s36 = s20 @ [Legend];
+let s39 = s20 @ [Legend];
 
 let flags_of_slide = (module_name: string): list(feat) =>
   switch (module_name) {
@@ -86,11 +86,8 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_15Fold" => s13
   | "TuGen_16Pin" => s16
   | "TuGen_17StepInto" => s17
-  | "TuGen_20Print"
-  | "TuGen_36ExtraDebuggingWarmup" => s20
-  | "TuGen_37ExtraGreenhouseArena"
-  | "TuGen_38ExtraModelAndUpdate" => s20
-  | "TuGen_39ExtraSampleColors" => s36
+  | "TuGen_20Print" => s20
+  | "TuGen_39ExtraSampleColors" => s39
   /* Study task slides (26+): the full kit. */
   | "TuGen_27TaskGroveName"
   | "TuGen_26TaskDewLedger"
@@ -100,9 +97,7 @@ let flags_of_slide = (module_name: string): list(feat) =>
   | "TuGen_29TaskRunningSum"
   | "TuGen_32TaskHarvestStreak"
   | "TuGen_33TaskCropPlotter"
-  | "TuGen_41ExtraGardenSpirit"
-  | "TuGen_28TaskWateringTimer"
-  | "TuGen_40ExtraWateringFormula" => s20
+  | "TuGen_28TaskWateringTimer" => s20
   /* Unlisted slides (the intro, text-only transitions) show no strip:
    * nothing has been introduced there. */
   | _ => []

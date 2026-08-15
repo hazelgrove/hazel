@@ -31,10 +31,5 @@ let all : Tutorial.spec list =
     TuGen_32TaskHarvestStreak.exercise;
     TuGen_33TaskCropPlotter.exercise;
     TuGen_34TaskGrowthPlotter.exercise;
-    TuGen_36ExtraDebuggingWarmup.exercise;
-    TuGen_37ExtraGreenhouseArena.exercise;
-    TuGen_38ExtraModelAndUpdate.exercise;
     TuGen_39ExtraSampleColors.exercise;
-    TuGen_40ExtraWateringFormula.exercise;
-    TuGen_41ExtraGardenSpirit.exercise;
   ]

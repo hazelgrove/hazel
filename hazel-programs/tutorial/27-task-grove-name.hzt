@@ -36,7 +36,27 @@ grove_name("/night-garden/herbs/rosemary") should be "night-garden"
 grove_name("/") should be ""
 
 @code
-{{include:hazel-programs/study/tasks-draft/01W-garden-path.hz}}
+# Extracts the first section from a garden path. #
+let grove_name(path: String): String =
+  ¿
+
+
+in
+
+test
+  grove_name("/moonlit-grove/ferns/watering")
+  == "moonlit-grove"
+end;
+
+test
+  grove_name("/night-garden/herbs/rosemary")
+  == "night-garden"
+end;
+
+test
+  grove_name("/")
+  == ""
+end
 
 @test
 0

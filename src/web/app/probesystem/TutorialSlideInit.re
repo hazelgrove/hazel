@@ -57,7 +57,7 @@ let none: t = {
  *
  * Overrides:
  *   - 20 Print: everything off, the print console is the focus -> Off
- *   - 36 (colors) also needs the Hybrid color scheme so colors show
+ *   - 39 (colors) also needs the Hybrid color scheme so colors show
  *     -> All + Hybrid + Many
  * Slides not listed inherit auto-probe but start Single. */
 let of_slide = (module_name: string): t =>
@@ -97,14 +97,10 @@ let of_slide = (module_name: string): t =>
     }
   /* All + many window: each needs several samples visible at once --
    * 15 the growing accumulator column, 16 the ten-samples-is-a-lot that
-   * motivates pin, 17 the per-iteration growth, 21 the three update calls
-   * to compare, 23/24 the many-vs-single contrast that is their lesson. */
+   * motivates pin, 17 the per-iteration growth. */
   | "TuGen_15Fold"
   | "TuGen_16Pin"
-  | "TuGen_17StepInto"
-  | "TuGen_36ExtraDebuggingWarmup"
-  | "TuGen_37ExtraGreenhouseArena"
-  | "TuGen_38ExtraModelAndUpdate" => {
+  | "TuGen_17StepInto" => {
       ...none,
       autoprobe: Some(All),
       samples: Some(Many),
@@ -123,8 +119,7 @@ let of_slide = (module_name: string): t =>
   | "TuGen_27TaskGroveName"
   | "TuGen_31TaskLogCleaner"
   | "TuGen_29TaskRunningSum"
-  | "TuGen_33TaskCropPlotter"
-  | "TuGen_40ExtraWateringFormula" => {
+  | "TuGen_33TaskCropPlotter" => {
       ...none,
       autoprobe: Some(All),
     }
@@ -132,7 +127,6 @@ let of_slide = (module_name: string): t =>
   | "TuGen_34TaskGrowthPlotter"
   | "TuGen_30TaskPlantingBug"
   | "TuGen_32TaskHarvestStreak"
-  | "TuGen_41ExtraGardenSpirit"
   | "TuGen_28TaskWateringTimer" => {
       ...none,
       autoprobe: Some(Off),

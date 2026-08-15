@@ -2,10 +2,9 @@
  * GenTutorial: Generate Tutorial.spec ML files from tutorial text files.
  * =====================================================================
  *
- * Tutorial-mode counterpart to GenSlides. Emits Tutorial.spec records that
- * render as gated Tutorial-mode lessons (prompt panel + editor + hidden
- * tests). The inverse direction (existing spec -> text) lives in
- * TutorialDecode.re (`./hazel tutorial-decode`).
+ * Emits Tutorial.spec records that render as gated Tutorial-mode lessons
+ * (prompt panel + editor + hidden tests). The inverse direction (existing
+ * spec -> text) lives in TutorialDecode.re (`./hazel tutorial-decode`).
  *
  * USAGE:
  *   ./hazel gen-tutorial         # Generate Tutorial.spec files from text
@@ -40,8 +39,6 @@
  *
  *   Inside @code and @test, a line that is exactly `{{include:rel/path}}`
  *   (path relative to the repo root) is replaced with that file's contents.
- *   Task slides use this to reference a canonical program (e.g. under
- *   hazel-programs/study/tasks-draft) instead of embedding a drifting copy.
  *
  *   Code/test are parsed with MarkerParse.of_text, so the `¿` implicit-hole
  *   marker and `^^probe(...)` projector syntax produced by `tutorial-decode`
@@ -52,11 +49,7 @@
  * TutorialSettings_base.re.
  */
 
-/* Conjoined study tutorial: the single ordered sequence lives in the
-   conjoined/ subdir. The sibling basics/, probes/, archive/ dirs are kept as
-   reference sources and are intentionally not generated. To regenerate the old
-   full set instead, point this back at "hazel-programs/tutorial". */
-let input_dir = "hazel-programs/tutorial/conjoined";
+let input_dir = "hazel-programs/tutorial";
 let output_dir = "src/web/exercises/examples";
 let module_prefix = "TuGen_";
 let aggregation_module = "TutorialGenerated.ml";
