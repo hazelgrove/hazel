@@ -1,10 +1,10 @@
 /*
- * TutorialDecode: the inverse of GenTutorial. Reads the in-memory
+ * TutorialDecode: the inverse of Web.TutorialText. Reads the in-memory
  * Tutorial.spec list (Web.TutorialSettings.lessons) and emits the
- * @prompt/@code/@test/... text format that gen-tutorial consumes, using
+ * @prompt/@code/@test/... .hzt text format it was loaded from, using
  * MarkerParse to render the editor zippers as text.
  *
- *   ./hazel tutorial-decode            # write all hand-written lessons to
+ *   ./hazel tutorial-decode            # write all lessons to
  *                                      #   hazel-programs/tutorial-imported/
  *   ./hazel tutorial-decode SUBSTR     # print lessons whose title matches
  *                                      #   SUBSTR to stdout (for inspection)
@@ -58,12 +58,6 @@ let decode_spec = (spec: Web.Tutorial.spec): string =>
     ++ "\n"
   );
 
-let is_generated = (spec: Web.Tutorial.spec): bool =>
-  Web.Tutorial.(
-    String.length(spec.module_name) >= 6
-    && String.sub(spec.module_name, 0, 6) == "TuGen_"
-  );
-
 let title_of = (spec: Web.Tutorial.spec): string => Web.Tutorial.(spec.title);
 
 let kebab = (s: string): string =>
@@ -95,8 +89,7 @@ let print_matching = (substr: string): unit =>
 
 let write_all = (dir: string): unit => {
   ensure_dir(dir);
-  let specs =
-    Web.TutorialSettings.lessons |> List.filter(s => !is_generated(s));
+  let specs = Web.TutorialSettings.lessons;
   List.iteri(
     (i, spec) => {
       let name =
@@ -110,10 +103,7 @@ let write_all = (dir: string): unit => {
     specs,
   );
   print_endline(
-    "\nWrote "
-    ++ string_of_int(List.length(specs))
-    ++ " hand-written lessons to "
-    ++ dir,
+    "\nWrote " ++ string_of_int(List.length(specs)) ++ " lessons to " ++ dir,
   );
 };
 

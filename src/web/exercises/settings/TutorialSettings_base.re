@@ -1,6 +1,6 @@
 let filename = "haz3l-demo";
 let log_key = filename;
 
-/* The tutorial sequence is generated from text files in
-   hazel-programs/tutorial/ via `./hazel gen-tutorial`. */
-let lessons: list(Tutorial.spec) = TutorialGenerated.all;
+/* The tutorial sequence is the .hzt text in hazel-programs/tutorial/,
+   embedded at compile time and parsed at startup (see TutorialText). */
+let lessons: list(Tutorial.spec) = TutorialText.all;

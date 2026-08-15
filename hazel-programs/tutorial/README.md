@@ -1,34 +1,28 @@
 # Tutorial-mode slides (authored from text)
 
-These `.hzt` text files compile into **Tutorial-mode** lessons (the gated,
-prompt-panel UI) via `./hazel gen-tutorial`; they are the tutorial's single
-source of truth. There is also an inverse (`tutorial-decode`) that turns
-compiled `Tutorial.spec` lessons back into this text format, and a verifier
-(`tutorial-verify`).
+These `.hzt` text files ARE the **Tutorial-mode** lessons (the gated,
+prompt-panel UI): they are embedded at compile time (ppx_blob, like the
+documentation slides) and parsed into `Tutorial.spec` records at startup.
+There is also an inverse (`tutorial-decode`) that turns compiled lessons
+back into this text format, and a verifier (`tutorial-verify`).
 
 ## The iteration loop
 
 ```bash
-# 1. Edit / add / reorder .hzt files in this directory (subdirs allowed).
-# 2. Regenerate the Tutorial.spec .ml files:
-./hazel gen-tutorial
-# 3. Rebuild and run the app:
+# 1. Edit .hzt files in this directory.
+# 2. Rebuild and run the app:
 make dev
 ```
 
-`gen-tutorial` reads `.hzt` files **recursively** (ordered by relative path —
-so slide order is the filename sort), writes one `TuGen_<Name>.ml` per file
-into `src/web/exercises/examples/`, plus an aggregation `TutorialGenerated.ml`
-(`let all : Tutorial.spec list`), which is `lessons` in
-`src/web/exercises/settings/TutorialSettings_base.re`. `./hazel
-gen-tutorial-clean` wipes the generated files.
+Slide order is the order of the list in `src/tutorialslides/Slides.re`
+(filename sort by convention). **Adding, removing, or renaming a slide**
+means updating that list too — one `[%blob]` line per file.
 
 ## File format
 
 The `.hzt` extension marks this format: prose plus marker sections, NOT a
 Hazel program (a `.hz` file anywhere in the repo must parse, and these do
-not). A lesson that IS just a program can be a plain `.hz` file —
-`gen-tutorial` reads both.
+not).
 
 Marker lines are *exactly*:
 
@@ -49,8 +43,6 @@ Marker lines are *exactly*:
   collapse to `[]`. Probes/projectors round-trip as `^^probe(...)`.
 - `wrapper` wraps the impl as `let answer = <impl> in …` so the hidden tests
   reference `answer` (used by "write one expression" lessons).
-- Inside `@code` and `@test`, a line that is exactly `{{include:rel/path}}`
-  (path from the repo root) is replaced with that file's contents.
 
 ## Decoding lessons → text
 
@@ -76,8 +68,9 @@ slide is reproduced faithfully by decode→encode (IDs aside). The known
 non-fixed-point class is grout-placement quirks (e.g. `[¿]`→`[]`) — see the
 `?`-vs-`¿` note above.
 
-## Generator source
+## Source pointers
 
-`src/CLI/GenTutorial.re` (text→spec), `src/CLI/TutorialDecode.re`
-(spec→text + verify). The text round-trip engine is
-`src/haz3lcore/zipper/TextRoundtrip.re` (from the `slide-cli` work).
+`src/tutorialslides/Slides.re` (the embedded file list),
+`src/web/exercises/TutorialText.re` (text→spec, at startup),
+`src/CLI/TutorialDecode.re` (spec→text + verify). The text round-trip
+engine is `src/haz3lcore/zipper/TextRoundtrip.re`.
