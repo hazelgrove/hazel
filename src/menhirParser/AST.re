@@ -210,7 +210,20 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         let* leading = char_range('A', 'Z');
         let+ tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
         let ident = String.make(1, leading) ++ tail;
-        if (List.exists(a => a == ident, ["String", "Int", "Float", "Bool"])) {
+        /* every capitalized token Lexer.mll reserves; a collision lexes
+           as a type keyword and fails the parse (seed-dependent flake) */
+        let reserved = [
+          "String",
+          "Int",
+          "Float",
+          "Bool",
+          "Nat",
+          "SInt",
+          "Void",
+          "Unknown",
+          "Internal",
+        ];
+        if (List.exists(a => a == ident, reserved)) {
           "Keyword";
         } else {
           ident;
