@@ -326,6 +326,35 @@ let shape_field = () => {
   };
 };
 
+/* The event path's commit-vs-ephemeral decision: an update result that
+   carries a captured environment (a mid-run Closure, e.g. off a sampled
+   value) must not commit to the program text — it stays optimistic-only
+   and the widget keeps running. First-order data commits. */
+let commit_decision = () => {
+  open IdTagged.FreshGrammar;
+  check(
+    bool,
+    "first-order update result commits",
+    true,
+    Haz3lcore.LivelitProj.commit_decision(
+      run("(fun (m, a) -> (m + 1, a))((1, 2))"),
+    )
+    == `Commit,
+  );
+  let env = Environment.of_list([("y", parse_exp("3"))]);
+  let closure_fn =
+    Exp.closure(env, Exp.fn(Pat.var("x"), Exp.var("y"), None, None));
+  check(
+    bool,
+    "closure-carrying update result is ephemeral",
+    true,
+    Haz3lcore.LivelitProj.commit_decision(
+      Exp.tuple([parse_exp("1"), closure_fn]),
+    )
+    == `Ephemeral,
+  );
+};
+
 /* View fold-in: a projected use also computes view(model) in the main run,
    so probes inside view fire and the projector's sample stream carries the
    live HTML. Pipeline mirrors the CLI probe command. */
@@ -601,6 +630,7 @@ let tests = [
       test_case("good definition unmarked", `Quick, good_def_unmarked),
       test_case("adapter contract", `Quick, adapter),
       test_case("positional shape field", `Quick, shape_field),
+      test_case("commit vs ephemeral decision", `Quick, commit_decision),
       test_case("view probes fire when projected", `Quick, view_probes_fire),
       test_case(
         "projector samples the live HTML",

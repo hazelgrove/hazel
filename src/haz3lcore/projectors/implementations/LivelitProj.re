@@ -11,6 +11,18 @@ open Language;
    refresh. */
 let optimistic_version: ref(int) = ref(0);
 
+/* Commit-vs-ephemeral decision for an event-time update result: a model
+   persists to the program text only when it is checkpointable (carries no
+   captured environment); otherwise it lives solely in the optimistic table
+   and the syntax commit is skipped (see opt_ephemeral below). */
+let commit_decision =
+    (new_model: TermBase.Exp.t)
+    : [
+        | `Commit
+        | `Ephemeral
+      ] =>
+  MvuShape.is_checkpointable(new_model) ? `Commit : `Ephemeral;
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -235,7 +247,9 @@ module M: Projector = {
      authoritative sample when the sample's content converges with it —
      guaranteed while definitions are closed, because both sides evaluate
      the same view on the same model — and is dropped whenever the syntax
-     model stops matching what we committed (external edit, undo). */
+     model stops matching what we committed (external edit, undo). An
+     update result that cannot be checkpointed skips the commit entirely
+     and lives only here (see opt_ephemeral below). */
   type optimistic_entry = {
     opt_model: TermBase.Exp.t, /* the newest local model, already a value */
     opt_html: TermBase.Exp.t, /* view(opt_model), evaluated at event time */
@@ -252,12 +266,32 @@ module M: Projector = {
        matching an EARLIER index means the syntax rewound (undo), which
        drops the entry. */
     mutable opt_matched: int,
-    /* Transient (gesture) updates have changed the model since the last
-       commit; the next committing event must flush even if its own
-       update is a no-op. */
+    /* Transient (gesture) updates or an uncommittable model have changed
+       the model since the last commit; the next committing event must
+       flush even if its own update is a no-op. */
     opt_dirty: bool,
+    /* The model is not checkpointable, so it never committed: this entry
+       is the state's only home. Never yield it to sample convergence
+       (samples keep coming from the unchanged stale syntax); undo and
+       external edits still drop it — inherent, nothing to restore from. */
+    opt_ephemeral: bool,
   };
   let optimistic: Hashtbl.t(Id.t, optimistic_entry) = Hashtbl.create(16);
+
+  /* One console warning per projector id: an unserializable model is a
+     standing property of the definition, not per-event news. */
+  let warned_ephemeral: Hashtbl.t(Id.t, unit) = Hashtbl.create(4);
+  let warn_ephemeral = (~id: Id.t, ~ll_name: string) =>
+    if (!Hashtbl.mem(warned_ephemeral, id)) {
+      Hashtbl.add(warned_ephemeral, id, ());
+      Js_of_ocaml.Firebug.console##warn(
+        Js_of_ocaml.Js.string(
+          "livelit ^"
+          ++ ll_name
+          ++ ": model is not serializable; state will not persist to the program text",
+        ),
+      );
+    };
 
   let squish = str =>
     String.to_seq(str)
@@ -312,24 +346,31 @@ module M: Projector = {
         )
       | _ => None
       };
-    let store_entry = (new_model, record, committed) =>
+    /* ~committed=None: an ephemeral store — the syntax is not changing
+       (uncommittable model), so like a transient event it leaves the
+       set of "ours" syntax states alone. */
+    let store_entry = (new_model, record, ~committed) =>
       switch (record_field(record, "view", 2)) {
       | Some(view_fn) =>
         switch (MvuShape.safe_evaluate(ap(Forward, view_fn, new_model))) {
         | Ok(html) when MvuShape.is_html(html) =>
           let prior = Hashtbl.find_opt(optimistic, id);
-          /* Transient events change nothing in the syntax, so the set of
-             syntax states that count as "ours" is unchanged; only
-             committing events append their commit. */
+          /* Transient and ephemeral events change nothing in the syntax,
+             so the set of syntax states that count as "ours" is
+             unchanged; only committing events append their commit. */
           let outstanding =
-            switch (gesture, prior) {
-            | (HazelDOM.Transient, Some(e)) => e.opt_outstanding
-            | (HazelDOM.Transient, None) => [squish(print_term(model))]
-            | (HazelDOM.Commit, Some(e)) =>
-              e.opt_outstanding @ [squish(print_term(committed))]
-            | (HazelDOM.Commit, None) => [
+            switch (committed, gesture, prior) {
+            | (None, _, Some(e))
+            | (Some(_), HazelDOM.Transient, Some(e)) => e.opt_outstanding
+            | (None, _, None)
+            | (Some(_), HazelDOM.Transient, None) => [
                 squish(print_term(model)),
-                squish(print_term(committed)),
+              ]
+            | (Some(c), HazelDOM.Commit, Some(e)) =>
+              e.opt_outstanding @ [squish(print_term(c))]
+            | (Some(c), HazelDOM.Commit, None) => [
+                squish(print_term(model)),
+                squish(print_term(c)),
               ]
             };
           /* cap the ring; a burst outrunning this many in-flight
@@ -353,7 +394,9 @@ module M: Projector = {
                 | Some(e) => e.opt_matched
                 | None => 0
                 },
-              opt_dirty: gesture == HazelDOM.Transient,
+              opt_dirty:
+                Option.is_none(committed) || gesture == HazelDOM.Transient,
+              opt_ephemeral: Option.is_none(committed),
             },
           );
         | _ =>
@@ -385,10 +428,16 @@ module M: Projector = {
             );
           switch (MvuShape.safe_evaluate(applied)) {
           | Error(e) => `Error("update error: " ++ e)
-          | Ok(new_model) when !MvuShape.is_checkpointable(new_model) =>
-            /* the model persists in the syntax tree, so it must be
-               closure-free */
-            `Error("update produced an uncommittable model")
+          | Ok(new_model) when commit_decision(new_model) == `Ephemeral =>
+            /* The model carries a closure, so it cannot live in the
+               syntax tree. Degrade gracefully instead of wedging: keep
+               the widget running off the optimistic entry and skip the
+               syntax commit (including the redex — its value could not
+               persist either). Warned once; undo/external edits drop
+               the ephemeral state. */
+            warn_ephemeral(~id, ~ll_name);
+            store_entry(new_model, record, ~committed=None);
+            `Ephemeral;
           | Ok(new_model) =>
             let unchanged =
               squish(print_term(new_model)) == squish(print_term(base));
@@ -405,7 +454,7 @@ module M: Projector = {
                 | Some(r) => r
                 | None => new_model
                 };
-              store_entry(new_model, record, committed);
+              store_entry(new_model, record, ~committed=Some(committed));
               `Ok(committed);
             };
           };
@@ -413,6 +462,9 @@ module M: Projector = {
       };
     switch (gesture, next_model) {
     | (_, `Skip) => Ui_effect.Ignore
+    | (_, `Ephemeral) =>
+      /* Nothing committed; repaint so the optimistic view shows. */
+      repaint()
     | (Transient, `Ok(_)) =>
       /* Live preview only: the optimistic entry above is the whole
          effect; a quiet non-historic action makes the frame repaint. */
@@ -496,11 +548,17 @@ module M: Projector = {
       switch (Hashtbl.find_opt(optimistic, id)) {
       | None => None
       | Some(entry) =>
+        /* An ephemeral entry never converges: no commit is in flight, so
+           the sample forever reflects the stale syntax — yielding to it
+           would silently revert the state. */
         let converged =
-          switch (live) {
-          | Some(l) => Exp.fast_equal(l, entry.opt_html)
-          | None => false
-          };
+          !entry.opt_ephemeral
+          && (
+            switch (live) {
+            | Some(l) => Exp.fast_equal(l, entry.opt_html)
+            | None => false
+            }
+          );
         let model_print = squish(print_term(model));
         let idx = {
           let rec find = (i, xs) =>
