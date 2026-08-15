@@ -244,13 +244,22 @@ let rec go =
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(finish(z))
     | None =>
-      (
-        Parser.can_fast_paste(clipboard, z, ~root)
-          ? Parser.fast_paste(clipboard, z, ~root)
-          : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
-      )
-      |> Option.map(finish)
-      |> return(CantPaste)
+      /* console-visible paste telemetry (dev): which parser ran and why */
+      let n = string_of_int(String.length(clipboard)) ++ " chars";
+      switch (Parser.fast_paste(clipboard, z, ~root)) {
+      | Ok(z) =>
+        print_endline("FastParse paste (" ++ n ++ "): linear path");
+        Ok(finish(z));
+      | Error(why) =>
+        print_endline("FastParse paste fallback (" ++ n ++ "): " ++ why);
+        (
+          Parser.can_splice_paste(clipboard, z, ~root)
+            ? Parser.splice_paste(clipboard, z, ~root)
+            : Parser.to_zipper(~root, ~zipper_init=z, clipboard)
+        )
+        |> Option.map(finish)
+        |> return(CantPaste);
+      };
     };
   | Cut =>
     /* System clipboard handling is done in Page.view handlers.

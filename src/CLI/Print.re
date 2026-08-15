@@ -12,6 +12,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_filters: true,
   show_unknown_as_hole: true,
   use_literal_lexemes: false,
+  hole_tiles: false,
   project_tables: false,
 };
 
