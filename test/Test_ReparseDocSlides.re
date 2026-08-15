@@ -12,6 +12,16 @@ open EditingPrelude;
 let doc_slides: list((string, CellEditor.Model.persistent)) =
   snd(Lazy.force(Init.startup).documentation);
 
+/* This branch stores no grout: holes are DERIVED, so a `¿` in an
+   upstream-authored slide source is dropped on load and never
+   reprinted (the surrounding whitespace is untouched, so deleting the
+   marker char from the committed text is exactly the difference).
+   Text fidelity is therefore pinned modulo hole markers — the same
+   property upstream pins byte-for-byte. */
+let drop_markers = (s: string): string =>
+  Util.StringUtil.plain_split(s, Token.implicit_hole_marker)
+  |> String.concat("");
+
 let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
   test_case(
     name,
@@ -26,8 +36,8 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
       check(
         string,
         name ++ ": load path reproduces the committed text",
-        String.trim(text),
-        String.trim(MarkerParse.to_text(z)),
+        String.trim(drop_markers(text)),
+        String.trim(drop_markers(MarkerParse.to_text(z))),
       );
       switch (
         FastParse.of_text(
