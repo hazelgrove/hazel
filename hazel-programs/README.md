@@ -7,14 +7,10 @@ This directory contains Hazel programs in plain text (`.hz` files) for various p
 ```
 hazel-programs/
 ├── docs/
-│   ├── reference/   # THE documentation-mode slides (compiled into src/docslides)
-│   └── b2t2/        # THE B2T2 table-API slides (compiled into src/b2t2)
-├── study/           # Programs for user studies (probe mechanism evaluation)
-│   ├── debugging/   # Programs with intentional bugs for debugging tasks
-│   ├── writing/     # Sketch/solution pairs for program writing tasks
-│   └── tutorial/    # Study tutorial slides
-├── study-old/       # Earlier study programs, kept for reference (not shipped)
-└── tutorial/        # Tutorial-mode lesson sources, .hzt (see tutorial/README.md)
+│   ├── reference/       # THE documentation-mode slides (compiled into src/docslides)
+│   └── b2t2/            # THE B2T2 table-API slides (compiled into src/b2t2)
+├── probe-paper-docs/    # Distilled study-design docs, staged for the probes-paper repo
+└── tutorial/            # Tutorial-mode lesson sources, .hzt (see tutorial/README.md)
 ```
 
 ## File Format
@@ -40,7 +36,7 @@ in length([1, 2, 3])
 
 ```bash
 # From repository root:
-./hazel run hazel-programs/study/basic-functions.hz
+./hazel run hazel-programs/docs/reference/basic-reference.hz
 
 # Or from stdin:
 cat hazel-programs/docs/reference/basic-reference.hz | ./hazel run -
@@ -54,9 +50,3 @@ cat hazel-programs/docs/reference/basic-reference.hz | ./hazel run -
 ### `docs/`
 The committed text of the shipped slides: `reference/` is embedded by
 `src/docslides`, `b2t2/` by `src/b2t2`. Editing a file here changes the slide.
-
-### `study/`
-Programs and documentation for user studies evaluating Hazel's probe debugging mechanism.
-- `debugging/` - Programs with intentional bugs for debugging tasks
-- `writing/` - Sketch/solution pairs for program writing tasks
-- Planning docs, tutorials, and guides for the study

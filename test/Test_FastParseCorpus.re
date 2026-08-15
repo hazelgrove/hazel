@@ -32,23 +32,8 @@ let read_file = (path: string): string => {
    when the corpus is unreachable (sandboxed dune runtest). */
 /* A new entry here means a construct regressed off the fast path — fix
    the grammar/printer rather than ledgering, unless the file is a
-   deliberately-invalid, stale, or delimiter-incomplete exhibit. The
-   study-old sources below are of that kind: they were written against a
-   string-equality operator the language no longer has. */
-let known_gaps: list((string, string)) = [
-  (
-    "calculator.hz",
-    "study-old slide: uses the removed `$==` string-equality operator",
-  ),
-  (
-    "calculator-bug-associativity.hz",
-    "study-old slide: uses the removed `$==` string-equality operator",
-  ),
-  (
-    "calculator-bug-precedence.hz",
-    "study-old slide: uses the removed `$==` string-equality operator",
-  ),
-];
+   deliberately-invalid, stale, or delimiter-incomplete exhibit. */
+let known_gaps: list((string, string)) = [];
 
 let tests = (
   "FastParseCorpus",
