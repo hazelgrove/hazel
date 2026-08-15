@@ -246,6 +246,16 @@ let tests =
          ascription (arrow types need parens), single-caret livelits.
          Equivalence against MakeTerm is the contract that matters. */
       menhir_maketerm_equivalent_test("multi-param fun", "fun a, b -> a + b"),
+      /* Gap fill 2026-08-14: ascribed unit parameter (UNIT lives at the
+         funPat level, which had no ascription production). */
+      menhir_maketerm_equivalent_test(
+        "ascribed unit fun param",
+        "fun () : () -> 1",
+      ),
+      menhir_maketerm_equivalent_test(
+        "ascribed unit fun param, parenthesized type",
+        "fun () : (()) -> 2",
+      ),
       menhir_maketerm_equivalent_test(
         "multi-param fun three",
         "fun nodes, x, y -> nodes + x + y",
