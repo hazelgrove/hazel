@@ -75,10 +75,14 @@ Note the naming is deliberately asymmetric: `Action` is the name in Hazel
 programs, while the OCaml implementation says `msg`, because `action` is already
 taken there by both `HTMLProj`'s own action type and `Haz3lcore.Action`.
 
-### Legacy self-modifying (inline HTML projector)
+### Self-modifying HTML (inline HTML projector, syntax commit)
 
-The inline HTML projector still supports the old self-modifying pattern where
-handlers are `model -> model` functions. These run in "legacy mode" automatically.
+A bare HTML expression (not an app 4-tuple) projected inline commits to
+syntax rather than state: handlers emit `Html -> Html` transforms, and each
+event evaluates the transform applied to the projected expression and
+splices the result back into the program text. The expression must be
+closed HTML — the transform evaluates outside the program, so free
+variables have no definitions there.
 
 ## Examples
 

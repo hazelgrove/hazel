@@ -2,7 +2,7 @@
 
 Each `.hz` here defines a livelit and uses it several times, and ships as a
 "Livelits /" documentation slide. The files run as ordinary programs
-(`./hazel run hazel-programs/livelits/defined-slider.hz`) — the
+(`./hazel run hazel-programs/docs/livelits/defined-slider.hz`) — the
 `^^livelit(...)` wrappers materialize the GUI in the editor and are inert on
 the command line.
 

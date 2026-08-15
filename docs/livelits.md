@@ -55,10 +55,10 @@ previous transition to its value first. Actions must therefore be
 first-order data. `update` alone still evaluates in the builtin environment
 (at event time, as a fallback), so helpers belong among the members.
 
-Example programs: `hazel-programs/livelits/` (shipped as the "Livelits" doc
-slides; regenerate with `regen-slides.sh` there after edits). The adapter is
-`src/language/statics/UserLivelit.re`; rendering is the `user_def` branch of
-`LivelitProj.re`.
+Example programs: `hazel-programs/docs/livelits/` (shipped as the "Livelits"
+doc slides, embedded at compile time — an edit there ships on the next
+build). The adapter is `src/language/statics/UserLivelit.re`; rendering is
+the `user_def` branch of `LivelitProj.re`.
 
 ## Creating a Built-in Livelit
 
