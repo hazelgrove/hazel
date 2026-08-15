@@ -7,10 +7,9 @@ This directory contains Hazel programs in plain text (`.hz` files) for various p
 ```
 hazel-programs/
 ├── docs/
-│   ├── reference/       # THE documentation-mode slides (compiled into src/docslides)
-│   └── b2t2/            # THE B2T2 table-API slides (compiled into src/b2t2)
-├── probe-paper-docs/    # Distilled study-design docs, staged for the probes-paper repo
-└── tutorial/            # Tutorial-mode lesson sources, .hzt (see tutorial/README.md)
+│   ├── reference/   # THE documentation-mode slides (compiled into src/docslides)
+│   └── b2t2/        # THE B2T2 table-API slides (compiled into src/b2t2)
+└── tutorial/        # Tutorial-mode lesson sources, .hzt (see tutorial/README.md)
 ```
 
 ## File Format

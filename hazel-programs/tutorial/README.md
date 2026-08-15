@@ -1,10 +1,10 @@
 # Tutorial-mode slides (authored from text)
 
 These `.hzt` text files compile into **Tutorial-mode** lessons (the gated,
-prompt-panel UI — same machinery as the hand-written `Tu_*.ml` lessons) via
-`./hazel gen-tutorial`. There is also an inverse (`tutorial-decode`) that turns
-existing hand-written `Tutorial.spec` lessons back into this text format, and a
-verifier (`tutorial-verify`).
+prompt-panel UI) via `./hazel gen-tutorial`; they are the tutorial's single
+source of truth. There is also an inverse (`tutorial-decode`) that turns
+compiled `Tutorial.spec` lessons back into this text format, and a verifier
+(`tutorial-verify`).
 
 ## The iteration loop
 
@@ -16,10 +16,10 @@ verifier (`tutorial-verify`).
 make dev
 ```
 
-`gen-tutorial` reads `.hzt` files **recursively** (ordered by relative path),
-writes one `TuGen_<Name>.ml` per file into `src/web/exercises/examples/`, plus
-an aggregation `TutorialGenerated.ml` (`let all : Tutorial.spec list`). That
-`all` is appended to `lessons` in
+`gen-tutorial` reads `.hzt` files **recursively** (ordered by relative path —
+so slide order is the filename sort), writes one `TuGen_<Name>.ml` per file
+into `src/web/exercises/examples/`, plus an aggregation `TutorialGenerated.ml`
+(`let all : Tutorial.spec list`), which is `lessons` in
 `src/web/exercises/settings/TutorialSettings_base.re`. `./hazel
 gen-tutorial-clean` wipes the generated files.
 
@@ -49,20 +49,19 @@ Marker lines are *exactly*:
   collapse to `[]`. Probes/projectors round-trip as `^^probe(...)`.
 - `wrapper` wraps the impl as `let answer = <impl> in …` so the hidden tests
   reference `answer` (used by "write one expression" lessons).
+- Inside `@code` and `@test`, a line that is exactly `{{include:rel/path}}`
+  (path from the repo root) is replaced with that file's contents.
 
-## Importing the hand-written lessons → text
+## Decoding lessons → text
 
 ```bash
-./hazel tutorial-decode            # writes all hand-written lessons to
+./hazel tutorial-decode            # writes all compiled lessons to
                                    #   hazel-programs/tutorial-imported/
 ./hazel tutorial-decode "Holes"    # prints matching lessons to stdout
 ```
 
-`tutorial-imported/` is a sibling dir (NOT under this one) so it isn't picked up
-by `gen-tutorial` until you deliberately move files in. To make the whole
-sequence text-authored: move the imported files in here (e.g. under a `basics/`
-subdir), remove the hand-written entries from `TutorialSettings_base.lessons`
-(leaving `lessons = TutorialGenerated.all`), and `gen-tutorial`.
+`tutorial-imported/` is a sibling dir (NOT under this one) so it isn't picked
+up by `gen-tutorial` unless you deliberately move files in.
 
 ## Verifying
 
@@ -73,9 +72,9 @@ subdir), remove the hand-written entries from `TutorialSettings_base.lessons`
 
 `tutorial-verify` checks that each slide's impl/tests text is a **fixed point**
 of the text round-trip (`to_text` == `to_text ∘ of_text ∘ to_text`). A clean
-slide is reproduced faithfully by decode→encode (IDs aside). Known
-non-fixed-points are grout-placement quirks in `TextRoundtrip` (e.g. `[¿]`→`[]`,
-or a stray `¿` next to the `$==` test operator) — see the `?`-vs-`¿` note above.
+slide is reproduced faithfully by decode→encode (IDs aside). The known
+non-fixed-point class is grout-placement quirks (e.g. `[¿]`→`[]`) — see the
+`?`-vs-`¿` note above.
 
 ## Generator source
 
