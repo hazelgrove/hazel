@@ -15,10 +15,6 @@ module Model = {
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
     autoprobe_mode: Haz3lcore.AutoProbe.t,
-    /* VESTIGIAL: the sample-context sidebar docking was removed (right-click
-       replaced it). Field retained so persisted settings still deserialize
-       during the study; drop at dev-extraction (will reset saved settings). */
-    sample_drawer_in_sidebar: bool,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
@@ -87,7 +83,6 @@ module Model = {
       worker_encodings: [WorkerServer.Marshal],
     },
     autoprobe_mode: Off,
-    sample_drawer_in_sidebar: false,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,

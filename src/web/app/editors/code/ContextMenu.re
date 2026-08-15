@@ -290,16 +290,14 @@ module Projectors = {
         ~elaborated: Language.Exp.t,
       )
       : list(ProjectorCore.Kind.t) => {
-    /* STUDY: "Add/Switch to Fold" is hidden for the probes user study.
-     * An existing Fold projector still gets "Remove Fold" via the
-     * current_kind branch in actions_data. Restore by prepending:
-     *   is_applicable(z, info_map, ~elaborated, Fold) |> Option.to_list */
+    let fold_applicable =
+      is_applicable(z, info_map, ~elaborated, Fold) |> Option.to_list;
     let livelit_applicable =
       List.filter_map(
         is_applicable(z, info_map, ~elaborated),
         ProjectorCore.Kind.livelit_projectors,
       );
-    ListUtil.dedup(livelit_applicable);
+    ListUtil.dedup(fold_applicable @ livelit_applicable);
   };
 
   let actions_data =
@@ -352,15 +350,10 @@ let refractor_actions_data =
   let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
   let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
   let can_probe = ProbePerform.can_probe(id, info_map);
+  let can_statics = ProbePerform.can_statics(id, info_map);
   let is_def = ProbePerform.is_definition_form(id, info_map);
-  /* STUDY: the statics toggle (Add/Remove/Switch to statics) is hidden
-   * for the probes user study. Restore by re-appending:
-   *   @ type_annotation_data(
-   *       ~can_type=ProbePerform.can_statics(id, info_map),
-   *       probe_status,
-   *       ci,
-   *     ) */
-  probe_data(~can_probe, ~is_def, probe_status, ci);
+  probe_data(~can_probe, ~is_def, probe_status, ci)
+  @ type_annotation_data(~can_type=can_statics, probe_status, ci);
 };
 
 /* ============================================================
