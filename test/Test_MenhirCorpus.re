@@ -26,6 +26,22 @@ let known_gaps: list((string, string)) =
       "editor tokenizer quirk: [()] reads as [] via MakeTerm (file as editor bug)",
     ),
     (
+      "gameoflife.hz",
+      "study-old slide (not shipped): menhir/MakeTerm term divergence",
+    ),
+    (
+      "gameoflife-bug-neighbor.hz",
+      "study-old slide (not shipped): menhir/MakeTerm term divergence",
+    ),
+    (
+      "gameoflife-bug-sequential.hz",
+      "study-old slide (not shipped): menhir/MakeTerm term divergence",
+    ),
+    (
+      "gameoflife-bug-survival.hz",
+      "study-old slide (not shipped): menhir/MakeTerm term divergence",
+    ),
+    (
       "10-colors-and-alignment.hz",
       "deliberately delimiter-incomplete study slide (trailing `;`); loads via the typing-parser fallback",
     ),

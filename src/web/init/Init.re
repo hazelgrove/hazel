@@ -26,17 +26,6 @@ let persistent_of_zipper =
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
-/* Study slides are still generated as PersistentSegment sexps by
-   `./hazel gen-slides` (dev's text-slide pipeline covers doc/b2t2 only). */
-let persistent_of_segment =
-    (content: PersistentSegment.t): CellEditor.Model.persistent => {
-  editor:
-    content
-    |> PersistentSegment.unpersist(~root=Exp)
-    |> Editor.Model.mk_persistent(~root=Exp),
-  result: EvalResult.Model.init |> EvalResult.Model.persist,
-};
-
 /* LAZY: the CLI links this module (--linkall) and must not pay the
    all-slides unpersist at module init; the browser forces it on first
    store access. */
@@ -48,18 +37,11 @@ let startup: Lazy.t(PersistentData.t) =
     ),
     documentation: (
       0,
-      (
-        study_reference_slides
-        |> List.map(((name, content)) =>
-             (name, persistent_of_zipper(content))
-           )
-      )
-      @ (
-        Study.AllStudy.all
-        |> List.map(((name, content)) =>
-             (name, persistent_of_segment(content))
-           )
-      ),
+      study_reference_slides
+      @ Study.AllStudy.all
+      |> List.map(((name, content)) =>
+           (name, persistent_of_zipper(content))
+         ),
     ),
   });
 
