@@ -12,14 +12,6 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
 let documentation_slides: list((string, PersistentZipper.t)) =
   Docslides.Slides.all_slides @ B2t2.Slides.all_slides;
 
-/* Study build: only these reference slides appear in Documentation mode
-   (the rest would crowd the study slide list). */
-let study_reference_slide_names = ["ADTs", "Probes"];
-
-let study_reference_slides: list((string, PersistentZipper.t)) =
-  documentation_slides
-  |> List.filter(((name, _)) => List.mem(name, study_reference_slide_names));
-
 let persistent_of_zipper =
     (content: PersistentZipper.t): CellEditor.Model.persistent => {
   editor: content |> Editor.Model.mk_persistent(~root=Exp),
@@ -37,8 +29,7 @@ let startup: Lazy.t(PersistentData.t) =
     ),
     documentation: (
       0,
-      study_reference_slides
-      @ Study.AllStudy.all
+      documentation_slides
       |> List.map(((name, content)) =>
            (name, persistent_of_zipper(content))
          ),

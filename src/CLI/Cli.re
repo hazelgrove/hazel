@@ -585,22 +585,6 @@ let test_cmd = {
   Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
 };
 
-let gen_slides_cmd = {
-  let doc = "Generate ML slide files from .hz programs. Optionally pass path prefixes to only rebuild matching files (e.g., ./hazel gen-slides tutorial debugging/grove-plotter).";
-  let filter_arg = {
-    let doc = "Path prefix filters (relative to hazel-programs/study/). Only .hz files matching these prefixes will be processed.";
-    Arg.(value & pos_all(string, []) & info([], ~doc));
-  };
-  let info = Cmd.info("gen-slides", ~doc);
-  Cmd.v(info, Term.(const(GenSlides.generate) $ filter_arg));
-};
-
-let gen_slides_clean_cmd = {
-  let doc = "Remove generated slide files and restore stub.";
-  let info = Cmd.info("gen-slides-clean", ~doc);
-  Cmd.v(info, Term.(const(GenSlides.clean) $ const()));
-};
-
 let gen_tutorial_cmd = {
   let doc = "Generate Tutorial-mode slides (Tutorial.spec) from text files in hazel-programs/tutorial/. See src/CLI/GenTutorial.re for the input format.";
   let info = Cmd.info("gen-tutorial", ~doc);
@@ -624,7 +608,7 @@ let tutorial_verify_cmd = {
 };
 
 let tutorial_decode_cmd = {
-  let doc = "Decode Tutorial-mode slides to text. With no arg, writes all hand-written lessons to hazel-programs/tutorial/imported/. With a title substring, prints matching slides to stdout.";
+  let doc = "Decode Tutorial-mode slides to text. With no arg, writes all hand-written lessons to hazel-programs/tutorial-imported/. With a title substring, prints matching slides to stdout.";
   let filter_arg =
     Arg.(value & pos(0, some(string), None) & info([], ~docv="SUBSTR"));
   let info = Cmd.info("tutorial-decode", ~doc);
@@ -692,8 +676,6 @@ let default_cmd = {
       analyze_cmd,
       probe_cmd,
       test_cmd,
-      gen_slides_cmd,
-      gen_slides_clean_cmd,
       gen_tutorial_cmd,
       gen_tutorial_clean_cmd,
       tutorial_verify_cmd,

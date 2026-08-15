@@ -49,7 +49,7 @@ let tests = (
           bool,
           "another slide is a placeholder",
           true,
-          zip_len(List.nth(m.scratchpads, 5)) <= 2,
+          zip_len(List.nth(m.scratchpads, 1)) <= 2,
         );
         let m2 =
           ScratchMode.Persist.hydrate_current(
@@ -57,7 +57,7 @@ let tests = (
             "doc",
             {
               ...m,
-              current: 5,
+              current: 1,
             },
           );
         check(
@@ -70,7 +70,7 @@ let tests = (
           bool,
           "switched slide is now hydrated",
           true,
-          zip_len(List.nth(m2.scratchpads, 5)) > 10,
+          zip_len(List.nth(m2.scratchpads, 1)) > 10,
         );
         /* idempotent: hydrating again is a no-op */
         let m3 = ScratchMode.Persist.hydrate_current(~settings, "doc", m2);

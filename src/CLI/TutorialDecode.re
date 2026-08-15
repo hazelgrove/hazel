@@ -5,7 +5,7 @@
  * MarkerParse to render the editor zippers as text.
  *
  *   ./hazel tutorial-decode            # write all hand-written lessons to
- *                                      #   hazel-programs/tutorial/imported/
+ *                                      #   hazel-programs/tutorial-imported/
  *   ./hazel tutorial-decode SUBSTR     # print lessons whose title matches
  *                                      #   SUBSTR to stdout (for inspection)
  *   ./hazel tutorial-verify            # round-trip-check every slide

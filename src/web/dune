@@ -42,7 +42,6 @@
   ppx_yojson_conv.expander
   haz3lcore
   b2t2
-  study
   docslides
   pretty
   omd)
