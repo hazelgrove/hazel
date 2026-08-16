@@ -132,6 +132,34 @@ let real_times = (left, right) =>
 let real_power = (left, right) =>
   Exp.bin_op(Operators.Real(Operators.Power), left, right);
 
+type exact_numeric_syntax = {
+  label: string,
+  number: int => Exp.t,
+  plus: (Exp.t, Exp.t) => Exp.t,
+  minus: (Exp.t, Exp.t) => Exp.t,
+  times: (Exp.t, Exp.t) => Exp.t,
+  power: (Exp.t, Exp.t) => Exp.t,
+};
+
+let exact_numeric_syntaxes = [
+  {
+    label: "Int",
+    number: Exp.int,
+    plus,
+    minus,
+    times,
+    power,
+  },
+  {
+    label: "Real",
+    number: real,
+    plus: real_plus,
+    minus: real_minus,
+    times: real_times,
+    power: real_power,
+  },
+];
+
 let check_written = (name, left, right, expected) =>
   check(
     option(string),
@@ -16786,6 +16814,151 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "core profile checks preserve Int and browser-Real parity", `Quick, () => {
+      exact_numeric_syntaxes
+      |> List.iter((syntax: exact_numeric_syntax) => {
+           let {label, number, plus, minus, times, power} = syntax;
+           let x = Exp.var("x");
+           let y = Exp.var("y");
+           let one_step = (profile, source, target) =>
+             Web.RewriteChecker.check_single_step_result_for_profile(
+               ~profile,
+               ~settings,
+               ~env,
+               source,
+               target,
+             )
+             |> Option.is_some;
+           let check_result = (profile, source, target) =>
+             Web.RewriteChecker.check_written_step_trace_for_profile(
+               ~profile,
+               ~settings,
+               ~env,
+               source,
+               target,
+             )
+             |> Option.is_some;
+           let arithmetic = Axioms.math_profile(Arithmetic);
+           check(
+             bool,
+             label ++ " One Step folds an exact constant",
+             true,
+             one_step(arithmetic, plus(number(1), number(2)), number(3)),
+           );
+           check(
+             bool,
+             label ++ " Check Result normalizes an affine sum",
+             true,
+             check_result(
+               arithmetic,
+               plus(plus(x, number(1)), number(2)),
+               plus(x, number(3)),
+             ),
+           );
+           let without_constant_folding =
+             Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="arith.const_fold",
+               arithmetic,
+             )
+             |> Web.ProfileBoard.profile_with_cleanup(
+                  ~cleanup=
+                    arithmetic.step_policy.default_cleanup
+                    |> List.filter(capability =>
+                         capability != Axioms.ConstFold
+                       ),
+                );
+           check(
+             bool,
+             label ++ " disabled constant folding stays disabled",
+             false,
+             one_step(
+               without_constant_folding,
+               plus(plus(x, number(1)), number(2)),
+               plus(x, number(3)),
+             ),
+           );
+           let algebra = Axioms.math_profile(Algebra);
+           let distributed_source = times(x, plus(y, number(2)));
+           let distributed_target = plus(times(x, y), times(x, number(2)));
+           check(
+             bool,
+             label ++ " One Step distributes multiplication",
+             true,
+             one_step(algebra, distributed_source, distributed_target),
+           );
+           check(
+             bool,
+             label ++ " One Step factors a common scalar",
+             true,
+             one_step(algebra, distributed_target, distributed_source),
+           );
+           let foil_source =
+             times(
+               minus(times(number(2), x), number(3)),
+               plus(x, number(4)),
+             );
+           let uncollected_foil =
+             minus(
+               plus(
+                 minus(
+                   times(times(number(2), x), x),
+                   times(number(3), x),
+                 ),
+                 times(times(number(4), number(2)), x),
+               ),
+               number(12),
+             );
+           check(
+             bool,
+             label ++ " One Step accepts signed uncollected FOIL",
+             true,
+             one_step(algebra, foil_source, uncollected_foil),
+           );
+           let collected_foil =
+             minus(
+               plus(
+                 times(number(2), power(x, number(2))),
+                 times(number(5), x),
+               ),
+               number(12),
+             );
+           check(
+             bool,
+             label ++ " Check Result accepts collected signed FOIL",
+             true,
+             check_result(algebra, foil_source, collected_foil),
+           );
+           let wrong_foil =
+             minus(
+               plus(
+                 minus(
+                   times(times(number(2), x), x),
+                   times(number(3), x),
+                 ),
+                 times(times(number(5), number(2)), x),
+               ),
+               number(12),
+             );
+           check(
+             bool,
+             label ++ " rejects an inequivalent FOIL coefficient",
+             false,
+             one_step(algebra, foil_source, wrong_foil),
+           );
+           let without_distribution =
+             Web.ProfileBoard.profile_without_visible_rule(
+               ~rule_id="alg.distribute_mul_add",
+               algebra,
+             );
+           check(
+             bool,
+             label ++ " disabled distribution blocks FOIL",
+             false,
+             one_step(without_distribution, foil_source, uncollected_foil),
+           );
+         })
+    }),
     test_case(
       "exact Real polynomial normalization is general and profile-bound",
       `Quick,

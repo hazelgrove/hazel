@@ -61,6 +61,9 @@ let int_constant = exp => {
   | Atom(Int(value))
   | Atom(Nat(value)) => Bigint.to_int(value)
   | Atom(SInt(value)) => Some(value)
+  | Atom(Real(Real.Rational({numerator, denominator, _})))
+      when Bigint.equal(denominator, Bigint.one) =>
+    Bigint.to_int(numerator)
   | Atom(Float(value)) when value == Float.round(value) =>
     Some(int_of_float(value))
   | _ => None
@@ -71,21 +74,28 @@ let op_matches = (kind, op) =>
   switch (kind, op) {
   | (
       Add,
-      Operators.Int(Operators.Plus) | Nat(Plus) | SInt(Plus) | Float(Plus),
+      Operators.Int(Operators.Plus) | Nat(Plus) | SInt(Plus) | Float(Plus) |
+      Real(Plus),
     ) =>
     true
-  | (Sub, Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus)) =>
+  | (
+      Sub,
+      Operators.Int(Operators.Minus) | SInt(Minus) | Float(Minus) |
+      Real(Minus),
+    ) =>
     true
   | (
       Mul,
       Operators.Int(Operators.Times) | Nat(Times) | SInt(Times) |
-      Float(Times),
+      Float(Times) |
+      Real(Times),
     ) =>
     true
   | (
       Div,
       Operators.Int(Operators.Divide) | Nat(Divide) | SInt(Divide) |
-      Float(Divide),
+      Float(Divide) |
+      Real(Divide),
     ) =>
     true
   | _ => false
@@ -96,7 +106,8 @@ let is_power_op = op =>
   | Operators.Int(Operators.Power)
   | Nat(Power)
   | SInt(Power)
-  | Float(Power) => true
+  | Float(Power)
+  | Real(Power) => true
   | _ => false
   };
 
@@ -150,7 +161,8 @@ let rec rational_literal_of_exp = exp => {
       None,
       UnOp(
         Operators.Int(Operators.Minus) | Nat(Minus) | SInt(Minus) |
-        Float(Minus),
+        Float(Minus) |
+        Real(Minus),
         inner,
       ),
     ) =>
@@ -167,17 +179,37 @@ let rec rational_literal_of_exp = exp => {
   };
 };
 
-let exp_of_rational_constant = value => {
-  let numerator = int_exp(value.numerator);
-  value.denominator == 1
-    ? numerator : divide_exp(numerator, int_exp(value.denominator));
-};
+let exp_of_rational_constant = (~real_mode, value) =>
+  if (real_mode) {
+    Exp.fresh(
+      Atom(
+        Real(
+          Real.normalize(
+            Bigint.of_int(value.numerator),
+            Bigint.of_int(value.denominator),
+            None,
+          ),
+        ),
+      ),
+    );
+  } else {
+    let numerator = int_exp(value.numerator);
+    value.denominator == 1
+      ? numerator : divide_exp(numerator, int_exp(value.denominator));
+  };
 
 /* Exact, deliberately bounded evaluation for the existing `Evaluate
    constants` capability. This covers classroom-sized rational operations;
    it is not a separate shortcut for any particular worked example. */
 let fold_rational_constant = exp => {
   let exp = strip(exp);
+  let real_mode =
+    switch (exp.term) {
+    | Atom(Real(_))
+    | BinOp(Real(_), _, _)
+    | UnOp(Real(_), _) => true
+    | _ => false
+    };
   let folded =
     switch (exp.term) {
     | BinOp(op, left, right) when op_matches(Add, op) =>
@@ -208,7 +240,7 @@ let fold_rational_constant = exp => {
       }
     | _ => None
     };
-  folded |> Option.map(exp_of_rational_constant);
+  folded |> Option.map(exp_of_rational_constant(~real_mode));
 };
 
 let rec flatten_mul = exp => {

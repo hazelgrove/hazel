@@ -2256,6 +2256,9 @@ let integer_power_parts = (exp: Exp.t) => {
       | Atom(Int(value))
       | Atom(Nat(value)) => Bigint.to_int(value)
       | Atom(SInt(value)) => Some(value)
+      | Atom(Real(Real.Rational({numerator, denominator, _})))
+          when Bigint.equal(denominator, Bigint.one) =>
+        Bigint.to_int(numerator)
       | _ => None
       };
     switch (exponent) {
@@ -3041,7 +3044,7 @@ let rec has_explicit_like_terms = exp => {
   switch (exp.term) {
   | BinOp(plus_op, left, right) when is_plus_op(plus_op) =>
     operands_have_like_terms(left, right, ~negate_right=false)
-  | BinOp(Int(Minus) | SInt(Minus), left, right) =>
+  | BinOp(minus_op, left, right) when is_minus_op(minus_op) =>
     operands_have_like_terms(left, right, ~negate_right=true)
   | Parens(inner)
   | Asc(inner, _) => has_explicit_like_terms(inner)
@@ -4601,7 +4604,13 @@ let check_single_catalog_rule =
     | Some(ArithmeticScalarNormalize) =>
       let normalized =
         ArithmeticNormalization.simplify_scalar_products(from_);
-      if (TrigRewrite.exp_same(normalized, to_)) {
+      let matches_profile_cleanup =
+        product_term_same_under_cleanup(
+          planned_rule.allowed_cleanup,
+          from_,
+          to_,
+        );
+      if (TrigRewrite.exp_same(normalized, to_) || matches_profile_cleanup) {
         switch (arithmetic_group_at_level(profile.level)) {
         | None => None
         | Some(group) =>

@@ -40,6 +40,23 @@ let exp_of_source = source =>
   | None => fail("expected expression source to parse")
   };
 
+/* The case-study sources elaborate beneath [use Real].  Build behavioral
+ * checker fixtures with the same operators and literal representation that
+ * the browser stepper receives, rather than relying on parser-default Ints. */
+module BrowserReal = {
+  let number = value => Exp.real(Real.of_bigint(Bigint.of_int(value)));
+  let plus = (left, right) =>
+    Exp.bin_op(Operators.Real(Operators.Plus), left, right);
+  let minus = (left, right) =>
+    Exp.bin_op(Operators.Real(Operators.Minus), left, right);
+  let times = (left, right) =>
+    Exp.bin_op(Operators.Real(Operators.Times), left, right);
+  let divide = (left, right) =>
+    Exp.bin_op(Operators.Real(Operators.Divide), left, right);
+  let power = (left, right) =>
+    Exp.bin_op(Operators.Real(Operators.Power), left, right);
+};
+
 let check_policy = (label, exercise, expected_level, expected_stage) => {
   let policy = require_policy(exercise);
   let profile = Web.ExerciseMathPolicy.resolved_profile(policy);
@@ -532,26 +549,28 @@ let tests = (
           ),
         );
         let x = Exp.var("x");
-        let int = Exp.int;
-        let plus = (left, right) =>
-          Exp.bin_op(Operators.Int(Operators.Plus), left, right);
-        let minus = (left, right) =>
-          Exp.bin_op(Operators.Int(Operators.Minus), left, right);
-        let times = (left, right) =>
-          Exp.bin_op(Operators.Int(Operators.Times), left, right);
-        let power = (left, right) =>
-          Exp.bin_op(Operators.Int(Operators.Power), left, right);
+        let number = BrowserReal.number;
+        let plus = BrowserReal.plus;
+        let minus = BrowserReal.minus;
+        let times = BrowserReal.times;
+        let power = BrowserReal.power;
         let source =
-          times(minus(times(int(2), x), int(3)), plus(x, int(4)));
+          times(
+            minus(times(number(2), x), number(3)),
+            plus(x, number(4)),
+          );
         let first_distribution =
           minus(
-            times(times(int(2), x), plus(x, int(4))),
-            times(int(3), plus(x, int(4))),
+            times(times(number(2), x), plus(x, number(4))),
+            times(number(3), plus(x, number(4))),
           );
         let target =
           minus(
-            plus(times(int(2), power(x, int(2))), times(int(5), x)),
-            int(12),
+            plus(
+              times(number(2), power(x, number(2))),
+              times(number(5), x),
+            ),
+            number(12),
           );
         let accepts = (from_, to_) =>
           switch (
@@ -570,9 +589,72 @@ let tests = (
           | Authorized(_) => true
           | Rejected(_) => false
           };
-        let expanded = exp_of_source("2 * x ** 2 - 3 * x + 8 * x - 12");
+        let expanded =
+          minus(
+            plus(
+              minus(
+                times(number(2), power(x, number(2))),
+                times(number(3), x),
+              ),
+              times(number(8), x),
+            ),
+            number(12),
+          );
         let expanded_with_repeated_factor =
-          exp_of_source("2 * x * x - 3 * x + 8 * x - 12");
+          minus(
+            plus(
+              minus(times(times(number(2), x), x), times(number(3), x)),
+              times(number(8), x),
+            ),
+            number(12),
+          );
+        let cleanup = profile.step_policy.default_cleanup;
+        check(
+          bool,
+          "Real repeated factors match power notation cleanup",
+          true,
+          Web.RewriteChecker.product_term_same_under_cleanup(
+            cleanup,
+            times(times(number(2), x), x),
+            times(number(2), power(x, number(2))),
+          ),
+        );
+        check(
+          bool,
+          "Real coefficient factors match constant-fold cleanup",
+          true,
+          Web.RewriteChecker.product_term_same_under_cleanup(
+            cleanup,
+            times(times(number(2), x), number(4)),
+            times(number(8), x),
+          ),
+        );
+        check(
+          bool,
+          "Real constant products match constant-fold cleanup",
+          true,
+          Web.RewriteChecker.product_term_same_under_cleanup(
+            cleanup,
+            times(number(3), number(4)),
+            number(12),
+          ),
+        );
+        check(
+          bool,
+          "Real whole-product terms match before collection",
+          true,
+          Web.RewriteChecker.uncollected_full_distribution_matches(
+            profile,
+            source,
+            expanded,
+          ),
+        );
+        check(
+          bool,
+          "Real whole-product expansion remains polynomial-equivalent",
+          true,
+          Web.RewriteChecker.polynomial_equivalent_exps(source, expanded),
+        );
         check(
           bool,
           "whole product can expand to four visible products",
@@ -602,10 +684,10 @@ let tests = (
           "second distribution is accepted",
           true,
           accepts(
-            times(times(int(2), x), plus(x, int(4))),
+            times(times(number(2), x), plus(x, number(4))),
             plus(
-              times(int(2), power(x, int(2))),
-              times(times(int(2), x), int(4)),
+              times(number(2), power(x, number(2))),
+              times(times(number(2), x), number(4)),
             ),
           ),
         );
@@ -614,26 +696,32 @@ let tests = (
           "third distribution is accepted",
           true,
           accepts(
-            times(int(3), plus(x, int(4))),
-            plus(times(int(3), x), times(int(3), int(4))),
+            times(number(3), plus(x, number(4))),
+            plus(times(number(3), x), times(number(3), number(4))),
           ),
         );
         check(
           bool,
           "numeric coefficient product is simplified",
           true,
-          accepts(times(times(int(2), x), int(4)), times(int(8), x)),
+          accepts(
+            times(times(number(2), x), number(4)),
+            times(number(8), x),
+          ),
         );
         check(
           bool,
           "constant product is simplified",
           true,
-          accepts(times(int(3), int(4)), int(12)),
+          accepts(times(number(3), number(4)), number(12)),
         );
         let products_folded =
           minus(
-            plus(times(int(2), power(x, int(2))), times(int(8), x)),
-            plus(times(int(3), x), int(12)),
+            plus(
+              times(number(2), power(x, number(2))),
+              times(number(8), x),
+            ),
+            plus(times(number(3), x), number(12)),
           );
         switch (
           Web.ProfileProofPlan.authorize({
@@ -655,8 +743,9 @@ let tests = (
             ++ Web.ProfileProofPlan.rejection_message(rejection),
           )
         };
-        let collect_source = plus(times(int(8), x), times(int(3), x));
-        let collect_target = times(int(11), x);
+        let collect_source =
+          plus(times(number(8), x), times(number(3), x));
+        let collect_target = times(number(11), x);
         switch (
           Web.RewriteChecker.check_single_step_result_for_profile(
             ~profile,
@@ -723,8 +812,8 @@ let tests = (
             candidate_origin: Web.ProfileProofPlan.UserEntered,
             settings: CoreSettings.on,
             env: Environment.empty,
-            source: plus(x, int(1)),
-            target: plus(int(1), x),
+            source: plus(x, number(1)),
+            target: plus(number(1), x),
             max_depth: 1,
             max_states: 80,
           })
@@ -748,8 +837,8 @@ let tests = (
           "signed linear terms are collected",
           true,
           accepts(
-            minus(times(int(8), x), times(int(3), x)),
-            times(int(5), x),
+            minus(times(number(8), x), times(number(3), x)),
+            times(number(5), x),
           ),
         );
         check(
@@ -757,8 +846,8 @@ let tests = (
           "quadratic like terms are collected",
           true,
           accepts(
-            plus(times(x, x), times(int(2), times(x, x))),
-            times(int(3), times(x, x)),
+            plus(times(x, x), times(number(2), times(x, x))),
+            times(number(3), times(x, x)),
           ),
         );
         check(
@@ -766,8 +855,8 @@ let tests = (
           "unlike variables are not collected",
           false,
           accepts(
-            plus(times(int(8), x), times(int(3), Exp.var("y"))),
-            times(int(11), x),
+            plus(times(number(8), x), times(number(3), Exp.var("y"))),
+            times(number(11), x),
           ),
         );
         check(
@@ -775,8 +864,8 @@ let tests = (
           "collection cannot change a power",
           false,
           accepts(
-            plus(power(x, int(3)), power(x, int(3))),
-            times(int(2), power(x, int(2))),
+            plus(power(x, number(3)), power(x, number(3))),
+            times(number(2), power(x, number(2))),
           ),
         );
         let collection_disabled_profile = {
@@ -890,32 +979,16 @@ let tests = (
         let policy = require_policy(Web.Ex_PolynomialDerivative.exercise);
         let profile = Web.ExerciseMathPolicy.resolved_profile(policy);
         let x = Language.Exp.fresh(Var("x"));
-        let int = value =>
-          Language.Exp.fresh(Atom(Int(Bigint.of_int(value))));
-        let plus = (left, right) =>
-          Language.Exp.fresh(
-            BinOp(Operators.Int(Operators.Plus), left, right),
-          );
-        let times = (left, right) =>
-          Language.Exp.fresh(
-            BinOp(Operators.Int(Operators.Times), left, right),
-          );
-        let minus = (left, right) =>
-          Language.Exp.fresh(
-            BinOp(Operators.Int(Operators.Minus), left, right),
-          );
-        let divide = (left, right) =>
-          Language.Exp.fresh(
-            BinOp(Operators.Int(Operators.Divide), left, right),
-          );
-        let power = (left, right) =>
-          Language.Exp.fresh(
-            BinOp(Operators.Int(Operators.Power), left, right),
-          );
+        let number = BrowserReal.number;
+        let plus = BrowserReal.plus;
+        let times = BrowserReal.times;
+        let minus = BrowserReal.minus;
+        let divide = BrowserReal.divide;
+        let power = BrowserReal.power;
         let deriv = (body, variable) =>
           DerivativeOperator.expression(~body, ~variable);
-        let cubic = power(x, int(3));
-        let linear = times(int(2), x);
+        let cubic = power(x, number(3));
+        let linear = times(number(2), x);
         let source = deriv(plus(cubic, linear), x);
         let target = plus(deriv(cubic, x), deriv(linear, x));
         let authorize =
@@ -978,7 +1051,7 @@ let tests = (
           List.mem("calc.diff_sum", linearity_plan.summary.rule_ids),
         );
         let power_source = deriv(cubic, x);
-        let power_target = times(int(3), power(x, int(2)));
+        let power_target = times(number(3), power(x, number(2)));
         let expect_displayed_action = (label, source, rule_id, target) => {
           let actions =
             Web.AxiomsBox.calculus_actions_for_profile(~profile, source);
@@ -1029,7 +1102,10 @@ let tests = (
           "product rule",
           linear_derivative,
           "calc.diff_product",
-          plus(times(deriv(int(2), x), x), times(int(2), deriv(x, x))),
+          plus(
+            times(deriv(number(2), x), x),
+            times(number(2), deriv(x, x)),
+          ),
         );
         let suggest = (~profile=profile, source) =>
           Web.RewriteChecker.simplify_for_profile(
@@ -1057,17 +1133,17 @@ let tests = (
         expect_suggestion(
           "constant-times-variable Check Result suggestion",
           linear_derivative,
-          int(2),
+          number(2),
         );
         expect_suggestion(
           "variable-times-constant Check Result suggestion",
-          deriv(times(x, int(5)), x),
-          int(5),
+          deriv(times(x, number(5)), x),
+          number(5),
         );
         expect_suggestion(
           "complete polynomial Check Result suggestion",
           source,
-          plus(power_target, int(2)),
+          plus(power_target, number(2)),
         );
         let (power_plan, power_program) =
           expect_authorized_certificate(
@@ -1096,7 +1172,7 @@ let tests = (
           bool,
           "variable derivative remains an explicit One Step rule",
           true,
-          switch (authorize(~stage=Axioms.Manual, deriv(x, x), int(1))) {
+          switch (authorize(~stage=Axioms.Manual, deriv(x, x), number(1))) {
           | Authorized(_) => true
           | Rejected(_) => false
           },
@@ -1122,7 +1198,7 @@ let tests = (
           product_target,
         )
         |> ignore;
-        let denominator = plus(x, int(1));
+        let denominator = plus(x, number(1));
         let quotient_source = deriv(divide(cubic, denominator), x);
         let quotient_target =
           divide(
@@ -1130,7 +1206,7 @@ let tests = (
               times(deriv(cubic, x), denominator),
               times(cubic, deriv(denominator, x)),
             ),
-            power(denominator, int(2)),
+            power(denominator, number(2)),
           );
         expect_authorized_certificate(
           ~rocq_path=Some("/tmp/hazel_derivative_quotient_intermediate.v"),
@@ -1140,7 +1216,7 @@ let tests = (
         )
         |> ignore;
         let typo_target =
-          plus(deriv(power(x, int(2)), x), deriv(linear, x));
+          plus(deriv(power(x, number(2)), x), deriv(linear, x));
         check(
           bool,
           "changing the cubic exponent is rejected",
