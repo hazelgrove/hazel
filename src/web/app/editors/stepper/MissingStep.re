@@ -1361,7 +1361,7 @@ module AutoSimplifyDebounce = {
 };
 
 module LiveOneStepPlanning = {
-  let debounce_ms = 250.0;
+  let debounce_ms = 1000.0;
   let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
   let scheduled_key: ref(option(string)) = ref(None);
   let planning_owner: ref(option(int)) = ref(None);
@@ -2064,9 +2064,11 @@ module View = {
             |> Option.map(plan => Some(plan));
           | _ => cached_result
           };
+        let has_incomplete_expression =
+          AxiomSearch.has_hole(unboxed_selected_exp)
+          || AxiomSearch.has_hole(unboxed_cached_exp);
         if (check_mode == Model.SingleEvalStep) {
-          if (AxiomSearch.has_hole(unboxed_selected_exp)
-              || AxiomSearch.has_hole(unboxed_cached_exp)) {
+          if (has_incomplete_expression) {
             LiveOneStepPlanning.cancel(~reset_key=true, ());
           } else {
             let active_profile =
@@ -2647,6 +2649,12 @@ module View = {
                       replace_button(plan),
                     ]
                   | (_, _, Some(None)) => [Node.text("Invalid")]
+                  | (Model.SingleEvalStep, _, None) => [
+                      Node.text(
+                        has_incomplete_expression
+                          ? "Finish typing…" : "Checking…",
+                      ),
+                    ]
                   | (_, _, None) => [Node.text("...")]
                   }
                 },

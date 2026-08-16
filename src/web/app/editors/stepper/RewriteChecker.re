@@ -2223,10 +2223,10 @@ let rec signed_sum_terms = (exp: Exp.t): list((int, Exp.t)) => {
   switch (exp.term) {
   | BinOp(plus_op, left, right) when is_plus_op(plus_op) =>
     signed_sum_terms(left) @ signed_sum_terms(right)
-  | BinOp(Int(Minus) | SInt(Minus), left, right) =>
+  | BinOp(minus_op, left, right) when is_minus_op(minus_op) =>
     signed_sum_terms(left)
     @ (signed_sum_terms(right) |> List.map(((sign, exp)) => (- sign, exp)))
-  | UnOp(Int(Minus) | SInt(Minus), exp) =>
+  | UnOp(minus_op, exp) when is_numeric_minus(minus_op) =>
     signed_sum_terms(exp) |> List.map(((sign, exp)) => (- sign, exp))
   | _ => [(1, exp)]
   };
@@ -3150,13 +3150,13 @@ let rec fully_distributed_signed_terms = (exp: Exp.t): list((int, Exp.t)) => {
   | BinOp(plus_op, left, right) when is_plus_op(plus_op) =>
     fully_distributed_signed_terms(left)
     @ fully_distributed_signed_terms(right)
-  | BinOp(Int(Minus) | SInt(Minus), left, right) =>
+  | BinOp(minus_op, left, right) when is_minus_op(minus_op) =>
     fully_distributed_signed_terms(left)
     @ (
       fully_distributed_signed_terms(right)
       |> List.map(((sign, term)) => (- sign, term))
     )
-  | UnOp(Int(Minus) | SInt(Minus), inner) =>
+  | UnOp(minus_op, inner) when is_numeric_minus(minus_op) =>
     fully_distributed_signed_terms(inner)
     |> List.map(((sign, term)) => (- sign, term))
   | BinOp(times_op, left, right) when is_times_op(times_op) =>

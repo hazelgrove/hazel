@@ -123,6 +123,9 @@ let real = value => Exp.real(Real.of_bigint(Bigint.of_int(value)));
 let real_plus = (left, right) =>
   Exp.bin_op(Operators.Real(Operators.Plus), left, right);
 
+let real_minus = (left, right) =>
+  Exp.bin_op(Operators.Real(Operators.Minus), left, right);
+
 let real_times = (left, right) =>
   Exp.bin_op(Operators.Real(Operators.Times), left, right);
 
@@ -6933,6 +6936,77 @@ let tests = (
               Exp.int(12),
             ),
           ),
+        );
+        let real_signed_source =
+          real_times(
+            real_minus(real_times(real(2), x), real(3)),
+            real_plus(x, real(4)),
+          );
+        let real_signed_uncollected =
+          real_minus(
+            real_plus(
+              real_minus(
+                real_times(real_times(real(2), x), x),
+                real_times(real(3), x),
+              ),
+              real_times(real_times(real(4), real(2)), x),
+            ),
+            real(12),
+          );
+        check(
+          bool,
+          "Real signed FOIL accepts inherited scalar cleanup",
+          true,
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile=without_collect,
+            ~settings,
+            ~env,
+            real_signed_source,
+            real_signed_uncollected,
+          )
+          |> Option.is_some,
+        );
+        let wrong_real_signed_target =
+          real_minus(
+            real_plus(
+              real_minus(
+                real_times(real_times(real(2), x), x),
+                real_times(real(3), x),
+              ),
+              real_times(real_times(real(5), real(2)), x),
+            ),
+            real(12),
+          );
+        check(
+          bool,
+          "Real signed FOIL still rejects an incorrect coefficient",
+          false,
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile=without_collect,
+            ~settings,
+            ~env,
+            real_signed_source,
+            wrong_real_signed_target,
+          )
+          |> Option.is_some,
+        );
+        let without_real_distribution =
+          Web.ProfileBoard.profile_without_visible_rule(
+            ~rule_id="alg.distribute_mul_add",
+            without_collect,
+          );
+        check(
+          bool,
+          "disabled distribution blocks the same Real expansion",
+          false,
+          Web.RewriteChecker.check_single_step_result_for_profile(
+            ~profile=without_real_distribution,
+            ~settings,
+            ~env,
+            real_signed_source,
+            real_signed_uncollected,
+          )
+          |> Option.is_some,
         );
         let coefficient_source =
           times(
