@@ -1136,13 +1136,19 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_pat(p);
             return(ModuleExp(shrunk, e1, e2));
           }
+        | Module(items) =>
+          /* Members are the only thing that can get smaller: Shrink.list
+             both drops members and shrinks each one. A module is only
+             ever a let's definiens, so collapsing to a member's body is
+             left to the enclosing Let arm's of_list step. */
+          let* shrunk = Shrink.list(items, ~shrink=shrink_mod_item);
+          return(Module(shrunk));
         | IndicationExp(_)
         | EmptyHole
         | BuiltinFun(_)
         | Undefined
         | InvalidExp(_)
-        | LivelitName(_)
-        | Module(_) => Iter.empty
+        | LivelitName(_) => Iter.empty
         }
       )
   )
@@ -1370,6 +1376,40 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | UnknownType(_)
         | InvalidTyp(_)
         | Sig(_) => Iter.empty
+        }
+      )
+  )
+/* Total over mod_item, though gen_exp_sized only builds Let and Type
+   members: Module also arrives from parsed sources. */
+and shrink_mod_item: QCheck.Shrink.t(mod_item) =
+  QCheck.(
+    (item: mod_item) =>
+      Iter.(
+        switch (item) {
+        | ModItemLet(p, e) =>
+          {
+            let* shrunk = shrink_exp(e);
+            return(ModItemLet(p, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(ModItemLet(shrunk, e));
+          }
+        | ModItemType(tp, t) =>
+          let* shrunk = shrink_typ(t);
+          return(ModItemType(tp, shrunk));
+        | ModItemExp(e) =>
+          let* shrunk = shrink_exp(e);
+          return(ModItemExp(shrunk));
+        | ModItemModule(p, e) =>
+          {
+            let* shrunk = shrink_exp(e);
+            return(ModItemModule(p, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(ModItemModule(shrunk, e));
+          }
         }
       )
   );
