@@ -1590,18 +1590,34 @@ let tests = (
           [],
           Statics.Map.error_ids(initial_info) |> List.map(Id.show),
         );
+        let surface_left =
+          switch (surface.term) {
+          | BinOp(Operators.Poly(Operators.Equals), left, _) => left
+          | _ => fail("expected a surface equality")
+          };
         let elaborated_left =
           switch (elaborated.term) {
           | BinOp(Operators.Poly(Operators.Equals), left, _) => left
           | _ => fail("expected an elaborated equality")
           };
+        let profile_source =
+          Web.MissingStep.elaborated_exp_for_math(
+            ~info_map=initial_info,
+            surface_left,
+          );
+        check(
+          bool,
+          "profile automation resolves the selected surface term through statics",
+          true,
+          Web.RewriteChecker.exp_same(elaborated_left, profile_source),
+        );
         let candidate =
           switch (
             Web.RewriteChecker.simplify_for_profile(
               ~profile=Axioms.math_profile(Algebra),
               ~settings=CoreSettings.on,
               ~env=Environment.empty,
-              elaborated_left,
+              profile_source,
             )
           ) {
           | Some(candidate) => candidate
@@ -1625,7 +1641,10 @@ let tests = (
         );
         let parser_default_target =
           exp_of_source("(x + 3) ** 2 - 4")
-          |> Web.RewriteChecker.inherit_numeric_mode(~source=elaborated_left);
+          |> Web.MissingStep.replacement_in_math_mode(
+               ~info_map=initial_info,
+               ~source=surface_left,
+             );
         let inserted_after_write_boundary =
           Language.ProofHacks.replace_nth_exp(
             elaborated_left,
@@ -1646,6 +1665,24 @@ let tests = (
           [],
           Statics.Map.error_ids(write_boundary_info) |> List.map(Id.show),
         );
+        ["2 * x * x - 3 * x + 8 * x - 12", "1 + 2 + 3 + x ** 2"]
+        |> List.iter(target_source => {
+             let replacement =
+               exp_of_source(target_source)
+               |> Web.MissingStep.replacement_in_math_mode(
+                    ~info_map=initial_info,
+                    ~source=surface_left,
+                  );
+             let (replacement_info, _) =
+               Statics.mk(CoreSettings.on, real_ctx, replacement);
+             check(
+               list(string),
+               "shared rewrite boundary preserves Real mode for "
+               ++ target_source,
+               [],
+               Statics.Map.error_ids(replacement_info) |> List.map(Id.show),
+             );
+           });
       },
     ),
     test_case(

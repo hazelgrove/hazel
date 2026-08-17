@@ -48,7 +48,7 @@ jobs:
         if: steps.setup-ocaml.outcome == 'failure'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes opam bubblewrap darcs g++-multilib gcc-multilib mercurial musl-tools rsync
+          sudo apt-get install --yes opam bubblewrap g++-multilib gcc-multilib mercurial musl-tools rsync
           opam init --auto-setup --bare --disable-sandboxing
           opam update
           opam switch create . ocaml-base-compiler.5.2.0 --yes

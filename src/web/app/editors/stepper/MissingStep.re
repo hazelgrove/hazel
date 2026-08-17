@@ -1405,6 +1405,22 @@ module LiveOneStepPlanning = {
 let auto_simplify_uses_profile = (level, exp) =>
   level == Axioms.Calculus && DifferentiationRewrite.contains_diff(exp);
 
+/* Visible stepper terms retain the user's concrete syntax, so an expression
+ * beneath [use Real] can still contain parser-default Int operators. Profile
+ * automation must use the elaborated term where statics applied that mode. */
+let elaborated_exp_for_math = (~info_map: Statics.Map.t, exp: Exp.t): Exp.t =>
+  switch (Statics.Map.lookup_exp(Exp.rep_id(exp), info_map)) {
+  | Some({elab_term, _}) => elab_term
+  | None => exp
+  };
+
+let replacement_in_math_mode =
+    (~info_map: Statics.Map.t, ~source: Exp.t, target: Exp.t): Exp.t =>
+  target
+  |> RewriteChecker.inherit_numeric_mode(
+       ~source=elaborated_exp_for_math(~info_map, source),
+     );
+
 module View = {
   open OptUtil.Syntax;
 
@@ -1538,6 +1554,7 @@ module View = {
       (
         ~inject,
         ~selected_exp,
+        ~info_map,
         ~profile,
         ~settings,
         ~env,
@@ -1545,6 +1562,7 @@ module View = {
       ) => {
     let candidate =
       selected_exp
+      |> elaborated_exp_for_math(~info_map)
       |> Substitution.in_exp(env)
       |> RewriteChecker.simplify_for_profile(~profile, ~settings, ~env);
     let message =
@@ -1745,6 +1763,11 @@ module View = {
         let full_visible_exp =
           model.full_visible_exp
           |> Calc.get_saved_exc(~print="full_visible_exp");
+        /* All profile-authorized written rewrites cross this boundary. Make
+         * their generated target inherit the selected term's elaborated
+         * numeric mode before inserting it into the visible proof trace. */
+        let with_exp =
+          replacement_in_math_mode(~info_map, ~source=at_exp, with_exp);
         let direct_override =
           selection_override
           |> Option.bind(_, override =>
@@ -1907,6 +1930,10 @@ module View = {
                         |> Substitution.in_exp(
                              model.cached_env
                              |> Calc.get_saved_exc(~print="env not cached"),
+                           )
+                        |> replacement_in_math_mode(
+                             ~info_map,
+                             ~source=unboxed_selected_exp,
                            );
                       switch (rewrite_reparenthesized_exp) {
                       | Some(reparenthesized_exp) =>
@@ -2123,7 +2150,8 @@ module View = {
                      model.cached_env
                      |> Calc.get_saved_exc(~print="env not cached"),
                    )
-                |> RewriteChecker.inherit_numeric_mode(
+                |> replacement_in_math_mode(
+                     ~info_map,
                      ~source=unboxed_selected_exp,
                    );
               let full_visible_exp =
@@ -2363,6 +2391,7 @@ module View = {
               profile_suggestion_effect(
                 ~inject,
                 ~selected_exp=unboxed_selected_exp,
+                ~info_map,
                 ~profile,
                 ~settings=globals.settings.core,
                 ~env,
@@ -2724,6 +2753,7 @@ module View = {
                   profile_suggestion_effect(
                     ~inject,
                     ~selected_exp,
+                    ~info_map,
                     ~profile,
                     ~settings=globals.settings.core,
                     ~env,
