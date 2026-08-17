@@ -27,6 +27,7 @@ let settings =
     show_filters: false,
     show_ascriptions: false,
     show_unknown_as_hole: false,
+    hole_tiles: false,
     project_tables: false,
     project_charts: false,
   };

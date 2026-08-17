@@ -46,6 +46,11 @@ module Settings = {
     show_filters: bool,
     show_ascriptions: bool,
     show_unknown_as_hole: bool,
+    /* Emit EmptyHole as an explicit "?" TILE instead of Grout — used by
+       FastParse so a source `?` lands as the tile the typing parser
+       would make, keeping explicit `?` holes distinct from Grout
+       (whose text serialization is the `¿` marker). */
+    hole_tiles: bool,
   };
 
   let of_core = (~inline, ~fold_fn_bodies=?, settings: CoreSettings.t) => {
@@ -65,6 +70,7 @@ module Settings = {
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
+    hole_tiles: false,
   };
 
   let editable = (~inline) => {
@@ -81,6 +87,7 @@ module Settings = {
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
+      hole_tiles: false,
     };
   };
 };
@@ -222,7 +229,13 @@ let external_precedence_typ = (tp: Typ.t) =>
   // Other forms
   | Prod(_) => Precedence.comma
   | Arrow(_, _) => Precedence.type_arrow
-  | Sum(_) => Precedence.type_plus
+  /* Empty sum prints as the atomic token Void. */
+  | Sum([]) => Precedence.max
+  /* Loosest, deliberately: a bare sum reparses differently in most
+     operator slots (Arrow(Sum(..), t) printed bare comes back as the
+     sum swallowing the arrow — caught by the Menhir fuzz property), so
+     Defensive mode always parenthesizes sums in operand position. */
+  | Sum(_) => Precedence.min
   | Rec(_, _) => Precedence.let_
   | Poly(_, _) => Precedence.let_
 
@@ -1778,12 +1791,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     wrap(
       exp,
-      p_just([
-        Grout({
-          id,
-          shape: Convex,
-        }),
-      ]),
+      settings.hole_tiles
+        ? text_to_pretty(id, Sort.Exp, "?")
+        : p_just([
+            Grout({
+              id,
+              shape: Convex,
+            }),
+          ]),
     );
   | Undefined =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined"))
@@ -2456,12 +2471,14 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let id = pat |> Pat.rep_id;
     wrap(
       pat,
-      p_just([
-        Grout({
-          id,
-          shape: Convex,
-        }),
-      ]),
+      settings.hole_tiles
+        ? text_to_pretty(id, Sort.Pat, "?")
+        : p_just([
+            Grout({
+              id,
+              shape: Convex,
+            }),
+          ]),
     );
   | Wild => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_"))
   | ExplicitNonlabel =>
@@ -2674,7 +2691,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown(Hole(EmptyHole)) =>
     wrap(
       typ,
-      if (settings.show_unknown_as_hole) {
+      if (settings.show_unknown_as_hole && !settings.hole_tiles) {
         let id = typ |> Typ.rep_id;
         p_just([
           Grout({
