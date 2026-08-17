@@ -199,15 +199,6 @@ module Update = {
     // Exercises
     | Exercises(ExercisesMode.Update.t);
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | SwitchMode(_) => true
-    | Scratch(action) => ScratchMode.Update.can_undo(action)
-    | Tutorial(action) => TutorialsMode.Update.can_undo(action)
-    | Exercises(action) => ExercisesMode.Update.can_undo(action)
-    };
-  };
-
   let update =
       (
         ~globals: Globals.t,

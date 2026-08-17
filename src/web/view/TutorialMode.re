@@ -231,18 +231,6 @@ module Update = {
     };
   };
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Editor(_, action) => CellEditor.Update.can_undo(action)
-    | RefreshStatics => false
-    | ResetEditor(_) => true
-    | ResetTutorial => true
-    | MoveToNextExercise
-    | MoveToPrevExercise
-    | Change_report_view => false
-    };
-  };
-
   let calculate =
       (
         ~settings,
