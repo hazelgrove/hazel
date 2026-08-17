@@ -250,6 +250,7 @@ let premise_mismatch: group = {
     {
       id: Derivation,
       syntactic_form: [],
+      colorings: [],
       expandable_id: None,
       explanation: "",
       examples: [],
