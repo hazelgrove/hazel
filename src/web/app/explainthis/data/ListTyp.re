@@ -7,18 +7,18 @@ let typ_elem = typ("ty_elem");
 let list_typ_coloring_ids = (~elem_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(typ_elem), elem_id),
 ];
-let list_typ: form = {
-  let explanation = "The list type classifies lists with elements with the corresponding [*element type*](%s).";
-  {
-    id: ListTyp,
-    syntactic_form: [mk_list_typ([[typ_elem]])],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+let list_typ_form = [mk_list_typ([[typ_elem]])];
+let list_typ = (~elem_id: Id.t): form => {
+  id: ListTyp,
+  syntactic_form: list_typ_form,
+  colorings: list_typ_coloring_ids(~elem_id),
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "The list type classifies lists with elements with the corresponding [*element type*](%s).",
+      Id.to_string(elem_id),
+    ),
+  examples: [],
 };
 
-let list: group = {
-  id: ListTyp,
-  forms: [list_typ],
-};
+let list = (~elem_id: Id.t): group => singleton(list_typ(~elem_id));
