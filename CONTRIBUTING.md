@@ -141,14 +141,32 @@ Code coverage is provided by [bisect_ppx](https://github.com/aantron/bisect_ppx)
 
 ## Continuous Integration
 
-When you push your branch to the main `hazelgrove/hazel` repository, we 
-have a GitHub Action setup (see `.github/workflows/deploy_branches.yml`) 
-that will build that branch (in `release` mode) and deploy it to the URL 
-`https://hazel.org/build/<branch name>`, assuming the build succeeds.
-
-It usually takes about 2 minutes if the build environment cache hits, or 
-20+ minutes if not. You can view the status of the build in the [Actions 
+Two workflows run against `hazelgrove/hazel`. You can view both in the [Actions
 tab on Github](https://github.com/hazelgrove/hazel/actions).
+
+`.github/workflows/deploy.yml` runs on **every branch push** and gives you three
+checks:
+
+- **Static checks** — formatting, and the strict-warning gate (`make ci-check`).
+- **Deploy branch preview** — builds in `release` mode and deploys to
+  `https://hazel.org/build/<branch name>`. Deliberately not gated on the other
+  two: a red suite should not stop you looking at your branch.
+- **Quick tests** — the suite under alcotest's `-q` filter, which skips the
+  `Slow`-tagged cases. Results appear as a `Quick Test Report` check.
+
+`.github/workflows/ci.yml` runs on **pull requests** (including from forks),
+pushes to `dev`, and the merge queue. It adds:
+
+- **Test** — the full suite including the `Slow` QCheck property tests, plus a
+  `Test Report` check and Codecov upload. This is the authoritative check.
+
+`Test` is much slower than `Quick tests` — roughly 30 minutes of test time
+against 2 — because the `Slow`-tagged cases are the large majority of the
+suite's runtime. If you want that signal before opening a PR, run `make test`
+locally.
+
+Both workflows share `.github/actions/setup-hazel-toolchain`, which is where the
+OCaml version and the opam switch cache live.
 
 Builds prior to July 2024 are archived at `https://hazel.org/build-pre-july2024/<branch name>`.
 
