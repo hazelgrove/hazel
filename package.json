@@ -10,7 +10,6 @@
   },
   "homepage": "https://hazel.org",
   "dependencies": {
-    "@esbuild-plugins/node-resolve": "^0.2.2",
     "@observablehq/plot": "^0.6.17",
     "algebrite": "^1.4.0",
     "hotkeys-js": "^3.8.7",
