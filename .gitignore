@@ -71,3 +71,10 @@ plans/
 # Cursor IDE (local)
 .cursor/
 AGENTS.md
+
+# Scratch build/test logs
+*.log
+
+# Python bytecode (scripts/ helpers get imported by ad-hoc tooling)
+__pycache__/
+*.pyc
