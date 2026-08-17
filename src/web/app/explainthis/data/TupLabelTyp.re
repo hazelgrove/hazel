@@ -22,26 +22,24 @@ let labeled_example_2: example = {
 let lab = typ("x");
 let p = typ("p");
 
-let labeled_exps_coloring_ids =
+let labeled_typs_coloring_ids =
     (~label_id: Id.t, ~typ_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(lab), label_id),
   (Piece.id(p), typ_id),
 ];
-let labeled_typ: form = {
-  let explanation =
-    "Assigns a [*label*](%s) to a [*type*](%s) appearing as an element within a Tuple type. "
-    ++ "Labeled tuple item types cannot exist outside of a Tuple type. Labeled tuple item types that are not contained "
-    ++ "within a Tuple are automatically converted into a singleton tuple type. "
-    ++ "Singleton tuples can also be unlabeled by using `_` in the label position.";
-  {
-    id: LabeledTyp,
-    syntactic_form: [lab, labeled_typ(), p],
-    expandable_id: None,
-    explanation,
-    examples: [labeled_example_1, unlabeled_example, labeled_example_2],
-  };
-};
-let labeled_typs: group = {
+let labeled_typ_form = [lab, labeled_typ(), p];
+let labeled_typ = (~label_id: Id.t, ~typ_id: Id.t): form => {
   id: LabeledTyp,
-  forms: [labeled_typ],
+  syntactic_form: labeled_typ_form,
+  colorings: labeled_typs_coloring_ids(~label_id, ~typ_id),
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Assigns a [*label*](%s) to a [*type*](%s) appearing as an element within a Tuple type. Labeled tuple item types cannot exist outside of a Tuple type. Labeled tuple item types that are not contained within a Tuple are automatically converted into a singleton tuple type. Singleton tuples can also be unlabeled by using `_` in the label position.",
+      Id.to_string(label_id),
+      Id.to_string(typ_id),
+    ),
+  examples: [labeled_example_1, unlabeled_example, labeled_example_2],
 };
+let labeled_typs = (~label_id: Id.t, ~typ_id: Id.t): group =>
+  singleton(labeled_typ(~label_id, ~typ_id));
