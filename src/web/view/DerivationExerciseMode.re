@@ -270,11 +270,7 @@ module Update = {
       (~settings: Settings.t, action: instructor, model: Model.t)
       : Updated.t(Model.t) =>
     if (settings.instructor_mode) {
-      {
-        /* Instructor form edits are not undoable */
-        ...instructor_update(action, model),
-        historic: false,
-      };
+      instructor_update(action, model);
     } else {
       Updated.return_quiet(model);
     };
