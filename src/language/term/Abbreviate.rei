@@ -4,6 +4,7 @@
    Test_Abbreviate covers it directly. */
 
 let abbreviate_exp: (~available: int=?, Exp.t) => (Exp.t, int);
+let abbreviate_pat: (~available: int=?, Pat.t) => (Pat.t, int);
 
 module AbbrevBudget: {
   let split_evenly: (~total: int, ~parts: int) => list(int);
