@@ -2,7 +2,7 @@ open Haz3lcore;
 open ExplainThisForm;
 open Example;
 
-let list_exp: form = {
+let list_exp = (~n: int): form => {
   let int_list = {
     sub_id: List(Int),
     term: mk_example("[1, 2]"),
@@ -13,12 +13,13 @@ let list_exp: form = {
     term: mk_example("[(1, true), (2, false)]"),
     message: "A list with two elements, a tuple with 1 and true and a tuple with 2 and false.",
   };
-  let explanation = "List literal with %s element(s).";
+  let explanation = Printf.sprintf("List literal with %d element(s).", n);
   {
     id: ListExp,
     syntactic_form: [
       mk_list_exp([[exp("e1"), comma_exp(), space(), exp("...")]]),
     ],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [int_list, tuple_list],
@@ -41,11 +42,17 @@ let cons_exp_coloring_ids = (~hd_id: Id.t, ~tl_id: Id.t): list((Id.t, Id.t)) => 
   (Piece.id(exp_hd), hd_id),
   (Piece.id(exp_tl), tl_id),
 ];
-let cons_exp: form = {
-  let explanation = "Creates a list with [*head element*](%s) and [*tail element*](%s).";
+let cons_exp = (~hd_id: Id.t, ~tl_id: Id.t): form => {
+  let explanation =
+    Printf.sprintf(
+      "Creates a list with [*head element*](%s) and [*tail element*](%s).",
+      Id.to_string(hd_id),
+      Id.to_string(tl_id),
+    );
   {
     id: ConsExp,
     syntactic_form: [exp_hd, cons_exp(), exp_tl],
+    colorings: cons_exp_coloring_ids(~hd_id, ~tl_id),
     expandable_id: None,
     explanation,
     examples: [cons1_ex, cons2_ex],
@@ -59,28 +66,27 @@ let concat_exp_coloring_ids =
   (Piece.id(exp_xs), xs_id),
   (Piece.id(exp_ys), ys_id),
 ];
-let list_concat_exp: form = {
-  let explanation = "Creates a list by combining the [*first operand*](%s) and the [*second operand*](%s).";
+let list_concat_exp = (~xs_id: Id.t, ~ys_id: Id.t): form => {
+  let explanation =
+    Printf.sprintf(
+      "Creates a list by combining the [*first operand*](%s) and the [*second operand*](%s).",
+      Id.to_string(xs_id),
+      Id.to_string(ys_id),
+    );
   {
     id: ListConcatExp,
     syntactic_form: [exp_xs, space(), list_concat_exp(), space(), exp_ys],
+    colorings: concat_exp_coloring_ids(~xs_id, ~ys_id),
     expandable_id: None,
     explanation,
     examples: [],
   };
 };
 
-let listlits: group = {
-  id: ListExp,
-  forms: [list_exp],
-};
+let listlits = (~n: int): group => singleton(list_exp(~n));
 
-let listcons: group = {
-  id: ConsExp,
-  forms: [cons_exp],
-};
+let listcons = (~hd_id: Id.t, ~tl_id: Id.t): group =>
+  singleton(cons_exp(~hd_id, ~tl_id));
 
-let listconcats: group = {
-  id: ListConcatExp,
-  forms: [list_concat_exp],
-};
+let listconcats = (~xs_id: Id.t, ~ys_id: Id.t): group =>
+  singleton(list_concat_exp(~xs_id, ~ys_id));

@@ -162,14 +162,6 @@ module F =
     );
   };
 
-  let can_undo = a =>
-    switch (a) {
-    | ScrutUpdate(action) => CodeEditable.Update.can_undo(action)
-    | CaseUpdate(_, action) => InductionCase.can_undo(action)
-    | AddCase => true
-    | RemoveCase(_) => true
-    };
-
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
