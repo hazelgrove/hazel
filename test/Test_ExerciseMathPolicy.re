@@ -1557,6 +1557,175 @@ let tests = (
       },
     ),
     test_case(
+      "completing-square profile suggestion remains Real after insertion",
+      `Quick,
+      () => {
+        let real_typ = Language.Typ.temp(Atom(Real));
+        let real_ctx =
+          Ctx.extend(
+            Builtins.ctx_init(Some(Real)),
+            Ctx.VarEntry({
+              name: "x",
+              id: Id.invalid,
+              typ: real_typ,
+              custom_statics: None,
+            }),
+          );
+        let stepper_ctx =
+          Ctx.extend(
+            Builtins.ctx_init(Some(Int)),
+            Ctx.VarEntry({
+              name: "x",
+              id: Id.invalid,
+              typ: real_typ,
+              custom_statics: None,
+            }),
+          );
+        let surface = exp_of_source("(x + 3) ** 2 + -4 == (x + 3) ** 2 - 4");
+        let (initial_info, elaborated) =
+          Statics.mk(CoreSettings.on, real_ctx, surface);
+        check(
+          list(string),
+          "initial completing-square equality has no type errors",
+          [],
+          Statics.Map.error_ids(initial_info) |> List.map(Id.show),
+        );
+        let elaborated_left =
+          switch (elaborated.term) {
+          | BinOp(Operators.Poly(Operators.Equals), left, _) => left
+          | _ => fail("expected an elaborated equality")
+          };
+        let candidate =
+          switch (
+            Web.RewriteChecker.simplify_for_profile(
+              ~profile=Axioms.math_profile(Algebra),
+              ~settings=CoreSettings.on,
+              ~env=Environment.empty,
+              elaborated_left,
+            )
+          ) {
+          | Some(candidate) => candidate
+          | None => fail("expected a completing-square cleanup suggestion")
+          };
+        let inserted =
+          Language.ProofHacks.replace_nth_exp(
+            elaborated_left,
+            Language.ProofHacks.exp_idx(elaborated_left, elaborated),
+            elaborated,
+            candidate,
+          )
+          |> Option.get;
+        let (inserted_info, _) =
+          Statics.mk(CoreSettings.on, stepper_ctx, inserted);
+        check(
+          list(string),
+          "inserted profile suggestion has no Real/Int type errors",
+          [],
+          Statics.Map.error_ids(inserted_info) |> List.map(Id.show),
+        );
+        let parser_default_target =
+          exp_of_source("(x + 3) ** 2 - 4")
+          |> Web.RewriteChecker.inherit_numeric_mode(~source=elaborated_left);
+        let inserted_after_write_boundary =
+          Language.ProofHacks.replace_nth_exp(
+            elaborated_left,
+            Language.ProofHacks.exp_idx(elaborated_left, elaborated),
+            elaborated,
+            parser_default_target,
+          )
+          |> Option.get;
+        let (write_boundary_info, _) =
+          Statics.mk(
+            CoreSettings.on,
+            stepper_ctx,
+            inserted_after_write_boundary,
+          );
+        check(
+          list(string),
+          "written-step boundary upgrades parser-default nodes to Real",
+          [],
+          Statics.Map.error_ids(write_boundary_info) |> List.map(Id.show),
+        );
+      },
+    ),
+    test_case(
+      "inherited trig-profile cleanup preserves Real mode",
+      `Quick,
+      () => {
+        let x = Exp.var("x");
+        let source =
+          BrowserReal.plus(
+            BrowserReal.plus(
+              BrowserReal.plus(
+                BrowserReal.number(1),
+                BrowserReal.number(2),
+              ),
+              BrowserReal.number(3),
+            ),
+            BrowserReal.power(x, BrowserReal.number(2)),
+          );
+        let candidate =
+          switch (
+            Web.RewriteChecker.simplify_for_profile(
+              ~profile=Axioms.math_profile(Trigonometry),
+              ~settings=CoreSettings.on,
+              ~env=Environment.empty,
+              source,
+            )
+          ) {
+          | Some(candidate) => candidate
+          | None => fail("expected inherited arithmetic cleanup")
+          };
+        check(
+          bool,
+          "Trig profile performs inherited arithmetic cleanup",
+          true,
+          Web.RewriteChecker.exp_same(
+            BrowserReal.plus(
+              BrowserReal.times(x, x),
+              BrowserReal.number(6),
+            ),
+            candidate,
+          ),
+        );
+        check(
+          bool,
+          "inherited cleanup rebuilds its constants and operators as Real",
+          true,
+          switch (candidate.term) {
+          | BinOp(
+              Operators.Real(Operators.Plus),
+              {term: Atom(Real(_)), _},
+              {
+                term:
+                  BinOp(
+                    Operators.Real(Operators.Power | Operators.Times),
+                    _,
+                    _,
+                  ),
+                _,
+              },
+            )
+          | BinOp(
+              Operators.Real(Operators.Plus),
+              {
+                term:
+                  BinOp(
+                    Operators.Real(Operators.Power | Operators.Times),
+                    _,
+                    _,
+                  ),
+                _,
+              },
+              {term: Atom(Real(_)), _},
+            ) =>
+            true
+          | _ => false
+          },
+        );
+      },
+    ),
+    test_case(
       "pending exercise evaluation retains its math policy",
       `Quick,
       () => {

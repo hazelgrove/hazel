@@ -2122,6 +2122,9 @@ module View = {
                 |> Substitution.in_exp(
                      model.cached_env
                      |> Calc.get_saved_exc(~print="env not cached"),
+                   )
+                |> RewriteChecker.inherit_numeric_mode(
+                     ~source=unboxed_selected_exp,
                    );
               let full_visible_exp =
                 model.full_visible_exp

@@ -33,10 +33,26 @@ jobs:
         run: npm install
         working-directory: ./source
       - name: Set-up OCaml
+        id: setup-ocaml
         uses: ocaml/setup-ocaml@v3
+        continue-on-error: true
         with:
-          ocaml-compiler: 5.2.0
+          ocaml-compiler: "5.2.0"
           dune-cache: true
+      # setup-ocaml discovers opam through GitHub's Releases list endpoint.
+      # That endpoint can transiently return an empty list even while the
+      # tagged opam release assets remain available. Keep the action as the
+      # primary path, but retain a distro-packaged fallback so deploys do not
+      # fail before the repository build has even started.
+      - name: Fall back to packaged opam
+        if: steps.setup-ocaml.outcome == 'failure'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes opam bubblewrap darcs g++-multilib gcc-multilib mercurial musl-tools rsync
+          opam init --auto-setup --bare --disable-sandboxing
+          opam update
+          opam switch create . ocaml-base-compiler.5.2.0 --yes
+          opam install dune --yes
       - name: Retrieve the switch environment if cached
         id: opam-cache-switch
         uses: actions/cache@v4

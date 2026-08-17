@@ -486,6 +486,93 @@ let normalize_affine = (~settings, ~env, exp: Exp.t): option(normal_form) => {
 
 let int_exp = MathRewriteUtil.int_exp;
 
+/* Normalization rebuilds parts of an expression from canonical coefficients.
+ * Preserve the explicit numeric mode carried by the elaborated source instead
+ * of silently reintroducing Int nodes inside (for example) a Real theorem. */
+let numeric_mode_of_exp = (exp: Exp.t): option(Operators.mode) => {
+  let exp =
+    exp |> DHExp.strip_ascriptions |> MathRewriteUtil.strip_math_wrappers;
+  switch (exp.term) {
+  | Atom(Int(_)) => Some(Operators.Int)
+  | Atom(Nat(_)) => Some(Operators.Nat)
+  | Atom(SInt(_)) => Some(Operators.SInt)
+  | Atom(Float(_) | Decimal(_)) => Some(Operators.Float)
+  | Atom(Real(_)) => Some(Operators.Real)
+  | BinOp(Int(_), _, _) => Some(Operators.Int)
+  | BinOp(Nat(_), _, _) => Some(Operators.Nat)
+  | BinOp(SInt(_), _, _) => Some(Operators.SInt)
+  | BinOp(Float(_), _, _) => Some(Operators.Float)
+  | BinOp(Real(_), _, _) => Some(Operators.Real)
+  | UnOp(Int(_), _) => Some(Operators.Int)
+  | UnOp(Nat(_), _) => Some(Operators.Nat)
+  | UnOp(SInt(_), _) => Some(Operators.SInt)
+  | UnOp(Float(_), _) => Some(Operators.Float)
+  | UnOp(Real(_), _) => Some(Operators.Real)
+  | _ => None
+  };
+};
+
+let numeric_literal_exp = (~mode, value) => {
+  switch (Operators.replace_literal(Atom.Int(value), None, mode)) {
+  | L(atom) => Exp.fresh(Atom(atom))
+  | R(_) => int_exp(value)
+  };
+};
+
+let numeric_bin_exp = (~mode, op, left, right) =>
+  Exp.fresh(
+    BinOp(Operators.replace_bin_op(Operators.Int(op), mode), left, right),
+  );
+
+let numeric_un_exp = (~mode, op, exp) =>
+  Exp.fresh(UnOp(Operators.replace_un_op(Operators.Int(op), mode), exp));
+
+/* A generated or serialized rewrite target can regain parser-default Int
+ * nodes before it is written back into an elaborated theorem. Upgrade only
+ * those default nodes to the selected source's numeric mode; already-explicit
+ * non-Int modes remain untouched. */
+let inherit_numeric_mode = (~source, target: Exp.t): Exp.t => {
+  switch (numeric_mode_of_exp(source)) {
+  | None => target
+  | Some(mode) =>
+    Exp.map_term(
+      ~f_exp=
+        (continue, exp) => {
+          let exp = continue(exp);
+          switch (exp.term) {
+          | Atom(Int(_) as atom) =>
+            switch (Operators.replace_literal(atom, None, Some(mode))) {
+            | L(atom) => {
+                ...exp,
+                term: Atom(atom),
+              }
+            | R(_) => exp
+            }
+          | BinOp(Operators.Int(op), left, right) => {
+              ...exp,
+              term:
+                BinOp(
+                  Operators.replace_bin_op(Operators.Int(op), Some(mode)),
+                  left,
+                  right,
+                ),
+            }
+          | UnOp(Operators.Int(op), inner) => {
+              ...exp,
+              term:
+                UnOp(
+                  Operators.replace_un_op(Operators.Int(op), Some(mode)),
+                  inner,
+                ),
+            }
+          | _ => exp
+          };
+        },
+      target,
+    )
+  };
+};
+
 let var_exp = name => Exp.fresh(Var(name));
 
 let plus_exp = MathRewriteUtil.plus_exp;
@@ -493,38 +580,62 @@ let plus_exp = MathRewriteUtil.plus_exp;
 let minus_exp = (left, right) =>
   Exp.fresh(BinOp(Operators.Int(Operators.Minus), left, right));
 
+let minus_exp_for_mode = (~mode, left, right) =>
+  numeric_bin_exp(~mode, Operators.Minus, left, right);
+
 let times_exp = MathRewriteUtil.times_exp;
 
 let negate_exp = exp =>
   Exp.fresh(UnOp(Operators.Int(Operators.Minus), exp));
 
-let exp_of_term = ((name, coeff)) => {
+let exp_of_term = (~mode, (name, coeff)) => {
   let variable = var_exp(name);
   if (Bigint.equal(coeff, Bigint.one)) {
     variable;
   } else if (Bigint.equal(coeff, Bigint.neg(Bigint.one))) {
-    negate_exp(variable);
+    numeric_un_exp(~mode, Operators.Minus, variable);
   } else if (Bigint.(<)(coeff, Bigint.zero)) {
-    negate_exp(times_exp(int_exp(Bigint.abs(coeff)), variable));
+    numeric_un_exp(
+      ~mode,
+      Operators.Minus,
+      numeric_bin_exp(
+        ~mode,
+        Operators.Times,
+        numeric_literal_exp(~mode, Bigint.abs(coeff)),
+        variable,
+      ),
+    );
   } else {
-    times_exp(int_exp(coeff), variable);
+    numeric_bin_exp(
+      ~mode,
+      Operators.Times,
+      numeric_literal_exp(~mode, coeff),
+      variable,
+    );
   };
 };
 
-let exp_of_affine = (a: affine): Exp.t => {
-  let terms = a.terms |> List.map(exp_of_term);
-  let parts = is_zero(a.constant) ? terms : terms @ [int_exp(a.constant)];
+let exp_of_affine = (~mode, a: affine): Exp.t => {
+  let terms = a.terms |> List.map(exp_of_term(~mode));
+  let parts =
+    is_zero(a.constant)
+      ? terms : terms @ [numeric_literal_exp(~mode, a.constant)];
   switch (parts) {
-  | [] => int_exp(Bigint.zero)
+  | [] => numeric_literal_exp(~mode, Bigint.zero)
   | [part] => part
   | [first, second, ...rest] =>
-    List.fold_left(plus_exp, plus_exp(first, second), rest)
+    List.fold_left(
+      (left, right) => numeric_bin_exp(~mode, Operators.Plus, left, right),
+      numeric_bin_exp(~mode, Operators.Plus, first, second),
+      rest,
+    )
   };
 };
 
 let simplify_arithmetic = (~settings, ~env, exp: Exp.t): option(Exp.t) => {
+  let mode = numeric_mode_of_exp(exp);
   switch (normalize_affine(~settings, ~env, exp)) {
-  | Some(Affine(affine)) => Some(exp_of_affine(affine))
+  | Some(Affine(affine)) => Some(exp_of_affine(~mode, affine))
   | _ => None
   };
 };
@@ -2846,53 +2957,82 @@ let polynomial_exp_has_multiple_terms = exp =>
   | None => false
   };
 
-let exp_of_monomial = (monomial: monomial): Exp.t =>
+let exp_of_monomial = (~mode, monomial: monomial): Exp.t =>
   switch (monomial) {
-  | [] => int_exp(Bigint.one)
+  | [] => numeric_literal_exp(~mode, Bigint.one)
   | [name] => var_exp(name)
   | [first, second, ...rest] =>
     rest
     |> List.fold_left(
-         (acc, name) => times_exp(acc, var_exp(name)),
-         times_exp(var_exp(first), var_exp(second)),
+         (acc, name) =>
+           numeric_bin_exp(~mode, Operators.Times, acc, var_exp(name)),
+         numeric_bin_exp(
+           ~mode,
+           Operators.Times,
+           var_exp(first),
+           var_exp(second),
+         ),
        )
   };
 
-let exp_of_polynomial_term = ((monomial, coeff)) => {
+let exp_of_polynomial_term = (~mode, (monomial, coeff)) => {
   switch (monomial, Bigint.compare(coeff, Bigint.zero)) {
-  | ([], _) => int_exp(coeff)
-  | (_, 0) => int_exp(Bigint.zero)
+  | ([], _) => numeric_literal_exp(~mode, coeff)
+  | (_, 0) => numeric_literal_exp(~mode, Bigint.zero)
   | (_, _) =>
-    let variable_part = exp_of_monomial(monomial);
+    let variable_part = exp_of_monomial(~mode, monomial);
     if (Bigint.equal(coeff, Bigint.one)) {
       variable_part;
     } else if (Bigint.equal(coeff, Bigint.neg(Bigint.one))) {
-      negate_exp(variable_part);
+      numeric_un_exp(~mode, Operators.Minus, variable_part);
     } else if (Bigint.(<)(coeff, Bigint.zero)) {
-      negate_exp(times_exp(int_exp(Bigint.abs(coeff)), variable_part));
+      numeric_un_exp(
+        ~mode,
+        Operators.Minus,
+        numeric_bin_exp(
+          ~mode,
+          Operators.Times,
+          numeric_literal_exp(~mode, Bigint.abs(coeff)),
+          variable_part,
+        ),
+      );
     } else {
-      times_exp(int_exp(coeff), variable_part);
+      numeric_bin_exp(
+        ~mode,
+        Operators.Times,
+        numeric_literal_exp(~mode, coeff),
+        variable_part,
+      );
     };
   };
 };
 
-let exp_of_polynomial = (polynomial: polynomial): Exp.t => {
+let exp_of_polynomial = (~mode, polynomial: polynomial): Exp.t => {
   let terms = polynomial |> polynomial_canonicalize;
   switch (terms) {
-  | [] => int_exp(Bigint.zero)
+  | [] => numeric_literal_exp(~mode, Bigint.zero)
   | [first, ...rest] =>
     rest
     |> List.fold_left(
          (acc, (monomial, coefficient) as term) =>
            if (Bigint.(<)(coefficient, Bigint.zero)) {
-             minus_exp(
+             minus_exp_for_mode(
+               ~mode,
                acc,
-               exp_of_polynomial_term((monomial, Bigint.abs(coefficient))),
+               exp_of_polynomial_term(
+                 ~mode,
+                 (monomial, Bigint.abs(coefficient)),
+               ),
              );
            } else {
-             plus_exp(acc, exp_of_polynomial_term(term));
+             numeric_bin_exp(
+               ~mode,
+               Operators.Plus,
+               acc,
+               exp_of_polynomial_term(~mode, term),
+             );
            },
-         exp_of_polynomial_term(first),
+         exp_of_polynomial_term(~mode, first),
        )
   };
 };
@@ -2900,6 +3040,7 @@ let exp_of_polynomial = (polynomial: polynomial): Exp.t => {
 let normalize_polynomial =
     (~settings as _: CoreSettings.t, ~env as _: Environment.t(Exp.t), exp) => {
   let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
+  let mode = numeric_mode_of_exp(exp);
   let shape_rule_ids =
     (
       switch (normalize_common_factor_sum(exp)) {
@@ -2920,7 +3061,7 @@ let normalize_polynomial =
        let polynomial = polynomial_canonicalize(normalized.polynomial);
        {
          normal_form: Polynomial(polynomial),
-         normal_exp: exp_of_polynomial(polynomial),
+         normal_exp: exp_of_polynomial(~mode, polynomial),
          rule_ids: dedup(shape_rule_ids @ normalized.rule_ids),
        };
      });
@@ -2938,6 +3079,7 @@ let power_has_sum_base = exp => {
 
 let polynomial_expansion_target = exp => {
   let exp = exp |> DHExp.strip_ascriptions |> strip_math_wrappers;
+  let mode = numeric_mode_of_exp(exp);
   let product_has_polynomial_sum_factor =
     product_factors(exp) |> List.exists(polynomial_exp_has_multiple_terms);
   if (product_has_polynomial_sum_factor || power_has_sum_base(exp)) {
@@ -2945,7 +3087,9 @@ let polynomial_expansion_target = exp => {
     | Some(normalized)
         when List.mem("alg.expand_polynomial", normalized.rule_ids) =>
       Some((
-        normalized.polynomial |> polynomial_canonicalize |> exp_of_polynomial,
+        normalized.polynomial
+        |> polynomial_canonicalize
+        |> exp_of_polynomial(~mode),
         normalized.rule_ids,
       ))
     | _ => None
@@ -3006,6 +3150,7 @@ let normalize_algebra_distribution =
 
 let normalize_affine_with_trace =
     (~settings, ~env, exp: Exp.t): option(normalized) => {
+  let mode = numeric_mode_of_exp(exp);
   exp
   |> DHExp.strip_ascriptions
   |> take_auto_steps(~settings, ~env)
@@ -3014,7 +3159,7 @@ let normalize_affine_with_trace =
        let affine = canonicalize(normalized.affine);
        {
          normal_form: Affine(affine),
-         normal_exp: exp_of_affine(affine),
+         normal_exp: exp_of_affine(~mode, affine),
          rule_ids: normalized.rule_ids,
        };
      });
@@ -3287,22 +3432,30 @@ let uncollected_full_distribution_matches = (profile, from_, to_) => {
   };
 };
 
-let polynomial_normal_exp = exp =>
+let polynomial_normal_exp = exp => {
+  let mode = numeric_mode_of_exp(exp);
   exp
   |> polynomial_of_exp
   |> Option.map(normalized =>
-       normalized.polynomial |> polynomial_canonicalize |> exp_of_polynomial
+       normalized.polynomial
+       |> polynomial_canonicalize
+       |> exp_of_polynomial(~mode)
      )
   |> Option.value(~default=exp);
+};
 
-let simplify_algebra = (~settings as _: CoreSettings.t, ~env as _, exp) =>
+let simplify_algebra = (~settings as _: CoreSettings.t, ~env as _, exp) => {
+  let mode = numeric_mode_of_exp(exp);
   exp
   |> DHExp.strip_ascriptions
   |> strip_math_wrappers
   |> polynomial_of_exp
   |> Option.map(normalized =>
-       normalized.polynomial |> polynomial_canonicalize |> exp_of_polynomial
+       normalized.polynomial
+       |> polynomial_canonicalize
+       |> exp_of_polynomial(~mode)
      );
+};
 
 let simplify_at_level = (~level, ~settings, ~env, exp) =>
   switch (level) {
