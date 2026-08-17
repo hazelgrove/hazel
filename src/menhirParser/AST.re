@@ -768,21 +768,16 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           | [x] => return(ListExp(shrunk)) <+> Iter.return(x)
           | _ => return(ListExp(shrunk))
           };
+        | TupleExp([]) => Iter.empty
+        /* a singleton tuple only ever wraps a lone TupLabel */
         | TupleExp(l) =>
-          if (List.length(l) <= 1) {
-            Iter.empty;
-          } else {
-            let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
-            switch (shrunk) {
-            | [] => Iter.return(TupleExp([]))
-            | [x] =>
-              switch (x) {
-              | TupLabel(_, _) => Iter.return(TupleExp(shrunk))
-              | _ => Iter.return(x)
-              }
-            | _ => return(TupleExp(shrunk))
-            };
-          }
+          let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
+          switch (shrunk) {
+          | [] => Iter.return(TupleExp([]))
+          | [TupLabel(_, _)] => Iter.return(TupleExp(shrunk))
+          | [x] => Iter.return(x)
+          | _ => return(TupleExp(shrunk))
+          };
         | BinExp(e1, op, e2) =>
           {
             of_list([e1, e2]);
@@ -1214,10 +1209,12 @@ and shrink_pat: QCheck.Shrink.t(pat) =
             let* shrunk = shrink_pat(p2);
             return(ApPat(p1, shrunk));
           }
+        | TuplePat([]) => Iter.empty
         | TuplePat(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_pat);
           switch (shrunk) {
           | [] => Iter.return(TuplePat([]))
+          | [TupLabelPat(_, _)] => Iter.return(TuplePat(shrunk))
           | [x] => Iter.return(x)
           | _ => return(TuplePat(shrunk))
           };
@@ -1294,9 +1291,12 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             | _ => return(SumTyp(shrunk))
             };
           };
+        | TupleType([]) => Iter.empty
         | TupleType(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_typ);
           switch (shrunk) {
+          | [] => Iter.return(TupleType([]))
+          | [TupLabelType(_, _)] => Iter.return(TupleType(shrunk))
           | [x] => Iter.return(x)
           | _ => return(TupleType(shrunk))
           };

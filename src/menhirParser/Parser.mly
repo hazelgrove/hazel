@@ -233,11 +233,11 @@ tupTypeEntry:
     | WILD; SINGLE_EQUAL; t = typ { TupLabelType(ExplicitNonlabel, t) }
 
 %inline tupleType:
-    | OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN { ParenTyp(TupleType(hd :: types)) }
+    | OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_nonempty_list(COMMA, tupTypeEntry); CLOSE_PAREN { ParenTyp(TupleType(hd :: types)) }
 
 
 %inline sumTerm:
-    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN  { Variant(i, Some(TupleType(hd :: types))) }
+    | i = CONSTRUCTOR_IDENT; OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_nonempty_list(COMMA, tupTypeEntry); CLOSE_PAREN  { Variant(i, Some(TupleType(hd :: types))) }
     | i = CONSTRUCTOR_IDENT; OPEN_PAREN; t = typ; CLOSE_PAREN;  { Variant(i, Some(t)) }
     | i = CONSTRUCTOR_IDENT { Variant(i, None) }
     | QUESTION { BadEntry(UnknownType(EmptyHole)) }
@@ -296,7 +296,7 @@ nonAscriptingPat:
     | OPEN_PAREN; p = pat; CLOSE_PAREN { ParenPat(p) }
     | OPEN_PAREN; l = label; SINGLE_EQUAL; p = pat; CLOSE_PAREN { ParenPat(TuplePat([TupLabelPat(LabelPat(l), p)])) }
     | OPEN_PAREN; WILD; SINGLE_EQUAL; p = pat; CLOSE_PAREN { ParenPat(TuplePat([TupLabelPat(ExplicitNonlabel, p)])) }
-    | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { ParenPat(TuplePat(p :: pats)) }
+    | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_nonempty_list(COMMA, tupPatEntry); CLOSE_PAREN { ParenPat(TuplePat(p :: pats)) }
     |  P_PAT; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
@@ -450,7 +450,8 @@ exp:
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { ParenExp(e) }
-    | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { ParenExp(TupleExp(e :: l)) }
+    | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_nonempty_list(COMMA, tupExpEntry); CLOSE_PAREN { ParenExp(TupleExp(e :: l)) }
+    (* MakeTerm wraps a lone TupLabel in a singleton tuple, so these do too. *)
     | OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ParenExp(TupleExp([TupLabel(Label(l), e)])) }
     | OPEN_PAREN; WILD; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ParenExp(TupleExp([TupLabel(ExplicitNonlabel, e)])) }
     | UNIT { TupleExp([]) }

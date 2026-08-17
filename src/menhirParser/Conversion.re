@@ -226,15 +226,7 @@ module rec Exp: {
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
     | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
-    | ParenExp(TupleExp([TupLabel(_) as tl])) =>
-      parens(tuple([of_menhir_ast(tl)]))
     | ParenExp(e) => parens(of_menhir_ast(e))
-    | TupleExp([]) => tuple([])
-    /* singleton labeled tuple `(a=1,)`: MakeTerm reads Tuple([TupLabel]),
-       so pre-empt the singleton unwrap below (which would yield a bare
-       TupLabel and diverge — MenhirParser cases 53/87 pin this) */
-    | TupleExp([TupLabel(_) as tl]) => tuple([of_menhir_ast(tl)])
-    | TupleExp([e]) => of_menhir_ast(e)
     | TupleExp(e) => tuple(List.map(of_menhir_ast, e))
     | TupleExtension(e1, e2) =>
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
@@ -478,9 +470,6 @@ and Typ: {
       }
     | TypVar(s) => var(s)
     | ParenTyp(t) => parens(of_menhir_ast(t))
-    | TupleType([]) => prod([])
-    | TupleType([TupLabelType(_) as tl]) => prod([of_menhir_ast(tl)])
-    | TupleType([t]) => of_menhir_ast(t)
     | TupleType(ts) => prod(List.map(of_menhir_ast, ts))
     | LabelType(s) => label(s)
     | ExplicitNonlabel => explicit_non_label()
