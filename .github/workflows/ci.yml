@@ -39,7 +39,9 @@ jobs:
 
       - name: Run tests
         run: opam exec -- make ci
-        timeout-minutes: 20
+        # 60, not 20: dev raised this in fd427d4fcc because the full suite
+        # (Slow-tagged QCheck property tests) was timing out at 20.
+        timeout-minutes: 60
 
       # Annotated results UI, not the gate -- `Run tests` exits non-zero on
       # failure by itself. Skipped on forks, whose token is read-only, so
