@@ -162,14 +162,30 @@ let init_worker: unit => Js.t(Worker.worker(Active.request, Active.response)) =
     worker;
   };
 
-let worker_ref = ref(init_worker());
+/* Created on first use, not at module init: the test binary links this
+   module (via ScratchMode) under node, where Worker doesn't exist. */
+let worker_ref:
+  ref(option(Js.t(Worker.worker(Active.request, Active.response)))) =
+  ref(None);
+
+let get_worker = () =>
+  switch (worker_ref.contents) {
+  | Some(w) => w
+  | None =>
+    let w = init_worker();
+    worker_ref.contents = Some(w);
+    w;
+  };
 
 let restart_worker = (): unit => {
   if (EvalMetrics.enabled^) {
     EvalMetrics.incr_restarts();
   };
-  worker_ref.contents##terminate;
-  worker_ref.contents = init_worker();
+  switch (worker_ref.contents) {
+  | Some(w) => w##terminate
+  | None => ()
+  };
+  worker_ref.contents = Some(init_worker());
 };
 
 /* Wall-clock cap for the whole request (including ACK wait). On expiry the
@@ -212,7 +228,7 @@ let rec start_ack_timeout = (~cold_start, latest) => {
               };
               latest_request := Some(latest);
               restart_worker();
-              post_evaluate(worker_ref.contents, latest.request);
+              post_evaluate(get_worker(), latest.request);
               start_ack_timeout(~cold_start=true, latest);
             }
           )
@@ -268,7 +284,7 @@ let request =
       metrics_id,
     };
     latest_request := Some(latest);
-    post_evaluate(~metrics_id, worker_ref.contents, latest.request);
+    post_evaluate(~metrics_id, get_worker(), latest.request);
     start_eval_timeout(latest);
     start_ack_timeout(~cold_start=false, latest);
   };
