@@ -2481,7 +2481,7 @@ module View = {
                 "proof-mode-warning session-rewrite-warning",
                 [
                   Node.text(
-                    "Untrusted session rewrites are One Step-only. Rocq validation and proof export mark them as UNSOUND and use Admitted.",
+                    "Untrusted session rewrites are One Step-only. Rocq proof export marks them UNSOUND, admits each reusable schema once, and replays its uses.",
                   ),
                 ],
               ),

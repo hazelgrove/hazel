@@ -1666,6 +1666,78 @@ and Stepper: {
     | _ => []
     };
 
+  let untrusted_session_definitions = steps =>
+    steps
+    |> List.concat_map((step: step_model) =>
+         switch (step.step_kind) {
+         | WrittenStep({trace_summary: Some(summary), _}) =>
+           summary.ProofTrace.prover_steps
+           |> List.filter_map((proof_step: ProofTrace.prover_step) =>
+                proof_step.session_rewrite
+              )
+         | _ => []
+         }
+       )
+    |> List.fold_left(
+         (definitions, definition: Axioms.session_rewrite) =>
+           definitions
+           |> List.exists((existing: Axioms.session_rewrite) =>
+                existing.id == definition.id
+              )
+             ? definitions : definitions @ [definition],
+         [],
+       );
+
+  let reusable_session_rewrite_export = (index, definition, domain) =>
+    switch (SessionRewrite.expressions_for_export(definition)) {
+    | None => None
+    | Some((source, target)) =>
+      let name = Printf.sprintf("hazel_session_rewrite_%d", index);
+      let forall_str =
+        CoqExport.forall_string_for_domain(~domain, [source, target]);
+      Some((
+        definition.id,
+        name,
+        Printf.sprintf(
+          "(* Session rewrite id: %s *)\nLemma %s:%s%s = %s.\nProof.\n(* Replace this admission with a proof of the reusable custom rewrite. *)\nAdmitted.",
+          definition.id,
+          name,
+          forall_str,
+          CoqExport.string_of_d_for_domain(~domain, source),
+          CoqExport.string_of_d_for_domain(~domain, target),
+        ),
+      ));
+    };
+
+  let reusable_untrusted_step_export =
+      (ind, step: step_model, forall_str, domain, rule_id, lemma_name) => {
+    switch (step.next_step) {
+    | Some(next) =>
+      let old_expr =
+        CoqExport.string_of_d_for_domain(
+          ~domain,
+          step.expr |> Calc.get_saved_exc,
+        );
+      let new_expr =
+        CoqExport.string_of_d_for_domain(
+          ~domain,
+          next.expr |> Calc.get_saved_exc,
+        );
+      Printf.sprintf(
+        "(* Session rewrite id: %s; replayed with reusable lemma %s *)\nLemma equiv_exp%d:%s%s = %s.\nProof.\nintros.\nfirst [rewrite %s; reflexivity | rewrite <- %s; reflexivity].\nQed.",
+        rule_id,
+        lemma_name,
+        ind,
+        forall_str,
+        new_expr,
+        old_expr,
+        lemma_name,
+        lemma_name,
+      );
+    | None => ""
+    };
+  };
+
   let untrusted_single_step_export =
       (ind, step: step_model, forall_str, domain, rule_ids) => {
     switch (step.next_step) {
@@ -1780,41 +1852,85 @@ and Stepper: {
           let domain = coq_domain_for_steps(steps);
           let forall_str =
             CoqExport.forall_string_for_domain(~domain, [first_exp]);
+          let reusable_session_rewrites =
+            untrusted_session_definitions(steps)
+            |> List.mapi((index, definition) =>
+                 reusable_session_rewrite_export(
+                   index + 1,
+                   definition,
+                   domain,
+                 )
+               )
+            |> List.filter_map(value => value);
+          let reusable_session_rewrite_for_id = rule_id =>
+            reusable_session_rewrites
+            |> List.find_opt(((id, _name, _lemma)) => id == rule_id);
           let lemmas_and_invocations =
             List.mapi(
               (ind, step) => {
                 let lemma_index = List.length(steps) - ind;
                 let step_untrusted_rule_ids =
                   untrusted_session_rule_ids_for_step(step);
-                let lemma =
-                  step_untrusted_rule_ids == []
-                    ? single_step_export(
+                let (admitted, lemma) =
+                  switch (step_untrusted_rule_ids) {
+                  | [] => (
+                      false,
+                      single_step_export(
                         lemma_index,
                         step,
                         forall_str,
                         domain,
+                      ),
+                    )
+                  | [rule_id] =>
+                    switch (reusable_session_rewrite_for_id(rule_id)) {
+                    | Some((_id, lemma_name, _lemma)) => (
+                        false,
+                        reusable_untrusted_step_export(
+                          lemma_index,
+                          step,
+                          forall_str,
+                          domain,
+                          rule_id,
+                          lemma_name,
+                        ),
                       )
-                    : untrusted_single_step_export(
+                    | None => (
+                        true,
+                        untrusted_single_step_export(
+                          lemma_index,
+                          step,
+                          forall_str,
+                          domain,
+                          step_untrusted_rule_ids,
+                        ),
+                      )
+                    }
+                  | _ => (
+                      true,
+                      untrusted_single_step_export(
                         lemma_index,
                         step,
                         forall_str,
                         domain,
                         step_untrusted_rule_ids,
-                      );
-                (
-                  step_untrusted_rule_ids != [],
-                  lemma,
-                  CoqProofExport.invocation(lemma_index),
-                );
+                      ),
+                    )
+                  };
+                (admitted, lemma, CoqProofExport.invocation(lemma_index));
               },
               steps,
             );
           let untrusted_lemmas =
-            lemmas_and_invocations
-            |> List.filter_map(
-                 fun
-                 | (true, lemma, _) => Some(lemma)
-                 | (false, _, _) => None,
+            reusable_session_rewrites
+            |> List.map(((_id, _name, lemma)) => lemma)
+            |> List.append(
+                 lemmas_and_invocations
+                 |> List.filter_map(
+                      fun
+                      | (true, lemma, _) => Some(lemma)
+                      | (false, _, _) => None,
+                    ),
                );
           let trusted_lemmas =
             lemmas_and_invocations

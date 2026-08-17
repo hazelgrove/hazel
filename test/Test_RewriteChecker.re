@@ -310,6 +310,20 @@ let string_contains = (needle, haystack) => {
   needle_len == 0 || loop(0);
 };
 
+let count_string_occurrences = (needle, haystack) => {
+  let needle_length = String.length(needle);
+  let haystack_length = String.length(haystack);
+  let rec loop = (index, count) =>
+    if (needle_length == 0 || index > haystack_length - needle_length) {
+      count;
+    } else if (String.sub(haystack, index, needle_length) == needle) {
+      loop(index + needle_length, count + 1);
+    } else {
+      loop(index + 1, count);
+    };
+  loop(0, 0);
+};
+
 let check_exp_equal = (name, expected, actual) =>
   check(
     testable(
@@ -5295,6 +5309,74 @@ let tests = (
           && string_contains("Admitted.", proof_export)
           && string_contains("Theorem equiv_exp", proof_export),
         );
+        let nested_source = times(sin(nested_a), sin(nested_b));
+        let repeated_source = plus(source, nested_source);
+        let repeated_middle = plus(target, nested_source);
+        let repeated_target =
+          plus(target, product_to_sum(nested_a, nested_b));
+        let require_session_plan = (source, target) =>
+          switch (authorize(profile, Manual, source, target)) {
+          | Authorized(plan) => plan
+          | Rejected(rejection) =>
+            fail(
+              "expected reusable session rewrite authorization: "
+              ++ Web.ProfileProofPlan.rejection_message(rejection),
+            )
+          };
+        let first_repeated_plan = plan;
+        let second_repeated_plan =
+          require_session_plan(
+            nested_source,
+            product_to_sum(nested_a, nested_b),
+          );
+        let repeated_export =
+          switch (
+            Web.StepperBase.Stepper.export_coq(
+              sample_written_steps_export_chain([
+                (
+                  repeated_source,
+                  repeated_middle,
+                  first_repeated_plan.summary,
+                ),
+                (
+                  repeated_middle,
+                  repeated_target,
+                  second_repeated_plan.summary,
+                ),
+              ]),
+            )
+          ) {
+          | Some(export) => export
+          | None => fail("expected a repeated custom-rewrite export")
+          };
+        write_text_file(
+          "/tmp/hazel_reusable_untrusted_export.v",
+          repeated_export,
+        );
+        check(
+          int,
+          "one reusable session lemma is admitted once across two uses",
+          1,
+          count_string_occurrences("Admitted.", repeated_export),
+        );
+        check(
+          int,
+          "the reusable session lemma is declared only once",
+          1,
+          count_string_occurrences(
+            "Lemma hazel_session_rewrite_",
+            repeated_export,
+          ),
+        );
+        check(
+          int,
+          "both occurrence lemmas replay the shared session lemma",
+          2,
+          count_string_occurrences(
+            "replayed with reusable lemma",
+            repeated_export,
+          ),
+        );
         check(
           bool,
           "target-only metavariables are rejected",
@@ -10079,6 +10161,7 @@ let tests = (
         let step: Web.ProofTrace.prover_step = {
           origin: Normalization,
           rule_id: "add.identity",
+          session_rewrite: None,
           before_full_exp: source,
           after_full_exp: target,
           before_exp: source,

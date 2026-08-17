@@ -139,6 +139,22 @@ let compile_pattern = (pattern, names) =>
   |> Haz3lcore.Parser.to_term(~root=Sort.Exp)
   |> Option.bind(_, pat_of_exp);
 
+/* Keep the original schema available to proof export.  Metavariables receive
+   collision-resistant Hazel names here; Rocq quantifies those names once in
+   the reusable admitted lemma and infers their concrete values at each use. */
+let expressions_for_export = (definition: Axioms.session_rewrite) => {
+  let parse = pattern =>
+    replace_metavariables(pattern, definition.metavariables)
+    |> Haz3lcore.Parser.to_term(~root=Sort.Exp);
+  switch (
+    parse(definition.source_pattern),
+    parse(definition.target_pattern),
+  ) {
+  | (Some(source), Some(target)) => Some((source, target))
+  | _ => None
+  };
+};
+
 let validate_patterns = (~source_pattern, ~target_pattern) => {
   let source_pattern = String.trim(source_pattern);
   let target_pattern = String.trim(target_pattern);

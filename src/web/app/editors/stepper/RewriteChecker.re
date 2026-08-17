@@ -74,6 +74,7 @@ let prover_step_at =
     ) => {
   origin,
   rule_id,
+  session_rewrite: None,
   before_full_exp,
   after_full_exp,
   before_exp,
@@ -4894,16 +4895,20 @@ let check_single_session_rewrite_result =
               to_trace: [],
               trace: [rule],
               prover_steps: [
-                prover_step(
-                  ~origin=ManualRewrite,
-                  ~rule_id=definition.id,
-                  ~before_full_exp=from_,
-                  ~after_full_exp=to_,
-                  ~before_exp=rewrite.before_exp,
-                  ~after_exp=rewrite.after_exp,
-                  ~detail=
-                    "untrusted session-only rewrite; no Rocq certificate",
-                ),
+                {
+                  ...
+                    prover_step(
+                      ~origin=ManualRewrite,
+                      ~rule_id=definition.id,
+                      ~before_full_exp=from_,
+                      ~after_full_exp=to_,
+                      ~before_exp=rewrite.before_exp,
+                      ~after_exp=rewrite.after_exp,
+                      ~detail=
+                        "untrusted session-only rewrite; no Rocq certificate",
+                    ),
+                  session_rewrite: Some(definition),
+                },
               ],
               exportable: false,
             };

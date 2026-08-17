@@ -532,7 +532,7 @@ let written_trace_comment = (summary: ProofTrace.trace_summary) => {
     summary.exportable
       ? "(* Export policy: replay Hazel prover steps. Coarse normalizer steps are still a TODO for local-fragment replay. *)\n"
       : summary.rule_ids |> List.exists(SessionRewrite.is_session_rule_id)
-          ? "(* Export policy: UNSOUND custom rewrite; isolated below and closed with Admitted. *)\n"
+          ? "(* Export policy: UNSOUND custom rewrite; replayed from a reusable Admitted lemma below. *)\n"
           : "(* Export policy: non-exportable Hazel step. *)\n"
   );
 };

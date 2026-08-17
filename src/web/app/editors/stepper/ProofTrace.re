@@ -11,6 +11,8 @@ type prover_step_origin =
 type prover_step = {
   origin: prover_step_origin,
   rule_id: string,
+  [@yojson.default None] [@sexp.default None]
+  session_rewrite: option(Axioms.session_rewrite),
   before_full_exp: Exp.t,
   after_full_exp: Exp.t,
   before_exp: Exp.t,
@@ -48,6 +50,7 @@ let prover_step_at =
     ) => {
   origin,
   rule_id,
+  session_rewrite: None,
   before_full_exp,
   after_full_exp,
   before_exp,
