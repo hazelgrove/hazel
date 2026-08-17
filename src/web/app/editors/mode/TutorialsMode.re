@@ -183,16 +183,6 @@ module Update = {
     | ExportSubmission
     | ExportTransitionary;
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | SwitchExercise(_) => false
-    | Tutorial(action) => TutorialMode.Update.can_undo(action)
-    | ExportModule => false
-    | ExportSubmission => false
-    | ExportTransitionary => false
-    };
-  };
-
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
     let module_name = exercise.editors.module_name;
@@ -237,7 +227,7 @@ module Update = {
           mod List.length(model.exercises),
         exercises: model.exercises,
       }
-      |> return;
+      |> return(~historic=false);
     | Tutorial(TutorialMode.Update.MoveToPrevExercise) =>
       WorkerClient.cancel();
       Model.{
@@ -246,7 +236,7 @@ module Update = {
           mod List.length(model.exercises),
         exercises: model.exercises,
       }
-      |> return;
+      |> return(~historic=false);
 
     | Tutorial(action) =>
       let current = List.nth(model.exercises, model.current);
@@ -269,7 +259,7 @@ module Update = {
         current: n,
         exercises: model.exercises,
       }
-      |> return;
+      |> return(~historic=false);
     | ExportModule =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_exercise_module(model);

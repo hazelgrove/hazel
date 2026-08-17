@@ -21,25 +21,28 @@ let if_exp_coloring_ids =
   (Piece.id(exp_then), then_id),
   (Piece.id(exp_else), else_id),
 ];
-let if_exp: form = {
-  let explanation = "If the [*condition*](%s) evaluates to `true`, evaluate the [*then branch*](%s). Otherwise, evaluate the [*else branch*](%s).";
-  {
-    id: IfExp,
-    syntactic_form: [
-      mk_if([
-        [space(), exp_cond, linebreak()],
-        [space(), exp_then, linebreak()],
-      ]),
-      space(),
-      exp_else,
-    ],
-    expandable_id: None,
-    explanation,
-    examples: [if_basic1_exp_ex, if_basic2_exp_ex],
-  };
+let if_exp_form = [
+  mk_if([
+    [space(), exp_cond, linebreak()],
+    [space(), exp_then, linebreak()],
+  ]),
+  space(),
+  exp_else,
+];
+let if_exp = (~cond_id: Id.t, ~then_id: Id.t, ~else_id: Id.t): form => {
+  id: IfExp,
+  syntactic_form: if_exp_form,
+  colorings: if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "If the [*condition*](%s) evaluates to `true`, evaluate the [*then branch*](%s). Otherwise, evaluate the [*else branch*](%s).",
+      Id.to_string(cond_id),
+      Id.to_string(then_id),
+      Id.to_string(else_id),
+    ),
+  examples: [if_basic1_exp_ex, if_basic2_exp_ex],
 };
 
-let ifs: group = {
-  id: IfExp,
-  forms: [if_exp],
-};
+let ifs = (~cond_id: Id.t, ~then_id: Id.t, ~else_id: Id.t): group =>
+  singleton(if_exp(~cond_id, ~then_id, ~else_id));
