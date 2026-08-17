@@ -31,39 +31,38 @@ let exp_scrut = exp("e_scrut");
 let case_exp_coloring_ids = (~scrut_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(exp_scrut), scrut_id),
 ];
-let case_exp: form = {
-  let explanation = "Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%s), evaluates to the corresponding *clause*.";
-  let case =
-    mk_case([
-      [
-        space(),
-        exp_scrut,
-        linebreak(),
-        mk_rule([[space(), pat("p1"), space()]]),
-        space(),
-        exp("e1"),
-        linebreak(),
-        mk_rule([[space(), pat("…"), space()]]),
-        space(),
-        exp("…"),
-        linebreak(),
-      ],
-    ]);
-  {
-    id: CaseExp,
-    syntactic_form: [case],
-    expandable_id: None,
-    explanation,
-    examples: [
-      case_example_int,
-      case_example_bool,
-      case_example_wild_simple,
-      case_example_wild_tuple,
+let case_exp_case =
+  mk_case([
+    [
+      space(),
+      exp_scrut,
+      linebreak(),
+      mk_rule([[space(), pat("p1"), space()]]),
+      space(),
+      exp("e1"),
+      linebreak(),
+      mk_rule([[space(), pat("…"), space()]]),
+      space(),
+      exp("…"),
+      linebreak(),
     ],
-  };
+  ]);
+let case_exp = (~scrut_id: Id.t): form => {
+  id: CaseExp,
+  syntactic_form: [case_exp_case],
+  colorings: case_exp_coloring_ids(~scrut_id),
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Consider each branch in order. For the first branch with a *pattern* that matches the [*scrutinee*](%s), evaluates to the corresponding *clause*.",
+      Id.to_string(scrut_id),
+    ),
+  examples: [
+    case_example_int,
+    case_example_bool,
+    case_example_wild_simple,
+    case_example_wild_tuple,
+  ],
 };
 
-let case: group = {
-  id: CaseExp,
-  forms: [case_exp],
-};
+let case = (~scrut_id: Id.t): group => singleton(case_exp(~scrut_id));

@@ -384,13 +384,12 @@ In `Arms.re`, module/sig semicolons render as lone shard hexagons (no arms to ot
 | `src/haz3lcore/zipper/action/Insert.re` | `effective_sort` with Mod→Exp / Sig→Typ fallback                   |
 | `src/haz3lcore/lang/MakeTerm.re`        | Module/Sig parsing with flattening                                 |
 | `src/language/statics/ModuleHelpers.re` | Module lowering to nested let/type + labeled tuple                 |
-| `src/language/statics/Statics.re`       | Module type checking, `desugar_sig` in Asc, Mod/Sig item info      |
-| `src/language/statics/Elaborator.re`    | Module elaboration for dynamics                                    |
+| `src/language/statics/Statics.re`       | Module type checking, `desugar_sig` in Asc, Mod/Sig item info, module elaboration for dynamics |
 | `src/language/statics/Info.re`          | `sort_of` returns Mod for InfoExp with Mod cls                     |
 | `src/language/term/Typ.re`              | `desugar_sig` function                                             |
 | `src/haz3lcore/pretty/ExpToSegment.re`  | Module and Sig pretty-printing to segments                         |
 | `src/language/term/Abbreviate.re`       | Module abbreviation for probe display                              |
-| `src/haz3lcore/tiles/Arms.re`           | Module semicolon decoration                                        |
+| `src/web/app/editors/decoration/Arms.re` | Module semicolon decoration                                       |
 
 ### CSS
 
