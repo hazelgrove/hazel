@@ -7,20 +7,24 @@ let get_elem_by_id = id => {
   Js.Opt.get(doc##getElementById(Js.string(id)), () => {assert(false)});
 };
 
-let ids_with_prefix = (prefix: string): list(string) => {
-  let nodes =
+let ids_with_prefix = (prefix: string): list(string) =>
+  /* headless (node tests): no document, so no elements to animate */
+  switch (
     Dom_html.document##querySelectorAll(
       Js.string("[id^=\"" ++ prefix ++ "\"]"),
-    );
-  List.init(nodes##.length, i => nodes##item(i))
-  |> List.filter_map(n =>
-       Js.Opt.case(
-         n,
-         () => None,
-         n => Some(Js.to_string(Js.Unsafe.get(n, "id"))),
+    )
+  ) {
+  | exception _ => []
+  | nodes =>
+    List.init(nodes##.length, i => nodes##item(i))
+    |> List.filter_map(n =>
+         Js.Opt.case(
+           n,
+           () => None,
+           n => Some(Js.to_string(Js.Unsafe.get(n, "id"))),
+         )
        )
-     );
-};
+  };
 
 let get_elem_by_id_opt = id =>
   switch (get_elem_by_id(id)) {
