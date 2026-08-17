@@ -943,12 +943,20 @@ module MenhirElaborationTests = {
       )
     );
 
+  /* Skipped: menhir wraps each match-branch body in Asc(_, Unknown(SynSwitch))
+     where MakeTerm does not, so the two parses are unequal. Same
+     menhir/MakeTerm divergence class as the tests skipped via
+     [skip_menhir_maketerm_equivalent_test] in Test_Menhir.re. */
   let inconsistent_case_menhir = () =>
-    alco_check_menhir(
-      "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
-      inconsistent_case_menhir_str,
-      inconsistent_case_uexp,
-    );
+    [@warning "-21"]
+    {
+      Alcotest.skip();
+      alco_check_menhir(
+        "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
+        inconsistent_case_menhir_str,
+        inconsistent_case_uexp,
+      );
+    };
 
   //Consistent if statement menhir test
   let consistent_if_uexp: Exp.t = Exp.(if_(bool(false), int(8), int(6)));
@@ -1128,7 +1136,7 @@ x
     test_case("Empty hole (menhir)", `Quick, empty_hole_menhir),
     test_case("Free var (menhir)", `Quick, free_var_menhir),
     test_case("Bin op (menhir)", `Quick, bin_op_menhir),
-    /* test_case("Inconsistent case (menhir)", `Quick, inconsistent_case_menhir), */
+    test_case("Inconsistent case (menhir)", `Quick, inconsistent_case_menhir),
     test_case("Consistent if (menhir)", `Quick, consistent_if_menhir),
     test_case("Undefined test (menhir)", `Quick, undefined_menhir),
     test_case("List exp (menhir)", `Quick, list_exp_menhir),
