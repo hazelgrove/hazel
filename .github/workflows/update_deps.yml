@@ -29,8 +29,6 @@ jobs:
       - name: Install NPM dependencies
         run: npm install
 
-      # Intentionally unpinned: `make change-deps` below repins this switch to the
-      # current repository heads itself. Finding newer packages is the point here.
       - name: Set-up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
@@ -44,19 +42,25 @@ jobs:
           export OPAMYES=1
           opam install dune
   
+      # `make change-deps` does not configure this itself, so it has to happen
+      # here for the lock file to resolve against the archive.
+      - name: Add opam repository archive
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+
       - name: Set up Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      # Also updates .github/opam-pins.env, so the PR below carries the new lock
-      # file and the new pin in one commit.
       - name: Run change-deps
         run: |
            eval $(opam env)
            export OPAMYES=1
            make change-deps
-           git diff --stat hazel.opam.locked .github/opam-pins.env
+           git diff --stat hazel.opam.locked
 
       - name: Create or update PR
         uses: peter-evans/create-pull-request@v7

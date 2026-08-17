@@ -153,15 +153,6 @@ If you are working on multiple OCaml projects, it may be helpful to set up a loc
 
   It is a good idea to run `make deps` whenever you pull new versions of the code from GitHub so you can be sure that you have the latest dependencies installed.
 
-  Note that `make deps` configures two opam repositories in your **current switch**, pinned to the commits recorded in [`.github/opam-pins.env`](.github/opam-pins.env):
-
-  - `hazel-locked` — the main opam repository at a fixed commit
-  - `archive` — the opam archive repository, also at a fixed commit
-
-  This is what makes your dependencies match the ones CI installs. It is scoped to the switch you are in, so your shared `default` repository is left alone and other OCaml projects on your machine are unaffected; `default` stays configured below these two as a fallback.
-
-  It is deliberate that `make deps` does *not* pick up packages published since those commits. `hazel.opam.locked` pins which package versions get installed, but it cannot pin their metadata — opam has no content hashes, and upstream sometimes edits already-published versions in place, which has broken every branch at once before (see [issue #2334](https://github.com/hazelgrove/hazel/issues/2334)). Pinning the repositories closes that gap. To move to newer packages, see [Changing OCaml Dependencies](docs/Change-OCaml-Dependencies.md).
-
 ## Build and Run Hazel
 
 You can now go back to 

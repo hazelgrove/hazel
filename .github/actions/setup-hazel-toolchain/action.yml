@@ -1,7 +1,7 @@
 name: Setup Hazel Toolchain
 description: >
-  Installs Node, OCaml 5.2.0 and Hazel's opam dependencies from the pinned
-  repository commits, then runs setup-zarith for the native BigInt runtime.
+  Installs Node, OCaml 5.2.0 and Hazel's opam dependencies from the lock file,
+  then runs setup-zarith for the native BigInt runtime.
 
 runs:
   using: composite
@@ -15,19 +15,10 @@ runs:
       shell: bash
       run: npm install
 
-    # Must precede setup-ocaml, whose opam-repositories input reads these.
-    # See .github/opam-pins.env for why the repositories are pinned.
-    - name: Load pinned opam repository commits
-      shell: bash
-      run: grep -E '^OPAM_REPOSITORY(_ARCHIVE)?_SHA=' .github/opam-pins.env >> "$GITHUB_ENV"
-
     - name: Set-up OCaml
       uses: ocaml/setup-ocaml@v3
       with:
         ocaml-compiler: 5.2.0
-        # setup-ocaml's default URL with the pinned commit appended.
-        opam-repositories: |
-          default: git+https://github.com/ocaml/opam-repository.git#${{ env.OPAM_REPOSITORY_SHA }}
         # Off: setup-ocaml keys this cache on the run id, so it can never be an
         # exact hit, yet uploads ~1.7GB per run. That churn evicts the _opam
         # entry below, which shares a 10GB repository-wide budget. In-run caching
@@ -50,7 +41,7 @@ runs:
       run: |
         eval $(opam env)
         export OPAMYES=1
-        opam repo add archive "git+https://github.com/ocaml/opam-repository-archive#${OPAM_REPOSITORY_ARCHIVE_SHA}"
+        opam repo add archive git+https://github.com/ocaml/opam-repository-archive
 
     - name: Install dependencies
       shell: bash
