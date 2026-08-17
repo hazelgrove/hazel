@@ -416,12 +416,8 @@ let rec bypass_parens_pat = (pat: Pat.t) => {
   };
 };
 
-let rec bypass_parens_exp = (exp: Exp.t) => {
-  switch (exp.term) {
-  | Parens(e) => bypass_parens_exp(e)
-  | _ => exp
-  };
-};
+/* Representative id of the nth element of a tuple/list child sequence. */
+let nth_rep_id = (elements, n) => IdTagged.rep_id(List.nth(elements, n));
 
 let rec bypass_parens_typ = (typ: Typ.t) => {
   switch (typ.term) {
@@ -430,86 +426,72 @@ let rec bypass_parens_typ = (typ: Typ.t) => {
   };
 };
 
-type message_mode =
-  | MessageContent(
-      ExplainThisUpdate.update => Virtual_dom.Vdom.Effect.t(unit),
-      Globals.t,
-    )
-  | Colorings;
+/* The doc decision for one term: which group the cursor dispatched to, which of
+   its forms is selected, that form's filled explanation, and the
+   syntactic-form-piece -> user-term-id pairs used to highlight.
+
+   Deciding and rendering are separate because there are three consumers and
+   only one of them wants Vdom: the sidebar renders it, the code editor harvests
+   a color map from it, and the characterization test reads it directly. */
+type doc = {
+  group: ExplainThisForm.group,
+  /* The selected form. `group.forms` is every form the group offers, ordered
+     most-specific-first, so a test can sweep specificity levels instead of only
+     ever seeing the most specific. */
+  form: ExplainThisForm.form,
+  options: list((ExplainThisForm.form_id, Segment.t)),
+  explanation: string,
+  colorings: list((Id.t, Id.t)),
+  /* DeferredAp alone hand-builds its color map instead of deriving it from the
+     explanation's links; every other branch leaves this None. The view ignores
+     it — only the code highlighter reads it. */
+  color_map: option(ColorSteps.t),
+};
+
+type decision =
+  | NoDoc
+  /* Prose with no syntactic form behind it, shown verbatim. */
+  | Prose(string)
+  /* Prose run through the markdown translator, so code spans and lists render.
+     Distinct from `Prose`, whose ~30 one-off messages are shown verbatim;
+     routing those through markdown would change what they display. */
+  | Markdown(string)
+  /* Derivation terms document themselves: DrvDoc supplies both the abstract
+     syntax to show and the markdown describing it. */
+  | DrvSyntax(Segment.t, string)
+  | Doc(doc);
+
+/* The deduction sidebar picks a message rather than a form; its one group is a
+   stub whose explanation is always overridden. */
+type decision_deduction = {
+  group: ExplainThisForm.group,
+  form: ExplainThisForm.form_id,
+  explanation: string,
+};
 
 type info_deduction = option(DrvGrading.VerifiedTree.info);
 
-let get_doc_deduction =
+let decide_deduction =
     (
       ~globals: Globals.t,
       ~docs: ExplainThisModel.t,
       info_deduction: info_deduction,
-      mode: message_mode,
     )
-    : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-  let get_message =
-      (
-        ~format: option(string => string)=None,
-        ~explanation: option(string)=?,
-        group: ExplainThisForm.group,
-      )
-      // Examples can be leaved blank.
-      : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-    let (doc, _) = ExplainThisModel.get_form_and_options(group, docs);
-
-    // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
-    let explanation_msg =
-      switch (explanation, format) {
-      | (Some(msg), _) => msg
-      | (_, Some(f)) => f(doc.explanation)
-      | (_, None) => doc.explanation
-      };
-    switch (mode) {
-    | MessageContent(inject, globals) =>
-      let (explanation_title, (explanation, color_map)) =
-        if (globals.settings.core.dynamics) {
-          (
-            DrvExplainThis.mk_explanation_title(),
-            mk_explanation(
-              ~globals,
-              ~inject,
-              group.id,
-              doc.id,
-              explanation_msg,
-              docs,
-            ),
-          );
-        } else {
-          (none, (none, ColorSteps.empty));
-        };
-      let rule_example_view =
-        DrvExplainThis.rule_example_view(
-          ~info=info_deduction,
-          ~color_map,
-          ~globals,
-        );
-      (
-        [rule_example_view],
-        ([explanation_title, explanation], color_map),
-        [],
-      );
-    | Colorings =>
-      let (_, color_map) =
-        mk_translation(~globals, ~inject=_ => (), explanation_msg);
-      ([], ([], color_map), []);
+    : decision_deduction => {
+  let group = DrvExplainThis.premise_mismatch;
+  /* group_id and form_id are one type, and this path's group is a one-form
+     stub, so the group's own id is the right stand-in if there is no form. */
+  let form =
+    switch (fst(ExplainThisModel.get_form_and_options(group, docs))) {
+    | Some(form) => form.id
+    | None => group.id
     };
-  };
-
-  let fake_get_message = msg =>
-    get_message(~format=Some(_ => msg), DrvExplainThis.premise_mismatch);
-
-  switch (info_deduction) {
-  | None => fake_get_message("Deduction Not Available")
-  | Some({res: Correct, _}) => fake_get_message("✅ Correct")
-  | Some({res: Pending(p), _}) =>
-    fake_get_message(DrvGrading.ExternalError.show(p))
-  | Some({res: PartialCorrect(specced), _}) =>
-    fake_get_message(
+  let explanation =
+    switch (info_deduction) {
+    | None => "Deduction Not Available"
+    | Some({res: Correct, _}) => "✅ Correct"
+    | Some({res: Pending(p), _}) => DrvGrading.ExternalError.show(p)
+    | Some({res: PartialCorrect(specced), _}) =>
       if (globals.settings.explainThis.highlight == All) {
         Printf.sprintf(
           "❓ Correct until stop at a hole %s)",
@@ -517,10 +499,8 @@ let get_doc_deduction =
         );
       } else {
         "❓ Correct until stop at a hole";
-      },
-    )
-  | Some({res: Incorrect(failure), _}) =>
-    fake_get_message(
+      }
+    | Some({res: Incorrect(failure), _}) =>
       (
         switch (failure) {
         | Mismatch(expected, actual) =>
@@ -589,143 +569,147 @@ let get_doc_deduction =
           )
         }
       )
-      |> Printf.sprintf("❌ %s"),
-    )
+      |> Printf.sprintf("❌ %s")
+    };
+  {
+    group,
+    form,
+    explanation,
   };
 };
 
+let view_deduction =
+    (
+      ~globals: Globals.t,
+      ~inject,
+      ~docs: ExplainThisModel.t,
+      ~info: info_deduction,
+      d: decision_deduction,
+    )
+    : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
+  let (explanation_title, (explanation, color_map)) =
+    if (globals.settings.core.dynamics) {
+      (
+        DrvExplainThis.mk_explanation_title(),
+        mk_explanation(
+          ~globals,
+          ~inject,
+          d.group.id,
+          d.form,
+          d.explanation,
+          docs,
+        ),
+      );
+    } else {
+      (none, (none, ColorSteps.empty));
+    };
+  let rule_example_view =
+    DrvExplainThis.rule_example_view(~info, ~color_map, ~globals);
+  ([rule_example_view], ([explanation_title, explanation], color_map), []);
+};
+
+let color_map_deduction = (~globals: Globals.t, d: decision_deduction) =>
+  snd(mk_translation(~globals, ~inject=_ => (), d.explanation));
+
+/* Both color-map entry points ask the same question of a different doc source:
+   run it for its color map, then narrow to one id if the highlight setting says
+   so. `harvest` is passed as a thunk so nothing is computed when highlighting is
+   off or the sidebar is collapsed. */
+let narrow_color_map =
+    (~globals: Globals.t, harvest: unit => ColorSteps.colorMap) =>
+  switch (globals.settings.explainThis.highlight) {
+  | All when globals.settings.sidebar.show => Some(harvest())
+  | One(id) when globals.settings.sidebar.show =>
+    Some(Id.Map.filter((id', _) => id == id', harvest()))
+  | _ => None
+  };
+
+/* Keys on `sidebar.show` via `narrow_color_map`, the same setting `get_color_map`
+   uses, so collapsing the sidebar stops highlighting for derivation terms and
+   ordinary ones alike. Not `explainThis.show`: nothing toggles it and it defaults
+   to true, so keying on it would leave derivation highlighting on. */
 let get_color_map_deduction =
     (
       ~globals: Globals.t,
       ~explainThisModel: ExplainThisModel.t,
       info_deduction: info_deduction,
     ) =>
-  switch (globals.settings.explainThis.highlight) {
-  | All when globals.settings.explainThis.show =>
-    let (_, (_, (color_map, _)), _) =
-      get_doc_deduction(
+  narrow_color_map(~globals, () =>
+    fst(
+      color_map_deduction(
         ~globals,
-        ~docs=explainThisModel,
-        info_deduction,
-        Colorings,
-      );
-    Some(color_map);
-  | One(id) when globals.settings.explainThis.show =>
-    let (_, (_, (color_map, _)), _) =
-      get_doc_deduction(
-        ~globals,
-        ~docs=explainThisModel,
-        info_deduction,
-        Colorings,
-      );
-    Some(Id.Map.filter((id', _) => id == id', color_map));
-  | _ => None
-  };
-
-let get_doc =
-    (
-      ~globals: Globals.t,
-      ~docs: ExplainThisModel.t,
-      info: option(Statics.Info.t),
-      mode: message_mode,
+        decide_deduction(~globals, ~docs=explainThisModel, info_deduction),
+      ),
     )
-    : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-  let simple = msg => ([], ([text(msg)], (Id.Map.empty, 0)), []);
-  let default = simple("No docs available");
+  );
+
+let decide =
+    (~docs: ExplainThisModel.t, info: option(Statics.Info.t)): decision => {
   let get_specificity_level = group_id =>
-    fst(ExplainThisModel.get_form_and_options(group_id, docs)).id;
+    Option.map(
+      (form: ExplainThisForm.form) => form.id,
+      fst(ExplainThisModel.get_form_and_options(group_id, docs)),
+    );
   let get_message =
       (
         ~colorings=[],
-        ~format: option(string => string)=None,
         ~explanation: option(string)=?,
         group: ExplainThisForm.group,
       )
-      : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-    let (doc, options) = ExplainThisModel.get_form_and_options(group, docs);
-
-    // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
-    let explanation_msg =
-      switch (explanation, format) {
-      | (Some(msg), _) => msg
-      | (_, Some(f)) => f(doc.explanation)
-      | (_, None) => doc.explanation
-      };
-    switch (mode) {
-    | MessageContent(inject, globals) =>
-      let (explanation, color_map) =
-        mk_explanation(
-          ~globals,
-          ~inject,
-          group.id,
-          doc.id,
-          explanation_msg,
-          docs,
-        );
-      let root =
-        switch (info) {
-        | None => Sort.Any
-        | Some(ci) => Info.sort_of(ci)
+      : decision => {
+    let (selected, options) =
+      ExplainThisModel.get_form_and_options(group, docs);
+    switch (selected) {
+    /* Unreachable: no group constructor produces a group with no forms. */
+    | None => NoDoc
+    | Some(doc) =>
+      /* Each form's explanation is already filled in by its data module, where
+         the format literal and its arguments sit together. `~explanation`
+         overrides it for the few callers that describe a different term. */
+      let explanation_msg =
+        switch (explanation) {
+        | Some(msg) => msg
+        | None => doc.explanation
         };
-      let highlights =
-        colorings
-        |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
-             let (color, _) = ColorSteps.get_color(code_id, color_map);
-             (syntactic_form_id, color);
-           })
-        |> List.to_seq
-        |> Id.Map.of_seq
-        |> Option.some;
-      let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip, ~root);
-      let expander_deco =
-        expander_deco(
-          ~globals,
-          ~docs,
-          ~inject,
-          ~options,
-          ~group,
-          ~doc,
-          editor,
-        );
-      let highlight_deco = [
-        Highlight.colors(
-          ~font_metrics=globals.font_metrics,
-          ~syntax=editor.syntax,
-          highlights,
-        ),
-      ];
-      let syntactic_form_view =
-        CodeWithStatics.View.view(
-          ~globals,
-          ~overlays=highlight_deco @ [expander_deco],
-          {
-            editor,
-            statics: CachedStatics.empty,
-            dynamics: Dynamics.Map.empty,
-            context_menu: None,
-          },
-        );
-      let example_view =
-        example_view(
-          ~globals,
-          ~inject,
-          ~group_id=group.id,
-          ~form_id=doc.id,
-          ~examples=doc.examples,
-          ~model=docs,
-        );
-      ([syntactic_form_view], ([explanation], color_map), example_view);
-    | Colorings =>
-      let (_, color_map) =
-        mk_translation(~globals, ~inject=_ => (), explanation_msg);
-      ([], ([], color_map), []);
+      /* A form carries its own colorings; `~colorings` overrides them for the
+         least specific form of a group, which is shared across a family of
+         groups and so is not built for this particular call site. */
+      let colorings = colorings == [] ? doc.colorings : colorings;
+      Doc({
+        group,
+        form: doc,
+        options,
+        explanation: explanation_msg,
+        colorings,
+        color_map: None,
+      });
     };
   };
 
   /* Use this when adding new entries */
-  let message_single = (e: ExplainThisForm.Simple.t) => {
-    let (explanation, colorings, group) = ExplainThisForm.Simple.to_group(e);
-    get_message(~colorings, ~format=None, ~explanation, group);
+  let message_single = (e: ExplainThisForm.Simple.t) =>
+    get_message(ExplainThisForm.Simple.to_group(e));
+
+  /* Is the user looking at the group's most specific form, or has it been
+     expanded down to a more general one? `forms` is ordered most-specific-first,
+     so no call site has to name the specific form's id to ask. */
+  let at_specific_level = (group: ExplainThisForm.group) =>
+    switch (group.forms) {
+    | [specific, ..._] => get_specificity_level(group) == Some(specific.id)
+    | [] => true
+    };
+
+  /* Every form but the least specific one is built for this exact term, so it
+     supplies its own colorings and explanation. The least specific form is
+     shared across a whole family of groups — one `function_exp` backs all 19
+     FunctionExp groups — so it is built with ids that suit the family rather
+     than this call site, and `fallback` re-describes it. */
+  let leveled = (~fallback, group: ExplainThisForm.group) => {
+    let selected = get_specificity_level(group);
+    switch (List.rev(group.forms)) {
+    | [least, _, ..._] when selected == Some(least.id) => fallback(group)
+    | _ => get_message(group)
+    };
   };
 
   switch (info) {
@@ -734,83 +718,51 @@ let get_doc =
     | Mod(ModLet) => message_single(ModLetDecl.single)
     | Mod(ModType) => message_single(ModTypeDecl.single)
     | Mod(ModuleMod) => message_single(ModuleKeywordDecl.single)
-    | _ => simple("Module item")
+    | _ => Prose("Module item")
     }
   | Some(InfoSig({cls, _})) =>
     switch (cls) {
     | Sig(SigLet) => message_single(SigLetDecl.single)
     | Sig(SigType) => message_single(SigTypeDecl.single)
-    | _ => simple("Signature item")
+    | _ => Prose("Signature item")
     }
-  | Some(InfoMPat(_)) => simple("Module name")
+  | Some(InfoMPat(_)) => Prose("Module name")
   | Some(InfoExp({cls: Mod(ModLet), _})) =>
     message_single(ModLetDecl.single)
   | Some(InfoExp({cls: Mod(ModType), _})) =>
     message_single(ModTypeDecl.single)
   | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
     message_single(ModuleKeywordDecl.single)
-  | Some(InfoExp({cls: Mod(_), _})) => simple("Module item")
+  | Some(InfoExp({cls: Mod(_), _})) => Prose("Module item")
   | Some(InfoExp({user_term: term, _})) =>
-    let rec get_message_exp =
-            (term)
-            : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
+    let rec get_message_exp = (term): decision =>
       switch ((term: Exp.term)) {
-      | DrvQuote(_) => (
-          [],
-          mk_translation(
-            ~globals,
-            ~inject=_ => (),
-            "A derivation-mode quotation embeds a derivation-mode term into a regular expression. There are 5 forms of quotation:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
-          ),
-          [],
+      | DrvQuote(_) =>
+        Markdown(
+          "A derivation-mode quotation embeds a derivation-mode term into a regular expression. There are 5 forms of quotation:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
         )
-      | Invalid(_) => simple("Not a valid expression")
+      | Invalid(_) => Prose("Not a valid expression")
       | DynamicErrorHole(_)
-      | Closure(_) => simple("Internal expression")
+      | Closure(_) => Prose("Internal expression")
       | Asc(e, t) =>
-        let exp_id = List.nth(IdTagged.ids(e), 0);
-        let typ_id = List.nth(IdTagged.ids(t), 0);
-        get_message(
-          ~colorings=AscExp.ascription_coloring_ids(~exp_id, ~typ_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(exp_id),
-                  Id.to_string(typ_id),
-                ),
-            ),
-          AscExp.ascriptions,
-        );
+        let exp_id = IdTagged.rep_id(e);
+        let typ_id = IdTagged.rep_id(t);
+        get_message(AscExp.ascriptions(~exp_id, ~typ_id));
       | Use(t, e) =>
         message_single(
           UseExp.single(~typ_id=Typ.rep_id(t), ~body_id=Exp.rep_id(e)),
         )
-      | BuiltinFun(_) => simple("Internal expression")
+      | BuiltinFun(_) => Prose("Internal expression")
       | LivelitName(n) => get_message(TerminalExp.livelit_name_exps(n))
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
-        let tpat_id = List.nth(IdTagged.ids(ty_pat), 0);
-        let def_id = List.nth(IdTagged.ids(ty_def), 0);
-        get_message(
-          ~colorings=
-            TyAliasExp.tyalias_base_exp_coloring_ids(~tpat_id, ~def_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(def_id),
-                  Id.to_string(tpat_id),
-                ),
-            ),
-          TyAliasExp.tyalias_exps,
-        );
+        let tpat_id = IdTagged.rep_id(ty_pat);
+        let def_id = IdTagged.rep_id(ty_def);
+        get_message(TyAliasExp.tyalias_exps(~tpat_id, ~def_id));
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
-      | ExplicitNonlabel => simple("Explicitly unlabeled entry")
+      | ExplicitNonlabel => Prose("Explicitly unlabeled entry")
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
@@ -818,1205 +770,363 @@ let get_doc =
       | Atom(String(s)) => get_message(TerminalExp.string_exps(s))
       | Atom(Nat(i)) => get_message(TerminalExp.nat_exps(i))
       | ListLit(terms) =>
-        get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s"),
-                  string_of_int(List.length(terms)),
-                ),
-            ),
-          ListExp.listlits,
-        )
+        get_message(ListExp.listlits(~n=List.length(terms)))
       | TypFun(tpat, body, _) =>
-        let basic = group_id => {
-          let tpat_id = List.nth(IdTagged.ids(tpat), 0);
-          let body_id = List.nth(IdTagged.ids(body), 0);
+        let tpat_id = IdTagged.rep_id(tpat);
+        let body_id = IdTagged.rep_id(body);
+        /* TODO: More could be done here probably for different patterns. */
+        get_message(TypFunctionExp.type_functions_basic(~tpat_id, ~body_id));
+      | Fun(pat, body, _, _) =>
+        /* The generic fallback form describes the *unbypassed* pattern, while
+           the specific forms below describe the pattern with parens and
+           annotations stripped. These ids differ for e.g. `fun (x) -> x`. */
+        let unbypassed_pat_id = IdTagged.rep_id(pat);
+        let basic = group => {
+          let body_id = IdTagged.rep_id(body);
           get_message(
             ~colorings=
               FunctionExp.function_exp_coloring_ids(
-                ~pat_id=tpat_id,
+                ~pat_id=unbypassed_pat_id,
                 ~body_id,
               ),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s"),
-                    Id.to_string(tpat_id),
-                    Id.to_string(body_id),
-                  ),
+            ~explanation=
+              FunctionExp.function_exp_explanation(
+                ~pat_id=unbypassed_pat_id,
+                ~body_id,
               ),
-            group_id,
-          );
-        };
-        /* TODO: More could be done here probably for different patterns. */
-        basic(TypFunctionExp.type_functions_basic);
-      | Fun(pat, body, _, _) =>
-        let basic = group_id => {
-          let pat_id = List.nth(IdTagged.ids(pat), 0);
-          let body_id = List.nth(IdTagged.ids(body), 0);
-          get_message(
-            ~colorings=
-              FunctionExp.function_exp_coloring_ids(~pat_id, ~body_id),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s"),
-                    Id.to_string(pat_id),
-                    Id.to_string(body_id),
-                  ),
-              ),
-            group_id,
+            group,
           );
         };
         let pat = bypass_parens_and_annot_pat(pat);
-        let pat_id = List.nth(IdTagged.ids(pat), 0);
-        let body_id = List.nth(IdTagged.ids(body), 0);
+        let pat_id = IdTagged.rep_id(pat);
+        let body_id = IdTagged.rep_id(body);
         switch (pat.term) {
         | EmptyHole =>
-          if (FunctionExp.function_empty_hole_exp.id
-              == get_specificity_level(FunctionExp.functions_empty_hole)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_empty_hole_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(pat_id),
-                      Id.to_string(body_id),
-                      Id.to_string(pat_id),
-                    ),
-                ),
-              FunctionExp.functions_empty_hole,
-            );
-          } else {
-            basic(FunctionExp.functions_empty_hole);
-          }
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_empty_hole(~pat_id, ~body_id),
+          )
         | MultiHole(_) =>
-          if (FunctionExp.function_multi_hole_exp.id
-              == get_specificity_level(FunctionExp.functions_multi_hole)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_multi_hole_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(pat_id),
-                      Id.to_string(body_id),
-                      Id.to_string(pat_id),
-                    ),
-                ),
-              FunctionExp.functions_multi_hole,
-            );
-          } else {
-            basic(FunctionExp.functions_multi_hole);
-          }
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_multi_hole(~pat_id, ~body_id),
+          )
         | Wild =>
-          if (FunctionExp.function_wild_exp.id
-              == get_specificity_level(FunctionExp.functions_wild)) {
-            get_message(
-              ~colorings=FunctionExp.function_wild_exp_coloring_ids(~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s"),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_wild,
-            );
-          } else {
-            basic(FunctionExp.functions_wild);
-          }
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_wild(~pat_id, ~body_id),
+          )
         | Atom(SInt(i)) =>
-          if (FunctionExp.function_sintlit_exp.id
-              == get_specificity_level(FunctionExp.functions_sint)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_sintlit_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%d%s%s"),
-                      Id.to_string(pat_id),
-                      i,
-                      Id.to_string(pat_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_sint,
-            );
-          } else {
-            basic(FunctionExp.functions_sint);
-          }
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_sint(~pat_id, ~body_id, ~i),
+          )
         | Atom(Int(i) | Nat(i)) =>
-          if (FunctionExp.function_intlit_exp.id
-              == get_specificity_level(FunctionExp.functions_int)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_intlit_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s%s"),
-                      Id.to_string(pat_id),
-                      Bigint.to_string(i),
-                      Id.to_string(pat_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_int,
-            );
-          } else {
-            basic(FunctionExp.functions_int);
-          }
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_int(~pat_id, ~body_id, ~i),
+          )
         | Atom(Float(f)) =>
-          if (FunctionExp.function_floatlit_exp.id
-              == get_specificity_level(FunctionExp.functions_float)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_floatlit_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%f%s%s"),
-                      Id.to_string(pat_id),
-                      f,
-                      Id.to_string(pat_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_float,
-            );
-          } else {
-            basic(FunctionExp.functions_float);
-          }
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_float(~pat_id, ~body_id, ~f),
+          )
         | Atom(Bool(b)) =>
-          if (FunctionExp.function_boollit_exp.id
-              == get_specificity_level(FunctionExp.functions_bool)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_boollit_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%b%s%s"),
-                      Id.to_string(pat_id),
-                      b,
-                      Id.to_string(pat_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_bool,
-            );
-          } else {
-            basic(FunctionExp.functions_bool);
-          }
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_bool(~pat_id, ~body_id, ~b),
+          )
         | Atom(String(s)) =>
-          if (FunctionExp.function_strlit_exp.id
-              == get_specificity_level(FunctionExp.functions_str)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_strlit_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s%s"),
-                      Id.to_string(pat_id),
-                      s,
-                      Id.to_string(pat_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_str,
-            );
-          } else {
-            basic(FunctionExp.functions_str);
-          }
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_str(~pat_id, ~body_id, ~s),
+          )
         | Tuple([]) =>
-          if (FunctionExp.function_triv_exp.id
-              == get_specificity_level(FunctionExp.functions_triv)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_triv_exp_coloring_ids(~pat_id, ~body_id),
-              // HANNAH TODO - think could move this format thing like into the colorings
-              // functions
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(pat_id),
-                      Id.to_string(pat_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_triv,
-            );
-          } else {
-            basic(FunctionExp.functions_triv);
-          }
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_triv(~pat_id, ~body_id),
+          )
         | ListLit(elements) =>
-          if (List.length(elements) == 0) {
-            if (FunctionExp.function_listnil_exp.id
-                == get_specificity_level(FunctionExp.functions_listnil)) {
-              get_message(
-                ~colorings=
-                  FunctionExp.function_listnil_exp_coloring_ids(
-                    ~pat_id,
-                    ~body_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%s%s%s"),
-                        Id.to_string(pat_id),
-                        Id.to_string(pat_id),
-                        Id.to_string(body_id),
-                      ),
-                  ),
-                FunctionExp.functions_listnil,
-              );
-            } else {
-              basic(FunctionExp.functions_listnil);
-            };
-          } else if (FunctionExp.function_listlit_exp.id
-                     == get_specificity_level(FunctionExp.functions_listlit)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_listlit_exp_coloring_ids(
+          List.length(elements) == 0
+            ? leveled(
+                ~fallback=basic,
+                FunctionExp.functions_listnil(~pat_id, ~body_id),
+              )
+            : leveled(
+                ~fallback=basic,
+                FunctionExp.functions_listlit(
                   ~pat_id,
                   ~body_id,
+                  ~n=List.length(elements),
                 ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s%s"),
-                      Id.to_string(pat_id),
-                      string_of_int(List.length(elements)),
-                      Id.to_string(pat_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_listlit,
-            );
-          } else {
-            basic(FunctionExp.functions_listlit);
-          }
+              )
         | Cons(hd, tl) =>
-          if (FunctionExp.function_cons_exp.id
-              == get_specificity_level(FunctionExp.functions_cons)) {
-            let hd_id = List.nth(IdTagged.ids(hd), 0);
-            let tl_id = List.nth(IdTagged.ids(tl), 0);
-            get_message(
-              ~colorings=
-                FunctionExp.function_cons_exp_coloring_ids(
-                  ~hd_id,
-                  ~tl_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(hd_id),
-                      Id.to_string(tl_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_cons,
-            );
-          } else {
-            basic(FunctionExp.functions_cons);
-          }
+          let hd_id = IdTagged.rep_id(hd);
+          let tl_id = IdTagged.rep_id(tl);
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_cons(~hd_id, ~tl_id, ~pat_id, ~body_id),
+          );
         | Var(var) =>
-          if (FunctionExp.function_var_exp.id
-              == get_specificity_level(FunctionExp.functions_var)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_var_exp_coloring_ids(~pat_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(pat_id),
-                      var,
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_var,
-            );
-          } else {
-            basic(FunctionExp.functions_var);
-          }
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_var(~pat_id, ~body_id, ~name=var),
+          )
         | Tuple([{term: TupLabel(l, p), _}]) =>
-          if (FunctionExp.function_labeled_exp.id
-              == get_specificity_level(FunctionExp.functions_tuplabel)) {
-            get_message(
-              ~colorings=
-                FunctionExp.function_labeled_exp_coloring_ids(
-                  ~label_id=Pat.rep_id(l),
-                  ~pat_id=Pat.rep_id(p),
-                  ~body_id=Exp.rep_id(body),
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(Pat.rep_id(l)),
-                      Id.to_string(Pat.rep_id(p)),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_tuplabel,
+          let group =
+            FunctionExp.functions_tuplabel(
+              ~label_id=Pat.rep_id(l),
+              ~label_pat_id=Pat.rep_id(p),
+              ~pat_id,
+              ~body_id,
             );
-          } else {
-            basic(FunctionExp.functions_tuplabel);
-          }
+          leveled(~fallback=basic, group);
         | Tuple(elements) =>
-          let pat_id = List.nth(IdTagged.ids(pat), 0);
-          let body_id = List.nth(IdTagged.ids(body), 0);
-          let basic_tuple = group_id => {
-            get_message(
-              ~colorings=
-                FunctionExp.function_tuple_exp_coloring_ids(
-                  ~pat_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s%s"),
-                      Id.to_string(pat_id),
-                      string_of_int(List.length(elements)),
-                      Id.to_string(pat_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              group_id,
-            );
-          };
-
-          switch (List.length(elements)) {
+          let n = List.length(elements);
+          switch (n) {
           | 2 =>
-            let doc_id = get_specificity_level(FunctionExp.functions_tuple2);
-            if (FunctionExp.function_tuple2_exp.id == doc_id) {
-              let pat1_id =
-                List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-              let pat2_id =
-                List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-              get_message(
-                ~colorings=
-                  FunctionExp.function_tuple2_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~body_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%s%s%s"),
-                        Id.to_string(pat1_id),
-                        Id.to_string(pat2_id),
-                        Id.to_string(body_id),
-                      ),
-                  ),
-                FunctionExp.functions_tuple2,
+            let pat1_id = nth_rep_id(elements, 0);
+            let pat2_id = nth_rep_id(elements, 1);
+            let group =
+              FunctionExp.functions_tuple2(
+                ~pat1_id,
+                ~pat2_id,
+                ~pat_id,
+                ~body_id,
+                ~n,
               );
-            } else if (FunctionExp.function_tuple_exp.id == doc_id) {
-              basic_tuple(FunctionExp.functions_tuple2);
-            } else {
-              basic(FunctionExp.functions_tuple2);
-            };
+            leveled(~fallback=basic, group);
           | 3 =>
-            let doc_id = get_specificity_level(FunctionExp.functions_tuple3);
-            if (FunctionExp.function_tuple3_exp.id == doc_id) {
-              let pat1_id =
-                List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-              let pat2_id =
-                List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-              let pat3_id =
-                List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
-              get_message(
-                ~colorings=
-                  FunctionExp.function_tuple3_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~pat3_id,
-                    ~body_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%s%s%s%s"),
-                        Id.to_string(pat1_id),
-                        Id.to_string(pat2_id),
-                        Id.to_string(pat3_id),
-                        Id.to_string(body_id),
-                      ),
-                  ),
-                FunctionExp.functions_tuple3,
+            let pat1_id = nth_rep_id(elements, 0);
+            let pat2_id = nth_rep_id(elements, 1);
+            let pat3_id = nth_rep_id(elements, 2);
+            let group =
+              FunctionExp.functions_tuple3(
+                ~pat1_id,
+                ~pat2_id,
+                ~pat3_id,
+                ~pat_id,
+                ~body_id,
+                ~n,
               );
-            } else if (FunctionExp.function_tuple_exp.id == doc_id) {
-              basic_tuple(FunctionExp.functions_tuple3);
-            } else {
-              basic(FunctionExp.functions_tuple3);
-            };
+            leveled(~fallback=basic, group);
           | _ =>
-            if (FunctionExp.function_tuple_exp.id
-                == get_specificity_level(FunctionExp.functions_tuple)) {
-              basic_tuple(FunctionExp.functions_tuple);
-            } else {
-              basic(FunctionExp.functions_tuple);
-            }
+            leveled(
+              ~fallback=basic,
+              FunctionExp.functions_tuple(~pat_id, ~body_id, ~n),
+            )
           };
         | Ap(con, arg) =>
-          if (FunctionExp.function_ap_exp.id
-              == get_specificity_level(FunctionExp.functions_ap)) {
-            let con_id = List.nth(IdTagged.ids(con), 0);
-            let arg_id = List.nth(IdTagged.ids(arg), 0);
-            get_message(
-              ~colorings=
-                FunctionExp.function_ap_exp_coloring_ids(
-                  ~con_id,
-                  ~arg_id,
-                  ~body_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(con_id),
-                      Id.to_string(arg_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_ap,
-            );
-          } else {
-            basic(FunctionExp.functions_ap);
-          }
+          let con_id = IdTagged.rep_id(con);
+          let arg_id = IdTagged.rep_id(arg);
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_ap(~con_id, ~arg_id, ~pat_id, ~body_id),
+          );
         | Constructor(v, _) =>
-          if (FunctionExp.function_ctr_exp.id
-              == get_specificity_level(FunctionExp.functions_ctr)) {
-            let pat_id = List.nth(IdTagged.ids(pat), 0);
-            let body_id = List.nth(IdTagged.ids(body), 0);
-            get_message(
-              ~colorings=
-                FunctionExp.function_ctr_exp_coloring_ids(~pat_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s%s"),
-                      Id.to_string(pat_id),
-                      v,
-                      Id.to_string(pat_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              FunctionExp.functions_ctr,
-            );
-          } else {
-            basic(FunctionExp.functions_ctr);
-          }
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_ctr(~pat_id, ~body_id, ~name=v),
+          )
         | TupLabel(_)
         | Invalid(_)
         | Parens(_)
         | Label(_)
         | ExplicitNonlabel
         | Projector(_)
-        | Asc(_) => default // Shouldn't get hit?
+        | Asc(_) => NoDoc // Shouldn't get hit?
         };
-      | Label(name) =>
-        get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
-            ),
-          LabelTerm.labels(name),
-        )
+      | Label(name) => get_message(LabelTerm.labels(name))
       | TupLabel(l, e) =>
         get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(Exp.rep_id(l)),
-                  Id.to_string(Exp.rep_id(e)),
-                ),
-            ),
-          ~colorings=
-            TupLabelExp.labeled_exps_coloring_ids(
-              ~label_id=Exp.rep_id(l),
-              ~exp_id=Exp.rep_id(e),
-            ),
-          TupLabelExp.labeled_exps,
+          TupLabelExp.labeled_exps(
+            ~label_id=Exp.rep_id(l),
+            ~exp_id=Exp.rep_id(e),
+          ),
         )
       | Dot(tup, lab) =>
         get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(Exp.rep_id(lab)),
-                  Id.to_string(Exp.rep_id(tup)),
-                ),
-            ),
-          ~colorings=
-            DotExp.dot_coloring_ids(
-              ~tup_id=Exp.rep_id(tup),
-              ~lab_id=Exp.rep_id(lab),
-            ),
-          DotExp.dot_exp,
+          DotExp.dot_exp(~lab_id=Exp.rep_id(lab), ~tup_id=Exp.rep_id(tup)),
         )
       | Tuple(terms) =>
-        let basic = group_id =>
+        let n = List.length(terms);
+        let basic = group =>
           get_message(
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s"),
-                    string_of_int(List.length(terms)),
-                  ),
-              ),
-            group_id,
+            ~explanation=TupleExp.tuple_exp_explanation(~n),
+            group,
           );
-        switch (List.length(terms)) {
+        switch (n) {
         | 2 =>
-          if (TupleExp.tuple_exp_size2.id
-              == get_specificity_level(TupleExp.tuples2)) {
-            let exp1_id = List.nth(IdTagged.ids(List.nth(terms, 0)), 0);
-            let exp2_id = List.nth(IdTagged.ids(List.nth(terms, 1)), 0);
-            get_message(
-              ~colorings=
-                TupleExp.tuple_exp_size2_coloring_ids(~exp1_id, ~exp2_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s"),
-                      Id.to_string(exp1_id),
-                      Id.to_string(exp2_id),
-                    ),
-                ),
-              TupleExp.tuples2,
-            );
-          } else {
-            basic(TupleExp.tuples2);
-          }
+          let exp1_id = nth_rep_id(terms, 0);
+          let exp2_id = nth_rep_id(terms, 1);
+          leveled(~fallback=basic, TupleExp.tuples2(~exp1_id, ~exp2_id, ~n));
         | 3 =>
-          if (TupleExp.tuple_exp_size3.id
-              == get_specificity_level(TupleExp.tuples3)) {
-            let exp1_id = List.nth(IdTagged.ids(List.nth(terms, 0)), 0);
-            let exp2_id = List.nth(IdTagged.ids(List.nth(terms, 1)), 0);
-            let exp3_id = List.nth(IdTagged.ids(List.nth(terms, 2)), 0);
-            get_message(
-              ~colorings=
-                TupleExp.tuple_exp_size3_coloring_ids(
-                  ~exp1_id,
-                  ~exp2_id,
-                  ~exp3_id,
-                ),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(exp1_id),
-                      Id.to_string(exp2_id),
-                      Id.to_string(exp3_id),
-                    ),
-                ),
-              TupleExp.tuples3,
-            );
-          } else {
-            basic(TupleExp.tuples3);
-          }
-        | _ => basic(TupleExp.tuples)
+          let exp1_id = nth_rep_id(terms, 0);
+          let exp2_id = nth_rep_id(terms, 1);
+          let exp3_id = nth_rep_id(terms, 2);
+          leveled(
+            ~fallback=basic,
+            TupleExp.tuples3(~exp1_id, ~exp2_id, ~exp3_id, ~n),
+          );
+        | _ => basic(TupleExp.tuples(~n))
         };
       | Var(n) => get_message(TerminalExp.var_exps(n))
       | Let(pat, def, body) =>
         let pat = bypass_parens_and_annot_pat(pat);
-        let pat_id = List.nth(IdTagged.ids(pat), 0);
-        let def_id = List.nth(IdTagged.ids(def), 0);
-        let body_id = List.nth(IdTagged.ids(body), 0);
-        let basic = group_id => {
+        let pat_id = IdTagged.rep_id(pat);
+        let def_id = IdTagged.rep_id(def);
+        let body_id = IdTagged.rep_id(body);
+        let basic = group =>
           get_message(
             ~colorings=LetExp.let_base_exp_coloring_ids(~pat_id, ~def_id),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s"),
-                    Id.to_string(def_id),
-                    Id.to_string(pat_id),
-                  ),
-              ),
-            group_id,
+            ~explanation=LetExp.let_base_exp_explanation(~def_id, ~pat_id),
+            group,
           );
-        };
         switch (pat.term) {
+        /* TODO The coloring for the syntactic form is sometimes wrong when
+           switching between forms and specificity levels... maybe a Safari
+           issue... */
         | EmptyHole =>
-          if (LetExp.let_empty_hole_exp.id
-              == get_specificity_level(LetExp.lets_emptyhole)) {
-            get_message(
-              ~colorings=
-                LetExp.let_empty_hole_exp_coloring_ids(~pat_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(pat_id),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                    ),
-                ),
-              LetExp.lets_emptyhole,
-            );
-          } else {
-            basic(LetExp.lets_emptyhole);
-          }
+          leveled(~fallback=basic, LetExp.lets_emptyhole(~def_id, ~pat_id))
         | MultiHole(_) =>
-          if (LetExp.let_multi_hole_exp.id
-              == get_specificity_level(LetExp.lets_mutlihole)) {
-            get_message(
-              ~colorings=
-                LetExp.let_multi_hole_exp_coloring_ids(~pat_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(pat_id),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                    ),
-                ),
-              LetExp.lets_mutlihole,
-            );
-          } else {
-            basic(LetExp.lets_mutlihole);
-          }
+          leveled(~fallback=basic, LetExp.lets_multihole(~def_id, ~pat_id))
         | Wild =>
-          if (LetExp.let_wild_exp.id
-              == get_specificity_level(LetExp.lets_wild)) {
-            get_message(
-              ~colorings=LetExp.let_wild_exp_coloring_ids(~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(def_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              LetExp.lets_wild,
-            );
-          } else {
-            basic(LetExp.lets_wild);
-          }
+          leveled(
+            ~fallback=basic,
+            LetExp.lets_wild(~def_id, ~pat_id, ~body_id),
+          )
         | Atom(Int(i) | Nat(i)) =>
-          if (LetExp.let_int_exp.id == get_specificity_level(LetExp.lets_int)) {
-            get_message(
-              ~colorings=
-                LetExp.let_int_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                      Bigint.to_string(i),
-                      Id.to_string(def_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              LetExp.lets_int,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here and some other places when switching between forms and specificity levels... maybe a Safari issue... */
-            basic(
-              LetExp.lets_int,
-            );
-          }
+          leveled(
+            ~fallback=basic,
+            LetExp.lets_int(~def_id, ~pat_id, ~i, ~body_id),
+          )
         | Atom(SInt(i)) =>
-          if (LetExp.let_sint_exp.id
-              == get_specificity_level(LetExp.lets_sint)) {
-            get_message(
-              ~colorings=
-                LetExp.let_sint_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%d%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                      i,
-                      Id.to_string(def_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              LetExp.lets_sint,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              LetExp.lets_sint,
-            );
-          }
+          leveled(
+            ~fallback=basic,
+            LetExp.lets_sint(~def_id, ~pat_id, ~i, ~body_id),
+          )
+        // TODO Make sure everywhere printing the float literal print it prettier
         | Atom(Float(f)) =>
-          if (LetExp.let_float_exp.id
-              == get_specificity_level(LetExp.lets_float)) {
-            // TODO Make sure everywhere printing the float literal print it prettier
-            get_message(
-              ~colorings=
-                LetExp.let_float_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%f%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                      f,
-                      Id.to_string(def_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              LetExp.lets_float,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              LetExp.lets_float,
-            );
-          }
+          leveled(
+            ~fallback=basic,
+            LetExp.lets_float(~def_id, ~pat_id, ~f, ~body_id),
+          )
         | Atom(Bool(b)) =>
-          if (LetExp.let_bool_exp.id
-              == get_specificity_level(LetExp.lets_bool)) {
-            get_message(
-              ~colorings=
-                LetExp.let_bool_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%b%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                      b,
-                      Id.to_string(def_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              LetExp.lets_bool,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              LetExp.lets_bool,
-            );
-          }
+          leveled(
+            ~fallback=basic,
+            LetExp.lets_bool(~def_id, ~pat_id, ~b, ~body_id),
+          )
         | Atom(String(s)) =>
-          if (LetExp.let_str_exp.id == get_specificity_level(LetExp.lets_str)) {
-            get_message(
-              ~colorings=
-                LetExp.let_str_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                      s,
-                      Id.to_string(def_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              LetExp.lets_str,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here... */
-            basic(
-              LetExp.lets_str,
-            );
-          }
+          leveled(
+            ~fallback=basic,
+            LetExp.lets_str(~def_id, ~pat_id, ~s, ~body_id),
+          )
         | Tuple([]) =>
-          if (LetExp.let_triv_exp.id
-              == get_specificity_level(LetExp.lets_triv)) {
-            get_message(
-              ~colorings=
-                LetExp.let_triv_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                      Id.to_string(def_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              LetExp.lets_triv,
-            );
-          } else {
-            /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... seems like might be Safari issue... */
-            basic(
-              LetExp.lets_triv,
-            );
-          }
+          leveled(
+            ~fallback=basic,
+            LetExp.lets_triv(~def_id, ~pat_id, ~body_id),
+          )
         | ListLit(elements) =>
-          if (List.length(elements) == 0) {
-            if (LetExp.let_listnil_exp.id
-                == get_specificity_level(LetExp.lets_listnil)) {
-              get_message(
-                ~colorings=
-                  LetExp.let_listnil_exp_coloring_ids(
-                    ~pat_id,
-                    ~def_id,
-                    ~body_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%s%s%s%s"),
-                        Id.to_string(def_id),
-                        Id.to_string(pat_id),
-                        Id.to_string(def_id),
-                        Id.to_string(body_id),
-                      ),
-                  ),
-                LetExp.lets_listnil,
-              );
-            } else {
-              basic(LetExp.lets_listnil);
-            };
-          } else if (LetExp.let_listlit_exp.id
-                     == get_specificity_level(LetExp.lets_listlit)) {
-            get_message(
-              ~colorings=
-                LetExp.let_listlit_exp_coloring_ids(~pat_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                      string_of_int(List.length(elements)),
-                    ),
+          List.length(elements) == 0
+            ? leveled(
+                ~fallback=basic,
+                LetExp.lets_listnil(~def_id, ~pat_id, ~body_id),
+              )
+            : leveled(
+                ~fallback=basic,
+                LetExp.lets_listlit(
+                  ~def_id,
+                  ~pat_id,
+                  ~n=List.length(elements),
                 ),
-              LetExp.lets_listlit,
-            );
-          } else {
-            basic(LetExp.lets_listlit);
-          }
+              )
         | Cons(hd, tl) =>
-          if (LetExp.let_cons_exp.id
-              == get_specificity_level(LetExp.lets_cons)) {
-            let hd_id = List.nth(IdTagged.ids(hd), 0);
-            let tl_id = List.nth(IdTagged.ids(tl), 0);
-            get_message(
-              ~colorings=
-                LetExp.let_cons_exp_coloring_ids(~hd_id, ~tl_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(hd_id),
-                      Id.to_string(tl_id),
-                    ),
-                ),
-              LetExp.lets_cons,
-            );
-          } else {
-            basic(LetExp.lets_cons);
-          }
+          let hd_id = IdTagged.rep_id(hd);
+          let tl_id = IdTagged.rep_id(tl);
+          leveled(
+            ~fallback=basic,
+            LetExp.lets_cons(~def_id, ~hd_id, ~tl_id, ~pat_id),
+          );
         | Var(var) =>
-          if (LetExp.let_var_exp.id == get_specificity_level(LetExp.lets_var)) {
-            get_message(
-              ~colorings=
-                LetExp.let_var_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                      var,
-                      Id.to_string(body_id),
-                    ),
-                ),
-              LetExp.lets_var,
-            );
-          } else {
-            basic(LetExp.lets_var);
-          }
+          leveled(
+            ~fallback=basic,
+            LetExp.lets_var(~def_id, ~pat_id, ~name=var, ~body_id),
+          )
         | Tuple(elements) =>
-          let basic_tuple = group_id => {
+          let n = List.length(elements);
+          /* The middle level describes the tuple generically, so unlike the
+             other fallbacks it substitutes its own explanation. */
+          let tuple_level = group =>
             get_message(
               ~colorings=LetExp.let_tuple_exp_coloring_ids(~pat_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                      string_of_int(List.length(elements)),
-                    ),
-                ),
-              group_id,
+              ~explanation=
+                LetExp.let_tuple_exp_explanation(~def_id, ~pat_id, ~n),
+              group,
             );
-          };
 
-          switch (List.length(elements)) {
+          switch (n) {
           | 2 =>
-            let doc_id = get_specificity_level(LetExp.lets_tuple2);
-            if (LetExp.let_tuple2_exp.id == doc_id) {
-              let pat1_id =
-                List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-              let pat2_id =
-                List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-              get_message(
-                ~colorings=
-                  LetExp.let_tuple2_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~def_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%s%s%s"),
-                        Id.to_string(def_id),
-                        Id.to_string(pat1_id),
-                        Id.to_string(pat2_id),
-                      ),
-                  ),
-                LetExp.lets_tuple2,
-              );
-            } else if (LetExp.let_tuple_exp.id == doc_id) {
-              basic_tuple(LetExp.lets_tuple2);
-            } else {
-              basic(LetExp.lets_tuple2);
-            };
+            let pat1_id = nth_rep_id(elements, 0);
+            let pat2_id = nth_rep_id(elements, 1);
+            leveled(
+              ~fallback=basic,
+              LetExp.lets_tuple2(~def_id, ~pat1_id, ~pat2_id, ~pat_id, ~n),
+            );
           | 3 =>
-            let doc_id = get_specificity_level(LetExp.lets_tuple3);
+            let pat1_id = nth_rep_id(elements, 0);
+            let pat2_id = nth_rep_id(elements, 1);
+            let pat3_id = nth_rep_id(elements, 2);
             // TODO Syntactic form can go off page - so can examples - but can scroll, just can't see bottom scroll bar
-            if (LetExp.let_tuple3_exp.id == doc_id) {
-              let pat1_id =
-                List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-              let pat2_id =
-                List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-              let pat3_id =
-                List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
-              get_message(
-                ~colorings=
-                  LetExp.let_tuple3_exp_coloring_ids(
-                    ~pat1_id,
-                    ~pat2_id,
-                    ~pat3_id,
-                    ~def_id,
-                  ),
-                ~format=
-                  Some(
-                    msg =>
-                      Printf.sprintf(
-                        Scanf.format_from_string(msg, "%s%s%s%s"),
-                        Id.to_string(def_id),
-                        Id.to_string(pat1_id),
-                        Id.to_string(pat2_id),
-                        Id.to_string(pat3_id),
-                      ),
-                  ),
-                LetExp.lets_tuple3,
-              );
-            } else if (LetExp.let_tuple_exp.id == doc_id) {
-              basic_tuple(LetExp.lets_tuple3);
-            } else {
-              basic(LetExp.lets_tuple3);
-            };
+            leveled(
+              ~fallback=basic,
+              LetExp.lets_tuple3(
+                ~def_id,
+                ~pat1_id,
+                ~pat2_id,
+                ~pat3_id,
+                ~pat_id,
+                ~n,
+              ),
+            );
           | _ =>
-            if (LetExp.let_tuple_exp.id
-                == get_specificity_level(LetExp.lets_tuple)) {
-              basic_tuple(LetExp.lets_tuple);
-            } else {
-              basic(LetExp.lets_tuple);
-            }
+            let group = LetExp.lets_tuple(~def_id, ~pat_id, ~n);
+            at_specific_level(group) ? tuple_level(group) : basic(group);
           };
         | Ap(x, arg) =>
-          let (lets_ap, let_ap_exp_coloring_ids, let_ap_exp_id) =
+          let x_id = IdTagged.rep_id(x);
+          let arg_id = IdTagged.rep_id(arg);
+          let lets_ap =
             switch (x.term) {
-            | Constructor(_, _) => (
-                LetExp.lets_conap,
-                LetExp.let_conap_exp_coloring_ids,
-                LetExp.let_conap_exp.id,
-              )
-            | _ => (
-                LetExp.lets_funap,
-                LetExp.let_funap_exp_coloring_ids,
-                LetExp.let_funap_exp.id,
-              )
+            | Constructor(_, _) =>
+              LetExp.lets_conap(~def_id, ~x_id, ~arg_id, ~pat_id)
+            | _ => LetExp.lets_funap(~def_id, ~x_id, ~arg_id, ~pat_id)
             };
-          if (let_ap_exp_id == get_specificity_level(lets_ap)) {
-            let x_id = List.nth(IdTagged.ids(x), 0);
-            let arg_id = List.nth(IdTagged.ids(arg), 0);
-            get_message(
-              ~colorings=let_ap_exp_coloring_ids(~x_id, ~arg_id, ~def_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(x_id),
-                      Id.to_string(arg_id),
-                    ),
-                ),
-              lets_ap,
-            );
-          } else {
-            basic(lets_ap);
-          };
+          leveled(~fallback=basic, lets_ap);
         | Constructor(v, _) =>
-          if (LetExp.let_ctr_exp.id == get_specificity_level(LetExp.lets_ctr)) {
-            get_message(
-              ~colorings=
-                LetExp.let_ctr_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-              ~format=
-                Some(
-                  msg =>
-                    Printf.sprintf(
-                      Scanf.format_from_string(msg, "%s%s%s%s%s"),
-                      Id.to_string(def_id),
-                      Id.to_string(pat_id),
-                      v,
-                      Id.to_string(def_id),
-                      Id.to_string(body_id),
-                    ),
-                ),
-              LetExp.lets_ctr,
-            );
-          } else {
-            basic(LetExp.lets_ctr);
-          }
+          leveled(
+            ~fallback=basic,
+            LetExp.lets_ctr(~def_id, ~pat_id, ~name=v, ~body_id),
+          )
         | TupLabel(_)
         | ExplicitNonlabel
         | Label(_)
-        | Invalid(_) => default // Shouldn't get hit
+        | Invalid(_) => NoDoc // Shouldn't get hit
         | Parens(_)
         | Projector(_)
-        | Asc(_) => default // Shouldn't get hit?
+        | Asc(_) => NoDoc // Shouldn't get hit?
         };
       | Theorem(pat, thm, body) =>
-        let pat_id = List.nth(IdTagged.ids(pat), 0);
-        let thm_id = List.nth(IdTagged.ids(thm), 0);
-        let body_id = List.nth(IdTagged.ids(body), 0);
-        get_message(
-          ~colorings=
-            TheoremExp.test_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(pat_id),
-                  Id.to_string(thm_id),
-                ),
-            ),
-          TheoremExp.tests,
-        );
+        let pat_id = IdTagged.rep_id(pat);
+        let thm_id = IdTagged.rep_id(thm);
+        let body_id = IdTagged.rep_id(body);
+        get_message(TheoremExp.tests(~pat_id, ~thm_id, ~body_id));
       | ProofObject(exp) =>
-        let typ_id = List.nth(IdTagged.ids(exp), 0);
-        get_message(
-          ~colorings=ProofObjectExp.proof_of_exp_coloring_ids(~typ_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s"),
-                  Id.to_string(typ_id),
-                ),
-            ),
-          ProofObjectExp.proof_of_exps,
-        );
+        let typ_id = IdTagged.rep_id(exp);
+        get_message(ProofObjectExp.proof_of_exps(~typ_id));
       | Forall(pat, typ) =>
-        let pat_id = List.nth(IdTagged.ids(pat), 0);
-        let body_id = List.nth(IdTagged.ids(typ), 0);
-        get_message(
-          ~colorings=ForallExp.forall_exp_coloring_ids(~pat_id, ~body_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(pat_id),
-                  Id.to_string(body_id),
-                ),
-            ),
-          ForallExp.forall,
-        );
+        let pat_id = IdTagged.rep_id(pat);
+        let body_id = IdTagged.rep_id(typ);
+        get_message(ForallExp.forall(~pat_id, ~body_id));
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(
@@ -2032,102 +1142,36 @@ let get_doc =
           ),
         )
       | TypAp(f, typ) =>
-        let f_id = List.nth(IdTagged.ids(f), 0);
-        let typ_id = List.nth(IdTagged.ids(typ), 0);
-        let basic = (group, format, coloring_ids) => {
-          get_message(
-            ~colorings=coloring_ids(~f_id, ~typ_id),
-            ~format=Some(format),
-            group,
-          );
-        };
-        basic(
-          TypAppExp.typfunaps,
-          msg =>
-            Printf.sprintf(
-              Scanf.format_from_string(msg, "%s%s"),
-              Id.to_string(f_id),
-              Id.to_string(typ_id),
-            ),
-          TypAppExp.typfunapp_exp_coloring_ids,
-        );
+        let f_id = IdTagged.rep_id(f);
+        let typ_id = IdTagged.rep_id(typ);
+        get_message(TypAppExp.typfunaps(~f_id, ~typ_id));
 
       | Ap(Forward, x, arg) =>
-        let x_id = List.nth(IdTagged.ids(x), 0);
-        let arg_id = List.nth(IdTagged.ids(arg), 0);
-        let basic = (group, format, coloring_ids) => {
-          get_message(
-            ~colorings=coloring_ids(~x_id, ~arg_id),
-            ~format=Some(format),
-            group,
-          );
-        };
+        let x_id = IdTagged.rep_id(x);
+        let arg_id = IdTagged.rep_id(arg);
+        let basic = group => get_message(group);
         switch (x.term) {
-        | Constructor(v, _) =>
-          basic(
-            AppExp.conaps,
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s%s"),
-                v,
-                Id.to_string(x_id),
-                Id.to_string(arg_id),
-              ),
-            AppExp.conapp_exp_coloring_ids,
-          )
-        | LivelitName(_) =>
-          basic(
-            AppExp.livelitaps,
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(x_id),
-                Id.to_string(arg_id),
-              ),
-            AppExp.livelitapp_exp_coloring_ids,
-          )
-        | _ =>
-          basic(
-            AppExp.funaps,
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(x_id),
-                Id.to_string(arg_id),
-              ),
-            AppExp.funapp_exp_coloring_ids,
-          )
+        | Constructor(v, _) => basic(AppExp.conaps(~name=v, ~x_id, ~arg_id))
+        | LivelitName(_) => basic(AppExp.livelitaps(~x_id, ~arg_id))
+        | _ => basic(AppExp.funaps(~x_id, ~arg_id))
         };
       | DeferredAp(x, args) =>
-        let x_id = List.nth(IdTagged.ids(x), 0);
+        let x_id = IdTagged.rep_id(x);
         let supplied_id = Id.mk();
         let deferred_id = {
           let deferral = List.find(Exp.is_deferral, args);
-          List.nth(IdTagged.ids(deferral), 0);
+          IdTagged.rep_id(deferral);
         };
-        switch (mode) {
-        | MessageContent(_) =>
-          get_message(
-            ~colorings=
-              AppExp.deferred_funapp_exp_coloring_ids(~x_id, ~deferred_id),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s%s"),
-                    Id.to_string(x_id),
-                    Id.to_string(supplied_id),
-                    Id.to_string(deferred_id),
-                  ),
-              ),
-            AppExp.deferredaps,
-          )
-        | Colorings =>
+        /* Unlike every other branch, this one hand-builds its color map rather
+           than deriving it from the explanation's links, so it rides along on
+           the decision. Only the code highlighter reads it; the sidebar renders
+           this doc exactly like any other. */
+        let color_map = {
           let color_fn = List.nth(ColorSteps.child_colors, 0);
           let color_supplied = List.nth(ColorSteps.child_colors, 1);
           let color_deferred = List.nth(ColorSteps.child_colors, 2);
           let add = (mapping, arg: Exp.t) => {
-            let arg_id = List.nth(IdTagged.ids(arg), 0);
+            let arg_id = IdTagged.rep_id(arg);
             Haz3lcore.Id.Map.add(
               arg_id,
               Exp.is_deferral(arg) ? color_deferred : color_supplied,
@@ -2136,43 +1180,27 @@ let get_doc =
           };
           let mapping = Haz3lcore.Id.Map.singleton(x_id, color_fn);
           let mapping = List.fold_left(add, mapping, args);
-          let color_map = (mapping, List.length(args) + 1);
-          ([], ([], color_map), []);
+          (mapping, List.length(args) + 1);
+        };
+        switch (
+          get_message(AppExp.deferredaps(~x_id, ~supplied_id, ~deferred_id))
+        ) {
+        | Doc(doc) =>
+          Doc({
+            ...doc,
+            color_map: Some(color_map),
+          })
+        | other => other
         };
       | If(cond, then_, else_) =>
-        let cond_id = List.nth(IdTagged.ids(cond), 0);
-        let then_id = List.nth(IdTagged.ids(then_), 0);
-        let else_id = List.nth(IdTagged.ids(else_), 0);
-        get_message(
-          ~colorings=IfExp.if_exp_coloring_ids(~cond_id, ~then_id, ~else_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s%s"),
-                  Id.to_string(cond_id),
-                  Id.to_string(then_id),
-                  Id.to_string(else_id),
-                ),
-            ),
-          IfExp.ifs,
-        );
+        let cond_id = IdTagged.rep_id(cond);
+        let then_id = IdTagged.rep_id(then_);
+        let else_id = IdTagged.rep_id(else_);
+        get_message(IfExp.ifs(~cond_id, ~then_id, ~else_id));
       | Seq(left, right) =>
-        let exp1_id = List.nth(IdTagged.ids(left), 0);
-        let exp2_id = List.nth(IdTagged.ids(right), 0);
-        get_message(
-          ~colorings=SeqExp.seq_exp_coloring_ids(~exp1_id, ~exp2_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(exp1_id),
-                  Id.to_string(exp2_id),
-                ),
-            ),
-          SeqExp.seqs,
-        );
+        let exp1_id = IdTagged.rep_id(left);
+        let exp2_id = IdTagged.rep_id(right);
+        get_message(SeqExp.seqs(~exp1_id, ~exp2_id));
       | Filter(Filter({act: (Step, One), pat}), body) =>
         message_single(
           FilterExp.filter_pause(
@@ -2201,221 +1229,94 @@ let get_doc =
             ~body_id=Exp.rep_id(body),
           ),
         )
-      | Filter(_) => simple("Internal expression")
+      | Filter(_) => Prose("Internal expression")
       | Test(body) =>
-        let body_id = List.nth(IdTagged.ids(body), 0);
-        get_message(
-          ~colorings=TestExp.test_exp_coloring_ids(~body_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s"),
-                  Id.to_string(body_id),
-                ),
-            ),
-          TestExp.tests,
-        );
+        let body_id = IdTagged.rep_id(body);
+        get_message(TestExp.tests(~body_id));
       | Parens(term) => get_message_exp(term.term) // No Special message?
       | HintedTest(body, hint) =>
-        let hint_id = List.nth(IdTagged.ids(hint), 0);
-        let body_id = List.nth(IdTagged.ids(body), 0);
-        get_message(
-          ~colorings=
-            HintedTestExp.hinted_test_exp_coloring_ids(~body_id, ~hint_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(hint_id),
-                  Id.to_string(body_id),
-                ),
-            ),
-          HintedTestExp.tests,
-        );
+        let hint_id = IdTagged.rep_id(hint);
+        let body_id = IdTagged.rep_id(body);
+        get_message(HintedTestExp.tests(~hint_id, ~body_id));
       | Cons(hd, tl) =>
-        let hd_id = List.nth(IdTagged.ids(hd), 0);
-        let tl_id = List.nth(IdTagged.ids(tl), 0);
-        get_message(
-          ~colorings=ListExp.cons_exp_coloring_ids(~hd_id, ~tl_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(hd_id),
-                  Id.to_string(tl_id),
-                ),
-            ),
-          ListExp.listcons,
-        );
+        let hd_id = IdTagged.rep_id(hd);
+        let tl_id = IdTagged.rep_id(tl);
+        get_message(ListExp.listcons(~hd_id, ~tl_id));
       | TupleExtension(x, y) =>
-        let x_id = List.nth(IdTagged.ids(x), 0);
-        let y_id = List.nth(IdTagged.ids(y), 0);
-        get_message(
-          ~colorings=TupleExp.tuple_extension_exp_coloring_ids(~x_id, ~y_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(x_id),
-                  Id.to_string(y_id),
-                ),
-            ),
-          TupleExp.tuple_extensions,
-        );
+        let x_id = IdTagged.rep_id(x);
+        let y_id = IdTagged.rep_id(y);
+        get_message(TupleExp.tuple_extensions(~x_id, ~y_id));
       | ListConcat(xs, ys) =>
-        let xs_id = List.nth(IdTagged.ids(xs), 0);
-        let ys_id = List.nth(IdTagged.ids(ys), 0);
-        get_message(
-          ~colorings=ListExp.concat_exp_coloring_ids(~xs_id, ~ys_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(xs_id),
-                  Id.to_string(ys_id),
-                ),
-            ),
-          ListExp.listconcats,
-        );
+        let xs_id = IdTagged.rep_id(xs);
+        let ys_id = IdTagged.rep_id(ys);
+        get_message(ListExp.listconcats(~xs_id, ~ys_id));
       | UnOp(op, exp) =>
         switch (op) {
         | Bool(Not) =>
-          let exp_id = List.nth(IdTagged.ids(exp), 0);
-          get_message(
-            ~colorings=OpExp.bool_unary_not_exp_coloring_ids(~exp_id),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s"),
-                    Id.to_string(exp_id),
-                  ),
-              ),
-            OpExp.bool_un_not,
-          );
+          let exp_id = IdTagged.rep_id(exp);
+          get_message(OpExp.bool_un_not(~exp_id));
         | Float(Minus) // TODO[Matt]: finish
         | SInt(Minus)
         | Nat(Minus)
         | Int(Minus) =>
-          let exp_id = List.nth(IdTagged.ids(exp), 0);
-          get_message(
-            ~colorings=OpExp.int_unary_minus_exp_coloring_ids(~exp_id),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s"),
-                    Id.to_string(exp_id),
-                  ),
-              ),
-            OpExp.int_un_minus,
-          );
+          let exp_id = IdTagged.rep_id(exp);
+          get_message(OpExp.int_un_minus(~exp_id));
         }
       | BinOp(op, left, right) =>
         open OpExp;
-        let (group, coloring_ids) =
+        let group =
           switch (op) {
           | Nat(Plus)
           | SInt(Plus)
-          | Int(Plus) => (int_plus, int_plus_exp_coloring_ids)
+          | Int(Plus) => int_plus
           | Nat(Minus)
           | SInt(Minus)
-          | Int(Minus) => (int_minus, int_minus_exp_coloring_ids)
+          | Int(Minus) => int_minus
           | Nat(Times)
           | SInt(Times)
-          | Int(Times) => (int_times, int_times_exp_coloring_ids)
+          | Int(Times) => int_times
           | Nat(Power)
           | SInt(Power)
-          | Int(Power) => (int_power, int_power_exp_coloring_ids)
+          | Int(Power) => int_power
           | Nat(Divide)
           | SInt(Divide)
-          | Int(Divide) => (int_divide, int_divide_exp_coloring_ids)
+          | Int(Divide) => int_divide
           | Nat(LessThan)
           | SInt(LessThan)
-          | Int(LessThan) => (int_less_than, int_lt_exp_coloring_ids)
+          | Int(LessThan) => int_less_than
           | Nat(LessThanOrEqual)
           | SInt(LessThanOrEqual)
-          | Int(LessThanOrEqual) => (
-              int_less_than_equal,
-              int_lte_exp_coloring_ids,
-            )
+          | Int(LessThanOrEqual) => int_less_than_equal
           | Nat(GreaterThan)
           | SInt(GreaterThan)
-          | Int(GreaterThan) => (int_greater_than, int_gt_exp_coloring_ids)
+          | Int(GreaterThan) => int_greater_than
           | Nat(GreaterThanOrEqual)
           | SInt(GreaterThanOrEqual)
-          | Int(GreaterThanOrEqual) => (
-              int_greater_than_equal,
-              int_gte_exp_coloring_ids,
-            )
-          | Float(Plus) => (float_plus, float_plus_exp_coloring_ids)
-          | Float(Minus) => (float_minus, float_minus_exp_coloring_ids)
-          | Float(Times) => (float_times, float_times_exp_coloring_ids)
-          | Float(Power) => (float_power, float_power_exp_coloring_ids)
-          | Float(Divide) => (float_divide, float_divide_exp_coloring_ids)
-          | Float(LessThan) => (float_less_than, float_lt_exp_coloring_ids)
-          | Float(LessThanOrEqual) => (
-              float_less_than_equal,
-              float_lte_exp_coloring_ids,
-            )
-          | Float(GreaterThan) => (
-              float_greater_than,
-              float_gt_exp_coloring_ids,
-            )
-          | Float(GreaterThanOrEqual) => (
-              float_greater_than_equal,
-              float_gte_exp_coloring_ids,
-            )
-          | Float(Equals) => (float_equal, float_eq_exp_coloring_ids)
-          | Float(NotEquals) => (float_not_equal, float_neq_exp_coloring_ids)
-          | Bool(And) => (bool_and, bool_and_exp_coloring_ids)
-          | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
-          | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
-          | Poly(Equals) => (poly_equal, poly_eq_exp_coloring_ids)
-          | Poly(NotEquals) => (poly_not_equal, poly_neq_exp_coloring_ids)
+          | Int(GreaterThanOrEqual) => int_greater_than_equal
+          | Float(Plus) => float_plus
+          | Float(Minus) => float_minus
+          | Float(Times) => float_times
+          | Float(Power) => float_power
+          | Float(Divide) => float_divide
+          | Float(LessThan) => float_less_than
+          | Float(LessThanOrEqual) => float_less_than_equal
+          | Float(GreaterThan) => float_greater_than
+          | Float(GreaterThanOrEqual) => float_greater_than_equal
+          | Float(Equals) => float_equal
+          | Float(NotEquals) => float_not_equal
+          | Bool(And) => bool_and
+          | Bool(Or) => bool_or
+          | String(Concat) => string_concat
+          | Poly(Equals) => poly_equal
+          | Poly(NotEquals) => poly_not_equal
           };
-        let left_id = List.nth(IdTagged.ids(left), 0);
-        let right_id = List.nth(IdTagged.ids(right), 0);
-        get_message(
-          ~colorings=coloring_ids(~left_id, ~right_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(left_id),
-                  Id.to_string(right_id),
-                ),
-            ),
-          group,
-        );
+        let left_id = IdTagged.rep_id(left);
+        let right_id = IdTagged.rep_id(right);
+        get_message(group(~left_id, ~right_id));
       | Match(scrut, _rules) =>
-        let scrut_id = List.nth(IdTagged.ids(scrut), 0);
-        get_message(
-          ~colorings=CaseExp.case_exp_coloring_ids(~scrut_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s"),
-                  Id.to_string(scrut_id),
-                ),
-            ),
-          CaseExp.case,
-        );
-      | Constructor(v, _) =>
-        get_message(
-          ~format=
-            Some(
-              msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
-            ),
-          TerminalExp.ctr(v),
-        )
+        let scrut_id = IdTagged.rep_id(scrut);
+        get_message(CaseExp.case(~scrut_id));
+      | Constructor(v, _) => get_message(TerminalExp.ctr(v))
       | Module(_) => message_single(ModuleExp.single)
       | ModuleExp(_) => message_single(ModuleKeywordExp.single)
       | Projector(_, e) => get_message_exp(e.term)
@@ -2426,283 +1327,83 @@ let get_doc =
     | EmptyHole => get_message(HolePat.empty_hole)
     | MultiHole(_) => get_message(HolePat.multi_hole)
     | Wild => get_message(TerminalPat.wild)
-    | Atom(Int(i) | Nat(i)) =>
-      get_message(
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                i |> Bigint.to_string,
-                i |> Bigint.to_string,
-              ),
-          ),
-        TerminalPat.intlit(i),
-      )
-    | Atom(SInt(i)) =>
-      get_message(
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%d%d"), i, i),
-          ),
-        TerminalPat.sintlit(i),
-      )
-    | Atom(Float(f)) =>
-      get_message(
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%f%f"), f, f),
-          ),
-        TerminalPat.floatlit(f),
-      )
-    | Atom(Bool(b)) =>
-      get_message(
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%b%b"), b, b),
-          ),
-        TerminalPat.boollit(b),
-      )
-    | Atom(String(s)) =>
-      get_message(
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%s%s"), s, s),
-          ),
-        TerminalPat.strlit(s),
-      )
+    | Atom(Int(i) | Nat(i)) => get_message(TerminalPat.intlit(i))
+    | Atom(SInt(i)) => get_message(TerminalPat.sintlit(i))
+    | Atom(Float(f)) => get_message(TerminalPat.floatlit(f))
+    | Atom(Bool(b)) => get_message(TerminalPat.boollit(b))
+    | Atom(String(s)) => get_message(TerminalPat.strlit(s))
     | Tuple([]) => get_message(TerminalPat.triv)
     | ListLit(elements) =>
       if (List.length(elements) == 0) {
         get_message(ListPat.listnil);
       } else {
-        get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s"),
-                  string_of_int(List.length(elements)),
-                ),
-            ),
-          ListPat.listlit,
-        );
+        get_message(ListPat.listlit(~n=List.length(elements)));
       }
     | Cons(hd, tl) =>
-      let hd_id = List.nth(IdTagged.ids(hd), 0);
-      let tl_id = List.nth(IdTagged.ids(tl), 0);
+      let hd_id = IdTagged.rep_id(hd);
+      let tl_id = IdTagged.rep_id(tl);
       let basic = doc =>
         get_message(
           ~colorings=ListPat.cons_base_pat_coloring_ids(~hd_id, ~tl_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(hd_id),
-                  Id.to_string(tl_id),
-                ),
-            ),
+          ~explanation=ListPat.cons_base_pat_explanation(~hd_id, ~tl_id),
           doc,
         );
       switch (tl.term) {
       | Cons(hd2, tl2) =>
-        if (ListPat.cons2_pat.id == get_specificity_level(ListPat.cons2)) {
-          let hd2_id = List.nth(IdTagged.ids(hd2), 0);
-          let tl2_id = List.nth(IdTagged.ids(tl2), 0);
-          get_message(
-            ~colorings=
-              ListPat.cons2_pat_coloring_ids(
-                ~fst_id=hd_id,
-                ~snd_id=hd2_id,
-                ~tl_id=tl2_id,
-              ),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s%s"),
-                    Id.to_string(hd_id),
-                    Id.to_string(hd2_id),
-                    Id.to_string(tl2_id),
-                  ),
-              ),
-            ListPat.cons2,
-          );
-        } else {
-          basic(ListPat.cons2);
-        }
-      | _ => basic(ListPat.cons)
+        let hd2_id = IdTagged.rep_id(hd2);
+        let tl2_id = IdTagged.rep_id(tl2);
+        leveled(
+          ~fallback=basic,
+          ListPat.cons2(~fst_id=hd_id, ~snd_id=hd2_id, ~tl_id=tl2_id, ~hd_id),
+        );
+      | _ => basic(ListPat.cons(~hd_id, ~tl_id))
       };
-    | Var(v) =>
-      get_message(
-        ~format=
-          Some(
-            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
-          ),
-        TerminalPat.var(v),
-      )
-    | ExplicitNonlabel => simple("Explicitly unlabeled entry")
-    | Label(name) =>
-      get_message(
-        ~format=
-          Some(
-            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
-          ),
-        LabelTerm.labels(name),
-      )
+    | Var(v) => get_message(TerminalPat.var(v))
+    | ExplicitNonlabel => Prose("Explicitly unlabeled entry")
+    | Label(name) => get_message(LabelTerm.labels(name))
     | TupLabel(l, p) =>
       get_message(
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(Pat.rep_id(l)),
-                Id.to_string(Pat.rep_id(p)),
-              ),
-          ),
-        ~colorings=
-          TupLabelPat.labeled_exps_coloring_ids(
-            ~label_id=Pat.rep_id(l),
-            ~pat_id=Pat.rep_id(p),
-          ),
-        TupLabelPat.labeled_pats,
+        TupLabelPat.labeled_pats(
+          ~label_id=Pat.rep_id(l),
+          ~pat_id=Pat.rep_id(p),
+        ),
       )
     | Tuple(elements) =>
+      let n = List.length(elements);
       let basic = group =>
-        get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s"),
-                  string_of_int(List.length(elements)),
-                ),
-            ),
-          group,
-        );
-      switch (List.length(elements)) {
+        get_message(~explanation=TuplePat.tuple_pat_explanation(~n), group);
+      switch (n) {
       | 2 =>
-        if (TuplePat.tuple_pat_size2.id
-            == get_specificity_level(TuplePat.tuple2)) {
-          let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-          let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-          get_message(
-            ~colorings=
-              TuplePat.tuple_pat_size2_coloring_ids(~elem1_id, ~elem2_id),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s"),
-                    Id.to_string(elem1_id),
-                    Id.to_string(elem2_id),
-                  ),
-              ),
-            TuplePat.tuple2,
-          );
-        } else {
-          basic(TuplePat.tuple2);
-        }
+        let elem1_id = nth_rep_id(elements, 0);
+        let elem2_id = nth_rep_id(elements, 1);
+        leveled(~fallback=basic, TuplePat.tuple2(~elem1_id, ~elem2_id, ~n));
       | 3 =>
-        if (TuplePat.tuple_pat_size3.id
-            == get_specificity_level(TuplePat.tuple3)) {
-          let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-          let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-          let elem3_id = List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
-          get_message(
-            ~colorings=
-              TuplePat.tuple_pat_size3_coloring_ids(
-                ~elem1_id,
-                ~elem2_id,
-                ~elem3_id,
-              ),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s%s"),
-                    Id.to_string(elem1_id),
-                    Id.to_string(elem2_id),
-                    Id.to_string(elem3_id),
-                  ),
-              ),
-            TuplePat.tuple3,
-          );
-        } else {
-          basic(TuplePat.tuple3);
-        }
-      | _ => basic(TuplePat.tuple)
+        let elem1_id = nth_rep_id(elements, 0);
+        let elem2_id = nth_rep_id(elements, 1);
+        let elem3_id = nth_rep_id(elements, 2);
+        leveled(
+          ~fallback=basic,
+          TuplePat.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n),
+        );
+      | _ => basic(TuplePat.tuple(~n))
       };
     | Ap(x, arg) =>
-      let x_id = List.nth(IdTagged.ids(x), 0);
-      let arg_id = List.nth(IdTagged.ids(arg), 0);
-      let basic = (group, format, coloring_ids) => {
-        get_message(
-          ~colorings=coloring_ids(~x_id, ~arg_id),
-          ~format=Some(format),
-          group,
-        );
-      };
-
+      let x_id = IdTagged.rep_id(x);
+      let arg_id = IdTagged.rep_id(arg);
       switch (x.term) {
-      | Constructor(_, _) =>
-        basic(
-          AppPat.conaps,
-          msg =>
-            Printf.sprintf(
-              Scanf.format_from_string(msg, "%s%s"),
-              Id.to_string(x_id),
-              Id.to_string(arg_id),
-            ),
-          AppPat.conapp_pat_coloring_ids,
-        )
-      | _ =>
-        basic(
-          AppPat.funaps,
-          msg =>
-            Printf.sprintf(
-              Scanf.format_from_string(msg, "%s%s"),
-              Id.to_string(x_id),
-              Id.to_string(arg_id),
-            ),
-          AppPat.funapp_pat_coloring_ids,
-        )
+      | Constructor(_, _) => get_message(AppPat.conaps(~x_id, ~arg_id))
+      | _ => get_message(AppPat.funaps(~x_id, ~arg_id))
       };
-    | Constructor(con, _) =>
-      get_message(
-        ~format=
-          Some(
-            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), con),
-          ),
-        TerminalPat.ctr(con),
-      )
+    | Constructor(con, _) => get_message(TerminalPat.ctr(con))
     | Asc(pat, typ) =>
-      let pat_id = List.nth(IdTagged.ids(pat), 0);
-      let typ_id = List.nth(IdTagged.ids(typ), 0);
-      get_message(
-        ~colorings=TypAnnPat.typann_pat_coloring_ids(~pat_id, ~typ_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(pat_id),
-                Id.to_string(typ_id),
-              ),
-          ),
-        TypAnnPat.typann,
-      );
-    | Invalid(_) => simple("Not a valid pattern")
+      let pat_id = IdTagged.rep_id(pat);
+      let typ_id = IdTagged.rep_id(typ);
+      get_message(TypAnnPat.typann(~pat_id, ~typ_id));
+    | Invalid(_) => Prose("Not a valid pattern")
     | Parens(_)
     | Projector(_) =>
       // Shouldn't be hit?
-      default
+      NoDoc
     }
   | Some(InfoTyp({user_term: term, _} as typ_info)) =>
     let typ = bypass_parens_typ(term);
@@ -2719,270 +1420,119 @@ let get_doc =
     | Atom(String) => get_message(TerminalTyp.str)
     | Atom(Nat) => get_message(TerminalTyp.nat)
     | List(elem) =>
-      let elem_id = List.nth(IdTagged.ids(elem), 0);
-      get_message(
-        ~colorings=ListTyp.list_typ_coloring_ids(~elem_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s"),
-                Id.to_string(elem_id),
-              ),
-          ),
-        ListTyp.list,
-      );
+      let elem_id = IdTagged.rep_id(elem);
+      get_message(ListTyp.list(~elem_id));
     | Poly(tpat, typ) =>
-      let tpat_id = List.nth(IdTagged.ids(tpat), 0);
-      let tbody_id = List.nth(IdTagged.ids(typ), 0);
-      get_message(
-        ~colorings=PolyTyp.poly_typ_coloring_ids(~tpat_id, ~tbody_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(tpat_id),
-                Id.to_string(tbody_id),
-              ),
-          ),
-        PolyTyp.poly,
-      );
+      let tpat_id = IdTagged.rep_id(tpat);
+      let tbody_id = IdTagged.rep_id(typ);
+      get_message(PolyTyp.poly(~tpat_id, ~tbody_id));
     | Rec(tpat, typ) =>
-      let tpat_id = List.nth(IdTagged.ids(tpat), 0);
-      let tbody_id = List.nth(IdTagged.ids(typ), 0);
-      get_message(
-        ~colorings=RecTyp.rec_typ_coloring_ids(~tpat_id, ~tbody_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(tpat_id),
-                Id.to_string(tbody_id),
-              ),
-          ),
-        RecTyp.rec_,
-      );
+      let tpat_id = IdTagged.rep_id(tpat);
+      let tbody_id = IdTagged.rep_id(typ);
+      get_message(RecTyp.rec_(~tpat_id, ~tbody_id));
     | ProofOf(exp) =>
-      let body_id = List.nth(IdTagged.ids(exp), 0);
-      get_message(
-        ~colorings=ProofOfTyp.proof_of_typ_coloring_ids(~body_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s"),
-                Id.to_string(body_id),
-              ),
-          ),
-        ProofOfTyp.proof_of,
-      );
+      let body_id = IdTagged.rep_id(exp);
+      get_message(ProofOfTyp.proof_of(~body_id));
     | Arrow(arg, result) =>
-      let arg_id = List.nth(IdTagged.ids(arg), 0);
-      let result_id = List.nth(IdTagged.ids(result), 0);
+      let arg_id = IdTagged.rep_id(arg);
+      let result_id = IdTagged.rep_id(result);
       let basic = doc =>
         get_message(
-          ~colorings=ArrowTyp.arrow_typ_coloring_ids(~arg_id, ~result_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(arg_id),
-                  Id.to_string(result_id),
-                ),
-            ),
+          ~explanation=ArrowTyp.arrow_typ_explanation(~arg_id, ~result_id),
           doc,
         );
       switch (result.term) {
       | Arrow(arg2, result2) =>
-        if (ArrowTyp.arrow3_typ.id == get_specificity_level(ArrowTyp.arrow3)) {
-          let arg2_id = List.nth(IdTagged.ids(arg2), 0);
-          let result2_id = List.nth(IdTagged.ids(result2), 0);
-          get_message(
-            ~colorings=
-              ArrowTyp.arrow3_typ_coloring_ids(
-                ~arg1_id=arg_id,
-                ~arg2_id,
-                ~result_id=result2_id,
-              ),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s%s"),
-                    Id.to_string(arg_id),
-                    Id.to_string(arg2_id),
-                    Id.to_string(result2_id),
-                  ),
-              ),
-            ArrowTyp.arrow3,
-          );
-        } else {
-          basic(ArrowTyp.arrow3);
-        }
-      | _ => basic(ArrowTyp.arrow)
-      };
-    | Label(name) =>
-      get_message(
-        ~format=
-          Some(
-            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
+        let arg2_id = IdTagged.rep_id(arg2);
+        let result2_id = IdTagged.rep_id(result2);
+        leveled(
+          ~fallback=basic,
+          ArrowTyp.arrow3(
+            ~arg1_id=arg_id,
+            ~arg2_id,
+            ~result_id=result2_id,
+            ~arg_id,
+            ~arrow_result_id=result_id,
           ),
-        LabelTerm.labels(name),
-      )
+        );
+      | _ => basic(ArrowTyp.arrow(~arg_id, ~result_id))
+      };
+    | Label(name) => get_message(LabelTerm.labels(name))
     | TupLabel(l, t) =>
       get_message(
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(Typ.rep_id(l)),
-                Id.to_string(Typ.rep_id(t)),
-              ),
-          ),
-        ~colorings=
-          TupLabelTyp.labeled_exps_coloring_ids(
-            ~label_id=Typ.rep_id(l),
-            ~typ_id=Typ.rep_id(t),
-          ),
-        TupLabelTyp.labeled_typs,
+        TupLabelTyp.labeled_typs(
+          ~label_id=Typ.rep_id(l),
+          ~typ_id=Typ.rep_id(t),
+        ),
       )
     | Prod(elements) =>
+      let n = List.length(elements);
       let basic = group =>
-        get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s"),
-                  string_of_int(List.length(elements)),
-                ),
-            ),
-          group,
-        );
-      switch (List.length(elements)) {
-      | 0 =>
-        if (TupleTyp.tuple0_typ.id == get_specificity_level(TupleTyp.tuple0)) {
-          get_message(
-            ~colorings=[],
-            ~format=Some(msg => msg),
-            TupleTyp.tuple0,
-          );
-        } else {
-          basic(TupleTyp.tuple2);
-        }
+        get_message(~explanation=TupleTyp.tuple_typ_explanation(~n), group);
+      switch (n) {
+      /* `tuple0` has a single form, so the selected form is always
+         `tuple0_typ` — there is no other level to fall back to. */
+      | 0 => get_message(TupleTyp.tuple0)
       | 2 =>
-        if (TupleTyp.tuple2_typ.id == get_specificity_level(TupleTyp.tuple2)) {
-          let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-          let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-          get_message(
-            ~colorings=TupleTyp.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s"),
-                    Id.to_string(elem1_id),
-                    Id.to_string(elem2_id),
-                  ),
-              ),
-            TupleTyp.tuple2,
-          );
-        } else {
-          basic(TupleTyp.tuple2);
-        }
+        let elem1_id = nth_rep_id(elements, 0);
+        let elem2_id = nth_rep_id(elements, 1);
+        leveled(~fallback=basic, TupleTyp.tuple2(~elem1_id, ~elem2_id, ~n));
       | 3 =>
-        if (TupleTyp.tuple3_typ.id == get_specificity_level(TupleTyp.tuple3)) {
-          let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-          let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-          let elem3_id = List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
-          get_message(
-            ~colorings=
-              TupleTyp.tuple3_typ_coloring_ids(
-                ~elem1_id,
-                ~elem2_id,
-                ~elem3_id,
-              ),
-            ~format=
-              Some(
-                msg =>
-                  Printf.sprintf(
-                    Scanf.format_from_string(msg, "%s%s%s"),
-                    Id.to_string(elem1_id),
-                    Id.to_string(elem2_id),
-                    Id.to_string(elem3_id),
-                  ),
-              ),
-            TupleTyp.tuple3,
-          );
-        } else {
-          basic(TupleTyp.tuple3);
-        }
-      | _ => basic(TupleTyp.tuple)
+        let elem1_id = nth_rep_id(elements, 0);
+        let elem2_id = nth_rep_id(elements, 1);
+        let elem3_id = nth_rep_id(elements, 2);
+        leveled(
+          ~fallback=basic,
+          TupleTyp.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n),
+        );
+      | _ => basic(TupleTyp.tuple(~n))
       };
     | Var(c) when Info.typ_is_constructor_expected(typ_info) =>
       get_message(SumTyp.sum_typ_nullary_constructor_defs(c))
-    | Var(v) =>
-      get_message(
-        ~format=
-          Some(
-            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
-          ),
-        TerminalTyp.var(v),
-      )
+    | Var(v) => get_message(TerminalTyp.var(v))
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
+    | Unknown(Hole(Invalid(_))) => Prose("Not a type or type operator")
     | ProdProjection(_) => get_message(DotTyp.dot)
     | ExplicitNonlabel
     | ProdExtension(_)
     | Parens(_)
     | Sig(_) => message_single(SigTyp.single)
-    | Projector(_) => default
+    | Projector(_) => NoDoc
     | DrvQuoteTy(Jdmt) =>
-      simple(
+      Prose(
         "`DrvJdmt` is the type of derivation-mode judgements. Quote a judgement with `of_jdmt` to embed it as an expression.",
       )
     | DrvQuoteTy(Ctx) =>
-      simple(
+      Prose(
         "`DrvCtx` is the type of derivation-mode typing contexts, mapping ALFA variables to ALFA types. Quote a context with `of_ctx`.",
       )
     | DrvQuoteTy(Prop) =>
-      simple(
+      Prose(
         "`DrvProp` is the type of derivation-mode propositions (e.g., equalities between ALFA terms or types). Quote a proposition with `of_prop`.",
       )
     | DrvQuoteTy(Exp) =>
-      simple(
+      Prose(
         "`ALFAExp` is the type of ALFA expressions: terms in the object language of the derivation. Quote an ALFA expression with `of_alfa_exp`.",
       )
     | DrvQuoteTy(Pat) =>
-      simple(
+      Prose(
         "`DrvPat` is the type of ALFA patterns, used in binding positions within ALFA expressions.",
       )
     | DrvQuoteTy(Typ) =>
-      simple(
+      Prose(
         "`ALFATyp` is the type of ALFA types: the types of the object language of the derivation. Quote an ALFA type with `of_alfa_typ`.",
       )
     | DrvQuoteTy(TPat) =>
-      simple(
+      Prose(
         "`DrvTPat` is the type of ALFA type patterns, used in binding positions within ALFA type abstractions.",
       )
     };
   | Some(InfoTPat(info)) =>
     switch (info.user_term.term) {
-    | Invalid(_) => simple("Type names must begin with a capital letter")
+    | Invalid(_) => Prose("Type names must begin with a capital letter")
     | EmptyHole => get_message(HoleTPat.empty_hole_tpats)
     | MultiHole(_) => get_message(HoleTPat.multi_hole_tpats)
-    | Var(v) =>
-      get_message(
-        ~format=
-          Some(
-            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
-          ),
-        VarTPat.var_typ_pats(v),
-      )
+    | Var(v) => get_message(VarTPat.var_typ_pats(v))
     }
   | Some(InfoDrv({term, _})) =>
     let (syntax, msg) =
@@ -2992,7 +1542,32 @@ let get_doc =
       | Pat(pat) => DrvDoc.pat_form(pat)
       | TPat(tpat) => DrvDoc.tpat_form(tpat)
       };
+    DrvSyntax(syntax, msg);
+  | Some(Secondary(s)) =>
+    switch (s.cls) {
+    | Secondary(Whitespace) => Prose("A semantic void, pervading but inert")
+    | Secondary(Comment) =>
+      Prose("Comments are ignored by systems but treasured by readers")
+    | _ => Prose("No documentation available")
+    }
+  | None => NoDoc
+  };
+};
+
+let view_doc =
     (
+      ~globals: Globals.t,
+      ~inject,
+      ~docs: ExplainThisModel.t,
+      ~info: option(Statics.Info.t),
+      decision: decision,
+    )
+    : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
+  switch (decision) {
+  | NoDoc => ([], ([text("No docs available")], ColorSteps.empty), [])
+  | Prose(msg) => ([], ([text(msg)], ColorSteps.empty), [])
+  | Markdown(msg) => ([], mk_translation(~globals, ~inject=_ => (), msg), [])
+  | DrvSyntax(syntax, msg) => (
       [syntax |> CodeViewable.view_segment(~globals)],
       (
         [
@@ -3001,20 +1576,81 @@ let get_doc =
             msg |> mk_translation(~globals, ~inject=_ => ()) |> fst,
           ),
         ],
-        (Id.Map.empty, 0),
+        ColorSteps.empty,
       ),
       [],
-    );
-  | Some(Secondary(s)) =>
-    switch (s.cls) {
-    | Secondary(Whitespace) => simple("A semantic void, pervading but inert")
-    | Secondary(Comment) =>
-      simple("Comments are ignored by systems but treasured by readers")
-    | _ => simple("No documentation available")
-    }
-  | None => default
+    )
+  | Doc({group, form, options, explanation, colorings, _}) =>
+    let (explanation, color_map) =
+      mk_explanation(~globals, ~inject, group.id, form.id, explanation, docs);
+    let root =
+      switch (info) {
+      | None => Sort.Any
+      | Some(ci) => Info.sort_of(ci)
+      };
+    let highlights =
+      colorings
+      |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
+           let (color, _) = ColorSteps.get_color(code_id, color_map);
+           (syntactic_form_id, color);
+         })
+      |> List.to_seq
+      |> Id.Map.of_seq
+      |> Option.some;
+    let editor = Editor.Model.mk(form.syntactic_form |> Zipper.unzip, ~root);
+    let expander_deco =
+      expander_deco(
+        ~globals,
+        ~docs,
+        ~inject,
+        ~options,
+        ~group,
+        ~doc=form,
+        editor,
+      );
+    let highlight_deco = [
+      Highlight.colors(
+        ~font_metrics=globals.font_metrics,
+        ~syntax=editor.syntax,
+        highlights,
+      ),
+    ];
+    let syntactic_form_view =
+      CodeWithStatics.View.view(
+        ~globals,
+        ~overlays=highlight_deco @ [expander_deco],
+        {
+          editor,
+          statics: CachedStatics.empty,
+          dynamics: Dynamics.Map.empty,
+          context_menu: None,
+        },
+      );
+    let example_view =
+      example_view(
+        ~globals,
+        ~inject,
+        ~group_id=group.id,
+        ~form_id=form.id,
+        ~examples=form.examples,
+        ~model=docs,
+      );
+    ([syntactic_form_view], ([explanation], color_map), example_view);
   };
-};
+
+/* The code editor highlights user terms with the colors the sidebar's
+   explanation assigns them, so it needs the color map without any of the view.
+   `Prose`/`NoDoc`/`DrvSyntax` carry no links, hence no colors. */
+let color_map_of = (~globals: Globals.t, decision: decision): ColorSteps.t =>
+  switch (decision) {
+  | NoDoc
+  | Prose(_)
+  | DrvSyntax(_) => ColorSteps.empty
+  | Markdown(msg) => snd(mk_translation(~globals, ~inject=_ => (), msg))
+  | Doc({color_map: Some(color_map), _}) => color_map
+  | Doc({explanation, _}) =>
+    snd(mk_translation(~globals, ~inject=_ => (), explanation))
+  };
 
 let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   div(
@@ -3024,17 +1660,9 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
 
 let get_color_map =
     (~globals: Globals.t, ~explainThisModel: ExplainThisModel.t, info) =>
-  switch (globals.settings.explainThis.highlight) {
-  | All when globals.settings.sidebar.show =>
-    let (_, (_, (color_map, _)), _) =
-      get_doc(~globals, ~docs=explainThisModel, info, Colorings);
-    Some(color_map);
-  | One(id) when globals.settings.sidebar.show =>
-    let (_, (_, (color_map, _)), _) =
-      get_doc(~globals, ~docs=explainThisModel, info, Colorings);
-    Some(Id.Map.filter((id', _) => id == id', color_map));
-  | _ => None
-  };
+  narrow_color_map(~globals, () =>
+    fst(color_map_of(~globals, decide(~docs=explainThisModel, info)))
+  );
 
 type info = {
   cursor: option(Statics.Info.t),
@@ -3051,18 +1679,20 @@ let view =
   // This gets the info from the infomap before singleton autolabelling
   let info_cursor = Option.map(Info.pre_labeled_info, info.cursor);
   let (syn_form, (explanation, _), example) =
-    get_doc(
+    view_doc(
       ~globals,
+      ~inject,
       ~docs=explainThisModel,
-      info_cursor,
-      MessageContent(inject, globals),
+      ~info=info_cursor,
+      decide(~docs=explainThisModel, info_cursor),
     );
   let (syn_form_Drv, (explanation_Drv, _), _) =
-    get_doc_deduction(
+    view_deduction(
       ~globals,
+      ~inject,
       ~docs=explainThisModel,
-      info.deduction,
-      MessageContent(inject, globals),
+      ~info=info.deduction,
+      decide_deduction(~globals, ~docs=explainThisModel, info.deduction),
     );
   div(
     ~attrs=[Attr.id("explain-this")],
