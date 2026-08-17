@@ -1,5 +1,3 @@
-open Util;
-
 open Haz3lcore;
 
 // TODO Make unified way of using consistent metavariables for syntactic forms
@@ -159,14 +157,17 @@ type example_id =
   | ModuleKeyword1
   | ModuleKeywordDecl1;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+/* No deriving: nothing serializes an `example`, `form` or `group`. Only the id
+   enums need serializers, because `ExplainThisModel.t` is what `Store`
+   persists and it holds ids alone. Deriving these too would force `Segment.t`
+   through sexp/yojson for no consumer. */
 type example = {
   sub_id: example_id,
   term: Segment.t,
   message: string,
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type pat_sub_form_id =
   | Base
   | EmptyHole
@@ -190,7 +191,10 @@ type pat_sub_form_id =
   | ApFunc
   | ApCons;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+/* `enumerate` gives all_of_form_id, which the characterization test uses to
+   tell "this doc is not covered by the corpus" apart from "this doc cannot be
+   reached at all". */
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type form_id =
   | Derivation
   | EmptyHoleExp
@@ -239,133 +243,6 @@ type form_id =
   | MultiHolePat
   | WildPat
   | IntPat
-  | FloatPat
-  | BoolPat
-  | StrPat
-  | TrivPat
-  | VarPat
-  | CtrPat
-  | ListLitPat
-  | ListNilPat
-  | ConsPat
-  | Cons2Pat
-  | LabeledPat
-  | TuplePat
-  | Tuple2Pat
-  | Tuple3Pat
-  | ApFuncPat
-  | ApConsPat
-  | TypAnnPat
-  | EmptyHoleTyp
-  | MultiHoleTyp
-  | IntTyp
-  | SIntTyp
-  | NatTyp
-  | FloatTyp
-  | BoolTyp
-  | StrTyp
-  | VoidTyp
-  | VarTyp
-  | ListTyp
-  | PolyTyp
-  | RecTyp
-  | ArrowTyp
-  | Arrow3Typ
-  | LabeledTyp
-  | TupleTyp
-  | Tuple0Typ
-  | Tuple2Typ
-  | Tuple3Typ
-  | DotTyp
-  | Label
-  | ForallExp
-  | ProofOfTyp
-  | LabelledSumTyp
-  | SumTypUnaryConstructorDef
-  | SumTypNullaryConstructorDef
-  | EmptyHoleTPat
-  | MultiHoleTPat
-  | VarTPat
-  | PipelineExp
-  | FilterPause
-  | FilterEval
-  | FilterDebug
-  | FilterHide
-  | FilterSelector
-  | AscExp
-  | TupleExtensionExp
-  | ModuleExp
-  | ModLetDecl
-  | ModTypeDecl
-  | SigTyp
-  | SigLetDecl
-  | SigTypeDecl
-  | ModuleKeywordExp
-  | ModuleKeywordDecl;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type form = {
-  id: form_id,
-  syntactic_form: Segment.t,
-  expandable_id: option((Id.t, Segment.t)),
-  explanation: string,
-  examples: list(example),
-};
-
-// HANNAH - TODO: Not sure this should be different from form_id - maybe just one id
-// MAYBE don't even need an id at all for the group - just use the most specific (1st) form id in forms
-[@deriving (show({with_path: false}), sexp, yojson)]
-type group_id =
-  | Derivation
-  | EmptyHoleExp
-  | MultiHoleExp
-  | TrivExp
-  | UndefinedExp
-  | DeferralExp
-  | BoolExp
-  | IntExp
-  | SIntExp
-  | NatExp
-  | FloatExp
-  | StringExp
-  | VarExp
-  | CtrExp
-  | ListExp
-  | ConsExp
-  | ListConcatExp
-  | TypFunctionExp
-  | AscExp
-  | FunctionExp(pat_sub_form_id)
-  | LabeledExp
-  | DotExp
-  | TupleExp
-  | Tuple2Exp
-  | Tuple3Exp
-  | LetExp(pat_sub_form_id)
-  | TheoremExp
-  | ProofObjectExp
-  | TypFunApExp
-  | FixExp(pat_sub_form_id)
-  | FunApExp
-  | ConApExp
-  | DeferredApExp
-  | LivelitName
-  | LivelitApExp
-  | IfExp
-  | SeqExp
-  | TestExp
-  | HintedTestExp
-  | UnOpExp(Language.Operators.op_un)
-  | BinOpExp(Language.Operators.op_bin)
-  | CaseExp
-  | TyAliasExp
-  | PipelineExp
-  | TupleExtensionExp
-  | UseExp
-  | EmptyHolePat
-  | MultiHolePat
-  | WildPat
-  | IntPat
   | SIntPat
   | FloatPat
   | BoolPat
@@ -397,28 +274,31 @@ type group_id =
   | ListTyp
   | PolyTyp
   | RecTyp
-  | ForallExp
-  | ProofOfTyp
   | ArrowTyp
   | Arrow3Typ
   | LabeledTyp
-  | Label
   | TupleTyp
   | Tuple0Typ
   | Tuple2Typ
   | Tuple3Typ
   | DotTyp
+  | Label
+  | ForallExp
+  | ProofOfTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
+  | PipelineExp
   | FilterPause
   | FilterEval
   | FilterDebug
   | FilterHide
   | FilterSelector
+  | AscExp
+  | TupleExtensionExp
   | ModuleExp
   | ModLetDecl
   | ModTypeDecl
@@ -428,14 +308,37 @@ type group_id =
   | ModuleKeywordExp
   | ModuleKeywordDecl;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+type form = {
+  id: form_id,
+  syntactic_form: Segment.t,
+  /* Pairs a placeholder piece of `syntactic_form` with the user-code term it
+     stands for, so the two can be highlighted in the same colour. Belongs to
+     the form rather than to the caller: which mapping applies depends on which
+     form of a group is being shown, and only the form knows its own pieces. */
+  colorings: list((Id.t, Id.t)),
+  expandable_id: option((Id.t, Segment.t)),
+  explanation: string,
+  examples: list(example),
+};
+
+/* A group's id is the id of its most specific form, so one enum serves both.
+   Kept as a named alias so signatures still say which of the two they mean. */
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
+type group_id = form_id;
+
 type group = {
   id: group_id,
   forms: list(form) // Ordered - more specific to less specific
 };
 
+/* A group offering a single form. Its id comes from the form, so the two cannot
+   disagree. */
+let singleton = (form: form): group => {
+  id: form.id,
+  forms: [form],
+};
+
 module Simple = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     group_id,
     form_id,
@@ -444,6 +347,8 @@ module Simple = {
     examples: list(example),
   };
 
+  /* The form carries its own explanation and colorings, so this is a plain
+     group with nothing for callers to thread alongside it. */
   let to_group =
       (
         {
@@ -453,28 +358,19 @@ module Simple = {
           form_id,
           examples,
         }: t,
-      ) => (
-    explanation,
-    colorings,
-    {
-      id: group_id,
-      forms: [
-        {
-          id: form_id,
-          syntactic_form,
-          expandable_id: None,
-          explanation: "",
-          examples,
-        },
-      ],
-    },
-  );
-
-  let mk_1 =
-      ((n: string, id: Id.t), mk_form: Piece.t => Segment.t)
-      : (Segment.t, list((Id.t, Id.t))) => {
-    let p = Example.exp(n);
-    (mk_form(p), [(Piece.id(p), id)]);
+      )
+      : group => {
+    id: group_id,
+    forms: [
+      {
+        id: form_id,
+        syntactic_form,
+        colorings,
+        expandable_id: None,
+        explanation,
+        examples,
+      },
+    ],
   };
 
   let mk_2 =
@@ -486,28 +382,5 @@ module Simple = {
       : (Segment.t, list((Id.t, Id.t))) => {
     let (p1, p2) = (Example.exp(n1), Example.exp(n2));
     (mk_form(p1, p2), [(Piece.id(p1), id_1), (Piece.id(p2), id_2)]);
-  };
-
-  let mk_3 =
-      (
-        (n1: string, id_1: Id.t),
-        (n2: string, id_2: Id.t),
-        (n3: string, id_3: Id.t),
-        mk_form: (Piece.t, Piece.t, Piece.t) => Segment.t,
-      )
-      : (Segment.t, list((Id.t, Id.t))) => {
-    let (p1, p2, p3) = (
-      Example.exp(n1),
-      Example.exp(n2),
-      Example.exp(n3),
-    );
-    (
-      mk_form(p1, p2, p3),
-      [
-        (Piece.id(p1), id_1),
-        (Piece.id(p2), id_2),
-        (Piece.id(p3), id_3),
-      ],
-    );
   };
 };
