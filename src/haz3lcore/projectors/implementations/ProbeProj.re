@@ -34,6 +34,22 @@ let probe_model_of_sexp = sexp =>
   | exception _ => {active_renderer: None}
   };
 
+/* `^^probe_<rid>` trigger-option mapping: a pin whose model selects
+   renderer <rid> (in its empty state) round-trips through text. */
+let model_string_for_renderer = (rid: string): option(string) =>
+  RichProbeRegistry.find(rid)
+  |> Option.map((r: packed_renderer) =>
+       sexp_of_probe_model({active_renderer: Some(r.empty_model)})
+       |> Sexplib.Sexp.to_string
+     );
+
+let renderer_of_model_string = (model: string): option(string) =>
+  switch (probe_model_of_sexp(Sexplib.Sexp.of_string(model))) {
+  | {active_renderer: Some(PModel(rid, _, _))} => Some(rid)
+  | {active_renderer: None} => None
+  | exception _ => None
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)

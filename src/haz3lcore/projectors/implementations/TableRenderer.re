@@ -36,7 +36,8 @@ type value = v;
 let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
 
 /* Initialize table model from parsed value */
-let init = (_: v) => {menu_state: None};
+let empty = {menu_state: None};
+let init = (_: v) => empty;
 
 let menu_col = (st: menu_state): option(int) =>
   Option.map(((c, _)) => c, st);

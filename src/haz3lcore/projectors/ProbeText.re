@@ -62,6 +62,7 @@ let format_value = (~max_length: int=50, value: Exp.t): string => {
           ),
         show_unknown_as_hole: false,
         project_tables: false,
+        hole_tiles: false,
       },
       /* residual Projector nodes (e.g. in unevaluated closure bodies)
        * would likewise print as triggers — strip those too */

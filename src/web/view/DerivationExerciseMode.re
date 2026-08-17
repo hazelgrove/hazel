@@ -649,7 +649,9 @@ module NinjaKeys = {
     Js._true;
   };
 
-  let elem = JsUtil.get_elem_by_id("ninja-keys-rules");
+  /* Lazy: module init must not touch the DOM (the test binary links
+     this module under node). */
+  let elem = Lazy.from_fun(() => JsUtil.get_elem_by_id("ninja-keys-rules"));
   let shadow_root = Js.Unsafe.get(_, "shadowRoot");
 
   module Open =
@@ -748,7 +750,7 @@ module NinjaKeys = {
 
     let set_data = () => {
       Js.Unsafe.set(
-        elem,
+        Lazy.force(elem),
         "data",
         M.rule_set
         |> RuleImage.all_rules_of_rule_set
@@ -770,7 +772,7 @@ module NinjaKeys = {
     set_data();
     loop(bind_event_handler_all, 100.);
     bind_event_handler_search();
-    Js.Unsafe.meth_call(elem, "open", [||]);
+    Js.Unsafe.meth_call(Lazy.force(elem), "open", [||]);
   };
 };
 
