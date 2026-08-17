@@ -56,18 +56,18 @@ let name = (p: t): string =>
   | Csv => "csv"
   };
 
-module StringMap = Map.Make(String);
-let name_to_kind: StringMap.t(t) =
-  List.fold_left(
-    (map, kind) => StringMap.add(name(kind), kind, map),
-    StringMap.empty,
-    all,
-  );
+/* Inverse of `name`, derived from it and the enumerated `all` (built once)
+ * so the two cannot drift — a new kind needs only a case in `name` above,
+ * which the compiler already requires since that match is exhaustive. */
+let by_name: list((string, t)) = List.map(k => (name(k), k), all);
 
+let of_name_opt = (p: string): option(t) => List.assoc_opt(p, by_name);
+
+/* Partial: callers must already know the name is a kind. */
 let of_name = (p: string): t =>
-  switch (StringMap.find_opt(p, name_to_kind)) {
+  switch (of_name_opt(p)) {
   | Some(k) => k
   | None => failwith("Unknown projector kind")
   };
 
-let is_name = StringMap.mem(_, name_to_kind);
+let is_name = str => Option.is_some(of_name_opt(str));

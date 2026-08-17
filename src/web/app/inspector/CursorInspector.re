@@ -123,6 +123,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_filters: false,
   show_unknown_as_hole: true,
   raise_if_padding: false,
+  hole_tiles: false,
   project_tables: false,
 };
 

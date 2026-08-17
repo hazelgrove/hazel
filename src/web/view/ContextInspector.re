@@ -23,6 +23,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         show_filters: false,
         show_unknown_as_hole: true,
         raise_if_padding: false,
+        hole_tiles: false,
         project_tables: false,
       },
     );
