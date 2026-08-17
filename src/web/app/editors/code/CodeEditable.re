@@ -34,15 +34,6 @@ module Update = {
 
   exception CantReset;
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Perform(action) => Action.is_historic(action)
-    | TAB => true
-    | ContextMenu(_) => false
-    | DebugConsole(_) => false
-    };
-  };
-
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action: Action.t, model: Model.t) =>
@@ -79,6 +70,7 @@ module Update = {
           context_menu: None,
         }
         |> Updated.return(
+             ~historic=Action.is_historic(action),
              ~is_edit=
                Action.is_edit(action)
                /* When probe_all is on, Refractor actions don't require
