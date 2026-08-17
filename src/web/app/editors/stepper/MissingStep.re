@@ -131,16 +131,6 @@ module Update = {
     };
   };
 
-  let can_undo = (action: t): bool => {
-    switch (action) {
-    | ToggleAxioms
-    | ProposeRewrite
-    | UpdateResult(_)
-    | RewriteEditorAction(_)
-    | AxiomBoxAction(_) => false
-    };
-  };
-
   let calculate =
       (
         ~settings,

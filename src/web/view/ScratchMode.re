@@ -567,25 +567,6 @@ module Update = {
     | RenameSlide
     | DeleteSlide;
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | CellAction(action) => CellEditor.Update.can_undo(action)
-    | RefreshStatics => false
-    | AgentAction(_) => true
-    | DrvAction(action) => DerivationExerciseMode.Update.can_undo(action)
-    | SwitchSlide(_) => false
-    | ResetCurrent => true
-    | InitImportScratchpad(_) => true
-    | FinishImportScratchpad(_) => false
-    | Export => false
-    | Encode => false
-    | AddSlide => true
-    | AddDrvSlide => true
-    | DeleteSlide => true
-    | RenameSlide => true
-    };
-  };
-
   let export_scratch_slide = (model: Model.t): unit => {
     let scratchpad = List.nth(model.scratchpads, model.current);
     switch (scratchpad.kind) {
@@ -803,7 +784,7 @@ module Update = {
       model |> Updated.return_quiet(~recalculate=true);
     | SwitchSlide(i) =>
       WorkerClient.cancel();
-      let* current = i |> Updated.return;
+      let* current = i |> Updated.return(~historic=false);
       Persist.hydrate_current(
         ~settings=settings.core,
         is_documentation ? "doc" : "scratch",
