@@ -273,8 +273,6 @@ let fresh_var = (var_name: string) => {
   var_name ++ "_α" ++ string_of_int(x);
 };
 
-/* Calculates the total number of nodes (compound
-   and leaf) in the type AST. */
 /* Number of Unknown constructors in type AST */
 let rec count_unknowns = (ty: t): int =>
   switch (ty.term) {

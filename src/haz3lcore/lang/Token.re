@@ -39,6 +39,8 @@ let of_list = Unicode.of_list;
 
 /* Token Recognition Predicates */
 
+/* A. Secondary Notation (Comments, Whitespace, etc.)  */
+let empty = ""; /* This is invalid for view */
 let space = " ";
 let linebreak = "\n";
 let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
@@ -303,6 +305,7 @@ let is_typ_var = str =>
 /* List literals */
 let list_start = "[";
 let list_end = "]";
+let listlit_lbl = [list_start, list_end];
 let empty_list = append(list_start, list_end);
 let is_empty_list = equal(empty_list);
 
@@ -316,6 +319,7 @@ let is_empty_tuple = equal(empty_tuple);
 /* Modules */
 let mod_start = "{";
 let mod_end = "}";
+let mod_lbl = [mod_start, mod_end];
 let empty_module = append(mod_start, mod_end);
 let is_empty_module = equal(empty_module);
 

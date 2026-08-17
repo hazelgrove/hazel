@@ -50,7 +50,6 @@ module TestValidationReport = {
 
 module MutationTestingReport = {
   type t = {results: list((TestStatus.t, string))};
-  //   in the test results data, find a test ID that passes test validation but fails against
   // TODO move to separate module
 };
 

@@ -7,3 +7,9 @@
      2. Launch Hazel in instructor mode, flesh the exercise out in the UI, then
         use "Export Exercise Module" to overwrite this file with the fully
         serialized exercise. *)
+
+let exercise : Exercise.t =
+  Theorem
+    (TheoremExercise.blank_spec ~title:"TODO: title"
+       ~module_name:"BlankTheoremExercise"
+         (* make sure your file is named <module_name>.ml *))

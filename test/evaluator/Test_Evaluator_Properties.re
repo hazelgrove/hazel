@@ -676,11 +676,8 @@ let tests = (
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
     QCheck_alcotest.to_alcotest(qcheck_incremental_matches_fresh_after_edit),
-    /* Registered as an explicit skip rather than a commented-out line, so the
-       gap shows up in the test report instead of leaving
-       [qcheck_preservation_test] as an unreferenced definition. Preservation
-       does not currently hold: stepping can produce a type that is not more
-       precise than the original. */
+    /* Preservation does not currently hold: stepping can produce a type that
+       is not more precise than the original. */
     test_case("Preservation of types (disabled)", `Quick, () => {
       [@warning "-21"]
       {

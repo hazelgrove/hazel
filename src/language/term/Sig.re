@@ -33,3 +33,9 @@ let show_cls: cls => string =
   | EmptyHole => "Signature hole"
   | SigLet => "Let declaration"
   | SigType => "Type declaration";
+
+let temp: term => t =
+  term => {
+    term,
+    annotation: IdTagged.IdTag.temp(),
+  };

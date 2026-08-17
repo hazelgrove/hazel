@@ -327,7 +327,3 @@ let request_streaming =
     },
   };
 };
-
-/** Streaming counterpart to [node_request]. Mirrors [request_streaming] on the
-    Node.js path: per-chunk SSE line parsing, one-shot [on_done]. Aborting
-    [req##destroy()]s the in-flight request. */;

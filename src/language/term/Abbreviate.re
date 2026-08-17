@@ -1811,3 +1811,14 @@ let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, int) => {
     (exp, length_exp);
   };
 };
+
+let abbreviate_pat = (~available as a=12, pat: Pat.t): (Pat.t, int) => {
+  available := a;
+  let pat = abbreviate_pat(pat);
+  let length_pat = a - available^;
+  if (a < 0) {
+    (flat_ellipses_term_pat(), ellipsis_cost);
+  } else {
+    (pat, length_pat);
+  };
+};

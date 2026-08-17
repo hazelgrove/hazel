@@ -78,6 +78,29 @@ let update = (action: Page.Update.t, result: Updated.t('a)): unit =>
     Entry.save(Entry.mk(action));
   };
 
+let to_actions = () => {
+  print_endline("HELLO??");
+  let actions = ref([]);
+  DB.get_all(entries => {
+    print_endline(
+      "num of entries: " ++ string_of_int(List.length(entries)),
+    );
+    entries
+    |> List.iter(entry_str =>
+         try({
+           let (_ts, action) =
+             entry_str |> Sexplib.Sexp.of_string |> Entry.t_of_sexp;
+           actions := [action, ...actions^];
+         }) {
+         | _ => print_endline("Log.to_actions: Deserialization error")
+         }
+       );
+    actions := List.rev(actions^);
+  });
+  print_endline("num of actions: " ++ string_of_int(List.length(actions^)));
+  actions^;
+};
+
 // If the user switched browsers or devices, they may have imported a save state from another device, this includes the log from the previous device in a complete stitched log.
 let flatten_imports =
     (

@@ -8,6 +8,8 @@ type cls =
 
 include TermBase.MPat;
 
+let fresh: term => t = IdTagged.fresh;
+
 let rep_id: t => Id.t = IdTagged.rep_id;
 
 let hole = (tms: list(TermBase.Any.t)): TermBase.MPat.term =>
@@ -31,3 +33,9 @@ let show_cls: cls => string =
   | EmptyHole => "Empty module name hole"
   | Var => "Module name"
   | Asc => "Annotated module name";
+
+let temp: term => t =
+  term => {
+    term,
+    annotation: IdTagged.IdTag.temp(),
+  };
