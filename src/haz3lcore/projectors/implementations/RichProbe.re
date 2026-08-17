@@ -32,6 +32,9 @@ module type RichProbe = {
   let parse: (Sort.t, Exp.t) => option(value);
   /* Initialize the probe's state from a parsed value. Assumes value is valid. */
   let init: value => model;
+  /* Default state independent of any sample value — the model a
+     text-level renderer selection (`^^probe_<id>`) starts with. */
+  let empty: model;
 };
 
 /* Existential packs for renderer state.
@@ -55,6 +58,7 @@ type packed_renderer = {
   id: string,
   can_handle: (Sort.t, Exp.t) => bool,
   init_model: (Sort.t, Exp.t) => option(packed_model),
+  empty_model: packed_model,
   update_model: (packed_model, packed_action) => packed_model,
   /* Payload (de)serializers — used by RichProbeRegistry's top-level
    * packed_*_of_sexp/yojson dispatchers to encode/decode the body for
@@ -111,6 +115,7 @@ let pack_renderer =
     can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
     init_model: (sort, exp) =>
       R.parse(sort, exp) |> Option.map(v => PModel(id, model_id, R.init(v))),
+    empty_model: PModel(id, model_id, R.empty),
     update_model: (pm, pa) =>
       switch (cast_model(pm), cast_action(pa)) {
       | (Some(m), Some(a)) => PModel(id, model_id, R.update(m, a))

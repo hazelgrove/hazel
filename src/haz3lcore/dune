@@ -2,7 +2,7 @@
 
 (library
  (name haz3lcore)
- (libraries language)
+ (libraries language menhirParser)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))

@@ -19,6 +19,7 @@
    Test_Derivation
    Test_ExplainThis
    Test_GradingReport
+   Test_LazyHydration
    Test_PromptFactory
    Test_ReparseDocSlides
    Test_StepperBase
@@ -50,6 +51,7 @@
   Test_Derivation
   Test_ExplainThis
   Test_GradingReport
+  Test_LazyHydration
   Test_PromptFactory
   Test_ReparseDocSlides
   Test_StepperBase

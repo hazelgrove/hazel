@@ -36,6 +36,7 @@ let () = {
       show_ascriptions: true,
       show_filters: true,
       show_unknown_as_hole: true,
+      hole_tiles: false,
       project_tables: false,
     };
     let result = evaluate(exp);
