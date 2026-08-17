@@ -125,7 +125,14 @@ module Update = {
            matches for display, but Paste would land INSIDE the
            token — fall through to hole navigation */
         | Some(ins) when z.caret == Outer =>
-          switch (CanonicalCompletion.tab_text(z, ins)) {
+          switch (
+            CanonicalCompletion.tab_text(
+              ~display=model.editor.syntax.segment,
+              ~marks=model.editor.syntax.ghost_marks,
+              z,
+              ins,
+            )
+          ) {
           | Some(text) => Paste(text)
           | None =>
             Zipper.can_put_down(z)

@@ -52,7 +52,14 @@ let is_witness_replace = (ins: CanonicalCompletion.insertion): bool =>
 let projectable = (ins: CanonicalCompletion.insertion): bool =>
   ins.delimiters
   |> List.for_all((d: CanonicalCompletion.delimiter_info) =>
-       d.of_shard != None || d.text == ","
+       (d.of_shard != None || d.text == ",")
+       /* a WITNESS delimiter (typed_len set) can only be shown by
+          REPLACING the user's partial token — projecting its full
+          shard alongside the typed prefix duplicates it (`= ? =>`).
+          Single-witness insertions take the replace path before this
+          predicate is consulted; anything else degrades to the
+          remainder-ghost channel. */
+       && d.typed_len == None
      );
 
 let is_grout = (p: Piece.t): bool =>
@@ -86,16 +93,21 @@ let art_hole_after =
   switch (interior) {
   | Some(_) as g => g
   | None =>
-    /* last-shard / prefix body: the grout right after the tile */
+    /* last-shard / prefix body: the grout following the tile at its
+       level, before the next non-secondary piece (placement may put
+       it past a typed space) */
+    let rec grout_before_content = (sg: Segment.t): option(Piece.t) =>
+      switch (sg) {
+      | [Piece.Secondary(_), ...tl] => grout_before_content(tl)
+      | [g, ..._] when is_grout(g) => Some(g)
+      | _ => None
+      };
     let rec after = (sg: Segment.t): option(Piece.t) =>
       switch (sg) {
       | [] => None
       | [Tile(t), ...tl] =>
         Id.equal(t.id, tid)
-          ? switch (tl) {
-            | [g, ..._] when is_grout(g) => Some(g)
-            | _ => None
-            }
+          ? grout_before_content(tl)
           : (
             switch (after(List.concat(t.children))) {
             | Some(_) as r => r
@@ -254,6 +266,9 @@ let mk_inner =
       ~info_map: Statics.Map.t,
       ~obligations: list(TypeObligations.t),
       ~armed: bool,
+      ~inline_persist: CoreSettings.persist_mode=CoreSettings.Off,
+      ~persist_state: (list(string), list(string))=([], []),
+      ~persist_edit: bool=false,
       z: Zipper.t,
     )
     : DisplayFork.t => {
@@ -284,8 +299,17 @@ let mk_inner =
       obligations,
     )
     |> DisplayFork.extend_t2(~info_map, ~armed, z);
-  let selected = DisplayFork.ghost_selection(~armed, z, assist);
-  let caret_after = CanonicalCompletion.caret_left_atom(z);
+  let persist_out = ref(persist_state);
+  let selected =
+    DisplayFork.ghost_selection(
+      ~armed,
+      ~inline_persist,
+      ~persist_state,
+      ~persist_edit,
+      ~persist_state_out=Some(persist_out),
+      z,
+      assist,
+    );
   /* Build the fork. `use_replaces` chooses whether engine witnesses
      (in / => / -> / then) become REAL reified shards in place
      (sub-token styled) or stay on the ghost-splice path. A witness
@@ -369,11 +393,24 @@ let mk_inner =
                },
              (raw, replace_marks),
            );
+      let transparent = (w: Secondary.t) =>
+        (
+          switch (w.content) {
+          | Comment(_) => true
+          | Whitespace(_) => false
+          }
+        )
+        && List.exists(
+             ((mid, msh): (Id.t, option(int))) =>
+               msh == None && Id.equal(mid, w.id),
+             ghost_marks,
+           );
+      let pad_marks = ref([]);
       let segment =
         ghost_marks == []
-          ? segment
+          ? GroutPlace.place(segment)
           : segment
-            |> CanonicalCompletion.normalize_display
+            |> CanonicalCompletion.normalize_display(~transparent)
             |> DisplayFork.restore_ghost_holes(
                  ~marks=ghost_marks,
                  ~pre=segment,
@@ -381,8 +418,14 @@ let mk_inner =
             |> CanonicalCompletion.finish_display(
                  ~marks=ghost_marks,
                  ~raw,
-                 ~caret_after,
+                 ~marks_out=Some(pad_marks),
                );
+      /* oracle pads are span material: they appear/vanish WITH their
+         span, never with the caret (movement purity) */
+      let ghost_marks =
+        ghost_marks
+        @ pad_marks^
+        @ DisplayFork.inherit_ghost_marks(~marks=ghost_marks, segment);
       if (ghost_marks != [] && !DisplayFork.tiles_well_formed(segment)) {
         failwith("PromiseRender: malformed splice");
       };
@@ -399,6 +442,8 @@ let mk_inner =
       typed_lens: ghost_marks == [] ? [] : typed_lens^,
       caret_witnesses: ghost_marks == [] ? [] : caret_witnesses^,
       assist,
+      persist_known: fst(persist_out^),
+      persist_held: snd(persist_out^),
       ghosted:
         ghost_marks == []
           ? [] : List.map(((o, _, _)) => o, ghosts) @ replaced_ghosted,
@@ -410,19 +455,12 @@ let mk_inner =
   let pre_caret = (~caret_witnesses, seg: Segment.t): string => {
     let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
     let caret = DisplayCaret.point(~caret_witnesses, measured, z);
+    let col = FeltPrint.measured_caret(~measured, seg, caret).col;
     let rows =
-      Printer.of_segment(
-        ~holes="?",
-        ~concave_holes="~",
-        ~indent=" ",
-        ~measured,
-        seg,
-      )
-      |> String.split_on_char('\n');
+      FeltPrint.measured_print(~measured, seg) |> String.split_on_char('\n');
     let before = List.filteri((i, _) => i < caret.row, rows);
     let at = List.nth_opt(rows, caret.row) |> Option.value(~default="");
-    let prefix =
-      caret.col <= String.length(at) ? String.sub(at, 0, caret.col) : at;
+    let prefix = col <= String.length(at) ? String.sub(at, 0, col) : at;
     String.concat("\n", before @ [prefix]);
   };
   let has_witness_replace =
@@ -436,9 +474,12 @@ let mk_inner =
      If the replace moved pre-caret text (a degenerate interleave where
      reassembling the witness shard shifts a junction), fall back to
      the ghost-splice path, which never touches pre-caret material. */
+  /* the raw baseline goes through the ONE derivation too: the
+     display legitimately shows placed holes before the caret, and by
+     layout invisibility the placed raw agrees with it exactly */
   if (has_witness_replace
       && pre_caret(~caret_witnesses=full.caret_witnesses, full.segment)
-      != pre_caret(~caret_witnesses=[], raw)) {
+      != pre_caret(~caret_witnesses=[], GroutPlace.place(raw))) {
     build(~use_replaces=false);
   } else {
     full;
@@ -450,10 +491,23 @@ let mk =
       ~info_map: Statics.Map.t,
       ~obligations: list(TypeObligations.t),
       ~armed: bool,
+      ~inline_persist: CoreSettings.persist_mode=CoreSettings.Off,
+      ~persist_state: (list(string), list(string))=([], []),
+      ~persist_edit: bool=false,
       z: Zipper.t,
     )
     : DisplayFork.t =>
-  switch (mk_inner(~info_map, ~obligations, ~armed, z)) {
+  switch (
+    mk_inner(
+      ~info_map,
+      ~obligations,
+      ~armed,
+      ~inline_persist,
+      ~persist_state,
+      ~persist_edit,
+      z,
+    )
+  ) {
   | fork => fork
   | exception _ => DisplayFork.plain(z)
   };

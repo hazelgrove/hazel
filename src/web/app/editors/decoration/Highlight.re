@@ -75,7 +75,14 @@ let rows_of_segment =
       segment: Segment.t,
     )
     : list((Measured.measurement, (ShardDec.tip, ShardDec.tip))) => {
-  let find_g = Measured.find_g(~msg="Highlight.of_piece", _, measured);
+  /* fail-soft: a piece outside this measured map (stale state, mixed
+     raw/display walks) must degrade to no-decoration, never crash the
+     view (P6: system material is never an obstacle) */
+  let find_g = (g: Grout.t) =>
+    switch (Measured.find_g(~msg="Highlight.of_piece", g, measured)) {
+    | m => Some(m)
+    | exception _ => None
+    };
   let find_w = Measured.find_w(~msg="Highlight.of_piece", _, measured);
   let rec of_piece =
           (start_shape: ShardDec.tip, p: Piece.t)
@@ -96,7 +103,10 @@ let rows_of_segment =
       | Tile(t) => of_tile(~start_shape, t)
       | Projector(p) => of_projector(~start_shape, p)
       | Grout(g) => [
-          Some(shard_svg(~start_shape, find_g(g), p)) |> tag(false),
+          switch (find_g(g)) {
+          | Some(m) => Some(shard_svg(~start_shape, m, p)) |> tag(false)
+          | None => None
+          },
         ]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
       | Secondary(w) => [

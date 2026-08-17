@@ -433,6 +433,10 @@ module Local = {
           z,
         )
       ) {
+      | Some(z') when Selection.is_empty(z'.selection) =>
+        /* target is a derived hole: already empty, deleting is a no-op
+           (Destruct over an empty selection would delete leftward) */
+        Ok(z')
       | Some(z') =>
         switch (Destruct.go(Local(Left, ByChar), z', ~root=Exp)) {
         | None => Error(Action.Failure.Cant_destruct)

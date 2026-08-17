@@ -71,7 +71,12 @@ let compute_context =
       let new_last_contentful =
         switch (x) {
         | Secondary(s) when Secondary.is_linebreak(s) => last_contentful /* Skip linebreaks */
-        | _ => Some(x) /* Update for contentful pieces (incl. grout) */
+        /* a DERIVED HOLE never anchors indent: it is a presumption,
+           not content — the (incrementor, prev_is_lb) chain reads
+           through it; hole-adjacent cases are governed by the rule
+           ORDER below (end-of-context rules precede the child +2) */
+        | Grout(_) => last_contentful
+        | _ => Some(x) /* Update for contentful pieces */
         };
       go(
         [(effective_prev, next, effective_next), ...acc],
@@ -258,9 +263,11 @@ let rec go =
       | Secondary(w) => Secondary.is_linebreak(w)
       | _ => false
       };
+    /* grout is transparent to the marking, as to the anchor chain */
     let rec mark = (acc, flag, xs) =>
       switch (xs) {
       | [] => List.rev(acc)
+      | [Piece.Grout(_), ...rest] => mark([flag, ...acc], flag, rest)
       | [x, ...rest] => mark([flag, ...acc], is_lb(x), rest)
       };
     mark([], false, complete_trimmed_seg);
@@ -287,6 +294,14 @@ let rec go =
             | (Some(prev), _) when is_complete_case_rule_with_body(prev) => base
             /* only the FIRST linebreak after an incrementor takes
                the +2; consecutive linebreaks inherit its level */
+            /* end-of-context first (before the incrementor and child
+               +2 rules): a child whose remaining material is only its
+               derived hole (if/then's else line, the let's in line,
+               Enter in empty parens) stays at its entry level — the
+               increments are for content ahead, and a hole is not
+               content */
+            | (_, None) when not_top => base
+            | _ when not_top && effective_next == None => base
             | (Some(prev), _) when is_incrementor(prev) =>
               prev_is_lb ? level : level + 2
             | (None, _) when not_top => base + 2
@@ -302,11 +317,17 @@ let rec go =
             /* Continuation lines in children: when in child context with
              * content before and after the linebreak, use child indentation.
              * Note: This only works after Format, not during auto-indent,
-             * because at typing time next is unknown. An incrementor
-             * earlier in the child (fun ->) may have RAISED the running
-             * level; sibling lines inherit it — base+2 alone flattened
-             * every let-chain line after the first back to the child's
-             * opening level (only the first body line sat indented). */
+             * because at typing time next is unknown.
+             * A DERIVED HOLE is not user content: a presumption owed
+             * after the linebreak (e.g. an unclosed `let` above
+             * absorbing later lines, its owed body hole trailing the
+             * caret) must not indent the user's fresh line — the user
+             * has written nothing there yet (andrew's Enter-indent
+             * repro, 2026-07-22). For real content, an incrementor
+             * earlier in the child (fun ->) may have RAISED the
+             * running level; sibling lines inherit it — base+2 alone
+             * flattened every let-chain line after the first. */
+            | (_, Some(Piece.Grout(_))) when not_top => level
             | (_, Some(_)) when not_top => max(level, base + 2)
             | (_, Some(_)) => level
             };
@@ -350,26 +371,37 @@ let rec go =
   map;
 };
 
-/* ONE PARTITIONER (2026-07-27, andrew; ported from artifact-grout
-   cc4339373d): the walk consumes the CANONICAL COMPLETION'S
-   PARTITIONER — the same layout-intent reading that decides what the
-   surfaced completion absorbs — so indent suggestions agree with the
-   completion about which lines belong to an unclosed construct.
-   Lines WITH content partition by their actual layout (flush-written
-   lines under an unclosed let are siblings — no additive staircase);
-   a CONTENTLESS line is no evidence at all (~absorb_empty_lines):
-   the fresh line Enter just made stays inside the open construct,
-   where typing will land. Within a partition the walk keeps its
-   shallow absorb-reading rather than the completed GEOMETRY: owed
-   closers anchor at end-of-typed-content for display/Tab, but a
-   delimiter obligation's position is flexible, so an owed closer is
-   not a wall for next-line typing. */
+/* ONE PARTITIONER (2026-07-27, andrew): the walk consumes the
+   CANONICAL COMPLETION'S PARTITIONER — the same layout-intent
+   reading that decides what the surfaced completion absorbs — so
+   indent suggestions agree with the completion about which lines
+   belong to an unclosed construct. Lines WITH content partition by
+   their actual layout: flush-written lines under an unclosed let are
+   siblings (no staircase — each partition restarts at base), indented
+   ones are absorbed (nested, the typed-through reading). A
+   CONTENTLESS line is no evidence at all (~absorb_empty_lines): the
+   fresh line Enter just made is the very thing whose meaning is
+   being decided, so it stays inside the open construct — where
+   typing will land (P10 fill position).
+
+   Within a partition the walk keeps its own shallow absorb-reading
+   rather than the completed GEOMETRY: the completion anchors owed
+   closers at the end of typed content (before trailing linebreaks —
+   the right display/Tab promise, P10), but a delimiter obligation's
+   position is FLEXIBLE (the taxonomy), so for the indent question an
+   owed closer is not a wall — the construct is still open, and the
+   next line is its content. Consuming completed_seg directly was
+   tried first (2026-07-27) and reproduced the outside level for
+   parens, defs and rule bodies alike. */
 let partitions = (seg: Segment.t): list(Segment.t) =>
   CanonicalCompletion.partition_segment(~absorb_empty_lines=true, seg)
   |> List.map(fst);
 
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
-  seg
+  /* indentation rules read content anchors after linebreaks; the
+     edit state is grout-free, so derive the holes first — a hole is
+     content for indentation exactly as it is for statics */
+  GroutPlace.place(seg)
   |> partitions
   |> List.fold_left(
        (map, part) =>
@@ -381,17 +413,71 @@ let level_map = (seg: Segment.t): Id.Map.t(int) =>
        Id.Map.empty,
      );
 
+/* Move the derived hole of the blank run containing `lb` to sit
+   right after `lb`: for indent queries the obligation anchors where
+   typing continues (the caret's line), while display placement keeps
+   it on the run's first blank line. Top-level and child runs alike. */
+let rec anchor_hole_after = (~lb: Id.t, seg: Segment.t): Segment.t => {
+  let rec reorder = (run_grout, acc, rest: Segment.t) =>
+    switch (rest) {
+    | [Piece.Secondary(w) as p, ...tl] when Secondary.is_linebreak(w) =>
+      Id.equal(w.id, lb)
+        ? List.rev_append(acc, [p] @ run_grout @ tl)
+        : reorder(run_grout, [p, ...acc], tl)
+    | [Piece.Secondary(_) as p, ...tl] =>
+      reorder(run_grout, [p, ...acc], tl)
+    | [Piece.Grout(_) as g, ...tl] => reorder(run_grout @ [g], acc, tl)
+    | _ => List.rev_append(acc, run_grout @ rest)
+    };
+  let rec go_seg = (acc, rest: Segment.t) =>
+    switch (rest) {
+    | [] => List.rev(acc)
+    | [Piece.Secondary(w), ..._] as run
+        when Secondary.is_linebreak(w) || Secondary.is_space(w) =>
+      /* run start: reorder handles the whole secondary/grout run */
+      let rec split_run = (run_acc, tl: Segment.t) =>
+        switch (tl) {
+        | [(Piece.Secondary(_) | Piece.Grout(_)) as p, ...tl] =>
+          split_run([p, ...run_acc], tl)
+        | _ => (List.rev(run_acc), tl)
+        };
+      let (run, tl) = split_run([], run);
+      let run' = reorder([], [], run);
+      go_seg(List.rev_append(run', acc), tl);
+    | [Piece.Grout(_) as g, ...tl] => go_seg([g, ...acc], tl)
+    | [Piece.Tile(t), ...tl] =>
+      go_seg(
+        [
+          Piece.Tile({
+            ...t,
+            children: List.map(anchor_hole_after(~lb), t.children),
+          }),
+          ...acc,
+        ],
+        tl,
+      )
+    | [p, ...tl] => go_seg([p, ...acc], tl)
+    };
+  go_seg([], seg);
+};
+
 /* Look up indentation for a single linebreak by ID.
- * Uses exception-based short-circuit for efficiency. */
-let level_of = (~target_id: Id.t, seg: Segment.t): int =>
-  try(
-    {
-      seg
-      |> partitions
-      |> List.iter(part => ignore(go(~not_top=false, ~target_id, 0, part)));
-      0;
-    }
-  ) {
+ * Uses exception-based short-circuit for efficiency.
+ * ~anchor_lb: relocate the derived hole of that linebreak's blank run
+ * to just after it before computing (the Enter/auto-indent query). */
+let level_of = (~anchor_lb=?, ~target_id: Id.t, seg: Segment.t): int =>
+  try({
+    let placed = GroutPlace.place(seg);
+    let placed =
+      switch (anchor_lb) {
+      | Some(lb) => anchor_hole_after(~lb, placed)
+      | None => placed
+      };
+    placed
+    |> partitions
+    |> List.iter(part => ignore(go(~not_top=false, ~target_id, 0, part)));
+    0;
+  }) {
   /* Not found, default to 0 */
 
   | Found_indent(level) => level

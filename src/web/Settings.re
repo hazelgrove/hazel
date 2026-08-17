@@ -37,6 +37,7 @@ module Model = {
       dynamics: true,
       probe_all: false,
       auto_reindent: true,
+      inline_persist: Off,
       format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
       indentation_ux: true,
       flip_animations: true,
@@ -159,6 +160,7 @@ module Update = {
     | Dynamics
     | ProbeAll
     | AutoReindent
+    | InlinePersist
     | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
     | Assist
@@ -224,6 +226,18 @@ module Update = {
           core: {
             ...settings.core,
             auto_reindent: !settings.core.auto_reindent,
+          },
+        }
+      | InlinePersist => {
+          ...settings,
+          core: {
+            ...settings.core,
+            inline_persist:
+              switch (settings.core.inline_persist) {
+              | Off => Persist
+              | Persist => Always
+              | Always => Off
+              },
           },
         }
       | FormatShortcut(fs) => {

@@ -294,10 +294,30 @@ let middle_split_plan =
       let legal = (j: int): option((Segment.t, Segment.t)) => {
         let (left, rest) = ListUtil.split_n(j, child);
         let right = List.tl(rest);
+        /* a clippable-sort span (Pat/TPat/Typ) with a top-level
+           juxtaposition junction in it is not a coherent operand —
+           scan_frontier skips grout, so without this the deleted-=
+           child `x ~ f ~ 1` reads BOTH junctions as legal Pat splits
+           and the restore falls back as ambiguous */
+        let coherent = (ps: Segment.t, sort: Sort.t) =>
+          /* Pat only: type-level spans keep the permissive read (the
+             type-adt scoreboard's = restore rides on it) */
+          sort != Sort.Pat
+          || !
+               List.exists(
+                 (p: Piece.t) =>
+                   switch (p) {
+                   | Grout({shape: Concave, _}) => true
+                   | _ => false
+                   },
+                 ps,
+               );
         has_content(left)
         && has_content(right)
         && span_fits_sort(left, l_nib.sort)
+        && coherent(left, l_nib.sort)
         && span_fits_sort(right, r_nib.sort)
+        && coherent(right, r_nib.sort)
           ? Some((left, right)) : None;
       };
       let indexed = child |> List.mapi((j, pc) => (j, pc));
@@ -382,50 +402,37 @@ let rec heal_molds_deep = (seg: Segment.t): Segment.t =>
        }
      );
 
-/* Full shape normalization for a spliced DISPLAY segment — the same
-   phases completion runs (regrout, reassemble, remold, regrout).
+/* Full shape normalization for a spliced DISPLAY segment.
    Reassembly alone is not enough: ghost shards change the shape
-   context, and un-regrouted/un-remolded arrangements can violate
-   the tile shards/children invariant downstream (Skel). */
-let normalize_display = (seg: Segment.t): Segment.t =>
+   context, and un-remolded arrangements can violate the tile
+   shards/children invariant downstream (Skel).
+
+   PLACEMENT RUNS EXACTLY ONCE, at the end (2026-07-26 experiment).
+   This used to open with a second `place` — inherited from the
+   regrout-era four-phase pipeline (regrout, reassemble, remold,
+   regrout), where grout was edit-state material that had to be
+   present for the middle phases. Under grout-free editing neither
+   `deep_reassemble` nor `remold` needs holes: they operate on tiles
+   and shards, and the segments they receive are already hole-free on
+   every other path. Dropping the leading call is suite-green (3717).
+   Consequence worth keeping in mind: `place`'s idempotence is no
+   longer load-bearing HERE, though it remains a stated property and
+   other consumers still each call it once. */
+let normalize_display =
+    (~transparent: Secondary.t => bool=_ => false, seg: Segment.t): Segment.t =>
   seg
-  |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _)
   |> deep_reassemble
   |> Segment.remold(_, Sort.Exp)
-  |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _);
+  |> GroutPlace.place(~transparent);
 
 /* F1 predicates shared by ghost display and Tab acceptance — the
-   ghost's spacing IS the promise of what Tab types */
-let f1_hugs_left = (t: string): bool =>
-  String.length(t) > 0
-  && (
-    switch (t.[0]) {
-    | ','
-    | ')'
-    | ']'
-    | '}' => true
-    | _ => false
-    }
-  );
-let f1_closes = (t: string): bool =>
-  String.length(t) > 0
-  && (
-    switch (t.[String.length(t) - 1]) {
-    | ')'
-    | ']'
-    | '}' => true
-    | _ => false
-    }
-  );
-let f1_opens = (t: string): bool =>
-  String.length(t) > 0
-  && (
-    switch (t.[String.length(t) - 1]) {
-    | '('
-    | '[' => true
-    | _ => false
-    }
-  );
+   ghost's spacing IS the promise of what Tab types. The rule itself
+   lives in PadStyle (tiles/), the one home, so hole-cell
+   classification can consume it too; these are re-exports. */
+let f1_hugs_left = PadStyle.hugs_left;
+let f1_closes = PadStyle.closes;
+let f1_opens = PadStyle.opens;
+let f1_pad_style = PadStyle.pad;
 
 /* === Display padding oracle ===
  * ONE deterministic rule for whitespace around system material,
@@ -540,38 +547,19 @@ let finish_display =
     (
       ~marks: list((Id.t, option(int))),
       ~raw: Segment.t,
-      ~caret_after: option((Id.t, int))=None,
+      ~marks_out: option(ref(list((Id.t, option(int)))))=None,
       seg: Segment.t,
     )
     : Segment.t => {
-  /* ranks confine pads to gaps AT or AFTER the caret (andrew's
-     policy: the display never changes strictly before the cursor);
-     computed AFTER the reorder pass, so late-bound via a cell */
-  let rank = ref(Hashtbl.create(0));
-  let caret_rank = () =>
-    switch (caret_after) {
-    | None => None
-    | Some(key) => Hashtbl.find_opt(rank^, key)
-    };
-  /* a pad site is identified by the atom LEFT of the gap */
-  let pad_allowed = (left: (Id.t, int)): bool =>
-    switch (caret_rank()) {
-    | None => true
-    | Some(cr) =>
-      switch (Hashtbl.find_opt(rank^, left)) {
-      | Some(r) => r >= cr
-      | None => true
-      }
-    };
-  let right_edge_atom = (p: Piece.t): (Id.t, int) =>
-    switch (p) {
-    | Tile(t) =>
-      switch (Util.ListUtil.last_opt(t.shards)) {
-      | Some(i) => (t.id, i)
-      | None => (t.id, (-1))
-      }
-    | p => (Piece.id(p), (-1))
-    };
+  /* MOVEMENT PURITY (obligation-display design): pads are a function
+     of the MATERIAL, never the caret. A pad mints only where a gap
+     touches SPAN-REGION material — a ghost-marked piece, a hot
+     (marked-tile) interior, or a REGION HOLE (minted grout adjacent
+     to ghost-marked material) — so a span renders identically
+     wherever the caret is, and resting text (no spans) is never
+     padded at all (layout invisibility). The former caret-rank gate
+     (pads only at/after the caret) made the same span render
+     differently as the caret moved — andrew's whitespace flicker. */
   let raw_ids = Hashtbl.create(64);
   let rec collect = (sg: Segment.t) =>
     List.iter(
@@ -586,46 +574,90 @@ let finish_display =
     );
   collect(raw);
   let minted = (id: Id.t) => !Hashtbl.mem(raw_ids, id);
-  let is_space = (p: Piece.t) =>
-    switch (p) {
-    | Secondary(w) => Secondary.is_space(w)
-    | _ => false
-    };
-  let rec reorder = (ps: Segment.t): Segment.t =>
-    switch (ps) {
-    | [] => []
-    | [Piece.Grout(g) as pg, ...rest] when minted(g.id) =>
-      let rec take = (acc, rest) =>
-        switch (rest) {
-        | [p, ...tl] when is_space(p) => take([p, ...acc], tl)
-        | _ => (List.rev(acc), rest)
-        };
-      let (sps, rest) = take([], rest);
-      sps @ [pg, ...reorder(rest)];
-    | [Piece.Tile(t), ...rest] => [
-        Piece.Tile({
-          ...t,
-          children: List.map(reorder, t.children),
-        }),
-        ...reorder(rest),
-      ]
-    | [p, ...rest] => [p, ...reorder(rest)]
-    };
+  /* REGION HOLES: minted grout adjacent (through secondaries) to
+     ghost-marked material — the obligation holes a span carries with
+     it (`let ¦ ? ⟪= ? in ?⟫`). Resting placed holes have user
+     neighbors on both sides and never qualify. */
+  let mark_ids: Hashtbl.t(Id.t, unit) = Hashtbl.create(16);
+  List.iter(
+    ((mid, _): (Id.t, option(int))) => Hashtbl.replace(mark_ids, mid, ()),
+    marks,
+  );
+  let mark_shard = (id: Id.t, sh: int) =>
+    List.exists(
+      ((mid, msh): (Id.t, option(int))) =>
+        Id.equal(mid, id) && msh == Some(sh),
+      marks,
+    );
+  let region: Hashtbl.t(Id.t, unit) = Hashtbl.create(16);
+  /* ~l_ghost/~r_ghost carry the ghostishness of the material BOUNDING
+     this segment — for a child slot, the enclosing tile's flanking
+     shards (exactly the `bound(k)` context the pad walk uses). A hole
+     alone in a child slot (`let ? = ...`) has no siblings to see, so
+     without this it never counts as span material and the span loses
+     its pads. */
+  let rec collect_region =
+          (~l_ghost: bool, ~r_ghost: bool, sg: Segment.t): unit => {
+    let arr = Array.of_list(sg);
+    let n = Array.length(arr);
+    let rec ghostish_from = (i, step) =>
+      i < 0
+        ? l_ghost
+        : i >= n
+            ? r_ghost
+            : (
+              switch (arr[i]) {
+              | Piece.Secondary(w) when !Secondary.is_comment(w) =>
+                ghostish_from(i + step, step)
+              | Piece.Secondary(w) => Hashtbl.mem(mark_ids, w.id)
+              | Piece.Grout(g) => Hashtbl.mem(mark_ids, g.id)
+              | Piece.Tile(t) => Hashtbl.mem(mark_ids, t.id)
+              | Piece.Projector(_) => false
+              }
+            );
+    Array.iteri(
+      (i, p: Piece.t) =>
+        switch (p) {
+        | Grout(g) when minted(g.id) =>
+          if (ghostish_from(i - 1, -1) || ghostish_from(i + 1, 1)) {
+            Hashtbl.replace(region, g.id, ());
+          }
+        | Tile(t) =>
+          let whole = List.mem((t.id, None), marks);
+          List.iteri(
+            (k, c) => {
+              let bound = (j: int) =>
+                switch (List.nth_opt(t.shards, j)) {
+                | Some(i) => whole || mark_shard(t.id, i)
+                | None => whole
+                };
+              collect_region(~l_ghost=bound(k), ~r_ghost=bound(k + 1), c);
+            },
+            t.children,
+          );
+        | _ => ()
+        },
+      arr,
+    );
+  };
+  collect_region(~l_ghost=false, ~r_ghost=false, seg);
+  let region_hole = (id: Id.t) => Hashtbl.mem(region, id);
   let mark_mem = (id: Id.t, sh: option(int)) =>
     List.exists(
       ((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh,
       marks,
     );
-  let tile_hot = (t: Tile.t) =>
-    List.exists(
-      ((mid, _): (Id.t, option(int))) => Id.equal(mid, t.id),
-      marks,
-    );
+  /* hot = the tile is ghost AS A WHOLE (mark with shard=None): its
+     interior is span content and pads freely. A mere ghost SHARD
+     (user tile with an owed closer) must NOT heat the interior —
+     that padded every gap inside any ap missing its `)`. Shard-level
+     system-ness enters only at the shard's own edges via `edge`. */
+  let tile_hot = (t: Tile.t) => mark_mem(t.id, None);
   /* facing token + system-ness of a piece's edge; None = separator */
   let edge =
       (~hot: bool, p: Piece.t, ~side: Direction.t): option((string, bool)) =>
     switch (p) {
-    | Grout(g) => Some(("?", minted(g.id) || hot))
+    | Grout(g) => Some(("?", hot || region_hole(g.id)))
     /* a comment is content-width material (a TyDi ghost IS a
        display comment) — it separates nothing */
     | Secondary(w) when Secondary.is_comment(w) =>
@@ -648,11 +680,16 @@ let finish_display =
      remainder like `t ` — real tokens never do) is self-separated */
   let ends_in_space = (t: string) =>
     String.length(t) > 0 && t.[String.length(t) - 1] == ' ';
-  let needs_pad = ((lt, lsys), (rt, rsys)) =>
-    (lsys || rsys)
-    && !f1_opens(lt)
-    && !ends_in_space(lt)
-    && !f1_hugs_left(rt);
+  /* P15: the pad rule consults the left piece's MOLD, not just its
+     token — a prefix operator hugs its operand hole (`!?`). Child
+     bounds are shards of multi-token tiles, never prefix ops. */
+  let piece_prefix_op = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile(t) => Mold.is_prefix_op(t.mold)
+    | _ => false
+    };
+  let needs_pad = (~l_prefix=false, (lt, lsys), (rt, rsys)) =>
+    (lsys || rsys) && !ends_in_space(lt) && f1_pad_style(~l_prefix, lt, rt);
   /* a MINTED comment is a witness-remainder ghost: it continues the
      typed token, so its left edge always hugs */
   let hugging_comment = (p: Piece.t): bool =>
@@ -660,11 +697,15 @@ let finish_display =
     | Secondary(w) => Secondary.is_comment(w) && minted(w.id)
     | _ => false
     };
-  let space = (): Piece.t =>
+  let pad_ids: Hashtbl.t(Id.t, unit) = Hashtbl.create(16);
+  let space = (): Piece.t => {
+    let id = Id.mk();
+    Hashtbl.replace(pad_ids, id, ());
     Secondary({
-      id: Id.mk(),
+      id,
       content: Whitespace(" "),
     });
+  };
   let rec pad_seq = (~hot: bool, ps: Segment.t): Segment.t =>
     switch (ps) {
     | [] => []
@@ -680,9 +721,8 @@ let finish_display =
         ) {
         | (Some(l), Some(r))
             when
-              needs_pad(l, r)
-              && !hugging_comment(b)
-              && pad_allowed(right_edge_atom(a)) => [
+              needs_pad(~l_prefix=piece_prefix_op(a), l, r)
+              && !hugging_comment(b) => [
             a,
             space(),
             ...rest,
@@ -708,13 +748,7 @@ let finish_display =
                switch (c) {
                | [first, ..._] =>
                  switch (edge(~hot, first, ~side=Direction.Left)) {
-                 | Some(r)
-                     when
-                       needs_pad(bound(k), r)
-                       && pad_allowed((t.id, List.nth(t.shards, k))) => [
-                     space(),
-                     ...c,
-                   ]
+                 | Some(r) when needs_pad(bound(k), r) => [space(), ...c]
                  | _ => c
                  }
                | [] => c
@@ -724,8 +758,11 @@ let finish_display =
                switch (edge(~hot, last, ~side=Direction.Right)) {
                | Some(l)
                    when
-                     needs_pad(l, bound(k + 1))
-                     && pad_allowed(right_edge_atom(last)) =>
+                     needs_pad(
+                       ~l_prefix=piece_prefix_op(last),
+                       l,
+                       bound(k + 1),
+                     ) =>
                  c @ [space()]
                | _ => c
                }
@@ -738,10 +775,96 @@ let finish_display =
       });
     | p => p
     };
-  /* rank AFTER reorder — hopped grout must carry its final position */
-  let seg = reorder(seg);
-  rank := rank_map(seg);
-  pad_seq(~hot=false, seg);
+  /* NO REORDER (2026-07-24): this pass used to hop MINTED grout over
+     following typed spaces, from the era when the edit state stored
+     grout — then "minted" meant only display-synthesized holes and
+     the hop fixed a caret jump. Under grout-free editing EVERY hole
+     is minted, so the pass relocated every hole past its gap's
+     spaces, silently overriding GroutPlace's placement policy (the
+     display hugged the delimiter while the harness centered — the
+     harness/screen divergence). Placement now has ONE authority:
+     GroutPlace. Nothing downstream may move a hole. */
+  let seg = pad_seq(~hot=false, seg);
+  /* BACKING REPAIR (P4, atomic-form padding under width transfer):
+     a hole consumes an adjacent space's cell, so an oracle pad
+     placed next to a hole vanishes from the screen — exactly the
+     tween-state jank ("let " ghosting `let ?= ?in ?`). Wherever the
+     cell classification says a hole consumed a PAD-minted space,
+     mint one more beside it: one backs the hole, one stays visible,
+     and the display reads space-hole-space like any atomic form.
+     User-typed spaces are never doubled — resting holes borrow
+     typed cells by design. */
+  let cells = GroutCells.classify(seg);
+  /* a consumed space needs backing when the oracle minted it, OR
+     when a MINTED (display-promised) hole consumed a USER-typed
+     space — ghost material must never eat the user's cells (the
+     resting document's borrow behavior is untouched: real placed
+     holes there don't pass through this oracle). Consumption is
+     strictly adjacent, so the consumer is a sibling grout. */
+  let region_grout = (p: Piece.t): bool =>
+    switch (p) {
+    | Grout(g) => region_hole(g.id)
+    | _ => false
+    };
+  let rec back_pads = (ps: Segment.t): Segment.t => {
+    let arr = Array.of_list(ps);
+    let n = Array.length(arr);
+    List.init(n, i => i)
+    |> List.concat_map(i =>
+         switch (arr[i]) {
+         | Secondary(w)
+             when
+               Secondary.is_space(w)
+               && GroutCells.is_consumed(cells, w.id)
+               /* backing only for SPAN material: an oracle pad the
+                  hole swallowed, or a REGION hole (span-adjacent)
+                  that consumed a user space. A resting borrowed-cell
+                  hole consuming a typed space is the DESIGN — no
+                  extra space, or resting lines would inflate (P5b);
+                  the old caret gate masked exactly this. */
+               && (
+                 Hashtbl.mem(pad_ids, w.id)
+                 || i > 0
+                 && region_grout(arr[i - 1])
+                 || i
+                 + 1 < n
+                 && region_grout(arr[i + 1])
+               ) => [
+             arr[i],
+             space(),
+           ]
+         /* P16 SUBSTITUTION RENDERING: a SPAN hole at a hug-hug
+            junction (`foo(` before its ghost comma) has no space to
+            borrow and would degrade to a zero-width pinch. It stands
+            in its operand's first cell, so mint a consumable backing
+            space after it — the hole takes that cell (NextSpace) and
+            no visible pad appears where style hugs: `foo(?, ?)`.
+            Resting pinches (`(1 +‽)`) never pass through this
+            oracle and stay zero-width (P2). */
+         | Grout(g)
+             when
+               GroutCells.cls_of(cells, g.id) == Some(GroutCells.Pinch)
+               && region_hole(g.id) => [
+             arr[i],
+             space(),
+           ]
+         | Tile(t) => [
+             Piece.Tile({
+               ...t,
+               children: List.map(back_pads, t.children),
+             }),
+           ]
+         | p => [p]
+         }
+       );
+  };
+  let out = back_pads(seg);
+  switch (marks_out) {
+  | Some(cell) =>
+    Hashtbl.iter((id, ()) => cell := [(id, None), ...cell^], pad_ids)
+  | None => ()
+  };
+  out;
 };
 
 /* Middle-missing shards (`let x in 2`, `if true else 2` — targeted
@@ -2784,6 +2907,30 @@ and complete_segment_deep =
   };
 };
 
+/* External face of completion: REGROUTED input, PLACED output. The
+   edit state is grout-free, but completion's junction/anchoring
+   logic was built against regrout's hole positions (the placement
+   guards pin those junction choices), so the anchors are restored
+   here as a derivation-side preprocessing step — regrout survives
+   ONLY inside this boundary. Its random-id, regrout-positioned grout
+   never escapes: the OUTPUT is placed, so every consumer sees
+   deterministic ids at policy positions. */
+let complete_segment_deep =
+    (~use_indent_heuristic=true, ~fuel=24, ~only_tile=None, ~sort, seg) => {
+  let result =
+    complete_segment_deep(
+      ~use_indent_heuristic,
+      ~fuel,
+      ~only_tile,
+      ~sort,
+      Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), seg),
+    );
+  {
+    ...result,
+    completed_seg: GroutPlace.place(result.completed_seg),
+  };
+};
+
 /* Materialization: the virtual reading, committed. ALL = the joint
    result verbatim; ONE = a single pass pinned to the given tile.
    None when the obligation could not be discharged. */
@@ -3275,7 +3422,141 @@ let left_separated = (z: Zipper.t): bool =>
   | _ => false
   };
 
-let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
+/* TAB SLICES THE PROMISE (2026-07-28, andrew): the paste text for a
+   plain-delimiter chunk is read off the DISPLAYED completion itself —
+   the display pieces from the caret through the accepted delimiter's
+   shard, plus its trailing spaces — so acceptance is byte-preserving
+   by construction: post-accept, placement re-derives the holes into
+   the pasted spacing and the display is unchanged. One spacing
+   authority (the display; the lead/trail synthesis below was a third
+   one and produced the ragged `?,? )` artifacts). Holes contribute
+   nothing (they stay derived, never typed). Slicing from the CACHED
+   display means Tab accepts exactly what is on screen, whatever the
+   statics cadence. Fails open to the synthesis path.
+
+   FLAGGED CHOICE (design doc): pads around a still-unfilled hole
+   paste as real spaces — the happy path fills the hole where the pad
+   is wanted anyway; the residue is one space in states that look
+   hand-typed-then-deleted. Revisit on feel. */
+let tab_slice =
+    (
+      ~display: Segment.t,
+      ~marks: list((Id.t, option(int))),
+      z: Zipper.t,
+      d: delimiter_info,
+    )
+    : option(string) => {
+  let is_marked = (id: Id.t, sh: int) =>
+    List.exists(
+      ((mid, msh): (Id.t, option(int))) =>
+        Id.equal(mid, id) && (msh == Some(sh) || msh == None),
+      marks,
+    );
+  /* flat atom stream over the display, shard-granular, ids kept so
+     the caret's left atom can be located */
+  let rec atoms =
+          (sg: Segment.t)
+          : list(
+              (
+                Id.t,
+                int,
+                [
+                  | `Tok(string, bool)
+                  | `Sp
+                  | `Brk
+                  | `Hole
+                  | `Other
+                ],
+              ),
+            ) =>
+    List.concat_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Grout(g) => [(g.id, (-1), `Hole)]
+        | Secondary(w) when Secondary.is_space(w) => [(w.id, (-1), `Sp)]
+        | Secondary(w) when Secondary.is_linebreak(w) => [
+            (w.id, (-1), `Brk),
+          ]
+        | Secondary(w) => [(w.id, (-1), `Other)]
+        | Projector(_) => [(Piece.id(p), (-1), `Other)]
+        | Tile(t) =>
+          Aba.mk(t.shards, t.children)
+          |> Aba.join(
+               i =>
+                 [
+                   (
+                     t.id,
+                     i,
+                     `Tok((
+                       switch (List.nth_opt(t.label, i)) {
+                       | Some(tok) => tok
+                       | None => ""
+                       },
+                       is_marked(t.id, i),
+                     )),
+                   ),
+                 ],
+               atoms,
+             )
+          |> List.concat
+        },
+      sg,
+    );
+  switch (caret_left_atom(z)) {
+  | None => None
+  | Some((cid, csh)) =>
+    /* hole-HOSTING cells are not text: a space consumed as a hole's
+       cell (borrowed or P16 backing) contributes nothing to the
+       paste — the re-derived hole re-hosts in the pasted FORMATTING
+       spaces only */
+    let cells = GroutCells.classify(display);
+    let visible_sp = (id: Id.t) => !GroutCells.is_consumed(cells, id);
+    let ats = atoms(display);
+    let start =
+      ats
+      |> List.mapi((i, a) => (i, a))
+      |> List.find_opt(((_, (id, sh, _))) =>
+           Id.equal(id, cid) && (sh == csh || csh == (-1) && sh != (-1))
+         )
+      |> Option.map(fst);
+    /* walk right of the caret: spaces and holes accumulate, the first
+       GHOST token must be the chunk's delimiter; anything else bails
+       to the synthesis path */
+    let rec collect = (i: int, acc: string): option(string) =>
+      switch (List.nth_opt(ats, i)) {
+      | None => None
+      | Some((sid, _, `Sp)) =>
+        collect(i + 1, visible_sp(sid) ? acc ++ " " : acc)
+      | Some((_, _, `Hole)) => collect(i + 1, acc)
+      | Some((_, _, `Tok(tok, true))) when tok == d.text =>
+        Some(trail(i + 1, acc ++ tok))
+      | Some(_) => None
+      }
+    /* trailing spaces travel with the chunk (the display pads after
+       the delimiter re-host the re-derived hole), unless the line
+       ends — a line-end hole's pad is a render class, not text */
+    and trail = (i: int, acc: string): string => {
+      let rec spaces = (i, n) =>
+        switch (List.nth_opt(ats, i)) {
+        | Some((sid, _, `Sp)) => spaces(i + 1, visible_sp(sid) ? n + 1 : n)
+        | Some((_, _, `Hole)) => spaces(i + 1, n)
+        | Some((_, _, `Brk))
+        | None => (0, false)
+        | Some(_) => (n, true)
+        };
+      let (n, keep) = spaces(i, 0);
+      keep ? acc ++ String.make(n, ' ') : acc;
+    };
+    switch (start) {
+    | None => None
+    | Some(start) => collect(start + 1, "")
+    };
+  };
+};
+
+let tab_text =
+    (~display: option(Segment.t)=?, ~marks=[], z: Zipper.t, ins: insertion)
+    : option(string) => {
   let rec go = (ds: list(delimiter_info)) =>
     switch (ds) {
     | [] => None
@@ -3284,20 +3565,26 @@ let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
       | Some(n) when n < String.length(d.text) =>
         Some(String.sub(d.text, n, String.length(d.text) - n))
       | Some(_) => go(rest) /* fully-typed witness: next chunk */
-      | None =>
-        let lead = !f1_hugs_left(d.text) && !left_separated(z);
-        /* no trailing pad when the accepted delimiter ends its line —
-           the next material lives on a later line already */
-        let next_is_break =
-          switch (snd(z.relatives.siblings)) {
-          | [Secondary(w), ..._] => Secondary.is_linebreak(w)
-          | _ => false
-          };
-        let trail =
-          !f1_closes(d.text) && !f1_opens(d.text) && !next_is_break;
-        Some((lead ? " " : "") ++ d.text ++ (trail ? " " : ""));
+      | None when Option.is_some(display) =>
+        switch (tab_slice(~display=Option.get(display), ~marks, z, d)) {
+        | Some(_) as s => s
+        | None => synth(d)
+        }
+      | None => synth(d)
       }
-    };
+    }
+  and synth = (d: delimiter_info) => {
+    let lead = !f1_hugs_left(d.text) && !left_separated(z);
+    /* no trailing pad when the accepted delimiter ends its line —
+       the next material lives on a later line already */
+    let next_is_break =
+      switch (snd(z.relatives.siblings)) {
+      | [Secondary(w), ..._] => Secondary.is_linebreak(w)
+      | _ => false
+      };
+    let trail = !f1_closes(d.text) && !f1_opens(d.text) && !next_is_break;
+    Some((lead ? " " : "") ++ d.text ++ (trail ? " " : ""));
+  };
   go(ins.delimiters);
 };
 
@@ -3441,6 +3728,46 @@ let splice_precedes_caret = (z: Zipper.t, ins: insertion): bool =>
     };
   };
 
+/* a linebreak strictly separates the splice from the caret: the
+   span sits at an EARLIER LINE's end — free space per the legality
+   rule (it can displace nothing at the caret). Used by the
+   inline-persist scope: pre-caret spans persist iff line-separated;
+   same-row-before-caret spans always demote. */
+let linebreak_between = (z: Zipper.t, ins: insertion): bool =>
+  switch (ins.splice, caret_left_atom(z)) {
+  | (None, _)
+  | (_, None) => false
+  | (Some((id, sh, _)), Some(caret_key)) =>
+    let seg = Zipper.unselect_and_zip(z);
+    let rank = rank_map(seg);
+    let key = (
+      id,
+      switch (sh) {
+      | Some(i) => i
+      | None => (-1)
+      },
+    );
+    switch (Hashtbl.find_opt(rank, key), Hashtbl.find_opt(rank, caret_key)) {
+    | (Some(r), Some(cr)) when r < cr =>
+      let rec lb_in_range = (sg: Segment.t): bool =>
+        List.exists(
+          (p: Piece.t) =>
+            switch (p) {
+            | Secondary(w) when Secondary.is_linebreak(w) =>
+              switch (Hashtbl.find_opt(rank, (w.id, (-1)))) {
+              | Some(lr) => r < lr && lr <= cr
+              | None => false
+              }
+            | Tile(t) => List.exists(lb_in_range, t.children)
+            | _ => false
+            },
+          sg,
+        );
+      lb_in_range(seg);
+    | _ => false
+    };
+  };
+
 /* The ghost hugs the caret when only spaces separate it from the
    run's true position: Tab lands at the caret, and a closer drawn
    left of the caret would portray typing OUTSIDE the completed
@@ -3448,6 +3775,20 @@ let splice_precedes_caret = (z: Zipper.t, ins: insertion): bool =>
    (the caret-lock misorder janks). Linebreaks are whitespace: a
    caret on a fresh line is a valid drop position, and a closer
    ghosted there sits on its own line (andrew's post-Enter case). */
+/* SLIDE TO CARET, SPACES ONLY (P8, andrew 2026-07-24).
+   A ghost anchored at a token separated from the caret by nothing
+   but SPACES renders at the caret rather than tight against its
+   anchor. This is load-bearing, not cosmetic: with a trailing space
+   typed (`let ¦`) the ghost's true anchor precedes the caret, so the
+   no-pre-caret rule would otherwise suppress the whole entry-time
+   ghost to a chip.
+
+   RETIRED (2026-07-24): the V3.3 extension that let the slide cross
+   LINEBREAKS ("whitespace is whitespace"). That is what made a ghost
+   jump to the caret's line and mint a pad there on a single arrow
+   press — andrew's "spooky space" report, and a movement-purity
+   violation since the ghost relocated across lines as the caret
+   moved. Within a line the hug stays; a linebreak is a wall. */
 let slide_to_caret = (z: Zipper.t, ins: insertion): insertion =>
   switch (ins.splice, z.caret) {
   | (Some((id, sh, Direction.Right)), Outer) =>
@@ -3466,10 +3807,11 @@ let slide_to_caret = (z: Zipper.t, ins: insertion): insertion =>
         | _ => true
         }
       );
+    /* SPACES only: a linebreak is a wall (see above) */
     let all_spaces =
       List.for_all((q: Piece.t) =>
         switch (q) {
-        | Secondary(_) => true
+        | Secondary(w) => Secondary.is_space(w)
         | _ => false
         }
       );

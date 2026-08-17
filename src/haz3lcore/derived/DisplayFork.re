@@ -26,6 +26,14 @@ type t = {
   /* THE assist stream (A1 single source): chips, the inline ghost,
      and Tab all read this one list */
   assist: list(CanonicalCompletion.insertion),
+  /* PERSIST RATCHET STATE (Persist mode): span keys seen so far and
+     the keys currently HELD as chips (appeared same-row-pre-caret —
+     inlining them at appearance would have displaced the caret).
+     Movement only ever shrinks `held` (promotion when the span is no
+     longer same-row-pre-caret); edits re-test NEW spans only — an
+     already-inline span displaces nothing by staying. */
+  persist_known: list(string),
+  persist_held: list(string),
   /* the insertions actually ghosted this frame (physical members of
      `assist`) — chip suppression matches against exactly these */
   ghosted: list(CanonicalCompletion.insertion),
@@ -110,8 +118,78 @@ let restore_ghost_holes =
 };
 
 /* degenerate fork: no assist machinery (settings off, init paths) */
+
+/* Place-minted grout that lives among ghost material inherits ghost
+   marks, else a zone splits visually around a derived hole. A hole
+   is ghost iff it has NO real (unmarked) non-secondary neighbor: at
+   its own level the nearest non-secondary pieces decide (an absent
+   side is permissive); a hole alone in a tile child defers to the
+   flanking shards' marks. */
+let inherit_ghost_marks =
+    (~marks: list((Id.t, option(int))), seg: Segment.t)
+    : list((Id.t, option(int))) => {
+  let marked = (id: Id.t, sh: option(int)): bool =>
+    List.exists(
+      ((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh,
+      marks,
+    );
+  let piece_ghostish = (p: Piece.t): bool =>
+    switch (p) {
+    | Tile(t) =>
+      marked(t.id, None)
+      || List.exists(i => marked(t.id, Some(i)), t.shards)
+    | Grout(g) => marked(g.id, None)
+    | Secondary(w) => marked(w.id, None)
+    | Projector(_) => false
+    };
+  let shard_ghost = (t: Tile.t, k: int): bool =>
+    switch (List.nth_opt(t.shards, k)) {
+    | Some(i) => marked(t.id, Some(i)) || marked(t.id, None)
+    | None => false
+    };
+  let acc = ref([]);
+  let rec go = (~flank_l: bool, ~flank_r: bool, seg: Segment.t): unit => {
+    let arr = Array.of_list(seg);
+    let n = Array.length(arr);
+    let rec side = (i, step, fallback) =>
+      i < 0 || i >= n
+        ? fallback
+        : (
+          switch (arr[i]) {
+          | Piece.Secondary(_) => side(i + step, step, fallback)
+          | p => piece_ghostish(p)
+          }
+        );
+    Array.iteri(
+      (i, p: Piece.t) =>
+        switch (p) {
+        | Grout(g) when !marked(g.id, None) =>
+          if (side(i - 1, -1, flank_l) && side(i + 1, 1, flank_r)) {
+            acc := [(g.id, None), ...acc^];
+          }
+        | Tile(t) =>
+          List.iteri(
+            (k, kid) =>
+              go(
+                ~flank_l=shard_ghost(t, k),
+                ~flank_r=shard_ghost(t, k + 1),
+                kid,
+              ),
+            t.children,
+          )
+        | _ => ()
+        },
+      arr,
+    );
+  };
+  go(~flank_l=true, ~flank_r=true, seg);
+  acc^;
+};
+
 let plain = (z: Zipper.t): t => {
-  let segment = Zipper.unselect_and_zip(z);
+  /* the document display IS the placed projection: the edit state is
+     grout-free; every hole shown is derived, zero-width in layout */
+  let segment = GroutPlace.place(Zipper.unselect_and_zip(z));
   {
     segment,
     ghost_marks: [],
@@ -119,6 +197,8 @@ let plain = (z: Zipper.t): t => {
     caret_witnesses: [],
     assist: [],
     ghosted: [],
+    persist_known: [],
+    persist_held: [],
     parsed: MakeTerm.go(segment),
   };
 };
@@ -253,9 +333,91 @@ let extend_t2 =
    originals keep suppression identity, the slid insertion is the
    splice truth. Material is the caller's: this fork reconstructs
    via ghost_pieces, PromiseRender projects from the artifact. */
+let span_key = (ins: CanonicalCompletion.insertion): string =>
+  Id.to_string(ins.adjacent_id)
+  ++ ":"
+  ++ (
+    ins.delimiters
+    |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
+    |> String.concat("+")
+  );
+
 let ghost_selection =
-    (~armed: bool, z: Zipper.t, assist: list(CanonicalCompletion.insertion))
-    : list((CanonicalCompletion.insertion, CanonicalCompletion.insertion)) =>
+    (
+      ~armed: bool,
+      ~inline_persist: CoreSettings.persist_mode=CoreSettings.Off,
+      ~persist_state: (list(string), list(string))=([], []),
+      ~persist_edit: bool=false,
+      ~persist_state_out: option(ref((list(string), list(string))))=None,
+      z: Zipper.t,
+      assist: list(CanonicalCompletion.insertion),
+    )
+    : list((CanonicalCompletion.insertion, CanonicalCompletion.insertion)) => {
+  /* INLINE-PERSIST TRIAL (obligation-display design): forced
+     obligations — delimiter closers and T1 scaffolding commas —
+     stay inline at their TRUE positions when the caret is
+     elsewhere, instead of demoting to chips. Persisted spans are
+     NOT slid to the caret (their position is the point), and the
+     splice_precedes_caret guard doubles as the legality scope: a
+     span at-or-after the caret in reading order can never displace
+     the caret (P2). Witnesses and T2 lookahead stay caret-local —
+     they ride the user's typed token. */
+  let forced =
+    assist
+    |> List.filter((ins: CanonicalCompletion.insertion) =>
+         ins.delimiters
+         |> List.for_all((d: CanonicalCompletion.delimiter_info) =>
+              d.typed_len == None && (d.of_shard != None || d.text == ",")
+            )
+       );
+  /* APPEARANCE TEST (Persist): inlining a span must not displace the
+     caret's display position — fails exactly when the span sits
+     BEFORE the caret ON ITS ROW (pre-caret width). Zero-width
+     borrowed-cell material passes everywhere by construction. */
+  let fails_appearance = (ins: CanonicalCompletion.insertion): bool =>
+    CanonicalCompletion.splice_precedes_caret(z, ins)
+    && !CanonicalCompletion.linebreak_between(z, ins);
+  let (known, held) = persist_state;
+  let (known', held') =
+    switch (inline_persist) {
+    | CoreSettings.Persist =>
+      let failing =
+        forced |> List.filter(fails_appearance) |> List.map(span_key);
+      let keys = List.map(span_key, forced);
+      let held' =
+        persist_edit
+          /* edits: keep holding still-failing holds; test NEW spans */
+          ? List.filter(k => List.mem(k, failing), held)
+            @ List.filter(
+                k => !List.mem(k, known) && !List.mem(k, held),
+                failing,
+              )
+          /* movement: promotion only — held may only shrink */
+          : List.filter(k => List.mem(k, failing), held);
+      (keys, held');
+    | Off
+    | Always => (List.map(span_key, forced), [])
+    };
+  switch (persist_state_out) {
+  | Some(cell) => cell := (known', held')
+  | None => ()
+  };
+  let persisted =
+    inline_persist != CoreSettings.Off
+      ? forced
+        |> List.filter(ins => !List.mem(span_key(ins), held'))
+        /* MOVEMENT PURITY: a span's display form is a property of
+           the span + document, never the caret. Once inline, a span
+           stays inline under ALL movement — including same-row-
+           before-caret; demotion/dispatch happen only at EDIT
+           moments. (The edit that dispatches a pre-caret span
+           contracts text left of the caret AT THAT KEYSTROKE — the
+           accepted P2-at-dispatch trade, pinned in
+           Test_InlinePersist.) Ghost material for closers/commas is
+           single-line, so no span can insert a LINE above the caret
+           (vertical-P2 local minimum holds by construction). */
+        |> List.map(orig => (orig, orig))
+      : [];
   if (armed) {
     /* at most ONE witness ghost per anchor id (stream order wins:
        engine witnesses precede T2) */
@@ -273,15 +435,31 @@ let ghost_selection =
                ? acc : acc @ [ins],
            [],
          );
-    zone
-    |> List.filter_map(orig => {
-         let ins = CanonicalCompletion.slide_to_caret(z, orig);
-         CanonicalCompletion.splice_precedes_caret(z, ins)
-           ? None : Some((orig, ins));
-       });
+    /* GHOSTS DO NOT CROSS LINEBREAKS (P8, andrew 2026-07-24): the
+       same-line hug stays (removing it entirely suppresses every
+       entry-time ghost to a chip — see slide_to_caret); the V3.3
+       linebreak-crossing is retired, it was the "spooky space" seat:
+       one arrow press relocated the ghost to the caret's line and
+       minted a pad there. */
+    let zoned =
+      zone
+      |> List.filter_map(orig => {
+           let ins = CanonicalCompletion.slide_to_caret(z, orig);
+           CanonicalCompletion.splice_precedes_caret(z, ins)
+             ? None : Some((orig, ins));
+         });
+    /* zone wins on overlap: a caret-zone ghost may be slid; the
+       persisted copy of the same insertion is dropped */
+    let extra =
+      persisted
+      |> List.filter(((orig, _)) =>
+           !List.exists(((zo, _)) => zo === orig, zoned)
+         );
+    zoned @ extra;
   } else {
-    [];
+    persisted;
   };
+};
 
 /* splice in DESCENDING (slid ref, original ref) order: each splice
    inserts directly after its ref, so the LAST-spliced lands closest
@@ -351,7 +529,7 @@ let mk_inner =
     TypeObligations.assist_stream(z, ~info_map, obligations)
     |> extend_t2(~info_map, ~armed, z);
   let ghosts =
-    ghost_selection(~armed, z, assist)
+    ghost_selection(~armed, ~inline_persist=CoreSettings.Off, z, assist)
     |> List.filter_map(((orig, ins)) =>
          TypeObligations.ghost_pieces(z, ins)
          |> Option.map(pieces => (orig, ins, pieces))
@@ -377,17 +555,34 @@ let mk_inner =
        impossible all-present-unassembled run. Then the padding
        oracle: F1 spacing around system material, applied LAST so
        nothing can reorder it. */
+    let transparent = (w: Secondary.t) =>
+      (
+        switch (w.content) {
+        | Comment(_) => true
+        | Whitespace(_) => false
+        }
+      )
+      && List.exists(
+           ((mid, msh): (Id.t, option(int))) =>
+             msh == None && Id.equal(mid, w.id),
+           ghost_marks,
+         );
+    let pad_marks = ref([]);
     let segment =
       ghost_marks == []
-        ? segment
+        ? GroutPlace.place(segment)
         : segment
-          |> CanonicalCompletion.normalize_display
+          |> CanonicalCompletion.normalize_display(~transparent)
           |> restore_ghost_holes(~marks=ghost_marks, ~pre=segment)
           |> CanonicalCompletion.finish_display(
                ~marks=ghost_marks,
                ~raw,
-               ~caret_after=CanonicalCompletion.caret_left_atom(z),
+               ~marks_out=Some(pad_marks),
              );
+    let ghost_marks =
+      ghost_marks
+      @ pad_marks^
+      @ inherit_ghost_marks(~marks=ghost_marks, segment);
     if (ghost_marks != [] && !tiles_well_formed(segment)) {
       failwith("DisplayFork: malformed splice");
     };
@@ -405,6 +600,8 @@ let mk_inner =
     caret_witnesses: [],
     assist,
     ghosted: ghost_marks == [] ? [] : List.map(((o, _, _)) => o, ghosts),
+    persist_known: [],
+    persist_held: [],
     parsed,
   };
 };

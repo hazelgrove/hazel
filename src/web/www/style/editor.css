@@ -397,6 +397,33 @@ svg.shard.selected-expanded > path {
 
 /* EMPTY HOLE DECO */
 
+/* THIN X DECORATION (ported from virtual-grout): mirrored caret
+ * chevrons forming an X at a pinched (zero-width) hole boundary.
+ * Out of flow so the full-row-height mark never expands line boxes. */
+.grout-hole {
+  overflow: visible;
+  position: relative;
+  vertical-align: top;
+}
+.grout-hole > .empty-hole,
+.grout-hole > .empty-hole-thin {
+  pointer-events: none;
+}
+.grout-hole > .empty-hole-thin {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+.empty-hole-thin > path {
+  fill: var(--empty-hole-fill);
+  stroke: var(--empty-hole-stroke);
+  stroke-width: 0.75px;
+  stroke-dasharray: 1, 1;
+  stroke-linecap: butt;
+  vector-effect: non-scaling-stroke;
+}
+
 .empty-hole > path {
   fill: var(--empty-hole-fill);
   stroke: var(--empty-hole-stroke);

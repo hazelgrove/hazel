@@ -1023,8 +1023,28 @@ let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
     | p => L(p),
   );
 
+/* under grout-free editing, making reassembled children well-shaped
+   means REMOVING stored grout, not weaving it — holes are derived
+   downstream (GroutPlace) wherever they are needed */
+let rec strip_grout = (seg: t): t =>
+  List.filter_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Grout(_) => None
+      | Tile(t) =>
+        Some(
+          Piece.Tile({
+            ...t,
+            children: List.map(strip_grout, t.children),
+          }),
+        )
+      | p => Some(p)
+      },
+    seg,
+  );
+
 let inner_regrout = (children: list(t)): list(t) =>
-  List.map(regrout((Nib.Shape.concave(), Nib.Shape.concave())), children);
+  List.map(strip_grout, children);
 
 let rec reassemble = (seg: t): t =>
   switch (incomplete_tiles(seg)) {

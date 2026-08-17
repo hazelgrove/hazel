@@ -57,6 +57,10 @@ let (suite, _) =
     @ Test_QuiverLayout.tests
     @ Test_CompletionDisplay.tests
     @ Test_CompletionFuzz.tests
+    @ Test_GroutPlace.tests
+    @ Test_FeltPrint.tests
+    @ Test_InlinePersist.tests
+    @ Test_GroutGeometry.tests
     @ Test_CompletionScoreboard.tests
     @ Test_CompletionVisualization.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]

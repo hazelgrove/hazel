@@ -48,6 +48,12 @@ type t = {
    * that has fresh assist data is the deferred refresh, not the edit
    * frame itself. Movement never arms: activation stays edit-only. */
   ghost_armed: bool,
+  /* persist-ratchet state carried across frames (Persist mode) */
+  persist_known: list(string),
+  persist_held: list(string),
+  /* the inline_persist flag this cache was built under — a flip
+     forces a re-fork so the toggle takes effect immediately */
+  persist_on: Language.CoreSettings.persist_mode,
   /* THE assist stream (A1 single source), assembled frame-fresh by
    * PromiseRender.mk from this frame's syntax + statics' type facts.
    * Cached here because it depends only on (erased segment,
@@ -77,6 +83,9 @@ let mk =
       ~elaborated=None,
       ~obligations=None,
       ~armed=false,
+      ~inline_persist=Language.CoreSettings.Off,
+      ~persist_state=([], []),
+      ~persist_edit=false,
       z,
     )
     : t => {
@@ -87,7 +96,15 @@ let mk =
   let fork =
     switch (obligations) {
     | Some(obligations) =>
-      PromiseRender.mk(~info_map, ~obligations, ~armed, z)
+      PromiseRender.mk(
+        ~info_map,
+        ~obligations,
+        ~armed,
+        ~inline_persist,
+        ~persist_state,
+        ~persist_edit,
+        z,
+      )
     | None => DisplayFork.plain(z)
     };
   let DisplayFork.{
@@ -97,6 +114,8 @@ let mk =
     caret_witnesses,
     assist,
     ghosted,
+    persist_known: fork_known,
+    persist_held: fork_held,
     parsed,
   } = fork;
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} = parsed;
@@ -130,6 +149,9 @@ let mk =
     typed_lens,
     caret_witnesses,
     ghost_armed: false,
+    persist_known: fork_known,
+    persist_held: fork_held,
+    persist_on: inline_persist,
     assist,
     ghosted,
   };
@@ -216,10 +238,22 @@ let calculate =
       ~elaborated=None,
       ~obligations=None,
       ~armed=false,
+      ~inline_persist=Language.CoreSettings.Off,
+      ~persist_edit=false,
       old: t,
     ) =>
   if (old.old) {
-    mk(z, ~info_map, ~dyn_map, ~elaborated, ~obligations, ~armed);
+    mk(
+      z,
+      ~info_map,
+      ~dyn_map,
+      ~elaborated,
+      ~obligations,
+      ~armed,
+      ~inline_persist,
+      ~persist_state=(old.persist_known, old.persist_held),
+      ~persist_edit,
+    );
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)) {

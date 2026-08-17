@@ -113,8 +113,11 @@ let view =
     ) => {
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
 
-  let g_convex = EmptyHoleDec.view(font_metrics, Convex);
-  let g_concave = EmptyHoleDec.view(font_metrics, Concave);
+  let g_hole = (shape: Grout.shape, cell: EmptyHoleDec.cell) =>
+    switch (cell) {
+    | Thin => EmptyHoleDec.view_thin(font_metrics)
+    | _ => EmptyHoleDec.view((font_metrics, shape, cell))
+    };
 
   /* Node.t's None/Some shadow option's, so match structurally */
   let ghost_mark = (id: Id.t, shard: option(int)): bool =>
@@ -124,12 +127,9 @@ let view =
       ghost_marks,
     );
 
-  let of_grout = (g: Grout.t): t => {
-    let hole =
-      switch (g.shape) {
-      | Convex => g_convex
-      | Concave => g_concave
-      };
+  let of_grout = (~cell: EmptyHoleDec.cell, g: Grout.t): t => {
+    /* the wrapper anchors the out-of-flow thin X (position:relative) */
+    let hole = span_c("grout-hole", [g_hole(g.shape, cell)]);
     ghost_mark(g.id, Option.none)
       ? span_c("in-parsed-buffer", [hole]) : hole;
   };
@@ -192,12 +192,22 @@ let view =
 
   let measure_of = p => Measured.find_p(~msg="Text", p, measured);
 
+  /* ONE-HOME cell assignment (GroutCells): the DOM flow mirrors
+     Measured's width transfer — a backed hole owns a real cell, its
+     consumed space renders as nothing, a pinch is zero-width. */
+  let grout_cells = GroutCells.classify(segment);
   let of_secondary = (secondary: Secondary.t) =>
     switch (secondary.content) {
     | Whitespace(str) when str == Token.linebreak =>
       let indent = measure_of(Secondary(secondary)).last.col;
       let token = whitespace_token(DeferredLinebreaks.of_secondary(), indent);
       Node.text(lb_icon ++ token);
+    | Whitespace(str)
+        when
+          str == Token.space
+          && GroutCells.is_consumed(grout_cells, secondary.id) =>
+      /* the adjacent hole owns this cell */
+      Node.span([])
     | Whitespace(str) when str == Token.space => Node.text(ws_icon)
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
     /* a ghost-marked comment is a witness-remainder ghost (spliced
@@ -226,25 +236,36 @@ let view =
   };
 
   let rec of_segment = (seg: Segment.t): list(Node.t) =>
-    List.concat_map(
-      fun
-      | Piece.Tile(t) => {
-          let _ =
-            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-            | Some(_) =>
-              DeferredLinebreaks.update(2) |> ignore;
-              ();
-            | None => ()
-            };
-          Aba.mk(t.shards, t.children)
-          |> Aba.join(i => [of_delim(t, i)], of_segment)
-          |> List.concat;
-        }
-      | Grout(g) => [of_grout(g)]
-      | Secondary(s) => [of_secondary(s)]
-      | Projector(pr) => [of_projector(pr)],
-      seg,
-    );
+    seg
+    |> List.concat_map((p: Piece.t) =>
+         switch (p) {
+         | Piece.Tile(t) =>
+           let _ =
+             switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+             | Some(_) =>
+               DeferredLinebreaks.update(2) |> ignore;
+               ();
+             | None => ()
+             };
+           Aba.mk(t.shards, t.children)
+           |> Aba.join(i => [of_delim(t, i)], of_segment)
+           |> List.concat;
+         | Grout(g) =>
+           /* a backed hole (its space consumed, or the line-end free
+              cell) owns its own box in flow; only a pinch straddles
+              zero-width */
+           let cell: EmptyHoleDec.cell =
+             switch (GroutCells.cls_of(grout_cells, g.id)) {
+             | Some(Pinch) => Thin
+             | Some(NextSpace | PrevSpace | LineEndFree) => Boxed
+             | Some(LineEndPadded) => BoxedPad
+             | None => Thin
+             };
+           [of_grout(~cell, g)];
+         | Secondary(s) => [of_secondary(s)]
+         | Projector(pr) => [of_projector(pr)]
+         }
+       );
 
   /* Trailing filler: a text layer ending in a linebreak gets no
      final line box from HTML, so an empty last line left the editor

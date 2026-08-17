@@ -30,7 +30,7 @@ let string_testable = testable(Fmt.string, String.equal);
    re-typed program mints fresh ids and every id-keyed merge silently
    misses. */
 let display_parts =
-    (z: Zipper.t)
+    (~inline_persist: CoreSettings.persist_mode=Off, ~armed=true, z: Zipper.t)
     : (
         Segment.t,
         Zipper.t,
@@ -44,7 +44,8 @@ let display_parts =
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let obligations = TypeObligations.derive(info_map);
-  let fork = PromiseRender.mk(~info_map, ~obligations, ~armed=true, z);
+  let fork =
+    PromiseRender.mk(~info_map, ~obligations, ~armed, ~inline_persist, z);
   (
     fork.segment,
     z,
@@ -159,6 +160,12 @@ let display_state_of =
              )
           |> List.concat;
         | Grout(g) => [
+            /* holes render UN-tinted even in ghost zones (the
+               andrew-approved look: the hole you're about to fill
+               reads plain; ghost tint covers tokens). The old pins'
+               hole-inside-span look for owed commas was marker-shift
+               arithmetic, not marks truth. OPEN STYLING QUESTION
+               (docketed): should owed holes tint? */
             (is_marked(g.id, None), false, Measured.find_g(g, measured)),
           ]
         | Secondary(w) => [
@@ -187,23 +194,111 @@ let display_state_of =
     List.rev(Option.to_list(open_) @ closed);
   };
   let caret = DisplayCaret.point(~caret_witnesses, measured, zc);
+  /* measured-faithful text (width transfer): consumed spaces are
+     omitted so printed columns match measured columns, except one
+     printed ?/~ char per zero-width Pinch hole — markers shift by
+     the pinch count on their row (strictly-before for caret/
+     run-opens, inclusive for run-ends) */
+  let cells = GroutCells.classify(seg);
   let text =
     Printer.of_segment(
       ~holes="?",
       ~concave_holes="~",
-      ~indent=" ",
+      ~indent="",
       ~measured,
-      seg,
+      GroutCells.drop_consumed_spaces(seg),
     );
+  let grout_positions: list((Id.t, int, int)) = {
+    let rec go = (sg: Segment.t) =>
+      List.concat_map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Grout(g) =>
+            switch (Measured.find_g(g, measured)) {
+            | m => [(g.id, m.origin.row, m.origin.col)]
+            | exception _ => []
+            }
+          | Tile(t) => List.concat_map(go, t.children)
+          | _ => []
+          },
+        sg,
+      );
+    go(seg);
+  };
+  let hole_shift = (~incl: bool, p: Util.Point.t): Util.Point.t => {
+    ...p,
+    col:
+      p.col
+      + GroutCells.pinch_shift(
+          cells,
+          ~grout_positions,
+          ~incl,
+          ~row=p.row,
+          ~col=p.col,
+        ),
+  };
   /* insert markers back-to-front so points stay valid; at a shared
      point later inserts land left, so descending priority yields
      ⟫¦ at a run end and ¦⟪ at a run start */
+  /* witness sub-token remainders (typed_lens) render as ghost runs
+     too: the typed prefix is user text, the remainder is system —
+     the fuzzer's pre-caret compare excises ⟪⟫ spans, so remainders
+     must be inside spans */
+  let witness_runs: list((Util.Point.t, Util.Point.t)) =
+    typed_lens
+    |> List.filter_map((((tid, i), n)) => {
+         let rec find_tile = (sg: Segment.t): option(Tile.t) =>
+           List.fold_left(
+             (acc, p: Piece.t) =>
+               switch (acc, p) {
+               | (Some(_), _) => acc
+               | (None, Tile(t)) =>
+                 Id.equal(t.id, tid)
+                   ? Some(t)
+                   : List.fold_left(
+                       (a, c) => a == None ? find_tile(c) : a,
+                       None,
+                       t.children,
+                     )
+               | (None, _) => None
+               },
+             None,
+             sg,
+           );
+         switch (find_tile(seg)) {
+         | None => None
+         | Some(t) =>
+           switch (
+             Measured.find_shards(t, measured)
+             |> List.find_opt(((j, _)) => j == i)
+           ) {
+           | None => None
+           | Some((_, m)) =>
+             let o: Util.Point.t = {
+               ...m.origin,
+               col: m.origin.col + n,
+             };
+             Util.Point.compare(o, m.last) < 0 ? Some((o, m.last)) : None;
+           }
+         };
+       });
+  /* a witness remainder already inside a splice run must not nest a
+     second span */
+  let covered = ((o, l): (Util.Point.t, Util.Point.t)): bool =>
+    runs
+    |> List.exists(((o', l'): (Util.Point.t, Util.Point.t)) =>
+         Util.Point.compare(o', o) <= 0 && Util.Point.compare(l, l') <= 0
+       );
+  let witness_runs = witness_runs |> List.filter(r => !covered(r));
   let mark_list =
-    [(caret, 1, "¦")]
+    [(hole_shift(~incl=false, caret), 1, "¦")]
     @ List.concat_map(
         ((o, l): (Util.Point.t, Util.Point.t)) =>
-          [(o, 2, "⟪"), (l, 0, "⟫")],
-        runs,
+          [
+            (hole_shift(~incl=false, o), 2, "⟪"),
+            (hole_shift(~incl=true, l), 0, "⟫"),
+          ],
+        runs @ witness_runs,
       );
   let disp =
     mark_list
@@ -231,6 +326,22 @@ let display_state_of =
 
 let display_state = (~chips=true, z: Zipper.t): string =>
   display_state_of(~parts=display_parts, ~chips, z);
+
+/* STEADY-STATE renders (armed=false): what movement actually shows
+   live — the V2.1 rule disarms on any action, so pure-motion frames
+   have no caret-zone material, only persisted spans + chips. */
+let display_state_settled = (~chips=true, z: Zipper.t): string =>
+  display_state_of(~parts=display_parts(~armed=false), ~chips, z);
+let display_state_settled_persist = (~chips=true, z: Zipper.t): string =>
+  display_state_of(
+    ~parts=display_parts(~inline_persist=Persist, ~armed=false),
+    ~chips,
+    z,
+  );
+
+/* the INLINE-PERSIST trial: same renderer, persist flag on */
+let display_state_persist = (~chips=true, z: Zipper.t): string =>
+  display_state_of(~parts=display_parts(~inline_persist=Persist), ~chips, z);
 
 /* live-cadence render: statics from `lag` keystrokes back (0 =
    settled/reified), display from the current zipper */
@@ -492,7 +603,92 @@ let parity_case_z = (name: string, ~waiver="", mk_z: unit => Zipper.t) =>
     },
   );
 
+/* JOINED-STEP RE-PIN RECORD (2026-07-21): the grout-free edit state
+   moved three judged classes through this corpus, tokens and caret
+   byte-identical in every pin (auto-verified at re-pin time):
+   1. derived holes are SYSTEM material — they render inside ghost
+      zones (`(¦⟪?, ...` not `(¦?⟪, ...`);
+   2. junction holes sit at the owner's line end / policy positions
+      (raw-vs-display's caret-jump probe HEALED: raw and display
+      pre-caret now agree);
+   3. within-run hole positions follow the placement policy.
+   One real bug fixed en route: multi-delimiter insertions with an
+   embedded witness projected the full shard beside the typed prefix
+   (`= ? =>`); they now degrade to the remainder-ghost channel. */
+/* ACCEPTANCE EQUATION (P4/P16): Tab slices the promise, so the
+   display text is BYTE-IDENTICAL before and after every accept step
+   (markers and caret aside) — and the final buffer holds the pasted
+   spacing as real spaces. */
+let strip_markers = (s: string): string =>
+  s
+  |> Str.global_replace(Str.regexp_string("\xc2\xa6"), "")
+  |> Str.global_replace(Str.regexp_string("\xe2\x9f\xaa"), "")
+  |> Str.global_replace(Str.regexp_string("\xe2\x9f\xab"), "");
+
+let acceptance_equation_tests = [
+  test_case(
+    "tab slices the promise: two-ary application",
+    `Quick,
+    () => {
+      let z0 =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.mk("let foo = fun(x, y) -> x + y in foo(\xc2\xa6"),
+        );
+      let rec steps = (z: Zipper.t, n: int, log: list(string)) =>
+        if (n == 0) {
+          (z, List.rev(log));
+        } else {
+          let (seg, _, marks, _, _, assist, _) = display_parts(z);
+          switch (CanonicalCompletion.tab_chip(z, assist)) {
+          | None => (z, List.rev(log))
+          | Some(ins) =>
+            switch (
+              CanonicalCompletion.tab_text(~display=seg, ~marks, z, ins)
+            ) {
+            | None => (z, List.rev(log))
+            | Some(text) =>
+              let before = strip_markers(display_state(~chips=false, z));
+              let z = Test_Editing.perform(z, [Action.Paste(text)]);
+              let after = strip_markers(display_state(~chips=false, z));
+              steps(
+                z,
+                n - 1,
+                [
+                  Printf.sprintf(
+                    "paste %s: %s",
+                    String.escaped(text),
+                    before == after ? "constant" : before ++ " -> " ++ after,
+                  ),
+                  ...log,
+                ],
+              );
+            }
+          };
+        };
+      let (zf, log) = steps(z0, 4, []);
+      /* JUDGED (andrew digest 2026-07-28): the mid-span accept is
+         byte-constant; the SPAN-ENDING accept relaxes hole rendering
+         from span form to resting form (backed cell -> borrowed cell /
+         pinch) — the zone doctrine, not a spacing bug. The pasted
+         formatting spaces persist in the buffer (flagged choice). */
+      check(
+        string_testable,
+        "per-step display constancy + final buffer",
+        "paste , : constant\n"
+        ++ "paste ): let foo = fun(x, y) -> x + y in foo(?, ?)"
+        ++ " -> let foo = fun(x, y) -> x + y in foo(?,?)\n"
+        ++ "||| buffer: let foo = fun(x, y) -> x + y in foo(, )",
+        String.concat("\n", log)
+        ++ "\n||| buffer: "
+        ++ Printer.of_zipper(~holes="?", ~concave_holes="~", zf),
+      );
+    },
+  ),
+];
+
 let tests = [
+  ("CompletionDisplay: acceptance-equation", acceptance_equation_tests),
   (
     "CompletionDisplay: target-0",
     [
@@ -520,11 +716,11 @@ string_replac¦⟪e⟫   CHIPS[]
 string_replace¦   CHIPS[]
 string_replace(¦?⟪, ?, ?)⟫   CHIPS[]
 string_replace(a¦⟪, ?, ?)⟫   CHIPS[]
-string_replace(a,¦ ?⟪, ?)⟫   CHIPS[]
-string_replace(a, ¦?⟪, ?)⟫   CHIPS[]
+string_replace(a,¦⟪ ⟫?⟪, ?)⟫   CHIPS[]
+string_replace(a, ⟫¦⟪?⟪, ?)⟫   CHIPS[]
 string_replace(a, b¦⟪, ?)⟫   CHIPS[]
-string_replace(a, b,¦ ?⟪)⟫   CHIPS[]
-string_replace(a, b, ¦?⟪)⟫   CHIPS[]
+string_replace(a, b,¦⟪ ⟫?⟪)⟫   CHIPS[]
+string_replace(a, b, ⟫¦⟪?⟪)⟫   CHIPS[]
 string_replace(a, b, c¦⟪)⟫   CHIPS[]
 string_replace(a, b, c)¦   CHIPS[]|},
           trajectory("string_replace(a, b, c)"),
@@ -541,10 +737,10 @@ string_replace(a, b, c)¦   CHIPS[]|},
       /* empty parens presume: the full promise from `(` on */
       display_case("string_replace(¦?⟪, ?, ?)⟫"),
       display_case("string_replace(a¦⟪, ?, ?)⟫"),
-      display_case("string_replace(a,¦ ?⟪, ?)⟫"),
-      display_case("string_replace(a, b,¦ ?⟪)⟫"),
+      display_case("string_replace(a,¦⟪ ⟫?⟪, ?)⟫"),
+      display_case("string_replace(a, b,¦⟪ ⟫?⟪)⟫"),
       display_case("string_replace(a, b, c¦⟪)⟫"),
-      display_case("let x = 4 i¦⟪n⟫ ?"),
+      display_case("let x = 4 i¦⟪n ?⟫"),
       /* trailing space: the ghost hugs the caret (slide_to_caret) —
          a closer drawn left of the caret would portray typing
          outside the completed call */
@@ -557,6 +753,31 @@ string_replace(a, b, c)¦   CHIPS[]|},
          `f(?)` promise (JUDGED improvement with the ap-close rule —
          the ghost used to end at the unbalanced `(`) */
       display_case("let x : String = st¦⟪ring_capitalize(?) in ?⟫"),
+      /* P15: the operand hole hugs a prefix operator even as span
+         material — the oracle consults the mold, not the glyph */
+      display_case("let a = !¦?⟪ in ?⟫"),
+      /* P16 SUBSTITUTION RENDERING (andrew's live foo( case): a
+         2-ary application's FIRST hole gets a cell (backing at the
+         hug-hug junction), rendering as the formatted completion
+         with ? at operand slots — not a zero-width pinch glommed
+         to the ghost comma */
+      test_case(
+        "P16: two-ary application entry",
+        `Quick,
+        () => {
+          let z =
+            Test_Editing.perform(
+              Zipper.init(),
+              Test_Editing.mk("let foo = fun(x, y) -> x + y in foo(¦"),
+            );
+          check(
+            string_testable,
+            "foo( first hole has a cell",
+            "let foo = fun(x, y) -> x + y in foo(¦?⟪, ?)⟫",
+            display_state(~chips=false, z),
+          );
+        },
+      ),
     ],
   ),
   (
@@ -576,16 +797,16 @@ string_replace(a, b, c)¦   CHIPS[]|},
           "let-blank",
           {|l¦   CHIPS[]
 le¦⟪t ⟫   CHIPS[]
-let¦ ? ⟪= ? in ?⟫   CHIPS[]
-let ¦? ⟪= ? in ?⟫   CHIPS[]
-let x¦ ⟪= ? in ?⟫   CHIPS[]
+let¦⟪ ⟫?⟪ = ? in ?⟫   CHIPS[]
+let ¦?⟪ = ? in ?⟫   CHIPS[]
+let x¦⟪ = ? in ?⟫   CHIPS[]
 let x ¦⟪= ? in ?⟫   CHIPS[]
-let x =¦ ? ⟪in ?⟫   CHIPS[]
-let x = ¦? ⟪in ?⟫   CHIPS[]
-let x = 1¦ ⟪in ?⟫   CHIPS[]
+let x =¦⟪ ⟫?⟪ in ?⟫   CHIPS[]
+let x = ¦?⟪ in ?⟫   CHIPS[]
+let x = 1¦⟪ in ?⟫   CHIPS[]
 let x = 1 ¦⟪in ?⟫   CHIPS[]
-let x = 1 i¦⟪n⟫ ?   CHIPS[]
-let x = 1 in¦?   CHIPS[]|},
+let x = 1 i¦⟪n ?⟫   CHIPS[]
+let x = 1 in¦ ?   CHIPS[]|},
           trajectory("let x = 1 in"),
         )
       ),
@@ -599,23 +820,23 @@ let x = 1 in¦?   CHIPS[]|},
         check(
           string_testable,
           "let-above",
-          {|l¦~
+          {|l¦ ~
 string_replace(a, b, c)   CHIPS[]
-le¦⟪t ⟫~
+le¦⟪t ⟫ ~
 string_replace(a, b, c)   CHIPS[]
-let¦ ? ⟪= ? in⟫
+let¦⟪ ⟫?⟪ = ? in⟫
 string_replace(a, b, c)   CHIPS[]
-let ¦? ⟪= ? in⟫
+let ¦?⟪ = ? in⟫
 string_replace(a, b, c)   CHIPS[]
-let x¦ ⟪= ? in⟫
+let x¦⟪ = ? in⟫
 string_replace(a, b, c)   CHIPS[]
 let x ¦⟪= ? in⟫
 string_replace(a, b, c)   CHIPS[]
-let x =¦ ? ⟪in⟫
+let x =¦⟪ ⟫?⟪ in⟫
 string_replace(a, b, c)   CHIPS[]
-let x = ¦? ⟪in⟫
+let x = ¦?⟪ in⟫
 string_replace(a, b, c)   CHIPS[]
-let x = 1¦ ⟪in⟫
+let x = 1¦⟪ in⟫
 string_replace(a, b, c)   CHIPS[]
 let x = 1 ¦⟪in⟫
 string_replace(a, b, c)   CHIPS[]
@@ -641,12 +862,12 @@ string_replace(a, b, c)   CHIPS[]|},
         check(
           string_testable,
           "let-bk",
-          {|let?  =  i¦ ⟪in ?⟫   CHIPS[]
-let?  =  ¦? ⟪in ?⟫   CHIPS[]
-let?  = ¦? ⟪in ?⟫   CHIPS[]
-let?  =¦ ? ⟪in ?⟫   CHIPS[]
-let  ¦? ⟪= ? in ?⟫   CHIPS[]
-let ¦? ⟪= ? in ?⟫   CHIPS[]|},
+          {|let ?=  i¦⟪ in ?⟫   CHIPS[]
+let ?= ?¦⟪ in ?⟫   CHIPS[]
+let ?= ¦?⟪ in ?⟫   CHIPS[]
+let ?=¦⟪ ⟫?⟪ in ?⟫   CHIPS[]
+let ?¦⟪ = ? in ?⟫   CHIPS[]
+let ¦?⟪ = ? in ?⟫   CHIPS[]|},
           trajectory_bk(~ctx="let  =  in¦", 6),
         )
       ),
@@ -694,18 +915,18 @@ let a = string_replace(x¦⟪, ?, ?)⟫ in a + 1   CHIPS[]|},
           {|c¦   CHIPS[]
 ca¦⟪se ⟫   CHIPS[]
 cas¦⟪e ⟫   CHIPS[]
-case¦ ? ⟪end⟫   CHIPS[]
-case ¦? ⟪end⟫   CHIPS[]
-case 1¦ ⟪end⟫   CHIPS[]
+case¦⟪ ⟫?⟪ end⟫   CHIPS[]
+case ¦?⟪ end⟫   CHIPS[]
+case 1¦⟪ end⟫   CHIPS[]
 case 1 ¦⟪end⟫   CHIPS[]
-case 1 |¦ ? ⟪=> ? end⟫   CHIPS[]
-case 1 | ¦? ⟪=> ? end⟫   CHIPS[]
-case 1 | 2¦ ⟪=> ? end⟫   CHIPS[]
+case 1 |¦⟪ ⟫?⟪ => ? end⟫   CHIPS[]
+case 1 | ¦?⟪ => ? end⟫   CHIPS[]
+case 1 | 2¦⟪ => ? end⟫   CHIPS[]
 case 1 | 2 ¦⟪=> ? end⟫   CHIPS[]
-case 1 | 2 =¦⟪>⟫ ? ⟪end⟫   CHIPS[]
-case 1 | 2 =>¦ ? ⟪end⟫   CHIPS[]
-case 1 | 2 => ¦? ⟪end⟫   CHIPS[]
-case 1 | 2 => 3¦ ⟪end⟫   CHIPS[]|},
+case 1 | 2 =¦⟪> ⟫?⟪ end⟫   CHIPS[]
+case 1 | 2 =>¦⟪ ⟫?⟪ end⟫   CHIPS[]
+case 1 | 2 => ¦?⟪ end⟫   CHIPS[]
+case 1 | 2 => 3¦⟪ end⟫   CHIPS[]|},
           trajectory("case 1 | 2 => 3"),
         )
       ),
@@ -714,11 +935,11 @@ case 1 | 2 => 3¦ ⟪end⟫   CHIPS[]|},
           string_testable,
           "if-entry",
           {|i¦   CHIPS[]
-if¦ ? ⟪then ? else ?⟫   CHIPS[]
-if ¦? ⟪then ? else ?⟫   CHIPS[]
-if 1¦ ⟪then ? else ?⟫   CHIPS[]
+if¦⟪ ⟫?⟪ then ? else ?⟫   CHIPS[]
+if ¦?⟪ then ? else ?⟫   CHIPS[]
+if 1¦⟪ then ? else ?⟫   CHIPS[]
 if 1 ¦⟪then ? else ?⟫   CHIPS[]
-if 1 <¦ ? ⟪then ? else ?⟫   CHIPS[]|},
+if 1 <¦⟪ ⟫?⟪ then ? else ?⟫   CHIPS[]|},
           trajectory("if 1 <"),
         )
       ),
@@ -742,8 +963,8 @@ let a : (St¦⟪ring) = ? in ?⟫   CHIPS[]|},
           string_testable,
           "break-closer",
           {|let y = string_replace(a, b, c¦⟪)⟫ in y   CHIPS[]
-let y = string_replace(a, b, ¦?⟪)⟫ in y   CHIPS[]
-let y = string_replace(a, b,¦ ?⟪)⟫ in y   CHIPS[]|},
+let y = string_replace(a, b, ⟫¦⟪?⟪)⟫ in y   CHIPS[]
+let y = string_replace(a, b,¦⟪ ⟫?⟪)⟫ in y   CHIPS[]|},
           trajectory_bk(~ctx="let y = string_replace(a, b, c)¦ in y", 3),
         )
       ),
@@ -768,13 +989,13 @@ let y = string_replace(a, b,¦ ?⟪)⟫ in y   CHIPS[]|},
         check(
           string_testable,
           "abandon",
-          {|string_replace(a¦⟪, ?, ?)⟫ ~
+          {|string_replace(a¦⟪, ?, ?) ⟫~
 1 + 1   CHIPS[]
 ---
-string_replace(a~
+string_replace(a ~
 1 + 1¦   CHIPS[,+,+)]
 ---
-string_replace(a~
+string_replace(a ~
 1 + 1 + 2¦   CHIPS[,+,+)]|},
           {
             let z =
@@ -820,11 +1041,11 @@ string_replace(a~
           "fun-entry",
           {|f¦   CHIPS[]
 fu¦⟪n ⟫   CHIPS[]
-fun¦ ? ⟪-> ?⟫   CHIPS[]
-fun ¦? ⟪-> ?⟫   CHIPS[]
-fun x¦ ⟪-> ?⟫   CHIPS[]
+fun¦⟪ ⟫?⟪ -> ?⟫   CHIPS[]
+fun ¦?⟪ -> ?⟫   CHIPS[]
+fun x¦⟪ -> ?⟫   CHIPS[]
 fun x ¦⟪-> ?⟫   CHIPS[]
-fun x -¦⟪>⟫ ?   CHIPS[]|},
+fun x -¦⟪> ?⟫   CHIPS[]|},
           trajectory("fun x -"),
         )
       ),
@@ -834,8 +1055,8 @@ fun x -¦⟪>⟫ ?   CHIPS[]|},
           "list-entry",
           {|[¦?⟪]⟫   CHIPS[]
 [1¦⟪]⟫   CHIPS[]
-[1,¦ ?⟪]⟫   CHIPS[]
-[1, ¦?⟪]⟫   CHIPS[]
+[1,¦⟪ ⟫?⟪]⟫   CHIPS[]
+[1, ⟫¦⟪?⟪]⟫   CHIPS[]
 [1, 2¦⟪]⟫   CHIPS[]|},
           trajectory("[1, 2"),
         )
@@ -904,7 +1125,7 @@ let s = string_replace(string_capitalize(x¦⟪), ?, ?)⟫ in s   CHIPS[]|},
         check(
           string_testable,
           "lookahead-cons",
-          {|let l : [Int] = s¦ ⟪in ?⟫   CHIPS[]
+          {|let l : [Int] = s¦⟪ in ?⟫   CHIPS[]
 let l : [Int] = st¦⟪ring_length(?):: in ?⟫   CHIPS[]|},
           trajectory_in(~ctx="let l : [Int] = ¦", "st"),
         )
@@ -916,7 +1137,7 @@ let l : [Int] = st¦⟪ring_length(?):: in ?⟫   CHIPS[]|},
           string_testable,
           "break-inner",
           {|let y = (1 + 2¦⟪)⟫ in y   CHIPS[]
-let y = (1 + ¦?⟪)⟫ in y   CHIPS[]|},
+let y = (1 + ⟫¦⟪?⟪)⟫ in y   CHIPS[]|},
           trajectory_bk(~ctx="let y = (1 + 2)¦ in y", 2),
         )
       ),
@@ -934,32 +1155,34 @@ let y = (1 + ¦?⟪)⟫ in y   CHIPS[]|},
           string_testable,
           "mg1",
           /* last line: end AND in both ghost at the caret, quiver
-             empty (was CHIPS[end]). The `⟪  end` doubled space is
-             the pre-existing indentation-seam pad jank, tracked in
-             the padding-oracle notes. JUDGED improvement, lines 3-4:
-             `case in` single-spaced — a trailing-space remainder is
-             self-separated, no extra pad. */
+             empty (was CHIPS[end]). RE-JUDGED 2026-07-22 under
+             measured-faithful rendering: phantom doubled indent
+             (add_indent prefix over stored spaces) is gone — rows
+             sit at stored-space columns; typed chars precede the
+             caret at true columns with the witness remainder inside
+             the span (ca¦⟪se …⟫); the old `⟪  in⟫` doubled-space
+             seam healed with it. */
           {|let f(b : Bool) =
-  ¦  ⟪? in⟫ ?   CHIPS[]
+  ¦?   CHIPS[in]
 let f(b : Bool) =
-   ¦ ⟪c in⟫ ?   CHIPS[]
+  c¦⟪ in ?⟫   CHIPS[]
 let f(b : Bool) =
-    ¦⟪case in⟫ ?   CHIPS[]
+  ca¦⟪se in ?⟫   CHIPS[]
 let f(b : Bool) =
-    c¦⟪ase in⟫ ?   CHIPS[]
+  cas¦⟪e in ?⟫   CHIPS[]
 let f(b : Bool) =
-    ca¦se ⟪? end in⟫ ?   CHIPS[]
+  case¦⟪ ⟫?⟪ end in ?⟫   CHIPS[]
 let f(b : Bool) =
-    cas¦e ⟪? end in⟫ ?   CHIPS[]
+  case ¦?⟪ end in ?⟫   CHIPS[]
 let f(b : Bool) =
-    case¦ ⟪b end in⟫ ?   CHIPS[]
+  case b¦⟪ end in ?⟫   CHIPS[]
 let f(b : Bool) =
-    case ¦b⟪a end in⟫ ?   CHIPS[]
+  case ba¦⟪ end in ?⟫   CHIPS[]
 let f(b : Bool) =
-    case b¦a⟪r end in⟫ ?   CHIPS[]
+  case bar¦⟪ end in ?⟫   CHIPS[]
 let f(b : Bool) =
-    case bar
-  ¦⟪  end in⟫ ?   CHIPS[]|},
+  case bar
+  ¦⟪in ?⟫   CHIPS[end]|},
           trajectory_in(~ctx="let f(b : Bool) =¦", "\ncase bar\n"),
         )
       ),
@@ -976,42 +1199,43 @@ let f(b : Bool) =
           /* the space keystroke is TEXT-CONSTANT: the typed space
              splits the merged =>+end+in run, both halves slide to
              the caret, and the same-slid-ref tie resolves by
-             ORIGINAL material order (=> before end in). The en⟫d
-             bracket offset is a harness marker-rendering artifact
-             on multiline states (live styles by id, not string
-             position). */
+             ORIGINAL material order. RE-JUDGED 2026-07-22 under
+             measured-faithful rendering: the en⟫d bracket-offset
+             artifact (span marks landing mid-token on multiline
+             states) is HEALED — spans sit at honest columns; the
+             phantom doubled indent on continuation rows is gone. */
           {|let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-   ¦⟪   end i⟫n ?   CHIPS[]
+      case foo
+      | 1 => bar
+   ¦⟪end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-    ¦⟪    end ⟫in ?   CHIPS[]
+      case foo
+      | 1 => bar
+    ¦⟪end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-     ¦⟪     end⟫ in ?   CHIPS[]
+      case foo
+      | 1 => bar
+     ¦⟪end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-      ¦⟪      en⟫d in ?   CHIPS[]
+      case foo
+      | 1 => bar
+      ¦⟪end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-       ¦   ⟪  | ? => ? en⟫d in ?   CHIPS[]
+      case foo
+      | 1 => bar
+      |¦⟪ ⟫?⟪ => ? end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-        ¦  ⟪  | ? => ? en⟫d in ?   CHIPS[]
+      case foo
+      | 1 => bar
+      | ¦?⟪ => ? end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-         ¦ ⟪  | _ => ? en⟫d in ?   CHIPS[]
+      case foo
+      | 1 => bar
+      | _¦⟪ => ? end in ?⟫   CHIPS[]
 let new_fun(foo: Int, bar: Bool) =
-            case foo
-            | 1 => bar
-          ¦⟪  | _ => ? en⟫d in ?   CHIPS[]|},
+      case foo
+      | 1 => bar
+      | _ ¦⟪=> ? end in ?⟫   CHIPS[]|},
           trajectory_in(
             ~ctx=
               "let new_fun(foo: Int, bar: Bool) =\n    case foo\n    | 1 => bar\n¦",
@@ -1035,7 +1259,7 @@ let new_fun(foo: Int, bar: Bool) =
         check(
           string_testable,
           "p1",
-          {|let a = 1 i¦⟪n⟫ ?   CHIPS[]|},
+          {|let a = 1 i¦⟪n ?⟫   CHIPS[]|},
           trajectory_in(~ctx="let a = 1 ¦", "i"),
         )
       ),
@@ -1043,7 +1267,7 @@ let new_fun(foo: Int, bar: Bool) =
         check(
           string_testable,
           "p2",
-          {|if t¦ ⟪then ? else ?⟫   CHIPS[]
+          {|if t¦⟪ then ? else ?⟫   CHIPS[]
 if tr¦⟪ue then ? else ?⟫   CHIPS[]|},
           trajectory_in(~ctx="if ¦", "tr"),
         )
@@ -1052,7 +1276,7 @@ if tr¦⟪ue then ? else ?⟫   CHIPS[]|},
         check(
           string_testable,
           "p3",
-          {|if true t¦⟪hen⟫ ? ⟪else ?⟫   CHIPS[]|},
+          {|if true t¦⟪hen ⟫?⟪ else ?⟫   CHIPS[]|},
           trajectory_in(~ctx="if true ¦", "t"),
         )
       ),
@@ -1075,15 +1299,12 @@ if tr¦⟪ue then ? else ?⟫   CHIPS[]|},
             let measured =
               Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
             let caret = Zipper.Caret.point(measured, z);
-            Printer.of_segment(
-              ~holes="?",
-              ~concave_holes="~",
-              ~indent=" ",
-              ~measured,
-              seg,
-            )
+            FeltPrint.measured_print(~measured, seg)
             |> String.split_on_char('\n')
-            |> Printer.insert_string("¦", caret)
+            |> Printer.insert_string(
+                 "¦",
+                 FeltPrint.measured_caret(~measured, seg, caret),
+               )
             |> String.concat("\n");
           };
           let disp = (code: string): string => {
@@ -1097,8 +1318,8 @@ if tr¦⟪ue then ? else ?⟫   CHIPS[]|},
             /* FIXED: minted display grout hops after typed spaces
                (finish_display reorder) — the rendered caret matches
                the zipper; the display only ADDS material right of it */
-            {|raw[let ]: let ¦?
-disp[let ]: let ¦? ⟪= ? in ?⟫
+            {|raw[let ]: let ¦
+disp[let ]: let ¦?⟪ = ? in ?⟫
 raw[let x ]: let x ¦
 disp[let x ]: let x ¦⟪= ? in ?⟫
 raw[above]: let ¦
@@ -1125,15 +1346,12 @@ string_replace(a, b, c)|},
               let measured =
                 Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
               let caret = Zipper.Caret.point(measured, z);
-              Printer.of_segment(
-                ~holes="?",
-                ~concave_holes="~",
-                ~indent=" ",
-                ~measured,
-                seg,
-              )
+              FeltPrint.measured_print(~measured, seg)
               |> String.split_on_char('\n')
-              |> Printer.insert_string("¦", caret)
+              |> Printer.insert_string(
+                   "¦",
+                   FeltPrint.measured_caret(~measured, seg, caret),
+                 )
               |> String.concat("\n");
             },
           );
@@ -1167,7 +1385,7 @@ string_replace(a, b, c)|},
           check(
             string_testable,
             "no crash",
-            "let¦ ? ⟪= ? in⟫\n\nstring_replace(\"\")   CHIPS[,+,]",
+            "let¦⟪ ⟫?⟪ = ? in⟫\n\nstring_replace(\"\")   CHIPS[,+,]",
             display_state(z),
           );
         },
@@ -1188,13 +1406,13 @@ string_replace(a, b, c)|},
           "fun-case",
           {|f¦   CHIPS[]
 fu¦⟪n ⟫   CHIPS[]
-fun¦ ? ⟪-> ?⟫   CHIPS[]
-fun ¦? ⟪-> ?⟫   CHIPS[]
-fun c¦ ⟪-> ?⟫   CHIPS[]
-fun ca¦ ⟪-> ?⟫   CHIPS[]
-fun cas¦ ⟪-> ?⟫   CHIPS[]
-fun case¦ ? ⟪end⟫   CHIPS[->]
-fun case ¦? ⟪end⟫   CHIPS[->]|},
+fun¦⟪ ⟫?⟪ -> ?⟫   CHIPS[]
+fun ¦?⟪ -> ?⟫   CHIPS[]
+fun c¦⟪ -> ?⟫   CHIPS[]
+fun ca¦⟪ -> ?⟫   CHIPS[]
+fun cas¦⟪ -> ?⟫   CHIPS[]
+fun case¦⟪ ⟫?⟪ end⟫   CHIPS[->]
+fun case ¦?⟪ end⟫   CHIPS[->]|},
           trajectory("fun case "),
         )
       ),
@@ -1204,15 +1422,15 @@ fun case ¦? ⟪end⟫   CHIPS[->]|},
           "let-fun-in",
           {|l¦   CHIPS[]
 le¦⟪t ⟫   CHIPS[]
-let¦ ? ⟪= ? in ?⟫   CHIPS[]
-let ¦? ⟪= ? in ?⟫   CHIPS[]
-let f¦ ⟪= ? in ?⟫   CHIPS[]
-let fu¦ ⟪= ? in ?⟫   CHIPS[]
-let fun¦ ? ⟪-> ? in ?⟫   CHIPS[=]
-let fun ¦? ⟪-> ? in ?⟫   CHIPS[=]
-let fun i¦ ⟪-> ? in ?⟫   CHIPS[=]
-let fun? in¦?   CHIPS[-> | =]
-let fun? in ¦?   CHIPS[-> | =]|},
+let¦⟪ ⟫?⟪ = ? in ?⟫   CHIPS[]
+let ¦?⟪ = ? in ?⟫   CHIPS[]
+let f¦⟪ = ? in ?⟫   CHIPS[]
+let fu¦⟪ = ? in ?⟫   CHIPS[]
+let fun¦⟪ ⟫?⟪ -> ? in ?⟫   CHIPS[=]
+let fun ¦?⟪ -> ? in ?⟫   CHIPS[=]
+let fun i¦⟪ -> ? in ?⟫   CHIPS[=]
+let fun?in¦ ?   CHIPS[-> | =]
+let fun?in ¦?   CHIPS[-> | =]|},
           trajectory("let fun in "),
         )
       ),
@@ -1221,17 +1439,17 @@ let fun? in ¦?   CHIPS[-> | =]|},
           string_testable,
           "if-fun-then",
           {|i¦   CHIPS[]
-if¦ ? ⟪then ? else ?⟫   CHIPS[]
-if ¦? ⟪then ? else ?⟫   CHIPS[]
-if f¦ ⟪then ? else ?⟫   CHIPS[]
-if fu¦ ⟪then ? else ?⟫   CHIPS[]
-if fun¦ ? ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun ¦? ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun t¦ ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun th¦ ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun the¦ ⟪-> ? then ? else ?⟫   CHIPS[]
-if fun? then¦ ? ⟪else ?⟫   CHIPS[->]
-if fun? then ¦? ⟪else ?⟫   CHIPS[->]|},
+if¦⟪ ⟫?⟪ then ? else ?⟫   CHIPS[]
+if ¦?⟪ then ? else ?⟫   CHIPS[]
+if f¦⟪ then ? else ?⟫   CHIPS[]
+if fu¦⟪ then ? else ?⟫   CHIPS[]
+if fun¦⟪ ⟫?⟪ -> ? then ? else ?⟫   CHIPS[]
+if fun ¦?⟪ -> ? then ? else ?⟫   CHIPS[]
+if fun t¦⟪ -> ? then ? else ?⟫   CHIPS[]
+if fun th¦⟪ -> ? then ? else ?⟫   CHIPS[]
+if fun the¦⟪ -> ? then ? else ?⟫   CHIPS[]
+if fun?then¦⟪ ⟫?⟪ else ?⟫   CHIPS[->]
+if fun?then ¦?⟪ else ?⟫   CHIPS[->]|},
           trajectory("if fun then "),
         )
       ),
@@ -1242,15 +1460,15 @@ if fun? then ¦? ⟪else ?⟫   CHIPS[->]|},
           {|c¦   CHIPS[]
 ca¦⟪se ⟫   CHIPS[]
 cas¦⟪e ⟫   CHIPS[]
-case¦ ? ⟪end⟫   CHIPS[]
-case ¦? ⟪end⟫   CHIPS[]
-case f¦ ⟪end⟫   CHIPS[]
+case¦⟪ ⟫?⟪ end⟫   CHIPS[]
+case ¦?⟪ end⟫   CHIPS[]
+case f¦⟪ end⟫   CHIPS[]
 case fu¦⟪n end⟫   CHIPS[]
-case fun¦ ? ⟪-> ? end⟫   CHIPS[]
-case fun ¦? ⟪-> ? end⟫   CHIPS[]
-case fun e¦ ⟪-> ? end⟫   CHIPS[]
-case fun en¦ ⟪-> ? end⟫   CHIPS[]
-case fun? end¦   CHIPS[->]|},
+case fun¦⟪ ⟫?⟪ -> ? end⟫   CHIPS[]
+case fun ¦?⟪ -> ? end⟫   CHIPS[]
+case fun e¦⟪ -> ? end⟫   CHIPS[]
+case fun en¦⟪ -> ? end⟫   CHIPS[]
+case fun?end¦   CHIPS[->]|},
           trajectory("case fun end"),
         )
       ),
@@ -1261,11 +1479,11 @@ case fun? end¦   CHIPS[->]|},
           {|c¦   CHIPS[]
 ca¦⟪se ⟫   CHIPS[]
 cas¦⟪e ⟫   CHIPS[]
-case¦ ? ⟪end⟫   CHIPS[]
-case ¦? ⟪end⟫   CHIPS[]
-case i¦ ⟪end⟫   CHIPS[]
-case if¦ ? ⟪then ? else ? end⟫   CHIPS[]
-case if ¦? ⟪then ? else ? end⟫   CHIPS[]
+case¦⟪ ⟫?⟪ end⟫   CHIPS[]
+case ¦?⟪ end⟫   CHIPS[]
+case i¦⟪ end⟫   CHIPS[]
+case if¦⟪ ⟫?⟪ then ? else ? end⟫   CHIPS[]
+case if ¦?⟪ then ? else ? end⟫   CHIPS[]
 case if |¦   CHIPS[then+else | =>+end]
 case if | ¦   CHIPS[then+else | =>+end]|},
           trajectory("case if | "),
@@ -1413,11 +1631,11 @@ case if | ¦   CHIPS[then+else | =>+end]|},
             string_testable,
             "tab-chunks",
             {|let s = string_replace(st¦ in s   OWED[5]
-let s = string_replace(string_capitalize(¦? in s   OWED[4]
+let s = string_replace(string_capitalize(¦ in s   OWED[4]
 let s = string_replace(string_capitalize()¦ in s   OWED[3]
-let s = string_replace(string_capitalize(), ¦? in s   OWED[2]
-let s = string_replace(string_capitalize(), ?, ¦? in s   OWED[1]
-let s = string_replace(string_capitalize(), ?,? )¦ in s   OWED[0]
+let s = string_replace(string_capitalize(), ¦ in s   OWED[2]
+let s = string_replace(string_capitalize(), , ¦ in s   OWED[1]
+let s = string_replace(string_capitalize(), , )¦ in s   OWED[0]
 NONE|},
             states_of("let s = string_replace(st¦ in s")
             |> audit
@@ -1429,14 +1647,14 @@ NONE|},
             string_testable,
             "tab-chunks-nested2",
             {|let s = string_replace(string_replace(st¦ in s   OWED[8]
-let s = string_replace(string_replace(string_capitalize(¦? in s   OWED[7]
+let s = string_replace(string_replace(string_capitalize(¦ in s   OWED[7]
 let s = string_replace(string_replace(string_capitalize()¦ in s   OWED[6]
-let s = string_replace(string_replace(string_capitalize(), ¦? in s   OWED[5]
-let s = string_replace(string_replace(string_capitalize(), ?, ¦? in s   OWED[4]
-let s = string_replace(string_replace(string_capitalize(), ?,? )¦ in s   OWED[3]
-let s = string_replace(string_replace(string_capitalize(), ?,? ), ¦? in s   OWED[2]
-let s = string_replace(string_replace(string_capitalize(), ?,? ), ?, ¦? in s   OWED[1]
-let s = string_replace(string_replace(string_capitalize(), ?,? ), ?,? )¦ in s   OWED[0]
+let s = string_replace(string_replace(string_capitalize(), ¦ in s   OWED[5]
+let s = string_replace(string_replace(string_capitalize(), , ¦ in s   OWED[4]
+let s = string_replace(string_replace(string_capitalize(), , )¦ in s   OWED[3]
+let s = string_replace(string_replace(string_capitalize(), , ), ¦ in s   OWED[2]
+let s = string_replace(string_replace(string_capitalize(), , ), , ¦ in s   OWED[1]
+let s = string_replace(string_replace(string_capitalize(), , ), , )¦ in s   OWED[0]
 NONE|},
             states_of("let s = string_replace(string_replace(st¦ in s")
             |> audit
@@ -1499,10 +1717,23 @@ NONE|},
   (
     "CompletionDisplay: constancy",
     [
+      /* KNOWN COST OF CENTERED PLACEMENT (2026-07-24, andrew's call —
+         needs his judgment): typing a promised space WIDENS the gap,
+         so the centered hole re-centers and the text after it shifts
+         one cell. Under the old anchor-hugging rule the hole stayed
+         put and constancy held. Pinned as the exact violation text
+         rather than excluded, so the trade stays visible: centering
+         (nicer resting look) vs constancy at the caret (nothing
+         moves when you type what was promised). */
+      /* HEALED 2026-07-27 by the gap-1 placement order (hole after
+         the single space): typing the promised space no longer
+         re-hosts the hole on the caret's near side, so the whole
+         trajectory is constancy-clean — the two pinned violations
+         above this line's history are gone. */
       test_case("string_replace entry types through its promise", `Quick, () =>
         check(
           string_testable,
-          "no constancy violations",
+          "entry constancy (healed: no violations)",
           "",
           constancy_audit("string_replace(a, b, c)"),
         )
@@ -1588,13 +1819,14 @@ NONE|},
       }),
       /* INSPECTOR-ON-GHOST-HOLE (spec step 6): a presumed hole in the
          display carries the SAME id statics analyzed, by construction —
-         the display's artifact = reify(obs, completed) is the very
-         segment CachedStatics reifies before its second pass, and reify
-         mints ids by deterministic Id.next chains. So an inspector or
-         error landing on a ghost hole finds it in the info_map. This
-         test asserts the coincidence directly: build the artifact for a
-         deficient ap, take a reified (presumed) hole's id, run statics
-         on that reified term, and assert the id is present. */
+         the display's artifact = place(reify(obs, completed)) is the
+         very segment CachedStatics splices before its second pass;
+         reify mints commas by deterministic Id.next chains and
+         GroutPlace re-derives every hole with segment-determined ids.
+         So an inspector or error landing on a ghost hole finds it in
+         the info_map. This test asserts the coincidence directly, and
+         in the strong form the wiring makes true: EVERY grout id in
+         the artifact is present in the spliced info_map. */
       test_case(
         "presumed hole id is in the reified info_map",
         `Quick,
@@ -1642,10 +1874,8 @@ NONE|},
             /* run statics on the reified term exactly as CachedStatics'
                second pass does */
             let MakeTerm.{term: rterm, _} =
-              MakeTerm.from_zip_for_sem_spliced(
-                z,
-                ~root=Sort.Exp,
-                ~splice=TypeObligations.reify(frame_obs),
+              MakeTerm.from_zip_for_sem_spliced(z, ~root=Sort.Exp, ~splice=sg =>
+                GroutPlace.place(TypeObligations.reify(frame_obs, sg))
               );
             let (info_map, _) =
               Statics.mk(
@@ -1658,6 +1888,26 @@ NONE|},
               "presumed hole id in reified info_map",
               true,
               Id.Map.mem(hole_id, info_map),
+            );
+            /* the strong form: no artifact hole can miss the map */
+            let rec grout_ids = (sg: Segment.t): list(Id.t) =>
+              List.concat_map(
+                (p: Piece.t) =>
+                  switch (p) {
+                  | Grout(g) => [g.id]
+                  | Tile(t) => List.concat_map(grout_ids, t.children)
+                  | _ => []
+                  },
+                sg,
+              );
+            let missing =
+              grout_ids(art.reified)
+              |> List.filter(id => !Id.Map.mem(id, info_map));
+            check(
+              Alcotest.int,
+              "every artifact grout id in reified info_map",
+              0,
+              List.length(missing),
             );
           };
         },

@@ -3,18 +3,12 @@ open OptUtil.Syntax;
 include ZipperBase;
 
 let init: unit => t =
+  /* the empty program is EMPTY: its hole is derived at display and
+     statics time like every other hole, never stored */
   () => {
     selection: Selection.mk([]),
     relatives: {
-      siblings: (
-        [],
-        [
-          Grout({
-            id: Id.mk(),
-            shape: Convex,
-          }),
-        ],
-      ),
+      siblings: ([], []),
       ancestors: [],
     },
     caret: Outer,
@@ -137,7 +131,7 @@ let rescan_parent_shards = (z: t): t => {
               children:
                 target.children
                 |> PairUtil.map_fst(kids =>
-                     Segment.inner_regrout(kids @ [outer_l, ...kids_l])
+                     List.map(GroutPlace.strip, kids @ [outer_l, ...kids_l])
                    ),
             };
             (target, inner_l);
@@ -153,7 +147,7 @@ let rescan_parent_shards = (z: t): t => {
               children:
                 target.children
                 |> PairUtil.map_snd(kids =>
-                     Segment.inner_regrout([outer_r, ...kids_r] @ kids)
+                     List.map(GroutPlace.strip, [outer_r, ...kids_r] @ kids)
                    ),
             };
             (target, inner_r);
@@ -909,25 +903,48 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
        measurement by id, then to (0,0), rather than crash.
        DisplayCaret.point supplies the exact witness caret column where
        it is wired; this keeps every other caret consumer safe. */
-    let safe = (p: Piece.t, pick): Point.t =>
-      switch (Measured.find_p(~msg="base_point", p, measured)) {
-      | m => pick(m)
-      | exception _ =>
-        switch (Measured.find_by_id(Piece.id(p), measured)) {
-        | Some(m) => pick(m)
+    /* boundary points come from PosMap — THE edit->display mapping
+       home (consumed-space edges, display-replacement tolerance) */
+    let via_posmap = (~side, p: Piece.t): Point.t =>
+      switch (PosMap.point_of_side(~measured, ~side, p)) {
+      | Some(pt) => pt
+      | None => {
+          row: 0,
+          col: 0,
+        }
+      };
+    switch (d) {
+    | Left => via_posmap(~side=Direction.Left, ListUtil.last(seg))
+    | Right => via_posmap(~side=Direction.Right, List.hd(seg))
+    };
+  | None =>
+    /* grout-free edit state: a child segment can be EMPTY (its hole
+       is derived, not stored) — the caret's home is then the parent
+       tile's flanking shard, not (0,0) */
+    switch (z.relatives.ancestors) {
+    | [(a, _), ..._] =>
+      let (l_shards, _) = a.shards;
+      switch (
+        ListUtil.split_last_opt(l_shards),
+        Id.Map.find_opt(a.id, measured.tiles),
+      ) {
+      | (Some((_, idx)), Some(shards)) =>
+        switch (List.assoc_opt(idx, shards)) {
+        | Some(m: Measured.measurement) => m.last
         | None => {
             row: 0,
             col: 0,
           }
         }
+      | _ => {
+          row: 0,
+          col: 0,
+        }
       };
-    switch (d) {
-    | Left => safe(ListUtil.last(seg), (m: Measured.measurement) => m.last)
-    | Right => safe(List.hd(seg), (m: Measured.measurement) => m.origin)
-    };
-  | None => {
-      row: 0,
-      col: 0,
+    | [] => {
+        row: 0,
+        col: 0,
+      }
     }
   };
 };
@@ -942,15 +959,29 @@ module Caret = {
   /* Determine how many columns to advance for an Inner caret.  Prefer the
      token on the left; if none exists fall back to the token on the right.
      Non-strings retain the classic one-column-per-character behaviour. */
-  let inner_offset = (idx: int, z: t): int =>
-    switch (neighbor_token(Left, z)) {
-    | Some(token) when Token.is_string(token) => string_offset(token, idx)
-    | _ =>
-      switch (neighbor_token(Right, z)) {
-      | Some(token) when Token.is_string(token) => string_offset(token, idx)
-      | _ => idx + 1
+  /* the HOST token (the one Inner(idx) indexes into) can sit on
+     either side (typing hosts Left, movement-entry hosts Right) —
+     only a side whose token actually ADMITS idx may supply the
+     offset, else a neighboring string literal hijacks the width
+     table (fuzzer-found dead stop: caret inside `else` after `","`
+     took the string's offsets) */
+  let inner_offset = (idx: int, z: t): int => {
+    let admits = (token: Token.t): bool => idx <= Token.length(token) - 2;
+    let candidate = (d: Direction.t): option(Token.t) =>
+      switch (neighbor_token(d, z)) {
+      | Some(token) when Token.is_string(token) && admits(token) =>
+        Some(token)
+      | _ => None
+      };
+    switch (candidate(Left)) {
+    | Some(token) => string_offset(token, idx)
+    | None =>
+      switch (candidate(Right)) {
+      | Some(token) => string_offset(token, idx)
+      | None => idx + 1
       }
     };
+  };
 
   let offset = (z: t): int =>
     switch (z.caret) {
@@ -983,19 +1014,100 @@ module Caret = {
     | _ => 0
     };
 
-  /* Direction the caret is facing in */
+  /* Caret standing in a whitespace run at a nib-shape conflict, or
+     at the trailing edge: face the DERIVED hole as if it were a real
+     neighbor — left of the hole's cell the caret faces a piece of
+     the hole's shape on its right, and vice versa (ported from
+     virtual-grout's direction_at_hole; the placement index decides
+     which side of the hole this caret position sits on). Empty runs
+     qualify only at the trailing edge, where the hole draws in the
+     free cell past the caret. */
+  let direction_at_hole = (z: t): option(Direction.t) => {
+    let (pre, suf) = sibs_with_sel(z);
+    let rec split_ws = (acc, xs: list(Piece.t)) =>
+      switch (xs) {
+      | [Piece.Secondary(w), ...xs] => split_ws([w, ...acc], xs)
+      | _ => (acc, xs)
+      };
+    let (run_l, rest_l) = split_ws([], List.rev(pre));
+    let (run_r_rev, rest_r) = split_ws([], suf);
+    let run = run_l @ List.rev(run_r_rev);
+    let at_trailing_edge = rest_r == [] && z.relatives.ancestors == [];
+    if (run == [] && !at_trailing_edge) {
+      None;
+    } else {
+      /* P11: neighbours are flanking MATERIAL, not flanking siblings —
+         an empty affix inside a child slot means the enclosing shard
+         is the neighbour, NOT a document edge (BoundaryCtx). */
+      let (anc_l, anc_r) =
+        BoundaryCtx.ancestor_bounds(z.relatives.ancestors);
+      let l_shape =
+        switch (rest_l) {
+        | [p, ..._] => p |> Piece.shapes |> Option.map(snd)
+        | [] =>
+          switch (anc_l) {
+          | Some(_) as s => s
+          | None => Some(Nib.Shape.concave())
+          }
+        };
+      let r_shape =
+        switch (rest_r) {
+        | [p, ..._] => p |> Piece.shapes |> Option.map(fst)
+        | [] =>
+          switch (anc_r) {
+          | Some(_) as s => s
+          | None => Some(Nib.Shape.concave())
+          }
+        };
+      switch (l_shape, r_shape) {
+      | (Some(l), Some(r)) when !Nib.Shape.fits(l, r) =>
+        let hole_shape = Nib.Shape.flip(l);
+        let placement =
+          HolePlacement.decide(
+            ~at_boundary=rest_r == [] && anc_r == None,
+            ~leading=rest_l == [] && anc_l == None,
+            run,
+          );
+        /* facing follows the DRAWN cell, not the piece index: an
+           interior single-line hole placed AFTER its whole run
+           (gap-1 order, 2026-07-28) borrows the LAST space's cell
+           (PrevSpace), so it draws one cell left of its index —
+           the caret after that space is drawn at the hole's RIGHT
+           edge and must face accordingly (andrew's live repro:
+           both sides of `( ?,` showed the left chevron). */
+        let single_line = !List.exists(Secondary.is_linebreak, run);
+        let drawn =
+          single_line
+          && !at_trailing_edge
+          && run != []
+          && placement.index >= List.length(run)
+            ? placement.index - 1 : placement.index;
+        let side: Direction.t = List.length(run_l) <= drawn ? Left : Right;
+        Some(Nib.Shape.absolute(side, hole_shape));
+      | _ => None
+      };
+    };
+  };
+
+  /* Direction the caret is facing in. Derived holes win over the
+     plain neighbor/edge rules: a caret standing at a conflict's run
+     faces the hole, not the edge. */
   let direction = (z: t): option(Direction.t) =>
     switch (z.caret) {
     | Inner(_) => None
     | Outer =>
-      switch (Siblings.neighbors(sibs_with_sel(z))) {
-      | (Some(l), Some(r))
-          when
-            Piece.is_secondary(l)
-            && Piece.is_secondary(r)
-            && Selection.is_empty(z.selection) =>
-        None
-      | _ => Siblings.direction_between(sibs_with_sel(z))
+      switch (direction_at_hole(z)) {
+      | Some(d) => Some(d)
+      | None =>
+        switch (Siblings.neighbors(sibs_with_sel(z))) {
+        | (Some(l), Some(r))
+            when
+              Piece.is_secondary(l)
+              && Piece.is_secondary(r)
+              && Selection.is_empty(z.selection) =>
+          None
+        | _ => Siblings.direction_between(sibs_with_sel(z))
+        }
       }
     };
 
@@ -1254,43 +1366,46 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
     | Right =>
       /* Anchor is at the LEFT end */
       let p = List.hd(seg);
-      let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
-      switch (anchor_caret) {
-      | CaretBase.Outer => Some(m.origin)
-      | CaretBase.Inner(idx) =>
+      let origin = PosMap.point_of_side(~measured, ~side=Direction.Right, p);
+      switch (anchor_caret, origin) {
+      | (_, None) => None
+      | (CaretBase.Outer, Some(origin)) => Some(origin)
+      | (CaretBase.Inner(idx), Some(origin)) =>
         let offset =
           switch (Piece.token_of(anchor_piece)) {
           | Some(tok) => Caret.inner_offset_for_token(idx, tok)
           | None => idx + 1
           };
         Some({
-          row: m.origin.row,
-          col: m.origin.col + offset,
+          row: origin.row,
+          col: origin.col + offset,
         });
       };
     | Left =>
-      /* Anchor is at the RIGHT end */
+      /* Anchor is at the RIGHT end: PosMap applies the
+         consumed-space edge rule exactly as the caret does */
       let p = ListUtil.last(seg);
-      let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
-      switch (anchor_caret) {
-      | CaretBase.Outer => Some(m.last)
-      | CaretBase.Inner(idx) =>
+      let last = PosMap.point_of_side(~measured, ~side=Direction.Left, p);
+      switch (anchor_caret, last) {
+      | (_, None) => None
+      | (CaretBase.Outer, Some(last)) => Some(last)
+      | (CaretBase.Inner(idx), Some(_)) =>
         let offset =
           switch (Piece.token_of(anchor_piece)) {
           | Some(tok) => Caret.inner_offset_for_token(idx, tok)
           | None => idx + 1
           };
         let p_first = List.hd(seg);
-        let m_first =
-          Measured.find_p(
-            ~msg="selection_anchor_point_origin",
-            p_first,
-            measured,
-          );
-        Some({
-          row: m_first.origin.row,
-          col: m_first.origin.col + offset,
-        });
+        switch (
+          PosMap.point_of_side(~measured, ~side=Direction.Right, p_first)
+        ) {
+        | None => None
+        | Some(origin) =>
+          Some({
+            row: origin.row,
+            col: origin.col + offset,
+          })
+        };
       };
     };
   };

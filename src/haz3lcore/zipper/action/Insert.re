@@ -81,7 +81,17 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
 let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
   /* Get the full segment to calculate indentation */
   let seg = Zipper.unselect_and_zip(z);
-  let indent_level = Indentation.level_of(~target_id=linebreak_id, seg);
+  /* The level is what CONTENT TYPED HERE would get: anchor the derived
+     hole at this linebreak (where the caret is) rather than at the
+     blank run's first line, so Indentation.go sees the same structure
+     the user is about to create. Placement's own first-blank-line rule
+     is display policy and unaffected. */
+  let indent_level =
+    Indentation.level_of(
+      ~anchor_lb=linebreak_id,
+      ~target_id=linebreak_id,
+      seg,
+    );
   let spaces = Indentation.make_indent_spaces(indent_level);
   if (spaces == []) {
     z;
@@ -299,20 +309,6 @@ let preserve_grout_id = (char: string, z: t): (Id.t, t) =>
   | _ => (Id.mk(), z)
   };
 
-/* Check if regrout would insert a grout to our left.
- * Returns the grout so we can insert it ourselves and
- * track its ID for later space redemption. */
-let grout_for_suppressed_space = (z: t, ~root): option(Grout.t) =>
-  switch (
-    Siblings.neighbor(
-      Left,
-      remold_regrout(Right, z, ~root).relatives.siblings,
-    )
-  ) {
-  | Some(Grout(g)) => Some(g)
-  | _ => None
-  };
-
 /* This is special-case logic for advancing the caret to between
  * the quotes in newly-created stringlits. This should be done
  * before regrouting to avoid annoying edge cases. */
@@ -346,15 +342,9 @@ let split =
         |> insert_shard(~auto_indent, ~id, ~d=Left, l)
         |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Right, r);
   let z =
-    switch (Token.space == char ? grout_for_suppressed_space(z, ~root) : None) {
-    | Some(g) =>
-      Grout.mark_space_owed(g.id);
-      Zipper.put_down_seg(Left, [Grout(g)], z);
-    | None =>
-      z
-      |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Left, char)
-      |> move_into_string_or_comment(char)
-    };
+    z
+    |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Left, char)
+    |> move_into_string_or_comment(char);
   remold_regrout(Right, z, ~root);
 };
 
@@ -432,11 +422,6 @@ let insert_or_append =
       switch (appendability) {
       | None =>
         let (id, z) = preserve_grout_id(char, z);
-        let z =
-          switch (Grout.redeem_space(id)) {
-          | Some(w) => Zipper.put_down_seg(Left, [Secondary(w)], z)
-          | None => z
-          };
         Some(insert_shard(~auto_indent, ~id, ~d=Left, char, z, ~root));
       | Some((d, t)) => replace_shard(~auto_indent, d, t, z, ~root)
       };
@@ -605,7 +590,11 @@ let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
     | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
       Some(z)
     | (Inner(idx), (_, Some(t))) =>
-      let idx = idx + 1;
+      /* clamp: an Inner index can outlive its token's length across
+         the grout-free reassembly paths (token merges no longer pass
+         through grout stops); inserting past the end means "at the
+         end", never a crash */
+      let idx = min(idx + 1, Token.length(t));
       let new_token = Token.insert_nth(idx, char, t);
       let z = Caret.set(Inner(idx), z);
       Token.is_potential_token(new_token)
