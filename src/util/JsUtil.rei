@@ -8,6 +8,7 @@ let get_child_with_class:
   option(Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element));
 let timestamp: unit => float;
 let precise_timestamp: unit => 'res;
+let print_timestamp: float => string;
 let download_string_file:
   (~filename: string, ~content_type: string, ~contents: string) => unit;
 let download_json: (string, Yojson.Safe.t) => unit;
