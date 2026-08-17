@@ -1,5 +1,15 @@
 # Authoritative CI: the status to require on dev, and what the merge queue will
 # gate on (issue #2203). Branch previews are deploy.yml's job, not this one.
+#
+# The full suite lives here and runs on every trigger. The static gates (fmt,
+# release build, warnings) are *also* here, but guarded to `merge_group || fork`
+# -- the two cases a `push` event cannot reach, and so the only cases deploy.yml
+# does not already cover. Without the guard a same-repo PR would run each gate
+# twice, once per event, and report two reds for one cause.
+#
+# The guard is a step-level `if` on purpose: a job-level one would still emit a
+# `skipped` check run, and it reads only the event payload -- no API lookup and
+# no race with PR creation, which is what bcc5f06 backed out of.
 name: CI
 
 on:
@@ -16,6 +26,10 @@ jobs:
   Test:
     name: Test
     runs-on: ubuntu-latest
+    # Nothing else bounds this job: the toolchain install alone is 8-11 min cold
+    # and has no step timeout, and GitHub's default job cap is 360 min. Sized to
+    # sit above the 60 min `Run tests` step plus setup, not to be a tight fit.
+    timeout-minutes: 90
     permissions:
       contents: read
       checks: write # dorny/test-reporter publishes a check run
@@ -25,22 +39,41 @@ jobs:
 
       - uses: ./.github/actions/setup-hazel-toolchain
 
-      # No --auto-promote: a misformatted commit should fail, not be rewritten.
+      # The three static gates below duplicate deploy.yml's `Static checks` and
+      # `Deploy branch preview`, so they run only where those cannot: a fork
+      # never fires `push`, and gh-readonly-queue/** is excluded from deploy.yml.
+      #
+      # The merge_group clause is load-bearing. There, github.event.pull_request
+      # is null, so the fork test alone is false and the queue -- the thing about
+      # to become the required check -- would silently lose all three gates.
       - name: Check formatting
+        if: ${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork == true }}
         run: opam exec -- dune build @src/fmt @test/fmt --profile dev
 
-      # Strict-warning gate: release sets `-warn-error +A-58` while dev sets
-      # `-warn-error -A` (the (env) stanzas in src/*/dune). Needed here and not
-      # only in deploy.yml, which fork PRs never trigger.
+      # Strict-warning gate for src, and the only thing that validates
+      # js_of_ocaml linking. dune's release profile promotes warnings to errors
+      # while dev does not; no (env) override is involved, which is why this
+      # survives dev's ab0a20d556 dropping src/util's warning-policy stanza.
       - name: Build release
+        if: ${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork == true }}
         run: |
           export DUNE_CACHE=enabled
           opam exec -- dune build src --profile release
 
+      # Extends that gate to test/, the one tree the release build never covered
+      # (issue #2456). Type-check only, so it does not rebuild the test bundle.
+      - name: Check warnings
+        if: ${{ github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork == true }}
+        run: |
+          export DUNE_CACHE=enabled
+          opam exec -- make ci-check
+
       - name: Run tests
         run: opam exec -- make ci
         # 60, not 20: dev raised this in fd427d4fcc because the full suite
-        # (Slow-tagged QCheck property tests) was timing out at 20.
+        # (Slow-tagged QCheck property tests) was timing out at 20. Measured
+        # 1903s (31.7 min) on run 32041001269, so the headroom is ~1.9x -- and
+        # #2426 alone added ~1000s of it. Revisit before it gets thinner.
         timeout-minutes: 60
 
       # Annotated results UI, not the gate -- `Run tests` exits non-zero on
@@ -54,7 +87,14 @@ jobs:
           path: ./_build/default/test/junit_tests*.xml
           reporter: java-junit
           fail-on-error: true
-          fail-on-empty: true
+          # false: `Run tests` already fails the job on a red suite, and with
+          # this true a compile error produces a second, confusing "no report
+          # found" failure on top of the real one.
+          fail-on-empty: false
+          # Default is true, which writes to the job summary and creates no
+          # check run -- so there was no `Test Report` status to link to or to
+          # require on dev. false restores the annotated check run.
+          use-actions-summary: false
 
       # Forks get no secrets, so the upload would fail rather than add anything.
       - name: Send coverage report to Codecov

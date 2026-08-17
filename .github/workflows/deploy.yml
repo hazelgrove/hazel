@@ -1,6 +1,14 @@
-# Branch previews on every push, plus a fast test signal. Previews are
-# deliberately not gated on tests: a red suite should not stop you looking at
-# your branch. Authoritative CI is ci.yml.
+# Everything that should happen on every branch push: the static gates, a fast
+# test signal, and the preview. One concern per job, so each failure lands as its
+# own named check rather than a shared red.
+#
+# Nothing here uses `needs:`. Previews are deliberately not gated on tests or on
+# formatting: a red suite should not stop you looking at your branch.
+#
+# This workflow is the authority for the static gates on same-repo branches.
+# ci.yml carries the same steps guarded to `merge_group || fork`, which are the
+# only cases a `push` event cannot reach -- so each gate runs exactly once per
+# commit and appears exactly once in the checks list. Full-suite CI is ci.yml.
 name: Deploy
 
 on:
@@ -18,10 +26,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The static gates, on their own check. Deliberately does not build src under
+  # release: the Deploy job below already does that for the preview, and that
+  # build is what validates js_of_ocaml linking. @check type-checks src *and*
+  # test/ without linking, which is the part no other job covers (issue #2456).
+  Checks:
+    name: Static checks
+    if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout the hazel repo on the current branch
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      # No --auto-promote: a misformatted commit should fail, not be rewritten
+      # into a checkout that is then thrown away.
+      - name: Check formatting
+        run: opam exec -- dune build @src/fmt @test/fmt --profile dev
+
+      - name: Check warnings
+        run: |
+          export DUNE_CACHE=enabled
+          opam exec -- make ci-check
+
   Deploy:
     name: Deploy branch preview
     if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
     runs-on: ubuntu-latest
+    # No step here has a timeout, and GitHub's default job cap is 360 min.
+    timeout-minutes: 45
     steps:
       # NOTE: position the below lines in the code between two steps
       # and uncomment them to open an ssh connection at that point:
@@ -80,14 +115,19 @@ jobs:
           exit 1
         working-directory: ./build-target
 
-  # Test signal for branches with no PR open, where ci.yml does not fire, and the
-  # only annotated test UI there. `make ci-quick` uses alcotest's -q filter: 3218
-  # of 3296 tests, since the 78 Slow-tagged QCheck tests are ~95% of the full
-  # suite's runtime. Overlaps ci.yml on branches that do have a PR, accepted for
-  # the earlier signal.
+  # `make ci-quick` uses alcotest's -q filter: 3298 of 3468 cases. The ~190
+  # Slow-tagged ones it drops are 92% of the full suite's wall clock, which is
+  # what makes this cheap enough to run on every push.
+  #
+  # This is still a subset of ci.yml's full run, because alcotest has no
+  # slow-only filter (-q selects Quick; there is no inverse), so a broken quick
+  # test reports red here and in `Test`. Removing that overlap needs a speed
+  # partition in test/haz3ltest.re plus a @test-slow alias; see the follow-up.
   Quick:
     name: Quick tests
+    if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       checks: write # dorny/test-reporter publishes a check run
@@ -97,9 +137,7 @@ jobs:
 
       - uses: ./.github/actions/setup-hazel-toolchain
 
-      - name: Check formatting
-        run: opam exec -- dune build @src/fmt @test/fmt --profile dev
-
+      # 92s of run plus ~67s of js_of_ocaml build, measured on run 32066364911.
       - name: Run quick tests
         run: opam exec -- make ci-quick
         timeout-minutes: 20
@@ -114,4 +152,6 @@ jobs:
           path: ./_build/default/test/junit_tests*.xml
           reporter: java-junit
           fail-on-error: true
-          fail-on-empty: true
+          # See ci.yml for both of these.
+          fail-on-empty: false
+          use-actions-summary: false

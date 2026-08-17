@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci ci-quick dead-code dead-code-json dead-code-summary clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci ci-quick ci-check dead-code dead-code-json dead-code-summary clean setup-zarith
 
 all: dev
 
@@ -119,6 +119,24 @@ ci: setup-zarith
 # Slow-tagged QCheck property tests that dominate the full suite's runtime.
 ci-quick: setup-zarith
 	dune build @test-quick --profile dev
+
+# The strict-warning gate (issue #2456). dune's release profile promotes
+# warnings to errors and dev does not, so warnings in test/ used to print into
+# the job log and pass: `dune build src --profile release` covers only src, and
+# the instrumented runtest that covers test/ runs under dev. test/dune carries
+# no (env) stanza, so this rests on dune's own profile defaults rather than on
+# any per-library override.
+#
+# @check type-checks every tree without linking, so this catches test/ without
+# paying for a second js_of_ocaml build of the 81MB test bundle. It does not
+# replace the release build of src, which is also what validates jsoo linking.
+#
+# Cheap because it links nothing: 21s from an empty build dir with DUNE_CACHE
+# off, producing .cmi for both src and test and zero .bc.js. Verified to fail
+# (exit 2, "Error (warning 33 [unused-open])") when the open removed from
+# test/Test_ReparseDocSlides.re is put back.
+ci-check:
+	dune build @check --profile release
 
 generate-coverage-html:
 	bisect-ppx-report html
