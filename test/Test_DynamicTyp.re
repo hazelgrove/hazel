@@ -15,6 +15,7 @@ let settings: ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
   show_ascriptions: true,
   raise_if_padding: false,
+  hole_tiles: false,
   project_tables: false,
 };
 

@@ -21,6 +21,7 @@ let qcheck_pads_typ_for_exp_to_segment =
             show_unknown_as_hole: true,
             show_ascriptions: true,
             raise_if_padding: true, // Will raise an exception if padding
+            hole_tiles: false,
             project_tables: false,
           },
           padded,

@@ -65,6 +65,7 @@ let typ_to_string = (ty: Typ.t): string => {
         show_unknown_as_hole: true,
         show_ascriptions: true,
         raise_if_padding: false,
+        hole_tiles: false,
         project_tables: false,
       },
       ty,
@@ -164,7 +165,10 @@ let user_type_tests = [
     {|type T = Leaf(Int) + Node(T, T)
 in let f = fun x -> ^^probe(Leaf(x))
 in f(1)|},
-    Some("rec T -> + Leaf(Int) + Node((T, T))"),
+    /* Defensive parenthesization brackets the sum body of a rec: it shares
+       low precedence with the `->` trailing delimiter (see the settings notes
+       in Test_ExpToSegment). Non-recursive sums above stay unparenthesized. */
+    Some("rec T -> (+ Leaf(Int) + Node((T, T)))"),
   ),
   dynamic_typ_test(
     "User-defined type alias in context",
