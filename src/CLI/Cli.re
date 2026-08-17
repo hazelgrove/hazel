@@ -522,8 +522,8 @@ let implicit_hole_arg = {
   let doc =
     "Character used to render implicit holes (Grout) in output. "
     ++ "Default is `¿` (U+00BF), a single non-identifier, non-operator "
-    ++ "token that round-trips through `format` and is recognised by "
-    ++ "`slide-encode` so Grout positions are recovered on re-parse.";
+    ++ "token that round-trips through `format` and is read back as Grout "
+    ++ "by the .hz load path, so hole positions survive a re-parse.";
   Arg.(
     value
     & opt(string, Haz3lcore.MarkerParse.default_implicit_hole)
