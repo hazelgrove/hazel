@@ -2002,31 +2002,14 @@ module View = {
           };
         let proof_plan_matches_current =
             (plan: ProfileProofPlan.authorized_plan) => {
-          let summary = plan.summary;
           let active_profile = active_profile_for_model(model, rewrite_level);
-          let active_fingerprint =
-            ProfileProofPlan.profile_fingerprint(
-              active_profile,
-              automation_stage,
-            );
-          switch (summary.ProofTrace.prover_steps) {
-          | [] => false
-          | [first_step, ...rest_steps] =>
-            let last_step =
-              switch (rest_steps) {
-              | [] => first_step
-              | _ => ListUtil.last(rest_steps)
-              };
-            plan.profile_fingerprint == active_fingerprint
-            && Equality.ignoring_ascriptions.exp(
-                 first_step.before_full_exp,
-                 unboxed_selected_exp,
-               )
-            && Equality.ignoring_ascriptions.exp(
-                 last_step.after_full_exp,
-                 unboxed_cached_exp,
-               );
-          };
+          ProfileProofPlan.authorized_plan_matches_current(
+            ~profile=active_profile,
+            ~stage=automation_stage,
+            ~source=unboxed_selected_exp,
+            ~target=unboxed_cached_exp,
+            plan,
+          );
         };
         let cached_result =
           switch (check_mode, cached_result) {

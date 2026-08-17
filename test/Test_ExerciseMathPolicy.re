@@ -611,6 +611,12 @@ let tests = (
         let cleanup = profile.step_policy.default_cleanup;
         check(
           bool,
+          "cleanup FOIL accepts Real x*x to x**2 as a standalone One Step cleanup",
+          true,
+          accepts(times(x, x), power(x, number(2))),
+        );
+        check(
+          bool,
           "Real repeated factors match power notation cleanup",
           true,
           Web.RewriteChecker.product_term_same_under_cleanup(
@@ -1443,16 +1449,14 @@ let tests = (
       },
     ),
     test_case(
-      "Taylor preludes elaborate their annotated functions in Real mode",
-      `Quick,
-      () => {
+      "Taylor theorem-local functions elaborate in Real mode", `Quick, () => {
       [
         (
-          "quadratic Taylor prelude",
+          "quadratic Taylor theorem",
           Web.Ex_QuadraticTaylorApproximation.exercise,
         ),
         (
-          "trigonometric Taylor prelude",
+          "trigonometric Taylor theorem",
           Web.Ex_TrigTaylorApproximation.exercise,
         ),
       ]
@@ -1463,6 +1467,15 @@ let tests = (
            let prelude = term_of_zipper(spec.prelude);
            let lemmas = term_of_zipper(spec.lemmas);
            let theorem = term_of_zipper(spec.theorem);
+           check(
+             bool,
+             label ++ " keeps its function definitions out of the prelude",
+             true,
+             switch (prelude.term) {
+             | EmptyHole => true
+             | _ => false
+             },
+           );
            let stitched_scratch = Web.EditorUtil.append_exp(prelude, lemmas);
            let stitched_theorem =
              stitched_scratch

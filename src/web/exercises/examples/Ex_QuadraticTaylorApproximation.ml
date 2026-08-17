@@ -1,11 +1,9 @@
 open Haz3lcore
 
-let prelude_source = "use Real in (let f(t : Real) = t ** 2 + 3 * t + 2 in ?)"
-
 let theorem_source =
-  "theorem quadratic_taylor_approximation = use Real in (let f1 = D f in let \
-   f2 = D f1 in f(0) + f1(0) * x + (f2(0) / 2) * x ** 2 == x ** 2 + 3 * x + 2) \
-   in ?"
+  "theorem quadratic_taylor_approximation = use Real in (let f(t : Real) = t \
+   ** 2 + 3 * t + 2 in let f1 = D f in let f2 = D f1 in f(0) + f1(0) * x + \
+   (f2(0) / 2) * x ** 2 == x ** 2 + 3 * x + 2) in ?"
 
 let zipper_of_source source =
   match Parser.to_zipper ~root:Exp source with
@@ -35,7 +33,7 @@ let exercise : Exercise.t =
                 second-order Taylor polynomial."
              ~parent_level:Language.Axioms.Calculus
              ~automation_stage:Language.Axioms.MultiStepCheck ());
-      prelude = zipper_of_source prelude_source;
+      prelude = Zipper.init ();
       lemmas = Zipper.init ();
       theorem = zipper_of_source theorem_source;
       expected_explore_result = None;

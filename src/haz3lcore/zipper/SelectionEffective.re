@@ -475,18 +475,7 @@ let replacement_for_virtual =
 
     let* at_exp =
       Language.ProofHacks.find_exp_id(virtual_.container_id, full_exp);
-    switch (
-      Language.Reparenthesize.reparenthesize_selection(
-        ~selected_ids=Segment.ids(virtual_.segment),
-        at_exp,
-      )
-    ) {
-    | Some(result) =>
-      Some({
-        at_exp,
-        with_exp: Language.Reparenthesize.replace_selected(result, with_exp),
-      })
-    | None =>
+    let range_replacement = () => {
       let* container_segment =
         TermData.segment(virtual_.container_id, term_data);
       let with_segment =
@@ -494,10 +483,20 @@ let replacement_for_virtual =
           ~settings=ExpToSegment.Settings.editable(~inline=true),
           with_exp,
         );
+      let replacement =
+        switch (with_exp.term) {
+        | Atom(_)
+        | Var(_)
+        | BuiltinFun(_)
+        | EmptyHole
+        | MultiHole(_)
+        | Parens(_) => with_segment
+        | _ => [Segment.parenthesize(with_segment)]
+        };
       let* replaced_segment =
         replace_range(
           ~selected=virtual_.segment,
-          ~replacement=[Segment.parenthesize(with_segment)],
+          ~replacement,
           container_segment,
         );
       let+ with_exp = exp_of_segment(replaced_segment);
@@ -505,6 +504,25 @@ let replacement_for_virtual =
         at_exp,
         with_exp,
       };
+    };
+    switch (
+      Language.Reparenthesize.reparenthesize_selection(
+        ~selected_ids=Segment.ids(virtual_.segment),
+        at_exp,
+      )
+    ) {
+    | Some(result)
+        when
+          switch (Language.Reparenthesize.selected_exp(result)) {
+          | Some(selected) => Language.Exp.fast_equal(virtual_.exp, selected)
+          | None => false
+          } =>
+      Some({
+        at_exp,
+        with_exp: Language.Reparenthesize.replace_selected(result, with_exp),
+      })
+    | Some(_)
+    | None => range_replacement()
     };
   );
 };

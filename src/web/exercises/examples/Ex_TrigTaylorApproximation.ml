@@ -1,16 +1,13 @@
 open Haz3lcore
 
-let prelude_source =
-  "use Real in (let a : Real = 3 / 10 in let f = fun (t : Real) -> 7 / 4 - \
-   cos_real(2 * t) + (1 / 4) * cos_real(4 * t) in ?)"
-
 let theorem_source =
-  "theorem trig_taylor_approximation = use Real in (let f1 = D f in let f2 = D \
-   f1 in let f3 = D f2 in f(a) + f1(a) * (x - a) + (f2(a) / 2) * (x - a) ** 2 \
-   + (f3(a) / 6) * (x - a) ** 3 == f(a) + (2 * sin_real(2 * a) - sin_real(4 * \
-   a)) * (x - a) + ((4 * cos_real(2 * a) - 4 * cos_real(4 * a)) / 2) * (x - a) \
-   ** 2 + (((0 - 8) * sin_real(2 * a) + 16 * sin_real(4 * a)) / 6) * (x - a) \
-   ** 3) in ?"
+  "theorem trig_taylor_approximation = use Real in (let a : Real = 3 / 10 in \
+   let f(t : Real) = 7 / 4 - cos_real(2 * t) + (1 / 4) * cos_real(4 * t) in \
+   let f1 = D f in let f2 = D f1 in let f3 = D f2 in f(a) + f1(a) * (x - a) + \
+   (f2(a) / 2) * (x - a) ** 2 + (f3(a) / 6) * (x - a) ** 3 == f(a) + (2 * \
+   sin_real(2 * a) - sin_real(4 * a)) * (x - a) + ((4 * cos_real(2 * a) - 4 * \
+   cos_real(4 * a)) / 2) * (x - a) ** 2 + (((0 - 8) * sin_real(2 * a) + 16 * \
+   sin_real(4 * a)) / 6) * (x - a) ** 3) in ?"
 
 let zipper_of_source source =
   match Parser.to_zipper ~root:Exp source with
@@ -41,7 +38,7 @@ let exercise : Exercise.t =
                 profile-authorized calculus cleanup."
              ~parent_level:Language.Axioms.Calculus
              ~automation_stage:Language.Axioms.MultiStepCheck ());
-      prelude = zipper_of_source prelude_source;
+      prelude = Zipper.init ();
       lemmas = Zipper.init ();
       theorem = zipper_of_source theorem_source;
       expected_explore_result = None;

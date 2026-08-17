@@ -493,6 +493,17 @@ let tests = (
       ~expected=true,
     ),
     test_exp(
+      ~name="order-of-operations subtraction selects both operands",
+      ~input={|3 + 16 §-¦ 2|},
+      ~expected={|16 - 2|},
+    ),
+    test_replacement(
+      ~name="order-of-operations subtraction replacement keeps its prefix",
+      ~input={|3 + 16 §-¦ 2|},
+      ~with_input={|¦14|},
+      ~expected={|3 + 14|},
+    ),
+    test_exp(
       ~name="plus after subtraction selects the signed additive suffix",
       ~input={|x ** 2 §- 9 + 5¦|},
       ~expected={|- 9 + 5|},

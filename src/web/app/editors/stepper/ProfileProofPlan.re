@@ -181,6 +181,28 @@ let capability_use_counts =
 
 let exp_same = (left, right) => TrigRewrite.exp_same(left, right);
 
+/* The editor can elaborate an unresolved numeric expression between planning
+ * and rendering (for example, Int multiplication becomes Real multiplication
+ * under [use Real]).  Keep stale-plan protection structural, while treating
+ * those equivalent numeric elaborations as the same current endpoint. */
+let authorized_plan_matches_current =
+    (~profile, ~stage, ~source, ~target, plan: authorized_plan) =>
+  if (plan.profile_fingerprint != profile_fingerprint(profile, stage)) {
+    false;
+  } else {
+    switch (plan.summary.ProofTrace.prover_steps) {
+    | [] => false
+    | [first_step, ...rest_steps] =>
+      let last_step =
+        switch (rest_steps) {
+        | [] => first_step
+        | _ => ListUtil.last(rest_steps)
+        };
+      RewriteChecker.same_math_exp(first_step.before_full_exp, source)
+      && RewriteChecker.same_math_exp(last_step.after_full_exp, target);
+    };
+  };
+
 let root_product_has_sum_factor = exp =>
   switch (RewriteChecker.strip_math_wrappers(exp).term) {
   | BinOp(op, _, _) when RewriteChecker.is_times_op(op) =>
@@ -448,14 +470,24 @@ let direct_candidate_trace = (request: request) => {
     let direct =
       switch (stage) {
       | Axioms.Manual =>
-        RewriteChecker.check_single_step_result_for_profile(
-          ~profile=request.profile,
-          ~settings=request.settings,
-          ~env=request.env,
-          request.source,
-          request.target,
-        )
-        |> Option.map(RewriteChecker.trace_summary_of_result)
+        switch (
+          RewriteChecker.direct_cleanup_trace_for_profile(
+            ~profile=request.profile,
+            request.source,
+            request.target,
+          )
+        ) {
+        | Some(summary) => Some(summary)
+        | None =>
+          RewriteChecker.check_single_step_result_for_profile(
+            ~profile=request.profile,
+            ~settings=request.settings,
+            ~env=request.env,
+            request.source,
+            request.target,
+          )
+          |> Option.map(RewriteChecker.trace_summary_of_result)
+        }
       | MultiStepCheck
       | AutoEval =>
         switch (

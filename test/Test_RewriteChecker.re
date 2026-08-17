@@ -3999,6 +3999,108 @@ let tests = (
           true,
           accepts(trig, times(Exp.int(2), identity(x)), Exp.int(2)),
         );
+        let real_square_source = real_times(x, x);
+        let real_square_target = real_power(x, real(2));
+        let real_binomial = real_plus(x, real(1));
+        let algebra = Axioms.math_profile(Algebra);
+        let browser_power_plan =
+          switch (authorize(algebra, times(x, x), real_square_target)) {
+          | Web.ProfileProofPlan.Authorized(plan) => Some(plan)
+          | Rejected(_) => None
+          };
+        check(
+          bool,
+          "Algebra accepts Real repeated-factor power notation as direct cleanup",
+          true,
+          accepts(algebra, real_square_source, real_square_target),
+        );
+        check(
+          bool,
+          "Algebra power notation cleanup handles a compound Real base",
+          true,
+          accepts(
+            Axioms.math_profile(Algebra),
+            real_times(real_binomial, real_binomial),
+            real_power(real_binomial, real(2)),
+          ),
+        );
+        check(
+          bool,
+          "a browser power plan survives Int-to-Real endpoint elaboration",
+          true,
+          switch (browser_power_plan) {
+          | Some(plan) =>
+            Web.ProfileProofPlan.authorized_plan_matches_current(
+              ~profile=algebra,
+              ~stage=Axioms.Manual,
+              ~source=real_square_source,
+              ~target=real_square_target,
+              plan,
+            )
+          | None => false
+          },
+        );
+        check(
+          bool,
+          "a browser power plan is stale when its target changes",
+          false,
+          switch (browser_power_plan) {
+          | Some(plan) =>
+            Web.ProfileProofPlan.authorized_plan_matches_current(
+              ~profile=algebra,
+              ~stage=Axioms.Manual,
+              ~source=real_square_source,
+              ~target=real_power(x, real(3)),
+              plan,
+            )
+          | None => false
+          },
+        );
+        check(
+          bool,
+          "power notation cleanup does not change the exponent",
+          false,
+          accepts(
+            Axioms.math_profile(Algebra),
+            real_square_source,
+            real_power(x, real(3)),
+          ),
+        );
+        let without_power_notation =
+          Axioms.math_profile(Algebra)
+          |> Web.ProfileBoard.profile_with_cleanup(
+               ~cleanup=
+                 Axioms.math_profile(Algebra).step_policy.default_cleanup
+                 |> List.filter(capability =>
+                      capability != Axioms.PowerNotation
+                    ),
+             );
+        check(
+          bool,
+          "disabled Real power notation cleanup stays disabled in One Step",
+          false,
+          accepts(
+            without_power_notation,
+            real_square_source,
+            real_square_target,
+          ),
+        );
+        check(
+          bool,
+          "a cached power plan is stale after Power Notation is disabled",
+          false,
+          switch (browser_power_plan) {
+          | Some(plan) =>
+            Web.ProfileProofPlan.authorized_plan_matches_current(
+              ~profile=without_power_notation,
+              ~stage=Axioms.Manual,
+              ~source=real_square_source,
+              ~target=real_square_target,
+              plan,
+            )
+          | None => false
+          },
+        );
         check(
           bool,
           "Trig still rejects two trig identities",
