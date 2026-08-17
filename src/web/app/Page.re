@@ -445,18 +445,16 @@ module Update = {
         ~selection=model.selection,
         editors,
       );
-    let color_highlights =
-      ExplainThis.get_color_map(
-        ~globals=model.globals,
-        ~explainThisModel=model.explain_this,
-        cursor_info.info,
-      );
     /* When the user's cursor is inside a derivation tree cell, the
        deduction-specific highlight map takes precedence over the generic
        ExplainThis one. We consult the live selection here (rather than
        Editors.Model.get_derivation_info, which reads the stale `model.pos`
        inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
-       get misclassified as focus on the derivation. */
+       get misclassified as focus on the derivation.
+
+       Only the winning map is computed. Each of these runs the whole of
+       ExplainThis.decide, so computing the generic one unconditionally and then
+       discarding it cost a full pass on every frame with a derivation focused. */
     let derivation_info =
       Editors.Selection.get_derivation_info(
         ~selection=model.selection,
@@ -470,7 +468,12 @@ module Update = {
           ~explainThisModel=model.explain_this,
           derivation_info,
         )
-      | None => color_highlights
+      | None =>
+        ExplainThis.get_color_map(
+          ~globals=model.globals,
+          ~explainThisModel=model.explain_this,
+          cursor_info.info,
+        )
       };
     let globals = Globals.Update.calculate(color_highlights, model.globals);
     {
