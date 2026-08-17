@@ -94,8 +94,6 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
-  /* Clear expanded problem IDs before persisting — tile IDs are ephemeral
-     and go stale across sessions. */
 };
 
 module Store =

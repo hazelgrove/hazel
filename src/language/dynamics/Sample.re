@@ -313,8 +313,7 @@ module Focus = {
     ListUtil.slice(0, cursor.index + 1, cursor.call_stack |> List.rev)
     |> List.rev;
 
-  /* If the cursor is on a call, and the provided call stack is
-   * downstream of that call, return how many aps downstream it is */
+  /* Relative call-stack depth between two samples */
   type relative_level =
     | Above(int)
     | Below(int)

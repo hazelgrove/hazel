@@ -75,8 +75,6 @@ let mapi = f => {
 
 let rec fold_deep = (f, Node(v, c)) => f(v, c |> List.map(fold_deep(f)));
 
-/* Scanning */
-
 /* Position */
 
 // For all functions below:

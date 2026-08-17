@@ -178,11 +178,6 @@ module VerifiedTree = {
       List.map(fst, folded);
     };
 
-  /* Resolve abbreviation references in a tree, inlining each [Abbr(Some(i))]
-     leaf with the [i]th abbreviation tree. Assumes abbreviations are:
-     - all resolvable (no dangling references),
-     - acyclic (an abbreviation only references earlier ones),
-     - leaf-only (otherwise children would be silently dropped). */
   let mk =
       (eds: p(Editor.t), ~stitched_results: stitched(option(Exp.t))): t => {
     verify(eds.rule_set, ProofTree.mk(eds, ~stitched_results));

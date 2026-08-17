@@ -158,8 +158,6 @@ let make_problem_context =
   };
 };
 
-/* ---------- Sorting helper (exposed for consumers) ---------- */
-
 /* ---------- Per-category collection (lazy) ---------- */
 
 let collect_category =

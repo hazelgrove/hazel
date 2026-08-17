@@ -2422,10 +2422,6 @@ let module_tests = [
    The test_complete helper checks both printer output AND that no
    incomplete tiles remain, which catches the structural breakage. */
 
-/* Helper: check that a zipper has a non-empty backpack (i.e. there are
- * missing shards from incomplete tiles visible at the caret position).
- * A non-empty backpack after entering what should be a complete program
- * indicates structural breakage. */
 let shard_theft_tests = [
   /* Baseline: typing `let y = 2 in let x = 1 in x` left-to-right
    * should produce a complete program with no incomplete tiles. */

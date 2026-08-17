@@ -386,9 +386,6 @@ let editor_positions = eds =>
 let positioned_editors = state =>
   List.combine(editor_positions(state), editors(state));
 
-/* Flatten derivation trees into a linear index used by the exercise-mode UI.
-   Positions 0 and 1 are reserved for the prelude and setup; tree [i] lives
-   at index [2 + i] (only the tree root is addressable here). */
 let transition: transitionary_spec => spec =
   mapi(_, pos => zipper_of_code(_, ~root=root_of_pos(pos)));
 

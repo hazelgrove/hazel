@@ -106,9 +106,6 @@ let strip_let_with_int_rhs = (~rhs_val: int, exp: Exp.t): Exp.t => {
   go(exp);
 };
 
-/* Walk an Exp.t and collect ids of every Ap(_, _, _) node. Used by the
- * sibling-module test to assert that a specific function-application
- * subexpression's cache entry survives an edit to an unrelated binding. */
 /* A non-empty incremental map after a run of a non-trivial program. */
 let test_populates_entries = () => {
   let src = "let x = 1 + 2 in let y = x + 10 in y";

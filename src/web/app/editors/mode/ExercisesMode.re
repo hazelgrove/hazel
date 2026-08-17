@@ -166,8 +166,6 @@ module Model = {
     };
   };
 
-  /* Only used within ExercisesMode.re; exposed via the Model module signature
-     for the derivation-specific UI bindings below. */
   /* Editors whose problems should appear in the Problems sidebar, each
      paired with a display label shown as a section header when multiple
      groups are present. */

@@ -1037,8 +1037,6 @@ module Caret = {
     max_idx < 0 ? None : Some(max_idx);
   };
 
-  /* Returns the delimiter index that the caret is adjacent to.
-   * For non-tiles and monotiles this is always zero */
   /* Direction the caret is facing in */
   let direction = (z: t): option(Direction.t) =>
     switch (z.caret) {

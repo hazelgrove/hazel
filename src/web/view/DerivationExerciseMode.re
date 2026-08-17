@@ -151,9 +151,6 @@ module Model = {
     };
   };
 
-  /* Backwards-compatible: uses the last-edited cell (`model.pos`). Callers
-     that can provide the currently focused cell via selection should prefer
-     the `_at` version so Prelude/Setup focus isn't misread as a tree cell. */
   /* Editors whose problems should appear in the Problems sidebar, each
      paired with a display label. Only cells that are actually rendered are
      listed: the Prelude is shown in exercise mode but not in scratch /
