@@ -58,6 +58,12 @@ let fold_left_opt:
     aux(init, list);
   };
 
+let filter = (f: 'a => bool, o: option('a)): option('a) =>
+  switch (o) {
+  | None => None
+  | Some(a) => f(a) ? Some(a) : None
+  };
+
 let value_exn = (~none, o) => get(() => raise(none), o);
 
 module Syntax = {
