@@ -4,7 +4,7 @@ open ProjectorBase;
 open Language;
 open ChartCore;
 
-let error_message = "Elaborated syntax is not a chart: apply BarChart, LineChart, ScatterChart, or PieChart to a list of data.";
+let error_message = "Elaborated syntax is not a chart: apply BarChart, GroupedBarChart, LineChart, ScatterChart, or PieChart to a list of data.";
 
 let chart_of = (any: Any.t): option(chart_spec) =>
   switch (any) {
@@ -61,7 +61,23 @@ let js_of_spec = (spec: chart_spec): Js.Unsafe.any =>
             (s: series) =>
               obj([|
                 ("name", jstr(s.name)),
-                ("values", jarray(List.map(jnum, s.values))),
+                (
+                  /* None (this series has no value at that category) crosses
+                     as null; renderBar skips those bars, keeping the rest
+                     aligned to their own categories. */
+                  "values",
+                  jarray(
+                    List.map(
+                      v =>
+                        Option.fold(
+                          ~none=Js.Unsafe.inject(Js.null),
+                          ~some=jnum,
+                          v,
+                        ),
+                      s.values,
+                    ),
+                  ),
+                ),
               |]),
             series,
           ),

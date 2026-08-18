@@ -91,6 +91,34 @@ let chart_of_program = (program_str: string): ChartCore.chart_spec => {
   };
 };
 
+/* The first application in an elaborated program — the node the
+   auto-projection gate is asked about. */
+let first_ap = (exp: Language.Exp.t): option(Language.Exp.t) => {
+  module M = {
+    exception Found(Language.Exp.t);
+  };
+  switch (
+    Language.Exp.map_term(
+      ~f_exp=
+        (cont, e) =>
+          switch (e.term) {
+          | Ap(_) => raise(M.Found(e))
+          | _ => cont(e)
+          },
+      exp,
+    )
+  ) {
+  | exception (M.Found(x)) => Some(x)
+  | _ => None
+  };
+};
+
+let gates = (program_str: string): bool =>
+  switch (first_ap(dhexp_of_uexp(parse_exp(program_str)))) {
+  | Some(ap) => ChartCore.is_chart_ctr_ap(ap)
+  | None => Alcotest.fail("No application found: " ++ program_str)
+  };
+
 let flt = float(1e-9);
 
 /* hand-built helpers */
@@ -106,7 +134,12 @@ let tests = (
       switch (chart_of_program({|BarChart([("A", 3.0), ("B", 5.0)])|})) {
       | Bar({categories, series: [{name: _, values}]}) =>
         check(list(string), "categories", ["A", "B"], categories);
-        check(list(flt), "values", [3.0, 5.0], values);
+        check(
+          list(option(flt)),
+          "values",
+          [Some(3.0), Some(5.0)],
+          values,
+        );
       | _ => Alcotest.fail("expected single-series Bar")
       }
     }),
@@ -118,7 +151,12 @@ let tests = (
       ) {
       | Bar({categories, series: [{values, _}]}) =>
         check(list(string), "categories", ["A", "B"], categories);
-        check(list(flt), "values", [3.0, 5.0], values);
+        check(
+          list(option(flt)),
+          "values",
+          [Some(3.0), Some(5.0)],
+          values,
+        );
       | _ => Alcotest.fail("expected single-series Bar")
       }
     }),
@@ -275,6 +313,107 @@ let tests = (
           "None",
           true,
           Option.is_none(ChartCore.parse_chart(exp)),
+        );
+      },
+    ),
+    test_case(
+      "grouped bar: series with differing labels align by label", `Quick, () => {
+      /* The category axis is the union of both series' labels, and each
+         series keeps its own values under their own labels — B stays a
+         single category shared by both, and each series has no bar where
+         it carries no entry. */
+      switch (
+        chart_of_program(
+          {|GroupedBarChart([
+                (name="s1", data=[(label="A", value=1.0), (label="B", value=2.0)]),
+                (name="s2", data=[(label="B", value=3.0), (label="C", value=4.0)])
+              ])|},
+        )
+      ) {
+      | Bar({categories, series: [s1, s2]}) =>
+        check(list(string), "categories", ["A", "B", "C"], categories);
+        check(
+          list(option(flt)),
+          "s1 values",
+          [Some(1.0), Some(2.0), None],
+          s1.values,
+        );
+        check(
+          list(option(flt)),
+          "s2 values",
+          [None, Some(3.0), Some(4.0)],
+          s2.values,
+        );
+      | _ => Alcotest.fail("expected grouped Bar with 2 series")
+      }
+    }),
+    test_case("grouped bar: a series may be shorter than the axis", `Quick, () => {
+      switch (
+        chart_of_program(
+          {|GroupedBarChart([
+                (name="full", data=[(label="A", value=1.0), (label="B", value=2.0)]),
+                (name="partial", data=[(label="A", value=5.0)])
+              ])|},
+        )
+      ) {
+      | Bar({categories, series: [full, partial]}) =>
+        check(list(string), "categories", ["A", "B"], categories);
+        check(
+          list(option(flt)),
+          "full values",
+          [Some(1.0), Some(2.0)],
+          full.values,
+        );
+        check(
+          list(option(flt)),
+          "partial values",
+          [Some(5.0), None],
+          partial.values,
+        );
+      | _ => Alcotest.fail("expected grouped Bar with 2 series")
+      }
+    }),
+    test_case(
+      "the auto-projection gate accepts every Chart constructor",
+      `Quick,
+      () => {
+        check(bool, "BarChart", true, gates({|BarChart([("A", 1.0)])|}));
+        check(
+          bool,
+          "GroupedBarChart",
+          true,
+          gates({|GroupedBarChart([("s", [("A", 1.0)])])|}),
+        );
+        check(bool, "LineChart", true, gates({|LineChart([(1.0, 2.0)])|}));
+        check(
+          bool,
+          "ScatterChart",
+          true,
+          gates({|ScatterChart([(1.0, 2.0)])|}),
+        );
+        check(bool, "PieChart", true, gates({|PieChart([("A", 1.0)])|}));
+      },
+    ),
+    test_case(
+      "the gate goes by type, not constructor name",
+      `Quick,
+      () => {
+        /* A user ADT shadowing a Chart constructor name is not a chart, and
+           unelaborated syntax carries no constructor type to judge by. */
+        check(
+          bool,
+          "shadowed BarChart",
+          false,
+          gates(
+            {|type MyChart = + BarChart([(label=String, value=Float)]) in BarChart([("A", 1.0)])|},
+          ),
+        );
+        check(bool, "Some(3)", false, gates({|Some(3)|}));
+        check(
+          bool,
+          "unelaborated syntax",
+          false,
+          ChartCore.is_chart_ctr_ap(bar_ap([])),
         );
       },
     ),

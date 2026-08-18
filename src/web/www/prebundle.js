@@ -74,8 +74,13 @@ function renderBar(svg, spec) {
     .range([CHART.M.left, CHART.M.left + IW]).padding(0.2);
   const sub = d3.scaleBand().domain(series.map((_, i) => i))
     .range([0, x.bandwidth()]).padding(0.05);
+  // A series' values are positional against `cats`; null means this series
+  // has no bar at that category (grouped charts need not share labels), so
+  // carry the index along and drop the gaps rather than re-packing them.
+  const cells = s => (s.values || []).map((v, i) => ({ v, i }))
+    .filter(d => d.v !== null && d.v !== undefined);
   const all = [0];
-  series.forEach(s => s.values.forEach(v => all.push(v)));
+  series.forEach(s => cells(s).forEach(d => all.push(d.v)));
   const y = d3.scaleLinear().domain([Math.min(...all), Math.max(...all)]).nice()
     .range([CHART.M.top + IH, CHART.M.top]);
   const y0 = y(0);
@@ -91,22 +96,23 @@ function renderBar(svg, spec) {
   const showLabels = !multi && cats.length <= 12; // else too cramped
   series.forEach((s, si) => {
     const g = svg.append("g");
-    g.selectAll("rect").data(s.values).enter().append("rect")
+    const data = cells(s);
+    g.selectAll("rect").data(data).enter().append("rect")
       .attr("class", "chart-mark")
-      .attr("x", (_, i) => x(i) + sub(si))
-      .attr("y", d => Math.min(y(d), y0))
+      .attr("x", d => x(d.i) + sub(si))
+      .attr("y", d => Math.min(y(d.v), y0))
       .attr("width", sub.bandwidth())
-      .attr("height", d => Math.abs(y(d) - y0))
+      .attr("height", d => Math.abs(y(d.v) - y0))
       .attr("rx", 1.5)
-      .attr("fill", (_, i) => color(multi ? si : i))
+      .attr("fill", d => color(multi ? si : d.i))
       .append("title")
-      .text((d, i) => (multi ? `${s.name} · ` : "") + `${cats[i]}: ${fmt(d)}`);
+      .text(d => (multi ? `${s.name} · ` : "") + `${cats[d.i]}: ${fmt(d.v)}`);
     if (showLabels) {
-      g.selectAll("text").data(s.values).enter().append("text")
+      g.selectAll("text").data(data).enter().append("text")
         .attr("class", "chart-value")
-        .attr("x", (_, i) => x(i) + sub(si) + sub.bandwidth() / 2)
-        .attr("y", d => Math.min(y(d), y0) - 2)
-        .text(d => fmt(d));
+        .attr("x", d => x(d.i) + sub(si) + sub.bandwidth() / 2)
+        .attr("y", d => Math.min(y(d.v), y0) - 2)
+        .text(d => fmt(d.v));
     }
   });
   if (multi) {

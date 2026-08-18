@@ -6,10 +6,12 @@ type point = {
   y: float,
 };
 
+/* `values` is positional against a chart's `categories`; None means the
+   series has no bar at that category (only grouped charts produce None). */
 [@deriving sexp]
 type series = {
   name: string,
-  values: list(float),
+  values: list(option(float)),
 };
 
 [@deriving sexp]
@@ -21,6 +23,11 @@ type chart_spec =
   | Pie(list((string, float)))
   | Line(list(point))
   | Scatter(list(point));
+
+/* Is this an application of a `Chart` ADT constructor, judged by the type
+ * statics puts on the constructor? A cheap gate for auto-projection: true
+ * here means parse_chart is worth attempting. */
+let is_chart_ctr_ap: Exp.t => bool;
 
 /* Recognize an elaborated expression of the built-in `Chart` ADT. Returns
  * None when the expression is not a (well-formed) chart constructor. */

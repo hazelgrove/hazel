@@ -21,11 +21,16 @@ type point = {
 
 /* A named numeric column. Bar charts carry one series per numeric column,
  * which lets a single recognizer produce both single-series and grouped
- * (multi-numeric-column) bar charts. */
+ * (multi-numeric-column) bar charts.
+ *
+ * `values` is positional against the chart's `categories`: entry i is the
+ * value at category i, and None means this series has no bar there. Only
+ * grouped charts produce None — the series there are separate tables that
+ * need not agree on their labels. */
 [@deriving sexp]
 type series = {
   name: string,
-  values: list(float),
+  values: list(option(float)),
 };
 
 [@deriving sexp]
@@ -114,7 +119,7 @@ let parse_categorical = (arg: Exp.t): option((list(string), list(series))) =>
               } else {
                 Some({
                   name: Option.value(~default="value", h),
-                  values: List.filter_map(as_float, cells),
+                  values: List.map(as_float, cells),
                 });
               },
             indexed,
@@ -127,9 +132,35 @@ let parse_categorical = (arg: Exp.t): option((list(string), list(series))) =>
     }
   };
 
+/* Zip, dropping any tail the shorter list doesn't cover. */
+let rec combine_truncating = (xs: list('a), ys: list('b)): list(('a, 'b)) =>
+  switch (xs, ys) {
+  | ([x, ...xs], [y, ...ys]) => [(x, y), ...combine_truncating(xs, ys)]
+  | _ => []
+  };
+
+/* Union of every series' labels, in first-seen order. */
+let union_labels = (labelss: list(list(string))): list(string) =>
+  List.fold_left(
+    (acc, labels) =>
+      List.fold_left(
+        (acc, l) => List.mem(l, acc) ? acc : [l, ...acc],
+        acc,
+        labels,
+      ),
+    [],
+    labelss,
+  )
+  |> List.rev;
+
 /* Multi-series bar data: a list of named series, each carrying its own
- * (label, value) list. Produces one chart series per named entry, with
- * categories taken from the first series. */
+ * (label, value) list. Produces one chart series per named entry.
+ *
+ * The category axis is the ordered union of every series' labels, and each
+ * series' values are looked up by label — series need not carry the same
+ * categories, or the same number of them, and one that skips a category
+ * simply has no bar there instead of a bar shifted into someone else's
+ * slot. A label repeated within one series takes its first value. */
 let parse_grouped = (arg: Exp.t): option((list(string), list(series))) =>
   switch (strip(arg).term) {
   | ListLit([]) => Some(([], []))
@@ -150,26 +181,32 @@ let parse_grouped = (arg: Exp.t): option((list(string), list(series))) =>
             when
               List.length(names) == List.length(name_cells)
               && List.length(names) == List.length(parsed) =>
-          let categories =
-            switch (parsed) {
-            | [(cats, _), ..._] => cats
-            | [] => []
-            };
+          /* Each inner table is one series: pair its labels with its first
+             numeric column. (The ADT types the payload as a single
+             (label, value) list, so any further columns are stray syntax.) */
+          let entries =
+            List.map(
+              ((cats, slist)) =>
+                switch (slist) {
+                | [s, ..._] => combine_truncating(cats, s.values)
+                | [] => []
+                },
+              parsed,
+            );
+          let categories = union_labels(List.map(List.map(fst), entries));
           let series =
             List.map2(
-              (name, (_cats, slist)) =>
-                switch (slist) {
-                | [s, ..._] => {
-                    name,
-                    values: s.values,
-                  }
-                | [] => {
-                    name,
-                    values: [],
-                  }
+              (name, entries) =>
+                {
+                  name,
+                  values:
+                    List.map(
+                      c => Option.join(List.assoc_opt(c, entries)),
+                      categories,
+                    ),
                 },
               names,
-              parsed,
+              entries,
             );
           Some((categories, series));
         | _ => None
@@ -220,11 +257,38 @@ let parse_points = (arg: Exp.t): option(list(point)) =>
     }
   };
 
-let rec combine_truncating = (xs: list('a), ys: list('b)): list(('a, 'b)) =>
-  switch (xs, ys) {
-  | ([x, ...xs], [y, ...ys]) => [(x, y), ...combine_truncating(xs, ys)]
-  | _ => []
+/* Is this expression an application of a `Chart` ADT constructor?
+ *
+ * Identified by the type statics puts on the constructor rather than by a
+ * list of constructor names: every Chart variant is covered without this
+ * having to track them, and a same-named constructor from a user's own ADT
+ * is correctly rejected. Elaborated expressions carry `Some(Some(ty))` on
+ * constructors (see the Grammar.exp_term comment); user syntax carries
+ * None, so this answers false there — the gate only runs on elaborated
+ * results.
+ *
+ * Cheap enough to run on every application, which is the point: it decides
+ * whether the (much costlier) parse_chart is worth attempting. */
+let is_chart_ctr_ap = (exp: Exp.t): bool => {
+  /* Constructor types are `payload -> Chart`; the nullary case can't be a
+     chart, since every Chart variant takes data. */
+  let rec result_typ = (ty: Typ.t): Typ.t =>
+    switch (Typ.term_of(ty)) {
+    | Parens(ty)
+    | Arrow(_, ty) => result_typ(ty)
+    | _ => ty
+    };
+  let is_chart_ctr = (e: Exp.t): bool =>
+    switch (strip(e).term) {
+    | Constructor(_, Some(Some(ty))) =>
+      Typ.fast_equal(result_typ(ty), BuiltinsADT.Chart.t)
+    | _ => false
+    };
+  switch (strip(exp).term) {
+  | Ap(_, fn, _) => is_chart_ctr(fn)
+  | _ => false
   };
+};
 
 let parse_chart = (exp: Exp.t): option(chart_spec) => {
   let exp = strip(exp);
@@ -257,7 +321,12 @@ let parse_chart = (exp: Exp.t): option(chart_spec) => {
              | [s, ..._] => s.values
              | [] => []
              };
-           Pie(combine_truncating(categories, values));
+           Pie(
+             combine_truncating(categories, values)
+             |> List.filter_map(((label, value)) =>
+                  Option.map(v => (label, v), value)
+                ),
+           );
          })
     | Constructor("LineChart", _) =>
       parse_points(arg) |> Option.map(pts => Line(pts))

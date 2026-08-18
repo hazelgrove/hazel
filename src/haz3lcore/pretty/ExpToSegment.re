@@ -1220,27 +1220,6 @@ let project_table_if = (should_project, pieces) =>
     [pieces];
   };
 
-/* Cheap structural test: is this expression an application of a Chart ADT
- * constructor? Used to gate project_chart_if so we don't re-parse every
- * function application. Constructor names must stay in sync with
- * BuiltinsADT.Chart / ChartCore.parse_chart. */
-let is_chart_ctr_ap = (exp: Exp.t): bool => {
-  let rec ctr_name = (e: Exp.t): option(string) =>
-    switch (e.term) {
-    | Parens(inner) => ctr_name(inner)
-    | Constructor(name, _) => Some(name)
-    | _ => None
-    };
-  switch (exp.term) {
-  | Ap(_, fn, _) =>
-    switch (ctr_name(fn)) {
-    | Some("BarChart" | "LineChart" | "ScatterChart" | "PieChart") => true
-    | _ => false
-    }
-  | _ => false
-  };
-};
-
 /* Wrap an already-printed chart-constructor application (a multi-piece
  * segment) in a Chart projector. Unlike project_table_if, the underlying
  * syntax is multiple pieces, so we wrap it in parens (as fold_if does) to get
@@ -2159,7 +2138,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(
       exp,
       project_chart_if(
-        settings.project_charts && is_chart_ctr_ap(exp),
+        settings.project_charts && ChartCore.is_chart_ctr_ap(exp),
         Id.mk(),
         pieces,
       ),
