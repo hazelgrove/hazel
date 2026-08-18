@@ -68,18 +68,23 @@ module ServerMessage = {
     update: stream_update,
   };
 
-  [@deriving (show, sexp, yojson)]
+  /* No yojson here or on `t` below: Core.Time_ns.Span has no yojson converters,
+     and nothing ever calls these types' yojson_of_t/t_of_yojson — the wire uses
+     Marshal, sexp or the values themselves (see the encodings below). Dropping an
+     unused deriving is cheaper than making evaluator time the one duration in the
+     panels that isn't a Span. */
+  [@deriving (show, sexp)]
   type result = {
     request_id: int,
     response: Response.t,
-    /* Time the worker spent inside the evaluator for this batch, in ms, so the
+    /* Time the worker spent inside the evaluator for this batch, so the
      * Evaluation panel can separate evaluation from the queue + result
-     * serialization + transfer that the client's round trip also covers. A
-     * float rather than a Time_ns.Span since this record derives yojson/show. */
-    eval_ms: float,
+     * serialization + transfer that the client's round trip also covers. None
+     * when nothing was evaluated, rather than a zero that reads as instant. */
+    eval_time: option(Core.Time_ns.Span.t),
   };
 
-  [@deriving (show, sexp, yojson)]
+  [@deriving (show, sexp)]
   type t =
     | Ack(ack)
     | ReusePlan(reuse_plan)
@@ -304,16 +309,23 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   (key, stream);
 };
 
-/* Evaluator time accumulated for the request in flight, in ms, reported back in
- * the result. Timed unconditionally — the worker cannot see whether the
- * Evaluation panel is open, and two clock reads per slice (5000 trampoline
- * steps) is noise against the slice itself. */
-let eval_ms_total = ref(0.0);
+/* Evaluator time accumulated for the request in flight, reported back in the
+ * result; None until something is actually evaluated. Timed unconditionally —
+ * the worker cannot see whether the Evaluation panel is open, and two clock
+ * reads per slice (5000 trampoline steps) is noise against the slice itself. */
+let eval_total: ref(option(Core.Time_ns.Span.t)) = ref(None);
 
 let timed_eval: 'a. (unit => 'a) => 'a =
   f => {
     let (span, x) = TimeUtil.timed(f);
-    eval_ms_total := eval_ms_total^ +. Core.Time_ns.Span.to_ms(span);
+    eval_total :=
+      Some(
+        Option.fold(
+          ~none=span,
+          ~some=s => Core.Time_ns.Span.(s + span),
+          eval_total^,
+        ),
+      );
     x;
   };
 
@@ -351,7 +363,7 @@ let post_batch_result = (model, request_id, completed) =>
       ServerMessage.Result({
         request_id,
         response: List.rev(completed),
-        eval_ms: eval_ms_total^,
+        eval_time: eval_total^,
       }),
     );
   };
@@ -542,7 +554,7 @@ let install_message_handler = () => {
   let on_request = (req: Active.request): unit => {
     let ClientMessage.Evaluate(request) = Active.decode_request(req);
     post_ack(request);
-    eval_ms_total := 0.0;
+    eval_total := None;
     commit({
       ...model^,
       latest_request: Some(request),
