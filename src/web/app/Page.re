@@ -374,7 +374,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false)
+      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -384,24 +384,11 @@ module Update = {
       Benchmark.finish();
       model |> Updated.return_quiet;
     | Refresh => model |> Updated.return_quiet(~recalculate=true)
-    | Start => model |> return // Triggers recalculation at the start
+    | Start => model |> return(~historic=false) // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
       Store.save(model);
       model |> return_quiet;
-    };
-  };
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Globals(action) => Globals.Update.can_undo(action)
-    | Editors(action) => Editors.Update.can_undo(action)
-    | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
-    | MakeActive(_)
-    | Benchmark(_) => false
-    | Refresh => false
-    | Start => false
-    | Save => false
     };
   };
 
