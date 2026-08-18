@@ -98,7 +98,7 @@ module Update = {
           action,
           model.current,
         );
-      if (Page.Update.can_undo(action)) {
+      if (current.historic) {
         let new_stack = [
           {
             ...current,

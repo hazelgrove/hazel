@@ -178,13 +178,6 @@ module Update = {
     | ShowRowLines
     | ShowIncrementalDeco;
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Evaluation(ShowSettings) => false
-    | _ => true
-    };
-  };
-
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
       switch (action) {
@@ -492,7 +485,14 @@ module Update = {
         }
       }
     )
-    |> Updated.return(~scroll_active=false);
+    |> Updated.return(
+         ~scroll_active=false,
+         ~historic=
+           switch (action) {
+           | Evaluation(ShowSettings) => false
+           | _ => true
+           },
+       );
   };
 };
 
