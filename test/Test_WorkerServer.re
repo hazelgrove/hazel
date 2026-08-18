@@ -123,12 +123,41 @@ let test_eval_time_round_trips = (): test_case(_) =>
     },
   );
 
+/* Span's yojson converters are hand-written (Core provides none), so pin the
+ * representation: integer nanoseconds out, the same span back. Exercised on the
+ * converters directly rather than through a whole message, since some types
+ * inside a response define yojson converters that raise. */
+let test_span_yojson = (): test_case(_) =>
+  test_case(
+    "yojson: a span round-trips as nanoseconds",
+    `Quick,
+    () => {
+      let json = WorkerServer.ServerMessage.yojson_of_span(eval_time);
+      check(
+        string,
+        "encoded as nanoseconds",
+        Yojson.Safe.to_string(json),
+        "12500000",
+      );
+      check(
+        bool,
+        "same span",
+        true,
+        Core.Time_ns.Span.equal(
+          WorkerServer.ServerMessage.span_of_yojson(json),
+          eval_time,
+        ),
+      );
+    },
+  );
+
 let tests = [
   (
     "WorkerServer encodings",
     [
       test_marshal_depth_proof(),
       test_eval_time_round_trips(),
+      test_span_yojson(),
       test_isomorphic(~name="Marshal", (module WorkerServer.MarshalEncoding)),
       test_isomorphic(~name="Direct", (module WorkerServer.DirectEncoding)),
       test_isomorphic(~name="Sexp", (module WorkerServer.SexpEncoding)),
