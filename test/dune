@@ -24,6 +24,7 @@
    Test_ReparseDocSlides
    Test_StepperBase
    Test_TextRoundtrip
+   Test_Undo
    Test_WorkerServer))
  (libraries str haz3lcore menhirParser junit_alcotest bisect_ppx.runtime)
  (preprocess
@@ -56,6 +57,7 @@
   Test_ReparseDocSlides
   Test_StepperBase
   Test_TextRoundtrip
+  Test_Undo
   Test_WorkerServer)
  (libraries haz3ltest_common web junit_alcotest bisect_ppx.runtime)
  (modes js)

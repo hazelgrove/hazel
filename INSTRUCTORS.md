@@ -50,7 +50,7 @@ The cycle for creating an exercise of any kind is the same:
 
 `make` and `make release` create instructor mode versions of Hazel.
 
-`make student` and `make student-release` create student mode versions, which obviously don't let you enter instructor mode.
+`make dev-student` and `make release-student` create student mode versions, which obviously don't let you enter instructor mode.
 
 Notably, student and instructor mode have a different serialization format, so it probably won't work to go
 between the two without clearing your local storage (in browser dev tools).

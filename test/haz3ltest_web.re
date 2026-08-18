@@ -26,6 +26,7 @@ let (suite, _) =
     @ Test_TextRoundtrip.tests
     @ [
       Test_LazyHydration.tests,
+      Test_Undo.tests,
       Test_GradingReport.tests,
       Test_Derivation.tests,
       Test_StepperBase.tests,
