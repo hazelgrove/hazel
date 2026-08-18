@@ -9,14 +9,10 @@ open Virtual_dom.Vdom;
 
 let title = "Statics";
 
-/* How the panel names each outcome PerfMetrics reports. */
+/* The panel names each outcome by its constructor, lowercased — no hand-written
+   map to fall out of step with the variant. */
 let mode_label = (m: PerfMetrics.statics_mode): string =>
-  switch (m) {
-  | Recomputed => "recompute"
-  | Forced => "forced"
-  | Deferred => "deferred"
-  | Cached => "cached"
-  };
+  String.lowercase_ascii(PerfMetrics.show_statics_mode(m));
 
 let columns =
     (~max: Core.Time_ns.Span.t): list(PerfFormat.column(PerfMetrics.frame)) => [
@@ -45,7 +41,7 @@ let columns =
   },
   {
     label: "mode",
-    tooltip: "Whether statics recomputed this frame: recompute, forced, deferred (debounced), or cached (reused).",
+    tooltip: "Whether statics recomputed this frame: recomputed, forced, deferred (debounced), or cached (reused).",
     cell: f =>
       PerfFormat.text_cell(PerfFormat.fmt_opt(mode_label, f.statics_mode)),
   },

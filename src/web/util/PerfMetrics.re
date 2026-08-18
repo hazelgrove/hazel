@@ -9,7 +9,8 @@
 
 /* Why statics did or didn't recompute on a frame — the Statics panel's `mode`
  * column. Derived here from the throttle's decision so the panel's vocabulary
- * lives with the panel. */
+ * lives with the panel, and `show`n rather than hand-mapped to strings. */
+[@deriving show({with_path: false})]
 type statics_mode =
   | Recomputed /* an edit landed and statics ran this frame */
   | Forced /* the debounce timer fired and forced a run */

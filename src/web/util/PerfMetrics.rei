@@ -8,6 +8,9 @@ type statics_mode =
   | Deferred
   | Cached;
 
+/* The constructor's name; the panel lowercases it for display. */
+let show_statics_mode: statics_mode => string;
+
 type frame = {
   perform: option((string, Core.Time_ns.Span.t)),
   statics: option(Core.Time_ns.Span.t),
