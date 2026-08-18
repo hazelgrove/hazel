@@ -211,16 +211,6 @@ module Update = {
     | Refresh
     | ResetExercise;
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Editor(_, action) => CellEditor.Update.can_undo(action)
-    | MapEditor(_) => true
-    | Instructor(_) => false
-    | Refresh => false
-    | ResetExercise => false
-    };
-  };
-
   let instructor_update =
       (action: instructor, model: Model.t): Updated.t(Model.t) => {
     switch (action) {
@@ -393,7 +383,7 @@ module Update = {
       }
       |> Updated.return;
     | Instructor(action) => instructor_update(~settings, action, model)
-    | Refresh => Updated.return(model)
+    | Refresh => Updated.return(~historic=false, model)
     | ResetExercise =>
       let new_editors =
         DerivationExercise.mapi(model.spec, pos =>

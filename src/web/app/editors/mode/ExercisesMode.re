@@ -369,18 +369,6 @@ module Update = {
     | ExportModule
     | ExportSubmission
     | ExportTransitionary;
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | SwitchExercise(_) => false
-    | Exercise(action) => CodeExerciseMode.Update.can_undo(action)
-    | Derivation(action) => DerivationExerciseMode.Update.can_undo(action)
-    | TheoremExercise(action) => TheoremExerciseMode.Update.can_undo(action)
-    | ExportModule => false
-    | ExportSubmission => false
-    | ExportTransitionary => false
-    };
-  };
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
     let module_name =
@@ -484,7 +472,7 @@ module Update = {
         current: n,
         exercises: model.exercises,
       }
-      |> return;
+      |> return(~historic=false);
     | (_, ExportModule) =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_exercise_module(model);
