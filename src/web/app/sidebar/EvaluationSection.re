@@ -62,17 +62,15 @@ let columns: list(PerfFormat.column(EvalMetrics.record)) = [
 ];
 
 let view = (~globals as _: Globals.t): list(Node.t) =>
-  switch (EvalMetrics.history^) {
-  | [] => [
-      PerfFormat.empty("No evaluations recorded yet — evaluate a program."),
-    ]
-  | records => [
-      PerfFormat.note(
+  PerfFormat.view(
+    ~columns,
+    ~empty="No evaluations recorded yet — evaluate a program.",
+    ~note=
+      Some(
         Printf.sprintf(
           "round-trip − eval = queue + serialize + transfer; restarts: %d",
           EvalMetrics.restarts^,
         ),
       ),
-      PerfFormat.table(~columns, List.map(r => PerfFormat.Row(r), records)),
-    ]
-  };
+    List.map(r => PerfFormat.Row(r), EvalMetrics.history^),
+  );

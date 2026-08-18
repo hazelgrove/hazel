@@ -143,20 +143,14 @@ let encoding_toggles = (~globals): Node.t =>
     List.map(encoding_toggle(~globals), WorkerServer.all_of_encoding),
   );
 
+/* The chips are this section's own control, so they sit outside the table body;
+   column meanings live on the header tooltips, and the legend just names the heat
+   scale as in the other profiling sections. */
 let view = (~globals: Globals.t): list(Node.t) =>
   [encoding_toggles(~globals)]
-  @ (
-    switch (WorkerMetrics.history^) {
-    | [] => [
-        PerfFormat.empty("No requests recorded yet — evaluate a program."),
-      ]
-    | records =>
-      let rows = List.concat_map(rows_of_record, records);
-      /* Column meanings live on the header tooltips; the legend just names the
-         heat scale, as in the other profiling sections. */
-      [
-        PerfFormat.scale_note(~columns, rows),
-        PerfFormat.table(~columns, rows),
-      ];
-    }
-  );
+  @ PerfFormat.view(
+      ~columns,
+      ~empty="No requests recorded yet — evaluate a program.",
+      ~legend=true,
+      List.concat_map(rows_of_record, WorkerMetrics.history^),
+    );

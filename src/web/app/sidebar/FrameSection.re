@@ -50,14 +50,9 @@ let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
 ];
 
 let view = (~globals as _: Globals.t): list(Node.t) =>
-  switch (PerfMetrics.history^) {
-  | [] => [
-      PerfFormat.empty("No frames recorded yet — type in the editor."),
-    ]
-  | frames =>
-    let rows = List.map(f => PerfFormat.Row(f), frames);
-    [
-      PerfFormat.scale_note(~columns, rows),
-      PerfFormat.table(~columns, rows),
-    ];
-  };
+  PerfFormat.view(
+    ~columns,
+    ~empty="No frames recorded yet — type in the editor.",
+    ~legend=true,
+    List.map(f => PerfFormat.Row(f), PerfMetrics.history^),
+  );

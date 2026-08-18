@@ -235,7 +235,7 @@ let head = (c: column('row)): Node.t =>
 /* Tooltipped header row plus the rows, in a horizontal scroller (columns
    overflow the narrow sidebar). A group label spans every column, so its
    colspan follows the column list rather than a hardcoded count. */
-let table =
+let table_node =
     (~columns: list(column('data)), rows: list(row('data))): Node.t => {
   let scale = scale(~columns, rows);
   let width = string_of_int(List.length(columns));
@@ -278,3 +278,29 @@ let scale_note =
   note(
     "max total: " ++ fmt_span(scale(~columns, rows)) ++ " · redder = slower",
   );
+
+/* A whole section body: the rows rendered through `columns`, or `empty` in their
+   place when there are none. `live` is a line of current state, shown either way;
+   `note` a line about the table, shown with it; `legend` prepends the heat-scale
+   line. Assembling these here is what keeps a section from ordering them, or
+   forgetting the empty case. */
+let view =
+    (
+      ~columns: list(column('data)),
+      ~empty as empty_msg: string,
+      ~live: option(string)=None,
+      ~note as note_msg: option(string)=None,
+      ~legend: bool=false,
+      rows: list(row('data)),
+    )
+    : list(Node.t) => {
+  let lines = Option.to_list(Option.map(note, live));
+  switch (rows) {
+  | [] => lines @ [empty(empty_msg)]
+  | _ =>
+    lines
+    @ (legend ? [scale_note(~columns, rows)] : [])
+    @ Option.to_list(Option.map(note, note_msg))
+    @ [table_node(~columns, rows)]
+  };
+};

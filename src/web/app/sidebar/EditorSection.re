@@ -44,23 +44,19 @@ let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
 
 let view = (~globals as _: Globals.t): list(Node.t) => {
   let live = PerfMetrics.live^;
-  let undo_redo =
-    PerfFormat.note(
-      Printf.sprintf(
-        "undo %d · redo %d · backpack %d",
-        live.undo_depth,
-        live.redo_depth,
-        live.backpack,
+  PerfFormat.view(
+    ~columns,
+    ~empty="No edits recorded yet — type in the editor.",
+    /* Current depths, worth showing even before any frame is recorded. */
+    ~live=
+      Some(
+        Printf.sprintf(
+          "undo %d · redo %d · backpack %d",
+          live.undo_depth,
+          live.redo_depth,
+          live.backpack,
+        ),
       ),
-    );
-  switch (PerfMetrics.history^) {
-  | [] => [
-      undo_redo,
-      PerfFormat.empty("No edits recorded yet — type in the editor."),
-    ]
-  | frames => [
-      undo_redo,
-      PerfFormat.table(~columns, List.map(f => PerfFormat.Row(f), frames)),
-    ]
-  };
+    List.map(f => PerfFormat.Row(f), PerfMetrics.history^),
+  );
 };

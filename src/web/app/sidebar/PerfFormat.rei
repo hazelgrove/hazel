@@ -53,13 +53,17 @@ type row('data) =
   | Row('data)
   | Group(group);
 
-let table:
-  (~columns: list(column('data)), list(row('data))) => Util.WebUtil.Node.t;
-
-/* The legend for a table's heat map, naming the scale its own cells set. */
-let scale_note:
-  (~columns: list(column('data)), list(row('data))) => Util.WebUtil.Node.t;
-
-/* Italic one-liners above a table. */
-let empty: string => Util.WebUtil.Node.t;
-let note: string => Util.WebUtil.Node.t;
+/* A whole section body: the rows rendered through `columns`, or `empty` in their
+ * place when there are none. `live` is a line of current state, shown either way;
+ * `note` a line about the table, shown with it; `legend` prepends the heat-scale
+ * legend. A section says what to show, not how the pieces are ordered. */
+let view:
+  (
+    ~columns: list(column('data)),
+    ~empty: string,
+    ~live: option(string)=?,
+    ~note: option(string)=?,
+    ~legend: bool=?,
+    list(row('data))
+  ) =>
+  list(Util.WebUtil.Node.t);

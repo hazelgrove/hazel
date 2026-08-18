@@ -50,11 +50,8 @@ let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
 ];
 
 let view = (~globals as _: Globals.t): list(Node.t) =>
-  switch (PerfMetrics.history^) {
-  | [] => [
-      PerfFormat.empty("No statics recorded yet — type in the editor."),
-    ]
-  | frames => [
-      PerfFormat.table(~columns, List.map(f => PerfFormat.Row(f), frames)),
-    ]
-  };
+  PerfFormat.view(
+    ~columns,
+    ~empty="No statics recorded yet — type in the editor.",
+    List.map(f => PerfFormat.Row(f), PerfMetrics.history^),
+  );
