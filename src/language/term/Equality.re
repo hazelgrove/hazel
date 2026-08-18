@@ -962,6 +962,8 @@ let equality =
       | (Forall(x1, b1), Forall(x2, b2)) =>
         Option.is_some(pat'(x1, x2)) && proof'(b1, b2)
       | (Forall(_, _), _) => false
+      | (Assume(e1, b1), Assume(e2, b2)) => exp'(e1, e2) && proof'(b1, b2)
+      | (Assume(_, _), _) => false
       };
     proof'(p1, p2);
   };

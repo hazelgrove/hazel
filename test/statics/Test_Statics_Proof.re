@@ -51,6 +51,11 @@ let is_free_var =
   | Mark.Free(_) => true
   | _ => false;
 
+let is_expectation_mismatch =
+  fun
+  | Mark.ExpectationMismatch(_) => true
+  | _ => false;
+
 let is_redundant =
   fun
   | Mark.Redundant => true
@@ -124,6 +129,27 @@ let tests = (
       "induction flags inexhaustive match",
       {|theorem t = true proof induction 1 | 0 => ? end in t|},
       is_inexhaustive,
+    ),
+    /* `assume` introduces a hypothesis citable in its body: an axiom step
+       naming the generated hypothesis (`assume`) is not a free
+       hypothesis. */
+    expects_no_mark(
+      "assume body sees the hypothesis",
+      {|theorem t = 1 == 1 proof assume 2 == 2 => axiom assume at 0 on 2 end in t|},
+      is_free_hyp,
+    ),
+    /* The assumption analyzes against Bool: a non-bool assumption is a
+       static type error. */
+    expects_mark(
+      "non-bool assumption flags a type error",
+      {|theorem t = 1 == 1 proof assume 5 => ? in t|},
+      is_expectation_mismatch,
+    ),
+    /* ...and a boolean assumption is not. */
+    expects_no_mark(
+      "bool assumption has no type error",
+      {|theorem t = 1 == 1 proof assume 2 == 2 => ? in t|},
+      is_expectation_mismatch,
     ),
   ],
 );

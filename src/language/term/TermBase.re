@@ -1479,6 +1479,7 @@ and Proof: {
             ),
           )
         | Forall(x, body) => Forall(pat_map_term(x), proof_map_term(body))
+        | Assume(e, body) => Assume(exp_map_term(e), proof_map_term(body))
         },
     };
     x |> f_proof(proof_map_term);

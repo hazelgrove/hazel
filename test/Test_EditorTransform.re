@@ -58,7 +58,8 @@ let rec find_proofs = (pred: Proof.t => bool, p: Proof.t): list(Proof.t) => {
     | Seq(a, b) => find_proofs(pred, a) @ find_proofs(pred, b)
     | Induction(_, cases) =>
       List.concat_map(((_, body)) => find_proofs(pred, body), cases)
-    | Forall(_, body) => find_proofs(pred, body)
+    | Forall(_, body)
+    | Assume(_, body) => find_proofs(pred, body)
     };
   (pred(p) ? [p] : []) @ kids;
 };

@@ -4700,6 +4700,55 @@ and proof_to_info_map =
       );
     let elab = rewrap(Forall(pat_elab, proof_of_any(body_elab)));
     (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | Assume(e, body) =>
+    /* The assumption is a proposition: analyze it against Bool. */
+    let (_, e_elab, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ana=Atom(Bool) |> Typ.temp,
+        ~ancestors=ancestors_inclusive,
+        e,
+        m,
+      );
+    /* The body sees the assumption as a citable hypothesis, under the
+       same deterministically-generated name the big-step checker will
+       use (`SemanticCtx.add_hypothesis` with base name "assume",
+       freshened against the variables in scope). Extend both namespaces:
+       the hypothesis namespace (so `axiom assume ...` resolves) and the
+       variable namespace (mirroring the checker's ctx shape and keeping
+       the freshening in sync for nested assumes). */
+    let name =
+      Var.free_name(
+        "assume",
+        List.map((ve: Ctx.var_entry) => ve.name, Ctx.get_var_entries(ctx)),
+      );
+    let hyp_id = IdTagged.rep_id(p_term);
+    let body_ctx =
+      Ctx.extend_hypothesis(
+        Ctx.extend(
+          ctx,
+          VarEntry({
+            name,
+            id: hyp_id,
+            typ: Typ.fresh(ProofOf(e)),
+            custom_statics: None,
+          }),
+        ),
+        {
+          name,
+          id: hyp_id,
+          prop: Some(e),
+        },
+      );
+    let (_, body_elab, m) =
+      any_to_info_map(
+        ~ctx=body_ctx,
+        ~ancestors=ancestors_inclusive,
+        Proof(body),
+        m,
+      );
+    let elab = rewrap(Assume(e_elab, proof_of_any(body_elab)));
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
   };
 };
 

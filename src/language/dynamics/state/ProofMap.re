@@ -21,6 +21,9 @@ type entry = {
   auto_outgoing: list((Exp.t, string)),
   outgoing: option(Exp.t),
   marks: list(ProofMark.t),
+  /* Obligations incurred by this step (e.g. an `assume`'s hypothesis),
+   * with their discharge provenance. Empty for most steps. */
+  obligations: list(Obligation.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -65,6 +68,7 @@ let add_marks = (id: Id.t, new_marks: list(ProofMark.t), pm: t): t =>
         auto_outgoing: [],
         outgoing: None,
         marks: new_marks,
+        obligations: [],
       },
       pm,
     )
@@ -102,7 +106,8 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
     | AlgebriteStep(_)
     | EvalStep(_) => true
     | Seq(p1, p2) => proof_is_clean(pm, p1) && proof_is_clean(pm, p2)
-    | Forall(_, body) => proof_is_clean(pm, body)
+    | Forall(_, body)
+    | Assume(_, body) => proof_is_clean(pm, body)
     | Induction(_, cases) =>
       List.for_all(((_, body)) => proof_is_clean(pm, body), cases)
     }
@@ -132,4 +137,58 @@ let status_of_proof = (pm: t, proof: Proof.t): option(bool) =>
         && proof_is_clean(pm, proof) =>
     Some(false)
   | _ => None
+  };
+
+/* All obligations recorded in the proof subtree, in proof-term order. */
+let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
+  let here =
+    switch (lookup(Proof.rep_id(proof), pm)) {
+    | Some({obligations, _}) => obligations
+    | None => []
+    };
+  here
+  @ (
+    switch (proof.term) {
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | AxiomStep(_)
+    | AlgebriteStep(_)
+    | EvalStep(_) => []
+    | Seq(p1, p2) =>
+      obligations_of_proof(pm, p1) @ obligations_of_proof(pm, p2)
+    | Forall(_, body)
+    | Assume(_, body) => obligations_of_proof(pm, body)
+    | Induction(_, cases) =>
+      List.concat_map(((_, body)) => obligations_of_proof(pm, body), cases)
+    }
+  );
+};
+
+/* The still-undischarged obligations in the proof subtree. */
+let pending_obligations = (pm: t, proof: Proof.t): list(Obligation.t) =>
+  obligations_of_proof(pm, proof) |> List.filter(Obligation.is_pending);
+
+/* Obligation-aware proof status. `status_of_proof` above is kept as-is
+ * (its consumers predate obligations); this refines it:
+ * - Proven / Refuted — literal `true`/`false`, clean subtree, and NO
+ *   pending obligations anywhere in the subtree;
+ * - ProvenModulo(obs) — the goal reached literal `true` with a clean
+ *   subtree, but pending obligations `obs` remain (§3.1's
+ *   "ProvenModulo" outcome);
+ * - Incomplete — everything else. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type full_status =
+  | Proven
+  | Refuted
+  | ProvenModulo(list(Obligation.t))
+  | Incomplete;
+
+let full_status_of_proof = (pm: t, proof: Proof.t): full_status =>
+  switch (status_of_proof(pm, proof), pending_obligations(pm, proof)) {
+  | (Some(true), []) => Proven
+  | (Some(true), pending) => ProvenModulo(pending)
+  | (Some(false), []) => Refuted
+  | (Some(false), _)
+  | (None, _) => Incomplete
   };

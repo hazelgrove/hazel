@@ -684,6 +684,7 @@ and Stepper: {
     | EvalStep(_)
     | Forall(_, _)
     | Induction(_, _)
+    | Assume(_, _)
     | Seq(_, _) => false
     };
 
@@ -727,6 +728,9 @@ and Stepper: {
     | EmptyHole
     | Invalid(_)
     | MultiHole(_)
+    /* Assume has no stepper-UI step kind yet (Phase 1: no stepper-UI
+     * work; obligation rendering is a later phase). */
+    | Assume(_, _)
     | Seq(_, _) => None
     };
 

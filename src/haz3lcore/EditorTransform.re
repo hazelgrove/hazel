@@ -109,6 +109,7 @@ let rewrite_proof =
               List.map(((pt, body)) => (pt, walk(body)), cases),
             )
           | Forall(x, body) => Forall(x, walk(body))
+          | Assume(e, body) => Assume(e, walk(body))
           },
       };
     };
@@ -150,7 +151,8 @@ let rec find_seq_parent =
       | None => find_seq_parent(~target_id, p2)
       };
     }
-  | Forall(_, body) => find_seq_parent(~target_id, body)
+  | Forall(_, body)
+  | Assume(_, body) => find_seq_parent(~target_id, body)
   | Induction(_, cases) =>
     List.find_map(((_, body)) => find_seq_parent(~target_id, body), cases)
   | EmptyHole

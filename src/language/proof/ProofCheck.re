@@ -35,6 +35,7 @@ let entry =
       ~auto_outgoing: list((Exp.t, string))=[],
       ~outgoing: option(Exp.t),
       ~marks: list(ProofMark.t)=[],
+      ~obligations: list(Obligation.t)=[],
       (),
     )
     : ProofMap.entry => {
@@ -43,6 +44,7 @@ let entry =
   auto_outgoing,
   outgoing,
   marks,
+  obligations,
 };
 
 /* Record an entry at `id`, merged into accumulated map `m`. */
@@ -51,6 +53,7 @@ let record =
       ~marks: list(ProofMark.t)=[],
       ~auto_incoming: list((string, Exp.t))=[],
       ~auto_outgoing: list((Exp.t, string))=[],
+      ~obligations: list(Obligation.t)=[],
       id: Id.t,
       incoming,
       outgoing,
@@ -59,7 +62,15 @@ let record =
     : ProofMap.t =>
   ProofMap.add(
     id,
-    entry(~incoming, ~auto_incoming, ~auto_outgoing, ~outgoing, ~marks, ()),
+    entry(
+      ~incoming,
+      ~auto_incoming,
+      ~auto_outgoing,
+      ~outgoing,
+      ~marks,
+      ~obligations,
+      (),
+    ),
     m,
   );
 
@@ -325,6 +336,24 @@ let eval_step_outgoing_ast =
     eval_step_outgoing_result(~step, ~env, ~at_idx=idx, ~at_exp, incoming)
   };
 
+/* Discharge channel 1 (binder lookup): search the facts visible in the
+ * given scope — hypotheses added via `SemanticCtx.add_hypothesis`
+ * (`assume`, `case_eq`, `ih`, ...) live in the ctx as var entries typed
+ * `ProofOf(fact)` — for one that syntactically covers `goal`. The
+ * comparison is deliberately a dumb `Exp.fast_equal`: the design mandates
+ * a transparent, lookup-only discharge relation
+ * (docs/prover-obligations.md §4.2–4.3). Returns the covering fact's
+ * stable entry id. */
+let lookup_fact = (ctx: SemanticCtx.t, goal: Exp.t): option(Id.t) =>
+  SemanticCtx.get_ctx(ctx)
+  |> Ctx.get_var_entries
+  |> List.find_map((e: Ctx.var_entry) =>
+       switch (Typ.term_of(e.typ)) {
+       | ProofOf(fact) when Exp.fast_equal(fact, goal) => Some(e.id)
+       | _ => None
+       }
+     );
+
 /* Peel the outermost binder from an incoming "for all pat, P" goal. Used
  * by the `Forall` and `Intro` proof forms to walk under the binder. */
 let peel_binder = (incoming: option(Exp.t)): option((Pat.t, Typ.t, Exp.t)) => {
@@ -506,6 +535,31 @@ let rec check =
       | _ => incoming
       };
     (outgoing, record(~marks=binder_marks, id, incoming, outgoing, m));
+  | Assume(e, body) =>
+    /* Hypothesize `e` for the body's scope, incurring an obligation to
+     * establish it (recorded on this node's ProofMap entry). Assuming
+     * doesn't change the goal, so the node's outgoing is the body's. */
+    let hyp = e |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+    /* Channel-1 discharge against the ENCLOSING scope's facts (before the
+     * new hypothesis is added, so an assume never discharges itself). */
+    let discharge =
+      switch (lookup_fact(ctx, hyp)) {
+      | Some(fact_id) => Obligation.Remote(fact_id)
+      | None => Obligation.Pending
+      };
+    let obligation =
+      Obligation.{
+        origin: id,
+        bindings: SemanticCtx.get_ctx(ctx).entries,
+        goal: hyp,
+        discharge,
+      };
+    let (ctx', _binding) = SemanticCtx.add_hypothesis(ctx, "assume", hyp);
+    let (out_body, m) = check(~step, ~info_map, ~ctx=ctx', incoming, body);
+    (
+      out_body,
+      record(~obligations=[obligation], id, incoming, out_body, m),
+    );
   | Induction(scrut, cases) =>
     let (out, marks, m) =
       check_induction(~step, ~info_map, ~ctx, ~incoming, ~scrut, ~cases);

@@ -271,7 +271,8 @@ let rec find_marked_sub =
       | Some(_) as s => s
       | None => find_marked_sub(pm, p2)
       }
-    | Forall(_, body) => find_marked_sub(pm, body)
+    | Forall(_, body)
+    | Assume(_, body) => find_marked_sub(pm, body)
     | Induction(_, cases) =>
       let rec scan = (
         fun
@@ -631,6 +632,130 @@ let test_axiom_direction_roundtrip = () => {
   );
 };
 
+/* --- Assume / obligation tests -------------------------------------
+ *
+ * `assume <exp> => <proof>` hypothesizes <exp> for the sub-proof and
+ * incurs a sequent obligation, recorded on the assume node's proof-map
+ * entry with discharge provenance. `full_status_of_proof` refines the
+ * legacy `status_of_proof` with the obligation-aware `ProvenModulo`. */
+
+/* (a) An unused, undischargeable assumption: the proof still reaches
+ * `true` (legacy status unchanged), but full status is ProvenModulo with
+ * exactly one pending obligation `2 == 2`. */
+let test_assume_proven_modulo = () => {
+  let src = {|theorem t = 1 == 1 proof assume 2 == 2 => axiom refl_eq at 0 on 1 == 1 end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.option(bool),
+    "legacy status still reports proven",
+    Some(true),
+    ProofMap.status_of_proof(pm, proof),
+  );
+  switch (ProofMap.full_status_of_proof(pm, proof)) {
+  | ProvenModulo([ob]) =>
+    check_exp("pending obligation goal is the assumption", "2 == 2", ob.goal);
+    Alcotest.check(
+      Alcotest.bool,
+      "the obligation is pending",
+      true,
+      Obligation.is_pending(ob),
+    );
+  | other =>
+    Alcotest.fail(
+      "expected ProvenModulo with one obligation, got: "
+      ++ ProofMap.show_full_status(other),
+    )
+  };
+};
+
+/* (b) The assumed equation is USED: citing the generated hypothesis name
+ * (`assume` — SemanticCtx free-name generation from base "assume")
+ * rewrites the goal with the assumed equation, so the theorem is
+ * ProvenModulo its single pending obligation. */
+let test_assume_hypothesis_used = () => {
+  let src = {|theorem t = forall x -> x == 1 proof assume x == 1 => axiom assume at 0 on x end; axiom refl_eq at 0 on 1 == 1 end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  switch (ProofMap.full_status_of_proof(pm, proof)) {
+  | ProvenModulo([ob]) =>
+    check_exp("pending obligation goal", "x == 1", ob.goal)
+  | other =>
+    Alcotest.fail(
+      "expected ProvenModulo with one obligation, got: "
+      ++ ProofMap.show_full_status(other),
+    )
+  };
+};
+
+/* (c) A nested assume of an identical proposition: the inner obligation
+ * discharges Remote against the outer hypothesis (channel-1 lookup), so
+ * two obligations are recorded but only ONE is pending. */
+let test_nested_assume_discharges_remote = () => {
+  let src = {|theorem t = 1 == 1 proof assume 2 == 2 => assume 2 == 2 => axiom refl_eq at 0 on 1 == 1 end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  let all = ProofMap.obligations_of_proof(pm, proof);
+  Alcotest.check(
+    Alcotest.int,
+    "two obligations are recorded",
+    2,
+    List.length(all),
+  );
+  Alcotest.check(
+    Alcotest.int,
+    "only one obligation is pending",
+    1,
+    List.length(ProofMap.pending_obligations(pm, proof)),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "the discharged one is Remote",
+    true,
+    List.exists(
+      (ob: Obligation.t) =>
+        switch (ob.discharge) {
+        | Remote(_) => true
+        | Local(_)
+        | Pending => false
+        },
+      all,
+    ),
+  );
+  switch (ProofMap.full_status_of_proof(pm, proof)) {
+  | ProvenModulo([_]) => ()
+  | other =>
+    Alcotest.fail(
+      "expected ProvenModulo with one pending obligation, got: "
+      ++ ProofMap.show_full_status(other),
+    )
+  };
+};
+
+/* (d) Regression: an assume-free proof has no obligations and full
+ * status Proven. */
+let test_no_assume_full_status_proven = () => {
+  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.int,
+    "no obligations recorded",
+    0,
+    List.length(ProofMap.obligations_of_proof(pm, proof)),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "full status is Proven",
+    true,
+    ProofMap.full_status_of_proof(pm, proof) == ProofMap.Proven,
+  );
+};
+
 let tests = (
   "Evaluator.ProofMap",
   [
@@ -717,6 +842,26 @@ let tests = (
       "axiom direction survives round trip",
       `Quick,
       test_axiom_direction_roundtrip,
+    ),
+    test_case(
+      "assume incurs a pending obligation (ProvenModulo)",
+      `Quick,
+      test_assume_proven_modulo,
+    ),
+    test_case(
+      "assumed hypothesis is citable and rewrites the goal",
+      `Quick,
+      test_assume_hypothesis_used,
+    ),
+    test_case(
+      "nested identical assume discharges Remote",
+      `Quick,
+      test_nested_assume_discharges_remote,
+    ),
+    test_case(
+      "assume-free proof is Proven with no obligations",
+      `Quick,
+      test_no_assume_full_status_proven,
     ),
   ],
 );

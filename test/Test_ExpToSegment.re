@@ -942,6 +942,15 @@ end|}),
       {|Forall: simple|},
       {|theorem x = 1 proof forall y => axiom y at y on y end in x|},
     ),
+    /* Proof: assume (hypothesized proposition) */
+    roundtrip_test(
+      {|Assume: simple|},
+      {|theorem x = 1 proof assume 2 == 2 => axiom y at y on y end in x|},
+    ),
+    roundtrip_test(
+      {|Assume: nested|},
+      {|theorem x = 1 proof assume 2 == 2 => assume 3 == 3 => axiom y at y on y end in x|},
+    ),
     /* Module expressions: empty module roundtrip */
     roundtrip_test({|Module: empty|}, {|{}|}),
     /* Module text round-trip tests */

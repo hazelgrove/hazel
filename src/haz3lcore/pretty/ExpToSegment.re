@@ -3391,6 +3391,10 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     let+ x = pat_to_pretty(~settings, x)
     and+ b = proof_to_pretty(~settings, body);
     wrap(p, [mk_form(ProofForall, id, [x])] @ b);
+  | Assume(e, body) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ b = proof_to_pretty(~settings, body);
+    wrap(p, [mk_form(ProofAssume, id, [e])] @ b);
   | AxiomStep({at_idx, at_exp, direction, equality}) =>
     let+ eq = exp_to_pretty(~settings, equality)
     and+ i = exp_to_pretty(~settings, at_idx)

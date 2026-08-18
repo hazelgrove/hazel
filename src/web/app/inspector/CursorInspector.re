@@ -1101,7 +1101,14 @@ let proof_view = (~globals, ~proof_map: ProofMap.t, info: Info.proof) => {
     | None => [text(label), text("—")]
     };
   switch (ProofMap.lookup(info.id, proof_map)) {
-  | Some({incoming, auto_incoming: _, auto_outgoing: _, outgoing, marks}) =>
+  | Some({
+      incoming,
+      auto_incoming: _,
+      auto_outgoing: _,
+      outgoing,
+      marks,
+      obligations: _,
+    }) =>
     let body = opt_exp("in:", incoming) @ opt_exp("out:", outgoing);
     switch (ProofMark.highest(marks)) {
     | Some(m) => div_err(proof_mark_err_view(~globals, m) @ body)

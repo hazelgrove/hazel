@@ -187,6 +187,9 @@ and proof_term('a) =
     })
   | Induction(exp_t('a), list((pat_t('a), proof_t('a))))
   | Forall(pat_t('a), proof_t('a))
+  /* `assume <exp> => <proof>`: hypothesize the boolean expression for the
+   * scope of the sub-proof, incurring an obligation to establish it. */
+  | Assume(exp_t('a), proof_t('a))
 and proof_t('a) = Annotated.t(proof_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
@@ -400,6 +403,8 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
           )
         | Forall(x, body) =>
           Forall(map_pat_annotation(f, x), map_proof_annotation(f, body))
+        | Assume(e, body) =>
+          Assume(map_exp_annotation(f, e), map_proof_annotation(f, body))
         },
       annotation: new_annotation,
     };
