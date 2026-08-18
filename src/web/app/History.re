@@ -49,7 +49,7 @@ module Update = {
       switch (model.undo_stack) {
       | [] =>
         print_endline("Cannot undo");
-        model |> return_quiet;
+        model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
         PatchworkUndoSync.sync(model.current, x.model);
         {
@@ -71,7 +71,7 @@ module Update = {
       switch (model.redo_stack) {
       | [] =>
         print_endline("Cannot redo");
-        model |> return_quiet;
+        model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
         PatchworkUndoSync.sync(model.current, x.model);
         {
