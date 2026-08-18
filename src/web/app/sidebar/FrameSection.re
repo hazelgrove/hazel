@@ -15,11 +15,9 @@ let title = "Frame Timing";
    frames overall. */
 let columns =
     (~max: Core.Time_ns.Span.t): list(PerfFormat.column(PerfMetrics.frame)) => [
-  {
-    label: "action",
-    tooltip: "The edit action that triggered this frame.",
-    cell: f => PerfFormat.label_cell(PerfFormat.fmt_opt(fst, f.perform)),
-  },
+  PerfFormat.action_column((f: PerfMetrics.frame) =>
+    PerfFormat.fmt_opt(fst, f.perform)
+  ),
   {
     label: "perform",
     tooltip: "Update phase: applying the edit action to the zipper (Perform.go).",

@@ -142,6 +142,15 @@ type row('data) =
   | Row('data)
   | Group(group);
 
+/* The edit-action column all three per-frame tables open with, so its wording
+   lives in one place rather than once per section. `get` pulls the row's action
+   label out; the column owns how it is described and rendered. */
+let action_column = (get: 'row => string): column('row) => {
+  label: "action",
+  tooltip: "The edit action that triggered this frame.",
+  cell: r => label_cell(get(r)),
+};
+
 let head = (c: column('row)): Node.t =>
   Node.td(
     ~attrs=[clss(["perf-head"]), Attr.title(c.tooltip)],

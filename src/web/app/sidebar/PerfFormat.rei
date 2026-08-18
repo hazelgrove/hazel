@@ -40,6 +40,9 @@ type row('data) =
   | Row('data)
   | Group(group);
 
+/* The shared edit-action column; `get` pulls the row's action label out. */
+let action_column: ('row => string) => column('row);
+
 let table:
   (~columns: list(column('data)), list(row('data))) => Util.WebUtil.Node.t;
 

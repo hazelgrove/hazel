@@ -44,7 +44,7 @@ let live: ref(live);
 let time_frame: (unit => 'a) => 'a;
 
 /* Wrap a stage, recording how long it took on the frame under construction. */
-let time_perform: (~action: unit => string, unit => 'a) => 'a;
+let time_perform: (~action: Haz3lcore.Action.t, unit => 'a) => 'a;
 let time_statics: (unit => 'a) => 'a;
 let time_syntax: (unit => 'a) => 'a;
 let time_cursor: (unit => 'a) => 'a;
@@ -53,4 +53,4 @@ let time_colors: (unit => 'a) => 'a;
 let record_statics_counts:
   (~recompute: bool, ~mode: StaticsMode.t, Haz3lcore.CachedStatics.t) => unit;
 let record_syntax_counts: Haz3lcore.CachedSyntax.t => unit;
-let record_history: (~undo_depth: int, ~redo_depth: int) => unit;
+let record_history: (~undo: list('a), ~redo: list('b)) => unit;

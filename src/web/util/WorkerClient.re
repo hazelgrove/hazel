@@ -63,12 +63,7 @@ let with_latest = (request_id, f) =>
  * opened, so the reported latency still runs from that first post. */
 let post_evaluate = (worker, request: Request.t) => {
   let encoded = Active.encode_request(ClientMessage.Evaluate(request));
-  EvalMetrics.record_sent(
-    ~id=request.request_id,
-    ~entries=List.length(request.batch),
-    ~sent_at=Util.JsUtil.precise_timestamp(),
-    ~req_bytes=Active.size_request(encoded),
-  );
+  EvalMetrics.record_sent(~request, ~encoded);
   worker##postMessage(encoded);
 };
 
@@ -104,7 +99,7 @@ let setup_worker_message_handler = worker => {
         with_latest(request_id, latest =>
           latest.callbacks.on_stream(key, update)
         )
-      | ServerMessage.Result({request_id, response, eval_ms}) as msg =>
+      | ServerMessage.Result({request_id, _} as result) as msg =>
         with_latest(
           request_id,
           latest => {
@@ -112,15 +107,9 @@ let setup_worker_message_handler = worker => {
             latest_request := None;
             /* Hand the result off first; benchmarking the other encodings
              * can take tens of ms and must not delay evaluation latency. */
-            latest.callbacks.on_result(response);
+            latest.callbacks.on_result(result.response);
             WorkerMetrics.record_response(request_id, msg);
-            EvalMetrics.record_done(
-              ~id=request_id,
-              ~now,
-              ~response,
-              ~eval_ms,
-              ~resp_bytes=Active.size_response(evt##.data),
-            );
+            EvalMetrics.record_done(~now, ~encoded=evt##.data, result);
           },
         )
       };

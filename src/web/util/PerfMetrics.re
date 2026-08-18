@@ -141,17 +141,19 @@ let time_colors = f =>
     f,
   );
 
-/* Like the stage timers, but also records the triggering action's label.
- * `action` is a thunk so the (possibly costly) label is only built when on.
- * Assigns rather than accumulating: one perform runs per update. */
-let time_perform: 'a. (~action: unit => string, unit => 'a) => 'a =
+/* Like the stage timers, but also records the triggering action. Takes the
+ * action itself and labels it here, so the (not cheap) `Action.show` runs only
+ * while a panel is open — and once per frame rather than once per render, which
+ * is why the frame keeps the label and not the action. Assigns rather than
+ * accumulating: one perform runs per update. */
+let time_perform: 'a. (~action: Haz3lcore.Action.t, unit => 'a) => 'a =
   (~action, f) =>
     if (enabled^) {
       let (span, x) = Util.TimeUtil.timed(f);
       current :=
         {
           ...current^,
-          perform: Some((action(), span)),
+          perform: Some((Haz3lcore.Action.show(action), span)),
         };
       x;
     } else {
@@ -247,12 +249,15 @@ let record_syntax_counts = (syntax: Haz3lcore.CachedSyntax.t): unit =>
       };
   });
 
-let record_history = (~undo_depth: int, ~redo_depth: int): unit =>
+/* Takes the stacks rather than their depths: `List.length` on an uncapped undo
+ * stack is O(n) and this runs every frame, so it must happen inside the gate.
+ * Polymorphic in the entries, so the collector needn't know History's types. */
+let record_history = (~undo: list('a), ~redo: list('b)): unit =>
   when_enabled(() =>
     live :=
       {
         ...live^,
-        undo_depth,
-        redo_depth,
+        undo_depth: List.length(undo),
+        redo_depth: List.length(redo),
       }
   );

@@ -52,47 +52,51 @@ let status_of_response = (response: WorkerServer.Response.t): status =>
   )
     ? Success : Failure;
 
-/* Record a posted request; the latency clock starts at `sent_at`. An ack retry
- * reposts the same request id: keep the original row so latency still measures
- * from the first post, and so no id can appear twice for `update` to hit. */
+/* Record a posted request, taking the request and its encoded payload so the id,
+ * cell count, clock read and byte length are all derived (and paid for) inside
+ * the gate. The latency clock starts here, which the caller keeps as close to
+ * the postMessage as it can. An ack retry reposts the same request id: keep the
+ * original row so latency still measures from the first post, and so no id can
+ * appear twice for `update` to hit. */
 let record_sent =
-    (~id: int, ~entries: int, ~sent_at: float, ~req_bytes: Core.Byte_units.t)
+    (~request: WorkerServer.Request.t, ~encoded: WorkerServer.Active.request)
     : unit =>
   when_enabled(() =>
-    if (!List.exists((r: record) => r.id == id, history^)) {
+    if (!List.exists((r: record) => r.id == request.request_id, history^)) {
       push({
-        id,
-        entries,
-        sent_at,
+        id: request.request_id,
+        entries: List.length(request.batch),
+        sent_at: Util.JsUtil.precise_timestamp(),
         latency: None,
         eval: None,
         status: Pending,
-        req_bytes,
+        req_bytes: WorkerServer.Active.size_request(encoded),
         resp_bytes: None,
       });
     }
   );
 
-/* Complete a request with its response; `now` is precise_timestamp ms and
- * `eval_ms` the evaluator time the worker measured for this batch. */
+/* Complete a request from the result the worker sent (its id, response and
+ * evaluator time) plus the still-encoded payload it arrived in, so the outcome
+ * and byte length are derived here. `now` stays a parameter: the caller reads
+ * the clock at the top of its message handler, before decoding, and a decode can
+ * take tens of ms — reading it here would fold that into the latency. */
 let record_done =
     (
-      ~id: int,
       ~now: float,
-      ~response: WorkerServer.Response.t,
-      ~eval_ms: float,
-      ~resp_bytes: Core.Byte_units.t,
+      ~encoded: WorkerServer.Active.response,
+      result: WorkerServer.ServerMessage.result,
     )
     : unit =>
   update(
-    (r: record) => r.id == id,
+    (r: record) => r.id == result.request_id,
     (r: record) =>
       {
         ...r,
         latency: Some(Core.Time_ns.Span.of_ms(now -. r.sent_at)),
-        eval: Some(Core.Time_ns.Span.of_ms(eval_ms)),
-        status: status_of_response(response),
-        resp_bytes: Some(resp_bytes),
+        eval: Some(Core.Time_ns.Span.of_ms(result.eval_ms)),
+        status: status_of_response(result.response),
+        resp_bytes: Some(WorkerServer.Active.size_response(encoded)),
       },
   );
 

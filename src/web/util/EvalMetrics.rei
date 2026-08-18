@@ -28,16 +28,15 @@ let history: ref(list(record));
 let restarts: ref(int);
 
 let record_sent:
-  (~id: int, ~entries: int, ~sent_at: float, ~req_bytes: Core.Byte_units.t) =>
+  (~request: WorkerServer.Request.t, ~encoded: WorkerServer.Active.request) =>
   unit;
 
+/* `now` is read by the caller before it decodes the response; see EvalMetrics.re. */
 let record_done:
   (
-    ~id: int,
     ~now: float,
-    ~response: WorkerServer.Response.t,
-    ~eval_ms: float,
-    ~resp_bytes: Core.Byte_units.t
+    ~encoded: WorkerServer.Active.response,
+    WorkerServer.ServerMessage.result
   ) =>
   unit;
 

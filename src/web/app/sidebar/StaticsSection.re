@@ -20,11 +20,9 @@ let mode_label = (m: PerfMetrics.statics_mode): string =>
 
 let columns =
     (~max: Core.Time_ns.Span.t): list(PerfFormat.column(PerfMetrics.frame)) => [
-  {
-    label: "action",
-    tooltip: "The edit action that triggered this frame.",
-    cell: f => PerfFormat.label_cell(PerfFormat.fmt_opt(fst, f.perform)),
-  },
+  PerfFormat.action_column((f: PerfMetrics.frame) =>
+    PerfFormat.fmt_opt(fst, f.perform)
+  ),
   {
     label: "time",
     tooltip: "Time to recompute statics + elaboration (Statics.mk). — when the recompute was skipped this frame.",
