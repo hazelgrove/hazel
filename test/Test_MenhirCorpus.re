@@ -29,8 +29,13 @@ let known_gaps: list((string, string)) =
       "tuples.hz",
       "deliberate error exhibit (1=\"hello\"): MakeTerm reads a MultiHole, menhir a labeled tuple",
     ),
+    /* The two Properties slides containing `[()]`; nrows is clean. */
     (
-      "table-api-properties.hz",
+      "table-api-properties-header.hz",
+      "editor tokenizer quirk: [()] reads as [] via MakeTerm (file as editor bug)",
+    ),
+    (
+      "table-api-properties-ncols.hz",
       "editor tokenizer quirk: [()] reads as [] via MakeTerm (file as editor bug)",
     ),
   ]
